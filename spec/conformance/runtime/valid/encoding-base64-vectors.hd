@@ -86,7 +86,7 @@ tests:
         while count < 12:
             for encoding in [Base64.Standard, Base64.StandardNoPad, Base64.Url, Base64.UrlNoPad]:
                 assert_equal(
-                    payload(encoding, token(encoding, bytes)),
+                    payload(*encoding, token(*encoding, bytes)),
                     .Ok(bytes),
                     reason="round trip",
                 )

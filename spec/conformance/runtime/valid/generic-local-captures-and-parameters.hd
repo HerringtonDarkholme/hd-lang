@@ -6,7 +6,7 @@ fn number_rows[T < Display](rows: List[T], prefix: string) -> string:
     fn row[U < Display](item: T, note: U) -> string:
         count = count + 1
         "${prefix}${count} ${item} ${note}"
-    each := [for item in rows => row(item, true)].join("; ")
+    each := [for item in rows => row(*item, true)].join("; ")
     "${each}; ${row(rows[0], "again")}"
 
 pub fn main() -> void $ Console:

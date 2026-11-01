@@ -55,4 +55,4 @@ pub fn main() -> void $ Console:
     println(show(slot))
     let list: List[i32??] = [some, .None, none, .Some(.Some(1))]
     for item in list:
-        println(show(item))
+        println(show(*item))

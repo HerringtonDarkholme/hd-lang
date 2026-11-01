@@ -413,7 +413,7 @@ tests:
                 Width.Usize,
             ]:
                 assert_equal(
-                    parse_width(width, row._0),
+                    parse_width(*width, row._0),
                     .Err(row._1),
                     reason="every width rejects this grammar",
                 )

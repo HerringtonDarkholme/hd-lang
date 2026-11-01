@@ -20,7 +20,7 @@ impl Meter:
 fn mapped(items: List[i32], f: fn(i32) -> i32) -> List[i32]:
     let mut out: List[i32] = []
     for item in items:
-        out.push(f(item))
+        out.push(f(*item))
     out
 
 fn classify(n: i32) -> Result[i32, string]:

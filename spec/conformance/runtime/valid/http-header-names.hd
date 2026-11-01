@@ -87,7 +87,7 @@ tests:
         for text in ["", "x y", "x:y", "x\r\ny", "café", "x\u{0}y"]:
             assert_equal(
                 text.parse::[HeaderName](),
-                .Err(HeaderError.InvalidName(text)),
+                .Err(HeaderError.InvalidName(*text)),
                 reason="not an RFC token",
             )
         assert_equal(

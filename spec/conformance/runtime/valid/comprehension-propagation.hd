@@ -10,7 +10,7 @@ fn parse(tally: &mut Tally, text: string) -> Result[usize, string]:
     .Ok(text.len())
 
 fn parse_all(tally: &mut Tally, lines: List[string]) -> Result[List[usize], string]:
-    .Ok([for line in lines => parse(tally, line)?])
+    .Ok([for line in lines => parse(tally, *line)?])
 
 tests:
     use std.testing.assert_equal

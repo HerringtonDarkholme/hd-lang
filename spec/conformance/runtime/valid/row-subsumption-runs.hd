@@ -33,7 +33,7 @@ fn serve(handler: fn() -> string $ Db + Clock) -> string $ Db + Clock:
 fn serve_all(handlers: List[fn() -> string $ Db + Clock]) -> string $ Db + Clock:
     let text = ""
     for handler in handlers:
-        text = text + handler() + ";"
+        text = text + (*handler)() + ";"
     text
 
 tests:

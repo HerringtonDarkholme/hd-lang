@@ -59,7 +59,7 @@ tests:
         let statuses: List[u16] = [0, 199, 200, 299, 300, 399, 400, 499, 500, 599, 600, 65535]
         for status in statuses:
             response := Response {
-                status: HttpStatus::from_code(status),
+                status: HttpStatus::from_code(*status),
                 url: .Some(url("https://example.test/")),
             }.set_text("body")
             if status >= 400 && status <= 599:

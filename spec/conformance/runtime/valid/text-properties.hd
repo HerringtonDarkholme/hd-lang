@@ -163,7 +163,7 @@ fn scalar_count(bytes: List[u8]) -> usize:
     let remaining: usize = 0
     for byte in bytes:
         if remaining == 0:
-            remaining = scalar_width(byte)
+            remaining = scalar_width(*byte)
         remaining -= 1
         if remaining == 0:
             count += 1
@@ -305,12 +305,12 @@ tests:
             let expected = ""
             let index: usize = 0
             for chunk in chunks:
-                piece := text_of(chunk)
+                piece := text_of(*chunk)
                 if index % 2 == 0:
                     builder.push(piece)
                 else:
                     for c in chunk:
-                        builder.push_char(c)
+                        builder.push_char(*c)
                 expected = expected + piece
                 index += 1
             kept := builder.build()

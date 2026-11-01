@@ -42,7 +42,7 @@ fn declared() -> string $ Db + Clock + Log:
     let handlers: List[fn() -> string $ Db + Clock + Log] = [health, orders]
     let text = ""
     for handler in handlers:
-        text = text + handler()
+        text = text + (*handler)()
     text
 
 fn serve() -> string $ Db + Clock + Log:

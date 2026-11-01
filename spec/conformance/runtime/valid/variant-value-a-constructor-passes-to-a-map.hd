@@ -11,7 +11,7 @@ fn area(shape: Shape) -> i32:
         .Square(s) => s * s
 
 fn build(sizes: List[i32], make: fn(i32) -> Shape) -> List[Shape]:
-    [for size in sizes => make(size)]
+    [for size in sizes => make(*size)]
 
 pub fn main() -> void $ Console:
     shapes := build([+1, 2], Shape.Circle)

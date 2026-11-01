@@ -33,6 +33,6 @@ pub fn main() -> void $ Console:
     println("${made is again} ${made is made}")
     let mut refs: List[*i32] = []
     for i in [+1, +1]:
-        refs.push(box(i))
+        refs.push(box(*i))
     println(refs[0] is refs[1])
     println("${same_any(p, p)} ${same_any(p, q)}")

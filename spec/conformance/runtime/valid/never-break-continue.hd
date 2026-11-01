@@ -13,7 +13,7 @@ fn total(entries: List[i32?]) -> i32:
 fn first_negative(values: List[i32]) -> i32:
     let found = +0
     for value in values:
-        found = if value < 0: value else: continue
+        found = if value < 0: *value else: continue
         break
     found
 

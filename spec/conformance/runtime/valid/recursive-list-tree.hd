@@ -13,7 +13,7 @@ enum Tree:
 fn total(node: Node) -> i64:
     let sum = node.value
     for child in node.children:
-        sum = sum + total(child)
+        sum = sum + total(*child)
     sum
 
 fn leaves(tree: Tree) -> i64:
@@ -22,7 +22,7 @@ fn leaves(tree: Tree) -> i64:
         .Branch(children) =>
             let sum: i64 = 0
             for child in children:
-                sum = sum + leaves(child)
+                sum = sum + leaves(*child)
             sum
 
 pub fn main() -> void $ Console:

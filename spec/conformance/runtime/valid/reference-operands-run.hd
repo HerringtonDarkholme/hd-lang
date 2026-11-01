@@ -10,7 +10,7 @@ fn sums(x: &i32, y: &mut i32) -> (i32, i32, bool, bool):
 fn accumulate(xs: List[i32], y: &i32) -> i32:
     let total = +0
     for x in xs:
-        x_ref := &x
+        x_ref := x
         total += x_ref * y
     total
 

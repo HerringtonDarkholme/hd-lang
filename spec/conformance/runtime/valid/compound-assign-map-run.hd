@@ -3,7 +3,7 @@
 fn count(words: List[string]) -> Map[string, i32]:
     let mut counts: Map[string, i32] = { "a": 0, "b": 0 }
     for word in words:
-        counts[word] += 1
+        counts[*word] += 1
     counts
 
 tests:

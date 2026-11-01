@@ -23,7 +23,7 @@ fn joined(value: *dyn Inspectable) -> string:
         .Some(parts) =>
             let text: string = ""
             for part in parts:
-                text = text + part.to_string()
+                text = text + (*part).to_string()
             text
         .None => "no match"
 

@@ -22,7 +22,7 @@ fn via_discard() -> i32:
 fn via_break(values: List[i32]) -> i32:
     for value in values:
         break twice():
-            value
+            *value
     else:
         0
 

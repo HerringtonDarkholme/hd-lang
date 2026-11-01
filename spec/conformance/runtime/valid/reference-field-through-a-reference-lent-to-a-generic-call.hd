@@ -23,5 +23,5 @@ pub fn main() -> void $ Console:
             kept.push(box(Point { x: i64(i) }))
     let total: i64 = 0
     for p in kept:
-        total += p.x
+        total += (*p).x
     println("total=$total")

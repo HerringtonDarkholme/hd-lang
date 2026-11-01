@@ -306,7 +306,7 @@ fn number_gen(c: &mut Choices) -> string:
 tests:
     it("the edge texts match the old readers"):
         for text in EDGES:
-            assert_equal(disagreement(text), "", reason="edge text ${debug(text)}")
+            assert_equal(disagreement(*text), "", reason="edge text ${debug(text)}")
 
     it_prop_with(
         "random texts match the old readers",

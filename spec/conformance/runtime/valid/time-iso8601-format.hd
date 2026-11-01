@@ -37,7 +37,7 @@ tests:
 
     it("the ISO text is the date part of the RFC 3339 text"):
         for millis in [0, 1700000000500, -1, 951782400000]:
-            stamp := Timestamp::from_unix_milliseconds(millis)
+            stamp := Timestamp::from_unix_milliseconds(*millis)
             assert_equal(
                 stamp.date().to_iso8601(),
                 stamp.to_rfc3339().slice(0, 10),

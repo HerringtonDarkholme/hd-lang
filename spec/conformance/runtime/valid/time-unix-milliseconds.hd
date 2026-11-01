@@ -18,13 +18,13 @@ tests:
         ]
         for millis in values:
             assert_equal(
-                Timestamp::from_unix_milliseconds(millis).unix_milliseconds(),
-                millis,
+                Timestamp::from_unix_milliseconds(*millis).unix_milliseconds(),
+                *millis,
                 reason="the same milliseconds",
             )
             assert_equal(
-                Instant::from_milliseconds(millis).as_milliseconds(),
-                millis,
+                Instant::from_milliseconds(*millis).as_milliseconds(),
+                *millis,
                 reason="the same instant milliseconds",
             )
 

@@ -14,7 +14,7 @@ impl Hasher for Tally:
     fn write(&mut self, bytes: List[u8]) -> void:
         for byte in bytes:
             self.count = self.count + 1
-            self.sum = self.sum + u64(byte)
+            self.sum = self.sum + u64(*byte)
 
 # Through a bound: `H` is the struct itself.
 fn feed[H < Hasher](h: &mut H, bytes: List[u8]) -> void:

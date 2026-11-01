@@ -85,10 +85,10 @@ tests:
     it("heapification uses linear comparisons even for ascending inputs"):
         for size in [31, 64, 127, 1024]:
             counter := box(Counter { comparisons: 0 })
-            values := (0..size).iter()
+            values := (0..*size).iter()
                 .map(fn(n: usize) -> Counted: Counted { value: i32(n), counter: counter })
             let mut heap = values.collect::[Heap[Counted]]()
-            assert_equal(heap.len(), size, reason="all items collected")
+            assert_equal(heap.len(), *size, reason="all items collected")
             assert(
                 counter.comparisons <= 2 * size,
                 reason="bottom-up construction, not repeated push",

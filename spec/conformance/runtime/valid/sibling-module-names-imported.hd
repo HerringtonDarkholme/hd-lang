@@ -18,7 +18,7 @@ impl Priced for Basket:
 fn sum(carts: List[Cart], fee: i32) -> Cents:
     let acc = fee
     for cart in carts:
-        acc = acc + total(cart)
+        acc = acc + total(*cart)
     acc
 
 tests:

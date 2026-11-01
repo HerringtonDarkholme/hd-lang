@@ -5,12 +5,12 @@ struct Item:
     cents: i32
 
 fn map_all[A, B](f: fn(A) -> B, items: List[A]) -> List[B]:
-    [for item in items => f(item)]
+    [for item in items => f(*item)]
 
 fn fold[A, S](step: fn(S, A) -> S, items: List[A], start: S) -> S:
     let acc = start
     for item in items:
-        acc = step(acc, item)
+        acc = step(acc, *item)
     acc
 
 fn priced() -> i32:

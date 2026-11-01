@@ -6,7 +6,7 @@ struct Point:
 fn total(points: List[*Point]) -> i32:
     let result = +0
     for p in points:
-        result += p.x
+        result += (*p).x
     result
 
 tests:

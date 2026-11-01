@@ -35,7 +35,7 @@ pub fn main() -> void $ Console:
     holder := Holder { ctx: $.context(Tag=Named { label: "held" }) }
     all := [holder.ctx, $.context(Tag=Named { label: "listed" })]
     for ctx in all:
-        $.with(ctx...):
+        $.with((*ctx)...):
             println(run(current))
     $.with(holder.ctx...):
         println(run(fn(): $.use(Tag).name() + "!"))

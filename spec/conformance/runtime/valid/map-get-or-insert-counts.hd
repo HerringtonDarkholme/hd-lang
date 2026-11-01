@@ -5,7 +5,7 @@
 fn count(words: List[string]) -> Map[string, usize]:
     let mut found: Map[string, usize] = {}
     for word in words:
-        *found.get_or_insert(word, 0) += 1
+        *found.get_or_insert(*word, 0) += 1
     found
 
 tests:

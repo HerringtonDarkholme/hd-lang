@@ -26,4 +26,4 @@ pub fn main() -> void $ Console:
         box(3),
     ]
     for value in values:
-        println(describe(value))
+        println(describe(*value))

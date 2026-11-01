@@ -42,16 +42,16 @@ fn flag(text: string) -> Flag:
 fn show(facts: Facts) -> string:
     let mut parts: List[string] = []
     for item in facts.items:
-        match item.downcast_ref::[Tag]():
+        match (*item).downcast_ref::[Tag]():
             .Some(t) => parts.push("tag:" + t.text)
             .None => pass
-        match item.downcast_ref::[Note]():
+        match (*item).downcast_ref::[Note]():
             .Some(t) => parts.push("note:" + t.text)
             .None => pass
-        match item.downcast_ref::[Mark]():
+        match (*item).downcast_ref::[Mark]():
             .Some(t) => parts.push("mark:" + t.text)
             .None => pass
-        match item.downcast_ref::[Flag]():
+        match (*item).downcast_ref::[Flag]():
             .Some(t) => parts.push("flag:" + t.text)
             .None => pass
     "[" + joined(parts, " ") + "]"

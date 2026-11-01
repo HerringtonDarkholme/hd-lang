@@ -51,7 +51,7 @@ fn compile(node: Node, program: &mut List[Inst]) -> void:
             program.push(Inst.Save(2 * index + 1))
         .Concat(items) =>
             for item in items:
-                compile(item, program)
+                compile(*item, program)
         .Alternate(branches) =>
             let mut jumps: List[usize] = []
             let index: usize = 0
@@ -67,7 +67,7 @@ fn compile(node: Node, program: &mut List[Inst]) -> void:
                     compile(branches[index], program)
                 index = index + 1
             for jump in jumps:
-                program[jump] = Inst.Jump(program.len())
+                program[*jump] = Inst.Jump(program.len())
         .Repeat(body, min, max, greedy) =>
             let copies: usize = 0
             match max:
@@ -96,7 +96,7 @@ fn compile(node: Node, program: &mut List[Inst]) -> void:
                         compile(*body, program)
                         copies = copies + 1
                     for split in splits:
-                        program[split] = choice(split + 1, program.len(), greedy)
+                        program[*split] = choice(split + 1, program.len(), greedy)
 
 fn choice(body: usize, out: usize, greedy: bool) -> Inst:
     if greedy: Inst.Split(body, out) else: Inst.Split(out, body)
@@ -192,7 +192,7 @@ fn run(program: List[Inst], hay: &Haystack, from: usize, slot_count: usize) -> L
         here := half(index, size, slot_count)
         there := half(next_index, size, slot_count)
         for pc in current:
-            inst := program[pc]
+            inst := program[*pc]
             if inst_done(inst):
                 found = []
                 let slot: usize = 0
@@ -344,7 +344,7 @@ fn push_frame(stack: &mut List[*Frame], top: usize, frame: *Frame) -> usize:
 fn class_matches(items: List[ClassItem], negated: bool, c: char) -> bool:
     let hit = false
     for item in items:
-        if item_matches(item, c):
+        if item_matches(*item, c):
             hit = true
             break
     hit != negated
@@ -533,7 +533,7 @@ fn gen_piece(c: &mut Choices, groups: usize) -> Piece:
 fn template_text(pieces: List[Piece]) -> string:
     let mut parts: List[string] = []
     for piece in pieces:
-        parts.push(piece_text(piece))
+        parts.push(piece_text(*piece))
     parts.join("")
 
 fn piece_text(piece: Piece) -> string:
@@ -626,13 +626,13 @@ fn old_summary(node: Node, names: List[string], text: string, pieces: List[Piece
     let mut split: List[string] = []
     let last: usize = 0
     for slots in all:
-        spans.push(old_span(hay, slots, 0))
-        groups.push(old_groups(hay, slots))
-        start := hay.offsets[matched(slots, 0)]
+        spans.push(old_span(hay, *slots, 0))
+        groups.push(old_groups(hay, *slots))
+        start := hay.offsets[matched(*slots, 0)]
         replaced.push(text.slice(last, start))
-        replaced.push(old_expand(hay, slots, names, pieces))
+        replaced.push(old_expand(hay, *slots, names, pieces))
         split.push(text.slice(last, start))
-        last = hay.offsets[matched(slots, 1)]
+        last = hay.offsets[matched(*slots, 1)]
     replaced.push(text.slice(last, text.len()))
     split.push(text.slice(last, text.len()))
     lines.push("find_all " + spans.join(" "))
@@ -677,7 +677,7 @@ fn old_expand(
 ) -> string:
     let mut parts: List[string] = []
     for piece in pieces:
-        parts.push(old_piece(hay, slots, names, piece))
+        parts.push(old_piece(hay, slots, names, *piece))
     parts.join("")
 
 fn old_piece(hay: &Haystack, slots: List[usize?], names: List[string], piece: Piece) -> string:
@@ -711,10 +711,10 @@ fn new_summary(case: &Case) -> string:
     lines.push("replace " + debug(regex.replace(text, case.template)))
     let mut spans: List[string] = []
     for found in regex.find_all(text):
-        spans.push(new_span(found))
+        spans.push(new_span(*found))
     let mut groups: List[string] = []
     for each in regex.captures_all(text):
-        groups.push(new_groups(each))
+        groups.push(new_groups(*each))
     lines.push("find_all " + spans.join(" "))
     lines.push("captures_all " + groups.join(" / "))
     lines.push("replace_all " + debug(regex.replace_all(text, case.template)))
@@ -934,7 +934,7 @@ tests:
                 case := fixed(jump, ".{1,3}zz", n, "xxxxxxxxxxxxxxxx" + body + gap + "zz x😀zz")
                 assert_equal(new_summary(case), case.expected, reason=case.text)
         for case in cases:
-            assert_equal(new_summary(case), case.expected, reason=case.pattern)
+            assert_equal(new_summary(*case), (*case).expected, reason=(*case).pattern)
 
     it_prop_with(
         "random literal patterns on short texts agree with the plain VM",

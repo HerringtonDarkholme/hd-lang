@@ -9,7 +9,7 @@ struct Recorder:
 impl Hasher for Recorder:
     fn write(&mut self, bytes: List[u8]) -> void:
         for byte in bytes:
-            self.bytes.push(byte)
+            self.bytes.push(*byte)
 
 fn bytes_of[T < Hash](value: T) -> List[u8]:
     let mut recorder = Recorder { bytes: [] }

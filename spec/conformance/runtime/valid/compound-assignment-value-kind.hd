@@ -12,7 +12,7 @@ impl Add[Meters] for Meters:
 fn walk(steps: List[i64]) -> i64:
     let walked = Meters(0)
     for step in steps:
-        walked += Meters(step)
+        walked += Meters(*step)
     i64(walked)
 
 fn sum[T < Num](items: List[T]) -> T:

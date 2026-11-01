@@ -44,4 +44,4 @@ pub fn main!() -> void $ Console + Clock:
     println(read_twice!(&Thermometer { offset: 10 }))
     let sensors: List[*dyn Sensor] = [box(Barometer { scale: 3 }), box(Thermometer { offset: 0 })]
     for s in sensors:
-        println("${s.name()} ${s.sample!(5)}")
+        println("${(*s).name()} ${(*s).sample!(5)}")

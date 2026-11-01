@@ -14,7 +14,7 @@ impl Counter:
         Counter { value: 0 }
 
 fn apply_all[T, U](items: List[T], transform: fn(T) -> U) -> List[U]:
-    [for item in items => transform(item)]
+    [for item in items => transform(*item)]
 
 tests:
     use std.testing.assert_equal

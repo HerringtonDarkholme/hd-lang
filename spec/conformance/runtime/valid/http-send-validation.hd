@@ -61,7 +61,7 @@ tests:
         path.path = "relative"
         $.with(Http=provider):
             for target in [scheme, host, path]:
-                request := Request::get(target).set_text("unread")
+                request := Request::get(*target).set_text("unread")
                 match request.send!():
                     .Err(.InvalidUrl(_)) => pass
                     _ => assert(false, reason="invalid public URL fields must fail")

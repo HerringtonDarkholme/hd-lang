@@ -866,7 +866,7 @@ fn nested_text(c: &mut Choices) -> string:
             closes.push("}")
     let mut parts: List[string] = []
     for open in opens:
-        parts.push(open)
+        parts.push(*open)
     push_value(c, &mut parts, 4, false)
     let index = closes.len()
     while index > 0:
@@ -1018,7 +1018,7 @@ fn put(c: &mut Choices, pairs: &mut List[(string, Json)], key: string, good: Jso
 fn object_of(c: &mut Choices, pairs: List[(string, Json)]) -> Json:
     let mut ordered: List[(string, Json)] = []
     for pair in pairs:
-        ordered.push(pair)
+        ordered.push(*pair)
     if c.int(0..=4) == 4:
         ordered.insert(
             c.int(usize(0)..=ordered.len()),
@@ -1359,7 +1359,7 @@ fn probe_record[R < Deserializer](
         .Ok(index) => state.log.push("record $index")
         .Err(error) => return state.failed("record", error)
     for name in ["a", "x", "k0", "missing", "b", "a", "name", "f3"]:
-        match input.member(&member_named(name)):
+        match input.member(&member_named(*name)):
             .Ok(_) => state.log.push("member $name")
             .Err(error) => state.failed("member", error)?
         probe(input, state, depth + 1)?
@@ -1394,7 +1394,7 @@ fn probe_enum[R < Deserializer](
     if depth % 2 == 0:
         probe_map(input, state, depth + 1, depth % 4 == 0)?
     for name in ["x", "y", "a", "since", "level"]:
-        match input.member(&member_named(name)):
+        match input.member(&member_named(*name)):
             .Ok(_) => state.log.push("member $name")
             .Err(error) => state.failed("member", error)?
         probe(input, state, depth + 1)?
@@ -1488,17 +1488,17 @@ fn object_disagreement(sets: &Sets) -> string:
     let step: i64 = 0
     for key in sets.keys:
         step = step + 1
-        object.set(key, int_json(step))
+        object.set(*key, int_json(step))
         let found = false
         let at: usize = 0
         while at < model.len():
             if model[at]._0 == key:
-                model[at] = (key, step)
+                model[at] = (*key, step)
                 found = true
                 break
             at = at + 1
         if !found:
-            model.push((key, step))
+            model.push((*key, step))
         if object.len() != model.len():
             return "len after ${debug(key)}"
         for wanted in OBJECT_KEYS:
@@ -1506,9 +1506,9 @@ fn object_disagreement(sets: &Sets) -> string:
             for pair in model:
                 if pair._0 == wanted:
                     expected = .Some(int_json(pair._1))
-            if debug(object.get(wanted)) != debug(expected):
+            if debug(object.get(*wanted)) != debug(expected):
                 return "get ${debug(wanted)} after ${debug(key)}"
-            if object.contains_key(wanted) != expected.is_some():
+            if object.contains_key(*wanted) != expected.is_some():
                 return "contains_key ${debug(wanted)} after ${debug(key)}"
     let mut order: List[string] = []
     for pair in model:
@@ -1568,15 +1568,15 @@ tests:
             "[\"\u{e9}\u{1f600}\"]",
             "{\"\":{\"\":[]}}",
         ]:
-            assert_equal(parse_disagreement(text), "", reason=debug(text))
+            assert_equal(parse_disagreement(*text), "", reason=debug(text))
 
     it("nesting at the limit parses as before"):
         for depth in [usize(126), usize(127), usize(128), usize(129), usize(130)]:
-            opens := "[".repeat(depth)
-            closes := "]".repeat(depth)
+            opens := "[".repeat(*depth)
+            closes := "]".repeat(*depth)
             assert_equal(parse_disagreement(opens + closes), "", reason="arrays $depth")
-            keyed := "{\"a\":".repeat(depth)
-            braces := "}".repeat(depth)
+            keyed := "{\"a\":".repeat(*depth)
+            braces := "}".repeat(*depth)
             assert_equal(parse_disagreement(keyed + "1" + braces), "", reason="objects $depth")
 
     it("a parsed string with no escape shares no state with the next parse"):

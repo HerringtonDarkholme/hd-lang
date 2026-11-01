@@ -358,8 +358,8 @@ tests:
         body=fn!(depth: usize):
             prefix := "{\"name\":\"Ada\",\"unknown\":"
             for object in [false, true]:
-                opening := if object: "{\"a\":" else: "["
-                closing := if object: "}" else: "]"
+                opening := if *object: "{\"a\":" else: "["
+                closing := if *object: "}" else: "]"
                 text := prefix + opening.repeat(depth) + "0" + closing.repeat(depth) + "}"
                 if depth < 128:
                     expected := Document { name: "Ada", count: 7, note: .None, cache: 7 }

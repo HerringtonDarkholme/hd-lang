@@ -4,7 +4,7 @@ use std.function.{Fn, FnMut}
 
 fn each[F < FnMut(i32) -> void](items: List[i32], mut f: F) -> void:
     for item in items:
-        f(item)
+        f(*item)
 
 fn twice[F < FnMut(i32) -> void](mut f: F) -> void:
     f(1)

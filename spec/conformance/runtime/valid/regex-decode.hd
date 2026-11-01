@@ -90,7 +90,7 @@ tests:
         let hits = 0
         let skipped = 0
         for line in lines:
-            match pattern.decode::[Hit](line):
+            match pattern.decode::[Hit](*line):
                 .Ok(hit) =>
                     assert_equal(hit.ip, "127.0.0.1", reason="ip")
                     assert_equal(hit.method, "GET", reason="method")

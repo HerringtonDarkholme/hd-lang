@@ -18,8 +18,8 @@ pub fn main() -> void $ Console:
     let nested: i32?? = .Some(.None)
     let flag = true
     for item in [some, nested, none]:
-        println(show(item))
+        println(show(*item))
     for item in [nested, some]:
-        println(show(item))
+        println(show(*item))
     println(show(if flag: some else: nested))
     println(show(if flag: nested else: none))

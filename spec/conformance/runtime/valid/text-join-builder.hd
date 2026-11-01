@@ -8,7 +8,7 @@ fn report(names: List[string]) -> string:
     out := StringBuilder::new()
     for name in names:
         out.push("- ")
-        out.push(name)
+        out.push(*name)
         out.push_char('\n')
     out.build()
 

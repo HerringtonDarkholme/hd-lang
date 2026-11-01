@@ -3,7 +3,7 @@
 fn first_even(values: List[i32]) -> i32?:
     for value in values:
         if value % 2 == 0:
-            return .Some(value)
+            return .Some(*value)
     .None
 
 fn quarter(value: i32) -> i32?:

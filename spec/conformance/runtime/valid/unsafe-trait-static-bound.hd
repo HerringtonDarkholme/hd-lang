@@ -14,7 +14,7 @@ fn latest[T < Versioned](first: T, rest: List[T]) -> T:
     let best = first
     for item in rest:
         if item.newer_than(best):
-            best = item
+            best = *item
     best
 
 tests:

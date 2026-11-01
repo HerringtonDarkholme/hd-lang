@@ -15,7 +15,7 @@ struct Employee:
 fn count(comment: Comment) -> i32:
     let total = +1
     for reply in comment.replies:
-        total = total + count(reply)
+        total = total + count(*reply)
     total
 
 fn head_name(employee: Employee) -> string:

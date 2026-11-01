@@ -55,7 +55,7 @@ fn first_even(values: List[i32]) -> i32?:
     let fallback: i32? = .None
     found := for v in values:
         if v % 2 == 0:
-            break v
+            break *v
     else:
         fallback
     found

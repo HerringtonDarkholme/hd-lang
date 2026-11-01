@@ -14,7 +14,7 @@ impl Greeter for Polite:
 
 fn greet_all(greeter: &dyn Greeter, names: List[string]) -> void $ Console:
     for n in names:
-        greeter.greet(n)
+        greeter.greet(*n)
 
 pub fn main() -> void $ Console:
     greet_all(&Polite { title: "Dr." }, ["Ada", "Alan"])

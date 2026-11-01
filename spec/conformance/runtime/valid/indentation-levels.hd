@@ -23,6 +23,6 @@ pub fn main() -> void $ Console:
         open := ward != 5
         beds := if ward == 2: +2 else: +0
 
-        println(visit(open, ward, beds))
+        println(visit(open, *ward, beds))
         seen = seen + 1
     println("wards checked: ${seen}")

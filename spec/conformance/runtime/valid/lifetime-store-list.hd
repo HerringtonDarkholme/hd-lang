@@ -19,8 +19,8 @@ fn oldest(users: List[User]) -> string:
             remember(&mut seen, u)
     let mut best = seen[0]
     for u in seen:
-        if u.age > best.age:
-            best = u
+        if (*u).age > best.age:
+            best = *u
     best.name
 
 pub fn main() -> void $ Console:

@@ -36,7 +36,7 @@ fn label(result: Result[string, SyncError]) -> string:
         .Err(error) => sync_label(error)
 
 fn wrap_all(errors: List[FsError], wrap: fn(FsError) -> SyncError) -> List[SyncError]:
-    [for error in errors => wrap(error)]
+    [for error in errors => wrap(*error)]
 
 tests:
     use std.testing.assert_equal

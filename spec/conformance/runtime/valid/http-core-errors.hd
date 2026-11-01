@@ -54,8 +54,8 @@ tests:
 
     it("URL errors convert to the existing HTTP error without losing text"):
         for text in ["relative/path?x=1", "https://[", "bad\nurl"]:
-            invalid := UrlError.Invalid(text)
-            relative := UrlError.RelativeWithoutBase(text)
+            invalid := UrlError.Invalid(*text)
+            relative := UrlError.RelativeWithoutBase(*text)
             assert_equal(invalid.to_string(), "invalid URL: $text", reason="invalid URL message")
             assert_equal(
                 relative.to_string(),
@@ -64,12 +64,12 @@ tests:
             )
             assert_equal(
                 HttpError::from(invalid),
-                HttpError.InvalidUrl(text),
+                HttpError.InvalidUrl(*text),
                 reason="invalid input preserved through From",
             )
             assert_equal(
                 HttpError::from(relative),
-                HttpError.InvalidUrl(text),
+                HttpError.InvalidUrl(*text),
                 reason="relative input preserved through From",
             )
 

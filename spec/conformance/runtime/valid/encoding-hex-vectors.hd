@@ -53,7 +53,7 @@ tests:
         let repetition: usize = 0
         while repetition < 32:
             for byte in bytes:
-                long_bytes.push(byte)
+                long_bytes.push(*byte)
             repetition += 1
         assert_equal(hex_decode(encoded.repeat(32)), .Ok(long_bytes), reason="long input")
 

@@ -30,7 +30,7 @@ fn split_at(bytes: List[u8], cut: usize) -> bool:
 fn one_at_a_time(bytes: List[u8]) -> bool:
     hasher := Sha256::new()
     for byte in bytes:
-        hasher.update([byte])
+        hasher.update([*byte])
     hasher.finish() == sha256(bytes)
 
 tests:
@@ -77,7 +77,7 @@ tests:
 
     it("messages that end near a block boundary"):
         for size in [usize(0), 1, 54, 55, 56, 57, 63, 64, 65, 119, 120, 127, 128, 129]:
-            bytes := counting(size)
+            bytes := counting(*size)
             assert(one_at_a_time(bytes), reason="one byte at a time, size " + size.to_string())
             assert(split_at(bytes, size / 2), reason="halves, size " + size.to_string())
 

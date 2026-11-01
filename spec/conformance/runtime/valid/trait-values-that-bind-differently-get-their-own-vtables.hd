@@ -48,4 +48,4 @@ pub fn main() -> void $ Console:
     println(book.keys().len())
     println(table.keys().len())
     for k in table.keys():
-        println(table.find(k).unwrap_or(""))
+        println(table.find(*k).unwrap_or(""))

@@ -6,7 +6,7 @@ use std.text.{EscapeError, interpolate, process_escapes}
 fn cooked(t: Template[i32]) -> string:
     let mut pieces: List[string] = []
     for piece in t.raw_parts:
-        match process_escapes(piece):
+        match process_escapes(*piece):
             .Ok(text) => pieces.push(text)
             .Err(error) => pieces.push("?${error.position}")
     interpolate(Template { raw_parts: pieces, values: t.values })

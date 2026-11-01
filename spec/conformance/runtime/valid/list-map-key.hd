@@ -3,9 +3,9 @@
 fn count(words: List[List[string]]) -> Map[List[string], i32]:
     let mut counts: Map[List[string], i32] = {}
     for key in words:
-        match counts.get(key):
-            .Some(n) => counts[key] = n + 1
-            .None => counts[key] = 1
+        match counts.get(*key):
+            .Some(n) => counts[*key] = n + 1
+            .None => counts[*key] = 1
     counts
 
 tests:

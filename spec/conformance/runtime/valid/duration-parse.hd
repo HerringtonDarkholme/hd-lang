@@ -85,7 +85,7 @@ tests:
             9223372036854775807,
         ]
         for value in values:
-            duration := Duration::milliseconds(value)
+            duration := Duration::milliseconds(*value)
             assert_equal(
                 duration.to_string().parse::[Duration](),
                 .Ok(duration),

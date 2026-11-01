@@ -51,7 +51,7 @@ fn literal_find(literal: string, text: string, from: usize) -> Match?:
 fn next_boundary(text: string, after: usize) -> usize:
     for boundary in boundaries(text):
         if boundary > after:
-            return boundary
+            return *boundary
     text.len() + 1
 
 fn literal_all(literal: string, text: string) -> List[Match]:
@@ -90,7 +90,7 @@ fn verify_match(found: Match, text: string) -> void:
 fn verify_all(found: List[Match], text: string) -> void:
     let previous: Match? = .None
     for current in found:
-        verify_match(current, text)
+        verify_match(*current, text)
         match previous:
             .Some(before) =>
                 assert(current.start >= before.end, reason="matches never overlap")
@@ -105,7 +105,7 @@ fn verify_all(found: List[Match], text: string) -> void:
                         reason="an empty match at the previous end is dropped",
                     )
             .None => pass
-        previous = .Some(current)
+        previous = .Some(*current)
 
 fn verify_captures(found: Captures, whole: Match, text: string) -> void:
     assert_equal(found.get(0), .Some(whole), reason="capture zero is the whole match")
@@ -125,7 +125,7 @@ fn generated_text(values: List[u8]) -> string:
     alphabet := ["a", "b", "x", "é", "λ", "😀", "\n", "", " "]
     let text = ""
     for value in values:
-        text += alphabet[usize(value) % alphabet.len()]
+        text += alphabet[usize(*value) % alphabet.len()]
     text
 
 fn patterns() -> List[string]:
@@ -216,7 +216,7 @@ tests:
         prop=fn!(text: string):
             let mut expected: List[Match] = []
             for boundary in boundaries(text):
-                expected.push(Match { start: boundary, end: boundary, text: "" })
+                expected.push(Match { start: *boundary, end: *boundary, text: "" })
             actual := Regex::new("").expect("empty compiles").find_all(text)
             assert_equal(
                 actual,
@@ -233,7 +233,7 @@ tests:
         prop=fn!(values: List[u8]):
             text := generated_text(values)
             for pattern in patterns():
-                compiled := Regex::new(pattern).expect("the supported pattern compiles")
+                compiled := Regex::new(*pattern).expect("the supported pattern compiles")
                 assert_equal(
                     compiled.is_match(text),
                     compiled.find(text).is_some(),
@@ -249,7 +249,7 @@ tests:
         prop=fn!(values: List[u8]):
             text := generated_text(values)
             for pattern in patterns():
-                compiled := Regex::new(pattern).expect("the supported pattern compiles")
+                compiled := Regex::new(*pattern).expect("the supported pattern compiles")
                 match compiled.captures(text):
                     .Some(groups) =>
                         verify_captures(

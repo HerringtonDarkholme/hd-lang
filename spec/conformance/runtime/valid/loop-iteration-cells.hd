@@ -9,7 +9,7 @@ pub fn main!() -> void:
     let mut readers: List[fn() -> i32] = []
     let mut writers: List[fn!() -> i32] = []
     for seed in [+10, 20]:
-        let count: i32 = seed
+        let count: i32 = *seed
         readers.push(fn() -> i32: count)
         writers.push(
             fn!() -> i32:

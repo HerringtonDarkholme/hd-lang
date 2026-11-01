@@ -17,7 +17,7 @@ struct Catalog:
 fn sum(dir: Dir) -> i32:
     let total = dir.value
     for child in dir.kids:
-        total += sum(child)
+        total += sum(*child)
     total
 
 fn leaves(tree: Tree) -> i32:
@@ -26,7 +26,7 @@ fn leaves(tree: Tree) -> i32:
         .Branch(children) =>
             let total = +0
             for child in children:
-                total += leaves(child)
+                total += leaves(*child)
             total
 
 tests:

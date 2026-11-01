@@ -5,7 +5,7 @@ fn largest[T < Num](items: List[T]) -> T:
     let best = items[0]
     for item in items:
         if item > best:
-            best = item
+            best = *item
     best
 
 fn describe[T < Num](value: T) -> string:

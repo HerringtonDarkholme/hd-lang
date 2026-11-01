@@ -15,7 +15,7 @@ tests:
         let mut heap: Heap[i32] = Heap::new()
         assert(heap.is_empty(), reason="new is empty")
         for value in [5, 1, 8, 3, 9, 2, 8, -4]:
-            heap.push(value)
+            heap.push(*value)
         assert_equal(heap.len(), 8, reason="eight elements")
         assert_equal(heap.peek(), .Some(9), reason="peek")
         assert_equal(heap.len(), 8, reason="peek removes nothing")
@@ -26,7 +26,7 @@ tests:
     it("pushes after pops"):
         let mut heap: Heap[i32] = Heap::new()
         for value in [+4, 7, 1]:
-            heap.push(value)
+            heap.push(*value)
         assert_equal(heap.pop(), .Some(7), reason="the largest")
         heap.push(6)
         heap.push(0)
@@ -35,7 +35,7 @@ tests:
     it("to_sorted_list copies in ascending order"):
         let mut heap: Heap[string] = Heap::new()
         for word in ["pear", "apple", "fig"]:
-            heap.push(word)
+            heap.push(*word)
         assert_equal(heap.to_sorted_list(), ["apple", "fig", "pear"], reason="ascending")
         assert_equal(heap.len(), 3, reason="the heap is unchanged")
         assert_equal(heap.pop(), .Some("pear"), reason="still a max-heap")
@@ -44,9 +44,9 @@ tests:
         let mut heap: Heap[i32] = Heap::new()
         for value in [+4, -2, 4, 0]:
             assert_equal(heap.pop(), .None, reason="empty before refill")
-            heap.push(value)
-            assert_equal(heap.peek(), .Some(value), reason="singleton peek")
-            assert_equal(heap.pop(), .Some(value), reason="singleton pop")
+            heap.push(*value)
+            assert_equal(heap.peek(), .Some(*value), reason="singleton peek")
+            assert_equal(heap.pop(), .Some(*value), reason="singleton pop")
             assert(heap.is_empty(), reason="empty after singleton pop")
 
     it("sifting handles either child and duplicate parents at every size"):

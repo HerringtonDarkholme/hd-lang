@@ -9,7 +9,7 @@ fn parse_row(row: string) -> Result[i32, ParseError]:
 fn import_rows(rows: List[string]) -> Result[i32, ImportError]:
     let count = +0
     for row in rows:
-        count = count + parse_row(row)?
+        count = count + parse_row(*row)?
     .Ok(count)
 
 fn outcome(rows: List[string]) -> string:

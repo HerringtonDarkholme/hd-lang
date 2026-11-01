@@ -46,6 +46,6 @@ tests:
         assert(negative_zero("-1e-400"), reason="the sign bit of negative underflow")
     it("a minus sign before zero gives negative zero"):
         for source in ["-0", "-0.0"]:
-            assert_equal(text(source), "-0.0", reason=source)
-            assert(negative_zero(source), reason="the sign bit of $source")
+            assert_equal(text(*source), "-0.0", reason=*source)
+            assert(negative_zero(*source), reason="the sign bit of $source")
         assert(!negative_zero("0"), reason="zero keeps a clear sign bit")

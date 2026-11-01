@@ -15,7 +15,7 @@ fn add(set: &mut Set[string], word: string) -> bool:
 
 fn add_all(heap: &mut Heap[i32], values: List[i32]) -> void:
     for value in values:
-        heap.push(value)
+        heap.push(*value)
 
 struct Board:
     waiting: Deque[string]

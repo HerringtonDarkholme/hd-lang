@@ -5,7 +5,7 @@ fn pass_through[T](value: T) -> T:
 
 fn first[T](values: List[T]) -> T?:
     for value in values:
-        return value
+        return *value
     .None
 
 tests:

@@ -19,7 +19,7 @@ fn half(value: i32?) -> i32?:
 fn first(items: List[i32]) -> i32:
     let found = -1
     for item in items:
-        found = item
+        found = *item
         break
     found
 

@@ -181,11 +181,11 @@ tests:
             "https://x/#%FF",
             "https://x/\r\n",
         ]:
-            assert_equal(Url::parse(text), .Err(UrlError.Invalid(text)), reason="invalid URL")
+            assert_equal(Url::parse(*text), .Err(UrlError.Invalid(*text)), reason="invalid URL")
         for text in ["relative/path", "/absolute/path", "//x/path"]:
             assert_equal(
-                Url::parse(text),
-                .Err(UrlError.RelativeWithoutBase(text)),
+                Url::parse(*text),
+                .Err(UrlError.RelativeWithoutBase(*text)),
                 reason="no base for a relative reference",
             )
 

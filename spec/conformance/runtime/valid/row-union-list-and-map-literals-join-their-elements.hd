@@ -42,14 +42,14 @@ fn from_list(admin: bool) -> string $ Db + Clock + Log:
     handlers := [health, if admin: orders else: audit]
     let text = ""
     for handler in handlers:
-        text = text + handler() + ";"
+        text = text + (*handler)() + ";"
     text
 
 fn from_map() -> string $ Db + Clock:
     routes := { "orders": orders, "health": health }
     let text = ""
     for name in ["orders", "health"]:
-        route := routes[name]
+        route := routes[*name]
         text = text + name + "=" + route() + ";"
     text
 

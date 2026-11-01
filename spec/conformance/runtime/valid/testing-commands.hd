@@ -82,7 +82,7 @@ tests:
             let system: usize = 0
             for expected in history:
                 system += 1
-                assert_equal(system, expected, reason="the command's expected count")
+                assert_equal(system, *expected, reason="the command's expected count")
         ,
     )
 
@@ -93,7 +93,7 @@ tests:
             let system: usize = 0
             for expected in history:
                 system += 1
-                assert_equal(system, expected, reason="the command's expected count")
+                assert_equal(system, *expected, reason="the command's expected count")
         ,
     )
 
@@ -147,7 +147,7 @@ tests:
             for value in history:
                 expected += 1
                 assert_equal(
-                    value,
+                    *value,
                     expected,
                     reason="the preceding transition supplied the next model",
                 )

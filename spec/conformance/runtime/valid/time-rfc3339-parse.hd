@@ -63,7 +63,7 @@ tests:
         ]
         for millis in samples:
             assert_equal(
-                parsed(at(millis).to_rfc3339()),
-                .Ok(at(millis)),
+                parsed(at(*millis).to_rfc3339()),
+                .Ok(at(*millis)),
                 reason="parse of to_rfc3339",
             )

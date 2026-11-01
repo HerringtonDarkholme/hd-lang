@@ -69,7 +69,7 @@ fn model_remove(model: &mut List[(i32, i32)], key: i32) -> i32?:
         if pair._0 == key:
             found = .Some(pair._1)
         else:
-            kept.push(pair)
+            kept.push(*pair)
     *model = kept
     found
 
@@ -176,14 +176,14 @@ fn exercise(script: Script) -> void:
         replacing := match op:
             .Put(key, _) => model_get(model, key).is_some()
             _ => false
-        expected := apply_model(&mut model, op)
+        expected := apply_model(&mut model, *op)
         assert_equal(
-            apply_map(&mut actual, op),
+            apply_map(&mut actual, *op),
             expected,
             reason="operation result matches the reference",
         )
         assert_equal(
-            apply_map(&mut replay, op),
+            apply_map(&mut replay, *op),
             expected,
             reason="replaying the same operation returns the same result",
         )

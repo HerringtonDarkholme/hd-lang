@@ -25,7 +25,7 @@ fn old_render(value: Json, out: &mut List[u8], spaced: bool, depth: usize) -> vo
                     out.push(44)
                 first = false
                 old_break(out, spaced, depth + 1)
-                old_render(item, out, spaced, depth + 1)
+                old_render(*item, out, spaced, depth + 1)
             old_break(out, spaced, depth)
             out.push(93)
         .Object(fields) =>
@@ -268,7 +268,7 @@ fn json_gen(c: &mut Choices, depth: i32) -> Json:
         _ =>
             let mut fields = JsonObject::new()
             for key in c.list(4, text_gen):
-                fields.set(key, json_gen(c, depth + 1))
+                fields.set(*key, json_gen(c, depth + 1))
             Json.Object(fields)
 
 fn item_gen(c: &mut Choices, depth: i32) -> *Item:

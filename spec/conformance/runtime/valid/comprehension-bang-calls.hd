@@ -9,7 +9,7 @@ fn fetch!(log: &mut Log, id: i32) -> string:
     "user$id"
 
 fn names!(log: &mut Log, ids: List[i32]) -> List[string]:
-    [for id in ids if id != 2 => fetch!(log, id)]
+    [for id in ids if id != 2 => fetch!(log, *id)]
 
 tests:
     use std.testing.assert_equal

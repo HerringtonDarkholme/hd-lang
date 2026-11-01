@@ -23,7 +23,7 @@ tests:
             "[1,[2,{\"a\":null}],\"x\"]",
             "{\"b\":1,\"a\":[true,false]}",
         ]:
-            assert_equal("${read(text)}", text, reason=text)
+            assert_equal("${read(*text)}", *text, reason=*text)
 
     it("parsing the printed text gives an equal value"):
         value := read(" { \"k\" : [ 1 , 2 ,\n3 ] , \"s\" : \"v\" } ")

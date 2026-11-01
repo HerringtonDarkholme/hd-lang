@@ -41,7 +41,7 @@ fn model_remove[K < Eq](values: List[K], key: K) -> (List[K], bool):
         if value == key:
             removed = true
         else:
-            kept.push(value)
+            kept.push(*value)
     (kept, removed)
 
 fn listed[K < Eq & Hash](set: Set[K]) -> List[K]:
@@ -58,18 +58,18 @@ fn verify[K < Eq & Hash & Debug](set: Set[K], replay: Set[K], model: List[K]) ->
     let mut seen: List[K] = []
     for key in actual:
         assert_equal(
-            model_contains(model, key),
+            model_contains(model, *key),
             true,
             reason="every iterated element belongs to the model",
         )
         assert_equal(
-            model_contains(seen, key),
+            model_contains(seen, *key),
             false,
             reason="iteration never repeats an equal element",
         )
-        seen.push(key)
+        seen.push(*key)
     for key in model:
-        assert_equal(set.contains(key), true, reason="every model element can be found")
+        assert_equal(set.contains(*key), true, reason="every model element can be found")
     assert_equal(
         listed(replay),
         actual,
@@ -187,12 +187,12 @@ tests:
         prop=fn!(values: List[u8]):
             let mut original: Set[i32] = Set::new()
             for value in values:
-                _ := original.insert(i32(value))
+                _ := original.insert(i32(*value))
             before := listed(original)
             let mut snapshot = original.iter()
             let mut copy = original
             for key in before:
-                _ := original.remove(key)
+                _ := original.remove(*key)
             _ := original.insert(1000)
             assert_equal(
                 listed(copy),
@@ -275,10 +275,10 @@ tests:
             let mut remaining: List[CollisionKey] = []
             for key in model:
                 if key.id % 2 == 0:
-                    assert_equal(set.remove(key), true, reason="remove an existing colliding key")
-                    _ := replay.remove(key)
+                    assert_equal(set.remove(*key), true, reason="remove an existing colliding key")
+                    _ := replay.remove(*key)
                 else:
-                    remaining.push(key)
+                    remaining.push(*key)
             model = remaining
             verify(set, replay, model)
             for offset in 0..count:

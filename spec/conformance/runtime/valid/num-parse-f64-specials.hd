@@ -18,13 +18,13 @@ tests:
 
     it("nan in any case, with any sign, is a NaN"):
         for source in ["NaN", "nan", "NAN", "-nan", "+NaN"]:
-            assert(parses_to_nan(source), reason=source)
+            assert(parses_to_nan(*source), reason=*source)
     it("inf and infinity in any case are positive infinity"):
         for source in ["inf", "Inf", "INF", "infinity", "Infinity", "+inf"]:
-            assert(parses_to(source, infinity()), reason=source)
+            assert(parses_to(*source, infinity()), reason=*source)
     it("a minus sign gives negative infinity"):
         for source in ["-inf", "-Infinity", "-INFINITY"]:
-            assert(parses_to(source, -infinity()), reason=source)
+            assert(parses_to(*source, -infinity()), reason=*source)
     it("the Display text of NaN and the infinities parses back"):
         assert(parses_to_nan((0.0 / 0.0).to_string()), reason="NaN")
         assert(parses_to(infinity().to_string(), infinity()), reason="inf")

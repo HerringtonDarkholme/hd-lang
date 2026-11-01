@@ -5,13 +5,13 @@ use std.function.{Fn, FnMut}
 fn count_where[F < Fn(i32) -> bool](items: List[i32], keep: F) -> usize:
     let n: usize = 0
     for item in items:
-        if keep(item):
+        if keep(*item):
             n += 1
     n
 
 fn each[F < FnMut(i32) -> void](items: List[i32], mut f: F) -> void:
     for item in items:
-        f(item)
+        f(*item)
 
 fn positive(x: i32) -> bool:
     x > 0

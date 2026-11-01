@@ -220,25 +220,25 @@ tests:
         for radix in [2, 8, 16, 36]:
             for value in [-2147483648, -255, -1, 0, 1, 255, 2147483647]:
                 assert_equal(
-                    i32::parse_radix(value.to_radix(radix), radix),
-                    .Ok(value),
+                    i32::parse_radix(value.to_radix(*radix), *radix),
+                    .Ok(*value),
                     reason="i32 radix $radix",
                 )
             for value in [u64(0), 1, 255, 4294967296, u64(i64_max()), u64_max()]:
                 assert_equal(
-                    u64::parse_radix(value.to_radix(radix), radix),
-                    .Ok(value),
+                    u64::parse_radix(value.to_radix(*radix), *radix),
+                    .Ok(*value),
                     reason="u64 radix $radix",
                 )
             for value in [i64_min(), -1, 0, i64_max()]:
                 assert_equal(
-                    i64::parse_radix(value.to_radix(radix), radix),
-                    .Ok(value),
+                    i64::parse_radix(value.to_radix(*radix), *radix),
+                    .Ok(*value),
                     reason="i64 radix $radix",
                 )
             for value in [i8(-128), -1, 0, 127]:
                 assert_equal(
-                    i8::parse_radix(value.to_radix(radix), radix),
-                    .Ok(value),
+                    i8::parse_radix(value.to_radix(*radix), *radix),
+                    .Ok(*value),
                     reason="i8 radix $radix",
                 )

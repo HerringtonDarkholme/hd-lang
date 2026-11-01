@@ -25,7 +25,7 @@ fn reference_encode(bytes: List[u8], digits: string, width: usize, padding: bool
     for byte in bytes:
         let divisor: usize = 128
         for _ in 0..8:
-            bits.push(usize(byte) / divisor % 2)
+            bits.push(usize(*byte) / divisor % 2)
             divisor /= 2
     let text = ""
     let index: usize = 0
@@ -193,7 +193,7 @@ tests:
                     row.standard
                 else:
                     row.url
-                if !padded(encoding):
+                if !padded(*encoding):
                     expected = without_padding(expected)
                 assert_equal(encoding.encode(row.bytes), expected, reason="known base64 vector")
                 assert_equal(
@@ -201,7 +201,7 @@ tests:
                     .Ok(row.bytes),
                     reason="known base64 payload",
                 )
-                verify_base64(encoding, row.bytes)
+                verify_base64(*encoding, row.bytes)
         ,
     )
 
@@ -214,7 +214,7 @@ tests:
                 bytes.push(u8(index % 256))
             verify_hex(bytes)
             for encoding in [Base64.Standard, Base64.StandardNoPad, Base64.Url, Base64.UrlNoPad]:
-                verify_base64(encoding, bytes)
+                verify_base64(*encoding, bytes)
         ,
     )
 

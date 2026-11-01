@@ -133,7 +133,7 @@ fn insert_sorted(items: List[i32], value: i32) -> List[i32]:
         if !inserted && value <= item:
             found.push(value)
             inserted = true
-        found.push(item)
+        found.push(*item)
     if !inserted:
         found.push(value)
     found
@@ -141,7 +141,7 @@ fn insert_sorted(items: List[i32], value: i32) -> List[i32]:
 fn sort_model(items: List[i32]) -> List[i32]:
     let mut found: List[i32] = []
     for value in items:
-        found = insert_sorted(found, value)
+        found = insert_sorted(found, *value)
     found
 
 fn check_heap(heap: &Heap[i32], model: List[i32]) -> void:

@@ -138,7 +138,7 @@ fn structured_path(bytes: List[u8]) -> string:
     tokens := ["", "/", ".", "..", "a", "b", "x.y", ".bashrc", "λ", "a.", "//", "/."]
     let result = ""
     for byte in bytes:
-        result += tokens[usize(byte) % tokens.len()]
+        result += tokens[usize(*byte) % tokens.len()]
     result
 
 struct PathCase:

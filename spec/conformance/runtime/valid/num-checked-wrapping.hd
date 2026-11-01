@@ -3,7 +3,7 @@
 fn total(prices: List[i64]) -> i64?:
     let sum: i64 = 0
     for price in prices:
-        sum = sum.checked_add(price)?
+        sum = sum.checked_add(*price)?
     .Some(sum)
 
 fn next_ticket(counter: i32) -> i32:

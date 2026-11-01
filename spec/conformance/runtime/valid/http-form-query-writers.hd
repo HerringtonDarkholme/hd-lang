@@ -217,7 +217,7 @@ tests:
         let mut base = parsed("https://x/dir/file?old=value")
         base.set_query_as(BadMap { entries: {} })
         for reference in ["", "#fragment", "#"]:
-            resolved := match base.resolve(reference):
+            resolved := match base.resolve(*reference):
                 .Ok(url) => url
                 .Err(error) => panic("$error")
             assert_equal(
@@ -234,7 +234,7 @@ tests:
             "//other/path",
             "https://other/path",
         ]:
-            resolved := match base.resolve(reference):
+            resolved := match base.resolve(*reference):
                 .Ok(url) => url
                 .Err(error) => panic("$error")
             assert_equal(

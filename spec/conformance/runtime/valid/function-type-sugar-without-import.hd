@@ -2,10 +2,10 @@
 # Spec 10 Standard Names Outside The Prelude: module.prelude.function-items, module.prelude.function-sugar.
 use std.function.Fn
 fn apply_discount(prices: List[i32], rule: fn(i32) -> i32) -> List[i32]:
-    [for price in prices => rule(price)]
+    [for price in prices => rule(*price)]
 
 fn apply_markup(prices: List[i32], rule: Fn[(i32,), i32, $ ()]) -> List[i32]:
-    [for price in prices => rule(price)]
+    [for price in prices => rule(*price)]
 
 tests:
     use std.testing.assert_equal

@@ -37,5 +37,5 @@ tests:
     it("round trip"):
         for text in ["", "ascii", "héllo, 世界 😀", "\u{10ffff}\0"]:
             match string::from_utf8(text.to_utf8()):
-                .Ok(back) => assert_equal(back, text, reason="the same string")
+                .Ok(back) => assert_equal(back, *text, reason="the same string")
                 .Err(_) => assert(false, reason="the bytes of a string are well formed")

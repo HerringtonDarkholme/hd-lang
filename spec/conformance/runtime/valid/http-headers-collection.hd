@@ -139,10 +139,10 @@ tests:
     it("typed request cookie setters retain original components until wire checking"):
         let mut headers = Headers::new()
         for value in ["a=b", "semi;colon", "white space", "comma,value", "bad\r\nvalue"]:
-            headers.set_request_cookie("token", value)
+            headers.set_request_cookie("token", *value)
             assert_equal(
                 headers.request_cookie("token"),
-                .Some(value),
+                .Some(*value),
                 reason="builder does not reinterpret a supplied cookie value",
             )
         headers.remove(.Cookie)

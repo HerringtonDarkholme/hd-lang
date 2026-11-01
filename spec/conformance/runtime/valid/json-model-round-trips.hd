@@ -66,10 +66,10 @@ fn field(name: string, value: string) -> string:
     quoted(name) + ":" + value
 
 fn list_i16(values: List[i16]) -> string:
-    "[" + [for value in values => integer(i64(value))].join(",") + "]"
+    "[" + [for value in values => integer(i64(*value))].join(",") + "]"
 
 fn list_bool(values: List[bool]) -> string:
-    "[" + [for value in values => boolean(value)].join(",") + "]"
+    "[" + [for value in values => boolean(*value)].join(",") + "]"
 
 @derive(Serialize, Deserialize, Arbitrary, Debug, Eq)
 struct Record:
@@ -225,7 +225,7 @@ tests:
         "lists of derived records round trip",
         cases=100,
         prop=fn!(input: ListInput):
-            expected := "[" + [for record in input.value => record_text(record)].join(",") + "]"
+            expected := "[" + [for record in input.value => record_text(*record)].join(",") + "]"
             check(input.value, expected)
         ,
     )
@@ -265,10 +265,10 @@ tests:
             let mut unique: List[i32] = []
             let mut value: Set[i32] = Set::new()
             for item in input.values:
-                _ := value.insert(item)
-                if !unique.contains(item):
-                    unique.push(item)
-            expected := "[" + [for item in unique => integer(i64(item))].join(",") + "]"
+                _ := value.insert(*item)
+                if !unique.contains(*item):
+                    unique.push(*item)
+            expected := "[" + [for item in unique => integer(i64(*item))].join(",") + "]"
             check(value, expected)
         ,
     )

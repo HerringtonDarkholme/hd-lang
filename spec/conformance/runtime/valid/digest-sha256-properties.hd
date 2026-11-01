@@ -19,7 +19,7 @@ fn concatenate(chunks: List[List[u8]]) -> List[u8]:
     let mut bytes: List[u8] = []
     for chunk in chunks:
         for byte in chunk:
-            bytes.push(byte)
+            bytes.push(*byte)
     bytes
 
 fn slice(bytes: List[u8], from: usize, to: usize) -> List[u8]:
@@ -44,7 +44,7 @@ tests:
             hasher := Sha256::new()
             hasher.update([])
             for chunk in chunks:
-                hasher.update(chunk)
+                hasher.update(*chunk)
                 hasher.update([])
             assert_equal(
                 hasher.finish().bytes,
@@ -67,7 +67,7 @@ tests:
             expected := sha256(bytes)
             hasher := Sha256::new()
             for byte in bytes:
-                hasher.update([byte])
+                hasher.update([*byte])
             assert_equal(
                 hasher.finish().bytes,
                 expected.bytes,

@@ -36,8 +36,8 @@ tests:
             503u16,
             504u16,
         ]:
-            status := HttpStatus::from_code(code)
-            assert_equal(status.code(), code, reason="numeric code survives")
+            status := HttpStatus::from_code(*code)
+            assert_equal(status.code(), *code, reason="numeric code survives")
             match status:
                 .Other(_) => panic("listed codes must choose named variants")
                 _ => pass

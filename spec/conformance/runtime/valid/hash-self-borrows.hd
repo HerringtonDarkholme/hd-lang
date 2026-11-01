@@ -24,7 +24,7 @@ struct Last:
 impl Hasher for Last:
     fn write(&mut self, bytes: List[u8]) -> void:
         for b in bytes:
-            self.byte = b
+            self.byte = *b
 
 pub fn main() -> void $ Console:
     node := box(Node { me: .None })
