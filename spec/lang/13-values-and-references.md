@@ -172,7 +172,7 @@ fn demo() -> i32:
 10. r[ref.place.alias] Two references to one place, or two copies of one reference, see each other's writes.
 11. r[ref.place.receiver.local] A call of a `&self` or `&mut self` method on a place takes a local reference to it, as `&` and `&mut` would.
 12. r[ref.place.receiver.counted] A call of a `*self` or `*mut self` method on a place is an error, as [`fn.method.counted-self.place`](07-functions.md#r-fn.method.counted-self.place) states. [Reference Receivers](07-functions.md#reference-receivers) states the rules of both calls.
-13. r[ref.place.tuple-element] A tuple element of a place is a place for `&`, as a struct field is: `&pair._0` refers to the element inside `pair`. The rules this chapter states for a field reference apply to it.
+13. r[ref.place.tuple-element] A tuple element of a place is a place for `&` and `&mut`, as a struct field is: `&mut pair._1` refers to the element inside `pair`. The rules this chapter states for a field reference apply to it.
 
 ```text
 struct Point:
@@ -1954,12 +1954,8 @@ See also: [Writes While Borrowed](#writes-while-borrowed).
 
 1. r[ref.check.not-yet-index] A reference to an index result that is neither a list element nor a map value is an error until a later job defines it. A slice `&xs[1..3]` and a user `Index` call are such results. Error: `references-not-yet-checked`.
 2. r[ref.check.formatter] `hd fmt` formats a file that writes references. It keeps each reference token as written, `&mut` and `*mut` included, and a second run changes nothing.
-3. r[ref.check.not-yet-tuple-mut] A `&mut` reference to a tuple element, as in `&mut pair._0`, is an error until a later job defines it. Error: `references-not-yet-checked`.
 
 ```text
-fn element(items: List[i32]) -> void:
-    let mut pair = (1, 2)
+fn slice(items: List[i32]) -> void:
     part := &items[0..1]  # error: references-not-yet-checked
-    left := &mut pair._0  # error: references-not-yet-checked
-    right := &pair._1     # valid: a place, as a field is
 ```

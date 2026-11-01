@@ -1,0 +1,6 @@
+# test: a `&mut self` call on a list element of a writable tuple changes it in place
+# Spec 05 Places: expr.place.tuple-field.
+fn demo() -> usize:
+    let mut pair = ([+1], +2)
+    pair._0.push(+3)
+    pair._0.len()

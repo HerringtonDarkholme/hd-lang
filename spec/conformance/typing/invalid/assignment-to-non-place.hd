@@ -1,0 +1,6 @@
+# test: an assignment to an expression that is no place is invalid-assignment-target
+# Spec 05 Assignment: expr.assign.target.
+fn invalid() -> i32:
+    let count = +0
+    count + 1 = 2 # diagnostic: invalid-assignment-target
+    count

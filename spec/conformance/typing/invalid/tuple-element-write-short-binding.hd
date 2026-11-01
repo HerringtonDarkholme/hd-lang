@@ -1,0 +1,5 @@
+# test: writing an element of a tuple bound with `:=` is non-reassignable-binding, as for a struct field
+# Spec 04 Writable Places: types.value.tuple-element, types.value.write.using-split.
+fn demo() -> void:
+    pair := (+1, +2)
+    pair._0 = 3 # diagnostic: non-reassignable-binding

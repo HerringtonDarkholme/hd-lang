@@ -1,6 +1,0 @@
-# test: a `&mut` reference to a tuple element is references-not-yet-checked
-# Spec 13 Not Yet Checked: ref.check.not-yet-tuple-mut.
-fn element() -> i32:
-    let mut pair = (+1, +2)
-    left := &mut pair._0 # diagnostic: references-not-yet-checked
-    *left

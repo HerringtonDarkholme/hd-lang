@@ -761,12 +761,11 @@ impl Ck<'_, '_> {
         (base, e): (NodeRef<'_>, NodeRef<'_>),
         use_: PlaceUse,
     ) -> StageResult<Option<Operand>> {
-        // A tuple element of a place is a place for `&`, as a struct field
-        // is (`ref.place.tuple-element`); a write never names one
-        // (`expr.place.tuple-element`).
+        // A tuple element of a place is a place, as a struct field is
+        // (`expr.place.tuple-field`).
         let elem = match &b {
-            Operand::Place(p) if use_ == PlaceUse::Ref => self.tuple_elem_of(p.ty, name),
-            _ => None,
+            Operand::Place(p) => self.tuple_elem_of(p.ty, name),
+            Operand::Value(..) => None,
         };
         let b = match b {
             Operand::Place(mut p) if let Some((idx, et)) = elem => {
@@ -924,44 +923,9 @@ impl Ck<'_, '_> {
             .or_else(|| init.earlier.get(&s).copied())
     }
 
-    /// Whether the path of `p` selects a tuple element, which no write
-    /// names (`expr.place.tuple-element`).
-    pub(crate) fn place_in_tuple(&mut self, p: &Place) -> bool {
-        let mut t = match p.root {
-            Root::Local(l, _) => self.b.local_ty(l),
-            Root::Global(_, _, ty) => ty,
-            Root::Deref(_, rt) => match self.ref_of(rt) {
-                Some((inner, m)) => self.deref_ty(inner, m),
-                None => return false,
-            },
-            Root::DataField(_, _, ft, _) => ft,
-            Root::Elem(_, _, lt) | Root::Slot(_, _, lt, _) => self.elem_ty(lt),
-        };
-        for &(_, ft) in &p.path {
-            let pool = self.pool();
-            if matches!(
-                pool.get(self.strip_mut(self.infer.resolve(pool, t))),
-                TyData::Tuple { .. }
-            ) {
-                return true;
-            }
-            t = ft;
-        }
-        false
-    }
-
     /// Whether `&mut` may refer to the place `p` (`ref.place.writable`);
     /// reports why not otherwise.
     pub(crate) fn place_writable(&mut self, p: &Place, at: NodeRef<'_>) -> bool {
-        if self.place_in_tuple(p) {
-            // `ref.check.not-yet-tuple-mut`
-            self.err(
-                Code::ReferencesNotYetChecked,
-                at,
-                "a `&mut` reference to a tuple element is not checked yet",
-            );
-            return false;
-        }
         let ok = match p.root {
             Root::Local(l, _) => self.local_ref_writable(l, at),
             Root::Global(s, _, _) => {

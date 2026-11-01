@@ -483,14 +483,6 @@ impl Ck<'_, '_> {
     /// (`fn.method.auto-address.place-writable`); reports why not otherwise, with
     /// a fix-it that makes the binding writable.
     fn receiver_writable(&mut self, p: &Place, at: NodeRef<'_>, name: &str) -> bool {
-        // A tuple element is no writable place (`expr.place.tuple-element`).
-        if self.place_in_tuple(p) {
-            let msg = format!(
-                "`{name}` takes `&mut self`, which changes the receiver in place, but a tuple element cannot change; build a new tuple instead"
-            );
-            self.err(Code::NotWritable, at, &msg);
-            return false;
-        }
         let ok = match p.root {
             Root::Local(l, _) => self.receiver_local_writable(l, at, name),
             Root::Global(s, _, _) => {

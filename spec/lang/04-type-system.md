@@ -537,10 +537,10 @@ struct PostId:
 
 ### Tuple Types
 
-A tuple is an immutable value without identity, so it implements `AnyVal`,
-as [`types.sealed.anyval-members`](#r-types.sealed.anyval-members) states. No
-element of it is a writable place, as
-[`expr.place.tuple-element`](05-expressions.md#r-expr.place.tuple-element)
+A tuple is a value without identity, so it implements `AnyVal`, as
+[`types.sealed.anyval-members`](#r-types.sealed.anyval-members) states. Its
+elements are places, writable when the tuple is, as
+[`expr.place.tuple-field`](05-expressions.md#r-expr.place.tuple-field)
 states.
 
 1. r[types.tuple.structural] Tuple types are structural.
@@ -1092,6 +1092,7 @@ A field of a struct value changes in place only through a writable place.
 3. r[types.value.field-write] Assigning a struct field, with `=` or a compound assignment, requires the struct to be in a writable place.
 4. r[types.value.write-once] The assignment changes that place alone, since no other place shares its value.
 5. r[types.value.reassign-binding] A plain `let` binding of a struct and a `mut` parameter may be reassigned as a whole. A `:=` binding and a parameter that is not `mut` never change.
+6. r[types.value.tuple-element] A tuple element is written as a struct field is: `pair._0 = v` requires the tuple to be in a writable place. The table below applies to a tuple's holder too.
 
 A field write through a struct that is not in a writable place is an error,
 by what holds the struct:

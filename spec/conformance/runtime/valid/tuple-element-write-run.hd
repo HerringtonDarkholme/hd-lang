@@ -1,0 +1,31 @@
+# test: writes to tuple elements change only that tuple, directly, through `&mut`, through a box and inside a list
+# Spec 04 Writable Places: types.value.tuple-element.
+# expect-stdout: 2 116
+# expect-stdout: 1 50
+# expect-stdout: 9 8 20
+fn bump(n: &mut i32) -> void:
+    *n += 1
+
+fn set_second(b: *mut (i32, i32)) -> void:
+    b._1 = 9
+
+pub fn main() -> void $ Console:
+    let mut pair = ([+1], +2)
+    pair._1 = 5
+    pair._0.push(+3)
+    r := &mut pair._1
+    *r = *r + 10
+    bump(&mut pair._1)
+    pair._1 += 100
+    println("${pair._0.len()} ${pair._1}")
+    let mut u = (+1, "a")
+    copy := u
+    u._0 = 50
+    println("${copy._0} ${u._0}")
+    b := box((+1, +2))
+    set_second(b)
+    let mut xs = [(+1, +2)]
+    xs[0]._1 = 8
+    let mut nested = ((+1, +2), +3)
+    nested._0._1 = 20
+    println("${b._1} ${xs[0]._1} ${nested._0._1}")

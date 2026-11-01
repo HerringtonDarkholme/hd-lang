@@ -1,4 +1,4 @@
-# test: tuple elements and shared data are not assignable
+# test: shared enum data is not assignable
 enum Code(i32):
     Missing -> Code(404)
 

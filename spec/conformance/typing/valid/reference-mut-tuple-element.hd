@@ -1,0 +1,11 @@
+# test: `&mut` refers to an element of a writable tuple, and a write through it changes the element
+# Spec 13 Places And New Objects: ref.place.tuple-element.
+fn bump(n: &mut i32) -> void:
+    *n += 1
+
+fn demo() -> i32:
+    let mut pair = (+1, +2)
+    r := &mut pair._1
+    *r = 5
+    bump(&mut pair._0)
+    pair._0 + pair._1

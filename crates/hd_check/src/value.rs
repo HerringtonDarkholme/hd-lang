@@ -37,12 +37,16 @@ impl Ck<'_, '_> {
         compound: Option<TokenKind>,
     ) -> StageResult<()> {
         let bt = place.ty;
-        let Some((idx, ft)) = self.field_of(bt, name) else {
+        // A tuple element is a place as a field is (`expr.place.tuple-field`).
+        let elem = self.tuple_elem_of(bt, name);
+        let Some((idx, ft)) = self.field_of(bt, name).or(elem) else {
             let msg = format!("no field `{name}` on {}", self.show(bt));
             self.err(Code::UnknownField, lhs, &msg);
             return Ok(());
         };
-        self.check_field_visible(bt, name, lhs);
+        if elem.is_none() {
+            self.check_field_visible(bt, name, lhs);
+        }
         if !self.place_writable_for_field(&place, (base, lhs)) {
             return Ok(());
         }

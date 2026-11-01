@@ -1,0 +1,7 @@
+# test: an element of a `let mut` tuple is assigned and compound-assigned, as a struct field is
+# Spec 04 Writable Places: types.value.tuple-element.
+fn demo() -> i32:
+    let mut pair = (+1, +2)
+    pair._1 = 5
+    pair._0 += 10
+    pair._0 + pair._1

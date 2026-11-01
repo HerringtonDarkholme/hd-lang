@@ -15,10 +15,9 @@ use crate::body::Ck;
 /// A projection read ([`Ck::projection`]) and the value it reads from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Projection {
-    /// A field of a struct, newtype or data value.
+    /// A field of a struct, newtype or data value, or an element of a
+    /// tuple.
     Field(Ref),
-    /// An element of a tuple.
-    Element(Ref),
     /// A field of an enum value's payload.
     Payload(Ref),
 }
@@ -93,6 +92,15 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// Whether `t` is a struct or a tuple type, `mut` or not: a value whose
+    /// fields or elements are parts of its place (`types.value.struct`,
+    /// `expr.place.tuple-field`).
+    pub(crate) fn is_value_record_ty(&self, t: Ty) -> bool {
+        let pool = self.pool();
+        let t = self.strip_mut(self.infer.resolve(pool, t));
+        self.is_struct_ty(t) || matches!(pool.get(t), TyData::Tuple { .. })
+    }
+
     /// Whether `t` is a data type, `mut` or not: a value of it is the
     /// address of an object whose payload holds its fields, so a field
     /// read dereferences it (`Read [*%o .k]`).
@@ -130,11 +138,6 @@ impl Ck<'_, '_> {
         let base = Ref(base);
         let bt = self.b.ty_of(base);
         Some(match step {
-            Step::Field(_)
-                if matches!(self.pool().get(self.strip_mut(bt)), TyData::Tuple { .. }) =>
-            {
-                Projection::Element(base)
-            }
             Step::Field(_) => Projection::Field(base),
             Step::DerefField(_) if self.is_data_object_ty(bt) => Projection::Field(base),
             Step::DerefField(_) => return None,

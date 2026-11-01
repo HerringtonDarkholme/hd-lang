@@ -1,0 +1,7 @@
+# test: a tuple element is writable inside a field of a mutable root, as a struct field is
+# Spec 05 Places: expr.place.tuple-field.
+struct Holder:
+    pair: (i32, i32)
+
+fn reset(holder: &mut Holder) -> void:
+    holder.pair._0 = 0

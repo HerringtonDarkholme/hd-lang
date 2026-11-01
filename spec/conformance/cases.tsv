@@ -1170,7 +1170,7 @@ runtime/valid/assert-equal-result.hd	runtime	accept	lang/10-modules.md#standard-
 runtime/valid/assert-equal-string.hd	runtime	accept	lang/10-modules.md#standard-testing
 runtime/valid/assert-equal-tuple.hd	runtime	accept	lang/10-modules.md#standard-testing
 runtime/valid/reference-bounded-dynamic-method.hd	runtime	accept	lang/04-type-system.md#trait-values-and-any
-typing/invalid/tuple-element-assignment.hd	type	reject:invalid-assignment-target	lang/05-expressions.md#expression-categories
+typing/invalid/assignment-to-non-place.hd	type	reject:invalid-assignment-target	lang/05-expressions.md#r-expr.assign.target
 runtime/valid/tuple-rebuild.hd	runtime	accept	lang/05-expressions.md#expression-categories
 typing/invalid/init-read-through-generic-bound.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#module-initialization
 typing/invalid/init-read-through-trait-value.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#module-initialization
@@ -1656,7 +1656,8 @@ runtime/valid/result-propagation-evaluates-once.hd	runtime	accept	lang/05-expres
 runtime/valid/abrupt-assignment-stores-nothing.hd	runtime	accept	lang/05-expressions.md#expression-categories
 runtime/valid/let-local-place.hd	runtime	accept	lang/05-expressions.md#r-expr.place.local
 typing/invalid/arithmetic-not-a-place.hd	type	reject:invalid-assignment-target	lang/05-expressions.md#r-expr.place.value-forms
-typing/invalid/tuple-element-through-mutable-root.hd	type	reject:invalid-assignment-target	lang/05-expressions.md#r-expr.place.tuple-element
+typing/valid/tuple-element-through-mutable-root.hd	type	accept	lang/05-expressions.md#r-expr.place.tuple-field
+typing/valid/tuple-element-push.hd	type	accept	lang/05-expressions.md#r-expr.place.tuple-field
 typing/invalid/enum-shared-field-compound-assignment.hd	type	reject:invalid-assignment-target	lang/05-expressions.md#r-expr.place.enum-shared-field
 runtime/valid/local-assignment-evaluates-only-value.hd	runtime	accept	lang/05-expressions.md#r-expr.assign.order.local
 runtime/valid/abrupt-index-stores-nothing.hd	runtime	accept	lang/05-expressions.md#r-expr.assign.abrupt
@@ -4677,7 +4678,12 @@ typing/invalid/reference-write-through-shared-field.hd	type	reject:not-writable	
 typing/invalid/reference-deref-write-shared.hd	type	reject:not-writable	lang/13-values-and-references.md#r-ref.deref.write
 typing/invalid/reference-deref-non-reference.hd	type	reject:type-mismatch	lang/13-values-and-references.md#r-ref.deref.not-reference
 typing/invalid/reference-slice-not-checked.hd	type	reject:references-not-yet-checked	lang/13-values-and-references.md#r-ref.check.not-yet-index
-typing/invalid/reference-mut-tuple-element-not-checked.hd	type	reject:references-not-yet-checked	lang/13-values-and-references.md#r-ref.check.not-yet-tuple-mut
+typing/valid/tuple-element-write.hd	type	accept	lang/04-type-system.md#r-types.value.tuple-element
+typing/invalid/tuple-element-write-short-binding.hd	type	reject:non-reassignable-binding	lang/04-type-system.md#r-types.value.tuple-element
+typing/invalid/tuple-element-write-through-shared.hd	type	reject:not-writable	lang/04-type-system.md#r-types.value.tuple-element
+runtime/valid/tuple-element-write-run.hd	runtime	accept	lang/04-type-system.md#r-types.value.tuple-element
+typing/valid/reference-mut-tuple-element.hd	type	accept	lang/13-values-and-references.md#r-ref.place.tuple-element
+runtime/panic/alias-read-under-tuple-element-mut-loan-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
 typing/valid/reference-tuple-element-place.hd	type	accept	lang/13-values-and-references.md#r-ref.place.tuple-element
 typing/valid/reference-tuple-element-comparator.hd	type	accept	lang/13-values-and-references.md#r-ref.place.tuple-element
 typing/invalid/reference-tuple-element-write-while-borrowed.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.shared

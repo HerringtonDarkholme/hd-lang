@@ -4123,7 +4123,7 @@ impl Ck<'_, '_> {
                 let (br, bt) = match op {
                     // A struct field changes in a writable place only
                     // (`types.value.writable-forms`).
-                    crate::refs::Operand::Place(p) if self.is_struct_ty(p.ty) => {
+                    crate::refs::Operand::Place(p) if self.is_value_record_ty(p.ty) => {
                         let p = self.promote_place(p, &fname);
                         return self.struct_field_assign(
                             p,
@@ -4146,7 +4146,7 @@ impl Ck<'_, '_> {
                         self.err(Code::NotWritable, *lhs, &msg);
                         return Ok(());
                     }
-                    Some((inner, true)) if self.is_struct_ty(self.deref_ty(inner, true)) => {
+                    Some((inner, true)) if self.is_value_record_ty(self.deref_ty(inner, true)) => {
                         let place = crate::refs::Place {
                             root: crate::refs::Root::Deref(br, bt),
                             path: vec![],
@@ -4177,10 +4177,21 @@ impl Ck<'_, '_> {
                     self.err(Code::NotWritable, *lhs, msg);
                     return Ok(());
                 }
+                // A tuple value that is no place, as a struct's.
+                if self.is_value_record_ty(bt) {
+                    if self.tuple_elem_of(bt, &fname).is_none() {
+                        let msg = format!("no field `{fname}` on {}", self.show(bt));
+                        self.err(Code::UnknownField, *lhs, &msg);
+                        return Ok(());
+                    }
+                    let msg = "this tuple value is not a variable or a field of one, so its elements cannot change; copy it into a `let mut` first";
+                    self.err(Code::NotWritable, *lhs, msg);
+                    return Ok(());
+                }
                 let (pr, pt) = self.promote_base(br, bt, &fname, *lhs);
                 let Some((idx, ft)) = self.field_of(pt, &fname) else {
-                    // Tuple elements and shared enum data are selected but
-                    // never stored through (`expr.place.enum-shared-field`).
+                    // Shared enum data is selected but never stored through
+                    // (`expr.place.enum-shared-field`).
                     if self.is_read_only_member(bt, &fname) {
                         let msg = format!("`{fname}` of {} cannot be assigned", self.show(bt));
                         self.err(Code::InvalidAssignmentTarget, *lhs, &msg);

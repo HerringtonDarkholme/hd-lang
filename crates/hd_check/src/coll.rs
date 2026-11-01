@@ -89,8 +89,9 @@ impl Ck<'_, '_> {
             };
             if let Some(Projection::Field(inner)) = self.projection(cur) {
                 let it = self.b.ty_of(inner);
-                // A struct field is part of its struct's place.
-                if !self.is_struct_ty(it) {
+                // A struct field or a tuple element is part of its
+                // value's place.
+                if !self.is_value_record_ty(it) {
                     return self.is_struct_ty(ct) && self.has_mut_access(it);
                 }
                 cur = inner;

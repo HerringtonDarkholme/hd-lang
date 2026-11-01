@@ -211,7 +211,7 @@ lang/04-type-system.md	78	accept	typing/valid/union-type-identity-and-aliases.hd
 lang/04-type-system.md	79	mixed	typing/valid/union-construction-and-match.hd|typing/invalid/union-constructor-without-result-context.hd
 lang/04-type-system.md	80	mixed	typing/invalid/impl-trait-recursive.hd
 lang/04-type-system.md	81	mixed	typing/invalid/impl-trait-borrows-nothing.hd|typing/invalid/impl-trait-borrow-outlives-local.hd|typing/invalid/impl-trait-borrow-box.hd
-lang/05-expressions.md	1	mixed	typing/invalid/tuple-element-assignment.hd
+lang/05-expressions.md	1	mixed	typing/invalid/assignment-to-non-place.hd
 lang/05-expressions.md	2	accept	typing/valid/compound-assignment.hd|runtime/valid/compound-assignment-alias.hd
 lang/05-expressions.md	3	mixed	typing/invalid/compound-assign-readonly.hd|typing/invalid/compound-assign-data-no-operator.hd|typing/invalid/compound-assign-not-place.hd
 lang/05-expressions.md	4	mixed	runtime/panic/compound-assign-map-missing-key.hd|runtime/valid/compound-assign-map-run.hd
@@ -687,7 +687,7 @@ lang/13-values-and-references.md	29	mixed	typing/invalid/mut-holder-use-after-fi
 lang/13-values-and-references.md	30	mixed	typing/invalid/mut-holder-match-moves-payload.hd|typing/valid/mut-holder-match-moves-nothing.hd
 lang/13-values-and-references.md	31	mixed	typing/invalid/move-out-of-shared-reference.hd|typing/invalid/move-out-of-mut-reference-argument.hd|typing/invalid/move-field-out-of-mut-reference.hd|typing/valid/deref-borrow-passed-on.hd
 lang/13-values-and-references.md	32	mixed	typing/invalid/span-mut-use-after-move.hd|typing/valid/mut-holder-moves-once.hd
-lang/13-values-and-references.md	33	mixed	typing/invalid/reference-slice-not-checked.hd|typing/invalid/reference-mut-tuple-element-not-checked.hd|typing/valid/reference-tuple-element-place.hd
+lang/13-values-and-references.md	33	mixed	typing/invalid/reference-slice-not-checked.hd
 lang/14-annotations.md	1	accept	typing/valid/decorator-targets.hd
 lang/14-annotations.md	2	mixed	typing/invalid/derive-before-function.hd|typing/invalid/derive-before-trait.hd|typing/invalid/duplicate-function-fact.hd
 lang/14-annotations.md	3	accept	runtime/valid/bare-marker-decorator.hd

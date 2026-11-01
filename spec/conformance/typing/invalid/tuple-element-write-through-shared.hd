@@ -1,0 +1,4 @@
+# test: writing a tuple element through a read-only reference is not-writable
+# Spec 04 Writable Places: types.value.tuple-element, types.value.write.shared-ref.
+fn reset(pair: &(i32, i32)) -> void:
+    pair._0 = 0 # diagnostic: not-writable
