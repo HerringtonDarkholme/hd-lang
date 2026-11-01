@@ -4,4 +4,4 @@ use pkg.models.{User, greeting} # ← `models/mod.hd` re-exports `models/user.hd
 pub fn main() -> void $ Console:
     users := [User { name: "Ada", visits: 3 }, User { name: "Grace", visits: 1 }]
     for user in users:
-        println(greeting(user))
+        println(greeting(*user))
