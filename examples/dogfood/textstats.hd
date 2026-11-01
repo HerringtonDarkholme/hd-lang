@@ -24,8 +24,8 @@ fn words_of(line: string) -> List[string]:
 fn word_counts(lines: List[string]) -> List[WordCount]:
     let mut counts: Map[string, i32] = {}
     for line in lines:
-        for word in words_of(line):
-            counts[word] = match counts.get(word):
+        for word in words_of(*line):
+            counts[*word] = match counts.get(*word):
                 .Some(n) => n + 1
                 .None => 1
     let mut entries: List[WordCount] = []

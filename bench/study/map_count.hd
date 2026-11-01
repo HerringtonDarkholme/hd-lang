@@ -12,7 +12,7 @@ pub fn main() -> void $ Console:
     text := out.build()
     let mut counts: Map[string, i64] = {}
     for word in text.split(" "):
-        counts[word] = counts.get(word).unwrap_or(0) + 1
+        counts[*word] = counts.get(*word).unwrap_or(0) + 1
     let squares: i64 = 0
     for (_, c) in counts:
         squares = squares + c * c

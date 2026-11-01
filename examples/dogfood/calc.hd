@@ -224,7 +224,7 @@ pub fn main() -> void $ Console:
         "3 $ 4",
         "7 / 2",
     ]:
-        match calc(src):
+        match calc(*src):
             .Ok(v) => println("$src = $v")
             .Err(e) => println("$src -> error: ${describe(e)}")
 

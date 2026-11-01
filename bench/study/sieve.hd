@@ -16,6 +16,6 @@ pub fn main() -> void $ Console:
         i += 1
     let count: usize = 0
     for flag in flags:
-        if flag:
+        if *flag:
             count += 1
     println(count)

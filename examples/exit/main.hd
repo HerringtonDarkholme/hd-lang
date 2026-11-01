@@ -40,7 +40,7 @@ fn safe_div(a: i32, b: i32) -> Result[i32, string]:
 fn find(xs: List[i32], want: i32) -> i32?:
     for x in xs:
         if x == want:
-            return .Some(x)
+            return .Some(*x)
     .None
 
 pub fn main() -> void $ Console:
@@ -70,7 +70,7 @@ pub fn main() -> void $ Console:
         .Err(e) => println("err $e")
     toks := [Token.Num(7), Token.Plus, Token.Word("hi")]
     for t in toks:
-        println(describe(t))
+        println(describe(*t))
     let mut ages: Map[string, i32] = { "ann": 31, "bob": 27 }
     ages["cy"] = 40
     ann := ages["ann"]

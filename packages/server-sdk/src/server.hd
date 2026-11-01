@@ -129,5 +129,5 @@ pub fn serve![S, $ R](
         ,
     )
     for result in results:
-        result?
+        (*result)?
     .Ok(())
