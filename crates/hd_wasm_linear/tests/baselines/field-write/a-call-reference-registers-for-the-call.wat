@@ -44,31 +44,24 @@
       end
     end
   )
-  (func $"impl Context.reject" (param $self i32) (local $t0 i64) (local $t1 i32)
+  (func $"impl Context.reject" (param $self i32) (local $t0 i32)
     ;; 8 |         self.errors += 1
     block
       local.get $self
       i32.load $heap
-      i64.extend_i32_s
-      i32.const 1
-      i64.extend_i32_s
-      i64.add
       local.tee $t0
-      i64.const 2147483647
-      i64.gt_s
-      local.get $t0
-      i64.const -2147483648
-      i64.lt_s
-      i32.or
+      i32.const 2147483646
+      i32.gt_s
       if
         call $rt:panic
         unreachable
       end
       local.get $t0
-      i32.wrap_i64
-      local.set $t1
+      i32.const 1
+      i32.add
+      local.set $t0
       local.get $self
-      local.get $t1
+      local.get $t0
       i32.store $heap
     end
   )

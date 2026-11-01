@@ -8,7 +8,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "loan_top" (global $loan_top (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $older (param $view i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64)
+  (func $older (param $view i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
     block
     ;; 12 |     held := view.label()
       local.get $view
@@ -47,23 +47,16 @@
     ;; 13 |     alias.age += 1
       local.get $alias
       i32.load $heap offset=8
-      i64.extend_i32_s
-      i32.const 1
-      i64.extend_i32_s
-      i64.add
-      local.tee $t2
-      i64.const 2147483647
-      i64.gt_s
-      local.get $t2
-      i64.const -2147483648
-      i64.lt_s
-      i32.or
+      local.tee $t1
+      i32.const 2147483646
+      i32.gt_s
       if
         call $rt:panic
         unreachable
       end
-      local.get $t2
-      i32.wrap_i64
+      local.get $t1
+      i32.const 1
+      i32.add
       local.set $t1
       global.get $loan_top
       if

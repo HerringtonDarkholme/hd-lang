@@ -2,26 +2,19 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "calls" (global $calls (mut i32)))
-  (func $count (local $t0 i64)
+  (func $count (local $t0 i32)
     ;; 9 |     calls = calls + 1
     global.get $calls
-    i64.extend_i32_s
-    i32.const 1
-    i64.extend_i32_s
-    i64.add
     local.tee $t0
-    i64.const 2147483647
-    i64.gt_s
-    local.get $t0
-    i64.const -2147483648
-    i64.lt_s
-    i32.or
+    i32.const 2147483646
+    i32.gt_s
     if
       call $rt:panic
       unreachable
     end
     local.get $t0
-    i32.wrap_i64
+    i32.const 1
+    i32.add
     global.set $calls
   )
 )

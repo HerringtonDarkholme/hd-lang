@@ -1,0 +1,5 @@
+# @dump: wat
+# A checked `j + 1` on `usize` is one compare against `u32::MAX - 1` and a
+# native `i32.add`: no widening to i64 (check-cost: the loop index step).
+fn next(j: usize) -> usize:
+    j + 1

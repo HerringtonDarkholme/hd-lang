@@ -5,43 +5,28 @@
     ;; 7 | fn second() -> i32: +3
     i32.const 3
   )
-  (func $first (param $value i32) (result i32) (local $t0 i64)
+  (func $first (param $value i32) (result i32)
     ;; 4 |     copy := value + 1
     local.get $value
-    i64.extend_i32_s
+    i32.const 2147483646
+    i32.gt_s
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $value
     i32.const 1
-    i64.extend_i32_s
-    i64.add
-    local.tee $t0
-    i64.const 2147483647
-    i64.gt_s
-    local.get $t0
-    i64.const -2147483648
-    i64.lt_s
-    i32.or
-    if
-      call $rt:panic
-      unreachable
-    end
-    local.get $t0
-    i32.wrap_i64
+    i32.add
     ;; 5 |     copy + 2
-    i64.extend_i32_s
-    i32.const 2
-    i64.extend_i32_s
-    i64.add
-    local.tee $t0
-    i64.const 2147483647
-    i64.gt_s
-    local.get $t0
-    i64.const -2147483648
-    i64.lt_s
-    i32.or
+    local.tee $value
+    i32.const 2147483645
+    i32.gt_s
     if
       call $rt:panic
       unreachable
     end
-    local.get $t0
-    i32.wrap_i64
+    local.get $value
+    i32.const 2
+    i32.add
   )
 )

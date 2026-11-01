@@ -4,7 +4,7 @@
   (import "fixture" "rt:release" (func $rt:release (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
-  (func $depth (param $node i32) (result i32) (local $next i32) (local $t0 i64)
+  (func $depth (param $node i32) (result i32) (local $next i32)
     block
     ;; 9 |     match node.next:
       local.get $node
@@ -43,25 +43,16 @@
     ;; 11 |         .Some(next) => 1 + depth(next)
         local.get $next
         call $depth
-        local.set $node
-        i32.const 1
-        i64.extend_i32_s
-        local.get $node
-        i64.extend_i32_s
-        i64.add
-        local.tee $t0
-        i64.const 2147483647
-        i64.gt_s
-        local.get $t0
-        i64.const -2147483648
-        i64.lt_s
-        i32.or
+        local.tee $node
+        i32.const 2147483646
+        i32.gt_s
         if
           call $rt:panic
           unreachable
         end
-        local.get $t0
-        i32.wrap_i64
+        i32.const 1
+        local.get $node
+        i32.add
     ;; 9 |     match node.next:
         local.set $node
         br 0

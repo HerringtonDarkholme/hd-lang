@@ -3916,6 +3916,11 @@ impl Em<'_, '_, '_> {
             });
             return Ok(());
         }
+        if matches!(op, PrimOp::Add | PrimOp::Sub | PrimOp::Mul | PrimOp::Neg)
+            && self.checked_by_constant(op, ops, bits, signed)?
+        {
+            return Ok(());
+        }
         let wide = bits == 64;
         let in64 = bits >= 32;
         let exact = if in64 { Val::I64 } else { Val::I32 };
@@ -4002,6 +4007,108 @@ impl Em<'_, '_, '_> {
             self.f.op(I::I32WrapI64);
         }
         Ok(())
+    }
+
+    /// Checked `+`, `-`, `*` or unary `-` with a constant operand (unary
+    /// `-x` is `0 - x`). The result overflows exactly when the other
+    /// operand leaves a range known at compile time, so one range test
+    /// before the native operation at the operand's own width checks it,
+    /// and the native result is then exact. Emits nothing and returns
+    /// false when neither operand is a constant.
+    fn checked_by_constant(
+        &mut self,
+        op: PrimOp,
+        ops: &[u32],
+        bits: u8,
+        signed: bool,
+    ) -> StageResult<bool> {
+        let (c, var, c_left) = if op == PrimOp::Neg {
+            (0, ops[0], true)
+        } else {
+            match (
+                self.const_int(ops[0], bits, signed),
+                self.const_int(ops[1], bits, signed),
+            ) {
+                (_, Some(c)) => (c, ops[0], false),
+                (Some(c), None) => (c, ops[1], true),
+                (None, None) => return Ok(false),
+            }
+        };
+        let wide = bits == 64;
+        let v = self.f.local(if wide { Val::I64 } else { Val::I32 });
+        self.comp(var, 0)?;
+        self.f.set(v);
+        let (min, max) = int_range(bits, signed);
+        let (lo, hi) = operand_range(op, c, c_left, (min, max));
+        let konst = |em: &mut Self, n: i128| {
+            if wide {
+                let n = u64::try_from(n & i128::from(u64::MAX)).expect("masked");
+                em.f.op(I::I64Const(n.cast_signed()));
+            } else {
+                em.f.u32(u32::try_from(n & 0xffff_ffff).expect("masked"));
+            }
+        };
+        if (lo, hi) != (min, max) {
+            self.f.get(v);
+            if lo == min {
+                konst(self, hi);
+                self.f.op(match (signed, wide) {
+                    (true, true) => I::I64GtS,
+                    (false, true) => I::I64GtU,
+                    (true, false) => I::I32GtS,
+                    (false, false) => I::I32GtU,
+                });
+            } else if hi == max {
+                konst(self, lo);
+                self.f.op(match (signed, wide) {
+                    (true, true) => I::I64LtS,
+                    (false, true) => I::I64LtU,
+                    (true, false) => I::I32LtS,
+                    (false, false) => I::I32LtU,
+                });
+            } else {
+                // `lo <= v <= hi` as one unsigned test of `v - lo`.
+                konst(self, lo);
+                self.f.op(if wide { I::I64Sub } else { I::I32Sub });
+                konst(self, hi - lo);
+                self.f.op(if wide { I::I64GtU } else { I::I32GtU });
+            }
+            self.f.op(I::If(BlockType::Empty));
+            self.panic("integer-overflow: integer overflow");
+            self.f.op(I::End);
+        }
+        if c_left {
+            konst(self, c);
+            self.f.get(v);
+        } else {
+            self.f.get(v);
+            konst(self, c);
+        }
+        self.f.op(match (op, wide) {
+            (PrimOp::Add, true) => I::I64Add,
+            (PrimOp::Mul, true) => I::I64Mul,
+            (_, true) => I::I64Sub,
+            (PrimOp::Add, false) => I::I32Add,
+            (PrimOp::Mul, false) => I::I32Mul,
+            (_, false) => I::I32Sub,
+        });
+        Ok(true)
+    }
+
+    /// The value of constant `r` of a `bits`-wide integer type, read from
+    /// its low `bits` bits.
+    fn const_int(&self, r: u32, bits: u8, signed: bool) -> Option<i128> {
+        let raw = if bits == 64 {
+            self.const_i64(r)?.cast_unsigned()
+        } else {
+            u64::from(self.const_u32(r)?)
+        };
+        let low = raw & (u64::MAX >> (64 - bits));
+        Some(if signed && low >> (bits - 1) == 1 {
+            i128::from(low) - (1i128 << bits)
+        } else {
+            i128::from(low)
+        })
     }
 
     /// Whether a computed integer result exceeds its declared width.
@@ -4190,6 +4297,52 @@ impl Em<'_, '_, '_> {
             _ => self.f.i32(0),
         }
     }
+}
+
+/// The smallest and largest value of a `bits`-wide integer type.
+pub(crate) const fn int_range(bits: u8, signed: bool) -> (i128, i128) {
+    if signed {
+        (-(1i128 << (bits - 1)), (1i128 << (bits - 1)) - 1)
+    } else {
+        (0, (1i128 << bits) - 1)
+    }
+}
+
+/// The values of `x` for which `x op c` (`c op x` when `c_left`) stays in
+/// the type's range `(min, max)`; `op` is `+`, `-`, `*`, or unary `-`
+/// read as `0 - x`. The set is one interval, since each operation is
+/// monotonic in `x`.
+pub(crate) fn operand_range(
+    op: PrimOp,
+    c: i128,
+    c_left: bool,
+    (min, max): (i128, i128),
+) -> (i128, i128) {
+    let floor = |a: i128, b: i128| {
+        let q = a / b;
+        if a % b != 0 && (a < 0) != (b < 0) {
+            q - 1
+        } else {
+            q
+        }
+    };
+    let ceil = |a: i128, b: i128| {
+        let q = a / b;
+        if a % b != 0 && (a < 0) == (b < 0) {
+            q + 1
+        } else {
+            q
+        }
+    };
+    let (lo, hi) = match op {
+        PrimOp::Add => (min - c, max - c),
+        _ if op != PrimOp::Mul && c_left => (c - max, c - min),
+        PrimOp::Sub => (min + c, max + c),
+        _ if c == 0 => (min, max),
+        _ if c > 0 => (ceil(min, c), floor(max, c)),
+        _ => (ceil(max, c), floor(min, c)),
+    };
+    (lo.max(min), hi.min(max))
 }
 
 /// The mask of a sub-word width's bits.

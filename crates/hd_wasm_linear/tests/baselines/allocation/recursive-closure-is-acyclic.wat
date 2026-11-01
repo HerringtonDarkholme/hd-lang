@@ -27,24 +27,16 @@
         local.get $env
         call $rt:retain_known
         local.get $n
-        i64.extend_i32_s
-        i32.const 1
-        i64.extend_i32_s
-        i64.sub
-        local.tee $t0
-        i64.const 2147483647
-        i64.gt_s
-        local.get $t0
-        i64.const -2147483648
-        i64.lt_s
-        i32.or
+        i32.const -2147483647
+        i32.lt_s
         if
           call $rt:panic
           unreachable
         end
         local.get $env
-        local.get $t0
-        i32.wrap_i64
+        local.get $n
+        i32.const 1
+        i32.sub
         i32.const 0
         local.get $ctx
         call_indirect $table0 (param i32 i32 i32) (result i32)

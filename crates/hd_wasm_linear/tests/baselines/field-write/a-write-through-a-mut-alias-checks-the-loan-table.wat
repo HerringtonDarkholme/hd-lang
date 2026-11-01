@@ -8,7 +8,7 @@
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
   (import "fixture" "loan_top" (global $loan_top (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $rename (param $t i32) (param $alias i32) (result i32 i32) (local $n i32) (local $t0 i64)
+  (func $rename (param $t i32) (param $alias i32) (result i32 i32) (local $n i32)
     block
     ;; 11 |     n := &t.lead.name
       local.get $t
@@ -26,23 +26,16 @@
     ;; 12 |     alias.age += 1
       local.get $alias
       i32.load $heap offset=8
-      i64.extend_i32_s
-      i32.const 1
-      i64.extend_i32_s
-      i64.add
-      local.tee $t0
-      i64.const 2147483647
-      i64.gt_s
-      local.get $t0
-      i64.const -2147483648
-      i64.lt_s
-      i32.or
+      local.tee $t
+      i32.const 2147483646
+      i32.gt_s
       if
         call $rt:panic
         unreachable
       end
-      local.get $t0
-      i32.wrap_i64
+      local.get $t
+      i32.const 1
+      i32.add
       local.set $t
       local.get $alias
       local.get $t

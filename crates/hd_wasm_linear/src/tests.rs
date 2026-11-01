@@ -1163,3 +1163,39 @@ try {{
     );
     run_session_node(&script);
 }
+
+/// A checked operation with a constant operand overflows exactly when the
+/// other operand leaves `operand_range`: every 8-bit operand pair of `+`,
+/// both orders of `-`, `*` and unary `-`, signed and unsigned.
+#[test]
+fn a_constant_operand_range_matches_the_exact_result() {
+    use crate::emit::{int_range, operand_range};
+    use hd_tir::ir::PrimOp;
+    for signed in [true, false] {
+        let (min, max) = int_range(8, signed);
+        for c in min..=max {
+            for (op, c_left) in [
+                (PrimOp::Add, false),
+                (PrimOp::Sub, false),
+                (PrimOp::Sub, true),
+                (PrimOp::Mul, false),
+            ] {
+                let (lo, hi) = operand_range(op, c, c_left, (min, max));
+                for x in min..=max {
+                    let exact = match (op, c_left) {
+                        (PrimOp::Add, _) => x + c,
+                        (PrimOp::Sub, false) => x - c,
+                        (PrimOp::Sub, true) => c - x,
+                        _ => x * c,
+                    };
+                    let fits = (min..=max).contains(&exact);
+                    assert_eq!((lo..=hi).contains(&x), fits, "{op:?} {c} {c_left} {x}");
+                }
+            }
+        }
+        let (lo, hi) = operand_range(PrimOp::Neg, 0, true, (min, max));
+        for x in min..=max {
+            assert_eq!((lo..=hi).contains(&x), (min..=max).contains(&-x));
+        }
+    }
+}
