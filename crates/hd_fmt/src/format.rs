@@ -1378,6 +1378,7 @@ fn canonical_gap(tokens: &TokenBuf, boundary: usize) -> Gap {
         || previous == T::Star && next == T::Star
         || previous == T::Lifetime && !no_space_before(next)
         || negative_impl(tokens, boundary)
+        || impl_parameters_then_group(tokens, boundary)
         || previous.is_keyword()
             && (next == T::LBracket && !matches!(previous, T::KwSelfValue | T::KwSelfType)
                 || next == T::LParen && previous != T::KwFn)
@@ -1395,6 +1396,29 @@ fn canonical_gap(tokens: &TokenBuf, boundary: usize) -> Gap {
     } else {
         Gap::None
     }
+}
+
+/// The `]` of an impl's parameter list before a parenthesized self type,
+/// `impl['a, T] (&'a T)?:` or `impl[T] (T, T):`: a space parts them, as
+/// after `impl` itself, so the list reads as no call's type arguments.
+fn impl_parameters_then_group(tokens: &TokenBuf, boundary: usize) -> bool {
+    if tokens.kind[boundary - 1] != T::RBracket || tokens.kind[boundary] != T::LParen {
+        return false;
+    }
+    let mut depth = 0usize;
+    for k in (0..boundary).rev() {
+        match tokens.kind[k] {
+            T::RBracket => depth += 1,
+            T::LBracket => {
+                depth -= 1;
+                if depth == 0 {
+                    return k > 0 && tokens.kind[k - 1] == T::KwImpl;
+                }
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
 /// The `!` of `impl !Copy for T` or `impl[T] !Copy for P[T]`: a bang

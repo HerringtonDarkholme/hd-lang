@@ -261,3 +261,13 @@ fn a_block_closure_before_other_arguments_leaves_no_lone_comma() {
         "a lone comma:\n{output}"
     );
 }
+
+#[test]
+fn an_impl_parameter_list_keeps_a_space_before_a_parenthesized_self_type() {
+    let source = "impl['a, T] (&'a T)?:\n    pub fn copied(self) -> T:\n        *self\nimpl[T] (T, T):\n    fn first(self) -> T:\n        self._0\n";
+    assert_eq!(formatted(source), source);
+    let glued = source.replace("] (", "](");
+    assert_eq!(formatted(&glued), source);
+    let call = "fn f():\n    g[i32](1)\n";
+    assert_eq!(formatted(call), call);
+}
