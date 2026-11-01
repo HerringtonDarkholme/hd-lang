@@ -4,7 +4,7 @@ use std.time.{ms, sleep}
 
 sleep!(ms(1))
 for name in ["data/a.txt", "b.txt"]:
-    match read_text!(Path(name)):
+    match read_text!(Path(*name)):
         .Ok(text) => println("${name}: ${text.trim()}")
         .Err(.NotGranted(_)) => println("${name}: not granted")
         .Err(_) => println("${name}: unreadable")

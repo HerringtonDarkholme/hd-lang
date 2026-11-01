@@ -47,8 +47,8 @@ fn countdown(mut n: i32) -> i32:
 fn count_new(mut seen: List[i32], items: List[i32]) -> usize:
     let n: usize = 0
     for x in items:
-        if !seen.contains(x):
-            seen.push(x)
+        if !seen.contains(*x):
+            seen.push(*x)
             n = n + 1
     n
 

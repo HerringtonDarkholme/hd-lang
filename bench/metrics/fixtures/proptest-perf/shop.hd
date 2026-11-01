@@ -37,5 +37,5 @@ pub fn flipped(shape: Shape) -> Shape:
 pub fn order_total(order: Order) -> i64:
     let total: i64 = 0
     for item in order.items:
-        total = total.wrapping_add(cost(item))
+        total = total.wrapping_add(cost(*item))
     total
