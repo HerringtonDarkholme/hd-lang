@@ -226,3 +226,20 @@ fn negative_impls_and_relaxed_bounds_keep_their_markers() {
     let source = "impl !Copy for Photo\nimpl[T] !Copy for Pair[T]\nfn hold[T < Eq & ?Copy](x: T):\n    pass\ntrait Disposable < ?Copy:\n    fn dispose(&mut self)\nfn f!():\n    g!(1)\n";
     assert_eq!(formatted(source), source);
 }
+
+#[test]
+fn a_closure_holding_a_trailing_block_keeps_its_suite_inside_brackets() {
+    // A one-line closure cannot hold a trailing callback block, and inside
+    // a call's brackets the parser rejects the collapsed form
+    // (`trailing-block-position`), so the closure keeps its suite.
+    let source = "fn demo() -> List[string]:\n    each([\"a\", \"b\"], fn(item):\n        live:\n            \"<$item>\"\n    )\n";
+    let output = formatted(source);
+    assert!(
+        !output.contains("fn(item): live:"),
+        "the closure collapsed around a trailing block:\n{output}"
+    );
+    assert!(
+        output.contains("        fn(item):\n            live:\n"),
+        "{output}"
+    );
+}

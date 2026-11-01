@@ -81,7 +81,12 @@ impl<'s, 'p> Analysis<'s, 'p> {
         }
         for node in nodes.iter().rev() {
             let index = node.index().idx();
-            if matches!(node.kind(), S::ClosureExpr | S::IfExpr | S::MatchExpr) {
+            // A trailing callback block is a suite too: no one-line form
+            // around it parses (`fn.trailing.one`, `trailing-block-position`).
+            if matches!(
+                node.kind(),
+                S::ClosureExpr | S::IfExpr | S::MatchExpr | S::TrailingCallExpr
+            ) {
                 node_flags[index] |= CONTAINS_SUITE;
             }
             if node_flags[index] & CONTAINS_SUITE != 0
