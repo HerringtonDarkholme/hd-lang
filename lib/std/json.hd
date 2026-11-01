@@ -1921,7 +1921,9 @@ impl Serializer for TextWriter:
     # A NaN or an infinity writes `null` (r-std-json.std.float-special).
     fn float(&mut self, value: f64) -> Result[void, Irregular]:
         if value.is_finite():
-            return self.scalar("$value")
+            return match short_float_text(value):
+                .Some(text) => self.scalar(text)
+                .None => self.scalar("$value")
         self.scalar("null")
 
     fn text(&mut self, value: string) -> Result[void, Irregular]:
@@ -2003,6 +2005,59 @@ impl Serializer for TextWriter:
                 .Entries => return self.end_map()
                 _ => pass
         self.close(FrameKind.Record)
+
+# The Display text of `value` when it is `n / 10^k` for an integer `n`
+# below 10^15 and a magnitude from 10^-5 up to 10^15, else `.None`. The
+# least such `k` gives the shortest digits that read back as `value`:
+# below 10^15 two decimals of one length are never one float apart, and
+# `n / 10^k` is the correctly rounded value of that decimal (Clinger's
+# exact case), so the test is exact. The text is fixed notation, as
+# Display writes these magnitudes: `9.5`, `3.0`, `0.00125`.
+fn short_float_text(value: f64) -> string?:
+    magnitude := if value < 0.0: -value else: value
+    if !(magnitude >= 0.00001 && magnitude < 1000000000000000.0):
+        return .None
+    let power = 1.0
+    let k: usize = 0
+    while true:
+        scaled := magnitude * power
+        if scaled >= 1000000000000000.0:
+            return .None
+        n := u64(scaled + 0.5)
+        if f64(n) / power == magnitude:
+            return .Some(fixed_text(value < 0.0, n, k))
+        power = power * 10.0
+        k = k + 1
+    .None
+
+# `n / 10^k` in fixed notation, with at least one digit after the point.
+fn fixed_text(negative: bool, n: u64, k: usize) -> string:
+    let mut bytes: List[u8] = []
+    let rest = n
+    let place: usize = 0
+    while place < k:
+        bytes.push(u8(rest % 10) + 48)
+        rest = rest / 10
+        place = place + 1
+    if k == 0:
+        bytes.push(48)
+    bytes.push(46)
+    bytes.push(u8(rest % 10) + 48)
+    rest = rest / 10
+    while rest > 0:
+        bytes.push(u8(rest % 10) + 48)
+        rest = rest / 10
+    if negative:
+        bytes.push(45)
+    let low: usize = 0
+    let high = bytes.len() - 1
+    while low < high:
+        byte := bytes[low]
+        bytes[low] = bytes[high]
+        bytes[high] = byte
+        low = low + 1
+        high = high - 1
+    string_from_bytes(bytes)
 
 # The nesting levels a frame adds to the pretty text: a variant's
 # `{"Variant": {` is two.
