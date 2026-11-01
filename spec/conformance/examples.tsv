@@ -946,7 +946,8 @@ std/random.md	6	accept	runtime/valid/rng-seeded-sequence.hd
 std/random.md	7	accept	runtime/valid/rng-shuffle-choose-sample.hd
 std/option.md	1	accept	runtime/valid/option-and-then.hd
 std/option.md	2	accept	runtime/valid/option-tests-conversions.hd
-std/option.md	3	accept	runtime/valid/error-message.hd
+std/option.md	3	accept	runtime/valid/option-copied.hd
+std/option.md	4	accept	runtime/valid/error-message.hd
 std/result.md	1	accept	runtime/valid/result-and-then.hd
 std/result.md	2	mixed	typing/invalid/result-and-then-error-type.hd
 std/result.md	3	accept	runtime/valid/result-map.hd

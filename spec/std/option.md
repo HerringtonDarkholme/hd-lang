@@ -91,6 +91,22 @@ fn greeting(name: string?) -> string:
 > `Option::ok_or` does. `expect` names the broken assumption in its panic
 > message, where a bare `match` would repeat it at every call.
 
+## Borrowed Payloads
+
+`std` gives an optional reference, `(&T)?`, a `copied` method that copies
+the value it refers to:
+
+```text
+fn count_of(found: (&usize)?) -> usize:
+    found.copied().unwrap_or(0)
+```
+
+| Rule | Method | Result |
+| --- | --- | --- |
+| r[std-option.copied] `copied` | `fn copied(self) -> T?` on `(&T)?` | `.Some(*value)` for `.Some(value)`, and `.None` for `.None` |
+
+1. r[std-option.copied.inherent] `copied` is an inherent method that `std` declares on `(&T)?` for a `T` that is copied, so it needs no `use`.
+
 ## Optional Context
 
 `context` turns a `.None` into an error with a message, as anyhow's

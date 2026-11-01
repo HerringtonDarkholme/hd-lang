@@ -1,0 +1,17 @@
+# test: `copied` turns an optional reference into an optional copy of the value it refers to
+# Spec std option: std-option.copied, std-option.copied.inherent.
+# expect-stdout: 8
+# expect-stdout: 0
+# expect-stdout: true
+fn count_of(found: (&usize)?) -> usize:
+    found.copied().unwrap_or(0)
+
+pub fn main() -> void $ Console:
+    let eight: usize = 8
+    println("${count_of(.Some(&eight))}")
+    println("${count_of(.None)}")
+    let mut total: i32 = 1
+    let held: (&i32)? = .Some(&total)
+    copy := held.copied()
+    total = 2
+    println("${copy == .Some(1)}")

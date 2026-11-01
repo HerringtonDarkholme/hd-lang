@@ -5729,3 +5729,4 @@ typing/invalid/move-field-out-of-deref-in-let-pattern.hd	type	reject:move-out-of
 typing/valid/match-through-reference-reads-payload-field.hd	type	accept	lang/13-values-and-references.md#r-ref.move.pattern
 runtime/valid/trait-value-meets-supertrait-bounds-whatever-receivers.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.member.other-with-opaque
 runtime/valid/list-in-place-retain-sort-swap.hd	runtime	accept	std/collections.md#r-std-collections.helper.retain
+runtime/valid/option-copied.hd	runtime	accept	std/option.md#r-std-option.copied
