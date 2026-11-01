@@ -43,6 +43,8 @@ The std shape below needs these rules of the language:
 6. [`ref.copy.collections`](../../spec/lang/13-values-and-references.md#r-ref.copy.collections) is lifted after slice 7 (movers): one `List`, `Map`, `Set`, `Deque` and `Heap` hold any `T`.
 7. The generic default becomes move-only (`[T < Copy]` to copy), as the last slice, after a re-measure (153 std bounds today, about 36 after this redesign; 0 in examples, bench and the server SDK). `?Copy` then goes away.
 8. No implied bounds: `List[T]` in a signature implies nothing about `T`.
+9. Field access and method calls auto-dereference through every `&`, `&mut`, `*T` and `*mut T` level, as Rust's auto-deref does: `x.name` and `x.describe()` with `x: &*mut User`. Casts, conditions, range bounds, `?`, spreads and calls of a function value keep an explicit `*`.
+10. `&` and `&mut` take a counted pointer type without parentheses: `&*T`, `&*mut T`, `&mut *T`, as Rust's `&*const T`; `*&T` stays an error.
 
 ## Problems It Solves
 
