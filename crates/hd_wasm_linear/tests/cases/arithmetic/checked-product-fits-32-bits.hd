@@ -1,0 +1,6 @@
+# @dump: wat
+# A checked i64 product first tests whether both operands fit 32 bits, which
+# cannot overflow; only otherwise does it divide the product by the operand
+# outside that range, never 0 or -1 (check-cost: `values[j] * k`).
+fn product(x: i64, y: i64) -> i64:
+    x * y

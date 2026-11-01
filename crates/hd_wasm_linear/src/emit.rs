@@ -4261,36 +4261,55 @@ impl Em<'_, '_, '_> {
                     self.f.op(i);
                 }
             }
-            // The product overflowed when `x` is not zero and `r / x` is
-            // not `y`; `x = -1` is tested apart, since `MIN / -1` traps.
+            // Operands that both fit 32 bits (signed or unsigned, as the
+            // type) cannot overflow, and are tested without dividing.
+            // Otherwise one operand `d` is outside that range, so neither
+            // 0 nor -1, and the product overflowed when `r / d` is not the
+            // other operand.
             (PrimOp::Mul, _) => {
-                let o = self.f.local(Val::I32);
-                self.f.get(x);
+                let small = self.f.local(Val::I32);
+                let narrow = |em: &mut Self, v: u32| {
+                    em.f.get(v);
+                    if signed {
+                        em.f.op(I::I64Const(1 << 31));
+                        em.f.op(I::I64Add);
+                    }
+                };
+                narrow(self, x);
+                narrow(self, y);
+                self.f.op(I::I64Or);
+                self.f.op(I::I64Const(32));
+                self.f.op(I::I64ShrU);
                 self.f.op(I::I64Eqz);
-                self.f.op(I::I32Eqz);
-                self.f.op(I::If(BlockType::Empty));
-                if signed {
-                    self.f.get(x);
-                    self.f.op(I::I64Const(-1));
-                    self.f.op(I::I64Eq);
-                    self.f.op(I::If(BlockType::Empty));
-                    self.f.get(y);
-                    self.f.op(I::I64Const(i64::MIN));
-                    self.f.op(I::I64Eq);
-                    self.f.set(o);
-                    self.f.op(I::Else);
-                }
+                self.f
+                    .op(I::If(BlockType::Result(wasm_encoder::ValType::I32)));
+                self.f.i32(0);
+                self.f.op(I::Else);
+                narrow(self, x);
+                self.f.op(I::I64Const(32));
+                self.f.op(I::I64ShrU);
+                self.f.op(I::I64Eqz);
+                self.f.set(small);
                 self.f.get(r);
-                self.f.get(x);
-                self.f.op(if signed { I::I64DivS } else { I::I64DivU });
-                self.f.get(y);
-                self.f.op(I::I64Ne);
-                self.f.set(o);
-                if signed {
-                    self.f.op(I::End);
+                for i in [
+                    I::LocalGet(y),
+                    I::LocalGet(x),
+                    I::LocalGet(small),
+                    I::Select,
+                ] {
+                    self.f.op(i);
                 }
+                self.f.op(if signed { I::I64DivS } else { I::I64DivU });
+                for i in [
+                    I::LocalGet(x),
+                    I::LocalGet(y),
+                    I::LocalGet(small),
+                    I::Select,
+                ] {
+                    self.f.op(i);
+                }
+                self.f.op(I::I64Ne);
                 self.f.op(I::End);
-                self.f.get(o);
             }
             // Division and remainder overflow only at `MIN / -1`, tested
             // before the division.
