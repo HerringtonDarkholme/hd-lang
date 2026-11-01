@@ -222,7 +222,7 @@ impl TcpStream for ScriptedStream:
                 .Some(error) => return .Err(error)
                 .None => pass
         for byte in bytes:
-            self.bytes.push(byte)
+            self.bytes.push(*byte)
         .Ok(())
 
     # A scripted call never waits, so the bound is only stored

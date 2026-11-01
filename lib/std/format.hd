@@ -219,8 +219,9 @@ impl DebugWriter:
     # a cycle: this writes `<cycle>` and returns false
     # (spec/lang/10-modules.md#r-module.dbg.cycle.reference).
     fn enter(&mut self, value: *dyn Any) -> bool:
-        for seen in self.active:
-            if seen is value:
+        active := self.active
+        for seen in active:
+            if *seen is value:
                 self.write("<cycle>")
                 return false
         self.active.push(value)
@@ -852,7 +853,7 @@ fn dbg_list[E](
         let count: usize = 0
         for item in value:
             if out.entry_item(count, "["):
-                show(item, out)
+                show(*item, out)
                 out.end_item()
             count = count + 1
         out.entry_close(count, "[", "]")
@@ -941,7 +942,7 @@ impl[S] Walker[S] for DbgFields[S]:
     fn rest[I](&mut self, h: Field[S, List[I]], items: List[I]) -> Result[void, never]:
         show := dbg_printer::[I]()
         for item in items:
-            _ := self.tuple.part(item, show)
+            _ := self.tuple.part(*item, show)
         .Ok(())
 
 # Derived `Debug` (spec/std/format.md#r-std-format.debug.derive-builders.source):

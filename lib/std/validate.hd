@@ -325,7 +325,7 @@ impl[T < Validate] Validate for List[T]:
         let index: usize = 0
         for value in *self:
             context.push(.Index(index))
-            visit_value(&value, context)
+            visit_value(value, context)
             context.pop()
             index = index + 1
 
@@ -771,7 +771,7 @@ pub struct OneOf[F]:
 impl[F < Validate] Rule[F] for OneOf[F]:
     fn apply(&self, value: &F, context: &mut ValidationContext) -> void:
         for allowed in self.values:
-            match value.equal_to(&allowed):
+            match value.equal_to(allowed):
                 .Some(true) => return
                 .Some(false) => pass
                 .None =>

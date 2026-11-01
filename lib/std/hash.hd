@@ -240,7 +240,7 @@ impl Hasher for DefaultHasher:
     fn write(&mut self, bytes: List[u8]) -> void:
         let state = self.state
         for byte in bytes:
-            state = fnv_mix(state, byte)
+            state = fnv_mix(state, *byte)
         self.state = state
 
     fn write_u8(&mut self, value: u8) -> void:
@@ -431,7 +431,7 @@ impl Hasher for BucketHasher:
         let word = h.word
         let count = h.count
         for byte in bytes:
-            word = word | (u64(byte) << ((count & 3) * 8))
+            word = word | (u64(*byte) << ((count & 3) * 8))
             count = count + 1
             if count & 3 == 0:
                 h = h.absorb(word)

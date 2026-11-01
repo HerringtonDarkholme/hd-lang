@@ -234,7 +234,7 @@ fn joined_name(name: string, camel: bool) -> string:
         if byte == 95:
             word_start = true
             continue
-        let next = byte
+        let next = *byte
         if word_start && camel && first:
             if byte >= 65 && byte <= 90:
                 next = byte + 32
@@ -638,7 +638,7 @@ impl[S, R < Deserializer] Source[S] for DeserializeSource[S, R]:
                     break
         if self.facts.items.is_empty() && !any_variant_rename:
             for choice in choices:
-                infos.push(choice.info)
+                infos.push((*choice).info)
         else:
             for choice in choices:
                 infos.push(wire_variant(&choice.info, self.facts))
@@ -1019,8 +1019,8 @@ impl[S] Source[S] for MapKeySource[S]:
 
     fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], bool]:
         for choice in choices:
-            if choice.info.name == self.name:
-                return .Ok(choice)
+            if (*choice).info.name == self.name:
+                return .Ok(*choice)
         .Err(false)
 
     fn next(&mut self, members: Members[S]) -> Result[Key[S]?, bool]:

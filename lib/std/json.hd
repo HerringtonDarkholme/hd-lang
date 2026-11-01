@@ -385,7 +385,7 @@ fn render(value: Json, out: &mut List[u8], spaced: bool, depth: usize) -> void:
                     bytes_append(out, ",")
                 first = false
                 line_break(out, spaced, depth + 1)
-                render(item, out, spaced, depth + 1)
+                render(*item, out, spaced, depth + 1)
             line_break(out, spaced, depth)
             bytes_append(out, "]")
         .Object(fields) =>

@@ -182,7 +182,7 @@ impl ArgParser:
                 else:
                     values.get(arg.name).is_some()
                 if !present:
-                    return .Err(CliError.MissingArgument(argument_name(arg)))
+                    return .Err(CliError.MissingArgument(argument_name(*arg)))
         .Ok(
             Parsed {
                 present_flags: flags,
@@ -207,7 +207,7 @@ impl ArgParser:
         if self.commands.len() > 0:
             text.push(if self.command_required: " <command>" else: " [<command>]")
         for slot in self.positional_slots:
-            arg := self.declarations[slot]
+            arg := self.declarations[*slot]
             text.push(" ")
             if !arg.required:
                 text.push("[")
@@ -234,13 +234,13 @@ impl ArgParser:
         let mut terms: List[string] = []
         let width: usize = 0
         for arg in self.declarations:
-            term := argument_term(arg)
+            term := argument_term(*arg)
             terms.push(term)
             width = max(width, term.chars().count())
         if self.positional_slots.len() > 0:
             text.push("\n\narguments:")
             for slot in self.positional_slots:
-                write_entry(text, terms[slot], self.declarations[slot], width)
+                write_entry(text, terms[*slot], self.declarations[*slot], width)
         if self.options.len() > 0:
             text.push("\n\noptions:")
             let mut declarations = self.declarations.iter().enumerate()
@@ -672,19 +672,19 @@ impl[S] Source[S] for CliSource[S]:
                 .Some(command) => command
                 .None => return .Err(.MissingCommand)
             for choice in choices:
-                if cli_name(choice.info.name) == name:
+                if cli_name((*choice).info.name) == name:
                     self.parsed = child
                     self.command_payload = true
-                    return .Ok(choice)
+                    return .Ok(*choice)
             return .Err(.UnknownCommand(name))
         value := match self.parsed.value(arg.name):
             .Some(value) => value
             .None => return .Err(.MissingArgument(argument_name(arg)))
         let mut names: List[string] = []
         for choice in choices:
-            name := cli_name(choice.info.name)
+            name := cli_name((*choice).info.name)
             if name == value:
-                return .Ok(choice)
+                return .Ok(*choice)
             names.push(name)
         .Err(.InvalidValue(arg.name, "expected ${names.join(" or ")}, got $value"))
 

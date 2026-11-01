@@ -150,7 +150,7 @@ pub fn walk!(root: Path) -> Result[List[Entry], FsError] $ FsRead:
 
 fn walk_into!(dir: Path, found: &mut List[Entry]) -> Result[void, FsError] $ FsRead:
     for entry in sorted_entries!(dir)?:
-        found.push(entry)
+        found.push(*entry)
         if entry.kind == EntryKind.Directory:
             walk_into!(entry.path, found)?
     .Ok(())
@@ -173,11 +173,11 @@ pub fn glob!(pattern: string) -> Result[List[Path], FsError] $ FsRead:
     let mut components: List[string] = []
     for component in pattern.split("/"):
         if component != "":
-            components.push(component)
+            components.push(*component)
     # Every component is checked before any file system access
     # (r-std-fs.glob.error).
     for component in components:
-        match parse_glob_component(component):
+        match parse_glob_component(*component):
             .Ok(_) => pass
             .Err(reason) =>
                 return .Err(FsError.Other(message="invalid glob pattern ${pattern}: ${reason}"))
@@ -191,9 +191,9 @@ pub fn glob!(pattern: string) -> Result[List[Path], FsError] $ FsRead:
     let mut result: List[Path] = []
     let previous: string? = .None
     for text in sorted:
-        if previous != .Some(text):
-            result.push(Path(text))
-        previous = .Some(text)
+        if previous != .Some(*text):
+            result.push(Path(*text))
+        previous = .Some(*text)
     .Ok(result)
 
 fn glob_has_meta(component: string) -> bool:
@@ -230,7 +230,7 @@ fn glob_from!(
     for entry in sorted_entries!(glob_dir(base))?:
         name := entry.path.file_name().unwrap_or("")
         if glob_component_matches(pieces, name):
-            glob_step!(entry, "${Path(base).join(name)}", components, index, found)?
+            glob_step!(*entry, "${Path(base).join(name)}", components, index, found)?
     .Ok(())
 
 # A matched entry ends the pattern, or is a directory the next component
@@ -361,7 +361,7 @@ fn memory_key(path: Path) -> string:
     let mut parts: List[string] = []
     for part in text.split("/"):
         if part != "" && part != ".":
-            parts.push(part)
+            parts.push(*part)
     key := parts.join("/")
     if text.starts_with("/"):
         return "/${key}"
@@ -484,10 +484,10 @@ impl FsRead for MemoryFs:
             # The root itself is not one of its children.
             if name == "." || name == "":
                 continue
-            match seen.get(name):
+            match seen.get(*name):
                 .Some(_) => pass
                 .None =>
-                    seen[name] = true
+                    seen[*name] = true
                     match self.stat!(Path("${under}${name}"))?:
                         .Some(entry) => entries.push(entry)
                         .None => pass
@@ -550,7 +550,7 @@ impl FsWrite for MemoryFs:
             .Some(old) => old
             .None => []
         for byte in text.to_utf8():
-            joined.push(byte)
+            joined.push(*byte)
         self.files[key] = joined
         _ := self.modified.remove(key)
         .Ok(())
@@ -594,7 +594,7 @@ impl FsWrite for MemoryFs:
         let mut kept: List[string] = []
         for made in self.dirs:
             if made != key:
-                kept.push(made)
+                kept.push(*made)
         self.dirs = kept
         _ := self.modified.remove(key)
         self.forget_missing_parents(key)
@@ -646,7 +646,7 @@ impl FsWrite for MemoryFs:
                 renamed.push(destination)
                 _ := self.modified.remove(destination)
             else:
-                renamed.push(made)
+                renamed.push(*made)
         self.dirs = renamed
         for (stored, time) in times:
             self.modified["${target}${stored.slice(source.len(), stored.len())}"] = time

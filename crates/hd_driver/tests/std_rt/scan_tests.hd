@@ -386,7 +386,7 @@ fn fill_to(bytes: &mut List[u8], mix: usize, target: usize, seed: usize) -> void
         piece := fill_char(mix, k)
         if bytes.len() + piece.len() <= target:
             for byte in piece:
-                bytes.push(byte)
+                bytes.push(*byte)
             k = k + 1
         else:
             more = false
@@ -402,7 +402,7 @@ fn utf8_bytes(mix: usize, at: usize, kind: usize, pick: usize, len: usize) -> Li
         return bytes
     fill_to(&mut bytes, mix, at, 0)
     for byte in bad_sequence(kind, pick):
-        bytes.push(byte)
+        bytes.push(*byte)
     if kind != 5:
         fill_to(&mut bytes, mix, len, at)
     bytes
@@ -891,7 +891,7 @@ tests:
                 while bytes.len() < at:
                     bytes.push(97)
                 for byte in utf8_char(k):
-                    bytes.push(byte)
+                    bytes.push(*byte)
                 while bytes.len() < 90:
                     bytes.push(97)
                 assert_equal(utf8_valid_len(bytes), 90, reason="character $k at $at")
@@ -1068,13 +1068,13 @@ tests:
         for text in texts:
             for needle in needles:
                 assert_equal(
-                    text.find(needle),
-                    naive_find(text, needle, 0),
+                    text.find(*needle),
+                    naive_find(*text, *needle, 0),
                     reason="find $needle in $text",
                 )
                 assert_equal(
-                    text.split(needle),
-                    naive_split(text, needle),
+                    text.split(*needle),
+                    naive_split(*text, *needle),
                     reason="split $needle in $text",
                 )
 
@@ -1101,18 +1101,18 @@ tests:
             # A `c` inside the needle: no match in the text, then one at the end.
             for pattern in ["acb", "abcbbbbbba", "aaacaaaa", "bcbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]:
                 assert_equal(
-                    text.find(pattern),
-                    naive_find(text, pattern, 0),
+                    text.find(*pattern),
+                    naive_find(text, *pattern, 0),
                     reason="find $pattern, wide $wide",
                 )
                 ended := text + pattern
                 assert_equal(
-                    ended.find(pattern),
+                    ended.find(*pattern),
                     .Some(30000),
                     reason="find $pattern at the end, wide $wide",
                 )
                 assert_equal(
-                    ended.split(pattern),
+                    ended.split(*pattern),
                     [text, ""],
                     reason="split $pattern at the end, wide $wide",
                 )

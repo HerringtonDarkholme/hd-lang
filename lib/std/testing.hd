@@ -386,16 +386,16 @@ impl[S] Source[S] for ArbitrarySource[S]:
         let simplest: usize? = .None
         for v in choices:
             if simplest.is_none():
-                match v.info.self_ref:
+                match (*v).info.self_ref:
                     .Required => pass
-                    _ => simplest = .Some(v.info.index)
+                    _ => simplest = .Some((*v).info.index)
         first := match simplest:
             .Some(index) => index
             .None => return .Err(NoFiniteValue {})
         let mut ordered: List[Variant[S]] = [choices[first]]
         for v in choices:
-            if v.info.index != first:
-                ordered.push(v)
+            if (*v).info.index != first:
+                ordered.push(*v)
         if ordered.len() == 1:
             return .Ok(ordered[0])
         .Ok(ordered[self.c.int(0..=ordered.len() - 1)])

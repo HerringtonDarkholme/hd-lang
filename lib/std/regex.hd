@@ -763,12 +763,12 @@ fn program_size(node: Node) -> usize:
         .Concat(items) =>
             let total: usize = 0
             for item in items:
-                total = capped(total + program_size(item))
+                total = capped(total + program_size(*item))
             total
         .Alternate(branches) =>
             let total: usize = 0
             for branch in branches:
-                total = capped(total + program_size(branch) + 2)
+                total = capped(total + program_size(*branch) + 2)
             total - 2
         .Repeat(body, min, max, _) =>
             size := program_size(*body)
@@ -804,7 +804,7 @@ fn compile(node: Node, program: &mut List[Inst]) -> void:
             program.push(Inst.Save(2 * index + 1))
         .Concat(items) =>
             for item in items:
-                compile(item, program)
+                compile(*item, program)
         .Alternate(branches) =>
             # split L1, next; L1: a; jump end; next: split L2, ... ; last
             let mut jumps: List[usize] = []
@@ -821,7 +821,7 @@ fn compile(node: Node, program: &mut List[Inst]) -> void:
                     compile(branches[index], program)
                 index = index + 1
             for jump in jumps:
-                program[jump] = Inst.Jump(program.len())
+                program[*jump] = Inst.Jump(program.len())
         .Repeat(body, min, max, greedy) =>
             let copies: usize = 0
             match max:
@@ -853,7 +853,7 @@ fn compile(node: Node, program: &mut List[Inst]) -> void:
                         compile(*body, program)
                         copies = copies + 1
                     for split in splits:
-                        program[split] = choice(split + 1, program.len(), greedy)
+                        program[*split] = choice(split + 1, program.len(), greedy)
 
 # The instructions as parallel lists that the VM reads by index, so a step
 # compares integers instead of matching a variant. `ops[pc]` is the kind:
@@ -897,7 +897,7 @@ fn lower(program: List[Inst]) -> Program:
                 op = if negated: +3 else: +2
                 first = ranges.len()
                 for bound in bounds:
-                    ranges.push(bound)
+                    ranges.push(*bound)
                 second = ranges.len()
             .Done => op = +4
             .Split(a, b) =>
@@ -1095,7 +1095,7 @@ fn concat_summary(items: List[Node]) -> Summary:
     let exact = true
     let firsts: List[u64] = no_bytes()
     for item in items:
-        summary := summarize(item)
+        summary := summarize(*item)
         if min == 0:
             firsts = union(firsts, summary.firsts)
         if summary.literal != "" && prefer(summary.literal, plus(max, summary.hi), literal, hi):
@@ -1404,7 +1404,7 @@ impl Vm:
             if value < 0:
                 slots.push(.None)
             else:
-                slots.push(.Some(usize(value)))
+                slots.push(.Some(usize(*value)))
         Captures { text: self.text, slots: slots, names: names }
 
 # Runs the next search of a `find_all` series (r-std-regex.find-all.next)
@@ -1895,7 +1895,7 @@ fn class_ranges(items: List[ClassItem]) -> List[i32]:
 fn push_ranges(ranges: &mut List[i32], set: List[i32], negated: bool) -> void:
     if !negated:
         for bound in set:
-            ranges.push(bound)
+            ranges.push(*bound)
         return
     let low = +0
     let index: usize = 0

@@ -112,7 +112,7 @@ tests:
             "17",
         ]
         for text in texts:
-            assert(decode::[Json](text) == parse(text), "decode reads what parse reads")
+            assert(decode::[Json](*text) == parse(*text), "decode reads what parse reads")
         strings := decode::[List[string]]("[\"a]\",\"b\\\"\", \"c\" ]")
         assert(strings == .Ok(["a]", "b\"", "c"]), "strings with brackets and escapes")
         lists := decode::[List[List[i64]]]("[[1, 2], [], [3]]")

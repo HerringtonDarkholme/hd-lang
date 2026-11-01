@@ -106,7 +106,7 @@ fn components(text: string) -> List[string]:
     for piece in text.split("/"):
         if piece == "" || (piece == "." && (found.len() > 0 || text.starts_with("/"))):
             continue
-        found.push(piece)
+        found.push(*piece)
     found
 
 # Keep handwritten Debug: keep the Path wrapper; a derived newtype Debug delegates to string.

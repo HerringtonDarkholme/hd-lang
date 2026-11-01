@@ -645,7 +645,7 @@ impl List[string]:
         for part in self:
             if pieces.len() > 0:
                 pieces.push(separator)
-            pieces.push(part)
+            pieces.push(*part)
         concat_all(pieces)
 
 ## Joins many pieces of text by pushing them, cheaper than repeated concatenation.

@@ -72,7 +72,7 @@ impl dyn Error:
     ## See [std-error.find.method-chain-first](../../spec/std/error.md#r-std-error.find.method-chain-first).
     pub fn find[T < Error](*self) -> T?:
         for error in self.chain():
-            match error.downcast_ref::[T]():
+            match (*error).downcast_ref::[T]():
                 .Some(found) => return .Some(*found)
                 .None => pass
         .None
@@ -97,7 +97,7 @@ impl Display for ErrorReport:
     fn to_string(&self) -> string:
         let mut lines: List[string] = [self.message]
         for source in self.sources:
-            lines.push(source)
+            lines.push(*source)
         lines.join("\nsource: ")
 
 # The `Display` text of the error and of each source that `chain` yields

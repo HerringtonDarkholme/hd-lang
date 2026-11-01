@@ -826,8 +826,8 @@ impl[S] Source[S] for DefaultSource[S]:
     # variant whose facts hold a `DefaultVariant`.
     fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], never]:
         for choice in choices:
-            match choice.info.facts.find::[DefaultVariant]():
-                .Some(_) => return .Ok(choice)
+            match (*choice).info.facts.find::[DefaultVariant]():
+                .Some(_) => return .Ok(*choice)
                 .None => pass
         .Ok(choices[0])
 

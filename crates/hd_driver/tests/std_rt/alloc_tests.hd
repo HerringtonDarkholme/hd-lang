@@ -173,7 +173,7 @@ tests:
             2048,
         ]
         for size in sizes:
-            first := alloc(size)
+            first := alloc(*size)
             page := first / PAGE * PAGE
             let offset: usize = 0
             while offset < PAGE - 16:

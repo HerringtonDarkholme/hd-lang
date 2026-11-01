@@ -237,7 +237,7 @@ impl Parse for HeaderName:
         if text.is_empty():
             return .Err(.InvalidName(text))
         for byte in text.to_utf8():
-            if !header_token_byte(byte):
+            if !header_token_byte(*byte):
                 return .Err(.InvalidName(text))
         name := header_ascii_lower(&text)
         .Ok(
@@ -408,7 +408,7 @@ impl From[UrlError] for HttpError:
 fn header_ascii_lower(text: &string) -> string:
     let mut bytes: List[u8] = []
     for byte in text.to_utf8():
-        bytes.push(ascii_lower(byte))
+        bytes.push(ascii_lower(*byte))
     match string::from_utf8(bytes):
         .Ok(value) => value
         .Err(_) => panic("ASCII lowercasing preserves UTF-8")
@@ -488,10 +488,10 @@ impl Headers:
             match value:
                 .RequestCookies(pairs) =>
                     for pair in pairs:
-                        cookies.push(pair)
+                        cookies.push(*pair)
                 _ =>
                     for pair in parse_request_cookies(&value.text()):
-                        cookies.push(pair)
+                        cookies.push(*pair)
         cookies
 
     ## Merges request cookies into one Cookie field, replacing this name.
@@ -680,7 +680,7 @@ fn multipart_boundary(parts: &List[BufferedMultipartPart]) -> string:
     while true:
         hasher := Sha256::new()
         for part in parts:
-            hasher.update(multipart_part_header_bytes(&part))
+            hasher.update(multipart_part_header_bytes(part))
             hasher.update(part.bytes)
             hasher.update("\r\n".to_utf8())
         if counter > 0:
@@ -756,7 +756,7 @@ fn multipart_encode(parts: &List[BufferedMultipartPart], boundary: &string) -> L
     let mut out: List[u8] = []
     for part in parts:
         multipart_append_text(&mut out, "--$boundary\r\n")
-        multipart_append_part(&mut out, &part)
+        multipart_append_part(&mut out, part)
     multipart_append_text(&mut out, "--$boundary--\r\n")
     out
 
@@ -835,7 +835,7 @@ fn multipart_boundary_valid(boundary: &string) -> bool:
             (byte >= 48 && byte <= 57)
             || (byte >= 65 && byte <= 90)
             || (byte >= 97 && byte <= 122)
-            || "'()+_,-./:=? ".to_utf8().contains(byte)
+            || "'()+_,-./:=? ".to_utf8().contains(*byte)
         ):
             continue
         return false
@@ -1300,7 +1300,7 @@ fn message_form_parse(text: &string) -> Result[List[(string, string)], FormError
     for part in text.split("&"):
         if part.is_empty():
             continue
-        let (name, value) = part.split_once("=").unwrap_or((part, ""))
+        let (name, value) = part.split_once("=").unwrap_or((*part, ""))
         key := match url_decode_component(&name, true):
             .Some(key) => key
             .None => return .Err(.Invalid("$", name))
@@ -1531,25 +1531,25 @@ fn parse_cookie_date(text: &string) -> Timestamp?:
     let year: usize? = .None
     for token in tokens:
         if clock.is_none():
-            match cookie_date_clock(&token):
+            match cookie_date_clock(token):
                 .Some(value) =>
                     clock = .Some(value)
                     continue
                 .None => pass
         if day.is_none():
-            match cookie_date_number(&token, 1, 2):
+            match cookie_date_number(token, 1, 2):
                 .Some(value) =>
                     day = .Some(value)
                     continue
                 .None => pass
         if month.is_none():
-            match cookie_date_month(&token):
+            match cookie_date_month(token):
                 .Some(value) =>
                     month = .Some(value)
                     continue
                 .None => pass
         if year.is_none():
-            year = cookie_date_number(&token, 2, 4)
+            year = cookie_date_number(token, 2, 4)
     let (hour, minute, second) = clock?
     day_value := day?
     month_value := month?
@@ -1774,10 +1774,10 @@ fn url_ascii_text(bytes: List[u8]) -> string:
 fn url_encode_component(text: &string, component: UrlComponent) -> string:
     let mut out: List[u8] = []
     for byte in text.to_utf8():
-        if url_component_byte(byte, component):
-            out.push(byte)
+        if url_component_byte(*byte, component):
+            out.push(*byte)
         else:
-            url_encoded_byte(&mut out, byte)
+            url_encoded_byte(&mut out, *byte)
     url_ascii_text(out)
 
 # Keep valid escapes, including escaped separators; encode literal UTF-8.
@@ -1844,10 +1844,10 @@ fn url_host_valid(host: &string) -> bool:
             if version.is_empty() || rest.is_empty():
                 return false
             for byte in version.to_utf8():
-                if url_hex(byte).is_none():
+                if url_hex(*byte).is_none():
                     return false
             for byte in rest.to_utf8():
-                if !url_unreserved(byte) && !url_subdelimiter(byte) && byte != 58:
+                if !url_unreserved(*byte) && !url_subdelimiter(*byte) && byte != 58:
                     return false
             return true
         return url_ipv6(&address)
@@ -1898,7 +1898,7 @@ fn url_ipv6_groups(text: &string, ipv4: bool) -> usize?:
             if part.is_empty() || part.len() > 4:
                 return .None
             for byte in part.to_utf8():
-                if url_hex(byte).is_none():
+                if url_hex(*byte).is_none():
                     return .None
             count += 1
     .Some(count)
@@ -2071,7 +2071,7 @@ fn cookie_pair_valid(name: &string, value: &string) -> bool:
     if name.is_empty():
         return false
     for byte in name.to_utf8():
-        if !header_token_byte(byte):
+        if !header_token_byte(*byte):
             return false
     for byte in value.to_utf8():
         if byte < 33 || byte > 126 || byte == 34 || byte == 44 || byte == 59 || byte == 92:
@@ -2513,8 +2513,8 @@ pub struct DnsResolver:
 ## See [std-http.settings.dns-servers](../../spec/std/http.md#r-std-http.settings.dns-servers).
 pub fn dns_servers(servers: List[string]) -> Result[DnsResolver, HttpConfigError]:
     for server in servers:
-        if !url_ipv4(&server) && !url_ipv6(&server):
-            return .Err(.InvalidDnsServer(server))
+        if !url_ipv4(server) && !url_ipv6(server):
+            return .Err(.InvalidDnsServer(*server))
     .Ok(DnsResolver { servers: servers })
 
 ## One PEM certificate that extends the host's trusted roots.

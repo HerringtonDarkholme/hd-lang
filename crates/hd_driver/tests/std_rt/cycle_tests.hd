@@ -78,7 +78,7 @@ struct Dir:
 fn directory_total(dir: Dir) -> i32:
     let total = dir.value
     for child in dir.kids:
-        total += directory_total(child)
+        total += directory_total(*child)
     total
 
 struct ListRing:

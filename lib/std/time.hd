@@ -509,7 +509,7 @@ fn parse_byte_codes(codes: List[i32]) -> Result[Timestamp, ParseTimeError]:
         let width: usize = if start == 0: 4 else: 2
         if reach < start + width:
             return .Err(rfc3339_mismatch(codes, reach))
-        value := rfc3339_value(codes, start, width)
+        value := rfc3339_value(codes, *start, width)
         parts.push(value)
         let high: i64 = 59
         if start == 0:
@@ -521,7 +521,7 @@ fn parse_byte_codes(codes: List[i32]) -> Result[Timestamp, ParseTimeError]:
         else if start == 11:
             high = 23
         if value > high || (value == 0 && (start == 5 || start == 8)):
-            return .Err(ParseTimeError.OutOfRange(start))
+            return .Err(ParseTimeError.OutOfRange(*start))
     let index: usize = 19
     let fraction: i64 = 0
     if index < codes.len() && codes[index] == 46:

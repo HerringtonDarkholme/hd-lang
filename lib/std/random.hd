@@ -175,7 +175,7 @@ impl Rng:
             panic("std.random: sample count above the list length")
         let mut pool: List[T] = []
         for item in items:
-            pool.push(item)
+            pool.push(*item)
         let mut chosen: List[T] = []
         let i: usize = 0
         while i < count:

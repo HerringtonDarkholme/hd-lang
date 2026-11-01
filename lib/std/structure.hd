@@ -30,7 +30,7 @@ impl Facts:
     ## See [annot.structure.find-exact](../../spec/lang/14-annotations.md#r-annot.structure.find-exact).
     pub fn find[F < Inspectable](self) -> F?:
         for item in self.items:
-            match item.downcast_ref::[F]():
+            match (*item).downcast_ref::[F]():
                 .Some(found) => return .Some(*found)
                 .None => pass
         .None

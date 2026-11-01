@@ -124,7 +124,7 @@ impl Command:
     ## See [std-process.command.args-ref](../../spec/std/process.md#r-std-process.command.args-ref).
     pub fn args(*mut self, values: List[string]) -> *mut Command:
         for value in values:
-            self.args.push(value)
+            self.args.push(*value)
         self
 
     ## Appends one environment pair and returns the command.

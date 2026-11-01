@@ -48,10 +48,10 @@ impl Sha256:
         let mut block_key: List[u8] = []
         if key.len() > 64:
             for byte in sha256(key).bytes:
-                block_key.push(byte)
+                block_key.push(*byte)
         else:
             for byte in key:
-                block_key.push(byte)
+                block_key.push(*byte)
         while block_key.len() < 64:
             block_key.push(0)
         let mut inner_pad: List[u8] = []
@@ -72,7 +72,7 @@ impl Sha256:
         let state = self.state
         rounds := self.rounds
         for byte in bytes:
-            block.push(byte)
+            block.push(*byte)
             if block.len() == 64:
                 state = compress(state, block, 0, rounds)
                 block.clear()
@@ -97,7 +97,7 @@ impl Sha256:
         # 180-4, section 5.1.1). At most two blocks.
         let mut last: List[u8] = []
         for byte in self.block:
-            last.push(byte)
+            last.push(*byte)
         last.push(128)
         while last.len() % 64 != 56:
             last.push(0)
@@ -113,7 +113,7 @@ impl Sha256:
             digest.push(u8(word >> 24))
             digest.push(u8(word >> 16))
             digest.push(u8(word >> 8))
-            digest.push(u8(word))
+            digest.push(u8(*word))
         Digest { bytes: digest }
 
 # The initial hash value: the first 32 bits of the fractional parts of the

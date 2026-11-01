@@ -149,11 +149,12 @@ tests:
         if released() == 0:
             assert(pages() == start, "each extended list's buffers are reused")
 
-    it("a for loop iterates the list as it was"):
+    it("a for loop over a copy does not see pushes to the list"):
         let mut xs: List[i32] = [+1, 2, 3]
         let seen = +0
-        for x in xs:
-            xs.push(x)
+        snapshot := xs
+        for x in snapshot:
+            xs.push(*x)
             seen = seen + 1
         assert(seen == 3 && xs.len() == 6, "the pushes were not visited")
 
