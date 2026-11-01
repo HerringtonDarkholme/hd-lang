@@ -676,6 +676,16 @@ pub enum Helper {
     },
     /// `(frame)`.
     PendingCancel,
+    /// `() -> cell`: a wait cell, `{waiter edges, epoch}`, that hd code
+    /// waits on and signals (`task.rs`, std's `Channel`).
+    WaitCell,
+    /// `(cell) -> frame`: a frame that completes once `cell` is signalled
+    /// after the frame was made.
+    WaitCold,
+    /// `(frame) -> (ready)`.
+    WaitPoll,
+    /// `(cell)`: wakes every frame waiting on `cell`.
+    WaitSignal,
     /// `race!`'s frame over a list of tasks of results `results`: part 0
     /// `(list) -> frame`, 1 its poll, 2 its cancel.
     Race {
@@ -1479,6 +1489,10 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         | Helper::PendingCold { .. }
         | Helper::PendingPoll { .. }
         | Helper::PendingCancel
+        | Helper::WaitCell
+        | Helper::WaitCold
+        | Helper::WaitPoll
+        | Helper::WaitSignal
         | Helper::Race { .. }
         | Helper::RaceDrop { .. }
         | Helper::All { .. }

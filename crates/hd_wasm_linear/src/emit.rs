@@ -2868,6 +2868,23 @@ impl Em<'_, '_, '_> {
                 self.f.helper(Helper::PendingCold { results });
                 self.store_owned(i)
             }
+            // A wait cell for std's channels (§14.4, "Wait cells"): a
+            // new cell, a frame that waits for its next signal, and the
+            // signal, which hd code sends.
+            "task_wait_cell" => {
+                self.f.helper(Helper::WaitCell);
+                self.store_owned(i)
+            }
+            "task_wait_frame" => {
+                self.comp(args[0], 0)?;
+                self.f.helper(Helper::WaitCold);
+                self.store_owned(i)
+            }
+            "task_wait_signal" => {
+                self.comp(args[0], 0)?;
+                self.f.helper(Helper::WaitSignal);
+                Ok(())
+            }
             // `race!`'s frame over its list of tasks (§14.5).
             "task_race_frame" => {
                 let inner = self.susp_inner(self.ty_of(i))?;

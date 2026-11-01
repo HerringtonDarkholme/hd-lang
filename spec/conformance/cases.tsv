@@ -5210,6 +5210,12 @@ typing/invalid/function-value-named-argument.hd	type	reject:unknown-named-argume
 typing/invalid/derivation-block-hash.hd	type	reject:underivable-trait	lang/14-annotations.md#r-annot.block.template
 typing/invalid/task-all-list-private.hd	type	reject:private-import	std/task.md#r-std-task.map-all.private-engine
 runtime/valid/task-map-all-2000.hd	runtime	accept	std/task.md#r-std-task.map-all.like-all
+runtime/valid/channel-producer-consumer.hd	runtime	accept	std/task.md#r-std-task.channel.recv
+runtime/valid/channel-close-drain.hd	runtime	accept	std/task.md#r-std-task.channel.close
+runtime/valid/channel-full-blocks-sender.hd	runtime	accept	std/task.md#r-std-task.channel.send
+runtime/valid/channel-cancel-recv.hd	runtime	accept	std/task.md#r-std-task.channel.cancel-recv
+runtime/valid/channel-cancel-send.hd	runtime	accept	std/task.md#r-std-task.channel.cancel-send
+runtime/valid/channel-map-all-pool.hd	runtime	accept	std/task.md#r-std-task.channel.pool
 typing/valid/mut-self-struct-trait.hd	type	accept	lang/07-functions.md#r-fn.method.receiver.mut-self
 runtime/valid/mut-self-struct-trait-copy.hd	runtime	accept	lang/07-functions.md#r-fn.method.receiver.mut-self
 typing/invalid/mut-self-struct-trait-reference.hd	type	reject:trait-method-signature	lang/09-traits.md#r-trait.impl.signature

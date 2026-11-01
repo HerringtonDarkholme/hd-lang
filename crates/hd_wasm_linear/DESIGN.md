@@ -105,6 +105,25 @@ generations and wake table. The direct weak-handle test in `task.rs`
 exercises stale-slot reuse, multiple awaiters, registry growth and
 exhausted generations.
 
+**Wait cells.** std's channels wait on a wake that hd code sends, not a
+host (`req.combinator.wait-cell`). Three compiler intrinsics give std one
+cell and its frame. `task_wait_cell` makes a counted 8-byte cell: the head
+of its waiter edges, then an epoch. Its glue releases the edges.
+`task_wait_frame(cell)` makes a cold frame that holds the cell as its
+child and keeps the cell's epoch at `F_SAVED`. Its poll is Ready once the
+epoch has moved on. Otherwise it links the enclosing waker to the cell
+with `WakeLink`, as a host leaf links to its wake-table row, and stays
+Pending. Its cancel is `PendingCancel`. `task_wait_signal(cell)` raises
+the epoch, runs `WakeNotify` over the edges, releases and unlinks them
+(a waiter still pending links again), and sets `Rewake`, as a host cancel
+does. So the root driver polls again with no host event. The cells use no
+wake-table row, so host handles and the host's deadlock report are
+untouched: a root whose only waits are on cells is a deadlock. The
+channel's queue and its checks are hd code. No wake is lost between a
+check and the wait, because nothing runs between them
+(`req.schedule.yield-points`), and a signal in between moves the epoch
+the frame compares.
+
 ### 14.5 `all!` And `race!`
 
 Generated task frames own their children and retain the results they need.

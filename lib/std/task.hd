@@ -9,6 +9,7 @@ use std.convert.From
 use std.function.{Fn, FnMut}
 use std.ops.AsyncDisposable
 use std.time.{Clock, Duration, Instant, sleep}
+use std.collections.Deque
 
 ## A configuration that wraps work and declares the resulting type.
 ## See [std-task.layer.decl](../../spec/std/task.md#r-std-task.layer.decl).
@@ -477,3 +478,97 @@ fn map_all_worker![T, U, F < Fn(T) -> mut Suspend[U] $ R, $ R](
         cursor.next = index + 1
         let pending: mut Suspend[U] = work(items[index])
         slots[index] = .Some(pending!())
+
+# A channel's shared state: the queued items, at most `capacity` of them,
+# whether a sender closed it, and the cells its receivers and senders wait
+# on. Every handle holds the same state, so handles copy
+# (r-std-task.channel.handles).
+struct ChannelState[T < 'static]:
+    items: Deque[T]
+    capacity: usize
+    closed: bool
+    readers: *mut WaitCell
+    writers: *mut WaitCell
+
+## The sending handle of a channel; copies send into the same channel.
+## See [std-task.channel.make](../../spec/std/task.md#r-std-task.channel.make).
+pub struct Sender[T < 'static]:
+    state: *mut ChannelState[T]
+
+## The receiving handle of a channel; copies receive from the same channel.
+## See [std-task.channel.make](../../spec/std/task.md#r-std-task.channel.make).
+pub struct Receiver[T < 'static]:
+    state: *mut ChannelState[T]
+
+## A new channel that holds at most `capacity` items, as its two handles.
+## See [std-task.channel.make](../../spec/std/task.md#r-std-task.channel.make).
+pub fn channel[T < 'static](capacity: usize) -> (Sender[T], Receiver[T]):
+    let room = if capacity == 0: 1 else: capacity
+    state := box(
+        ChannelState {
+            items: Deque::new(),
+            capacity: room,
+            closed: false,
+            readers: wait_cell(),
+            writers: wait_cell(),
+        },
+    )
+    (Sender { state: state }, Receiver { state: state })
+
+impl[T < 'static] Sender[T]:
+    # Waits while the channel is full; a send to a closed channel panics
+    # (r-std-task.channel.send-closed).
+    ## Puts `value` at the back of the channel, waiting while it is full.
+    ## See [std-task.channel.send](../../spec/std/task.md#r-std-task.channel.send).
+    pub fn send!(&self, value: T) -> void:
+        while !self.state.closed && self.state.items.len() >= self.state.capacity:
+            let room: mut Suspend[void] = wait_frame(self.state.writers)
+            room!()
+        if self.state.closed:
+            panic("send on a closed channel")
+        self.state.items.push_back(value)
+        wait_signal(self.state.readers)
+
+    ## Closes the channel: receivers drain what it holds, then get `.None`.
+    ## See [std-task.channel.close](../../spec/std/task.md#r-std-task.channel.close).
+    pub fn close(&self) -> void:
+        if !self.state.closed:
+            self.state.closed = true
+            wait_signal(self.state.readers)
+            wait_signal(self.state.writers)
+
+impl[T < 'static] Receiver[T]:
+    ## The item at the front of the channel, waiting while it is empty and open; `.None` once it is closed and drained.
+    ## See [std-task.channel.recv](../../spec/std/task.md#r-std-task.channel.recv).
+    pub fn recv!(&self) -> T?:
+        while true:
+            match self.state.items.pop_front():
+                .Some(item) =>
+                    wait_signal(self.state.writers)
+                    return .Some(item)
+                .None =>
+                    if self.state.closed:
+                        return .None
+            let next: mut Suspend[void] = wait_frame(self.state.readers)
+            next!()
+        .None
+
+# A cell that frames wait on and hd code signals. The compiler supplies
+# it, its wait frame, and the signal, since every other suspension waits
+# for a host operation (r-req.combinator.intrinsic).
+struct WaitCell:
+    pass
+
+@intrinsic("task_wait_cell")
+fn wait_cell() -> *mut WaitCell:
+    panic("intrinsic")
+
+# A frame that completes once `cell` is signalled after the call.
+@intrinsic("task_wait_frame")
+fn wait_frame(cell: *mut WaitCell) -> mut Suspend[void]:
+    panic("intrinsic")
+
+# Wakes every frame waiting on `cell`.
+@intrinsic("task_wait_signal")
+fn wait_signal(cell: *mut WaitCell) -> void:
+    panic("intrinsic")

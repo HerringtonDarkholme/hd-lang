@@ -1,0 +1,29 @@
+# test: a pool of map_all! workers shares one receiver, and every job is done once
+# Spec std task, Channels: std-task.channel.handles, std-task.channel.pool.
+# expect-stdout: jobs 10, total 55
+use std.task.{all, channel, map_all, Receiver, Sender}
+
+fn feed!(tx: Sender[i32]) -> i32:
+    let job: i32 = 1
+    while job <= 10:
+        tx.send!(job)
+        job = job + 1
+    tx.close()
+    10
+
+fn work!(rx: Receiver[i32]) -> i32:
+    let done: i32 = 0
+    while true:
+        match rx.recv!():
+            .Some(job) => done = done + job
+            .None => return done
+    done
+
+fn pool!(rx: Receiver[i32]) -> i32:
+    per_worker := map_all!([0, 1, 2], 3, fn!(id: i32) -> i32: work!(rx))
+    per_worker.sum()
+
+pub fn main!() -> void $ Console:
+    let (tx, rx) = channel::[i32](capacity=2)
+    let (jobs, total) = all!(feed(tx), pool(rx))
+    println("jobs $jobs, total $total")

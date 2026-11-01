@@ -1729,6 +1729,10 @@ pub fn main!() -> void $ Console + Clock:
 10. r[req.combinator.race-empty-literal] A `race!` call that passes an empty list literal by name, as `race!::[i32](tasks=[])`, is the same error. Error: `argument-count`.
 11. r[req.combinator.race-empty-run] A `race!` call whose task list is empty at run time, passed by a spread or as a list value, panics when it is called. Panic: `explicit-panic`.
 12. r[req.combinator.library-rest] The other concrete signatures, and the complete intrinsic set, remain standard-library API design.
+13. r[req.combinator.wait-cell] `std.task` also has one wait that hd code wakes: a compiler-supplied frame over a wait cell, which completes once another suspension of the same instance signals the cell. It is no host wait and creates no `HostWait`, so [`req.host-wait.source`](#r-req.host-wait.source) still holds, and a program whose only pending waits are on cells is a deadlock by [`req.entry.deadlock`](#r-req.entry.deadlock).
+14. r[req.combinator.wait-cell.private] The wait cell, its frame, and its signal are private to `std.task`; code reaches them only through its channels.
+
+> **Note.** The channels are in [std task, Channels](../std/task.md#channels).
 
 ```hd
 use std.task.all

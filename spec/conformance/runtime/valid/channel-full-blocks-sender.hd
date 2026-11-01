@@ -1,0 +1,33 @@
+# test: a sender waits while the channel is full, so no item is sent before the receiver has taken the one before it
+# Spec std task, Channels: std-task.channel.send, std-task.channel.capacity.
+# expect-stdout: 4 items, each sent after the one before was taken: true
+use std.task.{all, channel, Receiver, Sender}
+
+fn produce!(tx: Sender[i32], log: *mut List[string]) -> void:
+    let i: i32 = 0
+    while i < 4:
+        tx.send!(i)
+        log.push("sent $i")
+        i = i + 1
+    tx.close()
+
+fn consume!(rx: Receiver[i32], log: *mut List[string]) -> void:
+    while true:
+        match rx.recv!():
+            .Some(v) => log.push("got $v")
+            .None => return
+
+fn position(log: &List[string], entry: string) -> usize:
+    log.index_of(entry).unwrap_or(1000)
+
+pub fn main!() -> void $ Console:
+    let (tx, rx) = channel::[i32](capacity=1)
+    let log: *mut List[string] = box([])
+    _ := all!(produce(tx, log), consume(rx, log))
+    let ordered = true
+    let i: i32 = 1
+    while i < 4:
+        if position(log, "got ${i - 1}") > position(log, "sent ${i + 1}"):
+            ordered = false
+        i = i + 1
+    println("4 items, each sent after the one before was taken: $ordered")

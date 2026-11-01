@@ -77,7 +77,7 @@ every key in `lib/std` has a row.
 | `facts_of` | `[F](f: F) -> Facts`, in `annotation.hd` | compiler |
 | `downcast_ref`, `downcast_mut` | inherent methods of `dyn Inspectable` in `inspect.hd` and `dyn Error` in `error.hd` | compiler |
 | `type_id_of` | `TypeId.of[T < Inspectable]() -> TypeId`, in `inspect.hd` | compiler |
-| `task_cleanup_frame`, `task_abandon`, `task_pending_frame`, `task_race_frame`, `task_all_frame` | `task.hd` | compiler |
+| `task_cleanup_frame`, `task_abandon`, `task_pending_frame`, `task_race_frame`, `task_all_frame`, `task_wait_cell`, `task_wait_frame`, `task_wait_signal` | `task.hd` | compiler |
 | `dbg`, `dbg_printer`, `dbg_write`, `repl_write` | `format.hd` | compiler |
 | `panic_message`, `task_all`, `test_case`, `assert_equal`, `entry_write` | seeded items and `rt.hd` | compiler |
 | `mem_pages`, `mem_grow`, `mem_load_u8` to `mem_load_u64`, `mem_store_u8` to `mem_store_u64`, `mem_copy`, `mem_fill` | `rt/memory.hd`, the `pub` functions of the runtime module `std.rt.memory` (spec 10 `module.rt.memory.*`) | compiler; only std can use these runtime memory intrinsics |

@@ -312,6 +312,10 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f.op(Instruction::Drop);
             f
         }
+        Helper::WaitCell => wait_cell(m),
+        Helper::WaitCold => wait_cold(m),
+        Helper::WaitPoll => wait_poll(m),
+        Helper::WaitSignal => wait_signal(m),
         Helper::Race {
             part,
             results,
@@ -354,6 +358,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             | Helper::CleanupCancel
             | Helper::PendingPoll { .. }
             | Helper::PendingCancel
+            | Helper::WaitPoll
             | Helper::Race { part: 1 | 2, .. }
             | Helper::All { part: 1 | 2, .. }
             | Helper::OpenFrame { part: 1, .. }
@@ -368,7 +373,9 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         | Helper::CleanupCold
         | Helper::All { part: 0, .. }
         | Helper::PendingCold { .. }
+        | Helper::WaitCold
         | Helper::OpenFrame { part: 0, .. } => crate::rt::checked_kind(&mut f, m, 3),
+        Helper::WaitCell => crate::rt::checked_kind(&mut f, m, 4),
         _ => {}
     }
     f
@@ -1918,6 +1925,123 @@ fn pending_poll(m: &Module, results: &[Val]) -> Func {
     for v in &res {
         zero(&mut f, *v);
     }
+    f
+}
+
+/// A wait cell's bytes: the head of its waiter edges (counted, as
+/// [`wake_link`] makes them), then its epoch, which each signal raises.
+const CELL_EPOCH: u64 = 4;
+
+/// [`Helper::WaitCell`]: `() -> cell`, a cell with no waiters. Its glue
+/// releases the waiter edges still linked.
+fn wait_cell(m: &Module) -> Func {
+    let mut f = m.func("rt:wait_cell", vec![], vec![Val::I32]);
+    let edges = Helper::DropFields {
+        leaves: vec![Leaf {
+            offset: 0,
+            val: Val::I32,
+            bytes: 4,
+            signed: false,
+        }],
+        walk: Walk::Ref(0),
+    };
+    let cell = new_zeroed(&mut f, 8, Some(Sym::Helper(edges)), false);
+    f.get(cell);
+    f
+}
+
+/// [`Helper::WaitCold`]: `(cell) -> frame`, a frame over `cell`, which
+/// it holds as its child with a count of its own, and the cell's epoch
+/// when it was made. No wait is lost between a check in hd code and the
+/// frame's first poll: nothing runs in between
+/// (`req.schedule.yield-points`), and a signal in between raises the
+/// epoch the frame compares.
+fn wait_cold(m: &Module) -> Func {
+    let mut f = m.func("rt:wait_cold", vec![Val::I32], vec![Val::I32]);
+    let fr = new_zeroed(
+        &mut f,
+        F_SAVED + 4,
+        Some(Sym::Helper(Helper::ChildDrop)),
+        false,
+    );
+    f.get(fr);
+    f.table_slot(Sym::Helper(Helper::WaitPoll));
+    f.op(Instruction::I32Store(mem(HEAP, F_POLL, 2)));
+    cancel_slot(&mut f, m, fr, Sym::Helper(Helper::PendingCancel));
+    f.get(fr);
+    f.get(0);
+    f.op(Instruction::I32Store(mem(HEAP, F_CHILD, 2)));
+    f.get(0);
+    f.helper(Helper::RetainAny);
+    f.get(fr);
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, CELL_EPOCH, 2)));
+    f.op(Instruction::I32Store(mem(HEAP, u64::from(F_SAVED), 2)));
+    f.get(fr);
+    f
+}
+
+/// [`Helper::WaitPoll`]: Ready once the cell's epoch moved on; else it
+/// links the enclosing waker to the cell and stays Pending. A cancelled
+/// frame stays Pending, as `PendingPoll` does.
+fn wait_poll(m: &Module) -> Func {
+    let mut f = m.func("rt:wait_poll", vec![Val::I32], vec![Val::I32]);
+    let cell = f.local(Val::I32);
+    f.get(0);
+    f.helper(Helper::PollCheck);
+    f.op(Instruction::If(BlockType::Empty));
+    f.i32(0);
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, F_CHILD, 2)));
+    f.set(cell);
+    f.get(cell);
+    f.op(Instruction::I32Load(mem(HEAP, CELL_EPOCH, 2)));
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, u64::from(F_SAVED), 2)));
+    f.op(Instruction::I32Ne);
+    f.op(Instruction::If(BlockType::Empty));
+    flags_or(&mut f, 0, DONE);
+    f.i32(1);
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+    f.get(cell);
+    f.global_get(Global::Waker);
+    f.global_get(Global::WakeBit);
+    f.helper(Helper::WakeLink);
+    f.i32(0);
+    f
+}
+
+/// [`Helper::WaitSignal`]: `(cell)`, raises the epoch, wakes each waiter
+/// linked to the cell and unlinks them (a waiter still pending links
+/// again on its next poll), then asks the driver to poll again, as a
+/// host cancel does: no host event will.
+fn wait_signal(m: &Module) -> Func {
+    let mut f = m.func("rt:wait_signal", vec![Val::I32], vec![]);
+    let head = f.local(Val::I32);
+    f.get(0);
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, CELL_EPOCH, 2)));
+    f.i32(1);
+    f.op(Instruction::I32Add);
+    f.op(Instruction::I32Store(mem(HEAP, CELL_EPOCH, 2)));
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.set(head);
+    f.get(0);
+    f.i32(0);
+    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    f.get(head);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(head);
+    f.helper(Helper::WakeNotify);
+    f.get(head);
+    f.helper(Helper::ReleaseRef);
+    f.op(Instruction::End);
+    f.i32(1);
+    f.global_set(Global::Rewake);
     f
 }
 

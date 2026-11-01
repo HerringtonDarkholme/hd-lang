@@ -1,0 +1,20 @@
+# test: a cancelled send! that waited on a full channel leaves its value unsent
+# Spec std task, Channels: std-task.channel.cancel-send.
+# expect-stdout: race -1
+# expect-stdout: 1 then none: true
+use std.task.{channel, race, Sender}
+
+fn send_two!(tx: Sender[i32]) -> i32:
+    tx.send!(2)
+    2
+
+fn at_once!() -> i32:
+    -1
+
+pub fn main!() -> void $ Console:
+    let (tx, rx) = channel::[i32](capacity=1)
+    tx.send!(1)
+    println("race ${race!(send_two(tx), at_once())}")
+    tx.close()
+    first := rx.recv!().unwrap_or(0)
+    println("$first then none: ${rx.recv!().is_none()}")

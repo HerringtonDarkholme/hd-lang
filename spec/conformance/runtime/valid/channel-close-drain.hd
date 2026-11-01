@@ -1,0 +1,20 @@
+# test: a closed channel gives its receivers what it still holds, then .None; closing twice changes nothing
+# Spec std task, Channels: std-task.channel.close, std-task.channel.close-twice, std-task.channel.recv.
+# expect-stdout: 1 2 3
+# expect-stdout: true true
+use std.task.channel
+
+pub fn main!() -> void $ Console:
+    let (tx, rx) = channel::[i32](capacity=4)
+    tx.send!(1)
+    tx.send!(2)
+    tx.send!(3)
+    tx.close()
+    tx.close()
+    let mut got: List[string] = []
+    while true:
+        match rx.recv!():
+            .Some(v) => got.push("$v")
+            .None => break
+    println(got.join(" "))
+    println("${rx.recv!().is_none()} ${rx.recv!().is_none()}")

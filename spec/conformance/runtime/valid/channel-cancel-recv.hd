@@ -1,0 +1,17 @@
+# test: a cancelled recv! takes no item, so the next receive gets it
+# Spec std task, Channels: std-task.channel.cancel-recv.
+# expect-stdout: race -1
+# expect-stdout: later 7
+use std.task.{channel, race, Receiver}
+
+fn next_or_zero!(rx: Receiver[i32]) -> i32:
+    rx.recv!().unwrap_or(0)
+
+fn at_once!() -> i32:
+    -1
+
+pub fn main!() -> void $ Console:
+    let (tx, rx) = channel::[i32](capacity=1)
+    println("race ${race!(next_or_zero(rx), at_once())}")
+    tx.send!(7)
+    println("later ${rx.recv!().unwrap_or(0)}")

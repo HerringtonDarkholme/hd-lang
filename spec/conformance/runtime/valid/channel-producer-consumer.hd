@@ -1,0 +1,30 @@
+# test: two tasks under one all! hand items to each other through a channel, with no host provider, in send order
+# Spec std task, Channels: std-task.channel.make, std-task.channel.send, std-task.channel.recv, std-task.channel.order.
+# expect-stdout: got 0 1 2 3 4
+# expect-stdout: sent 5, sum 10
+use std.task.{all, channel, Receiver, Sender}
+
+fn produce!(tx: Sender[i32], n: i32) -> i32:
+    let i: i32 = 0
+    while i < n:
+        tx.send!(i)
+        i = i + 1
+    tx.close()
+    n
+
+fn consume!(rx: Receiver[i32], log: *mut List[string]) -> i32:
+    let sum: i32 = 0
+    while true:
+        match rx.recv!():
+            .Some(v) =>
+                log.push("$v")
+                sum = sum + v
+            .None => return sum
+    sum
+
+pub fn main!() -> void $ Console:
+    let (tx, rx) = channel::[i32](capacity=2)
+    let log: *mut List[string] = box([])
+    let (sum, sent) = all!(consume(rx, log), produce(tx, 5))
+    println("got ${log.join(" ")}")
+    println("sent $sent, sum $sum")

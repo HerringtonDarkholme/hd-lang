@@ -116,3 +116,6 @@ std.task.Guard	std/task.md#r-std-task.policy.guard.decl
 std.task.guarded	std/task.md#r-std-task.policy.guard.builder
 std.task.Hedge	std/task.md#r-std-task.policy.hedge.decl
 std.task.hedged	std/task.md#r-std-task.policy.hedge.builder
+std.task.channel	std/task.md#channels
+std.task.Sender	std/task.md#channels
+std.task.Receiver	std/task.md#channels

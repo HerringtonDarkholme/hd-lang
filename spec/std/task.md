@@ -345,6 +345,60 @@ starts as soon as the first completes.
 
 See also: [All List](#all-list), [Cooperative Scheduling](../lang/11-requirements-and-suspension.md#cooperative-scheduling).
 
+## Channels
+
+A channel hands items from one suspension to another in the same instance,
+with no host provider. `channel` makes one and returns its two handles:
+
+```text
+use std.task.{all, channel, Receiver, Sender}
+
+fn produce!(tx: Sender[i32]) -> void:
+    tx.send!(1)
+    tx.send!(2)
+    tx.close()
+
+fn total!(rx: Receiver[i32]) -> i32:
+    let sum: i32 = 0
+    while true:
+        match rx.recv!():
+            .Some(n) => sum = sum + n
+            .None => return sum
+    sum
+
+fn run!() -> i32:
+    let (tx, rx) = channel::[i32](capacity=1)
+    let (_, sum) = all!(produce(tx), total(rx))
+    sum  # 3
+```
+
+| Item | Signature |
+| --- | --- |
+| `channel` | `fn channel[T < 'static](capacity: usize) -> (Sender[T], Receiver[T])` |
+| `Sender[T]` | `fn send!(&self, value: T) -> void`; `fn close(&self) -> void` |
+| `Receiver[T]` | `fn recv!(&self) -> T?` |
+
+1. r[std-task.channel.make] `channel::[T](capacity=N)` returns a `Sender[T]` and a `Receiver[T]` for one new channel that holds at most `N` items.
+2. r[std-task.channel.capacity] A capacity of zero counts as one.
+3. r[std-task.channel.handles] `Sender[T]` and `Receiver[T]` are copied, and every copy is a handle to the same channel, so several suspensions may send to it or receive from it.
+4. r[std-task.channel.send] `send!(value)` puts `value` at the back of the channel. While the channel holds `capacity` items it waits, and it puts the value once a receive has made room.
+5. r[std-task.channel.send-closed] `send!` on a closed channel panics, and so does a `send!` still waiting when the channel closes. Panic: `explicit-panic`.
+6. r[std-task.channel.recv] `recv!()` returns `.Some` of the item at the front of the channel and removes it. While the channel is empty and open it waits. Once the channel is closed and empty it returns `.None`.
+7. r[std-task.channel.order] Items leave the channel in the order they entered it. When several receivers wait, which of them takes an item is unspecified, and so is which of several waiting senders puts its item first.
+8. r[std-task.channel.close] `close()` closes the channel. Items already in it stay for receivers, and every waiting `recv!` and `send!` goes on.
+9. r[std-task.channel.close-twice] `close()` on a closed channel changes nothing.
+10. r[std-task.channel.cancel-recv] A `recv!` that is cancelled while it waits takes no item, so the item goes to a later receive.
+11. r[std-task.channel.cancel-send] A `send!` that is cancelled while it waits leaves its value unsent.
+12. r[std-task.channel.no-host] A channel's waits are woken by the suspensions that send, receive, or close, as [`req.combinator.wait-cell`](../lang/11-requirements-and-suspension.md#r-req.combinator.wait-cell) states. A program whose only pending waits are on channels panics by [`req.entry.deadlock`](../lang/11-requirements-and-suspension.md#r-req.entry.deadlock). Panic: `suspension-deadlock`.
+13. r[std-task.channel.pool] A pool of workers is `map_all!` over the worker count, with each worker receiving from one shared `Receiver` until it gives `.None`.
+
+> **Why.** Go's channels and Rust's `tokio::sync::mpsc` hand work between
+> tasks the same way. A `Notify` is a `Channel[()]`. The handles copy, as
+> Go's channels are reference values, so a dynamic pool needs no spawn.
+
+See also: [Map All](#map-all),
+[Standard Combinators](../lang/11-requirements-and-suspension.md#standard-combinators).
+
 ## Cleanup End
 
 `CleanupEnd` says how the cleanup of a cancelled suspension ended, and
