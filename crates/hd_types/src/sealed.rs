@@ -8,7 +8,7 @@
 //! impl per primitive (`lib/std/num.hd`), with the bodies of `zero`, `one`
 //! and `from_i64`, so the impl tables answer them like any trait.
 
-use hd_base::{DefId, InferVar};
+use hd_base::{DefId, HashSet, InferVar};
 
 use crate::pool::{ParamRef, Ty, TyData, Types};
 use crate::solver::{BuiltinImpl, FailReason};
@@ -235,7 +235,7 @@ pub(crate) fn row(
         }
         let mut subs = Vec::new();
         return Some(
-            if copy_parts(pool, decls, self_ty, &mut subs, &mut Vec::new()) {
+            if copy_parts(pool, decls, self_ty, &mut subs, &mut Walk::default()) {
                 Row::Holds(BuiltinImpl::Copy, subs)
             } else {
                 Row::Fails(FailReason::NoImpl)
@@ -357,7 +357,7 @@ fn copy_parts(
     decls: &dyn Declarations,
     t: Ty,
     subs: &mut Vec<Ty>,
-    seen: &mut Vec<Ty>,
+    seen: &mut Walk,
 ) -> bool {
     match pool.get(t) {
         TyData::Ref {
@@ -381,7 +381,7 @@ fn copy_parts(
             true
         }
         TyData::Adt { def, args } => {
-            if seen.contains(&t) || seen.len() > 32 {
+            if seen.copies.contains(&t) || seen.open.contains(&t) || seen.open.len() > 32 {
                 return true;
             }
             match decls.copy_decl(def) {
@@ -389,7 +389,7 @@ fn copy_parts(
                 CopyDecl::NotCopy => false,
                 CopyDecl::Members(ms) => {
                     let argv = pool.list_items(args);
-                    seen.push(t);
+                    seen.open.push(t);
                     let ok = ms.iter().all(|&m| {
                         let m = pool.subst(m, &|p: ParamRef| {
                             (p.owner == def)
@@ -398,13 +398,25 @@ fn copy_parts(
                         });
                         copy_parts(pool, decls, m, subs, seen)
                     });
-                    seen.pop();
+                    seen.open.pop();
+                    if ok {
+                        seen.copies.insert(t);
+                    }
                     ok
                 }
             }
         }
         _ => true,
     }
+}
+
+/// The nominal types `copy_parts` is inside, and those it already found to
+/// copy, so a type argument shared by many fields (`Pair[X, X]`) is walked
+/// once rather than once per path to it.
+#[derive(Default)]
+struct Walk {
+    open: Vec<Ty>,
+    copies: HashSet<Ty>,
 }
 
 fn static_row(pool: Types<'_>, self_ty: Ty) -> Row {
