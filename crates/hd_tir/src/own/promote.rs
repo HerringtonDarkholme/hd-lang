@@ -121,6 +121,29 @@ pub fn promoted_call(b: &Body, call: usize, mask: u64) -> bool {
     mask != 0 && promotable_args(b, call) & mask == mask
 }
 
+/// The arguments of `Call` `call` of `b` whose locals the passes keep
+/// alive over the call (bit k: argument k): each a `Ref` of a frame local
+/// (`ref_word::FRAME`). A promoted copy lends a value with counted parts
+/// with no count only there. Any other `Ref` may outlive its local's
+/// `Drop`, which can come before the call, as for `make().method()`,
+/// whose counted reference holds the temporary's cell.
+#[must_use]
+pub fn held_args(b: &Body, call: usize) -> u64 {
+    if b.tags[call] != Tag::Call {
+        return 0;
+    }
+    let words = b.record(b.data[call][1]);
+    let args = &words[..words.len().saturating_sub(3)];
+    (args.iter().enumerate().take(64))
+        .filter(|&(_, &v)| {
+            Ref(v).as_inst().is_some_and(|i| {
+                let i = i.0 as usize;
+                b.tags[i] == Tag::Ref && b.data[i][1] & crate::ir::ref_word::FRAME != 0
+            })
+        })
+        .fold(0, |mask, (k, _)| mask | 1 << k)
+}
+
 /// The arguments of `Call` `call` of `b` that a promoted copy may take by
 /// value (bit k: argument k), as [`promoted_call`] reads them; none in a
 /// body with a suspension point.

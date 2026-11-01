@@ -63,8 +63,9 @@ pub(super) struct Summaries {
 }
 
 /// A promoted copy's item, type arguments, whether of the exclusive copy,
-/// and the parameters its call may pass by value ([`Env::promoted_copy`]).
-type PromotedKey = (DefId, TyList, bool, u64);
+/// and the parameters its call may pass by value and lend with no count
+/// ([`Env::promoted_copy`]).
+type PromotedKey = (DefId, TyList, bool, u64, u64);
 
 /// An exclusive copy: the parameters it relies on, and the body after the
 /// passes ([`Summaries::exclusive`]).
@@ -1091,30 +1092,38 @@ impl Env<'_> {
     /// (`hd_tir::own::promote::read_only_params`). With `exclusive`, the
     /// copy of `def`'s exclusive copy (`sub_flags::EXCLUSIVE`), for a call
     /// that may run both. Only the parameters in `want` (those whose
-    /// arguments the call may pass by value) are candidates. None for a
-    /// suspending item, or when the pipeline does not promote.
+    /// arguments the call may pass by value) are candidates, and of those
+    /// a counted referent's only in `held` (those whose locals the passes
+    /// keep alive over the call). None for a suspending item, or when the
+    /// pipeline does not promote.
     pub(super) fn promoted_copy(
         &self,
         def: DefId,
         args: TyList,
         exclusive: bool,
-        want: u64,
+        (want, held): (u64, u64),
     ) -> Option<Exclusive> {
         let all = self
             .run
             .summaries
             .as_ref()
             .filter(|_| self.run.promote_args)?;
-        let at = (def, args, exclusive, want);
+        let at = (def, args, exclusive, want, held);
         if let Some(hit) = lock(&all.promoted).get(&at) {
             return hit.clone();
         }
-        let out = self.promote(def, args, exclusive, want);
+        let out = self.promote(def, args, exclusive, (want, held));
         lock(&all.promoted).insert(at, out.clone());
         out
     }
 
-    fn promote(&self, def: DefId, args: TyList, exclusive: bool, want: u64) -> Option<Exclusive> {
+    fn promote(
+        &self,
+        def: DefId,
+        args: TyList,
+        exclusive: bool,
+        (want, held): (u64, u64),
+    ) -> Option<Exclusive> {
         if ProgramEnv::suspends(self, def) {
             return None;
         }
@@ -1128,7 +1137,12 @@ impl Env<'_> {
         let mut candidates = 0;
         for (k, &l) in params.iter().enumerate().take(64) {
             let t = hd_mono::subst(pool, self, def, args, b.local_ty[l as usize]);
-            if hd_wasm_linear::lent_referent(pool, self, t).is_some() {
+            // A counted referent is lent with no count, which needs its
+            // local alive over the call.
+            let counted = hd_wasm_linear::promotable_referent(pool, self, t).is_none();
+            if hd_wasm_linear::lent_referent(pool, self, t).is_some()
+                && (!counted || held & (1 << k) != 0)
+            {
                 candidates |= 1 << k;
             }
         }

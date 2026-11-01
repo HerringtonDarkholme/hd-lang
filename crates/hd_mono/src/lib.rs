@@ -61,14 +61,15 @@ pub trait ProgramEnv: LayoutEnv {
     /// which a call may run where `hd_tir::own::promote::promoted_call`
     /// holds.
     /// With `exclusive`, the promoted copy of `def`'s exclusive copy
-    /// ([`ProgramEnv::exclusive_body`]); only the parameters in `want` may
-    /// be taken by value.
+    /// ([`ProgramEnv::exclusive_body`]). Only the parameters in `want.0`
+    /// may be taken by value (`promotable_args`), and one whose referent
+    /// is counted only in `want.1` (`held_args`).
     fn promoted_body(
         &self,
         _def: DefId,
         _args: TyList,
         _exclusive: bool,
-        _want: u64,
+        _want: (u64, u64),
     ) -> Option<(u64, Arc<Body>)> {
         None
     }
@@ -1692,8 +1693,12 @@ impl Cx<'_> {
             hd_tir::own::exclusive_call(body, at, relies, own)
         });
         let want = hd_tir::own::promote::promotable_args(body, at);
+        let held = want & hd_tir::own::promote::held_args(body, at);
         let Some((by_value, copy)) = (want != 0)
-            .then(|| self.env.promoted_body(t.item, t.args, exclusive, want))
+            .then(|| {
+                self.env
+                    .promoted_body(t.item, t.args, exclusive, (want, held))
+            })
             .flatten()
         else {
             return Ok(None);

@@ -11554,7 +11554,7 @@ impl ProgramEnv for Env<'_> {
         def: DefId,
         args: TyList,
         exclusive: bool,
-        want: u64,
+        want: (u64, u64),
     ) -> Option<(u64, Arc<Body>)> {
         self.promoted_copy(def, args, exclusive, want)
     }

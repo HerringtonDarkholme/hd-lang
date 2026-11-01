@@ -1,0 +1,34 @@
+# @dump: wat
+# @build: v8 release
+# Release (§23.40, #1151): `check[Res[string]]` lends `a` and `b` to the
+# promoted copy `same'1` with no count. Its `match *self` copies the
+# value and moves the payload into `left`, which its exit releases, so
+# the copy takes a count (`rt:retain`) although the parameter is
+# borrowed. Without it, each call released a count it never took.
+use std.annotation.inline
+
+enum Res[T]:
+    Good(T)
+    Bad(T)
+
+trait Same:
+    fn same(&self, other: &Self) -> bool
+
+impl[T < Eq] Same for Res[T]:
+    fn same(&self, other: &Res[T]) -> bool:
+        match *self:
+            .Good(left) =>
+                match *other:
+                    .Good(right) => left == right
+                    .Bad(_) => false
+            .Bad(left) =>
+                match *other:
+                    .Bad(right) => left == right
+                    .Good(_) => false
+
+@inline(.Never)
+fn check[T < Same](a: T, b: T) -> bool:
+    a.same(&b)
+
+fn use_check(x: string, y: string) -> bool:
+    check(Res.Good(x), Res.Good(y))

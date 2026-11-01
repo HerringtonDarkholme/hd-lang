@@ -734,11 +734,23 @@ impl Em<'_, '_, '_> {
     /// A parameter the passes own (its sub-body's exit set lists it) takes
     /// none only when every read of it is such a read; one they leave
     /// unowned is borrowed here already, and its other reads copy as they
-    /// say. The reads join [`Em::loans`].
+    /// say. A read a move takes a part of (`Read move [%r as .v .k]`, as a
+    /// `match` binds a payload) keeps its count, which the move takes. The
+    /// reads join [`Em::loans`].
     pub(super) fn instance_loans(&mut self, plocals: &[usize]) -> hd_base::HashSet<usize> {
         use hd_tir::ir::place;
         let b = self.b;
         let mut out = hd_base::HashSet::default();
+        // The values a move takes a part of, or all of.
+        let moved: hd_base::HashSet<u32> = (0..b.len())
+            .filter(|&i| {
+                b.tags[i] == Tag::Read && b.data[i][1] == hd_tir::ir::ReadMode::Move as u32
+            })
+            .filter_map(|i| match b.view(b.data[i][0]).root {
+                hd_tir::ir::Root::Value(v) => Some(v),
+                _ => None,
+            })
+            .collect();
         for (k, &l) in plocals.iter().enumerate() {
             let t = self.sub(b.local_ty[l]);
             if !matches!(
@@ -776,7 +788,7 @@ impl Em<'_, '_, '_> {
                 }
                 let x = u32::try_from(i).expect("insts");
                 let user = self.consumer.get(i).copied().unwrap_or(NONE);
-                if user == NONE || self.borrowed_arg(user, x) {
+                if !moved.contains(&x) && (user == NONE || self.borrowed_arg(user, x)) {
                     loans.push(x);
                 } else {
                     fits = false;
