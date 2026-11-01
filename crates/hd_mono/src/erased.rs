@@ -292,11 +292,22 @@ pub fn open_insts(
             // A copy of a value (`Read [%v]`, an ownership pass's) stays:
             // an open value's copy counts its view once more.
             Tag::Read if b.value_read(i).is_some() => continue,
-            // A `Ref` stays; a `Read` or `Store` of a bare local stays,
-            // and one of the whole place a reference refers to (`[*r]`)
-            // too: the backend reads and writes it through an erased
-            // reference's view.
-            Tag::Ref => continue,
+            // A `Ref` stays, but one of an element of a collection value
+            // whose element type is open: the slot holds the caller's
+            // concrete value, not an open one, so its thunk takes the
+            // reference at concrete types and returns it as an erased
+            // reference's view. A `Read` or `Store` of a bare local
+            // stays, and one of the whole place a reference refers to
+            // (`[*r]`) too: the backend reads and writes it through an
+            // erased reference's view.
+            Tag::Ref
+                if !b.decode_place(b.data[i][0]).is_some_and(|p| {
+                    matches!(p.root, PlaceRoot::Value(_))
+                        && p.proj.iter().any(|s| matches!(s, Proj::Elem(_)))
+                }) =>
+            {
+                continue;
+            }
             Tag::Read | Tag::Store
                 if b.data[i][0] & hd_tir::ir::place::BARE_LOCAL != 0
                     || b.decode_place(b.data[i][0])
@@ -341,15 +352,24 @@ pub fn open_insts(
             },
             Tag::DefaultCall => b.record(a).get(1).is_some_and(|l| open_list(TyList(*l))),
             Tag::ItemRef => b.record(w).first().is_some_and(|l| open_list(TyList(*l))),
-            // A projection from an open root has an open offset.
-            Tag::Read | Tag::Store => match b.decode_place(a).map(|p| p.root) {
-                Some(PlaceRoot::Local(l)) => b
-                    .local_ty
-                    .get(l.idx())
-                    .is_some_and(|t| is_open(pool, s(*t))),
-                Some(PlaceRoot::Global(_, t)) => is_open(pool, s(t)),
-                _ => false,
-            },
+            // A projection from an open root has an open offset, and a
+            // collection made unique or pinned there needs its concrete
+            // element layout.
+            Tag::IsUnique | Tag::Pin
+                if outlined_change_local(b, u32::try_from(i).expect("insts")).is_none() =>
+            {
+                false
+            }
+            Tag::Read | Tag::Store | Tag::IsUnique | Tag::Pin => {
+                match b.decode_place(a).map(|p| p.root) {
+                    Some(PlaceRoot::Local(l)) => b
+                        .local_ty
+                        .get(l.idx())
+                        .is_some_and(|t| is_open(pool, s(*t))),
+                    Some(PlaceRoot::Global(_, t)) => is_open(pool, s(t)),
+                    _ => false,
+                }
+            }
             _ => false,
         };
         if !open {
@@ -402,10 +422,30 @@ pub fn thunk_operands(b: &Body, i: u32) -> Vec<u32> {
 /// body's locals. A store into a whole local stays in the body.
 #[must_use]
 pub fn outlined_store_local(b: &Body, i: u32) -> Option<u32> {
+    if let Some(l) = outlined_change_local(b, i) {
+        return Some(l);
+    }
     match b.stored_local(i as usize)? {
         (l, false) => Some(l.raw()),
         (_, true) => None,
     }
+}
+
+/// The local an `IsUnique` or a `Pin` of a collection in its own storage
+/// changes in place (`[$l]`, `[$l .x ..]`), when the change is outlined:
+/// a collection whose element type is open is copied or pinned with its
+/// concrete layout, which only a thunk knows. The local crosses into the
+/// thunk with its count and comes back as its new value
+/// ([`outlined_store_local`]), so the change sees the counts the body
+/// holds.
+#[must_use]
+pub fn outlined_change_local(b: &Body, i: u32) -> Option<u32> {
+    if !matches!(b.tags[i as usize], Tag::IsUnique | Tag::Pin) {
+        return None;
+    }
+    let v = b.view(b.data[i as usize][0]);
+    v.local()
+        .filter(|_| v.steps(b).all(|p| matches!(p, Proj::Field(_))))
 }
 
 /// The locals a closure construction captures, with whether each crosses

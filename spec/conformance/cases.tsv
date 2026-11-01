@@ -5736,3 +5736,4 @@ runtime/valid/comprehension-borrows-items.hd	runtime	accept	lang/06-control-flow
 runtime/panic/for-list-loop-alias-push-panics.hd	runtime	panic:borrow-conflict	lang/06-control-flow.md#r-flow.for.ref.alias
 runtime/panic/for-list-loop-alias-store-panics.hd	runtime	panic:borrow-conflict	lang/06-control-flow.md#r-flow.for.ref.alias
 runtime/panic/for-list-loop-closure-push-panics.hd	runtime	panic:collection-pinned	lang/06-control-flow.md#r-flow.for.ref.pinned
+runtime/valid/erased-loop-element-references-read-concrete-slots.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.list
