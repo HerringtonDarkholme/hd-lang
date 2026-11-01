@@ -14,7 +14,7 @@ struct Record:
     nested: Option[i32?]
 
 @derive(Serialize, Deserialize)
-struct Generic[T]:
+struct Generic[T < Copy]:
     @skip_none()
     value: T?
 

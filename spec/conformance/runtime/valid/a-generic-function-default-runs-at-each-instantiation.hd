@@ -3,7 +3,7 @@
 # expect-stdout: 9
 # expect-stdout: hihi
 # expect-stdout: 1
-fn twice[T](value: T, items: List[T] = [value, value]) -> List[T]:
+fn twice[T < Copy](value: T, items: List[T] = [value, value]) -> List[T]:
     items
 
 pub fn main() -> void $ Console:

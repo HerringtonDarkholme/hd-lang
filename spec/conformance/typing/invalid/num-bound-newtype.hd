@@ -4,7 +4,7 @@ use std.num.Num
 
 type Meters(i64)
 
-fn sum[T < Num](items: List[T]) -> T:
+fn sum[T < Num & Copy](items: List[T]) -> T:
     let total = T::zero()
     for item in items:
         total = total + item

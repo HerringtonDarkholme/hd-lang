@@ -85,7 +85,7 @@ impl[T] Summary for T by Structure:
         "${w.n} ${w.text}"
 
 # Both walks change the one object the reference names.
-impl[T] Twice for T by Structure:
+impl[T < Copy] Twice for T by Structure:
     fn twice(self) -> i32:
         shared := &mut Tally { n: 0, text: "" }
         _ := Structure::walk(self, shared)

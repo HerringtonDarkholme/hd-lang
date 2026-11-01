@@ -3,7 +3,7 @@
 fn pass_through[T](value: T) -> T:
     value
 
-fn first[T](values: List[T]) -> T?:
+fn first[T < Copy](values: List[T]) -> T?:
     for value in values:
         return value
     .None

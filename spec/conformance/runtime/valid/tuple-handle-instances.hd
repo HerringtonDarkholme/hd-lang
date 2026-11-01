@@ -25,7 +25,7 @@ impl Sample for string:
     fn layout() -> string:
         "string"
 
-impl[T < Sample] Sample for List[T]:
+impl[T < Sample & Copy] Sample for List[T]:
     fn render(self) -> string:
         parts := [for value in self => value.render()]
         "[${parts.join(",")}]"
@@ -38,11 +38,11 @@ struct Trace[S]:
     original: S
     parts: List[string]
 
-impl[S] Walker[S] for Trace[S]:
+impl[S < Copy] Walker[S] for Trace[S]:
     type Error = never
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
-    fn member[F < Sample](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Sample & Copy](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
         if value.render() != h.get(self.original).render():
             panic("the field getter must read the visited position")
         self.parts.push("${h.info.name}=${value.render()}")
@@ -87,7 +87,7 @@ impl[S] Source[S] for Seeds:
     fn missing[F](&mut self, h: Field[S, F]) -> Result[F, never]:
         panic("the source provides every member")
 
-impl[T < Tuple] Sample for T by Structure:
+impl[T < Tuple & Copy] Sample for T by Structure:
     fn render(self) -> string:
         let mut trace = Trace { original: self, parts: [] }
         _ := Structure::walk(self, &mut trace)

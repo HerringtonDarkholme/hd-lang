@@ -16,5 +16,5 @@ fn has_root[T < Root](value: T) -> i32:
 fn has_parent[T < Parent](value: T) -> i32:
     value.parent()
 
-fn has_child[T < Child](value: T) -> i32:
+fn has_child[T < Child & Copy](value: T) -> i32:
     has_parent(value) + has_root(value) + value.child()

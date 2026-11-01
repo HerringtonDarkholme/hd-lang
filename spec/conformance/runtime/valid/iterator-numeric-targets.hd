@@ -34,7 +34,7 @@ impl Sum[string] for Joined:
             value = value + item
         Joined { value: value }
 
-fn totals[T < Num](items: List[T]) -> (T, T):
+fn totals[T < Num & Copy](items: List[T]) -> (T, T):
     (items.iter().sum(), items.iter().product())
 
 tests:

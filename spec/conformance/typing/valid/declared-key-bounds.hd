@@ -7,14 +7,14 @@ impl[K < Eq & Hash, V] Catalog for Map[K, V]:
     fn catalog_name(self) -> string:
         "inventory"
 
-fn stock_of[K < Eq & Hash, V](stock: Map[K, V], item: K) -> V?:
+fn stock_of[K < Eq & Hash, V < Copy](stock: Map[K, V], item: K) -> V?:
     stock.get(item)
 
 struct Index[K < Eq & Hash, V]:
     name: string
     entries: Map[K, V]
 
-impl[K < Eq & Hash, V] Index[K, V]:
+impl[K < Eq & Hash, V < Copy] Index[K, V]:
     fn lookup(self, key: K) -> V?:
         self.entries.get(key)
 

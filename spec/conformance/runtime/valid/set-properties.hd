@@ -28,13 +28,13 @@ fn primitive_key(id: i32, generation: usize) -> i32:
 fn colliding_key(id: i32, generation: usize) -> CollisionKey:
     CollisionKey { id: id, generation: generation }
 
-fn model_contains[K < Eq](values: List[K], key: K) -> bool:
+fn model_contains[K < Eq & Copy](values: List[K], key: K) -> bool:
     for value in values:
         if value == key:
             return true
     false
 
-fn model_remove[K < Eq](values: List[K], key: K) -> (List[K], bool):
+fn model_remove[K < Eq & Copy](values: List[K], key: K) -> (List[K], bool):
     let mut kept: List[K] = []
     let removed = false
     for value in values:
@@ -44,13 +44,13 @@ fn model_remove[K < Eq](values: List[K], key: K) -> (List[K], bool):
             kept.push(value)
     (kept, removed)
 
-fn listed[K < Eq & Hash](set: Set[K]) -> List[K]:
+fn listed[K < Eq & Hash & Copy](set: Set[K]) -> List[K]:
     let mut result: List[K] = []
     for key in set:
         result.push(key)
     result
 
-fn verify[K < Eq & Hash & Debug](set: Set[K], replay: Set[K], model: List[K]) -> void:
+fn verify[K < Eq & Hash & Debug & Copy](set: Set[K], replay: Set[K], model: List[K]) -> void:
     assert_equal(set.len(), model.len(), reason="length agrees with linear distinct elements")
     assert_equal(set.is_empty(), model.len() == 0, reason="empty agrees with the model")
     actual := listed(set)
@@ -79,7 +79,7 @@ fn verify[K < Eq & Hash & Debug](set: Set[K], replay: Set[K], model: List[K]) ->
 
 # Five operation forms: insert, duplicate insert, remove, contains, and
 # remove/reinsert. Equal collision keys deliberately carry different payloads.
-fn run_sequence[K < Eq & Hash & Debug](operations: List[u8], make: fn(i32, usize) -> K) -> void:
+fn run_sequence[K < Eq & Hash & Debug & Copy](operations: List[u8], make: fn(i32, usize) -> K) -> void:
     let mut set: Set[K] = Set::new()
     let mut replay: Set[K] = Set::new()
     let mut model: List[K] = []

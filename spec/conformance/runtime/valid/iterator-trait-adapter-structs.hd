@@ -77,7 +77,7 @@ tests:
     it("keeps early termination and draining methods on custom cursors"):
         first := box(Countdown { remaining: +6 })
         assert_equal(
-            first.by_ref().find(fn(value: i32) -> bool: value == 3),
+            first.by_ref().find(fn(value: &i32) -> bool: *value == 3),
             .Some(+3),
             reason="find stops at the first match",
         )

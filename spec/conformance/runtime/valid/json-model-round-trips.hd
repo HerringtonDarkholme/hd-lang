@@ -170,7 +170,7 @@ fn renamed_text(value: Renamed) -> string:
         .None => pass
     "{" + fields.join(",") + "}"
 
-fn check[T < Serialize & Deserialize & Eq & Debug](value: T, expected: string) -> void:
+fn check[T < Serialize & Deserialize & Eq & Debug & Copy](value: T, expected: string) -> void:
     text := encode(value)
     assert_equal(text, expected, reason="encoding agrees with the independent text model")
     assert_equal(

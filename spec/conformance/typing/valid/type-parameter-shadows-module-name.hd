@@ -3,7 +3,7 @@
 struct Item:
     name: string
 
-fn first[Item](items: List[Item]) -> Item?:
+fn first[Item < Copy](items: List[Item]) -> Item?:
     for item in items:
         return .Some(item)
     .None

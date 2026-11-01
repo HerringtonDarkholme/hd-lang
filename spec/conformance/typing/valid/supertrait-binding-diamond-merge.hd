@@ -13,5 +13,5 @@ trait Sums < Source[Item = i32]:
 
 trait Stats < Counts & Sums
 
-fn total[T < Stats](stats: T, extra: T::Item) -> i32:
+fn total[T < Stats & Copy](stats: T, extra: T::Item) -> i32:
     stats.count() + stats.sum() + extra

@@ -9,7 +9,7 @@ impl Add for Money:
     fn add(self, rhs: Money) -> Money:
         Money { cents: self.cents + rhs.cents }
 
-fn twice[T < Add](x: T) -> T::Out:
+fn twice[T < Add & Copy](x: T) -> T::Out:
     x + x
 
 pub fn main() -> void:

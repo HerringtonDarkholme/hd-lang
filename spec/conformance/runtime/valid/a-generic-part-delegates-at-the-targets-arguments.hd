@@ -4,7 +4,7 @@
 # expect-stdout: 7
 # expect-stdout: 2
 # expect-stdout: hi
-trait Supplier:
+trait Supplier < Copy:
     type Item
     fn get(self) -> Self::Item
     fn twice(self) -> List[Self::Item]:
@@ -13,7 +13,7 @@ trait Supplier:
 struct Box[T]:
     value: T
 
-impl[T] Supplier for Box[T]:
+impl[T < Copy] Supplier for Box[T]:
     type Item = T
     fn get(self) -> T:
         self.value
@@ -22,7 +22,7 @@ struct Shelf[T]:
     Box[T]
     label: string
 
-impl[T] Supplier for Shelf[T] by Box
+impl[T < Copy] Supplier for Shelf[T] by Box
 
 fn first[S < Supplier](s: S) -> S::Item:
     s.get()

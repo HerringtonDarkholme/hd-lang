@@ -9,7 +9,7 @@ struct Bag:
 impl FromIterator[i32] for Bag:
     fn from_iter[I < Iterator[i32]](items: I) -> Bag:
         let mut cursor = items
-        Bag { items: items.collect() }
+        Bag { items: cursor.collect() }
 
 fn gather(values: List[i32]) -> Bag:
     values.iter().collect()

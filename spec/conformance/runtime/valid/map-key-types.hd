@@ -28,7 +28,7 @@ impl Hash for Tag:
 fn lookup[K < Eq & Hash](items: Map[K, i32], key: K) -> i32?:
     items.get(key)
 
-fn doubled[K < Eq & Hash & Display](keys: List[K]) -> Map[K, string]:
+fn doubled[K < Eq & Hash & Display & Copy](keys: List[K]) -> Map[K, string]:
     {for k in keys => k: "${k}${k}"}
 
 tests:

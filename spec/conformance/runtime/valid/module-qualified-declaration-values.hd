@@ -10,7 +10,7 @@
 # expect-stdout: marked
 use pkg.shapes
 
-fn convert[T, U](items: List[T], f: fn(T) -> U) -> List[U]:
+fn convert[T < Copy, U](items: List[T], f: fn(T) -> U) -> List[U]:
     [for item in items => f(item)]
 
 fn label(color: shapes.Color) -> string:

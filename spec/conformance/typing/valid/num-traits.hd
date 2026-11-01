@@ -2,7 +2,7 @@
 # Spec 09 Numeric Traits: trait.num.zero-one, trait.num.from-i64-checked (Operator Traits OP9, OP10).
 use std.num.Num
 
-fn sum[T < Num](items: List[T]) -> T:
+fn sum[T < Num & Copy](items: List[T]) -> T:
     let total = T::zero()
     for item in items:
         total = total + item

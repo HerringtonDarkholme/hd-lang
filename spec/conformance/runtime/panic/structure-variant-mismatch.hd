@@ -12,7 +12,7 @@ struct SameWalker[S]:
     other: S
     equal: bool
 
-impl[S] Walker[S] for SameWalker[S]:
+impl[S < Copy] Walker[S] for SameWalker[S]:
     type Error = never
 
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:

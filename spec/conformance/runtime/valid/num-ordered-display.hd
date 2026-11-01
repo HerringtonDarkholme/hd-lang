@@ -1,7 +1,7 @@
 # test: Num has PartialOrd, and so Eq, and Display, so generic code compares and interpolates
 # Spec 09 Numeric Traits: trait.num.num-ordered (Operator Traits OP10).
 use std.num.Num
-fn largest[T < Num](items: List[T]) -> T:
+fn largest[T < Num & Copy](items: List[T]) -> T:
     let best = items[0]
     for item in items:
         if item > best:

@@ -1,9 +1,9 @@
 # test: a list literal of Box literals fills a generic List[Box[T]] parameter
 # Spec 04 Generic Arguments: types.generic.infer; each Box literal meets the Box[T] element.
-struct Box[T]:
+struct Box[T < Copy]:
     item: T
 
-fn first_item[T](boxes: List[Box[T]]) -> T?:
+fn first_item[T < Copy](boxes: List[Box[T]]) -> T?:
     match boxes.first():
         .Some(b) => .Some(b.item)
         .None => .None

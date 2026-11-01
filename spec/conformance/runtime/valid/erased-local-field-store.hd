@@ -6,7 +6,7 @@ struct Pair[T]:
     b: T
 
 trait Maker:
-    fn swap[T](self, x: T, y: T) -> Pair[T]:
+    fn swap[T < Copy](self, x: T, y: T) -> Pair[T]:
         let mut p = Pair { a: x, b: y }
         p.a = y
         p.b = x

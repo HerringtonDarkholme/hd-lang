@@ -3,18 +3,18 @@
 # expect-stdout: 7
 
 trait Store[K]:
-    fn put[V](self, key: K, value: V, into: &mut List[(K, V)]) -> V
+    fn put[V < Copy](self, key: K, value: V, into: &mut List[(K, V)]) -> V
 
 struct Plain:
     n: i32
 
 impl Store[string] for Plain:
-    fn put[V](self, key: string, value: V, into: &mut List[(string, V)]) -> V:
+    fn put[V < Copy](self, key: string, value: V, into: &mut List[(string, V)]) -> V:
         into.push((key, value))
         value
 
 trait Relay:
-    fn relay[T](self, inner: &dyn Store[string], value: T) -> T
+    fn relay[T < Copy](self, inner: &dyn Store[string], value: T) -> T
 
     fn copy[T < 'static](self, value: T) -> T:
         let mut saved = value
@@ -26,7 +26,7 @@ struct Hop:
     tag: string
 
 impl Relay for Hop:
-    fn relay[T](self, inner: &dyn Store[string], value: T) -> T:
+    fn relay[T < Copy](self, inner: &dyn Store[string], value: T) -> T:
         let mut pairs: List[(string, T)] = []
         got := inner.put(self.tag, value, &mut pairs)
         got

@@ -3,7 +3,7 @@
 trait Named:
     fn name(self) -> string
 
-trait Greeter < Named:
+trait Greeter < Named & Copy:
     fn greeting(self) -> string
 
     fn greet(self) -> string:

@@ -27,13 +27,13 @@ impl Display for User:
     fn to_string(self) -> string:
         "user ${self.name}"
 
-fn twice[T](x: T) -> List[T]:
+fn twice[T < Copy](x: T) -> List[T]:
     [x, x]
 
 trait Collector:
-    fn collect[T](self, x: T, out: &mut List[(T, T?)]) -> Buffer[T]
+    fn collect[T < Copy](self, x: T, out: &mut List[(T, T?)]) -> Buffer[T]
     fn apply[T](self, x: T, f: fn(T) -> T) -> T
-    fn show_all[T < Display](self, xs: List[T]) -> string
+    fn show_all[T < Display & Copy](self, xs: List[T]) -> string
     fn pick[T](self, xs: List[T]) -> T?:
         if xs.len() > 0: xs[0] else: .None
 
@@ -41,14 +41,14 @@ struct Simple:
     tag: string
 
 impl Collector for Simple:
-    fn collect[T](self, x: T, out: &mut List[(T, T?)]) -> Buffer[T]:
+    fn collect[T < Copy](self, x: T, out: &mut List[(T, T?)]) -> Buffer[T]:
         out.push((x, x))
         Buffer { items: twice(x), len: 2 }
 
     fn apply[T](self, x: T, f: fn(T) -> T) -> T:
         f(f(x))
 
-    fn show_all[T < Display](self, xs: List[T]) -> string:
+    fn show_all[T < Display & Copy](self, xs: List[T]) -> string:
         let s = self.tag
         for x in xs:
             s = s + x.to_string()
@@ -58,14 +58,14 @@ struct Other:
     n: i32
 
 impl Collector for Other:
-    fn collect[T](self, x: T, out: &mut List[(T, T?)]) -> Buffer[T]:
+    fn collect[T < Copy](self, x: T, out: &mut List[(T, T?)]) -> Buffer[T]:
         out.push((x, .None))
         Buffer { items: [x], len: self.n }
 
     fn apply[T](self, x: T, f: fn(T) -> T) -> T:
         f(x)
 
-    fn show_all[T < Display](self, xs: List[T]) -> string:
+    fn show_all[T < Display & Copy](self, xs: List[T]) -> string:
         "other ${xs.len()}"
 
 fn run(c: &dyn Collector) -> void $ Console:

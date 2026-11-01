@@ -5,7 +5,7 @@ trait Log
 
 type WithLog[$ R] = $ R + Log
 
-fn map[T, U, $ R](items: List[T], f: fn(T) -> U $ R) -> List[U] $ R:
+fn map[T < Copy, U, $ R](items: List[T], f: fn(T) -> U $ R) -> List[U] $ R:
     let mut result: List[U] = []
     for item in items:
         result.push(f(item))

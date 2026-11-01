@@ -36,7 +36,7 @@ impl Formattable for User:
 
 impl Serializable for User
 
-fn audit[T < Describe & Named](value: T) -> string:
+fn audit[T < Describe & Named & Copy](value: T) -> string:
     value.describe() + value.name()
 
 fn clear_value[T < Clear](value: &mut T) -> void:

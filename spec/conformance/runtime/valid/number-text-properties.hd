@@ -29,7 +29,7 @@ fn reference_integer[N < Integer](value: N, radix: u32) -> string:
     digits := reference_unsigned(magnitude, radix)
     if negative: "-" + digits else: digits
 
-fn check_integer[N < Integer & Parse[Error = ParseNumberError] & Debug](
+fn check_integer[N < Integer & Parse[Error = ParseNumberError] & Copy & Debug](
     value: N,
     reader: fn(string, u32) -> Result[N, ParseNumberError],
 ) -> void:

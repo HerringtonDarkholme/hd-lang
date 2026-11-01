@@ -3,7 +3,7 @@
 # expr.map.keys, expr.collection.expected,
 # expr.collection.inferred, expr.collection.inferred.rows.
 
-fn lookup[T](values: Map[string, T], key: string) -> T?:
+fn lookup[T < Copy](values: Map[string, T], key: string) -> T?:
     values.get(key)
 
 fn unwrap(value: i32?) -> i32:

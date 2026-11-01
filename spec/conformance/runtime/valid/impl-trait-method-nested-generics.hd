@@ -3,7 +3,7 @@ trait Source[T]:
     fn hidden[U < Display](&self, extra: U) -> (impl Display, List[impl Display])
 struct Value[T < Display]:
     item: T
-impl[T < Display] Source[T] for Value[T]:
+impl[T < Display & Copy] Source[T] for Value[T]:
     fn hidden[U < Display](&self, extra: U) -> (T, List[U]):
         (self.item, [extra])
 fn read[T, S < Source[T]](source: S) -> string:

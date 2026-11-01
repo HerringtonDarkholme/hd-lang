@@ -12,7 +12,7 @@ fn through[Args < Tuple, O](f: Fn[Args, O, $ ()], args: Args) -> O:
 fn retry![Args < Tuple, O](f: SuspendFn[Args, O, $ ()], args: Args) -> O:
     f!(args...)
 
-fn twice_through[Args < Tuple](f: Fn[Args, i32, $ ()], args: Args) -> i32:
+fn twice_through[Args < Tuple & Copy](f: Fn[Args, i32, $ ()], args: Args) -> i32:
     through(f, args) + call(f, args...)
 
 fn add(a: i32, b: i32) -> i32:

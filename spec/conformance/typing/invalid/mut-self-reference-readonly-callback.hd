@@ -8,7 +8,7 @@ impl Counter:
     fn reset(&mut self) -> void:
         self.value = 0
 
-fn apply_all[T, U](items: List[T], transform: fn(T) -> U) -> List[U]:
+fn apply_all[T < Copy, U](items: List[T], transform: fn(T) -> U) -> List[U]:
     [for item in items => transform(item)]
 
 fn clear(counters: List[Counter]) -> List[void]:

@@ -11,7 +11,7 @@ impl Named for User:
     fn name(self) -> string:
         self.name
 
-fn recorded_is_static[T < Inspectable](value: &T) -> bool:
+fn recorded_is_static[T < Inspectable & Copy](value: &T) -> bool:
     value.runtime_type() == TypeId::of::[T]()
 
 fn recorded_is_user(value: &dyn Named) -> bool:

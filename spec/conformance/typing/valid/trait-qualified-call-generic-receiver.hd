@@ -10,5 +10,5 @@ trait Child < Parent:
 fn own[T < Parent](item: T) -> i32:
     Parent::id(item)
 
-fn inherited[T < Child](item: T) -> string:
+fn inherited[T < Child & Copy](item: T) -> string:
     "${Parent::id(item)} ${Child::label(item)}"

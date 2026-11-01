@@ -5,7 +5,7 @@ enum Either[L, R]:
     Left(value: L)
     Right(value: R)
 
-fn wrap_all[T, F](values: List[T], wrap: fn(T) -> F) -> List[F]:
+fn wrap_all[T < Copy, F](values: List[T], wrap: fn(T) -> F) -> List[F]:
     [for value in values => wrap(value)]
 
 fn main() -> void:

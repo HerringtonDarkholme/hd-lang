@@ -4,7 +4,7 @@ use std.json.{decode, encode}
 use std.serde.{Serialize, Deserialize}
 
 @derive(Serialize, Deserialize)
-struct Example[T < Serialize & Deserialize]:
+struct Example[T < Serialize & Deserialize & Copy]:
     value: T?
 
 tests:

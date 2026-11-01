@@ -3,7 +3,7 @@
 # expect-stdout: 2 1
 # expect-stdout: b a
 # expect-stdout: 2
-fn swap[T](a: &mut T, b: &mut T) -> void:
+fn swap[T < Copy](a: &mut T, b: &mut T) -> void:
     t := *a
     *a = *b
     *b = t

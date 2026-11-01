@@ -3,7 +3,7 @@
 use std.num.Integer
 use std.testing.assert_equal
 
-fn check_bits[N < Integer](low: N, high: N, width: u32) -> void:
+fn check_bits[N < Integer & Copy](low: N, high: N, width: u32) -> void:
     zero := N::zero()
     one := N::one()
     all_ones := ~zero

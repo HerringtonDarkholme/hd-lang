@@ -100,7 +100,7 @@ fn old_encode[T < Serialize](value: T) -> string:
     old_text(to_json(value), false)
 
 # Where encode, Display, or pretty differ from the old renderer, or "".
-fn disagreement[T < Serialize](value: T) -> string:
+fn disagreement[T < Serialize & Copy](value: T) -> string:
     tree := to_json(value)
     expected := old_text(tree, false)
     now := encode(value)

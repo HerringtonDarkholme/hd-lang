@@ -1,6 +1,6 @@
 # test: a user trait's mut self method that grows a list or a map changes only its own copy, wherever the caller's place is, while a &mut self method changes the place
 # Spec 07 Method Receivers: fn.method.mut-self-struct, fn.method.receiver.mut-self, fn.method.receiver.ref-mut-self. Spec 04 Collection Values: types.coll.nested.
-trait Grow:
+trait Grow < Copy:
     fn grow(mut self, n: i64) -> usize
 
     fn grow_twice(mut self, n: i64) -> usize:

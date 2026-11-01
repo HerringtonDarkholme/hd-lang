@@ -37,13 +37,13 @@ fn escalate[C < Channel](channel: C, message: string) -> string:
 fn label[T < Display](value: T) -> string:
     "[${value.to_string()}]"
 
-fn route[C < Channel](channel: C, message: string) -> string:
+fn route[C < Channel & Copy](channel: C, message: string) -> string:
     label(channel) + " " + notify(channel, message)
 
-fn broadcast[C < Channel](channels: List[C], message: string) -> List[string]:
+fn broadcast[C < Channel & Copy](channels: List[C], message: string) -> List[string]:
     channels.map(fn(channel: C) -> string: notify(channel, message))
 
-fn targets[C < Channel](channels: List[C]) -> List[string]:
+fn targets[C < Channel & Copy](channels: List[C]) -> List[string]:
     channels.map(C::to_string)
 
 fn sender[C < Channel]() -> fn(C, string) -> string:

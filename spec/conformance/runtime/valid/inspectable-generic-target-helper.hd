@@ -4,7 +4,7 @@ struct User:
     name: string
 struct Post:
     title: string
-fn first_of[T < Inspectable](items: List[*dyn Inspectable]) -> T?:
+fn first_of[T < Inspectable & Copy](items: List[*dyn Inspectable]) -> T?:
     for item in items:
         match item.downcast_ref::[T]():
             .Some(found) => return .Some(*found)

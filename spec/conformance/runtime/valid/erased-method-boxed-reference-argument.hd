@@ -12,7 +12,7 @@ fn peek[T](x: &T) -> T:
     *x
 
 trait Relay:
-    fn keep[T](self, a: T, b: T) -> (T, T):
+    fn keep[T < Copy](self, a: T, b: T) -> (T, T):
         let mut x = a
         bump(&mut x, b)
         (a, x)

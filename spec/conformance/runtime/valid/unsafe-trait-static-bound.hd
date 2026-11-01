@@ -10,7 +10,7 @@ impl Versioned for Release:
     fn newer_than(self, other: Release) -> bool:
         self.version > other.version
 
-fn latest[T < Versioned](first: T, rest: List[T]) -> T:
+fn latest[T < Versioned & Copy](first: T, rest: List[T]) -> T:
     let best = first
     for item in rest:
         if item.newer_than(best):

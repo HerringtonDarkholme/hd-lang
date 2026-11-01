@@ -9,10 +9,10 @@ tests:
     it("search"):
         assert(has_blank(["a", " "]) && !has_blank(["a"]), reason="any")
         assert([1, 2].iter().all(fn(n: i32) -> bool: n > 0), reason="all")
-        assert_equal([4, 5, 6].iter().find(fn(n: i32) -> bool: n > 4), .Some(5), reason="find")
+        assert_equal([4, 5, 6].iter().find(fn(n: &i32) -> bool: *n > 4), .Some(5), reason="find")
     it("leaves the rest unread"):
         source := box([+1, 2, 3, 4].iter())
-        assert_equal(source.by_ref().find(fn(n: i32) -> bool: n == 2), .Some(2), reason="found")
+        assert_equal(source.by_ref().find(fn(n: &i32) -> bool: *n == 2), .Some(2), reason="found")
         assert_equal(source.next(), .Some(3), reason="find stopped after 2")
         assert(!source.by_ref().all(fn(n: i32) -> bool: n > 4), reason="4 fails")
         assert_equal(source.next(), .None, reason="all read 4")
@@ -24,5 +24,5 @@ tests:
         let empty: List[i32] = []
         assert(!empty.iter().any(fn(n: i32) -> bool: true), reason="any")
         assert(empty.iter().all(fn(n: i32) -> bool: false), reason="all")
-        assert_equal(empty.iter().find(fn(n: i32) -> bool: true), .None, reason="find")
+        assert_equal(empty.iter().find(fn(n: &i32) -> bool: true), .None, reason="find")
         assert_equal(empty.iter().count(), 0, reason="count")

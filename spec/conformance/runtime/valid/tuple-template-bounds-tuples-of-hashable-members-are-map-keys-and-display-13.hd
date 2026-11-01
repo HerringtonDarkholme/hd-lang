@@ -7,7 +7,7 @@
 struct Id:
     value: string
 
-fn count[K < Eq & Hash](k: K) -> usize:
+fn count[K < Eq & Hash & Copy](k: K) -> usize:
     let mut m: Map[(K, i32), string] = {}
     m[(k, +1)] = "a"
     m[(k, +1)] = "b"

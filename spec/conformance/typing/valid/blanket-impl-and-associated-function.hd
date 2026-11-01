@@ -2,7 +2,7 @@
 trait Notifier:
     fn notify(self, message: string) -> void
 
-impl[N < Notifier] Notifier for List[N]:
+impl[N < Notifier & Copy] Notifier for List[N]:
     fn notify(self, message: string) -> void:
         for notifier in self:
             notifier.notify(message)

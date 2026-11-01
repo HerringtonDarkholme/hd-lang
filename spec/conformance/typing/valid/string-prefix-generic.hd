@@ -3,7 +3,7 @@
 use std.ops.{Template, str_prefix}
 
 @str_prefix
-fn parts[T](t: Template[T]) -> List[string]:
+fn parts[T < Copy](t: Template[T]) -> List[string]:
     t.raw_parts
 
 fn render(count: i32) -> List[string]:

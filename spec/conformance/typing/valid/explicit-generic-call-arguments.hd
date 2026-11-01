@@ -1,6 +1,6 @@
 # test: explicit generic arguments come before the argument list, may omit trailing ones, and specialize a module function or one a use declaration introduces
 # Spec 05 Explicit Generic Arguments: expr.call.generic.position, expr.call.generic.trailing, expr.call.generic.targets.
-fn first[T](items: List[T], fallback: T) -> T:
+fn first[T < Copy](items: List[T], fallback: T) -> T:
     match items.get(0):
         .Some(item) => item
         .None => fallback

@@ -21,7 +21,7 @@ fn list_users() -> string:
     "[]"
 
 @route("/items")
-fn first[T](items: List[T]) -> T?:
+fn first[T < Copy](items: List[T]) -> T?:
     items.first()
 
 fn plain() -> void:

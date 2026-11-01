@@ -20,7 +20,7 @@ struct Order:
     currency: string
 
 @derive(Serialize, Deserialize)
-struct Page[T]:
+struct Page[T < Copy]:
     items: List[T]
     next: string?
 

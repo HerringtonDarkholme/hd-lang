@@ -26,7 +26,7 @@ impl Score for Point:
     fn score(self) -> i32:
         self.value
 
-impl[Item < Score] AsyncScore for List[Item]:
+impl[Item < Score & Copy] AsyncScore for List[Item]:
     fn score!(self) -> i32:
         self[0].score()
 

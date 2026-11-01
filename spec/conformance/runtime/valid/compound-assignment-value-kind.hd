@@ -15,7 +15,7 @@ fn walk(steps: List[i64]) -> i64:
         walked += Meters(step)
     i64(walked)
 
-fn sum[T < Num](items: List[T]) -> T:
+fn sum[T < Num & Copy](items: List[T]) -> T:
     let total = T::zero()
     for item in items:
         total += item

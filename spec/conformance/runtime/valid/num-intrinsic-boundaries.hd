@@ -3,7 +3,7 @@
 use std.num.Integer
 use std.testing.assert
 
-fn check_bounds[N < Integer](low: N, high: N) -> void:
+fn check_bounds[N < Integer & Copy](low: N, high: N) -> void:
     zero := N::zero()
     one := N::one()
     two := one.wrapping_add(one)

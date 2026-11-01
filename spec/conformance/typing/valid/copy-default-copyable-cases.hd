@@ -14,9 +14,9 @@ trait Shown:
 impl Shown for Point:
     fn shown(&self) -> string: "${self.x},${self.y}"
 
-fn dup[T](x: T) -> (T, T): (x, x)
+fn dup[T < Copy](x: T) -> (T, T): (x, x)
 
-fn show_all[T < Shown](items: List[T]) -> string:
+fn show_all[T < Shown & Copy](items: List[T]) -> string:
     let out = ""
     for item in items:
         out = out + item.shown()

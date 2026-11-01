@@ -27,7 +27,7 @@ impl MapKey for Language:
 @derive(Debug, Eq, Hash, MapKey)
 struct Marker: pass
 
-fn round_trip[K < Debug & Eq & Hash & MapKey](value: Map[K, i32]) -> void:
+fn round_trip[K < Debug & Eq & Hash & MapKey & Copy](value: Map[K, i32]) -> void:
     text := encode(value)
     match decode::[Map[K, i32]](text):
         .Ok(back) => assert_equal(back, value, reason="map key round trip")
