@@ -254,7 +254,6 @@ function supervise({
   output: DynamicRecord;
 }): Promise<number> {
   return new Promise((resolve, fail) => {
-    const deadline = now() + limit;
     const { port1: port, port2 } = new MessageChannel();
     // The Ctrl-C requests passed on, and whether the worker's host waits
     // (`sharedCancel`).
@@ -262,20 +261,24 @@ function supervise({
     const signal = interruptOf(config);
     const outputConnection = output.connection();
     const worker = new Worker(new URL(import.meta.url), {
-      workerData: { module, config, args, deadline, port: port2, cell, outputConnection },
+      workerData: { module, config, args, limit, port: port2, cell, outputConnection },
       transferList: [port2, outputConnection.port],
     });
     let status: number | null = null;
     let ended = false;
     // Whether the host already reported the panic.
     let reported = false;
+    // The deadline's timer, once the worker has started the program.
+    let timer: ReturnType<typeof setTimeout> | undefined;
     // The label of the facts body the worker runs, or null: a time limit
     // that stops it names its facts (annot.fact.eval.panic-runtime).
     let fact: string | null = null;
     // A message is output (`fd`, `text`), the facts body (`fact`),
     // or the program's status.
     const take = (message: Dynamic): void => {
-      if (message.fact !== undefined) {
+      if (message.started !== undefined) {
+        arm(message.started);
+      } else if (message.fact !== undefined) {
         fact = message.fact;
       } else if (message.fd === undefined) {
         status = message.status;
@@ -327,20 +330,31 @@ function supervise({
       process.on(signal, interrupt);
     }
     // What the worker sent before the deadline is written first; a worker
-    // that ended the run itself is not stopped.
-    const timer = setTimeout(() => {
-      for (let received; status === null && (received = receiveMessageOnPort(port));) {
-        take(received.message);
+    // that ended the run itself is not stopped. The limit counts from when
+    // the worker starts the program (`started`, its deadline), not from
+    // its spawn: a loaded machine can take most of a short limit to boot
+    // a worker, which then ran out of time before the program's first line.
+    function arm(deadline: number): void {
+      if (ended || timer !== undefined) {
+        return;
       }
-      if (status !== null) {
-        return end(status);
-      }
-      worker.terminate();
-      if (!reported) {
-        output.err(reportIn(fact, PROGRAM_TIME_LIMIT));
-      }
-      end(3);
-    }, limit + GRACE_MS);
+      timer = setTimeout(
+        () => {
+          for (let received; status === null && (received = receiveMessageOnPort(port));) {
+            take(received.message);
+          }
+          if (status !== null) {
+            return end(status);
+          }
+          worker.terminate();
+          if (!reported) {
+            output.err(reportIn(fact, PROGRAM_TIME_LIMIT));
+          }
+          end(3);
+        },
+        Math.max(0, deadline - now()) + GRACE_MS,
+      );
+    }
     port.on("message", (message) => {
       if (!ended) {
         take(message);
@@ -412,8 +426,11 @@ if (isMainThread) {
     await output.close();
   }
 } else {
-  const { module, config, args, deadline, port, cell, outputConnection } = workerData;
+  const { module, config, args, limit, port, cell, outputConnection } = workerData;
   const output = createOutput(outputConnection);
+  // The program's time starts now (`supervise`'s `arm`).
+  const deadline = now() + limit;
+  port.postMessage({ started: deadline });
   const status = await runHere({
     module,
     config,
