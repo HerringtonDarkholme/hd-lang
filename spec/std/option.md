@@ -116,7 +116,7 @@ fn count_of(found: (&usize)?) -> usize:
 use std.error.Error
 
 fn first_word(words: List[string]) -> Result[string, *dyn Error]:
-    word := words.first().context("no words")?
+    word := words.first().copied().context("no words")?
     .Ok(word)
 ```
 

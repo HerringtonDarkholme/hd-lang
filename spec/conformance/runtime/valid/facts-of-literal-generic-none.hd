@@ -22,7 +22,7 @@ fn list_users() -> string:
 
 @route("/items")
 fn first[T](items: List[T]) -> T?:
-    items.first()
+    items.first().copied()
 
 fn plain() -> void:
     pass
