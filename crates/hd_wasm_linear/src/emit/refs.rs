@@ -1190,7 +1190,8 @@ impl Em<'_, '_, '_> {
             return self.cell_put(l as usize, &src);
         }
         let ls = self.local(l)?;
-        if self.counted(t).is_some() {
+        // An outlined `IsUnique` or `Pin` took the local's count with it.
+        if self.counted(t).is_some() && hd_mono::outlined_change_local(self.b, i).is_none() {
             self.release_locals(&ls, t)?;
         }
         for (x, n) in ls.iter().zip(&new) {

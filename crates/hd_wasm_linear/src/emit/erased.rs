@@ -37,8 +37,8 @@ use hd_base::{DefId, Hash128, InstId, StageResult};
 use hd_mono::layout::CanonMemo;
 use hd_mono::{
     INFO, Target, declared_row_keys, erased_args, has_row_params, is_open, open_param,
-    outlined_store_local, own_count, subst, thunk_capture_locals, thunk_operands, witness_args,
-    witness_family,
+    outlined_change_local, outlined_store_local, own_count, subst, thunk_capture_locals,
+    thunk_operands, witness_args, witness_family,
 };
 use hd_tir::ir::{Callee, NONE, Ref, Tag};
 use hd_types::{Ty, TyList};
@@ -352,7 +352,15 @@ impl Em<'_, '_, '_> {
             }
             let t = self.sub(self.b.local_ty[l]);
             let ls = self.local_value(u32::try_from(l).expect("locals"))?;
-            for x in self.copy_locals(&ls, t)? {
+            // An outlined `IsUnique` or `Pin` takes the local's own count,
+            // so it sees the counts the body holds; its result comes back
+            // into the local ([`Em::open_local_store`]).
+            let moved = if outlined_change_local(self.b, i).is_some() {
+                ls
+            } else {
+                self.copy_locals(&ls, t)?
+            };
+            for x in moved {
                 self.f.get(x);
             }
             params.extend(self.vals(t)?);
