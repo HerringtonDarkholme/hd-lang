@@ -971,30 +971,6 @@ pub fn declares_assoc_function<'i>(
     })
 }
 
-/// Whether the trait `trait_` declares a method with a `&self` or
-/// `&mut self` receiver, which a bare trait value does not provide
-/// (`trait.dyn.ref.member`). `item` reads a declaration.
-#[must_use]
-pub fn declares_ref_receiver<'i>(
-    syms: &ShardedInterner,
-    item: impl Fn(DefId) -> Option<&'i Item>,
-    pool: &InternPool,
-    trait_: DefId,
-) -> bool {
-    let Some(ItemData::Trait(t)) = item(trait_).map(|i| &i.data) else {
-        return false;
-    };
-    t.methods.iter().any(|(_, m)| {
-        matches!(
-            item(*m).map(|i| &i.data),
-            Some(ItemData::Method { sig, .. })
-                if sig.params.first().is_some_and(|p| {
-                    syms.resolve(p.0) == "self" && matches!(pool.get(p.1), TyData::Ref { .. })
-                })
-        )
-    })
-}
-
 impl Declarations for LookupDecls<'_> {
     fn sealed(&self) -> &SealedTraits {
         &self.sealed
@@ -1014,8 +990,8 @@ impl Declarations for LookupDecls<'_> {
         self.lookup.item(trait_).map_or(&[], Item::supertraits)
     }
     fn has_unavailable_member(&self, trait_: DefId) -> bool {
+        // A reference receiver is available (`trait.dyn.member.other-with-opaque`).
         declares_assoc_function(self.syms, |d| self.lookup.item(d), trait_)
-            || declares_ref_receiver(self.syms, |d| self.lookup.item(d), self.pool, trait_)
     }
     fn has_unavailable_reference_member(&self, trait_: DefId, mutable: bool) -> bool {
         let Some(ItemData::Trait(t)) = self.lookup.item(trait_).map(|i| &i.data) else {

@@ -10,7 +10,7 @@
 ## The sealed trait of types with a runtime identity, which the compiler supplies.
 ## See [module.prelude.inspect-reference-api](../../spec/lang/10-modules.md#r-module.prelude.inspect-reference-api).
 pub trait Inspectable:
-    fn runtime_type(self) -> TypeId
+    fn runtime_type(&self) -> TypeId
 
 impl dyn Inspectable:
     ## Recovers the original shared reference when its concrete type is `T`.

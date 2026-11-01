@@ -190,6 +190,29 @@ pub fn main() -> void $ Console:
     );
 }
 
+/// A value erased to `&dyn Inspectable` reports its recorded type through
+/// the vtable's `runtime_type` slot, a `&self` slot whose body the compiler
+/// supplies, so the reference needs no payload (trait.inspect.dynamic).
+#[test]
+fn runtime_type_through_a_reference_receiver_slot() {
+    let main = "\
+use std.inspect.{Inspectable, TypeId}
+
+struct User:
+    name: string
+
+fn recorded(value: &dyn Inspectable) -> TypeId:
+    value.runtime_type()
+
+pub fn main() -> void $ Console:
+    user := User { name: \"Ada\" }
+    println(\"${recorded(&user) == TypeId::of::[User]()}\")
+    let seven: i32 = 7
+    println(\"${recorded(&seven) == TypeId::of::[i32]()} ${recorded(&seven) == TypeId::of::[User]()}\")
+";
+    assert_eq!(output_of("ref-slot", main), "true\ntrue false\n");
+}
+
 const NAMES: &str = "\
 use std.inspect.TypeId
 

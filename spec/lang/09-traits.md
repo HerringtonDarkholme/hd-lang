@@ -2124,7 +2124,7 @@ struct User:
 struct Handle: pass
 
 impl Inspectable for User:  # error: sealed-trait-implementation
-    fn runtime_type(self) -> TypeId: TypeId::of::[string]()
+    fn runtime_type(&self) -> TypeId: TypeId::of::[string]()
 
 impl AnyRef for Handle  # error: sealed-trait-implementation
 
@@ -2273,7 +2273,7 @@ concrete type can be recovered later:
 
 ```text
 trait Inspectable:
-    fn runtime_type(self) -> TypeId
+    fn runtime_type(&self) -> TypeId
 
 impl dyn Inspectable:
     pub fn downcast_ref[T < Inspectable](&self) -> (&T)?

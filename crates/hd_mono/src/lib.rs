@@ -2922,7 +2922,14 @@ impl Cx<'_> {
                     (t, r)
                 }
                 None if takes_ref(m) => {
-                    return err("a reference-receiver vtable without a reference payload");
+                    // A slot whose body the compiler supplies, such as
+                    // `runtime_type`'s `RuntimeType` helper, reads no
+                    // payload, so a reference receiver needs none.
+                    let t = self.method_target(trait_, m, from, targs, None, parent)?;
+                    if !matches!(t.kind, TargetKind::Builtin { .. }) {
+                        return err("a reference-receiver vtable without a reference payload");
+                    }
+                    (t, SlotRecv::Payload)
                 }
                 None if erased::own_count(env, m) > 0 => (
                     self.erased_target(trait_, m, from, targs, parent)?,

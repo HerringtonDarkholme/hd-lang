@@ -1,0 +1,31 @@
+# test: a trait value meets bounds on its trait and its supertraits whose methods take `&self`
+# Spec 09 Traits: trait.dyn.member.other-with-opaque, trait.dyn.value-methods.
+# expect-stdout: missing a.txt
+# expect-stdout: missing a.txt
+# expect-stdout: true
+use std.error.Error
+use std.inspect.{Inspectable, TypeId}
+
+struct Missing:
+    path: string
+
+impl Display for Missing:
+    fn to_string(&self) -> string:
+        "missing ${self.path}"
+
+impl Error for Missing
+
+fn show[T < Display](value: *T) -> string:
+    value.to_string()
+
+fn as_error[T < Error](value: *T) -> string:
+    value.to_string()
+
+fn erase[T < Inspectable](value: *T) -> *dyn Inspectable:
+    value
+
+pub fn main() -> void $ Console:
+    let failure: *dyn Error = box(Missing { path: "a.txt" })
+    println(show(failure))
+    println(as_error(failure))
+    println("${erase(failure).runtime_type() == TypeId::of::[Missing]()}")

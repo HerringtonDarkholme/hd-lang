@@ -12101,13 +12101,10 @@ impl Declarations for Env<'_> {
         self.p.items.get(trait_).map_or(&[], Item::supertraits)
     }
     fn has_unavailable_member(&self, trait_: DefId) -> bool {
+        // A `&self` or `&mut self` method is available on a `dyn` value
+        // (`trait.dyn.member.other-with-opaque`): a trait value meets its
+        // trait's and supertraits' bounds whatever their receivers.
         hd_resolve::declares_assoc_function(self.run.names().syms, |d| self.p.items.get(d), trait_)
-            || hd_resolve::declares_ref_receiver(
-                self.run.names().syms,
-                |d| self.p.items.get(d),
-                &self.run.pool,
-                trait_,
-            )
     }
     fn is_local(&self, def: DefId) -> bool {
         self.run.names().is_local(def)

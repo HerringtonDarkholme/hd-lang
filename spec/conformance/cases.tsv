@@ -5727,3 +5727,4 @@ typing/invalid/move-out-of-mut-reference-as-branch-tail.hd	type	reject:move-out-
 typing/invalid/move-payload-out-of-deref-in-match.hd	type	reject:move-out-of-place	lang/13-values-and-references.md#r-ref.move.pattern
 typing/invalid/move-field-out-of-deref-in-let-pattern.hd	type	reject:move-out-of-place	lang/13-values-and-references.md#r-ref.move.pattern
 typing/valid/match-through-reference-reads-payload-field.hd	type	accept	lang/13-values-and-references.md#r-ref.move.pattern
+runtime/valid/trait-value-meets-supertrait-bounds-whatever-receivers.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.member.other-with-opaque
