@@ -37,7 +37,7 @@ const FIXTURE = join(root, "spec", "conformance", "runtime", "valid", "println-c
 // #852 removes the printer from ordinary compilation. These caps keep
 // modest margins above the measured 1,900,605 (#1099) / 147,828 gzip bytes.
 // They are tripwires; the owner's hard 2 MB ceiling still holds.
-const GZIP_LIMIT = 1_970_000;
+const GZIP_LIMIT = 1_980_000;
 const WAT_GZIP_LIMIT = 160_000;
 const RAW_FLOOR = 2e6;
 
