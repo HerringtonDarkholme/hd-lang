@@ -9,7 +9,7 @@
 //! driver's.
 
 use hd_base::SliceSort as _;
-use hd_base::{DefId, NodeIdx};
+use hd_base::{DefId, HashMap, NodeIdx};
 use hd_types::{Ty, TyList};
 
 use crate::ir::{
@@ -237,10 +237,29 @@ pub fn inline_calls(b: &mut Body, sites: Vec<Site>) -> Result<Vec<bool>, String>
     // permutation, as a pass's rebuild does.
     let mut spans = Vec::with_capacity(ready.len());
     let rows = b.fallback.len();
+    // Each call's block gains the copy's bindings and root before its
+    // `Scope`. A block holding many calls is rebuilt once, after every
+    // copy is in: one new record per site would leave a stale copy of
+    // the block's list in `extra` each time, quadratic in its length.
+    let mut inserts: HashMap<usize, HashMap<u32, Vec<u32>>> = HashMap::default();
     for r in ready {
         let (c, start) = (r.c, b.len());
-        copy_in(b, r)?;
+        let (outer, scope, members) = copy_in(b, r)?;
+        inserts.entry(outer).or_default().insert(scope, members);
         spans.push((c, start..b.len()));
+    }
+    let mut outers: Vec<usize> = inserts.keys().copied().collect();
+    outers.sort_stable();
+    for outer in outers {
+        let before = &inserts[&outer];
+        let mut list = Vec::new();
+        for &x in b.record(b.data[outer][0]) {
+            if let Some(members) = before.get(&x) {
+                list.extend_from_slice(members);
+            }
+            list.push(x);
+        }
+        b.data[outer][0] = push_record(b, &list);
     }
     let mut order = Vec::with_capacity(b.len());
     for i in 0..n {
@@ -286,8 +305,9 @@ fn prepare(b: &Body, site: Site, outer: &[u32]) -> Option<Ready> {
 
 /// Appends site `r`'s rows to the renumbered caller, numbered as they will
 /// stand once permuted: the `Store`s, the callee's instructions but its
-/// root, the final `Break`, the root, the `Scope`.
-fn copy_in(out: &mut Body, r: Ready) -> Result<(), String> {
+/// root, the final `Break`, the root, the `Scope`. Returns the call's
+/// block, the `Scope`, and the members the block lists before it.
+fn copy_in(out: &mut Body, r: Ready) -> Result<(usize, u32, Vec<u32>), String> {
     let Ready {
         c,
         mut k,
@@ -316,17 +336,11 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(), String> {
     // an argument is consumed in the block that made it; the block also
     // lists the root, which the `Scope` runs.
     let scope = root_at + 1;
-    let mut list = Vec::new();
-    for &x in out.record(out.data[outer][0]) {
-        if x == scope {
-            for p in 0..np {
-                list.push(base + u32_of(p));
-            }
-            list.push(root_at);
-        }
-        list.push(x);
+    let mut before = Vec::with_capacity(np + 1);
+    for p in 0..np {
+        before.push(base + u32_of(p));
     }
-    out.data[outer][0] = push_record(out, &list);
+    before.push(root_at);
     // The root's members: the callee's, then the final `Break`.
     let [members, tail] = k.data[m - 1];
     let mut list = out.record(members).to_vec();
@@ -403,7 +417,7 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(), String> {
         out.fallback.push([i, if l == 0 { 0 } else { l + lbase }]);
     }
     out.held_args.append(&mut k.held_args);
-    Ok(())
+    Ok((outer, scope, before))
 }
 
 /// Moves the copy's record words `xbase` on, its locals `lbase` on and
@@ -677,17 +691,19 @@ mod tests {
         for &c in &calls {
             assert_eq!(inline_calls(&mut each, vec![site(c)]), Ok(vec![true]));
         }
-        // Both leave the block records they replaced behind, with words
-        // renumbered at different times; every record in use is the same.
+        // The records may lie in `extra` in another order, and one per copy
+        // leaves the block records it replaced behind; every record in use
+        // is the same. Each is compared at its place in use order.
         let live = |b: &Body| {
             let mut v = b.clone();
             v.extra.clear();
             for i in 0..b.len() {
                 let (oa, ob) = b.tags[i].operands();
-                for (w, op) in b.data[i].into_iter().zip([oa, ob]) {
+                for (k, (w, op)) in b.data[i].into_iter().zip([oa, ob]).enumerate() {
                     let rec = matches!(op, Op::Values | Op::Blocks | Op::Record)
                         || (op == Op::Place && w & crate::ir::place::BARE_LOCAL == 0);
                     if rec && w != crate::ir::NONE {
+                        v.data[i][k] = u32_of(v.extra.len());
                         v.extra.extend_from_slice(b.record(w));
                     }
                 }

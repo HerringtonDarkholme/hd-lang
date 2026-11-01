@@ -501,6 +501,97 @@ fn zero_releases(f: &mut Func) -> bool {
     for l in f.params.len()..n {
         set_zero(&mut known, u32::try_from(l).expect("locals"), true);
     }
+    let gone = if forward_only(&edges, &point_at, &starts, f.body.len()) {
+        zero_sweep(f, &edges, &point_at, &starts, known, &release_width)
+    } else {
+        zero_fixpoint(f, &edges, &point_at, &starts, known, &release_width)
+    };
+    if !gone.iter().any(|g| *g) {
+        return false;
+    }
+    let mut origins = Remap::new(f.origins.as_deref());
+    f.body = std::mem::take(&mut f.body)
+        .into_iter()
+        .enumerate()
+        .filter_map(|(at, ins)| {
+            if gone[at] {
+                None
+            } else {
+                origins.copy(at..at + 1);
+                Some(ins)
+            }
+        })
+        .collect();
+    origins.finish(f);
+    true
+}
+
+/// Whether every edge of a body's basic blocks leads to a later block, so
+/// that blocks in order see each predecessor first.
+fn forward_only(edges: &[ZeroEdges], point_at: &[usize], starts: &[usize], len: usize) -> bool {
+    let mut forward = true;
+    for p in 0..starts.len() {
+        let end = starts.get(p + 1).copied().unwrap_or(len);
+        edges[end - 1].each(end, |to| {
+            if point_at.get(to).is_some_and(|&next| next <= p) {
+                forward = false;
+            }
+        });
+    }
+    forward
+}
+
+/// [`zero_releases`]' decisions for a body whose blocks only branch
+/// forward: one pass in block order meets each block's facts from its
+/// predecessors, decides, and drops them. The facts in hand at once are
+/// those of the blocks still waiting, not one row per block of the body,
+/// which grows with the square of a long straight body. It decides as
+/// [`zero_fixpoint`] does.
+fn zero_sweep(
+    f: &Func,
+    edges: &[ZeroEdges],
+    point_at: &[usize],
+    starts: &[usize],
+    entry: Vec<u64>,
+    release_width: &dyn Fn(&Ins) -> Option<usize>,
+) -> Vec<bool> {
+    let mut waiting: Vec<Option<Vec<u64>>> = vec![None; starts.len()];
+    waiting[0] = Some(entry);
+    let mut gone = vec![false; f.body.len()];
+    for point in 0..starts.len() {
+        let Some(mut known) = waiting[point].take() else {
+            continue;
+        };
+        let end = starts.get(point + 1).copied().unwrap_or(f.body.len());
+        decide_block(f, starts[point]..end, &mut known, &mut gone, release_width);
+        edges[end - 1].each(end, |to| {
+            let Some(&next) = point_at.get(to) else {
+                return;
+            };
+            match &mut waiting[next] {
+                Some(before) => {
+                    for (a, b) in before.iter_mut().zip(&known) {
+                        *a &= *b;
+                    }
+                }
+                slot @ None => *slot = Some(known.clone()),
+            }
+        });
+    }
+    gone
+}
+
+/// [`zero_releases`]' decisions for any body: the facts at each block's
+/// entry to a fixed point, then the decisions.
+fn zero_fixpoint(
+    f: &Func,
+    edges: &[ZeroEdges],
+    point_at: &[usize],
+    starts: &[usize],
+    mut known: Vec<u64>,
+    release_width: &dyn Fn(&Ins) -> Option<usize>,
+) -> Vec<bool> {
+    let words = known.len();
     let mut facts = vec![0u64; starts.len() * words];
     facts[..words].copy_from_slice(&known);
     // Reachability cannot be encoded by the row: a function without
@@ -549,59 +640,54 @@ fn zero_releases(f: &mut Func) -> bool {
         }
         known.copy_from_slice(&facts[point * words..(point + 1) * words]);
         let end = starts.get(point + 1).copied().unwrap_or(f.body.len());
-        for at in start..end {
-            let ins = &f.body[at];
-            if let Some(n) = release_width(ins) {
-                let mut args = Vec::new();
-                for p in (0..at).rev() {
-                    if matches!(f.body[p], Ins::Anchor(_)) {
-                        continue;
-                    }
-                    if args.len() == n || !pushes_zero(&f.body[p], &known) {
-                        break;
-                    }
-                    args.push(p);
+        decide_block(f, start..end, &mut known, &mut gone, release_width);
+    }
+    gone
+}
+
+/// Marks in `gone` the releases and stores of `block` that its entry
+/// facts `known` prove redundant, carrying `known` through it.
+fn decide_block(
+    f: &Func,
+    block: std::ops::Range<usize>,
+    known: &mut [u64],
+    gone: &mut [bool],
+    release_width: &dyn Fn(&Ins) -> Option<usize>,
+) {
+    for at in block {
+        let ins = &f.body[at];
+        if let Some(n) = release_width(ins) {
+            let mut args = Vec::new();
+            for p in (0..at).rev() {
+                if matches!(f.body[p], Ins::Anchor(_)) {
+                    continue;
                 }
-                if args.len() == n {
-                    gone[at] = true;
-                    for p in args {
-                        gone[p] = true;
-                    }
+                if args.len() == n || !pushes_zero(&f.body[p], known) {
+                    break;
                 }
-            } else if let Ins::Op(I::LocalSet(l) | I::LocalTee(l)) = ins
-                && zero_local(&known, *l)
-                && at
-                    .checked_sub(1)
-                    .is_some_and(|p| pushes_zero(&f.body[p], &known))
-            {
+                args.push(p);
+            }
+            if args.len() == n {
                 gone[at] = true;
-                if matches!(ins, Ins::Op(I::LocalSet(_))) {
-                    gone[at - 1] = true;
+                for p in args {
+                    gone[p] = true;
                 }
             }
-            // Replay original transfers after deciding from the incoming
-            // facts; pending removals must not affect later decisions.
-            zero_after(&f.body, at, &mut known);
-        }
-    }
-    if !gone.iter().any(|g| *g) {
-        return false;
-    }
-    let mut origins = Remap::new(f.origins.as_deref());
-    f.body = std::mem::take(&mut f.body)
-        .into_iter()
-        .enumerate()
-        .filter_map(|(at, ins)| {
-            if gone[at] {
-                None
-            } else {
-                origins.copy(at..at + 1);
-                Some(ins)
+        } else if let Ins::Op(I::LocalSet(l) | I::LocalTee(l)) = ins
+            && zero_local(known, *l)
+            && at
+                .checked_sub(1)
+                .is_some_and(|p| pushes_zero(&f.body[p], known))
+        {
+            gone[at] = true;
+            if matches!(ins, Ins::Op(I::LocalSet(_))) {
+                gone[at - 1] = true;
             }
-        })
-        .collect();
-    origins.finish(f);
-    true
+        }
+        // Replay original transfers after deciding from the incoming
+        // facts; pending removals must not affect later decisions.
+        zero_after(&f.body, at, known);
+    }
 }
 
 /// The basic blocks of a body whose control edges are `edges`: each
@@ -1035,6 +1121,9 @@ fn live_rules(f: &mut Func, arity: &Arity) -> bool {
     any
 }
 
+/// No row, in a `u32` table of [`live_once`].
+const NONE: u32 = u32::MAX;
+
 fn live_once(f: &mut Func, arity: &Arity) -> bool {
     let Some(live) = Live::new(f) else {
         return false;
@@ -1053,7 +1142,9 @@ fn live_once(f: &mut Func, arity: &Arity) -> bool {
     let dead_write =
         |at: usize| matches!(body[at], Ins::Op(I::LocalSet(_) | I::LocalTee(_))) && dead[at];
     let mut gone = vec![false; body.len()];
-    let mut moved = vec![None; body.len()];
+    // `moved[j]`: the push a get takes the place of, or `NONE`. Words of
+    // four bytes, as `next` is: a long body has a million rows.
+    let mut moved = vec![NONE; body.len()];
     // The spans of the pairs that leave their value under their run, and
     // the pushes and sets between a moved push and its set in a
     // multi-value copy: a pair that keeps the stack level must not hold
@@ -1062,12 +1153,12 @@ fn live_once(f: &mut Func, arity: &Arity) -> bool {
     let mut in_copy = vec![false; body.len()];
     let mut teed = vec![false; body.len()];
     // `next[at]`: the next access of the local that `at` writes.
-    let mut next = vec![usize::MAX; body.len()];
-    let mut seen = vec![usize::MAX; f.params.len() + f.locals.len()];
+    let mut next = vec![NONE; body.len()];
+    let mut seen = vec![NONE; f.params.len() + f.locals.len()];
     for (at, ins) in body.iter().enumerate().rev() {
         if let Ins::Op(I::LocalSet(l) | I::LocalTee(l) | I::LocalGet(l)) = ins {
             next[at] = seen[*l as usize];
-            seen[*l as usize] = at;
+            seen[*l as usize] = u32::try_from(at).expect("body");
         }
     }
     for k in 0..body.len() {
@@ -1083,7 +1174,11 @@ fn live_once(f: &mut Func, arity: &Arity) -> bool {
             open.pop();
         }
         let j = next[k];
-        if j == usize::MAX || !matches!(body[j], Ins::Op(I::LocalGet(_))) {
+        if j == NONE {
+            continue;
+        }
+        let j = j as usize;
+        if !matches!(body[j], Ins::Op(I::LocalGet(_))) {
             continue;
         }
         let last = dead[j];
@@ -1097,13 +1192,13 @@ fn live_once(f: &mut Func, arity: &Arity) -> bool {
         } && last
             && pure_push(&body[p])
             && !gone[p]
-            && moved[p].is_none()
+            && moved[p] == NONE
             && open.last().is_none_or(|&(s, _)| s <= p)
             && !body[p + 1..j].iter().any(|i| clobbers(&body[p], i))
         {
             // A tee's push stays where it is, and the get reads it again.
             gone[p] = !tee;
-            moved[j] = Some(p);
+            moved[j] = u32::try_from(p).expect("body");
             in_copy[p + 1..k].fill(true);
         } else if level && !tee && !in_copy[k] && open.last().is_none_or(|&(_, e)| j <= e) {
             // The value stays under the run; a set read again later
@@ -1133,7 +1228,8 @@ fn live_once(f: &mut Func, arity: &Arity) -> bool {
         if let (true, Ins::Op(I::LocalSet(t))) = (teed[at], ins) {
             out.push(Ins::Op(I::LocalTee(*t)));
             origins.copy(at..at + 1);
-        } else if let Some(p) = moved[at] {
+        } else if moved[at] != NONE {
+            let p = moved[at] as usize;
             out.push(body[p]);
             let origin = origins
                 .first(p..p + 1)
@@ -1145,7 +1241,7 @@ fn live_once(f: &mut Func, arity: &Arity) -> bool {
             if matches!(ins, Ins::Op(I::LocalTee(_))) {
                 continue;
             }
-            if at > 0 && pure_push(&body[at - 1]) && !gone[at - 1] && moved[at - 1].is_none() {
+            if at > 0 && pure_push(&body[at - 1]) && !gone[at - 1] && moved[at - 1] == NONE {
                 out.pop();
                 origins.pop();
             } else {
