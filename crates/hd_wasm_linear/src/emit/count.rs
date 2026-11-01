@@ -164,10 +164,21 @@ impl Em<'_, '_, '_> {
                     };
                     // A thunk's fresh value is the local's own, with its
                     // count, which the local's kept `Drop`s release.
+                    // A borrow of all of another such local holds that
+                    // one's read, whose fresh value its kept `Drop`s
+                    // release (`hd_tir::own::borrow`'s forwarding locals).
                     if let Some(l) = l
                         && self.loans.contains(&w)
                     {
-                        self.loan_locals.insert(l as usize, w);
+                        let from = self.b.data[w as usize][0];
+                        let held = (from & place::BARE_LOCAL != 0)
+                            .then(|| {
+                                self.loan_locals
+                                    .get(&((from & !place::BARE_LOCAL) as usize))
+                            })
+                            .flatten()
+                            .copied();
+                        self.loan_locals.insert(l as usize, held.unwrap_or(w));
                     }
                 }
                 _ => {}

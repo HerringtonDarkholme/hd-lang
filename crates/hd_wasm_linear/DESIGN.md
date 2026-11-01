@@ -2438,3 +2438,16 @@ address. The optimized pipeline declares the pass `arg_promote`
   moves into the copy, and a local that stays unchanged lends its value.
   `Display for i64.to_string(&self)` copies this way, and so does
   `build(n).len()` for a `len(&self)` on `string`.
+  For a referent with counted parts the argument may also be a `Ref` of
+  an element of a list a local holds, or of a place behind a reference
+  (`inline_args`, #1167): `xs[i].len()`, `self.s.len()` in a `&self`
+  method. The reference would pin the list or count the referent, where
+  the value read borrows. The copy reads the place once, at the `Ref`,
+  where the callee would read through the reference at each use, so a
+  place behind a reference needs the copy, and the caller from the `Ref`
+  to the call, to write nothing the body does not own
+  (`hd_tir::own::writes_in`, an intrinsic's declaration for a call: the
+  inliner may run before the callees' summaries). A temporary such a
+  copy binds (`Text(*self).size()`) forwards the borrow of the place it
+  was read from to the copy's `self` (`hd_tir::own::borrow`'s forwarding
+  locals); the emitter's `loan_locals` follow the read to that borrow.

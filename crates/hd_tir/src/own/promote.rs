@@ -5,8 +5,9 @@
 //! (`crates/hd_wasm_linear/DESIGN.md` §23.40). Whether `T` is small and
 //! holds no counted leaf is the backend's question; these are the TIR
 //! halves: which parameters the body only reads through
-//! ([`read_only_params`]), the copy ([`promote`]), and which calls may
-//! run it ([`promoted_call`]).
+//! ([`read_only_params`]), the copy ([`promote`]), which calls may run
+//! it ([`promoted_call`]), and which an inlined copy may bind by value
+//! ([`inline_args`]).
 
 use hd_types::Ty;
 
@@ -176,24 +177,49 @@ pub fn promotable_args(b: &Body, call: usize) -> u64 {
 /// lives in no cell.
 #[must_use]
 pub fn promotable_ref(b: &Body, i: usize, user: usize) -> bool {
+    lent_ref(b, i, user).is_some_and(|steps| steps == Steps::InPlace)
+}
+
+/// How far the place of a lent `Ref` ([`lent_ref`]) goes from its local.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Steps {
+    /// Fields and variant payloads only: a part of the local.
+    InPlace,
+    /// Elements too: a part of a list the local holds.
+    Elements,
+    /// A dereference too: a part of what a reference refers to.
+    Deref,
+}
+
+/// [`promotable_ref`]'s test, with how far the place goes; `None` when the
+/// `Ref` is no such reference. A place with an element or a dereference
+/// in it is one only an inlined copy may read by value
+/// ([`inline_args`]).
+fn lent_ref(b: &Body, i: usize, user: usize) -> Option<Steps> {
     let flags = b.data[i][1];
     if b.tags[i] != Tag::Ref || flags & crate::ir::ref_word::MUT != 0 {
-        return false;
+        return None;
     }
     let p = b.view(b.data[i][0]);
     let Root::Local(l) = p.root else {
-        return false;
+        return None;
     };
-    if !p.in_place(b) || b.cap_local.iter().any(|c| c.raw() == l) {
-        return false;
+    if b.cap_local.iter().any(|c| c.raw() == l) {
+        return None;
     }
+    let steps = p.steps(b).fold(Steps::InPlace, |s, step| match step {
+        Proj::Field(_) | Proj::Variant(_) => s,
+        Proj::Elem(_) if s == Steps::InPlace => Steps::Elements,
+        Proj::Elem(_) => s,
+        Proj::Deref => Steps::Deref,
+    });
     let addressed = |j: usize| {
         j != i
             && b.tags[j] == Tag::Ref
             && matches!(b.view(b.data[j][0]).root, Root::Local(m) if m == l)
     };
     if flags & crate::ir::ref_word::TAKES != 0 && (0..b.len()).any(addressed) {
-        return false;
+        return None;
     }
     let mut ops = Vec::new();
     let mut seen = 0;
@@ -206,8 +232,56 @@ pub fn promotable_ref(b: &Body, i: usize, user: usize) -> bool {
         if j == user {
             seen += n;
         } else if b.tags[j] != Tag::Drop {
-            return false;
+            return None;
         }
     }
-    seen == 1
+    (seen == 1).then_some(steps)
+}
+
+/// Release (#1151): the arguments of `Call` `call` of `b` that an inlined
+/// copy may bind by value (bit k: argument k), with
+/// `hd_tir::inline::Site::by_value`: a lent `Ref` of a part of a local
+/// as [`promotable_args`] takes, or, for an argument in `relaxed`, of an
+/// element of a list the local holds or of what a reference reaches from
+/// it (`xs[i].len()`, `self.s.len()` in a `&self` method). The inliner
+/// relaxes the arguments whose referents hold counted parts, where the
+/// reference would pin the list or count the referent and the value read
+/// borrows instead. The copy reads the place once, at the `Ref`, where
+/// the plain callee would read it through the reference at each use; the
+/// two agree while nothing writes it in between. Only the local's own
+/// instructions write a local's list, and a local no closure captures is
+/// the caller's alone; a place behind a dereference may change by an
+/// alias, so its argument counts only when no instruction from its `Ref`
+/// to the call writes memory the body does not own (`super::writes_in`,
+/// `may_write` for a call), and `copy_writes`, whether the copy may, is
+/// false.
+#[must_use]
+pub fn inline_args(
+    b: &Body,
+    call: usize,
+    relaxed: u64,
+    copy_writes: bool,
+    may_write: &dyn Fn(&crate::ir::Callee) -> bool,
+) -> u64 {
+    if b.tags[call] != Tag::Call || b.tags.iter().any(|&t| crate::ir::is_suspension(t)) {
+        return 0;
+    }
+    let words = b.record(b.data[call][1]);
+    let args = &words[..words.len().saturating_sub(3)];
+    (args.iter().enumerate().take(64))
+        .filter(|&(k, &v)| {
+            Ref(v).as_inst().is_some_and(|i| {
+                let i = i.0 as usize;
+                match lent_ref(b, i, call) {
+                    Some(Steps::InPlace) => true,
+                    Some(_) if relaxed & 1 << k == 0 => false,
+                    Some(Steps::Elements) => true,
+                    Some(Steps::Deref) => {
+                        !copy_writes && !super::writes_in(b, i + 1..call, may_write)
+                    }
+                    None => false,
+                }
+            })
+        })
+        .fold(0, |mask, (k, _)| mask | 1 << k)
 }

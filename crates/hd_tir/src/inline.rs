@@ -132,7 +132,7 @@ pub fn leaf(c: &Body) -> bool {
 /// A call to copy ([`inline_calls`]): the caller's `Call` `call` and the
 /// callee's copy `copy` with the call's types. Each parameter in
 /// `by_value` (bit k: parameter k) takes the value its argument, a `Ref`
-/// of the caller's (`crate::own::promote::promoted_call`), refers to: the
+/// of the caller's (`crate::own::promote::inline_args`), refers to: the
 /// copy is promoted (`crate::own::promote::promote`), and the `Ref`
 /// becomes a `Read` of its place.
 pub struct Site {

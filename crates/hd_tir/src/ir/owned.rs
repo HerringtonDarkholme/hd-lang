@@ -849,6 +849,8 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
     let b = cx.b;
     let mut binding = vec![false; b.local_ty.len()];
     let mut dropped = vec![false; b.local_ty.len()];
+    // Per binding local: a borrow stored into it keeps its `Drop`s.
+    let mut keeps = vec![false; b.local_ty.len()];
     let mut lent = vec![false; b.local_ty.len()];
     let mut any = false;
     if !b.sub_root.is_empty() {
@@ -876,7 +878,15 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
             }) if proj.is_empty() => {
                 binding[l.idx()] = true;
                 let w = b.data[i][1] as usize;
-                dropped[l.idx()] |= b.tags[w] == Tag::Read && crate::own::keeps_drops(b, own, w);
+                // A borrow of all of another binding local holds that
+                // one's borrow (`crate::own::borrow`'s forwarding locals).
+                let from = b.data[w][0];
+                let held = b.tags[w] == Tag::Read
+                    && from & place::BARE_LOCAL != 0
+                    && keeps.get((from & !place::BARE_LOCAL) as usize) == Some(&true);
+                let k = held || (b.tags[w] == Tag::Read && crate::own::keeps_drops(b, own, w));
+                keeps[l.idx()] |= k;
+                dropped[l.idx()] |= k;
                 any = true;
             }
             _ => err(

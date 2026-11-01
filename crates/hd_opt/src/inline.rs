@@ -81,6 +81,18 @@ pub trait InlineEnv: ProgramEnv {
     fn lent_referent(&self, _t: Ty) -> Option<Ty> {
         None
     }
+    /// Whether the referent of a reference of type `t`, one
+    /// [`InlineEnv::lent_referent`] gives, holds a counted part.
+    fn counted_referent(&self, _t: Ty) -> bool {
+        false
+    }
+    /// Whether a call of `callee` may write memory its caller reaches, from
+    /// the declarations alone: the compiler's code of an intrinsic that
+    /// only reads its arguments does not (`OwnCx::may_write` without the
+    /// release summaries, which the inliner may run before).
+    fn call_may_write(&self, _callee: &Callee) -> bool {
+        true
+    }
 }
 
 /// A release build's inliner state for one run. Only looked up, never
@@ -158,14 +170,20 @@ impl dyn InlineEnv + '_ {
             }
             // A callee that takes references fits only by taking them by
             // value (`fits`), which needs each argument to be a `Ref` of
-            // a local of the caller's.
+            // a place the copy may read once (`inline_args`).
             let by_value = if self.inline_hint(def) == InlineHint::Default
                 && self.takes_reference(def, targs)
             {
-                match self.by_value(def, targs, &copy) {
-                    Some(mask) if hd_tir::own::promote::promoted_call(body, c, mask) => mask,
-                    _ => continue,
+                let may_write = |c: &Callee| self.call_may_write(c);
+                let Some((mask, counted)) = self.by_value(def, targs, &copy) else {
+                    continue;
+                };
+                let writes = hd_tir::own::writes_in(&copy, 0..copy.len(), &may_write);
+                let args = hd_tir::own::promote::inline_args(body, c, counted, writes, &may_write);
+                if args & mask != mask {
+                    continue;
                 }
+                mask
             } else {
                 0
             };
@@ -422,14 +440,21 @@ impl dyn InlineEnv + '_ {
     /// ordinary read of the caller's place, before the passes, so a
     /// counted referent's count is theirs to decide: a temporary's moves
     /// into the copy, and a local that stays unchanged lends it.
-    fn by_value(&self, def: DefId, targs: TyList, copy: &Body) -> Option<u64> {
+    ///
+    /// With the mask, the parameters among them whose referents hold
+    /// counted parts (`InlineEnv::counted_referent`).
+    fn by_value(&self, def: DefId, targs: TyList, copy: &Body) -> Option<(u64, u64)> {
         self.memo()?;
-        let mut mask = 0;
+        let (mut mask, mut counted) = (0, 0);
         for (k, t) in self.reference_params(def, targs)? {
             self.lent_referent(t).filter(|_| k < 64)?;
             mask |= 1 << k;
+            if self.counted_referent(t) {
+                counted |= 1 << k;
+            }
         }
-        (mask != 0 && hd_tir::own::promote::read_only_params(copy, mask) == mask).then_some(mask)
+        (mask != 0 && hd_tir::own::promote::read_only_params(copy, mask) == mask)
+            .then_some((mask, counted))
     }
 
     /// Each parameter of `def` at `targs` that is, or may be in an

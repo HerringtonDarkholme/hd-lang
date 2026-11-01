@@ -169,6 +169,52 @@ const PURE_INTRINSICS: &[&str] = &[
 /// §23.17), so the call consumes the list, moved in at its last use.
 const OWNING_INTRINSICS: &[&str] = &["string_from_bytes", "weak_weaken"];
 
+impl Env<'_> {
+    /// [`OwnCx::may_write`] from the declarations alone, without a
+    /// release summary: only the compiler's code of an intrinsic that
+    /// reads its arguments writes nothing.
+    fn declared_may_write(&self, callee: &Callee) -> bool {
+        // The compiler's scalar square root reaches nothing but its
+        // argument (`list.rs`'s loop proofs allow it the same way), and
+        // the byte reads of a string only read it ([`PURE_INTRINSICS`]).
+        match callee {
+            // `@intrinsic("sqrt")`, or `f64.sqrt` and `f32.sqrt`, body-less
+            // methods of a float's inherent impl (`trait.impl.intrinsic`).
+            Callee::Item { def, .. } => {
+                // Whether it has a body, from the body table: decoding
+                // one would read another body.
+                let bodyless = !self
+                    .p
+                    .bodies
+                    .all
+                    .contains_key(&self.run.paths.hash(hd_base::PathId::from_raw(def.raw())));
+                let method = bodyless
+                    && self.run.names().path(*def).rsplit(['.', '/']).next() == Some("sqrt")
+                    && self
+                        .parent(*def)
+                        .and_then(|(owner, _)| self.impl_head(owner))
+                        .is_some_and(|(head, _, _)| {
+                            matches!(self.run.pool.get(head), TyData::Prim(p) if p.is_float())
+                        });
+                !method
+                    && !self
+                        .intrinsic(*def)
+                        .is_some_and(|key| PURE_INTRINSICS.contains(&key.as_str()))
+            }
+            Callee::TraitMethod {
+                method,
+                self_ty,
+                choice: (ChoiceKind::Impl | ChoiceKind::Builtin, _),
+                ..
+            } => {
+                let float = matches!(self.run.pool.get(*self_ty), TyData::Prim(p) if p.is_float());
+                !(float && self.run.names().path(*method).rsplit(['.', '/']).next() == Some("sqrt"))
+            }
+            Callee::TraitMethod { .. } => true,
+        }
+    }
+}
+
 impl OwnCx for Env<'_> {
     fn counted(&self, ty: Ty) -> Tri {
         if self.is_open(ty) {
@@ -241,44 +287,7 @@ impl OwnCx for Env<'_> {
         {
             return w;
         }
-        // The compiler's scalar square root reaches nothing but its
-        // argument (`list.rs`'s loop proofs allow it the same way), and
-        // the byte reads of a string only read it ([`PURE_INTRINSICS`]).
-        match callee {
-            // `@intrinsic("sqrt")`, or `f64.sqrt` and `f32.sqrt`, body-less
-            // methods of a float's inherent impl (`trait.impl.intrinsic`).
-            Callee::Item { def, .. } => {
-                // Whether it has a body, from the body table: decoding
-                // one would read another body.
-                let bodyless = !self
-                    .p
-                    .bodies
-                    .all
-                    .contains_key(&self.run.paths.hash(hd_base::PathId::from_raw(def.raw())));
-                let method = bodyless
-                    && self.run.names().path(*def).rsplit(['.', '/']).next() == Some("sqrt")
-                    && self
-                        .parent(*def)
-                        .and_then(|(owner, _)| self.impl_head(owner))
-                        .is_some_and(|(head, _, _)| {
-                            matches!(self.run.pool.get(head), TyData::Prim(p) if p.is_float())
-                        });
-                !method
-                    && !self
-                        .intrinsic(*def)
-                        .is_some_and(|key| PURE_INTRINSICS.contains(&key.as_str()))
-            }
-            Callee::TraitMethod {
-                method,
-                self_ty,
-                choice: (ChoiceKind::Impl | ChoiceKind::Builtin, _),
-                ..
-            } => {
-                let float = matches!(self.run.pool.get(*self_ty), TyData::Prim(p) if p.is_float());
-                !(float && self.run.names().path(*method).rsplit(['.', '/']).next() == Some("sqrt"))
-            }
-            Callee::TraitMethod { .. } => true,
-        }
+        self.declared_may_write(callee)
     }
 
     fn received(&self, item: DefId, k: usize, n: usize) -> Pass {
@@ -529,6 +538,10 @@ impl InlineEnv for Env<'_> {
         &self.run.pool
     }
 
+    fn call_may_write(&self, callee: &Callee) -> bool {
+        self.declared_may_write(callee)
+    }
+
     fn memo(&self) -> Option<&hd_opt::inline::Memo> {
         self.run.summaries.as_ref().map(|all| &all.inline)
     }
@@ -586,6 +599,11 @@ impl InlineEnv for Env<'_> {
     fn lent_referent(&self, t: Ty) -> Option<Ty> {
         self.run.promote_args.then_some(())?;
         hd_wasm_linear::lent_referent(&self.run.pool, self, t)
+    }
+
+    fn counted_referent(&self, t: Ty) -> bool {
+        hd_wasm_linear::lent_referent(&self.run.pool, self, t).is_some()
+            && hd_wasm_linear::promotable_referent(&self.run.pool, self, t).is_none()
     }
 
     /// The item and type arguments a trait call chosen as an impl runs:
