@@ -345,11 +345,10 @@ fn map_total(items: &Map[string, i32]) -> i32:
 A `for` loop over a map iterates the map as it was when the loop began.
 
 ```text
-fn grown(values: Map[string, i32]) -> Map[string, i32]:
-    let mut out = values
-    for (key, value) in out:
-        out["$key!"] = value  # the loop still visits only the old entries
-    out
+let mut values: Map[string, i32] = { "a": 1, "b": 2 }
+for (key, value) in values:
+    if key == "a":
+        values["c"] = value + 2  # the loop still visits only "a" and "b"
 ```
 
 1. r[flow.for.snapshot] A `for` loop over a `Map` value iterates the map as it was when the loop began.
