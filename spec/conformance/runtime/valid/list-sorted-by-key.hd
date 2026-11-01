@@ -5,7 +5,7 @@ struct Task:
     hours: i32
 
 fn names(tasks: List[Task]) -> List[string]:
-    tasks.map(fn(task: Task) -> string: task.name)
+    tasks.map(fn(task: &Task) -> string: task.name)
 
 tests:
     use std.testing.assert_equal
@@ -16,7 +16,7 @@ tests:
             Task { name: "a", hours: 1 },
             Task { name: "c", hours: 3 },
         ]
-        plan := tasks.sorted_by_key(fn(task: Task) -> i32: task.hours)
+        plan := tasks.sorted_by_key(fn(task: &Task) -> i32: task.hours)
         assert_equal(names(plan), ["a", "b", "c"], reason="stable")
         assert_equal(names(tasks), ["b", "a", "c"], reason="the receiver is unchanged")
     it("sorts in ascending order"):
@@ -35,8 +35,8 @@ tests:
                 for task in tasks:
                     if task.hours == i32(hours):
                         expected.push(task.name)
-            by_compare := tasks.sorted_by(fn(a: Task, b: Task) -> Ordering: a.hours.cmp(&b.hours))
-            by_key := tasks.sorted_by_key(fn(task: Task) -> i32: task.hours)
+            by_compare := tasks.sorted_by(fn(a: &Task, b: &Task) -> Ordering: a.hours.cmp(&b.hours))
+            by_key := tasks.sorted_by_key(fn(task: &Task) -> i32: task.hours)
             assert_equal(
                 names(by_compare),
                 expected,
@@ -58,7 +58,7 @@ tests:
             assert_equal(ascending.sorted(), ascending, reason="already sorted")
             assert_equal(descending.sorted(), ascending, reason="reversed input")
             assert_equal(
-                descending.sorted_by(fn(a: i32, b: i32) -> Ordering: .Equal),
+                descending.sorted_by(fn(a: &i32, b: &i32) -> Ordering: .Equal),
                 descending,
                 reason="equal comparator preserves original order",
             )

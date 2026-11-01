@@ -98,7 +98,7 @@ tests:
         $.with(FsRead=files):
             entries := walk!(Path("dst")).expect("walk succeeds")
             assert_equal(
-                entries.map(fn(entry: Entry): entry.modified),
+                entries.map(fn(entry: &Entry): entry.modified),
                 [.Some(sub), .Some(leaf)],
                 reason="walk retains stat metadata",
             )

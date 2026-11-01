@@ -126,7 +126,7 @@ impl JsonObject:
     ## The keys, in insertion order.
     ## See [std-json.object.order](../../spec/std/json.md#r-std-json.object.order).
     pub fn keys(self) -> List[string]:
-        self.entries.map(fn(entry: (string, Json)) -> string: entry._0)
+        self.entries.map(fn(entry: &(string, Json)) -> string: entry._0)
 
 impl Iterable[(string, Json)] for JsonObject:
     type IntoIter = ListIter[(string, Json)]

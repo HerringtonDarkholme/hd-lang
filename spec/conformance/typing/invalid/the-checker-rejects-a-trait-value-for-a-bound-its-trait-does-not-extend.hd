@@ -40,10 +40,10 @@ fn route[C < Channel](channel: C, message: string) -> string:
     label(channel) + " " + notify(channel, message)
 
 fn broadcast[C < Channel](channels: List[C], message: string) -> List[string]:
-    channels.map(fn(channel: C) -> string: notify(channel, message))
+    channels.map(fn(channel: &C) -> string: notify(*channel, message))
 
 fn targets[C < Channel](channels: List[C]) -> List[string]:
-    channels.map(fn(channel: C) -> string: channel.to_string())
+    channels.map(fn(channel: &C) -> string: channel.to_string())
 
 pub fn main() -> void:
     let shown: &dyn Display = &Pager { number: 7 }

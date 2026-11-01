@@ -32,7 +32,7 @@ tests:
                     reason="the original source remains recoverable",
                 )
                 assert_equal(
-                    failure.chain().map(fn(error): error.to_string()),
+                    failure.chain().map(fn(error): (*error).to_string()),
                     ["loading config", "not found: app.toml"],
                     reason="the context, then the source",
                 )
@@ -52,7 +52,7 @@ tests:
             .Ok(_) => assert(false, reason="the read fails")
             .Err(failure) =>
                 assert_equal(
-                    failure.chain().map(fn(error): error.to_string()),
+                    failure.chain().map(fn(error): (*error).to_string()),
                     ["starting app", "loading config", "not found: app.toml"],
                     reason="both wrappers and the concrete source",
                 )

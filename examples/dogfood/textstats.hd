@@ -14,12 +14,12 @@ struct WordCount:
     count: i32
 
 fn nonblank_lines(text: string) -> List[string]:
-    text.lines().filter(fn(line: string) -> bool: line.trim().len() > 0)
+    text.lines().filter(fn(line: &string) -> bool: line.trim().len() > 0)
 
 fn words_of(line: string) -> List[string]:
     line.split(" ")
-        .filter(fn(w: string) -> bool: w.len() > 0)
-        .map(fn(w: string) -> string: w.lower())
+        .filter(fn(w: &string) -> bool: w.len() > 0)
+        .map(fn(w: &string) -> string: w.lower())
 
 fn word_counts(lines: List[string]) -> List[WordCount]:
     let mut counts: Map[string, i32] = {}
@@ -34,7 +34,7 @@ fn word_counts(lines: List[string]) -> List[WordCount]:
     entries
 
 # Highest count first; ties broken alphabetically.
-fn by_count_then_word(a: WordCount, b: WordCount) -> Ordering:
+fn by_count_then_word(a: &WordCount, b: &WordCount) -> Ordering:
     match b.count.cmp(&a.count):
         .Equal => a.word.cmp(&b.word)
         other => other
@@ -46,12 +46,12 @@ fn top_words(lines: List[string], limit: usize) -> List[WordCount]:
         .None => []
 
 fn errors(lines: List[string]) -> List[string]:
-    lines.filter(fn(line: string) -> bool: line.contains("ERROR"))
+    lines.filter(fn(line: &string) -> bool: line.contains("ERROR"))
 
 pub fn main() -> void $ Console:
     lines := nonblank_lines(LOG)
     println("lines: ${lines.len()}")
-    total_chars := lines.map(fn(l: string) -> usize: l.len())
+    total_chars := lines.map(fn(l: &string) -> usize: l.len())
         .iter()
         .fold(0, fn(acc: usize, n: usize) -> usize: acc + n)
     println("bytes: $total_chars")
@@ -61,7 +61,7 @@ pub fn main() -> void $ Console:
     println("errors:")
     for line in errors(lines):
         println("  $line")
-    println(errors(lines).map(fn(l: string) -> string: l.slice(11, 19)).join(", "))
+    println(errors(lines).map(fn(l: &string) -> string: l.slice(11, 19)).join(", "))
 
 tests:
     use std.testing.assert_equal

@@ -37,4 +37,4 @@ fn scaled(items: List[i32]) -> List[i32]:
     double := fn(mut v: i32) -> i32:
         v *= 2
         v
-    items.map(double)
+    items.map(fn(item: &i32) -> i32: double(*item))

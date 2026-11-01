@@ -16,7 +16,7 @@ fn count(text: &string) -> usize:
 fn through(entry: &(i32, User)) -> usize:
     count(&entry._1.name)
 
-fn by_key(a: (i32, string), b: (i32, string)) -> Ordering:
+fn by_key(a: &(i32, string), b: &(i32, string)) -> Ordering:
     a._0.cmp(&b._0)
 
 fn same_key(a: (i32, string), b: (i32, string)) -> bool:
@@ -34,4 +34,4 @@ pub fn main() -> void $ Console:
     println("${*inner}")
     println("${same_key((+1, "a"), (+1, "b"))} ${same_key((+1, "a"), (+2, "a"))}")
     sorted := [(+2, "a"), (+3, "c"), (+1, "b")].sorted_by(by_key)
-    println(sorted.map(fn(e: (i32, string)) -> string: "${e._0}:${e._1}").join(" "))
+    println(sorted.map(fn(e: &(i32, string)) -> string: "${e._0}:${e._1}").join(" "))

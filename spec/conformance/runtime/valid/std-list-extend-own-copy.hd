@@ -22,7 +22,7 @@ tests:
 
     it("a returned list may change"):
         source := [+3, 1, 2]
-        let mut kept = source.filter(fn(n: i32) -> bool: n > 1)
+        let mut kept = source.filter(fn(n: &i32) -> bool: n > 1)
         kept.push(9)
         assert_equal(kept, [+3, 2, 9], reason="the result is the caller's own value")
         assert_equal(source.len(), 3, reason="the receiver of filter is unchanged")

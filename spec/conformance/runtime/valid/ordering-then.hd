@@ -4,7 +4,7 @@ struct Entry:
     name: string
     score: i32
 
-fn by_score_then_name(a: Entry, b: Entry) -> Ordering:
+fn by_score_then_name(a: &Entry, b: &Entry) -> Ordering:
     b.score.cmp(&a.score).then(a.name.cmp(&b.name))
 
 tests:
@@ -30,5 +30,5 @@ tests:
             Entry { name: "bo", score: 5 },
             Entry { name: "di", score: 7 },
         ]
-        names := entries.sorted_by(by_score_then_name).map(fn(entry: Entry) -> string: entry.name)
+        names := entries.sorted_by(by_score_then_name).map(fn(entry: &Entry) -> string: entry.name)
         assert_equal(names, ["al", "di", "bo", "cy"], reason="highest score first, ties by name")

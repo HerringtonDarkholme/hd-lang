@@ -7,7 +7,7 @@ use std.testing.assert_equal
 fn url(text: string) -> Url:
     Url::parse(text).expect("fixture URL")
 fn response(lines: List[string]) -> Response:
-    Response { headers: Headers::from(lines.map(fn(line): ("Set-Cookie", line))) }
+    Response { headers: Headers::from(lines.map(fn(line): ("Set-Cookie", *line))) }
 fn clock() -> *mut ManualClock:
     ManualClock::new(Timestamp::from_unix_milliseconds(0))
 

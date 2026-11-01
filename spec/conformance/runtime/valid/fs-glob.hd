@@ -68,7 +68,7 @@ fn markdown_again!() -> Result[List[Path], FsError] $ FsRead:
     glob!("tree/docs/**/*.md")
 
 fn texts(found: Result[List[Path], FsError]) -> List[string]:
-    found.unwrap_or([]).map(fn(path: Path) -> string: "${path}")
+    found.unwrap_or([]).map(fn(path: &Path) -> string: "${path}")
 
 tests:
     use std.testing.assert_equal

@@ -238,34 +238,34 @@ struct Task:
     hours: i32
 
 fn plan(tasks: List[Task]) -> List[Task]:
-    tasks.sorted_by_key(fn(task: Task) -> i32: task.hours)
+    tasks.sorted_by_key(fn(task: &Task) -> i32: task.hours)
 
 fn by_owner(tasks: List[Task]) -> Map[string, List[Task]]:
-    tasks.group_by(fn(task: Task) -> string: task.owner)
+    tasks.group_by(fn(task: &Task) -> string: task.owner)
 
 fn has_long(tasks: List[Task]) -> bool:
-    tasks.any(fn(task: Task) -> bool: task.hours > 8)
+    tasks.any(fn(task: &Task) -> bool: task.hours > 8)
 
 fn steps(readings: List[i32]) -> List[ListView[i32]]:
     readings.windows(2)  # views of [1, 4] and [4, 9] for [1, 4, 9]
 
 fn shortest(tasks: List[Task]) -> Task?:
-    tasks.min_by_key(fn(task: Task) -> i32: task.hours)  # the first of equal hours
+    tasks.min_by_key(fn(task: &Task) -> i32: task.hours)  # the first of equal hours
 
 fn owners(tasks: List[Task]) -> List[string]:
-    tasks.map(fn(task: Task) -> string: task.owner).unique()  # ["bo", "al"] for bo, al, bo
+    tasks.map(fn(task: &Task) -> string: task.owner).unique()  # ["bo", "al"] for bo, al, bo
 ```
 
 | Receiver | Methods |
 | --- | --- |
-| `List[T]` | `sorted_by_key[K < Ord](self, key: fn(T) -> K) -> List[T]`; `group_by[K < Eq & Hash](self, key: fn(T) -> K) -> Map[K, List[T]]`; `partition(self, keep: fn(T) -> bool) -> (List[T], List[T])`; `any(self, test: fn(T) -> bool) -> bool`; `all(self, test: fn(T) -> bool) -> bool`; `find(self, test: fn(T) -> bool) -> T?`; `flat_map[U, I < Iterable[U]](self, transform: fn(T) -> I) -> List[U]`; `windows(self, size: usize) -> List[ListView[T]]` |
-| `List[T]` | `min_by_key[K < Ord](self, key: fn(T) -> K) -> T?`; `max_by_key[K < Ord](self, key: fn(T) -> K) -> T?` |
+| `List[T]` | `sorted_by_key[K < Ord](&self, key: fn(&T) -> K) -> List[T]`; `group_by[K < Eq & Hash](&self, key: fn(&T) -> K) -> Map[K, List[T]]`; `partition(&self, keep: fn(&T) -> bool) -> (List[T], List[T])`; `any(&self, test: fn(&T) -> bool) -> bool`; `all(&self, test: fn(&T) -> bool) -> bool`; `find(&self, test: fn(&T) -> bool) -> T?`; `flat_map[U, I < Iterable[U]](self, transform: fn(T) -> I) -> List[U]`; `windows(self, size: usize) -> List[ListView[T]]` |
+| `List[T]` | `min_by_key[K < Ord](&self, key: fn(&T) -> K) -> T?`; `max_by_key[K < Ord](&self, key: fn(&T) -> K) -> T?` |
 | `List[T]`, when `T < Eq` | `contains(self, value: T) -> bool`; `index_of(self, value: T) -> usize?`; `dedup(self) -> List[T]` |
 | `List[T]`, when `T < Eq & Hash` | `unique(self) -> List[T]` |
-| `List[T]`, when `T < Ord` | `sorted(self) -> List[T]`; `min(self) -> T?`; `max(self) -> T?` |
+| `List[T]`, when `T < Ord` | `sorted(&self) -> List[T]`; `sort(&mut self) -> void`; `min(self) -> T?`; `max(self) -> T?` |
 | `List[T]`, when `T < Num` | `sum(self) -> T` |
 
-1. r[std-collections.helper.unchanged] Each helper leaves its receiver unchanged, and each one that returns a list returns a new list.
+1. r[std-collections.helper.unchanged] Each helper but `retain`, `sort`, `sort_by`, `sort_by_key`, and `swap` leaves its receiver unchanged, and each one that returns a list returns a new list.
 2. r[std-collections.helper.callback-order] A helper calls its callback on the elements in list order, at most once each.
 3. r[std-collections.helper.callback-row] Each callback has the empty row, as `Iterator.filter`'s `keep` does. A function value whose row lists a requirement key does not fit it. Error: `type-mismatch`.
 4. r[std-collections.helper.sorted-by-key] `sorted_by_key(key)` returns the elements in ascending order of `key(element)` by `Ord`, and calls `key` once per element.
@@ -288,6 +288,13 @@ fn owners(tasks: List[Task]) -> List[string]:
 21. r[std-collections.helper.by-key.first] `min_by_key(key)` returns the first element whose `key` is smallest by `Ord`, and `max_by_key(key)` the first whose `key` is largest, each in `.Some`, so equal keys give the earlier element, as `min` and `max` do. An empty list gives `.None`.
 22. r[std-collections.helper.dedup] `dedup` returns the list without each element that equals the element just before it in the receiver, as Rust's `Vec::dedup` does, so only adjacent duplicates go and `[1, 2, 1]` is unchanged.
 23. r[std-collections.helper.unique] `unique` returns the list without each element that equals an earlier element, so every distinct element stays once, at its first position.
+24. r[std-collections.helper.callback-ref] Each callback looks at an element by reference: `fn(&T)`, and `fn(&T, &T)` for `sorted_by` and `sort_by`. Each receiver is `&self`, or `&mut self` for a method that changes the list.
+25. r[std-collections.helper.retain] `retain(keep)` keeps the elements for which `keep` is true, in list order, and drops the rest, in place.
+26. r[std-collections.helper.sort] `sort` puts the elements in ascending order by `Ord`, in place.
+27. r[std-collections.helper.sort-by] `sort_by(compare)` puts the elements in ascending order by `compare`, in place.
+28. r[std-collections.helper.sort-by-key] `sort_by_key(key)` puts the elements in ascending order of `key(element)` by `Ord`, in place, and calls `key` once per element.
+29. r[std-collections.helper.sort.stable] `sort`, `sort_by`, and `sort_by_key` are stable, as `sorted_by` is: elements that compare equal keep their order.
+30. r[std-collections.helper.swap] `swap(a, b)` exchanges the elements at `a` and `b`. An index that is not less than `len()` panics. Panic: `index-out-of-bounds`.
 
 | Call | Result |
 | --- | --- |
@@ -614,15 +621,15 @@ fn preview(lines: List[string]) -> List[string]:
 
 fn merged(head: List[i32], tail: List[i32]) -> List[i32]:
     let mut all: List[i32] = []
-    all.extend(head.filter(fn(n: i32) -> bool: n > 0))
+    all.extend(head.filter(fn(n: &i32) -> bool: n > 0))
     all.extend(tail)
-    all.sorted_by(fn(a: i32, b: i32) -> Ordering: b.cmp(&a))
+    all.sorted_by(fn(a: &i32, b: &i32) -> Ordering: b.cmp(a))
 ```
 
 | Receiver | Methods |
 | --- | --- |
-| `List[T]` | `get(self, index: usize) -> T?`; `is_empty(self) -> bool`; `first(self) -> T?`; `last(self) -> T?`; `take(self, count: usize) -> List[T]`; `filter(self, keep: fn(T) -> bool) -> List[T]`; `reversed(self) -> List[T]`; `sorted_by(self, compare: fn(T, T) -> Ordering) -> List[T]`; `zip[U](self, other: List[U]) -> List[(T, U)]` |
-| `List[T]`, changing | `get_mut(&mut self, index: usize) -> (&mut T)?`; `first_mut(&mut self) -> (&mut T)?`; `last_mut(&mut self) -> (&mut T)?`; `extend(&mut self, other: List[T]) -> void` |
+| `List[T]` | `get(self, index: usize) -> T?`; `is_empty(self) -> bool`; `first(self) -> T?`; `last(self) -> T?`; `take(self, count: usize) -> List[T]`; `filter(&self, keep: fn(&T) -> bool) -> List[T]`; `reversed(self) -> List[T]`; `sorted_by(&self, compare: fn(&T, &T) -> Ordering) -> List[T]`; `zip[U](self, other: List[U]) -> List[(T, U)]` |
+| `List[T]`, changing | `get_mut(&mut self, index: usize) -> (&mut T)?`; `first_mut(&mut self) -> (&mut T)?`; `last_mut(&mut self) -> (&mut T)?`; `extend(&mut self, other: List[T]) -> void`; `retain(&mut self, keep: fn(&T) -> bool) -> void`; `sort_by(&mut self, compare: fn(&T, &T) -> Ordering) -> void`; `sort_by_key[K < Ord](&mut self, key: fn(&T) -> K) -> void`; `swap(&mut self, a: usize, b: usize) -> void` |
 
 1. r[std-collections.access.get] `get(index)` returns `.Some` of the element at `index`, or `.None` when `index` is not less than `len()`. It never panics.
 2. r[std-collections.access.get-mut] `get_mut(index)` returns `.Some` of a mutable reference to the element at `index`, or `.None` when `index` is out of range.

@@ -26,7 +26,7 @@ impl Error for ManualError:
         .Some(self.inner)
 
 fn texts(errors: List[*dyn Error]) -> List[string]:
-    errors.map(fn(error: &dyn Error) -> string: error.to_string())
+    errors.map(fn(error) -> string: (*error).to_string())
 
 tests:
     use std.testing.assert_equal

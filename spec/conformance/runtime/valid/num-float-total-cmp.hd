@@ -1,7 +1,7 @@
 # test: total_cmp orders every float by the IEEE 754 totalOrder, NaNs and signed zeros included
 # Spec std/num Float Total Order: std-num.float-total-cmp.order, std-num.float-total-cmp.sequence, std-num.float-total-cmp.nan-payload, std-num.float-total-cmp.equal (issue #478).
 fn sorted(times: List[f64]) -> List[f64]:
-    times.sorted_by(fn(a: f64, b: f64) -> Ordering: a.total_cmp(b))
+    times.sorted_by(fn(a: &f64, b: &f64) -> Ordering: a.total_cmp(*b))
 
 fn position_order(at: usize, other: usize) -> Ordering:
     if at < other:

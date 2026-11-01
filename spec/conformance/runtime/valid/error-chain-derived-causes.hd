@@ -33,7 +33,7 @@ fn load() -> Result[i32, *dyn Error]:
     .Ok(value)
 
 fn texts(error: *dyn Error) -> List[string]:
-    error.chain().map(fn(item: &dyn Error) -> string: item.to_string())
+    error.chain().map(fn(item) -> string: (*item).to_string())
 
 tests:
     use std.testing.assert_equal

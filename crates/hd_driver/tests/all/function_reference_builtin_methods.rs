@@ -72,7 +72,8 @@ pub fn main() -> void $ Console:
     println(len(xs))
     println(length_of(List::len, xs))
     let groups: List[List[i32]] = [[1], [2, 3], []]
-    println(groups.map(List::len)[1])
+    let lens: List[usize] = groups.iter().map(List::len).collect()
+    println(lens[1])
     let mut acc: List[i32] = []
     let push: fn(&mut List[i32], i32) -> void = List::push
     push(&mut acc, 7)

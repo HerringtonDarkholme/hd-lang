@@ -2,7 +2,7 @@
 # Spec std/collections List Helpers: std-collections.helper.flat-map.iterable-owned, std-collections.helper.windows.views, std-collections.helper.windows.short.
 use std.collections.ListView
 fn steps(readings: List[i32]) -> List[List[i32]]:
-    readings.windows(2).map(fn(window: ListView[i32]) -> List[i32]: window.to_list())
+    readings.windows(2).map(fn(window: &ListView[i32]) -> List[i32]: window.to_list())
 
 tests:
     use std.testing.assert_equal
@@ -17,7 +17,7 @@ tests:
     it("windows"):
         assert_equal(steps([1, 4, 9]), [[1, 4], [4, 9]], reason="overlapping runs")
         assert_equal(
-            [+1, +2].windows(2).map(fn(window: ListView[i32]) -> List[i32]: window.to_list()),
+            [+1, +2].windows(2).map(fn(window: &ListView[i32]) -> List[i32]: window.to_list()),
             [[1, 2]],
             reason="one run",
         )

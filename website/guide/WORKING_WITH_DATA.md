@@ -705,9 +705,9 @@ fn sample() -> List[Item]:
 tests:
     it("groups by tag and sorts by price"):
         items := sample()
-        by_tag := items.group_by(fn(item: Item) -> string: item.tags[0])
+        by_tag := items.group_by(fn(item: &Item) -> string: item.tags[0])
         assert_equal(by_tag.get("fruit").map(fn(list): list.len()), .Some(1), reason="one fruit")
-        cheap := items.sorted_by_key(fn(item: Item) -> i32: item.price)
+        cheap := items.sorted_by_key(fn(item: &Item) -> i32: item.price)
         assert_equal(cheap[0].name, "apple", reason="cheapest first")
 
     it("collects each tag once"):

@@ -59,7 +59,7 @@ pub fn main() -> void $ Console:
     println(debug(Level(4).before(Level(3)).map(show)))
     println(debug(Level(1).guard(Level(3)).map(show)))
     println(Level(4).guard(Level(3)).is_err())
-    println(debug(Level(1).spread().map(show)))
+    println(debug(Level(1).spread().map(fn(level: &Level) -> i32: show(*level))))
     println(show(Level(10).total([Level(1), Level(2)])))
     println(show(Level(10).or_else(.Some(Level(3)))))
     println(show(Level(10).or_else(.None)))

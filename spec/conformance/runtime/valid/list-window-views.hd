@@ -12,7 +12,7 @@ tests:
         let mut items = [+1, +2, +3, +4, +5]
         windows := items.windows(3)
         assert_equal(windows.len(), 3, reason="one view per complete window")
-        assert_equal(windows.map(total), [+6, +9, +12], reason="iterator sum")
+        assert_equal(windows.map(fn(window: &ListView[i32]) -> i32: total(*window)), [+6, +9, +12], reason="iterator sum")
         assert_equal(windows[0][2], +3, reason="indexing")
         items[1] = +20
         assert_equal(
@@ -30,7 +30,7 @@ tests:
         let mut items = [+1, +2, +3, +4, +5]
         pieces := items.chunks(2)
         assert_equal(
-            pieces.map(fn(piece: ListView[i32]) -> usize: piece.len()),
+            pieces.map(fn(piece: &ListView[i32]) -> usize: piece.len()),
             [2, 2, 1],
             reason="short final piece",
         )
@@ -53,7 +53,7 @@ tests:
             reason="one short chunk",
         )
         assert_equal(
-            [+1, +2, +3].windows(2).map(fn(window: ListView[i32]) -> List[i32]: window.to_list()),
+            [+1, +2, +3].windows(2).map(fn(window: &ListView[i32]) -> List[i32]: window.to_list()),
             [[+1, +2], [+2, +3]],
             reason="temporary sources stay alive",
         )

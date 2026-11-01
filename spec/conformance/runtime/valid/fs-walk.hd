@@ -34,7 +34,7 @@ impl FsRead for LinkFs:
         .Ok(.None)
 
 fn names!(root: Path) -> Result[List[string], FsError] $ FsRead:
-    .Ok(walk!(root)?.map(fn(entry: Entry) -> string: "${entry.path}"))
+    .Ok(walk!(root)?.map(fn(entry: &Entry) -> string: "${entry.path}"))
 
 tests:
     use std.testing.assert_equal

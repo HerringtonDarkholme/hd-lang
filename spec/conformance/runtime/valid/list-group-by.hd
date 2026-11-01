@@ -1,7 +1,7 @@
 # test: group_by maps each key to its elements in list order, one key per distinct result
 # Spec std/collections List Helpers: std-collections.helper.group-by.
 fn by_initial(words: List[string]) -> Map[string, List[string]]:
-    words.group_by(fn(word: string) -> string: word.slice(0, 1))
+    words.group_by(fn(word: &string) -> string: word.slice(0, 1))
 
 tests:
     use std.testing.assert_equal

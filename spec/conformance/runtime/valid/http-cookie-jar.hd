@@ -10,7 +10,7 @@ fn url(text: string) -> Url:
 fn now(millis: i64) -> Timestamp:
     Timestamp::from_unix_milliseconds(millis)
 fn response(lines: List[string]) -> Response:
-    Response { headers: Headers::from(lines.map(fn(line): ("Set-Cookie", line))) }
+    Response { headers: Headers::from(lines.map(fn(line): ("Set-Cookie", *line))) }
 
 tests:
     it("host-only cookies use the request directory and ignore ports"):

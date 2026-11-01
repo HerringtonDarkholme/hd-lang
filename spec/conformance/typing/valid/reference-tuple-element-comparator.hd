@@ -2,7 +2,7 @@
 # Spec 13 Places And New Objects: ref.place.tuple-element.
 use std.cmp.Ordering
 
-fn by_key(a: (i32, string), b: (i32, string)) -> Ordering:
+fn by_key(a: &(i32, string), b: &(i32, string)) -> Ordering:
     a._0.cmp(&b._0)
 
 fn same_key(a: (i32, string), b: (i32, string)) -> bool:

@@ -20,24 +20,24 @@ tests:
             Order { customer: "di", cents: 50 },
         ]
         assert_equal(
-            customer(orders.max_by_key(fn(o: Order) -> i64: o.cents)),
+            customer(orders.max_by_key(fn(o: &Order) -> i64: o.cents)),
             "bo",
             reason="the first largest",
         )
         assert_equal(
-            customer(orders.min_by_key(fn(o: Order) -> i64: o.cents)),
+            customer(orders.min_by_key(fn(o: &Order) -> i64: o.cents)),
             "al",
             reason="the first smallest",
         )
     it("by key on an empty list gives .None"):
         let none: List[Order] = []
-        assert_equal(customer(none.max_by_key(fn(o: Order) -> i64: o.cents)), "none", reason="max")
-        assert_equal(customer(none.min_by_key(fn(o: Order) -> i64: o.cents)), "none", reason="min")
+        assert_equal(customer(none.max_by_key(fn(o: &Order) -> i64: o.cents)), "none", reason="max")
+        assert_equal(customer(none.min_by_key(fn(o: &Order) -> i64: o.cents)), "none", reason="min")
     it("by key calls key once per element"):
         let calls = 0
         words := ["bb", "a", "ccc"]
         longest := words.max_by_key(
-            fn(w: string) -> usize:
+            fn(w: &string) -> usize:
                 calls = calls + 1
                 w.len()
             ,

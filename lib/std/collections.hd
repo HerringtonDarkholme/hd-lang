@@ -97,18 +97,18 @@ impl[T] List[T]:
 
     ## Returns a new list with `transform` applied to each element, in order.
     ## See [std-iter.method.map](../../spec/std/iter.md#r-std-iter.method.map).
-    pub fn map[U](self, transform: fn(T) -> U) -> List[U]:
+    pub fn map[U](&self, transform: fn(&T) -> U) -> List[U]:
         let mut mapped: List[U] = []
         for item in self:
-            mapped.push(transform(item))
+            mapped.push(transform(&item))
         mapped
 
     ## Returns a new list of the elements for which `keep` is true, in list order.
     ## See [std-collections.access.filter](../../spec/std/collections.md#r-std-collections.access.filter).
-    pub fn filter(self, keep: fn(T) -> bool) -> List[T]:
+    pub fn filter(&self, keep: fn(&T) -> bool) -> List[T]:
         let mut kept: List[T] = []
         for item in self:
-            if keep(item):
+            if keep(&item):
                 kept.push(item)
         kept
 
@@ -179,12 +179,12 @@ impl[T] List[T]:
     # Stable insertion-sorted runs, merged with one reusable scratch list.
     ## Returns a new list in ascending order by `compare`. The sort is stable.
     ## See [std-collections.access.sorted-by](../../spec/std/collections.md#r-std-collections.access.sorted-by).
-    pub fn sorted_by(self, compare: fn(T, T) -> Ordering) -> List[T]:
+    pub fn sorted_by(&self, compare: fn(&T, &T) -> Ordering) -> List[T]:
         size := self.len()
         if size <= 1:
-            return self
+            return *self
         run := 16
-        let mut sorted = self
+        let mut sorted = *self
         let start: usize = 0
         while start < size:
             end := start + (if run < size - start: run else: size - start)
@@ -193,7 +193,7 @@ impl[T] List[T]:
                 value := sorted[index]
                 let hole = index
                 while hole > start:
-                    match compare(value, sorted[hole - 1]):
+                    match compare(&value, &sorted[hole - 1]):
                         .Less => pass
                         _ => break
                     sorted[hole] = sorted[hole - 1]
@@ -206,7 +206,7 @@ impl[T] List[T]:
             return sorted
         # Copy-on-write provides the output and scratch storage; each pass
         # overwrites every slot before swapping the two lists for reuse.
-        let mut scratch = self
+        let mut scratch = *self
         let width = run
         while width < size:
             start = 0
@@ -219,7 +219,7 @@ impl[T] List[T]:
                 while out < end:
                     let take_right = left == middle
                     if !take_right && right < end:
-                        take_right = match compare(sorted[right], sorted[left]):
+                        take_right = match compare(&sorted[right], &sorted[left]):
                             .Less => true
                             _ => false
                     if take_right:
@@ -237,6 +237,41 @@ impl[T] List[T]:
                 break
             width *= 2
         sorted
+
+    # In place, by the stable sort `sorted_by` makes.
+    ## Sorts the list in ascending order by `compare`, in place. The sort is stable.
+    ## See [std-collections.helper.sort-by](../../spec/std/collections.md#r-std-collections.helper.sort-by).
+    pub fn sort_by(&mut self, compare: fn(&T, &T) -> Ordering) -> void:
+        *self = self.sorted_by(compare)
+
+    # In place, by `sorted_by_key`: `key` is called once per element.
+    ## Sorts the list in ascending order of `key(element)` by `Ord`, in place, calling `key` once per element. The sort is stable.
+    ## See [std-collections.helper.sort-by-key](../../spec/std/collections.md#r-std-collections.helper.sort-by-key).
+    pub fn sort_by_key[K < Ord](&mut self, key: fn(&T) -> K) -> void:
+        *self = self.sorted_by_key(key)
+
+    # Keeps the accepted elements in order, then drops the rest from the end.
+    ## Keeps the elements for which `keep` is true, in list order, in place; `keep` runs once per element, in order.
+    ## See [std-collections.helper.retain](../../spec/std/collections.md#r-std-collections.helper.retain).
+    pub fn retain(&mut self, keep: fn(&T) -> bool) -> void:
+        size := self.len()
+        let kept: usize = 0
+        let index: usize = 0
+        while index < size:
+            item := self[index]
+            if keep(&item):
+                self[kept] = item
+                kept += 1
+            index += 1
+        while self.len() > kept:
+            _ := self.pop()
+
+    ## Exchanges the elements at `a` and `b`; either index out of range panics with `index-out-of-bounds`.
+    ## See [std-collections.helper.swap](../../spec/std/collections.md#r-std-collections.helper.swap).
+    pub fn swap(&mut self, a: usize, b: usize) -> void:
+        held := self[a]
+        self[a] = self[b]
+        self[b] = held
 
     # Consecutive pieces of `size` items; the last may be shorter.
     ## Returns read-only views in consecutive pieces of `size` elements; only the last may be shorter.
@@ -270,14 +305,14 @@ impl[T] List[T]:
     # A stable sort by `key(item)`, which is called once per element.
     ## Returns the elements in ascending order of `key(element)` by `Ord`, calling `key` once per element.
     ## See [std-collections.helper.sorted-by-key](../../spec/std/collections.md#r-std-collections.helper.sorted-by-key).
-    pub fn sorted_by_key[K < Ord](self, key: fn(T) -> K) -> List[T]:
+    pub fn sorted_by_key[K < Ord](&self, key: fn(&T) -> K) -> List[T]:
         let mut keyed: List[(K, usize)] = []
         let index: usize = 0
         for item in self:
-            keyed.push((key(item), index))
+            keyed.push((key(&item), index))
             index = index + 1
         order := keyed.sorted_by(
-            fn(left: (K, usize), right: (K, usize)) -> Ordering: left._0.cmp(&right._0)
+            fn(left: &(K, usize), right: &(K, usize)) -> Ordering: left._0.cmp(&right._0)
         )
         let mut sorted: List[T] = []
         for (_, at) in order:
@@ -287,10 +322,10 @@ impl[T] List[T]:
     # The elements under each key, keys in the order first seen.
     ## Groups the elements by `key(element)`, each group in list order, keys in first-seen order.
     ## See [std-collections.helper.group-by](../../spec/std/collections.md#r-std-collections.helper.group-by).
-    pub fn group_by[K < Eq & Hash](self, key: fn(T) -> K) -> Map[K, List[T]]:
+    pub fn group_by[K < Eq & Hash](&self, key: fn(&T) -> K) -> Map[K, List[T]]:
         let mut groups: Map[K, List[T]] = {}
         for item in self:
-            group := key(item)
+            group := key(&item)
             match groups.get(group):
                 .Some(_) => groups[group].push(item)
                 .None => groups[group] = [item]
@@ -299,11 +334,11 @@ impl[T] List[T]:
     # The elements `keep` accepts, then the rest, each in order.
     ## Splits the list into the elements for which `keep` is true and the rest, each in list order.
     ## See [std-collections.helper.partition](../../spec/std/collections.md#r-std-collections.helper.partition).
-    pub fn partition(self, keep: fn(T) -> bool) -> (List[T], List[T]):
+    pub fn partition(&self, keep: fn(&T) -> bool) -> (List[T], List[T]):
         let mut kept: List[T] = []
         let mut rest: List[T] = []
         for item in self:
-            if keep(item):
+            if keep(&item):
                 kept.push(item)
             else:
                 rest.push(item)
@@ -312,26 +347,26 @@ impl[T] List[T]:
     # Stops at the first element that passes.
     ## True when `test` is true for at least one element, stopping at the first.
     ## See [std-collections.helper.any-all](../../spec/std/collections.md#r-std-collections.helper.any-all).
-    pub fn any(self, test: fn(T) -> bool) -> bool:
+    pub fn any(&self, test: fn(&T) -> bool) -> bool:
         for item in self:
-            if test(item):
+            if test(&item):
                 return true
         false
 
     # Stops at the first element that fails.
     ## True when `test` is true for every element, stopping at the first false.
     ## See [std-collections.helper.any-all](../../spec/std/collections.md#r-std-collections.helper.any-all).
-    pub fn all(self, test: fn(T) -> bool) -> bool:
+    pub fn all(&self, test: fn(&T) -> bool) -> bool:
         for item in self:
-            if !test(item):
+            if !test(&item):
                 return false
         true
 
     ## Returns the first element for which `test` is true, in `.Some`, or `.None`.
     ## See [std-collections.helper.find](../../spec/std/collections.md#r-std-collections.helper.find).
-    pub fn find(self, test: fn(T) -> bool) -> T?:
+    pub fn find(&self, test: fn(&T) -> bool) -> T?:
         for item in self:
-            if test(item):
+            if test(&item):
                 return .Some(item)
         .None
 
@@ -404,8 +439,14 @@ impl[T < Ord] List[T]:
     # A stable sort in ascending order.
     ## Returns the elements in ascending order by `Ord`.
     ## See [std-collections.helper.sorted](../../spec/std/collections.md#r-std-collections.helper.sorted).
-    pub fn sorted(self) -> List[T]:
-        self.sorted_by(fn(left: T, right: T) -> Ordering: left.cmp(&right))
+    pub fn sorted(&self) -> List[T]:
+        self.sorted_by(fn(left: &T, right: &T) -> Ordering: left.cmp(right))
+
+    # A stable sort in ascending order, in place.
+    ## Sorts the list in ascending order by `Ord`, in place. The sort is stable.
+    ## See [std-collections.helper.sort](../../spec/std/collections.md#r-std-collections.helper.sort).
+    pub fn sort(&mut self) -> void:
+        *self = self.sorted()
 
     # The first of the smallest elements.
     ## Returns the first smallest element by `Ord` in `.Some`, or `.None` for an empty list.
@@ -449,11 +490,11 @@ impl[T < Eq & Hash] List[T]:
 impl[T] List[T]:
     ## Returns the first element with the smallest `key` by `Ord` in `.Some`, or `.None` for an empty list.
     ## See [std-collections.helper.by-key.first](../../spec/std/collections.md#r-std-collections.helper.by-key.first).
-    pub fn min_by_key[K < Ord](self, key: fn(T) -> K) -> T?:
+    pub fn min_by_key[K < Ord](&self, key: fn(&T) -> K) -> T?:
         let best: T? = .None
         let best_key: K? = .None
         for item in self:
-            item_key := key(item)
+            item_key := key(&item)
             match best_key:
                 .Some(current) =>
                     if before(item_key, current):
@@ -466,11 +507,11 @@ impl[T] List[T]:
 
     ## Returns the first element with the largest `key` by `Ord` in `.Some`, or `.None` for an empty list.
     ## See [std-collections.helper.by-key.first](../../spec/std/collections.md#r-std-collections.helper.by-key.first).
-    pub fn max_by_key[K < Ord](self, key: fn(T) -> K) -> T?:
+    pub fn max_by_key[K < Ord](&self, key: fn(&T) -> K) -> T?:
         let best: T? = .None
         let best_key: K? = .None
         for item in self:
-            item_key := key(item)
+            item_key := key(&item)
             match best_key:
                 .Some(current) =>
                     if before(current, item_key):
@@ -557,7 +598,9 @@ impl[K < Eq & Hash] Map[K, usize]:
     ## See [std-collections.map.most-common](../../spec/std/collections.md#r-std-collections.map.most-common).
     pub fn most_common(self, n: usize) -> List[(K, usize)]:
         self.entries()
-            .sorted_by(fn(left: (K, usize), right: (K, usize)) -> Ordering: right._1.cmp(&left._1))
+            .sorted_by(
+                fn(left: &(K, usize), right: &(K, usize)) -> Ordering: right._1.cmp(&left._1)
+            )
             .take(n)
 
 # A read-only window on a run of a list's elements
@@ -1083,7 +1126,7 @@ impl[T < Ord] Heap[T]:
     ## Returns a new list of every element in ascending order by `Ord`, and leaves the heap unchanged.
     ## See [std-collections.heap.sorted](../../spec/std/collections.md#r-std-collections.heap.sorted).
     pub fn to_sorted_list(self) -> List[T]:
-        self.items.sorted_by(fn(left: T, right: T) -> Ordering: left.cmp(&right))
+        self.items.sorted_by(fn(left: &T, right: &T) -> Ordering: left.cmp(right))
 
 # Build in linear comparisons by sifting each non-leaf bottom-up.
 # See r-std-collections.heap.collect, r-std-collections.heap.collect.linear.

@@ -82,7 +82,8 @@ pub fn main() -> void $ Console:
     println(cmp(&1, &2) == .Less)
     println(apply(i32::add, 3, 4))
     let xs: List[i32] = [3, 1, 2]
-    println(xs.map(i32::neg)[0])
+    let negs: List[i32] = xs.iter().map(i32::neg).collect()
+    println(negs[0])
     let flag: fn(&bool, &bool) -> bool = bool::eq
     println(flag(&true, &false))
     same := f64::eq
@@ -154,12 +155,13 @@ impl Tagged for Item:
         \"t\"
 
 fn labels[T < Named](items: List[T]) -> List[string]:
-    items.map(fn(item: T) -> string: item.label())
+    items.map(fn(item: &T) -> string: item.label())
 
 pub fn main() -> void $ Console:
     let items: List[*mut dyn Named] = [box(Item { n: 1 })]
     println(labels(items)[0])
-    println(items.map(Named::label)[0])
+    let label: fn(*mut dyn Named) -> string = Named::label
+    println([for item in items => label(item)][0])
     let greet: fn(&dyn Named, string) -> string = Named::greet
     println(greet(&Item { n: 2 }, \"bob\"))
     let tag: fn(&dyn Tagged) -> string = Tagged::tag
