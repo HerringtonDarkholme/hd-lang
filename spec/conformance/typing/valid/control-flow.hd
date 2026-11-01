@@ -8,7 +8,7 @@
 fn first_large(values: List[i32]) -> i32?:
     for value in values:
         if value > 100:
-            break value
+            break *value
     else:
         .None
 

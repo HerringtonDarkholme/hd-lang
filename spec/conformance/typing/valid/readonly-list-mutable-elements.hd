@@ -7,4 +7,4 @@ fn rename(child: &mut Child, name: string) -> void:
 fn update_children(children: List[*mut Child]) -> void:
     rename(children[0], "indexed")
     for child in children:
-        rename(child, "iterated")
+        rename(*child, "iterated")

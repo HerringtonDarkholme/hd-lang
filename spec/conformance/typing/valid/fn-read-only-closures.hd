@@ -17,7 +17,7 @@ fn named[F < Fn(i32) -> i32](base: i32, f: F) -> i32:
 
 fn each(items: List[i32], f: fn(i32) -> void) -> void:
     for item in items:
-        f(item)
+        f(*item)
 
 fn wrap[F < Fn(i32) -> i32?](f: F) -> i32?:
     f(1)

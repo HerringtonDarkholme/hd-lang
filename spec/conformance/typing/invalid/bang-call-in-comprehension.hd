@@ -5,4 +5,4 @@ fn fetch!(id: i32) -> string:
     "user"
 
 fn invalid(ids: List[i32]) -> List[string]:
-    [for id in ids => fetch!(id)] # diagnostic: bang-call-outside-suspension
+    [for id in ids => fetch!(*id)] # diagnostic: bang-call-outside-suspension

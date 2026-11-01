@@ -15,7 +15,7 @@ fn unexpected(at: usize, size: usize) -> string:
 fn checksum(input: &List[u8]) -> u64:
     let hash: u64 = 14695981039346656037
     for byte in input:
-        hash = (hash ^ u64(byte)).wrapping_mul(1099511628211)
+        hash = (hash ^ u64(*byte)).wrapping_mul(1099511628211)
     hash
 
 # A small reader: prefer a copy of its body at each call.

@@ -6,6 +6,6 @@
 fn last(values: List[i32]) -> i32:
     for value in values:
         if value > 10:
-            break value
+            break *value
     else:
         value # diagnostic: unknown-name

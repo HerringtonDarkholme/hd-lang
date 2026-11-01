@@ -17,6 +17,6 @@ fn record(tally: &mut Tally, hits: List[i64]) -> Meters:
     let walked = Meters(0)
     for hit in hits:
         tally.count += hit
-        walked += Meters(hit)
+        walked += Meters(*hit)
         log += "."
     walked

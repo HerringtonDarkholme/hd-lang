@@ -20,7 +20,7 @@ fn example(input: string, items: List[string]) -> string $ Console:
         println(size)
 
     for item in items:
-        inner := normalize(item)
+        inner := normalize(*item)
         println(inner)
 
     outer

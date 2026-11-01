@@ -5,5 +5,5 @@ struct Item:
 
 fn first[Item](items: List[Item]) -> Item?:
     for item in items:
-        return .Some(item)
+        return .Some(*item)
     .None

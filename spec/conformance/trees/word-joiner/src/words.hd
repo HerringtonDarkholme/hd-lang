@@ -6,7 +6,7 @@
 pub fn join_words(words: List[string], separator: string) -> string:
     let out = ""
     for word in words:
-        out = if out == "": squash(word) else: "$out$separator${squash(word)}"
+        out = if out == "": squash(*word) else: "$out$separator${squash(*word)}"
     out
 
 fn squash(word: string) -> string:

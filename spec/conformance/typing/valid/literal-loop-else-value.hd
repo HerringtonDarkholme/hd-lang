@@ -4,7 +4,7 @@
 fn first_big(items: List[i64]) -> i64:
     let found = for item in items:
         if item > 10:
-            break item
+            break *item
     else:
         0
     found

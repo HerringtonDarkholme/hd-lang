@@ -28,7 +28,7 @@ impl Store:
         key
 
 fn apply_all[T, U](items: List[T], transform: fn(T) -> U) -> List[U]:
-    [for item in items => transform(item)]
+    [for item in items => transform(*item)]
 
 fn readings(counters: List[*Counter]) -> List[i32]:
     apply_all(counters, Counter::read)

@@ -14,5 +14,5 @@ fn serve() -> string $ Db + Clock:
     handlers := [health, orders]
     let text = ""
     for handler in handlers:
-        text = text + handler()
+        text = text + (*handler)()
     text

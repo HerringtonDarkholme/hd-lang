@@ -73,7 +73,7 @@ fn log_message(message: string) -> void $ Logger:
     logger.write(message)
 
 fn transform[T, U, $ R](items: List[T], f: fn(T) -> U $ R) -> List[U] $ R:
-    [for item in items => f(item)]
+    [for item in items => f(*item)]
 
 loader := fn!(id: string) -> Result[User?, DbError] $ Database: load_user!(id)
 

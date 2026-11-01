@@ -20,7 +20,7 @@ impl Shape for Square:
 fn total(shapes: List[*dyn Shape]) -> f64:
     let sum = 0.0
     for shape in shapes:
-        sum = sum + shape.area()
+        sum = sum + (*shape).area()
     sum
 
 fn demo() -> f64:

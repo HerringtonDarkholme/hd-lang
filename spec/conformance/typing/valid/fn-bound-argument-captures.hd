@@ -18,7 +18,7 @@ fn first[F < Fn() -> i32 & 'a, 'a](c: &'a Counter, f: F) -> &'a Counter:
 impl Shelf:
     fn each[F < FnMut(i32) -> void](&self, mut f: F) -> void:
         for x in self.items:
-            f(x)
+            f(*x)
 
 fn total(s: &Shelf, c: &mut Counter) -> i32:
     s.each(fn(x): c.n += x)

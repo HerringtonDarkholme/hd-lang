@@ -8,7 +8,7 @@ struct Word:
 impl Iterable[Word] for string:
     type IntoIter = ListIter[Word]
     fn iter(self) -> ListIter[Word]:
-        [for part in [self] => Word { text: part }].iter()
+        [for part in [self] => Word { text: *part }].iter()
 
 fn first_word(text: string) -> string:
     for word in text:
