@@ -449,7 +449,7 @@ as a move.
   copies. In separate memory the value must also hold no
   reference into the source's memory. Every non-copyable type today holds
   a `&mut`, so transfer into a worker, a service or a device has no valid
-  case before `~Copyable`
+  case before `!Copy` types
   ([#1141](https://github.com/HerringtonDarkholme/hd-lang/issues/1141)).
   Until then transfer is the scoped thread's ordinary move.
 
@@ -622,7 +622,7 @@ workers.call!(fn() -> void $ Log: $.use(Log).info("done"))?  # valid: the worker
 | Row against the destination | crossing | row subsumption, bound keys, no captured providers, bindable sets | capabilities on domain traits; a service's set from the configuration |
 | Mode per capture | capture | capture analysis; the copy test of M1 and M2 | the kind-by-mode rule; modes inferred from types |
 | Copy | capture, result | boundary-safe values, `Fn` bounds | the boundary check at captures; `Fn` for separate memory |
-| Transfer | capture, later uses | M1 and M2 moves | a capture as a move site; no separate-memory case before `~Copyable` |
+| Transfer | capture, later uses | M1 and M2 moves | a capture as a move site; no separate-memory case before `!Copy` types |
 | Lend | capture, scope call | closure-parameter lifetimes, lifetime bounds, exclusivity, the suspension store rule | the scope; run-time loans across threads |
 | Handle | handle use | bound keys, type equality | a handle marker; counts across domains |
 | Affinity target | crossing | type equality, `missing-requirement` | a target read from a type; the handle walk |
@@ -634,7 +634,16 @@ The gaps:
 
 - **No `Send` or `Sync`.** A shallow `&` and a shared cell race across
   threads. `Sync` gets its own design before threads land; until then
-  lend reaches only scoped threads (question 12).
+  lend reaches only scoped threads (question 12). Three rules are already
+  fixed for it:
+  - Sending a value takes its snapshot on the sending thread, so a
+    copy-on-write `List` or `Map` sends safely once its counts are atomic,
+    as Swift's arrays are `Sendable`.
+  - A `&T` is `Send` only when `T: Sync`. A thread that took the snapshot
+    through a `&` would load the buffer while the owner's `push` may
+    reallocate it.
+  - Anything holding a `*mut` or a box is not `Sync`: a snapshot is
+    shallow, and a read through `&T` may write through a box field.
 - **No threads and no shared heap.** One instance runs on one thread
   ([`module.instance.thread`](../../spec/lang/10-modules.md#r-module.instance.thread)), and instances' heaps are disjoint
   ([`module.instance.disjoint`](../../spec/lang/10-modules.md#r-module.instance.disjoint)). Lend waits for both.
@@ -642,7 +651,7 @@ The gaps:
   another build, needs it
   ([`fn.capture.serializable-deferred`](../../spec/lang/07-functions.md#r-fn.capture.serializable-deferred)).
 - **No owned non-copyable type.** Transfer into separate memory waits for
-  `~Copyable` ([#1141](https://github.com/HerringtonDarkholme/hd-lang/issues/1141)).
+  `!Copy` types ([#1141](https://github.com/HerringtonDarkholme/hd-lang/issues/1141)).
 - **No device-code subset.** A kernel's body is checked only by its row.
 - **The outcome type is not a gap.** Unknown is an error case (section 4).
 
@@ -679,7 +688,7 @@ decides it (question 7).
 5. **When does transfer apply to plain values?** Answered (owner,
    2026-10-31): transfer is for non-copyable types only. Today those all
    hold a `&mut` into the source's memory, so transfer to separate memory
-   has no valid case yet; the owner moved `~Copyable` forward (its own
+   has no valid case yet; the owner moved non-copyable types forward (their own
    design) so a user type such as a photo buffer can opt out of copying and
    transfer (example 1).
 6. **How is affinity expressed?** Answered (owner, 2026-10-31): required
@@ -691,8 +700,8 @@ decides it (question 7).
 7. **Is a crossing mode ever written?** Answered (owner, 2026-10-31): no.
    The type decides: a copyable value copies, a non-copyable one
    transfers, a reference lends, and a handle stays home. There is no
-   `transfer(x)`; to move a value instead of copying it, make its type
-   `~Copyable`. Swift and Rust have no transfer keyword either.
+   `transfer(x)`; to move a value instead of copying it, give its type
+   `impl !Copy`. Swift and Rust have no transfer keyword either.
 8. **How does a destination state its capabilities?** Answered (owner,
    2026-10-31): as a row parameter on the domain trait, such as
    `Workers[$ Clock + Console]`, checked by row subsumption, so each pool
@@ -710,7 +719,9 @@ decides it (question 7).
     every other handle the code uses must share it (Chapel's `on x do`).
 12. **What stops a lend racing?** Answered (owner, 2026-10-31): design
     `Sync` before threads; until then lend is for scoped threads only and
-    the race is a listed gap.
+    the race is a listed gap. Its three fixed rules (value sends take the
+    snapshot, `&T` is `Send` only when `T: Sync`, `*mut` and box holders
+    are not `Sync`) are in section 5.
 
 ```text
 let tex: Texture[Gpu0] = gpu0.upload!(photo)?  # question 4 (a)
