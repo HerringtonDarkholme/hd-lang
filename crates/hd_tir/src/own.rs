@@ -619,6 +619,17 @@ pub fn returned_param(b: &Body) -> Option<u8> {
 /// neither these nor a buffer they make unique first.
 #[must_use]
 pub fn writes(b: &Body, cx: &dyn OwnCx) -> bool {
+    writes_in(b, 0..b.len(), &|c| cx.may_write(c))
+}
+
+/// Whether an instruction of `b` in `range` may write memory its caller
+/// can reach, as [`writes`] reads them, with `may_write` for a call.
+#[must_use]
+pub fn writes_in(
+    b: &Body,
+    mut range: std::ops::Range<usize>,
+    may_write: &dyn Fn(&Callee) -> bool,
+) -> bool {
     // Whether a place is the body's own, and whether its path holds an
     // element.
     let place = |mut word: u32| {
@@ -649,7 +660,7 @@ pub fn writes(b: &Body, cx: &dyn OwnCx) -> bool {
             .as_inst()
             .filter(|i| b.tags[i.0 as usize] == Tag::Read)
     };
-    (0..b.len()).any(|i| {
+    range.any(|i| {
         let [a, w] = b.data[i];
         match b.tags[i] {
             Tag::Store | Tag::IsUnique | Tag::Pin | Tag::FlagSet | Tag::FlagClear => !place(a).0,
@@ -662,7 +673,7 @@ pub fn writes(b: &Body, cx: &dyn OwnCx) -> bool {
                     || changed(b, i)
                         .any(|(_, v)| read(v).is_none_or(|r| !place(b.data[r.0 as usize][0]).0))
             }
-            Tag::Call => Callee::from_words(b.record(a)).is_none_or(|c| cx.may_write(&c)),
+            Tag::Call => Callee::from_words(b.record(a)).is_none_or(|c| may_write(&c)),
             Tag::CallValue
             | Tag::CallDyn
             | Tag::CallHost
