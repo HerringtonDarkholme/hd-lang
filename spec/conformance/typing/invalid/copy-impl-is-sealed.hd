@@ -1,0 +1,9 @@
+# test: `Copy` is sealed, so code never implements it
+# Spec 13 Copy: ref.copy.no-impl.
+struct Photo:
+    width: u32
+
+impl Copy for Photo # diagnostic: sealed-trait-implementation
+
+pub fn main() -> void $ Console:
+    println("ok")

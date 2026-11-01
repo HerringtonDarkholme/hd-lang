@@ -1516,6 +1516,9 @@ fn has_child[T < Child](value: T) -> i32:
 > **Why.** A fixed limit makes every implementation accept the same programs,
 > and it ends bound solving that would otherwise never finish.
 
+Every type parameter also has the default bound `Copy` unless it is
+declared `?Copy`, as [Copy](13-values-and-references.md#copy) states.
+
 See also: the non-normative
 [Implementation Model](04-type-system.md#implementation-model-non-normative).
 
@@ -2103,6 +2106,7 @@ compiler and the standard library supply.
 | r[trait.sealed.tuple] Tuple | `Tuple` | every tuple type ([Function Type Constructors](07-functions.md#function-type-constructors)) |
 | r[trait.sealed.fn] Fn | `Fn` | every plain function type ([Static Fn Bounds](07-functions.md#static-fn-bounds)) |
 | r[trait.sealed.fn-mut] FnMut | `FnMut` | every plain function type ([FnMut Bounds](07-functions.md#fnmut-bounds)) |
+| r[trait.sealed.copy] Copy | `Copy` | every type that holds no `&mut`, no type declared `impl !Copy`, and no type parameter that is not `Copy` ([Copy](13-values-and-references.md#copy)) |
 
 1. r[trait.sealed.definition] A sealed trait is a standard trait whose implementations only the compiler and the standard library supply.
 2. r[trait.sealed.list] The sealed traits are those in the table above.

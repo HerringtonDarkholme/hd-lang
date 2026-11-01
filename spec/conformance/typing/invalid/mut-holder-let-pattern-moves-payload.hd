@@ -6,7 +6,7 @@ struct Holder['a]:
 fn take(h: Holder) -> void:
     pass
 
-fn keep[T](value: T) -> void:
+fn keep[T < ?Copy](value: T) -> void:
     pass
 
 fn moved(x: &mut i32) -> void:

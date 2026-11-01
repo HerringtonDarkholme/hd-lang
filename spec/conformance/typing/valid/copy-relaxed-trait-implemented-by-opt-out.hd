@@ -1,0 +1,22 @@
+# test: a trait declared `< ?Copy` is implemented by a type declared `impl !Copy`, and a `?Copy` parameter takes it
+# Spec 13 Copy: ref.copy.trait.relaxed, ref.copy.generic.relaxed, ref.copy.opt-out.
+struct Photo:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Photo
+
+trait Stored < ?Copy:
+    fn size(&self) -> u32
+
+impl Stored for Photo:
+    fn size(&self) -> u32: self.width
+
+fn handed[T < ?Copy & Stored](item: T) -> (T, u32):
+    size := item.size()
+    (item, size)
+
+pub fn main() -> void $ Console:
+    photo := Photo { width: 3, pixels: [] }
+    let (back, size) = handed(photo)
+    println("${back.width} $size")

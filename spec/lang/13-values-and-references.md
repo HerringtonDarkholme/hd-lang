@@ -1781,7 +1781,7 @@ struct Counter:
 fn bump(c: &mut Counter) -> void:
     c.count += 1
 
-fn keep[T](x: T) -> void: pass
+fn keep[T < ?Copy](x: T) -> void: pass
 
 fn demo(c: &mut Counter) -> void:
     bump(c)        # a reborrow: c stays usable
@@ -1792,7 +1792,7 @@ fn demo(c: &mut Counter) -> void:
 ```
 
 1. r[ref.move.mut] A `&mut T` value is moved, not copied. A `*mut T` or `&T` value is copied.
-2. r[ref.move.holds] A value whose type holds a `&mut` is moved, not copied. A type holds a `&mut` when it is `&mut T`, a struct with a field whose type holds one, an enum with such a payload, or a tuple, optional, or union with such a member. `SpanMut[T, 'a]` holds one. A generic `T` argument of such a type moves too.
+2. r[ref.move.holds] A value whose type holds a `&mut` is moved, not copied. A type holds a `&mut` when it is `&mut T`, a struct with a field whose type holds one, an enum with such a payload, or a tuple, optional, or union with such a member. `SpanMut[T, 'a]` holds one. [Copy](#copy) names the other types whose values move.
 3. r[ref.move.sites] A read of a whole binding that is not copied moves its value at each site in the table below. No `&mut` type is expected at these sites.
 4. r[ref.move.field] A read of a field of a binding, where the field's type is not copied, moves the field out at each site in the table below. The binding is then partly moved. A site that expects a `&mut` type reborrows the field instead, as for a binding. A field of a field moves the same way.
 5. r[ref.move.pattern] A `match` arm or `let` pattern that binds a value whose type is not copied moves that value out of the matched value. When the matched value is a binding, or a field of one, a bound payload or field moves out as a field does. The binding is then partly moved. A `_` pattern moves nothing, and neither does binding only copied parts. A pattern matched through a reference binds as [Matching Through A Reference](#matching-through-a-reference) states.
@@ -1810,7 +1810,7 @@ fn demo(c: &mut Counter) -> void:
 | Site | Example |
 | --- | --- |
 | A `:=` binding, or a `let` without a written type | `d := c`, `let d = c` |
-| An argument for a parameter not declared `&mut`, such as a generic `T` | `keep(c)` |
+| An argument for a parameter not declared `&mut`, such as a `T < ?Copy` | `keep(c)` |
 | A tuple element, a list element, or an optional's payload | `(c, 1)`, `.Some(c)` |
 | A struct field or variant payload whose declared type is a type parameter | `Wrap { value: c }` |
 | A returned value, or the value of a `break` | `return c` |
@@ -1822,7 +1822,7 @@ struct Counter:
 fn bump(c: &mut Counter) -> void:
     c.count += 1
 
-fn keep[T](x: T) -> void: pass
+fn keep[T < ?Copy](x: T) -> void: pass
 
 fn after_let(c: &mut Counter) -> void:
     d := c
@@ -1905,7 +1905,7 @@ struct Holder['a]:
 fn peek(h: &Holder) -> i32:
     h.count
 
-fn keep[T](x: T) -> void: pass
+fn keep[T < ?Copy](x: T) -> void: pass
 
 fn twice['a, 'b](r: &'b Holder['a]) -> (Holder['a], Holder['a]):
     (*r, *r)  # error: move-out-of-place
@@ -1949,6 +1949,110 @@ fn spans(items: &mut List[i32]) -> void:
 > that write one list.
 
 See also: [Writes While Borrowed](#writes-while-borrowed).
+
+### Copy
+
+`Copy` is the prelude's marker for a type whose values are copied. Every
+type is `Copy` unless it holds a `&mut`, is declared `impl !Copy`, or is a
+type parameter declared `?Copy`. A value of any other type moves.
+
+```hd
+struct Photo:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Photo
+
+fn keep[T](x: T) -> void: pass
+
+fn hold[T < ?Copy](x: T) -> T: x
+
+fn export(photo: Photo) -> Photo:
+    keep(photo.width)  # a `u32` is copied
+    hold(photo)        # photo moves
+```
+
+1. r[ref.copy.marker] `Copy` is a sealed marker trait of `std.ops`, in the prelude. It has no members, and the compiler supplies its implementations.
+2. r[ref.copy.structure] A type is `Copy` unless it is `&mut T`, a type declared `impl !Copy`, a type parameter that is not `Copy`, or a type that holds one as [`ref.move.holds`](#r-ref.move.holds) defines.
+3. r[ref.copy.moves] A value whose type is not `Copy` is moved, not copied, at each site of [`ref.move.sites`](#r-ref.move.sites).
+4. r[ref.copy.opt-out] `impl !Copy for T` declares that the struct or enum `T` is not `Copy`. It has no body and belongs in the module that declares `T`.
+5. r[ref.copy.opt-out.invalid] A negative implementation of a trait other than `Copy`, of a type that is not a struct or an enum, outside its target's module, or with a body is an error. Error: `invalid-negative-impl`.
+6. r[ref.copy.no-impl] `impl Copy for T` is an error, as for every sealed trait. Error: `sealed-trait-implementation`.
+7. r[ref.copy.generic.default] Every type parameter is `Copy` unless it is declared `?Copy`: a function's, a method's, a struct's, an enum's, an alias's, an implementation's, and a trait's.
+8. r[ref.copy.generic.argument] A type argument for a `Copy` parameter must be `Copy`. This holds for the inferred arguments of a call, a struct literal, and a variant construction. Error: `unsatisfied-trait-bound`.
+9. r[ref.copy.generic.relaxed] `T < ?Copy` lifts the default bound. `T` then accepts every type, and the body moves a `T` value as one that is not `Copy`.
+10. r[ref.copy.generic.relaxed.only] A `?` before a trait other than `Copy` is an error. Error: `invalid-relaxed-bound`.
+11. r[ref.copy.trait.default] A trait's `Self` is `Copy`, so a bound on the trait implies `Copy`. An implementation for a type that is not `Copy` is an error. Error: `missing-supertrait-implementation`.
+12. r[ref.copy.trait.reference] A `&mut dyn` value meets no bound on a trait whose `Self` is `Copy`. Error: `unsatisfied-trait-bound`.
+13. r[ref.copy.trait.relaxed] `trait Name < ?Copy` lifts the `Copy` bound on `Self`. A type that is not `Copy` may implement the trait, and its default bodies move `Self`. `Index` and `IndexSet` are declared so.
+14. r[ref.copy.collections] `List`, `Map`, `Set`, `Deque`, and `Heap` hold `Copy` items. A list or map literal whose items are not `Copy` is an error. Error: `unsatisfied-trait-bound`.
+
+```text
+struct Photo:
+    width: u32
+
+struct Writer['a]:
+    target: &'a mut List[i32]
+
+struct Holder['a]:
+    target: &'a mut i32
+
+impl !Copy for Photo
+
+impl !Eq for Photo  # error: invalid-negative-impl
+
+trait Sized2D:
+    fn area(&self) -> u32
+
+impl Sized2D for Photo:  # error: missing-supertrait-implementation
+    fn area(&self) -> u32: self.width
+
+fn keep[T < ?Copy](photo: T) -> void:
+    pass
+
+fn twice[T < ?Copy](x: T) -> (T, T):
+    (x, x)  # error: use-of-moved-value
+
+fn show[T < ?Eq](x: T) -> void:  # error: invalid-relaxed-bound
+    pass
+
+fn dup[T](x: T) -> (T, T): (x, x)
+
+fn demo(items: &mut List[i32], x: &mut i32) -> void:
+    writer := Writer { target: items }
+    pair := dup(writer)  # error: unsatisfied-trait-bound
+    hs := [Holder { target: x }]  # error: unsatisfied-trait-bound
+    photo := Photo { width: 2 }
+    keep(photo)
+    w := photo.width  # error: use-of-moved-value
+```
+
+```text
+struct Photo:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Photo
+
+trait Stored < ?Copy:
+    fn size(&self) -> u32
+
+impl Stored for Photo:
+    fn size(&self) -> u32: self.width
+
+fn handed[T < ?Copy & Stored](item: T) -> (T, u32):
+    size := item.size()
+    (item, size)
+```
+
+> **Why.** Copy is the default, as in Swift, because most generic code
+> copies its values and a `Copy` bound on every declaration would be noise.
+> `?Copy` is Rust's spelling for lifting a default bound, as `?Sized` is.
+> A trait's `Self` is `Copy` for the same reason: only then may a default
+> body copy `self`.
+
+See also: [Sealed Traits](09-traits.md#sealed-traits),
+[Generic Bounds And Static Dispatch](09-traits.md#generic-bounds-and-static-dispatch).
 
 ## Not Yet Checked
 

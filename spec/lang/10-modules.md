@@ -743,6 +743,7 @@ every module has:
 | `std.console` | `Console`, `ConsoleError`, `println` |
 | `std.testing` | `it`, `assert`, `assert_equal` |
 | `std.task` | `Suspend` |
+| `std.ops` | `Copy` |
 
 1. r[module.prelude.iterator-trait] The prelude name `Iterator` names the cursor trait `std.iter.Iterator[T]`.
 

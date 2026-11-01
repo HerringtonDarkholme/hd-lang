@@ -5687,3 +5687,15 @@ typing/invalid/move-field-out-of-mut-reference.hd	type	reject:move-out-of-place	
 typing/invalid/move-out-of-mut-reference-argument.hd	type	reject:move-out-of-place	lang/13-values-and-references.md#r-ref.move.out-of-place
 typing/valid/deref-copyable-copies.hd	type	accept	lang/13-values-and-references.md#r-ref.move.out-of-place
 typing/valid/deref-borrow-passed-on.hd	type	accept	lang/13-values-and-references.md#r-ref.move.out-of-place
+typing/invalid/copy-generic-argument-holds-mut.hd	type	reject:unsatisfied-trait-bound	lang/13-values-and-references.md#r-ref.copy.generic.argument
+typing/invalid/copy-list-literal-of-mut-holder.hd	type	reject:unsatisfied-trait-bound	lang/13-values-and-references.md#r-ref.copy.collections
+typing/invalid/copy-opt-out-struct-reuse.hd	type	reject:use-of-moved-value	lang/13-values-and-references.md#r-ref.copy.opt-out
+typing/invalid/copy-relaxed-parameter-moves.hd	type	reject:use-of-moved-value	lang/13-values-and-references.md#r-ref.copy.generic.relaxed
+typing/invalid/copy-opt-out-plain-trait.hd	type	reject:missing-supertrait-implementation	lang/13-values-and-references.md#r-ref.copy.trait.default
+typing/invalid/copy-mut-trait-reference-plain-bound.hd	type	reject:unsatisfied-trait-bound	lang/13-values-and-references.md#r-ref.copy.trait.reference
+typing/invalid/copy-negative-impl-other-trait.hd	type	reject:invalid-negative-impl	lang/13-values-and-references.md#r-ref.copy.opt-out.invalid
+typing/invalid/copy-negative-impl-primitive.hd	type	reject:invalid-negative-impl	lang/13-values-and-references.md#r-ref.copy.opt-out.invalid
+typing/invalid/copy-impl-is-sealed.hd	type	reject:sealed-trait-implementation	lang/13-values-and-references.md#r-ref.copy.no-impl
+typing/invalid/copy-relaxed-bound-other-trait.hd	type	reject:invalid-relaxed-bound	lang/13-values-and-references.md#r-ref.copy.generic.relaxed.only
+typing/valid/copy-relaxed-trait-implemented-by-opt-out.hd	type	accept	lang/13-values-and-references.md#r-ref.copy.trait.relaxed
+typing/valid/copy-default-copyable-cases.hd	type	accept	lang/13-values-and-references.md#r-ref.copy.generic.default

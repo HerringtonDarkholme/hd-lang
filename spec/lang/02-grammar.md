@@ -583,13 +583,15 @@ variant_shared_data = identifier, argument_clause ;
 
 ```ebnf
 trait_decl = "trait", identifier, [ type_params ],
-             [ "<", supertrait_bounds ],
+             [ "<", trait_supertrait_bounds ],
              ( NEWLINE
              | ":", NEWLINE, INDENT,
                trait_member, { trait_member }, DEDENT )
              ;
 
 supertrait_bounds = bound_trait_type, { "&", bound_trait_type } ;
+trait_supertrait_bounds = supertrait_bound, { "&", supertrait_bound } ;
+supertrait_bound = bound_trait_type | relaxed_bound ;
 
 trait_member = associated_type_decl
              | { decorator_line }, "fn", callable_name, [ function_generic_params ],
@@ -606,6 +608,7 @@ impl_decl = "impl", [ generic_params ], impl_header_types,
             ;
 
 impl_header_types = trait_type, "for", type
+                  | "!", trait_type, "for", type
                   | type
                   ;
 
@@ -632,23 +635,24 @@ associated_type_decl = "type", identifier, [ "<", supertrait_bounds ],
 
 1. r[grammar.impl.inherent] `impl T:` is an inherent implementation.
 2. r[grammar.impl.trait] `impl Trait for T:` is a trait implementation.
-3. r[grammar.impl.delegation-field] Except when `E` is `Structure`, `impl Trait for T by E` delegates the trait to the embedded field `E` of `T` and may omit its body.
-4. r[grammar.trait.marker] A trait declaration without a body is a marker trait.
-5. r[grammar.impl.bodyless] A trait implementation may omit its body when the trait is a marker or when every trait method has a default.
-6. r[grammar.impl.pub-method] A `pub` method is permitted only in an inherent implementation; trait method visibility follows the trait. A `pub` trait method or trait implementation method is an error. Error: `trait-method-visibility`.
-7. r[grammar.trait.method-end] A bodyless trait method ends at `NEWLINE`; a default method has `:` followed by a suite.
-8. r[grammar.trait.supertrait] `trait Child < Parent:` declares `Parent` as a supertrait and opens the body with `:`.
-9. r[grammar.decl.bound-vs-colon] In declarations, `<` introduces a bound (a supertrait or a generic parameter bound), while `:` means "has type" or opens a suite.
-10. r[grammar.trait.method-receiver] A function member whose first parameter is a receiver (`self`, `mut self`, `&self`, or `&mut self`) is a method; a receiverless member is an associated function.
-11. r[grammar.trait.associated-type] Associated type declarations omit `=` in a trait requirement and provide `= type` in an implementation.
-12. r[grammar.trait.associated-type.bound] Only a trait's associated type declaration may name bounds after `<`. Bounds in an implementation's declaration are an error. Error: `syntax-error`.
-13. r[grammar.impl.inline-bounds] Generic implementations state every bound inline in their generic parameter list; the language has no separate bound clause.
-14. r[grammar.impl.by-structure] `impl Trait for T by Structure` declares a derivation template or a derivation block, as [Typed Derivation](14-annotations.md#typed-derivation) defines.
-15. r[grammar.impl.by-no-trait] `impl T by Structure`, without a trait, declares a derivation block with no trait, as [Derivation Blocks With No Trait](14-annotations.md#derivation-blocks-with-no-trait) defines.
-16. r[grammar.impl.by-no-trait.other] In a header without a trait, `by` followed by any other name is a semantic error, not a grammar error, as [`trait.by.no-trait`](09-traits.md#r-trait.by.no-trait) defines.
-17. r[grammar.impl.derivation-line] A `derivation_line` is a member line. Its placement and meaning are defined in [Member Lines](14-annotations.md#member-lines).
-18. r[grammar.impl.derivation-line.forms] Which right sides a member line accepts is a semantic rule of [Member Lines](14-annotations.md#member-lines), not a grammar rule.
-19. r[grammar.impl.intrinsic-method] An `intrinsic_method` is an implementation method without a body. [Intrinsic Methods](09-traits.md#intrinsic-methods) defines where one is valid.
+3. r[grammar.impl.negative] `impl !Trait for T` is a negative implementation. [Copy](13-values-and-references.md#copy) states where one is valid.
+4. r[grammar.impl.delegation-field] Except when `E` is `Structure`, `impl Trait for T by E` delegates the trait to the embedded field `E` of `T` and may omit its body.
+5. r[grammar.trait.marker] A trait declaration without a body is a marker trait.
+6. r[grammar.impl.bodyless] A trait implementation may omit its body when the trait is a marker or when every trait method has a default.
+7. r[grammar.impl.pub-method] A `pub` method is permitted only in an inherent implementation; trait method visibility follows the trait. A `pub` trait method or trait implementation method is an error. Error: `trait-method-visibility`.
+8. r[grammar.trait.method-end] A bodyless trait method ends at `NEWLINE`; a default method has `:` followed by a suite.
+9. r[grammar.trait.supertrait] `trait Child < Parent:` declares `Parent` as a supertrait and opens the body with `:`.
+10. r[grammar.decl.bound-vs-colon] In declarations, `<` introduces a bound (a supertrait or a generic parameter bound), while `:` means "has type" or opens a suite.
+11. r[grammar.trait.method-receiver] A function member whose first parameter is a receiver (`self`, `mut self`, `&self`, or `&mut self`) is a method; a receiverless member is an associated function.
+12. r[grammar.trait.associated-type] Associated type declarations omit `=` in a trait requirement and provide `= type` in an implementation.
+13. r[grammar.trait.associated-type.bound] Only a trait's associated type declaration may name bounds after `<`. Bounds in an implementation's declaration are an error. Error: `syntax-error`.
+14. r[grammar.impl.inline-bounds] Generic implementations state every bound inline in their generic parameter list; the language has no separate bound clause.
+15. r[grammar.impl.by-structure] `impl Trait for T by Structure` declares a derivation template or a derivation block, as [Typed Derivation](14-annotations.md#typed-derivation) defines.
+16. r[grammar.impl.by-no-trait] `impl T by Structure`, without a trait, declares a derivation block with no trait, as [Derivation Blocks With No Trait](14-annotations.md#derivation-blocks-with-no-trait) defines.
+17. r[grammar.impl.by-no-trait.other] In a header without a trait, `by` followed by any other name is a semantic error, not a grammar error, as [`trait.by.no-trait`](09-traits.md#r-trait.by.no-trait) defines.
+18. r[grammar.impl.derivation-line] A `derivation_line` is a member line. Its placement and meaning are defined in [Member Lines](14-annotations.md#member-lines).
+19. r[grammar.impl.derivation-line.forms] Which right sides a member line accepts is a semantic rule of [Member Lines](14-annotations.md#member-lines), not a grammar rule.
+20. r[grammar.impl.intrinsic-method] An `intrinsic_method` is an implementation method without a body. [Intrinsic Methods](09-traits.md#intrinsic-methods) defines where one is valid.
 
 ```text
 pub trait Display:
@@ -716,7 +720,8 @@ type_default = "=", type_argument ;
 variance = "+" | "-" ;
 
 trait_bounds = trait_bound, { "&", trait_bound } ;
-trait_bound = bound_trait_type | lifetime ;
+trait_bound = bound_trait_type | relaxed_bound | lifetime ;
+relaxed_bound = "?", bound_trait_type ;
 bound_trait_type = qualified_name, [ bound_type_arguments ] ;
 bound_type_arguments = "[", bound_type_argument_list, [ "," ], "]" ;
 bound_type_argument_list = generic_argument, { ",", generic_argument },
@@ -754,6 +759,7 @@ fn keep[T, N < const usize](value: Fixed[T, N]) -> Fixed[T, N]:
 3. r[grammar.generic.bound.and.examples] For example, `trait Ord < Eq & PartialOrd` and `impl[T < Eq & Hash] Hash for Bag[T]` join bounds with `&`.
 4. r[grammar.generic.bound.and.types-only] Bounds appear only in type positions, so a bound's `&` never conflicts with the bitwise `&` of an expression.
 5. r[grammar.generic.bound.lifetime] A type parameter's bounds may include a lifetime, as in `T < Display & 'static`. A supertrait list or an associated type's bounds that write one is an error. Error: `syntax-error`.
+6. r[grammar.generic.bound.relaxed] A type parameter's bounds and a trait's supertrait list may include a relaxed bound, `?` and a trait, as in `T < Eq & ?Copy`. An associated type's bounds that write one are an error. Error: `syntax-error`.
 
 ```hd
 trait Named:

@@ -1,0 +1,15 @@
+# test: a type declared `impl !Copy` cannot implement a trait whose `Self` is `Copy`
+# Spec 13 Copy: ref.copy.trait.default.
+struct Photo:
+    width: u32
+
+impl !Copy for Photo
+
+trait Sized2D:
+    fn area(&self) -> u32
+
+impl Sized2D for Photo: # diagnostic: missing-supertrait-implementation
+    fn area(&self) -> u32: self.width
+
+pub fn main() -> void $ Console:
+    println("ok")

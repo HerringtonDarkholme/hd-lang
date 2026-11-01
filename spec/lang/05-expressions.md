@@ -894,15 +894,15 @@ fn rotate(ring: &mut Ring) -> i32:
 `std.ops` declares them in this shape:
 
 ```text
-pub trait Index[K]:
+pub trait Index[K] < ?Copy:
     type Out
     fn index(&self, key: K) -> Self::Out
 
-pub trait IndexSet[K, V]:
+pub trait IndexSet[K, V] < ?Copy:
     fn index_set(&mut self, key: K, value: V) -> void
 ```
 
-1. r[expr.index.trait.std-ref] `std.ops` declares `Index[K]`, with an associated type `Out`, whose `index` takes `&self`, and `IndexSet[K, V]`, whose `index_set` takes `&mut self`, as shown above.
+1. r[expr.index.trait.std-ref] `std.ops` declares `Index[K]`, with an associated type `Out`, whose `index` takes `&self`, and `IndexSet[K, V]`, whose `index_set` takes `&mut self`, as shown above. Both are declared `< ?Copy`, so a type that is not `Copy`, such as `SpanMut`, implements them ([`ref.copy.trait.relaxed`](13-values-and-references.md#r-ref.copy.trait.relaxed)).
 2. r[expr.index.trait.read-other] For a receiver whose type is not `List`, `Map`, or `string`, a type parameter included, reading `r[k]` is the call `Index::[K]::index(&r, k)`. Its type is that implementation's `Out`.
 3. r[expr.index.trait.read-ref] The read takes the address of the place `r`, as a `&self` call does by [`fn.method.auto-address`](07-functions.md#r-fn.method.auto-address). When `r` is a reference, the call passes it. Any other receiver is held in a new local that the call refers to. So a read neither copies nor moves `r`.
 4. r[expr.index.trait.write-ref] Assigning `r[k] = v` to such a receiver is the call `IndexSet::[K, V]::index_set(&mut r, k, v)`. The call takes the address of the place `r`, as a `&mut self` call does by [`fn.method.auto-address`](07-functions.md#r-fn.method.auto-address). When `r` is a `&mut` reference, the call passes it, so the store changes the value it refers to.

@@ -3,7 +3,7 @@
 struct Counter:
     count: i32
 
-fn keep[T](x: T) -> void:
+fn keep[T < ?Copy](x: T) -> void:
     pass
 
 fn demo(c: &mut Counter) -> void:

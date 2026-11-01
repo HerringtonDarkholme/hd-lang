@@ -1,0 +1,15 @@
+# test: a struct declared `impl !Copy` moves, so a use after the move is an error
+# Spec 13 Copy: ref.copy.opt-out, ref.copy.structure, ref.copy.moves.
+struct Photo:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Photo
+
+fn keep[T < ?Copy](photo: T) -> void:
+    pass
+
+pub fn main() -> void $ Console:
+    photo := Photo { width: 2, pixels: [] }
+    keep(photo)
+    println("${photo.width}") # diagnostic: use-of-moved-value

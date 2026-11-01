@@ -6,7 +6,7 @@ struct Counter:
 struct Holder['a]:
     target: &'a mut Counter
 
-fn keep[T](x: T) -> void:
+fn keep[T < ?Copy](x: T) -> void:
     pass
 
 fn after_generic(c: &mut Counter) -> void:

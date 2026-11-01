@@ -32,7 +32,7 @@ tests:
             reason="the associated return type projects through a reference",
         )
     it("mutable dispatch and a supertrait bound"):
-        let mut counter = Counter { value: 4 }
-        let value: &mut dyn Write = &mut counter
-        change(&mut *value)
+        counter := box(Counter { value: 4 })
+        let value: *mut dyn Write = counter
+        change(value)
         assert_equal(read(value), 5, reason="the same original place changed")

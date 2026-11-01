@@ -6,7 +6,7 @@ struct Counter:
 fn bump(c: &mut Counter) -> void:
     c.count += 1
 
-fn keep[T](x: T) -> void:
+fn keep[T < ?Copy](x: T) -> void:
     pass
 
 fn after_branch(c: &mut Counter, early: bool) -> void:

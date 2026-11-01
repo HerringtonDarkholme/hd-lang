@@ -1,0 +1,8 @@
+# test: a `?Copy` type parameter moves, so a body that uses it twice is an error
+# Spec 13 Copy: ref.copy.generic.relaxed.
+fn twice[T < ?Copy](x: T) -> (T, T):
+    (x, x) # diagnostic: use-of-moved-value
+
+pub fn main() -> void $ Console:
+    pair := twice(+1)
+    println("${pair._0}")

@@ -1,7 +1,7 @@
 struct User:
     name: string
 
-fn keep[T](value: T) -> T:
+fn keep[T < ?Copy](value: T) -> T:
     value
 
 fn rename(user: &mut User) -> void:

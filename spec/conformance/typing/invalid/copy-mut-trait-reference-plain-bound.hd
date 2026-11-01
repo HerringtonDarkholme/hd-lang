@@ -1,0 +1,21 @@
+# test: a `&mut dyn` value is not `Copy`, so it meets no bound on a trait whose `Self` is `Copy`
+# Spec 13 Copy: ref.copy.trait.default.
+trait Write:
+    fn bump(&mut self) -> void
+
+struct Counter:
+    value: i32
+
+impl Write for Counter:
+    fn bump(&mut self) -> void:
+        self.value += 1
+
+fn change[T < ?Copy & Write](value: T) -> void:
+    let mut target = value
+    target.bump()
+
+pub fn main() -> void $ Console:
+    let mut counter = Counter { value: 4 }
+    let value: &mut dyn Write = &mut counter
+    change(value) # diagnostic: unsatisfied-trait-bound
+    println("${counter.value}")

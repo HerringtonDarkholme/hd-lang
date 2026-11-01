@@ -3,7 +3,7 @@
 struct Counter:
     count: i32
 
-struct Wrap[T]:
+struct Wrap[T < ?Copy]:
     value: T
 
 fn after_field(c: &mut Counter) -> void:

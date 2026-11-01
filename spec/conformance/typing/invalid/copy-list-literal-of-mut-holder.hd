@@ -1,0 +1,13 @@
+# test: a list literal of values that hold a `&mut` is an error, so an element never duplicates
+# Spec 13 Copy: ref.copy.collections.
+struct Holder['a]:
+    target: &'a mut i32
+
+pub fn main() -> void $ Console:
+    let mut x = +1
+    hs := [Holder { target: &mut x }] # diagnostic: unsatisfied-trait-bound
+    a := hs[0]
+    b := hs[0]
+    *a.target = 2
+    *b.target = 3
+    println("ok")

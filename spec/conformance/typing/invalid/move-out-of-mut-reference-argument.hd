@@ -4,7 +4,7 @@ struct Holder['a]:
     target: &'a mut i32
     count: i32
 
-fn keep[T](x: T) -> void:
+fn keep[T < ?Copy](x: T) -> void:
     pass
 
 fn whole(r: &mut Holder) -> void:

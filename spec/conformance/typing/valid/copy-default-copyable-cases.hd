@@ -1,0 +1,33 @@
+# test: copyable values pass `Copy` parameters, fill collections, and implement plain traits
+# Spec 13 Copy: ref.copy.structure, ref.copy.generic.default, ref.copy.trait.default, ref.copy.collections.
+struct Point:
+    x: i32
+    y: i32
+
+struct Labeled[T]:
+    label: string
+    value: T
+
+trait Shown:
+    fn shown(&self) -> string
+
+impl Shown for Point:
+    fn shown(&self) -> string: "${self.x},${self.y}"
+
+fn dup[T](x: T) -> (T, T): (x, x)
+
+fn show_all[T < Shown](items: List[T]) -> string:
+    let out = ""
+    for item in items:
+        out = out + item.shown()
+    out
+
+pub fn main() -> void $ Console:
+    p := Point { x: 1, y: 2 }
+    pair := dup(p)
+    points := [p, pair._1]
+    labeled := Labeled { label: "origin", value: p }
+    names := {"a": labeled}
+    view := &p
+    views := dup(view)
+    println("${show_all(points)} ${names.len()} ${views._0.x}")
