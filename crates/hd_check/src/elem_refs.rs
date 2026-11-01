@@ -352,7 +352,7 @@ impl Ck<'_, '_> {
         self.elem_ok.insert(strip_parens(e).index(), how);
     }
 
-    /// `ref.check.not-yet-non-list-elements`: a reference to an index result that is
+    /// `ref.check.not-yet-index`: a reference to an index result that is
     /// no list element, such as a slice or a user `Index` call.
     fn not_yet_index(&mut self, e: NodeRef<'_>) {
         self.err(

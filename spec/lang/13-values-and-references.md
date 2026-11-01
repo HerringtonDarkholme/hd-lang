@@ -172,6 +172,7 @@ fn demo() -> i32:
 10. r[ref.place.alias] Two references to one place, or two copies of one reference, see each other's writes.
 11. r[ref.place.receiver.local] A call of a `&self` or `&mut self` method on a place takes a local reference to it, as `&` and `&mut` would.
 12. r[ref.place.receiver.counted] A call of a `*self` or `*mut self` method on a place is an error, as [`fn.method.counted-self.place`](07-functions.md#r-fn.method.counted-self.place) states. [Reference Receivers](07-functions.md#reference-receivers) states the rules of both calls.
+13. r[ref.place.tuple-element] A tuple element of a place is a place for `&`, as a struct field is: `&pair._0` refers to the element inside `pair`. The rules this chapter states for a field reference apply to it.
 
 ```text
 struct Point:
@@ -819,6 +820,7 @@ fn birthday(u: &mut User, t: &mut Team) -> void $ Console:
 11. r[ref.result.path.trait] A trait's method names the whole `self`, so its signature writes no result path. An implementation's method of a trait writes none either, since a bound or `&dyn` caller sees only the trait. Error: `trait-method-signature`.
 12. r[ref.result.path.caller] A call's result in a result path's position holds only that part of the place its argument was taken from: the place followed by the path's fields ([`ref.excl.call`](#r-ref.excl.call)). For `u.first()` the result holds `u.name`, and for `t.lead.first()` it holds `t.lead.name`. A `&mut` result holds its part as `&mut`.
 13. r[ref.result.path.caller.whole] The result holds the whole place, as without a path, when the parameter's lifetime is also on a result reference that names no path of it, or on another parameter. When several result references name paths of one parameter, the result holds the fields those paths share.
+14. r[ref.result.path.tuple-element] A step may name an element of the tuple the previous step reaches, as in `-> &'t._1 string` with `t: &(i32, string)`.
 
 > **Why.** A signature that says which field a result points into lets a
 > caller lock only that field, as a written `&u.name` does. Private fields stay out of public signatures,
@@ -1950,11 +1952,14 @@ See also: [Writes While Borrowed](#writes-while-borrowed).
 
 ## Not Yet Checked
 
-1. r[ref.check.not-yet-tuple-and-index] Two forms are errors until later jobs define them. One is a reference to a tuple element, as in `&pair._0`. The other is a reference to an index result that is neither a list element nor a map value, such as a slice `&xs[1..3]` or a user `Index` call. Error: `references-not-yet-checked`.
+1. r[ref.check.not-yet-index] A reference to an index result that is neither a list element nor a map value is an error until a later job defines it. A slice `&xs[1..3]` and a user `Index` call are such results. Error: `references-not-yet-checked`.
 2. r[ref.check.formatter] `hd fmt` formats a file that writes references. It keeps each reference token as written, `&mut` and `*mut` included, and a second run changes nothing.
+3. r[ref.check.not-yet-tuple-mut] A `&mut` reference to a tuple element, as in `&mut pair._0`, is an error until a later job defines it. Error: `references-not-yet-checked`.
 
 ```text
-fn element(items: List[i32], pair: (i32, i32)) -> void:
+fn element(items: List[i32]) -> void:
+    let mut pair = (1, 2)
     part := &items[0..1]  # error: references-not-yet-checked
-    left := &pair._0  # error: references-not-yet-checked
+    left := &mut pair._0  # error: references-not-yet-checked
+    right := &pair._1     # valid: a place, as a field is
 ```

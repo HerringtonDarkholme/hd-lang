@@ -1,0 +1,9 @@
+# test: a reference to a tuple element moved out of its binding is use-of-moved-value
+# Spec 13 Moves: ref.place.tuple-element, ref.move.field, ref.move.use.partial.
+fn demo(x: &mut i32) -> i32:
+    let pair = (x, +2)
+    target := pair._0
+    *target = 5
+    count := &pair._1
+    again := &pair._0 # diagnostic: use-of-moved-value
+    *count

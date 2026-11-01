@@ -54,7 +54,7 @@ calls through a callable value that accepts a store:
 3. r[expr.place.receiver] The receiver of a field or index place may be any expression of a writable reference type, `*mut T` or `&mut T`, including a call that returns a `*mut T`.
 4. r[expr.place.call-update] A call is a place only when its callee's type implements `Update`, as [Callable Values](#callable-values) defines.
 5. r[expr.place.value-forms] `:=` bindings, literals, other calls, arithmetic, and temporary values are not places.
-6. r[expr.place.tuple-element] A tuple element selection such as `pair._0` is not a place: tuples are immutable, and a changed tuple is built as a new tuple value.
+6. r[expr.place.tuple-element] A tuple element selection such as `pair._0` is not a writable place: tuples are immutable, and a changed tuple is built as a new tuple value. `&pair._0` still refers to the element, as [`ref.place.tuple-element`](13-values-and-references.md#r-ref.place.tuple-element) states.
 7. r[expr.place.enum-shared-field] A shared enum field such as `status.phrase` is not a place: enum values never change once built.
 8. r[expr.place.struct-field] A field of a struct value is a place when the struct is in a writable place, as [Writable Places](04-type-system.md#writable-places) defines.
 9. r[expr.place.deref] `*r` with a writable reference `r`, `*mut` or `&mut`, is a place, and so is a field read through one, such as `r.x`, as [Writing Through A Reference](13-values-and-references.md#writing-through-a-reference) defines.

@@ -1,0 +1,15 @@
+# test: a result path may name a tuple element as a step, and the callee returns a reference into it
+# Spec 13 Result Paths: ref.result.path.tuple-element.
+struct User:
+    name: string
+
+fn label(entry: &(i32, string)) -> &'entry._1 string:
+    &entry._1
+
+fn name_of(entry: &(i32, User)) -> &'entry._1.name string:
+    &entry._1.name
+
+fn demo() -> usize:
+    entry := (+1, User { name: "Ada" })
+    pair := (+2, "two")
+    name_of(&entry).len() + label(&pair).len()

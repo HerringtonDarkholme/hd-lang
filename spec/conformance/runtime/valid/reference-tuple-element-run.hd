@@ -1,0 +1,40 @@
+# test: references to tuple elements read the element where the tuple is, nested, through a reference and in a comparator
+# Spec 13 Places And New Objects: ref.place.tuple-element.
+# expect-stdout: 3 three
+# expect-stdout: 3 3
+# expect-stdout: 2
+# expect-stdout: true false
+# expect-stdout: 1:b 2:a 3:c
+use std.cmp.Ordering
+
+struct User:
+    name: string
+
+fn count(text: &string) -> usize:
+    text.len()
+
+fn through(entry: &(i32, User)) -> usize:
+    count(&entry._1.name)
+
+fn by_ref(a: &i32, b: &i32) -> Ordering:
+    (*a).cmp(*b)
+
+fn by_key(a: (i32, string), b: (i32, string)) -> Ordering:
+    by_ref(&a._0, &b._0)
+
+fn same_key(a: (i32, string), b: (i32, string)) -> bool:
+    a._0.eq(&b._0)
+
+pub fn main() -> void $ Console:
+    pair := (+3, "three")
+    left := &pair._0
+    word := &pair._1
+    println("${*left} ${*word}")
+    entry := (+1, User { name: "Ada" })
+    println("${count(&entry._1.name)} ${through(&entry)}")
+    let mut nested = ((+1, +2), +3)
+    inner := &nested._0._1
+    println("${*inner}")
+    println("${same_key((+1, "a"), (+1, "b"))} ${same_key((+1, "a"), (+2, "a"))}")
+    sorted := [(+2, "a"), (+3, "c"), (+1, "b")].sorted_by(by_key)
+    println(sorted.map(fn(e: (i32, string)) -> string: "${e._0}:${e._1}").join(" "))

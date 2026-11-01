@@ -1949,6 +1949,10 @@ impl Ck<'_, '_> {
                 format!("`{shown}` has no field `{field}`"),
             )
         };
+        // A tuple element is a step as a field is (`ref.place.tuple-element`).
+        if let Some(elem) = self.tuple_elem_of(t, field) {
+            return Ok(elem);
+        }
         let (def, fs) = self.data_decl(t).ok_or_else(no_field)?;
         let j = fs
             .iter()

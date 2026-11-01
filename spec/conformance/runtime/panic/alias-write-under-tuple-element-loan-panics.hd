@@ -1,0 +1,15 @@
+# test: replacing a boxed tuple through an unseen `*mut` alias while a `&` binding borrows its element panics with borrow-conflict
+# Spec 13 Conflicts Through Aliases: ref.place.tuple-element, ref.excl.alias.loan, ref.excl.alias.conflict.
+struct Team:
+    lead: *mut (string, i32)
+
+fn rename(t: &Team, alias: *mut (string, i32)) -> string:
+    n := &t.lead._0
+    *alias = ("b", +2) # panic: borrow-conflict
+    *n
+
+tests:
+    it("a replacement of a borrowed tuple through an alias panics"):
+        t := Team { lead: box(("a", +1)) }
+        alias := t.lead
+        _ := rename(&t, alias)

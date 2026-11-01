@@ -539,7 +539,7 @@ struct PostId:
 
 A tuple is an immutable value without identity, so it implements `AnyVal`,
 as [`types.sealed.anyval-members`](#r-types.sealed.anyval-members) states. No
-element of it is a place, as
+element of it is a writable place, as
 [`expr.place.tuple-element`](05-expressions.md#r-expr.place.tuple-element)
 states.
 

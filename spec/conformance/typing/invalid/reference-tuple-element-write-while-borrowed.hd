@@ -1,0 +1,7 @@
+# test: replacing a tuple while a reference to its element is live is conflicting-access
+# Spec 13 Writes While Borrowed: ref.place.tuple-element, ref.excl.shared.
+fn demo() -> i32:
+    let mut pair = (+1, +2)
+    left := &pair._0
+    pair = (+3, +4) # diagnostic: conflicting-access
+    *left

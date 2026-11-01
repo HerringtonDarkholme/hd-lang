@@ -1,0 +1,4 @@
+# test: a result path through a tuple element rejects a value that may point elsewhere in the parameter
+# Spec 13 Result Paths: ref.result.path.tuple-element, ref.result.path.callee.
+fn label(entry: &(string, string)) -> &'entry._1 string:
+    &entry._0 # diagnostic: local-reference-escapes

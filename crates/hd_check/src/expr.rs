@@ -1788,6 +1788,23 @@ impl Ck<'_, '_> {
         Some((u32::try_from(i).ok()?, ft))
     }
 
+    /// A tuple element by name, `_k`, the rest list included: its index
+    /// and type (`types.tuple.rest.value`).
+    pub(crate) fn tuple_elem_of(&self, t: Ty, name: &str) -> Option<(u32, Ty)> {
+        let pool = self.pool();
+        let t = self.strip_mut(self.infer.resolve(pool, t));
+        let TyData::Tuple { elems, rest } = pool.get(t) else {
+            return None;
+        };
+        let i = name.strip_prefix('_')?.parse::<usize>().ok()?;
+        let items = pool.list_items(elems);
+        let et = items
+            .get(i)
+            .copied()
+            .or_else(|| rest.filter(|_| i == items.len()))?;
+        Some((u32::try_from(i).ok()?, et))
+    }
+
     /// Whether `name` selects a tuple element (rest list included) or a
     /// shared enum parameter of `t`: a member that reads but is no place.
     pub(crate) fn is_read_only_member(&self, t: Ty, name: &str) -> bool {

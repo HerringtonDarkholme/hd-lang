@@ -1,0 +1,22 @@
+# test: a tuple element of a place is a place for `&`, read directly, through a reference, and nested
+# Spec 13 Places And New Objects: ref.place.tuple-element.
+struct User:
+    name: string
+    age: i32
+
+fn count(text: &string) -> usize:
+    text.len()
+
+fn first(n: &i32) -> i32:
+    *n
+
+fn through(entry: &(i32, User)) -> usize:
+    count(&entry._1.name)
+
+fn demo() -> usize:
+    pair := (+3, "three")
+    left := &pair._0
+    entry := (+1, User { name: "Ada", age: +36 })
+    let mut nested = ((+1, +2), +3)
+    inner := &nested._0._1
+    usize(first(left) + *inner) + count(&entry._1.name) + through(&entry)
