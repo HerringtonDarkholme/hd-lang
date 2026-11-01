@@ -1,7 +1,6 @@
 # Standard Library For References
 
-Status: proposal, 2026-11-01; domain: std and the `for` loop; not
-accepted. It builds on [Non-Copyable Types](NON_COPYABLE.md), ch. 13's
+Status: accepted 2026-11-01; domain: std and the `for` loop; not built. It builds on [Non-Copyable Types](NON_COPYABLE.md), ch. 13's
 [Local References](../../spec/lang/13-values-and-references.md#local-references)
 and [Element References](../../spec/lang/13-values-and-references.md#element-references),
 and argument promotion (#1151). Signatures and examples:
@@ -32,18 +31,18 @@ fn count_of(counts: &Map[string, usize], word: string) -> usize:
     counts.get(word).copied().unwrap_or(0)  # get gives (&usize)?
 ```
 
-## Open Questions
+## Language Rules
 
-Language-level only. The std shape below proposes one choice per API.
+The std shape below needs these rules of the language:
 
-1. Operators read through a local `&T` (`total += x`, `x > 1`, `name == "ada"`), and `==` of two `&T` compares values, as in Rust? Recommended: yes.
-2. `Index.index(&self, key) -> &Self::Out`, so `c[k]` is a place for every `Index` type, as in Rust? Recommended: yes.
-3. `for (k, v) in m` binds `(&K, &V)`, and `for (k, v) in &mut m` binds `(&K, &mut V)` instead of `map-value-not-addressable`? Recommended: yes.
-4. `for p in &mut xs` uses `xs` only through `p`, as in Rust, instead of also allowing reads and other element writes? Recommended: yes, one loan rule for both loops.
-5. Three body-only intrinsics, `std.ops.swap`, `list_swap` and `list_take_last`? Recommended: yes; every other mover is plain hd over them.
-6. Lift [`ref.copy.collections`](../../spec/lang/13-values-and-references.md#r-ref.copy.collections) after slice 7 (movers), without waiting for a program? Recommended: yes.
-7. Flip the generic default to move-only (`[T < Copy]` to copy)? Recommended: yes, after slice 8 and a re-measure (new evidence: 153 bounds, not 633, and about 36 after this redesign).
-8. Implied bounds, where `List[T]` in a signature implies `T < Copy`? Recommended: no; those sites borrow after slices 2 and 4.
+1. Operators read through a `&T` operand (`total += x`, `x > 1`, `name == "ada"`), and `==` of two `&T` compares values, as in Rust; identity stays `is`.
+2. `Index.index(&self, key) -> &Self::Out`, so `c[k]` is a place for every `Index` type: reading it copies, `&c[k]` borrows.
+3. `for (k, v) in m` binds `(&K, &V)`, and `for (k, v) in &mut m` binds `(&K, &mut V)`; a key is never `&mut`.
+4. Inside `for p in &mut xs`, `xs` is reachable only through `p`, the same loan rule as the shared loop.
+5. Three body-only intrinsics move values: `std.ops.swap`, `list_swap` and `list_take_last`. Every other mover is plain hd over them.
+6. [`ref.copy.collections`](../../spec/lang/13-values-and-references.md#r-ref.copy.collections) is lifted after slice 7 (movers): one `List`, `Map`, `Set`, `Deque` and `Heap` hold any `T`.
+7. The generic default becomes move-only (`[T < Copy]` to copy), as the last slice, after a re-measure (153 std bounds today, about 36 after this redesign; 0 in examples, bench and the server SDK). `?Copy` then goes away.
+8. No implied bounds: `List[T]` in a signature implies nothing about `T`.
 
 ## Problems It Solves
 
@@ -177,7 +176,7 @@ compiler can say; "proposed" rows are reasoned from the rules above.
 | 9 | `xs.contains(&name)` from Rust habit | `type-mismatch`: expected `string`, found `&string` | the message says the value goes by value; no fix-it while reference fix-its wait |
 | 10 | `opt.map(fn(l: &Line) -> &string: &l.sku)` | today `type-mismatch` (p10): a closure result cannot hold a reference into its argument | **gap**: write a `match`; closure result lifetimes are ch. 07 work |
 | 11 | `filter` on an owning iterator of `!Copy` items | `unsatisfied-trait-bound`: the item is copied to test it | `retain` in place, or borrow first: `conns.iter().filter(...)` |
-| 12 | `for line in &lines: lines[0].done = false` | valid today (element loops allow element writes, p10) | `conflicting-access` under rule 2; question 4 asks the same for `&mut` |
+| 12 | `for line in &lines: lines[0].done = false` | valid today (element loops allow element writes, p10) | `conflicting-access` under rule 2; language rule 4 does the same for `&mut` |
 | 13 | Rust `let first = v[0].clone()` on a `!Copy` item | `move-out-of-place` | `&v[0]`, or a mover; there is no `clone` |
 
 Four translations. The first two check today as written (`hd check`);
@@ -369,7 +368,7 @@ hand:
 | `Deque.front`, `back`, `get`; `Heap.peek` | `-> T?` | `-> (&T)?` | `front()`, `peek()` |
 | `Deque.pop_front`, `pop_back`; `Heap.push`, `pop` | copy, `.None` store | move: `Option.take`, `list_swap` | same |
 | `Set.contains`, `insert`, `remove`, `iter` | `self` | `&self`; elements `Copy`; `iter` borrows | `HashSet` |
-| `ListView`, `Span`, `SpanMut` | `len(self)`, `view[i]` copies | `&self`; `[i]` a place by question 2 | `&[T]` |
+| `ListView`, `Span`, `SpanMut` | `len(self)`, `view[i]` copies | `&self`; `[i]` a place by language rule 2 | `&[T]` |
 | `SpanMut.swap`, `fill` | copies | `swap` moves; `fill` keeps `T < Copy` | `swap`, `fill(T: Clone)` |
 | `Option.as_ref`, `as_mut`, `take`; `(&T)?.copied` | none | new | same names |
 | `Option.map`, `and_then`, `unwrap_or`, `expect`; `Result` alike | `self` | unchanged | same |
@@ -406,17 +405,17 @@ hand:
    examples pass, with the package's callback shapes.
 2. Accessors return references, with `Option.as_ref`, `as_mut` and
    `copied`. Check: a counts case shows no copy for `lines.get(0)`.
-3. Operator reads through `&` (question 1), before loops bind `&T`.
+3. Operator reads through `&` (language rule 1), before loops bind `&T`.
 4. The borrowing loop and comprehensions; borrowing `iter()` cursors.
    Check: fixtures for rules 1-5, both build profiles.
-5. Map loops (question 3) and the `&mut` loop rule (question 4).
+5. Map loops (language rule 3) and the `&mut` loop rule (language rule 4).
 6. `walk(&self)`, walkers and derive templates; read traits `< ?Copy`.
    Check: `@derive(Debug, Serialize, Eq)` on a `!Copy` struct checks.
 7. Movers: the three intrinsics, `replace`, `take`, and hd movers over
    them. Check: a counts case shows no retain or release in `pop`.
-8. Lift `ref.copy.collections` (question 6); `Index` returns a reference
-   (question 2).
-9. Separately, by owner decision: the generic default flip (question 7),
+8. Lift `ref.copy.collections` (language rule 6); `Index` returns a reference
+   (language rule 2).
+9. The generic default flip (language rule 7),
    after re-running the measurement branch.
 
 **Parse log.** Every `text` block above was parsed with
