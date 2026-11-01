@@ -7,7 +7,7 @@ struct ScalarPayload:
     value: i32
 
 impl Serialize for ScalarPayload:
-    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         self.value.serialize(out)
 
 @derive(Serialize)

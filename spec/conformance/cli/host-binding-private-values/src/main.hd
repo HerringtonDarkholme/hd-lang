@@ -12,7 +12,7 @@ pub struct Token:
     hidden: string
 
 impl Serialize for Token:
-    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         out.text("custom:${self.hidden}")
 
 impl Deserialize for Token:

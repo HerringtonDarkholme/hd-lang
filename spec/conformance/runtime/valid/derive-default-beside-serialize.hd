@@ -8,7 +8,7 @@ struct Secret:
     value: i32
 
 impl Serialize for Secret:
-    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         self.value.serialize(out)
 
 @derive(Default, Serialize)

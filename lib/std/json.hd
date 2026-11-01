@@ -1335,8 +1335,8 @@ pub fn decode[T < Deserialize](text: string) -> Result[T, JsonError]:
 # `Json` writes and reads itself (r-std-json.std.json).
 # Keep handwritten Serialize: write the JSON value itself, not an externally tagged enum.
 impl Serialize for Json:
-    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
-        match self:
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        match *self:
             .Null => out.null()
             .Bool(flag) => out.bool(flag)
             .Number(number) =>

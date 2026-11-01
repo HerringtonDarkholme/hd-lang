@@ -10,7 +10,7 @@ use std.ops.Default
 struct NeverRead: pass
 
 impl Serialize for NeverRead:
-    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         panic("skipped serialize must not be called")
 
 impl Deserialize for NeverRead:

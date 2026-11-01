@@ -2015,7 +2015,7 @@ protocol they drive:
 
 ```text
 pub trait Serialize:
-    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]
     fn is_absent(&self) -> bool:
         false
 

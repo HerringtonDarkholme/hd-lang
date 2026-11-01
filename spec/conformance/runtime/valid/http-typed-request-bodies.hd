@@ -36,7 +36,7 @@ struct Once:
     calls: *mut List[usize]
 
 impl Serialize for Once:
-    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         self.calls.push(1)
         out.text("once")
 

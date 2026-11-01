@@ -170,7 +170,7 @@ pub fn main() -> void $ Console:
 #[test]
 fn a_custom_serializer_keeps_the_tree_fallback() {
     let functions = emitted_functions(
-        "use std.json.encode\nuse std.serde.{Serialize, Serializer}\n\nstruct Odd:\n    value: i64\n\nimpl Serialize for Odd:\n    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:\n        out.int(self.value)?\n        out.int(self.value + 1)\n\npub fn main() -> void $ Console:\n    println(encode(Odd { value: 1 }))\n",
+        "use std.json.encode\nuse std.serde.{Serialize, Serializer}\n\nstruct Odd:\n    value: i64\n\nimpl Serialize for Odd:\n    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:\n        out.int(self.value)?\n        out.int(self.value + 1)\n\npub fn main() -> void $ Console:\n    println(encode(Odd { value: 1 }))\n",
     );
     assert!(
         has_tree_fallback(&functions),

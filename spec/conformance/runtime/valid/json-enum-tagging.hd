@@ -79,7 +79,7 @@ struct HandwrittenPayload:
     value: i32
 
 impl Serialize for HandwrittenPayload:
-    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         out.begin_map(1)?
         out.key("value")?
         self.value.serialize(out)?

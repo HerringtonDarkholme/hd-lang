@@ -16,7 +16,7 @@ struct Language:
     code: string
 
 impl MapKey for Language:
-    fn to_key(self) -> MapKeyValue:
+    fn to_key(&self) -> MapKeyValue:
         MapKeyValue.Text(self.code)
 
     fn from_key(value: MapKeyValue) -> Language?:

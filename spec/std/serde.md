@@ -217,7 +217,7 @@ struct Language:
     code: string
 
 impl MapKey for Language:
-    fn to_key(self) -> MapKeyValue: MapKeyValue.Text(self.code)
+    fn to_key(&self) -> MapKeyValue: MapKeyValue.Text(self.code)
     fn from_key(value: MapKeyValue) -> Language?:
         match value:
             .Text(code) => .Some(Language { code: code })
@@ -225,7 +225,7 @@ impl MapKey for Language:
 ```
 
 1. r[std-serde.map-key.value] `MapKeyValue` is the public enum `Bool(bool)`, `Int(i64)`, `Uint(u64)`, and `Text(string)`.
-2. r[std-serde.map-key.trait] `MapKey` declares `to_key(self) -> MapKeyValue` and `from_key(value: MapKeyValue) -> Self?`.
+2. r[std-serde.map-key.trait] `MapKey` declares `to_key(&self) -> MapKeyValue` and `from_key(value: MapKeyValue) -> Self?`.
 3. r[std-serde.map-key.format-neutral] A serializer receives the scalar from `to_key`, and a deserializer gives `from_key` the scalar it read.
 4. r[std-serde.map-key.writer-default] `Serializer.map_key` defaults to `key` with the scalar's canonical text.
 5. r[std-serde.map-key.reader-default] `Deserializer.next_map_key` defaults to wrapping `next_key`'s text in `MapKeyValue.Text`.

@@ -18,7 +18,7 @@ struct Pair:
     label: string
 
 impl Serialize for Pair:
-    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         out.begin_list(2)?
         self.count.serialize(out)?
         self.label.serialize(out)?
