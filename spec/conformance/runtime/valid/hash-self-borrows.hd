@@ -1,0 +1,34 @@
+# test: `Hash.hash` takes `&self`, so a call on a place lends that place and hashes no copy
+# Spec 09 Hashing: trait.hash.self-ref.
+# expect-stdout: 1
+use std.hash.Hasher
+
+struct Node:
+    me: *mut Node?
+
+# Writes 1 when the receiver is the place `me` refers to, and 0 for a copy.
+impl Hash for Node:
+    fn hash(&self, state: &mut dyn Hasher) -> void:
+        let byte: u8 = 0
+        match self.me:
+            .Some(place) =>
+                if self is place:
+                    byte = 1
+            .None => pass
+        state.write_u8(byte)
+
+# Keeps the last byte written.
+struct Last:
+    byte: u8
+
+impl Hasher for Last:
+    fn write(&mut self, bytes: List[u8]) -> void:
+        for b in bytes:
+            self.byte = b
+
+pub fn main() -> void $ Console:
+    node := box(Node { me: .None })
+    node.me = .Some(node)
+    let mut last = Last { byte: 9 }
+    (*node).hash(&mut last)
+    println(last.byte)

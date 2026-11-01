@@ -129,7 +129,7 @@ impl Eq for ByteKey:
         self.padding == other.padding
 
 impl Hash for ByteKey:
-    fn hash(self, state: &mut dyn Hasher) -> void:
+    fn hash(&self, state: &mut dyn Hasher) -> void:
         for _index in 0..self.padding:
             state.write([23])
         if self.typed:

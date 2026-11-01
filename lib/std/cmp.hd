@@ -509,7 +509,7 @@ impl[T] Eq for Id[T]:
 
 # Keep handwritten Hash: hash the reference identity instead of its referent.
 impl[T] Hash for Id[T]:
-    fn hash(self, state: &mut dyn Hasher) -> void:
+    fn hash(&self, state: &mut dyn Hasher) -> void:
         identity_of(self.target).hash(state)
 
 # The place a reference refers to, as `is` compares it: the data object
@@ -530,7 +530,7 @@ impl Eq for RefIdentity:
 # their field path.
 # Keep handwritten Hash: hash only the serial and field path; the base is an identity reference.
 impl Hash for RefIdentity:
-    fn hash(self, state: &mut dyn Hasher) -> void:
+    fn hash(&self, state: &mut dyn Hasher) -> void:
         self.serial.hash(state)
         self.key.hash(state)
 
@@ -548,75 +548,75 @@ pub struct DeepVisits:
 ## Values that `deep_equal` compares member by member, through references, ending on cycles; `@derive(DeepEq)` writes it.
 ## See [std-cmp.deep-equal.trait-ref](../../spec/std/cmp.md#r-std-cmp.deep-equal.trait-ref).
 pub trait DeepEq:
-    fn deep_eq(self, other: Self, visits: &mut DeepVisits) -> bool
+    fn deep_eq(&self, other: &Self, visits: &mut DeepVisits) -> bool
 
 ## Whether `left` and `right` are equal member by member, through references; a pair of references met again while comparing counts as equal, so a comparison of cyclic structures ends.
 ## See [std-cmp.deep-equal.decl](../../spec/std/cmp.md#r-std-cmp.deep-equal.decl).
 pub fn deep_equal[T < DeepEq](left: T, right: T) -> bool:
     let mut visits = DeepVisits { pairs: {} }
-    left.deep_eq(right, &mut visits)
+    left.deep_eq(&right, &mut visits)
 
 # Values with no references compare by `Eq` (r-std-cmp.deep-equal.leaves).
 impl[N < Num] DeepEq for N:
-    fn deep_eq(self, other: N, visits: &mut DeepVisits) -> bool:
-        self == other
+    fn deep_eq(&self, other: &N, visits: &mut DeepVisits) -> bool:
+        *self == *other
 
 impl DeepEq for char:
-    fn deep_eq(self, other: char, visits: &mut DeepVisits) -> bool:
-        self == other
+    fn deep_eq(&self, other: &char, visits: &mut DeepVisits) -> bool:
+        *self == *other
 
 impl DeepEq for bool:
-    fn deep_eq(self, other: bool, visits: &mut DeepVisits) -> bool:
-        self == other
+    fn deep_eq(&self, other: &bool, visits: &mut DeepVisits) -> bool:
+        *self == *other
 
 impl DeepEq for string:
-    fn deep_eq(self, other: string, visits: &mut DeepVisits) -> bool:
-        self == other
+    fn deep_eq(&self, other: &string, visits: &mut DeepVisits) -> bool:
+        *self == *other
 
 impl[T < DeepEq] DeepEq for T?:
-    fn deep_eq(self, other: T?, visits: &mut DeepVisits) -> bool:
-        match self:
+    fn deep_eq(&self, other: &Self, visits: &mut DeepVisits) -> bool:
+        match *self:
             .Some(left) =>
-                match other:
-                    .Some(right) => left.deep_eq(right, visits)
+                match *other:
+                    .Some(right) => left.deep_eq(&right, visits)
                     .None => false
             .None =>
-                match other:
+                match *other:
                     .Some(_) => false
                     .None => true
 
 impl[T < DeepEq, E < DeepEq] DeepEq for Result[T, E]:
-    fn deep_eq(self, other: Result[T, E], visits: &mut DeepVisits) -> bool:
-        match self:
+    fn deep_eq(&self, other: &Result[T, E], visits: &mut DeepVisits) -> bool:
+        match *self:
             .Ok(left) =>
-                match other:
-                    .Ok(right) => left.deep_eq(right, visits)
+                match *other:
+                    .Ok(right) => left.deep_eq(&right, visits)
                     .Err(_) => false
             .Err(left) =>
-                match other:
+                match *other:
                     .Ok(_) => false
-                    .Err(right) => left.deep_eq(right, visits)
+                    .Err(right) => left.deep_eq(&right, visits)
 
 impl[T < DeepEq] DeepEq for List[T]:
-    fn deep_eq(self, other: List[T], visits: &mut DeepVisits) -> bool:
+    fn deep_eq(&self, other: &List[T], visits: &mut DeepVisits) -> bool:
         if self.len() != other.len():
             return false
         let index: usize = 0
         while index < self.len():
-            if !self[index].deep_eq(other[index], visits):
+            if !self[index].deep_eq(&other[index], visits):
                 return false
             index = index + 1
         true
 
 # Keys match by `Eq`, as a map finds them; values compare deeply.
 impl[K < Eq & Hash, V < DeepEq] DeepEq for Map[K, V]:
-    fn deep_eq(self, other: Map[K, V], visits: &mut DeepVisits) -> bool:
+    fn deep_eq(&self, other: &Map[K, V], visits: &mut DeepVisits) -> bool:
         if self.len() != other.len():
             return false
         for (key, value) in self:
             match other.get(key):
                 .Some(found) =>
-                    if !value.deep_eq(found, visits):
+                    if !value.deep_eq(&found, visits):
                         return false
                 .None => return false
         true
@@ -625,40 +625,40 @@ impl[K < Eq & Hash, V < DeepEq] DeepEq for Map[K, V]:
 # pair is already being compared, or when the values they refer to are
 # (r-std-cmp.deep-equal.references).
 impl[T < DeepEq] DeepEq for *T:
-    fn deep_eq(self, other: *T, visits: &mut DeepVisits) -> bool:
-        if self is other:
+    fn deep_eq(&self, other: &Self, visits: &mut DeepVisits) -> bool:
+        if *self is *other:
             return true
-        pair := (identity_of(self), identity_of(other))
+        pair := (identity_of(*self), identity_of(*other))
         match visits.pairs.get(pair):
             .Some(_) => return true
             .None => pass
         visits.pairs[pair] = true
-        (*self).deep_eq(*other, visits)
+        (*(*self)).deep_eq(&*(*other), visits)
 
 impl[T < DeepEq] DeepEq for *mut T:
-    fn deep_eq(self, other: *mut T, visits: &mut DeepVisits) -> bool:
-        if self is other:
+    fn deep_eq(&self, other: &Self, visits: &mut DeepVisits) -> bool:
+        if *self is *other:
             return true
-        pair := (identity_of(self), identity_of(other))
+        pair := (identity_of(*self), identity_of(*other))
         match visits.pairs.get(pair):
             .Some(_) => return true
             .None => pass
         visits.pairs[pair] = true
-        (*self).deep_eq(*other, visits)
+        (*(*self)).deep_eq(&*(*other), visits)
 
 # Derived `DeepEq` (r-std-cmp.deep-equal.derive): the same variant, and
 # every member deeply equal, in declaration order.
 impl[T] DeepEq for T by Structure:
-    fn deep_eq(self, other: T, visits: *mut DeepVisits) -> bool:
-        let mut w = DeepEqualWalker::[T] { other: other, visits: visits }
-        match Structure::walk(self, &mut w):
+    fn deep_eq(&self, other: &T, visits: *mut DeepVisits) -> bool:
+        let mut w = DeepEqualWalker::[T] { other: *other, visits: visits }
+        match Structure::walk(*self, &mut w):
             .Ok(_) => true
             .Err(_) => false
 
 impl[T < Tuple] DeepEq for T by Structure:
-    fn deep_eq(self, other: T, visits: *mut DeepVisits) -> bool:
-        let mut w = DeepEqualWalker::[T] { other: other, visits: visits }
-        match Structure::walk(self, &mut w):
+    fn deep_eq(&self, other: &T, visits: *mut DeepVisits) -> bool:
+        let mut w = DeepEqualWalker::[T] { other: *other, visits: visits }
+        match Structure::walk(*self, &mut w):
             .Ok(_) => true
             .Err(_) => false
 
@@ -680,6 +680,6 @@ impl[S] Walker[S] for DeepEqualWalker[S]:
         self.member(h, items)
 
     fn member[F < DeepEq](&mut self, h: Field[S, F], value: F) -> Result[void, bool]:
-        if value.deep_eq(h.get(self.other), self.visits):
+        if value.deep_eq(&h.get(self.other), self.visits):
             return .Ok(())
         .Err(false)

@@ -215,7 +215,7 @@ fn same_ring(a: &mut Node, b: &mut Node) -> bool:
 ```
 
 1. r[std-cmp.deep-equal.decl] `std.cmp` declares `pub fn deep_equal[T < DeepEq](left: T, right: T) -> bool`. Code imports it, as in `use std.cmp.{DeepEq, deep_equal}`.
-2. r[std-cmp.deep-equal.trait-ref] `std.cmp` declares `pub trait DeepEq` with the one method `fn deep_eq(self, other: Self, visits: &mut DeepVisits) -> bool`.
+2. r[std-cmp.deep-equal.trait-ref] `std.cmp` declares `pub trait DeepEq` with the one method `fn deep_eq(&self, other: &Self, visits: &mut DeepVisits) -> bool`.
 3. r[std-cmp.deep-equal.visits-ref] `std.cmp` declares `pub struct DeepVisits` with private fields. It holds the pairs of references that one `deep_equal` call is comparing. `deep_equal` starts with none and passes the one record to every `deep_eq` of the call as `&mut DeepVisits`, so a pair remembered at any depth is seen at every other.
 4. r[std-cmp.deep-equal.template] `std.cmp` declares the template of `DeepEq`, which `@derive(DeepEq)` instantiates, and a tuple template.
 5. r[std-cmp.deep-equal.derive] A derived `DeepEq` compares the variant, then every member in declaration order by its `DeepEq`, as a derived `Eq` does.
