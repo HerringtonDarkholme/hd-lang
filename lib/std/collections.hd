@@ -277,9 +277,7 @@ impl[T] List[T]:
             keyed.push((key(item), index))
             index = index + 1
         order := keyed.sorted_by(
-            fn(left: (K, usize), right: (K, usize)) -> Ordering:
-                key := right._0
-                left._0.cmp(&key)
+            fn(left: (K, usize), right: (K, usize)) -> Ordering: left._0.cmp(&right._0)
             ,
         )
         let mut sorted: List[T] = []
@@ -560,12 +558,7 @@ impl[K < Eq & Hash] Map[K, usize]:
     ## See [std-collections.map.most-common](../../spec/std/collections.md#r-std-collections.map.most-common).
     pub fn most_common(self, n: usize) -> List[(K, usize)]:
         self.entries()
-            .sorted_by(
-                fn(left: (K, usize), right: (K, usize)) -> Ordering:
-                    count := left._1
-                    right._1.cmp(&count)
-                ,
-            )
+            .sorted_by(fn(left: (K, usize), right: (K, usize)) -> Ordering: right._1.cmp(&left._1))
             .take(n)
 
 # A read-only window on a run of a list's elements

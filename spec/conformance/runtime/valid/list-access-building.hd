@@ -49,9 +49,7 @@ tests:
     it("sorts stably"):
         pairs := [(+1, "b"), (+0, "x"), (+1, "a")]
         sorted := pairs.sorted_by(
-            fn(a: (i32, string), b: (i32, string)) -> Ordering:
-                key := b._0
-                a._0.cmp(&key)
+            fn(a: (i32, string), b: (i32, string)) -> Ordering: a._0.cmp(&b._0)
             ,
         )
         assert_equal(sorted, [(0, "x"), (1, "b"), (1, "a")], reason="equal keys keep their order")

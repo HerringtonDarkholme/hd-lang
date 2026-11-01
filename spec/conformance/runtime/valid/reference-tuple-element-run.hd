@@ -16,11 +16,8 @@ fn count(text: &string) -> usize:
 fn through(entry: &(i32, User)) -> usize:
     count(&entry._1.name)
 
-fn by_ref(a: &i32, b: &i32) -> Ordering:
-    (*a).cmp(*b)
-
 fn by_key(a: (i32, string), b: (i32, string)) -> Ordering:
-    by_ref(&a._0, &b._0)
+    a._0.cmp(&b._0)
 
 fn same_key(a: (i32, string), b: (i32, string)) -> bool:
     a._0.eq(&b._0)
