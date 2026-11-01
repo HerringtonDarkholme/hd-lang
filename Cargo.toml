@@ -45,3 +45,39 @@ codegen-units = 1
 opt-level = "s"
 panic = "abort"
 strip = true
+
+# These crates build at "z" in the web profile only (owner, #1181): the
+# download is 127 KB smaller (gzip 1,983,815 -> 1,857,224) for compiles
+# about 6% slower (json cold 872 -> 921 ms, warm 34 -> 35 ms). The hot
+# crates (hd_wasm_linear, hd_tir, hd_types, hd_mono, hd_syntax, hd_base)
+# stay at "s". A package override drops the profile's `strip`, so
+# hd_web's restates it.
+[profile.web.package.hd_check]
+opt-level = "z"
+[profile.web.package.hd_driver]
+opt-level = "z"
+[profile.web.package.hd_resolve]
+opt-level = "z"
+[profile.web.package.hd_project]
+opt-level = "z"
+[profile.web.package.hd_host_abi]
+opt-level = "z"
+[profile.web.package.hd_structure]
+opt-level = "z"
+[profile.web.package.hd_opt]
+opt-level = "z"
+[profile.web.package.hd_diag]
+opt-level = "z"
+[profile.web.package.hd_cache]
+opt-level = "z"
+[profile.web.package.hd_web]
+opt-level = "z"
+strip = true
+[profile.web.package.wasm-encoder]
+opt-level = "z"
+[profile.web.package.toml]
+opt-level = "z"
+[profile.web.package.toml_parser]
+opt-level = "z"
+[profile.web.package.winnow]
+opt-level = "z"
