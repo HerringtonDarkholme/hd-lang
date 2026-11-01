@@ -1,4 +1,4 @@
-//! `==` and `!=` between two references are `reference-equality`, with two
+//! `==` and `!=` between two counted references are `reference-equality`, with two
 //! fix-its: `is`, which compares places, and `*`, which compares values
 //! (spec/lang/13-values-and-references.md ref.identity.no-equality,
 //! ref.identity.no-equality.fix). Each fix-it checks clean.
@@ -82,7 +82,7 @@ fn each_fix_compares_places_or_values_and_checks_clean() {
             if expr.contains("inner") {
                 "fn same(a: Pair, b: Pair)"
             } else {
-                "fn same(a: &i32, b: &i32)"
+                "fn same(a: *i32, b: *i32)"
             },
         );
         let d = diags(&src);

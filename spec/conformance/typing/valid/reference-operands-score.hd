@@ -1,0 +1,14 @@
+# test: operators read through `&i32` and `&string` operands, and `==` of two string references compares the strings
+# Spec 05 Reference Operands: expr.op.ref-read.
+fn score(points: &i32, best: &i32, name: &string) -> i32:
+    let total = points * 2 + 1
+    total += best
+    if points > best && name == "ada":
+        total = -points
+    total
+
+fn same_name(a: &string, b: &mut string) -> bool:
+    a == b # compares the two strings
+
+pub fn main() -> void:
+    ()

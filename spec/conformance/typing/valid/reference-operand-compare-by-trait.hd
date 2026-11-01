@@ -1,0 +1,21 @@
+# test: `==` and ordering on references to tuples, lists and derived types pass the references to `Eq.eq` and `PartialOrd.partial_cmp`
+# Spec 05 Reference Operands: expr.op.ref-read.compare.
+@derive(Eq)
+struct Point:
+    x: i32
+    y: i32
+
+fn points(a: &Point, b: &mut Point, c: Point) -> bool:
+    a == b && c != a && a == c
+
+fn pairs(a: &(i32, string), b: (i32, string)) -> bool:
+    a < b || b >= a
+
+fn lists(a: &List[i32], b: &List[i32]) -> bool:
+    a == b || a > b
+
+fn optional(a: &(i32?)) -> bool:
+    a == .Some(+1) || .None != a
+
+pub fn main() -> void:
+    ()

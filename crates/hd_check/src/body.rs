@@ -4462,6 +4462,9 @@ impl Ck<'_, '_> {
         };
         let want = (!matches!(op, TokenKind::Shl | TokenKind::Shr)).then_some(t);
         let (r, rt) = self.expr(rhs, want)?;
+        // `expr.assign.compound.ref-read`: a `&T` right side reads its `T`;
+        // the place keeps its own type.
+        let (r, rt, _) = self.ref_operand(op, (r, rt, false), rhs);
         self.binary_values(op, (cur, t), (r, rt), at, rhs)
     }
 

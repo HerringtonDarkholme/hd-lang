@@ -171,8 +171,11 @@ pub fn main() -> void $ Console:
     println("${a.x} ${b.x} ${shared.x} ${norm(&a)}")
 ```
 
-`==` between two references is the `reference-equality` error: write
-`a is b` for the same place, or `*a == *b` for equal values.
+Operators read through a `&T` or `&mut T` operand: with `x: &i32`,
+`x + 1`, `x > 0` and `total += x` use the value, and `==` of two `&T`
+compares values. `==` between two counted references (`*T`) is the
+`reference-equality` error: write `a is b` for the same place, or
+`*a == *b` for equal values.
 
 ## Functions And Control Flow
 

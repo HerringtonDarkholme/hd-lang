@@ -2451,6 +2451,16 @@ runtime/valid/compound-assignment-alias.hd	runtime	accept	lang/05-expressions.md
 typing/invalid/compound-assign-readonly.hd	type	reject:not-writable	lang/05-expressions.md#r-expr.assign.compound.store-rules
 typing/invalid/compound-assign-data-no-operator.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.assign.compound.operator
 typing/invalid/compound-assign-not-place.hd	type	reject:invalid-assignment-target	lang/05-expressions.md#r-expr.assign.compound.place-form
+typing/valid/reference-operand-compound.hd	type	accept	lang/05-expressions.md#r-expr.assign.compound.ref-read
+typing/invalid/reference-operand-mut-compound-place.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.assign.compound.ref-place
+typing/valid/reference-operands-score.hd	type	accept	lang/05-expressions.md#r-expr.op.ref-read
+typing/valid/reference-operand-arithmetic.hd	type	accept	lang/05-expressions.md#r-expr.op.ref-read.forms
+typing/valid/reference-operand-bitwise.hd	type	accept	lang/05-expressions.md#r-expr.op.ref-read.forms
+typing/valid/reference-operand-mixed.hd	type	accept	lang/05-expressions.md#r-expr.op.ref-read.mixed
+typing/valid/reference-operand-compare-by-trait.hd	type	accept	lang/05-expressions.md#r-expr.op.ref-read.compare
+runtime/valid/reference-operands-run.hd	runtime	accept	lang/05-expressions.md#r-expr.op.ref-read.equal-values
+typing/invalid/reference-operand-counted-not-read.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.op.ref-read.counted
+typing/invalid/reference-operand-is-identity.hd	type	reject:identity-requires-references	lang/05-expressions.md#r-expr.op.ref-read.is
 parse/valid/compound-assignment-tokens.hd	parse	accept	lang/01-lexical-structure.md#r-lex.op.compound-assign
 parse/invalid/power-compound-assignment.hd	parse	reject:syntax-error	lang/01-lexical-structure.md#r-lex.op.no-power-assign
 parse/invalid/compound-assignment-as-expression.hd	parse	reject:syntax-error	lang/05-expressions.md#r-expr.assign.compound.form
@@ -4699,6 +4709,7 @@ runtime/valid/reference-identity-fields.hd	runtime	accept	lang/13-values-and-ref
 runtime/valid/reference-optional.hd	runtime	accept	lang/13-values-and-references.md#r-ref.identity.optional
 typing/invalid/reference-equality.hd	type	reject:reference-equality	lang/13-values-and-references.md#r-ref.identity.no-equality
 typing/invalid/reference-inequality.hd	type	reject:reference-equality	lang/13-values-and-references.md#r-ref.identity.no-equality
+typing/valid/reference-equality-local-values.hd	type	accept	lang/13-values-and-references.md#r-ref.identity.local-equality
 typing/invalid/reference-identity-different-types.hd	type	reject:incompatible-identity-operands	lang/13-values-and-references.md#r-ref.identity.incompatible
 typing/invalid/reference-identity-value-operand.hd	type	reject:identity-requires-references	lang/13-values-and-references.md#r-ref.identity.non-reference
 typing/invalid/reference-identity-enum.hd	type	reject:identity-requires-references	lang/13-values-and-references.md#r-ref.identity.values

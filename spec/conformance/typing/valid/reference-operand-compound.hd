@@ -1,0 +1,22 @@
+# test: a compound assignment reads a `&T` or `&mut T` right side
+# Spec 05 Compound Assignment: expr.assign.compound.ref-read.
+struct Tally:
+    count: i64
+
+fn add_up(total: i64, x: &i64, y: &mut i64, tally: &mut Tally) -> i64:
+    let sum = total
+    sum += x
+    sum -= y
+    sum *= x
+    sum <<= 1u32
+    tally.count += x
+    *y += x
+    sum
+
+fn label(name: &string) -> string:
+    let out = "user "
+    out += name
+    out
+
+pub fn main() -> void:
+    ()

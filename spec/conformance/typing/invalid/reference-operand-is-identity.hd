@@ -1,0 +1,4 @@
+# test: `is` does not read through a reference, so a `&i32` compared with an `i32` value is an error
+# Spec 05 Reference Operands: expr.op.ref-read.is.
+fn same(a: &i32, b: i32) -> bool:
+    a is b # diagnostic: identity-requires-references

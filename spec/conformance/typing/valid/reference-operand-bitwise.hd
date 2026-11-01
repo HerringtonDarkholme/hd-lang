@@ -1,0 +1,10 @@
+# test: bitwise operators and shifts read a `&u32` or `&i64` operand, the shift count included
+# Spec 05 Reference Operands: expr.op.ref-read.forms.
+fn bits(x: &u32, y: &u32, n: &u32) -> u32:
+    (x & y) | (x ^ y) | ~x
+
+fn shifts(x: &i64, n: &u32) -> i64:
+    (x << n) | (x >> 3) | (5i64 << n)
+
+pub fn main() -> void:
+    ()

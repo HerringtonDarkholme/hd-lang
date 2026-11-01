@@ -1,0 +1,36 @@
+# test: operators read through references: sums, comparisons, string equality, and `is` still comparing places
+# Spec 05 Reference Operands: expr.op.ref-read, expr.op.ref-read.equal-values, expr.op.ref-read.is.
+# expect-stdout: 13 2 false false
+# expect-stdout: 33 5
+# expect-stdout: true true false
+# expect-stdout: true false
+fn sums(x: &i32, y: &mut i32) -> (i32, i32, bool, bool):
+    (x * 4 + 1, y - x, x > y, x == y)
+
+fn accumulate(xs: List[i32], y: &i32) -> i32:
+    let total = +0
+    for x in xs:
+        x_ref := &x
+        total += x_ref * y
+    total
+
+fn names(a: &string, b: &string) -> (bool, bool, bool):
+    (a == "ada", a == b, a != b)
+
+fn places(a: &i32, b: &i32) -> (bool, bool):
+    (a == b, a is b)
+
+pub fn main() -> void $ Console:
+    let x = +3
+    let mut y = +5
+    let (s, d, gt, eq) = sums(&x, &mut y)
+    println("$s $d $gt $eq")
+    println("${accumulate([+1, +2, +8], &x)} ${y}")
+    first := "ada"
+    second := "ada"
+    let (n1, n2, n3) = names(&first, &second)
+    println("$n1 $n2 $n3")
+    one := +7
+    two := +7
+    let (p1, p2) = places(&one, &two)
+    println("$p1 $p2")

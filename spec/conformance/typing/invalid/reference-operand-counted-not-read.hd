@@ -1,0 +1,4 @@
+# test: a counted reference operand is not read through, so `+` on a `*i32` has no implementation
+# Spec 05 Reference Operands: expr.op.ref-read.counted.
+fn next(shared: *i32) -> i32:
+    shared + 1 # diagnostic: type-mismatch

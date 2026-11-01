@@ -124,6 +124,8 @@ fn record(tally: &mut Tally, hits: List[i64]) -> Meters:
 11. r[expr.assign.compound.call-read-write] On a call place, the read is `v()` and the store is `v() = x`. So the callee's type needs both `Apply` and `Update`, as [Callable Values](#callable-values) defines.
 12. r[expr.assign.compound.fresh-value] On a struct value, the store replaces the place's whole value with the operator's result. A copy made from the place before the store keeps the old value.
 13. r[expr.assign.compound.no-assign-traits] `std.ops` declares no assign trait, and no operator changes a value in place.
+14. r[expr.assign.compound.ref-read] A right side of type `&T` or `&mut T` reads its `T` by [`expr.op.ref-read`](#r-expr.op.ref-read), so `total += x` with `x: &i32` adds the value `x` refers to.
+15. r[expr.assign.compound.ref-place] The place is not read through, so with `r: &mut i32`, `r += 1` applies `+` to the reference itself. That is an error; `*r += 1` changes the value. Error: `type-mismatch`.
 
 ```text
 struct Tally:
@@ -134,11 +136,13 @@ struct Score:
 
 fn current() -> i64: 1
 
-fn invalid(tally: &Tally, bonus: Score) -> void:
+fn invalid(tally: &Tally, bonus: Score, count: &mut i64) -> void:
     let score = Score { points: 0 }
     tally.count += 1  # error: not-writable
     score += bonus    # error: type-mismatch
     current() += 1    # error: invalid-assignment-target
+    let r = count
+    r += 1            # error: type-mismatch
 ```
 
 ```text
@@ -1444,6 +1448,39 @@ fn demo() -> i32:
     2 + 3 * 4   # 14: * binds tighter than +
 ```
 
+### Reference Operands
+
+An operator reads through a local reference operand, so code that holds a
+`&T` computes with the value it refers to:
+
+```text
+fn score(points: &i32, best: &i32, name: &string) -> i32:
+    let total = points * 2 + 1
+    total += best
+    if points > best && name == "ada":
+        total = -points
+    total
+
+fn same_name(a: &string, b: &mut string) -> bool:
+    a == b  # compares the two strings
+```
+
+1. r[expr.op.ref-read] An operand of type `&T` or `&mut T` of an arithmetic, bitwise, shift, equality, or ordering operator reads the `T` value it refers to. So with `x: &i32`, `x * 2` means `*x * 2`.
+2. r[expr.op.ref-read.forms] The rule covers binary `+`, `-`, `*`, `/`, `%`, `**`, `&`, `|`, `^`, `<<`, `>>`, `==`, `!=`, `<`, `<=`, `>`, and `>=`, and unary `+`, `-`, and `~`.
+3. r[expr.op.ref-read.mixed] Either operand may be a reference, or both: `x + 1`, `1 + x`, and `x + y` each read every reference operand.
+4. r[expr.op.ref-read.compare] When a comparison calls `Eq.eq` or `PartialOrd.partial_cmp`, a reference operand is passed as the address that [`expr.eq.trait.ref`](#r-expr.eq.trait.ref) takes, so its value is not copied.
+5. r[expr.op.ref-read.equal-values] So `==` and `!=` between two local references compare the values they refer to.
+6. r[expr.op.ref-read.counted] A counted reference operand, of type `*T` or `*mut T`, is not read through.
+7. r[expr.op.ref-read.is] `is` does not read through a reference: it compares the places its operands refer to, by [`expr.is.references`](#r-expr.is.references).
+
+> **Why.** Rust reads through `&` for the same operators: its standard
+> library implements them for `&i32` and implements `PartialEq` for `&A`.
+> Accessors and loops hand out `&T`, so arithmetic on what they return
+> needs no `*`.
+
+See also: [Compound Assignment](#compound-assignment),
+[Equality Of References](13-values-and-references.md#equality-of-references).
+
 ### Arithmetic Operators
 
 1. r[expr.arith.primitive-numeric] Between primitive operands, arithmetic operators require compatible numeric operands. Other operands use [Operator Traits](#operator-traits).
@@ -1559,7 +1596,7 @@ fn demo(a: bool, b: bool) -> bool:
 11. r[expr.eq.contextual-both] When both operands are contextual variants, neither has an expected type, so `.None == .None` is an error. Error: `missing-contextual-enum-type`.
 12. r[expr.eq.enum-hint] `==` or `!=` on an enum that does not implement `Eq` is an error whose message suggests adding `@derive(Eq)` to the enum. Error: `type-mismatch`.
 13. r[expr.eq.enum-hint.fix] When the enum is declared in the same file as the comparison, the error has a fix-it. The fix-it inserts `@derive(Eq)` on its own line before the enum's declaration.
-14. r[expr.eq.references] `==` and `!=` between two references are an error, by [`ref.identity.no-equality`](13-values-and-references.md#r-ref.identity.no-equality). Error: `reference-equality`.
+14. r[expr.eq.references] `==` and `!=` between two counted references are an error, by [`ref.identity.no-equality`](13-values-and-references.md#r-ref.identity.no-equality). Between two local references they compare values, by [`expr.op.ref-read.equal-values`](#r-expr.op.ref-read.equal-values). Error: `reference-equality`.
 
 ```text
 fn invalid(left: fn() -> void, right: fn() -> void) -> bool:

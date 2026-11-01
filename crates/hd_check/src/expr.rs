@@ -597,6 +597,14 @@ impl Ck<'_, '_> {
             return unsupported("an operand-less unary");
         };
         let (r, t) = self.expr(*e, want)?;
+        // `expr.op.ref-read`: `+x`, `-x` and `~x` read a `&T` operand's `T`.
+        let (r, t) = match op {
+            Some(k @ (TokenKind::Plus | TokenKind::Minus | TokenKind::Tilde)) => {
+                let (r, t, _) = self.ref_operand(k, (r, t, false), *e);
+                (r, t)
+            }
+            _ => (r, t),
+        };
         let pool = self.pool();
         // A negated literal is signed (`expr.power.negated-literal`,
         // `types.literal.local.signed`): parentheses are transparent, so
@@ -776,8 +784,9 @@ impl Ck<'_, '_> {
             let (a, at) = self.index_place_receiver(*l)?;
             (a, at, true)
         } else {
+            // `expr.op.ref-read`: a `&T` operand reads its `T`.
             let (a, at) = self.expr(*l, left_want)?;
-            (a, at, false)
+            self.ref_operand(op, (a, at, false), *l)
         };
         let right_want = if left_want.is_none() && eq_op && contextual(*l) {
             Ty::POISON
@@ -789,7 +798,17 @@ impl Ck<'_, '_> {
             (c, ct, true)
         } else {
             let (c, ct) = self.expr(*r, Some(right_want))?;
-            (c, ct, false)
+            let (c, ct, lc) = self.ref_operand(op, (c, ct, false), *r);
+            // A right `&T` that `Eq.eq` or `PartialOrd.partial_cmp` takes
+            // as it is must refer to the left operand's type.
+            if lc
+                && self.op_by_trait(op, at)
+                && self.expect(ct, at, *r, "operand", ExpectPosition::Operand)
+            {
+                let v = self.b.emit(Tag::Poison, NONE, NONE, Ty::BOOL, n.index());
+                return Ok((v, Ty::BOOL));
+            }
+            (c, ct, lc)
         };
         if matches!(
             op,
@@ -797,8 +816,9 @@ impl Ck<'_, '_> {
         ) {
             self.record_comparison(op, *l, at, *r, ct, n);
         }
-        // `ref.identity.no-equality`: `==` between two references is
-        // ambiguous, so it is an error with a fix-it for each meaning.
+        // `ref.identity.no-equality`: `==` between two counted references
+        // is ambiguous, so it is an error with a fix-it for each meaning.
+        // A local reference was read above.
         if eq_op && self.ref_of(at).is_some() && self.ref_of(ct).is_some() {
             self.reference_equality(op == TokenKind::NotEq, op_tok, (*l, *r), n);
             let v = self.b.emit(Tag::Poison, NONE, NONE, Ty::BOOL, n.index());
@@ -827,6 +847,39 @@ impl Ck<'_, '_> {
         self.ref_of(v).is_none()
             && self.op_by_trait(op, v)
             && left.is_none_or(|l| self.strip_mut(self.infer.resolve(pool, l)) == v)
+    }
+
+    /// The operand `(r, t, held)` of the operator `op`, with a local
+    /// reference type `&T` or `&mut T`, read as its `T`
+    /// (`expr.op.ref-read`). `Eq.eq` and `PartialOrd.partial_cmp` take the
+    /// reference itself as the operand's address
+    /// (`expr.op.ref-read.compare`); every other operator reads the value.
+    /// `is` and a counted reference keep the operand as it is.
+    pub(crate) fn ref_operand(
+        &mut self,
+        op: TokenKind,
+        (r, t, held): (Ref, Ty, bool),
+        n: NodeRef<'_>,
+    ) -> (Ref, Ty, bool) {
+        if held || op == TokenKind::KwIs || self.ref_counted(t) != Some(false) {
+            return (r, t, held);
+        }
+        let Some((inner, mutable)) = self.ref_of(t) else {
+            return (r, t, held);
+        };
+        if self.op_by_trait(op, inner) {
+            let pool = self.pool();
+            let vt = self.strip_mut(self.infer.resolve(pool, inner));
+            let shared = self.ref_ty(vt, false, false);
+            let r = if mutable {
+                self.retype(r, shared, n.index())
+            } else {
+                r
+            };
+            return (r, vt, true);
+        }
+        let (v, vt) = self.emit_deref(r, t, n.index());
+        (v, vt, false)
     }
 
     /// Whether the place `e` lies in a list element or a map value. Its
@@ -1601,7 +1654,9 @@ impl Ck<'_, '_> {
         let [l, r] = kids else {
             return unsupported("a power expression shape");
         };
+        // `expr.op.ref-read`: a `&T` base or exponent reads its `T`.
         let (a, at) = self.expr(*l, None)?;
+        let (a, at, _) = self.ref_operand(TokenKind::StarStar, (a, at, false), *l);
         let base = self.power_base(at);
         let want = match base {
             PowerBase::Int => Some(Ty::prim(Prim::U32)),
@@ -1609,6 +1664,7 @@ impl Ck<'_, '_> {
             PowerBase::Poison | PowerBase::Other => None,
         };
         let (c, ct) = self.expr(*r, want)?;
+        let (c, ct, _) = self.ref_operand(TokenKind::StarStar, (c, ct, false), *r);
         // A rejected operand makes the whole expression an error value, so
         // its context reports nothing more.
         let rejected = match base {

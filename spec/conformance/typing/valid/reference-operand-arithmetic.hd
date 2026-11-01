@@ -1,0 +1,10 @@
+# test: every arithmetic operator, binary and unary, reads a `&i64` or `&f64` operand
+# Spec 05 Reference Operands: expr.op.ref-read.forms.
+fn ints(x: &i64, y: &i64, e: &u32) -> i64:
+    (x + y) * (x - y) / (y % 7) + x ** e + -x + +y
+
+fn floats(x: &f64, y: &mut f64) -> f64:
+    x * y / (x - y) + -x + x ** y
+
+pub fn main() -> void:
+    ()

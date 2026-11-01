@@ -1,0 +1,5 @@
+# test: the place of a compound assignment is not read through, so `r += 1` on a `&mut i64` applies `+` to the reference
+# Spec 05 Compound Assignment: expr.assign.compound.ref-place.
+fn bump(count: &mut i64) -> void:
+    let r = count
+    r += 1 # diagnostic: type-mismatch

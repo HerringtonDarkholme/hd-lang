@@ -111,7 +111,7 @@ fn commit!(repo: Path) -> Result[string, ProcessError] $ Process:
 10. r[std-process.stdin.start-failure] A failure to start the child returns `.Err`, even when `stdin` is nonempty.
 11. r[std-process.command.eq] `Command` implements `Eq`; two commands are equal when `program`, `args`, `env`, `current_dir`, and `stdin` are each equal.
 12. r[std-process.command.debug] `Command` implements `Debug`, by [`std-format.debug.std-types`](format.md#r-std-format.debug.std-types).
-13. r[std-process.command.compare-ref] Two commands that `Command::new` returned are two references, so `==` between them is an error by [`ref.identity.no-equality`](../lang/13-values-and-references.md#r-ref.identity.no-equality). A program compares their values with `*left == *right`.
+13. r[std-process.command.compare-ref] Two commands that `Command::new` returned are two counted references, so `==` between them is an error by [`ref.identity.no-equality`](../lang/13-values-and-references.md#r-ref.identity.no-equality). A program compares their values with `*left == *right`.
 
 > **Why.** Rust's `Command` and Go's `exec.Cmd` carry the arguments, the
 > environment, and the directory beside the program, so no call fixes one

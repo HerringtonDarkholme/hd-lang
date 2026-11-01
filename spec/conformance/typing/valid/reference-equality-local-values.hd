@@ -1,0 +1,10 @@
+# test: `==` and `!=` between two local references compare the values they refer to
+# Spec 13 Equality Of References: ref.identity.local-equality.
+fn equal(a: &i32, b: &i32) -> bool:
+    a == b # valid: compares the values
+
+fn differ(a: &mut string, b: &string) -> bool:
+    a != b
+
+pub fn main() -> void:
+    ()

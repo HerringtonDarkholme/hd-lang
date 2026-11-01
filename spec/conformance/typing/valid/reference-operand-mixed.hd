@@ -1,0 +1,16 @@
+# test: a reference operand may be on either side, or both, and `&mut` reads as `&` does
+# Spec 05 Reference Operands: expr.op.ref-read.mixed.
+fn left(x: &i32) -> i32:
+    x + 1
+
+fn right(x: &i32) -> i32:
+    1 - x
+
+fn both(x: &i32, y: &mut i32) -> bool:
+    x * y > y && x != y && 3 <= x
+
+fn texts(a: &string, b: string) -> string:
+    a + b + a
+
+pub fn main() -> void:
+    ()

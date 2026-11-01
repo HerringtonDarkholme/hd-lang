@@ -1578,20 +1578,28 @@ fn same(a: &i32, b: &i64, p: &Point, v: Point) -> void:
 
 ### Equality Of References
 
-`==` between two references is an error, because `is` and `*r == *s` say which comparison is meant.
+`==` between two counted references is an error, because `is` and `*r == *s`
+say which comparison is meant. Between two local references it compares
+values.
 
-1. r[ref.identity.no-equality] `==` and `!=` with two reference operands are an error. Error: `reference-equality`.
+1. r[ref.identity.no-equality] `==` and `!=` with two counted reference operands, of types `*T` or `*mut T`, are an error. Error: `reference-equality`.
 2. r[ref.identity.no-equality.fix] The diagnostic has two fix-its: one writes `r is s`, or `!(r is s)` for `!=`, and compares places; the other writes `*r == *s`, or `*r != *s`, and compares values.
 3. r[ref.identity.generic-eq] A reference type implements `Eq` when its value type does, and `Hash` when its value type does. They compare and hash the values the references refer to, as [Reference Equality](../std/cmp.md#reference-equality) states. So generic code and a derived `Eq` compare through references.
+4. r[ref.identity.local-equality] `==` and `!=` with two local reference operands, of types `&T` or `&mut T`, compare the values they refer to, by [`expr.op.ref-read.equal-values`](05-expressions.md#r-expr.op.ref-read.equal-values).
 
 ```text
-fn same(a: &i32, b: &i32) -> bool:
+fn same(a: *i32, b: *i32) -> bool:
     a == b  # error: reference-equality
+
+fn equal(a: &i32, b: &i32) -> bool:
+    a == b  # valid: compares the values
 ```
 
 > **Why.** Go's `==` on pointers compares addresses, and Rust's compares
-> contents. An author coming from either language would guess wrong half
-> the time, so neither guess compiles.
+> contents. A counted reference is a shared object, where an author from
+> either language would guess wrong half the time, so neither guess
+> compiles. A local reference lends a value to one call, so it compares as
+> that value, as in Rust.
 
 See also: [Derived Implementations](09-traits.md#derived-implementations),
 [Identity](05-expressions.md#identity).
