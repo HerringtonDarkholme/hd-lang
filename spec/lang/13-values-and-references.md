@@ -31,15 +31,15 @@ fn first(items: List[*Point]) -> Option[*mut Point]:
 fn each(f: fn(&Point) -> *mut Point, pending: *Point?) -> void: pass
 ```
 
-1. r[ref.type.forms] `&T` is a local reference type, and `&mut T` is a writable local reference type. The operand `T` is a named, `dyn`, tuple, or grouped type.
-2. r[ref.type.counted-forms] `*T` is a counted reference type, and `*mut T` is a writable counted reference type. Their operand is as for `&T`.
+1. r[ref.type.forms] `&T` is a local reference type, and `&mut T` is a writable local reference type. The operand `T` is a named, `dyn`, tuple, or grouped type, or a counted reference type with no parentheses: `&*T`, `&*mut T`, and `&mut *T`.
+2. r[ref.type.counted-forms] `*T` is a counted reference type, and `*mut T` is a writable counted reference type. Their operand is a named, `dyn`, tuple, or grouped type.
 3. r[ref.type.kinds] Counted and local are the two kinds of reference. A rule of this chapter that says "a reference" holds for both kinds.
 4. r[ref.type.kinds.elsewhere] A rule in another chapter that writes `&T` or `&mut T` for a reference that is read, written, matched, compared, or printed holds for `*T` and `*mut T` too. This rule is temporary, as the note below says.
 5. r[ref.type.kind-runtime] A local reference is counted at run time, as a counted reference is. Only the rules of [Local References](#local-references) tell the two kinds apart.
 6. r[ref.type.position] A counted reference type may appear wherever a type may: a parameter, a result, a field, a binding annotation, a type argument, and a function type's parameters and result.
 7. r[ref.type.optional] `?` applies to the whole reference type: `*T?` is an optional `*T`.
-8. r[ref.type.group] To refer to an optional or to another reference, group the operand: `&(T?)` and `&(&T)`.
-9. r[ref.type.no-nesting] `&&T` is a syntax error, because `&&` is one token. So are `&mut mut T` and `mut &T`. Error: `syntax-error`.
+8. r[ref.type.group] To refer to an optional, to a local reference, or from a counted reference to another reference, group the operand: `&(T?)`, `&(&T)`, and `*(*T)`. `&(*T)` is the same type as `&*T`.
+9. r[ref.type.no-nesting] `&&T` is a syntax error, because `&&` is one token. So are `&mut mut T`, `mut &T`, and `*&T`. Error: `syntax-error`.
 10. r[ref.type.counted-no-nesting] `**T` is a syntax error too, because `**` is one token, so a counted reference to one is written `*(*T)`. So are `*mut mut T` and `mut *T`. Error: `syntax-error`.
 11. r[ref.type.no-function] `&` never directly precedes `fn`: `&fn() -> i32` and `&mut fn() -> i32` are errors. Error: `syntax-error`.
 12. r[ref.type.counted-no-function] `*` never directly precedes `fn` either: `*fn() -> i32` and `*mut fn() -> i32` are errors. Error: `syntax-error`.

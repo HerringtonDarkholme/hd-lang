@@ -1,0 +1,29 @@
+# test: `&` takes a counted reference type with no parentheses, and a method call reads through both references
+# Spec 13 Reference Types: ref.type.forms, ref.type.group.
+use std.error.Error
+
+struct Oops:
+    code: i32
+
+impl Display for Oops:
+    fn to_string(&self) -> string: "oops ${self.code}"
+
+impl Error for Oops
+
+fn show(e: &*dyn Error) -> string: e.to_string()
+
+fn grouped(e: &(*dyn Error)) -> string: (*e).to_string()
+
+fn read(x: &*mut i32) -> i32: *(*x)
+
+fn reset(x: &mut *i32) -> void:
+    *x = box(0)
+
+fn main() -> void:
+    let errs: List[*dyn Error] = [box(Oops { code: 3 })]
+    let a: string = show(&errs[0])
+    let b: string = grouped(&errs[0])
+    let mut p: *mut i32 = box(5)
+    let mut q: *i32 = box(6)
+    let n: i32 = read(&p)
+    reset(&mut q)

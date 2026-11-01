@@ -271,3 +271,11 @@ fn an_impl_parameter_list_keeps_a_space_before_a_parenthesized_self_type() {
     let call = "fn f():\n    g[i32](1)\n";
     assert_eq!(formatted(call), call);
 }
+
+#[test]
+fn a_counted_reference_operand_of_a_reference_type_keeps_its_spacing() {
+    let source = "fn f(a: &*T, b: &*mut T, c: &mut *T, d: &(*T)) -> void:\n    pass\n";
+    assert_eq!(formatted(source), source);
+    let glued = source.replace("&mut *T", "&mut*T");
+    assert_eq!(formatted(&glued), source);
+}

@@ -287,6 +287,7 @@ impl<'s, 'p> Analysis<'s, 'p> {
             S::UnaryExpr | S::RefExpr | S::DerefExpr | S::SpreadExpr => {
                 self.mark_prefix(node);
             }
+            S::RefType => self.mark_counted_operand(node),
             kind if chain(kind) && self.is_outer_chain(node) && !self.is_pipe_operand(node) => {
                 self.mark_chain(node);
             }
@@ -842,6 +843,20 @@ impl<'s, 'p> Analysis<'s, 'p> {
                 Gap::None
             },
         );
+    }
+
+    /// `&mut *T`: a counted reference type that is the operand of
+    /// `&mut` keeps the space after `mut`, as `&mut *r` does.
+    fn mark_counted_operand(&mut self, node: NodeRef<'_>) {
+        let Some(first) = node.first_token().get() else {
+            return;
+        };
+        if first.idx() > 0
+            && self.parsed.tokens.kind(first) == T::Star
+            && self.parsed.tokens.kind[first.idx() - 1] == T::KwMut
+        {
+            self.set_gap(first.idx(), Gap::Space);
+        }
     }
 
     fn mark_else(&mut self, node: NodeRef<'_>) {

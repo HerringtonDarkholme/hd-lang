@@ -874,9 +874,11 @@ reference_access_type = [ "mut" ], reference_type
                       | ref_type
                       ;
 
-ref_type = "&", [ lifetime, { ".", identifier } ], [ "mut" ], reference_type
-         | "*", [ "mut" ], reference_type
+ref_type = "&", [ lifetime, { ".", identifier } ], [ "mut" ],
+           ( reference_type | counted_ref_type )
+         | counted_ref_type
          ;
+counted_ref_type = "*", [ "mut" ], reference_type ;
 
 reference_type = opaque_result_type
                | named_type

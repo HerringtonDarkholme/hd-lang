@@ -1,0 +1,5 @@
+# @dump: tree
+# `&` takes a counted reference type with no parentheses (ref.type.forms):
+# `&*T`, `&*mut T`, `&mut *T`, and `&'a *T`; `&(*T)` groups the same type.
+# subject
+fn f(a: &*T, b: &*mut T, c: &mut *T, d: &mut *mut dyn Display, e: &'a *T, f: &*T?, g: &(*T)) -> void: pass

@@ -92,7 +92,24 @@ impl Parser<'_> {
                 }
             }
             self.eat(TokenKind::KwMut);
-            if self.at(TokenKind::KwFn) {
+            if sigil == '&' && self.at(TokenKind::Star) {
+                // ref.type.forms: `&*T`, `&*mut T`, `&mut *T` take a
+                // counted reference type with no parentheses.
+                let counted = self.start();
+                self.bump();
+                self.eat(TokenKind::KwMut);
+                if self.at(TokenKind::KwFn) {
+                    // ref.type.counted-no-function
+                    self.error(
+                        Code::SyntaxError,
+                        "'*' cannot directly precede 'fn'; a function value is already a reference",
+                    );
+                    self.ty_function(rows);
+                } else {
+                    self.ty_reference(rows);
+                }
+                self.complete(counted, SyntaxKind::RefType);
+            } else if self.at(TokenKind::KwFn) {
                 // ref.type.no-function, ref.type.counted-no-function
                 self.error(
                     Code::SyntaxError,
