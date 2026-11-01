@@ -606,7 +606,7 @@ show a value's structure:
 
 ```text
 trait Debug:
-    fn debug(self, out: *mut DebugWriter) -> void
+    fn debug(&self, out: *mut DebugWriter) -> void
 ```
 
 A type usually derives it:
@@ -622,7 +622,7 @@ fn describe(point: Point) -> string:
 ```
 
 1. r[trait.debug.module] `std.format` declares `Debug` and `DebugWriter`. `Debug` is a prelude name.
-2. r[trait.debug.method-ref] `Debug` declares `fn debug(self, out: *mut DebugWriter) -> void`, which writes the value's structure through `out`, a reference to the one writer of the whole value.
+2. r[trait.debug.method-ref] `Debug` declares `fn debug(&self, out: *mut DebugWriter) -> void`, which writes the value's structure through `out`, a reference to the one writer of the whole value.
 3. r[trait.debug.writer] `DebugWriter` is the standard structured writer. An implementation describes the value through its builder calls, such as one call per field, rather than raw text.
 4. r[trait.debug.std-impls] `std` implements `Debug` for the primitives, collections, `T?`, and `Result`, each when its type arguments implement `Debug`.
 5. r[trait.debug.tuples] `std.format` declares a tuple template for `Debug`, so every tuple whose elements implement `Debug` implements it, at every size.

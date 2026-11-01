@@ -6,7 +6,7 @@ struct Plain:
 struct Custom: pass
 
 impl Debug for Custom:
-    fn debug(self, out: *mut DebugWriter) -> void:
+    fn debug(&self, out: *mut DebugWriter) -> void:
         out.write("chosen")
 
 struct Outer:

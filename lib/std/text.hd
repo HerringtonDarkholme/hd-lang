@@ -1273,7 +1273,7 @@ fn panic_with(category: string, message: string) -> void:
 
 # Keep handwritten Debug: show the text pushed so far.
 impl Debug for StringBuilder:
-    fn debug(self, out: *mut DebugWriter) -> void:
+    fn debug(&self, out: *mut DebugWriter) -> void:
         out.debug_struct("StringBuilder").field("text", string_from_bytes(self.bytes)).finish()
 
 ## The cursor of a string's `chars`: its characters in order.

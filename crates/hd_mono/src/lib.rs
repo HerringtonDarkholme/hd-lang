@@ -236,8 +236,9 @@ pub trait ProgramEnv: LayoutEnv {
     }
     /// `std.format.Debug`, whose printer is preferred by `dbg_printer`.
     fn debug_trait(&self) -> DefId;
-    /// Private template method and Structure trait; no public conformance is added.
-    fn dbg_structure(&self) -> Option<(DefId, DefId)> {
+    /// The private `DbgStructural` template's method, the `Structure` trait,
+    /// and the `DbgStructural` trait; no public conformance is added.
+    fn dbg_structure(&self) -> Option<(DefId, DefId, DefId)> {
         None
     }
 
@@ -3434,14 +3435,22 @@ impl Cx<'_> {
                                 calls.insert(ix, Target::Dyn);
                                 continue;
                             }
-                            let private_structure = env
-                                .dbg_structure()
-                                .is_some_and(|(caller, tr)| caller == item && tr == trait_);
-                            let supplied = match choice.0 {
+                            let private = env.dbg_structure();
+                            let private_structure = private
+                                .is_some_and(|(caller, tr, _)| caller == item && tr == trait_);
+                            // `dbg_structural`'s call of `DbgStructural.show`:
+                            // the private template's method at the receiver.
+                            let structural = private
+                                .filter(|&(.., dbg)| dbg == trait_)
+                                .map(|(show, ..)| show);
+                            let supplied = match (choice.0, structural) {
+                                (_, Some(show)) => {
+                                    Some(self.target(show, pool.list(&[self_ty]), id)?)
+                                }
                                 _ if private_structure => {
                                     self.supplied_target(method, self_ty, &targs, id)?
                                 }
-                                ChoiceKind::Builtin => {
+                                (ChoiceKind::Builtin, _) => {
                                     self.supplied_target(method, self_ty, &targs, id)?
                                 }
                                 _ => None,

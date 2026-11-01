@@ -180,7 +180,7 @@ impl[T] T?:
 # source has no Debug, so its Display text stands in for it.
 # Keep handwritten Debug: display the erased source, which need not implement Debug.
 impl Debug for ContextError:
-    fn debug(self, out: *mut DebugWriter) -> void:
+    fn debug(&self, out: *mut DebugWriter) -> void:
         out.debug_struct("ContextError")
             .field("message", self.message)
             .field("source", self.error.to_string())

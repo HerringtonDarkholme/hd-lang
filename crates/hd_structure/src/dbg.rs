@@ -127,13 +127,7 @@ pub fn target(cx: &Cx<'_, '_>, ty: Ty) -> Option<Target> {
 }
 
 /// Select a printer; no value is inspected or rendered by the compiler.
-pub fn printer_body(
-    cx: &Cx<'_, '_>,
-    item: DefId,
-    ty: Ty,
-    debug: bool,
-    structural: DefId,
-) -> StageResult<Body> {
+pub fn printer_body(cx: &Cx<'_, '_>, item: DefId, ty: Ty, debug: bool) -> StageResult<Body> {
     let names = cx.names;
     let pool = names.pool;
     // Mutability belongs to the place, not the value being printed.
@@ -167,15 +161,11 @@ pub fn printer_body(
                 ("dbg_result_printer", pool.list_items(args).to_vec())
             }
             TyData::Adt { def, .. } if def == names.known.suspend => ("dbg_handle", vec![ty]),
-            _ if target(cx, ty).is_some() => ("", vec![ty]),
+            _ if target(cx, ty).is_some() => ("dbg_structural", vec![ty]),
             _ => ("dbg_opaque_printer", vec![ty]),
         }
     };
-    let def = if name.is_empty() {
-        structural
-    } else {
-        names.item(FORMAT, name)
-    };
+    let def = names.item(FORMAT, name);
     let value = if name == "dbg_opaque_printer" {
         let text = g.b.const_str(&pool.display(ty));
         g.b.call(

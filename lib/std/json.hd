@@ -1244,7 +1244,7 @@ fn float_number(text: string, start: usize, end: usize) -> Result[Json, JsonErro
 
 # Keep handwritten Debug: hide the representation variant behind Number(value).
 impl Debug for Number:
-    fn debug(self, out: *mut DebugWriter) -> void:
+    fn debug(&self, out: *mut DebugWriter) -> void:
         match self.repr:
             .Negative(value) => out.debug_tuple("Number").field(value).finish()
             .NonNegative(value) => out.debug_tuple("Number").field(value).finish()
@@ -1253,7 +1253,7 @@ impl Debug for Number:
 # One `debug_list` entry per member, in insertion order.
 # Keep handwritten Debug: render entries as a list rather than storage fields.
 impl Debug for JsonObject:
-    fn debug(self, out: *mut DebugWriter) -> void:
+    fn debug(&self, out: *mut DebugWriter) -> void:
         let mut list = out.debug_list()
         for entry in self.entries:
             _ := list.entry(entry)

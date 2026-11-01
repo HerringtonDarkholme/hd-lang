@@ -360,7 +360,7 @@ impl Eq for Body:
         self.state.used == other.state.used && self.state.payload == other.state.payload
 
 impl Debug for Body:
-    fn debug(self, out: *mut DebugWriter) -> void:
+    fn debug(&self, out: *mut DebugWriter) -> void:
         length := self.state.payload.map(fn(bytes): bytes.len()).unwrap_or(0)
         out.write("Body { len: $length, used: ${self.state.used} }")
 

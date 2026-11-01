@@ -210,10 +210,10 @@ impl Process for ScriptedProcess:
 
 # Keep handwritten Debug: keep the ExitCode wrapper; derived Debug delegates to u8.
 impl Debug for ExitCode:
-    fn debug(self, out: *mut DebugWriter) -> void:
-        out.debug_tuple("ExitCode").field(u8(self)).finish()
+    fn debug(&self, out: *mut DebugWriter) -> void:
+        out.debug_tuple("ExitCode").field(u8(*self)).finish()
 
 # Keep handwritten Debug: show seen requests and omit queued results.
 impl Debug for ScriptedProcess:
-    fn debug(self, out: *mut DebugWriter) -> void:
+    fn debug(&self, out: *mut DebugWriter) -> void:
         out.debug_struct("ScriptedProcess").field("seen", self.seen).finish()

@@ -1916,7 +1916,7 @@ fn word_char(c: char) -> bool:
 
 # Keep handwritten Debug: show the pattern text and hide compiled instructions.
 impl Debug for Regex:
-    fn debug(self, out: *mut DebugWriter) -> void:
+    fn debug(&self, out: *mut DebugWriter) -> void:
         out.debug_struct("Regex").field("pattern", self.text).finish()
 
 # Primitives (spec/std/README.md#standard-library-primitives). The compiler

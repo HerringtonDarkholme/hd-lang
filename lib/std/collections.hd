@@ -900,9 +900,9 @@ impl[T < Eq] Eq for Deque[T]:
 # (r-std-format.debug.std-types.sequences).
 # Keep handwritten Debug: render logical entries as collection syntax rather than storage fields.
 impl[T < Debug] Debug for Deque[T]:
-    fn debug(self, out: *mut DebugWriter) -> void:
+    fn debug(&self, out: *mut DebugWriter) -> void:
         let mut list = out.debug_list()
-        for item in self:
+        for item in *self:
             _ := list.entry(item)
         list.finish()
 
@@ -997,7 +997,7 @@ impl[T < Eq & Hash] Eq for Set[T]:
 # (r-std-format.debug.std-types.set).
 # Keep handwritten Debug: render logical entries as collection syntax rather than storage fields.
 impl[T < Eq & Hash & Debug] Debug for Set[T]:
-    fn debug(self, out: *mut DebugWriter) -> void:
+    fn debug(&self, out: *mut DebugWriter) -> void:
         let mut list = out.debug_list()
         for (item, _) in self.entries:
             _ := list.entry(item)
@@ -1107,7 +1107,7 @@ impl[T < Ord] FromIterator[T] for Heap[T]:
 # (r-std-format.debug.std-types.sequences).
 # Keep handwritten Debug: render logical entries as collection syntax rather than storage fields.
 impl[T < Ord & Debug] Debug for Heap[T]:
-    fn debug(self, out: *mut DebugWriter) -> void:
+    fn debug(&self, out: *mut DebugWriter) -> void:
         let mut list = out.debug_list()
         for item in self.items:
             _ := list.entry(item)

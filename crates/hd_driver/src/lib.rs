@@ -892,7 +892,7 @@ struct ProgramTables {
     /// Supplied tuple factories have no checked declaration. Their generic
     /// return templates serve collection and emission; bodies live in Collected.
     supplied_rets: Mutex<HashMap<DefId, Ty>>,
-    dbg_structure: OnceLock<Option<(DefId, DefId)>>,
+    dbg_structure: OnceLock<Option<(DefId, DefId, DefId)>>,
     bodies: Bodies,
     /// Where each impl's row lives: its folder's table.
     impl_rows: HashMap<DefId, ImplRef>,
@@ -12029,13 +12029,7 @@ impl ProgramEnv for Env<'_> {
             stage: Stage::Collect,
         };
         let body = match key {
-            "dbg_printer" => hd_structure::dbg_printer_body(
-                &cx,
-                item,
-                ty,
-                debug,
-                self.dbg_structure().expect("private dbg template").0,
-            ),
+            "dbg_printer" => hd_structure::dbg_printer_body(&cx, item, ty, debug),
             _ => hd_structure::dbg_values_body(&cx, item, ty),
         }?;
         self.owned_generated(body)
@@ -12049,7 +12043,7 @@ impl ProgramEnv for Env<'_> {
     fn debug_trait(&self) -> DefId {
         self.run.known.debug
     }
-    fn dbg_structure(&self) -> Option<(DefId, DefId)> {
+    fn dbg_structure(&self) -> Option<(DefId, DefId, DefId)> {
         *self.p.dbg_structure.get_or_init(|| {
             let trait_def = self.run.names().item("std.format", "DbgStructural");
             self.p.items.values().find_map(|item| {
@@ -12063,7 +12057,11 @@ impl ProgramEnv for Env<'_> {
                     return None;
                 };
                 (*trait_ == trait_def)
-                    .then(|| methods.first().map(|m| (m.1, self.run.known.structure)))
+                    .then(|| {
+                        methods
+                            .first()
+                            .map(|m| (m.1, self.run.known.structure, trait_def))
+                    })
                     .flatten()
             })
         })

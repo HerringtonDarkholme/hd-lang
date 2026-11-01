@@ -10,7 +10,7 @@ struct Span:
     end: i32
 
 impl Debug for Span:
-    fn debug(self, out: *mut DebugWriter) -> void:
+    fn debug(&self, out: *mut DebugWriter) -> void:
         let mut fields = out.debug_struct("Span")
         _ := fields.field("start", self.start)
         add_end(&mut fields, self.end)
@@ -24,7 +24,7 @@ struct Spans:
     items: List[Span]
 
 impl Debug for Spans:
-    fn debug(self, out: *mut DebugWriter) -> void:
+    fn debug(&self, out: *mut DebugWriter) -> void:
         let mut list = out.debug_list()
         for span in self.items:
             _ := list.entry(span)
@@ -35,7 +35,7 @@ struct Labels:
     note: string
 
 impl Debug for Labels:
-    fn debug(self, out: *mut DebugWriter) -> void:
+    fn debug(&self, out: *mut DebugWriter) -> void:
         out.debug_tuple("Labels").field(self.counts).named_field("note", self.note).finish()
 
 pub fn main() -> void $ Console:

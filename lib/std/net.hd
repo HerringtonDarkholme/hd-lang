@@ -559,7 +559,7 @@ impl Net for ScriptedNet:
 
 # Keep handwritten Debug: label bytes as written and omit pending read state.
 impl Debug for ScriptedStream:
-    fn debug(self, out: *mut DebugWriter) -> void:
+    fn debug(&self, out: *mut DebugWriter) -> void:
         out.debug_struct("ScriptedStream")
             .field("reads", self.reads)
             .field("written", self.bytes)
@@ -568,7 +568,7 @@ impl Debug for ScriptedStream:
 
 # Keep handwritten Debug: omit consumed-connection bookkeeping.
 impl Debug for ScriptedListener:
-    fn debug(self, out: *mut DebugWriter) -> void:
+    fn debug(&self, out: *mut DebugWriter) -> void:
         out.debug_struct("ScriptedListener")
             .field("connections", self.connections)
             .field("closed", self.closed)
@@ -576,7 +576,7 @@ impl Debug for ScriptedListener:
 
 # Keep handwritten Debug: label outgoing as sent and omit read bookkeeping.
 impl Debug for ScriptedUdp:
-    fn debug(self, out: *mut DebugWriter) -> void:
+    fn debug(&self, out: *mut DebugWriter) -> void:
         out.debug_struct("ScriptedUdp")
             .field("incoming", self.incoming)
             .field("sent", self.outgoing)
@@ -585,14 +585,14 @@ impl Debug for ScriptedUdp:
 
 # Keep handwritten Debug: keep positional payloads instead of declared named fields.
 impl Debug for ScriptedConnection:
-    fn debug(self, out: *mut DebugWriter) -> void:
-        match self:
+    fn debug(&self, out: *mut DebugWriter) -> void:
+        match *self:
             .Stream(stream) => out.debug_tuple("ScriptedConnection.Stream").field(stream).finish()
             .Failure(error) => out.debug_tuple("ScriptedConnection.Failure").field(error).finish()
 
 # Keep handwritten Debug: label calls as requested and omit internal cursors.
 impl Debug for ScriptedNet:
-    fn debug(self, out: *mut DebugWriter) -> void:
+    fn debug(&self, out: *mut DebugWriter) -> void:
         out.debug_struct("ScriptedNet")
             .field("hosts", self.hosts)
             .field("connections", self.connections)

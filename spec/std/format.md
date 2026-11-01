@@ -62,7 +62,7 @@ struct Point:
     y: i32
 
 impl Debug for Point:
-    fn debug(self, out: *mut DebugWriter) -> void:
+    fn debug(&self, out: *mut DebugWriter) -> void:
         out.debug_struct("Point").field("x", self.x).field("y", self.y).finish()
 ```
 

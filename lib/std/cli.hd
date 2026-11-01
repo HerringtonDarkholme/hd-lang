@@ -432,7 +432,7 @@ impl CliError:
 
 # Keep handwritten Debug: show declarations as arguments and omit lookup indexes.
 impl Debug for ArgParser:
-    fn debug(self, out: *mut DebugWriter) -> void:
+    fn debug(&self, out: *mut DebugWriter) -> void:
         fields := out.debug_struct("ArgParser")
             .field("program", self.program)
             .field("about", self.about)
@@ -443,7 +443,7 @@ impl Debug for ArgParser:
 
 # Keep handwritten Debug: keep public-facing field labels instead of private storage names.
 impl Debug for Parsed:
-    fn debug(self, out: *mut DebugWriter) -> void:
+    fn debug(&self, out: *mut DebugWriter) -> void:
         fields := out.debug_struct("Parsed")
             .field("flags", self.present_flags)
             .field("values", self.option_values)
@@ -454,8 +454,8 @@ impl Debug for Parsed:
 
 # Keep handwritten Debug: empty tuple builders apply dbg depth limits to these variants.
 impl Debug for ArgKind:
-    fn debug(self, out: *mut DebugWriter) -> void:
-        match self:
+    fn debug(&self, out: *mut DebugWriter) -> void:
+        match *self:
             .Flag => out.debug_tuple("ArgKind.Flag").finish()
             .Option => out.debug_tuple("ArgKind.Option").finish()
             .Positional => out.debug_tuple("ArgKind.Positional").finish()
