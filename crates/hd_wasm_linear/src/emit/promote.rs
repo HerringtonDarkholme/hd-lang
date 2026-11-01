@@ -51,11 +51,28 @@ pub fn lent_referent(
     if !(1..=4).contains(&n) {
         return None;
     }
-    // The referent as declared: `kind` strips a newtype to its base, but
-    // a copy's reads of `[*$p .0]` name the newtype's field.
-    match pool.get(crate::layout::strip(pool, env, t)) {
-        hd_types::TyData::Adt { args, .. } => pool.list_items(args).first().copied(),
-        _ => Some(target),
+    // The layout's target has its newtypes erased; the promoted value keeps
+    // the declared referent, so a path through it steps into a newtype's
+    // one field, as `i32(*m)` with `m: &Meters` does.
+    Some(declared_referent(pool, env, t).unwrap_or(target))
+}
+
+/// The type a reference type `t` refers to, as declared: newtypes kept.
+fn declared_referent(
+    pool: &hd_types::InternPool,
+    env: &dyn hd_mono::ProgramEnv,
+    t: Ty,
+) -> Option<Ty> {
+    let t = crate::layout::strip(pool, env, t);
+    match pool.get(t) {
+        hd_types::TyData::Adt { def, args } if env.ref_cells().holds(def) => {
+            let inner = pool.list_items(args).first().copied()?;
+            Some(match pool.get(inner) {
+                hd_types::TyData::Mut(i) => i,
+                _ => inner,
+            })
+        }
+        _ => None,
     }
 }
 

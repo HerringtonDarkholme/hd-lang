@@ -1,0 +1,42 @@
+# test: a newtype's value read through a reference, by a conversion or a &self method
+# Spec 13 Values And References: ref.deref.read, ref.read.shallow.
+# expect-stdout: 5
+# expect-stdout: 7
+# expect-stdout: true
+# expect-stdout: 9000000000
+# expect-stdout: 2.5
+# expect-stdout: true
+type Meters(i32)
+
+type Ticks(i64)
+
+type Ratio(f64)
+
+impl Meters:
+    fn get(&self) -> i32:
+        i32(*self)
+
+impl Eq for Meters:
+    fn eq(&self, other: &Meters) -> bool:
+        i32(*self) == i32(*other)
+
+fn val(m: &Meters) -> i32:
+    i32(*m)
+
+fn long(t: &Ticks) -> i64:
+    i64(*t)
+
+fn ratio(r: &Ratio) -> f64:
+    f64(*r)
+
+fn far(m: &Meters) -> bool:
+    i32(*m) > 3
+
+pub fn main() -> void $ Console:
+    println(val(&Meters(5)))
+    m := Meters(7)
+    println(m.get())
+    println(far(&m))
+    println(long(&Ticks(9_000_000_000)))
+    println(ratio(&Ratio(2.5)))
+    println(Meters(4) == Meters(4))

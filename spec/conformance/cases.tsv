@@ -5721,3 +5721,4 @@ typing/invalid/trait-resolution-depth-method-lookup.hd	type	reject:trait-resolut
 typing/valid/bound-closure-takes-the-bound-row.hd	type	accept	lang/07-functions.md#r-fn.trait.bound-closure
 typing/invalid/bound-closure-row-outside-the-bound.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.trait.bound-closure
 runtime/valid/bound-closure-row-adopted-runs.hd	runtime	accept	lang/07-functions.md#r-fn.trait.bound-closure
+runtime/valid/newtype-read-through-a-reference.hd	runtime	accept	lang/13-values-and-references.md#r-ref.deref.read
