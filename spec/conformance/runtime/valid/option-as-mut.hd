@@ -1,0 +1,32 @@
+# test: `as_mut` lends the payload of an optional writably, and a write through it changes the payload in place
+# Spec std option: std-option.as-mut, std-option.as-ref.in-place.
+# expect-stdout: 5
+# expect-stdout: b 30
+# expect-stdout: none
+struct Photo:
+    width: i32
+    name: string
+
+impl !Copy for Photo
+
+fn widen(p: &mut (Photo?)) -> void:
+    match p.as_mut():
+        .Some(r) =>
+            r.width = r.width * 10
+            r.name = "b"
+        .None => pass
+
+pub fn main() -> void $ Console:
+    let mut n: i32? = .Some(4)
+    match n.as_mut():
+        .Some(r) => *r = *r + 1
+        .None => pass
+    println("${n.unwrap_or(0)}")
+    let mut p: Photo? = .Some(Photo { width: 3, name: "a" })
+    widen(&mut p)
+    match p:
+        .Some(photo) => println("${photo.name} ${photo.width}")
+        .None => pass
+    let mut e: Photo? = .None
+    widen(&mut e)
+    println(if e.is_none(): "none" else: "some")

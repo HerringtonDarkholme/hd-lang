@@ -93,8 +93,9 @@ fn greeting(name: string?) -> string:
 
 ## Borrowed Payloads
 
-`std` gives an optional reference, `(&T)?`, a `copied` method that copies
-the value it refers to:
+`as_ref` and `as_mut` lend the payload of an optional without moving it
+out, and `std` gives an optional reference, `(&T)?`, a `copied` method that
+copies the value it refers to:
 
 ```text
 fn count_of(found: (&usize)?) -> usize:
@@ -103,9 +104,12 @@ fn count_of(found: (&usize)?) -> usize:
 
 | Rule | Method | Result |
 | --- | --- | --- |
+| r[std-option.as-ref] `as_ref` | `fn as_ref(&self) -> (&T)?` | `.Some` of a reference to the payload for `.Some(_)`, and `.None` for `.None` |
+| r[std-option.as-mut] `as_mut` | `fn as_mut(&mut self) -> (&mut T)?` | `.Some` of a writable reference to the payload for `.Some(_)`, and `.None` for `.None` |
 | r[std-option.copied] `copied` | `fn copied(self) -> T?` on `(&T)?` | `.Some(*value)` for `.Some(value)`, and `.None` for `.None` |
 
 1. r[std-option.copied.inherent] `copied` is an inherent method that `std` declares on `(&T)?` for a `T` that is copied, so it needs no `use`.
+2. r[std-option.as-ref.in-place] `as_ref` and `as_mut` leave the optional in place, for a payload that is copied or not. A write through the reference that `as_mut` gives changes the payload inside the optional.
 
 ## Optional Context
 

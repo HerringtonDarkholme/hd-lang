@@ -67,6 +67,20 @@ impl[T < ?Copy] T?:
             .Some(_) => false
             .None => true
 
+    ## `.Some` of a reference to the value of a `.Some`, and `.None` for a `.None`; the optional stays in place.
+    ## See [std-option.as-ref](../../spec/std/option.md#r-std-option.as-ref).
+    pub fn as_ref(&self) -> (&T)?:
+        match self:
+            .Some(value) => .Some(value)
+            .None => .None
+
+    ## `.Some` of a writable reference to the value of a `.Some`, and `.None` for a `.None`.
+    ## See [std-option.as-mut](../../spec/std/option.md#r-std-option.as-mut).
+    pub fn as_mut(&mut self) -> (&mut T)?:
+        match self:
+            .Some(value) => .Some(value)
+            .None => .None
+
     ## The value of a `.Some`; for a `.None` it panics, showing `message`.
     ## See [std-option.expect](../../spec/std/option.md#r-std-option.expect).
     pub fn expect(self, message: string) -> T:

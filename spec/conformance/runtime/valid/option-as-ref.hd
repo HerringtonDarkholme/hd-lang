@@ -1,0 +1,25 @@
+# test: `as_ref` lends the payload of an optional, copied or not, and leaves the optional in place
+# Spec std option: std-option.as-ref, std-option.as-ref.in-place.
+# expect-stdout: 4 4
+# expect-stdout: a 3
+# expect-stdout: true
+struct Photo:
+    width: i32
+    name: string
+
+impl !Copy for Photo
+
+fn describe(p: &(Photo?)) -> string:
+    match p.as_ref():
+        .Some(r) => "${r.name} ${r.width}"
+        .None => "none"
+
+pub fn main() -> void $ Console:
+    let n: i32? = .Some(4)
+    match n.as_ref():
+        .Some(r) => println("${*r} ${n.unwrap_or(0)}")
+        .None => pass
+    let p: Photo? = .Some(Photo { width: 3, name: "a" })
+    println(describe(&p))
+    let e: i32? = .None
+    println("${e.as_ref().is_none()}")
