@@ -2388,6 +2388,13 @@ address. The optimized pipeline declares the pass `arg_promote`
   mask), so it owns no count either. The copy's reads keep the modes the
   passes gave the reads through the reference, so a value it keeps,
   returns or passes on as owned is a copy with a count of its own.
+  Such a loan needs its local alive over the call (`held_args`): a frame
+  local (`ref_word::FRAME`), whose `Drop` follows the call, or a `Ref`
+  that takes its local's count (`ref_word::TAKES`), as `make().size()`
+  lends its temporary. The caller then moves the value out of the local
+  into the argument, with no cell, and the `Ref`'s own `Drop`, after the
+  call, releases it. Any other `Ref` keeps the address, as its local's
+  `Drop` may come before the call.
 - **Which parameters.** `hd_tir::own::promote::read_only_params`: every
   place rooted at the parameter is a `Read` through it (`[*$p .f]`) or a
   `Drop` of it. A whole read of the reference (to store, return, compare

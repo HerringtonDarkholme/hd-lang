@@ -128,14 +128,18 @@ pub(super) fn promoted_params(input: &Input<'_>, m: &Module, key: hd_base::Hash1
 impl Em<'_, '_, '_> {
     /// Types each promoted argument ([`promoted_refs`]) as its referent.
     /// A counted one is a loan: its read takes no count, and its `Drop`
-    /// releases none, as the callee only borrows it.
+    /// releases none, as the callee only borrows it. One that takes its
+    /// local's count (`ref_word::TAKES`) moves the value out of the local
+    /// instead ([`Em::place_ref`]), and its `Drop`, after the call,
+    /// releases it.
     pub(super) fn type_promoted(&mut self, promoted: HashSet<u32>) -> StageResult<()> {
         for &a in &promoted {
             let Some((target, false)) = self.ref_target(self.inst_ty[a as usize]) else {
                 return unsupported("a promoted argument whose type is no thin reference");
             };
             self.inst_ty[a as usize] = target;
-            if self.counted(target).is_some() {
+            let takes = self.b.data[a as usize][1] & hd_tir::ir::ref_word::TAKES != 0;
+            if self.counted(target).is_some() && !takes {
                 self.loans.insert(a);
             }
         }

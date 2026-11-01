@@ -121,14 +121,18 @@ pub fn promoted_call(b: &Body, call: usize, mask: u64) -> bool {
     mask != 0 && promotable_args(b, call) & mask == mask
 }
 
-/// The arguments of `Call` `call` of `b` whose locals the passes keep
+/// The arguments of `Call` `call` of `b` whose values the passes keep
 /// alive over the call (bit k: argument k): each a `Ref` of a frame local
-/// (`ref_word::FRAME`). A promoted copy lends a value with counted parts
-/// with no count only there. Any other `Ref` may outlive its local's
-/// `Drop`, which can come before the call, as for `make().method()`,
-/// whose counted reference holds the temporary's cell.
+/// (`ref_word::FRAME`), or one that takes its local's count
+/// (`ref_word::TAKES`), as `make().method()` lends the temporary. A
+/// promoted copy lends a value with counted parts with no count only
+/// there: the frame local's `Drop`, or the taking `Ref`'s own, which
+/// releases the value it moved out of the local, follows the call. Any
+/// other `Ref` may outlive its local's `Drop`, which can come before the
+/// call.
 #[must_use]
 pub fn held_args(b: &Body, call: usize) -> u64 {
+    use crate::ir::ref_word::{FRAME, TAKES};
     if b.tags[call] != Tag::Call {
         return 0;
     }
@@ -138,7 +142,7 @@ pub fn held_args(b: &Body, call: usize) -> u64 {
         .filter(|&(_, &v)| {
             Ref(v).as_inst().is_some_and(|i| {
                 let i = i.0 as usize;
-                b.tags[i] == Tag::Ref && b.data[i][1] & crate::ir::ref_word::FRAME != 0
+                b.tags[i] == Tag::Ref && b.data[i][1] & (FRAME | TAKES) != 0
             })
         })
         .fold(0, |mask, (k, _)| mask | 1 << k)
@@ -165,13 +169,15 @@ pub fn promotable_args(b: &Body, call: usize) -> u64 {
 
 /// Whether `Ref` `i` of `b` is a read-only reference to a part of a local
 /// no closure captures, used once by instruction `user` and otherwise only
-/// dropped, that takes no count of its local (`ref_word::TAKES`): the
-/// reference a promoted argument replaces with its value.
+/// dropped: the reference a promoted argument replaces with its value.
+/// One that takes its local's count (`ref_word::TAKES`, a temporary's
+/// `Ref` at its last access) then moves the value out of the local, and
+/// its `Drop` releases it; it is the local's only `Ref`, so the local
+/// lives in no cell.
 #[must_use]
 pub fn promotable_ref(b: &Body, i: usize, user: usize) -> bool {
     let flags = b.data[i][1];
-    if b.tags[i] != Tag::Ref || flags & (crate::ir::ref_word::MUT | crate::ir::ref_word::TAKES) != 0
-    {
+    if b.tags[i] != Tag::Ref || flags & crate::ir::ref_word::MUT != 0 {
         return false;
     }
     let p = b.view(b.data[i][0]);
@@ -179,6 +185,14 @@ pub fn promotable_ref(b: &Body, i: usize, user: usize) -> bool {
         return false;
     };
     if !p.in_place(b) || b.cap_local.iter().any(|c| c.raw() == l) {
+        return false;
+    }
+    let addressed = |j: usize| {
+        j != i
+            && b.tags[j] == Tag::Ref
+            && matches!(b.view(b.data[j][0]).root, Root::Local(m) if m == l)
+    };
+    if flags & crate::ir::ref_word::TAKES != 0 && (0..b.len()).any(addressed) {
         return false;
     }
     let mut ops = Vec::new();

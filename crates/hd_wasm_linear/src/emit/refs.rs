@@ -508,8 +508,12 @@ impl Em<'_, '_, '_> {
     /// `Ref` `i`: the place's address, or the trait value
     /// there for a reference to a trait value, with a count of its own.
     pub(super) fn place_ref(&mut self, i: u32) -> StageResult<()> {
-        // A promoted argument is its place's value (§23.40).
+        // A promoted argument is its place's value (§23.40), moved out of
+        // its local when the reference takes the local's count.
         if self.promoted.contains(&i) {
+            if self.owned && self.b.data[i as usize][1] & hd_tir::ir::ref_word::TAKES != 0 {
+                return self.promoted_take(i);
+            }
             return self.place_read(i);
         }
         // A reference the move pass marked to take its local's count of
@@ -543,6 +547,30 @@ impl Em<'_, '_, '_> {
             return self.release_local(x);
         }
         self.counted_ref(i)
+    }
+
+    /// Promoted `Ref` `i` that takes its whole local's count: the local's
+    /// value with that count, and the local left empty.
+    fn promoted_take(&mut self, i: u32) -> StageResult<()> {
+        let p = self.place(self.b.data[i as usize][0])?;
+        let (PlaceRoot::Local(l), true) = (p.root, p.proj.is_empty()) else {
+            return unsupported("a promoted reference that takes the count of no whole local");
+        };
+        let x = l.idx();
+        if self.is_cell(x) || self.slots.contains_key(&x) {
+            return unsupported("a promoted reference that takes a cell's local");
+        }
+        let ls = self.local(u32::try_from(x).expect("locals"))?;
+        for &v in &ls {
+            self.f.get(v);
+        }
+        self.store_owned(i)?;
+        if self.counted(self.ty(i)).is_some() {
+            for v in ls {
+                self.f.zero(v);
+            }
+        }
+        Ok(())
     }
 
     /// `Ref` `i`: the address of its place, with a count of its own. The
