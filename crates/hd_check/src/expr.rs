@@ -2394,6 +2394,10 @@ impl Ck<'_, '_> {
             if inferred && let TyData::Mut(x) = pool.get(this.infer.shallow(pool, elem)) {
                 this.infer.rebind(pool, elem, x);
             }
+            // An expected element type was checked where it is written.
+            if inferred {
+                this.check_collection_item(elem, n)?;
+            }
             let t = pool.intern_ty(&TyData::Adt {
                 def: list,
                 args: pool.list(&[elem]),
@@ -2447,6 +2451,12 @@ impl Ck<'_, '_> {
                 // bound here (types.map-key.declared-bound).
                 if !kids.is_empty() && kw.is_none() {
                     this.check_map_key(k, n)?;
+                }
+                if kw.is_none() {
+                    this.check_collection_item(k, n)?;
+                }
+                if vw.is_none() {
+                    this.check_collection_item(v, n)?;
                 }
                 let t = pool.intern_ty(&TyData::Adt {
                     def: map,
@@ -2712,6 +2722,7 @@ impl Ck<'_, '_> {
             def,
             args: pool.list(&targs),
         });
+        self.check_copy_args(def, &targs, n)?;
         if let Some((sr, _)) = source {
             let rec = self.copy_record(&vals);
             let at = spread.map_or(n, |s| s);

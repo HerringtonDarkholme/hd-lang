@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:map_hash" (func $rt:map_hash (param i32 i32) (result i32)))
   (import "fixture" "rt:map_find" (func $rt:map_find (param i32 i32 i32 i32) (result i32)))
-  (import "fixture" "impl [ T ] T ?.unwrap_or[i64]" (func $"impl [ T ] T ?.unwrap_or[i64]" (param i32 i64 i64) (result i64)))
+  (import "fixture" "impl [ T < ? Copy ] T ?.unwrap_or[i64]" (func $"impl [ T < ? Copy ] T ?.unwrap_or[i64]" (param i32 i64 i64) (result i64)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:map_put" (func $rt:map_put (param i32 i32 i32 i32 i32 i64) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
@@ -45,7 +45,7 @@
       end
       local.get $t2
       i64.const 0
-      call $"impl [ T ] T ?.unwrap_or[i64]"
+      call $"impl [ T < ? Copy ] T ?.unwrap_or[i64]"
       ;; ...
     ;; 22 |     counts[other] = 0
       local.get $other.0
@@ -268,7 +268,7 @@
       end
       local.get $t3
       i64.const 0
-      call $"impl [ T ] T ?.unwrap_or[i64]"
+      call $"impl [ T < ? Copy ] T ?.unwrap_or[i64]"
       i64.const 1
       i64.add
       local.set $t3

@@ -270,7 +270,15 @@ fn environment(cx: &HeaderCx<'_>, it: &Item) -> ParamEnv {
             let index = offset + u16::try_from(i).unwrap_or(u16::MAX);
             let p = pool.intern_ty(&TyData::Param(ParamRef { owner, index }));
             for b in &g.bounds {
-                add_bound(cx.lookup, cx.names.pool, pool, env, (p, *b), 0);
+                add_bound(
+                    cx.lookup,
+                    cx.names.pool,
+                    pool,
+                    env,
+                    (p, *b),
+                    0,
+                    cx.names.known.copy,
+                );
             }
         }
     };
@@ -301,7 +309,15 @@ fn environment(cx: &HeaderCx<'_>, it: &Item) -> ParamEnv {
                 args: pool.list(&args),
                 bindings: vec![],
             });
-            add_bound(cx.lookup, cx.names.pool, pool, env, (s, tv), 0);
+            add_bound(
+                cx.lookup,
+                cx.names.pool,
+                pool,
+                env,
+                (s, tv),
+                0,
+                cx.names.known.copy,
+            );
             generics(owner, &o.generics, 1, env);
         } else {
             generics(owner, &o.generics, 0, env);
@@ -872,15 +888,29 @@ impl<'a> ItemCheck<'_, 'a> {
         Ok(())
     }
 
-    /// The supertraits of `trait_[args]`, `Self` replaced by `self_ty`.
+    /// The supertraits of `trait_[args]`, `Self` replaced by `self_ty`,
+    /// then `Copy` unless the trait is declared `< ?Copy`
+    /// (`ref.copy.trait.default`).
     fn supers(&self, trait_: DefId, args: TyList, self_ty: Ty) -> Vec<Ty> {
         let pool = self.pool();
-        let Some(ItemData::Trait(t)) = self.cx.lookup.item(trait_).map(|i| &i.data) else {
+        let Some(it) = self.cx.lookup.item(trait_) else {
             return Vec::new();
         };
+        let ItemData::Trait(t) = &it.data else {
+            return Vec::new();
+        };
+        let copy = self.cx.names.known.copy;
+        let implied = (trait_ != copy && it.requires_copy()).then(|| {
+            pool.intern_ty(&TyData::TraitValue {
+                def: copy,
+                args: TyList::EMPTY,
+                bindings: vec![],
+            })
+        });
         let args = pool.list_items(args);
         t.supers
             .iter()
+            .chain(&implied)
             .map(|s| {
                 pool.subst(*s, &|p: ParamRef| {
                     (p.owner == trait_).then(|| {

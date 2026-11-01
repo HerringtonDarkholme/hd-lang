@@ -17,7 +17,7 @@ impl[T] Iterable[T] for T?:
     fn iter(self) -> OptionIter[T]:
         OptionIter { value: self }
 
-impl[T] T?:
+impl[T < ?Copy] T?:
     ## `.Some` of `transform(value)` for a `.Some`, and `.None` for a `.None`.
     ## See [std-iter.method.map](../../spec/std/iter.md#r-std-iter.method.map).
     pub fn map[U](self, transform: fn(T) -> U) -> U?:

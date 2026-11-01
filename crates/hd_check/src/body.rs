@@ -873,8 +873,9 @@ pub(crate) fn is_inspectable_key(
 /// Elaborates one declared bound into an environment (`crates/hd_check/DESIGN.md` (trait solver)
 /// §2.3, §4.2): the clause, a defaulted trait argument left out filled
 /// in, then its supertraits, depth first in declared order, each trait
-/// reference once. Bodies and header checks build their environments
-/// with it.
+/// reference once. A bound on a trait that is not declared `< ?Copy`
+/// also adds `Copy` (`ref.copy.trait.default`), the trait `copy`. Bodies
+/// and header checks build their environments with it.
 pub(crate) fn add_bound(
     lookup: &Lookup<'_>,
     global: &hd_types::InternPool,
@@ -882,6 +883,7 @@ pub(crate) fn add_bound(
     env: &mut ParamEnv,
     (self_ty, bound): (Ty, Ty),
     depth: u32,
+    copy: DefId,
 ) {
     // A bound that names no trait, already reported, is a clause on no
     // trait: the parameter satisfies every trait (`implements`).
@@ -945,7 +947,19 @@ pub(crate) fn add_bound(
                     known.get(p.index as usize - 1).copied()
                 }
             });
-            add_bound(lookup, global, pool, env, (self_ty, s), depth + 1);
+            add_bound(lookup, global, pool, env, (self_ty, s), depth + 1, copy);
+        }
+        if def != copy
+            && lookup
+                .item(def)
+                .is_some_and(hd_resolve::Item::requires_copy)
+        {
+            let c = pool.intern_ty(&TyData::TraitValue {
+                def: copy,
+                args: hd_types::TyList::EMPTY,
+                bindings: vec![],
+            });
+            add_bound(lookup, global, pool, env, (self_ty, c), depth + 1, copy);
         }
         // Each associated type's declared bounds hold for its projection
         // (`trait.assoc.bound-use`): under `I < Iterable[T]`, the clause
@@ -974,7 +988,7 @@ pub(crate) fn add_bound(
                         known.get(p.index as usize - 1).copied()
                     }
                 });
-                add_bound(lookup, global, pool, env, (proj, b), depth + 1);
+                add_bound(lookup, global, pool, env, (proj, b), depth + 1, copy);
             }
         }
     }
@@ -1584,6 +1598,7 @@ impl Ck<'_, '_> {
             &mut self.env,
             (self_ty, bound),
             depth,
+            self.cx.names.known.copy,
         );
     }
 
@@ -2929,6 +2944,17 @@ impl Ck<'_, '_> {
             Answer::Fails(_) => {
                 if self.has_poisoned_impl(tref.self_ty) {
                     return Ok(Some(Evidence::Poison));
+                }
+                // The default `Copy` bound adds no second error where a
+                // written bound already failed (`ref.copy.generic.default`).
+                let span = self.cx.src.span(at);
+                if tref.trait_ == self.cx.names.known.copy
+                    && (0..self.diags.code.len()).any(|i| {
+                        self.diags.code[i] == Code::UnsatisfiedTraitBound
+                            && self.diags.primary[i] == span
+                    })
+                {
+                    return Ok(None);
                 }
                 let msg = self.bound_message(tref, origin, at);
                 let code = self.bound_code(tref.trait_, code);

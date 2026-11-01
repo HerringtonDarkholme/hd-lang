@@ -54,6 +54,7 @@ pub const PRELUDE: &[(&str, &[&str])] = &[
     ("std.iter", &["Iterator", "Iterable"]),
     ("std.console", &["Console", "ConsoleError", "println"]),
     ("std.task", &["Suspend"]),
+    ("std.ops", &["Copy"]),
 ];
 
 /// The prelude names of test code (`module.prelude.test-assertions`): bound only
@@ -839,6 +840,9 @@ struct Resolver<'a, 'b> {
     /// They are recorded by [`lower_aliases`], each after the aliases and
     /// data types its declaration names.
     own_types: RefCell<HashMap<DefId, Vec<Generic>>>,
+    /// The structs and enums an `impl !Copy` names (`ref.copy.opt-out`),
+    /// marked on their items once each module is lowered.
+    not_copy: RefCell<HashSet<DefId>>,
     /// The supertraits of the traits of the modules being lowered, as
     /// trait-value types over each trait's `Self`, lowered before any
     /// other header, so a projection or a binding finds the trait that
@@ -3393,8 +3397,38 @@ impl Lower<'_, '_, '_> {
         }
     }
 
+    /// The `Copy` bound a type parameter has by default
+    /// (`ref.copy.generic.default`).
+    fn copy_bound(&self) -> Ty {
+        self.names.pool.intern_ty(&TyData::TraitValue {
+            def: self.names.known.copy,
+            args: TyList::EMPTY,
+            bindings: vec![],
+        })
+    }
+
+    /// The first token of each bound in `bl` written after a `?`.
+    fn relaxed_tokens(&self, bl: NodeRef<'_>) -> Vec<u32> {
+        let toks = &self.src.parse.tokens;
+        bl.direct_tokens()
+            .filter(|&t| toks.kind(t) == TokenKind::Question)
+            .map(|t| t.raw() + 1)
+            .collect()
+    }
+
+    /// `T < ?B` and `trait T < ?B`: only `?Copy`
+    /// (`ref.copy.generic.relaxed`).
+    fn relaxed_bound(&mut self, b: NodeRef<'_>, bound: Ty) {
+        if self.r.frozen.is_none() && self.trait_of(bound) != Some(self.names.known.copy) {
+            let msg = "only `Copy` is a default bound, so `?` lifts only `?Copy`";
+            self.diags
+                .error(Code::InvalidRelaxedBound, self.src.span(b), msg);
+        }
+    }
+
     /// A generic parameter list: names first, so bounds may name later
-    /// parameters, then bounds and defaults.
+    /// parameters, then bounds and defaults. Each type parameter is `Copy`
+    /// unless written `?Copy` (`ref.copy.generic.default`).
     fn generics(
         &mut self,
         gl: Option<NodeRef<'_>>,
@@ -3505,16 +3539,27 @@ impl Lower<'_, '_, '_> {
                 continue;
             }
             let mut bounds = Vec::new();
+            let mut lifted = false;
             if let Some(bl) = Src::child(node, SyntaxKind::BoundList) {
                 let me = (!row)
                     .then(|| gn.tys[start..].iter().find(|(s, _, _)| *s == g.name))
                     .flatten()
                     .map(|(_, t, _)| *t);
+                let relaxed = self.relaxed_tokens(bl);
                 for b in bl.children().filter(|c| c.kind() == SyntaxKind::NamedType) {
                     // A bound that names no trait is already reported. It
                     // stays as poison, so that the parameter satisfies
                     // every trait and adds no second error.
                     let bound = self.trait_value(b, gn, me).unwrap_or(Ty::POISON);
+                    // `?Copy` lifts the default bound and adds none
+                    // (`ref.copy.generic.relaxed`).
+                    if relaxed.contains(&b.first_token().raw()) {
+                        if bound != Ty::POISON {
+                            self.relaxed_bound(b, bound);
+                        }
+                        lifted = true;
+                        continue;
+                    }
                     // `Structure` is named only inside a template, never as
                     // a parameter bound (`annot.structure.named-positions`).
                     if self.r.frozen.is_none()
@@ -3586,6 +3631,9 @@ impl Lower<'_, '_, '_> {
             if let Some((_, t, _)) = gn.tys[start..].iter().find(|(s, _, _)| *s == g.name) {
                 let t = *t;
                 gn.pending.retain(|p| *p != t);
+            }
+            if !row && !lifted {
+                bounds.push(self.copy_bound());
             }
             g.bounds = bounds;
             if let Some(d) = Src::child(node, SyntaxKind::TypeDefault) {
@@ -3871,15 +3919,17 @@ impl Lower<'_, '_, '_> {
             .find(|bound| **bound != Ty::POISON)
             .and_then(|bound| self.trait_of(*bound))
             .filter(|def| *def != self.names.known.static_bound);
-        generic.bounds = bounds;
         gn.tys
             .last_mut()
             .expect("anonymous parameter was just inserted")
-            .2 = generic
-            .bounds
+            .2 = bounds
             .iter()
             .filter_map(|bound| self.names.pool.trait_value(*bound))
             .collect();
+        // A function's parameter, so `Copy` by default
+        // (`ref.copy.generic.default`).
+        bounds.push(self.copy_bound());
+        generic.bounds = bounds;
         gn.bounded.push(ty);
         (ty, generic)
     }
@@ -4671,6 +4721,58 @@ impl Lower<'_, '_, '_> {
             .error(Code::SealedTraitImplementation, self.src.span(imp), &msg);
     }
 
+    /// `impl !Copy for T` (`ref.copy.opt-out`): `T`, a struct or enum of
+    /// this module, does not copy. It declares no implementation, so it
+    /// adds no item; the module's lowering marks the target.
+    fn negative_impl(&mut self, h: &Head<'_>, (trait_, self_ty): (DefId, Ty)) {
+        let n = h.node;
+        let pool = self.names.pool;
+        let target = match pool.get(self_ty) {
+            TyData::Adt { def, .. } => self
+                .kinds
+                .get(&def)
+                .copied()
+                .or_else(|| self.r.item(def).and_then(|i| i.kind()))
+                .filter(|k| matches!(k, HeadKind::Data | HeadKind::Enum))
+                .map(|_| def),
+            _ => None,
+        };
+        let session = self
+            .r
+            .session_modules
+            .get(self.module)
+            .map_or(&[][..], Vec::as_slice);
+        let placed = target.is_some()
+            && impl_placement(
+                &self.names,
+                (self.module, session),
+                (DefId::NONE, TyList::EMPTY, self_ty),
+                ImplKind::Written,
+            )
+            .is_none();
+        let msg = if trait_ != self.names.known.copy {
+            Some("only `Copy` has a negative implementation, as `impl !Copy for T`")
+        } else if target.is_none() {
+            Some("a negative implementation targets a struct or an enum")
+        } else if !placed {
+            Some("`impl !Copy` belongs in the module that declares its target")
+        } else if Src::child(n, SyntaxKind::Block).is_some() {
+            Some("a negative implementation declares no members")
+        } else {
+            None
+        };
+        if let Some(msg) = msg {
+            if self.r.frozen.is_none() && trait_ != DefId::NONE {
+                self.diags
+                    .error(Code::InvalidNegativeImpl, self.src.span(n), msg);
+            }
+            return;
+        }
+        if let Some(def) = target {
+            self.r.not_copy.borrow_mut().insert(def);
+        }
+    }
+
     fn poisoned_impl(h: &Head<'_>, self_ty: Ty, generics: Vec<Generic>, out: &mut Vec<Item>) {
         let mut item = Item::new(
             h.def,
@@ -4831,6 +4933,12 @@ impl Lower<'_, '_, '_> {
                 }
             }
         };
+        if n.direct_token(&self.src.parse.tokens, TokenKind::Bang)
+            .is_some()
+        {
+            self.negative_impl(h, (trait_, self_ty));
+            return;
+        }
         // Only the compiler and the standard library implement a sealed
         // trait (`trait.sealed.user-impl`). The rejected implementation
         // is left out, so nothing else is reported about it.
@@ -4992,7 +5100,10 @@ impl Lower<'_, '_, '_> {
     fn numeric_family(&self, generics: &[Generic]) -> bool {
         let known = &self.names.known;
         generics.iter().filter(|g| !g.row).all(|g| {
-            matches!(g.bounds.as_slice(), [b]
+            let written: Vec<Ty> = (g.bounds.iter().copied())
+                .filter(|b| self.trait_of(*b) != Some(known.copy))
+                .collect();
+            matches!(written.as_slice(), [b]
                 if self.trait_of(*b).is_some_and(|t| [known.num, known.integer, known.float].contains(&t)))
         })
     }
@@ -5377,6 +5488,12 @@ impl Lower<'_, '_, '_> {
                             })
                         })
                         .collect();
+                    // `Copy` as on the type's own parameter
+                    // (`ref.copy.generic.default`).
+                    let copy = self.copy_bound();
+                    if decl.bounds.contains(&copy) {
+                        g2.bounds.push(copy);
+                    }
                 }
                 gs.push(g2);
             }
@@ -5469,10 +5586,22 @@ impl Lower<'_, '_, '_> {
 
     /// A trait declaration's supertrait list, as trait-value types over
     /// its `Self`.
+    /// `?Copy` adds none, and marks the trait as one a non-copyable type
+    /// may implement (`ref.copy.trait.relaxed`).
     fn supers(&mut self, n: NodeRef<'_>, gn: &Gen, self_ty: Ty) -> Vec<Ty> {
         let mut supers = Vec::new();
         if let Some(bl) = Src::child(n, SyntaxKind::BoundList) {
+            let relaxed = self.relaxed_tokens(bl);
             for b in bl.children().filter(|c| c.kind() == SyntaxKind::NamedType) {
+                if relaxed.contains(&b.first_token().raw()) {
+                    if let Some(t) = self.trait_value(b, gn, Some(self_ty)) {
+                        self.relaxed_bound(b, t);
+                    }
+                    if let TyData::Param(p) = self.names.pool.get(self_ty) {
+                        self.r.not_copy.borrow_mut().insert(p.owner);
+                    }
+                    continue;
+                }
                 if let Some(t) = self.trait_value(b, gn, Some(self_ty)) {
                     // A supertrait bound lists a trait once
                     // (`trait.super.unique`).
@@ -6431,7 +6560,10 @@ fn misplaced_block_in<'a>(
             && it.generics.iter().enumerate().all(|(i, g)| {
                 let index = u16::try_from(i).unwrap_or(u16::MAX);
                 g.bound.is_none()
-                    && g.bounds.is_empty()
+                    && g.bounds.iter().all(|b| {
+                        pool.trait_value(*b)
+                            .is_some_and(|(d, _)| d == names.known.copy)
+                    })
                     && g.default.is_none()
                     && own.get(i).is_some_and(|a| {
                         if g.row {
@@ -7124,6 +7256,7 @@ fn resolver<'a, 'b>(
         seeds: HashMap::default(),
         own_traits: HashMap::default(),
         own_types: RefCell::new(HashMap::default()),
+        not_copy: RefCell::new(HashSet::default()),
         own_supers: HashMap::default(),
         inputs: mods
             .iter()
@@ -7414,6 +7547,12 @@ pub fn build_folder_with_facts(
             }
         }
         configured_pairs(names, &m.src, hs, &mut items, diags, r.frozen.is_none());
+        {
+            let not_copy = r.not_copy.borrow();
+            for it in items.iter_mut().filter(|i| not_copy.contains(&i.def)) {
+                it.not_copy = true;
+            }
+        }
         let mut have: HashSet<DefId> = items.iter().map(|i| i.def).collect();
         for s in &m.seeds {
             if have.insert(s.def) {

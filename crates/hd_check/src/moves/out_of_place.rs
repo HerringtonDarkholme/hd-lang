@@ -11,7 +11,7 @@ use hd_resolve::ItemData;
 use hd_tir::ir::{Body, NONE, Place, PlaceRoot, Proj, Role, Tag, Topology, Word, slots};
 use hd_types::{Ty, TyData};
 
-use super::{Uses, copies, local_of, strip, w};
+use super::{Uses, local_of, strip, w};
 use crate::body::Ck;
 
 /// Each value's users, with the role of each use.
@@ -81,7 +81,6 @@ impl Ck<'_, '_> {
     /// `ref.move.out-of-place`: each read that moves a value that is not
     /// copied out of a place behind a reference is `move-out-of-place`.
     pub(crate) fn check_moves_out_of_place(&mut self) {
-        let pool = self.pool();
         let b = self.b.body();
         if b.tags.contains(&Tag::Poison) {
             return;
@@ -89,7 +88,7 @@ impl Ck<'_, '_> {
         // The reads through a reference of a value that is not copied,
         // with whether the reference is `&mut` and the place's root.
         let reads: Vec<(u32, bool, Root)> = (0..b.len())
-            .filter(|&i| b.tags[i] == Tag::Read && !copies(pool, self.cx.lookup, b.ty[i]))
+            .filter(|&i| b.tags[i] == Tag::Read && !self.copies(b.ty[i]))
             .filter_map(|i| {
                 let p = b.decode_place(b.data[i][0])?;
                 let m = self.behind_ref(b, &p)?;
@@ -124,8 +123,9 @@ impl Ck<'_, '_> {
                 continue;
             }
             let r = if mutable { "&mut" } else { "&" };
+            let why = self.why_not_copied(self.b.body().ty[i as usize]);
             let msg = format!(
-                "this moves a value out of a place behind a `{r}` reference, which does not own it; its type holds a `&mut`, so it is not copied. Borrow it with `{r}`, or pass the reference on"
+                "this moves a value out of a place behind a `{r}` reference, which does not own it; {why}. Borrow it with `{r}`, or pass the reference on"
             );
             let node = self.cx.src.parse.tree.node(at);
             self.err(Code::MoveOutOfPlace, node, &msg);

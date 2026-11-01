@@ -1,6 +1,6 @@
 # std.result: inherent methods on `Result[T, E]` (spec/std/result.md).
 
-impl[T, E] Result[T, E]:
+impl[T < ?Copy, E < ?Copy] Result[T, E]:
     ## `.Ok` of `transform(value)` for an `.Ok`, and the error unchanged for an `.Err`.
     ## See [std-result.map](../../spec/std/result.md#r-std-result.map).
     pub fn map[U](self, transform: fn(T) -> U) -> Result[U, E]:

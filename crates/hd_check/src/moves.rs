@@ -1,6 +1,6 @@
 //! Moves (`ref.move`, #1137 and #1138, slices M1 and M2 of #1130): a
 //! `&mut T` value is not copied, nor is a value of a type that holds one
-//! ([`copies`]). A read of a whole such binding moves it where no `&mut`
+//! ([`Ck::copies`]). A read of a whole such binding moves it where no `&mut`
 //! type is expected: a `:=` or untyped `let`, a generic argument, a tuple
 //! or optional part, a return. A read of a field that is not copied
 //! moves the field out the same way, and the binding is then partly
@@ -20,7 +20,7 @@ use hd_syntax::SyntaxKind;
 use hd_tir::Callee;
 use hd_tir::ir::{Body, NONE, PlaceRoot, Proj, Ref, Role, Tag, Topology};
 use hd_tir::own::flow::{BitArena, Flow, Forward, Suites, forward};
-use hd_types::{Ty, TyData, Types};
+use hd_types::{CopyDecl, ParamRef, Ty, TyData, Types};
 
 use crate::body::Ck;
 
@@ -43,54 +43,69 @@ fn is_mut_ref(pool: Types<'_>, t: Ty) -> bool {
     }
 }
 
-/// Whether a value of `t` is copied (`ref.move.holds`): not a `&mut`, nor
-/// a struct, enum, tuple, optional or union that holds one by value. A
-/// `*mut T` and a `&T` copy; so does a type parameter.
-fn copies(pool: Types<'_>, lookup: &Lookup<'_>, t: Ty) -> bool {
-    copies_in(pool, lookup, t, &mut Vec::new())
-}
-
-fn copies_in(pool: Types<'_>, lookup: &Lookup<'_>, t: Ty, seen: &mut Vec<Ty>) -> bool {
+/// The part of `t` that keeps a value of it from being copied
+/// (`ref.move.holds`, `ref.copy.structure`): a `&mut`, a type declared
+/// `!Copy`, or a type parameter that is not `Copy`, held by value in a
+/// struct, enum, tuple, optional or union. A `*mut T` and a `&T` copy.
+fn blocker(cx: (Types<'_>, &Lookup<'_>), t: Ty, seen: &mut Vec<Ty>) -> Option<Ty> {
+    let (pool, lookup) = cx;
     if seen.contains(&t) || seen.len() > 32 {
-        return true;
+        return None;
     }
-    let all = |ts: &[Ty], seen: &mut Vec<Ty>| ts.iter().all(|&e| copies_in(pool, lookup, e, seen));
+    let any = |ts: &[Ty], seen: &mut Vec<Ty>| ts.iter().find_map(|&e| blocker(cx, e, seen));
     match pool.get(t) {
         TyData::Ref {
             mutable, counted, ..
-        } => !mutable || counted,
-        TyData::Mut(i) | TyData::Option(i) => copies_in(pool, lookup, i, seen),
+        } => (mutable && !counted).then_some(t),
+        TyData::Mut(i) | TyData::Option(i) => blocker(cx, i, seen),
         TyData::Tuple { elems, rest } => {
-            all(pool.list_items(elems), seen)
-                && rest.is_none_or(|r| copies_in(pool, lookup, r, seen))
+            any(pool.list_items(elems), seen).or_else(|| rest.and_then(|r| blocker(cx, r, seen)))
         }
-        TyData::Union(ms) => all(pool.list_items(ms), seen),
+        TyData::Union(ms) => any(pool.list_items(ms), seen),
+        TyData::Param(p) => (!param_copies(cx, p)).then_some(t),
         TyData::Adt { def, args } => {
-            let Some(item) = lookup.item(def) else {
-                return true;
-            };
-            let fields: Vec<&hd_resolve::Field> = match &item.data {
-                ItemData::Data(fs) => fs.iter().collect(),
-                ItemData::Enum { shared, variants } => (shared.iter())
-                    .chain(variants.iter().flat_map(|v| &v.fields))
-                    .collect(),
-                _ => return true,
+            let members = match lookup.item(def)?.copy_decl() {
+                CopyDecl::Copies => return None,
+                CopyDecl::NotCopy => return Some(t),
+                CopyDecl::Members(ms) => ms,
             };
             let argv = pool.list_items(args);
             seen.push(t);
-            let ok = fields.iter().all(|f| {
-                let ft = pool.subst(f.ty, &|p| {
+            let found = members.iter().find_map(|&m| {
+                let ft = pool.subst(m, &|p| {
                     (p.owner == def)
                         .then(|| argv.get(p.index as usize).copied())
                         .flatten()
                 });
-                copies_in(pool, lookup, ft, seen)
+                blocker(cx, ft, seen)
             });
             seen.pop();
-            ok
+            found
         }
-        _ => true,
+        _ => None,
     }
+}
+
+/// Whether type parameter `p` is `Copy`: it has a bound on a trait that
+/// implies it, as every parameter has unless declared `?Copy`
+/// (`ref.copy.generic.default`, `ref.copy.trait.default`). A trait's
+/// `Self` is `Copy` unless the trait is declared `< ?Copy`.
+fn param_copies((pool, lookup): (Types<'_>, &Lookup<'_>), p: ParamRef) -> bool {
+    let Some(item) = lookup.item(p.owner) else {
+        return true;
+    };
+    let in_trait = matches!(item.data, ItemData::Trait(_));
+    if in_trait && p.index == 0 {
+        return !item.not_copy;
+    }
+    let generics = item.sig().map_or(&item.generics[..], |s| &s.generics[..]);
+    let at = usize::from(p.index) - usize::from(in_trait);
+    generics.get(at).is_none_or(|g| {
+        g.bounds.iter().any(|&b| {
+            pool.trait_value(b)
+                .is_some_and(|(d, _)| lookup.item(d).is_some_and(hd_resolve::Item::requires_copy))
+        })
+    })
 }
 
 /// `t` without `mut`.
@@ -235,6 +250,49 @@ fn field_prefix(proj: &[Proj]) -> (Vec<u32>, bool) {
 }
 
 impl Ck<'_, '_> {
+    /// Whether a value of `t` is copied ([`blocker`]).
+    pub(crate) fn copies(&self, t: Ty) -> bool {
+        self.not_copied_by(t).is_none()
+    }
+
+    /// The part of `t` that keeps it from being copied ([`blocker`]).
+    fn not_copied_by(&self, t: Ty) -> Option<Ty> {
+        blocker((self.pool(), self.cx.lookup), t, &mut Vec::new())
+    }
+
+    /// Why a value of `t` is not copied, for a message: the `&mut`, the
+    /// `!Copy` type or the `?Copy` parameter it holds.
+    pub(crate) fn why_not_copied(&self, t: Ty) -> String {
+        let pool = self.pool();
+        let Some(part) = self.not_copied_by(t) else {
+            return "its type is not copied".to_string();
+        };
+        let shown = hd_resolve::show_ty(&self.cx.names, part);
+        match pool.get(part) {
+            TyData::Adt { .. } if part == strip(pool, t) => {
+                format!("its type `{shown}` is declared `impl !Copy`, so it is not copied")
+            }
+            TyData::Adt { .. } => {
+                format!("its type holds `{shown}`, declared `impl !Copy`, so it is not copied")
+            }
+            TyData::Param(p)
+                if p.index == 0
+                    && self
+                        .cx
+                        .lookup
+                        .item(p.owner)
+                        .is_some_and(|i| matches!(i.data, ItemData::Trait(_))) =>
+            {
+                "its type holds the `Self` of a trait declared `< ?Copy`, so it is not copied"
+                    .to_string()
+            }
+            TyData::Param(_) => {
+                format!("its type holds `{shown}`, declared `?Copy`, so it is not copied")
+            }
+            _ => "its type holds a `&mut`, so it is not copied".to_string(),
+        }
+    }
+
     /// `ref.move`: each use of a binding that is not copied, after its
     /// value moved on some path, is `use-of-moved-value`, reported once
     /// per binding. Returns the reads of a whole `&mut` binding or field
@@ -249,9 +307,7 @@ impl Ck<'_, '_> {
             return reborrows;
         }
         let hidden = self.hidden_locals(b);
-        let held: Vec<bool> = (b.local_ty.iter())
-            .map(|&t| !copies(pool, self.cx.lookup, t))
-            .collect();
+        let held: Vec<bool> = (b.local_ty.iter()).map(|&t| !self.copies(t)).collect();
         let tracked = |l: LocalId| held[l.idx()] && !hidden[l.idx()];
         if !(0..b.local_ty.len()).any(|l| held[l] && !hidden[l]) {
             return reborrows;
@@ -310,7 +366,7 @@ impl Ck<'_, '_> {
         let mut move_bit = vec![NONE; n];
         for i in 0..n {
             let Some(a) = &acc[i] else { continue };
-            let field_copies = !a.path.is_empty() && copies(pool, self.cx.lookup, b.ty[i]);
+            let field_copies = !a.path.is_empty() && self.copies(b.ty[i]);
             if b.tags[i] != Tag::Read
                 || link[i]
                 || !a.exact
@@ -383,9 +439,8 @@ impl Ck<'_, '_> {
                     "`{name}` was moved before this use; pass `&mut *{name}` where it moves to keep using it"
                 )
             } else {
-                format!(
-                    "`{name}` was moved before this use; its type holds a `&mut`, so it is not copied"
-                )
+                let why = self.why_not_copied(b.local_ty[l]);
+                format!("`{name}` was moved before this use; {why}")
             };
             let node = self.cx.src.parse.tree.node(at);
             self.err(Code::UseOfMovedValue, node, &msg);
@@ -428,13 +483,13 @@ impl Ck<'_, '_> {
         if depth > 64 {
             return false;
         }
-        let (pool, b) = (self.pool(), cx.b);
+        let b = cx.b;
         cx.users[v as usize].iter().any(|&(u, role)| {
             let i = u as usize;
             if b.tags[i] == Tag::Coerce {
                 // A coercion to `&T` reborrows; one that keeps a type
                 // that is not copied passes the value on.
-                return !copies(pool, self.cx.lookup, b.ty[i]) && self.moves(cx, u, depth + 1);
+                return !self.copies(b.ty[i]) && self.moves(cx, u, depth + 1);
             }
             match role {
                 Role::Consume => self.consume_moves(cx, i, v, depth),

@@ -316,6 +316,9 @@ impl Ck<'_, '_> {
                 if bl.direct_token(toks, TokenKind::KwMut).is_some() {
                     return self.gap(bl, "a `mut` bound on a local function's type parameter");
                 }
+                if bl.direct_token(toks, TokenKind::Question).is_some() {
+                    return self.gap(bl, "a `?Copy` bound on a local function's type parameter");
+                }
                 for b in bl.children().filter(|c| c.kind() == SyntaxKind::NamedType) {
                     let t = self.ty_node_as(b, NameRole::Trait)?;
                     if matches!(pool.get(t), TyData::TraitValue { .. }) {
@@ -334,6 +337,14 @@ impl Ck<'_, '_> {
                     bs.push(t);
                 }
             }
+            // The default `Copy` bound (`ref.copy.generic.default`).
+            let copy = pool.intern_ty(&TyData::TraitValue {
+                def: self.cx.names.known.copy,
+                args: hd_types::TyList::EMPTY,
+                bindings: vec![],
+            });
+            self.add_bound(p, copy, 0);
+            bs.push(copy);
             bounds.push(bs);
             let written = Src::child(g, SyntaxKind::TypeDefault).and_then(|d| {
                 d.children()

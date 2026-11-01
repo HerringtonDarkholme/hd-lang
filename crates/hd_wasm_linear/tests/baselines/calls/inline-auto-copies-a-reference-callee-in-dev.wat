@@ -3,7 +3,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
   (import "fixture" "impl [ T ] List [ T ].get[i32]" (func $"impl [ T ] List [ T ].get[i32]" (param i32 i32) (result i32 i32)))
-  (import "fixture" "impl [ T ] T ?.unwrap_or[i32]" (func $"impl [ T ] T ?.unwrap_or[i32]" (param i32 i32 i32) (result i32)))
+  (import "fixture" "impl [ T < ? Copy ] T ?.unwrap_or[i32]" (func $"impl [ T < ? Copy ] T ?.unwrap_or[i32]" (param i32 i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $read (param $values i32) (result i32) (local $t0 i32)
     block
@@ -18,7 +18,7 @@
           i32.const 0
           call $"impl [ T ] List [ T ].get[i32]"
           i32.const 0
-          call $"impl [ T ] T ?.unwrap_or[i32]"
+          call $"impl [ T < ? Copy ] T ?.unwrap_or[i32]"
           local.set $t0
           br 0
         end

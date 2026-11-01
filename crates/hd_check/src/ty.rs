@@ -706,6 +706,44 @@ impl Ck<'_, '_> {
         Ok(())
     }
 
+    /// `t` is `Copy`: a list or map literal's item type, as a collection
+    /// holds copyable items (`ref.copy.collections`), or a constructed
+    /// type's argument.
+    pub(crate) fn check_collection_item(&mut self, t: Ty, at: NodeRef<'_>) -> StageResult<()> {
+        let tref = hd_types::solver::TraitRef {
+            trait_: self.cx.names.known.copy,
+            self_ty: t,
+            args: hd_types::TyList::EMPTY,
+        };
+        self.require_ref_as(tref, at, Code::UnsatisfiedTraitBound)?;
+        Ok(())
+    }
+
+    /// The type arguments of a struct literal or variant construction of
+    /// `def` are `Copy` where its parameters are
+    /// (`ref.copy.generic.default`).
+    pub(crate) fn check_copy_args(
+        &mut self,
+        def: DefId,
+        args: &[Ty],
+        at: NodeRef<'_>,
+    ) -> StageResult<()> {
+        let pool = self.pool();
+        let copy = self.cx.names.known.copy;
+        let Some(item) = self.cx.lookup.item(def) else {
+            return Ok(());
+        };
+        let bounded: Vec<bool> = (item.generics.iter())
+            .map(|g| {
+                (g.bounds.iter()).any(|b| pool.trait_value(*b).is_some_and(|(d, _)| d == copy))
+            })
+            .collect();
+        for (&a, _) in args.iter().zip(bounded).filter(|(_, b)| *b) {
+            self.check_collection_item(a, at)?;
+        }
+        Ok(())
+    }
+
     /// A dotted path to an item.
     pub(crate) fn resolve_path(&self, segs: &[String]) -> Option<DefId> {
         let first = segs.first()?;

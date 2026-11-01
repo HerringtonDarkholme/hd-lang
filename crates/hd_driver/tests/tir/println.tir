@@ -8,13 +8,13 @@ std/console/println (Fn)
   %4 = Read [$0] : T
   %5 = Call std/format/Display.to_string for T [] via Bound (%4) : string
   %6 = Call std/console/Console.write_sync for Console [] via TraitValue (%3, %5) : Result[(), ConsoleError]
-  %7 = Call std/result/impl [ T , E ] Result [ T , E ].is_err[(), ConsoleError] (%6) : bool
+  %7 = Call std/result/impl [ T < ? Copy , E < ? Copy ] Result [ T , E ].is_err[(), ConsoleError] (%6) : bool
   %8 = Call std/core/panic[] ("println: write_sync returned .Err(ConsoleError)") : never
   %9 = Block - : never
   %10 = If %7 [%9 -] : ()
   %11 = Read [*$1] : mut Console
   %12 = Call std/console/Console.write_sync for Console [] via TraitValue (%11, "\n") : Result[(), ConsoleError]
-  %13 = Call std/result/impl [ T , E ] Result [ T , E ].is_err[(), ConsoleError] (%12) : bool
+  %13 = Call std/result/impl [ T < ? Copy , E < ? Copy ] Result [ T , E ].is_err[(), ConsoleError] (%12) : bool
   %14 = Call std/core/panic[] ("println: write_sync returned .Err(ConsoleError)") : never
   %15 = Block - : never
   %16 = If %13 [%15 -] : ()

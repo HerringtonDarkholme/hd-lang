@@ -3275,6 +3275,10 @@ impl Ck<'_, '_> {
             let msg = format!("`{name}` takes {} values", fields.len());
             self.err(Code::ArgumentCount, n, &msg);
         }
+        let pool = self.pool();
+        if let TyData::Adt { def, args } = pool.get(self.infer.shallow(pool, t)) {
+            self.check_copy_args(def, pool.list_items(args), n)?;
+        }
         let refs: Vec<Ref> = slots.into_iter().map(|r| r.unwrap_or(Ref(NONE))).collect();
         let rec = self.b.refs_record(&refs);
         Ok((self.b.emit(Tag::NewVariant, index, rec, t, n.index()), t))
