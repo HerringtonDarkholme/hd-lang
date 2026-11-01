@@ -1,6 +1,6 @@
 # calc: tokenizer, recursive-descent parser into an enum, and an evaluator.
-# Shows recursive links through `&`, exhaustive match, Result with `?`, a mutable
-# parser cursor, and unit tests.
+# Shows recursive links through boxed `*Expr` references, exhaustive match,
+# Result with `?`, a mutable parser cursor, and unit tests.
 use std.testing.{Arbitrary, assert, assert_equal, it_prop}
 
 enum Token:
@@ -99,7 +99,7 @@ impl Parser:
                         _ => break
                     self.bump()
                     right := self.term()?
-                    left = &Expr.Bin(op, left, right, s.pos)
+                    left = box(Expr.Bin(op, left, right, s.pos))
                 .None => break
         .Ok(left)
 
@@ -114,7 +114,7 @@ impl Parser:
                         _ => break
                     self.bump()
                     right := self.unary()?
-                    left = &Expr.Bin(op, left, right, s.pos)
+                    left = box(Expr.Bin(op, left, right, s.pos))
                 .None => break
         .Ok(left)
 
@@ -125,7 +125,7 @@ impl Parser:
                     .Minus =>
                         self.bump()
                         inner := self.unary()?
-                        .Ok(&Expr.Neg(inner))
+                        .Ok(box(Expr.Neg(inner)))
                     _ => self.atom()
             .None => .Err(CalcError.UnexpectedEnd)
 
@@ -136,7 +136,7 @@ impl Parser:
                 match s.token:
                     .Num(n) =>
                         self.bump()
-                        .Ok(&Expr.Lit(n))
+                        .Ok(box(Expr.Lit(n)))
                     .LParen =>
                         self.bump()
                         inner := self.expr()?
@@ -199,18 +199,20 @@ fn strip(e: &Expr) -> *Expr:
     match e:
         .Lit(v) =>
             if v == -2147483648:
-                &Expr.Bin(
-                    .Sub,
-                    &Expr.Bin(.Sub, &Expr.Lit(0), &Expr.Lit(2147483647), 0),
-                    &Expr.Lit(1),
-                    0,
+                box(
+                    Expr.Bin(
+                        .Sub,
+                        box(Expr.Bin(.Sub, box(Expr.Lit(0)), box(Expr.Lit(2147483647)), 0)),
+                        box(Expr.Lit(1)),
+                        0,
+                    ),
                 )
             else if v < 0:
-                &Expr.Neg(&Expr.Lit(0 - v))
+                box(Expr.Neg(box(Expr.Lit(0 - v))))
             else:
-                &Expr.Lit(v)
-        .Neg(inner) => &Expr.Neg(strip(inner))
-        .Bin(op, l, r, _) => &Expr.Bin(op, strip(l), strip(r), 0)
+                box(Expr.Lit(v))
+        .Neg(inner) => box(Expr.Neg(strip(inner)))
+        .Bin(op, l, r, _) => box(Expr.Bin(op, strip(l), strip(r), 0))
 
 pub fn main() -> void $ Console:
     for src in [
@@ -239,11 +241,13 @@ tests:
         assert_equal(calc("2 +"), .Err(CalcError.UnexpectedEnd), reason="end")
         assert_equal(calc("2 3"), .Err(CalcError.Unexpected(2)), reason="trailing")
     it("show then parse round-trips a fixed tree"):
-        e := &Expr.Bin(
-            .Mul,
-            &Expr.Neg(&Expr.Lit(2)),
-            &Expr.Bin(.Add, &Expr.Lit(1), &Expr.Lit(3), 0),
-            0,
+        let e: *Expr = box(
+            Expr.Bin(
+                .Mul,
+                box(Expr.Neg(box(Expr.Lit(2)))),
+                box(Expr.Bin(.Add, box(Expr.Lit(1)), box(Expr.Lit(3)), 0)),
+                0,
+            ),
         )
         assert_equal(show(e), "((-2) * (1 + 3))", reason="show")
         match parse(show(e)):

@@ -138,7 +138,7 @@ pub fn main!() -> Result[void, ConsoleError] $ Console:
     match plan(cyclic):
         .Ok(_) => console.write_sync("unexpected\n")?
         .Err(e) => console.write_sync("error: $e\n")?
-    $.with(Runner=&mut LogRunner { log: [] }):
+    $.with(Runner=box(LogRunner { log: [] })):
         match execute!(graph):
             .Ok(done) => console.write_sync("waves: ${done.join(", ")}\n")?
             .Err(e) => console.write_sync("error: $e\n")?
@@ -176,7 +176,7 @@ tests:
                 )
             .Err(_) => assert(false, reason="no cycle")
     it("runs tasks through the provider"):
-        $.with(Runner=&mut LogRunner { log: [] }):
+        $.with(Runner=box(LogRunner { log: [] })):
             result := execute!(build_graph())
             assert_equal(
                 result,
@@ -184,6 +184,6 @@ tests:
                 reason="deferred notes",
             )
     it("runs a wave larger than one all! batch"):
-        $.with(Runner=&mut LogRunner { log: [] }):
+        $.with(Runner=box(LogRunner { log: [] })):
             names := ["a", "b", "c", "d", "e", "f", "g"]
             assert_equal(run_wave!(names), names, reason="all seven ran, in order")
