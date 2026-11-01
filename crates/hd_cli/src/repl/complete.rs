@@ -174,7 +174,10 @@ mod tests {
         assert_eq!(offered(&names, "1 + ra"), ["rate"]);
         assert_eq!(offered(&names, "to"), ["total"]);
         assert_eq!(offered(&names, "Po"), ["Point"]);
-        assert_eq!(offered(&names, "Co"), ["Color", "Console", "ConsoleError"]);
+        assert_eq!(
+            offered(&names, "Co"),
+            ["Color", "Console", "ConsoleError", "Copy"]
+        );
         assert_eq!(offered(&names, "Ba"), ["Bag"]);
         assert_eq!(offered(&names, "Deq"), ["Deque"]);
         assert_eq!(offered(&names, "sha"), ["shapes"]);
