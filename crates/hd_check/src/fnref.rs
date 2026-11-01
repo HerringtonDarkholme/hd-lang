@@ -505,6 +505,10 @@ impl Ck<'_, '_> {
                     self_ty,
                 }));
             }
+            Some(Hit::TooDeep(traits)) => {
+                self.method_too_deep(name, &traits, n);
+                return Ok(None);
+            }
             Some(Hit::Ambiguous(traits)) => {
                 let names: Vec<String> = self
                     .cx

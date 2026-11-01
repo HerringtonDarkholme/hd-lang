@@ -176,6 +176,9 @@ pub(crate) enum Hit {
     },
     /// Methods of two or more traits (`trait.resolve.ambiguous`).
     Ambiguous(Vec<DefId>),
+    /// A lookup among these traits whose proof needs more than 64 nested
+    /// bounds (`trait.bound.depth.limit`).
+    TooDeep(Vec<DefId>),
     /// A method of the one trait the receiver may implement, whose impl
     /// waits for inference to fix the receiver: the call is typed by the
     /// trait's signature and its impl is chosen once the receiver is known.
@@ -4213,6 +4216,21 @@ impl Ck<'_, '_> {
         self.trait_part(t, sym, &self.available_traits(sym))
     }
 
+    /// `trait.bound.depth.limit`: the lookup of `name` needs a proof deeper
+    /// than 64 bounds, whether or not a deeper proof would succeed.
+    pub(crate) fn method_too_deep(&mut self, name: &str, traits: &[DefId], n: NodeRef<'_>) {
+        let what = match traits {
+            [one] => self.cx.names.display_name(*one).to_owned(),
+            _ => format!("a trait with `{name}`"),
+        };
+        // The receiver's type is as deep as the proof, so the message names
+        // the method, not the type.
+        let msg = format!(
+            "`{name}` needs a proof that its receiver implements {what}, and that proof needs more than 64 nested bounds"
+        );
+        self.err(Code::TraitResolutionDepth, n, &msg);
+    }
+
     /// The trait methods named `sym` of a concrete type: the
     /// compiler-answered traits, then the trait part of `Methods`
     /// (`crates/hd_check/DESIGN.md` (trait solver) §6.5), each other trait with the method by the
@@ -4245,11 +4263,12 @@ impl Ck<'_, '_> {
         let goal = Goal::Methods {
             receiver: t,
             name: sym,
-            traits: asked,
+            traits: asked.clone(),
         };
         let cands = match self.solve_goal(&goal)? {
             Answer::Candidates(c) => c,
             Answer::Stalled { .. } => return self.waiting_trait(t, &builtin, traits),
+            Answer::Overflow => return Ok(Some(Hit::TooDeep(asked))),
             other => return unsupported(format!("solver answer {other:?} to a method lookup")),
         };
         // The candidates by trait, in content order of their first one.
@@ -4366,6 +4385,10 @@ impl Ck<'_, '_> {
             return self.method_on(recv, rt, name, args, (n, bang), want);
         }
         match hit {
+            Some(Hit::TooDeep(traits)) => {
+                self.method_too_deep(name, &traits, n);
+                Ok((Ref(NONE), Ty::POISON))
+            }
             Some(Hit::Ambiguous(traits)) => {
                 let names: Vec<String> = self
                     .cx
