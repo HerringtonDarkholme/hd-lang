@@ -1388,6 +1388,14 @@ struct Cx<'a> {
     /// Each body's plan, once per build: by item, and by self type for a
     /// compiler-supplied body.
     plans: HashMap<(DefId, Option<Ty>), Option<Arc<BodyPlan>>>,
+    /// Each item's instance body at its arguments, once per build
+    /// (`ProgramEnv::instance_body`): an item's sub-body instances, a
+    /// closure each, share it rather than each holding a copy.
+    item_bodies: HashMap<(DefId, TyList), Option<Arc<Body>>>,
+    /// Each scanned body's instruction sub-bodies (`Body::inst_subs`), by
+    /// the body's address and length: a body that holds many closures is
+    /// scanned once per closure, and each scan reads them.
+    body_subs: HashMap<(usize, usize), Arc<Vec<u32>>>,
 }
 
 #[derive(Default)]
@@ -3254,11 +3262,17 @@ impl Cx<'_> {
             .list_items(args)
             .first()
             .and_then(|&t| Some((t, self.out.supplied.get(&(item, t))?.clone())));
-        if supplied.is_none()
-            && !self.out.instance_bodies.contains_key(&id)
-            && let Some(body) = env.instance_body(item, args)?
-        {
-            self.out.instance_bodies.insert(id, Arc::new(body));
+        if supplied.is_none() && !self.out.instance_bodies.contains_key(&id) {
+            let shared = if let Some(body) = self.item_bodies.get(&(item, args)) {
+                body.clone()
+            } else {
+                let body = env.instance_body(item, args)?.map(Arc::new);
+                self.item_bodies.insert((item, args), body.clone());
+                body
+            };
+            if let Some(body) = shared {
+                self.out.instance_bodies.insert(id, body);
+            }
         }
         let instance_body = self.out.instance_bodies.get(&id).cloned();
         let Some(body) = instance_body
@@ -3325,10 +3339,30 @@ impl Cx<'_> {
         let known = self.out.table.known[id.idx()].clone();
         // Each instruction's sub-body, where rules 2 and 3 ask whether an
         // instruction is in this instance's own sub-body.
-        let subs = (plan.as_ref().is_some_and(|p| !p.spec_args.is_empty()) || !known.is_empty())
-            .then(|| body.inst_subs());
+        // A closure's code instance, `Sub::Body(k)` past the root, emits
+        // only its own sub-body's instructions, so it scans only those:
+        // scanning its whole item once per closure grows with the square
+        // of a body holding many closures. Each nested closure is an
+        // instance of its own, requested by its `Closure`.
+        let own_sub = match sub {
+            Sub::Body(k) if k != 0 => Some(u32::from(k)),
+            _ => None,
+        };
+        let subs = (own_sub.is_some()
+            || plan.as_ref().is_some_and(|p| !p.spec_args.is_empty())
+            || !known.is_empty())
+        .then(|| {
+            let key = (std::ptr::from_ref(body) as usize, body.len());
+            self.body_subs
+                .entry(key)
+                .or_insert_with(|| Arc::new(body.inst_subs()))
+                .clone()
+        });
         for i in 0..body.len() {
-            if only.is_some_and(|o| o != i) || hidden.as_ref().is_some_and(|h| h[i]) {
+            if only.is_some_and(|o| o != i)
+                || hidden.as_ref().is_some_and(|h| h[i])
+                || own_sub.is_some_and(|k| subs.as_ref().is_some_and(|s| s[i] != k))
+            {
                 continue;
             }
             let ty = s(body.ty[i]);
@@ -4039,6 +4073,8 @@ fn collect_roots(
         joined_inputs,
         planner,
         plans: HashMap::default(),
+        item_bodies: HashMap::default(),
+        body_subs: HashMap::default(),
     };
     if let Err(e) = cx.run(root, inits, extra, refs) {
         return match cx.too_deep.take() {
