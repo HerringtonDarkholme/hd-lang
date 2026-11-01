@@ -5,9 +5,10 @@
 //! of it, and insertion drops it after the last one. Such uses stay in
 //! the local's scope (`spec/lang/13-values-and-references.md#local-scope`).
 //!
-//! 1. **Candidates.** A local of the root sub-body, not a parameter or a
-//!    capture, every `Ref` of whose storage is local (`ref_word::LOCAL`)
-//!    there, in a root with no suspension point; the first 64.
+//! 1. **Candidates.** A local of the root sub-body, a parameter too but
+//!    not a capture, every `Ref` of whose storage is local
+//!    (`ref_word::LOCAL`) there, in a root with no suspension point; the
+//!    first 64. A parameter's value moves into its slot at entry.
 //! 2. **Origins.** Per value and local, the candidates it may point into,
 //!    as the checker solves them (`hd_check/src/dep_results.rs`) but over
 //!    this body, where the inliner binds parameters to locals: a `Ref`
@@ -27,9 +28,7 @@
 //! Their `Ref`s get `ref_word::FRAME`, and move never takes their count.
 
 use super::{OwnCx, Role, fill, operands, suite_touches};
-use crate::ir::{
-    Body, NONE, Proj, Ref, Root, Tag, Topology, Word, is_suspension, local_flags, slots, u32_of,
-};
+use crate::ir::{Body, NONE, Proj, Ref, Root, Tag, Topology, Word, is_suspension, slots, u32_of};
 
 /// Frame locals' dense tables, reused across bodies.
 #[derive(Default)]
@@ -133,10 +132,7 @@ pub(crate) fn run(
         let Some(l) = b.local_in_place(b.data[i][0]).map(hd_base::LocalId::idx) else {
             continue;
         };
-        if b.data[i][1] & crate::ir::ref_word::LOCAL == 0
-            || topo.sub[i] != 0
-            || b.local_flags[l] & local_flags::PARAM != 0
-        {
+        if b.data[i][1] & crate::ir::ref_word::LOCAL == 0 || topo.sub[i] != 0 {
             t.bad[l] = true;
         }
         if !t.bad[l] && t.bit[l] == 0 && t.cands.len() < 64 {

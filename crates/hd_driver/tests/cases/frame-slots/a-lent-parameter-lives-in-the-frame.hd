@@ -1,0 +1,11 @@
+# @dump: wat
+# `a == b` lends both parameters to `Eq.eq`, which takes `&self` and
+# `&Self`. Only local references lend them, so each moves into a slot of
+# the frame at entry (§23.38, #1150): no `rt:new` cell, and the operands
+# are loads through the slots' addresses. `b`'s slot address reuses the
+# Wasm local that brought `a`'s value in, so the first parameter is `$b`.
+fn same[T < Eq](a: T, b: T) -> bool:
+    a == b
+
+fn check() -> bool:
+    same(+3, +4)

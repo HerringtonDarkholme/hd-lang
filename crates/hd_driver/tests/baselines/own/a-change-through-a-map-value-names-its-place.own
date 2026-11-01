@@ -66,17 +66,18 @@ fn add_at(mut m: Map[string, List[i64]], mut k: string) -> Map[string, List[i64]
 >   %1 = Read copy [$1] : string
 >   %2 = Intrinsic MapEntry [%0 %1] : usize
 >   %3 = Read borrow [$0 [%2]] : List[i64]
->   %4 = Ref take mut local [$1] : Counted[mut string]
+>   %4 = Ref mut local frame [$1] : Counted[mut string]
 >   %5 = Call app/main/next[] (%4) : i64
 >   %6 = Drop [%4] : ()
->   %7 = IsUnique [$0] : ()
->   %8 = Read borrow [$0] : Map[string, List[i64]]
->   %9 = Intrinsic MapEntry [%8 %1] : usize
->   %10 = IsUnique [$0 [%9]] : ()
->   %11 = Read borrow [$0 [%9]] : List[i64]
->   %12 = Intrinsic ListPush [%11 %5] : ()
->   %13 = Drop [%1] : ()
->   %15 = Block %14 : Map[string, List[i64]]
+>   %7 = Drop [$1] : ()
+>   %8 = IsUnique [$0] : ()
+>   %9 = Read borrow [$0] : Map[string, List[i64]]
+>   %10 = Intrinsic MapEntry [%9 %1] : usize
+>   %11 = IsUnique [$0 [%10]] : ()
+>   %12 = Read borrow [$0 [%10]] : List[i64]
+>   %13 = Intrinsic ListPush [%12 %5] : ()
+>   %14 = Drop [%1] : ()
+>   %16 = Block %15 : Map[string, List[i64]]
     m
->   %14 = Read move [$0] : Map[string, List[i64]]
+>   %15 = Read move [$0] : Map[string, List[i64]]
 >   exit sub 0 drops [$0 $1]

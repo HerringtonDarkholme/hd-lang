@@ -79,14 +79,13 @@ pub(super) fn cell_locals(b: &Body, roots: &[usize]) -> HashMap<usize, u32> {
 /// every use of a value that may point into it, and no such value
 /// outlives its scope (spec/lang/13-values-and-references.md#local-scope),
 /// so nothing needs the slot after the local's own release. A parameter
-/// and a local a closure captures keep their cells.
+/// moves into its slot at entry ([`Em::param_cell`]); a local a closure
+/// captures keeps its cell.
 pub(super) fn slot_locals(b: &Body, roots: &[usize], topo: &Topology) -> HashSet<usize> {
     let mut out: HashSet<usize> = roots
         .iter()
         .copied()
-        .filter(|&l| {
-            b.local_flags[l] & local_flags::PARAM == 0 && !b.cap_local.iter().any(|c| c.idx() == l)
-        })
+        .filter(|&l| !b.cap_local.iter().any(|c| c.idx() == l))
         .collect();
     for i in 0..b.len() {
         if out.is_empty() {
@@ -498,8 +497,8 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    /// Moves parameter `l`, whose values are in `ls`, into a new cell:
-    /// the local's locals become the cell's address.
+    /// Moves parameter `l`, whose values are in `ls`, into a new cell, or
+    /// its slot (`slot_locals`): the local's locals become its address.
     pub(super) fn param_cell(&mut self, l: usize, ls: &[u32]) -> StageResult<()> {
         let at = self.new_cell(l, Src::Locals(ls.to_vec()))?;
         self.locals.insert(l, vec![at]);

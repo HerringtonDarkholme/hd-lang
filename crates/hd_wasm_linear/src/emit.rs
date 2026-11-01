@@ -403,8 +403,8 @@ fn body_func<'a>(
             }
         }
     }
-    // A parameter a closure shares moves into its cell, which takes over
-    // its count.
+    // A parameter a closure shares, or a reference refers to, moves into
+    // its cell or its frame slot, which takes over its count.
     for (l, ls) in &held {
         if plocals.contains(l) && em.is_cell(*l) {
             em.param_cell(*l, ls)?;

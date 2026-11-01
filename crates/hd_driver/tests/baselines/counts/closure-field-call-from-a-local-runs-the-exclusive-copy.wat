@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 8 funcref))
+  (import "fixture" "table0" (table $table0 2 funcref))
   (func $"impl Mapper.apply'1" (param $self i32) (param $x i32) (result i32) (local $t0 i32)
     block
     ;; 13 |         (self.transform)(x)
@@ -30,7 +30,7 @@
       local.get $m
       local.get $x
       call $"impl Mapper.apply'2"
-      local.get $m
+      local.set $t0
       ;; ...
     end
     ;; ...

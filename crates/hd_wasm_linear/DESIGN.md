@@ -2269,8 +2269,10 @@ frame on the **local stack** instead.
   declarations alone.
 - **Which locals.** The ownership passes mark the **frame locals**
   (`hd_tir/src/own/frame.rs`): a local of the function's root sub-body,
-  not a parameter or a capture, every `Ref` of whose storage is a local
-  reference there, in a root with no suspension point. No value that may
+  a parameter too but not a capture, every `Ref` of whose storage is a
+  local reference there, in a root with no suspension point. A parameter
+  moves into its slot at entry, as it would into its cell (issue #1150),
+  so the slot is its home for every later read and write. No value that may
   point into it (its origins, as the checker's
   `spec/lang/13-values-and-references.md#dependent-results` solve them)
   may be stored outside the body's locals, returned, awaited, captured or
@@ -2283,7 +2285,7 @@ frame on the **local stack** instead.
   reference into the last one's value. A frame local's count is never
   taken (`ref_word::TAKES`). Its `Ref`s carry `ref_word::FRAME`, and a
   local all of whose `Ref`s do lives in a slot (`closure::slot_locals`).
-  Every other local keeps its cell: a parameter, a closure's capture, a
+  Every other local keeps its cell: a closure's capture, a
   local of a closure's body or a suspending one, an erased body's, one a
   counted `*T` refers to, and one an escaping value may point into.
 - **The slot** is the cell's layout with a zero count word before it, as
