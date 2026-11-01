@@ -398,7 +398,7 @@ fn run!() -> i32:
 > tasks the same way. A `Notify` is a `Channel[()]`. The handles copy, as
 > Go's channels are reference values, so a dynamic pool needs no spawn.
 
-See also: [Map All](#map-all),
+See also: [Map Join](#map-join),
 [Standard Combinators](../lang/11-requirements-and-suspension.md#standard-combinators).
 
 ## Cleanup End
