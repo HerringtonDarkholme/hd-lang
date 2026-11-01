@@ -117,8 +117,8 @@ fn countdown(mut n: i32) -> i32:
 fn count_new(mut seen: List[i32], items: List[i32]) -> usize:
     let n: usize = 0
     for x in items:
-        if !seen.contains(x):
-            seen.push(x)
+        if !seen.contains(*x):
+            seen.push(*x)
             n = n + 1
     n
 ";
@@ -135,7 +135,7 @@ fn a_loop_mutation_without_another_use_is_still_lost() {
     let source = r"
 fn push_each(mut values: List[i32], items: List[i32]) -> void:
     for item in items:
-        values.push(item)
+        values.push(*item)
 ";
     let findings = lint(source);
     assert_eq!(
