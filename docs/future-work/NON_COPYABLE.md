@@ -11,14 +11,14 @@ It builds on [Moves](../../spec/lang/13-values-and-references.md#moves)
 
 ## The Proposal
 
-- `Copyable` is a std marker trait the compiler knows, as `AutoClosing`
+- `Copy` is a std marker trait the compiler knows, as `AutoClosing`
   and `Handle` are. It is special: no derivation and no impl block. A type
-  is `Copyable` when every member is, checked by structure.
-- `impl ~Copyable for Photo` opts a type out, as Rust's `impl !Send`. Its
+  is `Copy` when every member is, checked by structure.
+- `impl !Copy for Photo` opts a type out, as Rust's `impl !Send`. Its
   values then move under today's Moves rules, as a `&mut` does, and so
   does every type that holds one.
-- Copy is the default, as in Swift: `[T]` implies `T < Copyable`, and
-  `[T < ~Copyable]` lifts it. This also closes today's hole where generic
+- Copy is the default, as in Swift: `[T]` implies `T < Copy`, and
+  `[T < ?Copy]` lifts it. This also closes today's hole where generic
   code copies a `SpanMut`.
 - Moves out of places follow Rust: a field of a local moves out and leaves
   the local partly moved; `*r`, an element or a capture lends it, or
@@ -26,7 +26,7 @@ It builds on [Moves](../../spec/lang/13-values-and-references.md#moves)
 - Std traits whose methods only read take `&self`, as in Rust, starting
   with `Index` (#1140).
 - `List` and `Map` accept non-copyable items, as Rust's `Vec`; only the
-  methods that copy an item need `T < Copyable`.
+  methods that copy an item need `T < Copy`.
 - No destructor. Moving a `using` binding is `use-of-moved-value`.
 
 ```text
@@ -35,7 +35,7 @@ struct Photo:
     height: u32
     pixels: List[u8]
 
-impl ~Copyable for Photo  # hypothetical syntax
+impl !Copy for Photo  # hypothetical syntax
 
 fn thumbnail(photo: Photo, side: u32) -> (Photo, Photo):
     small := shrink(&photo, side)
@@ -47,11 +47,11 @@ pub fn on_export!(photo: Photo) -> Result[Photo, WorkerError] $ Workers:
     .Ok(small)
 ```
 
-The owner settled the shape on 2026-10-31: `Copyable` is a compiler-known
+The owner settled the shape on 2026-10-31: `Copy` is a compiler-known
 marker checked by structure rather than a derivation (a `by Structure`
 template would derive no body and need an auto-applied impl for one
 trait); copy is the default for generics as in Swift, because a
-move-by-default `[T]` would add `< Copyable` to most of std's 633 generic
+move-by-default `[T]` would add `< Copy` to most of std's 633 generic
 declarations; partial moves, `&self` receivers, non-copyable `List` items
 and binding by reference follow Rust; a moved `using` binding is an error.
 
@@ -60,7 +60,7 @@ and binding by reference follow Rust; a moved `using` binding is an error.
 **1. A photo handed to a worker (EXECUTION_BOUNDARIES example 1).** Today
 `Image` copies, so the crossing copies 50 MB and the page may keep using
 it. Transfer is for non-copyable types only (owner, 2026-10-31), and no
-owned type is non-copyable. With `impl ~Copyable for Photo`, the call above moves
+owned type is non-copyable. With `impl !Copy for Photo`, the call above moves
 `photo`, and a later use is a compile error.
 
 **2. A shared-memory chunk used after it was sent.** The planned
@@ -102,21 +102,21 @@ fn first_two(items: &mut List[i32]) -> void:
 
 ## How It Works
 
-1. **Copyable.** These are not `Copyable`: `&mut T`, a type with
-   `impl ~Copyable`, a type parameter declared `< ~Copyable`, and a type
+1. **Copy.** These are not `Copy`: `&mut T`, a type with
+   `impl !Copy`, a type parameter declared `< ?Copy`, and a type
    holding one. "Holds" is M2's
    [`ref.move.holds`](../../spec/lang/13-values-and-references.md#r-ref.move.holds):
    a field, a payload, a tuple, optional or union member, a type argument
    held by value, or a closure's capture. `&T`, `*T` and `*mut T` copy, so
    `box(photo)` moves the photo into a counted object that may be shared.
-   `Copyable` has no members, and code never writes `impl Copyable`.
+   `Copy` has no members, and code never writes `impl Copy`.
 2. **Moves.** The sites, the reborrow of `&mut` and `use-of-moved-value`
    are M1 and M2's, unchanged. A crossing is one more move site
    (EXECUTION_BOUNDARIES). A by-value `self` or `mut self` receiver takes
    the value, as in Rust.
-3. **Type parameters.** Every generic parameter is `Copyable` by default:
+3. **Type parameters.** Every generic parameter is `Copy` by default:
    of a function, struct, enum, `impl` block or method. An argument for one
-   must be copyable. Error: `not-copyable`. `< ~Copyable` lifts the bound,
+   must be copyable. Error: `not-copyable`. `< ?Copy` lifts the bound,
    and the body moves such a `T` like any non-copyable value. A trait's
    default bodies treat `Self` as possibly non-copyable.
 4. **Places.** Moving a non-copyable field out of a local binding leaves
@@ -132,9 +132,9 @@ fn first_two(items: &mut List[i32]) -> void:
 6. **Patterns through references.** Below a `&` or `&mut`, a pattern binds
    a non-copyable payload as a reference of the same kind. It is a copy
    for a copyable payload, as [`ref.match.copy`](../../spec/lang/13-values-and-references.md#r-ref.match.copy) says today.
-7. **Collections.** `List[T < ~Copyable]` and `Map[K, V < ~Copyable]`.
+7. **Collections.** `List[T < ?Copy]` and `Map[K, V < ?Copy]`.
    Methods that hand out an item by value (`get`, `first`, `last`,
-   indexing a copy) sit in an `impl[T < Copyable]` block; `get_ref`-style
+   indexing a copy) sit in an `impl[T < Copy]` block; `get_ref`-style
    borrows, `push`, `pop` and iteration by reference take any `T`.
 8. **Cleanup.** No destructor runs; the counting runtime frees memory as
    today. Moving a `using` binding is `use-of-moved-value`, so `using`
@@ -144,10 +144,10 @@ fn first_two(items: &mut List[i32]) -> void:
 struct Client:
     conn: Conn
 
-impl ~Copyable for Client  # hypothetical syntax
+impl !Copy for Client  # hypothetical syntax
 
 fn keep[T](x: T) -> void: pass
-fn hold[T < ~Copyable](x: T) -> void: pass  # hypothetical syntax
+fn hold[T < ?Copy](x: T) -> void: pass  # hypothetical syntax
 
 fn close(client: &mut Client) -> Conn:
     replace(&mut client.conn, .Closed)  # moving `client.conn` out of a reference: error: move-out-of-place
@@ -178,7 +178,7 @@ Estimated bottom-up from the files named; nothing is measured yet.
 
 | Component | Change | Estimate |
 | --- | --- | --- |
-| Parser, `hd fmt`, item flag | `impl ~Copyable for T` and `~Copyable` in bound lists | +60 lines |
+| Parser, `hd fmt`, item flag | `impl !Copy for T` and `?Copy` in bound lists | +60 lines |
 | `copies` | read the flag and the parameter bound | +15 lines |
 | Generic default | `not-copyable` at each instantiation | +90 lines |
 | Places, captures, patterns | rules 4 to 6 in the move walk, per-field move state | +260 lines |
@@ -186,7 +186,7 @@ Estimated bottom-up from the files named; nothing is measured yet.
 | `Index` to `&self` | the trait, 41 std impls, 35 elsewhere, ch. 05 | about 80 one-line edits |
 | `Eq`, `Ord`, `Hash` to `&self` | 74 std impls, 66 elsewhere, the derive templates, `==` passes `&` | about 160 edits, +20 compiler lines |
 | `Display`, `Debug`, `Serialize` and the rest | 123 std impls, 164 elsewhere, the derive templates | about 300 edits |
-| `Option`, `Result`, `List`, `Map` | an `impl[T < Copyable]` block for the methods that copy an item | about 60 methods move |
+| `Option`, `Result`, `List`, `Map` | an `impl[T < Copy]` block for the methods that copy an item | about 60 methods move |
 | Compile time | one flag per type; the checks join the existing move walk | not measurable, expected |
 | Runtime and Wasm size | none: a move is the same bits as a copy, with no count change | 0 |
 | Web compiler gzip | about 400 Rust lines | about +2 KB, far under the 2 MB cap |
@@ -204,11 +204,11 @@ Each case is written in the proposal; "today" is the current build.
 | 2 | `PARALLELISM_AND_LOCALITY.md`'s chunk loop: `using chunk = alloc(..)`, `read_into!(..)?`, `send!(chunk.take(n))` | Read with `using`, the early `?` disposes and the send skips it, which is right. With `:=`, the `?` path leaks the block | Keep `using` (rule 7). `unbound-disposable` already denies the `:=` form |
 | 3 | Swift SE-0390's `FileDescriptor` with `consuming func close()` | hd's `self` is "the method's own copy"; [`fn.method.no-ownership-receiver`](../../spec/lang/07-functions.md#r-fn.method.no-ownership-receiver) says no receiver takes ownership | Rule 2: for a non-copyable type, `self` takes the value. That rule and the receiver table change |
 | 4 | A tokio-style state machine: `self.state = match self.state: ...` | Moves out of a field: `move-out-of-place` | `match replace(&mut self.state, .Closed):`, Rust's `mem::replace` idiom |
-| 5 | A pool of connections, `List[Conn]` with `Conn < ~Copyable` | Today `List[Conn]` copies its items, duplicating each connection | `List[T < ~Copyable]` holds it (rule 7); `get` needs `T < Copyable`, so the pool lends with `&pool[i]` or takes with `pop` |
+| 5 | A pool of connections, `List[Conn]` with `Conn < ?Copy` | Today `List[Conn]` copies its items, duplicating each connection | `List[T < ?Copy]` holds it (rule 7); `get` needs `T < Copy`, so the pool lends with `&pool[i]` or takes with `pop` |
 | 6 | `let p = photo; f := fn() -> u32: p.width; send(p); f()` | A `let` capture is a shared cell, so `f()` would read a moved value | Rule 5: the capture moves `p`, so `send(p)` is `use-of-moved-value` |
 | 7 | `t.lead` through `t: &Team` where `lead: Photo` | Shallow `&` (#535) would hand out a copy | Rule 4: `move-out-of-place`; `&t.lead` lends it |
-| 8 | `@derive(Eq)` on a `~Copyable` struct before slice 5 | The derived `eq(self, other)` consumes both sides: `a == b && a == b` is `use-of-moved-value` (probe p6, with a `&mut` holder) | Slice order: `Eq` moves to `&self` before user types can opt out |
-| 9 | `photo.is_some()` on `Photo?`, `opt.map(f)` | `is_some(self)` consumes; `impl[T] T?` takes copyable `T` only | Methods every payload allows move to `impl[T < ~Copyable] T?`; `is_some` takes `&self` |
+| 8 | `@derive(Eq)` on a `!Copy` struct before slice 5 | The derived `eq(self, other)` consumes both sides: `a == b && a == b` is `use-of-moved-value` (probe p6, with a `&mut` holder) | Slice order: `Eq` moves to `&self` before user types can opt out |
+| 9 | `photo.is_some()` on `Photo?`, `opt.map(f)` | `is_some(self)` consumes; `impl[T] T?` takes copyable `T` only | Methods every payload allows move to `impl[T < ?Copy] T?`; `is_some` takes `&self` |
 | 10 | `for x in [photo]` | A list literal of a non-copyable type | `not-copyable`, as 5 |
 | 11 | `b := box(photo); c := *b` | `*b` would copy the photo out of a shared box | `move-out-of-place`; boxes share, they never duplicate |
 | 12 | ch. 13's `keep(c)` and std calls that pass a `&mut` to a plain `T`, as `.expect` on `get_mut`'s `(&mut T)?` | Valid today (a move); `not-copyable` under rule 3 | Mark `Option` and `Result` first; the generic slice lists every flipped site and stops past 15 |
@@ -232,8 +232,9 @@ extension Box: Copyable where T: Copyable {}
 ```
 
 Every type is copyable unless it suppresses it, and every generic
-parameter and protocol defaults to `Copyable`. hd takes the default and the
-`~Copyable` spelling. It rejects the explicit holder marker and the
+parameter and protocol defaults to `Copyable`. hd takes the default but
+Rust's spelling: the trait is `Copy`, a type opts out with `impl !Copy`,
+and a parameter with `T < ?Copy` (as Rust's `?Sized`). It rejects the explicit holder marker and the
 conditional `extension`, and `deinit`. Swift 6.0 kept
 `Array`, `Equatable` and `Hashable` copyable-only.
 
@@ -343,11 +344,11 @@ with a `struct Holder['a]` holding a `&'a mut List[i32]`:
 
 **Language checklist.**
 
-- Grammar and formatting: `impl ~Copyable for T` as an item, and
-  `~Copyable` as a bound, `T < ~Copyable` or `T < Eq & ~Copyable`;
+- Grammar and formatting: `impl !Copy for T` as an item, and
+  `?Copy` as a bound, `T < ?Copy` or `T < Eq & ?Copy`;
   `hd fmt` keeps it in place.
 - Typing: use sites only; nothing is inferred on a declaration except
-  the structural `Copyable` check.
+  the structural `Copy` check.
 - Patterns: a pattern on a binding moves it; rule 6 below references.
 - Derives: the derive templates follow the `&self` receivers.
 - Closures: rule 5; no `FnOnce` is needed.
@@ -371,9 +372,9 @@ with a `struct Holder['a]` holding a `&'a mut List[i32]`:
    elsewhere, and `std.ops.replace`.
 4. Patterns: a match moves its binding; binding through a reference (rule 6).
 5. `Eq`, `Ord`, `Hash` to `&self`, with the derive templates.
-6. Generic default and `~Copyable` parameters; `Option` and `Result`
+6. Generic default and `?Copy` parameters; `Option` and `Result`
    blocks.
-7. `List[T < ~Copyable]` and `Map` (rule 7).
+7. `List[T < ?Copy]` and `Map` (rule 7).
 8. Captures (rule 5).
 9. `using` and moves (rule 8).
 10. `Display`, `Debug`, `Serialize` and the remaining read traits.
@@ -383,9 +384,9 @@ with a `struct Holder['a]` holding a `&'a mut List[i32]`:
 
 | Block | Result |
 | --- | --- |
-| 1, the proposal | `syntax-error` at line 1 (`< ~Copyable`, hypothetical); parses with the marker removed |
+| 1, the proposal | `syntax-error` at line 1 (`< ?Copy`, hypothetical); parses with the marker removed |
 | 2, `ship!` | parses |
 | 3, `dup` | parses; also checks today (`hd check`: ok) |
 | 4, `first_two` | parses; `hd check` today: `use-of-moved-value` at line 4 |
-| 5, rules | `syntax-error` at lines 1 and 5 (`< ~Copyable`, hypothetical); parses with the marker removed |
+| 5, rules | `syntax-error` at lines 1 and 5 (`< ?Copy`, hypothetical); parses with the marker removed |
 | 6, `Index` and `Eq` | parses |
