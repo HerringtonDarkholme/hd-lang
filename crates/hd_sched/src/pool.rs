@@ -80,12 +80,20 @@ impl Spawn for PoolSpawn<'_, '_> {
     }
 }
 
+/// A worker's stack: the 8 MiB a main thread gets, so a task that the
+/// serial executor runs on the main thread also fits on a worker. A
+/// syntax walk recurses once per nesting level, and a method chain is
+/// one level per link; rayon's default of 2 MiB overflowed on one
+/// expression of about 8,000 links. Untouched stack pages cost no RSS.
+pub const WORKER_STACK: usize = 8 * 1024 * 1024;
+
 /// Runs the graph on `threads` rayon workers; returns it with the number
 /// of tasks that never became ready (0 unless the graph has a bug). If the
 /// pool cannot be built, the graph runs serially.
 pub fn run_pool(mut graph: TaskGraph, threads: usize, exec: &Exec<'_>) -> (TaskGraph, usize) {
     let Ok(pool) = rayon::ThreadPoolBuilder::new()
         .num_threads(threads.max(1))
+        .stack_size(WORKER_STACK)
         .build()
     else {
         let left = crate::SerialScheduler {
