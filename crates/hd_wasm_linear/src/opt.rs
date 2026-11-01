@@ -636,15 +636,71 @@ fn basic_blocks(edges: &[ZeroEdges], len: usize) -> (Vec<usize>, Vec<usize>) {
     (point_at, starts)
 }
 
+/// A set of locals that costs its members, not the function's locals, to
+/// clear, copy or visit: `at[l]` is `l`'s index in `members`, or
+/// `u32::MAX` when `l` is not in the set. A function of thousands of
+/// temporaries keeps few of them live at once, so dense bit rows per block
+/// or per local would grow with the square of its length.
+struct LiveSet {
+    at: Vec<u32>,
+    members: Vec<u32>,
+}
+
+impl LiveSet {
+    fn new(n: usize) -> Self {
+        Self {
+            at: vec![u32::MAX; n],
+            members: Vec::new(),
+        }
+    }
+
+    fn contains(&self, l: u32) -> bool {
+        self.at[l as usize] != u32::MAX
+    }
+
+    fn insert(&mut self, l: u32) {
+        if !self.contains(l) {
+            self.at[l as usize] = u32::try_from(self.members.len()).expect("locals");
+            self.members.push(l);
+        }
+    }
+
+    fn remove(&mut self, l: u32) {
+        let i = self.at[l as usize];
+        if i == u32::MAX {
+            return;
+        }
+        self.at[l as usize] = u32::MAX;
+        self.members.swap_remove(i as usize);
+        if let Some(&moved) = self.members.get(i as usize) {
+            self.at[moved as usize] = i;
+        }
+    }
+
+    fn clear(&mut self) {
+        for l in self.members.drain(..) {
+            self.at[l as usize] = u32::MAX;
+        }
+    }
+
+    /// Its members, in ascending order.
+    fn sorted(&self) -> Vec<u32> {
+        let mut v = self.members.clone();
+        v.sort_stable();
+        v
+    }
+}
+
 /// The locals live into each basic block of a body, by a backward pass
-/// to a fixed point (loop backedges included). `SaveAll` reads every
-/// local, and `LoadAll` writes none for this purpose.
+/// to a fixed point (loop backedges included), each block's set sorted.
+/// `SaveAll` reads every local, and `LoadAll` writes none for this
+/// purpose.
 struct Live {
     edges: Vec<ZeroEdges>,
     point_at: Vec<usize>,
     starts: Vec<usize>,
-    words: usize,
-    into: Vec<u64>,
+    locals: usize,
+    into: Vec<Vec<u32>>,
 }
 
 impl Live {
@@ -655,25 +711,24 @@ impl Live {
         }
         let edges = zero_edges(&f.body, &f.labels)?;
         let (point_at, starts) = basic_blocks(&edges, f.body.len());
-        let words = n.div_ceil(64);
         let mut me = Self {
-            into: vec![0u64; starts.len() * words],
+            into: vec![Vec::new(); starts.len()],
             edges,
             point_at,
             starts,
-            words,
+            locals: n,
         };
-        let mut live = vec![0u64; words];
+        let mut live = LiveSet::new(n);
         loop {
             let mut changed = false;
             for p in (0..me.starts.len()).rev() {
                 me.out(p, f.body.len(), &mut live);
                 for ins in f.body[me.starts[p]..me.end(p, f.body.len())].iter().rev() {
-                    Self::step(ins, &mut live);
+                    me.step(ins, &mut live);
                 }
-                let row = &mut me.into[p * words..(p + 1) * words];
-                if row != live.as_slice() {
-                    row.copy_from_slice(&live);
+                let row = live.sorted();
+                if me.into[p] != row {
+                    me.into[p] = row;
                     changed = true;
                 }
             }
@@ -688,44 +743,47 @@ impl Live {
     }
 
     /// The locals live after block `p`: those live into its successors.
-    fn out(&self, p: usize, len: usize, live: &mut [u64]) {
-        live.fill(0);
+    fn out(&self, p: usize, len: usize, live: &mut LiveSet) {
+        live.clear();
         let end = self.end(p, len);
-        let w = self.words;
         self.edges[end - 1].each(end, |to| {
             if let Some(&q) = self.point_at.get(to) {
-                for (a, b) in live.iter_mut().zip(&self.into[q * w..(q + 1) * w]) {
-                    *a |= *b;
+                for &l in &self.into[q] {
+                    live.insert(l);
                 }
             }
         });
     }
 
-    fn step(ins: &Ins, live: &mut [u64]) {
+    fn step(&self, ins: &Ins, live: &mut LiveSet) {
         match ins {
-            Ins::Op(I::LocalGet(l)) => set_zero(live, *l, true),
-            Ins::Op(I::LocalSet(l) | I::LocalTee(l)) => set_zero(live, *l, false),
-            Ins::SaveAll => live.fill(u64::MAX),
+            Ins::Op(I::LocalGet(l)) => live.insert(*l),
+            Ins::Op(I::LocalSet(l) | I::LocalTee(l)) => live.remove(*l),
+            Ins::SaveAll => {
+                for l in 0..u32::try_from(self.locals).expect("locals") {
+                    live.insert(l);
+                }
+            }
             _ => {}
         }
     }
 
     /// Visits each instruction of `body`, last to first within each
     /// block, with the locals live just after it.
-    fn walk_back(&self, body: &[Ins], mut visit: impl FnMut(usize, &[u64])) {
-        let mut live = vec![0u64; self.words];
+    fn walk_back(&self, body: &[Ins], mut visit: impl FnMut(usize, &LiveSet)) {
+        let mut live = LiveSet::new(self.locals);
         for p in 0..self.starts.len() {
             self.out(p, body.len(), &mut live);
             for at in (self.starts[p]..self.end(p, body.len())).rev() {
                 visit(at, &live);
-                Self::step(&body[at], &mut live);
+                self.step(&body[at], &mut live);
             }
         }
     }
 
     /// The locals live at the function's entry.
-    fn entry(&self) -> &[u64] {
-        &self.into[..self.words]
+    fn entry(&self) -> &[u32] {
+        &self.into[0]
     }
 }
 
@@ -752,12 +810,10 @@ pub fn coalesce(f: &mut Func) {
     };
     let np = f.params.len();
     let n = np + f.locals.len();
-    let w = live.words;
     let body = &f.body;
-    // `rows[x]`: the locals live where `x` is written.
-    let mut rows = vec![0u64; n * w];
+    // Each conflict: a local written while another is live just after.
+    let mut conflicts: Vec<(u32, u32)> = Vec::new();
     let mut used = vec![false; n];
-    let mut write = vec![0u64; w];
     // Each copy's two locals, the copied one second.
     let mut copies: Vec<(u32, u32)> = Vec::new();
     live.walk_back(body, |at, after| {
@@ -769,23 +825,32 @@ pub fn coalesce(f: &mut Func) {
         if matches!(body[at], Ins::Op(I::LocalGet(_))) {
             return;
         }
-        let x = x as usize;
-        write.copy_from_slice(after);
-        if let Some(y) = copy_source(body, at) {
-            set_zero(&mut write, y, false);
-            if y as usize != x {
-                copies.push((u32::try_from(x).expect("locals"), y));
+        let source = copy_source(body, at);
+        if let Some(y) = source
+            && y != x
+        {
+            copies.push((x, y));
+        }
+        for &y in &after.members {
+            if y != x && Some(y) != source {
+                conflicts.push((x, y));
             }
         }
-        for (r, a) in rows[x * w..(x + 1) * w].iter_mut().zip(&write) {
-            *r |= *a;
-        }
     });
-    for p in 0..np {
-        for (r, a) in rows[p * w..(p + 1) * w].iter_mut().zip(live.entry()) {
-            *r |= *a;
+    for p in 0..u32::try_from(np).expect("locals") {
+        for &y in live.entry() {
+            if y != p {
+                conflicts.push((p, y));
+            }
         }
     }
+    // Each local's conflicts, both ways.
+    let mut neighbors: Vec<Vec<u32>> = vec![Vec::new(); n];
+    for &(x, y) in &conflicts {
+        neighbors[x as usize].push(y);
+        neighbors[y as usize].push(x);
+    }
+    drop(conflicts);
     let ty = |l: usize| {
         if l < np {
             f.params[l]
@@ -793,56 +858,44 @@ pub fn coalesce(f: &mut Func) {
             f.locals[l - np]
         }
     };
-    // Each class: its local, its type, its members and the union of
-    // their rows.
-    let mut classes: Vec<(u32, crate::module::Val, Vec<u64>, Vec<u64>)> = Vec::new();
+    // Each class: its local and its type.
+    let mut classes: Vec<(u32, crate::module::Val)> = Vec::new();
     let mut to: Vec<u32> = (0..u32::try_from(n).expect("locals")).collect();
     // Each local's class, once it has one.
     let mut class_of: Vec<Option<usize>> = vec![None; n];
     copies.sort_stable();
     copies.dedup();
+    // Each local's copy partners, in the order of `copies`.
+    let mut partners: Vec<Vec<u32>> = vec![Vec::new(); n];
+    for &(a, b) in &copies {
+        partners[a as usize].push(b);
+        partners[b as usize].push(a);
+    }
+    let mut blocked: Vec<usize> = Vec::new();
     for x in 0..n {
         if x >= np && !used[x] {
             continue;
         }
-        let xl = u32::try_from(x).expect("locals");
-        let row = &rows[x * w..(x + 1) * w];
-        let fits = |(_, t, members, union): &(u32, crate::module::Val, Vec<u64>, Vec<u64>)| {
-            *t == ty(x)
-                && !zero_local(union, xl)
-                && row.iter().zip(members.iter()).all(|(a, b)| a & b == 0)
-        };
-        let partner = copies
-            .iter()
-            .filter_map(|&(a, b)| {
-                if a == xl {
-                    Some(b)
-                } else if b == xl {
-                    Some(a)
-                } else {
-                    None
-                }
-            })
-            .filter_map(|y| class_of[y as usize])
-            .find(|&c| fits(&classes[c]));
+        // The classes holding a local that conflicts with `x`.
+        blocked.clear();
+        blocked.extend(neighbors[x].iter().filter_map(|&y| class_of[y as usize]));
+        blocked.sort_stable();
+        blocked.dedup();
+        let fits = |c: usize| classes[c].1 == ty(x) && blocked.binary_search(&c).is_err();
         let found = if x < np {
             None
         } else {
-            partner.or_else(|| classes.iter().position(fits))
+            (partners[x].iter())
+                .filter_map(|&y| class_of[y as usize])
+                .find(|&c| fits(c))
+                .or_else(|| (0..classes.len()).find(|&c| fits(c)))
         };
         if let Some(c) = found {
-            let (rep, _, members, union) = &mut classes[c];
             class_of[x] = Some(c);
-            to[x] = *rep;
-            set_zero(members, xl, true);
-            for (u, r) in union.iter_mut().zip(row) {
-                *u |= *r;
-            }
+            to[x] = classes[c].0;
         } else {
-            let mut members = vec![0u64; w];
-            set_zero(&mut members, xl, true);
             class_of[x] = Some(classes.len());
-            classes.push((xl, ty(x), members, row.to_vec()));
+            classes.push((u32::try_from(x).expect("locals"), ty(x)));
         }
     }
     if to.iter().enumerate().all(|(x, t)| *t as usize == x) {
@@ -992,7 +1045,7 @@ fn live_once(f: &mut Func, arity: &Arity) -> bool {
     let mut dead = vec![false; body.len()];
     live.walk_back(body, |at, after| {
         if let Ins::Op(I::LocalSet(l) | I::LocalTee(l) | I::LocalGet(l)) = &body[at] {
-            dead[at] = !zero_local(after, *l);
+            dead[at] = !after.contains(*l);
         }
     });
     let mut origins = Remap::new(f.origins.as_deref());
