@@ -25,7 +25,7 @@ enum Status:
     Failed(code: i32, reason: string)
 
 fn lookup_status(items: Map[Status, i32], status: Status) -> i32?:
-    items.get(status)
+    items.get(status).copied()
 ```
 
 1. r[std-hash.derive.hash.template] `std.hash` declares the [template](../lang/14-annotations.md#templates) of `Hash`, which `@derive(Hash)` instantiates.
@@ -51,7 +51,7 @@ fn index(counts: Map[(i32, string), i32]) -> i32:
 ```text
 fn count(counts: Map[List[i32], i32], key: List[i32]) -> i32:
     match counts.get(key):
-        .Some(n) => n
+        .Some(n) => *n
         .None => 0
 ```
 
@@ -68,7 +68,7 @@ fn lookup(counts: Map[List[f64], i32]) -> i32:  # error: unsatisfied-trait-bound
 ```text
 fn failures(counts: Map[Result[i32, string], i32], key: Result[i32, string]) -> i32:
     match counts.get(key):
-        .Some(n) => n
+        .Some(n) => *n
         .None => 0
 ```
 

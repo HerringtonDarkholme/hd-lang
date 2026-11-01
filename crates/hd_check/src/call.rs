@@ -4122,11 +4122,6 @@ impl Ck<'_, '_> {
             (1, "len") => Some((IntrinsicOp::ListLen, vec![], usize_t)),
             (1, "push") => Some((IntrinsicOp::ListPush, vec![a[0]], Ty::VOID)),
             (2, "len") => Some((IntrinsicOp::MapLen, vec![], usize_t)),
-            (2, "get") => Some((
-                IntrinsicOp::MapGet,
-                vec![a[0]],
-                pool.intern_ty(&TyData::Option(a[1])),
-            )),
             (2, "remove") => Some((
                 IntrinsicOp::MapRemove,
                 vec![a[0]],
@@ -4579,7 +4574,7 @@ impl Ck<'_, '_> {
                 // The spec's declared parameter name, so a named argument
                 // matches (`module.method.normative`).
                 let pname = match op {
-                    IntrinsicOp::MapGet | IntrinsicOp::MapRemove => "key",
+                    IntrinsicOp::MapRemove => "key",
                     _ => "value",
                 };
                 let ps: Vec<(Symbol, Ty)> = params

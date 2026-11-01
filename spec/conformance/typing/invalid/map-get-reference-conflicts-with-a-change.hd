@@ -1,0 +1,8 @@
+# test: a change of the map while a reference that Map.get returned is used later is a conflicting access
+# std Collections: std-collections.map.get.reference; Spec 13 Element References: ref.elem.map.
+fn kept(mut m: Map[string, List[i64]]) -> usize:
+    match m.get("a"):
+        .Some(xs) =>
+            m["a"].push(3) # diagnostic: conflicting-access
+            xs.len()
+        .None => 0

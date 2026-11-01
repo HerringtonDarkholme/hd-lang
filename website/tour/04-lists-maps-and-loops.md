@@ -27,11 +27,12 @@ let mut counts: Map[string, i32] = {}
 
 ```hd example
 fn count_of(counts: Map[string, i32], name: string) -> i32:
-    counts.get(name).unwrap_or(0)
+    counts.get(name).copied().unwrap_or(0)
 ```
 
-A key may be missing, so `get` returns an **optional** value. `unwrap_or(0)`
-gives the fallback.
+A key may be missing, so `get` returns an **optional** reference to the
+value. `copied()` turns it into an optional value, and `unwrap_or(0)` gives
+the fallback.
 
 ## `for` loops
 
@@ -56,7 +57,7 @@ produces. This one keeps the names seen once.
 
 ```hd
 fn count_of(counts: Map[string, i32], name: string) -> i32:
-    counts.get(name).unwrap_or(0)
+    counts.get(name).copied().unwrap_or(0)
 
 items := ["lamp", "bulb", "lamp"]
 let mut counts: Map[string, i32] = {}

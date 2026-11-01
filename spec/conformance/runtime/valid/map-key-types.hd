@@ -26,7 +26,7 @@ impl Hash for Tag:
         self.id.hash(state)
 
 fn lookup[K < Eq & Hash](items: Map[K, i32], key: K) -> i32?:
-    items.get(key)
+    items.get(key).copied()
 
 fn doubled[K < Eq & Hash & Display](keys: List[K]) -> Map[K, string]:
     {for k in keys => k: "${k}${k}"}
@@ -49,13 +49,21 @@ tests:
         m := { Id { value: "x" }: 1 }
         assert_equal(m[Id { value: "x" }], 1, reason="user key")
         ranks := { Level.High(1): "high", Level.Urgent: "urgent" }
-        assert_equal(ranks.get(Level.Urgent), .Some("urgent"), reason="a payload-free variant")
-        assert_equal(ranks.get(Level.High(1)), .Some("high"), reason="a payload variant")
+        assert_equal(
+            ranks.get(Level.Urgent).copied(),
+            .Some("urgent"),
+            reason="a payload-free variant",
+        )
+        assert_equal(ranks.get(Level.High(1)).copied(), .Some("high"), reason="a payload variant")
         assert_equal(ranks.get(Level.High(2)), .None, reason="another payload")
 
     it("lookup uses the key type's own Eq and Hash"):
         tags := { Tag { id: 1, note: "red" }: 10 }
-        assert_equal(tags.get(Tag { id: 1, note: "other" }), .Some(10), reason="equal by id")
+        assert_equal(
+            tags.get(Tag { id: 1, note: "other" }).copied(),
+            .Some(10),
+            reason="equal by id",
+        )
         assert_equal(tags.get(Tag { id: 2, note: "red" }), .None, reason="a different id")
 
     it("a type parameter bounded by Eq and Hash keys a map"):

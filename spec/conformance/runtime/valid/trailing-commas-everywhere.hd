@@ -44,4 +44,4 @@ pub fn main() -> void $ Console:
     match Shape.Rect(w=+2, h=+9):
         Shape.Rect(w, h) => println(w)
     table := { "k": +9 }
-    println(table.get("k").unwrap_or(+0))
+    println(table.get("k").copied().unwrap_or(+0))

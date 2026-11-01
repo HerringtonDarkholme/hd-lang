@@ -139,7 +139,7 @@ fn count(v: Value) -> i32:
             let n = +1
             for key in keys():
                 match fields.get(key):
-                    .Some(inner) => n = n + count(inner)
+                    .Some(inner) => n = n + count(*inner)
                     .None => pass
             n
         _ => 1
@@ -159,7 +159,7 @@ fn render(v: Value) -> string:
             let mut parts: List[string] = []
             for key in keys():
                 match fields.get(key):
-                    .Some(inner) => parts.push(key + \":\" + render(inner))
+                    .Some(inner) => parts.push(key + \":\" + render(*inner))
                     .None => pass
             \"{\" + parts.join(\",\") + \"}\"
 

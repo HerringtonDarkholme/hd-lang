@@ -26,7 +26,7 @@ fn run_paired[T](entry: (fn() -> T, string)) -> T:
 
 fn run_named[T](jobs: Map[string, fn() -> T], name: string, fallback: T) -> T:
     match jobs.get(name):
-        .Some(job) => job()
+        .Some(job) => (*job)()
         .None => fallback
 
 fn nightly_backup() -> i32:

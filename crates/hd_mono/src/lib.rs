@@ -3181,6 +3181,18 @@ impl Cx<'_> {
             }
             _ => Target::Call(self.target(item, args, id)?),
         };
+        // A map probe hashes and compares at its map's key type, as at a
+        // direct call (§13.12).
+        let t = match &t {
+            Target::Call(c) if matches!(&c.kind, TargetKind::Intrinsic(key) if key == "map_probe") =>
+            {
+                let Some(&map) = env.params(item).unwrap_or_default().first() else {
+                    return err("a map probe without its map");
+                };
+                self.map_key(s(map), id, &mut reps)?
+            }
+            _ => t,
+        };
         if let Target::Call(c) = &t {
             self.hash_target(c, &mut reps);
         }
@@ -3722,12 +3734,7 @@ impl Cx<'_> {
                 Tag::Intrinsic
                     if matches!(
                         IntrinsicOp::from_u32(a),
-                        Some(
-                            IntrinsicOp::MapGet
-                                | IntrinsicOp::MapSet
-                                | IntrinsicOp::MapRemove
-                                | IntrinsicOp::MapEntry
-                        )
+                        Some(IntrinsicOp::MapSet | IntrinsicOp::MapRemove | IntrinsicOp::MapEntry)
                     ) =>
                 {
                     let Some(&m) = body.record(b).first() else {
@@ -3893,12 +3900,7 @@ fn makes_call(body: &Body) -> bool {
         Tag::NewMap => !body.record(body.data[i][1]).is_empty(),
         Tag::Intrinsic => matches!(
             IntrinsicOp::from_u32(body.data[i][0]),
-            Some(
-                IntrinsicOp::MapGet
-                    | IntrinsicOp::MapSet
-                    | IntrinsicOp::MapRemove
-                    | IntrinsicOp::MapEntry
-            )
+            Some(IntrinsicOp::MapSet | IntrinsicOp::MapRemove | IntrinsicOp::MapEntry)
         ),
         _ => false,
     })

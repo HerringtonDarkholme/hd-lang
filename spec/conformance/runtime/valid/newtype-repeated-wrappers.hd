@@ -13,12 +13,16 @@ tests:
         values[Foo(Foo(+1))] = "one"
         values[Foo(Foo(+2))] = "two"
         assert_equal(values.len(), 2, reason="distinct nested keys")
-        assert_equal(values.get(Foo(Foo(+1))), .Some("one"), reason="equal fresh nested key")
-        assert_equal(values.get(Foo(Foo(+2))), .Some("two"), reason="second nested key")
+        assert_equal(
+            values.get(Foo(Foo(+1))).copied(),
+            .Some("one"),
+            reason="equal fresh nested key",
+        )
+        assert_equal(values.get(Foo(Foo(+2))).copied(), .Some("two"), reason="second nested key")
         values[Foo(Foo(+1))] = "updated"
         assert_equal(values.len(), 2, reason="equal nested key replaces its value")
         assert_equal(
-            values.get(Foo(Foo(+1))),
+            values.get(Foo(Foo(+1))).copied(),
             .Some("updated"),
             reason="replacement survives hashing",
         )

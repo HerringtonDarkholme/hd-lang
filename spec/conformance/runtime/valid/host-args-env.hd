@@ -16,7 +16,7 @@ struct FixedEnv:
 
 impl Env for FixedEnv:
     fn get(self, name: string) -> string?:
-        self.values.get(name)
+        self.values.get(name).copied()
 
     fn names(self) -> List[string]:
         let mut found: List[string] = []

@@ -405,7 +405,7 @@ impl MemoryFs:
             .None => pass
 
     fn file_at(&self, key: string) -> List[u8]?:
-        self.files.get(key)
+        self.files.get(key).copied()
 
     # A made directory, or a prefix of a file or a made directory.
     fn dir_at(&self, key: string) -> bool:
@@ -503,7 +503,7 @@ impl FsRead for MemoryFs:
                             path: path,
                             kind: EntryKind.File,
                             size: u64(bytes.len()),
-                            modified: self.modified.get(key),
+                            modified: self.modified.get(key).copied(),
                         },
                     ),
                 )
@@ -515,7 +515,7 @@ impl FsRead for MemoryFs:
                                 path: path,
                                 kind: EntryKind.Directory,
                                 size: 0,
-                                modified: self.modified.get(key),
+                                modified: self.modified.get(key).copied(),
                             },
                         ),
                     )

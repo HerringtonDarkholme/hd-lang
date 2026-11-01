@@ -42,16 +42,16 @@ struct MemoryInventory:
 
 impl Inventory for MemoryInventory:
     fn price!(&self, sku: string) -> i64?:
-        self.prices.get(sku)
+        self.prices.get(sku).copied()
 
     fn stock!(&self, sku: string) -> i32:
         match self.counts.get(sku):
-            .Some(n) => n
+            .Some(n) => *n
             .None => 0
 
     fn reserve!(&mut self, sku: string, qty: i32) -> void:
         have := match self.counts.get(sku):
-            .Some(n) => n
+            .Some(n) => *n
             .None => 0
         self.counts[sku] = have - qty
 
