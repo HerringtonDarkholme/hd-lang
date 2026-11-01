@@ -1,0 +1,5 @@
+[package]
+name = "stdlib-references-design"
+
+[capabilities]
+Console = true
