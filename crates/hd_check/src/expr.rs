@@ -2031,10 +2031,12 @@ impl Ck<'_, '_> {
             bt = self.infer.resolve(pool, bt);
         }
         // Shallow readonly references preserve the declared field types.
-        let (r, bt) = match self.ref_of(bt) {
-            Some(_) => self.emit_deref(r, bt, base.index()),
-            None => (r, bt),
-        };
+        // `ref.read.auto`: through every reference level, as `(*(*x)).f`.
+        let mut r = r;
+        while self.ref_of(bt).is_some() {
+            (r, bt) = self.emit_deref(r, bt, base.index());
+            bt = self.infer.resolve(pool, bt);
+        }
         let inner = match pool.get(bt) {
             TyData::Mut(i) => i,
             _ => bt,

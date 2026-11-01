@@ -1,0 +1,34 @@
+# test: field reads, field writes and method calls read through every reference level, and an explicit `*` still works
+# Spec 13 Reading Through A Reference: ref.read.auto.levels, ref.read.auto.write.
+struct User:
+    name: string
+    age: i32
+
+impl User:
+    fn describe(&self) -> string: "${self.name} ${self.age}"
+    fn birthday(&mut self) -> void:
+        self.age = self.age + 1
+
+fn two(x: &*mut User) -> string:
+    x.age = x.age + 1
+    x.age += 1
+    x.birthday()
+    "${x.name} ${x.describe()}"
+
+fn three(x: &(*mut (*mut User))) -> string:
+    x.age = 0
+    "${x.name} ${x.describe()}"
+
+fn counted_twice(x: *mut (*mut User)) -> i32:
+    x.birthday()
+    x.age
+
+fn local_twice(x: &(&User)) -> string:
+    "${x.name} ${x.describe()}"
+
+fn shared(x: &*User) -> string:
+    x.describe()
+
+fn explicit(x: &*mut User) -> string:
+    (*x).age = 1
+    (*x).describe()

@@ -1,0 +1,60 @@
+# test: field access and method calls through two and three reference levels read and change the referenced value
+# Spec 13 Reading Through A Reference: ref.read.auto.levels, ref.read.auto.write, ref.read.auto.method-level.
+# expect-stdout: ann 32
+# expect-stdout: 112 1
+# expect-stdout: 7 7
+# expect-stdout: oops 3
+use std.error.Error
+
+struct Pos:
+    x: i32
+
+struct User:
+    name: string
+    age: i32
+    pos: Pos
+    tags: List[string]
+
+impl Pos:
+    fn shift(&mut self) -> void:
+        self.x = self.x + 10
+
+impl User:
+    fn describe(&self) -> string: "${self.name} ${self.age}"
+    fn birthday(&mut self) -> void:
+        self.age = self.age + 1
+
+struct Oops:
+    code: i32
+
+impl Display for Oops:
+    fn to_string(&self) -> string: "oops ${self.code}"
+
+impl Error for Oops
+
+fn two(x: &*mut User) -> string:
+    x.age = x.age + 1
+    x.birthday()
+    x.describe()
+
+fn nested(u: &*mut User) -> void:
+    u.pos.x = u.pos.x + 1
+    u.pos.shift()
+    u.tags.push("t")
+    u.pos.x += 100
+
+fn deep(u: &(*mut (*mut User))) -> i32:
+    u.pos.x = 7
+    u.pos.x
+
+fn show(e: &(*dyn Error)) -> string: e.to_string()
+
+pub fn main() -> void $ Console:
+    let mut p: *mut User = box(User { name: "ann", age: 30, pos: Pos { x: 1 }, tags: [] })
+    println(two(&p))
+    nested(&p)
+    println("${p.pos.x} ${p.tags.len()}")
+    let w: *mut (*mut User) = box(p)
+    println("${deep(&w)} ${p.pos.x}")
+    let errs: List[*dyn Error] = [box(Oops { code: 3 })]
+    println(show(&errs[0]))

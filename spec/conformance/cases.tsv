@@ -4668,6 +4668,9 @@ runtime/valid/reference-enum-replace.hd	runtime	accept	lang/13-values-and-refere
 runtime/valid/reference-enum-replace-build.hd	runtime	accept	lang/13-values-and-references.md#r-ref.place.writable.enum
 runtime/valid/reference-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.deref.read
 runtime/valid/reference-read-through.hd	runtime	accept	lang/13-values-and-references.md#r-ref.read.auto
+runtime/valid/reference-auto-deref-levels.hd	runtime	accept	lang/13-values-and-references.md#r-ref.read.auto.levels
+typing/valid/reference-auto-deref-levels.hd	type	accept	lang/13-values-and-references.md#r-ref.read.auto.levels
+typing/invalid/reference-auto-deref-levels-read-only.hd	type	reject:not-writable	lang/13-values-and-references.md#r-ref.read.auto.write
 runtime/valid/reference-copy-out.hd	runtime	accept	lang/13-values-and-references.md#r-ref.read.shallow
 typing/valid/reference-forms.hd	type	accept	lang/13-values-and-references.md#r-ref.place.shared-any
 typing/valid/reference-shallow-values.hd	type	accept	lang/13-values-and-references.md#r-ref.read.shallow

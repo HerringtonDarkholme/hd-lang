@@ -4174,6 +4174,14 @@ impl Ck<'_, '_> {
                     crate::refs::Operand::Place(p) => self.read_place(&p, base),
                     crate::refs::Operand::Value(r, t) => (r, t),
                 };
+                // `ref.read.auto`: outer reference levels read through to
+                // the last one, which decides the write, as `(*x).f = v`.
+                let (mut br, mut bt) = (br, bt);
+                while let Some((inner, mutable)) = self.ref_of(bt)
+                    && self.ref_of(self.deref_ty(inner, mutable)).is_some()
+                {
+                    (br, bt) = self.emit_deref(br, bt, base.index());
+                }
                 // A field of a referenced value: through `&mut` only
                 // (`ref.write.field`).
                 let (br, bt) = match self.ref_of(bt) {

@@ -1,0 +1,7 @@
+# test: a write through several reference levels needs the last level to be writable
+# Spec 13 Reading Through A Reference: ref.read.auto.write.
+struct User:
+    age: i32
+
+fn reset(x: &mut *User) -> void:
+    x.age = 0 # diagnostic: not-writable

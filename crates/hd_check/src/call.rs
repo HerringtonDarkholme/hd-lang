@@ -3426,7 +3426,17 @@ impl Ck<'_, '_> {
             self.method_targs = method_targs;
             return self.method_on(recv, rt, &name, args, (n, bang), want);
         }
-        let (recv, rt) = self.expr(base, None)?;
+        let (mut recv, mut rt) = self.expr(base, None)?;
+        // `ref.read.auto`: through outer reference levels, as Rust's
+        // auto-deref, down to the last reference or to one whose referent
+        // has the method itself.
+        while let Some((inner, mutable)) = self.ref_of(rt) {
+            let vt = self.deref_ty(inner, mutable);
+            if self.ref_of(vt).is_none() || self.resolve_method(vt, &name)?.is_some() {
+                break;
+            }
+            (recv, rt) = self.emit_deref(recv, rt, base.index());
+        }
         // A method call through a reference calls it on the referenced
         // value (`ref.read.auto`), unless the method takes a reference.
         if let Some(passed) = self.pass_reference_receiver(recv, rt, &name, base)? {

@@ -83,11 +83,11 @@ impl Ck<'_, '_> {
                 self.global_binding(s).map(|g| g.ty)
             }
             SyntaxKind::FieldExpr => {
-                let base = self.peek_place_ty(*kids.first()?)?;
-                let base = match self.ref_of(base) {
-                    Some((inner, m)) => self.deref_ty(inner, m),
-                    None => base,
-                };
+                // `ref.read.auto`: through every reference level.
+                let mut base = self.peek_place_ty(*kids.first()?)?;
+                while let Some((inner, m)) = self.ref_of(base) {
+                    base = self.deref_ty(inner, m);
+                }
                 let name = self.cx.src.text(self.cx.src.last(e));
                 self.field_of(base, name)
                     .or_else(|| self.tuple_elem_of(base, name))

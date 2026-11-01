@@ -1422,12 +1422,16 @@ fn demo(r: &Vec2) -> f64:
 ```
 
 1. r[ref.read.auto] A field read or a method call on a reference applies to the value it refers to: `r.x` reads the field `x` of that value, and `r.len2()` calls `len2` on it.
-2. r[ref.deref.read] `*r` reads the whole value `r` refers to. The result is a copy.
-3. r[ref.deref.kinds] `*r` reads through a counted and a local reference alike.
-4. r[ref.deref.not-reference] `*e` on a value that is not a reference is an error. Error: `type-mismatch`.
-5. r[ref.read.type] A read through a writable reference, `*mut T` or `&mut T`, has type `T`, and the value it reaches is a writable place.
-6. r[ref.read.shallow] A read through a read-only reference, `*T` or `&T`, keeps its declared type; the reference makes only the value it refers to read-only.
-7. r[ref.read.index.declared] An index on a reference to a list, map, or string reads an element of the referenced value.
+2. r[ref.read.auto.levels] The read goes through every reference level, `&`, `&mut`, `*`, and `*mut` alike: with `x: &*mut User`, `x.name` reads `(*(*x)).name`, and `x.describe()` calls `describe` on the `User`.
+3. r[ref.read.auto.method-level] A method call stops at the first level whose referent has the method itself, as Rust's auto-deref does: with `x: &*T` and an `impl Display for *T`, `x.to_string()` calls that impl's method.
+4. r[ref.read.auto.write] A field write or a `&mut self` call through several levels needs only the last level to be writable, as `(*x).f = v` does by [`ref.read.shallow`](#r-ref.read.shallow): `x.age = 1` is valid with `x: &*mut User` and an error with `x: &mut *User`. Error: `not-writable`.
+5. r[ref.read.auto.explicit] Only field access and method calls read through every level. A condition, a cast, a range bound, `?`, a spread, and a call of a function value keep an explicit `*`.
+6. r[ref.deref.read] `*r` reads the whole value `r` refers to. The result is a copy.
+7. r[ref.deref.kinds] `*r` reads through a counted and a local reference alike.
+8. r[ref.deref.not-reference] `*e` on a value that is not a reference is an error. Error: `type-mismatch`.
+9. r[ref.read.type] A read through a writable reference, `*mut T` or `&mut T`, has type `T`, and the value it reaches is a writable place.
+10. r[ref.read.shallow] A read through a read-only reference, `*T` or `&T`, keeps its declared type; the reference makes only the value it refers to read-only.
+11. r[ref.read.index.declared] An index on a reference to a list, map, or string reads an element of the referenced value.
 
 With `Team { name: string, lead: *mut User }` and `t: &Team`:
 
