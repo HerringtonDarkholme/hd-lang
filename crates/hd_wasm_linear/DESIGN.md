@@ -2416,7 +2416,10 @@ address. The optimized pipeline declares the pass `arg_promote`
   `Drop` may come before the call.
 - **Which parameters.** `hd_tir::own::promote::read_only_params`: every
   place rooted at the parameter is a `Read` through it (`[*$p .f]`) or a
-  `Drop` of it. A whole read of the reference (to store, return, compare
+  `Drop` of it. A read of all of it counts too when its value is only
+  read through (`[*%v .f]`), dropped or matched, as `match self:` in a
+  `&self` method reads the tag (#1167); the copy reads the referent
+  there. A whole read of the reference (to store, return, compare
   with `is` or pass it on), a `Ref` through it, a `Store` through it, a
   capture and a suspension point each keep the address.
 - **The copy.** Collection gives a direct or static trait call its
