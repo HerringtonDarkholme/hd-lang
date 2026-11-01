@@ -1,0 +1,26 @@
+# test: struct literals and variant constructions whose inferred type arguments meet their bounds
+# Spec 09 Traits: trait.bound.unsatisfied.
+
+struct Point:
+    x: i32
+
+impl Eq for Point:
+    fn eq(&self, other: &Point) -> bool:
+        self.x == other.x
+
+struct Keyed[T < Eq]:
+    v: T
+
+enum Wrap[T < Eq]:
+    One(T)
+    Empty
+
+fn keep[T < Eq](a: T) -> Keyed[T]:
+    Keyed { v: a }
+
+fn check() -> i32:
+    k := Keyed { v: Point { x: 1 } }
+    let n: Keyed[i32] = Keyed { v: 2 }
+    _ := Wrap.One(Point { x: 3 })
+    g := keep(Point { x: 4 })
+    k.v.x + n.v + g.v.x

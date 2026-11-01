@@ -2843,7 +2843,7 @@ impl Ck<'_, '_> {
             def,
             args: pool.list(&targs),
         });
-        self.check_copy_args(def, &targs, n)?;
+        self.check_construct_bounds(def, &targs, n)?;
         if let Some((sr, _)) = source {
             let rec = self.copy_record(&vals);
             let at = spread.map_or(n, |s| s);

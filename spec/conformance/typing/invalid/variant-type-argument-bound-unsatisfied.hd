@@ -1,0 +1,13 @@
+# test: a variant construction's inferred type argument must meet its parameter's bound
+# Spec 09 Traits: trait.bound.unsatisfied.
+
+struct Plain:
+    n: i32
+
+enum Wrap[T < Eq]:
+    One(T)
+    Empty
+
+fn check() -> Wrap[i32]:
+    _ := Wrap.One(Plain { n: 1 }) # diagnostic: unsatisfied-trait-bound
+    Wrap.Empty

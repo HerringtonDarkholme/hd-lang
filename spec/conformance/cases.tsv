@@ -5700,3 +5700,6 @@ typing/invalid/copy-impl-is-sealed.hd	type	reject:sealed-trait-implementation	la
 typing/invalid/copy-relaxed-bound-other-trait.hd	type	reject:invalid-relaxed-bound	lang/13-values-and-references.md#r-ref.copy.generic.relaxed.only
 typing/valid/copy-relaxed-trait-implemented-by-opt-out.hd	type	accept	lang/13-values-and-references.md#r-ref.copy.trait.relaxed
 typing/valid/copy-default-copyable-cases.hd	type	accept	lang/13-values-and-references.md#r-ref.copy.generic.default
+typing/invalid/struct-literal-type-argument-bound-unsatisfied.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.bound.unsatisfied
+typing/invalid/variant-type-argument-bound-unsatisfied.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.bound.unsatisfied
+typing/valid/construction-type-argument-bound-satisfied.hd	type	accept	lang/09-traits.md#r-trait.bound.unsatisfied

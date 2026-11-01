@@ -3277,7 +3277,7 @@ impl Ck<'_, '_> {
         }
         let pool = self.pool();
         if let TyData::Adt { def, args } = pool.get(self.infer.shallow(pool, t)) {
-            self.check_copy_args(def, pool.list_items(args), n)?;
+            self.check_construct_bounds(def, pool.list_items(args), n)?;
         }
         let refs: Vec<Ref> = slots.into_iter().map(|r| r.unwrap_or(Ref(NONE))).collect();
         let rec = self.b.refs_record(&refs);

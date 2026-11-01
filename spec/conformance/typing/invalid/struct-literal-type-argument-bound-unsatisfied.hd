@@ -1,0 +1,12 @@
+# test: a struct literal's inferred type argument must meet its parameter's bound
+# Spec 09 Traits: trait.bound.unsatisfied.
+
+struct Plain:
+    n: i32
+
+struct Keyed[T < Eq]:
+    v: T
+
+fn check() -> i32:
+    k := Keyed { v: Plain { n: 1 } } # diagnostic: unsatisfied-trait-bound
+    k.v.n

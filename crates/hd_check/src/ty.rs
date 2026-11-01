@@ -720,26 +720,30 @@ impl Ck<'_, '_> {
     }
 
     /// The type arguments of a struct literal or variant construction of
-    /// `def` are `Copy` where its parameters are
-    /// (`ref.copy.generic.default`).
-    pub(crate) fn check_copy_args(
+    /// `def` meet its parameters' declared bounds, as a written `def[..]`
+    /// does (`trait.bound.unsatisfied`), the default `Copy` bound among them
+    /// (`ref.copy.generic.default`): one error per argument, at the
+    /// construction. An argument still open waits for inference.
+    pub(crate) fn check_construct_bounds(
         &mut self,
         def: DefId,
         args: &[Ty],
         at: NodeRef<'_>,
     ) -> StageResult<()> {
         let pool = self.pool();
-        let copy = self.cx.names.known.copy;
         let Some(item) = self.cx.lookup.item(def) else {
             return Ok(());
         };
-        let bounded: Vec<bool> = (item.generics.iter())
-            .map(|g| {
-                (g.bounds.iter()).any(|b| pool.trait_value(*b).is_some_and(|(d, _)| d == copy))
-            })
-            .collect();
-        for (&a, _) in args.iter().zip(bounded).filter(|(_, b)| *b) {
-            self.check_collection_item(a, at)?;
+        let mut missed = None;
+        for (i, _, tref) in crate::written_bounds::goals(pool, def, &item.generics, args) {
+            if missed == Some(i) {
+                continue;
+            }
+            let before = self.diags.len();
+            self.require_ref_as(tref, at, Code::UnsatisfiedTraitBound)?;
+            if self.diags.len() != before {
+                missed = Some(i);
+            }
         }
         Ok(())
     }
