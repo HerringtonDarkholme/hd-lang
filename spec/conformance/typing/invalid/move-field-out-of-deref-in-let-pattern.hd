@@ -1,0 +1,16 @@
+# test: a let pattern on `*r` that binds a non-copyable field by value moves it out of the reference
+# Spec 13 Values And References: ref.move.pattern, ref.move.out-of-place.
+struct Photo:
+    width: u32
+
+impl !Copy for Photo
+
+struct Frame:
+    photo: Photo
+
+fn take(p: Photo) -> void:
+    pass
+
+fn use_frame(r: &mut Frame) -> void:
+    let Frame { photo } = *r # diagnostic: move-out-of-place
+    take(photo)

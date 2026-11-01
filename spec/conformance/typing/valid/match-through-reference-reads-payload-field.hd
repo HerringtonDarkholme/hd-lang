@@ -1,0 +1,15 @@
+# test: matching on a reference itself, not on `*r`, reads the payload's field without moving it out
+# Spec 13 Values And References: ref.move.pattern, ref.move.out-of-place.
+struct Photo:
+    width: u32
+
+impl !Copy for Photo
+
+enum Slot:
+    Empty
+    Full(Photo)
+
+fn width(r: &Slot) -> u32:
+    match r:
+        .Full(p) => p.width
+        .Empty => 0

@@ -138,7 +138,34 @@ impl Ck<'_, '_> {
     /// data object's payload is not through a reference, and an element
     /// is left to the element rules.
     fn behind_ref(&self, b: &Body, p: &Place) -> Option<bool> {
+        self.behind_ref_at(b, p, 0)
+    }
+
+    /// Whether value `i` is a dereference written in the source, `*r`.
+    /// Matching on `r` itself reads its referent implicitly and binds
+    /// through the reference instead.
+    fn written_deref(&self, b: &Body, i: usize) -> bool {
+        let at = b.syn[i];
+        at != hd_base::NodeIdx::NONE
+            && self.cx.src.parse.tree.node(at).kind() == hd_syntax::SyntaxKind::DerefExpr
+    }
+
+    /// [`Self::behind_ref`]. A place rooted at a value that reads a place
+    /// behind a reference is behind it too: a pattern on `*r` reads its
+    /// payload out of that read (`ref.move.pattern`).
+    fn behind_ref_at(&self, b: &Body, p: &Place, depth: u32) -> Option<bool> {
         let pool = self.pool();
+        if let PlaceRoot::Value(r) = p.root
+            && depth < 16
+            && (r.0 as usize) < b.len()
+            && b.tags[r.0 as usize] == Tag::Read
+            && !p.proj.is_empty()
+            && self.written_deref(b, r.0 as usize)
+            && let Some(inner) = b.decode_place(b.data[r.0 as usize][0])
+            && let Some(mutable) = self.behind_ref_at(b, &inner, depth + 1)
+        {
+            return Some(mutable);
+        }
         let mut t = match p.root {
             PlaceRoot::Local(l) => b.local_ty[l.idx()],
             PlaceRoot::Value(r) if (r.0 as usize) < b.len() => b.ty[r.0 as usize],
