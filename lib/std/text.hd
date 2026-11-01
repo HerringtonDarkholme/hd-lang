@@ -23,7 +23,7 @@ pub fn r(t: Template[*dyn Display]) -> string:
 # (the specification names only `r`).
 ## Joins a template's pieces with the `Display` text of each value, which every literal function uses.
 ## See [std-text.prefix-helper.interpolate](../../spec/std/text.md#r-std-text.prefix-helper.interpolate).
-pub fn interpolate[T < Display](t: Template[T]) -> string:
+pub fn interpolate[T < Display & Copy](t: Template[T]) -> string:
     let mut pieces: List[string] = [t.raw_parts[0]]
     let index: usize = 0
     while index < t.values.len():

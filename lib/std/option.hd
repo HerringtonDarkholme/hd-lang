@@ -6,18 +6,18 @@
 pub struct OptionIter[T]:
     value: T?
 
-impl[T] Iterator[T] for OptionIter[T]:
+impl[T < Copy] Iterator[T] for OptionIter[T]:
     fn next(&mut self) -> T?:
         value := self.value
         self.value = .None
         value
 
-impl[T] Iterable[T] for T?:
+impl[T < Copy] Iterable[T] for T?:
     type IntoIter = OptionIter[T]
     fn iter(self) -> OptionIter[T]:
         OptionIter { value: self }
 
-impl[T < ?Copy] T?:
+impl[T] T?:
     ## `.Some` of `transform(value)` for a `.Some`, and `.None` for a `.None`.
     ## See [std-iter.method.map](../../spec/std/iter.md#r-std-iter.method.map).
     pub fn map[U](self, transform: fn(T) -> U) -> U?:
@@ -55,15 +55,15 @@ impl[T < ?Copy] T?:
 
     ## True for a `.Some`.
     ## See [std-option.is-some](../../spec/std/option.md#r-std-option.is-some).
-    pub fn is_some(self) -> bool:
-        match self:
+    pub fn is_some(&self) -> bool:
+        match *self:
             .Some(_) => true
             .None => false
 
     ## True for a `.None`.
     ## See [std-option.is-none](../../spec/std/option.md#r-std-option.is-none).
-    pub fn is_none(self) -> bool:
-        match self:
+    pub fn is_none(&self) -> bool:
+        match *self:
             .Some(_) => false
             .None => true
 

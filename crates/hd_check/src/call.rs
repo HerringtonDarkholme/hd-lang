@@ -4539,6 +4539,14 @@ impl Ck<'_, '_> {
                 Ok(self.emit_call(&c, &refs, ret, sig.suspends, bang, n))
             }
             Some(Hit::Builtin { op, params, ret }) => {
+                // Measurement switch: `Map.get` hands out a copy of the
+                // value, so it needs `V < Copy`.
+                if hd_resolve::move_only_generics()
+                    && op == IntrinsicOp::MapGet
+                    && let TyData::Option(v) = self.pool().get(ret)
+                {
+                    self.require_copy(v, n)?;
+                }
                 if matches!(op, IntrinsicOp::ListPush | IntrinsicOp::MapRemove) {
                     // `push` and `remove` change the receiver in place
                     // (`types.coll.writable.call`).

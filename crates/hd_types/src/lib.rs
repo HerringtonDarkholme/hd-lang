@@ -17,4 +17,14 @@ pub use pool::{
     RowParamRef, Ty, TyData, TyList, Types, with_assoc_args,
 };
 pub use sealed::CopyDecl;
+
+/// Measurement switch (branch measure/move-only-generics): a plain type
+/// parameter and a trait's `Self` are move-only; `< Copy` makes them
+/// copyable, and `List` and `Map` hold any item, copying as their items
+/// do. `HD_COPY_DEFAULT=1` restores the `Copy` default.
+#[must_use]
+pub fn move_only_generics() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("HD_COPY_DEFAULT").is_none())
+}
 pub use unify::{InferTable, UnifyError, VarKind};

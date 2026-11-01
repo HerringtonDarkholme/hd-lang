@@ -151,7 +151,7 @@ fn copy_member_value(member: &Member) -> Member:
     }
 
 ## A value that can validate itself and its nested values.
-pub trait Validate:
+pub trait Validate < Copy:
     fn collect(&self, context: &mut ValidationContext) -> void
 
     ## Runs checks that require the completed record. It is skipped after the positive issue cap.
@@ -198,7 +198,7 @@ fn visit_value[F < Validate](value: &F, context: &mut ValidationContext) -> void
     if context.begin():
         value.record(context)
 
-impl[T] Validate for T by Structure:
+impl[T < Copy] Validate for T by Structure:
     fn collect(&self, context: &mut ValidationContext) -> void:
         let mut walker = ValidationWalker::[T] { context: *context }
         _ := Structure::walk(*self, &mut walker)
@@ -249,7 +249,7 @@ struct ValidationEqualWalker[S]:
     pub other: S
     pub result: bool?
 
-impl[S] Walker[S] for ValidationEqualWalker[S]:
+impl[S < Copy] Walker[S] for ValidationEqualWalker[S]:
     type Error = bool
 
     fn variant(&mut self, variant: Variant[S]) -> Result[void, bool]:
@@ -294,7 +294,7 @@ struct ValidationOrderWalker[S]:
     pub other_index: fn(S) -> usize
     pub result: Result[Ordering?, void]
 
-impl[S] Walker[S] for ValidationOrderWalker[S]:
+impl[S < Copy] Walker[S] for ValidationOrderWalker[S]:
     type Error = bool
 
     fn variant(&mut self, variant: Variant[S]) -> Result[void, bool]:
@@ -320,7 +320,7 @@ impl[S] Walker[S] for ValidationOrderWalker[S]:
                 self.result = result
                 .Err(false)
 
-impl[T < Validate] Validate for List[T]:
+impl[T < Validate & Copy] Validate for List[T]:
     fn collect(&self, context: &mut ValidationContext) -> void:
         let index: usize = 0
         for value in *self:
@@ -369,7 +369,7 @@ impl[T < Validate] Validate for List[T]:
             left = left + 1
         .Some(true)
 
-impl[T < Validate] Validate for T?:
+impl[T < Validate & Copy] Validate for T?:
     fn collect(&self, context: &mut ValidationContext) -> void:
         match self:
             .Some(value) => visit_value(&value, context)
@@ -408,7 +408,7 @@ impl[T < Validate] Validate for T?:
             .Some(value) => apply_optional_facts(&value, field, context)
             .None => pass
 
-impl[K < Eq & Hash & Validate, V < Validate] Validate for Map[K, V]:
+impl[K < Eq & Hash & Validate & Copy, V < Validate & Copy] Validate for Map[K, V]:
     fn collect(&self, context: &mut ValidationContext) -> void:
         for (key, value) in self.entries():
             context.push(.Key(key.path_name().unwrap_or("<key>")))
@@ -768,7 +768,7 @@ pub struct OneOf[F]:
     values: List[F]
     message: string?
 
-impl[F < Validate] Rule[F] for OneOf[F]:
+impl[F < Validate & Copy] Rule[F] for OneOf[F]:
     fn apply(&self, value: &F, context: &mut ValidationContext) -> void:
         for allowed in self.values:
             match value.equal_to(&allowed):
@@ -816,7 +816,7 @@ fn valid_bounds[F < Validate](low: &F, high: &F, context: &mut ValidationContext
 fn rule_message(message: string?, fallback: string) -> string:
     message.unwrap_or(fallback)
 
-fn apply_member_facts[S, F < Validate](
+fn apply_member_facts[S, F < Validate & Copy](
     value: &F,
     field: Field[S, F],
     context: &mut ValidationContext,
@@ -864,7 +864,7 @@ fn apply_member_facts[S, F < Validate](
         .Some(rule) => run_rule(&rule, value, context)
         .None => pass
 
-fn apply_optional_facts[S, F < Validate](
+fn apply_optional_facts[S, F < Validate & Copy](
     value: &F,
     field: Field[S, F?],
     context: &mut ValidationContext,

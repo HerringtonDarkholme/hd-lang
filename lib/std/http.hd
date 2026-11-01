@@ -1953,7 +1953,7 @@ impl Request:
     pub fn post(url: Url) -> Request:
         Request::new(.Post, url)
 
-    pub fn set_json[T < Serialize](mut self, value: T) -> Request:
+    pub fn set_json[T < Serialize & Copy](mut self, value: T) -> Request:
         self.body = Body::from_bytes(encode(value).to_utf8())
         self.headers.set(.ContentType, "application/json")
         self
@@ -2406,7 +2406,7 @@ impl Response:
     pub fn status(code: HttpStatus) -> Response:
         Response { status: code }
 
-    pub fn set_json[T < Serialize](mut self, value: T) -> Response:
+    pub fn set_json[T < Serialize & Copy](mut self, value: T) -> Response:
         self.body = Body::from_bytes(encode(value).to_utf8())
         self.headers.set(.ContentType, "application/json")
         self
@@ -2809,7 +2809,7 @@ fn wire_error(error: WireHttpError) -> HttpError:
 pub fn get!(url: string) -> Result[Response, HttpError] $ Http:
     Request::get(Url::parse(url)?).send!()?.ok()
 
-pub fn post![T < Serialize](url: string, value: T) -> Result[Response, HttpError] $ Http:
+pub fn post![T < Serialize & Copy](url: string, value: T) -> Result[Response, HttpError] $ Http:
     Request::post(Url::parse(url)?).set_json(value).send!()?.ok()
 
 # Each URL owns one mutable queue, so appending a reply does not copy its

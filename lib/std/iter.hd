@@ -74,12 +74,12 @@ pub trait Iterator[T]:
     # The first item that passes, leaving the rest unread.
     ## The first item that `test` accepts, in `.Some`, or `.None`.
     ## See [std-iter.adapter.find.value](../../spec/std/iter.md#r-std-iter.adapter.find.value).
-    fn find(self, test: fn(T) -> bool) -> T?:
+    fn find(self, test: fn(&T) -> bool) -> T?:
         let mut cursor = self
         while true:
             match cursor.next():
                 .Some(item) =>
-                    if test(item):
+                    if test(&item):
                         return .Some(item)
                 .None => break
         .None
@@ -209,7 +209,7 @@ impl[T] dyn Iterator[T]:
     pub fn all(*mut self, test: fn(T) -> bool) -> bool:
         DynIterator { source: self }.all(test)
 
-    pub fn find(*mut self, test: fn(T) -> bool) -> T?:
+    pub fn find(*mut self, test: fn(&T) -> bool) -> T?:
         DynIterator { source: self }.find(test)
 
     pub fn count(*mut self) -> usize:
@@ -461,7 +461,7 @@ pub struct ListIter[T]:
     items: List[T]
     at: usize
 
-impl[T] Iterator[T] for ListIter[T]:
+impl[T < Copy] Iterator[T] for ListIter[T]:
     fn next(&mut self) -> T?:
         if self.at >= self.items.len():
             return .None
@@ -475,7 +475,7 @@ pub struct MapEntries[K < Eq & Hash, V]:
     step: fn(usize) -> (usize, (K, V))?
     at: usize
 
-impl[K < Eq & Hash, V] Iterator[(K, V)] for MapEntries[K, V]:
+impl[K < Eq & Hash & Copy, V < Copy] Iterator[(K, V)] for MapEntries[K, V]:
     fn next(&mut self) -> (K, V)?:
         match (self.step)(self.at):
             .Some((slot, entry)) =>
@@ -483,12 +483,12 @@ impl[K < Eq & Hash, V] Iterator[(K, V)] for MapEntries[K, V]:
                 .Some(entry)
             .None => .None
 
-impl[T] Iterable[T] for List[T]:
+impl[T < Copy] Iterable[T] for List[T]:
     type IntoIter = ListIter[T]
     fn iter(self) -> ListIter[T]:
         ListIter { items: self, at: 0 }
 
-impl[K < Eq & Hash, V] Iterable[(K, V)] for Map[K, V]:
+impl[K < Eq & Hash & Copy, V < Copy] Iterable[(K, V)] for Map[K, V]:
     type IntoIter = MapEntries[K, V]
     fn iter(self) -> MapEntries[K, V]:
         MapEntries { step: map_steps(self), at: 0 }

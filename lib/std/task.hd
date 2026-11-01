@@ -146,7 +146,7 @@ pub struct Backoff:
 
 ## Retries with the policy's delays until success, a rejected error, or the final attempt.
 ## See [std-task.policy.retry.layer](../../spec/std/task.md#r-std-task.policy.retry.layer).
-fn retry_work![T, E, F < FnMut(E) -> bool, $ R](
+fn retry_work![T < Copy, E < Copy, F < Copy & FnMut(E) -> bool, $ R](
     policy: Backoff,
     when: F,
     attempt: fn!() -> Result[T, E] $ R,
@@ -191,7 +191,7 @@ pub struct TimeLimit:
     cleanup: Duration? = .None
 
 ## See [std-task.policy.time-limit.layer](../../spec/std/task.md#r-std-task.policy.time-limit.layer).
-impl[T, E < From[TimedOut], $ R] Layer[fn!() -> Result[T, E] $ R] for TimeLimit:
+impl[T < Copy, E < From[TimedOut] & Copy, $ R] Layer[fn!() -> Result[T, E] $ R] for TimeLimit:
     type Wrapped = fn!() -> Result[T, E] $ R + Clock
     fn wrap(self, work: fn!() -> Result[T, E] $ R) -> (fn!() -> Result[T, E] $ R + Clock):
         fn!() -> Result[T, E] $ R + Clock:
@@ -203,7 +203,7 @@ pub struct Retry:
     backoff: Backoff
 
 ## See [std-task.policy.retry.layer](../../spec/std/task.md#r-std-task.policy.retry.layer).
-impl[T, E, $ R] Layer[fn!() -> Result[T, E] $ R] for Retry:
+impl[T < Copy, E < Copy, $ R] Layer[fn!() -> Result[T, E] $ R] for Retry:
     type Wrapped = fn!() -> Result[T, E] $ R + Clock
     fn wrap(self, work: fn!() -> Result[T, E] $ R) -> (fn!() -> Result[T, E] $ R + Clock):
         fn!() -> Result[T, E] $ R + Clock:
@@ -222,7 +222,7 @@ impl Retry:
         SelectiveRetry { backoff: self.backoff, when: predicate }
 
 ## See [std-task.policy.selective-retry.layer.fn-mut](../../spec/std/task.md#r-std-task.policy.selective-retry.layer.fn-mut).
-impl[T, E < 'static, F < FnMut(E) -> bool & 'static, $ R] Layer[
+impl[T < Copy, E < 'static, F < FnMut(E) -> bool & 'static, $ R] Layer[
     fn!() -> Result[T, E] $ R,
 ] for SelectiveRetry[E, F]:
     type Wrapped = fn!() -> Result[T, E] $ R + Clock
@@ -260,7 +260,7 @@ pub struct Guard:
     state: *mut Breaker
 
 ## See [std-task.policy.guard.layer](../../spec/std/task.md#r-std-task.policy.guard.layer).
-impl[T, E < From[CircuitOpen], $ R] Layer[fn!() -> Result[T, E] $ R] for Guard:
+impl[T < Copy, E < From[CircuitOpen] & Copy, $ R] Layer[fn!() -> Result[T, E] $ R] for Guard:
     type Wrapped = fn!() -> Result[T, E] $ R
     fn wrap(self, work: fn!() -> Result[T, E] $ R) -> (fn!() -> Result[T, E] $ R):
         fn!() -> Result[T, E] $ R:
@@ -346,7 +346,7 @@ impl Error for TimedOut
 # deadline passes (r-std-task.policy.time-limit.cleanup-deadline).
 ## Runs `work` and returns its value, or `.Err(TimedOut)` when `limit` passes first; `cleanup` bounds the wait for the work's cleanup.
 ## See [std-task.policy.time-limit.layer](../../spec/std/task.md#r-std-task.policy.time-limit.layer).
-fn timeout_value![T, $ R](
+fn timeout_value![T < Copy, $ R](
     limit: Duration,
     cleanup: Duration? = .None,
     work: fn!() -> T $ R,
@@ -361,7 +361,7 @@ fn timeout_value![T, $ R](
 
 ## Returns the work's Result directly, converting a timeout into its error type.
 ## See [std-task.policy.time-limit.layer](../../spec/std/task.md#r-std-task.policy.time-limit.layer).
-fn timeout_result![T, E < From[TimedOut], $ R](
+fn timeout_result![T < Copy, E < From[TimedOut] & Copy, $ R](
     limit: Duration,
     cleanup: Duration? = .None,
     work: fn!() -> Result[T, E] $ R,
@@ -384,7 +384,7 @@ fn timeout_expire![T](limit: Duration) -> TimeoutEnd[T] $ Clock:
 
 # The bound's child: it waits until the race cancels it, and its dispose
 # bounds the work's cleanup.
-fn timeout_bound![T](job: mut Suspend[T], cleanup: Duration) -> TimeoutEnd[T] $ Clock:
+fn timeout_bound![T < Copy](job: mut Suspend[T], cleanup: Duration) -> TimeoutEnd[T] $ Clock:
     using! bound = CleanupBound { job: job, cleanup: cleanup, clock: $.use(Clock) }
     let forever: mut Suspend[TimeoutEnd[T]] = pending_frame()
     forever!()
@@ -402,7 +402,7 @@ struct CleanupBound[T, 'a]:
 # cooperative: a cleanup that is computing is never interrupted
 # (r-std-task.timeout.cleanup-cooperative). A finished work's cleanup has
 # ended, so its `cancel!()` wins at once.
-impl[T, 'a] AsyncDisposable for CleanupBound[T, 'a]:
+impl[T < Copy, 'a] AsyncDisposable for CleanupBound[T, 'a]:
     fn dispose!(&mut self) -> void:
         started := self.clock.monotonic()
         _ := race!(self.job.cancel(), cleanup_deadline(self.job, self.clock, self.cleanup, started))
@@ -438,7 +438,7 @@ fn pending_frame[T]() -> mut Suspend[T]:
 # shared counter needs no lock.
 ## Runs `work` on every item, at most `limit` at a time, and returns the values in item order.
 ## See [std-task.map-all.generic](../../spec/std/task.md#r-std-task.map-all.generic).
-pub fn map_all![T < 'static, U < 'static, F < Fn(T) -> mut Suspend[U] $ R, $ R](
+pub fn map_all![T < 'static, U < 'static, F < Copy & Fn(T) -> mut Suspend[U] $ R, $ R](
     items: List[T],
     limit: usize,
     work: F,

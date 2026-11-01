@@ -3632,7 +3632,7 @@ impl Lower<'_, '_, '_> {
                 let t = *t;
                 gn.pending.retain(|p| *p != t);
             }
-            if !row && !lifted {
+            if !row && !lifted && !crate::move_only_generics() {
                 bounds.push(self.copy_bound());
             }
             g.bounds = bounds;
@@ -3928,7 +3928,9 @@ impl Lower<'_, '_, '_> {
             .collect();
         // A function's parameter, so `Copy` by default
         // (`ref.copy.generic.default`).
-        bounds.push(self.copy_bound());
+        if !crate::move_only_generics() {
+            bounds.push(self.copy_bound());
+        }
         generic.bounds = bounds;
         gn.bounded.push(ty);
         (ty, generic)
@@ -5617,6 +5619,17 @@ impl Lower<'_, '_, '_> {
                 }
             }
             self.bound_clashes(self_ty, &supers, self.src.span(bl));
+        }
+        // Measurement switch: a trait's `Self` is move-only unless the
+        // trait names `Copy` as a supertrait.
+        if crate::move_only_generics()
+            && let TyData::Param(p) = self.names.pool.get(self_ty)
+            && p.owner != self.names.known.copy
+            && !supers
+                .iter()
+                .any(|s| self.trait_of(*s) == Some(self.names.known.copy))
+        {
+            self.r.not_copy.borrow_mut().insert(p.owner);
         }
         supers
     }

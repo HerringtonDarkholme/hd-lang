@@ -110,7 +110,7 @@ impl Rng:
     # conversions (r-std-random.rng.int.u64). A count of 2^64 is passed as 0.
     ## A random integer of `range`, each with the same chance.
     ## See [std-random.rng.int.generic-ref](../../spec/std/random.md#r-std-random.rng.int.generic-ref).
-    pub fn int[N < Integer](&mut self, range: Range[N]) -> N:
+    pub fn int[N < Integer & Copy](&mut self, range: Range[N]) -> N:
         if range.start > range.end || (range.start == range.end && !range.inclusive):
             panic("std.random: empty range")
         zero := N::zero()
@@ -149,7 +149,7 @@ impl Rng:
 
     ## One of `items`, each with the same chance, or `.None` for an empty list.
     ## See [std-random.rng.choose-ref](../../spec/std/random.md#r-std-random.rng.choose-ref).
-    pub fn choose[T](&mut self, items: List[T]) -> T?:
+    pub fn choose[T < Copy](&mut self, items: List[T]) -> T?:
         if items.len() == 0:
             return .None
         .Some(items[usize(self.below(u64(items.len())))])
@@ -157,7 +157,7 @@ impl Rng:
     # Fisher-Yates from the last position down (r-std-random.rng.shuffle.order).
     ## Reorders `items` at random, each permutation with the same chance.
     ## See [std-random.rng.shuffle-ref](../../spec/std/random.md#r-std-random.rng.shuffle-ref).
-    pub fn shuffle[T](&mut self, items: &mut List[T]) -> void:
+    pub fn shuffle[T < Copy](&mut self, items: &mut List[T]) -> void:
         let i = items.len()
         while i > 1:
             i = i - 1
@@ -170,7 +170,7 @@ impl Rng:
     # (r-std-random.rng.sample.order).
     ## `count` of `items`, drawn without replacement in random order.
     ## See [std-random.rng.sample-ref](../../spec/std/random.md#r-std-random.rng.sample-ref).
-    pub fn sample[T](&mut self, items: List[T], count: usize) -> List[T]:
+    pub fn sample[T < Copy](&mut self, items: List[T], count: usize) -> List[T]:
         if count > items.len():
             panic("std.random: sample count above the list length")
         let mut pool: List[T] = []

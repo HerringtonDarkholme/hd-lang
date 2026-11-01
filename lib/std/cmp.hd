@@ -265,7 +265,7 @@ impl[T < Eq, E < Eq] Eq for Result[T, E]:
 # Maps are equal when they have the same keys, each with an equal value, in
 # any order (spec/lang/05-expressions.md#r-expr.eq.map-order).
 # Keep handwritten Eq: compare logical entries rather than backing storage.
-impl[K < Eq & Hash, V < Eq] Eq for Map[K, V]:
+impl[K < Eq & Hash, V < Eq & Copy] Eq for Map[K, V]:
     fn eq(&self, other: &Map[K, V]) -> bool:
         if self.len() != other.len():
             return false
@@ -305,7 +305,7 @@ impl[T < Ord] Ord for T?:
 # Derived `Eq` (spec/std/cmp.md#derived-equality): `self` and `other` are
 # equal when they hold the same variant and every member of `self` equals
 # the same member of `other`. The walk stops at the first difference.
-impl[T] Eq for T by Structure:
+impl[T < Copy] Eq for T by Structure:
     fn eq(&self, other: &T) -> bool:
         let mut w = EqualWalker::[T] { other: *other }
         match Structure::walk(*self, &mut w):
@@ -325,7 +325,7 @@ impl[T < UnionType] Eq for T by Structure:
 struct EqualWalker[S]:
     pub other: S
 
-impl[S] Walker[S] for EqualWalker[S]:
+impl[S < Copy] Walker[S] for EqualWalker[S]:
     type Error = bool
 
     fn variant(&mut self, v: Variant[S]) -> Result[void, bool]:
@@ -347,7 +347,7 @@ impl[S] Walker[S] for EqualWalker[S]:
 # distinct variants compare by declaration order, and the same variant's
 # members compare in declaration order until one differs. The variant
 # index of `other` is needed only when an enum holds a different variant.
-impl[T] PartialOrd for T by Structure:
+impl[T < Copy] PartialOrd for T by Structure:
     fn partial_cmp(&self, other: &T) -> Ordering?:
         index := fn(value: T) -> usize:
             let mut probe = VariantIndex::[T] { index: 0 }
@@ -361,7 +361,7 @@ impl[T] PartialOrd for T by Structure:
         _ := Structure::walk(*self, &mut w)
         w.result
 
-impl[T] Ord for T by Structure:
+impl[T < Copy] Ord for T by Structure:
     fn cmp(&self, other: &T) -> Ordering:
         index := fn(value: T) -> usize:
             let mut probe = VariantIndex::[T] { index: 0 }
@@ -395,7 +395,7 @@ struct PartialOrderWalker[S]:
     pub other_index: fn(S) -> usize
     pub result: Ordering?
 
-impl[S] Walker[S] for PartialOrderWalker[S]:
+impl[S < Copy] Walker[S] for PartialOrderWalker[S]:
     type Error = bool
 
     fn variant(&mut self, v: Variant[S]) -> Result[void, bool]:
@@ -430,7 +430,7 @@ struct OrderWalker[S]:
     pub other_index: fn(S) -> usize
     pub result: Ordering
 
-impl[S] Walker[S] for OrderWalker[S]:
+impl[S < Copy] Walker[S] for OrderWalker[S]:
     type Error = bool
 
     fn variant(&mut self, v: Variant[S]) -> Result[void, bool]:
@@ -459,14 +459,14 @@ impl[S] Walker[S] for OrderWalker[S]:
 # element by element, in order, at every size. A tuple has one variant, so
 # no walk reads `other`'s variant index. A rest element compares as its
 # list (r-std-cmp.tuple.rest).
-impl[T < Tuple] Eq for T by Structure:
+impl[T < Tuple & Copy] Eq for T by Structure:
     fn eq(&self, other: &T) -> bool:
         let mut w = EqualWalker::[T] { other: *other }
         match Structure::walk(*self, &mut w):
             .Ok(_) => true
             .Err(_) => false
 
-impl[T < Tuple] PartialOrd for T by Structure:
+impl[T < Tuple & Copy] PartialOrd for T by Structure:
     fn partial_cmp(&self, other: &T) -> Ordering?:
         let mut w = PartialOrderWalker::[T] {
             other: *other,
@@ -476,7 +476,7 @@ impl[T < Tuple] PartialOrd for T by Structure:
         _ := Structure::walk(*self, &mut w)
         w.result
 
-impl[T < Tuple] Ord for T by Structure:
+impl[T < Tuple & Copy] Ord for T by Structure:
     fn cmp(&self, other: &T) -> Ordering:
         let mut w = OrderWalker::[T] {
             other: *other,
@@ -609,7 +609,7 @@ impl[T < DeepEq] DeepEq for List[T]:
         true
 
 # Keys match by `Eq`, as a map finds them; values compare deeply.
-impl[K < Eq & Hash, V < DeepEq] DeepEq for Map[K, V]:
+impl[K < Eq & Hash, V < DeepEq & Copy] DeepEq for Map[K, V]:
     fn deep_eq(&self, other: &Map[K, V], visits: &mut DeepVisits) -> bool:
         if self.len() != other.len():
             return false
@@ -648,14 +648,14 @@ impl[T < DeepEq] DeepEq for *mut T:
 
 # Derived `DeepEq` (r-std-cmp.deep-equal.derive): the same variant, and
 # every member deeply equal, in declaration order.
-impl[T] DeepEq for T by Structure:
+impl[T < Copy] DeepEq for T by Structure:
     fn deep_eq(&self, other: &T, visits: *mut DeepVisits) -> bool:
         let mut w = DeepEqualWalker::[T] { other: *other, visits: visits }
         match Structure::walk(*self, &mut w):
             .Ok(_) => true
             .Err(_) => false
 
-impl[T < Tuple] DeepEq for T by Structure:
+impl[T < Tuple & Copy] DeepEq for T by Structure:
     fn deep_eq(&self, other: &T, visits: *mut DeepVisits) -> bool:
         let mut w = DeepEqualWalker::[T] { other: *other, visits: visits }
         match Structure::walk(*self, &mut w):
@@ -668,7 +668,7 @@ struct DeepEqualWalker[S]:
     pub other: S
     pub visits: *mut DeepVisits
 
-impl[S] Walker[S] for DeepEqualWalker[S]:
+impl[S < Copy] Walker[S] for DeepEqualWalker[S]:
     type Error = bool
 
     fn variant(&mut self, v: Variant[S]) -> Result[void, bool]:

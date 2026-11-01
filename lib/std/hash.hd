@@ -169,7 +169,7 @@ impl Hash for u64:
 # A list hashes its length as a `u64`, then each item in order
 # (spec/std/hash.md#list-hashing), so equal lists hash the same.
 # Keep handwritten Hash: hash the logical length and entries, not backing storage.
-impl[T < Hash] Hash for List[T]:
+impl[T < Hash & Copy] Hash for List[T]:
     fn hash(&self, state: &mut dyn Hasher) -> void:
         state.write_u64(u64(self.len()))
         for item in self:
@@ -290,7 +290,7 @@ pub fn hash_of[T < Hash](value: T) -> u64:
 
 # Derived `Hash` (spec/std/hash.md#derived-hashing): an enum's variant index
 # as a `u32`, then each member in declaration order.
-impl[T] Hash for T by Structure:
+impl[T < Copy] Hash for T by Structure:
     fn hash(&self, state: *mut dyn Hasher) -> void:
         let mut w = HashWalker::[T] { state: state }
         _ := Structure::walk(*self, &mut w)
@@ -326,7 +326,7 @@ impl[S] Walker[S] for HashWalker[S]:
 # Tuple hashing (spec/std/hash.md#tuple-hashing): each element in order, at
 # every size. A rest element hashes as its `List`, so a rest tuple is
 # hashable when its rest's items are (r-std-hash.tuple.rest-list).
-impl[T < Tuple] Hash for T by Structure:
+impl[T < Tuple & Copy] Hash for T by Structure:
     fn hash(&self, state: *mut dyn Hasher) -> void:
         let mut w = HashWalker::[T] { state: state }
         _ := Structure::walk(*self, &mut w)

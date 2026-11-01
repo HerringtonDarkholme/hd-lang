@@ -343,8 +343,10 @@ impl Ck<'_, '_> {
                 args: hd_types::TyList::EMPTY,
                 bindings: vec![],
             });
-            self.add_bound(p, copy, 0);
-            bs.push(copy);
+            if !hd_resolve::move_only_generics() {
+                self.add_bound(p, copy, 0);
+                bs.push(copy);
+            }
             bounds.push(bs);
             let written = Src::child(g, SyntaxKind::TypeDefault).and_then(|d| {
                 d.children()

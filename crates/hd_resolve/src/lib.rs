@@ -27,6 +27,8 @@ pub mod variance;
 pub mod view;
 
 pub use header::Universe;
+
+pub use hd_types::move_only_generics;
 pub use iface::{
     Export, Field, FnSig, FolderIface, Generic, HeadKind, ImplKind, Item, ItemData, Items, Lookup,
     LookupDecls, Names, ResultPath, TraitData, Variant, declares_assoc_function,

@@ -389,6 +389,17 @@ fn copy_parts(
                 CopyDecl::NotCopy => false,
                 CopyDecl::Members(ms) => {
                     let argv = pool.list_items(args);
+                    // Measurement switch: a type with no members but type
+                    // arguments (`List`, `Map`) holds its arguments.
+                    if ms.is_empty() && !argv.is_empty() && crate::move_only_generics() {
+                        seen.open.push(t);
+                        let ok = argv.iter().all(|&a| copy_parts(pool, decls, a, subs, seen));
+                        seen.open.pop();
+                        if ok {
+                            seen.copies.insert(t);
+                        }
+                        return ok;
+                    }
                     seen.open.push(t);
                     let ok = ms.iter().all(|&m| {
                         let m = pool.subst(m, &|p: ParamRef| {

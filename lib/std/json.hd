@@ -1294,7 +1294,7 @@ pub fn from_json[T < Deserialize](value: Json) -> Result[T, JsonError]:
 # does not write directly goes through the tree, which defines the text.
 ## The compact JSON text of `value`, with no whitespace outside strings.
 ## See [std-json.encode](../../spec/std/json.md#r-std-json.encode).
-pub fn encode[T < Serialize](value: T) -> string:
+pub fn encode[T < Serialize & Copy](value: T) -> string:
     let mut writer = TextWriter::new(false)
     _ := value.serialize(&mut writer)
     match writer.finish():
@@ -1306,7 +1306,7 @@ pub fn encode[T < Serialize](value: T) -> string:
 # falls back.
 ## The pretty JSON text of `value`: `to_json(value).pretty()`.
 ## See [std-json.encode-pretty](../../spec/std/json.md#r-std-json.encode-pretty).
-pub fn encode_pretty[T < Serialize](value: T) -> string:
+pub fn encode_pretty[T < Serialize & Copy](value: T) -> string:
     let mut writer = TextWriter::new(true)
     _ := value.serialize(&mut writer)
     match writer.finish():

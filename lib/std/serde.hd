@@ -480,14 +480,14 @@ impl[S, W < Serializer] Walker[S] for SerializeWalker[S, W]:
     ) -> Result[void, W::Error]:
         self.member(h, items)
 
-    fn data_member[F < Serialize](&mut self, h: Field[S, F], value: F) -> Result[void, W::Error]:
+    fn data_member[F < Serialize & Copy](&mut self, h: Field[S, F], value: F) -> Result[void, W::Error]:
         # A member with no facts has neither `Skip` nor `SkipNone`.
         if !h.info.facts.items.is_empty() && skipped(h, value):
             return .Ok(())
         self.out.member(&h.info)?
         value.serialize(self.out)
 
-    fn member[F < Serialize](&mut self, h: Field[S, F], value: F) -> Result[void, W::Error]:
+    fn member[F < Serialize & Copy](&mut self, h: Field[S, F], value: F) -> Result[void, W::Error]:
         # A member with no facts has neither `Skip` nor `SkipNone`.
         if !h.info.facts.items.is_empty() && skipped(h, value):
             return .Ok(())
@@ -1190,7 +1190,7 @@ impl MapKey for usize:
 # A MapKey's format-neutral scalar selects the wire key
 # (r-std-serde.std.map-key-bound).
 # Keep handwritten Serialize: write the collection wire form rather than backing storage.
-impl[T < Serialize] Serialize for List[T]:
+impl[T < Serialize & Copy] Serialize for List[T]:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         out.begin_list(self.len())?
         for item in self:
@@ -1233,7 +1233,7 @@ impl[K < Eq & Hash & MapKey, V < Deserialize] Deserialize for Map[K, V]:
 # A set is a list of its elements in insertion order
 # (r-std-serde.std.set).
 # Keep handwritten Serialize: write the collection wire form rather than backing storage.
-impl[T < Eq & Hash & Serialize] Serialize for Set[T]:
+impl[T < Eq & Hash & Serialize & Copy] Serialize for Set[T]:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         out.begin_list(self.len())?
         for item in self:

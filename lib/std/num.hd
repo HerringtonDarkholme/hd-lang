@@ -195,7 +195,7 @@ pub enum ParseNumberError:
 # casts, so the bounds come from `int_min` and `int_max`. Other std code
 # does not call them: in the prototype, each concrete type a std function
 # calls them with adds dictionary wrappers to every program.
-impl[N < Integer] N:
+impl[N < Integer & Copy] N:
     ## The sum, or `.None` when it is out of the type's range.
     ## See [std-num.checked.add](../../spec/std/num.md#r-std-num.checked.add).
     pub fn checked_add(self, other: N) -> N?:
@@ -299,7 +299,7 @@ impl[N < Integer] N:
 # (r-std-num.rotate.left). The count is taken modulo the bit width, and the
 # bits that leave one end are the low or high bits of the logical shift of
 # the other, so a signed `>>` copying the sign bit is masked off.
-impl[N < Integer] N:
+impl[N < Integer & Copy] N:
     ## The bits rotated `count` places toward the most significant bit.
     ## See [std-num.rotate.left](../../spec/std/num.md#r-std-num.rotate.left).
     pub fn rotate_left(self, count: u32) -> N:

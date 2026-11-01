@@ -178,7 +178,7 @@ impl Choices:
     # range of at most one value returns its start without a draw.
     ## Draws an integer of `range`.
     ## See [std-testing.choices.int-range](../../spec/std/testing.md#r-std-testing.choices.int-range).
-    pub fn int[N < Integer](&mut self, range: Range[N]) -> N:
+    pub fn int[N < Integer & Copy](&mut self, range: Range[N]) -> N:
         zero := N::zero()
         one := N::one()
         let last: N = range.end
@@ -246,7 +246,7 @@ impl Choices:
     # An empty list panics (r-std-testing.choices.choose.empty).
     ## Draws one of `items`; earlier items shrink first.
     ## See [std-testing.choices.choose](../../spec/std/testing.md#r-std-testing.choices.choose).
-    pub fn choose[T](&mut self, items: List[T]) -> T:
+    pub fn choose[T < Copy](&mut self, items: List[T]) -> T:
         if items.len() == 0:
             panic("Choices.choose: no items to choose from")
         if self.spent():
@@ -613,7 +613,7 @@ pub fn it_prop_with[T < Debug, R < Termination, $ Q](
 # it selected, and runs `body` with that row. With no rows, row 0 panics
 # with `index-out-of-bounds` after the runner heard count 0, which it reads
 # as an empty table.
-fn each_case![A, T, $ R](
+fn each_case![A < Copy, T, $ R](
     _name: string,
     rows: List[A],
     _ignore: string?,
@@ -631,7 +631,7 @@ fn each_case![A, T, $ R](
 # example the case names or draws the input with `T`'s `Arbitrary` from a
 # fresh `Choices`, shows the input's `Debug` text, and runs `prop`
 # (r-std-testing.runner.show-before-body).
-fn prop_case![T < Arbitrary & Debug, R, $ Q](
+fn prop_case![T < Arbitrary & Debug & Copy, R, $ Q](
     _name: string,
     _ignore: string?,
     _expect_panic: string?,
@@ -652,7 +652,7 @@ fn prop_case![T < Arbitrary & Debug, R, $ Q](
     prop!(value)
 
 # The same for `it_prop_with`, which draws the input with `gen`.
-fn prop_with_case![T < Debug, R, $ Q](
+fn prop_with_case![T < Debug & Copy, R, $ Q](
     _name: string,
     gen: fn(&mut Choices) -> T,
     _ignore: string?,
@@ -824,7 +824,7 @@ pub fn temp_dir() -> Path $ TestRunner:
 ##             assert_equal(system, expected, reason="the command's expected count")
 ##     )
 ## ```
-pub fn commands[M, C](
+pub fn commands[M, C < Copy](
     c: &mut Choices,
     max: usize,
     initial: M,

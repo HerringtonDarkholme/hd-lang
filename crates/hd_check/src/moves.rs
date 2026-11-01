@@ -70,6 +70,13 @@ fn blocker(cx: (Types<'_>, &Lookup<'_>), t: Ty, seen: &mut Vec<Ty>) -> Option<Ty
                 CopyDecl::Members(ms) => ms,
             };
             let argv = pool.list_items(args);
+            // Measurement switch: `List` and `Map` hold their arguments.
+            if members.is_empty() && !argv.is_empty() && hd_resolve::move_only_generics() {
+                seen.push(t);
+                let found = any(argv, seen);
+                seen.pop();
+                return found;
+            }
             seen.push(t);
             let found = members.iter().find_map(|&m| {
                 let ft = pool.subst(m, &|p| {
@@ -285,6 +292,11 @@ impl Ck<'_, '_> {
             {
                 "its type holds the `Self` of a trait declared `< ?Copy`, so it is not copied"
                     .to_string()
+            }
+            TyData::Param(_) if hd_resolve::move_only_generics() => {
+                format!(
+                    "its type holds `{shown}`, a type parameter without `< Copy`, so it is not copied"
+                )
             }
             TyData::Param(_) => {
                 format!("its type holds `{shown}`, declared `?Copy`, so it is not copied")

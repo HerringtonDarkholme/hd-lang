@@ -87,12 +87,25 @@ impl Ck<'_, '_> {
         }
         // The reads through a reference of a value that is not copied,
         // with whether the reference is `&mut` and the place's root.
-        let reads: Vec<(u32, bool, Root)> = (0..b.len())
+        let reads: Vec<(u32, Option<bool>, Root)> = (0..b.len())
             .filter(|&i| b.tags[i] == Tag::Read && !self.copies(b.ty[i]))
             .filter_map(|i| {
                 let p = b.decode_place(b.data[i][0])?;
+                // Measurement switch: an element read moves out of the
+                // collection, as Rust's "cannot move out of index".
+                // A root local named `moving_*` is std's own mover (`pop`,
+                // `swap`), whose copy-then-truncate is a move at run time.
+                if hd_resolve::move_only_generics()
+                    && p.proj.iter().any(|x| matches!(x, Proj::Elem(_)))
+                {
+                    if (b.local_name.iter()).any(|&n| self.cx.names.text(n).starts_with("moving_"))
+                    {
+                        return None;
+                    }
+                    return Some((w(i), None, root_of(b, p.root)));
+                }
                 let m = self.behind_ref(b, &p)?;
-                Some((w(i), m, root_of(b, p.root)))
+                Some((w(i), Some(m), root_of(b, p.root)))
             })
             .collect();
         if reads.is_empty() {
@@ -110,7 +123,7 @@ impl Ck<'_, '_> {
         };
         // One error per reference, as for `use-of-moved-value`.
         let mut seen: Vec<Root> = Vec::new();
-        let mut moved: Vec<(u32, bool)> = Vec::new();
+        let mut moved: Vec<(u32, Option<bool>)> = Vec::new();
         for (i, mutable, root) in reads {
             if !seen.contains(&root) && self.moves(&cx, i, 0) {
                 seen.push(root);
@@ -122,11 +135,18 @@ impl Ck<'_, '_> {
             if at == hd_base::NodeIdx::NONE {
                 continue;
             }
-            let r = if mutable { "&mut" } else { "&" };
             let why = self.why_not_copied(self.b.body().ty[i as usize]);
-            let msg = format!(
-                "this moves a value out of a place behind a `{r}` reference, which does not own it; {why}. Borrow it with `{r}`, or pass the reference on"
-            );
+            let msg = match mutable {
+                None => format!(
+                    "this moves a value out of a collection element; {why}. Borrow it with `&`, or take it out with `pop`/`remove_at`"
+                ),
+                Some(mutable) => {
+                    let r = if mutable { "&mut" } else { "&" };
+                    format!(
+                        "this moves a value out of a place behind a `{r}` reference, which does not own it; {why}. Borrow it with `{r}`, or pass the reference on"
+                    )
+                }
+            };
             let node = self.cx.src.parse.tree.node(at);
             self.err(Code::MoveOutOfPlace, node, &msg);
         }

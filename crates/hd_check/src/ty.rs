@@ -710,6 +710,15 @@ impl Ck<'_, '_> {
     /// holds copyable items (`ref.copy.collections`), or a constructed
     /// type's argument.
     pub(crate) fn check_collection_item(&mut self, t: Ty, at: NodeRef<'_>) -> StageResult<()> {
+        // Measurement switch: collections accept any item type.
+        if hd_resolve::move_only_generics() {
+            return Ok(());
+        }
+        self.require_copy(t, at)
+    }
+
+    /// `t` is `Copy`.
+    pub(crate) fn require_copy(&mut self, t: Ty, at: NodeRef<'_>) -> StageResult<()> {
         let tref = hd_types::solver::TraitRef {
             trait_: self.cx.names.known.copy,
             self_ty: t,
@@ -739,7 +748,7 @@ impl Ck<'_, '_> {
             })
             .collect();
         for (&a, _) in args.iter().zip(bounded).filter(|(_, b)| *b) {
-            self.check_collection_item(a, at)?;
+            self.require_copy(a, at)?;
         }
         Ok(())
     }

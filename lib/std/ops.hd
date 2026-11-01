@@ -40,7 +40,7 @@ pub struct StrPrefix[F]: pass
 
 ## Returns the `@str_prefix` marker for a prefix function of that signature.
 ## See [expr.literal-fn.fn-only](../../spec/lang/05-expressions.md#r-expr.literal-fn.fn-only).
-pub fn str_prefix[T, R, $ Q]() -> StrPrefix[fn(Template[T]) -> R $ Q]:
+pub fn str_prefix[T < Copy, R, $ Q]() -> StrPrefix[fn(Template[T]) -> R $ Q]:
     StrPrefix::[fn(Template[T]) -> R $ Q] {}
 
 # The argument of a prefix function: the `n + 1` raw text pieces around the
@@ -48,7 +48,7 @@ pub fn str_prefix[T, R, $ Q]() -> StrPrefix[fn(Template[T]) -> R $ Q]:
 ## The pieces of a string prefix's literal: the raw parts and the values between them, which the compiler recognizes by its qualified name.
 ## See [expr.literal-fn.marker](../../spec/lang/05-expressions.md#r-expr.literal-fn.marker).
 @derive(Debug)
-pub struct Template[T]:
+pub struct Template[T < Copy]:
     ## The literal's raw text pieces, in order.
     ## See [expr.literal-fn.fn-only](../../spec/lang/05-expressions.md#r-expr.literal-fn.fn-only).
     pub raw_parts: List[string]
@@ -135,13 +135,13 @@ pub trait Shr[Rhs = Self]:
 # (spec/lang/05-expressions.md#index-traits).
 ## The trait of reading `r[k]`: for a receiver that is not a list, map, or string, it is the call `Index::[K]::index(&r, k)`, which borrows `r`. A non-copyable type such as `SpanMut` implements it.
 ## See [expr.index.trait.std-ref](../../spec/lang/05-expressions.md#r-expr.index.trait.std-ref).
-pub trait Index[K] < ?Copy:
+pub trait Index[K]:
     type Out
     fn index(&self, key: K) -> Self::Out
 
 ## The trait of assigning `r[k] = v`: it is the call `IndexSet::[K, V]::index_set(r, k, v)`.
 ## See [expr.index.trait.std-ref](../../spec/lang/05-expressions.md#r-expr.index.trait.std-ref).
-pub trait IndexSet[K, V] < ?Copy:
+pub trait IndexSet[K, V]:
     fn index_set(&mut self, key: K, value: V) -> void
 
 # `v()` and `v() = x` on a value that is not a function: a callable value
@@ -228,7 +228,7 @@ impl[$ R, 'a, F < FnMut() -> void $ R & 'a] Disposable[$ R] for ScopeGuard[F, $ 
 # Each body is the built-in indexing of its type, with its checks and
 # panics: `Map`'s `index` returns `V` and panics on a missing key
 # (spec/lang/05-expressions.md#r-expr.index.map.read-value).
-impl[T] Index[usize] for List[T]:
+impl[T < Copy] Index[usize] for List[T]:
     type Out = T
     fn index(&self, key: usize) -> T:
         self[key]
@@ -237,7 +237,7 @@ impl[T] IndexSet[usize, T] for List[T]:
     fn index_set(&mut self, key: usize, value: T) -> void:
         self[key] = value
 
-impl[K < Eq & Hash, V] Index[K] for Map[K, V]:
+impl[K < Eq & Hash, V < Copy] Index[K] for Map[K, V]:
     type Out = V
     fn index(&self, key: K) -> V:
         self[key]
@@ -313,7 +313,7 @@ fn slice_string(text: string, start: u64, end: u64, inclusive: bool) -> string:
     text.slice(usize(start), stop)
 
 # A list slice copies the selected elements.
-fn slice_list[T](items: List[T], start: u64, end: u64, inclusive: bool) -> List[T]:
+fn slice_list[T < Copy](items: List[T], start: u64, end: u64, inclusive: bool) -> List[T]:
     stop := slice_stop(items.len(), start, end, inclusive)
     let mut copy: List[T] = []
     let index = usize(start)
@@ -336,7 +336,7 @@ impl Index[RangeFull] for string:
     fn index(&self, key: RangeFull) -> string:
         *self
 
-impl[T] Index[RangeFull] for List[T]:
+impl[T < Copy] Index[RangeFull] for List[T]:
     type Out = List[T]
     fn index(&self, key: RangeFull) -> List[T]:
         slice_list(*self, 0, u64(self.len()), false)
@@ -346,7 +346,7 @@ impl Index[Range[u8]] for string:
     fn index(&self, key: Range[u8]) -> string:
         slice_string(*self, u64(key.start), u64(key.end), key.inclusive)
 
-impl[T] Index[Range[u8]] for List[T]:
+impl[T < Copy] Index[Range[u8]] for List[T]:
     type Out = List[T]
     fn index(&self, key: Range[u8]) -> List[T]:
         slice_list(*self, u64(key.start), u64(key.end), key.inclusive)
@@ -356,7 +356,7 @@ impl Index[RangeFrom[u8]] for string:
     fn index(&self, key: RangeFrom[u8]) -> string:
         slice_string(*self, u64(key.start), u64(self.len()), false)
 
-impl[T] Index[RangeFrom[u8]] for List[T]:
+impl[T < Copy] Index[RangeFrom[u8]] for List[T]:
     type Out = List[T]
     fn index(&self, key: RangeFrom[u8]) -> List[T]:
         slice_list(*self, u64(key.start), u64(self.len()), false)
@@ -366,7 +366,7 @@ impl Index[RangeTo[u8]] for string:
     fn index(&self, key: RangeTo[u8]) -> string:
         slice_string(*self, 0, u64(key.end), key.inclusive)
 
-impl[T] Index[RangeTo[u8]] for List[T]:
+impl[T < Copy] Index[RangeTo[u8]] for List[T]:
     type Out = List[T]
     fn index(&self, key: RangeTo[u8]) -> List[T]:
         slice_list(*self, 0, u64(key.end), key.inclusive)
@@ -376,7 +376,7 @@ impl Index[Range[u16]] for string:
     fn index(&self, key: Range[u16]) -> string:
         slice_string(*self, u64(key.start), u64(key.end), key.inclusive)
 
-impl[T] Index[Range[u16]] for List[T]:
+impl[T < Copy] Index[Range[u16]] for List[T]:
     type Out = List[T]
     fn index(&self, key: Range[u16]) -> List[T]:
         slice_list(*self, u64(key.start), u64(key.end), key.inclusive)
@@ -386,7 +386,7 @@ impl Index[RangeFrom[u16]] for string:
     fn index(&self, key: RangeFrom[u16]) -> string:
         slice_string(*self, u64(key.start), u64(self.len()), false)
 
-impl[T] Index[RangeFrom[u16]] for List[T]:
+impl[T < Copy] Index[RangeFrom[u16]] for List[T]:
     type Out = List[T]
     fn index(&self, key: RangeFrom[u16]) -> List[T]:
         slice_list(*self, u64(key.start), u64(self.len()), false)
@@ -396,7 +396,7 @@ impl Index[RangeTo[u16]] for string:
     fn index(&self, key: RangeTo[u16]) -> string:
         slice_string(*self, 0, u64(key.end), key.inclusive)
 
-impl[T] Index[RangeTo[u16]] for List[T]:
+impl[T < Copy] Index[RangeTo[u16]] for List[T]:
     type Out = List[T]
     fn index(&self, key: RangeTo[u16]) -> List[T]:
         slice_list(*self, 0, u64(key.end), key.inclusive)
@@ -406,7 +406,7 @@ impl Index[Range[usize]] for string:
     fn index(&self, key: Range[usize]) -> string:
         slice_string(*self, u64(key.start), u64(key.end), key.inclusive)
 
-impl[T] Index[Range[usize]] for List[T]:
+impl[T < Copy] Index[Range[usize]] for List[T]:
     type Out = List[T]
     fn index(&self, key: Range[usize]) -> List[T]:
         slice_list(*self, u64(key.start), u64(key.end), key.inclusive)
@@ -416,7 +416,7 @@ impl Index[RangeFrom[usize]] for string:
     fn index(&self, key: RangeFrom[usize]) -> string:
         slice_string(*self, u64(key.start), u64(self.len()), false)
 
-impl[T] Index[RangeFrom[usize]] for List[T]:
+impl[T < Copy] Index[RangeFrom[usize]] for List[T]:
     type Out = List[T]
     fn index(&self, key: RangeFrom[usize]) -> List[T]:
         slice_list(*self, u64(key.start), u64(self.len()), false)
@@ -426,7 +426,7 @@ impl Index[RangeTo[usize]] for string:
     fn index(&self, key: RangeTo[usize]) -> string:
         slice_string(*self, 0, u64(key.end), key.inclusive)
 
-impl[T] Index[RangeTo[usize]] for List[T]:
+impl[T < Copy] Index[RangeTo[usize]] for List[T]:
     type Out = List[T]
     fn index(&self, key: RangeTo[usize]) -> List[T]:
         slice_list(*self, 0, u64(key.end), key.inclusive)
@@ -436,7 +436,7 @@ impl Index[Range[u32]] for string:
     fn index(&self, key: Range[u32]) -> string:
         slice_string(*self, u64(key.start), u64(key.end), key.inclusive)
 
-impl[T] Index[Range[u32]] for List[T]:
+impl[T < Copy] Index[Range[u32]] for List[T]:
     type Out = List[T]
     fn index(&self, key: Range[u32]) -> List[T]:
         slice_list(*self, u64(key.start), u64(key.end), key.inclusive)
@@ -446,7 +446,7 @@ impl Index[RangeFrom[u32]] for string:
     fn index(&self, key: RangeFrom[u32]) -> string:
         slice_string(*self, u64(key.start), u64(self.len()), false)
 
-impl[T] Index[RangeFrom[u32]] for List[T]:
+impl[T < Copy] Index[RangeFrom[u32]] for List[T]:
     type Out = List[T]
     fn index(&self, key: RangeFrom[u32]) -> List[T]:
         slice_list(*self, u64(key.start), u64(self.len()), false)
@@ -456,7 +456,7 @@ impl Index[RangeTo[u32]] for string:
     fn index(&self, key: RangeTo[u32]) -> string:
         slice_string(*self, 0, u64(key.end), key.inclusive)
 
-impl[T] Index[RangeTo[u32]] for List[T]:
+impl[T < Copy] Index[RangeTo[u32]] for List[T]:
     type Out = List[T]
     fn index(&self, key: RangeTo[u32]) -> List[T]:
         slice_list(*self, 0, u64(key.end), key.inclusive)
@@ -466,7 +466,7 @@ impl Index[Range[u64]] for string:
     fn index(&self, key: Range[u64]) -> string:
         slice_string(*self, u64(key.start), u64(key.end), key.inclusive)
 
-impl[T] Index[Range[u64]] for List[T]:
+impl[T < Copy] Index[Range[u64]] for List[T]:
     type Out = List[T]
     fn index(&self, key: Range[u64]) -> List[T]:
         slice_list(*self, u64(key.start), u64(key.end), key.inclusive)
@@ -476,7 +476,7 @@ impl Index[RangeFrom[u64]] for string:
     fn index(&self, key: RangeFrom[u64]) -> string:
         slice_string(*self, u64(key.start), u64(self.len()), false)
 
-impl[T] Index[RangeFrom[u64]] for List[T]:
+impl[T < Copy] Index[RangeFrom[u64]] for List[T]:
     type Out = List[T]
     fn index(&self, key: RangeFrom[u64]) -> List[T]:
         slice_list(*self, u64(key.start), u64(self.len()), false)
@@ -486,7 +486,7 @@ impl Index[RangeTo[u64]] for string:
     fn index(&self, key: RangeTo[u64]) -> string:
         slice_string(*self, 0, u64(key.end), key.inclusive)
 
-impl[T] Index[RangeTo[u64]] for List[T]:
+impl[T < Copy] Index[RangeTo[u64]] for List[T]:
     type Out = List[T]
     fn index(&self, key: RangeTo[u64]) -> List[T]:
         slice_list(*self, 0, u64(key.end), key.inclusive)
@@ -520,7 +520,7 @@ impl[T < Integer] Iterable[T] for Range[T]:
         done := self.start > self.end || (self.start == self.end && !self.inclusive)
         RangeIter { at: self.start, end: self.end, inclusive: self.inclusive, done: done }
 
-impl[T < Integer] Iterator[T] for RangeIter[T]:
+impl[T < Integer & Copy] Iterator[T] for RangeIter[T]:
     fn next(&mut self) -> T?:
         if self.done:
             return .None
@@ -538,7 +538,7 @@ impl[T < Integer] Iterable[T] for RangeFrom[T]:
     fn iter(self) -> RangeFromIter[T]:
         RangeFromIter { at: self.start, started: false }
 
-impl[T < Integer] Iterator[T] for RangeFromIter[T]:
+impl[T < Integer & Copy] Iterator[T] for RangeFromIter[T]:
     fn next(&mut self) -> T?:
         if self.started:
             self.at = self.at + T::one()

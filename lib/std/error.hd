@@ -70,7 +70,7 @@ impl dyn Error:
     # Recover a reference to the first matching error, then copy its value.
     ## Returns the first error of the source chain whose type is `T`.
     ## See [std-error.find.method-chain-first](../../spec/std/error.md#r-std-error.find.method-chain-first).
-    pub fn find[T < Error](*self) -> T?:
+    pub fn find[T < Error & Copy](*self) -> T?:
         for error in self.chain():
             match error.downcast_ref::[T]():
                 .Some(found) => return .Some(*found)

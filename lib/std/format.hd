@@ -631,7 +631,7 @@ fn hex_digit(digit: u32) -> string:
     scalar_text(i32(87 + digit))
 
 # Keep handwritten Debug: render logical entries as collection syntax rather than storage fields.
-impl[T < Debug] Debug for List[T]:
+impl[T < Debug & Copy] Debug for List[T]:
     fn debug(self, out: *mut DebugWriter) -> void:
         let mut list = out.debug_list()
         for item in self:
@@ -709,7 +709,7 @@ fn dbg_writer(pretty: bool) -> DebugWriter:
 # The text of `value`, written by `show`, after `width` columns of its line:
 # compact when the line fits in 80 columns, else pretty
 # (spec/lang/10-modules.md#r-module.dbg.layout).
-fn dbg_layout[T](width: usize, value: T, show: fn(T, *mut DebugWriter) -> void) -> string:
+fn dbg_layout[T < Copy](width: usize, value: T, show: fn(T, *mut DebugWriter) -> void) -> string:
     # Boxed because Debug builder values store each writer in pointer fields.
     compact := box(dbg_writer(false))
     show(value, compact)
@@ -723,12 +723,12 @@ fn dbg_layout[T](width: usize, value: T, show: fn(T, *mut DebugWriter) -> void) 
 
 # `dbg(x)` where `head` is the line's location and `x`'s source text, and
 # `show` the printer the checker generated for `x`'s type.
-fn dbg_one[T](head: string, value: T, show: fn(T, *mut DebugWriter) -> void) -> T:
+fn dbg_one[T < Copy](head: string, value: T, show: fn(T, *mut DebugWriter) -> void) -> T:
     dbg_write("$head = ${dbg_layout(head.len() + 3, value, show)}")
     value
 
 # `dbg(x)` for a type that implements `Debug` (r-module.dbg.value.debug).
-fn dbg_shown[T < Debug](head: string, value: T) -> T:
+fn dbg_shown[T < Debug & Copy](head: string, value: T) -> T:
     dbg_one(head, value, fn(shown: T, out: *mut DebugWriter) -> void: shown.debug(out))
 
 # `dbg(x)` whose value prints as `text`, such as `<T>` for a type parameter.
@@ -738,10 +738,10 @@ fn dbg_opaque[T](head: string, value: T, text: string) -> T:
 
 # One line of a `dbg` call that has no per-argument source text, or no call
 # site at all: `prefix` is the location and `: `, or empty, then the value.
-fn dbg_bare_one[T](prefix: string, value: T, show: fn(T, *mut DebugWriter) -> void) -> void:
+fn dbg_bare_one[T < Copy](prefix: string, value: T, show: fn(T, *mut DebugWriter) -> void) -> void:
     dbg_write("$prefix${dbg_layout(prefix.len(), value, show)}")
 
-fn dbg_bare_shown[T < Debug](prefix: string, value: T) -> void:
+fn dbg_bare_shown[T < Debug & Copy](prefix: string, value: T) -> void:
     dbg_bare_one(prefix, value, fn(shown: T, out: *mut DebugWriter) -> void: shown.debug(out))
 
 fn dbg_bare_opaque[T](prefix: string, value: T, text: string) -> void:
@@ -789,7 +789,7 @@ fn dbg_option_printer[T](value: T?, out: *mut DebugWriter) -> void:
 fn dbg_result_printer[T, E](value: Result[T, E], out: *mut DebugWriter) -> void:
     dbg_result(value, out, dbg_printer::[T](), dbg_printer::[E]())
 
-fn dbg_list_printer[T](value: List[T], out: *mut DebugWriter) -> void:
+fn dbg_list_printer[T < Copy](value: List[T], out: *mut DebugWriter) -> void:
     dbg_list(value, out, dbg_printer::[T]())
 
 fn dbg_map_printer[K < Eq & Hash, V](value: Map[K, V], out: *mut DebugWriter) -> void:
@@ -845,7 +845,7 @@ fn dbg_result[A, B](
 
 # A list is a value, not tracked for cycles (r-module.dbg.cycle.untracked); a
 # cycle passes through a reference, which `dbg_ref_printer` tracks.
-fn dbg_list[E](
+fn dbg_list[E < Copy](
     value: List[E],
     out: *mut DebugWriter,
     show: fn(E, *mut DebugWriter) -> void,
@@ -877,10 +877,10 @@ fn dbg_map[K < Eq & Hash, V](
         out.entry_close(count, "{", "}")
 
 # The REPL's forms of `dbg_one` and `dbg_shown`.
-fn dbg_render[T](width: usize, value: T, show: fn(T, *mut DebugWriter) -> void) -> string:
+fn dbg_render[T < Copy](width: usize, value: T, show: fn(T, *mut DebugWriter) -> void) -> string:
     dbg_layout(width, value, show)
 
-fn dbg_render_shown[T < Debug](width: usize, value: T) -> string:
+fn dbg_render_shown[T < Debug & Copy](width: usize, value: T) -> string:
     dbg_layout(width, value, fn(shown: T, out: *mut DebugWriter) -> void: shown.debug(out))
 
 # This private template is instantiated only by dbg_printer. Unlike Debug's
@@ -888,7 +888,7 @@ fn dbg_render_shown[T < Debug](width: usize, value: T) -> string:
 trait DbgStructural:
     fn show(self, out: *mut DebugWriter) -> void
 
-impl[T] DbgStructural for T by Structure:
+impl[T < Copy] DbgStructural for T by Structure:
     fn show(self, out: *mut DebugWriter) -> void:
         let mut shape = DebugShape::[T] { name: "", of_data: false, members: 0, positional: 0 }
         _ := Structure::walk(self, &mut shape)
@@ -935,7 +935,7 @@ impl[S] Walker[S] for DbgFields[S]:
             _ := self.tuple.named_part(h.info.name, value, show)
         .Ok(())
 
-    fn rest[I](&mut self, h: Field[S, List[I]], items: List[I]) -> Result[void, never]:
+    fn rest[I < Copy](&mut self, h: Field[S, List[I]], items: List[I]) -> Result[void, never]:
         show := dbg_printer::[I]()
         for item in items:
             _ := self.tuple.part(item, show)
@@ -948,7 +948,7 @@ impl[S] Walker[S] for DbgFields[S]:
 # with positional members first and named ones as `name=value`. A first
 # walk reads the variant and counts its members, so the builder is chosen
 # before any field is written.
-impl[T] Debug for T by Structure:
+impl[T < Copy] Debug for T by Structure:
     fn debug(self, out: *mut DebugWriter) -> void:
         let mut shape = DebugShape::[T] { name: "", of_data: false, members: 0, positional: 0 }
         _ := Structure::walk(self, &mut shape)
@@ -1051,7 +1051,7 @@ impl[S] Walker[S] for DebugFields[S]:
             _ := self.tuple.named_field(h.info.name, value)
         .Ok(())
 
-    fn rest[I < Debug](&mut self, h: Field[S, List[I]], items: List[I]) -> Result[void, never]:
+    fn rest[I < Debug & Copy](&mut self, h: Field[S, List[I]], items: List[I]) -> Result[void, never]:
         for item in items:
             _ := self.tuple.field(item)
         .Ok(())
@@ -1086,7 +1086,7 @@ impl[S] Walker[S] for TupleText[S]:
         self.parts.push("$value")
         .Ok(())
 
-    fn rest[I < Display](&mut self, h: Field[S, List[I]], items: List[I]) -> Result[void, never]:
+    fn rest[I < Display & Copy](&mut self, h: Field[S, List[I]], items: List[I]) -> Result[void, never]:
         for item in items:
             self.parts.push("$item")
         .Ok(())
