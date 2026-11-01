@@ -111,7 +111,11 @@ pub fn specialize_calls(env: &dyn StructureEnv, body: &mut Body, hash: Hash128) 
         if !fits_call(env, body, call, &mut copy) {
             continue;
         }
-        sites.push(Site { call, copy });
+        sites.push(Site {
+            call,
+            copy,
+            by_value: 0,
+        });
         let mut site_key = StableHasher::new("structure-walk-site-v1");
         site_key.hash(copy_hash);
         for nested in nested_hashes {
@@ -352,7 +356,11 @@ fn inline_selected_methods(
         if !fits_call(env, body, call, &mut copy) {
             continue;
         }
-        sites.push(Site { call, copy });
+        sites.push(Site {
+            call,
+            copy,
+            by_value: 0,
+        });
         hashes.push(hash);
     }
     let copied = hd_tir::inline::inline_calls(body, sites).unwrap_or_default();

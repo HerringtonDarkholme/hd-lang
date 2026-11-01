@@ -1,0 +1,22 @@
+# @dump: wat
+# @build: v8 release
+# Release (§23.40, #1151): `twice` takes `&self`, which keeps an
+# ordinary callee a call (#856), but its body only reads through `self`
+# and the referent is an `i64`. The copy in `use_twice` binds `x` itself,
+# so the sum reads a local: no call, no frame slot and no load. `keep`
+# passes its reference on whole, so it calls the plain body.
+trait Twice:
+    fn twice(&self) -> i64
+
+impl Twice for i64:
+    fn twice(&self) -> i64:
+        *self + *self
+
+fn use_twice(x: i64, n: i64) -> i64:
+    if x < n:
+        x.twice()
+    else:
+        n
+
+fn keep(r: &i64) -> i64:
+    r.twice()

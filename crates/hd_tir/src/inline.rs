@@ -130,10 +130,15 @@ pub fn leaf(c: &Body) -> bool {
 }
 
 /// A call to copy ([`inline_calls`]): the caller's `Call` `call` and the
-/// callee's copy `copy` with the call's types.
+/// callee's copy `copy` with the call's types. Each parameter in
+/// `by_value` (bit k: parameter k) takes the value its argument, a `Ref`
+/// of the caller's (`crate::own::promote::promoted_call`), refers to: the
+/// copy is promoted (`crate::own::promote::promote`), and the `Ref`
+/// becomes a `Read` of its place.
 pub struct Site {
     pub call: usize,
     pub copy: Body,
+    pub by_value: u64,
 }
 
 /// A site that passed its checks: its parameters a `Store` binds (local,
@@ -161,7 +166,8 @@ struct Ready {
 /// unchanged.
 ///
 /// # Errors
-/// Only if the renumbering refuses what that check let through.
+/// If the renumbering refuses what that check let through, or a
+/// by-value argument is no `Ref`.
 pub fn inline_calls(b: &mut Body, sites: Vec<Site>) -> Result<Vec<bool>, String> {
     let mut copied = vec![false; sites.len()];
     let refused = |i: usize| {
@@ -180,9 +186,26 @@ pub fn inline_calls(b: &mut Body, sites: Vec<Site>) -> Result<Vec<bool>, String>
             }
         }
     }
-    let mut ready = Vec::new();
+    let (mut ready, mut by_value_reads) = (Vec::new(), Vec::new());
     for (s, site) in sites.into_iter().enumerate() {
+        let (c, by_value) = (site.call, site.by_value);
         if let Some(r) = prepare(b, site, &outer) {
+            // A by-value parameter's argument reads its place, at the
+            // type the copy's local has.
+            let args = b.record(b.data[c][1]);
+            for &(l, a) in r
+                .params
+                .iter()
+                .filter(|p| p.1 < 64 && by_value & (1 << p.1) != 0)
+            {
+                let arg = crate::ir::Ref(args[a])
+                    .as_inst()
+                    .filter(|v| b.tags[v.0 as usize] == Tag::Ref);
+                by_value_reads.push((
+                    arg.ok_or("a by-value argument that is no `Ref`")?.0,
+                    r.k.local_ty[l as usize],
+                ));
+            }
             copied[s] = true;
             ready.push(r);
         }
@@ -201,6 +224,12 @@ pub fn inline_calls(b: &mut Body, sites: Vec<Site>) -> Result<Vec<bool>, String>
         fin.push(u32_of(i + shift));
     }
     renumber_through(b, fin, 0)?;
+    // Rows keep their places until the permutation below.
+    for (i, ty) in by_value_reads {
+        b.tags[i as usize] = Tag::Read;
+        b.data[i as usize][1] = crate::ir::ReadMode::Use as u32;
+        b.ty[i as usize] = ty;
+    }
     if b.anchors.is_empty() {
         b.anchors = (0..u32_of(n)).collect();
     }
@@ -233,7 +262,9 @@ pub fn inline_calls(b: &mut Body, sites: Vec<Site>) -> Result<Vec<bool>, String>
 /// Checks `site` against the caller, unchanged yet, and lists the
 /// parameters it binds; `None` skips it.
 fn prepare(b: &Body, site: Site, outer: &[u32]) -> Option<Ready> {
-    let Site { call: c, copy: k } = site;
+    let Site {
+        call: c, copy: k, ..
+    } = site;
     let r = b.record(b.data[c][1]);
     let args = &r[..r.len().saturating_sub(3)];
     let mut params = Vec::new();
@@ -437,7 +468,15 @@ mod tests {
 
     /// Copies one call, as [`inline_calls`] does for each of a body's.
     fn inline_call(b: &mut Body, call: usize, copy: Body) -> Result<(), String> {
-        match inline_calls(b, vec![Site { call, copy }])?[..] {
+        match inline_calls(
+            b,
+            vec![Site {
+                call,
+                copy,
+                by_value: 0,
+            }],
+        )?[..]
+        {
             [true] => Ok(()),
             _ => Err("skipped".into()),
         }
@@ -626,7 +665,11 @@ mod tests {
             .rev()
             .filter(|&i| plain_call(&b, i) == Some(item(3)))
             .collect();
-        let site = |call| Site { call, copy: copy() };
+        let site = |call| Site {
+            call,
+            copy: copy(),
+            by_value: 0,
+        };
         let mut one = b.clone();
         let sites = calls.iter().map(|&c| site(c)).collect();
         assert_eq!(inline_calls(&mut one, sites), Ok(vec![true, true]));
@@ -893,7 +936,8 @@ mod tests {
                 &mut body,
                 vec![Site {
                     call: 1,
-                    copy: callee()
+                    copy: callee(),
+                    by_value: 0,
                 }]
             ),
             Ok(vec![true])

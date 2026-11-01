@@ -74,6 +74,12 @@ pub trait InlineEnv: ProgramEnv {
     /// collection selects it; `None` for an open type or a compiler-supplied
     /// implementation.
     fn select_impl(&self, trait_: DefId, self_ty: Ty, targs: TyList) -> Option<DefId>;
+    /// Release (#1151): the referent of a reference of type `t` that a
+    /// copy may take by value (`hd_wasm_linear::promotable_referent`);
+    /// `None` when the pipeline does not promote arguments.
+    fn promotable_referent(&self, _t: Ty) -> Option<Ty> {
+        None
+    }
 }
 
 /// A release build's inliner state for one run. Only looked up, never
@@ -149,7 +155,28 @@ impl dyn InlineEnv + '_ {
             if !self.fits_call(body, c, &mut copy) {
                 continue;
             }
-            sites.push(Site { call: c, copy });
+            // A callee that takes references fits only by taking them by
+            // value (`fits`), which needs each argument to be a `Ref` of
+            // a local of the caller's.
+            let by_value = if self.inline_hint(def) == InlineHint::Default
+                && self.takes_reference(def, targs)
+            {
+                match self.by_value(def, targs, &copy) {
+                    Some(mask) if hd_tir::own::promote::promoted_call(body, c, mask) => mask,
+                    _ => continue,
+                }
+            } else {
+                0
+            };
+            if by_value != 0 {
+                let referent = |t: Ty| self.promotable_referent(t).unwrap_or(t);
+                copy = hd_tir::own::promote::promote(&copy, by_value, referent);
+            }
+            sites.push(Site {
+                call: c,
+                copy,
+                by_value,
+            });
             hashes.push(callee_hash);
         }
         // All of the body's copies in one rebuild.
@@ -305,14 +332,17 @@ impl dyn InlineEnv + '_ {
     /// Whether `copy`, the body of `def` at `targs`, may inline:
     /// The rule selected by `def`'s [`InlineHint`]: ordinary calls use
     /// [`INLINE_LIMIT`] and refuse reference parameters, but for a
-    /// getter's ([`Self::takes_reference`]), `.Auto` uses
+    /// getter's ([`Self::takes_reference`]) and, in a release build, those
+    /// the copy takes by value ([`Self::by_value`]); `.Auto` uses
     /// [`AUTO_INLINE_LIMIT`] and accepts them, and `.Always` has neither
     /// limit. The checker has already rejected uncopyable `.Always`
     /// bodies.
     fn fits(&self, def: DefId, targs: TyList, copy: &Body) -> bool {
         match self.inline_hint(def) {
             InlineHint::Default => {
-                hd_tir::inline::inlinable(copy, INLINE_LIMIT) && !self.takes_reference(def, targs)
+                hd_tir::inline::inlinable(copy, INLINE_LIMIT)
+                    && (!self.takes_reference(def, targs)
+                        || self.by_value(def, targs, copy).is_some())
             }
             InlineHint::Auto => hd_tir::inline::inlinable(copy, AUTO_INLINE_LIMIT),
             InlineHint::Always => hd_tir::inline::copyable(copy),
@@ -372,12 +402,40 @@ impl dyn InlineEnv + '_ {
     /// points into a frame slot with no count
     /// (`crates/hd_wasm_linear/DESIGN.md` §23.38).
     fn takes_reference(&self, def: DefId, targs: TyList) -> bool {
-        let Some((params, _, _)) = self.signature(def) else {
+        let Some(refs) = self.reference_params(def, targs) else {
             return true;
         };
+        let getter = self
+            .result(def)
+            .is_some_and(|r| holds_local(self.pool(), self.ref_cells(), r, 0));
+        refs.len() > 1 || (refs.len() == 1 && !getter)
+    }
+
+    /// Release (#1151): the parameters a copy of `def` at `targs` takes by
+    /// value (bit k: parameter k), when each of its reference parameters
+    /// has a referent a copy may take by value (`promotable_referent`)
+    /// and `copy` only reads through it
+    /// (`hd_tir::own::promote::read_only_params`). The copy then binds the
+    /// referent's value, not the address, and no count or cell follows
+    /// (`crates/hd_wasm_linear/DESIGN.md` §23.40).
+    fn by_value(&self, def: DefId, targs: TyList, copy: &Body) -> Option<u64> {
+        self.memo()?;
+        let mut mask = 0;
+        for (k, t) in self.reference_params(def, targs)? {
+            self.promotable_referent(t).filter(|_| k < 64)?;
+            mask |= 1 << k;
+        }
+        (mask != 0 && hd_tir::own::promote::read_only_params(copy, mask) == mask).then_some(mask)
+    }
+
+    /// Each parameter of `def` at `targs` that is, or may be in an
+    /// instance, a reference, with its type as the backend reads it;
+    /// `None` when a parameter's type does not settle.
+    fn reference_params(&self, def: DefId, targs: TyList) -> Option<Vec<(usize, Ty)>> {
+        let (params, _, _) = self.signature(def)?;
         let pool = self.pool();
-        let mut refs = 0;
-        for &t in &params {
+        let mut refs = Vec::new();
+        for (k, &t) in params.iter().enumerate() {
             // As the backend reads a declared type: each reference type
             // lowered to `std.core.Ref[T]` or `std.core.Counted[T]`.
             let mut t = pool.lower_refs(self.ref_cells(), t);
@@ -388,19 +446,16 @@ impl dyn InlineEnv + '_ {
                 t = inner;
             }
             if t == Ty::POISON || self.is_open(t) {
-                return true;
+                return None;
             }
             if matches!(pool.get(t), TyData::Ref { .. })
                 || matches!(pool.get(t), TyData::Adt { def, .. } if self.ref_cells().holds(def))
                 || self.reference(t)
             {
-                refs += 1;
+                refs.push((k, t));
             }
         }
-        let getter = self
-            .result(def)
-            .is_some_and(|r| holds_local(pool, self.ref_cells(), r, 0));
-        refs > 0 && !(refs == 1 && getter)
+        Some(refs)
     }
 
     /// Whether `copy`, a callee's body at the types of call `c` of

@@ -2405,3 +2405,12 @@ address. The optimized pipeline declares the pass `arg_promote`
   the value for the primitive comparisons it lowers itself (`eq`, `cmp`,
   `partial_cmp` on a promotable referent), which load the referent
   anyway.
+- **The inliner.** A release build copies an ordinary callee that takes
+  references when each of them is promotable and the copy only reads
+  through it (`hd_opt/src/inline.rs`, `by_value`), at a call whose
+  argument for each is a `Ref` as above (`promoted_call`). The copy is
+  promoted, and the caller's `Ref` becomes a `Read` of its place
+  (`hd_tir::inline::Site::by_value`), so the copy's parameter binds the
+  value: no reference lives in a local, which keeps the reason such
+  callees stay calls (#856) away. `Display for i64.to_string(&self)`
+  copies this way.
