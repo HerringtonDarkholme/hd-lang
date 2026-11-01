@@ -1,0 +1,5 @@
+# test: a local function's type parameter lifts only `Copy` with `?`
+# Spec 13 Copy: ref.copy.generic.relaxed.only.
+pub fn main() -> void $ Console:
+    fn keep[T < ?Eq](x: T) -> T: x # diagnostic: invalid-relaxed-bound
+    println("${keep(+1)}")

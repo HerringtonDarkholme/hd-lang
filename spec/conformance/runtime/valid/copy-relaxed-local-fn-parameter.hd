@@ -1,0 +1,6 @@
+# test: a local function's type parameter may lift its default `Copy` bound
+# Spec 13 Copy: ref.copy.generic.relaxed.
+# expect-stdout: 1
+pub fn main() -> void $ Console:
+    fn keep[T < ?Copy](x: T) -> T: x
+    println("${keep(+1)}")

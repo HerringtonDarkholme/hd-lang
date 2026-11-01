@@ -5703,3 +5703,6 @@ typing/valid/copy-default-copyable-cases.hd	type	accept	lang/13-values-and-refer
 typing/invalid/struct-literal-type-argument-bound-unsatisfied.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.bound.unsatisfied
 typing/invalid/variant-type-argument-bound-unsatisfied.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.bound.unsatisfied
 typing/valid/construction-type-argument-bound-satisfied.hd	type	accept	lang/09-traits.md#r-trait.bound.unsatisfied
+typing/invalid/copy-relaxed-local-fn-parameter-moves.hd	type	reject:use-of-moved-value	lang/13-values-and-references.md#r-ref.copy.generic.relaxed
+typing/invalid/copy-relaxed-local-fn-bound-other-trait.hd	type	reject:invalid-relaxed-bound	lang/13-values-and-references.md#r-ref.copy.generic.relaxed.only
+runtime/valid/copy-relaxed-local-fn-parameter.hd	runtime	accept	lang/13-values-and-references.md#r-ref.copy.generic.relaxed

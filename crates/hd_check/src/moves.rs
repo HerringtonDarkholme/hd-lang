@@ -47,8 +47,9 @@ fn is_mut_ref(pool: Types<'_>, t: Ty) -> bool {
 /// (`ref.move.holds`, `ref.copy.structure`): a `&mut`, a type declared
 /// `!Copy`, or a type parameter that is not `Copy`, held by value in a
 /// struct, enum, tuple, optional or union. A `*mut T` and a `&T` copy.
-fn blocker(cx: (Types<'_>, &Lookup<'_>), t: Ty, seen: &mut Vec<Ty>) -> Option<Ty> {
-    let (pool, lookup) = cx;
+/// `relaxed` lists the body's local functions' `?Copy` parameters.
+fn blocker(cx: (Types<'_>, &Lookup<'_>, &[Ty]), t: Ty, seen: &mut Vec<Ty>) -> Option<Ty> {
+    let (pool, lookup, relaxed) = cx;
     if seen.contains(&t) || seen.len() > 32 {
         return None;
     }
@@ -62,7 +63,8 @@ fn blocker(cx: (Types<'_>, &Lookup<'_>), t: Ty, seen: &mut Vec<Ty>) -> Option<Ty
             any(pool.list_items(elems), seen).or_else(|| rest.and_then(|r| blocker(cx, r, seen)))
         }
         TyData::Union(ms) => any(pool.list_items(ms), seen),
-        TyData::Param(p) => (!param_copies(cx, p)).then_some(t),
+        TyData::Param(_) if relaxed.contains(&t) => Some(t),
+        TyData::Param(p) => (!param_copies((pool, lookup), p)).then_some(t),
         TyData::Adt { def, args } => {
             let members = match lookup.item(def)?.copy_decl() {
                 CopyDecl::Copies => return None,
@@ -257,7 +259,25 @@ impl Ck<'_, '_> {
 
     /// The part of `t` that keeps it from being copied ([`blocker`]).
     fn not_copied_by(&self, t: Ty) -> Option<Ty> {
-        blocker((self.pool(), self.cx.lookup), t, &mut Vec::new())
+        let relaxed = self.relaxed_local_params();
+        blocker((self.pool(), self.cx.lookup, &relaxed), t, &mut Vec::new())
+    }
+
+    /// The type parameters of the body's generic local functions declared
+    /// `?Copy`: their bounds hold no trait that implies `Copy`
+    /// (`ref.copy.generic.relaxed`).
+    fn relaxed_local_params(&self) -> Vec<Ty> {
+        let pool = self.pool();
+        let lookup = self.cx.lookup;
+        let copies = |b: &Ty| {
+            pool.trait_value(*b)
+                .is_some_and(|(d, _)| lookup.item(d).is_some_and(hd_resolve::Item::requires_copy))
+        };
+        (self.local_generics.values())
+            .flat_map(|g| g.params.iter().zip(&g.bounds))
+            .filter(|(_, bs)| !bs.iter().any(copies))
+            .map(|(&p, _)| p)
+            .collect()
     }
 
     /// Why a value of `t` is not copied, for a message: the `&mut`, the

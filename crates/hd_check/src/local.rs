@@ -312,15 +312,30 @@ impl Ck<'_, '_> {
         let mut defaults = Vec::new();
         for (&p, &g) in params.iter().zip(&nodes) {
             let mut bs = Vec::new();
+            let mut lifted = false;
             if let Some(bl) = Src::child(g, SyntaxKind::BoundList) {
                 if bl.direct_token(toks, TokenKind::KwMut).is_some() {
                     return self.gap(bl, "a `mut` bound on a local function's type parameter");
                 }
-                if bl.direct_token(toks, TokenKind::Question).is_some() {
-                    return self.gap(bl, "a `?Copy` bound on a local function's type parameter");
-                }
+                // The first token of each bound written after a `?`.
+                let relaxed: Vec<u32> = (bl.direct_tokens())
+                    .filter(|&t| toks.kind(t) == TokenKind::Question)
+                    .map(|t| t.raw() + 1)
+                    .collect();
                 for b in bl.children().filter(|c| c.kind() == SyntaxKind::NamedType) {
                     let t = self.ty_node_as(b, NameRole::Trait)?;
+                    // `?Copy` lifts the default bound and adds none
+                    // (`ref.copy.generic.relaxed`).
+                    if relaxed.contains(&b.first_token().raw()) {
+                        if t != Ty::POISON
+                            && pool.trait_value(t).map(|(d, _)| d) != Some(self.cx.names.known.copy)
+                        {
+                            let msg = "only `Copy` is a default bound, so `?` lifts only `?Copy`";
+                            self.err(Code::InvalidRelaxedBound, b, msg);
+                        }
+                        lifted = true;
+                        continue;
+                    }
                     if matches!(pool.get(t), TyData::TraitValue { .. }) {
                         self.add_bound(p, t, 0);
                         bs.push(t);
@@ -338,13 +353,15 @@ impl Ck<'_, '_> {
                 }
             }
             // The default `Copy` bound (`ref.copy.generic.default`).
-            let copy = pool.intern_ty(&TyData::TraitValue {
-                def: self.cx.names.known.copy,
-                args: hd_types::TyList::EMPTY,
-                bindings: vec![],
-            });
-            self.add_bound(p, copy, 0);
-            bs.push(copy);
+            if !lifted {
+                let copy = pool.intern_ty(&TyData::TraitValue {
+                    def: self.cx.names.known.copy,
+                    args: hd_types::TyList::EMPTY,
+                    bindings: vec![],
+                });
+                self.add_bound(p, copy, 0);
+                bs.push(copy);
+            }
             bounds.push(bs);
             let written = Src::child(g, SyntaxKind::TypeDefault).and_then(|d| {
                 d.children()
