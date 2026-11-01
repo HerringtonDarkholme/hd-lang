@@ -1,7 +1,7 @@
-# test: iterating a readonly List[*mut User] yields *mut User, so element fields may be assigned
+# test: iterating a readonly List[*mut User] yields &*mut User, and fields are assigned through the element
 struct User:
     name: string
 
 fn rename_all(users: List[*mut User]) -> void:
     for user in users:
-        user.name = "Grace"
+        (*user).name = "Grace"

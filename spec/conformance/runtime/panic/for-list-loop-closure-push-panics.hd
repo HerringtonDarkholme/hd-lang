@@ -1,0 +1,15 @@
+# test: a push the checker cannot see, from a closure that captures the walked list, panics with collection-pinned
+# Spec 06 Element Reference Loops: flow.for.ref.pinned.
+fn run() -> i32:
+    let mut xs = [+1, 2]
+    grow := fn() -> void:
+        xs.push(+0) # panic: collection-pinned
+    let total = +0
+    for x in xs:
+        grow()
+        total += x
+    total
+
+tests:
+    it("the loop pins its list"):
+        _ := run()

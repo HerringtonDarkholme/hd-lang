@@ -3,7 +3,7 @@
 # expect: test
 fn row_counters(rows: List[List[i32]]) -> List[fn() -> usize]:
     let mut out: List[fn() -> usize] = []
-    for row in rows:
+    for row in rows.iter():
         out.push(fn() -> usize: row.len())
     out
 

@@ -1,0 +1,20 @@
+# test: `for p in &mut xs` binds a `&mut T` to each slot, and the body changes the list only through it
+# Spec 06 Element Reference Loops: flow.for.ref, flow.for.ref.exclusive.
+struct Line:
+    qty: i32
+
+fn restock(lines: &mut List[Line], extra: i32) -> void:
+    for line in &mut lines:
+        line.qty += extra
+
+tests:
+    use std.testing.assert_equal
+
+    it("each slot changes in place"):
+        let mut lines = [Line { qty: +1 }, Line { qty: +2 }]
+        restock(&mut lines, +3)
+        let mut out = [+1, 2]
+        for x in &mut out:
+            *x *= 10
+        assert_equal(lines[0].qty + lines[1].qty, +9, reason="both lines were raised")
+        assert_equal(out, [+10, 20], reason="the binding wrote each slot")

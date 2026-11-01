@@ -1,0 +1,16 @@
+# test: an element store through another `*mut` to a list a loop walks inside a counted object panics with borrow-conflict
+# Spec 06 Element Reference Loops: flow.for.ref.alias.
+struct Team:
+    items: List[i32]
+
+fn walk(t: *mut Team, alias: *mut Team) -> i32:
+    let total = +0
+    for x in t.items:
+        alias.items[1] = +5 # panic: borrow-conflict
+        total += x
+    total
+
+tests:
+    it("the loop's loan sees the alias"):
+        t := box(Team { items: [+1, 2] })
+        _ := walk(t, t)

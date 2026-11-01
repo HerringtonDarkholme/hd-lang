@@ -1,5 +1,5 @@
-# test: loops own fresh collection sources and preserve snapshots of reachable places
-# Spec 06 For Loops: flow.for.snapshot.
+# test: a loop over a call's or a literal's list borrows that temporary for the loop, and a map loop keeps its snapshot
+# Spec 06 For Loops: flow.for.list.temporary, flow.for.snapshot.
 # expect: test
 
 fn numbers() -> List[i32]:
@@ -14,19 +14,9 @@ fn returned(values: List[i32]) -> List[i32]:
 fn shared(values: *mut List[i32]) -> *mut List[i32]:
     values
 
-fn referenced(values: &mut List[i32]) -> i32:
-    let total = +0
-    for value in values:
-        values[1] = 99
-        total = total + value
-    total
-
-struct Holder:
-    values: List[i32]
-
 fn first_word() -> string:
     for word in words():
-        return word
+        return *word
     "missing"
 
 fn nested_words() -> List[string]:
@@ -63,29 +53,12 @@ tests:
         assert_equal(sum, +6, reason="the returned value is independent")
         assert_equal(source[1], +99, reason="the original changes")
 
-    it("named values and fields still iterate snapshots"):
-        let mut source = numbers()
-        let sum = +0
-        for value in source:
-            source[1] = 99
-            sum = sum + value
-        assert_equal(sum, +6, reason="a named source needs a snapshot")
-        let mut holder = Holder { values: numbers() }
-        let fields = +0
-        for value in holder.values:
-            holder.values[1] = 99
-            fields = fields + value
-        assert_equal(fields, +6, reason="a field source needs a snapshot")
-
-    it("reference sources stay snapshots even when a call returns the reference"):
+    it("a list reached through a returned reference is the place itself"):
         source := box(numbers())
-        assert_equal(referenced(source), +6, reason="named reference source")
-        *source = numbers()
         let sum = +0
         for value in shared(source):
-            source[1] = 99
             sum = sum + value
-        assert_equal(sum, +6, reason="a reference-returning call is not an owned list")
+        assert_equal(sum, +6, reason="the loop reads the boxed list")
 
     it("owned sources survive nested loops, breaks and early returns"):
         assert_equal(first_word(), "first", reason="early return keeps its counted result")

@@ -1,0 +1,7 @@
+# test: removing from the list a loop walks is a write under the loop's loan
+# Spec 06 Element Reference Loops: flow.for.ref.conflict.
+fn drain(values: List[i32]) -> usize:
+    let mut v = values
+    for x in v:
+        _ := v.remove_at(0) # diagnostic: conflicting-access
+    v.len()

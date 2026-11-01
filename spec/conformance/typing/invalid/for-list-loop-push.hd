@@ -1,0 +1,7 @@
+# test: a push to the list a loop walks is a write under the loop's loan
+# Spec 06 Element Reference Loops: flow.for.ref.conflict.
+fn doubled(values: List[i32]) -> List[i32]:
+    let mut out = values
+    for value in out:
+        out.push(*value) # diagnostic: conflicting-access
+    out

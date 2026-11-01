@@ -520,7 +520,7 @@ fn rotate(items: List[i32]) -> List[i32]:
 7. r[std-collections.deque.get] `get(i)` returns the element `i` places from the front in `.Some`, so `get(0)` is the front. An `i` that is not less than `len` gives `.None`.
 8. r[std-collections.deque.iter] Iterating a deque yields its elements from front to back, each as `T`.
 9. r[std-collections.deque.cursor] A deque's cursor type is `DequeIter[T]`, which `std.collections` declares with private fields.
-10. r[std-collections.deque.snapshot] Iterating a deque walks the deque as it was when `iter` was called. A push or a pop while the loop runs changes the deque but not the loop, and never panics, as [`flow.for.snapshot`](../lang/06-control-flow.md#r-flow.for.snapshot) states for a list.
+10. r[std-collections.deque.snapshot] Iterating a deque walks the deque as it was when `iter` was called. A push or a pop while the loop runs changes the deque but not the loop, and never panics, as [`flow.for.snapshot`](../lang/06-control-flow.md#r-flow.for.snapshot) states for a map.
 11. r[std-collections.deque.eq] Two deques are equal when they have the same length and equal elements in the same order from the front, as two lists are.
 12. r[std-collections.deque.collect] A deque implements `FromIterator[T]`, collecting every element in source order.
 

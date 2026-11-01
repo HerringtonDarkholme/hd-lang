@@ -1,0 +1,47 @@
+# test: `for x in xs` binds a `&T` to each slot in order, of a place, a reference, or a temporary, and the body may read the list
+# Spec 06 Built-In Collection Iteration: flow.for.list, flow.for.list.temporary. Element Reference Loops: flow.for.ref.read.
+struct Line:
+    sku: string
+    cents: i64
+    qty: i64
+
+fn order_total(lines: &List[Line]) -> i64:
+    let sum: i64 = 0
+    for line in lines:
+        sum += line.cents * line.qty
+    sum
+
+fn make() -> List[i32]:
+    [+1, 2, 3]
+
+fn pick(line: &Line) -> string:
+    line.sku
+
+tests:
+    use std.testing.assert_equal
+
+    it("a loop over a reference reads each slot in place"):
+        lines := [Line { sku: "a", cents: 5, qty: 2 }, Line { sku: "b", cents: 3, qty: 1 }]
+        assert_equal(order_total(&lines), 13, reason="each line was read through its reference")
+
+    it("a loop over a call's list borrows the temporary for the loop"):
+        let total = +0
+        for x in make():
+            total += x
+        assert_equal(total, 6, reason="the temporary lived to the loop's end")
+
+    it("the body reads the list, refers to its elements, and nests a loop over it"):
+        xs := [+1, 2, 3]
+        let pairs = +0
+        let mut skus: List[string] = []
+        for x in xs:
+            first := &xs[0]
+            pairs += *first + i32(xs.len()) * 0
+            for y in xs:
+                if *x < *y:
+                    pairs += 1
+        lines := [Line { sku: "a", cents: 1, qty: 1 }]
+        for line in lines:
+            skus.push(pick(line))
+        assert_equal(pairs, 6, reason="three reads of slot 0 and three ordered pairs")
+        assert_equal(skus, ["a"], reason="the binding passes as a reference")

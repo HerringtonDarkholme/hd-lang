@@ -1,0 +1,9 @@
+# test: taking `&mut` of an element of the list a loop walks is a write under the loop's loan
+# Spec 06 Element Reference Loops: flow.for.ref.conflict.
+fn bump(slot: &mut i32) -> void:
+    *slot += 1
+
+fn walk(values: List[i32]) -> void:
+    let mut list = values
+    for value in list:
+        bump(&mut list[0]) # diagnostic: conflicting-access

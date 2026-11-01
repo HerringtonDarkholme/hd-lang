@@ -192,12 +192,12 @@ trait Iterable[T]:
 6. r[flow.for.iter-independent] An ordinary iterable creates an independent iterator on every `iter()` call.
 7. r[flow.for.iterator-exhausted] The iterator stores traversal progress. Once `next` has returned `.None`, the iterator is **exhausted**.
 8. r[flow.for.iterator-after-none] What `next` returns when it is called again on an exhausted iterator is unspecified.
-9. r[flow.for.iterable-collections] `List[T]` and `Map[K, V]` implement `Iterable`: a list yields `T`, and a map `(K, V)`.
+9. r[flow.for.iterable-collections] `List[T]` and `Map[K, V]` implement `Iterable`: a list's cursor yields `T`, and a map's `(K, V)`. A `for` over a list binds references instead ([`flow.for.list`](#r-flow.for.list)).
 10. r[flow.for.iterator.iterable-not-implied] Implementing `Iterator[T]` does not imply `Iterable[T]`.
 11. r[flow.for.string-not-iterable] `string` does not implement `Iterable`, so a loop over a string is an error. Error: `unsatisfied-trait-bound`.
 12. r[flow.for.string-explicit] A loop over a string's contents iterates `chars()`, `char_indices()`, or `bytes()`, which [String Methods](10-modules.md#string-methods) defines.
 13. r[flow.for.accepts-owned-cursor] `for` accepts an `Iterable[T]`, a value implementing `Iterator[T]`, or a mutable reference to such a cursor.
-14. r[flow.for.iterable.cursor] When the iterable expression's type implements `Iterable[T]` and is not a `List` or a `Map`, the loop calls `iter` once and advances the resulting cursor. A list or a map is iterated as [Snapshot Iteration](#snapshot-iteration) states.
+14. r[flow.for.iterable.cursor] When the iterable expression's type implements `Iterable[T]` and is not a `List` or a `Map`, the loop calls `iter` once and advances the resulting cursor. A list is iterated as [Built-In Collection Iteration](#built-in-collection-iteration) states, and a map as [Snapshot Iteration](#snapshot-iteration) states.
 15. r[flow.for.iterable.into-iter] `Iterable[T]` declares the associated cursor type `IntoIter`, bounded by `Iterator[T]`, and `iter` returns a value of it. Each implementation names its cursor type, as in `type IntoIter = ListIter[T]`.
 16. r[flow.for.iterable.static-cursor] The loop holds the `IntoIter` value `iter` returned as its own writable copy, as it holds an iterator source, and calls its `next` through that type's `Iterator[T]` implementation, with no trait value.
 17. r[flow.for.iterator.owned-source] When the source is an iterator, the loop calls `next` on its owned binding without calling `iter`.
@@ -309,12 +309,17 @@ the iterator adapters, `collect`, and `FromIterator`.
 
 ### Built-In Collection Iteration
 
-1. r[flow.for.list] The built-in `List[T]` iterable yields each element as `T`, whether the list is reached directly or through a reference.
-2. r[flow.for.map.entries] The built-in `Map[K, V]` iterable yields `(K, V)` tuples in the map's [iteration order](04-type-system.md#r-types.map.order.deterministic).
-3. r[flow.for.map.value] Destructuring each entry yields the value as `V`, whether the map is reached directly or through a reference.
-4. r[flow.for.no-root-grant] A loop binding is not writable, even when the list is in a writable place or behind a `&mut` reference. Changing a field of an element it binds is an error. Writing through an element of a `*mut U` type is valid. Error: `not-writable`.
-5. r[flow.for.library] Libraries may provide additional mutable-iteration APIs with separate aliasing rules.
-6. r[flow.for.collection.reference] Outside [Element Reference Loops](#element-reference-loops), a `for` over a reference to a `List` or `Map` iterates the referenced value.
+A `for` loop over a list binds a reference to each element in turn, and a
+loop over a map binds each entry.
+
+1. r[flow.for.list] A `for` loop over a `List[T]` binds the pattern to a `&T` [element reference](13-values-and-references.md#element-references) to each slot in order, whether the list is a place, a reference to one, or a temporary. `for x in xs` and `for x in &xs` are the same loop.
+2. r[flow.for.list.temporary] A list that is no place, such as a call's result or a list literal, lives until the loop ends.
+3. r[flow.for.list.copy] A use of the binding where a `T` is expected is an error, as for any `&T`; `*x` copies the element. Error: `type-mismatch`.
+4. r[flow.for.map.entries] The built-in `Map[K, V]` iterable yields `(K, V)` tuples in the map's [iteration order](04-type-system.md#r-types.map.order.deterministic).
+5. r[flow.for.map.value] Destructuring each entry yields the value as `V`, whether the map is reached directly or through a reference.
+6. r[flow.for.no-root-grant] A loop binding over a list is read-only, even when the list is in a writable place or behind a `&mut` reference. Changing a field of an element through it is an error. An element of a `*mut U` type is written through a copy of it, as in `(*p).name = v`. Error: `not-writable`.
+7. r[flow.for.library] Libraries may provide additional mutable-iteration APIs with separate aliasing rules.
+8. r[flow.for.collection.reference] A `for` over a reference to a `Map` iterates the referenced value.
 
 ```hd
 fn total(items: List[i32]) -> i32:
@@ -330,31 +335,36 @@ fn map_total(items: &Map[string, i32]) -> i32:
     sum
 ```
 
+> **Why.** The loop reads each element where it lives, as Rust's
+> `for x in &v` does, so no element is copied and a non-copyable element
+> can be looked at. Operators read through the reference, so
+> `sum + item` needs no `*`.
+
 ### Snapshot Iteration
 
-A `for` loop over a list or a map iterates the collection as it was when
-the loop began.
+A `for` loop over a map iterates the map as it was when the loop began.
 
 ```text
-fn doubled(values: List[i32]) -> List[i32]:
+fn grown(values: Map[string, i32]) -> Map[string, i32]:
     let mut out = values
-    for value in out:
-        out.push(value)  # the loop still ends after the old elements
+    for (key, value) in out:
+        out["$key!"] = value  # the loop still visits only the old entries
     out
 ```
 
-1. r[flow.for.snapshot] A `for` loop over a `List` or `Map` value iterates the collection as it was when the loop began.
-2. r[flow.for.snapshot.change] A change to the collection while the loop runs, in its body or through a call, changes the collection but not the loop. The loop neither visits an added element nor panics.
-3. r[flow.for.snapshot.cost] Beginning the loop copies no element. A change during the loop copies the collection's elements once, as a change to any copy does ([`types.coll.copy-on-write`](04-type-system.md#r-types.coll.copy-on-write)).
+1. r[flow.for.snapshot] A `for` loop over a `Map` value iterates the map as it was when the loop began.
+2. r[flow.for.snapshot.change] A change to the map while the loop runs, in its body or through a call, changes the map but not the loop. The loop neither visits an added entry nor panics.
+3. r[flow.for.snapshot.cost] Beginning the loop copies no entry. A change during the loop copies the map's entries once, as a change to any copy does ([`types.coll.copy-on-write`](04-type-system.md#r-types.coll.copy-on-write)).
 
-> **Why.** A loop over a value sees one value. A body that changes the
-> list it walks gets the result it wrote, and no rule asks the author to
-> know whether an iterator is live.
+> **Why.** A map loop yields copies of its entries, so a body that changes
+> the map it walks gets the result it wrote, and no rule asks the author
+> to know whether an iterator is live.
 
 ### Element Reference Loops
 
-`for p in &mut xs` and `for p in &xs` bind a reference to each element of
-a list in turn.
+A loop over a list borrows the list from its first step to its last.
+`for p in &mut xs` borrows it exclusively and binds a `&mut T` to each
+slot.
 
 ```hd
 fn raised(prices: List[i32]) -> List[i32]:
@@ -364,15 +374,19 @@ fn raised(prices: List[i32]) -> List[i32]:
     out
 ```
 
-1. r[flow.for.ref] `for p in &mut xs`, where `xs` is a list, binds the pattern to a `&mut T` [element reference](13-values-and-references.md#element-references) to each slot of `xs` in order, and `for p in &xs` to a `&T` one.
+1. r[flow.for.ref] `for p in &mut xs`, where `xs` is a list, binds the pattern to a `&mut T` [element reference](13-values-and-references.md#element-references) to each slot of `xs` in order. `for p in &xs` is `for p in xs`.
 2. r[flow.for.ref.slots] `xs` is evaluated once. The loop visits the slots from 0 up to the list's length when the loop began.
-3. r[flow.for.ref.access] The loop is one access to `xs`, as an element reference holds ([`ref.elem.access.live`](13-values-and-references.md#r-ref.elem.access.live)). It begins when the loop begins and ends when the loop ends or is left.
-4. r[flow.for.ref.conflict] When `xs` is [unaliased](13-values-and-references.md#r-ref.elem.unaliased), the body may read `xs` and write its elements, but an expression in it that may change the length of `xs`, as the table under [`ref.elem.conflict`](13-values-and-references.md#r-ref.elem.conflict) lists, is an error. Error: `conflicting-access`.
-5. r[flow.for.ref.pinned] The loop pins `xs` while it runs, as an access does, so a change of the list's length that no compile-time rule sees, through a `*mut` alias or inside a call, panics. Panic: `collection-pinned`.
-6. r[flow.for.ref.binding.local] The loop binding is an element reference to its slot for one step. It is a local reference value, so the body may bind, assign, read and write through it, and pass it or use it as a dependent source; every local-reference and dependent-result rule applies.
-7. r[flow.for.ref.writable] `for p in &mut xs` needs `xs` in a writable place, as `&mut xs[i]` does. Error: `not-writable`.
-8. r[flow.for.ref.map] A loop over element references takes a list, so a loop over `&m` or `&mut m` with a map `m` is an error. Error: `map-value-not-addressable`.
-9. r[flow.for.ref.through] `xs` may be a reference to a list: `for p in &mut r` and `for p in &r` loop over the slots of the list `r` refers to, as if `*r` were the place. Through `&T`, `for p in &mut r` is an error. Error: `not-writable`.
+3. r[flow.for.ref.access] The loop takes a **loop loan** of `xs`, shared for `for x in xs` and exclusive for `for p in &mut xs`. It begins when the loop begins and ends when the loop ends or is left. There is no snapshot.
+4. r[flow.for.ref.conflict] A write to `xs` in the body is an error. A write is a store to `xs` or a part of it, a built-in change such as `push`, a `&mut` of `xs` or of an element, or a `&mut self` call on a place that holds `xs`. Error: `conflicting-access`.
+5. r[flow.for.ref.read] In a shared loop, the body may read `xs`, take `&xs[i]`, and loop over `xs` again.
+6. r[flow.for.ref.exclusive] In the body of `for p in &mut xs`, `xs` is reachable only through `p`: any other use of `xs` is an error. Error: `conflicting-access`.
+7. r[flow.for.ref.alias] A list inside a counted object takes a [run-time loan](13-values-and-references.md#r-ref.excl.alias.loan) for the loop, so an access through another `*mut` that writes it, or any access for an exclusive loop, panics. Panic: `borrow-conflict`.
+8. r[flow.for.ref.pinned] The loop pins `xs` while it runs, as an access does. A change of the list's length that no compile-time rule sees, such as one from a closure that captures `xs`, panics in every build. Panic: `collection-pinned`.
+9. r[flow.for.ref.binding.local] The loop binding is an element reference to its slot for one step. It is a local reference value, so the body may bind, assign, read and write through it, and pass it or use it as a dependent source; every local-reference and dependent-result rule applies.
+10. r[flow.for.ref.writable] `for p in &mut xs` needs `xs` in a writable place, as `&mut xs[i]` does. Error: `not-writable`.
+11. r[flow.for.ref.map] A loop over element references takes a list, so a loop over `&m` or `&mut m` with a map `m` is an error. Error: `map-value-not-addressable`.
+12. r[flow.for.ref.through] `xs` may be a reference to a list: `for p in &mut r` and `for p in r` loop over the slots of the list `r` refers to, as if `*r` were the place. Through `&T`, `for p in &mut r` is an error. Error: `not-writable`.
+13. r[flow.for.comprehension.list] A comprehension's `for` clause over a list follows these rules, so its result expression sees each item as `&T`. `[for x in xs => x]` is a `List[&T]`, local to the function.
 
 ```text
 fn invalid(prices: Map[string, i32]) -> void:
@@ -382,17 +396,19 @@ fn invalid(prices: Map[string, i32]) -> void:
     for price in &prices:  # error: map-value-not-addressable
         pass
     let mut scores = [+1, 2]
-    for score in &mut scores:
-        *score += scores[0]  # reads and element writes are allowed
+    for score in scores:
         scores.push(*score)  # error: conflicting-access
+    for score in &mut scores:
+        *score += scores[0]  # error: conflicting-access
     let mut kept: List[*i32] = []
-    for score in &scores:
+    for score in scores:
         kept.push(score)  # error: local-reference-escapes
 ```
 
-> **Why.** A loop that changes each element in place needs a place per
-> step. Keeping the length still keeps the body from growing the list
-> under the loop, so the loop never skips or repeats a slot.
+> **Why.** A loop that borrows its list reads every element in place, and
+> keeping the list unchanged keeps the loop from skipping or repeating a
+> slot. This is Rust's `for x in &v` and `for x in &mut v`. To change the
+> list while walking it, loop over a copy (`snapshot := xs`) or by index.
 
 ### Range Iteration
 

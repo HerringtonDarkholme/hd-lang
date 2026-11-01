@@ -1,0 +1,13 @@
+# test: a `&mut self` call on a place that holds the walked list is a write under the loop's loan
+# Spec 06 Element Reference Loops: flow.for.ref.conflict.
+struct Ledger:
+    items: List[i32]
+    total: i32
+
+impl Ledger:
+    fn record(&mut self, item: i32) -> void:
+        self.total += item
+
+    fn record_all(&mut self) -> void:
+        for item in self.items:
+            self.record(*item) # diagnostic: conflicting-access

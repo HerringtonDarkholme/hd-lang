@@ -1,0 +1,12 @@
+# test: replacing the walked list, or the struct that holds it, is a write under the loop's loan
+# Spec 06 Element Reference Loops: flow.for.ref.conflict.
+struct Holder:
+    values: List[i32]
+    count: i32
+
+fn reset(source: Holder) -> Holder:
+    let mut holder = source
+    for value in holder.values:
+        holder.count += 1
+        holder = Holder { values: [], count: +0 } # diagnostic: conflicting-access
+    holder

@@ -1,0 +1,10 @@
+# test: a comprehension's item is a reference into the walked list, so `[for x in xs => x]` is a local List[&T] that cannot be returned
+# Spec 06 Element Reference Loops: flow.for.comprehension.list.
+struct Line:
+    sku: string
+
+fn skus(lines: List[Line]) -> List[string]:
+    [for line in lines => line.sku]
+
+fn copies(lines: List[Line]) -> List[Line]:
+    [for line in lines => line] # diagnostic: type-mismatch

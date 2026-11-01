@@ -1,0 +1,7 @@
+# test: inside `for p in &mut xs`, the list is reachable only through the loop binding, so a read of it is an error
+# Spec 06 Element Reference Loops: flow.for.ref.exclusive.
+fn raise(prices: List[i32]) -> List[i32]:
+    let mut scores = prices
+    for score in &mut scores:
+        *score += scores[0] # diagnostic: conflicting-access
+    scores

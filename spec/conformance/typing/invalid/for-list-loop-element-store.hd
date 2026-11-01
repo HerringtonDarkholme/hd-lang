@@ -1,0 +1,8 @@
+# test: storing into an element of the list a loop walks is a write under the loop's loan, through a reference too
+# Spec 06 Element Reference Loops: flow.for.ref.conflict.
+fn visit(items: &mut List[i32]) -> List[i32]:
+    let mut seen: List[i32] = []
+    for item in items:
+        seen.push(*item)
+        items[1] = +9 # diagnostic: conflicting-access
+    seen

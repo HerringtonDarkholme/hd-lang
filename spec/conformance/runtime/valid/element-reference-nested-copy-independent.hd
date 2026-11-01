@@ -21,13 +21,6 @@ fn save_outer(a: &List[List[List[i32]]], saved: &mut List[List[List[i32]]]) -> u
     *saved = *a
     0
 
-fn copy_in_loop(a: &mut List[List[i32]]) -> List[List[i32]]:
-    let mut kept: List[List[i32]] = []
-    for p in &mut a[0]:
-        kept = *a
-        *p = 9
-    kept
-
 tests:
     use std.testing.assert_equal
 
@@ -80,12 +73,6 @@ tests:
         )
         assert_equal(calls, 3, reason="exposure reuses evaluated indices")
         assert_equal(b[0][0][0], 1, reason="the copy remains isolated")
-
-    it("a reference loop exposes its containing list"):
-        let mut a = [[+1]]
-        b := copy_in_loop(&mut a)
-        assert_equal(a[0][0], 9, reason="the loop wrote its slot")
-        assert_equal(b[0][0], 1, reason="loop references isolate outer copies")
 
     it("a copy made after the call still behaves as a value"):
         let mut a = [[+1]]

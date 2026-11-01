@@ -50,7 +50,7 @@ impl Collector for Simple:
 
     fn show_all[T < Display](self, xs: List[T]) -> string:
         let s = self.tag
-        for x in xs:
+        for x in xs.iter():
             s = s + x.to_string()
         s
 

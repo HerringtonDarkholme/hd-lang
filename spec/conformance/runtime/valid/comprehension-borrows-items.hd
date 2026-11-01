@@ -1,0 +1,21 @@
+# test: a comprehension's item is a `&T` into the walked list; `*x` copies it out, and a `List[&T]` stays local
+# Spec 06 Element Reference Loops: flow.for.comprehension.list.
+struct Line:
+    sku: string
+    qty: i32
+
+fn active(lines: &List[Line]) -> List[string]:
+    [for line in lines if line.qty > 0 => line.sku]
+
+fn kept(values: List[i32]) -> List[i32]:
+    [for x in values if *x > 1 => *x]
+
+tests:
+    use std.testing.assert_equal
+
+    it("items are references"):
+        lines := [Line { sku: "a", qty: +1 }, Line { sku: "b", qty: +0 }]
+        assert_equal(active(&lines), ["a"], reason="the filter read each line in place")
+        assert_equal(kept([+1, 2, 3]), [+2, 3], reason="`*x` copies each kept item")
+        refs := [for line in lines => line]
+        assert_equal(refs[1].sku, "b", reason="a list of references reads the lines")

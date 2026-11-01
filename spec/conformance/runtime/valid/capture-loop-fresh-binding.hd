@@ -15,7 +15,7 @@ tests:
 
     it("closures made in a for loop each read their own value"):
         let mut readers: List[fn() -> i32] = []
-        for index in [+1, 2, 3]:
+        for index in [+1, 2, 3].iter():
             readers.push(fn() -> i32: index * 10)
         assert_equal(readers[0](), 10, reason="first iteration")
         assert_equal(readers[1](), 20, reason="second iteration")
@@ -23,7 +23,7 @@ tests:
 
     it("a closure that assigns its loop variable changes that iteration only"):
         let mut steps: List[fn() -> i32] = []
-        for index in [+1, 2]:
+        for index in [+1, 2].iter():
             step := fn() -> i32:
                 index = index + 10
                 index
@@ -45,7 +45,7 @@ tests:
 
     it("a tuple pattern binds every name anew"):
         let mut steps: List[fn() -> i32] = []
-        for (base, extra) in [(+1, +5), (2, 6)]:
+        for (base, extra) in [(+1, +5), (2, 6)].iter():
             step := fn() -> i32:
                 base = base + extra
                 base
@@ -57,7 +57,7 @@ tests:
     it("a loop over structs captures a copy of each element"):
         let mut points: List[Point] = [Point { x: 1, y: 1 }, Point { x: 2, y: 2 }]
         let mut readers: List[fn() -> i32] = []
-        for point in points:
+        for point in points.iter():
             readers.push(fn() -> i32: point.x)
         points[0].x = 100
         assert_equal(readers[0]() + readers[1](), 3, reason="each closure holds its own copy")

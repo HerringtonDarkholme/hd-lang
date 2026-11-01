@@ -1,6 +1,6 @@
 # fixture-runtime-profile: pending-tick
 # test: count elision preserves field, loop, escape, mutation and saved-frame ownership
-# Spec 04 Value Types: types.value.copy; Spec 06 For Loops: flow.for.snapshot.
+# Spec 04 Value Types: types.value.copy; Spec 06 For Loops: flow.for.list.
 use std.ops.defer
 use std.testing.assert_equal
 
@@ -33,20 +33,12 @@ fn escaped_elements(n: i32) -> void:
     let mut result: List[string] = []
     let mut closures: List[fn() -> string] = []
     words := ["first $n", "second $n"]
-    for word in words:
+    for word in words.iter():
         result.push(word)
         closures.push(fn() -> string: word)
     assert_equal(result, words, reason="stored elements own their counts")
     assert_equal(closures[0](), "first $n", reason="captured elements outlive the loop")
     assert_equal(closures[1](), "second $n", reason="each iteration captures its value")
-
-fn snapshot_elements(n: i32) -> void:
-    let mut words = ["first $n", "second $n"]
-    let mut result: List[string] = []
-    for word in words:
-        result.push(word)
-        words[0] = "changed $n"
-    assert_equal(result, ["first $n", "second $n"], reason="the loop owns an unchanged snapshot")
 
 fn map_elements(n: i32) -> void:
     words := { "a$n": "first $n", "b$n": "second $n" }
@@ -80,7 +72,6 @@ pub fn main!() -> void $ Console + Tick:
         field_reads(n)
         alias_write(n)
         escaped_elements(n)
-        snapshot_elements(n)
         map_elements(n)
         n += 1
     let mut log: List[string] = []

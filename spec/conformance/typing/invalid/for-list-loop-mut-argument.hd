@@ -1,0 +1,12 @@
+# test: passing `&mut` of the list a loop walks to a helper is a write under the loop's loan
+# Spec 06 Element Reference Loops: flow.for.ref.conflict.
+fn grow(values: &mut List[i32]) -> void:
+    values.push(0)
+
+fn visits(values: List[i32]) -> i32:
+    let mut list = values
+    let total = +0
+    for value in list:
+        grow(&mut list) # diagnostic: conflicting-access
+        total += value
+    total

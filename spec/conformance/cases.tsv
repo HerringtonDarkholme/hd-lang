@@ -692,7 +692,6 @@ runtime/valid/structural-ordering.hd	runtime	accept	lang/05-expressions.md#unary
 runtime/valid/list-cursor-retains-source-and-counted-values.hd	runtime	accept	std/iter.md#r-std-iter.cursor.list
 runtime/valid/list-iterator.hd	runtime	accept	lang/06-control-flow.md#for-loops
 runtime/valid/map-iterator.hd	runtime	accept	lang/06-control-flow.md#for-loops
-runtime/valid/for-loop-snapshot-push.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot
 runtime/panic/explicit-panic.hd	runtime	panic:explicit-panic	lang/06-control-flow.md#runtime-panics
 runtime/panic/integer-add-overflow.hd	runtime	panic:integer-overflow	lang/04-type-system.md#numeric-conversions
 runtime/panic/invalid-shift.hd	runtime	panic:invalid-shift	lang/05-expressions.md#unary-and-binary-operators
@@ -1550,7 +1549,6 @@ typing/invalid/row-extension-keeps-other-keys.hd	type	reject:missing-requirement
 runtime/valid/f64-nan-ordering.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
 runtime/valid/f64-ordering-operators.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
 runtime/valid/tuple-ordering-nan-unordered.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
-runtime/valid/for-snapshot-helper-growth.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot.change
 runtime/valid/cancellation-skips-unreached-defer.hd	runtime	accept	std/ops.md#r-std-ops.defer.cleanup
 runtime/valid/generic-partial-eq-bound-primitives.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
 runtime/valid/named-arguments-evaluate-in-source-order.hd	runtime	accept	lang/05-expressions.md#calls
@@ -3380,8 +3378,7 @@ runtime/valid/cmp-reverse.hd	runtime	accept	std/cmp.md#r-std-cmp.reverse.order
 runtime/valid/reverse-value-copy.hd	runtime	accept	std/cmp.md#r-std-cmp.reverse.decl-struct
 runtime/valid/list-pop.hd	runtime	accept	lang/10-modules.md#r-module.method.list-pop
 runtime/valid/list-insert-remove-clear.hd	runtime	accept	lang/10-modules.md#r-module.method.list-insert
-runtime/valid/list-invalidation-a-loop-that-never-changes-the-list-finishes.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot
-runtime/valid/list-invalidation-removing-during-a-list-loop-leaves-the-loop-on-its-snapshot.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot
+runtime/valid/list-invalidation-a-loop-that-never-changes-the-list-finishes.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.ref.slots
 runtime/panic/list-insert-out-of-range.hd	runtime	panic:index-out-of-bounds	lang/10-modules.md#r-module.method.list-insert.range
 runtime/panic/list-remove-at-out-of-range.hd	runtime	panic:index-out-of-bounds	lang/10-modules.md#r-module.method.list-remove-at.range
 runtime/valid/task-all-list-order.hd	runtime	accept	std/task.md#r-std-task.map-all.order
@@ -4386,7 +4383,6 @@ typing/invalid/for-over-integer.hd	type	reject:unsatisfied-trait-bound	lang/06-c
 typing/invalid/for-mut-root-readonly-element.hd	type	reject:not-writable	lang/06-control-flow.md#r-flow.for.no-root-grant
 runtime/valid/for-map-snapshot-grow.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot.change
 runtime/valid/map-value-replace-during-iteration.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot.change
-runtime/valid/list-replace-not-seen-by-loop.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot.change
 typing/invalid/omitted-result-self-recursion.hd	type	reject:recursive-function-needs-result-type	lang/07-functions.md#r-fn.decl.omitted-recursion
 typing/invalid/omitted-result-mutual-cycle.hd	type	reject:recursive-function-needs-result-type	lang/07-functions.md#r-fn.decl.omitted-cycle
 typing/invalid/omitted-result-cycle-reported-once.hd	type	reject:recursive-function-needs-result-type	lang/07-functions.md#r-fn.decl.omitted-cycle.report
@@ -4819,7 +4815,6 @@ typing/invalid/list-store-plain-let.hd	type	reject:not-writable	lang/04-type-sys
 typing/invalid/collection-identity.hd	type	reject:identity-requires-references	lang/04-type-system.md#r-types.coll.no-identity
 runtime/valid/std-list-extend-own-copy.hd	runtime	accept	std/collections.md#r-std-collections.value.own-copy
 typing/valid/collection-value-tagged.hd	type	accept	lang/04-type-system.md#r-types.coll.let-mut
-runtime/valid/for-snapshot-doubled.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot
 runtime/valid/dyn-suspending-generic-method.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.safe.suspending
 typing/invalid/binding-failed-propagation.hd	type	reject:invalid-result-propagation	lang/05-expressions.md#r-expr.try.target.nearest-function
 typing/invalid/binding-failed-call.hd	type	reject:unknown-name	lang/03-names-and-scopes.md#r-names.module.other-module.value
@@ -4847,7 +4842,6 @@ runtime/panic/element-reference-remove-at-panics.hd	runtime	panic:collection-pin
 runtime/panic/element-reference-pop-panics.hd	runtime	panic:collection-pinned	lang/13-values-and-references.md#r-ref.elem.pinned
 runtime/panic/element-reference-clear-panics.hd	runtime	panic:collection-pinned	lang/13-values-and-references.md#r-ref.elem.pinned
 runtime/panic/element-reference-extend-panics.hd	runtime	panic:collection-pinned	std/collections.md#r-std-collections.value.pinned-length
-runtime/panic/for-element-references-push-panics.hd	runtime	panic:collection-pinned	lang/06-control-flow.md#r-flow.for.ref.pinned
 typing/valid/element-reference-shared-any-list.hd	type	accept	lang/13-values-and-references.md#r-ref.elem.writable.shared
 typing/invalid/element-reference-mut-short-binding.hd	type	reject:not-writable	lang/13-values-and-references.md#r-ref.elem.writable
 typing/invalid/for-element-references-mut-short-binding.hd	type	reject:not-writable	lang/06-control-flow.md#r-flow.for.ref.writable
@@ -4895,7 +4889,6 @@ typing/invalid/for-cursor-item-outlives-local.hd	type	reject:local-reference-out
 typing/invalid/for-mut-cursor-item-outlives-local.hd	type	reject:local-reference-outlives-local	lang/06-control-flow.md#r-flow.for.iterator.item-origins
 typing/valid/for-element-references-field-reference.hd	type	accept	lang/06-control-flow.md#r-flow.for.ref.binding.local
 typing/invalid/for-element-references-push-conflict.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.for.ref.conflict
-runtime/valid/for-element-references-body-reads-list.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.ref.conflict
 runtime/panic/map-element-reference-insert-panics.hd	runtime	panic:collection-pinned	lang/13-values-and-references.md#r-ref.elem.pinned.map
 runtime/panic/map-get-or-insert-pinned-panics.hd	runtime	panic:collection-pinned	std/collections.md#r-std-collections.map.get-or-insert.pinned
 runtime/valid/value-argument-sibling-change.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
@@ -4973,7 +4966,7 @@ runtime/valid/integer-remainder-native-widths.hd	runtime	accept	lang/04-type-sys
 runtime/panic/i32-remainder-by-zero.hd	runtime	panic:integer-division-by-zero	lang/04-type-system.md#integer-arithmetic
 runtime/panic/i64-remainder-by-zero.hd	runtime	panic:integer-division-by-zero	lang/04-type-system.md#integer-arithmetic
 runtime/valid/owned-match-payloads-across-suspension.hd	runtime	accept	lang/06-control-flow.md#match-expressions
-runtime/valid/owned-temporary-collection-loops.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot
+runtime/valid/owned-temporary-collection-loops.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.list.temporary
 parse/valid/inline-conditions-and-headers.hd	parse	accept	lang/02-grammar.md
 parse/valid/declaration-defaults-and-bindings.hd	parse	accept	lang/02-grammar.md
 runtime/valid/zero-release-control-flow.hd	runtime	accept	lang/04-type-system.md#value-types
@@ -5728,3 +5721,18 @@ typing/invalid/move-payload-out-of-deref-in-match.hd	type	reject:move-out-of-pla
 typing/invalid/move-field-out-of-deref-in-let-pattern.hd	type	reject:move-out-of-place	lang/13-values-and-references.md#r-ref.move.pattern
 typing/valid/match-through-reference-reads-payload-field.hd	type	accept	lang/13-values-and-references.md#r-ref.move.pattern
 runtime/valid/trait-value-meets-supertrait-bounds-whatever-receivers.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.member.other-with-opaque
+typing/invalid/for-list-loop-push.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.for.ref.conflict
+typing/invalid/for-list-loop-mut-argument.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.for.ref.conflict
+typing/invalid/for-list-loop-element-store.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.for.ref.conflict
+typing/invalid/for-list-loop-mut-element-reference.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.for.ref.conflict
+typing/invalid/for-list-loop-mut-self-call.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.for.ref.conflict
+typing/invalid/for-list-loop-remove.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.for.ref.conflict
+typing/invalid/for-list-loop-replace.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.for.ref.conflict
+typing/invalid/for-mut-loop-reads-list.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.for.ref.exclusive
+typing/invalid/comprehension-reference-list-escapes.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.for.comprehension.list
+runtime/valid/for-list-loop-borrows-slots.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.list
+runtime/valid/for-mut-loop-writes-through-binding.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.ref.exclusive
+runtime/valid/comprehension-borrows-items.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.comprehension.list
+runtime/panic/for-list-loop-alias-push-panics.hd	runtime	panic:borrow-conflict	lang/06-control-flow.md#r-flow.for.ref.alias
+runtime/panic/for-list-loop-alias-store-panics.hd	runtime	panic:borrow-conflict	lang/06-control-flow.md#r-flow.for.ref.alias
+runtime/panic/for-list-loop-closure-push-panics.hd	runtime	panic:collection-pinned	lang/06-control-flow.md#r-flow.for.ref.pinned

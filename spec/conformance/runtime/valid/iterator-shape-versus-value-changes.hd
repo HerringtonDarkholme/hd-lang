@@ -1,4 +1,4 @@
-# test: a for loop does not see a value replaced during it; an iterator taken after removal and reinsertion sees the new shape
+# test: a map loop does not see a value replaced during it; an iterator taken after removal and reinsertion sees the new shape
 # expect: test
 tests:
     use std.testing.{assert, assert_equal}
@@ -12,20 +12,10 @@ tests:
                 first = false
                 for other in ["a", "b", "c"]:
                     if other != name:
-                        values[other] = 30
+                        values[*other] = 30
             seen.push(value)
         assert_equal(seen, [1, 2, 3], reason="the loop reads the values it began with")
         assert_equal(values["c"], 30, reason="the replacement reached the map")
-
-    it("replacing a later list element during for is not seen by the loop"):
-        let mut values: List[i32] = [1, 2, 3]
-        let mut seen: List[i32] = []
-        for value in values:
-            if value == 1:
-                values[2] = 30
-            seen.push(value)
-        assert_equal(seen, [1, 2, 3], reason="the loop reads the elements it began with")
-        assert_equal(values[2], 30, reason="the replacement reached the list")
 
     it("an iterator created after removal and reinsertion sees both keys"):
         let mut values: Map[string, i32] = { "a": 1, "b": 2 }
