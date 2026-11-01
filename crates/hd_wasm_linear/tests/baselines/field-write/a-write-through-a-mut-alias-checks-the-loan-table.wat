@@ -13,10 +13,13 @@
     ;; 11 |     n := &t.lead.name
       local.get $t
       i32.load $heap
-      local.tee $t
-      call $retain
-      local.get $t
       local.tee $n
+      call $retain
+      local.get $n
+      local.get $t
+      i32.const 4
+      i32.const -1
+      call $rt:loan_begin
       i32.const 8
       i32.const 0
       call $rt:loan_begin

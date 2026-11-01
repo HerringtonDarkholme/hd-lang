@@ -1,0 +1,18 @@
+# test: a loan whose place has a `&T` root also covers the `*mut` slot read after it, so replacing that slot through an alias panics with borrow-conflict
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.path-pointer, ref.excl.alias.conflict.
+struct User:
+    name: string
+
+struct Team:
+    lead: *mut User
+
+fn swap_lead(t: &Team, alias: *mut Team, other: *mut User) -> string:
+    n := &t.lead.name
+    alias.lead = other # panic: borrow-conflict
+    *n
+
+pub fn main() -> void:
+    t := box(Team { lead: box(User { name: "a" }) })
+    alias := t
+    other := box(User { name: "b" })
+    _ := swap_lead(t, alias, other)

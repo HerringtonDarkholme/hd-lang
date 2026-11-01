@@ -1,0 +1,21 @@
+# test: a two-level path from a `&T` root guards its first `*mut` slot as well as the second, so replacing the first through an alias panics with borrow-conflict
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.path-pointer, ref.excl.alias.conflict.
+struct Leaf:
+    name: string
+
+struct Mid:
+    leaf: *mut Leaf
+
+struct Team:
+    mid: *mut Mid
+
+fn swap_mid(t: &Team, alias: *mut Team, other: *mut Mid) -> string:
+    n := &t.mid.leaf.name
+    alias.mid = other # panic: borrow-conflict
+    *n
+
+pub fn main() -> void:
+    t := box(Team { mid: box(Mid { leaf: box(Leaf { name: "a" }) }) })
+    alias := t
+    other := box(Mid { leaf: box(Leaf { name: "b" }) })
+    _ := swap_mid(t, alias, other)

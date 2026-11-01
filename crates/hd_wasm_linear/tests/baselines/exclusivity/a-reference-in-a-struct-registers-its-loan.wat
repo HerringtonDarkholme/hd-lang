@@ -13,10 +13,13 @@
     ;; 13 |     held := Held { name: &t.lead.name }
       local.get $t
       i32.load $heap
-      local.tee $t
-      call $retain
-      local.get $t
       local.tee $held
+      call $retain
+      local.get $held
+      local.get $t
+      i32.const 4
+      i32.const -1
+      call $rt:loan_begin
       i32.const 8
       i32.const 0
       call $rt:loan_begin
@@ -58,10 +61,13 @@
     ;; 23 |     let held: Option[&string] = .Some(&t.lead.name)
       local.get $t
       i32.load $heap
-      local.tee $t
-      call $retain
-      local.get $t
       local.tee $held
+      call $retain
+      local.get $held
+      local.get $t
+      i32.const 4
+      i32.const -1
+      call $rt:loan_begin
       i32.const 8
       i32.const 0
       call $rt:loan_begin
@@ -140,10 +146,13 @@
     ;; 18 |     held := (&t.lead.name, +1)
       local.get $t
       i32.load $heap
-      local.tee $t
-      call $retain
-      local.get $t
       local.tee $held.0
+      call $retain
+      local.get $held.0
+      local.get $t
+      i32.const 4
+      i32.const -1
+      call $rt:loan_begin
       i32.const 8
       i32.const 0
       call $rt:loan_begin

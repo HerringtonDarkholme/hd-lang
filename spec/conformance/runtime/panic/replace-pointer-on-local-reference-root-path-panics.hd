@@ -1,0 +1,19 @@
+# test: a loan through a local reference `r := &*t` guards the `*mut` slot it reads even after `r`'s last use, so replacing that slot through an alias panics with borrow-conflict
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.path-pointer, ref.excl.alias.conflict.
+struct User:
+    name: string
+
+struct Team:
+    lead: *mut User
+
+fn swap_lead(t: *mut Team, alias: *mut Team, other: *mut User) -> string:
+    r := &*t
+    n := &r.lead.name
+    alias.lead = other # panic: borrow-conflict
+    *n
+
+pub fn main() -> void:
+    t := box(Team { lead: box(User { name: "a" }) })
+    alias := t
+    other := box(User { name: "b" })
+    _ := swap_lead(t, alias, other)

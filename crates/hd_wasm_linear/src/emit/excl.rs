@@ -30,7 +30,9 @@ use crate::op::Op as I;
 use crate::rt::Helper;
 
 type Guard = (Ty, Vec<u32>);
-type LoanPlace = (Ty, Vec<u32>, Vec<Guard>);
+/// A loan place: the counted object, the field path in it, and each
+/// guarded pointer slot with the index of the dereference that reads it.
+type LoanPlace = (Ty, Vec<u32>, Vec<(usize, Guard)>);
 
 /// A loan the program may register: the type of the counted object its
 /// place lies in, the struct field path to the place, and whether it is
@@ -105,10 +107,14 @@ fn field_ty(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, f: u32) -> Option<Ty
 /// `root`, as a counted object's field: the object's type and the field
 /// path, when the place's last dereference reads a thin counted reference,
 /// only fields follow it, and no element or variant step is on the path
-/// (an element reference's loan is its collection's pin).
+/// (an element reference's loan is its collection's pin). The guards are
+/// the counted pointer slots read on the way, each in the object the
+/// previous thin reference refers to: a `&T` root's slots too.
 fn loan_place(pool: &InternPool, env: &dyn ProgramEnv, root: Ty, p: &Place) -> Option<LoanPlace> {
     let mut ty = root;
     let mut counted: Option<(Ty, usize)> = None;
+    // The target of the last local reference before the first counted one.
+    let mut local: Option<(Ty, usize)> = None;
     let mut guards = Vec::new();
     let mut k = 0;
     while k < p.proj.len() {
@@ -121,9 +127,21 @@ fn loan_place(pool: &InternPool, env: &dyn ProgramEnv, root: Ty, p: &Place) -> O
                     whole: true,
                 } => {
                     if let Some((object, start)) = counted {
-                        guards.push((object, fields(&p.proj[start..k])?));
+                        guards.push((k, (object, fields(&p.proj[start..k])?)));
+                    } else if let Some((object, start)) = local
+                        && let Some(path) = fields(&p.proj[start..k])
+                    {
+                        guards.push((k, (object, path)));
                     }
                     counted = Some((target, k + 1));
+                    target
+                }
+                Kind::Ref {
+                    target, fat: false, ..
+                } => {
+                    if counted.is_none() {
+                        local = Some((target, k + 1));
+                    }
                     target
                 }
                 Kind::Ref { target, .. } => target,
@@ -173,17 +191,11 @@ fn arg_loan(
     let v = direct_value(b, a)?;
     let excl = ref_mutable(pool, env, sub(*b.ty.get(a as usize)?));
     if b.tags[v] == Tag::Ref {
-        let p = b.decode_place(b.data[v][0])?;
-        let root = match p.root {
-            PlaceRoot::Local(r) => sub(b.local_ty[r.idx()]),
-            PlaceRoot::Global(_, t) => sub(t),
-            _ => return None,
-        };
-        let (object, path, guards) = loan_place(pool, env, root, &p)?;
+        let (_, (object, path, guards)) = ref_loan_place(pool, env, b, sub, v)?;
         return Some(Loan {
             object,
             path,
-            guards,
+            guards: guards.into_iter().map(|(_, g)| g).collect(),
             excl,
         });
     }
@@ -201,6 +213,24 @@ fn arg_loan(
         }),
         _ => None,
     }
+}
+
+/// The place of `Ref` instruction `v` and its [`loan_place`].
+fn ref_loan_place(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    b: &Body,
+    sub: &dyn Fn(Ty) -> Ty,
+    v: usize,
+) -> Option<(Place, LoanPlace)> {
+    let p = b.decode_place(b.data[v][0])?;
+    let root = match p.root {
+        PlaceRoot::Local(r) => sub(b.local_ty[r.idx()]),
+        PlaceRoot::Global(_, t) => sub(t),
+        _ => return None,
+    };
+    let place = loan_place(pool, env, root, &p)?;
+    Some((p, place))
 }
 
 /// The instruction behind representation-preserving coercions of `a`.
@@ -635,34 +665,68 @@ impl Em<'_, '_, '_> {
         if self.b.tags[v] != Tag::Ref {
             return Ok(());
         }
-        let Some(p) = self.b.decode_place(self.b.data[v][0]) else {
-            return Ok(());
+        let v = u32::try_from(v).expect("insts");
+        let marks = match self.path_marks.get(&v) {
+            Some(marks) => marks.clone(),
+            None => self.loan_path_slots(v)?,
         };
-        let derefs: Vec<usize> = p
-            .proj
-            .iter()
-            .enumerate()
-            .filter_map(|(k, step)| (*step == Proj::Deref).then_some(k))
-            .skip(1)
-            .take(count)
-            .collect();
-        for d in derefs {
+        for address in marks {
+            self.f.get(address);
+            self.f.u32(4);
+            self.f.i32(-1);
+            self.f.helper(Helper::LoanBegin);
+        }
+        Ok(())
+    }
+
+    /// The locals of the addresses of the pointer slots `Ref` `v`'s place
+    /// reads along its path. A slot kept in Wasm locals has none.
+    fn loan_path_slots(&mut self, v: u32) -> StageResult<Vec<u32>> {
+        let sub = |t| self.sub(t);
+        let Some((p, (_, _, guards))) =
+            ref_loan_place(self.pool(), self.env(), self.b, &sub, v as usize)
+        else {
+            return Ok(Vec::new());
+        };
+        let mut marks = Vec::new();
+        for (d, _) in guards {
             let mut fresh = Vec::new();
             let physical = self.deref_physical;
             self.deref_physical = true;
-            let walked = self.walk_place(u32::try_from(v).expect("insts"), &p, d, None, &mut fresh);
+            let walked = self.walk_place(v, &p, d, None, &mut fresh);
             self.deref_physical = physical;
             let (at, _) = walked?;
-            let address = self.at_address(&at);
-            self.release_fresh(&fresh)?;
-            if let Some(address) = address {
+            if let Some(address) = self.at_address(&at) {
+                // The address may be in the root's own local, which the
+                // root's release clears.
+                let x = self.f.local(Val::I32);
                 self.f.get(address);
-                self.f.u32(4);
-                self.f.i32(-1);
-                self.f.helper(Helper::LoanBegin);
+                self.f.set(x);
+                marks.push(x);
             }
+            self.release_fresh(&fresh)?;
+        }
+        Ok(marks)
+    }
+
+    /// After `Ref` `v` whose loan registers path-slot markers: keeps the
+    /// slots' addresses while its place's root is still live.
+    fn loan_path_keep(&mut self, v: u32) -> StageResult<()> {
+        if self.marked_refs.contains(&v) && self.vals.contains_key(&v) {
+            let marks = self.loan_path_slots(v)?;
+            self.path_marks.insert(v, marks);
         }
         Ok(())
+    }
+
+    /// Marks the `Ref`s whose holder or call loans register path-slot
+    /// markers (`ref.excl.alias.path-pointer`). Release builds mark none.
+    fn mark_path_refs(&mut self, a: u32) {
+        if let Some(v) = direct_value(self.b, a)
+            && self.b.tags[v] == Tag::Ref
+        {
+            self.marked_refs.insert(u32::try_from(v).expect("insts"));
+        }
     }
 
     /// Registers the direct reference arguments of call `i` until that
@@ -735,6 +799,30 @@ impl Em<'_, '_, '_> {
         }
         let sub = |t| self.sub(t);
         let found = binds(self.pool(), self.env(), self.b, &sub);
+        if !self.input.release {
+            let mut marked = Vec::new();
+            for (_, _, bind, loan) in &found {
+                if let (Bind::Begin(a) | Bind::Call(a), Some(loan)) = (bind, loan)
+                    && !loan.guards.is_empty()
+                {
+                    marked.push(*a);
+                }
+            }
+            for i in 0..self.b.tags.len() {
+                let target = self.calls.get(&u32::try_from(i).expect("insts"));
+                let Some(receiver) = call_info(self.input, self.b, i, target) else {
+                    continue;
+                };
+                for (a, loan) in call_loans(self.pool(), self.env(), self.b, &sub, i, receiver) {
+                    if !loan.guards.is_empty() {
+                        marked.push(a);
+                    }
+                }
+            }
+            for a in marked {
+                self.mark_path_refs(a);
+            }
+        }
         for (i, held, bind, loan) in found {
             let keyed = match bind {
                 Bind::Share(m) | Bind::Move(m) => self.holders.get(&m).filter(|h| h.keyed),
@@ -871,6 +959,7 @@ impl Em<'_, '_, '_> {
     // See `loan_before_store` for why this hook stays outlined.
     #[inline(never)]
     pub(super) fn loan_after_store(&mut self, i: u32) -> StageResult<()> {
+        self.loan_path_keep(i)?;
         if let Some(None) = self.held_srcs.get(&i)
             && self.vals.contains_key(&i)
         {

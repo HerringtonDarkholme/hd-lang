@@ -1012,6 +1012,12 @@ struct Em<'i, 'a, 'm> {
     held_srcs: HashMap<u32, Option<u32>>,
     /// Each keyed holder's local of its loan's address.
     loan_keys: HashMap<excl::Held, u32>,
+    /// The `Ref`s whose loans register path-slot markers, in a
+    /// development build (`excl.rs`).
+    marked_refs: hd_base::HashSet<u32>,
+    /// Each such `Ref`'s marker slot addresses, kept in locals when it is
+    /// emitted: its place's root may be released before its loan begins.
+    path_marks: HashMap<u32, Vec<u32>>,
     /// What each projection read reads, by its base value's type
     /// ([`Em::projected`]).
     projs: Vec<shape::Projected>,
@@ -1169,6 +1175,8 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             binds: HashMap::default(),
             held_srcs: HashMap::default(),
             loan_keys: HashMap::default(),
+            marked_refs: hd_base::HashSet::default(),
+            path_marks: HashMap::default(),
             projs: Vec::new(),
             view_loans: HashMap::default(),
             unowned_params: Vec::new(),
