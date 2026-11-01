@@ -125,7 +125,7 @@ impl[T] List[T]:
 
     ## True exactly when the list has no elements.
     ## See [std-collections.access.is-empty](../../spec/std/collections.md#r-std-collections.access.is-empty).
-    pub fn is_empty(self) -> bool:
+    pub fn is_empty(&self) -> bool:
         self.len() == 0
 
     # The first `count` items, or all of them (r-std-collections.access.take).
@@ -400,13 +400,13 @@ impl[T] List[T]:
 impl[T < Eq] List[T]:
     ## True exactly when the list has an element equal to `value`.
     ## See [std-collections.helper.contains](../../spec/std/collections.md#r-std-collections.helper.contains).
-    pub fn contains(self, value: T) -> bool:
+    pub fn contains(&self, value: T) -> bool:
         self.index_of(value).is_some()
 
     # The index of the first element equal to `value`.
     ## Returns the index of the first element equal to `value` by `Eq`, in `.Some`, or `.None`.
     ## See [std-collections.helper.contains](../../spec/std/collections.md#r-std-collections.helper.contains).
-    pub fn index_of(self, value: T) -> usize?:
+    pub fn index_of(&self, value: T) -> usize?:
         let index: usize = 0
         for item in self:
             if item == value:
@@ -581,7 +581,7 @@ impl[K < Eq & Hash, V] Map[K, V]:
 
     ## True exactly when the map has no entries.
     ## See [std-collections.map.is-empty](../../spec/std/collections.md#r-std-collections.map.is-empty).
-    pub fn is_empty(self) -> bool:
+    pub fn is_empty(&self) -> bool:
         self.len() == 0
 
 # The entries of a map, and the most frequent ones of a tally
@@ -620,7 +620,7 @@ pub struct ListView[T]:
 impl[T] ListView[T]:
     ## Returns the number of elements in the view.
     ## See [std-collections.view.len](../../spec/std/collections.md#r-std-collections.view.len).
-    pub fn len(self) -> usize:
+    pub fn len(&self) -> usize:
         self.end - self.start
 
     ## Returns a new list that holds the view's elements in order.
@@ -674,7 +674,7 @@ pub struct Span[T, 'a]:
 impl[T, 'a] Span[T, 'a]:
     ## Returns the number of elements in the span.
     ## See [std-collections.span.len](../../spec/std/collections.md#r-std-collections.span.len).
-    pub fn len(self) -> usize:
+    pub fn len(&self) -> usize:
         self.end - self.start
 
     ## Returns the element at `index` by reference, or `.None` when the index is out of range.
@@ -809,12 +809,12 @@ impl[T] Deque[T]:
 
     ## Returns the number of elements.
     ## See [std-collections.deque.len](../../spec/std/collections.md#r-std-collections.deque.len).
-    pub fn len(self) -> usize:
+    pub fn len(&self) -> usize:
         self.count
 
     ## True exactly when the deque has no elements.
     ## See [std-collections.deque.len](../../spec/std/collections.md#r-std-collections.deque.len).
-    pub fn is_empty(self) -> bool:
+    pub fn is_empty(&self) -> bool:
         self.count == 0
 
     ## Adds `value` after the back.
@@ -966,17 +966,17 @@ impl[T < Eq & Hash] Set[T]:
 
     ## Returns the number of elements.
     ## See [std-collections.set.len](../../spec/std/collections.md#r-std-collections.set.len).
-    pub fn len(self) -> usize:
+    pub fn len(&self) -> usize:
         self.entries.len()
 
     ## True exactly when the set has no elements.
     ## See [std-collections.set.len](../../spec/std/collections.md#r-std-collections.set.len).
-    pub fn is_empty(self) -> bool:
+    pub fn is_empty(&self) -> bool:
         self.entries.len() == 0
 
     ## True exactly when the set has an element equal to `value`.
     ## See [std-collections.set.contains](../../spec/std/collections.md#r-std-collections.set.contains).
-    pub fn contains(self, value: T) -> bool:
+    pub fn contains(&self, value: T) -> bool:
         self.entries.get(value).is_some()
 
     # Adds `value`, and is true when it was not already there.
@@ -1064,12 +1064,12 @@ impl[T < Ord] Heap[T]:
 
     ## Returns the number of elements.
     ## See [std-collections.heap.len](../../spec/std/collections.md#r-std-collections.heap.len).
-    pub fn len(self) -> usize:
+    pub fn len(&self) -> usize:
         self.items.len()
 
     ## True exactly when the heap has no elements.
     ## See [std-collections.heap.len](../../spec/std/collections.md#r-std-collections.heap.len).
-    pub fn is_empty(self) -> bool:
+    pub fn is_empty(&self) -> bool:
         self.items.len() == 0
 
     ## Adds `value` to the heap.

@@ -54,7 +54,7 @@ fn is_markdown(file: Path) -> bool:
 
 | Rule | Method | Result |
 | --- | --- | --- |
-| r[std-path.join] `join` | `pub fn join(self, part: string) -> Path` | the path followed by `part` |
+| r[std-path.join] `join` | `pub fn join(&self, part: string) -> Path` | the path followed by `part` |
 | r[std-path.parent] `parent` | `pub fn parent(self) -> Path?` | the path without its last component, or `.None` when it has none |
 | r[std-path.file-name] `file_name` | `pub fn file_name(self) -> string?` | the last component, when it names a file or directory |
 | r[std-path.extension] `extension` | `pub fn extension(self) -> string?` | the text after the last `.` of the file name |

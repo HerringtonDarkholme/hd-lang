@@ -1227,7 +1227,7 @@ The following built-in methods are normative:
 
 | Receiver | Methods |
 | --- | --- |
-| `string` | `len(self) -> usize`; `chars(self) -> Chars`; `char_indices(self) -> CharIndices`; `bytes(self) -> Bytes`; `slice(self, start: usize, end: usize) -> string` |
+| `string` | `len(&self) -> usize`; `chars(self) -> Chars`; `char_indices(self) -> CharIndices`; `bytes(self) -> Bytes`; `slice(self, start: usize, end: usize) -> string` |
 | `List[T]` | `len(self) -> usize`; `iter(self) -> ListIter[T]` |
 | `List[T]`, changing | `push(&mut self, value: T) -> void`; `pop(&mut self) -> T?`; `insert(&mut self, index: usize, value: T) -> void`; `remove_at(&mut self, index: usize) -> T`; `clear(&mut self) -> void` |
 | `Map[K, V]` | `len(self) -> usize`; `get(self, key: K) -> V?`; `iter(self) -> MapEntries[K, V]` |

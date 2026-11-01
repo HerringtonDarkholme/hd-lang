@@ -131,8 +131,8 @@ fn configured_port(text: string) -> i32:
 | --- | --- | --- |
 | r[std-result.ok] `ok` | `fn ok(self) -> T?` | `.Some(value)` for `.Ok(value)`, and `.None` for `.Err(_)` |
 | r[std-result.err] `err` | `fn err(self) -> E?` | `.None` for `.Ok(_)`, and `.Some(error)` for `.Err(error)` |
-| r[std-result.is-ok] `is_ok` | `fn is_ok(self) -> bool` | `true` for `.Ok(_)`, and `false` for `.Err(_)` |
-| r[std-result.is-err] `is_err` | `fn is_err(self) -> bool` | `false` for `.Ok(_)`, and `true` for `.Err(_)` |
+| r[std-result.is-ok] `is_ok` | `fn is_ok(&self) -> bool` | `true` for `.Ok(_)`, and `false` for `.Err(_)` |
+| r[std-result.is-err] `is_err` | `fn is_err(&self) -> bool` | `false` for `.Ok(_)`, and `true` for `.Err(_)` |
 | r[std-result.expect] `expect` | `fn expect(self, message: string) -> T` for `E < Display` | `value` for `.Ok(value)`, and a panic for `.Err(error)` |
 
 1. r[std-result.tests.inherent] The five are inherent methods that `std` declares on `Result[T, E]` as well, so they need no `use` either.

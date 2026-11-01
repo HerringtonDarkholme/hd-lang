@@ -91,7 +91,7 @@ fn total(view: ListView[i32]) -> i32:
 
 | Item | Signature |
 | --- | --- |
-| `len` | `len(self) -> usize` |
+| `len` | `len(&self) -> usize` |
 | `to_list` | `to_list(self) -> List[T]` |
 | index read | `Index[usize]` with `Out = T` |
 | iteration | `Iterable[T]` |
@@ -156,7 +156,7 @@ fn middle['a](items: &'a List[i32]) -> Span[i32, 'a]:
 | Item | Signature |
 | --- | --- |
 | construction | `span['a](&'a self) -> Span[T, 'a]` on `List[T]` |
-| `len` | `len(self) -> usize` |
+| `len` | `len(&self) -> usize` |
 | `get` | `get(self, index: usize) -> (&'a T)?` |
 | `slice` | `slice(self, range: Range[usize]) -> Span[T, 'a]` |
 | index read | `Index[usize]` with `Out = &'a T` |
@@ -260,7 +260,7 @@ fn owners(tasks: List[Task]) -> List[string]:
 | --- | --- |
 | `List[T]` | `sorted_by_key[K < Ord](&self, key: fn(&T) -> K) -> List[T]`; `group_by[K < Eq & Hash](&self, key: fn(&T) -> K) -> Map[K, List[T]]`; `partition(&self, keep: fn(&T) -> bool) -> (List[T], List[T])`; `any(&self, test: fn(&T) -> bool) -> bool`; `all(&self, test: fn(&T) -> bool) -> bool`; `find(&self, test: fn(&T) -> bool) -> (&T)?`; `flat_map[U, I < Iterable[U]](self, transform: fn(T) -> I) -> List[U]`; `windows(self, size: usize) -> List[ListView[T]]` |
 | `List[T]` | `min_by_key[K < Ord](&self, key: fn(&T) -> K) -> (&T)?`; `max_by_key[K < Ord](&self, key: fn(&T) -> K) -> (&T)?` |
-| `List[T]`, when `T < Eq` | `contains(self, value: T) -> bool`; `index_of(self, value: T) -> usize?`; `dedup(self) -> List[T]` |
+| `List[T]`, when `T < Eq` | `contains(&self, value: T) -> bool`; `index_of(&self, value: T) -> usize?`; `dedup(self) -> List[T]` |
 | `List[T]`, when `T < Eq & Hash` | `unique(self) -> List[T]` |
 | `List[T]`, when `T < Ord` | `sorted(&self) -> List[T]`; `sort(&mut self) -> void`; `min(&self) -> (&T)?`; `max(&self) -> (&T)?` |
 | `List[T]`, when `T < Num` | `sum(self) -> T` |
@@ -353,7 +353,7 @@ fn tally(words: List[string]) -> Map[string, usize]:
 
 | Receiver | Methods |
 | --- | --- |
-| `Map[K, V]` | `get_mut(&mut self, key: K) -> (&mut V)?`; `get_or_insert(&mut self, key: K, default: V) -> &mut V`; `contains_key(self, key: K) -> bool`; `keys(self) -> List[K]`; `values(self) -> List[V]`; `is_empty(self) -> bool`; `entries(self) -> List[(K, V)]` |
+| `Map[K, V]` | `get_mut(&mut self, key: K) -> (&mut V)?`; `get_or_insert(&mut self, key: K, default: V) -> &mut V`; `contains_key(self, key: K) -> bool`; `keys(self) -> List[K]`; `values(self) -> List[V]`; `is_empty(&self) -> bool`; `entries(self) -> List[(K, V)]` |
 | `Map[K, usize]` | `most_common(self, n: usize) -> List[(K, usize)]` |
 
 ```text
@@ -452,8 +452,8 @@ fn distinct(words: List[string]) -> Set[string]:
 | Item | Signature |
 | --- | --- |
 | `new` | `Set::new() -> Set[T]` |
-| `len`, `is_empty` | `len(self) -> usize`; `is_empty(self) -> bool` |
-| `contains` | `contains(self, value: T) -> bool` |
+| `len`, `is_empty` | `len(&self) -> usize`; `is_empty(&self) -> bool` |
+| `contains` | `contains(&self, value: T) -> bool` |
 | `insert`, `remove` | `insert(&mut self, value: T) -> bool`, and the same for `remove` |
 | iteration | `Iterable[T]` |
 | `collect` | `FromIterator[T]` |
@@ -508,7 +508,7 @@ fn rotate(items: List[i32]) -> List[i32]:
 | Item | Signature |
 | --- | --- |
 | `new` | `Deque::new() -> Deque[T]` |
-| `len`, `is_empty` | `len(self) -> usize`; `is_empty(self) -> bool` |
+| `len`, `is_empty` | `len(&self) -> usize`; `is_empty(&self) -> bool` |
 | `push_front`, `push_back` | `push_front(&mut self, value: T) -> void`, and the same for `push_back` |
 | `pop_front`, `pop_back` | `pop_front(&mut self) -> T?`, and the same for `pop_back` |
 | `front`, `back` | `front(&self) -> (&T)?`, and the same for `back` |
@@ -576,7 +576,7 @@ fn smallest(items: List[i32]) -> i32?:
 | Item | Signature |
 | --- | --- |
 | `new` | `Heap::new() -> Heap[T]` |
-| `len`, `is_empty` | `len(self) -> usize`; `is_empty(self) -> bool` |
+| `len`, `is_empty` | `len(&self) -> usize`; `is_empty(&self) -> bool` |
 | `push` | `push(&mut self, value: T) -> void` |
 | `pop` | `pop(&mut self) -> T?` |
 | `peek` | `peek(&self) -> (&T)?` |
@@ -628,7 +628,7 @@ fn merged(head: List[i32], tail: List[i32]) -> List[i32]:
 
 | Receiver | Methods |
 | --- | --- |
-| `List[T]` | `get(&self, index: usize) -> (&T)?`; `is_empty(self) -> bool`; `first(&self) -> (&T)?`; `last(&self) -> (&T)?`; `take(self, count: usize) -> List[T]`; `filter(&self, keep: fn(&T) -> bool) -> List[T]`; `reversed(self) -> List[T]`; `sorted_by(&self, compare: fn(&T, &T) -> Ordering) -> List[T]`; `zip[U](self, other: List[U]) -> List[(T, U)]` |
+| `List[T]` | `get(&self, index: usize) -> (&T)?`; `is_empty(&self) -> bool`; `first(&self) -> (&T)?`; `last(&self) -> (&T)?`; `take(self, count: usize) -> List[T]`; `filter(&self, keep: fn(&T) -> bool) -> List[T]`; `reversed(self) -> List[T]`; `sorted_by(&self, compare: fn(&T, &T) -> Ordering) -> List[T]`; `zip[U](self, other: List[U]) -> List[(T, U)]` |
 | `List[T]`, changing | `get_mut(&mut self, index: usize) -> (&mut T)?`; `first_mut(&mut self) -> (&mut T)?`; `last_mut(&mut self) -> (&mut T)?`; `extend(&mut self, other: List[T]) -> void`; `retain(&mut self, keep: fn(&T) -> bool) -> void`; `sort_by(&mut self, compare: fn(&T, &T) -> Ordering) -> void`; `sort_by_key[K < Ord](&mut self, key: fn(&T) -> K) -> void`; `swap(&mut self, a: usize, b: usize) -> void` |
 
 1. r[std-collections.access.get] `get(index)` returns `.Some` of a reference to the element at `index`, or `.None` when `index` is not less than `len()`. It never panics. A caller that wants a copy writes `.copied()` or `*`.

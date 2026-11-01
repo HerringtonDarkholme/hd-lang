@@ -312,7 +312,7 @@ fn quick(text: string) -> bool:
 
 | Rule | Method | Result |
 | --- | --- | --- |
-| r[std-regex.captures.len] `len` | `pub fn len(self) -> usize` | the number of capture groups in the pattern, plus one |
+| r[std-regex.captures.len] `len` | `pub fn len(&self) -> usize` | the number of capture groups in the pattern, plus one |
 | r[std-regex.captures.get] `get` | `pub fn get(self, index: usize) -> Match?` | group `index`, where 0 is the whole match |
 | r[std-regex.captures.name] `name` | `pub fn name(self, name: string) -> Match?` | the group named `name` |
 

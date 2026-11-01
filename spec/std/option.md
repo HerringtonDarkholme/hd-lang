@@ -76,8 +76,8 @@ fn greeting(name: string?) -> string:
 | Rule | Method | Result |
 | --- | --- | --- |
 | r[std-option.ok-or] `ok_or` | `fn ok_or[E](self, error: E) -> Result[T, E]` | `.Ok(value)` for `.Some(value)`, and `.Err(error)` for `.None` |
-| r[std-option.is-some] `is_some` | `fn is_some(self) -> bool` | `true` for `.Some(_)`, and `false` for `.None` |
-| r[std-option.is-none] `is_none` | `fn is_none(self) -> bool` | `false` for `.Some(_)`, and `true` for `.None` |
+| r[std-option.is-some] `is_some` | `fn is_some(&self) -> bool` | `true` for `.Some(_)`, and `false` for `.None` |
+| r[std-option.is-none] `is_none` | `fn is_none(&self) -> bool` | `false` for `.Some(_)`, and `true` for `.None` |
 | r[std-option.expect] `expect` | `fn expect(self, message: string) -> T` | `value` for `.Some(value)`, and a panic for `.None` |
 
 1. r[std-option.tests.inherent] The four are inherent methods that `std` declares on `T?` as well, so they need no `use` either.

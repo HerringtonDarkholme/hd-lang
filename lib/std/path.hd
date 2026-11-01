@@ -26,8 +26,8 @@ impl Path:
     # (r-std-path.join).
     ## The path with `part` joined on by `/`; an absolute `part` replaces the whole path.
     ## See [std-path.join](../../spec/std/path.md#r-std-path.join).
-    pub fn join(self, part: string) -> Path:
-        text := string(self)
+    pub fn join(&self, part: string) -> Path:
+        text := string(*self)
         if part.starts_with("/") || text == "" || text.ends_with("/"):
             return Path(if part.starts_with("/"): part else: text + part)
         Path(text + "/" + part)

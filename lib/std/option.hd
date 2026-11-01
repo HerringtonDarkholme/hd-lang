@@ -55,14 +55,14 @@ impl[T < ?Copy] T?:
 
     ## True for a `.Some`.
     ## See [std-option.is-some](../../spec/std/option.md#r-std-option.is-some).
-    pub fn is_some(self) -> bool:
+    pub fn is_some(&self) -> bool:
         match self:
             .Some(_) => true
             .None => false
 
     ## True for a `.None`.
     ## See [std-option.is-none](../../spec/std/option.md#r-std-option.is-none).
-    pub fn is_none(self) -> bool:
+    pub fn is_none(&self) -> bool:
         match self:
             .Some(_) => false
             .None => true

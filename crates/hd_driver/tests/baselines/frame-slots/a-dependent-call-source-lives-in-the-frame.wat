@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "impl User.name" (func $"impl User.name" (param i32 i32) (result i32)))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
+  (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $length (result i32) (local $seen i32) (local $t0 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $user i32)
     ;; ...
@@ -49,23 +49,10 @@
     ;; 21 |     n := user.name(&mut seen)
       local.get $seen
       call $"impl User.name"
-      local.tee $seen
     ;; 22 |     n.len()
-      local.tee $t3
-      i32.load $heap
-      local.tee $t2
-      local.get $t3
-      i32.load $heap offset=4
-      local.tee $t3
-      call $rt:retain
-      ;; ...
-      block
-        block
-          local.get $t3
-          local.set $seen
-          br 0
-        end
-      end
+      local.tee $seen
+      call $"impl string.len"
+      local.set $t3
       ;; ...
     end
     ;; ...

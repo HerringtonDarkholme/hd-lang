@@ -1,6 +1,8 @@
 std/console/println (Fn)
   local $0 value: T [param read captured]
   local $1 console: Ref[mut Console] [read assigned]
+  local $2 $ref: Result[(), ConsoleError] [read assigned captured captured-assigned]
+  local $3 $ref: Result[(), ConsoleError] [read assigned captured captured-assigned]
   %0 = ProviderGet #0 : Console
   %1 = Coerce %0 [ProviderAsRef -] : Ref[mut Console]
   %2 = Store [$1] %1 : ()
@@ -8,14 +10,18 @@ std/console/println (Fn)
   %4 = Ref local [$0] : Counted[T]
   %5 = Call std/format/Display.to_string for T [] via Bound (%4) : string
   %6 = Call std/console/Console.write_sync for Console [] via TraitValue (%3, %5) : Result[(), ConsoleError]
-  %7 = Call std/result/impl [ T < ? Copy , E < ? Copy ] Result [ T , E ].is_err[(), ConsoleError] (%6) : bool
-  %8 = Call std/core/panic[] ("println: write_sync returned .Err(ConsoleError)") : never
-  %9 = Block - : never
-  %10 = If %7 [%9 -] : ()
-  %11 = Read [*$1] : mut Console
-  %12 = Call std/console/Console.write_sync for Console [] via TraitValue (%11, "\n") : Result[(), ConsoleError]
-  %13 = Call std/result/impl [ T < ? Copy , E < ? Copy ] Result [ T , E ].is_err[(), ConsoleError] (%12) : bool
-  %14 = Call std/core/panic[] ("println: write_sync returned .Err(ConsoleError)") : never
-  %15 = Block - : never
-  %16 = If %13 [%15 -] : ()
-  %17 = Block - : ()
+  %7 = Store [$2] %6 : ()
+  %8 = Ref [$2] : Counted[Result[(), ConsoleError]]
+  %9 = Call std/result/impl [ T < ? Copy , E < ? Copy ] Result [ T , E ].is_err[(), ConsoleError] (%8) : bool
+  %10 = Call std/core/panic[] ("println: write_sync returned .Err(ConsoleError)") : never
+  %11 = Block - : never
+  %12 = If %9 [%11 -] : ()
+  %13 = Read [*$1] : mut Console
+  %14 = Call std/console/Console.write_sync for Console [] via TraitValue (%13, "\n") : Result[(), ConsoleError]
+  %15 = Store [$3] %14 : ()
+  %16 = Ref [$3] : Counted[Result[(), ConsoleError]]
+  %17 = Call std/result/impl [ T < ? Copy , E < ? Copy ] Result [ T , E ].is_err[(), ConsoleError] (%16) : bool
+  %18 = Call std/core/panic[] ("println: write_sync returned .Err(ConsoleError)") : never
+  %19 = Block - : never
+  %20 = If %17 [%19 -] : ()
+  %21 = Block - : ()

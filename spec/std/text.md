@@ -38,7 +38,7 @@ tier too ([Prefixed Strings](../lang/05-expressions.md#prefixed-strings)).
 
 | Receiver | Methods |
 | --- | --- |
-| `string` | `trim(self) -> string`; `lower(self) -> string`; `split(self, separator: string) -> List[string]`; `replace(self, old: string, replacement: string) -> string`; `starts_with(self, prefix: string) -> bool`; `lines(self) -> List[string]`; `repeat(self, count: usize) -> string` |
+| `string` | `trim(self) -> string`; `lower(self) -> string`; `split(self, separator: string) -> List[string]`; `replace(self, old: string, replacement: string) -> string`; `starts_with(&self, prefix: string) -> bool`; `lines(self) -> List[string]`; `repeat(self, count: usize) -> string` |
 
 1. r[std-text.string.lower] `lower` uses Unicode Default Case Conversion with full mappings.
 2. r[std-text.string.trim] `trim` removes the Unicode `White_Space` property at both ends.
@@ -83,7 +83,7 @@ fn word_count(text: string) -> usize:
 
 | Receiver | Methods |
 | --- | --- |
-| `string` | `split_once(self, separator: string) -> (string, string)?`; `splitn(self, separator: string, n: usize) -> List[string]`; `split_whitespace(self) -> List[string]`; `pad_start(self, width: usize, fill: char = ' ') -> string`; `pad_end(self, width: usize, fill: char = ' ') -> string`; `count(self, needle: string) -> usize` |
+| `string` | `split_once(self, separator: string) -> (string, string)?`; `splitn(self, separator: string, n: usize) -> List[string]`; `split_whitespace(self) -> List[string]`; `pad_start(self, width: usize, fill: char = ' ') -> string`; `pad_end(self, width: usize, fill: char = ' ') -> string`; `count(&self, needle: string) -> usize` |
 
 1. r[std-text.split-once] `split_once(separator)` returns `.Some((before, after))`, with the text before and after the first occurrence of `separator`.
 2. r[std-text.split-once.absent] It returns `.None` when `separator` does not occur, so `"".split_once("=")` is `.None`.
@@ -295,7 +295,7 @@ fn header(line: string) -> string?:
 
 | Receiver | Methods |
 | --- | --- |
-| `string` | `is_empty(self) -> bool`; `ends_with(self, suffix: string) -> bool`; `contains(self, needle: string) -> bool`; `find(self, needle: string) -> usize?`; `rfind(self, needle: string) -> usize?`; `trim_start(self) -> string`; `trim_end(self) -> string`; `upper(self) -> string`; `strip_prefix(self, prefix: string) -> string?`; `strip_suffix(self, suffix: string) -> string?` |
+| `string` | `is_empty(&self) -> bool`; `ends_with(&self, suffix: string) -> bool`; `contains(&self, needle: string) -> bool`; `find(&self, needle: string) -> usize?`; `rfind(&self, needle: string) -> usize?`; `trim_start(self) -> string`; `trim_end(self) -> string`; `upper(self) -> string`; `strip_prefix(self, prefix: string) -> string?`; `strip_suffix(self, suffix: string) -> string?` |
 
 1. r[std-text.more.is-empty] `is_empty` is true exactly when the string has no bytes.
 2. r[std-text.more.ends-with] `ends_with` compares scalar sequences exactly, as `starts_with` does.
@@ -339,7 +339,7 @@ fn report(names: List[string]) -> string:
     out.build()
 ```
 
-1. r[std-text.join.list-method] `std.text` gives `List[string]` the method `join(self, separator: string) -> string`. Calling it needs no import.
+1. r[std-text.join.list-method] `std.text` gives `List[string]` the method `join(&self, separator: string) -> string`. Calling it needs no import.
 2. r[std-text.join.list-result] `join` returns the parts in order with `separator` between each two, so one part gives that part and no part gives `""`.
 3. r[std-text.builder.decl-struct] `std.text` declares the struct `StringBuilder`, with private fields, which implements `Debug`. Code imports it, as in `use std.text.StringBuilder`.
 4. r[std-text.builder.new-ref] `StringBuilder::new() -> *mut StringBuilder` returns an empty builder, a new object. Every copy of the reference pushes to that one builder.

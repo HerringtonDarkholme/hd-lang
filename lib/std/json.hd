@@ -59,12 +59,12 @@ impl JsonObject:
 
     ## Returns the number of members.
     ## See [std-json.object.len](../../spec/std/json.md#r-std-json.object.len).
-    pub fn len(self) -> usize:
+    pub fn len(&self) -> usize:
         self.entries.len()
 
     ## True exactly when the object has no members.
     ## See [std-json.object.len](../../spec/std/json.md#r-std-json.object.len).
-    pub fn is_empty(self) -> bool:
+    pub fn is_empty(&self) -> bool:
         self.entries.len() == 0
 
     ## The value of `key`, or `.None` when the object has no such key.

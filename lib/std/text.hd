@@ -210,8 +210,8 @@ impl string:
     # The number of bytes (spec/lang/04-type-system.md#r-types.string.len-bytes).
     ## Returns the number of bytes in the string.
     ## See [ilt-in-methods](../../spec/lang/10-modules.md#built-in-methods).
-    pub fn len(self) -> usize:
-        bytes_len(self)
+    pub fn len(&self) -> usize:
+        bytes_len(*self)
 
     # Reads the whole text as a `T` (r-std-text.parse.method).
     ## Reads the whole string as a `T` through `T::parse`.
@@ -303,40 +303,40 @@ impl string:
 
     ## True exactly when the string has no characters.
     ## See [std-text.more.is-empty](../../spec/std/text.md#r-std-text.more.is-empty).
-    pub fn is_empty(self) -> bool:
-        bytes_len(self) == 0
+    pub fn is_empty(&self) -> bool:
+        bytes_len(*self) == 0
 
     ## True when the string begins with `prefix`.
     ## See [std-text.string.starts-with](../../spec/std/text.md#r-std-text.string.starts-with).
-    pub fn starts_with(self, prefix: string) -> bool:
-        bytes_len(prefix) <= bytes_len(self) && bytes_match(self, prefix, 0)
+    pub fn starts_with(&self, prefix: string) -> bool:
+        bytes_len(prefix) <= bytes_len(*self) && bytes_match(*self, prefix, 0)
 
     ## True when the string ends with `suffix`.
     ## See [std-text.more.ends-with](../../spec/std/text.md#r-std-text.more.ends-with).
-    pub fn ends_with(self, suffix: string) -> bool:
+    pub fn ends_with(&self, suffix: string) -> bool:
         (
-            bytes_len(suffix) <= bytes_len(self)
-            && bytes_match(self, suffix, bytes_len(self) - bytes_len(suffix))
+            bytes_len(suffix) <= bytes_len(*self)
+            && bytes_match(*self, suffix, bytes_len(*self) - bytes_len(suffix))
         )
 
     ## True when `needle` occurs in the string.
     ## See [std-text.more.contains](../../spec/std/text.md#r-std-text.more.contains).
-    pub fn contains(self, needle: string) -> bool:
-        match byte_find(self, needle, 0):
+    pub fn contains(&self, needle: string) -> bool:
+        match byte_find(*self, needle, 0):
             .Some(_) => true
             .None => false
 
     # The byte offset of the first `needle`; an empty needle is at 0.
     ## Returns the byte offset of the first occurrence of `needle`, in `.Some`, or `.None`.
     ## See [std-text.more.find](../../spec/std/text.md#r-std-text.more.find).
-    pub fn find(self, needle: string) -> usize?:
-        byte_find(self, needle, 0)
+    pub fn find(&self, needle: string) -> usize?:
+        byte_find(*self, needle, 0)
 
     # The byte offset of the last `needle`; an empty needle is at the end.
     ## Returns the byte offset of the last occurrence of `needle`, in `.Some`, or `.None`.
     ## See [std-text.rfind](../../spec/std/text.md#r-std-text.rfind).
-    pub fn rfind(self, needle: string) -> usize?:
-        byte_rfind(self, needle)
+    pub fn rfind(&self, needle: string) -> usize?:
+        byte_rfind(*self, needle)
 
     # At most `n` pieces: the first `n - 1` that `split` gives, then the
     # rest of the string.
@@ -569,15 +569,15 @@ impl string:
     # at every scalar boundary, so it counts the scalars plus one.
     ## Returns the number of occurrences of `needle` in the string.
     ## See [std-text.count](../../spec/std/text.md#r-std-text.count).
-    pub fn count(self, needle: string) -> usize:
+    pub fn count(&self, needle: string) -> usize:
         if bytes_len(needle) == 0:
-            return scalar_count(self) + 1
+            return scalar_count(*self) + 1
         finder := searcher(needle)
         let found: usize = 0
         let start: usize = 0
         let searching = true
         while searching:
-            match search_from(finder, self, start):
+            match search_from(finder, *self, start):
                 .Some(at) =>
                     found = found + 1
                     start = at + bytes_len(needle)
@@ -637,9 +637,9 @@ impl List[string]:
     # (r-std-text.join.list-method).
     ## Joins the list's elements with `separator` between each two.
     ## See [std-text.join.list-method](../../spec/std/text.md#r-std-text.join.list-method).
-    pub fn join(self, separator: string) -> string:
+    pub fn join(&self, separator: string) -> string:
         if bytes_len(separator) == 0:
-            return concat_all(self)
+            return concat_all(*self)
         # The parts with a separator between each two, then one copy of all.
         let mut pieces: List[string] = []
         for part in self:

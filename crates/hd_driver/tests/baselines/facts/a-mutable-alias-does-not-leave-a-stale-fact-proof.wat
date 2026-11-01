@@ -2,8 +2,10 @@
 (module
   (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
   (import "fixture" "impl Facts.find[std.serde.EnumTagging]" (func $"impl Facts.find[std.serde.EnumTagging]" (param i32) (result i32 i32 i32 i32 i32 i32)))
+  (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
+  (import "fixture" "impl [ T < ? Copy ] T ?.is_some[std.serde.EnumTagging]" (func $"impl [ T < ? Copy ] T ?.is_some[std.serde.EnumTagging]" (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $mutated (param $value i64) (result i64) (local $t0 i32) (local $t4 i32) (local $facts i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t5 i32)
+  (func $mutated (param $value i64) (result i64) (local $t0 i32) (local $t5 i32) (local $facts i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32)
     ;; ...
     block
       ;; ...
@@ -15,39 +17,38 @@
       ;; ...
       local.get $t0
       call $"impl Facts.find[std.serde.EnumTagging]"
-      ;; ...
       local.set $t1
       local.set $t2
       local.set $t3
-      local.set $facts
       local.set $t4
-      local.set $t0
-      block
-        block
-          block
-            block
-              block
-                local.get $t0
-                i32.const 1
-                i32.eq
-                br_if 0
-                local.get $t0
-                i32.eqz
-                br_if 1
-                unreachable
-                unreachable
-              end
-              i32.const 1
-              local.set $t5
-              br 1
-            end
-            br 0
-          end
-          br 0
-        end
-      end
+      local.set $facts
+      local.set $t5
       ;; ...
+      i32.const 24
+      i32.const 4
+      call $rt:new/class-2
+      local.tee $t0
       local.get $t5
+      i32.store8 $heap
+      local.get $t0
+      local.get $facts
+      i32.store $heap offset=4
+      local.get $t0
+      local.get $t4
+      i32.store $heap offset=8
+      local.get $t0
+      local.get $t3
+      i32.store $heap offset=12
+      local.get $t0
+      local.get $t2
+      i32.store $heap offset=16
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=20
+      local.get $t0
+      call $"impl [ T < ? Copy ] T ?.is_some[std.serde.EnumTagging]"
+      local.get $t0
+      ;; ...
       if (result i64)
     ;; 18 |         value + 1
         local.get $value

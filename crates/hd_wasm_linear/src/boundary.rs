@@ -112,6 +112,9 @@ pub struct LJson {
     pub decode: Option<[Hash128; 3]>,
     pub decoded: Vec<Val>,
     pub decoded_walk: Option<Walk>,
+    /// The decoded `Result`'s size and leaves in memory: `is_ok` borrows it
+    /// (`&self`), so it reads the result from a block of its own.
+    pub decoded_mem: (u32, Vec<layout::Leaf>),
 }
 
 impl LTy {
@@ -423,6 +426,7 @@ fn json(input: &Input<'_>, t: Ty, s: Ty, at: AtProfile<'_>) -> StageResult<LTy> 
             decode: None,
             decoded: Vec::new(),
             decoded_walk: None,
+            decoded_mem: (0, Vec::new()),
         })));
     }
     let (Some(decode), Some(decoded)) = (if at.package {
@@ -442,6 +446,10 @@ fn json(input: &Input<'_>, t: Ty, s: Ty, at: AtProfile<'_>) -> StageResult<LTy> 
         decode: Some([decode.decode, decode.is_ok, decode.expect]),
         decoded: layout::vals(pool, env, decoded)?,
         decoded_walk: input.runtime.and_then(|_| layout::walk(pool, env, decoded)),
+        decoded_mem: {
+            let m = layout::mem(pool, env, decoded)?;
+            (m.size, m.leaves)
+        },
     })))
 }
 
@@ -1933,8 +1941,8 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
                 return f;
             };
             let text = dec_into(&mut f, 0, &LTy::Str);
-            // `decode`, `is_ok` and `expect` own their arguments
-            // (`layout::Pass`): each takes a count of its own.
+            // `decode` and `expect` own their arguments (`layout::Pass`):
+            // each takes a count of its own; `is_ok` borrows.
             let counts = m.runtime.is_some();
             if counts {
                 own_arg(&mut f, &[Val::I32, Val::I32], Some(&Walk::Ref(0)), &|f| {
@@ -1962,11 +1970,29 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
                     f.get(*l);
                 }
             };
-            if counts {
-                own_arg(&mut f, &j.decoded, j.decoded_walk.as_ref(), &get_res);
+            // `is_ok` borrows the result (`&self`): its values go to a
+            // block of their own, uncounted, whose address it takes; the
+            // block goes after the call, its values untouched.
+            let (size, leaves) = &j.decoded_mem;
+            let block = f.local(Val::I32);
+            f.u32((*size).max(1));
+            crate::rt::push_desc(&mut f, None, false);
+            f.helper(Helper::New);
+            f.set(block);
+            for (leaf, l) in leaves.iter().zip(&res) {
+                f.get(block);
+                f.get(*l);
+                f.op(leaf.store(0));
             }
-            get_res(&mut f);
+            let ok = f.local(Val::I32);
+            f.get(block);
             f.call(Sym::Inst(is_ok));
+            f.set(ok);
+            if counts {
+                f.get(block);
+                f.helper(Helper::ReleaseRef);
+            }
+            f.get(ok);
             f.op(I::I32Eqz);
             f.op(I::If(BlockType::Empty));
             // A `deserialize` error is a `host-contract` panic the caller

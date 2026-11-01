@@ -125,7 +125,7 @@ where they were.
 | Rule | Method | Result |
 | --- | --- | --- |
 | r[std-json.object.new-value] `new` | `pub fn new() -> JsonObject` | an object with no members |
-| r[std-json.object.len] `len` | `pub fn len(self) -> usize` | the number of members; `is_empty` is `len() == 0` |
+| r[std-json.object.len] `len` | `pub fn len(&self) -> usize` | the number of members; `is_empty` is `len() == 0` |
 | r[std-json.object.get] `get` | `pub fn get(self, key: string) -> Json?` | the value of `key`, or `.None`; `contains_key` is `true` for a key that has a member |
 | r[std-json.object.set-ref] `set` | `pub fn set(&mut self, key: string, value: Json) -> void` | a new key becomes the last member, and an existing key keeps its place with the new value |
 | r[std-json.object.remove-ref] `remove` | `pub fn remove(&mut self, key: string) -> Json?` | removes the member `key` and gives its value, or `.None` when there is no such key; the other members keep their order |
