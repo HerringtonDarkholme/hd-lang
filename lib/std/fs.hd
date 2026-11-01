@@ -156,7 +156,8 @@ fn walk_into!(dir: Path, found: &mut List[Entry]) -> Result[void, FsError] $ FsR
     .Ok(())
 
 fn sorted_entries!(dir: Path) -> Result[List[Entry], FsError] $ FsRead:
-    .Ok(list_dir!(dir)?.sorted_by(fn(a: Entry, b: Entry) -> Ordering: "${a.path}".cmp("${b.path}")))
+    entries := list_dir!(dir)?
+    .Ok(entries.sorted_by(fn(a: Entry, b: Entry) -> Ordering: "${a.path}".cmp(&"${b.path}")))
 
 # One piece of a glob component's pattern. Each piece but `Many` matches one
 # character (r-std-fs.glob.star, r-std-fs.glob.class).
@@ -186,7 +187,7 @@ pub fn glob!(pattern: string) -> Result[List[Path], FsError] $ FsRead:
     let mut texts: List[string] = []
     for path in found:
         texts.push("${path}")
-    let sorted = texts.sorted_by(fn(a: string, b: string) -> Ordering: a.cmp(b))
+    let sorted = texts.sorted_by(fn(a: string, b: string) -> Ordering: a.cmp(&b))
     let mut result: List[Path] = []
     let previous: string? = .None
     for text in sorted:
@@ -479,7 +480,7 @@ impl FsRead for MemoryFs:
                 .None => pass
         let mut entries: List[Entry] = []
         let mut seen: Map[string, bool] = {}
-        for name in names.sorted_by(fn(a: string, b: string) -> Ordering: a.cmp(b)):
+        for name in names.sorted_by(fn(a: string, b: string) -> Ordering: a.cmp(&b)):
             # The root itself is not one of its children.
             if name == "." || name == "":
                 continue

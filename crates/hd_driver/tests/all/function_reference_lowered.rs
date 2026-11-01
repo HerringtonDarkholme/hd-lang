@@ -79,7 +79,7 @@ pub fn main() -> void $ Console:
     println(eq(&1, &1))
     println(eq(&1, &2))
     cmp := i32::cmp
-    println(cmp(1, 2) == .Less)
+    println(cmp(&1, &2) == .Less)
     println(apply(i32::add, 3, 4))
     let xs: List[i32] = [3, 1, 2]
     println(xs.map(i32::neg)[0])

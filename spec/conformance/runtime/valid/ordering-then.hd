@@ -5,7 +5,7 @@ struct Entry:
     score: i32
 
 fn by_score_then_name(a: Entry, b: Entry) -> Ordering:
-    b.score.cmp(a.score).then(a.name.cmp(b.name))
+    b.score.cmp(&a.score).then(a.name.cmp(&b.name))
 
 tests:
     use std.testing.assert_equal

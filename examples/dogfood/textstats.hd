@@ -35,8 +35,8 @@ fn word_counts(lines: List[string]) -> List[WordCount]:
 
 # Highest count first; ties broken alphabetically.
 fn by_count_then_word(a: WordCount, b: WordCount) -> Ordering:
-    match b.count.cmp(a.count):
-        .Equal => a.word.cmp(b.word)
+    match b.count.cmp(&a.count):
+        .Equal => a.word.cmp(&b.word)
         other => other
 
 fn top_words(lines: List[string], limit: usize) -> List[WordCount]:

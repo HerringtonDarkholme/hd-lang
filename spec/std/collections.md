@@ -616,7 +616,7 @@ fn merged(head: List[i32], tail: List[i32]) -> List[i32]:
     let mut all: List[i32] = []
     all.extend(head.filter(fn(n: i32) -> bool: n > 0))
     all.extend(tail)
-    all.sorted_by(fn(a: i32, b: i32) -> Ordering: b.cmp(a))
+    all.sorted_by(fn(a: i32, b: i32) -> Ordering: b.cmp(&a))
 ```
 
 | Receiver | Methods |

@@ -82,9 +82,9 @@ pub fn main() -> void $ Console:
     println((1, \"b\") < (1, \"a\"))
     println((1, \"a\") <= (1, \"a\"))
     println((3, 0) > (2, 9))
-    println(debug((1, 2).cmp((1, 3))))
-    println(debug((1, 3).cmp((1, 3))))
-    println(debug(((0, 5), 1).cmp(((0, 4), 9))))
+    println(debug((1, 2).cmp(&(1, 3))))
+    println(debug((1, 3).cmp(&(1, 3))))
+    println(debug(((0, 5), 1).cmp(&((0, 4), 9))))
 ";
     assert_eq!(
         output_of("ord", main),

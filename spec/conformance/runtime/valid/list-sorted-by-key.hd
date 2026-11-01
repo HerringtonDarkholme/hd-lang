@@ -35,7 +35,7 @@ tests:
                 for task in tasks:
                     if task.hours == i32(hours):
                         expected.push(task.name)
-            by_compare := tasks.sorted_by(fn(a: Task, b: Task) -> Ordering: a.hours.cmp(b.hours))
+            by_compare := tasks.sorted_by(fn(a: Task, b: Task) -> Ordering: a.hours.cmp(&b.hours))
             by_key := tasks.sorted_by_key(fn(task: Task) -> i32: task.hours)
             assert_equal(
                 names(by_compare),

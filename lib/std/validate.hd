@@ -439,7 +439,7 @@ impl Validate for string:
     fn text_of(&self) -> string?:
         .Some(*self)
     fn partial_cmp_of(&self, other: &string) -> Result[Ordering?, void]:
-        .Ok(self.partial_cmp(*other))
+        .Ok(self.partial_cmp(other))
     fn equal_to(&self, other: &string) -> bool?:
         .Some(*self == *other)
     fn path_name(&self) -> string?:
@@ -449,7 +449,7 @@ impl Validate for i8:
     fn collect(&self, context: &mut ValidationContext) -> void:
         pass
     fn partial_cmp_of(&self, other: &i8) -> Result[Ordering?, void]:
-        .Ok(self.partial_cmp(*other))
+        .Ok(self.partial_cmp(other))
     fn equal_to(&self, other: &i8) -> bool?:
         .Some(*self == *other)
 
@@ -457,7 +457,7 @@ impl Validate for i16:
     fn collect(&self, context: &mut ValidationContext) -> void:
         pass
     fn partial_cmp_of(&self, other: &i16) -> Result[Ordering?, void]:
-        .Ok(self.partial_cmp(*other))
+        .Ok(self.partial_cmp(other))
     fn equal_to(&self, other: &i16) -> bool?:
         .Some(*self == *other)
 
@@ -465,7 +465,7 @@ impl Validate for i32:
     fn collect(&self, context: &mut ValidationContext) -> void:
         pass
     fn partial_cmp_of(&self, other: &i32) -> Result[Ordering?, void]:
-        .Ok(self.partial_cmp(*other))
+        .Ok(self.partial_cmp(other))
     fn equal_to(&self, other: &i32) -> bool?:
         .Some(*self == *other)
 
@@ -473,7 +473,7 @@ impl Validate for i64:
     fn collect(&self, context: &mut ValidationContext) -> void:
         pass
     fn partial_cmp_of(&self, other: &i64) -> Result[Ordering?, void]:
-        .Ok(self.partial_cmp(*other))
+        .Ok(self.partial_cmp(other))
     fn equal_to(&self, other: &i64) -> bool?:
         .Some(*self == *other)
 
@@ -481,7 +481,7 @@ impl Validate for u8:
     fn collect(&self, context: &mut ValidationContext) -> void:
         pass
     fn partial_cmp_of(&self, other: &u8) -> Result[Ordering?, void]:
-        .Ok(self.partial_cmp(*other))
+        .Ok(self.partial_cmp(other))
     fn equal_to(&self, other: &u8) -> bool?:
         .Some(*self == *other)
 
@@ -489,7 +489,7 @@ impl Validate for u16:
     fn collect(&self, context: &mut ValidationContext) -> void:
         pass
     fn partial_cmp_of(&self, other: &u16) -> Result[Ordering?, void]:
-        .Ok(self.partial_cmp(*other))
+        .Ok(self.partial_cmp(other))
     fn equal_to(&self, other: &u16) -> bool?:
         .Some(*self == *other)
 
@@ -497,7 +497,7 @@ impl Validate for u32:
     fn collect(&self, context: &mut ValidationContext) -> void:
         pass
     fn partial_cmp_of(&self, other: &u32) -> Result[Ordering?, void]:
-        .Ok(self.partial_cmp(*other))
+        .Ok(self.partial_cmp(other))
     fn equal_to(&self, other: &u32) -> bool?:
         .Some(*self == *other)
 
@@ -505,7 +505,7 @@ impl Validate for u64:
     fn collect(&self, context: &mut ValidationContext) -> void:
         pass
     fn partial_cmp_of(&self, other: &u64) -> Result[Ordering?, void]:
-        .Ok(self.partial_cmp(*other))
+        .Ok(self.partial_cmp(other))
     fn equal_to(&self, other: &u64) -> bool?:
         .Some(*self == *other)
 
@@ -513,7 +513,7 @@ impl Validate for usize:
     fn collect(&self, context: &mut ValidationContext) -> void:
         pass
     fn partial_cmp_of(&self, other: &usize) -> Result[Ordering?, void]:
-        .Ok(self.partial_cmp(*other))
+        .Ok(self.partial_cmp(other))
     fn equal_to(&self, other: &usize) -> bool?:
         .Some(*self == *other)
 
@@ -521,7 +521,7 @@ impl Validate for f32:
     fn collect(&self, context: &mut ValidationContext) -> void:
         pass
     fn partial_cmp_of(&self, other: &f32) -> Result[Ordering?, void]:
-        .Ok(self.partial_cmp(*other))
+        .Ok(self.partial_cmp(other))
     fn equal_to(&self, other: &f32) -> bool?:
         .Some(*self == *other)
 
@@ -529,7 +529,7 @@ impl Validate for f64:
     fn collect(&self, context: &mut ValidationContext) -> void:
         pass
     fn partial_cmp_of(&self, other: &f64) -> Result[Ordering?, void]:
-        .Ok(self.partial_cmp(*other))
+        .Ok(self.partial_cmp(other))
     fn equal_to(&self, other: &f64) -> bool?:
         .Some(*self == *other)
 
@@ -543,7 +543,7 @@ impl Validate for char:
     fn collect(&self, context: &mut ValidationContext) -> void:
         pass
     fn partial_cmp_of(&self, other: &char) -> Result[Ordering?, void]:
-        .Ok(self.partial_cmp(*other))
+        .Ok(self.partial_cmp(other))
     fn equal_to(&self, other: &char) -> bool?:
         .Some(*self == *other)
 

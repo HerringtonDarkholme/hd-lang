@@ -104,7 +104,7 @@ fn spread(a: i32, b: i32) -> i32:
 
 1. r[std-cmp.min-max.decl] `std.cmp` declares `pub fn min[T < Ord](a: T, b: T) -> T` and `pub fn max[T < Ord](a: T, b: T) -> T`. Code imports them, as in `use std.cmp.{max, min}`.
 2. r[std-cmp.min-max.result] `min` returns the smaller of `a` and `b`, and `max` the larger, by `cmp`.
-3. r[std-cmp.min-max.tie] When `a.cmp(b)` is `.Equal`, both `min` and `max` return `a`.
+3. r[std-cmp.min-max.tie] When `a.cmp(&b)` is `.Equal`, both `min` and `max` return `a`.
 4. r[std-cmp.min-max.not-prelude] Neither name is in the prelude.
 
 > **Why.** One first-among-equals rule serves `min`, `max`, `List.min`,
@@ -134,11 +134,11 @@ fn percent(value: i32) -> i32:
 use std.cmp.Reverse
 
 fn later_first(a: i32, b: i32) -> Ordering:
-    Reverse { value: a }.cmp(Reverse { value: b })  # .Less when a > b
+    Reverse { value: a }.cmp(&Reverse { value: b })  # .Less when a > b
 ```
 
 1. r[std-cmp.reverse.decl-struct] `std.cmp` declares `pub struct Reverse[T]` with one public field, `value: T`. It is a value: a copy of a `Reverse` holds a copy of the wrapped value, and a change to one is not seen through the other. Code imports it, as in `use std.cmp.Reverse`.
-2. r[std-cmp.reverse.order] When `T < Ord`, `Reverse[T]` implements `Eq`, `PartialOrd`, and `Ord`, and `Reverse { value: a }.cmp(Reverse { value: b })` is `b.cmp(a)`.
+2. r[std-cmp.reverse.order] When `T < Ord`, `Reverse[T]` implements `Eq`, `PartialOrd`, and `Ord`, and `Reverse { value: a }.cmp(&Reverse { value: b })` is `b.cmp(&a)`.
 3. r[std-cmp.reverse.eq] Two `Reverse` values are equal exactly when `cmp` of their values gives `.Equal`.
 
 ## Ordering Values
@@ -147,7 +147,7 @@ fn later_first(a: i32, b: i32) -> Ordering:
 
 ```text
 fn is_before(a: string, b: string) -> bool:
-    a.cmp(b) == Ordering.Less
+    a.cmp(&b) == Ordering.Less
 ```
 
 1. r[std-cmp.ordering.eq] `Ordering` implements `Eq`. Two values are equal exactly when they are the same case.
@@ -155,7 +155,7 @@ fn is_before(a: string, b: string) -> bool:
 3. r[std-cmp.ordering.no-display] `Ordering` does not implement `Display`; `debug(o)` gives its text.
 4. r[std-cmp.ordering.then.decl] `std.cmp` declares the inherent method `pub fn then(self, other: Ordering) -> Ordering` on `Ordering`, so every `Ordering` has it without a `use`, by [`trait.own.inherent.std.no-use`](../lang/09-traits.md#r-trait.own.inherent.std.no-use).
 5. r[std-cmp.ordering.then.result] `then` returns `self` unless `self` is `.Equal`, and returns `other` for `.Equal`. `.Less.then(o)` and `.Greater.then(o)` are `.Less` and `.Greater`; `.Equal.then(o)` is `o`.
-6. r[std-cmp.ordering.then.chain] `then` chains the keys of a comparator: `b.score.cmp(a.score).then(a.name.cmp(b.name))` orders by score, highest first, and by name among equal scores.
+6. r[std-cmp.ordering.then.chain] `then` chains the keys of a comparator: `b.score.cmp(&a.score).then(a.name.cmp(&b.name))` orders by score, highest first, and by name among equal scores.
 7. r[std-cmp.ordering.then.eager] `other` is an ordinary argument, evaluated before the call, whatever `self` is. `then` does not suspend.
 
 ## Reference Equality

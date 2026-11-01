@@ -23,7 +23,7 @@ pub fn main() -> void $ Console:
     println(Mile(3) == Mile(4))
     println(Rank(1) < Rank(2))
     println(Rank(2) <= Rank(1))
-    println(Rank(5).cmp(Rank(5)) == .Equal)
+    println(Rank(5).cmp(&Rank(5)) == .Equal)
     println(Name("a") == Name("a"))
     distances := { Mile(5): "short", Mile(50): "far" }
     println(debug(distances.get(Mile(50))))

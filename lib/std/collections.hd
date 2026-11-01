@@ -277,7 +277,9 @@ impl[T] List[T]:
             keyed.push((key(item), index))
             index = index + 1
         order := keyed.sorted_by(
-            fn(left: (K, usize), right: (K, usize)) -> Ordering: left._0.cmp(right._0)
+            fn(left: (K, usize), right: (K, usize)) -> Ordering:
+                key := right._0
+                left._0.cmp(&key)
             ,
         )
         let mut sorted: List[T] = []
@@ -406,7 +408,7 @@ impl[T < Ord] List[T]:
     ## Returns the elements in ascending order by `Ord`.
     ## See [std-collections.helper.sorted](../../spec/std/collections.md#r-std-collections.helper.sorted).
     pub fn sorted(self) -> List[T]:
-        self.sorted_by(fn(left: T, right: T) -> Ordering: left.cmp(right))
+        self.sorted_by(fn(left: T, right: T) -> Ordering: left.cmp(&right))
 
     # The first of the smallest elements.
     ## Returns the first smallest element by `Ord` in `.Some`, or `.None` for an empty list.
@@ -484,7 +486,7 @@ impl[T] List[T]:
 
 # Whether `left` orders before `right`.
 fn before[T < Ord](left: T, right: T) -> bool:
-    match left.cmp(right):
+    match left.cmp(&right):
         .Less => true
         _ => false
 
@@ -558,7 +560,12 @@ impl[K < Eq & Hash] Map[K, usize]:
     ## See [std-collections.map.most-common](../../spec/std/collections.md#r-std-collections.map.most-common).
     pub fn most_common(self, n: usize) -> List[(K, usize)]:
         self.entries()
-            .sorted_by(fn(left: (K, usize), right: (K, usize)) -> Ordering: right._1.cmp(left._1))
+            .sorted_by(
+                fn(left: (K, usize), right: (K, usize)) -> Ordering:
+                    count := left._1
+                    right._1.cmp(&count)
+                ,
+            )
             .take(n)
 
 # A read-only window on a run of a list's elements
@@ -1036,7 +1043,7 @@ impl[T < Ord] Heap[T]:
         let child = last
         while child > 0:
             parent := (child - 1) / 2
-            match self.items[parent].cmp(value):
+            match self.items[parent].cmp(&value):
                 .Less => pass
                 _ => break
             self.items[child] = self.items[parent]
@@ -1064,10 +1071,10 @@ impl[T < Ord] Heap[T]:
             left := 2 * parent + 1
             let larger = left
             if left + 1 < size:
-                match self.items[left].cmp(self.items[left + 1]):
+                match self.items[left].cmp(&self.items[left + 1]):
                     .Less => larger = left + 1
                     _ => pass
-            match value.cmp(self.items[larger]):
+            match value.cmp(&self.items[larger]):
                 .Less => pass
                 _ => break
             self.items[parent] = self.items[larger]
@@ -1084,7 +1091,7 @@ impl[T < Ord] Heap[T]:
     ## Returns a new list of every element in ascending order by `Ord`, and leaves the heap unchanged.
     ## See [std-collections.heap.sorted](../../spec/std/collections.md#r-std-collections.heap.sorted).
     pub fn to_sorted_list(self) -> List[T]:
-        self.items.sorted_by(fn(left: T, right: T) -> Ordering: left.cmp(right))
+        self.items.sorted_by(fn(left: T, right: T) -> Ordering: left.cmp(&right))
 
 # Build in linear comparisons by sifting each non-leaf bottom-up.
 # See r-std-collections.heap.collect, r-std-collections.heap.collect.linear.

@@ -2150,7 +2150,7 @@ impl CookieJar:
                 )
             ,
         )
-            .sorted_by(fn(left, right): right.path.len().cmp(left.path.len()))
+            .sorted_by(fn(left, right): right.path.len().cmp(&left.path.len()))
             .map(fn(cookie): (cookie.name, cookie.value))
 
     pub fn store(&mut self, url: &Url, response: &Response, now: Timestamp) -> void:

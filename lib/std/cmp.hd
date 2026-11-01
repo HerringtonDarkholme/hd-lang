@@ -33,18 +33,18 @@ impl Ordering:
 ## Partial ordering: `partial_cmp` answers `.None` when the two values are unordered, as NaN is.
 ## See [trait.cmp.partial-ordering](../../spec/lang/09-traits.md#r-trait.cmp.partial-ordering).
 pub trait PartialOrd < Eq:
-    fn partial_cmp(self, other: Self) -> Ordering?
+    fn partial_cmp(&self, other: &Self) -> Ordering?
 
 ## Total ordering: `cmp` always answers, and agrees with the type's `PartialOrd`.
 ## See [trait.cmp.total-ordering](../../spec/lang/09-traits.md#r-trait.cmp.total-ordering).
 pub trait Ord < PartialOrd:
-    fn cmp(self, other: Self) -> Ordering
+    fn cmp(&self, other: &Self) -> Ordering
 
 # The smaller of two values; `a` when they are equal (r-std-cmp.min-max.tie).
 ## The smaller of the two; the first on a tie.
 ## See [std-cmp.min-max.decl](../../spec/std/cmp.md#r-std-cmp.min-max.decl).
 pub fn min[T < Ord](a: T, b: T) -> T:
-    match b.cmp(a):
+    match b.cmp(&a):
         .Less => b
         _ => a
 
@@ -53,7 +53,7 @@ pub fn min[T < Ord](a: T, b: T) -> T:
 ## The larger of the two; the first on a tie.
 ## See [std-cmp.min-max.decl](../../spec/std/cmp.md#r-std-cmp.min-max.decl).
 pub fn max[T < Ord](a: T, b: T) -> T:
-    match b.cmp(a):
+    match b.cmp(&a):
         .Greater => b
         _ => a
 
@@ -61,13 +61,13 @@ pub fn max[T < Ord](a: T, b: T) -> T:
 ## `value` held between `low` and `high`.
 ## See [std-cmp.clamp.decl](../../spec/std/cmp.md#r-std-cmp.clamp.decl).
 pub fn clamp[T < Ord](value: T, low: T, high: T) -> T:
-    match high.cmp(low):
+    match high.cmp(&low):
         .Less => panic("clamp: low must not exceed high")
         _ => pass
-    match value.cmp(low):
+    match value.cmp(&low):
         .Less => return low
         _ => pass
-    match high.cmp(value):
+    match high.cmp(&value):
         .Less => high
         _ => value
 
@@ -83,17 +83,17 @@ pub struct Reverse[T]:
 # Keep handwritten Eq: equality follows Ord.cmp, including custom orders.
 impl[T < Ord] Eq for Reverse[T]:
     fn eq(&self, other: &Reverse[T]) -> bool:
-        match self.value.cmp(other.value):
+        match self.value.cmp(&other.value):
             .Equal => true
             _ => false
 
 impl[T < Ord] PartialOrd for Reverse[T]:
-    fn partial_cmp(self, other: Reverse[T]) -> Ordering?:
-        .Some(other.value.cmp(self.value))
+    fn partial_cmp(&self, other: &Reverse[T]) -> Ordering?:
+        .Some(other.value.cmp(&self.value))
 
 impl[T < Ord] Ord for Reverse[T]:
-    fn cmp(self, other: Reverse[T]) -> Ordering:
-        other.value.cmp(self.value)
+    fn cmp(&self, other: &Reverse[T]) -> Ordering:
+        other.value.cmp(&self.value)
 
 # Equality and order of the primitives (spec/lang/05-expressions.md#r-expr.eq.std,
 # #r-expr.ord.std). The number types, `char`, and `bool` compare through
@@ -110,11 +110,11 @@ impl[N < Num] Eq for N:
 
 impl[N < Num] PartialOrd for N:
     @intrinsic
-    fn partial_cmp(self, other: N) -> Ordering?
+    fn partial_cmp(&self, other: &N) -> Ordering?
 
 impl[N < Integer] Ord for N:
     @intrinsic
-    fn cmp(self, other: N) -> Ordering
+    fn cmp(&self, other: &N) -> Ordering
 
 # Keep handwritten Eq: implement the builtin scalar protocol, which has no derivable declaration.
 impl Eq for char:
@@ -123,11 +123,11 @@ impl Eq for char:
 
 impl PartialOrd for char:
     @intrinsic
-    fn partial_cmp(self, other: char) -> Ordering?
+    fn partial_cmp(&self, other: &char) -> Ordering?
 
 impl Ord for char:
     @intrinsic
-    fn cmp(self, other: char) -> Ordering
+    fn cmp(&self, other: &char) -> Ordering
 
 # Keep handwritten Eq: implement the builtin scalar protocol, which has no derivable declaration.
 impl Eq for bool:
@@ -142,12 +142,12 @@ impl Eq for string:
         self.len() == other.len() && bytes_mismatch(*self, *other) == self.len()
 
 impl PartialOrd for string:
-    fn partial_cmp(self, other: string) -> Ordering?:
-        .Some(string_order(self, other))
+    fn partial_cmp(&self, other: &string) -> Ordering?:
+        .Some(string_order(*self, *other))
 
 impl Ord for string:
-    fn cmp(self, other: string) -> Ordering:
-        string_order(self, other)
+    fn cmp(&self, other: &string) -> Ordering:
+        string_order(*self, *other)
 
 # The first unequal byte decides; otherwise the shorter string is less.
 fn string_order(left: string, right: string) -> Ordering:
@@ -195,11 +195,11 @@ impl[T < Eq] Eq for List[T]:
 # such as NaN, makes the lists unordered; otherwise the shorter list is less
 # (spec/lang/05-expressions.md#r-expr.ord.std.sequences, #r-expr.ord.composite).
 impl[T < PartialOrd] PartialOrd for List[T]:
-    fn partial_cmp(self, other: List[T]) -> Ordering?:
+    fn partial_cmp(&self, other: &List[T]) -> Ordering?:
         let index: usize = 0
         while index < self.len() && index < other.len():
             if self[index] != other[index]:
-                return self[index].partial_cmp(other[index])
+                return self[index].partial_cmp(&other[index])
             index = index + 1
         if self.len() < other.len():
             return .Some(.Less)
@@ -238,14 +238,14 @@ impl[T < Eq] Eq for *mut T:
 # `.None` is less than every present value
 # (spec/lang/05-expressions.md#r-expr.ord.std.optional).
 impl[T < PartialOrd] PartialOrd for T?:
-    fn partial_cmp(self, other: T?) -> Ordering?:
-        match self:
+    fn partial_cmp(&self, other: &Self) -> Ordering?:
+        match *self:
             .Some(left) =>
-                match other:
-                    .Some(right) => left.partial_cmp(right)
+                match *other:
+                    .Some(right) => left.partial_cmp(&right)
                     .None => .Some(.Greater)
             .None =>
-                match other:
+                match *other:
                     .Some(_) => .Some(.Less)
                     .None => .Some(.Equal)
 
@@ -278,11 +278,11 @@ impl[K < Eq & Hash, V < Eq] Eq for Map[K, V]:
         true
 
 impl[T < Ord] Ord for List[T]:
-    fn cmp(self, other: List[T]) -> Ordering:
+    fn cmp(&self, other: &List[T]) -> Ordering:
         let index: usize = 0
         while index < self.len() && index < other.len():
             if self[index] != other[index]:
-                return self[index].cmp(other[index])
+                return self[index].cmp(&other[index])
             index = index + 1
         if self.len() < other.len():
             return .Less
@@ -291,14 +291,14 @@ impl[T < Ord] Ord for List[T]:
         .Equal
 
 impl[T < Ord] Ord for T?:
-    fn cmp(self, other: T?) -> Ordering:
-        match self:
+    fn cmp(&self, other: &Self) -> Ordering:
+        match *self:
             .Some(left) =>
-                match other:
-                    .Some(right) => left.cmp(right)
+                match *other:
+                    .Some(right) => left.cmp(&right)
                     .None => .Greater
             .None =>
-                match other:
+                match *other:
                     .Some(_) => .Less
                     .None => .Equal
 
@@ -348,27 +348,27 @@ impl[S] Walker[S] for EqualWalker[S]:
 # members compare in declaration order until one differs. The variant
 # index of `other` is needed only when an enum holds a different variant.
 impl[T] PartialOrd for T by Structure:
-    fn partial_cmp(self, other: T) -> Ordering?:
+    fn partial_cmp(&self, other: &T) -> Ordering?:
         index := fn(value: T) -> usize:
             let mut probe = VariantIndex::[T] { index: 0 }
             _ := Structure::walk(value, &mut probe)
             probe.index
         let mut w = PartialOrderWalker::[T] {
-            other: other,
+            other: *other,
             other_index: index,
             result: .Some(.Equal),
         }
-        _ := Structure::walk(self, &mut w)
+        _ := Structure::walk(*self, &mut w)
         w.result
 
 impl[T] Ord for T by Structure:
-    fn cmp(self, other: T) -> Ordering:
+    fn cmp(&self, other: &T) -> Ordering:
         index := fn(value: T) -> usize:
             let mut probe = VariantIndex::[T] { index: 0 }
             _ := Structure::walk(value, &mut probe)
             probe.index
-        let mut w = OrderWalker::[T] { other: other, other_index: index, result: .Equal }
-        _ := Structure::walk(self, &mut w)
+        let mut w = OrderWalker::[T] { other: *other, other_index: index, result: .Equal }
+        _ := Structure::walk(*self, &mut w)
         w.result
 
 # Reads a value's variant index, then stops.
@@ -415,7 +415,7 @@ impl[S] Walker[S] for PartialOrderWalker[S]:
         self.member(h, items)
 
     fn member[F < PartialOrd](&mut self, h: Field[S, F], value: F) -> Result[void, bool]:
-        let order = value.partial_cmp(h.get(self.other))
+        let order = value.partial_cmp(&h.get(self.other))
         match order:
             .Some(decided) =>
                 match decided:
@@ -448,7 +448,7 @@ impl[S] Walker[S] for OrderWalker[S]:
         self.member(h, items)
 
     fn member[F < Ord](&mut self, h: Field[S, F], value: F) -> Result[void, bool]:
-        let order = value.cmp(h.get(self.other))
+        let order = value.cmp(&h.get(self.other))
         match order:
             .Equal => return .Ok(())
             _ => pass
@@ -467,23 +467,23 @@ impl[T < Tuple] Eq for T by Structure:
             .Err(_) => false
 
 impl[T < Tuple] PartialOrd for T by Structure:
-    fn partial_cmp(self, other: T) -> Ordering?:
+    fn partial_cmp(&self, other: &T) -> Ordering?:
         let mut w = PartialOrderWalker::[T] {
-            other: other,
+            other: *other,
             other_index: fn(value: T) -> usize: 0,
             result: .Some(.Equal),
         }
-        _ := Structure::walk(self, &mut w)
+        _ := Structure::walk(*self, &mut w)
         w.result
 
 impl[T < Tuple] Ord for T by Structure:
-    fn cmp(self, other: T) -> Ordering:
+    fn cmp(&self, other: &T) -> Ordering:
         let mut w = OrderWalker::[T] {
-            other: other,
+            other: *other,
             other_index: fn(value: T) -> usize: 0,
             result: .Equal,
         }
-        _ := Structure::walk(self, &mut w)
+        _ := Structure::walk(*self, &mut w)
         w.result
 
 # `never` has no value, so `eq` never runs (r-std-text.parse.never-traits).

@@ -7,7 +7,7 @@ struct Release:
     downloads: i64
 
 fn by_downloads(a: Release, b: Release) -> cmp.Ordering:
-    a.downloads.cmp(b.downloads)
+    a.downloads.cmp(&b.downloads)
 
 tests:
     use std.testing.assert

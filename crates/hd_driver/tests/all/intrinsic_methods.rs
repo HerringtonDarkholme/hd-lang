@@ -164,13 +164,13 @@ fn cmp_and_partial_cmp_order_signed_unsigned_and_char() {
         r#"use std.testing.assert_equal
 
 fn order[T < Ord](a: T, b: T) -> i32:
-    match a.cmp(b):
+    match a.cmp(&b):
         .Less => -1
         .Equal => 0
         .Greater => 1
 
 fn partial[T < PartialOrd](a: T, b: T) -> i32:
-    match a.partial_cmp(b):
+    match a.partial_cmp(&b):
         .Some(.Less) => -1
         .Some(.Equal) => 0
         .Some(.Greater) => 1
@@ -204,7 +204,7 @@ fn float_partial_cmp_and_eq_follow_nan() {
         r#"use std.testing.assert_equal
 
 fn partial[T < PartialOrd](a: T, b: T) -> i32:
-    match a.partial_cmp(b):
+    match a.partial_cmp(&b):
         .Some(.Less) => -1
         .Some(.Equal) => 0
         .Some(.Greater) => 1

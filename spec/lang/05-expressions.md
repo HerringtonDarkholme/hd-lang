@@ -1583,16 +1583,17 @@ fn neither() -> bool:
 ### Ordering
 
 1. r[expr.ord.partial-cmp] `<`, `<=`, `>`, and `>=` use `PartialOrd.partial_cmp`.
-2. r[expr.ord.std] The standard library implements `PartialOrd.partial_cmp` for compatible numeric values, characters, strings, tuples, lists, and optionals.
-3. r[expr.ord.std.char-scalar] Characters are ordered by Unicode scalar value.
-4. r[expr.ord.std.string-bytes] Strings are ordered lexicographically by byte, which for valid UTF-8 is the order by scalar value.
-5. r[expr.ord.std.sequences] Tuples and lists are ordered lexicographically.
-6. r[expr.ord.std.optional] Optionals are ordered with `.None` before every present value.
-7. r[expr.ord.composite] Composite ordering is available when the corresponding elements implement the comparison trait, and it stops at the first unequal or unordered element.
-8. r[expr.ord.user] Users can implement comparison traits for their own types.
-9. r[expr.ord.total] `Ord` is the total-order refinement; floating-point types have `PartialOrd` but not `Ord` because NaN is unordered.
-10. r[expr.ord.unordered] An unordered comparison makes all four relational operators false.
-11. r[expr.ord.std.intrinsic] The `PartialOrd` implementations of the number types and `char`, and the `Ord` implementations of the integer types and `char`, are [intrinsic methods](09-traits.md#intrinsic-methods). Those for `string` are not.
+2. r[expr.ord.trait.ref] `PartialOrd.partial_cmp` takes both operands by reference, so `a < b` tests `PartialOrd::partial_cmp(&a, &b)`. Operands pass as they do to `Eq.eq` by [`expr.eq.trait.ref`](#r-expr.eq.trait.ref): a place passes its address, and any other operand, a list element, or a map value is held in a new local. So the relational operators never move their operands.
+3. r[expr.ord.std] The standard library implements `PartialOrd.partial_cmp` for compatible numeric values, characters, strings, tuples, lists, and optionals.
+4. r[expr.ord.std.char-scalar] Characters are ordered by Unicode scalar value.
+5. r[expr.ord.std.string-bytes] Strings are ordered lexicographically by byte, which for valid UTF-8 is the order by scalar value.
+6. r[expr.ord.std.sequences] Tuples and lists are ordered lexicographically.
+7. r[expr.ord.std.optional] Optionals are ordered with `.None` before every present value.
+8. r[expr.ord.composite] Composite ordering is available when the corresponding elements implement the comparison trait, and it stops at the first unequal or unordered element.
+9. r[expr.ord.user] Users can implement comparison traits for their own types.
+10. r[expr.ord.total] `Ord` is the total-order refinement; floating-point types have `PartialOrd` but not `Ord` because NaN is unordered.
+11. r[expr.ord.unordered] An unordered comparison makes all four relational operators false.
+12. r[expr.ord.std.intrinsic] The `PartialOrd` implementations of the number types and `char`, and the `Ord` implementations of the integer types and `char`, are [intrinsic methods](09-traits.md#intrinsic-methods). Those for `string` are not.
 
 ```hd
 fn demo(names: List[string]) -> List[string]:

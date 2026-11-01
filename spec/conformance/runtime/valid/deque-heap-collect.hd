@@ -16,13 +16,13 @@ impl Eq for Counted:
         self.value == other.value
 
 impl PartialOrd for Counted:
-    fn partial_cmp(self, other: Counted) -> Ordering?:
+    fn partial_cmp(&self, other: &Counted) -> Ordering?:
         .Some(self.cmp(other))
 
 impl Ord for Counted:
-    fn cmp(self, other: Counted) -> Ordering:
+    fn cmp(&self, other: &Counted) -> Ordering:
         self.counter.comparisons += 1
-        self.value.cmp(other.value)
+        self.value.cmp(&other.value)
 
 tests:
     use std.testing.{assert, assert_equal}

@@ -248,8 +248,8 @@ The standard library defines `Eq`, `PartialOrd`, `Ord`, and `Ordering` in
 | Rule | Trait | Requires |
 | --- | --- | --- |
 | r[trait.cmp.equality] Equality | `Eq` | `fn eq(&self, other: &Self) -> bool` |
-| r[trait.cmp.partial-ordering] Partial ordering | `PartialOrd < Eq` | `fn partial_cmp(self, other: Self) -> Ordering?`, where `.None` means unordered |
-| r[trait.cmp.total-ordering] Ordering | `Ord < PartialOrd` | `fn cmp(self, other: Self) -> Ordering` |
+| r[trait.cmp.partial-ordering] Partial ordering | `PartialOrd < Eq` | `fn partial_cmp(&self, other: &Self) -> Ordering?`, where `.None` means unordered |
+| r[trait.cmp.total-ordering] Ordering | `Ord < PartialOrd` | `fn cmp(&self, other: &Self) -> Ordering` |
 
 1. r[trait.cmp.std-module] The standard library defines `Eq`, `PartialOrd`, `Ord`, and `Ordering` in `std.cmp`.
 2. r[trait.cmp.ordering] `Ordering` has `Less`, `Equal`, and `Greater` cases.

@@ -10,12 +10,12 @@ impl Eq for Entry:
         self.rank == other.rank
 
 impl PartialOrd for Entry:
-    fn partial_cmp(self, other: Entry) -> Ordering?:
+    fn partial_cmp(&self, other: &Entry) -> Ordering?:
         .Some(self.cmp(other))
 
 impl Ord for Entry:
-    fn cmp(self, other: Entry) -> Ordering:
-        self.rank.cmp(other.rank)
+    fn cmp(&self, other: &Entry) -> Ordering:
+        self.rank.cmp(&other.rank)
 
 fn label(entry: Entry?) -> string:
     match entry:

@@ -139,12 +139,12 @@ impl Eq for Duration:
         self.millis == other.millis
 
 impl PartialOrd for Duration:
-    fn partial_cmp(self, other: Duration) -> Ordering?:
-        .Some(self.millis.cmp(other.millis))
+    fn partial_cmp(&self, other: &Duration) -> Ordering?:
+        .Some(self.millis.cmp(&other.millis))
 
 impl Ord for Duration:
-    fn cmp(self, other: Duration) -> Ordering:
-        self.millis.cmp(other.millis)
+    fn cmp(&self, other: &Duration) -> Ordering:
+        self.millis.cmp(&other.millis)
 
 @num_suffix
 ## The `ms` suffix: a `Duration` of that many milliseconds, as in `250ms`.
@@ -343,12 +343,12 @@ impl Eq for Timestamp:
         self.millis == other.millis
 
 impl PartialOrd for Timestamp:
-    fn partial_cmp(self, other: Timestamp) -> Ordering?:
-        .Some(self.millis.cmp(other.millis))
+    fn partial_cmp(&self, other: &Timestamp) -> Ordering?:
+        .Some(self.millis.cmp(&other.millis))
 
 impl Ord for Timestamp:
-    fn cmp(self, other: Timestamp) -> Ordering:
-        self.millis.cmp(other.millis)
+    fn cmp(&self, other: &Timestamp) -> Ordering:
+        self.millis.cmp(&other.millis)
 
 # A calendar date in the proleptic Gregorian calendar, with astronomical
 # year numbering: year 0 is 1 BC (spec/std/time.md#dates).
@@ -628,12 +628,12 @@ impl Eq for Instant:
         self.millis == other.millis
 
 impl PartialOrd for Instant:
-    fn partial_cmp(self, other: Instant) -> Ordering?:
-        .Some(self.millis.cmp(other.millis))
+    fn partial_cmp(&self, other: &Instant) -> Ordering?:
+        .Some(self.millis.cmp(&other.millis))
 
 impl Ord for Instant:
-    fn cmp(self, other: Instant) -> Ordering:
-        self.millis.cmp(other.millis)
+    fn cmp(&self, other: &Instant) -> Ordering:
+        self.millis.cmp(&other.millis)
 
 # The helpers `now` and `sleep!` (r-std-time.helper.now) are not written
 # yet: the prototype's std loader renames every top-level name textually

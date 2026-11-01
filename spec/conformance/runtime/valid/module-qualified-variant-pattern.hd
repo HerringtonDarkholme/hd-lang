@@ -3,7 +3,7 @@
 use std.cmp
 
 fn trend(today: i64, yesterday: i64) -> string:
-    match today.cmp(yesterday):
+    match today.cmp(&yesterday):
         cmp.Ordering.Less => "down"
         cmp.Ordering.Equal => "flat"
         cmp.Ordering.Greater => "up"

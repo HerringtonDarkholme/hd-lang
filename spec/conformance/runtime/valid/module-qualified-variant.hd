@@ -7,10 +7,10 @@ struct Version:
     minor: i32
 
 fn compare_versions(a: Version, b: Version) -> Ordering:
-    major := a.major.cmp(b.major)
+    major := a.major.cmp(&b.major)
     if major != cmp.Ordering.Equal:
         return major
-    a.minor.cmp(b.minor)
+    a.minor.cmp(&b.minor)
 
 tests:
     use std.testing.assert

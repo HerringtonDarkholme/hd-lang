@@ -290,7 +290,7 @@ otherwise the literal's own form does:
 
 ```text
 fn biggest[T < Ord](left: T, right: T) -> T:
-    match left.cmp(right):
+    match left.cmp(&right):
         .Less => right
         _ => left
 
@@ -1474,7 +1474,7 @@ arguments' types may differ only in an outer `mut`:
 
 ```text
 fn max[T < Ord](left: T, right: T) -> T:
-    match left.cmp(right):
+    match left.cmp(&right):
         .Less => right
         _ => left
 

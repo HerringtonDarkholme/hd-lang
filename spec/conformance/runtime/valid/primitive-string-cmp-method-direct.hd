@@ -4,12 +4,12 @@
 pub fn main() -> void:
     if !"pear".eq(&"pear") || "pear".eq(&"pea"):
         panic("eq")
-    match "apple".cmp("banana"):
+    match "apple".cmp(&"banana"):
         .Less => pass
         _ => panic("cmp")
-    match "pear".partial_cmp("pea"):
+    match "pear".partial_cmp(&"pea"):
         .Some(.Greater) => pass
         _ => panic("prefix is less")
-    match "Z".cmp("a"):
+    match "Z".cmp(&"a"):
         .Less => pass
         _ => panic("by byte")

@@ -561,7 +561,7 @@ impl f64:
         let sign: u64 = 9223372036854775808
         left_key := if left >= sign: ~left else: left | sign
         right_key := if right >= sign: ~right else: right | sign
-        left_key.cmp(right_key)
+        left_key.cmp(&right_key)
 
 impl f32:
     ## The IEEE 754 total order of two values, which orders NaNs and the zeros.
@@ -572,7 +572,7 @@ impl f32:
         let sign: u32 = 2147483648
         left_key := if left >= sign: ~left else: left | sign
         right_key := if right >= sign: ~right else: right | sign
-        left_key.cmp(right_key)
+        left_key.cmp(&right_key)
 
     ## True when the value is NaN.
     ## See [std-num.is-nan](../../spec/std/num.md#r-std-num.is-nan).

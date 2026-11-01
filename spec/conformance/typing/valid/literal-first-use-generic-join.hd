@@ -1,7 +1,7 @@
 # test: a generic call decides when another argument fixes its parameter
 
 fn biggest[T < Ord](left: T, right: T) -> T:
-    match left.cmp(right):
+    match left.cmp(&right):
         .Less => right
         _ => left
 

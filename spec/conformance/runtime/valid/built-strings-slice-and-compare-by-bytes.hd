@@ -20,6 +20,6 @@ pub fn main() -> void $ Console:
     println("${joined.len()} ${joined[0]} ${joined[2]}")
     println(tail(built, 5) + "|" + built.slice(0, 0) + "|")
     println("${"abc" < "abd"} ${"abc" < "abcd"} ${"b" > "abc"} ${"" < "a"} ${"é" > "z"}")
-    println("${"abc".cmp("abd") == .Less} ${built.slice(0, 3) == "tea"} ${joined == "éx!"}")
+    println("${"abc".cmp(&"abd") == .Less} ${built.slice(0, 3) == "tea"} ${joined == "éx!"}")
     empty := built.slice(2, 2)
     println("[$empty${empty.len()}]")

@@ -12,8 +12,8 @@ impl Eq for Tag:
         true
 
 impl PartialOrd for Tag:
-    fn partial_cmp(self, other: Tag) -> Ordering?:
-        (self.n + later).partial_cmp(other.n)
+    fn partial_cmp(&self, other: &Tag) -> Ordering?:
+        (self.n + later).partial_cmp(&other.n)
 
 pub fn main() -> void $ Console:
     println(first)

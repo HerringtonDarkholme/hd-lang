@@ -2,7 +2,7 @@
 # Spec std/cmp Reverse: std-cmp.reverse.decl-struct, std-cmp.reverse.order, std-cmp.reverse.eq (COLLECTIONS-DATES-SURFACE; task #225).
 use std.cmp.Reverse
 fn later_first(a: i32, b: i32) -> Ordering:
-    Reverse { value: a }.cmp(Reverse { value: b })
+    Reverse { value: a }.cmp(&Reverse { value: b })
 
 fn name(order: Ordering) -> string:
     match order:

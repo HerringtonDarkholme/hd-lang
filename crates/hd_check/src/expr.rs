@@ -648,9 +648,10 @@ impl Ck<'_, '_> {
         } else {
             None
         };
-        // `expr.eq.trait.ref`: `Eq.eq` takes both operands by reference,
-        // so an operand that is a place passes its address.
-        let (a, at, la) = if left_want.is_none() && self.eq_place(eq_op, *l, None) {
+        // `expr.eq.trait.ref`, `expr.ord.trait.ref`: `Eq.eq` and
+        // `PartialOrd.partial_cmp` take both operands by reference, so an
+        // operand that is a place passes its address.
+        let (a, at, la) = if left_want.is_none() && self.operand_place(op, *l, None) {
             let (a, at) = self.index_place_receiver(*l)?;
             (a, at, true)
         } else {
@@ -662,7 +663,7 @@ impl Ck<'_, '_> {
         } else {
             at
         };
-        let (c, ct, lc) = if self.eq_place(eq_op, *r, Some(at)) {
+        let (c, ct, lc) = if self.operand_place(op, *r, Some(at)) {
             let (c, ct) = self.index_place_receiver(*r)?;
             (c, ct, true)
         } else {
@@ -687,13 +688,14 @@ impl Ck<'_, '_> {
         Ok((v, t))
     }
 
-    /// Whether `e` is an operand of `==` or `!=` (`eq_op`) that passes
-    /// its address to `Eq.eq` (`expr.eq.trait.ref`): a place outside any
+    /// Whether `e` is an operand of `==`, `!=` or an ordering operator
+    /// `op` that passes its address to `Eq.eq` or `PartialOrd.partial_cmp`
+    /// (`expr.eq.trait.ref`, `expr.ord.trait.ref`): a place outside any
     /// element whose value is no reference, with a type no built-in
-    /// equality covers. A right operand's place must have the left's
-    /// type `left`.
-    fn eq_place(&self, eq_op: bool, e: NodeRef<'_>, left: Option<Ty>) -> bool {
-        if !eq_op || Self::in_element(e) {
+    /// operator covers. A right operand's place must have the left's type
+    /// `left`.
+    fn operand_place(&self, op: TokenKind, e: NodeRef<'_>, left: Option<Ty>) -> bool {
+        if !Self::by_ref_op(op) || Self::in_element(e) {
             return false;
         }
         let pool = self.pool();
@@ -702,7 +704,7 @@ impl Ck<'_, '_> {
         };
         let v = self.strip_mut(self.infer.resolve(pool, t));
         self.ref_of(v).is_none()
-            && self.eq_by_trait(v)
+            && self.op_by_trait(op, v)
             && left.is_none_or(|l| self.strip_mut(self.infer.resolve(pool, l)) == v)
     }
 
@@ -719,21 +721,39 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// Whether `==` with a left operand of type `t` calls `Eq.eq`: no
-    /// built-in equality of numbers, characters, `bool` or `string`
-    /// covers it, and its type is known.
-    fn eq_by_trait(&self, t: Ty) -> bool {
-        let pool = self.pool();
-        let t = self.strip_mut(self.infer.resolve(pool, t));
-        !(self.numeric(t)
-            || t == Ty::BOOL
-            || t == Ty::STRING
-            || matches!(pool.get(t), TyData::Infer(_)))
+    /// Whether `op` is `==`, `!=`, `<`, `<=`, `>` or `>=`, whose trait
+    /// method takes its operands by reference.
+    fn by_ref_op(op: TokenKind) -> bool {
+        matches!(
+            op,
+            TokenKind::EqEq
+                | TokenKind::NotEq
+                | TokenKind::Lt
+                | TokenKind::LtEq
+                | TokenKind::Gt
+                | TokenKind::GtEq
+        )
     }
 
-    /// An `Eq.eq` operand of type `t` as the reference the call takes
-    /// (`expr.eq.trait.ref`): `held` when `r` already is the address of
-    /// its place, else `r` held in a new local that the call refers to.
+    /// Whether the comparison `op` with a left operand of type `t` calls
+    /// `Eq.eq` or `PartialOrd.partial_cmp`: no built-in operator covers it
+    /// (numbers and characters for all six, `bool` and `string` for `==`
+    /// and `!=`), and its type is known.
+    fn op_by_trait(&self, op: TokenKind, t: Ty) -> bool {
+        let pool = self.pool();
+        let t = self.strip_mut(self.infer.resolve(pool, t));
+        let eq = matches!(op, TokenKind::EqEq | TokenKind::NotEq);
+        Self::by_ref_op(op)
+            && !(self.numeric(t)
+                || t == Ty::BOOL
+                || (eq && t == Ty::STRING)
+                || matches!(pool.get(t), TyData::Infer(_)))
+    }
+
+    /// An `Eq.eq` or `PartialOrd.partial_cmp` operand of type `t` as the
+    /// reference the call takes (`expr.eq.trait.ref`, `expr.ord.trait.ref`):
+    /// `held` when `r` already is the address of its place, else `r` held
+    /// in a new local that the call refers to.
     fn eq_operand_ref(&mut self, (r, t, held): (Ref, Ty, bool), n: NodeRef<'_>) -> Ref {
         if held || matches!(self.strip_mut(t), Ty::NEVER | Ty::POISON) {
             return r;
@@ -876,7 +896,8 @@ impl Ck<'_, '_> {
 
     /// Applies a binary operator to two checked operands, each a value of
     /// its type or, when its flag is set, the address of the place that
-    /// holds it, which only `Eq.eq` takes (`expr.eq.trait.ref`).
+    /// holds it, which only `Eq.eq` and `PartialOrd.partial_cmp` take
+    /// (`expr.eq.trait.ref`, `expr.ord.trait.ref`).
     fn binary_operands(
         &mut self,
         op: TokenKind,
@@ -885,16 +906,19 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
         rn: NodeRef<'_>,
     ) -> StageResult<Ref> {
-        if matches!(op, TokenKind::EqEq | TokenKind::NotEq) && self.eq_by_trait(at) {
-            let prim = if op == TokenKind::EqEq {
-                PrimOp::Eq
-            } else {
-                PrimOp::Ne
+        if self.op_by_trait(op, at) {
+            let prim = match op {
+                TokenKind::EqEq => PrimOp::Eq,
+                TokenKind::NotEq => PrimOp::Ne,
+                TokenKind::Lt => PrimOp::Lt,
+                TokenKind::LtEq => PrimOp::Le,
+                TokenKind::Gt => PrimOp::Gt,
+                _ => PrimOp::Ge,
             };
             return self.operator_trait_call(prim, (a, at, la), (c, ct, lc), n, rn);
         }
-        // An address taken for `Eq.eq` is read where a built-in rule
-        // applies after all.
+        // An address taken for a comparison trait is read where a built-in
+        // rule applies after all.
         let (a, at) = if la {
             self.emit_deref(a, self.b.ty_of(a), n.index())
         } else {
@@ -1240,7 +1264,8 @@ impl Ck<'_, '_> {
 
     /// `a op b` as the operator trait's method (`expr.op.desugar`), once
     /// the built-in rules do not type it. An operand whose flag is set is
-    /// the address of its place, which `Eq.eq` takes (`expr.eq.trait.ref`).
+    /// the address of its place, which `Eq.eq` and `PartialOrd.partial_cmp`
+    /// take (`expr.eq.trait.ref`, `expr.ord.trait.ref`).
     fn operator_trait_call(
         &mut self,
         prim: PrimOp,
@@ -1265,7 +1290,7 @@ impl Ck<'_, '_> {
             _ => (k.ord, "Ord", "cmp"),
         };
         if matches!(prim, PrimOp::Lt | PrimOp::Le | PrimOp::Gt | PrimOp::Ge) {
-            return self.ordering((a, at), (c, ct), prim, n, rn);
+            return self.ordering((a, at, la), (c, ct, lc), prim, n, rn);
         }
         // `Eq` has no right operand type to choose by.
         if tr != k.eq
@@ -1593,10 +1618,12 @@ impl Ck<'_, '_> {
     /// `a < b` and the other relational operators on non-primitive
     /// operands: `PartialOrd.partial_cmp`, then a test of its answer
     /// (`expr.ord.partial-cmp`; an unordered answer makes all four false).
+    /// It takes both operands by reference (`expr.ord.trait.ref`): an
+    /// operand whose flag is set is already the address of its place.
     fn ordering(
         &mut self,
-        (a, at): (Ref, Ty),
-        (c, ct): (Ref, Ty),
+        (a, at, la): (Ref, Ty, bool),
+        (c, ct, lc): (Ref, Ty, bool),
         prim: PrimOp,
         n: NodeRef<'_>,
         rn: NodeRef<'_>,
@@ -1612,7 +1639,15 @@ impl Ck<'_, '_> {
             self.err(Code::TypeMismatch, n, &msg);
             return Ok(self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()));
         }
-        let (v, vt) = self.trait_call_args(tr, "partial_cmp", a, at, &[(c, ct, rn)], n)?;
+        let a = self.eq_operand_ref((a, at, la), n);
+        let c = if lc {
+            c
+        } else {
+            let c = self.coerce(c, ct, at, rn, "operand", ExpectPosition::Operand);
+            self.eq_operand_ref((c, at, false), rn)
+        };
+        let crt = self.b.ty_of(c);
+        let (v, vt) = self.trait_call_args(tr, "partial_cmp", a, at, &[(c, crt, rn)], n)?;
         let ord = self.cx.names.known.ordering;
         let ord_ty = pool.intern_ty(&TyData::Adt {
             def: ord,
