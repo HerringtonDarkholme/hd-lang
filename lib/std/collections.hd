@@ -278,7 +278,6 @@ impl[T] List[T]:
             index = index + 1
         order := keyed.sorted_by(
             fn(left: (K, usize), right: (K, usize)) -> Ordering: left._0.cmp(&right._0)
-            ,
         )
         let mut sorted: List[T] = []
         for (_, at) in order:

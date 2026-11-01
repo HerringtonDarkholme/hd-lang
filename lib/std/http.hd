@@ -289,7 +289,6 @@ impl Parse for HeaderName:
                 "user-agent" => .UserAgent
                 "x-request-id" => .XRequestId
                 _ => .Other(name)
-            ,
         )
 
 impl Eq for HeaderName:
@@ -340,7 +339,6 @@ impl Body:
             match string::from_utf8(bytes):
                 .Ok(text) => text
                 .Err(_) => lossy_text(bytes)
-            ,
         )
 
     pub fn json[T < Deserialize](&self) -> Result[T, BodyError]:
@@ -521,7 +519,6 @@ impl Headers:
                     pair._0 != HeaderName.SetCookie
                     || pair._1.response_cookie_name() != .Some(cookie.name)
                 )
-            ,
         )
         self.pairs.push((.SetCookie, .ResponseCookie(cookie)))
 
@@ -1454,7 +1451,6 @@ fn cookie_max_age(text: &string) -> Duration?:
             Duration::milliseconds(9223372036854775807i64)
         else:
             Duration::seconds(seconds)
-        ,
     )
 
 fn cookie_date_delimiter(byte: u8) -> bool:
@@ -1970,7 +1966,6 @@ impl Request:
     pub fn set_form[T < Serialize](mut self, value: T) -> Request:
         self.body = Body::prepared(
             message_form_encode(value).map(fn(pairs): message_form_body_bytes(&pairs))
-            ,
         )
         self.headers.set(.ContentType, "application/x-www-form-urlencoded")
         self
@@ -2134,21 +2129,19 @@ impl CookieJar:
         secure := ascii_case_equal(url.scheme, "https")
         # Sorting is stable: storage order preserves creation order, including
         # replacement of an existing name/domain/path tuple.
-        self.cookies.filter(
-            fn(cookie):
-                alive := cookie.expires.map(fn(expiry): expiry > now.unix_milliseconds())
-                    .unwrap_or(true)
-                matches := if cookie.host_only:
-                    host == cookie.domain
-                else:
-                    cookie_domain_matches(&host, &cookie.domain)
-                (
-                    alive
-                    && matches
-                    && cookie_path_matches(&path, &cookie.path)
-                    && (!cookie.secure || secure)
-                )
-            ,
+        self.cookies.filter(fn(cookie):
+            alive := cookie.expires.map(fn(expiry): expiry > now.unix_milliseconds())
+                .unwrap_or(true)
+            matches := if cookie.host_only:
+                host == cookie.domain
+            else:
+                cookie_domain_matches(&host, &cookie.domain)
+            (
+                alive
+                && matches
+                && cookie_path_matches(&path, &cookie.path)
+                && (!cookie.secure || secure)
+            )
         )
             .sorted_by(fn(left, right): right.path.len().cmp(&left.path.len()))
             .map(fn(cookie): (cookie.name, cookie.value))
@@ -2197,10 +2190,8 @@ impl CookieJar:
                 self.cookies.push(stored)
 
     pub fn clear_expired(&mut self, now: Timestamp) -> void:
-        self.cookies = self.cookies.filter(
-            fn(cookie):
-                cookie.expires.map(fn(expiry): expiry > now.unix_milliseconds()).unwrap_or(true)
-            ,
+        self.cookies = self.cookies.filter(fn(cookie):
+            cookie.expires.map(fn(expiry): expiry > now.unix_milliseconds()).unwrap_or(true)
         )
 
 fn cookie_domain_matches(host: &string, domain: &string) -> bool:
@@ -2466,7 +2457,6 @@ pub enum HttpError:
     Other(message: string)
     @error(
         "HTTP status ${response.status.code()} for ${status_url(response.url.map(fn(url): url.to_string()).unwrap_or(""))}"
-        ,
     )
     Status(response: Response)
     @error("invalid header ${name}")
@@ -2707,7 +2697,6 @@ impl Http for HostHttp:
                     certificate_chain: identity.certificate_chain,
                     private_key: identity.private_key,
                 }
-            ,
         )
         response := self.wire.send!(
             WireRequest {
@@ -2783,9 +2772,7 @@ pub fn response_to_wire(response: &Response) -> Result[WireResponse, HttpError]:
             headers: headers,
             body: body,
             url: response.url.map(fn(url): url.to_string()).unwrap_or("")
-            ,
         }
-        ,
     )
 
 fn wire_error(error: WireHttpError) -> HttpError:

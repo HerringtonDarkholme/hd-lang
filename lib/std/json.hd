@@ -633,7 +633,6 @@ impl Parser:
                     self.at = index + 1
                     return .Ok(
                         if object: self.close_object(mark, repeats) else: self.close_array(mark)
-                        ,
                     )
                 if next == 44:
                     self.at = index + 1

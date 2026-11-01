@@ -195,7 +195,6 @@ impl Choices:
             offset := self.offset(
                 last.to_u64() - start.to_u64(),
                 if start == zero: .Some(0) else: .None
-                ,
             )
             return N::from_u64(start.to_u64() + offset)
         # The magnitude of a negative bound, `-(b + 1) + 1`, which cannot overflow.

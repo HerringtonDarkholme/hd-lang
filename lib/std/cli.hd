@@ -714,7 +714,6 @@ fn cli_arg[S, F < Cli](field: Field[S, F]) -> Arg:
         required: !field.has_default(),
         kind: kind,
         short: field.fact::[Short[F]]().map(fn(fact): fact.letter)
-        ,
     }
 
 fn cli_name(name: string) -> string:
