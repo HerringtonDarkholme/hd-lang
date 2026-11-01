@@ -1,0 +1,29 @@
+# test: a closure that needs no key runs where an FnMut bound's row is provided
+# Spec 07 Functions: fn.trait.bound-closure.
+# expect-stdout: 4
+use std.function.FnMut
+
+trait Mutate:
+    fn poke(&mut self) -> void
+
+struct Counter:
+    n: i32
+
+impl Mutate for Counter:
+    fn poke(&mut self) -> void:
+        self.n = self.n + 1
+
+fn noop() -> void:
+    pass
+
+fn press[F < FnMut() -> void $ Mutate](mut on_click: F) -> void $ Mutate:
+    on_click()
+    $.use(Mutate).poke()
+
+pub fn main() -> void $ Console:
+    counter := box(Counter { n: 0 })
+    $.with(Mutate=counter):
+        press(fn(): pass)
+        press(noop)
+        press(fn(): $.use(Mutate).poke())
+    println("${counter.n}")

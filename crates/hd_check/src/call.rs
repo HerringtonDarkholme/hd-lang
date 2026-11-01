@@ -1099,10 +1099,10 @@ impl Ck<'_, '_> {
     /// neither.
     /// `fn.trait.bound-closure`: a closure or concrete function value
     /// passed for a parameter bounded by `Fn` or `FnMut` has the bound's
-    /// signature. A mismatch is the argument's `type-mismatch`; the
-    /// argument then poisons the type parameter, so the bound and any
-    /// method chained on the result report nothing more. A caller's own
-    /// type parameter is left to the bound check.
+    /// signature, its row included. A mismatch is the argument's
+    /// `type-mismatch`; the argument then poisons the type parameter, so
+    /// the bound and any method chained on the result report nothing more.
+    /// A caller's own type parameter is left to the bound check.
     fn bounded_closure(&mut self, r: Ref, t: Ty, bounded: Option<Ty>, e: NodeRef<'_>) -> (Ref, Ty) {
         let Some(want) = bounded else {
             return (r, t);
@@ -1120,7 +1120,10 @@ impl Ck<'_, '_> {
         if self.diags.len() > before {
             (r, Ty::POISON)
         } else {
-            (r, t)
+            // The value takes the bound's signature, its row included: a
+            // row the value does not need still fills the bound's
+            // (`req.row.subsume`).
+            (r, want)
         }
     }
 

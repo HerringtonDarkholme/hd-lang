@@ -1,0 +1,16 @@
+# test: a closure or function value for a bare Fn-bounded parameter takes the bound's row
+# Spec 07 Functions: fn.trait.bound-closure.
+use std.function.FnMut
+
+trait Mutate:
+    fn poke(&mut self) -> void
+
+fn button[F < 'static & FnMut() -> void $ Mutate](mut on_click: F) -> void:
+    pass
+
+fn noop() -> void:
+    pass
+
+fn probe() -> void:
+    button(fn(): pass)
+    button(noop)

@@ -1,0 +1,15 @@
+# test: a closure whose body needs a key outside its Fn bound's row is a type mismatch
+# Spec 07 Functions: fn.trait.bound-closure.
+use std.function.FnMut
+
+trait Mutate:
+    fn poke(&mut self) -> void
+
+trait Other:
+    fn ping(&mut self) -> void
+
+fn button[F < 'static & FnMut() -> void $ Mutate](mut on_click: F) -> void:
+    pass
+
+fn probe() -> void $ Other:
+    button(fn(): $.use(Other).ping()) # diagnostic: type-mismatch
