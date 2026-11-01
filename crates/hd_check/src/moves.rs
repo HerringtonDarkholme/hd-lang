@@ -13,7 +13,7 @@
 //! paths are the forward walk over the structured control flow that the
 //! ownership passes use (`hd_tir::own::flow`).
 
-use hd_base::{HashMap, LocalId, SliceSort as _};
+use hd_base::{HashMap, HashSet, LocalId, SliceSort as _};
 use hd_diag::Code;
 use hd_resolve::{ItemData, Lookup};
 use hd_syntax::SyntaxKind;
@@ -237,13 +237,16 @@ fn field_prefix(proj: &[Proj]) -> (Vec<u32>, bool) {
 impl Ck<'_, '_> {
     /// `ref.move`: each use of a binding that is not copied, after its
     /// value moved on some path, is `use-of-moved-value`, reported once
-    /// per binding.
-    pub(crate) fn check_moves(&mut self, root: Ref) {
+    /// per binding. Returns the reads of a whole `&mut` binding or field
+    /// that a typed `let`, an assignment or a field declared `&mut`
+    /// reborrows, each a loan like `&mut *c` (`ref.move.reborrow.excl`).
+    pub(crate) fn check_moves(&mut self, root: Ref) -> HashSet<u32> {
         let pool = self.pool();
         let b = self.b.body();
+        let mut reborrows = HashSet::default();
         // A body with an error has poison values, whose uses say nothing.
         if b.tags.contains(&Tag::Poison) {
-            return;
+            return reborrows;
         }
         let hidden = self.hidden_locals(b);
         let held: Vec<bool> = (b.local_ty.iter())
@@ -251,7 +254,7 @@ impl Ck<'_, '_> {
             .collect();
         let tracked = |l: LocalId| held[l.idx()] && !hidden[l.idx()];
         if !(0..b.local_ty.len()).any(|l| held[l] && !hidden[l]) {
-            return;
+            return reborrows;
         }
         let n = b.len();
         let users = out_of_place::users_of(b);
@@ -324,8 +327,18 @@ impl Ck<'_, '_> {
             });
             move_bit[i] = w(k);
         }
+        for i in 0..n {
+            if b.tags[i] == Tag::Read
+                && acc[i].as_ref().is_some_and(|a| a.exact)
+                && !link[i]
+                && is_mut_ref(pool, b.ty[i])
+                && self.reborrows(&cx, w(i), 0)
+            {
+                reborrows.insert(w(i));
+            }
+        }
         if bits.is_empty() {
-            return;
+            return reborrows;
         }
         let mut found = HashMap::default();
         let mut flow = Flow::default();
@@ -377,6 +390,36 @@ impl Ck<'_, '_> {
             let node = self.cx.src.parse.tree.node(at);
             self.err(Code::UseOfMovedValue, node, &msg);
         }
+        reborrows
+    }
+
+    /// Whether `&mut` value `v` reaches a site that reborrows it as
+    /// `&mut` with a binding, a place or a field to hold it: a typed
+    /// `let`, an assignment, or a field or payload declared `&mut`
+    /// (`ref.move.reborrow.typed`). A call's reborrow ends when it
+    /// returns, and a hidden local's value is its reads'.
+    fn reborrows(&self, cx: &Uses<'_>, v: u32, depth: u32) -> bool {
+        let (pool, b) = (self.pool(), cx.b);
+        depth <= 64
+            && cx.users[v as usize].iter().any(|&(u, role)| {
+                let i = u as usize;
+                match (b.tags[i], role) {
+                    (Tag::Coerce, _) => {
+                        is_mut_ref(pool, b.ty[i]) && self.reborrows(cx, u, depth + 1)
+                    }
+                    (Tag::Store, Role::Consume)
+                        if local_of(b, b.data[i][0])
+                            .is_some_and(|(h, whole)| whole && cx.hidden[h.idx()]) =>
+                    {
+                        false
+                    }
+                    (
+                        Tag::Store | Tag::NewStruct | Tag::NewVariant | Tag::CopyStruct,
+                        Role::Consume,
+                    ) => !self.consume_moves(cx, i, v, depth),
+                    _ => false,
+                }
+            })
     }
 
     /// Whether value `v`, which is not copied, moves where it is used

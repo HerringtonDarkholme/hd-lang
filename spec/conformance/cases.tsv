@@ -5635,6 +5635,12 @@ typing/invalid/mut-reference-use-after-let.hd	type	reject:use-of-moved-value	lan
 typing/valid/mut-reference-annotated-let-reborrows.hd	type	accept	lang/13-values-and-references.md#r-ref.move.reborrow.typed
 typing/valid/mut-reference-assignment-reborrows.hd	type	accept	lang/13-values-and-references.md#r-ref.move.reborrow.typed
 typing/valid/mut-reference-typed-field-reborrows.hd	type	accept	lang/13-values-and-references.md#r-ref.move.reborrow.typed
+typing/invalid/mut-reference-typed-let-reborrow-conflict.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.move.reborrow.excl
+typing/invalid/mut-reference-field-reborrow-conflict.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.move.reborrow.excl
+typing/invalid/mut-reference-shared-reborrow-conflict.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.move.reborrow.excl
+typing/invalid/mut-reference-two-typed-reborrows-conflict.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.move.reborrow.excl
+typing/invalid/mut-reference-assignment-reborrow-conflict.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.move.reborrow.excl
+typing/valid/mut-reference-reborrow-ends-at-last-use.hd	type	accept	lang/13-values-and-references.md#r-ref.move.reborrow.excl
 typing/invalid/mut-reference-use-after-tuple-element.hd	type	reject:use-of-moved-value	lang/13-values-and-references.md#r-ref.move.sites
 typing/invalid/mut-reference-use-after-generic-field.hd	type	reject:use-of-moved-value	lang/13-values-and-references.md#r-ref.move.sites
 typing/invalid/mut-reference-use-after-generic-argument.hd	type	reject:use-of-moved-value	lang/13-values-and-references.md#r-ref.move.sites

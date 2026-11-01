@@ -1,0 +1,16 @@
+# test: a struct field declared `&mut` reborrows its value, so a call that takes `c` while the struct is live conflicts
+# Spec 13 Moves: ref.move.reborrow.excl, ref.move.reborrow.typed.
+struct Counter:
+    count: i32
+
+struct Lease['a]:
+    held: &'a mut Counter
+
+fn bump(c: &mut Counter) -> void:
+    c.count += 1
+
+fn run(c: &mut Counter) -> i32:
+    l := Lease { held: c }
+    bump(c) # diagnostic: conflicting-access
+    l.held.count += 1
+    c.count

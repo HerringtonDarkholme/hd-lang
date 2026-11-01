@@ -1,0 +1,13 @@
+# test: two `let` bindings that each reborrow `c` as `&mut` conflict while the first is live
+# Spec 13 Moves: ref.move.reborrow.excl, ref.move.reborrow.typed.
+struct Counter:
+    count: i32
+
+fn both(a: &mut Counter, b: &mut Counter) -> void:
+    a.count += 1
+    b.count += 1
+
+fn run(c: &mut Counter) -> void:
+    let r: &mut Counter = c
+    let q: &mut Counter = c # diagnostic: conflicting-access
+    both(r, q)

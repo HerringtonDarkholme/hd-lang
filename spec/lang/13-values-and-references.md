@@ -1799,10 +1799,11 @@ fn demo(c: &mut Counter) -> void:
 8. r[ref.move.reborrow.explicit] `&mut *r` reborrows `r` explicitly. It makes a new `&mut` to the place `r` refers to, and `r` stays usable.
 9. r[ref.move.reborrow.typed] A site that expects a written `&mut T` type reborrows the value instead of moving it. These sites are a `let` that writes the type, an assignment to a place of a `&mut` type, and a struct field or variant payload declared `&mut`. Only a `&mut` value reborrows: a value of another type that is not copied moves at a `let` that writes its type, at an assignment, and into a field.
 10. r[ref.move.reborrow.shared] Converting a `&mut T` value to `&T`, as in `let t: &T = r`, reborrows it as a shared reference and does not move it.
-11. r[ref.move.use] A use of a binding whose value moved on some path to the use is an error. The path may run through an earlier iteration of a loop. Error: `use-of-moved-value`.
-12. r[ref.move.use.partial] A use of a partly moved binding is an error when it reaches a moved field: a use of the whole binding, of the moved field, or of a place inside that field. Its other fields stay usable. A moved payload counts as a moved field, so matching the binding again is such a use. Error: `use-of-moved-value`.
-13. r[ref.move.use.forms] A use is a read of the binding or of a place through it, a write through it, a reference to it, or a closure that captures it. A closure captures the whole binding.
-14. r[ref.move.reassign] Assigning the binding a new value makes it usable again. Assigning a moved field a new value makes that field usable again, and the binding whole when no other field is moved.
+11. r[ref.move.reborrow.excl] A reborrow that a `let`, an assignment, a field or a payload keeps is a reference to the place `r` refers to, like `&mut *r` or `&*r`. [`ref.excl.mut`](#r-ref.excl.mut) and [`ref.excl.shared`](#r-ref.excl.shared) apply to it while it is live. An argument's reborrow lasts as [`ref.excl.call`](#r-ref.excl.call) states, so `bump(c); bump(c)` is valid. Error: `conflicting-access`.
+12. r[ref.move.use] A use of a binding whose value moved on some path to the use is an error. The path may run through an earlier iteration of a loop. Error: `use-of-moved-value`.
+13. r[ref.move.use.partial] A use of a partly moved binding is an error when it reaches a moved field: a use of the whole binding, of the moved field, or of a place inside that field. Its other fields stay usable. A moved payload counts as a moved field, so matching the binding again is such a use. Error: `use-of-moved-value`.
+14. r[ref.move.use.forms] A use is a read of the binding or of a place through it, a write through it, a reference to it, or a closure that captures it. A closure captures the whole binding.
+15. r[ref.move.reassign] Assigning the binding a new value makes it usable again. Assigning a moved field a new value makes that field usable again, and the binding whole when no other field is moved.
 
 | Site | Example |
 | --- | --- |
@@ -1837,6 +1838,11 @@ fn after_branch(c: &mut Counter, early: bool) -> void:
 fn in_loop(c: &mut Counter) -> void:
     for i in 0..3:
         keep(c)  # error: use-of-moved-value
+
+fn after_typed_let(c: &mut Counter) -> void:
+    let d: &mut Counter = c
+    c.count = 1  # error: conflicting-access
+    d.count += 1
 ```
 
 ```text

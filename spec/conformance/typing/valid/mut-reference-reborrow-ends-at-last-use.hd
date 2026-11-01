@@ -1,0 +1,24 @@
+# test: a call's reborrow ends when the call returns, and a kept reborrow ends at its holder's last use, so `c` is usable again after each
+# Spec 13 Moves: ref.move.reborrow.excl, ref.move.reborrow.
+struct Counter:
+    count: i32
+
+struct Lease['a]:
+    held: &'a mut Counter
+
+fn bump(c: &mut Counter) -> void:
+    c.count += 1
+
+fn run(c: &mut Counter) -> i32:
+    bump(c)
+    bump(c)
+    let r: &mut Counter = c
+    r.count += 1
+    c.count += 1
+    let s: &Counter = c
+    n := s.count
+    c.count += n
+    l := Lease { held: c }
+    l.held.count += 1
+    bump(c)
+    c.count

@@ -1,0 +1,9 @@
+# test: converting a `&mut` binding to `&` reborrows it as `&*c` does, so a write through `c` while the `&` binding is live conflicts
+# Spec 13 Moves: ref.move.reborrow.excl, ref.move.reborrow.shared.
+struct Counter:
+    count: i32
+
+fn run(c: &mut Counter) -> i32:
+    let s: &Counter = c
+    c.count += 5 # diagnostic: conflicting-access
+    s.count

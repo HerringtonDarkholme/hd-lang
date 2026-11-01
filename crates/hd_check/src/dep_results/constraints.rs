@@ -789,6 +789,11 @@ impl Gen<'_, '_> {
         let iu = i as usize;
         let [a, d] = b.data[iu];
         let Some(me) = self.val(i) else { return };
+        if let Some(&top) = me.0.first()
+            && exclusive::reborrow(self.s, i)
+        {
+            self.seed(top, Origin::Site(i));
+        }
         if b.tags[iu] == Tag::RefDyn
             && let Some(v) = self.dyn_source(a)
         {

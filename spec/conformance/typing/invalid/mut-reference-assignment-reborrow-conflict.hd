@@ -1,0 +1,12 @@
+# test: an assignment to a `&mut` binding reborrows the assigned value, so using its source while the binding is live conflicts
+# Spec 13 Moves: ref.move.reborrow.excl, ref.move.reborrow.typed.
+struct Counter:
+    count: i32
+
+fn run(c: &mut Counter, d: &mut Counter) -> i32:
+    let mut r: &mut Counter = d
+    r.count += 1
+    r = c
+    c.count += 1000 # diagnostic: conflicting-access
+    r.count += 1
+    c.count

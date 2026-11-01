@@ -1,0 +1,10 @@
+# test: a `let` that writes a `&mut` type reborrows as `&mut *c` does, so using `c` while the new binding is live conflicts
+# Spec 13 Moves: ref.move.reborrow.excl, ref.move.reborrow.typed.
+struct Counter:
+    count: i32
+
+fn run(c: &mut Counter) -> i32:
+    let r: &mut Counter = c
+    c.count += 1000 # diagnostic: conflicting-access
+    r.count += 1
+    c.count

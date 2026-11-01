@@ -18,7 +18,7 @@ use hd_base::NodeIdx;
 use hd_tir::ir::{
     Body, IntrinsicOp, NONE, PlaceRoot, Proj, Ref, Tag, Topology, Word, local_flags, slots,
 };
-use hd_types::Ty;
+use hd_types::{Ty, TyData, Types};
 
 use hd_syntax::SyntaxKind;
 
@@ -131,6 +131,35 @@ pub(super) fn site(s: &Inputs<'_>, i: u32) -> bool {
         && s.cx.src.parse.tree.node(at).kind() == SyntaxKind::RefExpr
         && s.b.tags[i as usize] == Tag::Ref
         && loan_path(s, i).is_some()
+}
+
+/// Whether instruction `i` reborrows a `&mut`, a site loan like the
+/// explicit `&mut *c` or `&*c` (`ref.move.reborrow.excl`): a read that a
+/// typed `let`, an assignment or a field declared `&mut` reborrows, or a
+/// conversion of a `&mut` to `&`. A call's argument takes the same loan
+/// in [`Gen::call_loans`].
+pub(super) fn reborrow(s: &Inputs<'_>, i: u32) -> bool {
+    let (b, iu) = (s.b, i as usize);
+    let read = match b.tags[iu] {
+        Tag::Read => s.reborrows.contains(&i),
+        Tag::Coerce => {
+            let v = b.data[iu][0] as usize;
+            b.ty.get(v).is_some() && b.tags[v] == Tag::Read && local_mut(s.pool, b.ty[v])
+        }
+        _ => false,
+    };
+    read && loan_path(s, i).is_some()
+}
+
+/// Whether `t`, under any `mut`, is a `&mut`, not a counted `*mut`.
+fn local_mut(pool: Types<'_>, t: Ty) -> bool {
+    match pool.get(t) {
+        TyData::Ref {
+            mutable, counted, ..
+        } => mutable && !counted,
+        TyData::Mut(i) => local_mut(pool, i),
+        _ => false,
+    }
 }
 
 /// Whether two key values are one key: one constant, or reads of one
