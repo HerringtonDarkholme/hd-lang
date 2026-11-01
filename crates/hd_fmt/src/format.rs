@@ -55,11 +55,8 @@ impl<'s, 'p> Analysis<'s, 'p> {
         let parents = parsed.tree.parent_links();
         let mut node_flags = vec![0; parsed.tree.len()];
         let nodes: Vec<_> = parsed.tree.root().descendants().collect();
-        let mut token_owners = vec![parsed.tree.root().index(); token_count];
+        let token_owners = token_owners(parsed, &nodes);
         for node in &nodes {
-            for token in node.direct_tokens() {
-                token_owners[token.idx()] = node.index();
-            }
             let index = node.index().idx();
             if node.kind() == S::IfExpr
                 && node
@@ -1408,6 +1405,36 @@ fn negative_impl(tokens: &TokenBuf, boundary: usize) -> bool {
         && (previous == T::KwImpl
             || previous == T::RBracket
                 && matches!(tokens.kind.get(boundary + 1), Some(T::Ident | T::RawIdent)))
+}
+
+/// Each token's owner, the innermost node whose span holds it: one sweep
+/// over the tokens beside the preorder `nodes`, with a stack of the nodes
+/// open at the current token. Walking each node's `direct_tokens` costs
+/// as much again as parsing.
+fn token_owners(parsed: &Parse, nodes: &[NodeRef<'_>]) -> Vec<NodeIdx> {
+    let token_count = parsed.tokens.len();
+    let root = parsed.tree.root().index();
+    let mut owners = vec![root; token_count];
+    let mut open: Vec<(NodeIdx, usize)> = vec![(root, usize::MAX)];
+    let mut cursor = 0;
+    let mut assign_until = |until: usize, open: &mut Vec<(NodeIdx, usize)>, cursor: &mut usize| {
+        while *cursor < until {
+            while open.len() > 1 && open[open.len() - 1].1 < *cursor {
+                open.pop();
+            }
+            owners[*cursor] = open[open.len() - 1].0;
+            *cursor += 1;
+        }
+    };
+    for node in nodes {
+        let Some((first, last)) = token_bounds(*node) else {
+            continue;
+        };
+        assign_until(first, &mut open, &mut cursor);
+        open.push((node.index(), last));
+    }
+    assign_until(token_count, &mut open, &mut cursor);
+    owners
 }
 
 fn token_bounds(node: NodeRef<'_>) -> Option<(usize, usize)> {

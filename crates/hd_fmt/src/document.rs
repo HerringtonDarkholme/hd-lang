@@ -170,8 +170,8 @@ impl<'s> Printer<'s> {
         while index < self.commands.len() {
             self.stats.printing_visits += 1;
             match self.commands[index].clone() {
-                Command::Text(span) => self.write(&self.source[span]),
-                Command::Atom(text) => self.write(text),
+                Command::Text(span) => self.write_measured(index, &self.source[span]),
+                Command::Atom(text) => self.write_measured(index, text),
                 Command::StartGroup => {
                     self.stats.groups += 1;
                     let inherited_flat = self.modes.last().is_some_and(|mode| *mode);
@@ -390,17 +390,41 @@ impl<'s> Printer<'s> {
         true
     }
 
-    fn write(&mut self, text: &str) {
-        if text.is_empty() {
+    /// [`Self::write`] for command `index`, whose width `new` measured:
+    /// a one-line text no wider than the page skips the newline search and
+    /// the width count.
+    fn write_measured(&mut self, index: usize, text: &str) {
+        let measure = self.flat_measure[index];
+        let width = usize::from(measure & 0x7f);
+        if measure & 0x80 != 0 || width > MAX_COLUMNS || text.is_empty() {
+            self.write(text);
             return;
         }
+        self.indent_line();
+        self.output.push_str(text);
+        self.column += width;
+    }
+
+    /// The current indentation, at the start of a line.
+    fn indent_line(&mut self) {
+        const SPACES: &str = "                                                                ";
         if self.line_start {
-            for _ in 0..self.indent {
-                self.output.push(' ');
+            let mut left = self.indent;
+            while left > 0 {
+                let run = left.min(SPACES.len());
+                self.output.push_str(&SPACES[..run]);
+                left -= run;
             }
             self.column = self.indent;
             self.line_start = false;
         }
+    }
+
+    fn write(&mut self, text: &str) {
+        if text.is_empty() {
+            return;
+        }
+        self.indent_line();
         self.output.push_str(text);
         if let Some(last) = text.rsplit_once('\n') {
             self.column = scalar_width(last.1);

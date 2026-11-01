@@ -78,12 +78,17 @@ fn formatting_the_stdlib_stays_within_three_times_parsing() {
             parse.push(measure(&sources, false));
         }
     }
-    let parse = median(&mut parse);
-    let format = median(&mut format);
+    // Other work on the machine only ever adds time, so the fastest round
+    // of each is the estimate that load disturbs least; the median moves
+    // with load and is printed for comparison only.
+    let (median_whole, median_fraction) =
+        ratio_thousandths(median(&mut format), median(&mut parse));
+    let parse = parse.iter().copied().min().expect("rounds");
+    let format = format.iter().copied().min().expect("rounds");
     let (ratio_whole, ratio_fraction) = ratio_thousandths(format, parse);
     eprintln!(
-        "stdlib formatter budget: parse={parse}ns format={format}ns \
-         ratio={ratio_whole}.{ratio_fraction:03}"
+        "stdlib formatter budget: fastest parse={parse}ns format={format}ns \
+         ratio={ratio_whole}.{ratio_fraction:03}; median ratio={median_whole}.{median_fraction:03}"
     );
     assert!(
         format <= parse * 3,
