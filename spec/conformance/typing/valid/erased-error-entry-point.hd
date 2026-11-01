@@ -6,7 +6,7 @@ enum StartError:
     MissingConfig
 
 impl Display for StartError:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         "missing config"
 
 impl Error for StartError

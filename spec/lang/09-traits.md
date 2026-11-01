@@ -528,7 +528,7 @@ The standard library declares the standard error trait `Error` in
 4. r[trait.error.complete] `impl Error for FsError` is complete when the enum `FsError` implements `Display`, because the compiler supplies `Inspectable` for it.
 5. r[trait.error.not-inspectable] An `impl Error` whose target is not inspectable, such as a type declared in a block suite, is an error. Error: `missing-supertrait-implementation`.
 6. r[trait.error.value-types] A value type may implement `Error`, as an enum or a newtype over `string` does.
-7. r[trait.error.reference-source] `Error` declares `fn source(self) -> (*dyn Error)?`, which returns the error that caused this one. Its default returns `.None`.
+7. r[trait.error.reference-source] `Error` declares `fn source(&self) -> (*dyn Error)?`, which returns the error that caused this one. Its default returns `.None`.
 8. r[trait.error.dyn-methods.reference-values] `std.error` gives `&dyn Error` the inherent methods `chain`, `root_cause`, and `find[T < Error]`, in an `impl dyn Error:` block beside the trait.
 9. r[trait.error.dyn-methods.not-members] They are not members of `Error`, so an implementation of `Error` cannot declare or override them.
 10. r[trait.error.dyn-methods.reference-receiver] They take shared reference receivers, as in `let erased: *dyn Error = &failure; erased.find::[FsError]()`.
@@ -546,7 +546,7 @@ fn local() -> void:
         Failed
 
     impl Display for LocalError:
-        fn to_string(self) -> string: "failed"
+        fn to_string(&self) -> string: "failed"
 
     impl Error for LocalError  # error: missing-supertrait-implementation
     pass
@@ -580,8 +580,8 @@ enum FsError:
     NotFound(path: string)
 
 impl Display for FsError:
-    fn to_string(self) -> string:
-        match self:
+    fn to_string(&self) -> string:
+        match *self:
             FsError.NotFound(path) => "not found: " + path
 
 impl Error for FsError
@@ -653,7 +653,7 @@ An explicit implementation names the trait and target type:
 
 ```text
 impl Display for User:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         self.email
 ```
 
@@ -974,11 +974,11 @@ one of these declarations:
 
 ```text
 impl Display for i32:  # error: orphan-impl
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         "$self"
 
 impl Display for fn() -> i32:  # error: orphan-impl
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         "function"
 
 impl i32:  # error: orphan-impl
@@ -1396,7 +1396,7 @@ fn invalid(price: Money) -> void:
 Select one trait explicitly with `Trait::method(receiver, arguments...)`:
 
 ```text
-label := Display::to_string(value)
+label := Display::to_string(&value)
 sum := Add::[Money]::add(left, right)
 ```
 
@@ -1594,7 +1594,7 @@ struct Feed[I]:
     source: I
 
 impl[T < Display, I < Supplier[Item = T]] Display for Feed[I]:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         describe(self.source)
 ```
 

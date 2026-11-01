@@ -2,7 +2,7 @@ struct Label:
     value: string
 
 impl Display for Label:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         self.value
 
 fn render_generic[T < Display](value: T) -> string:

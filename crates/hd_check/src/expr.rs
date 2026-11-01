@@ -443,8 +443,15 @@ impl Ck<'_, '_> {
                 && let Some(ip) = kids.next()
                 && let Some(e) = ip.children().next()
             {
-                let (r, ty) = self.expr(e, None)?;
-                let s = self.display_str(r, ty, e)?;
+                // `expr.interp.display.ref`: a place passes its address.
+                let (r, ty, held) = if self.display_place(e) {
+                    let (r, ty) = self.index_place_receiver(e)?;
+                    (r, ty, true)
+                } else {
+                    let (r, ty) = self.expr(e, None)?;
+                    (r, ty, false)
+                };
+                let s = self.display_str((r, ty, held), e)?;
                 parts.push(s);
             }
             let raw = strip_piece(self.cx.src.text(t), k).to_owned();
@@ -455,19 +462,26 @@ impl Ck<'_, '_> {
                     Piece::Text(s) => parts.push(self.b.const_str(&s)),
                     Piece::Name(name) => {
                         let sym = self.cx.names.syms.intern(&name);
-                        // A local, else a top-level binding of the module.
+                        // A local, which passes its address, else a
+                        // top-level binding of the module.
                         let read = match self.find_local(sym) {
-                            Some((l, d)) => Some(self.read_local(l, d, n)),
-                            None => self.global_get(sym, n),
+                            Some((l, d)) if self.display_local(l) => {
+                                Some(self.local_display_ref(l, d, n))
+                            }
+                            Some((l, d)) => {
+                                let (r, ty) = self.read_local(l, d, n);
+                                Some((r, ty, false))
+                            }
+                            None => self.global_get(sym, n).map(|(r, ty)| (r, ty, false)),
                         };
-                        let Some((r, ty)) = read else {
+                        let Some((r, ty, held)) = read else {
                             if !self.is_poison_name(&name) {
                                 let msg = format!("`{name}` is not defined");
                                 self.err(Code::UnknownName, n, &msg);
                             }
                             continue;
                         };
-                        let s = self.display_str(r, ty, n)?;
+                        let s = self.display_str((r, ty, held), n)?;
                         parts.push(s);
                     }
                 }
@@ -483,8 +497,63 @@ impl Ck<'_, '_> {
         })
     }
 
-    /// A value's `Display` text: itself for a string, else `to_string`.
-    pub(crate) fn display_str(&mut self, r: Ref, t: Ty, n: NodeRef<'_>) -> StageResult<Ref> {
+    /// Whether the interpolated expression `e` passes its address to
+    /// `Display.to_string` (`expr.interp.display.ref`): a place outside
+    /// any element whose value is no reference and no string, of a known
+    /// type.
+    fn display_place(&self, e: NodeRef<'_>) -> bool {
+        !Self::in_element(e)
+            && self
+                .peek_place_ty(e)
+                .is_some_and(|t| self.displayed_by_ref(t))
+    }
+
+    /// Whether the local `l`, interpolated by name, passes its address to
+    /// `Display.to_string` (`expr.interp.display.ref`).
+    fn display_local(&self, l: hd_base::LocalId) -> bool {
+        !self.local_generics.contains_key(&l) && self.displayed_by_ref(self.b.local_ty(l))
+    }
+
+    /// Whether a place of type `t` is lent to `Display.to_string`: its
+    /// value is no reference and no string, and its type is known.
+    fn displayed_by_ref(&self, t: Ty) -> bool {
+        let pool = self.pool();
+        let v = self.strip_mut(self.infer.resolve(pool, t));
+        self.ref_of(v).is_none() && v != Ty::STRING && !matches!(pool.get(v), TyData::Infer(_))
+    }
+
+    /// The address of the local `l` at scope depth `d`, interpolated by
+    /// name, marked local as a call's receiver address is, with the type
+    /// of its value (`expr.interp.display.ref`).
+    fn local_display_ref(
+        &mut self,
+        l: hd_base::LocalId,
+        d: usize,
+        n: NodeRef<'_>,
+    ) -> (Ref, Ty, bool) {
+        let ty = self.b.local_ty(l);
+        let place = crate::refs::Place {
+            root: crate::refs::Root::Local(l, d),
+            path: vec![],
+            ty,
+        };
+        let rt = self.ref_ty(self.strip_mut(ty), false, true);
+        let r = self.make_ref(&place, false, rt, n);
+        if let Some(i) = r.as_inst() {
+            self.b.body_mut().data[i.0 as usize][1] |= hd_tir::ir::ref_word::LOCAL;
+        }
+        (r, ty, true)
+    }
+
+    /// A value's `Display` text: itself for a string, else `to_string`,
+    /// which takes it by reference (`expr.interp.display.ref`): `held`
+    /// when `r` already is the address of its place, else `r` is held in
+    /// a new local that the call refers to.
+    pub(crate) fn display_str(
+        &mut self,
+        (r, t, held): (Ref, Ty, bool),
+        n: NodeRef<'_>,
+    ) -> StageResult<Ref> {
         let pool = self.pool();
         let tt = self.infer.shallow(pool, t);
         let tt = match pool.get(tt) {
@@ -492,10 +561,15 @@ impl Ck<'_, '_> {
             _ => tt,
         };
         if tt == Ty::STRING {
-            return Ok(r);
+            return Ok(if held {
+                self.emit_deref(r, self.b.ty_of(r), n.index()).0
+            } else {
+                r
+            });
         }
+        let recv = self.eq_operand_ref((r, t, held), n);
         let display = self.cx.names.known.display;
-        let r2 = self.trait_call(display, "to_string", r, t, &[], n)?;
+        let r2 = self.trait_call(display, "to_string", recv, t, &[], n)?;
         Ok(r2.0)
     }
 
@@ -801,7 +875,7 @@ impl Ck<'_, '_> {
     /// reference the call takes (`expr.eq.trait.ref`, `expr.ord.trait.ref`):
     /// `held` when `r` already is the address of its place, else `r` held
     /// in a new local that the call refers to.
-    fn eq_operand_ref(&mut self, (r, t, held): (Ref, Ty, bool), n: NodeRef<'_>) -> Ref {
+    pub(crate) fn eq_operand_ref(&mut self, (r, t, held): (Ref, Ty, bool), n: NodeRef<'_>) -> Ref {
         if held || matches!(self.strip_mut(t), Ty::NEVER | Ty::POISON) {
             return r;
         }

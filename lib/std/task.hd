@@ -323,7 +323,7 @@ pub fn hedged(delay: Duration) -> Hedge:
 # (r-std-task.timeout.display).
 # Keep handwritten Display: choose the message from cleanup state, not a fixed field template.
 impl Display for TimedOut:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         match self.cleanup:
             .Finished => "timed out after ${self.limit}"
             .Abandoned => "timed out after ${self.limit}, cleanup abandoned"

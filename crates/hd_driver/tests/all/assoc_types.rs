@@ -115,7 +115,7 @@ struct Feed[I]:
     source: I
 
 impl[T < Display, I < Supplier[Item = T]] Display for Feed[I]:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         \"feed of \" + shown(self.source)
 
 pub fn main() -> void $ Console:

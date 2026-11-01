@@ -11,7 +11,7 @@ use std.structure.{Structure, UnionType, Walker, Variant, Field}
 ## The standard error trait: a displayable, inspectable failure that may name its source.
 ## See [trait.error.module](../../spec/lang/09-traits.md#r-trait.error.module).
 pub trait Error < Display & Inspectable:
-    fn source(self) -> (*dyn Error)?:
+    fn source(&self) -> (*dyn Error)?:
         .None
 
 # A union forwards its source transparently to the active payload's source.
@@ -29,9 +29,9 @@ impl[S] Walker[S] for UnionSource[S]:
         .Ok(())
 
 impl[T < UnionType & Display & Inspectable] Error for T by Structure:
-    fn source(self) -> (*dyn Error)?:
+    fn source(&self) -> (*dyn Error)?:
         let mut w = UnionSource::[T] { source: .None }
-        _ := Structure::walk(self, &mut w)
+        _ := Structure::walk(*self, &mut w)
         w.source
 
 # The source-chain helpers are inherent methods of `dyn Error`
@@ -94,7 +94,7 @@ pub struct ErrorReport:
 # the message, then one `source: ` line per source.
 # Keep handwritten Display: join the message and sources with the report separator.
 impl Display for ErrorReport:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         let mut lines: List[string] = [self.message]
         for source in self.sources:
             lines.push(source)
@@ -132,12 +132,12 @@ struct ContextError:
 
 # Keep handwritten Display: retain the existing Error.source implementation and original reference.
 impl Display for ContextError:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         self.message
 
 # Keep handwritten Error: return the original erased source reference without wrapping it.
 impl Error for ContextError:
-    fn source(self) -> (*dyn Error)?:
+    fn source(&self) -> (*dyn Error)?:
         .Some(self.error)
 
 # The error that `message` returns: only a text (r-std-error.message.reference-struct).

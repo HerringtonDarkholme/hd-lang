@@ -45,8 +45,8 @@ fn bumper(counter: *mut Counter) -> fn(i32) -> void:
 fn stepper() -> fn(&mut Counter, i32) -> void:
     Counter::bump
 
-fn shown(values: List[i32]) -> List[string]:
-    apply_all(values, Display::to_string)
+fn shower() -> fn(&i32) -> string:
+    Display::to_string
 
 fn labels[T < Named](items: List[T]) -> List[string]:
     apply_all(items, T::label)

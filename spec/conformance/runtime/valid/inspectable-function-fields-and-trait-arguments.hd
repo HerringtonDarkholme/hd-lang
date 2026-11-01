@@ -10,7 +10,7 @@ struct Label:
     text: string
 
 impl Display for Label:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         self.text
 
 fn run_handler(value: *dyn Inspectable) -> i32:

@@ -8,7 +8,7 @@ Point { x: 12, y: 23 } : Point
 hd> p.x + p.y
 35 : i32
 hd> impl Display for Point:
-...     fn to_string(self) -> string: "(${self.x}, ${self.y})"
+...     fn to_string(&self) -> string: "(${self.x}, ${self.y})"
 ...
 hd> impl Point:
 ...     fn sum(self) -> i32: self.x + self.y

@@ -18,11 +18,11 @@ struct ManualError:
     inner: *dyn Error
 
 impl Display for ManualError:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         "manual wrapper"
 
 impl Error for ManualError:
-    fn source(self) -> (*dyn Error)?:
+    fn source(&self) -> (*dyn Error)?:
         .Some(self.inner)
 
 fn texts(errors: List[*dyn Error]) -> List[string]:

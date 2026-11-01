@@ -10,7 +10,7 @@ struct Email:
     address: string
 
 impl Display for Email:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         "email:${self.address}"
 
 impl Channel for Email:
@@ -21,7 +21,7 @@ struct Pager:
     number: i32
 
 impl Display for Pager:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         "pager:${self.number}"
 
 impl Channel for Pager:
@@ -44,7 +44,7 @@ fn broadcast[C < Channel](channels: List[C], message: string) -> List[string]:
     channels.map(fn(channel: C) -> string: notify(channel, message))
 
 fn targets[C < Channel](channels: List[C]) -> List[string]:
-    channels.map(C::to_string)
+    channels.map(fn(channel: C) -> string: channel.to_string())
 
 fn sender[C < Channel]() -> fn(C, string) -> string:
     C::send

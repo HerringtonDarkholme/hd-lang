@@ -8,7 +8,7 @@ struct CardError:
     reason: string
 
 impl Display for CardError:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         "card declined: ${self.reason}"
 
 impl Error for CardError

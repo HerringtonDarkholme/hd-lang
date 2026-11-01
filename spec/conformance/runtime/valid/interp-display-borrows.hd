@@ -1,0 +1,39 @@
+# test: interpolation passes each value to `Display.to_string` by reference: a place passes its address, and a temporary is held in a new local
+# Spec 05 String Interpolation: expr.interp.display.ref.
+struct Probe:
+    home: (*Probe)?
+
+# Writes `here` exactly when `self` is the box the probe records as its home,
+# so the test sees whether interpolation passed an address or a copy.
+impl Display for Probe:
+    fn to_string(&self) -> string:
+        match self.home:
+            .Some(home) =>
+                if self is home: "here" else: "copy"
+            .None => "none"
+
+impl Probe:
+    fn text(&self) -> string:
+        "$self"
+
+fn homed() -> *mut Probe:
+    probe := box(Probe { home: .None })
+    probe.home = .Some(probe)
+    probe
+
+fn copied(probe: *Probe) -> Probe:
+    *probe
+
+fn shown(probe: &Probe) -> string:
+    "${*probe}"
+
+tests:
+    it("passes a place's address"):
+        probe := homed()
+        assert_equal("${*probe}", "here", reason="the box's referent is a place")
+        assert_equal(shown(probe), "here", reason="so is the referent of a parameter")
+        assert_equal(probe.text(), "here", reason="`\$self` displays the receiver it refers to")
+
+    it("holds a temporary in its own local"):
+        probe := homed()
+        assert_equal("${copied(probe)}", "copy", reason="a call result is a new place")

@@ -3,7 +3,7 @@ pub struct Failure:
     text: string
 
 impl Display for Failure:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         self.text
 
 pub fn main() -> Result[void, Failure]: # diagnostic: unsatisfied-trait-bound

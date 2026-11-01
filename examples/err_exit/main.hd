@@ -6,7 +6,7 @@ pub struct Oops:
     what: string
 
 impl Display for Oops:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         "oops: ${self.what}"
 
 impl Error for Oops

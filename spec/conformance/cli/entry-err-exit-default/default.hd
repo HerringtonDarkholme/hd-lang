@@ -4,7 +4,7 @@ pub struct Failure:
     text: string
 
 impl Display for Failure:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         self.text
 
 impl Error for Failure

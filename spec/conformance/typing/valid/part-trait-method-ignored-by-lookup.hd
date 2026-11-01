@@ -10,7 +10,7 @@ struct Label:
     Base
 
 impl Display for Label:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         "label"
 
 struct Page:

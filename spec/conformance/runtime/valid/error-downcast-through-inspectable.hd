@@ -7,7 +7,7 @@ enum FsError:
     NotFound(path: string)
 
 impl Display for FsError:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         match self:
             FsError.NotFound(path) => "not found: " + path
 
@@ -17,7 +17,7 @@ enum HttpError:
     Status(code: i32)
 
 impl Display for HttpError:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         match self:
             HttpError.Status(code) => "status ${code}"
 

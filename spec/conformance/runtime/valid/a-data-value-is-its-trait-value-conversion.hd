@@ -5,7 +5,7 @@ struct User:
     name: string
 
 impl Display for User:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         self.name
 
 pub fn main() -> void $ Console:

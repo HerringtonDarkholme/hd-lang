@@ -5,7 +5,7 @@ enum FsError:
     NotFound(path: string)
 
 impl Display for FsError:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         match self:
             FsError.NotFound(path) => "not found: " + path
 
@@ -15,7 +15,7 @@ enum ParseError:
     BadLine(line: i32)
 
 impl Display for ParseError:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         match self:
             ParseError.BadLine(line) => "bad line ${line}"
 

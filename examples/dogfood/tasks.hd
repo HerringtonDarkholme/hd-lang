@@ -12,7 +12,7 @@ enum PlanError:
     Cycle(path: List[string])
 
 impl Display for PlanError:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         match self:
             .UnknownTask(name, needed_by) => "task $needed_by needs unknown task $name"
             .Cycle(path) => "dependency cycle: ${path.join(" -> ")}"

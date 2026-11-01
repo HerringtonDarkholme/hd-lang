@@ -7,7 +7,7 @@ struct Money:
     cents: i32
 
 impl Display for Money:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         "${self.cents}c"
 
 impl Money:

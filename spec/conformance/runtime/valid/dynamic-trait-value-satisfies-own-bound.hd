@@ -9,7 +9,7 @@ struct User:
     handle: string
 
 impl Display for User:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         "@" + self.handle
 
 impl Named for User:

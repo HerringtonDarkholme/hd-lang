@@ -10,7 +10,7 @@ struct DiskError:
     device: string
 
 impl Display for DiskError:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         "disk ${self.device}"
 
 impl Error for DiskError
@@ -19,7 +19,7 @@ struct Timeout:
     seconds: i32
 
 impl Display for Timeout:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         "timed out"
 
 impl Error for Timeout
@@ -29,7 +29,7 @@ enum FsError:
     Denied
 
 impl Display for FsError:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         "fs"
 
 impl Error for FsError

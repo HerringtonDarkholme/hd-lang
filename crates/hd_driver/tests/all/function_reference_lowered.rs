@@ -100,19 +100,22 @@ pub fn main() -> void $ Console:
 /// stored and called, and passed to `map`.
 #[test]
 fn references_to_builtin_impls_call_through_their_adapters() {
-    let main = "pub fn main() -> void $ Console:
+    let main = "fn texts(xs: List[i32], show: fn(&i32) -> string) -> List[string]:
+    [for x in xs => show(&x)]
+
+pub fn main() -> void $ Console:
     show := i32::to_string
-    println(show(-4))
+    println(show(&-4))
     let xs: List[i32] = [1, 2, 3]
-    ys := xs.map(i32::to_string)
+    ys := texts(xs, i32::to_string)
     println(ys.len())
     println(ys[2])
     half := f64::to_string
-    println(half(1.5))
-    let flag: fn(bool) -> string = Display::to_string
-    println(flag(true))
-    let text: fn(string) -> string = string::to_string
-    println(text(\"x\"))
+    println(half(&1.5))
+    let flag: fn(&bool) -> string = Display::to_string
+    println(flag(&true))
+    let text: fn(&string) -> string = string::to_string
+    println(text(&\"x\"))
 ";
     assert_eq!(run("builtins", main), "-4\n3\n3\n1.5\ntrue\nx\n");
 }

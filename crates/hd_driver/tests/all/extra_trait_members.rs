@@ -88,7 +88,7 @@ fn an_inherent_method_beside_the_trait_impl_is_valid() {
 
 #[test]
 fn an_error_impl_cannot_add_chain() {
-    let bad = "use std.error.Error\n\nenum E:\n    Bad\n\nimpl Display for E:\n    fn to_string(self) -> string: \"bad\"\n\nimpl Error for E:\n    fn chain(self) -> string: \"x\"\n";
+    let bad = "use std.error.Error\n\nenum E:\n    Bad\n\nimpl Display for E:\n    fn to_string(&self) -> string: \"bad\"\n\nimpl Error for E:\n    fn chain(self) -> string: \"x\"\n";
     assert_eq!(errors(bad), vec![Code::ExtraTraitMember]);
 }
 

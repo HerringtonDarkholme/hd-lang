@@ -46,7 +46,7 @@ impl Eq for TypeId:
 
 # Keep handwritten Display: display only the descriptive type name; this is not an Error.
 impl Display for TypeId:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         self.name
 
 # `Debug` for this module's public types (r-std-format.debug.std-types),

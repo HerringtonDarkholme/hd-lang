@@ -6,7 +6,7 @@ struct Money:
     cents: i64
 
 impl Display for Money:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         whole := self.cents / 100
         fraction := self.cents % 100
         if fraction < 10: "$whole.0$fraction" else: "$whole.$fraction"
@@ -17,7 +17,7 @@ struct Line:
     price: Money
 
 impl Display for Line:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         "item#${self.sku} x${self.quantity} @${self.price}"
 
 struct Order:
@@ -27,7 +27,7 @@ struct Order:
     third: Line
 
 impl Display for Order:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         "order#${self.id}[${self.first};${self.second};${self.third}]"
 
 fn line(seed: usize) -> Line:

@@ -10,7 +10,7 @@ struct Label:
     Base
 
 impl Display for Label:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         "label"
 
 struct Page:
@@ -22,7 +22,7 @@ tests:
     it("the part reaches the trait method and the deeper inherent method"):
         page := Page { Label: Label { Base: Base { name: "home" } } }
         assert_equal(
-            Display::to_string(page.Label),
+            Display::to_string(&page.Label),
             "label",
             reason="Label's own Display method, trait-qualified because Base's to_string is promoted into Label",
         )

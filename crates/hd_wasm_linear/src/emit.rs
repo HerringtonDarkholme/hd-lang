@@ -3321,13 +3321,14 @@ impl Em<'_, '_, '_> {
 
     /// A body-less method of a primitive's std impl at `self_ty`
     /// (`expr.op.std.intrinsic-method`, `expr.ord.std.intrinsic`).
-    /// `Eq.eq`, `PartialOrd.partial_cmp` and `Ord.cmp` take their operands
-    /// by reference (`expr.eq.trait.ref`, `expr.ord.trait.ref`) and read
-    /// the values they refer to: each such argument stands for its loaded
-    /// value while the operation is lowered.
+    /// `Eq.eq`, `PartialOrd.partial_cmp`, `Ord.cmp` and `Display.to_string`
+    /// take their operands by reference (`expr.eq.trait.ref`,
+    /// `expr.ord.trait.ref`, `expr.interp.display.ref`) and read the values
+    /// they refer to: each such argument stands for its loaded value while
+    /// the operation is lowered.
     fn builtin(&mut self, i: u32, name: &str, self_ty: Ty, args: &[u32]) -> StageResult<()> {
         let mut saved: Vec<(u32, usize, Option<Vec<u32>>, Ty)> = Vec::new();
-        let reads: &[u32] = if matches!(name, "eq" | "cmp" | "partial_cmp") {
+        let reads: &[u32] = if matches!(name, "eq" | "cmp" | "partial_cmp" | "to_string") {
             args
         } else {
             &[]

@@ -6,7 +6,7 @@ struct Parse:
     text: string
 
 impl Display for Parse:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         self.text
 
 impl Error for Parse

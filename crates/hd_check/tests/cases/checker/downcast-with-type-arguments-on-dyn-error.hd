@@ -6,7 +6,7 @@ struct DiskError:
     device: string
 
 impl Display for DiskError:
-    fn to_string(self) -> string: "disk"
+    fn to_string(&self) -> string: "disk"
 
 impl Error for DiskError
 

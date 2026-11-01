@@ -656,7 +656,7 @@ associated_type_decl = "type", identifier, [ "<", supertrait_bounds ],
 
 ```text
 pub trait Display:
-    pub fn to_string(self) -> string  # error: trait-method-visibility
+    pub fn to_string(&self) -> string  # error: trait-method-visibility
 
 trait Named:
     fn name(self) -> string

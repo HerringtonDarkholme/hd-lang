@@ -1404,7 +1404,7 @@ fn double_all(items: List[i32]) -> List[i32]:
 Method values are written as `::` [method references](#method-references).
 The rules below still hold:
 
-1. r[fn.unsupported.qualified-call] A qualified call such as `User::guest()`, `Display::to_string(value)`, or `Add::[Money]::add(left, right)` remains an ordinary call.
+1. r[fn.unsupported.qualified-call] A qualified call such as `User::guest()`, `Display::to_string(&value)`, or `Add::[Money]::add(left, right)` remains an ordinary call.
 2. r[fn.unsupported.closure-adapter] An explicit closure, such as `fn(user: User) -> string: user.domain()`, adapts a method where a function value is needed.
 3. r[fn.unsupported.variant-value] A variant constructor with exactly one payload field, written `Enum.Variant` with a `.` and no argument clause, is already a function value.
 4. r[fn.unsupported.variant-multi] A constructor with two or more payload fields stays an error. Error: `unsaturated-enum-constructor`.

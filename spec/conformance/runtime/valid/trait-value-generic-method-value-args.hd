@@ -5,7 +5,7 @@ enum Level:
     High(amount: i32)
 
 impl Display for Level:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         match self:
             .Low => "low"
             .High(amount) => "high $amount"

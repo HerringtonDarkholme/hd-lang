@@ -7,7 +7,7 @@ struct Order:
     id: i32
 
 impl Display for Order:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         "order ${self.id}"
 
 impl Labeled for Order:

@@ -974,7 +974,7 @@ struct Label:
     Base
 
 impl Display for Label:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         "label"
 
 struct Page:
@@ -983,13 +983,13 @@ struct Page:
 fn show(page: Page) -> string:
     page.to_string()                # Base's, promoted at depth 2; Label's method is not promoted
     page.Label.to_string()          # error: ambiguous-method
-    Display::to_string(page.Label)  # Label's Display method
+    Display::to_string(&page.Label)  # Label's Display method
     page.Label.Base.to_string()     # Base's to_string
 ```
 
 If `Page` also implemented `Display`, `page.to_string()` would be
 `ambiguous-method` too, and `Page`'s method is called as
-`Display::to_string(page)`. Without `Base`, `page.to_string()` is
+`Display::to_string(&page)`. Without `Base`, `page.to_string()` is
 `unknown-method`, and its message should suggest `page.Label.to_string()`.
 
 ### Promoted Member Access

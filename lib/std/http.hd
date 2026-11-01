@@ -1711,7 +1711,7 @@ impl Url:
             url_encode_component(&self.path, .Path)
 
 impl Display for Url:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         let text = "${self.scheme}://${self.host}"
         match self.port:
             .Some(port) => text += ":$port"

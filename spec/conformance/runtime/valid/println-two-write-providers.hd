@@ -7,7 +7,7 @@ struct Label:
     text: string
 
 impl Display for Label:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         conversions = conversions + 1
         self.text
 

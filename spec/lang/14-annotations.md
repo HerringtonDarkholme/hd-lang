@@ -2095,7 +2095,7 @@ struct YamlError:
     line: i64
 
 impl Display for YamlError:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         "bad yaml at line ${self.line}"
 
 impl Error for YamlError
@@ -2171,7 +2171,7 @@ enum ReadError:
     Closed
 
 impl Display for ReadError:  # error: overlapping-impl
-    fn to_string(self) -> string: "read error"
+    fn to_string(&self) -> string: "read error"
 
 enum Plain:
     Wrap(@from error: ReadError)  # error: unknown-name

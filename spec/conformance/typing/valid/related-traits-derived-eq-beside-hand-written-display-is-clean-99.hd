@@ -4,5 +4,5 @@ struct Key:
     name: string
 
 impl Display for Key:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         self.name

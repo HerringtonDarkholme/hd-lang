@@ -10,7 +10,7 @@ struct Label:
     value: string
 
 impl Display for Label:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         self.value
 
 impl Identity:

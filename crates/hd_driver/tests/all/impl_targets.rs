@@ -45,7 +45,7 @@ fn an_orphan_impl_is_left_out_of_the_overlap_check() {
     // The same pair twice would overlap, but each is one orphan error.
     let out = analyze(&[(
         "main.hd",
-        "impl Display for i32:\n    fn to_string(self) -> string:\n        \"a\"\n\nimpl Display for i32:\n    fn to_string(self) -> string:\n        \"b\"\n",
+        "impl Display for i32:\n    fn to_string(&self) -> string:\n        \"a\"\n\nimpl Display for i32:\n    fn to_string(&self) -> string:\n        \"b\"\n",
     )]);
     assert_eq!(
         codes(&out),

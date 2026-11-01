@@ -7,7 +7,7 @@ enum DigitError:
     NotDigit(text: string)
 
 impl Display for DigitError:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         match self:
             DigitError.NotDigit(text) => "not a digit: " + text
 

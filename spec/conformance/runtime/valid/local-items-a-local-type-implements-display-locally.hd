@@ -4,7 +4,7 @@ fn receipt(cents: i32) -> string:
     struct Money:
         cents: i32
     impl Display for Money:
-        fn to_string(self) -> string:
+        fn to_string(&self) -> string:
             "EUR ${self.cents / 100}.${self.cents % 100}"
     total := Money { cents: cents }
     "total ${total}"

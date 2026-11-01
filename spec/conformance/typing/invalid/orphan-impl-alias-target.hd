@@ -3,5 +3,5 @@
 type Tags = List[string]
 
 impl Display for Tags: # diagnostic: orphan-impl
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         "tags"

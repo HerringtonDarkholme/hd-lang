@@ -178,8 +178,8 @@ pub enum ConsoleStream:
     Stdin
 
 impl Display for ConsoleStream:
-    fn to_string(self) -> string:
-        match self:
+    fn to_string(&self) -> string:
+        match *self:
             .Stdout => "stdout"
             .Stderr => "stderr"
             .Stdin => "stdin"

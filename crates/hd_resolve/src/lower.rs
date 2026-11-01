@@ -5514,12 +5514,18 @@ impl Lower<'_, '_, '_> {
             );
             let method = g.method();
             let mdef = self.names.member(def, PathKind::Member, method);
+            // `Display.to_string` and `Error.source` take `&self`.
+            let self_ref = pool.intern_ty(&TyData::Ref {
+                inner: self_ty,
+                mutable: false,
+                counted: false,
+            });
             let sig = match (g, arg) {
                 (Generated::Display, _) => {
-                    FnSig::simple(vec![], vec![(self.sym("self"), self_ty)], Ty::STRING)
+                    FnSig::simple(vec![], vec![(self.sym("self"), self_ref)], Ty::STRING)
                 }
                 (Generated::Error, _) => {
-                    FnSig::simple(vec![], vec![(self.sym("self"), self_ty)], cause_ty)
+                    FnSig::simple(vec![], vec![(self.sym("self"), self_ref)], cause_ty)
                 }
                 (Generated::From { .. }, a) => FnSig::simple(
                     vec![],

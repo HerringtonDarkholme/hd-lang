@@ -90,7 +90,7 @@ impl Sub for Duration:
 # second, `ms`; zero is `0s`.
 # Keep handwritten Display: keep canonical time text rather than an Error message.
 impl Display for Duration:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         millis := self.millis
         if millis == 0:
             return "0s"
@@ -327,7 +327,7 @@ impl Parse for Timestamp:
 # The RFC 3339 text, as Go's `Time.String` (r-std-time.timestamp.display).
 # Keep handwritten Display: keep canonical time text rather than an Error message.
 impl Display for Timestamp:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         self.to_rfc3339()
 
 # A `Timestamp` debugs as its RFC 3339 text

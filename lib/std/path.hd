@@ -13,8 +13,8 @@ pub type Path(string)
 
 # Keep handwritten Display: delegate to the wrapped string without adding Error to this newtype.
 impl Display for Path:
-    fn to_string(self) -> string:
-        string(self)
+    fn to_string(&self) -> string:
+        string(*self)
 
 # Path operations on the text, with `/` as the only separator
 # (r-std-path.ops.methods). The components are the pieces between separators,

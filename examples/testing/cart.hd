@@ -25,7 +25,7 @@ struct QuantityError:
     text: string
 
 impl Display for QuantityError:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         "not a quantity: ${self.text}"
 
 impl Error for QuantityError

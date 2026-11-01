@@ -210,7 +210,7 @@ impl Number:
 
 # Keep handwritten Display: render the represented number without its private enum wrapper.
 impl Display for Number:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         match self.repr:
             .Negative(value) => "$value"
             .NonNegative(value) => "$value"
@@ -359,9 +359,9 @@ fn pointer_token(path: string, start: usize, end: usize) -> string:
 # Compact JSON text (r-std-json.display.compact).
 # Keep handwritten Display: render JSON syntax rather than an Error message.
 impl Display for Json:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         let mut out: List[u8] = []
-        render(self, &mut out, false, 0)
+        render(*self, &mut out, false, 0)
         string_from_bytes(out)
 
 # The text is appended to one byte buffer. Every piece is valid UTF-8 (a

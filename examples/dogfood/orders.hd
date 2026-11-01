@@ -24,7 +24,7 @@ enum OrderError:
     OutOfStock(sku: string, wanted: i32, have: i32)
 
 impl Display for OrderError:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         match self:
             .EmptyOrder => "order has no lines"
             .BadQuantity(sku, qty) => "bad quantity $qty for $sku"

@@ -7,5 +7,5 @@ enum ReadError:
     Closed
 
 impl Display for ReadError: # diagnostic: overlapping-impl
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         "read error"

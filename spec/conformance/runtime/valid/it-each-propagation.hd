@@ -6,7 +6,7 @@ struct DigitError:
     text: string
 
 impl Display for DigitError:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         "not a digit: " + self.text
 
 impl Error for DigitError

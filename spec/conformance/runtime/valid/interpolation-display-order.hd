@@ -6,7 +6,7 @@ struct Tagged:
     label: string
 
 impl Display for Tagged:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         order = order + self.label
         "<" + self.label + ">"
 

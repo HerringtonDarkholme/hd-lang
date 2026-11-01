@@ -234,7 +234,7 @@ impl Cart:
         self.items[i]
 
 impl Display for Cart:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         panic(\"no display\")
 
 tests:

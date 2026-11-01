@@ -10,7 +10,7 @@ struct Failure:
     code: i32
 
 impl Display for Failure:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         "failure ${self.code}"
 
 impl Error for Failure

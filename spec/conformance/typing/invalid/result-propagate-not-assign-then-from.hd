@@ -6,7 +6,7 @@ enum Code:
     Fail
 
 impl Display for Code:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         "fail"
 
 enum Report:

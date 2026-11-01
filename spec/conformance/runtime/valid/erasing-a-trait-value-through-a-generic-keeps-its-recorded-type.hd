@@ -11,7 +11,7 @@ struct Missing:
     path: string
 
 impl Display for Missing:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         "missing ${self.path}"
 
 impl Error for Missing

@@ -272,7 +272,7 @@ fn a_result_of_a_result_is_an_entry_result() {
 #[test]
 fn a_user_error_with_error_is_an_entry_error() {
     accepts(
-        "use std.error.Error\n\npub struct Oops:\n    code: i32\n\nimpl Display for Oops:\n    fn to_string(self) -> string:\n        \"oops\"\n\nimpl Error for Oops\n\npub fn main() -> Result[void, Oops]:\n    .Err(Oops { code: 1 })\n",
+        "use std.error.Error\n\npub struct Oops:\n    code: i32\n\nimpl Display for Oops:\n    fn to_string(&self) -> string:\n        \"oops\"\n\nimpl Error for Oops\n\npub fn main() -> Result[void, Oops]:\n    .Err(Oops { code: 1 })\n",
     );
 }
 
@@ -280,7 +280,7 @@ fn a_user_error_with_error_is_an_entry_error() {
 fn a_user_error_with_only_display_is_not_an_entry_error() {
     assert_eq!(
         single(
-            "pub struct Oops:\n    code: i32\n\nimpl Display for Oops:\n    fn to_string(self) -> string:\n        \"oops\"\n\npub fn main() -> Result[void, Oops]:\n    .Err(Oops { code: 1 })\n"
+            "pub struct Oops:\n    code: i32\n\nimpl Display for Oops:\n    fn to_string(&self) -> string:\n        \"oops\"\n\npub fn main() -> Result[void, Oops]:\n    .Err(Oops { code: 1 })\n"
         ),
         [(Code::UnsatisfiedTraitBound, 8, 18)]
     );

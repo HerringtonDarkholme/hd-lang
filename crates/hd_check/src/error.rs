@@ -129,6 +129,18 @@ impl Target<'_, '_> {
         };
         let blk = ck.b.open_block();
         let p = ck.b.local(pty, pname, local_flags::PARAM, at.index());
+        // `Display.to_string` and `Error.source` take `&self`; the arms
+        // read the value it refers to.
+        let (p, pty) = if matches!(g, Generated::Display | Generated::Error) {
+            let r = ck.b.get(p, pty, at.index());
+            let (v, vt) = ck.emit_deref(r, pty, at.index());
+            let sym = cx.names.syms.intern("$self");
+            let l = ck.b.local(vt, sym, local_flags::ASSIGNED, at.index());
+            ck.set_local(l, v, at.index());
+            (l, vt)
+        } else {
+            (p, pty)
+        };
         // The members' types over the implementation's own parameters.
         let own = |t: Ty| {
             cx.names.pool.subst(t, &|q: ParamRef| {
@@ -308,6 +320,7 @@ impl Target<'_, '_> {
                 let node = v.members[0].node;
                 let t = own(f.ty);
                 let r = self.read(ck, p, vi, 0, t);
+                let r = ck.eq_operand_ref((r, t, false), node);
                 let display = names.known.display;
                 Ok(ck.trait_call(display, "to_string", r, t, &[], node)?.0)
             }
@@ -348,6 +361,7 @@ impl Target<'_, '_> {
             let node = v.members[0].node;
             let t = own(f.ty);
             let r = self.read(ck, p, vi, 0, t);
+            let r = ck.eq_operand_ref((r, t, false), node);
             let error = ck.cx.names.known.error;
             let (c, ct) = ck.trait_call(error, "source", r, t, &[], node)?;
             return Ok(ck.coerce(c, ct, ret, node, "a cause", ExpectPosition::General));

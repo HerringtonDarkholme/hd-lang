@@ -6,7 +6,7 @@ enum FsError:
     NotFound(path: string)
 
 impl Display for FsError:
-    fn to_string(self) -> string:
+    fn to_string(&self) -> string:
         match self:
             FsError.NotFound(path) => "not found: " + path
 
