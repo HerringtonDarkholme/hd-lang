@@ -10,11 +10,11 @@ fn greeting(input: string) -> string:
 >   local $1 args: List[string] [:= read assigned]
 >   local $2 name: string [:= read assigned]
 >   local $3 msg: string [:= read assigned]
->   local $4 self: usize [read]
+>   local $4 $ref: usize [read assigned captured captured-assigned]
 >   %0 = Read move [$0] : string
 >   %1 = Call std/text/impl string.split[] (%0, ",") : List[string]
 >   %2 = Store [$1] %1 : ()
->   %32 = Block %29 : string
+>   %31 = Block %28 : string
     msg := if args.len() < 2 || (name := args[1]) == "":
 >   %3 = Read borrow [$1] : List[string]
 >   %4 = Intrinsic ListLen [%3] : usize
@@ -41,12 +41,12 @@ fn greeting(input: string) -> string:
 >   %21 = Intrinsic ListLen [%20] : usize
 >   %22 = Drop [%20] : ()
 >   %23 = Store [$4] %21 : ()
->   %24 = Read copy [$4] : usize
->   %25 = Call std/format/format_int[usize] (%24) : string
->   %26 = Break L0 %25 : never
->   %27 = Block - : string
->   %28 = Scope %27 [] : string
->   %29 = Interp [%19 " " %28] : string
->   %30 = Drop [%28] : ()
->   %31 = Drop [%19] : ()
+>   %24 = Ref local frame [$4] : Counted[usize]
+>   %25 = Call std/format/Display.to_string for usize [] via Impl (%24) : string
+>   %26 = Drop [%24] : ()
+>   %27 = Drop [$4] : ()
+>   %28 = Interp [%19 " " %25] : string
+>   %29 = Drop [%25] : ()
+>   %30 = Drop [%19] : ()
+>   %24 finds [$4] full
 >   exit sub 0 drops [$0]

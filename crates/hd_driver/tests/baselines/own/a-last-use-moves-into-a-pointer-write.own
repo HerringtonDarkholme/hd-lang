@@ -2,6 +2,7 @@
 std/rt.stage_case/keep
   local $0 p: Ptr[string] [param read]
   local $2 text: string [:= read assigned]
-  %10 = Read copy [$0] : Ptr[string]
-  %11 = Read move [$2] : string
-  %12 = Store [ptr %10] %11 : ()
+  %7 = Read copy [$0] : Ptr[string]
+  %8 = Read move [$2] : string
+  %9 = Store [ptr %7] %8 : ()
+  exit sub 0 drops [$1]
