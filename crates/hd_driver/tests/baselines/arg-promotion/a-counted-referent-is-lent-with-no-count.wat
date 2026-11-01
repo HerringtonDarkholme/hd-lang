@@ -6,7 +6,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $"shown[string]" (param $value.0 i32) (param $value.1 i32) (result i32 i32)
     block
-    ;; 30 |     value.show()
+    ;; 31 |     value.show()
       local.get $value.0
       local.get $value.1
       call $"impl Show for string.show'1"
@@ -15,7 +15,7 @@
     ;; ...
   )
   (func $use_shown (result i32 i32) (local $t1 i32) (local $t0 i32)
-    ;; 33 |     shown("abc")
+    ;; 34 |     shown("abc")
     block
       i32.const 65 ;; &"abc"
       i32.const 3
@@ -28,7 +28,7 @@
   )
   (func $label'1 (param $w i32) (result i32) (local $t0 i32) (local $t1 i32)
     block
-    ;; 22 |     (w.name.len() + 1) * (w.name.len() + 2) * (w.name.len() + 3) / (w.name.len() + 4)
+    ;; 23 |     (w.name.len() + 1) * (w.name.len() + 2) * (w.name.len() + 3) / (w.name.len() + 4)
       local.get $w
       i32.load $heap
       local.get $w
@@ -125,7 +125,7 @@
   )
   (func $label'2 (param $w.name.0 i32) (param $w.name.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     block
-    ;; 22 |     (w.name.len() + 1) * (w.name.len() + 2) * (w.name.len() + 3) / (w.name.len() + 4)
+    ;; 23 |     (w.name.len() + 1) * (w.name.len() + 2) * (w.name.len() + 3) / (w.name.len() + 4)
       local.get $w.name.0
       drop
       block
@@ -205,12 +205,12 @@
   )
   (func $use_label (param $name.0 i32) (param $name.1 i32) (result i32)
     block
-    ;; 25 |     let w = Wrap { name: name }
+    ;; 26 |     let w = Wrap { name: name }
       local.get $name.0
       local.get $name.1
       local.set $name.1
       local.tee $name.0
-    ;; 26 |     label(&w)
+    ;; 27 |     label(&w)
       local.get $name.1
       call $label'2
       ;; ...

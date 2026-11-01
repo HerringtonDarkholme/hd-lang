@@ -5,7 +5,7 @@
   (import "fixture" "table0" (table $table0 2 funcref))
   (func $"impl Mapper.apply'1" (param $self i32) (param $x i32) (result i32) (local $t0 i32)
     block
-    ;; 13 |         (self.transform)(x)
+    ;; 18 |         (self.transform)(x)
       local.get $self
       i32.load $heap
       local.get $self
@@ -25,7 +25,7 @@
   )
   (func $"impl Mapper.apply'2" (param $self.transform.0 i32) (param $self.transform.1 i32) (param $x i32) (result i32)
     block
-    ;; 13 |         (self.transform)(x)
+    ;; 18 |         (self.transform)(x)
       local.get $self.transform.1
       local.get $x
       i32.const 0
@@ -37,7 +37,7 @@
   )
   (func $run (param $m.transform.0 i32) (param $m.transform.1 i32) (param $x i32) (result i32)
     block
-    ;; 16 |     m.apply(x)
+    ;; 21 |     m.apply(x)
       local.get $m.transform.0
       local.get $m.transform.1
       local.get $x
@@ -47,7 +47,7 @@
     ;; ...
   )
   (func $run_counted (param $m i32) (param $x i32) (result i32)
-    ;; 19 |     m.apply(x)
+    ;; 24 |     m.apply(x)
     block
       local.get $m
       local.get $x

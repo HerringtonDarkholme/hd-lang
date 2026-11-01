@@ -5,10 +5,15 @@
 # calls the exclusive copy, which takes no count of the environment.
 # `run_counted` lends a place behind a `*mut`, which another alias may
 # change during the call, so it calls the plain body, which counts it.
+# `apply` stays a call, as a release build would otherwise copy it into
+# `run`.
+use std.annotation.inline
+
 struct Mapper:
     transform: fn(i32) -> i32
 
 impl Mapper:
+    @inline(.Never)
     fn apply(&self, x: i32) -> i32:
         (self.transform)(x)
 

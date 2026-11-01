@@ -79,8 +79,14 @@ pub fn specialize_calls(env: &dyn FactEnv, body: &mut Body, hash: Hash128) -> Ha
         if env.list_is_empty(def) {
             let record = body.record(body.data[call][1]);
             let args = &record[..record.len().saturating_sub(3)];
+            // A `&self` receiver passes the list's address.
+            let through = args.first().map_or(&[][..], |&a| {
+                let by_ref =
+                    a & Ref::CONST_BIT == 0 && body.tags.get(a as usize) == Some(&Tag::Ref);
+                if by_ref { &[Proj::Deref][..] } else { &[][..] }
+            });
             if let Some(&items) = args.first()
-                && let Some(facts) = source_facts(env, body, &stores, items, &[], 0)
+                && let Some(facts) = source_facts(env, body, &stores, items, through, 0)
             {
                 let input = u32::try_from(body.consts.len()).expect("constants");
                 body.consts

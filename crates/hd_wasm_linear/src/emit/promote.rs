@@ -48,7 +48,15 @@ pub fn lent_referent(
         return None;
     }
     let n = crate::layout::vals(pool, env, target).ok()?.len();
-    (1..=4).contains(&n).then_some(target)
+    if !(1..=4).contains(&n) {
+        return None;
+    }
+    // The referent as declared: `kind` strips a newtype to its base, but
+    // a copy's reads of `[*$p .0]` name the newtype's field.
+    match pool.get(crate::layout::strip(pool, env, t)) {
+        hd_types::TyData::Adt { args, .. } => pool.list_items(args).first().copied(),
+        _ => Some(target),
+    }
 }
 
 /// The `Ref`s of body `b` (instance `item` at `args`, with call targets

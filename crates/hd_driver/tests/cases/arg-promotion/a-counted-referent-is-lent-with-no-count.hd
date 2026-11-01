@@ -18,6 +18,7 @@ impl Show for string:
 struct Wrap:
     name: string
 
+@inline(.Never)
 fn label(w: &Wrap) -> usize:
     (w.name.len() + 1) * (w.name.len() + 2) * (w.name.len() + 3) / (w.name.len() + 4)
 

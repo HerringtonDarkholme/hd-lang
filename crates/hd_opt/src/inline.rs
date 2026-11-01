@@ -75,9 +75,10 @@ pub trait InlineEnv: ProgramEnv {
     /// implementation.
     fn select_impl(&self, trait_: DefId, self_ty: Ty, targs: TyList) -> Option<DefId>;
     /// Release (#1151): the referent of a reference of type `t` that a
-    /// copy may take by value (`hd_wasm_linear::promotable_referent`);
-    /// `None` when the pipeline does not promote arguments.
-    fn promotable_referent(&self, _t: Ty) -> Option<Ty> {
+    /// copy may take by value (`hd_wasm_linear::lent_referent`, counted
+    /// parts allowed); `None` when the pipeline does not promote
+    /// arguments.
+    fn lent_referent(&self, _t: Ty) -> Option<Ty> {
         None
     }
 }
@@ -169,7 +170,7 @@ impl dyn InlineEnv + '_ {
                 0
             };
             if by_value != 0 {
-                let referent = |t: Ty| self.promotable_referent(t).unwrap_or(t);
+                let referent = |t: Ty| self.lent_referent(t).unwrap_or(t);
                 copy = hd_tir::own::promote::promote(&copy, by_value, referent);
             }
             sites.push(Site {
@@ -413,16 +414,19 @@ impl dyn InlineEnv + '_ {
 
     /// Release (#1151): the parameters a copy of `def` at `targs` takes by
     /// value (bit k: parameter k), when each of its reference parameters
-    /// has a referent a copy may take by value (`promotable_referent`)
-    /// and `copy` only reads through it
+    /// has a referent a copy may take by value (`lent_referent`) and
+    /// `copy` only reads through it
     /// (`hd_tir::own::promote::read_only_params`). The copy then binds the
-    /// referent's value, not the address, and no count or cell follows
-    /// (`crates/hd_wasm_linear/DESIGN.md` §23.40).
+    /// referent's value, not the address, and no cell follows
+    /// (`crates/hd_wasm_linear/DESIGN.md` §23.40). The binding is an
+    /// ordinary read of the caller's place, before the passes, so a
+    /// counted referent's count is theirs to decide: a temporary's moves
+    /// into the copy, and a local that stays unchanged lends it.
     fn by_value(&self, def: DefId, targs: TyList, copy: &Body) -> Option<u64> {
         self.memo()?;
         let mut mask = 0;
         for (k, t) in self.reference_params(def, targs)? {
-            self.promotable_referent(t).filter(|_| k < 64)?;
+            self.lent_referent(t).filter(|_| k < 64)?;
             mask |= 1 << k;
         }
         (mask != 0 && hd_tir::own::promote::read_only_params(copy, mask) == mask).then_some(mask)

@@ -583,9 +583,9 @@ impl InlineEnv for Env<'_> {
         self.layout_facts(t).1
     }
 
-    fn promotable_referent(&self, t: Ty) -> Option<Ty> {
+    fn lent_referent(&self, t: Ty) -> Option<Ty> {
         self.run.promote_args.then_some(())?;
-        hd_wasm_linear::promotable_referent(&self.run.pool, self, t)
+        hd_wasm_linear::lent_referent(&self.run.pool, self, t)
     }
 
     /// The item and type arguments a trait call chosen as an impl runs:
