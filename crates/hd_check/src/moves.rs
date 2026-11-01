@@ -136,6 +136,9 @@ struct Uses<'x> {
     users: &'x [Vec<(u32, Role)>],
     hidden: &'x [bool],
     hidden_reads: &'x HashMap<LocalId, Vec<u32>>,
+    /// Whether a sub-body's result moves its value: the caller takes it.
+    /// Use-after-move needs no such move, since nothing runs after it.
+    root_result_moves: bool,
 }
 
 /// The binding a place reaches and the field path to it: a read of
@@ -341,6 +344,7 @@ impl Ck<'_, '_> {
             users: &users,
             hidden: &hidden,
             hidden_reads: &hidden_reads,
+            root_result_moves: false,
         };
         // The binding and field path each place reaches.
         let mut acc: Vec<Option<Access>> = Vec::with_capacity(n);
@@ -514,11 +518,15 @@ impl Ck<'_, '_> {
             match role {
                 Role::Consume => self.consume_moves(cx, i, v, depth),
                 Role::Arg(k) => !self.param_is_mut(b, i, k as usize),
-                // A block's value is its owner's. Nothing runs after a
-                // sub-body's root block, so its result needs no move.
+                // A block's value is its owner's. A sub-body's root block
+                // gives its result to the caller ([`Uses::root_result_moves`]).
                 Role::Tail => {
                     let owner = cx.topo.owner[i];
-                    owner != NONE && self.moves(cx, owner, depth + 1)
+                    if owner == NONE {
+                        cx.root_result_moves
+                    } else {
+                        self.moves(cx, owner, depth + 1)
+                    }
                 }
                 _ => false,
             }

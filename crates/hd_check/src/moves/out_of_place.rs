@@ -107,6 +107,7 @@ impl Ck<'_, '_> {
             users: &users,
             hidden: &hidden,
             hidden_reads: &hidden_reads,
+            root_result_moves: true,
         };
         // One error per reference, as for `use-of-moved-value`.
         let mut seen: Vec<Root> = Vec::new();

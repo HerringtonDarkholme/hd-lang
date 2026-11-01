@@ -1,0 +1,12 @@
+# test: a branch's tail value that reads a non-copyable value through a reference moves it out
+# Spec 13 Values And References: ref.move.out-of-place.
+struct Photo:
+    width: u32
+
+impl !Copy for Photo
+
+fn take(r: &mut Photo, fresh: bool) -> Photo:
+    if fresh:
+        Photo { width: 1 }
+    else:
+        *r # diagnostic: move-out-of-place

@@ -5722,3 +5722,5 @@ typing/valid/bound-closure-takes-the-bound-row.hd	type	accept	lang/07-functions.
 typing/invalid/bound-closure-row-outside-the-bound.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.trait.bound-closure
 runtime/valid/bound-closure-row-adopted-runs.hd	runtime	accept	lang/07-functions.md#r-fn.trait.bound-closure
 runtime/valid/newtype-read-through-a-reference.hd	runtime	accept	lang/13-values-and-references.md#r-ref.deref.read
+typing/invalid/move-out-of-reference-as-tail-value.hd	type	reject:move-out-of-place	lang/13-values-and-references.md#r-ref.move.out-of-place
+typing/invalid/move-out-of-mut-reference-as-branch-tail.hd	type	reject:move-out-of-place	lang/13-values-and-references.md#r-ref.move.out-of-place
