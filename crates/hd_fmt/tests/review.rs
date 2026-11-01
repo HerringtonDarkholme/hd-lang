@@ -220,3 +220,9 @@ fn equal_and_brace_spacing_have_one_canonical_spelling() {
         "fn f(c: &Clock, o: Item, store: Store[Item = string]):\n    assert(false, reason=\"x\")\n    $.with(Clock=c):\n        Point { x: 0 }\n    match o:\n        Point { x: value } => value\n"
     );
 }
+
+#[test]
+fn negative_impls_and_relaxed_bounds_keep_their_markers() {
+    let source = "impl !Copy for Photo\nimpl[T] !Copy for Pair[T]\nfn hold[T < Eq & ?Copy](x: T):\n    pass\ntrait Disposable < ?Copy:\n    fn dispose(&mut self)\nfn f!():\n    g!(1)\n";
+    assert_eq!(formatted(source), source);
+}

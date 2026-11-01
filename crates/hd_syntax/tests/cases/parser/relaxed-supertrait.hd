@@ -1,0 +1,5 @@
+# @dump: tree
+# A trait whose implementations may be non-copyable, `trait T < ?Copy`.
+# subject
+trait Disposable < ?Copy:
+    fn dispose(&mut self) -> void

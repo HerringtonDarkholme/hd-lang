@@ -133,15 +133,15 @@ pub trait Shr[Rhs = Self]:
 
 # `r[k]` and `r[k] = v` on a type other than `List`, `Map`, and `string`
 # (spec/lang/05-expressions.md#index-traits).
-## The trait of reading `r[k]`: for a receiver that is not a list, map, or string, it is the call `Index::[K]::index(&r, k)`, which borrows `r`.
+## The trait of reading `r[k]`: for a receiver that is not a list, map, or string, it is the call `Index::[K]::index(&r, k)`, which borrows `r`. A non-copyable type such as `SpanMut` implements it.
 ## See [expr.index.trait.std-ref](../../spec/lang/05-expressions.md#r-expr.index.trait.std-ref).
-pub trait Index[K]:
+pub trait Index[K] < ?Copy:
     type Out
     fn index(&self, key: K) -> Self::Out
 
 ## The trait of assigning `r[k] = v`: it is the call `IndexSet::[K, V]::index_set(r, k, v)`.
 ## See [expr.index.trait.std-ref](../../spec/lang/05-expressions.md#r-expr.index.trait.std-ref).
-pub trait IndexSet[K, V]:
+pub trait IndexSet[K, V] < ?Copy:
     fn index_set(&mut self, key: K, value: V) -> void
 
 # `v()` and `v() = x` on a value that is not a function: a callable value
@@ -173,6 +173,13 @@ pub trait Disposable[$ R = $ ()]:
 ## See [flow.using.async-disposable.row](../../spec/lang/06-control-flow.md#r-flow.using.async-disposable.row).
 pub trait AsyncDisposable[$ R = $ ()]:
     fn dispose!(&mut self) -> void $ R
+
+# The compiler-known marker for a value that copies
+# (spec/lang/13-values-and-references.md#copy). A prelude name.
+## Marks a type whose values copy. The compiler answers it from the type's structure: every type is `Copy` but a `&mut T`, a type declared `impl !Copy`, a type parameter declared `?Copy`, and a type that holds one by value. A type parameter is `Copy` unless it is declared `?Copy`. No code implements it.
+## See [ref.copy.marker](../../spec/lang/13-values-and-references.md#r-ref.copy.marker).
+pub trait Copy:
+    pass
 
 # The compiler-known marker for a value returned by an `@auto_closing`
 # function and registered as cleanup at its call statement.

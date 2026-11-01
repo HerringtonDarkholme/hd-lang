@@ -16,7 +16,7 @@ use hd_types::solver::{
     Declarations, HeadKey, ImplOrigin, ImplTable, PlanStep, SealedTraits, TypeDecl,
 };
 use hd_types::wire::{TableWriter, Tables};
-use hd_types::{ConstValue, InternPool, ParamRef, Prim, RowId, Ty, TyData, TyList};
+use hd_types::{ConstValue, CopyDecl, InternPool, ParamRef, Prim, RowId, Ty, TyData, TyList};
 
 /// The segment prefix of a local declaration's hidden scope; `#` is in no
 /// identifier, so no field or parameter default (also `Hidden`) has it.
@@ -581,6 +581,10 @@ pub struct Item {
     /// A `struct` declaration: `ItemData::Data` fields, a value type
     /// without identity (`data.struct.value`).
     pub is_struct: bool,
+    /// A struct or enum declared `impl !Copy` (`ref.copy.opt-out`): its
+    /// values move. On a trait, `trait T < ?Copy`
+    /// (`ref.copy.trait.relaxed`): its `Self` may be non-copyable.
+    pub not_copy: bool,
     /// Attached declaration docs, keyed by relative variant/member names;
     /// an empty path is the type itself. Stored outside semantic blobs.
     pub docs: ItemDocs,
@@ -620,8 +624,35 @@ impl Item {
             fills_defaults: false,
             skips: Vec::new(),
             is_struct: false,
+            not_copy: false,
             docs: Vec::new(),
             data,
+        }
+    }
+    /// Whether this is a trait whose `Self` is `Copy`, so that a bound
+    /// on it implies `Copy` (`ref.copy.trait.default`): every trait but
+    /// one declared `< ?Copy`.
+    #[must_use]
+    pub fn requires_copy(&self) -> bool {
+        matches!(self.data, ItemData::Trait(_)) && !self.not_copy
+    }
+    /// What the `Copy` row reads of a type declaration
+    /// (`ref.copy.structure`): its fields and payloads, unless it is
+    /// declared `!Copy`.
+    #[must_use]
+    pub fn copy_decl(&self) -> CopyDecl {
+        if self.not_copy {
+            return CopyDecl::NotCopy;
+        }
+        match &self.data {
+            ItemData::Data(fs) => CopyDecl::Members(fs.iter().map(|f| f.ty).collect()),
+            ItemData::Enum { shared, variants } => CopyDecl::Members(
+                (shared.iter())
+                    .chain(variants.iter().flat_map(|v| &v.fields))
+                    .map(|f| f.ty)
+                    .collect(),
+            ),
+            _ => CopyDecl::Copies,
         }
     }
     /// What the solver's compiler-supplied rows read of a type
@@ -1002,6 +1033,14 @@ impl Declarations for LookupDecls<'_> {
     fn is_local(&self, def: DefId) -> bool {
         is_local_path(self.paths, def)
     }
+    fn copy_decl(&self, def: DefId) -> CopyDecl {
+        self.lookup
+            .item(def)
+            .map_or(CopyDecl::Copies, Item::copy_decl)
+    }
+    fn trait_requires_copy(&self, trait_: DefId) -> bool {
+        self.lookup.item(trait_).is_some_and(Item::requires_copy)
+    }
 }
 
 // ------------------------------------------------------------- the blob
@@ -1360,6 +1399,7 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
     w.u8(u8::from(it.fills_defaults));
     put_tys(w, t, &it.skips)?;
     w.u8(u8::from(it.is_struct));
+    w.u8(u8::from(it.not_copy));
     match &it.data {
         ItemData::Fn(s) => {
             w.u8(0);
@@ -1477,6 +1517,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
     let fills_defaults = r.u8() != 0;
     let skips = get_tys(r, t)?;
     let is_struct = r.u8() != 0;
+    let not_copy = r.u8() != 0;
     let data = match r.u8() {
         0 => ItemData::Fn(get_sig(r, t)?),
         1 => ItemData::Data(get_fields(r, t)?),
@@ -1582,6 +1623,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
         fills_defaults,
         skips,
         is_struct,
+        not_copy,
         docs: Vec::new(),
         data,
     })

@@ -12092,6 +12092,15 @@ impl Declarations for Env<'_> {
     fn is_local(&self, def: DefId) -> bool {
         self.run.names().is_local(def)
     }
+    fn copy_decl(&self, def: DefId) -> hd_types::CopyDecl {
+        self.p
+            .items
+            .get(def)
+            .map_or(hd_types::CopyDecl::Copies, Item::copy_decl)
+    }
+    fn trait_requires_copy(&self, trait_: DefId) -> bool {
+        self.p.items.get(trait_).is_some_and(Item::requires_copy)
+    }
 }
 
 /// Diagnostics of a run by stable module order, for tests.

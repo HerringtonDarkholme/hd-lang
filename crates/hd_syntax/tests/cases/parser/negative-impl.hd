@@ -1,0 +1,4 @@
+# @dump: tree
+# A negative implementation, `impl !Copy for T`.
+# subject
+impl !Copy for Photo

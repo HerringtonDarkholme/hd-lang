@@ -32,6 +32,10 @@ pub struct SealedTraits {
     /// The `'static` bound (`ref.generic.static`), which a type meets
     /// when it holds no local reference.
     pub static_bound: DefId,
+    /// The `Copy` marker (`ref.copy.marker`), which a type meets when no
+    /// part of it held by value is a `&mut`, a type declared `!Copy`, or a
+    /// type parameter without the bound.
+    pub copy: DefId,
     /// `List` and `Map`, values with copy-on-write (`types.coll.value`),
     /// so `AnyVal` types.
     pub list: DefId,
@@ -51,6 +55,7 @@ impl Default for SealedTraits {
             structure: DefId::NONE,
             union_type: DefId::NONE,
             static_bound: DefId::NONE,
+            copy: DefId::NONE,
             list: DefId::NONE,
             map: DefId::NONE,
         }
@@ -73,6 +78,7 @@ impl SealedTraits {
                 self.structure,
                 self.union_type,
                 self.static_bound,
+                self.copy,
             ]
             .contains(&trait_)
     }
@@ -113,6 +119,26 @@ pub trait Declarations {
     fn is_const_slot(&self, _def: DefId, _index: usize) -> bool {
         false
     }
+    /// What the `Copy` row reads of a nominal type (`ref.copy.structure`).
+    fn copy_decl(&self, _def: DefId) -> CopyDecl {
+        CopyDecl::Copies
+    }
+    /// Whether trait `trait_`'s `Self` is `Copy`: it is not declared
+    /// `< ?Copy` (`ref.copy.trait.default`).
+    fn trait_requires_copy(&self, _trait_: DefId) -> bool {
+        false
+    }
+}
+
+/// A nominal type's part in the `Copy` row.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CopyDecl {
+    /// No members the row reads: a std type with no declaration.
+    Copies,
+    /// Declared `impl !Copy` (`ref.copy.opt-out`).
+    NotCopy,
+    /// The types of its fields and payloads, over its own parameters.
+    Members(Vec<Ty>),
 }
 
 /// A row's answer: it holds when every subgoal does (each on the same
@@ -200,6 +226,21 @@ pub(crate) fn row(
     }
     if trait_ == s.static_bound {
         return Some(static_row(pool, self_ty));
+    }
+    if trait_ == s.copy {
+        // An environment clause answers a parameter before this row; a
+        // parameter it does not answer was declared `?Copy`.
+        if matches!(t, TyData::Param(_)) {
+            return Some(Row::Fails(FailReason::NoImpl));
+        }
+        let mut subs = Vec::new();
+        return Some(
+            if copy_parts(pool, decls, self_ty, &mut subs, &mut Vec::new()) {
+                Row::Holds(BuiltinImpl::Copy, subs)
+            } else {
+                Row::Fails(FailReason::NoImpl)
+            },
+        );
     }
     match t {
         TyData::Infer(v) => return Some(Row::Stalled(v)),
@@ -306,6 +347,66 @@ pub(crate) fn row(
 /// it; a function value holds no local reference, since a closure never
 /// captures one. A parameter meets it
 /// only by its own bound, which the environment answers before this row.
+/// Whether `t` may copy (`ref.copy.structure`): no part held by value is
+/// a `&mut`, a type declared `!Copy`, or a type parameter whose bound
+/// fails. The parameters and inference variables it reaches are left in
+/// `subs`, for the environment to answer. A projection and an opaque type
+/// copy, as today.
+fn copy_parts(
+    pool: Types<'_>,
+    decls: &dyn Declarations,
+    t: Ty,
+    subs: &mut Vec<Ty>,
+    seen: &mut Vec<Ty>,
+) -> bool {
+    match pool.get(t) {
+        TyData::Ref {
+            mutable, counted, ..
+        } => !mutable || counted,
+        TyData::Mut(i) | TyData::Option(i) => copy_parts(pool, decls, i, subs, seen),
+        TyData::Tuple { elems, rest } => {
+            pool.list_items(elems)
+                .iter()
+                .all(|&e| copy_parts(pool, decls, e, subs, seen))
+                && rest.is_none_or(|r| copy_parts(pool, decls, r, subs, seen))
+        }
+        TyData::Union(ms) => pool
+            .list_items(ms)
+            .iter()
+            .all(|&m| copy_parts(pool, decls, m, subs, seen)),
+        TyData::Param(_) | TyData::Infer(_) => {
+            if !subs.contains(&t) {
+                subs.push(t);
+            }
+            true
+        }
+        TyData::Adt { def, args } => {
+            if seen.contains(&t) || seen.len() > 32 {
+                return true;
+            }
+            match decls.copy_decl(def) {
+                CopyDecl::Copies => true,
+                CopyDecl::NotCopy => false,
+                CopyDecl::Members(ms) => {
+                    let argv = pool.list_items(args);
+                    seen.push(t);
+                    let ok = ms.iter().all(|&m| {
+                        let m = pool.subst(m, &|p: ParamRef| {
+                            (p.owner == def)
+                                .then(|| argv.get(usize::from(p.index)).copied())
+                                .flatten()
+                        });
+                        copy_parts(pool, decls, m, subs, seen)
+                    });
+                    seen.pop();
+                    ok
+                }
+            }
+        }
+        _ => true,
+    }
+}
+
 fn static_row(pool: Types<'_>, self_ty: Ty) -> Row {
     let mut subs = Vec::new();
     let strip = |t: Ty| match pool.get(t) {

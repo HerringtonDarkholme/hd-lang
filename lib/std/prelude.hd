@@ -45,6 +45,7 @@ pub use std.hash.{Hash}
 pub use std.iter.{Iterator, Iterable}
 pub use std.console.{Console, ConsoleError, println}
 pub use std.task.{Suspend}
+pub use std.ops.{Copy}
 
 # Postfix `?` converts an error through the standard `From`
 # (module.prelude.question-from).

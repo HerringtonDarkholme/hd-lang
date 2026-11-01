@@ -89,20 +89,26 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                     lifetimes: vec![],
                 },
             );
-            item("List", gens(names, &["T"]), ItemData::Data(vec![]));
+            let bound = |def| {
+                pool.intern_ty(&TyData::TraitValue {
+                    def,
+                    args: TyList::EMPTY,
+                    bindings: vec![],
+                })
+            };
+            // A collection's items copy (`ref.copy.collections`).
+            let copy = bound(names.known.copy);
+            let mut list_gens = gens(names, &["T"]);
+            list_gens[0].bounds = vec![copy];
+            item("List", list_gens, ItemData::Data(vec![]));
             // `Map[K < Eq & Hash, V]` (types.map-key.declared-bound).
             let mut map_gens = gens(names, &["K", "V"]);
             map_gens[0].bound = Some(names.known.eq);
-            map_gens[0].bounds = [names.known.eq, names.known.hash]
+            map_gens[0].bounds = [names.known.eq, names.known.hash, names.known.copy]
                 .into_iter()
-                .map(|def| {
-                    pool.intern_ty(&TyData::TraitValue {
-                        def,
-                        args: TyList::EMPTY,
-                        bindings: vec![],
-                    })
-                })
+                .map(bound)
                 .collect();
+            map_gens[1].bounds = vec![copy];
             item("Map", map_gens, ItemData::Data(vec![]));
             let opt = names.item(module, "Option");
             let t = param(names, opt, 0);

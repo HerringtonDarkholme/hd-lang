@@ -1,0 +1,4 @@
+# @dump: tree
+# A `?Copy` bound lifts the default `Copy` bound.
+# subject
+fn hold[T < Eq & ?Copy](x: T) -> void: pass

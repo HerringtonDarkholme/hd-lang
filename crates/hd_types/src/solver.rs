@@ -24,7 +24,7 @@ pub use crate::lookup::{
 };
 use crate::pool::{Inputs, ParamRef, Prim, Ty, TyData, TyList, Types};
 use crate::sealed::Row;
-pub use crate::sealed::{Declarations, SealedTraits, TypeDecl};
+pub use crate::sealed::{CopyDecl, Declarations, SealedTraits, TypeDecl};
 use crate::unify::VarKind;
 
 /// A trait reference: `self_ty: trait_[args]` (§2.1).
@@ -942,6 +942,8 @@ pub enum BuiltinImpl {
     Fn,
     /// A plain function type's `FnMut[I, O, $R]` implementation.
     FnMut,
+    /// `Copy` (`ref.copy.structure`), from the type's parts.
+    Copy,
 }
 
 /// What a `Holds` answer carries (§8.1).
@@ -1542,7 +1544,9 @@ fn match_list(
 /// that is a bare impl parameter, as in `impl[N < Num] Add for N`,
 /// stands for one impl per type its bound's trait lists
 /// (`trait.target.numeric-family.each`), so it matches only those types:
-/// those a head of the bound's trait matches. A parameter of the asking
+/// those a head of the bound's trait matches. The bound is the
+/// parameter's first, the one written: the default `Copy` bound follows
+/// it (`ref.copy.generic.default`). A parameter of the asking
 /// item matches, and the bound step asks its environment. Every other
 /// head is decided by `match_ty` alone.
 fn family_excludes(
@@ -1559,15 +1563,18 @@ fn family_excludes(
     if p.owner != t.def[r] || matches!(pool.get(self_ty), TyData::Param(_)) {
         return false;
     }
-    t.plan[r].iter().any(|step| match step {
-        PlanStep::Bound { param, trait_, .. } if u16::from(*param) == p.index => !reads
-            .candidates(impls, pool, *trait_, self_ty, &[], false)
+    let first = t.plan[r].iter().find_map(|step| match step {
+        PlanStep::Bound { param, trait_, .. } if u16::from(*param) == p.index => Some(*trait_),
+        _ => None,
+    });
+    first.is_some_and(|trait_| {
+        !reads
+            .candidates(impls, pool, trait_, self_ty, &[], false)
             .into_iter()
             .any(|(at, bt)| {
                 let br = at.row as usize;
                 match_ty(pool, bt.def[br], bt.head_self[br], self_ty, &mut Vec::new()) == M::Yes
-            }),
-        _ => false,
+            })
     })
 }
 
@@ -2077,7 +2084,18 @@ impl<'s, 'a> Search<'s, 'a> {
             TyData::Ref { inner, .. } => inner,
             _ => self_ty,
         };
+        // A `&mut dyn` value is not `Copy`, so it meets no bound on a trait
+        // whose `Self` is (`ref.copy.trait.default`).
+        let copies = !matches!(
+            pool.get(self_ty),
+            TyData::Ref {
+                mutable: true,
+                counted: false,
+                ..
+            }
+        ) || !self.cx.decls.trait_requires_copy(tref.trait_);
         if let TyData::TraitValue { def, args, .. } = pool.get(value_ty)
+            && copies
             && let Some(learned) =
                 trait_value_holds(pool, self.cx.decls, (def, args), self_ty, tref)
         {
@@ -2396,11 +2414,40 @@ impl<'s, 'a> Search<'s, 'a> {
         let pool = self.cx.pool;
         let r = row.row as usize;
         let mut height = 1;
-        for (step, sub) in row_goals(pool, self.cx.impls, t, r, &args) {
+        let mut step_args = args.clone();
+        let mut goals = row_goals(pool, self.cx.impls, t, r, &step_args);
+        let mut k = 0;
+        while let Some(&(step, sub)) = goals.get(k) {
+            k += 1;
             let o = self.goal(Ask::Implements(sub, false), depth + 1, false, true)?;
             height = height.max(above(o.height));
+            // The default `Copy` bound on an argument still open waits for
+            // the construction that fixes it, which checks it there
+            // (`ref.copy.generic.default`), so it does not stall the impl.
+            if sub.trait_ == self.cx.decls.sealed().copy
+                && matches!(pool.get(sub.self_ty), TyData::Infer(_))
+                && matches!(o.answer, Answer::Stalled { .. })
+            {
+                continue;
+            }
             match o.answer {
-                Answer::Holds { .. } => {}
+                Answer::Holds { learned, .. } => {
+                    // A bare variable that a step learned fixes the impl
+                    // argument for the later steps, as the default `Copy`
+                    // bound after `I < Iterator[T]` (`ref.copy.generic.default`).
+                    let mut fixed = false;
+                    for a in &mut step_args {
+                        if let TyData::Infer(v) = pool.get(*a)
+                            && let Some(&(_, x)) = learned.iter().find(|(w, _)| *w == v)
+                        {
+                            *a = x;
+                            fixed = true;
+                        }
+                    }
+                    if fixed {
+                        goals = row_goals(pool, self.cx.impls, t, r, &step_args);
+                    }
+                }
                 Answer::Fails(mut info) => {
                     info.chain.insert(
                         0,
@@ -4880,6 +4927,7 @@ mod tests {
                 structure: id(6),
                 union_type: DefId::NONE,
                 static_bound: DefId::NONE,
+                copy: DefId::NONE,
                 list: DefId::NONE,
                 map: DefId::NONE,
             },

@@ -141,6 +141,9 @@ pub struct KnownItems {
     pub disposable: DefId,
     pub async_disposable: DefId,
     pub auto_closing: DefId,
+    /// The `Copy` marker (`ref.copy.marker`), a sealed trait the compiler
+    /// answers from a type's structure.
+    pub copy: DefId,
     // std.task
     pub suspend: DefId,
     /// `std.rt.memory.Buffer`, a counted buffer object (`module.rt.buffer.type`).
@@ -176,7 +179,7 @@ pub struct KnownItems {
     pub property_runner: DefId,
     /// The sealed traits, in the order of the table in spec/lang/09-traits.md
     /// "Sealed Traits" (`trait.sealed.list`).
-    sealed: [DefId; 14],
+    sealed: [DefId; 15],
 }
 
 impl KnownItems {
@@ -203,6 +206,7 @@ impl KnownItems {
             structure: self.structure,
             union_type: self.union_type,
             static_bound: self.static_bound,
+            copy: self.copy,
             list: self.list,
             map: self.map,
         }
@@ -249,6 +253,7 @@ impl KnownItems {
         let num = item("std.num", "Num");
         let integer = item("std.num", "Integer");
         let float = item("std.num", "Float");
+        let copy = item("std.ops", "Copy");
         Self {
             any,
             any_val,
@@ -320,6 +325,7 @@ impl KnownItems {
             disposable: item("std.ops", "Disposable"),
             async_disposable: item("std.ops", "AsyncDisposable"),
             auto_closing: item("std.ops", "AutoClosing"),
+            copy,
             eq: item("std.cmp", "Eq"),
             partial_ord: item("std.cmp", "PartialOrd"),
             ord: item("std.cmp", "Ord"),
@@ -375,6 +381,7 @@ impl KnownItems {
                 fn_trait,
                 fn_mut_trait,
                 static_bound,
+                copy,
             ],
         }
     }

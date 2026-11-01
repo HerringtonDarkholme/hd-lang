@@ -406,7 +406,7 @@ impl Parser<'_> {
                     // grammar.generic.row-marker.no-bound
                     self.error(Code::SyntaxError, "a row parameter takes no bound");
                 }
-                self.bound_list(true);
+                self.bound_list(true, true);
             } else if self.at(TokenKind::Colon) {
                 // grammar.decl.bound-vs-colon
                 self.error(
@@ -461,8 +461,10 @@ impl Parser<'_> {
     /// `< Bound & Bound ...` as a `BoundList`. A type parameter's list
     /// (`lifetimes`) may hold a lifetime bound, a direct `Lifetime` token
     /// (`grammar.generic.bound.lifetime`); a supertrait or an associated
-    /// type's list may not.
-    pub(crate) fn bound_list(&mut self, lifetimes: bool) {
+    /// type's list may not. A type parameter's and a supertrait list
+    /// (`relaxed`) may lift the default `Copy` bound, `?Copy`
+    /// (`grammar.generic.bound.relaxed`).
+    pub(crate) fn bound_list(&mut self, lifetimes: bool, relaxed: bool) {
         let marker = self.start();
         self.bump(); // <
         loop {
@@ -475,6 +477,15 @@ impl Parser<'_> {
                 }
                 self.bump();
             } else {
+                if self.at(TokenKind::Question) {
+                    if !relaxed {
+                        self.error(
+                            Code::SyntaxError,
+                            "a `?` bound is written only on a type parameter or a trait",
+                        );
+                    }
+                    self.bump();
+                }
                 self.ty_bound_trait(true);
             }
             if !self.eat(TokenKind::Amp) {
@@ -830,7 +841,7 @@ impl Parser<'_> {
             self.generic_params(Generics::Type);
         }
         if self.at(TokenKind::Lt) {
-            self.bound_list(false);
+            self.bound_list(false, true);
         }
         if self.eat(TokenKind::Colon) {
             if self.nth_line_first(0) || self.at_layout(Layout::Newline) || self.at_eof() {
@@ -880,7 +891,7 @@ impl Parser<'_> {
                     "an associated type in an implementation states no bound",
                 );
             }
-            self.bound_list(false);
+            self.bound_list(false, false);
         }
         if self.at(TokenKind::Eq) {
             if !with_value {
@@ -900,6 +911,8 @@ impl Parser<'_> {
         if self.at(TokenKind::LBracket) {
             self.generic_params(Generics::Impl);
         }
+        // A negative implementation, `impl !Copy for T`.
+        let negative = self.eat(TokenKind::Bang);
         if matches!(
             self.current(),
             Some(TokenKind::Ident | TokenKind::RawIdent | TokenKind::KwSelfType)
@@ -917,6 +930,11 @@ impl Parser<'_> {
         let trait_impl = self.eat(TokenKind::KwFor);
         if trait_impl {
             self.ty();
+        } else if negative {
+            self.error(
+                Code::SyntaxError,
+                "a negative implementation names a trait and a target, as `impl !Copy for T`",
+            );
         }
         if self.at_word("by") {
             self.bump();

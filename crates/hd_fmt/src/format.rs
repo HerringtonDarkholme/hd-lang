@@ -1294,6 +1294,7 @@ fn canonical_gap(tokens: &TokenBuf, boundary: usize) -> Gap {
         || space_around(next)
         || previous == T::Star && next == T::Star
         || previous == T::Lifetime && !no_space_before(next)
+        || negative_impl(tokens, boundary)
         || previous.is_keyword()
             && (next == T::LBracket && !matches!(previous, T::KwSelfValue | T::KwSelfType)
                 || next == T::LParen && previous != T::KwFn)
@@ -1311,6 +1312,16 @@ fn canonical_gap(tokens: &TokenBuf, boundary: usize) -> Gap {
     } else {
         Gap::None
     }
+}
+
+/// The `!` of `impl !Copy for T` or `impl[T] !Copy for P[T]`: a bang
+/// call's `!` follows a name and precedes `(`.
+fn negative_impl(tokens: &TokenBuf, boundary: usize) -> bool {
+    let previous = tokens.kind[boundary - 1];
+    tokens.kind[boundary] == T::Bang
+        && (previous == T::KwImpl
+            || previous == T::RBracket
+                && matches!(tokens.kind.get(boundary + 1), Some(T::Ident | T::RawIdent)))
 }
 
 fn token_bounds(node: NodeRef<'_>) -> Option<(usize, usize)> {
