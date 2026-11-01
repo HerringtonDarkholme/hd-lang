@@ -11989,15 +11989,9 @@ impl ProgramEnv for Env<'_> {
         }
         Ok(Some(bodies))
     }
-    fn map_key_items(&self) -> Option<(DefId, DefId, DefId)> {
-        // `Eq`'s method names `Self` in its parameter, so it has no vtable
-        // slot; the map lowering reads it from the declaration.
-        let eq = self.run.known.eq;
-        let Some(ItemData::Trait(t)) = self.p.items.get(eq).map(|i| &i.data) else {
-            return None;
-        };
-        let method = t.methods.first()?.1;
-        Some((eq, method, self.run.known.key_bucket_hash))
+    fn map_key_items(&self) -> Option<(DefId, DefId)> {
+        let known = &self.run.known;
+        Some((known.key_equal, known.key_bucket_hash))
     }
     fn inline_bucket_hash(&self, string: bool) -> DefId {
         if string {

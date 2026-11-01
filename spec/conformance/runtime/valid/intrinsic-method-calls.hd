@@ -34,9 +34,9 @@ tests:
 
     it("calls the comparison methods"):
         nan := 0.0 / 0.0
-        assert(!nan.eq(nan), reason="NaN is unequal to itself")
+        assert(!nan.eq(&nan), reason="NaN is unequal to itself")
         assert(is_unordered(nan.partial_cmp(1.0)), reason="NaN is unordered")
         assert(is_less(u64(3).cmp(u64(250))), reason="u64 order")
         assert(is_less('a'.cmp('b')), reason="char order")
-        assert(!true.eq(false), reason="bool equality")
+        assert(!true.eq(&false), reason="bool equality")
         assert(is_less("ab".cmp("b")), reason="string order is by byte")

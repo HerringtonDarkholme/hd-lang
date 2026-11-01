@@ -18,7 +18,7 @@ struct Tag:
     note: string
 
 impl Eq for Tag:
-    fn eq(self, other: Tag) -> bool:
+    fn eq(&self, other: &Tag) -> bool:
         self.id == other.id
 
 impl Hash for Tag:

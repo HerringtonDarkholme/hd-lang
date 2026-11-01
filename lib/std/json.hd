@@ -136,7 +136,7 @@ impl Iterable[(string, Json)] for JsonObject:
 # The same members, in any order (r-std-json.value.eq.object).
 # Keep handwritten Eq: compare keys and values, independent of entry order.
 impl Eq for JsonObject:
-    fn eq(self, other: JsonObject) -> bool:
+    fn eq(&self, other: &JsonObject) -> bool:
         if self.len() != other.len():
             return false
         for (key, value) in self.entries:

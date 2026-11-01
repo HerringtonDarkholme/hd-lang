@@ -6,7 +6,7 @@ struct Point:
     y: i32
 
 impl Eq for Point:
-    fn eq(self, other: Self) -> bool:
+    fn eq(&self, other: &Self) -> bool:
         self.x == other.x && self.y == other.y
 
 fn expect_same[T < Eq & Debug](actual: T, expected: T) -> void:

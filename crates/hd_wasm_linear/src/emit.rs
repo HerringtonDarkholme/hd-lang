@@ -3288,9 +3288,45 @@ impl Em<'_, '_, '_> {
     }
 
     /// A body-less method of a primitive's std impl at `self_ty`
-    /// (`expr.op.std.intrinsic-method`, `expr.ord.std.intrinsic`): the
-    /// operator's lowering, an `Ordering`, or the value's text.
+    /// (`expr.op.std.intrinsic-method`, `expr.ord.std.intrinsic`).
+    /// `Eq.eq` takes its operands by reference (`expr.eq.trait.ref`) and
+    /// reads the values they refer to: each such argument stands for its
+    /// loaded value while the operation is lowered.
     fn builtin(&mut self, i: u32, name: &str, self_ty: Ty, args: &[u32]) -> StageResult<()> {
+        let mut saved: Vec<(u32, usize, Option<Vec<u32>>, Ty)> = Vec::new();
+        let reads: &[u32] = if name == "eq" { args } else { &[] };
+        for &a in reads {
+            let Some(at) = Ref(a).as_inst().map(|x| x.0 as usize) else {
+                continue;
+            };
+            let Some((target, false)) = self.ref_target(self.ty_of(a)) else {
+                continue;
+            };
+            if saved.iter().any(|(b, ..)| *b == a) {
+                continue;
+            }
+            let layout = self.ref_layout(target)?;
+            let addr = self.f.local(Val::I32);
+            self.comp(a, 0)?;
+            self.f.set(addr);
+            let loaded = crate::rt::ref_load(&mut self.f, addr, &layout);
+            let old = self.vals.insert(a, loaded);
+            saved.push((a, at, old, std::mem::replace(&mut self.inst_ty[at], target)));
+        }
+        let done = self.builtin_values(i, name, self_ty, args);
+        for (a, at, old, t) in saved {
+            self.inst_ty[at] = t;
+            match old {
+                Some(ls) => self.vals.insert(a, ls),
+                None => self.vals.remove(&a),
+            };
+        }
+        done
+    }
+
+    /// [`Em::builtin`] on operand values: the operator's lowering, an
+    /// `Ordering`, or the value's text.
+    fn builtin_values(&mut self, i: u32, name: &str, self_ty: Ty, args: &[u32]) -> StageResult<()> {
         let t = hd_mono::layout::strip_newtype(self.pool(), self.env(), self.strip_mut(self_ty));
         let prim = matches!(self.pool().get(t), TyData::Prim(_));
         let op = match name {

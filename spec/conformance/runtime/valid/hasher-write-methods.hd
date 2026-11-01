@@ -125,7 +125,7 @@ struct ByteKey:
     typed: bool
 
 impl Eq for ByteKey:
-    fn eq(self, other: ByteKey) -> bool:
+    fn eq(&self, other: &ByteKey) -> bool:
         self.padding == other.padding
 
 impl Hash for ByteKey:

@@ -860,7 +860,8 @@ Each operation implements collection value semantics (§15.2;
   chose: an integer, `bool` or `char` through `int_bucket_hash` over its
   bits zero-extended and `i32.eq` or `i64.eq`, a string through
   `string_bucket_hash` and a byte comparison, any other key through its
-  `key_bucket_hash` and `Eq.eq` instances. `map_hash_seed` is a runtime
+  `key_bucket_hash` and `key_equal` instances, which take the key by
+  value (`key_equal` lends both to `Eq.eq`). `map_hash_seed` is a runtime
   global filled from the host's `hd:rt.hash_seed` on first use.
 - **Literals and puts.** A literal makes a table with room for its
   entries and puts each in source order (`expr.map.order`). A put of an

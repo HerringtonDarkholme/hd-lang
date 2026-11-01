@@ -253,12 +253,13 @@ impl Forwarder<'_> {
         if let Some(conv) = &conv {
             for (index, (&(l, t), &(name, want))) in params.iter().zip(&tsig.params).enumerate() {
                 let want = ck.normalize_deep(inst(want))?;
-                // `&self` and `&mut self` are receiver positions, not an
-                // arbitrary reference that contains `Self`. Newtypes erase
-                // to their bases, so the local receiver reference keeps the
-                // same representation and access when it crosses the call.
-                if index == 0
-                    && ck.cx.names.text(name) == "self"
+                // `&self`, `&mut self` and a `&Self` parameter, as `Eq.eq`'s
+                // `other`, are reference positions, not an arbitrary
+                // reference that contains `Self`. Newtypes erase to their
+                // bases, so the local reference keeps the same
+                // representation and access when it crosses the call.
+                let receiver = index == 0 && ck.cx.names.text(name) == "self";
+                if (receiver || ck.ref_of(t).is_some_and(|(_, m)| !m))
                     && conv.local_receiver(&ck, t, want)
                 {
                     let v = ck.b.get(l, t, at);
@@ -304,7 +305,7 @@ impl Forwarder<'_> {
     /// (`trait.derive.newtype.self-error`).
     fn position_message(&self, ck: &Ck<'_, '_>, at: Ty) -> String {
         format!(
-            "`{}` has `{}` where a newtype forwards only the receiver, Self, Self?, Result[Self, E] and List[Self]",
+            "`{}` has `{}` where a newtype forwards only the receiver, Self, &Self, Self?, Result[Self, E] and List[Self]",
             ck.cx.names.display_name(self.tm),
             ck.show(at)
         )

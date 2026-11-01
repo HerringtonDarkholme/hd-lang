@@ -4,7 +4,7 @@ struct Date:
     year: i32
 
 impl Eq for Date:
-    fn eq(self, other: Self) -> bool:
+    fn eq(&self, other: &Self) -> bool:
         self.year == other.year
 
 fn is_launch(d: Date) -> bool:

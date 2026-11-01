@@ -8,7 +8,7 @@ first := Tag { n: 1 } < Tag { n: 2 } # diagnostic: top-level-read-before-initial
 later := +5
 
 impl Eq for Tag:
-    fn eq(self, other: Tag) -> bool:
+    fn eq(&self, other: &Tag) -> bool:
         true
 
 impl PartialOrd for Tag:

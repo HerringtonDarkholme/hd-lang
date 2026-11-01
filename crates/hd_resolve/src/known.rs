@@ -115,6 +115,9 @@ pub struct KnownItems {
     /// `string_bucket_hash` for a string and `int_bucket_hash` for any
     /// other inline key.
     pub key_bucket_hash: DefId,
+    /// `std.hash.key_equal`, the by-value `Eq` comparison of two map keys
+    /// that are not inline.
+    pub key_equal: DefId,
     pub string_bucket_hash: DefId,
     pub int_bucket_hash: DefId,
     pub display: DefId,
@@ -323,6 +326,7 @@ impl KnownItems {
             ordering: item("std.cmp", "Ordering"),
             hash: item("std.hash", "Hash"),
             key_bucket_hash: item("std.hash", "key_bucket_hash"),
+            key_equal: item("std.hash", "key_equal"),
             string_bucket_hash: item("std.hash", "string_bucket_hash"),
             int_bucket_hash: item("std.hash", "int_bucket_hash"),
             display: item("std.format", "Display"),

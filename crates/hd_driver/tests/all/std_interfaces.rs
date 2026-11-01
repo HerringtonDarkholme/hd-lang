@@ -241,7 +241,7 @@ pub struct Point:
     pub y: i32
 
 impl Eq for Point:
-    fn eq(self, other: Point) -> bool:
+    fn eq(&self, other: &Point) -> bool:
         self.x == other.x
 
 pub fn count(xs: List[i32], fallback: i32?) -> i32:

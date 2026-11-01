@@ -4,7 +4,7 @@ struct Token:
     text: string
 
 impl Eq for Token:
-    fn eq(self, other: Self) -> bool:
+    fn eq(&self, other: &Self) -> bool:
         self.text == other.text
 
 tests:

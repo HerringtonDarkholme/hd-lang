@@ -3495,6 +3495,7 @@ typing/valid/eq-contextual-right-operand.hd	type	accept	lang/05-expressions.md#r
 typing/valid/eq-contextual-left-operand.hd	type	accept	lang/05-expressions.md#r-expr.eq.contextual-operand
 typing/invalid/eq-contextual-both-operands.hd	type	reject:missing-contextual-enum-type	lang/05-expressions.md#r-expr.eq.contextual-both
 typing/valid/eq-fresh-literal-readonly-operand.hd	type	accept	lang/05-expressions.md#r-expr.eq.calls-eq
+runtime/valid/eq-operands-borrow.hd	runtime	accept	lang/05-expressions.md#r-expr.eq.trait.ref
 typing/valid/generic-join-fresh-list-elements.hd	type	accept	lang/04-type-system.md#r-types.generic.infer
 typing/valid/numeric-literal-left-operand.hd	type	accept	lang/04-type-system.md#r-types.num.binary.literal-left
 typing/valid/generic-bound-names-later-parameter.hd	type	accept	lang/04-type-system.md#r-types.generic.bound.any-order

@@ -4,7 +4,7 @@ struct Score:
     value: i32
 
 impl Eq for Score:
-    fn eq(self, other: Self) -> bool:
+    fn eq(&self, other: &Self) -> bool:
         self.value == other.value
 
 impl PartialOrd for Score:

@@ -6,5 +6,5 @@ struct Badge:
     text: string
 
 impl Eq for Badge:
-    fn eq(self, other: Badge) -> bool:
+    fn eq(&self, other: &Badge) -> bool:
         self.text == other.text

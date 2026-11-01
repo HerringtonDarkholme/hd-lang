@@ -7,7 +7,7 @@ struct Coupon:
     uses: i32
 
 impl Eq for Coupon:
-    fn eq(self, other: Coupon) -> bool:
+    fn eq(&self, other: &Coupon) -> bool:
         self.code == other.code
 
 impl Hash for Coupon:

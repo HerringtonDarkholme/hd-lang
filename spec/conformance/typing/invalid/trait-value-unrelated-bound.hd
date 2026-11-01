@@ -11,7 +11,7 @@ impl Named for Tag:
         self.text
 
 impl Eq for Tag:
-    fn eq(self, other: Tag) -> bool:
+    fn eq(&self, other: &Tag) -> bool:
         self.text == other.text
 
 fn same[T < Eq](left: T, right: T) -> bool:

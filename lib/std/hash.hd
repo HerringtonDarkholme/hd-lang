@@ -487,6 +487,11 @@ fn key_bucket_hash[T < Hash](value: T) -> u32:
     value.hash(&mut hasher)
     hasher.finish()
 
+# Whether two keys that are not integers or strings are equal: the map
+# passes them by value, and `==` lends them to `Eq.eq`.
+fn key_equal[T < Eq](left: T, right: T) -> bool:
+    left == right
+
 # The bucket hash of an integer, `bool` or `char` key, given its bits:
 # the keyed mix Go's runtime hashes an 8-byte key by on 32-bit platforms
 # (`memhash64Fallback`), three 32 x 32 -> 64-bit products, with the seed's

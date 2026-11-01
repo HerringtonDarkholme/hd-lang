@@ -15,7 +15,7 @@ struct CollisionKey:
     generation: usize
 
 impl Eq for CollisionKey:
-    fn eq(self, other: CollisionKey) -> bool:
+    fn eq(&self, other: &CollisionKey) -> bool:
         self.id == other.id
 
 impl Hash for CollisionKey:

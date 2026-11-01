@@ -7,5 +7,5 @@ struct Session:
     cache: string
 
 impl Eq for Session:
-    fn eq(self, other: Session) -> bool:
+    fn eq(&self, other: &Session) -> bool:
         self.token == other.token

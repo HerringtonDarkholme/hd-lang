@@ -1,0 +1,28 @@
+# test: `==` and `!=` pass each operand to `Eq.eq` by reference: a place passes its address, and a temporary or a list element is held in a new local
+# Spec 05 Equality: expr.eq.trait.ref.
+struct Probe:
+    n: i32
+
+# Equal exactly when both operands are one place, so the test sees whether
+# `==` passed addresses or copies.
+impl Eq for Probe:
+    fn eq(&self, other: &Probe) -> bool:
+        self is other
+
+fn fresh() -> Probe:
+    Probe { n: 1 }
+
+tests:
+    it("passes a place's address to both parameters"):
+        probe := Probe { n: 1 }
+        assert(probe == probe, reason="one place on both sides")
+        assert(!(probe != probe), reason="`!=` negates the same call")
+
+    it("holds a temporary in its own local"):
+        probe := Probe { n: 1 }
+        assert(probe != fresh(), reason="a temporary is a new place")
+        assert(fresh() != fresh(), reason="each temporary is its own place")
+
+    it("holds a list element in its own local"):
+        probes := [Probe { n: 1 }]
+        assert(probes[0] != probes[0], reason="each element read is its own place")

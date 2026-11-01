@@ -15,8 +15,8 @@ fn square_side(value: Shape) -> i32?:
         .Square(side) => side
 
 impl Eq for Shape:
-    fn eq(self, other: Self) -> bool:
-        circle_radius(self) == circle_radius(other) && square_side(self) == square_side(other)
+    fn eq(&self, other: &Self) -> bool:
+        circle_radius(*self) == circle_radius(*other) && square_side(*self) == square_side(*other)
 
 fn is_circle(value: Shape) -> bool:
     match value:

@@ -6,7 +6,7 @@ pub trait Add[Rhs = Self]
 
 # method parameter nested comma.
 impl Eq for Value:
-    fn eq(self, other: Result[i32, string]) -> bool:
+    fn eq(&self, other: &Result[i32, string]) -> bool:
         true
 
 # public field default.

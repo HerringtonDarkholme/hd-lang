@@ -135,7 +135,7 @@ impl Debug for Duration:
 
 # Keep handwritten Eq: deriving Eq alone conflicts with the existing order impls.
 impl Eq for Duration:
-    fn eq(self, other: Duration) -> bool:
+    fn eq(&self, other: &Duration) -> bool:
         self.millis == other.millis
 
 impl PartialOrd for Duration:
@@ -339,7 +339,7 @@ impl Debug for Timestamp:
 
 # Keep handwritten Eq: deriving Eq alone conflicts with the existing order impls.
 impl Eq for Timestamp:
-    fn eq(self, other: Timestamp) -> bool:
+    fn eq(&self, other: &Timestamp) -> bool:
         self.millis == other.millis
 
 impl PartialOrd for Timestamp:
@@ -624,7 +624,7 @@ impl Debug for Instant:
 
 # Keep handwritten Eq: deriving Eq alone conflicts with the existing order impls.
 impl Eq for Instant:
-    fn eq(self, other: Instant) -> bool:
+    fn eq(&self, other: &Instant) -> bool:
         self.millis == other.millis
 
 impl PartialOrd for Instant:

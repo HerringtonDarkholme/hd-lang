@@ -2,13 +2,13 @@
 # expect: test
 # Spec 05 Equality and Ordering: expr.eq.float, expr.ord.std, expr.ord.total; 09 trait.cmp.float-eq, trait.cmp.float-ord.
 pub fn main() -> void:
-    if !(1.5).eq(1.5) || (1.5).eq(2.0):
+    if !(1.5).eq(&1.5) || (1.5).eq(&2.0):
         panic("f64 eq")
     match (1.5).partial_cmp(2.0):
         .Some(.Less) => pass
         _ => panic("f64 partial_cmp")
     let nan = 0.0 / 0.0
-    if nan.eq(nan):
+    if nan.eq(&nan):
         panic("NaN equals itself")
     match nan.partial_cmp(1.0):
         .None => pass
@@ -25,7 +25,7 @@ pub fn main() -> void:
         .Some(.Greater) => pass
         _ => panic("f32 partial_cmp")
     let single_nan: f32 = 0.0 / 0.0
-    if single_nan.eq(single_nan):
+    if single_nan.eq(&single_nan):
         panic("f32 NaN equals itself")
     match single_nan.partial_cmp(single):
         .None => pass

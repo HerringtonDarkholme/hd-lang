@@ -17,7 +17,7 @@ pub enum Ordering:
 ## The one equality trait: `==` and `!=` invoke its `eq`, which must be reflexive.
 ## See [trait.cmp.equality](../../spec/lang/09-traits.md#r-trait.cmp.equality).
 pub trait Eq:
-    fn eq(self, other: Self) -> bool
+    fn eq(&self, other: &Self) -> bool
 
 impl Ordering:
     ## `self` unless it is `.Equal`, and `other` for `.Equal`: chains the keys of a comparator.
@@ -82,7 +82,7 @@ pub struct Reverse[T]:
 
 # Keep handwritten Eq: equality follows Ord.cmp, including custom orders.
 impl[T < Ord] Eq for Reverse[T]:
-    fn eq(self, other: Reverse[T]) -> bool:
+    fn eq(&self, other: &Reverse[T]) -> bool:
         match self.value.cmp(other.value):
             .Equal => true
             _ => false
@@ -106,7 +106,7 @@ impl[T < Ord] Ord for Reverse[T]:
 # Keep handwritten Eq: implement the builtin scalar protocol, which has no derivable declaration.
 impl[N < Num] Eq for N:
     @intrinsic
-    fn eq(self, other: N) -> bool
+    fn eq(&self, other: &N) -> bool
 
 impl[N < Num] PartialOrd for N:
     @intrinsic
@@ -119,7 +119,7 @@ impl[N < Integer] Ord for N:
 # Keep handwritten Eq: implement the builtin scalar protocol, which has no derivable declaration.
 impl Eq for char:
     @intrinsic
-    fn eq(self, other: char) -> bool
+    fn eq(&self, other: &char) -> bool
 
 impl PartialOrd for char:
     @intrinsic
@@ -132,14 +132,14 @@ impl Ord for char:
 # Keep handwritten Eq: implement the builtin scalar protocol, which has no derivable declaration.
 impl Eq for bool:
     @intrinsic
-    fn eq(self, other: bool) -> bool
+    fn eq(&self, other: &bool) -> bool
 
 # Strings are hd over their bytes, not intrinsics, and order by byte
 # (#r-expr.ord.std.string-bytes).
 # Keep handwritten Eq: implement the builtin scalar protocol, which has no derivable declaration.
 impl Eq for string:
-    fn eq(self, other: string) -> bool:
-        self.len() == other.len() && bytes_mismatch(self, other) == self.len()
+    fn eq(&self, other: &string) -> bool:
+        self.len() == other.len() && bytes_mismatch(*self, *other) == self.len()
 
 impl PartialOrd for string:
     fn partial_cmp(self, other: string) -> Ordering?:
@@ -181,7 +181,7 @@ fn bytes_mismatch(left: string, right: string) -> usize:
 # Lists are equal when they have the same length and equal elements in order.
 # Keep handwritten Eq: compare logical entries rather than backing storage.
 impl[T < Eq] Eq for List[T]:
-    fn eq(self, other: List[T]) -> bool:
+    fn eq(&self, other: &List[T]) -> bool:
         if self.len() != other.len():
             return false
         let index: usize = 0
@@ -209,14 +209,14 @@ impl[T < PartialOrd] PartialOrd for List[T]:
 
 # Keep handwritten Eq: compare the builtin variants, which have no derivable declaration.
 impl[T < Eq] Eq for T?:
-    fn eq(self, other: T?) -> bool:
-        match self:
+    fn eq(&self, other: &Self) -> bool:
+        match *self:
             .Some(left) =>
-                match other:
+                match *other:
                     .Some(right) => left == right
                     .None => false
             .None =>
-                match other:
+                match *other:
                     .Some(_) => false
                     .None => true
 
@@ -227,13 +227,13 @@ impl[T < Eq] Eq for T?:
 # `Eq` reach this impl.
 # Keep handwritten Eq: delegate through the reference; structural derivation is for its referent.
 impl[T < Eq] Eq for *T:
-    fn eq(self, other: *T) -> bool:
-        *self == *other
+    fn eq(&self, other: &Self) -> bool:
+        *(*self) == *(*other)
 
 # Keep handwritten Eq: delegate through the reference; structural derivation is for its referent.
 impl[T < Eq] Eq for *mut T:
-    fn eq(self, other: *mut T) -> bool:
-        *self == *other
+    fn eq(&self, other: &Self) -> bool:
+        *(*self) == *(*other)
 
 # `.None` is less than every present value
 # (spec/lang/05-expressions.md#r-expr.ord.std.optional).
@@ -251,14 +251,14 @@ impl[T < PartialOrd] PartialOrd for T?:
 
 # Keep handwritten Eq: compare the builtin variants, which have no derivable declaration.
 impl[T < Eq, E < Eq] Eq for Result[T, E]:
-    fn eq(self, other: Result[T, E]) -> bool:
-        match self:
+    fn eq(&self, other: &Result[T, E]) -> bool:
+        match *self:
             .Ok(left) =>
-                match other:
+                match *other:
                     .Ok(right) => left == right
                     .Err(_) => false
             .Err(left) =>
-                match other:
+                match *other:
                     .Err(right) => left == right
                     .Ok(_) => false
 
@@ -266,7 +266,7 @@ impl[T < Eq, E < Eq] Eq for Result[T, E]:
 # any order (spec/lang/05-expressions.md#r-expr.eq.map-order).
 # Keep handwritten Eq: compare logical entries rather than backing storage.
 impl[K < Eq & Hash, V < Eq] Eq for Map[K, V]:
-    fn eq(self, other: Map[K, V]) -> bool:
+    fn eq(&self, other: &Map[K, V]) -> bool:
         if self.len() != other.len():
             return false
         for (key, value) in self:
@@ -306,17 +306,17 @@ impl[T < Ord] Ord for T?:
 # equal when they hold the same variant and every member of `self` equals
 # the same member of `other`. The walk stops at the first difference.
 impl[T] Eq for T by Structure:
-    fn eq(self, other: T) -> bool:
-        let mut w = EqualWalker::[T] { other: other }
-        match Structure::walk(self, &mut w):
+    fn eq(&self, other: &T) -> bool:
+        let mut w = EqualWalker::[T] { other: *other }
+        match Structure::walk(*self, &mut w):
             .Ok(_) => true
             .Err(_) => false
 
 # Union `Eq`: the ordinary enum derivation over the active positional case.
 impl[T < UnionType] Eq for T by Structure:
-    fn eq(self, other: T) -> bool:
-        let mut w = EqualWalker::[T] { other: other }
-        match Structure::walk(self, &mut w):
+    fn eq(&self, other: &T) -> bool:
+        let mut w = EqualWalker::[T] { other: *other }
+        match Structure::walk(*self, &mut w):
             .Ok(_) => true
             .Err(_) => false
 
@@ -460,9 +460,9 @@ impl[S] Walker[S] for OrderWalker[S]:
 # no walk reads `other`'s variant index. A rest element compares as its
 # list (r-std-cmp.tuple.rest).
 impl[T < Tuple] Eq for T by Structure:
-    fn eq(self, other: T) -> bool:
-        let mut w = EqualWalker::[T] { other: other }
-        match Structure::walk(self, &mut w):
+    fn eq(&self, other: &T) -> bool:
+        let mut w = EqualWalker::[T] { other: *other }
+        match Structure::walk(*self, &mut w):
             .Ok(_) => true
             .Err(_) => false
 
@@ -489,8 +489,8 @@ impl[T < Tuple] Ord for T by Structure:
 # `never` has no value, so `eq` never runs (r-std-text.parse.never-traits).
 # Keep handwritten Eq: this uninhabited builtin has no value or derivable declaration.
 impl Eq for never:
-    fn eq(self, other: never) -> bool:
-        match self:
+    fn eq(&self, other: &never) -> bool:
+        match *self:
             _ => panic("never has no value")
 
 ## A reference compared and hashed by the place it refers to, not by the value there, so a map keyed by `Id[T]` keys by identity.
@@ -504,7 +504,7 @@ pub struct Id[T]:
 # (r-std-cmp.id.eq), and hash alike then (r-std-cmp.id.hash).
 # Keep handwritten Eq: compare reference identity instead of referent values.
 impl[T] Eq for Id[T]:
-    fn eq(self, other: Id[T]) -> bool:
+    fn eq(&self, other: &Id[T]) -> bool:
         self.target is other.target
 
 # Keep handwritten Hash: hash the reference identity instead of its referent.
@@ -523,7 +523,7 @@ struct RefIdentity:
 
 # Keep handwritten Eq: compare the base by identity, then its serial and field path.
 impl Eq for RefIdentity:
-    fn eq(self, other: RefIdentity) -> bool:
+    fn eq(&self, other: &RefIdentity) -> bool:
         self.base is other.base && self.serial == other.serial && self.key == other.key
 
 # The base has no hash, so places in one data object share the hash of

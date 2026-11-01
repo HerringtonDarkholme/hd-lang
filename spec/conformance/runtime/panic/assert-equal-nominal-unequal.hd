@@ -5,7 +5,7 @@ struct User:
     display_name: string
 
 impl Eq for User:
-    fn eq(self, other: Self) -> bool:
+    fn eq(&self, other: &Self) -> bool:
         self.id == other.id
 
 tests:

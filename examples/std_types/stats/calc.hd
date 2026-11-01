@@ -5,7 +5,7 @@ pub struct Score:
     pub bonus: i32
 
 impl Eq for Score:
-    fn eq(self, other: Score) -> bool:
+    fn eq(&self, other: &Score) -> bool:
         self.points == other.points
 
 ## How many scores a page shows; the list and the optional page size are

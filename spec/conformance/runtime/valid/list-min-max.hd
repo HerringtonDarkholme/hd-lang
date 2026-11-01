@@ -6,7 +6,7 @@ struct Entry:
     label: string
 
 impl Eq for Entry:
-    fn eq(self, other: Entry) -> bool:
+    fn eq(&self, other: &Entry) -> bool:
         self.rank == other.rank
 
 impl PartialOrd for Entry:

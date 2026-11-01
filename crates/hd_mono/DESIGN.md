@@ -1565,8 +1565,9 @@ when the table fills and adds one to `grown`, since the entries move.
 `std.hash.key_bucket_hash` at the substituted key type, which feeds the
 key type's `Hash` impl a `BucketHasher` (HalfSipHash-1-3 keyed by the
 run's seed: the `map_hash_seed` primitive, the `hd:rt` `hash_seed`
-import), and compare with its `Eq` impl on a hash match
-(`types.map.eq-hash`). Collection pushes those instances as it does
+import), and compare with `std.hash.key_equal`, which takes the two keys
+by value and passes them to the key type's `Eq` impl by reference, on a
+hash match (`types.map.eq-hash`). Collection pushes those instances as it does
 `Bound` choices (§13.2 step 4), as `Target::MapKey`. An inline key
 (integer, `bool`, `char`, `string`) compares inline and hashes through
 one keyed function, pushed as `Target::MapInline`:

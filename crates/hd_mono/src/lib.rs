@@ -225,10 +225,10 @@ pub trait ProgramEnv: LayoutEnv {
     }
 
     /// The items a map key's hashing and equality call (`crates/hd_mono/DESIGN.md`
-    /// §13.12): the `Eq` trait, its method (which has no vtable slot, as it
-    /// names `Self`) and `std.hash.key_bucket_hash`, the keyed hash a map
+    /// §13.12): `std.hash.key_equal`, which compares two keys by value
+    /// through `Eq`, and `std.hash.key_bucket_hash`, the keyed hash a map
     /// buckets a key that is not inline by.
-    fn map_key_items(&self) -> Option<(DefId, DefId, DefId)>;
+    fn map_key_items(&self) -> Option<(DefId, DefId)>;
     /// The keyed hash a map buckets an inline key by (`crates/hd_mono/DESIGN.md`
     /// §13.12): `std.hash.string_bucket_hash` for a `string`, else
     /// `std.hash.int_bucket_hash`, which takes the key's bits as a `u64`.
@@ -336,7 +336,7 @@ pub enum Target {
     /// field.
     KnownClosure(Hash128),
     /// A map operation on a key that is not inline
-    /// (`layout::inline_map_key`): `key_bucket_hash` and `Eq.eq` at the
+    /// (`layout::inline_map_key`): `key_bucket_hash` and `key_equal` at the
     /// key type (`crates/hd_mono/DESIGN.md` §13.12).
     MapKey {
         hash: CallTarget,
@@ -3109,8 +3109,8 @@ impl Cx<'_> {
 
     /// The key operations of a map of type `map` (`crates/hd_mono/DESIGN.md` §13.12):
     /// the keyed bucket hash of an inline key, else `key_bucket_hash` and
-    /// `Eq.eq` at the key type, selected here so the TIR carries only the
-    /// key type.
+    /// `key_equal` at the key type, selected here so the TIR carries only
+    /// the key type.
     fn map_key(&mut self, map: Ty, parent: InstId, reps: &mut StableHasher) -> StageResult<Target> {
         let pool = self.pool;
         let mut map = map;
@@ -3136,10 +3136,10 @@ impl Cx<'_> {
             self.hash_target(&hash, reps);
             return Ok(Target::MapInline(hash));
         }
-        let Some((eq_trait, eq_method, key_hash)) = self.env.map_key_items() else {
-            return err("an `Eq` trait without its method");
+        let Some((key_equal, key_hash)) = self.env.map_key_items() else {
+            return err("a map key without `key_equal`");
         };
-        let eq = self.method_target(eq_trait, eq_method, key, &[], None, parent)?;
+        let eq = self.target(key_equal, pool.list(&[key]), parent)?;
         let hash = self.target(key_hash, pool.list(&[key]), parent)?;
         self.hash_target(&eq, reps);
         self.hash_target(&hash, reps);

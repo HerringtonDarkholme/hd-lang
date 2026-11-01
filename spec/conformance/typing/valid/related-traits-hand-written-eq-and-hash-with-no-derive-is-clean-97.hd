@@ -5,7 +5,7 @@ struct Key:
     name: string
 
 impl Eq for Key:
-    fn eq(self, other: Key) -> bool:
+    fn eq(&self, other: &Key) -> bool:
         self.name == other.name
 
 impl Hash for Key:

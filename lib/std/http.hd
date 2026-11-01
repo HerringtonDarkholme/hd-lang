@@ -122,7 +122,7 @@ impl HttpStatus:
         code >= 200 && code <= 299
 
 impl Eq for HttpStatus:
-    fn eq(self, other: HttpStatus) -> bool:
+    fn eq(&self, other: &HttpStatus) -> bool:
         self.code() == other.code()
 
 impl Hash for HttpStatus:
@@ -293,7 +293,7 @@ impl Parse for HeaderName:
         )
 
 impl Eq for HeaderName:
-    fn eq(self, other: HeaderName) -> bool:
+    fn eq(&self, other: &HeaderName) -> bool:
         self.wire_name() == other.wire_name()
 
 impl Hash for HeaderName:
@@ -356,7 +356,7 @@ impl Body:
         message_form_decode::[T](&pairs).map_err(fn(error): BodyError.Form(error))
 
 impl Eq for Body:
-    fn eq(self, other: Body) -> bool:
+    fn eq(&self, other: &Body) -> bool:
         self.state.used == other.state.used && self.state.payload == other.state.payload
 
 impl Debug for Body:

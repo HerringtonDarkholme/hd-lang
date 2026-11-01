@@ -886,7 +886,7 @@ impl[T] FromIterator[T] for Deque[T]:
 # (r-std-collections.deque.eq); the ring layout does not matter.
 # Keep handwritten Eq: compare logical elements, independent of ring layout.
 impl[T < Eq] Eq for Deque[T]:
-    fn eq(self, other: Deque[T]) -> bool:
+    fn eq(&self, other: &Deque[T]) -> bool:
         if self.count != other.count:
             return false
         let index: usize = 0
@@ -985,7 +985,7 @@ impl[T < Eq & Hash] FromIterator[T] for Set[T]:
 # The same elements, in any order (r-std-collections.set.eq).
 # Keep handwritten Eq: compare membership, independent of insertion order.
 impl[T < Eq & Hash] Eq for Set[T]:
-    fn eq(self, other: Set[T]) -> bool:
+    fn eq(&self, other: &Set[T]) -> bool:
         if self.len() != other.len():
             return false
         for (item, _) in self.entries:

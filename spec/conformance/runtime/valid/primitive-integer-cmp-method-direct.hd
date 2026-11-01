@@ -2,7 +2,7 @@
 # expect: test
 # Spec 05 Equality and Ordering: expr.eq.std, expr.ord.std; the comparison traits are prelude traits (module.prelude.standard-surface).
 pub fn main() -> void:
-    if !(3).eq(3) || (3).eq(4):
+    if !(3).eq(&3) || (3).eq(&4):
         panic("i32 eq")
     match (1).cmp(2):
         .Less => pass
@@ -28,5 +28,5 @@ pub fn main() -> void:
         .Some(.Greater) => pass
         _ => panic("u64 partial_cmp")
     let half: u32 = 4000000000
-    if !half.eq(4000000000):
+    if !half.eq(&4000000000):
         panic("u32 eq")

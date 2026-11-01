@@ -2,7 +2,7 @@
 # expect: test
 # Spec 05 Equality and Ordering: expr.eq.std, expr.ord.std.char-scalar.
 pub fn main() -> void:
-    if !'a'.eq('a') || 'a'.eq('b'):
+    if !'a'.eq(&'a') || 'a'.eq(&'b'):
         panic("eq")
     match 'a'.cmp('b'):
         .Less => pass

@@ -648,13 +648,27 @@ impl Ck<'_, '_> {
         } else {
             None
         };
-        let (a, at) = self.expr(*l, left_want)?;
+        // `expr.eq.trait.ref`: `Eq.eq` takes both operands by reference,
+        // so an operand that is a place passes its address.
+        let (a, at, la) = if left_want.is_none() && self.eq_place(eq_op, *l, None) {
+            let (a, at) = self.index_place_receiver(*l)?;
+            (a, at, true)
+        } else {
+            let (a, at) = self.expr(*l, left_want)?;
+            (a, at, false)
+        };
         let right_want = if left_want.is_none() && eq_op && contextual(*l) {
             Ty::POISON
         } else {
             at
         };
-        let (c, ct) = self.expr(*r, Some(right_want))?;
+        let (c, ct, lc) = if self.eq_place(eq_op, *r, Some(at)) {
+            let (c, ct) = self.index_place_receiver(*r)?;
+            (c, ct, true)
+        } else {
+            let (c, ct) = self.expr(*r, Some(right_want))?;
+            (c, ct, false)
+        };
         if matches!(
             op,
             TokenKind::Lt | TokenKind::LtEq | TokenKind::Gt | TokenKind::GtEq
@@ -668,9 +682,64 @@ impl Ck<'_, '_> {
             let v = self.b.emit(Tag::Poison, NONE, NONE, Ty::BOOL, n.index());
             return Ok((v, Ty::BOOL));
         }
-        let v = self.binary_values(op, (a, at), (c, ct), n, *r)?;
+        let v = self.binary_operands(op, (a, at, la), (c, ct, lc), n, *r)?;
         let t = self.b.ty_of(v);
         Ok((v, t))
+    }
+
+    /// Whether `e` is an operand of `==` or `!=` (`eq_op`) that passes
+    /// its address to `Eq.eq` (`expr.eq.trait.ref`): a place outside any
+    /// element whose value is no reference, with a type no built-in
+    /// equality covers. A right operand's place must have the left's
+    /// type `left`.
+    fn eq_place(&self, eq_op: bool, e: NodeRef<'_>, left: Option<Ty>) -> bool {
+        if !eq_op || Self::in_element(e) {
+            return false;
+        }
+        let pool = self.pool();
+        let Some(t) = self.peek_place_ty(e) else {
+            return false;
+        };
+        let v = self.strip_mut(self.infer.resolve(pool, t));
+        self.ref_of(v).is_none()
+            && self.eq_by_trait(v)
+            && left.is_none_or(|l| self.strip_mut(self.infer.resolve(pool, l)) == v)
+    }
+
+    /// Whether the place `e` lies in a list element or a map value. Its
+    /// address would make the collection unique and pin it, so `==`
+    /// reads such an operand into a new local instead.
+    fn in_element(e: NodeRef<'_>) -> bool {
+        match e.kind() {
+            SyntaxKind::IndexExpr => true,
+            SyntaxKind::ParenExpr | SyntaxKind::FieldExpr | SyntaxKind::DerefExpr => {
+                e.children().next().is_some_and(Self::in_element)
+            }
+            _ => false,
+        }
+    }
+
+    /// Whether `==` with a left operand of type `t` calls `Eq.eq`: no
+    /// built-in equality of numbers, characters, `bool` or `string`
+    /// covers it, and its type is known.
+    fn eq_by_trait(&self, t: Ty) -> bool {
+        let pool = self.pool();
+        let t = self.strip_mut(self.infer.resolve(pool, t));
+        !(self.numeric(t)
+            || t == Ty::BOOL
+            || t == Ty::STRING
+            || matches!(pool.get(t), TyData::Infer(_)))
+    }
+
+    /// An `Eq.eq` operand of type `t` as the reference the call takes
+    /// (`expr.eq.trait.ref`): `held` when `r` already is the address of
+    /// its place, else `r` held in a new local that the call refers to.
+    fn eq_operand_ref(&mut self, (r, t, held): (Ref, Ty, bool), n: NodeRef<'_>) -> Ref {
+        if held || matches!(self.strip_mut(t), Ty::NEVER | Ty::POISON) {
+            return r;
+        }
+        // The unit value `()` is `NONE`; its local holds no value either.
+        self.object_ref(r, t, (false, false), n).0
     }
 
     /// Reports `l == r` or `l != r` on two references
@@ -802,6 +871,40 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
         rn: NodeRef<'_>,
     ) -> StageResult<Ref> {
+        self.binary_operands(op, (a, at, false), (c, ct, false), n, rn)
+    }
+
+    /// Applies a binary operator to two checked operands, each a value of
+    /// its type or, when its flag is set, the address of the place that
+    /// holds it, which only `Eq.eq` takes (`expr.eq.trait.ref`).
+    fn binary_operands(
+        &mut self,
+        op: TokenKind,
+        (a, at, la): (Ref, Ty, bool),
+        (c, ct, lc): (Ref, Ty, bool),
+        n: NodeRef<'_>,
+        rn: NodeRef<'_>,
+    ) -> StageResult<Ref> {
+        if matches!(op, TokenKind::EqEq | TokenKind::NotEq) && self.eq_by_trait(at) {
+            let prim = if op == TokenKind::EqEq {
+                PrimOp::Eq
+            } else {
+                PrimOp::Ne
+            };
+            return self.operator_trait_call(prim, (a, at, la), (c, ct, lc), n, rn);
+        }
+        // An address taken for `Eq.eq` is read where a built-in rule
+        // applies after all.
+        let (a, at) = if la {
+            self.emit_deref(a, self.b.ty_of(a), n.index())
+        } else {
+            (a, at)
+        };
+        let (c, ct) = if lc {
+            self.emit_deref(c, self.b.ty_of(c), rn.index())
+        } else {
+            (c, ct)
+        };
         let pool = self.pool();
         let prim = match op {
             TokenKind::Plus => Some(PrimOp::Add),
@@ -881,7 +984,7 @@ impl Ck<'_, '_> {
         let trait_left = !cmp && self.primitive_left(at) && self.nominal(ct);
         if trait_left {
             let at = self.zonk(at);
-            return self.operator_trait_call(prim, (a, at), (c, ct), n, rn);
+            return self.operator_trait_call(prim, (a, at, false), (c, ct, false), n, rn);
         }
         if self.numeric(at) || (ats == Ty::BOOL && bool_ops) {
             let mut mixed = false;
@@ -922,7 +1025,7 @@ impl Ck<'_, '_> {
             }
             return Ok(v);
         }
-        self.operator_trait_call(prim, (a, at), (c, ct), n, rn)
+        self.operator_trait_call(prim, (a, at, false), (c, ct, false), n, rn)
     }
 
     /// Whether an operand is a primitive number or character, or a
@@ -1136,12 +1239,13 @@ impl Ck<'_, '_> {
     }
 
     /// `a op b` as the operator trait's method (`expr.op.desugar`), once
-    /// the built-in rules do not type it.
+    /// the built-in rules do not type it. An operand whose flag is set is
+    /// the address of its place, which `Eq.eq` takes (`expr.eq.trait.ref`).
     fn operator_trait_call(
         &mut self,
         prim: PrimOp,
-        (a, at): (Ref, Ty),
-        (c, ct): (Ref, Ty),
+        (a, at, la): (Ref, Ty, bool),
+        (c, ct, lc): (Ref, Ty, bool),
         n: NodeRef<'_>,
         rn: NodeRef<'_>,
     ) -> StageResult<Ref> {
@@ -1163,7 +1267,10 @@ impl Ck<'_, '_> {
         if matches!(prim, PrimOp::Lt | PrimOp::Le | PrimOp::Gt | PrimOp::Ge) {
             return self.ordering((a, at), (c, ct), prim, n, rn);
         }
-        if let Some((v, _)) = self.literal_arg_choice(tr, method, (a, at), (&[rn], ct), n)? {
+        // `Eq` has no right operand type to choose by.
+        if tr != k.eq
+            && let Some((v, _)) = self.literal_arg_choice(tr, method, (a, at), (&[rn], ct), n)?
+        {
             if prim == PrimOp::Ne {
                 return Ok(self.b.prim(PrimOp::Not as u32, &[v], Ty::BOOL, n.index()));
             }
@@ -1219,7 +1326,20 @@ impl Ck<'_, '_> {
             self.err(Code::TypeMismatch, n, &msg);
             return Ok(self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()));
         }
-        let (v, t) = self.trait_call_args(tr, method, a, at, &[(c, ct, rn)], n)?;
+        let (v, t) = if tr == k.eq {
+            // `expr.eq.trait.ref`: `Eq.eq` takes both operands by reference.
+            let a = self.eq_operand_ref((a, at, la), n);
+            let c = if lc {
+                c
+            } else {
+                let c = self.coerce(c, ct, at, rn, "operand", ExpectPosition::Operand);
+                self.eq_operand_ref((c, at, false), rn)
+            };
+            let crt = self.b.ty_of(c);
+            self.trait_call_args(tr, method, a, at, &[(c, crt, rn)], n)?
+        } else {
+            self.trait_call_args(tr, method, a, at, &[(c, ct, rn)], n)?
+        };
         if prim == PrimOp::Ne {
             return Ok(self.b.prim(PrimOp::Not as u32, &[v], Ty::BOOL, n.index()));
         }
@@ -1498,7 +1618,9 @@ impl Ck<'_, '_> {
             def: ord,
             args: hd_types::TyList::EMPTY,
         });
-        let sym = self.cx.names.syms.intern("order");
+        // A compiler local, in scope for its whole statement
+        // (`ref.dep.scope.temporary`), as the references below need.
+        let sym = self.cx.names.syms.intern("$order");
         let l = self.b.local(vt, sym, local_flags::ASSIGNED, n.index());
         self.set_local(l, v, n.index());
         let eq = self.cx.names.known.eq;
@@ -1509,14 +1631,23 @@ impl Ck<'_, '_> {
             PrimOp::Gt => (2, None),
             _ => (2, Some(1)),
         };
+        // `Eq.eq` takes the answer and the case it is tested for by
+        // reference (`expr.eq.trait.ref`).
+        let place = crate::refs::Place {
+            root: crate::refs::Root::Local(l, self.scopes.len() - 1),
+            path: vec![],
+            ty: vt,
+        };
         let is = |me: &mut Self, k: u32| -> StageResult<Ref> {
-            let cur = me.b.get(l, vt, n.index());
+            let rt = me.ref_ty(vt, false, false);
+            let cur = me.make_ref(&place, false, rt, n);
             let empty = me.b_empty_rec();
             let o = me.b.emit(Tag::NewVariant, k, empty, ord_ty, n.index());
             let some =
                 me.b.coerce(hd_tir::ir::Coercion::WrapSome, NONE, o, vt, n.index());
+            let some = me.eq_operand_ref((some, vt, false), rn);
             Ok(me
-                .trait_call_args(eq, "eq", cur, vt, &[(some, vt, rn)], n)?
+                .trait_call_args(eq, "eq", cur, vt, &[(some, rt, rn)], n)?
                 .0)
         };
         let x = is(self, first)?;
@@ -1873,8 +2004,9 @@ impl Ck<'_, '_> {
     }
 
     /// The reference to the place `base` that an `Index` read passes as
-    /// its `&self` receiver, marked local as a call's receiver address is,
-    /// with the type of the value it refers to.
+    /// its `&self` receiver, or `==` to `Eq.eq` (`expr.eq.trait.ref`),
+    /// marked local as a call's receiver address is, with the type of the
+    /// value it refers to.
     fn index_place_receiver(&mut self, base: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
         let (r, t) = self.address_of_place(base, "index", false, vec![])?;
         if let Some(i) = r.as_inst() {

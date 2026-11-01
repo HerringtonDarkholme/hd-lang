@@ -12,7 +12,7 @@ struct Counted:
     counter: *mut Counter
 
 impl Eq for Counted:
-    fn eq(self, other: Counted) -> bool:
+    fn eq(&self, other: &Counted) -> bool:
         self.value == other.value
 
 impl PartialOrd for Counted:

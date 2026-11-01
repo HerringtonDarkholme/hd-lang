@@ -1546,18 +1546,19 @@ fn demo(a: bool, b: bool) -> bool:
 ### Equality
 
 1. r[expr.eq.calls-eq] `==` calls `Eq.eq` and `!=` negates that result.
-2. r[expr.eq.std] Standard-library implementations provide value equality for primitives, optional and result values, tuples, lists, and maps when their elements support equality.
-3. r[expr.eq.map-order] Map equality is independent of entry order.
-4. r[expr.eq.no-implicit] A user-defined struct or enum type has no implicit `Eq` implementation, even if all its members are comparable. Its author must explicitly implement or request derivation of the trait.
-5. r[expr.eq.no-identity-fallback] Equality never silently falls back to reference identity.
-6. r[expr.eq.float] Floating-point equality follows IEEE 754, so NaN is unequal even to itself, although floating-point types implement `Eq`.
-7. r[expr.eq.std.intrinsic] The `Eq` implementations of the number types, `char`, and `bool` are [intrinsic methods](09-traits.md#intrinsic-methods). The one for `string` is not.
-8. r[expr.eq.functions] Function and closure values do not implement `Eq`; applying `==` or `!=` to them is an error. Error: `type-mismatch`.
-9. r[expr.eq.contextual-operand] In `==` and `!=`, a contextual variant operand, such as `.None`, `.Ok(1)`, or `.Some(x)`, takes the other operand's type as its expected type. This holds on either side.
-10. r[expr.eq.contextual-both] When both operands are contextual variants, neither has an expected type, so `.None == .None` is an error. Error: `missing-contextual-enum-type`.
-11. r[expr.eq.enum-hint] `==` or `!=` on an enum that does not implement `Eq` is an error whose message suggests adding `@derive(Eq)` to the enum. Error: `type-mismatch`.
-12. r[expr.eq.enum-hint.fix] When the enum is declared in the same file as the comparison, the error has a fix-it. The fix-it inserts `@derive(Eq)` on its own line before the enum's declaration.
-13. r[expr.eq.references] `==` and `!=` between two references are an error, by [`ref.identity.no-equality`](13-values-and-references.md#r-ref.identity.no-equality). Error: `reference-equality`.
+2. r[expr.eq.trait.ref] `Eq.eq` takes both operands by reference, so `a == b` is `Eq::eq(&a, &b)`. An operand that is a place passes its address, as a `&self` receiver does by [`fn.method.auto-address`](07-functions.md#r-fn.method.auto-address). Any other operand, and a list element or a map value, is held in a new local that the call refers to. So `==` and `!=` never move their operands.
+3. r[expr.eq.std] Standard-library implementations provide value equality for primitives, optional and result values, tuples, lists, and maps when their elements support equality.
+4. r[expr.eq.map-order] Map equality is independent of entry order.
+5. r[expr.eq.no-implicit] A user-defined struct or enum type has no implicit `Eq` implementation, even if all its members are comparable. Its author must explicitly implement or request derivation of the trait.
+6. r[expr.eq.no-identity-fallback] Equality never silently falls back to reference identity.
+7. r[expr.eq.float] Floating-point equality follows IEEE 754, so NaN is unequal even to itself, although floating-point types implement `Eq`.
+8. r[expr.eq.std.intrinsic] The `Eq` implementations of the number types, `char`, and `bool` are [intrinsic methods](09-traits.md#intrinsic-methods). The one for `string` is not.
+9. r[expr.eq.functions] Function and closure values do not implement `Eq`; applying `==` or `!=` to them is an error. Error: `type-mismatch`.
+10. r[expr.eq.contextual-operand] In `==` and `!=`, a contextual variant operand, such as `.None`, `.Ok(1)`, or `.Some(x)`, takes the other operand's type as its expected type. This holds on either side.
+11. r[expr.eq.contextual-both] When both operands are contextual variants, neither has an expected type, so `.None == .None` is an error. Error: `missing-contextual-enum-type`.
+12. r[expr.eq.enum-hint] `==` or `!=` on an enum that does not implement `Eq` is an error whose message suggests adding `@derive(Eq)` to the enum. Error: `type-mismatch`.
+13. r[expr.eq.enum-hint.fix] When the enum is declared in the same file as the comparison, the error has a fix-it. The fix-it inserts `@derive(Eq)` on its own line before the enum's declaration.
+14. r[expr.eq.references] `==` and `!=` between two references are an error, by [`ref.identity.no-equality`](13-values-and-references.md#r-ref.identity.no-equality). Error: `reference-equality`.
 
 ```text
 fn invalid(left: fn() -> void, right: fn() -> void) -> bool:

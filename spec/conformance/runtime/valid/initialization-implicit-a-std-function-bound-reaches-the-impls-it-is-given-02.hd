@@ -9,7 +9,7 @@ use std.cmp.min
 later := +5
 
 impl Eq for Tag:
-    fn eq(self, other: Tag) -> bool:
+    fn eq(&self, other: &Tag) -> bool:
         self.n + later == other.n
 
 impl PartialOrd for Tag:

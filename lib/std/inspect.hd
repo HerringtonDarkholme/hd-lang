@@ -41,7 +41,7 @@ impl TypeId:
 
 # Keep handwritten Eq: compare the identity key, ignoring the descriptive name.
 impl Eq for TypeId:
-    fn eq(self, other: TypeId) -> bool:
+    fn eq(&self, other: &TypeId) -> bool:
         self.key == other.key
 
 # Keep handwritten Display: display only the descriptive type name; this is not an Error.

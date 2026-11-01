@@ -8,7 +8,7 @@ struct Tag:
 later := +5
 
 impl Eq for Tag:
-    fn eq(self, other: Tag) -> bool:
+    fn eq(&self, other: &Tag) -> bool:
         true
 
 impl PartialOrd for Tag:

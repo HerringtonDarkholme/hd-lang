@@ -2,7 +2,7 @@
 # expect: test
 # Spec 05 Equality: expr.eq.std.
 pub fn main() -> void:
-    if !true.eq(true) || !false.eq(false):
+    if !true.eq(&true) || !false.eq(&false):
         panic("equal")
-    if true.eq(false):
+    if true.eq(&false):
         panic("unequal")

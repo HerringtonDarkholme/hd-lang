@@ -247,14 +247,14 @@ The standard library defines `Eq`, `PartialOrd`, `Ord`, and `Ordering` in
 
 | Rule | Trait | Requires |
 | --- | --- | --- |
-| r[trait.cmp.equality] Equality | `Eq` | `fn eq(self, other: Self) -> bool` |
+| r[trait.cmp.equality] Equality | `Eq` | `fn eq(&self, other: &Self) -> bool` |
 | r[trait.cmp.partial-ordering] Partial ordering | `PartialOrd < Eq` | `fn partial_cmp(self, other: Self) -> Ordering?`, where `.None` means unordered |
 | r[trait.cmp.total-ordering] Ordering | `Ord < PartialOrd` | `fn cmp(self, other: Self) -> Ordering` |
 
 1. r[trait.cmp.std-module] The standard library defines `Eq`, `PartialOrd`, `Ord`, and `Ordering` in `std.cmp`.
 2. r[trait.cmp.ordering] `Ordering` has `Less`, `Equal`, and `Greater` cases.
 3. r[trait.cmp.one-eq] `Eq` is the only equality trait. There is no separate partial-equality trait.
-4. r[trait.cmp.reflexive] An `Eq` implementation must be reflexive: `x.eq(x)` is `true` for every value `x`.
+4. r[trait.cmp.reflexive] An `Eq` implementation must be reflexive: `x.eq(&x)` is `true` for every value `x`.
 5. r[trait.cmp.ord-agree] An `Ord` implementation must agree with the type's `PartialOrd` implementation.
 6. r[trait.cmp.laws] These semantic laws are obligations of the implementer; ordinary trait checking cannot prove them.
 7. r[trait.cmp.float-eq] Floating-point types implement `Eq` with IEEE 754 semantics, so NaN is unequal even to itself. This is the one documented exception to the reflexive law.
@@ -353,7 +353,7 @@ struct Badge:
     text: string
 
 impl Eq for Badge:
-    fn eq(self, other: Badge) -> bool:
+    fn eq(&self, other: &Badge) -> bool:
         self.text == other.text
 ```
 
@@ -391,7 +391,7 @@ struct Session:
     token: string
 
 impl Eq for Session:
-    fn eq(self, other: Session) -> bool: self.token == other.token
+    fn eq(&self, other: &Session) -> bool: self.token == other.token
 ```
 
 > **Why.** A hand-written `Eq` that ignores a field, beside a derived `Hash`
@@ -405,7 +405,7 @@ impl Eq for Session:
 4. r[trait.derive.newtype.requires.error] A base type that does not implement a derived trait is an error at the base type. The message names the trait and the base type. Error: `derive-field-missing-trait`.
 5. r[trait.derive.newtype.not-inherited] A newtype still inherits no implementation it does not derive or implement.
 6. r[trait.derive.newtype.templated] A trait with a template also derives through the base type: the newtype gets no `Structure`, and the base type's implementation is rewrapped.
-7. r[trait.derive.newtype.self-positions] Forwarding is allowed only where the trait's methods use `Self` as the receiver, as plain `Self`, or inside `Self?`, `Result[Self, E]`, or `List[Self]`.
+7. r[trait.derive.newtype.self-positions] Forwarding is allowed only where the trait's methods use `Self` as the receiver, as plain `Self`, as a parameter of type `&Self`, or inside `Self?`, `Result[Self, E]`, or `List[Self]`.
 8. r[trait.derive.newtype.self-error] Any other position, such as `Map[Self, V]`, `Map[string, Self]`, or a tuple holding `Self`, is an error at the `@derive` line that names the trait method. Error: `newtype-derivation-self`.
 
 ```text
@@ -2241,7 +2241,7 @@ impl Add for Cents:
         Cents { value: self.value + rhs.value }
 
 impl Eq for Cents:
-    fn eq(self, other: Cents) -> bool:
+    fn eq(&self, other: &Cents) -> bool:
         self.value == other.value
 
 impl Num for Cents:  # error: sealed-trait-implementation
@@ -2809,7 +2809,7 @@ struct Badge:
     text: string
 
 impl Eq for Badge:   # error: overlapping-impl
-    fn eq(self, other: Badge) -> bool:
+    fn eq(&self, other: &Badge) -> bool:
         self.text == other.text
 ```
 

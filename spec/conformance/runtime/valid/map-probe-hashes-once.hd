@@ -20,7 +20,7 @@ struct Wide:
     e: i64
 
 impl Eq for Key:
-    fn eq(self, other: Key) -> bool:
+    fn eq(&self, other: &Key) -> bool:
         self.value == other.value
 
 impl Hash for Key:

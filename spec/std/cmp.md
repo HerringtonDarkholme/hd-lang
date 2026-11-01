@@ -167,7 +167,7 @@ fn has_value(items: List[*i32], value: *i32) -> bool:
     items.contains(value)  # compares the values the references refer to
 ```
 
-1. r[std-cmp.ref.eq] `std.cmp` implements `Eq` for `&T` and for `&mut T` when `T < Eq`. Two references are equal when the values they refer to are, so `r.eq(s)` is `*r == *s`.
+1. r[std-cmp.ref.eq] `std.cmp` implements `Eq` for `&T` and for `&mut T` when `T < Eq`. Two references are equal when the values they refer to are, so `r.eq(&s)` is `*r == *s`.
 2. r[std-cmp.ref.eq-operator] `==` written between two references stays an error, by [`ref.identity.no-equality`](../lang/13-values-and-references.md#r-ref.identity.no-equality). Generic code and derived implementations reach this implementation.
 
 > **Why.** A reference is equal by value, as in Rust, so a derived `Eq`

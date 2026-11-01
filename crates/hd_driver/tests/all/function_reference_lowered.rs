@@ -76,17 +76,17 @@ fn apply(f: fn(i32, i32) -> i32, a: i32, b: i32) -> i32:
 
 pub fn main() -> void $ Console:
     eq := i32::eq
-    println(eq(1, 1))
-    println(eq(1, 2))
+    println(eq(&1, &1))
+    println(eq(&1, &2))
     cmp := i32::cmp
     println(cmp(1, 2) == .Less)
     println(apply(i32::add, 3, 4))
     let xs: List[i32] = [3, 1, 2]
     println(xs.map(i32::neg)[0])
-    let flag: fn(bool, bool) -> bool = bool::eq
-    println(flag(true, false))
+    let flag: fn(&bool, &bool) -> bool = bool::eq
+    println(flag(&true, &false))
     same := f64::eq
-    println(same(1.5, 1.5))
+    println(same(&1.5, &1.5))
     id := TypeId::of::[i32]
     println(id() == TypeId::of::[i32]())
 ";

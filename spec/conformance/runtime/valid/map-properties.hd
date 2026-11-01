@@ -12,7 +12,7 @@ struct CollisionKey:
     id: i32
 
 impl Eq for CollisionKey:
-    fn eq(self, other: CollisionKey) -> bool:
+    fn eq(&self, other: &CollisionKey) -> bool:
         self.id == other.id
 
 impl Hash for CollisionKey:

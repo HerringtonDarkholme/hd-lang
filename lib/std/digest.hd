@@ -197,7 +197,7 @@ impl Digest:
 # first, because a length is not secret.
 # Keep handwritten Eq: compare equal-length byte arrays in constant time.
 impl Eq for Digest:
-    fn eq(self, other: Digest) -> bool:
+    fn eq(&self, other: &Digest) -> bool:
         if self.bytes.len() != other.bytes.len():
             return false
         let difference: u8 = 0

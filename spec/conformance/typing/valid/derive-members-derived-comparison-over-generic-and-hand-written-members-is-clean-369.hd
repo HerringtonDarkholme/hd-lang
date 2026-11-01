@@ -7,7 +7,7 @@ struct Token:
     id: i32
 
 impl Eq for Token:
-    fn eq(self, other: Token) -> bool:
+    fn eq(&self, other: &Token) -> bool:
         self.id == other.id
 
 @derive(Eq)
