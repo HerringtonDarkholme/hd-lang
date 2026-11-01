@@ -337,7 +337,7 @@ impl OldReader:
 
     fn top(self) -> *mut OldFrame:
         match self.frames.last():
-            .Some(frame) => frame
+            .Some(frame) => *frame
             .None => panic("std.json: no open container")
 
     fn pop(&mut self) -> void:

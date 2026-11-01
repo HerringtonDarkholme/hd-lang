@@ -10,8 +10,8 @@ tests:
     it("any, all, and find"):
         assert([1, 5].any(fn(n: &i32) -> bool: n > 4), reason="any")
         assert(![1, 5].all(fn(n: &i32) -> bool: n > 4), reason="all")
-        assert_equal([1, 5, 6].find(fn(n: &i32) -> bool: n > 4), .Some(5), reason="the first match")
-        assert_equal([1].find(fn(n: &i32) -> bool: n > 4), .None, reason="no match")
+        assert_equal([1, 5, 6].find(fn(n: &i32) -> bool: n > 4).copied(), .Some(5), reason="the first match")
+        assert_equal([1].find(fn(n: &i32) -> bool: n > 4).copied(), .None, reason="no match")
     it("stops at the deciding element"):
         let calls = 0
         _ := [1, 2, 3].any(
