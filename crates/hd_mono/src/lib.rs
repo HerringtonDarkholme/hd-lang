@@ -1673,7 +1673,11 @@ impl Cx<'_> {
         t: &CallTarget,
         caller: InstId,
     ) -> StageResult<Option<CallTarget>> {
-        if t.kind != TargetKind::Instance {
+        // A thunk's call takes its operands as the thunk's parameters, not
+        // as references to its locals, so it runs the plain copy.
+        if t.kind != TargetKind::Instance
+            || matches!(self.out.table.sub[caller.idx()], Sub::Thunk(_))
+        {
             return Ok(None);
         }
         let table = &self.out.table;

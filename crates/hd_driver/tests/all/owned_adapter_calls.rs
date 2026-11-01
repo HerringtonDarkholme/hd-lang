@@ -6,7 +6,7 @@ use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 use hd_testkit::Scratch;
 use std::{path::Path, process::Command};
-fn wasm_of(main: &str, optimized: bool) -> Vec<u8> {
+pub(crate) fn wasm_of(main: &str, optimized: bool) -> Vec<u8> {
     let mut src = MemorySources::default();
     src.insert("main.hd", main);
     let store = MemoryStore::default();
@@ -37,7 +37,7 @@ fn wasm_of(main: &str, optimized: bool) -> Vec<u8> {
     assert!(out.diags.is_empty(), "{}", out.render());
     out.wasm.expect("wasm")
 }
-fn run(name: &str, wasm: &[u8]) -> String {
+pub(crate) fn run(name: &str, wasm: &[u8]) -> String {
     let path = Scratch::unmade(env!("CARGO_TARGET_TMPDIR"), &format!("{name}.wasm"));
     std::fs::write(&path, wasm).expect("write");
     let ran = Command::new("node")
