@@ -225,7 +225,7 @@ time, so a test can check the fast path and the clock's reads, but not
 which of two sleeps finishes first.
 
 ```hd
-use std.task.{all, race}
+use std.task.{join, race}
 use std.time.{Clock, ManualClock, Timestamp, s, sleep}
 
 trait Store:
@@ -241,7 +241,7 @@ fn fetch_profile!() -> string $ Store:
     $.use(Store).lookup!("profile")
 
 fn load_page!() -> (string, string, string) $ Store:
-    all!(fetch_user(), fetch_orders(), fetch_profile())
+    join!(fetch_user(), fetch_orders(), fetch_profile())
 
 fn slow!() -> string $ Clock:
     sleep!(60s)

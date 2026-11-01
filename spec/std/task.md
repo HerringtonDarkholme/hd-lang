@@ -353,7 +353,7 @@ A channel hands items from one suspension to another in the same instance,
 with no host provider. `channel` makes one and returns its two handles:
 
 ```text
-use std.task.{all, channel, Receiver, Sender}
+use std.task.{join, channel, Receiver, Sender}
 
 fn produce!(tx: Sender[i32]) -> void:
     tx.send!(1)
@@ -370,7 +370,7 @@ fn total!(rx: Receiver[i32]) -> i32:
 
 fn run!() -> i32:
     let (tx, rx) = channel::[i32](capacity=1)
-    let (_, sum) = all!(produce(tx), total(rx))
+    let (_, sum) = join!(produce(tx), total(rx))
     sum  # 3
 ```
 

@@ -10,7 +10,7 @@ slow one.
 ## `all!`
 
 ```hd example
-let (a, b) = all!(first(), second())
+let (a, b) = join!(first(), second())
 ```
 
 `all!` starts independent tasks and returns **their values in order**. Its
@@ -61,7 +61,7 @@ fn with_timeout!() -> Result[string, TimedOut] $ Clock:
         result
 
 pub fn main!() -> void $ Clock + Console:
-    let (a, b) = all!(first(), second())
+    let (a, b) = join!(first(), second())
     println("all: $a, $b")
     println("race: ${race!(first(), second())}")
     match with_timeout!():
@@ -70,8 +70,8 @@ pub fn main!() -> void $ Clock + Console:
 ```
 
 ```edit
-replace:     let (a, b) = all!(first(), second())
-with:     let (a, b) = all!(first!(), second())
+replace:     let (a, b) = join!(first(), second())
+with:     let (a, b) = join!(first!(), second())
 error: type-mismatch: in argument: expected a cold suspension, found string
 ```
 
