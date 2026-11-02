@@ -931,12 +931,6 @@ pub fn coalesce(f: &mut Func) {
     };
     let np = f.params.len();
     let n = np + f.locals.len();
-    // The interference graph is quadratic when every local overlaps every
-    // other. Past 8,192 locals, bound compile time and memory by keeping the
-    // emitted locals instead of building that graph.
-    if n > 8_192 {
-        return;
-    }
     let body = &f.body;
     // Each conflict: a local written while another is live just after.
     let mut conflicts = Conflicts::new(n);
