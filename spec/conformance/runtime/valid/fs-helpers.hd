@@ -18,7 +18,7 @@ impl FsRead for MapFs:
 
     fn read_text!(self, path: Path) -> Result[string, FsError]:
         match self.files.get("${path}"):
-            .Some(text) => .Ok(text)
+            .Some(text) => .Ok(*text)
             .None => .Err(FsError.NotFound(path=path))
 
     fn list_dir!(self, path: Path) -> Result[List[Entry], FsError]:
@@ -62,7 +62,11 @@ tests:
         writer := box(MapFs { files: {} })
         $.with(FsRead=reader, FsWrite=writer):
             assert_equal(copy_notes!(), .Ok(()), reason="both calls succeed")
-        assert_equal(writer.files.get("notes.bak"), .Some("tea"), reason="the copy was written")
+        assert_equal(
+            writer.files.get("notes.bak").copied(),
+            .Some("tea"),
+            reason="the copy was written",
+        )
 
     it("reports a missing file as FsError.NotFound"):
         reader := MapFs { files: {} }

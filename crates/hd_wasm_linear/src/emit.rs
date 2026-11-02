@@ -757,7 +757,9 @@ fn adapter(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Func> {
             Sym::Inst(ct.key),
             input.env.lends(ct.item),
         ),
-        Some(target @ (Target::Call(_) | Target::Dyn)) => {
+        Some(
+            target @ (Target::Call(_) | Target::Dyn | Target::MapKey { .. } | Target::MapInline(_)),
+        ) => {
             let (sym, ret) = call_func(input, m, id, target)?;
             let args = input.collected.table.args[id.idx()];
             forward(input, m, item, (item, args), ret, sym, 0)
@@ -2053,10 +2055,7 @@ impl Em<'_, '_, '_> {
                     }
                     Some(IntrinsicOp::MapLen) => self.map_len(i, args[0])?,
                     Some(
-                        op @ (IntrinsicOp::MapGet
-                        | IntrinsicOp::MapSet
-                        | IntrinsicOp::MapRemove
-                        | IntrinsicOp::MapEntry),
+                        op @ (IntrinsicOp::MapSet | IntrinsicOp::MapRemove | IntrinsicOp::MapEntry),
                     ) => self.map_op(i, op, &args)?,
                     Some(IntrinsicOp::MapSlots) => self.map_slots(i, args[0])?,
                     Some(IntrinsicOp::MapSlotNext) => self.map_slot_next(i, &args)?,

@@ -6,7 +6,7 @@ fn main() -> i32:
     values[0] = 40
     scores["x"] = 2
     score := match scores.get("x"):
-        .Some(found) => found
+        .Some(found) => *found
         .None => 0
     values[0] + score
 

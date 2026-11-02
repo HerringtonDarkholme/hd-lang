@@ -9,7 +9,7 @@ use crate::op::Op as I;
 use hd_base::StageResult;
 use hd_mono::layout::{StdKind, inline_map_key, strip_newtype};
 use hd_mono::{CallTarget, Target, TargetKind, subst};
-use hd_tir::ir::{Callee, IntrinsicOp, NONE, PlaceRoot, Tag};
+use hd_tir::ir::{Callee, IntrinsicOp, NONE, Place, PlaceRoot, Proj, Tag};
 use hd_types::{Ty, TyData};
 use wasm_encoder::BlockType;
 
@@ -312,6 +312,25 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
+    /// The map place a probe's reference argument names: a `Ref`'s place,
+    /// or `*P` for a read of the reference in place `P`, through any
+    /// weakening `Coerce`.
+    fn probe_map_place(&self, r: u32) -> Option<Place> {
+        let mut r = r as usize;
+        while self.b.tags.get(r) == Some(&Tag::Coerce) {
+            r = self.b.data[r][0] as usize;
+        }
+        match self.b.tags.get(r)? {
+            Tag::Ref => self.b.decode_place(self.b.data[r][0]),
+            Tag::Read => {
+                let mut place = self.b.decode_place(self.b.data[r][0])?;
+                place.proj.push(Proj::Deref);
+                Some(place)
+            }
+            _ => None,
+        }
+    }
+
     /// Whether two TIR values are the same map or key value for this
     /// optimization: the same SSA value, or two reads of the same place.
     /// The latter is how the checker represents repeated reads of a
@@ -404,9 +423,9 @@ impl Em<'_, '_, '_> {
                 .all(|&i| self.preserves_map_probe(i, map))
     }
 
-    /// The preceding `MapGet` or `MapEntry` whose hash and entry a
-    /// `MapSet` may reuse. Both operations must be statements of one
-    /// block, name equivalent reads of the map and key, and have no
+    /// The preceding `MapEntry` or `get`/`get_mut` probe whose hash and
+    /// entry a `MapSet` may reuse. Both operations must be statements of
+    /// one block, name equivalent reads of the map and key, and have no
     /// possibly-changing statement between them.
     fn map_probe_source(&self, i: u32, map: u32, key: u32) -> Option<u32> {
         let block = *self.topo.blk.get(i as usize)?;
@@ -420,12 +439,33 @@ impl Em<'_, '_, '_> {
             if self.b.tags.get(k) == Some(&Tag::Intrinsic)
                 && matches!(
                     IntrinsicOp::from_u32(self.b.data[k][0]),
-                    Some(IntrinsicOp::MapGet | IntrinsicOp::MapEntry)
+                    Some(IntrinsicOp::MapEntry)
                 )
             {
                 let args = self.b.record(self.b.data[k][1]);
                 if args.len() >= 2
                     && self.same_map_value(args[0], map)
+                    && self.same_map_value(args[1], key)
+                {
+                    return Some(candidate);
+                }
+            }
+            if self.b.tags.get(k) == Some(&Tag::Call)
+                && matches!(
+                    self.calls.get(&candidate),
+                    Some(Target::MapKey { .. } | Target::MapInline(_))
+                )
+            {
+                let args = self.b.record(self.b.data[k][1]);
+                let map_place = self
+                    .b
+                    .tags
+                    .get(map as usize)
+                    .filter(|&&tag| tag == Tag::Read)
+                    .and_then(|_| self.b.decode_place(self.b.data[map as usize][0]));
+                if args.len() == 5
+                    && map_place.is_some()
+                    && self.probe_map_place(args[0]) == map_place
                     && self.same_map_value(args[1], key)
                 {
                     return Some(candidate);
@@ -438,7 +478,7 @@ impl Em<'_, '_, '_> {
         None
     }
 
-    /// `m.get(k)`, `m[k] = v`, `m.remove(k)` and a map value place's
+    /// `m[k] = v`, `m.remove(k)` and a map value place's
     /// entry (`MapEntry`): the key is hashed, then its entry probed
     /// for. The passes' `IsUnique` made the table the map's own before a
     /// change, and a put stores the table, moved when it grew, into the
@@ -463,7 +503,7 @@ impl Em<'_, '_, '_> {
         }
         let (kl, h) = self.map_key(args[1], &e, &ops)?;
         let ent = self.map_find(m, h, &kl, &e, &ops);
-        if matches!(op, IntrinsicOp::MapGet | IntrinsicOp::MapEntry) {
+        if op == IntrinsicOp::MapEntry {
             self.map_probes.insert(
                 i,
                 MapProbe {
@@ -504,7 +544,7 @@ impl Em<'_, '_, '_> {
             self.f.get(ent);
             return self.store(i);
         }
-        // `get` and `remove` answer `V?`.
+        // `remove` answers `V?`.
         self.f.get(ent);
         self.f.i32(0);
         self.f.op(I::I32GeS);
@@ -512,39 +552,37 @@ impl Em<'_, '_, '_> {
         self.ctl.push(Ctl::Plain);
         let (at, vl) = read(self, e.keys, n);
         self.new_variant(i, 1, &[Src::Locals(vl.clone())])?;
-        if op == IntrinsicOp::MapRemove {
-            // A held key of a pinned map stays (`ref.elem.pinned.map`).
-            self.f.get(m);
-            self.f.helper(Helper::ListPinned);
-            self.f.op(I::If(BlockType::Empty));
-            self.f.helper(Helper::Panic(MAP_PINNED.into()));
-            self.f.op(I::End);
-            // The entry stays in place, marked removed: probes pass it and
-            // iteration skips it, so the survivors keep their order. The
-            // table's counts of it go: the value's after the result took
-            // its own, and the key's.
-            self.release_locals(&vl, vt)?;
-            let kl: Vec<u32> = e.leaves[..e.keys]
-                .iter()
-                .map(|l| {
-                    let x = self.f.local(l.val);
-                    self.f.get(at);
-                    self.f.op(l.load(0));
-                    self.f.set(x);
-                    x
-                })
-                .collect();
-            self.release_locals(&kl, kt)?;
-            hash_address(&mut self.f, m, ent);
-            self.f.i32(-1);
-            self.f.op(I::I32Store(mem(HEAP, 0, 2)));
-            self.f.get(m);
-            self.f.get(m);
-            self.f.op(I::I32Load(mem(HEAP, LIVE, 2)));
-            self.f.i32(1);
-            self.f.op(I::I32Sub);
-            self.f.op(I::I32Store(mem(HEAP, LIVE, 2)));
-        }
+        // A held key of a pinned map stays (`ref.elem.pinned.map`).
+        self.f.get(m);
+        self.f.helper(Helper::ListPinned);
+        self.f.op(I::If(BlockType::Empty));
+        self.f.helper(Helper::Panic(MAP_PINNED.into()));
+        self.f.op(I::End);
+        // The entry stays in place, marked removed: probes pass it and
+        // iteration skips it, so the survivors keep their order. The
+        // table's counts of it go: the value's after the result took
+        // its own, and the key's.
+        self.release_locals(&vl, vt)?;
+        let kl: Vec<u32> = e.leaves[..e.keys]
+            .iter()
+            .map(|l| {
+                let x = self.f.local(l.val);
+                self.f.get(at);
+                self.f.op(l.load(0));
+                self.f.set(x);
+                x
+            })
+            .collect();
+        self.release_locals(&kl, kt)?;
+        hash_address(&mut self.f, m, ent);
+        self.f.i32(-1);
+        self.f.op(I::I32Store(mem(HEAP, 0, 2)));
+        self.f.get(m);
+        self.f.get(m);
+        self.f.op(I::I32Load(mem(HEAP, LIVE, 2)));
+        self.f.i32(1);
+        self.f.op(I::I32Sub);
+        self.f.op(I::I32Store(mem(HEAP, LIVE, 2)));
         self.f.op(I::Else);
         self.new_variant(i, 0, &[])?;
         self.close();
@@ -702,6 +740,11 @@ impl Em<'_, '_, '_> {
         }
         let (kl, hash) = self.map_key(key, &entry, &ops)?;
         let found = self.map_find(m, hash, &kl, &entry, &ops);
+        if default.is_none() {
+            // A later `m[k] = v` may reuse this search (`map_probe_source`):
+            // entry numbers and a miss position survive the unique copy.
+            self.map_probes.insert(i, MapProbe { hash, entry: found });
+        }
         if default.is_some() {
             self.map_probe_unique(m, &entry);
         }

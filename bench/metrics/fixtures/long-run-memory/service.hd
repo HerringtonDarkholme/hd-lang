@@ -18,7 +18,7 @@ struct Response:
 
 fn handle(sessions: &mut Map[string, i64], text: string) -> string:
     request := decode::[Request](text).expect("a request")
-    seen := sessions.get(request.user).unwrap_or(0)
+    seen := sessions.get(request.user).copied().unwrap_or(0)
     sessions[request.user] = seen + 1
     encode(
         Response {

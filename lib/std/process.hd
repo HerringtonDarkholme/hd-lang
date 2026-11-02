@@ -196,7 +196,7 @@ impl Process for ScriptedProcess:
         program := command.program
         match self.answers.get(program):
             .Some(queued) =>
-                done := self.served.get(program).unwrap_or(0)
+                done := self.served.get(program).copied().unwrap_or(0)
                 self.served[program] = done + 1
                 match queued[if done < queued.len(): done else: queued.len() - 1]:
                     .Ok(output) =>

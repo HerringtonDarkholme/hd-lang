@@ -173,7 +173,6 @@ fn clear_between(b: &Body, l: u32, v: usize, i: usize, reach: &mut Vec<u32>) -> 
                 Some(
                     IntrinsicOp::ListLen
                     | IntrinsicOp::MapLen
-                    | IntrinsicOp::MapGet
                     | IntrinsicOp::StrIndex
                     | IntrinsicOp::StrConcat
                     | IntrinsicOp::StrEq

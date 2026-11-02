@@ -2,7 +2,7 @@
 # Spec 05 Map Indexing: expr.index.map.read-value, expr.index.map.get (owner decision SSC Q8, batch 26, 2026-09-30).
 fn score(scores: Map[string, i32], name: string) -> i32:
     match scores.get(name):
-        .Some(value) => value
+        .Some(value) => *value
         .None => 0
 
 fn strict(scores: Map[string, i32], name: string) -> i32:

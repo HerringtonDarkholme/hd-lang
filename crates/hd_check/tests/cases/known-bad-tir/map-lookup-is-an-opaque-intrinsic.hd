@@ -22,4 +22,4 @@ impl Iterable[i32] for Bag:
 # expected: Call ordinary map lookup code over a visible memory representation.
 fn lookup(items: Map[string, i32], key: string) -> i32?:
     # subject
-    items.get(key)
+    items.get(key).copied()

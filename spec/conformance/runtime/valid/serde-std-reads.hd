@@ -270,7 +270,7 @@ tests:
         assert_equal(found._1, "map uint:u16 uint:u16", reason="calls")
         match found._0:
             .Ok(gusts) =>
-                assert_equal(gusts.get("east"), .Some(9), reason="east")
+                assert_equal(gusts.get("east").copied(), .Some(9), reason="east")
                 let mut order: List[string] = []
                 for entry in gusts:
                     order.push(entry._0)

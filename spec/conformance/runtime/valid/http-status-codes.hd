@@ -61,7 +61,7 @@ tests:
         responses[HttpStatus.Other(404)] = "replacement"
         assert_equal(responses.len(), 1, reason="numeric aliases address one key")
         assert_equal(
-            responses.get(.NotFound),
+            responses.get(.NotFound).copied(),
             .Some("replacement"),
             reason="both forms read the same key",
         )

@@ -114,7 +114,7 @@ impl JsonObject:
     # The place of `key` in `entries`. `index` is empty until it is kept.
     fn position(&self, key: string) -> usize?:
         if self.index.len() > 0:
-            return self.index.get(key)
+            return self.index.get(key).copied()
         size := self.entries.len()
         let at: usize = 0
         while at < size:
@@ -2722,7 +2722,7 @@ fn scan_object(parser: &mut Parser, frame: &mut TextReadFrame) -> Result[void, J
                     break
                 i = i + 1
         else:
-            slot = frame.positions.get(key).unwrap_or(frame.key_count)
+            slot = frame.positions.get(key).copied().unwrap_or(frame.key_count)
         if slot == frame.key_count:
             if slot < frame.keys.len():
                 frame.keys[slot] = key
@@ -3363,7 +3363,7 @@ impl Deserializer for TextReader:
                 let slot = frame.next
                 if slot >= frame.key_count || frame.keys[slot] != name:
                     if frame.key_count > 16:
-                        slot = frame.positions.get(name).unwrap_or(frame.key_count)
+                        slot = frame.positions.get(name).copied().unwrap_or(frame.key_count)
                     else:
                         slot = 0
                         while slot < frame.key_count && frame.keys[slot] != name:

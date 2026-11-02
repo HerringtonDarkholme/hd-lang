@@ -616,7 +616,7 @@ impl[K < Eq & Hash, V < DeepEq] DeepEq for Map[K, V]:
         for (key, value) in self:
             match other.get(key):
                 .Some(found) =>
-                    if !value.deep_eq(&found, visits):
+                    if !value.deep_eq(found, visits):
                         return false
                 .None => return false
         true
