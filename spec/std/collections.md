@@ -10,6 +10,7 @@ in ordinary hd over the language tier:
 - the `ListView[T]` type returned by `view`, `chunks`, and `windows`;
 - the borrowed `Span[T, 'a]` type returned by `span` and `slice`;
 - the uniquely owned `UniqList[T]`, which may hold non-copyable elements;
+- the uniquely owned `UniqMap[K, V]`, which may hold non-copyable values;
 - the `List` helpers, such as `sorted_by_key`, `group_by`, and `windows`,
   and the function `counts`;
 - the `Map` methods `get_or_insert`, `contains_key`, `keys`,
@@ -67,6 +68,33 @@ Its core surface is:
 9. r[std-collections.uniq-list.get] For `T < Copy`, `get(index)` returns `.Some` of a copy of the indexed element, or `.None` outside the list.
 10. r[std-collections.uniq-list.first-last] For `T < Copy`, `first()` and `last()` return `.Some` of a copy of the first or last element, or `.None` when the list is empty.
 11. r[std-collections.uniq-list.movers] A change that shifts elements moves each one through `Ptr[T].read` and `Ptr[T].write`. Growth moves every element into a larger `Buffer[T]`, sets the old buffer's length to zero, and releases it holding no elements. No operation tests whether the buffer is uniquely referenced or makes a copy-on-write clone.
+
+This core surface has no reference accessor, iterator, conversion, or
+literal construction. Those are specified separately when added.
+
+## UniqMap
+
+`UniqMap[K, V]` is the uniquely owned counterpart of `Map[K, V]`. Keys
+stay copyable so lookup can take them by value, while values may be
+non-copyable and move into and out of the table.
+
+| Item | Signature |
+| --- | --- |
+| construction | `new() -> UniqMap[K, V]` |
+| size | `len(&self) -> usize`; `is_empty(&self) -> bool` |
+| lookup | `contains_key(&self, key: K) -> bool` |
+| change | `insert(&mut self, key: K, value: V) -> V?`; `remove(&mut self, key: K) -> V?`; `clear(&mut self) -> void` |
+| copyable access, `V < Copy` | `get(&self, key: K) -> V?` |
+
+1. r[std-collections.uniq-map.type] `std.collections` declares `UniqMap[K < Eq & Hash, V < ?Copy]` with private fields and `impl[K < Eq & Hash, V < ?Copy] !Copy for UniqMap[K, V]`. It is not a prelude name, so code that names it imports it.
+2. r[std-collections.uniq-map.new] `new()` returns an empty map.
+3. r[std-collections.uniq-map.len] `len()` returns the number of entries, and `is_empty()` is true exactly when that number is zero.
+4. r[std-collections.uniq-map.contains-key] `contains_key(key)` is true exactly when the map has an entry whose key is equal to `key`.
+5. r[std-collections.uniq-map.insert] `insert(key, value)` moves `value` into the entry for `key`. It returns the former value in `.Some` when an equal key was present, or `.None` when the entry is new. Replacing a value does not change `len()`.
+6. r[std-collections.uniq-map.remove] `remove(key)` removes the entry whose key equals `key` and moves its value out in `.Some`, or returns `.None` when there is no such entry.
+7. r[std-collections.uniq-map.clear] `clear()` removes every entry and drops every value.
+8. r[std-collections.uniq-map.get] For `V < Copy`, `get(key)` returns `.Some` of a copy of the value whose key equals `key`, or `.None` when absent.
+9. r[std-collections.uniq-map.storage] The implementation is a hash table over `Buffer`. It moves a slot out while probing and writes it back before advancing, and moves entries when it grows. No operation tests whether the buffer is uniquely referenced or makes a copy-on-write clone.
 
 This core surface has no reference accessor, iterator, conversion, or
 literal construction. Those are specified separately when added.

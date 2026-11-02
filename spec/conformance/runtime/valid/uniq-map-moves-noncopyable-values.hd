@@ -1,0 +1,70 @@
+# test: a UniqMap inserts, replaces, removes, grows, and clears non-copyable values
+# expect: test
+# Spec std/collections UniqMap: std-collections.uniq-map.insert, std-collections.uniq-map.remove.
+use std.collections.UniqMap
+
+struct Parcel:
+    label: string
+
+impl !Copy for Parcel
+
+fn label(value: Parcel?) -> string:
+    match value:
+        .Some(parcel) => parcel.label
+        .None => "none"
+
+tests:
+    use std.testing.assert_equal
+
+    it("moves values into and out of a unique map"):
+        let mut parcels = UniqMap::[string, Parcel].new()
+        assert_equal(parcels.is_empty(), true, reason="a new map is empty")
+        assert_equal(
+            label(parcels.insert("tea", Parcel { label: "first" })),
+            "none",
+            reason="a new key returns none",
+        )
+        assert_equal(parcels.len(), 1, reason="the first insert grows the map")
+        assert_equal(parcels.contains_key("tea"), true, reason="the inserted key is present")
+        assert_equal(
+            label(parcels.insert("tea", Parcel { label: "second" })),
+            "first",
+            reason="replacement moves out the old value",
+        )
+        assert_equal(parcels.len(), 1, reason="replacement keeps the size")
+        assert_equal(
+            label(parcels.remove("tea")),
+            "second",
+            reason="remove moves out the current value",
+        )
+        assert_equal(parcels.contains_key("tea"), false, reason="the removed key is absent")
+        assert_equal(
+            label(parcels.remove("tea")),
+            "none",
+            reason="removing an absent key returns none",
+        )
+        assert_equal(
+            label(parcels.insert("tea", Parcel { label: "third" })),
+            "none",
+            reason="a deleted slot can be reused",
+        )
+        assert_equal(parcels.contains_key("tea"), true, reason="the reused key is present")
+
+    it("rehashes move-only values and clear drops them"):
+        let mut parcels = UniqMap::[usize, Parcel].new()
+        let index: usize = 0
+        while index < 40:
+            _ := parcels.insert(index, Parcel { label: "$index" })
+            index += 1
+        assert_equal(parcels.len(), 40, reason="growth keeps every entry")
+        assert_equal(parcels.contains_key(0), true, reason="the first key survives growth")
+        assert_equal(parcels.contains_key(39), true, reason="the last key survives growth")
+        parcels.clear()
+        assert_equal(parcels.is_empty(), true, reason="clear removes every entry")
+        assert_equal(parcels.contains_key(20), false, reason="a cleared key is absent")
+
+    it("copies get results only for copyable values"):
+        let mut values = UniqMap::[string, i32].new()
+        _ := values.insert("tea", +3)
+        assert_equal(values.get("tea"), .Some(+3), reason="get copies the stored value")
+        assert_equal(values.get("cake"), .None, reason="get returns none for an absent key")
