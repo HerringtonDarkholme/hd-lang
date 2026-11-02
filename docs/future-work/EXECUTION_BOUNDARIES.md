@@ -38,7 +38,10 @@ executable over the wire. It sends the identity of code the destination
 already has, plus data. So a function or a closure is named by its
 identity within that one program, and two domains never disagree about
 what a name means. Domains that run different builds, such as a service on
-another release or a job resumed by a newer deploy, are out of scope.
+another release or a job resumed by a newer deploy, are out of scope:
+such a peer is refused with `CrossError.OtherBuild` (section 4), so a page
+left open across a deploy learns it must reload, and a stored job fails
+clearly instead of running against code it was not built with.
 
 ## 2. Eight Programs That Cross
 
@@ -348,6 +351,9 @@ case of std's `CrossError`:
 - **`Unreachable`:** the call never left, so it did not run.
 - **`Unknown`:** the call left and no answer came, including a timeout
   after it was sent, so it may have run.
+- **`OtherBuild`:** the destination runs another build, as after a deploy,
+  and refused the call before running it. A page reloads; a stored job
+  fails and is not retried against the new build.
 
 A worker or a device reports `Unknown` only when it crashes or resets. A
 scoped thread cannot lose contact and never fails.
@@ -981,8 +987,8 @@ or a server, device code for a GPU.
 - **B5.** Each boundary type gets a generated codec, the tree encoding of
   boundary values ([`module.boundary.tree`](../../spec/lang/10-modules.md#r-module.boundary.tree)). Both sides come from
   one compile, so method numbers and codecs agree. A build ID stamped on
-  both lets the runtime refuse a peer from another build with a
-  `CrossError`, which keeps different builds out of scope (section 1).
+  both lets the runtime refuse a peer from another build with
+  `CrossError.OtherBuild` before any code runs (section 1).
 
 | | browser build | server build |
 | --- | --- | --- |
@@ -998,8 +1004,8 @@ or a server, device code for a GPU.
 | Scoped thread | a thread on the same instance's memory runs the closure; the scope joins before it returns | none: contact cannot be lost |
 | Background thread | a task (code, environment) goes to a thread of the same instance; the caller suspends, and the reply wakes it on its own event loop, so a UI handler resumes on the UI thread | a crash is a `CrossError` |
 | Worker | a second instance of the same module receives the encoded code, environment and arguments | a crash is `CrossError.Unknown`; cancelling posts an abort |
-| Job | the jobs provider stores the code and environment; a host of the same build runs it later; no caller waits | its retry policy decides; L2 holds |
-| Remote service | the stub sends the method number and arguments over HTTP or a WebSocket; the dispatcher validates them and calls the implementation inside the server's providers | a timeout or disconnect is a `CrossError`, `Unknown` when the call may have run; cancelling sends a cancel that the server's call sees at its next suspension |
+| Job | the jobs provider stores the code, environment and build ID; a host of the same build runs it later; no caller waits | its retry policy decides; a job stored by another build fails with `OtherBuild`; L2 holds |
+| Remote service | the stub sends the build ID, method number and arguments over HTTP or a WebSocket; the dispatcher refuses another build, validates the arguments and calls the implementation | a timeout or disconnect is a `CrossError`, `Unknown` when the call may have run; cancelling sends a cancel that the server's call sees at its next suspension |
 | Device | upload, launch the kernel by number with its handles, read back | a reset is a `CrossError` |
 
 The runtime needs four pieces that do not exist yet, each its own slice:
