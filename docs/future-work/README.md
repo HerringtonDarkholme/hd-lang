@@ -22,6 +22,7 @@ stays open (#18, #163, #166, #181, #182, #646, #807).
 - [HTTP Transport Settings](HTTP_CLIENT_SETTINGS.md): accepted 2026-10-29 (chaining on the `Http` provider; literal-IP DNS servers; roots extend the platform store; a zero phase timeout expires at once) for DNS, TLS, and phase timeouts (#950).
 - [Server Applications](SERVER_APPLICATIONS.md): an ordinary `main!` with worker loops over one state object, one retained instance per adapter, an SDK-owned `HttpServer` capability (#51), lifecycle and draining, limits, grants, and SDK packaging tasks for Cloudflare and Vercel (#806, #266).
 - [Host Embedding](HOST_EMBEDDING.md): parked proposal for embedding hd in an application; package host capabilities are designed in #51.
+- [Native Package Host Bindings](NATIVE_PACKAGE_HOST_BINDINGS.md): proposal for generated Rust traits, codecs, consent, and Wasmtime registration for package host capabilities (#1191).
 - [Streaming Design](STREAMING_DESIGN.md): one reader and writer shape for HTTP bodies, process pipes, files and `TcpStream`, on plain `Disposable` handles bound with `using` (#350).
 
 ### Language and library
