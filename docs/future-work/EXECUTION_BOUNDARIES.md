@@ -2,7 +2,6 @@
 
 Status: proposal, 2026-11-02; domain: language (execution domains and
 crossings) and std; not accepted. Nothing here is in the specification.
-Reviews: [round 1](EXECUTION_BOUNDARIES_STRESS_TEST.md), [round 2](EXECUTION_BOUNDARIES_STRESS_TEST_2.md), and the [simplification](EXECUTION_BOUNDARIES_SIMPLIFICATION.md).
 
 - [1. Context And Goal](#1-context-and-goal)
 - [2. Eight Programs That Cross](#2-eight-programs-that-cross)
@@ -10,8 +9,9 @@ Reviews: [round 1](EXECUTION_BOUNDARIES_STRESS_TEST.md), [round 2](EXECUTION_BOU
 - [4. The Eight Programs In The Design](#4-the-eight-programs-in-the-design)
 - [5. The Process, End To End](#5-the-process-end-to-end)
 - [6. Cost](#6-cost)
-- [Appendix A. Prior Art](#appendix-a-prior-art)
-- [Appendix B. Alternatives Considered](#appendix-b-alternatives-considered)
+- [Appendix A. Stress Test](#appendix-a-stress-test)
+- [Appendix B. Prior Art](#appendix-b-prior-art)
+- [Appendix C. Alternatives Considered](#appendix-c-alternatives-considered)
 - [Sources](#sources)
 - [Parse Log](#parse-log)
 
@@ -624,7 +624,128 @@ context (the caller's identity, which a `Remote` method cannot take as a
 row), the device-code subset and launch geometry, and supervision of
 long-lived served objects.
 
-## Appendix A. Prior Art
+## Appendix A. Stress Test
+
+Eighteen cases, each the public shape of a well-known library or a
+crossing operation, rewritten in this design. Shapes are approximations.
+A case *works*, has *friction* (it works with a workaround or a visible
+difference from the original), or *breaks* (it cannot be written, or
+behaves differently). Blocks are parsed, not type-checked.
+
+| # | Case (library) | Verdict | What the design does |
+| --- | --- | --- | --- |
+| 1 | Worker thumbnail (Comlink, transferables) | works | the `impl !Copy` image moves; its bytes cross once in bulk, where JavaScript hands a buffer over with no copy |
+| 2 | Form action (Next.js "use server") | works | a `Served[Call[A, T, E]]`; the captured id stays on the server, and the token is bound to the page's session |
+| 3 | Typed service (tRPC, gRPC) | friction | the implementation has no per-request context: it cannot see the caller |
+| 4 | Scoped count and sort (`thread::scope`, rayon) | works | borrows in a `Scope`; a spawn that writes a capture is rejected |
+| 5 | Off the UI thread (Kotlin, Swift) | works | `background.run!` returns `T`; code that uses `$ Ui` does not fit `Background`'s row |
+| 6 | Delayed mail (Sidekiq, Temporal) | friction | a deploy fails the jobs queued before it with `OtherBuild`, so a daily deploy rules out a job a week out |
+| 7 | GPU kernels (wgpu, CUDA) | friction | `device_main` serves the kernels; the device-code subset and launch geometry are left to their own design |
+| 8 | Data-local count (Ray, Spark) | works | `workers.at(rows)` runs the code at `rows`'s home, where calls on `rows` are local |
+| 9 | Long-lived process (Erlang, Akka) | works | an account is a `Served[Account]` returned by a `Remote` method; supervision is library work |
+| 10 | A test swaps the server | works | stub, real implementation and fake are all providers of `Users` |
+| 11 | Error propagation | works | `E < From[CrossError]` with one `@from` variant lets `?` carry a lost contact |
+| 12 | Crossings in `join!` | works | two bang calls on two domain values join as any two calls do |
+| 13 | Cancel mid-crossing | works | the cancel makes the outcome `Unknown`; a moved value never returns through an error |
+| 14 | A remote call inside a remote call | works | the implementation holds the other stub as a field and maps its `CrossError` |
+| 15 | Remote with a closure or a served object | works | a closure parameter is rejected by R1; a `Served[T]` parameter crosses to its home |
+| 16 | Generic remote function | friction | a generic method is rejected; a generic trait served at one type works |
+| 17 | Streaming results | friction | a stream is a `Served[Next[T]]` pulled one item per round trip; server push needs a batching cursor |
+| 18 | A background result updates UI | works | the handler resumes on the UI thread; a closure that captured the UI state's box is not `Send` |
+
+Totals: 13 works, 5 friction, 0 breaks. Two frictions are left to their
+own design (cases 3 and 7). One is the price of refusing another build
+(case 6). Two are costs of the rules on purpose: R1 bars generic methods
+(case 16), and a served object answers one call per round trip (case 17).
+
+Adversarial checks, each with the rule that stops it:
+
+| Attempt | Stopped by |
+| --- | --- |
+| two spawns each run `total += n` | a closure that writes a capture is not `Send` |
+| a closure reaches a `let mut` top-level counter, or a top-level box | reached top-level bindings must be immutable and `Wire` |
+| a scoped thread gets a box | a box is not `Send` |
+| a caller passes a closure to a `Remote` method, so another build runs code it picks | R1: parameters are not closures |
+| a page edits a served object's id to reach another user's action | the token is unguessable and bound to the session: `WrongHome` |
+| a browser closes without dropping a served object | the lease expires at its home |
+| a kernel gets a texture of another GPU | `WrongHome` before it runs |
+| a client of yesterday's build calls today's server | `OtherBuild` before any code runs |
+| a closure captures a provider value | a provider value is neither `Send` nor `Wire` |
+| a moved value is used after the crossing fails | the source binding ended: `use-of-moved-value` |
+
+**Case 4: the rejected write.**
+
+```text
+# hypothetical syntax; lines: &List[string]
+let total = +0
+counts := scope(fn(s: &mut Scope) -> List[i32]:
+    tasks := [for i in 0..4 => s.spawn(fn() -> i32: count_quarter(lines, i))]
+    s.spawn(fn() -> i32: total += 1)         # error: unsatisfied-trait-bound, a closure that writes total is not Send
+    [for t in tasks => t.join()]
+)
+```
+
+**Case 9: an account process.** A worker serves a `Bank`, and each
+account it opens is a served object of its own.
+
+```text
+# hypothetical syntax; an account process on a worker, as an Erlang process
+pub trait Bank < Remote:
+    fn open_account!(&mut self) -> Result[Served[Account], AccountError]
+
+pub trait Account < Remote:
+    fn deposit!(&mut self, cents: i64) -> Result[i64, AccountError]
+
+struct Ledger:
+    cents: i64
+
+impl Account for Ledger:
+    fn deposit!(&mut self, cents: i64) -> Result[i64, AccountError]:
+        self.cents += cents
+        .Ok(self.cents)
+
+pub fn first_deposit!() -> Result[i64, AccountError] $ Workers:
+    let mut workers = $.use(Workers)
+    let mut bank = remote::[Bank](workers.pick())
+    let mut account = bank.open_account!()?        # account: Served[Account], home: that worker
+    account.deposit!(500)
+```
+
+**Cases 15 and 16: what R1 rejects.**
+
+```text
+# hypothetical syntax
+pub trait Sorter < Remote:
+    fn sort_by!(&mut self, rows: List[Row], key: fn(Row) -> i64) -> Result[List[Row], SortError]   # error: R1, a closure parameter
+
+pub trait Thumbs < Remote:
+    fn shrink!(&mut self, tex: Served[Texture], side: u32) -> Result[Served[Texture], GpuError]   # valid: crosses to its home
+
+pub trait Store < Remote:
+    fn get![T < Wire](&mut self, key: string) -> Result[T, StoreError]   # error: R1, a generic method
+
+pub trait TypedStore[T < Wire] < Remote:
+    fn get!(&mut self, key: string) -> Result[T, StoreError]             # valid: serve!(UserStore {}) fixes T = User
+```
+
+**Case 17: a stream pulled item by item.**
+
+```text
+# hypothetical syntax
+pub trait Feed < Remote:
+    fn open!(&mut self, topic: string) -> Result[Served[Next[Event]], FeedError]
+
+pub fn watch!(topic: string) -> Result[void, FeedError] $ Feed + Console:
+    let mut feed = $.use(Feed)
+    let mut events = feed.open!(topic)?
+    while true:
+        match events.next!()?:
+            .Some(event) => println("$event")
+            .None => break
+    .Ok(())
+```
+
+## Appendix B. Prior Art
 
 Each snippet is abridged from its source.
 
@@ -675,7 +796,7 @@ checks captures through the `Send` and `Wire` bounds.
 not need it: every domain runs the same program, and another build is
 refused with `OtherBuild`.
 
-## Appendix B. Alternatives Considered
+## Appendix C. Alternatives Considered
 
 | Alternative | Why it is not the design |
 | --- | --- |
@@ -689,6 +810,12 @@ refused with `OtherBuild`.
 | a `Handle` marker beside `Remote`, and a separate `Action` type | a handle is a `Served[T]`: one kind of reference for services, textures, actions, streams and processes |
 | `Sync` beside `Send` | hd writes through `&` only via a box, which is not `Send`, so `&T` is `Send` when `T` is |
 | `try_run!` beside `run!` | `?` already converts a `CrossError` through `From`, so `run!(...)??` does it |
+| `CrossError` grouped as `NotRun(reason)` and `Unknown` | the same four facts one pattern level deeper; flat cases read as gRPC status codes do |
+| `Send` merged into `Wire` | a scoped thread borrows (`&T` is not `Wire`), and a background thread shares a buffer instead of copying it |
+| domain types without a row parameter | the row is what keeps `$ Ui` off a background thread |
+| `Background` merged into `Scope` | their lifetimes differ: `'static` against `'s` |
+| `WrongHome` as a panic | a server refusing a forged token must answer the caller, not crash |
+| `$.with` in place of `serve!` | `serve!` is the explicit list of what another build may call |
 
 The parked #166 study
 ([SERIALIZABLE_CLOSURE_DESIGN.md @ 28072b8a1](https://github.com/HerringtonDarkholme/hd-lang/blob/28072b8a1/docs/future-work/SERIALIZABLE_CLOSURE_DESIGN.md))
@@ -722,7 +849,7 @@ maps onto this design:
 
 ## Parse Log
 
-All 18 `text` blocks were parsed on 2026-11-02 with
+All 22 `text` blocks were parsed on 2026-11-02 with
 `scripts/hd-conformance.sh parse`, which checks syntax only; nothing was
 type-checked. Std names (`Workers`, `Background`, `Jobs`, `Gpus`,
 `Served`, `serve!`, `remote::[T]`, `scope`) are sketches.
@@ -747,3 +874,7 @@ type-checked. Std names (`Workers`, `Background`, `Jobs`, `Gpus`,
 | 16 | 4. The Eight Programs In The Design | parses; `# hypothetical syntax` |
 | 17 | 4. The Eight Programs In The Design | parses; `# hypothetical syntax` |
 | 18 | 5. The Process, End To End | parses; `# hypothetical syntax` |
+| 19 | Appendix A. Stress Test | parses; `# hypothetical syntax` |
+| 20 | Appendix A. Stress Test | parses; `# hypothetical syntax` |
+| 21 | Appendix A. Stress Test | parses; `# hypothetical syntax` |
+| 22 | Appendix A. Stress Test | parses; `# hypothetical syntax` |
