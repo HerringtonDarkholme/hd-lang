@@ -62,6 +62,7 @@ The std shape below needs these rules of the language:
 9. Field access and method calls auto-dereference through every `&`, `&mut`, `*T` and `*mut T` level, as Rust's auto-deref does: `x.name` and `x.describe()` with `x: &*mut User`. Casts, conditions, range bounds, `?`, spreads and calls of a function value keep an explicit `*`.
 10. `&` and `&mut` take a counted pointer type without parentheses: `&*T`, `&*mut T`, `&mut *T`, as Rust's `&*const T`; `*&T` stays an error.
 11. A collection literal or comprehension builds a `List`, `Map` or `Set`, unless its expected type is a `UniqList` or `UniqMap` ([`expr.collection.expected`](../../spec/lang/05-expressions.md#r-expr.collection.expected)): `let pool: UniqList[Conn] = [Conn { id: 1 }]`.
+12. A type-argument default is checked where it is used, not at its declaration ([`types.generic.default.bound`](../../spec/lang/04-type-system.md#r-types.generic.default.bound) changes). `collect[C < FromIterator[T] = List[T]]` declares with `T < ?Copy`; `pool: UniqList[Conn] = it.collect()` infers `C`, and a bare `it.collect()` over non-copyable items is `unsatisfied-trait-bound` at that call, whose fix is an annotated target.
 
 ## Problems It Solves
 
@@ -128,9 +129,14 @@ pool.idle.push(conn)                           # moves back
 - **Keys by value.** Map keys and set elements stay copyable, as Swift's
   `Dictionary` keys do. Rust's `get(&Q)` needs `Borrow`; without it, hd
   would write `scores.get(&"ada")`.
-- **Iterator adapters** keep `fn(T)`, with `T` the item. A borrowing
-  cursor (`xs.iter()`) yields `&T`, so the callback is `fn(l: &Line)`.
-  Rust's `filter(&Self::Item)` would need `&&T`, which is no hd type.
+- **Iterator callbacks that only look take `&T`,** as Rust's do:
+  `filter`, `find`, `take_while`, `skip_while`, `position`, `any` and
+  `all`, so a non-copyable item passes through the adapter. `map` and
+  `for_each` take `fn(T)` and consume the item. `Iterator`, `Iterable`
+  and `FromIterator` take `T < ?Copy`. On a borrowing cursor
+  (`xs.iter()`, items `&T`) the callback gets `&(&T)`
+  ([`ref.type.group`](../../spec/lang/13-values-and-references.md#r-ref.type.group)),
+  and `l.qty` reads through both levels (language rule 9).
 - **Getting a value.** `get`, `xs[i]` and `*r` copy, and `opt.copied()`
   turns `(&T)?` into `T?`; a non-copyable value is `move-out-of-place` there and
   needs a mover. No iterator `copied` is needed: a copyable list passed by
