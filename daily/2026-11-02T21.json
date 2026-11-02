@@ -1,0 +1,1036 @@
+{
+  "hd": "target/release/hd",
+  "commit": "9a7a93beef26ebcfec9f1623ba22de0b0b10f60f",
+  "finished": "2026-11-02T21:57:37.029Z",
+  "results": [
+    {
+      "metric": "edit-latency",
+      "name": "p50 check after an edit",
+      "value": "77 ms",
+      "target": "≤ 50 ms",
+      "status": "fail"
+    },
+    {
+      "metric": "edit-latency",
+      "name": "p95 check after an edit",
+      "value": "80 ms",
+      "target": "≤ 200 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "cold-check",
+      "name": "median cold check, 10k lines",
+      "value": "245 ms",
+      "target": "≤ 1000 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "test-latency",
+      "name": "median edit-then-test",
+      "value": "538 ms",
+      "target": "≤ 300 ms",
+      "status": "fail"
+    },
+    {
+      "metric": "mistakes",
+      "name": "programs with exactly one diagnostic",
+      "value": "95.7%",
+      "target": "≥ 95.0%",
+      "status": "pass",
+      "note": "66 of 69"
+    },
+    {
+      "metric": "mistakes",
+      "name": "one diagnostic with the expected code",
+      "value": "95.7%",
+      "target": "≥ 95.0%",
+      "status": "pass",
+      "note": "66 of 69; first misses: mut-on-binding-type, mut-on-parameter-type, some-on-result"
+    },
+    {
+      "metric": "mistakes",
+      "name": "fix-it makes hd check pass",
+      "value": "34.8%",
+      "target": "≥ 80.0%",
+      "status": "fail",
+      "note": "24 of 69 resolved; 24 offered a fix-it"
+    },
+    {
+      "metric": "mistakes",
+      "name": "largest diagnostic text (bytes / 4)",
+      "value": "93 tokens",
+      "target": "≤ 60 tokens",
+      "status": "fail",
+      "note": "largest: mut-on-parameter-type; median 44 tokens, 175 B; 64 of 69 within"
+    },
+    {
+      "metric": "answer-size",
+      "name": "hd doc of a data type",
+      "value": "153 B",
+      "target": "≤ 1000 B",
+      "status": "pass"
+    },
+    {
+      "metric": "answer-size",
+      "name": "one failing hd test, text",
+      "value": "318 B",
+      "target": "≤ 800 B",
+      "status": "pass"
+    },
+    {
+      "metric": "answer-size",
+      "name": "one failing test, JSON object",
+      "value": "139 B",
+      "target": "≤ 400 B",
+      "status": "pass"
+    },
+    {
+      "metric": "answer-size",
+      "name": "one diagnostic, JSON object",
+      "value": "170 B",
+      "target": "≤ 600 B",
+      "status": "pass"
+    },
+    {
+      "metric": "determinism",
+      "name": "inputs with byte-identical output",
+      "value": "8 of 8",
+      "target": "all identical",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "overlapping-from: time at 4x",
+      "value": "64 ms",
+      "target": "≤ 2000 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "overlapping-from: peak RSS at 4x",
+      "value": "24.1 MB",
+      "target": "≤ 200.0 MB",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "overlapping-from: growth exponent",
+      "value": "noise",
+      "target": "≤ 1.3",
+      "status": "pass",
+      "note": "2x→4x; 44 → 64 ms, start-up 25 ms"
+    },
+    {
+      "metric": "pathological",
+      "name": "deep-blocks: time at 4x",
+      "value": "27 ms",
+      "target": "≤ 2000 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "deep-blocks: peak RSS at 4x",
+      "value": "19.6 MB",
+      "target": "≤ 200.0 MB",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "deep-blocks: growth exponent",
+      "value": "noise",
+      "target": "≤ 1.3",
+      "status": "pass",
+      "note": "2x→4x; 25 → 27 ms, start-up 25 ms"
+    },
+    {
+      "metric": "pathological",
+      "name": "deep-parens: time at 4x",
+      "value": "26 ms",
+      "target": "≤ 2000 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "deep-parens: peak RSS at 4x",
+      "value": "18.8 MB",
+      "target": "≤ 200.0 MB",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "deep-parens: growth exponent",
+      "value": "noise",
+      "target": "≤ 1.3",
+      "status": "pass",
+      "note": "2x→4x; 26 → 26 ms, start-up 25 ms"
+    },
+    {
+      "metric": "pathological",
+      "name": "method-chain: time at 4x",
+      "value": "33 ms",
+      "target": "≤ 2000 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "method-chain: peak RSS at 4x",
+      "value": "21.2 MB",
+      "target": "≤ 200.0 MB",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "method-chain: growth exponent",
+      "value": "noise",
+      "target": "≤ 1.3",
+      "status": "pass",
+      "note": "2x→4x; 28 → 33 ms, start-up 25 ms"
+    },
+    {
+      "metric": "pathological",
+      "name": "iterator-chain: time at 4x",
+      "value": "-",
+      "target": "≤ 2000 ms",
+      "status": "fail",
+      "note": "2x: hd check failed: error: iterator_chain.hd:2:5: trait-resolution-depth: `map` needs a proof that its receiver implements Iterator, and that proof needs more than 64 nested bounds | check result: FAILED. errors: 1; warnings: 0"
+    },
+    {
+      "metric": "pathological",
+      "name": "iterator-chain: peak RSS at 4x",
+      "value": "-",
+      "target": "≤ 200.0 MB",
+      "status": "fail",
+      "note": "2x: hd check failed: error: iterator_chain.hd:2:5: trait-resolution-depth: `map` needs a proof that its receiver implements Iterator, and that proof needs more than 64 nested bounds | check result: FAILED. errors: 1; warnings: 0"
+    },
+    {
+      "metric": "pathological",
+      "name": "iterator-chain: growth exponent",
+      "value": "-",
+      "target": "≤ 1.3",
+      "status": "fail",
+      "note": "2x: hd check failed: error: iterator_chain.hd:2:5: trait-resolution-depth: `map` needs a proof that its receiver implements Iterator, and that proof needs more than 64 nested bounds | check result: FAILED. errors: 1; warnings: 0"
+    },
+    {
+      "metric": "pathological",
+      "name": "wide-list-literal: time at 4x",
+      "value": "63 ms",
+      "target": "≤ 2000 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "wide-list-literal: peak RSS at 4x",
+      "value": "22.4 MB",
+      "target": "≤ 200.0 MB",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "wide-list-literal: growth exponent",
+      "value": "noise",
+      "target": "≤ 1.3",
+      "status": "pass",
+      "note": "2x→4x; 43 → 63 ms, start-up 25 ms"
+    },
+    {
+      "metric": "pathological",
+      "name": "large-enum-match: time at 4x",
+      "value": "63 ms",
+      "target": "≤ 2000 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "large-enum-match: peak RSS at 4x",
+      "value": "21.7 MB",
+      "target": "≤ 200.0 MB",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "large-enum-match: growth exponent",
+      "value": "noise",
+      "target": "≤ 1.3",
+      "status": "pass",
+      "note": "2x→4x; 51 → 63 ms, start-up 25 ms"
+    },
+    {
+      "metric": "pathological",
+      "name": "deep-generic: time at 4x",
+      "value": "34 ms",
+      "target": "≤ 2000 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "deep-generic: peak RSS at 4x",
+      "value": "19.4 MB",
+      "target": "≤ 200.0 MB",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "deep-generic: growth exponent",
+      "value": "noise",
+      "target": "≤ 1.3",
+      "status": "pass",
+      "note": "2x→4x; 29 → 34 ms, start-up 25 ms"
+    },
+    {
+      "metric": "pathological",
+      "name": "question-chain: time at 4x",
+      "value": "35 ms",
+      "target": "≤ 2000 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "question-chain: peak RSS at 4x",
+      "value": "22.6 MB",
+      "target": "≤ 200.0 MB",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "question-chain: growth exponent",
+      "value": "noise",
+      "target": "≤ 1.3",
+      "status": "pass",
+      "note": "2x→4x; 32 → 35 ms, start-up 25 ms"
+    },
+    {
+      "metric": "pathological",
+      "name": "big-file: time at 4x",
+      "value": "228 ms",
+      "target": "≤ 2000 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "big-file: peak RSS at 4x",
+      "value": "53.6 MB",
+      "target": "≤ 200.0 MB",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "big-file: growth exponent",
+      "value": "1.22",
+      "target": "≤ 1.30",
+      "status": "pass",
+      "note": "2x→4x; 113 → 228 ms, start-up 25 ms"
+    },
+    {
+      "metric": "recheck-precision",
+      "name": "modules rechecked, private body edit",
+      "value": "1",
+      "target": "≤ 1",
+      "status": "pass"
+    },
+    {
+      "metric": "recheck-precision",
+      "name": "modules rechecked, public signature edit",
+      "value": "9",
+      "target": "≤ 3",
+      "status": "fail",
+      "note": "m004 and its dependents"
+    },
+    {
+      "metric": "errors-per-run",
+      "name": "semantic: 10 mistakes reported once",
+      "value": "10 of 10",
+      "target": "all, once",
+      "status": "pass",
+      "note": "0 reported twice or more; 0 on other lines"
+    },
+    {
+      "metric": "errors-per-run",
+      "name": "mixed: 10 mistakes reported once",
+      "value": "2 of 10",
+      "target": "all, once",
+      "status": "fail",
+      "note": "0 reported twice or more; 0 on other lines"
+    },
+    {
+      "metric": "diag-location",
+      "name": "diagnostics on the mistake's line",
+      "value": "98.6%",
+      "target": "≥ 95.0%",
+      "status": "pass",
+      "note": "68 of 69; misses: operator-line-break@9"
+    },
+    {
+      "metric": "fixit-safety",
+      "name": "fix-its that add no error",
+      "value": "100.0%",
+      "target": "≥ 100.0%",
+      "status": "pass",
+      "note": "24 of 24 safe"
+    },
+    {
+      "metric": "lookup-latency",
+      "name": "p95 hd callers",
+      "value": "-",
+      "target": "≤ 100 ms",
+      "status": "n/a",
+      "note": "not supported by this hd: no hd callers"
+    },
+    {
+      "metric": "lookup-latency",
+      "name": "p95 hd needs",
+      "value": "-",
+      "target": "≤ 100 ms",
+      "status": "n/a",
+      "note": "not supported by this hd: no hd needs"
+    },
+    {
+      "metric": "fmt",
+      "name": "hd fmt, 10k lines",
+      "value": "32 ms",
+      "target": "≤ 200 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "fmt",
+      "name": "second hd fmt changes nothing",
+      "value": "no change",
+      "target": "idempotent",
+      "status": "pass"
+    },
+    {
+      "metric": "check-cost",
+      "name": "checked run time / unchecked run time",
+      "value": "1.94x",
+      "target": "≤ 1.30x",
+      "status": "fail",
+      "note": "checked 848 ms, unchecked 438 ms"
+    },
+    {
+      "metric": "dev-speed",
+      "name": "geomean dev / optimized",
+      "value": "1.04x",
+      "target": "≤ 4.00x",
+      "status": "pass",
+      "note": "fib 1.03x, sum 0.99x, string-build 1.18x, map 1.01x, sort 1.02x"
+    },
+    {
+      "metric": "dev-speed",
+      "name": "worst case dev / optimized",
+      "value": "1.18x",
+      "target": "≤ 10.00x",
+      "status": "pass",
+      "note": "string-build"
+    },
+    {
+      "metric": "resources",
+      "name": "warm check, 10k lines: CPU time",
+      "value": "80 ms",
+      "target": "≤ 200 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "resources",
+      "name": "warm check, 10k lines: peak RSS",
+      "value": "33.4 MB",
+      "target": "≤ 50.0 MB",
+      "status": "pass"
+    },
+    {
+      "metric": "resources",
+      "name": "check, small, cold",
+      "value": "0.18 CPU-s, 33.2 MB",
+      "target": "completes ≤ 30 s",
+      "status": "pass",
+      "note": "wall 123 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "check, small, warm",
+      "value": "0.02 CPU-s, 18.7 MB",
+      "target": "completes ≤ 30 s",
+      "status": "pass",
+      "note": "wall 24 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "test, small, cold",
+      "value": "3.89 CPU-s, 119.7 MB",
+      "target": "completes ≤ 30 s",
+      "status": "pass",
+      "note": "wall 1564 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "test, small, warm",
+      "value": "3.01 CPU-s, 120.5 MB",
+      "target": "completes ≤ 30 s",
+      "status": "pass",
+      "note": "wall 1131 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "build, small, cold",
+      "value": "0.92 CPU-s, 96.4 MB",
+      "target": "completes ≤ 30 s",
+      "status": "pass",
+      "note": "wall 404 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "build, small, warm",
+      "value": "0.08 CPU-s, 42.1 MB",
+      "target": "completes ≤ 30 s",
+      "status": "pass",
+      "note": "wall 82 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "check, 10k, cold",
+      "value": "0.50 CPU-s, 59.4 MB",
+      "target": "completes ≤ 30 s",
+      "status": "pass",
+      "note": "wall 251 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "check, 10k, warm",
+      "value": "0.08 CPU-s, 33.4 MB",
+      "target": "completes ≤ 30 s",
+      "status": "pass",
+      "note": "wall 74 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "test, 10k, cold",
+      "value": "4.99 CPU-s, 140.5 MB",
+      "target": "completes ≤ 30 s",
+      "status": "pass",
+      "note": "wall 2159 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "test, 10k, warm",
+      "value": "3.67 CPU-s, 130.5 MB",
+      "target": "completes ≤ 30 s",
+      "status": "pass",
+      "note": "wall 1633 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "build, 10k, cold",
+      "value": "1.29 CPU-s, 119.6 MB",
+      "target": "completes ≤ 30 s",
+      "status": "pass",
+      "note": "wall 509 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "build, 10k, warm",
+      "value": "0.13 CPU-s, 49.3 MB",
+      "target": "completes ≤ 30 s",
+      "status": "pass",
+      "note": "wall 131 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "check, 50k, cold",
+      "value": "2.03 CPU-s, 179.1 MB",
+      "target": "completes ≤ 150 s",
+      "status": "pass",
+      "note": "wall 856 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "check, 50k, warm",
+      "value": "0.39 CPU-s, 96.2 MB",
+      "target": "completes ≤ 150 s",
+      "status": "pass",
+      "note": "wall 303 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "test, 50k, cold",
+      "value": "17.75 CPU-s, 289.3 MB",
+      "target": "completes ≤ 150 s",
+      "status": "pass",
+      "note": "wall 12471 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "test, 50k, warm",
+      "value": "14.33 CPU-s, 164.7 MB",
+      "target": "completes ≤ 150 s",
+      "status": "pass",
+      "note": "wall 10900 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "build, 50k, cold",
+      "value": "2.91 CPU-s, 282.0 MB",
+      "target": "completes ≤ 150 s",
+      "status": "pass",
+      "note": "wall 1173 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "build, 50k, warm",
+      "value": "0.47 CPU-s, 116.5 MB",
+      "target": "completes ≤ 150 s",
+      "status": "pass",
+      "note": "wall 454 ms"
+    },
+    {
+      "metric": "long-session",
+      "name": "RSS growth, REPL inputs 100 to 1000",
+      "value": "42.8 MB",
+      "target": "≤ 22.0 MB",
+      "status": "fail",
+      "note": "RSS 169.0 MB at input 100, 194.5 MB at input 1000; build per input 121 ms at 50, 819 ms at 1000; 4 KiB pages"
+    },
+    {
+      "metric": "startup",
+      "name": "hd help (no version command): wall time",
+      "value": "4.0 ms",
+      "target": "≤ 20 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "startup",
+      "name": "hd help (no version command): CPU time",
+      "value": "0.0 ms",
+      "target": "≤ 20 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "startup",
+      "name": "hd help (no version command): peak RSS",
+      "value": "3.8 MB",
+      "target": "≤ 10.0 MB",
+      "status": "pass"
+    },
+    {
+      "metric": "startup",
+      "name": "hd check empty.hd: wall time",
+      "value": "18 ms",
+      "target": "≤ 20 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "startup",
+      "name": "hd check empty.hd: CPU time",
+      "value": "10 ms",
+      "target": "≤ 20 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "startup",
+      "name": "hd check empty.hd: peak RSS",
+      "value": "16.1 MB",
+      "target": "≤ 10.0 MB",
+      "status": "fail"
+    },
+    {
+      "metric": "concurrency",
+      "name": "p95 latency at N = 4 vs N = 1",
+      "value": "2.06x",
+      "target": "≤ 1.50x",
+      "status": "fail",
+      "note": "p95 121 ms at N = 1; 4 cores; total CPU 910 ms"
+    },
+    {
+      "metric": "concurrency",
+      "name": "p95 latency at N = 16 vs N = 1",
+      "value": "8.13x",
+      "target": "≤ 6.00x",
+      "status": "fail",
+      "note": "p95 121 ms at N = 1; 4 cores; total CPU 3800 ms"
+    },
+    {
+      "metric": "concurrency",
+      "name": "total CPU growth exponent, N = 1 to 16",
+      "value": "1.10",
+      "target": "< 1.00 (sublinear)",
+      "status": "fail",
+      "note": "180 ms at N = 1, 3800 ms at N = 16"
+    },
+    {
+      "metric": "disk",
+      "name": "artifacts plus toolchain per worktree",
+      "value": "17.3 MB",
+      "target": "≤ 10.0 MB",
+      "status": "fail",
+      "note": "artifacts 6925 B in 10 files; toolchain 17.3 MB; toolchain files: /home/runner/work/hd-lang/hd-lang/target/release/hd; HD_CACHE 10.4 MB, shared per user, not counted"
+    },
+    {
+      "metric": "parallel-speedup",
+      "name": "speedup, 50k lines, 4 threads vs 1",
+      "value": "1.79x",
+      "target": "≥ 2.40x",
+      "status": "fail",
+      "note": "by --jobs"
+    },
+    {
+      "metric": "cache-contention",
+      "name": "dependency cache, 8 concurrent fetches: no corruption",
+      "value": "intact",
+      "target": "no corruption",
+      "status": "pass"
+    },
+    {
+      "metric": "cache-contention",
+      "name": "dependency cache, 8 concurrent fetches: fetched once",
+      "value": "16",
+      "target": "≤ 2, one check's connections",
+      "status": "fail",
+      "note": "connections to the remote"
+    },
+    {
+      "metric": "cache-contention",
+      "name": "compilation cache, 8 concurrent checks: no corruption",
+      "value": "intact",
+      "target": "no corruption",
+      "status": "pass"
+    },
+    {
+      "metric": "cache-contention",
+      "name": "compilation cache, 8 concurrent checks: written once",
+      "value": "3 files",
+      "target": "the files of one check's cache",
+      "status": "pass",
+      "note": "one check alone: 3 files"
+    },
+    {
+      "metric": "cache-growth",
+      "name": "cache size after 100 edits, cap 5 MB",
+      "value": "4.5 MB",
+      "target": "≤ 5.0 MB",
+      "status": "pass",
+      "note": "cap set by HD_CACHE_MAX_SIZE"
+    },
+    {
+      "metric": "io-per-check",
+      "name": "source files read, warm check after one edit",
+      "value": "79",
+      "target": "≤ 1",
+      "status": "fail",
+      "note": "80 stat'ed; 79 source files; edited src/m039.hd"
+    },
+    {
+      "metric": "fetch-dedup",
+      "name": "connections to the remote, 4 worktrees",
+      "value": "2",
+      "target": "= the first worktree's",
+      "status": "pass",
+      "note": "the first worktree's: 2"
+    },
+    {
+      "metric": "proptest-perf",
+      "name": "property cases per second",
+      "value": "28k/s",
+      "target": "≥ 100k/s",
+      "status": "fail",
+      "note": "6000 extra cases took 214 ms; hd test, median of 3"
+    },
+    {
+      "metric": "proptest-perf",
+      "name": "time to shrink a known failure",
+      "value": "111 ms",
+      "target": "≤ 1000 ms",
+      "status": "pass",
+      "note": "shrink=500 minus shrink=0, median of 3"
+    },
+    {
+      "metric": "unit-test-perf",
+      "name": "1,000 unit tests, warm",
+      "value": "1575 ms",
+      "target": "≤ 1000 ms",
+      "status": "fail",
+      "note": "the run reports 1000 of 1000 passed"
+    },
+    {
+      "metric": "unit-test-perf",
+      "name": "overhead per unit test",
+      "value": "0.9 ms",
+      "target": "≤ 1.0 ms",
+      "status": "pass",
+      "note": "100 tests: 796 ms"
+    },
+    {
+      "metric": "integration-test-perf",
+      "name": "setup per integration test program",
+      "value": "447 ms",
+      "target": "≤ 20 ms",
+      "status": "fail",
+      "note": "10 programs: 4793 ms for 21 tests, 228 ms per test"
+    },
+    {
+      "metric": "integration-test-perf",
+      "name": "total time growth in programs",
+      "value": "0.969",
+      "target": "exponent < 1 (sublinear)",
+      "status": "pass",
+      "note": "beyond the 0-program run: 934 ms at 2, 4445 ms at 10 programs"
+    },
+    {
+      "metric": "integration-test-perf",
+      "name": "cost per doc test",
+      "value": "326 ms",
+      "target": "≤ 20 ms",
+      "status": "fail",
+      "note": "10 doc tests: 3599 ms; the run reports 11 of 11 passed"
+    },
+    {
+      "metric": "runtime",
+      "name": "geomean hd / Node",
+      "value": "-",
+      "target": "≤ 1.50x",
+      "status": "fail",
+      "note": "1 of 5 cases not measured"
+    },
+    {
+      "metric": "runtime",
+      "name": "fib: hd / Node",
+      "value": "0.13x",
+      "target": "≤ 3.00x",
+      "status": "pass",
+      "note": "hd 1.5 ms (p10 -12.5, p90 23), Node 11 ms, Python 99 ms; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "runtime",
+      "name": "sum: hd / Node",
+      "value": "0.87x",
+      "target": "≤ 3.00x",
+      "status": "pass",
+      "note": "hd 9.4 ms (p10 7.1, p90 16), Node 11 ms, Python 307 ms; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "runtime",
+      "name": "string-build: hd / Node",
+      "value": "-",
+      "target": "≤ 3.00x",
+      "status": "fail",
+      "note": "no work measured beyond start-up; hd -0.6 ms (p10 -8.3, p90 19), Node 11 ms, Python 14 ms; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "runtime",
+      "name": "map: hd / Node",
+      "value": "3.99x",
+      "target": "≤ 3.00x",
+      "status": "fail",
+      "note": "hd 47 ms (p10 33, p90 52), Node 12 ms, Python 19 ms; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "runtime",
+      "name": "sort: hd / Node",
+      "value": "3.16x",
+      "target": "≤ 3.00x",
+      "status": "fail",
+      "note": "hd 80 ms (p10 67, p90 100), Node 25 ms, Python 19 ms; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "allocations",
+      "name": "counted loop, bytes per iteration",
+      "value": "0.00 B/iter",
+      "target": "0 allocations (< 1 B/iter)",
+      "status": "pass",
+      "note": "release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "allocations",
+      "name": "list loop, bytes per iteration",
+      "value": "0.00 B/iter",
+      "target": "0 allocations (< 1 B/iter)",
+      "status": "pass",
+      "note": "release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "allocations",
+      "name": "map loop, bytes per iteration",
+      "value": "0.00 B/iter",
+      "target": "0 allocations (< 1 B/iter)",
+      "status": "pass",
+      "note": "release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "allocations",
+      "name": "iterator chain, bytes per iteration",
+      "value": "0.00 B/iter",
+      "target": "≤ 1 allocation (≤ 32 B/iter)",
+      "status": "pass",
+      "note": "release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "size-startup-heap",
+      "name": "tiny program, release Wasm size",
+      "value": "2337 B",
+      "target": "≤ 2048 B",
+      "status": "fail",
+      "note": "benchmarks: fib 3656 B, sum 3610 B, string-build 5423 B, map 5203 B, sort 6169 B"
+    },
+    {
+      "metric": "size-startup-heap",
+      "name": "tiny program, start to first output",
+      "value": "159 ms",
+      "target": "≤ 5.0 ms",
+      "status": "fail",
+      "note": "release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "size-startup-heap",
+      "name": "peak heap, map: hd / Node",
+      "value": "0.89x",
+      "target": "≤ 2.00x",
+      "status": "pass",
+      "note": "hd +12.7 MB, Node +14.3 MB over an empty program"
+    },
+    {
+      "metric": "size-startup-heap",
+      "name": "peak heap, string-build: hd / Node",
+      "value": "0.20x",
+      "target": "≤ 2.00x",
+      "status": "pass",
+      "note": "hd +4.1 MB, Node +20.7 MB over an empty program"
+    },
+    {
+      "metric": "host-call-overhead",
+      "name": "Console println, per call",
+      "value": "8.8 µs",
+      "target": "≤ 1.0 µs",
+      "status": "fail",
+      "note": "100000 calls; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "host-call-overhead",
+      "name": "Fs read_text!, per call",
+      "value": "23 µs",
+      "target": "≤ 10 µs",
+      "status": "fail",
+      "note": "10000 calls; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "host-call-overhead",
+      "name": "serde boundary (list_dir!), per call",
+      "value": "40 µs",
+      "target": "≤ 5.0 µs",
+      "status": "fail",
+      "note": "10000 calls; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "suspension-overhead",
+      "name": "await of a ready value, per await",
+      "value": "22 ns",
+      "target": "≤ 100 ns",
+      "status": "pass",
+      "note": "22 ns per iteration; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "suspension-overhead",
+      "name": "all! of two ready tasks, throughput",
+      "value": "10.3M/s",
+      "target": "≥ 1.0M/s",
+      "status": "pass",
+      "note": "195 ns per iteration; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "suspension-overhead",
+      "name": "race! of two ready tasks, throughput",
+      "value": "7.3M/s",
+      "target": "≥ 1.0M/s",
+      "status": "pass",
+      "note": "273 ns per iteration; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "serde-throughput",
+      "name": "JSON encode, hd / Node MB/s",
+      "value": "0.17x",
+      "target": "≥ 0.50x",
+      "status": "fail",
+      "note": "hd 48 MB/s (45488 B document), Node 284 MB/s; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "serde-throughput",
+      "name": "JSON decode, hd / Node MB/s",
+      "value": "0.23x",
+      "target": "≥ 0.50x",
+      "status": "fail",
+      "note": "hd 33 MB/s (45488 B document), Node 144 MB/s; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "text-throughput",
+      "name": "string build, hd / Node MB/s",
+      "value": "1.72x",
+      "target": "≥ 0.50x",
+      "status": "pass",
+      "note": "hd 154 MB/s, Node 90 MB/s; 100000 words, 1088890 bytes per text; hd StringBuilder, Node Array.join; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "text-throughput",
+      "name": "split, hd / Node MB/s",
+      "value": "1.92x",
+      "target": "≥ 0.50x",
+      "status": "pass",
+      "note": "hd 431 MB/s, Node 224 MB/s; 100000 words, 1088890 bytes per text; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "text-throughput",
+      "name": "regex find_all, hd / Node MB/s",
+      "value": "0.10x",
+      "target": "≥ 0.50x",
+      "status": "fail",
+      "note": "hd 6.5 MB/s, Node 64 MB/s; 100000 words, 1088890 bytes per text; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "dead-code",
+      "name": "Wasm bytes per 1,000 lines",
+      "value": "5327 B",
+      "target": "≤ 10240 B",
+      "status": "pass",
+      "note": "10204 B at 1075 lines, 58151 B at 10076 lines; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "dead-code",
+      "name": "no unused std in the program",
+      "value": "none",
+      "target": "none",
+      "status": "pass",
+      "note": "664 B either way; checked sizes, and import and export names"
+    },
+    {
+      "metric": "long-run-memory",
+      "name": "RSS growth after warm-up, 1 min",
+      "value": "0.2 MB",
+      "target": "≤ 10.0 MB",
+      "status": "pass",
+      "note": "12384000 requests; RSS 99.4 MB after warm-up, 99.6 MB at the end; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "conformance",
+      "name": "pass rate, known failures excluded",
+      "value": "100.0%",
+      "target": "≥ 100.0%",
+      "status": "pass",
+      "note": "6074 of 6074 unlisted cases passed"
+    },
+    {
+      "metric": "conformance",
+      "name": "listed known failures",
+      "value": "0",
+      "target": "≤ 0",
+      "status": "pass",
+      "note": "KNOWN_FAILURES.tsv"
+    },
+    {
+      "metric": "incremental-soundness",
+      "name": "incremental equals clean, after each edit",
+      "value": "100.0%",
+      "target": "≥ 100.0%",
+      "status": "pass",
+      "note": "20 of 20 runs matched over 16 edits"
+    }
+  ],
+  "machine": {
+    "runner": "ubuntu-latest",
+    "cpus": 4,
+    "cpu": "AMD EPYC 9V74 80-Core Processor"
+  }
+}
