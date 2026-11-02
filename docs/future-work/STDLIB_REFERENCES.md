@@ -62,7 +62,7 @@ The std shape below needs these rules of the language:
 9. Field access and method calls auto-dereference through every `&`, `&mut`, `*T` and `*mut T` level, as Rust's auto-deref does: `x.name` and `x.describe()` with `x: &*mut User`. Casts, conditions, range bounds, `?`, spreads and calls of a function value keep an explicit `*`.
 10. `&` and `&mut` take a counted pointer type without parentheses: `&*T`, `&*mut T`, `&mut *T`, as Rust's `&*const T`; `*&T` stays an error.
 11. A collection literal or comprehension builds a `List`, `Map` or `Set`, unless its expected type is a `UniqList` or `UniqMap` ([`expr.collection.expected`](../../spec/lang/05-expressions.md#r-expr.collection.expected)): `let pool: UniqList[Conn] = [Conn { id: 1 }]`.
-12. A type-argument default is checked where it is used, not at its declaration ([`types.generic.default.bound`](../../spec/lang/04-type-system.md#r-types.generic.default.bound) changes). `collect[C < FromIterator[T] = List[T]]` declares with `T < ?Copy`; `pool: UniqList[Conn] = it.collect()` infers `C`, and a bare `it.collect()` over non-copyable items is `unsatisfied-trait-bound` at that call, whose fix is an annotated target.
+12. `collect` has no default target, and a default stays checked at its declaration. The target is named, with `_` for what inference fills (`let pool: UniqList[_] = it.collect()`, `collect::[List[_]]()`); a bare `collect()` is `cannot-infer-type`. A comprehension, `[for x in it => x]`, builds a `List` without naming one. `_` may stand for a type argument at any depth of a `let` annotation or an expression's type arguments, never in a declaration ([`types.generic.placeholder.local`](../../spec/lang/04-type-system.md#r-types.generic.placeholder.local)).
 
 ## Problems It Solves
 

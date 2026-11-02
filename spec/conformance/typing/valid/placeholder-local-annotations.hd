@@ -1,0 +1,23 @@
+# test: `_` in a let annotation or an expression's type arguments is inferred, at any depth
+# Spec 04 Generic Arguments: types.generic.placeholder.local.
+
+fn parse(text: string) -> Result[i32, string]:
+    .Ok(+7)
+
+fn lengths(words: List[string]) -> usize:
+    let lens: List[_] = words.iter().map(fn(w: string) -> usize: w.len()).collect()
+    lens.len()
+
+fn by_name(words: List[string]) -> usize:
+    let pairs: Map[_, _] = words.iter()
+        .map(fn(w: string) -> (string, usize): (w, w.len()))
+        .collect()
+    pairs.len()
+
+fn listed(words: List[string]) -> usize:
+    counts := words.iter().map(fn(w: string) -> usize: w.len()).collect::[List[_]]()
+    counts.len()
+
+fn all(words: List[string]) -> Result[List[i32], string]:
+    let parsed: List[_] = words.iter().map(parse).collect()?
+    .Ok(parsed)

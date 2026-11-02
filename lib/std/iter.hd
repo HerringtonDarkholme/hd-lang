@@ -110,9 +110,9 @@ pub trait Iterator[T]:
     # The target is solved from the expected type or an explicit type
     # argument, and is `List[T]` when nothing determines it
     # (spec/std/iter.md#what-collect-builds).
-    ## A `C` built from the remaining items of `self`; a list when the target type is not named.
-    ## See [std-iter.adapter.collect.value-defaulted](../../spec/std/iter.md#r-std-iter.adapter.collect.value-defaulted).
-    fn collect[C < FromIterator[T] = List[T]](self) -> C:
+    ## A `C` built from the remaining items of `self`; the target is named by the expected type or the type argument, as `List[_]`.
+    ## See [std-iter.adapter.collect.value-target](../../spec/std/iter.md#r-std-iter.adapter.collect.value-target).
+    fn collect[C < FromIterator[T]](self) -> C:
         C::from_iter(self)
 
 ## A cursor that borrows another cursor and shares its progress.
@@ -218,7 +218,7 @@ impl[T] dyn Iterator[T]:
     pub fn fold[A, $ R](*mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R:
         DynIterator { source: self }.fold::[A](initial, step)
 
-    pub fn collect[C < FromIterator[T] = List[T]](*mut self) -> C:
+    pub fn collect[C < FromIterator[T]](*mut self) -> C:
         DynIterator { source: self }.collect::[C]()
 
 pub struct FromFn[T, F < FnMut() -> T? = fn() -> T?]:

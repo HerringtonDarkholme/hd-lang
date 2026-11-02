@@ -1,0 +1,6 @@
+# test: collect has no default target, so a collect whose target nothing names is an error
+# std Iterators, What Collect Builds: std-iter.collect.no-default.
+
+fn count(words: List[string]) -> usize:
+    names := words.iter().collect() # diagnostic: cannot-infer-type
+    names.len()

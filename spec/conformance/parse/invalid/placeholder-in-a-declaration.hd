@@ -1,0 +1,5 @@
+# test: `_` in a declaration's type is a syntax error: a declaration names its types
+# Spec 04 Generic Arguments: types.generic.placeholder.not-type.
+
+fn total(xs: List[_]) -> usize: # diagnostic: syntax-error
+    xs.len()

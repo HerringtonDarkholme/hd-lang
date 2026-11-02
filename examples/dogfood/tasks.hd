@@ -63,7 +63,9 @@ fn visit(
 # Tasks in an order where every task follows its dependencies.
 fn plan(graph: Graph) -> Result[List[string], PlanError]:
     let mut walk = Walk { state: {}, order: [] }
-    names := graph.deps.iter().map(fn(entry: (string, List[string])) -> string: entry._0).collect()
+    let names: List[_] = graph.deps.iter()
+        .map(fn(entry: (string, List[string])) -> string: entry._0)
+        .collect()
     for name in names.sorted_by(fn(a: &string, b: &string) -> Ordering: a.cmp(b)):
         visit(graph, &mut walk, [], name, "(root)")?
     .Ok(walk.order)

@@ -15,7 +15,7 @@ impl Iterable[i32] for Probe:
         from_fn(self.pull)
 
 fn labeled(names: List[string]) -> List[(i32, string)]:
-    [+1, 2, 3].iter().zip(names).collect()
+    [+1, 2, 3].iter().zip(names).collect::[List[_]]()
 
 tests:
     use std.testing.assert_equal
@@ -24,10 +24,14 @@ tests:
         assert_equal(labeled(["a", "b"]), [(1, "a"), (2, "b")], reason="names end first")
         assert_equal(labeled(["a", "b", "c", "d"]).len(), 3, reason="numbers end first")
     it("a range and a set"):
-        assert_equal([1, 2].iter().zip(10..20).collect(), [(1, 10), (2, 11)], reason="a range")
+        assert_equal(
+            [1, 2].iter().zip(10..20).collect::[List[_]](),
+            [(1, 10), (2, 11)],
+            reason="a range",
+        )
         let mut seen: Set[string] = Set::new()
         _ := seen.insert("x")
-        assert_equal([1, 2].iter().zip(seen).collect(), [(1, "x")], reason="a set")
+        assert_equal([1, 2].iter().zip(seen).collect::[List[_]](), [(1, "x")], reason="a set")
     it("zip takes iter once, when called, and does not read other past the end of self"):
         let mut log: List[string] = []
         let at = +0
@@ -37,9 +41,8 @@ tests:
                 log.push("next")
                 at = at + 1
                 .Some(at * 10)
-            ,
         }
         let mut pairs = [1].iter().zip(probe)
         assert_equal(log, ["iter"], reason="iter at the call, and no next")
-        assert_equal(pairs.collect(), [(1, 10)], reason="one pair")
+        assert_equal(pairs.collect::[List[_]](), [(1, 10)], reason="one pair")
         assert_equal(log, ["iter", "next"], reason="other read once, not after self ended")

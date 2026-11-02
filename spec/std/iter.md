@@ -23,9 +23,8 @@ The language tier keeps what the compiler knows by name
 | `Iterable[T]` and its impls | the lang item that drives `for` and comprehensions; `List`, `Map`, and the [iterable ranges](../lang/06-control-flow.md#range-iteration) implement it, not `Iterator` |
 
 Nothing in the language tier names an adapter, `collect`, or
-`FromIterator`. `collect`'s default target, `List[T]`, is an ordinary
-[type-argument default](../lang/04-type-system.md#type-argument-defaults),
-which needs no compiler knowledge of `collect`.
+`FromIterator`. `collect` has no default target: the expected type or an
+explicit list names it, with `_` for what inference fills, as `List[_]`.
 
 ## Collection Cursors
 
@@ -78,7 +77,7 @@ fn first_evens(values: List[i32]) -> List[(usize, i32)]:
 | `enumerate` | `fn enumerate(self) -> Enumerate[Self, T]` | a new iterator over `(index, item)` pairs, with `usize` indices counting from `0` |
 | `map` | `fn map[U, F < FnMut(T) -> U](self, transform: F) -> MapIter[Self, T, U, F]` | a new iterator over `transform(item)` for each item of `self`, in order |
 | r[std-iter.adapter.fold.value] `fold` | `fn fold[A, R](self, initial: A, step: fn(A, T) -> A $ R) -> A $ R` | the accumulator after `step` has combined it with each remaining item of `self`, in order, starting from `initial` |
-| r[std-iter.adapter.collect.value-defaulted] `collect` | `fn collect[C < FromIterator[T] = List[T]](self) -> C` | a `C` built from the remaining items of `self`, as [What Collect Builds](#what-collect-builds) specifies |
+| r[std-iter.adapter.collect.value-target] `collect` | `fn collect[C < FromIterator[T]](self) -> C` | a `C` built from the remaining items of `self`, as [What Collect Builds](#what-collect-builds) specifies |
 
 1. r[std-iter.adapter.filter.fn-mut] The `filter` default method stores its callback type with signature `fn filter[F < FnMut(T) -> bool](self, keep: F) -> Filter[Self, T, F]`; `Filter[I, T, F < FnMut(T) -> bool = fn(T) -> bool]` defaults `F` for written type annotations.
 2. r[std-iter.adapter.take.value] The `take` default method has signature `fn take(self, count: usize) -> Take[Self, T]`.
@@ -287,8 +286,8 @@ trait FromIterator[T]:
 1. r[std-iter.collect.generic-owned-cursor] `FromIterator[T].from_iter[I < Iterator[T]](items: I) -> Self` builds a collection from the owned cursor.
 2. r[std-iter.prelude.from-iterator] `std.iter` also declares `FromIterator`, which is not a prelude name. Code imports it to implement or name it, as in `use std.iter.FromIterator`, and a `collect` call needs no import.
 3. r[std-iter.collect.call] `collect` returns `C::from_iter(self)`.
-4. r[std-iter.collect.expected] `C` is solved like any call-site type argument: from the expected type, or from an explicit list such as `collect::[Map[string, i32]]()`.
-5. r[std-iter.collect.default] When nothing determines `C`, its declared [default](../lang/04-type-system.md#type-argument-defaults) `List[T]` applies.
+4. r[std-iter.collect.expected] `C` is solved like any call-site type argument: from the expected type, or from an explicit list such as `collect::[Map[string, i32]]()`. Its type arguments may be `_` ([`types.generic.placeholder.local`](../lang/04-type-system.md#r-types.generic.placeholder.local)): `let names: List[_] = words.iter().collect()`.
+5. r[std-iter.collect.no-default] `C` has no default, so a `collect()` whose target nothing names is an error. Error: `cannot-infer-type`. A comprehension, `[for x in items => x]`, builds a `List` without one.
 6. r[std-iter.collect.bound] A `C` that does not implement `FromIterator[T]` is an error. Error: `unsatisfied-trait-bound`.
 
 The standard library implements `FromIterator` for these prelude types:
