@@ -1931,6 +1931,10 @@ const STD_RT_TESTS: &[(&str, &str)] = &[
         "rt_tests/json_tests.hd",
         include_str!("std_rt/json_tests.hd"),
     ),
+    (
+        "rt_tests/packed_tests.hd",
+        include_str!("std_rt/packed_tests.hd"),
+    ),
 ];
 
 /// The [`STD_RT_TESTS`] files that read `std.rt.checked.allocated()`, which

@@ -52,11 +52,20 @@
               br 1
             end
     ;; 12 |                 ._1(text) => text.len()
-            local.get $inner.1
-            drop
             block
               block
+                local.get $inner.1
+                drop
                 local.get $inner.2
+                i32.const 16
+                i32.shr_u
+                i32.const 7
+                i32.and
+                local.get $inner.2
+                local.get $inner.2
+                i32.const 0
+                i32.lt_s
+                select
                 local.set $t0
                 br 0
               end

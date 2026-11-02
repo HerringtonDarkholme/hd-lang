@@ -7,7 +7,7 @@
   (import "fixture" "rewake" (global $rewake (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
-  (func $drive_put (param $s.0 i32) (param $s.1 i32) (param $text.0 i32) (param $text.1 i32) (param $log i32) (result i32) (local $t0 i32) (local $n i32)
+  (func $drive_put (param $s.0 i32) (param $s.1 i32) (param $text.0 i32) (param $text.1 i32) (param $log i32) (result i32) (local $t0 i32) (local $t1 i32) (local $n i32)
     block
     ;; 10 |     let call: mut Suspend[i32] = s.put(text)
       local.get $s.0
@@ -24,10 +24,10 @@
     ;; 11 |     log.push("started")
       local.get $s.1
       i32.load $heap offset=4
-      local.set $text.1
+      local.set $t0
       local.get $s.1
       i32.load $heap offset=8
-      local.get $text.1
+      local.get $t0
       local.get $s.1
       i32.load $heap
       i32.eq
@@ -42,7 +42,7 @@
         i32.store $heap
       end
       local.get $s.1
-      local.get $text.1
+      local.get $t0
       i32.const 8
       i32.mul
       i32.add
@@ -53,7 +53,7 @@
       i32.const 7
       i32.store $heap offset=20
       local.get $s.1
-      local.get $text.1
+      local.get $t0
       i32.const 1
       i32.add
       i32.store $heap offset=4
@@ -72,23 +72,23 @@
             i32.const 0
             global.set $rewake
             i32.const 1
-            local.set $t0
+            local.set $t1
             br 1
           end
           call $hd:rt/block
           call $rt:wake_mark
           i32.const 1
-          local.set $t0
+          local.set $t1
           br 0
         end
       end
-      local.get $t0
+      local.get $t1
       global.get $rewake
       i32.or
       global.set $rewake
       i32.const 0
       local.get $s.1
-      local.set $text.1
+      local.set $log
       local.set $s.1
       ;; ...
       block
@@ -99,7 +99,7 @@
               local.get $s.1
               i32.eqz
               if
-                local.get $text.1
+                local.get $log
                 local.set $n
                 br 1
               else

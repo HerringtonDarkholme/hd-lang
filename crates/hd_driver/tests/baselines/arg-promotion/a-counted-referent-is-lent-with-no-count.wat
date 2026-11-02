@@ -2,7 +2,6 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $"shown[string]" (param $value.0 i32) (param $value.1 i32) (result i32 i32)
     block
@@ -26,7 +25,7 @@
     local.get $t1
     local.get $t0
   )
-  (func $label'1 (param $w i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $label'1 (param $w i32) (result i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
     block
     ;; 23 |     (w.name.len() + 1) * (w.name.len() + 2) * (w.name.len() + 3) / (w.name.len() + 4)
       local.get $w
@@ -34,62 +33,114 @@
       local.get $w
       i32.load $heap offset=4
       local.set $t0
-      drop
+      local.set $t1
       block
         block
+          local.get $t1
+          drop
+          local.get $t0
+          i32.const 16
+          i32.shr_u
+          i32.const 7
+          i32.and
+          local.get $t0
+          local.get $t0
+          i32.const 0
+          i32.lt_s
+          select
+          local.set $t1
           br 0
         end
       end
-      local.get $t0
+      local.get $t1
       i32.const 1
       i32.add
-      local.set $t0
+      local.set $t1
       local.get $w
       i32.load $heap
       local.get $w
       i32.load $heap offset=4
-      local.set $t1
-      drop
+      local.set $t2
+      local.set $t0
       block
         block
+          local.get $t0
+          drop
+          local.get $t2
+          i32.const 16
+          i32.shr_u
+          i32.const 7
+          i32.and
+          local.get $t2
+          local.get $t2
+          i32.const 0
+          i32.lt_s
+          select
+          local.set $t0
           br 0
         end
       end
-      local.get $t0
       local.get $t1
+      local.get $t0
       i32.const 2
       i32.add
       i32.mul
-      local.set $t0
+      local.set $t1
       local.get $w
       i32.load $heap
       local.get $w
       i32.load $heap offset=4
-      local.set $t1
-      drop
+      local.set $t2
+      local.set $t0
       block
         block
+          local.get $t0
+          drop
+          local.get $t2
+          i32.const 16
+          i32.shr_u
+          i32.const 7
+          i32.and
+          local.get $t2
+          local.get $t2
+          i32.const 0
+          i32.lt_s
+          select
+          local.set $t0
           br 0
         end
       end
-      local.get $t0
       local.get $t1
+      local.get $t0
       i32.const 3
       i32.add
       i32.mul
-      local.set $t0
+      local.set $t1
       local.get $w
       i32.load $heap
       local.get $w
       i32.load $heap offset=4
+      local.set $t0
       local.set $w
-      drop
       block
         block
+          local.get $w
+          drop
+          local.get $t0
+          i32.const 16
+          i32.shr_u
+          i32.const 7
+          i32.and
+          local.get $t0
+          local.get $t0
+          i32.const 0
+          i32.lt_s
+          select
+          local.set $w
           br 0
         end
       end
-      local.get $t0
+      local.get $t1
       local.get $w
       i32.const 4
       i32.add
@@ -126,11 +177,22 @@
   (func $label'2 (param $w.name.0 i32) (param $w.name.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     block
     ;; 23 |     (w.name.len() + 1) * (w.name.len() + 2) * (w.name.len() + 3) / (w.name.len() + 4)
-      local.get $w.name.0
-      drop
       block
         block
+          local.get $w.name.0
           local.get $w.name.1
+          local.set $t0
+          drop
+          local.get $t0
+          i32.const 16
+          i32.shr_u
+          i32.const 7
+          i32.and
+          local.get $t0
+          local.get $t0
+          i32.const 0
+          i32.lt_s
+          select
           local.set $t0
           br 0
         end
@@ -139,11 +201,22 @@
       i32.const 1
       i32.add
       local.set $t0
-      local.get $w.name.0
-      drop
       block
         block
+          local.get $w.name.0
           local.get $w.name.1
+          local.set $t1
+          drop
+          local.get $t1
+          i32.const 16
+          i32.shr_u
+          i32.const 7
+          i32.and
+          local.get $t1
+          local.get $t1
+          i32.const 0
+          i32.lt_s
+          select
           local.set $t1
           br 0
         end
@@ -154,11 +227,22 @@
       i32.add
       i32.mul
       local.set $t0
-      local.get $w.name.0
-      drop
       block
         block
+          local.get $w.name.0
           local.get $w.name.1
+          local.set $t1
+          drop
+          local.get $t1
+          i32.const 16
+          i32.shr_u
+          i32.const 7
+          i32.and
+          local.get $t1
+          local.get $t1
+          i32.const 0
+          i32.lt_s
+          select
           local.set $t1
           br 0
         end
@@ -169,11 +253,20 @@
       i32.add
       i32.mul
       local.set $t0
-      local.get $w.name.0
-      drop
       block
         block
+          local.get $w.name.0
+          drop
           local.get $w.name.1
+          i32.const 16
+          i32.shr_u
+          i32.const 7
+          i32.and
+          local.get $w.name.1
+          local.get $w.name.1
+          i32.const 0
+          i32.lt_s
+          select
           local.set $w.name.0
           br 0
         end
@@ -198,7 +291,8 @@
     ;; 16 |         *self
     block
       local.get $self.0
-      call $retain
+      local.get $self.1
+      call $rt:retain
     end
     local.get $self.0
     local.get $self.1

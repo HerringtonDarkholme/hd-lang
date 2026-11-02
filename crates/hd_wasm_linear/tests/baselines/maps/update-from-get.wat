@@ -3,7 +3,7 @@
   (import "fixture" "rt:map_hash" (func $rt:map_hash (param i32 i32) (result i32)))
   (import "fixture" "rt:map_find" (func $rt:map_find (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "impl [ T < ? Copy ] T ?.unwrap_or[i64]" (func $"impl [ T < ? Copy ] T ?.unwrap_or[i64]" (param i32 i64 i64) (result i64)))
-  (import "fixture" "retain" (func $retain (param i32)))
+  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
   (import "fixture" "rt:map_put" (func $rt:map_put (param i32 i32 i32 i32 i32 i64) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
@@ -57,7 +57,8 @@
       call $rt:map_find
       local.set $t3
       local.get $other.0
-      call $retain
+      local.get $other.1
+      call $rt:retain
       local.get $counts
       ;; ...
       local.get $t1
@@ -81,7 +82,8 @@
       call $rt:map_find
       local.set $t0
       local.get $word.0
-      call $retain
+      local.get $word.1
+      call $rt:retain
       local.get $counts
       ;; ...
       local.get $other.1
@@ -166,7 +168,8 @@
       end
       ;; ...
       local.get $word.0
-      call $retain
+      local.get $word.1
+      call $rt:retain
       local.get $counts
       ;; ...
       local.get $t1
@@ -217,7 +220,8 @@
       local.set $t3
       ;; ...
       local.get $word.0
-      call $retain
+      local.get $word.1
+      call $rt:retain
       local.get $counts
       ;; ...
       local.get $t2
@@ -274,7 +278,8 @@
       local.set $t3
       ;; ...
       local.get $word.0
-      call $retain
+      local.get $word.1
+      call $rt:retain
       local.get $counts
       ;; ...
       local.get $t1

@@ -75,6 +75,7 @@ use std::collections::BTreeMap;
 use crate::op::{LabelListId, Op as I};
 use hd_base::Hash128;
 
+use crate::layout::Walk;
 use crate::module::{Func, Global, Ins, Sym, SymId, Symbols};
 use crate::origins::Remap;
 use crate::rt::Helper;
@@ -2510,10 +2511,11 @@ pub fn count_pairs(f: &mut Func, retain: Hash128) -> bool {
                     locals.push(vec![*l]);
                     gets.push(i);
                 }
-                // The single argument's producer can be arbitrary; the
+                // The first argument's producer can be arbitrary; the
                 // tees themselves prove its aliases without looking
-                // through the producer or any other call.
-                Ins::Op(I::LocalTee(_)) if n == 1 => {
+                // through the producer or any other call. The others are
+                // the plain gets after it, as a string's length is.
+                Ins::Op(I::LocalTee(_)) if locals.len() + 1 == n => {
                     let mut aliases = Vec::new();
                     for ins in body[..=i].iter().rev() {
                         match ins {
@@ -2526,9 +2528,11 @@ pub fn count_pairs(f: &mut Func, retain: Hash128) -> bool {
                             _ => break,
                         }
                     }
+                    locals.push(aliases);
+                    locals.reverse();
                     return Some(Arguments {
-                        locals: vec![aliases],
-                        gets: Vec::new(),
+                        locals,
+                        gets,
                         tee: Some(i),
                     });
                 }
@@ -2597,7 +2601,19 @@ pub fn count_pairs(f: &mut Func, retain: Hash128) -> bool {
                     | I::I32Eqz
                     | I::I32And
                     | I::I32Or
-                    | I::I32Xor,
+                    | I::I32Xor
+                    | I::I32Shl
+                    | I::I32ShrU
+                    | I::I32ShrS
+                    | I::I32LtS
+                    | I::I32LtU
+                    | I::I32GtS
+                    | I::I32GtU
+                    | I::I32LeS
+                    | I::I32LeU
+                    | I::I32GeS
+                    | I::I32GeU
+                    | I::Select,
                 ) => {}
                 Ins::Op(I::LocalSet(l) | I::LocalTee(l))
                     if !args.locals.iter().any(|a| a.contains(l)) => {}
@@ -2669,7 +2685,26 @@ pub fn static_counts(f: &mut Func, retain: Hash128, arity: &Arity, static_params
         .enumerate()
         .filter_map(|(k, ins)| {
             let n = width(ins)?;
+            // A string's count reads its length only for the packed tag:
+            // a constant address alone makes the count nothing (§23.7).
+            let only = match ins {
+                Ins::Call(id) => match &*f.symbols.get(*id) {
+                    Sym::Helper(
+                        Helper::Retain {
+                            walk: Walk::Str(a, _),
+                            ..
+                        }
+                        | Helper::Release {
+                            walk: Walk::Str(a, _),
+                            ..
+                        },
+                    ) => Some(*a as usize),
+                    _ => None,
+                },
+                _ => None,
+            };
             (0..n)
+                .filter(|d| only.is_none_or(|a| n - 1 - d == a))
                 .all(|d| {
                     producer(&f.body, k, d, arity, &f.symbols)
                         .is_some_and(|(p, result)| constant_at(&f.body[p], result, &fixed, &[]))

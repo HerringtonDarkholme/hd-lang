@@ -1552,6 +1552,8 @@ pub fn enc(b: &LTy, m: &Module) -> Func {
             f.set(0);
         }
         LTy::Str | LTy::DiscardStr => {
+            // A packed string crosses as its bytes (§23.7).
+            crate::rt::view_params(&mut f, 1, 2, 0);
             put(&mut f, 0, |f| {
                 f.get(2);
                 f.op(I::I64ExtendI32U);
@@ -1676,7 +1678,7 @@ pub fn enc(b: &LTy, m: &Module) -> Func {
                 m,
                 &text,
                 vec![Val::I32, Val::I32],
-                Some(Walk::Ref(0)),
+                Some(Walk::string()),
             );
         }
         LTy::Handle(_) => {
@@ -1945,7 +1947,7 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
             // each takes a count of its own; `is_ok` borrows.
             let counts = m.runtime.is_some();
             if counts {
-                own_arg(&mut f, &[Val::I32, Val::I32], Some(&Walk::Ref(0)), &|f| {
+                own_arg(&mut f, &[Val::I32, Val::I32], Some(&Walk::string()), &|f| {
                     f.get(text[0]);
                     f.get(text[1]);
                 });
@@ -1963,7 +1965,7 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
                 m,
                 &text,
                 vec![Val::I32, Val::I32],
-                Some(Walk::Ref(0)),
+                Some(Walk::string()),
             );
             let get_res = |f: &mut Func| {
                 for l in &res {

@@ -2,11 +2,12 @@
 (module
   (import "fixture" "rt:fmt_i64" (func $rt:fmt_i64 (param i64) (result i32 i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "rt:str_view0" (func $rt:str_view0 (param i32 i32) (result i32 i32)))
+  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
-  (func $named (param $n i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
+  (func $named (param $n i32) (result i32) (local $w.name.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     block
     ;; 27 |     let w = make(n)
       block
@@ -16,42 +17,51 @@
               local.get $n
               i64.extend_i32_s
               call $rt:fmt_i64
-              local.set $t0
+              local.set $w.name.1
               local.set $n
               br 0
             end
           end
           i32.const 1
-          local.get $t0
+          local.get $w.name.1
+          i32.const 16
+          i32.shr_u
+          i32.const 7
+          i32.and
+          local.get $w.name.1
+          local.get $w.name.1
+          i32.const 0
+          i32.lt_s
+          select
           i32.add
-          local.tee $t1
+          local.tee $t0
           call $rt:str
+          local.tee $t1
           local.tee $t2
-          local.tee $t3
           i32.const 65 ;; &"x"
           i32.const 1
           memory.copy $heap $heap
-          local.get $t3
+          local.get $t2
           i32.const 1
           i32.add
           local.get $n
-          local.get $t0
+          local.get $w.name.1
+          call $rt:str_view0
           memory.copy $heap $heap
           local.get $n
-          call $rt:release_ref
-          local.get $t2
+          local.get $w.name.1
+          call $rt:release
           local.get $t1
-          local.set $t0
+          local.get $t0
+          local.set $w.name.1
           local.set $n
           br 0
         end
       end
       local.get $n
-      local.get $t0
     ;; 28 |     w.size()
+      local.get $w.name.1
       call $"impl Wrap.size'1"
-    ;; 27 |     let w = make(n)
-      local.get $n
       ;; ...
     end
     ;; ...
@@ -92,6 +102,15 @@
       end
       i32.const 1
       local.get $t0
+      i32.const 16
+      i32.shr_u
+      i32.const 7
+      i32.and
+      local.get $t0
+      local.get $t0
+      i32.const 0
+      i32.lt_s
+      select
       i32.add
       local.tee $t1
       call $rt:str
@@ -105,6 +124,7 @@
       i32.add
       local.get $n
       local.get $t0
+      call $rt:str_view0
       memory.copy $heap $heap
       ;; ...
       local.get $t2
@@ -123,7 +143,7 @@
     end
     ;; ...
   )
-  (func $"impl Wrap.size'2" (param $self i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $"impl Wrap.size'2" (param $self i32) (result i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
     block
     ;; 21 |         (self.name.len() + 1) * (self.name.len() + 2) * (self.name.len() + 3) / (self.name.len() + 4)
       local.get $self
@@ -131,62 +151,114 @@
       local.get $self
       i32.load $heap offset=4
       local.set $t0
-      drop
+      local.set $t1
       block
         block
+          local.get $t1
+          drop
+          local.get $t0
+          i32.const 16
+          i32.shr_u
+          i32.const 7
+          i32.and
+          local.get $t0
+          local.get $t0
+          i32.const 0
+          i32.lt_s
+          select
+          local.set $t1
           br 0
         end
       end
-      local.get $t0
+      local.get $t1
       i32.const 1
       i32.add
-      local.set $t0
+      local.set $t1
       local.get $self
       i32.load $heap
       local.get $self
       i32.load $heap offset=4
-      local.set $t1
-      drop
+      local.set $t2
+      local.set $t0
       block
         block
+          local.get $t0
+          drop
+          local.get $t2
+          i32.const 16
+          i32.shr_u
+          i32.const 7
+          i32.and
+          local.get $t2
+          local.get $t2
+          i32.const 0
+          i32.lt_s
+          select
+          local.set $t0
           br 0
         end
       end
-      local.get $t0
       local.get $t1
+      local.get $t0
       i32.const 2
       i32.add
       i32.mul
-      local.set $t0
+      local.set $t1
       local.get $self
       i32.load $heap
       local.get $self
       i32.load $heap offset=4
-      local.set $t1
-      drop
+      local.set $t2
+      local.set $t0
       block
         block
+          local.get $t0
+          drop
+          local.get $t2
+          i32.const 16
+          i32.shr_u
+          i32.const 7
+          i32.and
+          local.get $t2
+          local.get $t2
+          i32.const 0
+          i32.lt_s
+          select
+          local.set $t0
           br 0
         end
       end
-      local.get $t0
       local.get $t1
+      local.get $t0
       i32.const 3
       i32.add
       i32.mul
-      local.set $t0
+      local.set $t1
       local.get $self
       i32.load $heap
       local.get $self
       i32.load $heap offset=4
+      local.set $t0
       local.set $self
-      drop
       block
         block
+          local.get $self
+          drop
+          local.get $t0
+          i32.const 16
+          i32.shr_u
+          i32.const 7
+          i32.and
+          local.get $t0
+          local.get $t0
+          i32.const 0
+          i32.lt_s
+          select
+          local.set $self
           br 0
         end
       end
-      local.get $t0
+      local.get $t1
       local.get $self
       i32.const 4
       i32.add
@@ -205,11 +277,22 @@
   (func $"impl Wrap.size'1" (param $self.name.0 i32) (param $self.name.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     block
     ;; 21 |         (self.name.len() + 1) * (self.name.len() + 2) * (self.name.len() + 3) / (self.name.len() + 4)
-      local.get $self.name.0
-      drop
       block
         block
+          local.get $self.name.0
           local.get $self.name.1
+          local.set $t0
+          drop
+          local.get $t0
+          i32.const 16
+          i32.shr_u
+          i32.const 7
+          i32.and
+          local.get $t0
+          local.get $t0
+          i32.const 0
+          i32.lt_s
+          select
           local.set $t0
           br 0
         end
@@ -218,11 +301,22 @@
       i32.const 1
       i32.add
       local.set $t0
-      local.get $self.name.0
-      drop
       block
         block
+          local.get $self.name.0
           local.get $self.name.1
+          local.set $t1
+          drop
+          local.get $t1
+          i32.const 16
+          i32.shr_u
+          i32.const 7
+          i32.and
+          local.get $t1
+          local.get $t1
+          i32.const 0
+          i32.lt_s
+          select
           local.set $t1
           br 0
         end
@@ -233,11 +327,22 @@
       i32.add
       i32.mul
       local.set $t0
-      local.get $self.name.0
-      drop
       block
         block
+          local.get $self.name.0
           local.get $self.name.1
+          local.set $t1
+          drop
+          local.get $t1
+          i32.const 16
+          i32.shr_u
+          i32.const 7
+          i32.and
+          local.get $t1
+          local.get $t1
+          i32.const 0
+          i32.lt_s
+          select
           local.set $t1
           br 0
         end
@@ -248,11 +353,20 @@
       i32.add
       i32.mul
       local.set $t0
-      local.get $self.name.0
-      drop
       block
         block
+          local.get $self.name.0
+          drop
           local.get $self.name.1
+          i32.const 16
+          i32.shr_u
+          i32.const 7
+          i32.and
+          local.get $self.name.1
+          local.get $self.name.1
+          i32.const 0
+          i32.lt_s
+          select
           local.set $self.name.0
           br 0
         end
@@ -290,6 +404,15 @@
           end
           i32.const 1
           local.get $t0
+          i32.const 16
+          i32.shr_u
+          i32.const 7
+          i32.and
+          local.get $t0
+          local.get $t0
+          i32.const 0
+          i32.lt_s
+          select
           i32.add
           local.tee $t1
           call $rt:str
@@ -303,9 +426,11 @@
           i32.add
           local.get $n
           local.get $t0
+          call $rt:str_view0
           memory.copy $heap $heap
           local.get $n
-          call $rt:release_ref
+          local.get $t0
+          call $rt:release
           local.get $t2
           local.get $t1
           local.set $t0
@@ -316,7 +441,6 @@
       local.get $n
       local.get $t0
       call $"impl Wrap.size'1"
-      local.get $n
       ;; ...
     end
     ;; ...

@@ -383,6 +383,19 @@ impl Em<'_, '_, '_> {
             }
             return Ok(());
         }
+        // A string alone, wherever it is in the value, counts as a string
+        // value does, so its counts pair with that value's (`opt::count_pairs`).
+        if let Walk::Str(k, n) = w {
+            self.f.get(ls[k as usize]);
+            self.f.get(ls[n as usize]);
+            let (vals, walk) = (vec![Val::I32, Val::I32], Walk::string());
+            self.f.helper(if retain {
+                Helper::Retain { vals, walk }
+            } else {
+                Helper::Release { vals, walk }
+            });
+            return Ok(());
+        }
         for l in ls {
             self.f.get(*l);
         }

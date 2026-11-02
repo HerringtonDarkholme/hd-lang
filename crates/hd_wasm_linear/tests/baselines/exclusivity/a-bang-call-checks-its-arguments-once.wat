@@ -327,6 +327,9 @@
     ;; 13 |     _ := user.name
       local.get $user
       i32.load $heap
+      local.get $user
+      i32.load $heap offset=4
+      local.set $t16
       local.set $t15
       ;; ...
     end

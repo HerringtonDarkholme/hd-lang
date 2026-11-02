@@ -1,0 +1,8 @@
+# @dump: wat
+# A string's length and bytes read both forms (DESIGN.md §23.7): the
+# length decodes a packed length word, and a byte read branches once on
+# the packed tag, whose helper checks the index itself.
+fn first(text: string) -> u8:
+    if text.len() == 0:
+        return 0
+    text[0]

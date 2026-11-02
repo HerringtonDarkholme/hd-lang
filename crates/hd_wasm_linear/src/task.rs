@@ -1200,6 +1200,7 @@ fn leaf_drop(area: &Elem) -> Option<Sym> {
 fn walk_indices(w: &Walk, out: &mut Vec<u32>) {
     match w {
         Walk::Ref(k) | Walk::Known(k) => out.push(*k),
+        Walk::Str(k, n) => out.extend([*k, *n]),
         Walk::Seq(ws) => ws.iter().for_each(|w| walk_indices(w, out)),
         Walk::Nullable(w) => walk_indices(w, out),
         Walk::Switch(k, arms) => {

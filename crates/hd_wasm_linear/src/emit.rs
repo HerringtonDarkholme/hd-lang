@@ -51,6 +51,7 @@ mod scope;
 mod shape;
 mod susp;
 mod text;
+pub(crate) use text::{STR_INDEX, STR_SLICE};
 mod value;
 
 /// The function of instance `id`; the module assigns its final index.
@@ -2988,7 +2989,7 @@ impl Em<'_, '_, '_> {
             // std's map cursor step closure (`emit/iter.rs`).
             "map_steps" => self.map_iter(i, args[0]),
             "bytes_len" => {
-                self.comp(args[0], 1)?;
+                self.str_len(args[0])?;
                 self.store(i)
             }
             "bytes_at" => self.str_at(i, args[0], args[1]),
@@ -2996,15 +2997,13 @@ impl Em<'_, '_, '_> {
             "bytes_concat" => self.concat(i, args),
             // A SIMD128 scan in place of the hd reference body (#428).
             "bytes_index_json" => {
-                self.comp(args[0], 0)?;
-                self.comp(args[0], 1)?;
+                self.push_view(args[0], 0)?;
                 self.comp(args[1], 0)?;
                 self.f.helper(Helper::BytesIndexJson);
                 self.store(i)
             }
             "bytes_index_pair" => {
-                self.comp(args[0], 0)?;
-                self.comp(args[0], 1)?;
+                self.push_view(args[0], 0)?;
                 for arg in &args[1..5] {
                     self.comp(*arg, 0)?;
                 }
@@ -3012,18 +3011,15 @@ impl Em<'_, '_, '_> {
                 self.store(i)
             }
             "bytes_index" => {
-                self.comp(args[0], 0)?;
-                self.comp(args[0], 1)?;
+                self.push_view(args[0], 0)?;
                 self.comp(args[1], 0)?;
                 self.comp(args[2], 0)?;
                 self.f.helper(Helper::BytesIndex);
                 self.store(i)
             }
             "bytes_mismatch" => {
-                self.comp(args[0], 0)?;
-                self.comp(args[0], 1)?;
-                self.comp(args[1], 0)?;
-                self.comp(args[1], 1)?;
+                self.push_view(args[0], 0)?;
+                self.push_view(args[1], 1)?;
                 self.f.helper(Helper::BytesMismatch);
                 self.store(i)
             }
@@ -3055,6 +3051,13 @@ impl Em<'_, '_, '_> {
                 }
                 self.f.helper(Helper::StrFromBytes);
                 self.store_owned(i)
+            }
+            // A string's packed form, for the tests of the readers (§23.7):
+            // the same text, so a value of either form reads alike.
+            "bytes_pack" => {
+                self.push(args[0])?;
+                self.f.helper(Helper::StrPack);
+                self.store(i)
             }
             // The bytes of a string as a new list: one sized buffer, one copy.
             "string_to_bytes" => {
@@ -3097,8 +3100,31 @@ impl Em<'_, '_, '_> {
                 self.f.helper(Helper::ListBuf { elem });
                 return self.store_owned(i);
             }
+            // A packed string's bytes are a copy in a static slot of this
+            // call's own, which its next run overwrites (§23.7).
             "mem_string_bytes" => {
+                if self.const_text(args[0]).is_some() {
+                    self.comp(args[0], 0)?;
+                    return self.store(i);
+                }
+                let slot = self.m.static_slot(8, 8);
+                let at = self.f.local(Val::I32);
                 self.comp(args[0], 0)?;
+                self.f.set(at);
+                self.comp(args[0], 1)?;
+                self.f.i32(0);
+                self.f.op(I::I32LtS);
+                self.f.op(I::If(BlockType::Empty));
+                self.f.static_addr(slot);
+                self.f.get(at);
+                self.f.op(I::I32Store(mem(HEAP, 0, 2)));
+                self.f.static_addr(slot);
+                self.comp(args[0], 1)?;
+                self.f.op(I::I32Store(mem(HEAP, 4, 2)));
+                self.f.static_addr(slot);
+                self.f.set(at);
+                self.f.op(I::End);
+                self.f.get(at);
                 return self.store(i);
             }
             "mem_new_string" => {

@@ -1,0 +1,190 @@
+# The hd tests of packed short strings (crates/hd_wasm_linear/DESIGN.md
+# §23.7): a string of 1 to 6 ASCII bytes may hold its bytes in its two
+# words, and every reader gives for it what it gives for an allocated
+# string of the same text. Only the test constructor `pack` makes one, and
+# only std may declare an intrinsic, so the conformance runner adds this
+# file to std as `std.rt_tests.packed_tests`.
+use std.text.StringBuilder
+use std.rt.memory.{Ptr, load_u32, string_bytes}
+use std.rt.bytes.{
+    bytes_len,
+    bytes_at,
+    bytes_slice,
+    bytes_concat,
+    concat_all,
+    string_from_bytes,
+    bytes_index,
+    bytes_index_json,
+    bytes_index_pair,
+    bytes_mismatch,
+}
+
+# The packed form of `text` when it is 1 to 6 ASCII bytes, else `text`.
+@intrinsic("bytes_pack")
+fn pack(text: string) -> string:
+    text
+
+# A string of `text`'s bytes in a buffer of its own.
+fn built(text: string) -> string:
+    string_from_bytes(text.to_utf8())
+
+# The address of `text`'s bytes, from one call site: a packed string's
+# are always that site's own static slot.
+fn bytes_address(text: string) -> usize:
+    string_bytes(text).address
+
+# Whether `text` is packed: its bytes are where a packed string's are.
+fn is_packed(text: string) -> bool:
+    bytes_len(text) > 0 && bytes_address(text) == bytes_address(pack(built("z")))
+
+# The texts every reader is checked on: 1 to 6 bytes, with bytes that the
+# scans stop at.
+fn texts() -> List[string]:
+    let mut out: List[string] = ["a", "ab", "abc", "abcd", "abcde", "abcdef", "a\"b\\", " x y "]
+    out.push(string_from_bytes([97, 10, 98, 0]))
+    out.push(string_from_bytes([127, 126, 1, 31, 32, 92]))
+    out
+
+# The address of the buffer of `items`, read from a copy written at `at`
+# and moved out again, so the buffer's count is as it was.
+fn buffer_address(at: usize, items: List[i32]) -> usize:
+    let p: Ptr[List[i32]] = Ptr { address: at }
+    p.write(items)
+    address := usize(load_u32(at))
+    _ := p.read()
+    address
+
+# Whether every byte of `address` is below 128, so the four bytes are text.
+fn ascii_word(address: usize) -> bool:
+    (address & 0x80808080) == 0
+
+tests:
+    use std.testing.{assert, assert_equal, it}
+
+    it("pack packs a string of 1 to 6 ASCII bytes and nothing else"):
+        for text in texts():
+            assert(is_packed(pack(built(text))), "packed: $text")
+            assert(!is_packed(built(text)), "allocated: $text")
+        assert(!is_packed(pack(built("abcdefg"))), "seven bytes stay allocated")
+        assert(!is_packed(pack(built("é"))), "a byte of 128 or more stays allocated")
+        assert(pack(built("")) == "", "no bytes is the empty string")
+
+    it("length, bytes, equality and order read a packed string as its text"):
+        others := ["", "a", "abc", "abd", "abcdef", "abcdefg", "b", "~"]
+        for text in texts():
+            p := pack(built(text))
+            a := built(text)
+            assert_equal(bytes_len(p), bytes_len(a))
+            let i: usize = 0
+            while i < bytes_len(a):
+                assert_equal(bytes_at(p, i), bytes_at(a, i))
+                i = i + 1
+            assert(p == a && a == p && p == pack(built(text)), "equal: $text")
+            assert_equal(string_bytes(p).read(), string_bytes(a).read())
+            for other in others:
+                o := pack(built(other))
+                assert_equal(p == o, a == other)
+                assert_equal(p < o, a < other)
+                assert_equal(o < p, other < a)
+                assert_equal(p.cmp(&o), a.cmp(&other))
+
+    it("a slice of a packed string is the same text, packed"):
+        for text in texts():
+            p := pack(built(text))
+            a := built(text)
+            let lo: usize = 0
+            while lo <= bytes_len(a):
+                let hi = lo
+                while hi <= bytes_len(a):
+                    s := bytes_slice(p, lo, hi)
+                    assert(s == bytes_slice(a, lo, hi), "slice $lo..$hi of $text")
+                    assert_equal(bytes_len(s), hi - lo)
+                    assert_equal(is_packed(s), hi > lo)
+                    hi = hi + 1
+                lo = lo + 1
+
+    it("concatenation and conversion copy a packed string's bytes"):
+        for text in texts():
+            p := pack(built(text))
+            a := built(text)
+            assert(p + a == a + a && a + p == a + a, "concatenation of $text")
+            assert("[$p|$a]" == "[$a|$a]", "interpolation of $text")
+            assert(bytes_concat(p, p) == bytes_concat(a, a), "bytes_concat of $text")
+            assert(concat_all([p, a, p]) == concat_all([a, a, a]), "concat_all of $text")
+            assert([p, "-", p].join("") == [a, "-", a].join(""), "join of $text")
+            assert(p.to_utf8() == a.to_utf8(), "to_utf8 of $text")
+            out := StringBuilder::new()
+            out.push(p)
+            out.push(a)
+            assert(out.build() == a + a, "a builder of $text")
+
+    it("the byte scans find in a packed string what they find in its text"):
+        let bytes: List[u8] = [0, 1, 10, 31, 32, 34, 92, 97, 98, 99, 127]
+        for text in texts():
+            p := pack(built(text))
+            a := built(text)
+            let from: usize = 0
+            while from <= bytes_len(a) + 1:
+                assert_equal(bytes_index_json(p, from), bytes_index_json(a, from))
+                for byte in bytes:
+                    assert_equal(bytes_index(p, from, byte), bytes_index(a, from, byte))
+                    let gap: usize = 0
+                    while gap < 4:
+                        assert_equal(
+                            bytes_index_pair(p, from, byte, 98, gap),
+                            bytes_index_pair(a, from, byte, 98, gap),
+                        )
+                        gap = gap + 1
+                from = from + 1
+            for other in texts():
+                o := pack(built(other))
+                assert_equal(bytes_mismatch(p, o), bytes_mismatch(a, built(other)))
+                assert_equal(bytes_mismatch(o, a), bytes_mismatch(built(other), a))
+
+    it("a map finds a key whichever form stores or looks it up"):
+        let mut by_packed: Map[string, usize] = {}
+        let mut by_built: Map[string, usize] = {}
+        all := texts()
+        let k: usize = 0
+        while k < all.len():
+            by_packed[pack(built(all[k]))] = k
+            by_built[built(all[k])] = k
+            k = k + 1
+        let j: usize = 0
+        while j < all.len():
+            assert_equal(by_packed.get(built(all[j])), .Some(j))
+            assert_equal(by_built.get(pack(built(all[j]))), .Some(j))
+            j = j + 1
+
+    it("a packed string counts nothing, though its first word is an object's address"):
+        # Lists until one's buffer address is four ASCII bytes.
+        let mut held: List[List[i32]] = []
+        let mut target: usize = 0
+        at := string_bytes(built("12345678")).address
+        while target == 0 && held.len() < 256:
+            items := [+1, +2, +3]
+            address := buffer_address(at, items)
+            if ascii_word(address) && (address & 0xff) != 0:
+                target = address
+            held.push(items)
+        assert(target != 0, "a buffer at an ASCII address")
+        let bytes: List[u8] = [
+            u8(target & 0xff),
+            u8((target >> 8) & 0xff),
+            u8((target >> 16) & 0xff),
+            u8(target >> 24),
+        ]
+        p := pack(string_from_bytes(bytes))
+        assert(is_packed(p), "the address as packed text")
+        before := load_u32(target - 8)
+        let mut copies: List[string] = []
+        let i = +0
+        while i < 100:
+            copies.push(p)
+            i = i + 1
+        let mut keys: Map[string, i32] = {}
+        keys[p] = +1
+        copies = []
+        keys = {}
+        assert_equal(load_u32(target - 8), before)
+        assert_equal(held.len() > 0, true)

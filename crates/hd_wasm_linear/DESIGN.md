@@ -185,7 +185,7 @@ runtime can change its representation without breaking a program.
 
 | Memory | Holds | Exported as |
 | --- | --- | --- |
-| 0 | the heap: static data, the page table, every counted object | not exported: the host reads and writes only `hd.x` (§23.23) |
+| 0 | the heap: the packed-string scratch slots below 16 (§23.7), static data, the page table, every counted object | not exported: the host reads and writes only `hd.x` (§23.23) |
 | 1 | the exchange buffer (crates/hd_run_wasmtime/DESIGN.md §17.3) | `hd.x` |
 | 2 | the shadow stack: the frames of wide calls, declared only when a signature is wide (§23.29) | not exported |
 
@@ -200,7 +200,8 @@ runtime can change its representation without breaking a program.
   byte: the Wasm is about 2% smaller, and V8's optimizing compiler takes
   less time over it.
 - **Addresses** are `i32`, unsigned (`usize` on wasm32). Address 0 is
-  null: `.None` of `Option[&T]`. The first 16 bytes are never used.
+  null: `.None` of `Option[&T]`. No value lives in the first 16 bytes:
+  they are the scratch slots of packed strings (§23.7).
 - **Static data** starts at address 16 in page 0: string literals, the
   one empty string, immortal constants, vtables and type descriptors,
   all placed by link in one active data segment. Its pages are marked
@@ -329,7 +330,8 @@ The allocator is hd in `std.rt.alloc`, REFCOUNT_RUNTIME.md §6's
   to the pool.
 - **Large blocks** (over 2 KiB) are runs of whole pages, first fit from
   the pool's runs, coalesced with free neighbors on free; every page of a
-  run points at its first (§23.5).
+  run points at its first (§23.5). A request of 2^31 bytes or more is
+  the `heap-exhausted` panic, so a packed string's tag is free (§23.7).
 - **No zeroing.** Every object is initialized by its constructor before
   anything reads it, and only the collector scans, and only initialized
   objects.
@@ -345,6 +347,43 @@ The allocator is hd in `std.rt.alloc`, REFCOUNT_RUNTIME.md §6's
   is one static value**: its address is one fixed static location and its
   length 0, never counted, so a view one past a buffer's end can never
   reach the next object's count. Slicing to length zero yields it.
+- **Packed strings** (#1215). A string of 1 to 6 ASCII bytes may hold
+  them in its two words instead of viewing a buffer. Its length word has
+  the top bit set (`module::PACKED`); bits 0 to 15 are its bytes 4 and 5
+  and bits 16 to 18 its length; the address word is its bytes 0 to 3,
+  the first lowest. Read as one little-endian `u64` (address word low),
+  the bytes come first, in order. Every unused byte and bit is zero, so
+  two packed strings of one text have equal words. The empty string is
+  never packed.
+  - **The tag is free.** `std.rt.alloc.alloc` refuses a block of 2^31
+    bytes or more with the `heap-exhausted` panic of a heap that cannot
+    grow, so no buffer, and no allocated string, reaches a length with
+    the top bit set.
+  - **No count.** A packed address word is text, not an address: a
+    string's walk is `Walk::Str`, which retains or releases the address
+    only when the length word's top bit is clear, so neither the page
+    table nor a header sees it.
+  - **Readers take both forms.** `bytes_len` decodes the length, `s[i]`
+    and `bytes_at` shift the byte out of the words (`rt:str_byte_packed`),
+    and a slice of a packed string is packed (`rt:str_slice_packed`).
+    Every other reader of a string's bytes (concatenation and
+    interpolation, `concat_all`, `bytes_append`, `to_utf8`, the scans,
+    `==`, ordering, the exchange-buffer copy `rt:to_buf` and the host
+    encoder) first makes it a view with `rt:str_view0` or `rt:str_view1`,
+    which spill a packed string's two words to scratch slot 0 (address 0)
+    or slot 1 (address 8), below static data, and view the slot.
+  - **The scratch rule.** A reader spills the first string it reads at
+    once to slot 0 and the second to slot 1. No reader reads three
+    strings at once. It reads the slots before it calls anything that may
+    spill again, as concatenation copies each part before it views the
+    next. `string_bytes`, whose address outlives the call, spills to a
+    static slot of its own call site instead, valid until that site runs
+    again.
+  - **Producers.** `bytes_pack` (`rt:str_pack`), which only std's tests
+    declare, gives a string's packed form when it can have one. String
+    literals and runtime producers do not pack yet (#1246, #1248), and no
+    packed string reaches the host (#1249): the host copies take both
+    forms.
 - **A list** is the address of its buffer, a counted object holding the
   capacity, the length, the owner word and then the elements inline at
   their layout's size. While the owner word is 0, the buffer's count is

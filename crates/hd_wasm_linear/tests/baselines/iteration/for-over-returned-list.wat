@@ -41,11 +41,20 @@
               unreachable
             end
     ;; 8 |         count = count + word.len()
-            local.get $word.0
-            drop
             block
               block
+                local.get $word.0
+                drop
                 local.get $word.1
+                i32.const 16
+                i32.shr_u
+                i32.const 7
+                i32.and
+                local.get $word.1
+                local.get $word.1
+                i32.const 0
+                i32.lt_s
+                select
                 local.set $word.0
                 br 0
               end

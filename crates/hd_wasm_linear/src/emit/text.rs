@@ -2,7 +2,8 @@
 //! its bytes' address and length: a literal's bytes are static data, a
 //! built string's are a counted byte buffer ([`Helper::Str`]), and every
 //! empty string is the one static empty value ([`EMPTY`]). A slice is a
-//! new view of the same bytes; nothing is copied.
+//! new view of the same bytes; nothing is copied. A packed string holds
+//! its bytes in its two words instead: every reader here takes both forms.
 
 use crate::op::Op as I;
 use hd_base::StageResult;
@@ -11,14 +12,60 @@ use hd_types::{Ty, TyData};
 use wasm_encoder::BlockType;
 
 use super::Em;
-use crate::module::{EMPTY, HEAP, Val, mem};
+use crate::module::{EMPTY, HEAP, PACKED_LEN, Val, mem};
 use crate::rt::{Helper, PrimArg};
 use crate::unsupported;
+
+/// The panic of a string index at or past the length.
+pub(crate) const STR_INDEX: &str = "index-out-of-bounds: string index out of bounds";
+
+/// The panic of a string slice whose bounds are reversed or past the end.
+pub(crate) const STR_SLICE: &str = "index-out-of-bounds: string slice out of bounds";
 
 impl Em<'_, '_, '_> {
     /// Whether `t` is `string`, through newtypes and `mut`.
     fn is_string(&self, t: Ty) -> bool {
         crate::layout::strip(self.pool(), self.env(), t) == Ty::STRING
+    }
+
+    /// Pushes string `r`'s length in bytes: a packed string's is in its
+    /// length word (§23.7).
+    pub(super) fn str_len(&mut self, r: u32) -> StageResult<()> {
+        if let Some(text) = self.const_text(r) {
+            let len = u32::try_from(text.len()).expect("string constant");
+            self.f.u32(len);
+            return Ok(());
+        }
+        self.comp(r, 1)?;
+        self.f.u32(PACKED_LEN);
+        self.f.op(I::I32ShrU);
+        self.f.i32(7);
+        self.f.op(I::I32And);
+        self.comp(r, 1)?;
+        self.comp(r, 1)?;
+        self.f.i32(0);
+        self.f.op(I::I32LtS);
+        self.f.op(I::Select);
+        Ok(())
+    }
+
+    /// Pushes string `r` as a view of its bytes, `(address, length)`: a
+    /// packed string's go to scratch slot `slot` ([`Helper::StrView`]).
+    pub(super) fn push_view(&mut self, r: u32, slot: u8) -> StageResult<()> {
+        self.comp(r, 0)?;
+        self.comp(r, 1)?;
+        if self.const_text(r).is_none() {
+            self.f.helper(Helper::StrView { slot });
+        }
+        Ok(())
+    }
+
+    /// Whether string `r` is packed: its length word's top bit.
+    fn push_packed_test(&mut self, r: u32) -> StageResult<()> {
+        self.comp(r, 1)?;
+        self.f.i32(0);
+        self.f.op(I::I32LtS);
+        Ok(())
     }
 
     /// An interpolation or a concatenation of string parts: one part is
@@ -49,7 +96,7 @@ impl Em<'_, '_, '_> {
         );
         self.f.i32(0);
         for p in parts {
-            self.comp(*p, 1)?;
+            self.str_len(*p)?;
             self.f.op(I::I32Add);
         }
         self.f.set(len);
@@ -64,16 +111,34 @@ impl Em<'_, '_, '_> {
         }
         self.f.get(at);
         self.f.set(to);
+        let (pa, pl) = (self.f.local(Val::I32), self.f.local(Val::I32));
         for p in parts {
+            if self.const_text(*p).is_some() {
+                self.f.get(to);
+                self.comp(*p, 0)?;
+                self.comp(*p, 1)?;
+                self.f.op(I::MemoryCopy {
+                    src_mem: HEAP,
+                    dst_mem: HEAP,
+                });
+                self.f.get(to);
+                self.comp(*p, 1)?;
+                self.f.op(I::I32Add);
+                self.f.set(to);
+                continue;
+            }
+            self.push_view(*p, 0)?;
+            self.f.set(pl);
+            self.f.set(pa);
             self.f.get(to);
-            self.comp(*p, 0)?;
-            self.comp(*p, 1)?;
+            self.f.get(pa);
+            self.f.get(pl);
             self.f.op(I::MemoryCopy {
                 src_mem: HEAP,
                 dst_mem: HEAP,
             });
             self.f.get(to);
-            self.comp(*p, 1)?;
+            self.f.get(pl);
             self.f.op(I::I32Add);
             self.f.set(to);
         }
@@ -94,15 +159,20 @@ impl Em<'_, '_, '_> {
 
     /// The length of constant string `r`, or 0 for any other part.
     fn const_len(&self, r: u32) -> usize {
+        self.const_text(r).map_or(0, str::len)
+    }
+
+    /// The text of `r` when it is a constant string.
+    pub(super) fn const_text(&self, r: u32) -> Option<&str> {
         if Ref(r).as_inst().is_some() {
-            return 0;
+            return None;
         }
         let (ty, bits) = self.b.consts[(r & !Ref::CONST_BIT) as usize];
         let stripped = hd_mono::layout::strip_newtype(self.pool(), self.env(), self.sub(ty));
         if stripped != Ty::STRING {
-            return 0;
+            return None;
         }
-        self.b.strings[usize::try_from(bits).expect("string constant")].len()
+        Some(&self.b.strings[usize::try_from(bits).expect("string constant")])
     }
 
     /// Sets local `at` to the address of a new buffer of the `len` bytes in
@@ -121,21 +191,36 @@ impl Em<'_, '_, '_> {
     }
 
     /// `s[i]` (`StrIndex`, `bytes_at`): the byte at `index`, which must be
-    /// below the length.
+    /// below the length; a packed string's is in its words.
     pub(super) fn str_at(&mut self, i: u32, text: u32, index: u32) -> StageResult<()> {
         let ix = self.f.local(Val::I32);
         self.comp(index, 0)?;
         self.f.set(ix);
+        // A packed string's helper checks the index itself.
+        let constant = self.const_text(text).is_some();
+        if !constant {
+            self.push_packed_test(text)?;
+            self.f
+                .op(I::If(BlockType::Result(wasm_encoder::ValType::I32)));
+            self.comp(text, 0)?;
+            self.comp(text, 1)?;
+            self.f.get(ix);
+            self.f.helper(Helper::StrBytePacked);
+            self.f.op(I::Else);
+        }
         self.f.get(ix);
         self.comp(text, 1)?;
         self.f.op(I::I32GeU);
         self.f.op(I::If(BlockType::Empty));
-        self.panic("index-out-of-bounds: string index out of bounds");
+        self.panic(STR_INDEX);
         self.f.op(I::End);
         self.comp(text, 0)?;
         self.f.get(ix);
         self.f.op(I::I32Add);
         self.f.op(I::I32Load8U(mem(HEAP, 0, 0)));
+        if !constant {
+            self.f.op(I::End);
+        }
         self.store(i)
     }
 
@@ -147,17 +232,50 @@ impl Em<'_, '_, '_> {
         self.f.set(lo);
         self.comp(end, 0)?;
         self.f.set(hi);
+        let check = |em: &mut Self| -> StageResult<()> {
+            em.f.get(lo);
+            em.f.get(hi);
+            em.f.op(I::I32GtU);
+            em.f.get(hi);
+            em.comp(text, 1)?;
+            em.f.op(I::I32GtU);
+            em.f.op(I::I32Or);
+            em.f.op(I::If(BlockType::Empty));
+            em.panic(STR_SLICE);
+            em.f.op(I::End);
+            Ok(())
+        };
+        if self.const_text(text).is_some() {
+            check(self)?;
+            self.view_slice(text, lo, hi)?;
+            return self.store(i);
+        }
+        let (at, len) = (self.f.local(Val::I32), self.f.local(Val::I32));
+        // A packed string's slice is packed, or the empty value; its
+        // helper checks the bounds itself.
+        self.push_packed_test(text)?;
+        self.f.op(I::If(BlockType::Empty));
+        self.comp(text, 0)?;
+        self.comp(text, 1)?;
         self.f.get(lo);
         self.f.get(hi);
-        self.f.op(I::I32GtU);
-        self.f.get(hi);
-        self.comp(text, 1)?;
-        self.f.op(I::I32GtU);
-        self.f.op(I::I32Or);
-        self.f.op(I::If(BlockType::Empty));
-        self.panic("index-out-of-bounds: string slice out of bounds");
+        self.f.helper(Helper::StrSlicePacked);
+        self.f.set(len);
+        self.f.set(at);
+        self.f.op(I::Else);
+        check(self)?;
+        self.view_slice(text, lo, hi)?;
+        self.f.set(len);
+        self.f.set(at);
         self.f.op(I::End);
-        // The address: the empty value's when `lo == hi`.
+        self.f.get(at);
+        self.f.get(len);
+        self.store(i)
+    }
+
+    /// Pushes the view of bytes `lo` to `hi` (locals) of the allocated
+    /// string `text`: the empty value when `lo == hi`.
+    fn view_slice(&mut self, text: u32, lo: u32, hi: u32) -> StageResult<()> {
         self.comp(text, 0)?;
         self.f.get(lo);
         self.f.op(I::I32Add);
@@ -169,7 +287,7 @@ impl Em<'_, '_, '_> {
         self.f.get(hi);
         self.f.get(lo);
         self.f.op(I::I32Sub);
-        self.store(i)
+        Ok(())
     }
 
     /// `char_from_scalar(point)`: `.Some(point)` when `point` is a scalar

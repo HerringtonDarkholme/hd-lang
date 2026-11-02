@@ -36,13 +36,30 @@ pub const STACK: u32 = 2;
 /// below 0 wraps to an address past it, which traps.
 pub const STACK_PAGES: u32 = 16;
 
-/// The first address of static data: addresses below it are never used,
-/// so 0 stays null.
+/// The first address of static data: no value lives below it, so 0 stays
+/// null; the bytes below it are [`SCRATCH`].
 pub const STATIC_BASE: u32 = 16;
 
 /// The address of the one empty string (§23.7): every string of no bytes
 /// is this view, whose bytes are never read.
 pub const EMPTY: u32 = STATIC_BASE;
+
+/// A packed string's tag (§23.7): the top bit of its length word. No
+/// block reaches 2^31 bytes (`std.rt.alloc.alloc`), so no allocated
+/// string's length has it.
+pub const PACKED: u32 = 1 << 31;
+
+/// Where a packed string's length is in its length word (§23.7): the
+/// byte from this bit, above the text's bytes 4 and 5.
+pub const PACKED_LEN: u32 = 16;
+
+/// The most bytes a packed string holds (§23.7).
+pub const PACKED_MAX: u32 = 6;
+
+/// The two 8-byte slots below static data where a reader spills a packed
+/// string's two words to read its bytes as a view (§23.7): one per string
+/// a kernel reads at once.
+pub const SCRATCH: u32 = 0;
 
 /// The size of a counted object's header, before its payload (§23.4).
 pub const HEADER: u32 = 8;
