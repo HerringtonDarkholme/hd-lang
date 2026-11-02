@@ -267,7 +267,7 @@ The domain kinds are std library types built on the four parts:
 | `Background` | shared | same | cannot be lost | a closure, `Send`, `'static` |
 | `Workers`, `Worker` | separate | same | can be lost | a closure, `Wire`, `'static` |
 | `Jobs` | separate, later | same | nobody waits | a closure, `Wire`, `'static` |
-| a server, from `server(url)` | separate | another | can be lost | `Remote` methods |
+| a server, from `http_transport(url)` | separate | another | can be lost | `Remote` methods |
 | `Gpus`, `Gpu` | separate | another (device code) | can be lost | `Remote` methods |
 
 Each domain type states the capabilities it offers as a row parameter,
@@ -338,19 +338,15 @@ nothing else of the program is reachable from outside.
 - **R1.** Every method is a bang method whose parameters and result are
   `Wire` and not closures. It is not generic and has no row; its
   implementation gets what it needs from its own fields. A trait may be
-  generic, and `serve!` fixes its type arguments.
+  generic, and the served type fixes its type arguments.
 - **R2.** Its error type `E` satisfies `E < From[CrossError]`, so a lost
   contact arrives as one of the method's own errors. An `@error` enum gets
   that from one variant, `Cross(@from cause: CrossError)`
   ([`annot.error.generates`](../../spec/lang/14-annotations.md#r-annot.error.generates)).
-- **R3.** `serve!(root)` makes `root` the domain's root object, for every
-  `Remote` trait it implements, and returns when the host stops. Its
-  signature is `fn serve![S](root: S) -> Result[void, ServeError] $ Serve`,
-  where `Serve` is the host capability of a target that takes calls; the
-  target table gives its address. It is an intrinsic, because "every
-  `Remote` trait `S` implements" is not a bound hd can write. A method
-  may also return a new object as a `Served[U]`, which its domain then
-  serves too.
+- **R3.** A domain serves a root object through a `Home[S]`, for every
+  `Remote` trait `S` implements (What Std Adds, below). A method may also
+  return a new object as a `Served[U]`, which the home adds to its table
+  and serves too.
 
 A **`Served[T]`** is a reference to an object of the `Remote` trait `T`
 that one domain serves, its **home**. It is a counted reference, so it
@@ -358,7 +354,7 @@ can be a provider as a box can. It implements `T` through an impl the
 compiler generates for each `Remote` trait, `impl Users for
 Served[Users]` (B3): each method call goes to the home and is a local
 call there. The caller gets the first one
-from `remote::[T](domain)`, the root object of a domain value; a test
+from `remote::[T](transport)`, the root object of a domain; a test
 installs a fake instead. So a service stub, a GPU texture, a server
 action, a stream cursor and a long-lived process are all `Served[T]`:
 
@@ -397,9 +393,9 @@ pub trait Filters < Remote:                    # served on a GPU: device code
     fn blur!(&mut self, texture: Served[Texture], radius: f32) -> Result[void, GpuError]
 ```
 
-A device target's entry is a module whose `device_main` calls `serve!`
-with its implementation, which must be device code: no allocation and no
-host calls. That subset, and launch geometry, get their own design.
+A device target's entry builds a `Home` of its kernels' implementation
+and answers each frame with `handle_call!`. That implementation must be
+device code: no allocation and no host calls. That subset, and launch geometry, get their own design.
 
 ### How A Crossing Fails: CrossError
 
@@ -436,11 +432,12 @@ compiles every target, and every output carries the same build ID.
   entry and compiles only what it reaches. A module only the server
   reaches, such as one that uses a database driver, is never parsed for
   the browser.
-- **B2.** `serve!(impl)` in a target compiles the implementation and a
-  generated dispatcher: decode a method number and arguments, validate
-  them as untrusted input, call, encode the result.
+- **B2.** For each `S` of a `Home[S]` a target builds, the compiler
+  generates the body of `handle_call![S]`: check the build ID, find the
+  object and check its token, decode the method number and arguments as
+  untrusted input, call, encode the result.
 - **B3.** For each `Remote` trait `T` whose `Served[T]` a target can
-  hold, as from `remote::[T](domain)`, the compiler generates
+  hold, as from `remote::[T](transport)`, the compiler generates
   `impl T for Served[T]`: the stub. Each method encodes its arguments,
   sends them with the method's number, decodes the result, and maps a
   transport failure to `CrossError` through R2. A stub holds no
@@ -452,7 +449,82 @@ compiles every target, and every output carries the same build ID.
   boundary values ([`module.boundary.tree`](../../spec/lang/10-modules.md#r-module.boundary.tree)). The build ID travels
   with every crossing, so a peer of another build refuses with
   `OtherBuild` before any code runs. Within one build, every target
-  numbers a trait's methods alike.
+  numbers a trait's methods alike. A decoded `Served[U]` takes the
+  transport its frame came on as its home.
+
+### What Std Adds
+
+Everything the design adds to std, written out. Serving over HTTP reuses
+the server SDK's `serve!` and `HttpServer`; calling reuses `std.http`'s
+`Http`. Two items are generated rather than written: the body of
+`handle_call!` (B2) and the `impl T for Served[T]` of each `Remote`
+trait (B3).
+
+```text
+# hypothetical syntax; std.remote
+use std.http.{Body, Http, Request, Response, Url}
+
+pub trait Remote:                            # a marker; the compiler checks R1 and R2 on each trait that extends it
+    pass
+
+pub enum CrossError:
+    Unreachable
+    Unknown
+    OtherBuild
+    WrongHome
+
+pub trait Transport:                         # carries call frames to one home
+    fn call!(&mut self, frame: List[u8]) -> Result[List[u8], CrossError]
+
+pub struct Served[T]:                        # a reference to an object of T at its home; fields private
+    transport: *mut dyn Transport
+    object: u64                              # 0 is the home's root object
+    token: List[u8]                          # empty within the home's own target
+
+pub fn remote[T < Remote](transport: *mut dyn Transport) -> Served[T]:
+    Served { transport, object: 0, token: [] }
+
+pub struct Home[S]:                          # the objects one domain serves; fields private
+    root: S
+    objects: ServedTable                     # objects that methods returned as Served[U], with tokens and leases
+
+pub fn home[S](root: S) -> *mut Home[S]:
+    box(Home { root, objects: ServedTable::new() })
+
+# B2 generates the body for each S: check the build ID, find the object and check its token,
+# decode the method number and arguments as untrusted input, call, encode the result
+@intrinsic("handle_call")
+pub fn handle_call![S](home: &mut Home[S], frame: List[u8]) -> List[u8]:
+    panic("intrinsic")
+
+# HTTP, as plain hd over the items above
+pub struct HttpTransport:
+    url: Url
+    http: *mut dyn Http
+
+impl Transport for HttpTransport:
+    fn call!(&mut self, frame: List[u8]) -> Result[List[u8], CrossError]:
+        request := Request { method: .Post, url: self.url, body: Body::from_bytes(frame) }
+        match self.http.send!(&request, 0):
+            .Ok(response) => match response.bytes():
+                .Ok(bytes) => .Ok(bytes)
+                .Err(_) => .Err(.Unknown)
+            .Err(_) => .Err(.Unknown)        # split by HttpError: a connection never opened is Unreachable
+
+pub fn http_transport(url: Url) -> *mut dyn Transport $ Http:
+    box(HttpTransport { url, http: $.use(Http) })
+
+pub fn http_handler![S](request: Request, home: &mut Home[S]) -> Response:
+    match request.bytes():
+        .Ok(frame) => Response { body: Body::from_bytes(handle_call!(home, frame)) }
+        .Err(_) => Response { status: .BadRequest }
+```
+
+`http_handler::[S]` has exactly the handler type the SDK's `serve!`
+takes, `fn!(Request, &mut S) -> Response`, with `Home[S]` as its state.
+A `Worker` and a `Gpu` implement `Transport` the same way, over their
+own channels, and a worker or device answers frames by calling
+`handle_call!` on its `Home`.
 
 ## 4. The Eight Programs In The Design
 
@@ -481,7 +553,7 @@ pub enum OrderError:
 pub trait Orders < Remote:
     fn place_order!(&mut self, cart: Cart) -> Result[Receipt, OrderError]
 
-pub fn on_buy!(cart: Cart) -> void $ Dom + Orders:
+pub fn on_buy!(cart: Cart) -> void $ Page + Orders:
     let mut orders = $.use(Orders)
     match orders.place_order!(cart):
         .Ok(receipt) => show(receipt)
@@ -555,28 +627,55 @@ ui.draw_boxes(faces)
 
 ## 5. The Process, End To End
 
-One program with a browser and a server, from the target table to one
-call at run time. The lines marked ◀ change what the program means;
-every other line is ordinary hd.
+One package with a browser executable and a server executable, from
+`hd.toml` to one call at run time. The lines marked ◀ change what the
+program means. Everything else is ordinary hd and existing std: the
+server runs on the server SDK's `serve!`
+([`std-server-sdk.serve-decl`](../../spec/std/server-sdk.md#r-std-server-sdk.serve-decl)),
+and the browser calls through `std.http`'s `Http`. The only new names are
+those of `std.remote` (section 3, What Std Adds). `pg` is an illustrative
+Postgres driver package.
 
-**The targets.** One build, two targets:
+**The manifest.** Every table and key below exists today. An executable
+is a target ([`cli.exe.table`](../../spec/cli/command-line.md#r-cli.exe.table)).
+Its entry module's `main!` row says what its host binds, and the
+`[capabilities]` table must list every host capability of every `main`
+row
+([`cli.cap.table.required`](../../spec/cli/command-line.md#r-cli.cap.table.required)).
+The table is shared by both executables, but a host binds only the
+traits its own `main` row names, so the browser never gets `Net`.
 
 ```toml
-# hd.toml, hypothetical keys
-[target.browser]
-entry = "src/browser.hd"
-main = "browser_main"       # the browser host binds Dom + Net
+[package]
+name = "shop"
 
-[target.server]
-entry = "src/server.hd"
-main = "server_main"        # the server host binds Db + Serve, on port 8080
+[[executable]]
+name = "web"
+module = "browser"          # src/browser.hd; its main! row: $ Page + Http
+
+[[executable]]
+name = "api"
+module = "server"           # src/server.hd; its main! row: $ Net + HttpServer
+
+[dependencies]
+pg = "github.com/acme/pg@1.2.0"                   # illustrative
+server_sdk = "github.com/acme/server_sdk@0.1.0"   # the SDK of spec/std/server-sdk.md; path illustrative
+
+[host]
+"ui.Page" = "providers/page.ts"                   # the provider of src/ui.hd's @host trait Page
+
+[capabilities]
+"pkg.ui.Page" = true
+Http = ["api.example.com"]
+Net = ["db.internal:5432"]
+"dep.server_sdk.server.HttpServer" = true
 ```
 
 **Writing it.**
 
 ```text
 # hypothetical syntax
-# src/users.hd: reached by both targets
+# src/users.hd: a library module both executables use
 pub struct User:
     id: i64
     name: string                                    # Wire: every field is
@@ -591,9 +690,20 @@ pub enum UserError:
 pub trait Users < Remote:                           # ◀1
     fn load_user!(&mut self, id: i64) -> Result[User, UserError]
 
-# src/server.hd: reached by the server target only
+# src/ui.hd: the page, a package host capability
+@host
+pub trait Page:
+    fn show(&mut self, text: string) -> void
+
+# src/server.hd: the api executable's entry; only it uses the driver
+use dep.pg.{Pool, connect}
+use dep.server_sdk.server.{HttpServer, ServerError, serve}
+use pkg.users.{User, UserError, Users}
+use std.net.{Net, NetError}
+use std.remote.{home, http_handler}
+
 struct PgUsers:
-    pool: Pool                                      # Pool keeps a counted *mut dyn Db in a field
+    pool: Pool                                      # Pool keeps the counted *mut dyn Net it connected with
 
 impl Users for PgUsers:
     fn load_user!(&mut self, id: i64) -> Result[User, UserError]:
@@ -601,30 +711,45 @@ impl Users for PgUsers:
             .Some(row) => .Ok(User { id: row.i64(0), name: row.text(1) })
             .None => .Err(UserError.Missing(id))
 
-pub fn server_main!() -> Result[void, ServeError] $ Db + Serve:
-    pool := Pool { db: $.use(Db) }
-    serve!(PgUsers { pool })                        # ◀3
+@error
+enum ApiError:
+    @error("database: $cause")
+    Db(@from cause: NetError)
+    @error("server: $cause")
+    Server(@from cause: ServerError)
 
-# src/browser.hd: reached by the browser target only
-pub fn browser_main!() -> void $ Dom + Net:
-    let stub: Served[Users] = remote::[Users](server("https://api.example.com"))   # ◀4
-    $.with(Users=stub):                             # ◀5
+pub fn main!() -> Result[void, ApiError] $ Net + HttpServer:
+    pool := connect!("db.internal:5432")?
+    serve!(0, home(PgUsers { pool }), http_handler::[PgUsers])?    # ◀3
+    .Ok(())
+
+# src/browser.hd: the web executable's entry
+use pkg.ui.Page
+use pkg.users.{UserError, Users}
+use std.http.{Http, Url}
+use std.remote.{Served, http_transport, remote}
+
+pub fn main!() -> void $ Page + Http:
+    url := Url::parse("https://api.example.com/rpc").unwrap()
+    let stub: Served[Users] = remote::[Users](http_transport(url))   # ◀4
+    $.with(Users=stub):                                               # ◀5
         on_open!(7)
 
-pub fn on_open!(id: i64) -> void $ Dom + Users:
+pub fn on_open!(id: i64) -> void $ Page + Users:
+    let mut page = $.use(Page)
     let mut users = $.use(Users)                    # users: &mut dyn Users
     match users.load_user!(id):                     # ◀6
-        .Ok(user) => show("Hi, ${user.name}")
-        .Err(.Cross(.Unknown)) => show("saved? check again later")
-        .Err(error) => show_error("$error")
+        .Ok(user) => page.show("Hi, ${user.name}")
+        .Err(.Cross(.Unknown)) => page.show("no answer; try again")
+        .Err(error) => page.show("$error")
 ```
 
 | Line | What it means |
 | --- | --- |
 | ◀1 `pub trait Users < Remote` | `load_user` may be called from another target; R1 and R2 apply to it |
 | ◀2 `Cross(@from cause: CrossError)` | a lost contact becomes a `UserError` (R2) |
-| ◀3 `serve!(PgUsers { pool })` | from here on, the server answers `Users` calls with this object |
-| ◀4 `remote::[Users](server(...))` | a `Served[Users]` whose home is that server: the stub |
+| ◀3 `serve!(0, home(PgUsers { pool }), http_handler::[PgUsers])` | the SDK's request loop hands each request to `http_handler`, which calls `PgUsers` |
+| ◀4 `remote::[Users](http_transport(url))` | a `Served[Users]` whose home is that URL: the stub |
 | ◀5 `$.with(Users=stub)` | every `Users` call below goes to the server |
 | ◀6 `users.load_user!(id)` | nothing new: a call on a `&mut dyn Users` |
 
@@ -648,35 +773,38 @@ the same way.
 
 | Line | Check | Breaking it |
 | --- | --- | --- |
+| `hd.toml` | each `main` row's host capabilities are in `[capabilities]` | drop `Http`: `missing-capability`, today's rule |
 | ◀1 | R1: `load_user` is a bang method; `i64` and `Result[User, UserError]` are `Wire`; no generics, row or closure | `fn load_user(...)` without `!`: an error at ◀1 |
 | ◀2 | R2: `UserError < From[CrossError]` | delete the `Cross` variant: an error at ◀1 |
-| `impl Users for PgUsers` | the impl's row agrees with the trait's, which is empty ([`req.row.callable.impl-agrees`](../../spec/lang/11-requirements-and-suspension.md#r-req.row.callable.impl-agrees)) | `$ Db` on the method: an error |
-| ◀3 | `PgUsers` implements at least one `Remote` trait | `serve!(Pool { ... })`: an error |
-| ◀4 | `Users < Remote` | `remote::[Console](...)`: an error |
+| `impl Users for PgUsers` | the impl's row agrees with the trait's, which is empty ([`req.row.callable.impl-agrees`](../../spec/lang/11-requirements-and-suspension.md#r-req.row.callable.impl-agrees)) | `$ Net` on the method: an error |
+| ◀3 | `http_handler::[PgUsers]` has the handler type `serve!` takes, `fn!(Request, &mut Home[PgUsers]) -> Response`; `handle_call!` needs `PgUsers` to implement a `Remote` trait | `home(pool)`: an error, `Pool` implements no `Remote` trait |
+| ◀4 | `Users < Remote` | `remote::[Page](...)`: an error |
 | ◀5 | `Served[Users]` implements `Users`, through the impl B3 generates | none |
 | ◀6 | nothing new | |
 
-**Building it.** One build compiles both targets. Each target walks from
-its own entry (B1):
+**Building it.** `hd build` builds both executables with one build ID.
+Each walks from its own entry module (B1):
 
-| | browser target | server target |
+| | `web` (browser) | `api` (server) |
 | --- | --- | --- |
 | `users.hd` | `User`, `UserError`, `Users`, and their codecs (B5) | the same |
-| `server.hd`, `Pool`, the driver | never parsed | compiled |
-| the stub, from ◀4 (B3) | generated | none |
-| the dispatcher, from ◀3 (B2) | none | generated |
+| `ui.hd` | `Page`, and the generated `web.host.mjs` glue | not reached |
+| `server.hd`, `pg`, `server_sdk` | never parsed | compiled |
+| `std.remote` | `remote`, `http_transport`, `HttpTransport` | `home`, `http_handler`, `handle_call!` |
+| the stub `impl Users for Served[Users]` (B3) | generated | none |
+| the body of `handle_call![PgUsers]` (B2) | none | generated |
 
-Below, each target's output is shown as the hd it amounts to. Generated
-names such as `wire_encode_User` are illustrations; nobody writes them.
+Each executable as built, shown as the hd it amounts to. The source as
+written is kept; the build adds only the parts below. Generated names
+such as `wire_encode_User` are illustrations.
 
-*The browser target, as built.* The types and `browser.hd` are unchanged.
-The build adds codecs, the stub, and the build ID:
+*`web`, as built:*
 
 ```text
-# hypothetical syntax; the browser target as built
-BUILD_ID := "3f9a"                                  # the same in every target of this build
+# hypothetical syntax; added to the web executable
+BUILD_ID := "3f9a"                                  # the same in both executables of this build
 
-# B5: one codec per Wire type the target sends or receives
+# B5: one codec per Wire type the executable sends or receives
 fn wire_encode_User(out: &mut Bytes, user: &User) -> void:
     wire_encode_i64(out, user.id)
     wire_encode_string(out, user.name)
@@ -686,56 +814,46 @@ fn wire_decode_User(input: &mut Reader) -> Result[User, WireError]:
     name := wire_decode_string(input)?
     .Ok(User { id, name })
 
-# B3: the stub, because browser_main makes a Served[Users] (◀4)
+# B3: the stub, because main makes a Served[Users] (◀4)
 impl Users for Served[Users]:
     fn load_user!(&mut self, id: i64) -> Result[User, UserError]:
-        let args: mut Bytes = Bytes::new()
-        wire_encode_i64(args, id)
-        # send! writes BUILD_ID, self's token, method 0 and args to self's home, through the Net it holds
-        match self.send!(method=+0, args=args):
+        let frame: mut Bytes = Bytes::new()
+        wire_encode_frame_head(frame, BUILD_ID, self.object, self.token, +0)   # method 0: load_user
+        wire_encode_i64(frame, id)
+        match self.transport.call!(frame.to_list()):                          # HttpTransport: one POST
             .Ok(reply) => match wire_decode_Result_User_UserError(Reader::new(reply)):
                 .Ok(result) => result
                 .Err(_) => .Err(UserError.from(CrossError.Unknown))
-            .Err(cross) => .Err(UserError.from(cross))      # compiles because of ◀2
-
-# browser.hd follows, as written; on_open's users.load_user!(id) is a dyn call that lands here
+            .Err(cross) => .Err(UserError.from(cross))                       # compiles because of ◀2
 ```
 
-*The server target, as built.* `serve!` becomes a request loop around a
-generated dispatcher:
+*`api`, as built.* `main!` is unchanged: `serve!` is the SDK's, and
+`http_handler` is plain std code. The build adds the codecs and the body
+of `handle_call!` for `PgUsers`:
 
 ```text
-# hypothetical syntax; the server target as built
+# hypothetical syntax; added to the api executable
 BUILD_ID := "3f9a"
 
-# B5: the same codecs as the browser's
+# B5: the same codecs as web's
 
-# B2: the dispatcher, because server_main serves a PgUsers (◀3)
-fn dispatch_PgUsers!(root: &mut PgUsers, method: u32, args: Bytes) -> Result[Bytes, BadRequest]:
-    let input = Reader::new(args)
-    match method:
-        0 =>
-            id := wire_decode_i64(input)?            # untrusted input: a bad value is BadRequest
-            .Ok(wire_encode_Result_User_UserError(root.load_user!(id)))
-        _ => .Err(BadRequest.Method(method))
-
-# server.hd as written, except the serve! line (◀3), which becomes:
-pub fn server_main!() -> Result[void, ServeError] $ Db + Serve:
-    pool := Pool { db: $.use(Db) }
-    root := box(PgUsers { pool })
-    serve_requests!(fn!(request: Request) -> Response:       # one task per request; tasks interleave
-        if request.build != BUILD_ID:
-            Response.refused(CrossError.OtherBuild)
-        else:
-            match dispatch_PgUsers!(root, request.method, request.args):
-                .Ok(bytes) => Response.ok(bytes)
-                .Err(bad) => Response.bad(bad)
-    )
+# B2: handle_call! for Home[PgUsers], because main serves home(PgUsers { ... }) (◀3)
+fn handle_call_PgUsers!(home: &mut Home[PgUsers], frame: List[u8]) -> List[u8]:
+    let input = Reader::new(frame)
+    match wire_decode_frame_head(input):                  # untrusted input from here on
+        .Err(_) => refuse(CrossError.WrongHome)
+        .Ok(head) if head.build != BUILD_ID => refuse(CrossError.OtherBuild)
+        .Ok(head) if head.object != 0 => home.call_served!(head, input)   # an object a method returned
+        .Ok(head) => match head.method:
+            0 => match wire_decode_i64(input):
+                .Ok(id) => answer(wire_encode_Result_User_UserError(home.root.load_user!(id)))
+                .Err(_) => refuse(CrossError.WrongHome)
+            _ => refuse(CrossError.WrongHome)
 ```
 
-The browser's output holds no `PgUsers`, no SQL and no driver, and the
-server's holds no stub. Method 0 is `load_user` by its place in the
-trait; both targets come from one build, so they number it alike.
+`web` holds no `PgUsers`, no SQL, no driver and no `handle_call!`; `api`
+holds no stub. Method 0 is `load_user` by its place in the trait; both
+executables come from one build, so they number it alike.
 
 *A closure to a domain of the same target (B4).* Program 1, the
 thumbnail on a worker, as written:
@@ -781,21 +899,29 @@ ID.
 **Running it.** One call:
 
 1. `on_open!(7)` reaches ◀6; `users` is the stub.
-2. The stub sends `{build: 3f9a…, method: 0, args: [7]}` over `Net`.
-3. The server checks the build ID, decodes `7`, and calls
-   `PgUsers.load_user!(7)`, which queries the database. It encodes
-   `Ok(User { id: 7, name: "Ada" })`.
+2. The stub writes a frame `{build: 3f9a…, object: 0, method: 0, args: [7]}`,
+   and its `HttpTransport` posts it to `https://api.example.com/rpc`
+   through `Http`, which the `Http = ["api.example.com"]` grant allows.
+3. On the server, the SDK's `serve!` accepts the request and calls
+   `http_handler`, which reads the body and calls `handle_call!`. That
+   checks the build ID, decodes `7`, and calls `PgUsers.load_user!(7)`,
+   which queries the database through `Net`. It encodes
+   `Ok(User { id: 7, name: "Ada" })`, and `http_handler` returns it as
+   the response body.
 4. The browser decodes it, and the match takes `.Ok`.
 
-When it fails: with the network down, the stub gets `Unreachable`, and
-◀2 makes it `.Err(UserError.Cross(Unreachable))`. After a deploy, the
-server refuses with `OtherBuild`. When the reply is lost, the outcome is
-`Unknown`, and the second arm handles it.
+When it fails: with the network down, the transport returns
+`Unreachable`, and ◀2 makes it `.Err(UserError.Cross(Unreachable))`.
+After a deploy, the server refuses with `OtherBuild`. When the reply is
+lost, the outcome is `Unknown`, and the second arm handles it.
 
-The server takes requests concurrently. Each request calls the root
-object when it arrives, and requests interleave at its suspension points
-(`query_one!` here), as two `join!` children share one provider. An
-object that must take one call at a time queues its calls itself.
+Requests run concurrently. The SDK's workers share the one state, here
+the `Home[PgUsers]`
+([`std-server-sdk.serve-state`](../../spec/std/server-sdk.md#r-std-server-sdk.serve-state)),
+so requests interleave at its suspension points (`query_one!` here). The
+SDK already states that a mutable reference gives no exclusion across a
+suspension. An object that must take one call at a time queues its calls
+itself.
 
 Every domain kind, in the same terms:
 
@@ -805,7 +931,7 @@ Every domain kind, in the same terms:
 | `Background` | a task goes to a thread of the same memory; the caller suspends, and the answer wakes it on its own event loop | none |
 | `Workers` | a second instance of the same module gets the encoded closure and captures | `Unknown` on a crash; cancel posts an abort |
 | `Jobs` | the store keeps the encoded closure, captures and build ID; a host of the same build runs it later | the job's retry policy; `OtherBuild` after a deploy |
-| server | the stub sends the build ID, method number, arguments and any tokens; the dispatcher refuses another build or a token it did not issue, validates, calls | `Unknown` when the call may have run; cancel is seen at the server's next suspension |
+| server | the stub's transport sends the build ID, object, token, method number and arguments; `handle_call!` refuses another build or a token it did not issue, validates, calls | `Unknown` when the call may have run; cancel is seen at the server's next suspension |
 | GPU | the stub launches the kernel with its `Served[Texture]` arguments | `Unknown` on a reset; `WrongHome` for another GPU's texture |
 
 ## 6. Cost
@@ -813,8 +939,8 @@ Every domain kind, in the same terms:
 | Piece | Tier | New |
 | --- | --- | --- |
 | `Send`, `Wire`, `Remote` | language: markers the compiler checks | structural checks, as `Copy`'s |
-| `Served[T]`, `CrossError`, the domain types, `serve!`, `remote::[T]`, `scope` | stdlib, with `serve!` and `remote::[T]` as generated intrinsics | stub and dispatcher generation per `Remote` trait; tokens and leases |
-| targets | CLI and driver | a target table; one walk per target |
+| `std.remote` (`Served[T]`, `CrossError`, `Transport`, `Home`, `remote`, the HTTP adapters), the domain types, `scope` | stdlib; `handle_call!`'s body and each `impl T for Served[T]` are generated | stub and dispatcher generation per `Remote` trait; tokens and leases |
+| targets | CLI and driver | none in `hd.toml`: an executable is a target; one walk per executable |
 | threads with shared memory and atomic counts | runtime | Wasm threads; only `Scope` and `Background` need them |
 | worker instances, a service transport, a jobs store, a device backend | runtime | one slice each |
 
@@ -844,7 +970,7 @@ behaves differently). Blocks are parsed, not type-checked.
 | 4 | Scoped count and sort (`thread::scope`, rayon) | works | borrows in a `Scope`; a spawn that writes a capture is rejected |
 | 5 | Off the UI thread (Kotlin, Swift) | works | `background.run!` returns `T`; code that uses `$ Ui` does not fit `Background`'s row |
 | 6 | Delayed mail (Sidekiq, Temporal) | friction | a deploy fails the jobs queued before it with `OtherBuild`, so a daily deploy rules out a job a week out |
-| 7 | GPU kernels (wgpu, CUDA) | friction | `device_main` serves the kernels; the device-code subset and launch geometry are left to their own design |
+| 7 | GPU kernels (wgpu, CUDA) | friction | the device's `Home` serves the kernels; the device-code subset and launch geometry are left to their own design |
 | 8 | Data-local count (Ray, Spark) | works | `workers.at(rows)` runs the code at `rows`'s home, where calls on `rows` are local |
 | 9 | Long-lived process (Erlang, Akka) | works | an account is a `Served[Account]` returned by a `Remote` method; supervision is library work |
 | 10 | A test swaps the server | works | stub, real implementation and fake are all providers of `Users` |
@@ -929,7 +1055,7 @@ pub trait Store < Remote:
     fn get![T < Wire](&mut self, key: string) -> Result[T, StoreError]   # error: R1, a generic method
 
 pub trait TypedStore[T < Wire] < Remote:
-    fn get!(&mut self, key: string) -> Result[T, StoreError]             # valid: serve!(UserStore {}) fixes T = User
+    fn get!(&mut self, key: string) -> Result[T, StoreError]             # valid: home(UserStore {}) fixes T = User
 ```
 
 **Case 17: a stream pulled item by item.**
@@ -967,7 +1093,7 @@ let total = std::thread::scope(|s| {
 
 **gRPC and tRPC.** A service is declared once, the server registers an
 implementation, and a client calls a generated stub. hd takes this as a
-`Remote` trait, `serve!` and `remote::[T]`.
+`Remote` trait, a `Home` and `remote::[T]`.
 
 **Swift distributed actors (SE-0336).** A `distributed func` is the
 remote surface, and every call to it is `try await`. hd marks the surface
@@ -1019,7 +1145,7 @@ refused with `OtherBuild`.
 | domain types without a row parameter | the row is what keeps `$ Ui` off a background thread |
 | `Background` merged into `Scope` | their lifetimes differ: `'static` against `'s` |
 | `WrongHome` as a panic | a server refusing a forged token must answer the caller, not crash |
-| `$.with` in place of `serve!` | `serve!` is the explicit list of what another target may call |
+| a target answers calls to every provider it installs | a `Home` is the explicit list of what another target may call |
 
 The parked #166 study
 ([SERIALIZABLE_CLOSURE_DESIGN.md @ 28072b8a1](https://github.com/HerringtonDarkholme/hd-lang/blob/28072b8a1/docs/future-work/SERIALIZABLE_CLOSURE_DESIGN.md))
@@ -1053,10 +1179,10 @@ maps onto this design:
 
 ## Parse Log
 
-All 26 `text` blocks were parsed on 2026-11-02 with
+All 27 `text` blocks were parsed on 2026-11-02 with
 `scripts/hd-conformance.sh parse`, which checks syntax only; nothing was
 type-checked. Std names (`Workers`, `Background`, `Jobs`, `Gpus`,
-`Served`, `serve!`, `remote::[T]`, `scope`) are sketches.
+`scope`) are sketches; `std.remote` is the proposed surface.
 
 | Block | Where | Result |
 | --- | --- | --- |
@@ -1069,7 +1195,7 @@ type-checked. Std names (`Workers`, `Background`, `Jobs`, `Gpus`,
 | 7 | 2. Eight Programs That Cross | parses |
 | 8 | 2. Eight Programs That Cross | parses |
 | 9 | Code For Another Target: Remote And Served | parses; `# hypothetical syntax` |
-| 10 | 4. The Eight Programs In The Design | parses; `# hypothetical syntax` |
+| 10 | What Std Adds | parses after two fixes of mine: an empty trait body is `pass` on its own line, and an intrinsic is written `@intrinsic` with a `panic` body, as `std.task` does |
 | 11 | 4. The Eight Programs In The Design | parses; `# hypothetical syntax` |
 | 12 | 4. The Eight Programs In The Design | parses; `# hypothetical syntax` |
 | 13 | 4. The Eight Programs In The Design | parses; `# hypothetical syntax` |
@@ -1077,12 +1203,13 @@ type-checked. Std names (`Workers`, `Background`, `Jobs`, `Gpus`,
 | 15 | 4. The Eight Programs In The Design | parses; `# hypothetical syntax` |
 | 16 | 4. The Eight Programs In The Design | parses; `# hypothetical syntax` |
 | 17 | 4. The Eight Programs In The Design | parses; `# hypothetical syntax` |
-| 18 | 5. The Process, End To End | parses; `# hypothetical syntax` |
+| 18 | 4. The Eight Programs In The Design | parses; `# hypothetical syntax` |
 | 19 | 5. The Process, End To End | parses; `# hypothetical syntax` |
 | 20 | 5. The Process, End To End | parses; `# hypothetical syntax` |
 | 21 | 5. The Process, End To End | parses; `# hypothetical syntax` |
 | 22 | 5. The Process, End To End | parses; `# hypothetical syntax` |
-| 23 | Appendix A. Stress Test | parses; `# hypothetical syntax` |
+| 23 | 5. The Process, End To End | parses; `# hypothetical syntax` |
 | 24 | Appendix A. Stress Test | parses; `# hypothetical syntax` |
 | 25 | Appendix A. Stress Test | parses; `# hypothetical syntax` |
 | 26 | Appendix A. Stress Test | parses; `# hypothetical syntax` |
+| 27 | Appendix A. Stress Test | parses; `# hypothetical syntax` |
