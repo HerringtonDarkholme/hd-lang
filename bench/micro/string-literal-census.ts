@@ -5,6 +5,8 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+type Literal = { text: string; triple: boolean };
+
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const ROOTS = [
   "bench/study",
@@ -18,14 +20,14 @@ const ROOTS = [
   "website/playground/examples",
 ];
 
-function filesBelow(path) {
+function filesBelow(path: string): string[] {
   if (!statSync(path).isDirectory()) {
     return path.endsWith(".hd") ? [path] : [];
   }
   return readdirSync(path).flatMap((name) => filesBelow(join(path, name)));
 }
 
-function interpolated(text) {
+function interpolated(text: string): boolean {
   for (let i = 0; i < text.length; i++) {
     if (text[i] === "\\") {
       i++;
@@ -36,27 +38,28 @@ function interpolated(text) {
   return false;
 }
 
-function cookedBytes(text) {
+function cookedBytes(text: string): number {
+  const simple: Record<string, string> = { n: "\n", r: "\r", t: "\t", 0: "\0" };
   let cooked = "";
   for (let i = 0; i < text.length; i++) {
     if (text[i] !== "\\") {
       cooked += text[i];
       continue;
     }
-    const escape = text[++i];
+    const escape = text[++i] ?? "";
     if (escape === "u" && text[i + 1] === "{") {
       const end = text.indexOf("}", i + 2);
       cooked += String.fromCodePoint(Number.parseInt(text.slice(i + 2, end), 16));
       i = end;
     } else {
-      cooked += { n: "\n", r: "\r", t: "\t", 0: "\0" }[escape] ?? escape;
+      cooked += simple[escape] ?? escape;
     }
   }
   return Buffer.byteLength(cooked);
 }
 
-function literals(source) {
-  const found = [];
+function literals(source: string): Literal[] {
+  const found: Literal[] = [];
   for (let i = 0; i < source.length;) {
     if (source[i] === "#") {
       i = source.indexOf("\n", i);
@@ -93,7 +96,7 @@ function literals(source) {
 }
 
 const paths = ROOTS.flatMap((root) => filesBelow(join(ROOT, root))).sort();
-const lengths = [];
+const lengths: number[] = [];
 let dynamic = 0;
 let multiline = 0;
 let includedFiles = 0;

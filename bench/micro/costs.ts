@@ -139,7 +139,12 @@ async function timeHd(wasm: Buffer): Promise<number> {
 function timeJs(name: string): number {
   const result = spawnSync(
     "node",
-    [join(HERE, "cost-js-runner.mjs"), join(HERE, `${name}.js`), String(RUNS)],
+    [
+      "--experimental-strip-types",
+      join(HERE, "cost-js-runner.ts"),
+      join(HERE, `${name}.js`),
+      String(RUNS),
+    ],
     { encoding: "utf8" },
   );
   if (result.status !== 0) {
