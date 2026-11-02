@@ -153,7 +153,7 @@ fn shown(e: Expr, name: &string) -> string:
     "${debug(e)} for $name"  # Expr.Add(left=Expr.Num(n=1), right=Expr.Num(n=2)) for tea
 ```
 
-1. r[std-format.debug.reference] `std.format` implements `Debug` for `&T` and for `&mut T` when `T < Debug`. A reference writes exactly what the value it refers to writes, with no trace of the reference or its identity.
+1. r[std-format.debug.reference-noncopy] `std.format` implements `Debug` for `&T` and for `&mut T` when `T < ?Copy & Debug`. A reference writes exactly what the value it refers to writes, with no trace of the reference or its identity.
 2. r[std-format.display.reference] `std.format` implements `Display` for `&T` and for `&mut T` when `T < Display`. A reference's text is the text of the value it refers to, so `"$r"` interpolates `*r`.
 3. r[std-format.debug.reference-derived] So a derived `Debug` writes a reference field as the value it refers to, and a tree linked by references prints whole.
 4. r[std-format.debug.reference-cycle] A derived `Debug` keeps no record of the values it has written. On a structure whose references really form a cycle, it runs until the stack is exhausted, as a derived `Eq` does.

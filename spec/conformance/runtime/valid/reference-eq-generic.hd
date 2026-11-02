@@ -1,5 +1,5 @@
 # test: generic code compares and hashes references by the values they refer to
-# Spec std/cmp Reference Equality: std-cmp.ref.eq; std/hash Reference Hashing: std-hash.reference.impl.
+# Spec std/cmp Reference Equality: std-cmp.ref.eq-noncopy; std/hash Reference Hashing: std-hash.reference.noncopy.
 # expect-stdout: true false
 # expect-stdout: true false
 use std.hash.hash_of

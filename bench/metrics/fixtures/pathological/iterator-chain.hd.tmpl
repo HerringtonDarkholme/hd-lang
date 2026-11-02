@@ -4,6 +4,6 @@ fn run(values: List[i32]) -> usize:
         .iter()
 {{#each pairs}}
         .map(fn(x: i32) -> i32: x + {{add}})
-        .filter(fn(x: i32) -> bool: x % {{modulus}} != 0)
+        .filter(fn(x: &i32) -> bool: x % {{modulus}} != 0)
 {{/each}}
         .count()

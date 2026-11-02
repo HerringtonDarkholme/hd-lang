@@ -3,6 +3,8 @@
 # Spec std/collections UniqList: std-collections.uniq-list.type, std-collections.uniq-list.bulk-moves, std-collections.uniq-list.get-ref, std-collections.uniq-list.sort.
 use std.collections.UniqList
 use std.console.MemoryConsole
+use std.hash.hash_of
+use std.iter.Iterable
 
 struct Ticket:
     label: string
@@ -13,6 +15,19 @@ fn take_last(items: &mut UniqList[Ticket]) -> Ticket:
     match items.pop():
         .Some(ticket) => ticket
         .None => panic("expected a ticket")
+
+fn open_labels() -> List[string]:
+    let mut items = UniqList::[Ticket].new()
+    items.push(Ticket { label: "open" })
+    items.push(Ticket { label: "" })
+    items.push(Ticket { label: "ready" })
+    let kept: UniqList[_] = Iterable::[Ticket]::iter(items)
+        .filter(fn(item: &Ticket) -> bool: item.label.len() > 0)
+        .collect()
+    let mut labels: List[string] = []
+    for item in kept:
+        labels.push(item.label)
+    labels
 
 tests:
     use std.testing.assert_equal
@@ -124,3 +139,14 @@ tests:
         values.push(2)
         values.sort()
         assert_equal(values[0], +1, reason="indexing copies the sorted item")
+
+    it("consumes, filters, and collects non-copyable elements"):
+        assert_equal(open_labels(), ["open", "ready"], reason="the cursor moves matching items")
+
+    it("converts and implements the value-looking traits"):
+        values := UniqList::[i32]::from_list([+1, 2, 3])
+        same := UniqList::[i32]::from_list([+1, 2, 3])
+        assert_equal(values.to_list(), [+1, 2, 3], reason="to_list copies in order")
+        assert(values == same, "Eq compares elements in order")
+        assert_equal(debug(&values), "[1, 2, 3]", reason="Debug uses list syntax")
+        assert_equal(hash_of(&values), hash_of(&same), reason="equal unique lists hash equally")

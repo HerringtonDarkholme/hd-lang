@@ -1,5 +1,5 @@
 # test: a derived Debug writes a reference field as the value it refers to, so a tree linked by references prints whole
-# Spec std/format References: std-format.debug.reference, std-format.debug.reference-derived, with lang 09 trait.derive.reference-debug.
+# Spec std/format References: std-format.debug.reference-noncopy, std-format.debug.reference-derived, with lang 09 trait.derive.reference-debug.
 # expect-stdout: Expr.Add(left=Expr.Num(n=1), right=Expr.Num(n=2))
 # expect-stdout: true
 # expect-stdout: Gauge { level: 5, name: "tea" }

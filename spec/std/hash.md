@@ -182,5 +182,5 @@ fn same_hash(a: &string, b: &string) -> bool:
     hash_of(a) == hash_of(b)  # true when *a == *b
 ```
 
-1. r[std-hash.reference.impl] `std.hash` implements `Hash` for `&T` and for `&mut T` when `T < Hash`. A reference writes the bytes of the value it refers to, so a reference and its value hash alike.
+1. r[std-hash.reference.noncopy] `std.hash` implements `Hash` for `&T` and for `&mut T` when `T < ?Copy & Hash`. A reference writes the bytes of the value it refers to, so a reference and its value hash alike.
 2. r[std-hash.reference.derived] A derived `Hash` reaches this implementation for a reference field, as [`std-hash.derive.hash.references`](#r-std-hash.derive.hash.references) states.

@@ -17,7 +17,7 @@ struct Bag:
     values: List[i32]
 
 impl FromIterator[i32] for Bag:
-    fn from_iter[I < Iterator[i32]](items: I) -> Bag:
+    fn from_iter[I < ?Copy & Iterator[i32]](items: I) -> Bag:
         let mut cursor = items
         let mut values: List[i32] = []
         for item in cursor:
@@ -28,12 +28,12 @@ struct First[T]:
     value: T?
 
 impl[T] FromIterator[T] for First[T]:
-    fn from_iter[I < Iterator[T]](items: I) -> First[T]:
+    fn from_iter[I < ?Copy & Iterator[T]](items: I) -> First[T]:
         let mut cursor = items
         First { value: cursor.next() }
 
 fn evens(xs: &List[i32]) -> *mut dyn Iterator[i32]:
-    box(xs.iter().filter(fn(value: i32) -> bool: value % 2 == 0))
+    box(xs.iter().filter(fn(value: &i32) -> bool: value % 2 == 0))
 
 tests:
     use std.testing.assert_equal
@@ -41,7 +41,7 @@ tests:
     it("maps and filters a user cursor through named adapter values"):
         source := Countdown { remaining: +5 }
         let mapped: MapIter[Countdown, i32, i32] = source.map(fn(value: i32) -> i32: value * 2)
-        selected := mapped.filter(fn(value: i32) -> bool: value >= 4)
+        selected := mapped.filter(fn(value: &i32) -> bool: value >= 4)
         assert_equal(
             selected.collect(),
             [+8, 6, 4],
@@ -77,7 +77,7 @@ tests:
     it("keeps early termination and draining methods on custom cursors"):
         first := box(Countdown { remaining: +6 })
         assert_equal(
-            first.by_ref().find(fn(value: i32) -> bool: value == 3),
+            first.by_ref().find(fn(value: &i32) -> bool: value == 3),
             .Some(+3),
             reason="find stops at the first match",
         )

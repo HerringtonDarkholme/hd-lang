@@ -35,12 +35,12 @@ impl[T < Hash] Hash for T?:
                 value.hash(state)
 
 # Keep handwritten Hash: delegate through the reference; structural derivation is for its referent.
-impl[T < Hash] Hash for *T:
+impl[T < ?Copy & Hash] Hash for *T:
     fn hash(&self, state: &mut dyn Hasher) -> void:
         (*(*self)).hash(state)
 
 # Keep handwritten Hash: delegate through the reference; structural derivation is for its referent.
-impl[T < Hash] Hash for *mut T:
+impl[T < ?Copy & Hash] Hash for *mut T:
     fn hash(&self, state: &mut dyn Hasher) -> void:
         (*(*self)).hash(state)
 

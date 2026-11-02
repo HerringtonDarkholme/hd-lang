@@ -248,7 +248,7 @@ The standard library defines `PartialOrd`, `Ord`, and `Ordering` in
 
 | Rule | Trait | Requires |
 | --- | --- | --- |
-| r[trait.cmp.equality] Equality | `Eq` | `fn eq(&self, other: &Self) -> bool` |
+| r[trait.cmp.equality] Equality | `Eq < ?Copy` | `fn eq(&self, other: &Self) -> bool` |
 | r[trait.cmp.partial-ordering] Partial ordering | `PartialOrd < Eq` | `fn partial_cmp(&self, other: &Self) -> Ordering?`, where `.None` means unordered |
 | r[trait.cmp.total-ordering] Ordering | `Ord < PartialOrd` | `fn cmp(&self, other: &Self) -> Ordering` |
 
@@ -258,6 +258,7 @@ The standard library defines `PartialOrd`, `Ord`, and `Ordering` in
 4. r[trait.cmp.reflexive] An `Eq` implementation must be reflexive: `x.eq(&x)` is `true` for every value `x`.
 5. r[trait.cmp.ord-agree] An `Ord` implementation must agree with the type's `PartialOrd` implementation.
 6. r[trait.cmp.laws] These semantic laws are obligations of the implementer; ordinary trait checking cannot prove them.
+7. r[trait.cmp.eq.noncopy] `Eq` is declared `< ?Copy`, so a non-copyable type may implement equality.
 7. r[trait.cmp.float-eq] Floating-point types implement `Eq` with IEEE 754 semantics, so NaN is unequal even to itself. This is the one documented exception to the reflexive law.
 8. r[trait.cmp.float-ord] Floating-point types implement `PartialOrd` but not `Ord`, because NaN is unordered.
 9. r[trait.cmp.operators-comparison] `==`, `!=`, and the relational operators invoke the comparison traits. The other operators invoke the `std.ops` traits of [Operator Traits](05-expressions.md#operator-traits).
@@ -292,7 +293,7 @@ trait Hasher:
     fn write_i64(&mut self, value: i64) -> void
     fn write_str(&mut self, text: string) -> void
 
-trait Hash:
+trait Hash < ?Copy:
     fn hash(&self, state: &mut dyn Hasher) -> void
 ```
 
@@ -307,6 +308,7 @@ trait Hash:
 9. r[trait.hash.override-equivalent] An implementation may override a typed method, but it must give the same result as writing the specified bytes through `write`.
 10. r[trait.hash.ref-receiver] `Hasher`'s methods take `&mut self`, and `Hash.hash` receives its hasher as `&mut dyn Hasher`. So a struct that implements `Hasher` changes in place through a bound and through a trait value reference, and its caller reads the changed state afterwards.
 11. r[trait.hash.self-ref] `Hash.hash` takes its value as `&self`, so `value.hash(state)` lends `value` to the call, as any `&self` receiver is lent, and copies nothing.
+12. r[trait.hash.noncopy] `Hash` is declared `< ?Copy`, so a non-copyable type may implement hashing.
 
 > **Note.** A key that holds a reference can still change through another
 > reference to the same place, potentially leaving its map entry unreachable.
@@ -606,7 +608,7 @@ The standard library declares `Debug` in `std.format`, beside `Display`, to
 show a value's structure:
 
 ```text
-trait Debug:
+trait Debug < ?Copy:
     fn debug(&self, out: *mut DebugWriter) -> void
 ```
 
@@ -623,13 +625,14 @@ fn describe(point: Point) -> string:
 ```
 
 1. r[trait.debug.module] `std.format` declares `Debug` and `DebugWriter`. `Debug` is a prelude name.
-2. r[trait.debug.method-ref] `Debug` declares `fn debug(&self, out: *mut DebugWriter) -> void`, which writes the value's structure through `out`, a reference to the one writer of the whole value.
-3. r[trait.debug.writer] `DebugWriter` is the standard structured writer. An implementation describes the value through its builder calls, such as one call per field, rather than raw text.
-4. r[trait.debug.std-impls] `std` implements `Debug` for the primitives, collections, `T?`, and `Result`, each when its type arguments implement `Debug`.
-5. r[trait.debug.tuples] `std.format` declares a tuple template for `Debug`, so every tuple whose elements implement `Debug` implements it, at every size.
-6. r[trait.debug.tuples.rest] For a tuple with a rest element, `T` must implement `Debug`. Its rest element's items are written inline after the fixed elements. So a value `(1, 2, 3, 4)` of type `(i32, i32, List[i32]...)` writes as the tuple `(1, 2, 3, 4)` of four `i32` does.
-7. r[trait.debug.derive] `@derive(Debug)` derives `Debug` through its [template](14-annotations.md#templates). The derived implementation walks the declaration's members and writes each one.
-8. r[trait.debug.not-display] `Debug` is separate from `Display`, which stays user-facing text.
+2. r[trait.debug.noncopy] `Debug` is declared `< ?Copy`, so a non-copyable type may implement debug rendering.
+3. r[trait.debug.method-ref] `Debug` declares `fn debug(&self, out: *mut DebugWriter) -> void`, which writes the value's structure through `out`, a reference to the one writer of the whole value.
+4. r[trait.debug.writer] `DebugWriter` is the standard structured writer. An implementation describes the value through its builder calls, such as one call per field, rather than raw text.
+5. r[trait.debug.std-impls] `std` implements `Debug` for the primitives, collections, `T?`, and `Result`, each when its type arguments implement `Debug`.
+6. r[trait.debug.tuples] `std.format` declares a tuple template for `Debug`, so every tuple whose elements implement `Debug` implements it, at every size.
+7. r[trait.debug.tuples.rest] For a tuple with a rest element, `T` must implement `Debug`. Its rest element's items are written inline after the fixed elements. So a value `(1, 2, 3, 4)` of type `(i32, i32, List[i32]...)` writes as the tuple `(1, 2, 3, 4)` of four `i32` does.
+8. r[trait.debug.derive] `@derive(Debug)` derives `Debug` through its [template](14-annotations.md#templates). The derived implementation walks the declaration's members and writes each one.
+9. r[trait.debug.not-display] `Debug` is separate from `Display`, which stays user-facing text.
 9. r[trait.debug.writer-import] `DebugWriter` is not a prelude name, so a hand-written implementation imports it, as in `use std.format.DebugWriter`.
 
 > **Note.** The text that `debug` returns, the `DebugWriter` builders,

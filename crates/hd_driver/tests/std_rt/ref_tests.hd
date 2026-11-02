@@ -41,10 +41,10 @@ impl Pair:
 fn add(total: i64, item: i64) -> i64:
     total + item
 
-fn odd(item: i64) -> bool:
+fn odd(item: &i64) -> bool:
     item % 2 == 1
 
-fn small(item: i64) -> bool:
+fn small(item: &i64) -> bool:
     item < 100
 
 tests:

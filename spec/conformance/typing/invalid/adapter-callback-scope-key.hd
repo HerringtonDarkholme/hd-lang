@@ -3,7 +3,7 @@
 
 trait Logger
 
-fn noisy(value: i32) -> bool $ Logger:
+fn noisy(value: &i32) -> bool $ Logger:
     value > 0
 
 fn scoped(values: List[i32], logger: *dyn Logger) -> List[i32]:

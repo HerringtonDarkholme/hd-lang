@@ -8,7 +8,7 @@ struct Total:
     value: i32
 
 impl Sum[i32] for Total:
-    fn sum[I < Iterator[i32]](items: I) -> Total:
+    fn sum[I < ?Copy & Iterator[i32]](items: I) -> Total:
         let mut cursor = items
         let value = +0
         for item in cursor:
@@ -16,7 +16,7 @@ impl Sum[i32] for Total:
         Total { value: value }
 
 impl Product[i32] for Total:
-    fn product[I < Iterator[i32]](items: I) -> Total:
+    fn product[I < ?Copy & Iterator[i32]](items: I) -> Total:
         let mut cursor = items
         let value = +1
         for item in cursor:
@@ -27,7 +27,7 @@ struct Joined:
     value: string
 
 impl Sum[string] for Joined:
-    fn sum[I < Iterator[string]](items: I) -> Joined:
+    fn sum[I < ?Copy & Iterator[string]](items: I) -> Joined:
         let mut cursor = items
         let value = ""
         for item in cursor:

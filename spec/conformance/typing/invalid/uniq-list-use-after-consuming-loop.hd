@@ -1,0 +1,10 @@
+# test: iterating a UniqList consumes it, so using the list after the loop is rejected
+# Spec std/collections UniqList: std-collections.uniq-list.into-iter.
+use std.collections.UniqList
+
+fn consumed() -> usize:
+    let mut items = UniqList::[i32].new()
+    items.push(1)
+    for item in items:
+        _ := item
+    items.len() # diagnostic: use-of-moved-value

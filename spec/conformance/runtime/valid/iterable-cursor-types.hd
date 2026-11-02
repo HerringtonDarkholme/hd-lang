@@ -1,5 +1,5 @@
 # test: each std iterable names its cursor type, which a signature may write: `iter` returns it, a loop or a chain advances it with no trait value, and a bound's projection `I::IntoIter` is it
-# Spec 06 Iteration Protocols: flow.for.iterable.into-iter, flow.for.iterable.static-cursor; Range Iteration: flow.for.range.cursor. Spec 09 Associated Types: trait.assoc.bound-use. Spec 10 String Methods: module.string.cursors. Spec std/iter: std-iter.cursor.list, std-iter.cursor.map.
+# Spec 06 Iteration Protocols: flow.for.iterable.noncopy-cursor, flow.for.iterable.static-cursor; Range Iteration: flow.for.range.cursor. Spec 09 Associated Types: trait.assoc.bound-use. Spec 10 String Methods: module.string.cursors. Spec std/iter: std-iter.cursor.list, std-iter.cursor.map.
 use std.iter.{ListIter, MapEntries}
 use std.ops.{RangeIter, RangeFromIter}
 use std.text.{Bytes, CharIndices, Chars}

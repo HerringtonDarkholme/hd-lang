@@ -18,7 +18,7 @@ pub trait Display:
 
 ## The debug-text trait: `debug(value)` and `dbg` write a value through it, field by field.
 ## See [trait.debug.module](../../spec/lang/09-traits.md#r-trait.debug.module).
-pub trait Debug:
+pub trait Debug < ?Copy:
     fn debug(&self, out: *mut DebugWriter) -> void
 
 # A union's Display forwards directly to its active payload.
@@ -631,15 +631,15 @@ impl[T < Debug] Debug for List[T]:
         list.finish()
 
 # A reference writes the value it refers to, with no trace of the
-# reference (r-std-format.debug.reference), so a derived `Debug` prints a
+# reference (r-std-format.debug.reference-noncopy), so a derived `Debug` prints a
 # tree through its `&` links. A cycle runs until the stack is exhausted.
 # Keep handwritten Debug: delegate through the reference; structural derivation is for its referent.
-impl[T < Debug] Debug for *T:
+impl[T < ?Copy & Debug] Debug for *T:
     fn debug(&self, out: *mut DebugWriter) -> void:
         (*(*self)).debug(out)
 
 # Keep handwritten Debug: delegate through the reference; structural derivation is for its referent.
-impl[T < Debug] Debug for *mut T:
+impl[T < ?Copy & Debug] Debug for *mut T:
     fn debug(&self, out: *mut DebugWriter) -> void:
         (*(*self)).debug(out)
 

@@ -3,7 +3,7 @@
 
 trait Logger
 
-fn noisy(value: i32) -> bool $ Logger:
+fn noisy(value: &i32) -> bool $ Logger:
     value > 0
 
 fn some_positive(values: List[i32]) -> bool $ Logger:

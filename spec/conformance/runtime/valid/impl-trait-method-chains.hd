@@ -7,7 +7,7 @@ struct Doubles: pass
 
 impl Source for Evens:
     fn items(&self) -> impl Iterator[i32]:
-        [+1, +2, +3, +4].iter().filter(fn(x: i32) -> bool: x % 2 == 0)
+        [+1, +2, +3, +4].iter().filter(fn(x: &i32) -> bool: x % 2 == 0)
 
 impl Source for Doubles:
     fn items(&self) -> impl Iterator[i32]:
