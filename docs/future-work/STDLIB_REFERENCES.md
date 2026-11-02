@@ -13,9 +13,15 @@ std hands out references where a copy would cost. Each accessor comes in
 three forms: `get` copies the item (for `T < Copy`), `get_ref` returns
 `&T`, and `get_mut` returns `&mut T`. A callback that looks at an item takes `&T`. Loops follow Rust's three
 forms: `for x in xs` binds copies, `for x in &xs` borrows and binds `&T`,
-and `for x in &mut xs` binds `&mut T`. Movers move, and read-only methods take `&self`. One
-`List`, `Map`, `Set`, `Deque` and `Heap` serve copyable and non-copyable
-items; only a method that builds a new collection of copies needs `Copy`.
+and `for x in &mut xs` binds `&mut T`. Movers move, and read-only methods take `&self`.
+
+Collections come in two families, and code picks one. `List`, `Map`,
+`Set`, `Deque` and `Heap` are `Copy` with copy-on-write, and hold only
+copyable items. `UniqList` and `UniqMap` are `impl !Copy`: one owner, no
+count and no copy-on-write check, so a write never copies, and they hold
+any item. A collection literal or comprehension builds the copy-on-write
+family unless its expected type is a `UniqList` or `UniqMap`. The type
+shows which costs apply; no item type changes them.
 
 ```text
 fn order_total(lines: &List[Line]) -> i64:
@@ -45,11 +51,12 @@ The std shape below needs these rules of the language:
 3. `for (k, v) in m` binds `(&K, &V)`, and `for (k, v) in &mut m` binds `(&K, &mut V)`; a key is never `&mut`.
 4. Inside `for p in &mut xs`, `xs` is reachable only through `p`, the same loan rule as the shared loop.
 5. Three body-only intrinsics move values: `std.ops.swap`, `list_swap` and `list_take_last`. Every other mover is plain hd over them.
-6. [`ref.copy.collections`](../../spec/lang/13-values-and-references.md#r-ref.copy.collections) is lifted after slice 7 (movers): one `List`, `Map`, `Set`, `Deque` and `Heap` hold any `T`.
+6. [`ref.copy.collections`](../../spec/lang/13-values-and-references.md#r-ref.copy.collections) stays for the copy-on-write family: `List`, `Map`, `Set`, `Deque` and `Heap` require copyable items, so a write while shared can always duplicate the buffer. `UniqList[T]` and `UniqMap[K, V]` hold any `T` and are `impl !Copy` themselves.
 7. The generic default becomes move-only (`[T < Copy]` to copy), as the last slice, after a re-measure (153 std bounds today, about 36 after this redesign; 0 in examples, bench and the server SDK). `?Copy` then goes away.
 8. No implied bounds: `List[T]` in a signature implies nothing about `T`.
 9. Field access and method calls auto-dereference through every `&`, `&mut`, `*T` and `*mut T` level, as Rust's auto-deref does: `x.name` and `x.describe()` with `x: &*mut User`. Casts, conditions, range bounds, `?`, spreads and calls of a function value keep an explicit `*`.
 10. `&` and `&mut` take a counted pointer type without parentheses: `&*T`, `&*mut T`, `&mut *T`, as Rust's `&*const T`; `*&T` stays an error.
+11. A collection literal or comprehension builds a `List`, `Map` or `Set`, unless its expected type is a `UniqList` or `UniqMap` ([`expr.collection.expected`](../../spec/lang/05-expressions.md#r-expr.collection.expected)): `let pool: UniqList[Conn] = [Conn { id: 1 }]`.
 
 ## Problems It Solves
 
@@ -81,7 +88,8 @@ does not add.
 **4. A worker pool of connections** (`run_one`, `rotate`). With
 `impl !Copy for Conn`, `[Conn { id: 1 }]` is `unsatisfied-trait-bound`
 and `@derive(Debug)` is `missing-supertrait-implementation` (probe p8).
-Proposed, `List[Conn]` holds them, and movers hand them on.
+Proposed, a `UniqList[Conn]` holds them
+(`let pool: UniqList[Conn] = [Conn { id: 1 }]`), and movers hand them on.
 
 ```text
 let mut conn = pool.idle.pop().expect("idle")  # moves out; no copy exists
@@ -100,6 +108,17 @@ pool.idle.push(conn)                           # moves back
 | Key | by value, keys `Copy` | `Map.get(key)`, `contains_key`, `remove`, `Set.contains`, `List.contains` | `&Q` (differs) |
 | Consumer | `self` | `Option.map`, `unwrap_or`, iterator adapters, `Iterable.iter` | same |
 
+- **Two families.**
+
+  | | `List`, `Map`, `Set`, `Deque`, `Heap` | `UniqList`, `UniqMap` |
+  | --- | --- | --- |
+  | items | copyable only | any |
+  | the collection | `Copy`: a copy is one count, and a write while shared duplicates the buffer | `impl !Copy`: moved; no count and no copy-on-write check |
+  | built by | literals and comprehensions, by default | a literal or comprehension with that expected type, or `new()` |
+  | methods | the table above | the same names; `get` needs a copyable item, and a mover takes any item out |
+
+  Converting between them copies each item once, so it needs a copyable
+  item.
 - **Keys by value.** Map keys and set elements stay copyable, as Swift's
   `Dictionary` keys do. Rust's `get(&Q)` needs `Borrow`; without it, hd
   would write `scores.get(&"ada")`.
@@ -123,8 +142,8 @@ pool.idle.push(conn)                           # moves back
 
 1. `for x in xs` with `xs` a `List` value or place iterates a copy of the
    list (one count, no deep copy) and binds `x: T`, a copy of each
-   element. For a non-copyable `T` the list is moved and its elements
-   moved out.
+   element. For a `UniqList`, the list is moved and its items moved
+   out.
 2. `for x in &xs`, and `for x in r` with `r: &List[T]`, take a shared loan
    of the list from the loop's first step to its last and bind `x: &T` to
    each slot, with no snapshot. A write to the list in the body (a store,
@@ -302,8 +321,10 @@ today's hd snapshot loop, and the cost this proposal removes.
 - **Keep copies.** Copy-on-write makes a list copy one count, but each
   element read still copies its counted fields, and non-copyable items
   stay impossible.
-- **Two list types**, a copyable `List` and a non-copyable one. The owner
-  ruled it out on 2026-11-01: one collection type per kind.
+- **One `List` for every item type.** A `List[Conn]` would itself be
+  `!Copy` and never copy, yet still pay a count and a copy-on-write check
+  on every write, and `List` would follow two sets of rules by item type.
+  That is a hidden cost; two families put it in the type.
 - **Rust's `get(&Q)` keys.** It needs a `Borrow` trait, and every lookup
   writes `&`: `m.get(&"ada")`.
 - **A borrowing `for x in xs`.** Every loop item becomes `&T`, so passing
@@ -426,8 +447,11 @@ hand:
    Check: `@derive(Debug, Serialize, Eq)` on a `!Copy` struct checks.
 7. Movers: the three intrinsics, `replace`, `take`, and hd movers over
    them. Check: a counts case shows no retain or release in `pop`.
-8. Lift `ref.copy.collections` (language rule 6); `Index` returns a reference
-   (language rule 2).
+8. `UniqList` and `UniqMap` in hd over the movers, built from a literal or
+   comprehension by expected type (language rules 6 and 11); `Index`
+   returns a reference (language rule 2). Check: a `UniqList[Conn]` pool
+   checks and runs, and a counts case shows no count or copy-on-write
+   check in `push`.
 9. The generic default flip (language rule 7),
    after re-running the measurement branch.
 
