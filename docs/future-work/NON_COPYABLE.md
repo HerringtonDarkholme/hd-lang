@@ -4,8 +4,8 @@ Status: accepted 2026-10-31; domain: language (values and moves) and std
 traits. Built: partial moves (#1142), pattern moves (#1143),
 `move-out-of-place` for `*r` (#1144), the `Copy` marker (#1145, #1146),
 and `Index`/`Eq`/`Ord`/`Hash`/`Display`/`Debug`/`Serialize`/`MapKey` taking
-`&self`; `Inspectable.runtime_type` waits on #1161. The reference-first
-std that lets generics move by default is proposed in PR #1162.
+`&self`, and `Inspectable.runtime_type` (#1161). The reference-first std
+is accepted as [Standard Library For References](STDLIB_REFERENCES.md).
 
 This addresses [#1141](https://github.com/HerringtonDarkholme/hd-lang/issues/1141).
 It builds on [Moves](../../spec/lang/13-values-and-references.md#moves)

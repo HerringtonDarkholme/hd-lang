@@ -122,7 +122,7 @@ for the same row or its closest micro-benchmark.
 
 Rows that pass and bound the work: `fib` 0.24x, `map` 1.02x, `sort` 1.22x,
 `split` 0.90x, the runtime geomean 1.35x, `println` 0.84 µs per call,
-and await, `all!` and `race!` far inside their goals.
+and await, `join!` and `race!` far inside their goals.
 
 ### 2.3 Micro numbers still open
 

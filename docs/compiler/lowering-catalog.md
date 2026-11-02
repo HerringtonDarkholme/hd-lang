@@ -512,7 +512,7 @@ and provider. The caller releases that context after the call. See
 [§23.26](../../crates/hd_wasm_linear/DESIGN.md#2326-requirement-rows-and-context-values)
 for open rows, forwarding, lookup and provider ownership.
 
-### Bang Calls, `all!`, `race!` And `block_on`
+### Bang Calls, `join!`, `race!` And `block_on`
 
 Suspending calls use ready/Pending state and counted saved frames.
 See [§14](../../crates/hd_wasm_linear/DESIGN.md#14-suspension-lowering)

@@ -145,7 +145,7 @@ The artifact is the program built from the user's code.
 | `allocations` | allocations per iteration in counted loops and iterator chains | 0 for counted loops; ≤ 1 for chains |
 | `size-startup-heap` | release Wasm size of user programs, instantiate to first output, peak heap | tiny ≤ 2 KB; ≤ 5 ms; ≤ 2x Node |
 | `host-call-overhead` | cost per crossing for Console, Fs and serde-boundary calls | e.g. ≤ 1 µs for a scalar call |
-| `suspension-overhead` | cost per `!` await; `all!`/`race!` task throughput | budget per await; tasks/s target |
+| `suspension-overhead` | cost per `!` await; `join!`/`race!` task throughput | budget per await; tasks/s target |
 | `serde-throughput` | JSON encode/decode MB/s on fixed documents | within 2x of Node's JSON |
 | `text-throughput` | string building, splitting and regex MB/s on fixed inputs | within 2x of Node |
 | `dead-code` | Wasm bytes per 1,000 lines; unused std excluded | no unused std in the binary |

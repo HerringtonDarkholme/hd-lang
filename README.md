@@ -12,7 +12,7 @@ built for code that AI writes and humans review.
    enforces it.
 2. **Providers handle.** `$.with(Db=mock_db): ...` binds a capability for a
    block, so tests, sandboxes, and production differ only in providers.
-3. **`!` suspends.** `fn!` and `f!(...)` mark one-shot suspension. `all!`,
+3. **`!` suspends.** `fn!` and `f!(...)` mark one-shot suspension. `join!`,
    `race!`, and `retry!` compose it.
 
 Errors stay plain values: `Result[T, E]` and `?`.
@@ -56,7 +56,7 @@ tests:
 
 Run it with `hd test`. The playground has more
 examples that each show one feature at work: property tests, typed errors,
-exhaustive `match`, and `all!`.
+exhaustive `match`, and `join!`.
 
 ## Annotations and derivation
 
@@ -186,7 +186,7 @@ measurements. Timing changes of 10% or less are treated as runner noise.
 ## What hd borrows
 
 - **Rust:** traits, `Result` and `?`, exhaustive `match`, explicit `mut`.
-- **Effect:** requirements and providers, and `all!`, `race!`, `retry!`.
+- **Effect:** requirements and providers, and `join!`, `race!`, `retry!`.
 - **Python:** indentation and keyword arguments.
 - **Go:** embedded structs, packages with minimal version selection, and
   `defer`.

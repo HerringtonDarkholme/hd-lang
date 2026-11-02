@@ -607,7 +607,7 @@ than it stands. With the suite's uses at the exits, that rule goes.
 
 ### Suspension
 
-Unchanged. A bang call is `Await`, `s!()` is `AwaitValue`, `all!` is
+Unchanged. A bang call is `Await`, `s!()` is `AwaitValue`, `join!` is
 cold `Call`s then `AwaitAll`, `race!` a `NewList` of cold suspensions
 then `AwaitRace`. Today `twice!`:
 

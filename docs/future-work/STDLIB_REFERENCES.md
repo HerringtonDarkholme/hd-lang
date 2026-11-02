@@ -4,8 +4,8 @@ Status: accepted 2026-11-01; domain: std and the `for` loop; not built. It build
 [Local References](../../spec/lang/13-values-and-references.md#local-references)
 and [Element References](../../spec/lang/13-values-and-references.md#element-references),
 and argument promotion (#1151). Signatures and examples:
-[stdlib-references/](stdlib-references/src/stdlib_references.hd)
-(`hd check` and `hd fmt --check` pass in that folder).
+git history at d93e378fd, `docs/future-work/stdlib-references/` (it passed
+`hd check` and `hd fmt --check`).
 
 ## The Proposal
 
@@ -433,7 +433,8 @@ hand:
 
 **Parse log.** Every `text` block above was parsed with
 `scripts/hd-conformance.sh parse`; parsing checks syntax only. The
-package checks with `hd check` and `hd fmt --check`.
+package (now in git history at d93e378fd) checked with `hd check` and
+`hd fmt --check`.
 
 | Block | Result |
 | --- | --- |

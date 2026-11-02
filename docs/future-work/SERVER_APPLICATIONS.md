@@ -34,7 +34,7 @@ Package-declared host capabilities ([#51](https://github.com/HerringtonDarkholme
 ## Decided Design
 
 An application is an ordinary `main!`. There is no `handle!` entry, no manifest `kind`, and no HTTP-specific compiler convention; the entry rules are unchanged.
-`main!` creates one explicit state object and joins a fixed group of worker loops over it with `all!` or `map_all!`.
+`main!` creates one explicit state object and joins a fixed group of worker loops over it with `join!` or `map_join!`.
 
 `HttpServer` is a capability trait owned by a server SDK package and delivered through package-declared host capabilities (#51).
 The SDK exchanges byte wire DTOs at its host boundary and converts them to the public `Request` and `Response` values from `std.http`.

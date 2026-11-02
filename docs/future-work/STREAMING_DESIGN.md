@@ -193,7 +193,7 @@ pub enum Stdio:
 ```
 
 A child that fills a pipe nobody reads blocks, as in Rust and Go, which
-is why `build!` inherits stdout: a program reads both pipes with `all!`
+is why `build!` inherits stdout: a program reads both pipes with `join!`
 or inherits the one it does not read. `Stdio` serves `run!` too, where
 an inherited stream is `""` in the output.
 
@@ -296,13 +296,13 @@ wrapper goes from every signature, and `NetError` gains `Closed`.
 A program pipes generated text into `sort` and reads the result:
 
 ```text
-use std.task.all
+use std.task.join
 
 fn sorted!(lines: List[string]) -> Result[string, &dyn Error] $ Process:
     using child = Command::new("sort").spawn!()?
     input := child.stdin.expect("stdin is piped by default")
     output := child.stdout.expect("stdout is piped by default")
-    let (written, text) = all!(feed(input, lines), output.read_all())
+    let (written, text) = join!(feed(input, lines), output.read_all())
     written?
     child.wait!()?
     .Ok(string::from_utf8(text?)?)
@@ -314,8 +314,8 @@ fn feed!(input: &mut PipeWriter, lines: List[string]) -> Result[void, ProcessErr
 ```
 
 `feed!` finishes the writer, which closes the child's stdin, so `sort`
-sees the end of its input. The two children of `all!` run together, so
-neither pipe can fill while the other waits, and `all!` returns both
+sees the end of its input. The two children of `join!` run together, so
+neither pipe can fill while the other waits, and `join!` returns both
 results. If the caller is cancelled, the `using` binding disposes
 `child`: its process group is killed and both pipes close.
 
@@ -438,7 +438,7 @@ waits for the peer, such as a stream's `close_write!`, is part of
 finishes its disposes, in reverse order, before the cancellation
 completes, as JavaScript's `await using` and C#'s `DisposeAsync` do.
 
-Several tasks may use one handle at once, as `map_all!` items or `all!`
+Several tasks may use one handle at once, as `map_join!` items or `join!`
 children can. A handle serves one read and one write at a time; a later
 call waits its turn in call order, as Go's `net.Conn` does. Each
 `write!` lands whole, and a socket can still read and write at the
@@ -471,7 +471,7 @@ the timed work returns a typed `Result[T, E]` with `E < From[TimedOut]`. After t
 program still holds `lines` and `stream`. If the timer wins, the read
 is cancelled with its bytes kept, and the stream stays open until the
 `using` binding disposes it. A retry policy’s attempt and the children of
-`race!` and `all!` capture handles the same way. Several `map_all!`
+`race!` and `join!` capture handles the same way. Several `map_join!`
 items may use one shared handle at once; section 13 asks how such
 calls are ordered.
 
@@ -630,8 +630,8 @@ two traits, `LineReader`, `copy!`, two errors, two fakes and their log;
 the new terminals of the table; the socket handles rewritten as
 `Disposable`, without `close` or `ResourceError` and with
 `NetError.Closed`; `Closed` in the other three module errors; and the
-host's leak report covering every handle. `timeout!`, `race!`, `all!`,
-`retry!` and `map_all!` keep their closure parameters unchanged.
+host's leak report covering every handle. `timeout!`, `race!`, `join!`,
+`retry!` and `map_join!` keep their closure parameters unchanged.
 `Http.send_streaming!` gets a default body over `send!`, which copies
 the body into an in-memory reader, so providers that do not stream keep
 working. `Process.spawn!`, `FsRead.open!` and `FsWrite.create!` have no
