@@ -1,6 +1,6 @@
 # test: a UniqList grows, shifts, swaps, truncates, and returns non-copyable elements without copying them
 # expect: test
-# Spec std/collections UniqList: std-collections.uniq-list.type, std-collections.uniq-list.movers.
+# Spec std/collections UniqList: std-collections.uniq-list.type, std-collections.uniq-list.movers, std-collections.uniq-list.get-ref, std-collections.uniq-list.sort.
 use std.collections.UniqList
 use std.console.MemoryConsole
 
@@ -57,3 +57,70 @@ tests:
         assert_equal(values.first(), .Some(+1), reason="first copies the first value")
         assert_equal(values.last(), .Some(2), reason="last copies the last value")
         assert_equal(values.get(2), .None, reason="get outside the list returns none")
+
+    it("lends non-copyable elements and changes them in place"):
+        let mut items = UniqList::[Ticket].new()
+        items.push(Ticket { label: "pear" })
+        items.push(Ticket { label: "fig" })
+        items.push(Ticket { label: "plum" })
+        match items.get_mut(0):
+            .Some(item) => item.label = "kiwi"
+            .None => panic("expected the first ticket")
+        assert_equal(
+            items.get_ref(0).map(fn(item: &Ticket) -> string: item.label),
+            .Some("kiwi"),
+            reason="get_mut changes the item that get_ref reads",
+        )
+        match items.first_mut():
+            .Some(item) => item.label = "lime"
+            .None => panic("expected the first ticket")
+        match items.last_mut():
+            .Some(item) => item.label = "date"
+            .None => panic("expected the last ticket")
+        assert_equal(
+            items.first_ref().map(fn(item: &Ticket) -> string: item.label),
+            .Some("lime"),
+            reason="first_mut changes the item that first_ref lends",
+        )
+        assert_equal(
+            items.last_ref().map(fn(item: &Ticket) -> string: item.label),
+            .Some("date"),
+            reason="last_mut changes the item that last_ref lends",
+        )
+        assert_equal(
+            items.find_ref(fn(item: &Ticket) -> bool: item.label == "fig")
+                .map(fn(item: &Ticket) -> string: item.label),
+            .Some("fig"),
+            reason="find_ref lends the first matching item",
+        )
+        assert_equal(
+            items.any(fn(item: &Ticket) -> bool: item.label == "date"),
+            true,
+            reason="any finds a matching item",
+        )
+        assert_equal(
+            items.all(fn(item: &Ticket) -> bool: item.label.len() >= 3),
+            true,
+            reason="all checks every item",
+        )
+        let visited: usize = 0
+        for item in items.iter():
+            assert(item.label.len() >= 3, "iter lends each item")
+            visited += 1
+        assert_equal(visited, 3, reason="iter visits every item")
+        items.retain(fn(item: &Ticket) -> bool: item.label != "fig")
+        items.sort_by(fn(left: &Ticket, right: &Ticket) -> Ordering: right.label.cmp(&left.label))
+        items.sort_by_key(fn(item: &Ticket) -> usize: item.label.len())
+        assert_equal(
+            items.first_ref().map(fn(item: &Ticket) -> string: item.label),
+            .Some("lime"),
+            reason="retain and the stable sorts keep the expected first item",
+        )
+
+    it("sorts and indexes copyable elements"):
+        let mut values = UniqList::[i32].new()
+        values.push(3)
+        values.push(+1)
+        values.push(2)
+        values.sort()
+        assert_equal(values[0], +1, reason="indexing copies the sorted item")

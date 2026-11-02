@@ -1,0 +1,12 @@
+# test: a push while a UniqList get_ref result is live conflicts with the receiver borrow
+# Spec std/collections UniqList: std-collections.uniq-list.get-ref.
+use std.collections.UniqList
+
+fn invalid() -> i32:
+    let mut items = UniqList::[i32].new()
+    items.push(+1)
+    first := match items.get_ref(0):
+        .Some(item) => item
+        .None => panic("expected an item")
+    items.push(2) # diagnostic: conflicting-access
+    *first

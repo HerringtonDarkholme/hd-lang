@@ -45,7 +45,7 @@ fn pool() -> UniqList[Socket]:
     sockets
 ```
 
-Its core surface is:
+Its surface is:
 
 | Item | Signature |
 | --- | --- |
@@ -54,7 +54,13 @@ Its core surface is:
 | append/remove | `push(&mut self, value: T) -> void`; `pop(&mut self) -> T?` |
 | indexed change | `insert(&mut self, index: usize, value: T) -> void`; `remove_at(&mut self, index: usize) -> T`; `swap(&mut self, left: usize, right: usize) -> void` |
 | shortening | `truncate(&mut self, len: usize) -> void`; `clear(&mut self) -> void` |
-| copyable access, `T < Copy` | `get(&self, index: usize) -> T?`; `first(&self) -> T?`; `last(&self) -> T?` |
+| copyable access, `T < Copy` | `get(&self, index: usize) -> T?`; `first(&self) -> T?`; `last(&self) -> T?`; `Index[usize]` with `Out = T` |
+| shared access | `get_ref['a](&'a self, index: usize) -> (&'a T)?`; `first_ref['a](&'a self) -> (&'a T)?`; `last_ref['a](&'a self) -> (&'a T)?` |
+| mutable access | `get_mut['a](&'a mut self, index: usize) -> (&'a mut T)?`; `first_mut['a](&'a mut self) -> (&'a mut T)?`; `last_mut['a](&'a mut self) -> (&'a mut T)?` |
+| borrowing cursor | `iter['a](&'a self) -> UniqListIter[T, 'a]`, whose item is `&'a T` |
+| looking | `find_ref['a](&'a self, test: fn(&T) -> bool) -> (&'a T)?`; `any(&self, test: fn(&T) -> bool) -> bool`; `all(&self, test: fn(&T) -> bool) -> bool` |
+| changing | `retain(&mut self, keep: fn(&T) -> bool) -> void`; `sort_by(&mut self, compare: fn(&T, &T) -> Ordering) -> void`; `sort_by_key[K < Ord](&mut self, key: fn(&T) -> K) -> void` |
+| ordered, `T < ?Copy & Ord` | `sort(&mut self) -> void` |
 
 1. r[std-collections.uniq-list.type] `std.collections` declares `UniqList[T < ?Copy]` with a private `Buffer[T]` field and `impl[T < ?Copy] !Copy for UniqList[T]`. It is not a prelude name, so code that names it imports it.
 2. r[std-collections.uniq-list.new] `new()` returns an empty list. `with_capacity(capacity)` returns an empty list whose first `capacity` pushes need no growth.
@@ -67,9 +73,17 @@ Its core surface is:
 9. r[std-collections.uniq-list.get] For `T < Copy`, `get(index)` returns `.Some` of a copy of the indexed element, or `.None` outside the list.
 10. r[std-collections.uniq-list.first-last] For `T < Copy`, `first()` and `last()` return `.Some` of a copy of the first or last element, or `.None` when the list is empty.
 11. r[std-collections.uniq-list.movers] A change that shifts elements moves each one through `Ptr[T].read` and `Ptr[T].write`. Growth moves every element into a larger `Buffer[T]`, sets the old buffer's length to zero, and releases it holding no elements. No operation tests whether the buffer is uniquely referenced or makes a copy-on-write clone.
+12. r[std-collections.uniq-list.get-ref] `get_ref(index)` returns a shared reference to the indexed element in `.Some`, or `.None` outside the list. `first_ref()` and `last_ref()` return the first or last element by shared reference, or `.None` when the list is empty. Each reference lives for the receiver borrow.
+13. r[std-collections.uniq-list.get-mut] `get_mut(index)` returns a mutable reference to the indexed element in `.Some`, or `.None` outside the list. `first_mut()` and `last_mut()` return the first or last element by mutable reference, or `.None` when the list is empty. Each reference lives for the mutable receiver borrow.
+14. r[std-collections.uniq-list.index] For `T < Copy`, `items[index]` returns a copy and panics when `index` is outside the list. Panic: `index-out-of-bounds`.
+15. r[std-collections.uniq-list.iter] `iter()` borrows the list and yields shared references to its elements in order. Its cursor is `UniqListIter[T, 'a]`, with private fields. The cursor and each yielded reference live for the list borrow.
+16. r[std-collections.uniq-list.find-ref] `find_ref(test)` returns a shared reference to the first element for which `test` is true in `.Some`, or `.None` when there is none.
+17. r[std-collections.uniq-list.any-all] `any(test)` and `all(test)` have the behavior of [`std-collections.helper.any-all`](#r-std-collections.helper.any-all) and [`std-collections.helper.short-circuit`](#r-std-collections.helper.short-circuit), with `fn(&T)` callbacks.
+18. r[std-collections.uniq-list.retain] `retain(keep)` drops each rejected element in place and preserves the order of those accepted.
+19. r[std-collections.uniq-list.sort] `sort`, `sort_by`, and `sort_by_key` sort in place and are stable. They order as [`std-collections.helper.sort`](#r-std-collections.helper.sort), [`std-collections.helper.sort-by`](#r-std-collections.helper.sort-by), and [`std-collections.helper.sort-by-key`](#r-std-collections.helper.sort-by-key) do.
 
-This core surface has no reference accessor, iterator, conversion, or
-literal construction. Those are specified separately when added.
+This surface has no conversion or literal construction. Those are
+specified separately when added.
 
 ## List And Map Values
 

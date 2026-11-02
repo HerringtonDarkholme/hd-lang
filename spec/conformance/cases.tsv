@@ -5756,3 +5756,4 @@ runtime/valid/erased-loop-element-references-read-concrete-slots.hd	runtime	acce
 typing/valid/trailing-bound-takes-the-bound-row.hd	type	accept	lang/07-functions.md#r-fn.trailing.fn-bound
 runtime/valid/uniq-list-moves-noncopyable-elements.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.movers
 typing/invalid/uniq-list-use-after-move.hd	type	reject:use-of-moved-value	std/collections.md#r-std-collections.uniq-list.type
+typing/invalid/uniq-list-push-while-item-reference-live.hd	type	reject:conflicting-access	std/collections.md#r-std-collections.uniq-list.get-ref
