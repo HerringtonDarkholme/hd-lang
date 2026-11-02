@@ -85,7 +85,8 @@ operation runs for each element or entry.
 
 ## Short-string share
 
-`node bench/micro/string-literal-census.mjs` scans the fixed string-literal construction
+`node --experimental-strip-types bench/micro/string-literal-census.ts` scans the fixed
+string-literal construction
 sites in 89 shipped benchmark and example source files: `bench/study`, `bench/runtime/progs`,
 the five pre-existing `bench/micro` cases, the other runnable benchmark directories,
 `examples`, and `website/playground/examples`. It excludes this audit's deliberately small

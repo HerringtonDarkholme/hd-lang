@@ -35,5 +35,5 @@ HD_MICRO_RUNS=1 node --experimental-strip-types bench/micro/costs.ts string-trim
 
 Each hd source marks its target expression for the compiler's release `counts` view. The
 results and method are in [the string and collection cost audit](../../docs/audit/string-collection-costs.md).
-The companion `string-literal-census.mjs` reports fixed string-literal lengths in the shipped
+The companion `string-literal-census.ts` reports fixed string-literal lengths in the shipped
 benchmark and example programs.
