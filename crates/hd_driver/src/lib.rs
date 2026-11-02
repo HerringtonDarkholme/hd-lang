@@ -3421,16 +3421,27 @@ impl Run<'_> {
                 && self.reached.as_ref().is_none_or(|r| r[m])
                 && checked.is_none_or(|(reach, _)| reach[m])
         };
+        // The root package's loops were merged and reported above
+        // (`recover_folder_cycles`); a loop left in another package, std
+        // included, blocks every folder that reaches it, so it is reported
+        // here, with its package.
         for c in &graph.cycles {
-            if c.iter()
-                .any(|f| self.table.folders[f.idx()].package != 0 || !builds(*f))
-            {
+            if c.iter().any(|f| !builds(*f)) {
                 continue;
             }
             let names: Vec<&str> = c
                 .iter()
                 .map(|f| self.table.folders[f.idx()].path.as_str())
                 .collect();
+            let package = self.table.folders[c[0].idx()].package;
+            let whose = if package == 0 {
+                String::new()
+            } else {
+                format!(
+                    " in package `{}`",
+                    self.table.packages[usize::from(package)]
+                )
+            };
             let span = Span {
                 file: FileId::from_raw(u32::MAX),
                 lo: 0,
@@ -3439,7 +3450,7 @@ impl Run<'_> {
             lock(&self.diags).error(
                 Code::FolderCycle,
                 span,
-                &format!("folders form a cycle: {}", names.join(" -> ")),
+                &format!("folders form a cycle{whose}: {}", names.join(" -> ")),
             );
         }
         let pr = sp.add_held(TaskKind::PackageResult, &[]);
@@ -3630,6 +3641,42 @@ impl Run<'_> {
                 ))
             })
             .collect()
+    }
+
+    /// Reports each folder that `fid`'s interface names but does not reach:
+    /// its interface can never be built after that folder's, so the two
+    /// form a loop the folder graph does not show, and every folder that
+    /// reaches either is blocked.
+    fn unordered_mentions<'a>(
+        &self,
+        fid: FolderId,
+        items: impl IntoIterator<Item = &'a Item>,
+        exports: &[hd_resolve::Export],
+    ) {
+        let reach = self.closure(fid);
+        let names = self.names();
+        let mut seen = HashSet::default();
+        for d in hd_resolve::mentioned_defs(&self.pool, items, exports) {
+            let Some(f) = self.item_folder(d) else {
+                continue;
+            };
+            if f == fid || reach.contains(&f) || !seen.insert(f) {
+                continue;
+            }
+            let span = Span {
+                file: FileId::from_raw(u32::MAX),
+                lo: 0,
+                hi: 0,
+            };
+            let msg = format!(
+                "folders form a cycle: the interface of {} names `{}.{}` of folder {}, which it does not use",
+                self.table.folders[fid.idx()].path,
+                self.item_module_text(d),
+                names.display_name(d),
+                self.table.folders[f.idx()].path,
+            );
+            lock(&self.diags).error(Code::FolderCycle, span, &msg);
+        }
     }
 
     /// The folders an interface entry's mention section names, with this
@@ -3876,6 +3923,7 @@ impl Run<'_> {
         let usec = hd_resolve::encode_module_uses(&out.module_uses);
         let nhash = names_hash(&psec, &lsec);
         let Some(mentions) = self.mentions(fid, &items, &out.exports) else {
+            self.unordered_mentions(fid, &items, &out.exports);
             self.blocked(Stage::FolderIface);
             let _ = self.iface[fi].set(None);
             return;
