@@ -5765,3 +5765,5 @@ parse/invalid/placeholder-in-a-declaration.hd	parse	reject:syntax-error	lang/04-
 typing/invalid/placeholder-local-unsolved.hd	type	reject:cannot-infer-type	lang/04-type-system.md#r-types.generic.placeholder.local
 typing/invalid/collect-without-a-target.hd	type	reject:cannot-infer-type	std/iter.md#r-std-iter.collect.no-default
 typing/invalid/uniq-list-use-after-consuming-loop.hd	type	reject:use-of-moved-value	std/collections.md#r-std-collections.uniq-list.into-iter
+runtime/valid/uniq-list-cycle-collected.hd	runtime	accept	lang/10-modules.md#r-module.rt.buffer.drop
+runtime/valid/uniq-storage-drops-once.hd	runtime	accept	lang/10-modules.md#r-module.rt.buffer.not-copyable
