@@ -2,7 +2,7 @@
 
 Status: proposal, 2026-11-02; domain: language (execution domains and
 crossings) and std; not accepted. Nothing here is in the specification.
-The round-1 review is [EXECUTION_BOUNDARIES_STRESS_TEST.md](EXECUTION_BOUNDARIES_STRESS_TEST.md).
+Reviews: [round 1](EXECUTION_BOUNDARIES_STRESS_TEST.md), [round 2](EXECUTION_BOUNDARIES_STRESS_TEST_2.md), and the [simplification](EXECUTION_BOUNDARIES_SIMPLIFICATION.md).
 
 - [1. Context And Goal](#1-context-and-goal)
 - [2. Eight Programs That Cross](#2-eight-programs-that-cross)
@@ -56,12 +56,12 @@ fn thumbnail(photo: Image, side: u32) -> (Image, Image):
 
 pub fn on_export!(photo: Image) -> Result[Image, WorkerError] $ Workers:
     # Today: the 50 MB list is encoded, copied into the worker and decoded.
-    # Wanted: hand the buffer over, and make any use of `photo` an error until it returns.
+    # Wanted: move the photo, so any use of `photo` is an error until it returns.
     let (back, small) = $.use(Workers).run!(fn() -> (Image, Image): thumbnail(photo, 256))?
     .Ok(small)
 ```
 
-**2. Checkout: the code runs where its row is met.** Only the server has
+**2. Checkout: the order is placed on the server.** Only the server has
 `Db + Payments`, so `place_order` must run there. The cart is copied there
 and the receipt copied back. When the reply times out, the browser cannot
 tell whether the order committed.
@@ -85,9 +85,8 @@ fn on_buy!(cart: Cart) -> Result[Receipt, OrderError] $ Server:
 
 **3. Sign-up email: computation moves in time.** A job queue sends the
 welcome mail ten minutes later, across a server restart. The job runs on
-the same build that stored it (section 1); draining or re-queuing jobs
-across a deploy is the deployment's work, not the language's. The email
-address may be captured; a connection or a `&mut` may not.
+the same build that stored it (section 1). The email address may be
+captured; a connection or a `&mut` may not.
 
 ```text
 fn send_welcome!(email: string, name: string) -> Result[void, MailError] $ Mailer:
@@ -219,20 +218,21 @@ that alone holds a capability (8).
 
 ## 3. The Design
 
-The language adds five things and no syntax. Everything else is existing
-hd (rows and providers, closures, moves, scopes) or std library.
+The design adds four parts and no syntax. Everything else is existing hd
+(rows and providers, closures, moves, scopes) or std library.
 
 | # | Part | Its one job |
 | --- | --- | --- |
-| 1 | `Send`, `Sync`, `Wire` | what may cross: into shared memory, or into separate memory |
-| 2 | `Handle` | what stays where it is, and goes only home |
-| 3 | `Remote` | the only code that runs in another build |
-| 4 | `CrossError` | how a crossing fails |
-| 5 | one build per target | how each domain's output is made |
+| 1 | `Send` and `Wire` | what may cross: into shared memory, or into separate memory |
+| 2 | `Remote` and `Served[T]` | the only code another build runs, and references to the objects that serve it |
+| 3 | `CrossError` | how a crossing fails |
+| 4 | one build per target | how each domain's output is made |
 
-A **crossing** is a bang method call on a value that stands for the
-destination: a domain value, a handle, or a stub of a `Remote` interface.
-Nothing else crosses. A bare function call never does.
+A **crossing** is a method call on a value that stands for the
+destination: a domain value, or a `Served[T]`. A call that waits for the
+answer is a bang call (`run!`, `load_user!`); a scoped thread's `spawn`
+starts one, and the scope waits for it. Nothing else crosses. A bare
+function call never does.
 
 ### Domains Are Values
 
@@ -248,7 +248,7 @@ pool of workers, every GPU on the machine, a Redis node per shard.
 | Build | the caller's build, or another one | closures, or `Remote` methods only |
 | Contact | cannot be lost, or can | the result: `T`, or `Result[T, CrossError]` |
 
-The domain kinds are std library types, built on the five parts:
+The domain kinds are std library types built on the four parts:
 
 | Std type | Memory | Build | Contact | Code it takes |
 | --- | --- | --- | --- | --- |
@@ -259,40 +259,42 @@ The domain kinds are std library types, built on the five parts:
 | a server address | separate | another | can be lost | `Remote` methods |
 | `Gpus`, `Gpu` | separate | another (device code) | can be lost | `Remote` methods |
 
-Each domain type also states the capabilities it offers as a row
-parameter, `Workers[$ Log + Clock]`, and code whose row asks for more does
-not fit, through ordinary row subsumption
+Each domain type states the capabilities it offers as a row parameter,
+`Workers[$ Log + Clock]`, and code whose row asks for more does not fit,
+through ordinary row subsumption
 ([`req.row.subsume.missing`](../../spec/lang/11-requirements-and-suspension.md#r-req.row.subsume.missing)).
 
 A panic in code on a shared-memory thread is a panic of the program, as
 today. So the two thread kinds return a plain `T`, and only domains that
 can lose contact return a `CrossError`.
 
-### What May Cross: Send, Sync, Wire
+### What May Cross: Send And Wire
 
-Three std marker traits, checked structurally as `Copy` is
+Two std marker traits, checked structurally as `Copy` is
 ([`ref.copy.marker`](https://github.com/HerringtonDarkholme/hd-lang/blob/9af95bd2f/spec/lang/13-values-and-references.md#r-ref.copy.marker)):
 
 - **`Wire`:** a value encoded as a self-contained tree, sent into separate
   memory. This names today's boundary-safe values
-  ([`module.boundary.allowed`](../../spec/lang/10-modules.md#r-module.boundary.allowed)), plus handles (below).
-- **`Send`:** a value moved to another thread of the same memory. Every
-  `Wire` value is `Send`.
-- **`Sync`:** `&T` may be shared across threads, so `&T` is `Send` exactly
-  when `T < Sync`.
+  ([`module.boundary.allowed`](../../spec/lang/10-modules.md#r-module.boundary.allowed)), plus `Served[T]`.
+- **`Send`:** a value moved to, or borrowed by, another thread of the same
+  memory. Every `Wire` value is `Send`.
 
-| Type | `Wire` | `Send` | `Sync` |
-| --- | --- | --- | --- |
-| numbers, `bool`, `char`, `string` | yes | yes | yes |
-| struct, enum, tuple, `List`, `Map`, `Set`, optional, `Result` | when every part is | when every part is | when every part is |
-| a handle | yes, as its home and id | yes | no |
-| `&T` | no | when `T < Sync` | when `T < Sync` |
-| `&mut T` | no | when `T < Send` | when `T < Sync` |
-| `*mut T`, a box | no | no | no |
-| a trait value, a provider value | no | no | no |
-| a closure | when its captures are `Wire` | when its captures are `Send` and it writes none | when its captures are `Sync` |
+| Type | `Wire` | `Send` |
+| --- | --- | --- |
+| numbers, `bool`, `char`, `string` | yes | yes |
+| struct, enum, tuple, `List`, `Map`, `Set`, optional, `Result` | when every part is | when every part is |
+| `Served[T]` | yes, as its home and token | yes |
+| `&T`, `&mut T` | no | when `T < Send` |
+| `*mut T`, a box | no | no |
+| a trait value, a provider value | no | no |
+| a closure | when its captures are `Wire` | when its captures are `Send` and it writes none |
 
-Two rules complete it for closures, the code a same-build domain runs:
+`&T` needs no separate marker. While `&p` is lent, its owner does not
+write `p` ([`ref.excl.shared`](../../spec/lang/13-values-and-references.md#r-ref.excl.shared)), and the one way to write
+through a `&`, a box field
+([`ref.read.shallow`](../../spec/lang/13-values-and-references.md#r-ref.read.shallow)), is not `Send`.
+
+Three rules complete it for closures, the code a same-build domain runs:
 
 - A closure that writes a captured variable is not `Send`. Captures share
   a cell with their scope
@@ -303,61 +305,69 @@ Two rules complete it for closures, the code a same-build domain runs:
   storage is per instance
   ([`module.init.program-instance`](../../spec/lang/10-modules.md#r-module.init.program-instance)), so a `let mut` counter or a
   top-level box would change only one domain's copy.
+- A closure handed to a crossing takes each `impl !Copy` capture by move:
+  the source binding ends, and a later use is `use-of-moved-value`
+  ([`ref.move.use`](https://github.com/HerringtonDarkholme/hd-lang/blob/78c1ee262/spec/lang/13-values-and-references.md#r-ref.move.use)), as Swift's `sending` does.
 
-A copy-on-write `List` is `Send`: sending it shares the buffer, and a
-later write by either side copies. With threads, buffer counts become
-atomic. Rust states the same split with `Send` on `thread::spawn` and
-serde's `Serialize` on encoders.
+The mode is never written. A `Copy` value copies, an `impl !Copy` value
+moves, a reference lends inside a `Scope`, and a `Served[T]` stays home.
+Into separate memory a move still copies the bytes once, in bulk, because
+two Wasm instances do not share memory; what it saves is the source's
+copy and any field-by-field encoding. In shared memory a move copies
+nothing, and a copy-on-write `List` shares its buffer, whose counts
+become atomic with threads. Rust states the same split with `Send` on
+`thread::spawn` and serde's `Serialize` on encoders.
 
-Mode is never written. The value's type decides it: a `Copy` value copies,
-an `impl !Copy` value moves and its source binding ends
-([`ref.move.use`](https://github.com/HerringtonDarkholme/hd-lang/blob/78c1ee262/spec/lang/13-values-and-references.md#r-ref.move.use)), a reference lends inside a `Scope`, and a
-handle stays home.
+### Code For Another Build: Remote And Served
 
-### What Stays: Handles
-
-A **handle** refers to a resource that lives in one domain instance: a GPU
-texture, a worker's cache, a server action. Its type implements the std
-marker `Handle` and names the kind (`Texture`, `Action[string, void,
-TodoError]`). The instance it lives in, its **home**, is a run-time value
-recorded when the handle is made.
-
-- A handle may be held anywhere and crosses as its home and id.
-- A crossing may send a handle only to its home. The runtime checks this
-  when the call leaves, before any code runs, and refuses a mismatch with
-  `CrossError.WrongHome`. A handle in a result comes back to the caller,
-  who holds it.
-- Every operation on a handle is a crossing to its home, so code away
-  from home can pass a handle on but never touch the resource.
-- The home keeps the resource alive until the last holder drops its
-  handle, as a counted reference keeps a box alive
-  ([`ref.box.lifetime`](../../spec/lang/13-values-and-references.md#r-ref.box.lifetime)).
-
-A server action is a std handle, `Action[A, T, E]`: a closure that its
-home serves as an object of a std `Remote` trait. Its captures stay home,
-so they need no bound, and the caller never sees them.
-
-"Code goes to the data" is then library: `workers.at(rows)` returns the
-worker that is `rows`'s home, so a crossing aimed there passes the home
-check by construction, as Chapel's `on x do` runs where `x` lives.
-
-### Code For Another Build: Remote
-
-A domain of another build runs only methods of an interface trait that
-extends the std marker `Remote`. Those methods are its endpoints, and
+A domain of another build runs only methods of interface traits that
+extend the std marker `Remote`. Those methods are its endpoints, and
 nothing else of the program is reachable from outside.
 
 - **R1.** Every method is a bang method whose parameters and result are
-  `Wire`. It is not generic and has no row; its implementation gets what
-  it needs from its own fields.
+  `Wire` and not closures. It is not generic and has no row; its
+  implementation gets what it needs from its own fields. A trait may be
+  generic, and `serve!` fixes its type arguments.
 - **R2.** Its error type `E` satisfies `E < From[CrossError]`, so a lost
   contact arrives as one of the method's own errors. An `@error` enum gets
   that from one variant, `Cross(@from cause: CrossError)`
   ([`annot.error.generates`](../../spec/lang/14-annotations.md#r-annot.error.generates)).
-- **R3.** The destination installs the implementation with `serve!(impl)`.
-  A caller installs a generated stub, `remote::[T](domain)`, for any domain
-  value: a server address, a GPU, a worker. A test installs a fake. All
-  three are ordinary providers of `T`.
+- **R3.** `serve!(impl)` makes `impl` the domain's root object, for every
+  `Remote` trait it implements. A method may also return a new object as
+  a `Served[U]`, which its domain then serves too.
+
+A **`Served[T]`** is a reference to an object of the `Remote` trait `T`
+that one domain serves, its **home**. It implements `T`: each method call
+goes to the home and is a local call there. The caller gets the first one
+from `remote::[T](domain)`, the root object of a domain value; a test
+installs a fake instead. So a service stub, a GPU texture, a server
+action, a stream cursor and a long-lived process are all `Served[T]`:
+
+| Object | Its trait | Its home |
+| --- | --- | --- |
+| the users service | `Users` | a server |
+| a texture | `Texture` | a GPU |
+| a server action | `Call[A, T, E]` | the server that rendered it |
+| a stream cursor | `Next[T]` | the server that opened it |
+| an account process | `Account` | a worker |
+
+Three rules keep served objects safe:
+
+- **Home only.** Every use is a call to the home, so an object is never
+  touched elsewhere. Device code cannot make crossings, so a kernel given
+  a `Served[Texture]` whose home is another GPU is refused with
+  `CrossError.WrongHome` before it runs.
+- **Unforgeable.** A `Served[T]` sent to another build carries an
+  unguessable token bound to the session it was sent to. The home refuses
+  any other token with `WrongHome`, so a page cannot call another user's
+  action by editing an id.
+- **Leased.** A `Served[T]` held across a contact-losing boundary is a
+  lease that each call renews. The home drops the object after a timeout,
+  and a later call is `WrongHome`, so a closed browser tab leaks nothing.
+
+"Code goes to the data" is then library: `workers.at(rows)` returns the
+worker that is `rows`'s home, so code sent there reaches `rows` by local
+calls, as Chapel's `on x do` runs where `x` lives.
 
 ```text
 # hypothetical syntax
@@ -365,11 +375,12 @@ pub trait Users < Remote:
     fn load_user!(&mut self, id: i64) -> Result[User, UserError]
 
 pub trait Filters < Remote:                    # served on a GPU: device code
-    fn blur!(&mut self, texture: Texture, radius: f32) -> Result[void, GpuError]
+    fn blur!(&mut self, texture: Served[Texture], radius: f32) -> Result[void, GpuError]
 ```
 
-A `Remote` implementation that a device target compiles must be device
-code: no allocation and no host calls. That subset gets its own design.
+A device target's entry is a module whose `device_main` calls `serve!`
+with its implementation, which must be device code: no allocation and no
+host calls. That subset, and launch geometry, get their own design.
 
 ### How A Crossing Fails: CrossError
 
@@ -380,13 +391,14 @@ code: no allocation and no host calls. That subset gets its own design.
 | `Unreachable` | the call never left | no |
 | `Unknown` | it left and no answer came, including a timeout after sending, or the destination crashed | maybe |
 | `OtherBuild` | the destination runs another build, as after a deploy, and refused | no |
-| `WrongHome` | the call carried a handle whose home is not the destination, and was refused | no |
+| `WrongHome` | the call named an object its destination does not serve: another GPU's texture, a forged token, an expired lease | no |
 
 The error type that carries it is always one the code declares:
 
 - A same-build domain's `run!` returns `Result[T, CrossError]` when
-  contact can be lost; `try_run!` takes code that returns `Result[T, E]`
-  with `E < From[CrossError]` and gives a flat `Result[T, E]`.
+  contact can be lost. Code that returns its own `Result` is followed by
+  `??`: `?` converts the `CrossError` through `From`
+  ([`expr.try.convert.from`](../../spec/lang/05-expressions.md#r-expr.try.convert.from)).
 - A `Remote` method's error type holds it through R2.
 
 Cancelling a crossing, by abandoning the task that waits on it
@@ -408,9 +420,9 @@ GPU.
 - **B2.** `serve!(impl)` in a target compiles the implementation and a
   generated dispatcher: decode a method number and arguments, validate
   them as untrusted input, call, encode the result.
-- **B3.** `remote::[T](domain)` in a target compiles a generated stub:
-  encode, send, decode, and map a transport failure to `CrossError`. It
-  holds no implementation code.
+- **B3.** `remote::[T](domain)` and every `Served[T]` a target can hold
+  compile to a generated stub: encode, send, decode, and map a transport
+  failure to `CrossError`. A stub holds no implementation code.
 - **B4.** A same-build crossing compiles into the one module. Its code is
   named by the closure's lifted function, plus its encoded captures.
 - **B5.** Every `Wire` type gets a generated codec, the tree encoding of
@@ -420,14 +432,14 @@ GPU.
 
 ## 4. The Eight Programs In The Design
 
-**1. Thumbnail in a worker.** `Photo` is `impl !Copy` with `Wire` fields,
-so it moves: the 50 MB buffer is handed over, and `photo` is unusable
-until the result returns it.
+**1. Thumbnail in a worker.** Declared `impl !Copy`, with `Wire` fields,
+an `Image` is taken by move: `photo` is unusable until the result returns
+it, and its bytes cross once, in bulk.
 
 ```text
 # hypothetical syntax; workers: the Workers provider
 let mut workers = $.use(Workers)
-let (back, small) = workers.run!(fn() -> (Photo, Photo): thumbnail(photo, 256))?
+let (back, small) = workers.run!(fn() -> (Image, Image): thumbnail(photo, 256))?
 ```
 
 **2. Checkout on the server.** The server serves `Orders`; the browser's
@@ -459,7 +471,7 @@ which are `Wire`. A `&mut DbConn` would not be.
 ```text
 # hypothetical syntax; jobs: the Jobs provider
 let mut jobs = $.use(Jobs)
-jobs.after!(minutes(10), fn() -> Result[void, MailError] $ Mailer: send_welcome!(email, name))?
+jobs.after!(minutes(10), fn!() -> Result[void, MailError] $ Mailer: send_welcome!(email, name))?
 ```
 
 **4. GPU filters.** The device holds the texture; every kernel call is a
@@ -468,7 +480,7 @@ crossing to its home.
 ```text
 # hypothetical syntax; gpus: the Gpus provider
 let mut gpu = gpus.device(0)?
-tex := gpu.upload!(photo)?                      # tex: Texture, home: this GPU
+tex := gpu.upload!(photo)?                      # tex: Served[Texture], home: this GPU
 let mut filters = remote::[Filters](gpu)
 filters.blur!(tex, 2.0)?
 image := gpu.read_back!(tex)?
@@ -494,11 +506,12 @@ pub trait SalesApi < Remote:
     fn top_sales!(&mut self, filter: Filter) -> Result[List[Sale], ApiError]
 ```
 
-**7. Server action.** The server returns a handle whose home is the
-server; the browser calls it later, and the captured id never leaves.
+**7. Server action.** The server renders a `Served[Call[A, T, E]]` whose
+home is the server; the browser calls it later, and the captured id never
+leaves. Its token is bound to the page's session.
 
 ```text
-# hypothetical syntax; rename: Action[string, void, TodoError]
+# hypothetical syntax; rename: Served[Call[string, void, TodoError]]
 match rename.call!(text):
     .Ok(()) => pass
     .Err(.Cross(.Unknown)) => println("saving; refresh to check")
@@ -554,8 +567,8 @@ pub fn on_open!(id: i64) -> void $ Dom + Users:
         .Err(error) => show_error("$error")
 ```
 
-**Reading it.** A line crosses only when it is a bang method on a domain
-value or on a provider of a `Remote` trait. The function's row names
+**Reading it.** A line crosses only when it is a method call on a domain
+value or on a `Served[T]`. The function's row names
 every domain it uses (`$ Users`), and the error type shows contact can be
 lost. A remote provider call and a local one look alike at the call site;
 the trait tells them apart, as a gRPC stub and a local object do.
@@ -568,7 +581,7 @@ the trait tells them apart, as a gRPC stub and a local object do.
 | each crossing call | the domain method's bound on the code and every value; the code's row against the domain's row parameter | `unsatisfied-trait-bound`, `type-mismatch` |
 | same-build code's body | `$.use` resolves at the destination, never to a captured provider | `unsatisfied-trait-bound`: a provider value is not `Wire` |
 
-The handle home check is the one run-time check: `WrongHome`, before the
+The served-object check is the one run-time check: `WrongHome`, before the
 call runs.
 
 **Building it.** B1 to B5. For the program above:
@@ -588,22 +601,28 @@ call runs.
 | `Background` | a task goes to a thread of the same memory; the caller suspends, and the answer wakes it on its own event loop | none |
 | `Workers` | a second instance of the same module gets the encoded closure and captures | `Unknown` on a crash; cancel posts an abort |
 | `Jobs` | the store keeps the encoded closure, captures and build ID; a host of the same build runs it later | the job's retry policy; `OtherBuild` after a deploy |
-| server | the stub sends the build ID, method number and arguments; the dispatcher refuses another build, validates, calls | `Unknown` when the call may have run; cancel is seen at the server's next suspension |
-| GPU | the stub launches the kernel with its handles | `Unknown` on a reset |
+| server | the stub sends the build ID, method number, arguments and any tokens; the dispatcher refuses another build or a token it did not issue, validates, calls | `Unknown` when the call may have run; cancel is seen at the server's next suspension |
+| GPU | the stub launches the kernel with its `Served[Texture]` arguments | `Unknown` on a reset; `WrongHome` for another GPU's texture |
 
 ## 6. Cost
 
 | Piece | Tier | New |
 | --- | --- | --- |
-| `Send`, `Sync`, `Wire`, `Handle`, `Remote` | language: markers the compiler checks | structural checks, as `Copy`'s |
-| `CrossError`, the domain types, `serve!`, `remote::[T]`, `scope` | stdlib, with `serve!` and `remote::[T]` as generated intrinsics | stub and dispatcher generation per `Remote` trait |
+| `Send`, `Wire`, `Remote` | language: markers the compiler checks | structural checks, as `Copy`'s |
+| `Served[T]`, `CrossError`, the domain types, `serve!`, `remote::[T]`, `scope` | stdlib, with `serve!` and `remote::[T]` as generated intrinsics | stub and dispatcher generation per `Remote` trait; tokens and leases |
 | per-target builds | CLI and driver | a target table; one walk per target |
 | threads with shared memory and atomic counts | runtime | Wasm threads; only `Scope` and `Background` need them |
 | worker instances, a service transport, a jobs store, a device backend | runtime | one slice each |
 
-The language part is five markers and two generated intrinsics. Every
-domain kind is ordinary std code over them, so a new kind (a Redis node,
-a WebRTC peer) is a library, not a language change.
+The language part is three markers. The std part is `Served[T]`,
+`CrossError`, the domain types and two generated intrinsics. Every domain
+kind is ordinary std code over them, so a new kind (a Redis node, a
+WebRTC peer) is a library, not a language change.
+
+Not in this design, each its own later design: a server's per-request
+context (the caller's identity, which a `Remote` method cannot take as a
+row), the device-code subset and launch geometry, and supervision of
+long-lived served objects.
 
 ## Appendix A. Prior Art
 
@@ -611,7 +630,8 @@ Each snippet is abridged from its source.
 
 **Rust `Send`, `Sync` and serde.** `thread::spawn` requires `Send`, and
 serde's encoders require `Serialize`. hd takes the same split as `Send`
-for shared memory and `Wire` for separate memory.
+for shared memory and `Wire` for separate memory. It needs no `Sync`,
+because it has no `Cell` or `RefCell`.
 
 ```rust
 let total = std::thread::scope(|s| {
@@ -631,6 +651,10 @@ with `Remote` and the call with `!` and a declared error type.
 **Swift `sending` (SE-0430).** A value nothing else reaches moves to
 another isolation domain, and a later use is an error. hd takes this as
 the move of an `impl !Copy` value.
+
+**Cap'n Proto, Erlang, Orleans.** A capability, a pid and a grain
+reference each name an object that one place serves; every call goes
+there. hd takes this as `Served[T]`.
 
 **Chapel `on`.** `on x do` runs where `x` lives. hd takes it as
 `workers.at(rows)`, with the home a run-time value.
@@ -658,10 +682,13 @@ refused with `OtherBuild`.
 | `@remote(D)` on functions plus `$ D` in callers' rows | two shapes for one concept, beside `workers.run!(...)` |
 | a keyword, `on D: call` | a new keyword for what a method call already says |
 | domain instances in types, `Texture[Gpu0]` | too rigid: a program holds many GPUs, workers and caches, known only at run time |
-| six domain kinds, a kind-by-mode table, lifecycle rules L1 to L4 | they follow from the bounds, moves, scopes and handles |
+| six domain kinds, a kind-by-mode table, lifecycle rules L1 to L4 | they follow from the bounds, moves, scopes and served objects |
 | content hashes, so another build can run a call | out of scope; `OtherBuild` names the refusal |
 | a separate `Kernel` marker for devices | a device is a domain of another build, so `Remote` covers it |
 | results widened to `E \| CrossError` | an implicit type change; `E < From[CrossError]` keeps one declared error |
+| a `Handle` marker beside `Remote`, and a separate `Action` type | a handle is a `Served[T]`: one kind of reference for services, textures, actions, streams and processes |
+| `Sync` beside `Send` | hd writes through `&` only via a box, which is not `Send`, so `&T` is `Send` when `T` is |
+| `try_run!` beside `run!` | `?` already converts a `CrossError` through `From`, so `run!(...)??` does it |
 
 The parked #166 study
 ([SERIALIZABLE_CLOSURE_DESIGN.md @ 28072b8a1](https://github.com/HerringtonDarkholme/hd-lang/blob/28072b8a1/docs/future-work/SERIALIZABLE_CLOSURE_DESIGN.md))
@@ -672,7 +699,7 @@ maps onto this design:
 | `@remote` functions and portable closure literals | `Remote` traits; closures only within one build |
 | captures must be boundary-safe | the `Wire` bound |
 | placement by requirement rows and `[places]` | providers installed by each target's `main` |
-| `Opaque[T]` for server state | a handle |
+| `Opaque[T]` for server state | a `Served[T]` |
 | `RemoteError` with `OutcomeUnknown` | `CrossError.Unknown` |
 
 ## Sources
@@ -698,7 +725,7 @@ maps onto this design:
 All 18 `text` blocks were parsed on 2026-11-02 with
 `scripts/hd-conformance.sh parse`, which checks syntax only; nothing was
 type-checked. Std names (`Workers`, `Background`, `Jobs`, `Gpus`,
-`Remote`, `serve!`, `remote::[T]`, `scope`) are sketches.
+`Served`, `serve!`, `remote::[T]`, `scope`) are sketches.
 
 | Block | Where | Result |
 | --- | --- | --- |
@@ -710,7 +737,7 @@ type-checked. Std names (`Workers`, `Background`, `Jobs`, `Gpus`,
 | 6 | 2. Eight Programs That Cross | parses |
 | 7 | 2. Eight Programs That Cross | parses |
 | 8 | 2. Eight Programs That Cross | parses |
-| 9 | Code For Another Build: Remote | parses; `# hypothetical syntax` |
+| 9 | Code For Another Build: Remote And Served | parses; `# hypothetical syntax` |
 | 10 | 4. The Eight Programs In The Design | parses; `# hypothetical syntax` |
 | 11 | 4. The Eight Programs In The Design | parses; `# hypothetical syntax` |
 | 12 | 4. The Eight Programs In The Design | parses; `# hypothetical syntax` |
