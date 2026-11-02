@@ -441,7 +441,7 @@ faces := background.run!(fn() -> List[Rect]: detect_faces(photo))?  # valid: an 
 
 What may cross is stated where it is enforced: as a bound on the domain's
 method. Two std marker traits, checked structurally as `Copy` is
-([`ref.copy.marker`](../../spec/lang/13-values-and-references.md#r-ref.copy.marker)), cover every kind:
+([`ref.copy.marker`](https://github.com/HerringtonDarkholme/hd-lang/blob/9af95bd2f/spec/lang/13-values-and-references.md#r-ref.copy.marker)), cover every kind:
 
 - **`Send`:** the value may move to another thread of the same memory.
 - **`Sync`:** a `&T` may be shared across threads; `&T` is `Send` exactly
