@@ -8,7 +8,7 @@ type checking, then syntax. The parts the owner approved are marked
 **approved**; everything else is a proposal.
 
 - [1. Context And Goal](#1-context-and-goal)
-- [2. Seven Programs That Cross](#2-seven-programs-that-cross)
+- [2. Eight Programs That Cross](#2-eight-programs-that-cross)
 - [3. The Model](#3-the-model)
 - [4. Outcomes](#4-outcomes-approved-question-1)
 - [5. Type Checking](#5-type-checking)
@@ -45,7 +45,7 @@ identity within that one program, and two domains never disagree about
 what a name means. Domains that run different builds, such as a service on
 another release or a job resumed by a newer deploy, are out of scope.
 
-## 2. Seven Programs That Cross
+## 2. Eight Programs That Cross
 
 Each sketch is hd as it is written today, with the crossing it needs in a
 comment. Std names such as `Workers`, `Jobs` and `Gpu` are illustrations.
@@ -194,10 +194,39 @@ pub fn rename_endpoint!(req: Request) -> Result[Response, TodoError] $ Db:
     .Ok(ok())
 ```
 
-Together they cover space (1, 2, 4, 5, 6, 7) and time (3, 7), the modes
-copy, transfer and lend (1, 5), a change of representation (4), an
+**8. Photo scanner on a phone: heavy work off the UI thread.** A tap on
+"Scan" runs face detection, which takes two seconds. Only the UI thread may
+touch views, as on Android and iOS, so the tap handler must hand the work to
+a background thread, keep the UI thread drawing a spinner, and apply the
+result back on the UI thread. Both threads share one process's memory, but
+the work outlives the handler that started it.
+
+```text
+struct Photo:
+    width: u32
+    height: u32
+    pixels: List[u8]    # 12 MP: 48 MB
+
+fn detect_faces(photo: Photo) -> List[Rect]:    # heavy; uses no capability
+    scan_regions(photo, 24)
+
+pub fn on_scan_tapped!(photo: Photo) -> void $ Ui:
+    $.use(Ui).show_spinner()
+    # Today: runs on the UI thread and freezes it for two seconds.
+    # Wanted: run detect_faces on a background thread, give the UI thread back to its
+    # event loop meanwhile, and resume here on the UI thread with the result.
+    # A closure that calls $.use(Ui) must not run on the background thread.
+    faces := detect_faces(photo)
+    $.use(Ui).hide_spinner()
+    $.use(Ui).draw_boxes(faces)
+```
+
+Together they cover space (1, 2, 4, 5, 6, 7, 8) and time (3, 7), the modes
+copy, transfer and lend (1, 5, 8), a change of representation (4), an
 unknown outcome (2), code identity within one program (3, 7), code sent to
-data (6), and code that stays home while a reference to it travels (7).
+data (6), code that stays home while a reference to it travels (7), and
+work that outlives its caller in shared memory and returns to a thread
+that alone holds a capability (8).
 
 ## 3. The Model
 
@@ -212,7 +241,7 @@ An execution domain has four properties (**approved**):
 | Code | Which code runs there? Always the same program (section 1) |
 | Lifetime | Can it outlive the source? Can contact be lost? |
 
-Five kinds of domain (**approved**):
+Five kinds of domain (**approved**), and a sixth (proposed, question 16):
 
 | Kind | Memory | Capabilities | Code | Lifetime | Example |
 | --- | --- | --- | --- | --- | --- |
@@ -221,6 +250,7 @@ Five kinds of domain (**approved**):
 | Remote service | separate | the service's | same build | outlives; contact may be lost | 2, 6 |
 | Device | separate | restricted operations, kernels only | device code | may reset | 4 |
 | Later / resume | separate | the resuming host's | same build | outlives the source | 3 |
+| Background thread | shared | its own: not the UI thread's | same build | outlives the call that started it; ends with the process | 8 |
 
 ### A Crossing
 
@@ -259,6 +289,7 @@ destination's representation (example 4's upload).
 | Remote service | yes | yes | no | yes |
 | Device | yes, often rebuilt | yes | no | yes |
 | Later / resume | yes | no (L4) | no | yes |
+| Background thread | yes | an ordinary move | no: not scoped | yes |
 
 ### The Examples In The Model
 
@@ -271,6 +302,7 @@ destination's representation (example 4's upload).
 | 5 | thread to scoped threads | closures, same build | `lines`: shared lend; halves: exclusive lends | counts returned; threads joined before the scope ends |
 | 6 | browser to remote service | `matches`, by name | `f`: copy; the rows never move | 200 rows copied back |
 | 7 | server to browser, then back | the action's closure stays on the server; the browser holds a handle, `Action[Server, string, T]` | `todo.id`: copy, sealed in the handle; `title`: copy, untrusted | rename done or failed, or an unknown outcome |
+| 8 | UI thread to a background thread, then back | `detect_faces`, by name; its empty row fits the background thread | `photo`: copied (a snapshot of the copy-on-write buffer, no deep copy), or moved if `Photo` is non-copyable | faces copied back; the handler resumes on the UI thread |
 
 ### Lifecycle Rules (**approved**)
 
@@ -401,6 +433,8 @@ trait Gpu:
 workers.call!(fn() -> void $ Db: save(doc))?                # error: type-mismatch, Db is not a worker capability
 gpu.run!(fn(t: Texture[Gpu0]) -> void: println("x"), tex)?  # error: type-mismatch, a kernel's row is empty
 workers.call!(fn() -> void $ Log: log_size(doc))?           # valid: the worker offers Log
+background.run!(fn() -> void $ Ui: draw_boxes(faces))?      # error: type-mismatch, only the UI thread offers Ui
+faces := background.run!(fn() -> List[Rect]: detect_faces(photo))?  # valid: an empty row fits; the handler suspends until it returns
 ```
 
 ### Each Capture's Mode
@@ -814,6 +848,18 @@ decides it (question 7).
     code, so one program is compiled into one build per target, and a
     crossing sends a code identity and data, never code.
 
+16. **Is a background thread a sixth kind of domain?** Recommended: yes.
+    It shares memory, as a scoped thread does, but outlives the call that
+    started it, as a worker does, so lend is refused (no scope ends it) and a
+    move needs no copy. Its capabilities exclude the UI thread's `Ui`, so a
+    view update sent to it is a `type-mismatch` at compile time, where
+    Android throws `CalledFromWrongThreadException` at run time. The call
+    that dispatches is a bang call: the UI thread's event loop keeps running
+    while the handler waits, as Swift's `@MainActor` with `Task.detached`
+    and Kotlin's `withContext(Dispatchers.Default)` do. It needs threads and
+    `Sync` (question 12): a copied `List` shares its buffer, so its counts
+    must be atomic.
+
 ```text
 let tex: Texture[Gpu0] = gpu0.upload!(photo)?  # question 4 (a)
 ```
@@ -931,7 +977,7 @@ is the copy-mode slice of this model.
 
 ## Parse Log
 
-All 19 `text` blocks were parsed on 2026-10-31 and 2026-11-02 with
+All 20 `text` blocks were parsed on 2026-10-31 and 2026-11-02 with
 `scripts/hd-conformance.sh parse`, which checks syntax only; nothing was
 type-checked. Std names (`Workers`, `Jobs`, `Gpu`, `scope`) are sketches.
 
@@ -944,3 +990,4 @@ type-checked. Std names (`Workers`, `Jobs`, `Gpu`, `scope`) are sketches.
 | 17 | Section 6, code generation per domain | parses; the deployment line is a comment |
 | 18 | Section 7, syntax | fails as expected at `at workers`: both lines `# hypothetical syntax` |
 | 19 | Question 4 | parses |
+| 20 | Example 8 | parses (2026-11-02); the row-check sketch with its two background-thread lines parses too |
