@@ -644,6 +644,39 @@ workers.call!(fn() -> void: log.info("done"))?               # error: the source
 workers.call!(fn() -> void $ Log: $.use(Log).info("done"))?  # valid: the worker's own Log
 ```
 
+### Top-Level Bindings (**approved**: question 17)
+
+- **Checked at the crossing's code and every function it reaches:** the
+  code reads no `let mut` top-level binding, directly or through a callee.
+  It may read immutable top-level bindings.
+- **Enforces:** the memory property. Module storage belongs to each
+  program instance ([`module.init.program-instance`](../../spec/lang/10-modules.md#r-module.init.program-instance)), initialized once
+  per instance ([`module.init.cycle.once`](../../spec/lang/10-modules.md#r-module.init.cycle.once)). In separate memory a
+  mutable top-level read or write would touch the destination's own copy
+  and leave the source's unchanged, the same silent divergence the `Fn`
+  bound rules out for captures. In shared memory it would be a data race.
+- **Reuses:** top-level initialization is requirement-free
+  ([`module.init.entry.statements-before-main`](../../spec/lang/10-modules.md#r-module.init.entry.statements-before-main)), so no top-level
+  binding holds a provider, a connection or a handle, and an immutable one
+  has the same value in every domain. Imports and top-level functions are
+  code, which every domain already has (section 1). A capability a callee
+  needs is in its declared row, so the row check sees it transitively.
+- **New:** a per-function summary, "reaches mutable top-level state",
+  computed over the call graph as a callee's row is read. A crossing whose
+  code has it is an error. Swift treats global mutable state the same
+  way: it is not `Sendable`.
+
+```text
+# hypothetical syntax
+LIMIT := +100
+let mut hits: i64 = 0
+fn top(rows: List[Row]) -> List[Row]: rows.take(usize(LIMIT))
+fn record() -> void: hits += 1
+
+workers.call!(fn() -> List[Row]: top(rows))?  # valid: LIMIT is immutable, the same in every domain
+workers.call!(fn() -> void: record())?        # error: record writes the mutable top-level hits
+```
+
 ### Outcomes And Cancellation
 
 - **Checked:** nothing specific to unknown. A crossing returns
@@ -674,6 +707,7 @@ workers.call!(fn() -> void $ Log: $.use(Log).info("done"))?  # valid: the worker
 | Affinity target | crossing | type equality, `missing-requirement` | a target read from a type; the handle walk |
 | Later (L4) | capture, code | the copy check, the `'static` bound | none |
 | Body | body | row resolution at each call, the copy check | the device-code subset |
+| Top-level bindings | crossing, reached functions | per-instance module storage, requirement-free init, declared rows | the mutable-state summary |
 | Outcomes | none | `Result`, `match`, moves, `abandon` | none |
 
 The gaps:
@@ -860,6 +894,12 @@ decides it (question 7).
     `Sync` (question 12): a copied `List` shares its buffer, so its counts
     must be atomic.
 
+17. **May crossing code use top-level bindings?** Answered (owner,
+    2026-11-02): it may read immutable top-level bindings. Code that
+    reaches a `let mut` top-level binding, directly or through a callee,
+    cannot cross: the crossing is an error (section 5, Top-Level
+    Bindings).
+
 ```text
 let tex: Texture[Gpu0] = gpu0.upload!(photo)?  # question 4 (a)
 ```
@@ -977,7 +1017,7 @@ is the copy-mode slice of this model.
 
 ## Parse Log
 
-All 20 `text` blocks were parsed on 2026-10-31 and 2026-11-02 with
+All 21 `text` blocks were parsed on 2026-10-31 and 2026-11-02 with
 `scripts/hd-conformance.sh parse`, which checks syntax only; nothing was
 type-checked. Std names (`Workers`, `Jobs`, `Gpu`, `scope`) are sketches.
 
@@ -990,4 +1030,5 @@ type-checked. Std names (`Workers`, `Jobs`, `Gpu`, `scope`) are sketches.
 | 17 | Section 6, code generation per domain | parses; the deployment line is a comment |
 | 18 | Section 7, syntax | fails as expected at `at workers`: both lines `# hypothetical syntax` |
 | 19 | Question 4 | parses |
+| 21 | Section 5, top-level bindings | parses; `# hypothetical syntax` |
 | 20 | Example 8 | parses (2026-11-02); the row-check sketch with its two background-thread lines parses too |
