@@ -346,7 +346,7 @@ handles it with an ordinary `match`. A worker or device reports unknown
 only on a crash or reset, and a scoped thread never does.
 
 ```text
-match place_order!(cart):  # hypothetical syntax: placed on the server by the deployment configuration
+match place_order!(cart):  # hypothetical syntax: place_order is @remote(Server) (section 6)
     .Ok(receipt) => show(receipt)
     .Err(.Unknown) => check_order_status!(cart.id)
     .Err(error) => show_error(error)
@@ -423,10 +423,10 @@ trait Gpu:
   `Gpu[Device = Gpu0]` and `Gpu[Device = Gpu1]`
   ([`req.key.binding.identity`](../../spec/lang/11-requirements-and-suspension.md#r-req.key.binding.identity)). A service's registered bindable set
   stands for its capabilities ([`module.register.row`](../../spec/lang/10-modules.md#r-module.register.row)).
-- **New:** each domain trait declares its capabilities, and the checker
-  reads a service's set from the deployment configuration. A call that the
-  configuration places on a service is checked against that set, not
-  against the source's row ([`req.row.set.call`](../../spec/lang/11-requirements-and-suspension.md#r-req.row.set.call)).
+- **New:** each domain trait declares its capabilities. An
+  `@remote(D)` function's row is checked against target D's set at its
+  declaration, not against its callers' rows
+  ([`req.row.set.call`](../../spec/lang/11-requirements-and-suspension.md#r-req.row.set.call)); section 6.
 
 ```text
 # hypothetical syntax
@@ -732,72 +732,125 @@ The gaps:
 - **No device-code subset.** A kernel's body is checked only by its row.
 - **The outcome type is not a gap.** Unknown is an error case (section 4).
 
-## 6. Code Generation Per Domain
+## 6. Code Generation Per Domain (**approved**: question 14)
 
-Section 5 checks a crossing that the program writes. A client and server
-program also needs the compiler to produce the code for each side: the
-browser's bundle and the server's module. The row decides where code can
-run, so it can also decide which build holds it. No `"use client"` or
-`"use server"` marker is needed.
+A client and server program is compiled into one build per target: the
+browser's bundle and the server's module. A function that runs on one
+target and is called from another is compiled differently in each: an
+endpoint at home, a stub elsewhere, with its arguments decoded from the
+wire as untrusted data. So that function is marked where it is declared,
+and its callers are marked in their rows. Nothing is placed by inference.
 
-**Targets.** A deployment names its targets, and each target has a
-capability set: the requirement traits its runtime profile can bind. hd
-already has that set. A registration contract selects a runtime profile
-and declares which traits it binds
-([`module.register.contract-traits`](../../spec/lang/10-modules.md#r-module.register.contract-traits)), and a registered function's row
-must fit it ([`module.register.row`](../../spec/lang/10-modules.md#r-module.register.row)). Here the browser binds
-`Dom + Console + Clock`, and the server binds
-`Db + Payments + Env + Console + Clock`.
+**The declaration says where it runs.** `@remote(Server)` makes a function
+an entry point of the `Server` domain:
+
+- its row is checked against what the server target offers;
+- its parameters and result must be boundary-safe (copyable plain data),
+  and its arguments are untrusted input;
+- the server build compiles its body and an endpoint; every other build
+  compiles a stub.
+
+**The caller says it talks to that domain.** Calling an `@remote(Server)`
+function from another domain needs `$ Server` in the caller's row, so the
+dependency shows in every signature up the chain, and a test swaps it with
+`$.with(Server=LocalServer {})`. The call is an ordinary bang call whose
+error type gains `CrossError` (section 4).
+
+A whole minimal program, one package with two targets:
 
 ```text
-# hypothetical deployment: browser = Dom + Console + Clock; server = Db + Payments + Env + Console + Clock
-fn cart_total(cart: Cart) -> i64: sum_lines(cart.lines)          # empty row: in both builds
-fn render_cart(cart: Cart) -> void $ Dom: draw(cart)             # browser build only
-fn place_order!(cart: Cart) -> Result[Receipt, OrderError] $ Db + Payments: charge_and_store!(cart)  # server build only
+# hd.toml, hypothetical targets table (question 13)
+# [targets.server]  entry = "server",  binds = ["Console", "Net"]
+# [targets.browser] entry = "browser", binds = ["Dom"]
 
-fn on_buy!(cart: Cart) -> void $ Dom:                            # a browser entry
-    render_cart(cart)                                            # a local call
-    match place_order!(cart):                                    # a crossing: the browser lacks Db and Payments
-        .Ok(receipt) => show(receipt)
-        .Err(error) => show_error(error)                         # error: OrderError | CrossError
+# src/shared.hd: no row, so it can land in both builds
+pub struct User:
+    pub id: i64
+    pub name: string
+
+pub fn greeting(user: User) -> string:
+    "Hi, ${user.name}"
+
+# src/users.hd: an interface and one remote function; it uses no driver
+@error
+pub enum DbError:
+    @error("no user $id")
+    Missing(id: i64)
+
+pub trait Db:
+    fn find_user!(&mut self, id: i64) -> Result[User, DbError]
+
+@remote(Server)
+pub fn load_user!(id: i64) -> Result[User, DbError] $ Db:
+    let mut db = $.use(Db)
+    db.find_user!(id)
+
+# src/server.hd: the only module that uses the driver
+use dep.postgres.{Pool, PgError, connect}
+
+struct PgUsers:
+    pool: Pool
+
+impl Db for PgUsers:
+    fn find_user!(&mut self, id: i64) -> Result[User, DbError]:
+        match self.pool.query_one!("select id, name from users where id = ?", id):
+            .Some(row) => .Ok(User { id: row.i64(0), name: row.text(1) })
+            .None => .Err(DbError.Missing(id))
+
+pub fn main!() -> Result[void, PgError] $ Console + Net:
+    pool := connect!("postgres://localhost/app")?
+    $.with(Db=PgUsers { pool }):
+        serve!()    # answers the endpoints of this build's @remote(Server) functions
+    .Ok(())
+
+# src/browser.hd
+pub fn on_open!(id: i64) -> void $ Dom + Server:
+    match load_user!(id):              # a stub here: Result[User, DbError | CrossError]
+        .Ok(user) => show(greeting(user))
+        .Err(error) => show_error("$error")
 ```
 
-**How each build is made.**
+**How each build is made.** Each target walks the use graph and the call
+graph from its entry. The `@remote(D)` functions are extra entries of D's
+build.
 
-1. Each target starts from its entry points. The server's are `main`, its
-   registered functions and its server actions. The browser's are the
-   page's handlers and every closure a server may send it (section 3,
-   example 7).
-2. The compiler walks the call graph from those entries. A callee whose
-   row the target meets is compiled into that build. A callee whose row
-   only another target meets is a crossing: the build gets a stub that
-   encodes the arguments, calls the other target, and decodes a
-   `Result[T, E | CrossError]` (section 4). A callee whose row no target
-   meets is `missing-requirement`, as today
-   ([`req.use.missing`](../../spec/lang/11-requirements-and-suspension.md#r-req.use.missing)).
-3. Code with an empty row lands in every build that reaches it, such as
-   `cart_total` or shared validation.
-4. Both builds come from one compiled program, so a closure the server
-   renders for the browser has the same identity in both
-   ([`req.determinism.same-program`](../../spec/lang/11-requirements-and-suspension.md#r-req.determinism.same-program)). The principle in section 1
-   makes this the only case: the two sides always come from one build.
+| Call | Compiled as |
+| --- | --- |
+| to an `@remote(D)` function, in D's build | a normal call |
+| to an `@remote(D)` function, in another build | a stub; the caller's row must list `$ D` |
+| to any unmarked function | a normal call under today's row rule |
 
-**What stays off the client.** Code whose row needs a capability the
-browser lacks never reaches the browser build. Secrets in hd already
-arrive through providers (`$.use(Env)`, `$.use(Db)`), which are server
-capabilities, so code that can read a secret cannot be placed in the
-client. The one gap is a secret written as a literal in empty-row code,
-which both builds would copy. A rule or a lint that secrets come from
-`Env` closes it.
+A row the caller does not meet stays `missing-requirement`
+([`req.use.missing`](../../spec/lang/11-requirements-and-suspension.md#r-req.use.missing)), so a forgotten `$ Db` never becomes a network
+call. The two builds come from one compiled program, so a stub and its
+endpoint name the same function
+([`req.determinism.same-program`](../../spec/lang/11-requirements-and-suspension.md#r-req.determinism.same-program)).
 
-**Prior art.** Tierless languages split one program by where each part
-can run. Links marks functions `client` or `server` and generates
-JavaScript and server code from one source. Hop.js and Electric Clojure
-place each expression on a site and insert the network calls. ScalaLoci
-makes placement a type. React marks the split by hand with
-`"use client"` and `"use server"`, and serializes server actions as
-references. In hd the row already says where code can run, so placement
-needs no annotation.
+| | browser build | server build |
+| --- | --- | --- |
+| modules reached | `browser`, `shared`, `users` | `server`, `users`, `shared`, `dep.postgres` |
+| `load_user` | a stub | its body and an endpoint |
+| `PgUsers`, `connect`, `dep.postgres` | not reached | yes |
+| `greeting` | yes | not reached |
+
+**What stays off the client.** `dep.postgres` is used only by
+`server.hd`, which the browser entry never reaches, so the driver is not
+even parsed for the browser. A function that touches the database lists
+`$ Db` and is either `@remote` (a stub on the client) or unreachable from
+it. The one gap is a secret written as a literal in shared code, which
+both builds would copy; a rule or lint that secrets come from `Env`
+closes it.
+
+**Where no mark is needed.** Workers, threads and devices run the same
+build as their caller, so nothing compiles differently there. Their
+crossing is already visible where it happens, as a call on a domain value:
+`workers.call!(...)`, `background.run!(...)`.
+
+**Prior art.** Swift's distributed actors mark both sides: a
+`distributed func` and `try await` at each call. gRPC and tRPC declare the
+procedure as a service and give callers a stub. React marks the
+declaration with `"use server"`, but its call sites look local. Links and
+Electric Clojure place code by inference, which hides the network.
 
 ## 7. Syntax
 
@@ -822,8 +875,8 @@ decides it (question 7).
 3. **Does code name the destination?** Answered (owner, 2026-10-31): a
    domain value in code for workers and devices, a provider such as `Gpu`
    or `Workers` from the requirement row (swappable with `$.with` in
-   tests); services stay named by the deployment configuration, as the
-   2026-10-17 #166 decision says.
+   tests). A service is named at the function's declaration with
+   `@remote(D)` (question 14, owner, 2026-11-02).
 4. **How does a handle name its domain instance?** Answered (owner,
    2026-10-31): in the type, as `Texture[Gpu0]`; using a handle in another
    domain is a type error, with no run-time check. Dynamic instances (a
@@ -870,13 +923,15 @@ decides it (question 7).
 13. **Where do target capability sets live?** In the deployment
     configuration, as named targets with their runtime profiles (one
     `hd.toml` table per target), or in code as a provider value per target.
-    The checker needs them to place code and to find crossings.
-14. **Is every crossing implicit?** Recommended: no. A call that the
-    deployment places on another target is a crossing, but the caller
-    marks it, so a network round trip is never invisible. One option is a
-    bang call on a target value, as `$.use(Server).call!(place_order, cart)`;
-    another is a lint for unmarked crossings. Links and Electric make every
-    such call implicit; React makes it an explicit action.
+    The checker needs them to check an `@remote` function's row and to
+    pick each build's entries.
+14. **How is a crossing between targets marked?** Answered (owner,
+    2026-11-02): on both sides. The declaration says `@remote(D)`, which
+    decides how the function compiles (an endpoint in D's build, a stub
+    elsewhere) and checks its signature as an untrusted boundary. A caller
+    in another domain lists `$ D` in its row. The call stays a bang call
+    whose error gains `CrossError`. Nothing is placed by inference
+    (section 6).
 15. **One program, or separate packages per side?** Answered (owner,
     2026-11-02) by the principle in section 1: every domain runs the same
     code, so one program is compiled into one build per target, and a
@@ -1027,7 +1082,7 @@ type-checked. Std names (`Workers`, `Jobs`, `Gpu`, `scope`) are sketches.
 | 7 | Section 4, the `match` on a crossing's result | parses; the placement and the `.Unknown` case are hypothetical |
 | 8 | Section 5, the assumed `Workers` and `Gpu` traits | parses; `# hypothetical syntax` |
 | 9 to 16 | Section 5, one invalid and one valid sketch per check | parse; every block is `# hypothetical syntax` |
-| 17 | Section 6, code generation per domain | parses; the deployment line is a comment |
+| 17 | Section 6, the whole minimal program with `@remote(Server)` | parses (2026-11-02); the targets table is a comment, and the four modules share one block |
 | 18 | Section 7, syntax | fails as expected at `at workers`: both lines `# hypothetical syntax` |
 | 19 | Question 4 | parses |
 | 21 | Section 5, top-level bindings | parses; `# hypothetical syntax` |
