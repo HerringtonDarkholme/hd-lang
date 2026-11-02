@@ -7,15 +7,15 @@ title: Concurrency
 The program on the right runs two tasks together, races them, and times out a
 slow one.
 
-## `all!`
+## `join!`
 
 ```hd example
 let (a, b) = join!(first(), second())
 ```
 
-`all!` starts independent tasks and returns **their values in order**. Its
+`join!` starts independent tasks and returns **their values in order**. Its
 arguments have no `!`. `first()` describes work that has not started, and
-`all!` starts it. `first!()` would run at once and pass a string instead.
+`join!` starts it. `first!()` would run at once and pass a string instead.
 
 ## `race!`
 
@@ -38,11 +38,11 @@ apply!(timeout(1ms)):
 out, the block gives `.Err` with a `TimedOut`. The limit is a `Duration`, so a
 bare `1` is an error.
 
-**Run it.** It prints `all: first, second` and `race: first`. `too_slow!`
+**Run it.** It prints `join: first, second` and `race: first`. `too_slow!`
 sleeps 20 ms against a 1 ms limit, so the last line is `timed out after 1ms`.
 
 ```hd
-use std.task.{TimedOut, all, apply, race, timeout}
+use std.task.{TimedOut, apply, join, race, timeout}
 use std.time.{Clock, ms, sleep}
 
 fn first!() -> string:
@@ -62,7 +62,7 @@ fn with_timeout!() -> Result[string, TimedOut] $ Clock:
 
 pub fn main!() -> void $ Clock + Console:
     let (a, b) = join!(first(), second())
-    println("all: $a, $b")
+    println("join: $a, $b")
     println("race: ${race!(first(), second())}")
     match with_timeout!():
         .Ok(value) => println("timeout: $value")
@@ -76,7 +76,7 @@ error: type-mismatch: in argument: expected a cold suspension, found string
 ```
 
 ```output
-all: first, second
+join: first, second
 race: first
 timed out after 1ms
 ```
