@@ -1,0 +1,14 @@
+# test: inserting into a UniqMap moves a non-copyable value
+# Spec std/collections UniqMap: std-collections.uniq-map.insert.
+use std.collections.UniqMap
+
+struct Parcel:
+    label: string
+
+impl !Copy for Parcel
+
+fn reuse() -> void:
+    let mut parcels = UniqMap::[string, Parcel].new()
+    parcel := Parcel { label: "tea" }
+    _ := parcels.insert("first", parcel)
+    _ := parcels.insert("second", parcel) # diagnostic: use-of-moved-value
