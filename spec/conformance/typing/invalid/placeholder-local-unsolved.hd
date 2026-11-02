@@ -1,0 +1,6 @@
+# test: a `_` that nothing solves is an error
+# Spec 04 Generic Arguments: types.generic.placeholder.local.
+
+fn empty() -> usize:
+    let none: List[_] = [] # diagnostic: cannot-infer-type
+    none.len()

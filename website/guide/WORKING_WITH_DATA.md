@@ -784,8 +784,8 @@ tests:
         assert_equal(banner("SALE"), "==== SALE ====", reason="built")
 
     it("reads characters and bytes"):
-        assert_equal("héllo".chars().collect().len(), 5, reason="five chars")
-        assert_equal("héllo".bytes().collect().len(), 6, reason="six bytes")
+        assert_equal("héllo".chars().count(), 5, reason="five chars")
+        assert_equal("héllo".bytes().count(), 6, reason="six bytes")
 ```
 
 A string is bytes: `len()` counts bytes, `chars()` counts characters.

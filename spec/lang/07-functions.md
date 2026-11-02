@@ -1193,7 +1193,7 @@ user := convert::[_, User](payload)
 2. r[fn.generic.placeholder.solve] A placeholder is solved from call arguments, the expected result type, and the function's generic constraints.
 3. r[fn.generic.placeholder.default] When those constraints do not determine one type, the parameter's default applies.
 4. r[fn.generic.placeholder.unsolved] A placeholder that neither the constraints nor a default determine is an error. Error: `cannot-infer-type`.
-5. r[fn.generic.placeholder.not-type] `_` is a call-site inference instruction, not a type, and cannot appear in an ordinary type argument list such as `List[_]`.
+5. r[fn.generic.placeholder.not-type] `_` is an inference instruction, not a type: in a body it may appear at any depth of an explicit list or a `let` annotation, as `collect::[List[_]]()` does ([`types.generic.placeholder.local`](04-type-system.md#r-types.generic.placeholder.local)), and never in a declaration.
 
 ```text
 fn make[T]() -> T:

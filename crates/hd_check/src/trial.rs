@@ -789,7 +789,14 @@ impl Ck<'_, '_> {
                 .enumerate()
                 .any(|(i, g)| g.default.is_some() && this.unsolved(vars[i]))
         };
-        if !open(self) {
+        // A bounded parameter the expected type can leave partly open,
+        // as `List[_]` leaves `collect`'s target.
+        let holes = |this: &Self| {
+            sig.generics.iter().enumerate().any(|(i, g)| {
+                !g.bounds.is_empty() && pool.has_infer(this.infer.resolve(pool, vars[i]))
+            })
+        };
+        if !open(self) && !holes(self) {
             return Ok(());
         }
         if let Some(w) = want
@@ -802,11 +809,57 @@ impl Ck<'_, '_> {
                 self.infer.rollback(snap);
             }
         }
+        self.fill_holes_from_bounds(sig, vars, inst)?;
         for (i, g) in sig.generics.iter().enumerate() {
             if let Some(d) = g.default
                 && self.unsolved(vars[i])
             {
                 let _ = self.infer.unify(pool, vars[i], inst(d));
+            }
+        }
+        Ok(())
+    }
+
+    /// `types.generic.placeholder.local`: a type argument that is known
+    /// but still holds inference holes, as `List[?]` from `List[_]`, takes
+    /// them from each of its bounds whose trait it implements in exactly
+    /// one way that fits, as a parameter named only in bounds does
+    /// (`types.generic.infer.bound`).
+    fn fill_holes_from_bounds(
+        &mut self,
+        sig: &FnSig,
+        vars: &[Ty],
+        inst: &dyn Fn(Ty) -> Ty,
+    ) -> StageResult<()> {
+        let pool = self.pool();
+        for (j, g) in sig.generics.iter().enumerate() {
+            let s = self.strip_mut(self.infer.resolve(pool, vars[j]));
+            if matches!(pool.get(s), TyData::Infer(_)) || !pool.has_infer(s) {
+                continue;
+            }
+            for b in &g.bounds {
+                let b = self.infer.resolve(pool, inst(*b));
+                let TyData::TraitValue { def: tr, args, .. } = pool.get(b) else {
+                    continue;
+                };
+                let Some(found) = self.instantiation_args(s, tr)? else {
+                    continue;
+                };
+                let want = pool.list_items(args).to_vec();
+                let fit: Vec<Vec<Ty>> = found
+                    .into_iter()
+                    .filter(|got| self.can_unify_all(got, &want))
+                    .collect();
+                if let [one] = fit.as_slice() {
+                    let snap = self.infer.snapshot();
+                    if !one
+                        .iter()
+                        .zip(&want)
+                        .all(|(a, b)| self.infer.unify(pool, *a, *b).is_ok())
+                    {
+                        self.infer.rollback(snap);
+                    }
+                }
             }
         }
         Ok(())

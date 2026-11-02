@@ -182,6 +182,9 @@ pub(crate) struct Parser<'t> {
     opaque_result: bool,
     /// An opaque bound cannot itself declare another opaque occurrence.
     opaque_bound: bool,
+    /// `_` stands for an inferred type inside a `let` annotation and an
+    /// expression's type-argument list (`types.generic.placeholder.local`).
+    infer_types: bool,
     attached: Vec<bool>,
     /// Reserved words the current top-level item tried to bind with `:=`:
     /// after that one error, the word reads as the name it was meant as.
@@ -216,6 +219,7 @@ impl<'t> Parser<'t> {
             nesting: 0,
             opaque_result: false,
             opaque_bound: false,
+            infer_types: false,
             attached: vec![false; toks.com_kind.len()],
             bound_keywords: Vec::new(),
         }

@@ -4532,7 +4532,21 @@ impl Ck<'_, '_> {
             _ => None,
         };
         let (r, t) = self.expr(*e, hint)?;
-        let t = self.infer.resolve(pool, t);
+        let mut t = self.infer.resolve(pool, t);
+        // A call whose result an expected type solves later, such as
+        // `collect()`, is still open here: the hint gives its shape now
+        // (`expr.try.expected`). An operand whose error type differs, which
+        // `From` converts, keeps its own type.
+        if pool.has_infer(t)
+            && let Some(h) = hint
+        {
+            let snap = self.infer.snapshot();
+            if self.infer.unify(pool, t, h).is_ok() {
+                t = self.infer.resolve(pool, t);
+            } else {
+                self.infer.rollback(snap);
+            }
+        }
         match (pool.get(t), pool.get(ret)) {
             (TyData::Option(inner), TyData::Option(_)) => {
                 let ok_b = self.b.open_block();

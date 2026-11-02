@@ -477,8 +477,14 @@ impl Parser<'_> {
             return done;
         }
         if self.at(TokenKind::Placeholder) {
-            // grammar.primary.placeholder: `_` is no type.
-            self.error(Code::SyntaxError, "'_' is no type; name the type argument");
+            // types.generic.placeholder.local: an inferred type in a body;
+            // a declaration names every type (types.generic.placeholder.not-type).
+            if !self.infer_types {
+                self.error(
+                    Code::SyntaxError,
+                    "'_' is no type here; a declaration names its types",
+                );
+            }
             return self.token_node(SyntaxKind::InferType);
         }
         if self.const_argument_ahead() {

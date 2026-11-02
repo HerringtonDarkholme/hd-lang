@@ -269,7 +269,10 @@ impl Parser<'_> {
             return;
         }
         if self.eat(TokenKind::Colon) {
+            let before = self.infer_types;
+            self.infer_types = true;
             self.ty();
+            self.infer_types = before;
         }
         if self.expect(TokenKind::Eq, "'='") {
             self.expr(Self::rhs(ctx));

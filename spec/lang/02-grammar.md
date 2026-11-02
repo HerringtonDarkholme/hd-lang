@@ -1581,7 +1581,7 @@ See also: [Prefixed Strings](01-lexical-structure.md#prefixed-strings).
 
 1. r[grammar.primary.resolution] Name resolution distinguishes a data expression from a map expression and an enum variant selection from ordinary field access.
 2. r[grammar.primary.function-type-argument] Each function type argument is a type or the inference placeholder `_`.
-3. r[grammar.primary.placeholder] The placeholder is not part of ordinary `type_arguments` and therefore cannot occur in a type such as `List[_]`.
+3. r[grammar.primary.placeholder] Inside a body, the placeholder may also be a type argument at any depth of a `let` annotation or of a function type argument, as in `let names: List[_] = ...` and `collect::[Map[_, _]]()`; anywhere else it is a syntax error ([`types.generic.placeholder.local`](04-type-system.md#r-types.generic.placeholder.local)).
 4. r[grammar.primary.qualified-type-arguments] In a qualified call such as `Type::name::[T](...)`, `Trait::name::[T](...)`, or `Type::name!::[T](...)`, type arguments of the qualifying type or trait stay before the member's `::`. One example is `Add::[Money]::add`.
 5. r[grammar.primary.member-type-arguments] Method-level type arguments follow the member name, as in the dot call `parser.parse::[User](text)`.
 6. r[grammar.primary.member-type-arguments.rules] That list is valid only when the selected member is generic, and it follows the explicit-list rules of [Generic Functions](07-functions.md#generic-functions).

@@ -1077,7 +1077,10 @@ impl Parser<'_> {
                 self.ty();
                 self.complete(binding, SyntaxKind::AssociatedTypeBinding);
             } else {
+                let before = self.infer_types;
+                self.infer_types = true;
                 self.ty_argument();
+                self.infer_types = before;
             }
             if !self.eat(TokenKind::Comma) || self.pos() == before {
                 break;
