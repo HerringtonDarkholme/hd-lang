@@ -4,7 +4,8 @@ Status: simplification review, 2026-11-02; changes no decision, spec
 text, or compiler code. It reviews
 [EXECUTION_BOUNDARIES.md](EXECUTION_BOUNDARIES.md) at 22577cd58 together
 with the findings of
-[round 2](EXECUTION_BOUNDARIES_STRESS_TEST_2.md).
+[round 2](EXECUTION_BOUNDARIES_STRESS_TEST_2.md). The record at dfec0e865
+takes K1, K2 and K3; K4 is not taken.
 
 - [Summary](#summary)
 - [Inventory](#inventory)
