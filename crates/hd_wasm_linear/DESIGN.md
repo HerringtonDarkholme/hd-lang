@@ -1151,18 +1151,20 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   Two references to one slot share its address (`ref.elem.identity`). A
   trait value of a value that is one counted address is that address,
   never a copy.
-- **Short loans.** A reference from a shared map probe (`get_ref`) or a
-  `get_or_insert` probe whose every holder ends before anything could
-  write or drop its map lives on the map's own count (`emit/loan.rs`):
-  no count of the table, and for a shared one no uniqueness check or
-  pin. Its holders are the values and locals it flows into: a variant
+- **Short loans.** A reference from a shared map probe (`get_ref`), a
+  `get_or_insert` probe, or a shared element `Ref` of a local's list (an
+  inlined `List.get`, `first` or `last`) whose every holder ends before
+  anything could write or drop its collection lives on the collection's
+  own count (`emit/loan.rs`): no count of the buffer, and for a shared
+  one no uniqueness check or pin, so the `IsUnique` and `Pin` insertion
+  put right before such an element `Ref` emit nothing. Its holders are the values and locals it flows into: a variant
   around it, a block tail its owner takes, a `break` value, a local
   stored once from it, a read of a part that is the reference again.
   Each use of a holder lends, and one `Drop` in the origin's loop ends
   the loan. No statement between them stores outside a local off the
-  map's path, drops or moves that path, takes a `&mut`, checks or pins
-  a buffer, calls a function that may write, or jumps out. A table a
-  view's getter made stays until that `Drop`. Any other reference keeps
+  collection's path, drops or moves that path, takes a `&mut`, checks or pins
+  a buffer, calls a function that may write, or jumps out. A table or
+  list a view's getter made stays until that `Drop`. Any other reference keeps
   its count and pin, so `map-get-ref-pinned-panics` still panics.
 - **Bounded memory.** `crates/hd_driver/tests/std_rt/ref_tests.hd` writes
   through references to locals and elements, checks that a pin ends with

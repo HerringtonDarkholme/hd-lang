@@ -4,8 +4,9 @@
 //! count of the buffer, and a shared one makes the buffer neither unique
 //! nor pinned.
 //!
-//! An **origin** is a shared map probe (`get_ref`) or a `get_or_insert`
-//! probe. Its **holders** are the values
+//! An **origin** is a shared map probe (`get_ref`), a `get_or_insert` probe,
+//! or a shared `Ref` of an element of a local's list, as an inlined
+//! `List.get`, `first` or `last` makes one. Its **holders** are the values
 //! and locals its reference flows into: a variant built around it, a
 //! block's tail its owner takes, a `break` value's target, a coercion
 //! that keeps its values, a local stored once from it, and a read of a
@@ -26,14 +27,19 @@ use hd_base::HashSet;
 use hd_mono::Target;
 use hd_tir::ir::{
     Callee, IntrinsicOp, NONE, Proj, ReadMode, Root, Tag, Topology, local_flags, ref_word,
+    unique_word,
 };
 use hd_types::Ty;
 
 use super::Em;
+use super::refs::Fresh;
 
 /// A short loan, by its origin ([`Em::short_loans`]).
 #[derive(Default)]
 pub(super) struct ShortLoan {
+    /// The values made while emitting the origin that the loan must keep
+    /// until its end: a view's fresh values, each behind its flag.
+    pub(super) fresh: Vec<Fresh>,
     /// A map probe's `owned` flag and table, and the map's type: when the
     /// map's reference is a view, its getter made the table, which the end
     /// releases.
@@ -57,8 +63,10 @@ struct Found {
 
 impl Em<'_, '_, '_> {
     /// Finds this body's short loans ([`ShortLoan`]): their holders join
-    /// [`Em::loans`] and [`Em::loan_locals`], and their end `Drop`s
-    /// [`Em::short_ends`].
+    /// [`Em::loans`] and [`Em::loan_locals`], their end `Drop`s
+    /// [`Em::short_ends`], and the `IsUnique`s and `Pin`s that only made
+    /// a shared element reference's buffer its list's own and pinned it
+    /// [`Em::short_skips`].
     pub(super) fn prepare_short_loans(&mut self) {
         if !self.owned || self.input.runtime.is_none() {
             return;
@@ -74,7 +82,7 @@ impl Em<'_, '_, '_> {
             return;
         }
         let uses = self.loan_uses();
-        for (o, mutable) in origins {
+        for (o, mutable, skips) in origins {
             let Some(found) = self.short_loan(&uses, o, mutable) else {
                 continue;
             };
@@ -85,31 +93,94 @@ impl Em<'_, '_, '_> {
             for &l in &found.locals {
                 self.loan_locals.entry(l).or_insert(o);
             }
+            self.short_skips.extend(skips);
             self.short_ends.insert(found.end, o);
             self.short_loans.insert(o, ShortLoan::default());
         }
     }
 
     /// Whether instruction `x` may start a short loan: with whether its
-    /// reference is `&mut`.
-    fn loan_origin(&self, x: u32) -> Option<(u32, bool)> {
+    /// reference is `&mut`, and the `IsUnique`s and `Pin`s before it that
+    /// only serve it.
+    fn loan_origin(&self, x: u32) -> Option<(u32, bool, Vec<u32>)> {
         let i = x as usize;
-        if self.b.tags[i] != Tag::Call
-            || !matches!(
-                self.calls.get(&x),
-                Some(Target::MapKey { .. } | Target::MapInline(_))
-            )
+        match self.b.tags[i] {
+            Tag::Call
+                if matches!(
+                    self.calls.get(&x),
+                    Some(Target::MapKey { .. } | Target::MapInline(_))
+                ) =>
+            {
+                let args = self.b.record(self.b.data[i][1]);
+                let map = *args.first()?;
+                let shared = !crate::layout::ref_mutable(self.pool(), self.env(), self.ty_of(map));
+                match args.len().saturating_sub(3) {
+                    2 if shared => Some((x, false, Vec::new())),
+                    3 => Some((x, true, Vec::new())),
+                    _ => None,
+                }
+            }
+            Tag::Ref => {
+                let skips = self.shared_elem_ref(x)?;
+                Some((x, false, skips))
+            }
+            _ => None,
+        }
+    }
+
+    /// For a shared `Ref` of an element of a local's list, `[$l [%i]]` or
+    /// `[*$l [%i]]`: the `IsUnique`s and `Pin`s of the list that stand
+    /// right before it in its block, which insertion put there for it.
+    fn shared_elem_ref(&self, x: u32) -> Option<Vec<u32>> {
+        let i = x as usize;
+        let w = self.b.data[i][1];
+        let marks = ref_word::MUT | ref_word::TAKES | ref_word::LENT | ref_word::FRAME;
+        if w & marks != 0
+            || self.promoted.contains(&x)
+            || crate::layout::ref_mutable(self.pool(), self.env(), self.ty(x))
+            || matches!(self.calls.get(&x), Some(Target::Open(_)))
         {
             return None;
         }
-        let args = self.b.record(self.b.data[i][1]);
-        let map = *args.first()?;
-        let shared = !crate::layout::ref_mutable(self.pool(), self.env(), self.ty_of(map));
-        match args.len().saturating_sub(3) {
-            2 if shared => Some((x, false)),
-            3 => Some((x, true)),
-            _ => None,
+        let p = self.b.view(self.b.data[i][0]);
+        let Root::Local(l) = p.root else {
+            return None;
+        };
+        let steps: Vec<Proj> = p.steps(self.b).collect();
+        let lt = self.sub(self.b.local_ty[l as usize]);
+        let list = match steps.as_slice() {
+            [Proj::Elem(_)] => lt,
+            [Proj::Deref, Proj::Elem(_)] => self.ref_target(lt).filter(|t| !t.1)?.0,
+            _ => return None,
+        };
+        if self.is_cell(l as usize)
+            || self.slots.contains_key(&(l as usize))
+            || self.is_map(list)
+            || self.elem(list).is_err()
+        {
+            return None;
         }
+        let blk = self.topo.blk[i];
+        if blk == NONE || self.b.tags[blk as usize] != Tag::Block {
+            return None;
+        }
+        let members = self.b.record(self.b.data[blk as usize][0]);
+        let mut skips = Vec::new();
+        for &m in members[..self.topo.pos[i] as usize].iter().rev() {
+            let k = m as usize;
+            let tag = self.b.tags[k];
+            let ours = matches!(tag, Tag::IsUnique | Tag::Pin)
+                && self.b.view(self.b.data[k][0]).root == Root::Local(l)
+                && !(tag == Tag::IsUnique && self.b.data[k][1] == unique_word::HOISTED);
+            if !ours {
+                break;
+            }
+            skips.push(m);
+        }
+        skips
+            .iter()
+            .any(|&m| self.b.tags[m as usize] == Tag::Pin)
+            .then_some(skips)
     }
 
     /// Every instruction's uses of each value and of each local, the
@@ -330,13 +401,19 @@ impl Em<'_, '_, '_> {
     }
 
     /// The locals and values the collection of origin `o` is reached
-    /// through: from the map operand of a probe, back through coercions, reads, references and
+    /// through: from the map operand of a probe, or the list local of an
+    /// element reference, back through coercions, reads, references and
     /// locals stored once.
     fn loan_roots(&self, o: u32) -> (HashSet<u32>, HashSet<u32>) {
         let mut roots = (HashSet::default(), HashSet::default());
         let k = o as usize;
-        if let Some(&map) = self.b.record(self.b.data[k][1]).first() {
-            self.root_value(map, &mut roots, 0);
+        if self.b.tags[k] == Tag::Call {
+            if let Some(&map) = self.b.record(self.b.data[k][1]).first() {
+                self.root_value(map, &mut roots, 0);
+            }
+        } else {
+            let p = self.b.view(self.b.data[k][0]);
+            self.root_place(p.root, &mut roots, 0);
         }
         roots
     }
@@ -483,10 +560,13 @@ impl Em<'_, '_, '_> {
         let Some(o) = self.short_ends.get(&i).copied() else {
             return Ok(());
         };
-        let Some(loan) = self.short_loans.get(&o) else {
+        let Some(loan) = self.short_loans.get_mut(&o) else {
             return Ok(());
         };
-        if let Some((owned, m, t)) = loan.table {
+        let fresh = std::mem::take(&mut loan.fresh);
+        let table = loan.table;
+        self.release_fresh(&fresh)?;
+        if let Some((owned, m, t)) = table {
             self.f.get(owned);
             self.f.op(crate::op::Op::If(wasm_encoder::BlockType::Empty));
             self.release_locals(&[m], t)?;

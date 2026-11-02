@@ -996,6 +996,9 @@ struct Em<'i, 'a, 'm> {
     short_loans: HashMap<u32, loan::ShortLoan>,
     /// Each short loan's end `Drop`, with its origin.
     short_ends: HashMap<u32, u32>,
+    /// The `IsUnique`s and `Pin`s a shared element reference's short loan
+    /// makes unneeded.
+    short_skips: hd_base::HashSet<u32>,
     /// The values that hold a short loan: a copy of one for a consumer
     /// takes no count either.
     short_holders: hd_base::HashSet<u32>,
@@ -1200,6 +1203,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             map_probe_refs: HashMap::default(),
             short_loans: HashMap::default(),
             short_ends: HashMap::default(),
+            short_skips: hd_base::HashSet::default(),
             short_holders: hd_base::HashSet::default(),
             locals: HashMap::default(),
             providers: Vec::new(),
@@ -1820,6 +1824,7 @@ impl Em<'_, '_, '_> {
                     self.own_drop(i)?;
                 }
             }
+            Tag::IsUnique | Tag::Pin if self.short_skips.contains(&i) => {}
             Tag::IsUnique => self.own_unique(i)?,
             Tag::Pin => self.own_pin(i)?,
             Tag::Drop | Tag::FlagSet | Tag::FlagClear => {

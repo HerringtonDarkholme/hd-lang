@@ -643,6 +643,11 @@ impl Em<'_, '_, '_> {
             return self.release_fresh(&fresh);
         };
         self.ref_from(i, at, ty, &path, owned_base, fat)?;
+        // A short loan keeps what the walk made fresh until it ends.
+        if let Some(loan) = self.short_loans.get_mut(&i) {
+            loan.fresh.extend(fresh);
+            return Ok(());
+        }
         self.release_fresh(&fresh)
     }
 
