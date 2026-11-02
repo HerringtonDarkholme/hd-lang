@@ -1,5 +1,6 @@
 # std.option: inherent methods on `T?` (spec/std/option.md).
 # `map` is the std method of spec/std/iter.md#list-and-optional-map.
+use std.annotation.inline
 
 ## A cursor yielding an optional's payload once, if present.
 ## See [std-iter.option.iterable-cursor](../../spec/std/iter.md#r-std-iter.option.iterable-cursor).
@@ -92,6 +93,7 @@ impl[T < ?Copy] T?:
 impl['a, T](&'a T)?:
     ## `.Some` of a copy of the value a `.Some` refers to, and `.None` for a `.None`.
     ## See [std-option.copied](../../spec/std/option.md#r-std-option.copied).
+    @inline(.Always)
     pub fn copied(self) -> T?:
         match self:
             .Some(value) => .Some(*value)

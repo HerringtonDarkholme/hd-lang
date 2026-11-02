@@ -373,6 +373,12 @@ impl Em<'_, '_, '_> {
             Tag::Call => Callee::from_words(self.b.record(self.b.data[k][0]))
                 .is_some_and(|callee| !self.input.own_cx.may_write(&callee)),
             Tag::Block => self.block_preserves_map_probe(i, map),
+            // An inlined body's scope, which runs no cleanup suite.
+            Tag::Scope => {
+                let [body, suites] = self.b.data[k];
+                (suites == NONE || self.b.record(suites).is_empty())
+                    && self.block_preserves_map_probe(body, map)
+            }
             Tag::Store => {
                 let map_place = self
                     .b
@@ -396,6 +402,7 @@ impl Em<'_, '_, '_> {
             | Tag::SwitchChar
             | Tag::SwitchStr
             | Tag::ToArm
+            | Tag::Break
             | Tag::Unreachable => true,
             Tag::Intrinsic => matches!(
                 IntrinsicOp::from_u32(self.b.data[k][0]),

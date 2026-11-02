@@ -4,11 +4,10 @@
   (import "fixture" "rt:map_find" (func $rt:map_find (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:map_unique" (func $rt:map_unique (param i32) (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "impl [ 'a , T ] ( & 'a T ) ?.copied[i64]" (func $"impl [ 'a , T ] ( & 'a T ) ?.copied[i64]" (param i32) (result i32 i64)))
   (import "fixture" "impl [ T < ? Copy ] T ?.unwrap_or[i64]" (func $"impl [ T < ? Copy ] T ?.unwrap_or[i64]" (param i32 i64 i64) (result i64)))
   (import "fixture" "rt:map_put" (func $rt:map_put (param i32 i32 i32 i32 i32 i64) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $changed_between (param $counts i32) (param $word.0 i32) (param $word.1 i32) (param $other.0 i32) (param $other.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64)
+  (func $changed_between (param $counts i32) (param $word.0 i32) (param $word.1 i32) (param $other.0 i32) (param $other.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64) (local $t4 i32)
     block
     ;; 14 |     seen := counts.get_ref(word).copied().unwrap_or(0)
       local.get $counts
@@ -65,9 +64,41 @@
         local.set $t2
       else
       end
-      local.get $t2
-      call $"impl [ 'a , T ] ( & 'a T ) ?.copied[i64]"
+      block
+        block
+          block
+            block
+              block
+                local.get $t2
+                if
+                  local.get $t2
+                  local.set $t0
+                  br 1
+                else
+                  local.get $t2
+                  i32.eqz
+                  br_if 2
+                  unreachable
+                end
+                unreachable
+              end
+              i32.const 1
+              local.get $t0
+              i64.load $heap
+              local.set $t3
+              local.set $t4
+              br 1
+            end
+            br 0
+          end
+          local.get $t4
+          local.set $t0
+          br 0
+        end
+      end
       ;; ...
+      local.get $t0
+      local.get $t3
       i64.const 0
       call $"impl [ T < ? Copy ] T ?.unwrap_or[i64]"
       ;; ...
@@ -220,7 +251,7 @@
       i32.store $heap
     end
   )
-  (func $tally (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i64)
+  (func $tally (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i64) (local $t5 i32)
     block
     ;; 6 |     counts[word] = counts.get_ref(word).copied().unwrap_or(0) + 1
       local.get $counts
@@ -278,9 +309,41 @@
         local.set $t3
       else
       end
-      local.get $t3
-      call $"impl [ 'a , T ] ( & 'a T ) ?.copied[i64]"
+      block
+        block
+          block
+            block
+              block
+                local.get $t3
+                if
+                  local.get $t3
+                  local.set $t0
+                  br 1
+                else
+                  local.get $t3
+                  i32.eqz
+                  br_if 2
+                  unreachable
+                end
+                unreachable
+              end
+              i32.const 1
+              local.get $t0
+              i64.load $heap
+              local.set $t4
+              local.set $t5
+              br 1
+            end
+            br 0
+          end
+          local.get $t5
+          local.set $t0
+          br 0
+        end
+      end
       ;; ...
+      local.get $t0
+      local.get $t4
       i64.const 0
       call $"impl [ T < ? Copy ] T ?.unwrap_or[i64]"
       i64.const 1
