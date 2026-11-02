@@ -68,6 +68,11 @@ pub fn alloc(size: usize) -> usize:
     if table == 0:
         start()
     if size > 2048:
+        # No block reaches 2^31 bytes, so no string's length has the top
+        # bit that tags a packed string (crates/hd_wasm_linear/DESIGN.md
+        # §23.7).
+        if size >= 0x80000000:
+            panic_with("heap-exhausted", "an allocation does not fit the heap")
         count := (size + PAGE - 1) / PAGE
         reclaim()
         first := take(count)

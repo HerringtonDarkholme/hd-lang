@@ -538,9 +538,14 @@ fn mem_one(
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Walk {
     /// Value `k` is an address in a counted object, or in static data: a
-    /// string's bytes, a local reference, an open value; counting finds its
-    /// block through the page table (§23.5).
+    /// local reference, an open value; counting finds its block through
+    /// the page table (§23.5).
     Ref(u32),
+    /// A string: value `k` its address word and value `n` its length
+    /// word. An allocated string's address is counted as [`Walk::Ref`]'s;
+    /// a packed one, whose length word has its top bit set, holds text in
+    /// its address word and has no count (§23.7).
+    Str(u32, u32),
     /// Value `k` is null, a static object's, or the payload start of a
     /// counted object, eight bytes after its header: a data value, a boxed
     /// enum's cell, a collection's buffer, a closure's environment, a
@@ -563,6 +568,7 @@ impl Walk {
     pub fn remap(&self, to: &dyn Fn(u32) -> u32) -> Walk {
         match self {
             Walk::Ref(k) => Walk::Ref(to(*k)),
+            Walk::Str(k, n) => Walk::Str(to(*k), to(*n)),
             Walk::Known(k) => Walk::Known(to(*k)),
             Walk::Seq(ws) => Walk::Seq(ws.iter().map(|w| w.remap(to)).collect()),
             Walk::Switch(k, arms) => Walk::Switch(
@@ -581,6 +587,7 @@ impl Walk {
     pub fn without(&self, skip: &[u32]) -> Option<Walk> {
         match self {
             Walk::Ref(k) => (!skip.contains(k)).then_some(Walk::Ref(*k)),
+            Walk::Str(k, n) => (!skip.contains(k)).then_some(Walk::Str(*k, *n)),
             Walk::Known(k) => (!skip.contains(k)).then_some(Walk::Known(*k)),
             Walk::Seq(ws) => Walk::seq(ws.iter().filter_map(|w| w.without(skip)).collect()),
             Walk::Switch(k, arms) => Some(Walk::Switch(
@@ -594,13 +601,20 @@ impl Walk {
     }
 
     /// The value index when the walk is one counted address, of either
-    /// kind.
+    /// kind; a string's is counted only when it is allocated, so it is
+    /// not one.
     #[must_use]
     pub fn single(&self) -> Option<u32> {
         match self {
             Walk::Ref(k) | Walk::Known(k) => Some(*k),
-            Walk::Seq(_) | Walk::Switch(..) | Walk::Nullable(_) => None,
+            Walk::Str(..) | Walk::Seq(_) | Walk::Switch(..) | Walk::Nullable(_) => None,
         }
+    }
+
+    /// A string's walk: its address word, then its length word.
+    #[must_use]
+    pub fn string() -> Walk {
+        Walk::Str(0, 1)
     }
 
     fn seq(mut ws: Vec<Walk>) -> Option<Walk> {
@@ -633,7 +647,7 @@ fn walk_one(
         return Some(Walk::Ref(0));
     }
     match pool.get(t) {
-        TyData::Prim(Prim::String) => Some(Walk::Ref(0)),
+        TyData::Prim(Prim::String) => Some(Walk::string()),
         TyData::Fn { .. } => Some(Walk::Known(1)),
         TyData::TraitValue { .. } => Some(Walk::Ref(0)),
         TyData::Context(_) => Some(Walk::Known(0)),

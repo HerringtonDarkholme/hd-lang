@@ -2988,7 +2988,7 @@ impl Em<'_, '_, '_> {
             // std's map cursor step closure (`emit/iter.rs`).
             "map_steps" => self.map_iter(i, args[0]),
             "bytes_len" => {
-                self.comp(args[0], 1)?;
+                self.str_len(args[0])?;
                 self.store(i)
             }
             "bytes_at" => self.str_at(i, args[0], args[1]),
@@ -2996,15 +2996,13 @@ impl Em<'_, '_, '_> {
             "bytes_concat" => self.concat(i, args),
             // A SIMD128 scan in place of the hd reference body (#428).
             "bytes_index_json" => {
-                self.comp(args[0], 0)?;
-                self.comp(args[0], 1)?;
+                self.push_view(args[0], 0)?;
                 self.comp(args[1], 0)?;
                 self.f.helper(Helper::BytesIndexJson);
                 self.store(i)
             }
             "bytes_index_pair" => {
-                self.comp(args[0], 0)?;
-                self.comp(args[0], 1)?;
+                self.push_view(args[0], 0)?;
                 for arg in &args[1..5] {
                     self.comp(*arg, 0)?;
                 }
@@ -3012,18 +3010,15 @@ impl Em<'_, '_, '_> {
                 self.store(i)
             }
             "bytes_index" => {
-                self.comp(args[0], 0)?;
-                self.comp(args[0], 1)?;
+                self.push_view(args[0], 0)?;
                 self.comp(args[1], 0)?;
                 self.comp(args[2], 0)?;
                 self.f.helper(Helper::BytesIndex);
                 self.store(i)
             }
             "bytes_mismatch" => {
-                self.comp(args[0], 0)?;
-                self.comp(args[0], 1)?;
-                self.comp(args[1], 0)?;
-                self.comp(args[1], 1)?;
+                self.push_view(args[0], 0)?;
+                self.push_view(args[1], 1)?;
                 self.f.helper(Helper::BytesMismatch);
                 self.store(i)
             }
@@ -3055,6 +3050,13 @@ impl Em<'_, '_, '_> {
                 }
                 self.f.helper(Helper::StrFromBytes);
                 self.store_owned(i)
+            }
+            // A string's packed form, for the tests of the readers (§23.7):
+            // the same text, so a value of either form reads alike.
+            "bytes_pack" => {
+                self.push(args[0])?;
+                self.f.helper(Helper::StrPack);
+                self.store(i)
             }
             // The bytes of a string as a new list: one sized buffer, one copy.
             "string_to_bytes" => {
@@ -3097,8 +3099,10 @@ impl Em<'_, '_, '_> {
                 self.f.helper(Helper::ListBuf { elem });
                 return self.store_owned(i);
             }
+            // A packed string's bytes are a copy in a scratch slot (§23.7).
             "mem_string_bytes" => {
-                self.comp(args[0], 0)?;
+                self.push_view(args[0], 0)?;
+                self.f.op(I::Drop);
                 return self.store(i);
             }
             "mem_new_string" => {
