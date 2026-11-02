@@ -122,20 +122,20 @@ impl[T < ?Copy] Buffer[T]:
         panic("intrinsic")
 
     ## How many values of `T` the buffer has room for.
-    pub fn capacity(self) -> usize:
+    pub fn capacity(&self) -> usize:
         usize(load_u32(self.address))
 
     ## How many values the buffer holds, at the start of its room.
-    pub fn len(self) -> usize:
+    pub fn len(&self) -> usize:
         usize(load_u32(self.address + 4))
 
     ## Sets how many values the buffer holds; the code that changes it writes or reads those values.
     ## See [module.rt.buffer.len](../../../spec/lang/10-modules.md#r-module.rt.buffer.len).
-    pub fn set_len(self, len: usize) -> void:
+    pub fn set_len(&self, len: usize) -> void:
         store_u32(self.address + 4, u32(len))
 
     ## The place of value `index` of the buffer's room.
-    pub fn at(self, index: usize) -> Ptr[T]:
+    pub fn at(&self, index: usize) -> Ptr[T]:
         Ptr::[T] { address: self.address + 16 }.offset(index)
 
     ## Lends the value at `index` for as long as the buffer is lent. The caller checks the index.
