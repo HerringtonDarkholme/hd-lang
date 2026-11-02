@@ -2973,6 +2973,11 @@ once per run. A copy inside a copy keeps its frame: its `Body::inlined`
 row is called at an anchor in the outer copy's row, so a panic reports
 each inlined frame.
 
+An explicit hint is measured on the declaration as written (2026-11-02,
+#1235). Once that declaration qualifies, explicit hints inside its copy
+are honored even when their copies grow the outer copy past `@inline`'s
+automatic limit. `@inline(.Always)` remains unlimited.
+
 A copy's parameter bound from a binding local borrows it the way any
 binding local does, and does not stop that local from borrowing in turn
 (2026-10-24, #667): in `for part in parts: n += part.len()`, the copied
