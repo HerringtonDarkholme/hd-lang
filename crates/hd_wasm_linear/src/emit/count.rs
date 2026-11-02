@@ -477,7 +477,11 @@ impl Em<'_, '_, '_> {
     /// it ([`Em::copy_locals`]). A constant is static data, which has no
     /// count.
     pub(super) fn retain_ref(&mut self, r: u32) -> StageResult<Src> {
-        if r == NONE || Ref(r).as_inst().is_none() || self.counted(self.ty_of(r)).is_none() {
+        if r == NONE
+            || Ref(r).as_inst().is_none()
+            || self.counted(self.ty_of(r)).is_none()
+            || self.short_holders.contains(&r)
+        {
             return Ok(Src::Ref(r));
         }
         let Some(ls) = self.vals.get(&r).cloned() else {

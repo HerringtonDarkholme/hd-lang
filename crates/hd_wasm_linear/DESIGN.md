@@ -905,6 +905,13 @@ Each operation implements collection value semantics (§15.2;
   map's own (`rt:map_unique`): a shared table is copied whole, each live entry
   takes its own counts, and the collections among the values become
   copies, so a write through `m[k].push(v)` reaches only this map.
+- **Probes.** `get` is the `MapGet` built-in, which copies the value
+  out. `get_ref`, `get_mut` and `get_or_insert` share the `map_probe`
+  body: one hash and one search, which a following `m[k] = v` of the
+  same map and key reuses. A mutable probe makes the table the map's own
+  and stores it back; a counted reference pins it (§23.20). A probe whose
+  reference is a short loan (§23.20) takes no count, and a shared one,
+  `get_ref`'s, also skips the uniqueness check, the store and the pin.
 - **Iteration.** A counted `for` iterates the snapshot through
   `MapSlots`, `MapSlotNext` and `MapSlotEntry`, which read the entries
   in place.
@@ -1144,6 +1151,19 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   Two references to one slot share its address (`ref.elem.identity`). A
   trait value of a value that is one counted address is that address,
   never a copy.
+- **Short loans.** A reference from a shared map probe (`get_ref`) or a
+  `get_or_insert` probe whose every holder ends before anything could
+  write or drop its map lives on the map's own count (`emit/loan.rs`):
+  no count of the table, and for a shared one no uniqueness check or
+  pin. Its holders are the values and locals it flows into: a variant
+  around it, a block tail its owner takes, a `break` value, a local
+  stored once from it, a read of a part that is the reference again.
+  Each use of a holder lends, and one `Drop` in the origin's loop ends
+  the loan. No statement between them stores outside a local off the
+  map's path, drops or moves that path, takes a `&mut`, checks or pins
+  a buffer, calls a function that may write, or jumps out. A table a
+  view's getter made stays until that `Drop`. Any other reference keeps
+  its count and pin, so `map-get-ref-pinned-panics` still panics.
 - **Bounded memory.** `crates/hd_driver/tests/std_rt/ref_tests.hd` writes
   through references to locals and elements, checks that a pin ends with
   its reference's last use, and takes references to locals and elements

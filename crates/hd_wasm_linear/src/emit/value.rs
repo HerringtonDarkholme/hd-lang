@@ -22,6 +22,7 @@ use crate::rt::Helper;
 use crate::unsupported;
 
 /// Where a payload field's values come from: a TIR value, or locals.
+#[derive(Clone)]
 pub enum Src {
     Ref(u32),
     Locals(Vec<u32>),
@@ -651,7 +652,11 @@ impl Em<'_, '_, '_> {
             return unsupported("a variant built from other fields than it has");
         }
         // Construction consumes its parts (§23.25).
-        let fields = self.count_parts(fields, &tys)?;
+        let fields = if self.short_loans.contains_key(&i) {
+            fields.to_vec()
+        } else {
+            self.count_parts(fields, &tys)?
+        };
         // A nullable enum's value 0 is the payload's address, or null.
         let push = |em: &mut Self, p: usize| -> StageResult<()> {
             if let Some((f, k)) = from[p] {

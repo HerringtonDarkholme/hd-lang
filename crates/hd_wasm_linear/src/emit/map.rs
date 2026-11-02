@@ -645,51 +645,6 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// Whether this probe result is used only by an immediate scalar
-    /// read/primitive/store sequence and then dropped. Nothing in that
-    /// sequence can move the table or observe a pin.
-    fn map_probe_ephemeral(&self, i: u32) -> bool {
-        let mut operands = Vec::new();
-        let mut drop = None;
-        for j in usize::try_from(i).expect("instruction") + 1..self.b.len() {
-            hd_tir::own::operands(self.b, j, &mut operands);
-            let uses_probe = operands.iter().any(|operand| operand.value == i);
-            match self.b.tags[j] {
-                Tag::Read | Tag::Store if uses_probe => {
-                    let Some(place) = self.b.decode_place(self.b.data[j][0]) else {
-                        return false;
-                    };
-                    if place.root != PlaceRoot::Value(hd_tir::ir::Ref(i)) || place.proj.is_empty() {
-                        return false;
-                    }
-                }
-                Tag::Drop if uses_probe => {
-                    let Some(place) = self.b.decode_place(self.b.data[j][0]) else {
-                        return false;
-                    };
-                    if place.root != PlaceRoot::Value(hd_tir::ir::Ref(i)) || !place.proj.is_empty()
-                    {
-                        return false;
-                    }
-                    drop = Some(j);
-                    break;
-                }
-                Tag::Read | Tag::Drop | Tag::Prim if !uses_probe => {}
-                _ => return false,
-            }
-        }
-        let Some(drop) = drop else {
-            return false;
-        };
-        for j in drop + 1..self.b.len() {
-            hd_tir::own::operands(self.b, j, &mut operands);
-            if operands.iter().any(|operand| operand.value == i) {
-                return false;
-            }
-        }
-        true
-    }
-
     /// Releases a directly consumed probe result through its known table,
     /// avoiding the generic interior-reference page lookup.
     pub(super) fn drop_map_probe_ref(&mut self, i: u32) -> bool {
@@ -743,7 +698,10 @@ impl Em<'_, '_, '_> {
         let [m] = crate::rt::ref_load_borrowed(&mut self.f, at, &value, owned)[..] else {
             return unsupported("a map that is not one address");
         };
-        let counted = default.is_some() && !self.map_probe_ephemeral(i);
+        // A short loan (`emit/loan.rs`) takes no count of the table; a
+        // shared one neither makes it unique nor pins it.
+        let short = self.short_loans.contains_key(&i);
+        let counted = default.is_some() && !short;
         if default.is_some() {
             self.map_probe_refs.insert(i, (m, counted));
         }
@@ -753,6 +711,9 @@ impl Em<'_, '_, '_> {
             // A later `m[k] = v` may reuse this search (`map_probe_source`):
             // entry numbers and a miss position survive the unique copy.
             self.map_probes.insert(i, MapProbe { hash, entry: found });
+        }
+        if default.is_none() && short {
+            return self.map_probe_lent(i, (owned, m), mt, found);
         }
         if default.is_some() {
             self.map_probe_unique(m, &entry);
@@ -810,6 +771,32 @@ impl Em<'_, '_, '_> {
             self.new_variant(i, 0, &[])?;
         }
         self.close();
+        Ok(())
+    }
+
+    /// A shared probe's short loan: `.Some` of the value's address in the
+    /// table as it is, with no count. A table a view's getter made stays
+    /// until the loan ends ([`Em::end_short_loan`]).
+    fn map_probe_lent(
+        &mut self,
+        i: u32,
+        (owned, m): (u32, u32),
+        mt: Ty,
+        found: u32,
+    ) -> StageResult<()> {
+        self.f.get(found);
+        self.f.i32(0);
+        self.f.op(I::I32GeS);
+        self.f.op(I::If(BlockType::Empty));
+        self.ctl.push(Ctl::Plain);
+        let (_, value_at) = self.map_value_from(m, mt, &Src::Locals(vec![found]))?;
+        self.new_variant(i, 1, &[Src::Locals(vec![value_at])])?;
+        self.f.op(I::Else);
+        self.new_variant(i, 0, &[])?;
+        self.close();
+        if let Some(loan) = self.short_loans.get_mut(&i) {
+            loan.table = Some((owned, m, mt));
+        }
         Ok(())
     }
 

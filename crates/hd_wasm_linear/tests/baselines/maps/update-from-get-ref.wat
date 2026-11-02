@@ -2,12 +2,11 @@
 (module
   (import "fixture" "rt:map_hash" (func $rt:map_hash (param i32 i32) (result i32)))
   (import "fixture" "rt:map_find" (func $rt:map_find (param i32 i32 i32 i32) (result i32)))
-  (import "fixture" "rt:map_unique" (func $rt:map_unique (param i32) (result i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "impl [ T < ? Copy ] T ?.unwrap_or[i64]" (func $"impl [ T < ? Copy ] T ?.unwrap_or[i64]" (param i32 i64 i64) (result i64)))
+  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:map_put" (func $rt:map_put (param i32 i32 i32 i32 i32 i64) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $changed_between (param $counts i32) (param $word.0 i32) (param $word.1 i32) (param $other.0 i32) (param $other.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64) (local $t4 i32)
+  (func $changed_between (param $counts i32) (param $word.0 i32) (param $word.1 i32) (param $other.0 i32) (param $other.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i32)
     block
     ;; 14 |     seen := counts.get_ref(word).copied().unwrap_or(0)
       local.get $counts
@@ -22,28 +21,7 @@
       local.tee $t1
       i32.const 0
       i32.ge_s
-      if
-        local.get $t0
-        i32.load $heap offset=8
-        i32.eqz
-        local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        i32.const 1
-        i32.ne
-        i32.and
-        if
-          local.get $t0
-          call $rt:map_unique
-          local.set $t0
-        end
-        local.get $counts
-        local.get $t0
-        i32.store $heap
-        local.get $t0
-        i32.const 2
-        i32.store $heap offset=8
+      if (result i32)
         local.get $t0
         local.get $t0
         i32.load $heap offset=12
@@ -58,24 +36,20 @@
         i32.add
         i32.const 8
         i32.add
-        local.tee $t0
-        call $retain
-        local.get $t0
-        local.set $t2
       else
+        i32.const 0
       end
+      local.set $t0
       block
         block
           block
             block
               block
-                local.get $t2
+                local.get $t0
                 if
-                  local.get $t2
-                  local.set $t0
                   br 1
                 else
-                  local.get $t2
+                  local.get $t0
                   i32.eqz
                   br_if 2
                   unreachable
@@ -85,20 +59,21 @@
               i32.const 1
               local.get $t0
               i64.load $heap
-              local.set $t3
-              local.set $t4
+              local.set $t2
+              local.set $t0
               br 1
             end
+            i32.const 0
+            i64.const 0
+            local.set $t2
+            local.set $t0
             br 0
           end
-          local.get $t4
-          local.set $t0
           br 0
         end
       end
-      ;; ...
       local.get $t0
-      local.get $t3
+      local.get $t2
       i64.const 0
       call $"impl [ T < ? Copy ] T ?.unwrap_or[i64]"
       ;; ...
@@ -110,13 +85,13 @@
       local.get $other.0
       local.get $other.1
       call $rt:map_find
-      local.set $t2
+      local.set $t3
       local.get $other.0
       call $retain
       local.get $counts
       ;; ...
       local.get $t1
-      local.get $t2
+      local.get $t3
       local.get $other.0
       local.get $other.1
       i64.const 0
@@ -125,7 +100,7 @@
     ;; 16 |     counts[word] = seen + 1
       i64.const 1
       i64.add
-      local.set $t3
+      local.set $t2
       ;; ...
       local.get $word.0
       local.get $word.1
@@ -143,68 +118,46 @@
       local.get $t0
       local.get $word.0
       local.get $word.1
-      local.get $t3
+      local.get $t2
       call $rt:map_put
       i32.store $heap
     end
   )
-  (func $tally_match (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $seen i32) (local $t3 i64)
+  (func $tally_match (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $seen i32) (local $t0 i32) (local $t1 i32) (local $t2 i64)
     block
     ;; 9 |     counts[word] = match counts.get_ref(word):
       local.get $counts
       i32.load $heap
-      local.tee $t0
+      local.tee $seen
       local.get $word.0
       local.get $word.1
       call $rt:map_hash
-      local.tee $t1
+      local.tee $t0
       local.get $word.0
       local.get $word.1
       call $rt:map_find
-      local.tee $t2
+      local.tee $t1
       i32.const 0
       i32.ge_s
       if
-        local.get $t0
-        i32.load $heap offset=8
-        i32.eqz
-        local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        i32.const 1
-        i32.ne
-        i32.and
-        if
-          local.get $t0
-          call $rt:map_unique
-          local.set $t0
-        end
-        local.get $counts
-        local.get $t0
-        i32.store $heap
-        local.get $t0
-        i32.const 2
-        i32.store $heap offset=8
-        local.get $t0
-        local.get $t0
+        local.get $seen
+        local.get $seen
         i32.load $heap offset=12
         i32.const 12
         i32.mul
         i32.add
         i32.const 24
         i32.add
-        local.get $t2
+        local.get $t1
         i32.const 16
         i32.mul
         i32.add
         i32.const 8
         i32.add
-        local.tee $t0
-        call $retain
-        local.get $t0
         local.set $seen
       else
+        i32.const 0
+        local.set $seen
       end
       block
         block
@@ -230,11 +183,11 @@
           i64.const 1
           i64.add
     ;; 9 |     counts[word] = match counts.get_ref(word):
-          local.set $t3
+          local.set $t2
           br 1
         end
         i64.const 1
-        local.set $t3
+        local.set $t2
         br 0
       end
       ;; ...
@@ -242,16 +195,16 @@
       call $retain
       local.get $counts
       ;; ...
+      local.get $t0
       local.get $t1
-      local.get $t2
       local.get $word.0
       local.get $word.1
-      local.get $t3
+      local.get $t2
       call $rt:map_put
       i32.store $heap
     end
   )
-  (func $tally (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i64) (local $t5 i32)
+  (func $tally (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64)
     block
     ;; 6 |     counts[word] = counts.get_ref(word).copied().unwrap_or(0) + 1
       local.get $counts
@@ -267,28 +220,7 @@
       local.tee $t2
       i32.const 0
       i32.ge_s
-      if
-        local.get $t0
-        i32.load $heap offset=8
-        i32.eqz
-        local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        i32.const 1
-        i32.ne
-        i32.and
-        if
-          local.get $t0
-          call $rt:map_unique
-          local.set $t0
-        end
-        local.get $counts
-        local.get $t0
-        i32.store $heap
-        local.get $t0
-        i32.const 2
-        i32.store $heap offset=8
+      if (result i32)
         local.get $t0
         local.get $t0
         i32.load $heap offset=12
@@ -303,24 +235,20 @@
         i32.add
         i32.const 8
         i32.add
-        local.tee $t0
-        call $retain
-        local.get $t0
-        local.set $t3
       else
+        i32.const 0
       end
+      local.set $t0
       block
         block
           block
             block
               block
-                local.get $t3
+                local.get $t0
                 if
-                  local.get $t3
-                  local.set $t0
                   br 1
                 else
-                  local.get $t3
+                  local.get $t0
                   i32.eqz
                   br_if 2
                   unreachable
@@ -330,25 +258,26 @@
               i32.const 1
               local.get $t0
               i64.load $heap
-              local.set $t4
-              local.set $t5
+              local.set $t3
+              local.set $t0
               br 1
             end
+            i32.const 0
+            i64.const 0
+            local.set $t3
+            local.set $t0
             br 0
           end
-          local.get $t5
-          local.set $t0
           br 0
         end
       end
-      ;; ...
       local.get $t0
-      local.get $t4
+      local.get $t3
       i64.const 0
       call $"impl [ T < ? Copy ] T ?.unwrap_or[i64]"
       i64.const 1
       i64.add
-      local.set $t4
+      local.set $t3
       ;; ...
       local.get $word.0
       call $retain
@@ -358,7 +287,7 @@
       local.get $t2
       local.get $word.0
       local.get $word.1
-      local.get $t4
+      local.get $t3
       call $rt:map_put
       i32.store $heap
     end

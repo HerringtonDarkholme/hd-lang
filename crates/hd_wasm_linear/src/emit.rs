@@ -42,6 +42,7 @@ mod excl;
 pub(crate) use excl::{Loan, collect_loans};
 mod iter;
 mod list;
+mod loan;
 mod map;
 mod promote;
 pub use promote::{lent_referent, promotable_referent};
@@ -445,6 +446,7 @@ fn body_func<'a>(
         em.open(Ctl::Exit);
     }
     em.prepare_own_loans();
+    em.prepare_short_loans();
     let root = b.sub_root[sub as usize];
     em.block_into(root, None)?;
     let tail = em.live_tail(root);
@@ -990,6 +992,13 @@ struct Em<'i, 'a, 'm> {
     /// reference owns. The direct drop can release the known table without
     /// resolving the interior address through the page table.
     map_probe_refs: HashMap<u32, (u32, bool)>,
+    /// The short loans, by origin (`emit/loan.rs`).
+    short_loans: HashMap<u32, loan::ShortLoan>,
+    /// Each short loan's end `Drop`, with its origin.
+    short_ends: HashMap<u32, u32>,
+    /// The values that hold a short loan: a copy of one for a consumer
+    /// takes no count either.
+    short_holders: hd_base::HashSet<u32>,
     /// Each TIR local's locals.
     locals: HashMap<usize, Vec<u32>>,
     /// The providers in scope: each key's data and vtable locals.
@@ -1189,6 +1198,9 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             vals: HashMap::default(),
             map_probes: HashMap::default(),
             map_probe_refs: HashMap::default(),
+            short_loans: HashMap::default(),
+            short_ends: HashMap::default(),
+            short_holders: hd_base::HashSet::default(),
             locals: HashMap::default(),
             providers: Vec::new(),
             open_ctx: None,
@@ -1803,6 +1815,7 @@ impl Em<'_, '_, '_> {
             // The ownership passes' statements, in an owned body
             // (`count.rs`); the checker's TIR has none (invariant 22).
             Tag::Drop if self.owned => {
+                self.end_short_loan(i)?;
                 if !self.drop_map_probe_ref(i) {
                     self.own_drop(i)?;
                 }
