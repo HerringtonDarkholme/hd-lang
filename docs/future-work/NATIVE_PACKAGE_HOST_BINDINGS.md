@@ -1,6 +1,7 @@
 # Native Package Host Bindings
 
-Status: proposal, 2026-11-01; domain: runtime and host; not accepted.
+Status: accepted design, 2026-11-02; domain: runtime and host; not built.
+Nothing here is in the specification until a spec pass applies it.
 This reviews [Host Embedding](HOST_EMBEDDING.md),
 [`module.host.package.*`](../../spec/lang/10-modules.md#package-host-traits), and
 [`cli.host.package.*`](../../spec/cli/command-line.md#package-host-bindings).
@@ -134,15 +135,26 @@ serialized as a string reaches Rust as a string, not as its hidden fields.
 The design adds runtime and CLI mechanisms, not language syntax, semantics,
 intrinsics, or std APIs.
 
-## Open Questions
+## Decisions
 
-1. **Binding shape.** Effect: renderer authors implement typed Rust, without the raw exchange-buffer ABI. **Recommendation:** generate one trait per interface plus an app registry passed by value at instantiation. Alternative: load a dylib named in a manifest. The `Surface` example above is the source interface.
-2. **Consent.** Effect: linking native code cannot silently grant `Surface`. **Recommendation:** require both the app's existing `true` capability and explicit embedder registration; either missing input refuses before provider methods run. Alternative: treat registration as consent. The example remains `$ Surface` in hd.
-3. **Values.** Effect: JavaScript and Rust providers observe the same hd values. **Recommendation:** generate owned Rust types from the checked schema, with named enum fields and a typed private-Serde tree. Alternative: expose raw ABI bytes. The example's `List[Command]` becomes `Vec<Command>`.
-4. **Build output.** Effect: renderer authors never hand-write ABI glue. **Recommendation:** `hd build --engine wasmtime` emits `NAME.host.rs` beside `NAME.wasm` when package traits are reachable, matching the JavaScript companion rule. Alternative: a separate bindings command. A build with no package trait emits neither companion.
+The owner walked the four questions on 2026-11-02 and took each
+recommendation:
 
-No answer above changes accepted behavior until the owner approves it and a
-later spec pass applies it.
+1. **Binding shape.** hd generates one Rust trait per host interface plus
+   an app registry, which the embedder passes by value when it
+   instantiates the module through `hd_run_wasmtime`. No dynamic library
+   is loaded.
+2. **Consent.** Both keys are required: the app's existing `true`
+   capability and the embedder's explicit registration. Either one missing
+   refuses before any provider method runs.
+3. **Values.** Generated owned Rust types mirror the JavaScript mapping
+   from the same checked schema: records, named enum fields, `Option`,
+   `Result`, same-width integers, and a typed private-Serde tree that keeps
+   integer width and float bits. JavaScript and Rust providers observe the
+   same hd values.
+4. **Build output.** `hd build --engine wasmtime` writes `NAME.host.rs`
+   beside `NAME.wasm` when package host traits are reachable, as it writes
+   `NAME.host.mjs` for JavaScript. A build with none emits no companion.
 
 ## Appendix A: Stress Test
 
