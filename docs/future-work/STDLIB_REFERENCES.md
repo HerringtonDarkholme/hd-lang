@@ -9,9 +9,14 @@ git history at d93e378fd, `docs/future-work/stdlib-references/` (it passed
 
 ## The Proposal
 
-std hands out references where a copy would cost. Each accessor comes in
-three forms: `get` copies the item (for `T < Copy`), `get_ref` returns
-`&T`, and `get_mut` returns `&mut T`. A callback that looks at an item takes `&T`. Loops follow Rust's three
+std hands out references where a copy would cost. On `List`, `Map` and
+the other copy-on-write collections, accessors copy: `get`, `first` and
+`last` return `T?`, and copying a collection item is one count. Code that
+reads or changes an item in place names its place: `&xs[i]`,
+`&mut xs[i]`, `xs[i].qty = 0`, `m[k]`, or a borrowing loop.
+`get_or_insert` returns `&mut V` for counting. The `_ref` and `_mut`
+accessor forms belong to `UniqList` and `UniqMap`, whose items need not
+copy. A callback that looks at an item takes `&T`. Loops follow Rust's three
 forms: `for x in xs` binds copies, `for x in &xs` borrows and binds `&T`,
 and `for x in &mut xs` binds `&mut T`. Movers move, and read-only methods take `&self`.
 
@@ -38,8 +43,8 @@ fn priciest(lines: &List[Line]) -> string:
 fn count_of(counts: &Map[string, usize], word: string) -> usize:
     counts.get(word).unwrap_or(0)  # get copies: usize?
 
-fn first_line(lines: &List[Line]) -> (&Line)?:
-    lines.first_ref()  # no copy of the Line
+fn first_line(lines: &List[Line]) -> &Line:
+    &lines[0]  # a place: no copy of the Line; panics on an empty list
 ```
 
 ## Language Rules
@@ -62,21 +67,22 @@ The std shape below needs these rules of the language:
 
 **1. Order totals** (package: `order_total`, `tidy`). Today
 `lines.get(0)` copies the whole `Line`, and std's `find` copies each
-element twice per step. Proposed, `get_ref` returns `(&Line)?`, and
-`retain` and `sort_by_key` work in place.
+element twice per step. Proposed, `&lines[0]` names the item in place,
+and `retain` and `sort_by_key` work in place.
 
 ```text
-first := lines.get_ref(0)   # (&Line)?; get(0) still copies the Line
+first := &lines[0]          # &Line; get(0) still copies the Line
 lines.retain(fn(line: &Line) -> bool: line.qty > 0)  # proposed, in place
 ```
 
 **2. Word counts** (`word_counts`, `report`). `index.get(key)` on a
 `Map[string, List[string]]` copies the list, and `for (_, tags) in index`
-counts each entry. Proposed, `get_ref` gives `(&V)?` and the loop `(&K, &V)`.
+counts each entry. Proposed, the loop binds `(&K, &V)`, and `get` copies
+the list as one count of its buffer, not a deep copy.
 
 ```text
 n := counts.get(word).unwrap_or(0) + 1        # get copies a usize, as today
-tags := index.get_ref(key)                    # (&List[string])?, no copy of the list
+tags := index.get(key)                        # List[string]?: one count, no deep copy
 ```
 
 **3. JSON handling** (`setting`, `tags`). Each `doc.get(key)` returns a
@@ -101,7 +107,7 @@ pool.idle.push(conn)                           # moves back
 
 | Kind | Shape | Methods | Rust |
 | --- | --- | --- | --- |
-| Accessor | `&self -> T?` (`T < Copy`), `_ref`: `&self -> (&T)?`, `_mut`: `&mut self -> (&mut T)?` | `get`, `first`, `last`, `front`, `back` in all three; `peek`, `find`, `min`, `max`, `*_by_key` copy and `_ref` | `Vec::get`, `get_mut` |
+| Accessor | `&self -> T?`, a copy; on `UniqList` and `UniqMap` also `_ref`: `&self -> (&T)?` and `_mut`: `&mut self -> (&mut T)?` | `get`, `first`, `last`, `front`, `back`, `peek`, `find`, `min`, `max`, `*_by_key` | `Vec::get`, `get_mut` |
 | Looking callback | `fn(&T) -> R` | `find`, `any`, `all`, `map`, `filter`, `retain`, `sort_by`, `*_by_key`, `partition`, `group_by` | `retain(\|x\| ..)` |
 | Mover | value in or out, `&mut self` | `push`, `pop`, `insert`, `remove_at`, `swap`, `Map.remove`, `pop_front`, `Heap.pop`, `Option.take`, `replace` | `Vec::pop`, `mem::replace` |
 | Builder | `&self -> List[T]`, `T < Copy` | `filter`, `sorted*`, `reversed`, `take`, `unique`, `partition`, `view`, `chunks`, `keys`, `values`, `xs[a..b]` | `iter().cloned().collect()` |
@@ -115,7 +121,7 @@ pool.idle.push(conn)                           # moves back
   | items | copyable only | any |
   | the collection | `Copy`: a copy is one count, and a write while shared duplicates the buffer | `impl !Copy`: moved; no count and no copy-on-write check |
   | built by | literals and comprehensions, by default | a literal or comprehension with that expected type, or `new()` |
-  | methods | the table above | the same names; `get` needs a copyable item, and a mover takes any item out |
+  | methods | the table above: accessors copy | the same names, plus the `_ref` and `_mut` accessors; `get` needs a copyable item, and a mover takes any item out |
 
   Converting between them copies each item once, so it needs a copyable
   item.
@@ -165,7 +171,7 @@ Estimated bottom-up from the files named; only the second table is measured.
 | Component | Change | Estimate |
 | --- | --- | --- |
 | Receivers and callbacks | `&self` and `fn(&T)` in about 150 std signatures, std callers, spec/std tables | about 400 line edits |
-| Accessors | `_ref` twins of 14 accessors; `get` keeps copying | about 200 line edits |
+| Accessors | accessors copy on the copy-on-write family; `_ref` and `_mut` twins only on `UniqList` and `UniqMap` | about 200 line edits |
 | Borrowing loop | the list loop becomes the element loop plus a shared loan; the snapshot path goes | +80 / -60 compiler lines |
 | Questions 1-3 | operator reads, `Index` result, map loops | about +200 compiler lines |
 | Movers | three intrinsic bodies; hd movers over them | +90 compiler, -40 std lines |
@@ -386,8 +392,8 @@ hand:
 | --- | --- | --- | --- |
 | `len`, `is_empty` (all), `is_some`, `is_ok`, string methods, `join` | `self` | `&self` | `&self` |
 | `split`, `lines`, `trim` and other text results | new strings | unchanged: hd has no string slice type | `&str` slices |
-| `List.get`, `first`, `last` | `self -> T?` | `&self -> T?` copies (`T < Copy`); `get_ref`, `first_ref`, `last_ref` `-> (&T)?`; `_mut` `-> (&mut T)?` | `get(&self) -> Option<&T>` |
-| `List.find`, `min`, `max`, `min_by_key`, `max_by_key` | `self`, `fn(T)`, `-> T?` | `&self`, `fn(&T)`, `-> T?`; `_ref` forms `-> (&T)?`; no `_mut` | `iter().find`, `max_by_key` |
+| `List.get`, `first`, `last` | `self -> T?` | `&self -> T?` copies; in place: `&xs[i]`, `&mut xs[i]` | `get(&self) -> Option<&T>` |
+| `List.find`, `min`, `max`, `min_by_key`, `max_by_key` | `self`, `fn(T)`, `-> T?` | `&self`, `fn(&T)`, `-> T?` copies | `iter().find`, `max_by_key` |
 | `List.map`, `filter`, `any`, `all`, `partition`, `group_by`, `sorted_by_key` | `self`, `fn(T)` | `&self`, `fn(&T)`; builders `T < Copy` | `iter().filter(\|x\| ..)` |
 | `List.sorted_by` | `fn(T, T) -> Ordering` | `fn(&T, &T) -> Ordering` | `sort_by(&mut self, ..)` |
 | `List.sort`, `sort_by`, `sort_by_key`, `retain`, `swap` | none | new, `&mut self`, any `T` | same names |
@@ -395,10 +401,10 @@ hand:
 | `List.iter` | snapshot `ListIter[T]` | `iter['a](&'a self) -> ListIter[T, 'a]`, `&'a T` items | `iter()` |
 | `Iterable for List` | yields `T` copies | yields `T`, consuming the list value | `IntoIterator for Vec<T>` |
 | `List.contains`, `index_of` | `value: T` | unchanged, `&self` | `contains(&T)` |
-| `Map.get` | `-> V?` | `&self -> V?` copies (`V < Copy`); `get_ref -> (&V)?`; `get_mut -> (&mut V)?` | `get(&Q) -> Option<&V>` |
+| `Map.get` | `-> V?` | `&self -> V?` copies; `get_or_insert -> &mut V`; `m[k]` is a place | `get(&Q) -> Option<&V>` |
 | `Map.keys`, `values`, `entries` | `self -> List` | `&self -> List`, copies | iterators |
 | `Map.iter`, map loop | `(K, V)` copies | `(&'a K, &'a V)` | `iter()` |
-| `Deque.front`, `back`, `get`; `Heap.peek` | `-> T?` | copies; `_ref -> (&T)?`; Deque `_mut`; no `peek_mut` (it would break the heap order) | `front()`, `peek()` |
+| `Deque.front`, `back`, `get`; `Heap.peek` | `-> T?` | copies | `front()`, `peek()` |
 | `Deque.pop_front`, `pop_back`; `Heap.push`, `pop` | copy, `.None` store | move: `Option.take`, `list_swap` | same |
 | `Set.contains`, `insert`, `remove`, `iter` | `self` | `&self`; elements `Copy`; `iter` borrows | `HashSet` |
 | `ListView`, `Span`, `SpanMut` | `len(self)`, `view[i]` copies | `&self`; `[i]` a place by language rule 2 | `&[T]` |
@@ -436,9 +442,10 @@ hand:
 1. `&self` receivers and `fn(&T)` callbacks, with the new in-place
    `retain`, `sort`, `sort_by` and `sort_by_key`. Check: std, fixtures and
    examples pass, with the package's callback shapes.
-2. Accessors: `get` copies, `get_ref` and `get_mut` borrow, with
-   `Option.as_ref`, `as_mut` and `copied`. Check: a counts case shows no
-   copy for `lines.get_ref(0)`, and `get` matches main's size and time.
+2. Accessors: on the copy-on-write family they copy, with no `_ref` or
+   `_mut` forms; `Option.as_ref`, `as_mut` and `copied` stay. Check:
+   former reference callers use an element place or `get_or_insert`, and
+   `get` matches main's size and time.
 3. Operator reads through `&` (language rule 1), before loops bind `&T`.
 4. The borrowing loop and comprehensions; borrowing `iter()` cursors.
    Check: fixtures for rules 1-5, both build profiles.
