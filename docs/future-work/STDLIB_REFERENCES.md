@@ -24,9 +24,10 @@ Collections come in two families, and code picks one. `List`, `Map`,
 `Set`, `Deque` and `Heap` are `Copy` with copy-on-write, and hold only
 copyable items. `UniqList` and `UniqMap` are `impl !Copy`: one owner, no
 count and no copy-on-write check, so a write never copies, and they hold
-any item. A collection literal or comprehension builds the copy-on-write
-family unless its expected type is a `UniqList` or `UniqMap`. The type
-shows which costs apply; no item type changes them.
+any item. A collection literal or comprehension always builds the
+copy-on-write family; a `UniqList` or `UniqMap` starts from `new()` and
+fills by `push`, `insert` or `collect`. The type shows which costs
+apply; no item type changes them.
 
 ```text
 fn order_total(lines: &List[Line]) -> i64:
@@ -61,7 +62,7 @@ The std shape below needs these rules of the language:
 8. No implied bounds: `List[T]` in a signature implies nothing about `T`.
 9. Field access and method calls auto-dereference through every `&`, `&mut`, `*T` and `*mut T` level, as Rust's auto-deref does: `x.name` and `x.describe()` with `x: &*mut User`. Casts, conditions, range bounds, `?`, spreads and calls of a function value keep an explicit `*`.
 10. `&` and `&mut` take a counted pointer type without parentheses: `&*T`, `&*mut T`, `&mut *T`, as Rust's `&*const T`; `*&T` stays an error.
-11. A collection literal or comprehension builds a `List`, `Map` or `Set`, unless its expected type is a `UniqList` or `UniqMap` ([`expr.collection.expected`](../../spec/lang/05-expressions.md#r-expr.collection.expected)): `let pool: UniqList[Conn] = [Conn { id: 1 }]`.
+11. A collection literal or comprehension builds a `List`, `Map` or `Set` and nothing else; `UniqList` and `UniqMap` have no literal form.
 12. `collect` has no default target, and a default stays checked at its declaration. The target is named, with `_` for what inference fills (`let pool: UniqList[_] = it.collect()`, `collect::[List[_]]()`); a bare `collect()` is `cannot-infer-type`. A comprehension, `[for x in it => x]`, builds a `List` without naming one. `_` may stand for a type argument at any depth of a `let` annotation or an expression's type arguments, never in a declaration ([`types.generic.placeholder.local`](../../spec/lang/04-type-system.md#r-types.generic.placeholder.local)).
 
 ## Problems It Solves
@@ -95,8 +96,8 @@ does not add.
 **4. A worker pool of connections** (`run_one`, `rotate`). With
 `impl !Copy for Conn`, `[Conn { id: 1 }]` is `unsatisfied-trait-bound`
 and `@derive(Debug)` is `missing-supertrait-implementation` (probe p8).
-Proposed, a `UniqList[Conn]` holds them
-(`let pool: UniqList[Conn] = [Conn { id: 1 }]`), and movers hand them on.
+Proposed, a `UniqList[Conn]` holds them (`UniqList::new()`, then
+`push`), and movers hand them on.
 
 ```text
 let mut conn = pool.idle.pop().expect("idle")  # moves out; no copy exists
@@ -121,7 +122,7 @@ pool.idle.push(conn)                           # moves back
   | --- | --- | --- |
   | items | copyable only | any |
   | the collection | `Copy`: a copy is one count, and a write while shared duplicates the buffer | `impl !Copy`: moved; no count and no copy-on-write check |
-  | built by | literals and comprehensions, by default | a literal or comprehension with that expected type, or `new()` |
+  | built by | literals and comprehensions | `new()`, then `push`, `insert` or `collect` |
   | methods | the table above: accessors copy | the same names, plus the `_ref` and `_mut` accessors; `get` needs a copyable item, and a mover takes any item out |
 
   Converting between them copies each item once, so it needs a copyable
@@ -460,9 +461,9 @@ hand:
    Check: `@derive(Debug, Serialize, Eq)` on a `!Copy` struct checks.
 7. Movers: the three intrinsics, `replace`, `take`, and hd movers over
    them. Check: a counts case shows no retain or release in `pop`.
-8. `UniqList` and `UniqMap` in hd over the movers, built from a literal or
-   comprehension by expected type (language rules 6 and 11); `Index`
-   returns a reference (language rule 2). Check: a `UniqList[Conn]` pool
+8. `UniqList` and `UniqMap` in hd over the movers (language rule 6),
+   with no literal form (rule 11); `Index` returns a reference
+   (language rule 2). Check: a `UniqList[Conn]` pool
    checks and runs, and a counts case shows no count or copy-on-write
    check in `push`.
 9. The generic default flip (language rule 7),
