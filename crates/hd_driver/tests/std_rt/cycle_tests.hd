@@ -2,7 +2,7 @@
 # collector: a loop that drops reference cycles runs in bounded memory,
 # since a collection frees each cycle once the candidate buffer is full.
 # Only std may read the heap's size, so the conformance runner adds this
-# file to std as `std.rt.cycle_tests`, as it does count_tests.hd.
+# file to std as `std.rt_tests.cycle_tests`, as it does count_tests.hd.
 use std.rt.alloc.{alloc, free_block}
 use std.rt.cycle.{collect, opaque, pending, suspect}
 use std.rt.memory.{pages, store_u32}

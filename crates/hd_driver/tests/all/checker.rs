@@ -193,7 +193,7 @@ fn a_local_reference_receiver_is_not_a_method_type_argument() {
     }
 }
 
-/// Every module of `lib/std`, plus the compiler-supplied `std.rt`, and the
+/// Every module of `lib/std`, plus the compiler-supplied `std.rt.entry`, and the
 /// trait default bodies among the bodies: 48 modules.
 #[test]
 fn every_std_body_checks_with_no_diagnostic() {

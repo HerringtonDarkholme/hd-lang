@@ -1135,7 +1135,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         });
         let source = self.b.call(
             &Callee::Item {
-                def: self.names.item("std.rt", "host_provider"),
+                def: self.names.item("std.rt.entry", "host_provider"),
                 targs: pool.list(&[ty]),
             },
             &[value],

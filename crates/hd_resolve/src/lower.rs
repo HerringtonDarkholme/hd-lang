@@ -83,11 +83,21 @@ pub fn test_prelude_item(names: &Names<'_>, name: &str) -> Option<DefId> {
         .map(|(module, _)| names.item(module, name))
 }
 
-/// The prelude rows `module` sees: `std.core`, std's leaf layer, sees only
-/// its own names (`module.core.leaf`); every other module sees them all.
+/// Whether `module` is a runtime module, `std.rt` or one under it
+/// (`module.rt.std-only`).
+#[must_use]
+pub fn runtime_module(module: &str) -> bool {
+    module
+        .strip_prefix("std.rt")
+        .is_some_and(|rest| rest.is_empty() || rest.starts_with('.'))
+}
+
+/// The prelude rows `module` sees: `std.core` and a runtime module, std's
+/// leaf layer, see only `std.core`'s names (`module.core.prelude`,
+/// `module.rt.core-prelude`); every other module sees them all.
 #[must_use]
 pub fn prelude_rows(module: &str) -> &'static [(&'static str, &'static [&'static str])] {
-    if module == "std.core" {
+    if module == "std.core" || runtime_module(module) {
         &PRELUDE[..1]
     } else {
         PRELUDE

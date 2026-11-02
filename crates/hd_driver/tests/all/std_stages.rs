@@ -38,7 +38,7 @@ fn every_stage_runs_on_std() {
     walk(&root, &root, &mut s, &mut files);
     let r = analyze_package("std", &s);
     println!("{}", r.render());
-    // The compiler-supplied `std.rt` is one more, virtual, module.
+    // The compiler-supplied `std.rt.entry` is one more, virtual, module.
     let files = files + 1;
     assert_eq!(r.tally(Stage::Skim).ok, files);
     assert_eq!(

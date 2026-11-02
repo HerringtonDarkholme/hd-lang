@@ -595,7 +595,7 @@ pub enum Lowering {
 /// declarations' `@intrinsic` arguments; `panic_message`, `box`, `task_all` and
 /// `test_case` belong to the compiler-supplied `std.core.panic`, `std.core.box`,
 /// `std.task.all` and `std.testing.it`, `assert_equal` to
-/// `std.testing.assert_equal`, `entry_write` to `std.rt`,
+/// `std.testing.assert_equal`, `entry_write` to `std.rt.entry`,
 /// `type_id_of` to `std.inspect`, the two reference recovery keys to
 /// inherent methods in `std.inspect` and `std.error`,
 /// `ref_identity` to `std.cmp.identity_of`, which the checker lowers, and

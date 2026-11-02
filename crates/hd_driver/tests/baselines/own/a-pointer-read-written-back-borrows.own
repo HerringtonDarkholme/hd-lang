@@ -8,7 +8,7 @@ use std.rt.memory.Ptr
 
 fn size(p: Ptr[List[i32]]) -> usize:
     xs := p.read()
-> std/rt.stage_case/size
+> std/rt_tests.stage_case/size
 >   local $0 p: Ptr[List[i32]] [param read]
 >   local $1 xs: List[i32] [:= read assigned]
 >   local $2 n: usize [:= read assigned]

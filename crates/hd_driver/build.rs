@@ -62,7 +62,12 @@ fn main() {
         );
         let stripped = Path::new(&out).join(dir);
         for (rel, abs) in &files {
-            if web && matches!(rel.as_str(), "rt/checked.hd" | "rt/checked_report.hd") {
+            if web
+                && matches!(
+                    rel.as_str(),
+                    "rt/checked/mod.hd" | "rt/checked_report/mod.hd"
+                )
+            {
                 continue;
             }
             let text = std::fs::read_to_string(abs).unwrap_or_default();

@@ -13,6 +13,11 @@
 # Checked mode's failures are bugs of the backend or the runtime, never of
 # the program, so they panic `count-audit`, outside the stable panic
 # categories (spec/lang/06-control-flow.md#r-flow.panic.known-categories).
+#
+# Its failure messages interpolate numbers through `std.format`, so it is a
+# folder of its own (rt/checked), above the root std folder, and the
+# runtime folder rt stays a leaf (spec/lang/10-modules.md#r-module.rt.leaf).
+use std.format.{Display}
 use std.rt.alloc.{alloc, block_bytes, block_of}
 use std.rt.cycle.{keep, suspect}
 use std.rt.memory.{fill, load_u32, pages, store_u32}

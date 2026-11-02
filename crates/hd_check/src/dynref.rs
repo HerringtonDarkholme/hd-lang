@@ -304,7 +304,7 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let ret = self.ref_ty(ty, true, true);
         let callee = Callee::Item {
-            def: self.cx.names.item("std.rt", "host_provider"),
+            def: self.cx.names.item("std.rt.entry", "host_provider"),
             targs: pool.list(&[ty]),
         };
         self.emit_call(&callee, &[value], ret, false, false, n)

@@ -1884,32 +1884,58 @@ fn checked_runtime() -> bool {
 
 /// The std package's own hd tests of its runtime modules: only std may use
 /// a runtime module (`module.rt.std-only`), so no fixture can. Each file
-/// under `tests/std_rt/` joins std's sources at the path given here.
+/// under `tests/std_rt/` joins std's sources at the path given here: a
+/// folder `rt_tests` above the root std folder, since the tests use root
+/// modules and the runtime folder is a leaf (`module.rt.leaf`).
 const STD_RT_TESTS: &[(&str, &str)] = &[
-    ("rt/memory_tests.hd", include_str!("std_rt/memory_tests.hd")),
-    ("rt/ptr_tests.hd", include_str!("std_rt/ptr_tests.hd")),
-    ("rt/alloc_tests.hd", include_str!("std_rt/alloc_tests.hd")),
-    ("rt/count_tests.hd", include_str!("std_rt/count_tests.hd")),
-    ("rt/list_tests.hd", include_str!("std_rt/list_tests.hd")),
-    ("rt/map_tests.hd", include_str!("std_rt/map_tests.hd")),
     (
-        "rt/closure_tests.hd",
+        "rt_tests/memory_tests.hd",
+        include_str!("std_rt/memory_tests.hd"),
+    ),
+    ("rt_tests/ptr_tests.hd", include_str!("std_rt/ptr_tests.hd")),
+    (
+        "rt_tests/alloc_tests.hd",
+        include_str!("std_rt/alloc_tests.hd"),
+    ),
+    (
+        "rt_tests/count_tests.hd",
+        include_str!("std_rt/count_tests.hd"),
+    ),
+    (
+        "rt_tests/list_tests.hd",
+        include_str!("std_rt/list_tests.hd"),
+    ),
+    ("rt_tests/map_tests.hd", include_str!("std_rt/map_tests.hd")),
+    (
+        "rt_tests/closure_tests.hd",
         include_str!("std_rt/closure_tests.hd"),
     ),
-    ("rt/ref_tests.hd", include_str!("std_rt/ref_tests.hd")),
-    ("rt/task_tests.hd", include_str!("std_rt/task_tests.hd")),
+    ("rt_tests/ref_tests.hd", include_str!("std_rt/ref_tests.hd")),
     (
-        "rt/checked_tests.hd",
+        "rt_tests/task_tests.hd",
+        include_str!("std_rt/task_tests.hd"),
+    ),
+    (
+        "rt_tests/checked_tests.hd",
         include_str!("std_rt/checked_tests.hd"),
     ),
-    ("rt/cycle_tests.hd", include_str!("std_rt/cycle_tests.hd")),
-    ("rt/scan_tests.hd", include_str!("std_rt/scan_tests.hd")),
-    ("rt/json_tests.hd", include_str!("std_rt/json_tests.hd")),
+    (
+        "rt_tests/cycle_tests.hd",
+        include_str!("std_rt/cycle_tests.hd"),
+    ),
+    (
+        "rt_tests/scan_tests.hd",
+        include_str!("std_rt/scan_tests.hd"),
+    ),
+    (
+        "rt_tests/json_tests.hd",
+        include_str!("std_rt/json_tests.hd"),
+    ),
 ];
 
 /// The [`STD_RT_TESTS`] files that read `std.rt.checked.allocated()`, which
 /// only the checked runtime counts: they also run checked in every mode.
-const STD_RT_CHECKED_TOO: &[&str] = &["rt/ref_tests.hd"];
+const STD_RT_CHECKED_TOO: &[&str] = &["rt_tests/ref_tests.hd"];
 
 /// Every case of each [`STD_RT_TESTS`] file passes on the linear backend,
 /// on the engines of the mode, as a `tests` case of the suite would.

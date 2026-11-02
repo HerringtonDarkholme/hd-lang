@@ -69,15 +69,22 @@ mod strip_comments;
 
 include!(concat!(env!("OUT_DIR"), "/std_files.rs"));
 
+/// The module of the entry and test-case result glue ([`RT_SOURCE`]).
+pub const ENTRY_MODULE: &str = "std.rt.entry";
+
+/// The virtual file of [`ENTRY_MODULE`]: a folder of its own under `rt/`,
+/// so the runtime folder `rt/` uses none of the std modules it uses.
+pub const ENTRY_PATH: &str = "rt/entry/mod.hd";
+
 /// The std sources every run reads: `lib/std` as embedded at build time,
-/// plus the virtual `rt.hd` of `std.rt`.
+/// plus the virtual [`ENTRY_PATH`] of `std.rt.entry`.
 #[must_use]
 pub fn std_sources() -> MemorySources {
     let mut s = MemorySources::default();
     for (path, text) in STD_FILES {
         s.insert(path, text);
     }
-    s.insert("rt.hd", RT_SOURCE);
+    s.insert(ENTRY_PATH, RT_SOURCE);
     s
 }
 
@@ -112,7 +119,7 @@ fn embedded_std() -> &'static EmbeddedStd {
     })
 }
 
-/// `std.rt`: the hd the compiler roots after an entry point or a test case
+/// `std.rt.entry`: the hd the compiler roots after an entry point or a test case
 /// returns (module.entry.exit-report, module.testing.passes): the status
 /// `report()` gives, after an `.Err`'s report on standard error
 /// (module.entry.err-sources-to-stderr). The driver picks one by the result type:
@@ -125,9 +132,9 @@ fn embedded_std() -> &'static EmbeddedStd {
 /// provider, the reference an entry installs for a key
 /// whose trait has a `&self` or `&mut self` method
 /// (req.ref.host.reference-values); the driver roots one instance per such
-/// key of an entry row. It is compiler-supplied, like
-/// `std.core`, so the TS prototype's `lib/std` is unchanged.
-pub const RT_SOURCE: &str = r#"# std.rt: the entry and test-case result functions (hd_driver::RT_SOURCE).
+/// key of an entry row. It is compiler-supplied, like `std.core`.
+pub const RT_SOURCE: &str = r#"# std.rt.entry: the entry and test-case result functions (hd_driver::RT_SOURCE).
+use std.format.{Display}
 use std.process.Termination
 use std.error.{Error, report_of}
 
@@ -272,17 +279,27 @@ fn host_value_decode[T < Deserialize](text: string) -> Result[T, JsonError]:
 
 "#;
 
-/// A source set with the virtual `rt.hd` added when it is missing: a run
-/// whose root package is std itself.
-fn with_core(sources: &dyn SourceSet) -> MemorySources {
+/// The modules the compiler roots after an entry or a test case, whatever
+/// the program uses: [`ENTRY_MODULE`] (`RT_SOURCE`) and the runtime
+/// allocator's module, whose folder holds the other runtime modules that
+/// emitted code calls.
+fn rt_roots(table: &ModuleTable) -> impl Iterator<Item = ModuleId> + '_ {
+    [ENTRY_MODULE, hd_wasm_linear::RUNTIME_MODULE]
+        .into_iter()
+        .filter_map(|path| table.module(path))
+}
+
+/// A source set with the virtual [`ENTRY_PATH`] added when it is missing: a
+/// run whose root package is std itself.
+fn with_entry(sources: &dyn SourceSet) -> MemorySources {
     let mut s = MemorySources::default();
     for e in sources.list() {
         if let Some(b) = sources.read(&e.path) {
             s.insert(&e.path, &String::from_utf8_lossy(&b));
         }
     }
-    if sources.read("rt.hd").is_none() {
-        s.insert("rt.hd", RT_SOURCE);
+    if sources.read(ENTRY_PATH).is_none() {
+        s.insert(ENTRY_PATH, RT_SOURCE);
     }
     s
 }
@@ -1333,7 +1350,7 @@ fn names_any(text: &str, names: &HashSet<String>) -> bool {
 
 /// The module texts of a REPL input's build: the modules the input
 /// reaches from its own module, through its uses and its session's
-/// (`cli.repl.package.lib`, `cli.repl.uses.other`), and from `std.rt`,
+/// (`cli.repl.package.lib`, `cli.repl.uses.other`), and from `std.rt.entry`,
 /// which the compiler roots after an entry, and each module of
 /// another package's folder it reaches. Every other text is empty and
 /// never read, so a root-package folder the input reaches holds only its
@@ -1353,9 +1370,9 @@ fn repl_texts(
     let mut texts: Vec<Arc<str>> = vec![Arc::from(""); n];
     let mut skims: Vec<Option<SkimOut>> = (0..n).map(|_| None).collect();
     let mut stack = vec![start];
-    // The compiler roots `std.rt` after an entry, a REPL input's too
-    // (`RT_SOURCE`).
-    stack.extend(table.module("std.rt").map(ModuleId::idx));
+    // The compiler roots `std.rt.entry` and the runtime after an entry, a
+    // REPL input's too (`RT_SOURCE`).
+    stack.extend(rt_roots(table).map(ModuleId::idx));
     while let Some(m) = stack.pop() {
         if skims[m].is_some() {
             continue;
@@ -2040,7 +2057,7 @@ fn build_packages_inner(
     let std: &MemorySources = if let Some(e) = embedded {
         &e.sources
     } else {
-        root_std = with_core(host.sources);
+        root_std = with_entry(host.sources);
         &root_std
     };
     let std_in = PackageIn {
@@ -3402,11 +3419,11 @@ impl Run<'_> {
         // `hd check FILE` checks only what FILE reaches (`Run::check_scope`).
         let _ = self.check_scope.set(self.check_scope(&graph));
         let checked = self.check_scope.get().and_then(Option::as_ref);
-        // A REPL input's build builds only its closure and `std.rt`'s
+        // A REPL input's build builds only its closure and the runtime's
         // (`Run::builds`).
         let scope = self.repl_inputs.input.map(|m| {
             let mut s = graph.closure[self.table.modules[m].folder.idx()].clone();
-            if let Some(rt) = self.rt_folder() {
+            for rt in self.rt_folders() {
                 s.union(&graph.closure[rt.idx()]);
             }
             s
@@ -3503,10 +3520,10 @@ impl Run<'_> {
                 reached.union(&self.module_closure_in(g, m));
             }
         }
-        // The compiler roots `std.rt`'s result functions after an entry or
-        // a test case (`RT_SOURCE`), whatever the program uses, and its
-        // folder holds the runtime modules under it too.
-        if let Some(rt) = self.table.module("std.rt") {
+        // The compiler roots `std.rt.entry`'s result functions after an entry or
+        // a test case (`RT_SOURCE`), and the runtime that emitted code calls,
+        // whatever the program uses.
+        for rt in rt_roots(&self.table) {
             reached.union(&self.module_closure_in(g, rt.idx()));
         }
         let mut prep_task: Vec<Option<TaskId>> = vec![None; self.table.modules.len()];
@@ -4308,7 +4325,7 @@ impl Run<'_> {
     /// Whether this run builds folder `f`: a REPL input's build builds the
     /// folders the input's closure holds (`cli.repl.uses.other`), so a
     /// broken module it never reaches does not stop it, and those of
-    /// `std.rt`'s, which the compiler roots after an entry
+    /// the runtime's, which the compiler roots after an entry
     /// (`RT_SOURCE`); every other run builds them all.
     fn builds(&self, f: FolderId) -> bool {
         let scoped = self
@@ -4321,20 +4338,16 @@ impl Run<'_> {
                 (Some(m), Some(g)) => {
                     let closure = &g.graph.closure;
                     closure[self.table.modules[m].folder.idx()].contains(f)
-                        || self
-                            .rt_folder()
-                            .is_some_and(|rt| closure[rt.idx()].contains(f))
+                        || self.rt_folders().any(|rt| closure[rt.idx()].contains(f))
                 }
                 _ => true,
             }
     }
 
-    /// The folder of `std.rt`, the hd the compiler roots after an entry
-    /// (`RT_SOURCE`), when the run's std has it.
-    fn rt_folder(&self) -> Option<FolderId> {
-        self.table
-            .module("std.rt")
-            .map(|m| self.table.modules[m.idx()].folder)
+    /// The folders of [`rt_roots`], the hd the compiler roots after an
+    /// entry, when the run's std has them.
+    fn rt_folders(&self) -> impl Iterator<Item = FolderId> + '_ {
+        rt_roots(&self.table).map(|m| self.table.modules[m.idx()].folder)
     }
 
     /// Whether this run builds module `m`: a module of a folder it builds,
@@ -8922,7 +8935,7 @@ impl Run<'_> {
         // `std.rt.host_provider` instance per such key of a root's row. A
         // script's or a REPL input's root is one of its init bodies.
         let mut host_refs: Vec<(Ty, (DefId, TyList))> = Vec::new();
-        let host_provider = names.item("std.rt", "host_provider");
+        let host_provider = names.item(ENTRY_MODULE, "host_provider");
         for d in std::iter::once(root)
             .chain(roots.iter().map(|(d, _)| *d))
             .chain(all_inits.iter().copied())
@@ -9384,7 +9397,7 @@ impl Run<'_> {
         out
     }
 
-    /// The `std.rt` function that turns a root's result into its exit
+    /// The `std.rt.entry` function that turns a root's result into its exit
     /// status (module.entry.exit-report), or `None` for `void`: the
     /// `Error` form for a `Result` (its cause chain is printed; its error
     /// type implements `Error` by module.entry.termination.result).
@@ -9394,7 +9407,7 @@ impl Run<'_> {
         if ret == Ty::VOID || ret == Ty::NEVER {
             return None;
         }
-        let rt = |n: &str| names.item("std.rt", n);
+        let rt = |n: &str| names.item(ENTRY_MODULE, n);
         let known = &self.known;
         let TyData::Adt { def, args } = pool.get(ret) else {
             return Some((rt("entry_status"), pool.list(&[ret])));
@@ -11909,15 +11922,15 @@ impl ProgramEnv for Env<'_> {
         let k = &self.run.known;
         let (result_is_ok, result_expect) = self.result_unwrap()?;
         Some(JsonItems {
-            package_encode: self.run.names().item("std.rt", "host_value_encode"),
-            package_decode: self.run.names().item("std.rt", "host_value_decode"),
+            package_encode: self.run.names().item(ENTRY_MODULE, "host_value_encode"),
+            package_decode: self.run.names().item(ENTRY_MODULE, "host_value_decode"),
             encode: k.json_encode,
             decode: k.json_decode,
             serialize: k.serialize,
             deserialize: k.deserialize,
             result_is_ok,
             result_expect,
-            host_provider: self.run.names().item("std.rt", "host_provider"),
+            host_provider: self.run.names().item(ENTRY_MODULE, "host_provider"),
         })
     }
     fn data_fields(&self, def: DefId) -> Option<Vec<Ty>> {

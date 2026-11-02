@@ -3,7 +3,7 @@
 # plain calls, the frames of `join!`, `race!` and `cancel!`, and the frames
 # a `block_on` drives are freed once their last holder lets go, and making
 # them in a loop runs in bounded memory. Only std may read the heap's size,
-# so the conformance runner adds this file to std as `std.rt.task_tests`.
+# so the conformance runner adds this file to std as `std.rt_tests.task_tests`.
 use std.ops.defer
 use std.rt.memory.pages
 use std.rt.checked.released

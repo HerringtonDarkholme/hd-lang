@@ -1,7 +1,7 @@
 # The hd tests of std.rt.memory's typed memory
 # (spec/lang/10-modules.md#typed-memory). Only std may use a runtime
 # module, so the conformance runner adds this file to std as
-# `std.rt.ptr_tests` and runs its cases on the linear backend
+# `std.rt_tests.ptr_tests` and runs its cases on the linear backend
 # (crates/hd_driver/tests/conformance.rs, `STD_RT_TESTS`).
 use std.rt.memory.{
     Buffer,

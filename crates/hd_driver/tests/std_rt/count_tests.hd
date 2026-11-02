@@ -2,7 +2,7 @@
 # §23.16): ordinary code that allocates in a loop runs in bounded memory,
 # since each value's last release frees its block for the next. Only std
 # may read the heap's size, so the conformance runner adds this file to std
-# as `std.rt.count_tests`, as it does alloc_tests.hd.
+# as `std.rt_tests.count_tests`, as it does alloc_tests.hd.
 use std.rt.memory.pages
 use std.rt.checked.{released, retained}
 use std.testing.assert

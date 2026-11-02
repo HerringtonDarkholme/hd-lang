@@ -101,8 +101,9 @@ pub(super) fn view(p: &super::Program, at: super::Build) -> String {
     out.finish()
 }
 
-/// Where a `std` build puts the case: a module beside the runtime modules.
-const STD_CASE: &str = "rt/stage_case.hd";
+/// Where a `std` build puts the case: a std module of its own folder, which
+/// may use the runtime modules and the root std modules alike.
+const STD_CASE: &str = "rt_tests/stage_case.hd";
 
 /// The case module's functions, built as a fixture through the ownership
 /// passes (the default path), with their bodies rendered after them.
@@ -111,7 +112,7 @@ fn build(p: &super::Program, at: super::Build) -> Output {
     let (package, items) = if at.std {
         sources = hd_driver::std_sources();
         sources.insert(STD_CASE, &p.text);
-        ("std", "std/rt.stage_case/*")
+        ("std", "std/rt_tests.stage_case/*")
     } else {
         ("app", "app/*")
     };
@@ -141,7 +142,12 @@ fn build(p: &super::Program, at: super::Build) -> Output {
             ..Packages::default()
         },
         &Goal::Fixture {
-            module: if at.std { "rt.stage_case" } else { "main" }.to_owned(),
+            module: if at.std {
+                "rt_tests.stage_case"
+            } else {
+                "main"
+            }
+            .to_owned(),
         },
     )
 }

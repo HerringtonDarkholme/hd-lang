@@ -2,7 +2,7 @@
 # §23.18): a map's table grows, copies only when shared, and frees its
 # keys and values at its last release, so building maps in a loop runs
 # in bounded memory. Only std may read the heap's size, so the
-# conformance runner adds this file to std as `std.rt.map_tests`.
+# conformance runner adds this file to std as `std.rt_tests.map_tests`.
 use std.rt.memory.pages
 use std.rt.checked.released
 

@@ -1,5 +1,5 @@
 # Optional checked-cycle measurement. The browser embeds neither this
-# module nor checked.hd. Descriptors and their names belong to the host.
+# module nor checked/mod.hd. Descriptors and their names belong to the host.
 pub use std.rt.checked.{
     allocate,
     free,

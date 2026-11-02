@@ -94,7 +94,7 @@ measurements do not launch a reference to obtain its output.
 allocations and heap pages it ran. The CLI has no flag for checked mode,
 so PATH is an `hd` built with two local edits: `Program::packages` in
 `crates/hd_cli/src/disk.rs` sets `checked` when `HD_BENCH_CHECKED` is set,
-and `retained()` and `released()` in `lib/std/rt/checked.hd` put
+and `retained()` and `released()` in `lib/std/rt/checked/mod.hd` put
 `allocated()` and `pages()` in the high 32 bits of their results.
 
 ### Fresh Processes And Warm Modules

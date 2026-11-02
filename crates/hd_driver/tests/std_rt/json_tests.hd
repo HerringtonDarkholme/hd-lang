@@ -1,7 +1,7 @@
 # The hd tests of `std.json.decode`'s structural index (#165): `validate`
 # records each container's members, and the typed reader finds keys and
 # steps over values through that index instead of scanning the text again.
-# The conformance runner adds this file to std as `std.rt.json_tests`.
+# The conformance runner adds this file to std as `std.rt_tests.json_tests`.
 use std.json.{decode, parse, Json, JsonError}
 use std.serde.{Deserialize, Deserializer, Serialize}
 

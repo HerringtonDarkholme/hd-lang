@@ -84,10 +84,13 @@ fn std_interfaces_build_with_no_diagnostic() {
             "std.core",
             "std.prelude",
             "std.rt",
+            "std.rt.checked",
+            "std.rt.checked_report",
+            "std.rt.entry",
             "std.testing"
         ]
     );
-    assert_eq!(out.report.tally(Stage::FolderIface).ok, 6);
+    assert_eq!(out.report.tally(Stage::FolderIface).ok, 9);
 }
 
 #[test]
@@ -127,7 +130,8 @@ fn std_interfaces_hold_no_poison_type() {
     for (folder, blob) in out.ifaces.iter().filter(|f| f.0.starts_with("std")) {
         fresh(|n| {
             let (items, exports) = decode_items(n, blob).expect("decode");
-            assert!(!exports.is_empty(), "{folder}");
+            // The entry glue's items are all private.
+            assert!(!exports.is_empty() || folder == "std.rt.entry", "{folder}");
             let mut bad = Vec::new();
             for it in &items {
                 let mut tys: Vec<hd_types::Ty> = it
@@ -206,7 +210,7 @@ fn blob_bytes_are_equal_across_shuffled_serial_orders() {
             .collect()
     };
     let base = blobs(SerialOrder::Priority);
-    assert_eq!(base.len(), 6);
+    assert_eq!(base.len(), 9);
     for order in [
         SerialOrder::Fifo,
         SerialOrder::Shuffled(1),
@@ -277,8 +281,8 @@ fn std_typed_signatures_compile_through_headers() {
     );
     let out = run(&s);
     let t = out.report.tally(Stage::FolderIface);
-    assert_eq!((t.ok, t.not_implemented, t.blocked), (7, 0, 0));
-    assert_eq!(out.report.tally(Stage::HeaderCheck).ok, 7);
+    assert_eq!((t.ok, t.not_implemented, t.blocked), (10, 0, 0));
+    assert_eq!(out.report.tally(Stage::HeaderCheck).ok, 10);
     assert_eq!(out.report.tally(Stage::Coherence).ok, 1);
     let text = out.render();
     assert!(

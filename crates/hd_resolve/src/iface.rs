@@ -753,7 +753,7 @@ pub fn std_import_hint<'a>(
     let mut modules = std::collections::BTreeSet::new();
     for e in exports {
         let declared = names.module_of(e.def);
-        let runtime = |module: &str| module == "std.rt" || module.starts_with("std.rt.");
+        let runtime = crate::lower::runtime_module;
         if !e.module.starts_with("std.") || runtime(&e.module) || runtime(&declared) {
             continue;
         }

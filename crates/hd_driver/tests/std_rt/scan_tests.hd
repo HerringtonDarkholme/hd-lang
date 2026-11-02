@@ -3,7 +3,7 @@
 # SIMD128 body for each scan primitive, and that body must give what the
 # primitive's hd reference body gives. Only std may declare a primitive,
 # so the conformance runner adds this file to std as
-# `std.rt.scan_tests` (crates/hd_driver/tests/conformance.rs,
+# `std.rt_tests.scan_tests` (crates/hd_driver/tests/conformance.rs,
 # `STD_RT_TESTS`).
 use std.format.debug
 use std.testing.Choices
@@ -528,10 +528,11 @@ fn pair_case(c: &mut Choices) -> PairCase:
 # `start` bytes into its buffer, from a counter.
 fn ab_text(start: usize, len: usize, seed: usize, wide: usize) -> string:
     let mut bytes: List[u8] = []
-    let state = seed * 2654435761 + 1
+    # A linear congruential counter, which wraps on overflow.
+    let state = seed.wrapping_mul(2654435761).wrapping_add(1)
     let k: usize = 0
     while k < start + len + 3:
-        state = state * 1103515245 + 12345
+        state = state.wrapping_mul(1103515245).wrapping_add(12345)
         bytes.push(if wide == 1 || (state >> 16) % 3 == 0: 97 else: 98)
         k = k + 1
     bytes_slice(string_from_bytes(bytes), start, start + len)

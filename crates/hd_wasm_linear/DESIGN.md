@@ -453,13 +453,14 @@ issue-backed exceptions; there is no per-backend rollout pass list.
 - **Runtime modules are std's.** `hd_project::UseRoots` refuses a use of
   `std.rt` or a module under it from any package but std, as
   `std-only-use` (`module.rt.std-only.error`).
-- **The folder `std.rt`.** With `lib/std/rt/`, the virtual `rt.hd` is its
-  parent file (`module.folder.parent-file`), so `std.rt` and its child
-  modules form folder `std.rt`, with an edge to `std`. The driver reaches
-  that folder for every program, since it roots `std.rt`'s result
-  functions whatever the program uses. No module of folder `std` may use
-  a runtime module, or the two folders would form a cycle; emitted code
-  calls the runtime by name instead.
+- **The folder `std.rt`.** `lib/std/rt/` is a leaf below the root std
+  folder (`module.rt.leaf`): its modules see only `std.core`'s names, so
+  root std modules may use them. The entry glue `std.rt.entry` (the
+  virtual `rt/entry/mod.hd`) and the checked runtime (`rt/checked/`,
+  `rt/checked_report/`) use root modules, so each is a folder of its own
+  above the root. The driver reaches `std.rt.entry` and the allocator's
+  folder for every program, whatever the program uses; emitted code calls
+  the runtime by name.
 - **Test programs.** Tests export `hd.init.N` and `hd.test.N`; each
   case uses its own entry poll and the suspension protocol (§23.21).
 - **The hd tests.** `crates/hd_driver/tests/std_rt/` holds std's own hd
@@ -1389,7 +1390,7 @@ Checked builds audit the backend's allocation and reference counting.
 is unchanged.
 
 - **The checked runtime.** The driver roots `std.rt.checked`
-  (`lib/std/rt/checked.hd`) in place of `std.rt.alloc`'s counts, so
+  (`lib/std/rt/checked/mod.hd`) in place of `std.rt.alloc`'s counts, so
   emitted code calls its `allocate`, `free`, `retain` and `release` by
   key, as it calls the plain ones (§23.16). Optional host-side reporting
   also adds the descriptor metadata described below.
