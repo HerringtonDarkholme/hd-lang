@@ -69,7 +69,10 @@ n := counts.get(word).copied().unwrap_or(0) + 1 # proposed; get gives (&usize)?
 ```
 
 **3. JSON handling** (`setting`, `tags`). Each `doc.get(key)` returns a
-copy of the subtree. Proposed, `(&Json)?`: `doc.get(section)?.get(key)`.
+copy of the subtree: one count of the shared value, not a deep copy.
+`Json.get` keeps that and takes `&self`. A `(&Json)?` would need a `match`
+on `&Json` to bind its payloads by reference, a language rule this design
+does not add.
 
 **4. A worker pool of connections** (`run_one`, `rotate`). With
 `impl !Copy for Conn`, `[Conn { id: 1 }]` is `unsatisfied-trait-bound`
@@ -86,7 +89,7 @@ pool.idle.push(conn)                           # moves back
 
 | Kind | Shape | Methods | Rust |
 | --- | --- | --- | --- |
-| Accessor | `&self -> (&T)?`, `&mut self -> (&mut T)?` | `get`, `first`, `last`, `find`, `min`, `max`, `*_by_key`, `front`, `back`, `peek`, `Map.get`, `Json.get` | `Vec::get`, `HashMap::get` |
+| Accessor | `&self -> (&T)?`, `&mut self -> (&mut T)?` | `get`, `first`, `last`, `find`, `min`, `max`, `*_by_key`, `front`, `back`, `peek`, `Map.get` | `Vec::get`, `HashMap::get` |
 | Looking callback | `fn(&T) -> R` | `find`, `any`, `all`, `map`, `filter`, `retain`, `sort_by`, `*_by_key`, `partition`, `group_by` | `retain(\|x\| ..)` |
 | Mover | value in or out, `&mut self` | `push`, `pop`, `insert`, `remove_at`, `swap`, `Map.remove`, `pop_front`, `Heap.pop`, `Option.take`, `replace` | `Vec::pop`, `mem::replace` |
 | Builder | `&self -> List[T]`, `T < Copy` | `filter`, `sorted*`, `reversed`, `take`, `unique`, `partition`, `view`, `chunks`, `keys`, `values`, `xs[a..b]` | `iter().cloned().collect()` |
@@ -377,7 +380,7 @@ hand:
 | `SpanMut.swap`, `fill` | copies | `swap` moves; `fill` keeps `T < Copy` | `swap`, `fill(T: Clone)` |
 | `Option.as_ref`, `as_mut`, `take`; `(&T)?.copied` | none | new | same names |
 | `Option.map`, `and_then`, `unwrap_or`, `expect`; `Result` alike | `self` | unchanged | same |
-| `Json.get`, `at`, `as_text` | `-> Json?`, `string?` | `-> (&Json)?`, `(&string)?` | `get(&self) -> Option<&Value>` |
+| `Json.get`, `at`, `pointer`, `as_text` | `self -> Json?`, `string?` | `&self`; results stay copies | `get(&self) -> Option<&Value>` |
 | `Json.as_i64`, `as_bool`, numbers | `self` | `&self`, values | same |
 | `encode`, `encode_pretty`, `set_json`, `post!` | `value: T` | `value: &T` | `to_string(&T)` |
 | `Structure::walk`, `Walker.member`, `FieldRecord.get` | `self`, `value: F`, `get(s: S) -> F` | `&self`, `value: &F`, `get(s: &'a S) -> &'a F` | serde's `serialize(&self)` |

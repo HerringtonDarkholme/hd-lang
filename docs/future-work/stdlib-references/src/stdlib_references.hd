@@ -256,7 +256,7 @@ pub fn replace[T < ?Copy](place: &mut T, value: T) -> T:
     swap(place, &mut held)
     held
 
-## std's `Json` tree, read in place.
+## std's `Json` tree. Lookups take `&self` and return copies of the subtree.
 pub enum Json:
     Null
     Bool(value: bool)
@@ -266,16 +266,16 @@ pub enum Json:
     Object(fields: Map[string, Json])
 
 impl Json:
-    ## The member `key` of an object, by reference.
-    pub fn get(&self, key: string) -> (&Json)?:
+    ## The member `key` of an object.
+    pub fn get(&self, key: string) -> Json?:
         panic("todo")
 
-    ## The item at `index` of an array, by reference.
-    pub fn at(&self, index: usize) -> (&Json)?:
+    ## The item at `index` of an array.
+    pub fn at(&self, index: usize) -> Json?:
         panic("todo")
 
-    ## The text of a `Text`, by reference.
-    pub fn as_text(&self) -> (&string)?:
+    ## The text of a `Text`.
+    pub fn as_text(&self) -> string?:
         panic("todo")
 
     ## A whole-number `Number` as an `i64`; scalars come back by value.

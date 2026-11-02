@@ -136,15 +136,15 @@ struct Server:
     host: string
     port: i64
 
-## `doc.section.key`, read in place: no subtree is copied.
-fn setting(doc: &Json, section: string, key: string) -> (&Json)?:
+## `doc.section.key`; each step copies only a handle to the subtree.
+fn setting(doc: &Json, section: string, key: string) -> Json?:
     doc.get(section)?.get(key)
 
 ## Reads the server block of a config file.
 fn server_config(text: string) -> Result[Server, JsonError]:
     doc := parse(text)?
     host := match setting(&doc, "server", "host"):
-        .Some(value) => value.as_text().copied().unwrap_or("localhost")
+        .Some(value) => value.as_text().unwrap_or("localhost")
         .None => "localhost"
     port := match setting(&doc, "server", "port"):
         .Some(value) => value.as_i64().unwrap_or(8080)
@@ -162,7 +162,7 @@ fn tags(doc: &Json) -> NewList[string]:
         match found.at(index):
             .Some(item) =>
                 match item.as_text():
-                    .Some(text) => out.push(*text)
+                    .Some(text) => out.push(text)
                     .None => pass
             .None => break
         index += 1
