@@ -3139,11 +3139,11 @@ runtime/valid/scripted-process.hd	runtime	accept	std/process.md#r-std-process.sc
 runtime/valid/process-scripted-received.hd	runtime	accept	std/process.md#r-std-process.scripted.received-ref
 runtime/valid/range-eq.hd	runtime	accept	std/ops.md#r-std-ops.range.eq.range
 runtime/valid/list-access-building.hd	runtime	accept	std/collections.md#list-access-and-building
-runtime/valid/collection-in-place-element-accessors.hd	runtime	accept	std/collections.md#r-std-collections.access.get-mut
+runtime/valid/collection-in-place-element-accessors.hd	runtime	accept	std/collections.md#r-std-collections.map.get-or-insert
 runtime/valid/map-get-or-insert-counts.hd	runtime	accept	std/collections.md#r-std-collections.map.get-or-insert
-runtime/valid/map-get-ref-lends-the-value.hd	runtime	accept	std/collections.md#r-std-collections.map.get-ref
-runtime/valid/map-probe-hashes-once.hd	runtime	accept	std/collections.md#r-std-collections.map.probe-once
-runtime/panic/list-first-mut-push-panics.hd	runtime	panic:collection-pinned	std/collections.md#r-std-collections.access.first-mut
+runtime/valid/map-get-copies-and-element-place-lends-the-value.hd	runtime	accept	std/collections.md#r-std-collections.map.get
+runtime/valid/map-probe-hashes-once.hd	runtime	accept	std/collections.md#r-std-collections.map.get-or-insert.probe-once
+runtime/panic/list-element-place-push-panics.hd	runtime	panic:collection-pinned	lang/13-values-and-references.md#r-ref.elem.pinned
 runtime/valid/map-is-empty.hd	runtime	accept	std/collections.md#r-std-collections.map.is-empty
 runtime/valid/choices-choose.hd	runtime	accept	std/testing.md#r-std-testing.choices.choose.empty
 runtime/valid/string-more-methods.hd	runtime	accept	std/text.md#more-string-methods
@@ -3427,7 +3427,7 @@ runtime/valid/list-group-by.hd	runtime	accept	std/collections.md#r-std-collectio
 runtime/valid/list-partition-search.hd	runtime	accept	std/collections.md#list-helpers
 runtime/valid/list-flat-map-windows.hd	runtime	accept	std/collections.md#r-std-collections.helper.windows.views
 runtime/panic/list-windows-size.hd	runtime	panic:explicit-panic	std/collections.md#r-std-collections.helper.windows.size
-runtime/valid/list-min-max.hd	runtime	accept	std/collections.md#r-std-collections.helper.min-max.first
+runtime/valid/list-min-max.hd	runtime	accept	std/collections.md#r-std-collections.helper.min-max.copy-first
 typing/invalid/list-helper-callback-row.hd	type	reject:type-mismatch	std/collections.md#r-std-collections.helper.callback-row
 runtime/valid/list-counts.hd	runtime	accept	std/collections.md#r-std-collections.counts.decl
 runtime/valid/map-get-unwrap-or.hd	runtime	accept	std/option.md#r-std-option.unwrap-or
@@ -4311,7 +4311,7 @@ typing/invalid/lct-none-branch-before-widening.hd	type	reject:missing-contextual
 typing/invalid/template-helper-empty-row.hd	type	reject:missing-requirement	lang/10-modules.md#r-module.package.template-private.row
 runtime/valid/index-receiver-then-index.hd	runtime	accept	lang/05-expressions.md#r-expr.index.order
 typing/invalid/map-get-or-removed.hd	type	reject:unknown-method	lang/03-names-and-scopes.md#r-names.method-lookup.unknown
-typing/invalid/map-get-ref-reference-conflicts-with-a-change.hd	type	reject:conflicting-access	std/collections.md#r-std-collections.map.get-ref.reference
+typing/invalid/map-element-reference-conflicts-with-a-change.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.map
 typing/invalid/map-index-wrong-key-type.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.index.map.type
 runtime/valid/map-index-assign-inserts-or-replaces.hd	runtime	accept	lang/05-expressions.md#r-expr.index.map.assign
 runtime/valid/map-remove-is-a-method.hd	runtime	accept	lang/05-expressions.md#r-expr.index.map.library
@@ -4519,7 +4519,7 @@ runtime/valid/error-message.hd	runtime	accept	std/error.md#r-std-error.message.d
 runtime/valid/fs-walk.hd	runtime	accept	std/fs.md#r-std-fs.walk.order
 runtime/valid/fs-glob.hd	runtime	accept	std/fs.md#r-std-fs.glob.deep
 runtime/valid/fs-glob-errors.hd	runtime	accept	std/fs.md#r-std-fs.glob.error
-runtime/valid/list-by-key-dedup.hd	runtime	accept	std/collections.md#r-std-collections.helper.by-key.first
+runtime/valid/list-by-key-dedup.hd	runtime	accept	std/collections.md#r-std-collections.helper.by-key.copy-first
 runtime/valid/map-entries-most-common.hd	runtime	accept	std/collections.md#r-std-collections.map.most-common.ties
 runtime/valid/set-collect.hd	runtime	accept	std/collections.md#r-std-collections.set.collect
 runtime/valid/set-properties.hd	runtime	accept	std/collections.md#set
@@ -4911,7 +4911,7 @@ typing/invalid/for-element-references-push-conflict.hd	type	reject:conflicting-a
 runtime/valid/for-element-references-body-reads-list.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.ref.conflict
 runtime/panic/map-element-reference-insert-panics.hd	runtime	panic:collection-pinned	lang/13-values-and-references.md#r-ref.elem.pinned.map
 runtime/panic/map-get-or-insert-pinned-panics.hd	runtime	panic:collection-pinned	std/collections.md#r-std-collections.map.get-or-insert.pinned
-runtime/panic/map-get-ref-pinned-panics.hd	runtime	panic:collection-pinned	std/collections.md#r-std-collections.map.get-ref
+runtime/panic/map-element-place-pinned-panics.hd	runtime	panic:collection-pinned	lang/13-values-and-references.md#r-ref.elem.pinned.map
 runtime/valid/value-argument-sibling-change.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/provider-ref-mut-changes-caller.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.ref.use.reference-values
 runtime/valid/provider-ref-new-object.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.ref.install-counted
@@ -5592,7 +5592,7 @@ typing/invalid/dyn-ref-mut-write-source-while-live.hd	type	reject:conflicting-ac
 typing/invalid/counter-read-while-mut-alias-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.mut
 typing/invalid/element-dependent-result-push-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.mut
 typing/invalid/element-receiver-borrowed-list-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.mut
-typing/invalid/list-first-mut-push-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.call
+typing/invalid/list-element-place-push-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.call
 typing/invalid/map-get-or-insert-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.call
 typing/valid/mut-result-use-after-last-use.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.live
 typing/valid/mut-reference-disjoint-field-use.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.place

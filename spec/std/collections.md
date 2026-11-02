@@ -11,7 +11,7 @@ in ordinary hd over the language tier:
 - the borrowed `Span[T, 'a]` type returned by `span` and `slice`;
 - the `List` helpers, such as `sorted_by_key`, `group_by`, and `windows`,
   and the function `counts`;
-- the `Map` methods `get_mut`, `get_or_insert`, `contains_key`, `keys`,
+- the `Map` methods `get_or_insert`, `contains_key`, `keys`,
   and `values`;
 - the set `Set[T]`, the double-ended queue `Deque[T]`, and the max-heap
   `Heap[T]`, which are values as a list is.
@@ -250,7 +250,7 @@ fn steps(readings: List[i32]) -> List[ListView[i32]]:
     readings.windows(2)  # views of [1, 4] and [4, 9] for [1, 4, 9]
 
 fn shortest(tasks: List[Task]) -> Task?:
-    tasks.min_by_key(fn(task: &Task) -> i32: task.hours).copied()  # the first of equal hours
+    tasks.min_by_key(fn(task: &Task) -> i32: task.hours)  # the first of equal hours
 
 fn owners(tasks: List[Task]) -> List[string]:
     tasks.map(fn(task: &Task) -> string: task.owner).unique()  # ["bo", "al"] for bo, al, bo
@@ -258,11 +258,11 @@ fn owners(tasks: List[Task]) -> List[string]:
 
 | Receiver | Methods |
 | --- | --- |
-| `List[T]` | `sorted_by_key[K < Ord](&self, key: fn(&T) -> K) -> List[T]`; `group_by[K < Eq & Hash](&self, key: fn(&T) -> K) -> Map[K, List[T]]`; `partition(&self, keep: fn(&T) -> bool) -> (List[T], List[T])`; `any(&self, test: fn(&T) -> bool) -> bool`; `all(&self, test: fn(&T) -> bool) -> bool`; `find(&self, test: fn(&T) -> bool) -> (&T)?`; `flat_map[U, I < Iterable[U]](self, transform: fn(T) -> I) -> List[U]`; `windows(self, size: usize) -> List[ListView[T]]` |
-| `List[T]` | `min_by_key[K < Ord](&self, key: fn(&T) -> K) -> (&T)?`; `max_by_key[K < Ord](&self, key: fn(&T) -> K) -> (&T)?` |
+| `List[T]` | `sorted_by_key[K < Ord](&self, key: fn(&T) -> K) -> List[T]`; `group_by[K < Eq & Hash](&self, key: fn(&T) -> K) -> Map[K, List[T]]`; `partition(&self, keep: fn(&T) -> bool) -> (List[T], List[T])`; `any(&self, test: fn(&T) -> bool) -> bool`; `all(&self, test: fn(&T) -> bool) -> bool`; `find(&self, test: fn(&T) -> bool) -> T?`; `flat_map[U, I < Iterable[U]](self, transform: fn(T) -> I) -> List[U]`; `windows(self, size: usize) -> List[ListView[T]]` |
+| `List[T]` | `min_by_key[K < Ord](&self, key: fn(&T) -> K) -> T?`; `max_by_key[K < Ord](&self, key: fn(&T) -> K) -> T?` |
 | `List[T]`, when `T < Eq` | `contains(&self, value: T) -> bool`; `index_of(&self, value: T) -> usize?`; `dedup(self) -> List[T]` |
 | `List[T]`, when `T < Eq & Hash` | `unique(self) -> List[T]` |
-| `List[T]`, when `T < Ord` | `sorted(&self) -> List[T]`; `sort(&mut self) -> void`; `min(&self) -> (&T)?`; `max(&self) -> (&T)?` |
+| `List[T]`, when `T < Ord` | `sorted(&self) -> List[T]`; `sort(&mut self) -> void`; `min(&self) -> T?`; `max(&self) -> T?` |
 | `List[T]`, when `T < Num` | `sum(self) -> T` |
 
 1. r[std-collections.helper.unchanged] Each helper but `retain`, `sort`, `sort_by`, `sort_by_key`, and `swap` leaves its receiver unchanged, and each one that returns a list returns a new list.
@@ -274,18 +274,18 @@ fn owners(tasks: List[Task]) -> List[string]:
 7. r[std-collections.helper.group-by] `group_by(key)` maps each key that `key` returns to the list of the elements that gave it, in list order.
 8. r[std-collections.helper.partition] `partition(keep)` returns the elements for which `keep` is true, then the rest, each in list order.
 9. r[std-collections.helper.any-all] `any(test)` is true when `test` is true for some element, and `all(test)` when it is true for every element. So on an empty list `any` is false and `all` is true.
-10. r[std-collections.helper.find] `find(test)` returns a reference to the first element for which `test` is true in `.Some`, or `.None` when there is none.
+10. r[std-collections.helper.find-copy] `find(test)` returns a copy of the first element for which `test` is true in `.Some`, or `.None` when there is none.
 11. r[std-collections.helper.short-circuit] `any`, `all`, and `find` call `test` on no element after the first one that decides the result.
 12. r[std-collections.helper.flat-map.iterable-owned] `flat_map(transform)` appends every item from each returned `Iterable` into one result list, in source order.
 13. r[std-collections.helper.windows.views] `windows(size)` returns overlapping `ListView[T]` values of `size` elements, in starting-index order.
 14. r[std-collections.helper.windows.short] A list with fewer than `size` elements gives `[]`.
 15. r[std-collections.helper.windows.size] A `size` below 1 panics, as it does for `chunks`. Panic: `explicit-panic`.
 16. r[std-collections.helper.contains] `contains(value)` is true when an element equals `value` by `Eq`. `index_of(value)` returns the index of the first such element in `.Some`, or `.None`.
-17. r[std-collections.helper.min-max.first] `min` returns a reference to the first smallest element and `max` one to the first largest by `Ord`, each in `.Some`. An empty list gives `.None`.
+17. r[std-collections.helper.min-max.copy-first] `min` returns a copy of the first smallest element and `max` one to the first largest by `Ord`, each in `.Some`. An empty list gives `.None`.
 18. r[std-collections.helper.sum] `sum` returns the total of the elements, added with `+` in list order from 0 of type `T`, so an empty list gives 0.
 19. r[std-collections.helper.sum.overflow] An integer total that leaves the range of `T` panics, as `+` does. Panic: `integer-overflow`.
 20. r[std-collections.helper.sum.iterator] `items.sum()` returns what `items.iter().sum()` returns.
-21. r[std-collections.helper.by-key.first] `min_by_key(key)` returns a reference to the first element whose `key` is smallest by `Ord`, and `max_by_key(key)` one to the first whose `key` is largest, each in `.Some`, so equal keys give the earlier element, as `min` and `max` do. An empty list gives `.None`.
+21. r[std-collections.helper.by-key.copy-first] `min_by_key(key)` returns a copy of the first element whose `key` is smallest by `Ord`. `max_by_key(key)` returns a copy of the first whose `key` is largest. Each returns `.Some`, so equal keys give the earlier element, as `min` and `max` do. An empty list gives `.None`.
 22. r[std-collections.helper.dedup] `dedup` returns the list without each element that equals the element just before it in the receiver, as Rust's `Vec::dedup` does, so only adjacent duplicates go and `[1, 2, 1]` is unchanged.
 23. r[std-collections.helper.unique] `unique` returns the list without each element that equals an earlier element, so every distinct element stays once, at its first position.
 24. r[std-collections.helper.callback-ref] Each callback looks at an element by reference: `fn(&T)`, and `fn(&T, &T)` for `sorted_by` and `sort_by`. Each receiver is `&self`, or `&mut self` for a method that changes the list.
@@ -303,8 +303,8 @@ fn owners(tasks: List[Task]) -> List[string]:
 | `[1, 2, 3].windows(2)` | views of `[1, 2]` and `[2, 3]` |
 | `[1, 2].windows(3)` | `[]` |
 | `[5, 7, 5].index_of(5)` | `.Some(0)` |
-| `[2, 9, 4].max().copied()` | `.Some(9)` |
-| `["bb", "a", "cc"].max_by_key(fn(w: &string) -> usize: w.len()).copied()` | `.Some("bb")` |
+| `[2, 9, 4].max()` | `.Some(9)` |
+| `["bb", "a", "cc"].max_by_key(fn(w: &string) -> usize: w.len())` | `.Some("bb")` |
 | `[1, 1, 2, 1].dedup()` | `[1, 2, 1]` |
 | `[1, 1, 2, 1].unique()` | `[1, 2]` |
 | `[1, 2, 3].sum()` | `6` |
@@ -353,12 +353,12 @@ fn tally(words: List[string]) -> Map[string, usize]:
 
 | Receiver | Methods |
 | --- | --- |
-| `Map[K, V]` | `get_ref(&self, key: K) -> (&V)?`; `get_mut(&mut self, key: K) -> (&mut V)?`; `get_or_insert(&mut self, key: K, default: V) -> &mut V`; `contains_key(&self, key: K) -> bool`; `keys(&self) -> List[K]`; `values(&self) -> List[V]`; `is_empty(&self) -> bool`; `entries(&self) -> List[(K, V)]` |
+| `Map[K, V]` | `get_or_insert(&mut self, key: K, default: V) -> &mut V`; `contains_key(&self, key: K) -> bool`; `keys(&self) -> List[K]`; `values(&self) -> List[V]`; `is_empty(&self) -> bool`; `entries(&self) -> List[(K, V)]` |
 | `Map[K, usize]` | `most_common(&self, n: usize) -> List[(K, usize)]` |
 
 ```text
 fn shelf_count(stock: &Map[string, List[string]], item: string) -> usize:
-    match stock.get_ref(item):  # (&List[string])?: no copy of the list
+    match stock.get(item):  # List[string]?: one count of the list buffer
         .Some(shelves) => shelves.len()
         .None => 0
 
@@ -381,22 +381,19 @@ fn tally(words: List[string]) -> Map[string, usize]:
 ```
 
 1. r[std-collections.map.get] `get(key)` is the built-in copying lookup ([`expr.index.map.get`](../lang/05-expressions.md#r-expr.index.map.get)): it returns `.Some` of a copy of the stored value, or `.None` when the map has no equal key.
-2. r[std-collections.map.get-ref] `get_ref(key)` returns `.Some` of a reference to the stored value, or `.None` when the map has no equal key. It refers to the value as `&m[key]` does, by [`ref.elem.map`](../lang/13-values-and-references.md#r-ref.elem.map), so the map is pinned while it lives.
-3. r[std-collections.map.get-ref.reference] The reference that `get_ref` returns is dependent on its receiver by [`ref.dep.elide`](../lang/13-values-and-references.md#r-ref.dep.elide).
-4. r[std-collections.map.get-mut] `get_mut(key)` returns `.Some` of a mutable reference to the stored value, or `.None` when the map has no equal key.
-5. r[std-collections.map.get-or-insert] `get_or_insert(key, default)` returns a mutable reference to the stored value when the map has an equal key.
-6. r[std-collections.map.get-or-insert.missing] When the map has no equal key, `get_or_insert` inserts `(key, default)` and returns a mutable reference to the inserted value.
-7. r[std-collections.map.get-or-insert.reference] The reference that `get_or_insert` returns is dependent on its receiver by [`ref.dep.elide`](../lang/13-values-and-references.md#r-ref.dep.elide).
-8. r[std-collections.map.get-or-insert.pinned] An insertion by `get_or_insert` while that map is pinned panics `collection-pinned`, as every map length change does.
-9. r[std-collections.map.probe-once] Each `get_ref`, `get_mut` or `get_or_insert` call invokes the key's `Hash` implementation once and performs one map search, reusing a missing search position for insertion.
-10. r[std-collections.map.contains-key] `contains_key(key)` is true exactly when the map has an entry whose key equals `key`.
-11. r[std-collections.map.keys.order] `keys` returns the map's keys in its [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic).
-12. r[std-collections.map.values] `values` returns the map's values in the same order.
-13. r[std-collections.map.snapshot] Each returned list is a snapshot: a later change to the map does not change it.
-14. r[std-collections.map.is-empty] `is_empty` is true exactly when `len()` is 0.
-15. r[std-collections.map.entries] `entries` returns the map's `(key, value)` pairs in its [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic), which is the order of `keys` and `values`, as a snapshot like theirs.
-16. r[std-collections.map.most-common] `most_common(n)` returns the `n` pairs of the map with the largest values, largest first, or every pair when `n` is at least `len()`. An `n` of 0 gives `[]`.
-17. r[std-collections.map.most-common.ties] Pairs with equal values keep the map's iteration order, so on a `counts` result the element that occurred first comes first, as in Python's `Counter.most_common`.
+2. r[std-collections.map.get-or-insert] `get_or_insert(key, default)` returns a mutable reference to the stored value when the map has an equal key.
+3. r[std-collections.map.get-or-insert.missing] When the map has no equal key, `get_or_insert` inserts `(key, default)` and returns a mutable reference to the inserted value.
+4. r[std-collections.map.get-or-insert.reference] The reference that `get_or_insert` returns is dependent on its receiver by [`ref.dep.elide`](../lang/13-values-and-references.md#r-ref.dep.elide).
+5. r[std-collections.map.get-or-insert.pinned] An insertion by `get_or_insert` while that map is pinned panics `collection-pinned`, as every map length change does.
+6. r[std-collections.map.get-or-insert.probe-once] Each `get_or_insert` call invokes the key's `Hash` implementation once and performs one map search, reusing a missing search position for insertion.
+7. r[std-collections.map.contains-key] `contains_key(key)` is true exactly when the map has an entry whose key equals `key`.
+8. r[std-collections.map.keys.order] `keys` returns the map's keys in its [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic).
+9. r[std-collections.map.values] `values` returns the map's values in the same order.
+10. r[std-collections.map.snapshot] Each returned list is a snapshot: a later change to the map does not change it.
+11. r[std-collections.map.is-empty] `is_empty` is true exactly when `len()` is 0.
+12. r[std-collections.map.entries] `entries` returns the map's `(key, value)` pairs in its [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic), which is the order of `keys` and `values`, as a snapshot like theirs.
+13. r[std-collections.map.most-common] `most_common(n)` returns the `n` pairs of the map with the largest values, largest first, or every pair when `n` is at least `len()`. An `n` of 0 gives `[]`.
+14. r[std-collections.map.most-common.ties] Pairs with equal values keep the map's iteration order, so on a `counts` result the element that occurred first comes first, as in Python's `Counter.most_common`.
 
 > **Why.** `entries` is a list snapshot like `keys` and `values`, since a
 > loop that sorts or indexes the pairs needs a list. `most_common` is
@@ -519,8 +516,8 @@ fn rotate(items: List[i32]) -> List[i32]:
 | `len`, `is_empty` | `len(&self) -> usize`; `is_empty(&self) -> bool` |
 | `push_front`, `push_back` | `push_front(&mut self, value: T) -> void`, and the same for `push_back` |
 | `pop_front`, `pop_back` | `pop_front(&mut self) -> T?`, and the same for `pop_back` |
-| `front`, `back` | `front(&self) -> (&T)?`, and the same for `back` |
-| `get` | `get(&self, index: usize) -> (&T)?` |
+| `front`, `back` | `front(&self) -> T?`, and the same for `back` |
+| `get` | `get(&self, index: usize) -> T?` |
 | iteration | `Iterable[T]` |
 | equality | `Eq` when `T < Eq` |
 | `Debug` | when `T < Debug` |
@@ -531,8 +528,8 @@ fn rotate(items: List[i32]) -> List[i32]:
 3. r[std-collections.deque.len] `len` returns the number of elements, and `is_empty` is true exactly when that number is 0.
 4. r[std-collections.deque.push] `push_front(value)` adds `value` before the front, and `push_back(value)` adds it after the back.
 5. r[std-collections.deque.pop] `pop_front` removes the front element and returns it in `.Some`, and `pop_back` does the same at the back. On an empty deque, each returns `.None` and changes nothing.
-6. r[std-collections.deque.ends] `front` and `back` return a reference to the front and the back element without removing it, or `.None` when the deque is empty.
-7. r[std-collections.deque.get] `get(i)` returns a reference to the element `i` places from the front in `.Some`, so `get(0)` is the front. An `i` that is not less than `len` gives `.None`.
+6. r[std-collections.deque.ends-copy] `front` and `back` return a copy of the front and the back element without removing it, or `.None` when the deque is empty.
+7. r[std-collections.deque.get-copy] `get(i)` returns a copy of the element `i` places from the front in `.Some`, so `get(0)` is the front. An `i` that is not less than `len` gives `.None`.
 8. r[std-collections.deque.iter] Iterating a deque yields its elements from front to back, each as `T`.
 9. r[std-collections.deque.cursor] A deque's cursor type is `DequeIter[T]`, which `std.collections` declares with private fields.
 10. r[std-collections.deque.snapshot] Iterating a deque walks the deque as it was when `iter` was called. A push or a pop while the loop runs changes the deque but not the loop, and never panics, as [`flow.for.snapshot`](../lang/06-control-flow.md#r-flow.for.snapshot) states for a list.
@@ -587,7 +584,7 @@ fn smallest(items: List[i32]) -> i32?:
 | `len`, `is_empty` | `len(&self) -> usize`; `is_empty(&self) -> bool` |
 | `push` | `push(&mut self, value: T) -> void` |
 | `pop` | `pop(&mut self) -> T?` |
-| `peek` | `peek(&self) -> (&T)?` |
+| `peek` | `peek(&self) -> T?` |
 | `to_sorted_list` | `to_sorted_list(&self) -> List[T]` |
 | `Debug` | when `T < Debug` |
 | `collect` | `FromIterator[T]` |
@@ -596,7 +593,7 @@ fn smallest(items: List[i32]) -> i32?:
 2. r[std-collections.heap.len] `new` returns an empty heap. `len` returns the number of elements, and `is_empty` is true exactly when that number is 0.
 3. r[std-collections.heap.push] `push(value)` adds `value` to the heap.
 4. r[std-collections.heap.pop] `pop` removes a largest element by `Ord` and returns it in `.Some`. On an empty heap, it returns `.None`.
-5. r[std-collections.heap.peek] `peek` returns a reference to a largest element without removing it, or `.None` when the heap is empty.
+5. r[std-collections.heap.peek-copy] `peek` returns a copy of a largest element without removing it, or `.None` when the heap is empty.
 6. r[std-collections.heap.ties] When several elements are equal by `cmp`, which of them `pop` and `peek` return is not specified.
 7. r[std-collections.heap.sorted] `to_sorted_list` returns a new list of every element in ascending order by `Ord`, and leaves the heap unchanged.
 8. r[std-collections.heap.min] `std` has no separate min-heap: a `Heap[Reverse[T]]` pops the smallest `T` first, by [`std-cmp.reverse.order`](cmp.md#r-std-cmp.reverse.order).
@@ -620,7 +617,7 @@ a list, and grow one list by another:
 
 ```text
 fn second(items: List[string]) -> string?:
-    items.get(1).copied()
+    items.get(1)
 
 fn preview(lines: List[string]) -> List[string]:
     if lines.is_empty():
@@ -636,47 +633,37 @@ fn merged(head: List[i32], tail: List[i32]) -> List[i32]:
 
 | Receiver | Methods |
 | --- | --- |
-| `List[T]` | `get(&self, index: usize) -> (&T)?`; `is_empty(&self) -> bool`; `first(&self) -> (&T)?`; `last(&self) -> (&T)?`; `take(self, count: usize) -> List[T]`; `filter(&self, keep: fn(&T) -> bool) -> List[T]`; `reversed(self) -> List[T]`; `sorted_by(&self, compare: fn(&T, &T) -> Ordering) -> List[T]`; `zip[U](self, other: List[U]) -> List[(T, U)]` |
-| `List[T]`, changing | `get_mut(&mut self, index: usize) -> (&mut T)?`; `first_mut(&mut self) -> (&mut T)?`; `last_mut(&mut self) -> (&mut T)?`; `extend(&mut self, other: List[T]) -> void`; `retain(&mut self, keep: fn(&T) -> bool) -> void`; `sort_by(&mut self, compare: fn(&T, &T) -> Ordering) -> void`; `sort_by_key[K < Ord](&mut self, key: fn(&T) -> K) -> void`; `swap(&mut self, a: usize, b: usize) -> void` |
+| `List[T]` | `get(&self, index: usize) -> T?`; `is_empty(&self) -> bool`; `first(&self) -> T?`; `last(&self) -> T?`; `take(self, count: usize) -> List[T]`; `filter(&self, keep: fn(&T) -> bool) -> List[T]`; `reversed(self) -> List[T]`; `sorted_by(&self, compare: fn(&T, &T) -> Ordering) -> List[T]`; `zip[U](self, other: List[U]) -> List[(T, U)]` |
+| `List[T]`, changing | `extend(&mut self, other: List[T]) -> void`; `retain(&mut self, keep: fn(&T) -> bool) -> void`; `sort_by(&mut self, compare: fn(&T, &T) -> Ordering) -> void`; `sort_by_key[K < Ord](&mut self, key: fn(&T) -> K) -> void`; `swap(&mut self, a: usize, b: usize) -> void` |
 
-1. r[std-collections.access.get] `get(index)` returns `.Some` of a reference to the element at `index`, or `.None` when `index` is not less than `len()`. It never panics. A caller that wants a copy writes `.copied()` or `*`.
-2. r[std-collections.access.get-mut] `get_mut(index)` returns `.Some` of a mutable reference to the element at `index`, or `.None` when `index` is out of range.
-3. r[std-collections.access.is-empty] `is_empty` is true exactly when `len()` is 0.
-4. r[std-collections.access.first-last] `first` returns a reference to the element at index 0 and `last` one to the element at index `len() - 1`, each in `.Some`. An empty list gives `.None`.
-5. r[std-collections.access.first-mut] `first_mut` returns `.Some` of a mutable reference to the first element, or `.None` for an empty list.
-6. r[std-collections.access.last-mut] `last_mut` returns `.Some` of a mutable reference to the last element, or `.None` for an empty list.
-7. r[std-collections.access.take] `take(count)` returns a new list of the first `count` elements, or of every element when `count` is at least `len()`.
-8. r[std-collections.access.filter] `filter(keep)` returns a new list of the elements for which `keep` is true, in list order.
-9. r[std-collections.access.reversed] `reversed` returns a new list of the elements in reverse order.
-10. r[std-collections.access.sorted-by] `sorted_by(compare)` returns a new list in ascending order by `compare`. The sort is stable.
-11. r[std-collections.access.zip] `zip(other)` returns a new list of pairs `(self[i], other[i])` for each index `i` of both lists, so it stops at the shorter one.
-12. r[std-collections.access.extend] `extend(other)` appends each element of `other` to the receiver, in order, as `push` does.
-13. r[std-collections.access.extend.self] `items.extend(items)` appends a copy of the elements `items` held before the call, so it doubles the list.
-14. r[std-collections.access.helper-rules] The callbacks of `filter` and `sorted_by` follow [`std-collections.helper.callback-row`](#r-std-collections.helper.callback-row): each has the empty row.
-
-Each mutable accessor returns an [element reference](../lang/13-values-and-references.md#element-references).
-A length change while its result is live follows the collection-pinning rules.
+1. r[std-collections.access.get-copy] `get(index)` returns `.Some` of a copy of the element at `index`, or `.None` when `index` is not less than `len()`. It never panics.
+2. r[std-collections.access.is-empty] `is_empty` is true exactly when `len()` is 0.
+3. r[std-collections.access.first-last-copy] `first` returns a copy of the element at index 0 and `last` one of the element at index `len() - 1`, each in `.Some`. An empty list gives `.None`.
+4. r[std-collections.access.take] `take(count)` returns a new list of the first `count` elements, or of every element when `count` is at least `len()`.
+5. r[std-collections.access.filter] `filter(keep)` returns a new list of the elements for which `keep` is true, in list order.
+6. r[std-collections.access.reversed] `reversed` returns a new list of the elements in reverse order.
+7. r[std-collections.access.sorted-by] `sorted_by(compare)` returns a new list in ascending order by `compare`. The sort is stable.
+8. r[std-collections.access.zip] `zip(other)` returns a new list of pairs `(self[i], other[i])` for each index `i` of both lists, so it stops at the shorter one.
+9. r[std-collections.access.extend] `extend(other)` appends each element of `other` to the receiver, in order, as `push` does.
+10. r[std-collections.access.extend.self] `items.extend(items)` appends a copy of the elements `items` held before the call, so it doubles the list.
+11. r[std-collections.access.helper-rules] The callbacks of `filter` and `sorted_by` follow [`std-collections.helper.callback-row`](#r-std-collections.helper.callback-row): each has the empty row.
 
 ```text
 fn adjust(items: &mut List[i32], stock: &mut Map[string, i32]) -> void:
-    match items.get_mut(1):
-        .Some(value) => *value += 10
-        .None => pass
-    match stock.get_mut("tea"):
-        .Some(count) => *count += 1
-        .None => pass
+    items[1] += 10
+    *stock.get_or_insert("tea", 0) += 1
 ```
 
 | Call | Result |
 | --- | --- |
-| `[4, 5].get(1).copied()` | `.Some(5)` |
+| `[4, 5].get(1)` | `.Some(5)` |
 | `[4, 5].get(2)` | `.None` |
 | `[1, 2, 3].take(2)` | `[1, 2]` |
 | `[1, 2].take(5)` | `[1, 2]` |
 | `[1, 2, 3].zip(["a", "b"])` | `[(1, "a"), (2, "b")]` |
 
-> **Why.** `get` is Rust's `slice::get`, the checked read beside
-> `items[i]`. `take` is Kotlin's `List.take`: like `List.map`, the list
+> **Why.** `get` is the checked, copying read beside `items[i]`.
+> `take` is Kotlin's `List.take`: like `List.map`, the list
 > method is eager and returns a list, while `Iterator.take` stays lazy.
 > `extend` is Rust's `Vec::extend`, and replaces `items = items + more`.
 

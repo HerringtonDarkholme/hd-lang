@@ -1283,26 +1283,18 @@ fn demo(table: Map[string, i32], key: string) -> i32?:
 
 #### Map Probe Intrinsic
 
-`std.collections` gives its three reference lookup methods the same
-compiler body key:
+`std.collections` gives `get_or_insert` a compiler body key:
 
 ```text
 impl[K < Eq & Hash, V] Map[K, V]:
     @intrinsic("map_probe")
-    pub fn get_ref(&self, key: K) -> (&V)?: panic("intrinsic")
-
-    @intrinsic("map_probe")
-    pub fn get_mut(&mut self, key: K) -> (&mut V)?: panic("intrinsic")
-
-    @intrinsic("map_probe")
     pub fn get_or_insert(&mut self, key: K, default: V) -> &mut V: panic("intrinsic")
 ```
 
-1. r[module.map.probe.decl] The three methods have the ordinary hd declarations above, and the compiler supplies only the bodies named `map_probe`.
-2. r[module.map.probe.hit] When the map has an equal key, each method returns a reference to its value: a shared one in `.Some` for `get_ref`, a mutable one in `.Some` for `get_mut`, and a mutable one for `get_or_insert`.
-3. r[module.map.probe.miss] When the map has no equal key, `get_ref` and `get_mut` return `.None` and leave the map unchanged.
-4. r[module.map.probe.insert] When the map has no equal key, `get_or_insert` inserts `(key, default)` and returns a mutable reference to that value.
-5. r[module.map.probe.once] Each body hashes `key` once, searches the table once, and `get_or_insert` reuses a missing search position for insertion.
+1. r[module.map.probe.get-or-insert.decl] `get_or_insert` has the ordinary hd declaration above, and the compiler supplies only the body named `map_probe`.
+2. r[module.map.probe.get-or-insert.hit] When the map has an equal key, `get_or_insert` returns a mutable reference to its value.
+3. r[module.map.probe.insert] When the map has no equal key, `get_or_insert` inserts `(key, default)` and returns a mutable reference to that value.
+4. r[module.map.probe.get-or-insert.once] The body hashes `key` once, searches the table once, and reuses a missing search position for insertion.
 
 See also: [Indexing](05-expressions.md#indexing).
 

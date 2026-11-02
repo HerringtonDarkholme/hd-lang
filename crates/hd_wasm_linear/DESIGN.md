@@ -906,12 +906,11 @@ Each operation implements collection value semantics (§15.2;
   takes its own counts, and the collections among the values become
   copies, so a write through `m[k].push(v)` reaches only this map.
 - **Probes.** `get` is the `MapGet` built-in, which copies the value
-  out. `get_ref`, `get_mut` and `get_or_insert` share the `map_probe`
-  body: one hash and one search, which a following `m[k] = v` of the
-  same map and key reuses. A mutable probe makes the table the map's own
-  and stores it back; a counted reference pins it (§23.20). A probe whose
-  reference is a short loan (§23.20) takes no count, and a shared one,
-  `get_ref`'s, also skips the uniqueness check, the store and the pin.
+  out. `get_or_insert` has the `map_probe` body: one hash and one search,
+  reusing a missing search position for insertion. A mutable probe makes
+  the table the map's own and stores it back; a counted reference pins it
+  (§23.20). A probe whose reference is a short loan (§23.20) takes no
+  count.
 - **Iteration.** A counted `for` iterates the snapshot through
   `MapSlots`, `MapSlotNext` and `MapSlotEntry`, which read the entries
   in place.
@@ -1151,9 +1150,8 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   Two references to one slot share its address (`ref.elem.identity`). A
   trait value of a value that is one counted address is that address,
   never a copy.
-- **Short loans.** A reference from a shared map probe (`get_ref`), a
-  `get_or_insert` probe, or a shared element `Ref` of a local's list (an
-  inlined `List.get`, `first` or `last`) whose every holder ends before
+- **Short loans.** A reference from a `map_probe` intrinsic or a shared
+  element `Ref` of a local's list whose every holder ends before
   anything could write or drop its collection lives on the collection's
   own count (`emit/loan.rs`): no count of the buffer, and for a shared
   one no uniqueness check or pin, so the `IsUnique` and `Pin` insertion

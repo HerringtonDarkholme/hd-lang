@@ -31,7 +31,7 @@ tests:
         _ := first.pop_front()
         assert_equal(first.len(), 0, reason="the original lost its element")
         assert_equal(second.len(), 2, reason="the copy kept both")
-        assert_equal(second.front().copied(), .Some(1), reason="the copy's front")
+        assert_equal(second.front(), .Some(1), reason="the copy's front")
 
     it("a deque passed by value is the callee's copy"):
         let mut queue: Deque[string] = Deque::new()
@@ -45,7 +45,7 @@ tests:
         shared := &mut queue
         shared.push_front("ana")
         assert_equal(queue.len(), 2, reason="both changes reached the deque")
-        assert_equal(queue.front().copied(), .Some("ana"), reason="the front pushed through the reference")
+        assert_equal(queue.front(), .Some("ana"), reason="the front pushed through the reference")
 
     it("a deque in a struct field copies with the struct"):
         let mut board = Board { waiting: Deque::new() }
@@ -77,7 +77,7 @@ tests:
         first.push(9)
         let mut second = first
         assert_equal(second.pop(), .Some(9), reason="the copy pops its largest")
-        assert_equal(first.peek().copied(), .Some(9), reason="the original keeps it")
+        assert_equal(first.peek(), .Some(9), reason="the original keeps it")
         assert_equal(first.len(), 2, reason="the original's size")
         assert_equal(second.len(), 1, reason="the copy's size")
 

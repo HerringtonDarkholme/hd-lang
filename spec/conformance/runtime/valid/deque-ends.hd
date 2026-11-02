@@ -1,5 +1,5 @@
 # test: a Deque pushes and pops at both ends, reads by index from the front, wraps and grows, iterates front to back, and compares like a list
-# Spec std/collections Deque: std-collections.deque.order, std-collections.deque.len, std-collections.deque.push, std-collections.deque.pop, std-collections.deque.ends, std-collections.deque.get, std-collections.deque.iter, std-collections.deque.eq (COLLECTIONS-DATES-SURFACE; task #225).
+# Spec std/collections Deque: std-collections.deque.order, std-collections.deque.len, std-collections.deque.push, std-collections.deque.pop, std-collections.deque.ends-copy, std-collections.deque.get-copy, std-collections.deque.iter, std-collections.deque.eq (COLLECTIONS-DATES-SURFACE; task #225).
 use std.collections.Deque
 fn contents(queue: Deque[i32]) -> List[i32]:
     let mut seen: List[i32] = []
@@ -19,8 +19,8 @@ tests:
         queue.push_front(0)
         assert_equal(queue.len(), 4, reason="four elements")
         assert_equal(contents(queue), [0, 1, 2, 3], reason="front to back")
-        assert_equal(queue.front().copied(), .Some(0), reason="front")
-        assert_equal(queue.back().copied(), .Some(3), reason="back")
+        assert_equal(queue.front(), .Some(0), reason="front")
+        assert_equal(queue.back(), .Some(3), reason="back")
         assert_equal(queue.pop_back(), .Some(3), reason="pop_back")
         assert_equal(queue.pop_front(), .Some(0), reason="pop_front")
         assert_equal(contents(queue), [1, 2], reason="what is left")
@@ -29,8 +29,8 @@ tests:
         let mut queue: Deque[string] = Deque::new()
         queue.push_back("b")
         queue.push_front("a")
-        assert_equal(queue.get(0).copied(), .Some("a"), reason="the front")
-        assert_equal(queue.get(1).copied(), .Some("b"), reason="the back")
+        assert_equal(queue.get(0), .Some("a"), reason="the front")
+        assert_equal(queue.get(1), .Some("b"), reason="the back")
         assert_equal(queue.get(2), .None, reason="past the back")
 
     it("an empty deque"):
@@ -52,10 +52,10 @@ tests:
                 _ := queue.pop_back()
             index = index + 1
         assert_equal(queue.len(), 28, reason="twenty-eight left")
-        assert_equal(queue.front().copied(), .Some(-20), reason="the last push_front")
-        assert_equal(queue.back().copied(), .Some(20), reason="the last push_back")
-        assert_equal(queue.get(13).copied(), .Some(-1), reason="the first push_front, in the middle")
-        assert_equal(queue.get(14).copied(), .Some(1), reason="the first push_back, in the middle")
+        assert_equal(queue.front(), .Some(-20), reason="the last push_front")
+        assert_equal(queue.back(), .Some(20), reason="the last push_back")
+        assert_equal(queue.get(13), .Some(-1), reason="the first push_front, in the middle")
+        assert_equal(queue.get(14), .Some(1), reason="the first push_back, in the middle")
 
     it("equal deques hold equal elements in order"):
         let mut left: Deque[i32] = Deque::new()

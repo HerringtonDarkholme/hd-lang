@@ -1,9 +1,0 @@
-# @dump: counts
-# @build: v8 release
-# Borrow: `get_ref` returns a reference to the map's value (std-collections.map.get-ref),
-# so counting the tags copies no `List[string]`.
-fn tag_count(index: Map[string, List[string]], key: string) -> usize:
-    # subject
-    match index.get_ref(key):
-        .Some(tags) => tags.len()
-        .None => 0

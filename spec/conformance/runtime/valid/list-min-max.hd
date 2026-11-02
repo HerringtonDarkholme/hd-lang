@@ -1,5 +1,5 @@
 # test: min gives the first smallest element and max the first largest, and an empty list gives .None
-# Spec std/collections List Helpers: std-collections.helper.min-max.first.
+# Spec std/collections List Helpers: std-collections.helper.min-max.copy-first.
 use std.cmp.Ordering
 struct Entry:
     rank: i32
@@ -26,13 +26,13 @@ tests:
     use std.testing.assert_equal
 
     it("min and max"):
-        assert_equal([2, 9, 4].max().copied(), .Some(9), reason="max")
-        assert_equal([2, 9, 4].min().copied(), .Some(2), reason="min")
+        assert_equal([2, 9, 4].max(), .Some(9), reason="max")
+        assert_equal([2, 9, 4].min(), .Some(2), reason="min")
     it("ties"):
         let entries: List[Entry] = [Entry { rank: 1, label: "a" }, Entry { rank: 1, label: "b" }]
-        assert_equal(label(entries.min().copied()), "a", reason="the first smallest")
-        assert_equal(label(entries.max().copied()), "a", reason="the first largest")
+        assert_equal(label(entries.min()), "a", reason="the first smallest")
+        assert_equal(label(entries.max()), "a", reason="the first largest")
     it("an empty list"):
         let empty: List[i32] = []
-        assert_equal(empty.min().copied(), .None, reason="min")
-        assert_equal(empty.max().copied(), .None, reason="max")
+        assert_equal(empty.min(), .None, reason="min")
+        assert_equal(empty.max(), .None, reason="max")

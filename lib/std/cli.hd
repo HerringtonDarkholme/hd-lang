@@ -291,9 +291,7 @@ fn store_value(
             CliError.InvalidValue(arg.name, "expected ${arg.choices.join(" or ")}, got $value"),
         )
     if arg.repeated:
-        match histories.get_mut(arg.name):
-            .Some(buffer) => buffer.push(value)
-            .None => histories[arg.name] = [value]
+        histories.get_or_insert(arg.name, []).push(value)
     values[arg.name] = value
     .Ok(())
 
@@ -312,7 +310,7 @@ pub struct Parsed:
 impl Parsed:
     ## The selected command and a copy of its parsed arguments, when present.
     pub fn command(self) -> (string, Parsed)?:
-        self.selected_command.get(0).copied()
+        self.selected_command.get(0)
 
     ## A copy of every positional in input order, including extra positionals.
     pub fn positionals(self) -> List[string]:
@@ -333,7 +331,7 @@ impl Parsed:
                 if name != selected:
                     return .None
                 match self.value_histories.get(name):
-                    .Some(values) => return values.get(self.one_index).copied()
+                    .Some(values) => return values.get(self.one_index)
                     .None =>
                         if self.one_index > 0:
                             return .None

@@ -1,8 +1,8 @@
 # test: List get, is_empty, first, last, take, filter, reversed, sorted_by, zip, and extend
-# Spec std/collections List Access And Building: std-collections.access.get, .is-empty, .first-last, .take,
+# Spec std/collections List Access And Building: std-collections.access.get-copy, .is-empty, .first-last-copy, .take,
 # .filter, .reversed, .sorted-by, .zip, .extend, .extend.self (spec pass 89, audit items 5 and 6).
 fn second(items: List[string]) -> string?:
-    items.get(1).copied()
+    items.get(1)
 
 fn preview(lines: List[string]) -> List[string]:
     if lines.is_empty():
@@ -22,8 +22,8 @@ tests:
         assert_equal(second(["a", "b"]), .Some("b"), reason="in range")
         assert_equal(second(["a"]), .None, reason="past the end")
         assert_equal([4, 5].get(2), .None, reason="len is out of range")
-        assert_equal([4, 5].first().copied(), .Some(4), reason="first")
-        assert_equal([4, 5].last().copied(), .Some(5), reason="last")
+        assert_equal([4, 5].first(), .Some(4), reason="first")
+        assert_equal([4, 5].last(), .Some(5), reason="last")
         let empty: List[i32] = []
         assert_equal(empty.first(), .None, reason="empty first")
         assert(empty.is_empty(), reason="empty")
@@ -50,6 +50,5 @@ tests:
         pairs := [(+1, "b"), (+0, "x"), (+1, "a")]
         sorted := pairs.sorted_by(
             fn(a: &(i32, string), b: &(i32, string)) -> Ordering: a._0.cmp(&b._0)
-            ,
         )
         assert_equal(sorted, [(0, "x"), (1, "b"), (1, "a")], reason="equal keys keep their order")

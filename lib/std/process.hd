@@ -60,7 +60,7 @@ impl ProcessOutput:
 # Standard line splitting keeps only the final stderr line in the message.
 fn exited_message(output: ProcessOutput) -> string:
     name := if output.program == "": "program" else: "program ${output.program}"
-    line := output.stderr.lines().last().copied().unwrap_or("")
+    line := output.stderr.lines().last().unwrap_or("")
     suffix := if line == "": "" else: ": ${line}"
     "${name} exited with status ${output.status}${suffix}"
 

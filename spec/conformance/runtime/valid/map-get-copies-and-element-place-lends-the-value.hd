@@ -1,42 +1,40 @@
-# test: Map.get_ref returns a reference to the stored value: reads go through it, `*` and `copied` take copies, and lookups that miss give .None
-# std Collections: std-collections.map.get-ref; std-collections.map.get-ref.reference.
+# test: Map.get copies the stored value, an indexed element place lends it, and lookups that miss give .None
+# std Collections: std-collections.map.get; Spec 13 Element References: ref.elem.map.
 struct Stock:
     name: string
     count: i32
 
 fn count_of(shelves: &Map[string, Stock], name: string) -> i32:
-    match shelves.get_ref(name):
+    match shelves.get(name):
         .Some(stock) => stock.count
         .None => 0
 
 tests:
     use std.testing.assert_equal
 
-    it("reads the stored value through the reference"):
+    it("reads a copy of the stored value"):
         shelves := { "pear": Stock { name: "pear", count: 3 } }
         assert_equal(count_of(&shelves, "pear"), 3)
         assert_equal(count_of(&shelves, "fig"), 0)
 
-    it("copies the value out with * or copied"):
+    it("copies with get and lends through an element place"):
         let mut tags: Map[string, List[string]] = { "fruit": ["pear"] }
-        copy := *tags.get_ref("fruit").expect("fruit")
+        copy := tags.get("fruit").expect("fruit")
+        lent := &tags["fruit"]
+        assert_equal(lent.len(), 1)
         tags["fruit"].push("fig")
         assert_equal(copy, ["pear"], reason="the copy is its own list")
-        assert_equal(tags.get_ref("fruit").copied(), .Some(["pear", "fig"]))
+        assert_equal(tags.get("fruit"), .Some(["pear", "fig"]))
 
     it("a miss after a hit gives .None"):
         let mut counts: Map[string, i32] = { "a": +1, "c": 3 }
         let total = +0
         let misses = +0
         for key in ["a", "b", "c", "d"]:
-            match counts.get_ref(key):
-                .Some(n) => total += *n
+            match counts.get(key):
+                .Some(n) => total += n
                 .None => misses += 1
         counts["b"] = 2
         assert_equal(total, 4)
         assert_equal(misses, 2)
-        assert_equal(
-            counts.get_ref("b").copied(),
-            .Some(2),
-            reason="an insert after the reference ends",
-        )
+        assert_equal(counts.get("b"), .Some(2), reason="an insert after earlier lookups")

@@ -1,0 +1,9 @@
+# test: a list element reference pins its list until the result's last use, so a push through a box alias the checker cannot see panics
+# Spec 13 Element References: ref.elem.list, ref.elem.pinned.
+tests:
+    it("push panics while an element reference is live"):
+        items := box([+1, 2])
+        alias := items
+        first := &mut items[0]
+        alias.push(3) # panic: collection-pinned
+        *first += 1

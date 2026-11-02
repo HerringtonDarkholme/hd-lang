@@ -74,7 +74,7 @@ Today's diagnostic on `name` offers a fix-it that rewrites the result to
 reference refer to a field. It is the stopgap the owner rejected.
 
 The same wall blocks `downcast_ref` on `&dyn` (#996), builder methods
-returning `&mut Self`, `List.first`, `List.get` and `Map.get`.
+returning `&mut Self`, and collection views that return element references.
 
 ## The End State In Brief
 
@@ -164,7 +164,7 @@ rules stop. Each heads toward the end state. Hypothetical syntax is marked.
 | 1. Dependent results | a result may hold local references; its source is elided; origins are checked in the body | getters, `&mut Self` builders, `downcast_ref` on `&dyn`, `(&T)?` results | static escape check; memory safety by counts (cells) |
 | 2. Scoped locals, then frame slots | first a compile error: a local reference is used only inside the scope of each local it may point into (Rust's E0597); then the backend drops the cells and counts that makes unnecessary, and inlines reference getters | `&` is truly local: no hidden counted cell, only `box` makes counted storage; the counts and cells stage 1 adds go away | static |
 | 3. Lifetime variables | `fn f['a](x: &'a T) -> &'a T` (hypothetical); dependent function types; per-position precision | `choose(a, b)`, `get_or(&self, fallback)`, closures that return references | static |
-| 4. Element results | reverses E item 4 (owner, 2026-10-29): element references flow into results and bindings | `List.first`/`get`/`get_mut`, `Map.get`, `r := &mut xs[i]` | pins panic on a length change (exists today) |
+| 4. Element results | reverses E item 4 (owner, 2026-10-29): element references flow into results and bindings | `Span.get`, `SpanMut.get_mut`, `r := &mut xs[i]` | pins panic on a length change (exists today) |
 | 5. Generic locality | Rust's model: any `T` may hold a local reference; `T < 'static` (owner, 2026-10-29) only at persistent boundaries such as `box`, provider installs, detached tasks and `dyn` erasure | `Option` methods on `(&T)?`, `debug(&x)`, `id(&x)` (#987) | static |
 | 6. Stored references | lifetime parameters on structs and enums; stores into a caller's place; scoped closures; guards; `Span` | the #978 items: phantom markers, guards, read-only captures, library `defer`/`ensure`, live spans | static, counts at heap crossings |
 | 7. Exclusivity | Swift's `borrow`/`&` and Rust's rule: a live shared result freezes writes to its whole source, a live `&mut` result every other access; static where the checker sees the source, a per-place run-time check through an unseen `*mut` alias (Swift's dynamic exclusivity) | enum payload places (`as_mut`), exclusive guard captures, compile errors in place of pin panics | static plus pins |

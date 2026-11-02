@@ -57,7 +57,7 @@ tests:
         let mut heap = source.by_ref().collect::[Heap[i32]]()
         assert_equal(source.next(), .None, reason="by_ref drains the original owned cursor")
         assert_equal(heap.len(), 7, reason="every item")
-        assert_equal(heap.peek().copied(), .Some(9), reason="largest first")
+        assert_equal(heap.peek(), .Some(9), reason="largest first")
         copy := heap
         let mut popped: List[i32] = []
         while true:
