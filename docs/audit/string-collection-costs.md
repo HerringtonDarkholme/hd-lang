@@ -1,6 +1,6 @@
 # String, List and Map release costs
 
-Measured 2026-11-02 for #1208, on compiler commit `caece8ae2` from `origin/main`.
+Measured 2026-11-02 for #1208 (the short-string cases for #1244 have their own section), on compiler commit `caece8ae2` from `origin/main`.
 The machine was arm64, Node v24.19.0, with load averages 13.16, 9.24 and 7.86 at the end of
 the run.
 
@@ -105,6 +105,28 @@ There are another 124 interpolated sites and one multiline site. Thus 286 of all
 construction sites are known to be at most 12 bytes: a 54.3% lower bound, with 78.0% as the
 upper bound if every unknown site were short. This is evidence about source construction
 sites, not a claim about allocation-frequency share.
+
+## Short-string cases
+
+Added 2026-11-02 for #1244, measured on `f02cff980` with `HD_MICRO_RUNS=15` (minimum), under
+load averages of 19 to 27, with two earlier rows rerun in the same session for scale. Unlike
+`string-eq-short` and `map-get-key-string`, these vary their operands: keys and tokens are built
+at run time and visited in a varying order, so no comparison is loop-invariant.
+
+| case | hd ms | JS ms | hd/JS | counts per target operation | Wasm B |
+| --- | ---: | ---: | ---: | --- | ---: |
+| `map-get-short-keys` | 134.8 | 43.6 | 3.09 | none | 7,091 |
+| `map-get-varied-keys-i32` | 25.3 | 32.2 | 0.78 | none | 5,227 |
+| `string-keyword-match` | 35.9 | 13.8 | 2.61 | none | 7,975 |
+| `map-get-key-string` (rerun) | 156.3 | 38.4 | 4.06 | none | 5,938 |
+| `string-eq-short` (rerun) | 78.8 | 16.5 | 4.77 | none | 5,496 |
+
+`map-get-short-keys` looks up 1,000 keys of 2 to 4 bytes (`"k0"` to `"k999"`), 5,000,000
+times in a permuted order. `map-get-varied-keys-i32` is the same program with `i32` keys: the
+same table size, order and count. Its time is the most that packing keys of at most 6 bytes
+into the string value (#1215) could approach, since a packed key hashes and compares as one
+word. `string-keyword-match` splits a 20-token line once, then compares each token with four
+keyword literals, 500,000 times.
 
 ## Findings
 

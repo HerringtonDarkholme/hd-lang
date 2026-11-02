@@ -1,4 +1,4 @@
-// One-operation string and collection costs for issue #1208.
+// One-operation string and collection costs for issues #1208 and #1244.
 //
 // Usage:
 //   node --experimental-strip-types bench/micro/costs.ts [CASE...]
@@ -34,6 +34,9 @@ const ALL_CASES = [
   "string-eq-short",
   "string-eq-long",
   "map-get-key-string",
+  "map-get-short-keys",
+  "map-get-varied-keys-i32",
+  "string-keyword-match",
   "string-chars",
   "string-format-int",
   "list-get-i32",

@@ -1,0 +1,22 @@
+# @dump: counts
+# @build: release
+
+pub fn main() -> void:
+    let mut keys: List[string] = []
+    let mut values: Map[string, i32] = {}
+    let i: usize = 0
+    while i < 1000:
+        key := "k$i"
+        keys.push(key)
+        values[key] = i32(i % 7)
+        i += 1
+    let total = +0
+    let n: usize = 0
+    while n < 5000000:
+        key := keys[(n % 1000) * 7919 % 1000]
+        # subject
+        found := values.get(key)
+        total += found.unwrap_or(+0)
+        n += 1
+    if total != 14985000:
+        panic("bad map total")

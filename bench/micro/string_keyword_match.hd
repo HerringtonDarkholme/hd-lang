@@ -1,0 +1,16 @@
+# @dump: counts
+# @build: release
+
+pub fn main() -> void:
+    source := "let x = fn if else while return foo bar if let while fn x y z return else baz"
+    tokens := source.split(" ")
+    let count: usize = 0
+    let round: usize = 0
+    while round < 500000:
+        for token in tokens:
+            # subject
+            if token == "if" || token == "let" || token == "fn" || token == "while":
+                count += 1
+        round += 1
+    if count != 4000000:
+        panic("bad keyword count")
