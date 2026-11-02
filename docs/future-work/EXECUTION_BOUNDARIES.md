@@ -292,18 +292,20 @@ Two std marker traits, checked structurally as `Copy` is
   ([`module.boundary.allowed`](../../spec/lang/10-modules.md#r-module.boundary.allowed)),
   plus a `*mut dyn T` of a `Remote` trait `T`.
 - **`Send`:** a value copied, moved or lent to another thread of the same
-  memory. Every `Wire` value is `Send`.
+  memory. Every `Wire` value is `Send`, except a remote reference, whose
+  stub belongs to one thread.
 
 | Type | `Wire` | `Send` |
 | --- | --- | --- |
 | numbers, `bool`, `char`, `string` | yes | yes |
 | struct, enum, tuple, union, `List`, `Map`, `Set`, optional, `Result` | when every part is | when every part is |
-| `*mut dyn T` with `T < Remote` | yes, as its home, object number and token | yes: from any thread, a call goes to its home |
+| `*mut dyn T` with `T < Remote` | yes, as its home, interface, object number and token | no: a stub holds its own mutable transport |
 | `&T` | no | when `T < Send`; its place is frozen until the scope joins |
 | `&mut T` | no | no |
 | `*mut T`, a box, any other trait value reference | no | no |
 | a provider value | no | no |
-| a closure | when its captures are | when its captures are |
+| a closure written at the crossing | when its captures are | when its captures are |
+| any other value of function type | no | no |
 
 A thread that changes a value never shares it: it gets the value by copy
 or move and returns the result, so `&mut T` never crosses. A `&T` lent to
@@ -315,7 +317,13 @@ The one write through a `&`, a box field
 ([`ref.read.shallow`](../../spec/lang/13-values-and-references.md#r-ref.read.shallow)),
 needs a box, which is not `Send`.
 
-Three rules say what happens to a closure's captures at a crossing:
+A remote reference is a box too. A stub calls through a transport that
+holds mutable state, such as an `*mut dyn Http`, so two threads must not
+share one. A background thread that calls a server builds its own stub
+from a `Wire` URL, with `Http` in its domain's row:
+`background.run!(fn!() -> ... $ Http: ...)`.
+
+Four rules say what happens to a closure's captures at a crossing:
 
 - **No cell crosses.** Today a captured `let` variable shares a cell with
   its scope
@@ -330,6 +338,14 @@ Three rules say what happens to a closure's captures at a crossing:
   variable is an error, since it would change only its own copy. Each
   child returns its part instead. Swift rejects the same mutation in
   concurrently executing code.
+- **Only a closure written at the crossing crosses.** The compiler sees
+  its captures there and checks them. A closure value stored elsewhere,
+  in a variable, a field or a list, has a type `fn(A) -> R` that hides
+  its captures, and copying it keeps its cells
+  ([`fn.capture.copies`](../../spec/lang/07-functions.md#r-fn.capture.copies)).
+  So any value of function type that is not the crossing's own literal is
+  neither `Send` nor `Wire`, and a struct, list or `&T` holding one does
+  not cross. A top-level function is called from the literal instead.
 - **Top-level bindings are immutable and `Wire`.** A closure is `Send` or
   `Wire` only when every top-level binding it reaches, directly or
   through a callee, is. Module storage is per instance
@@ -352,19 +368,19 @@ A domain of another target runs only methods of interface traits that
 extend the std marker `Remote`. Those methods are its endpoints, and
 nothing else of the program is reachable from outside.
 
-- **R1.** Every method is a bang method. Its parameters and its success
-  type are `Wire` and contain no closure at any depth, so no caller picks
-  code another target runs. It is not generic and has no row; its
+- **R1.** Every method is a bang method. Its parameters, its success type
+  and its error type are `Wire`, so no value of function type appears at
+  any depth and no caller picks code another target runs. It is not generic and has no row; its
   implementation gets what it needs from its own fields. A trait may be
   generic, and the served type fixes its type arguments.
-- **R2.** Its result is `Result[V, E | CrossError]`. Case `_1` of the union
-  belongs to this call alone: the stub fills it when this call fails. A
-  member never converts into a union implicitly
-  ([`types.union.no-member-injection`](../../spec/lang/04-type-system.md#r-types.union.no-member-injection)),
-  so `?` cannot pass another call's `CrossError` off as this one's. An
-  implementation that returns a `._1` by hand has it sent as
-  `._1(.Unknown)`, so a forwarded `OtherBuild` never claims that this
-  call did not run.
+- **R2.** The trait declares the result callers see,
+  `Result[V, E | CrossError]`. An implementation declares
+  `Result[V, E]`, without `CrossError`, and a local call wraps its error
+  as `._0`. So case `_1` comes only from a stub and always describes that
+  one call, on every path: through the network, on the home itself, and
+  in a test. An implementation that calls another service must match the
+  other call's `._1` into one of its own `E` cases, because its error type
+  has no other place for it.
 - **R3.** A domain serves its root objects through a home (What Std Adds,
   below). A method may also return a new object as a `*mut dyn U` with
   `U < Remote`; the home adds it to its table and serves it too.
@@ -395,8 +411,9 @@ connection:
   a texture whose home is another GPU is refused with
   `CrossError.WrongHome` before it runs.
 - **Bound to a session.** A reference that leaves its target carries an
-  unguessable token bound to the session it was sent to. The home refuses
-  it from any other session with `WrongHome`. So a page cannot call
+  unguessable token bound to the session it was sent to. Every call
+  arrives with its session, verified by the home's request factory, and
+  the home refuses a token from any other session with `WrongHome`. So a page cannot call
   another user's action by editing an id, and a reference forwarded to
   another holder fails at its first call.
 - **Leased.** Each call renews the lease, and a call in progress holds it
@@ -446,9 +463,9 @@ from:
   layer is the crossing and the inner one the code's. `??` flattens it
   when `E < From[CrossError]`
   ([`expr.try.convert.from`](../../spec/lang/05-expressions.md#r-expr.try.convert.from)).
-- A `Remote` method: case `_1` of its `E | CrossError` (R2). A failure of
-  another call it made reaches its caller only as one of its own `E`
-  cases, which its author writes.
+- A `Remote` method: case `_1` of its `E | CrossError`, filled only by a
+  stub (R2). A failure of another call the implementation made reaches
+  its caller only as one of its own `E` cases, which its author writes.
 
 Cancelling a crossing, by abandoning the task that waits on it
 ([`req.abandon.host`](../../spec/lang/11-requirements-and-suspension.md#r-req.abandon.host)), sends a cancel; the call's outcome is then
@@ -469,14 +486,15 @@ every output carries the same build ID.
   reaches, such as one that uses a database driver, is never parsed for
   the browser.
 - **B2.** For each root type `S` a target serves, the compiler generates
-  the body of `handle_call![S]`: check the build ID, find the object and
-  check its token and lease, decode the method number and arguments as
-  untrusted input, call, turn a `._1` the implementation returned into
-  `._1(.Unknown)`, and encode the result.
+  the body of `handle_call![S]`: check the build ID; find the object, and
+  check its token and lease against the call's session; check that the
+  object implements the frame's interface; decode the method number and
+  arguments as untrusted input; call; encode the result.
 - **B3.** For each `Remote` trait `T` whose objects a target can hold away
   from their home, the compiler generates a stub type and its `impl T`.
-  Each method encodes its arguments, sends them with the method's number,
-  decodes the result, and returns a transport failure as `._1(cross)`. A
+  Each method encodes its arguments, sends them with the interface's
+  identity and the method's number, decodes the result, and returns a
+  transport failure as `._1(cross)`. A
   stub holds no implementation code.
 - **B4.** A crossing to a domain of the caller's target compiles into the
   one module. Its code is named by the closure's lifted function, plus
@@ -484,8 +502,11 @@ every output carries the same build ID.
 - **B5.** Every `Wire` type gets a generated codec, the tree encoding of
   boundary values ([`module.boundary.tree`](../../spec/lang/10-modules.md#r-module.boundary.tree)).
   The build ID travels with every crossing, so a peer of another build
-  refuses with `OtherBuild` before any code runs; within one build, every
-  target numbers a trait's methods alike. Decoding is checked on every
+  refuses with `OtherBuild` before any code runs. Every frame names its
+  interface: the trait's path and type arguments, numbered once per
+  build. Within one build, every target numbers each trait's methods
+  alike, and a frame for another interface than the object serves, as
+  from a stub pointed at the wrong service, is `WrongHome`. Decoding is checked on every
   crossing: a matching build ID shows that the two sides agree on the
   format, not that the bytes arrived intact, so a frame that fails to
   decode is `Unknown` at the caller, never a panic. A decoded remote
@@ -529,19 +550,26 @@ pub fn remote[T < Remote](transport: *mut dyn Transport) -> *mut dyn T:
 pub struct Refused:                          # why a home turned a caller away before any call
     pub reason: string
 
-pub struct Home[S, C]:                       # what one domain serves; fields private
-    make: fn!(&C) -> Result[S, Refused]      # a root object for each incoming call record C
-    objects: ServedTable                     # objects that methods returned, with tokens and leases
+pub struct Session:                          # who a call comes from, as the home verified it
+    pub id: string
 
-pub fn per_request[S, C](make: fn!(&C) -> Result[S, Refused]) -> *mut Home[S, C]:
+pub struct Rooted[S]:                        # what a request factory returns
+    pub root: S
+    pub session: Session
+
+pub struct Home[S, C]:                       # what one domain serves; fields private
+    make: fn!(&C) -> Result[Rooted[S], Refused]   # a root and a session for each incoming call record C
+    objects: ServedTable                     # objects that methods returned, each with its session, token and lease
+
+pub fn per_request[S, C](make: fn!(&C) -> Result[Rooted[S], Refused]) -> *mut Home[S, C]:
     box(Home { make, objects: ServedTable::new() })
 
-pub fn home[S, C](root: S) -> *mut Home[S, C]:        # one root for every call: shared state sits behind counted fields
-    per_request(fn!(call: &C) -> Result[S, Refused]: .Ok(root))
+pub fn home[S, C](root: S, session: Session) -> *mut Home[S, C]:   # one root and one peer, as for a worker
+    per_request(fn!(call: &C) -> Result[Rooted[S], Refused]: .Ok(Rooted { root, session }))
 
-# B2 generates the body for each S
+# B2 generates the body for each S; session comes from the factory, never from the frame
 @intrinsic("handle_call")
-pub fn handle_call![S, C](home: &mut Home[S, C], root: &mut S, frame: List[u8]) -> List[u8]:
+pub fn handle_call![S, C](home: &mut Home[S, C], rooted: &mut Rooted[S], frame: List[u8]) -> List[u8]:
     panic("intrinsic")
 
 # HTTP, as plain hd over the items above
@@ -564,11 +592,11 @@ pub fn http_transport(url: Url) -> *mut dyn Transport $ Http:
 
 pub fn http_handler![S](request: Request, home: &mut Home[S, Request]) -> Response:
     make := home.make
-    let mut root = match make!(&request):
-        .Ok(root) => root
+    let mut rooted = match make!(&request):
+        .Ok(rooted) => rooted
         .Err(_) => return Response { status: .Forbidden }
     match request.bytes():
-        .Ok(frame) => Response { body: Body::from_bytes(handle_call!(home, &mut root, frame)) }
+        .Ok(frame) => Response { body: Body::from_bytes(handle_call!(home, &mut rooted, frame)) }
         .Err(_) => Response { status: .BadRequest }
 ```
 
@@ -576,7 +604,10 @@ pub fn http_handler![S](request: Request, home: &mut Home[S, Request]) -> Respon
 takes, `fn!(Request, &mut Home[S, Request]) -> Response`. A root built
 per request sees the request it serves, so it can carry the caller's
 verified identity in a field, and two interleaved requests never share
-it. A `Worker` and a `Gpu` implement `Transport` the same way over their
+it. The factory also returns the call's `Session`. `handle_call!`
+records it on every object a method returns, and checks it on every
+later call to that object, so the session binding holds for returned
+objects, not only for the root. A `Worker` and a `Gpu` implement `Transport` the same way over their
 own channels, and a worker or device answers frames with `handle_call!`
 on its home.
 
@@ -755,19 +786,19 @@ use dep.server_sdk.server.{HttpServer, ServerError, serve}
 use pkg.users.{User, UserError, Users}
 use std.http.Request
 use std.net.{Net, NetError}
-use std.remote.{CrossError, Refused, http_handler, per_request}
+use std.remote.{Refused, Rooted, Session, http_handler, per_request}
 
 struct PgUsers:
     pool: *mut Pool                                 # shared by every request; keeps the counted Net it connected with
     caller: i64                                     # this request's caller, verified when the root was built
 
 impl Users for PgUsers:
-    fn load_user!(&mut self, id: i64) -> Result[User, UserError | CrossError]:
+    fn load_user!(&mut self, id: i64) -> Result[User, UserError]:              # R2: no CrossError here
         if self.caller != id:
-            return .Err(._0(UserError.Forbidden(id)))
+            return .Err(UserError.Forbidden(id))
         match self.pool.query_one!("select id, name from users where id = ?", id):
             .Some(row) => .Ok(User { id: row.i64(0), name: row.text(1) })
-            .None => .Err(._0(UserError.Missing(id)))
+            .None => .Err(UserError.Missing(id))
 
 fn verify_session!(pool: *mut Pool, cookie: string?) -> Result[i64, Refused]:
     match cookie:
@@ -785,9 +816,9 @@ enum ApiError:
 
 pub fn main!() -> Result[void, ApiError] $ Net + HttpServer:
     pool := box(connect!("db.internal:5432")?)
-    root := per_request(fn!(request: &Request) -> Result[PgUsers, Refused]:     # ◀3
+    root := per_request(fn!(request: &Request) -> Result[Rooted[PgUsers], Refused]:     # ◀3
         caller := verify_session!(pool, request.cookie("session"))?
-        .Ok(PgUsers { pool, caller })
+        .Ok(Rooted { root: PgUsers { pool, caller }, session: Session { id: "user-$caller" } })
     )
     serve!(0, root, http_handler::[PgUsers])?
     .Ok(())
@@ -817,8 +848,8 @@ pub fn on_open!(id: i64) -> void $ Page + Users:
 | Line | What it means |
 | --- | --- |
 | ◀1 `pub trait Users < Remote` | `load_user` may be called from another target; R1 and R2 apply to it |
-| ◀2 `UserError \| CrossError` | case `_1` is this call's own failure, filled only by the stub (R2) |
-| ◀3 `per_request(fn!(request: &Request) ...)` | each request gets its own `PgUsers`, holding the caller its session cookie proves |
+| ◀2 `UserError \| CrossError` | what callers see; case `_1` is this call's own failure, filled only by a stub, while `PgUsers` declares `Result[User, UserError]` (R2) |
+| ◀3 `per_request(fn!(request: &Request) ...)` | each request gets its own `PgUsers`, holding the caller its session cookie proves, and the verified `Session` that guards every object it returns |
 | ◀4 `remote::[Users](http_transport(url))` | a `*mut dyn Users` whose home is that URL: the stub |
 | ◀5 `$.with(Users=stub)` | every `Users` call below goes to the server |
 | ◀6 `users.load_user!(id)` | nothing new: a call on a `&mut dyn Users` |
@@ -846,10 +877,10 @@ interface reads the same way.
 | Line | Check | Breaking it |
 | --- | --- | --- |
 | `hd.toml` | each `main` row's host capabilities are in `[capabilities]` | drop `Http`: `missing-capability`, today's rule |
-| ◀1 | R1: `load_user` is a bang method; `i64` and `User` are `Wire` with no closure inside; no generics, no row | `fn load_user(...)` without `!`: an error at ◀1 |
-| ◀2 | R2: the result is `Result[V, E \| CrossError]` | `-> Result[User, UserError]`: an error at ◀2 |
+| ◀1 | R1: `load_user` is a bang method; `i64`, `User` and `UserError` are `Wire`, so no function value is inside; no generics, no row | `fn load_user(...)` without `!`: an error at ◀1 |
+| ◀2 | R2: the trait's result is `Result[V, E \| CrossError]`, and the implementation's is `Result[V, E]` | the trait without `\| CrossError`, or `PgUsers` with it: an error |
 | `impl Users for PgUsers` | the impl's row agrees with the trait's, which is empty ([`req.row.callable.impl-agrees`](../../spec/lang/11-requirements-and-suspension.md#r-req.row.callable.impl-agrees)) | `$ Net` on the method: an error |
-| ◀3 | `http_handler::[PgUsers]` has the handler type `serve!` takes, `fn!(Request, &mut Home[PgUsers, Request]) -> Response`; `handle_call!` needs `PgUsers` to implement a `Remote` trait | `per_request` making a `Pool`: an error, `Pool` implements no `Remote` trait |
+| ◀3 | `http_handler::[PgUsers]` has the handler type `serve!` takes, `fn!(Request, &mut Home[PgUsers, Request]) -> Response`; `handle_call!` needs `PgUsers` to implement a `Remote` trait | a factory rooting a `Pool`: an error, `Pool` implements no `Remote` trait |
 | ◀4 | `Users < Remote` | `remote::[Page](...)`: an error |
 | ◀5 | the stub implements `Users`, through the impl B3 generates | none |
 | ◀6 | nothing new | |
@@ -875,6 +906,7 @@ such as `UsersStub` and `wire_encode_User` are illustrations.
 ```text
 # hypothetical syntax; added to the web executable
 BUILD_ID := "3f9a"                                  # the same in both executables of this build
+INTERFACE_USERS := +3                               # pkg.users.Users, numbered once per build
 
 # B5: one codec per Wire type the executable sends or receives
 fn wire_encode_User(out: &mut Bytes, user: &User) -> void:
@@ -895,11 +927,12 @@ struct UsersStub:
 impl Users for UsersStub:
     fn load_user!(&mut self, id: i64) -> Result[User, UserError | CrossError]:
         let frame: mut Bytes = Bytes::new()
-        wire_encode_frame_head(frame, BUILD_ID, self.object, self.token, +0)   # method 0: load_user
+        wire_encode_frame_head(frame, BUILD_ID, INTERFACE_USERS, self.object, self.token, +0)   # method 0: load_user
         wire_encode_i64(frame, id)
         match self.transport.call!(frame.to_list()):                          # HttpTransport: one POST
-            .Ok(reply) => match wire_decode_Result_User_UserError_CrossError(Reader::new(reply)):
-                .Ok(result) => result
+            .Ok(reply) => match wire_decode_Result_User_UserError(Reader::new(reply)):
+                .Ok(.Ok(user)) => .Ok(user)
+                .Ok(.Err(error)) => .Err(._0(error))                          # the implementation's own error
                 .Err(_) => .Err(._1(CrossError.Unknown))                      # B5: a bad reply is Unknown
             .Err(cross) => .Err(._1(cross))                                   # ◀2: this call's own failure
 
@@ -913,32 +946,30 @@ codecs and the body of `handle_call!` for `PgUsers`:
 ```text
 # hypothetical syntax; added to the api executable
 BUILD_ID := "3f9a"
+INTERFACE_USERS := +3
 
 # B5: the same codecs as web's
 
 # B2: handle_call! for PgUsers, because main serves a Home[PgUsers, Request] (◀3)
-fn handle_call_PgUsers!(home: &mut Home[PgUsers, Request], root: &mut PgUsers, frame: List[u8]) -> List[u8]:
+fn handle_call_PgUsers!(home: &mut Home[PgUsers, Request], rooted: &mut Rooted[PgUsers], frame: List[u8]) -> List[u8]:
     let input = Reader::new(frame)
     match wire_decode_frame_head(input):                  # untrusted input from here on
         .Err(_) => refuse(CrossError.WrongHome)
         .Ok(head) if head.build != BUILD_ID => refuse(CrossError.OtherBuild)
-        .Ok(head) if head.object != 0 => home.call_served!(head, input)   # checks the token and the lease
+        .Ok(head) if head.object != 0 => home.call_served!(head, rooted.session, input)   # checks interface, session, token, lease
+        .Ok(head) if head.interface != INTERFACE_USERS => refuse(CrossError.WrongHome)    # PgUsers serves Users only
         .Ok(head) => match head.method:
             0 => match wire_decode_i64(input):
-                .Ok(id) => answer(wire_encode_Result_User_UserError_CrossError(only_this_call(root.load_user!(id))))
+                .Ok(id) => answer(wire_encode_Result_User_UserError(rooted.root.load_user!(id)))
                 .Err(_) => refuse(CrossError.WrongHome)
             _ => refuse(CrossError.WrongHome)
-
-# R2: a ._1 the implementation returns is not this call's failure
-fn only_this_call[V, E](result: Result[V, E | CrossError]) -> Result[V, E | CrossError]:
-    match result:
-        .Err(._1(_)) => .Err(._1(CrossError.Unknown))
-        other => other
 ```
 
 `web` holds no `PgUsers`, no SQL, no driver and no `handle_call!`; `api`
-holds no stub. Method 0 is `load_user` by its place in the trait; both
-executables come from one build, so they number it alike.
+holds no stub. Interface 3 is `pkg.users.Users` and method 0 is
+`load_user`; both executables come from one build, so they number them
+alike. A stub of another interface, pointed at this server by mistake,
+gets `WrongHome` before anything runs.
 
 *A closure to a domain of the same target (B4).* Program 1, the
 thumbnail on a worker, as written:
@@ -987,17 +1018,20 @@ right build ID, so it fails its decode and the job ends with `Unknown`.
 **Running it.** One call:
 
 1. `on_open!(7)` reaches ◀6; `users` is the stub.
-2. The stub writes a frame `{build: 3f9a…, object: 0, method: 0, args: [7]}`,
+2. The stub writes a frame `{build: 3f9a…, interface: 3, object: 0, method: 0, args: [7]}`,
    and its `HttpTransport` posts it to `https://api.example.com/rpc`
    through `Http`, with the page's session cookie, as the
    `Http = ["api.example.com"]` grant allows.
 3. On the server, the SDK's `serve!` accepts the request and calls
    `http_handler`. That runs the ◀3 factory, which verifies the session
-   cookie, finds caller 7, and builds `PgUsers { pool, caller: 7 }`. Then
+   cookie, finds caller 7, and builds `PgUsers { pool, caller: 7 }` with
+   the session `user-7`. Then
    `handle_call!` checks the build ID, decodes `7`, and calls
    `load_user!(7)`, which queries the database through `Net`. It encodes
    `Ok(User { id: 7, name: "Ada" })` as the response body.
-4. The browser decodes it, and the match takes `.Ok`.
+4. The browser decodes it, and the match takes `.Ok`. Had `load_user!`
+   returned `Err(Missing(7))`, the stub would return `._0(Missing(7))`,
+   exactly what a local call to `PgUsers` returns.
 
 When it fails: with the network down, the transport returns
 `Unreachable`, and the stub returns `.Err(._1(.Unreachable))`. After a
@@ -1032,12 +1066,12 @@ declaration sits in std.
 | Piece | Tier | New |
 | --- | --- | --- |
 | `Send`, `Wire`, `Remote` | language: markers | structural checks, as `Copy`'s |
-| captures at a crossing: copied, moved or lent; never a shared cell, never written | language: a capture mode for closures passed to crossing methods | a check at each crossing call |
+| captures at a crossing: copied, moved or lent; never a shared cell, never written; only the crossing's own literal crosses | language: a capture mode for closures passed to crossing methods | a check at each crossing call |
 | a `&T` lent to a thread freezes its place | language: a loan rule stronger than [`ref.elem.access.live-length`](../../spec/lang/13-values-and-references.md#r-ref.elem.access.live-length) | the loan checker treats the whole scope as one write-excluding loan |
-| R1 and R2 on `Remote` traits | language: checks over existing types and unions | no new type forms |
-| a `*mut dyn T` of a `Remote` trait is `Wire` | language: a typing rule | one stub type and `impl T` generated per trait (B3) |
+| R1 and R2 on `Remote` traits | language: checks over existing types and unions, and an implementation's error type narrower than its trait's | a local call wraps the implementation's error as `._0` |
+| a `*mut dyn T` of a `Remote` trait is `Wire`, not `Send` | language: a typing rule | one stub type and `impl T` generated per trait (B3) |
 | `remote::[T]`, which takes a trait argument, and `handle_call!` | language: built-ins declared in `std.remote` | lowering in the compiler; the dispatcher body per root type (B2) |
-| codecs for `Wire` types, the build ID | compiler and runtime | generated per type (B5) |
+| codecs for `Wire` types, the build ID, interface numbers | compiler and runtime | generated per type and per trait (B5) |
 | `std.remote`'s plain parts (`CrossError`, `Transport`, `Home`, `per_request`, `home`, the HTTP adapters), the domain types, `scope` | stdlib, written in hd | none |
 | targets | CLI and driver | none in `hd.toml`: an executable is a target; one walk per executable |
 | threads with shared memory and atomic counts | runtime | Wasm threads; only `Scope` and `Background` need them |
@@ -1068,7 +1102,7 @@ are parsed, not type-checked or run.
 | 2 | Form action (Next.js "use server") | works | a `*mut dyn Call[A, T, E]`; the captured id stays on the server, and the token is bound to the page's session |
 | 3 | Typed service (tRPC, gRPC) | works | `per_request` builds the root with the caller its session proves, as tRPC's `createContext` |
 | 4 | Scoped count and sort (`thread::scope`, rayon) | works | borrows `lines` in a `Scope`, frozen until the join; each half to sort goes in by value and comes back as a result |
-| 5 | Off the UI thread (Kotlin, Swift) | works | `background.run!` returns `T`; code that uses `$ Ui` does not fit `Background`'s row |
+| 5 | Off the UI thread (Kotlin, Swift) | works | `background.run!` returns `T`; code that uses `$ Ui` does not fit `Background`'s row; a background call to a server builds its own stub, since a stub is not `Send` |
 | 6 | Delayed mail (Sidekiq, Temporal) | friction | a deploy fails the jobs queued before it with `OtherBuild`, so a daily deploy rules out a job a week out |
 | 7 | GPU kernels (wgpu, CUDA) | friction | host code uploads, calls and reads back; until one complete kernel, with its device code and resource binding, is written, the model is not shown to fit devices |
 | 8 | Data-local count (Ray, Spark) | works | within one target: `workers.at(rows)` runs a closure at `rows`'s home |
@@ -1077,8 +1111,8 @@ are parsed, not type-checked or run.
 | 11 | Error propagation | works | `E \| CrossError`: a call's own failure stays its own, and another call's failure needs a case its author writes |
 | 12 | Crossings in `join!` | works | two bang calls on two domain values join as any two calls do |
 | 13 | Cancel mid-crossing | works | the cancel makes the outcome `Unknown`; a moved value never returns through an error |
-| 14 | A remote call inside a remote call | works | the implementation holds the other stub as a field and matches its `._1` into one of its own `E` cases |
-| 15 | Remote with a closure or a remote reference | works | a closure at any depth is rejected by R1; a `*mut dyn Texture` crosses to its home |
+| 14 | A remote call inside a remote call | works | the implementation holds the other stub as a field and must match its `._1` into one of its own `E` cases, since its own error type has no `_1` |
+| 15 | Remote with a closure or a remote reference | works | a function value at any depth, in parameters, result or error, is rejected by R1; a `*mut dyn Texture` crosses to its home |
 | 16 | Generic remote function | friction | a generic method is rejected; a generic trait served at one type works |
 | 17 | Streaming results | friction | a stream is a `*mut dyn Next[T, E]` pulled one item per round trip; server push needs a batching cursor |
 | 18 | A background result updates UI | works | the handler resumes on the UI thread; a closure that captured the UI state's box is not `Send` |
@@ -1105,8 +1139,13 @@ Adversarial checks, each with the rule that stops it:
 | a closure reaches a `let mut` top-level counter, or a top-level box | reached top-level bindings must be immutable and `Wire` |
 | a scoped thread gets a box | a box is not `Send` |
 | a caller passes a closure, or a struct holding one, to a `Remote` method | R1: no closure at any depth |
-| a server passes Inventory's `OtherBuild` on with `?` | a type error: no conversion into `OrderError \| CrossError` |
-| a server returns `._1(OtherBuild)` by hand | sent as `._1(.Unknown)` |
+| an implementation passes Inventory's `._1(OtherBuild)` on with `?` | a type error: its error type is its own `E`, which has no `_1` case |
+| a test calls the real implementation and a page calls its stub | both see the same `._0` errors; only the stub adds `._1` |
+| a `Notifications` stub pointed at the Accounts server | the frame names its interface: `WrongHome` |
+| one object's token presented under two sessions | the object's recorded session is checked: `WrongHome` |
+| two threads share one stub | a remote reference is not `Send` |
+| a closure captures another closure, or a struct or `&T` holding one | only the crossing's own literal crosses: a function value is not `Send` |
+| an error payload holds a closure or a connection | R1: the error type is `Wire` too |
 | two interleaved requests read each other's caller | a root per request |
 | a page edits an object's id to reach another user's action | the token is unguessable and bound to the session: `WrongHome` |
 | a holder forwards a remote reference to another session | `WrongHome` at its first call |
@@ -1127,6 +1166,8 @@ first := &players[0]                           # first: &Player
 scope(fn(s: &mut Scope) -> void:
     t := s.spawn(fn() -> i32: first.score)     # first is lent until the join
     s.spawn(fn() -> void: total += 1)          # error: a crossing closure may not write a capture
+    read := fn() -> i32: total
+    s.spawn(fn() -> i32: read())               # error: read is a function value, not the crossing's literal
     players[0].score = 9                       # error: players is lent to a thread until the scope joins
     t.join()
 )
@@ -1147,7 +1188,7 @@ struct Ledger:
     cents: i64
 
 impl Account for Ledger:
-    fn deposit!(&mut self, cents: i64) -> Result[i64, AccountError | CrossError]:
+    fn deposit!(&mut self, cents: i64) -> Result[i64, AccountError]:
         self.cents += cents
         .Ok(self.cents)
 
@@ -1158,7 +1199,7 @@ pub fn first_deposit!() -> Result[i64, AccountError | CrossError] $ Workers:
     account.deposit!(500)
 ```
 
-**Cases 14, 15 and 16: what R1 and R2 reject.**
+**Cases 14, 15 and 16: what R1 and R2 reject, and what R2 requires.**
 
 ```text
 # hypothetical syntax
@@ -1180,12 +1221,12 @@ pub trait TypedStore[T < Wire] < Remote:
     fn get!(&mut self, key: string) -> Result[T, StoreError | CrossError]             # valid: home(UserStore {}) fixes T = User
 
 impl Orders for ShopOrders:
-    fn place_order!(&mut self, cart: Cart) -> Result[Receipt, OrderError | CrossError]:
-        charge := charge_card!(cart)?                                      # a local function with the same error type
+    fn place_order!(&mut self, cart: Cart) -> Result[Receipt, OrderError]:   # R2: no CrossError here
+        charge := charge_card!(cart)?                                      # a local function returning OrderError
         match self.inventory.reserve!(cart.items):                         # Result[void, InventoryError | CrossError]
             .Ok(()) => .Ok(Receipt { charge })
-            .Err(._0(error)) => .Err(._0(OrderError.OutOfStock(error)))
-            .Err(._1(cross)) => .Err(._0(OrderError.InventoryDown(cross)))   # charged, then Inventory failed: the author says so
+            .Err(._0(error)) => .Err(OrderError.OutOfStock(error))
+            .Err(._1(cross)) => .Err(OrderError.InventoryDown(cross))      # charged, then Inventory failed: the author says so
 ```
 
 **Case 17: a stream pulled item by item.**
@@ -1274,6 +1315,10 @@ refused with `OtherBuild`.
 | `E < From[CrossError]`, with a `Cross` variant in each error enum | `?` merges another call's failure into this call's, so a caller cannot tell which call failed |
 | `Result[Result[V, E], CrossError]` for remote calls | a stub could not implement its trait, so `$.with(Users=stub)` and test fakes would not work |
 | a `Downstream(cause)` case that the codec adds to every decoded `CrossError` | it rewrites values; the union keeps a call's own failures apart without that |
+| the dispatcher rewriting an implementation's `._1` into `Unknown` | a local call bypasses the dispatcher, so a fake and a stub would disagree |
+| remote references `Send`, with each call routed to the thread that owns the transport | a thread blocked in a scope's join could not serve the routed call; a stub per thread needs no new mechanism |
+| recursive snapshots of the cells of captured closures | a deep copy of environments that the type `fn(A) -> R` does not show |
+| a method number unique in the whole build, with no interface in the frame | a root that serves two traits, and a generic trait served at two types, still need the interface to say which |
 | a `Handle` marker beside `Remote`, and a separate `Action` type | a handle is a `*mut dyn T` of a `Remote` trait: one kind of reference for services, textures, actions, streams and processes |
 | a `Served[T]` std type | a trait cannot be a type argument ([`trait.dyn.keyword.positions`](../../spec/lang/09-traits.md#r-trait.dyn.keyword.positions)), and `*mut dyn T` already names a counted reference to a trait object |
 | an impl-only `$ Caller` row | a special case in [`req.row.callable.impl-agrees`](../../spec/lang/11-requirements-and-suspension.md#r-req.row.callable.impl-agrees), and an in-process call would need a `Caller` provider |
