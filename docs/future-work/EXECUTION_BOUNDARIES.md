@@ -12,8 +12,9 @@ type checking, then syntax. The parts the owner approved are marked
 - [3. The Model](#3-the-model)
 - [4. Outcomes](#4-outcomes-approved-question-1)
 - [5. Type Checking](#5-type-checking)
-- [6. Syntax](#6-syntax)
-- [7. Questions For The Owner](#7-questions-for-the-owner)
+- [6. Code Generation Per Domain](#6-code-generation-per-domain)
+- [7. Syntax](#7-syntax)
+- [8. Questions For The Owner](#8-questions-for-the-owner)
 - [Appendix A. Prior Art](#appendix-a-prior-art)
 - [Appendix B. Earlier Options And #166](#appendix-b-earlier-options-and-166)
 - [Sources](#sources)
@@ -655,7 +656,74 @@ The gaps:
 - **No device-code subset.** A kernel's body is checked only by its row.
 - **The outcome type is not a gap.** Unknown is an error case (section 4).
 
-## 6. Syntax
+## 6. Code Generation Per Domain
+
+Section 5 checks a crossing that the program writes. A client and server
+program also needs the compiler to produce the code for each side: the
+browser's bundle and the server's module. The row decides where code can
+run, so it can also decide which build holds it. No `"use client"` or
+`"use server"` marker is needed.
+
+**Targets.** A deployment names its targets, and each target has a
+capability set: the requirement traits its runtime profile can bind. hd
+already has that set. A registration contract selects a runtime profile
+and declares which traits it binds
+([`module.register.contract-traits`](../../spec/lang/10-modules.md#r-module.register.contract-traits)), and a registered function's row
+must fit it ([`module.register.row`](../../spec/lang/10-modules.md#r-module.register.row)). Here the browser binds
+`Dom + Console + Clock`, and the server binds
+`Db + Payments + Env + Console + Clock`.
+
+```text
+# hypothetical deployment: browser = Dom + Console + Clock; server = Db + Payments + Env + Console + Clock
+fn cart_total(cart: Cart) -> i64: sum_lines(cart.lines)          # empty row: in both builds
+fn render_cart(cart: Cart) -> void $ Dom: draw(cart)             # browser build only
+fn place_order!(cart: Cart) -> Result[Receipt, OrderError] $ Db + Payments: charge_and_store!(cart)  # server build only
+
+fn on_buy!(cart: Cart) -> void $ Dom:                            # a browser entry
+    render_cart(cart)                                            # a local call
+    match place_order!(cart):                                    # a crossing: the browser lacks Db and Payments
+        .Ok(receipt) => show(receipt)
+        .Err(error) => show_error(error)                         # error: OrderError | CrossError
+```
+
+**How each build is made.**
+
+1. Each target starts from its entry points. The server's are `main`, its
+   registered functions and its server actions. The browser's are the
+   page's handlers and every closure a server may send it (section 3,
+   example 7).
+2. The compiler walks the call graph from those entries. A callee whose
+   row the target meets is compiled into that build. A callee whose row
+   only another target meets is a crossing: the build gets a stub that
+   encodes the arguments, calls the other target, and decodes a
+   `Result[T, E | CrossError]` (section 4). A callee whose row no target
+   meets is `missing-requirement`, as today
+   ([`req.use.missing`](../../spec/lang/11-requirements-and-suspension.md#r-req.use.missing)).
+3. Code with an empty row lands in every build that reaches it, such as
+   `cart_total` or shared validation.
+4. Both builds come from one compiled program, so a closure the server
+   renders for the browser has the same identity in both
+   ([`req.determinism.same-program`](../../spec/lang/11-requirements-and-suspension.md#r-req.determinism.same-program)). Content hashes are needed
+   only when the two sides deploy separately.
+
+**What stays off the client.** Code whose row needs a capability the
+browser lacks never reaches the browser build. Secrets in hd already
+arrive through providers (`$.use(Env)`, `$.use(Db)`), which are server
+capabilities, so code that can read a secret cannot be placed in the
+client. The one gap is a secret written as a literal in empty-row code,
+which both builds would copy. A rule or a lint that secrets come from
+`Env` closes it.
+
+**Prior art.** Tierless languages split one program by where each part
+can run. Links marks functions `client` or `server` and generates
+JavaScript and server code from one source. Hop.js and Electric Clojure
+place each expression on a site and insert the network calls. ScalaLoci
+makes placement a type. React marks the split by hand with
+`"use client"` and `"use server"`, and serializes server actions as
+references. In hd the row already says where code can run, so placement
+needs no annotation.
+
+## 7. Syntax
 
 Every spelling here is hypothetical and needs approval. Two alternatives:
 
@@ -668,7 +736,7 @@ The first is a call on a domain value. The second is the owner's note's
 block, which names every capture. Neither writes a mode: each value's type
 decides it (question 7).
 
-## 7. Questions For The Owner
+## 8. Questions For The Owner
 
 1. **Is "unknown" a first-class outcome?** Answered (owner, 2026-10-31):
    no new type. A crossing returns `Result[T, E]`, and unknown is an
@@ -722,6 +790,22 @@ decides it (question 7).
     the race is a listed gap. Its three fixed rules (value sends take the
     snapshot, `&T` is `Send` only when `T: Sync`, `*mut` and box holders
     are not `Sync`) are in section 5.
+
+13. **Where do target capability sets live?** In the deployment
+    configuration, as named targets with their runtime profiles (one
+    `hd.toml` table per target), or in code as a provider value per target.
+    The checker needs them to place code and to find crossings.
+14. **Is every crossing implicit?** Recommended: no. A call that the
+    deployment places on another target is a crossing, but the caller
+    marks it, so a network round trip is never invisible. One option is a
+    bang call on a target value, as `$.use(Server).call!(place_order, cart)`;
+    another is a lint for unmarked crossings. Links and Electric make every
+    such call implicit; React makes it an explicit action.
+15. **One program, or separate packages per side?** Recommended: one
+    program, compiled into one build per target. Today's model keeps
+    client and server as separate packages joined by registered
+    boundaries; one program removes the hand-written endpoint and keeps
+    closure identities equal without content hashes.
 
 ```text
 let tex: Texture[Gpu0] = gpu0.upload!(photo)?  # question 4 (a)
@@ -840,7 +924,7 @@ is the copy-mode slice of this model.
 
 ## Parse Log
 
-All 18 `text` blocks were parsed on 2026-10-31 with
+All 19 `text` blocks were parsed on 2026-10-31 and 2026-11-02 with
 `scripts/hd-conformance.sh parse`, which checks syntax only; nothing was
 type-checked. Std names (`Workers`, `Jobs`, `Gpu`, `scope`) are sketches.
 
@@ -850,5 +934,6 @@ type-checked. Std names (`Workers`, `Jobs`, `Gpu`, `scope`) are sketches.
 | 7 | Section 4, the `match` on a crossing's result | parses; the placement and the `.Unknown` case are hypothetical |
 | 8 | Section 5, the assumed `Workers` and `Gpu` traits | parses; `# hypothetical syntax` |
 | 9 to 16 | Section 5, one invalid and one valid sketch per check | parse; every block is `# hypothetical syntax` |
-| 17 | Section 6, syntax | fails as expected at `at workers`: both lines `# hypothetical syntax` |
-| 18 | Question 4 | parses |
+| 17 | Section 6, code generation per domain | parses; the deployment line is a comment |
+| 18 | Section 7, syntax | fails as expected at `at workers`: both lines `# hypothetical syntax` |
+| 19 | Question 4 | parses |
