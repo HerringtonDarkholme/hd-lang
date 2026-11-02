@@ -398,15 +398,15 @@ fn errors_by_status(lines: List[string]) -> Map[i32, usize]:
     for line in lines:
         match status_of(line):
             .Some(code) => if code >= 500:
-                counts[code] = counts.get(code).unwrap_or(0) + 1
+                counts[code] = counts.get(code).copied().unwrap_or(0) + 1
             .None => pass
     counts
 
 tests:
     it("counts server errors by status"):
         lines := ["\"GET /ok\" 200", "\"POST /x\" 500", "\"GET /y\" 502", "\"GET /z\" 500"]
-        assert_equal(errors_by_status(lines).get(500), .Some(2), reason="two 500s")
-        assert_equal(errors_by_status(lines).get(502), .Some(1), reason="one 502")
+        assert_equal(errors_by_status(lines).get(500).copied(), .Some(2), reason="two 500s")
+        assert_equal(errors_by_status(lines).get(502).copied(), .Some(1), reason="one 502")
 ```
 
 Write the pattern as a raw string, `r"..."`, so `\d` needs no second

@@ -426,7 +426,7 @@ impl[K < Eq & Hash & Validate, V < Validate] Validate for Map[K, V]:
             found := match other.get(key):
                 .Some(found) => found
                 .None => return .Some(false)
-            match value.equal_to(&found):
+            match value.equal_to(found):
                 .Some(true) => pass
                 result => return result
         .Some(true)

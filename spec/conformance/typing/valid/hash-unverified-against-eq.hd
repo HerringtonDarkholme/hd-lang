@@ -15,4 +15,4 @@ impl Hash for Coupon:
         self.uses.hash(state)
 
 fn redeemed(counts: Map[Coupon, i32], coupon: Coupon) -> i32?:
-    counts.get(coupon)
+    counts.get(coupon).copied()

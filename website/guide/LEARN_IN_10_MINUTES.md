@@ -93,7 +93,7 @@ names := ["Ada", "Grace", "Linus"]
 scores := { "Ada": 10, "Grace": 12 }
 let (x, y) = (10, 20)
 long_names := [for name in names if name.len() > 3 => name]
-total := scores.get("Ada").unwrap_or(0)
+total := scores.get("Ada").copied().unwrap_or(0)
 let mut todos: List[string] = []
 todos.push("buy milk")
 ```

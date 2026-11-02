@@ -61,7 +61,7 @@ fn run_owned(name: &str, main: &str) -> String {
 fn a_match_binding_of_a_map_value_keeps_its_value() {
     let main = "\
 fn kept(mut m: Map[string, List[i64]]) -> usize:
-    match m.get(\"a\"):
+    match m.get(\"a\").copied():
         .Some(xs) =>
             m[\"a\"].push(3)
             xs.len()

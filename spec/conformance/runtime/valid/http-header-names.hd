@@ -78,7 +78,7 @@ tests:
         headers[HeaderName.Other("CONTENT-TYPE")] = "second"
         assert_equal(headers.len(), 1, reason="case aliases address one key")
         assert_equal(
-            headers.get(.ContentType),
+            headers.get(.ContentType).copied(),
             .Some("second"),
             reason="named lookup reads replacement",
         )

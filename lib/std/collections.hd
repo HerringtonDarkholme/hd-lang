@@ -541,10 +541,16 @@ pub fn counts[T < Eq & Hash](items: List[T]) -> Map[T, usize]:
         *tally.get_or_insert(item, 0) += 1
     tally
 
-# The std `Map` methods beside the language-tier `len`, `get`, and `remove`
+# The std `Map` methods beside the language-tier `len` and `remove`
 # (spec/std/collections.md#map-methods). `keys` and `values` copy into new
 # lists, so a later change to the map does not show in them.
 impl[K < Eq & Hash, V] Map[K, V]:
+    ## Returns `.Some` of a reference to the value for `key`, or `.None` when the map has no equal key.
+    ## See [std-collections.map.get](../../spec/std/collections.md#r-std-collections.map.get).
+    @intrinsic("map_probe")
+    pub fn get(&self, key: K) -> (&V)?:
+        panic("intrinsic")
+
     ## Returns a mutable reference to the value for `key`, or `.None` when the map has no equal key.
     ## See [std-collections.map.get-mut](../../spec/std/collections.md#r-std-collections.map.get-mut).
     @intrinsic("map_probe")

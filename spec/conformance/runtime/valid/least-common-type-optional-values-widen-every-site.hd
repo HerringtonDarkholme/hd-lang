@@ -36,5 +36,5 @@ pub fn main() -> void $ Console:
     println(show(late(false, 1, .Some(5))))
     println(show(closure(3, .None)))
     let m = values(4, .None)
-    println(show(m.get("a").unwrap_or(.None)))
+    println(show(m.get("a").copied().unwrap_or(.None)))
     println(keys(+1).len())

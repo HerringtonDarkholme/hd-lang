@@ -23,7 +23,7 @@ pub fn main() -> void $ Console:
     picked := [+2, if flag: +1 else: +3]
     println("${picked[0]} ${picked[1]}")
     table := { (if flag: "a" else: "b"): +5 }
-    println("a ${table.get("a").unwrap_or(+0)}")
+    println("a ${table.get("a").copied().unwrap_or(+0)}")
     wrapped := (match flag:
         true => +9
         false => +0)

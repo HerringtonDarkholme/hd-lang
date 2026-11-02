@@ -1,4 +1,4 @@
-# test: get_mut and get_or_insert hash once and reuse the same search for insertion
+# test: get, get_mut and get_or_insert hash once, and get_or_insert reuses the same search for insertion
 # std Collections: std-collections.map.probe-once.
 use std.hash.Hasher
 
@@ -31,24 +31,24 @@ impl Hash for Key:
 tests:
     use std.testing.assert_equal
 
-    it("hashes once for each mutable lookup"):
+    it("hashes once for each lookup"):
         calls := box(Calls { count: 0 })
         key := Key { value: +7, calls: calls }
         let mut found: Map[Key, i32] = {}
 
         *found.get_or_insert(key, 10) += 1
         assert_equal(calls.count, 1)
-        assert_equal(found.get(key), .Some(11))
+        assert_equal(found.get(key).copied(), .Some(11))
 
         *found.get_or_insert(key, 99) += 1
         assert_equal(calls.count, 3)
-        assert_equal(found.get(key), .Some(12))
+        assert_equal(found.get(key).copied(), .Some(12))
 
         match found.get_mut(key):
             .Some(value) => *value += 1
             .None => panic("expected the inserted key")
         assert_equal(calls.count, 5)
-        assert_equal(found.get(key), .Some(13))
+        assert_equal(found.get(key).copied(), .Some(13))
 
         missing := Key { value: +8, calls: calls }
         assert_equal(found.get_mut(missing).is_none(), true)

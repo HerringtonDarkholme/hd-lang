@@ -252,7 +252,6 @@ pub enum IntrinsicOp {
     ListLen,
     ListPush,
     MapLen,
-    MapGet,
     MapRemove,
     MapSet,
     StrIndex,
@@ -286,11 +285,10 @@ pub enum IntrinsicOp {
 }
 
 impl IntrinsicOp {
-    pub const ALL: [IntrinsicOp; 15] = [
+    pub const ALL: [IntrinsicOp; 14] = [
         IntrinsicOp::ListLen,
         IntrinsicOp::ListPush,
         IntrinsicOp::MapLen,
-        IntrinsicOp::MapGet,
         IntrinsicOp::MapRemove,
         IntrinsicOp::MapSet,
         IntrinsicOp::StrIndex,

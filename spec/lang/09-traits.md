@@ -1531,7 +1531,7 @@ that writes `Map[K, V]` bounds its own `K`:
 
 ```text
 fn stock_of[K < Eq & Hash, V](stock: Map[K, V], item: K) -> V?:
-    stock.get(item)
+    stock.get(item).copied()
 
 struct Index[K < Eq & Hash, V]:
     name: string
@@ -1539,7 +1539,7 @@ struct Index[K < Eq & Hash, V]:
 
 impl[K < Eq & Hash, V] Index[K, V]:
     fn lookup(self, key: K) -> V?:
-        self.entries.get(key)
+        self.entries.get(key).copied()
 ```
 
 1. r[trait.bound.no-implied] A generic type's declared bounds are never implied where the type is written.

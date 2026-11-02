@@ -232,7 +232,7 @@ impl ScriptedEnv:
 
 impl Env for ScriptedEnv:
     fn get(self, name: string) -> string?:
-        self.values.get(name)
+        self.values.get(name).copied()
 
     fn names(self) -> List[string]:
         let mut found: List[string] = []
@@ -262,17 +262,17 @@ impl ScriptedSys:
 impl Sys for ScriptedSys:
     fn os(self) -> Result[string, HostError]:
         match self.values.get("os"):
-            .Some(text) => .Ok(text)
+            .Some(text) => .Ok(*text)
             .None => .Err(HostError.Unsupported("os"))
 
     fn arch(self) -> Result[string, HostError]:
         match self.values.get("arch"):
-            .Some(text) => .Ok(text)
+            .Some(text) => .Ok(*text)
             .None => .Err(HostError.Unsupported("arch"))
 
     fn hostname(self) -> Result[string, HostError]:
         match self.values.get("hostname"):
-            .Some(text) => .Ok(text)
+            .Some(text) => .Ok(*text)
             .None => .Err(HostError.Unsupported("hostname"))
 
     fn cpu_count(self) -> Result[u32, HostError]:

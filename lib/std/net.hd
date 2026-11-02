@@ -537,7 +537,7 @@ impl Net for ScriptedNet:
     fn lookup!(&mut self, host: string) -> Result[List[string], NetError]:
         self.calls.push(host)
         match self.hosts.get(host):
-            .Some(addresses) => .Ok(addresses)
+            .Some(addresses) => .Ok(*addresses)
             .None => .Err(.Dns(host))
 
     fn connect!(&mut self, host: string, port: u16) -> Result[*mut dyn TcpStream, NetError]:

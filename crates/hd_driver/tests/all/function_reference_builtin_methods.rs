@@ -81,8 +81,8 @@ pub fn main() -> void $ Console:
     println(acc[1])
     let m: Map[string, i32] = {\"a\": 1}
     get := Map::[string, i32]::get
-    println(get(m, \"a\") == .Some(1))
-    println(get(m, \"b\") == .None)
+    println(get(&m, \"a\").copied() == .Some(1))
+    println(get(&m, \"b\").copied() == .None)
     let size: fn(Map[string, i32]) -> usize = Map::len
     println(size(m))
     let mut walk = List::[i32]::iter(xs)

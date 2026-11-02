@@ -17,7 +17,7 @@ fn bytes_of[T < Hash](value: T) -> List[u8]:
 
 fn failures(counts: Map[Result[i32, string], i32], key: Result[i32, string]) -> i32:
     match counts.get(key):
-        .Some(n) => n
+        .Some(n) => *n
         .None => 0
 
 tests:

@@ -1561,7 +1561,7 @@ when the table fills and adds one to `grown`, since the entries move.
 
 **Other key types.** The key bound is already checked
 (`Map[K < Eq & Hash, V]`, `types.map-key.declared-bound`): at Emit,
-`MapGet`/`MapSet`/`MapRemove` hash with a monomorphized call of
+`map_probe`, `MapSet`, `MapRemove` and `MapEntry` hash with a monomorphized call of
 `std.hash.key_bucket_hash` at the substituted key type, which feeds the
 key type's `Hash` impl a `BucketHasher` (HalfSipHash-1-3 keyed by the
 run's seed: the `map_hash_seed` primitive, the `hd:rt` `hash_seed`
