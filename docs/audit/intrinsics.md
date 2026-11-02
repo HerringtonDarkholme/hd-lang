@@ -27,7 +27,7 @@ quality, fixed in hd and in how hd compiles, never with a new intrinsic.
 | 4. Built-in methods (spec ch. 10) | 17 | 6 | 11 | 0 | 0 |
 | 5. Known std items (`hd_resolve::KnownItems`) | 102 | 76 | 9 | 0 | 17 |
 | 6. Host capabilities (`hd_host_abi` tables) | 17 traits | 17 | 0 | 0 | 0 |
-| 7. Compiler-interpreted annotations | 13 | 11 | 0 | 0 | 2 |
+| 7. Compiler-interpreted annotations | 13 | 12 | 0 | 0 | 1 |
 
 The two big "hd later" groups are the same code seen from two sides: the
 `List`/`Map` built-ins (two types, eleven methods, five intrinsics and
@@ -143,11 +143,11 @@ own imports (`hd:rt` `block`, `abort`, `stderr`, `stdout`, `panic`,
 | `@inline`, `@cold`, `@cfg` | keep: code generation and configuration |
 | `@annotate`, `@num_suffix`, `@str_prefix`, `@skips`, `@fills_defaults` | keep: facts and literal rules |
 | `@error` | review: the compiler generates the error enum's `Display` and `From` impls; a `Structure`-based derivation in std could do the same |
-| `@auto_closing` | review: one check on a function's result; could be a bound |
+| `@auto_closing` | keep (owner, 2026-11-02): it marks the function whose statement calls register their result; the result type's side is the `AutoClosing` trait |
 
 ## Next
 
-1. The #1205 WAT diff of `UniqMap.insert` against `rt:map_put`, which names
-   the optimizer tickets every "hd later" row waits on.
-2. `PowF64` and `RemF64` into `std.num` as hd (the "hd now" rows).
-3. The twelve "review" items, one finding each, in #1206.
+The work is tracked in #1206 and its sub-issues, in dependency order. The
+#1205 WAT diff named five costs of hd memory code (#1227 to #1232); every
+"hd later" row waits on them. Review rows report findings on their issue,
+and the owner decides each one.
