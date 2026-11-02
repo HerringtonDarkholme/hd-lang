@@ -14,12 +14,13 @@ on:
 permissions:
   contents: read
 
-# A newer push to a pull request or a muse/ branch supersedes its running
-# check. On main the running check always finishes, so frequent pushes
-# can't leave main unchecked; only the queued run is replaced.
+# A newer push to a pull request or an agent branch supersedes its running
+# check, so a run never waits for runners behind a stale one. On main the
+# running check always finishes, so frequent pushes can't leave main
+# unchecked; only the queued run is replaced.
 concurrency:
   group: test-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' || startsWith(github.ref, 'refs/heads/muse/') }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   # Every Rust command builds the whole workspace with all features, so CI
@@ -81,8 +82,7 @@ jobs:
   # assertions and overflow checks are on.
   #
   # cargo test runs test binaries one after another, so the suite is split
-  # into shards that run side by side: hd_cli's CLI conformance cases, the
-  # rest of hd_cli, and every other crate.
+  # into two shards that run side by side: hd_cli, and every other crate.
   test:
     name: Rust tests (${{ matrix.shard }})
     runs-on: ubuntu-latest
@@ -91,10 +91,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - shard: cli conformance
-            args: -p hd_cli --test cli_conformance
           - shard: cli
-            args: -p hd_cli --bins --test all
+            args: -p hd_cli
           - shard: workspace
             args: --workspace --exclude hd_cli
     steps:
@@ -124,10 +122,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
-        # The CLI conformance cases are half the time; they run beside the
-        # rest of the host tests.
-        shard: [cli conformance, rest]
+        # On Windows the CLI conformance cases are half the time, so they
+        # run beside the rest of the host tests. macOS runners are the
+        # scarcest, so macOS runs everything in one job.
+        include:
+          - os: windows-latest
+            shard: cli conformance
+          - os: windows-latest
+            shard: rest
+          - os: macos-latest
+            shard: all
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
@@ -145,26 +149,26 @@ jobs:
         uses: Swatinem/rust-cache@v2.9.2
 
       - name: Lint host crates
-        if: matrix.shard == 'rest'
+        if: matrix.shard != 'cli conformance'
         run: cargo clippy -p hd_run_wasmtime -p hd_cli --features hd_cli/wasmtime --all-targets -- -D warnings
 
       # --no-fail-fast: one run reports every failing test binary, not just
       # the first.
       - name: Test the CLI conformance cases
-        if: matrix.shard == 'cli conformance'
+        if: matrix.shard != 'rest'
         run: cargo test --release --no-fail-fast --features hd_cli/wasmtime -p hd_cli --test cli_conformance
 
       # The wasmtime host's process parity tests run the release CLI.
       - name: Build the CLI
-        if: matrix.shard == 'rest'
+        if: matrix.shard != 'cli conformance'
         run: cargo build --release -p hd_cli --features hd_cli/wasmtime
 
       - name: Test the wasmtime host
-        if: matrix.shard == 'rest'
+        if: matrix.shard != 'cli conformance'
         run: cargo test --release --no-fail-fast -p hd_run_wasmtime
 
       - name: Test the CLI
-        if: matrix.shard == 'rest'
+        if: matrix.shard != 'cli conformance'
         run: cargo test --release --no-fail-fast --features hd_cli/wasmtime -p hd_cli --bins --test all
 
   # Split from the tests so the longest suite overlaps with the rest, and
