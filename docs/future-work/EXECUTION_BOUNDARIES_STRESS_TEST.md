@@ -3,11 +3,11 @@
 Status: design review, 2026-11-02; changes no decision, design record, spec
 text, or compiler code. It tests the decisions of
 [Execution Boundaries](EXECUTION_BOUNDARIES.md) (PR #1139): the same-code
-principle ([section 1](EXECUTION_BOUNDARIES.md#1-context-and-goal)), the
+principle ([section 1](https://github.com/HerringtonDarkholme/hd-lang/blob/742fb8d4f/docs/future-work/EXECUTION_BOUNDARIES.md#1-context-and-goal)), the
 domain properties, kinds, modes and lifecycle rules
-([section 3](EXECUTION_BOUNDARIES.md#3-the-model)), the checks of
-[section 5](EXECUTION_BOUNDARIES.md#5-type-checking), the process of
-[section 6](EXECUTION_BOUNDARIES.md#6-the-process-end-to-end) (rules A1 to
+([section 3](https://github.com/HerringtonDarkholme/hd-lang/blob/742fb8d4f/docs/future-work/EXECUTION_BOUNDARIES.md#3-the-model)), the checks of
+[section 5](https://github.com/HerringtonDarkholme/hd-lang/blob/742fb8d4f/docs/future-work/EXECUTION_BOUNDARIES.md#5-type-checking), the process of
+[section 6](https://github.com/HerringtonDarkholme/hd-lang/blob/742fb8d4f/docs/future-work/EXECUTION_BOUNDARIES.md#6-the-process-end-to-end) (rules A1 to
 A4, C1 to C3, B1 to B5 and its what-cannot-cross table), and questions 1
 and 3 to 17 ([section 8](EXECUTION_BOUNDARIES.md)),
 as of commit 742fb8d4f. Two spellings of a cross-target call are compared:
