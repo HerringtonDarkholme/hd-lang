@@ -283,9 +283,17 @@ fn host_value_decode[T < Deserialize](text: string) -> Result[T, JsonError]:
 /// the program uses: [`ENTRY_MODULE`] (`RT_SOURCE`) and the runtime
 /// allocator's module, whose folder holds the other runtime modules that
 /// emitted code calls.
-fn rt_roots(table: &ModuleTable) -> impl Iterator<Item = ModuleId> + '_ {
+fn rt_roots(table: &ModuleTable, checked: bool) -> impl Iterator<Item = ModuleId> + '_ {
+    // A checked build links the checked runtime, which has folders of its
+    // own (`std.rt.checked`, and `std.rt.checked_report` with that feature).
+    let checked_rt: &[&str] = if checked {
+        &["std.rt.checked", hd_wasm_linear::CHECKED_MODULE]
+    } else {
+        &[]
+    };
     [ENTRY_MODULE, hd_wasm_linear::RUNTIME_MODULE]
         .into_iter()
+        .chain(checked_rt.iter().copied())
         .filter_map(|path| table.module(path))
 }
 
@@ -1372,7 +1380,7 @@ fn repl_texts(
     let mut stack = vec![start];
     // The compiler roots `std.rt.entry` and the runtime after an entry, a
     // REPL input's too (`RT_SOURCE`).
-    stack.extend(rt_roots(table).map(ModuleId::idx));
+    stack.extend(rt_roots(table, false).map(ModuleId::idx));
     while let Some(m) = stack.pop() {
         if skims[m].is_some() {
             continue;
@@ -3523,7 +3531,7 @@ impl Run<'_> {
         // The compiler roots `std.rt.entry`'s result functions after an entry or
         // a test case (`RT_SOURCE`), and the runtime that emitted code calls,
         // whatever the program uses.
-        for rt in rt_roots(&self.table) {
+        for rt in rt_roots(&self.table, self.checked()) {
             reached.union(&self.module_closure_in(g, rt.idx()));
         }
         let mut prep_task: Vec<Option<TaskId>> = vec![None; self.table.modules.len()];
@@ -4347,7 +4355,7 @@ impl Run<'_> {
     /// The folders of [`rt_roots`], the hd the compiler roots after an
     /// entry, when the run's std has them.
     fn rt_folders(&self) -> impl Iterator<Item = FolderId> + '_ {
-        rt_roots(&self.table).map(|m| self.table.modules[m.idx()].folder)
+        rt_roots(&self.table, self.checked()).map(|m| self.table.modules[m.idx()].folder)
     }
 
     /// Whether this run builds module `m`: a module of a folder it builds,
