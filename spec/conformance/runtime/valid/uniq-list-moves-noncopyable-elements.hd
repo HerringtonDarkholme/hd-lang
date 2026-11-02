@@ -1,0 +1,59 @@
+# test: a UniqList grows, shifts, swaps, truncates, and returns non-copyable elements without copying them
+# expect: test
+# Spec std/collections UniqList: std-collections.uniq-list.type, std-collections.uniq-list.movers.
+use std.collections.UniqList
+use std.console.MemoryConsole
+
+struct Ticket:
+    label: string
+
+impl !Copy for Ticket
+
+fn take_last(items: &mut UniqList[Ticket]) -> Ticket:
+    match items.pop():
+        .Some(ticket) => ticket
+        .None => panic("expected a ticket")
+
+tests:
+    use std.testing.assert_equal
+
+    it("moves non-copyable elements through every core mutation"):
+        console := MemoryConsole::new()
+        let mut items = UniqList::[Ticket].with_capacity(1)
+        assert_equal(items.is_empty(), true, reason="the new list is empty")
+        items.push(Ticket { label: "a" })
+        items.push(Ticket { label: "c" })
+        items.insert(1, Ticket { label: "b" })
+        items.swap(0, 2)
+        first := items.remove_at(0)
+        $.with(Console=console):
+            println(first.label)
+        assert_equal(first.label, "c", reason="remove_at returns the moved element")
+        last := take_last(&mut items)
+        $.with(Console=console):
+            println(last.label)
+        assert_equal(last.label, "a", reason="pop returns the moved last element")
+        items.push(Ticket { label: "d" })
+        items.push(Ticket { label: "e" })
+        items.truncate(1)
+        only := take_last(&mut items)
+        $.with(Console=console):
+            println(only.label)
+        assert_equal(only.label, "b", reason="truncate keeps the prefix")
+        assert_equal(
+            console.output(),
+            ["c", "\n", "a", "\n", "b", "\n"],
+            reason="each moved element prints in the order it leaves the list",
+        )
+        items.push(Ticket { label: "z" })
+        items.clear()
+        assert_equal(items.len(), 0, reason="clear drops every element")
+
+    it("copies access results only for copyable elements"):
+        let mut values = UniqList::[i32].new()
+        values.push(+1)
+        values.push(2)
+        assert_equal(values.get(1), .Some(2), reason="get copies the indexed value")
+        assert_equal(values.first(), .Some(+1), reason="first copies the first value")
+        assert_equal(values.last(), .Some(2), reason="last copies the last value")
+        assert_equal(values.get(2), .None, reason="get outside the list returns none")

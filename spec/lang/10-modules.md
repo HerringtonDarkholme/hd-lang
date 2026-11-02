@@ -1752,19 +1752,19 @@ write a value of any type `T` in the heap, a counted buffer of such values,
 and two views of a string's bytes:
 
 ```text
-pub struct Ptr[T]:
+pub struct Ptr[T < ?Copy]:
     pub address: usize
 
-impl[T] Ptr[T]:
+impl[T < ?Copy] Ptr[T]:
     pub fn read(self) -> T
     pub fn write(self, value: T) -> void
     pub fn offset(self, count: usize) -> Ptr[T]
 
-pub fn size_of[T]() -> usize
+pub fn size_of[T < ?Copy]() -> usize
 
-pub struct Buffer[T]
+pub struct Buffer[T < ?Copy]
 
-impl[T] Buffer[T]:
+impl[T < ?Copy] Buffer[T]:
     pub fn new(capacity: usize) -> Buffer[T]
     pub fn capacity(self) -> usize
     pub fn len(self) -> usize
@@ -1781,7 +1781,7 @@ pub fn new_string(len: usize) -> string
 4. r[module.rt.ptr.size-of] `size_of[T]()` returns the number of heap bytes one value of `T` takes. It is the same for every value of `T` in a program instance.
 5. r[module.rt.ptr.size-of.number] For `bool`, `u8`, and `i8` it is 1, for `u16` and `i16` 2, for `u32`, `i32`, `f32`, and `char` 4, and for `u64`, `i64`, and `f64` 8. For `usize` it is the target's pointer width in bytes.
 6. r[module.rt.ptr.offset] `p.offset(count)` returns the `Ptr[T]` whose address is `p.address + count * size_of[T]()`.
-7. r[module.rt.ptr.write] `p.write(value)` stores a copy of `value` at `p`, so the heap there holds a value of `T`. The copy shares and counts references as any copy of a `T` does.
+7. r[module.rt.ptr.write-value] `p.write(value)` moves `value` into `p`, so the heap there holds that value of `T`. Passing a copyable `T` copies it as any other by-value argument does; passing a non-copyable `T` leaves the argument moved.
 8. r[module.rt.ptr.write.over] A write replaces the bytes at `p` without dropping the value they held.
 9. r[module.rt.ptr.read] `p.read()` moves the value at `p` out and returns it, so the heap there no longer holds a value. Its bytes do not change.
 10. r[module.rt.ptr.integer] A value of an integer type is stored as its bytes, least significant first, so the [loads and stores](#r-module.rt.memory.load) of its width read and write it.
@@ -1797,7 +1797,7 @@ pub fn new_string(len: usize) -> string
 20. r[module.rt.string.new] `new_string(len)` returns a new string of `len` bytes, whose values are unspecified until written. `new_string(0)` returns the empty string.
 21. r[module.rt.string.write] Only the bytes of a string that `new_string` returned are written through `string_bytes`, and std writes all of them, as valid UTF-8, before the string is used in any other way.
 
-> **Note.** A read and a write of the same value back copy it out, and a
+> **Note.** A read and a write of the same value back move it out, and a
 > read whose result is discarded drops the value in place.
 
 > **Why.** These are Rust's `ptr::read` and `ptr::write`: one count per
