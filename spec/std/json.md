@@ -51,14 +51,14 @@ The accessors read one kind and give `.None` for any other:
 
 | Rule | Method | Result |
 | --- | --- | --- |
-| r[std-json.value.accessors.get] `get` | `pub fn get(self, key: string) -> Json?` | the value of `key` when `self` is an `Object` with that key |
-| r[std-json.value.accessors.at-index] `at` | `pub fn at(self, index: usize) -> Json?` | the item at `index` when `self` is an `Array` and `index` is from 0 up to its length |
-| r[std-json.value.accessors.text] `as_text` | `pub fn as_text(self) -> string?` | the string of a `Text` |
-| r[std-json.value.accessors.bool] `as_bool` | `pub fn as_bool(self) -> bool?` | the value of a `Bool` |
-| r[std-json.value.accessors.null] `is_null` | `pub fn is_null(self) -> bool` | `true` exactly for `Null` |
-| r[std-json.value.accessors.i64] `as_i64` | `pub fn as_i64(self) -> i64?` | what [`Number.as_i64`](#r-std-json.number.accessors.i64) gives for a `Number` |
-| r[std-json.value.accessors.u64] `as_u64` | `pub fn as_u64(self) -> u64?` | what [`Number.as_u64`](#r-std-json.number.accessors.u64) gives for a `Number` |
-| r[std-json.value.accessors.f64] `as_f64` | `pub fn as_f64(self) -> f64?` | what [`Number.as_f64`](#r-std-json.number.accessors.f64) gives for a `Number` |
+| r[std-json.value.accessors.get] `get` | `pub fn get(&self, key: string) -> Json?` | the value of `key` when `self` is an `Object` with that key |
+| r[std-json.value.accessors.at-index] `at` | `pub fn at(&self, index: usize) -> Json?` | the item at `index` when `self` is an `Array` and `index` is from 0 up to its length |
+| r[std-json.value.accessors.text] `as_text` | `pub fn as_text(&self) -> string?` | the string of a `Text` |
+| r[std-json.value.accessors.bool] `as_bool` | `pub fn as_bool(&self) -> bool?` | the value of a `Bool` |
+| r[std-json.value.accessors.null] `is_null` | `pub fn is_null(&self) -> bool` | `true` exactly for `Null` |
+| r[std-json.value.accessors.i64] `as_i64` | `pub fn as_i64(&self) -> i64?` | what [`Number.as_i64`](#r-std-json.number.accessors.i64) gives for a `Number` |
+| r[std-json.value.accessors.u64] `as_u64` | `pub fn as_u64(&self) -> u64?` | what [`Number.as_u64`](#r-std-json.number.accessors.u64) gives for a `Number` |
+| r[std-json.value.accessors.f64] `as_f64` | `pub fn as_f64(&self) -> f64?` | what [`Number.as_f64`](#r-std-json.number.accessors.f64) gives for a `Number` |
 
 1. r[std-json.value.accessors] These methods are declared on `Json` in `std.json`. A negative `index` gives `.None`.
 2. r[std-json.value.accessors.integer-exact] `as_i64` and `as_u64` give `.None` for a float, even one with no fraction, such as `1.0`, as an integer type's `from_json` does.
@@ -88,7 +88,7 @@ fn count(value: Json) -> i64:
 
 | Rule | Method | Result |
 | --- | --- | --- |
-| r[std-json.pointer] `pointer` | `pub fn pointer(self, path: string) -> Json?` | the value that `path` points to from `self`, or `.None` when there is none |
+| r[std-json.pointer] `pointer` | `pub fn pointer(&self, path: string) -> Json?` | the value that `path` points to from `self`, or `.None` when there is none |
 
 1. r[std-json.pointer.syntax] The path `""` points to `self`. Any other path starts with `/`, and each `/` begins one token, which runs to the next `/` or the end. A path that does not start with `/` gives `.None`.
 2. r[std-json.pointer.escapes] In a token, `~1` reads as `/` and `~0` as `~`, from the left. Any other `~` stays as written, as in `serde_json`.
@@ -126,10 +126,10 @@ where they were.
 | --- | --- | --- |
 | r[std-json.object.new-value] `new` | `pub fn new() -> JsonObject` | an object with no members |
 | r[std-json.object.len] `len` | `pub fn len(&self) -> usize` | the number of members; `is_empty` is `len() == 0` |
-| r[std-json.object.get] `get` | `pub fn get(self, key: string) -> Json?` | the value of `key`, or `.None`; `contains_key` is `true` for a key that has a member |
+| r[std-json.object.get] `get` | `pub fn get(&self, key: string) -> Json?` | the value of `key`, or `.None`; `contains_key` is `true` for a key that has a member |
 | r[std-json.object.set-ref] `set` | `pub fn set(&mut self, key: string, value: Json) -> void` | a new key becomes the last member, and an existing key keeps its place with the new value |
 | r[std-json.object.remove-ref] `remove` | `pub fn remove(&mut self, key: string) -> Json?` | removes the member `key` and gives its value, or `.None` when there is no such key; the other members keep their order |
-| r[std-json.object.keys] `keys` | `pub fn keys(self) -> List[string]` | the keys, in insertion order |
+| r[std-json.object.keys] `keys` | `pub fn keys(&self) -> List[string]` | the keys, in insertion order |
 
 1. r[std-json.object.decl-struct] `std.json` declares the struct `JsonObject`, with private fields and the methods above. `JsonObject` implements `Iterable[(string, Json)]`, `Eq`, and `Debug`.
 2. r[std-json.object.order] `keys`, iteration, and `Debug` give the members in insertion order.
@@ -176,9 +176,9 @@ fn half() -> Number?:
 
 | Rule | Method | Result |
 | --- | --- | --- |
-| r[std-json.number.accessors.i64] `as_i64` | `pub fn as_i64(self) -> i64?` | the integer when it is in the `i64` range, and `.None` for a float |
-| r[std-json.number.accessors.u64] `as_u64` | `pub fn as_u64(self) -> u64?` | the integer when it is from zero up, and `.None` for a negative integer or a float |
-| r[std-json.number.accessors.f64] `as_f64` | `pub fn as_f64(self) -> f64?` | `.Some` of the float, or of the integer converted to the nearest `f64` |
+| r[std-json.number.accessors.i64] `as_i64` | `pub fn as_i64(&self) -> i64?` | the integer when it is in the `i64` range, and `.None` for a float |
+| r[std-json.number.accessors.u64] `as_u64` | `pub fn as_u64(&self) -> u64?` | the integer when it is from zero up, and `.None` for a negative integer or a float |
+| r[std-json.number.accessors.f64] `as_f64` | `pub fn as_f64(&self) -> f64?` | `.Some` of the float, or of the integer converted to the nearest `f64` |
 
 1. r[std-json.number.accessors] These three are methods of `Number`. `as_f64` gives `.Some` for every `Number`, so no `.None` result means a number is out of range.
 
@@ -455,7 +455,7 @@ fn show_pretty(value: Json) -> string:
 
 | Rule | Method | Result |
 | --- | --- | --- |
-| r[std-json.value.pretty] `pretty` | `pub fn pretty(self) -> string` | the pretty text of `self` |
+| r[std-json.value.pretty] `pretty` | `pub fn pretty(&self) -> string` | the pretty text of `self` |
 
 > **Why.** Text output of a value is a method, as `to_rfc3339()` and
 > `to_fixed(n)` are. One spelling is enough, so there is no free

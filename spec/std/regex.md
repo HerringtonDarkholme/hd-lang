@@ -32,7 +32,7 @@ fn digits() -> Result[Regex, RegexError]:
 | Rule | Item | Meaning |
 | --- | --- | --- |
 | r[std-regex.regex.new] `new` | `pub fn new(pattern: string) -> Result[Regex, RegexError]` | the compiled `pattern`, or the first error in it |
-| r[std-regex.regex.pattern] `pattern` | `pub fn pattern(self) -> string` | the pattern as written |
+| r[std-regex.regex.pattern] `pattern` | `pub fn pattern(&self) -> string` | the pattern as written |
 
 1. r[std-regex.regex.decl-struct] `std.regex` declares the struct `Regex`, a value with private fields, and the methods in this chapter. Code imports it, as in `use std.regex.Regex`.
 2. r[std-regex.regex.plain] Every function and method in this chapter is a plain call with the empty requirement row.
@@ -194,8 +194,8 @@ fn year(line: string) -> string?:
 
 | Rule | Method | Result |
 | --- | --- | --- |
-| r[std-regex.is-match] `is_match` | `pub fn is_match(self, text: string) -> bool` | whether some part of `text` matches |
-| r[std-regex.find] `find` | `pub fn find(self, text: string) -> Match?` | the first match in `text`, or `.None` |
+| r[std-regex.is-match] `is_match` | `pub fn is_match(&self, text: string) -> bool` | whether some part of `text` matches |
+| r[std-regex.find] `find` | `pub fn find(&self, text: string) -> Match?` | the first match in `text`, or `.None` |
 
 1. r[std-regex.find.chars] A search steps through `text` one character, a Unicode scalar value, at a time. A match starts and ends at character boundaries.
 2. r[std-regex.find.leftmost] `find` returns a match that starts at the smallest offset where any match starts.
@@ -235,7 +235,7 @@ pub struct Match:
 
 | Rule | Method | Result |
 | --- | --- | --- |
-| r[std-regex.find-all] `find_all` | `pub fn find_all(self, text: string) -> List[Match]` | every match in `text`, left to right, none overlapping |
+| r[std-regex.find-all] `find_all` | `pub fn find_all(&self, text: string) -> List[Match]` | every match in `text`, left to right, none overlapping |
 
 1. r[std-regex.find-all.next] `find_all` runs a series of searches. The first starts at offset 0, and each finds the match `find` would, among those that start at or after its offset.
 2. r[std-regex.find-all.empty] After a match that is not empty, the next search starts at its end. After an empty match, it starts one character later, and none follows an empty match at the end of the text.
@@ -305,16 +305,16 @@ fn quick(text: string) -> bool:
 
 | Rule | Method | Result |
 | --- | --- | --- |
-| r[std-regex.captures] `captures` | `pub fn captures(self, text: string) -> Captures?` | the groups of the match `find` returns, or `.None` |
-| r[std-regex.captures-all] `captures_all` | `pub fn captures_all(self, text: string) -> List[Captures]` | the groups of each match `find_all` returns, in order |
+| r[std-regex.captures] `captures` | `pub fn captures(&self, text: string) -> Captures?` | the groups of the match `find` returns, or `.None` |
+| r[std-regex.captures-all] `captures_all` | `pub fn captures_all(&self, text: string) -> List[Captures]` | the groups of each match `find_all` returns, in order |
 
 `Captures` has these methods:
 
 | Rule | Method | Result |
 | --- | --- | --- |
 | r[std-regex.captures.len] `len` | `pub fn len(&self) -> usize` | the number of capture groups in the pattern, plus one |
-| r[std-regex.captures.get] `get` | `pub fn get(self, index: usize) -> Match?` | group `index`, where 0 is the whole match |
-| r[std-regex.captures.name] `name` | `pub fn name(self, name: string) -> Match?` | the group named `name` |
+| r[std-regex.captures.get] `get` | `pub fn get(&self, index: usize) -> Match?` | group `index`, where 0 is the whole match |
+| r[std-regex.captures.name] `name` | `pub fn name(&self, name: string) -> Match?` | the group named `name` |
 
 1. r[std-regex.captures.decl-struct] `std.regex` declares the struct `Captures`, a value with private fields.
 2. r[std-regex.captures.whole] `get(0)` is the whole match, the one `find` or `find_all` returns.
@@ -376,9 +376,9 @@ its `Deserialize` implementation. `pattern.decode::[Hit](line)` combines
 
 | Rule | Method | Result |
 | --- | --- | --- |
-| r[std-regex.replace] `replace` | `pub fn replace(self, text: string, replacement: string) -> string` | `text` with the match `find` returns replaced |
-| r[std-regex.replace-all] `replace_all` | `pub fn replace_all(self, text: string, replacement: string) -> string` | `text` with each match `find_all` returns replaced |
-| r[std-regex.split] `split` | `pub fn split(self, text: string) -> List[string]` | the pieces of `text` around each match `find_all` returns |
+| r[std-regex.replace] `replace` | `pub fn replace(&self, text: string, replacement: string) -> string` | `text` with the match `find` returns replaced |
+| r[std-regex.replace-all] `replace_all` | `pub fn replace_all(&self, text: string, replacement: string) -> string` | `text` with each match `find_all` returns replaced |
+| r[std-regex.split] `split` | `pub fn split(&self, text: string) -> List[string]` | the pieces of `text` around each match `find_all` returns |
 
 1. r[std-regex.replace.none] With no match, `replace` and `replace_all` return `text` unchanged.
 2. r[std-regex.replace.expand] A match is replaced by `replacement`, with each reference in the table below replaced by the text it names in that match's groups.

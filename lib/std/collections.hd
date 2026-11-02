@@ -88,13 +88,13 @@ impl[T] List[T]:
     # copy (spec/std/collections.md#views).
     ## A read-only window on the elements from `start` up to `end`, with no copy.
     ## See [std-collections.view](../../spec/std/collections.md#r-std-collections.view).
-    pub fn view(self, start: usize, end: usize) -> ListView[T]:
+    pub fn view(&self, start: usize, end: usize) -> ListView[T]:
         if end > self.len() || start > end:
             panic_with(
                 "index-out-of-bounds",
                 "list view start ${start} end ${end} out of bounds for length ${self.len()}",
             )
-        ListView::[T] { items: self, start: start, end: end }
+        ListView::[T] { items: *self, start: start, end: end }
 
     ## Returns a new list with `transform` applied to each element, in order.
     ## See [std-iter.method.map](../../spec/std/iter.md#r-std-iter.method.map).
@@ -277,7 +277,7 @@ impl[T] List[T]:
     # Consecutive pieces of `size` items; the last may be shorter.
     ## Returns read-only views in consecutive pieces of `size` elements; only the last may be shorter.
     ## See [std-collections.list.chunks.views](../../spec/std/collections.md#r-std-collections.list.chunks.views).
-    pub fn chunks(self, size: usize) -> List[ListView[T]]:
+    pub fn chunks(&self, size: usize) -> List[ListView[T]]:
         if size == 0:
             panic("chunks: size must be positive")
         let mut pieces: List[ListView[T]] = []
@@ -565,14 +565,14 @@ impl[K < Eq & Hash, V] Map[K, V]:
 
     ## True when the map has an entry for `key`.
     ## See [std-collections.map.contains-key](../../spec/std/collections.md#r-std-collections.map.contains-key).
-    pub fn contains_key(self, key: K) -> bool:
+    pub fn contains_key(&self, key: K) -> bool:
         match self.get(key):
             .Some(_) => true
             .None => false
 
     ## A new list of the keys, in the map's iteration order.
     ## See [std-collections.map.keys.order](../../spec/std/collections.md#r-std-collections.map.keys.order).
-    pub fn keys(self) -> List[K]:
+    pub fn keys(&self) -> List[K]:
         let mut found: List[K] = []
         for (key, _) in self:
             found.push(key)
@@ -580,7 +580,7 @@ impl[K < Eq & Hash, V] Map[K, V]:
 
     ## A new list of the values, in the map's iteration order.
     ## See [std-collections.map.keys.order](../../spec/std/collections.md#r-std-collections.map.keys.order).
-    pub fn values(self) -> List[V]:
+    pub fn values(&self) -> List[V]:
         let mut found: List[V] = []
         for (_, value) in self:
             found.push(value)
@@ -596,7 +596,7 @@ impl[K < Eq & Hash, V] Map[K, V]:
 impl[K < Eq & Hash, V] Map[K, V]:
     ## A new list of the `(key, value)` pairs, in the map's iteration order.
     ## See [std-collections.map.entries](../../spec/std/collections.md#r-std-collections.map.entries).
-    pub fn entries(self) -> List[(K, V)]:
+    pub fn entries(&self) -> List[(K, V)]:
         let mut found: List[(K, V)] = []
         for (key, value) in self:
             found.push((key, value))
@@ -605,7 +605,7 @@ impl[K < Eq & Hash, V] Map[K, V]:
 impl[K < Eq & Hash] Map[K, usize]:
     ## Returns the `n` pairs with the largest counts, largest first; equal counts keep the map's order.
     ## See [std-collections.map.most-common](../../spec/std/collections.md#r-std-collections.map.most-common).
-    pub fn most_common(self, n: usize) -> List[(K, usize)]:
+    pub fn most_common(&self, n: usize) -> List[(K, usize)]:
         self.entries()
             .sorted_by(
                 fn(left: &(K, usize), right: &(K, usize)) -> Ordering: right._1.cmp(&left._1)
@@ -632,7 +632,7 @@ impl[T] ListView[T]:
 
     ## Returns a new list that holds the view's elements in order.
     ## See [std-collections.view.to-list-value](../../spec/std/collections.md#r-std-collections.view.to-list-value).
-    pub fn to_list(self) -> List[T]:
+    pub fn to_list(&self) -> List[T]:
         let mut copy: List[T] = []
         let index = self.start
         while index < self.end:
@@ -1134,7 +1134,7 @@ impl[T < Ord] Heap[T]:
     # (r-std-collections.heap.sorted).
     ## Returns a new list of every element in ascending order by `Ord`, and leaves the heap unchanged.
     ## See [std-collections.heap.sorted](../../spec/std/collections.md#r-std-collections.heap.sorted).
-    pub fn to_sorted_list(self) -> List[T]:
+    pub fn to_sorted_list(&self) -> List[T]:
         self.items.sorted_by(fn(left: &T, right: &T) -> Ordering: left.cmp(right))
 
 # Build in linear comparisons by sifting each non-leaf bottom-up.

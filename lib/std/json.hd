@@ -79,14 +79,14 @@ impl JsonObject:
 
     ## The value of `key`, or `.None` when the object has no such key.
     ## See [std-json.object.get](../../spec/std/json.md#r-std-json.object.get).
-    pub fn get(self, key: string) -> Json?:
+    pub fn get(&self, key: string) -> Json?:
         match self.position(key):
             .Some(at) => .Some(self.entries[at]._1)
             .None => .None
 
     ## True exactly when the object has the key.
     ## See [std-json.object.get](../../spec/std/json.md#r-std-json.object.get).
-    pub fn contains_key(self, key: string) -> bool:
+    pub fn contains_key(&self, key: string) -> bool:
         self.position(key).is_some()
 
     ## Sets `key` to `value`. A new key goes last, and an existing key keeps its place.
@@ -135,7 +135,7 @@ impl JsonObject:
 
     ## The keys, in insertion order.
     ## See [std-json.object.order](../../spec/std/json.md#r-std-json.object.order).
-    pub fn keys(self) -> List[string]:
+    pub fn keys(&self) -> List[string]:
         self.entries.map(fn(entry: &(string, Json)) -> string: entry._0)
 
 impl Iterable[(string, Json)] for JsonObject:
@@ -196,7 +196,7 @@ impl Number:
 
     ## The integer when it is in the `i64` range, and `.None` for a float.
     ## See [std-json.number.accessors.i64](../../spec/std/json.md#r-std-json.number.accessors.i64).
-    pub fn as_i64(self) -> i64?:
+    pub fn as_i64(&self) -> i64?:
         match self.repr:
             .Negative(value) => .Some(value)
             .NonNegative(value) =>
@@ -205,14 +205,14 @@ impl Number:
 
     ## The integer when it is from zero up, and `.None` for a negative integer or a float.
     ## See [std-json.number.accessors.u64](../../spec/std/json.md#r-std-json.number.accessors.u64).
-    pub fn as_u64(self) -> u64?:
+    pub fn as_u64(&self) -> u64?:
         match self.repr:
             .NonNegative(value) => .Some(value)
             _ => .None
 
     ## `.Some` of the float, or of the integer converted to the nearest `f64`.
     ## See [std-json.number.accessors.f64](../../spec/std/json.md#r-std-json.number.accessors.f64).
-    pub fn as_f64(self) -> f64?:
+    pub fn as_f64(&self) -> f64?:
         match self.repr:
             .Negative(value) => .Some(f64(value))
             .NonNegative(value) => .Some(f64(value))
@@ -230,21 +230,21 @@ impl Json:
     # JSON text with two-space indentation (r-std-json.value.pretty).
     ## The pretty text of the value: each item of an array and each entry of an object on its own line, indented by two spaces for each level of nesting.
     ## See [std-json.value.pretty](../../spec/std/json.md#r-std-json.value.pretty).
-    pub fn pretty(self) -> string:
+    pub fn pretty(&self) -> string:
         let mut out: List[u8] = []
-        render(self, &mut out, true, 0)
+        render(*self, &mut out, true, 0)
         string_from_bytes(out)
 
     ## The value of `key` when the value is an `Object` with that key.
     ## See [std-json.value.accessors.get](../../spec/std/json.md#r-std-json.value.accessors.get).
-    pub fn get(self, key: string) -> Json?:
+    pub fn get(&self, key: string) -> Json?:
         match self:
             .Object(fields) => fields.get(key)
             _ => .None
 
     ## The item at `index` when the value is an `Array` and `index` is from 0 up to its length.
     ## See [std-json.value.accessors.at-index](../../spec/std/json.md#r-std-json.value.accessors.at-index).
-    pub fn at(self, index: usize) -> Json?:
+    pub fn at(&self, index: usize) -> Json?:
         match self:
             .Array(items) =>
                 if index < items.len(): .Some(items[index]) else: .None
@@ -252,42 +252,42 @@ impl Json:
 
     ## The string of a `Text` value.
     ## See [std-json.value.accessors.text](../../spec/std/json.md#r-std-json.value.accessors.text).
-    pub fn as_text(self) -> string?:
+    pub fn as_text(&self) -> string?:
         match self:
             .Text(value) => .Some(value)
             _ => .None
 
     ## The value of a `Bool`.
     ## See [std-json.value.accessors.bool](../../spec/std/json.md#r-std-json.value.accessors.bool).
-    pub fn as_bool(self) -> bool?:
+    pub fn as_bool(&self) -> bool?:
         match self:
             .Bool(value) => .Some(value)
             _ => .None
 
     ## `true` exactly for `Null`.
     ## See [std-json.value.accessors.null](../../spec/std/json.md#r-std-json.value.accessors.null).
-    pub fn is_null(self) -> bool:
+    pub fn is_null(&self) -> bool:
         match self:
             .Null => true
             _ => false
 
     ## The integer of a `Number` that is an integer in the `i64` range; a float, even `1.0`, gives `.None`.
     ## See [std-json.value.accessors.i64](../../spec/std/json.md#r-std-json.value.accessors.i64).
-    pub fn as_i64(self) -> i64?:
+    pub fn as_i64(&self) -> i64?:
         match self:
             .Number(value) => value.as_i64()
             _ => .None
 
     ## The integer of a `Number` that is an integer from zero up in the `u64` range; a float gives `.None`.
     ## See [std-json.value.accessors.u64](../../spec/std/json.md#r-std-json.value.accessors.u64).
-    pub fn as_u64(self) -> u64?:
+    pub fn as_u64(&self) -> u64?:
         match self:
             .Number(value) => value.as_u64()
             _ => .None
 
     ## The `f64` of any `Number`, an integer converted to the nearest `f64`.
     ## See [std-json.value.accessors.f64](../../spec/std/json.md#r-std-json.value.accessors.f64).
-    pub fn as_f64(self) -> f64?:
+    pub fn as_f64(&self) -> f64?:
         match self:
             .Number(value) => value.as_f64()
             _ => .None
@@ -298,13 +298,13 @@ impl Json:
     # cut is on a scalar boundary.
     ## The value at the JSON Pointer `path` (RFC 6901), such as `/db/pool/0`, or `.None` when no value is there.
     ## See [std-json.pointer](../../spec/std/json.md#r-std-json.pointer).
-    pub fn pointer(self, path: string) -> Json?:
+    pub fn pointer(&self, path: string) -> Json?:
         size := bytes_len(path)
         if size == 0:
-            return .Some(self)
+            return .Some(*self)
         if bytes_at(path, 0) != 47:
             return .None
-        let current = self
+        let current = *self
         let start: usize = 1
         while start <= size:
             end := bytes_index(path, start, 47)

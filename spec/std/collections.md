@@ -49,11 +49,11 @@ fn joined(first: List[i32], second: List[i32]) -> List[i32]:
 
 | Receiver | Methods |
 | --- | --- |
-| `List[T]` | `view(self, start: usize, end: usize) -> ListView[T]`; `chunks(self, size: usize) -> List[ListView[T]]` |
+| `List[T]` | `view(&self, start: usize, end: usize) -> ListView[T]`; `chunks(&self, size: usize) -> List[ListView[T]]` |
 
 1. r[std-collections.list.chunks.views] `chunks(size)` returns consecutive read-only `ListView[T]` values in order; only the last view may be shorter than `size`.
 2. r[std-collections.list.chunks.size] A `size` below 1 panics. Panic: `explicit-panic`.
-3. r[std-collections.list.window-snapshot] `chunks` and `windows` take `self`, so every returned view holds the list value they were called on.
+3. r[std-collections.list.window-snapshot] `chunks` takes `&self`, and `windows` takes `self`; every returned view holds a copy of that list value.
 4. r[std-collections.list.window-cost] Both methods create one result list of views and should copy no elements.
 
 ```text
@@ -71,8 +71,8 @@ fn pairs(items: List[i32]) -> List[ListView[i32]]:
 ### Views
 
 `view` gives a read-only window on a run of a list's elements. It takes
-`self`, as Swift's `ArraySlice` does: the view holds the list value it was
-taken from and shares its storage, so taking it copies no element:
+`&self` and stores a copy of that list value, as Swift's `ArraySlice` does.
+The view shares its storage, so taking it copies no element:
 
 ```text
 use std.collections.ListView
@@ -92,13 +92,13 @@ fn total(view: ListView[i32]) -> i32:
 | Item | Signature |
 | --- | --- |
 | `len` | `len(&self) -> usize` |
-| `to_list` | `to_list(self) -> List[T]` |
+| `to_list` | `to_list(&self) -> List[T]` |
 | index read | `Index[usize]` with `Out = T` |
 | iteration | `Iterable[T]` |
 
 1. r[std-collections.view] `view(start, end)` returns a `ListView[T]` of the list's elements at indices `start` up to, not including, `end`.
 2. r[std-collections.view.type] `std.collections` declares `ListView[T]` with private fields and the surface in the table above, and no other method or trait implementation.
-3. r[std-collections.view.snapshot] `view` takes `self`, so the view holds the list value it was called on. A later change to the list, through any place, does not change the view.
+3. r[std-collections.view.snapshot] `view` takes `&self` and stores a copy of that list value in the returned view.
 4. r[std-collections.view.value-copy] A `ListView[T]` is a struct value. A copy of a view is an equal view.
 5. r[std-collections.view.import] `ListView` is not a prelude name, so code that names it imports it, as in `use std.collections.ListView`.
 6. r[std-collections.view.no-copy] Creating a view copies no element.
@@ -353,8 +353,8 @@ fn tally(words: List[string]) -> Map[string, usize]:
 
 | Receiver | Methods |
 | --- | --- |
-| `Map[K, V]` | `get_ref(&self, key: K) -> (&V)?`; `get_mut(&mut self, key: K) -> (&mut V)?`; `get_or_insert(&mut self, key: K, default: V) -> &mut V`; `contains_key(self, key: K) -> bool`; `keys(self) -> List[K]`; `values(self) -> List[V]`; `is_empty(&self) -> bool`; `entries(self) -> List[(K, V)]` |
-| `Map[K, usize]` | `most_common(self, n: usize) -> List[(K, usize)]` |
+| `Map[K, V]` | `get_ref(&self, key: K) -> (&V)?`; `get_mut(&mut self, key: K) -> (&mut V)?`; `get_or_insert(&mut self, key: K, default: V) -> &mut V`; `contains_key(&self, key: K) -> bool`; `keys(&self) -> List[K]`; `values(&self) -> List[V]`; `is_empty(&self) -> bool`; `entries(&self) -> List[(K, V)]` |
+| `Map[K, usize]` | `most_common(&self, n: usize) -> List[(K, usize)]` |
 
 ```text
 fn shelf_count(stock: &Map[string, List[string]], item: string) -> usize:
@@ -588,7 +588,7 @@ fn smallest(items: List[i32]) -> i32?:
 | `push` | `push(&mut self, value: T) -> void` |
 | `pop` | `pop(&mut self) -> T?` |
 | `peek` | `peek(&self) -> (&T)?` |
-| `to_sorted_list` | `to_sorted_list(self) -> List[T]` |
+| `to_sorted_list` | `to_sorted_list(&self) -> List[T]` |
 | `Debug` | when `T < Debug` |
 | `collect` | `FromIterator[T]` |
 
