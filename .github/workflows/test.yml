@@ -200,11 +200,14 @@ jobs:
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2.9.2
 
+      # Only the suite that depends on the engine and the pipeline: the
+      # binary's other tests (the formatter pass over every fixture, the std
+      # runtime modules, the harness's own) run once, in the Rust tests job.
       - name: Conformance
         env:
           HD_CONFORMANCE_ENGINE: ${{ matrix.engine }}
           HD_CONFORMANCE_PIPELINE: ${{ matrix.pipeline }}
-        run: cargo test --release --workspace --all-features --test conformance
+        run: cargo test --release --workspace --all-features --test conformance -- --exact specification_conformance_passes_except_known_failures
 
   # The specification's own check. It drives the Rust hd through
   # scripts/hd-conformance.sh, which builds it in the dev profile.
