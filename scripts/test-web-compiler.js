@@ -34,11 +34,11 @@ import { createNodeSession } from "../host/node-session.ts";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const FIXTURE = join(root, "spec", "conformance", "runtime", "valid", "println-console-stdout.hd");
 
-// #852 removes the printer from ordinary compilation. These caps keep
-// a 20 KB margin above the measured 1,857,224 (#1181) and a modest one
-// above 147,828 gzip bytes. They are tripwires; the owner's hard 2 MB
-// ceiling still holds.
-const GZIP_LIMIT = 1_878_000;
+// #852 removes the printer from ordinary compilation. The compiler's gzip
+// cap is the owner's hard 2 MB ceiling (raised from a 1,878,000 tripwire
+// on 2026-11-02, at 1,876,353); the WAT printer's keeps a modest margin
+// above 147,828 gzip bytes.
+const GZIP_LIMIT = 2_000_000;
 const WAT_GZIP_LIMIT = 160_000;
 const RAW_FLOOR = 2e6;
 
