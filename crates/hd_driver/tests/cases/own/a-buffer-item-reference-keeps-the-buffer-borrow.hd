@@ -1,0 +1,6 @@
+# @dump: own
+# @build: std
+use std.rt.memory.Buffer
+
+fn element['a, T < ?Copy](buffer: &'a Buffer[T]) -> &'a T:
+    buffer.item_ref(0)
