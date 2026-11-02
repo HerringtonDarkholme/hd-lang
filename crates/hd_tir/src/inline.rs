@@ -130,11 +130,13 @@ pub fn leaf(c: &Body) -> bool {
 }
 
 /// A call to copy ([`inline_calls`]): the caller's `Call` `call` and the
-/// callee's copy `copy` with the call's types. Each parameter in
-/// `by_value` (bit k: parameter k) takes the value its argument, a `Ref`
-/// of the caller's (`crate::own::promote::inline_args`), refers to: the
-/// copy is promoted (`crate::own::promote::promote`), and the `Ref`
-/// becomes a `Read` of its place.
+/// callee's copy `copy` with the call's types. Each parameter in `by_value`
+/// (bit k: parameter k) takes the value its argument refers to. The
+/// argument is a `Ref` of the caller's, or a whole reference carrier
+/// weakened for an explicitly inlined read-only call
+/// (`crate::own::promote::inline_args`): the copy is promoted
+/// (`crate::own::promote::promote`), and the argument becomes a `Read` of
+/// its place.
 pub struct Site {
     pub call: usize,
     pub copy: Body,
@@ -166,8 +168,8 @@ struct Ready {
 /// unchanged.
 ///
 /// # Errors
-/// If the renumbering refuses what that check let through, or a
-/// by-value argument is no `Ref`.
+/// If the renumbering refuses what that check let through, or a by-value
+/// argument is neither a `Ref` nor a supported whole reference carrier.
 pub fn inline_calls(b: &mut Body, sites: Vec<Site>) -> Result<Vec<bool>, String> {
     let mut copied = vec![false; sites.len()];
     let refused = |i: usize| {
@@ -198,13 +200,16 @@ pub fn inline_calls(b: &mut Body, sites: Vec<Site>) -> Result<Vec<bool>, String>
                 .iter()
                 .filter(|p| p.1 < 64 && by_value & (1 << p.1) != 0)
             {
-                let arg = crate::ir::Ref(args[a])
-                    .as_inst()
-                    .filter(|v| b.tags[v.0 as usize] == Tag::Ref);
-                by_value_reads.push((
-                    arg.ok_or("a by-value argument that is no `Ref`")?.0,
-                    r.k.local_ty[l as usize],
-                ));
+                let arg = crate::ir::Ref(args[a]).as_inst().map(|v| v.0 as usize);
+                let arg = arg.ok_or("a by-value argument that is no instruction")?;
+                let source = if b.tags[arg] == Tag::Ref {
+                    (arg, None)
+                } else {
+                    let (value, local) = crate::own::promote::inline_carrier_arg(b, args[a], c)
+                        .ok_or("a by-value argument that is no `Ref` or reference carrier")?;
+                    (value, Some(local))
+                };
+                by_value_reads.push((source.0, source.1, r.k.local_ty[l as usize]));
             }
             copied[s] = true;
             ready.push(r);
@@ -226,11 +231,16 @@ pub fn inline_calls(b: &mut Body, sites: Vec<Site>) -> Result<Vec<bool>, String>
     renumber_through(b, fin, 0)?;
     // Rows keep their places until the permutation below.
     let mut unaddressed = Vec::new();
-    for (i, ty) in by_value_reads {
-        b.tags[i as usize] = Tag::Read;
-        b.data[i as usize][1] = crate::ir::ReadMode::Use as u32;
-        b.ty[i as usize] = ty;
-        unaddressed.extend(b.view(b.data[i as usize][0]).local());
+    for (i, carrier, ty) in by_value_reads {
+        if let Some(local) = carrier {
+            b.data[i][0] = push_record(b, &[place::ROOT_LOCAL, local, place::PROJ_DEREF]);
+        }
+        b.tags[i] = Tag::Read;
+        b.data[i][1] = crate::ir::ReadMode::Use as u32;
+        b.ty[i] = ty;
+        if carrier.is_none() {
+            unaddressed.extend(b.view(b.data[i][0]).local());
+        }
     }
     if b.anchors.is_empty() {
         b.anchors = (0..u32_of(n)).collect();

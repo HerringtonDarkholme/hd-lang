@@ -1,0 +1,19 @@
+# @dump: own counts
+# expected: `copied` has the same count operations as `direct`: none.
+# An `@inline(.Always)` copy of a read-only receiver must keep borrowing
+# its counted field instead of counting a parameter carrier (#1229).
+use std.annotation.inline
+
+struct Holder:
+    items: List[string]
+
+impl Holder:
+    @inline(.Always)
+    fn length(&self) -> usize:
+        self.items.len()
+
+fn direct(holder: *mut Holder) -> usize:
+    holder.items.len()
+
+fn copied(holder: *mut Holder) -> usize:
+    holder.length()

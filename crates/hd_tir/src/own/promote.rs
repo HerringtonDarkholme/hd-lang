@@ -297,12 +297,16 @@ fn lent_ref(b: &Body, i: usize, user: usize) -> Option<Steps> {
 /// `hd_tir::inline::Site::by_value`: a lent `Ref` of a part of a local
 /// as [`promotable_args`] takes, or, for an argument in `relaxed`, of an
 /// element of a list the local holds or of what a reference reaches from
-/// it (`xs[i].len()`, `self.s.len()` in a `&self` method). The inliner
+/// it (`xs[i].len()`, `self.s.len()` in a `&self` method), or a whole
+/// reference carrier weakened for a read-only call (`&mut self` passed to
+/// `&self`). The inliner
 /// relaxes the arguments whose referents hold counted parts, where the
 /// reference would pin the list or count the referent and the value read
 /// borrows instead. The copy reads the place once, at the `Ref`, where
 /// the plain callee would read it through the reference at each use; the
-/// two agree while nothing writes it in between. Only the local's own
+/// `carriers` marks the relaxed arguments whose values are reference
+/// carriers rather than values that merely hold counted parts. The two
+/// agree while nothing writes it in between. Only the local's own
 /// instructions write a local's list, and a local no closure captures is
 /// the caller's alone; a place behind a dereference may change by an
 /// alias, so its argument counts only when no instruction from its `Ref`
@@ -314,6 +318,7 @@ pub fn inline_args(
     b: &Body,
     call: usize,
     relaxed: u64,
+    carriers: u64,
     copy_writes: bool,
     may_write: &dyn Fn(&crate::ir::Callee) -> bool,
 ) -> u64 {
@@ -333,9 +338,46 @@ pub fn inline_args(
                     Some(Steps::Deref) => {
                         !copy_writes && !super::writes_in(b, i + 1..call, may_write)
                     }
-                    None => false,
+                    None => {
+                        relaxed & carriers & 1 << k != 0
+                            && inline_carrier_arg(b, v, call).is_some_and(|(at, _)| {
+                                !copy_writes && !super::writes_in(b, at + 1..call, may_write)
+                            })
+                    }
                 }
             })
         })
         .fold(0, |mask, (k, _)| mask | 1 << k)
+}
+
+/// A call argument that reads a whole reference carrier, optionally through
+/// same-value coercions such as weakening `&mut T` to `&T`: the outer value
+/// to replace with a read of the referent, and the carrier local. The outer
+/// value belongs only to `user` (apart from drops), so replacing it does not
+/// change another use.
+#[must_use]
+pub(crate) fn inline_carrier_arg(b: &Body, value: u32, user: usize) -> Option<(usize, u32)> {
+    let outer = Ref(value).as_inst()?.0 as usize;
+    let mut source = outer;
+    while b.tags.get(source) == Some(&Tag::Coerce) && b.same_value_coercion(source) {
+        source = Ref(b.data[source][0]).as_inst()?.0 as usize;
+    }
+    let local = (b.tags.get(source) == Some(&Tag::Read))
+        .then(|| b.local_read(source))
+        .flatten()?;
+    let mut ops = Vec::new();
+    let mut seen = 0;
+    for j in 0..b.len() {
+        super::operands(b, j, &mut ops);
+        let n = ops.iter().filter(|o| o.value as usize == outer).count();
+        if n == 0 {
+            continue;
+        }
+        if j == user {
+            seen += n;
+        } else if b.tags[j] != Tag::Drop {
+            return None;
+        }
+    }
+    (seen == 1).then_some((outer, local.raw()))
 }

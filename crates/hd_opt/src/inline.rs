@@ -170,20 +170,31 @@ impl dyn InlineEnv + '_ {
             }
             // A callee that takes references fits only by taking them by
             // value (`fits`), which needs each argument to be a `Ref` of
-            // a place the copy may read once (`inline_args`).
-            let by_value = if self.inline_hint(def) == InlineHint::Default
-                && self.takes_reference(def, targs)
-            {
+            // a place the copy may read once, or for an explicit hint a
+            // whole reference carrier the copy only reads through
+            // (`inline_args`).
+            let hint = self.inline_hint(def);
+            let by_value = if self.takes_reference(def, targs) {
                 let may_write = |c: &Callee| self.call_may_write(c);
-                let Some((mask, counted)) = self.by_value(def, targs, &copy) else {
-                    continue;
-                };
-                let writes = hd_tir::own::writes_in(&copy, 0..copy.len(), &may_write);
-                let args = hd_tir::own::promote::inline_args(body, c, counted, writes, &may_write);
-                if args & mask != mask {
-                    continue;
+                let promoted = self
+                    .by_value(def, targs, &copy)
+                    .and_then(|(mask, counted)| {
+                        let writes = hd_tir::own::writes_in(&copy, 0..copy.len(), &may_write);
+                        let carriers = if hint == InlineHint::Default {
+                            0
+                        } else {
+                            self.reference_args(body, c)
+                        };
+                        let args = hd_tir::own::promote::inline_args(
+                            body, c, counted, carriers, writes, &may_write,
+                        );
+                        (args & mask == mask).then_some(mask)
+                    });
+                match promoted {
+                    Some(mask) => mask,
+                    None if hint == InlineHint::Default => continue,
+                    None => 0,
                 }
-                mask
             } else {
                 0
             };
@@ -487,6 +498,26 @@ impl dyn InlineEnv + '_ {
             }
         }
         Some(refs)
+    }
+
+    /// The arguments of call `c` whose lowered value is a reference
+    /// carrier. Explicitly inlined read-only callees may read the referent
+    /// from one instead of copying that carrier (#1229).
+    fn reference_args(&self, body: &Body, c: usize) -> u64 {
+        let args = body.record(body.data[c][1]);
+        let args = &args[..args.len().saturating_sub(3)];
+        args.iter()
+            .enumerate()
+            .take(64)
+            .filter(|&(_, &a)| {
+                Ref(a).as_inst().is_some_and(|i| {
+                    let t = body.ty[i.0 as usize];
+                    matches!(self.pool().get(t), TyData::Ref { .. })
+                        || matches!(self.pool().get(t), TyData::Adt { def, .. } if self.ref_cells().holds(def))
+                        || self.reference(t)
+                })
+            })
+            .fold(0, |mask, (k, _)| mask | 1 << k)
     }
 
     /// Whether `copy`, a callee's body at the types of call `c` of
