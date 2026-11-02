@@ -264,11 +264,12 @@ impl dyn InlineEnv + '_ {
     /// The copy a call of `def` at `targs` inlines, at the call's types,
     /// and its hash (`inline_callee`). A copy is built bottom-up:
     /// the instance's own calls are copied first, as far as their callees
-    /// allow, and the limit applies to the result, so a function that only
-    /// wraps a call of a leaf is a leaf itself once that call is a copy. A
-    /// copy that outgrows the limit that way is the instance as written,
-    /// when that fits. A function on a cycle of calls the walk finds stays
-    /// a call. Each instance is made once per release run; a dev build
+    /// allow. The automatic limit applies to the result, so a function that
+    /// only wraps a call of a leaf is a leaf itself once that call is a copy.
+    /// An explicit hint applies its limit to the declaration as written,
+    /// then honors explicit hints inside its copy even when they grow it.
+    /// A function on a cycle of calls the walk finds stays a call. Each
+    /// instance is made once per release run; a dev build
     /// makes one per explicit call site. Dev builds consider only explicitly
     /// decorated user functions; release builds also consider ordinary user
     /// functions.
@@ -299,6 +300,9 @@ impl dyn InlineEnv + '_ {
                 return None;
             }
             match nested {
+                Some((nested, h)) if fits && self.inline_hint(def) != InlineHint::Default => {
+                    Some((nested, h))
+                }
                 Some((nested, h)) if self.fits(def, targs, &nested) => Some((nested, h)),
                 _ => fits.then_some((copy, hash)),
             }
