@@ -1,8 +1,8 @@
 # test: Deque and Heap operation sequences agree with independent List models
 # Spec std/collections: std-collections.deque.push, std-collections.deque.pop,
-# std-collections.deque.ends, std-collections.deque.get, std-collections.deque.iter,
+# std-collections.deque.ends-copy, std-collections.deque.get-copy, std-collections.deque.iter,
 # std-collections.deque.collect, std-collections.heap.push, std-collections.heap.pop,
-# std-collections.heap.peek, std-collections.heap.sorted, std-collections.heap.collect.
+# std-collections.heap.peek-copy, std-collections.heap.sorted, std-collections.heap.collect.
 use std.collections.{Deque, Heap}
 use std.testing.{Choices, assert_equal, it_each, it_prop_with}
 
@@ -33,25 +33,19 @@ fn small(c: &mut Choices) -> i32:
 
 fn queue_cases(c: &mut Choices) -> QueueCase:
     initial := c.list(12, small)
-    operations := c.list(
-        128,
-        fn(inner: &mut Choices) -> QueueOp:
-            match inner.int(0..=3):
-                0 => .Front(small(inner))
-                1 => .Back(small(inner))
-                2 => .PopFront
-                _ => .PopBack
-        ,
+    operations := c.list(128, fn(inner: &mut Choices) -> QueueOp:
+        match inner.int(0..=3):
+            0 => .Front(small(inner))
+            1 => .Back(small(inner))
+            2 => .PopFront
+            _ => .PopBack
     )
     QueueCase { initial: initial, operations: operations }
 
 fn heap_cases(c: &mut Choices) -> HeapCase:
     initial := c.list(48, small)
-    operations := c.list(
-        128,
-        fn(inner: &mut Choices) -> HeapOp:
-            if inner.bool(): .Push(small(inner)) else: .Pop
-        ,
+    operations := c.list(128, fn(inner: &mut Choices) -> HeapOp:
+        if inner.bool(): .Push(small(inner)) else: .Pop
     )
     HeapCase { initial: initial, operations: operations }
 
@@ -68,11 +62,11 @@ fn last(items: List[i32]) -> i32?:
 fn check_queue(queue: &Deque[i32], model: List[i32]) -> void:
     assert_equal(queue.len(), model.len(), reason="deque length follows the sequence model")
     assert_equal(queue.is_empty(), model.is_empty(), reason="deque emptiness follows its length")
-    assert_equal(queue.front().copied(), model.get(0).copied(), reason="front reads without removing")
-    assert_equal(queue.back().copied(), last(model), reason="back reads without removing")
+    assert_equal(queue.front(), model.get(0), reason="front reads without removing")
+    assert_equal(queue.back(), last(model), reason="back reads without removing")
     for index in 0..model.len():
         assert_equal(
-            queue.get(index).copied(),
+            queue.get(index),
             .Some(model[index]),
             reason="indexed elements count from the front",
         )
@@ -95,7 +89,7 @@ fn check_queue_case(case: QueueCase) -> void:
             .PopFront =>
                 assert_equal(
                     queue.pop_front(),
-                    model.get(0).copied(),
+                    model.get(0),
                     reason="pop_front removes the first sequence element",
                 )
                 if !model.is_empty():
@@ -112,7 +106,7 @@ fn check_queue_case(case: QueueCase) -> void:
     let front = true
     while !model.is_empty():
         if front:
-            assert_equal(queue.pop_front(), model.get(0).copied(), reason="drain from the front")
+            assert_equal(queue.pop_front(), model.get(0), reason="drain from the front")
             model = slice(model, 1, model.len())
         else:
             assert_equal(queue.pop_back(), last(model), reason="drain from the back")
@@ -151,7 +145,7 @@ fn check_heap(heap: &Heap[i32], model: List[i32]) -> void:
         reason="heap length counts every value, including duplicates",
     )
     assert_equal(heap.is_empty(), model.is_empty(), reason="heap emptiness follows its length")
-    assert_equal(heap.peek().copied(), last(model), reason="peek reads a largest model value")
+    assert_equal(heap.peek(), last(model), reason="peek reads a largest model value")
     assert_equal(
         heap.to_sorted_list(),
         model,
@@ -206,7 +200,6 @@ tests:
         gen=queue_cases,
         cases=100,
         prop=fn!(case: QueueCase): check_queue_case(case)
-        ,
     )
 
     it_prop_with(
@@ -214,7 +207,6 @@ tests:
         gen=heap_cases,
         cases=100,
         prop=fn!(case: HeapCase): check_heap_case(case)
-        ,
     )
 
     it_each(
@@ -228,25 +220,20 @@ tests:
             wrapping_case(0, 5, 129),
         ],
         body=fn!(case: QueueCase): check_queue_case(case)
-        ,
     )
 
-    it_each(
-        "heap empty duplicates growth and extreme values",
-        [
-            [],
-            [+7],
-            [+3, 3, 3, 3, 3, 3],
-            [-2147483648i32, 2147483647i32, 0, -2147483648i32, 2147483647i32],
-            [for index in 0..129 => i32(index)],
-            [for index in 0..129 => 128 - i32(index)],
-        ],
-        body=fn!(initial: List[i32]):
-            let mut operations: List[HeapOp] = [.Pop]
-            for index in 0..65:
-                operations.push(.Push(i32(index % 7) - 3))
-                if index % 3 == 0:
-                    operations.push(.Pop)
-            check_heap_case(HeapCase { initial: initial, operations: operations })
-        ,
+    it_each("heap empty duplicates growth and extreme values", [
+        [],
+        [+7],
+        [+3, 3, 3, 3, 3, 3],
+        [-2147483648i32, 2147483647i32, 0, -2147483648i32, 2147483647i32],
+        [for index in 0..129 => i32(index)],
+        [for index in 0..129 => 128 - i32(index)],
+    ], body=fn!(initial: List[i32]):
+        let mut operations: List[HeapOp] = [.Pop]
+        for index in 0..65:
+            operations.push(.Push(i32(index % 7) - 3))
+            if index % 3 == 0:
+                operations.push(.Pop)
+        check_heap_case(HeapCase { initial: initial, operations: operations })
     )

@@ -1270,7 +1270,7 @@ impl Deserializer for MessageFormReader:
         self.values = match self.groups.get(self.path):
             .Some(values) => values
             .None => []
-        self.current = self.values.get(0).copied()
+        self.current = self.values.get(0)
         .Ok(())
     fn end_variant(&mut self) -> Result[void, FormError]:
         if self.tagged:
@@ -1289,9 +1289,7 @@ impl Deserializer for MessageFormReader:
 fn message_form_decode[T < Deserialize](pairs: &List[(string, string)]) -> Result[T, FormError]:
     let mut groups: Map[string, List[string]] = {}
     for (key, value) in pairs:
-        match groups.get_mut(key):
-            .Some(values) => values.push(value)
-            .None => groups[key] = [value]
+        groups.get_or_insert(key, []).push(value)
     let mut reader = MessageFormReader { groups: groups }
     T::deserialize(&mut reader)
 

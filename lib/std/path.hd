@@ -50,7 +50,7 @@ impl Path:
     pub fn file_name(&self) -> string?:
         match components(string(*self)).last():
             .Some(name) =>
-                if *name == "." || *name == "..": .None else: .Some(*name)
+                if name == "." || name == "..": .None else: .Some(name)
             .None => .None
 
     # The text after the last `.` of the file name, none when the name has no
@@ -63,7 +63,7 @@ impl Path:
                 pieces := name.split(".")
                 if pieces.len() < 2 || (pieces.len() == 2 && pieces[0] == ""):
                     return .None
-                pieces.last().copied()
+                pieces.last()
             .None => .None
 
     # The file name without its extension: the name up to the last `.`, or the

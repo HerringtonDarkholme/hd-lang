@@ -4,9 +4,8 @@
 //! count of the buffer, and a shared one makes the buffer neither unique
 //! nor pinned.
 //!
-//! An **origin** is a shared map probe (`get_ref`), a `get_or_insert` probe,
-//! or a shared `Ref` of an element of a local's list, as an inlined
-//! `List.get`, `first` or `last` makes one. Its **holders** are the values
+//! An **origin** is a reference-returning `map_probe` intrinsic or a shared
+//! `Ref` of an element of a local's list. Its **holders** are the values
 //! and locals its reference flows into: a variant built around it, a
 //! block's tail its owner takes, a `break` value's target, a coercion
 //! that keeps its values, a local stored once from it, and a read of a

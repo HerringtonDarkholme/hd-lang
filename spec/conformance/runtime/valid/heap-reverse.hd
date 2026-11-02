@@ -9,7 +9,7 @@ tests:
         let mut heap: Heap[Reverse[i32]] = Heap::new()
         for value in [+5, 1, 8, 3]:
             heap.push(Reverse { value: value })
-        assert_equal(heap.peek().copied(), .Some(Reverse { value: 1 }), reason="peek")
+        assert_equal(heap.peek(), .Some(Reverse { value: 1 }), reason="peek")
         let mut popped: List[i32] = []
         while !heap.is_empty():
             match heap.pop():

@@ -39,7 +39,7 @@ impl Lookup for Squares:
         out
 
 fn first_key[L < Lookup](table: L) -> L::Key?:
-    table.keys().first().copied()
+    table.keys().first()
 
 pub fn main() -> void $ Console:
     let table: &dyn Lookup[Key = i32, Value = string] = &Squares { size: 3 }

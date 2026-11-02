@@ -1,12 +1,8 @@
-# test: List and Map mutable accessors update stored elements in place
-# std Collections: std-collections.access.get-mut, .first-mut, .last-mut; std-collections.map.get-mut.
+# test: List element places and Map.get_or_insert update stored elements in place
+# Spec 13 Element References: ref.elem.list; std Collections: std-collections.map.get-or-insert.
 fn adjust(items: &mut List[i32], stock: &mut Map[string, i32]) -> void:
-    match items.get_mut(1):
-        .Some(value) => *value += 10
-        .None => pass
-    match stock.get_mut("tea"):
-        .Some(count) => *count += 1
-        .None => pass
+    items[1] += 10
+    *stock.get_or_insert("tea", 0) += 1
 
 tests:
     use std.testing.assert_equal
@@ -18,20 +14,13 @@ tests:
         assert_equal(items, [1, 12, 3])
         assert_equal(stock["tea"], 5)
 
-    it("returns the first and last elements"):
+    it("updates the first and last elements"):
         let mut items = [+1, 2, 3]
-        match items.first_mut():
-            .Some(first) => *first += 10
-            .None => pass
-        match items.last_mut():
-            .Some(last) => *last += 20
-            .None => pass
+        items[0] += 10
+        items[items.len() - 1] += 20
         assert_equal(items, [11, 2, 23])
 
-    it("returns none for missing elements"):
-        let mut items: List[i32] = []
+    it("inserts a missing map element"):
         let mut stock: Map[string, i32] = {}
-        assert_equal(items.get_mut(0).is_none(), true)
-        assert_equal(items.first_mut().is_none(), true)
-        assert_equal(items.last_mut().is_none(), true)
-        assert_equal(stock.get_mut("tea").is_none(), true)
+        *stock.get_or_insert("tea", +4) += 1
+        assert_equal(stock["tea"], +5)

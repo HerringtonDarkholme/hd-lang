@@ -21,4 +21,4 @@ fn checksum(input: &List[u8]) -> u64:
 # A small reader: prefer a copy of its body at each call.
 @inline
 fn first(input: &List[u8]) -> u8:
-    input.get(0).copied().unwrap_or(0)
+    input.get(0).unwrap_or(0)

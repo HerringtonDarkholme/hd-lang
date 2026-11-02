@@ -430,7 +430,7 @@ impl Em<'_, '_, '_> {
                 .all(|&i| self.preserves_map_probe(i, map))
     }
 
-    /// The preceding `MapGet`, `MapEntry` or `get_ref`/`get_mut` probe
+    /// The preceding `MapGet`, `MapEntry` or reference-returning `map_probe`
     /// whose hash and entry a `MapSet` may reuse. Both operations must be statements of
     /// one block, name equivalent reads of the map and key, and have no
     /// possibly-changing statement between them.

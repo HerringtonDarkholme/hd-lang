@@ -52,7 +52,7 @@ use std.console.{ConsoleInput, read_line}
 use std.host.{Args, args}
 
 pub fn main!() -> Result[void, ConsoleError] $ Console + ConsoleInput + Args:
-    prefix := match args().get(0).copied():
+    prefix := match args().get(0):
         .Some(word) => word
         .None => ">"
     let lines: usize = 0
@@ -194,7 +194,7 @@ fn discounted(cents: i32, percent: i32) -> i32:
 
 fn first_or[T](items: List[T], fallback: T) -> T:
     match items.get(0):
-        .Some(item) => *item   # get gives (&T)?
+        .Some(item) => item
         .None => fallback
 
 fn audited(log: &mut List[string]) -> i32:
@@ -498,7 +498,6 @@ the code `hd check` reports today.
 | `fn main()` with no `pub` | `private-main` from `hd lint`; `hd run` reports `missing-entry-point` | `pub fn main()` |
 | `pub fn main()` calling `read_line!()` | `bang-call-outside-suspension` | `pub fn main!()` |
 | `?` in `main!() -> void` | `invalid-result-propagation` | `-> Result[void, ConsoleError]`, end with `.Ok(())` |
-| `xs.get(i)` or `xs.first()` used as a `T?` | `type-mismatch` (`found &T?`) | List accessors return `(&T)?`: add `.copied()`, or `*item` in a match arm |
 | `$ Console, Clock` | `syntax-error` | `$ Console + Clock` |
 | `let i = 0` compared with an `i32` | `mixed-signedness` | `let i = +0`, or `let i: i32 = 0` |
 | an `i32` counter (`+0`) plus `len()` or another `usize` | `mixed-signedness` (no hint) | keep counters `usize` (`0`), or convert explicitly: `i32(n)` |

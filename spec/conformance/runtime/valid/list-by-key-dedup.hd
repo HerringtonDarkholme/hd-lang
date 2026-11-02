@@ -1,5 +1,5 @@
 # test: min_by_key and max_by_key keep the first of equal keys, dedup cuts runs of equal neighbours, and unique keeps first occurrences
-# Spec std/collections List Helpers: std-collections.helper.by-key.first, .dedup, and .unique.
+# Spec std/collections List Helpers: std-collections.helper.by-key.copy-first, .dedup, and .unique.
 struct Order:
     customer: string
     cents: i64
@@ -20,29 +20,27 @@ tests:
             Order { customer: "di", cents: 50 },
         ]
         assert_equal(
-            customer(orders.max_by_key(fn(o: &Order) -> i64: o.cents).copied()),
+            customer(orders.max_by_key(fn(o: &Order) -> i64: o.cents)),
             "bo",
             reason="the first largest",
         )
         assert_equal(
-            customer(orders.min_by_key(fn(o: &Order) -> i64: o.cents).copied()),
+            customer(orders.min_by_key(fn(o: &Order) -> i64: o.cents)),
             "al",
             reason="the first smallest",
         )
     it("by key on an empty list gives .None"):
         let none: List[Order] = []
-        assert_equal(customer(none.max_by_key(fn(o: &Order) -> i64: o.cents).copied()), "none", reason="max")
-        assert_equal(customer(none.min_by_key(fn(o: &Order) -> i64: o.cents).copied()), "none", reason="min")
+        assert_equal(customer(none.max_by_key(fn(o: &Order) -> i64: o.cents)), "none", reason="max")
+        assert_equal(customer(none.min_by_key(fn(o: &Order) -> i64: o.cents)), "none", reason="min")
     it("by key calls key once per element"):
         let calls = 0
         words := ["bb", "a", "ccc"]
-        longest := words.max_by_key(
-            fn(w: &string) -> usize:
-                calls = calls + 1
-                w.len()
-            ,
+        longest := words.max_by_key(fn(w: &string) -> usize:
+            calls = calls + 1
+            w.len()
         )
-        assert_equal(longest.copied(), .Some("ccc"), reason="the longest")
+        assert_equal(longest, .Some("ccc"), reason="the longest")
         assert_equal(calls, 3, reason="once each")
     it("dedup cuts only adjacent duplicates"):
         assert_equal(

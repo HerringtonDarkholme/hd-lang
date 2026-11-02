@@ -113,16 +113,11 @@ impl[T] List[T]:
                 kept.push(item)
         kept
 
-    # The checked read beside `items[i]` (r-std-collections.access.get).
-    ## Returns `.Some` of a reference to the element at `index`, or `.None` when `index` is not less than `len()`. It never panics.
-    ## See [std-collections.access.get](../../spec/std/collections.md#r-std-collections.access.get).
-    pub fn get(&self, index: usize) -> (&T)?:
-        if index >= self.len(): .None else: .Some(&self[index])
-
-    ## Returns a mutable reference to the element at `index`, or `.None` when `index` is not less than `len()`. It never panics.
-    ## See [std-collections.access.get-mut](../../spec/std/collections.md#r-std-collections.access.get-mut).
-    pub fn get_mut(&mut self, index: usize) -> (&mut T)?:
-        if index >= self.len(): .None else: .Some(&mut self[index])
+    # The checked read beside `items[i]` (r-std-collections.access.get-copy).
+    ## Returns `.Some` of a copy of the element at `index`, or `.None` when `index` is not less than `len()`. It never panics.
+    ## See [std-collections.access.get-copy](../../spec/std/collections.md#r-std-collections.access.get-copy).
+    pub fn get(&self, index: usize) -> T?:
+        if index >= self.len(): .None else: .Some(self[index])
 
     ## True exactly when the list has no elements.
     ## See [std-collections.access.is-empty](../../spec/std/collections.md#r-std-collections.access.is-empty).
@@ -147,25 +142,15 @@ impl[T] List[T]:
     pub fn extend(&mut self, other: List[T]) -> void:
         list_extend(self, other)
 
-    ## Returns a reference to the first element in `.Some`, or `.None` for an empty list.
-    ## See [std-collections.access.first-last](../../spec/std/collections.md#r-std-collections.access.first-last).
-    pub fn first(&self) -> (&T)?:
-        if self.len() == 0: .None else: .Some(&self[0])
+    ## Returns a copy of the first element in `.Some`, or `.None` for an empty list.
+    ## See [std-collections.access.first-last-copy](../../spec/std/collections.md#r-std-collections.access.first-last-copy).
+    pub fn first(&self) -> T?:
+        if self.len() == 0: .None else: .Some(self[0])
 
-    ## Returns a mutable reference to the first element, or `.None` for an empty list.
-    ## See [std-collections.access.first-mut](../../spec/std/collections.md#r-std-collections.access.first-mut).
-    pub fn first_mut(&mut self) -> (&mut T)?:
-        if self.len() == 0: .None else: .Some(&mut self[0])
-
-    ## Returns a reference to the last element in `.Some`, or `.None` for an empty list.
-    ## See [std-collections.access.first-last](../../spec/std/collections.md#r-std-collections.access.first-last).
-    pub fn last(&self) -> (&T)?:
-        if self.len() == 0: .None else: .Some(&self[self.len() - 1])
-
-    ## Returns a mutable reference to the last element, or `.None` for an empty list.
-    ## See [std-collections.access.last-mut](../../spec/std/collections.md#r-std-collections.access.last-mut).
-    pub fn last_mut(&mut self) -> (&mut T)?:
-        if self.len() == 0: .None else: .Some(&mut self[self.len() - 1])
+    ## Returns a copy of the last element in `.Some`, or `.None` for an empty list.
+    ## See [std-collections.access.first-last-copy](../../spec/std/collections.md#r-std-collections.access.first-last-copy).
+    pub fn last(&self) -> T?:
+        if self.len() == 0: .None else: .Some(self[self.len() - 1])
 
     ## Returns a new list of the elements in reverse order.
     ## See [std-collections.access.reversed](../../spec/std/collections.md#r-std-collections.access.reversed).
@@ -363,13 +348,13 @@ impl[T] List[T]:
                 return false
         true
 
-    ## Returns a reference to the first element for which `test` is true, in `.Some`, or `.None`.
-    ## See [std-collections.helper.find](../../spec/std/collections.md#r-std-collections.helper.find).
-    pub fn find(&self, test: fn(&T) -> bool) -> (&T)?:
+    ## Returns a copy of the first element for which `test` is true, in `.Some`, or `.None`.
+    ## See [std-collections.helper.find-copy](../../spec/std/collections.md#r-std-collections.helper.find-copy).
+    pub fn find(&self, test: fn(&T) -> bool) -> T?:
         let index: usize = 0
         while index < self.len():
             if test(&self[index]):
-                return .Some(&self[index])
+                return .Some(self[index])
             index = index + 1
         .None
 
@@ -421,7 +406,7 @@ impl[T < Eq] List[T]:
     pub fn dedup(self) -> List[T]:
         let mut kept: List[T] = []
         for item in self:
-            match kept.last().copied():
+            match kept.last():
                 .Some(previous) =>
                     if previous != item:
                         kept.push(item)
@@ -452,9 +437,9 @@ impl[T < Ord] List[T]:
         *self = self.sorted()
 
     # The first of the smallest elements.
-    ## Returns a reference to the first smallest element by `Ord` in `.Some`, or `.None` for an empty list.
-    ## See [std-collections.helper.min-max.first](../../spec/std/collections.md#r-std-collections.helper.min-max.first).
-    pub fn min(&self) -> (&T)?:
+    ## Returns a copy of the first smallest element by `Ord` in `.Some`, or `.None` for an empty list.
+    ## See [std-collections.helper.min-max.copy-first](../../spec/std/collections.md#r-std-collections.helper.min-max.copy-first).
+    pub fn min(&self) -> T?:
         if self.len() == 0:
             return .None
         let best: usize = 0
@@ -463,12 +448,12 @@ impl[T < Ord] List[T]:
             if before(self[index], self[best]):
                 best = index
             index = index + 1
-        .Some(&self[best])
+        .Some(self[best])
 
     # The first of the largest elements, as Python's `max` gives.
-    ## Returns a reference to the first largest element by `Ord` in `.Some`, or `.None` for an empty list.
-    ## See [std-collections.helper.min-max.first](../../spec/std/collections.md#r-std-collections.helper.min-max.first).
-    pub fn max(&self) -> (&T)?:
+    ## Returns a copy of the first largest element by `Ord` in `.Some`, or `.None` for an empty list.
+    ## See [std-collections.helper.min-max.copy-first](../../spec/std/collections.md#r-std-collections.helper.min-max.copy-first).
+    pub fn max(&self) -> T?:
         if self.len() == 0:
             return .None
         let best: usize = 0
@@ -477,7 +462,7 @@ impl[T < Ord] List[T]:
             if before(self[best], self[index]):
                 best = index
             index = index + 1
-        .Some(&self[best])
+        .Some(self[best])
 
 impl[T < Eq & Hash] List[T]:
     ## Returns the list with each element after its first occurrence dropped, in list order.
@@ -491,11 +476,11 @@ impl[T < Eq & Hash] List[T]:
         kept
 
 # The by-key extremes keep the first of equal keys, as `min` and `max` do
-# (r-std-collections.helper.by-key.first).
+# (r-std-collections.helper.by-key.copy-first).
 impl[T] List[T]:
-    ## Returns a reference to the first element with the smallest `key` by `Ord` in `.Some`, or `.None` for an empty list.
-    ## See [std-collections.helper.by-key.first](../../spec/std/collections.md#r-std-collections.helper.by-key.first).
-    pub fn min_by_key[K < Ord](&self, key: fn(&T) -> K) -> (&T)?:
+    ## Returns a copy of the first element with the smallest `key` by `Ord` in `.Some`, or `.None` for an empty list.
+    ## See [std-collections.helper.by-key.copy-first](../../spec/std/collections.md#r-std-collections.helper.by-key.copy-first).
+    pub fn min_by_key[K < Ord](&self, key: fn(&T) -> K) -> T?:
         if self.len() == 0:
             return .None
         let best: usize = 0
@@ -507,11 +492,11 @@ impl[T] List[T]:
                 best = index
                 best_key = item_key
             index = index + 1
-        .Some(&self[best])
+        .Some(self[best])
 
-    ## Returns a reference to the first element with the largest `key` by `Ord` in `.Some`, or `.None` for an empty list.
-    ## See [std-collections.helper.by-key.first](../../spec/std/collections.md#r-std-collections.helper.by-key.first).
-    pub fn max_by_key[K < Ord](&self, key: fn(&T) -> K) -> (&T)?:
+    ## Returns a copy of the first element with the largest `key` by `Ord` in `.Some`, or `.None` for an empty list.
+    ## See [std-collections.helper.by-key.copy-first](../../spec/std/collections.md#r-std-collections.helper.by-key.copy-first).
+    pub fn max_by_key[K < Ord](&self, key: fn(&T) -> K) -> T?:
         if self.len() == 0:
             return .None
         let best: usize = 0
@@ -523,7 +508,7 @@ impl[T] List[T]:
                 best = index
                 best_key = item_key
             index = index + 1
-        .Some(&self[best])
+        .Some(self[best])
 
 # Whether `left` orders before `right`.
 fn before[T < Ord](left: T, right: T) -> bool:
@@ -545,18 +530,6 @@ pub fn counts[T < Eq & Hash](items: List[T]) -> Map[T, usize]:
 # (spec/std/collections.md#map-methods). `keys` and `values` copy into new
 # lists, so a later change to the map does not show in them.
 impl[K < Eq & Hash, V] Map[K, V]:
-    ## Returns `.Some` of a reference to the value for `key`, or `.None` when the map has no equal key.
-    ## See [std-collections.map.get-ref](../../spec/std/collections.md#r-std-collections.map.get-ref).
-    @intrinsic("map_probe")
-    pub fn get_ref(&self, key: K) -> (&V)?:
-        panic("intrinsic")
-
-    ## Returns a mutable reference to the value for `key`, or `.None` when the map has no equal key.
-    ## See [std-collections.map.get-mut](../../spec/std/collections.md#r-std-collections.map.get-mut).
-    @intrinsic("map_probe")
-    pub fn get_mut(&mut self, key: K) -> (&mut V)?:
-        panic("intrinsic")
-
     ## Returns a mutable reference to the value for `key`; when the map has no equal key, inserts `default` first.
     ## See [std-collections.map.get-or-insert](../../spec/std/collections.md#r-std-collections.map.get-or-insert).
     @intrinsic("map_probe")
@@ -861,24 +834,24 @@ impl[T] Deque[T]:
         self.count = self.count - 1
         value
 
-    ## Returns a reference to the front element without removing it, or `.None` when the deque is empty.
-    ## See [std-collections.deque.ends](../../spec/std/collections.md#r-std-collections.deque.ends).
-    pub fn front(&self) -> (&T)?:
+    ## Returns a copy of the front element without removing it, or `.None` when the deque is empty.
+    ## See [std-collections.deque.ends-copy](../../spec/std/collections.md#r-std-collections.deque.ends-copy).
+    pub fn front(&self) -> T?:
         self.get(0)
 
-    ## Returns a reference to the back element without removing it, or `.None` when the deque is empty.
-    ## See [std-collections.deque.ends](../../spec/std/collections.md#r-std-collections.deque.ends).
-    pub fn back(&self) -> (&T)?:
+    ## Returns a copy of the back element without removing it, or `.None` when the deque is empty.
+    ## See [std-collections.deque.ends-copy](../../spec/std/collections.md#r-std-collections.deque.ends-copy).
+    pub fn back(&self) -> T?:
         if self.count == 0: .None else: self.get(self.count - 1)
 
     # The element `index` places from the front; `.None` out of range
-    # (r-std-collections.deque.get).
-    ## Returns a reference to the element `index` places from the front in `.Some`, so `get(0)` is the front. An `index` that is not less than `len` gives `.None`.
-    ## See [std-collections.deque.get](../../spec/std/collections.md#r-std-collections.deque.get).
-    pub fn get(&self, index: usize) -> (&T)?:
+    # (r-std-collections.deque.get-copy).
+    ## Returns a copy of the element `index` places from the front in `.Some`, so `get(0)` is the front. An `index` that is not less than `len` gives `.None`.
+    ## See [std-collections.deque.get-copy](../../spec/std/collections.md#r-std-collections.deque.get-copy).
+    pub fn get(&self, index: usize) -> T?:
         if index >= self.count:
             return .None
-        self.slots[self.slot(index)].as_ref()
+        self.slots[self.slot(index)]
 
     # The slot `offset` places after the front, wrapping at the end.
     fn slot(&self, offset: usize) -> usize:
@@ -918,7 +891,7 @@ impl[T] Iterator[T] for DequeIter[T]:
         if self.at >= self.deque.count:
             return .None
         self.at = self.at + 1
-        self.deque.get(self.at - 1).copied()
+        self.deque.get(self.at - 1)
 
 # Collect directly into the ring buffer, in front-to-back order.
 # See r-std-collections.deque.collect.
@@ -942,7 +915,7 @@ impl[T < Eq] Eq for Deque[T]:
             return false
         let index: usize = 0
         while index < self.count:
-            if self.get(index).copied() != other.get(index).copied():
+            if self.get(index) != other.get(index):
                 return false
             index = index + 1
         true
@@ -1125,9 +1098,9 @@ impl[T < Ord] Heap[T]:
             parent = larger
         self.items[parent] = value
 
-    ## Returns a reference to a largest element without removing it, or `.None` when the heap is empty.
-    ## See [std-collections.heap.peek](../../spec/std/collections.md#r-std-collections.heap.peek).
-    pub fn peek(&self) -> (&T)?:
+    ## Returns a copy of a largest element without removing it, or `.None` when the heap is empty.
+    ## See [std-collections.heap.peek-copy](../../spec/std/collections.md#r-std-collections.heap.peek-copy).
+    pub fn peek(&self) -> T?:
         self.items.first()
 
     # A new list of the elements in ascending order; the heap is unchanged

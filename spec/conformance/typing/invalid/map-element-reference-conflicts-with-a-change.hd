@@ -1,0 +1,6 @@
+# test: a change of the map while an element reference is used later is a conflicting access
+# Spec 13 Element References: ref.elem.map; Writes While Borrowed: ref.excl.mut.
+fn kept(mut m: Map[string, List[i64]]) -> usize:
+    xs := &m["a"]
+    m["b"] = [] # diagnostic: conflicting-access
+    xs.len()

@@ -1,5 +1,5 @@
 # test: a Heap pops its largest element first, peeks without removing, and copies its elements in ascending order
-# Spec std/collections Heap: std-collections.heap.len, std-collections.heap.push, std-collections.heap.pop, std-collections.heap.peek, std-collections.heap.sorted (COLLECTIONS-DATES-SURFACE; task #225).
+# Spec std/collections Heap: std-collections.heap.len, std-collections.heap.push, std-collections.heap.pop, std-collections.heap.peek-copy, std-collections.heap.sorted (COLLECTIONS-DATES-SURFACE; task #225).
 use std.collections.Heap
 fn drained(heap: &mut Heap[i32]) -> List[i32]:
     let mut popped: List[i32] = []
@@ -17,7 +17,7 @@ tests:
         for value in [5, 1, 8, 3, 9, 2, 8, -4]:
             heap.push(value)
         assert_equal(heap.len(), 8, reason="eight elements")
-        assert_equal(heap.peek().copied(), .Some(9), reason="peek")
+        assert_equal(heap.peek(), .Some(9), reason="peek")
         assert_equal(heap.len(), 8, reason="peek removes nothing")
         assert_equal(drained(&mut heap), [9, 8, 8, 5, 3, 2, 1, -4], reason="descending")
         assert_equal(heap.pop(), .None, reason="an empty pop")
@@ -45,7 +45,7 @@ tests:
         for value in [+4, -2, 4, 0]:
             assert_equal(heap.pop(), .None, reason="empty before refill")
             heap.push(value)
-            assert_equal(heap.peek().copied(), .Some(value), reason="singleton peek")
+            assert_equal(heap.peek(), .Some(value), reason="singleton peek")
             assert_equal(heap.pop(), .Some(value), reason="singleton pop")
             assert(heap.is_empty(), reason="empty after singleton pop")
 

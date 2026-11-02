@@ -337,7 +337,7 @@ impl OldReader:
 
     fn top(self) -> *mut OldFrame:
         match self.frames.last():
-            .Some(frame) => *frame
+            .Some(frame) => frame
             .None => panic("std.json: no open container")
 
     fn pop(&mut self) -> void:
@@ -420,15 +420,17 @@ impl Deserializer for OldReader:
             match self.value:
                 .Array(items) =>
                     self.push(
-                        box(OldFrame {
-                            base: self.path,
-                            home: self.path,
-                            items: box(items),
-                            keys: box([]),
-                            fields: JsonObject::new(),
-                            variant_payload: .None,
-                            newtype: false,
-                        }),
+                        box(
+                            OldFrame {
+                                base: self.path,
+                                home: self.path,
+                                items: box(items),
+                                keys: box([]),
+                                fields: JsonObject::new(),
+                                variant_payload: .None,
+                                newtype: false,
+                            },
+                        ),
                     )
                     return .Ok(())
                 _ => pass
@@ -458,15 +460,17 @@ impl Deserializer for OldReader:
                         keys.push(entry._0)
                         items.push(entry._1)
                     self.push(
-                        box(OldFrame {
-                            base: self.path,
-                            home: self.path,
-                            items: items,
-                            keys: keys,
-                            fields: JsonObject::new(),
-                            variant_payload: .None,
-                            newtype: false,
-                        }),
+                        box(
+                            OldFrame {
+                                base: self.path,
+                                home: self.path,
+                                items: items,
+                                keys: keys,
+                                fields: JsonObject::new(),
+                                variant_payload: .None,
+                                newtype: false,
+                            },
+                        ),
                     )
                     return .Ok(())
                 _ => pass
@@ -500,15 +504,17 @@ impl Deserializer for OldReader:
                 match self.value:
                     .Object(fields) =>
                         self.push(
-                            box(OldFrame {
-                                base: self.path,
-                                home: self.path,
-                                items: box([]),
-                                keys: box([]),
-                                fields: fields,
-                                variant_payload: .None,
-                                newtype: false,
-                            }),
+                            box(
+                                OldFrame {
+                                    base: self.path,
+                                    home: self.path,
+                                    items: box([]),
+                                    keys: box([]),
+                                    fields: fields,
+                                    variant_payload: .None,
+                                    newtype: false,
+                                },
+                            ),
                         )
                         return .Ok(0)
                     _ => pass
@@ -536,15 +542,17 @@ impl Deserializer for OldReader:
                     .Object(found) => found
                     _ => JsonObject::new()
                 self.push(
-                    box(OldFrame {
-                        base: base,
-                        home: self.path,
-                        items: box([]),
-                        keys: box([]),
-                        fields: fields,
-                        variant_payload: .Some(payload),
-                        newtype: false,
-                    }),
+                    box(
+                        OldFrame {
+                            base: base,
+                            home: self.path,
+                            items: box([]),
+                            keys: box([]),
+                            fields: fields,
+                            variant_payload: .Some(payload),
+                            newtype: false,
+                        },
+                    ),
                 )
                 return .Ok(index)
             index = index + 1
@@ -1480,7 +1488,9 @@ struct Sets:
     keys: *List[string]
 
 fn sets_gen(c: &mut Choices) -> *Sets:
-    box(Sets { keys: box(c.list(40, fn(inner: &mut Choices) -> string: inner.choose(OBJECT_KEYS))) })
+    box(
+        Sets { keys: box(c.list(40, fn(inner: &mut Choices) -> string: inner.choose(OBJECT_KEYS))) }
+    )
 
 fn object_disagreement(sets: &Sets) -> string:
     let mut object = JsonObject::new()
@@ -1621,7 +1631,6 @@ tests:
         gen=valid_text,
         cases=300,
         prop=fn!(text: string): assert_equal(parse_disagreement(text), "", reason="valid")
-        ,
     )
 
     it_prop_with(
@@ -1629,7 +1638,6 @@ tests:
         gen=broken_text,
         cases=500,
         prop=fn!(text: string): assert_equal(parse_disagreement(text), "", reason="broken")
-        ,
     )
 
     it_prop_with(
@@ -1637,7 +1645,6 @@ tests:
         gen=nested_text,
         cases=60,
         prop=fn!(text: string): assert_equal(parse_disagreement(text), "", reason="nested")
-        ,
     )
 
     it_prop_with(
@@ -1645,7 +1652,6 @@ tests:
         gen=typed_gen,
         cases=600,
         prop=fn!(typed: &Typed): assert_equal(typed_disagreement(typed), "", reason="typed")
-        ,
     )
 
     it_prop_with(
@@ -1653,7 +1659,6 @@ tests:
         gen=probe_gen,
         cases=200,
         prop=fn!(value: Json): assert_equal(probe_disagreement(value), "", reason="probe")
-        ,
     )
 
     it_prop_with(
@@ -1661,5 +1666,4 @@ tests:
         gen=sets_gen,
         cases=200,
         prop=fn!(sets: &Sets): assert_equal(object_disagreement(sets), "", reason="object")
-        ,
     )

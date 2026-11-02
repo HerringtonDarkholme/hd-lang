@@ -8,7 +8,7 @@ fn parse_port(text: string) -> Result[i32, *dyn Error]:
     .Ok(80)
 
 fn first_word(words: List[string]) -> Result[string, *dyn Error]:
-    word := words.first().copied().context("no words")?
+    word := words.first().context("no words")?
     .Ok(word)
 
 tests:
