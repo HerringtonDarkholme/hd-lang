@@ -1,0 +1,12 @@
+# @dump: counts
+# @build: release
+
+pub fn main() -> void:
+    let total = 0.0
+    let i = +0
+    while i < 400000:
+        # subject
+        total = total + (1.0001 + f64(i % 1000) / 1000.0) ** (0.5 + f64(i % 7))
+        i += 1
+    if !(total > 0.0):
+        panic("bad power total")

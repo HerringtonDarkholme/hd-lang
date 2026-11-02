@@ -39,6 +39,7 @@ const ALL_CASES = [
   "string-keyword-match",
   "string-chars",
   "string-format-int",
+  "float-pow",
   "list-get-i32",
   "list-get-string",
   "map-get-key-i32",
