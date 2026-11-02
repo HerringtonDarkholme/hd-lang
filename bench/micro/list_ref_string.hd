@@ -1,0 +1,17 @@
+# @dump: counts
+# @build: release
+
+fn read(value: &string) -> usize:
+    value.len()
+
+pub fn main() -> void:
+    xs := ["aa", "bb", "cc", "dd", "ee", "ff", "gg", "hh"]
+    let total: usize = 0
+    let i: usize = 0
+    while i < 10000000:
+        # subject
+        size := read(&xs[i % 8])
+        total += size
+        i += 1
+    if total != 20000000:
+        panic("bad reference total")

@@ -1,0 +1,15 @@
+# @dump: counts
+# @build: release
+
+use std.text.StringBuilder
+
+pub fn main() -> void:
+    out := StringBuilder::new()
+    let i: usize = 0
+    while i < 3000000:
+        # subject
+        out.push("abcdefgh")
+        i += 1
+    text := out.build()
+    if text.len() != 24000000:
+        panic("bad string length")

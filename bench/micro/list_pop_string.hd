@@ -1,0 +1,18 @@
+# @dump: counts
+# @build: release
+
+pub fn main() -> void:
+    let mut xs: List[string] = []
+    let fill: usize = 0
+    while fill < 2000000:
+        xs.push("value")
+        fill += 1
+    let total: usize = 0
+    let i: usize = 0
+    while i < 2000000:
+        # subject
+        value := xs.pop()
+        total += value.unwrap_or("").len()
+        i += 1
+    if total != 10000000:
+        panic("bad pop total")

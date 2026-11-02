@@ -1,0 +1,14 @@
+# @dump: counts
+# @build: release
+
+pub fn main() -> void:
+    values := { "a": +10, "bb": +20, "ccc": +30, "dddd": +40 }
+    let total: usize = 0
+    let i: usize = 0
+    while i < 2000000:
+        # subject
+        for (key, value) in values:
+            total += key.len() + usize(value)
+        i += 1
+    if total != 220000000:
+        panic("bad map loop total")

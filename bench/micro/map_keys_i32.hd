@@ -1,0 +1,14 @@
+# @dump: counts
+# @build: release
+
+pub fn main() -> void:
+    values := { +1: +10, +2: +20, +3: +30, +4: +40 }
+    let total: usize = 0
+    let i: usize = 0
+    while i < 1000000:
+        # subject
+        keys := values.keys()
+        total += keys.len()
+        i += 1
+    if total != 4000000:
+        panic("bad keys total")

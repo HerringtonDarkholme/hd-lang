@@ -1,0 +1,14 @@
+# @dump: counts
+# @build: release
+
+pub fn main() -> void:
+    text := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789é"
+    let total: usize = 0
+    let i: usize = 0
+    while i < 500000:
+        # subject
+        for _ in text.chars():
+            total += 1
+        i += 1
+    if total != 31500000:
+        panic("bad character total")

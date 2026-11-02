@@ -1,0 +1,14 @@
+# @dump: counts
+# @build: release
+
+pub fn main() -> void:
+    let total: usize = 0
+    let i: usize = 0
+    while i < 3000000:
+        value := i % 100000
+        # subject
+        text := "$value"
+        total += text.len()
+        i += 1
+    if total != 14666700:
+        panic("bad format total")

@@ -1,0 +1,14 @@
+# @dump: counts
+# @build: release
+
+pub fn main() -> void:
+    values := { +1: +10, +2: +20, +3: +30, +4: +40 }
+    let total = +0
+    let i: usize = 0
+    while i < 2000000:
+        # subject
+        for (key, value) in values:
+            total += key + value
+        i += 1
+    if total != 220000000:
+        panic("bad map loop total")

@@ -1,0 +1,15 @@
+# @dump: counts
+# @build: release
+
+pub fn main() -> void:
+    template := [+8, +3, +6, +1, +7, +2, +5, +4]
+    let total = +0
+    let i: usize = 0
+    while i < 200000:
+        let mut xs = template
+        # subject
+        xs.sort()
+        total += xs[0]
+        i += 1
+    if total != 200000:
+        panic("bad sort total")

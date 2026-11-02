@@ -1,0 +1,14 @@
+# @dump: counts
+# @build: release
+
+pub fn main() -> void:
+    text := "    alpha beta gamma delta    "
+    let total: usize = 0
+    let i: usize = 0
+    while i < 3000000:
+        # subject
+        part := text.trim()
+        total += part.len()
+        i += 1
+    if total != 66000000:
+        panic("bad trim total")

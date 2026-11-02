@@ -1,0 +1,14 @@
+# @dump: counts
+# @build: release
+
+pub fn main() -> void:
+    rows := { "a": [+1, +2, +3], "b": [+4, +5] }
+    let total: usize = 0
+    let i: usize = 0
+    while i < 5000000:
+        # subject
+        row := rows.get("a").unwrap_or([])
+        total += row.len()
+        i += 1
+    if total != 15000000:
+        panic("bad nested-map total")

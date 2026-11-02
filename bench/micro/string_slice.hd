@@ -1,0 +1,15 @@
+# @dump: counts
+# @build: release
+
+pub fn main() -> void:
+    text := "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    let total: usize = 0
+    let i: usize = 0
+    while i < 3000000:
+        start := i % 32
+        # subject
+        part := text.slice(start, start + 12)
+        total += part.len()
+        i += 1
+    if total != 36000000:
+        panic("bad slice total")

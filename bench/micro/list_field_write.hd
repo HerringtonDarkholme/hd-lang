@@ -1,0 +1,16 @@
+# @dump: counts
+# @build: release
+
+struct Cell:
+    value: i32
+
+pub fn main() -> void:
+    let mut xs = [Cell { value: +0 }]
+    let i: usize = 0
+    while i < 20000000:
+        value := i32(i % 2)
+        # subject
+        xs[0].value = value
+        i += 1
+    if xs[0].value != 1:
+        panic("bad field value")
