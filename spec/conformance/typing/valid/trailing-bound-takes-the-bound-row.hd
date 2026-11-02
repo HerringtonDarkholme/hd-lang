@@ -1,0 +1,18 @@
+# test: a trailing block for an Fn or FnMut bound takes the bound's requirement row
+# Spec 07 Functions: fn.trailing.fn-bound and fn.trait.bound-closure.
+use std.function.{Fn, FnMut}
+
+trait Track:
+    fn depend(&mut self) -> void
+
+fn read_only[F < 'static & Fn() -> string $ Track](compute: F) -> void:
+    pass
+
+fn handler[F < 'static & FnMut() -> void $ Track](mut run: F) -> void:
+    pass
+
+fn probe() -> void:
+    read_only:
+        "ready"
+    handler:
+        pass

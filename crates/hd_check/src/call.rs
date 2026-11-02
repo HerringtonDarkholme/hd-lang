@@ -1915,6 +1915,7 @@ impl Ck<'_, '_> {
                     let scoped = last_want.map_or(!last_is_generic, |f| f.scoped);
                     let (r, t) =
                         self.trailing_closure(block, last_want.map_or(w, |f| f.ty), scoped)?;
+                    let (r, t) = self.bounded_closure(r, t, last_want.map(|f| f.ty), block);
                     let r = self.coerce(r, t, w, block, "argument", ExpectPosition::General);
                     if last_want.is_some_and(|f| f.read_only) {
                         self.check_read_only_fn(r, t, block);

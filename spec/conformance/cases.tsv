@@ -5753,3 +5753,4 @@ runtime/valid/option-as-mut.hd	runtime	accept	std/option.md#r-std-option.as-mut
 runtime/valid/option-as-ref.hd	runtime	accept	std/option.md#r-std-option.as-ref
 runtime/valid/option-copied.hd	runtime	accept	std/option.md#r-std-option.copied
 runtime/valid/erased-loop-element-references-read-concrete-slots.hd	runtime	accept	lang/13-values-and-references.md#r-ref.elem.place
+typing/valid/trailing-bound-takes-the-bound-row.hd	type	accept	lang/07-functions.md#r-fn.trailing.fn-bound
