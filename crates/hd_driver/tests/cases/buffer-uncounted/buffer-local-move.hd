@@ -1,0 +1,13 @@
+# @dump: own
+# @build: std
+use std.rt.memory.Buffer
+
+fn move_and_read() -> string:
+    let mut buffer = Buffer::[string].new(2)
+    buffer.at(0).write("first")
+    buffer.at(1).write("second")
+    buffer.set_len(2)
+    let mut moved = buffer
+    last := moved.at(1).read()
+    moved.set_len(1)
+    last

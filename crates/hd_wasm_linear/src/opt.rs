@@ -2907,7 +2907,8 @@ pub fn fold_constant_branches(f: &mut Func) -> bool {
 /// object of count 0, and a release that leaves a count above zero takes
 /// one off. A last count, an object that takes part in cycle collection
 /// (so its decrement reaches `suspect`), or a release while the collector
-/// traces (`Tracing`) still calls the helper, which does all the rest.
+/// traces (`Tracing`) or finalizes owned raw buffers (`Finalizing`) still
+/// calls the helper, which does all the rest.
 /// `acyclic` drops the two collector tests, as no object takes part.
 /// Gives whether anything changed.
 pub fn inline_counts(f: &mut Func, acyclic: bool) -> bool {
@@ -2967,6 +2968,9 @@ pub fn inline_counts(f: &mut Func, acyclic: bool) -> bool {
                     f.global_get(Global::Tracing);
                     f.op(I::I32Eqz);
                     f.op(I::I32And);
+                    f.global_get(Global::Finalizing);
+                    f.op(I::I32Eqz);
+                    f.op(I::I32And);
                     f.get(b);
                     f.op(I::I32Load(mem(HEAP, 4, 2)));
                     f.i32(0);
@@ -2986,6 +2990,8 @@ pub fn inline_counts(f: &mut Func, acyclic: bool) -> bool {
                 f.get(c);
                 if !acyclic {
                     f.global_get(Global::Tracing);
+                    f.op(I::I32Or);
+                    f.global_get(Global::Finalizing);
                     f.op(I::I32Or);
                 }
                 f.op(I::If(BlockType::Empty));

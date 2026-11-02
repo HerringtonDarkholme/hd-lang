@@ -517,7 +517,21 @@ impl Em<'_, '_, '_> {
                     self.f.set(*x);
                 }
                 if owned {
-                    self.retain_locals(&ls, ct)?;
+                    if crate::layout::owns_buffer(self.pool(), self.env(), ct) {
+                        // A non-copyable Buffer has no retain operation:
+                        // transfer the box's fields and clear them before
+                        // releasing the now-empty box.
+                        for leaf in &m.leaves {
+                            self.f.get(o);
+                            self.zero(leaf.val);
+                            self.f.op(leaf.store(0));
+                        }
+                    } else {
+                        // An erased box may have another holder. The
+                        // concrete result takes its own counts before this
+                        // holder of the box is released.
+                        self.retain_locals(&ls, ct)?;
+                    }
                     self.release_open(o);
                 }
                 Ok(ls)

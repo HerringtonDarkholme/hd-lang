@@ -445,11 +445,12 @@ issue-backed exceptions; there is no per-backend rollout pass list.
   (`Em::ptr_place`): a read loads the leaves, and a `move` keeps the
   count they held; a store writes its value as an element store does
   (`slot_src`, `retain_src`) and releases nothing. A `Buffer[T]`
-  (`StdKind::Buffer`) is the address of a list's buffer, §23.7's
-  capacity and length words and the elements, made by `ListBuf` with
-  its element glue, counted and dropped as any counted address is; a
-  string's bytes are its address, and a new string is a `Str` block, or
-  the static empty string for no bytes.
+  (`StdKind::Buffer`) is one owner of an uncounted raw allocation: its
+  element-drop slot, capacity, length, padding and elements, made by
+  `BufferBuf`. Retaining it does nothing; dropping its owner walks the
+  initialized elements and frees the allocation. A string's bytes are
+  its address, and a new string is a `Str` block, or the static empty
+  string for no bytes.
 - **Runtime modules are std's.** `hd_project::UseRoots` refuses a use of
   `std.rt` or a module under it from any package but std, as
   `std-only-use` (`module.rt.std-only.error`).
@@ -584,12 +585,15 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   literals, the empty string and fieldless data objects need no check.
   An address below the heap's first page (null, or static data, which
   precedes every page the allocator takes) returns before the lookup.
+  A raw Buffer block's first word has `BUFFER_RAW` set, so a retain or
+  release of an interior item reference returns without changing it.
   `release` hands back the block at its last count; `rt:release_ref` then
   calls the descriptor's glue on the payload and frees the block.
-- **Which values count.** A type's `layout::walk` identifies counted
-  addresses through inline structs, tuples and enum payloads. Glue
-  retains or releases those fields. Closure environments, owning trait
-  values and suspension frames follow the same ownership model.
+- **Which values are managed.** A type's `layout::walk` identifies counted
+  addresses and uncounted owned Buffers through inline structs, tuples
+  and enum payloads. Retain glue skips Buffers; release glue drops and
+  frees them. Closure environments, owning trait values and suspension
+  frames follow the same ownership model.
 - **Every body is the passes' output.** The driver runs the passes over
   each body, the ones collection generates included (a function
   reference's call body, `hd_mono::adapter_call_body`, among them); the
@@ -1728,8 +1732,10 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
 - **Tracing is the release glue.** `CycleTrace` runs the descriptor's
   glue on the payload with the `Tracing` global set, and `rt:release_ref`
   hands each reference to the collector's `visit` instead of counting it
-  while it is set. So no type needs trace glue of its own: every glue
-  releases its references through `rt:release_ref` and does nothing else.
+  while it is set. A raw Buffer's drop glue walks its initialized
+  elements but leaves the allocation intact while tracing. So no type
+  needs trace glue of its own: every glue releases its references through
+  `rt:release_ref`, and owned Buffers reuse their ordinary drop walk.
   Outside a collection a release reads the global and never calls
   `visit`. Frame glue walks the saved ownership slots:
   moved and dead places are zeroed before `SaveAll`, and each `join!`
@@ -1744,17 +1750,19 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   This bit is separate from `ACTIVE`, preserving the suspension protocol's
   reentrancy checks. A collection never runs user code and therefore cannot
   change a frame's running state during its three walks.
-- **A collection** (`collect(trace, release, free)`, called with three
-  function values whose code is `CycleTrace`, `CycleRelease` and
-  `CycleFree`) marks gray from each purple candidate, taking one count off
+- **A collection** (`collect(trace, release, free)`, called with function
+  values whose code is `CycleTrace`, `CycleRelease`, and `CycleFree`)
+  marks gray from each purple candidate, taking one count off
   each object a gray one references; scans, so a gray object with a count
   left, which something outside holds, and all it reaches turn black and
   get their counts back, while the rest turn white; then walks the white
   objects from the candidates. Each walk keeps an explicit work list, so
-  a long ring needs no deep stack. The white objects are freed only once
-  the walk is done, and then a white object's references to objects that
-  do not take part are released as usual, which may free more and make
-  new candidates for the next collection.
+  a long ring needs no deep stack. Once the walk is done, finalization
+  calls `free(block + 1)` for each white object; the low bit tells
+  `CycleFree` to run release glue with counted releases suppressed, which
+  frees owned raw Buffers, before freeing the aligned block. A zero-count
+  candidate whose ordinary release already ran its glue passes its aligned
+  block and is not finalized twice.
 - **When.** `rt:new` collects first when std's `due` says the buffer holds
   at least the threshold's live candidates (those with a count): 10,000 at first, halved back
   toward 10,000 after a collection that frees at least half of what it

@@ -37,8 +37,10 @@
 # The backend supplies what only it can: `trace` runs an object's release
 # glue while the backend's release hands each reference the glue releases
 # to `visit`, `release` is the backend's release of one reference, and
-# `free` the runtime's free, which `keep` tells to leave a candidate's
-# block to the collector. It calls `collect` before an allocation when
+# `free` is the backend's callback: an aligned address frees a zero-count
+# candidate, while `block + 1` finalizes a white object before freeing it.
+# `keep` tells the runtime free to leave a candidate's block to the
+# collector. It calls `collect` before an allocation when
 # `due` says the live candidates passed the threshold, or that enough of
 # them lost their last count to free them (then it only frees those),
 # and when the entry's poll answers, so at idle and before checked mode's
@@ -184,7 +186,7 @@ pub fn visit(address: usize) -> bool:
             stack = push(stack, block + RESTORE)
     true
 
-## Frees the candidates whose last count went, then, unless `due` asked for that alone, collects the others' garbage cycles: `trace` runs a block's release glue, `release` releases one reference, and `free` frees a block.
+## Frees the candidates whose last count went, then, unless `due` asked for that alone, collects the others' garbage cycles: `trace` runs release glue, `release` releases one reference, and `free` receives an aligned zero-count block or `block + 1` for a white block to finalize.
 pub fn collect(
     trace: fn(usize) -> void,
     release: fn(usize) -> void,
@@ -229,7 +231,7 @@ pub fn collect(
     freed := length(garbage)
     i = 0
     while i < freed:
-        free(item(garbage, i))
+        free(item(garbage, i) + 1)
         i = i + 1
     clear(garbage)
     # A release here may free more and make candidates of others, which

@@ -277,6 +277,7 @@ pub fn drop_entries(m: &Module, entry: &Entry) -> Func {
             &walk,
             &|f, k| f.get(ls[k as usize]),
             &crate::rt::release_call,
+            true,
         );
     });
     f
@@ -524,6 +525,7 @@ pub fn put(m: &Module, entry: &Entry, _ops: &KeyOps) -> Func {
             w,
             &|f, k| f.get(old[k as usize]),
             &crate::rt::release_call,
+            true,
         );
     }
     for k in nk..n {
@@ -537,6 +539,7 @@ pub fn put(m: &Module, entry: &Entry, _ops: &KeyOps) -> Func {
             w,
             &|f, k| f.get(arg(k as usize)),
             &crate::rt::release_call,
+            true,
         );
     }
     f.get(t);
@@ -748,7 +751,7 @@ pub fn unique(entry: &Entry, m: &Module, clone: bool) -> Func {
             f.get(at);
             let ls = load_entry(f, entry, 0, n);
             if let Some(w) = &walk {
-                walk_code(f, w, &|f, k| f.get(ls[k as usize]), &retain);
+                walk_code(f, w, &|f, k| f.get(ls[k as usize]), &retain, false);
             }
             for c in &entry.colls {
                 let l = entry.leaves[*c as usize];

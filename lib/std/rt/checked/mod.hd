@@ -28,6 +28,8 @@ FRESH := 0xa5a5a5a5
 # cycle collection, and it is in the collector's candidate buffer.
 CYCLIC := 0x80000000
 BUFFERED := 0x40000000
+# The first word of an uncounted `std.rt.memory.Buffer` raw block.
+RAW_BUFFER := 0x80000000
 
 # How many blocks `allocate` has given and `free` has not taken back.
 let held: usize = 0
@@ -73,6 +75,8 @@ fn poison(block: usize) -> void:
 pub fn retain(address: usize) -> void:
     block := block_of(address)
     if block != 0:
+        if raw_buffer(block, "retain"):
+            return
         count := counted(block, "retain")
         store_u32(block, u32(count + 1))
         retains = retains + 1
@@ -81,6 +85,8 @@ pub fn retain(address: usize) -> void:
 pub fn release(address: usize) -> usize:
     block := block_of(address)
     if block == 0:
+        return 0
+    if raw_buffer(block, "release"):
         return 0
     count := counted(block, "release")
     releases = releases + 1
@@ -109,6 +115,8 @@ pub fn release_known(address: usize) -> usize:
 pub fn release_acyclic(address: usize) -> usize:
     block := block_of(address)
     if block == 0:
+        return 0
+    if raw_buffer(block, "release"):
         return 0
     count := counted(block, "release")
     releases = releases + 1
@@ -163,6 +171,12 @@ fn first_live() -> usize:
 
 # The count of the block at `block`, which a `what` is about to change:
 # a freed block's or a block with no count panics.
+fn raw_buffer(block: usize, what: string) -> bool:
+    word := usize(load_u32(block))
+    if word == POISON || word == FRESH:
+        _ := counted(block, what)
+    (word & RAW_BUFFER) != 0
+
 fn counted(block: usize, what: string) -> usize:
     count := usize(load_u32(block))
     if count == POISON:

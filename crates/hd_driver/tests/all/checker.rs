@@ -212,6 +212,29 @@ fn every_std_body_checks_with_no_diagnostic() {
     assert_eq!(out.diags.len(), 0, "{}", out.render());
 }
 
+/// `Buffer` owns its raw allocation, so changing the initialized length
+/// requires mutable access to the owner (`module.rt.buffer.length`).
+#[test]
+fn buffer_set_len_rejects_a_shared_receiver() {
+    let mut src = std_sources();
+    let source = "use std.rt.memory.Buffer\n\nfn change(buffer: &Buffer[i32]) -> void:\n    buffer.set_len(0)\n";
+    src.insert("buffer_set_len_fixture.hd", source);
+    let store = MemoryStore::default();
+    let host = Host {
+        render_tir: &[],
+        sources: &src,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let out = build(&host, "std", &Goal::Analyze);
+    assert_eq!(out.diags.code, [Code::NotWritable], "{}", out.render());
+    assert_eq!(
+        out.diags.get_text(out.diags.message[0]),
+        "`set_len` takes `&mut self`, but the receiver is a read-only reference &Buffer[i32]; take it with `&mut` to change what it refers to"
+    );
+}
+
 /// The golden TIR of a few std bodies: `println` (rows, `$.use`, a cold
 /// suspending call, `block_on`, interpolation, `match` on a `BlockOn` of a
 /// `Result`),

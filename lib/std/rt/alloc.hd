@@ -46,6 +46,8 @@ LOW := 0x3fffffff
 # cycle collection, and it is in the collector's candidate buffer.
 CYCLIC := 0x80000000
 BUFFERED := 0x40000000
+# The first word of an uncounted `std.rt.memory.Buffer` raw block.
+RAW_BUFFER := 0x80000000
 
 # Each class's freed list is at FREED + 4 * class.
 
@@ -251,6 +253,8 @@ pub fn retain(address: usize) -> void:
         return
     block := block_of(address)
     if block != 0:
+        if (usize(load_u32(block)) & RAW_BUFFER) != 0:
+            return
         store_u32(block, load_u32(block) + 1)
 
 ## Adds a count when `address` is a known payload start, eight bytes after its header; null and static zero-count objects are left alone.
@@ -269,6 +273,8 @@ pub fn release(address: usize) -> usize:
     if block == 0:
         return 0
     count := load_u32(block)
+    if (usize(count) & RAW_BUFFER) != 0:
+        return 0
     if count == 1:
         return block
     store_u32(block, count - 1)
@@ -299,6 +305,8 @@ pub fn release_acyclic(address: usize) -> usize:
     if block == 0:
         return 0
     count := load_u32(block)
+    if (usize(count) & RAW_BUFFER) != 0:
+        return 0
     if count == 1:
         return block
     store_u32(block, count - 1)

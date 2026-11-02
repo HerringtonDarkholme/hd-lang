@@ -1550,6 +1550,32 @@ pub(crate) mod tests {
         );
     }
 
+    /// A whole-value read after an earlier reference moves the payload out
+    /// of the cell at its last access. The backend clears and releases the
+    /// cell, so an uncounted owned value is transferred rather than copied
+    /// and then dropped.
+    #[test]
+    fn a_last_read_moves_out_of_a_cell() {
+        let n = NodeIdx::from_raw(1);
+        let text = passes(
+            |b| {
+                let x = local(b, 0);
+                let s = call(b, 7, &[], Ty::STRING);
+                b.set(x, s, n);
+                let word = b.place(&format!("[${}]", x.raw()).parse().expect("place"));
+                let r = b.emit(Tag::Ref, word, 0, Ty::STRING, n);
+                call(b, 8, &[r], Ty::VOID);
+                let moved = b.get(x, Ty::STRING, n);
+                call(b, 9, &[moved], Ty::VOID);
+                None
+            },
+            Ty::VOID,
+        );
+        assert!(!text.contains("Ref take [$0]"), "{text}");
+        assert!(text.contains("Read move [$0]"), "{text}");
+        assert!(!text.contains("Drop [$0]"), "{text}");
+    }
+
     /// A frame local (`frame`): a local reference to `$0` bound to `$1`
     /// keeps `$0` alive until the last read through `$1`, past the
     /// reference's own statement, and never takes its count. A reference

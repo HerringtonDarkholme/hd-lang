@@ -369,6 +369,10 @@ pub enum Global {
     /// Set while the cycle collector traces an object, so that a release
     /// goes to the collector's `visit` instead of counting (§23.28).
     Tracing,
+    /// Set while the cycle collector finalizes a white object's owned raw
+    /// allocations. Counted references were handled by its collect trace;
+    /// their releases are suppressed while owned buffers are freed.
+    Finalizing,
     /// The shadow stack pointer: the lowest address of the newest frame
     /// (§23.29).
     Stack,
@@ -417,6 +421,7 @@ impl Global {
             | Global::ReleaseHead
             | Global::Releasing
             | Global::Tracing
+            | Global::Finalizing
             | Global::Stack
             | Global::Locals
             | Global::LocalsBase

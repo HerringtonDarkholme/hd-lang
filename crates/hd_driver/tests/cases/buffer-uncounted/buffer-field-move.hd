@@ -1,0 +1,24 @@
+# @dump: own
+# @build: std
+use std.rt.memory.Buffer
+
+struct Owner[T < ?Copy]:
+    buffer: Buffer[T]
+
+impl[T < ?Copy] !Copy for Owner[T]
+
+fn replace[T < ?Copy](owner: &mut Owner[T], capacity: usize) -> void:
+    let mut next = Buffer::[T].new(capacity)
+    next.set_len(0)
+    owner.buffer = next
+
+struct Table[T < ?Copy]:
+    buffer: Buffer[T]
+    size: usize
+
+impl[T < ?Copy] !Copy for Table[T]
+
+fn replace_whole[T < ?Copy](table: &mut Table[T], capacity: usize) -> void:
+    let mut next = Table::[T] { buffer: Buffer::[T].new(capacity), size: 0 }
+    next.buffer.set_len(0)
+    *table = next

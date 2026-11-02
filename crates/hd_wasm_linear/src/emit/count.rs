@@ -56,6 +56,21 @@ impl Em<'_, '_, '_> {
             let [a, w] = self.b.data[i];
             let x = u32::try_from(i).expect("insts");
             match self.b.tags[i] {
+                // A Buffer item reference borrows storage from its uncounted
+                // owner for its static lifetime. It owns no runtime count.
+                Tag::Call
+                    if matches!(
+                        self.calls.get(&x),
+                        Some(hd_mono::Target::Call(target))
+                            if matches!(
+                                &target.kind,
+                                hd_mono::TargetKind::Intrinsic(key)
+                                    if matches!(key.as_str(), "buffer_item_ref" | "buffer_item_mut")
+                            )
+                    ) =>
+                {
+                    self.loans.insert(x);
+                }
                 Tag::Read if self.b.is_borrow(x) => {
                     if matches!(self.calls.get(&x), Some(hd_mono::Target::Open(_))) {
                         continue;
@@ -371,6 +386,13 @@ impl Em<'_, '_, '_> {
             }
         }
         if let Some(k) = w.single() {
+            if matches!(w, Walk::Buffer(_)) {
+                if !retain {
+                    self.f.get(ls[k as usize]);
+                    self.f.helper(Helper::BufferDrop);
+                }
+                return Ok(());
+            }
             self.f.get(ls[k as usize]);
             if matches!(w, Walk::Known(_)) {
                 self.f.helper(if retain {
@@ -1044,9 +1066,11 @@ impl Em<'_, '_, '_> {
                     self.loans.insert(i);
                     self.cell_get(i, l)
                 }
-                // The move pass moves a celled local's count by its
-                // reference (`docs/compiler/tir-v2.md`, "Move" rule 4).
-                _ => crate::unsupported("a `move` read of a local in a cell"),
+                // A last whole-value read moves the payload out and ends
+                // the cell. A last reference instead takes the cell's
+                // count (`docs/compiler/tir-v2.md`, "Move" rule 4).
+                Some(ReadMode::Move) => self.cell_take(i, l),
+                _ => crate::unsupported("a read of a local in a cell with no mode"),
             };
         }
         let ls = self.local(u32::try_from(l).expect("locals"))?;

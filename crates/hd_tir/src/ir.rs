@@ -3592,6 +3592,21 @@ mod tests {
         );
     }
 
+    /// Moving an owner out of a local empties the handle slot, not heap
+    /// storage a raw pointer reaches. The new owner keeps that storage alive.
+    #[test]
+    fn verifier_allows_a_pointer_read_after_moving_an_addressed_owner() {
+        use super::{ReadMode, verify_owned};
+        let body = owned_body(|b, n| {
+            let owner = b.place(&"[$0]".parse().expect("place"));
+            b.emit(Tag::Ref, owner, 0, Ty::I32, n);
+            let pointer = read(b, "[$1]", ReadMode::Copy, n);
+            read(b, "[$0]", ReadMode::Move, n);
+            read(b, &format!("[ptr %{}]", pointer.0), ReadMode::Copy, n);
+        });
+        assert!(verify_owned(&body, &Counts).is_empty());
+    }
+
     /// Invariant 23: no value a loop's body computes is still owned where
     /// the loop goes round again.
     #[test]

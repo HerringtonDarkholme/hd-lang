@@ -533,8 +533,8 @@ fn mem_one(
     })
 }
 
-/// Where a value's counted references are among its values (§23.4): what
-/// counting walks to retain or release the value.
+/// Where a value's managed addresses are among its values (§23.4): what
+/// ownership walks to retain, release, or free in the value.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Walk {
     /// Value `k` is an address in a counted object, or in static data: a
@@ -547,6 +547,10 @@ pub enum Walk {
     /// thin counted reference ([`block_start`]); counting
     /// reads the header at `k - 8` (§23.30).
     Known(u32),
+    /// Value `k` owns an uncounted `std.rt.memory.Buffer`: a retain does
+    /// nothing, while a release drops its initialized elements and frees
+    /// its raw allocation.
+    Buffer(u32),
     /// Each part in turn.
     Seq(Vec<Walk>),
     /// Value `k` is an enum's tag; arm `v`, when there is one, walks
@@ -558,12 +562,26 @@ pub enum Walk {
 }
 
 impl Walk {
+    /// Whether this ownership walk contains an uncounted owned Buffer.
+    /// Such a value cannot be lent by copying its representation: unlike
+    /// counted leaves, retaining it does not balance a temporary drop.
+    fn owns_buffer(&self) -> bool {
+        match self {
+            Walk::Buffer(_) => true,
+            Walk::Seq(ws) => ws.iter().any(Walk::owns_buffer),
+            Walk::Switch(_, arms) => arms.iter().flatten().any(Walk::owns_buffer),
+            Walk::Nullable(w) => w.owns_buffer(),
+            Walk::Ref(_) | Walk::Known(_) => false,
+        }
+    }
+
     /// The walk with each value index `k` replaced by `to(k)`.
     #[must_use]
     pub fn remap(&self, to: &dyn Fn(u32) -> u32) -> Walk {
         match self {
             Walk::Ref(k) => Walk::Ref(to(*k)),
             Walk::Known(k) => Walk::Known(to(*k)),
+            Walk::Buffer(k) => Walk::Buffer(to(*k)),
             Walk::Seq(ws) => Walk::Seq(ws.iter().map(|w| w.remap(to)).collect()),
             Walk::Switch(k, arms) => Walk::Switch(
                 to(*k),
@@ -582,6 +600,7 @@ impl Walk {
         match self {
             Walk::Ref(k) => (!skip.contains(k)).then_some(Walk::Ref(*k)),
             Walk::Known(k) => (!skip.contains(k)).then_some(Walk::Known(*k)),
+            Walk::Buffer(k) => (!skip.contains(k)).then_some(Walk::Buffer(*k)),
             Walk::Seq(ws) => Walk::seq(ws.iter().filter_map(|w| w.without(skip)).collect()),
             Walk::Switch(k, arms) => Some(Walk::Switch(
                 *k,
@@ -593,12 +612,11 @@ impl Walk {
         }
     }
 
-    /// The value index when the walk is one counted address, of either
-    /// kind.
+    /// The value index when the walk is one managed address.
     #[must_use]
     pub fn single(&self) -> Option<u32> {
         match self {
-            Walk::Ref(k) | Walk::Known(k) => Some(*k),
+            Walk::Ref(k) | Walk::Known(k) | Walk::Buffer(k) => Some(*k),
             Walk::Seq(_) | Walk::Switch(..) | Walk::Nullable(_) => None,
         }
     }
@@ -612,13 +630,19 @@ impl Walk {
     }
 }
 
-/// The counted references of a concrete type's values, or `None` when it
-/// has none: scalars, and what holds no counted address. A type this
+/// The managed addresses of a concrete type's values, or `None` when it
+/// has none: scalars, and what holds no counted or owned address. A type this
 /// backend does not lay out has none here; its layout refuses it.
 pub fn walk(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Walk> {
     memoized(&WALKS, pool, env, t, &|u, part| {
         walk_one(pool, env, u, part)
     })
+}
+
+/// Whether `t` owns an uncounted raw Buffer at any depth. A promoted
+/// reference argument must stay a reference for such a referent.
+pub(crate) fn owns_buffer(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
+    walk(pool, env, t).is_some_and(|walk| walk.owns_buffer())
 }
 
 /// `t`'s walk from its parts' walks, which `part` reads.
@@ -638,6 +662,7 @@ fn walk_one(
         TyData::TraitValue { .. } => Some(Walk::Ref(0)),
         TyData::Context(_) => Some(Walk::Known(0)),
         TyData::Tuple { .. } => fields_walk_by(pool, env, &tuple_members(pool, t), part),
+        TyData::Adt { def, .. } if env.std_kind(def) == StdKind::Buffer => Some(Walk::Buffer(0)),
         TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => Some(Walk::Known(0)),
         TyData::Option(inner) => switch_walk_by(pool, env, &[vec![], vec![inner]], part),
         TyData::Union(members) => switch_walk_by(pool, env, &union_variants(pool, members), part),
@@ -672,6 +697,7 @@ pub fn block_start(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     }
     match pool.get(t) {
         TyData::Fn { .. } | TyData::Context(_) => true,
+        TyData::Adt { def, .. } if env.std_kind(def) == StdKind::Buffer => false,
         TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => true,
         _ => match kind(pool, env, t) {
             Kind::Data(_) | Kind::Boxed => true,
@@ -687,12 +713,13 @@ pub fn block_start(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
 /// agree without reading each other's bodies.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Pass {
-    /// Nothing in the value is counted.
+    /// Nothing in the value is managed.
     Uncounted,
     /// A value parameter `T`: the callee's own copy, which arrives with a
-    /// count of each counted reference the walk names and which the
-    /// callee releases. The caller moves its value in at its last use,
-    /// else counts a copy.
+    /// count of each counted reference the walk names and ownership of
+    /// each uncounted buffer it names, all of which the callee releases.
+    /// The caller moves its value in at its last use, else counts a copy;
+    /// a non-copyable owned buffer can only move.
     Owned(Walk),
     /// A `&T` parameter: a borrowed read. The caller keeps the argument
     /// alive for the call, and neither side counts it.

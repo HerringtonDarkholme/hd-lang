@@ -170,18 +170,18 @@ tests:
         _ := p.read()
         _ := q.read()
 
-    it("a buffer holds values at its places and drops them with its last count"):
-        let b: Buffer[string] = Buffer::new(3)
+    it("a buffer owns values at its places and moves as one handle"):
+        let mut b: Buffer[string] = Buffer::new(3)
         assert(b.capacity() == 3 && b.len() == 0, "room for three, holding none")
         b.at(0).write(label(+1))
         b.at(1).write(label(+2))
         b.set_len(2)
-        copy := b
-        assert(copy.len() == 2, "a copy is the same buffer")
-        assert(peek(copy.at(1)) == "n2", "the second value")
-        last := b.at(1).read()
-        b.set_len(1)
-        assert(last == "n2" && b.len() == 1, "a value moved out")
+        let mut moved = b
+        assert(moved.len() == 2, "a move keeps the buffer")
+        assert(peek(moved.at(1)) == "n2", "the second value")
+        last := moved.at(1).read()
+        moved.set_len(1)
+        assert(last == "n2" && moved.len() == 1, "a value moved out")
 
     it("a buffer lends a non-copyable item for reading and changing"):
         let mut b: Buffer[Ticket] = Buffer::new(1)
@@ -199,7 +199,7 @@ tests:
         start := pages()
         let n = +0
         while n < 100000:
-            let b: Buffer[List[i32]] = Buffer::new(2)
+            let mut b: Buffer[List[i32]] = Buffer::new(2)
             b.at(0).write([n, n])
             b.set_len(1)
             assert(b.at(0).read().len() == 2, "the value reads back")

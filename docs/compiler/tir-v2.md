@@ -870,7 +870,11 @@ deletes the place's `Drop`:
    drops of the base's other counted fields, or nothing (#679).
 4. **References at last access.** A `Ref` of a celled local `$l` at its
    last access takes `$l`'s count of the cell, and `$l`'s drop goes
-   (#701). A frame local's never does (#1006).
+   (#701). A whole-value read after the references instead moves the value
+   out, clears and releases the cell, and leaves `$l` empty. A frame
+   local's reference never takes a count; its final whole-value read can
+   move the slot payload at the drop insertion placed after its last use
+   (#1006).
 
 Why it is sound: the place is read nowhere after the move, so nothing
 can see it empty; a jump past the move still drops the place, which
@@ -1766,7 +1770,9 @@ is worth deciding only if they are hot.
    - **References** (rule 4): a `Ref` of a whole celled local at its last
      access takes the local's count of the cell (`ref_word::TAKES`, a bit
      of `Ref`'s word, which invariant 22 refuses before the passes), and
-     the local's drop right after it goes; not in a suspending body.
+     the local's drop right after it goes; a later whole-value read can
+     instead move the value out and release the emptied cell; not in a
+     suspending body.
    - **The backend** lowers a `move` of every place a move names: a local
      or a whole value, or a part of either laid out in its locals
      (`Em::part_slots`), zeroing what it took only for a counted
@@ -3463,6 +3469,10 @@ untyped loads and stores and `Ptr`. A copy of a buffer is a retain.
 `string_bytes(text) -> Ptr[u8]` (`mem_string_bytes`: the view's address)
 and `new_string(n) -> string` (`mem_new_string`: a `Str` block, or the
 static empty string for none).
+
+That paragraph records stage 3's original build. Since #1239,
+`Buffer[T]` is instead a non-copyable owner of an uncounted raw allocation;
+its owner drop walks the initialized elements and frees that allocation.
 
 Commit 2 adds 282 Rust code lines and deletes 77, against 455: the
 pointer place, its text form and invariants 59 (`ir.rs` 41,

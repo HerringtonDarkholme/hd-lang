@@ -8,7 +8,8 @@
 # checked in every mode (`STD_RT_CHECKED_TOO`); without it `allocated()`
 # stays 0, and the cases that compare it check nothing.
 use std.rt.memory.pages
-use std.rt.checked.{allocated, released}
+use std.rt.checked.{allocated, released, retained}
+use std.collections.UniqMap
 
 fn label(n: i32) -> string:
     "r$n"
@@ -120,6 +121,17 @@ tests:
         bump(&mut xs[1])
         xs.push(4)
         assert(xs.len() == 4 && xs[1] == 3, "the push ran after the call")
+
+    it("uniq map probes borrow their buffer entries without runtime counts"):
+        let mut values = UniqMap::[usize, usize].new()
+        _ := values.insert(7, 0)
+        before := retained()
+        let round: usize = 0
+        while round < 1000:
+            _ := values.insert(7, round)
+            round += 1
+        added := retained() - before
+        assert(added <= 2000, "only the call counts; a probe takes no Buffer item count: $added")
 
     it("references taken in a loop run in bounded memory"):
         let round = +0

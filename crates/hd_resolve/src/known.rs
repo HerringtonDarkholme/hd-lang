@@ -146,7 +146,7 @@ pub struct KnownItems {
     pub copy: DefId,
     // std.task
     pub suspend: DefId,
-    /// `std.rt.memory.Buffer`, a counted buffer object (`module.rt.buffer.type`).
+    /// `std.rt.memory.Buffer`, an uncounted owned buffer (`module.rt.buffer.owned`).
     pub buffer: DefId,
     pub block_on: DefId,
     /// `std.task.race`, whose call needs a task (`req.combinator.race-empty`).

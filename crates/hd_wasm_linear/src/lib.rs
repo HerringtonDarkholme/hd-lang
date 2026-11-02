@@ -46,8 +46,9 @@ pub fn shared_reference_layout(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) 
     )
 }
 
-/// Whether a value of `ty` holds a counted leaf on this backend (§23.16):
-/// the ownership passes' `OwnCx::counted` for a type with no parameter.
+/// Whether a value of `ty` holds a managed leaf on this backend (§23.16):
+/// a counted reference or an uncounted owned Buffer, as the ownership
+/// passes' `OwnCx::counted` for a type with no parameter.
 #[must_use]
 pub fn counted_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
     layout::walk(pool, env, ty).is_some()

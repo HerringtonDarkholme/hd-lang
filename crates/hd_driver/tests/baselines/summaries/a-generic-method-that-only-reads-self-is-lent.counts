@@ -37,7 +37,6 @@ fn collect(h: Handle[i32]) -> usize:
 >   copy app.main.Handle[i32] [names, get.1]
     h.keep(&mut all)
     all.len()
->   copy List[app.main.Handle[i32]]
 
 fn size(x: i32) -> i64:
     i64(x)
@@ -50,6 +49,4 @@ pub fn main() -> void $ Console:
 > app/main/main
 >   release List[app.main.Handle[i32]]
 >   copy app.main.Handle[i32] [names, get.1]
->   copy List[app.main.Handle[i32]]
->   release List[app.main.Handle[i32]]
 >   release List[app.main.Handle[i32]]

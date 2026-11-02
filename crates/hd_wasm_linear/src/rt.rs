@@ -211,8 +211,9 @@ pub enum Helper {
     /// `(env, address, ctx)`: the collector's `release`, one count less on
     /// what `address` is in ([`Helper::ReleaseRef`]).
     CycleRelease,
-    /// `(env, block, ctx)`: the collector's `free`, std's `free` of the
-    /// block.
+    /// `(env, address, ctx)`: the collector's `free` callback. An aligned
+    /// address frees a zero-count candidate; `block + 1` first finalizes a
+    /// white object's owned raw buffers, then frees `block`.
     CycleFree,
     /// `(address)`: tags the new frame at `address` for the collector
     /// (std's `opaque` entry). Idle frames use their release glue for
@@ -317,9 +318,22 @@ pub enum Helper {
     ListBuf {
         elem: Elem,
     },
+    /// `(capacity) -> buffer`: a new uncounted, uniquely owned raw Buffer
+    /// allocation with room for `capacity` elements laid out as `elem`.
+    BufferBuf {
+        elem: Elem,
+    },
+    /// `(buffer)`: drops an owned raw Buffer's initialized elements and
+    /// frees it; a collector trace only walks the elements.
+    BufferDrop,
     /// `(payload)`: the release glue of a list buffer: one count less on
     /// each counted reference of each element.
     DropElems {
+        elem: Elem,
+    },
+    /// `(buffer)`: release glue for the initialized elements in an
+    /// uncounted raw Buffer allocation.
+    DropBufferElems {
         elem: Elem,
     },
     /// `(coll) -> coll`: a copy of a list or a map (`types.coll.value`):
@@ -769,6 +783,19 @@ pub const LIST_EXPOSED: u32 = 1 << 31;
 /// [`LIST_ELEMS`].
 pub const LIST_LEN: u64 = 4;
 pub const LIST_ELEMS: u32 = 16;
+
+/// An uncounted `std.rt.memory.Buffer` raw allocation: its element-drop
+/// glue slot plus one, capacity, length, padding, then elements inline.
+/// It has one owner and deliberately has no reference-count word.
+pub const BUFFER_DESC: u64 = 0;
+pub const BUFFER_CAP: u64 = 4;
+pub const BUFFER_LEN: u64 = 8;
+pub const BUFFER_ELEMS: u32 = 16;
+/// Marks the first word of a live raw Buffer block. References into that
+/// block are borrowed from its owner, not counted references to a counted
+/// object; the remaining bits hold its element-drop glue slot plus one.
+pub const BUFFER_RAW: u32 = 1 << 31;
+const BUFFER_GLUE: u32 = BUFFER_RAW - 1;
 
 /// A context (`crates/hd_mono/DESIGN.md` §12.4, `emit/ctx.rs`): a list
 /// buffer whose elements are entries of [`CTX_ENTRY`] bytes, each a key id
@@ -1660,12 +1687,23 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::CycleFree => {
             let mut f = m.func("rt:cycle_free", vec![Val::I32; 3], vec![]);
+            let block = f.local(Val::I32);
+            f.get(1);
+            f.i32(-2);
+            f.op(Instruction::I32And);
+            f.set(block);
+            f.get(1);
+            f.i32(1);
+            f.op(Instruction::I32And);
+            f.op(Instruction::If(BlockType::Empty));
+            finalize_block(&mut f, m, block);
+            f.op(Instruction::End);
             #[cfg(feature = "checked-report")]
             if let Some(c) = m.runtime.and_then(|r| r.checked) {
-                f.get(1);
+                f.get(block);
                 f.call(Sym::Inst(c.collected));
             }
-            free_object(&mut f, m, 1);
+            free_object(&mut f, m, block);
             f
         }
         // `panic_with(msg, "")`, whose report is `msg` alone, through the
@@ -1765,12 +1803,12 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::Retain { vals, walk } => {
             let mut f = m.func("rt:retain", vals.clone(), vec![]);
             let on = retain_call(m);
-            walk_code(&mut f, walk, &|f, k| f.get(k), &on);
+            walk_code(&mut f, walk, &|f, k| f.get(k), &on, false);
             f
         }
         Helper::Release { vals, walk } => {
             let mut f = m.func("rt:release", vals.clone(), vec![]);
-            walk_code(&mut f, walk, &|f, k| f.get(k), &release_call);
+            walk_code(&mut f, walk, &|f, k| f.get(k), &release_call, true);
             f
         }
         Helper::ReleaseRef => release_ref(m, false),
@@ -1785,14 +1823,14 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f
         }
         Helper::DropFields { leaves, walk } => {
-            fields_glue(m, "rt:drop", leaves, walk, &release_call)
+            fields_glue(m, "rt:drop", leaves, walk, &release_call, true)
         }
         Helper::WeakNoopDrop => m.func("rt:weak_noop_drop", vec![Val::I32], vec![]),
         Helper::WeakNew => weak_new(m),
         Helper::WeakEntryDrop => weak_entry_drop(m),
         Helper::WeakTypeInit => weak_type_init(m),
         Helper::RetainFields { leaves, walk } => {
-            fields_glue(m, "rt:retain_fields", leaves, walk, &retain_call(m))
+            fields_glue(m, "rt:retain_fields", leaves, walk, &retain_call(m), false)
         }
         Helper::LoanBegin => loan_begin(m),
         Helper::LoanCount => loan_count(m),
@@ -1800,7 +1838,10 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::ListPinned => list_pinned(m),
         Helper::ListClone { elem } => list_clone(m, elem),
         Helper::ListBuf { elem } => list_buf(m, elem),
+        Helper::BufferBuf { elem } => buffer_buf(m, elem),
+        Helper::BufferDrop => buffer_drop(m),
         Helper::DropElems { elem } => drop_elems(m, elem),
+        Helper::DropBufferElems { elem } => drop_buffer_elems(m, elem),
         Helper::CollCopy => coll_copy(m),
         Helper::CtxFind => ctx_find(m),
         Helper::CtxNew => ctx_new(m),
@@ -2307,12 +2348,14 @@ pub(crate) fn release_call(f: &mut Func, known: bool) {
 
 /// Emits `walk` over the values that `get(k)` pushes, running `on` with
 /// each counted address on the stack, and whether it is a known payload
-/// start ([`Walk::Known`]): an enum's arms by its tag.
+/// start ([`Walk::Known`]). When `drop_owned` is true, also drops each
+/// uncounted owned [`Walk::Buffer`]. An enum's arms are selected by tag.
 pub(crate) fn walk_code(
     f: &mut Func,
     walk: &Walk,
     get: &dyn Fn(&mut Func, u32),
     on: &dyn Fn(&mut Func, bool),
+    drop_owned: bool,
 ) {
     match walk {
         Walk::Ref(k) => {
@@ -2323,16 +2366,22 @@ pub(crate) fn walk_code(
             get(f, *k);
             on(f, true);
         }
+        Walk::Buffer(k) => {
+            if drop_owned {
+                get(f, *k);
+                f.helper(Helper::BufferDrop);
+            }
+        }
         Walk::Seq(ws) => {
             for w in ws {
-                walk_code(f, w, get, on);
+                walk_code(f, w, get, on, drop_owned);
             }
         }
         Walk::Nullable(w) => {
             if let Some(k) = w.single() {
                 get(f, k);
                 f.op(Instruction::If(BlockType::Empty));
-                walk_code(f, w, get, on);
+                walk_code(f, w, get, on, drop_owned);
                 f.op(Instruction::End);
             }
         }
@@ -2345,7 +2394,7 @@ pub(crate) fn walk_code(
                 f.u32(u32::try_from(v).expect("variants"));
                 f.op(Instruction::I32Eq);
                 f.op(Instruction::If(BlockType::Empty));
-                walk_code(f, arm, get, on);
+                walk_code(f, arm, get, on, drop_owned);
                 f.op(Instruction::End);
             }
         }
@@ -2360,6 +2409,7 @@ fn fields_glue(
     leaves: &[Leaf],
     walk: &Walk,
     on: &dyn Fn(&mut Func, bool),
+    drop_owned: bool,
 ) -> Func {
     let mut f = m.func(name, vec![Val::I32], vec![]);
     let ls: Vec<u32> = leaves.iter().map(|l| f.local(l.val)).collect();
@@ -2368,7 +2418,7 @@ fn fields_glue(
         f.op(l.load(0));
         f.set(*at);
     }
-    walk_code(&mut f, walk, &|f, k| f.get(ls[k as usize]), on);
+    walk_code(&mut f, walk, &|f, k| f.get(ls[k as usize]), on, drop_owned);
     f
 }
 
@@ -2924,6 +2974,34 @@ fn collect(m: &Module) -> Func {
     f
 }
 
+/// Runs a white object's release glue in finalizing mode before the
+/// collector frees it. Counted edges were handled by the collect trace;
+/// this pass frees owned raw buffers.
+fn finalize_block(f: &mut Func, m: &Module, block: u32) {
+    if m.runtime.is_none() || m.acyclic {
+        return;
+    }
+    let desc = f.local(Val::I32);
+    f.get(block);
+    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+    glue_of(f, m);
+    f.set(desc);
+    f.get(desc);
+    f.op(Instruction::If(BlockType::Empty));
+    f.i32(1);
+    f.global_set(Global::Finalizing);
+    f.get(block);
+    f.u32(HEADER);
+    f.op(Instruction::I32Add);
+    f.get(desc);
+    f.i32(1);
+    f.op(Instruction::I32Sub);
+    f.call_indirect(vec![Val::I32], vec![]);
+    f.i32(0);
+    f.global_set(Global::Finalizing);
+    f.op(Instruction::End);
+}
+
 /// [`Helper::ReleaseRef`]: std identifies a block's final count before it
 /// enters this allocation-free worklist. Its count word then links pending
 /// blocks; its payload and descriptor stay intact until its turn. A nested
@@ -2938,6 +3016,12 @@ fn release_ref(m: &Module, known: bool) -> Func {
     let Some(r) = m.runtime else {
         return f;
     };
+    if !m.acyclic {
+        f.global_get(Global::Finalizing);
+        f.op(Instruction::If(BlockType::Empty));
+        f.op(Instruction::Return);
+        f.op(Instruction::End);
+    }
     let block = f.local(Val::I32);
     if !m.acyclic {
         // A drain cannot overlap collector tracing. Nested releases therefore
@@ -3226,6 +3310,89 @@ fn list_buf(m: &Module, elem: &Elem) -> Func {
     f
 }
 
+/// [`Helper::BufferBuf`]: an uncounted raw allocation with one owner and
+/// no count word. Its first word names the glue that drops initialized
+/// elements; capacity and length follow it, and elements remain 8-aligned.
+fn buffer_buf(m: &Module, elem: &Elem) -> Func {
+    let mut f = m.func("rt:buffer_buf", vec![Val::I32], vec![Val::I32]);
+    let b = f.local(Val::I32);
+    if let Some(most) = (u32::MAX - BUFFER_ELEMS).checked_div(elem.size) {
+        f.get(0);
+        f.u32(most);
+        f.op(Instruction::I32GtU);
+        f.op(Instruction::If(BlockType::Empty));
+        f.helper(Helper::Panic(
+            "heap-exhausted: a buffer does not fit the heap".into(),
+        ));
+        f.op(Instruction::End);
+    }
+    collect_if_due(&mut f, m);
+    f.get(0);
+    f.u32(elem.size);
+    f.op(Instruction::I32Mul);
+    f.u32(BUFFER_ELEMS);
+    f.op(Instruction::I32Add);
+    match m.runtime {
+        Some(r) => f.call(Sym::Inst(r.alloc)),
+        None => f.helper(Helper::Alloc),
+    }
+    f.set(b);
+    f.get(b);
+    let glue = elem
+        .walk
+        .as_ref()
+        .map(|_| Sym::Helper(Helper::DropBufferElems { elem: elem.clone() }));
+    push_desc(&mut f, glue, false);
+    f.u32(BUFFER_RAW);
+    f.op(Instruction::I32Or);
+    f.op(Instruction::I32Store(mem(HEAP, BUFFER_DESC, 2)));
+    f.get(b);
+    f.get(0);
+    f.op(Instruction::I32Store(mem(HEAP, BUFFER_CAP, 2)));
+    f.get(b);
+    f.i32(0);
+    f.op(Instruction::I32Store(mem(HEAP, BUFFER_LEN, 2)));
+    f.get(b);
+    f
+}
+
+/// [`Helper::BufferDrop`]: walk initialized elements through the raw
+/// allocation's descriptor. Trial cycle traces must leave the allocation
+/// intact; ordinary drops and cycle finalization free it afterward.
+fn buffer_drop(m: &Module) -> Func {
+    let mut f = m.func("rt:buffer_drop", vec![Val::I32], vec![]);
+    let desc = f.local(Val::I32);
+    f.get(0);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::If(BlockType::Empty));
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, BUFFER_DESC, 2)));
+    f.u32(BUFFER_GLUE);
+    f.op(Instruction::I32And);
+    f.set(desc);
+    f.get(desc);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(0);
+    f.get(desc);
+    f.i32(1);
+    f.op(Instruction::I32Sub);
+    f.call_indirect(vec![Val::I32], vec![]);
+    f.op(Instruction::End);
+    if !m.acyclic {
+        f.global_get(Global::Tracing);
+        f.op(Instruction::If(BlockType::Empty));
+        f.op(Instruction::Return);
+        f.op(Instruction::End);
+    }
+    if let Some(r) = m.runtime {
+        f.get(0);
+        f.call(Sym::Inst(r.acyclic.free));
+    }
+    f
+}
+
 /// [`Helper::CtxFind`].
 fn ctx_find(m: &Module) -> Func {
     let mut f = m.func("rt:ctx_find", vec![Val::I32, Val::I64], vec![Val::I32]);
@@ -3384,7 +3551,7 @@ fn list_truncate(m: &Module, elem: &Elem) -> Func {
         let ls = load_elem_locals(&mut f, &elem.leaves);
         each_elem(&mut f, at, n, elem.size, &|f| {
             fill_elem(f, at, &elem.leaves, &ls);
-            walk_code(f, walk, &|f, k| f.get(ls[k as usize]), &release_call);
+            walk_code(f, walk, &|f, k| f.get(ls[k as usize]), &release_call, true);
         });
     }
     f.get(b);
@@ -3396,22 +3563,31 @@ fn list_truncate(m: &Module, elem: &Elem) -> Func {
 
 /// [`Helper::DropElems`].
 fn drop_elems(m: &Module, elem: &Elem) -> Func {
-    let mut f = m.func("rt:drop_elems", vec![Val::I32], vec![]);
+    drop_elems_at(m, "rt:drop_elems", elem, LIST_LEN, LIST_ELEMS)
+}
+
+/// [`Helper::DropBufferElems`].
+fn drop_buffer_elems(m: &Module, elem: &Elem) -> Func {
+    drop_elems_at(m, "rt:drop_buffer_elems", elem, BUFFER_LEN, BUFFER_ELEMS)
+}
+
+fn drop_elems_at(m: &Module, name: &str, elem: &Elem, len: u64, elems: u32) -> Func {
+    let mut f = m.func(name, vec![Val::I32], vec![]);
     let (at, n) = (f.local(Val::I32), f.local(Val::I32));
     let Some(walk) = &elem.walk else {
         return f;
     };
     f.get(0);
-    f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
+    f.op(Instruction::I32Load(mem(HEAP, len, 2)));
     f.set(n);
     f.get(0);
-    f.u32(LIST_ELEMS);
+    f.u32(elems);
     f.op(Instruction::I32Add);
     f.set(at);
     let ls = load_elem_locals(&mut f, &elem.leaves);
     each_elem(&mut f, at, n, elem.size, &|f| {
         fill_elem(f, at, &elem.leaves, &ls);
-        walk_code(f, walk, &|f, k| f.get(ls[k as usize]), &release_call);
+        walk_code(f, walk, &|f, k| f.get(ls[k as usize]), &release_call, true);
     });
     f
 }
@@ -3439,7 +3615,7 @@ fn copy_elems(elem: &Elem, m: &Module) -> Func {
     each_elem(&mut f, 0, 1, elem.size, &|f| {
         fill_elem(f, 0, &elem.leaves, &ls);
         if let Some(w) = &walk {
-            walk_code(f, w, &|f, k| f.get(ls[k as usize]), &retain);
+            walk_code(f, w, &|f, k| f.get(ls[k as usize]), &retain, false);
         }
         for c in &elem.colls {
             let l = elem.leaves[*c as usize];
@@ -4195,6 +4371,14 @@ fn ref_helper(h: &Helper, m: &Module) -> Func {
             f.set(block);
             f.get(block);
             f.op(Instruction::I32Eqz);
+            f.op(Instruction::If(BlockType::Empty));
+            f.i32(0);
+            f.op(Instruction::Return);
+            f.op(Instruction::End);
+            f.get(block);
+            f.op(Instruction::I32Load(mem(HEAP, BUFFER_DESC, 2)));
+            f.u32(BUFFER_RAW);
+            f.op(Instruction::I32And);
             f.op(Instruction::If(BlockType::Empty));
             f.i32(0);
             f.op(Instruction::Return);

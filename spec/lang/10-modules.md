@@ -1768,7 +1768,7 @@ impl[T < ?Copy] Buffer[T]:
     pub fn new(capacity: usize) -> Buffer[T]
     pub fn capacity(&self) -> usize
     pub fn len(&self) -> usize
-    pub fn set_len(&self, len: usize) -> void
+    pub fn set_len(&mut self, len: usize) -> void
     pub fn at(&self, index: usize) -> Ptr[T]
     pub fn item_ref['a](&'a self, index: usize) -> &'a T
     pub fn item_mut['a](&'a mut self, index: usize) -> &'a mut T
@@ -1789,13 +1789,13 @@ pub fn new_string(len: usize) -> string
 10. r[module.rt.ptr.integer] A value of an integer type is stored as its bytes, least significant first, so the [loads and stores](#r-module.rt.memory.load) of its width read and write it.
 11. r[module.rt.ptr.holds] Only the standard library reads or writes through a `Ptr[T]`, and it reads only where the heap holds a value of `T`.
 12. r[module.rt.ptr.bounds] A read or a write that reaches a byte outside the heap stops the program instance with no panic category, as for [`module.rt.memory.bounds`](#r-module.rt.memory.bounds).
-13. r[module.rt.buffer.type] A `Buffer[T]` is a counted heap object with room for `capacity()` values of `T`, of which it holds the first `len()`. Its fields are private.
-14. r[module.rt.buffer.copy] A copy of a `Buffer[T]` is the same object with one count more. It never copies the values the buffer holds.
-15. r[module.rt.buffer.borrowed-access] `capacity`, `len`, `set_len`, and `at` take `&self`, so a call borrows the buffer and takes no count.
+13. r[module.rt.buffer.owned] A `Buffer[T]` has private fields and owns one uncounted raw allocation with `capacity()` slots, of which its first `len()` hold values.
+14. r[module.rt.buffer.move] `Buffer[T]` is non-copyable: by-value access moves allocation ownership, while borrowing transfers none.
+15. r[module.rt.buffer.access] `capacity`, `len`, and `at` take `&self`; `set_len` takes `&mut self`, so changing the initialized length requires mutable access.
 16. r[module.rt.buffer.new] `Buffer::new(capacity)` returns a new buffer whose capacity is `capacity` and whose length is 0. A capacity whose bytes do not fit the heap panics. Panic: `heap-exhausted`.
 17. r[module.rt.buffer.at] `b.at(index)` returns the `Ptr[T]` of value `index` of the buffer's room: `b.at(0).offset(index)`. It checks no bound; reads and writes through it follow [`module.rt.ptr.holds`](#r-module.rt.ptr.holds).
-18. r[module.rt.buffer.len] `b.set_len(len)` sets the length that `b.len()` returns and changes no value. Before it raises the length, std writes each new value through `at`; before it lowers the length, std reads each value past the new length out through `at`.
-19. r[module.rt.buffer.drop] When the last count of a buffer is released, the buffer drops each of its first `len()` values, then its storage is freed.
+18. r[module.rt.buffer.length] `b.set_len(len)` requires mutable access, changes no value, and sets `b.len()`; std writes added values before raising and reads removed values before lowering it.
+19. r[module.rt.buffer.owner-drop] When a buffer's owner is dropped, the buffer drops each of its first `len()` values, then its storage is freed.
 20. r[module.rt.buffer.item-ref] `b.item_ref(index)` returns an `&T` to value `index`, whose lifetime is the receiver borrow's lifetime.
 21. r[module.rt.buffer.item-mut] `b.item_mut(index)` returns an `&mut T` to value `index`, whose lifetime is the mutable receiver borrow's lifetime.
 22. r[module.rt.buffer.item-bounds] `item_ref` and `item_mut` check no bound; std calls either only after checking that `index < b.len()`.
@@ -1809,7 +1809,7 @@ pub fn new_string(len: usize) -> string
 > **Why.** These are Rust's `ptr::read` and `ptr::write`: one count per
 > value held, moved by a read and taken by a write, so std's collections
 > place, move, and drop their elements with no other intrinsic. A buffer
-> is the one counted object they need, as Go's slice backing array is.
+> is the one uniquely owned raw allocation they need.
 > The two string views are Go's `rawstring` and `unsafe.StringData`, so
 > concatenation, comparison, and slicing are std code over bytes.
 

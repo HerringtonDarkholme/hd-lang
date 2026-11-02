@@ -28,7 +28,9 @@ pub fn promotable_referent(
 
 /// [`promotable_referent`], counted parts allowed: the referent of a
 /// reference a promoted copy may take by value, lent with no count
-/// (§23.40), such as a `string` or a small struct holding one.
+/// (§23.40), such as a `string` or a small struct holding one. An
+/// uncounted owned Buffer is not eligible: a representation copy cannot
+/// be balanced by retain and release.
 #[must_use]
 pub fn lent_referent(
     pool: &hd_types::InternPool,
@@ -44,6 +46,7 @@ pub fn lent_referent(
     if crate::layout::ref_mutable(pool, env, t)
         || hd_mono::is_open(pool, target)
         || !matches!(kind(pool, env, target), Kind::Value)
+        || crate::layout::owns_buffer(pool, env, target)
     {
         return None;
     }

@@ -1,0 +1,15 @@
+# @dump: own
+# expected: len borrows the map; it does not copy and drop its owned Buffer before remove
+use std.collections.UniqMap
+
+struct Parcel:
+    label: string
+
+impl !Copy for Parcel
+
+fn sequence() -> void:
+    let mut values = UniqMap::[string, Parcel].new()
+    _ := values.insert("tea", Parcel { label: "first" })
+    _ := values.insert("tea", Parcel { label: "second" })
+    _ := values.len()
+    _ := values.remove("tea")

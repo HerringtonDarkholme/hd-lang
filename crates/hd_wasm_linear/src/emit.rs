@@ -28,7 +28,7 @@ use crate::layout::{Pass, num, vals};
 use crate::module::{
     Func, GLUE, Global, HEAP, Import, Ins, Module, Stored, Sym, Val, WEAK_GLUE, mem,
 };
-use crate::rt::{Helper, LIST_ELEMS};
+use crate::rt::{BUFFER_ELEMS, Helper};
 use crate::{Input, unsupported};
 
 mod closure;
@@ -3086,15 +3086,16 @@ impl Em<'_, '_, '_> {
     /// (`module.rt.memory.*`): each is one instruction. A load or a store
     /// is little-endian and takes any address; `grow` reads Wasm's `-1` as
     /// `.None`; `copy` is `memory.copy`, which allows overlap. A new
-    /// buffer is a list's buffer, whose glue drops the values it holds
-    /// (`module.rt.buffer.*`); a string's bytes are its address, and a new
-    /// string of no bytes the static empty one (`module.rt.string.*`).
+    /// buffer is an uncounted raw allocation whose glue drops the values
+    /// it holds (`module.rt.buffer.*`); a string's bytes are its address,
+    /// and a new string of no bytes the static empty one
+    /// (`module.rt.string.*`).
     fn memory(&mut self, i: u32, key: &str, args: &[u32]) -> StageResult<()> {
         let op = match key {
             "mem_buffer" => {
                 let (_, elem) = self.elem(self.ty(i))?;
                 self.push(args[0])?;
-                self.f.helper(Helper::ListBuf { elem });
+                self.f.helper(Helper::BufferBuf { elem });
                 return self.store_owned(i);
             }
             "mem_string_bytes" => {
@@ -3186,7 +3187,7 @@ impl Em<'_, '_, '_> {
         self.comp(*index, 0)?;
         self.f.u32(m.size);
         self.f.op(I::I32Mul);
-        self.f.u32(LIST_ELEMS);
+        self.f.u32(BUFFER_ELEMS);
         self.f.op(I::I32Add);
         self.f.op(I::I32Add);
         self.store(i)
