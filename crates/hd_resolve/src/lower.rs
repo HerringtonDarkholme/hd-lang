@@ -5002,6 +5002,23 @@ impl Lower<'_, '_, '_> {
             Some(_) => ImplKind::Delegated,
             None => ImplKind::Written,
         };
+        // A template sits in its trait's module or in a module of the same
+        // package that re-exports the trait (`annot.template.module`). The
+        // rejected template is left out, so it derives nothing.
+        if matches!(
+            kind,
+            ImplKind::Template | ImplKind::TupleTemplate | ImplKind::UnionTemplate
+        ) && !self.template_placed(h.def, trait_)
+        {
+            if self.r.frozen.is_none() {
+                self.diags.error(
+                    Code::MisplacedDerivation,
+                    self.src.span(n),
+                    "a template belongs in the module of its trait or a module of the same package that re-exports it",
+                );
+            }
+            return;
+        }
         // The package and module that may declare the implementation
         // (`trait.own.*`). The rejected implementation is left out, so no
         // overlap or body error follows it.
@@ -5115,6 +5132,28 @@ impl Lower<'_, '_, '_> {
         it.fills_defaults = self.fills_defaults(h.node);
         it.skips = self.skips(h.node, &gn);
         out.push(it);
+    }
+
+    /// Whether the template `def` of `trait_` may sit in this module
+    /// (`annot.template.module`): the trait's own module, a session
+    /// counting as one, or a module of the trait's package whose scope
+    /// re-exports it with `pub use`.
+    fn template_placed(&self, def: DefId, trait_: DefId) -> bool {
+        let session: Vec<PathId> = (self.r.session_modules.get(self.module))
+            .map_or(&[][..], Vec::as_slice)
+            .iter()
+            .map(|m| self.names.module(m))
+            .collect();
+        if same_module(&self.names, &session, def, trait_) {
+            return true;
+        }
+        let s = self.scope;
+        self.names.package_node(def) == self.names.package_node(trait_)
+            && s.binding.iter().zip(&s.origin).any(|(b, o)| {
+                *o == Origin::PubUse
+                    && b.kind == BindingKind::Item
+                    && DefId::from_raw(b.value) == trait_
+            })
     }
 
     /// Whether every type parameter is bounded by exactly one of `Num`,
@@ -6467,27 +6506,6 @@ fn same_module(names: &Names<'_>, session: &[PathId], a: DefId, b: DefId) -> boo
     x == y || (session.contains(&x) && session.contains(&y))
 }
 
-/// Whether an item is a template whose trait is declared in another module
-/// (`annot.template.module`), a session counting as one module. The
-/// template of a trait that `std.core` declares is in the std module that
-/// re-exports it (`annot.template.module.core`), since `std.core` uses no
-/// other module and so cannot name `Structure`.
-#[must_use]
-pub fn misplaced_template(names: &Names<'_>, session: &[PathId], it: &Item) -> bool {
-    matches!(
-        &it.data,
-        ItemData::Impl {
-            trait_,
-            kind: ImplKind::Template | ImplKind::TupleTemplate | ImplKind::UnionTemplate,
-            ..
-        }
-            if *trait_ != DefId::NONE
-                && !same_module(names, session, it.def, *trait_)
-                && !(names.module_of(*trait_) == "std.core"
-                    && names.module_of(it.def).starts_with("std."))
-    )
-}
-
 /// One module's items by `DefId`, and its impls by the type they target,
 /// built once per module so the per-item checks look items up instead of
 /// scanning them (#118). Lists keep item order, so every report keeps its
@@ -6932,20 +6950,11 @@ pub fn names_std_structure(names: &Names<'_>, scope: &ModuleScope) -> bool {
 }
 
 /// The derivation template of `trait_` (`annot.template.form`), among a
-/// module's own items, then the interfaces it sees.
-/// A template declared outside its trait's module is rejected
-/// (`misplaced-derivation`) and derives nothing.
+/// module's own items, then the interfaces it sees. A misplaced template
+/// is never lowered (`annot.template.module`), so it derives nothing.
 #[must_use]
-pub fn template_of(
-    names: &Names<'_>,
-    session: &[PathId],
-    lookup: &Lookup<'_>,
-    trait_: DefId,
-) -> Option<DefId> {
-    let is = |it: &&Item| {
-        matches!(&it.data, ItemData::Impl { trait_: t, kind: ImplKind::Template, .. } if *t == trait_)
-            && !misplaced_template(names, session, it)
-    };
+pub fn template_of(lookup: &Lookup<'_>, trait_: DefId) -> Option<DefId> {
+    let is = |it: &&Item| matches!(&it.data, ItemData::Impl { trait_: t, kind: ImplKind::Template, .. } if *t == trait_);
     lookup
         .own
         .iter()
@@ -7025,8 +7034,7 @@ fn derivation_nodes(
         .collect()
 }
 
-/// The placement rules of derivation syntax (`annot.template.module`,
-/// `annot.template.unique`, `annot.block.module`, `annot.block.newtype.error`,
+/// The placement rules of derivation syntax (`annot.template.unique`, `annot.block.module`, `annot.block.newtype.error`,
 /// `annot.line.placement-blocks`, `annot.no-trait.*`), each reported once on
 /// the block or member. `extra` holds the targets of blocks that sit in
 /// another module of the session, and `blocked` the types that another
@@ -7057,25 +7065,21 @@ fn placement(
         else {
             continue;
         };
-        let msg = if misplaced_template(names, session, it) {
-            Some("a template belongs in the module that declares its trait")
-        } else {
-            misplaced_block_in(
-                names,
-                session,
-                &|d| {
-                    index
-                        .get(items, d)
-                        .or_else(|| extra.iter().find(|i| i.def == d))
-                },
-                it,
-            )
-        };
+        let msg = misplaced_block_in(
+            names,
+            session,
+            &|d| {
+                index
+                    .get(items, d)
+                    .or_else(|| extra.iter().find(|i| i.def == d))
+            },
+            it,
+        );
         if let Some(msg) = msg {
             diags.error(Code::MisplacedDerivation, src.span(h.node), msg);
         }
         // A trait has at most one template of each kind, so a second is an
-        // error; a misplaced one counts for nothing.
+        // error.
         if matches!(
             kind,
             ImplKind::Template | ImplKind::TupleTemplate | ImplKind::UnionTemplate

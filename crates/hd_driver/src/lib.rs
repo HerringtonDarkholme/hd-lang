@@ -6575,8 +6575,7 @@ impl Run<'_> {
         }
         // A template needs a body in which a method calls `walk`,
         // `describe` or `build` of `Structure` (`annot.template.body`). A
-        // misplaced template is already one error, and a body that did not
-        // finish says nothing about its calls.
+        // body that did not finish says nothing about its calls.
         if failed.is_none() {
             for h in heads
                 .iter()
@@ -6593,8 +6592,7 @@ impl Run<'_> {
                             | hd_resolve::ImplKind::UnionTemplate,
                         ..
                     }
-                ) && !hd_resolve::lower::misplaced_template(&names, cx.session, it)
-                    && !hd_check::results::reads_structure(&cx, h.def)
+                ) && !hd_check::results::reads_structure(&cx, h.def)
                 {
                     diags.error(
                         Code::MarkerTemplate,
@@ -7004,7 +7002,7 @@ impl Run<'_> {
             if hd_resolve::lower::misplaced_block(&names, cx.session, cx.lookup.own, it).is_some() {
                 continue;
             }
-            let template = hd_resolve::lower::template_of(&names, cx.session, cx.lookup, *trait_);
+            let template = hd_resolve::lower::template_of(cx.lookup, *trait_);
             // A derivation block needs a template, and a comparison trait or
             // `Hash` is derived only with `@derive` (`annot.block.template`,
             // `trait.derive.cmp-every-member`). An unimported `Structure` is

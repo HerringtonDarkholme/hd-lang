@@ -2895,6 +2895,8 @@ typing/invalid/walker-mut-self-receiver.hd	type	reject:trait-method-signature	la
 runtime/valid/structure-name-alias.hd	runtime	accept	lang/14-annotations.md#r-annot.structure.name.alias
 runtime/valid/template-beside-hand-written-impl.hd	runtime	accept	lang/14-annotations.md#r-annot.template.not-impl
 typing/invalid/template-outside-trait-module.hd	type	reject:misplaced-derivation	lang/14-annotations.md#r-annot.template.module
+typing/invalid/template-reexported-from-other-package.hd	type	reject:misplaced-derivation	lang/14-annotations.md#r-annot.template.module
+typing/valid/template-in-reexporting-module.hd	type	accept	lang/14-annotations.md#r-annot.template.module
 typing/invalid/second-template-for-trait.hd	type	reject:overlapping-impl	lang/14-annotations.md#r-annot.template.unique
 typing/invalid/derived-member-fails-walker-bound.hd	type	reject:member-not-derivable	lang/14-annotations.md#r-annot.template.checked
 typing/invalid/second-tuple-template.hd	type	reject:overlapping-impl	lang/14-annotations.md#r-annot.template.tuple.rules

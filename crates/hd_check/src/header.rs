@@ -742,13 +742,7 @@ impl<'a> ItemCheck<'_, 'a> {
         };
         if *kind == ImplKind::Derived
             && !newtype
-            && hd_resolve::lower::template_of(
-                &self.cx.names,
-                self.cx.session,
-                self.cx.lookup,
-                *trait_,
-            )
-            .is_none()
+            && hd_resolve::lower::template_of(self.cx.lookup, *trait_).is_none()
         {
             return Ok(());
         }
