@@ -1666,6 +1666,16 @@ fn pure_operands(i: &I) -> Option<usize> {
         | I::F64PromoteF32
         | I::F32Neg
         | I::F64Neg
+        | I::F32Abs
+        | I::F64Abs
+        | I::F32Trunc
+        | I::F64Trunc
+        | I::F32Floor
+        | I::F64Floor
+        | I::F32Ceil
+        | I::F64Ceil
+        | I::F32Nearest
+        | I::F64Nearest
         | I::F32Sqrt
         | I::F64Sqrt => 1,
         I::I32Add
@@ -1710,6 +1720,7 @@ fn pure_operands(i: &I) -> Option<usize> {
         | I::F32Sub
         | I::F32Mul
         | I::F32Div
+        | I::F32Copysign
         | I::F32Eq
         | I::F32Ne
         | I::F32Lt
@@ -1720,6 +1731,7 @@ fn pure_operands(i: &I) -> Option<usize> {
         | I::F64Sub
         | I::F64Mul
         | I::F64Div
+        | I::F64Copysign
         | I::F64Eq
         | I::F64Ne
         | I::F64Lt
@@ -1927,6 +1939,16 @@ fn effect(i: &Ins, arity: &Arity, symbols: &Symbols) -> Option<(usize, usize)> {
             | I::F64PromoteF32
             | I::F32Neg
             | I::F64Neg
+            | I::F32Abs
+            | I::F64Abs
+            | I::F32Trunc
+            | I::F64Trunc
+            | I::F32Floor
+            | I::F64Floor
+            | I::F32Ceil
+            | I::F64Ceil
+            | I::F32Nearest
+            | I::F64Nearest
             | I::F32Sqrt
             | I::F64Sqrt
             | I::MemoryGrow(_) => (1, 1),
@@ -1982,6 +2004,7 @@ fn effect(i: &Ins, arity: &Arity, symbols: &Symbols) -> Option<(usize, usize)> {
             | I::F32Sub
             | I::F32Mul
             | I::F32Div
+            | I::F32Copysign
             | I::F32Eq
             | I::F32Ne
             | I::F32Lt
@@ -1992,6 +2015,7 @@ fn effect(i: &Ins, arity: &Arity, symbols: &Symbols) -> Option<(usize, usize)> {
             | I::F64Sub
             | I::F64Mul
             | I::F64Div
+            | I::F64Copysign
             | I::F64Eq
             | I::F64Ne
             | I::F64Lt

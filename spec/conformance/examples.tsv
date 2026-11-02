@@ -974,7 +974,7 @@ std/num.md	16	accept	runtime/valid/num-to-fixed.hd
 std/num.md	17	accept	runtime/valid/num-rotate.hd
 std/num.md	18	accept	runtime/valid/num-abs.hd
 std/num.md	19	accept	runtime/valid/num-pow.hd
-std/num.md	20	accept	runtime/valid/num-float-round.hd
+std/num.md	20	accept	runtime/valid/num-float-round.hd|runtime/valid/num-float-intrinsics.hd
 std/num.md	21	accept	runtime/valid/num-float-sqrt.hd
 std/encoding.md	1	accept	runtime/valid/encoding-hex-vectors.hd
 std/encoding.md	2	accept	runtime/valid/encoding-hex-vectors.hd
