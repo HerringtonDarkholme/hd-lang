@@ -3853,7 +3853,8 @@ impl Em<'_, '_, '_> {
     }
 
     /// Float operations and comparisons (`expr.float.basic`): power and
-    /// remainder use the same portable helpers as the GC backend.
+    /// remainder call their ordinary `std.num` implementations because
+    /// Wasm has no instructions for them.
     fn float_value(&mut self, op: PrimOp, ops: &[u32], v: Val) -> StageResult<()> {
         let single = v == Val::F32;
         if matches!(op, PrimOp::Pow | PrimOp::Rem) {
@@ -3863,11 +3864,11 @@ impl Em<'_, '_, '_> {
                     self.f.op(I::F64PromoteF32);
                 }
             }
-            self.f.helper(if op == PrimOp::Pow {
-                Helper::PowF64
+            self.f.call(Sym::Inst(if op == PrimOp::Pow {
+                self.input.float_ops.pow
             } else {
-                Helper::RemF64
-            });
+                self.input.float_ops.rem
+            }));
             if single {
                 self.f.op(I::F32DemoteF64);
             }

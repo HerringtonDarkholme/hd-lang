@@ -1,0 +1,6 @@
+# @dump: wat
+# @build: v8 release
+# expected: the two operators call their private std.num implementations
+fn operators(left: f64, right: f64) -> (f64, f64):
+    (left ** right, left % right)
+    #^^^^^^^^^^^^^^^^^^^^^^^^^^^^

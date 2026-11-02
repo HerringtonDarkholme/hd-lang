@@ -229,10 +229,6 @@ pub enum Helper {
     /// `(text) -> len`: copies a string into the exchange buffer at 0,
     /// growing the buffer to fit, and returns its length.
     ToBuf,
-    /// `(x: f64, y: f64) -> f64`: the shared portable IEEE power helper.
-    PowF64,
-    /// `(x: f64, y: f64) -> f64`: the shared portable truncated remainder.
-    RemF64,
     /// `(size) -> address`: `size` bytes of the heap, 8-aligned, from the
     /// bump pointer; the heap grows to fit, and a refused growth is
     /// `heap-exhausted`.
@@ -1447,16 +1443,6 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         | Helper::RefView { .. }
         | Helper::RefGet { .. }
         | Helper::RefSet { .. } => ref_helper(h, m),
-        Helper::PowF64 | Helper::RemF64 => {
-            let (name, code) = if matches!(h, Helper::PowF64) {
-                ("rt:pow_f64", crate::pow::pow_f64_code())
-            } else {
-                ("rt:rem_f64", crate::rem::rem_f64_code())
-            };
-            let mut f = m.func(name, vec![Val::F64, Val::F64], vec![Val::F64]);
-            f.raw = Some(code);
-            f
-        }
         Helper::Frame(_)
         | Helper::PollCheck
         | Helper::CancelCheck
