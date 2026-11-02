@@ -1,7 +1,8 @@
-# test: a UniqMap inserts, replaces, removes, grows, and clears non-copyable values
+# test: a UniqMap lends, iterates, collects, and moves non-copyable values
 # expect: test
-# Spec std/collections UniqMap: std-collections.uniq-map.insert, std-collections.uniq-map.remove.
-use std.collections.UniqMap
+# Spec std/collections UniqMap: std-collections.uniq-map.get-or-insert, std-collections.uniq-map.into-iter.
+use std.collections.{UniqList, UniqMap}
+use std.iter.Iterable
 
 struct Parcel:
     label: string
@@ -68,3 +69,39 @@ tests:
         _ := values.insert("tea", +3)
         assert_equal(values.get("tea"), .Some(+3), reason="get copies the stored value")
         assert_equal(values.get("cake"), .None, reason="get returns none for an absent key")
+
+    it("lends values and counts through get_or_insert"):
+        let mut counts = UniqMap::[string, i32].new()
+        for word in ["tea", "cake", "tea"]:
+            *counts.get_or_insert(word, 0) += 1
+        assert_equal(
+            *counts.get_ref("tea").expect("tea exists"),
+            2,
+            reason="get_ref lends the count",
+        )
+        *counts.get_mut("cake").expect("cake exists") += 4
+        assert_equal(counts.get("cake"), .Some(5), reason="get_mut changes the value in place")
+        let seen = 0
+        for (key, value) in counts.iter():
+            if key == "tea":
+                assert_equal(*value, 2, reason="iter lends the tea count")
+            seen += 1
+        assert_equal(seen, 2, reason="iter yields every entry")
+        let keys = 0
+        for _ in counts.keys():
+            keys += 1
+        assert_equal(keys, 2, reason="keys borrows and yields every key")
+
+    it("collects and consumes non-copyable values"):
+        let mut entries = UniqList::[(string, Parcel)].new()
+        entries.push(("tea", Parcel { label: "green" }))
+        entries.push(("cake", Parcel { label: "sponge" }))
+        let parcels: UniqMap[string, Parcel] = Iterable::[(string, Parcel)]::iter(entries).collect()
+        let seen = 0
+        for (key, parcel) in parcels:
+            if key == "tea":
+                assert_equal(parcel.label, "green", reason="the tea value moves out")
+            if key == "cake":
+                assert_equal(parcel.label, "sponge", reason="the cake value moves out")
+            seen += 1
+        assert_equal(seen, 2, reason="the consuming loop moves every entry")

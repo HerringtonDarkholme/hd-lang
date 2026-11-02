@@ -1,0 +1,15 @@
+# test: a live UniqMap value reference conflicts with a later insert
+# Spec std/collections UniqMap: std-collections.uniq-map.get-ref.
+use std.collections.UniqMap
+
+struct Parcel:
+    label: string
+
+impl !Copy for Parcel
+
+fn change_while_lent() -> string:
+    let mut parcels = UniqMap::[string, Parcel].new()
+    _ := parcels.insert("tea", Parcel { label: "green" })
+    held := parcels.get_ref("tea").expect("tea exists")
+    _ := parcels.insert("cake", Parcel { label: "sponge" }) # diagnostic: conflicting-access
+    held.label

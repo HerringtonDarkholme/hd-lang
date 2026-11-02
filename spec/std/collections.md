@@ -107,6 +107,8 @@ non-copyable and move into and out of the table.
 | lookup | `contains_key(&self, key: K) -> bool` |
 | change | `insert(&mut self, key: K, value: V) -> V?`; `remove(&mut self, key: K) -> V?`; `clear(&mut self) -> void` |
 | copyable access, `V < Copy` | `get(&self, key: K) -> V?` |
+| reference access | `get_ref(&self, key: K) -> (&V)?`; `get_mut(&mut self, key: K) -> (&mut V)?`; `get_or_insert(&mut self, key: K, default: V) -> &mut V` |
+| borrowed iteration | `iter(&self) -> UniqMapIter[K, V, '_]`; `keys(&self) -> UniqMapKeys[K, V, '_]` |
 
 1. r[std-collections.uniq-map.type] `std.collections` declares `UniqMap[K < Eq & Hash, V < ?Copy]` with private fields and `impl[K < Eq & Hash, V < ?Copy] !Copy for UniqMap[K, V]`. It is not a prelude name, so code that names it imports it.
 2. r[std-collections.uniq-map.new] `new()` returns an empty map.
@@ -117,9 +119,15 @@ non-copyable and move into and out of the table.
 7. r[std-collections.uniq-map.clear] `clear()` removes every entry and drops every value.
 8. r[std-collections.uniq-map.get] For `V < Copy`, `get(key)` returns `.Some` of a copy of the value whose key equals `key`, or `.None` when absent.
 9. r[std-collections.uniq-map.storage-bulk] The implementation is a hash table in one `Buffer`: occupied and removed entries are contiguous at its start, and a compact two-times-capacity probe index occupies unused bytes after them. Probing borrows entries. Rehashing moves each occupied entry into its new place with one `memory.copy`; the old buffer then counts as empty. No operation tests uniqueness or makes a copy-on-write clone.
+10. r[std-collections.uniq-map.get-ref] `get_ref(key)` returns a shared reference to the value whose key equals `key` in `.Some`, or `.None` when absent. The reference lives for the receiver borrow.
+11. r[std-collections.uniq-map.get-mut] `get_mut(key)` returns a mutable reference to the value whose key equals `key` in `.Some`, or `.None` when absent. The reference lives for the mutable receiver borrow.
+12. r[std-collections.uniq-map.get-or-insert] `get_or_insert(key, default)` returns a mutable reference to the value whose key equals `key`. When the key is absent, it first inserts `default`; when the key is present, it drops `default` without replacing the value. The reference lives for the mutable receiver borrow.
+13. r[std-collections.uniq-map.iter] `iter()` borrows the map and yields `(K, &V)` pairs in table order. Its cursor is `UniqMapIter[K, V, 'a]`, with private fields. The cursor and each yielded value reference live for the map borrow.
+14. r[std-collections.uniq-map.keys] `keys()` borrows the map and yields copies of its keys in the same order as `iter()`. Its cursor is `UniqMapKeys[K, V, 'a]`, with private fields, and lives for the map borrow.
+15. r[std-collections.uniq-map.into-iter] `UniqMap[K, V]` implements `Iterable[(K, V)]`. Its private `UniqMapIntoIter[K, V]` cursor owns the map and moves each key and value out in table order. A `for` loop over a `UniqMap` therefore consumes the map and each value.
+16. r[std-collections.uniq-map.collect] `UniqMap[K, V]` implements `FromIterator[(K, V)]`. When equal keys occur more than once, the last value replaces and drops the former value. An explicitly targeted `collect`, including `let items: UniqMap[_, _] = cursor.collect()`, may therefore collect non-copyable values.
 
-This core surface has no reference accessor, iterator, conversion, or
-literal construction. Those are specified separately when added.
+This surface has no literal construction.
 
 ## List And Map Values
 
