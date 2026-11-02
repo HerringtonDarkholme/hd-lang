@@ -24,6 +24,11 @@ pub fn new_list[T](items: List[T]) -> NewList[T]:
 pub fn empty_list[T < ?Copy]() -> NewList[T]:
     panic("todo")
 
+impl[T] NewList[T]:
+    ## A copy of the item at `index`, or `.None` past the end.
+    pub fn get(&self, index: usize) -> T?:
+        panic("todo")
+
 impl[T < ?Copy] NewList[T]:
     ## The number of items.
     pub fn len(&self) -> usize:
@@ -34,7 +39,7 @@ impl[T < ?Copy] NewList[T]:
         panic("todo")
 
     ## The item at `index` by reference, or `.None` past the end.
-    pub fn get(&self, index: usize) -> (&T)?:
+    pub fn get_ref(&self, index: usize) -> (&T)?:
         panic("todo")
 
     ## The item at `index` by mutable reference, or `.None` past the end.
@@ -42,11 +47,11 @@ impl[T < ?Copy] NewList[T]:
         panic("todo")
 
     ## The first item by reference, or `.None` for an empty list.
-    pub fn first(&self) -> (&T)?:
+    pub fn first_ref(&self) -> (&T)?:
         panic("todo")
 
     ## The last item by reference, or `.None` for an empty list.
-    pub fn last(&self) -> (&T)?:
+    pub fn last_ref(&self) -> (&T)?:
         panic("todo")
 
     ## A cursor that borrows the list and yields `&T` in order.
@@ -130,9 +135,14 @@ pub struct NewMap[K < Eq & Hash, V < ?Copy]:
 pub fn new_map[K < Eq & Hash, V](entries: Map[K, V]) -> NewMap[K, V]:
     panic("todo")
 
+impl[K < Eq & Hash, V] NewMap[K, V]:
+    ## A copy of the value of `key`, or `.None`.
+    pub fn get(&self, key: K) -> V?:
+        panic("todo")
+
 impl[K < Eq & Hash, V < ?Copy] NewMap[K, V]:
     ## The value of `key` by reference, or `.None`.
-    pub fn get(&self, key: K) -> (&V)?:
+    pub fn get_ref(&self, key: K) -> (&V)?:
         panic("todo")
 
     ## The value of `key`, inserting `default` first when the key is missing.

@@ -73,9 +73,9 @@ fn price_of(lines: &NewList[Line], sku: string) -> i64:
 fn ends(lines: &NewList[Line]) -> string:
     if lines.is_empty():
         return "empty"
-    first := lines.first().map(fn(line: &Line) -> string: line.sku).unwrap_or("")
-    middle := lines.get(lines.len() / 2).map(fn(line: &Line) -> string: line.sku).unwrap_or("")
-    last := lines.last().map(fn(line: &Line) -> string: line.sku).unwrap_or("")
+    first := lines.first_ref().map(fn(line: &Line) -> string: line.sku).unwrap_or("")
+    middle := lines.get_ref(lines.len() / 2).map(fn(line: &Line) -> string: line.sku).unwrap_or("")
+    last := lines.last_ref().map(fn(line: &Line) -> string: line.sku).unwrap_or("")
     "$first, $middle..$last of ${lines.len()}"
 
 ## True when any line is a gift card, and whether SKU "tea" is ordered.
@@ -106,7 +106,7 @@ fn stop_words() -> Set[string]:
 
 ## How often `word` occurs; `copied` turns the borrowed count into a value.
 fn count_of(counts: &NewMap[string, usize], word: string) -> usize:
-    counts.get(word).copied().unwrap_or(0)
+    counts.get(word).unwrap_or(0)
 
 ## "word: n" for each repeated word, sorted by word.
 fn report(counts: &NewMap[string, usize]) -> NewList[string]:
