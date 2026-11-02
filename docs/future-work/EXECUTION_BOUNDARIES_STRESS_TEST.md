@@ -9,7 +9,7 @@ domain properties, kinds, modes and lifecycle rules
 [section 5](EXECUTION_BOUNDARIES.md#5-type-checking), the process of
 [section 6](EXECUTION_BOUNDARIES.md#6-the-process-end-to-end) (rules A1 to
 A4, C1 to C3, B1 to B5 and its what-cannot-cross table), and questions 1
-and 3 to 17 ([section 8](EXECUTION_BOUNDARIES.md#8-questions-for-the-owner)),
+and 3 to 17 ([section 8](EXECUTION_BOUNDARIES.md)),
 as of commit 742fb8d4f. Two spellings of a cross-target call are compared:
 V1, the `@remote(D)` form the record dropped in section 7, and V2, the one
 crossing shape it now uses. The spec text it leans on is

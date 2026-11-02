@@ -1,20 +1,15 @@
 # Execution Boundaries: Moving Code And Data
 
-Status: proposal, 2026-10-31; domain: language (execution domains and
-crossings); not accepted. Nothing here is in the specification. It revises
-the [PR #1139](https://github.com/HerringtonDarkholme/hd-lang/pull/1139)
-brainstorm after the owner's review: examples first, then the model, then
-type checking, then syntax. The parts the owner approved are marked
-**approved**; everything else is a proposal.
+Status: proposal, 2026-11-02; domain: language (execution domains and
+crossings); not accepted. Nothing here is in the specification.
 
 - [1. Context And Goal](#1-context-and-goal)
 - [2. Eight Programs That Cross](#2-eight-programs-that-cross)
 - [3. The Model](#3-the-model)
-- [4. Outcomes](#4-outcomes-approved-question-1)
+- [4. Outcomes](#4-outcomes)
 - [5. Type Checking](#5-type-checking)
 - [6. The Process, End To End](#6-the-process-end-to-end)
-- [7. Syntax](#7-syntax-approved-question-14)
-- [8. Questions For The Owner](#8-questions-for-the-owner)
+- [7. Syntax](#7-syntax)
 - [Appendix A. Prior Art](#appendix-a-prior-art)
 - [Appendix B. Earlier Options And #166](#appendix-b-earlier-options-and-166)
 - [Sources](#sources)
@@ -36,7 +31,7 @@ So each program below copies too much, cannot say what it needs, or cannot
 be written. The design builds one model of a crossing first. The type
 checks follow from the model, and syntax comes last.
 
-**Principle (approved): every execution domain runs the same code.** One
+**Principle: every execution domain runs the same code.** One
 program is compiled for every domain it uses: the browser, the server, a
 worker, a device, a job that runs later. A crossing never sends code or an
 executable over the wire. It sends the identity of code the destination
@@ -232,7 +227,7 @@ that alone holds a capability (8).
 
 ### Execution Domains
 
-An execution domain has four properties (**approved**):
+An execution domain has four properties:
 
 | Property | Question it answers |
 | --- | --- |
@@ -241,7 +236,7 @@ An execution domain has four properties (**approved**):
 | Code | Which code runs there? Always the same program (section 1) |
 | Lifetime | Can it outlive the source? Can contact be lost? |
 
-Five kinds of domain (**approved**), and a sixth (proposed, question 16):
+Six kinds of domain:
 
 | Kind | Memory | Capabilities | Code | Lifetime | Example |
 | --- | --- | --- | --- | --- | --- |
@@ -252,23 +247,31 @@ Five kinds of domain (**approved**), and a sixth (proposed, question 16):
 | Later / resume | separate | the resuming host's | same build | outlives the source | 3 |
 | Background thread | shared | its own: not the UI thread's | same build | outlives the call that started it; ends with the process | 8 |
 
+A background thread shares memory as a scoped thread does, but outlives
+the call that started it, as a worker does. So it cannot lend (no scope
+ends the loan), a move needs no copy, and its capabilities exclude the UI
+thread's `Ui`: a view update sent to it is a type error, where Android
+throws `CalledFromWrongThreadException` at run time.
+
 ### A Crossing
 
 A **crossing** sends code and an environment to a destination, and returns
 a result.
 
 - **Code** is already at the destination, because every domain runs the
-  same program (section 1). The crossing names it: a function, or a
-  closure's lifted function, by its identity in that program. No code or
-  executable crosses.
+  same program (section 1). The crossing names it by its identity in that
+  program: a function or a closure for a domain of the same build, a
+  method of a declared interface for another build (section 6). No code
+  or executable crosses.
 - **Environment**: each captured value crosses in one mode, below.
-- **Requirement row**: the code's row is checked against the
-  destination's capabilities, not the source's. That is example 2.
+- **Requirement row**: code sent to a domain has its row checked against
+  the destination's capabilities, not the source's. An interface method
+  gets what it needs from its provider's fields instead (section 6).
 - **Result**: crosses back by the same modes.
 
 ### Crossing Modes
 
-Four modes for environment values (**approved**):
+Four modes for environment values:
 
 | Mode | The destination gets | The source afterwards | Where |
 | --- | --- | --- | --- |
@@ -277,7 +280,7 @@ Four modes for environment values (**approved**):
 | Lend | a borrow | frozen or excluded until the borrow ends | shared memory, scoped only |
 | Handle | a handle; the data stays where it lives | a handle tied to that one domain instance | all domains |
 
-The owner's note named five modes. Three of them fold into these four:
+The source note (Sources) named five modes. Three of them fold into these four:
 **share** is lend in shared memory or a handle in separate memory,
 **proxy** is a handle, and **reconstruct** is a copy rebuilt in the
 destination's representation (example 4's upload).
@@ -296,15 +299,15 @@ destination's representation (example 4's upload).
 | # | Source to destination | Code | Environment | Result |
 | --- | --- | --- | --- | --- |
 | 1 | page to worker | `thumbnail`, by name | `photo`: copy or transfer | thumbnail copied back; a transferred photo handed back |
-| 2 | browser to remote service | `place_order`, by name; its row is met only there | `cart`: copy | receipt copied back, or an unknown outcome |
-| 3 | now to later | `send_welcome`, by its identity in the program | `email`, `name`: copy; `conn`: rejected | done or failed, with no caller waiting |
-| 4 | host to device | five kernels | `photo`: copy rebuilt as a texture; the host keeps a handle | one image copied back |
+| 2 | browser to remote service | `Orders.place_order`, a `Remote` method the server serves | `cart`: copy | receipt copied back, or an unknown outcome |
+| 3 | now to later | a closure calling `send_welcome`, by its identity in the program | `email`, `name`: copy; `conn`: rejected | done or failed, with no caller waiting |
+| 4 | host to device | five kernels, methods of a `Kernel` trait | `photo`: copy rebuilt as a texture; the host keeps a handle | one image copied back |
 | 5 | thread to scoped threads | closures, same build | `lines`: shared lend; halves: exclusive lends | counts returned; threads joined before the scope ends |
-| 6 | browser to remote service | `matches`, by name | `f`: copy; the rows never move | 200 rows copied back |
-| 7 | server to browser, then back | the action's closure stays on the server; the browser holds a handle, `Action[Server, string, T]` | `todo.id`: copy, sealed in the handle; `title`: copy, untrusted | rename done or failed, or an unknown outcome |
-| 8 | UI thread to a background thread, then back | `detect_faces`, by name; its empty row fits the background thread | `photo`: copied (a snapshot of the copy-on-write buffer, no deep copy), or moved if `Photo` is non-copyable | faces copied back; the handler resumes on the UI thread |
+| 6 | browser to remote service | `SalesApi.top_sales`, a `Remote` method; the filter runs where the rows are | `f`: copy; the rows never move | 200 rows copied back |
+| 7 | server to browser, then back | the action's closure stays on the server; the browser holds a handle, `Action[string, void, TodoError]`, whose home is the server | `todo.id`: copy, sealed in the handle; `title`: copy, untrusted | rename done or failed, or an unknown outcome |
+| 8 | UI thread to a background thread, then back | a closure calling `detect_faces`; its empty row fits the background thread | `photo`: copied (a snapshot of the copy-on-write buffer, no deep copy), or moved if `Photo` is non-copyable | faces copied back; the handler resumes on the UI thread |
 
-### Lifecycle Rules (**approved**)
+### Lifecycle Rules
 
 - **L1.** A borrow ends when the destination's access ends (quiescence),
   not when the result arrives.
@@ -312,9 +315,9 @@ destination's representation (example 4's upload).
 - **L3.** A handle keeps its data alive until the last handle is dropped.
 - **L4.** The later/resume domain allows only copy and handle.
 
-### Affinity (**approved**: question 6)
+### Affinity
 
-Some work belongs near some data (owner, 2026-10-31). Two kinds behave
+Some work belongs near some data. Two kinds behave
 differently:
 
 | Kind | Meaning | Example | Who decides |
@@ -325,7 +328,7 @@ differently:
 A sketch of how each fits the model, for discussion:
 
 - **Required affinity follows from handles.** Every handle has a home
-  domain (question 4). A crossing may target the domain a handle lives in,
+  domain. A crossing may target the domain a handle lives in,
   instead of a named domain, as Chapel's `on x do` runs where `x` lives.
   The checker then requires every handle the code uses to share that home,
   so a kernel cannot take a texture from another GPU.
@@ -335,38 +338,51 @@ A sketch of how each fits the model, for discussion:
   in the runtime: Spark and Dask preferred locations, Ray's locality-aware
   scheduling, Orleans placement, NUMA and Kubernetes affinity rules.
 
-## 4. Outcomes (**approved**: question 1)
+## 4. Outcomes
 
 A domain that can lose contact may leave a crossing with no answer. In
-example 2 the charge may or may not have happened. The owner decided
-(2026-10-31): there is no new outcome type. A crossing returns an ordinary
-`Result[T, E]`, and unknown is one case of its error type: a std crossing
-error with an `Unknown` case beside the domain's own errors. The caller
-handles it with an ordinary `match`. A worker or device reports unknown
-only on a crash or reset, and a scoped thread never does.
+example 2 the charge may or may not have happened. There is no new outcome
+type: a crossing returns an ordinary `Result`, and losing contact is a
+case of std's `CrossError`:
+
+- **`Unreachable`:** the call never left, so it did not run.
+- **`Unknown`:** the call left and no answer came, including a timeout
+  after it was sent, so it may have run.
+
+A worker or a device reports `Unknown` only when it crashes or resets. A
+scoped thread cannot lose contact and never fails.
+
+The error type that carries a `CrossError` is always one the code
+declares, never a widened or nested one:
+
+- A domain's `run!` returns `Result[T, CrossError]`.
+- Code that returns its own `Result[T, E]` crosses with `try_run!`, which
+  needs `E < From[CrossError]` and returns `Result[T, E]`: one flat error.
+- A `Remote` method's error type holds a `CrossError` case (section 6,
+  A3), and so does an `Action`'s.
 
 ```text
-match orders.place_order!(cart):  # hypothetical syntax: orders, the provider of a Remote trait (section 6)
+# hypothetical syntax; orders: the Orders provider, a Remote trait
+@error
+pub enum OrderError:
+    @error("card declined")
+    Declined
+    @error("lost contact: $cause")
+    Cross(cause: CrossError)
+
+match orders.place_order!(cart):     # Result[Receipt, OrderError]
     .Ok(receipt) => show(receipt)
-    .Err(.Unknown) => check_order_status!(cart.id)
+    .Err(.Cross(.Unknown)) => check_order_status!(cart.id)
     .Err(error) => show_error(error)
-```
 
-The domain's errors and the crossing's errors join with a union type
-([#804](https://github.com/HerringtonDarkholme/hd-lang/issues/804)), never
-a nested `Result`. Code whose own result is `Result[T, E]` crosses as
-`Result[T, E | CrossError]`, so example 7's action matches one flat
-error:
-
-```text
-match rename.call!(text):  # Result[void, TodoError | CrossError]; hypothetical syntax
+match rename.call!(text):            # rename: Action[string, void, TodoError]
     .Ok(()) => pass
-    .Err(._1(.Unknown)) => println("saving; refresh to check")  # case _1 is the CrossError
-    .Err(error) => println("could not rename: $error")          # either side, through Display
+    .Err(.Cross(.Unknown)) => println("saving; refresh to check")
+    .Err(error) => println("could not rename: $error")
 ```
 
-L1 and L2 hold by construction, so the checker needs no rule for unknown
-(section 5, Outcomes And Cancellation).
+L1 and L2 hold by construction, so the checker needs no rule for
+`Unknown` (section 5, Outcomes And Cancellation).
 
 | Prior art | What the caller sees | How "unknown" is handled |
 | --- | --- | --- |
@@ -390,24 +406,25 @@ crossing, each capture, each use of a handle, and the code's body. Each
 check names what it enforces from section 3, the hd rules it reuses, and
 what is new. A table at the end sums up.
 
-The destination is always a value in code (question 3): a provider from
+The destination is always a value in code: a provider from
 the source's row (`Workers`, `Background`, `Gpu`, or a service trait that
-extends `Remote`), a scope, or a handle, whose home a crossing may target
-(question 6). A test swaps a provider with `$.with`. The sketches assume
+extends `Remote`), a scope, or a handle, whose home a crossing may target.
+A test swaps a provider with `$.with`. The sketches assume
 these std traits:
 
 ```text
 # hypothetical syntax throughout this section
-trait Workers[$Cap]:    # $Cap: the capabilities a worker offers
-    fn run![T, F < Fn() -> T $Cap](&mut self, code: F) -> Result[T, CrossError]
-
+# Workers, Background and Scope are sketched with their bounds in Two Bounds, below.
 trait Gpu:
-    type Device         # one type per device, as Gpu0
+    type Device                      # one type per device, as Gpu0
     fn upload!(&mut self, image: Image) -> Result[Texture[Self::Device], CrossError]
-    fn run!(&mut self, kernel: fn(Texture[Self::Device]) -> void, texture: Texture[Self::Device]) -> Result[void, CrossError]
+    fn read_back!(&mut self, texture: Texture[Self::Device]) -> Result[Image, CrossError]
+
+pub trait Filters[D] < Kernel:       # device code (section 6, A1); the host calls a generated stub
+    fn blur!(&mut self, texture: Texture[D], radius: f32) -> Result[void, CrossError]
 ```
 
-### The Row Against The Destination (**approved**: question 8)
+### The Row Against The Destination
 
 - **Checked at the crossing:** every key in the code's row is a capability
   of the destination. The source's row need not hold them (example 2).
@@ -431,13 +448,12 @@ trait Gpu:
 ```text
 # hypothetical syntax
 workers.run!(fn() -> void $ Db: save(doc))?                # error: type-mismatch, Db is not a worker capability
-gpu.run!(fn(t: Texture[Gpu0]) -> void: println("x"), tex)?  # error: type-mismatch, a kernel's row is empty
 workers.run!(fn() -> void $ Log: log_size(doc))?           # valid: the worker offers Log
 background.run!(fn() -> void $ Ui: draw_boxes(faces))?      # error: type-mismatch, only the UI thread offers Ui
 faces := background.run!(fn() -> List[Rect]: detect_faces(photo))?  # valid: an empty row fits; the handler suspends until it returns
 ```
 
-### Two Bounds: Send And Wire (**approved**: question 12)
+### Two Bounds: Send And Wire
 
 What may cross is stated where it is enforced: as a bound on the domain's
 method. Two std marker traits, checked structurally as `Copy` is
@@ -472,11 +488,12 @@ Each domain's method states its bound:
 
 ```text
 # hypothetical std declarations
-trait Background:                    # shared memory, outlives the call
-    fn run![T < Send, F < 'static & Send & Fn() -> T](&mut self, code: F) -> Result[T, CrossError]
+trait Background[$Cap]:              # shared memory, outlives the call; $Cap: what it offers
+    fn run![T < Send, F < 'static & Send & Fn() -> T $Cap](&mut self, code: F) -> Result[T, CrossError]
 
-trait Workers:                       # separate memory, same build
-    fn run![T < Wire, F < 'static & Wire & Fn() -> T](&mut self, code: F) -> Result[T, CrossError]
+trait Workers[$Cap]:                 # separate memory, same build
+    fn run![T < Wire, F < 'static & Wire & Fn() -> T $Cap](&mut self, code: F) -> Result[T, CrossError]
+    fn try_run![T < Wire, E < Wire & From[CrossError], F < 'static & Wire & Fn() -> Result[T, E] $Cap](&mut self, code: F) -> Result[T, E]
 
 struct Scope['s]:                    # shared memory, joins before 's ends, so it may lend
     count: usize
@@ -519,7 +536,7 @@ on serde's encoders.
 - **New:** the table as a rule. The mode follows from the value's type and
   the domain kind. A copyable value copies, a non-copyable one transfers, a
   `&` or `&mut` lends, and a handle type crosses as a handle. So the
-  checker infers every mode, and code never writes one (question 7).
+  checker infers every mode, and code never writes one.
 
 The four modes add these checks.
 
@@ -535,8 +552,7 @@ as a capture does today ([`fn.capture.copy.value`](../../spec/lang/07-functions.
   ([`module.boundary.tree`](../../spec/lang/10-modules.md#r-module.boundary.tree)), and private fields need `Serialize`
   ([`module.boundary.out`](../../spec/lang/10-modules.md#r-module.boundary.out), [`module.boundary.error`](../../spec/lang/10-modules.md#r-module.boundary.error)).
 - **New:** the boundary check runs on a crossing's captures, not only on a
-  registered signature. Code for separate memory is bounded `Fn`
-  (**approved**: question 10), so a
+  registered signature. Code for separate memory is bounded `Fn`, so a
   closure that writes a capture is `not-writable`
   ([`fn.trait.read-only`](../../spec/lang/07-functions.md#r-fn.trait.read-only)). Today a captured variable shares a cell with
   its scope ([`fn.capture.cell.writes`](../../spec/lang/07-functions.md#r-fn.capture.cell.writes)); across memories the write would
@@ -555,19 +571,18 @@ as a move.
 
 - **Enforces:** the destination gets ownership; the source loses the value
   until it is handed back. Transfer is for non-copyable types only
-  (question 5).
+ .
 - **Reuses:** the moves of M1 and M2 ([`ref.move.mut`](https://github.com/HerringtonDarkholme/hd-lang/blob/78c1ee262/spec/lang/13-values-and-references.md#r-ref.move.mut),
   [`ref.move.holds`](https://github.com/HerringtonDarkholme/hd-lang/blob/78c1ee262/spec/lang/13-values-and-references.md#r-ref.move.holds)). A later use is `use-of-moved-value`
   ([`ref.move.use`](https://github.com/HerringtonDarkholme/hd-lang/blob/78c1ee262/spec/lang/13-values-and-references.md#r-ref.move.use)); assigning the returned value makes the binding
   usable again ([`ref.move.reassign`](https://github.com/HerringtonDarkholme/hd-lang/blob/78c1ee262/spec/lang/13-values-and-references.md#r-ref.move.reassign)).
 - **New:** a crossing's capture is a move site, one more row of the
   [`ref.move.sites`](https://github.com/HerringtonDarkholme/hd-lang/blob/78c1ee262/spec/lang/13-values-and-references.md#r-ref.move.sites) table. A copyable type never transfers; it
-  copies. In separate memory the value must also hold no
-  reference into the source's memory. Every non-copyable type today holds
-  a `&mut`, so transfer into a worker, a service or a device has no valid
-  case before `!Copy` types
-  ([#1141](https://github.com/HerringtonDarkholme/hd-lang/issues/1141)).
-  Until then transfer is the scoped thread's ordinary move.
+  copies. In separate memory the value must also be `Wire`. A type
+  declared `impl !Copy`
+  ([#1141](https://github.com/HerringtonDarkholme/hd-lang/issues/1141)) whose fields are `Wire`, such as
+  example 1's photo buffer, transfers into a worker: the source binding
+  ends, and the buffer is handed over instead of copied.
 
 ```text
 # hypothetical syntax
@@ -620,30 +635,31 @@ lines.push("")                      # valid: the scope has joined
 
 **Handle**, at each call that takes the handle. A handle's type names its
 home domain, so using it in another domain is a type error, with no
-run-time check (question 4).
+run-time check.
 
 - **Enforces:** the handle row of the mode table, and L3.
 - **Reuses:** the device trait's associated type, bound in its key:
   `$.use(Gpu[Device = Gpu0])` has type `&dyn Gpu[Device = Gpu0]`
   ([`req.key.binding.value.reference-values`](../../spec/lang/11-requirements-and-suspension.md#r-req.key.binding.value.reference-values)). Its `upload!` returns a
-  `Texture[Gpu0]`, and its `run!` takes only that, so a `Texture[Gpu0]`
-  given to Gpu1 is an ordinary `type-mismatch`. Handles are not
+  `Texture[Gpu0]`, and the kernels for Gpu0, `Filters[Gpu0]`, take only
+  that, so a `Texture[Gpu0]` given to Gpu1's kernels is an ordinary
+  `type-mismatch`. Handles are not
   `Wire` ([`module.boundary.not-safe`](../../spec/lang/10-modules.md#r-module.boundary.not-safe)), so a copy never takes one.
   Within a domain a handle keeps its data alive as a counted reference
   does ([`ref.box.lifetime`](../../spec/lang/13-values-and-references.md#r-ref.box.lifetime)). `using` or an `@auto_closing` constructor
   releases it at scope exit ([`flow.auto-closing.statement`](../../spec/lang/06-control-flow.md#r-flow.auto-closing.statement)).
-- **New** (**approved**: question 9): a std marker trait for handle
+- **New:** a std marker trait for handle
   types that the compiler knows, as `AutoClosing` is
   one ([`flow.auto-closing.marker`](../../spec/lang/06-control-flow.md#r-flow.auto-closing.marker)). The checker needs it to pick the
   handle mode and to find handles for affinity. Counting a handle across
   domains (L3) is run-time work. Domains are static: one picked at run
-  time would need a fresh type (question 4).
+  time would need a fresh type.
 
 ```text
 # hypothetical syntax
 let tex = $.use(Gpu[Device = Gpu0]).upload!(photo)?  # tex: Texture[Gpu0]
-$.use(Gpu[Device = Gpu1]).run!(blur, tex)?           # error: type-mismatch, a Texture[Gpu0] on Gpu1
-$.use(Gpu[Device = Gpu0]).run!(blur, tex)?           # valid
+$.use(Filters[Gpu1]).blur!(tex, 2.0)?                # error: type-mismatch, a Texture[Gpu0] for Gpu1's kernels
+$.use(Filters[Gpu0]).blur!(tex, 2.0)?                # valid
 ```
 
 ### Handle Agreement And The Affinity Target
@@ -651,21 +667,23 @@ $.use(Gpu[Device = Gpu0]).run!(blur, tex)?           # valid
 - **Checked at the crossing's target and each handle the code uses:** a
   crossing aimed at a handle runs in the domain the handle's type names,
   and every handle the code captures or takes names that same domain.
-- **Enforces:** required affinity (question 6), as Chapel's `on x do`.
+- **Enforces:** required affinity, as Chapel's `on x do`.
   Preferred affinity is a run-time hint to a pool such as `Workers`; the
   checker never sees it.
 - **Reuses:** the home is a type argument, so "the same domain" is type
   equality. The target's capabilities come from its key, checked as in the
   row check; a row without that key is `missing-requirement`
   ([`req.use.missing`](../../spec/lang/11-requirements-and-suspension.md#r-req.use.missing)).
-- **New** (**approved**: question 11): a target read from a type: `at(tex)` with `tex: Texture[D]`
-  resolves to the provider for `Gpu[Device = D]`. Then a walk compares
-  every handle in the code with `D`.
+- **New:** a target read from a type: `at(rows)` with `rows: Table[D]`
+  resolves to the provider of the domain `D` where the rows live. Then a
+  walk compares every handle the code uses with `D`. This is example 6's
+  "code goes to the data", for same-build code next to a handle.
 
 ```text
 # hypothetical syntax
-at(tex).run!(fn() -> void: blend(tex, mask))?  # error: mask is a Texture[Gpu1], the target is Gpu0
-at(tex).run!(fn() -> void: blur(tex))?         # valid: runs on Gpu0, where tex lives
+# rows: Table[Shard3], other: Table[Shard1], f: Filter
+at(rows).run!(fn() -> List[Sale]: join_rows(rows, other, f))?  # error: other is a Table[Shard1], the target is Shard3
+at(rows).run!(fn() -> List[Sale]: filter_rows(rows, f))?       # valid: runs on Shard3, where rows live
 ```
 
 ### The Later Domain (L4)
@@ -687,7 +705,7 @@ at(tex).run!(fn() -> void: blur(tex))?         # valid: runs on Gpu0, where tex 
 
 ```text
 # hypothetical syntax
-jobs.after!(minutes(10), fn() -> Result[void, DbError] $ Db: mark_sent(conn, user.id))?  # error: conn is a &mut; later takes only copies and handles
+jobs.after!(minutes(10), fn() -> Result[void, DbError] $ Db: mark_sent(conn, user.id))?  # error: unsatisfied-trait-bound, &mut DbConn does not implement Wire
 jobs.after!(minutes(10), fn() -> Result[void, MailError] $ Mailer: send_welcome(user.email, user.name))?  # valid: two strings are copied
 ```
 
@@ -715,7 +733,7 @@ workers.run!(fn() -> void: log.info("done"))?               # error: unsatisfied
 workers.run!(fn() -> void $ Log: $.use(Log).info("done"))?  # valid: the worker's own Log
 ```
 
-### Top-Level Bindings (**approved**: question 17)
+### Top-Level Bindings
 
 - **Checked at the crossing's code and every function it reaches:** the
   code reads no `let mut` top-level binding, directly or through a callee.
@@ -769,7 +787,7 @@ workers.run!(fn() -> void: record())?        # error: record writes the mutable 
 
 | Check | At | Reused | New |
 | --- | --- | --- | --- |
-| Row against the destination | crossing | row subsumption, bound keys, no captured providers, bindable sets | capabilities on domain traits; a service's set from the configuration |
+| Row against the destination | crossing | row subsumption, bound keys, no captured providers, bindable sets | capabilities on domain traits; interface methods have no row (A5) |
 | Bound per domain | each crossing | trait bounds, the structural `Copy` check | `Send`, `Sync` and `Wire` markers, stated on each domain's method |
 | Mode per capture | capture | capture analysis; the copy test of M1 and M2 | modes inferred from types |
 | Copy | capture, result | boundary-safe values, `Fn` bounds | `Wire` at captures; `Fn` for separate memory |
@@ -777,8 +795,8 @@ workers.run!(fn() -> void: record())?        # error: record writes the mutable 
 | Lend | capture, scope call | closure-parameter lifetimes, lifetime bounds, exclusivity, the suspension store rule | the scope; run-time loans across threads |
 | Handle | handle use | bound keys, type equality | a handle marker; counts across domains |
 | Affinity target | crossing | type equality, `missing-requirement` | a target read from a type; the handle walk |
-| Later (L4) | capture, code | the copy check, the `'static` bound | none |
-| Body | body | row resolution at each call, the copy check | the device-code subset |
+| Later (L4) | capture, code | the `Wire` bound, the `'static` bound | no move into a job |
+| Body | body | row resolution at each call | the device-code subset |
 | Top-level bindings | crossing, reached functions | per-instance module storage, requirement-free init, declared rows | the mutable-state summary |
 | Outcomes | none | `Result`, `match`, moves, `abandon` | none |
 
@@ -790,9 +808,7 @@ The gaps:
 - **No threads and no shared heap.** One instance runs on one thread
   ([`module.instance.thread`](../../spec/lang/10-modules.md#r-module.instance.thread)), and instances' heaps are disjoint
   ([`module.instance.disjoint`](../../spec/lang/10-modules.md#r-module.instance.disjoint)). Lend waits for both.
-- **No owned non-copyable type.** Transfer into separate memory waits for
-  `!Copy` types ([#1141](https://github.com/HerringtonDarkholme/hd-lang/issues/1141)).
-- **No device-code subset.** A kernel's body is checked only by its row.
+- **No device-code subset yet.** A `Kernel` implementation's body must be device code (no allocation, no host calls); that subset is not specified here.
 - **The outcome type is not a gap.** Unknown is an error case (section 4).
 
 ## 6. The Process, End To End
@@ -887,8 +903,12 @@ The author's rules:
 - **A3.** A `Remote` method's error type can hold a `CrossError`, as
   `UserError.Cross` does. No result type is widened implicitly.
 - **A4.** The destination installs the real provider with `serve!`. Each
-  calling target installs a generated stub, `remote::[Users](address)`.
-  A test installs a fake. All three are ordinary providers.
+  calling target installs a generated stub: `remote::[Users](address)` for
+  a service, `kernels::[Filters[Gpu0]](gpu)` for a device. A test installs
+  a fake. All are ordinary providers.
+- **A5.** An interface method has no row of its own. Its implementation
+  gets what it needs from its provider's fields, such as `PgUsers.pool`,
+  so the server's `main` decides what the service can reach.
 
 ### Reading It
 
@@ -920,9 +940,10 @@ The checker looks at three places.
   memory is bounded `Fn`, so a write to a capture is `not-writable`. Code
   that reaches `let mut` top-level state does not cross (Top-Level
   Bindings).
-- **C3, the code's body:** its `$.use` calls resolve at the destination,
-  never to the caller's provider (The Body Against The Destination's
-  Environment).
+- **C3, the code's body:** for same-build code, its `$.use` calls resolve
+  at the destination, never to the caller's provider (The Body Against The
+  Destination's Environment). An interface implementation has no row
+  (A5), so C3 does not apply to it.
 
 What cannot cross follows from the bounds (section 5, Two Bounds) plus
 three rules that bounds do not cover. Each is a compile error at the
@@ -938,7 +959,7 @@ crossing that names the value and the rule:
 
 ### Building It
 
-The deployment lists targets (question 13). Each is an entry module, a
+The deployment lists targets. Each is an entry module, a
 runtime profile (what its host binds), and an output: Wasm for a browser
 or a server, device code for a GPU.
 
@@ -949,9 +970,11 @@ or a server, device code for a GPU.
 - **B2.** A `serve!(impl)` in a target compiles that implementation and a
   generated dispatcher: decode a method number and its arguments,
   validate them as untrusted input, call, encode the `Result`.
-- **B3.** A `remote::[T](address)` in a target compiles a generated stub
-  type: encode, send, decode, and map a transport failure to `CrossError`.
-  The stub holds no implementation code.
+- **B3.** A `remote::[T](address)` or `kernels::[T](device)` in a target
+  compiles a generated stub type: encode, send or launch, decode, and map
+  a transport or device failure to `CrossError`. The stub holds no
+  implementation code. A `Kernel` implementation compiles into the device
+  target's output.
 - **B4.** A same-build crossing compiles into the one Wasm module. Its
   code is named by its index in the module's function table, plus a
   captured environment.
@@ -981,7 +1004,7 @@ or a server, device code for a GPU.
 
 The runtime needs four pieces that do not exist yet, each its own slice:
 Wasm threads with shared memory and atomic counts for the two thread kinds
-(the `Sync` design, question 12); spawning instances for workers; a
+(the `Sync` design); spawning instances for workers; a
 transport for services; and a jobs store.
 
 **Prior art.** gRPC and tRPC declare a service and give callers a stub,
@@ -990,7 +1013,7 @@ as `Remote` traits do. Swift's distributed actors mark the declaration
 bang call carry the call side. Rayon, Kotlin's `withContext` and Swift's
 `Task.detached` take a closure for same-build work, as `run!` does.
 
-## 7. Syntax (**approved**: question 14)
+## 7. Syntax
 
 No keyword is new. A crossing is a bang method call on a value that stands
 for the destination, so one shape covers every kind:
@@ -1000,107 +1023,11 @@ faces := background.run!(fn() -> List[Rect]: detect_faces(photo))?  # hypothetic
 user := users.load_user!(id)                                         # users: the Users provider, a Remote trait
 ```
 
-Neither line writes a mode: each value's type decides it (question 7).
+Neither line writes a mode: each value's type decides it.
 Two spellings were considered and dropped. A keyword form, `on D: call`,
 adds a keyword. Marking functions `@remote(D)` and requiring `$ D` in a
 caller's row gave cross-target calls a second shape beside
 `workers.run!(...)`.
-
-## 8. Questions For The Owner
-
-1. **Is "unknown" a first-class outcome?** Answered (owner, 2026-10-31):
-   no new type. A crossing returns `Result[T, E]`, and unknown is an
-   `Unknown` case of a std crossing error, matched like any other error
-   (section 4).
-2. **Do L1 to L4 hold?** Answered: yes, all four (owner, 2026-10-31).
-3. **Does code name the destination?** Answered (owner, 2026-10-31): a
-   domain value in code for workers and devices, a provider such as `Gpu`
-   or `Workers` from the requirement row (swappable with `$.with` in
-   tests). A remote service is a provider too: a trait that extends
-   `Remote`, installed as a stub on the caller's side and served on its
-   own (question 14, owner, 2026-11-02).
-4. **How does a handle name its domain instance?** Answered (owner,
-   2026-10-31): in the type, as `Texture[Gpu0]`; using a handle in another
-   domain is a type error, with no run-time check. Dynamic instances (a
-   worker picked at run time) would need a fresh type per domain value, as
-   Rust's generativity does; not planned now.
-5. **When does transfer apply to plain values?** Answered (owner,
-   2026-10-31): transfer is for non-copyable types only. Today those all
-   hold a `&mut` into the source's memory, so transfer to separate memory
-   has no valid case yet; the owner moved non-copyable types forward (their own
-   design) so a user type such as a photo buffer can opt out of copying and
-   transfer (example 1).
-6. **How is affinity expressed?** Answered (owner, 2026-10-31): required
-   affinity, (a): a crossing may target a handle's home domain, read from
-   its type, and the checker requires every handle the code uses to share
-   it, as Chapel's `on x do`. Preferred affinity is a run-time hint to a
-   domain pool (`Workers`), outside the checker.
-
-7. **Is a crossing mode ever written?** Answered (owner, 2026-10-31): no.
-   The type decides: a copyable value copies, a non-copyable one
-   transfers, a reference lends, and a handle stays home. There is no
-   `transfer(x)`; to move a value instead of copying it, give its type
-   `impl !Copy`. Swift and Rust have no transfer keyword either.
-8. **How does a destination state its capabilities?** Answered (owner,
-   2026-10-31): as a row parameter on the domain trait, such as
-   `Workers[$ Clock + Console]`, checked by row subsumption, so each pool
-   offers its own set and tests swap it with `$.with`. Not a fixed set per
-   domain kind.
-9. **How does the checker know a type is a handle?** Answered (owner,
-   2026-10-31): a std marker trait the compiler knows, implemented by each
-   handle type (`impl Handle for Texture[D]`), as `AutoClosing` is for
-   `using`. A domain type argument alone does not make a type a handle.
-10. **May code for separate memory write a capture?** Answered (owner,
-    2026-10-31): no. It is bounded `Fn`, so a write is `not-writable`; the
-    code returns the new value instead, as Swift's `@Sendable` closures do.
-11. **May a crossing target a handle's home?** Answered (owner,
-    2026-10-31): yes, `at(tex)` reads the domain from the handle's type and
-    every other handle the code uses must share it (Chapel's `on x do`).
-12. **What stops a lend racing, and what may cross?** Answered (owner,
-    2026-10-31 and 2026-11-02): two std marker bounds, checked
-    structurally. `Send` (with `Sync` for `&T`) for threads of one memory,
-    `Wire` for separate memory and other builds, each stated on the
-    domain's method (section 5, Two Bounds). A closure that writes a
-    capture is not `Send`, so spawns cannot race on a shared cell.
-
-13. **Where do targets live?** Recommended: the deployment configuration
-    lists each target as an entry module, a runtime profile and an output
-    kind. A target's capability set is what its host binds plus what its
-    `main` installs with `$.with` and `serve!`, so routing is ordinary
-    provider installation and needs no table of its own.
-14. **How is a crossing written, on both sides?** Answered (owner,
-    2026-11-02): one shape, no new keyword. Every crossing is a bang
-    method call on a destination value: a provider from the row, a scope,
-    or a handle. Code for another build is a trait that extends a target
-    marker (`Remote` for services, `Kernel` for devices); its methods are
-    the endpoints, installed with `serve!` on one side and as a generated
-    `remote::[T]` stub on the other. A bare call never crosses (section 6).
-15. **One program, or separate packages per side?** Answered (owner,
-    2026-11-02) by the principle in section 1: every domain runs the same
-    code, so one program is compiled into one build per target, and a
-    crossing sends a code identity and data, never code.
-
-16. **Is a background thread a sixth kind of domain?** Recommended: yes.
-    It shares memory, as a scoped thread does, but outlives the call that
-    started it, as a worker does, so lend is refused (no scope ends it) and a
-    move needs no copy. Its capabilities exclude the UI thread's `Ui`, so a
-    view update sent to it is a `type-mismatch` at compile time, where
-    Android throws `CalledFromWrongThreadException` at run time. The call
-    that dispatches is a bang call: the UI thread's event loop keeps running
-    while the handler waits, as Swift's `@MainActor` with `Task.detached`
-    and Kotlin's `withContext(Dispatchers.Default)` do. It needs threads and
-    `Sync` (question 12): a copied `List` shares its buffer, so its counts
-    must be atomic.
-
-17. **May crossing code use top-level bindings?** Answered (owner,
-    2026-11-02): it may read immutable top-level bindings. Code that
-    reaches a `let mut` top-level binding, directly or through a callee,
-    cannot cross: the crossing is an error (section 5, Top-Level
-    Bindings).
-
-```text
-let tex: Texture[Gpu0] = gpu0.upload!(photo)?  # question 4 (a)
-```
 
 ## Appendix A. Prior Art
 
@@ -1178,7 +1105,7 @@ The brainstorm compared four options. The model keeps a part of each.
 | Option | Kept | Dropped |
 | --- | --- | --- |
 | A: named code, copied data | Named functions as code identity; the copy mode | Copy as the only mode |
-| B: portable closures placed by rows (#166) | Content hash across builds; rows checked at the destination | Placement by configuration alone (question 3) |
+| B: portable closures placed by rows (#166) | Content hash across builds; rows checked at the destination | Placement by configuration alone |
 | C: typed crossing contracts (owner's note) | A mode per capture; a destination representation; handles tied to an instance | A user `Across` trait per type as the primary check |
 | D: `Send`, `Sync`, scoped threads | The scoped-thread domain and lend | Markers now: they wait for threads |
 
@@ -1215,19 +1142,34 @@ is the copy-mode slice of this model.
 
 ## Parse Log
 
-All 23 `text` blocks were parsed on 2026-10-31 and 2026-11-02 with
+All 24 `text` blocks were parsed on 2026-11-02 with
 `scripts/hd-conformance.sh parse`, which checks syntax only; nothing was
-type-checked. Std names (`Workers`, `Jobs`, `Gpu`, `scope`) are sketches.
+type-checked. Std names (`Workers`, `Background`, `Jobs`, `Gpu`, `Remote`,
+`Kernel`, `serve!`, `remote::[T]`) are sketches.
 
 | Block | Where | Result |
 | --- | --- | --- |
-| 1 to 6 | Examples 1 to 6 | parse |
-| 7 | Section 4, the `match` on a crossing's result | parses; the placement and the `.Unknown` case are hypothetical |
-| 8 | Section 5, the assumed `Workers` and `Gpu` traits | parses; `# hypothetical syntax` |
-| 9 to 16 | Section 5, one invalid and one valid sketch per check | parse; every block is `# hypothetical syntax` |
-| 17 | Section 6, the end-to-end program (`Users < Remote`, `serve!`, `remote::[Users]`) and the background `run!` | parse (2026-11-02); `# hypothetical syntax` |
-| 18 | Section 7, syntax | parses (2026-11-02); `# hypothetical syntax` |
-| 19 | Question 4 | parses |
-| 21 | Section 5, top-level bindings | parses; `# hypothetical syntax` |
-| 22, 23 | Section 5, Two Bounds: the domain trait sketches and the four bound failures | parse (2026-11-02); `# hypothetical syntax` |
-| 20 | Example 8 | parses (2026-11-02); the row-check sketch with its two background-thread lines parses too |
+| 1 | 2. Eight Programs That Cross | parses |
+| 2 | 2. Eight Programs That Cross | parses |
+| 3 | 2. Eight Programs That Cross | parses |
+| 4 | 2. Eight Programs That Cross | parses |
+| 5 | 2. Eight Programs That Cross | parses |
+| 6 | 2. Eight Programs That Cross | parses |
+| 7 | 2. Eight Programs That Cross | parses |
+| 8 | 2. Eight Programs That Cross | parses |
+| 9 | 4. Outcomes | parses; `# hypothetical syntax` |
+| 10 | 5. Type Checking | parses; `# hypothetical syntax` |
+| 11 | The Row Against The Destination | parses; `# hypothetical syntax` |
+| 12 | Two Bounds: Send And Wire | parses |
+| 13 | Two Bounds: Send And Wire | parses; `# hypothetical syntax` |
+| 14 | Each Capture's Mode | parses; `# hypothetical syntax` |
+| 15 | Each Capture's Mode | parses; `# hypothetical syntax` |
+| 16 | Each Capture's Mode | parses; `# hypothetical syntax` |
+| 17 | Each Capture's Mode | parses; `# hypothetical syntax` |
+| 18 | Handle Agreement And The Affinity Target | parses; `# hypothetical syntax` |
+| 19 | The Later Domain (L4) | parses; `# hypothetical syntax` |
+| 20 | The Body Against The Destination's Environment | parses; `# hypothetical syntax` |
+| 21 | Top-Level Bindings | parses; `# hypothetical syntax` |
+| 22 | Writing It | parses; `# hypothetical syntax` |
+| 23 | Writing It | parses; `# hypothetical syntax` |
+| 24 | 7. Syntax | parses; `# hypothetical syntax` |
