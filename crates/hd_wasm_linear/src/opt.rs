@@ -873,6 +873,41 @@ impl Live {
     }
 }
 
+/// The distinct undirected local conflicts and each local's neighbors.
+/// A flat bit matrix makes repeated conflicts from wide value copies a
+/// constant-time membership check without storing the pair again.
+struct Conflicts {
+    neighbors: Vec<Vec<u32>>,
+    bits: Vec<u64>,
+    words: usize,
+}
+
+impl Conflicts {
+    fn new(locals: usize) -> Self {
+        let words = locals.checked_add(63).expect("locals") / 64;
+        Self {
+            neighbors: vec![Vec::new(); locals],
+            bits: vec![0; locals.checked_mul(words).expect("local conflicts")],
+            words,
+        }
+    }
+
+    fn insert(&mut self, x: u32, y: u32) {
+        debug_assert_ne!(x, y);
+        let (a, b) = if x < y { (x, y) } else { (y, x) };
+        let ai = a as usize;
+        let bi = b as usize;
+        let word = ai * self.words + bi / 64;
+        let bit = 1 << (bi % 64);
+        if self.bits[word] & bit != 0 {
+            return;
+        }
+        self.bits[word] |= bit;
+        self.neighbors[ai].push(b);
+        self.neighbors[bi].push(a);
+    }
+}
+
 /// Rule 15: locals of one type whose values are never live at once share
 /// one local, as a register allocator colors its interference graph. A
 /// write conflicts with each local live just after it, except with the
@@ -896,9 +931,15 @@ pub fn coalesce(f: &mut Func) {
     };
     let np = f.params.len();
     let n = np + f.locals.len();
+    // The interference graph is quadratic when every local overlaps every
+    // other. Past 8,192 locals, bound compile time and memory by keeping the
+    // emitted locals instead of building that graph.
+    if n > 8_192 {
+        return;
+    }
     let body = &f.body;
     // Each conflict: a local written while another is live just after.
-    let mut conflicts: Vec<(u32, u32)> = Vec::new();
+    let mut conflicts = Conflicts::new(n);
     let mut used = vec![false; n];
     // Each copy's two locals, the copied one second.
     let mut copies: Vec<(u32, u32)> = Vec::new();
@@ -919,24 +960,18 @@ pub fn coalesce(f: &mut Func) {
         }
         for &y in &after.members {
             if y != x && Some(y) != source {
-                conflicts.push((x, y));
+                conflicts.insert(x, y);
             }
         }
     });
     for p in 0..u32::try_from(np).expect("locals") {
         for &y in live.entry() {
             if y != p {
-                conflicts.push((p, y));
+                conflicts.insert(p, y);
             }
         }
     }
-    // Each local's conflicts, both ways.
-    let mut neighbors: Vec<Vec<u32>> = vec![Vec::new(); n];
-    for &(x, y) in &conflicts {
-        neighbors[x as usize].push(y);
-        neighbors[y as usize].push(x);
-    }
-    drop(conflicts);
+    let neighbors = conflicts.neighbors;
     let ty = |l: usize| {
         if l < np {
             f.params[l]
@@ -957,17 +992,18 @@ pub fn coalesce(f: &mut Func) {
         partners[a as usize].push(b);
         partners[b as usize].push(a);
     }
-    let mut blocked: Vec<usize> = Vec::new();
+    // The current local's blocked classes. Stamps avoid rebuilding and
+    // sorting a list when several neighbors already share one class.
+    let mut blocked_at = vec![usize::MAX; n];
     for x in 0..n {
         if x >= np && !used[x] {
             continue;
         }
         // The classes holding a local that conflicts with `x`.
-        blocked.clear();
-        blocked.extend(neighbors[x].iter().filter_map(|&y| class_of[y as usize]));
-        blocked.sort_stable();
-        blocked.dedup();
-        let fits = |c: usize| classes[c].1 == ty(x) && blocked.binary_search(&c).is_err();
+        for c in neighbors[x].iter().filter_map(|&y| class_of[y as usize]) {
+            blocked_at[c] = x;
+        }
+        let fits = |c: usize| classes[c].1 == ty(x) && blocked_at[c] != x;
         let found = if x < np {
             None
         } else {
@@ -3871,6 +3907,19 @@ mod origin_tests {
         assert!(matches!(f.body[5], Ins::Op(I::Return)), "{:?}", f.body);
         assert!(matches!(f.body[9], Ins::Op(I::Br(0))), "{:?}", f.body);
         assert_eq!(spans(&f)[5], 17);
+    }
+
+    #[test]
+    fn repeated_local_conflicts_are_recorded_once() {
+        let mut conflicts = Conflicts::new(5);
+        conflicts.insert(1, 4);
+        conflicts.insert(1, 4);
+        conflicts.insert(4, 1);
+        conflicts.insert(1, 3);
+        assert_eq!(conflicts.neighbors[0], []);
+        assert_eq!(conflicts.neighbors[1], [4, 3]);
+        assert_eq!(conflicts.neighbors[3], [1]);
+        assert_eq!(conflicts.neighbors[4], [1]);
     }
 
     #[test]
