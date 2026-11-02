@@ -292,8 +292,8 @@ Two std marker traits, checked structurally as `Copy` is
   ([`module.boundary.allowed`](../../spec/lang/10-modules.md#r-module.boundary.allowed)),
   plus a `*mut dyn T` of a `Remote` trait `T`.
 - **`Send`:** a value copied, moved or lent to another thread of the same
-  memory. Every `Wire` value is `Send`, except a remote reference, whose
-  stub belongs to one thread.
+  memory. The two are checked separately: a value can be one and not
+  the other, as the table shows.
 
 | Type | `Wire` | `Send` |
 | --- | --- | --- |
