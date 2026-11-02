@@ -67,7 +67,7 @@ Its core surface is:
 8. r[std-collections.uniq-list.truncate] `truncate(len)` drops every element at `len` and after. A `len` at least the current length has no effect. `clear()` is `truncate(0)`.
 9. r[std-collections.uniq-list.get] For `T < Copy`, `get(index)` returns `.Some` of a copy of the indexed element, or `.None` outside the list.
 10. r[std-collections.uniq-list.first-last] For `T < Copy`, `first()` and `last()` return `.Some` of a copy of the first or last element, or `.None` when the list is empty.
-11. r[std-collections.uniq-list.movers] A change that shifts elements moves each one through `Ptr[T].read` and `Ptr[T].write`. Growth moves every element into a larger `Buffer[T]`, sets the old buffer's length to zero, and releases it holding no elements. No operation tests whether the buffer is uniquely referenced or makes a copy-on-write clone.
+11. r[std-collections.uniq-list.bulk-moves] Growth moves the occupied byte range into a larger `Buffer` with one `memory.copy`. `insert` and `remove_at` shift a contiguous byte range with one overlapping `memory.copy`. Each source range then counts as empty. No operation tests uniqueness or makes a copy-on-write clone.
 
 This core surface has no reference accessor, iterator, conversion, or
 literal construction. Those are specified separately when added.
@@ -94,7 +94,7 @@ non-copyable and move into and out of the table.
 6. r[std-collections.uniq-map.remove] `remove(key)` removes the entry whose key equals `key` and moves its value out in `.Some`, or returns `.None` when there is no such entry.
 7. r[std-collections.uniq-map.clear] `clear()` removes every entry and drops every value.
 8. r[std-collections.uniq-map.get] For `V < Copy`, `get(key)` returns `.Some` of a copy of the value whose key equals `key`, or `.None` when absent.
-9. r[std-collections.uniq-map.storage] The implementation is a hash table over `Buffer`. It moves a slot out while probing and writes it back before advancing, and moves entries when it grows. No operation tests whether the buffer is uniquely referenced or makes a copy-on-write clone.
+9. r[std-collections.uniq-map.storage-bulk] The implementation is a hash table in one `Buffer`: occupied and removed entries are contiguous at its start, and a compact two-times-capacity probe index occupies unused bytes after them. Probing borrows entries. Rehashing moves each occupied entry into its new place with one `memory.copy`; the old buffer then counts as empty. No operation tests uniqueness or makes a copy-on-write clone.
 
 This core surface has no reference accessor, iterator, conversion, or
 literal construction. Those are specified separately when added.

@@ -15,7 +15,7 @@ use std.ops.Range
 use std.format.DebugWriter
 use std.hash.hash_of
 use std.rt.bytes.{panic_with}
-use std.rt.memory.Buffer
+use std.rt.memory.{Buffer, copy, fill, load_u32, size_of, store_u32}
 
 ## A uniquely owned growable list that may hold non-copyable elements.
 ## See [std-collections.uniq-list.type](../../spec/std/collections.md#r-std-collections.uniq-list.type).
@@ -57,11 +57,8 @@ impl[T < ?Copy] UniqList[T]:
         old := self.buffer
         next := Buffer::[T].new(capacity)
         size := old.len()
-        let index: usize = 0
-        while index < size:
-            value := old.at(index).read()
-            next.at(index).write(value)
-            index += 1
+        if size > 0:
+            copy(next.at(0).address, old.at(0).address, size * size_of::[T]())
         old.set_len(0)
         next.set_len(size)
         self.buffer = next
@@ -70,7 +67,8 @@ impl[T < ?Copy] UniqList[T]:
     ## See [std-collections.uniq-list.push](../../spec/std/collections.md#r-std-collections.uniq-list.push).
     pub fn push(&mut self, value: T) -> void:
         size := self.len()
-        self.reserve_for(size + 1)
+        if self.buffer.capacity() <= size:
+            self.reserve_for(size + 1)
         self.buffer.at(size).write(value)
         self.buffer.set_len(size + 1)
 
@@ -93,12 +91,14 @@ impl[T < ?Copy] UniqList[T]:
                 "index-out-of-bounds",
                 "uniq list insert index ${index} out of bounds for length ${size}",
             )
-        self.reserve_for(size + 1)
-        let at = size
-        while at > index:
-            moved := self.buffer.at(at - 1).read()
-            self.buffer.at(at).write(moved)
-            at -= 1
+        if self.buffer.capacity() <= size:
+            self.reserve_for(size + 1)
+        if index < size:
+            copy(
+                self.buffer.at(index + 1).address,
+                self.buffer.at(index).address,
+                (size - index) * size_of::[T](),
+            )
         self.buffer.at(index).write(value)
         self.buffer.set_len(size + 1)
 
@@ -112,11 +112,12 @@ impl[T < ?Copy] UniqList[T]:
                 "uniq list remove_at index ${index} out of bounds for length ${size}",
             )
         removed := self.buffer.at(index).read()
-        let at = index
-        while at + 1 < size:
-            moved := self.buffer.at(at + 1).read()
-            self.buffer.at(at).write(moved)
-            at += 1
+        if index + 1 < size:
+            copy(
+                self.buffer.at(index).address,
+                self.buffer.at(index + 1).address,
+                (size - index - 1) * size_of::[T](),
+            )
         self.buffer.set_len(size - 1)
         removed
 
@@ -173,9 +174,8 @@ impl[T < Copy] UniqList[T]:
         if self.is_empty(): .None else: self.get(self.len() - 1)
 
 enum UniqMapSlot[K < Eq & Hash, V < ?Copy]:
-    Empty
     Deleted
-    Occupied(key: K, value: V)
+    Occupied(hash: usize, key: K, value: V)
 
 impl[K < Eq & Hash, V < ?Copy] !Copy for UniqMapSlot[K, V]
 
@@ -183,8 +183,8 @@ impl[K < Eq & Hash, V < ?Copy] !Copy for UniqMapSlot[K, V]
 ## See [std-collections.uniq-map.type](../../spec/std/collections.md#r-std-collections.uniq-map.type).
 pub struct UniqMap[K < Eq & Hash, V < ?Copy]:
     slots: Buffer[UniqMapSlot[K, V]]
+    entry_capacity: usize
     size: usize
-    deleted: usize
 
 impl[K < Eq & Hash, V < ?Copy] !Copy for UniqMap[K, V]
 
@@ -195,13 +195,12 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
         UniqMap::[K, V].with_capacity(8)
 
     fn with_capacity(capacity: usize) -> UniqMap[K, V]:
-        slots := Buffer::[UniqMapSlot[K, V]].new(capacity)
-        let index: usize = 0
-        while index < capacity:
-            slots.at(index).write(.Empty)
-            index += 1
-        slots.set_len(capacity)
-        UniqMap::[K, V] { slots: slots, size: 0, deleted: 0 }
+        slot_bytes := size_of::[UniqMapSlot[K, V]]()
+        index_bytes := capacity * 2 * size_of::[usize]()
+        index_slots := (index_bytes + slot_bytes - 1) / slot_bytes
+        slots := Buffer::[UniqMapSlot[K, V]].new(capacity + index_slots)
+        fill(slots.at(capacity).address, 0, index_bytes)
+        UniqMap::[K, V] { slots: slots, entry_capacity: capacity, size: 0 }
 
     ## Returns the number of entries in the map.
     ## See [std-collections.uniq-map.len](../../spec/std/collections.md#r-std-collections.uniq-map.len).
@@ -213,136 +212,136 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
     pub fn is_empty(&self) -> bool:
         self.size == 0
 
-    fn start(&self, key: K) -> usize:
-        usize(hash_of(key)) % self.slots.len()
+    fn index_address(&self, index: usize) -> usize:
+        self.slots.at(self.entry_capacity).address + index * size_of::[usize]()
 
-    fn insert_without_growing(&mut self, key: K, value: V) -> V?:
-        capacity := self.slots.len()
-        let index = self.start(key)
-        let first_deleted = capacity
+    fn index_value(&self, index: usize) -> usize:
+        usize(load_u32(self.index_address(index)))
+
+    fn set_index(&self, index: usize, value: usize) -> void:
+        store_u32(self.index_address(index), u32(value))
+
+    fn start(&self, hash: usize) -> usize:
+        hash & (self.entry_capacity * 2 - 1)
+
+    # The index of `key`, borrowing every probed slot rather than moving it.
+    fn find_index(&self, key: K) -> usize?:
+        capacity := self.entry_capacity * 2
+        hash := usize(hash_of(key))
+        let index = self.start(hash)
         while true:
-            place := self.slots.at(index)
-            match place.read():
-                .Empty =>
-                    place.write(.Empty)
-                    target := if first_deleted == capacity: index else: first_deleted
-                    target_place := self.slots.at(target)
-                    match target_place.read():
-                        .Empty => pass
-                        .Deleted => self.deleted -= 1
-                        .Occupied(old_key, old_value) =>
-                            target_place.write(.Occupied(old_key, old_value))
-                            panic("uniq map probe chose an occupied slot")
-                    target_place.write(.Occupied(key, value))
-                    self.size += 1
-                    return .None
-                .Deleted =>
-                    place.write(.Deleted)
-                    if first_deleted == capacity:
-                        first_deleted = index
-                .Occupied(found, old) =>
-                    if found == key:
-                        place.write(.Occupied(found, value))
-                        return .Some(old)
-                    place.write(.Occupied(found, old))
-            index = (index + 1) % capacity
+            entry_plus_one := self.index_value(index)
+            if entry_plus_one == 0:
+                return .None
+            entry := entry_plus_one - 1
+            match self.slots.item_ref(entry):
+                .Deleted => pass
+                .Occupied(found_hash, found, _) =>
+                    if found_hash == hash && found == key:
+                        return .Some(entry)
+            index = (index + 1) & (capacity - 1)
+
+    # Adds one occupied entry to this freshly allocated table's compact index.
+    fn index_entry(&mut self, hash: usize, entry: usize) -> void:
+        capacity := self.entry_capacity * 2
+        let index = self.start(hash)
+        while true:
+            if self.index_value(index) == 0:
+                self.set_index(index, entry + 1)
+                return
+            index = (index + 1) & (capacity - 1)
+
+    ## Moves `value` into the entry for `key`; returns the replaced value, or `.None` for a new key.
+    ## See [std-collections.uniq-map.insert](../../spec/std/collections.md#r-std-collections.uniq-map.insert).
+    pub fn insert(&mut self, key: K, value: V) -> V?:
+        if self.slots.len() == self.entry_capacity:
+            self.grow()
+        capacity := self.entry_capacity * 2
+        hash := usize(hash_of(key))
+        let index = self.start(hash)
+        while true:
+            entry_plus_one := self.index_value(index)
+            if entry_plus_one == 0:
+                entry := self.slots.len()
+                self.slots.at(entry).write(.Occupied(hash, key, value))
+                self.slots.set_len(entry + 1)
+                self.set_index(index, entry + 1)
+                self.size += 1
+                return .None
+            entry := entry_plus_one - 1
+            match self.slots.item_ref(entry):
+                .Deleted => pass
+                .Occupied(found_hash, found, _) =>
+                    if found_hash == hash && found == key:
+                        place := self.slots.at(entry)
+                        match place.read():
+                            .Occupied(matched_hash, matched, old) =>
+                                place.write(.Occupied(matched_hash, matched, value))
+                                return .Some(old)
+                            .Deleted => panic("uniq map matched a deleted entry")
+            index = (index + 1) & (capacity - 1)
 
     fn grow(&mut self) -> void:
         old := self.slots
-        let mut next = UniqMap::[K, V].with_capacity(old.len() * 2)
+        old_capacity := self.entry_capacity
+        capacity := if self.size * 2 < old_capacity: old_capacity else: old_capacity * 2
+        let mut next = UniqMap::[K, V].with_capacity(capacity)
         let index: usize = 0
         while index < old.len():
-            place := old.at(index)
-            match place.read():
-                .Occupied(key, value) =>
-                    place.write(.Empty)
-                    _ := next.insert_without_growing(key, value)
-                .Empty => place.write(.Empty)
-                .Deleted => place.write(.Empty)
+            let hash: usize? = match old.item_ref(index):
+                .Occupied(found, _, _) => .Some(found)
+                .Deleted => .None
+            match hash:
+                .Some(found) =>
+                    entry := next.slots.len()
+                    copy(
+                        next.slots.at(entry).address,
+                        old.at(index).address,
+                        size_of::[UniqMapSlot[K, V]](),
+                    )
+                    next.slots.set_len(entry + 1)
+                    next.index_entry(found, entry)
+                    next.size += 1
+                .None => pass
             index += 1
+        old.set_len(0)
         *self = next
 
     ## True exactly when the map has an entry whose key equals `key`.
     ## See [std-collections.uniq-map.contains-key](../../spec/std/collections.md#r-std-collections.uniq-map.contains-key).
     pub fn contains_key(&self, key: K) -> bool:
-        capacity := self.slots.len()
-        let index = self.start(key)
-        while true:
-            place := self.slots.at(index)
-            match place.read():
-                .Empty =>
-                    place.write(.Empty)
-                    return false
-                .Deleted => place.write(.Deleted)
-                .Occupied(found, value) =>
-                    equal := found == key
-                    place.write(.Occupied(found, value))
-                    if equal:
-                        return true
-            index = (index + 1) % capacity
-
-    ## Moves `value` into the entry for `key`; returns the replaced value, or `.None` for a new key.
-    ## See [std-collections.uniq-map.insert](../../spec/std/collections.md#r-std-collections.uniq-map.insert).
-    pub fn insert(&mut self, key: K, value: V) -> V?:
-        if (self.size + self.deleted + 1) * 10 >= self.slots.len() * 7:
-            self.grow()
-        self.insert_without_growing(key, value)
+        self.find_index(key).is_some()
 
     ## Removes the entry for `key` and moves out its value, or returns `.None` when absent.
     ## See [std-collections.uniq-map.remove](../../spec/std/collections.md#r-std-collections.uniq-map.remove).
     pub fn remove(&mut self, key: K) -> V?:
-        capacity := self.slots.len()
-        let index = self.start(key)
-        while true:
-            place := self.slots.at(index)
-            match place.read():
-                .Empty =>
-                    place.write(.Empty)
-                    return .None
-                .Deleted => place.write(.Deleted)
-                .Occupied(found, value) =>
-                    if found == key:
+        match self.find_index(key):
+            .None => .None
+            .Some(index) =>
+                place := self.slots.at(index)
+                match place.read():
+                    .Occupied(_, _, value) =>
                         place.write(.Deleted)
                         self.size -= 1
-                        self.deleted += 1
-                        return .Some(value)
-                    place.write(.Occupied(found, value))
-            index = (index + 1) % capacity
+                        .Some(value)
+                    .Deleted => panic("uniq map found a deleted entry")
 
     ## Removes every entry and drops every value.
     ## See [std-collections.uniq-map.clear](../../spec/std/collections.md#r-std-collections.uniq-map.clear).
     pub fn clear(&mut self) -> void:
-        let index: usize = 0
-        while index < self.slots.len():
-            place := self.slots.at(index)
-            match place.read():
-                .Empty => place.write(.Empty)
-                .Deleted => place.write(.Empty)
-                .Occupied(_, _) => place.write(.Empty)
-            index += 1
-        self.size = 0
-        self.deleted = 0
+        capacity := self.entry_capacity
+        *self = UniqMap::[K, V].with_capacity(capacity)
 
 impl[K < Eq & Hash, V < Copy] UniqMap[K, V]:
     ## Returns a copy of the value for `key`, or `.None` when absent.
     ## See [std-collections.uniq-map.get](../../spec/std/collections.md#r-std-collections.uniq-map.get).
     pub fn get(&self, key: K) -> V?:
-        capacity := self.slots.len()
-        let index = self.start(key)
-        while true:
-            place := self.slots.at(index)
-            match place.read():
-                .Empty =>
-                    place.write(.Empty)
-                    return .None
-                .Deleted => place.write(.Deleted)
-                .Occupied(found, value) =>
-                    equal := found == key
-                    copied := value
-                    place.write(.Occupied(found, value))
-                    if equal:
-                        return .Some(copied)
-            index = (index + 1) % capacity
+        match self.find_index(key):
+            .Some(index) =>
+                match self.slots.item_ref(index):
+                    .Occupied(_, _, value) => .Some(value)
+                    .Deleted => panic("uniq map found a deleted entry")
+            .None => .None
 
 impl[T] List[T]:
     # `push` is a language-tier intrinsic method of the checker

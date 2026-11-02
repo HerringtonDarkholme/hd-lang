@@ -1,6 +1,6 @@
 # test: a UniqList grows, shifts, swaps, truncates, and returns non-copyable elements without copying them
 # expect: test
-# Spec std/collections UniqList: std-collections.uniq-list.type, std-collections.uniq-list.movers.
+# Spec std/collections UniqList: std-collections.uniq-list.type, std-collections.uniq-list.bulk-moves.
 use std.collections.UniqList
 use std.console.MemoryConsole
 
