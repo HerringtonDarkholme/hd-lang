@@ -1,0 +1,23 @@
+# test: a template in a module that re-exports a trait of another package is an error
+# Spec 14 Templates: annot.template.module.
+pub use std.format.{Debug}
+use std.structure.{Structure, Field, Variant, Describer}
+
+struct Count:
+    n: i32
+
+impl[S] Describer[S] for Count:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:
+        self.n = self.n + 1
+        .Ok(())
+
+impl[T] Debug for T by Structure: # diagnostic: misplaced-derivation
+    fn debug(self) -> string:
+        let mut d = Count { n: 0 }
+        _ := T::describe(&mut d)
+        "${d.n}"
