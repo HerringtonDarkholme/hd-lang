@@ -1651,6 +1651,22 @@ See also: [Snapshot Files](../std/testing.md#snapshot-files) in the stdlib
 tier, for how `snapshot` and `snapshot_file` compare text, update runs, and
 where snapshot files live.
 
+## Core Layer
+
+`std.core` is the standard library's leaf layer, as Rust's `core` is. It
+holds the primitives and the declarations that every other std module
+builds on. It uses no other module, so every std folder may use it.
+
+1. r[module.core.leaf] `std.core` is a folder of its own, and it uses no other module.
+2. r[module.core.traits] `std.core` declares `Copy`, `Eq`, `Hash`, and `Hasher`, the traits that `List[T]` and `Map[K, V]` name in their bounds.
+3. r[module.core.re-exports] `std.ops` re-exports `Copy`, `std.cmp` re-exports `Eq`, and `std.hash` re-exports `Hash` and `Hasher`, so `use std.hash.Hasher` names the declaration in `std.core`.
+4. r[module.core.prelude] `std.core` sees only its own prelude names, the `std.core` row of the [prelude](#prelude).
+5. r[module.core.hint] An import hint for a name that `std.core` declares and another std module re-exports names the re-exporting module.
+
+> **Why.** `List` and `Map` name these traits, so a module that names
+> `List` depends on them. With the traits in `std.core`, a std module that
+> needs only the core names never depends on the rest of std.
+
 ## Runtime Modules
 
 The **runtime modules** hold the standard library's own runtime: the code

@@ -6,6 +6,9 @@ use std.hash.Hasher
 use std.num.{Num, Integer}
 use std.structure.{Structure, UnionType, Walker, Variant, Field}
 
+# `Eq` is declared in std.core, which `List` and `Map` name.
+pub use std.core.{Eq}
+
 ## How two values order: `Less`, `Equal`, or `Greater`.
 ## See [trait.cmp.ordering](../../spec/lang/09-traits.md#r-trait.cmp.ordering).
 @derive(Debug, Eq)
@@ -13,11 +16,6 @@ pub enum Ordering:
     Less
     Equal
     Greater
-
-## The one equality trait: `==` and `!=` invoke its `eq`, which must be reflexive.
-## See [trait.cmp.equality](../../spec/lang/09-traits.md#r-trait.cmp.equality).
-pub trait Eq:
-    fn eq(&self, other: &Self) -> bool
 
 impl Ordering:
     ## `self` unless it is `.Equal`, and `other` for `.Equal`: chains the keys of a comparator.

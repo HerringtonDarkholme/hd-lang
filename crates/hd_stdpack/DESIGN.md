@@ -4,9 +4,8 @@ Status: describes the code at 3209d690; the code and the spec win.
 
 How compiler-supplied names and `lib/std` reach programs, and what the std
 pack would hold. `hd_driver::std_sources` embeds `lib/std` at build time and
-adds two virtual modules: `core.hd` (`hd_resolve::seed::CORE_SOURCE`, empty)
-and `rt.hd` (`hd_driver::RT_SOURCE`). Every run checks std from these
-sources, with the cache in front.
+adds one virtual module, `rt.hd` (`hd_driver::RT_SOURCE`). Every run checks
+std from these sources, with the cache in front.
 
 `hd_stdpack::build_pack` runs the driver over std and refuses until every
 stage through `ModuleFinish` passes. Planned, not built: the pack writer
@@ -20,10 +19,10 @@ of source-backed std interfaces).
 
 | Origin | Names every ordinary module sees | Source |
 | --- | --- | --- |
-| `std.core` | `never`, `bool`, `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `usize`, `f32`, `f64`, `char`, `string`, `void`, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Option`, `Result`, `panic` | `hd_resolve::seed` in the virtual `core.hd`; `Option` and `Result` also have methods in `option.hd` and `result.hd` |
+| `std.core` | `never`, `bool`, `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `usize`, `f32`, `f64`, `char`, `string`, `void`, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Option`, `Result`, `panic` | `hd_resolve::seed`, in `core/mod.hd`; `Option` and `Result` also have methods in `option.hd` and `result.hd` |
 | `std.format` | `Display`, `Debug`, `debug`, `dbg` | `format.hd`; `dbg` has an intrinsic body |
-| `std.cmp` | `Eq`, `PartialOrd`, `Ord`, `Ordering` | `cmp.hd`; primitive impls use intrinsic methods |
-| `std.hash` | `Hash`, `Hasher` | `hash.hd` |
+| `std.cmp` | `Eq`, `PartialOrd`, `Ord`, `Ordering` | `cmp.hd`; `Eq` is declared in `core/mod.hd` and re-exported; primitive impls use intrinsic methods |
+| `std.hash` | `Hash`, `Hasher` | declared in `core/mod.hd`, re-exported by `hash.hd` |
 | `std.iter` | `Iterator`, `Iterable` | `iter.hd` |
 | `std.console` | `Console`, `ConsoleError`, `println` | `console.hd`; `println` is hd over `Console` and `block_on` |
 | `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker` | `hd_resolve::seed` |
@@ -65,7 +64,7 @@ every key in `lib/std` has a row.
 | `bytes_mismatch` | `(left: string, right: string) -> usize`, in `text.hd` and `cmp.hd`; the body there is the reference, and the linear backend links the SIMD128 helper `rt:bytes_mismatch` (#428) | compiler |
 | `bytes_index_pair` | `(text: string, from: usize, first: u8, last: u8, gap: usize) -> usize`, in `text.hd`; the body there is the reference, and the linear backend links the SIMD128 helper `rt:bytes_index_pair` (#428) | compiler |
 | `utf8_valid_len` | `(bytes: List[u8]) -> usize`, in `text.hd`; the body there is the reference, and the linear backend links the SIMD128 helper `rt:utf8_valid_len` (#428) | compiler |
-| `string_to_bytes` | `(text: string) -> List[u8]`, in `text.hd` | compiler |
+| `string_to_bytes` | the intrinsic method `string.to_utf8(self) -> List[u8]`, in `core/mod.hd`, which `Hasher.write_str` calls | compiler |
 | `char_scalar` | `(value: char) -> u32`, in `text.hd`, `format.hd`, `hash.hd` | compiler |
 | `char_from_scalar` | `(point: u32) -> char?`, in `text.hd` | compiler |
 | `format_int` | `[N < Integer](value: N) -> string`, in `format.hd`; the runtime's `IntToStr` helper | compiler |
@@ -141,7 +140,8 @@ needs no self-derivation.
 
 | Folder | Modules | Outgoing folder edges |
 | --- | --- | --- |
-| `std` (`lib/std`) | 34: virtual `core`, plus the root files other than `prelude.hd` and `testing.hd` | none |
+| `std.core` (`lib/std/core`) | `std.core` from `core/mod.hd`: the seeded names, and `Copy`, `Eq`, `Hash`, `Hasher` | none |
+| `std` (`lib/std`) | the root files other than `prelude.hd` and `testing.hd` | `std.core` |
 | `std.rt` (`lib/std/rt`) | `std.rt` from the virtual `rt.hd`, plus `std.rt.memory`, `std.rt.alloc`, `std.rt.checked` and `std.rt.cycle` | `std` |
 | `std.testing` (`lib/std/testing`) | `std.testing` from `testing.hd`, plus `std.testing.arbitrary` | `std` |
 | `std.prelude` (`lib/std/prelude`) | `std.prelude` from `prelude.hd`, plus `std.prelude.testing` | `std`; `std.testing`, through the test-only re-export of `it` |
@@ -152,5 +152,9 @@ The graph is acyclic. Under
 re-export between them adds no edge, and the virtual `rt.hd` joins folder
 `std.rt` with `rt/memory.hd`. No module of folder `std` may use a runtime
 module, since `std.rt` uses `std.process` and `std.error`: the compiler
-calls the runtime by name instead. Every prelude origin is in folder
-`std`, so the fixed uses give every other folder an edge to `std`.
+calls the runtime by name instead. `std.core` is the leaf
+([`module.core.leaf`](../../spec/lang/10-modules.md#r-module.core.leaf)): it
+declares the traits that `List` and `Map` name, which `std.ops`, `std.cmp`
+and `std.hash` re-export, and it sees only its own prelude row. Every other
+prelude origin is in folder `std`, so the fixed uses give every other folder
+an edge to `std`.

@@ -70,15 +70,13 @@ mod strip_comments;
 include!(concat!(env!("OUT_DIR"), "/std_files.rs"));
 
 /// The std sources every run reads: `lib/std` as embedded at build time,
-/// plus the virtual `core.hd` of the compiler-supplied `std.core` and the
-/// virtual `rt.hd` of `std.rt`.
+/// plus the virtual `rt.hd` of `std.rt`.
 #[must_use]
 pub fn std_sources() -> MemorySources {
     let mut s = MemorySources::default();
     for (path, text) in STD_FILES {
         s.insert(path, text);
     }
-    s.insert("core.hd", hd_resolve::seed::CORE_SOURCE);
     s.insert("rt.hd", RT_SOURCE);
     s
 }
@@ -274,17 +272,14 @@ fn host_value_decode[T < Deserialize](text: string) -> Result[T, JsonError]:
 
 "#;
 
-/// A source set with the virtual `core.hd` and `rt.hd` added when they are
-/// missing: a run whose root package is std itself.
+/// A source set with the virtual `rt.hd` added when it is missing: a run
+/// whose root package is std itself.
 fn with_core(sources: &dyn SourceSet) -> MemorySources {
     let mut s = MemorySources::default();
     for e in sources.list() {
         if let Some(b) = sources.read(&e.path) {
             s.insert(&e.path, &String::from_utf8_lossy(&b));
         }
-    }
-    if sources.read("core.hd").is_none() {
-        s.insert("core.hd", hd_resolve::seed::CORE_SOURCE);
     }
     if sources.read("rt.hd").is_none() {
         s.insert("rt.hd", RT_SOURCE);
@@ -1111,7 +1106,11 @@ fn skim_module(
     uses.extend(session);
     // The prelude's fixed uses (`module.prelude.fixed-uses`).
     if module != "std.core" {
-        uses.extend(hd_resolve::prelude_modules().into_iter().map(str::to_owned));
+        uses.extend(
+            hd_resolve::prelude_modules(module)
+                .into_iter()
+                .map(str::to_owned),
+        );
     }
     SkimOut {
         file,

@@ -2003,7 +2003,7 @@ fn export(photo: Photo) -> Photo:
     hold(photo)        # photo moves
 ```
 
-1. r[ref.copy.marker] `Copy` is a sealed marker trait of `std.ops`, in the prelude. It has no members, and the compiler supplies its implementations.
+1. r[ref.copy.marker] `Copy` is a sealed marker trait that [`std.core`](10-modules.md#core-layer) declares and `std.ops` re-exports, in the prelude. It has no members, and the compiler supplies its implementations.
 2. r[ref.copy.structure] A type is `Copy` unless it is `&mut T`, a type declared `impl !Copy`, a type parameter that is not `Copy`, or a type that holds one as [`ref.move.holds`](#r-ref.move.holds) defines.
 3. r[ref.copy.moves] A value whose type is not `Copy` is moved, not copied, at each site of [`ref.move.sites`](#r-ref.move.sites).
 4. r[ref.copy.opt-out] `impl !Copy for T` declares that the struct or enum `T` is not `Copy`. It has no body and belongs in the module that declares `T`.

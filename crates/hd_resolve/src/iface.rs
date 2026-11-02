@@ -741,7 +741,8 @@ pub struct Export {
 
 /// An import hint from public std exports, including the modules that
 /// contain them. Re-exports of one declaration count as one item, with
-/// its declaring module preferred over a re-export's path.
+/// its declaring module preferred over a re-export's path, except that a
+/// re-export is preferred over `std.core`.
 #[must_use]
 pub fn std_import_hint<'a>(
     names: &Names<'_>,
@@ -760,7 +761,14 @@ pub fn std_import_hint<'a>(
             modules.insert(e.module.clone());
         }
         if names.text(e.name) == name {
-            let reexport = declared != e.module;
+            // A trait of std's leaf layer `std.core` is named by the std
+            // module that re-exports it (`std.hash.Hasher`), as Rust's std
+            // names core's.
+            let reexport = if declared == "std.core" {
+                e.module == "std.core"
+            } else {
+                declared != e.module
+            };
             let path = format!("{}.{name}", e.module);
             let found = items.entry(e.def).or_insert((reexport, path.clone()));
             if (reexport, &path) < (found.0, &found.1) {

@@ -83,11 +83,22 @@ pub fn test_prelude_item(names: &Names<'_>, name: &str) -> Option<DefId> {
         .map(|(module, _)| names.item(module, name))
 }
 
+/// The prelude rows `module` sees: `std.core`, std's leaf layer, sees only
+/// its own names (`module.core.leaf`); every other module sees them all.
+#[must_use]
+pub fn prelude_rows(module: &str) -> &'static [(&'static str, &'static [&'static str])] {
+    if module == "std.core" {
+        &PRELUDE[..1]
+    } else {
+        PRELUDE
+    }
+}
+
 /// The modules the prelude's names come from: each module's folder gets an
 /// edge to theirs (`module.prelude.fixed-uses`).
 #[must_use]
-pub fn prelude_modules() -> Vec<&'static str> {
-    PRELUDE.iter().map(|p| p.0).collect()
+pub fn prelude_modules(module: &str) -> Vec<&'static str> {
+    prelude_rows(module).iter().map(|p| p.0).collect()
 }
 
 /// The outside of one folder: which folder holds a module, and the frozen
@@ -1531,7 +1542,7 @@ fn prelude(
 ) {
     let names = &r.cx.names;
     let test_module = r.cx.world.test_only(&m.path);
-    for (module, list) in PRELUDE
+    for (module, list) in prelude_rows(&m.path)
         .iter()
         .chain(TEST_PRELUDE.iter().filter(|_| test_module))
     {
@@ -1760,11 +1771,13 @@ impl Lower<'_, '_, '_> {
             return String::new();
         }
         let world = self.r.cx.world;
-        // Core shares std's root folder and its public export index.
-        // Prelude has child modules, so its own folder is only re-exports.
-        let core = self.names.module_node(self.names.known.list);
+        // std's root folder holds the public modules and their export
+        // index; `std.core` is a folder of its own, whose traits the root
+        // modules re-export. Prelude has child modules, so its own folder
+        // is only re-exports.
+        let root = self.names.module_node(self.names.known.ordering);
         world
-            .module_folder_node(&self.names, core)
+            .module_folder_node(&self.names, root)
             .and_then(|folder| world.iface(folder))
             .map_or_else(String::new, |iface| {
                 crate::iface::std_import_hint(&self.names, &iface.exports, name)
@@ -6445,7 +6458,10 @@ fn same_module(names: &Names<'_>, session: &[PathId], a: DefId, b: DefId) -> boo
 }
 
 /// Whether an item is a template whose trait is declared in another module
-/// (`annot.template.module`), a session counting as one module.
+/// (`annot.template.module`), a session counting as one module. The
+/// template of a trait that `std.core` declares is in the std module that
+/// re-exports it (`annot.template.module.core`), since `std.core` uses no
+/// other module and so cannot name `Structure`.
 #[must_use]
 pub fn misplaced_template(names: &Names<'_>, session: &[PathId], it: &Item) -> bool {
     matches!(
@@ -6455,7 +6471,10 @@ pub fn misplaced_template(names: &Names<'_>, session: &[PathId], it: &Item) -> b
             kind: ImplKind::Template | ImplKind::TupleTemplate | ImplKind::UnionTemplate,
             ..
         }
-            if *trait_ != DefId::NONE && !same_module(names, session, it.def, *trait_)
+            if *trait_ != DefId::NONE
+                && !same_module(names, session, it.def, *trait_)
+                && !(names.module_of(*trait_) == "std.core"
+                    && names.module_of(it.def).starts_with("std."))
     )
 }
 

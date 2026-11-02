@@ -11,9 +11,6 @@ use hd_types::{ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList};
 
 use crate::iface::{Field, FnSig, Generic, Item, ItemData, Names, TraitData, Variant};
 
-/// The text of the virtual `std.core` module: it declares nothing itself.
-pub const CORE_SOURCE: &str = "# std.core: compiler-supplied declarations (hd_resolve::seed).\n";
-
 /// The modules that have compiler-supplied items.
 pub const SEEDED: &[&str] = &[
     "std.core",

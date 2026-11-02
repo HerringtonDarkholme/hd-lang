@@ -256,7 +256,7 @@ impl KnownItems {
         let num = item("std.num", "Num");
         let integer = item("std.num", "Integer");
         let float = item("std.num", "Float");
-        let copy = item("std.ops", "Copy");
+        let copy = item("std.core", "Copy");
         Self {
             any,
             any_val,
@@ -329,11 +329,11 @@ impl KnownItems {
             async_disposable: item("std.ops", "AsyncDisposable"),
             auto_closing: item("std.ops", "AutoClosing"),
             copy,
-            eq: item("std.cmp", "Eq"),
+            eq: item("std.core", "Eq"),
             partial_ord: item("std.cmp", "PartialOrd"),
             ord: item("std.cmp", "Ord"),
             ordering: item("std.cmp", "Ordering"),
-            hash: item("std.hash", "Hash"),
+            hash: item("std.core", "Hash"),
             key_bucket_hash: item("std.hash", "key_bucket_hash"),
             key_equal: item("std.hash", "key_equal"),
             string_bucket_hash: item("std.hash", "string_bucket_hash"),

@@ -78,9 +78,16 @@ fn std_interfaces_build_with_no_diagnostic() {
     let folders: Vec<&str> = out.ifaces.iter().map(|f| f.0.as_str()).collect();
     assert_eq!(
         folders,
-        ["app", "std", "std.prelude", "std.rt", "std.testing"]
+        [
+            "app",
+            "std",
+            "std.core",
+            "std.prelude",
+            "std.rt",
+            "std.testing"
+        ]
     );
-    assert_eq!(out.report.tally(Stage::FolderIface).ok, 5);
+    assert_eq!(out.report.tally(Stage::FolderIface).ok, 6);
 }
 
 #[test]
@@ -93,6 +100,8 @@ fn the_prelude_module_reexports_the_prelude_table() {
         .expect("std.prelude");
     fresh(|n| {
         let (_, exports) = decode_items(n, blob).expect("decode");
+        // A row's name is declared in its origin module, or in `std.core`
+        // when the origin re-exports it (`module.core.re-exports`).
         let mut got: Vec<(String, String)> = exports
             .iter()
             .filter(|e| e.module == "std.prelude")
@@ -102,6 +111,10 @@ fn the_prelude_module_reexports_the_prelude_table() {
         let mut want: Vec<(String, String)> = hd_resolve::PRELUDE
             .iter()
             .flat_map(|(m, names)| names.iter().map(|x| ((*m).to_owned(), (*x).to_owned())))
+            .map(|(m, x)| {
+                let core = got.iter().any(|g| g.0 == "std.core" && g.1 == x);
+                (if core { "std.core".to_owned() } else { m }, x)
+            })
             .collect();
         want.sort_stable();
         assert_eq!(got, want);
@@ -193,7 +206,7 @@ fn blob_bytes_are_equal_across_shuffled_serial_orders() {
             .collect()
     };
     let base = blobs(SerialOrder::Priority);
-    assert_eq!(base.len(), 5);
+    assert_eq!(base.len(), 6);
     for order in [
         SerialOrder::Fifo,
         SerialOrder::Shuffled(1),
@@ -264,8 +277,8 @@ fn std_typed_signatures_compile_through_headers() {
     );
     let out = run(&s);
     let t = out.report.tally(Stage::FolderIface);
-    assert_eq!((t.ok, t.not_implemented, t.blocked), (6, 0, 0));
-    assert_eq!(out.report.tally(Stage::HeaderCheck).ok, 6);
+    assert_eq!((t.ok, t.not_implemented, t.blocked), (7, 0, 0));
+    assert_eq!(out.report.tally(Stage::HeaderCheck).ok, 7);
     assert_eq!(out.report.tally(Stage::Coherence).ok, 1);
     let text = out.render();
     assert!(

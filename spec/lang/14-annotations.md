@@ -1037,15 +1037,16 @@ impl[T] Encode for T by Structure:
 1. r[annot.template.form] `impl[T] Trait for T by Structure:` declares the **template** of `Trait`.
 2. r[annot.template.not-impl] A template is not an implementation. It never applies by itself and claims no `(trait, concrete target)` pair, so it never overlaps a hand-written implementation.
 3. r[annot.template.module] A template must be declared in the module that declares its trait. One declared elsewhere is an error. Error: `misplaced-derivation`.
-4. r[annot.template.unique] A trait has at most one template. A second one is an error. Error: `overlapping-impl`.
-5. r[annot.template.structure] Inside a template, `T` implements `Structure`. Its bodies may call `Structure::walk(self, w)`, `T::describe(d)`, `T::build(s)`, and `T::facts()`.
-6. r[annot.template.qualified-self] Inside a template, a call qualified by `Structure` or by the derived trait, `Structure::f(args)` or `Trait::f(args)`, has the template's `T` as its `Self`. This replaces the `Self` that [`trait.assoc-call.trait`](09-traits.md#r-trait.assoc-call.trait) infers.
-7. r[annot.template.qualified-self.receiverless] So a receiverless qualified call is valid in a template. `Structure::name()` is `T`'s generated `name`, `Structure::facts()` is `T::facts()`, and `Encode::name()` in `Encode`'s template is `Encode`'s `name` for `T`.
-8. r[annot.template.body] A template must have a body in which at least one method calls `walk`, `describe`, or `build`.
-9. r[annot.template.body.error] A template without such a body, such as a bodiless marker template, is an error. Error: `marker-template`.
-10. r[annot.template.instance] Each derivation instantiates the template once, as one ordinary implementation of the trait for the target, in the target's module.
-11. r[annot.template.no-families] A template never derives an implementation family, a new type, or a builder: it implements the existing trait exactly once per derivation.
-12. r[annot.template.checked] The instantiated implementation is type-checked at its opt-in, where the member types and the walker's bounds are both known.
+4. r[annot.template.module.core] The template of a trait that [`std.core`](10-modules.md#core-layer) declares is declared in the std module that re-exports the trait instead, since `std.core` uses no other module.
+5. r[annot.template.unique] A trait has at most one template. A second one is an error. Error: `overlapping-impl`.
+6. r[annot.template.structure] Inside a template, `T` implements `Structure`. Its bodies may call `Structure::walk(self, w)`, `T::describe(d)`, `T::build(s)`, and `T::facts()`.
+7. r[annot.template.qualified-self] Inside a template, a call qualified by `Structure` or by the derived trait, `Structure::f(args)` or `Trait::f(args)`, has the template's `T` as its `Self`. This replaces the `Self` that [`trait.assoc-call.trait`](09-traits.md#r-trait.assoc-call.trait) infers.
+8. r[annot.template.qualified-self.receiverless] So a receiverless qualified call is valid in a template. `Structure::name()` is `T`'s generated `name`, `Structure::facts()` is `T::facts()`, and `Encode::name()` in `Encode`'s template is `Encode`'s `name` for `T`.
+9. r[annot.template.body] A template must have a body in which at least one method calls `walk`, `describe`, or `build`.
+10. r[annot.template.body.error] A template without such a body, such as a bodiless marker template, is an error. Error: `marker-template`.
+11. r[annot.template.instance] Each derivation instantiates the template once, as one ordinary implementation of the trait for the target, in the target's module.
+12. r[annot.template.no-families] A template never derives an implementation family, a new type, or a builder: it implements the existing trait exactly once per derivation.
+13. r[annot.template.checked] The instantiated implementation is type-checked at its opt-in, where the member types and the walker's bounds are both known.
 
 ```text
 use std.structure.Structure

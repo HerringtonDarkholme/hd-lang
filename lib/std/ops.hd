@@ -16,6 +16,9 @@ use std.hash.Hash
 use std.num.{Num, Integer, Float}
 use std.structure.{Structure, Source, Variant, Field, Members, Key, fills_defaults}
 
+# `Copy` is declared in std.core, which `List` and `Map` name.
+pub use std.core.{Copy}
+
 # Both markers are typed fact types (r-annot.typed-fact.declare), so a
 # marker on `fn ms(n: i64) -> Millis` checks like
 # `let f: NumSuffix[fn(i64) -> Millis] = num_suffix()`: the signatures below
@@ -174,12 +177,6 @@ pub trait Disposable[$ R = $ ()]:
 pub trait AsyncDisposable[$ R = $ ()]:
     fn dispose!(&mut self) -> void $ R
 
-# The compiler-known marker for a value that copies
-# (spec/lang/13-values-and-references.md#copy). A prelude name.
-## Marks a type whose values copy. The compiler answers it from the type's structure: every type is `Copy` but a `&mut T`, a type declared `impl !Copy`, a type parameter declared `?Copy`, and a type that holds one by value. A type parameter is `Copy` unless it is declared `?Copy`. No code implements it.
-## See [ref.copy.marker](../../spec/lang/13-values-and-references.md#r-ref.copy.marker).
-pub trait Copy:
-    pass
 
 # The compiler-known marker for a value returned by an `@auto_closing`
 # function and registered as cleanup at its call statement.

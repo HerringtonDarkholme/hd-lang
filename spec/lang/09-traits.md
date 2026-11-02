@@ -242,8 +242,9 @@ traits, and the rules that every trait implementation follows.
 
 ### Comparison Traits
 
-The standard library defines `Eq`, `PartialOrd`, `Ord`, and `Ordering` in
-`std.cmp`.
+The standard library defines `PartialOrd`, `Ord`, and `Ordering` in
+`std.cmp`. `Eq` is declared in [`std.core`](10-modules.md#core-layer), and
+`std.cmp` re-exports it.
 
 | Rule | Trait | Requires |
 | --- | --- | --- |
@@ -295,7 +296,7 @@ trait Hash:
     fn hash(&self, state: &mut dyn Hasher) -> void
 ```
 
-1. r[trait.hash.module] The standard library defines `Hash` and `Hasher` in `std.hash`.
+1. r[trait.hash.module] The standard library declares `Hash` and `Hasher` in [`std.core`](10-modules.md#core-layer), and `std.hash` re-exports them.
 2. r[trait.hash.map-key] A map key must implement both `Eq` and `Hash`.
 3. r[trait.hash.not-inferred] Neither trait is inferred for user-defined structs or enums, including payload-free enums.
 4. r[trait.hash.unverified] The compiler does not verify any relationship between their implementations.
