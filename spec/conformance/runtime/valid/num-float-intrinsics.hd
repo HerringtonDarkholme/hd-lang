@@ -1,0 +1,52 @@
+# test: round_ties_even and copysign work on both float widths, including signed zeros, NaNs, ties, and infinities
+# Spec std/num Float Rounding: std-num.float-round.extra-widths, std-num.float-round.intrinsic, std-num.float-round.ties-even.value, std-num.float-copysign.value, std-num.float-round.extra-no-panic.
+fn bank_round(value: f64) -> f64:
+    value.round_ties_even()
+
+fn signed_magnitude(magnitude: f64, sign: f64) -> f64:
+    magnitude.copysign(sign)
+
+fn negative_zero(value: f64) -> bool:
+    value == 0.0 && 1.0 / value < 0.0
+
+fn positive_zero(value: f64) -> bool:
+    value == 0.0 && 1.0 / value > 0.0
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("rounds f64 ties to even"):
+        assert_equal(bank_round(2.5), 2.0, reason="lower even integer")
+        assert_equal(3.5.round_ties_even(), 4.0, reason="upper even integer")
+        assert_equal((-2.5).round_ties_even(), -2.0, reason="negative lower even integer")
+        assert_equal((-3.5).round_ties_even(), -4.0, reason="negative upper even integer")
+        assert(positive_zero(0.5.round_ties_even()), "positive half gives positive zero")
+        assert(negative_zero((-0.5).round_ties_even()), "negative half gives negative zero")
+        assert(negative_zero((-0.0).round_ties_even()), "negative zero is unchanged")
+        let infinity = 1.0 / 0.0
+        assert_equal(infinity.round_ties_even(), infinity, reason="positive infinity")
+        assert_equal((-infinity).round_ties_even(), -infinity, reason="negative infinity")
+        assert((0.0 / 0.0).round_ties_even().is_nan(), "NaN stays NaN")
+
+    it("copies an f64 sign bit"):
+        assert_equal(signed_magnitude(3.0, -0.0), -3.0, reason="negative zero supplies a negative sign")
+        assert_equal((-3.0).copysign(0.0), 3.0, reason="positive zero supplies a positive sign")
+        assert(negative_zero(0.0.copysign(-1.0)), "a zero magnitude can become negative zero")
+        assert(positive_zero((-0.0).copysign(1.0)), "a zero magnitude can become positive zero")
+        let infinity = 1.0 / 0.0
+        assert_equal(infinity.copysign(-1.0), -infinity, reason="infinity gets the sign")
+        let negative_nan = (0.0 / 0.0).copysign(-1.0)
+        assert(negative_nan.is_nan(), "a NaN stays NaN")
+        assert(negative_nan.to_bits() >> 63 == 1, "a NaN gets the sign bit")
+
+    it("works at f32 width"):
+        assert_equal(f32(2.5).round_ties_even(), f32(2.0), reason="f32 lower tie")
+        assert_equal(f32(3.5).round_ties_even(), f32(4.0), reason="f32 upper tie")
+        assert(negative_zero(f64(f32(-0.5).round_ties_even())), "f32 negative half gives negative zero")
+        assert_equal(f32(3.0).copysign(f32(-0.0)), f32(-3.0), reason="f32 copies a negative sign")
+        assert(positive_zero(f64(f32(-0.0).copysign(f32(1.0)))), "f32 copies a positive sign")
+        let infinity: f32 = f32(1.0 / 0.0)
+        assert_equal(infinity.copysign(f32(-1.0)), -infinity, reason="f32 infinity gets the sign")
+        let negative_nan: f32 = f32(0.0 / 0.0).copysign(f32(-1.0))
+        assert(negative_nan.is_nan(), "f32 NaN stays NaN")
+        assert(negative_nan.to_bits() >> 31 == 1, "f32 NaN gets the sign bit")

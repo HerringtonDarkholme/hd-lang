@@ -1,0 +1,38 @@
+# @dump: wat
+# expected: every intrinsic float accessor lowers to its single width-correct WebAssembly instruction (#1234).
+
+fn f32_abs(value: f32) -> f32:
+    value.abs()
+
+fn f32_trunc(value: f32) -> f32:
+    value.trunc()
+
+fn f32_floor(value: f32) -> f32:
+    value.floor()
+
+fn f32_ceil(value: f32) -> f32:
+    value.ceil()
+
+fn f32_round_ties_even(value: f32) -> f32:
+    value.round_ties_even()
+
+fn f32_copysign(value: f32, sign: f32) -> f32:
+    value.copysign(sign)
+
+fn f64_abs(value: f64) -> f64:
+    value.abs()
+
+fn f64_trunc(value: f64) -> f64:
+    value.trunc()
+
+fn f64_floor(value: f64) -> f64:
+    value.floor()
+
+fn f64_ceil(value: f64) -> f64:
+    value.ceil()
+
+fn f64_round_ties_even(value: f64) -> f64:
+    value.round_ties_even()
+
+fn f64_copysign(value: f64, sign: f64) -> f64:
+    value.copysign(sign)

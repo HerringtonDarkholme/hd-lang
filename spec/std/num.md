@@ -14,7 +14,8 @@ This chapter defines the numeric APIs of `std.num`:
 - `total_cmp`, the total order of floats;
 - `to_bits` and `from_bits`, the bit patterns of `f32` and `f64`;
 - `abs` on the signed integers and the floats, and `pow` on the integers;
-- `trunc`, `floor`, `ceil`, and `round` on the floats;
+- `trunc`, `floor`, `ceil`, `round`, `round_ties_even`, and `copysign` on
+  the floats;
 - `sqrt` on the floats, an intrinsic method;
 - integer parsing through `Parse`, with `ParseNumberError`;
 - radix text: `to_radix` and `parse_radix` on the integers;
@@ -600,8 +601,9 @@ fn cube(side: i32) -> i32:
 
 ## Float Rounding
 
-`trunc`, `floor`, `ceil`, and `round` turn a float into a whole-valued
-float of the same type. `abs` returns its magnitude:
+`trunc`, `floor`, `ceil`, `round`, and `round_ties_even` turn a float into
+a whole-valued float of the same type. `abs` returns its magnitude, and
+`copysign` replaces only its sign:
 
 ```text
 fn sale_price(price: f64) -> f64:
@@ -609,6 +611,12 @@ fn sale_price(price: f64) -> f64:
 
 fn whole_boxes(items: f64, per_box: f64) -> f64:
     (items / per_box).ceil()
+
+fn bank_round(value: f64) -> f64:
+    value.round_ties_even()
+
+fn signed_magnitude(magnitude: f64, sign: f64) -> f64:
+    magnitude.copysign(sign)
 ```
 
 | Rule | Method | Result |
@@ -618,6 +626,8 @@ fn whole_boxes(items: f64, per_box: f64) -> f64:
 | r[std-num.float-round.floor] `floor` | `fn floor(self) -> F` | the largest whole value not above `self` |
 | r[std-num.float-round.ceil] `ceil` | `fn ceil(self) -> F` | the smallest whole value not below `self` |
 | r[std-num.float-round.round] `round` | `fn round(self) -> F` | the nearest whole value, a tie going away from zero |
+| r[std-num.float-round.ties-even] `round_ties_even` | `fn round_ties_even(self) -> F` | the nearest whole value, a tie going to the even whole value |
+| r[std-num.float-copysign] `copysign` | `fn copysign(self, sign: F) -> F` | the magnitude of `self` with the sign of `sign` |
 
 In this section, `F` is `f32` or `f64`.
 
@@ -628,6 +638,11 @@ In this section, `F` is `f32` or `f64`.
 5. r[std-num.float-round.tie] `round` sends a tie to the whole value of larger magnitude, as Rust's `f64::round` does. So `(-2.5).round()` is `-3.0` and `(-0.5).round()` is `-1.0`.
 6. r[std-num.float-abs.value] `abs` returns `-x` for a negative `x`, `0.0` for either zero, and `x` otherwise. So `(-0.0).abs()` is `0.0`, a NaN stays a NaN, and the infinities give positive infinity.
 7. r[std-num.float-round.no-panic] None of the five methods panics.
+8. r[std-num.float-round.extra-widths] `round_ties_even` and `copysign` exist on `f32` and on `f64`, and return the receiver's type. Their `sign` argument has that same type.
+9. r[std-num.float-round.intrinsic] `abs`, `trunc`, `floor`, `ceil`, `round_ties_even`, and `copysign` are [intrinsic methods](../lang/09-traits.md#intrinsic-methods): each signature is a plain declaration, and the compiler supplies its body. `round` remains an ordinary standard-library method with ties away from zero.
+10. r[std-num.float-round.ties-even.value] `round_ties_even` returns the nearest whole value. An exact tie goes to the whole value whose least significant integer bit is zero. So `2.5.round_ties_even()` is `2.0`, `3.5.round_ties_even()` is `4.0`, and `(-0.5).round_ties_even()` is `-0.0`. It returns a NaN, an infinity, a zero, and an already-whole finite value unchanged.
+11. r[std-num.float-copysign.value] `self.copysign(sign)` returns a value whose sign bit is the sign bit of `sign` and whose remaining bits are the remaining bits of `self`. This applies to finite values, zeros, infinities, and NaNs, so `3.0.copysign(-0.0)` is `-3.0` and `(-0.0).copysign(1.0)` is `0.0`.
+12. r[std-num.float-round.extra-no-panic] `round_ties_even` and `copysign` never panic.
 
 | Call | Result |
 | --- | --- |
@@ -636,14 +651,14 @@ In this section, `F` is `f32` or `f64`.
 | `7.9.trunc()`, `(-7.9).trunc()` | `7.0`, `-7.0` |
 | `2.4.round()`, `2.5.round()`, `3.5.round()` | `2.0`, `3.0`, `4.0` |
 | `(-2.5).round()` | `-3.0` |
+| `2.5.round_ties_even()`, `3.5.round_ties_even()` | `2.0`, `4.0` |
+| `3.0.copysign(-0.0)`, `(-3.0).copysign(0.0)` | `-3.0`, `3.0` |
 | `(-0.0).abs()` | `0.0` |
 
-> **Why.** The methods and their edge cases are Rust's. Each needs only
-> the saturating `f64` to `i64` cast
-> ([`types.cast.saturate`](../lang/04-type-system.md#r-types.cast.saturate))
-> below 2 to the power 52, where every `f64` fits an `i64`, so no new
-> primitive is needed. `sqrt` is not here: no float operation builds it,
-> so it is an intrinsic method ([Square Root](#square-root)).
+> **Why.** The names and edge cases follow Rust. WebAssembly has one
+> instruction for each intrinsic operation, including nearest with ties to
+> even and copying a sign bit. `round` deliberately keeps its different,
+> ties-away-from-zero behavior in ordinary standard-library code.
 
 ## Square Root
 

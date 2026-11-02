@@ -3520,12 +3520,33 @@ impl Em<'_, '_, '_> {
                 self.f.helper(Helper::StrEq);
                 self.store(i)
             }
-            "sqrt" if prim && float => {
+            "abs" | "trunc" | "floor" | "ceil" | "round_ties_even" | "sqrt" if prim && float => {
                 self.comp(args[0], 0)?;
+                let f32 = self.vals(t)? == [Val::F32];
+                self.f.op(match (name, f32) {
+                    ("abs", true) => I::F32Abs,
+                    ("abs", false) => I::F64Abs,
+                    ("trunc", true) => I::F32Trunc,
+                    ("trunc", false) => I::F64Trunc,
+                    ("floor", true) => I::F32Floor,
+                    ("floor", false) => I::F64Floor,
+                    ("ceil", true) => I::F32Ceil,
+                    ("ceil", false) => I::F64Ceil,
+                    ("round_ties_even", true) => I::F32Nearest,
+                    ("round_ties_even", false) => I::F64Nearest,
+                    ("sqrt", true) => I::F32Sqrt,
+                    ("sqrt", false) => I::F64Sqrt,
+                    _ => unreachable!(),
+                });
+                self.store(i)
+            }
+            "copysign" if prim && float => {
+                self.comp(args[0], 0)?;
+                self.comp(args[1], 0)?;
                 self.f.op(if self.vals(t)? == [Val::F32] {
-                    I::F32Sqrt
+                    I::F32Copysign
                 } else {
-                    I::F64Sqrt
+                    I::F64Copysign
                 });
                 self.store(i)
             }

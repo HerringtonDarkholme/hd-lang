@@ -4557,6 +4557,7 @@ runtime/panic/num-pow-overflow-u32.hd	runtime	panic:integer-overflow	std/num.md#
 runtime/panic/num-pow-overflow-i64.hd	runtime	panic:integer-overflow	std/num.md#r-std-num.pow.overflow
 runtime/panic/num-pow-overflow-u64.hd	runtime	panic:integer-overflow	std/num.md#r-std-num.pow.overflow
 runtime/valid/num-float-round.hd	runtime	accept	std/num.md#r-std-num.float-round.round
+runtime/valid/num-float-intrinsics.hd	runtime	accept	std/num.md#r-std-num.float-round.intrinsic
 runtime/valid/num-float-sqrt.hd	runtime	accept	std/num.md#r-std-num.float-sqrt
 runtime/valid/number-text-properties.hd	runtime	accept	std/num.md#r-std-num.parse.float64-round-trip
 typing/invalid/power-type-parameter-unbounded.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.power.type-parameter

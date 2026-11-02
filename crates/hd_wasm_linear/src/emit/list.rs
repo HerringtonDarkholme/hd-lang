@@ -658,11 +658,29 @@ impl Em<'_, '_, '_> {
                         return false;
                     };
                     match &call.kind {
-                        hd_mono::TargetKind::Intrinsic(key) => key == "sqrt",
+                        hd_mono::TargetKind::Intrinsic(key) => {
+                            key == "sqrt"
+                                || key == "abs"
+                                || key == "trunc"
+                                || key == "floor"
+                                || key == "ceil"
+                                || key == "round_ties_even"
+                                || key == "copysign"
+                        }
                         hd_mono::TargetKind::Builtin { self_ty, .. } => {
                             matches!(self.pool().get(*self_ty), TyData::Prim(p) if p.is_float())
-                                && (self.input.path)(call.item).rsplit(['.', '/']).next()
-                                    == Some("sqrt")
+                                && matches!(
+                                    (self.input.path)(call.item).rsplit(['.', '/']).next(),
+                                    Some(
+                                        "sqrt"
+                                            | "abs"
+                                            | "trunc"
+                                            | "floor"
+                                            | "ceil"
+                                            | "round_ties_even"
+                                            | "copysign"
+                                    )
+                                )
                         }
                         hd_mono::TargetKind::Instance => false,
                     }
