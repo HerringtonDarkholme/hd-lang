@@ -1,0 +1,14 @@
+# @dump: counts
+# @build: release
+
+pub fn main() -> void:
+    xs := ["a", "bb", "ccc", "dddd", "eeeee", "ffffff", "ggggggg", "hhhhhhhh"]
+    let total: usize = 0
+    let i: usize = 0
+    while i < 1000000:
+        # subject
+        for x in xs:
+            total += x.len()
+        i += 1
+    if total != 36000000:
+        panic("bad loop total")

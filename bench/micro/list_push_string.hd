@@ -1,0 +1,12 @@
+# @dump: counts
+# @build: release
+
+pub fn main() -> void:
+    let mut xs: List[string] = []
+    let i: usize = 0
+    while i < 2000000:
+        # subject
+        xs.push("value")
+        i += 1
+    if xs.len() != 2000000:
+        panic("bad push length")

@@ -1,0 +1,14 @@
+# @dump: counts
+# @build: release
+
+pub fn main() -> void:
+    xs := ["aa", "bb", "cc", "dd", "ee", "ff", "gg", "hh"]
+    let total: usize = 0
+    let i: usize = 0
+    while i < 10000000:
+        # subject
+        value := xs.get(i % 8)
+        total += value.unwrap_or("").len()
+        i += 1
+    if total != 20000000:
+        panic("bad get total")

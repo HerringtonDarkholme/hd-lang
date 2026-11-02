@@ -1,0 +1,17 @@
+# @dump: counts
+# @build: release
+
+fn long(value: &string) -> bool:
+    value.len() > 3
+
+pub fn main() -> void:
+    xs := ["a", "bb", "ccc", "dddd", "eeeee", "ffffff", "ggggggg", "hhhhhhhh"]
+    let total: usize = 0
+    let i: usize = 0
+    while i < 500000:
+        # subject
+        kept := xs.filter(long)
+        total += kept.len()
+        i += 1
+    if total != 2500000:
+        panic("bad filter total")

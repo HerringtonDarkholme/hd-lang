@@ -1,0 +1,14 @@
+# @dump: counts
+# @build: release
+
+pub fn main() -> void:
+    values := { +1: +7, +2: +11 }
+    let total = +0
+    let i: usize = 0
+    while i < 10000000:
+        # subject
+        found := values.get(+1)
+        total += found.unwrap_or(+0)
+        i += 1
+    if total != 70000000:
+        panic("bad map total")

@@ -1,0 +1,14 @@
+# @dump: counts
+# @build: release
+
+pub fn main() -> void:
+    rows := [[+1, +2], [+3, +4]]
+    let total: usize = 0
+    let i: usize = 0
+    while i < 5000000:
+        # subject
+        row := rows.get(i % 2).unwrap_or([])
+        total += row.len()
+        i += 1
+    if total != 10000000:
+        panic("bad nested-list total")

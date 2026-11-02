@@ -1,0 +1,18 @@
+# @dump: counts
+# @build: release
+
+fn bump(value: &mut i32) -> void:
+    *value += 1
+
+pub fn main() -> void:
+    let mut xs = [+0, +0, +0, +0, +0, +0, +0, +0]
+    let i: usize = 0
+    while i < 10000000:
+        # subject
+        bump(&mut xs[i % 8])
+        i += 1
+    let total = +0
+    for value in xs:
+        total += value
+    if total != 10000000:
+        panic("bad mutable reference total")

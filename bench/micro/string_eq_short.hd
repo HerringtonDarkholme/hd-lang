@@ -1,0 +1,23 @@
+# @dump: counts
+# @build: release
+
+use std.text.StringBuilder
+
+fn make_short() -> string:
+    out := StringBuilder::new()
+    out.push("tiny text")
+    out.build()
+
+pub fn main() -> void:
+    left := make_short()
+    right := make_short()
+    let equal: usize = 0
+    let i: usize = 0
+    while i < 20000000:
+        # subject
+        same := left == right
+        if same:
+            equal += 1
+        i += 1
+    if equal != 20000000:
+        panic("short strings differ")

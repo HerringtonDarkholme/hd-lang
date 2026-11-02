@@ -1,0 +1,15 @@
+# @dump: counts
+# @build: release
+
+pub fn main() -> void:
+    values := { "needle": +7, "other": +11 }
+    let found: usize = 0
+    let i: usize = 0
+    while i < 10000000:
+        # subject
+        present := values.contains_key("needle")
+        if present:
+            found += 1
+        i += 1
+    if found != 10000000:
+        panic("key not found")

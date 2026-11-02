@@ -1,0 +1,12 @@
+# @dump: counts
+# @build: release
+
+pub fn main() -> void:
+    let mut values = { +1: +0 }
+    let i: usize = 0
+    while i < 10000000:
+        # subject
+        values[+1] += 1
+        i += 1
+    if values.get(+1).unwrap_or(+0) != 10000000:
+        panic("bad map value")

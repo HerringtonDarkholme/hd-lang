@@ -1,0 +1,15 @@
+# @dump: counts
+# @build: release
+
+pub fn main() -> void:
+    xs := ["aa", "bb", "cc", "dd", "ee", "ff", "gg", "hh"]
+    let found: usize = 0
+    let i: usize = 0
+    while i < 4000000:
+        # subject
+        present := xs.contains("hh")
+        if present:
+            found += 1
+        i += 1
+    if found != 4000000:
+        panic("value not found")

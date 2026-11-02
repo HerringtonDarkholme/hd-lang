@@ -21,3 +21,19 @@ since hd module paths are identifiers.
 
 The latest measurements are in the
 baseline report (deleted 2026-10-15; `git show 44890c30:audit/compiler/baseline-2026-10-06.md`, section 6.2).
+
+## String and collection cost audit
+
+The one-operation programs for #1208 are separate from the five routine
+microbenchmarks above, so they do not expand the metrics manifest or CI. Run all of them, or
+name a subset:
+
+```sh
+node --experimental-strip-types bench/micro/costs.ts
+HD_MICRO_RUNS=1 node --experimental-strip-types bench/micro/costs.ts string-trim list-get-string
+```
+
+Each hd source marks its target expression for the compiler's release `counts` view. The
+results and method are in [the string and collection cost audit](../../docs/audit/string-collection-costs.md).
+The companion `string-literal-census.mjs` reports fixed string-literal lengths in the shipped
+benchmark and example programs.

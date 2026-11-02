@@ -1,0 +1,18 @@
+# @dump: counts
+# @build: release
+
+fn toggle(value: &mut string) -> void:
+    *value = if value.len() == 1: "bb" else: "a"
+
+pub fn main() -> void:
+    let mut xs = ["a", "a", "a", "a", "a", "a", "a", "a"]
+    let i: usize = 0
+    while i < 10000000:
+        # subject
+        toggle(&mut xs[i % 8])
+        i += 1
+    let total: usize = 0
+    for value in xs:
+        total += value.len()
+    if total != 8:
+        panic("bad mutable reference total")

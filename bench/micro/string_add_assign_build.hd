@@ -1,0 +1,12 @@
+# @dump: counts
+# @build: release
+
+pub fn main() -> void:
+    let out = ""
+    let i: usize = 0
+    while i < 66000:
+        # subject
+        out += "abcdefgh"
+        i += 1
+    if out.len() != 528000:
+        panic("bad string length")
