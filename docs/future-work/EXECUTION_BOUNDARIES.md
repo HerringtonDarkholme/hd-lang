@@ -36,6 +36,15 @@ So each program below copies too much, cannot say what it needs, or cannot
 be written. The design builds one model of a crossing first. The type
 checks follow from the model, and syntax comes last.
 
+**Principle (approved): every execution domain runs the same code.** One
+program is compiled for every domain it uses: the browser, the server, a
+worker, a device, a job that runs later. A crossing never sends code or an
+executable over the wire. It sends the identity of code the destination
+already has, plus data. So a function or a closure is named by its
+identity within that one program, and two domains never disagree about
+what a name means. Domains that run different builds, such as a service on
+another release or a job resumed by a newer deploy, are out of scope.
+
 ## 2. Seven Programs That Cross
 
 Each sketch is hd as it is written today, with the crossing it needs in a
@@ -86,8 +95,9 @@ fn on_buy!(cart: Cart) -> Result[Receipt, OrderError] $ Server:
 ```
 
 **3. Sign-up email: computation moves in time.** A job queue sends the
-welcome mail ten minutes later, across a server restart. A newer build may
-run it, so the code needs an identity that survives a deploy. The email
+welcome mail ten minutes later, across a server restart. The job runs on
+the same build that stored it (section 1); draining or re-queuing jobs
+across a deploy is the deployment's work, not the language's. The email
 address may be captured; a connection or a `&mut` may not.
 
 ```text
@@ -186,7 +196,7 @@ pub fn rename_endpoint!(req: Request) -> Result[Response, TodoError] $ Db:
 
 Together they cover space (1, 2, 4, 5, 6, 7) and time (3, 7), the modes
 copy, transfer and lend (1, 5), a change of representation (4), an
-unknown outcome (2), code identity across builds (3, 7), code sent to
+unknown outcome (2), code identity within one program (3, 7), code sent to
 data (6), and code that stays home while a reference to it travels (7).
 
 ## 3. The Model
@@ -199,7 +209,7 @@ An execution domain has four properties (**approved**):
 | --- | --- |
 | Memory | Is memory shared with the source, or separate? |
 | Capabilities | Which providers exist there? |
-| Code | Which build runs there? |
+| Code | Which code runs there? Always the same program (section 1) |
 | Lifetime | Can it outlive the source? Can contact be lost? |
 
 Five kinds of domain (**approved**):
@@ -208,19 +218,19 @@ Five kinds of domain (**approved**):
 | --- | --- | --- | --- | --- | --- |
 | Scoped thread | shared | the source's | same build | ends before its scope | 5 |
 | Worker | separate | its own host's | same build | may crash | 1 |
-| Remote service | separate | the service's | maybe another build | outlives; contact may be lost | 2, 6 |
+| Remote service | separate | the service's | same build | outlives; contact may be lost | 2, 6 |
 | Device | separate | restricted operations, kernels only | device code | may reset | 4 |
-| Later / resume | separate | the resuming host's | maybe a newer build | outlives the source | 3 |
+| Later / resume | separate | the resuming host's | same build | outlives the source | 3 |
 
 ### A Crossing
 
 A **crossing** sends code and an environment to a destination, and returns
 a result.
 
-- **Code** must exist or be identifiable at the destination: a named
-  function, or a content hash of a closure's lifted function
-  ([#166](https://github.com/HerringtonDarkholme/hd-lang/issues/166)). No
-  executable code is uploaded.
+- **Code** is already at the destination, because every domain runs the
+  same program (section 1). The crossing names it: a function, or a
+  closure's lifted function, by its identity in that program. No code or
+  executable crosses.
 - **Environment**: each captured value crosses in one mode, below.
 - **Requirement row**: the code's row is checked against the
   destination's capabilities, not the source's. That is example 2.
@@ -256,7 +266,7 @@ destination's representation (example 4's upload).
 | --- | --- | --- | --- | --- |
 | 1 | page to worker | `thumbnail`, by name | `photo`: copy or transfer | thumbnail copied back; a transferred photo handed back |
 | 2 | browser to remote service | `place_order`, by name; its row is met only there | `cart`: copy | receipt copied back, or an unknown outcome |
-| 3 | now to later | `send_welcome`, by content hash across builds | `email`, `name`: copy; `conn`: rejected | done or failed, with no caller waiting |
+| 3 | now to later | `send_welcome`, by its identity in the program | `email`, `name`: copy; `conn`: rejected | done or failed, with no caller waiting |
 | 4 | host to device | five kernels | `photo`: copy rebuilt as a texture; the host keeps a handle | one image copied back |
 | 5 | thread to scoped threads | closures, same build | `lines`: shared lend; halves: exclusive lends | counts returned; threads joined before the scope ends |
 | 6 | browser to remote service | `matches`, by name | `f`: copy; the rows never move | 200 rows copied back |
@@ -555,18 +565,19 @@ at(tex).call!(fn() -> void: blur(tex))?         # valid: runs on Gpu0, where tex
 
 ### The Later Domain (L4)
 
-- **Checked at each capture of a job and at its code:** a job for later
-  takes only copies and handles, and its code has an identity that
-  survives a deploy.
-- **Enforces:** L4, and the code property: a newer build may run the job.
+- **Checked at each capture of a job:** a job for later takes only copies
+  and handles.
+- **Enforces:** L4. The job's code is named within the program, so the
+  build that stored it runs it (section 1).
 - **Reuses:** the copy check rejects a reference, which is not
   boundary-safe, and the `'static` bound rejects a lend
   ([`ref.generic.outlives.box`](../../spec/lang/13-values-and-references.md#r-ref.generic.outlives.box)). The table's L4 row rejects a
   non-copyable value. The job's row is checked against the resuming host's
   capabilities, as in the row check.
-- **New:** no check beyond the table row. Code identity across builds is a
-  gap: a named function is the same only within one compiled program
-  ([`req.determinism.same-program`](../../spec/lang/11-requirements-and-suspension.md#r-req.determinism.same-program)), and content hashes are deferred
+- **New:** no check beyond the table row. A name means the same function
+  everywhere within one compiled program
+  ([`req.determinism.same-program`](../../spec/lang/11-requirements-and-suspension.md#r-req.determinism.same-program)), which is all the principle
+  needs; content hashes stay deferred
   ([`fn.capture.serializable-deferred`](../../spec/lang/07-functions.md#r-fn.capture.serializable-deferred)).
 
 ```text
@@ -648,9 +659,6 @@ The gaps:
 - **No threads and no shared heap.** One instance runs on one thread
   ([`module.instance.thread`](../../spec/lang/10-modules.md#r-module.instance.thread)), and instances' heaps are disjoint
   ([`module.instance.disjoint`](../../spec/lang/10-modules.md#r-module.instance.disjoint)). Lend waits for both.
-- **No content identity.** A job that a newer build runs, or a service on
-  another build, needs it
-  ([`fn.capture.serializable-deferred`](../../spec/lang/07-functions.md#r-fn.capture.serializable-deferred)).
 - **No owned non-copyable type.** Transfer into separate memory waits for
   `!Copy` types ([#1141](https://github.com/HerringtonDarkholme/hd-lang/issues/1141)).
 - **No device-code subset.** A kernel's body is checked only by its row.
@@ -703,8 +711,8 @@ fn on_buy!(cart: Cart) -> void $ Dom:                            # a browser ent
    `cart_total` or shared validation.
 4. Both builds come from one compiled program, so a closure the server
    renders for the browser has the same identity in both
-   ([`req.determinism.same-program`](../../spec/lang/11-requirements-and-suspension.md#r-req.determinism.same-program)). Content hashes are needed
-   only when the two sides deploy separately.
+   ([`req.determinism.same-program`](../../spec/lang/11-requirements-and-suspension.md#r-req.determinism.same-program)). The principle in section 1
+   makes this the only case: the two sides always come from one build.
 
 **What stays off the client.** Code whose row needs a capability the
 browser lacks never reaches the browser build. Secrets in hd already
@@ -801,11 +809,10 @@ decides it (question 7).
     bang call on a target value, as `$.use(Server).call!(place_order, cart)`;
     another is a lint for unmarked crossings. Links and Electric make every
     such call implicit; React makes it an explicit action.
-15. **One program, or separate packages per side?** Recommended: one
-    program, compiled into one build per target. Today's model keeps
-    client and server as separate packages joined by registered
-    boundaries; one program removes the hand-written endpoint and keeps
-    closure identities equal without content hashes.
+15. **One program, or separate packages per side?** Answered (owner,
+    2026-11-02) by the principle in section 1: every domain runs the same
+    code, so one program is compiled into one build per target, and a
+    crossing sends a code identity and data, never code.
 
 ```text
 let tex: Texture[Gpu0] = gpu0.upload!(photo)?  # question 4 (a)
@@ -874,7 +881,7 @@ val s = spore {
 ```
 
 **Unison.** Code is identified by content hash, and `Value.map` moves a
-function to a remote value. hd takes the content hash for example 3.
+function to a remote value. hd does not need it: every domain runs the same program (section 1).
 
 ```unison
 Seq (Value.map go (Seq.unwrap s))
