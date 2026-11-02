@@ -347,6 +347,53 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
     pub fn is_empty(&self) -> bool:
         self.size == 0
 
+    ## Returns a shared reference to the value for `key`, or `.None` when absent.
+    ## See [std-collections.uniq-map.get-ref](../../spec/std/collections.md#r-std-collections.uniq-map.get-ref).
+    pub fn get_ref['a](&'a self, key: K) -> (&'a V)?:
+        capacity := self.slots.len()
+        let index = self.start(key)
+        while true:
+            match self.slots.item_ref(index):
+                .Empty => return .None
+                .Deleted => pass
+                .Occupied(found, value) =>
+                    if found == key:
+                        return .Some(value)
+            index = (index + 1) % capacity
+
+    ## Returns a mutable reference to the value for `key`, or `.None` when absent.
+    ## See [std-collections.uniq-map.get-mut](../../spec/std/collections.md#r-std-collections.uniq-map.get-mut).
+    pub fn get_mut['a](&'a mut self, key: K) -> (&'a mut V)?:
+        capacity := self.slots.len()
+        let index = self.start(key)
+        while true:
+            match self.slots.item_mut(index):
+                .Empty => return .None
+                .Deleted => pass
+                .Occupied(found, value) =>
+                    if found == key:
+                        return .Some(value)
+            index = (index + 1) % capacity
+
+    ## Returns a mutable reference to the value for `key`, inserting `default` when absent.
+    ## See [std-collections.uniq-map.get-or-insert](../../spec/std/collections.md#r-std-collections.uniq-map.get-or-insert).
+    pub fn get_or_insert['a](&'a mut self, key: K, default: V) -> &'a mut V:
+        if !self.contains_key(key):
+            _ := self.insert(key, default)
+        match self.get_mut(key):
+            .Some(value) => value
+            .None => panic("uniq map inserted key is absent")
+
+    ## Returns a cursor that borrows the map and yields its entries.
+    ## See [std-collections.uniq-map.iter](../../spec/std/collections.md#r-std-collections.uniq-map.iter).
+    pub fn iter['a](&'a self) -> UniqMapIter[K, V, 'a]:
+        UniqMapIter { items: self, at: 0 }
+
+    ## Returns a cursor that borrows the map and yields its keys.
+    ## See [std-collections.uniq-map.keys](../../spec/std/collections.md#r-std-collections.uniq-map.keys).
+    pub fn keys['a](&'a self) -> UniqMapKeys[K, V, 'a]:
+        UniqMapKeys { entries: self.iter() }
+
     fn start(&self, key: K) -> usize:
         usize(hash_of(key)) % self.slots.len()
 
@@ -477,6 +524,71 @@ impl[K < Eq & Hash, V < Copy] UniqMap[K, V]:
                     if equal:
                         return .Some(copied)
             index = (index + 1) % capacity
+
+## A cursor that borrows a `UniqMap` and yields its keys and value references.
+## See [std-collections.uniq-map.iter](../../spec/std/collections.md#r-std-collections.uniq-map.iter).
+pub struct UniqMapIter[K < Eq & Hash, V < ?Copy, 'a]:
+    items: &'a UniqMap[K, V]
+    at: usize
+
+impl[K < Eq & Hash, V < ?Copy, 'a] Iterator[(K, &'a V)] for UniqMapIter[K, V, 'a]:
+    fn next(&mut self) -> (K, &'a V)?:
+        while self.at < self.items.slots.len():
+            index := self.at
+            self.at += 1
+            match self.items.slots.item_ref(index):
+                .Occupied(key, value) => return .Some((key, value))
+                _ => pass
+        .None
+
+## A cursor that borrows a `UniqMap` and yields its keys.
+## See [std-collections.uniq-map.keys](../../spec/std/collections.md#r-std-collections.uniq-map.keys).
+pub struct UniqMapKeys[K < Eq & Hash, V < ?Copy, 'a]:
+    entries: UniqMapIter[K, V, 'a]
+
+impl[K < Eq & Hash, V < ?Copy, 'a] Iterator[K] for UniqMapKeys[K, V, 'a]:
+    fn next(&mut self) -> K?:
+        match self.entries.next():
+            .Some((key, _)) => .Some(key)
+            .None => .None
+
+## The consuming cursor of a `UniqMap`; it moves each key and value out.
+## See [std-collections.uniq-map.into-iter](../../spec/std/collections.md#r-std-collections.uniq-map.into-iter).
+pub struct UniqMapIntoIter[K < Eq & Hash, V < ?Copy]:
+    items: UniqMap[K, V]
+    at: usize
+
+impl[K < Eq & Hash, V < ?Copy] !Copy for UniqMapIntoIter[K, V]
+
+impl[K < Eq & Hash, V < ?Copy] Iterator[(K, V)] for UniqMapIntoIter[K, V]:
+    fn next(&mut self) -> (K, V)?:
+        while self.at < self.items.slots.len():
+            index := self.at
+            self.at += 1
+            place := self.items.slots.at(index)
+            match place.read():
+                .Occupied(key, value) =>
+                    place.write(.Empty)
+                    self.items.size -= 1
+                    return .Some((key, value))
+                .Empty => place.write(.Empty)
+                .Deleted => place.write(.Deleted)
+        .None
+
+impl[K < Eq & Hash, V < ?Copy] Iterable[(K, V)] for UniqMap[K, V]:
+    type IntoIter = UniqMapIntoIter[K, V]
+    fn iter(self) -> UniqMapIntoIter[K, V]:
+        UniqMapIntoIter { items: self, at: 0 }
+
+impl[K < Eq & Hash, V < ?Copy] FromIterator[(K, V)] for UniqMap[K, V]:
+    fn from_iter[I < ?Copy & Iterator[(K, V)]](items: I) -> UniqMap[K, V]:
+        let mut cursor = items
+        let mut out = UniqMap::[K, V].new()
+        while true:
+            match cursor.next():
+                .Some((key, value)) => _ := out.insert(key, value)
+                .None => break
+        out
 
 impl[T < Copy] Index[usize] for UniqList[T]:
     type Out = T
