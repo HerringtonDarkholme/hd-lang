@@ -2,6 +2,7 @@
 # Overflow is checked by default; the arithmetic methods make the other
 # behaviors explicit. They are declared for every integer width.
 use std.ops.{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub}
+use std.annotation.inline
 use std.cmp.Ordering
 use std.text.Parse
 use std.rt.bytes.{string_from_bytes, panic_with}
@@ -681,6 +682,285 @@ impl f32:
     ## See [std-num.float-round.round](../../spec/std/num.md#r-std-num.float-round.round).
     pub fn round(self) -> f32:
         f32(f64(self).round())
+
+# Floating power and remainder are ordinary std code. Wasm has no native
+# instructions for either operation, so the backend roots these two private
+# entry points and calls them for both widths (widening and narrowing f32).
+# Power uses double-double arithmetic for its logarithm and exponential;
+# remainder uses exact shift-and-subtract on the significands.
+struct DoubleDouble:
+    high: f64
+    low: f64
+
+fn two_sum(left: f64, right: f64) -> DoubleDouble:
+    sum := left + right
+    back := sum - left
+    error := (left - (sum - back)) + (right - back)
+    DoubleDouble { high: sum, low: error }
+
+fn quick_two_sum(left: f64, right: f64) -> DoubleDouble:
+    sum := left + right
+    DoubleDouble { high: sum, low: right - (sum - left) }
+
+fn split_float(value: f64) -> (f64, f64):
+    scaled := 134217729.0 * value
+    high := scaled - (scaled - value)
+    (high, value - high)
+
+fn two_product(left: f64, right: f64) -> DoubleDouble:
+    product := left * right
+    let (left_high, left_low) = split_float(left)
+    let (right_high, right_low) = split_float(right)
+    error := (
+        ((left_high * right_high - product) + left_high * right_low + left_low * right_high)
+        + left_low * right_low
+    )
+    DoubleDouble { high: product, low: error }
+
+fn dd_add(left: DoubleDouble, right: DoubleDouble) -> DoubleDouble:
+    high_sum := two_sum(left.high, right.high)
+    low_sum := two_sum(left.low, right.low)
+    middle := high_sum.low + low_sum.high
+    rounded := quick_two_sum(high_sum.high, middle)
+    quick_two_sum(rounded.high, rounded.low + low_sum.low)
+
+fn dd_add_float(value: DoubleDouble, addend: f64) -> DoubleDouble:
+    sum := two_sum(value.high, addend)
+    quick_two_sum(sum.high, sum.low + value.low)
+
+fn dd_sub(left: DoubleDouble, right: DoubleDouble) -> DoubleDouble:
+    dd_add(left, DoubleDouble { high: -right.high, low: -right.low })
+
+fn dd_mul(left: DoubleDouble, right: DoubleDouble) -> DoubleDouble:
+    product := two_product(left.high, right.high)
+    error := product.low + (left.high * right.low + left.low * right.high)
+    quick_two_sum(product.high, error)
+
+fn dd_mul_float(value: DoubleDouble, factor: f64) -> DoubleDouble:
+    product := two_product(value.high, factor)
+    quick_two_sum(product.high, product.low + value.low * factor)
+
+fn dd_div_float(value: DoubleDouble, divisor: f64) -> DoubleDouble:
+    first := value.high / divisor
+    product := two_product(first, divisor)
+    difference := two_sum(value.high, -product.high)
+    error := difference.low - product.low + value.low
+    second := (difference.high + error) / divisor
+    quick_two_sum(first, second)
+
+fn dd_div(left: DoubleDouble, right: DoubleDouble) -> DoubleDouble:
+    first := left.high / right.high
+    first_product := dd_mul_float(right, first)
+    first_remainder := dd_sub(left, first_product)
+    second := first_remainder.high / right.high
+    second_product := dd_mul_float(right, second)
+    second_remainder := dd_sub(first_remainder, second_product)
+    third := second_remainder.high / right.high
+    dd_add_float(quick_two_sum(first, second), third)
+
+fn float_copysign(value: f64, sign: f64) -> f64:
+    magnitude := f64_bits(value) & 9223372036854775807
+    sign_bit := f64_bits(sign) & 9223372036854775808
+    f64_from(magnitude | sign_bit)
+
+fn float_abs(value: f64) -> f64:
+    f64_from(f64_bits(value) & 9223372036854775807)
+
+fn float_trunc(value: f64) -> f64:
+    bits := f64_bits(value)
+    exponent := i32((bits >> 52) & 2047) - 1023
+    if exponent < 0:
+        return f64_from(bits & 9223372036854775808)
+    if exponent >= 52:
+        return value
+    discarded := (1u64 << u32(52 - exponent)) - 1
+    f64_from(bits & ~discarded)
+
+fn nearest_even(value: f64) -> f64:
+    magnitude := float_abs(value)
+    if magnitude >= 4503599627370496.0 || value != value:
+        return value
+    rounded := (magnitude + 4503599627370496.0) - 4503599627370496.0
+    float_copysign(rounded, value)
+
+fn float_power_of_two(exponent: i32) -> f64:
+    f64_from(u64(exponent + 1023) << 52)
+
+fn float_log(value: f64) -> DoubleDouble:
+    let x = value
+    let exponent_offset = 0.0
+    if x < 2.2250738585072014e-308:
+        x = x * 18014398509481984.0
+        exponent_offset = -54.0
+    bits := f64_bits(x)
+    let exponent = exponent_offset + f64((bits >> 52) & 2047) - 1023.0
+    let mantissa = f64_from((bits & 4503599627370495) | 4607182418800017408)
+    if mantissa > 1.4142135623730951:
+        mantissa = mantissa * 0.5
+        exponent = exponent + 1.0
+    numerator := mantissa - 1.0
+    denominator := two_sum(mantissa, 1.0)
+    ratio := dd_div(DoubleDouble { high: numerator, low: 0.0 }, denominator)
+    ratio_squared := dd_mul(ratio, ratio)
+    let sum = ratio
+    let power = ratio
+    let denominator_value = 1.0
+    let remaining = +24
+    while remaining > 0:
+        power = dd_mul(power, ratio_squared)
+        denominator_value = denominator_value + 2.0
+        sum = dd_add(sum, dd_div_float(power, denominator_value))
+        remaining = remaining - 1
+    logarithm := DoubleDouble { high: 2.0 * sum.high, low: 2.0 * sum.low }
+    ln2 := DoubleDouble { high: 0.6931471805599453, low: 2.3190468138462996e-17 }
+    dd_add(dd_mul_float(ln2, exponent), logarithm)
+
+fn rounded_double_double(value: DoubleDouble) -> f64:
+    bits := f64_bits(value.high)
+    other_bits := if value.low > 0.0: bits + 1 else: bits - 1
+    other := f64_from(other_bits)
+    half_gap := (other - value.high) * 0.5
+    near_middle := (
+        float_abs(float_abs(value.low) - float_abs(half_gap))
+        < value.high * 8.271806125530277e-25
+    )
+    odd := bits & 1 == 1
+    if near_middle && odd: other else: value.high
+
+fn subnormal_power(exponent: i32, value: DoubleDouble, sign: f64) -> f64:
+    scale := float_power_of_two(exponent + 1074)
+    upper := value.high * scale
+    lower := value.low * scale
+    rounded := nearest_even(upper)
+    difference := (upper - rounded) + lower
+    step := float_copysign(1.0, difference)
+    even := float_trunc(rounded * 0.5) * 2.0 == rounded
+    tie := float_abs(float_abs(difference) - 0.5) < 5.820766091346741e-11
+    let result = rounded
+    if tie:
+        if !even:
+            result = rounded + step
+    else if float_abs(difference) > 0.5:
+        result = rounded + step
+    half := float_power_of_two(-537)
+    float_copysign(result * half * half, sign)
+
+fn power_special_cases(x: f64, y: f64) -> (bool, f64, f64):
+    if y == 0.0 || x == 1.0:
+        return (true, 1.0, 1.0)
+    if x != x || y != y:
+        return (true, x + y, 1.0)
+    y_magnitude := float_abs(y)
+    small_integer := y_magnitude < 9007199254740992.0
+    integer := y_magnitude >= 9007199254740992.0 || float_trunc(y) == y
+    odd := integer && small_integer && float_trunc(y * 0.5) * 2.0 != y
+    infinity := f64_from(9218868437227405312)
+    if y_magnitude == infinity:
+        x_magnitude := float_abs(x)
+        if x_magnitude == 1.0:
+            return (true, 1.0, 1.0)
+        if (x_magnitude > 1.0) == (y > 0.0):
+            return (true, infinity, 1.0)
+        return (true, 0.0, 1.0)
+    if x == 0.0:
+        result := if y < 0.0: infinity else: 0.0
+        return (true, if odd: float_copysign(result, x) else: result, 1.0)
+    if float_abs(x) == infinity:
+        result := if y < 0.0: 0.0 else: infinity
+        return (true, if x < 0.0 && odd: -result else: result, 1.0)
+    if x < 0.0 && !integer:
+        return (true, f64_from(9221120237041090560), 1.0)
+    sign := if x < 0.0 && odd: -1.0 else: 1.0
+    (false, float_abs(x), sign)
+
+@inline(.Never)
+fn float_pow_f64(x: f64, y: f64) -> f64:
+    let (done, magnitude, sign) = power_special_cases(x, y)
+    if done:
+        return magnitude
+    logarithm := float_log(magnitude)
+    approximate := y * logarithm.high
+    infinity := f64_from(9218868437227405312)
+    if approximate > 800.0:
+        return float_copysign(infinity, sign)
+    if approximate < -800.0:
+        return float_copysign(0.0, sign)
+    product := dd_mul_float(logarithm, y)
+    multiple := nearest_even(product.high * 1.4426950408889634)
+    ln2 := DoubleDouble { high: 0.6931471805599453, low: 2.3190468138462996e-17 }
+    reduced := dd_sub(product, dd_mul_float(ln2, multiple))
+    small := DoubleDouble { high: reduced.high / 256.0, low: reduced.low / 256.0 }
+    let term = small
+    let sum = small
+    let divisor = 1.0
+    let remaining = +10
+    while remaining > 0:
+        divisor = divisor + 1.0
+        term = dd_div_float(dd_mul(term, small), divisor)
+        sum = dd_add(sum, term)
+        remaining = remaining - 1
+    let halvings = +8
+    while halvings > 0:
+        doubled := DoubleDouble { high: 2.0 * sum.high, low: 2.0 * sum.low }
+        sum = dd_add(doubled, dd_mul(sum, sum))
+        halvings = halvings - 1
+    result := dd_add_float(sum, 1.0)
+    exponent := i32(multiple)
+    if multiple < -1022.0 || (multiple == -1022.0 && result.high < 1.0):
+        return subnormal_power(exponent, result, sign)
+    rounded := rounded_double_double(result)
+    first_exponent := exponent / 2
+    second_exponent := exponent - first_exponent
+    float_copysign(
+        rounded * float_power_of_two(first_exponent) * float_power_of_two(second_exponent),
+        sign,
+    )
+
+fn normalized_float(bits: u64) -> (i32, u64):
+    let exponent = i32((bits >> 52) & 2047)
+    let significand = bits & 4503599627370495
+    if exponent == 0:
+        shift := significand.leading_zeros() - 11
+        return (1 - i32(shift), significand << shift)
+    (exponent, significand | 4503599627370496)
+
+@inline(.Never)
+fn float_rem_f64(x: f64, y: f64) -> f64:
+    x_bits := f64_bits(x)
+    y_bits := f64_bits(y)
+    sign := x_bits & 9223372036854775808
+    x_magnitude := x_bits << 1
+    y_magnitude := y_bits << 1
+    let infinity_magnitude: u64 = 18437736874454810624
+    if y_magnitude == 0 || y_magnitude > infinity_magnitude || x_magnitude >= infinity_magnitude:
+        return f64_from(9221120237041090560)
+    if x_magnitude <= y_magnitude:
+        if x_magnitude == y_magnitude:
+            return f64_from(sign)
+        return x
+    let (x_exponent, x_significand) = normalized_float(x_bits)
+    let (y_exponent, y_significand) = normalized_float(y_bits)
+    let exponent = x_exponent
+    let significand = x_significand
+    while exponent > y_exponent:
+        if significand >= y_significand:
+            significand = significand - y_significand
+            if significand == 0:
+                return f64_from(sign)
+        significand = significand << 1
+        exponent = exponent - 1
+    if significand >= y_significand:
+        significand = significand - y_significand
+        if significand == 0:
+            return f64_from(sign)
+    shift := significand.leading_zeros() - 11
+    significand = significand << shift
+    exponent = exponent - i32(shift)
+    bits := if exponent > 0:
+        (significand - 4503599627370496) | (u64(exponent) << 52)
+    else:
+        significand >> u32(1 - exponent)
+    f64_from(bits | sign)
 
 # The square root is an intrinsic method (spec/lang/09-traits.md#intrinsic-methods):
 # the compiler supplies its body, the one correctly rounded IEEE 754

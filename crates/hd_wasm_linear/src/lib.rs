@@ -9,7 +9,6 @@
 //! and encodes them. There is no per-instance code cache yet: the driver
 //! calls [`build`] once per program, at link.
 
-mod asm;
 mod boundary;
 mod cycle;
 mod drive;
@@ -20,8 +19,6 @@ mod module;
 mod op;
 mod opt;
 mod origins;
-mod pow;
-mod rem;
 mod rt;
 mod scan;
 mod task;
@@ -276,6 +273,9 @@ pub struct Input<'a> {
     /// so final reachability does not root the tree writer.
     pub direct_json_encoders: &'a hd_base::HashSet<Hash128>,
     pub json_fallbacks: [DefId; 2],
+    /// The private `std.num` implementations of floating power and
+    /// remainder, which Wasm has no native instructions for.
+    pub float_ops: FloatOps,
     pub entry: Entry,
     /// The release profile: integer arithmetic wraps and shift counts are
     /// masked (`types.arith.release`).
@@ -362,6 +362,28 @@ pub const CYCLE_FNS: [&str; 4] = ["collect", "due", "opaque", "visit"];
 /// helper reaches them.
 pub const WEAK_MODULE: &str = "std.rt.weak";
 pub const WEAK_FNS: [&str; 6] = ["lookup", "bind", "forget", "clear", "type_of", "type_bind"];
+
+/// The ordinary std functions that implement floating operators absent
+/// from Wasm. The driver roots them so emission can call them directly.
+pub const FLOAT_MODULE: &str = "std.num";
+pub const FLOAT_FNS: [&str; 2] = ["float_pow_f64", "float_rem_f64"];
+
+/// The instance keys of [`FLOAT_FNS`], in declaration order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FloatOps {
+    pub pow: Hash128,
+    pub rem: Hash128,
+}
+
+impl FloatOps {
+    #[must_use]
+    pub fn from_keys(keys: [Option<Hash128>; 2]) -> Option<FloatOps> {
+        Some(FloatOps {
+            pow: keys[0]?,
+            rem: keys[1]?,
+        })
+    }
+}
 
 /// The runtime module a build links: the checked one in checked mode.
 #[must_use]

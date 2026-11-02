@@ -9038,6 +9038,15 @@ impl Run<'_> {
                 extra.push(r);
             }
         }
+        for name in hd_wasm_linear::FLOAT_FNS {
+            let r = (
+                names.item(hd_wasm_linear::FLOAT_MODULE, name),
+                TyList::EMPTY,
+            );
+            if self.body_of(p, r.0).is_some() && !extra.contains(&r) {
+                extra.push(r);
+            }
+        }
         let collected = hd_mono::collect(
             &self.pool,
             &env,
@@ -9243,6 +9252,12 @@ impl Run<'_> {
         // the emitted fixture reaches them.
         for (m, n) in hd_wasm_linear::runtime_items(self.checked()) {
             let d = names.item(m, n);
+            if self.body_of(p, d).is_some() {
+                roots.push((d, TyList::EMPTY));
+            }
+        }
+        for name in hd_wasm_linear::FLOAT_FNS {
+            let d = names.item(hd_wasm_linear::FLOAT_MODULE, name);
             if self.body_of(p, d).is_some() {
                 roots.push((d, TyList::EMPTY));
             }
@@ -10123,6 +10138,23 @@ impl Run<'_> {
             );
             return;
         }
+        let float_keys = hd_wasm_linear::FLOAT_FNS.map(|name| {
+            let def = names.item(hd_wasm_linear::FLOAT_MODULE, name);
+            let table = &c.collected.table;
+            table
+                .get(def, hd_mono::Sub::Body(0), TyList::EMPTY)
+                .map(|id| table.key[id.idx()])
+        });
+        let Some(float_ops) = hd_wasm_linear::FloatOps::from_keys(float_keys) else {
+            self.stage::<()>(
+                Stage::Link,
+                Err(NotImplemented::bug(
+                    Stage::Link,
+                    "std.num floating operator implementations were not collected",
+                )),
+            );
+            return;
+        };
         let direct_json_encoders = env.direct_json_encoders(&c.collected, &body);
         let json_fallbacks = [
             names.item("std.json", "encode_fallback"),
@@ -10152,6 +10184,7 @@ impl Run<'_> {
             body: &body,
             direct_json_encoders: &direct_json_encoders,
             json_fallbacks,
+            float_ops,
             entry,
             release: self.build_profile == BuildProfile::Release,
             optimized: self.level == OptLevel::Optimized,
