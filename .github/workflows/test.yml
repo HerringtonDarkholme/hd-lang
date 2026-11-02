@@ -154,6 +154,11 @@ jobs:
         if: matrix.shard == 'cli conformance'
         run: cargo test --release --no-fail-fast --features hd_cli/wasmtime -p hd_cli --test cli_conformance
 
+      # The wasmtime host's process parity tests run the release CLI.
+      - name: Build the CLI
+        if: matrix.shard == 'rest'
+        run: cargo build --release -p hd_cli --features hd_cli/wasmtime
+
       - name: Test the wasmtime host
         if: matrix.shard == 'rest'
         run: cargo test --release --no-fail-fast -p hd_run_wasmtime
