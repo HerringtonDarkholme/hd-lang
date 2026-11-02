@@ -1,0 +1,10 @@
+# test: UniqList is non-copyable, so assigning it moves it and a later use of the source is rejected
+# Spec std/collections UniqList: std-collections.uniq-list.type.
+use std.collections.UniqList
+
+fn moved() -> usize:
+    let mut first = UniqList::[i32].new()
+    first.push(1)
+    second := first
+    _ := second.len()
+    first.len() # diagnostic: use-of-moved-value

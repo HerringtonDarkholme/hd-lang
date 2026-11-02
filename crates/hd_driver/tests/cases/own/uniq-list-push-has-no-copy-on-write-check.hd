@@ -1,0 +1,14 @@
+# @dump: own
+# @build: std
+# A UniqList has one owner. Its push passes the receiver to ordinary hd
+# code and never emits List's `IsUnique` copy-on-write operation.
+use std.collections.UniqList
+
+struct Ticket:
+    label: string
+
+impl !Copy for Ticket
+
+fn add(items: &mut UniqList[Ticket], ticket: Ticket) -> void:
+    # subject
+    items.push(ticket)
