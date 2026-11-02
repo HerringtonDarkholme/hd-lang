@@ -12,8 +12,8 @@ type checking, then syntax. The parts the owner approved are marked
 - [3. The Model](#3-the-model)
 - [4. Outcomes](#4-outcomes-approved-question-1)
 - [5. Type Checking](#5-type-checking)
-- [6. Code Generation Per Domain](#6-code-generation-per-domain)
-- [7. Syntax](#7-syntax)
+- [6. The Process, End To End](#6-the-process-end-to-end)
+- [7. Syntax](#7-syntax-approved-question-14)
 - [8. Questions For The Owner](#8-questions-for-the-owner)
 - [Appendix A. Prior Art](#appendix-a-prior-art)
 - [Appendix B. Earlier Options And #166](#appendix-b-earlier-options-and-166)
@@ -68,7 +68,7 @@ fn thumbnail(photo: Image, side: u32) -> (Image, Image):
 pub fn on_export!(photo: Image) -> Result[Image, WorkerError] $ Workers:
     # Today: the 50 MB list is encoded, copied into the worker and decoded.
     # Wanted: hand the buffer over, and make any use of `photo` an error until it returns.
-    let (back, small) = $.use(Workers).call!(thumbnail, photo, 256)?
+    let (back, small) = $.use(Workers).run!(fn() -> (Image, Image): thumbnail(photo, 256))?
     .Ok(small)
 ```
 
@@ -346,7 +346,7 @@ handles it with an ordinary `match`. A worker or device reports unknown
 only on a crash or reset, and a scoped thread never does.
 
 ```text
-match place_order!(cart):  # hypothetical syntax: place_order is @remote(Server) (section 6)
+match orders.place_order!(cart):  # hypothetical syntax: orders, the provider of a Remote trait (section 6)
     .Ok(receipt) => show(receipt)
     .Err(.Unknown) => check_order_status!(cart.id)
     .Err(error) => show_error(error)
@@ -390,21 +390,21 @@ crossing, each capture, each use of a handle, and the code's body. Each
 check names what it enforces from section 3, the hd rules it reuses, and
 what is new. A table at the end sums up.
 
-The destination comes from code or from the deployment (question 3).
-Workers and devices are provider values from the source's row, so a test
-swaps them with `$.with`. A remote service is named by the deployment
-configuration. A crossing may also target a handle's home, read from the
-handle's type (question 6). The sketches assume these std traits:
+The destination is always a value in code (question 3): a provider from
+the source's row (`Workers`, `Background`, `Gpu`, or a service trait that
+extends `Remote`), a scope, or a handle, whose home a crossing may target
+(question 6). A test swaps a provider with `$.with`. The sketches assume
+these std traits:
 
 ```text
 # hypothetical syntax throughout this section
 trait Workers[$Cap]:    # $Cap: the capabilities a worker offers
-    fn call![T, F < Fn() -> T $Cap](&mut self, code: F) -> Result[T, CrossingError]
+    fn run![T, F < Fn() -> T $Cap](&mut self, code: F) -> Result[T, CrossError]
 
 trait Gpu:
     type Device         # one type per device, as Gpu0
-    fn upload!(&mut self, image: Image) -> Result[Texture[Self::Device], CrossingError]
-    fn run!(&mut self, kernel: fn(Texture[Self::Device]) -> void, texture: Texture[Self::Device]) -> Result[void, CrossingError]
+    fn upload!(&mut self, image: Image) -> Result[Texture[Self::Device], CrossError]
+    fn run!(&mut self, kernel: fn(Texture[Self::Device]) -> void, texture: Texture[Self::Device]) -> Result[void, CrossError]
 ```
 
 ### The Row Against The Destination (**approved**: question 8)
@@ -423,16 +423,16 @@ trait Gpu:
   `Gpu[Device = Gpu0]` and `Gpu[Device = Gpu1]`
   ([`req.key.binding.identity`](../../spec/lang/11-requirements-and-suspension.md#r-req.key.binding.identity)). A service's registered bindable set
   stands for its capabilities ([`module.register.row`](../../spec/lang/10-modules.md#r-module.register.row)).
-- **New:** each domain trait declares its capabilities. An
-  `@remote(D)` function's row is checked against target D's set at its
-  declaration, not against its callers' rows
+- **New:** each domain trait declares its capabilities. A `Remote`
+  service's implementation is checked against the target that serves it,
+  not against its callers' rows
   ([`req.row.set.call`](../../spec/lang/11-requirements-and-suspension.md#r-req.row.set.call)); section 6.
 
 ```text
 # hypothetical syntax
-workers.call!(fn() -> void $ Db: save(doc))?                # error: type-mismatch, Db is not a worker capability
+workers.run!(fn() -> void $ Db: save(doc))?                # error: type-mismatch, Db is not a worker capability
 gpu.run!(fn(t: Texture[Gpu0]) -> void: println("x"), tex)?  # error: type-mismatch, a kernel's row is empty
-workers.call!(fn() -> void $ Log: log_size(doc))?           # valid: the worker offers Log
+workers.run!(fn() -> void $ Log: log_size(doc))?           # valid: the worker offers Log
 background.run!(fn() -> void $ Ui: draw_boxes(faces))?      # error: type-mismatch, only the UI thread offers Ui
 faces := background.run!(fn() -> List[Rect]: detect_faces(photo))?  # valid: an empty row fits; the handler suspends until it returns
 ```
@@ -473,9 +473,9 @@ value copies, as a capture does today ([`fn.capture.copy.value`](../../spec/lang
 
 ```text
 # hypothetical syntax
-workers.call!(fn() -> Image: shrink(photo, edits))?  # error: edits is a *mut Edits, not boundary-safe
-workers.call!(fn() -> void: done += 1)?              # error: not-writable, the write would change only the worker's copy
-workers.call!(fn() -> Image: shrink(photo, 256))?    # valid: Image is boundary-safe, so it is copied
+workers.run!(fn() -> Image: shrink(photo, edits))?  # error: edits is a *mut Edits, not boundary-safe
+workers.run!(fn() -> void: done += 1)?              # error: not-writable, the write would change only the worker's copy
+workers.run!(fn() -> Image: shrink(photo, 256))?    # valid: Image is boundary-safe, so it is copied
 ```
 
 **Transfer**, at the capture and at each later use of the source binding.
@@ -538,7 +538,7 @@ stays live until that domain's access ends (L1).
 
 ```text
 # hypothetical syntax; lines: &mut List[string]
-workers.call!(fn() -> usize: count_words(lines))?  # error: local-reference-escapes, a worker has separate memory
+workers.run!(fn() -> usize: count_words(lines))?  # error: local-reference-escapes, a worker has separate memory
 counts := scope(fn(s: &mut Scope) -> List[Map[string, usize]]:
     tasks := [for i in 0..4 => s.spawn(fn() -> Map[string, usize]: count_quarter(lines, i))]
     lines.push("")                  # error: conflicting-access, lines is lent until the scope joins
@@ -593,8 +593,8 @@ $.use(Gpu[Device = Gpu0]).run!(blur, tex)?           # valid
 
 ```text
 # hypothetical syntax
-at(tex).call!(fn() -> void: blend(tex, mask))?  # error: mask is a Texture[Gpu1], the target is Gpu0
-at(tex).call!(fn() -> void: blur(tex))?         # valid: runs on Gpu0, where tex lives
+at(tex).run!(fn() -> void: blend(tex, mask))?  # error: mask is a Texture[Gpu1], the target is Gpu0
+at(tex).run!(fn() -> void: blur(tex))?         # valid: runs on Gpu0, where tex lives
 ```
 
 ### The Later Domain (L4)
@@ -640,8 +640,8 @@ jobs.after!(minutes(10), fn() -> Result[void, MailError] $ Mailer: send_welcome(
 ```text
 # hypothetical syntax
 log := $.use(Log)
-workers.call!(fn() -> void: log.info("done"))?               # error: the source's Log provider is not boundary-safe
-workers.call!(fn() -> void $ Log: $.use(Log).info("done"))?  # valid: the worker's own Log
+workers.run!(fn() -> void: log.info("done"))?               # error: the source's Log provider is not boundary-safe
+workers.run!(fn() -> void $ Log: $.use(Log).info("done"))?  # valid: the worker's own Log
 ```
 
 ### Top-Level Bindings (**approved**: question 17)
@@ -673,8 +673,8 @@ let mut hits: i64 = 0
 fn top(rows: List[Row]) -> List[Row]: rows.take(usize(LIMIT))
 fn record() -> void: hits += 1
 
-workers.call!(fn() -> List[Row]: top(rows))?  # valid: LIMIT is immutable, the same in every domain
-workers.call!(fn() -> void: record())?        # error: record writes the mutable top-level hits
+workers.run!(fn() -> List[Row]: top(rows))?  # valid: LIMIT is immutable, the same in every domain
+workers.run!(fn() -> void: record())?        # error: record writes the mutable top-level hits
 ```
 
 ### Outcomes And Cancellation
@@ -732,138 +732,216 @@ The gaps:
 - **No device-code subset.** A kernel's body is checked only by its row.
 - **The outcome type is not a gap.** Unknown is an error case (section 4).
 
-## 6. Code Generation Per Domain (**approved**: question 14)
+## 6. The Process, End To End
 
-A client and server program is compiled into one build per target: the
-browser's bundle and the server's module. A function that runs on one
-target and is called from another is compiled differently in each: an
-endpoint at home, a stub elsewhere, with its arguments decoded from the
-wire as untrusted data. So that function is marked where it is declared,
-and its callers are marked in their rows. Nothing is placed by inference.
+Sections 3 to 5 define a crossing and check it. This section follows one
+program through every stage: how its author writes code that runs
+elsewhere, how a reader sees it, what the checker accepts, how the
+compiler builds each target, and how the runtime runs it.
 
-**The declaration says where it runs.** `@remote(Server)` makes a function
-an entry point of the `Server` domain:
+One split decides most of the answers: whether the destination runs the
+same build as the caller.
 
-- its row is checked against what the server target offers;
-- its parameters and result must be boundary-safe (copyable plain data),
-  and its arguments are untrusted input;
-- the server build compiles its body and an endpoint; every other build
-  compiles a stub.
+| | Same build | Another build |
+| --- | --- | --- |
+| Domains | scoped thread, background thread, worker, later/job | remote service, device |
+| Code that may cross | any function or closure | only the methods of a declared interface |
+| Compiled | once | twice: the implementation for the destination, a stub for each caller |
 
-**The caller says it talks to that domain.** Calling an `@remote(Server)`
-function from another domain needs `$ Server` in the caller's row, so the
-dependency shows in every signature up the chain, and a test swaps it with
-`$.with(Server=LocalServer {})`. The call is an ordinary bang call whose
-error type gains `CrossError` (section 4).
+### Writing It
 
-A whole minimal program, one package with two targets:
+**Same build: nothing to declare.** The author hands a function or a
+closure to the domain's method, and its captures cross by their types:
 
 ```text
-# hd.toml, hypothetical targets table (question 13)
-# [targets.server]  entry = "server",  binds = ["Console", "Net"]
-# [targets.browser] entry = "browser", binds = ["Dom"]
+# hypothetical syntax; photo: Photo, background: the $ Background provider
+let mut background = $.use(Background)
+faces := background.run!(fn() -> List[Rect]: detect_faces(photo))?
+```
 
-# src/shared.hd: no row, so it can land in both builds
+**Another build: declare an interface, implement it there, install it.**
+Code that another build runs lives in a trait that extends a target
+marker: `Remote` for a service, `Kernel` for a device. Its methods are the
+endpoints, the only code the other side can reach.
+
+```text
+# hypothetical syntax
+# src/users.hd: the interface, shared by both sides
 pub struct User:
     pub id: i64
     pub name: string
 
-pub fn greeting(user: User) -> string:
-    "Hi, ${user.name}"
-
-# src/users.hd: an interface and one remote function; it uses no driver
 @error
-pub enum DbError:
+pub enum UserError:
     @error("no user $id")
     Missing(id: i64)
+    @error("lost contact: $cause")
+    Cross(cause: CrossError)
 
-pub trait Db:
-    fn find_user!(&mut self, id: i64) -> Result[User, DbError]
+pub trait Users < Remote:
+    fn load_user!(&mut self, id: i64) -> Result[User, UserError]
 
-@remote(Server)
-pub fn load_user!(id: i64) -> Result[User, DbError] $ Db:
-    let mut db = $.use(Db)
-    db.find_user!(id)
-
-# src/server.hd: the only module that uses the driver
+# src/server.hd: the real provider; the only module that uses the driver
 use dep.postgres.{Pool, PgError, connect}
 
 struct PgUsers:
     pool: Pool
 
-impl Db for PgUsers:
-    fn find_user!(&mut self, id: i64) -> Result[User, DbError]:
+impl Users for PgUsers:
+    fn load_user!(&mut self, id: i64) -> Result[User, UserError]:
         match self.pool.query_one!("select id, name from users where id = ?", id):
             .Some(row) => .Ok(User { id: row.i64(0), name: row.text(1) })
-            .None => .Err(DbError.Missing(id))
+            .None => .Err(UserError.Missing(id))
 
-pub fn main!() -> Result[void, PgError] $ Console + Net:
+pub fn server_main!() -> Result[void, PgError] $ Console + Net:
     pool := connect!("postgres://localhost/app")?
-    $.with(Db=PgUsers { pool }):
-        serve!()    # answers the endpoints of this build's @remote(Server) functions
-    .Ok(())
+    serve!(PgUsers { pool })                 # exposes Users's methods
 
-# src/browser.hd
-pub fn on_open!(id: i64) -> void $ Dom + Server:
-    match load_user!(id):              # a stub here: Result[User, DbError | CrossError]
-        .Ok(user) => show(greeting(user))
+# src/browser.hd: the stub provider, then ordinary provider calls
+pub fn browser_main!() -> void $ Dom + Net:
+    $.with(Users=remote::[Users]("https://api.example.com")):
+        on_open!(7)
+
+pub fn on_open!(id: i64) -> void $ Dom + Users:
+    let mut users = $.use(Users)
+    match users.load_user!(id):
+        .Ok(user) => show("Hi, ${user.name}")
         .Err(error) => show_error("$error")
+
+tests:
+    it("shows the user"):
+        $.with(Users=FakeUsers {}, Dom=FakeDom {}):
+            on_open!(7)
 ```
 
-**How each build is made.** Each target walks the use graph and the call
-graph from its entry. The `@remote(D)` functions are extra entries of D's
-build.
+The author's rules:
 
-| Call | Compiled as |
-| --- | --- |
-| to an `@remote(D)` function, in D's build | a normal call |
-| to an `@remote(D)` function, in another build | a stub; the caller's row must list `$ D` |
-| to any unmarked function | a normal call under today's row rule |
+- **A1.** Code for another build is a trait that extends a target marker,
+  `Remote` or `Kernel`.
+- **A2.** Its methods take and return boundary-safe types only. They are
+  not generic and take no closure, reference or trait value.
+- **A3.** A `Remote` method's error type can hold a `CrossError`, as
+  `UserError.Cross` does. No result type is widened implicitly.
+- **A4.** The destination installs the real provider with `serve!`. Each
+  calling target installs a generated stub, `remote::[Users](address)`.
+  A test installs a fake. All three are ordinary providers.
 
-A row the caller does not meet stays `missing-requirement`
-([`req.use.missing`](../../spec/lang/11-requirements-and-suspension.md#r-req.use.missing)), so a forgotten `$ Db` never becomes a network
-call. The two builds come from one compiled program, so a stub and its
-endpoint name the same function
-([`req.determinism.same-program`](../../spec/lang/11-requirements-and-suspension.md#r-req.determinism.same-program)).
+### Reading It
+
+A reader finds every crossing from three signals, all in today's syntax:
+
+| Where | What it shows | Example |
+| --- | --- | --- |
+| The function's row | which domains the function talks to | `fn on_open!(id: i64) -> void $ Dom + Users` |
+| The call | a bang method on a destination value | `users.load_user!(id)`, `background.run!(...)` |
+| The types | the trait extends `Remote`; the error has a `CrossError` case | `.Err(UserError.Cross(cause))` |
+
+A line crosses only when it is a bang method on a provider from the row,
+on a scope, or on a handle. A bare function call never crosses. The one
+thing the call site does not show is which provider is local:
+`users.load_user!(id)` and `db.find_user!(id)` look alike, and the trait
+tells them apart, as a gRPC stub and a local object do.
+
+### Checking It
+
+The checker looks at three places.
+
+- **C1, the interface:** A2 and A3 at the trait's declaration. A `Kernel`
+  implementation's body must be device code (section 5).
+- **C2, each crossing call:** the code's row fits the destination's
+  capabilities, the domain trait's row parameter (section 5, The Row
+  Against The Destination). Each capture and argument crosses in the mode
+  its type decides (section 5, Each Capture's Mode). Code for separate
+  memory is bounded `Fn`, so a write to a capture is `not-writable`. Code
+  that reaches `let mut` top-level state does not cross (Top-Level
+  Bindings).
+- **C3, the code's body:** its `$.use` calls resolve at the destination,
+  never to the caller's provider (The Body Against The Destination's
+  Environment).
+
+What cannot cross, per domain kind. Each ✗ is a compile error at the
+crossing that names the value and the rule:
+
+| Value | Scoped thread | Background thread | Worker | Job | Service, device |
+| --- | --- | --- | --- | --- | --- |
+| Copyable plain value | copy | copy | copy, encoded | copy, stored | copy, encoded |
+| Non-copyable value | move | move | move, buffer handed over | ✗ (L4) | move |
+| `&T`, `&mut T` | lend until the scope joins | ✗ | ✗ | ✗ | ✗ |
+| `*mut T`, a box, a trait value, a provider value | ✓ | ✗ until `Sync` | ✗ | ✗ | ✗ |
+| A closure | as the code | as the code | as the code | as the code | ✗: interface methods only |
+| A handle | its home only | its home only | its home only | ✓ | its home only |
+| Code reaching `let mut` top-level state | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Code whose row the destination lacks | ✗ | ✗ | ✗ | ✗ | ✗ |
+
+### Building It
+
+The deployment lists targets (question 13). Each is an entry module, a
+runtime profile (what its host binds), and an output: Wasm for a browser
+or a server, device code for a GPU.
+
+- **B1.** Each target walks the use graph and the call graph from its
+  entry and compiles only what it reaches. A module only the server
+  reaches, such as the one that uses `dep.postgres`, is never parsed for
+  the browser.
+- **B2.** A `serve!(impl)` in a target compiles that implementation and a
+  generated dispatcher: decode a method number and its arguments,
+  validate them as untrusted input, call, encode the `Result`.
+- **B3.** A `remote::[T](address)` in a target compiles a generated stub
+  type: encode, send, decode, and map a transport failure to `CrossError`.
+  The stub holds no implementation code.
+- **B4.** A same-build crossing compiles into the one Wasm module. Its
+  code is named by its index in the module's function table, plus a
+  captured environment.
+- **B5.** Each boundary type gets a generated codec, the tree encoding of
+  boundary values ([`module.boundary.tree`](../../spec/lang/10-modules.md#r-module.boundary.tree)). Both sides come from
+  one compile, so method numbers and codecs agree. A build ID stamped on
+  both lets the runtime refuse a peer from another build with a
+  `CrossError`, which keeps different builds out of scope (section 1).
 
 | | browser build | server build |
 | --- | --- | --- |
-| modules reached | `browser`, `shared`, `users` | `server`, `users`, `shared`, `dep.postgres` |
-| `load_user` | a stub | its body and an endpoint |
-| `PgUsers`, `connect`, `dep.postgres` | not reached | yes |
-| `greeting` | yes | not reached |
+| `users.hd` | the trait, no code | the trait and the dispatcher |
+| `server.hd`, `dep.postgres` | not reached | yes |
+| `remote::[Users]` stub | yes | only if the server calls another service |
+| `on_open` | yes | not reached |
 
-**What stays off the client.** `dep.postgres` is used only by
-`server.hd`, which the browser entry never reaches, so the driver is not
-even parsed for the browser. A function that touches the database lists
-`$ Db` and is either `@remote` (a stub on the client) or unreachable from
-it. The one gap is a secret written as a literal in shared code, which
-both builds would copy; a rule or lint that secrets come from `Env`
-closes it.
+### Running It
 
-**Where no mark is needed.** Workers, threads and devices run the same
-build as their caller, so nothing compiles differently there. Their
-crossing is already visible where it happens, as a call on a domain value:
-`workers.call!(...)`, `background.run!(...)`.
+| Domain | How a crossing runs | Failure and cancellation |
+| --- | --- | --- |
+| Scoped thread | a thread on the same instance's memory runs the closure; the scope joins before it returns | none: contact cannot be lost |
+| Background thread | a task (code, environment) goes to a thread of the same instance; the caller suspends, and the reply wakes it on its own event loop, so a UI handler resumes on the UI thread | a crash is a `CrossError` |
+| Worker | a second instance of the same module receives the encoded code, environment and arguments | a crash is `CrossError.Unknown`; cancelling posts an abort |
+| Job | the jobs provider stores the code and environment; a host of the same build runs it later; no caller waits | its retry policy decides; L2 holds |
+| Remote service | the stub sends the method number and arguments over HTTP or a WebSocket; the dispatcher validates them and calls the implementation inside the server's providers | a timeout or disconnect is a `CrossError`, `Unknown` when the call may have run; cancelling sends a cancel that the server's call sees at its next suspension |
+| Device | upload, launch the kernel by number with its handles, read back | a reset is a `CrossError` |
 
-**Prior art.** Swift's distributed actors mark both sides: a
-`distributed func` and `try await` at each call. gRPC and tRPC declare the
-procedure as a service and give callers a stub. React marks the
-declaration with `"use server"`, but its call sites look local. Links and
-Electric Clojure place code by inference, which hides the network.
+The runtime needs four pieces that do not exist yet, each its own slice:
+Wasm threads with shared memory and atomic counts for the two thread kinds
+(the `Sync` design, question 12); spawning instances for workers; a
+transport for services; and a jobs store.
 
-## 7. Syntax
+**Prior art.** gRPC and tRPC declare a service and give callers a stub,
+as `Remote` traits do. Swift's distributed actors mark the declaration
+(`distributed func`) and the call (`try await`); here the row and the
+bang call carry the call side. Rayon, Kotlin's `withContext` and Swift's
+`Task.detached` take a closure for same-build work, as `run!` does.
 
-Every spelling here is hypothetical and needs approval. Two alternatives:
+## 7. Syntax (**approved**: question 14)
+
+No keyword is new. A crossing is a bang method call on a value that stands
+for the destination, so one shape covers every kind:
 
 ```text
-small := $.use(Workers).call!(thumbnail, photo, 256)?            # hypothetical syntax
-small := at workers capture { photo } do: thumbnail(photo, 256)  # hypothetical syntax
+faces := background.run!(fn() -> List[Rect]: detect_faces(photo))?  # hypothetical syntax
+user := users.load_user!(id)                                         # users: the Users provider, a Remote trait
 ```
 
-The first is a call on a domain value. The second is the owner's note's
-block, which names every capture. Neither writes a mode: each value's type
-decides it (question 7).
+Neither line writes a mode: each value's type decides it (question 7).
+Two spellings were considered and dropped. A keyword form, `on D: call`,
+adds a keyword. Marking functions `@remote(D)` and requiring `$ D` in a
+caller's row gave cross-target calls a second shape beside
+`workers.run!(...)`.
 
 ## 8. Questions For The Owner
 
@@ -875,8 +953,9 @@ decides it (question 7).
 3. **Does code name the destination?** Answered (owner, 2026-10-31): a
    domain value in code for workers and devices, a provider such as `Gpu`
    or `Workers` from the requirement row (swappable with `$.with` in
-   tests). A service is named at the function's declaration with
-   `@remote(D)` (question 14, owner, 2026-11-02).
+   tests). A remote service is a provider too: a trait that extends
+   `Remote`, installed as a stub on the caller's side and served on its
+   own (question 14, owner, 2026-11-02).
 4. **How does a handle name its domain instance?** Answered (owner,
    2026-10-31): in the type, as `Texture[Gpu0]`; using a handle in another
    domain is a type error, with no run-time check. Dynamic instances (a
@@ -920,18 +999,18 @@ decides it (question 7).
     snapshot, `&T` is `Send` only when `T: Sync`, `*mut` and box holders
     are not `Sync`) are in section 5.
 
-13. **Where do target capability sets live?** In the deployment
-    configuration, as named targets with their runtime profiles (one
-    `hd.toml` table per target), or in code as a provider value per target.
-    The checker needs them to check an `@remote` function's row and to
-    pick each build's entries.
-14. **How is a crossing between targets marked?** Answered (owner,
-    2026-11-02): on both sides. The declaration says `@remote(D)`, which
-    decides how the function compiles (an endpoint in D's build, a stub
-    elsewhere) and checks its signature as an untrusted boundary. A caller
-    in another domain lists `$ D` in its row. The call stays a bang call
-    whose error gains `CrossError`. Nothing is placed by inference
-    (section 6).
+13. **Where do targets live?** Recommended: the deployment configuration
+    lists each target as an entry module, a runtime profile and an output
+    kind. A target's capability set is what its host binds plus what its
+    `main` installs with `$.with` and `serve!`, so routing is ordinary
+    provider installation and needs no table of its own.
+14. **How is a crossing written, on both sides?** Answered (owner,
+    2026-11-02): one shape, no new keyword. Every crossing is a bang
+    method call on a destination value: a provider from the row, a scope,
+    or a handle. Code for another build is a trait that extends a target
+    marker (`Remote` for services, `Kernel` for devices); its methods are
+    the endpoints, installed with `serve!` on one side and as a generated
+    `remote::[T]` stub on the other. A bare call never crosses (section 6).
 15. **One program, or separate packages per side?** Answered (owner,
     2026-11-02) by the principle in section 1: every domain runs the same
     code, so one program is compiled into one build per target, and a
@@ -1082,8 +1161,8 @@ type-checked. Std names (`Workers`, `Jobs`, `Gpu`, `scope`) are sketches.
 | 7 | Section 4, the `match` on a crossing's result | parses; the placement and the `.Unknown` case are hypothetical |
 | 8 | Section 5, the assumed `Workers` and `Gpu` traits | parses; `# hypothetical syntax` |
 | 9 to 16 | Section 5, one invalid and one valid sketch per check | parse; every block is `# hypothetical syntax` |
-| 17 | Section 6, the whole minimal program with `@remote(Server)` | parses (2026-11-02); the targets table is a comment, and the four modules share one block |
-| 18 | Section 7, syntax | fails as expected at `at workers`: both lines `# hypothetical syntax` |
+| 17 | Section 6, the end-to-end program (`Users < Remote`, `serve!`, `remote::[Users]`) and the background `run!` | parse (2026-11-02); `# hypothetical syntax` |
+| 18 | Section 7, syntax | parses (2026-11-02); `# hypothetical syntax` |
 | 19 | Question 4 | parses |
 | 21 | Section 5, top-level bindings | parses; `# hypothetical syntax` |
 | 20 | Example 8 | parses (2026-11-02); the row-check sketch with its two background-thread lines parses too |
