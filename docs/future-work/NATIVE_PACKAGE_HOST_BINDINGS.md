@@ -35,10 +35,15 @@ window state from the application that owns it.
 
 ## Proposal
 
-Generate Rust traits and codecs from the same checked package-host contract as
-`NAME.host.mjs`. A native embedder supplies implementations when it instantiates
-the module through `hd_run_wasmtime`; hd never discovers or loads a dynamic
-library.
+`hd build --engine wasmtime` writes `NAME.host.rs` beside `NAME.wasm` when
+package host traits are reachable, as it writes `NAME.host.mjs` for JavaScript;
+a build with none emits no companion. The file holds one Rust trait per host
+interface, its codecs and an app registry, all generated from the same checked
+package-host contract. A native embedder implements the traits and passes the
+registry by value when it instantiates the module through `hd_run_wasmtime`; hd
+never discovers or loads a dynamic library. The Rust values mirror the
+JavaScript mapping (Native Value Mapping, below), so both providers observe the
+same hd values.
 
 A GPUI renderer would implement generated Rust, then pass one checked registry
 to the engine:
@@ -57,7 +62,9 @@ let instance = engine.instantiate_with_bindings(&module, &setup, io, bindings)?;
 
 The generated registry validates nominal identity and the complete method
 schema before guest initialization. Registration selects native code; it does
-not grant the guest authority.
+not grant the guest authority. A provider runs only when both keys are present:
+the app's `true` capability and the embedder's registration. Either one missing
+refuses before any provider method runs.
 
 ## Problems It Solves
 
@@ -134,27 +141,6 @@ serialized as a string reaches Rust as a string, not as its hidden fields.
 
 The design adds runtime and CLI mechanisms, not language syntax, semantics,
 intrinsics, or std APIs.
-
-## Decisions
-
-The owner walked the four questions on 2026-11-02 and took each
-recommendation:
-
-1. **Binding shape.** hd generates one Rust trait per host interface plus
-   an app registry, which the embedder passes by value when it
-   instantiates the module through `hd_run_wasmtime`. No dynamic library
-   is loaded.
-2. **Consent.** Both keys are required: the app's existing `true`
-   capability and the embedder's explicit registration. Either one missing
-   refuses before any provider method runs.
-3. **Values.** Generated owned Rust types mirror the JavaScript mapping
-   from the same checked schema: records, named enum fields, `Option`,
-   `Result`, same-width integers, and a typed private-Serde tree that keeps
-   integer width and float bits. JavaScript and Rust providers observe the
-   same hd values.
-4. **Build output.** `hd build --engine wasmtime` writes `NAME.host.rs`
-   beside `NAME.wasm` when package host traits are reachable, as it writes
-   `NAME.host.mjs` for JavaScript. A build with none emits no companion.
 
 ## Appendix A: Stress Test
 
