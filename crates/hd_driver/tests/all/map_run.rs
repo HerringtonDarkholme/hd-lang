@@ -293,8 +293,8 @@ pub fn main() -> void $ Console:
         m[parts.join(\"\")] = mask
         mask = mask + 1
     println(m.len())
-    println(m.get(\"etyrylufefyzolixgbgdcnyrwjupedencvalslinwpohapahapynmncncvajkrsrazctchqdcvifmjwvyfyhyrylshwvwbyv\").copied().unwrap_or(1))
-    println(m.get(\"mjidmtibubifgryfkjshsbinarsrezqbsjqpwjsbufslqlqtyjityvwbsjqvchoderwhstaxwryzuvcjibitmvihctczgfij\").copied().unwrap_or(1))
+    println(m.get(\"etyrylufefyzolixgbgdcnyrwjupedencvalslinwpohapahapynmncncvajkrsrazctchqdcvifmjwvyfyhyrylshwvwbyv\").unwrap_or(1))
+    println(m.get(\"mjidmtibubifgryfkjshsbinarsrezqbsjqpwjsbufslqlqtyjityvwbsjqvchoderwhstaxwryzuvcjibitmvihctczgfij\").unwrap_or(1))
 ";
     let start = std::time::Instant::now();
     assert_eq!(output_of("collide", main), "65536\n0\n65535\n");
@@ -329,7 +329,7 @@ pub fn main() -> void $ Console:
     a = 0
     while a < 65536:
         key := ((a << 16) | a) * 244002641 & 4294967295
-        if narrow.get(u32(key)).copied().unwrap_or(0) == a && wide.get(key << 32).copied().unwrap_or(0) == a:
+        if narrow.get(u32(key)).unwrap_or(0) == a && wide.get(key << 32).unwrap_or(0) == a:
             found = found + 1
         a = a + 1
     println(narrow.len())
@@ -383,8 +383,8 @@ pub fn main() -> void $ Console:
         mask = mask + 1
     println(pairs.len())
     println(entries.len())
-    println(pairs.get((\"xLFsLJjiINPJdU9jHX4TqJAugSUBgW75Lm5sdyq21BBG4JKsnCMsoUGggLC_EYaqEH8m63a_auFPMU5oBHizR2DJNlD.hxb.YLBrdo2YOCChAOSeahsXPklTGEXcYViwLM3NfONkr.v1G5EqdyN48b8gHMwaw.LRB_iqI\", 7)).copied().unwrap_or(1))
-    println(entries.get(Entry { name: \"7Gg3RxEK0PEOM0YyM0u85JcnjpGuWGzZD_giiglMbqlLGq8caPsJwuE1OD6Nfm_0eNwpZBVqlGciBd7xyPoQOXFIJ.FHPO4huuFjnkEdU0xbkA.RY30hrErLKmk0qPgfDxJC0Wh3F4JFuQHUQManoGiTKLA34Z3EbN1.F\", n: 7 }).copied().unwrap_or(1))
+    println(pairs.get((\"xLFsLJjiINPJdU9jHX4TqJAugSUBgW75Lm5sdyq21BBG4JKsnCMsoUGggLC_EYaqEH8m63a_auFPMU5oBHizR2DJNlD.hxb.YLBrdo2YOCChAOSeahsXPklTGEXcYViwLM3NfONkr.v1G5EqdyN48b8gHMwaw.LRB_iqI\", 7)).unwrap_or(1))
+    println(entries.get(Entry { name: \"7Gg3RxEK0PEOM0YyM0u85JcnjpGuWGzZD_giiglMbqlLGq8caPsJwuE1OD6Nfm_0eNwpZBVqlGciBd7xyPoQOXFIJ.FHPO4huuFjnkEdU0xbkA.RY30hrErLKmk0qPgfDxJC0Wh3F4JFuQHUQManoGiTKLA34Z3EbN1.F\", n: 7 }).unwrap_or(1))
 ";
     let start = std::time::Instant::now();
     assert_eq!(

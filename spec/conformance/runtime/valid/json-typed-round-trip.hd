@@ -74,7 +74,7 @@ tests:
         back := read::[Team](text)
         assert_equal(encode(back), text, reason="same text")
         assert_equal(back.members[1].address.zip, .Some("0150"), reason="nested optional")
-        assert_equal(back.members[0].scores.get("a").copied(), .Some(-1), reason="map value")
+        assert_equal(back.members[0].scores.get("a"), .Some(-1), reason="map value")
         assert_equal(back.lead.map(fn(found): found.name), .Some("Ada"), reason="optional data")
 
     it("save and load an address"):

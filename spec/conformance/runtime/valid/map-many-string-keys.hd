@@ -28,7 +28,7 @@ tests:
         n = 0
         let found: usize = 0
         while n < 3000:
-            if values.get(key(n)).copied() == .Some(n):
+            if values.get(key(n)) == .Some(n):
                 found = found + 1
             n = n + 1
         assert_equal(found, 3000, reason="each key maps to its value")
@@ -51,7 +51,7 @@ tests:
         let found: usize = 0
         while n < 2000:
             let want: usize? = if n % 2 == 0: .None else: .Some(n)
-            if values.get(key(n)).copied() == want:
+            if values.get(key(n)) == want:
                 found = found + 1
             n = n + 1
         assert_equal(found, 2000, reason="removed keys gone, the rest found")

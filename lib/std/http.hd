@@ -1268,7 +1268,7 @@ impl Deserializer for MessageFormReader:
         frame := self.frames[self.frames.len() - 1]
         self.path = message_form_member_name(&frame, member)?
         self.values = match self.groups.get(self.path):
-            .Some(values) => *values
+            .Some(values) => values
             .None => []
         self.current = self.values.get(0).copied()
         .Ok(())
@@ -2828,7 +2828,7 @@ impl ScriptedHttp:
     ## See [std-http.scripted.reply-captured](../../spec/std/http.md#r-std-http.scripted.reply-captured).
     pub fn reply(&mut self, url: string, result: Result[Response, HttpError]) -> void:
         captured := scripted_result(result, true)
-        match self.responses.get(url).copied():
+        match self.responses.get(url):
             .Some(replies) => replies.items.push(captured)
             .None =>
                 # Boxed because the map stores this mutable reply queue after `reply` returns.
@@ -2846,7 +2846,7 @@ impl Http for ScriptedHttp:
         self.requests.push(Request { ...*request, body: Body::from_bytes(bytes) })
         url := request.url
         key := request.url.to_string()
-        match self.responses.get(key).copied():
+        match self.responses.get(key):
             .Some(responses) =>
                 index := if responses.next < responses.items.len():
                     responses.next

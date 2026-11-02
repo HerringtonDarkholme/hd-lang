@@ -23,7 +23,7 @@ fn element_and_key_stores() -> (i64, i64):
         slots[1] = n
         names["last"] = n
     set(7)
-    (slots[1], names.get("last").copied().unwrap_or(0))
+    (slots[1], names.get("last").unwrap_or(0))
 
 tests:
     use std.testing.assert_equal

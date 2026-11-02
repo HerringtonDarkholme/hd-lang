@@ -423,8 +423,8 @@ impl Em<'_, '_, '_> {
                 .all(|&i| self.preserves_map_probe(i, map))
     }
 
-    /// The preceding `MapEntry` or `get`/`get_mut` probe whose hash and
-    /// entry a `MapSet` may reuse. Both operations must be statements of
+    /// The preceding `MapGet`, `MapEntry` or `get_ref`/`get_mut` probe
+    /// whose hash and entry a `MapSet` may reuse. Both operations must be statements of
     /// one block, name equivalent reads of the map and key, and have no
     /// possibly-changing statement between them.
     fn map_probe_source(&self, i: u32, map: u32, key: u32) -> Option<u32> {
@@ -439,7 +439,7 @@ impl Em<'_, '_, '_> {
             if self.b.tags.get(k) == Some(&Tag::Intrinsic)
                 && matches!(
                     IntrinsicOp::from_u32(self.b.data[k][0]),
-                    Some(IntrinsicOp::MapEntry)
+                    Some(IntrinsicOp::MapGet | IntrinsicOp::MapEntry)
                 )
             {
                 let args = self.b.record(self.b.data[k][1]);
@@ -478,7 +478,7 @@ impl Em<'_, '_, '_> {
         None
     }
 
-    /// `m[k] = v`, `m.remove(k)` and a map value place's
+    /// `m.get(k)`, `m[k] = v`, `m.remove(k)` and a map value place's
     /// entry (`MapEntry`): the key is hashed, then its entry probed
     /// for. The passes' `IsUnique` made the table the map's own before a
     /// change, and a put stores the table, moved when it grew, into the
@@ -503,7 +503,7 @@ impl Em<'_, '_, '_> {
         }
         let (kl, h) = self.map_key(args[1], &e, &ops)?;
         let ent = self.map_find(m, h, &kl, &e, &ops);
-        if op == IntrinsicOp::MapEntry {
+        if matches!(op, IntrinsicOp::MapGet | IntrinsicOp::MapEntry) {
             self.map_probes.insert(
                 i,
                 MapProbe {
@@ -544,7 +544,7 @@ impl Em<'_, '_, '_> {
             self.f.get(ent);
             return self.store(i);
         }
-        // `remove` answers `V?`.
+        // `get` and `remove` answer `V?`.
         self.f.get(ent);
         self.f.i32(0);
         self.f.op(I::I32GeS);
@@ -552,37 +552,39 @@ impl Em<'_, '_, '_> {
         self.ctl.push(Ctl::Plain);
         let (at, vl) = read(self, e.keys, n);
         self.new_variant(i, 1, &[Src::Locals(vl.clone())])?;
-        // A held key of a pinned map stays (`ref.elem.pinned.map`).
-        self.f.get(m);
-        self.f.helper(Helper::ListPinned);
-        self.f.op(I::If(BlockType::Empty));
-        self.f.helper(Helper::Panic(MAP_PINNED.into()));
-        self.f.op(I::End);
-        // The entry stays in place, marked removed: probes pass it and
-        // iteration skips it, so the survivors keep their order. The
-        // table's counts of it go: the value's after the result took
-        // its own, and the key's.
-        self.release_locals(&vl, vt)?;
-        let kl: Vec<u32> = e.leaves[..e.keys]
-            .iter()
-            .map(|l| {
-                let x = self.f.local(l.val);
-                self.f.get(at);
-                self.f.op(l.load(0));
-                self.f.set(x);
-                x
-            })
-            .collect();
-        self.release_locals(&kl, kt)?;
-        hash_address(&mut self.f, m, ent);
-        self.f.i32(-1);
-        self.f.op(I::I32Store(mem(HEAP, 0, 2)));
-        self.f.get(m);
-        self.f.get(m);
-        self.f.op(I::I32Load(mem(HEAP, LIVE, 2)));
-        self.f.i32(1);
-        self.f.op(I::I32Sub);
-        self.f.op(I::I32Store(mem(HEAP, LIVE, 2)));
+        if op == IntrinsicOp::MapRemove {
+            // A held key of a pinned map stays (`ref.elem.pinned.map`).
+            self.f.get(m);
+            self.f.helper(Helper::ListPinned);
+            self.f.op(I::If(BlockType::Empty));
+            self.f.helper(Helper::Panic(MAP_PINNED.into()));
+            self.f.op(I::End);
+            // The entry stays in place, marked removed: probes pass it and
+            // iteration skips it, so the survivors keep their order. The
+            // table's counts of it go: the value's after the result took
+            // its own, and the key's.
+            self.release_locals(&vl, vt)?;
+            let kl: Vec<u32> = e.leaves[..e.keys]
+                .iter()
+                .map(|l| {
+                    let x = self.f.local(l.val);
+                    self.f.get(at);
+                    self.f.op(l.load(0));
+                    self.f.set(x);
+                    x
+                })
+                .collect();
+            self.release_locals(&kl, kt)?;
+            hash_address(&mut self.f, m, ent);
+            self.f.i32(-1);
+            self.f.op(I::I32Store(mem(HEAP, 0, 2)));
+            self.f.get(m);
+            self.f.get(m);
+            self.f.op(I::I32Load(mem(HEAP, LIVE, 2)));
+            self.f.i32(1);
+            self.f.op(I::I32Sub);
+            self.f.op(I::I32Store(mem(HEAP, LIVE, 2)));
+        }
         self.f.op(I::Else);
         self.new_variant(i, 0, &[])?;
         self.close();

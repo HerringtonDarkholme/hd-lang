@@ -101,9 +101,9 @@ pub fn main() -> void $ Console:
     pair := (+1, "one")
     let mut counts: Map[string, usize] = {}
     for word in "a b a".split_whitespace():
-        counts[word] = counts.get(word).copied().unwrap_or(0) + 1
+        counts[word] = counts.get(word).unwrap_or(0) + 1
     more := [names..., "Grace"]
-    println("$count ${pair._1} ${more.len()} ${counts.get("a").copied().unwrap_or(0)}")
+    println("$count ${pair._1} ${more.len()} ${counts.get("a").unwrap_or(0)}")
 ```
 
 Strings interpolate `$name` and `${expr}`; write `"\$"` for a dollar sign.
@@ -498,7 +498,7 @@ the code `hd check` reports today.
 | `fn main()` with no `pub` | `private-main` from `hd lint`; `hd run` reports `missing-entry-point` | `pub fn main()` |
 | `pub fn main()` calling `read_line!()` | `bang-call-outside-suspension` | `pub fn main!()` |
 | `?` in `main!() -> void` | `invalid-result-propagation` | `-> Result[void, ConsoleError]`, end with `.Ok(())` |
-| `xs.get(i)`, `xs.first()` or `m.get(k)` used as a `T?` | `type-mismatch` (`found &T?`) | List accessors and `Map.get` return `(&T)?`: add `.copied()`, or `*item` in a match arm |
+| `xs.get(i)` or `xs.first()` used as a `T?` | `type-mismatch` (`found &T?`) | List accessors return `(&T)?`: add `.copied()`, or `*item` in a match arm |
 | `$ Console, Clock` | `syntax-error` | `$ Console + Clock` |
 | `let i = 0` compared with an `i32` | `mixed-signedness` | `let i = +0`, or `let i: i32 = 0` |
 | an `i32` counter (`+0`) plus `len()` or another `usize` | `mixed-signedness` (no hint) | keep counters `usize` (`0`), or convert explicitly: `i32(n)` |

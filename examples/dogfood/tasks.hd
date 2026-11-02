@@ -36,7 +36,7 @@ fn visit(
         .Some(d) => d
         .None => return .Err(PlanError.UnknownTask(name, needed_by))
     mark := match walk.state.get(name):
-        .Some(m) => *m
+        .Some(m) => m
         .None => 0
     if mark == 2:
         return .Ok(())

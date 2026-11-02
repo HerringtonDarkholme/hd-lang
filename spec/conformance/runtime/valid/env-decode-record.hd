@@ -50,7 +50,7 @@ impl Env for DeclaredEnv:
             "APP_TOKEN",
         ].contains(name):
             panic("unexpected environment name: $name")
-        self.values.get(name).copied()
+        self.values.get(name)
     fn names(self) -> List[string]:
         panic("env_decode must not enumerate environment names")
 

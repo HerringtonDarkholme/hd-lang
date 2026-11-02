@@ -5,7 +5,7 @@
 # binding saw the push (stage 2 commit 13a).
 fn kept(mut m: Map[string, List[i64]]) -> usize:
     # subject
-    match m.get("a").copied():
+    match m.get("a"):
         .Some(xs) =>
             m["a"].push(3)
             xs.len()

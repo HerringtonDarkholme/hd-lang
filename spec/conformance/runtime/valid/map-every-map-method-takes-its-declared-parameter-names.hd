@@ -12,7 +12,7 @@ pub fn main() -> void $ Console:
     let mut m: Map[string, i32] = { "a": 1, "b": 2 }
     println(m.get(key="a").is_some())
     println(m.contains_key(key="b"))
-    println(m.get(key="z").copied().unwrap_or(fallback=9))
+    println(m.get(key="z").unwrap_or(fallback=9))
     println(m.remove(key="a").is_some())
     println(m.remove(key="a").is_some())
     println(m.len())

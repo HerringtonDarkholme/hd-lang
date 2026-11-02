@@ -31,6 +31,6 @@ pub fn main() -> void $ Console:
     sums := [for Point { x, y } in points => x + y]
     println("${sums[0]} ${sums[1]}")
     inverted := {for (name, score) in rows if score > 1 => name: score * 10}
-    println(inverted.get("b").copied().unwrap_or(+0))
+    println(inverted.get("b").unwrap_or(+0))
     stepped := [for n in nums if (m := n * 2) > 6 => m + n]
     println("${stepped[0]} ${stepped.len()}")

@@ -20,16 +20,8 @@ tests:
         names := stock.keys()
         amounts := stock.values()
         assert_equal(names.sorted(), ["milk", "tea"], reason="every key once")
-        assert_equal(
-            stock.get(names[0]).copied(),
-            .Some(amounts[0]),
-            reason="values in the keys' order",
-        )
-        assert_equal(
-            stock.get(names[1]).copied(),
-            .Some(amounts[1]),
-            reason="values in the keys' order",
-        )
+        assert_equal(stock.get(names[0]), .Some(amounts[0]), reason="values in the keys' order")
+        assert_equal(stock.get(names[1]), .Some(amounts[1]), reason="values in the keys' order")
         assert_equal(stock.keys(), names, reason="the same order every time")
 
     it("the returned lists do not follow later changes"):

@@ -1594,7 +1594,7 @@ struct Point:
 fn demo() -> i32:
     p := Point { x: 1, y: 2 }   # a data expression: Point names a struct type
     m := {"x": +1}              # a map expression
-    p.x + m.get("x").copied().unwrap_or(+0)
+    p.x + m.get("x").unwrap_or(+0)
 ```
 
 #### Prefix And Suffix `...`

@@ -250,13 +250,13 @@ tests:
         for padding in 0..4:
             values[ByteKey { padding: padding, typed: false }] = padding + 7
             assert_equal(
-                values.get(ByteKey { padding: padding, typed: true }).copied(),
+                values.get(ByteKey { padding: padding, typed: true }),
                 .Some(padding + 7),
                 reason="typed lookup finds a raw-written key",
             )
             values[ByteKey { padding: padding, typed: true }] = padding + 9
             assert_equal(
-                values.get(ByteKey { padding: padding, typed: false }).copied(),
+                values.get(ByteKey { padding: padding, typed: false }),
                 .Some(padding + 9),
                 reason="raw lookup finds the updated typed-written key",
             )

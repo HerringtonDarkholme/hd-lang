@@ -34,7 +34,7 @@ enum ConfigError:
 
 fn setting(settings: Map[string, string], key: string) -> Result[string, ConfigError]:
     match settings.get(key):
-        .Some(text) => .Ok(*text)
+        .Some(text) => .Ok(text)
         .None => .Err(ConfigError.Missing)
 
 fn number(text: string) -> Result[i32, ConfigError]:
@@ -65,7 +65,7 @@ enum ConfigError:
 
 fn setting(settings: Map[string, string], key: string) -> Result[string, ConfigError]:
     match settings.get(key):
-        .Some(text) => .Ok(*text)
+        .Some(text) => .Ok(text)
         .None => .Err(ConfigError.Missing)
 
 fn parsed(text: string) -> Result[i32, ParseNumberError]:

@@ -91,7 +91,7 @@ fn apply_map(values: &mut Map[CollisionKey, i32], op: Operation) -> i32?:
             values[CollisionKey { id: key }] = value
             .None
         .Remove(key) => values.remove(CollisionKey { id: key })
-        .Read(key) => values.get(CollisionKey { id: key }).copied()
+        .Read(key) => values.get(CollisionKey { id: key })
         .Reinsert(key, value) =>
             _ := values.remove(CollisionKey { id: key })
             values[CollisionKey { id: key }] = value
@@ -118,7 +118,7 @@ fn check_map(values: Map[CollisionKey, i32], model: List[(i32, i32)]) -> void:
     for expected in model:
         key := CollisionKey { id: expected._0 }
         assert_equal(
-            values.get(key).copied(),
+            values.get(key),
             .Some(expected._1),
             reason="each reference key is reachable with its current value",
         )
@@ -138,7 +138,7 @@ fn check_map(values: Map[CollisionKey, i32], model: List[(i32, i32)]) -> void:
     for key in i32(-16)..i32(17):
         expected := model_get(model, key)
         assert_equal(
-            values.get(CollisionKey { id: key }).copied(),
+            values.get(CollisionKey { id: key }),
             expected,
             reason="lookup agrees for present and absent colliding keys",
         )
@@ -263,17 +263,17 @@ fn removal_churn(size: usize) -> void:
     for index in 0..size:
         assert(seen[index], reason="no new key is omitted")
         assert_equal(
-            actual.get(i32(size + index)).copied(),
+            actual.get(i32(size + index)),
             .Some(i32(size + index) * 3 + 7),
             reason="each new key is reachable",
         )
         assert_equal(actual.get(i32(index)), .None, reason="an old removed key stays absent")
     actual[0] = 42
-    assert_equal(actual.get(0).copied(), .Some(42), reason="an old key can be reinserted after the churn")
+    assert_equal(actual.get(0), .Some(42), reason="an old key can be reinserted after the churn")
     before := actual.keys()
     actual[0] = 43
     assert_equal(actual.keys(), before, reason="replacement after a rebuild retains order")
-    assert_equal(actual.get(0).copied(), .Some(43), reason="replacement after a rebuild has the new value")
+    assert_equal(actual.get(0), .Some(43), reason="replacement after a rebuild has the new value")
 
 tests:
     it_prop(

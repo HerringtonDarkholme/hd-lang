@@ -31,7 +31,5 @@ pub fn main() -> void $ Console:
     best := larger(+40, +42)
     println(best)
     grid := [[+1, +2, +3], [+4, +5, +6]]
-    println(
-        grid[0][2] + grid[1][2] + larger({ "a": +1, "b": +2 }.get("b").copied().unwrap_or(+0), +0),
-    )
+    println(grid[0][2] + grid[1][2] + larger({ "a": +1, "b": +2 }.get("b").unwrap_or(+0), +0))
     println(first_of::[i32]([+6, +7]))

@@ -7,7 +7,7 @@ fn tally(n: i32, buckets: i32) -> i32:
             .None => 1
     let total = +0
     for b in 0..buckets:
-        total += counts.get(b).copied().unwrap_or(0)
+        total += counts.get(b).unwrap_or(0)
     total
 
 pub fn main() -> void $ Console:

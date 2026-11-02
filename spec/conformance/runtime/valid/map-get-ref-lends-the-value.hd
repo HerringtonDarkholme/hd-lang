@@ -1,11 +1,11 @@
-# test: Map.get returns a reference to the stored value: reads go through it, `*` and `copied` take copies, and lookups that miss give .None
-# std Collections: std-collections.map.get; std-collections.map.get.reference.
+# test: Map.get_ref returns a reference to the stored value: reads go through it, `*` and `copied` take copies, and lookups that miss give .None
+# std Collections: std-collections.map.get-ref; std-collections.map.get-ref.reference.
 struct Stock:
     name: string
     count: i32
 
 fn count_of(shelves: &Map[string, Stock], name: string) -> i32:
-    match shelves.get(name):
+    match shelves.get_ref(name):
         .Some(stock) => stock.count
         .None => 0
 
@@ -19,24 +19,24 @@ tests:
 
     it("copies the value out with * or copied"):
         let mut tags: Map[string, List[string]] = { "fruit": ["pear"] }
-        copy := *tags.get("fruit").expect("fruit")
+        copy := *tags.get_ref("fruit").expect("fruit")
         tags["fruit"].push("fig")
         assert_equal(copy, ["pear"], reason="the copy is its own list")
-        assert_equal(tags.get("fruit").copied(), .Some(["pear", "fig"]))
+        assert_equal(tags.get_ref("fruit").copied(), .Some(["pear", "fig"]))
 
     it("a miss after a hit gives .None"):
         let mut counts: Map[string, i32] = { "a": +1, "c": 3 }
         let total = +0
         let misses = +0
         for key in ["a", "b", "c", "d"]:
-            match counts.get(key):
+            match counts.get_ref(key):
                 .Some(n) => total += *n
                 .None => misses += 1
         counts["b"] = 2
         assert_equal(total, 4)
         assert_equal(misses, 2)
         assert_equal(
-            counts.get("b").copied(),
+            counts.get_ref("b").copied(),
             .Some(2),
             reason="an insert after the reference ends",
         )

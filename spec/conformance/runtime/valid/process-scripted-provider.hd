@@ -9,7 +9,7 @@ impl Process for ScriptedProcess:
     fn run!(&mut self, command: Command) -> Result[ProcessOutput, ProcessError]:
         program := command.program
         match self.outputs.get(program):
-            .Some(output) => .Ok(*output)
+            .Some(output) => .Ok(output)
             .None => .Err(.NotFound(program))
 
 fn version!() -> string $ Process:

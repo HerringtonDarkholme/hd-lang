@@ -290,6 +290,7 @@ fn changes(op: Option<IntrinsicOp>) -> bool {
         Some(
             IntrinsicOp::ListLen
                 | IntrinsicOp::MapLen
+                | IntrinsicOp::MapGet
                 | IntrinsicOp::MapEntry
                 | IntrinsicOp::MapSlots
                 | IntrinsicOp::MapSlotNext

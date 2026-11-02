@@ -3734,7 +3734,12 @@ impl Cx<'_> {
                 Tag::Intrinsic
                     if matches!(
                         IntrinsicOp::from_u32(a),
-                        Some(IntrinsicOp::MapSet | IntrinsicOp::MapRemove | IntrinsicOp::MapEntry)
+                        Some(
+                            IntrinsicOp::MapGet
+                                | IntrinsicOp::MapSet
+                                | IntrinsicOp::MapRemove
+                                | IntrinsicOp::MapEntry
+                        )
                     ) =>
                 {
                     let Some(&m) = body.record(b).first() else {
@@ -3900,7 +3905,12 @@ fn makes_call(body: &Body) -> bool {
         Tag::NewMap => !body.record(body.data[i][1]).is_empty(),
         Tag::Intrinsic => matches!(
             IntrinsicOp::from_u32(body.data[i][0]),
-            Some(IntrinsicOp::MapSet | IntrinsicOp::MapRemove | IntrinsicOp::MapEntry)
+            Some(
+                IntrinsicOp::MapGet
+                    | IntrinsicOp::MapSet
+                    | IntrinsicOp::MapRemove
+                    | IntrinsicOp::MapEntry
+            )
         ),
         _ => false,
     })

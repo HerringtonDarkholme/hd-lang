@@ -1172,7 +1172,7 @@ impl Process for ScriptedProcess:
     fn run!(&mut self, command: Command) -> Result[ProcessOutput, ProcessError]:
         match self.outputs.get(command.program):
             .Some(output) =>
-                let mut named = *output
+                let mut named = output
                 named.program = command.program
                 .Ok(named)
             .None => .Err(.NotFound(command.program))
@@ -1230,7 +1230,7 @@ The following built-in methods are normative:
 | `string` | `len(&self) -> usize`; `chars(self) -> Chars`; `char_indices(self) -> CharIndices`; `bytes(self) -> Bytes`; `slice(self, start: usize, end: usize) -> string` |
 | `List[T]` | `len(self) -> usize`; `iter(self) -> ListIter[T]` |
 | `List[T]`, changing | `push(&mut self, value: T) -> void`; `pop(&mut self) -> T?`; `insert(&mut self, index: usize, value: T) -> void`; `remove_at(&mut self, index: usize) -> T`; `clear(&mut self) -> void` |
-| `Map[K, V]` | `len(self) -> usize`; `iter(self) -> MapEntries[K, V]` |
+| `Map[K, V]` | `len(self) -> usize`; `get(self, key: K) -> V?`; `iter(self) -> MapEntries[K, V]` |
 | `Map[K, V]`, changing | `remove(&mut self, key: K) -> V?` |
 | `Display` | `to_string(&self) -> string` |
 
@@ -1278,18 +1278,18 @@ fn demo(items: List[string]) -> usize:
 
 ```hd
 fn demo(table: Map[string, i32], key: string) -> i32?:
-    table.get(key).copied()   # expected amortized O(1)
+    table.get(key)   # expected amortized O(1)
 ```
 
 #### Map Probe Intrinsic
 
-`std.collections` gives its three lookup methods the same compiler body
-key:
+`std.collections` gives its three reference lookup methods the same
+compiler body key:
 
 ```text
 impl[K < Eq & Hash, V] Map[K, V]:
     @intrinsic("map_probe")
-    pub fn get(&self, key: K) -> (&V)?: panic("intrinsic")
+    pub fn get_ref(&self, key: K) -> (&V)?: panic("intrinsic")
 
     @intrinsic("map_probe")
     pub fn get_mut(&mut self, key: K) -> (&mut V)?: panic("intrinsic")
@@ -1299,8 +1299,8 @@ impl[K < Eq & Hash, V] Map[K, V]:
 ```
 
 1. r[module.map.probe.decl] The three methods have the ordinary hd declarations above, and the compiler supplies only the bodies named `map_probe`.
-2. r[module.map.probe.hit] When the map has an equal key, each method returns a reference to its value: a shared one in `.Some` for `get`, a mutable one in `.Some` for `get_mut`, and a mutable one for `get_or_insert`.
-3. r[module.map.probe.miss] When the map has no equal key, `get` and `get_mut` return `.None` and leave the map unchanged.
+2. r[module.map.probe.hit] When the map has an equal key, each method returns a reference to its value: a shared one in `.Some` for `get_ref`, a mutable one in `.Some` for `get_mut`, and a mutable one for `get_or_insert`.
+3. r[module.map.probe.miss] When the map has no equal key, `get_ref` and `get_mut` return `.None` and leave the map unchanged.
 4. r[module.map.probe.insert] When the map has no equal key, `get_or_insert` inserts `(key, default)` and returns a mutable reference to that value.
 5. r[module.map.probe.once] Each body hashes `key` once, searches the table once, and `get_or_insert` reuses a missing search position for insertion.
 

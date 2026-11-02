@@ -7,7 +7,7 @@ fn rename(child: &mut Child, name: string) -> void:
 fn update_children(children: Map[string, *mut Child], id: string) -> void $ Console:
     rename(children[id], "indexed")
     match children.get(id):
-        .Some(child) => rename(*child, "found")
+        .Some(child) => rename(child, "found")
         .None => println("missing")
     for (key, child) in children:
         rename(child, key)

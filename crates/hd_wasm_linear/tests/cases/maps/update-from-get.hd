@@ -3,11 +3,11 @@
 # expected: `word` is hashed and probed once for a get/store pair and for
 # `+=`; an intervening map change makes the final store hash and probe again.
 fn tally(counts: &mut Map[string, i64], word: string) -> void:
-    counts[word] = counts.get(word).copied().unwrap_or(0) + 1
+    counts[word] = counts.get(word).unwrap_or(0) + 1
 
 fn tally_match(counts: &mut Map[string, i64], word: string) -> void:
     counts[word] = match counts.get(word):
-        .Some(seen) => *seen + 1
+        .Some(seen) => seen + 1
         .None => 1
 
 fn increment_existing(counts: &mut Map[string, i64], word: string) -> void:
@@ -18,6 +18,6 @@ fn changed_between(
     word: string,
     other: string,
 ) -> void:
-    seen := counts.get(word).copied().unwrap_or(0)
+    seen := counts.get(word).unwrap_or(0)
     counts[other] = 0
     counts[word] = seen + 1

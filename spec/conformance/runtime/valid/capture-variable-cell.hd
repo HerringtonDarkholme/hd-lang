@@ -67,7 +67,7 @@ tests:
         let mut ages: Map[string, i32] = {}
         record := fn(name: string, age: i32) -> void: ages[name] = age
         record("ada", 36)
-        assert_equal(ages.get("ada").copied().unwrap_or(0), 36, reason="the scope sees the insert")
+        assert_equal(ages.get("ada").unwrap_or(0), 36, reason="the scope sees the insert")
         ages["grace"] = 85
         known := fn() -> usize: ages.len()
         assert_equal(known(), 2, reason="the closure sees the scope's insert")

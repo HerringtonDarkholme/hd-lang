@@ -760,14 +760,14 @@ fn invalid(items: List[i32], i: i32) -> void:
 1. r[expr.index.map.type] For `Map[K, V]`, the index must have type `K`.
 2. r[expr.index.map.read-value] Reading `entries[key]` returns `V`. When the map holds no equal key, the read is a checked runtime panic. Panic: `index-out-of-bounds`.
 3. r[expr.index.map.value-type] The read's type is the declared `V`, whether the map is reached directly or through a reference.
-4. r[expr.index.map.get] The optional read is the std method [`get`](../std/collections.md#r-std-collections.map.get): `entries.get(key)` returns `(&V)?`, a reference to the value as `&entries[key]` gives, and `.None` means no equal key exists.
+4. r[expr.index.map.get] The optional read is the built-in method `get`: `entries.get(key)` returns `V?`, and `.None` means no equal key exists.
 5. r[expr.index.map.assign] Assigning `entries[key] = value` requires a map in a writable place or reached through a `&mut` reference, and inserts or replaces the entry.
 6. r[expr.index.map.library] Removal and entry APIs are standard-library methods rather than special syntax.
 
 ```text
 fn score(scores: Map[string, i32], name: string) -> i32:
     match scores.get(name):
-        .Some(value) => *value  # get gives (&i32)?
+        .Some(value) => value
         .None => 0
 
 fn strict(scores: Map[string, i32], name: string) -> i32:

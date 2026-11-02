@@ -9,8 +9,8 @@ tests:
 
     it("tallies elements"):
         found := tally(["a", "b", "a"])
-        assert_equal(found.get("a").copied(), .Some(2), reason="a twice")
-        assert_equal(found.get("b").copied(), .Some(1), reason="b once")
+        assert_equal(found.get("a"), .Some(2), reason="a twice")
+        assert_equal(found.get("b"), .Some(1), reason="b once")
         assert_equal(found.keys().sorted(), ["a", "b"], reason="one key per distinct element")
     it("gives an empty map for an empty list"):
         assert_equal(tally([]).len(), 0, reason="empty")
