@@ -138,6 +138,18 @@ impl[T < ?Copy] Buffer[T]:
     pub fn at(self, index: usize) -> Ptr[T]:
         Ptr::[T] { address: self.address + 16 }.offset(index)
 
+    ## Lends the value at `index` for as long as the buffer is lent. The caller checks the index.
+    ## See [module.rt.buffer.item-ref](../../../spec/lang/10-modules.md#r-module.rt.buffer.item-ref).
+    @intrinsic("buffer_item_ref")
+    pub fn item_ref['a](&'a self, index: usize) -> &'a T:
+        panic("intrinsic")
+
+    ## Mutably lends the value at `index` for as long as the buffer is mutably lent. The caller checks the index.
+    ## See [module.rt.buffer.item-mut](../../../spec/lang/10-modules.md#r-module.rt.buffer.item-mut).
+    @intrinsic("buffer_item_mut")
+    pub fn item_mut['a](&'a mut self, index: usize) -> &'a mut T:
+        panic("intrinsic")
+
 ## The address of the first of the bytes of `text`, which stay where they are while `text` or a copy of it lives.
 ## See [module.rt.string.bytes](../../../spec/lang/10-modules.md#r-module.rt.string.bytes).
 @intrinsic("mem_string_bytes")

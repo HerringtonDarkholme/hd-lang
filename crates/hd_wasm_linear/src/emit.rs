@@ -28,7 +28,7 @@ use crate::layout::{Pass, num, vals};
 use crate::module::{
     Func, GLUE, Global, HEAP, Import, Ins, Module, Stored, Sym, Val, WEAK_GLUE, mem,
 };
-use crate::rt::Helper;
+use crate::rt::{Helper, LIST_ELEMS};
 use crate::{Input, unsupported};
 
 mod closure;
@@ -2394,6 +2394,11 @@ impl Em<'_, '_, '_> {
                     self.ptr(i, key, ct.args, &args)
                 }
                 TargetKind::Intrinsic(key)
+                    if matches!(key.as_str(), "buffer_item_ref" | "buffer_item_mut") =>
+                {
+                    self.buffer_item_ref(i, ct.args, &args)
+                }
+                TargetKind::Intrinsic(key)
                     if matches!(
                         key.as_str(),
                         "weak_new"
@@ -3162,6 +3167,28 @@ impl Em<'_, '_, '_> {
         } else {
             self.f.u32(m.size);
         }
+        self.store(i)
+    }
+
+    /// `Buffer[T].item_ref` and `item_mut`: the address of item `index`
+    /// in the buffer that the receiver reference lends. The caller checks
+    /// the index; this intrinsic only computes the address.
+    fn buffer_item_ref(&mut self, i: u32, targs: TyList, args: &[u32]) -> StageResult<()> {
+        let Some(&t) = self.pool().list_items(targs).last() else {
+            return unsupported("a buffer item intrinsic without its type argument");
+        };
+        let [buffer, index] = args else {
+            return unsupported("a buffer item intrinsic without a receiver and index");
+        };
+        let m = crate::layout::mem(self.pool(), self.env(), self.sub(t))?;
+        self.comp(*buffer, 0)?;
+        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+        self.comp(*index, 0)?;
+        self.f.u32(m.size);
+        self.f.op(I::I32Mul);
+        self.f.u32(LIST_ELEMS);
+        self.f.op(I::I32Add);
+        self.f.op(I::I32Add);
         self.store(i)
     }
 

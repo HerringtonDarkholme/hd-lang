@@ -22,6 +22,11 @@ struct Body:
     id: i32
     alive: bool
 
+struct Ticket:
+    qty: i32
+
+impl !Copy for Ticket
+
 fn fresh_page() -> usize:
     match grow(1):
         .Some(before) => before * 65536
@@ -177,6 +182,17 @@ tests:
         last := b.at(1).read()
         b.set_len(1)
         assert(last == "n2" && b.len() == 1, "a value moved out")
+
+    it("a buffer lends a non-copyable item for reading and changing"):
+        let mut b: Buffer[Ticket] = Buffer::new(1)
+        b.at(0).write(Ticket { qty: +3 })
+        b.set_len(1)
+        assert(b.item_ref(0).qty == +3, "item_ref reads the item in place")
+        b.item_mut(0).qty = +7
+        assert(b.item_ref(0).qty == +7, "item_mut changes the item in place")
+        ticket := b.at(0).read()
+        b.set_len(0)
+        assert(ticket.qty == +7, "the changed item moves out whole")
 
     it("buffers run in bounded memory"):
         _ := Buffer::[List[i32]].new(1)

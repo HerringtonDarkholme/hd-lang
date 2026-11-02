@@ -686,6 +686,8 @@ pub static INTRINSICS: &[(&str, Lowering)] = &[
     ("ptr_write", Lowering::Compiler),
     ("ptr_offset", Lowering::Compiler),
     ("mem_buffer", Lowering::Compiler),
+    ("buffer_item_ref", Lowering::Compiler),
+    ("buffer_item_mut", Lowering::Compiler),
     ("mem_string_bytes", Lowering::Compiler),
     ("mem_new_string", Lowering::Compiler),
     ("format_f64", Lowering::HostPrimitive("format_f64")),

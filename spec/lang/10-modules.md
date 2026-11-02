@@ -1770,6 +1770,8 @@ impl[T < ?Copy] Buffer[T]:
     pub fn len(self) -> usize
     pub fn set_len(self, len: usize) -> void
     pub fn at(self, index: usize) -> Ptr[T]
+    pub fn item_ref['a](&'a self, index: usize) -> &'a T
+    pub fn item_mut['a](&'a mut self, index: usize) -> &'a mut T
 
 pub fn string_bytes(text: string) -> Ptr[u8]
 pub fn new_string(len: usize) -> string
@@ -1793,9 +1795,12 @@ pub fn new_string(len: usize) -> string
 16. r[module.rt.buffer.at] `b.at(index)` returns the `Ptr[T]` of value `index` of the buffer's room: `b.at(0).offset(index)`. It checks no bound; reads and writes through it follow [`module.rt.ptr.holds`](#r-module.rt.ptr.holds).
 17. r[module.rt.buffer.len] `b.set_len(len)` sets the length that `b.len()` returns and changes no value. Before it raises the length, std writes each new value through `at`; before it lowers the length, std reads each value past the new length out through `at`.
 18. r[module.rt.buffer.drop] When the last count of a buffer is released, the buffer drops each of its first `len()` values, then its storage is freed.
-19. r[module.rt.string.bytes] `string_bytes(text)` returns the `Ptr[u8]` of the first of the `text.len()` bytes of `text`'s UTF-8 encoding. The bytes stay at that address while `text` or a copy of it lives.
-20. r[module.rt.string.new] `new_string(len)` returns a new string of `len` bytes, whose values are unspecified until written. `new_string(0)` returns the empty string.
-21. r[module.rt.string.write] Only the bytes of a string that `new_string` returned are written through `string_bytes`, and std writes all of them, as valid UTF-8, before the string is used in any other way.
+19. r[module.rt.buffer.item-ref] `b.item_ref(index)` returns an `&T` to value `index`, whose lifetime is the receiver borrow's lifetime.
+20. r[module.rt.buffer.item-mut] `b.item_mut(index)` returns an `&mut T` to value `index`, whose lifetime is the mutable receiver borrow's lifetime.
+21. r[module.rt.buffer.item-bounds] `item_ref` and `item_mut` check no bound; std calls either only after checking that `index < b.len()`.
+22. r[module.rt.string.bytes] `string_bytes(text)` returns the `Ptr[u8]` of the first of the `text.len()` bytes of `text`'s UTF-8 encoding. The bytes stay at that address while `text` or a copy of it lives.
+23. r[module.rt.string.new] `new_string(len)` returns a new string of `len` bytes, whose values are unspecified until written. `new_string(0)` returns the empty string.
+24. r[module.rt.string.write] Only the bytes of a string that `new_string` returned are written through `string_bytes`, and std writes all of them, as valid UTF-8, before the string is used in any other way.
 
 > **Note.** A read and a write of the same value back move it out, and a
 > read whose result is discarded drops the value in place.
