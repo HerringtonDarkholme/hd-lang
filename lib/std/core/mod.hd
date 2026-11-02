@@ -15,7 +15,7 @@ pub trait Copy:
 
 ## The one equality trait: `==` and `!=` invoke its `eq`, which must be reflexive.
 ## See [trait.cmp.equality](../../../spec/lang/09-traits.md#r-trait.cmp.equality).
-pub trait Eq:
+pub trait Eq < ?Copy:
     fn eq(&self, other: &Self) -> bool
 
 ## A sink that hashes the bytes written to it; its methods change it, so a hasher is passed as `&mut dyn Hasher`.
@@ -75,7 +75,7 @@ pub trait Hasher:
 
 ## A type whose values write their hash bytes to a `Hasher`; a map key needs it with `Eq`.
 ## See [trait.hash.module](../../../spec/lang/09-traits.md#r-trait.hash.module).
-pub trait Hash:
+pub trait Hash < ?Copy:
     fn hash(&self, state: &mut dyn Hasher) -> void
 
 fn unsigned_bytes(value: u64, count: usize) -> List[u8]:

@@ -1,5 +1,5 @@
 # test: a user struct implements the Iterator trait
-# Spec 06 Iteration Protocols: flow.for.iterator.trait (Chaining Study CS7).
+# Spec 06 Iteration Protocols: flow.for.iterator.noncopy-trait (Chaining Study CS7).
 
 struct Counter:
     current: i32

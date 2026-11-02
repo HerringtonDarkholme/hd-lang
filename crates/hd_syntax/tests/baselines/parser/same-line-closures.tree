@@ -24,7 +24,8 @@ FnDecl fn apply_all -> :
         ClosureExpr fn -> :
           ParameterList ( )
             Parameter x :
-              NamedType i32
+              RefType &
+                NamedType i32
           NamedType bool
           ComparisonExpr >
             NameExpr x

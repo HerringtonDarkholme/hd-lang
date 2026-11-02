@@ -339,7 +339,7 @@ The expression forms in which literals meet typed parts:
 | --- | --- | --- | --- |
 | r[types.literal.local.form.operand] Operands | an operand of an arithmetic or comparison operator, on either side | `5 + price`, `identity(0) + price` | the other operand |
 | r[types.literal.local.form.argument] Call arguments | the arguments of one call | `biggest(0, items.len())` | the parameter types, and the other arguments that solve a type parameter |
-| r[types.literal.local.form.receiver] Receivers | the receiver of a method call | `[1, 2].iter().all(fn(n: i32) -> bool: n > 0)` | the typed values the call meets, such as a closure parameter type |
+| r[types.literal.local.form.receiver] Receivers | the receiver of a method call | `[1, 2].iter().all(fn(n: &i32) -> bool: n > 0)` | the typed values the call meets, such as a closure parameter type |
 | r[types.literal.local.form.element] Collections | the elements of one list, map, tuple, or struct literal | `[small, 1]` | the typed elements |
 | r[types.literal.local.form.arm] Arms | the branches of one `if` and the arms of one `match` | `if c: 1 else: count` | the typed branches |
 | r[types.literal.local.form.closure-return] Closure returns | the return paths of a closure with no written result type | `return value` and a final `0` | the typed return paths |

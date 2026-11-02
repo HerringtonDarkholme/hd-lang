@@ -30,7 +30,7 @@ impl Shift:
 
 fn count(xs: List[i32], c: &Counter) -> i32:
     let total: i32 = xs.iter()
-        .filter(fn(x: i32) -> bool: x > c.n)
+        .filter(fn(x: &i32) -> bool: x > c.n)
         .map(fn(x: i32) -> i32: x * c.n)
         .sum()
     let mut it = xs.iter().map(fn(x: i32) -> i32: x + c.n)

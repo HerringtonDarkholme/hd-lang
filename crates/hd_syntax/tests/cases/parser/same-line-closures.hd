@@ -2,4 +2,4 @@
 # Migrated from trees/closures-in-arguments.hd; parser coverage only.
 # subject
 fn apply_all(xs: List[i32]) -> void:
-    ys := xs.map(fn(x): x + 1).filter(fn(x: i32) -> bool: x > 2)
+    ys := xs.map(fn(x): x + 1).filter(fn(x: &i32) -> bool: x > 2)

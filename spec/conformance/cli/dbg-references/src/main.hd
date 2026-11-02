@@ -17,4 +17,4 @@ pub fn main() -> void $ Console:
     dbg(box(Expr.Num(7)))
     println("done")
 
-# Spec 10 Debug Values: module.dbg.value.reference, module.dbg.value.debug; std/format References: std-format.debug.reference.
+# Spec 10 Debug Values: module.dbg.value.reference, module.dbg.value.debug; std/format References: std-format.debug.reference-noncopy.

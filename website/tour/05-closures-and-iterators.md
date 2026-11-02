@@ -12,7 +12,7 @@ work runs.
 ```hd example
 fees := amounts
     .iter()
-    .filter(fn(amount: i32) -> bool: amount >= threshold)
+    .filter(fn(amount: &i32) -> bool: amount >= threshold)
 ```
 
 A closure is an **unnamed `fn` value**. It can read nearby bindings, as this
@@ -46,7 +46,7 @@ fn measure_fees(amounts: List[i32], threshold: i32) -> (i32, i32, i32):
     let calls = +0
     fees := amounts
         .iter()
-        .filter(fn(amount: i32) -> bool: amount >= threshold)
+        .filter(fn(amount: &i32) -> bool: amount >= threshold)
         .map(fn(amount: i32) -> i32:
             calls += 1
             amount / 10
@@ -60,9 +60,9 @@ println("map calls before sum: $before; after: $after; fees: $total cents")
 ```
 
 ```edit
-replace:         .filter(fn(amount: i32) -> bool: amount >= threshold)
-with:         .filter(fn(amount: i32) -> i32: amount)
-error: type-mismatch: in argument: expected fn(i32) -> bool, found fn(i32) -> i32
+replace:         .filter(fn(amount: &i32) -> bool: amount >= threshold)
+with:         .filter(fn(amount: &i32) -> i32: *amount)
+error: type-mismatch: in argument: expected fn(&i32) -> bool, found fn(&i32) -> i32
 ```
 
 ```output

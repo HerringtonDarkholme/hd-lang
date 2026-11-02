@@ -6,7 +6,7 @@ struct Total:
     value: i32
 
 impl Sum[i32] for Total:
-    fn sum[I < Iterator[i32]](items: I) -> Total:
+    fn sum[I < ?Copy & Iterator[i32]](items: I) -> Total:
         _ := items
         panic("not run")
 

@@ -208,16 +208,16 @@ impl[T < Eq] Eq for T?:
 
 # A reference is equal to another when the values they refer to are, so a
 # derived `Eq` compares through a reference field
-# (r-std-cmp.ref.eq). `==` written between two references is
+# (r-std-cmp.ref.eq-noncopy). `==` written between two references is
 # an error (lang/13 ref.identity.no-equality): a generic `==` and a derived
 # `Eq` reach this impl.
 # Keep handwritten Eq: delegate through the reference; structural derivation is for its referent.
-impl[T < Eq] Eq for *T:
+impl[T < ?Copy & Eq] Eq for *T:
     fn eq(&self, other: &Self) -> bool:
         *(*self) == *(*other)
 
 # Keep handwritten Eq: delegate through the reference; structural derivation is for its referent.
-impl[T < Eq] Eq for *mut T:
+impl[T < ?Copy & Eq] Eq for *mut T:
     fn eq(&self, other: &Self) -> bool:
         *(*self) == *(*other)
 

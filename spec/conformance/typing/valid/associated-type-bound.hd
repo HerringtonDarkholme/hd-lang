@@ -1,5 +1,5 @@
 # test: a bounded associated type's projection implements its bound: its methods are callable, it meets a bound naming the trait, and a signature may name it
-# Spec 09 Associated Types: trait.assoc.bound-decl, trait.assoc.bound-use. Spec 06 Iteration Protocols: flow.for.iterable.into-iter.
+# Spec 09 Associated Types: trait.assoc.bound-decl, trait.assoc.bound-use. Spec 06 Iteration Protocols: flow.for.iterable.noncopy-cursor.
 
 trait Bag[T]:
     type Cursor < Iterator[T]

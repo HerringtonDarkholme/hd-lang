@@ -13,7 +13,7 @@ use std.ops.Index
 use std.ops.IndexSet
 use std.ops.Range
 use std.format.DebugWriter
-use std.hash.hash_of
+use std.hash.{hash_of, Hasher}
 use std.rt.bytes.{panic_with}
 use std.rt.memory.Buffer
 
@@ -269,6 +269,24 @@ impl[T < ?Copy] UniqList[T]:
             index += 1
 
 impl[T < Copy] UniqList[T]:
+    ## Copies the elements of `items`, in order, into a new uniquely owned list.
+    ## See [std-collections.uniq-list.conversion](../../spec/std/collections.md#r-std-collections.uniq-list.conversion).
+    pub fn from_list(items: List[T]) -> UniqList[T]:
+        let mut out = UniqList::[T].with_capacity(items.len())
+        for item in items:
+            out.push(item)
+        out
+
+    ## Copies the elements, in order, into a `List`.
+    ## See [std-collections.uniq-list.conversion](../../spec/std/collections.md#r-std-collections.uniq-list.conversion).
+    pub fn to_list(&self) -> List[T]:
+        let mut out: List[T] = []
+        let index: usize = 0
+        while index < self.len():
+            out.push(self.copied_at(index))
+            index += 1
+        out
+
     # Copies one element through its shared reference.
     fn copied_at(&self, index: usize) -> T:
         *self.buffer.item_ref(index)
@@ -488,6 +506,60 @@ impl[T < ?Copy, 'a] Iterator[&'a T] for UniqListIter[T, 'a]:
         if item.is_some():
             self.at += 1
         item
+
+## The consuming cursor of a `UniqList`; it moves the elements out in order.
+## See [std-collections.uniq-list.into-iter](../../spec/std/collections.md#r-std-collections.uniq-list.into-iter).
+pub struct UniqListIntoIter[T < ?Copy]:
+    items: UniqList[T]
+
+impl[T < ?Copy] !Copy for UniqListIntoIter[T]
+
+impl[T < ?Copy] Iterator[T] for UniqListIntoIter[T]:
+    fn next(&mut self) -> T?:
+        if self.items.is_empty(): .None else: .Some(self.items.remove_at(0))
+
+impl[T < ?Copy] Iterable[T] for UniqList[T]:
+    type IntoIter = UniqListIntoIter[T]
+    fn iter(self) -> UniqListIntoIter[T]:
+        UniqListIntoIter::[T] { items: self }
+
+impl[T < ?Copy] FromIterator[T] for UniqList[T]:
+    fn from_iter[I < ?Copy & Iterator[T]](items: I) -> UniqList[T]:
+        let mut cursor = items
+        let mut out = UniqList::[T].new()
+        while true:
+            match cursor.next():
+                .Some(item) => out.push(item)
+                .None => break
+        out
+
+impl[T < ?Copy & Eq] Eq for UniqList[T]:
+    fn eq(&self, other: &UniqList[T]) -> bool:
+        if self.len() != other.len():
+            return false
+        let index: usize = 0
+        while index < self.len():
+            if !self.buffer.item_ref(index).eq(other.buffer.item_ref(index)):
+                return false
+            index += 1
+        true
+
+impl[T < ?Copy & Debug] Debug for UniqList[T]:
+    fn debug(&self, out: *mut DebugWriter) -> void:
+        let mut list = out.debug_list()
+        let index: usize = 0
+        while index < self.len():
+            _ := list.entry(self.buffer.item_ref(index))
+            index += 1
+        list.finish()
+
+impl[T < ?Copy & Hash] Hash for UniqList[T]:
+    fn hash(&self, state: &mut dyn Hasher) -> void:
+        state.write_u64(u64(self.len()))
+        let index: usize = 0
+        while index < self.len():
+            self.buffer.item_ref(index).hash(state)
+            index += 1
 
 impl[T] List[T]:
     # `push` is a language-tier intrinsic method of the checker
@@ -1371,7 +1443,7 @@ impl[T] Iterator[T] for DequeIter[T]:
 # Collect directly into the ring buffer, in front-to-back order.
 # See r-std-collections.deque.collect.
 impl[T] FromIterator[T] for Deque[T]:
-    fn from_iter[I < Iterator[T]](items: I) -> Deque[T]:
+    fn from_iter[I < ?Copy & Iterator[T]](items: I) -> Deque[T]:
         let mut cursor = items
         let mut queue: Deque[T] = Deque::new()
         while true:
@@ -1472,7 +1544,7 @@ impl[T < Eq & Hash] Iterator[T] for SetIter[T]:
 # A set of the distinct items, in the order each first appears
 # (r-std-collections.set.collect).
 impl[T < Eq & Hash] FromIterator[T] for Set[T]:
-    fn from_iter[I < Iterator[T]](items: I) -> Set[T]:
+    fn from_iter[I < ?Copy & Iterator[T]](items: I) -> Set[T]:
         let mut cursor = items
         let mut collected: Set[T] = Set::new()
         while true:
@@ -1588,7 +1660,7 @@ impl[T < Ord] Heap[T]:
 # Build in linear comparisons by sifting each non-leaf bottom-up.
 # See r-std-collections.heap.collect, r-std-collections.heap.collect.linear.
 impl[T < Ord] FromIterator[T] for Heap[T]:
-    fn from_iter[I < Iterator[T]](items: I) -> Heap[T]:
+    fn from_iter[I < ?Copy & Iterator[T]](items: I) -> Heap[T]:
         let mut cursor = items
         let mut heap: Heap[T] = Heap::new()
         while true:

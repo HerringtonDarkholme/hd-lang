@@ -59,9 +59,12 @@ Its surface is:
 | shared access | `get_ref['a](&'a self, index: usize) -> (&'a T)?`; `first_ref['a](&'a self) -> (&'a T)?`; `last_ref['a](&'a self) -> (&'a T)?` |
 | mutable access | `get_mut['a](&'a mut self, index: usize) -> (&'a mut T)?`; `first_mut['a](&'a mut self) -> (&'a mut T)?`; `last_mut['a](&'a mut self) -> (&'a mut T)?` |
 | borrowing cursor | `iter['a](&'a self) -> UniqListIter[T, 'a]`, whose item is `&'a T` |
+| consuming cursor | `Iterable[T]` with `UniqListIntoIter[T]`, whose item is `T`; `FromIterator[T]` |
+| copyable conversion, `T < Copy` | `from_list(items: List[T]) -> UniqList[T]`; `to_list(&self) -> List[T]` |
 | looking | `find_ref['a](&'a self, test: fn(&T) -> bool) -> (&'a T)?`; `any(&self, test: fn(&T) -> bool) -> bool`; `all(&self, test: fn(&T) -> bool) -> bool` |
 | changing | `retain(&mut self, keep: fn(&T) -> bool) -> void`; `sort_by(&mut self, compare: fn(&T, &T) -> Ordering) -> void`; `sort_by_key[K < Ord](&mut self, key: fn(&T) -> K) -> void` |
 | ordered, `T < ?Copy & Ord` | `sort(&mut self) -> void` |
+| value-looking traits | `Eq` for `T < ?Copy & Eq`; `Debug` for `T < ?Copy & Debug`; `Hash` for `T < ?Copy & Hash` |
 
 1. r[std-collections.uniq-list.type] `std.collections` declares `UniqList[T < ?Copy]` with a private `Buffer[T]` field and `impl[T < ?Copy] !Copy for UniqList[T]`. It is not a prelude name, so code that names it imports it.
 2. r[std-collections.uniq-list.new] `new()` returns an empty list. `with_capacity(capacity)` returns an empty list whose first `capacity` pushes need no growth.
@@ -82,9 +85,14 @@ Its surface is:
 17. r[std-collections.uniq-list.any-all] `any(test)` and `all(test)` have the behavior of [`std-collections.helper.any-all`](#r-std-collections.helper.any-all) and [`std-collections.helper.short-circuit`](#r-std-collections.helper.short-circuit), with `fn(&T)` callbacks.
 18. r[std-collections.uniq-list.retain] `retain(keep)` drops each rejected element in place and preserves the order of those accepted.
 19. r[std-collections.uniq-list.sort] `sort`, `sort_by`, and `sort_by_key` sort in place and are stable. They order as [`std-collections.helper.sort`](#r-std-collections.helper.sort), [`std-collections.helper.sort-by`](#r-std-collections.helper.sort-by), and [`std-collections.helper.sort-by-key`](#r-std-collections.helper.sort-by-key) do.
+20. r[std-collections.uniq-list.into-iter] `UniqList[T]` implements `Iterable[T]`. Its private `UniqListIntoIter[T]` cursor owns the list and moves its elements out in order. A `for` loop over a `UniqList` therefore consumes the list and each item.
+21. r[std-collections.uniq-list.collect] `UniqList[T]` implements `FromIterator[T]` for every `T < ?Copy`, preserving item order. An explicitly targeted `collect`, including `let items: UniqList[_] = cursor.collect()`, may therefore collect non-copyable items.
+22. r[std-collections.uniq-list.conversion] For `T < Copy`, `from_list(items)` copies the list's elements in order into a new `UniqList`, and `to_list()` copies a `UniqList`'s elements in order into a new `List`.
+23. r[std-collections.uniq-list.eq] For `T < ?Copy & Eq`, two `UniqList[T]` values are equal exactly when they have the same length and equal elements at every position.
+24. r[std-collections.uniq-list.debug] For `T < ?Copy & Debug`, `UniqList[T]` implements `Debug` with the same bracketed, comma-separated form as a `List[T]`.
+25. r[std-collections.uniq-list.hash] For `T < ?Copy & Hash`, `UniqList[T]` hashes its length as a `u64`, then each element in order, as `List[T]` does.
 
-This surface has no conversion or literal construction. Those are
-specified separately when added.
+This surface has no literal construction.
 
 ## UniqMap
 
@@ -386,7 +394,7 @@ fn owners(tasks: List[Task]) -> List[string]:
 
 | Call | Result |
 | --- | --- |
-| `[3, 1, 2].partition(fn(n: i32) -> bool: n > 1)` | `([3, 2], [1])` |
+| `[3, 1, 2].partition(fn(n: &i32) -> bool: n > 1)` | `([3, 2], [1])` |
 | `[1, 2].flat_map(fn(n: i32) -> List[i32]: [n, n])` | `[1, 1, 2, 2]` |
 | `[1, 2, 3].windows(2)` | views of `[1, 2]` and `[2, 3]` |
 | `[1, 2].windows(3)` | `[]` |

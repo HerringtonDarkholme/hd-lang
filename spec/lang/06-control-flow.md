@@ -173,18 +173,19 @@ fn present(found: List[i32?]) -> void:
 
 ### Iteration Protocols
 
-A `for` loop uses the prelude traits `Iterable[T]` and `Iterator[T]`:
+A `for` loop uses the prelude traits `Iterable[T < ?Copy]` and
+`Iterator[T < ?Copy]`:
 
 ```text
-trait Iterator[T]:
+trait Iterator[T < ?Copy] < ?Copy:
     fn next(&mut self) -> T?
 
-trait Iterable[T]:
+trait Iterable[T < ?Copy] < ?Copy:
     type IntoIter < Iterator[T]
     fn iter(self) -> Self::IntoIter
 ```
 
-1. r[flow.for.iterator.trait] `Iterator[T]` is a prelude trait declaring `fn next(&mut self) -> T?`.
+1. r[flow.for.iterator.noncopy-trait] `Iterator[T < ?Copy] < ?Copy` is a prelude trait declaring `fn next(&mut self) -> T?`.
 2. r[flow.for.iterator.user-impl] A user-defined type may implement `Iterator[T]` with its own traversal state.
 3. r[flow.for.collection-cursor.private] `std.iter.FromFn[T]` is a concrete cursor with one private `step: fn() -> T?` field.
 4. r[flow.for.iterator.next.trait] Calling `next` advances the cursor through its implementation of `Iterator[T]`.
@@ -198,7 +199,7 @@ trait Iterable[T]:
 12. r[flow.for.string-explicit] A loop over a string's contents iterates `chars()`, `char_indices()`, or `bytes()`, which [String Methods](10-modules.md#string-methods) defines.
 13. r[flow.for.accepts-owned-cursor] `for` accepts an `Iterable[T]`, a value implementing `Iterator[T]`, or a mutable reference to such a cursor.
 14. r[flow.for.iterable.cursor] When the iterable expression's type implements `Iterable[T]` and is not a `List` or a `Map`, the loop calls `iter` once and advances the resulting cursor. A list or a map is iterated as [Snapshot Iteration](#snapshot-iteration) states.
-15. r[flow.for.iterable.into-iter] `Iterable[T]` declares the associated cursor type `IntoIter`, bounded by `Iterator[T]`, and `iter` returns a value of it. Each implementation names its cursor type, as in `type IntoIter = ListIter[T]`.
+15. r[flow.for.iterable.noncopy-cursor] `Iterable[T < ?Copy] < ?Copy` declares the associated cursor type `IntoIter`, bounded by `Iterator[T]`, and `iter` returns a value of it. Each implementation names its cursor type, as in `type IntoIter = ListIter[T]`.
 16. r[flow.for.iterable.static-cursor] The loop holds the `IntoIter` value `iter` returned as its own writable copy, as it holds an iterator source, and calls its `next` through that type's `Iterator[T]` implementation, with no trait value.
 17. r[flow.for.iterator.owned-source] When the source is an iterator, the loop calls `next` on its owned binding without calling `iter`.
 18. r[flow.for.iterator.owned-position] Iteration starts at the copied cursor's current position and exhausts that copy unless the loop exits early.
@@ -207,6 +208,7 @@ trait Iterable[T]:
 21. r[flow.for.protocol-required] A source implementing neither `Iterable[T]` nor `Iterator[T]` is an error. Error: `unsatisfied-trait-bound`.
 22. r[flow.for.comprehension] Comprehension `for` clauses accept the same values by the same rules.
 23. r[flow.for.iterator.iterable-bound] An iterator without an `Iterable[T]` implementation does not satisfy an `Iterable[T]` bound. Error: `unsatisfied-trait-bound`.
+24. r[flow.for.iterator.noncopy] Both protocols accept non-copyable item types, cursors, and iterable values. A loop consumes a non-copyable iterable expression when its `iter(self)` implementation takes ownership.
 24. r[flow.for.iterator.evaluate-once] A loop evaluates its source expression once before iteration starts.
 25. r[flow.for.iterator.copy-preserves-source] Advancing the loop's owned cursor value does not change the original value.
 26. r[flow.for.iterator.reference-progress] Iterating a mutable cursor reference advances the referenced cursor's progress.

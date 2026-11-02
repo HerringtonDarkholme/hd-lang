@@ -18,8 +18,8 @@ tests:
         let mut flat = 0
         xs := [1, 2, 3, 4]
         let doubled: List[usize] = xs.iter().map(fn(x): counted(&mut mapped, x * 2)).collect()
-        let evens: List[usize] = xs.iter().filter(fn(x): counted(&mut kept, x) % 2 == 0).collect()
-        let small: List[usize] = xs.iter().take_while(fn(x): counted(&mut taken, x) < 3).collect()
+        let evens: List[usize] = xs.iter().filter(fn(x): counted(&mut kept, *x) % 2 == 0).collect()
+        let small: List[usize] = xs.iter().take_while(fn(x): counted(&mut taken, *x) < 3).collect()
         let pairs: List[usize] = xs.iter().flat_map(fn(x): [counted(&mut flat, x), x]).collect()
         assert_equal(doubled, [2, 4, 6, 8])
         assert_equal(evens, [2, 4])
@@ -29,11 +29,9 @@ tests:
 
     it("lets a from_fn step advance its own counter"):
         let n = 0
-        let steps: List[usize] = from_fn(
-            fn():
-                n += 1
-                if n <= 3: .Some(n) else: .None
-            ,
+        let steps: List[usize] = from_fn(fn():
+            n += 1
+            if n <= 3: .Some(n) else: .None
         )
             .collect()
         assert_equal(steps, [1, 2, 3])

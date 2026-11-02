@@ -1,5 +1,5 @@
 # test: a struct with a `&mut self` `next` implements `Iterable`, and another implements `FromIterator` over a counted `*mut dyn Iterator`; each works through a bound, and `collect`
-# Spec std/iter What Collect Builds: std-iter.collect.generic-owned-cursor, std-iter.collect.expected. Spec 06 Iteration Protocols: flow.for.iterable.cursor, flow.for.accepts-owned-cursor.
+# Spec std/iter What Collect Builds: std-iter.collect.generic-noncopy-cursor, std-iter.collect.expected. Spec 06 Iteration Protocols: flow.for.iterable.cursor, flow.for.accepts-owned-cursor.
 use std.iter.{FromFn, from_fn}
 use std.iter.FromIterator
 
@@ -24,7 +24,7 @@ struct Bag:
     pulls: usize
 
 impl FromIterator[i32] for Bag:
-    fn from_iter[I < Iterator[i32]](items: I) -> Bag:
+    fn from_iter[I < ?Copy & Iterator[i32]](items: I) -> Bag:
         let mut cursor = items
         let mut bag = Bag { items: [], pulls: 0 }
         for item in cursor:
