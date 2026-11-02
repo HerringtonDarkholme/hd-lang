@@ -7,9 +7,8 @@ ordinary hd over the language tier:
 
 - the iterator adapters `filter`, `take`, `enumerate`, `map`, `fold`, and
   `collect`, with their laziness and ordering;
-- the adapters `skip`, `take_while`, `skip_while`, `zip`, `chain`, and
-  `flat_map`, and the draining `any`, `all`, `find`, `position`,
-  `for_each`, and `count`;
+- the adapters `skip`, `take_while`, `zip`, `chain`, and `flat_map`, and
+  the draining `any`, `all`, `find`, and `count`;
 - the `FromIterator` trait and the collections `collect` builds:
   `List`, `Map`, `Result`, and `T?`;
 - `map` on `List[T]` and on `T?`.
@@ -165,28 +164,24 @@ fn has_blank(lines: List[string]) -> bool:
 | --- | --- | --- |
 | `skip` | `fn skip(self, count: usize) -> Skip[Self, T]` | a new iterator over the items of `self` after the first `count` |
 | `take_while` | `fn take_while[F < FnMut(&T) -> bool](self, keep: F) -> TakeWhile[Self, T, F]` | a new iterator over the items of `self` before the first one for which `keep` returns `false` |
-| `skip_while` | `fn skip_while[F < FnMut(&T) -> bool](self, skip: F) -> SkipWhile[Self, T, F]` | a new iterator after the first item for which `skip` returns `false`, including that item |
 | `zip` | `fn zip[U < ?Copy, J < ?Copy & Iterable[U]](self, other: J) -> Zip[Self, T, U, J]` | a new iterator over pairs of the items of `self` and `other` at the same position, which ends when either ends |
 | `chain` | `fn chain[J < ?Copy & Iterable[T]](self, other: J) -> Chain[Self, T, J]` | a new iterator over the items of `self`, then those of `other` |
 | `flat_map` | `fn flat_map[U < ?Copy, J < ?Copy & Iterable[U], F < FnMut(T) -> J](self, transform: F) -> FlatMap[Self, T, U, J, F]` | a new iterator over the items of each iterable that `transform(item)` returns, in order |
 | r[std-iter.adapter.any.value] `any` | `fn any(self, test: fn(&T) -> bool) -> bool` | whether `test` returns `true` for some remaining item of `self` |
 | r[std-iter.adapter.all.value] `all` | `fn all(self, test: fn(&T) -> bool) -> bool` | whether `test` returns `true` for every remaining item of `self` |
 | r[std-iter.adapter.find.value] `find` | `fn find(self, test: fn(&T) -> bool) -> T?` | the first remaining item of `self` for which `test` returns `true`, or `.None` |
-| r[std-iter.adapter.position.value] `position` | `fn position(self, test: fn(&T) -> bool) -> usize?` | the zero-based position of the first remaining item for which `test` returns `true`, or `.None` |
-| r[std-iter.adapter.for-each.value] `for_each` | `fn for_each(self, visit: fn(T) -> void) -> void` | calls `visit` with each remaining item in order |
 | r[std-iter.adapter.count.value] `count` | `fn count(self) -> usize` | the number of remaining items of `self` |
 | r[std-iter.adapter.sum.numeric-target] `sum` | `fn sum[S < Sum[T]](self) -> S` | the target built from the remaining items |
 
-1. r[std-iter.adapter.lazy.more-with-skip-while] Calling `skip`, `take_while`, `skip_while`, `zip`, `chain`, or `flat_map` advances no iterator. The returned iterator pulls only when its own `next` is called.
+1. r[std-iter.adapter.lazy.more] Calling `skip`, `take_while`, `zip`, `chain`, or `flat_map` advances no iterator. The returned iterator pulls only when its own `next` is called.
 2. r[std-iter.adapter.skip.first-next] The first `next` call of `skip`'s iterator reads and drops up to `count` items of `self` before it reads the item it returns.
 3. r[std-iter.adapter.take-while.stop] `take_while`'s iterator reads and drops the first item that `keep` rejects, and calls `next` on `self` no more after it.
-4. r[std-iter.adapter.skip-while.start] `skip_while` drops each leading item that `skip` accepts. It yields the first rejected item and every later item without calling `skip` again.
 4. r[std-iter.adapter.iterable-arg] `zip` and `chain` call `other.iter()` once, when they are called, and read the items of `other` from that iterator only.
 5. r[std-iter.adapter.iterable-arg.iterator-bound] An iterator argument without an `Iterable[T]` implementation is an error, by [`flow.for.iterator.iterable-bound`](../lang/06-control-flow.md#r-flow.for.iterator.iterable-bound). Error: `unsatisfied-trait-bound`.
 6. r[std-iter.adapter.zip-iterable.order] `zip`'s iterator calls `next` on `self` first, and on the iterator of `other` only when `self` gave an item. So when `self` ends first, `other` loses no item.
 7. r[std-iter.adapter.chain-iterable.order] `chain`'s iterator calls `next` on the iterator of `other` only after `self` has returned `.None`, and on `self` no more after that.
-8. r[std-iter.adapter.stop-early.borrowed] `any`, `all`, `find`, and `position` advance their owned cursor only until an item decides the result, and leave its remaining items unread.
-9. r[std-iter.adapter.exhausted-looking] On an exhausted iterator, `any` is `false`, `all` is `true`, `find` and `position` are `.None`, and `count` is 0.
+8. r[std-iter.adapter.stop-early.borrowed] `any`, `all`, and `find` advance their owned cursor only until an item decides the result, and leave its remaining items unread.
+9. r[std-iter.adapter.exhausted] On an exhausted iterator, `any` is `false`, `all` is `true`, `find` is `.None`, and `count` is 0.
 10. r[std-iter.adapter.count.owned-drain] `count` advances `self` until `next` returns `.None`, which exhausts the owned cursor.
 11. r[std-iter.adapter.callback-row.more] The callbacks of these methods have the empty row, as `filter`'s `keep` does. A function value whose row lists a requirement key does not fit. Error: `type-mismatch`.
 12. r[std-iter.sum.numeric-order] The numeric `Sum[T]` implementation starts at `T::zero()` and adds each remaining item in order.
@@ -196,8 +191,6 @@ fn has_blank(lines: List[string]) -> bool:
 
 16. r[std-iter.adapter.flat-map.open-once] `flat_map` calls `iter()` once on each transformed result, only when that result is reached.
 17. r[std-iter.adapter.flat-map.drain-inner] It drains that cursor before transforming the next source item, skipping empty results.
-18. r[std-iter.adapter.for-each.owned-drain] `for_each` advances `self` until exhaustion and moves each item into `visit`.
-
 ```text
 fn joined(first: List[i32], rest: &mut dyn Iterator[i32]) -> List[i32]:
     first.iter().chain(rest).collect()  # error: unsatisfied-trait-bound

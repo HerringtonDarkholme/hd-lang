@@ -33,11 +33,6 @@ pub trait Iterator[T < ?Copy] < ?Copy:
     fn take_while[F < FnMut(& T) -> bool](self, keep: F) -> TakeWhile[Self, T, F]:
         TakeWhile { source: self, keep: keep, open: true }
 
-    ## Skips the leading items for which `skip` is true, then yields every later item.
-    ## See [std-iter.adapter.skip-while.start](../../spec/std/iter.md#r-std-iter.adapter.skip-while.start).
-    fn skip_while[F < FnMut(& T) -> bool](self, skip: F) -> SkipWhile[Self, T, F]:
-        SkipWhile { source: self, skip: skip, open: true }
-
     fn zip[U < ?Copy, J < ?Copy & Iterable[U]](self, other: J) -> Zip[Self, T, U, J]:
         Zip { source: self, rest: other.iter() }
 
@@ -88,29 +83,6 @@ pub trait Iterator[T < ?Copy] < ?Copy:
                         return .Some(item)
                 .None => break
         .None
-
-    ## The zero-based position of the first item that `test` accepts, or `.None`.
-    ## See [std-iter.adapter.position.value](../../spec/std/iter.md#r-std-iter.adapter.position.value).
-    fn position(self, test: fn(&T) -> bool) -> usize?:
-        let mut cursor = self
-        let index: usize = 0
-        while true:
-            match cursor.next():
-                .Some(item) =>
-                    if test(&item):
-                        return .Some(index)
-                    index += 1
-                .None => break
-        .None
-
-    ## Moves each remaining item into `visit`, in order.
-    ## See [std-iter.adapter.for-each.value](../../spec/std/iter.md#r-std-iter.adapter.for-each.value).
-    fn for_each(self, visit: fn(T) -> void) -> void:
-        let mut cursor = self
-        while true:
-            match cursor.next():
-                .Some(item) => visit(item)
-                .None => break
 
     # The number of remaining items; it drains `self`.
     ## The number of remaining items; it drains the iterator.
@@ -225,12 +197,6 @@ impl[T < ?Copy] dyn Iterator[T]:
     ) -> TakeWhile[DynIterator[T], T, F]:
         DynIterator { source: self }.take_while::[F](keep)
 
-    pub fn skip_while[F < FnMut(& T) -> bool](
-        *mut self,
-        skip: F,
-    ) -> SkipWhile[DynIterator[T], T, F]:
-        DynIterator { source: self }.skip_while::[F](skip)
-
     pub fn zip[U < ?Copy, J < ?Copy & Iterable[U]](
         *mut self,
         other: J,
@@ -254,12 +220,6 @@ impl[T < ?Copy] dyn Iterator[T]:
 
     pub fn find(*mut self, test: fn(&T) -> bool) -> T?:
         DynIterator { source: self }.find(test)
-
-    pub fn position(*mut self, test: fn(&T) -> bool) -> usize?:
-        DynIterator { source: self }.position(test)
-
-    pub fn for_each(*mut self, visit: fn(T) -> void) -> void:
-        DynIterator { source: self }.for_each(visit)
 
     pub fn count(*mut self) -> usize:
         DynIterator { source: self }.count()
@@ -361,22 +321,6 @@ impl[I < ?Copy & Iterator[T], T < ?Copy, F < FnMut(& T) -> bool] Iterator[T] for
                 self.open = false
                 .None
             .None => .None
-
-pub struct SkipWhile[I < ?Copy & Iterator[T], T < ?Copy, F < FnMut(& T) -> bool = fn(&T) -> bool]:
-    source: I
-    skip: F
-    open: bool
-
-impl[I < ?Copy & Iterator[T], T < ?Copy, F < FnMut(& T) -> bool] Iterator[T] for SkipWhile[I, T, F]:
-    fn next(&mut self) -> T?:
-        while self.open:
-            item := match self.source.next():
-                .Some(found) => found
-                .None => return .None
-            if !(self.skip)(&item):
-                self.open = false
-                return .Some(item)
-        self.source.next()
 
 pub struct Zip[I < ?Copy & Iterator[T], T < ?Copy, U < ?Copy, J < ?Copy & Iterable[U]]:
     source: I
