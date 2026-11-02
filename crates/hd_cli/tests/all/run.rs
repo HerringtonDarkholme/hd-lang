@@ -1943,3 +1943,32 @@ fn missing_package_capability_fix_uses_its_nominal_path() {
         |(name, value, _)| name == "pkg.main.Server" && *value == Some(hd_project::Grant::All)
     ));
 }
+
+#[test]
+fn integration_test_need_not_import_a_mapped_host_trait() {
+    let dir = tree(
+        "test-unreached-host-trait",
+        &[
+            (
+                "hd.toml",
+                "[package]\nname=\"quirk\"\n[host]\n\"surface.Surface\"=\"providers/surface.mjs\"\n",
+            ),
+            ("src/lib.hd", "pub use pkg.surface.{Surface}\n"),
+            (
+                "src/surface.hd",
+                "@host\npub trait Surface:\n    fn apply!(&self) -> void\n",
+            ),
+            (
+                "tests/rows.hd",
+                "use std.testing.assert_equal\n\nit(\"uses nothing from the package\"):\n    assert_equal(1 + 1, 2, reason=\"arithmetic\")\n",
+            ),
+            (
+                "providers/surface.mjs",
+                "throw new Error('testing must not load the provider');\n",
+            ),
+        ],
+    );
+    let r = ran(&dir, &["test"]);
+    assert_eq!(r.code, Some(0), "{}{}", r.out, r.err);
+    assert!(r.out.contains("1 passed"), "{}", r.out);
+}

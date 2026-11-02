@@ -1633,6 +1633,7 @@ fn check_host_declarations(
     texts: &[Arc<str>],
     parsed: &[OnceLock<Parse>],
     packages: &[HostPackage],
+    declaration_sources: &[&dyn SourceSet],
     diags: &mut DiagBuf,
 ) {
     use hd_syntax::{SyntaxKind, TokenKind};
@@ -1750,6 +1751,29 @@ fn check_host_declarations(
         let Some(declarations) = &package.declarations else {
             continue;
         };
+        let Some(sources) = declaration_sources.get(usize::from(package.package)) else {
+            continue;
+        };
+        for entry in declarations.providers.iter().flatten() {
+            let key = (package.package, entry.trait_path.clone());
+            if found.contains(&key) {
+                continue;
+            }
+            let (module, name) = entry
+                .trait_path
+                .rsplit_once('.')
+                .map_or(("", entry.trait_path.as_str()), |(module, name)| {
+                    (module, name)
+                });
+            if source_tree_declares_host_trait(*sources, module, name) {
+                found.insert(key);
+            }
+        }
+    }
+    for package in packages.values() {
+        let Some(declarations) = &package.declarations else {
+            continue;
+        };
         for entry in declarations.providers.iter().flatten() {
             let path = &entry.trait_path;
             if found.contains(&(package.package, path.clone())) {
@@ -1794,6 +1818,43 @@ fn check_host_declarations(
     }
 }
 
+fn source_tree_declares_host_trait(sources: &dyn SourceSet, module: &str, name: &str) -> bool {
+    use hd_syntax::{SyntaxKind, TokenKind};
+
+    sources
+        .list()
+        .into_iter()
+        .filter(|entry| hd_project::module_below(&entry.path) == module)
+        .filter_map(|entry| sources.read(&entry.path))
+        .any(|bytes| {
+            let text = String::from_utf8_lossy(&bytes);
+            let parse = hd_syntax::parse(text.as_bytes());
+            let src = Src {
+                parse: &parse,
+                text: &text,
+                file: FileId::NONE,
+            };
+            src.root()
+                .children()
+                .filter(|node| node.kind() == SyntaxKind::TraitDecl && src.is_pub(*node))
+                .any(|node| {
+                    src.name_after(node, TokenKind::KwTrait)
+                        .is_some_and(|token| src.text(token) == name)
+                        && node
+                            .children()
+                            .filter(|child| child.kind() == SyntaxKind::Decorator)
+                            .any(|decorator| {
+                                decorator.children().next().is_some_and(|callee| {
+                                    callee.kind() == SyntaxKind::NameExpr
+                                        && src
+                                            .first_ident(callee)
+                                            .is_some_and(|token| src.text(token) == "host")
+                                })
+                            })
+                })
+        })
+}
+
 /// A package the root package reaches through its requirements (§4.7).
 pub struct Dependency<'a> {
     /// Its manifest name; its module paths start with its identifier form,
@@ -1819,6 +1880,10 @@ pub struct Dependency<'a> {
 pub struct Packages<'a> {
     /// Source/manifest host declaration metadata, with no authority implied.
     pub host_packages: Vec<HostPackage>,
+    /// Complete package source trees used only to resolve `[host]` trait
+    /// paths. A test program may otherwise contain only the modules its
+    /// entry reaches.
+    pub host_declaration_sources: Vec<&'a dyn SourceSet>,
     /// Expose checked root entry rows for manifest validation. This
     /// off-band metadata does not change modules or their cache keys.
     pub entry_capabilities: bool,
@@ -2397,6 +2462,7 @@ fn build_packages_inner(
         &run.texts,
         &run.parse,
         &packages.host_packages,
+        &packages.host_declaration_sources,
         &mut lock(&run.diags),
     );
     let entry_capabilities = if packages.entry_capabilities {
@@ -12500,8 +12566,19 @@ mod host_declaration_tests {
         let parsed = (0..texts.len())
             .map(|_| OnceLock::new())
             .collect::<Vec<_>>();
+        let declaration_sources: Vec<&dyn SourceSet> = files
+            .iter()
+            .map(|sources| *sources as &dyn SourceSet)
+            .collect();
         let mut diags = DiagBuf::default();
-        check_host_declarations(&table, &texts, &parsed, packages, &mut diags);
+        check_host_declarations(
+            &table,
+            &texts,
+            &parsed,
+            packages,
+            &declaration_sources,
+            &mut diags,
+        );
         diags
     }
 
@@ -12567,11 +12644,13 @@ mod host_declaration_tests {
             "@host\npub trait Server:\n    fn read(&self) -> string\n",
         )];
         let mut diags = DiagBuf::default();
+        let declaration_sources: [&dyn SourceSet; 1] = [&files];
         check_host_declarations(
             &table,
             &texts,
             &[OnceLock::new()],
             &[metadata(0, &[])],
+            &declaration_sources,
             &mut diags,
         );
         assert_eq!(diags.code, [Code::InvalidManifest]);

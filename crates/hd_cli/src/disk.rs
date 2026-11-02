@@ -291,6 +291,13 @@ impl Program {
     pub fn packages(&self) -> Packages<'_> {
         Packages {
             host_packages: self.host_packages.clone(),
+            host_declaration_sources: std::iter::once(&self.sources as &dyn SourceSet)
+                .chain(
+                    self.deps
+                        .iter()
+                        .map(|dependency| &dependency.sources as &dyn SourceSet),
+                )
+                .collect(),
             entry_capabilities: true,
             instruction_origins: false,
             checked: false,
