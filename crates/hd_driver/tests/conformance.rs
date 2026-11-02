@@ -2300,9 +2300,22 @@ fn workers() -> usize {
 /// the case index, so each runtime case still gets unique
 /// `conformance-{serial}.wasm` and `.json` names under
 /// `CARGO_TARGET_TMPDIR` and workers never share a file.
+///
+/// Workers take the costliest cases first, so no slow case starts last
+/// and holds the run open: runtime cases, which build and run a module,
+/// before the parse and type cases, and within each the largest fixture
+/// file first. A runtime case costs about 30 times a type case on
+/// average, and the widest fixtures take many seconds to compile.
 fn run_all(cases: &[Case], store: &MemoryStore) -> Vec<Verdict> {
     let count = workers().min(cases.len().max(1));
     let timings = std::env::var_os("HD_TEST_TIMINGS").is_some();
+    let size =
+        |case: &Case| std::fs::metadata(suite_root().join(&case.path)).map_or(0, |m| m.len());
+    let mut order: Vec<usize> = (0..cases.len()).collect();
+    order.sort_stable_by_cached_key(|&i| {
+        let case = &cases[i];
+        (case.phase != Phase::Runtime, std::cmp::Reverse(size(case)))
+    });
     let next = AtomicUsize::new(0);
     let slots: Vec<std::sync::Mutex<Option<Verdict>>> =
         cases.iter().map(|_| std::sync::Mutex::new(None)).collect();
@@ -2316,9 +2329,8 @@ fn run_all(cases: &[Case], store: &MemoryStore) -> Vec<Verdict> {
             };
             builder
                 .spawn_scoped(scope, || {
-                    loop {
-                        let serial = next.fetch_add(1, Ordering::Relaxed);
-                        let Some(case) = cases.get(serial) else { break };
+                    while let Some(&serial) = order.get(next.fetch_add(1, Ordering::Relaxed)) {
+                        let case = &cases[serial];
                         let started = timings.then(Instant::now);
                         let verdict =
                             catch_unwind(AssertUnwindSafe(|| run_case(case, store, serial)))
