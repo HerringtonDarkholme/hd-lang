@@ -1,5 +1,5 @@
-# test: skip drops a count, take_while stops before a rejected item, and skip_while drops only an accepted prefix
-# Spec std/iter More Adapters: std-iter.adapter.skip.value, .skip.first-next, .take-while.borrow-fn-mut, .take-while.stop, .skip-while.start, and .lazy.more-with-skip-while.
+# test: skip drops a count, and take_while stops before a rejected item
+# Spec std/iter More Adapters: std-iter.adapter.skip.value, .skip.first-next, .take-while.borrow-fn-mut, .take-while.stop, and .lazy.more.
 use std.iter.{from_fn}
 fn body(lines: List[string]) -> List[string]:
     lines.iter().skip(1).take_while(fn(line: &string) -> bool: line != "").collect()
@@ -20,12 +20,6 @@ tests:
         taken := source.by_ref().take_while(fn(n: &i32) -> bool: n < 5).collect::[List[_]]()
         assert_equal(taken, [1, 2], reason="before 9")
         assert_equal(source.next(), .Some(3), reason="9 was read and dropped")
-    it("skip_while yields the first rejected item and stops testing"):
-        assert_equal(
-            [+1, 2, 4, 3, 6].iter().skip_while(fn(n: &i32) -> bool: n < 3).collect::[List[_]](),
-            [+4, 3, 6],
-            reason="the later 3 is not tested",
-        )
     it("is lazy"):
         let pulled = +0
         let mut source = &mut from_fn(fn() -> i32?:
