@@ -1,0 +1,10 @@
+# @dump: counts
+# @build: v8 release
+# Borrow: `&index[key]` lends the map's value in place (ref.elem.map), so
+# counting the tags copies no `List[string]` and takes no count.
+fn tag_count(index: Map[string, List[string]], key: string) -> usize:
+    # subject
+    if !index.contains_key(key):
+        return 0
+    tags := &index[key]
+    tags.len()

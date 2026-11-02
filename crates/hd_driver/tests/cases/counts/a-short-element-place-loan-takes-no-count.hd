@@ -1,0 +1,14 @@
+# @dump: counts
+# Loan: a reference to an element place (`&lines[0]`) that ends before
+# anything could change the list (emit/loan.rs) takes no count: no
+# uniqueness check, pin or retain of the buffer.
+struct Line:
+    name: string
+    cents: i64
+
+fn first_cents(lines: &List[Line]) -> i64:
+    # subject
+    if lines.is_empty():
+        return 0
+    line := &lines[0]
+    line.cents
