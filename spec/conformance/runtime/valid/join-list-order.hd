@@ -2,17 +2,28 @@
 # Spec lang/11 Standard Combinators: req.combinator.join-list.
 # expect-stdout: finished c b a
 # expect-stdout: results a b c
-use std.task.join
-use std.time.{Clock, ms, sleep}
+use std.task.{join, channel, Receiver, Sender}
 
-fn later!(name: string, delay: i64, log: *mut List[string]) -> string $ Clock:
-    sleep!(ms(delay))
+# Each task waits for its turn, logs its name, and hands the turn on, so
+# the tasks finish in the order c, b, a.
+fn later!(name: string, turn: Receiver[bool], next: Sender[bool], log: *mut List[string]) -> string:
+    _ := turn.recv!()
     log.push(name)
+    next.send!(true)
     name
 
-pub fn main!() -> void $ Console + Clock:
+pub fn main!() -> void $ Console:
+    let (to_c, c_turn) = channel::[bool](capacity=1)
+    let (to_b, b_turn) = channel::[bool](capacity=1)
+    let (to_a, a_turn) = channel::[bool](capacity=1)
+    let (done, _) = channel::[bool](capacity=1)
     let log: *mut List[string] = box([])
-    let tasks: List[mut Suspend[string]] = [later("a", 30, log), later("b", 20, log), later("c", 10, log)]
+    to_c.send!(true)
+    let tasks: List[mut Suspend[string]] = [
+        later("a", a_turn, done, log),
+        later("b", b_turn, to_a, log),
+        later("c", c_turn, to_b, log),
+    ]
     results := join!(tasks...)
     println("finished ${log.join(" ")}")
     println("results ${results.join(" ")}")
