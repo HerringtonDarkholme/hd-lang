@@ -5,14 +5,19 @@ This reviews [Host Embedding](HOST_EMBEDDING.md),
 [`module.host.package.*`](../../spec/lang/10-modules.md#package-host-traits), and
 [`cli.host.package.*`](../../spec/cli/command-line.md#package-host-bindings).
 
-## Proposal
+## Context
 
-Generate Rust traits and codecs from the same checked package-host contract as
-`NAME.host.mjs`. A native embedder supplies implementations when it instantiates
-the module through `hd_run_wasmtime`; hd never discovers or loads a dynamic
-library.
+Package host traits already give JavaScript providers checked identities,
+schemas, codecs, consent, cancellation, and handle release. Wasmtime instead
+refuses every module that needs one before guest initialization.
 
-The motivating case is hdru's renderer boundary:
+The native engine already owns the linker, instance-local host state, reactor,
+and poll driver. It lacks a typed way for an embedder to add package imports.
+
+## Hdru Problem
+
+Hdru keeps its UI protocol independent from each renderer. Its DOM and terminal
+packages each own this renderer boundary:
 
 ```text
 use dep.ui.{Command, UiEvent}
@@ -22,6 +27,17 @@ pub trait Surface:
     fn apply!(&mut self, commands: List[Command]) -> void
     fn next_event!(&mut self) -> UiEvent
 ```
+
+The same protocol can describe GPUI, but a Rust application cannot bind
+`Surface`. Running a JavaScript provider under Node would separate the native
+window state from the application that owns it.
+
+## Proposal
+
+Generate Rust traits and codecs from the same checked package-host contract as
+`NAME.host.mjs`. A native embedder supplies implementations when it instantiates
+the module through `hd_run_wasmtime`; hd never discovers or loads a dynamic
+library.
 
 A GPUI renderer would implement generated Rust, then pass one checked registry
 to the engine:
@@ -41,16 +57,6 @@ let instance = engine.instantiate_with_bindings(&module, &setup, io, bindings)?;
 The generated registry validates nominal identity and the complete method
 schema before guest initialization. Registration selects native code; it does
 not grant the guest authority.
-
-## Open Questions
-
-1. **Binding shape.** Effect: renderer authors implement typed Rust, without the raw exchange-buffer ABI. **Recommendation:** generate one trait per interface plus an app registry passed by value at instantiation. Alternative: load a dylib named in a manifest. The `Surface` example above is the source interface.
-2. **Consent.** Effect: linking native code cannot silently grant `Surface`. **Recommendation:** require both the app's existing `true` capability and explicit embedder registration; either missing input refuses before provider methods run. Alternative: treat registration as consent. The example remains `$ Surface` in hd.
-3. **Values.** Effect: JavaScript and Rust providers observe the same hd values. **Recommendation:** generate owned Rust types from the checked schema, with named enum fields and a typed private-Serde tree. Alternative: expose raw ABI bytes. The example's `List[Command]` becomes `Vec<Command>`.
-4. **Build output.** Effect: renderer authors never hand-write ABI glue. **Recommendation:** `hd build --engine wasmtime` emits `NAME.host.rs` beside `NAME.wasm` when package traits are reachable, matching the JavaScript companion rule. Alternative: a separate bindings command. A build with no package trait emits neither companion.
-
-No answer above changes accepted behavior until the owner approves it and a
-later spec pass applies it.
 
 ## Problems It Solves
 
@@ -76,6 +82,15 @@ the last hd release drops the Rust value without invoking a resource method.
 and abort hooks, reports readiness to the existing reactor, and ignores a late
 completion after cancellation or instance close. Provider objects need not be
 `Send`; only a completion sender crossing threads must be `Send`.
+
+Each handle registry entry records its owner instance and generated handle
+trait. Every handle argument checks both before dispatch. An unknown integer,
+another instance's handle, or a handle of another trait is `host-contract`; the
+provider method is not called.
+
+The Rust generator lives in `hd_host_abi` behind a `native-rust` feature. Native
+CLI builds enable it. `hd_web` leaves it disabled, so generator code cannot enter
+the web compiler.
 
 Instantiation performs one preflight:
 
@@ -114,10 +129,20 @@ serialized as a string reaches Rust as a string, not as its hidden fields.
 | Compile time | Not measured; compare an hdru-shaped build with and without companion generation. |
 | Runtime | One schema preflight; codec cost per call. Benchmark ready and pending renderer calls. |
 | Wasm size | No intended change: the same imports and `hd.capabilities` section remain. Require byte identity. |
-| Web compiler gzip | Generator code may enter the web compiler build. Measure against the 2 MB cap. |
+| Web compiler gzip | The `native-rust` generator feature is off in `hd_web`, so it adds no web bytes; the existing 2 MB gate verifies this. |
 
 The design adds runtime and CLI mechanisms, not language syntax, semantics,
 intrinsics, or std APIs.
+
+## Open Questions
+
+1. **Binding shape.** Effect: renderer authors implement typed Rust, without the raw exchange-buffer ABI. **Recommendation:** generate one trait per interface plus an app registry passed by value at instantiation. Alternative: load a dylib named in a manifest. The `Surface` example above is the source interface.
+2. **Consent.** Effect: linking native code cannot silently grant `Surface`. **Recommendation:** require both the app's existing `true` capability and explicit embedder registration; either missing input refuses before provider methods run. Alternative: treat registration as consent. The example remains `$ Surface` in hd.
+3. **Values.** Effect: JavaScript and Rust providers observe the same hd values. **Recommendation:** generate owned Rust types from the checked schema, with named enum fields and a typed private-Serde tree. Alternative: expose raw ABI bytes. The example's `List[Command]` becomes `Vec<Command>`.
+4. **Build output.** Effect: renderer authors never hand-write ABI glue. **Recommendation:** `hd build --engine wasmtime` emits `NAME.host.rs` beside `NAME.wasm` when package traits are reachable, matching the JavaScript companion rule. Alternative: a separate bindings command. A build with no package trait emits neither companion.
+
+No answer above changes accepted behavior until the owner approves it and a
+later spec pass applies it.
 
 ## Appendix A: Stress Test
 
@@ -164,8 +189,14 @@ in either order. Each binding owns its registry entry; the final release drops
 the Rust object and calls no arbitrary method. A private Serde value round-trips
 `i64` extrema, `-0.0`, bytes, and a custom string serializer.
 
+A guest then supplies an integer it never received, a closed handle, and a
+handle issued for another trait. The registry rejects each before dispatch by
+checking the owner instance and generated trait type. Each mismatch is
+`host-contract`, and integer reuse cannot reach a new entry.
+
 **Finding:** `serde_json::Value` is not the boundary type. The existing typed
 transport's integer and float distinctions must remain observable to codecs.
+Raw integer handles are likewise insufficient without owner and trait checks.
 
 ## Appendix B: Prior Art
 
@@ -252,18 +283,18 @@ Parse log: the one `text` block parses with
 
 ## Appendix E: Delivery Details
 
-- **Object layout and counting:** generated Rust values are owned; guest memory never escapes a call; handles use the instance registry.
+- **Object layout and counting:** generated Rust values are owned; guest memory never escapes a call; handles record owner instance and trait type.
 - **Host ABI parity:** Node and Wasmtime decode the same schema and implement the same logical value table.
 - **Suspension:** ready and pending native calls share the reactor's handles, delivery, abort, and instance-close rules.
-- **Failure and cleanup:** codec or provider failure is `host-contract`; startup mismatch is refusal; close aborts pending calls and drops registry values.
-- **Footprint:** Wasm should remain byte-identical; measure Rust source size, native binary delta, and web compiler gzip.
+- **Failure and cleanup:** codec, forged handle, wrong handle type, or provider failure is `host-contract`; startup mismatch is refusal; close aborts pending calls and drops registry values.
+- **Footprint:** Wasm should remain byte-identical; measure Rust source and native binary size; `hd_web` excludes the generator feature.
 - **Sandbox and grants:** Rust has ambient process authority; root manifest consent and explicit registration are both required.
 - **CLI workflow:** native builds emit a deterministic Rust companion; missing output paths, stale schemas, and absent bindings need text and JSON diagnostics.
 - **Platforms:** first delivery targets Rust embedders using `hd_run_wasmtime`; dylibs, C ABI, mobile language bridges, and general exports remain deferred.
 
 Implementation slices after approval:
 
-1. Add native owned values and codec round-trips in `hd_host_abi`.
+1. Add native owned values and codec round-trips behind `hd_host_abi/native-rust`.
 2. Generate deterministic Rust traits and snapshot the hdru-shaped contract.
 3. Add registry preflight and linker registration to `hd_run_wasmtime`.
 4. Add pending-call cancellation and handle-release tests.
