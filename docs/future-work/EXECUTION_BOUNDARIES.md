@@ -437,11 +437,82 @@ background.run!(fn() -> void $ Ui: draw_boxes(faces))?      # error: type-mismat
 faces := background.run!(fn() -> List[Rect]: detect_faces(photo))?  # valid: an empty row fits; the handler suspends until it returns
 ```
 
+### Two Bounds: Send And Wire (**approved**: question 12)
+
+What may cross is stated where it is enforced: as a bound on the domain's
+method. Two std marker traits, checked structurally as `Copy` is
+([`ref.copy.marker`](../../spec/lang/13-values-and-references.md#r-ref.copy.marker)), cover every kind:
+
+- **`Send`:** the value may move to another thread of the same memory.
+- **`Sync`:** a `&T` may be shared across threads; `&T` is `Send` exactly
+  when `T < Sync`.
+- **`Wire`:** the value can be encoded as a self-contained tree, today's
+  boundary-safe values ([`module.boundary.allowed`](../../spec/lang/10-modules.md#r-module.boundary.allowed)) given a name. A
+  `Wire` value is a tree, so it is also `Send`; the reverse does not hold.
+
+The structural rules:
+
+| Type | `Send` | `Sync` | `Wire` |
+| --- | --- | --- | --- |
+| a number, `bool`, `char`, `string` | yes | yes | yes |
+| a struct, enum, tuple, `List`, `Map`, `Set`, optional, `Result` | when every part is | when every part is | when every part is |
+| a copy-on-write `List` or `Map` | sending takes its snapshot on the sending thread; counts are atomic | yes: a write copies | yes |
+| `&T` | when `T < Sync` | when `T < Sync` | no |
+| `&mut T` | when `T < Send` | when `T < Sync` | no |
+| `*mut T`, a box | no: a read through `&T` may write through it | no | no |
+| a trait value, a provider value | no | no | no |
+| a handle | yes, within its home | no | no: it crosses as a handle |
+| a closure | when its captures are `Send` and it writes none of them | when its captures are `Sync` | when its captures are `Wire`, for same-build code only |
+
+A closure that writes a captured variable shares that cell with its scope
+([`fn.capture.cell.writes`](../../spec/lang/07-functions.md#r-fn.capture.cell.writes)), so it is not `Send`. Two spawns doing
+`total += n` are rejected instead of racing; each returns its count.
+
+Each domain's method states its bound:
+
+```text
+# hypothetical std declarations
+trait Background:                    # shared memory, outlives the call
+    fn run![T < Send, F < 'static & Send & Fn() -> T](&mut self, code: F) -> Result[T, CrossError]
+
+trait Workers:                       # separate memory, same build
+    fn run![T < Wire, F < 'static & Wire & Fn() -> T](&mut self, code: F) -> Result[T, CrossError]
+
+struct Scope['s]:                    # shared memory, joins before 's ends, so it may lend
+    count: usize
+
+impl['s] Scope['s]:
+    fn spawn[T < Send, F < 's & Send & FnMut() -> T](&mut self, code: F) -> Task['s, T]
+```
+
+| Domain | Code and captures | Arguments and results |
+| --- | --- | --- |
+| Scoped thread | `Send`, may borrow for `'s` | `Send` |
+| Background thread | `Send`, `'static` | `Send` |
+| Worker, job | `Wire`, `'static` | `Wire` |
+| Remote service, device | no code: interface methods only (A2) | `Wire`, or a handle whose home is that domain |
+
+So a reader tells the thread rules from the client and server rules by
+the bound on the method, and a failure is an ordinary
+`unsatisfied-trait-bound`:
+
+```text
+# hypothetical syntax; edits: *mut Edits
+background.run!(fn() -> Image: shrink(photo, edits))?  # error: unsatisfied-trait-bound, *mut Edits does not implement Send
+workers.run!(fn() -> Image: shrink(photo, edits))?     # error: unsatisfied-trait-bound, *mut Edits does not implement Wire
+background.run!(fn() -> Image: shrink(photo, 256))?    # valid: Image is Send; the buffer is shared, not copied
+workers.run!(fn() -> Image: shrink(photo, 256))?       # valid: Image is Wire; it is encoded and copied
+```
+
+Rust states the same split with `Send` on `thread::spawn` and `Serialize`
+on serde's encoders.
+
 ### Each Capture's Mode
 
-- **Checked at each capture, argument and result:** the value crosses in a
-  mode the domain kind allows. This is the domain-by-mode table, with L4
-  as its last row.
+- **Checked at each capture, argument and result:** the value meets the
+  bound the domain's method states (`Send` or `Wire`, above), then crosses
+  in the mode its type decides. L4 is the job domain's `Wire` bound plus
+  its refusal of moves.
 - **Reuses:** capture analysis finds the captures ([`fn.capture.locals`](../../spec/lang/07-functions.md#r-fn.capture.locals)).
   The move checker's copy test sorts them: a `&mut` and a type holding one
   are not copied ([`ref.move.mut`](https://github.com/HerringtonDarkholme/hd-lang/blob/78c1ee262/spec/lang/13-values-and-references.md#r-ref.move.mut), [`ref.move.holds`](https://github.com/HerringtonDarkholme/hd-lang/blob/78c1ee262/spec/lang/13-values-and-references.md#r-ref.move.holds)).
@@ -453,12 +524,12 @@ faces := background.run!(fn() -> List[Rect]: detect_faces(photo))?  # valid: an 
 The four modes add these checks.
 
 **Copy**, at each copied capture, argument and result. In separate
-memory, the value must be boundary-safe. In shared memory, any copyable
-value copies, as a capture does today ([`fn.capture.copy.value`](../../spec/lang/07-functions.md#r-fn.capture.copy.value)).
+memory, the value must be `Wire`. In shared memory, a `Send` value copies,
+as a capture does today ([`fn.capture.copy.value`](../../spec/lang/07-functions.md#r-fn.capture.copy.value)).
 
 - **Enforces:** the destination gets its own value; the source is
   unchanged.
-- **Reuses:** boundary-safe values ([`module.boundary.allowed`](../../spec/lang/10-modules.md#r-module.boundary.allowed)): closures,
+- **Reuses:** `Wire` names the boundary-safe values ([`module.boundary.allowed`](../../spec/lang/10-modules.md#r-module.boundary.allowed)): closures,
   trait values, handles and references fail
   ([`module.boundary.not-safe`](../../spec/lang/10-modules.md#r-module.boundary.not-safe)). Values cross as trees
   ([`module.boundary.tree`](../../spec/lang/10-modules.md#r-module.boundary.tree)), and private fields need `Serialize`
@@ -473,9 +544,9 @@ value copies, as a capture does today ([`fn.capture.copy.value`](../../spec/lang
 
 ```text
 # hypothetical syntax
-workers.run!(fn() -> Image: shrink(photo, edits))?  # error: edits is a *mut Edits, not boundary-safe
+workers.run!(fn() -> Image: shrink(photo, edits))?  # error: unsatisfied-trait-bound, *mut Edits does not implement Wire
 workers.run!(fn() -> void: done += 1)?              # error: not-writable, the write would change only the worker's copy
-workers.run!(fn() -> Image: shrink(photo, 256))?    # valid: Image is boundary-safe, so it is copied
+workers.run!(fn() -> Image: shrink(photo, 256))?    # valid: Image is Wire, so it is copied
 ```
 
 **Transfer**, at the capture and at each later use of the source binding.
@@ -557,7 +628,7 @@ run-time check (question 4).
   ([`req.key.binding.value.reference-values`](../../spec/lang/11-requirements-and-suspension.md#r-req.key.binding.value.reference-values)). Its `upload!` returns a
   `Texture[Gpu0]`, and its `run!` takes only that, so a `Texture[Gpu0]`
   given to Gpu1 is an ordinary `type-mismatch`. Handles are not
-  boundary-safe ([`module.boundary.not-safe`](../../spec/lang/10-modules.md#r-module.boundary.not-safe)), so a copy never takes one.
+  `Wire` ([`module.boundary.not-safe`](../../spec/lang/10-modules.md#r-module.boundary.not-safe)), so a copy never takes one.
   Within a domain a handle keeps its data alive as a counted reference
   does ([`ref.box.lifetime`](../../spec/lang/13-values-and-references.md#r-ref.box.lifetime)). `using` or an `@auto_closing` constructor
   releases it at scope exit ([`flow.auto-closing.statement`](../../spec/lang/06-control-flow.md#r-flow.auto-closing.statement)).
@@ -603,8 +674,8 @@ at(tex).run!(fn() -> void: blur(tex))?         # valid: runs on Gpu0, where tex 
   and handles.
 - **Enforces:** L4. The job's code is named within the program, so the
   build that stored it runs it (section 1).
-- **Reuses:** the copy check rejects a reference, which is not
-  boundary-safe, and the `'static` bound rejects a lend
+- **Reuses:** the job domain's `Wire` bound rejects a reference, and the
+  `'static` bound rejects a lend
   ([`ref.generic.outlives.box`](../../spec/lang/13-values-and-references.md#r-ref.generic.outlives.box)). The table's L4 row rejects a
   non-copyable value. The job's row is checked against the resuming host's
   capabilities, as in the row check.
@@ -632,7 +703,7 @@ jobs.after!(minutes(10), fn() -> Result[void, MailError] $ Mailer: send_welcome(
   ([`req.with.dynamic`](../../spec/lang/11-requirements-and-suspension.md#r-req.with.dynamic)), so here they resolve at the destination. A
   provider value captured from `$.use` would fix the source's provider
   ([`req.with.lexical`](../../spec/lang/11-requirements-and-suspension.md#r-req.with.lexical), [`fn.capture.provider-value`](../../spec/lang/07-functions.md#r-fn.capture.provider-value)). It is a counted
-  value, not boundary-safe, so the copy check rejects it.
+  value, neither `Send` nor `Wire`, so the domain's bound rejects it.
 - **New:** nothing for the row. A device body must be device code, a
   restricted subset with no allocation and no host calls. That subset is
   a new check, not specified here.
@@ -640,7 +711,7 @@ jobs.after!(minutes(10), fn() -> Result[void, MailError] $ Mailer: send_welcome(
 ```text
 # hypothetical syntax
 log := $.use(Log)
-workers.run!(fn() -> void: log.info("done"))?               # error: the source's Log provider is not boundary-safe
+workers.run!(fn() -> void: log.info("done"))?               # error: unsatisfied-trait-bound, the source's Log provider is not Wire
 workers.run!(fn() -> void $ Log: $.use(Log).info("done"))?  # valid: the worker's own Log
 ```
 
@@ -699,8 +770,9 @@ workers.run!(fn() -> void: record())?        # error: record writes the mutable 
 | Check | At | Reused | New |
 | --- | --- | --- | --- |
 | Row against the destination | crossing | row subsumption, bound keys, no captured providers, bindable sets | capabilities on domain traits; a service's set from the configuration |
-| Mode per capture | capture | capture analysis; the copy test of M1 and M2 | the kind-by-mode rule; modes inferred from types |
-| Copy | capture, result | boundary-safe values, `Fn` bounds | the boundary check at captures; `Fn` for separate memory |
+| Bound per domain | each crossing | trait bounds, the structural `Copy` check | `Send`, `Sync` and `Wire` markers, stated on each domain's method |
+| Mode per capture | capture | capture analysis; the copy test of M1 and M2 | modes inferred from types |
+| Copy | capture, result | boundary-safe values, `Fn` bounds | `Wire` at captures; `Fn` for separate memory |
 | Transfer | capture, later uses | M1 and M2 moves | a capture as a move site; no separate-memory case before `!Copy` types |
 | Lend | capture, scope call | closure-parameter lifetimes, lifetime bounds, exclusivity, the suspension store rule | the scope; run-time loans across threads |
 | Handle | handle use | bound keys, type equality | a handle marker; counts across domains |
@@ -712,18 +784,9 @@ workers.run!(fn() -> void: record())?        # error: record writes the mutable 
 
 The gaps:
 
-- **No `Send` or `Sync`.** A shallow `&` and a shared cell race across
-  threads. `Sync` gets its own design before threads land; until then
-  lend reaches only scoped threads (question 12). Three rules are already
-  fixed for it:
-  - Sending a value takes its snapshot on the sending thread, so a
-    copy-on-write `List` or `Map` sends safely once its counts are atomic,
-    as Swift's arrays are `Sendable`.
-  - A `&T` is `Send` only when `T: Sync`. A thread that took the snapshot
-    through a `&` would load the buffer while the owner's `push` may
-    reallocate it.
-  - Anything holding a `*mut` or a box is not `Sync`: a snapshot is
-    shallow, and a read through `&T` may write through a box field.
+- **`Send`, `Sync` and `Wire` are bounds; threads are not built.** The
+  bounds are fixed above. Atomic counts, so that sending a copy-on-write
+  `List` is safe, come with the threads themselves.
 - **No threads and no shared heap.** One instance runs on one thread
   ([`module.instance.thread`](../../spec/lang/10-modules.md#r-module.instance.thread)), and instances' heaps are disjoint
   ([`module.instance.disjoint`](../../spec/lang/10-modules.md#r-module.instance.disjoint)). Lend waits for both.
@@ -818,8 +881,9 @@ The author's rules:
 
 - **A1.** Code for another build is a trait that extends a target marker,
   `Remote` or `Kernel`.
-- **A2.** Its methods take and return boundary-safe types only. They are
-  not generic and take no closure, reference or trait value.
+- **A2.** Its methods take and return `Wire` types, or handles whose home
+  is that domain (an `Action` for a service, a `Texture[D]` for a device).
+  They are not generic and take no closure, reference or trait value.
 - **A3.** A `Remote` method's error type can hold a `CrossError`, as
   `UserError.Cross` does. No result type is widened implicitly.
 - **A4.** The destination installs the real provider with `serve!`. Each
@@ -850,8 +914,9 @@ The checker looks at three places.
   implementation's body must be device code (section 5).
 - **C2, each crossing call:** the code's row fits the destination's
   capabilities, the domain trait's row parameter (section 5, The Row
-  Against The Destination). Each capture and argument crosses in the mode
-  its type decides (section 5, Each Capture's Mode). Code for separate
+  Against The Destination). Each capture and argument meets the bound the
+  domain's method states, `Send` or `Wire` (section 5, Two Bounds), and
+  crosses in the mode its type decides (Each Capture's Mode). Code for separate
   memory is bounded `Fn`, so a write to a capture is `not-writable`. Code
   that reaches `let mut` top-level state does not cross (Top-Level
   Bindings).
@@ -859,19 +924,17 @@ The checker looks at three places.
   never to the caller's provider (The Body Against The Destination's
   Environment).
 
-What cannot cross, per domain kind. Each ✗ is a compile error at the
+What cannot cross follows from the bounds (section 5, Two Bounds) plus
+three rules that bounds do not cover. Each is a compile error at the
 crossing that names the value and the rule:
 
-| Value | Scoped thread | Background thread | Worker | Job | Service, device |
-| --- | --- | --- | --- | --- | --- |
-| Copyable plain value | copy | copy | copy, encoded | copy, stored | copy, encoded |
-| Non-copyable value | move | move | move, buffer handed over | ✗ (L4) | move |
-| `&T`, `&mut T` | lend until the scope joins | ✗ | ✗ | ✗ | ✗ |
-| `*mut T`, a box, a trait value, a provider value | ✓ | ✗ until `Sync` | ✗ | ✗ | ✗ |
-| A closure | as the code | as the code | as the code | as the code | ✗: interface methods only |
-| A handle | its home only | its home only | its home only | ✓ | its home only |
-| Code reaching `let mut` top-level state | ✗ | ✗ | ✗ | ✗ | ✗ |
-| Code whose row the destination lacks | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Rule | Where | Fails |
+| --- | --- | --- |
+| The domain method's bound | every crossing | a box or trait value anywhere; a reference outside a scope; a non-`Wire` value into separate memory |
+| A handle goes only to its home | every crossing | `Texture[Gpu0]` given to `Gpu1` |
+| No move into the job domain (L4) | jobs | a non-copyable value |
+| No `let mut` top-level state | every crossing | code that reaches one |
+| The row fits the destination | every crossing | code whose row the destination lacks |
 
 ### Building It
 
@@ -993,11 +1056,12 @@ caller's row gave cross-target calls a second shape beside
 11. **May a crossing target a handle's home?** Answered (owner,
     2026-10-31): yes, `at(tex)` reads the domain from the handle's type and
     every other handle the code uses must share it (Chapel's `on x do`).
-12. **What stops a lend racing?** Answered (owner, 2026-10-31): design
-    `Sync` before threads; until then lend is for scoped threads only and
-    the race is a listed gap. Its three fixed rules (value sends take the
-    snapshot, `&T` is `Send` only when `T: Sync`, `*mut` and box holders
-    are not `Sync`) are in section 5.
+12. **What stops a lend racing, and what may cross?** Answered (owner,
+    2026-10-31 and 2026-11-02): two std marker bounds, checked
+    structurally. `Send` (with `Sync` for `&T`) for threads of one memory,
+    `Wire` for separate memory and other builds, each stated on the
+    domain's method (section 5, Two Bounds). A closure that writes a
+    capture is not `Send`, so spawns cannot race on a shared cell.
 
 13. **Where do targets live?** Recommended: the deployment configuration
     lists each target as an entry module, a runtime profile and an output
@@ -1151,7 +1215,7 @@ is the copy-mode slice of this model.
 
 ## Parse Log
 
-All 21 `text` blocks were parsed on 2026-10-31 and 2026-11-02 with
+All 23 `text` blocks were parsed on 2026-10-31 and 2026-11-02 with
 `scripts/hd-conformance.sh parse`, which checks syntax only; nothing was
 type-checked. Std names (`Workers`, `Jobs`, `Gpu`, `scope`) are sketches.
 
@@ -1165,4 +1229,5 @@ type-checked. Std names (`Workers`, `Jobs`, `Gpu`, `scope`) are sketches.
 | 18 | Section 7, syntax | parses (2026-11-02); `# hypothetical syntax` |
 | 19 | Question 4 | parses |
 | 21 | Section 5, top-level bindings | parses; `# hypothetical syntax` |
+| 22, 23 | Section 5, Two Bounds: the domain trait sketches and the four bound failures | parse (2026-11-02); `# hypothetical syntax` |
 | 20 | Example 8 | parses (2026-11-02); the row-check sketch with its two background-thread lines parses too |
