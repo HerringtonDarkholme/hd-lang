@@ -21,13 +21,13 @@ quality, fixed in hd and in how hd compiles, never with a new intrinsic.
 
 | Kind | Count | keep | hd later | hd now | review |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| 1. `@intrinsic` functions (`hd_host_abi::INTRINSICS`) | 95 keys | 66 | 15 | 0 | 14 |
+| 1. `@intrinsic` functions (`hd_host_abi::INTRINSICS`) | 95 keys | 74 | 15 | 0 | 6 |
 | 2. Compiler-emitted runtime helpers (`hd_wasm_linear::rt::Helper`) | 146 | 110 | 34 | 2 | 0 |
 | 3. Built-in types | 34 forms | 32 | 2 | 0 | 0 |
 | 4. Built-in methods (spec ch. 10) | 17 | 6 | 11 | 0 | 0 |
 | 5. Known std items (`hd_resolve::KnownItems`) | 102 | 76 | 9 | 0 | 17 |
 | 6. Host capabilities (`hd_host_abi` tables) | 17 traits | 17 | 0 | 0 | 0 |
-| 7. Compiler-interpreted annotations | 13 | 12 | 0 | 0 | 1 |
+| 7. Compiler-interpreted annotations | 13 | 13 | 0 | 0 | 0 |
 
 The two big "hd later" groups are the same code seen from two sides: the
 `List`/`Map` built-ins (two types, eleven methods, five intrinsics and
@@ -57,7 +57,7 @@ primitives in the last rows.
 | Closures (2) | `fn_call`, `fn_mut_call` | keep | the closure calling convention |
 | Weak references (5) | `weak_new`, `weak_new_mut`, `weak_upgrade`, `weak_upgrade_mut`, `weak_weaken` | keep | reference-count internals |
 | Hash seed (1) | `map_hash_seed` | keep | the per-run seed from the host |
-| Debug, test and entry output (8) | `dbg`, `dbg_write`, `dbg_printer`, `repl_write`, `entry_write`, `test_case`, `assert_equal`, `snapshot_update` (host) | review | `dbg` and `dbg_printer` need source locations and type printers; why `assert_equal` and `test_case` cannot be hd over `Debug` and a location is the open question |
+| Debug, test and entry output (8) | `dbg`, `dbg_write`, `dbg_printer`, `repl_write`, `entry_write`, `test_case`, `assert_equal`, `snapshot_update` (host) | keep | they need the call's source position and text; a caller-location primitive is parked (#1210) |
 | Host formatting and case (6) | `format_f64`, `format_f32`, `format_f64_fixed`, `parse_f64`, `string_lower`, `string_upper` | review | every host must implement them, the Rust host included; hd versions (shortest float printing, Unicode case tables) would remove six host primitives, at a size and speed cost to measure |
 
 ## 2. Runtime Helpers
@@ -121,7 +121,7 @@ spec/lang/10-modules.md, Built-In Methods.
 | Formatting | `display`, `debug`, `dbg` | keep: interpolation and `dbg` |
 | Hashing | `hash`, `key_bucket_hash`, `key_equal`, `int_bucket_hash`, `string_bucket_hash` | hd later: the `Map` codegen picks a hash per key type by these names; with `Map` in hd they become ordinary calls |
 | Testing | `check_equal`, `it_each`, `it_prop`, `it_prop_with`, `each_case`, `prop_case`, `prop_with_case`, `snapshot`, `test_runner`, `property_runner` | review: which of these need the compiler (source spans, test registration) and which are plain std |
-| Output and serde | `println`, `json_encode`, `json_decode`, `serialize`, `deserialize`, `serializer_begin_data`, `serializer_end_data` | review: why the checker knows `println` and the driver knows `json_encode`; serde's begin/end hooks may belong to the `Structure` walk |
+| Output and serde | `println`, `json_encode`, `json_decode`, `serialize`, `deserialize`, `serializer_begin_data`, `serializer_end_data` | `println` goes (#1236); `json_encode` keeps the driver's fallback proof; the serde boundaries inline by hint (#1237) |
 | Collections | `list`, `list_is_empty`, `map`, `buffer` | hd later, with kind 3 |
 | Code-generation hints | `inline`, `cold` | keep |
 
@@ -142,7 +142,7 @@ own imports (`hd:rt` `block`, `abort`, `stderr`, `stdout`, `panic`,
 | `@derive` | keep: it selects std's `Structure` derivations, written in hd |
 | `@inline`, `@cold`, `@cfg` | keep: code generation and configuration |
 | `@annotate`, `@num_suffix`, `@str_prefix`, `@skips`, `@fills_defaults` | keep: facts and literal rules |
-| `@error` | review: the compiler generates the error enum's `Display` and `From` impls; a `Structure`-based derivation in std could do the same |
+| `@error` | keep (owner, 2026-11-02): a deliberate compiler-generated form, as `thiserror` is a macro |
 | `@auto_closing` | keep (owner, 2026-11-02): it marks the function whose statement calls register their result; the result type's side is the `AutoClosing` trait |
 
 ## Next
