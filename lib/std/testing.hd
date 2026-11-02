@@ -12,6 +12,7 @@ use std.num.{Float, Integer}
 use std.ops.Range
 use std.random.{Random, SeededRandom}
 use std.structure.{Structure, Variant, Field, Members, Key, Source, SelfRef}
+use std.rt.bytes.{panic_with}
 # `std.testing.arbitrary` stays a child module: after `use std.testing` the
 # path `testing.arbitrary.x` is an error
 # (spec/lang/10-modules.md#r-module.path.no-std-child-import). These re-exports
@@ -733,12 +734,6 @@ fn check_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void:
         details := "actual ${debug(actual)}, expected ${debug(expected)}"
         message := if reason == "": details else: "${reason}: ${details}"
         panic_with("assertion-failed", message)
-
-# The checked runtime panic of `category`, such as `assertion-failed`,
-# showing `message`, or no message when it is empty; it does not return.
-@intrinsic("panic")
-fn panic_with(category: string, message: string) -> void:
-    panic("intrinsic")
 
 # `snapshot(text, expect)` compares `text` with the literal expectation
 # written in the source; the compiler checks that `expect` is a literal

@@ -7,6 +7,7 @@
 use std.function.Tuple
 use std.num.Integer
 use std.structure.{Structure, UnionType, Walker, Variant, Field}
+use std.rt.bytes.{string_from_bytes, char_scalar}
 
 # A value's text in string interpolation
 # (spec/lang/05-expressions.md#string-interpolation).
@@ -487,18 +488,9 @@ fn scalar_text(point: i32) -> string:
         encoded.push(u8(128 + point % 64))
     string_from_bytes(encoded)
 
-# Primitives (spec/std/README.md#standard-library-primitives). A `char` is
-# its scalar value at run time; the host writes a float's text.
-# `@intrinsic` is prototype-internal and accepted only in lib/std.
-
-@intrinsic("char_scalar")
-fn char_scalar(value: char) -> u32:
-    panic("intrinsic")
-
-# The string of `bytes`, which the caller has checked are UTF-8.
-@intrinsic("string_from_bytes")
-fn string_from_bytes(bytes: List[u8]) -> string:
-    panic("intrinsic")
+# Primitives (spec/std/README.md#standard-library-primitives): the host
+# writes a float's text. `@intrinsic` is prototype-internal and accepted
+# only in lib/std.
 
 # An integer's decimal digits, with `-` when negative: the runtime writes
 # them into one buffer.

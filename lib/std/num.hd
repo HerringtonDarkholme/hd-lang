@@ -4,6 +4,7 @@
 use std.ops.{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub}
 use std.cmp.Ordering
 use std.text.Parse
+use std.rt.bytes.{string_from_bytes, panic_with}
 
 # The numeric traits (spec/lang/09-traits.md#numeric-traits). They are sealed:
 # only these implementations exist, one per primitive number type
@@ -431,10 +432,6 @@ fn byte_digit(byte: u8) -> u32:
     if byte >= 65 && byte <= 90:
         return u32(byte - 55)
     255
-
-@intrinsic("string_from_bytes")
-fn string_from_bytes(bytes: List[u8]) -> string:
-    panic("intrinsic")
 
 # `abs_diff` returns the unsigned type of the same width, a mapping that
 # `Integer` cannot name, so each width declares it. A narrow signed
@@ -993,9 +990,3 @@ fn nonneg_u64(n: i64) -> u64:
 # `i64` literals take their type from context, so the bound is a function.
 fn i64_max() -> i64:
     9223372036854775807
-
-# The checked runtime panic of `category`, such as `integer-overflow`,
-# showing `message`; it does not return.
-@intrinsic("panic")
-fn panic_with(category: string, message: string) -> void:
-    panic("intrinsic")

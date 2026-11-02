@@ -115,7 +115,7 @@ fn use_generic(m: Members[i32], xs: List[Wrap[string]], i: usize) -> i64:
 >   %11 = Read move [$3] : string
 >   %12 = Store [$4] %11 : ()
 >   %13 = Read borrow [$4] : string
->   %14 = Call std/text/bytes_len[] (%13) : usize
+>   %14 = Call std/rt.bytes/bytes_len[] (%13) : usize
 >   %15 = Break L0 %14 : never
 >   %16 = Block - : usize
 >   %17 = Scope %16 [] : usize

@@ -8,46 +8,22 @@
 use std.format.debug
 use std.testing.Choices
 use std.text.Utf8Error
-
-@intrinsic("bytes_len")
-fn bytes_len(text: string) -> usize:
-    panic("intrinsic")
-
-@intrinsic("bytes_at")
-fn bytes_at(text: string, index: usize) -> u8:
-    panic("intrinsic")
-
-@intrinsic("bytes_slice")
-fn bytes_slice(text: string, start: usize, end: usize) -> string:
-    panic("intrinsic")
-
-# Raw bytes, which here are not always UTF-8: a scan reads bytes only, and
-# 128 and 255 check that its compares are unsigned.
-@intrinsic("string_from_bytes")
-fn string_from_bytes(bytes: List[u8]) -> string:
-    panic("intrinsic")
-
-@intrinsic("bytes_index_json")
-fn bytes_index_json(text: string, from: usize) -> usize:
-    panic("intrinsic")
-
-@intrinsic("bytes_index")
-fn bytes_index(text: string, from: usize, byte: u8) -> usize:
-    panic("intrinsic")
-
-@intrinsic("bytes_mismatch")
-fn bytes_mismatch(left: string, right: string) -> usize:
-    panic("intrinsic")
+use std.rt.bytes.{
+    bytes_len,
+    bytes_at,
+    bytes_slice,
+    string_from_bytes,
+    bytes_index_json,
+    bytes_index,
+    bytes_mismatch,
+    bytes_index_pair,
+}
 
 @intrinsic("utf8_valid_len")
 fn utf8_valid_len(bytes: List[u8]) -> usize:
     panic("intrinsic")
 
-@intrinsic("bytes_index_pair")
-fn bytes_index_pair(text: string, from: usize, first: u8, last: u8, gap: usize) -> usize:
-    panic("intrinsic")
-
-# The reference body of `bytes_index_json` in lib/std/json.hd.
+# The reference body of `bytes_index_json` in lib/std/rt/bytes.hd.
 fn reference_json(text: string, from: usize) -> usize:
     size := bytes_len(text)
     let index = from
@@ -58,7 +34,7 @@ fn reference_json(text: string, from: usize) -> usize:
         index = index + 1
     size
 
-# The reference body of `bytes_index` in lib/std/text.hd.
+# The reference body of `bytes_index` in lib/std/rt/bytes.hd.
 fn reference_index(text: string, from: usize, byte: u8) -> usize:
     size := bytes_len(text)
     let index = from
@@ -162,7 +138,7 @@ fn index_case(c: &mut Choices) -> Index:
     let from: usize = c.int(0..=len + 2)
     Index { start: start, len: len, at: at, needle: edge_byte(needle_at), from: from }
 
-# The reference body of `bytes_mismatch` in lib/std/text.hd.
+# The reference body of `bytes_mismatch` in lib/std/rt/bytes.hd.
 fn reference_mismatch(left: string, right: string) -> usize:
     left_size := bytes_len(left)
     right_size := bytes_len(right)
@@ -423,7 +399,7 @@ fn utf8_case(c: &mut Choices) -> Utf8Case:
     let len: usize = c.int(at..=at + 48)
     Utf8Case { mix: mix, at: at, kind: kind, pick: pick, len: len }
 
-# The reference body of `bytes_index_pair` in lib/std/text.hd.
+# The reference body of `bytes_index_pair` in lib/std/rt/bytes.hd.
 fn reference_pair(text: string, from: usize, first: u8, last: u8, gap: usize) -> usize:
     size := bytes_len(text)
     let index = from

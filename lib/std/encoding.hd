@@ -1,5 +1,7 @@
 # std.encoding: bytes as hex and base64 text (spec/std/encoding.md).
 
+use std.rt.bytes.{bytes_len, bytes_at, string_from_bytes}
+
 # Why decoding failed, at a byte offset into the text
 # (r-std-encoding.error.position-bytes).
 ## Why decoding failed: the kind, and the byte position.
@@ -210,18 +212,3 @@ fn zeroes(count: usize) -> List[u8]:
     while values.len() < count:
         values.push(0)
     values
-
-# Primitives: the string's bytes read in place, and a string made of bytes
-# that the caller has checked are UTF-8.
-@intrinsic("bytes_len")
-fn bytes_len(text: string) -> usize:
-    panic("intrinsic")
-
-# The byte at offset `index`, which must be below `bytes_len(text)`.
-@intrinsic("bytes_at")
-fn bytes_at(text: string, index: usize) -> u8:
-    panic("intrinsic")
-
-@intrinsic("string_from_bytes")
-fn string_from_bytes(bytes: List[u8]) -> string:
-    panic("intrinsic")

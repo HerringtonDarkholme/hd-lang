@@ -1176,7 +1176,7 @@ impl<'a, 'n> Gen<'a, 'n> {
     /// A categorized panic (`flow.panic.report`), through std's
     /// `panic_with` intrinsic: a `never` value.
     fn panic(&mut self, category: &str, message: &str) -> Ref {
-        let def = self.names.item("std.ops", "panic_with");
+        let def = self.names.item("std.rt.bytes", "panic_with");
         let c = self.str_(category);
         let msg = self.str_(message);
         self.b.call(

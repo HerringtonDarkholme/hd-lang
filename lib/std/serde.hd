@@ -25,6 +25,7 @@ use std.structure.{
     Facts,
     skips,
 }
+use std.rt.bytes.{string_from_bytes}
 
 ## A member's or variant's document name, independent of its hd source name.
 ## See [std-serde.rename.variant-fact](../../spec/std/serde.md#r-std-serde.rename.variant-fact).
@@ -244,11 +245,6 @@ fn joined_name(name: string, camel: bool) -> string:
         word_start = false
         first = false
     string_from_bytes(out)
-
-# The string of `bytes`, which the caller has checked are UTF-8.
-@intrinsic("string_from_bytes")
-fn string_from_bytes(bytes: List[u8]) -> string:
-    panic("intrinsic")
 
 # A value that opts in to be written by every format
 # (r-annot.serde.definition).

@@ -12,6 +12,7 @@ use std.ops.Index
 use std.ops.IndexSet
 use std.ops.Range
 use std.format.DebugWriter
+use std.rt.bytes.{panic_with}
 
 impl[T] List[T]:
     # `push` is a language-tier intrinsic method of the checker
@@ -1169,10 +1170,4 @@ fn list_truncate[T](items: &mut List[T], len: usize) -> void:
 # counts; `other` may be the list `items` refers to.
 @intrinsic("list_extend")
 fn list_extend[T](items: &mut List[T], other: List[T]) -> void:
-    panic("intrinsic")
-
-# The checked runtime panic of `category`, such as `index-out-of-bounds`,
-# showing `message`, or no message when it is empty; it does not return.
-@intrinsic("panic")
-fn panic_with(category: string, message: string) -> void:
     panic("intrinsic")

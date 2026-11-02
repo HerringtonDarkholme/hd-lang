@@ -57,7 +57,7 @@ fn other(a: string, b: string) -> string:
 >   %0 = Read borrow [$0] : string
 >   %1 = Store [$2] %0 : ()
 >   %2 = Read borrow [$2] : string
->   %3 = Call std/text/bytes_len[] (%2) : usize
+>   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
 >   %4 = Break L0 %3 : never
 >   %5 = Block - : usize
 >   %6 = Scope %5 [] : usize

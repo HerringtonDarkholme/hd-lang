@@ -47,8 +47,10 @@ That alone does not make a method language-tier.
 
 `lib/std` is ordinary hd over the language tier, plus the primitives
 below. A primitive is a function or a method whose body the
-implementation supplies. A primitive function is private to the std
-module that declares it, so no program calls it. The specification has no
+implementation supplies. A primitive function is declared once: in the
+std-only runtime module `std.rt.bytes` when several std modules call it
+([`module.rt.bytes`](../lang/10-modules.md#r-module.rt.bytes)), else
+privately in the one module that calls it. So no program calls it. The specification has no
 syntax for declaring one; the reference implementation writes
 `@intrinsic("name")` before it. A primitive operation is an
 [intrinsic method](../lang/09-traits.md#intrinsic-methods), which any

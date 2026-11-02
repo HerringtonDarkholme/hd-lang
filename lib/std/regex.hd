@@ -9,6 +9,7 @@
 use std.format.DebugWriter
 use std.serde.{Deserialize, Deserializer, ValueKind, member_name}
 use std.structure.{Facts, Member, VariantInfo}
+use std.rt.bytes.{bytes_len, bytes_at, bytes_slice, char_scalar, bytes_index}
 
 # A compiled pattern (r-std-regex.regex.decl-struct). `names[i]` is the name of
 # group i, or "" for an unnamed group and for group 0.
@@ -1918,39 +1919,3 @@ fn word_char(c: char) -> bool:
 impl Debug for Regex:
     fn debug(&self, out: *mut DebugWriter) -> void:
         out.debug_struct("Regex").field("pattern", self.text).finish()
-
-# Primitives (spec/std/README.md#standard-library-primitives). The compiler
-# supplies each body. `@intrinsic` is prototype-internal and accepted only
-# in lib/std.
-
-@intrinsic("bytes_len")
-fn bytes_len(text: string) -> usize:
-    panic("intrinsic")
-
-# The byte at offset `index`, which must be below `bytes_len(text)`.
-@intrinsic("bytes_at")
-fn bytes_at(text: string, index: usize) -> u8:
-    panic("intrinsic")
-
-# The bytes from offset `start` up to `end`, sharing them in constant time.
-@intrinsic("bytes_slice")
-fn bytes_slice(text: string, start: usize, end: usize) -> string:
-    panic("intrinsic")
-
-# A `char` is its scalar value at run time.
-@intrinsic("char_scalar")
-fn char_scalar(value: char) -> u32:
-    panic("intrinsic")
-
-# The offset of the first byte at or after `from` that equals `byte`, or
-# `bytes_len(text)` when there is none. This body defines the result; the
-# compiler supplies a SIMD128 one (#428).
-@intrinsic("bytes_index")
-fn bytes_index(text: string, from: usize, byte: u8) -> usize:
-    size := bytes_len(text)
-    let index = from
-    while index < size:
-        if bytes_at(text, index) == byte:
-            return index
-        index = index + 1
-    size

@@ -1,0 +1,115 @@
+# std.rt.bytes: the byte, text and panic primitives that several std
+# modules share (spec/std/README.md#standard-library-primitives), each
+# declared once. A runtime module, so only std may use it
+# (spec/lang/10-modules.md#r-module.rt.std-only), and it uses only std.core
+# (spec/lang/10-modules.md#r-module.rt.leaf), so every std module may use it.
+# The compiler supplies each body: the byte primitives come from the Wasm
+# runtime and the case mappings from the host. Where a body below is hd, it
+# defines the result, and the compiler supplies a SIMD128 one (#428).
+
+## The number of bytes in `text`.
+@intrinsic("bytes_len")
+pub fn bytes_len(text: string) -> usize:
+    panic("intrinsic")
+
+## The byte at offset `index`, which must be below `bytes_len(text)`.
+@intrinsic("bytes_at")
+pub fn bytes_at(text: string, index: usize) -> u8:
+    panic("intrinsic")
+
+## The bytes from offset `start` up to `end`, sharing them in constant time.
+@intrinsic("bytes_slice")
+pub fn bytes_slice(text: string, start: usize, end: usize) -> string:
+    panic("intrinsic")
+
+## The bytes of `left`, then those of `right`, in one new string.
+@intrinsic("bytes_concat")
+pub fn bytes_concat(left: string, right: string) -> string:
+    panic("intrinsic")
+
+## Every part's bytes in order, copied once into one new string.
+@intrinsic("concat_all")
+pub fn concat_all(parts: List[string]) -> string:
+    panic("intrinsic")
+
+## The string of `bytes`, which the caller has checked are UTF-8. It takes over the list's buffer when nothing else holds it, else copies the bytes.
+@intrinsic("string_from_bytes")
+pub fn string_from_bytes(bytes: List[u8]) -> string:
+    panic("intrinsic")
+
+## Appends the bytes of `text` to the list `bytes` refers to, in one copy.
+@intrinsic("bytes_append")
+pub fn bytes_append(bytes: &mut List[u8], text: string) -> void:
+    panic("intrinsic")
+
+## The lowercase mapping of `text`, from the host.
+@intrinsic("string_lower")
+pub fn host_lower(text: string) -> string:
+    panic("intrinsic")
+
+## The uppercase mapping of `text`, from the host.
+@intrinsic("string_upper")
+pub fn host_upper(text: string) -> string:
+    panic("intrinsic")
+
+## The `char` of a scalar value, or `.None` for a surrogate or a value above `0x10FFFF`. Every caller passes the scalar value of a valid UTF-8 string.
+@intrinsic("char_from_scalar")
+pub fn char_from_scalar(point: u32) -> char?:
+    panic("intrinsic")
+
+## The scalar value of `value`: a `char` is its scalar value at run time.
+@intrinsic("char_scalar")
+pub fn char_scalar(value: char) -> u32:
+    panic("intrinsic")
+
+## The checked runtime panic of `category`, such as `index-out-of-bounds`, showing `message`, or no message when it is empty; it does not return.
+@intrinsic("panic")
+pub fn panic_with(category: string, message: string) -> void:
+    panic("intrinsic")
+
+## The offset of the first byte at or after `from` that equals `byte`, or `bytes_len(text)` when there is none.
+@intrinsic("bytes_index")
+pub fn bytes_index(text: string, from: usize, byte: u8) -> usize:
+    size := bytes_len(text)
+    let index = from
+    while index < size:
+        if bytes_at(text, index) == byte:
+            return index
+        index = index + 1
+    size
+
+## The offset of the first byte at or after `from` that JSON must escape, a control byte below 0x20, `"` or `\`, or `bytes_len(text)` when there is none.
+@intrinsic("bytes_index_json")
+pub fn bytes_index_json(text: string, from: usize) -> usize:
+    size := bytes_len(text)
+    let index = from
+    while index < size:
+        byte := bytes_at(text, index)
+        if byte < 32 || byte == 34 || byte == 92:
+            return index
+        index = index + 1
+    size
+
+## The first offset `i` at or after `from` with `i + gap < bytes_len(text)`, byte `i` equal to `first` and byte `i + gap` equal to `last`, or `bytes_len(text)` when there is none.
+@intrinsic("bytes_index_pair")
+pub fn bytes_index_pair(text: string, from: usize, first: u8, last: u8, gap: usize) -> usize:
+    size := bytes_len(text)
+    let index = from
+    while index < size && gap < size - index:
+        if bytes_at(text, index) == first && bytes_at(text, index + gap) == last:
+            return index
+        index = index + 1
+    size
+
+## The offset of the first position where `left` and `right` differ; when one is a prefix of the other, the shorter length, and when they are equal, their common length.
+@intrinsic("bytes_mismatch")
+pub fn bytes_mismatch(left: string, right: string) -> usize:
+    left_size := bytes_len(left)
+    right_size := bytes_len(right)
+    shorter := if left_size < right_size: left_size else: right_size
+    let index: usize = 0
+    while index < shorter:
+        if bytes_at(left, index) != bytes_at(right, index):
+            return index
+        index = index + 1
+    shorter

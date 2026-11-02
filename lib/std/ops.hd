@@ -15,6 +15,7 @@ use std.function.{FnMut, Tuple}
 use std.hash.Hash
 use std.num.{Num, Integer, Float}
 use std.structure.{Structure, Source, Variant, Field, Members, Key, fills_defaults}
+use std.rt.bytes.{panic_with}
 
 # `Copy` is declared in std.core, which `List` and `Map` name.
 pub use std.core.{Copy}
@@ -318,12 +319,6 @@ fn slice_list[T](items: List[T], start: u64, end: u64, inclusive: bool) -> List[
         copy.push(items[index])
         index = index + 1
     copy
-
-# The checked runtime panic of `category`, such as `index-out-of-bounds`,
-# showing `message`, or no message when it is empty; it does not return.
-@intrinsic("panic")
-fn panic_with(category: string, message: string) -> void:
-    panic("intrinsic")
 
 # Slicing (spec/lang/05-expressions.md#built-in-implementations): one
 # implementation per range type, with unsigned bounds, for

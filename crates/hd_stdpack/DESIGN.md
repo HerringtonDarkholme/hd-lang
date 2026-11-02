@@ -53,26 +53,30 @@ wins.
 `hd_host_abi::INTRINSICS` lists every `@intrinsic("key")` std may name and
 its lowering: `Compiler` (code the emitter writes, crates/hd_mono/DESIGN.md
 §12.2) or a host primitive import of module `hd:prim`. A test checks that
-every key in `lib/std` has a row.
+every key in `lib/std` has a row. Each key is declared once. A byte, text
+or panic primitive that several std modules call is a `pub` function of the
+runtime module `std.rt.bytes` (`rt/bytes.hd`), which only std may use
+([`module.rt.bytes`](../../spec/lang/10-modules.md#r-module.rt.bytes)); the
+others are private to the one module that calls them.
 
 | Key | Declaration in `lib/std` | Lowering |
 | --- | --- | --- |
-| `bytes_len`, `bytes_at`, `bytes_slice`, `bytes_concat` | `text.hd`: `(text: string) -> usize`, `(text, index: usize) -> u8`, `(text, start, end: usize) -> string`, `(left, right: string) -> string` | compiler |
-| `string_from_bytes` | `(bytes: List[u8]) -> string`, in `text.hd`, `format.hd`, `num.hd`, `encoding.hd` and `json.hd`; it owns its argument and takes over an unshared buffer | compiler |
-| `bytes_index_json` | `(text: string, from: usize) -> usize`, in `json.hd`; the body there is the reference, and the linear backend links the SIMD128 helper `rt:bytes_index_json` (#428) | compiler |
-| `bytes_index` | `(text: string, from: usize, byte: u8) -> usize`, in `text.hd`, `regex.hd` and `json.hd`; the body there is the reference, and the linear backend links the SIMD128 helper `rt:bytes_index` (#428) | compiler |
-| `bytes_mismatch` | `(left: string, right: string) -> usize`, in `text.hd` and `cmp.hd`; the body there is the reference, and the linear backend links the SIMD128 helper `rt:bytes_mismatch` (#428) | compiler |
-| `bytes_index_pair` | `(text: string, from: usize, first: u8, last: u8, gap: usize) -> usize`, in `text.hd`; the body there is the reference, and the linear backend links the SIMD128 helper `rt:bytes_index_pair` (#428) | compiler |
+| `bytes_len`, `bytes_at`, `bytes_slice`, `bytes_concat` | `rt/bytes.hd`: `(text: string) -> usize`, `(text, index: usize) -> u8`, `(text, start, end: usize) -> string`, `(left, right: string) -> string` | compiler |
+| `string_from_bytes` | `(bytes: List[u8]) -> string`, in `rt/bytes.hd`; it owns its argument and takes over an unshared buffer | compiler |
+| `bytes_index_json` | `(text: string, from: usize) -> usize`, in `rt/bytes.hd`; the body there is the reference, and the linear backend links the SIMD128 helper `rt:bytes_index_json` (#428) | compiler |
+| `bytes_index` | `(text: string, from: usize, byte: u8) -> usize`, in `rt/bytes.hd`; the body there is the reference, and the linear backend links the SIMD128 helper `rt:bytes_index` (#428) | compiler |
+| `bytes_mismatch` | `(left: string, right: string) -> usize`, in `rt/bytes.hd`; the body there is the reference, and the linear backend links the SIMD128 helper `rt:bytes_mismatch` (#428) | compiler |
+| `bytes_index_pair` | `(text: string, from: usize, first: u8, last: u8, gap: usize) -> usize`, in `rt/bytes.hd`; the body there is the reference, and the linear backend links the SIMD128 helper `rt:bytes_index_pair` (#428) | compiler |
 | `utf8_valid_len` | `(bytes: List[u8]) -> usize`, in `text.hd`; the body there is the reference, and the linear backend links the SIMD128 helper `rt:utf8_valid_len` (#428) | compiler |
 | `string_to_bytes` | the intrinsic method `string.to_utf8(self) -> List[u8]`, in `core/mod.hd`, which `Hasher.write_str` calls | compiler |
-| `char_scalar` | `(value: char) -> u32`, in `text.hd`, `format.hd`, `hash.hd` | compiler |
-| `char_from_scalar` | `(point: u32) -> char?`, in `text.hd` | compiler |
+| `char_scalar` | `(value: char) -> u32`, in `rt/bytes.hd` | compiler |
+| `char_from_scalar` | `(point: u32) -> char?`, in `rt/bytes.hd` | compiler |
 | `format_int` | `[N < Integer](value: N) -> string`, in `format.hd`; the runtime's `IntToStr` helper | compiler |
 | `list_truncate` | `[T](items: &mut List[T], len: usize) -> void`, in `collections.hd` | compiler |
 | `list_extend` | `[T](items: &mut List[T], other: List[T]) -> void`, in `collections.hd`; `other` is lent | compiler |
 | `list_reserve` | `[T](items: &mut List[T], count: usize) -> void`, in `text.hd`, under `StringBuilder.reserve`; the runtime's one reserve routine, which `list_extend` and `bytes_append` call too | compiler |
-| `bytes_append` | `(bytes: &mut List[u8], text: string) -> void`, in `text.hd`, under `StringBuilder.push`; `text` is lent | compiler |
-| `panic` | `panic_with(category: string, message: string) -> void`, in `collections.hd`, `num.hd`, `ops.hd`, `testing.hd`, `text.hd` | compiler |
+| `bytes_append` | `(bytes: &mut List[u8], text: string) -> void`, in `rt/bytes.hd`, under `StringBuilder.push`; `text` is lent | compiler |
+| `panic` | `panic_with(category: string, message: string) -> void`, in `rt/bytes.hd`; `rt/alloc.hd` and `rt/checked/mod.hd` keep private copies that return `never` | compiler |
 | `facts_of` | `[F](f: F) -> Facts`, in `annotation.hd` | compiler |
 | `downcast_ref`, `downcast_mut` | inherent methods of `dyn Inspectable` in `inspect.hd` and `dyn Error` in `error.hd` | compiler |
 | `type_id_of` | `TypeId.of[T < Inspectable]() -> TypeId`, in `inspect.hd` | compiler |
@@ -83,7 +87,7 @@ every key in `lib/std` has a row.
 | `ptr_size_of`, `ptr_read`, `ptr_write`, `ptr_offset` | `rt/memory.hd`: `size_of[T]` and the methods of `Ptr[T]` in `std.rt.memory` (spec 10 `module.rt.ptr.*`); the checker makes `read` and `write` a `Read` and a `Store` of the pointer's target | compiler; only std can use this typed memory |
 | `mem_buffer`, `mem_string_bytes`, `mem_new_string` | `rt/memory.hd`: `Buffer.new`, `string_bytes` and `new_string` in `std.rt.memory` (spec 10 `module.rt.buffer.*`, `module.rt.string.*`) | compiler; only std can use these |
 | `format_f64`, `format_f32` | `format.hd` | host primitive |
-| `string_lower`, `string_upper` | `text.hd` | host primitive |
+| `string_lower`, `string_upper` | `rt/bytes.hd`: `host_lower`, `host_upper` | host primitive |
 | `parse_f64`, `format_f64_fixed` | `num.hd` | host primitive |
 
 ## Intrinsic And Built-In Methods
@@ -141,8 +145,8 @@ needs no self-derivation.
 | Folder | Modules | Outgoing folder edges |
 | --- | --- | --- |
 | `std.core` (`lib/std/core`) | `std.core` from `core/mod.hd`: the seeded names, and `Copy`, `Eq`, `Hash`, `Hasher` | none |
-| `std` (`lib/std`) | the root files other than `prelude.hd` and `testing.hd` | `std.core` |
-| `std.rt` (`lib/std/rt`) | `std.rt.memory`, `std.rt.alloc`, `std.rt.cycle`, `std.rt.weak` | `std.core` |
+| `std` (`lib/std`) | the root files other than `prelude.hd` and `testing.hd` | `std.core`, `std.rt` (`std.rt.bytes`) |
+| `std.rt` (`lib/std/rt`) | `std.rt.bytes`, `std.rt.memory`, `std.rt.alloc`, `std.rt.cycle`, `std.rt.weak` | `std.core` |
 | `std.rt.entry` (virtual `rt/entry/mod.hd`) | `std.rt.entry` | `std`, `std.core` |
 | `std.rt.checked` (`lib/std/rt/checked`) | `std.rt.checked` | `std`, `std.rt`, `std.core` |
 | `std.rt.checked_report` (`lib/std/rt/checked_report`) | `std.rt.checked_report` | `std.rt.checked`, `std.rt`, `std.core` |

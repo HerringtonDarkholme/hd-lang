@@ -9,7 +9,7 @@ app/main/total
   %46 = Read borrow [$1 [%45]] : string
   %47 = Store [$11] %46 : ()
   %48 = Read borrow [$11] : string
-  %49 = Call std/text/bytes_len[] (%48) : usize
+  %49 = Call std/rt.bytes/bytes_len[] (%48) : usize
   %50 = Break L2 %49 : never
   %51 = Block - : usize
   %52 = Scope %51 [] : usize

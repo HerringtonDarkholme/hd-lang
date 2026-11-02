@@ -5,6 +5,7 @@ use std.function.Tuple
 use std.hash.Hasher
 use std.num.{Num, Integer}
 use std.structure.{Structure, UnionType, Walker, Variant, Field}
+use std.rt.bytes.{bytes_mismatch}
 
 # `Eq` is declared in std.core, which `List` and `Map` name.
 pub use std.core.{Eq}
@@ -156,19 +157,6 @@ fn string_order(left: string, right: string) -> Ordering:
     if index < shorter:
         return if left[index] < right[index]: .Less else: .Greater
     if left_size < right_size: .Less else if left_size > right_size: .Greater else: .Equal
-
-# The offset of the first byte where the strings differ, else the shorter
-# length. The body is the reference; the compiler supplies a SIMD128 one
-# (#428). `std.text` declares the same primitive.
-@intrinsic("bytes_mismatch")
-fn bytes_mismatch(left: string, right: string) -> usize:
-    shorter := if left.len() < right.len(): left.len() else: right.len()
-    let index: usize = 0
-    while index < shorter:
-        if left[index] != right[index]:
-            return index
-        index = index + 1
-    shorter
 
 # Equality and order of the built-in composites
 # (spec/lang/05-expressions.md#r-expr.eq.std, #r-expr.ord.std). `==`, `<`, and

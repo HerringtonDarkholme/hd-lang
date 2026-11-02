@@ -8,6 +8,7 @@
 # (spec/std/hash.md#default-hasher).
 use std.function.Tuple
 use std.structure.{Structure, UnionType, Walker, Variant, Field}
+use std.rt.bytes.{bytes_len, bytes_at, char_scalar}
 
 # `Hash` and `Hasher` are declared in std.core, which `Map` names.
 pub use std.core.{Hash, Hasher}
@@ -518,20 +519,4 @@ fn string_bucket_hash(key: string) -> u32:
 # and a REPL session's journal records it, so a replay hashes alike.
 @intrinsic("map_hash_seed")
 fn map_hash_seed() -> u64:
-    panic("intrinsic")
-
-# A string's bytes, read in place.
-@intrinsic("bytes_len")
-fn bytes_len(text: string) -> usize:
-    panic("intrinsic")
-
-# The byte at offset `index`, which must be below `bytes_len(text)`.
-@intrinsic("bytes_at")
-fn bytes_at(text: string, index: usize) -> u8:
-    panic("intrinsic")
-
-# A `char` is its scalar value at run time
-# (spec/std/README.md#standard-library-primitives).
-@intrinsic("char_scalar")
-fn char_scalar(value: char) -> u32:
     panic("intrinsic")
