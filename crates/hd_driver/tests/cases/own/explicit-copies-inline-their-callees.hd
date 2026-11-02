@@ -1,0 +1,20 @@
+# @dump: own
+# Explicitly hinted copies are built bottom-up in dev too: `run` copies
+# `a`, which has already copied `b`, which has already copied `c`, so no
+# call remains (#1235).
+use std.annotation.inline
+
+@inline(.Always)
+fn c(value: i32) -> i32:
+    value + 1
+
+@inline(.Always)
+fn b(value: i32) -> i32:
+    c(value) * 2
+
+@inline(.Always)
+fn a(value: i32) -> i32:
+    b(value) - 3
+
+fn run(value: i32) -> i32:
+    a(value)

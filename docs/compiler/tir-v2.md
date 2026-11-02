@@ -3238,9 +3238,8 @@ new address must reach the place the list was read from.
   2026-10-23). std's `push` is `&mut self` and takes no copy of the
   receiver, and with today's inliner `push` would stay a call: its fast
   path is about 20 instructions over `Buffer`'s accessors, which are calls
-  into `std.rt`, which the inliner leaves alone, and which would stay
-  calls inside the copy, since nothing inlines into a copy; the limit is
-  8. So `push`,
+  into `std.rt`, which automatic inlining leaves alone, so bottom-up
+  copying cannot remove them; the limit is 8. So `push`,
   `len` and indexing stay compiler-lowered over the buffer address, and
   only the slow paths (growth, the unique copy, truncation) become std
   hd. If that proves insufficient, the first option to consider is a
@@ -3575,7 +3574,9 @@ before the inliner; a commit over that stops for review, like a commit
 over its line share. Size is bounded by construction: the limit counts
 a callee's instructions after substitution, only small callees inline
 (12 instructions in commit 1, 8 since commit 4, well under the
-estimate's 40, tuned by measuring), and nothing inlines into a copy within the same body. So
+estimate's 40, tuned by measuring). A callee is built bottom-up before it
+is copied; the inliner does not revisit a copy already inserted into the
+same body. So
 std's collection methods must keep their slow paths (growth, rehashing,
 panic text) in separate functions too large to inline, and only the
 fast path is copied. Commit 1 measured limits 8 to 40 on the 12

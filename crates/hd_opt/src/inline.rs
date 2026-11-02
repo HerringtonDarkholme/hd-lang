@@ -262,30 +262,30 @@ impl dyn InlineEnv + '_ {
     }
 
     /// The copy a call of `def` at `targs` inlines, at the call's types,
-    /// and its hash (`inline_callee`). A memoized build inlines bottom-up:
+    /// and its hash (`inline_callee`). A copy is built bottom-up:
     /// the instance's own calls are copied first, as far as their callees
     /// allow, and the limit applies to the result, so a function that only
     /// wraps a call of a leaf is a leaf itself once that call is a copy. A
     /// copy that outgrows the limit that way is the instance as written,
     /// when that fits. A function on a cycle of calls the walk finds stays
-    /// a call. Each instance is made once per run. Dev builds memoize only
-    /// explicitly decorated user functions; release builds also consider
-    /// ordinary user functions.
+    /// a call. Each instance is made once per release run; a dev build
+    /// makes one per explicit call site. Dev builds consider only explicitly
+    /// decorated user functions; release builds also consider ordinary user
+    /// functions.
     fn callee_copy(
         &self,
         def: DefId,
         targs: TyList,
         stack: &mut Vec<DefId>,
     ) -> Option<(Body, Hash128)> {
-        let Some(memo) = self.memo() else {
-            return (self.instance(def, targs))
-                .and_then(|(copy, hash, fits)| fits.then_some((copy, hash)));
-        };
-        if let Some(made) = lock(&memo.inlined).get(&(def, targs)) {
-            return made.clone();
-        }
-        if lock(&memo.recursive).contains(&def) {
-            return None;
+        let memo = self.memo();
+        if let Some(memo) = memo {
+            if let Some(made) = lock(&memo.inlined).get(&(def, targs)) {
+                return made.clone();
+            }
+            if lock(&memo.recursive).contains(&def) {
+                return None;
+            }
         }
         let made = self.instance(def, targs).and_then(|(copy, hash, fits)| {
             let nested = (!hd_tir::inline::leaf(&copy)).then(|| {
@@ -295,7 +295,7 @@ impl dyn InlineEnv + '_ {
                 stack.pop();
                 (nested, h)
             });
-            if lock(&memo.recursive).contains(&def) {
+            if memo.is_some_and(|memo| lock(&memo.recursive).contains(&def)) {
                 return None;
             }
             match nested {
@@ -303,7 +303,9 @@ impl dyn InlineEnv + '_ {
                 _ => fits.then_some((copy, hash)),
             }
         });
-        lock(&memo.inlined).insert((def, targs), made.clone());
+        if let Some(memo) = memo {
+            lock(&memo.inlined).insert((def, targs), made.clone());
+        }
         made
     }
 
