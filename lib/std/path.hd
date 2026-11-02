@@ -36,19 +36,19 @@ impl Path:
     # component, and `.None` for `""` and `/` (r-std-path.parent).
     ## The path without its last component, in `.Some`, or `.None` when it has none.
     ## See [std-path.parent](../../spec/std/path.md#r-std-path.parent).
-    pub fn parent(self) -> Path?:
-        parts := components(string(self))
+    pub fn parent(&self) -> Path?:
+        parts := components(string(*self))
         if parts.len() == 0:
             return .None
         init := parts.take(parts.len() - 1).join("/")
-        .Some(Path(if string(self).starts_with("/"): "/" + init else: init))
+        .Some(Path(if string(*self).starts_with("/"): "/" + init else: init))
 
     # The last component, unless the path has none or it is `.` or `..`
     # (r-std-path.file-name).
     ## The path's last component, in `.Some`, or `.None` when it has none.
     ## See [std-path.file-name](../../spec/std/path.md#r-std-path.file-name).
-    pub fn file_name(self) -> string?:
-        match components(string(self)).last():
+    pub fn file_name(&self) -> string?:
+        match components(string(*self)).last():
             .Some(name) =>
                 if *name == "." || *name == "..": .None else: .Some(*name)
             .None => .None
@@ -57,7 +57,7 @@ impl Path:
     # `.` or only a leading one (r-std-path.extension).
     ## The text after the last dot of the file name, in `.Some`, or `.None`.
     ## See [std-path.extension](../../spec/std/path.md#r-std-path.extension).
-    pub fn extension(self) -> string?:
+    pub fn extension(&self) -> string?:
         match self.file_name():
             .Some(name) =>
                 pieces := name.split(".")
@@ -70,7 +70,7 @@ impl Path:
     # whole name when `extension` is none (r-std-path.file-stem.value).
     ## The file name without its extension, in `.Some`, or `.None` when there is no file name.
     ## See [std-path.file-stem](../../spec/std/path.md#r-std-path.file-stem).
-    pub fn file_stem(self) -> string?:
+    pub fn file_stem(&self) -> string?:
         match self.file_name():
             .Some(name) =>
                 match self.extension():
@@ -84,15 +84,15 @@ impl Path:
     # returned as it is.
     ## The path with the extension of its file name replaced by `extension`, or removed when it is empty.
     ## See [std-path.with-extension](../../spec/std/path.md#r-std-path.with-extension).
-    pub fn with_extension(self, extension: string) -> Path:
+    pub fn with_extension(&self, extension: string) -> Path:
         match (self.file_name(), self.file_stem()):
             (.Some(name), .Some(stem)) =>
-                let text = string(self)
+                let text = string(*self)
                 while text.ends_with("/") || text.ends_with("/."):
                     text = text.slice(0, text.len() - (if text.ends_with("/"): 1 else: 2))
                 kept := text.slice(0, text.len() - (name.len() - stem.len()))
                 Path(if extension == "": kept else: kept + "." + extension)
-            _ => self
+            _ => *self
 
 # Reads a path from any text, never failing (r-std-path.parse).
 impl Parse for Path:

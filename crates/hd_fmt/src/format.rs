@@ -582,9 +582,15 @@ impl<'s, 'p> Analysis<'s, 'p> {
                 && end + 1 < last
                 && tokens.kind[end + 1] == T::Comma
                 && self.token_owners[end + 1] == node.index()
-                && self.ends_in_broken_block(child)
             {
-                self.force_gap(end + 2, Gap::Space);
+                if self.ends_in_value_if(child) {
+                    // A comma cannot follow a broken value-if suite inside
+                    // brackets. Keep this non-final element flat so the
+                    // formatter's output remains parseable.
+                    self.node_flags[child.index().idx()] |= FORCE_FLAT;
+                } else if self.ends_in_broken_block(child) {
+                    self.force_gap(end + 2, Gap::Space);
+                }
             }
         }
         let comma_count = node
@@ -620,6 +626,22 @@ impl<'s, 'p> Analysis<'s, 'p> {
         let mut current = Some(node);
         while let Some(at) = current {
             if at.kind() == S::Block && self.block_breaks(at) {
+                return true;
+            }
+            current = at
+                .children()
+                .filter(|child| child.first_token().get().is_some())
+                .last()
+                .filter(|child| child.last_token().get() == end);
+        }
+        false
+    }
+
+    fn ends_in_value_if(&self, node: NodeRef<'_>) -> bool {
+        let end = node.last_token().get();
+        let mut current = Some(node);
+        while let Some(at) = current {
+            if at.kind() == S::IfExpr && self.if_is_value(at) {
                 return true;
             }
             current = at

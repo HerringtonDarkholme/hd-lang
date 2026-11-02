@@ -55,11 +55,11 @@ fn is_markdown(file: Path) -> bool:
 | Rule | Method | Result |
 | --- | --- | --- |
 | r[std-path.join] `join` | `pub fn join(&self, part: string) -> Path` | the path followed by `part` |
-| r[std-path.parent] `parent` | `pub fn parent(self) -> Path?` | the path without its last component, or `.None` when it has none |
-| r[std-path.file-name] `file_name` | `pub fn file_name(self) -> string?` | the last component, when it names a file or directory |
-| r[std-path.extension] `extension` | `pub fn extension(self) -> string?` | the text after the last `.` of the file name |
-| r[std-path.file-stem] `file_stem` | `pub fn file_stem(self) -> string?` | the file name without its extension |
-| r[std-path.with-extension] `with_extension` | `pub fn with_extension(self, extension: string) -> Path` | the path with the extension of its file name replaced |
+| r[std-path.parent] `parent` | `pub fn parent(&self) -> Path?` | the path without its last component, or `.None` when it has none |
+| r[std-path.file-name] `file_name` | `pub fn file_name(&self) -> string?` | the last component, when it names a file or directory |
+| r[std-path.extension] `extension` | `pub fn extension(&self) -> string?` | the text after the last `.` of the file name |
+| r[std-path.file-stem] `file_stem` | `pub fn file_stem(&self) -> string?` | the file name without its extension |
+| r[std-path.with-extension] `with_extension` | `pub fn with_extension(&self, extension: string) -> Path` | the path with the extension of its file name replaced |
 
 1. r[std-path.ops.methods] `std.path` gives `Path` the six methods above. Calling one needs only the `Path` import.
 2. r[std-path.ops.separator] The separator is `/` on every host.

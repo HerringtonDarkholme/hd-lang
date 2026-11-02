@@ -109,14 +109,14 @@ impl Regex:
     # The pattern as written.
     ## The pattern the regex was compiled from.
     ## See [std-regex.regex.pattern](../../spec/std/regex.md#r-std-regex.regex.pattern).
-    pub fn pattern(self) -> string:
+    pub fn pattern(&self) -> string:
         self.text
 
     # Whether some part of `text` matches (r-std-regex.is-match). The search
     # stops at the first thread that reaches the end of the pattern.
     ## True when the regex matches anywhere in `text`.
     ## See [std-regex.is-match](../../spec/std/regex.md#r-std-regex.is-match).
-    pub fn is_match(self, text: string) -> bool:
+    pub fn is_match(&self, text: string) -> bool:
         let mut vm = new_vm(self, text, 0)
         run(&mut vm, 0, true)
 
@@ -124,14 +124,14 @@ impl Regex:
     # pattern prefers (r-std-regex.find.leftmost-first).
     ## The leftmost match in `text`; of several starting there, the first the pattern's alternation order prefers.
     ## See [std-regex.find](../../spec/std/regex.md#r-std-regex.find).
-    pub fn find(self, text: string) -> Match?:
+    pub fn find(&self, text: string) -> Match?:
         let mut vm = new_vm(self, text, 2)
         if run(&mut vm, 0, false): .Some(vm.whole()) else: .None
 
     # Every match, left to right, none overlapping (r-std-regex.find-all).
     ## Every non-overlapping match in `text`, from left to right.
     ## See [std-regex.find-all](../../spec/std/regex.md#r-std-regex.find-all).
-    pub fn find_all(self, text: string) -> List[Match]:
+    pub fn find_all(&self, text: string) -> List[Match]:
         let mut vm = new_vm(self, text, 2)
         let mut found: List[Match] = []
         while advance(&mut vm):
@@ -141,7 +141,7 @@ impl Regex:
     # The groups of the first match (r-std-regex.captures).
     ## The capture groups of the leftmost match, or `.None`.
     ## See [std-regex.captures](../../spec/std/regex.md#r-std-regex.captures).
-    pub fn captures(self, text: string) -> Captures?:
+    pub fn captures(&self, text: string) -> Captures?:
         let mut vm = new_vm(self, text, self.slot_count())
         if run(&mut vm, 0, false): .Some(vm.groups(self.names)) else: .None
 
@@ -156,7 +156,7 @@ impl Regex:
     # (r-std-regex.captures-all).
     ## The capture groups of every non-overlapping match, from left to right.
     ## See [std-regex.captures-all](../../spec/std/regex.md#r-std-regex.captures-all).
-    pub fn captures_all(self, text: string) -> List[Captures]:
+    pub fn captures_all(&self, text: string) -> List[Captures]:
         let mut vm = new_vm(self, text, self.slot_count())
         let mut found: List[Captures] = []
         while advance(&mut vm):
@@ -166,7 +166,7 @@ impl Regex:
     # `text` with its first match replaced (r-std-regex.replace).
     ## The text with its leftmost match replaced by `replacement`, whose `$` forms expand groups.
     ## See [std-regex.replace](../../spec/std/regex.md#r-std-regex.replace).
-    pub fn replace(self, text: string, replacement: string) -> string:
+    pub fn replace(&self, text: string, replacement: string) -> string:
         let mut vm = new_vm(self, text, self.slot_count())
         if !run(&mut vm, 0, false):
             return text
@@ -178,7 +178,7 @@ impl Regex:
     # (r-std-regex.replace-all).
     ## The text with every non-overlapping match replaced by `replacement`, whose `$` forms expand groups.
     ## See [std-regex.replace-all](../../spec/std/regex.md#r-std-regex.replace-all).
-    pub fn replace_all(self, text: string, replacement: string) -> string:
+    pub fn replace_all(&self, text: string, replacement: string) -> string:
         let mut vm = new_vm(self, text, self.slot_count())
         template := Pattern::of(replacement)
         # The pieces are joined once at the end, since appending each to
@@ -196,7 +196,7 @@ impl Regex:
     # (r-std-regex.split).
     ## The text's pieces between the matches, in order.
     ## See [std-regex.split](../../spec/std/regex.md#r-std-regex.split).
-    pub fn split(self, text: string) -> List[string]:
+    pub fn split(&self, text: string) -> List[string]:
         let mut vm = new_vm(self, text, 2)
         let mut pieces: List[string] = []
         let last: usize = 0
@@ -207,7 +207,7 @@ impl Regex:
         pieces
 
     # Two slots per group, group 0 included.
-    fn slot_count(self) -> usize:
+    fn slot_count(&self) -> usize:
         2 * self.names.len()
 
 impl Captures:
@@ -222,7 +222,7 @@ impl Captures:
     # (r-std-regex.captures.get).
     ## The match of group `index`, or `.None` when it took no part or is out of range.
     ## See [std-regex.captures.get](../../spec/std/regex.md#r-std-regex.captures.get).
-    pub fn get(self, index: usize) -> Match?:
+    pub fn get(&self, index: usize) -> Match?:
         if index >= self.names.len():
             return .None
         match self.slots[2 * index]:
@@ -236,7 +236,7 @@ impl Captures:
     # The group named `name` (r-std-regex.captures.name).
     ## The match of the group named `name`, or `.None` when there is no such group or it took no part.
     ## See [std-regex.captures.name](../../spec/std/regex.md#r-std-regex.captures.name).
-    pub fn name(self, name: string) -> Match?:
+    pub fn name(&self, name: string) -> Match?:
         if name == "":
             return .None
         let index: usize = 1
@@ -1357,7 +1357,7 @@ struct Vm:
 
 # A walk visits each instruction at most once and pushes at most one
 # entry for it, so the stack never holds more than width + 1.
-fn new_vm(regex: Regex, text: string, slot_count: usize) -> Vm:
+fn new_vm(regex: &Regex, text: string, slot_count: usize) -> Vm:
     program := regex.program
     filter := regex.filter
     width := program.ops.len()

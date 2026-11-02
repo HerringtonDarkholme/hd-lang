@@ -333,6 +333,30 @@ fn broken_value_if_argument_ends_the_list_with_no_lone_comma() {
 }
 
 #[test]
+fn value_if_before_another_struct_field_stays_parseable() {
+    let source = "struct S:\n    a: i32\n    b: i32\n\nfn pick(flag_with_a_rather_long_name: bool, first_value_with_a_long_name: i32, second_value_with_a_long_name: i32) -> S:\n    S {\n        a: if flag_with_a_rather_long_name: first_value_with_a_long_name else: second_value_with_a_long_name + 1000000,\n        b: 2,\n    }\n";
+    let formatted = wrapped(source);
+    assert!(
+        formatted.contains("a: if flag_with_a_rather_long_name: first_value_with_a_long_name else: second_value_with_a_long_name + 1000000,"),
+        "{formatted}"
+    );
+}
+
+#[test]
+fn nonfinal_value_if_in_call_and_collection_literals_stays_parseable() {
+    let source = "fn f(flag_with_a_rather_long_name: bool, first_value_with_a_long_name: i32, second_value_with_a_long_name: i32):\n    consume(if flag_with_a_rather_long_name: first_value_with_a_long_name else: second_value_with_a_long_name + 1000000, 2)\n    [if flag_with_a_rather_long_name: first_value_with_a_long_name else: second_value_with_a_long_name + 1000000, 2]\n    {\"a\": if flag_with_a_rather_long_name: first_value_with_a_long_name else: second_value_with_a_long_name + 1000000, \"b\": 2}\n";
+    let formatted = wrapped(source);
+    assert_eq!(
+        formatted
+            .lines()
+            .filter(|line| line.contains("if flag_with_a_rather_long_name:"))
+            .count(),
+        3,
+        "{formatted}"
+    );
+}
+
+#[test]
 fn obsolete_continuation_parens_leave_but_call_target_parens_stay() {
     let source = "fn f(a: i32, b: i32, handler: Handler, event: Event):\n    sum := (a + b)\n    other := (\n        handler\n        .value\n        + a\n    )\n    (handler.callback)(event)\n";
     assert_eq!(
