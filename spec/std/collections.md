@@ -9,6 +9,7 @@ in ordinary hd over the language tier:
   methods such as `get`, `take`, and `extend`;
 - the `ListView[T]` type returned by `view`, `chunks`, and `windows`;
 - the borrowed `Span[T, 'a]` type returned by `span` and `slice`;
+- the uniquely owned `UniqList[T]`, which may hold non-copyable elements;
 - the `List` helpers, such as `sorted_by_key`, `group_by`, and `windows`,
   and the function `counts`;
 - the `Map` methods `get_or_insert`, `contains_key`, `keys`,
@@ -24,6 +25,51 @@ The language tier keeps what the compiler knows about a list
 | Item | Why it stays in the language tier |
 | --- | --- |
 | `items[i]`, `len`, `iter`, `push`, `pop`, `insert`, `remove_at`, `clear` | built-in indexing and intrinsics over the list's representation |
+
+## UniqList
+
+`UniqList[T]` is the uniquely owned counterpart of `List[T]`. It accepts
+any element type and moves its elements when it grows or shifts them:
+
+```text
+use std.collections.UniqList
+
+struct Socket:
+    id: usize
+
+impl !Copy for Socket
+
+fn pool() -> UniqList[Socket]:
+    let mut sockets = UniqList::[Socket].new()
+    sockets.push(Socket { id: 1 })
+    sockets
+```
+
+Its core surface is:
+
+| Item | Signature |
+| --- | --- |
+| construction | `new() -> UniqList[T]`; `with_capacity(capacity: usize) -> UniqList[T]` |
+| size | `len(&self) -> usize`; `is_empty(&self) -> bool` |
+| append/remove | `push(&mut self, value: T) -> void`; `pop(&mut self) -> T?` |
+| indexed change | `insert(&mut self, index: usize, value: T) -> void`; `remove_at(&mut self, index: usize) -> T`; `swap(&mut self, left: usize, right: usize) -> void` |
+| shortening | `truncate(&mut self, len: usize) -> void`; `clear(&mut self) -> void` |
+| copyable access, `T < Copy` | `get(&self, index: usize) -> T?`; `first(&self) -> T?`; `last(&self) -> T?` |
+
+1. r[std-collections.uniq-list.type] `std.collections` declares `UniqList[T < ?Copy]` with a private `Buffer[T]` field and `impl[T < ?Copy] !Copy for UniqList[T]`. It is not a prelude name, so code that names it imports it.
+2. r[std-collections.uniq-list.new] `new()` returns an empty list. `with_capacity(capacity)` returns an empty list whose first `capacity` pushes need no growth.
+3. r[std-collections.uniq-list.len] `len()` returns the number of elements, and `is_empty()` is true exactly when that number is zero.
+4. r[std-collections.uniq-list.push] `push(value)` moves `value` after the former last element. `pop()` moves the last element out and returns it in `.Some`, or returns `.None` when the list is empty.
+5. r[std-collections.uniq-list.insert] `insert(index, value)` moves `value` to `index` and moves each element formerly at or after `index` one place toward the end. `index` may equal `len()`; a greater index panics. Panic: `index-out-of-bounds`.
+6. r[std-collections.uniq-list.remove-at] `remove_at(index)` moves the indexed element out, moves each later element one place toward the start, and returns the removed element. An index outside the list panics. Panic: `index-out-of-bounds`.
+7. r[std-collections.uniq-list.swap] `swap(left, right)` exchanges the two elements without copying either one. An index outside the list panics. Panic: `index-out-of-bounds`.
+8. r[std-collections.uniq-list.truncate] `truncate(len)` drops every element at `len` and after. A `len` at least the current length has no effect. `clear()` is `truncate(0)`.
+9. r[std-collections.uniq-list.get] For `T < Copy`, `get(index)` returns `.Some` of a copy of the indexed element, or `.None` outside the list.
+10. r[std-collections.uniq-list.first-last] For `T < Copy`, `first()` and `last()` return `.Some` of a copy of the first or last element, or `.None` when the list is empty.
+11. r[std-collections.uniq-list.movers] A change that shifts elements moves each one through `Ptr[T].read` and `Ptr[T].write`. Growth moves every element into a larger `Buffer[T]`, sets the old buffer's length to zero, and releases it holding no elements. No operation tests whether the buffer is uniquely referenced or makes a copy-on-write clone.
+
+This core surface has no reference accessor, iterator, conversion, or
+literal construction. Those are specified separately when added.
 
 ## List And Map Values
 

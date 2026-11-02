@@ -4,6 +4,7 @@
 # over these. Each declaration is ordinary hd and only its body is the
 # compiler's. A runtime module, so only std may use it
 # (spec/lang/10-modules.md#r-module.rt.std-only).
+use std.core.Copy
 
 @intrinsic("mem_pages")
 ## The heap's size in pages of 65,536 bytes.
@@ -79,19 +80,19 @@ pub fn fill(to: usize, byte: u8, count: usize) -> void:
 
 ## The address of a value of type `T` in the heap. A copy of a `Ptr[T]` copies the address, never the value.
 ## See [module.rt.ptr.type](../../../spec/lang/10-modules.md#r-module.rt.ptr.type).
-pub struct Ptr[T]:
+pub struct Ptr[T < ?Copy]:
     ## The address of the value's first byte.
     pub address: usize
 
-impl[T] Ptr[T]:
+impl[T < ?Copy] Ptr[T]:
     ## Moves the value at the address out and gives it; the heap there then holds none.
     ## See [module.rt.ptr.read](../../../spec/lang/10-modules.md#r-module.rt.ptr.read).
     @intrinsic("ptr_read")
     pub fn read(self) -> T:
         panic("intrinsic")
 
-    ## Writes a copy of `value` at the address, over whatever its bytes held.
-    ## See [module.rt.ptr.write](../../../spec/lang/10-modules.md#r-module.rt.ptr.write).
+    ## Moves `value` to the address, over whatever its bytes held.
+    ## See [module.rt.ptr.write-value](../../../spec/lang/10-modules.md#r-module.rt.ptr.write-value).
     @intrinsic("ptr_write")
     pub fn write(self, value: T) -> void:
         panic("intrinsic")
@@ -105,15 +106,15 @@ impl[T] Ptr[T]:
 ## The number of heap bytes one value of `T` takes.
 ## See [module.rt.ptr.size-of](../../../spec/lang/10-modules.md#r-module.rt.ptr.size-of).
 @intrinsic("ptr_size_of")
-pub fn size_of[T]() -> usize:
+pub fn size_of[T < ?Copy]() -> usize:
     panic("intrinsic")
 
 ## A counted heap object: a capacity word, a length word, an owner word and a padding word, then room for `capacity()` values of `T`, of which it holds the first `len()`. A copy of a `Buffer[T]` counts the same object once more; the release of its last count drops the values it holds and frees it.
 ## See [module.rt.buffer.type](../../../spec/lang/10-modules.md#r-module.rt.buffer.type).
-pub struct Buffer[T]:
+pub struct Buffer[T < ?Copy]:
     address: usize
 
-impl[T] Buffer[T]:
+impl[T < ?Copy] Buffer[T]:
     ## A new buffer with room for `capacity` values of `T`, holding none.
     ## See [module.rt.buffer.new](../../../spec/lang/10-modules.md#r-module.rt.buffer.new).
     @intrinsic("mem_buffer")
