@@ -45,6 +45,74 @@ impl[T < ?Copy] UniqList[T]:
     pub fn is_empty(&self) -> bool:
         self.len() == 0
 
+    ## Returns a shared reference to the element at `index`, or `.None` outside the list.
+    ## See [std-collections.uniq-list.get-ref](../../spec/std/collections.md#r-std-collections.uniq-list.get-ref).
+    pub fn get_ref['a](&'a self, index: usize) -> (&'a T)?:
+        if index >= self.len(): .None else: .Some(self.buffer.item_ref(index))
+
+    ## Returns a mutable reference to the element at `index`, or `.None` outside the list.
+    ## See [std-collections.uniq-list.get-mut](../../spec/std/collections.md#r-std-collections.uniq-list.get-mut).
+    pub fn get_mut['a](&'a mut self, index: usize) -> (&'a mut T)?:
+        if index >= self.len(): .None else: .Some(self.buffer.item_mut(index))
+
+    ## Returns a shared reference to the first element, or `.None` for an empty list.
+    ## See [std-collections.uniq-list.get-ref](../../spec/std/collections.md#r-std-collections.uniq-list.get-ref).
+    pub fn first_ref['a](&'a self) -> (&'a T)?:
+        self.get_ref(0)
+
+    ## Returns a mutable reference to the first element, or `.None` for an empty list.
+    ## See [std-collections.uniq-list.get-mut](../../spec/std/collections.md#r-std-collections.uniq-list.get-mut).
+    pub fn first_mut['a](&'a mut self) -> (&'a mut T)?:
+        self.get_mut(0)
+
+    ## Returns a shared reference to the last element, or `.None` for an empty list.
+    ## See [std-collections.uniq-list.get-ref](../../spec/std/collections.md#r-std-collections.uniq-list.get-ref).
+    pub fn last_ref['a](&'a self) -> (&'a T)?:
+        size := self.len()
+        if size == 0: .None else: self.get_ref(size - 1)
+
+    ## Returns a mutable reference to the last element, or `.None` for an empty list.
+    ## See [std-collections.uniq-list.get-mut](../../spec/std/collections.md#r-std-collections.uniq-list.get-mut).
+    pub fn last_mut['a](&'a mut self) -> (&'a mut T)?:
+        size := self.len()
+        if size == 0: .None else: self.get_mut(size - 1)
+
+    ## Returns a cursor that borrows and yields the list's elements in order.
+    ## See [std-collections.uniq-list.iter](../../spec/std/collections.md#r-std-collections.uniq-list.iter).
+    pub fn iter['a](&'a self) -> UniqListIter[T, 'a]:
+        UniqListIter { items: self, at: 0 }
+
+    ## Returns a reference to the first element for which `test` is true, or `.None`.
+    ## See [std-collections.uniq-list.find-ref](../../spec/std/collections.md#r-std-collections.uniq-list.find-ref).
+    pub fn find_ref['a](&'a self, test: fn(&T) -> bool) -> (&'a T)?:
+        let index: usize = 0
+        while index < self.len():
+            item := self.buffer.item_ref(index)
+            if test(item):
+                return .Some(item)
+            index += 1
+        .None
+
+    ## True when `test` is true for at least one element, stopping at the first.
+    ## See [std-collections.uniq-list.any-all](../../spec/std/collections.md#r-std-collections.uniq-list.any-all).
+    pub fn any(&self, test: fn(&T) -> bool) -> bool:
+        let index: usize = 0
+        while index < self.len():
+            if test(self.buffer.item_ref(index)):
+                return true
+            index += 1
+        false
+
+    ## True when `test` is true for every element, stopping at the first false.
+    ## See [std-collections.uniq-list.any-all](../../spec/std/collections.md#r-std-collections.uniq-list.any-all).
+    pub fn all(&self, test: fn(&T) -> bool) -> bool:
+        let index: usize = 0
+        while index < self.len():
+            if !test(self.buffer.item_ref(index)):
+                return false
+            index += 1
+        true
+
     # Moves every element into a larger buffer. The old buffer holds none
     # when its last count is released.
     fn reserve_for(&mut self, minimum: usize) -> void:
@@ -149,13 +217,61 @@ impl[T < ?Copy] UniqList[T]:
     pub fn clear(&mut self) -> void:
         self.truncate(0)
 
+    ## Keeps the elements for which `keep` is true, in order, and drops the rest.
+    ## See [std-collections.uniq-list.retain](../../spec/std/collections.md#r-std-collections.uniq-list.retain).
+    pub fn retain(&mut self, keep: fn(&T) -> bool) -> void:
+        size := self.len()
+        let kept: usize = 0
+        let index: usize = 0
+        while index < size:
+            if keep(self.buffer.item_ref(index)):
+                if kept != index:
+                    value := self.buffer.at(index).read()
+                    self.buffer.at(kept).write(value)
+                kept += 1
+            else:
+                _ := self.buffer.at(index).read()
+            index += 1
+        self.buffer.set_len(kept)
+
+    ## Stably sorts the elements in ascending order by `compare`, in place.
+    ## See [std-collections.uniq-list.sort](../../spec/std/collections.md#r-std-collections.uniq-list.sort).
+    pub fn sort_by(&mut self, compare: fn(&T, &T) -> Ordering) -> void:
+        let index: usize = 1
+        while index < self.len():
+            let hole = index
+            while hole > 0:
+                order := compare(self.buffer.item_ref(hole), self.buffer.item_ref(hole - 1))
+                match order:
+                    .Less => self.swap(hole, hole - 1)
+                    _ => break
+                hole -= 1
+            index += 1
+
+    ## Stably sorts the elements by `key(element)`, calling `key` once per element.
+    ## See [std-collections.uniq-list.sort](../../spec/std/collections.md#r-std-collections.uniq-list.sort).
+    pub fn sort_by_key[K < Ord](&mut self, key: fn(&T) -> K) -> void:
+        let mut keys: List[K] = []
+        let index: usize = 0
+        while index < self.len():
+            keys.push(key(self.buffer.item_ref(index)))
+            index += 1
+        index = 1
+        while index < self.len():
+            let hole = index
+            while hole > 0:
+                match keys[hole].cmp(&keys[hole - 1]):
+                    .Less =>
+                        self.swap(hole, hole - 1)
+                        keys.swap(hole, hole - 1)
+                    _ => break
+                hole -= 1
+            index += 1
+
 impl[T < Copy] UniqList[T]:
-    # Copies one element out through the mover and writes it straight back.
+    # Copies one element through its shared reference.
     fn copied_at(&self, index: usize) -> T:
-        place := self.buffer.at(index)
-        value := place.read()
-        place.write(value)
-        value
+        *self.buffer.item_ref(index)
 
     ## Returns `.Some` of a copy of the element at `index`, or `.None` outside the list.
     ## See [std-collections.uniq-list.get](../../spec/std/collections.md#r-std-collections.uniq-list.get).
@@ -343,6 +459,35 @@ impl[K < Eq & Hash, V < Copy] UniqMap[K, V]:
                     if equal:
                         return .Some(copied)
             index = (index + 1) % capacity
+
+impl[T < Copy] Index[usize] for UniqList[T]:
+    type Out = T
+    fn index(&self, key: usize) -> T:
+        if key >= self.len():
+            panic_with(
+                "index-out-of-bounds",
+                "uniq list index ${key} out of bounds for length ${self.len()}",
+            )
+        self.copied_at(key)
+
+impl[T < ?Copy & Ord] UniqList[T]:
+    ## Stably sorts the elements in ascending order by `Ord`, in place.
+    ## See [std-collections.uniq-list.sort](../../spec/std/collections.md#r-std-collections.uniq-list.sort).
+    pub fn sort(&mut self) -> void:
+        self.sort_by(fn(left: &T, right: &T) -> Ordering: left.cmp(right))
+
+## A cursor that borrows a `UniqList` and yields its elements by reference.
+## See [std-collections.uniq-list.iter](../../spec/std/collections.md#r-std-collections.uniq-list.iter).
+pub struct UniqListIter[T < ?Copy, 'a]:
+    items: &'a UniqList[T]
+    at: usize
+
+impl[T < ?Copy, 'a] Iterator[&'a T] for UniqListIter[T, 'a]:
+    fn next(&mut self) -> (&'a T)?:
+        item := self.items.get_ref(self.at)
+        if item.is_some():
+            self.at += 1
+        item
 
 impl[T] List[T]:
     # `push` is a language-tier intrinsic method of the checker

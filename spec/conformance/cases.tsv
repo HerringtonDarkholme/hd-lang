@@ -5758,3 +5758,4 @@ runtime/valid/uniq-list-moves-noncopyable-elements.hd	runtime	accept	std/collect
 typing/invalid/uniq-list-use-after-move.hd	type	reject:use-of-moved-value	std/collections.md#r-std-collections.uniq-list.type
 runtime/valid/uniq-map-moves-noncopyable-values.hd	runtime	accept	std/collections.md#r-std-collections.uniq-map.insert
 typing/invalid/uniq-map-insert-moves-value.hd	type	reject:use-of-moved-value	std/collections.md#r-std-collections.uniq-map.insert
+typing/invalid/uniq-list-push-while-item-reference-live.hd	type	reject:conflicting-access	std/collections.md#r-std-collections.uniq-list.get-ref

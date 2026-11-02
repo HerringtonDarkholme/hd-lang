@@ -43,6 +43,7 @@ std.collections.Set	std/collections.md#set
 std.collections.counts	std/collections.md#counts
 std.collections.UniqList	std/collections.md#uniq-list
 std.collections.UniqMap	std/collections.md#uniq-map
+std.collections.UniqListIter	std/collections.md#uniq-list
 std.cmp.Reverse	std/cmp.md#reverse
 std.hash.DefaultHasher	std/hash.md#default-hasher
 std.hash.hash_of	std/hash.md#default-hasher
