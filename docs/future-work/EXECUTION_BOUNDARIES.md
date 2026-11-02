@@ -656,37 +656,127 @@ the same way.
 | ◀5 | `Served[Users]` implements `Users`, through the impl B3 generates | none |
 | ◀6 | nothing new | |
 
-**Building it.** One walk per target (B1):
+**Building it.** One build compiles both targets. Each target walks from
+its own entry (B1):
 
 | | browser target | server target |
 | --- | --- | --- |
-| `users.hd` | `User`, `UserError`, their codecs | the same |
+| `users.hd` | `User`, `UserError`, `Users`, and their codecs (B5) | the same |
 | `server.hd`, `Pool`, the driver | never parsed | compiled |
 | the stub, from ◀4 (B3) | generated | none |
 | the dispatcher, from ◀3 (B2) | none | generated |
 
-The generated code, shown as hd that nobody writes:
+Below, each target's output is shown as the hd it amounts to. Generated
+names such as `wire_encode_User` are illustrations; nobody writes them.
+
+*The browser target, as built.* The types and `browser.hd` are unchanged.
+The build adds codecs, the stub, and the build ID:
 
 ```text
-# hypothetical syntax
-# browser target only, from ◀4 (B3)
+# hypothetical syntax; the browser target as built
+BUILD_ID := "3f9a"                                  # the same in every target of this build
+
+# B5: one codec per Wire type the target sends or receives
+fn wire_encode_User(out: &mut Bytes, user: &User) -> void:
+    wire_encode_i64(out, user.id)
+    wire_encode_string(out, user.name)
+
+fn wire_decode_User(input: &mut Reader) -> Result[User, WireError]:
+    id := wire_decode_i64(input)?
+    name := wire_decode_string(input)?
+    .Ok(User { id, name })
+
+# B3: the stub, because browser_main makes a Served[Users] (◀4)
 impl Users for Served[Users]:
     fn load_user!(&mut self, id: i64) -> Result[User, UserError]:
-        match self.send!(method=0, args=wire_encode((id,))):      # with the build ID and the token
-            .Ok(bytes) => wire_decode::[Result[User, UserError]](bytes)
-            .Err(cross) => .Err(UserError.from(cross))            # compiles because of ◀2
+        let args: mut Bytes = Bytes::new()
+        wire_encode_i64(args, id)
+        # send! writes BUILD_ID, self's token, method 0 and args to self's home, through the Net it holds
+        match self.send!(method=+0, args=args):
+            .Ok(reply) => match wire_decode_Result_User_UserError(Reader::new(reply)):
+                .Ok(result) => result
+                .Err(_) => .Err(UserError.from(CrossError.Unknown))
+            .Err(cross) => .Err(UserError.from(cross))      # compiles because of ◀2
 
-# server target only, from ◀3 (B2)
-fn dispatch!(root: &mut PgUsers, method: u32, args: Bytes) -> Bytes:
-    match method:
-        0 => match wire_decode::[(i64,)](args):                 # untrusted input
-            .Ok((id,)) => wire_encode(root.load_user!(id))
-            .Err(_) => bad_request()
-        _ => bad_request()
+# browser.hd follows, as written; on_open's users.load_user!(id) is a dyn call that lands here
 ```
 
-Method 0 is `load_user` by its place in the trait. Both targets come from
-one build, so they number the methods alike.
+*The server target, as built.* `serve!` becomes a request loop around a
+generated dispatcher:
+
+```text
+# hypothetical syntax; the server target as built
+BUILD_ID := "3f9a"
+
+# B5: the same codecs as the browser's
+
+# B2: the dispatcher, because server_main serves a PgUsers (◀3)
+fn dispatch_PgUsers!(root: &mut PgUsers, method: u32, args: Bytes) -> Result[Bytes, BadRequest]:
+    let input = Reader::new(args)
+    match method:
+        0 =>
+            id := wire_decode_i64(input)?            # untrusted input: a bad value is BadRequest
+            .Ok(wire_encode_Result_User_UserError(root.load_user!(id)))
+        _ => .Err(BadRequest.Method(method))
+
+# server.hd as written, except the serve! line (◀3), which becomes:
+pub fn server_main!() -> Result[void, ServeError] $ Db + Serve:
+    pool := Pool { db: $.use(Db) }
+    root := box(PgUsers { pool })
+    serve_requests!(fn!(request: Request) -> Response:       # one task per request; tasks interleave
+        if request.build != BUILD_ID:
+            Response.refused(CrossError.OtherBuild)
+        else:
+            match dispatch_PgUsers!(root, request.method, request.args):
+                .Ok(bytes) => Response.ok(bytes)
+                .Err(bad) => Response.bad(bad)
+    )
+```
+
+The browser's output holds no `PgUsers`, no SQL and no driver, and the
+server's holds no stub. Method 0 is `load_user` by its place in the
+trait; both targets come from one build, so they number it alike.
+
+*A closure to a domain of the same target (B4).* Program 1, the
+thumbnail on a worker, as written:
+
+```text
+# hypothetical syntax; as written
+pub fn make_thumb!(photo: Image) -> Result[Image, CrossError] $ Workers:
+    let mut workers = $.use(Workers)
+    let (back, small) = workers.run!(fn() -> (Image, Image): thumbnail(photo, 256))?
+    keep(back)
+    .Ok(small)
+```
+
+A worker runs the same Wasm module as the page. So the build lifts the
+closure to a top-level function, gives it an index, and sends the index
+and the encoded captures:
+
+```text
+# hypothetical syntax; as built, in the one module the page and every worker load
+fn closure_0(photo: Image) -> (Image, Image): thumbnail(photo, 256)    # captures become parameters
+
+pub fn make_thumb!(photo: Image) -> Result[Image, CrossError] $ Workers:
+    let mut workers = $.use(Workers)
+    let args: mut Bytes = Bytes::new()
+    wire_encode_Image(args, photo)                  # photo moves: its pixels are copied once, in bulk
+    reply := workers.call!(closure=+0, args=args)?  # with BUILD_ID
+    let (back, small) = wire_decode_Image_Image(Reader::new(reply)).unwrap()
+    keep(back)
+    .Ok(small)
+
+# the worker's side: every instance has the same table
+fn run_closure(index: u32, args: Bytes) -> Bytes:
+    match index:
+        0 => wire_encode_Image_Image(closure_0(wire_decode_Image(Reader::new(args)).unwrap()))
+        _ => panic("no closure $index in this build")
+```
+
+Here decoding is trusted: the bytes come from the same build, checked by
+the build ID, so a failure is a bug and panics. A `Jobs` closure is built
+the same way, and the store keeps the index, the captures and the build
+ID.
 
 **Running it.** One call:
 
@@ -963,7 +1053,7 @@ maps onto this design:
 
 ## Parse Log
 
-All 23 `text` blocks were parsed on 2026-11-02 with
+All 26 `text` blocks were parsed on 2026-11-02 with
 `scripts/hd-conformance.sh parse`, which checks syntax only; nothing was
 type-checked. Std names (`Workers`, `Background`, `Jobs`, `Gpus`,
 `Served`, `serve!`, `remote::[T]`, `scope`) are sketches.
@@ -989,7 +1079,10 @@ type-checked. Std names (`Workers`, `Background`, `Jobs`, `Gpus`,
 | 17 | 4. The Eight Programs In The Design | parses; `# hypothetical syntax` |
 | 18 | 5. The Process, End To End | parses; `# hypothetical syntax` |
 | 19 | 5. The Process, End To End | parses; `# hypothetical syntax` |
-| 20 | Appendix A. Stress Test | parses; `# hypothetical syntax` |
-| 21 | Appendix A. Stress Test | parses; `# hypothetical syntax` |
-| 22 | Appendix A. Stress Test | parses; `# hypothetical syntax` |
+| 20 | 5. The Process, End To End | parses; `# hypothetical syntax` |
+| 21 | 5. The Process, End To End | parses; `# hypothetical syntax` |
+| 22 | 5. The Process, End To End | parses; `# hypothetical syntax` |
 | 23 | Appendix A. Stress Test | parses; `# hypothetical syntax` |
+| 24 | Appendix A. Stress Test | parses; `# hypothetical syntax` |
+| 25 | Appendix A. Stress Test | parses; `# hypothetical syntax` |
+| 26 | Appendix A. Stress Test | parses; `# hypothetical syntax` |
