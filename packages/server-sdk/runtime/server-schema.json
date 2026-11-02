@@ -2,11 +2,11 @@
   "format": 1,
   "packageHostABI": 1,
   "provenance": {
-    "sourceBaseRevision": "972944ad9e6b5f9b7d3dd7f7a64ce2403ebdad3d",
-    "compilerBaseRevision": "972944ad9e6b5f9b7d3dd7f7a64ce2403ebdad3d",
-    "compilerSha256": "7d88d418da32178be2ee02932a8bb217a8644c5a8150779734a68d09d93c7a6d",
-    "referenceWasmSha256": "a14663389b00132f6cdd869583d90851cd0726b2c8c700c066d0f0d3ab30847f",
-    "referenceContractSha256": "23cfe52849ab6efa633dc80af294a50c6a7e2a368c8516e1c820dc7b6987613c",
+    "sourceBaseRevision": "86ac1184269b773f3b7da9e8eaf0af1b63f2996c",
+    "compilerBaseRevision": "86ac1184269b773f3b7da9e8eaf0af1b63f2996c",
+    "compilerSha256": "b8db9e756f1f034d3d56e9cc473d8f02dc13a422e7cd729e0bfd7766eae00e9f",
+    "referenceWasmSha256": "0fac6ea9f0e646e2f1215c2c0b7e14600542187f31caf6eb7c63aa12c8b9a666",
+    "referenceContractSha256": "968dd1746298a24f9658142588a668e42f0e4000c072b84ab3714bca92548264",
     "probeSha256": "d1ea2beec46879d30212c7a429a76b6478a071d37c1d2a5e95d241bcbf0c60de",
     "sourceHashes": {
       "packages/server-sdk/src/server.hd": "0994272ae05a870220076afc844edbb48c085ea07095f00438d1e2fb83bcfee6",
@@ -1380,5 +1380,5 @@
       }
     ]
   },
-  "fingerprint": "539b5bf2c00eb965abb59be4440878a8b0d40407b127ffe8374e94642468fcde"
+  "fingerprint": "e8de464955a39bc7d0ea96e856fa463725568950c7e96abf01bc7bca5ec8a1dd"
 }
