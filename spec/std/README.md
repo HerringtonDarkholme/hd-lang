@@ -66,7 +66,6 @@ a `char`, or a list.
 | `bytes_len` | `(s: string) -> usize` | reads the byte length of a string's representation |
 | `bytes_at` | `(s: string, i: usize) -> u8` | reads one byte of a string's representation |
 | `bytes_slice` | `(s: string, start: usize, end: usize) -> string` | shares the bytes in constant time, as [`module.string.slice.shared`](../lang/10-modules.md#r-module.string.slice.shared) requires |
-| `bytes_concat` | `(a: string, b: string) -> string` | allocates a string's representation; hd has no byte buffer |
 | `concat_all` | `(parts: List[string]) -> string` | allocates one string's representation for every part, sized first, so `join` copies each byte once |
 | `string_from_bytes` | `(bytes: List[u8]) -> string` | builds a string from bytes that the caller has checked are UTF-8, taking over the list's buffer with no copy when nothing else holds it |
 | `bytes_append` | `(bytes: &mut List[u8], text: string) -> void` | appends the bytes of `text` to the byte list `bytes` refers to with one capacity check and one copy, which an hd loop over `bytes_at` and `push` cannot do; `StringBuilder.push` is this call |

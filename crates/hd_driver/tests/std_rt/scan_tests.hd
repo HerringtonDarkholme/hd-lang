@@ -12,6 +12,7 @@ use std.rt.bytes.{
     bytes_len,
     bytes_at,
     bytes_slice,
+    bytes_concat,
     string_from_bytes,
     bytes_index_json,
     bytes_index,
@@ -575,6 +576,12 @@ fn search_case(c: &mut Choices) -> Search:
 
 tests:
     use std.testing.{assert_equal, it, it_prop_with}
+
+    it("bytes_concat copies both inputs into one string"):
+        assert_equal(bytes_concat("", ""), "", reason="two empty strings")
+        assert_equal(bytes_concat("left", ""), "left", reason="empty right string")
+        assert_equal(bytes_concat("", "right"), "right", reason="empty left string")
+        assert_equal(bytes_concat("hé", "世界"), "hé世界", reason="all UTF-8 bytes")
 
     it_prop_with(
         "bytes_index_json gives what its reference body gives",
