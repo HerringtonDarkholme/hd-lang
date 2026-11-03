@@ -358,6 +358,9 @@ impl Em<'_, '_, '_> {
         let Some(mut w) = self.counted(t) else {
             return Ok(());
         };
+        if retain {
+            crate::rt::trap_buffer_retain(&mut self.f, &w);
+        }
         let colls = if retain { self.copied(t) } else { Vec::new() };
         for &c in &colls {
             self.f.get(ls[c as usize]);
@@ -372,7 +375,7 @@ impl Em<'_, '_, '_> {
         }
         if let Some(k) = w.single() {
             self.f.get(ls[k as usize]);
-            if matches!(w, Walk::Known(_)) {
+            if w.known() {
                 self.f.helper(if retain {
                     Helper::RetainKnown
                 } else {

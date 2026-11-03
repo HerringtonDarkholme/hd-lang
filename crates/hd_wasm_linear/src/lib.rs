@@ -641,6 +641,20 @@ fn link(
     session: Option<&mut Session>,
     previous: Option<&Session>,
 ) -> StageResult<MappedModule> {
+    // A checked build marks buffer leaves in its walks, so a retain of a
+    // copied buffer traps (`layout::mark_buffers`, §23.24).
+    let checked = input.runtime.and_then(|r| r.checked).is_some();
+    layout::mark_buffers(checked, || {
+        link_walked(input, track_origins, session, previous)
+    })
+}
+
+fn link_walked(
+    input: &Input<'_>,
+    track_origins: bool,
+    session: Option<&mut Session>,
+    previous: Option<&Session>,
+) -> StageResult<MappedModule> {
     let prepared = previous.map(|previous| {
         let mut prepared = input.clone();
         previous.prepare(&mut prepared.entry);
