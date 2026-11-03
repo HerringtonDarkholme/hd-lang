@@ -1,0 +1,6 @@
+fn show[T < Display](value: T) -> void:
+    pass
+
+fn run() -> void:
+    xs := [1, 2]
+    show(xs)
