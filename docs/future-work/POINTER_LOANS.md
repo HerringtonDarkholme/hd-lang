@@ -656,7 +656,7 @@ The rules under replacement are
 `spec/tools/generate-pointer-loan-matrix.ts` writes 395 runtime cases:
 reference kind (`&`, `&mut`) × path × lifetime × alias action, and 17
 adversarial cases. Each case reads the reference after the action and
-checks that it holds a value some write stored. Results at 6e7976b7d, dev
+checks that it holds a value some write stored. Results at 6e7976b7d (the same at 36071e13d), dev
 build (`hd FILE`), with the checked build's count audit for freed blocks:
 
 | Path | Cases | Pass | Runs, should panic | `collection-pinned` | Unsound | False panic |
@@ -739,8 +739,9 @@ The fixtures `element-reference-copy-independent.hd` and
   the shared count. The release glue's slot narrows to bits 0 to 15; the
   collector's colors and flags keep bits 22 to 31. Every loan update is a
   read-modify-write that keeps the other bits, as a count update is. A
-  static object has the same header; a static cell gains a descriptor
-  word.
+  static object has the same header. A static cell (§23.20) has only a
+  count word, so one that a closure shares gains a descriptor word: 4
+  bytes of static data, no heap object.
 - **Spill.** A shared begin at count 31 calls `rt:loan_spill`, which adds
   to a side table keyed by address and leaves the count at 31, so the
   inline check still sees a shared loan; the matching end consults the
