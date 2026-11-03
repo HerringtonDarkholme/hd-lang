@@ -451,7 +451,7 @@ impl Em<'_, '_, '_> {
     /// cells and shared captures are not candidates.
     pub(super) fn cell_take(&mut self, i: u32, l: usize) -> StageResult<()> {
         let slot = self.slots.contains_key(&l);
-        let (m, _) = self.cell_mem(l)?;
+        let (m, walk) = self.cell_mem(l)?;
         let c = self.cell_of(l)?;
         let held: Vec<u32> = m.leaves.iter().map(|leaf| self.f.local(leaf.val)).collect();
         for (leaf, x) in m.leaves.iter().zip(&held) {
@@ -459,13 +459,17 @@ impl Em<'_, '_, '_> {
             self.f.op(leaf.load(0));
             self.f.set(*x);
         }
-        let zero = self.zero_src(l)?;
-        let all = Part {
-            first: 0,
-            count: m.leaves.len(),
-            offset: 0,
-        };
-        self.store_part(c, &m, all, &zero)?;
+        // Only a counted payload needs its old copy cleared: an uncounted
+        // one is never released from the cell.
+        if walk.is_some() {
+            let zero = self.zero_src(l)?;
+            let all = Part {
+                first: 0,
+                count: m.leaves.len(),
+                offset: 0,
+            };
+            self.store_part(c, &m, all, &zero)?;
+        }
         if !slot {
             self.f.get(c);
             self.release_cell();
