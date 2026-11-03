@@ -1469,6 +1469,7 @@ refused with `OtherBuild`.
 | domain instances in types, `Texture[Gpu0]` | too rigid: a program holds many GPUs, workers and caches, known only at run time |
 | six domain kinds, a kind-by-mode table, lifecycle rules L1 to L4 | they follow from the bounds, moves, scopes and served objects |
 | content hashes, so another build can run a call | out of scope; `OtherBuild` names the refusal |
+| a closure the server sends that runs in the browser, as Qwik's resumable closures | a caller would run code its peer picked; a server action runs on the server, and the browser holds only a reference to it (`action`) |
 | a texture as a `*mut dyn Texture` remote reference | sending one over HTTP type-checks and fails only at its first call; the `GpuData` marker rejects it when it compiles |
 | `E < From[CrossError]`, with a `Cross` variant in each error enum | `?` merges another call's failure into this call's, so a caller cannot tell which call failed |
 | `Result[Result[V, E], CrossError]` for remote calls | a stub could not implement its trait, so `$.with(Users=stub)` and test fakes would not work |
