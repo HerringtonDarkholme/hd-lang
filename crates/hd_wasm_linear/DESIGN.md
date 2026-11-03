@@ -253,16 +253,19 @@ the slot's start:
 | Offset | Size | Field |
 | --- | --- | --- |
 | 0 | 4 | the count: 32-bit, non-atomic, with no overflow check on wasm32 (REFCOUNT_RUNTIME.md §4.4) |
-| 4 | 4 | the descriptor word: bits 0 to 21 the release glue's function-table slot plus one (0 for none), bits 22 and 23 the collector's color (§23.28) and bit 24 its frame flag (REFCOUNT_RUNTIME.md §7.2), bits 25 to 29 the allocator class; bit 30 set while the object is a cycle candidate, bit 31 when its type is cycle-capable (§23.28) |
+| 4 | 4 | the descriptor word: bits 0 to 15 the release glue's function-table slot plus one (0 for none; in a weak-linked module bits 0 to 14, and bit 15 set while a weak side entry names the object), bits 16 to 21 the borrow state (bits 16 to 20 the shared loan count, bit 21 an exclusive loan; `docs/future-work/POINTER_LOANS.md`), bits 22 and 23 the collector's color (§23.28) and bit 24 its frame flag (REFCOUNT_RUNTIME.md §7.2), bits 25 to 29 the allocator class; bit 30 set while the object is a cycle candidate, bit 31 when its type is cycle-capable (§23.28) |
 | 8 | the payload's size | the payload: the fields, or a buffer's header and elements |
 
 - A reference to a whole object is the payload's address, slot + 8, so
   its fields read at constant offsets with no lookup; the header is at
   `address - 8`.
 - **The descriptor word** identifies shared release glue, not a nominal
-  type record. Its low 22 bits are the glue's table slot plus one; three
-  bits are the collector's state, five carry an allocator class, and the
-  top two are collector flags. Every block is header plus payload, so a
+  type record. Its low 16 bits are the glue's table slot plus one, so a
+  module's function table has fewer than 65,535 slots (32,767 when weak
+  references are linked); six bits are the borrow state, three the
+  collector's state, five carry an allocator class, and the top two are
+  collector flags. Every update of one field is a read-modify-write that
+  keeps the others. Every block is header plus payload, so a
   cycle-capable type's object takes the same class as any other.
   The allocator supplies the block size. An interior reference finds its
   block through the page table, then runs that block's glue. Types with
