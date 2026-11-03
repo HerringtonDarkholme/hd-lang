@@ -547,6 +547,18 @@ fn mem_one(
     })
 }
 
+/// How one counted address of a [`Walk`] is counted: the leaf that holds it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Addr {
+    /// [`Walk::Ref`]: counting finds the block through the page table.
+    Ref,
+    /// [`Walk::Known`]: a known payload start.
+    Known,
+    /// [`Walk::Buffer`]: a buffer's payload start, which only its
+    /// holder's glue releases (`rt:release_buffer`).
+    Buffer,
+}
+
 /// Where a value's counted references are among its values (§23.4): what
 /// counting walks to retain or release the value.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -620,6 +632,17 @@ impl Walk {
     pub fn single(&self) -> Option<u32> {
         match self {
             Walk::Ref(k) | Walk::Known(k) | Walk::Buffer(k) => Some(*k),
+            Walk::Seq(_) | Walk::Switch(..) | Walk::Nullable(_) => None,
+        }
+    }
+
+    /// How the walk's one counted address is counted, when it is one.
+    #[must_use]
+    pub fn addr(&self) -> Option<Addr> {
+        match self {
+            Walk::Ref(_) => Some(Addr::Ref),
+            Walk::Known(_) => Some(Addr::Known),
+            Walk::Buffer(_) => Some(Addr::Buffer),
             Walk::Seq(_) | Walk::Switch(..) | Walk::Nullable(_) => None,
         }
     }

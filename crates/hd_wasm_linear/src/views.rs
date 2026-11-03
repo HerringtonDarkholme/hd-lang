@@ -197,6 +197,7 @@ pub(crate) fn count_action(
             Helper::Release { .. }
             | Helper::ReleaseRef
             | Helper::ReleaseKnown
+            | Helper::ReleaseBuffer
             | Helper::DropFields { .. }
             | Helper::CycleRelease,
         ) => Some(Release),

@@ -411,14 +411,14 @@ impl Em<'_, '_, '_> {
                 None => return Ok(()),
             }
         }
-        if let Some(k) = w.single() {
+        if let (Some(k), Some(addr)) = (w.single(), w.addr()) {
             self.f.get(ls[k as usize]);
             if w.known() {
-                self.f.helper(if retain {
-                    Helper::RetainKnown
+                if retain {
+                    self.f.helper(Helper::RetainKnown);
                 } else {
-                    Helper::ReleaseKnown
-                });
+                    crate::rt::release_call(&mut self.f, addr);
+                }
             } else {
                 self.ref_count(retain);
             }
