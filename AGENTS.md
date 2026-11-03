@@ -47,12 +47,13 @@ one function.
    cause touches, never on the one that exposed it.
 4. Rewriting one std function is a case fix. Do it only when the
    measurement shows the cause is local to that function.
-5. Do not add a compiler intrinsic to fix a case. Intrinsics are being
-   removed (#1206). First ask which general rule would make the plain hd
-   version fast, usually an optimizer rule (an effect-free loop is
-   deleted; a small known closure is inlined). A new intrinsic needs all
-   three: no hd or optimizer route exists, it serves a category, and the
-   owner approves it.
+5. Do not add a compiler intrinsic blindly to fix one case. Look for a
+   way that solves more cases, in this order: write it in hd; make the
+   optimizer handle the general pattern (an effect-free loop is deleted;
+   a small known closure is inlined); fall back to an intrinsic only when
+   neither can do it, and say why in the proposal. Intrinsics are being
+   reduced (#1206), so each new one needs that reason and the owner's
+   approval.
 6. Check a design against these rules and the Design Cost Order before
    proposing it.
 
