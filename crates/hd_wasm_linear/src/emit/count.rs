@@ -788,6 +788,16 @@ impl Em<'_, '_, '_> {
     /// (`hd_tir::own::consumers`).
     pub(super) fn own_consumers(&mut self) {
         hd_tir::own::consumers(self.b, &self.topo, self.input.own_cx, &mut self.consumer);
+        self.used.clear();
+        self.used.resize(self.b.len(), false);
+        let mut ops = std::mem::take(&mut self.own_ops);
+        for i in 0..self.b.len() {
+            hd_tir::own::operands(self.b, i, &mut ops);
+            for op in &ops {
+                self.used[op.value as usize] = true;
+            }
+        }
+        self.own_ops = ops;
     }
 
     /// In an owned body, at an instance that receives some of the

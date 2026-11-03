@@ -276,6 +276,7 @@ fn of_at(
                         size: mem.size,
                         leaves: mem.leaves,
                         walk: input.runtime.and_then(|_| layout::walk(pool, env, e)),
+                        drops: Vec::new(),
                         colls: layout::coll_leaves(pool, env, e),
                         cyclic: input.runtime.is_some() && crate::cycle::object(pool, env, t),
                     };
@@ -892,6 +893,7 @@ fn args_area(input: &Input<'_>, types: &[Ty]) -> StageResult<Elem> {
         } else {
             None
         },
+        drops: Vec::new(),
         colls: if counts { colls } else { Vec::new() },
         // The leaf frame that keeps a host call's arguments takes part as
         // they say: only an open value holds the frame.
@@ -2036,6 +2038,7 @@ fn byte_elem() -> Elem {
             signed: false,
         }],
         walk: None,
+        drops: Vec::new(),
         colls: Vec::new(),
         cyclic: false,
     }

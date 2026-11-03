@@ -3268,6 +3268,7 @@ mod tests {
                     leaves: vec![],
                     walk: None,
                     colls: vec![],
+                    drops: vec![],
                     cyclic: false,
                 },
                 res: super::HostRes::Void,
@@ -3312,6 +3313,7 @@ mod tests {
             leaves: vec![],
             walk: None,
             colls: vec![],
+            drops: vec![],
             cyclic: false,
         };
         for blocking in [false, true] {
@@ -3465,6 +3467,7 @@ assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
                 .collect(),
             walk: Some(Walk::Ref(0)),
             colls: vec![],
+            drops: vec![],
             cyclic: false,
         };
         for blocking in [false, true] {
@@ -3560,6 +3563,7 @@ assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
             leaves: vec![word],
             walk: None,
             colls: vec![],
+            drops: vec![],
             cyclic: false,
         };
         for (name, part) in [("all", 0), ("poll", 1), ("cancel", 2)] {
