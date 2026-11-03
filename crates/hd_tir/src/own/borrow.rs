@@ -16,7 +16,9 @@
 //!    or addresses its storage (a `Ref` rooted at it). A copy of it for a
 //!    consumer is a read rooted at it, which lends. Two consumers are let
 //!    through: a `Store` of the read into all of a **binding local**
-//!    (below), and a coercion that keeps its values
+//!    (below), directly or through one coercion that keeps its values (an
+//!    inlined `&self` copy binds a weakened `&mut` receiver), and a
+//!    coercion that keeps its values
 //!    ([`Body::same_value_coercion`]) whose own uses lend, which is then a
 //!    borrow too, its drops gone, the span running to its last drop.
 //! 2. **Nothing writes what it reads.** The place is resolved through the
@@ -34,8 +36,11 @@
 //!    write of the same root, `IsUnique` included, and, for a place behind
 //!    a reference or in a buffer, any write a reference can reach.
 //! 3. **Nothing reaches it behind the body's back.** A chain ending at a
-//!    local needs the local unaddressed and unshared with a closure; then
-//!    only the body's own instructions change it, calls included, and so
+//!    local needs the local unshared with a closure, and each reference to
+//!    it a local one that one call takes and that call's result does not
+//!    hold, so it dies when the call returns (`xs.push(x)`); then only the
+//!    body's own instructions change it, calls included (a call that takes
+//!    a `&mut` of it writes it there, as its `Ref` does), and so
 //!    the buffer of a list it holds, when every value stored into it is a
 //!    fresh one (a call's result, a copy, a literal) and so
 //!    shares its header with no other place. Any other place (behind a
@@ -91,10 +96,10 @@
 //!
 //! A **lent reference** (`ref_word::LENT`) is a `Ref` of a field of what
 //! such a parameter refers to (`[*$p .f]`, or through a borrowed read of
-//! all of `$p`) whose every use lends: it points into the block the
-//! caller's reference keeps alive for the call, so it takes no count; its
-//! `Drop`s stay for an instance whose reference view makes the referent
-//! fresh.
+//! all of `$p` or a binding local that holds one) whose every use lends:
+//! it points into the block the caller's reference keeps alive for the
+//! call, so it takes no count; its `Drop`s stay for an instance whose
+//! reference view makes the referent fresh.
 //!
 //! A read whose value an instance may have to make (one through a
 //! dereference, which a view's getter makes fresh; one that names a type
@@ -186,9 +191,11 @@ struct Chain {
 /// The borrow pass's dense tables, reused across bodies.
 #[derive(Default)]
 pub(crate) struct Tables {
-    /// Per value: its uses, whether a use keeps it (rule 1), the `Store`
-    /// that takes it, its last `Drop` of all of it.
+    /// Per value: its uses, the last instruction that uses it, whether a
+    /// use keeps it (rule 1), the `Store` that takes it, its last `Drop`
+    /// of all of it.
     uses: Vec<u32>,
+    user: Vec<u32>,
     keeps: Vec<bool>,
     stored: Vec<u32>,
     last_drop: Vec<u32>,
@@ -202,6 +209,7 @@ pub(crate) struct Tables {
     /// it left the exit set.
     stores: Vec<u32>,
     reached: Vec<bool>,
+    escapes: Vec<bool>,
     changed: Vec<bool>,
     captured: Vec<bool>,
     fresh: Vec<bool>,
@@ -260,12 +268,14 @@ pub(crate) struct Tables {
 impl Tables {
     fn reset(&mut self, n: usize, locals: usize) {
         fill(&mut self.uses, n, 0);
+        fill(&mut self.user, n, NONE);
         fill(&mut self.keeps, n, false);
         fill(&mut self.stored, n, NONE);
         fill(&mut self.last_drop, n, NONE);
         fill(&mut self.alias, n, NONE);
         fill(&mut self.stores, locals, 0);
         fill(&mut self.reached, locals, false);
+        fill(&mut self.escapes, locals, false);
         fill(&mut self.changed, locals, false);
         fill(&mut self.captured, locals, false);
         fill(&mut self.fresh, locals, true);
@@ -352,8 +362,11 @@ impl Tables {
                     }
                     let li = l as usize;
                     let param = b.local_flags[li] & local_flags::PARAM != 0;
-                    chain.ok = !self.reached[li];
-                    chain.heap = derefs > 0 || (elem && (param || !self.fresh[li]));
+                    chain.ok = !self.escapes[li];
+                    // A list a reference reaches may hold a value a
+                    // callee stored there, which shares its buffer.
+                    chain.heap =
+                        derefs > 0 || (elem && (param || !self.fresh[li] || self.reached[li]));
                     // A parameter never stored, or another local, whose
                     // stores and drops rule 2 keeps out of the span.
                     chain.param =
@@ -454,6 +467,42 @@ impl Tables {
     }
 }
 
+/// Whether `Ref` `i` of a part of a local is a local reference
+/// (`ref_word::LOCAL`) that one call takes, through coercions that keep
+/// its value, and that the call's result does not hold: it is dead once
+/// the call returns, and every other use is a `Drop`. Only that call and
+/// the `Ref` reach the local through it, and [`index_writes`] records a
+/// mutable one as a write at both.
+fn lends_once(b: &Body, cx: &dyn OwnCx, t: &Tables, i: usize) -> bool {
+    if b.data[i][1] & crate::ir::ref_word::LOCAL == 0 {
+        return false;
+    }
+    let mut v = i;
+    for _ in 0..DEPTH {
+        if t.uses[v] != 1 {
+            return false;
+        }
+        let u = t.user[v] as usize;
+        if b.same_value_coercion(u) && b.data[u][0] as usize == v {
+            v = u;
+            continue;
+        }
+        return b.tags[u] == Tag::Call && !cx.holds_ref(b.ty[u]);
+    }
+    false
+}
+
+/// Value `v`, or what the coercions that keep its value coerce.
+fn uncoerced(b: &Body, mut v: usize) -> usize {
+    for _ in 0..DEPTH {
+        if !b.same_value_coercion(v) {
+            break;
+        }
+        v = b.data[v][0] as usize;
+    }
+    v
+}
+
 /// Whether a sorted list of positions has one in `lo..=hi`.
 fn any_in(list: &[u32], lo: u32, hi: u32) -> bool {
     let k = list.partition_point(|&x| x < lo);
@@ -482,7 +531,7 @@ pub(crate) fn run(
         let p = b.view(b.data[i][0]);
         if b.tags[i] == Tag::Read
             && let Some(l) = p.local()
-            && (t.keeps[i] || t.stored[i] != NONE)
+            && (t.keeps[i] || store_of(t, i) != NONE)
             && cx.counted(b.ty[i]) != Tri::No
         {
             t.kept_read[l as usize] += 1;
@@ -491,7 +540,7 @@ pub(crate) fn run(
                 !t.keeps[i]
                     && t.uses[i] == 1
                     && b.data[i][1] == ReadMode::Copy as u32
-                    && binding(b, t, t.stored[i]).is_some(),
+                    && binding(b, t, store_of(t, i)).is_some(),
             );
         }
     }
@@ -594,6 +643,7 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                     t.captured[l] = true;
                     if b.cap_mode[c] == crate::ir::CaptureMode::Shared {
                         t.reached[l] = true;
+                        t.escapes[l] = true;
                     }
                 }
             }
@@ -606,6 +656,7 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 continue;
             }
             t.uses[v] += 1;
+            t.user[v] = u32_of(i);
             let keeps = match op.role {
                 // Decided once the coercion's own uses are known.
                 Role::Consume if b.same_value_coercion(i) && t.alias[v] == NONE => {
@@ -658,6 +709,16 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
         }
     }
     t.ops = ops;
+    // A reference to a local that outlives its call reaches the local
+    // behind the body's back (rule 3).
+    for i in 0..n {
+        if b.tags[i] == Tag::Ref
+            && let Some(l) = b.local_in_place(b.data[i][0])
+            && !lends_once(b, cx, t, i)
+        {
+            t.escapes[l.idx()] = true;
+        }
+    }
     // A value a coercion consumes is kept where the coercion's value is
     // (by a use, a store, another coercion) or where it has another use.
     // Coercions follow their operands in the columns, so a chain resolves
@@ -666,8 +727,36 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
         let c = t.alias[v];
         if c != NONE {
             let c = c as usize;
-            t.keeps[v] |= t.keeps[c] || t.stored[c] != NONE || t.alias[c] != NONE || t.uses[v] > 1;
+            let bound = t.stored[c] != NONE
+                && store_of(t, v) != NONE
+                && binding(b, t, t.stored[c]).is_some();
+            t.keeps[v] |= t.keeps[c]
+                || (t.stored[c] != NONE && !bound)
+                || t.alias[c] != NONE
+                || t.uses[v] > 1;
         }
+    }
+}
+
+/// The `Store` that takes read `r`'s value: its own, or that of the one
+/// coercion keeping its values that is its only use (an inlined `&self`
+/// copy's binding of a `&mut` receiver, weakened), which nothing drops;
+/// `NONE` when there is none.
+fn store_of(t: &Tables, r: usize) -> u32 {
+    let c = t.alias[r];
+    if c == NONE {
+        return t.stored[r];
+    }
+    let c = c as usize;
+    if t.uses[r] == 1
+        && t.uses[c] == 1
+        && t.alias[c] == NONE
+        && t.last_drop[r] == NONE
+        && t.last_drop[c] == NONE
+    {
+        t.stored[c]
+    } else {
+        NONE
     }
 }
 
@@ -762,13 +851,15 @@ fn index_writes(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 // Release: the callee writes through a mutable reference
                 // argument here, where an argument read after the `Ref` and
                 // lent by a summary still borrows (`f(&mut xs[0], xs)`).
+                // Any build: the callee writes the local a mutable `Ref`
+                // argument addresses here, which a borrow of the local in
+                // between must not span ([`lends_once`]).
                 let args = b.record(w);
                 for &v in args.get(..args.len().saturating_sub(3)).unwrap_or_default() {
-                    if may
-                        && cx.summarizes()
-                        && let Some(r) = Ref(v).as_inst().map(|r| r.0 as usize)
+                    if let Some(r) = Ref(v).as_inst().map(|r| uncoerced(b, r.0 as usize))
                         && b.tags[r] == Tag::Ref
                         && b.data[r][1] & crate::ir::ref_word::MUT != 0
+                        && ((may && cx.summarizes()) || b.local_in_place(b.data[r][0]).is_some())
                     {
                         t.walk(b, b.data[r][0], false);
                         t.write_links(x, false);
@@ -832,7 +923,9 @@ fn decide(
     // coercion's value: the span ends at that value's last drop, and the
     // coercion is a borrow too. One whose instance may make it fresh
     // keeps its count.
-    let alias = t.alias[r];
+    // One that the coercion carries into a binding local is that local's.
+    let store = store_of(t, r);
+    let alias = if store == NONE { t.alias[r] } else { NONE };
     if alias != NONE && (keeps_drops(b, cx, r) || t.last_drop[alias as usize] == NONE) {
         return;
     }
@@ -843,8 +936,8 @@ fn decide(
         (t.last_drop[alias as usize], NONE)
     } else if t.last_drop[r] != NONE && t.stored[r] == NONE {
         (t.last_drop[r], NONE)
-    } else if t.last_drop[r] == NONE && t.stored[r] != NONE && t.uses[r] == 1 {
-        match binding(b, t, t.stored[r]) {
+    } else if t.last_drop[r] == NONE && store != NONE && t.uses[r] == 1 {
+        match binding(b, t, store) {
             Some(l) => match forwards(b, t, l) {
                 Some((r2, l2)) => {
                     via = Some((l, r2));
@@ -1088,11 +1181,22 @@ fn lent_refs(b: &mut Body, t: &Tables) {
             continue;
         }
         let fields = steps.all(|s| matches!(s, Proj::Field(_)));
-        let param = match p.root {
+        let mut param = match p.root {
             Root::Local(l) => Some(l),
             Root::Value(v) if b.is_borrow(v) => b.local_read(v as usize).map(hd_base::LocalId::raw),
             _ => None,
         };
+        // A binding local holds the parameter's reference it borrows (an
+        // inlined `&self` copy's receiver).
+        for _ in 0..DEPTH {
+            let Some(l) = param.map(|l| l as usize) else {
+                break;
+            };
+            if t.holds[l] == NONE || t.stores[l] != 1 {
+                break;
+            }
+            param = b.local_read(t.holds[l] as usize).map(hd_base::LocalId::raw);
+        }
         if fields
             && let Some(p) = param
             && t.unowned[p as usize]
@@ -1302,8 +1406,14 @@ fn conflicts_at(t: &Tables, chain: Chain, r: u32, lo: u32, end: u32, relied: &mu
     }
     // The verifier's overlap of places in two roots: one behind a
     // reference or in a buffer, the other where a reference can reach.
+    // A local a reference reaches is where such a write may land too.
+    let locals = u32_of(t.reached.len());
     let behind = t.links.iter().any(|l| l.behind);
-    if behind || t.links.iter().any(|l| l.global) {
+    let reached = t
+        .links
+        .iter()
+        .any(|l| l.key < locals && t.reached[l.key as usize]);
+    if behind || reached || t.links.iter().any(|l| l.global) {
         let k = t.reach.partition_point(|&(x, _, _)| x < lo);
         for &(x, w_behind, through) in &t.reach[k..] {
             if x > end {

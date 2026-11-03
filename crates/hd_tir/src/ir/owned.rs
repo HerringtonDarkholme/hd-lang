@@ -24,7 +24,8 @@
 //!   is exclusive (`sub_flags::EXCLUSIVE`), the parameter is declared `&T`
 //!   or `&mut T` and the call does not receive the reference itself;
 //! - a local the body does not own holds no count: a binding local, which
-//!   a `borrow` value is stored into, takes only borrows and is never
+//!   a `borrow` value (or a coercion of one that keeps its value) is
+//!   stored into, takes only borrows and is never
 //!   moved out of or addressed, nor dropped unless such a borrow keeps
 //!   its drops; a counted parameter outside the
 //!   exit set, which the body does not own, is also never stored into or
@@ -230,7 +231,8 @@ fn takes_outside_suspension(b: &Body, topo: &Topology, errs: &mut Vec<VerifyErro
 
 /// A lent `Ref` (`ref_word::LENT`) points into what a parameter the body
 /// owns none of refers to: its place is a dereference of such a parameter
-/// (`[*$p ...]`, or of a borrowed read of all of `$p`) followed by fields
+/// (`[*$p ...]`, of a borrowed read of all of `$p`, or of a binding local
+/// stored once with such a read, in turn) followed by fields
 /// only, and the body never stores into `$p` itself. The caller keeps that
 /// referent's block alive for the whole call, so the reference needs no
 /// count of its own.
@@ -248,11 +250,41 @@ fn lent_refs(b: &Body, errs: &mut Vec<VerifyError>) {
             *x = true;
         }
     }
-    let unowned = |l: usize| {
+    // A binding local, stored once with a borrow, and the read it holds.
+    let mut fills = vec![0u32; b.local_ty.len()];
+    let mut held = vec![NONE; b.local_ty.len()];
+    for i in (0..b.len()).filter(|&i| b.tags[i] == Tag::Store) {
+        if let Some(l) = b.local_in_place(b.data[i][0]) {
+            fills[l.idx()] += 1;
+            if b.view(b.data[i][0]).whole()
+                && let Some(r) = b.loan_read(b.data[i][1])
+            {
+                held[l.idx()] = r;
+            }
+        }
+    }
+    let param = |l: usize| {
         l < b.local_ty.len()
             && b.local_flags[l] & super::local_flags::PARAM != 0
             && !stored[l]
             && !b.exit_drops.iter().any(|&(_, x)| x.idx() == l)
+    };
+    // Such a parameter, or a binding local that holds a borrow of all of
+    // one (an inlined `&self` copy's receiver).
+    let unowned = |mut l: usize| {
+        for _ in 0..8 {
+            if param(l) {
+                return true;
+            }
+            match held.get(l).copied() {
+                Some(r) if r != NONE && fills[l] == 1 => match b.local_read(r as usize) {
+                    Some(m) => l = m.idx(),
+                    None => return false,
+                },
+                _ => return false,
+            }
+        }
+        false
     };
     for i in (0..b.len()).filter(|&i| lent(i)) {
         let ok = b.decode_place(b.data[i][0]).is_some_and(|p| {
@@ -869,16 +901,19 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
         }
     }
     for i in 0..b.len() {
-        if b.tags[i] != Tag::Store || !b.is_borrow(b.data[i][1]) {
+        let Some(w) = (b.tags[i] == Tag::Store)
+            .then(|| b.loan_read(b.data[i][1]))
+            .flatten()
+        else {
             continue;
-        }
+        };
         match &cx.places[i] {
             Some(Place {
                 root: PlaceRoot::Local(l),
                 proj,
             }) if proj.is_empty() => {
                 binding[l.idx()] = true;
-                let w = b.data[i][1] as usize;
+                let w = w as usize;
                 // A borrow of all of another binding local holds that
                 // one's borrow (`crate::own::borrow`'s forwarding locals).
                 let from = b.data[w][0];
@@ -915,7 +950,7 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
         }
         let what = match b.tags[i] {
             Tag::Store if lent[l.idx()] => "a store into",
-            Tag::Store if !b.is_borrow(b.data[i][1]) => "an owned value stored into",
+            Tag::Store if b.loan_read(b.data[i][1]).is_none() => "an owned value stored into",
             Tag::Drop if !dropped[l.idx()] => "a `Drop` of",
             Tag::Read if b.data[i][1] == ReadMode::Move as u32 => "a `move` out of",
             Tag::Ref => "a reference to",
@@ -996,7 +1031,7 @@ fn borrow_spans(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
     let mut holds = vec![NONE; b.local_ty.len()];
     for i in 0..n {
         if b.tags[i] == Tag::Store
-            && b.is_borrow(b.data[i][1])
+            && b.loan_read(b.data[i][1]).is_some()
             && let Some(Place {
                 root: PlaceRoot::Local(l),
                 proj,
@@ -1426,7 +1461,7 @@ impl<'a> Balance<'a> {
         match b.tags[x as usize] {
             // A local a borrow is stored into holds no count. A store
             // refills what parts were taken.
-            Tag::Store if !b.is_borrow(w) => {
+            Tag::Store if b.loan_read(w).is_none() => {
                 // Into the local itself: one through it, into what it
                 // refers to, leaves it as it was.
                 if let Some(l) = b.local_in_place(a).map(hd_base::LocalId::idx) {

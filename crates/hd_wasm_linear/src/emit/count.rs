@@ -127,7 +127,8 @@ impl Em<'_, '_, '_> {
                     self.loans.insert(x);
                     self.view_loans.insert(x, flag);
                 }
-                Tag::Store if self.b.is_borrow(w) => {
+                // A coercion of a borrow stores that borrow.
+                Tag::Store if let Some(w) = self.b.loan_read(w) => {
                     let l = if a & place::BARE_LOCAL != 0 {
                         Some(a & !place::BARE_LOCAL)
                     } else {

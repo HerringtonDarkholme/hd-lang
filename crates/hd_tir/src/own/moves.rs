@@ -241,11 +241,11 @@ fn candidates(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> bool
                 }
             }
             // A binding local holds a borrowed value: it owns no count.
-            Tag::Store if b.is_borrow(w) => {
+            Tag::Store if b.loan_read(w).is_some() => {
                 let p = b.view(a);
                 if let Some(l) = p.local().filter(|_| p.whole()) {
                     t.keep_l[l as usize] = true;
-                    t.holds[l as usize] = w;
+                    t.holds[l as usize] = b.loan_read(w).unwrap_or(w);
                 }
             }
             // A pinned collection's copy is a clone (`ref.elem.copy`), so
