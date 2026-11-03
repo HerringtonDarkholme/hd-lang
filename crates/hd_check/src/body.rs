@@ -2750,12 +2750,7 @@ impl Ck<'_, '_> {
         if tref.trait_ == self.cx.names.known.display && (optional || collection) {
             let value = if at.kind() == SyntaxKind::NameExpr {
                 Some(at)
-            } else if at.kind() == SyntaxKind::CallExpr
-                && at.children().next().is_some_and(|callee| {
-                    self.resolve_path(&self.segments_expr(callee))
-                        == Some(self.cx.names.known.println)
-                })
-            {
+            } else if at.kind() == SyntaxKind::CallExpr {
                 Src::child(at, SyntaxKind::ArgumentList)
                     .and_then(|args| args.children().next())
                     .and_then(|arg| arg.children().next())

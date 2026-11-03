@@ -154,7 +154,6 @@ pub struct KnownItems {
     /// `std.task.all_list`, the engine of `join!`'s list form
     /// (`req.combinator.join-list`).
     pub all_list: DefId,
-    pub println: DefId,
     // std.annotation, std.testing
     pub annotate: DefId,
     /// `inline` and `cold`, the decorators that choose how calls of a
@@ -355,7 +354,6 @@ impl KnownItems {
             block_on: item("std.task", "block_on"),
             race: item("std.task", "race"),
             all_list: item("std.task", "all_list"),
-            println: item("std.console", "println"),
             annotate: item("std.annotation", "annotate"),
             inline: item("std.annotation", "inline"),
             cold: item("std.annotation", "cold"),

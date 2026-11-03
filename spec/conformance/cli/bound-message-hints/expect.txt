@@ -21,6 +21,9 @@ stdout-json: [{"kind":"diagnostic","code":"ambiguous-method","message":"Packet: 
 run: hd check --format json derive.hd
 exit: 101
 stdout-json: [{"kind":"diagnostic","code":"mixed-derived-law","message":"`@derive` must list the traits a derived trait needs, and cannot mix with hand-written related traits; missing `PartialOrd`","line":1,"column":1,"fixes":[],"file":"derive.hd"},{"kind":"diagnostic","code":"mixed-derived-law","message":"`@derive` must list the traits a derived trait needs, and cannot mix with hand-written related traits; missing `Eq`","line":5,"column":1,"fixes":[],"file":"derive.hd"},{"kind":"summary","errors":2,"warnings":0,"status":101}]
+run: hd check --format json display-call.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unsatisfied-trait-bound","message":"List[usize] does not implement Display; use `debug(xs)`","line":6,"column":5,"fixes":[],"file":"display-call.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --format json display-debug.hd
 stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 run: hd check --format json display-list.hd
