@@ -45,7 +45,7 @@ mod list;
 mod loan;
 mod map;
 mod promote;
-pub use promote::{lent_referent, promotable_referent};
+pub use promote::{lent_referent, promotable_referent, rooted_referent};
 mod refs;
 mod scope;
 mod shape;
@@ -2425,6 +2425,9 @@ impl Em<'_, '_, '_> {
                 TargetKind::Intrinsic(key) if matches!(key.as_str(), "ptr_ref" | "ptr_mut") => {
                     self.ptr_ref(i, &args)
                 }
+                TargetKind::Intrinsic(key) if key == "ptr_drop_in_place" => {
+                    self.ptr_drop_in_place(i, ct.args, &args)
+                }
                 TargetKind::Intrinsic(key) if key.starts_with("ptr_") => {
                     self.ptr(i, key, ct.args, &args)
                 }
@@ -3193,6 +3196,54 @@ impl Em<'_, '_, '_> {
         } else {
             self.f.u32(m.size);
         }
+        self.store(i)
+    }
+
+    /// `Ptr[T].drop_in_place` (`module.rt.ptr.drop-in-place`): for a `T`
+    /// whose release has no work, nothing; else a loop over the `count`
+    /// slots from the address that loads each value's leaves and
+    /// releases them, as a move out and a drop would.
+    fn ptr_drop_in_place(&mut self, i: u32, targs: TyList, args: &[u32]) -> StageResult<()> {
+        let Some(&t) = self.pool().list_items(targs).last() else {
+            return unsupported("a typed memory intrinsic without its type argument");
+        };
+        let [p, count] = args else {
+            return unsupported("a pointer drop without its pointer and count");
+        };
+        let t = self.sub(t);
+        if !self.needs_drop(t) {
+            return self.store(i);
+        }
+        let m = crate::layout::mem(self.pool(), self.env(), t)?;
+        let (at, end) = (self.f.local(Val::I32), self.f.local(Val::I32));
+        self.comp(*p, 0)?;
+        self.f.set(at);
+        self.comp(*count, 0)?;
+        self.f.u32(m.size);
+        self.f.op(I::I32Mul);
+        self.f.get(at);
+        self.f.op(I::I32Add);
+        self.f.set(end);
+        let ls: Vec<u32> = m.leaves.iter().map(|l| self.f.local(l.val)).collect();
+        self.f.op(I::Block(BlockType::Empty));
+        self.f.op(I::Loop(BlockType::Empty));
+        self.f.get(at);
+        self.f.get(end);
+        self.f.op(I::I32GeU);
+        self.f.op(I::BrIf(1));
+        for (leaf, l) in m.leaves.iter().zip(&ls) {
+            self.f.get(at);
+            self.f.op(leaf.load(0));
+            self.f.set(*l);
+        }
+        self.release_locals(&ls, t)?;
+        self.f.get(at);
+        self.f.u32(m.size);
+        self.f.op(I::I32Add);
+        self.f.set(at);
+        self.f.op(I::Br(0));
+        self.f.op(I::End);
+        self.f.op(I::End);
         self.store(i)
     }
 

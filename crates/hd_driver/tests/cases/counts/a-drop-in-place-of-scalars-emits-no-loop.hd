@@ -1,0 +1,28 @@
+# @dump: wat
+# @build: std release
+# A list over a raw buffer drops its values with `drop_in_place`, as
+# `UniqList` does. For `i32`, whose values release nothing, it emits no
+# loop at all; for `string` it emits one loop that releases each slot.
+# Rule: module.rt.ptr.drop-in-place.
+use std.rt.Drop
+use std.rt.memory.Buffer
+
+struct Ints:
+    buffer: Buffer[i32]
+    len: usize
+
+impl !Copy for Ints
+
+impl Drop for Ints:
+    fn drop(&mut self) -> void:
+        self.buffer.at(0).drop_in_place(self.len)
+
+struct Words:
+    buffer: Buffer[string]
+    len: usize
+
+impl !Copy for Words
+
+impl Drop for Words:
+    fn drop(&mut self) -> void:
+        self.buffer.at(0).drop_in_place(self.len)

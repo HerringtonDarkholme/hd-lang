@@ -31,7 +31,7 @@ use hd_mono::{Collected, ProgramEnv, Target, TargetKind};
 use hd_tir::ir::Body;
 use hd_types::{InternPool, Ty, TyData};
 
-pub use emit::{lent_referent, promotable_referent};
+pub use emit::{lent_referent, promotable_referent, rooted_referent};
 pub use module::{Session, Sym};
 pub use origins::{FunctionOrigins, InstructionOrigin, MappedModule, StaticData};
 pub use rt::Helper;
