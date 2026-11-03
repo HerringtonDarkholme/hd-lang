@@ -2066,10 +2066,16 @@ impl Em<'_, '_, '_> {
                     Some(hd_tir::ir::IntrinsicOp::StrConcat) => self.concat(i, &args)?,
                     Some(hd_tir::ir::IntrinsicOp::StrIndex) => self.str_at(i, args[0], args[1])?,
                     Some(hd_tir::ir::IntrinsicOp::StrEq) => {
-                        self.push(args[0])?;
-                        self.push(args[1])?;
-                        self.f.helper(Helper::StrEq);
-                        self.store(i)?;
+                        if self.string_slice_comparison(args[0]) == Some(i)
+                            || self.string_slice_comparison(args[1]) == Some(i)
+                        {
+                            self.str_range_eq(i, args[0], args[1])?;
+                        } else {
+                            self.push(args[0])?;
+                            self.push(args[1])?;
+                            self.f.helper(Helper::StrEq);
+                            self.store(i)?;
+                        }
                     }
                     Some(IntrinsicOp::MapLen) => self.map_len(i, args[0])?,
                     Some(
@@ -2360,6 +2366,12 @@ impl Em<'_, '_, '_> {
     fn call(&mut self, i: u32, a: u32, bw: u32) -> StageResult<()> {
         let mut args = self.rec(bw);
         args.truncate(args.len().saturating_sub(3));
+        if self.string_slice_comparison(i).is_some() {
+            let [text, start, end] = args.as_slice() else {
+                return unsupported("a string slice call without three arguments");
+            };
+            return self.compared_str_slice(i, *text, *start, *end);
+        }
         match self.calls.get(&i).cloned() {
             Some(Target::MapKey { .. } | Target::MapInline(_)) => self.map_probe(i, &args),
             Some(Target::Call(ct)) => match &ct.kind {
