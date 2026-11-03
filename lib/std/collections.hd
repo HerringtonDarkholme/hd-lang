@@ -30,7 +30,10 @@ impl[T < ?Copy] !Copy for UniqList[T]
 # The list drops the values it holds; its buffer then frees the room.
 impl[T < ?Copy] Drop for UniqList[T]:
     fn drop(&mut self) -> void:
-        self.buffer.at(0).drop_in_place(self.len)
+        let index: usize = 0
+        while index < self.len:
+            _ := self.buffer.at(index).read()
+            index += 1
 
 impl[T < ?Copy] UniqList[T]:
     ## Returns an empty list with no reserved element capacity.
@@ -210,10 +213,10 @@ impl[T < ?Copy] UniqList[T]:
     ## Drops every element at `len` and after; a larger `len` has no effect.
     ## See [std-collections.uniq-list.truncate](../../spec/std/collections.md#r-std-collections.uniq-list.truncate).
     pub fn truncate(&mut self, len: usize) -> void:
-        size := self.len
-        if size > len:
-            self.len = len
-            self.buffer.at(len).drop_in_place(size - len)
+        while self.len() > len:
+            index := self.len() - 1
+            _ := self.buffer.at(index).read()
+            self.len = index
 
     ## Drops every element, leaving the list empty.
     ## See [std-collections.uniq-list.truncate](../../spec/std/collections.md#r-std-collections.uniq-list.truncate).
@@ -326,7 +329,10 @@ impl[K < Eq & Hash, V < ?Copy] !Copy for UniqMap[K, V]
 # The map drops the slots in use; its buffer then frees the room.
 impl[K < Eq & Hash, V < ?Copy] Drop for UniqMap[K, V]:
     fn drop(&mut self) -> void:
-        self.slots.at(0).drop_in_place(self.used)
+        let index: usize = 0
+        while index < self.used:
+            _ := self.slots.at(index).read()
+            index += 1
 
 impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
     ## Returns an empty map.

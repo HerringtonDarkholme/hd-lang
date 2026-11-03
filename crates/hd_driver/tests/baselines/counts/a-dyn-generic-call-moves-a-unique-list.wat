@@ -39,7 +39,7 @@
       local.get $t0
       i32.store $heap offset=8
       local.get $t3
-      i32.const 500 ;; &vtable[]
+      i32.const 532 ;; &vtable[]
       local.get $s.1
       i32.load $heap
       call_indirect $table0 (param i32 i32 i32) (result i32)
@@ -79,7 +79,7 @@
       local.get $t0
       i32.store $heap offset=8
       local.get $t3
-      i32.const 500 ;; &vtable[]
+      i32.const 532 ;; &vtable[]
       local.get $s.1
       i32.load $heap offset=4
       call_indirect $table0 (param i32 i32 i32) (result i32)
