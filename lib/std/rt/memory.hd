@@ -164,23 +164,21 @@ impl[T < ?Copy] Drop for Buffer[T]:
     fn drop(&mut self) -> void:
         free_room(self.address)
 
-# A room's block starts with a count word that no balanced retain and
-# release of a reference into it brings to its last count, and a descriptor
-# word of 0: no glue, and no part in cycle collection. Its values follow.
-# Only its buffer frees it.
-ROOM_COUNT := 0x40000000
-# The most bytes a room holds: its block's pages fit the 4 GiB heap.
-ROOM_MOST := u64(0xfffe0000)
-
-# A new room for `capacity` values of `size` bytes, or 0 for none.
+# A new room for `capacity` values of `size` bytes, or 0 for none. Its
+# block starts with a count word that no balanced retain and release of a
+# reference into it brings to its last count, 2^30, and a descriptor word
+# of 0: no glue, and no part in cycle collection. Its values follow. Only
+# its buffer frees it. (A literal, not a binding: this module has no
+# top-level code to initialize.)
 fn room(capacity: usize, size: usize) -> usize:
     bytes := u64(capacity) * u64(size)
     if bytes == 0:
         return 0
-    if bytes > ROOM_MOST:
+    # The most bytes a room holds: its block's pages fit the 4 GiB heap.
+    if bytes > 0xfffe0000:
         panic_with("heap-exhausted", "a buffer does not fit the heap")
     block := alloc(usize(bytes) + 8)
-    store_u32(block, u32(ROOM_COUNT))
+    store_u32(block, 0x40000000)
     store_u32(block + 4, 0)
     block + 8
 
