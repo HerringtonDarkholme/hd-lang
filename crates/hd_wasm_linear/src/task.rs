@@ -1204,7 +1204,8 @@ fn leaf_drop(area: &Elem) -> Option<Sym> {
 /// Every value index a walk reads: its references and its tags.
 fn walk_indices(w: &Walk, out: &mut Vec<u32>) {
     match w {
-        Walk::Ref(k) | Walk::Known(k) | Walk::Buffer(k) => out.push(*k),
+        Walk::Ref(k) | Walk::Known(k) => out.push(*k),
+        Walk::Glue => {}
         Walk::Seq(ws) => ws.iter().for_each(|w| walk_indices(w, out)),
         Walk::Nullable(w) => walk_indices(w, out),
         Walk::Switch(k, arms) => {
@@ -1295,7 +1296,6 @@ fn init_host_leaf(f: &mut Func, m: &Module, fr: u32, leaf: &HostLeaf<'_>, blocki
         f.i32(1);
         f.helper(Helper::CopyElems { elem: area.clone() });
     } else if !blocking && let Some(w) = &area.walk {
-        crate::rt::trap_buffer_retain(f, w);
         crate::rt::walk_code(f, w, &|f, k| f.get(k + 1), &|f, _| {
             f.call(Sym::Helper(Helper::RetainAny));
         });

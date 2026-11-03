@@ -76,10 +76,6 @@ pub enum StdKind {
     List,
     Map,
     Suspend,
-    /// `std.rt.memory.Buffer[T]`: the address of a counted object holding
-    /// a capacity word, a length word, then the values, as a list's
-    /// buffer is laid out (`module.rt.buffer.type`).
-    Buffer,
     Other,
 }
 
@@ -149,6 +145,19 @@ pub trait LayoutEnv {
     /// Which built-in std type `def` is, if any. Required: a default of
     /// `Other` would lay out `List`, `Map` and `Suspend` as plain data.
     fn std_kind(&self, def: DefId) -> StdKind;
+    /// Whether `def` is `std.rt.memory.Buffer`: an ordinary struct of an
+    /// address and a capacity, whose room holds values of its type
+    /// argument (`module.rt.buffer.type`), so a type that holds one holds
+    /// those values too.
+    fn raw_buffer(&self, _def: DefId) -> bool {
+        false
+    }
+    /// Whether `def` implements `std.rt.Drop`, so that releasing one of
+    /// its values has work even when it holds no counted reference
+    /// (`module.rt.drop.glue`).
+    fn has_drop(&self, _def: DefId) -> bool {
+        false
+    }
     /// The base type a nominal newtype erases to at run time, over its
     /// own parameters (`types.newtype.construct-ref`,
     /// `types.newtype.construct-value`); `None` for any other item.

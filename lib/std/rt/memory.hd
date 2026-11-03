@@ -5,6 +5,9 @@
 # compiler's. A runtime module, so only std may use it
 # (spec/lang/10-modules.md#r-module.rt.std-only).
 use std.core.Copy
+use std.rt.Drop
+use std.rt.alloc.{alloc, free_block}
+use std.rt.cycle.hold_room
 
 @intrinsic("mem_pages")
 ## The heap's size in pages of 65,536 bytes.
@@ -97,6 +100,18 @@ impl[T < ?Copy] Ptr[T]:
     pub fn write(self, value: T) -> void:
         panic("intrinsic")
 
+    ## Lends the value at the address for `'a`, which the caller keeps the value alive for.
+    ## See [module.rt.ptr.as-ref](../../../spec/lang/10-modules.md#r-module.rt.ptr.as-ref).
+    @intrinsic("ptr_ref")
+    pub fn as_ref['a](self) -> &'a T:
+        panic("intrinsic")
+
+    ## Mutably lends the value at the address for `'a`, which the caller keeps the value alive and unshared for.
+    ## See [module.rt.ptr.as-ref](../../../spec/lang/10-modules.md#r-module.rt.ptr.as-ref).
+    @intrinsic("ptr_mut")
+    pub fn as_mut['a](self) -> &'a mut T:
+        panic("intrinsic")
+
     ## The address `count` values of `T` past this one.
     ## See [module.rt.ptr.offset](../../../spec/lang/10-modules.md#r-module.rt.ptr.offset).
     @intrinsic("ptr_offset")
@@ -109,48 +124,66 @@ impl[T < ?Copy] Ptr[T]:
 pub fn size_of[T < ?Copy]() -> usize:
     panic("intrinsic")
 
-## A counted heap object: a capacity word, a length word, an owner word and a padding word, then room for `capacity()` values of `T`, of which it holds the first `len()`. It is not copyable, so its one owner holds its one count; releasing it drops the values it holds and frees it.
+## Raw memory with one owner: room for `capacity()` values of `T`. It knows nothing about the values in it: dropping it frees the room and drops none of them.
 ## See [module.rt.buffer.type](../../../spec/lang/10-modules.md#r-module.rt.buffer.type).
 pub struct Buffer[T < ?Copy]:
     address: usize
+    capacity: usize
 
 impl[T < ?Copy] !Copy for Buffer[T]
 
 impl[T < ?Copy] Buffer[T]:
-    ## A new buffer with room for `capacity` values of `T`, holding none.
+    ## A new buffer with room for `capacity` values of `T`, whose bytes hold no value yet.
     ## See [module.rt.buffer.new](../../../spec/lang/10-modules.md#r-module.rt.buffer.new).
-    @intrinsic("mem_buffer")
     pub fn new(capacity: usize) -> Buffer[T]:
-        panic("intrinsic")
+        Buffer::[T] { address: room(capacity * size_of::[T]()), capacity: capacity }
 
     ## How many values of `T` the buffer has room for.
     pub fn capacity(&self) -> usize:
-        usize(load_u32(self.address))
-
-    ## How many values the buffer holds, at the start of its room.
-    pub fn len(&self) -> usize:
-        usize(load_u32(self.address + 4))
-
-    ## Sets how many values the buffer holds; the code that changes it writes or reads those values.
-    ## See [module.rt.buffer.len](../../../spec/lang/10-modules.md#r-module.rt.buffer.len).
-    pub fn set_len(&mut self, len: usize) -> void:
-        store_u32(self.address + 4, u32(len))
+        self.capacity
 
     ## The place of value `index` of the buffer's room.
+    ## See [module.rt.buffer.at](../../../spec/lang/10-modules.md#r-module.rt.buffer.at).
     pub fn at(&self, index: usize) -> Ptr[T]:
-        Ptr::[T] { address: self.address + 16 }.offset(index)
+        Ptr::[T] { address: self.address }.offset(index)
 
-    ## Lends the value at `index` for as long as the buffer is lent. The caller checks the index.
-    ## See [module.rt.buffer.item-ref](../../../spec/lang/10-modules.md#r-module.rt.buffer.item-ref).
-    @intrinsic("buffer_item_ref")
-    pub fn item_ref['a](&'a self, index: usize) -> &'a T:
-        panic("intrinsic")
+    ## Moves the bytes of the room to a new room for `capacity` values and frees the old one; a smaller `capacity` has no effect.
+    ## See [module.rt.buffer.grow](../../../spec/lang/10-modules.md#r-module.rt.buffer.grow).
+    pub fn grow(&mut self, capacity: usize) -> void:
+        if capacity <= self.capacity:
+            return
+        size := size_of::[T]()
+        next := room(capacity * size)
+        if self.capacity > 0:
+            copy(next, self.address, self.capacity * size)
+        free_room(self.address)
+        self.address = next
+        self.capacity = capacity
 
-    ## Mutably lends the value at `index` for as long as the buffer is mutably lent. The caller checks the index.
-    ## See [module.rt.buffer.item-mut](../../../spec/lang/10-modules.md#r-module.rt.buffer.item-mut).
-    @intrinsic("buffer_item_mut")
-    pub fn item_mut['a](&'a mut self, index: usize) -> &'a mut T:
-        panic("intrinsic")
+impl[T < ?Copy] Drop for Buffer[T]:
+    fn drop(&mut self) -> void:
+        free_room(self.address)
+
+# A room's block starts with a count word that no balanced retain and
+# release of a reference into it brings to its last count, and a descriptor
+# word of 0: no glue, and no part in cycle collection. Its values follow.
+# Only its buffer frees it.
+ROOM_COUNT := 0x40000000
+
+# A new room of `bytes` bytes, or 0 for none.
+fn room(bytes: usize) -> usize:
+    if bytes == 0:
+        return 0
+    block := alloc(bytes + 8)
+    store_u32(block, u32(ROOM_COUNT))
+    store_u32(block + 4, 0)
+    block + 8
+
+# Frees the room at `address`, unless it is 0. While the collector traces
+# its holder, the collector frees it instead (`std.rt.cycle.hold_room`).
+fn free_room(address: usize) -> void:
+    if address != 0 && !hold_room(address - 8):
+        free_block(address - 8)
 
 ## The address of the first of the bytes of `text`, which stay where they are while `text` or a copy of it lives.
 ## See [module.rt.string.bytes](../../../spec/lang/10-modules.md#r-module.rt.string.bytes).

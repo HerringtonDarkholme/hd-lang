@@ -936,6 +936,9 @@ struct ProgramTables {
     /// The program's self-recursive enums (`hd_mono::layout::recursive_enums`),
     /// found once on the first layout that asks.
     recursive_enums: OnceLock<hd_base::HashSet<DefId>>,
+    /// The declarations with a `std.rt.Drop` implementation, found once
+    /// on the first layout that asks.
+    drop_defs: OnceLock<hd_base::HashSet<DefId>>,
 }
 
 /// The items collected for one program. Declaration IDs share the run's path table,
@@ -8556,6 +8559,7 @@ impl Run<'_> {
             extra,
             test_impls,
             recursive_enums: OnceLock::new(),
+            drop_defs: OnceLock::new(),
         });
         self.program.get()
     }
@@ -11201,11 +11205,33 @@ impl LayoutEnv for Env<'_> {
             StdKind::Map
         } else if def == k.suspend {
             StdKind::Suspend
-        } else if def == k.buffer {
-            StdKind::Buffer
         } else {
             StdKind::Other
         }
+    }
+    fn raw_buffer(&self, def: DefId) -> bool {
+        def == self.run.known.buffer
+    }
+    fn has_drop(&self, def: DefId) -> bool {
+        let drop_trait = self.run.known.drop_trait;
+        self.p
+            .drop_defs
+            .get_or_init(|| {
+                self.p
+                    .items
+                    .values()
+                    .filter_map(|item| match &item.data {
+                        ItemData::Impl {
+                            trait_, self_ty, ..
+                        } if *trait_ == drop_trait => match self.run.pool.get(*self_ty) {
+                            TyData::Adt { def, .. } => Some(def),
+                            _ => None,
+                        },
+                        _ => None,
+                    })
+                    .collect()
+            })
+            .contains(&def)
     }
     fn enum_variants(&self, def: DefId, args: TyList) -> Option<Vec<Vec<Ty>>> {
         match &self.p.items.get(def)?.data {

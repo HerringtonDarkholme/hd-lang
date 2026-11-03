@@ -99,10 +99,9 @@ pub fn recursive_object(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool 
                     continue;
                 }
                 match env.std_kind(def) {
-                    StdKind::List | StdKind::Map | StdKind::Buffer => {
-                        pool.list_items(args).to_vec()
-                    }
+                    StdKind::List | StdKind::Map => pool.list_items(args).to_vec(),
                     StdKind::Suspend => Vec::new(),
+                    StdKind::Other if env.raw_buffer(def) => pool.list_items(args).to_vec(),
                     StdKind::Other => match kind(pool, env, t) {
                         Kind::Ref { target, .. } => vec![target],
                         Kind::Data(fields) => fields,
@@ -140,10 +139,7 @@ pub fn holding(pool: &InternPool, env: &dyn ProgramEnv, parts: &[Ty]) -> bool {
 fn contents(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<Ty> {
     match pool.get(t) {
         TyData::Adt { def, args }
-            if matches!(
-                env.std_kind(def),
-                StdKind::List | StdKind::Map | StdKind::Buffer
-            ) =>
+            if matches!(env.std_kind(def), StdKind::List | StdKind::Map) || env.raw_buffer(def) =>
         {
             pool.list_items(args).to_vec()
         }
@@ -196,9 +192,8 @@ fn reaches(pool: &InternPool, env: &dyn ProgramEnv, start: &[Ty]) -> bool {
                     return true;
                 }
                 match env.std_kind(def) {
-                    StdKind::List | StdKind::Map | StdKind::Buffer => {
-                        pool.list_items(args).to_vec()
-                    }
+                    StdKind::List | StdKind::Map => pool.list_items(args).to_vec(),
+                    StdKind::Other if env.raw_buffer(def) => pool.list_items(args).to_vec(),
                     StdKind::Suspend => return true,
                     StdKind::Other => match kind(pool, env, t) {
                         Kind::Ref { target, .. } if writable(pool, env, target) => return true,

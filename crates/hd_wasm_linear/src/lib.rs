@@ -353,9 +353,9 @@ pub const CHECKED_FNS: &[&str] = &[
 ];
 
 /// The cycle collector (`crates/hd_wasm_linear/DESIGN.md` §23.28), which both
-/// runtimes link: `collect`, `due`, `opaque`, `visit` and `dropping`.
+/// runtimes link: `collect`, `due`, `opaque` and `visit`.
 pub const CYCLE_MODULE: &str = "std.rt.cycle";
-pub const CYCLE_FNS: [&str; 5] = ["collect", "due", "opaque", "visit", "dropping"];
+pub const CYCLE_FNS: [&str; 4] = ["collect", "due", "opaque", "visit"];
 
 /// The on-demand weak-reference side table. Its functions are collected with
 /// the allocator roots, but ordinary programs emit none because no generated
@@ -479,7 +479,6 @@ pub struct Cycle {
     pub due: Hash128,
     pub opaque: Hash128,
     pub visit: Hash128,
-    pub dropping: Hash128,
 }
 
 /// The weak side table's raw entry lookup and lifecycle operations.
@@ -554,7 +553,7 @@ impl Runtime {
             }
             _ => return None,
         };
-        let [collect, due, opaque, visit, dropping] = *rest else {
+        let [collect, due, opaque, visit] = *rest else {
             return None;
         };
         let [
@@ -586,7 +585,6 @@ impl Runtime {
                 due,
                 opaque,
                 visit,
-                dropping,
             },
             weak: Weak {
                 lookup: *weak_lookup,
@@ -638,20 +636,6 @@ pub fn build_session_extension(
 
 /// Every entry point runs this link with the same layout cache.
 fn link(
-    input: &Input<'_>,
-    track_origins: bool,
-    session: Option<&mut Session>,
-    previous: Option<&Session>,
-) -> StageResult<MappedModule> {
-    // A checked build marks buffer leaves in its walks, so a retain of a
-    // copied buffer traps (`layout::mark_buffers`, §23.24).
-    let checked = input.runtime.and_then(|r| r.checked).is_some();
-    layout::mark_buffers(checked, || {
-        link_walked(input, track_origins, session, previous)
-    })
-}
-
-fn link_walked(
     input: &Input<'_>,
     track_origins: bool,
     session: Option<&mut Session>,
