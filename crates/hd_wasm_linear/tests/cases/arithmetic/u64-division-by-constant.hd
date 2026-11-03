@@ -1,0 +1,6 @@
+# @dump: wat
+# @build: v8 release
+# expected: `local.get value; i64.const 10; i64.div_u`; no zero test of the
+# constant divisor (integer formatting performs this once per digit).
+fn decimal_step(value: u64) -> u64:
+    value / 10

@@ -3969,6 +3969,18 @@ impl Em<'_, '_, '_> {
             });
             return Ok(());
         }
+        // As above, a nonzero literal divisor needs no zero check at 64
+        // bits. Keep the unsigned operation at its native width.
+        if !signed
+            && bits == 64
+            && op == PrimOp::Div
+            && let Some(c) = self.const_i64(ops[1]).filter(|c| *c != 0)
+        {
+            self.comp(ops[0], 0)?;
+            self.f.op(I::I64Const(c));
+            self.f.op(I::I64DivU);
+            return Ok(());
+        }
         // A remainder's magnitude is below its divisor's, so it always
         // fits the operand width (`types.arith.min-remainder`): the native
         // operation at that width, with only the zero check, which a

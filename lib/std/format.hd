@@ -510,7 +510,7 @@ fn format_signed(value: i64) -> string:
     let rest = magnitude
     while true:
         at -= 1
-        store_u8(at, 48 + u8(rest % 10))
+        store_u8(at, u8(rest % 10 + 48))
         rest = rest / 10
         if rest == 0:
             break
@@ -532,7 +532,7 @@ fn format_unsigned(magnitude: u64) -> string:
     let rest = magnitude
     while true:
         at -= 1
-        store_u8(at, 48 + u8(rest % 10))
+        store_u8(at, u8(rest % 10 + 48))
         rest = rest / 10
         if rest == 0:
             break
