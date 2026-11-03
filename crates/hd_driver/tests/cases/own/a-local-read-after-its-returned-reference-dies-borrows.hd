@@ -1,7 +1,7 @@
 # @dump: own
 # @build: std
-# `b.item_mut(0)` returns a reference into `b`, which reaches `b` only
-# until that result's last use. The later inlined `b.at(0)` binds `self`
+# `b.at(0).as_mut()` returns a reference into `b`'s room, which reaches
+# `b` only until that result's last use. The later inlined `b.at(0)` binds `self`
 # by value, and reads `b` in place (a `Read borrow` of `b`), not a copy
 # that retains the buffer.
 use std.rt.memory.Buffer
@@ -13,8 +13,7 @@ impl !Copy for Ticket
 
 fn change(b: Buffer[Ticket]) -> Ticket:
     let mut b = b
-    b.item_mut(0).qty = +7
+    b.at(0).as_mut().qty = +7
     # subject
     ticket := b.at(0).read()
-    b.set_len(0)
     ticket

@@ -72,7 +72,12 @@ impl Em<'_, '_, '_> {
             size: m.size,
             leaves: m.leaves,
             walk,
-            colls: self.copied(ty),
+            drops: if matches!(self.kind(ty), Kind::Value) {
+                self.drop_calls(ty).into()
+            } else {
+                Box::default()
+            },
+            colls: self.copied(ty).into(),
             boxed,
             weak: (self.m.open_world || self.m.weak_types.contains(&key)).then_some(key),
         })

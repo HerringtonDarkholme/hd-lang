@@ -222,6 +222,10 @@ thread_local! {
 /// passes read that write from `may_write` alone.
 const PURE_INTRINSICS: &[&str] = &[
     "sqrt",
+    "ptr_offset",
+    "ptr_size_of",
+    "ptr_ref",
+    "ptr_mut",
     "downcast_ref",
     "downcast_mut",
     "type_id_of",
@@ -262,7 +266,7 @@ impl Env<'_> {
             return CallMemory::None;
         };
         match self.intrinsic(*def).as_deref() {
-            Some("mem_buffer" | "mem_new_string") => CallMemory::Allocate,
+            Some("mem_new_string") => CallMemory::Allocate,
             Some("mem_string_bytes" | "ptr_offset") => CallMemory::Derive(0),
             Some(
                 "mem_store_u8" | "mem_store_u16" | "mem_store_u32" | "mem_store_u64" | "mem_copy"
@@ -441,7 +445,7 @@ impl OwnCx for Env<'_> {
     }
 
     fn holds_ref(&self, ty: Ty) -> bool {
-        holds_ref(&self.run.pool, self.ref_cells(), ty, 0)
+        holds_ref(&self.run.pool, self.ref_cells(), self.run.known.ptr, ty, 0)
     }
 
     fn copies(&self, ty: Ty) -> Tri {
@@ -549,28 +553,36 @@ impl Env<'_> {
 }
 
 /// Whether a value of type `t` may hold a reference: a reference type,
-/// its carrier (`Ref[T]`, `Counted[T]`), a trait value, or a type whose
+/// its carrier (`Ref[T]`, `Counted[T]`), a trait value, a `Ptr[T]` (`ptr`),
+/// whose address `as_ref` makes a reference of, so a `Ptr` read from what
+/// a reference reaches lives on what it reaches, or a type whose
 /// arguments or parts are one. A type parameter's value may hold a local
 /// reference (`ref.generic.local`), but never one into a local of the
 /// body that holds it: no expression makes a `T` from that body's storage
 /// (`ref.generic.body`), so for frame locals it holds none.
-fn holds_ref(pool: &hd_types::InternPool, cells: hd_types::RefCells, t: Ty, depth: u32) -> bool {
+fn holds_ref(
+    pool: &hd_types::InternPool,
+    cells: hd_types::RefCells,
+    ptr: DefId,
+    t: Ty,
+    depth: u32,
+) -> bool {
     if depth > 32 {
         return true;
     }
     let any = |l| {
         pool.list_items(l)
             .iter()
-            .any(|&a| holds_ref(pool, cells, a, depth + 1))
+            .any(|&a| holds_ref(pool, cells, ptr, a, depth + 1))
     };
     match pool.get(t) {
         TyData::Ref { .. } | TyData::TraitValue { .. } => true,
-        TyData::Adt { def, args } => cells.holds(def) || any(args),
+        TyData::Adt { def, args } => def == ptr || cells.holds(def) || any(args),
         TyData::Tuple { elems, rest } => {
-            any(elems) || rest.is_some_and(|r| holds_ref(pool, cells, r, depth + 1))
+            any(elems) || rest.is_some_and(|r| holds_ref(pool, cells, ptr, r, depth + 1))
         }
         TyData::Union(members) => any(members),
-        TyData::Option(i) | TyData::Mut(i) => holds_ref(pool, cells, i, depth + 1),
+        TyData::Option(i) | TyData::Mut(i) => holds_ref(pool, cells, ptr, i, depth + 1),
         _ => false,
     }
 }
@@ -857,6 +869,10 @@ impl InlineEnv for Env<'_> {
 
     fn lent_referent(&self, t: Ty) -> Option<Ty> {
         hd_wasm_linear::lent_referent(&self.run.pool, self, t)
+    }
+
+    fn rooted_referent(&self, t: Ty) -> Option<Ty> {
+        hd_wasm_linear::rooted_referent(&self.run.pool, self, t)
     }
 
     fn counted_referent(&self, t: Ty) -> bool {

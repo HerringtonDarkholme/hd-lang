@@ -1,0 +1,10 @@
+# test: a push through a box alias in the body of a loop over the element references of a list panics with collection-pinned
+# Spec 06 Element Reference Loops: flow.for.ref.pinned.
+fn doubled(list: *mut List[i32], alias: *mut List[i32]) -> void:
+    for x in &mut list:
+        alias.push(*x) # panic: collection-pinned
+
+tests:
+    it("the loop pins its list"):
+        xs := box([+1, 2])
+        doubled(xs, xs)

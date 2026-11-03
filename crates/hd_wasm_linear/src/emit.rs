@@ -28,7 +28,7 @@ use crate::layout::{Pass, num, vals};
 use crate::module::{
     Func, GLUE, Global, HEAP, Import, Ins, Module, Stored, Sym, Val, WEAK_GLUE, mem,
 };
-use crate::rt::{Helper, LIST_ELEMS};
+use crate::rt::Helper;
 use crate::{Input, unsupported};
 
 mod closure;
@@ -45,7 +45,7 @@ mod list;
 mod loan;
 mod map;
 mod promote;
-pub use promote::{lent_referent, promotable_referent};
+pub use promote::{lent_referent, promotable_referent, rooted_referent};
 mod refs;
 mod scope;
 mod shape;
@@ -1036,6 +1036,10 @@ struct Em<'i, 'a, 'm> {
     /// reads and references, [`Em::prepare_own_loans`],
     /// [`Em::instance_loans`]): their places are no place's to release.
     loans: hd_base::HashSet<u32>,
+    /// The loans that point into no static page, a cell's
+    /// ([`Em::frame_loans`]): a consumer that is no loan takes a count of
+    /// its own for one.
+    scoped_loans: hd_base::HashSet<u32>,
     /// The locals the passes store a borrow into, with the stored value
     /// ([`Em::prepare_own_loans`]): they hold no count.
     loan_locals: HashMap<usize, u32>,
@@ -1230,6 +1234,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             scopes: HashMap::default(),
             defer_flags: HashMap::default(),
             loans: hd_base::HashSet::default(),
+            scoped_loans: hd_base::HashSet::default(),
             loan_locals: HashMap::default(),
             holders: HashMap::default(),
             binds: HashMap::default(),
@@ -2422,13 +2427,11 @@ impl Em<'_, '_, '_> {
                 {
                     self.downcast(i, ct.item, args[0])
                 }
+                TargetKind::Intrinsic(key) if matches!(key.as_str(), "ptr_ref" | "ptr_mut") => {
+                    self.ptr_ref(i, &args)
+                }
                 TargetKind::Intrinsic(key) if key.starts_with("ptr_") => {
                     self.ptr(i, key, ct.args, &args)
-                }
-                TargetKind::Intrinsic(key)
-                    if matches!(key.as_str(), "buffer_item_ref" | "buffer_item_mut") =>
-                {
-                    self.buffer_item_ref(i, ct.args, &args)
                 }
                 TargetKind::Intrinsic(key)
                     if matches!(
@@ -2625,7 +2628,14 @@ impl Em<'_, '_, '_> {
                 continue;
             }
             params.extend(self.vals(self.ty_of(*r))?);
-            self.push(*r)?;
+            if !self.env().suspends(method)
+                && crate::layout::holds_drop(self.pool(), self.env(), self.ty_of(*r))
+            {
+                let value = self.consumed(*r)?;
+                self.push_src(&value)?;
+            } else {
+                self.push(*r)?;
+            }
         }
         if let Some(o) = &open {
             self.f.push(Ins::VTable(o.witness));
@@ -3120,19 +3130,11 @@ impl Em<'_, '_, '_> {
     /// `std.rt.memory`'s intrinsics on the heap, memory 0
     /// (`module.rt.memory.*`): each is one instruction. A load or a store
     /// is little-endian and takes any address; `grow` reads Wasm's `-1` as
-    /// `.None`; `copy` is `memory.copy`, which allows overlap. A new
-    /// buffer is laid out as a list's buffer, whose glue drops the values
-    /// it holds, and the collector traces it with its holder
-    /// (`module.rt.buffer.*`, §23.28); a string's bytes are its address, and a new
-    /// string of no bytes the static empty one (`module.rt.string.*`).
+    /// `.None`; `copy` is `memory.copy`, which allows overlap. A string's
+    /// bytes are its address, and a new string of no bytes the static
+    /// empty one (`module.rt.string.*`).
     fn memory(&mut self, i: u32, key: &str, args: &[u32]) -> StageResult<()> {
         let op = match key {
-            "mem_buffer" => {
-                let (_, elem) = self.elem(self.ty(i))?;
-                self.push(args[0])?;
-                self.f.helper(Helper::OwnedBuf { elem });
-                return self.store_owned(i);
-            }
             "mem_string_bytes" => {
                 self.comp(args[0], 0)?;
                 return self.store(i);
@@ -3206,25 +3208,15 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
-    /// `Buffer[T].item_ref` and `item_mut`: the address of item `index`
-    /// in the buffer that the receiver reference lends. The caller checks
-    /// the index; this intrinsic only computes the address.
-    fn buffer_item_ref(&mut self, i: u32, targs: TyList, args: &[u32]) -> StageResult<()> {
-        let Some(&t) = self.pool().list_items(targs).last() else {
-            return unsupported("a buffer item intrinsic without its type argument");
+    /// `Ptr[T].as_ref` and `as_mut` (`module.rt.ptr.as-ref`): the
+    /// reference is the pointer's address. A count of it reaches the
+    /// block that holds the place, which a buffer's room keeps from its
+    /// last count (`std.rt.memory`).
+    fn ptr_ref(&mut self, i: u32, args: &[u32]) -> StageResult<()> {
+        let [p] = args else {
+            return unsupported("a pointer reference intrinsic without its pointer");
         };
-        let [buffer, index] = args else {
-            return unsupported("a buffer item intrinsic without a receiver and index");
-        };
-        let m = crate::layout::mem(self.pool(), self.env(), self.sub(t))?;
-        self.comp(*buffer, 0)?;
-        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-        self.comp(*index, 0)?;
-        self.f.u32(m.size);
-        self.f.op(I::I32Mul);
-        self.f.u32(LIST_ELEMS);
-        self.f.op(I::I32Add);
-        self.f.op(I::I32Add);
+        self.comp(*p, 0)?;
         self.store(i)
     }
 

@@ -290,9 +290,9 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Res
     let (topo, t, edits) = (&scratch.topo, &mut scratch.insert, &mut scratch.splice);
     edits.clear();
     t.reset(n, b.local_ty.len());
-    // Rule 3's accesses of a frame local include each use of a value or
-    // a local that may point into it (`frame`).
-    super::frame::run(b, topo, cx, &mut scratch.frame, |i, l| {
+    // Rule 3's accesses of a frame local or a cell local include each use
+    // of a value or a local that may point into it (`frame`).
+    super::frame::run(b, topo, cx, &mut scratch.frame, |i, l, _| {
         t.acc.push((topo.sub[i as usize], l, i));
     });
     for i in 0..n {

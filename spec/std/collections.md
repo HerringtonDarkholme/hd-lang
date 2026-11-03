@@ -66,7 +66,7 @@ Its surface is:
 | ordered, `T < ?Copy & Ord` | `sort(&mut self) -> void` |
 | value-looking traits | `Eq` for `T < ?Copy & Eq`; `Debug` for `T < ?Copy & Debug`; `Hash` for `T < ?Copy & Hash` |
 
-1. r[std-collections.uniq-list.type] `std.collections` declares `UniqList[T < ?Copy]` with a private `Buffer[T]` field and `impl[T < ?Copy] !Copy for UniqList[T]`. It is not a prelude name, so code that names it imports it.
+1. r[std-collections.uniq-list.type] `std.collections` declares `UniqList[T < ?Copy]` with two private fields, a `Buffer[T]` and its length, and `impl[T < ?Copy] !Copy for UniqList[T]`. It is not a prelude name, so code that names it imports it. No count is kept of a list or of its buffer.
 2. r[std-collections.uniq-list.new] `new()` returns an empty list. `with_capacity(capacity)` returns an empty list whose first `capacity` pushes need no growth.
 3. r[std-collections.uniq-list.len] `len()` returns the number of elements, and `is_empty()` is true exactly when that number is zero.
 4. r[std-collections.uniq-list.push] `push(value)` moves `value` after the former last element. `pop()` moves the last element out and returns it in `.Some`, or returns `.None` when the list is empty.
@@ -76,8 +76,8 @@ Its surface is:
 8. r[std-collections.uniq-list.truncate] `truncate(len)` drops every element at `len` and after. A `len` at least the current length has no effect. `clear()` is `truncate(0)`.
 9. r[std-collections.uniq-list.get] For `T < Copy`, `get(index)` returns `.Some` of a copy of the indexed element, or `.None` outside the list.
 10. r[std-collections.uniq-list.first-last] For `T < Copy`, `first()` and `last()` return `.Some` of a copy of the first or last element, or `.None` when the list is empty.
-11. r[std-collections.uniq-list.bulk-moves] Growth moves the occupied byte range into a larger `Buffer` with one `memory.copy`. `insert` and `remove_at` shift a contiguous byte range with one overlapping `memory.copy`. Each source range then counts as empty. No operation tests uniqueness or makes a copy-on-write clone.
-12. r[std-collections.uniq-list.get-ref] `get_ref(index)` returns a shared reference to the indexed element in `.Some`, or `.None` outside the list. `first_ref()` and `last_ref()` return the first or last element by shared reference, or `.None` when the list is empty. Each reference lives for the receiver borrow.
+11. r[std-collections.uniq-list.bulk-moves] Growth moves the buffer's room into a larger one with `Buffer.grow`, one `memory.copy`. `insert` and `remove_at` shift a contiguous byte range with one overlapping `memory.copy`. Each source range then counts as empty. No operation tests uniqueness or makes a copy-on-write clone.
+12. r[std-collections.uniq-list.get-ref] `get_ref(index)` returns a shared reference to the indexed element in `.Some`, or `.None` outside the list. `first_ref()` and `last_ref()` return the first or last element by shared reference, or `.None` when the list is empty. Each reference lives for the receiver borrow and is the element's place in the buffer's room ([`module.rt.ptr.as-ref`](../lang/10-modules.md#r-module.rt.ptr.as-ref)).
 13. r[std-collections.uniq-list.get-mut] `get_mut(index)` returns a mutable reference to the indexed element in `.Some`, or `.None` outside the list. `first_mut()` and `last_mut()` return the first or last element by mutable reference, or `.None` when the list is empty. Each reference lives for the mutable receiver borrow.
 14. r[std-collections.uniq-list.index] For `T < Copy`, `items[index]` returns a copy and panics when `index` is outside the list. Panic: `index-out-of-bounds`.
 15. r[std-collections.uniq-list.iter] `iter()` borrows the list and yields shared references to its elements in order. Its cursor is `UniqListIter[T, 'a]`, with private fields. The cursor and each yielded reference live for the list borrow.
@@ -92,6 +92,8 @@ Its surface is:
 24. r[std-collections.uniq-list.eq] For `T < ?Copy & Eq`, two `UniqList[T]` values are equal exactly when they have the same length and equal elements at every position.
 25. r[std-collections.uniq-list.debug] For `T < ?Copy & Debug`, `UniqList[T]` implements `Debug` with the same bracketed, comma-separated form as a `List[T]`.
 26. r[std-collections.uniq-list.hash] For `T < ?Copy & Hash`, `UniqList[T]` hashes its length as a `u64`, then each element in order, as `List[T]` does.
+27. r[std-collections.uniq-list.drop] `UniqList[T]` implements [`std.rt.Drop`](../lang/10-modules.md#r-module.rt.drop.decl): dropping a list drops its elements in order, then its buffer frees the room.
+28. r[std-collections.uniq-list.pinned] An element reference reached through a `*T` counts the list's room ([`module.rt.buffer.pinned`](../lang/10-modules.md#r-module.rt.buffer.pinned)). While one does, a `push`, `insert`, `remove_at` or `retain`, and a `pop` or a `truncate` that removes an element, panics. Panic: `collection-pinned`.
 
 This surface has no literal construction.
 
@@ -119,7 +121,7 @@ non-copyable and move into and out of the table.
 6. r[std-collections.uniq-map.remove] `remove(key)` removes the entry whose key equals `key` and moves its value out in `.Some`, or returns `.None` when there is no such entry.
 7. r[std-collections.uniq-map.clear] `clear()` removes every entry and drops every value.
 8. r[std-collections.uniq-map.get] For `V < Copy`, `get(key)` returns `.Some` of a copy of the value whose key equals `key`, or `.None` when absent.
-9. r[std-collections.uniq-map.storage-bulk] The implementation is a hash table in one `Buffer`: occupied and removed entries are contiguous at its start, and a compact two-times-capacity probe index occupies unused bytes after them. Probing borrows entries. Rehashing moves each occupied entry into its new place with one `memory.copy`; the old buffer then counts as empty. No operation tests uniqueness or makes a copy-on-write clone.
+9. r[std-collections.uniq-map.storage-bulk] The implementation is a hash table in one `Buffer` and the count of its entries in use: occupied and removed entries are contiguous at its start, and a compact two-times-capacity probe index occupies unused bytes after them. Probing borrows entries. Rehashing moves each occupied entry into its new place with one `memory.copy`; the old buffer then holds none. No operation tests uniqueness or makes a copy-on-write clone. Dropping a map drops each entry in use, through `std.rt.Drop`, then its buffer frees the room.
 10. r[std-collections.uniq-map.get-ref] `get_ref(key)` returns a shared reference to the value whose key equals `key` in `.Some`, or `.None` when absent. The reference lives for the receiver borrow.
 11. r[std-collections.uniq-map.get-mut] `get_mut(key)` returns a mutable reference to the value whose key equals `key` in `.Some`, or `.None` when absent. The reference lives for the mutable receiver borrow.
 12. r[std-collections.uniq-map.get-or-insert] `get_or_insert(key, default)` returns a mutable reference to the value whose key equals `key`. When the key is absent, it first inserts `default`; when the key is present, it drops `default` without replacing the value. The reference lives for the mutable receiver borrow.
@@ -127,6 +129,7 @@ non-copyable and move into and out of the table.
 14. r[std-collections.uniq-map.keys] `keys()` borrows the map and yields copies of its keys in the same order as `iter()`. Its cursor is `UniqMapKeys[K, V, 'a]`, with private fields, and lives for the map borrow.
 15. r[std-collections.uniq-map.into-iter] `UniqMap[K, V]` implements `Iterable[(K, V)]`. Its private `UniqMapIntoIter[K, V]` cursor owns the map and moves each key and value out in table order. A `for` loop over a `UniqMap` therefore consumes the map and each value.
 16. r[std-collections.uniq-map.collect] `UniqMap[K, V]` implements `FromIterator[(K, V)]`. When equal keys occur more than once, the last value replaces and drops the former value. An explicitly targeted `collect`, including `let items: UniqMap[_, _] = cursor.collect()`, may therefore collect non-copyable values.
+17. r[std-collections.uniq-map.pinned] A value reference reached through a `*T` counts the map's room ([`module.rt.buffer.pinned`](../lang/10-modules.md#r-module.rt.buffer.pinned)). While one does, an `insert` of a key the map does not hold, a `remove` of a key it holds, and a `clear` of a map with entries panic. Panic: `collection-pinned`.
 
 This surface has no literal construction.
 

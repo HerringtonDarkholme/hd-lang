@@ -1,0 +1,19 @@
+# test: inserting a new key through a box alias while a value reference into the unique map behind it is live panics with collection-pinned
+# std Collections: std-collections.uniq-map.pinned.
+use std.collections.UniqMap
+
+struct Stock:
+    counts: UniqMap[string, i32]
+
+fn add(apples: &mut i32, alias: *mut Stock) -> void:
+    _ := alias.counts.insert("pear", 1) # panic: collection-pinned
+    *apples += 1
+
+tests:
+    it("the value reference pins the unique map"):
+        stock := box(Stock { counts: UniqMap::[string, i32].new() })
+        _ := stock.counts.insert("apple", 3)
+        alias := stock
+        match stock.counts.get_mut("apple"):
+            .Some(apples) => add(apples, alias)
+            .None => pass

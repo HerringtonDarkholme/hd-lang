@@ -157,10 +157,9 @@ pub fn kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Kind {
             .list_items(args)
             .first()
             .map_or(Ty::VOID, |a| strip(pool, env, *a));
-        // A reference to an open trait value is one open value
-        // (`emit/erased.rs`), however the caller lays it out.
-        let fat = matches!(pool.get(target), TyData::TraitValue { .. })
-            && !hd_mono::is_open(pool, target);
+        // A reference to a trait value is the value itself, including
+        // when its open representation is one box (`emit/erased.rs`).
+        let fat = matches!(pool.get(target), TyData::TraitValue { .. });
         let whole = def == env.ref_cells().counted;
         return Kind::Ref { target, fat, whole };
     }
@@ -409,20 +408,6 @@ type Memo<T> = std::cell::RefCell<Option<hd_base::HashMap<Ty, T>>>;
 thread_local! {
     static MEMS: Memo<StageResult<Mem>> = const { std::cell::RefCell::new(None) };
     static WALKS: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
-    static MARK_BUFFERS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-}
-
-/// Runs `link` with buffer leaves marked [`Walk::Buffer`] when `on`, as a
-/// checked build's link does; other builds' walks are unchanged.
-pub fn mark_buffers<R>(on: bool, link: impl FnOnce() -> R) -> R {
-    struct Reset(bool);
-    impl Drop for Reset {
-        fn drop(&mut self) {
-            MARK_BUFFERS.set(self.0);
-        }
-    }
-    let _reset = Reset(MARK_BUFFERS.replace(on));
-    link()
 }
 
 /// Runs `link` with the layout cache in place: within it, [`mem`] and
@@ -521,7 +506,7 @@ fn mem_one(
         }
         TyData::Adt { def, args } => match env.std_kind(def) {
             StdKind::Suspend => Mem::address(),
-            StdKind::List | StdKind::Map | StdKind::Buffer => Mem::address(),
+            StdKind::List | StdKind::Map => Mem::address(),
             StdKind::Other => match kind(pool, env, t) {
                 Kind::Data(_) | Kind::Boxed | Kind::Ref { fat: false, .. } => Mem::address(),
                 Kind::Ref { fat: true, .. } => record(&[Mem::address(), Mem::address()]).0,
@@ -554,9 +539,6 @@ pub enum Addr {
     Ref,
     /// [`Walk::Known`]: a known payload start.
     Known,
-    /// [`Walk::Buffer`]: a buffer's payload start, which only its
-    /// holder's glue releases (`rt:release_buffer`).
-    Buffer,
 }
 
 /// Where a value's counted references are among its values (§23.4): what
@@ -573,11 +555,11 @@ pub enum Walk {
     /// thin counted reference ([`block_start`]); counting
     /// reads the header at `k - 8` (§23.30).
     Known(u32),
-    /// Value `k` is a `std.rt.memory.Buffer`, counted as [`Walk::Known`].
-    /// Only a checked build's walks mark it ([`mark_buffers`]), so that
-    /// every retain of a walk holding one traps (§23.24): a buffer is not
-    /// copyable, so no code should count a copy of it.
-    Buffer(u32),
+    /// No counted address, but a value whose release runs a
+    /// `std.rt.Drop` implementation: a `UniqList` of scalars, whose
+    /// buffer's room is freed by its drop (`module.rt.drop.glue`). It
+    /// stands alone; a walk with a counted address already releases.
+    Glue,
     /// Each part in turn.
     Seq(Vec<Walk>),
     /// Value `k` is an enum's tag; arm `v`, when there is one, walks
@@ -595,7 +577,7 @@ impl Walk {
         match self {
             Walk::Ref(k) => Walk::Ref(to(*k)),
             Walk::Known(k) => Walk::Known(to(*k)),
-            Walk::Buffer(k) => Walk::Buffer(to(*k)),
+            Walk::Glue => Walk::Glue,
             Walk::Seq(ws) => Walk::Seq(ws.iter().map(|w| w.remap(to)).collect()),
             Walk::Switch(k, arms) => Walk::Switch(
                 to(*k),
@@ -614,7 +596,7 @@ impl Walk {
         match self {
             Walk::Ref(k) => (!skip.contains(k)).then_some(Walk::Ref(*k)),
             Walk::Known(k) => (!skip.contains(k)).then_some(Walk::Known(*k)),
-            Walk::Buffer(k) => (!skip.contains(k)).then_some(Walk::Buffer(*k)),
+            Walk::Glue => Some(Walk::Glue),
             Walk::Seq(ws) => Walk::seq(ws.iter().filter_map(|w| w.without(skip)).collect()),
             Walk::Switch(k, arms) => Some(Walk::Switch(
                 *k,
@@ -631,16 +613,15 @@ impl Walk {
     #[must_use]
     pub fn single(&self) -> Option<u32> {
         match self {
-            Walk::Ref(k) | Walk::Known(k) | Walk::Buffer(k) => Some(*k),
-            Walk::Seq(_) | Walk::Switch(..) | Walk::Nullable(_) => None,
+            Walk::Ref(k) | Walk::Known(k) => Some(*k),
+            Walk::Glue | Walk::Seq(_) | Walk::Switch(..) | Walk::Nullable(_) => None,
         }
     }
 
     /// Whether the walk is value 0 alone, as a plain count takes it: a
     /// value that is one such address can stand for itself where an open
     /// value or a reference view holds one counted address
-    /// (`emit/erased.rs`). A marked [`Walk::Buffer`] is not: only its
-    /// holder's glue releases it, so its value crosses in a box.
+    /// (`emit/erased.rs`).
     #[must_use]
     pub fn plain_single(&self) -> bool {
         matches!(self, Walk::Ref(0) | Walk::Known(0))
@@ -652,32 +633,22 @@ impl Walk {
         match self {
             Walk::Ref(_) => Some(Addr::Ref),
             Walk::Known(_) => Some(Addr::Known),
-            Walk::Buffer(_) => Some(Addr::Buffer),
-            Walk::Seq(_) | Walk::Switch(..) | Walk::Nullable(_) => None,
+            Walk::Glue | Walk::Seq(_) | Walk::Switch(..) | Walk::Nullable(_) => None,
         }
     }
 
-    /// Whether the walk is a known payload start: [`Walk::Known`] or a
-    /// marked [`Walk::Buffer`].
+    /// Whether the walk is a known payload start: [`Walk::Known`].
     #[must_use]
     pub fn known(&self) -> bool {
-        matches!(self, Walk::Known(_) | Walk::Buffer(_))
-    }
-
-    /// Whether the walk holds a marked [`Walk::Buffer`]: only in a checked
-    /// build, where a retain of it is a backend bug.
-    #[must_use]
-    pub fn holds_buffer(&self) -> bool {
-        match self {
-            Walk::Buffer(_) => true,
-            Walk::Ref(_) | Walk::Known(_) => false,
-            Walk::Seq(ws) => ws.iter().any(Walk::holds_buffer),
-            Walk::Switch(_, arms) => arms.iter().flatten().any(Walk::holds_buffer),
-            Walk::Nullable(w) => w.holds_buffer(),
-        }
+        matches!(self, Walk::Known(_))
     }
 
     fn seq(mut ws: Vec<Walk>) -> Option<Walk> {
+        if ws.iter().any(|w| *w != Walk::Glue) {
+            ws.retain(|w| *w != Walk::Glue);
+        } else {
+            ws.truncate(1);
+        }
         match ws.len() {
             0 => None,
             1 => ws.pop(),
@@ -712,9 +683,6 @@ fn walk_one(
         TyData::TraitValue { .. } => Some(Walk::Ref(0)),
         TyData::Context(_) => Some(Walk::Known(0)),
         TyData::Tuple { .. } => fields_walk_by(pool, env, &tuple_members(pool, t), part),
-        TyData::Adt { def, .. } if env.std_kind(def) == StdKind::Buffer && MARK_BUFFERS.get() => {
-            Some(Walk::Buffer(0))
-        }
         TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => Some(Walk::Known(0)),
         TyData::Option(inner) => switch_walk_by(pool, env, &[vec![], vec![inner]], part),
         TyData::Union(members) => switch_walk_by(pool, env, &union_variants(pool, members), part),
@@ -727,10 +695,11 @@ fn walk_one(
                     Walk::Ref(0)
                 }),
                 Kind::Value => {
-                    if let Some(variants) = env.enum_variants(def, args) {
-                        return switch_walk_by(pool, env, &variants, part);
-                    }
-                    fields_walk_by(pool, env, &value_parts(pool, env, t), part)
+                    let w = match env.enum_variants(def, args) {
+                        Some(variants) => switch_walk_by(pool, env, &variants, part),
+                        None => fields_walk_by(pool, env, &value_parts(pool, env, t), part),
+                    };
+                    w.or_else(|| env.has_drop(def).then_some(Walk::Glue))
                 }
             }
         }
@@ -1067,6 +1036,27 @@ fn enum_mem_by(
         },
         positions,
     ))
+}
+
+/// Whether a value of `t` holds, by value, a value whose type implements
+/// `std.rt.Drop`: releasing it runs that implementation, so the value is
+/// never bound twice (a `UniqList`).
+pub fn holds_drop(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
+    fn go(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, depth: u32) -> bool {
+        let t = strip(pool, env, t);
+        if depth > 16 {
+            return false;
+        }
+        if let TyData::Adt { def, .. } = pool.get(t)
+            && env.has_drop(def)
+        {
+            return true;
+        }
+        value_parts(pool, env, t)
+            .into_iter()
+            .any(|p| go(pool, env, p, depth + 1))
+    }
+    go(pool, env, t, 0)
 }
 
 /// The variants' payload types of an enum or optional type, `None` for

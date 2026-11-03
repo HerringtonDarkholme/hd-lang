@@ -408,6 +408,10 @@ pub(crate) struct Ck<'a, 'c> {
     pub excl: Vec<crate::elem_refs::Excl>,
     pub excl_frames: Vec<usize>,
     pub conflicts: Vec<(LocalId, hd_base::NodeIdx)>,
+    /// How many element reference loops over a list reached through a
+    /// `&mut` binding are being checked: inside one, such a binding's
+    /// referent is a place the checker sees whole (`flow.for.ref.conflict`).
+    pub mut_ref_loops: u32,
     /// The checkpoints taken and not yet rolled back or committed.
     pub open_trials: u32,
     /// A pipe's value while its step is checked (`_`).
@@ -663,6 +667,7 @@ pub(crate) fn new_ck<'a, 'c>(
         excl: Vec::new(),
         excl_frames: Vec::new(),
         conflicts: Vec::new(),
+        mut_ref_loops: 0,
         open_trials: 0,
         placeholder: None,
         pipe_arg: None,

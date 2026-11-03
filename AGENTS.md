@@ -32,6 +32,47 @@ option, list which kinds of change it needs, and prefer the one whose
 costliest change is highest on this list (closest to 4). Break ties by
 counting changes. Owner direction, 2026-09-28.
 
+## Performance Work: General Causes, Not Cases
+
+Fix the cause under a whole category of slow code, never one benchmark or
+one function.
+
+1. Measure the whole workload set (`bench/runtime`, `bench/study`, and
+   any external suite under study), not only the program that looked slow.
+2. Name the under-the-hood cause of each gap: an indirect call, a small
+   closure or call not inlined, an `Option` or `Result` return, a bounds
+   check, a local spilled to memory, a count operation, a copy, an
+   effect-free loop. Rank the causes by total cost across all workloads.
+3. One ticket per cause. Its done check is measured on every workload the
+   cause touches, never on the one that exposed it.
+4. Rewriting one std function is a case fix. Do it only when the
+   measurement shows the cause is local to that function.
+5. Do not add a compiler intrinsic blindly to fix one case. Look for a
+   way that solves more cases, in this order: write it in hd; make the
+   optimizer handle the general pattern (an effect-free loop is deleted;
+   a small known closure is inlined); fall back to an intrinsic only when
+   neither can do it, and say why in the proposal. Intrinsics are being
+   reduced (#1206), so each new one needs that reason and the owner's
+   approval.
+6. Check a design against these rules and the Design Cost Order before
+   proposing it.
+
+## Testing A Change
+
+Know what the change touches, and test that first.
+
+1. Run the touched crates' unit tests and the stage cases and conformance
+   cases that cover the changed rules (`HD_CONFORMANCE_ONLY` names them;
+   use the checked or optimized mode when the change concerns counts,
+   drops or the release pipeline).
+2. Then default conformance, which runs every case on the dev pipeline.
+3. The full suite is not a catch-all. Branch CI runs it on every push, in
+   all four conformance modes. Locally it is only the last step of a truly
+   cross-cutting change (the ownership passes, reference counting, the
+   type pool), after the focused tests pass, and rare; say why.
+4. Keep the machine usable: cargo `-j 2`, `RUST_TEST_THREADS=2`, one heavy
+   command at a time, and delete build output you made outside `target/`.
+
 ## Spec Scope For The Standard Library
 
 The specification has three tiers, one style, and one conformance suite:

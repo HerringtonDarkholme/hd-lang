@@ -51,8 +51,11 @@
 //! structured control flow of each sub-body, with one bit per candidate
 //! local and temporary, kept at block boundaries and loop heads in one
 //! reused arena; a loop runs to a fixed point. A read decides on the
-//! state after it. A `Drop` is no read: a drop of a moved place releases
-//! nothing, since the backend zeroes what a move empties.
+//! state after it. A store into all of a local ends its life, a cell's
+//! included, so a local declared in a loop body moves at its last read
+//! of each round: the next round's declaration makes it anew. A `Drop`
+//! is no read: a drop of a moved place releases nothing, since the
+//! backend zeroes what a move empties.
 //!
 //! Why it is sound: a moved place is read on no path afterwards, so
 //! nothing sees it empty; a `Store` after the move refills it and releases
@@ -301,9 +304,9 @@ fn frame_uses(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
     let (lnum, frame) = (&t.lnum, &t.frame);
     let mut ft = std::mem::take(&mut t.frame_scratch);
     let tags = b.tags.clone();
-    super::frame::run(b, topo, cx, &mut ft, |i, l| {
+    super::frame::run(b, topo, cx, &mut ft, |i, l, in_frame| {
         let bit = lnum[l as usize];
-        if frame[l as usize] && bit != NONE && tags[i as usize] != Tag::Drop {
+        if in_frame && frame[l as usize] && bit != NONE && tags[i as usize] != Tag::Drop {
             out.push((i, bit));
         }
     });
@@ -653,11 +656,13 @@ impl Backward for Tables {
                 if let Some(l) = p.local()
                     && self.lnum[l as usize] != NONE
                 {
-                    // A store into all of the local replaces it; into a
-                    // part, it keeps the rest. A store into a cell writes
-                    // through the cell the local holds.
-                    let keep = !p.whole() || self.addr[l as usize];
-                    s.set(live, self.lnum[l as usize], keep);
+                    // A store into all of the local replaces it, in a
+                    // cell too: a store makes the cell a move emptied, and
+                    // no reference into the old value lives past a write
+                    // (`ref.excl.shared`), nor past a loop body's
+                    // declaration (`ref.excl.declare`). Into a part, it
+                    // keeps the rest.
+                    s.set(live, self.lnum[l as usize], !p.whole());
                     // A part the store replaces is dead before it; one it
                     // writes into keeps the rest.
                     let (lo, hi) = (self.pstart[l as usize], self.pstart[l as usize + 1]);

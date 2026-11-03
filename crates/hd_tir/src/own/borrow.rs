@@ -249,6 +249,13 @@ pub(crate) struct Tables {
     /// Per local: those of [`Tables::kept_read`] that a binding local may
     /// borrow, read before the borrow pass decides.
     kept_bind: Vec<u32>,
+    /// Tentatively lent parameters and whether their declaration owns them.
+    /// Binding reads must actually borrow before an owned parameter can
+    /// lose its drops and leave the exit set.
+    lent_params: Vec<(u32, bool)>,
+    /// Parameters whose tentative binding borrow failed. A retry keeps
+    /// them owned from the start, so no other borrow crosses their drops.
+    blocked_lent: Vec<bool>,
     /// Per local: a closure's parameter.
     inner: Vec<bool>,
     /// Writes by root (locals, then values), in compressed rows in
@@ -290,6 +297,7 @@ pub(crate) struct Tables {
 
 impl Tables {
     fn reset(&mut self, n: usize, locals: usize) {
+        self.lent_params.clear();
         fill(&mut self.uses, n, 0);
         fill(&mut self.user, n, NONE);
         fill(&mut self.through, n, true);
@@ -622,6 +630,24 @@ pub(crate) fn run(
     t: &mut Tables,
     edits: &mut splice::Tables,
 ) {
+    fill(&mut t.blocked_lent, b.local_ty.len(), false);
+    let mut original = None;
+    loop {
+        if run_once(b, topo, cx, t, edits, &mut original) {
+            return;
+        }
+        b.clone_from(original.as_ref().expect("only summary lending retries"));
+    }
+}
+
+fn run_once(
+    b: &mut Body,
+    topo: &Topology,
+    cx: &dyn OwnCx,
+    t: &mut Tables,
+    edits: &mut splice::Tables,
+    original: &mut Option<Body>,
+) -> bool {
     edits.clear();
     let n = b.len();
     let locals = b.local_ty.len();
@@ -663,7 +689,14 @@ pub(crate) fn run(
     if t.excl {
         receivers(b, t);
     }
-    lent_params(b, cx, t, edits);
+    lent_params(b, cx, t);
+    if original.is_none()
+        && t.lent_params
+            .iter()
+            .any(|&(l, owned)| owned && t.kept_read[l as usize] != 0)
+    {
+        *original = Some(b.clone());
+    }
     // Source bindings such as a match arm precede what binds their value;
     // bottom-up inlining puts an outer parameter binding before the
     // nested method's. Each direction therefore exposes binding chains
@@ -674,12 +707,16 @@ pub(crate) fn run(
     for r in (0..n).rev() {
         decide(b, topo, cx, t, edits, r);
     }
+    if !finish_lent_params(b, t, edits) {
+        return false;
+    }
     flatten_match_reference_reads(b, topo);
     lent_refs(b, t);
     if t.unowned.iter().any(|&u| u) {
         let unowned = &t.unowned;
         b.exit_drops.retain(|(_, l)| !unowned[l.idx()]);
     }
+    true
 }
 
 /// The per-value and per-local facts: uses, drops, stores, reads.
@@ -1352,7 +1389,7 @@ fn decide(
 /// loans), instead of after its last read and before every early return
 /// of a value read from it, and its reads borrow over spans its own drop
 /// no longer ends.
-fn lent_params(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) {
+fn lent_params(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     if b.kind != BodyKind::Fn && b.kind != BodyKind::DeriveInstance {
         return;
     }
@@ -1387,6 +1424,7 @@ fn lent_params(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tab
             || t.reached[l]
             || t.changed[l]
             || cx.counted(b.local_ty[l]) == Tri::No
+            || t.blocked_lent[l]
         {
             continue;
         }
@@ -1394,7 +1432,8 @@ fn lent_params(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tab
         // (`name := m.name`, an inlined method's `self`), which borrow it
         // or copy from it, so that its summary may lend it.
         let kept = t.kept_read[l] - if cx.summarizes() { t.kept_bind[l] } else { 0 };
-        let lent = match cx.received(b.item, at, n) {
+        let received = cx.received(b.item, at, n);
+        let lent = match received {
             Pass::Lent => true,
             Pass::Owned => !suspends && kept == 0,
         };
@@ -1402,14 +1441,35 @@ fn lent_params(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tab
             continue;
         }
         t.unowned[l] = true;
+        t.lent_params.push((u32_of(l), received == Pass::Owned));
         for x in t.start[l]..t.start[l + 1] {
             let d = t.rows[x as usize].at;
             if is_whole_drop(b, d, Root::Local(u32_of(l))) {
                 t.gone[d as usize] = true;
+            }
+        }
+    }
+}
+
+/// A binding is only a candidate for borrowing when parameters are scanned.
+/// If any kept read remains after the decisions, its owned parameter keeps
+/// its count so the move pass can transfer it into that binding.
+fn finish_lent_params(b: &Body, t: &mut Tables, edits: &mut splice::Tables) -> bool {
+    let mut retry = false;
+    for &(l, owned) in &t.lent_params {
+        let restore = owned && t.kept_read[l as usize] != 0;
+        if restore {
+            t.blocked_lent[l as usize] = true;
+            retry = true;
+        }
+        for x in t.start[l as usize]..t.start[l as usize + 1] {
+            let d = t.rows[x as usize].at;
+            if !restore && is_whole_drop(b, d, Root::Local(l)) {
                 edits.remove(d);
             }
         }
     }
+    !retry
 }
 
 /// The kept bits of `b`'s summary (`crate::own::Summary::kept`), from the

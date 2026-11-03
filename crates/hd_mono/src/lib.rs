@@ -783,7 +783,7 @@ fn holds_coll_at(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, depth: u32) -> 
                         holds_coll_at(pool, env, subst(pool, env, def, args, *f), depth + 1)
                     })
             }
-            StdKind::Suspend | StdKind::Buffer => false,
+            StdKind::Suspend => false,
         },
         _ => false,
     }
@@ -2443,11 +2443,13 @@ impl Cx<'_> {
                 global,
             };
             let picked = self.solver.select(&mut cx, tref).map_err(|mut e| {
+                // Optional probes can discard this failure. Bound its context
+                // before expanding a shared type graph into a printed tree.
                 e.what = format!(
                     "{} (`{}` at `{}`)",
                     e.what,
                     env.describe(trait_),
-                    self.pool.display(self_ty)
+                    shown_type(self.pool, env, self_ty)
                 );
                 e
             })?;
@@ -2785,7 +2787,8 @@ impl Cx<'_> {
     /// concrete type implementing `std.rt.Drop`. Absence of an impl is the
     /// common case, just as it is for the optional `Debug` specialization.
     fn note_drop(&mut self, ty: Ty, parent: InstId) -> StageResult<()> {
-        if !self.drop_checked.insert(ty) {
+        // An open value is a box, which its concrete type's glue releases.
+        if is_open(self.pool, ty) || !self.drop_checked.insert(ty) {
             return Ok(());
         }
         if let TyData::Adt { .. } = self.pool.get(ty)
@@ -3425,6 +3428,11 @@ impl Cx<'_> {
         // instance of its own, requested by its `Closure`.
         let own_sub = match sub {
             Sub::Body(k) if k != 0 => Some(u32::from(k)),
+            // Closure construction is outlined by open_insts, and its
+            // thunk collects the closure body at the caller's concrete
+            // types. The erased root must not also collect that body's
+            // calls against open placeholders with no trait witnesses.
+            Sub::Erased => Some(0),
             _ => None,
         };
         let subs = (own_sub.is_some()
@@ -4002,11 +4010,13 @@ fn pinned(
         }
         TyData::Mut(x) | TyData::Option(x) => pinned(pool, env, def, x, inside, out),
         TyData::Adt { def: d, args } => {
-            // `List`, `Map` and enum payloads store references erased.
+            // `List`, `Map`, a buffer's room and enum payloads store
+            // references erased.
             let erased = matches!(
                 env.std_kind(d),
-                layout::StdKind::List | layout::StdKind::Map | layout::StdKind::Buffer
-            ) || env.enum_variants(d, args).is_some();
+                layout::StdKind::List | layout::StdKind::Map
+            ) || env.raw_buffer(d)
+                || env.enum_variants(d, args).is_some();
             for a in pool.list_items(args).iter().copied() {
                 pinned(pool, env, def, a, inside || !erased, out);
             }

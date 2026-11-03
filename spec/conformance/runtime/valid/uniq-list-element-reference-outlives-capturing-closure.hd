@@ -1,0 +1,22 @@
+# test: an element reference keeps a captured unique list alive past the closure
+# expect: test
+# Spec std/collections UniqList: std-collections.uniq-list.get-ref.
+use std.collections.UniqList
+
+fn first_len(words: UniqList[string]) -> usize:
+    count := fn() -> usize: words.len()
+    first := words.get_ref(0)
+    n := count()
+    filler := "f".repeat(37)
+    match first:
+        .Some(word) => word.len() + n + filler.len() - 37
+        .None => 0
+
+tests:
+    use std.testing.assert_equal
+
+    it("reads the element after the closure's last use"):
+        let mut words = UniqList::[string].new()
+        words.push("alpha-" + "x".repeat(31))
+        words.push("beta")
+        assert_equal(first_len(words), 39, reason="37 bytes and two elements")

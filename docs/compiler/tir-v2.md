@@ -798,7 +798,10 @@ release, made explicit.
    the innermost block holding all its accesses that holds the last one
    (today's `live::plan` rule). A frame local's accesses include each use
    of a value that may point into it (#1006,
-   `crates/hd_wasm_linear/DESIGN.md` §23.38). Parameters and captures live
+   `crates/hd_wasm_linear/DESIGN.md` §23.38), and so do a cell local's
+   (one a closure captures), since a reference into what the cell holds,
+   as a `UniqList` element's, takes no count of the cell (#1299,
+   `hd_tir::own::frame` rule 4). Parameters and captures live
    in the sub-body's root block. A `Break` or `Continue` that leaves that block
    before the drop gets a `Drop` before it; the function's exit drops
    the rest through `exit_drops`.
@@ -3478,7 +3481,9 @@ is. So the 60 planned lines are plumbing: the kind, its known path, and
 its rows in `layout.rs` and `cycle.rs`. `new` is an intrinsic
 (`mem_buffer`); `capacity`, `len`, `set_len` and `at` are hd over the
 untyped loads and stores and `Ptr`. A copy of a buffer is a retain.
-`List` keeps its header until its own commits. The two string views are
+`List` keeps its header until its own commits. (#1298 since made the
+buffer raw memory: an hd struct of an address and a capacity whose
+`Drop` frees its room, with no count and no `StdKind`.) The two string views are
 `string_bytes(text) -> Ptr[u8]` (`mem_string_bytes`: the view's address)
 and `new_string(n) -> string` (`mem_new_string`: a `Str` block, or the
 static empty string for none).

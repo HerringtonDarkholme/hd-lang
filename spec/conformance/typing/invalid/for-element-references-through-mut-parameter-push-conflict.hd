@@ -1,0 +1,5 @@
+# test: a push in the body of a loop over the element references of a list reached through a `&mut` parameter is a conflicting access, since the parameter's list is seen whole
+# Spec 06 Element Reference Loops: flow.for.ref.conflict.
+fn doubled(list: &mut List[i32]) -> void:
+    for x in &mut list:
+        list.push(*x) # diagnostic: conflicting-access

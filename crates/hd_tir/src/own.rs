@@ -1059,8 +1059,12 @@ fn writes_with(
                         .as_mut()
                         .is_some_and(|origins| origins.owns_pointer_place(a, i))
             }
+            // A move out of a place the body does not own; before the
+            // passes, a read of a pointer's target is one too, since
+            // `Ptr.read` moves its value out (`module.rt.ptr.read`).
             Tag::Read => {
-                w == ReadMode::Move as u32
+                (w == ReadMode::Move as u32
+                    || (w == ReadMode::Use as u32 && matches!(b.view(a).root, Root::Ptr(_))))
                     && !place(a).0
                     && !origins
                         .as_mut()
@@ -2405,6 +2409,68 @@ pub(crate) mod tests {
             }
         );
         assert_eq!(a.meet(a), a);
+    }
+
+    /// A summary may tentatively lend a parameter through a binding, but a
+    /// binding passed on as an owned value cannot borrow. The parameter
+    /// must keep its ownership until move transfers it into the binding.
+    #[test]
+    fn a_rejected_binding_borrow_restores_its_parameters_ownership() {
+        struct Summarizing;
+        impl super::OwnCx for Summarizing {
+            fn counted(&self, ty: Ty) -> Tri {
+                Cx.counted(ty)
+            }
+            fn pass(&self, c: &Callee, k: usize, n: usize) -> Pass {
+                Cx.pass(c, k, n)
+            }
+            fn pass_value(&self, ty: Ty, k: usize, n: usize) -> Pass {
+                Cx.pass_value(ty, k, n)
+            }
+            fn may_write(&self, c: &Callee) -> bool {
+                Cx.may_write(c)
+            }
+            fn parts(&self, ty: Ty, v: Option<u32>, out: &mut Vec<Ty>) -> bool {
+                Cx.parts(ty, v, out)
+            }
+            fn copies(&self, ty: Ty) -> Tri {
+                Cx.copies(ty)
+            }
+            fn received(&self, item: DefId, k: usize, n: usize) -> Pass {
+                Cx.received(item, k, n)
+            }
+            fn holds_coll(&self, ty: Ty) -> bool {
+                Cx.holds_coll(ty)
+            }
+            fn suspending(&self, _: DefId) -> bool {
+                false
+            }
+            fn summarizes(&self) -> bool {
+                true
+            }
+        }
+        let n = NodeIdx::from_raw(1);
+        for (ty, callee, mode) in [Ty::STRING, UNIQ, OPEN]
+            .into_iter()
+            .flat_map(|ty| [(ty, 8, ReadMode::Borrow), (ty, 9, ReadMode::Move)])
+        {
+            let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+            let blk = b.open_block();
+            let parameter = b.local(ty, Symbol::from_raw(0), local_flags::PARAM, n);
+            let binding = b.local(ty, Symbol::from_raw(1), 0, n);
+            let read = b.get(parameter, ty, n);
+            b.set(binding, read, n);
+            let value = b.get(binding, ty, n);
+            call(&mut b, callee, &[value], Ty::VOID);
+            let root = b.close_block(blk, None, Ty::VOID, n);
+            let mut body = b.finish(root, &[]).expect("verifies");
+            let mut scratch = OwnScratch::default();
+            run(&mut body, &Summarizing, &mut scratch).expect("passes");
+            assert!(scratch.uncopied().is_empty(), "{}", show(&body));
+            assert_eq!(body.data[0][1], mode as u32, "{}", show(&body));
+            let errors = verify_owned(&body, &Summarizing);
+            assert!(errors.is_empty(), "{errors:?}\n{}", show(&body));
+        }
     }
 
     /// The writes walk: a store to a local writes nothing the caller

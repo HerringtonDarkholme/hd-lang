@@ -143,8 +143,12 @@ pub struct KnownItems {
     pub copy: DefId,
     // std.task
     pub suspend: DefId,
-    /// `std.rt.memory.Buffer`, a counted buffer object (`module.rt.buffer.type`).
+    /// `std.rt.memory.Buffer`, raw memory whose room holds values of its
+    /// type argument (`module.rt.buffer.type`).
     pub buffer: DefId,
+    /// `std.rt.memory.Ptr`, an address that may point into what a
+    /// reference reaches (`module.rt.ptr.as-ref`).
+    pub ptr: DefId,
     /// `std.rt.Drop`, whose implementation a value's release glue calls
     /// before releasing its fields (`module.rt.drop.glue`).
     pub drop_trait: DefId,
@@ -267,6 +271,7 @@ impl KnownItems {
             list_is_empty: inherent_method("std.collections", "impl [ T ] List [ T ]", "is_empty"),
             map: item("std.core", "Map"),
             buffer: item("std.rt.memory", "Buffer"),
+            ptr: item("std.rt.memory", "Ptr"),
             drop_trait,
             drop_method: trait_method(drop_trait, "drop"),
             ref_cell: item("std.core", "Ref"),

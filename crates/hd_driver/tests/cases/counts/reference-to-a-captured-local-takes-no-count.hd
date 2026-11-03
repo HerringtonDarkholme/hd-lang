@@ -1,8 +1,9 @@
 # @dump: counts
 # @build: v8 release
-# `read` shares `tally`'s cell, so `&mut tally` takes a count of its own
-# even at the local's last access. That retain and the local's release
-# right after it are one pair, which the link cancels.
+# `read` shares `tally`'s cell, so `tally` lives in a cell, not a frame
+# slot. The local's release follows the reference's last use (cell locals
+# outlive what points into them, #1299), so `&mut tally` takes no count
+# (#1320, `ref.count.local`).
 struct Tally:
     n: i64
 

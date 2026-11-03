@@ -35,6 +35,23 @@ pub fn lent_referent(
     env: &dyn hd_mono::ProgramEnv,
     t: Ty,
 ) -> Option<Ty> {
+    small_referent(pool, env, t).filter(|&r| !crate::layout::holds_drop(pool, env, r))
+}
+
+/// The small referent of `t`, as [`lent_referent`] gives it, that holds
+/// a value with a `std.rt.Drop` (a `Buffer`, a `UniqList`): a value no
+/// copy may take but where nothing can drop it while the copy reads it,
+/// through its caller's reference parameter (`hd_opt::inline`).
+#[must_use]
+pub fn rooted_referent(
+    pool: &hd_types::InternPool,
+    env: &dyn hd_mono::ProgramEnv,
+    t: Ty,
+) -> Option<Ty> {
+    small_referent(pool, env, t).filter(|&r| crate::layout::holds_drop(pool, env, r))
+}
+
+fn small_referent(pool: &hd_types::InternPool, env: &dyn hd_mono::ProgramEnv, t: Ty) -> Option<Ty> {
     let Kind::Ref {
         target, fat: false, ..
     } = kind(pool, env, t)

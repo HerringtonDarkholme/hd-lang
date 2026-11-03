@@ -480,9 +480,7 @@ fn zero_releases(f: &mut Func) -> bool {
             return None;
         };
         match &*symbols.get(*id) {
-            Sym::Helper(Helper::ReleaseRef | Helper::ReleaseKnown | Helper::ReleaseBuffer) => {
-                Some(1)
-            }
+            Sym::Helper(Helper::ReleaseRef | Helper::ReleaseKnown) => Some(1),
             Sym::Helper(Helper::Release { vals, .. }) => Some(vals.len()),
             _ => None,
         }
@@ -2461,9 +2459,7 @@ pub fn count_pairs(f: &mut Func, retain: Hash128) -> bool {
             Sym::Inst(k) if *k == retain => Some((true, Count::Ref, 1)),
             Sym::Helper(Helper::ReleaseRef) => Some((false, Count::Ref, 1)),
             Sym::Helper(Helper::RetainKnown) => Some((true, Count::KnownRef, 1)),
-            Sym::Helper(Helper::ReleaseKnown | Helper::ReleaseBuffer) => {
-                Some((false, Count::KnownRef, 1))
-            }
+            Sym::Helper(Helper::ReleaseKnown) => Some((false, Count::KnownRef, 1)),
             Sym::Helper(Helper::Retain { vals, .. }) => Some((true, Count::Value(*id), vals.len())),
             Sym::Helper(Helper::Release { vals, .. }) => {
                 Some((false, Count::Value(*id), vals.len()))
@@ -2653,7 +2649,6 @@ pub fn static_counts(f: &mut Func, retain: Hash128, arity: &Arity, static_params
                 Helper::ReleaseRef
                 | Helper::RetainKnown
                 | Helper::ReleaseKnown
-                | Helper::ReleaseBuffer
                 | Helper::Retain { .. }
                 | Helper::Release { .. },
             ) => true,

@@ -253,7 +253,7 @@ the slot's start:
 | Offset | Size | Field |
 | --- | --- | --- |
 | 0 | 4 | the count: 32-bit, non-atomic, with no overflow check on wasm32 (REFCOUNT_RUNTIME.md §4.4) |
-| 4 | 4 | the descriptor word: bits 0 to 21 the release glue's function-table slot plus one (0 for none), bits 22 and 23 the collector's color (both set, `OWNED`, on a `Buffer`, §23.28) and bit 24 its frame flag (REFCOUNT_RUNTIME.md §7.2), bits 25 to 29 the allocator class; bit 30 set while the object is a cycle candidate, bit 31 when its type is cycle-capable (§23.28) |
+| 4 | 4 | the descriptor word: bits 0 to 21 the release glue's function-table slot plus one (0 for none), bits 22 and 23 the collector's color (§23.28) and bit 24 its frame flag (REFCOUNT_RUNTIME.md §7.2), bits 25 to 29 the allocator class; bit 30 set while the object is a cycle candidate, bit 31 when its type is cycle-capable (§23.28) |
 | 8 | the payload's size | the payload: the fields, or a buffer's header and elements |
 
 - A reference to a whole object is the payload's address, slot + 8, so
@@ -444,13 +444,26 @@ issue-backed exceptions; there is no per-backend rollout pass list.
   emitter as a `Read` and a `Store` of the place `[ptr %p]`
   (`Em::ptr_place`): a read loads the leaves, and a `move` keeps the
   count they held; a store writes its value as an element store does
-  (`slot_src`, `retain_src`) and releases nothing. A `Buffer[T]`
-  (`StdKind::Buffer`) is the address of a list's buffer, §23.7's
-  capacity and length words and the elements, made by `OwnedBuf` with
-  its element glue, counted and dropped as any counted address is, and
-  traced by the collector as part of its holder (§23.28); a
-  string's bytes are its address, and a new string is a `Str` block, or
-  the static empty string for no bytes.
+  (`slot_src`, `retain_src`) and releases nothing. `as_ref` and
+  `as_mut` are the pointer's address (`Em::ptr_ref`), a short loan's
+  origin when its holders allow (§23.20). A `Buffer[T]` is an ordinary
+  struct of an address and a capacity, hd over these (`std.rt.memory`):
+  its room is a block whose count word starts at 1, the buffer's, and
+  whose descriptor word is 0, then the values. A reference into the room
+  that takes a count adds one (§23.20, "References count what they
+  cross"), so `Buffer.pinned` is a load of that word. Its `Drop` and
+  `grow` give up the buffer's count and free the room when it was the
+  last; else the last reference's release frees it, with no glue. The
+  collector's `hold_room` defers that free while it traces (§23.28). A string's bytes are its address, and a new string is a
+  `Str` block, or the static empty string for no bytes.
+- **Release glue only.** A type whose values hold no counted address but
+  implement `std.rt.Drop` (a `UniqList` of scalars) has the walk
+  `Walk::Glue`, so the ownership passes and the parameter convention
+  treat it as owned and released, and its release runs the drop
+  (`Em::drop_inline`; through a reference, `rt::drop_value`, and a
+  view's box glue, from `RefLayout::drops`). A walk with a counted address leaves `Glue` out.
+  A reference to such a value is never promoted to its value
+  (`layout::holds_drop`, §23.40), since that would bind it twice.
 - **Runtime modules are std's.** `hd_project::UseRoots` refuses a use of
   `std.rt` or a module under it from any package but std, as
   `std-only-use` (`module.rt.std-only.error`).
@@ -1049,10 +1062,11 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   without rebuilding its parent.
   The source reference evaluates once before the RHS. A compound assignment
   reads the old field before its RHS; both kinds store after the RHS,
-  preserving changes it makes to neighboring fields through aliases. A local reference
-  is counted through the page table at any address in its object, so a
-  reference to a field keeps the whole object alive (a counted one is a
-  payload start, §23.30). `is` compares
+  preserving changes it makes to neighboring fields through aliases. A local
+  reference that takes a count is counted through the page table at any
+  address in its object, so a reference to a field keeps the whole object
+  alive (a counted one is a payload start, §23.30); which ones take one is
+  below ("References count what they cross"). `is` compares
   addresses, and `identity_of` is no base, the address as the serial and
   no key. A reference to a trait value is that trait value, the data
   address and the vtable, as Rust's `&dyn Tr` is: `RefDyn`'s other block
@@ -1066,6 +1080,40 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   profile and in release; 16 of them are the count of blocks
   `std.rt.alloc.allocated` reports, which `ref_tests.hd` reads to see
   that a loop writing through `&mut` to a local allocates nothing.
+- **References count what they cross** (issue #1320,
+  spec/lang/13-values-and-references.md `ref.count.pointer`,
+  `ref.count.local`). A reference's count protects the storage its place
+  crosses that an alias the checker cannot see may change, and nothing
+  else; the place decides it, never the named type:
+  | The place crosses | The reference takes |
+  | --- | --- |
+  | no dereference of a counted reference, no list or map element: a local's frame slot or cell, a field path in it, or such a reference's referent | no count (`Em::frame_loans`) |
+  | a `*T` or `*mut T` dereference, fields after it | a count of that object, through the page table at its address: an alias may replace it |
+  | a `List` or `Map` element | the pin, a count of the buffer (below) |
+  | a `UniqList` or `UniqMap` element (`Ptr.as_ref`, `as_mut`) | a count of the room, so `Buffer.pinned` is true while an alias could grow it (`std-collections.uniq-list.pinned`), unless a short loan holds it |
+  A reference into a slot needs none because a slot is static (§23.38); one
+  into a cell because the passes keep a cell local alive over every use of
+  what may point into it (`hd_tir/src/own/frame.rs`, the origin rule), in
+  an owned body with no suspension point. Such a **loan** flows into a
+  `Ref` through it to a part of its referent, a read of all or a part of
+  it, a same-value coercion, a variant, struct or tuple whose counted parts
+  are all loans (`Option[&T]`, a cursor of references), a block's, scope's
+  or `break`'s value, and a local every store of which stores one and which
+  no `&mut` reaches. None of these counts or releases. A loan into a cell
+  is **scoped** (`Em::scoped_loans`): a consumer that is no loan, as a
+  return or a store into a counted place, does not take it (`Em::take_from`)
+  but counts a copy of its own, so every count that leaves the body is a
+  real one. A slot's loan may move anywhere, as a count of a slot's address
+  does nothing. A reference through a parameter's referent keeps the lent
+  rule (`ref_word::LENT`): the caller keeps that referent alive for the
+  call, and a result that holds one is counted where it is returned.
+  **View owners.** A `Ref` to a field of a loan may be a projection of a
+  representation view (`rt:ref_project`) where the base is an erased
+  view: the loan's flag (`Em::view_loans`) marks that fresh object, and
+  the loan's `Drop` releases it, so the loan owns it. A payload field
+  reference (`rt:ref_payload`) and a copy of a local no cell holds
+  (`ref.expr.allocate`) are new objects whose one count the reference
+  holds; they take no other count, and their `Drop` frees them.
 - **Cells made before use** (issue #678). A use of a cell reads its local
   directly when the cell certainly exists there (`Em::cell_made`): the
   prologue made or received it (a parameter moved into its cell, a
@@ -1151,7 +1199,7 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   Two references to one slot share its address (`ref.elem.identity`). A
   trait value of a value that is one counted address is that address,
   never a copy.
-- **Short loans.** A reference from a `map_probe` or `buffer_item_ref`
+- **Short loans.** A reference from a `map_probe` or `ptr_ref`
   intrinsic or a shared element `Ref` of a local's list (or of a read of
   all of it, as `for x in &xs` makes) whose every holder ends before
   anything could write or drop its collection lives on the collection's
@@ -1429,21 +1477,9 @@ is unchanged.
   address that is not a block's start, or of a poisoned block, fails.
 - **Counts audited.** `retain` and `release` fail on a block whose count
   word is poison, a freed object, or 0 or fresh, a block with no count.
-- **No copied buffers.** A `std.rt.memory.Buffer` is not copyable, so no
-  code should retain one. A checked link marks buffer leaves in its walks
-  (`Walk::Buffer`, `layout::mark_buffers`), and every retain of a walk
-  holding one panics `count-audit`, naming the function
-  (`rt::trap_buffer_retain`). A normal build's walks and module are
-  unchanged. The traps list the copies an uncounted buffer would first
-  have to remove (#1254).
-- **Buffers released by their holder.** A marked `Buffer` leaf releases
-  through `rt:release_buffer` (`Helper::ReleaseBuffer`). The plain
-  releases (`rt:release_ref`, `ReleaseRef` and `ReleaseKnown`) panic
-  `count-audit` when the address is an `OWNED` block's payload start
-  (§23.28), so every buffer is dropped by its holder's glue. An item
-  reference into a buffer is never at that start. An open value whose
-  one counted address is a marked buffer crosses in a box
-  (`Walk::plain_single`), whose glue releases it (#1279).
+- **No copied buffers.** A `std.rt.memory.Buffer` is not copyable and
+  has no count; the copy verifier (`hd_tir::own::uncopied`) keeps the
+  ownership passes from copying one in every build.
 - **Leaks at the end.** `std.rt.checked` counts the blocks given and not
   freed. The entry's poll (`Helper::CheckedPoll`) audits once it answers
   anything but Pending. It frees the wake table, which is the runtime's
@@ -1526,12 +1562,16 @@ reads, and the counts of the code it generates.
   Arguments spread from a tuple do not line up with the parameters one
   to one, so each owned parameter's values take a count wherever they
   come from. A function reference's adapter passes its arguments on
-  unchanged. Code the backend generates lends what it passes: a vtable
-  slot (`Helper::DynSlot`, `DynRead`), the map glue's `key_bucket_hash`
-  and `eq` calls (`KeyOps`), and the boundary's JSON codecs and
-  `host_provider` count a copy of each argument the target owns
-  (`rt::own_arg`). So a dynamic call lends its arguments, as host stubs
-  expect.
+  unchanged. A synchronous dynamic call hands in a native value that
+  holds an inline `Drop` implementation the same way: retaining its
+  counted fields cannot copy its Drop ownership. Its vtable slot
+  (`Helper::DynSlot`, `DynRead`) forwards that value unchanged and
+  releases it, including its hooks, after a target that only borrows it.
+  Other native arguments and the receiver stay lent, as host stubs
+  expect; the slot counts what its target owns of those. Other generated
+  code lends what it passes: the map glue's `key_bucket_hash` and `eq`
+  calls (`KeyOps`), the boundary's JSON codecs and `host_provider` count
+  a copy of each argument the target owns (`rt::own_arg`).
 - **Moves.** The move pass moves a value's count into its one consumer
   and a local's into its last read (docs/compiler/tir-v2.md, "Move",
   rules 1 to 4). The emitter zeroes a moved place once its consumer has
@@ -1630,10 +1670,11 @@ same erased bodies, thunks and witness fields.
 - **The slot.** A generic method's vtable slot takes the receiver, the
   arguments with open ones as open values, the witness address, then the
   context when the method has a row (§23.26). The call owns each open
-  value argument: the caller moves its value into the open value when
+  value argument, and each native inline Drop value of a synchronous
+  call: the caller moves its value into the argument when
   the call consumes it, as a by-value argument of a `!Copy` type always
   is, and otherwise gives it a copy (#1279). The slot hands that count
-  to an erased body that owns the parameter and releases it after one
+  to a body that owns the parameter and releases it after one
   that borrows it (a lent summary, or a suspending method's cold
   constructor, which counts what it keeps). An open reference argument
   crosses as a view the caller releases once the call has returned. The
@@ -1679,7 +1720,7 @@ same erased bodies, thunks and witness fields.
   an erased box and leaves zeros there. The setter moves a box's value
   into the place, as an owned open value leaves its box, and releases
   what the place held. A view never copies its value, so a `!Copy` value,
-  such as a `std.rt.memory.Buffer` holder, keeps one holder (#1281). A
+  such as a `UniqList`, keeps one holder (#1281). A
   field reference into a view (`&mut alias.text`) is a view whose getter
   takes the parent out through the parent view, moves the field out and
   puts the rest back, and whose setter puts a new field in the same way;
@@ -1773,24 +1814,18 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   frees it, so this was a sixth of its run. `free` takes counted objects
   only (`BUFFERED` is a header bit); the wake table, a raw block, goes
   to the free without the collector test.
-- **Buffers are part of their holder** (#1255). A `std.rt.memory.Buffer`
-  has one holder, so it never takes part on its own: `rt:owned_buf`
-  allocates it without `CYCLIC` and with both color bits set (`OWNED`),
-  which no object that takes part has. When a trace's release reaches
-  an owned block at its payload start, `visit` traces that block in
-  place with the holder's mode (`enter`): a mark's work list, a scan's
-  `INNER` tag (traced with SCAN whatever its color), a restore's tag. So
-  what the buffer holds counts as the holder's references, and the
-  buffer's own count, always one, is never touched. A white holder's
-  buffers are listed while the white objects are walked and freed
-  through `free` after the references to objects that do not take part
-  are released, since one of those can be an item reference into a
-  buffer. (A count from outside the holder would be an item reference
-  that outlives it; checked mode's poison catches its release.)
-  Any glue reaches it this way, whether its walk names a `Buffer` or an
-  open value carries one. `cycle_tests.hd` drops 200,000 rings of boxes
-  linked through `UniqList`s and checks the heap, and
-  `uniq-list-cycle-collected` runs under checked mode's leak audit.
+- **Buffers are part of their holder** (#1298). A `std.rt.memory.Buffer`
+  is a field of its holder, and its room is no object. A trace runs the
+  holder's glue, whose `std.rt.Drop` calls run in every pass
+  (`module.rt.drop.trace`): a `UniqList`'s drop reads each element out
+  and drops it, so its references reach `visit` as the holder's own.
+  The buffer's own drop asks `hold_room`: while a trace marks or scans
+  it keeps the room, and while it frees white objects it lists the room,
+  which `collect` frees after the references to objects that do not
+  take part are released, since one of those can be a reference into
+  the room. `cycle_tests.hd` drops 200,000 rings of boxes linked through
+  `UniqList`s and checks the heap, and `uniq-list-cycle-collected` runs
+  under checked mode's leak audit.
 - **Tracing is the release glue.** `CycleTrace` runs the descriptor's
   glue on the payload with the `Tracing` global set, and `rt:release_ref`
   hands each reference to the collector's `visit` instead of counting it

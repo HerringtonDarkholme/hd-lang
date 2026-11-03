@@ -34,14 +34,13 @@
 # Objects that do not take part are never entered; a white object's
 # reference to one is released as usual once the white objects are freed.
 #
-# A `std.rt.memory.Buffer` does not take part, but it has one holder, so
-# it is part of that holder: its descriptor's color bits are both set
-# (OWNED), which no object that takes part has. When a trace reaches an
-# owned block through its holder's reference to its start, the collector
-# traces the block in place with the holder's mode, so what the buffer
-# holds counts as the holder's own references. A white holder's buffer is
-# freed after its references to objects that do not take part are
-# released, since such a reference can be an item reference into it.
+# A `std.rt.memory.Buffer`'s room does not take part and is no object:
+# its holder's release glue drops the values in it (`std.rt.Drop`), so a
+# trace of the holder visits them as the holder's own references. The
+# buffer's own drop frees the room; while a collection traces, it asks
+# `hold_room`, which keeps a white holder's room until the references to
+# objects that do not take part are released, since one can be a
+# reference into the room.
 #
 # The backend supplies what only it can: `trace` runs an object's release
 # glue while the backend's release hands each reference the glue releases
@@ -61,8 +60,6 @@ GRAY := 0x400000
 WHITE := 0x800000
 # Purple is the BUFFERED bit, never painted.
 COLORS := 0xc00000
-# Both color bits on a block that does not take part: an owned buffer.
-OWNED := 0xc00000
 # The descriptor word's bit that marks a suspension frame.
 FRAME := 0x1000000
 # Counted header (8 bytes) plus task::F_FLAGS (12); ACTIVE | RUNNING.
@@ -79,8 +76,6 @@ MARK := 1
 SCAN := 2
 RESTORE := 3
 COLLECT := 4
-# The scan's tag of an owned buffer, traced with SCAN whatever its color.
-INNER := 5
 
 # The candidate buffer's first threshold, PHP's fixed buffer size.
 FIRST := 10000
@@ -99,8 +94,8 @@ let garbage: usize = 0
 # The references from white objects to objects that do not take part,
 # released once the white objects are freed.
 let later: usize = 0
-# The owned buffers of white objects, freed after `later` is released.
-let owned: usize = 0
+# The rooms of white objects' buffers, freed after `later` is released.
+let rooms: usize = 0
 # What `visit` does now.
 let mode: usize = IDLE
 # Whether a collection is running.
@@ -175,9 +170,6 @@ pub fn visit(address: usize) -> bool:
     if block == 0:
         return true
     part := takes_part(block)
-    if !part && address == block + 8 && (usize(load_u32(block + 4)) & (CYCLIC | COLORS)) == OWNED:
-        enter(block)
-        return true
     if mode == COLLECT:
         if !part:
             later = push(later, address)
@@ -202,23 +194,20 @@ pub fn visit(address: usize) -> bool:
             stack = push(stack, block + RESTORE)
     true
 
-## True only while tracing release glue to free white objects.
-pub fn dropping() -> bool:
-    mode == COLLECT
+## True while a collection traces release glue only to mark or scan, when a `std.rt.Drop` implementation changes nothing but through its releases.
+## See [module.rt.drop.trace](../../../spec/lang/10-modules.md#r-module.rt.drop.trace).
+pub fn marking() -> bool:
+    mode != IDLE && mode != COLLECT
 
-# Traces the owned buffer at `block`, which the object being traced holds,
-# in the same mode, as part of that object.
-fn enter(block: usize) -> void:
-    if mode == SCAN:
-        stack = push(stack, block + INNER)
-    else if mode == RESTORE:
-        stack = push(stack, block + RESTORE)
-    else:
-        if mode == COLLECT:
-            owned = push(owned, block)
-        stack = push(stack, block)
+## Whether the collector keeps the room block at `block`, whose buffer is being dropped: while a trace marks or scans, the room stays; while it frees white objects, it is freed after their references to objects that do not take part are released; else the caller frees it.
+pub fn hold_room(block: usize) -> bool:
+    if mode == IDLE:
+        return false
+    if mode == COLLECT:
+        rooms = push(rooms, block)
+    true
 
-## Frees the candidates whose last count went, then, unless `due` asked for that alone, collects the others' garbage cycles: `trace` runs a block's release glue, `release` releases one reference, and `free` frees a block, a white object or an owned buffer it held.
+## Frees the candidates whose last count went, then, unless `due` asked for that alone, collects the others' garbage cycles: `trace` runs a block's release glue, `release` releases one reference, and `free` frees a white object.
 pub fn collect(
     trace: fn(usize) -> void,
     release: fn(usize) -> void,
@@ -272,16 +261,12 @@ pub fn collect(
         release(item(later, i))
         i = i + 1
     clear(later)
-    # Each owned buffer's one count is its white holder's, and what it held
-    # is freed or released above. (A count from outside would be a counted
-    # item reference that outlives the holder; checked mode's poison
-    # catches its release.)
+    # A white holder's rooms: what they held is released above.
     i = 0
-    while i < length(owned):
-        free(item(owned, i))
+    while i < length(rooms):
+        free_block(item(rooms, i))
         i = i + 1
-    freed = freed + length(owned)
-    clear(owned)
+    clear(rooms)
     clear(garbage)
     compact()
     # REFCOUNT_RUNTIME.md §7.4: a collection that frees most of what it
@@ -315,10 +300,6 @@ fn scan(s: usize, trace: fn(usize) -> void) -> void:
         b := e - e % 16
         if e % 16 == RESTORE:
             mode = RESTORE
-            trace(b)
-            mode = IDLE
-        else if e % 16 == INNER:
-            mode = SCAN
             trace(b)
             mode = IDLE
         else if color(b) == GRAY:
@@ -435,8 +416,7 @@ fn clear(array: usize) -> void:
         store_u32(array, 0)
 
 # The collector's free callback runs either during the zero-count sweep,
-# when garbage is empty, or over the white objects it just traced and
-# their owned buffers. Only checked instrumentation calls this; ordinary
-# collection is unchanged.
+# when garbage is empty, or over the white objects it just traced. Only
+# checked instrumentation calls this; ordinary collection is unchanged.
 pub fn freeing_cycles() -> bool:
     length(garbage) != 0

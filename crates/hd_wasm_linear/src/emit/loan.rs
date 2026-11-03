@@ -5,7 +5,7 @@
 //! nor pinned.
 //!
 //! An **origin** is a reference-returning `map_probe` intrinsic, a
-//! `buffer_item_ref` intrinsic, or a shared `Ref` of an element of a
+//! `ptr_ref` intrinsic, or a shared `Ref` of an element of a
 //! local's list, or of a read of all of one. Its **holders** are the values
 //! and locals its reference flows into: a variant built around it, a
 //! block's tail its owner takes, a `break` value's target, a coercion
@@ -128,7 +128,7 @@ impl Em<'_, '_, '_> {
                     _ => None,
                 }
             }
-            Tag::Call if self.buffer_item_ref_call(x) => Some((x, false, Vec::new())),
+            Tag::Call if self.ptr_ref_call(x) => Some((x, false, Vec::new())),
             Tag::Ref => {
                 let skips = self.shared_elem_ref(x)?;
                 Some((x, false, skips))
@@ -137,13 +137,13 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    /// Whether call `x` is `Buffer[T].item_ref`, whose lowering is the
-    /// element's address in the buffer its receiver lends, with no count.
-    fn buffer_item_ref_call(&self, x: u32) -> bool {
+    /// Whether call `x` is `Ptr[T].as_ref`, whose lowering is the
+    /// pointer's address, with no count.
+    fn ptr_ref_call(&self, x: u32) -> bool {
         matches!(
             self.calls.get(&x),
             Some(hd_mono::Target::Call(call))
-                if matches!(&call.kind, hd_mono::TargetKind::Intrinsic(key) if key == "buffer_item_ref")
+                if matches!(&call.kind, hd_mono::TargetKind::Intrinsic(key) if key == "ptr_ref")
         )
     }
 
@@ -663,7 +663,9 @@ impl Em<'_, '_, '_> {
                     && p.steps(self.b)
                         .all(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)))
             }
-            Tag::Drop => !on_path(p.root) || self.drops_only_a_ref(p.root),
+            Tag::Drop => {
+                !on_path(p.root) || self.drops_only_a_ref(p.root) || self.drops_nothing(p.root)
+            }
             Tag::Scope => {
                 let suites = self.b.data[k][1];
                 suites == NONE || self.b.record(suites).is_empty()
@@ -687,6 +689,13 @@ impl Em<'_, '_, '_> {
             ),
             _ => false,
         }
+    }
+
+    /// Whether dropping value `root` releases nothing: a value with no
+    /// counted leaf and no `std.rt.Drop`, as the `Ptr` a pointer
+    /// reference's origin reads.
+    fn drops_nothing(&self, root: Root) -> bool {
+        matches!(root, Root::Value(v) if !self.needs_drop(self.ty_of(v)))
     }
 
     /// Whether dropping `root` leaves its referent's local holding it: a

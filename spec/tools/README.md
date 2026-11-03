@@ -15,6 +15,7 @@ source, so they serve any implementation. The one exception is an adapter module
 | `spec-prose.ts` | the Markdown block scanner, rule ID markers, and the prefix table |
 | `rule-inventory.ts` | one chapter's inventory, and the restyle diff ([STYLE.md](../STYLE.md#restyling-a-chapter)) |
 | `run-conformance.ts` | the conformance runner for any implementation ([Adapters](#adapters)) |
+| `generate-erased-call-matrix.ts` | the checked-in erased-call runtime matrix; regenerate without arguments, or verify with `--check` |
 | `fuzz/` | the implementation-neutral fuzzer ([README](fuzz/README.md)) |
 | `spec-tools.test.ts` | the tests of these tools, run by `pnpm test` |
 
