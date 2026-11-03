@@ -129,6 +129,11 @@ pub trait ProgramEnv: LayoutEnv {
     fn ref_cells(&self) -> hd_types::RefCells;
     /// The suspension type `Suspend[T]`, a suspending call's cold value.
     fn suspend_def(&self) -> DefId;
+    /// The compiler-known `std.rt.Drop` trait and its one method. `None`
+    /// lets a partial environment omit std's runtime declaration.
+    fn drop_items(&self) -> Option<(DefId, DefId)> {
+        None
+    }
     /// Whether `impl_` is a `@derive` implementation on a nominal
     /// newtype: its methods forward to the base type's implementation,
     /// so with erased newtypes calls use the base method directly and
@@ -545,6 +550,9 @@ pub struct Collected {
     /// The trait methods that scanned code calls through a trait value
     /// ([`Target::Dyn`], a function reference's adapter included).
     pub dyn_methods: HashSet<DefId>,
+    /// Concrete data types whose release glue first calls their
+    /// `std.rt.Drop.drop` implementation, by type and instance key.
+    pub drop_glue: HashMap<Ty, Hash128>,
 }
 
 impl Collected {
@@ -1396,6 +1404,8 @@ struct Cx<'a> {
     /// the body's address and length: a body that holds many closures is
     /// scanned once per closure, and each scan reads them.
     body_subs: HashMap<(usize, usize), Arc<Vec<u32>>>,
+    /// Concrete types already tested for a `std.rt.Drop` implementation.
+    drop_checked: HashSet<Ty>,
 }
 
 #[derive(Default)]
@@ -2771,6 +2781,51 @@ impl Cx<'_> {
         self.select(debug, ty, TyList::EMPTY, None).is_ok()
     }
 
+    /// Records the ordinary method instance that release glue calls for a
+    /// concrete type implementing `std.rt.Drop`. Absence of an impl is the
+    /// common case, just as it is for the optional `Debug` specialization.
+    fn note_drop(&mut self, ty: Ty, parent: InstId) -> StageResult<()> {
+        if !self.drop_checked.insert(ty) {
+            return Ok(());
+        }
+        if let TyData::Adt { .. } = self.pool.get(ty)
+            && let Some((trait_, method)) = self.env.drop_items()
+            && self.select(trait_, ty, TyList::EMPTY, None).is_ok()
+        {
+            let target = self.method_target(trait_, method, ty, &[], None, parent)?;
+            if target.kind != TargetKind::Instance {
+                return err("a `std.rt.Drop` implementation without an hd body");
+            }
+            self.out.drop_glue.insert(ty, target.key);
+        }
+        let children = match self.pool.get(ty) {
+            TyData::Adt { def, args } => self.env.enum_variants(def, args).unwrap_or_else(|| {
+                vec![
+                    self.env
+                        .data_fields(def)
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|field| subst(self.pool, self.env, def, args, field))
+                        .collect(),
+                ]
+            }),
+            TyData::Tuple { elems, rest } => vec![
+                self.pool
+                    .list_items(elems)
+                    .iter()
+                    .copied()
+                    .chain(rest)
+                    .collect(),
+            ],
+            TyData::Option(inner) => vec![vec![inner]],
+            _ => Vec::new(),
+        };
+        for child in children.into_iter().flatten() {
+            self.note_drop(child, parent)?;
+        }
+        Ok(())
+    }
+
     /// A call of a method the compiler lowers per self type: a sealed
     /// trait's (§3.9), or a body-less method of a built-in family.
     fn builtin_target(&self, method: DefId, self_ty: Ty, targs: &[Ty]) -> CallTarget {
@@ -3305,6 +3360,11 @@ impl Cx<'_> {
         let mut reps = StableHasher::new("callee-reps");
         let mut seen = hd_base::HashSet::default();
         let s = |t: Ty| subst(pool, env, item, args, t);
+        let mut signature = env.params(item).unwrap_or_default();
+        signature.extend(env.ret(item));
+        for ty in signature {
+            self.note_drop(s(ty), id)?;
+        }
         // An erased body outlines its open instructions, and a thunk is
         // one of them at concrete arguments (`crates/hd_mono/DESIGN.md` §13.5.1).
         let mut open: HashMap<u32, u32> = HashMap::default();
@@ -3395,6 +3455,7 @@ impl Cx<'_> {
                 ));
             }
             note_data(pool, env, ty, &mut self.out.data);
+            self.note_drop(ty, id)?;
             // A generated body's nodes are in no source file.
             self.at = body
                 .syn
@@ -4094,6 +4155,7 @@ fn collect_roots(
         plans: HashMap::default(),
         item_bodies: HashMap::default(),
         body_subs: HashMap::default(),
+        drop_checked: HashSet::default(),
     };
     if let Err(e) = cx.run(root, inits, extra, refs) {
         return match cx.too_deep.take() {

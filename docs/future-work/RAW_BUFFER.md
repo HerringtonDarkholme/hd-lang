@@ -52,7 +52,7 @@ impl[T < ?Copy] Drop for UniqList[T]:   # std.rt.Drop: only std implements it
 1. `Buffer` is `!Copy`, owns its memory, and frees it when dropped, as
    Rust's `RawVec`. It has no length and no element operations.
 2. A list drops its elements through `std.rt.Drop`, a trait only std may
-   implement ([`module.rt.std-only`](../../spec/lang/10-modules.md#r-module.rt.std-only)).
+   implement ([`module.rt.drop.glue`](../../spec/lang/10-modules.md#r-module.rt.drop.glue)).
 3. The verifier runs in every build.
 
 ## Problems It Solves
@@ -210,7 +210,7 @@ collector for acyclic data, so the list must drop them.
   1. The verifier, reporting every site on the conformance suite and std;
      the site list goes on the tracking issue.
   2. The read-mode rule for `!Copy` values; the verifier passes.
-  3. `std.rt.Drop` and its glue call; a stage case and a checked case.
+  3. `std.rt.Drop` and its glue call; a stage case and a checked case. Applied by #1297 ([Runtime Drop Hook](../../spec/lang/10-modules.md#runtime-drop-hook)).
   4. Raw `Buffer`, `UniqList` with `len`; uniq fixtures in checked
      builds.
   5. `UniqMap` and the iterators on `Drop`; the collector's deferred

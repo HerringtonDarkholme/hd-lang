@@ -1686,6 +1686,24 @@ pub fn main() -> void:
 > **Why.** The runtime can then change how it represents values, or what
 > its functions take, without breaking any program.
 
+### Runtime Drop Hook
+
+The runtime module's drop protocol lets std release the contents of a
+uniquely owned collection before its ordinary fields:
+
+```text
+pub trait Drop:
+    fn drop(&mut self) -> void
+```
+
+1. r[module.rt.drop.decl] `std.rt` declares the public trait `Drop` with the one method `fn drop(&mut self) -> void`.
+2. r[module.rt.drop.glue] The release glue of a type with a `Drop` implementation calls that implementation on a mutable reference to the value, then releases the value's fields through their own release glue, in field order.
+3. r[module.rt.drop.trace] When the cycle collector runs release glue in tracing mode, it runs the same `Drop` implementation before tracing the fields. Releases made by that implementation visit their targets as every other release from the glue does.
+
+Only std can name or implement this trait, by
+[`module.rt.std-only`](#r-module.rt.std-only). User cleanup remains explicit
+through `Disposable` and `using`.
+
 ### Descriptor Glue Mask Intrinsic
 
 The checked runtime privately asks which low descriptor bits name release

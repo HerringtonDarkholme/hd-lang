@@ -922,6 +922,7 @@ fn wake_link(m: &Module) -> Func {
             signed: false,
         }],
         walk: Walk::Ref(0),
+        drops: Vec::new(),
     }));
     f.i32(1);
     f.op(Instruction::I32Add);
@@ -1193,7 +1194,11 @@ fn leaf_drop(area: &Elem) -> Option<Sym> {
     let walk = walk.remap(&|k| {
         u32::try_from(used.iter().position(|u| *u == k).expect("used")).expect("leaves")
     });
-    Some(Sym::Helper(Helper::DropFields { leaves, walk }))
+    Some(Sym::Helper(Helper::DropFields {
+        leaves,
+        walk,
+        drops: Vec::new(),
+    }))
 }
 
 /// Every value index a walk reads: its references and its tags.
@@ -1945,6 +1950,7 @@ fn wait_cell(m: &Module) -> Func {
             signed: false,
         }],
         walk: Walk::Ref(0),
+        drops: Vec::new(),
     };
     let cell = new_zeroed(&mut f, 8, Some(Sym::Helper(edges)), false);
     f.get(cell);

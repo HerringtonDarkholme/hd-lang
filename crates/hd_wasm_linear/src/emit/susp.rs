@@ -957,7 +957,7 @@ impl Em<'_, '_, '_> {
     /// children its mask marks done, and clears the mask.
     fn release_done(&mut self, all: &AllPoint) -> StageResult<()> {
         for (j, (_, ls, t)) in all.parts.iter().enumerate() {
-            if self.counted(*t).is_none() {
+            if !self.needs_drop(*t) {
                 continue;
             }
             self.f.get(all.done);
@@ -1332,7 +1332,7 @@ pub(super) fn finish(
             em.f.op(load_op(dv, dat));
             em.f.set(done);
             for (j, (_, ls, t)) in all.parts.iter().enumerate() {
-                if em.counted(*t).is_none() {
+                if !em.needs_drop(*t) {
                     continue;
                 }
                 let Some(slots) = ls.iter().map(|l| at_of(*l)).collect::<Option<Vec<_>>>() else {

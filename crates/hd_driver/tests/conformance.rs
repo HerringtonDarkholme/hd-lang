@@ -1907,6 +1907,10 @@ const STD_RT_TESTS: &[(&str, &str)] = &[
         include_str!("std_rt/count_tests.hd"),
     ),
     (
+        "rt_tests/drop_tests.hd",
+        include_str!("std_rt/drop_tests.hd"),
+    ),
+    (
         "rt_tests/list_tests.hd",
         include_str!("std_rt/list_tests.hd"),
     ),
@@ -1940,7 +1944,7 @@ const STD_RT_TESTS: &[(&str, &str)] = &[
 
 /// The [`STD_RT_TESTS`] files that read `std.rt.checked.allocated()`, which
 /// only the checked runtime counts: they also run checked in every mode.
-const STD_RT_CHECKED_TOO: &[&str] = &["rt_tests/ref_tests.hd"];
+const STD_RT_CHECKED_TOO: &[&str] = &["rt_tests/drop_tests.hd", "rt_tests/ref_tests.hd"];
 
 /// Every case of each [`STD_RT_TESTS`] file passes on the linear backend,
 /// on the engines of the mode, as a `tests` case of the suite would.

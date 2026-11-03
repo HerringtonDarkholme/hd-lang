@@ -272,7 +272,7 @@ impl Em<'_, '_, '_> {
             self.f.get(ls[k]);
         }
         self.store_owned(i)?;
-        if self.counted(pt).is_some() {
+        if self.needs_drop(pt) {
             for &k in &slots {
                 self.f.zero(ls[k]);
             }
@@ -369,7 +369,7 @@ impl Em<'_, '_, '_> {
             let Some((ft, slots)) = self.part_slots(t, &step(f))? else {
                 return Ok(false);
             };
-            if !taken.contains(&f) && self.counted(ft).is_some() {
+            if !taken.contains(&f) && self.needs_drop(ft) {
                 rest.push((ft, slots));
             }
         }
@@ -1189,7 +1189,7 @@ impl Em<'_, '_, '_> {
         }
         let ls = self.local(l)?;
         // An outlined `IsUnique` or `Pin` took the local's count with it.
-        if self.counted(t).is_some() && hd_mono::outlined_change_local(self.b, i).is_none() {
+        if self.needs_drop(t) && hd_mono::outlined_change_local(self.b, i).is_none() {
             self.release_locals(&ls, t)?;
         }
         for (x, n) in ls.iter().zip(&new) {

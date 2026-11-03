@@ -1,0 +1,7 @@
+# std.rt: compiler-known runtime protocols. A runtime module, so only std
+# may use it (spec/lang/10-modules.md#r-module.rt.std-only).
+
+## The standard library's final-release hook. Release glue calls `drop` before releasing the value's fields.
+## See [module.rt.drop.glue](../../../spec/lang/10-modules.md#r-module.rt.drop.glue).
+pub trait Drop:
+    fn drop(&mut self) -> void

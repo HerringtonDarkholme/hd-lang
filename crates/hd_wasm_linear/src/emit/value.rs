@@ -153,12 +153,24 @@ impl Em<'_, '_, '_> {
     ) -> u32 {
         let at = self.f.local(Val::I32);
         self.f.u32(m.size);
-        let glue = walk.map(|w| {
-            Sym::Helper(Helper::DropFields {
-                leaves: m.leaves.clone(),
-                walk: w.clone(),
+        let drops = target.map_or_else(Vec::new, |ty| self.drop_calls(ty));
+        let glue = walk
+            .map(|w| {
+                Sym::Helper(Helper::DropFields {
+                    leaves: m.leaves.clone(),
+                    walk: w.clone(),
+                    drops: drops.clone(),
+                })
             })
-        });
+            .or_else(|| {
+                (!drops.is_empty()).then(|| {
+                    Sym::Helper(Helper::DropFields {
+                        leaves: Vec::new(),
+                        walk: Walk::Seq(Vec::new()),
+                        drops,
+                    })
+                })
+            });
         let weak_key = target.and_then(|ty| {
             let key = canon(
                 self.pool(),
@@ -184,6 +196,85 @@ impl Em<'_, '_, '_> {
         }
         self.f.set(at);
         at
+    }
+
+    /// The `std.rt.Drop` calls in a concrete value's structural release,
+    /// in pre-order: the value itself, then each inline field. A field that
+    /// is its own counted data object runs its hook in that object's
+    /// descriptor glue instead.
+    pub(super) fn drop_calls(&self, t: Ty) -> Vec<(u32, hd_base::Hash128)> {
+        fn add(
+            em: &Em<'_, '_, '_>,
+            t: Ty,
+            base: u32,
+            root: bool,
+            out: &mut Vec<(u32, hd_base::Hash128)>,
+        ) {
+            if (root || matches!(em.kind(t), Kind::Value))
+                && let Some(&key) = em.input.collected.drop_glue.get(&t)
+            {
+                out.push((base, key));
+            }
+            let (fields, parts) = match em.kind(t) {
+                Kind::Value => {
+                    let stripped = crate::layout::strip(em.pool(), em.env(), t);
+                    let fields = match em.pool().get(stripped) {
+                        TyData::Tuple { .. } => crate::layout::tuple_members(em.pool(), stripped),
+                        TyData::Adt { def, .. } if !em.env().is_enum(def) => em.struct_fields(t),
+                        _ => return,
+                    };
+                    let Ok((_, parts)) = struct_mem(em.pool(), em.env(), t) else {
+                        return;
+                    };
+                    (fields, parts)
+                }
+                Kind::Data(fields) if root => {
+                    let Ok((_, parts)) = payload_mem(em.pool(), em.env(), &fields) else {
+                        return;
+                    };
+                    (fields, parts)
+                }
+                _ => return,
+            };
+            for (&field, part) in fields.iter().zip(parts) {
+                if matches!(em.kind(field), Kind::Value) {
+                    add(em, field, base + part.offset, false, out);
+                }
+            }
+        }
+
+        let mut out = Vec::new();
+        add(self, t, 0, true, &mut out);
+        out
+    }
+
+    /// Runs an inline value's drop glue by moving its Wasm locals through
+    /// a temporary payload. The helper calls `Drop` hooks, then releases
+    /// the fields; the temporary object is taken without running its
+    /// descriptor, so those actions happen exactly once.
+    pub(super) fn drop_inline(&mut self, ls: &[u32], t: Ty) -> StageResult<bool> {
+        let drops = self.drop_calls(t);
+        if drops.is_empty() || !matches!(self.kind(t), Kind::Value) {
+            return Ok(false);
+        }
+        let m = crate::layout::mem(self.pool(), self.env(), t)?;
+        let walk = walk(self.pool(), self.env(), t).unwrap_or_else(|| Walk::Seq(Vec::new()));
+        let at = self.object(&m, None, false, false, None);
+        for (&local, leaf) in ls.iter().zip(&m.leaves) {
+            self.f.get(at);
+            self.f.get(local);
+            self.f.op(leaf.store(0));
+        }
+        self.f.get(at);
+        self.f.helper(Helper::DropFields {
+            leaves: m.leaves,
+            walk,
+            drops,
+        });
+        self.f.get(at);
+        self.f.helper(Helper::TakeBox);
+        self.f.op(I::Drop);
+        Ok(true)
     }
 
     /// The leaves of a payload of `tys`, laid out as `parts`, that hold a
@@ -324,7 +415,7 @@ impl Em<'_, '_, '_> {
     /// collection a place holds, `types.coll.value`) and releases the old
     /// one's before the write.
     pub(super) fn replace(&mut self, d: Dst, t: Ty, v: u32) -> StageResult<()> {
-        if self.counted(t).is_none() {
+        if !self.needs_drop(t) {
             return self.write_new(d, &Src::Ref(v));
         }
         let s = self.consumed(v)?;
@@ -338,12 +429,12 @@ impl Em<'_, '_, '_> {
     /// already, as [`Em::replace`] does, but releases the old value, read
     /// into `old` ([`Em::old_locals`]), after the write.
     pub(super) fn replace_late(&mut self, d: Dst, t: Ty, s: &Src, old: &[u32]) -> StageResult<()> {
-        let counted = self.counted(t).is_some();
-        if counted {
+        let drops = self.needs_drop(t);
+        if drops {
             self.load_old(d, old);
         }
         self.write_new(d, s)?;
-        if counted {
+        if drops {
             self.release_locals(old, t)?;
         }
         Ok(())

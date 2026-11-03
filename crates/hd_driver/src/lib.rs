@@ -11966,6 +11966,9 @@ impl ProgramEnv for Env<'_> {
     fn suspend_def(&self) -> DefId {
         self.run.known.suspend
     }
+    fn drop_items(&self) -> Option<(DefId, DefId)> {
+        Some((self.run.known.drop_trait, self.run.known.drop_method))
+    }
     fn is_derived_newtype_impl(&self, impl_: DefId) -> bool {
         let Some(it) = self.p.items.get(impl_) else {
             return false;

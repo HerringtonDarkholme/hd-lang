@@ -342,6 +342,12 @@ impl Em<'_, '_, '_> {
         walk(self.pool(), self.env(), t)
     }
 
+    /// Whether releasing a value has work: reference counts, a
+    /// `std.rt.Drop` hook on an inline value, or one on an inline field.
+    pub(super) fn needs_drop(&self, t: Ty) -> bool {
+        self.counted(t).is_some() || !self.drop_calls(t).is_empty()
+    }
+
     /// Whether a new object of type `t` (a data value, a self-recursive
     /// enum's cell, a list's or a map's) takes part in cycle collection
     /// (`crate::cycle`).
@@ -398,6 +404,9 @@ impl Em<'_, '_, '_> {
     }
 
     fn count_locals_inner(&mut self, ls: &[u32], t: Ty, retain: bool) -> StageResult<()> {
+        if !retain && self.drop_inline(ls, t)? {
+            return Ok(());
+        }
         let Some(mut w) = self.counted(t) else {
             return Ok(());
         };
@@ -612,7 +621,7 @@ impl Em<'_, '_, '_> {
             return Ok(());
         };
         let t = self.ty(x);
-        if self.counted(t).is_none() {
+        if !self.needs_drop(t) {
             return Ok(());
         }
         if self.view_loans.contains_key(&x) {
@@ -635,7 +644,7 @@ impl Em<'_, '_, '_> {
         let Some(ls) = self.locals.get(&l).cloned() else {
             return Ok(());
         };
-        if !self.is_cell(l) && self.counted(self.sub(self.b.local_ty[l])).is_none() {
+        if !self.is_cell(l) && !self.needs_drop(self.sub(self.b.local_ty[l])) {
             return Ok(());
         }
         self.release_owned_local(l, &ls)?;
@@ -668,11 +677,8 @@ impl Em<'_, '_, '_> {
         let b = self.b;
         !self.holders.is_empty()
             || !self.cells.is_empty()
-            || (0..b.local_ty.len()).any(|l| self.counted(self.sub(b.local_ty[l])).is_some())
-            || (0..b.ty.len()).any(|i| {
-                self.counted(self.ty(u32::try_from(i).expect("insts")))
-                    .is_some()
-            })
+            || (0..b.local_ty.len()).any(|l| self.needs_drop(self.sub(b.local_ty[l])))
+            || (0..b.ty.len()).any(|i| self.needs_drop(self.ty(u32::try_from(i).expect("insts"))))
     }
 
     /// Releases what the function owns at its one exit: its sub-body's
@@ -912,7 +918,7 @@ impl Em<'_, '_, '_> {
             || Ref(r).as_inst().is_none()
             || self.consumer.get(r as usize) != Some(&user)
             || !self.vals.contains_key(&r)
-            || self.counted(self.ty_of(r)).is_none()
+            || !self.needs_drop(self.ty_of(r))
             || self.moving.contains(&(user, r))
         {
             return false;
@@ -1108,7 +1114,7 @@ impl Em<'_, '_, '_> {
             Some(ReadMode::Copy) => self.store(i),
             Some(ReadMode::Move) => {
                 self.store_owned(i)?;
-                if self.counted(self.ty(i)).is_some() {
+                if self.needs_drop(self.ty(i)) {
                     for x in ls {
                         self.f.zero(x);
                     }

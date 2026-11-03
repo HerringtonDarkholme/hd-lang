@@ -1795,7 +1795,7 @@ impl Em<'_, '_, '_> {
             {
                 self.push(r)?;
                 self.store_owned(i)?;
-                if self.counted(self.ty_of(r)).is_some() {
+                if self.needs_drop(self.ty_of(r)) {
                     for l in self.slot(r)? {
                         self.f.zero(l);
                     }

@@ -1,0 +1,16 @@
+# @dump: wat
+# @build: std checked
+# A type's Drop hook runs before the ordinary release of its fields.
+# Rule: module.rt.drop.glue.
+use std.rt.Drop
+
+struct Item:
+    name: string
+
+impl Drop for Item:
+    fn drop(&mut self) -> void:
+        self.name = "dropped"
+
+# subject
+fn release(item: Item) -> void:
+    pass
