@@ -874,7 +874,10 @@ deletes the place's `Drop`:
    drops of the base's other counted fields, or nothing (#679).
 4. **References at last access.** A `Ref` of a celled local `$l` at its
    last access takes `$l`'s count of the cell, and `$l`'s drop goes
-   (#701). A frame local's never does (#1006).
+   (#701). A frame local's never does (#1006). A frame local's last
+   whole read moves its slot's value out when the local's drop follows
+   it, or when no use of what may point into the slot follows it on any
+   path, drops aside: a second walk counts those uses as reads.
 
 Why it is sound: the place is read nowhere after the move, so nothing
 can see it empty; a jump past the move still drops the place, which

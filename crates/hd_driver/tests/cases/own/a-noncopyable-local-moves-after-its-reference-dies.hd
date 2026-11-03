@@ -1,0 +1,17 @@
+# @dump: own
+# A `!Copy` local in a frame slot moves in a match arm once the last use
+# of a reference into it is behind (`ref.excl.move`): no copy, though the
+# matched value that holds the reference lives to the match's end.
+use std.collections.UniqList
+
+fn eat(xs: UniqList[string]) -> usize:
+    xs.len()
+
+fn in_arm(xs: UniqList[string]) -> usize:
+    match xs.get_ref(0):
+        .Some(r) =>
+            k := r.len()
+            # subject
+            n := eat(xs)
+            n + k
+        .None => 0

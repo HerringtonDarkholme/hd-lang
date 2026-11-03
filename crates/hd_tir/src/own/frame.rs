@@ -49,10 +49,17 @@ pub(crate) struct Tables {
     ldep: Vec<u64>,
     /// The candidates a use lets escape.
     out: u64,
+    /// The candidates the last run found frame locals.
+    frame: u64,
     ops: Vec<super::Operand>,
 }
 
 impl Tables {
+    /// Whether the last [`run`] found local `l` a frame local.
+    pub(crate) fn is_frame(&self, l: usize) -> bool {
+        self.bit.get(l).is_some_and(|&m| m & self.frame != 0)
+    }
+
     /// The candidates the value word `v` may point into.
     fn of(&self, v: u32) -> u64 {
         if v == NONE || Ref(v).as_inst().is_none() {
@@ -118,6 +125,7 @@ pub(crate) fn run(
     fill(&mut t.bad, locals, false);
     t.cands.clear();
     t.out = 0;
+    t.frame = 0;
     // A suspending root keeps its locals in its frame object.
     if (0..n).any(|i| is_suspension(b.tags[i]) && topo.sub[i] == 0) {
         return;
@@ -187,6 +195,7 @@ pub(crate) fn run(
     }
     t.ops = ops;
     let frame = !t.out & (u64::MAX >> (64 - t.cands.len()));
+    t.frame = frame;
     if frame == 0 {
         return;
     }
