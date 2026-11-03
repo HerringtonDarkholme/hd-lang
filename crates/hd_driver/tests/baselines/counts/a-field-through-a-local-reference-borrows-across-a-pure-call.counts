@@ -3,10 +3,10 @@
 # @build: v8 release
 # Borrow, rule 3: `frame` holds the reference `top` returns, and nothing
 # stores or drops it during the call, so `name` passes `frame.facts` to
-# `member_name`. Its case-conversion path can reach ordinary-hd
-# `concat_all`, whose raw-address copy is conservatively treated as a
-# write, so `name` now copies the facts (#1272). `tally` writes through
-# `self`, which may reach the same frame, so `count` copies them too.
+# `member_name`. Its case-conversion path reaches ordinary-hd `concat_all`,
+# whose raw-address copy writes only its own new string, so `name` borrows
+# the facts. `tally` writes through `self`, which may reach the same frame,
+# so `count` still copies them (#1285).
 use std.structure.{Facts, Member}
 use std.serde.member_name
 
@@ -34,8 +34,6 @@ impl Reader:
     fn name(&mut self, m: &Member) -> string:
         frame := self.top()
         name := member_name(m, frame.facts)
-> app/main/impl Reader.name
->   copy std.structure.Facts
         frame.next = frame.next + 1
         name
 

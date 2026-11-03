@@ -88,6 +88,23 @@ pub enum Pass {
     Lent,
 }
 
+/// How a compiler-supplied call relates to raw memory. The release write
+/// summary uses this to distinguish a write through an address the body made
+/// from one through an address its caller may reach. Ordinary hd functions
+/// have no such effect: their walked bodies supply their summaries.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CallMemory {
+    /// No raw-memory fact beyond [`OwnCx::may_write`].
+    None,
+    /// The call returns a fresh allocation the caller could not reach before
+    /// this body made it.
+    Allocate,
+    /// The call's result derives its address from argument `k`.
+    Derive(u8),
+    /// The call writes through argument `k`.
+    Write(u8),
+}
+
 /// The facts the passes read besides the body (`docs/compiler/tir-v2.md`,
 /// "What the passes read"): layout and signature facts, never another
 /// body's.
@@ -107,6 +124,12 @@ pub trait OwnCx {
     /// false only for the few std functions known pure. The borrow pass
     /// and hoisting read it.
     fn may_write(&self, callee: &Callee) -> bool;
+    /// The raw-memory relation of a compiler-supplied call. The default is
+    /// none so a target that supplies no such calls stays conservative.
+    fn call_memory(&self, callee: &Callee) -> CallMemory {
+        let _ = callee;
+        CallMemory::None
+    }
     /// Whether parameter `k` of `n` of `item` is declared `&T` or `&mut T`,
     /// no counted reference: the reads behind it that exclusive mode may
     /// borrow across a call ([`crate::ir::sub_flags::EXCLUSIVE`]).
@@ -704,6 +727,266 @@ pub fn returned_param(b: &Body) -> Option<u8> {
     u8::try_from(k).ok()
 }
 
+/// Which same-body allocation an address-like value comes from. `Many` keeps
+/// the analysis conservative for a value built from more than one allocation.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum AllocationSeed {
+    #[default]
+    None,
+    One(u32),
+    Many,
+}
+
+impl AllocationSeed {
+    fn merge(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::None, seed) | (seed, Self::None) => seed,
+            (Self::One(a), Self::One(b)) if a == b => Self::One(a),
+            _ => Self::Many,
+        }
+    }
+
+    fn overlaps(self, other: Self) -> bool {
+        match (self, other) {
+            (Self::None, _) | (_, Self::None) => false,
+            (Self::One(a), Self::One(b)) => a == b,
+            _ => true,
+        }
+    }
+}
+
+/// Whether an address-like value is derived only from an allocation this body
+/// made, whether that derivation has reached an allocation, and which one.
+/// `safe` without `seeded` is the optimistic edge of a loop-carried local; a
+/// local is fresh only when another one of its stores supplies the seed.
+#[derive(Clone, Copy, Debug, Default)]
+struct AllocationOrigin {
+    safe: bool,
+    seeded: bool,
+    seed: AllocationSeed,
+}
+
+impl AllocationOrigin {
+    const NONE: Self = Self {
+        safe: false,
+        seeded: false,
+        seed: AllocationSeed::None,
+    };
+    const LOOP: Self = Self {
+        safe: true,
+        seeded: false,
+        seed: AllocationSeed::None,
+    };
+
+    fn from_seed(seed: u32) -> Self {
+        Self {
+            safe: true,
+            seeded: true,
+            seed: AllocationSeed::One(seed),
+        }
+    }
+
+    fn fresh(self) -> bool {
+        self.safe && self.seeded
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+enum OriginState {
+    #[default]
+    New,
+    Visiting,
+    Done(AllocationOrigin),
+}
+
+/// The same-body allocation provenance of values and locals. It is deliberately
+/// narrow: fields preserve their base, `+` and `-` preserve an address operand,
+/// and [`CallMemory::Derive`] names compiler-supplied address projections.
+struct AllocationOrigins<'a> {
+    body: &'a Body,
+    cx: &'a dyn OwnCx,
+    values: Vec<OriginState>,
+    locals: Vec<OriginState>,
+}
+
+impl<'a> AllocationOrigins<'a> {
+    fn new(body: &'a Body, cx: &'a dyn OwnCx) -> Self {
+        Self {
+            body,
+            cx,
+            values: vec![OriginState::New; body.len()],
+            locals: vec![OriginState::New; body.local_ty.len()],
+        }
+    }
+
+    fn call_args(&self, i: usize) -> &[u32] {
+        let words = self.body.record(self.body.data[i][1]);
+        &words[..words.len().saturating_sub(3)]
+    }
+
+    fn owns_pointer_place(&mut self, word: u32, before: usize) -> bool {
+        let place = self.body.view(word);
+        place.in_place(self.body)
+            && matches!(place.root, Root::Ptr(value) if self.fresh_before(value, before))
+    }
+
+    fn derived(&mut self, values: impl IntoIterator<Item = u32>) -> AllocationOrigin {
+        let mut out = AllocationOrigin::NONE;
+        for value in values {
+            let origin = self.value(value);
+            if origin.safe {
+                out.safe = true;
+                out.seeded |= origin.seeded;
+                out.seed = out.seed.merge(origin.seed);
+            }
+        }
+        out
+    }
+
+    fn local(&mut self, local: u32) -> AllocationOrigin {
+        let k = local as usize;
+        let Some(state) = self.locals.get(k).copied() else {
+            return AllocationOrigin::NONE;
+        };
+        match state {
+            OriginState::Visiting => return AllocationOrigin::LOOP,
+            OriginState::Done(origin) => return origin,
+            OriginState::New => {}
+        }
+        if self.body.local_flags[k] & crate::ir::local_flags::PARAM != 0 {
+            self.locals[k] = OriginState::Done(AllocationOrigin::NONE);
+            return AllocationOrigin::NONE;
+        }
+        self.locals[k] = OriginState::Visiting;
+        let mut out = AllocationOrigin::LOOP;
+        let mut found = false;
+        for i in 0..self.body.len() {
+            if self.body.tags[i] != Tag::Store {
+                continue;
+            }
+            let place = self.body.view(self.body.data[i][0]);
+            if place.local() != Some(local) {
+                continue;
+            }
+            found = true;
+            let origin = if place.whole() {
+                self.value(self.body.data[i][1])
+            } else {
+                AllocationOrigin::NONE
+            };
+            out.safe &= origin.safe;
+            out.seeded |= origin.seeded;
+            out.seed = out.seed.merge(origin.seed);
+        }
+        if !found {
+            out = AllocationOrigin::NONE;
+        }
+        // A safe, unseeded answer may be the open edge of a mutual local
+        // cycle. Recompute it after the outer local has found its seed.
+        self.locals[k] = if out.safe && !out.seeded {
+            OriginState::New
+        } else {
+            OriginState::Done(out)
+        };
+        out
+    }
+
+    fn value(&mut self, value: u32) -> AllocationOrigin {
+        let Some(inst) = Ref(value).as_inst() else {
+            return AllocationOrigin::NONE;
+        };
+        let i = inst.0 as usize;
+        let Some(state) = self.values.get(i).copied() else {
+            return AllocationOrigin::NONE;
+        };
+        match state {
+            OriginState::Visiting => return AllocationOrigin::LOOP,
+            OriginState::Done(origin) => return origin,
+            OriginState::New => {}
+        }
+        self.values[i] = OriginState::Visiting;
+        let [a, w] = self.body.data[i];
+        let origin = match self.body.tags[i] {
+            Tag::Call => {
+                Callee::from_words(self.body.record(a)).map_or(AllocationOrigin::NONE, |callee| {
+                    match self.cx.call_memory(&callee) {
+                        CallMemory::Allocate => AllocationOrigin::from_seed(u32_of(i)),
+                        CallMemory::Derive(k) => self
+                            .call_args(i)
+                            .get(k as usize)
+                            .copied()
+                            .map_or(AllocationOrigin::NONE, |v| self.value(v)),
+                        CallMemory::None | CallMemory::Write(_) => AllocationOrigin::NONE,
+                    }
+                })
+            }
+            Tag::Read => {
+                let place = self.body.view(a);
+                if place.in_place(self.body) {
+                    match place.root {
+                        Root::Local(local) => self.local(local),
+                        Root::Value(value) => self.value(value),
+                        _ => AllocationOrigin::NONE,
+                    }
+                } else {
+                    AllocationOrigin::NONE
+                }
+            }
+            Tag::Prim
+                if matches!(
+                    crate::ir::PrimOp::from_u32(a),
+                    Some(crate::ir::PrimOp::Add | crate::ir::PrimOp::Sub)
+                ) =>
+            {
+                self.derived(self.body.record(w).to_vec())
+            }
+            Tag::Coerce => self.value(a),
+            Tag::NewStruct | Tag::NewTuple | Tag::CopyStruct => self
+                .body
+                .value_operands(i)
+                .map_or(AllocationOrigin::NONE, |values| self.derived(values)),
+            Tag::Block if w != NONE => self.value(w),
+            _ => AllocationOrigin::NONE,
+        };
+        self.values[i] = if origin.safe && !origin.seeded {
+            OriginState::New
+        } else {
+            OriginState::Done(origin)
+        };
+        origin
+    }
+
+    /// Whether `value` still names only same-body storage just before
+    /// instruction `before`. A whole local binding merely carries the value;
+    /// any earlier consuming store, construction or call can make the
+    /// allocation reachable from another value and ends its freshness.
+    fn fresh_before(&mut self, value: u32, before: usize) -> bool {
+        let origin = self.value(value);
+        if !origin.fresh() || origin.seed == AllocationSeed::None {
+            return false;
+        }
+        let mut ops = Vec::new();
+        for i in 0..before {
+            if self.body.tags[i] == Tag::Store {
+                let place = self.body.view(self.body.data[i][0]);
+                if place.whole() && matches!(place.root, Root::Local(_)) {
+                    continue;
+                }
+            }
+            operands(self.body, i, &mut ops);
+            for op in &ops {
+                if op.role == Role::Tail || !consumes(self.body, self.cx, i, op, NONE) {
+                    continue;
+                }
+                if self.value(op.value).seed.overlaps(origin.seed) {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+}
+
 /// Whether `b` may write memory its caller can reach ([`Summary::writes`]):
 /// a store, uniqueness check, pin or move of a place that is not its own,
 /// a `&mut` or element reference of one (the passes pin its lists), an
@@ -715,7 +998,7 @@ pub fn returned_param(b: &Body) -> Option<u8> {
 /// neither these nor a buffer they make unique first.
 #[must_use]
 pub fn writes(b: &Body, cx: &dyn OwnCx) -> bool {
-    writes_in(b, 0..b.len(), &|c| cx.may_write(c))
+    writes_with(b, 0..b.len(), &|c| cx.may_write(c), Some(cx))
 }
 
 /// Whether an instruction of `b` in `range` may write memory its caller
@@ -723,8 +1006,17 @@ pub fn writes(b: &Body, cx: &dyn OwnCx) -> bool {
 #[must_use]
 pub fn writes_in(
     b: &Body,
+    range: std::ops::Range<usize>,
+    may_write: &dyn Fn(&Callee) -> bool,
+) -> bool {
+    writes_with(b, range, may_write, None)
+}
+
+fn writes_with(
+    b: &Body,
     mut range: std::ops::Range<usize>,
     may_write: &dyn Fn(&Callee) -> bool,
+    cx: Option<&dyn OwnCx>,
 ) -> bool {
     // Whether a place is the body's own, and whether its path holds an
     // element.
@@ -756,20 +1048,48 @@ pub fn writes_in(
             .as_inst()
             .filter(|i| b.tags[i.0 as usize] == Tag::Read)
     };
+    let mut origins = cx.map(|cx| AllocationOrigins::new(b, cx));
     range.any(|i| {
         let [a, w] = b.data[i];
         match b.tags[i] {
-            Tag::Store | Tag::IsUnique | Tag::Pin | Tag::FlagSet | Tag::FlagClear => !place(a).0,
-            Tag::Read => w == ReadMode::Move as u32 && !place(a).0,
+            Tag::Store | Tag::IsUnique | Tag::Pin | Tag::FlagSet | Tag::FlagClear => {
+                !place(a).0
+                    && !origins
+                        .as_mut()
+                        .is_some_and(|origins| origins.owns_pointer_place(a, i))
+            }
+            Tag::Read => {
+                w == ReadMode::Move as u32
+                    && !place(a).0
+                    && !origins
+                        .as_mut()
+                        .is_some_and(|origins| origins.owns_pointer_place(a, i))
+            }
             Tag::Ref => {
                 matches!(place(a), (false, elem) if elem || w & crate::ir::ref_word::MUT != 0)
+                    && !origins
+                        .as_mut()
+                        .is_some_and(|origins| origins.owns_pointer_place(a, i))
             }
             Tag::Intrinsic => {
                 matches!(IntrinsicOp::from_u32(a), None | Some(IntrinsicOp::Item))
                     || changed(b, i)
                         .any(|(_, v)| read(v).is_none_or(|r| !place(b.data[r.0 as usize][0]).0))
             }
-            Tag::Call => Callee::from_words(b.record(a)).is_none_or(|c| may_write(&c)),
+            Tag::Call => Callee::from_words(b.record(a)).is_none_or(|callee| {
+                let Some(origins) = origins.as_mut() else {
+                    return may_write(&callee);
+                };
+                match origins.cx.call_memory(&callee) {
+                    CallMemory::Allocate | CallMemory::Derive(_) => false,
+                    CallMemory::Write(k) => !origins
+                        .call_args(i)
+                        .get(k as usize)
+                        .copied()
+                        .is_some_and(|v| origins.fresh_before(v, i)),
+                    CallMemory::None => may_write(&callee),
+                }
+            }),
             Tag::CallValue
             | Tag::CallDyn
             | Tag::CallHost
@@ -1971,6 +2291,51 @@ pub(crate) mod tests {
         }
     }
 
+    /// A flat context whose four small definition IDs model the raw-memory
+    /// relations used by the write-summary tests below.
+    struct Memory;
+
+    impl super::OwnCx for Memory {
+        fn counted(&self, ty: Ty) -> Tri {
+            Cx.counted(ty)
+        }
+        fn pass(&self, callee: &Callee, k: usize, n: usize) -> Pass {
+            match callee {
+                Callee::Item { def, .. } if def.raw() == 13 => Pass::Owned,
+                _ => Cx.pass(callee, k, n),
+            }
+        }
+        fn pass_value(&self, ty: Ty, k: usize, n: usize) -> Pass {
+            Cx.pass_value(ty, k, n)
+        }
+        fn may_write(&self, _: &Callee) -> bool {
+            false
+        }
+        fn call_memory(&self, callee: &Callee) -> super::CallMemory {
+            match callee {
+                Callee::Item { def, .. } => match def.raw() {
+                    10 => super::CallMemory::Allocate,
+                    11 => super::CallMemory::Derive(0),
+                    12 => super::CallMemory::Write(0),
+                    _ => super::CallMemory::None,
+                },
+                Callee::TraitMethod { .. } => super::CallMemory::None,
+            }
+        }
+        fn parts(&self, ty: Ty, v: Option<u32>, out: &mut Vec<Ty>) -> bool {
+            Cx.parts(ty, v, out)
+        }
+        fn received(&self, item: DefId, k: usize, n: usize) -> Pass {
+            Cx.received(item, k, n)
+        }
+        fn suspending(&self, _: DefId) -> bool {
+            false
+        }
+        fn holds_coll(&self, ty: Ty) -> bool {
+            Cx.holds_coll(ty)
+        }
+    }
+
     /// A body of two string parameters built by `f`, its returned
     /// parameter, and its summary after the passes.
     fn summarized(
@@ -2067,6 +2432,37 @@ pub(crate) mod tests {
         assert!(writes(None, vec![Proj::Deref, Proj::Field(0)], false));
         assert!(writes(Some(global), vec![], false));
         assert!(writes(None, vec![], true));
+    }
+
+    /// A raw write stays local only until a consuming operation can carry its
+    /// allocation elsewhere. Taking a different fresh allocation does not
+    /// taint the one the write reaches.
+    #[test]
+    fn a_taken_allocation_is_no_longer_fresh_at_a_later_raw_write() {
+        let n = NodeIdx::from_raw(1);
+        let writes = |take_same: bool, take_other: bool| {
+            let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+            let blk = b.open_block();
+            let value = local(&mut b, 0);
+            let allocation = call(&mut b, 10, &[], Ty::STRING);
+            b.set(value, allocation, n);
+            let held = b.get(value, Ty::STRING, n);
+            let address = call(&mut b, 11, &[held], Ty::prim(hd_types::Prim::Usize));
+            if take_other {
+                let other = call(&mut b, 10, &[], Ty::STRING);
+                call(&mut b, 13, &[other], Ty::VOID);
+            }
+            if take_same {
+                let taken = b.get(value, Ty::STRING, n);
+                call(&mut b, 13, &[taken], Ty::VOID);
+            }
+            call(&mut b, 12, &[address], Ty::VOID);
+            let root = b.close_block(blk, None, Ty::VOID, n);
+            super::writes(&b.finish(root, &[]).expect("verifies"), &Memory)
+        };
+        assert!(!writes(false, false));
+        assert!(writes(true, false));
+        assert!(!writes(false, true));
     }
 
     /// A parameter a push changes stays owned, though no read keeps it:
