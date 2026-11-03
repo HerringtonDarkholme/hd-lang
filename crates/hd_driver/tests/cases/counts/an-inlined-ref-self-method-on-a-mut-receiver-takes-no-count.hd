@@ -1,0 +1,27 @@
+# @dump: own counts
+# @build: release
+# A `&self` method inlined into a `&mut self` one binds the weakened
+# receiver as a borrow, and a reference to a field through it is lent,
+# so neither takes a count of the receiver.
+use std.annotation.inline
+
+struct Bag:
+    items: List[i32]
+    n: usize
+
+impl Bag:
+    @inline(.Always)
+    fn size(&self) -> usize:
+        self.items.len() + self.n
+
+    @inline(.Always)
+    fn items_ref(&self) -> usize:
+        first(&self.items)
+
+    fn add(&mut self) -> usize:
+        self.n = self.size() + self.items_ref()
+        self.n
+
+@inline(.Never)
+fn first(items: &List[i32]) -> usize:
+    items.len()

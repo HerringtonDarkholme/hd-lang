@@ -1,0 +1,13 @@
+# @dump: own counts
+# An inlined `&self` method reads its receiver in place: the copy's
+# `self` borrows the caller's map, though a `&mut` call addresses the
+# map elsewhere, so no count of its buffer is taken or released.
+use std.collections.UniqMap
+
+fn sizes(key: string) -> usize:
+    let mut parcels = UniqMap::[string, i32].new()
+    _ := parcels.insert(key, +1)
+    # subject
+    total := if parcels.is_empty(): 0 else: parcels.len()
+    _ := parcels.insert("b", +2)
+    total

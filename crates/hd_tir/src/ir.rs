@@ -1008,6 +1008,21 @@ impl Body {
             && self.is_borrow(self.data[v as usize][0])
     }
 
+    /// The `borrow` read whose value `v` is, itself or through a
+    /// [`Body::is_borrowed_coercion`]: what a binding local that a `Store`
+    /// of `v` fills holds (`crate::own::borrow`); `None` for any other
+    /// value.
+    #[must_use]
+    pub fn loan_read(&self, v: u32) -> Option<u32> {
+        if self.is_borrow(v) {
+            Some(v)
+        } else if self.is_borrowed_coercion(v) {
+            Some(self.data[v as usize][0])
+        } else {
+            None
+        }
+    }
+
     /// Whether value `v` is a `borrow` read's value.
     #[must_use]
     pub fn is_borrow(&self, v: u32) -> bool {
