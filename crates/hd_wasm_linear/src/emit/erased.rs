@@ -488,7 +488,9 @@ impl Em<'_, '_, '_> {
         let one = |t: Ty| -> StageResult<bool> {
             Ok(self.vals(t)? == [Val::I32] && walk(pool, env, t).is_some_and(|w| w.plain_single()))
         };
-        if let Kind::Ref { .. } = kind(pool, env, et) {
+        // Trait references are their value, so a concrete pair crosses
+        // boxed just like a trait value. Only thin references need views.
+        if let Kind::Ref { fat: false, .. } = kind(pool, env, et) {
             return match kind(pool, env, ct) {
                 Kind::Ref {
                     target, fat: false, ..

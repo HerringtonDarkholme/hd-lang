@@ -2,32 +2,8 @@ path	issue	engine	reason
 runtime/valid/erased-call-matrix-closure-value-mut-unique.hd	#1310		ownership pass copies a loop-local non-copyable value at a move
 runtime/valid/erased-call-matrix-closure-value-ref-unique.hd	#1310		ownership pass copies a loop-local non-copyable value at a move
 runtime/valid/erased-call-matrix-closure-value-value-unique.hd	#1310		ownership pass copies a loop-local non-copyable value at a move
-runtime/valid/erased-call-matrix-dyn-mut-mut-i32.hd	#1308		nested dyn dispatch at an open argument traps with invalid slot or memory access
-runtime/valid/erased-call-matrix-dyn-mut-mut-string.hd	#1308		nested dyn dispatch at an open argument traps with invalid slot or memory access
-runtime/valid/erased-call-matrix-dyn-mut-mut-unique.hd	#1308		nested dyn dispatch at an open argument traps with invalid slot or memory access
-runtime/valid/erased-call-matrix-dyn-mut-ref-i32.hd	#1308		nested dyn dispatch at an open argument traps with invalid slot or memory access
-runtime/valid/erased-call-matrix-dyn-mut-ref-string.hd	#1308		nested dyn dispatch at an open argument traps with invalid slot or memory access
-runtime/valid/erased-call-matrix-dyn-mut-ref-unique.hd	#1308		nested dyn dispatch at an open argument traps with invalid slot or memory access
-runtime/valid/erased-call-matrix-dyn-mut-value-i32.hd	#1308		nested dyn dispatch at an open argument traps with invalid slot or memory access
-runtime/valid/erased-call-matrix-dyn-mut-value-string.hd	#1308		nested dyn dispatch at an open argument traps with invalid slot or memory access
-runtime/valid/erased-call-matrix-dyn-mut-value-unique.hd	#1308		nested dyn dispatch at an open argument traps with invalid slot or memory access
-runtime/valid/erased-call-matrix-dyn-ref-mut-i32.hd	#1308		nested dyn dispatch at an open argument traps with invalid slot or memory access
-runtime/valid/erased-call-matrix-dyn-ref-mut-string.hd	#1308		nested dyn dispatch at an open argument traps with invalid slot or memory access
-runtime/valid/erased-call-matrix-dyn-ref-mut-unique.hd	#1308		nested dyn dispatch at an open argument traps with invalid slot or memory access
-runtime/valid/erased-call-matrix-dyn-ref-ref-i32.hd	#1308		nested dyn dispatch at an open argument traps with invalid slot or memory access
-runtime/valid/erased-call-matrix-dyn-ref-ref-string.hd	#1308		nested dyn dispatch at an open argument traps with invalid slot or memory access
-runtime/valid/erased-call-matrix-dyn-ref-ref-unique.hd	#1308		nested dyn dispatch at an open argument traps with invalid slot or memory access
-runtime/valid/erased-call-matrix-dyn-ref-value-i32.hd	#1308		nested dyn dispatch at an open argument traps with invalid slot or memory access
-runtime/valid/erased-call-matrix-dyn-ref-value-string.hd	#1308		nested dyn dispatch at an open argument traps with invalid slot or memory access
-runtime/valid/erased-call-matrix-dyn-ref-value-unique.hd	#1308		nested dyn dispatch at an open argument traps with invalid slot or memory access
-runtime/valid/erased-call-matrix-dyn-value-mut-i32.hd	#1308		nested dyn dispatch at an open argument traps with invalid slot or memory access
-runtime/valid/erased-call-matrix-dyn-value-mut-string.hd	#1308		nested dyn dispatch at an open argument traps with invalid slot or memory access
 runtime/valid/erased-call-matrix-dyn-value-mut-unique.hd	#1310		ownership pass copies a loop-local non-copyable value at a move
-runtime/valid/erased-call-matrix-dyn-value-ref-i32.hd	#1308		nested dyn dispatch at an open argument traps with invalid slot or memory access
-runtime/valid/erased-call-matrix-dyn-value-ref-string.hd	#1308		nested dyn dispatch at an open argument traps with invalid slot or memory access
 runtime/valid/erased-call-matrix-dyn-value-ref-unique.hd	#1310		ownership pass copies a loop-local non-copyable value at a move
-runtime/valid/erased-call-matrix-dyn-value-value-i32.hd	#1308		nested dyn dispatch at an open argument traps with invalid slot or memory access
-runtime/valid/erased-call-matrix-dyn-value-value-string.hd	#1308		nested dyn dispatch at an open argument traps with invalid slot or memory access
 runtime/valid/erased-call-matrix-dyn-value-value-unique.hd	#1310		ownership pass copies a loop-local non-copyable value at a move
 runtime/valid/erased-call-matrix-generic-value-mut-unique.hd	#1310		ownership pass copies a loop-local non-copyable value at a move
 runtime/valid/erased-call-matrix-generic-value-ref-unique.hd	#1310		ownership pass copies a loop-local non-copyable value at a move

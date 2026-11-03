@@ -5785,6 +5785,7 @@ typing/valid/move-field-while-reference-to-another-field-live.hd	type	accept	lan
 typing/valid/copied-value-read-while-reference-live.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.move
 runtime/valid/a-move-after-the-last-use-of-a-reference-keeps-the-value.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.move
 runtime/valid/a-field-moves-out-while-another-is-read.hd	runtime	accept	lang/13-values-and-references.md#r-ref.move.field
+runtime/valid/erased-nested-trait-reference.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param
 runtime/valid/erased-call-matrix-generic-ref-ref-i32.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param
 runtime/valid/erased-call-matrix-generic-ref-ref-string.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param
 runtime/valid/erased-call-matrix-generic-ref-ref-unique.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.type
