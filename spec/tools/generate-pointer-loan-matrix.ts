@@ -1171,6 +1171,92 @@ pub fn main() -> void $ Console:
     seen := if counter.chars == 2 * orig().len(): orig() else: fresh()
 ${tail}`,
   },
+  {
+    name: "pass-read-with-shared",
+    panic: false,
+    what: "passing a pointer as a `*T` and a `&` of its field to one call: two reads",
+    source: `struct Cell:
+    value: string
+    other: string
+
+${helpers}
+fn look(c: *Cell, f: &string) -> string:
+    _ := c.other.len()
+    *f
+
+pub fn main() -> void $ Console:
+    view := box(Cell { value: orig(), other: fresh() })
+    seen := look(view, &view.value)
+${tail}`,
+  },
+  {
+    name: "pass-alias-mut-with-shared-panics",
+    panic: true,
+    what: "passing an alias as a `*mut` and a `&` of a field through another name",
+    source: `struct Cell:
+    value: string
+    other: string
+
+${helpers}
+fn mutate(c: *mut Cell, f: &string) -> string:
+    c.other = fresh() # panic: borrow-conflict
+    *f
+
+fn probe(boxed: *mut Cell, alias: *mut Cell) -> string:
+    mutate(alias, &boxed.value)
+
+pub fn main() -> void $ Console:
+    boxed := box(Cell { value: orig(), other: fresh() })
+    seen := probe(boxed, boxed)
+${tail}`,
+  },
+  {
+    name: "pass-alias-read-with-mut-panics",
+    panic: true,
+    what: "passing an alias as a `*T` and a `&mut` of a field through another name",
+    source: `struct Cell:
+    value: string
+    other: string
+
+${helpers}
+fn inspect(c: *Cell, f: &mut string) -> string:
+    _ := c.other.len() # panic: borrow-conflict
+    *f
+
+fn probe(view: *mut Cell, alias: *Cell) -> string:
+    inspect(alias, &mut view.value)
+
+pub fn main() -> void $ Console:
+    view := box(Cell { value: orig(), other: fresh() })
+    seen := probe(view, view)
+${tail}`,
+  },
+  {
+    name: "dependent-result-alias-panics",
+    panic: true,
+    what: "an alias writes the object while a call result that depends on the pointer lives",
+    source: `struct Cell:
+    value: string
+    other: string
+
+impl Cell:
+    fn change(&mut self) -> void:
+        self.other = fresh()
+
+${helpers}
+fn borrow(b: &Cell) -> &string:
+    &b.value
+
+fn probe(boxed: *mut Cell, alias: *mut Cell) -> string:
+    r := borrow(boxed)
+    alias.change() # panic: borrow-conflict
+    *r
+
+pub fn main() -> void $ Console:
+    boxed := box(Cell { value: orig(), other: fresh() })
+    seen := probe(boxed, boxed)
+${tail}`,
+  },
 ];
 /** Each adversarial case's columns: elision, call-scoped fallback, Go model. */
 const extraColumns: Record<string, [string, string, string]> = {
@@ -1206,6 +1292,10 @@ const extraColumns: Record<string, [string, string, string]> = {
   "elide-read-then-print": ["elided", "rejected", "runs"],
   "elide-getter-in-loop": ["elided", "rejected", "runs"],
   "elide-read-only-visitor": ["elided", "rejected", "runs"],
+  "pass-read-with-shared": ["elided", "allowed", "runs"],
+  "dependent-result-alias-panics": ["loan needed", "rejected", "runs"],
+  "pass-alias-mut-with-shared-panics": ["loan needed", "allowed", "runs, sees the write"],
+  "pass-alias-read-with-mut-panics": ["loan needed", "allowed", "runs"],
 };
 for (const { name, panic, what, source } of extras) {
   const file = `${panic ? "runtime/panic" : "runtime/valid"}/${stem}extra-${name}.hd`;
@@ -1221,8 +1311,117 @@ ${source}`;
   );
 }
 
+// Same-root shapes: two references, or a reference and an access, from
+// one name. The checker sees them, so every variant rejects them at
+// compile time (`ref.excl.place`); only aliasing it cannot see reaches
+// the run-time model.
+const sameRootDecls = `struct Cell:
+    n: i32
+
+impl Cell:
+    fn change(&mut self) -> void:
+        self.n += 1
+    fn read(&self) -> i32:
+        self.n
+
+struct Outer:
+    next: *mut Cell
+    list: List[i32]
+    map: Map[string, i32]
+
+fn bump(c: *mut Cell) -> void:
+    c.n += 1
+`;
+const sameRoot: { name: string; what: string; body: string; code?: string }[] = [
+  {
+    name: "whole-object",
+    what: "a `&mut` and a `&` of one boxed object",
+    body: "fn probe(a: *mut Cell) -> i32:\n    b := &mut *a\n    c := &*a # diagnostic: conflicting-access\n    b.change()\n    c.read()\n",
+  },
+  {
+    name: "field",
+    what: "a `&mut` and a `&` of one field behind a pointer",
+    body: "fn probe(a: *mut Cell) -> i32:\n    b := &mut a.n\n    c := &a.n # diagnostic: conflicting-access\n    *b += 1\n    *c\n",
+  },
+  {
+    name: "method-write",
+    what: "a `&mut self` call on the pointer while a field reference lives",
+    body: "fn probe(a: *mut Cell) -> i32:\n    c := &a.n\n    a.change() # diagnostic: conflicting-access\n    *c\n",
+  },
+  {
+    name: "pass-the-pointer",
+    what: "passing the same pointer to a callee while a field reference lives",
+    body: "fn probe() -> i32:\n    a := box(Cell { n: +0 })\n    c := &a.n\n    bump(a) # diagnostic: conflicting-access\n    *c\n",
+  },
+  {
+    name: "nested-pointer",
+    what: "replacing the inner pointer a reference crossed, through the same root",
+    body: "fn probe(a: *mut Outer) -> i32:\n    c := &a.next.n\n    a.next = box(Cell { n: +1 }) # diagnostic: conflicting-access\n    *c\n",
+  },
+  {
+    name: "list-push",
+    what: "growing a list behind the pointer while an element reference lives",
+    body: "fn probe(a: *mut Outer) -> i32:\n    c := &a.list[0]\n    a.list.push(2) # diagnostic: conflicting-access\n    *c\n",
+  },
+  {
+    name: "map-store",
+    what: "storing a new key in a map behind the pointer while a value reference lives",
+    body: 'fn probe(a: *mut Outer) -> i32:\n    c := &a.map["k"]\n    a.map["z"] = 1 # diagnostic: conflicting-access\n    *c\n',
+  },
+  {
+    name: "uniq-replace",
+    what: "replacing a `UniqList` behind the pointer while an element reference lives",
+    body: 'struct Bag:\n    items: UniqList[i32]\n\nfn probe(a: *mut Bag) -> i32:\n    c := a.items.get_ref(0).expect("slot")\n    a.items = UniqList::[i32].new() # diagnostic: conflicting-access\n    *c\n',
+  },
+  {
+    name: "pass-mut-with-shared",
+    what: "passing a `*mut` and a `&` of its field to one call",
+    body: "fn mutate(c: *mut Cell, f: &i32) -> i32:\n    c.n + *f\n\nfn probe(boxed: *mut Cell) -> i32:\n    mutate(boxed, &boxed.n) # diagnostic: conflicting-access\n",
+  },
+  {
+    name: "pass-mut-with-mut",
+    what: "passing a `*mut` and a `&mut` of its field to one call",
+    body: "fn mutate(c: *mut Cell, f: &mut i32) -> void:\n    *f += c.n\n\nfn probe(boxed: *mut Cell) -> void:\n    mutate(boxed, &mut boxed.n) # diagnostic: conflicting-access\n",
+  },
+  {
+    name: "pass-read-with-mut",
+    what: "passing a pointer as a `*T` and a `&mut` of its field to one call",
+    body: "fn inspect(c: *Cell, f: &mut i32) -> void:\n    *f += c.n\n\nfn probe(view: *mut Cell) -> void:\n    inspect(view, &mut view.n) # diagnostic: conflicting-access\n",
+  },
+  {
+    name: "dependent-call",
+    what: "a `&mut self` call on the pointer while a call result that depends on it lives",
+    body: "fn borrow(b: &Cell) -> &i32:\n    &b.n\n\nfn probe(boxed: *mut Cell) -> i32:\n    r := borrow(boxed)\n    boxed.change() # diagnostic: conflicting-access\n    *r\n",
+  },
+  {
+    name: "dependent-method",
+    what: "a write through the pointer while a method result that depends on it lives",
+    body: "impl Cell:\n    fn slot(&self) -> &i32:\n        &self.n\n\nfn probe(boxed: *mut Cell) -> i32:\n    r := boxed.slot()\n    boxed.n += 1 # diagnostic: conflicting-access\n    *r\n",
+  },
+  {
+    name: "dependent-outlives-root",
+    what: "a call result that depends on a local pointer, used after the local's block",
+    code: "local-reference-outlives-local",
+    body: "fn borrow(b: &Cell) -> &i32:\n    &b.n\n\nfn probe(fallback: &i32, pick: bool) -> i32:\n    let r: &i32 = fallback\n    if pick:\n        boxed := box(Cell { n: +1 })\n        r = borrow(boxed)\n    *r # diagnostic: local-reference-outlives-local\n",
+  },
+];
+for (const { name, what, body, code = "conflicting-access" } of sameRoot) {
+  const file = `typing/invalid/${stem}same-root-${name}.hd`;
+  const contents = `# test: pointer loans, same root: ${what} is a compile-time error in every variant
+# Generated by spec/tools/generate-pointer-loan-matrix.ts; edit the generator.
+# Proposal: docs/future-work/POINTER_LOANS.md (issue #1323), not yet accepted.
+${body.includes("UniqList") ? "use std.collections.UniqList\n\n" : ""}${sameRootDecls}
+${body}`;
+  output(`conformance/${file}`, contents);
+  const rule = code === "conflicting-access" ? "ref.excl.place" : "ref.dep.scope";
+  const cited = body.includes("UniqList")
+    ? "std/collections.md#r-std-collections.uniq-list.type"
+    : `lang/13-values-and-references.md#r-${rule}`;
+  rows.push(`${file}\ttype\treject:${code}\t${cited}`);
+}
+
 // Stale generated fixtures: a matrix file the generator no longer writes.
-for (const dir of ["runtime/valid", "runtime/panic"]) {
+for (const dir of ["runtime/valid", "runtime/panic", "typing/invalid"]) {
   const full = resolve(root, "conformance", dir);
   for (const name of readdirSync(full)) {
     const path = resolve(full, name);
@@ -1238,7 +1437,9 @@ for (const dir of ["runtime/valid", "runtime/panic"]) {
 const indexPath = "conformance/cases.tsv";
 const old = readFileSync(resolve(root, indexPath), "utf8");
 const matrix = (line: string) =>
-  line.startsWith(`runtime/valid/${stem}`) || line.startsWith(`runtime/panic/${stem}`);
+  ["runtime/valid", "runtime/panic", "typing/invalid"].some((dir) =>
+    line.startsWith(`${dir}/${stem}`),
+  );
 const index = old.split("\n").filter((line) => line && !matrix(line));
 // Before the erased-call matrix, whose generator keeps its rows last.
 const erased = index.findIndex((line) => line.startsWith("runtime/valid/erased-call-matrix-"));
