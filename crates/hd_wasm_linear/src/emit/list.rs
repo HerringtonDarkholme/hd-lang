@@ -15,14 +15,14 @@ use crate::op::Op as I;
 use hd_base::StageResult;
 use hd_mono::layout::StdKind;
 use hd_tir::ir::{Coercion, IntrinsicOp, NONE, PlaceRoot, PrimOp, Proj, Ref, Step, Tag};
-use hd_types::{Ty, TyData};
+use hd_types::{Prim, Ty, TyData};
 use wasm_encoder::BlockType;
 
 use super::Em;
 use super::shape::Through;
 use super::value::{Dst, Src};
 use crate::layout::{Kind, coll_kind, coll_leaves, mem as mem_of, strip};
-use crate::module::{HEAP, Sym, Val, mem};
+use crate::module::{HEADER, HEAP, Sym, Val, mem};
 use crate::rt::{Elem, Helper, LIST_ELEMS, LIST_EXPOSED, LIST_LEN, LIST_OWN, empty_buffer};
 use crate::unsupported;
 
@@ -48,6 +48,67 @@ pub(super) struct ListCache {
 }
 
 impl Em<'_, '_, '_> {
+    /// A nonempty list of scalar constants as one static count-zero
+    /// buffer. A change sees its count is not one and copies it through
+    /// the ordinary copy-on-write path.
+    fn static_scalar_list(&self, et: Ty, elem: &Elem, items: &[u32]) -> Option<Vec<u8>> {
+        let prim = match self.pool().get(strip(self.pool(), self.env(), et)) {
+            TyData::Prim(prim) if prim != Prim::String => prim,
+            _ => return None,
+        };
+        let [leaf] = elem.leaves.as_slice() else {
+            return None;
+        };
+        if leaf.offset != 0 || u32::from(leaf.bytes) != elem.size {
+            return None;
+        }
+        let len = u32::try_from(items.len()).ok()?;
+        let elem_bytes = len.checked_mul(elem.size)?;
+        let total = HEADER.checked_add(LIST_ELEMS)?.checked_add(elem_bytes)?;
+        let mut bytes = vec![0; usize::try_from(total).ok()?];
+        let payload = usize::try_from(HEADER).ok()?;
+        bytes[payload..payload + 4].copy_from_slice(&len.to_le_bytes());
+        bytes[payload + 4..payload + 8].copy_from_slice(&len.to_le_bytes());
+
+        for (k, mut r) in items.iter().copied().enumerate() {
+            for _ in 0..32 {
+                let Some(i) = Ref(r).as_inst() else { break };
+                let [a, record] = self.b.data[i.0 as usize];
+                if self.b.tags[i.0 as usize] != Tag::Coerce
+                    || self.b.record(record).first() != Some(&(Coercion::Identity as u32))
+                {
+                    return None;
+                }
+                r = a;
+            }
+            if r == NONE || Ref(r).as_inst().is_some() {
+                return None;
+            }
+            let (ty, bits) = self.b.consts[(r & !Ref::CONST_BIT) as usize];
+            if self.vals(self.sub(ty)).ok()?.as_slice() != [leaf.val] {
+                return None;
+            }
+            let raw = match prim {
+                // A float literal holds f64 bits even when it settles to
+                // f32, just as `konst_ops` documents and emits.
+                Prim::F32 => {
+                    #[expect(
+                        clippy::cast_possible_truncation,
+                        reason = "this is the specified f64-to-f32 literal conversion"
+                    )]
+                    let value = f64::from_bits(bits) as f32;
+                    u64::from(value.to_bits())
+                }
+                _ => bits,
+            }
+            .to_le_bytes();
+            let width = usize::try_from(elem.size).ok()?;
+            let at = usize::try_from(HEADER + LIST_ELEMS).ok()? + k * width;
+            bytes[at..at + width].copy_from_slice(&raw[..width]);
+        }
+        Some(bytes)
+    }
+
     /// `Some` when `t` is a `List`.
     fn list_root_ty(&self, t: Ty) -> Option<()> {
         (coll_kind(self.pool(), self.env(), t) == Some(StdKind::List)).then_some(())
@@ -1062,6 +1123,12 @@ impl Em<'_, '_, '_> {
         let is_spread = |k: usize| spreads.iter().any(|s| *s as usize == k);
         if items.is_empty() {
             let at = empty_buffer(self.m);
+            self.f.static_addr(at);
+        } else if spreads.is_empty()
+            && let Some(bytes) = self.static_scalar_list(et, &e, &items)
+        {
+            let at = self.m.static_bytes(&bytes, 8) + HEADER;
+            self.m.label_static(at, "scalar-list-buffer");
             self.f.static_addr(at);
         } else {
             let n = self.f.local(Val::I32);
