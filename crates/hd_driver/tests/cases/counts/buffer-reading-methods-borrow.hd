@@ -1,8 +1,9 @@
 # @dump: own
 # @build: std
-# `Buffer`'s metadata and address methods borrow a buffer field, so they
-# take no count around their calls.
-# Rule: module.rt.buffer.borrowed-access.
+# `Buffer.len`'s explicit `@inline(.Always)` is copied even though it belongs
+# to std.rt. The undecorated `capacity`, `set_len`, and `at` stay calls; all
+# four methods borrow the buffer field without a count.
+# Rules: annot.inline.always-copyable.v3, module.rt.buffer.borrowed-access.
 use std.rt.memory.Buffer
 
 struct Bag:

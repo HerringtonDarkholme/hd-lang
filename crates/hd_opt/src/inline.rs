@@ -371,7 +371,7 @@ impl dyn InlineEnv + '_ {
 
     /// A fresh decoding of the checker's body of `def`, for the caller to
     /// change, and its hash, when a call of it may inline: a function
-    /// outside `std.rt`, with a body of its own, not marked
+    /// with a body of its own, not marked
     /// `@inline(.Never)` or `@cold` (`annot.inline.never`), and that does
     /// not suspend or call itself. Dev builds consider std functions and
     /// explicitly decorated user functions; release builds consider all
@@ -385,7 +385,10 @@ impl dyn InlineEnv + '_ {
         let hint = self.inline_hint(def);
         let decorated = matches!(hint, InlineHint::Auto | InlineHint::Always);
         if (hint == InlineHint::Default && INLINE_LIMIT == 0)
-            || rt
+            // Runtime functions stay calls unless their author measured and
+            // explicitly requested a copy: V8 can inline small runtime calls
+            // within its own instruction budget, which automatic copies spend.
+            || (rt && !decorated)
             || !(std || release || decorated)
             || self.intrinsic(def).is_some()
             || hint == InlineHint::Never

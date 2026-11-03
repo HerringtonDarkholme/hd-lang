@@ -232,6 +232,13 @@ impl Lower<'_, '_, '_> {
 
     /// [`Self::target_allowed`] for an already resolved decorator.
     fn target_allowed_def(&self, def: DefId, kind: u16, items: &HashMap<DefId, &Item>) -> bool {
+        // These compiler decorators live in the dependency-free `std.core`
+        // leaf so `std.rt` can import them. Keep their public
+        // `std.annotation` target contract without making the leaf depend on
+        // `Annotate`, whose values require the allocator-backed std graph.
+        if def == self.names.known.inline || def == self.names.known.cold {
+            return kind & (kind::FN | kind::METHOD) != 0;
+        }
         let Some(item) = items
             .get(&def)
             .map(|item| (*item).clone())

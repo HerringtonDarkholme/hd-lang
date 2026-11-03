@@ -8167,14 +8167,10 @@ impl Run<'_> {
                 continue;
             };
             let body = bodies.get(&def);
-            let module = self.item_module_text(def);
-            let runtime = module == "std.rt" || module.starts_with("std.rt.");
             let reason = if sig.suspends {
                 Some("it suspends")
             } else if sig.row != hd_types::RowId::EMPTY {
                 Some("it has a requirement row")
-            } else if runtime {
-                Some("it belongs to `std.rt`")
             } else if body.is_some_and(|body| body.tags.contains(&hd_tir::Tag::Defer)) {
                 Some("it contains `defer`")
             } else if body.is_some_and(|body| body.tags.contains(&hd_tir::Tag::Closure)) {

@@ -5,6 +5,7 @@
 # compiler's. A runtime module, so only std may use it
 # (spec/lang/10-modules.md#r-module.rt.std-only).
 use std.core.Copy
+use std.core.inline
 
 @intrinsic("mem_pages")
 ## The heap's size in pages of 65,536 bytes.
@@ -126,6 +127,7 @@ impl[T < ?Copy] Buffer[T]:
         usize(load_u32(self.address))
 
     ## How many values the buffer holds, at the start of its room.
+    @inline(.Always)
     pub fn len(&self) -> usize:
         usize(load_u32(self.address + 4))
 

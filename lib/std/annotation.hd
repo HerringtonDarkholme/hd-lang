@@ -5,6 +5,7 @@
 # (r-annot.facts-of.declared, r-annot.target.declarations,
 # r-annot.inline.declared).
 use std.structure.Facts
+pub use std.core.{InlineHint, inline, Cold, cold}
 
 # The facts that decorators attach to the module-level function `f`, in
 # source order, as a `std.structure.Facts` (r-annot.facts-of.result.compiler-decorators.v2). The
@@ -57,33 +58,3 @@ pub struct Annotate:
 ## See [annot.target.declarations](../../spec/lang/14-annotations.md#r-annot.target.declarations).
 pub fn annotate[T = &dyn Any](kinds...: List[Target]) -> Annotate:
     Annotate { kinds: kinds }
-
-# How the compiler inlines a function. The compiler recognizes `inline` and
-# `cold` by their qualified names and reads `inline`'s argument as written,
-# so `facts_of` leaves their lines out (r-annot.inline.recognized,
-# r-annot.inline.argument).
-## How the compiler copies calls of a function: `.Auto` prefers a copy,
-## `.Always` asks for one at every call, `.Never` copies none.
-## See [annot.inline.recognized](../../spec/lang/14-annotations.md#r-annot.inline.recognized).
-@derive(Eq)
-@annotate(.Fn, .Method)
-pub enum InlineHint:
-    Auto
-    Always
-    Never
-
-## The `@inline` decorator: a bare `@inline` is `@inline(.Auto)`.
-## See [annot.inline.recognized](../../spec/lang/14-annotations.md#r-annot.inline.recognized).
-pub fn inline(hint: InlineHint = .Auto) -> InlineHint:
-    hint
-
-## Marks a function unlikely to be called: never copied, and called through
-## the function table.
-## See [annot.inline.cold](../../spec/lang/14-annotations.md#r-annot.inline.cold).
-@annotate(.Fn, .Method)
-pub struct Cold: pass
-
-## The `@cold` decorator.
-## See [annot.inline.cold](../../spec/lang/14-annotations.md#r-annot.inline.cold).
-pub fn cold() -> Cold:
-    Cold {}

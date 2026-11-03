@@ -2914,14 +2914,18 @@ instructions). The ownership passes then run on the combined body, so a
 `ListIter.next` inlined into a loop borrows its list like a hand-written
 index loop.
 
-One selection rule covers std and user callees (2026-10-26, #856): a
-callee of at most 16 instructions (`INLINE_LIMIT`) that takes no
+One automatic selection rule covers non-runtime std and user callees
+(2026-10-26, #856): a callee of at most 16 instructions (`INLINE_LIMIT`) that takes no
 reference and is not recursive. A reference parameter would be bound in a local, where it is
 counted and makes a local it points at a counted cell; a call lends both,
 so such a callee stays a call. The build profile is the only difference:
 a dev build copies std callees only, so user code stays as written for
 stepping, stack traces and `dbg`; a release build copies both, like the
-other cross-function work, which is release-only. 16 lets a one-line
+other cross-function work, which is release-only. Undecorated `std.rt`
+callees are never selected automatically, while explicit `@inline(.Auto)`
+and `@inline(.Always)` are honored there
+([`annot.inline.always-copyable.v3`](../../spec/lang/14-annotations.md#r-annot.inline.always-copyable.v3)).
+16 lets a one-line
 helper such as spectral_norm's `a(i, j)` (15) be no call in a hot loop,
 which V8's baseline tier would run as a call. A function marked
 `@inline(.Never)` or `@cold` is copied nowhere
@@ -3000,7 +3004,7 @@ types do not open, stays a call.
   Counted on json's 279 reached bodies (10,663 instructions after the
   passes), stage 3 adds about 4,900 instructions, +46%: about 2.4 ms of
   passes and 10 ms of emission. nbody adds about 290 (+11%); hello adds
-  none while the inliner leaves `std.rt` alone
+  none while the automatic inliner leaves undecorated `std.rt` alone
   ([compile time and code size](#compile-time-and-code-size)).
 - **Caching.** The inlined body is part of the caller's code, so a
   caller's emitted function depends on its callees' TIR hashes. That is
@@ -3052,8 +3056,9 @@ against its share.
   the slow paths (growth, the copy that makes a shared buffer unique, and
   truncation) become std hd. If B proves insufficient, the first option
   to consider is a declaration-level `@inline` on a function or method,
-  before widening the automatic inliner (inlining into copies, or
-  reaching into `std.rt`). The other forty `List` methods are hd in
+  including a measured runtime helper, before widening the automatic
+  inliner (inlining into copies, or automatically reaching into `std.rt`).
+  The other forty `List` methods are hd in
   `collections.hd` already.
 - **Maps and strings in std.** The table code of `map.rs` and
   `emit/map.rs` becomes hd over the same primitives; `StrConcat`,
@@ -3238,7 +3243,8 @@ new address must reach the place the list was read from.
   2026-10-23). std's `push` is `&mut self` and takes no copy of the
   receiver, and with today's inliner `push` would stay a call: its fast
   path is about 20 instructions over `Buffer`'s accessors, which are calls
-  into `std.rt`, which the inliner leaves alone, and which would stay
+  into `std.rt`, which the automatic inliner leaves alone unless explicitly
+  decorated, and which would stay
   calls inside the copy, since nothing inlines into a copy; the limit is
   8. So `push`,
   `len` and indexing stay compiler-lowered over the buffer address, and
@@ -3417,8 +3423,8 @@ arm 3, the four `hd_host_abi` keys 4) and 12 hd code lines, against 255
 and 35. `Ptr[T]` is a plain struct of one `usize`, so it needs no known
 type in the checker, and the existing `std-only-use` already keeps it
 in std: the 60 lines planned for `hd_check` are not needed. `offset` is
-an intrinsic rather than hd, since the inliner leaves `std.rt` callees
-alone and an element access must not be a call. A `T` in the heap has a
+an intrinsic rather than hd, since the automatic inliner leaves undecorated
+`std.rt` callees alone and an element access must not be a call. A `T` in the heap has a
 list element's layout, so `size_of` is that layout's size. The 13
 programs' Wasm is byte-identical, the web compiler's gzip grows 645 B
 (1,897,145 to 1,897,790), and the std runtime tests gain
@@ -4375,8 +4381,8 @@ grows 253 B instead of shrinking 1.3 KB. By this commit's rule, the
 kernels stay, and the std code is not merged: unwired, it would only add
 dead code and 297 B to the web compiler. The full wired version is kept
 as a patch on the lane branch `lane/lm-3h` (7db2fff8c plus
-`3h-wiring.patch`) for a later attempt, for example after the inliner
-can inline `std.rt` callees.
+`3h-wiring.patch`) for a later attempt, for example after measured explicit
+inline hints on those `std.rt` callees pay for themselves.
 
 Each function takes the place's count of the buffer and returns the
 buffer the place holds after it, as the kernels do since 3f. Growth moves
@@ -4388,8 +4394,9 @@ collection among them runs the copy glue (`ref.elem.copy`). Truncation
 panics `collection-pinned` for a pinned list whose length would change,
 calls `list_unique`, and reads out each value past the new length, which
 drops it. The code reads the buffer's words through its address and not
-through `Buffer[T]`'s methods. The inliner never inlines a `std.rt`
-callee, and each method call passed the buffer as an owned argument with
+through `Buffer[T]`'s methods. The automatic inliner never inlines an
+undecorated `std.rt` callee; explicit `@inline(.Auto)` and
+`@inline(.Always)` are honored there. Each method call passed the buffer as an owned argument with
 a count of its own: a retain and a release around every `len()` and
 `at(i)` of the copy loop, about 200 B more per instance. An address
 keeps no count, so the move pass dropped the buffer right after the
@@ -4542,7 +4549,7 @@ provider read; trait calls through a bound or a trait value stay calls.
 | --- | ---: | ---: | ---: |
 | reached bodies / instructions today | 279 / 10,663 | 76 / 2,724 | 70 / 2,246 |
 | intrinsics today | 229: `ListPush` 112, `ListLen` 42, `ValueCopy` 22, `StrIndex` 17, `SnapBegin` and `SnapEnd` 8 each, `StrEq` 6, map 11, `StrConcat` 3 | 6 | 1 |
-| small std calls outside `std.rt` today, copied | 202 sites, 2,546 | 2, 6 | 0 |
+| automatically selected small std calls outside `std.rt` today, copied | 202 sites, 2,546 | 2, 6 | 0 |
 | intrinsics as inlined std code, net | +3,540 | +290 (six range loops) | 0 |
 | callee bodies no longer emitted | −1,140 | 0 | 0 |
 | net instructions | +4,900 (+46%) | +290 (+11%) | 0 |
@@ -4565,11 +4572,12 @@ instructions fewer. json's net is then about +1,860 instructions
 (+17%), about 0.9 ms of passes and 3.9 ms of emission; nbody's six range
 loops are the `for` row's and do not change.
 
-`std.rt` is the exception. The allocator and the collector make 103
+Undecorated `std.rt` is the exception. The allocator and the collector make 103
 small calls in every program, which would copy 1,214 instructions and
 drop 399, +815 net: +36% on hello's 2,246, about 2.5 KB on its 6,880 B
-of Wasm. The budget assumes the first version leaves `std.rt` callees
-alone; the emitter's count glue already inlines the counts' fast paths
+of Wasm. The budget assumes automatic selection leaves `std.rt` callees
+alone; explicit `@inline(.Auto)` and `@inline(.Always)` are still honored,
+and the emitter's count glue already inlines the counts' fast paths
 (`inline_counts`).
 
 **hello.** `println` reaches `to_string`, which inlines (it is the
