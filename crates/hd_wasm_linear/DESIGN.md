@@ -448,7 +448,7 @@ issue-backed exceptions; there is no per-backend rollout pass list.
   `as_mut` are the pointer's address (`Em::ptr_ref`), a short loan's
   origin when its holders allow (§23.20). A `Buffer[T]` is an ordinary
   struct of an address and a capacity, hd over these (`std.rt.memory`):
-  its room is a block whose count word holds `ROOM_COUNT`, which no
+  its room is a block whose count word holds 2^30, which no
   balanced count of a reference into the room brings to its last count,
   and whose descriptor word is 0, then the values. Its `Drop` frees the
   room; the collector's `hold_room` defers that while it traces
