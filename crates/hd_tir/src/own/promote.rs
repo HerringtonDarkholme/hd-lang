@@ -234,6 +234,41 @@ pub fn promotable_ref(b: &Body, i: usize, user: usize) -> bool {
     lent_ref(b, i, user).is_some_and(|steps| steps == Steps::InPlace)
 }
 
+/// Whether `Ref` `i` names a place behind a reference that `b`'s caller
+/// lends (`lent_param`): `[*$p ...]`, where `$p` is such a parameter or a
+/// local stored once from a read of one, as an inlined copy's `self` is.
+/// The body owns nothing there, so none of its drops reaches the place.
+fn through_param(b: &Body, i: usize, lent_param: &dyn Fn(u32) -> bool) -> bool {
+    let p = b.view(b.data[i][0]);
+    let Root::Local(l) = p.root else {
+        return false;
+    };
+    lends_referent(b, l, lent_param, 0) && matches!(p.steps(b).next(), Some(Proj::Deref))
+}
+
+/// Whether local `l` of `b` is a reference its caller lends: a lent
+/// parameter, or a local stored only once, from a read of all of one.
+fn lends_referent(b: &Body, l: u32, lent_param: &dyn Fn(u32) -> bool, depth: u32) -> bool {
+    if b.local_flags[l as usize] & crate::ir::local_flags::PARAM != 0 {
+        return lent_param(l);
+    }
+    if depth > 8 || !lent_param(l) {
+        return false;
+    }
+    let mut stores = (0..b.len())
+        .filter(|&j| b.tags[j] == Tag::Store && b.view(b.data[j][0]).local() == Some(l));
+    let (Some(j), None) = (stores.next(), stores.next()) else {
+        return false;
+    };
+    let Some(v) = Ref(b.data[j][1]).as_inst().map(|v| v.0 as usize) else {
+        return false;
+    };
+    b.tags[v] == Tag::Read
+        && b.view(b.data[v][0]).whole()
+        && matches!(b.view(b.data[v][0]).root, Root::Local(m)
+            if lends_referent(b, m, lent_param, depth + 1))
+}
+
 /// How far the place of a lent `Ref` ([`lent_ref`]) goes from its local.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Steps {
@@ -308,14 +343,20 @@ fn lent_ref(b: &Body, i: usize, user: usize) -> Option<Steps> {
 /// alias, so its argument counts only when no instruction from its `Ref`
 /// to the call writes memory the body does not own (`super::writes_in`,
 /// `may_write` for a call), and `copy_writes`, whether the copy may, is
-/// false.
+/// false. An argument in `rooted`, whose referent holds a value with a
+/// `std.rt.Drop`, counts only as what one of the body's reference
+/// parameters refers to, with no element on the way (`self.buffer` in a
+/// `&self` method): its caller keeps it alive and in place for the whole
+/// call, so the read the copy makes always borrows, where a local's last
+/// use could drop it while the copy still reads it.
 #[must_use]
 pub fn inline_args(
     b: &Body,
     call: usize,
-    relaxed: u64,
+    (relaxed, rooted): (u64, u64),
     copy_writes: bool,
     may_write: &dyn Fn(&crate::ir::Callee) -> bool,
+    lent_param: &dyn Fn(u32) -> bool,
 ) -> u64 {
     if b.tags[call] != Tag::Call || b.tags.iter().any(|&t| crate::ir::is_suspension(t)) {
         return 0;
@@ -326,6 +367,9 @@ pub fn inline_args(
         .filter(|&(k, &v)| {
             Ref(v).as_inst().is_some_and(|i| {
                 let i = i.0 as usize;
+                if rooted & 1 << k != 0 && !through_param(b, i, lent_param) {
+                    return false;
+                }
                 match lent_ref(b, i, call) {
                     Some(Steps::InPlace) => true,
                     Some(_) if relaxed & 1 << k == 0 => false,

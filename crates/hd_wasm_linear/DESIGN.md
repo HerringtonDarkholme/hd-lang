@@ -444,7 +444,10 @@ issue-backed exceptions; there is no per-backend rollout pass list.
   emitter as a `Read` and a `Store` of the place `[ptr %p]`
   (`Em::ptr_place`): a read loads the leaves, and a `move` keeps the
   count they held; a store writes its value as an element store does
-  (`slot_src`, `retain_src`) and releases nothing. `as_ref` and
+  (`slot_src`, `retain_src`) and releases nothing. `drop_in_place`
+  (`Em::ptr_drop_in_place`) is nothing for a `T` whose release has no
+  work, else one loop over the slots that loads each value's leaves and
+  releases them. `as_ref` and
   `as_mut` are the pointer's address (`Em::ptr_ref`), a short loan's
   origin when its holders allow (§23.20). A `Buffer[T]` is an ordinary
   struct of an address and a capacity, hd over these (`std.rt.memory`):

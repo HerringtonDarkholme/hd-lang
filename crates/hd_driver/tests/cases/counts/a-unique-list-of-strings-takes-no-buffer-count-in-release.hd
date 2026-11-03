@@ -1,9 +1,11 @@
 # @dump: counts
 # @build: std release
-# In release, as in dev, a `UniqList` owns a raw buffer, which has no
-# count: pushing, lending an element, iterating by reference and
-# dropping the list count only the strings it holds; its drop, which
-# moves the strings out, is summarized as a write.
+# In release, as in dev, a `UniqList` owns a raw buffer, which has no count:
+# pushing, lending an element, iterating by reference and dropping the
+# list take no count of the list or its buffer. A reference to an element
+# that leaves a short loan (the cursor's) is still counted through the
+# page table, on the room's fixed count word.
+# The list's drop, which moves its strings out, is summarized as a write.
 # Rule: std-collections.uniq-list.type.
 use std.collections.UniqList
 

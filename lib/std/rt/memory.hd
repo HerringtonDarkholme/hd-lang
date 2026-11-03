@@ -100,6 +100,12 @@ impl[T < ?Copy] Ptr[T]:
     pub fn write(self, value: T) -> void:
         panic("intrinsic")
 
+    ## Drops the `count` values from the address, in place, as moving each out and dropping it would; it frees no memory. A type whose values have nothing to release drops nothing.
+    ## See [module.rt.ptr.drop-in-place](../../../spec/lang/10-modules.md#r-module.rt.ptr.drop-in-place).
+    @intrinsic("ptr_drop_in_place")
+    pub fn drop_in_place(self, count: usize) -> void:
+        panic("intrinsic")
+
     ## Lends the value at the address for `'a`, which the caller keeps the value alive for.
     ## See [module.rt.ptr.as-ref](../../../spec/lang/10-modules.md#r-module.rt.ptr.as-ref).
     @intrinsic("ptr_ref")

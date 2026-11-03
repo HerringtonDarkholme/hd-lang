@@ -1,0 +1,21 @@
+# @dump: own
+# @build: std
+# A copy of `Buffer.capacity` binds its receiver's value only where the
+# caller reaches it through a reference its own caller lends: there no
+# drop in the caller can free the buffer while the copy reads it, so the
+# read borrows. Through a box the caller owns, which it drops after its
+# last use, the call stays a call: a by-value binding would read a
+# buffer the drop frees.
+use std.rt.memory.Buffer
+
+struct Bag:
+    buffer: Buffer[i32]
+
+impl !Copy for Bag
+
+fn through_reference(bag: &Bag) -> usize:
+    bag.buffer.capacity()
+
+fn through_owned_box() -> usize:
+    bag := box(Bag { buffer: Buffer::[i32].new(4) })
+    bag.buffer.capacity()
