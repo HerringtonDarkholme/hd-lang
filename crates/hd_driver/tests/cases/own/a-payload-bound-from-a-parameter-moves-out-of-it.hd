@@ -1,0 +1,13 @@
+# @dump: own
+# A pattern binding of a non-copyable payload moves it out of the
+# scrutinee (`ref.move.pattern`): the parameter's read and the payload's
+# both move, and no read copies the parcel.
+struct Parcel:
+    label: string
+
+impl !Copy for Parcel
+
+fn label(value: Parcel?) -> string:
+    match value:
+        .Some(parcel) => parcel.label
+        .None => "none"

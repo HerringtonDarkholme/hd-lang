@@ -20,7 +20,10 @@
 //!    inlined `&self` copy binds a weakened `&mut` receiver), and a
 //!    coercion that keeps its values
 //!    ([`Body::same_value_coercion`]) whose own uses lend, which is then a
-//!    borrow too, its drops gone, the span running to its last drop.
+//!    borrow too, its drops gone, the span running to its last drop. A
+//!    part of a type no instance copies that a store takes is kept too,
+//!    and a kept one keeps the read its place is rooted at
+//!    ([`uncopyable`]): it needs a count, which only a move gives.
 //! 2. **Nothing writes what it reads.** The place is resolved through the
 //!    values its root reads (`%h = Read [$xs]` makes `[%h [%i]]` an
 //!    element of `$xs`), and through binding locals to the read they hold:
@@ -130,6 +133,7 @@ use crate::ir::{
     Tag, Topology, is_suspension, local_flags, place, sub_flags, u32_of,
 };
 use hd_base::SliceSort as _;
+use hd_types::Ty;
 
 /// The longest chain of roots a read is resolved through.
 const DEPTH: usize = 8;
@@ -623,6 +627,7 @@ pub(crate) fn run(
     let locals = b.local_ty.len();
     t.reset(n, locals);
     scan(b, cx, t);
+    uncopyable(b, cx, t);
     // Per local: the reads of it whose value a use keeps or a store takes.
     fill(&mut t.kept_read, locals, 0);
     fill(&mut t.kept_whole, locals, 0);
@@ -848,6 +853,41 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 || (t.stored[c] != NONE && !bound)
                 || t.alias[c] != NONE
                 || t.uses[v] > 1;
+        }
+    }
+}
+
+/// Rule 1 for a value no instance may copy (`OwnCx::copies` is not
+/// `Yes`): a read of one whose value a use keeps needs a count, which only
+/// a move gives (`ref.move.sites`), and so does a part of a value or a
+/// local that a store takes (`ref.move.field`, `ref.move.pattern`: a
+/// pattern or a `let` binds the part by moving it out). Such a read keeps
+/// its value, and so does the read its place is rooted at, which the part
+/// leaves: a payload bound out of a scrutinee, a part of a payload. A
+/// whole read that a store takes may still borrow, as an inlined `&self`
+/// method's receiver binding does.
+fn uncopyable(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
+    let mut last = (Ty::VOID, false);
+    // Later reads first: a part's read follows the read of its root.
+    for i in (0..b.len()).rev() {
+        if b.tags[i] != Tag::Read || b.data[i][1] != ReadMode::Copy as u32 {
+            continue;
+        }
+        let ty = b.ty[i];
+        if last.0 != ty {
+            last = (ty, cx.copies(ty) != Tri::Yes && cx.counted(ty) != Tri::No);
+        }
+        let p = b.view(b.data[i][0]);
+        let part = !p.whole() && p.in_place(b);
+        if !last.1 || !(t.keeps[i] || (part && store_of(t, i) != NONE)) {
+            continue;
+        }
+        t.keeps[i] = true;
+        if let Root::Value(v) = p.root
+            && p.in_place(b)
+            && b.tags[v as usize] == Tag::Read
+        {
+            t.keeps[v as usize] = true;
         }
     }
 }

@@ -189,7 +189,7 @@ impl Em<'_, '_, '_> {
 
     /// The layout of the value in local `l`'s cell, and its counted
     /// references: its erased view's in a generic method (`erased.rs`).
-    fn cell_mem(&self, l: usize) -> StageResult<(Mem, Option<Walk>)> {
+    pub(super) fn cell_mem(&self, l: usize) -> StageResult<(Mem, Option<Walk>)> {
         let t = self.cell_ty(l);
         Ok((mem_of(self.pool(), self.env(), t)?, self.counted(t)))
     }
