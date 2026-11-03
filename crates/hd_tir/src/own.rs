@@ -1059,8 +1059,12 @@ fn writes_with(
                         .as_mut()
                         .is_some_and(|origins| origins.owns_pointer_place(a, i))
             }
+            // A move out of a place the body does not own; before the
+            // passes, a read of a pointer's target is one too, since
+            // `Ptr.read` moves its value out (`module.rt.ptr.read`).
             Tag::Read => {
-                w == ReadMode::Move as u32
+                (w == ReadMode::Move as u32
+                    || (w == ReadMode::Use as u32 && matches!(b.view(a).root, Root::Ptr(_))))
                     && !place(a).0
                     && !origins
                         .as_mut()

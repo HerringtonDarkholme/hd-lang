@@ -1,0 +1,27 @@
+# @dump: counts
+# @build: std release
+# In release, as in dev, a `UniqList` owns a raw buffer, which has no
+# count: pushing, lending an element, iterating by reference and
+# dropping the list count only the strings it holds; its drop, which
+# moves the strings out, is summarized as a write.
+# Rule: std-collections.uniq-list.type.
+use std.collections.UniqList
+
+fn build(word: string) -> UniqList[string]:
+    let mut words = UniqList::[string].new()
+    words.push(word)
+    words
+
+fn first_len(words: &UniqList[string]) -> usize:
+    match words.get_ref(0):
+        .Some(word) => word.len()
+        .None => 0
+
+fn total(words: &UniqList[string]) -> usize:
+    let total: usize = 0
+    for word in words.iter():
+        total += word.len()
+    total
+
+fn finish(words: UniqList[string]) -> usize:
+    words.len()
