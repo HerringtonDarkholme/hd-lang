@@ -403,7 +403,8 @@ pub const fn runtime_fns(checked: bool) -> &'static [&'static str] {
 
 /// Every runtime function that emitted code calls, as `(module, name)`:
 /// [`runtime_fns`] of [`runtime_module`], then the collector's
-/// [`CYCLE_FNS`], then the allocator metadata/class paths and `block_of`.
+/// [`CYCLE_FNS`], then the allocator metadata/class paths, `block_of` and
+/// `block_bytes`.
 /// [`Runtime::from_keys`] reads their keys in this order.
 #[must_use]
 pub fn runtime_items(checked: bool) -> Vec<(&'static str, &'static str)> {
@@ -425,6 +426,7 @@ pub fn runtime_items(checked: bool) -> Vec<(&'static str, &'static str)> {
             (RUNTIME_MODULE, "metadata"),
             (RUNTIME_MODULE, "alloc_class"),
             (RUNTIME_MODULE, "block_of"),
+            (RUNTIME_MODULE, "block_bytes"),
         ])
         .collect()
 }
@@ -441,6 +443,7 @@ pub struct Runtime {
     pub retain_known: Hash128,
     pub release_known: Hash128,
     pub block_of: Hash128,
+    pub block_bytes: Hash128,
     pub cycle: Cycle,
     pub weak: Weak,
     pub acyclic: Acyclic,
@@ -514,7 +517,8 @@ impl Runtime {
     #[must_use]
     pub fn from_keys(keys: &[Option<Hash128>]) -> Option<Runtime> {
         let keys: Vec<Hash128> = keys.iter().copied().collect::<Option<_>>()?;
-        let (keys, [metadata, alloc_class, block_of]) = keys.split_last_chunk::<3>()?;
+        let (keys, [metadata, alloc_class, block_of, block_bytes]) =
+            keys.split_last_chunk::<4>()?;
         let (
             keys,
             [
@@ -571,6 +575,7 @@ impl Runtime {
             retain_known,
             release_known,
             block_of: *block_of,
+            block_bytes: *block_bytes,
             small: SmallAlloc {
                 metadata: *metadata,
                 alloc: *alloc_class,

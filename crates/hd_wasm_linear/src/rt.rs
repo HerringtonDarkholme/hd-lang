@@ -486,6 +486,10 @@ pub enum Helper {
     StrToBytes {
         elem: Elem,
     },
+    /// `(left, left_len, right, right_len) -> (address, length)`: takes the
+    /// left string's count. An unshared buffer with tail room is extended in
+    /// place; otherwise its bytes move to a buffer with doubled capacity.
+    StrAppend,
     /// `(list: List[string]) -> string`: every part's bytes in order,
     /// copied once into one new string.
     ConcatAll,
@@ -1876,6 +1880,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::StrFromBytes => str_from_bytes(m),
         Helper::StrToBytes { elem } => str_to_bytes(m, elem),
+        Helper::StrAppend => str_append(m),
         Helper::ConcatAll => concat_all(m),
         Helper::StrCmp => str_cmp(m),
         Helper::BytesIndexJson => {
@@ -3917,6 +3922,101 @@ fn str_to_bytes(m: &Module, elem: &Elem) -> Func {
         dst_mem: HEAP,
     });
     f.get(b);
+    f
+}
+
+/// [`Helper::StrAppend`]: an empty suffix keeps the moved left count. A
+/// uniquely held heap buffer with enough bytes after the view grows in place;
+/// otherwise the old bytes move to a buffer with room for twice their length.
+fn str_append(m: &Module) -> Func {
+    let mut f = m.func("rt:str_append", vec![Val::I32; 4], vec![Val::I32; 2]);
+    let (left, left_len, right, right_len) = (0, 1, 2, 3);
+    let (block, total, capacity, at) = (
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+    );
+    f.get(left_len);
+    f.get(right_len);
+    f.op(Instruction::I32Add);
+    f.set(total);
+    f.get(right_len);
+    f.op(Instruction::If(BlockType::Empty));
+    if let Some(r) = m.runtime {
+        f.get(left);
+        f.call(Sym::Inst(r.block_of));
+        f.set(block);
+        f.get(block);
+        f.op(Instruction::If(BlockType::Empty));
+        f.get(block);
+        f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+        f.i32(1);
+        f.op(Instruction::I32Eq);
+        f.op(Instruction::If(BlockType::Empty));
+        f.get(block);
+        f.call(Sym::Inst(r.block_bytes));
+        f.get(left);
+        f.get(block);
+        f.op(Instruction::I32Sub);
+        f.op(Instruction::I32Sub);
+        f.set(capacity);
+        f.get(total);
+        f.get(capacity);
+        f.op(Instruction::I32LeU);
+        f.op(Instruction::If(BlockType::Empty));
+        f.get(left);
+        f.get(left_len);
+        f.op(Instruction::I32Add);
+        f.get(right);
+        f.get(right_len);
+        f.op(Instruction::MemoryCopy {
+            src_mem: HEAP,
+            dst_mem: HEAP,
+        });
+        f.get(left);
+        f.get(total);
+        f.op(Instruction::Return);
+        f.op(Instruction::End);
+        f.op(Instruction::End);
+        f.op(Instruction::End);
+    }
+    f.get(left_len);
+    f.i32(1);
+    f.op(Instruction::I32Shl);
+    f.set(capacity);
+    f.get(total);
+    f.get(capacity);
+    f.get(total);
+    f.get(capacity);
+    f.op(Instruction::I32GtU);
+    f.op(Instruction::Select);
+    f.helper(Helper::Str);
+    f.set(at);
+    f.get(at);
+    f.get(left);
+    f.get(left_len);
+    f.op(Instruction::MemoryCopy {
+        src_mem: HEAP,
+        dst_mem: HEAP,
+    });
+    f.get(at);
+    f.get(left_len);
+    f.op(Instruction::I32Add);
+    f.get(right);
+    f.get(right_len);
+    f.op(Instruction::MemoryCopy {
+        src_mem: HEAP,
+        dst_mem: HEAP,
+    });
+    f.get(left);
+    f.helper(Helper::ReleaseRef);
+    f.get(at);
+    f.get(total);
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+    f.get(left);
+    f.get(total);
     f
 }
 
