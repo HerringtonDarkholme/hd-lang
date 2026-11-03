@@ -47,7 +47,7 @@ use crate::ir::{
 
 pub use hoist::{EntryTest, entry_test, loop_statements, loop_test};
 
-mod borrow;
+pub(crate) mod borrow;
 pub(crate) use borrow::keeps_drops;
 pub mod flow;
 mod frame;

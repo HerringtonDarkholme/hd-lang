@@ -168,6 +168,10 @@ other's after their roots match, ignoring element indices (two elements
 of one list may be the same slot). Overlap is the one aliasing test the
 passes use; a dereference of a reference that came from elsewhere
 overlaps every place of its referent type that a reference can reach.
+A reference reaches a local only when one outlives the one call it
+lends to, or a closure shares the local: a local reference that one call
+takes, and whose result holds none, is dead outside that call, so a
+store into the local elsewhere overlaps no dereference.
 
 A place's intermediate types are not stored. The instruction's `ty` is
 the place's type; each step's type is the base type's declared field
@@ -1832,7 +1836,8 @@ is worth deciding only if they are hot.
      through the read's own value (an element store through a borrowed
      header) keeps that value. Each read in the chain also refuses what
      the verifier's overlap counts against its own place.
-   - **Rule 3.** A chain ending at an unaddressed, unshared local is
+   - **Rule 3.** A chain ending at an unshared local whose references
+     each die with the one call that takes them is
      changed only by the body, calls included; so is its list's buffer
      when every value stored into the local is fresh (a call's result, a
      copy or snapshot, a literal), which shares its header with no other

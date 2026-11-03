@@ -34,7 +34,9 @@
 //!    value. Each read in the chain also refuses what the verifier's
 //!    overlap counts against its own place (`crate::ir::verify_owned`): a
 //!    write of the same root, `IsUnique` included, and, for a place behind
-//!    a reference or in a buffer, any write a reference can reach.
+//!    a reference or in a buffer, any write a reference can reach: one
+//!    behind a reference, of a top-level binding, or of a local a
+//!    reference reaches outside its one call ([`escaping`]).
 //! 3. **Nothing reaches it behind the body's back.** A chain ending at a
 //!    local needs the local unshared with a closure, and each reference to
 //!    it a local one that one call takes and that call's result does not
@@ -473,16 +475,16 @@ impl Tables {
 /// the call returns, and every other use is a `Drop`. Only that call and
 /// the `Ref` reach the local through it, and [`index_writes`] records a
 /// mutable one as a write at both.
-fn lends_once(b: &Body, cx: &dyn OwnCx, t: &Tables, i: usize) -> bool {
+fn lends_once(b: &Body, cx: &dyn OwnCx, counts: &[u32], last: &[u32], i: usize) -> bool {
     if b.data[i][1] & crate::ir::ref_word::LOCAL == 0 {
         return false;
     }
     let mut v = i;
     for _ in 0..DEPTH {
-        if t.uses[v] != 1 {
+        if counts[v] != 1 {
             return false;
         }
-        let u = t.user[v] as usize;
+        let u = last[v] as usize;
         if b.same_value_coercion(u) && b.data[u][0] as usize == v {
             v = u;
             continue;
@@ -490,6 +492,37 @@ fn lends_once(b: &Body, cx: &dyn OwnCx, t: &Tables, i: usize) -> bool {
         return b.tags[u] == Tag::Call && !cx.holds_ref(b.ty[u]);
     }
     false
+}
+
+/// Per local: whether a reference to it outlives the one call it lends to,
+/// or a closure shares it ([`lends_once`]). Any other local is reached only
+/// inside such a call, so no place behind a reference names it elsewhere.
+pub(crate) fn escaping(b: &Body, cx: &dyn OwnCx) -> Vec<bool> {
+    let n = b.len();
+    let (mut counts, mut last) = (vec![0; n], vec![NONE; n]);
+    let mut ops = Vec::new();
+    for i in 0..n {
+        operands(b, i, &mut ops);
+        for op in ops.iter().filter(|op| op.role != Role::Dropped) {
+            counts[op.value as usize] += 1;
+            last[op.value as usize] = u32_of(i);
+        }
+    }
+    let mut out = vec![false; b.local_ty.len()];
+    for i in 0..n {
+        if b.tags[i] == Tag::Ref
+            && let Some(l) = b.local_in_place(b.data[i][0])
+            && !lends_once(b, cx, &counts, &last, i)
+        {
+            out[l.idx()] = true;
+        }
+    }
+    for (l, m) in b.cap_local.iter().zip(&b.cap_mode) {
+        if *m == crate::ir::CaptureMode::Shared {
+            out[l.idx()] = true;
+        }
+    }
+    out
 }
 
 /// Value `v`, or what the coercions that keep its value coerce.
@@ -714,7 +747,7 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     for i in 0..n {
         if b.tags[i] == Tag::Ref
             && let Some(l) = b.local_in_place(b.data[i][0])
-            && !lends_once(b, cx, t, i)
+            && !lends_once(b, cx, &t.uses, &t.user, i)
         {
             t.escapes[l.idx()] = true;
         }
@@ -792,9 +825,11 @@ fn index_writes(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 _ => p.kinds(b),
             };
             let behind = derefs > 0 || elem;
+            // A local whose every reference dies with its one call is
+            // reached there only, which the call's own row records.
             let reachable = behind
                 || match p.root {
-                    Root::Local(l) => t.reached[l as usize],
+                    Root::Local(l) => t.escapes[l as usize],
                     Root::Value(_) => false,
                     _ => true,
                 };
@@ -809,7 +844,7 @@ fn index_writes(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
             Tag::Store | Tag::Ref if tag == Tag::Store || w & crate::ir::ref_word::MUT != 0 => {
                 let chain = t.walk(b, a, false);
                 t.write_links(x, false);
-                let reached = matches!(t.links.last(), Some(l) if l.key < locals && t.reached[l.key as usize]);
+                let reached = matches!(t.links.last(), Some(l) if l.key < locals && t.escapes[l.key as usize]);
                 if !chain.ok || chain.heap || reached {
                     t.heap.push((x, through));
                 }
