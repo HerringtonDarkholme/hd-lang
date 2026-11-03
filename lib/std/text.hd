@@ -10,6 +10,7 @@
 # `interpolate`, `process_escapes`, and `EscapeError` (L22).
 use std.ops.{Template, str_prefix}
 use std.format.DebugWriter
+use std.annotation.inline
 use std.rt.bytes.{
     bytes_len,
     bytes_at,
@@ -988,6 +989,9 @@ fn scalar_end(text: string, start: usize) -> usize:
     end
 
 # The byte position where the scalar that ends at byte `end` starts.
+# Kept with `scalar_at` and `white_space` after #1241's scanning-loop measurements;
+# copying `scalar_end` made `chars` slower, so it stays undecorated.
+@inline
 fn scalar_start(text: string, end: usize) -> usize:
     let start = end - 1
     while start > 0 && continuation_byte(bytes_at(text, start)):
@@ -995,6 +999,7 @@ fn scalar_start(text: string, end: usize) -> usize:
     start
 
 # The code point of the scalar that starts at byte `start`.
+@inline
 fn scalar_at(text: string, start: usize) -> i32:
     lead := i32(bytes_at(text, start))
     if lead < 128:
@@ -1017,6 +1022,7 @@ fn scalar_at(text: string, start: usize) -> i32:
     point
 
 # The Unicode White_Space property.
+@inline
 fn white_space(point: i32) -> bool:
     if point <= 32:
         return point == 32 || (point >= 9 && point <= 13)
