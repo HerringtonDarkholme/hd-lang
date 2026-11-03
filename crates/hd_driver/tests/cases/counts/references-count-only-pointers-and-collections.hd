@@ -1,0 +1,61 @@
+# @dump: counts
+# @build: std release
+# A reference takes a count only to protect storage its place crosses that
+# an alias may change (#1320). A field of a local struct, in a frame slot
+# or in a cell a closure shares, takes no count. A field behind a `*T`
+# counts that object, which keeps it alive if an alias replaces it.
+# `&mut xs[i]` on a `List` pins the list's buffer. A `UniqList` element
+# lent by `get_ref` inside a match decision is a short loan; the cursor's
+# elements, reached through a lent list that may lie behind a `*T`, count
+# the room, which pins it.
+# Rule: ref.count.pointer, ref.count.local.
+use std.collections.UniqList
+
+struct Pair:
+    name: string
+    tag: string
+
+struct Node:
+    name: string
+
+struct Holder:
+    child: *mut Node
+
+fn show(text: &string) -> usize:
+    text.len()
+
+fn bump(n: &mut i64) -> void:
+    *n += 1
+
+fn first_len(words: &UniqList[string]) -> usize:
+    match words.get_ref(0):
+        .Some(word) => word.len()
+        .None => 0
+
+fn total(words: &UniqList[string]) -> usize:
+    let total: usize = 0
+    for word in words.iter():
+        total += word.len()
+    total
+
+fn local_field(name: string) -> usize:
+    pair := Pair { name: name, tag: "t" }
+    r := &pair.name
+    show(r) + show(r)
+
+fn cell_field(name: string) -> usize:
+    let mut pair = Pair { name: name, tag: "t" }
+    retag := fn() -> void: pair.tag = "u"
+    retag()
+    r := &pair.name
+    show(r)
+
+fn behind_pointer(h: *mut Holder, alias: *mut Holder) -> usize:
+    name := &h.child.name
+    alias.child = box(Node { name: "other" })
+    show(name)
+
+fn pinned(xs: &mut List[i64]) -> void:
+    r := &mut xs[0]
+    bump(r)
+    bump(r)

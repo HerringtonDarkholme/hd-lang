@@ -1,0 +1,19 @@
+# test: a push through a box alias while an element reference into the unique list behind it is live panics with collection-pinned
+# std Collections: std-collections.uniq-list.pinned.
+use std.collections.UniqList
+
+struct Bag:
+    items: UniqList[string]
+
+fn grow(first: &mut string, alias: *mut Bag) -> void:
+    alias.items.push("pushed") # panic: collection-pinned
+    *first = "written"
+
+tests:
+    it("the element reference pins the unique list"):
+        bag := box(Bag { items: UniqList::[string].new() })
+        bag.items.push("original")
+        alias := bag
+        match bag.items.get_mut(0):
+            .Some(first) => grow(first, alias)
+            .None => pass

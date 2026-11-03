@@ -1,0 +1,10 @@
+# A reference to a field behind a `*mut` counts that object, so when another
+# alias replaces the object, a release build (which checks no run-time loan)
+# still reads the original value through the reference, in a callee and in
+# a binding.
+run: hd run --release
+stdout: 64
+stdout: original-zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
+stdout: 49
+stdout: 49
+stdout: replacement-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx

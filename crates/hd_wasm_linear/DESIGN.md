@@ -448,11 +448,13 @@ issue-backed exceptions; there is no per-backend rollout pass list.
   `as_mut` are the pointer's address (`Em::ptr_ref`), a short loan's
   origin when its holders allow (§23.20). A `Buffer[T]` is an ordinary
   struct of an address and a capacity, hd over these (`std.rt.memory`):
-  its room is a block whose count word holds 2^30, which no
-  balanced count of a reference into the room brings to its last count,
-  and whose descriptor word is 0, then the values. Its `Drop` frees the
-  room; the collector's `hold_room` defers that while it traces
-  (§23.28). A string's bytes are its address, and a new string is a
+  its room is a block whose count word starts at 1, the buffer's, and
+  whose descriptor word is 0, then the values. A reference into the room
+  that takes a count adds one (§23.20, "References count what they
+  cross"), so `Buffer.pinned` is a load of that word. Its `Drop` and
+  `grow` give up the buffer's count and free the room when it was the
+  last; else the last reference's release frees it, with no glue. The
+  collector's `hold_room` defers that free while it traces (§23.28). A string's bytes are its address, and a new string is a
   `Str` block, or the static empty string for no bytes.
 - **Release glue only.** A type whose values hold no counted address but
   implement `std.rt.Drop` (a `UniqList` of scalars) has the walk
@@ -1060,10 +1062,11 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   without rebuilding its parent.
   The source reference evaluates once before the RHS. A compound assignment
   reads the old field before its RHS; both kinds store after the RHS,
-  preserving changes it makes to neighboring fields through aliases. A local reference
-  is counted through the page table at any address in its object, so a
-  reference to a field keeps the whole object alive (a counted one is a
-  payload start, §23.30). `is` compares
+  preserving changes it makes to neighboring fields through aliases. A local
+  reference that takes a count is counted through the page table at any
+  address in its object, so a reference to a field keeps the whole object
+  alive (a counted one is a payload start, §23.30); which ones take one is
+  below ("References count what they cross"). `is` compares
   addresses, and `identity_of` is no base, the address as the serial and
   no key. A reference to a trait value is that trait value, the data
   address and the vtable, as Rust's `&dyn Tr` is: `RefDyn`'s other block
@@ -1077,6 +1080,40 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   profile and in release; 16 of them are the count of blocks
   `std.rt.alloc.allocated` reports, which `ref_tests.hd` reads to see
   that a loop writing through `&mut` to a local allocates nothing.
+- **References count what they cross** (issue #1320,
+  spec/lang/13-values-and-references.md `ref.count.pointer`,
+  `ref.count.local`). A reference's count protects the storage its place
+  crosses that an alias the checker cannot see may change, and nothing
+  else; the place decides it, never the named type:
+  | The place crosses | The reference takes |
+  | --- | --- |
+  | no dereference of a counted reference, no list or map element: a local's frame slot or cell, a field path in it, or such a reference's referent | no count (`Em::frame_loans`) |
+  | a `*T` or `*mut T` dereference, fields after it | a count of that object, through the page table at its address: an alias may replace it |
+  | a `List` or `Map` element | the pin, a count of the buffer (below) |
+  | a `UniqList` or `UniqMap` element (`Ptr.as_ref`, `as_mut`) | a count of the room, so `Buffer.pinned` is true while an alias could grow it (`std-collections.uniq-list.pinned`), unless a short loan holds it |
+  A reference into a slot needs none because a slot is static (§23.38); one
+  into a cell because the passes keep a cell local alive over every use of
+  what may point into it (`hd_tir/src/own/frame.rs`, the origin rule), in
+  an owned body with no suspension point. Such a **loan** flows into a
+  `Ref` through it to a part of its referent, a read of all or a part of
+  it, a same-value coercion, a variant, struct or tuple whose counted parts
+  are all loans (`Option[&T]`, a cursor of references), a block's, scope's
+  or `break`'s value, and a local every store of which stores one and which
+  no `&mut` reaches. None of these counts or releases. A loan into a cell
+  is **scoped** (`Em::scoped_loans`): a consumer that is no loan, as a
+  return or a store into a counted place, does not take it (`Em::take_from`)
+  but counts a copy of its own, so every count that leaves the body is a
+  real one. A slot's loan may move anywhere, as a count of a slot's address
+  does nothing. A reference through a parameter's referent keeps the lent
+  rule (`ref_word::LENT`): the caller keeps that referent alive for the
+  call, and a result that holds one is counted where it is returned.
+  **View owners.** A `Ref` to a field of a loan may be a projection of a
+  representation view (`rt:ref_project`) where the base is an erased
+  view: the loan's flag (`Em::view_loans`) marks that fresh object, and
+  the loan's `Drop` releases it, so the loan owns it. A payload field
+  reference (`rt:ref_payload`) and a copy of a local no cell holds
+  (`ref.expr.allocate`) are new objects whose one count the reference
+  holds; they take no other count, and their `Drop` frees them.
 - **Cells made before use** (issue #678). A use of a cell reads its local
   directly when the cell certainly exists there (`Em::cell_made`): the
   prologue made or received it (a parameter moved into its cell, a

@@ -1814,15 +1814,16 @@ pub fn new_string(len: usize) -> string
 12. r[module.rt.ptr.holds] Only the standard library reads or writes through a `Ptr[T]`, and it reads only where the heap holds a value of `T`.
 13. r[module.rt.ptr.bounds] A read or a write that reaches a byte outside the heap stops the program instance with no panic category, as for [`module.rt.memory.bounds`](#r-module.rt.memory.bounds).
 14. r[module.rt.buffer.type] A `Buffer[T]` is raw memory: the address of room for `capacity()` values of `T`, and that capacity. It has no length and no element operation: which places of its room hold a value is known only to the std code that writes them. Its fields are private.
-15. r[module.rt.buffer.not-copyable] `Buffer[T]` is not copyable: a read by value moves it, so its room has one owner. No count is kept of it.
+15. r[module.rt.buffer.not-copyable] `Buffer[T]` is not copyable: a read by value moves it, so its room has one owner. No count is kept of the buffer; its room keeps one count for the buffer and one for each reference into it that counts it ([`ref.count.pointer`](13-values-and-references.md#r-ref.count.pointer)).
 16. r[module.rt.buffer.borrowed-access] `capacity` and `at` take `&self`, and `grow` takes `&mut self`, so a call borrows the buffer, and only a writable buffer moves its room.
 17. r[module.rt.buffer.new] `Buffer::new(capacity)` returns a buffer with room for `capacity` values of `T`, none of which holds a value. A capacity whose bytes do not fit the heap panics. Panic: `heap-exhausted`.
 18. r[module.rt.buffer.at] `b.at(index)` returns the `Ptr[T]` of value `index` of the buffer's room: `b.at(0).offset(index)`. It checks no bound; reads and writes through it follow [`module.rt.ptr.holds`](#r-module.rt.ptr.holds).
 19. r[module.rt.buffer.grow] `b.grow(capacity)`, for a `capacity` above `b.capacity()`, moves the bytes of the room to a new room for `capacity` values and frees the old one, so each value moves to the same index of the new room. A smaller `capacity` has no effect. A capacity whose bytes do not fit the heap panics. Panic: `heap-exhausted`.
-20. r[module.rt.buffer.drop] `Buffer[T]` implements [`Drop`](#r-module.rt.drop.decl): dropping a buffer frees its room and drops none of the values in it. The std type that holds a buffer drops those values first.
-21. r[module.rt.string.bytes] `string_bytes(text)` returns the `Ptr[u8]` of the first of the `text.len()` bytes of `text`'s UTF-8 encoding. The bytes stay at that address while `text` or a copy of it lives.
-22. r[module.rt.string.new] `new_string(len)` returns a new string of `len` bytes, whose values are unspecified until written. `new_string(0)` returns the empty string.
-23. r[module.rt.string.write] Only the bytes of a string that `new_string` returned are written through `string_bytes`, and std writes all of them, as valid UTF-8, before the string is used in any other way.
+20. r[module.rt.buffer.drop] `Buffer[T]` implements [`Drop`](#r-module.rt.drop.decl): dropping a buffer gives up its count of the room and drops none of the values in it, and the room is freed once no reference counts it. `grow` gives up the old room the same way. The std type that holds a buffer drops those values first.
+21. r[module.rt.buffer.pinned] `b.pinned()` is true exactly while a reference into `b`'s room counts it. A std type over a buffer panics before a change of how many values it holds while its buffer is pinned. Panic: `collection-pinned`.
+22. r[module.rt.string.bytes] `string_bytes(text)` returns the `Ptr[u8]` of the first of the `text.len()` bytes of `text`'s UTF-8 encoding. The bytes stay at that address while `text` or a copy of it lives.
+23. r[module.rt.string.new] `new_string(len)` returns a new string of `len` bytes, whose values are unspecified until written. `new_string(0)` returns the empty string.
+24. r[module.rt.string.write] Only the bytes of a string that `new_string` returned are written through `string_bytes`, and std writes all of them, as valid UTF-8, before the string is used in any other way.
 
 > **Note.** A read and a write of the same value back move it out, and a
 > read whose result is discarded drops the value in place.
