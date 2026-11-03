@@ -3,6 +3,9 @@ import { createHash } from "node:crypto";
 const hash = (text) => createHash("sha256").update(text).digest("hex");
 const bad = (message) => new Error(`SDK server schema: ${message}`);
 const hex = /^[0-9a-f]{64}$/;
+const semver =
+  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+export const validHdLangVersion = (value) => typeof value === "string" && semver.test(value);
 export function schemaFingerprint(snapshot) {
   const { fingerprint: _fingerprint, ...payload } = snapshot;
   return hash(JSON.stringify(payload));
@@ -18,6 +21,7 @@ function freeze(value) {
 }
 const validMetadata = (snapshot) =>
   snapshot?.format === 1 &&
+  validHdLangVersion(snapshot.hdLangVersion) &&
   snapshot.packageHostABI === 1 &&
   hex.test(snapshot.fingerprint ?? "") &&
   schemaFingerprint(snapshot) === snapshot.fingerprint;

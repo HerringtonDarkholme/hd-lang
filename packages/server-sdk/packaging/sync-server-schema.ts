@@ -5,10 +5,10 @@ import { resolve, join, dirname } from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { normalizeServerContract, checkCoverage } from "./server-schema.ts";
-import { schemaFingerprint, validateSchemaAsset } from "./schema-asset.ts";
+import { schemaFingerprint, validateSchemaAsset, validHdLangVersion } from "./schema-asset.ts";
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const declarations = [
-  ["packages/server-sdk/src/server.hd", "HttpServer", "server.HttpServer"],
+  ["packages/server-sdk/src/server.hd", "HttpServer", "server.HttpServer", false, true],
   ["lib/std/console.hd", "Console", "console.Console"],
   // The public trait is bridged over the wire trait by std code
   // (`std.http.host_provider`), so only its bodiless methods reach the host.
@@ -16,6 +16,7 @@ const declarations = [
   ["lib/std/http_wire.hd", "Http", "http.Http"],
   ["lib/std/time.hd", "Clock", "time.Clock"],
 ];
+export const declarationFiles = declarations.map(([file]) => file);
 
 function parenthesisDepth(line) {
   let depth = 0;
@@ -69,9 +70,11 @@ function traitMethods(source, { trait, key, bridged }) {
 export async function sourceInventory(repository) {
   const sourceHashes = {},
     coverage = {};
-  for (const [file, trait, key, bridged] of declarations) {
+  for (const [file, trait, key, bridged, sdkOwned] of declarations) {
     const source = (await readFile(join(repository, file), "utf8")).replaceAll("\r\n", "\n");
-    sourceHashes[file] = hash(source);
+    if (sdkOwned) {
+      sourceHashes[file] = hash(source);
+    }
     const names = traitMethods(source, { trait, key, bridged });
     if (coverage[key] && JSON.stringify(coverage[key]) !== JSON.stringify(names)) {
       throw Error(`public/wire maintenance method coverage differs: ${key}`);
@@ -80,6 +83,37 @@ export async function sourceInventory(repository) {
   }
   return { sourceHashes, coverage };
 }
+
+async function hdLangVersion(repository, compilerBaseRevision) {
+  const readVersion = (text, source) => {
+    let version;
+    try {
+      version = JSON.parse(text).version;
+    } catch {
+      throw Error(`invalid hd-lang package metadata: ${source}`);
+    }
+    if (!validHdLangVersion(version)) {
+      throw Error(`invalid hd-lang version in ${source}`);
+    }
+    return version;
+  };
+  const current = readVersion(
+    await readFile(join(repository, "package.json"), "utf8"),
+    "package.json",
+  );
+  const compiler = readVersion(
+    execFileSync("git", ["show", `${compilerBaseRevision}:package.json`], {
+      cwd: repository,
+      encoding: "utf8",
+    }),
+    `${compilerBaseRevision}:package.json`,
+  );
+  if (compiler !== current) {
+    throw Error(`compiler base targets hd-lang ${compiler}, repository targets ${current}`);
+  }
+  return current;
+}
+
 export async function generateServerSchema({
   repository,
   compilerPath,
@@ -97,19 +131,7 @@ export async function generateServerSchema({
     pathToFileURL(join(repository, "host/package-providers.ts")).href
   );
   const before = await sourceInventory(repository);
-  // hd embeds std. A declared compiler base with different std sources cannot
-  // authenticate this checkout's method declarations merely by being executable.
-  for (const file of declarations
-    .map(([file]) => file)
-    .filter((file) => file.startsWith("lib/std/"))) {
-    const recorded = execFileSync("git", ["show", `${compilerBaseRevision}:${file}`], {
-      cwd: repository,
-      encoding: "utf8",
-    }).replaceAll("\r\n", "\n");
-    if (hash(recorded) !== before.sourceHashes[file]) {
-      throw Error(`compiler base std source differs: ${file}`);
-    }
-  }
+  const version = await hdLangVersion(repository, compilerBaseRevision);
   const scratchRoot = join(repository, ".cache-muse-server-schema-maintenance");
   await mkdir(scratchRoot, { recursive: true });
   const work = await mkdtemp(join(scratchRoot, "probe-"));
@@ -150,6 +172,7 @@ export async function generateServerSchema({
     }
     const snapshot = {
       format: 1,
+      hdLangVersion: version,
       packageHostABI: new DataView(sections[0]).getUint32(0, true),
       provenance: {
         sourceBaseRevision: execFileSync("git", ["rev-parse", "HEAD"], {

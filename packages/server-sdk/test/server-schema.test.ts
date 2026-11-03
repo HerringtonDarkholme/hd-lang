@@ -10,7 +10,7 @@ import {
   checkCoverage,
 } from "../packaging/server-schema.ts";
 import { readServerSchema, validateSchemaAsset } from "../packaging/schema-asset.ts";
-import { sourceInventory } from "../packaging/sync-server-schema.ts";
+import { declarationFiles, sourceInventory } from "../packaging/sync-server-schema.ts";
 import { checkCompanionPairing } from "../packaging/companion.ts";
 import { fixture, repository } from "./helpers/deployment-fixture.ts";
 import { contractSection, encode } from "./helpers/deployment-contract.ts";
@@ -265,6 +265,7 @@ test("snapshot metadata and all payload data are immutable and checksummed", () 
   assert.throws(() => (asset.schema.interfaces[0].identity.package = "forged"), TypeError);
   for (const edit of [
     (source) => (source.format = 2),
+    (source) => (source.hdLangVersion = "not-semver"),
     (source) => (source.packageHostABI = 2),
     (source) => (source.schema.interfaces[0].methods[0].wait = "never"),
     (source) => (source.provenance.compilerSha256 = "0".repeat(64)),
@@ -274,13 +275,16 @@ test("snapshot metadata and all payload data are immutable and checksummed", () 
     assert.throws(() => validateSchemaAsset(changed), /metadata or checksum/);
   }
 });
-test("source hashes match current declaration sources with canonical LF", async () => {
+test("schema targets hd-lang semver and hashes only SDK-owned source", async () => {
+  const packageMetadata = JSON.parse(await readFile(join(repository, "package.json"), "utf8"));
+  assert.equal(asset.hdLangVersion, packageMetadata.version);
   const current = await sourceInventory(repository);
+  assert.deepEqual(Object.keys(current.sourceHashes), ["packages/server-sdk/src/server.hd"]);
   assert.deepEqual(current.sourceHashes, asset.provenance.sourceHashes);
   assert.deepEqual(current.coverage, asset.coverage);
   const data = await mkdtemp(join(directory, "sources-"));
   try {
-    for (const file of Object.keys(current.sourceHashes)) {
+    for (const file of declarationFiles) {
       await mkdir(join(data, file, ".."), { recursive: true });
       await writeFile(
         join(data, file),
@@ -290,8 +294,11 @@ test("source hashes match current declaration sources with canonical LF", async 
       );
     }
     assert.deepEqual(await sourceInventory(data), current);
-    const file = join(data, "packages/server-sdk/src/server.hd");
-    await writeFile(file, (await readFile(file, "utf8")) + "\n# changed source\n");
+    const stdFile = join(data, "lib/std/http.hd");
+    await writeFile(stdFile, (await readFile(stdFile, "utf8")) + "\n# unrelated change\n");
+    assert.deepEqual(await sourceInventory(data), current);
+    const sdkFile = join(data, "packages/server-sdk/src/server.hd");
+    await writeFile(sdkFile, (await readFile(sdkFile, "utf8")) + "\n# changed source\n");
     assert.notDeepEqual((await sourceInventory(data)).sourceHashes, current.sourceHashes);
   } finally {
     await rm(data, { recursive: true, force: true });
