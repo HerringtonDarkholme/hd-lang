@@ -148,7 +148,8 @@ pub enum Helper {
     RefView {
         source: RefLayout,
     },
-    /// A view's getter/setter: source-native values cross as erased ones.
+    /// A view's getter, which moves its value out of the source's place
+    /// into an erased box, and its setter, which moves a box's value in.
     RefGet {
         source: RefLayout,
     },
@@ -4250,7 +4251,9 @@ fn concat_all(m: &Module) -> Func {
 }
 
 // Representation views retain a source reference, not a snapshot. Their
-// getter and setter exchange one owned erased value at a fixed ABI.
+// getter moves the value out of its place into one erased box, leaving
+// zeros there, and their setter moves a box's value in, releasing what the
+// place held: a fixed ABI that never copies the value.
 fn ref_vals(value: &RefLayout) -> Vec<Val> {
     value.leaves.iter().map(|l| l.val).collect()
 }
@@ -4334,11 +4337,16 @@ fn ref_unbox(f: &mut Func, at: u32, value: &RefLayout) -> Vec<u32> {
 }
 
 /// The value of the erased box in local `at`, whose count this takes, in
-/// locals `ls` with counts of their own.
+/// locals `ls` with counts of their own. The value moves out of a box
+/// with one holder, which goes without its glue ([`Helper::TakeBox`]);
+/// only a shared box leaves a copy, which takes counts of its own.
 fn ref_unbox_into(f: &mut Func, at: u32, value: &RefLayout, ls: &[u32]) {
     if !value.boxed {
         f.get(at);
         f.set(ls[0]);
+        return;
+    }
+    if ls.is_empty() {
         return;
     }
     for (leaf, l) in value.leaves.iter().zip(ls) {
@@ -4346,9 +4354,12 @@ fn ref_unbox_into(f: &mut Func, at: u32, value: &RefLayout, ls: &[u32]) {
         f.op(leaf.load(0));
         f.set(*l);
     }
-    ref_copy(f, ls, value);
     f.get(at);
-    f.helper(Helper::ReleaseRef);
+    f.helper(Helper::TakeBox);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::If(BlockType::Empty));
+    ref_copy(f, ls, value);
+    f.op(Instruction::End);
 }
 
 /// One more count on each counted reference of the value in locals `ls`,
@@ -4368,21 +4379,72 @@ fn ref_copy(f: &mut Func, ls: &[u32], value: &RefLayout) {
     ref_count(f, ls, &rest, true);
 }
 
+/// How [`ref_read`] reads the value a reference names.
+#[derive(Clone, Copy)]
+enum Access {
+    /// A copy, with counts of its own.
+    Copy,
+    /// A loan with no count of its own where the place is physical; a
+    /// copy through a view, which sets the flag in the local.
+    CopyOnView(u32),
+    /// A loan with no count of its own, of the leaves the place holds.
+    Lend,
+}
+
 /// The value that the reference in local `at` names, in new locals with
-/// counts of their own: a view's getter's box unboxed, or the leaves at
-/// the address. Emitted inline, so a value of any width stays in locals
-/// and never crosses a function's parameters or results.
+/// counts of their own: the leaves at the address, or, through a view,
+/// the value its getter moves out, copied before its setter moves it back.
+/// Emitted inline, so a value of any width stays in locals and never
+/// crosses a function's parameters or results.
 pub(crate) fn ref_load(f: &mut Func, at: u32, value: &RefLayout) -> Vec<u32> {
-    ref_load_inner(f, at, value, None)
+    ref_read(f, at, value, Access::Copy)
 }
 
+/// [`ref_load`] as a loan: no count where the place is physical, and a
+/// copy through a view, which sets the flag in local `owned`. An erased
+/// body reads an open value this way, since the box a view's getter makes
+/// over a concrete place goes when its setter moves the value back.
 pub(crate) fn ref_load_borrowed(f: &mut Func, at: u32, value: &RefLayout, owned: u32) -> Vec<u32> {
-    ref_load_inner(f, at, value, Some(owned))
+    ref_read(f, at, value, Access::CopyOnView(owned))
 }
 
-fn ref_load_inner(f: &mut Func, at: u32, value: &RefLayout, owned: Option<u32>) -> Vec<u32> {
+/// The leaves of the concrete value that the reference in local `at`
+/// names, lent with no count of their own: through a view, its getter
+/// moves the value out and its setter moves it back, so the leaves are
+/// the place's own. Never a copy, so it reads a value that may not copy.
+pub(crate) fn ref_lend(f: &mut Func, at: u32, value: &RefLayout) -> Vec<u32> {
+    ref_read(f, at, value, Access::Lend)
+}
+
+/// [`ref_lend`] where local `at` is known to hold a view.
+pub(crate) fn view_lend(f: &mut Func, at: u32, value: &RefLayout) -> Vec<u32> {
     f.stack_values |= value.leaves.len() > crate::wide::WIDTH;
-    if let Some(flag) = owned {
+    let ls: Vec<u32> = value.leaves.iter().map(|l| f.local(l.val)).collect();
+    if !ls.is_empty() {
+        view_read(f, at, value, Access::Lend, &ls);
+    }
+    ls
+}
+
+/// A read through the view in local `at` into locals `ls`: the getter
+/// moves the value out, the leaves are read from its box, copied unless
+/// `access` lends them, and the setter moves the value back.
+fn view_read(f: &mut Func, at: u32, value: &RefLayout, access: Access, ls: &[u32]) {
+    let boxed = view_get(f, at);
+    load_boxed(f, boxed, value, ls);
+    if !matches!(access, Access::Lend) {
+        ref_copy(f, ls, value);
+    }
+    if let Access::CopyOnView(flag) = access {
+        f.i32(1);
+        f.set(flag);
+    }
+    view_put(f, at, boxed);
+}
+
+fn ref_read(f: &mut Func, at: u32, value: &RefLayout, access: Access) -> Vec<u32> {
+    f.stack_values |= value.leaves.len() > crate::wide::WIDTH;
+    if let Access::CopyOnView(flag) = access {
         f.zero(flag);
     }
     let ls: Vec<u32> = value.leaves.iter().map(|l| f.local(l.val)).collect();
@@ -4392,28 +4454,88 @@ fn ref_load_inner(f: &mut Func, at: u32, value: &RefLayout, owned: Option<u32>) 
     f.get(at);
     f.helper(Helper::RefIsView);
     f.op(Instruction::If(BlockType::Empty));
-    if let Some(flag) = owned {
-        f.i32(1);
-        f.set(flag);
-    }
-    let boxed = f.local(Val::I32);
-    f.get(at);
-    f.get(at);
-    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
-    f.call_indirect(vec![Val::I32], vec![Val::I32]);
-    f.set(boxed);
-    ref_unbox_into(f, boxed, value, &ls);
+    view_read(f, at, value, access, &ls);
     f.op(Instruction::Else);
     for (leaf, l) in value.leaves.iter().zip(&ls) {
         f.get(at);
         f.op(leaf.load(0));
         f.set(*l);
     }
-    if owned.is_none() {
+    if matches!(access, Access::Copy) {
         ref_copy(f, &ls, value);
     }
     f.op(Instruction::End);
     ls
+}
+
+/// Moves the value that the reference in local `at` names out of its
+/// place into new locals, which take its counts, and leaves zeros there:
+/// through a view, the value its getter moves out. Its setter, or
+/// [`ref_store`], puts a value back, releasing the zeros.
+fn ref_take(f: &mut Func, at: u32, value: &RefLayout) -> Vec<u32> {
+    f.stack_values |= value.leaves.len() > crate::wide::WIDTH;
+    let ls: Vec<u32> = value.leaves.iter().map(|l| f.local(l.val)).collect();
+    if ls.is_empty() {
+        return ls;
+    }
+    f.get(at);
+    f.helper(Helper::RefIsView);
+    f.op(Instruction::If(BlockType::Empty));
+    let boxed = view_get(f, at);
+    ref_unbox_into(f, boxed, value, &ls);
+    f.op(Instruction::Else);
+    for (leaf, l) in value.leaves.iter().zip(&ls) {
+        f.get(at);
+        f.op(leaf.load(0));
+        f.set(*l);
+        f.get(at);
+        f.op(match leaf.val {
+            Val::I32 => Instruction::I32Const(0),
+            Val::I64 => Instruction::I64Const(0),
+            Val::F32 => Instruction::F32Const(0.0.into()),
+            Val::F64 => Instruction::F64Const(0.0.into()),
+        });
+        f.op(leaf.store(0));
+    }
+    f.op(Instruction::End);
+    ls
+}
+
+/// Calls the getter of the view in local `at`, which moves its value out
+/// of its place into an erased box: a new local holding the box.
+fn view_get(f: &mut Func, at: u32) -> u32 {
+    let boxed = f.local(Val::I32);
+    f.get(at);
+    f.get(at);
+    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+    f.call_indirect(vec![Val::I32], vec![Val::I32]);
+    f.set(boxed);
+    boxed
+}
+
+/// Calls the setter of the view in local `at` with the erased box in
+/// local `boxed`, which moves the box's value into the view's place.
+fn view_put(f: &mut Func, at: u32, boxed: u32) {
+    f.get(at);
+    f.get(boxed);
+    f.get(at);
+    f.op(Instruction::I32Load(mem(HEAP, 8, 2)));
+    f.call_indirect(vec![Val::I32; 2], vec![]);
+}
+
+/// The leaves of the erased box in local `boxed` into locals `ls`, with
+/// no count: the box keeps the value.
+fn load_boxed(f: &mut Func, boxed: u32, value: &RefLayout, ls: &[u32]) {
+    if !value.boxed {
+        f.get(boxed);
+        f.set(ls[0]);
+        return;
+    }
+    for (leaf, l) in value.leaves.iter().zip(ls) {
+        f.get(boxed);
+        f.op(leaf.load(0));
+        f.set(*l);
+    }
 }
 
 /// Stores the value in locals `ls` through the reference in local `at`: a
@@ -4434,11 +4556,7 @@ pub(crate) fn ref_store(f: &mut Func, at: u32, ls: &[u32], value: &RefLayout, ow
     let boxed = f.local(Val::I32);
     ref_box(f, ls, value);
     f.set(boxed);
-    f.get(at);
-    f.get(boxed);
-    f.get(at);
-    f.op(Instruction::I32Load(mem(HEAP, 8, 2)));
-    f.call_indirect(vec![Val::I32; 2], vec![]);
+    view_put(f, at, boxed);
     f.op(Instruction::Else);
     let old: Vec<u32> = value.leaves.iter().map(|l| f.local(l.val)).collect();
     for (leaf, o) in value.leaves.iter().zip(&old) {
@@ -4463,6 +4581,58 @@ fn view_source(f: &mut Func) -> u32 {
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
     f.set(src);
     src
+}
+
+fn leaf_count(value: &RefLayout) -> u32 {
+    u32::try_from(value.leaves.len()).expect("leaves")
+}
+
+/// The getter of a view of a part of its source's value, the leaves
+/// `picks` of the `parent` value: takes the parent out of its place,
+/// moves the part out of it into a box, and puts the rest back.
+fn part_get(f: &mut Func, parent: &RefLayout, field: &RefLayout, picks: &[u32]) {
+    let src = view_source(f);
+    let ls = ref_take(f, src, parent);
+    let part: Vec<u32> = picks
+        .iter()
+        .map(|&p| {
+            let x = f.local(field_val(parent, p));
+            f.get(ls[p as usize]);
+            f.set(x);
+            f.zero(ls[p as usize]);
+            x
+        })
+        .collect();
+    ref_store(f, src, &ls, parent, true);
+    ref_box(f, &part, field);
+}
+
+/// The setter of a view of a part of its source's value, the leaves
+/// `picks` of the `parent` value: moves the new part out of its box,
+/// takes the parent out of its place, puts it back with the new part,
+/// and releases the old one.
+fn part_set(f: &mut Func, parent: &RefLayout, field: &RefLayout, picks: &[u32]) {
+    let part = ref_unbox(f, 1, field);
+    let src = view_source(f);
+    let ls = ref_take(f, src, parent);
+    let old: Vec<u32> = picks
+        .iter()
+        .zip(&part)
+        .map(|(&p, &new)| {
+            let x = f.local(field_val(parent, p));
+            f.get(ls[p as usize]);
+            f.set(x);
+            f.get(new);
+            f.set(ls[p as usize]);
+            x
+        })
+        .collect();
+    ref_store(f, src, &ls, parent, true);
+    ref_count(f, &old, field, false);
+}
+
+fn field_val(parent: &RefLayout, p: u32) -> Val {
+    parent.leaves[p as usize].val
 }
 
 fn ref_helper(h: &Helper, m: &Module) -> Func {
@@ -4599,7 +4769,7 @@ fn ref_helper(h: &Helper, m: &Module) -> Func {
         Helper::RefGet { source } => {
             let mut f = m.func("rt:ref_get", vec![Val::I32], vec![Val::I32]);
             let src = view_source(&mut f);
-            let ls = ref_load(&mut f, src, source);
+            let ls = ref_take(&mut f, src, source);
             ref_box(&mut f, &ls, source);
             f
         }
@@ -4706,26 +4876,14 @@ fn ref_field_helper(h: &Helper, m: &Module) -> Func {
         }
         Helper::RefFieldGet { .. } => {
             let mut f = m.func("rt:ref_field_get", vec![Val::I32], vec![Val::I32]);
-            let src = view_source(&mut f);
-            let ls = ref_load(&mut f, src, parent);
-            let child = &ls[first as usize..first as usize + field.leaves.len()];
-            ref_count(&mut f, child, field, true);
-            ref_count(&mut f, &ls, parent, false);
-            ref_box(&mut f, child, field);
+            let picks: Vec<u32> = (first..first + leaf_count(field)).collect();
+            part_get(&mut f, parent, field, &picks);
             f
         }
         Helper::RefFieldSet { .. } => {
             let mut f = m.func("rt:ref_field_set", vec![Val::I32; 2], vec![]);
-            let child = ref_unbox(&mut f, 1, field);
-            let src = view_source(&mut f);
-            let ls = ref_load(&mut f, src, parent);
-            let into = &ls[first as usize..first as usize + field.leaves.len()];
-            ref_count(&mut f, into, field, false);
-            for (target, source) in into.iter().zip(child) {
-                f.get(source);
-                f.set(*target);
-            }
-            ref_store(&mut f, src, &ls, parent, true);
+            let picks: Vec<u32> = (first..first + leaf_count(field)).collect();
+            part_set(&mut f, parent, field, &picks);
             f
         }
         _ => unreachable!("a field reference helper"),
@@ -4733,9 +4891,8 @@ fn ref_field_helper(h: &Helper, m: &Module) -> Func {
 }
 
 /// [`Helper::RefPayload`] and its getter and setter: a view whose source
-/// is the reference to the enum. The getter loads the enum and boxes the
-/// leaves `picks` names; the setter loads it, puts the new leaves there,
-/// and stores it back.
+/// is the reference to the enum. The getter and setter move the leaves
+/// `picks` names out of the enum and back in ([`part_get`], [`part_set`]).
 fn ref_payload_helper(h: &Helper, m: &Module) -> Func {
     match h {
         Helper::RefPayload {
@@ -4796,12 +4953,7 @@ fn ref_payload_helper(h: &Helper, m: &Module) -> Func {
             picks,
         } => {
             let mut f = m.func("rt:ref_payload_get", vec![Val::I32], vec![Val::I32]);
-            let src = view_source(&mut f);
-            let ls = ref_load(&mut f, src, parent);
-            let child: Vec<u32> = picks.iter().map(|&p| ls[p as usize]).collect();
-            ref_count(&mut f, &child, field, true);
-            ref_count(&mut f, &ls, parent, false);
-            ref_box(&mut f, &child, field);
+            part_get(&mut f, parent, field, picks);
             f
         }
         Helper::RefPayloadSet {
@@ -4810,16 +4962,7 @@ fn ref_payload_helper(h: &Helper, m: &Module) -> Func {
             picks,
         } => {
             let mut f = m.func("rt:ref_payload_set", vec![Val::I32; 2], vec![]);
-            let child = ref_unbox(&mut f, 1, field);
-            let src = view_source(&mut f);
-            let ls = ref_load(&mut f, src, parent);
-            let into: Vec<u32> = picks.iter().map(|&p| ls[p as usize]).collect();
-            ref_count(&mut f, &into, field, false);
-            for (target, source) in into.iter().zip(child) {
-                f.get(source);
-                f.set(*target);
-            }
-            ref_store(&mut f, src, &ls, parent, true);
+            part_set(&mut f, parent, field, picks);
             f
         }
         _ => unreachable!("a payload reference helper"),

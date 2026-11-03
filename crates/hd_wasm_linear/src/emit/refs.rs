@@ -44,10 +44,10 @@ pub(super) enum At {
 /// trait value's).
 type Referent = (Ty, bool);
 
-/// A view's fresh value a walk read through ([`Em::walk_place`]): the
-/// getter's value, with counts of its own, in `vals` when `flag` is set.
-/// What the walk found lives in memory the view's source holds too, so
-/// the instruction releases this ([`Em::release_fresh`]) once it is done.
+/// An open value a walk read through a view as a copy
+/// ([`Em::walk_place`]), with counts of its own, in `vals` when `flag` is
+/// set. What the walk found lives in that copy, so the instruction
+/// releases it ([`Em::release_fresh`]) once it is done.
 #[derive(Clone)]
 pub(super) struct Fresh {
     flag: u32,
@@ -392,7 +392,7 @@ impl Em<'_, '_, '_> {
     /// `Pin`, in a local, with the collection's type: the place resolved
     /// from its root's value ([`Em::walk_place`]), each element
     /// bounds-checked. Nothing takes a count: the buffer is the one the
-    /// place holds, which a view's fresh value only shares. Also where the
+    /// place holds, which a view lends. Also where the
     /// walk found it in memory, where the place keeps it ([`Em::put_at`]).
     pub(super) fn place_header(&mut self, word: u32) -> StageResult<(u32, Ty, Option<At>)> {
         let p = self.place(word)?;
@@ -901,8 +901,16 @@ impl Em<'_, '_, '_> {
             let r = self.at_i32(&at)?;
             let value = self.ref_layout(target)?;
             if fields.is_empty() {
+                // A loan is the leaves its place holds, through a view
+                // too. An erased body's loan of an open value is a copy
+                // through a view, whose box over a concrete place goes
+                // once the view has its value back.
                 if let Some(flag) = self.begin_view_loan(i)? {
                     for l in rt::ref_load_borrowed(&mut self.f, r, &value, flag) {
+                        self.f.get(l);
+                    }
+                } else if self.loans.contains(&i) {
+                    for l in rt::ref_lend(&mut self.f, r, &value) {
                         self.f.get(l);
                     }
                 } else {
@@ -912,7 +920,7 @@ impl Em<'_, '_, '_> {
             } else {
                 let declared = self.declared_referent(&p, d)?;
                 let (_, part) = self.fold_path(declared, &fields)?;
-                self.read_part(i, r, &value, target, part)?;
+                self.read_part(i, r, &value, part)?;
             }
             return self.release_fresh(&fresh);
         }
@@ -922,50 +930,19 @@ impl Em<'_, '_, '_> {
         self.release_fresh(&fresh)
     }
 
-    /// Reads only `part` of the `target` value that the reference in
-    /// local `at` names, into instruction `dest`'s value: a view's getter
-    /// makes the whole value, of which `dest` keeps that part; a physical
-    /// place loads only its leaves.
-    fn read_part(
-        &mut self,
-        dest: u32,
-        at: u32,
-        value: &RefLayout,
-        target: Ty,
-        part: Part,
-    ) -> StageResult<()> {
-        // A borrowed field owns a count only on a view's branch.
-        let flag = self.begin_view_loan(dest)?;
+    /// Reads only `part` of the value that the reference in local `at`
+    /// names, into instruction `dest`'s value, as a read of a physical
+    /// place does: through a view, of the leaves the view lends
+    /// ([`rt::ref_lend`]), else of the leaves at the address.
+    fn read_part(&mut self, dest: u32, at: u32, value: &RefLayout, part: Part) -> StageResult<()> {
         self.f.get(at);
         self.f.helper(Helper::RefIsView);
         self.f.op(I::If(wasm_encoder::BlockType::Empty));
-        if value.boxed {
-            // A view's getter owns a box in this native layout. Keep
-            // only the selected field before releasing that box;
-            // unboxing the whole parent here grows with every read.
-            let boxed = self.f.local(Val::I32);
-            self.f.get(at);
-            self.f.get(at);
-            self.f.op(I::I32Load(mem(HEAP, 4, 2)));
-            self.f.call_indirect(vec![Val::I32], vec![Val::I32]);
-            self.f.set(boxed);
-            for leaf in &value.leaves[part.first..part.first + part.count] {
-                self.f.get(boxed);
-                self.f.op(leaf.load(0));
-            }
-            self.store(dest)?;
-            self.own_view_field(dest, flag)?;
-            self.f.get(boxed);
-            self.f.helper(Helper::ReleaseRef);
-        } else {
-            let parent = rt::ref_load(&mut self.f, at, value);
-            for l in &parent[part.first..part.first + part.count] {
-                self.f.get(*l);
-            }
-            self.store(dest)?;
-            self.own_view_field(dest, flag)?;
-            self.release_locals(&parent, target)?;
+        let parent = rt::view_lend(&mut self.f, at, value);
+        for l in &parent[part.first..part.first + part.count] {
+            self.f.get(*l);
         }
+        self.store(dest)?;
         self.f.op(I::Else);
         for leaf in &value.leaves[part.first..part.first + part.count] {
             self.f.get(at);
@@ -973,20 +950,6 @@ impl Em<'_, '_, '_> {
         }
         self.store(dest)?;
         self.f.op(I::End);
-        Ok(())
-    }
-
-    /// A borrowed field read through a view ([`Em::read_part`]) came
-    /// from the getter's fresh value, not the caller's place: it takes a
-    /// count of its own, and `flag` says its drops release it.
-    fn own_view_field(&mut self, field: u32, flag: Option<u32>) -> StageResult<()> {
-        let Some(flag) = flag else {
-            return Ok(());
-        };
-        let ls = self.slot(field)?;
-        self.retain_locals(&ls, self.ty(field))?;
-        self.f.i32(1);
-        self.f.set(flag);
         Ok(())
     }
 
@@ -1508,12 +1471,11 @@ impl Em<'_, '_, '_> {
     /// (unchecked where the loop's range proof covers read `i`, and from the
     /// loop's cached buffer where the list is a stable list of a local).
     /// A dereference of a reference goes to its referent's address; where
-    /// a reference view may be reached, a view's getter makes the referent
-    /// fresh instead, the walk reads on in that value to the next step's
-    /// address (which the view's source holds too), and the fresh value
-    /// joins `fresh`. So every dereference before `upto` is followed, by
-    /// `upto`, by another element or dereference, or by fields and
-    /// variants down to one 32-bit value.
+    /// a reference view may be reached, the walk reads on in the value the
+    /// view lends to the next step's address, and an erased body in a copy
+    /// of an open value, which joins `fresh`. So every dereference before
+    /// `upto` is followed, by `upto`, by another element or dereference, or
+    /// by fields and variants down to one 32-bit value.
     pub(super) fn walk_place(
         &mut self,
         i: u32,
@@ -1721,20 +1683,32 @@ impl Em<'_, '_, '_> {
                             continue;
                         }
                         // The value the steps to the next dereference reach,
-                        // in locals both ways: from a view's fresh value, or
-                        // loaded from the referent's address.
+                        // in locals both ways: through a view, from the
+                        // leaves it lends ([`rt::ref_lend`]); an open value
+                        // there may be a box that goes once the view has it
+                        // back, so an erased body walks a copy it releases
+                        // after ([`Fresh`]). Else loaded from the referent's
+                        // address.
                         let t = self.walk_ty(target, &steps[k + 1..next])?;
                         let xs: Vec<u32> =
                             self.vals(t)?.into_iter().map(|v| self.f.local(v)).collect();
                         let value = self.ref_layout(target)?;
-                        let flag = self.f.local(Val::I32);
-                        self.f.zero(flag);
+                        let flag = hd_mono::is_open(self.pool(), target).then(|| {
+                            let flag = self.f.local(Val::I32);
+                            self.f.zero(flag);
+                            flag
+                        });
                         self.f.get(r);
                         self.f.helper(Helper::RefIsView);
                         self.f.op(I::If(wasm_encoder::BlockType::Empty));
-                        let vals = rt::ref_load(&mut self.f, r, &value);
-                        self.f.i32(1);
-                        self.f.set(flag);
+                        let vals = if let Some(flag) = flag {
+                            let vals = rt::ref_load(&mut self.f, r, &value);
+                            self.f.i32(1);
+                            self.f.set(flag);
+                            vals
+                        } else {
+                            rt::view_lend(&mut self.f, r, &value)
+                        };
                         let (a, _) = self.walk_steps(
                             At::Vals(vals.clone()),
                             target,
@@ -1753,11 +1727,13 @@ impl Em<'_, '_, '_> {
                             self.f.set(*x);
                         }
                         self.f.op(I::End);
-                        fresh.push(Fresh {
-                            flag,
-                            vals,
-                            ty: target,
-                        });
+                        if let Some(flag) = flag {
+                            fresh.push(Fresh {
+                                flag,
+                                vals,
+                                ty: target,
+                            });
+                        }
                         at = At::Vals(xs);
                         ty = t;
                         k = next;

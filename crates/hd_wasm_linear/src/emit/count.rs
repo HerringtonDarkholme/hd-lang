@@ -43,9 +43,12 @@ impl Em<'_, '_, '_> {
     /// as a copy's would with no count. One that an erased body's thunk
     /// makes is that thunk's fresh value, with its count, which the
     /// read's `Drop` (the pass keeps it) releases. One through a reference
-    /// takes no count on a physical place; a view's getter makes a fresh
-    /// value there, which a flag ([`Em::view_loans`]) marks for the read's
-    /// `Drop`. A local the passes store a borrow into holds no count
+    /// takes no count, through a view too, which lends its place's own
+    /// value ([`crate::rt::ref_lend`]). Only an erased body's loan of an
+    /// open value through a view is a copy, since the box a view's getter
+    /// makes may go when its setter takes the value back: a flag
+    /// ([`Em::view_loans`]) marks it for the read's `Drop`. A local the
+    /// passes store a borrow into holds no count
     /// ([`Em::loan_locals`]): its stores count nothing, and its `Drop`s,
     /// which the passes keep for a borrow an instance may make fresh,
     /// release only a view's value. One that a thunk's value is stored
@@ -71,7 +74,9 @@ impl Em<'_, '_, '_> {
                     if let Some(p) = self.b.decode_place(a)
                         && Self::rooted(&p)
                     {
-                        if let Ok(Some((_, Some((_, false))))) = self.last_through(&p) {
+                        if let Ok(Some((_, Some((target, false))))) = self.last_through(&p)
+                            && hd_mono::is_open(self.pool(), target)
+                        {
                             let flag = self.f.local(crate::module::Val::I32);
                             self.view_loans.insert(x, flag);
                         }
@@ -93,7 +98,7 @@ impl Em<'_, '_, '_> {
                     };
                     if start
                         .and_then(|t| self.ref_target(t))
-                        .is_some_and(|(_, fat)| !fat)
+                        .is_some_and(|(target, fat)| !fat && hd_mono::is_open(self.pool(), target))
                     {
                         let flag = self.f.local(crate::module::Val::I32);
                         self.view_loans.insert(x, flag);
@@ -642,7 +647,7 @@ impl Em<'_, '_, '_> {
 
     /// Releases the count local `l` (Wasm locals `ls`) holds. A binding
     /// local ([`Em::loan_locals`]) holds a borrow, with no count, except
-    /// where a view's getter made the value fresh: the borrow's flag
+    /// where it is a copy read through a view: the borrow's flag
     /// ([`Em::view_loans`]) says so, and is cleared.
     fn release_owned_local(&mut self, l: usize, ls: &[u32]) -> StageResult<()> {
         self.loan_release(l, ls);
