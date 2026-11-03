@@ -1036,6 +1036,10 @@ struct Em<'i, 'a, 'm> {
     /// reads and references, [`Em::prepare_own_loans`],
     /// [`Em::instance_loans`]): their places are no place's to release.
     loans: hd_base::HashSet<u32>,
+    /// The loans that point into no static page, a cell's
+    /// ([`Em::frame_loans`]): a consumer that is no loan takes a count of
+    /// its own for one.
+    scoped_loans: hd_base::HashSet<u32>,
     /// The locals the passes store a borrow into, with the stored value
     /// ([`Em::prepare_own_loans`]): they hold no count.
     loan_locals: HashMap<usize, u32>,
@@ -1230,6 +1234,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             scopes: HashMap::default(),
             defer_flags: HashMap::default(),
             loans: hd_base::HashSet::default(),
+            scoped_loans: hd_base::HashSet::default(),
             loan_locals: HashMap::default(),
             holders: HashMap::default(),
             binds: HashMap::default(),
