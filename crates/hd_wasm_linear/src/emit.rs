@@ -3067,12 +3067,6 @@ impl Em<'_, '_, '_> {
                 self.store(i)
             }
             "char_from_scalar" => self.char_from_scalar(i, args[0]),
-            // The string kernels over lists (§23.17).
-            "concat_all" => {
-                self.comp(args[0], 0)?;
-                self.f.helper(Helper::ConcatAll);
-                self.store_owned(i)
-            }
             // The list's count goes to the helper, which takes over an
             // unshared buffer: the moved-in argument's, else one of its own.
             "string_from_bytes" => {

@@ -147,7 +147,6 @@ const PURE_INTRINSICS: &[&str] = &[
     "bytes_mismatch",
     "utf8_valid_len",
     "bytes_slice",
-    "concat_all",
     "string_to_bytes",
     "string_from_bytes",
     "string_lower",

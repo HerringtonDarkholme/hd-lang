@@ -514,9 +514,6 @@ pub enum Helper {
     /// left string's count. An unshared buffer with tail room is extended in
     /// place; otherwise its bytes move to a buffer with doubled capacity.
     StrAppend,
-    /// `(list: List[string]) -> string`: every part's bytes in order,
-    /// copied once into one new string.
-    ConcatAll,
     /// `(value: i64) -> string`: an integer's decimal text, read as
     /// signed when `signed`.
     FmtInt {
@@ -1915,7 +1912,6 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::StrFromBytes => str_from_bytes(m),
         Helper::StrToBytes { elem } => str_to_bytes(m, elem),
         Helper::StrAppend => str_append(m),
-        Helper::ConcatAll => concat_all(m),
         Helper::StrCmp => str_cmp(m),
         Helper::BytesIndexJson => {
             let mut f = m.func("rt:bytes_index_json", vec![Val::I32; 3], vec![Val::I32]);
@@ -4184,68 +4180,6 @@ fn str_append(m: &Module) -> Func {
     f.op(Instruction::Return);
     f.op(Instruction::End);
     f.get(left);
-    f.get(total);
-    f
-}
-
-/// [`Helper::ConcatAll`]: one pass sums the lengths, a second copies;
-/// no bytes is the static empty string.
-fn concat_all(m: &Module) -> Func {
-    let mut f = m.func("rt:concat_all", vec![Val::I32], vec![Val::I32; 2]);
-    let (at, n, total, s, to) = (
-        f.local(Val::I32),
-        f.local(Val::I32),
-        f.local(Val::I32),
-        f.local(Val::I32),
-        f.local(Val::I32),
-    );
-    let start = |f: &mut Func| {
-        f.get(0);
-        f.set(at);
-        f.get(at);
-        f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
-        f.set(n);
-        f.get(at);
-        f.u32(LIST_ELEMS);
-        f.op(Instruction::I32Add);
-        f.set(at);
-    };
-    start(&mut f);
-    each_elem(&mut f, at, n, 8, &|f| {
-        f.get(total);
-        f.get(at);
-        f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
-        f.op(Instruction::I32Add);
-        f.set(total);
-    });
-    f.u32(EMPTY);
-    f.set(s);
-    f.get(total);
-    f.op(Instruction::If(BlockType::Empty));
-    f.get(total);
-    f.helper(Helper::Str);
-    f.set(s);
-    f.get(s);
-    f.set(to);
-    start(&mut f);
-    each_elem(&mut f, at, n, 8, &|f| {
-        f.get(to);
-        f.get(at);
-        f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-        f.get(at);
-        f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
-        f.op(Instruction::MemoryCopy {
-            src_mem: HEAP,
-            dst_mem: HEAP,
-        });
-        f.get(to);
-        f.get(at);
-        f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
-        f.op(Instruction::I32Add);
-        f.set(to);
-    });
-    f.op(Instruction::End);
-    f.get(s);
     f.get(total);
     f
 }
