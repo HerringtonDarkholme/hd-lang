@@ -285,6 +285,12 @@ pub enum Helper {
     /// [`Helper::ReleaseRef`] and [`Helper::ReleaseKnown`] trap on a
     /// buffer.
     ReleaseBuffer,
+    /// `(box) -> moved`: takes the value out of the counted box at
+    /// payload start `box`, whose fields the caller has loaded. A box
+    /// with one holder is freed without its glue, so its fields move out
+    /// (1); a shared one loses a count, and the caller counts its copy
+    /// (0). An open value leaves its box this way (`emit/erased.rs`).
+    TakeBox,
     /// `(payload)`: the release glue of an object whose payload is laid
     /// out as `leaves`: one count less on each counted reference in it.
     DropFields {
@@ -420,15 +426,19 @@ pub enum Helper {
     /// `(data, params..) -> results`: a vtable slot (`emit/dyn_value.rs`):
     /// calls `target` with the payload, loaded from the box at `data` as
     /// `leaves`, or `data` itself without them, then the parameters.
-    /// The dynamic call lends its arguments; `own` has the walk of each of
-    /// `target`'s parameters, the receiver first, that it owns
-    /// (`layout::Pass`), and the slot counts a copy of each of those.
+    /// The dynamic call lends its arguments but open values, whose counts
+    /// it hands in; `own` has the walk of each other parameter of
+    /// `target`, the receiver first, that it owns (`layout::Pass`), and
+    /// the slot counts a copy of each of those. `given` has each open
+    /// value parameter, by its index in `own`, that `target` only
+    /// borrows, and its walk: the slot releases it after the call.
     DynSlot {
         target: Hash128,
         leaves: Option<Vec<Leaf>>,
         params: Vec<Val>,
         results: Vec<Val>,
         own: Vec<(u32, Option<Walk>)>,
+        given: Vec<(u32, Walk)>,
         ctx: Option<SlotCtx>,
     },
     /// `(ref, params..) -> results`: a vtable slot whose payload is a
@@ -440,6 +450,7 @@ pub enum Helper {
         params: Vec<Val>,
         results: Vec<Val>,
         own: Vec<(u32, Option<Walk>)>,
+        given: Vec<(u32, Walk)>,
         ctx: Option<SlotCtx>,
     },
     /// `(env, at, ctx) -> (usize, (K, V))?`: the step closure code of
@@ -1381,12 +1392,14 @@ fn rt_import(name: &str, params: &[Val], results: &[Val]) -> Sym {
 
 /// [`Helper::DynRead`]'s function: the value at the data's address, lent
 /// to the call as the receiver.
+#[allow(clippy::too_many_arguments)]
 fn dyn_read(
     target: Hash128,
     read: &RefRead,
     params: &[Val],
     results: &[Val],
     own: &[(u32, Option<Walk>)],
+    given: &[(u32, Walk)],
     ctx: Option<&SlotCtx>,
     m: &Module,
 ) -> Func {
@@ -1412,6 +1425,7 @@ fn dyn_read(
     if !recv_owned {
         ref_count(&mut f, &held, &read.value, false);
     }
+    release_given(&mut f, params, own, given, m);
     f
 }
 
@@ -1794,6 +1808,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::ReleaseKnown => release_ref(m, Addr::Known),
         Helper::ReleaseBuffer => release_ref(m, Addr::Buffer),
         Helper::ReleaseDrain => release_drain(m),
+        Helper::TakeBox => take_box(m),
         Helper::RetainKnown => {
             let mut f = m.func("rt:retain_known", vec![Val::I32], vec![]);
             if let Some(r) = m.runtime {
@@ -1842,6 +1857,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             params,
             results,
             own,
+            given,
             ctx,
         } => {
             let mut all = vec![Val::I32];
@@ -1867,6 +1883,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
                 ctx.as_ref(),
             );
             f.call(Sym::Inst(*target));
+            release_given(&mut f, params, own, given, m);
             f
         }
         Helper::DynRead {
@@ -1875,8 +1892,9 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             params,
             results,
             own,
+            given,
             ctx,
-        } => dyn_read(*target, read, params, results, own, ctx.as_ref(), m),
+        } => dyn_read(*target, read, params, results, own, given, ctx.as_ref(), m),
         Helper::ListTruncate { elem } => list_truncate(m, elem),
         Helper::ListReserve { elem } => list_reserve(elem, m),
         Helper::ListExtend { elem } => list_extend(elem, m),
@@ -2297,6 +2315,33 @@ fn own_lent(
             }
         });
         at += n;
+    }
+}
+
+/// After a slot's call: releases each open value parameter in `given`
+/// (an index in `own`, whose entries give each parameter's value count,
+/// and its walk), whose count the dynamic call handed in and the target
+/// only borrowed. The target's results stay on the stack.
+fn release_given(
+    f: &mut Func,
+    params: &[Val],
+    own: &[(u32, Option<Walk>)],
+    given: &[(u32, Walk)],
+    m: &Module,
+) {
+    if m.runtime.is_none() {
+        return;
+    }
+    for (k, w) in given {
+        let first: u32 = 1 + own[1..*k as usize].iter().map(|o| o.0).sum::<u32>();
+        let n = own[*k as usize].0;
+        for x in first..first + n {
+            f.get(x);
+        }
+        f.helper(Helper::Release {
+            vals: params[(first - 1) as usize..(first - 1 + n) as usize].to_vec(),
+            walk: w.clone(),
+        });
     }
 }
 
@@ -3051,6 +3096,36 @@ fn release_ref(m: &Module, addr: Addr) -> Func {
     } else {
         f.helper(Helper::ReleaseDrain);
     }
+    f
+}
+
+/// [`Helper::TakeBox`].
+fn take_box(m: &Module) -> Func {
+    let mut f = m.func("rt:take_box", vec![Val::I32], vec![Val::I32]);
+    if m.runtime.is_none() {
+        f.i32(1);
+        return f;
+    }
+    let (block, desc) = (f.local(Val::I32), f.local(Val::I32));
+    f.get(0);
+    f.u32(HEADER);
+    f.op(Instruction::I32Sub);
+    f.op(Instruction::LocalTee(block));
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.i32(1);
+    f.op(Instruction::I32Eq);
+    f.op(Instruction::If(BlockType::Empty));
+    clear_weak(&mut f, m, block);
+    f.get(block);
+    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+    f.set(desc);
+    free_loaded_object(&mut f, m, block, desc);
+    f.i32(1);
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+    f.get(0);
+    f.helper(Helper::ReleaseKnown);
+    f.i32(0);
     f
 }
 

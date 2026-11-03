@@ -161,6 +161,10 @@ impl Em<'_, '_, '_> {
             // (`layout::Pass`); a suspending target's cold constructor
             // counts its arguments itself.
             let mut own = Vec::new();
+            // The open value arguments, whose counts a dynamic call hands
+            // in (`erased.rs`): those its target only borrows, released
+            // once it has returned.
+            let mut given = Vec::new();
             let tys = super::callee_params(self.input, self.m, t.key, t.item, t.args);
             for (k, mut pt) in tys.into_iter().enumerate() {
                 if k == 0 {
@@ -184,7 +188,17 @@ impl Em<'_, '_, '_> {
                     continue;
                 }
                 let vs = self.vals(pt)?;
-                own.push((u32::try_from(vs.len()).expect("values"), w));
+                let n = u32::try_from(vs.len()).expect("values");
+                if let (true, crate::layout::Pass::Owned(handed)) =
+                    (hd_mono::is_open(self.pool(), pt), self.pass(pt))
+                {
+                    if w.is_none() {
+                        given.push((u32::try_from(k).expect("params"), handed));
+                    }
+                    own.push((n, None));
+                } else {
+                    own.push((n, w));
+                }
                 params.extend(vs);
             }
             // A generic method's erased body takes the caller's witness
@@ -246,6 +260,7 @@ impl Em<'_, '_, '_> {
                     params,
                     results,
                     own,
+                    given,
                     ctx,
                 }
             } else {
@@ -255,6 +270,7 @@ impl Em<'_, '_, '_> {
                     params,
                     results,
                     own,
+                    given,
                     ctx,
                 }
             }));

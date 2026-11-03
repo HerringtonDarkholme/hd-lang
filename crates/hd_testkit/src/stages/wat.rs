@@ -71,6 +71,7 @@ pub fn wat_for(p: &Program, at: Build) -> String {
         } else {
             BuildProfile::Checked
         },
+        checked: at.checked,
         ..Packages::default()
     };
     let built = build_packages(

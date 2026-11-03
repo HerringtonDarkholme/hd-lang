@@ -31,6 +31,7 @@ pub(super) fn build(p: &super::Program, origins: bool, at: super::Build) -> Outp
             } else {
                 hd_driver::BuildProfile::Checked
             },
+            checked: at.checked,
             ..Packages::default()
         },
         &Goal::Fixture {

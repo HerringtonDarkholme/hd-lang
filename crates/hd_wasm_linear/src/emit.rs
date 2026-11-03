@@ -1129,6 +1129,9 @@ struct Em<'i, 'a, 'm> {
     /// decides no count of its own. The sub-body it emits, whose exit set
     /// its exit drops.
     owned: bool,
+    /// In a thunk (`erased.rs`): its instruction moves in each operand it
+    /// consumes, whose count the thunk received ([`Em::take`]).
+    thunk_takes: bool,
     sub_id: u16,
     /// In an owned body, the instruction or block that consumes each
     /// value, or `NONE`, by the passes' rule (`hd_tir::own::consumers`).
@@ -1254,6 +1257,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             drive_buffer: None,
             ops: None,
             owned: false,
+            thunk_takes: false,
             sub_id: 0,
             consumer: Vec::new(),
             topo: hd_tir::ir::Topology::new(b),
@@ -2575,8 +2579,10 @@ impl Em<'_, '_, '_> {
         } else {
             self.comp(recv, 0)?;
         }
-        // Open arguments cross as open values the call owns until it
-        // has returned; a copied reference is written back then.
+        // An open value argument crosses as an open value whose count the
+        // call takes: the caller's own when this call consumes it, else a
+        // copy's. An open reference crosses as a view the caller releases
+        // once the call has returned, after writing a copied one back.
         let mut boxed = Vec::new();
         let mut backs = Vec::new();
         for (j, r) in rest.iter().enumerate() {
@@ -2584,6 +2590,14 @@ impl Em<'_, '_, '_> {
                 .as_ref()
                 .and_then(|o| o.params.get(j).copied().flatten())
             {
+                if matches!(self.pass(et), Pass::Owned(_)) {
+                    let moved = self.take(*r);
+                    let ls = self.local_value_of(*r)?;
+                    let o = self.erase(&ls, et, self.ty_of(*r), moved)?;
+                    self.f.get(o);
+                    params.push(Val::I32);
+                    continue;
+                }
                 let ls = self.local_value_of(*r)?;
                 let returns = !self.env().suspends(method);
                 let bk = returns.then_some(&mut backs);
