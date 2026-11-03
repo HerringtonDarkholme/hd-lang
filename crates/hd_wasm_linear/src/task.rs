@@ -3173,7 +3173,27 @@ fn open_poll(
             f.op(leaf.load(0));
             f.set(*x);
         }
-        if let Some(w) = walk {
+        // The value moves out of a box with one holder; only a shared
+        // box leaves a copy, which takes counts of its own.
+        if counts && !leaves.is_empty() {
+            f.get(o);
+            f.helper(Helper::TakeBox);
+            match walk {
+                Some(w) => {
+                    f.op(Instruction::I32Eqz);
+                    f.op(Instruction::If(BlockType::Empty));
+                    for x in &xs {
+                        f.get(*x);
+                    }
+                    f.helper(Helper::Retain {
+                        vals: vals.clone(),
+                        walk: w.clone(),
+                    });
+                    f.op(Instruction::End);
+                }
+                None => f.op(Instruction::Drop),
+            }
+        } else if let Some(w) = walk {
             for x in &xs {
                 f.get(*x);
             }
@@ -3183,7 +3203,7 @@ fn open_poll(
             });
         }
     }
-    if counts && !leaves.is_empty() {
+    if counts && !leaves.is_empty() && reference.is_some() {
         f.get(o);
         f.helper(Helper::ReleaseRef);
     }

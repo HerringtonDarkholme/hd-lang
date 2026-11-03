@@ -453,11 +453,14 @@ pub fn view(name: &str, build: Build, p: &Program) -> Option<String> {
 /// `--release` builds). `std` builds the case as module `std.rt_tests.stage_case`
 /// of the standard library, which may use the runtime modules
 /// (`module.rt.std-only`); the `own` and `counts` views read it.
+/// `checked` links the checked runtime (`crates/hd_wasm_linear/DESIGN.md`
+/// §23.24), whose walks mark buffers, as checked conformance runs do.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Build {
     pub target: hd_driver::EngineTarget,
     pub release: bool,
     pub std: bool,
+    pub checked: bool,
 }
 
 impl Build {
@@ -474,6 +477,7 @@ impl Build {
                 "dev" => build.release = false,
                 "release" => build.release = true,
                 "std" => build.std = true,
+                "checked" => build.checked = true,
                 _ => return None,
             }
         }

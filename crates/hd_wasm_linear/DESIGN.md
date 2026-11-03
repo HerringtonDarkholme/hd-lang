@@ -1629,11 +1629,23 @@ same erased bodies, thunks and witness fields.
   know the type copy it.
 - **The slot.** A generic method's vtable slot takes the receiver, the
   arguments with open ones as open values, the witness address, then the
-  context when the method has a row (§23.26). A caller boxes each open
-  argument into an open value it releases after the call, passes the
-  witness of the call's type arguments, and unboxes an open result,
-  which arrives with its count. An awaited suspending method's poll
-  returns the open value, which the await unboxes once it is Ready.
+  context when the method has a row (§23.26). The call owns each open
+  value argument: the caller moves its value into the open value when
+  the call consumes it, as a by-value argument of a `!Copy` type always
+  is, and otherwise gives it a copy (#1279). The slot hands that count
+  to an erased body that owns the parameter and releases it after one
+  that borrows it (a lent summary, or a suspending method's cold
+  constructor, which counts what it keeps). An open reference argument
+  crosses as a view the caller releases once the call has returned. The
+  caller passes the witness of the call's type arguments and unboxes an
+  open result, which arrives with its count. An awaited suspending
+  method's poll returns the open value, which the await unboxes once it
+  is Ready.
+- **Leaving a box.** An owned open value is unboxed by moving its value
+  out (`Helper::TakeBox`): a box with one holder is freed without its
+  glue, and only a shared box leaves a copy, which takes counts of its
+  own. A caller's result, a thunk's operands and a kept suspension's
+  result unbox this way.
 - **Witnesses** are static data, as vtables are (§23.8): one word per
   erased body of the method's family, in link's field order, holding the
   address of that body's thunk table, one function-table slot per open
@@ -1646,9 +1658,10 @@ same erased bodies, thunks and witness fields.
   providers of the keys the body's row lists, and, with row parameters, a
   context of every other key in scope in front of the open one. A tag
   switch outlines only its tag read. The thunk is the instruction emitted
-  at the caller's types: it unboxes its open operands, taking counts of
-  the fields and releasing the boxes, emits the instruction, boxes an
-  open result with its own count and releases what it holds at its exit.
+  at the caller's types: it unboxes its open operands, emits the
+  instruction, which moves in each operand it consumes, moves its
+  result into the open value it returns and releases what it still
+  holds at its exit.
 - **Cells.** A local that closures share in a generic method of a trait
   or an implementation keeps its erased view in every instance:
   the erased body's thunks build the closures, and they are the

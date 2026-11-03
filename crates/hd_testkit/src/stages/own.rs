@@ -139,6 +139,7 @@ fn build(p: &super::Program, at: super::Build) -> Output {
             } else {
                 hd_driver::BuildProfile::Checked
             },
+            checked: at.checked,
             ..Packages::default()
         },
         &Goal::Fixture {

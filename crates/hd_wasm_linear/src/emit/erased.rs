@@ -11,6 +11,10 @@
 //!   box of its layout, as a trait value boxes its data (§23.19). So the
 //!   erased body moves, stores, counts and releases open values with no
 //!   knowledge of their types.
+//! - **Calls own open values.** A dynamic call takes the count of each
+//!   open value argument: moved in when the call consumes it, else a
+//!   copy's. An owned open value leaves its box by a move when the box
+//!   has one holder ([`Helper::TakeBox`]).
 //! - **Open instructions** are outlined: instruction `k` calls the `k`th
 //!   thunk of the body's table, which the witness holds, with its
 //!   operands and captures, each with a count the thunk owns, then the
@@ -144,6 +148,10 @@ pub(super) fn thunk(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResul
     // Each shared capture arrives as its cell's address.
     em.entry_cells = em.cells.keys().copied().collect();
     em.origin_root = at;
+    // Each operand arrives with its count, which the instruction takes
+    // when it consumes the operand.
+    em.own_consumers();
+    em.thunk_takes = true;
     let mut params = Vec::new();
     let mut ops = Vec::new();
     for r in thunk_operands(b, at) {
@@ -251,10 +259,38 @@ pub(super) fn thunk(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResul
             ),
             None => (em.vals.get(&at).cloned(), em.ty(at)),
         };
+        // The thunk's result moves out: the exit releases what it holds,
+        // so the value's locals are zeroed once it has left them. A loan
+        // holds no count of its own, and its result is a copy.
+        let moves = em.counting
+            && match stored {
+                Some(l) => {
+                    let l = l as usize;
+                    !em.borrowed.contains(&l) && !em.loan_locals.contains_key(&l)
+                }
+                None => !em.loans.contains(&at) && !em.view_loans.contains_key(&at),
+            };
         match value {
             None => Vec::new(),
             Some(_) if em.diverges(at) => Vec::new(),
-            Some(ls) if is_open(pool, rty) => vec![em.erase(&ls, rty, ct, false)?],
+            Some(ls) if is_open(pool, rty) => {
+                let o = em.erase(&ls, rty, ct, moves)?;
+                if moves {
+                    for l in ls {
+                        em.f.zero(l);
+                    }
+                }
+                vec![o]
+            }
+            Some(ls) if moves => {
+                let out: Vec<u32> = em.vals(ct)?.into_iter().map(|v| em.f.local(v)).collect();
+                for (l, x) in ls.iter().zip(&out) {
+                    em.f.get(*l);
+                    em.f.set(*x);
+                    em.f.zero(*l);
+                }
+                out
+            }
             Some(ls) => em.copy_locals(&ls, ct)?,
         }
     };
@@ -409,6 +445,27 @@ impl Em<'_, '_, '_> {
         }
     }
 
+    /// Moves the value in locals `ls`, loaded from the box that open
+    /// value `o` is, out of the box ([`Helper::TakeBox`]): a box with one
+    /// holder goes without its glue, and only a shared one leaves a copy,
+    /// which takes counts of its own.
+    fn take_box(&mut self, o: u32, ls: &[u32], ct: Ty) -> StageResult<()> {
+        if self.input.runtime.is_none() {
+            return Ok(());
+        }
+        self.f.get(o);
+        self.f.helper(Helper::TakeBox);
+        if self.counted(ct).is_none() {
+            self.f.op(I::Drop);
+            return Ok(());
+        }
+        self.f.op(I::I32Eqz);
+        self.f.op(I::If(wasm_encoder::BlockType::Empty));
+        self.retain_locals(ls, ct)?;
+        self.f.op(I::End);
+        Ok(())
+    }
+
     /// One count less on the open value in local `o`.
     pub(super) fn release_open(&mut self, o: u32) {
         if self.input.runtime.is_some() {
@@ -517,8 +574,7 @@ impl Em<'_, '_, '_> {
                     self.f.set(*x);
                 }
                 if owned {
-                    self.retain_locals(&ls, ct)?;
-                    self.release_open(o);
+                    self.take_box(o, &ls, ct)?;
                 }
                 Ok(ls)
             }
@@ -674,6 +730,27 @@ impl Em<'_, '_, '_> {
             ret_ty,
             witness,
         }))
+    }
+
+    /// Whether the dynamic call of callee record `a` with arguments
+    /// `args`, the receiver first, takes a count of argument `r`: an open
+    /// value argument of a generic method ([`Em::push_dyn`]).
+    pub(super) fn dyn_takes(&self, a: u32, args: &[u32], r: u32) -> bool {
+        let Some(Callee::TraitMethod {
+            trait_,
+            method,
+            targs,
+            ..
+        }) = Callee::from_words(self.b.record(a))
+        else {
+            return false;
+        };
+        let Some((params, _)) = self.erased_sig(trait_, method, targs) else {
+            return false;
+        };
+        args.iter().skip(1).zip(&params).any(|(&x, et)| {
+            x == r && et.is_some_and(|et| matches!(self.pass(et), crate::layout::Pass::Owned(_)))
+        })
     }
 
     /// The erased result type of the dynamic call in callee record `a`,

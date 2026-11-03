@@ -565,9 +565,10 @@ impl Em<'_, '_, '_> {
     /// Whether operand `r` moves its count into the instruction being
     /// emitted, which consumes it ([`Em::take_from`]): then no count is
     /// taken for the consumer, and `r`'s locals are zeroed once the
-    /// instruction has read them ([`Em::settle`]). A thunk moves nothing.
+    /// instruction has read them ([`Em::settle`]). A thunk's instruction
+    /// moves in the operands it consumes, which arrive with counts.
     pub(super) fn take(&mut self, r: u32) -> bool {
-        if !self.owned {
+        if !self.owned && !self.thunk_takes {
             return false;
         }
         let Some(&u) = self.emitting.last() else {
@@ -870,10 +871,12 @@ impl Em<'_, '_, '_> {
         let mut args = self.rec(self.b.data[c as usize][1]);
         args.truncate(args.len().saturating_sub(3));
         if matches!(self.calls.get(&c), Some(hd_mono::Target::Dyn)) {
-            // A dynamic call lends every argument to its slot. The slot
-            // takes any count its concrete target owns, and a blocking
-            // drive keeps the caller live until it returns.
-            return args.iter().filter(|&&a| a == r).count() == 1;
+            // A dynamic call lends every argument to its slot but an open
+            // value, whose count it takes (`erased.rs`). The slot takes
+            // any count its concrete target owns, and a blocking drive
+            // keeps the caller live until it returns.
+            return args.iter().filter(|&&a| a == r).count() == 1
+                && !self.dyn_takes(self.b.data[c as usize][0], &args, r);
         }
         let Some(hd_mono::Target::Call(ct)) = self.calls.get(&c) else {
             return false;
