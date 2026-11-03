@@ -12,8 +12,8 @@ use wasm_encoder::BlockType;
 use crate::layout::{Addr, Leaf, Walk};
 use crate::map::{self, KeyOps};
 use crate::module::{
-    BUF, CYCLIC, DescriptorKey, EMPTY, Func, GLUE, Global, HEADER, HEAP, Import, Ins, Module,
-    OWNED, Sym, Val, WEAK, WEAK_GLUE, mem,
+    BUF, CYCLIC, DescriptorKey, EMPTY, Func, GLUE, Global, HEADER, HEAP, Import, Ins, Module, Sym,
+    Val, WEAK, WEAK_GLUE, mem,
 };
 use crate::{Entry, Input, unsupported};
 
@@ -280,12 +280,6 @@ pub enum Helper {
     /// Count a statically known payload start without a block lookup.
     RetainKnown,
     ReleaseKnown,
-    /// `(address)`: [`Helper::ReleaseKnown`] on a `std.rt.memory.Buffer`,
-    /// which only the glue of the value that holds it releases
-    /// ([`Walk::Buffer`]). Checked builds alone emit it; their
-    /// [`Helper::ReleaseRef`] and [`Helper::ReleaseKnown`] trap on a
-    /// buffer.
-    ReleaseBuffer,
     /// `(box) -> moved`: takes the value out of the counted box at
     /// payload start `box`, whose fields the caller has loaded. A box
     /// with one holder is freed without its glue, so its fields move out
@@ -331,12 +325,6 @@ pub enum Helper {
     /// `(capacity) -> buffer`: a new, empty list buffer with room for
     /// `capacity` elements laid out as `elem`.
     ListBuf {
-        elem: Elem,
-    },
-    /// `(capacity) -> buffer`: a new, empty `std.rt.memory.Buffer`, laid
-    /// out as a list buffer, whose descriptor has the [`OWNED`] color: the
-    /// collector traces it with the object that holds it (§23.28).
-    OwnedBuf {
         elem: Elem,
     },
     /// `(payload)`: the release glue of a list buffer: one count less on
@@ -1811,7 +1799,6 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::Retain { vals, walk } => {
             let mut f = m.func("rt:retain", vals.clone(), vec![]);
-            trap_buffer_retain(&mut f, walk);
             let on = retain_call(m);
             walk_code(&mut f, walk, &|f, k| f.get(k), &on);
             f
@@ -1823,7 +1810,6 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::ReleaseRef => release_ref(m, Addr::Ref),
         Helper::ReleaseKnown => release_ref(m, Addr::Known),
-        Helper::ReleaseBuffer => release_ref(m, Addr::Buffer),
         Helper::ReleaseDrain => release_drain(m),
         Helper::TakeBox => take_box(m),
         Helper::RetainKnown => {
@@ -1851,8 +1837,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::LoanCheck => loan_check(m),
         Helper::ListPinned => list_pinned(m),
         Helper::ListClone { elem } => list_clone(m, elem),
-        Helper::ListBuf { elem } => list_buf(m, elem, false),
-        Helper::OwnedBuf { elem } => list_buf(m, elem, true),
+        Helper::ListBuf { elem } => list_buf(m, elem),
         Helper::DropElems { elem } => drop_elems(m, elem),
         Helper::CollCopy => coll_copy(m),
         Helper::CtxFind => ctx_find(m),
@@ -1982,7 +1967,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
     };
     #[cfg(feature = "checked-report")]
     match h {
-        Helper::ListBuf { .. } | Helper::OwnedBuf { .. } | Helper::MapTable { .. } => {
+        Helper::ListBuf { .. } | Helper::MapTable { .. } => {
             checked_kind(&mut f, m, 5);
         }
         _ => {}
@@ -2380,17 +2365,6 @@ pub(crate) fn own_arg(f: &mut Func, vals: &[Val], walk: Option<&Walk>, get: &dyn
 /// What retains the address on the stack, given whether it is a known
 /// payload start: std's `retain`, `retain_known` for a known start, or
 /// nothing when the program counts nothing.
-/// In a checked build, whose walks mark buffers ([`crate::layout::mark_buffers`]),
-/// a panic where `walk` is retained and holds a `Buffer`: a buffer is not
-/// copyable, so the retain counts a copy the backend should have moved or
-/// lent (§23.24).
-pub(crate) fn trap_buffer_retain(f: &mut Func, walk: &Walk) {
-    if walk.holds_buffer() {
-        let msg = format!("count-audit: {} retains a copy of a buffer", f.name);
-        f.helper(Helper::Panic(msg));
-    }
-}
-
 pub(crate) fn retain_call(m: &Module) -> impl Fn(&mut Func, Addr) {
     let retain = m.runtime.map(|r| r.retain);
     move |f: &mut Func, addr: Addr| match retain {
@@ -2401,13 +2375,11 @@ pub(crate) fn retain_call(m: &Module) -> impl Fn(&mut Func, Addr) {
 }
 
 /// The release of one counted address on the stack, of leaf `addr`:
-/// without finding its block when it is a known payload start, through
-/// the buffer's own release when it is a [`Walk::Buffer`].
+/// without finding its block when it is a known payload start.
 pub(crate) fn release_call(f: &mut Func, addr: Addr) {
     f.helper(match addr {
         Addr::Ref => Helper::ReleaseRef,
         Addr::Known => Helper::ReleaseKnown,
-        Addr::Buffer => Helper::ReleaseBuffer,
     });
 }
 
@@ -2429,10 +2401,7 @@ pub(crate) fn walk_code(
             get(f, *k);
             on(f, Addr::Known);
         }
-        Walk::Buffer(k) => {
-            get(f, *k);
-            on(f, Addr::Buffer);
-        }
+        Walk::Glue => {}
         Walk::Seq(ws) => {
             for w in ws {
                 walk_code(f, w, get, on);
@@ -2473,10 +2442,7 @@ fn fields_glue(
     on: &dyn Fn(&mut Func, Addr),
 ) -> Func {
     let mut f = m.func(name, vec![Val::I32], vec![]);
-    if name == "rt:retain_fields" {
-        trap_buffer_retain(&mut f, walk);
-    }
-    call_drops(&mut f, m, 0, drops);
+    call_drops(&mut f, 0, drops);
     let ls: Vec<u32> = leaves.iter().map(|l| f.local(l.val)).collect();
     for (l, at) in leaves.iter().zip(&ls) {
         f.get(0);
@@ -3049,23 +3015,14 @@ fn collect(m: &Module) -> Func {
 /// `visit` instead, checked here so that `visit` is called only during a
 /// collection (§23.28).
 ///
-/// `addr` says what the address is: any address ([`Helper::ReleaseRef`]),
-/// a known payload start ([`Helper::ReleaseKnown`]), or a buffer's, which
-/// only its holder's glue releases ([`Helper::ReleaseBuffer`]).
+/// `addr` says what the address is: any address ([`Helper::ReleaseRef`])
+/// or a known payload start ([`Helper::ReleaseKnown`]).
 fn release_ref(m: &Module, addr: Addr) -> Func {
-    let name = if addr == Addr::Buffer {
-        "rt:release_buffer"
-    } else {
-        "rt:release_ref"
-    };
-    let mut f = m.func(name, vec![Val::I32], vec![]);
+    let mut f = m.func("rt:release_ref", vec![Val::I32], vec![]);
     let Some(r) = m.runtime else {
         return f;
     };
     let block = f.local(Val::I32);
-    if r.checked.is_some() && addr != Addr::Buffer {
-        trap_plain_buffer_release(&mut f, &r, block);
-    }
     let known = addr != Addr::Ref;
     if !m.acyclic {
         // A drain cannot overlap collector tracing. Nested releases therefore
@@ -3147,38 +3104,6 @@ fn take_box(m: &Module) -> Func {
     f.helper(Helper::ReleaseKnown);
     f.i32(0);
     f
-}
-
-/// A checked build's panic where a plain release ([`Helper::ReleaseRef`],
-/// [`Helper::ReleaseKnown`]) of the address in parameter 0 reaches an
-/// owned buffer's payload start: a buffer has one holder, whose glue
-/// releases it ([`Helper::ReleaseBuffer`]), so that a buffer without a
-/// count word is dropped exactly once. An item reference into a buffer is
-/// never at its payload start. Uses `block` as scratch.
-fn trap_plain_buffer_release(f: &mut Func, r: &crate::Runtime, block: u32) {
-    f.get(0);
-    f.call(Sym::Inst(r.block_of));
-    f.op(Instruction::LocalTee(block));
-    f.op(Instruction::If(BlockType::Empty));
-    f.get(block);
-    f.u32(HEADER);
-    f.op(Instruction::I32Add);
-    f.get(0);
-    f.op(Instruction::I32Eq);
-    f.get(block);
-    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
-    // Both color bits without CYCLIC: no object that takes part.
-    f.u32(CYCLIC | OWNED);
-    f.op(Instruction::I32And);
-    f.u32(OWNED);
-    f.op(Instruction::I32Eq);
-    f.op(Instruction::I32And);
-    f.op(Instruction::If(BlockType::Empty));
-    f.helper(Helper::Panic(
-        "count-audit: rt:release_ref releases a buffer as a plain reference".into(),
-    ));
-    f.op(Instruction::End);
-    f.op(Instruction::End);
 }
 
 /// [`Helper::ReleaseDrain`]. A recursive type's glue
@@ -3378,12 +3303,8 @@ fn list_clone(m: &Module, elem: &Elem) -> Func {
 
 /// [`Helper::ListBuf`]: a capacity whose bytes pass 4 GiB is
 /// `heap-exhausted`.
-/// With `owned`, the buffer is a `std.rt.memory.Buffer`: it never takes
-/// part on its own, and its [`OWNED`] color has the collector trace and
-/// free it with the object that holds it (§23.28).
-fn list_buf(m: &Module, elem: &Elem, owned: bool) -> Func {
-    let name = if owned { "rt:owned_buf" } else { "rt:list_buf" };
-    let mut f = m.func(name, vec![Val::I32], vec![Val::I32]);
+fn list_buf(m: &Module, elem: &Elem) -> Func {
+    let mut f = m.func("rt:list_buf", vec![Val::I32], vec![Val::I32]);
     let b = f.local(Val::I32);
     if let Some(most) = (u32::MAX - LIST_ELEMS - HEADER).checked_div(elem.size) {
         f.get(0);
@@ -3403,13 +3324,7 @@ fn list_buf(m: &Module, elem: &Elem, owned: bool) -> Func {
     let glue = elem
         .needs_drop()
         .then(|| Sym::Helper(Helper::DropElems { elem: elem.clone() }));
-    if owned {
-        push_desc_recursive(&mut f, glue, false, elem.cyclic);
-        f.u32(OWNED);
-        f.op(Instruction::I32Or);
-    } else {
-        push_desc(&mut f, glue, elem.cyclic);
-    }
+    push_desc(&mut f, glue, elem.cyclic);
     f.helper(Helper::New);
     f.set(b);
     f.get(b);
@@ -3609,7 +3524,7 @@ fn drop_elems(m: &Module, elem: &Elem) -> Func {
     f.set(at);
     let ls = load_elem_locals(&mut f, &elem.leaves);
     each_elem(&mut f, at, n, elem.size, &|f| {
-        call_drops(f, m, at, &elem.drops);
+        call_drops(f, at, &elem.drops);
         fill_elem(f, at, &elem.leaves, &ls);
         if let Some(walk) = &elem.walk {
             walk_code(f, walk, &|f, k| f.get(ls[k as usize]), &release_call);
@@ -3618,20 +3533,10 @@ fn drop_elems(m: &Module, elem: &Elem) -> Func {
     f
 }
 
-fn call_drops(f: &mut Func, m: &Module, base: u32, drops: &[DropCall]) {
-    if drops.is_empty() {
-        return;
-    }
-    let guarded = m.runtime.filter(|_| !m.acyclic);
-    if let Some(runtime) = guarded {
-        f.global_get(Global::Tracing);
-        f.op(Instruction::If(BlockType::Result(Val::I32.wasm())));
-        f.call(Sym::Inst(runtime.cycle.dropping));
-        f.op(Instruction::Else);
-        f.i32(1);
-        f.op(Instruction::End);
-        f.op(Instruction::If(BlockType::Empty));
-    }
+/// Calls each `std.rt.Drop` implementation of `drops` on the value at
+/// `base`. A trace runs them in every pass, so their releases visit what
+/// the value holds (`module.rt.drop.trace`).
+fn call_drops(f: &mut Func, base: u32, drops: &[DropCall]) {
     for drop in drops {
         for &(tag, variant) in &drop.guards {
             f.get(base);
@@ -3649,9 +3554,6 @@ fn call_drops(f: &mut Func, m: &Module, base: u32, drops: &[DropCall]) {
         for _ in &drop.guards {
             f.op(Instruction::End);
         }
-    }
-    if guarded.is_some() {
-        f.op(Instruction::End);
     }
 }
 
@@ -3678,7 +3580,6 @@ fn copy_elems(elem: &Elem, m: &Module) -> Func {
     each_elem(&mut f, 0, 1, elem.size, &|f| {
         fill_elem(f, 0, &elem.leaves, &ls);
         if let Some(w) = &walk {
-            trap_buffer_retain(f, w);
             walk_code(f, w, &|f, k| f.get(ls[k as usize]), &retain);
         }
         for c in &elem.colls {
@@ -4255,9 +4156,6 @@ fn ref_vals(value: &RefLayout) -> Vec<Val> {
 }
 
 fn ref_count(f: &mut Func, ls: &[u32], value: &RefLayout, retain: bool) {
-    if retain && let Some(w) = &value.walk {
-        trap_buffer_retain(f, w);
-    }
     if let Some((k, addr)) = value
         .walk
         .as_ref()

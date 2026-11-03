@@ -1,10 +1,10 @@
 # @dump: counts
 # @build: std
-# A probe loop matches `item_ref(entry)`, as `UniqMap.insert` does (#1230).
+# A probe loop matches `at(entry).as_ref()`, as `UniqMap.insert` does
+# (#1230).
 # The reference only decides the match: its arms see copies of the
 # payload, so it ends before the found arm writes the buffer and returns.
-# It lives on the buffer's own count: no retain or release of
-# `&Slot` per iteration. The found arm's release of the slot it read out
+# It takes no count: no retain or release of `&Slot` per iteration. The found arm's release of the slot it read out
 # runs once.
 use std.rt.memory.Buffer
 
@@ -26,7 +26,7 @@ impl Table:
         while true:
             entry := index & self.mask
             # subject
-            match self.slots.item_ref(entry):
+            match self.slots.at(entry).as_ref():
                 .Deleted => pass
                 .Occupied(found_hash, found, _) =>
                     if found_hash == key && found == key:

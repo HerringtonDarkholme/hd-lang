@@ -1,7 +1,7 @@
 # @dump: counts
 # @build: std
-# Matching a buffer item reference binds its counted payload by reference, so
-# reading the string takes no count of it.
+# Matching a reference into a buffer's room binds its counted payload by
+# reference, so reading the string takes no count of it.
 use std.rt.memory.Buffer
 
 enum Item:
@@ -16,6 +16,6 @@ struct Box:
 impl !Copy for Box
 
 fn item_len(holder: &Box, index: usize) -> usize:
-    match holder.items.item_ref(index):
+    match holder.items.at(index).as_ref():
         .Some(value) => value.len()
         .Empty => 0

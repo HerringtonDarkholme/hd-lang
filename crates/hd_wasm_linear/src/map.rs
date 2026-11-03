@@ -748,7 +748,6 @@ pub fn unique(entry: &Entry, m: &Module, clone: bool) -> Func {
             f.get(at);
             let ls = load_entry(f, entry, 0, n);
             if let Some(w) = &walk {
-                crate::rt::trap_buffer_retain(f, w);
                 walk_code(f, w, &|f, k| f.get(ls[k as usize]), &retain);
             }
             for c in &entry.colls {

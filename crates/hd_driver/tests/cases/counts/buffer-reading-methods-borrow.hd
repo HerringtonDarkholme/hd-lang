@@ -1,7 +1,7 @@
 # @dump: own
 # @build: std
-# `Buffer`'s metadata and address methods borrow a buffer field, so they
-# take no count around their calls; changing its length takes `&mut`.
+# `Buffer`'s capacity and address methods borrow a buffer field, so they
+# take no count around their calls; growing it takes `&mut`.
 # Rule: module.rt.buffer.borrowed-access.
 use std.rt.memory.Buffer
 
@@ -13,7 +13,6 @@ impl !Copy for Bag
 impl Bag:
     fn touch(&mut self, len: usize) -> usize:
         capacity := self.buffer.capacity()
-        held := self.buffer.len()
-        self.buffer.set_len(len)
+        self.buffer.grow(len)
         address := self.buffer.at(0).address
-        capacity + held + address
+        capacity + address

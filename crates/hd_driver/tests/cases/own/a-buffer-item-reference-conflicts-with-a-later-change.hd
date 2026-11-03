@@ -9,17 +9,18 @@ impl !Copy for Parcel
 
 struct Bag[T < ?Copy]:
     buffer: Buffer[T]
+    len: usize
 
 impl[T < ?Copy] !Copy for Bag[T]
 
 impl[T < ?Copy] Bag[T]:
     fn first['a](&'a self) -> &'a T:
-        self.buffer.item_ref(0)
+        self.buffer.at(0).as_ref()
 
     fn push(&mut self, value: T) -> void:
-        index := self.buffer.len()
+        index := self.len
         self.buffer.at(index).write(value)
-        self.buffer.set_len(index + 1)
+        self.len = index + 1
 
 fn conflict(items: &mut Bag[Parcel]) -> i32:
     first := items.first()

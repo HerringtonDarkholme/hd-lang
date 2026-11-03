@@ -2,7 +2,10 @@
 # file to std as `std.rt_tests.drop_tests`, since only std may implement the
 # runtime trait.
 use std.rt.Drop
-use std.collections.UniqList
+use std.rt.cycle.marking
+use std.collections.{UniqList, UniqMap}
+use std.rt.memory.pages
+use std.rt.checked.released
 
 let log = ""
 let box_drops: usize = 0
@@ -67,6 +70,36 @@ fn release_list() -> void:
     let mut items = UniqList::[Token].new()
     items.push(Token { kind: 2 })
 
+fn take_list(items: UniqList[Token]) -> usize:
+    items.len()
+
+fn release_param() -> void:
+    let mut items = UniqList::[Token].new()
+    items.push(Token { kind: 2 })
+    items.push(Token { kind: 2 })
+    _ := take_list(items)
+
+fn release_popped() -> void:
+    let mut items = UniqList::[Token].new()
+    items.push(Token { kind: 2 })
+    items.push(Token { kind: 2 })
+    items.push(Token { kind: 2 })
+    _ := items.pop()
+    items.truncate(1)
+
+fn release_map() -> void:
+    let mut items = UniqMap::[usize, Token].new()
+    for key in 0..20:
+        _ := items.insert(key, Token { kind: 2 })
+    _ := items.insert(3, Token { kind: 2 })
+    _ := items.remove(4)
+
+fn scalars(n: i32) -> usize:
+    let mut items = UniqList::[i32].new()
+    for i in 0..n:
+        items.push(i)
+    items.len()
+
 fn release_erased() -> void:
     releaser := Releaser {}
     let erased: &dyn ErasedRelease = &releaser
@@ -75,9 +108,12 @@ fn release_erased() -> void:
 struct CycleToken:
     next: (*mut CycleToken)?
 
+# A trace runs `drop` in every pass; the count changes only outside one
+# that marks or scans (`module.rt.drop.trace`).
 impl Drop for CycleToken:
     fn drop(&mut self) -> void:
-        cycle_drops = cycle_drops + 1
+        if !marking():
+            cycle_drops = cycle_drops + 1
 
 struct Pressure:
     next: (*mut Pressure)?
@@ -111,6 +147,31 @@ tests:
         list_drops = 0
         release_list()
         assert(list_drops == 1, "a UniqList element drops once: $list_drops")
+
+    it("a UniqList parameter drops each element once"):
+        list_drops = 0
+        release_param()
+        assert(list_drops == 2, "both elements drop once: $list_drops")
+
+    it("a UniqList drops what pop and truncate remove, then the rest"):
+        list_drops = 0
+        release_popped()
+        assert(list_drops == 3, "each element drops once: $list_drops")
+
+    it("a UniqMap drops each value once"):
+        list_drops = 0
+        release_map()
+        assert(list_drops == 21, "each value drops once: $list_drops")
+
+    it("UniqLists of scalars free their rooms"):
+        _ := scalars(+8)
+        start := pages()
+        let total: usize = 0
+        for _ in 0..100000:
+            total += scalars(+8)
+        assert(total == 800000, "each list holds eight: $total")
+        if released() == 0:
+            assert(pages() <= start + 1, "each room is freed")
 
     it("an erased generic value calls Drop exactly once"):
         erased_drops = 0

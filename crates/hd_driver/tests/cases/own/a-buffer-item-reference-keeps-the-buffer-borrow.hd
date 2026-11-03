@@ -3,4 +3,4 @@
 use std.rt.memory.Buffer
 
 fn element['a, T < ?Copy](buffer: &'a Buffer[T]) -> &'a T:
-    buffer.item_ref(0)
+    buffer.at(0).as_ref()
