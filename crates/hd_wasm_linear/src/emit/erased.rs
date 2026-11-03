@@ -271,7 +271,7 @@ pub(super) fn thunk(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResul
                 }
                 None => !em.loans.contains(&at) && !em.view_loans.contains_key(&at),
             };
-        match value {
+        let out = match value {
             None => Vec::new(),
             Some(_) if em.diverges(at) => Vec::new(),
             Some(ls) if is_open(pool, rty) => {
@@ -293,7 +293,15 @@ pub(super) fn thunk(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResul
                 out
             }
             Some(ls) => em.copy_locals(&ls, ct)?,
+        };
+        if moves {
+            let root = match stored {
+                Some(l) => super::drop_flags::Root::Local(l as usize),
+                None => super::drop_flags::Root::Value(at),
+            };
+            em.mark_drop_root(root, ct, false);
         }
+        out
     };
     if out.len() == results.len() {
         for l in &out {
@@ -501,7 +509,7 @@ impl Em<'_, '_, '_> {
                 _ => unsupported("a reference to a trait value as an open value"),
             };
         }
-        if self.vals(ct)?.is_empty() {
+        if self.vals(ct)?.is_empty() && !crate::layout::holds_drop(self.pool(), self.env(), ct) {
             return Ok(Cross::Empty);
         }
         if one(ct)? {

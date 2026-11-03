@@ -158,7 +158,7 @@ impl Em<'_, '_, '_> {
             let env = self.env();
             let mut params = Vec::new();
             // What the target owns of the lent receiver and arguments;
-            // open values and synchronous inline Drop values arrive owned.
+            // open values and inline Drop values arrive owned.
             let mut own = Vec::new();
             // Value arguments the call hands in but its target only
             // borrows, released once it has returned, with Drop hooks.
@@ -178,7 +178,12 @@ impl Em<'_, '_, '_> {
                     };
                 }
                 let w = match self.pass_at(env.lends(t.item), k, pt) {
-                    crate::layout::Pass::Owned(w) if !env.suspends(t.item) => Some(w),
+                    crate::layout::Pass::Owned(w)
+                        if !env.suspends(t.item)
+                            || crate::layout::holds_drop(self.pool(), env, pt) =>
+                    {
+                        Some(w)
+                    }
                     _ => None,
                 };
                 if k == 0 {
@@ -189,8 +194,7 @@ impl Em<'_, '_, '_> {
                 let n = u32::try_from(vs.len()).expect("values");
                 if matches!(self.pass(pt), crate::layout::Pass::Owned(_))
                     && (hd_mono::is_open(self.pool(), pt)
-                        || (!env.suspends(t.item)
-                            && crate::layout::holds_drop(self.pool(), env, pt)))
+                        || crate::layout::holds_drop(self.pool(), env, pt))
                 {
                     if w.is_none() {
                         given.push((u32::try_from(k).expect("params"), self.ref_layout(pt)?));

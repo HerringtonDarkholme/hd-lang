@@ -46,11 +46,18 @@ pub fn shared_reference_layout(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) 
     )
 }
 
-/// Whether a value of `ty` holds a counted leaf on this backend (§23.16):
-/// the ownership passes' `OwnCx::counted` for a type with no parameter.
+/// Whether `ty` needs ownership tracking: a counted leaf or a Drop hook.
+/// This answers the ownership passes' `OwnCx::counted` query for a concrete type.
 #[must_use]
 pub fn counted_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
-    layout::walk(pool, env, ty).is_some()
+    layout::holds_drop(pool, env, ty) || layout::walk(pool, env, ty).is_some()
+}
+
+/// Whether ownership must transfer an inline runtime Drop value rather
+/// than lending it to a cold constructor that can only retain references.
+#[must_use]
+pub fn holds_drop_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
+    layout::holds_drop(pool, env, ty)
 }
 
 /// Runs `f` with the layout cache in place (a link's, when `f` runs inside

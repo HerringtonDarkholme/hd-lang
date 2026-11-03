@@ -3181,7 +3181,12 @@ fn open_poll(
         }
         // The value moves out of a box with one holder; only a shared
         // box leaves a copy, which takes counts of its own.
-        if counts && !leaves.is_empty() {
+        let empty = counts && leaves.is_empty();
+        if empty {
+            f.get(o);
+            f.op(Instruction::If(BlockType::Empty));
+        }
+        if counts {
             f.get(o);
             f.helper(Helper::TakeBox);
             match walk {
@@ -3207,6 +3212,9 @@ fn open_poll(
                 vals: vals.clone(),
                 walk: w.clone(),
             });
+        }
+        if empty {
+            f.op(Instruction::End);
         }
     }
     if counts && !leaves.is_empty() && reference.is_some() {

@@ -1,0 +1,242 @@
+# A moved or uninitialized place must not run an inline Drop hook.
+# This module joins std because only std may implement its runtime trait.
+use std.rt.Drop
+
+let drops: usize = 0
+let empty_drops: usize = 0
+
+struct Token:
+    id: usize
+
+impl !Copy for Token
+
+impl Drop for Token:
+    fn drop(&mut self) -> void:
+        drops = drops + 1
+
+struct Empty: pass
+
+impl !Copy for Empty
+
+impl Drop for Empty:
+    fn drop(&mut self) -> void:
+        empty_drops = empty_drops + 1
+
+struct Pair:
+    left: Token
+    right: Token
+
+impl !Copy for Pair
+
+fn identity[T < ?Copy](value: T) -> T:
+    value
+
+fn moved(id: usize) -> usize:
+    value := identity(Token { id: id })
+    value.id
+
+fn empty_move() -> void:
+    _ := identity(Empty {})
+
+fn nested_move() -> usize:
+    value := identity(Pair { left: Token { id: 0 }, right: Token { id: 0 } })
+    value.left.id + value.right.id
+
+fn take_left(value: Pair) -> Token:
+    value.left
+
+fn partial_move() -> usize:
+    value := take_left(Pair { left: Token { id: 0 }, right: Token { id: 0 } })
+    value.id
+
+fn replaced() -> usize:
+    let value = Token { id: 0 }
+    value = Token { id: 1 }
+    value.id
+
+fn branch(take: bool) -> usize:
+    value := Token { id: 0 }
+    if take:
+        back := identity(value)
+        return back.id
+    value.id
+
+fn read(value: &Token) -> usize:
+    value.id
+
+fn addressed_move() -> usize:
+    value := Token { id: 0 }
+    _ := read(&value)
+    back := identity(value)
+    back.id
+
+fn restored_field() -> usize:
+    let mut value = Pair { left: Token { id: 0 }, right: Token { id: 0 } }
+    first := identity(value.left)
+    value.left = Token { id: 1 }
+    whole := identity(value)
+    first.id + whole.left.id + whole.right.id
+
+fn captured_cell() -> usize:
+    let value = Token { id: 0 }
+    read := fn() -> usize: value.id
+    _ := read()
+    value = Token { id: 1 }
+    read()
+
+enum Choice:
+    Empty
+    Value(Token)
+
+fn moved_enum(present: bool) -> usize:
+    value := if present: Choice.Value(Token { id: 0 }) else: Choice.Empty
+    back := identity(value)
+    match back:
+        .Empty => 1
+        .Value(token) => token.id
+
+fn relayed![T < ?Copy](value: T) -> T:
+    identity(value)
+
+struct Named:
+    token: Token
+    name: string
+
+impl !Copy for Named
+
+fn consume_named(value: Named) -> usize:
+    if value.name.len() == 0:
+        panic("lost the name")
+    value.token.id
+
+fn named_suspension!() -> usize:
+    let job: mut Suspend[Named] = relayed(Named { token: Token { id: 7 }, name: "token-${drops}" })
+    value := job!()
+    if value.name.len() == 0:
+        panic("lost the name")
+    value.token.id
+
+trait Relay:
+    fn relay!(&self, value: Token) -> Token
+    fn generic![T < ?Copy](&self, value: T) -> T
+
+struct Forwarder: pass
+
+impl Relay for Forwarder:
+    fn relay!(&self, value: Token) -> Token:
+        value
+    fn generic![T < ?Copy](&self, value: T) -> T:
+        value
+
+tests:
+    use std.testing.{assert_equal, it}
+
+    it("zero and nonzero payloads move their Drop ownership"):
+        before := drops
+        assert_equal(moved(0), 0)
+        assert_equal(drops, before + 1)
+        assert_equal(moved(7), 7)
+        assert_equal(drops, before + 2)
+
+    it("a zero-sized value still has Drop ownership"):
+        before := empty_drops
+        empty_move()
+        assert_equal(empty_drops, before + 1)
+
+    it("nested fields drop once after the container moves"):
+        before := drops
+        assert_equal(nested_move(), 0)
+        assert_equal(drops, before + 2)
+
+    it("a field move leaves only the other field to drop"):
+        before := drops
+        assert_equal(partial_move(), 0)
+        assert_equal(drops, before + 2)
+
+    it("replacement drops both initialized values once"):
+        before := drops
+        assert_equal(replaced(), 1)
+        assert_equal(drops, before + 2)
+
+    it("both branches release exactly one value"):
+        before := drops
+        assert_equal(branch(true), 0)
+        assert_equal(drops, before + 1)
+        assert_equal(branch(false), 0)
+        assert_equal(drops, before + 2)
+
+    it("an addressed local can move without dropping the empty cell"):
+        before := drops
+        assert_equal(addressed_move(), 0)
+        assert_equal(drops, before + 1)
+
+    it("a moved field can be restored before moving the whole value"):
+        before := drops
+        assert_equal(restored_field(), 1)
+        assert_equal(drops, before + 3)
+
+    it("a shared cell drops each initialized payload once"):
+        before := drops
+        assert_equal(captured_cell(), 1)
+        assert_equal(drops, before + 2)
+
+    it("enum guards exclude an inactive variant after a move"):
+        before := drops
+        assert_equal(moved_enum(false), 1)
+        assert_equal(drops, before)
+        assert_equal(moved_enum(true), 0)
+        assert_equal(drops, before + 1)
+
+    it("a suspension transfers the parameter's Drop ownership"):
+        before := drops
+        let job: mut Suspend[Token] = relayed(Token { id: 0 })
+        value := job!()
+        assert_equal(value.id, 0)
+        _ := identity(value)
+        assert_equal(drops, before + 1)
+
+    it("an unpolled suspension still owns its parameter"):
+        before := drops
+        _ := relayed(Token { id: 0 })
+        assert_equal(drops, before + 1)
+
+    it("suspending generic values preserve their counted fields"):
+        before := drops
+        for _ in 0..20:
+            assert_equal(named_suspension!(), 7)
+        assert_equal(drops, before + 20)
+
+    it("a reused local tracks each loop iteration independently"):
+        before := drops
+        for i in 0..20:
+            value := identity(Token { id: i })
+            assert_equal(value.id, i)
+        assert_equal(drops, before + 20)
+
+    it("a dynamic suspension takes its inline argument"):
+        before := drops
+        forwarder := Forwarder {}
+        let relay: &dyn Relay = &forwarder
+        let job: mut Suspend[Token] = relay.relay(Token { id: 0 })
+        value := job!()
+        assert_equal(value.id, 0)
+        _ := identity(value)
+        assert_equal(drops, before + 1)
+
+    it("an erased suspension preserves a Drop value's fields"):
+        before := drops
+        forwarder := Forwarder {}
+        let relay: &dyn Relay = &forwarder
+        let job: mut Suspend[Named] = relay.generic(
+            Named { token: Token { id: 3 }, name: "name-${drops}" },
+        )
+        assert_equal(consume_named(job!()), 3)
+        assert_equal(drops, before + 1)
+
+    it("an erased zero-sized value keeps its Drop ownership"):
+        before := empty_drops
+        forwarder := Forwarder {}
+        let relay: &dyn Relay = &forwarder
+        let job: mut Suspend[Empty] = relay.generic(Empty {})
+        _ := identity(job!())
+        assert_equal(empty_drops, before + 1)

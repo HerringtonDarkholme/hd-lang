@@ -568,9 +568,7 @@ impl Em<'_, '_, '_> {
             self.shield_enter(k, ch, &tmp, nc);
         }
         self.f.get(ch);
-        for r in args {
-            self.push(*r)?;
-        }
+        self.push_args(args, None, 0)?;
         let c = self.push_call_providers(item, targs)?;
         self.f.call(Sym::Part(key, Part::Body));
         self.f.set(nc);
@@ -1242,6 +1240,7 @@ pub(super) fn finish(
         crate::wide::locals_frame(&mut em.f, base, size);
     }
     let body = std::mem::take(&mut em.f);
+    let body_drop_states = em.drop_states.clone();
 
     // The release glue: the places the body owns while it waits, unless
     // it has left, then the child.
@@ -1255,6 +1254,7 @@ pub(super) fn finish(
         em.f.op(I::I32And);
         em.f.op(I::I32Eqz);
         em.f.op(I::If(BlockType::Empty));
+        em.reload_drop_flags(&area);
         let mut places: Vec<(Option<u32>, Option<usize>, Vec<u32>)> = Vec::new();
         let mut vals: Vec<(u32, Vec<u32>)> = em.vals.iter().map(|(k, v)| (*k, v.clone())).collect();
         vals.sort_stable();
@@ -1305,10 +1305,18 @@ pub(super) fn finish(
                 continue;
             }
             match (inst, local) {
-                (Some(i), _) => em.release_locals(&loaded, em.ty(i))?,
+                (Some(i), _) => em.release_drop_place(&loaded, em.ty(i), &Em::value_place(i))?,
                 (None, Some(l)) => {
                     em.loan_release(l, &loaded);
-                    em.count_local(l, &loaded, false)?;
+                    if em.is_cell(l) {
+                        em.count_local(l, &loaded, false)?;
+                    } else {
+                        em.release_drop_place(
+                            &loaded,
+                            em.sub(em.b.local_ty[l]),
+                            &Em::local_place(l),
+                        )?;
+                    }
                 }
                 (None, None) => {
                     em.f.get(loaded[0]);
@@ -1376,6 +1384,7 @@ pub(super) fn finish(
         em.f.op(I::End);
     }
     let drop = std::mem::take(&mut em.f);
+    em.drop_states = body_drop_states;
 
     // The cold constructor: a frame in state 0 holding the arguments and
     // the providers, with a count of each counted argument.
@@ -1391,7 +1400,9 @@ pub(super) fn finish(
         for &l in plocals {
             let ls: Vec<u32> = em.locals[&l].iter().map(|x| x - 1).collect();
             let t = em.sub(em.b.local_ty[l]);
-            em.retain_locals(&ls, t)?;
+            if !crate::layout::holds_drop(em.pool(), em.env(), t) {
+                em.retain_locals(&ls, t)?;
+            }
         }
     }
     for j in 0..cold_params.len() {
@@ -1402,6 +1413,7 @@ pub(super) fn finish(
             em.f.op(store_op(v, at));
         }
     }
+    em.save_initial_drop_flags(plocals, fr, &area);
     if em.counting {
         for d in em
             .susp

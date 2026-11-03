@@ -34,5 +34,6 @@ fn round_trip(s: &dyn Sink, list: UniqList[string]) -> usize:
 >   retain app.main.Sink
 >   release counted reference
 >   retain std.collections.UniqList[string]
->   release std.collections.UniqList[string]
+>   release counted reference
+>   release counted reference
     back.len()
