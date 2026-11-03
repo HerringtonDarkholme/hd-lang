@@ -458,7 +458,8 @@ issue-backed exceptions; there is no per-backend rollout pass list.
   implement `std.rt.Drop` (a `UniqList` of scalars) has the walk
   `Walk::Glue`, so the ownership passes and the parameter convention
   treat it as owned and released, and its release runs the drop
-  (`Em::drop_inline`). A walk with a counted address leaves `Glue` out.
+  (`Em::drop_inline`; through a reference, `rt::drop_value`, and a
+  view's box glue, from `RefLayout::drops`). A walk with a counted address leaves `Glue` out.
   A reference to such a value is never promoted to its value
   (`layout::holds_drop`, §23.40), since that would bind it twice.
 - **Runtime modules are std's.** `hd_project::UseRoots` refuses a use of

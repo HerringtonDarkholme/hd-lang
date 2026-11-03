@@ -416,7 +416,7 @@ fn clear(array: usize) -> void:
         store_u32(array, 0)
 
 # The collector's free callback runs either during the zero-count sweep,
-# when garbage is empty, or over the white objects it just traced. Only checked instrumentation calls this; ordinary
-# collection is unchanged.
+# when garbage is empty, or over the white objects it just traced. Only
+# checked instrumentation calls this; ordinary collection is unchanged.
 pub fn freeing_cycles() -> bool:
     length(garbage) != 0
