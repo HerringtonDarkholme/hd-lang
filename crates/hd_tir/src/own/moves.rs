@@ -35,7 +35,10 @@
 //!    `Await`, as known-null's points), whose frame saves the cell's local
 //!    at each point. A frame local's `Ref` never takes a count
 //!    (`ref_word::FRAME`); its final whole read may move the slot payload
-//!    when insertion put the local's drop immediately after it.
+//!    when insertion put the local's drop immediately after it. Elsewhere,
+//!    as in a branch, a second walk counts each use of what may point into
+//!    the slot as a read of it, drops aside (`frame`), and the read moves
+//!    when no such use follows it on any path.
 //!
 //! "No path reads it again" is a backward liveness walk over the
 //! structured control flow of each sub-body, with one bit per candidate
@@ -50,6 +53,7 @@
 //! the move zeroed out of it. A drop that goes is one that only the moved
 //! path reaches, straight after the move.
 
+use hd_base::SliceSort as _;
 use hd_types::Ty;
 
 use super::flow::{Backward, BitArena, Flow, backward};
@@ -112,6 +116,15 @@ pub(crate) struct Tables {
     sink_ins: Vec<(u32, u32, u32)>,
     sink_rm: Vec<u32>,
     sink_mv: Vec<u32>,
+    /// The uses of a frame local through a value or a local that may
+    /// point into it, but its drops: (instruction, candidate bit), by
+    /// instruction. Empty unless a frame local's last whole read has no
+    /// drop right after it (rule 4).
+    frame_uses: Vec<(u32, u32)>,
+    /// Per local: whether [`frame_uses`] holds its uses, so its last whole
+    /// read needs no drop right after it.
+    frame_read: Vec<bool>,
+    frame_scratch: super::frame::Tables,
 }
 
 impl Tables {
@@ -127,6 +140,8 @@ impl Tables {
         fill(&mut self.decide, n, UNSEEN);
         self.touch.clear();
         self.stack.clear();
+        self.frame_uses.clear();
+        fill(&mut self.frame_read, locals, false);
     }
 
     /// Calls `f` with the bit of each candidate a use of value `v` keeps
@@ -219,8 +234,73 @@ pub(crate) fn run(
     touches(b, t);
     let mut back = std::mem::take(&mut t.back);
     backward(b, topo, &mut back, t);
+    // A frame local's references are no reads of it here. Where its last
+    // whole read has no drop right after it, the walk runs again with
+    // their uses as reads of it.
+    if (0..b.len()).any(|i| frame_move_apart(b, topo, t, i)) {
+        frame_uses(b, topo, cx, t);
+        fill(&mut t.decide, b.len(), UNSEEN);
+        backward(b, topo, &mut back, t);
+    }
     t.back = back;
     apply(b, topo, cx, t, edits);
+}
+
+/// Whether read `i` is a whole read of a frame local that the walk found
+/// last, with no drop of the local right after it.
+fn frame_move_apart(b: &Body, topo: &Topology, t: &Tables, i: usize) -> bool {
+    if t.decide[i] != MOVE || topo.blk[i] == NONE {
+        return false;
+    }
+    let word = b.data[i][0];
+    let Root::Local(l) = b.view(word).root else {
+        return false;
+    };
+    t.frame[l as usize]
+        && b.view(word).whole()
+        && t.bit(b, word).and_then(|bit| next_drop(b, topo, t, i, bit)) != Some(u32_of(i) + 1)
+}
+
+/// The uses of each frame candidate through what may point into it
+/// ([`super::frame::run`]), but its drops: a drop of a value that points
+/// into a local reads nothing there.
+fn frame_uses(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
+    let mut out = std::mem::take(&mut t.frame_uses);
+    out.clear();
+    let (lnum, frame) = (&t.lnum, &t.frame);
+    let mut ft = std::mem::take(&mut t.frame_scratch);
+    let tags = b.tags.clone();
+    super::frame::run(b, topo, cx, &mut ft, |i, l| {
+        let bit = lnum[l as usize];
+        if frame[l as usize] && bit != NONE && tags[i as usize] != Tag::Drop {
+            out.push((i, bit));
+        }
+    });
+    out.sort_stable();
+    out.dedup();
+    for l in 0..t.frame.len() {
+        t.frame_read[l] = t.frame[l] && ft.is_frame(l);
+    }
+    t.frame_scratch = ft;
+    t.frame_uses = out;
+}
+
+/// The drop of the whole place of read `i`, candidate `bit`, right after
+/// the read in its block: the next instruction that touches the place.
+fn next_drop(b: &Body, topo: &Topology, t: &Tables, i: usize, bit: u32) -> Option<u32> {
+    let root = b.view(b.data[i][0]).root;
+    t.next_touch(bit, u32_of(i)).filter(|&d| {
+        let d = d as usize;
+        if b.tags[d] != Tag::Drop || topo.blk[d] != topo.blk[i] {
+            return false;
+        }
+        let dw = b.data[d][0];
+        match root {
+            Root::Local(l) => dw == l | place::BARE_LOCAL,
+            Root::Value(v) => drops_whole(b, u32_of(d), v),
+            _ => false,
+        }
+    })
 }
 
 /// Numbers the candidates: the counted locals no reference, shared
@@ -482,6 +562,14 @@ impl Backward for Tables {
         }
         self.deps(b, v, &mut |bit| s.set(live, bit, true));
     }
+
+    /// A use of a frame local through what may point into it.
+    fn reads(&mut self, _: &Body, x: u32, s: &mut BitArena, live: usize) {
+        let k = self.frame_uses.partition_point(|u| u.0 < x);
+        for &(_, bit) in self.frame_uses[k..].iter().take_while(|u| u.0 == x) {
+            s.set(live, bit, true);
+        }
+    }
 }
 
 /// Turns each read the walk proved last into a `move`, and deletes or
@@ -508,24 +596,15 @@ fn apply(
             continue;
         };
         // The drop of the whole place right after the read, in its block.
-        let drop = t.next_touch(bit, x).filter(|&d| {
-            let d = d as usize;
-            if b.tags[d] != Tag::Drop || topo.blk[d] != topo.blk[i] {
-                return false;
-            }
-            let dw = b.data[d][0];
-            match root {
-                Root::Local(l) => dw == l | place::BARE_LOCAL,
-                Root::Value(v) => drops_whole(b, u32_of(d), v),
-                _ => false,
-            }
-        });
+        let drop = next_drop(b, topo, t, i, bit);
         if from == to {
-            // A frame reference's later uses do not name its source local
-            // in this pass. Insertion put the local's drop directly after
-            // its actual last use, so only that adjacent pair proves a
-            // frame slot can be emptied here.
-            if matches!(root, Root::Local(l) if t.frame[l as usize]) && drop != Some(x + 1) {
+            // A frame slot empties at its last whole read: insertion put the
+            // local's drop directly after its last use, the read itself, or
+            // the walk read every use through a reference into it
+            // ([`frame_uses`]).
+            if matches!(root, Root::Local(l) if t.frame[l as usize] && !t.frame_read[l as usize])
+                && drop != Some(x + 1)
+            {
                 continue;
             }
             // A whole value moves only when its drop goes with it: no

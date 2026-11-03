@@ -1,0 +1,18 @@
+# @dump: own
+# A `!Copy` local in a frame slot moves in a branch once the last use of a
+# reference into it is behind (`ref.excl.move`): no copy, though its drop
+# comes after the branch.
+use std.collections.UniqList
+
+fn eat(xs: UniqList[string]) -> usize:
+    xs.len()
+
+fn in_branch(xs: UniqList[string], c: bool) -> usize:
+    r := &xs
+    k := r.len()
+    if c:
+        # subject
+        n := eat(xs)
+        n + k
+    else:
+        k
