@@ -58,6 +58,8 @@ pub(crate) struct Tables {
     out: u64,
     /// The candidates the last run found frame locals.
     frame: u64,
+    /// Projected places for a field-liveness query; empty for frame planning.
+    targets: Vec<(u32, u32)>,
     ops: Vec<super::Operand>,
 }
 
@@ -85,10 +87,36 @@ impl Tables {
             Root::Value(v) => (0, self.of(v)),
             _ => return None,
         };
+        if let Root::Local(l) = p.root
+            && !self.targets.is_empty()
+        {
+            // A direct field reference lends just that field. A reference
+            // derived through another reference keeps its parent's origins.
+            let prefix: Vec<_> = p
+                .steps(b)
+                .take_while(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)))
+                .collect();
+            let mut mask = 0;
+            for (k, &(local, word)) in self.targets.iter().enumerate() {
+                if local == l
+                    && prefix
+                        .iter()
+                        .copied()
+                        .zip(b.view(word).steps(b))
+                        .all(|(a, c)| a == c)
+                {
+                    mask |= 1 << k;
+                }
+            }
+            lies &= mask;
+        }
         for s in p.steps(b) {
             match s {
                 // Through a reference: where it points, and what is there.
                 Proj::Deref if held != 0 => (lies, held) = (held, self.holdings(held)),
+                Proj::Deref | Proj::Elem(_) if !self.targets.is_empty() => {
+                    return Some((lies, held));
+                }
                 Proj::Deref | Proj::Elem(_) => return None,
                 _ => {}
             }
@@ -132,6 +160,7 @@ pub(crate) fn run(
     fill(&mut t.bit, locals, 0);
     fill(&mut t.bad, locals, false);
     t.cands.clear();
+    t.targets.clear();
     t.out = 0;
     t.frame = 0;
     // A suspending root keeps its locals in its frame object.
@@ -188,31 +217,7 @@ pub(crate) fn run(
             changed |= step(b, cx, t, &mut ops, i);
         }
     }
-    // A body's value is returned, as a default argument's reference is.
-    for &r in &b.sub_root {
-        t.out |= t.val.get(r as usize).copied().unwrap_or(0);
-    }
-    // A cleanup suite runs at its scope's exits, after a jump has dropped
-    // what it leaves, so what a suite reads through a reference stays out.
-    let mut stack = Vec::new();
-    for i in 0..n {
-        let roots = match b.tags[i] {
-            Tag::Scope if b.data[i][1] != NONE => b.record(b.data[i][1]),
-            Tag::Defer => std::slice::from_ref(&b.data[i][0]),
-            _ => continue,
-        };
-        let (out, held, val) = (std::cell::Cell::new(0u64), &t.held, &t.val);
-        suite_touches(
-            b,
-            roots,
-            &mut stack,
-            &mut ops,
-            true,
-            |l| out.set(out.get() | held[l as usize]),
-            |v| out.set(out.get() | val.get(v as usize).copied().unwrap_or(0)),
-        );
-        t.out |= out.get();
-    }
+    escape_exits(b, t, &mut ops);
     t.ops = ops;
     let tracked = u64::MAX >> (64 - t.cands.len());
     let frame = !t.out & tracked;
@@ -240,6 +245,93 @@ pub(crate) fn run(
         {
             b.data[i][1] = w | crate::ir::ref_word::FRAME;
         }
+    }
+}
+
+/// Uses through references into up to 64 projected places. Reuse the
+/// frame-origin fixed point, but seed each field separately and leave
+/// frame planning and reference flags alone. The returned bits escaped
+/// the body's tracked locals and cannot be moved based on local liveness.
+pub(crate) fn part_uses(
+    b: &Body,
+    cx: &dyn OwnCx,
+    t: &mut Tables,
+    targets: &[(u32, u32)],
+    mut uses: impl FnMut(u32, usize),
+) -> u64 {
+    debug_assert!(targets.len() <= 64);
+    let (n, locals) = (b.len(), b.local_ty.len());
+    fill(&mut t.bit, locals, 0);
+    t.cands.clear();
+    t.targets.clear();
+    t.targets.extend_from_slice(targets);
+    t.out = 0;
+    t.frame = 0;
+    for (k, &(local, _)) in targets.iter().enumerate() {
+        t.bit[local as usize] |= 1 << k;
+        t.cands.push(local);
+    }
+    fill(&mut t.val, n, 0);
+    fill(&mut t.held, locals, 0);
+    fill(&mut t.dep, n, 0);
+    fill(&mut t.ldep, locals, 0);
+    let mut ops = std::mem::take(&mut t.ops);
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for i in 0..n {
+            changed |= step(b, cx, t, &mut ops, i);
+        }
+    }
+    escape_exits(b, t, &mut ops);
+    for i in 0..n {
+        if b.tags[i] == Tag::Drop {
+            continue;
+        }
+        let mut origins = 0;
+        if matches!(
+            b.tags[i],
+            Tag::Read | Tag::Store | Tag::Ref | Tag::IsUnique | Tag::Pin
+        ) && let Some(l) = b.view(b.data[i][0]).local()
+        {
+            origins |= t.held[l as usize] | t.ldep[l as usize];
+        }
+        operands(b, i, &mut ops);
+        for op in &ops {
+            origins |= t.of(op.value) | t.dep.get(op.value as usize).copied().unwrap_or(0);
+        }
+        for k in bits(origins) {
+            uses(u32_of(i), k);
+        }
+    }
+    t.ops = ops;
+    t.out
+}
+
+/// Returned values and cleanup suites outlive the ordinary instruction
+/// sequence, in both frame planning and projected-place liveness.
+fn escape_exits(b: &Body, t: &mut Tables, ops: &mut Vec<super::Operand>) {
+    for &r in &b.sub_root {
+        t.out |= t.val.get(r as usize).copied().unwrap_or(0);
+    }
+    let mut stack = Vec::new();
+    for i in 0..b.len() {
+        let roots = match b.tags[i] {
+            Tag::Scope if b.data[i][1] != NONE => b.record(b.data[i][1]),
+            Tag::Defer => std::slice::from_ref(&b.data[i][0]),
+            _ => continue,
+        };
+        let (out, held, val) = (std::cell::Cell::new(0u64), &t.held, &t.val);
+        suite_touches(
+            b,
+            roots,
+            &mut stack,
+            ops,
+            true,
+            |l| out.set(out.get() | held[l as usize]),
+            |v| out.set(out.get() | val.get(v as usize).copied().unwrap_or(0)),
+        );
+        t.out |= out.get();
     }
 }
 

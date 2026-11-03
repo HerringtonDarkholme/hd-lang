@@ -1,0 +1,20 @@
+# @dump: own
+# expected: the non-copyable field reads move after the whole-value borrow ends.
+struct Parcel:
+    name: string
+
+impl !Copy for Parcel
+
+struct Pair:
+    left: Parcel
+    right: Parcel
+
+impl !Copy for Pair
+
+fn observe(value: &Pair) -> usize:
+    value.left.name.len() + value.right.name.len()
+
+# subject
+fn split(value: Pair) -> (Parcel, Parcel):
+    _ := observe(&value)
+    (value.left, value.right)
