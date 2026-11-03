@@ -55,7 +55,8 @@ heap object, so a copy of its holder is a retain, and that retain hides
 the copy. Removing the count (chat's 52d7a01e5) double-freed wherever the
 compiler still copied a holder. Each lane since found the next copy: a
 loop loan (#1230), a dynamic call (#1279), a reference view (#1281), a
-move while borrowed (#1283), a match through a reference (#1288). Under
+move while borrowed (#1283), a match through a reference (#1288), a field moved out of a binding
+still in use (#1283 again). Under
 the proposal a copy of a `!Copy` value is a verifier error at compile
 time, so one run over the conformance suite and std lists every site.
 
@@ -121,6 +122,7 @@ value itself, as Rust's `Vec`.
 | a struct holding a `UniqList` passed by value | the struct is `!Copy` through its field, so the pass moves it; a copy is a verifier error |
 | `match o:` with `o: &mut Option[UniqList[string]]` (#1288) | the scrutinee is a borrow; today it is `Read copy`, which the verifier rejects |
 | a move while `get_ref` is live (#1283) | a checker error, `conflicting-access`; no silent copy |
+| `eat(p.a)` then `p.b.len()`, with `p.a` non-copyable | today `Read copy [$0 .a]`: move liveness is per local, not per field (found by #1283). The verifier rejects it, so phase 2 needs per-field liveness and a backend move of a part out of a cell |
 | an erased generic method lends `&mut UniqList[T]` to a thunk (#1281) | the view moves the value out and back; no copy |
 | a cycle through `UniqList[*Node]` | the holder's glue calls `drop` in trace mode, which hands each `*Node` to `visit`; the room is freed after `later` |
 | `UniqListIntoIter` dropped half consumed | it implements `Drop` too: it drops the values from its cursor to the length |
