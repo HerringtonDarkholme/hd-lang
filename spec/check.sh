@@ -30,6 +30,7 @@ done
 # cases.tsv and examples.tsv against the fixtures and the specification, in
 # one process (a per-row shell loop took most of this script's time).
 node --experimental-strip-types "$spec_dir/check-fixture-index.ts" "$spec_dir"
+node --experimental-strip-types "$spec_dir/tools/generate-erased-call-matrix.ts" --check
 
 tab=$(printf '\t')
 
