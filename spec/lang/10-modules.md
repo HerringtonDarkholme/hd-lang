@@ -1776,7 +1776,6 @@ pub struct Ptr[T < ?Copy]:
 impl[T < ?Copy] Ptr[T]:
     pub fn read(self) -> T
     pub fn write(self, value: T) -> void
-    pub fn drop_in_place(self, count: usize) -> void
     pub fn as_ref['a](self) -> &'a T
     pub fn as_mut['a](self) -> &'a mut T
     pub fn offset(self, count: usize) -> Ptr[T]
@@ -1803,28 +1802,27 @@ pub fn new_string(len: usize) -> string
 
 1. r[module.rt.ptr.type] `Ptr[T]` is an ordinary struct. Its `address` is the heap address of the first of `size_of[T]()` bytes that may hold a value of type `T`.
 2. r[module.rt.ptr.copy] A copy of a `Ptr[T]` copies the address. It never copies, counts, or drops the value at the address.
-3. r[module.rt.ptr.decl] `read`, `write`, `drop_in_place`, `as_ref`, `as_mut`, `offset`, and `size_of` are ordinary hd declarations marked `@intrinsic`, as for the [memory intrinsics](#r-module.rt.memory.decl).
+3. r[module.rt.ptr.decl] `read`, `write`, `as_ref`, `as_mut`, `offset`, and `size_of` are ordinary hd declarations marked `@intrinsic`, as for the [memory intrinsics](#r-module.rt.memory.decl).
 4. r[module.rt.ptr.size-of] `size_of[T]()` returns the number of heap bytes one value of `T` takes. It is the same for every value of `T` in a program instance.
 5. r[module.rt.ptr.size-of.number] For `bool`, `u8`, and `i8` it is 1, for `u16` and `i16` 2, for `u32`, `i32`, `f32`, and `char` 4, and for `u64`, `i64`, and `f64` 8. For `usize` it is the target's pointer width in bytes.
 6. r[module.rt.ptr.offset] `p.offset(count)` returns the `Ptr[T]` whose address is `p.address + count * size_of[T]()`.
 7. r[module.rt.ptr.write-value] `p.write(value)` moves `value` into `p`, so the heap there holds that value of `T`. Passing a copyable `T` copies it as any other by-value argument does; passing a non-copyable `T` leaves the argument moved.
 8. r[module.rt.ptr.write.over] A write replaces the bytes at `p` without dropping the value they held.
 9. r[module.rt.ptr.read] `p.read()` moves the value at `p` out and returns it, so the heap there no longer holds a value. Its bytes do not change.
-10. r[module.rt.ptr.drop-in-place] `p.drop_in_place(count)` drops the `count` values at `p.offset(0)` to `p.offset(count - 1)`, in that order, as moving each out with `read` and dropping it would, so the heap there no longer holds them. It frees no memory. For a `T` whose values have nothing to release, it does nothing.
-11. r[module.rt.ptr.as-ref] `p.as_ref()` returns an `&T` to the value at `p`, and `p.as_mut()` an `&mut T`, without moving, copying, or counting it. Std keeps the value there and unchanged by any other path for `'a`, as the borrow of the value that holds it would.
-12. r[module.rt.ptr.integer] A value of an integer type is stored as its bytes, least significant first, so the [loads and stores](#r-module.rt.memory.load) of its width read and write it.
-13. r[module.rt.ptr.holds] Only the standard library reads or writes through a `Ptr[T]`, and it reads only where the heap holds a value of `T`.
-14. r[module.rt.ptr.bounds] A read or a write that reaches a byte outside the heap stops the program instance with no panic category, as for [`module.rt.memory.bounds`](#r-module.rt.memory.bounds).
-15. r[module.rt.buffer.type] A `Buffer[T]` is raw memory: the address of room for `capacity()` values of `T`, and that capacity. It has no length and no element operation: which places of its room hold a value is known only to the std code that writes them. Its fields are private.
-16. r[module.rt.buffer.not-copyable] `Buffer[T]` is not copyable: a read by value moves it, so its room has one owner. No count is kept of it.
-17. r[module.rt.buffer.borrowed-access] `capacity` and `at` take `&self`, and `grow` takes `&mut self`, so a call borrows the buffer, and only a writable buffer moves its room.
-18. r[module.rt.buffer.new] `Buffer::new(capacity)` returns a buffer with room for `capacity` values of `T`, none of which holds a value. A capacity whose bytes do not fit the heap panics. Panic: `heap-exhausted`.
-19. r[module.rt.buffer.at] `b.at(index)` returns the `Ptr[T]` of value `index` of the buffer's room: `b.at(0).offset(index)`. It checks no bound; reads and writes through it follow [`module.rt.ptr.holds`](#r-module.rt.ptr.holds).
-20. r[module.rt.buffer.grow] `b.grow(capacity)`, for a `capacity` above `b.capacity()`, moves the bytes of the room to a new room for `capacity` values and frees the old one, so each value moves to the same index of the new room. A smaller `capacity` has no effect. A capacity whose bytes do not fit the heap panics. Panic: `heap-exhausted`.
-21. r[module.rt.buffer.drop] `Buffer[T]` implements [`Drop`](#r-module.rt.drop.decl): dropping a buffer frees its room and drops none of the values in it. The std type that holds a buffer drops those values first.
-22. r[module.rt.string.bytes] `string_bytes(text)` returns the `Ptr[u8]` of the first of the `text.len()` bytes of `text`'s UTF-8 encoding. The bytes stay at that address while `text` or a copy of it lives.
-23. r[module.rt.string.new] `new_string(len)` returns a new string of `len` bytes, whose values are unspecified until written. `new_string(0)` returns the empty string.
-24. r[module.rt.string.write] Only the bytes of a string that `new_string` returned are written through `string_bytes`, and std writes all of them, as valid UTF-8, before the string is used in any other way.
+10. r[module.rt.ptr.as-ref] `p.as_ref()` returns an `&T` to the value at `p`, and `p.as_mut()` an `&mut T`, without moving, copying, or counting it. Std keeps the value there and unchanged by any other path for `'a`, as the borrow of the value that holds it would.
+11. r[module.rt.ptr.integer] A value of an integer type is stored as its bytes, least significant first, so the [loads and stores](#r-module.rt.memory.load) of its width read and write it.
+12. r[module.rt.ptr.holds] Only the standard library reads or writes through a `Ptr[T]`, and it reads only where the heap holds a value of `T`.
+13. r[module.rt.ptr.bounds] A read or a write that reaches a byte outside the heap stops the program instance with no panic category, as for [`module.rt.memory.bounds`](#r-module.rt.memory.bounds).
+14. r[module.rt.buffer.type] A `Buffer[T]` is raw memory: the address of room for `capacity()` values of `T`, and that capacity. It has no length and no element operation: which places of its room hold a value is known only to the std code that writes them. Its fields are private.
+15. r[module.rt.buffer.not-copyable] `Buffer[T]` is not copyable: a read by value moves it, so its room has one owner. No count is kept of it.
+16. r[module.rt.buffer.borrowed-access] `capacity` and `at` take `&self`, and `grow` takes `&mut self`, so a call borrows the buffer, and only a writable buffer moves its room.
+17. r[module.rt.buffer.new] `Buffer::new(capacity)` returns a buffer with room for `capacity` values of `T`, none of which holds a value. A capacity whose bytes do not fit the heap panics. Panic: `heap-exhausted`.
+18. r[module.rt.buffer.at] `b.at(index)` returns the `Ptr[T]` of value `index` of the buffer's room: `b.at(0).offset(index)`. It checks no bound; reads and writes through it follow [`module.rt.ptr.holds`](#r-module.rt.ptr.holds).
+19. r[module.rt.buffer.grow] `b.grow(capacity)`, for a `capacity` above `b.capacity()`, moves the bytes of the room to a new room for `capacity` values and frees the old one, so each value moves to the same index of the new room. A smaller `capacity` has no effect. A capacity whose bytes do not fit the heap panics. Panic: `heap-exhausted`.
+20. r[module.rt.buffer.drop] `Buffer[T]` implements [`Drop`](#r-module.rt.drop.decl): dropping a buffer frees its room and drops none of the values in it. The std type that holds a buffer drops those values first.
+21. r[module.rt.string.bytes] `string_bytes(text)` returns the `Ptr[u8]` of the first of the `text.len()` bytes of `text`'s UTF-8 encoding. The bytes stay at that address while `text` or a copy of it lives.
+22. r[module.rt.string.new] `new_string(len)` returns a new string of `len` bytes, whose values are unspecified until written. `new_string(0)` returns the empty string.
+23. r[module.rt.string.write] Only the bytes of a string that `new_string` returned are written through `string_bytes`, and std writes all of them, as valid UTF-8, before the string is used in any other way.
 
 > **Note.** A read and a write of the same value back move it out, and a
 > read whose result is discarded drops the value in place.

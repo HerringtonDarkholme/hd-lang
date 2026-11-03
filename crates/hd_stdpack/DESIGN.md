@@ -84,7 +84,7 @@ others are private to the one module that calls them.
 | `dbg`, `dbg_printer`, `dbg_write`, `repl_write` | `format.hd` | compiler |
 | `panic_message`, `task_all`, `test_case`, `assert_equal`, `entry_write` | seeded items and `rt/entry/mod.hd` | compiler |
 | `mem_pages`, `mem_grow`, `mem_load_u8` to `mem_load_u64`, `mem_store_u8` to `mem_store_u64`, `mem_copy`, `mem_fill` | `rt/memory.hd`, the `pub` functions of the runtime module `std.rt.memory` (spec 10 `module.rt.memory.*`) | compiler; only std can use these runtime memory intrinsics |
-| `ptr_size_of`, `ptr_read`, `ptr_write`, `ptr_drop_in_place`, `ptr_ref`, `ptr_mut`, `ptr_offset` | `rt/memory.hd`: `size_of[T]` and the methods of `Ptr[T]` in `std.rt.memory` (spec 10 `module.rt.ptr.*`); the checker makes `read` and `write` a `Read` and a `Store` of the pointer's target | compiler; only std can use this typed memory |
+| `ptr_size_of`, `ptr_read`, `ptr_write`, `ptr_ref`, `ptr_mut`, `ptr_offset` | `rt/memory.hd`: `size_of[T]` and the methods of `Ptr[T]` in `std.rt.memory` (spec 10 `module.rt.ptr.*`); the checker makes `read` and `write` a `Read` and a `Store` of the pointer's target | compiler; only std can use this typed memory |
 | `mem_string_bytes`, `mem_new_string` | `rt/memory.hd`: `string_bytes` and `new_string` in `std.rt.memory` (spec 10 `module.rt.string.*`); `Buffer` is hd over the allocator (`module.rt.buffer.*`) | compiler; only std can use these |
 | `format_f64`, `format_f32` | `format.hd` | host primitive |
 | `string_lower`, `string_upper` | `rt/bytes.hd`: `host_lower`, `host_upper` | host primitive |
