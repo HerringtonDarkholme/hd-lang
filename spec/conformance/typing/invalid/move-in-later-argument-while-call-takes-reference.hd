@@ -1,0 +1,13 @@
+# test: an argument after a `&` that the call takes may not move the same place
+# Spec 13 Writes While Borrowed: ref.excl.args.shared, ref.excl.move.
+struct Bag:
+    labels: List[string]
+
+impl !Copy for Bag
+
+fn compare(seen: &Bag, kept: Bag) -> bool:
+    seen.labels.len() == kept.labels.len()
+
+pub fn main() -> void $ Console:
+    bag := Bag { labels: ["a"] }
+    println(compare(&bag, bag)) # diagnostic: conflicting-access

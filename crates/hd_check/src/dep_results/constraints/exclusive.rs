@@ -14,7 +14,7 @@
 //! which only a change of the collection's length conflicts with
 //! (`ref.elem.access.length`).
 
-use hd_base::NodeIdx;
+use hd_base::{NodeIdx, SliceSort as _};
 use hd_tir::ir::{
     Body, IntrinsicOp, NONE, PlaceRoot, Proj, Ref, Tag, Topology, Word, local_flags, slots,
 };
@@ -58,6 +58,17 @@ enum Kind {
     /// An element reference: a loan of its whole collection, which only a
     /// change of the collection's length conflicts with.
     Elem,
+}
+
+/// How an instruction accesses a place a loan may cover.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Access {
+    /// A move of the place or a part of it (`ref.excl.move`).
+    Move,
+    /// A write (`ref.excl.write`).
+    Write,
+    /// Any other use, which only an exclusive loan excludes.
+    Use,
 }
 
 /// The place loan `i` covers and its kind: a `Ref`'s place, or what a
@@ -339,6 +350,17 @@ impl Gen<'_, '_> {
         (out, sets)
     }
 
+    /// The moves of the body (`ref.excl.move`): each read that moves a
+    /// binding or a part of it, and the place it moves.
+    fn moves(&self) -> Vec<(u32, Path)> {
+        let b = self.s.b;
+        let mut out: Vec<(u32, Path)> = (self.s.moves.iter())
+            .filter_map(|&i| Some((i, path_of(b, b.data[i as usize][0])?)))
+            .collect();
+        out.sort_stable_by_key(|x| x.0);
+        out
+    }
+
     /// The uses of a place for an exclusive loan (`ref.excl.mut`): each
     /// read, reference and store of it but a declaring one, and each
     /// closure that captures its local. A read that only roots a longer
@@ -464,27 +486,43 @@ impl Gen<'_, '_> {
             cx: self,
         };
         let mut out: Vec<(NodeIdx, String)> = Vec::new();
+        // An access: the instruction, its place, where it happens, and
+        // whether it writes or moves its place. A move comes first, so its
+        // error says so.
+        let moves = self
+            .moves()
+            .into_iter()
+            .map(|(i, p)| (i, p, i, Access::Move));
         let writes = self
             .writes(&users)
             .into_iter()
-            .map(|(i, p, at)| (i, p, at, true));
-        let touches = self.accesses().into_iter().map(|(i, p)| (i, p, i, false));
+            .map(|(i, p, at)| (i, p, at, Access::Write));
+        let touches = self
+            .accesses()
+            .into_iter()
+            .map(|(i, p)| (i, p, i, Access::Use));
         // One error for a node, or a node inside or around it.
         let range = |n: NodeIdx| super::super::range(self.s.cx.src.parse.tree.node(n));
         let nests = |(a, b): (u32, u32), (c, d): (u32, u32)| a <= c && d <= b || c <= a && b <= d;
-        for (wi, (root, path), at, write) in writes.chain(touches) {
+        for (wi, (root, path), at, access) in moves.chain(writes).chain(touches) {
             let node = b.syn[wi as usize];
             if node == NodeIdx::NONE || out.iter().any(|x| nests(range(x.0), range(node))) {
                 continue;
             }
             'site: for (i, from, (r, sp), kind, holders) in &sites {
-                if *r != root || !overlap(sp, &path) || *i == wi || !write && *kind != Kind::Excl {
+                if *r != root
+                    || !overlap(sp, &path)
+                    || *i == wi
+                    || access == Access::Use && *kind != Kind::Excl
+                {
                     continue;
                 }
                 // `ref.elem.access.length`: only a change that may move the
-                // collection's length, of it or of a place that holds it.
+                // collection's length, of it or of a place that holds it,
+                // or a move of one (`ref.excl.move`).
                 if *kind == Kind::Elem
-                    && !(path.len() <= sp.len() && self.resizes(wi, path.len() == sp.len(), *i))
+                    && !(path.len() <= sp.len()
+                        && (access == Access::Move || self.resizes(wi, path.len() == sp.len(), *i)))
                 {
                     continue;
                 }
@@ -498,7 +536,12 @@ impl Gen<'_, '_> {
                     if reads[h as usize].iter().any(|&u| live(u)) {
                         let inner =
                             *kind == Kind::Elem && sp.iter().any(|s| matches!(s, Proj::Field(_)));
-                        out.push((node, self.conflict_message(root, h, *kind, inner)));
+                        let msg = if access == Access::Move {
+                            self.move_message(root, h, *kind, inner)
+                        } else {
+                            self.conflict_message(root, h, *kind, inner)
+                        };
+                        out.push((node, msg));
                         break 'site;
                     }
                 }
@@ -510,8 +553,8 @@ impl Gen<'_, '_> {
     /// `ref.excl.args`: a `&mut` a call takes against the call's other
     /// arguments and receiver. One that holds a loan of an overlapping
     /// place conflicts, and so does a use of one after a written `&mut`.
-    /// `ref.excl.args.shared`: a `&` a call takes against a write of an
-    /// overlapping place in a later argument. `ref.elem.conflict`: an
+    /// `ref.excl.args.shared`: a `&` a call takes against a write or a
+    /// move of an overlapping place in a later argument. `ref.elem.conflict`: an
     /// element reference argument against a length change of its
     /// collection. A call that holds an error of `found` already gets no
     /// other.
@@ -536,7 +579,7 @@ impl Gen<'_, '_> {
         let sites: Vec<_> = (sites.into_iter())
             .map(|(loan, i, p, k)| (loan, i, held_path(self.s, i, &p, k), p))
             .collect();
-        let (mut uses, mut writes) = (None, None);
+        let (mut uses, mut writes, mut moves) = (None, None, None);
         let mut out: Vec<(NodeIdx, String)> = Vec::new();
         for c in 0..b.tags.len() {
             if !matches!(
@@ -562,7 +605,8 @@ impl Gen<'_, '_> {
             };
             for &v in &args {
                 let writes = writes.get_or_insert_with(|| self.writes(&self.users()));
-                if let Some(e) = self.elem_arg_conflict(sol, c, v, &elems, writes) {
+                let moves = moves.get_or_insert_with(|| self.moves());
+                if let Some(e) = self.elem_arg_conflict(sol, (c, v), &elems, writes, moves) {
                     if !out.iter().any(|x| x.0 == e.0) {
                         out.push(e);
                     }
@@ -576,12 +620,19 @@ impl Gen<'_, '_> {
                 };
                 let hit = |q: &Path| q.0 == root && overlap(&path, &q.1);
                 let mut hits = Vec::new();
-                // A `&`: a write in a later argument.
+                // A `&`: a write or a move in a later argument.
+                let mut moving = false;
                 if !excl {
                     for (i, q, at) in writes.iter() {
                         if v < *at && (*at as usize) < c && !elem(*i, q) && hit(q) {
                             hits.extend([*i, *at]);
                         }
+                    }
+                    if let Some((i, _)) = (moves.iter()).find(|(i, q)| {
+                        v < *i && (*i as usize) < c && hit(q) && b.syn[*i as usize] != NodeIdx::NONE
+                    }) {
+                        hits.insert(0, *i);
+                        moving = true;
                     }
                 }
                 for &u in args.iter().filter(|&&u| excl && u != v) {
@@ -616,6 +667,8 @@ impl Gen<'_, '_> {
                     };
                     out.push((node, if excl {
                         format!("this uses {place} while the same call takes `&mut` of it; copy what this argument needs into a local before the call")
+                    } else if moving {
+                        format!("this moves {place} while the same call takes `&` of it; move it after the call")
                     } else {
                         format!("this writes {place} while the same call takes `&` of it; compute this argument into a local before the call")
                     }));
@@ -629,20 +682,54 @@ impl Gen<'_, '_> {
     /// `ref.elem.conflict`: argument `v` of call `c` holds an element
     /// reference of `elems`, and the call takes `&mut` of its collection or
     /// of a place that holds it in another argument, or a later argument
-    /// changes the collection's length (`ref.elem.access.length`).
+    /// changes the collection's length (`ref.elem.access.length`) or moves
+    /// it (`ref.excl.move`).
     fn elem_arg_conflict(
         &self,
         sol: &Solution,
-        c: usize,
-        v: u32,
+        (c, v): (usize, u32),
         elems: &[(u32, u32, Path)],
         writes: &[(u32, Path, u32)],
+        moves: &[(u32, Path)],
     ) -> Option<(NodeIdx, String)> {
         let b = self.s.b;
         let held = self.val(v).map(|x| x.0).unwrap_or_default();
+        let name = |r: u32, sp: &[Proj]| {
+            let n = self.s.cx.names.text(b.local_name[r as usize]);
+            let place = if n.starts_with('$') {
+                "a temporary".to_owned()
+            } else {
+                format!("`{n}`")
+            };
+            let inner = sp.iter().any(|s| matches!(s, Proj::Field(_)));
+            (place, inner)
+        };
         for (loan, i, (root, sp)) in elems {
             if !held.iter().any(|&g| sol.value(g).contains(*loan)) {
                 continue;
+            }
+            for (mi, (r, q)) in moves {
+                let node = b.syn[*mi as usize];
+                if v < *mi
+                    && (*mi as usize) < c
+                    && r == root
+                    && q.len() <= sp.len()
+                    && overlap(sp, q)
+                    && node != NodeIdx::NONE
+                {
+                    let (place, inner) = name(*r, sp);
+                    let what = if inner {
+                        "an element of a collection in it"
+                    } else {
+                        "an element of it"
+                    };
+                    return Some((
+                        node,
+                        format!(
+                            "this moves {place} while another argument of the same call refers to {what}; move it after the call"
+                        ),
+                    ));
+                }
             }
             for &(wi, (r, ref q), at) in writes {
                 let during = at as usize == c && wi != v || v < at && (at as usize) < c;
@@ -658,13 +745,8 @@ impl Gen<'_, '_> {
                 let Some(node) = node.into_iter().find(|&n| n != NodeIdx::NONE) else {
                     continue;
                 };
-                let n = self.s.cx.names.text(b.local_name[r as usize]);
-                let mut place = if n.starts_with('$') {
-                    "a temporary".to_owned()
-                } else {
-                    format!("`{n}`")
-                };
-                if sp.iter().any(|s| matches!(s, Proj::Field(_))) {
+                let (mut place, inner) = name(r, sp);
+                if inner {
                     place = format!("a collection in {place}");
                 }
                 return Some((
@@ -702,6 +784,31 @@ impl Gen<'_, '_> {
                 !matches!((key, b.record(rec).get(1)), (Some(k), Some(&s)) if same_key(b, k, s))
             }
             _ => true,
+        }
+    }
+
+    /// The message of a move of local `root` or a part of it while a
+    /// loan of it is live (`ref.excl.move`), `inner` when an element
+    /// reference's collection is a part of it.
+    fn move_message(&self, root: u32, holder: u32, kind: Kind, inner: bool) -> String {
+        let (b, names) = (self.s.b, &self.s.cx.names);
+        let name = |l: u32| {
+            let n = names.text(b.local_name[l as usize]);
+            (!n.starts_with('$')).then(|| format!("`{n}`"))
+        };
+        let place = name(root).unwrap_or_else(|| "a temporary".to_owned());
+        let what = match (kind, inner) {
+            (Kind::Elem, true) => "an element of a collection in it",
+            (Kind::Elem, false) => "an element of it",
+            _ => "it",
+        };
+        match name(holder) {
+            Some(h) => format!(
+                "this moves {place} while {h} refers to {what} and is used later; move it after {h}'s last use"
+            ),
+            None => format!(
+                "this moves {place} while a reference to {what} is used later; move it after that use"
+            ),
         }
     }
 

@@ -5774,3 +5774,10 @@ typing/invalid/collect-without-a-target.hd	type	reject:cannot-infer-type	std/ite
 typing/invalid/uniq-list-use-after-consuming-loop.hd	type	reject:use-of-moved-value	std/collections.md#r-std-collections.uniq-list.into-iter
 runtime/valid/uniq-list-cycle-collected.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.type
 runtime/valid/uniq-storage-drops-once.hd	runtime	accept	std/collections.md#r-std-collections.uniq-map.insert
+typing/invalid/move-while-reference-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.move
+typing/invalid/move-in-later-argument-while-call-takes-reference.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.args.shared
+typing/invalid/pattern-move-while-reference-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.move
+typing/valid/move-after-last-use-of-reference.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.move
+typing/valid/move-field-while-reference-to-another-field-live.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.move
+typing/valid/copied-value-read-while-reference-live.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.move
+runtime/valid/a-move-after-the-last-use-of-a-reference-keeps-the-value.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.move

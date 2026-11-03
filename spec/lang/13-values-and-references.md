@@ -591,7 +591,7 @@ See also: [Element References](#element-references),
 
 ### Writes While Borrowed
 
-While a shared reference to a place is in use, the place may be read but not changed. While a `&mut` reference to it is in use, the place may not be used at all except through that reference.
+While a shared reference to a place is in use, the place may be read but not changed or moved. While a `&mut` reference to it is in use, the place may not be used at all except through that reference.
 
 ```text
 struct User:
@@ -636,18 +636,45 @@ fn copy_name(u: &mut User, v: &User) -> void:
 2. r[ref.excl.mut] While a `&mut p` is live, a use of `p` or of a place that overlaps it is an error, except through that reference. A use is a read, a write, a `&p`, another `&mut p`, or a closure that captures it. Error: `conflicting-access`.
 3. r[ref.excl.place] The rules cover a written `&p` or `&mut p` whose place is a local or a parameter followed by fields and dereferences. Two places of one local overlap unless their paths name two different fields at the same depth.
 4. r[ref.excl.write] A write is an assignment to the place or a part of it, a `&mut` of it that a binding keeps, or a call that takes `&mut` of it or a `&mut` binding to it. A `&mut self` method call is such a call. A built-in change writes too: a list's `push` or `reserve`, a map store, and a map's `remove`. A call's `&mut` writes when the call runs, after its other arguments.
-5. r[ref.excl.live] The reference is live until the last use of a binding whose origin set holds it, not until the end of the block. A use that the write cannot reach does not count: one in another arm of the same branch, or one after a `return`. A use earlier in a loop counts when the binding is declared outside the loop.
-6. r[ref.excl.reassign] Assigning the binding a value whose origin set does not hold the reference ends the reference's use through it.
-7. r[ref.excl.declare] A `let` or `:=` makes a new local, so it writes no place a reference from an earlier iteration of its loop points into.
-8. r[ref.excl.call] The `&` a call takes for a `&self` receiver or a `&` parameter is a shared reference to the whole place it was taken from. A `&mut` binding that a call takes as `&` lends the place it refers to in the same way. A `&mut` a call takes, a passed-on `&mut` binding included, lends the whole place as a `&mut` reference. A call's result that depends on that reference holds it ([`ref.dep.call`](#r-ref.dep.call)), even where the result points into one field, unless its signature names that field ([`ref.result.path.caller`](#r-ref.result.path.caller)). A result of type `&mut T` holds that reference as a `&mut` one after the call, whatever the receiver or parameter kind, as when a `&self` method returns a `&mut` through a `*mut` field.
-9. r[ref.excl.args] While a call takes a `&mut` of a place, its other arguments and its receiver may not hold a reference to an overlapping place. An element reference falls under [`ref.elem.conflict`](#r-ref.elem.conflict) instead. Error: `conflicting-access`.
-10. r[ref.excl.args.after] An argument after a written `&mut p` argument may not use `p` or an overlapping place. The arguments of a `&mut self` method call may read the receiver's place, as in `xs.push(xs.len())`. Error: `conflicting-access`.
-11. r[ref.excl.args.shared] An argument after a `&` of `p` that the call takes, written or for a `&self` receiver, may not write `p` or an overlapping place: `referred(&ys, ys.pop())` is an error, and `referred(&ys, ys.len())` is valid. An element reference falls under [`ref.elem.conflict`](#r-ref.elem.conflict) instead. Error: `conflicting-access`.
+5. r[ref.excl.move] While a reference to `p` is live, a move of `p` or of a place that overlaps it is an error. A move is a read that [`ref.move.sites`](#r-ref.move.sites), [`ref.move.field`](#r-ref.move.field) or [`ref.move.pattern`](#r-ref.move.pattern) makes a move. A copied value does not move, so reading it is valid. Error: `conflicting-access`.
+6. r[ref.excl.live] The reference is live until the last use of a binding whose origin set holds it, not until the end of the block. A use that the write or move cannot reach does not count: one in another arm of the same branch, or one after a `return`. A use earlier in a loop counts when the binding is declared outside the loop.
+7. r[ref.excl.reassign] Assigning the binding a value whose origin set does not hold the reference ends the reference's use through it.
+8. r[ref.excl.declare] A `let` or `:=` makes a new local, so it writes no place a reference from an earlier iteration of its loop points into.
+9. r[ref.excl.call] The `&` a call takes for a `&self` receiver or a `&` parameter is a shared reference to the whole place it was taken from. A `&mut` binding that a call takes as `&` lends the place it refers to in the same way. A `&mut` a call takes, a passed-on `&mut` binding included, lends the whole place as a `&mut` reference. A call's result that depends on that reference holds it ([`ref.dep.call`](#r-ref.dep.call)), even where the result points into one field, unless its signature names that field ([`ref.result.path.caller`](#r-ref.result.path.caller)). A result of type `&mut T` holds that reference as a `&mut` one after the call, whatever the receiver or parameter kind, as when a `&self` method returns a `&mut` through a `*mut` field.
+10. r[ref.excl.args] While a call takes a `&mut` of a place, its other arguments and its receiver may not hold a reference to an overlapping place. An element reference falls under [`ref.elem.conflict`](#r-ref.elem.conflict) instead. Error: `conflicting-access`.
+11. r[ref.excl.args.after] An argument after a written `&mut p` argument may not use `p` or an overlapping place. The arguments of a `&mut self` method call may read the receiver's place, as in `xs.push(xs.len())`. Error: `conflicting-access`.
+12. r[ref.excl.args.shared] An argument after a `&` of `p` that the call takes, written or for a `&self` receiver, may not write or move `p` or an overlapping place: `referred(&ys, ys.pop())` is an error, and `referred(&ys, ys.len())` is valid. An element reference falls under [`ref.elem.conflict`](#r-ref.elem.conflict) instead. Error: `conflicting-access`.
 
-> **Why.** This is Rust's E0506, E0503 and E0499 with non-lexical
+```text
+struct Bag:
+    labels: List[string]
+
+impl !Copy for Bag
+
+fn consume(bag: Bag) -> usize:
+    bag.labels.len()
+
+fn count(bag: Bag, names: List[string]) -> usize:
+    r := &bag
+    s := &names
+    copy := names     # valid: a list is copied
+    k := r.labels.len() + s.len() + copy.len()
+    n := consume(bag) # valid: after the last use of r
+    n + k
+
+fn early(bag: Bag) -> usize:
+    r := &bag
+    n := consume(bag) # error: conflicting-access
+    n + r.labels.len()
+```
+
+> **Why.** This is Rust's E0506, E0503, E0499 and E0505 with non-lexical
 > lifetimes. A write while a shared reference is live would change what the
 > reader sees behind its back, and a `&mut` holder expects the same of its
-> place. A call's result locks its whole source, as in Rust, unless its
+> place. A move would leave the reference pointing at a value that another
+> owner may free.
+>
+> A call's result locks its whole source, as in Rust, unless its
 > signature names the field the result points into ([Result Paths](#result-paths)). The fixes are
 > Rust's: make the change after the last use, copy the value out first
 > (`name := *u.name()`), or borrow only the field the code reads (`&u.name`).
@@ -1737,7 +1764,7 @@ fn demo() -> void:
    - Two keys are one key when both are one constant or reads of one `:=` binding.
 5. r[ref.elem.unaliased] A collection is **unaliased** when it is a local binding or a value parameter, or a struct field or element reached from one through no reference, and no escaping closure captures that binding.
 6. r[ref.elem.escaping] A closure is **escaping** when it is passed as an argument, returned, stored in a field, an element, a payload, or a top-level binding, or captured by an escaping closure.
-7. r[ref.elem.conflict] During an access to an unaliased collection, another argument or the receiver of the same call that may change the collection's length is an error. Error: `conflicting-access`.
+7. r[ref.elem.conflict] During an access to an unaliased collection, another argument or the receiver of the same call that may change the collection's length, or a later argument that moves it ([`ref.excl.move`](#r-ref.excl.move)), is an error. Error: `conflicting-access`.
    - The collection may also be a place that [`ref.excl.place`](#r-ref.excl.place) covers, so one reached through a `&mut` parameter, as in `change(list, &mut list[2])`.
    - An argument that holds an element reference is an access, whether the call takes the reference or a binding holds it, as in `grow(&mut xs, first)` after `first := &xs[0]`.
 8. r[ref.elem.access.pin] Every access **pins** its collection while it lasts, so a length change that no rule rejects at compile time panics.
