@@ -775,8 +775,8 @@ impl Em<'_, '_, '_> {
     }
 
     /// A shared probe's short loan: `.Some` of the value's address in the
-    /// table as it is, with no count. A table a view's getter made stays
-    /// until the loan ends ([`Em::end_short_loan`]).
+    /// table as it is, with no count. A copy of the table read through a
+    /// view stays until the loan ends ([`Em::end_short_loan`]).
     fn map_probe_lent(
         &mut self,
         i: u32,

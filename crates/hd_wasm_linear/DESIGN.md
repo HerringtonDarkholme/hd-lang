@@ -1674,17 +1674,27 @@ same erased bodies, thunks and witness fields.
   #619), still one word, so a reference keeps one ABI on both sides. A
   view is a 20-byte object whose descriptor is `rt:ref_view_drop`: the
   source reference it retains (an address, or another view), a getter
-  slot that answers the value as an owned erased box, a setter slot that
-  takes one, a field offset, and whether the source is an erased word.
-  A field reference into a view (`&mut alias.text`) is a view whose
-  getter and setter read and write the whole parent through the parent
-  view. Every concrete read and write through a reference is emitted
-  inline: when std's `block_of` finds the address is the payload of a
-  block whose descriptor is the view's, the access goes through the
-  getter or setter and unboxes or boxes the value; otherwise it loads or
-  stores the leaves at the address as before. Inline, a value of any
-  width stays in locals and never crosses a function's parameters or
-  results. Since a view forwards each access, aliases see later writes
+  slot, a setter slot, a field offset, and whether the source is an
+  erased word. The getter moves the value out of the source's place into
+  an erased box and leaves zeros there. The setter moves a box's value
+  into the place, as an owned open value leaves its box, and releases
+  what the place held. A view never copies its value, so a `!Copy` value,
+  such as a `std.rt.memory.Buffer` holder, keeps one holder (#1281). A
+  field reference into a view (`&mut alias.text`) is a view whose getter
+  takes the parent out through the parent view, moves the field out and
+  puts the rest back, and whose setter puts a new field in the same way;
+  a payload reference does so with the enum's slots. Every concrete read
+  and write through a reference is emitted inline: when std's `block_of`
+  finds the address is the payload of a block whose descriptor is the
+  view's, a read calls the getter, reads the leaves from the box and
+  hands the same box to the setter, and a write boxes the new value for
+  the setter. Otherwise it loads or stores the leaves at the address as
+  before. Either way a loan reads the place's own leaves with no count,
+  and a copy takes counts of its own. Only an erased body's loan of an
+  open value through a view is a copy, which the read's `Drop` releases,
+  since the box a getter makes over a concrete place goes once the
+  setter takes the value back. Inline, a value of any width stays in
+  locals and never crosses a function's parameters or results. Since a view forwards each access, aliases see later writes
   from either side, after the call has returned and from a cold call.
   Identity (`is`) follows views to their source: an address plus the
   field offset, or for an erased word the pair of the word and the
@@ -1711,8 +1721,10 @@ same erased bodies, thunks and witness fields.
 - **Checked by** the five conformance cases of the issue, in normal and
   checked mode, whose count audit covers every box and cell, and by
   `erased-method-boxed-reference-argument` and
-  `dyn-generic-suspension-kept` (issue #617), and the seven
-  `erased-reference-*` cases (issue #619).
+  `dyn-generic-suspension-kept` (issue #617), the seven
+  `erased-reference-*` cases (issue #619), and
+  `erased-reference-noncopyable-local`, in checked mode with the buffer
+  retain trap (#1281).
 
 ### 23.28 The Cycle Collector
 

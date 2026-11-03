@@ -1338,9 +1338,9 @@ impl Em<'_, '_, '_> {
         let at = self.f.local(Val::I32);
         self.comp(args[0], 0)?;
         self.f.set(at);
-        // A field reference may be a representation view: its getter's
-        // copy, which the change's unique copy replaces, and the new
-        // buffer stored back by its setter.
+        // A field reference may be a representation view: a copy of the
+        // list it lends, which the change's unique copy replaces, and the
+        // new buffer stored back by its setter.
         self.f.get(at);
         self.f.helper(Helper::RefIsView);
         self.f.op(I::If(BlockType::Empty));

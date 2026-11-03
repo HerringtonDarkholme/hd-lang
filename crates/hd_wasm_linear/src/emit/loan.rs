@@ -43,11 +43,12 @@ use super::refs::Fresh;
 #[derive(Default)]
 pub(super) struct ShortLoan {
     /// The values made while emitting the origin that the loan must keep
-    /// until its end: a view's fresh values, each behind its flag.
+    /// until its end: copies of open values read through views, each
+    /// behind its flag.
     pub(super) fresh: Vec<Fresh>,
     /// A map probe's `owned` flag and table, and the map's type: when the
-    /// map's reference is a view, its getter made the table, which the end
-    /// releases.
+    /// map's reference is a view, the probe read a copy of the table, which
+    /// the end releases.
     pub(super) table: Option<(u32, u32, Ty)>,
 }
 
