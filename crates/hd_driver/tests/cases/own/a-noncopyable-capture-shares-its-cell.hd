@@ -1,0 +1,9 @@
+# @dump: own
+# @build: std
+# A closure and its scope share the one cell that owns a non-copyable value.
+use std.collections.UniqList
+
+fn later() -> fn() -> usize:
+    items := UniqList::[i64].new()
+    # subject
+    fn() -> usize: items.len()

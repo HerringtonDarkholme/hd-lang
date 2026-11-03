@@ -5048,18 +5048,24 @@ impl Ck<'_, '_> {
             self.check_inferred_result(node, ret);
         }
         // Capture modes (`crates/hd_tir/DESIGN.md` "Data and closures"): `Copy`
-        // when no side assigns the local after its declaration or changes
-        // its collection in place, `Shared` otherwise. `Move` needs the
-        // liveness pass and is not chosen yet.
+        // for a copyable local when no side assigns it after its declaration
+        // or changes its collection in place, `Shared` otherwise. A scoped
+        // local-reference capture keeps its loan rather than another owner.
+        // `Move` needs the liveness pass and is not chosen yet.
         let modes: Vec<hd_tir::ir::CaptureMode> = {
             let changed = std::mem::take(&mut self.changed_locals);
-            let body = self.b.body_mut();
+            let pool = self.pool();
+            let body = self.b.body();
             body.cap_local
                 .iter()
                 .map(|l| {
                     let f = body.local_flags[l.idx()];
+                    let ty = self.infer.resolve(pool, body.local_ty[l.idx()]);
+                    let owns_noncopyable =
+                        !self.copies(ty) && !crate::local_refs::holds_local_ref(pool, ty);
                     if f & (local_flags::CAPTURED_ASSIGNED | local_flags::MUTATED) != 0
                         || changed.contains(l)
+                        || owns_noncopyable
                     {
                         hd_tir::ir::CaptureMode::Shared
                     } else {
