@@ -3084,15 +3084,16 @@ impl Em<'_, '_, '_> {
     /// (`module.rt.memory.*`): each is one instruction. A load or a store
     /// is little-endian and takes any address; `grow` reads Wasm's `-1` as
     /// `.None`; `copy` is `memory.copy`, which allows overlap. A new
-    /// buffer is a list's buffer, whose glue drops the values it holds
-    /// (`module.rt.buffer.*`); a string's bytes are its address, and a new
+    /// buffer is laid out as a list's buffer, whose glue drops the values
+    /// it holds, and the collector traces it with its holder
+    /// (`module.rt.buffer.*`, §23.28); a string's bytes are its address, and a new
     /// string of no bytes the static empty one (`module.rt.string.*`).
     fn memory(&mut self, i: u32, key: &str, args: &[u32]) -> StageResult<()> {
         let op = match key {
             "mem_buffer" => {
                 let (_, elem) = self.elem(self.ty(i))?;
                 self.push(args[0])?;
-                self.f.helper(Helper::ListBuf { elem });
+                self.f.helper(Helper::OwnedBuf { elem });
                 return self.store_owned(i);
             }
             "mem_string_bytes" => {
