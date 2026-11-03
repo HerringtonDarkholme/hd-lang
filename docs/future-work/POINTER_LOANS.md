@@ -5,16 +5,23 @@ not accepted. Issue #1323, part of #1205, after #1320.
 
 ## The Proposal
 
-Every counted object carries a borrow state, as a Rust `RefCell` does:
-an exclusive bit and a shared-loan count, in six spare bits of its
-descriptor word, so no object grows. A reference whose place crosses a
-`*T` and lives past its expression takes a **loan** on each object it
-crosses, until its last use. An access through a `*T` takes no loan: a
-write checks that the object has no loan but the function's own, and a
-read checks that it has no exclusive one. A conflict panics
-`borrow-conflict`. A reference that crosses no `*T` emits nothing: no
-count, no pin, no check. The page-table counts on references, the
-`List`/`Map` pin and the address-range loan table go.
+This note covers aliasing through a `*T`: two names that hold the same
+pointer. Paths with no `*T` are settled, checked statically at no cost
+(#1320). Two models are compared, and both keep every conflict the
+checker can see a compile error.
+
+- **A. Loans.** Every counted object carries a borrow state, as a Rust
+  `RefCell` does: an exclusive bit and a shared count in six spare
+  descriptor bits, so no object grows. A reference through a `*T` takes a
+  **loan** on each object it crosses until its last use, unless nothing
+  in its live range can write those types through a pointer
+  (**per-reference elision**). An alias's conflicting access panics
+  `borrow-conflict`.
+- **B. Keep-alive, as Go.** A reference through a `*T` counts the
+  storage it points into, which is never freed while counted. There is no
+  exclusivity: an alias may write at any time, and a reference may see a
+  replaced or grown collection's old storage, stale but never freed. A
+  `UniqList`/`UniqMap` room keeps the pin (`collection-pinned`).
 
 ```text
 struct Team:
@@ -26,137 +33,204 @@ struct User:
     age: i32
 
 fn rename(t: *mut Team, alias: *mut Team) -> string:
-    n := &t.lead.name               # shared loans on the Team and on the User
-    t.log.push("renamed")           # runs: a field of t's own loan, proved apart
-    alias.lead.age += 1             # panics borrow-conflict: the User has n's loan
-    alias.lead = box(User { name: "b", age: +1 })  # would panic too: the Team has one
-    *n                              # n's last use: both loans end here
+    n := &t.lead.name           # A: shared loans on the Team and the User; B: a count of the User
+    t.log.push("renamed")       # both run: t's own path, a field the checker proves apart
+    alias.lead.age += 1         # A: panics borrow-conflict; B: runs
+    *n
 
-fn local_only(u: &mut User) -> usize:
-    n := &u.name                    # no *T on the path: no code at all
-    u.age += 1
-    n.len()
+fn same_root(t: *mut Team) -> string:
+    n := &t.lead.name
+    t.lead = box(User { name: "b", age: +1 })  # both: conflicting-access at compile time
+    *n
+
+fn greet(u: *User) -> void $ Console:
+    n := &u.name                # A: no loan, nothing in range writes a User
+    println(*n)
 ```
+
+**Recommendation: A.** It keeps `&mut` exclusive and every read of a
+reference the value that its own writes left, and it panics where B
+silently loses a write. With elision it adds nothing to any bench
+program, and where a loan stays it costs 0.5 ns against B's 8 ns count.
+B is about 1,500 lines smaller to build and removes the friction of
+object granularity, at the cost of stale reads and lost writes.
 
 ## Open Questions
 
-1. **Object granularity.** A write to another field of a borrowed object
-   through an alias panics, where today it runs. Accept, as `RefCell`
-   does? Recommended: yes; the fix is a value loop or a boxed field.
-2. **Own loans.** May a write through the pointer the loan was taken
-   through, to a field the checker proves apart, skip the function's own
-   loans? Recommended: yes; without it `for x in &p.items: p.count += 1`
-   panics with no alias in sight.
-3. **Element references.** Replace the pin with two compile-time rules:
-   no copy of a collection while a `&mut` element reference lives, and no
-   write to it while a `&` one lives? Recommended: yes.
-4. **Captured variables.** Treat a variable a closure shares as behind a
-   `*mut` (its cell), so a reference into it takes loans? Recommended:
-   yes; it is the one hidden alias the checker cannot see.
-5. **Release.** Keep every loan and check in release, with the per-type
-   elision of variant 2? Recommended: variant 2.
-6. **Shared-count overflow.** Spill past 31 nested shared loans on one
-   object to a side table, or panic? Recommended: spill.
+1. **A or B?** Recommended: A, for the reasons above.
+2. **Per-reference elision** by per-type release write summaries?
+   Recommended: yes; it removes every loan in the 22 bench programs.
+3. **Object granularity (A).** A write to another field of a borrowed
+   object through an alias panics, where today it runs. Accept, as
+   `RefCell` does? Recommended: yes; the fix is a value loop or a boxed
+   field.
+4. **Own loans (A).** May a write through the loan's own pointer, to a
+   field the checker proves apart, skip the function's own loans?
+   Recommended: yes; else `for x in &p.items: p.count += 1` panics.
+5. **Element references (A).** No copy of a collection while a `&mut`
+   element reference lives, and no write while a `&` one lives?
+   Recommended: yes; it replaces the pin.
+6. **Captured variables.** Treat a variable a closure shares as behind a
+   `*mut` (its cell)? Recommended: yes, in both models.
+7. **Shared-count overflow (A)** past 31: spill to a side table or
+   panic? Recommended: spill.
 
 ## Problems It Solves
 
 **1. Freed memory behind a pointer.** Today a `UniqList` behind a `*T`
-can be replaced while an element reference into it lives
-(`alias.items = UniqList::new()`, the #1320 finding), and the reference
-reads freed memory. With loans, `get_ref` through `p` takes a shared loan
-on `p`'s object, and the write `alias.items = ...` checks it and panics.
-The matrix has 54 cases on main that read freed memory, 52 through an
-alias and 2 through a released root (#1327); none does under the proposal.
+can be replaced while an element reference into it lives, and the
+reference reads freed memory: 27 matrix cases on main (two of them
+#1327). A panics `borrow-conflict` first; B panics `collection-pinned`.
 
-**2. Three mechanisms for one question.** Today a reference into `*T`
-data takes a page-table count, a `List` element reference pins its
-buffer and panics `collection-pinned`, and a field reference registers an
-address range that every access scans. Each covers part of the matrix:
-of its 292 conflicts, 110 run with no panic today and 29 panic with the
-other category. One borrow state covers all of them.
+**2. One rule for every alias.** Today a field reference registers an
+address range, a `List`/`Map` element reference pins its buffer, and a
+`UniqList` one counts its room. Of the 283 matrix conflicts on `*T`
+paths, 103 run with no panic today and 56 panic `collection-pinned`. A
+gives all of them one borrow state; B makes all but the `UniqList` ones
+legal.
 
-**3. Cost where no pointer is.** Today `&mut xs[i]` on a local list pins
-its buffer and counts it, though no alias can exist. Under the proposal
-a path with no `*T` is checked at compile time only and emits nothing.
-
-**4. Checks that vanish in release.** Today the call loan and the path
-loan (`ref.excl.alias.call-loan`, `.path-pointer`) are not checked in
-release. Under the proposal every build checks the same rules; release
-only drops what the whole program proves cannot conflict.
+**3. The cost of a spanning reference.** Today one costs a page-table
+count and a loan-table entry, 16.6 ns in the micro. A makes it a 0.5 ns
+loan, or nothing when elided; B keeps the 8.0 ns count.
 
 ## How It Works
 
-**State.** Bits 16 to 21 of the descriptor word (§23.4 of
+**Static first, in both models.** Every rule of
+[Writes While Borrowed](../../spec/lang/13-values-and-references.md#writes-while-borrowed)
+applies through pointers, since `ref.excl.place` covers fields and
+dereferences of one root, and two more cases are compile errors:
+
+- A pointer argument is an access to its whole pointee for the call's
+  other arguments: `*mut T` a write, `*T` a read.
+  `mutate(boxed, &boxed.field)` and `inspect(view, &mut view.field)` are
+  `conflicting-access`; `inspect(view, &view.field)` is two reads. At
+  run time passing a pointer is no access.
+- A call result that depends on a `*T` argument is a local reference to
+  that argument's root (`ref.dep.call`): `r := borrow(boxed)` then
+  `boxed.change()` conflicts, and `r` cannot outlive the local `boxed`.
+
+Only a second name for the same pointer (`alias := a`, a field, a call
+result, a parameter) reaches the run-time model.
+
+**A: state.** Descriptor bits 16 to 21 (§23.4 of
 `crates/hd_wasm_linear/DESIGN.md`): bit 21 exclusive, bits 16 to 20 the
-shared count. The release glue's slot keeps bits 0 to 15 (65,535 slots;
-the largest bench program, `json`, has 48 table entries). A cell of a
-captured variable has the same header, so no object grows.
+shared count. The release glue's slot keeps bits 0 to 15; the largest
+bench program, `json`, has 48 table entries.
 
-**Loans.** A reference that crosses `*T` objects `o1 … on` and is bound,
-stored, returned, captured or passed takes a shared loan on `o1 … o(n-1)`
-and, on `on`, a shared loan for `&` or an exclusive one for `&mut`. A
-`&`/`&mut` argument takes its loans from its evaluation until the call
-returns; a `&mut self` receiver takes a shared loan first and becomes
-exclusive when the call starts (two-phase, so `p.items.push(alias.items.len())`
-runs). A loan ends after the last use of every value holding the
-reference, placed like a `Drop`: exits, `break`, a task's abandonment.
+**A: loans.** A reference that crosses `*T` objects `o1 … on` takes a
+shared loan on `o1 … o(n-1)` and, on `on`, a shared loan for `&` or an
+exclusive one for `&mut`. An argument's loans run from its evaluation to
+the return; a `&mut self` receiver is shared until the call starts. A
+loan ends after the last use of every value holding the reference.
 
-**Checks.** Taking a shared loan checks the exclusive bit; taking an
-exclusive one checks the whole state. A write through a `*T` (an
-assignment, a built-in change) checks the whole state, and a read checks
-the exclusive bit. Each check compares with the function's **own** loans
-through the same pointer local, a constant the checker knows, so a write
-the static rules allow never panics on the writer's own reference.
+**A: checks.** Taking a shared loan checks the exclusive bit, an
+exclusive one the whole state. A write through a `*T` checks the whole
+state, a read the exclusive bit, each against the function's own loans
+through the same pointer local.
 
-**Roots.** The local or parameter holding the first `*T` of a live loan's
-path is released after the loan ends, and a `*T` argument read from a
-place the call may write is counted for the call. A suspending body's
-frame owns its pointer parameters (#1327 is today's bug of that kind).
+**A: per-reference elision.** A reference takes no loan, and needs no
+matching check, when nothing between taking it and its last use can
+write any type it crosses through a pointer: no write through a `*T` of
+that type, and every call has a release write summary that writes none
+(for `&mut`, neither reads nor writes). A function value, a trait call
+whose implementations are not all known, a suspension point and an
+erased body count as writing everything. A type none of whose loans
+survive needs no check anywhere.
 
-**Element references.** With no pin, only a copy can detach a reference
-from its slot (copy-on-write). So a copy of a collection while a `&mut`
-element reference lives is `conflicting-access`, and so is a write to it
-while a `&` one lives. Through a `*T`, an alias's copy is a read, which a
-`&mut` loan stops, and an alias's write is stopped by any loan. A
-reference derived through a `&T` or `&mut T` parameter needs no count or
-pin: a caller that reached the list through a `*T` holds a call loan for
-the whole call, and the reference cannot outlive it.
+**A: element references.** With no pin, only a copy can detach a
+reference from its slot, so a copy while a `&mut` element reference
+lives and a write while a `&` one lives are `conflicting-access`.
 
-**Emitted code**, per operation (`o` is the object's payload address):
+**B: counts.** A reference through a `*T` that leaves a short loan
+counts each object it crosses and the `List`/`Map` buffer or string it
+points into (#1320's rule, kept). An alias's write, growth or
+replacement goes ahead; the reference reads the storage it counted. A
+`UniqList`/`UniqMap` growth, shrink or replacement while an element
+reference lives panics `collection-pinned`, since its elements move.
 
-| Operation | Code |
+**Both: roots.** The local or parameter holding the first `*T` of a live
+reference's path lives until the reference's last use; a suspending
+body's frame owns its pointer parameters (#1327 is today's bug).
+
+| A's operation (`o` the payload address) | Code |
 | --- | --- |
-| reference with no `*T` on its path | nothing |
-| shared loan begin / end | `s = load(o-4)`; `if s & X: panic`; `store(o-4, s + 1<<16)` / `store(o-4, load(o-4) - 1<<16)` |
-| exclusive loan begin / end | `s = load(o-4)`; `if s & M != own: panic`; `store(o-4, s \| X)` / clear `X` |
-| write `p.f = v` through `*T` | `if load(o-4) & M != own: panic`, then the store |
-| read `p.f` through `*T` | `if load(o-4) & X != own: panic`, then the load |
+| shared loan begin / end | `s = load(o-4)`; `if s & X: panic`; `store(o-4, s + 1<<16)` / subtract |
+| exclusive loan begin / end | `if load(o-4) & M != own: panic`; set `X` / clear it |
+| write through `*T` | `if load(o-4) & M != own: panic`, then the store |
+| read through `*T` | `if load(o-4) & X != own: panic`, then the load |
 
-`X` is bit 21, `M` bits 16 to 21. A begin at count 31 calls
-`rt:loan_spill`, which keeps the rest in a side table.
+## `*T` Where `&T` Is Expected
 
-**Elision.** Debug and test builds check everything above. Release, over
-the whole program, drops the loans and checks on a pointee type `T`
-through which no reference outlives its expression (variant 2), and on a
-type written through no `*T` at all.
+```text
+struct Shape:
+    w: f64
+    h: f64
+
+impl Shape:
+    fn area(&self) -> f64: self.w * self.h
+
+fn total(p: *Shape) -> f64:
+    p.area()                    # the receiver is &*p
+```
+
+In A, `p.area()` lends `&*p` with a shared call loan for the call, and
+elision removes it because `area` writes nothing through a pointer. In
+B it lends `&*p` as a short loan, with no count. Std passes a `*T` to a
+`&T` parameter 26 times, and calls a `&self` method on a `*T` 66 times
+and a `&mut self` one on a `*mut T` 188 times (the 18 std files every
+std import reaches). The bench's own code does it 19 times, the stress
+cases 5 times.
+
+## Two Models Compared
+
+| Below the pointer | A: loans, with elision | B: keep-alive |
+| --- | --- | --- |
+| a plain field | an alias's conflicting access panics | runs; the reference sees the write |
+| data behind a nested `*T` | replacing the inner pointer panics | runs on the old object, stale |
+| a `List`/`Map` | a length change or element write panics | runs on the old buffer, stale; a write through the reference is lost |
+| a `UniqList`/`UniqMap` | a length change or replacement panics | panics `collection-pinned` |
+
+| Measure | A | B |
+| --- | --- | --- |
+| 362 matrix cases on `*T` paths | panics in 283, runs in 79 (all 79 elided) | runs 302 (86 of them stale), panics 60 |
+| stress friction (Appendix A) | A2 and A4 panic | none |
+| semantics lost | none | `&mut` exclusivity behind a pointer; writes through stale element references |
+| bench time, release, default V8 tier | elision keeps 0 loans, so it adds nothing; it also drops main's counts (not measured) | byte-identical to main: its counts stay, and no bench program emits the loan table it removes |
+| bench size | 0 after elision; +1,024 B in `json` without | 0 |
+| per spanning reference (micro) | 0.5 ns, or 0 elided | 8.0 ns |
+| implementation (estimated) | about −1,800 and +1,700 lines: checker, ownership insertion, release summaries, emitter, runtime, std | about −1,500 and +150 lines: checker, emitter, runtime |
+
+## Delta From Main
+
+Main (156cba91c, after #1320) already has parts of both. A reference
+through a `*T` counts the object through the page table (B's keep-alive,
+stale when replaced). A `List`/`Map` element reference pins its buffer,
+and a `UniqList`/`UniqMap` one counts its room, so a length change panics
+`collection-pinned`; replacing or dropping a unique collection is still
+unsound. A binding reference registers an address range in the loan
+table, which is A's exclusivity, field-precise; the call and path loans
+run in debug and test builds only, so verdicts differ by mode (#1331).
+
+| | A: loans | B: keep-alive |
+| --- | --- | --- |
+| added | loan bits and checks in every build; own loans, the element rules and cells in the checker; per-type write summaries for elision | a pin check on replacing or dropping a pinned unique collection |
+| removed | page-table counts on references through `*T`, the loan table, the `List`/`Map` pin, the room count | the loan table, the `List`/`Map` pin |
+| behaviour, 362 matrix cases on `*T` paths | 100 `borrow-conflict` panics stay; 56 `collection-pinned` become `borrow-conflict`; 103 that run start to panic; 24 unsound ones panic; 79 still run | 92 `borrow-conflict` panics run instead and 8 become `collection-pinned`; 28 `List`/`Map` pins run on stale buffers; 28 unique pins stay; 24 unsound ones panic `collection-pinned`; 182 still run |
+| all builds agree | yes | yes |
+| per spanning reference (micro, against main's 16.6 ns) | 0.5 ns, or 0 elided | 8.0 ns |
+| bench time and size against main | adds nothing after elision; removes main's counts (not measured) | byte-identical: no bench program emits the loan table |
 
 ## Cost
 
-| Component | Change |
-| --- | --- |
-| code removed | the loan table (`emit/excl.rs`, 1,151 lines, and `rt:loan_*`, about 220), the pin (`Pin`, `rt:list_pinned`, owner-word copies), page-table counts on references |
-| code added (estimated) | loan begin/end and checks inline, about 600 lines; the own-loan count and three checker rules; the release type summary; `rt:loan_spill` |
-| runtime, variant 1, always check (measured) | a check 0.16 to 0.21 ns, a loan about 0.5 ns; `binary_trees` +7% (30 M call loans), `json` +1%, the rest within noise or byte-identical |
-| runtime, variant 2, per-type elision (measured) | `json` +1%, the rest byte-identical; `binary_trees` keeps its call loans (+7%) by the reference rule alone, and drops them by the no-write rule (its `Node` is never written) |
-| runtime, variant 3, no references (estimated) | 0, after rewriting what it rejects ([C.1](#c1-the-fallback-no-references-through-t)) |
-| Wasm size (measured) | variant 1: `json` +1,024 B (+1.5%), `binary_trees` +53 B (+0.6%), `structure_walk` +90 B (+0.4%); variant 2: `json` +988 B, 0 elsewhere |
-| compile time (estimated) | one release pass over the program's places, under 1% |
-| web compiler (estimated) | under +10 KB gzip, far below the 2 MB cap |
+| Component | A | B |
+| --- | --- | --- |
+| code removed | the loan table (`emit/excl.rs`, 1,151 lines, and `rt:loan_*`, about 220), the `List`/`Map` pin, #1320's room count, page-table counts on references through `*T` | the loan table and the `List`/`Map` pin |
+| code added (estimated) | loans and checks inline, about 400 lines; own loans, the element rules and cells in the checker, about 500; loan ends in the ownership insertion, about 300; per-type write summaries, about 250; `rt:loan_spill` | the same-root checker rules both share, about 150 |
+| runtime, bench (measured) | nothing added after elision; without it `binary_trees` +7%, `json` +1.5% | byte-identical to main |
+| compile time (estimated) | per-type summaries in release, under 1% | none |
+| web compiler (estimated) | under +10 KB gzip, far below the 2 MB cap | smaller |
 
-Measurements and their method are in [E.3](#e3-overhead-measured).
-
-Appendix A holds the stress test and its verdict table; Appendix D the
-matrix results on main; Appendix E the rule changes and the phases.
+Method and numbers: [E.3](#e3-overhead-measured).
 
 ## Appendix A. Stress Test
 
@@ -169,34 +243,33 @@ checked with `hd check` on main; library shapes are approximations.
 
 **Verdicts.** *Works*: same answer, no rewrite. *Friction*: panics
 where the original does not, or needs a rewrite. *Stricter*: panics
-where today's hd silently gives a wrong or freed value. Run-time cost is
-counted in operations per step: a **check** is one load, mask and branch;
-a **loan** is a begin and an end, two read-modify-writes of the header;
-a **pin** is today's `IsUnique`, `Pin`, and a buffer count and release.
+where today's hd silently gives a wrong or freed value. Costs count only
+references through a `*T`: a **loan** is a begin and an end, two
+read-modify-writes of the header; a **check** is a load, a mask and a
+branch; a **count** is a page-table retain and release.
 
-| Case | Library | Proposal | Today | Fallback (no refs through `*T`) | Cost per step, proposal vs today |
-| --- | --- | --- | --- | --- | --- |
-| A1 depth-first search | petgraph `Dfs` | works | works | rewrite: value loop | 1 loan and 1 write check per node, 1 read check per edge, vs 1 pin per node |
-| A2 in-degree count | petgraph `neighbors` | friction: a self-loop panics | runs | rewrite: value loop | 1 loan + 1 write check per edge vs 1 pin |
-| A3 tree with parent links | DOM, `rctree` | works | works | rewrite: `*Node` parameters | 1 loan per child visit vs none (a lend) |
-| A4 event listeners | Node `EventEmitter` | friction: a listener writing the bus panics | runs | rewrite: value loop | 1 loan per emit vs 1 pin |
-| A5 ECS system | bevy, specs | works (needs own loans) | works | rejected: no in-place element update | 2 loans per entity vs none (short loans) |
-| A6 memo recursion | `functools.lru_cache` | compile error, as Rust | compile error | same | 0 |
-| A7 doubly linked list | Go `container/list` | works | works | works | 4 write checks per insert vs 0 |
-| A8 interpreter scopes | Lox `Environment` | stricter: panics | panics, other line | rewrite: copy out | 1 loan per lookup vs a count and a table entry |
-| A9 self-replacing list | the #1320 `UniqList` repro | stricter: panics | reads freed memory | rejected at compile time | 1 loan vs 0 (unsound) |
+| Case | Library | A: loans | A: loans elided | B: keep-alive |
+| --- | --- | --- | --- | --- |
+| A1 depth-first search | petgraph `Dfs` | works | none: the loop's range writes `Node` | works; a count per loop |
+| A2 in-degree count | petgraph `neighbors` | friction: a self-loop panics | none | works |
+| A3 tree with parent links | DOM, `rctree` | works | all: `total` and `weak_mut` write no `Node` | works |
+| A4 event listeners | Node `EventEmitter` | friction: a listener writing the bus panics | none: a trait call writes `Bus` | works; an unsubscribe leaves the loop on the old list |
+| A5 ECS system | bevy, specs | works (needs own loans) | the `&mut` one; the `&` one stays | works; a room count per element |
+| A6 memo recursion | `functools.lru_cache` | compile error, as Rust | all | compile error |
+| A7 doubly linked list | Go `container/list` | works | all; no check stays | works |
+| A8 interpreter scopes | Lox `Environment` | stricter: panics | none: the callee writes `Env` | runs, and adds the value changed mid-expression |
+| A9 self-replacing list | the #1320 `UniqList` repro | stricter: panics `borrow-conflict` | none | panics `collection-pinned` |
 
-Adversarial cases are the 17 `pointer-loan-extra-*` fixtures and the
+Adversarial cases are the `pointer-loan-extra-*` fixtures and the
 matrix itself (Appendix D); their verdicts are in the table at the end of
 this appendix.
 
-**Conclusion.** By its rules the proposal panics in every case the
-matrix finds unsound today, and it keeps all of today's static
-rejections; this is reasoned, since nothing is built. Its cost in behavior is object
-granularity: a write to any field of a borrowed object through another
-path panics (A2, A4), as `RefCell` does and as today's field-granular
-table does not. The fix is always the same, a value loop or a copy out,
-and it is the one Rust users apply to `RefCell`.
+**Conclusion.** By its rules A panics in every case the matrix finds
+unsound today and keeps all of today's static rejections; with elision it
+costs nothing in four of the nine cases. This is reasoned, since nothing
+is built. B removes the friction of A2 and A4, and in exchange `&mut` no
+longer means that no one else changes the place (A8), and a write
+through a stale element reference is lost.
 
 ### A1. Depth-First Search
 
@@ -227,7 +300,7 @@ fn visit(n: *mut Node, order: &mut List[i32]) -> void:
 
 Works, with cycles and self-loops: a node is marked before its loop, so
 the loop never writes a node it holds a loan on. Today the loop pins
-`n.edges`. Fallback: `for next in n.edges` copies the list header.
+`n.edges`; under B it counts the buffer.
 
 ### A2. In-Degree Count
 
@@ -385,7 +458,7 @@ fn push_front(d: *mut Deque, value: i32) -> void:
 
 Works: link updates are plain writes, each one check (four per insert
 with `tail`). No loan lives past an expression, so release elides every
-check on `Node` (variant 2).
+check on `Node` (elision).
 
 ### A8. Interpreter Scopes
 
@@ -440,25 +513,44 @@ list is dropped.
 
 ### Adversarial Cases
 
-| Fixture (`pointer-loan-extra-…`) | Proposal | Today |
-| --- | --- | --- |
-| own-path-other-field | runs (own loans) | runs |
-| own-path-loop-other-field | runs (own loans) | runs |
-| root-pointer-last-use-before-reference | runs (roots) | reads freed memory (#1327) |
-| root-pointer-moved-into-a-task | runs (roots) | reads freed memory (#1327) |
-| callee-writes-other-field-panics | panics | panics at the call |
-| callee-only-reads | runs: passing a pointer is no access | panics at the call |
-| later-argument-replaces-panics | panics: the loan starts at evaluation | runs |
-| receiver-argument-reads-the-receiver | runs (two-phase receiver) | runs |
-| captured-variable-grows-panics | panics (cells) | panics `collection-pinned` |
-| captured-variable-replaced-panics | panics (cells) | runs, reading the old list |
-| deep-shared-loans | runs: 41 loans spill past 31 | runs |
-| dyn-receiver-alias-write-panics | panics | runs |
-| generic-argument-alias-write-panics | panics | runs |
-| copy-under-element-loan-panics | panics | runs; the pin copies |
-| sort-comparator-alias-write-panics | panics | runs |
-| observer-notify-writes-owner-panics | panics (object granularity) | runs |
-| weak-upgrade-root | runs | runs |
+| Fixture (`pointer-loan-extra-…`) | A | A: elision | B: keep-alive | Today |
+| --- | --- | --- | --- | --- |
+| callee-only-reads | runs | elided | runs | panics |
+| callee-writes-other-field-panics | panics | loan needed | runs | as A |
+| captured-variable-grows-panics | panics | loan needed | runs, stale | panics `collection-pinned` |
+| captured-variable-replaced-panics | panics | loan needed | runs, stale | runs |
+| copy-under-element-loan-panics | panics | loan needed | runs, the copy sees the write | runs |
+| deep-shared-loans | runs | elided | runs | as A |
+| dependent-result-alias-panics | panics | loan needed | runs | as A |
+| dyn-receiver-alias-write-panics | panics | loan needed | runs, sees the write | runs |
+| elide-callback-panics | panics | loan needed | runs, sees the write | as A |
+| elide-closure-captured-pointer-panics | panics | loan needed | runs, sees the write | as A |
+| elide-dyn-call-panics | panics | loan needed | runs, sees the write | as A |
+| elide-erased-generic-panics | panics | loan needed | runs, sees the write | as A |
+| elide-getter-in-loop | runs | elided | runs | as A |
+| elide-other-task-panics | panics | loan needed | panics collection-pinned | reads freed memory |
+| elide-read-only-visitor | runs | elided | runs | as A |
+| elide-read-then-print | runs | elided | runs | as A |
+| elide-recursive-call-panics | panics | loan needed | runs, sees the write | as A |
+| elide-writes-holder-type-panics | panics | loan needed | runs, stale | as A |
+| elide-writes-through-field-reference-panics | panics | loan needed | runs, sees the write | as A |
+| generic-argument-alias-write-panics | panics | loan needed | runs, sees the write | runs |
+| later-argument-replaces-panics | panics | loan needed | runs, stale | runs |
+| observer-notify-writes-owner-panics | panics | loan needed | runs | runs |
+| own-path-loop-other-field | runs | loan needed | runs | as A |
+| own-path-other-field | runs | loan needed | runs | as A |
+| pass-alias-mut-with-shared-panics | panics | loan needed | runs, sees the write | runs |
+| pass-alias-read-with-mut-panics | panics | loan needed | runs | runs |
+| pass-read-with-shared | runs | elided | runs | as A |
+| receiver-argument-reads-the-receiver | runs | loan needed | runs | as A |
+| root-pointer-last-use-before-reference | runs | elided | runs | reads freed memory |
+| root-pointer-moved-into-a-task | runs | elided | runs | reads freed memory |
+| sort-comparator-alias-write-panics | panics | loan needed | runs | runs |
+| weak-upgrade-root | runs | elided | runs | as A |
+
+The 14 `typing/invalid/pointer-loan-same-root-*` cases are compile
+errors in both models; three of them are not built yet
+(`pass-read-with-mut`, `dependent-method`, `dependent-outlives-root`).
 
 ### Problems, Ranked
 
@@ -469,6 +561,8 @@ list is dropped.
 | 3 | PL3 | element references lose the copy rule | silent if unanswered | copy-under-element-loan, `ref.elem.copy` fixtures |
 | 4 | PL4 | captured variables are hidden aliases | silent if unanswered | captured-variable extras |
 | 5 | PL5 | roots released at their last use | silent today (#1327) | root-pointer extras |
+| 6 | PL6 | elision that a call defeats | silent if wrong | the eight `elide-*-panics` extras |
+| 7 | PL7 | model B gives up exclusivity | silent | A8, every `runs, stale` row |
 
 **PL1. Object granularity.** Effect: a write to another field through
 another path panics where today it runs, in the cases listed. Candidates:
@@ -497,24 +591,39 @@ Candidates: keep the root alive to the loan's end (How It Works,
 "Roots"); or count the root's object once per loan, which is today's
 count by another name.
 
+**PL6. Elision soundness.** Effect: a loan wrongly elided is a freed
+read, with no panic. Every way through the rule has a runtime case that
+must still panic: a callback, a trait call, a write of the type holding
+the crossed pointer, a `&mut` of a containing type's field, a captured
+pointer, another task, recursion, and an erased generic. Candidates:
+summaries per written type, conservative for function values, trait
+calls and suspension (as proposed); or elide only in bodies with no
+call at all, which keeps most of the bench's loans.
+
+**PL7. Model B.** Effect: a `&mut` no longer excludes other writers,
+so `*current + rhs()` in A8 adds the new value, and a write through an
+element reference into a grown list lands in the old buffer and is lost.
+Candidates: keep exclusivity (model A); or adopt B and document
+`&mut` as non-exclusive behind a pointer, as Go and Java do.
+
 ### Parse Log
 
-Every `text` block of this document, appendix C included, was checked with
+Every `text` block of this document was checked with
 `scripts/hd-conformance.sh parse`, which checks syntax only.
 
 | Block | Result |
 | --- | --- |
-| 1. The Proposal: `rename`, `local_only` | parses; `hd check` also passes on main |
-| 2. A1 `visit` | parses; `hd check` also passes on main |
-| 3. A2 `count_in` | parses; `hd check` also passes on main |
-| 4. A3 `add_child`, `total` | parses; `hd check` also passes on main |
-| 5. A4 listeners | parses; `hd check` also passes on main |
-| 6. A5 `step` | parses; `hd check` also passes on main |
-| 7. A6 `fib` | parses; `hd check` also passes on main |
-| 8. A7 `push_front` | parses; `hd check` also passes on main |
-| 9. A8 `add_assign` | parses; `hd check` also passes on main |
-| 10. A9 `replace_then_read` | parses; `hd check` also passes on main |
-| 11. C.1 `add`, `keep_short` | parses; `hd check` also passes on main |
+| 1. The Proposal: `rename`, `same_root`, `greet` | parses; `hd check` reports the intended `conflicting-access` in `same_root` only |
+| 2. `*T` where `&T` is expected: `area` | parses; `hd check` also passes on main |
+| 3. A1 `visit` | parses; `hd check` also passes on main |
+| 4. A2 `count_in` | parses; `hd check` also passes on main |
+| 5. A3 `add_child`, `total` | parses; `hd check` also passes on main |
+| 6. A4 listeners | parses; `hd check` also passes on main |
+| 7. A5 `step` | parses; `hd check` also passes on main |
+| 8. A6 `fib` | parses; `hd check` also passes on main |
+| 9. A7 `push_front` | parses; `hd check` also passes on main |
+| 10. A8 `add_assign` | parses; `hd check` also passes on main |
+| 11. A9 `replace_then_read` | parses; `hd check` also passes on main |
 
 No block uses syntax outside the chapters, and none is rejected.
 
@@ -586,58 +695,51 @@ xs = append(xs, 2)      // a new array: p still points at the old one
 *p = 9                  // xs[0] is still 0
 ```
 
-This is the silent detachment the element rules of the proposal forbid.
-[Go slices](https://go.dev/blog/slices-intro).
+Go's garbage collector keeps whatever an interior pointer points into
+alive, so `p` is stale but never dangling. Model B takes exactly this:
+a count keeps the storage alive, and nothing keeps the place exclusive.
+The proposal forbids this silent detachment instead.
+[Go slices](https://go.dev/blog/slices-intro),
+[Go FAQ: stack or heap](https://go.dev/doc/faq#stack_or_heap).
+
+**Java.** No interior references at all: a field is read and written
+through its object, which the collector keeps alive while any
+reference holds it. A method on data behind a reference is the usual
+call; aliasing is unrestricted, and only collections check structural
+changes (above).
+
+```java
+Shape s = scene.shapes.get(0);
+scene.shapes.set(0, new Shape());   // s is the old shape, alive and stale
+double a = s.area();
+```
+
+Model B is this rule with interior references added: a count keeps the
+storage a reference points into alive, as the collector keeps an object.
+
+**Swift `unowned`.** A reference that keeps nothing alive and traps on
+use after its object is freed, by design.
+
+```swift
+class Node { unowned let parent: Node; init(parent: Node) { self.parent = parent } }
+var root: Node? = Node(parent: placeholder)
+let child = Node(parent: root!)
+root = nil
+print(child.parent)     // traps: attempted to read an unowned reference but the object was already deallocated
+```
+
+The contrast with model B: Swift chose a crash for a dangling access,
+where C keeps the storage alive and returns stale data. hd's `Weak`
+upgrade (`ref.weak.upgrade.dead`) refuses instead of trapping.
+[Swift: Unowned References](https://docs.swift.org/swift-book/documentation/the-swift-programming-language/automaticreferencecounting/#Unowned-References).
 
 ## Appendix C. Alternatives Considered
 
-### C.1 The Fallback: No References Through `*T`
-
-A reference into data behind a `*T` would be an error unless it ends
-within its expression, so such data is read and written by value. A call
-whose receiver or argument reaches through a `*T` is allowed only when
-the callee, transitively, makes no access through a `*T` and calls no
-function value; else the user moves the value out and back.
-
-```text
-struct Bag:
-    items: List[string]
-
-fn add(p: *mut Bag, word: string) -> void:
-    p.items.push(word)          # allowed: push runs no user code
-
-fn keep_short(p: *mut Bag) -> void:
-    let mut items = p.items     # a copy of the header, by value
-    items.retain(fn(w: &string) -> bool: w.len() < 8)
-    p.items = items
-```
-
-It costs no run-time check, and it rejects every long reference:
-`for x in &p.items` (A1, A4: a value loop), a lent `*Node` (A3: a `*Node`
-parameter), `get_ref` and `get_mut` through a pointer (A5: a `UniqList` of
-non-copyable elements then has no in-place update at all), and every
-`&self` method on boxed data whose body calls back. In the bench it
-rejects `json`'s 27 reference sites in std and `binary_trees`' five lends.
-The proposal accepts all of these and pays a load and a branch for each.
-
-### C.2 Today's Three Mechanisms, Fixed
-
-Keep page-table counts, pins and the loan table, and patch each hole (the
-#1320 room count, #1327). Field-precise, but 54 matrix cases read freed
-memory today, and each new path needs its own mechanism. The loan table's
-check is a scan of every live loan.
-
-### C.3 Field-Granular State
-
-A borrow bit per field group, as Swift's access set is per address. It
-fixes PL1, but a struct with more fields than spare bits needs a header
-word: objects grow by 8 bytes, which the owner's constraint forbids.
-
-### C.4 Counting Instead Of Loans
-
-Keep the reference's count of the object (#1320) and add no exclusivity.
-Memory stays valid, but a write through an alias still reaches a live
-`&` silently, and copy-on-write still detaches element references.
+- **Unique `*mut T`**, Rust's `Box`/`Rc`/`RefCell` split: rejected by the owner, "definitely a no go".
+- **Call-scoped references only**, a `&*p` living for one call and spanning ones rejected: rejected by the owner; it still needs call loans, and rejects 306 of the 362 matrix cases.
+- **No references through `*T` at all**: impossible, since `p.area()` with `fn area(&self)` needs `&*p`; copying out works only for `Copy` types.
+- **Today's three mechanisms, patched**: field-precise, but 27 matrix cases read freed memory today, each new path needs its own fix, and the loan table's check scans every live loan.
+- **Field-granular state**, a bit per field group as Swift's per-address access set: fixes object granularity, but a struct with more fields than spare bits grows by a header word.
 
 ## Appendix D. Today In hd
 
@@ -653,61 +755,63 @@ The rules under replacement are
 
 ### D.1 The Matrix On Main
 
-`spec/tools/generate-pointer-loan-matrix.ts` writes 395 runtime cases:
-reference kind (`&`, `&mut`) × path × lifetime × alias action, and 17
-adversarial cases. Each case reads the reference after the action and
-checks that it holds a value some write stored. Results at 6e7976b7d (the same at 36071e13d), dev
-build (`hd FILE`), with the checked build's count audit for freed blocks:
+`spec/tools/generate-pointer-loan-matrix.ts` writes 424 cases: reference
+kind (`&`, `&mut`) × path × lifetime × alias action (378 runtime cases,
+16 of them on a local path that crosses no `*T`), 32 adversarial runtime
+cases, and 14 same-root typing cases. Each runtime case reads the
+reference after the action and checks that it holds a value some write
+stored. Every fixture states both models' verdicts in a `# Verdicts:`
+line.
+Results at 156cba91c (after #1320), dev build, with the checked build's
+count audit for freed blocks; local-path rows are left out:
 
-| Path | Cases | Pass | Runs, should panic | `collection-pinned` | Unsound | False panic |
-| --- | --- | --- | --- | --- | --- | --- |
-| local struct field | 16 | 16 | 0 | 0 | 0 | 0 |
-| field of a boxed struct | 48 | 43 | 5 | 0 | 0 | 0 |
-| field of a struct field behind `*T` | 50 | 43 | 7 | 0 | 0 | 0 |
-| behind `*T` then `*T` | 48 | 38 | 10 | 0 | 0 | 0 |
-| `List` element behind `*T` | 54 | 13 | 27 | 14 | 0 | 0 |
-| `Map` value behind `*T` | 54 | 14 | 26 | 14 | 0 | 0 |
-| `UniqList` element behind `*T` | 54 | 14 | 14 | 0 | 26 | 0 |
-| `UniqMap` value behind `*T` | 54 | 14 | 14 | 0 | 26 | 0 |
-| adversarial | 17 | 6 | 7 | 1 | 2 | 1 |
-| **all** | **395** | **201** | **110** | **29** | **54** | **1** |
-
-| Lifetime | Cases | Pass | Runs, should panic | `collection-pinned` | Unsound |
+| Below the pointer | Cases | A panics | A elides | B: runs / stale / pinned | Today: as A / runs / pinned / unsound |
 | --- | --- | --- | --- | --- | --- |
-| one expression | 16 | 16 | 0 | 0 | 0 |
-| across a statement | 98 | 32 | 46 | 8 | 12 |
-| call argument | 44 | 24 | 8 | 4 | 8 |
-| returned by a method | 44 | 40 | 4 | 0 | 0 |
-| stored in a lifetime struct | 44 | 24 | 8 | 4 | 8 |
-| across a loop iteration | 44 | 24 | 8 | 4 | 8 |
-| across a bang call | 44 | 24 | 8 | 4 | 8 |
-| captured by a closure | 44 | 11 | 21 | 4 | 8 |
+| a plain field | 98 | 64 | 34 | 98 / 0 / 0 | 86 / 12 / 0 / 0 |
+| data behind a nested `*T` | 48 | 39 | 9 | 34 / 14 / 0 | 38 / 10 / 0 / 0 |
+| a `List`/`Map` | 108 | 90 | 18 | 36 / 72 / 0 | 27 / 53 / 28 / 0 |
+| a `UniqList`/`UniqMap` | 108 | 90 | 18 | 48 / 0 / 60 | 28 / 28 / 28 / 24 |
+| **all** | **362** | **283** | **79** | **216 / 86 / 60** | **179 / 103 / 56 / 24** |
 
-- **Unsound** means the reference read freed memory: a value no write
-  stored (40 cases), or a freed block that only the checked build reports
-  (14 `UniqMap` cases). All are `UniqList`/`UniqMap` replaced, grown or
-  shrunk behind a `*T`, plus the two #1327 roots.
-- **Runs, should panic**: the alias's access runs and the reference sees a
-  value some write stored. These are object-granularity rows (`other`,
-  `elem`), element writes, `&mut` loans read by an alias, and closures.
-- The one **false panic** is `extra-callee-only-reads`: today passing a
-  `*mut` to a call counts as a write of the whole object.
-- `KNOWN_FAILURES.tsv` lists the 194 failures, each citing #1323, or #1327
-  for the two roots. Default, checked and optimized runs agree on them.
+| Lifetime (`*T` paths) | A: loan needed | A: elided |
+| --- | --- | --- |
+| one expression | 0 | 14 |
+| across a statement | 85 | 11 |
+| call argument | 33 | 9 |
+| returned by a method | 33 | 9 |
+| stored in a lifetime struct | 33 | 9 |
+| across a loop iteration | 33 | 9 |
+| across a bang call | 33 | 9 |
+| captured by a closure | 33 | 9 |
+
+- **Elision column.** The rule keeps the loan in each of the 283 rows
+  where A panics, and elides it in all 79 where A runs: a read under `&`,
+  one-expression references, and a write to the type that holds the root
+  pointer (`drop`). All eight cases built to defeat it keep the loan.
+- **Today**, *runs* means the alias's access runs where A panics, and
+  the reference sees some stored value. *Unsound* means it read freed
+  memory: a value no write stored, or a freed block only the checked
+  build reports. All 24 are `UniqList`/`UniqMap` replaced or shrunk
+  behind a `*T`; three adversarial cases add #1327's two roots and
+  another task's replacement.
+- `KNOWN_FAILURES.tsv` lists the 200 failures, each citing #1323, or
+  #1327 for the two roots; three are same-root typing cases not built
+  yet. Default, checked and optimized runs agree on them.
 
 ### D.2 Other Findings On Main
 
 - **#1327.** A `UniqList` element reference through a local `*T` reads
-  freed memory once the local's last use passes, with no alias at all;
-  and a `join!` task's pointer parameter is released before its
-  suspension the same way.
-- **Optimized pipeline.** Assigning a new `UniqList` or `UniqMap` through
-  a `*mut` in a suspending body fails the copy verifier
-  (`unsupported:Collect`, four `bang-*-replace` cases).
-- **Mode-dependent verdicts.** With `join!`, a write by one task while the
-  other holds a loan across `sleep!` panicked in the dev build and ran in
-  the checked one, so the matrix holds that case only as a sequential
-  bang call.
+  freed memory once the local's last use passes, with no alias; a
+  `join!` task's pointer parameter is released before its suspension
+  the same way.
+- **Mode-dependent verdicts (#1331).** At 6e7976b7d a `join!` case where one
+  task wrote a field while another held a loan across `sleep!` panicked
+  in the dev build and ran in the checked one, so the matrix uses
+  sequential bang calls; `extra-elide-other-task-panics` covers another
+  task with a `UniqList`, which fails the same way in every mode.
+- **Optimized pipeline (#1331).** At 6e7976b7d, assigning a new
+  `UniqList` through a `*mut` in a suspending body failed the copy
+  verifier; the focused optimized run does not show it at 156cba91c.
 
 ## Appendix E. Details
 
@@ -716,7 +820,7 @@ build (`hd FILE`), with the checked build's count audit for freed blocks:
 | Rule today | Becomes |
 | --- | --- |
 | `ref.excl.alias.loan` | a pointer loan: any reference crossing a `*T` that outlives its expression, element references included, on each object it crosses |
-| `ref.excl.alias.counted-access` | the access check: a write checks the whole state, a read the exclusive bit; passing a pointer to a call is no access |
+| `ref.excl.alias.counted-access` | the access check: a write checks the whole state, a read the exclusive bit; passing a pointer is a static access for the call's other arguments only, no access at run time |
 | `ref.excl.alias.conflict` | kept as the panic `borrow-conflict`, object-granular |
 | `ref.excl.alias.shared-counted-loan` | absorbed: `*T` and `*mut T` crossings loan alike |
 | `ref.excl.alias.call-loan` | kept in every build, from the argument's evaluation to the return; a `&mut self` receiver is two-phase |
@@ -727,8 +831,14 @@ build (`hd FILE`), with the checked build's count audit for freed blocks:
 | `ref.elem.copy` | replaced: a copy while a `&mut` element reference lives is `conflicting-access` |
 | `ref.elem.access.live-length` | narrowed: while a `&` element reference lives, a write to its collection is `conflicting-access` |
 | `ref.elem.replace` | removed: replacing the collection while a reference lives is `conflicting-access` (`ref.excl.shared`) |
-| `std-collections.uniq-list.pinned` (#1320 branch) | not needed |
-| `ref.count.pointer` (#1320 branch) | replaced by the loan and the root rule |
+| `std-collections.uniq-list.pinned` (#1320) | not needed |
+| `ref.count.pointer` (#1320) | replaced by the loan and the root rule |
+
+Under model B instead: every `ref.excl.alias.*` rule is removed (no
+exclusivity behind a pointer), `ref.count.pointer` and
+`std-collections.uniq-list.pinned` stay, the `List`/`Map` pin rules go,
+and `ref.elem.copy` holds by copy-on-write. Both models add the two
+static rules of How It Works.
 
 The fixtures `element-reference-copy-independent.hd` and
 `a-copy-of-a-pinned-collection-is-its-own-list.hd` become reject cases.
@@ -779,37 +889,64 @@ The fixtures `element-reference-copy-independent.hd` and
 
 Method: a prototype in the emitter, kept out of this pull request, that
 emits each check before every access through a `*T` the backend's loan
-pass sees (`loan_access`), and a begin and an end at each reference
-`Ref` through one. No bit is ever set, so no check fires; this times the
-checks. Release builds, `--engine node`, Node 24 on this Mac, 11
-interleaved runs, median wall time with Node's 81 ms start subtracted;
-load average about 8.
+pass sees (`loan_access`), a begin and an end at each reference `Ref`
+through one, and logs each site with its function. No bit is ever set,
+so no check fires; this times the checks. Release builds,
+`--engine node`, the default V8 tier, Node 24 on this Mac, 11
+interleaved runs, median wall time with Node's 78 to 81 ms start
+subtracted; load average 8 to 9. Base is main at 36071e13d.
 
-| Program | Base | Variant 1 (writes, loans) | Variant 1 (with reads) | Variant 2 | Sites (write, read, loan) |
-| --- | --- | --- | --- | --- | --- |
-| micro: 200 M writes through `*mut` | 196 ms | +16% | +59% | +62% (same code) | 1, 2, 1 |
-| micro: 100 M call loans | 632 ms | +7% | +6% | +6% | 0, 0, 1 |
-| micro: 20 M loops over `&p.items` | 798 ms | 0% | +2% | 0% | 1, 2, 0 |
-| `json` | 262 ms | +1.5% | +1.5% | +1.1% | 0, 13, 27 |
-| `structure_walk` | 154 ms | noise | noise | noise | 0, 5, 0 |
-| `binary_trees`, call loans by hand | 202 ms | +7% | +7% | 0 (never written) | 5 lends |
-| the other 17 programs | | byte-identical | byte-identical | byte-identical | 0 |
+**Model A, without elision** (an upper bound):
 
-- A check costs 0.16 to 0.21 ns and a loan 0.47 to 0.5 ns, where V8 predicts the
-  branch. The prototype places a loan's end next to its begin, so V8 may
-  fold some of it: the loan cost is a lower bound.
-- The prototype does not see a whole `*T` lent as `&T` (a conversion, no
-  `Ref`), a loop's loan over `&p.items`, or erased bodies. `binary_trees`'
-  lends were added by hand to the Wasm (binaryen `wasm-dis` and
-  `wasm-as`): a shared begin and end on the node at `check`'s entry and
-  exit, about 30 M of them. `dyn_iter` takes one loan per chain, 100 K in
-  all, estimated under 0.1 ms.
-- Variant 2 used the reference rule only, from the first build's sites;
-  the no-write rule is estimated.
-- Variant 3 costs no check; its cost is the rewrites of C.1.
-- Not measured: what removing today's page-table counts and pins saves.
-  It is a saving, so the variant 1 numbers are an upper bound against
-  main.
+| Program | Base | Loans and write checks | Loans, write and read checks | Sites (write, read, loan) |
+| --- | --- | --- | --- | --- |
+| micro: 200 M writes through `*mut` | 196 ms | +16% | +59% | 1, 2, 1 |
+| micro: 100 M call loans | 632 ms | +7% | +6% | 0, 0, 1 |
+| micro: 20 M loops over `&p.items` | 798 ms | 0% | +2% | 1, 2, 0 |
+| `json` | 262 ms | +1.5%, +800 B | +1.5%, +1,024 B | 0, 13, 26 |
+| `structure_walk` | 154 ms | noise | noise, +90 B | 0, 5, 0 |
+| `binary_trees`, call loans by hand | 202 ms | +7%, +53 B | +7% | 6 lends |
+| the other 16 programs | | byte-identical | byte-identical | 0 |
+
+**Model A, with per-reference elision.** Each logged site was judged by
+the rule against its program: `json`'s 26 loans are references into
+`*FieldRecord` and like derivation records, which nothing in the program
+writes through any pointer (the prototype logs no write site in `json`
+at all); `binary_trees`' six lends reach a `Node` that is never written;
+the `&mut self` calls on pointers in `string_build` (2),
+`string_builder` (2), `map_count` (3) and `structure_walk` (6) write only
+through their own receiver; `dyn_iter`'s one loan per chain reaches
+iterators that write no pointer. So no loan stays, no type keeps a
+check, and the prototype emits nothing: every program is byte-identical
+to base, and needs no timing. The micros elide the same way.
+
+**Model B.** Its cost is a page-table count for each reference through
+a `*T` that leaves a short loan, which main already pays, and it drops
+the loan table, which no bench program emits (none has a write that
+could conflict with a registered loan). So B is byte-identical to main on
+bench too. A micro with one spanning reference per iteration and a write
+of another type in its range measures the per-reference costs, 50 M
+iterations:
+
+| Version | Time | Per reference |
+| --- | --- | --- |
+| no reference (`c.name.len()`) | 69 ms | 0 |
+| main: a count and a loan-table entry | 898 ms | 16.6 ns |
+| model B: the count only (the `rt:loan_begin` call removed by hand) | 469 ms | 8.0 ns |
+| model A: elided (no write of `Named` in range) | as the first row | 0 |
+| model A: a loan kept | estimated from the call-loan micro | about 0.5 ns |
+
+- A check costs 0.16 to 0.21 ns and a loan 0.47 to 0.5 ns, where V8
+  predicts the branch. The prototype places a loan's end next to its
+  begin, so V8 may fold some of it: the loan cost is a lower bound.
+- The prototype does not see a whole `*T` lent as `&T` (a conversion,
+  no `Ref`), a loop's loan over `&p.items`, or erased bodies; the
+  checker logged the lends (19 in bench code, 26 in std).
+  `binary_trees`' lends were added by hand to the Wasm (binaryen
+  `wasm-dis` and `wasm-as`), about 30 M of them.
+- Not measured: what A saves by removing main's counts on references
+  through `*T`, for example `json`'s 26, which point into static records
+  where a count returns at once.
 
 ### E.4 Implementation Phases
 

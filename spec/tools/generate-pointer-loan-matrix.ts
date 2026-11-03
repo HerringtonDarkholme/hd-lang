@@ -377,9 +377,8 @@ function entry(cs: Case): string {
 }
 
 /**
- * The other columns (POINTER_LOANS.md, "Per-reference elision" and the
- * variants): whether the elision rule removes the loan, whether the
- * call-scoped fallback accepts the reference, and the Go model's outcome.
+ * The other columns (POINTER_LOANS.md, "Two Models"): whether
+ * per-reference elision removes model A's loan, and model B's outcome.
  */
 function elisionOf(kind: Kind, path: Path, life: Life, action: Action): string {
   if (path === "local") {
@@ -393,18 +392,19 @@ function goOf(path: Path, life: Life, action: Action): string {
   if (path === "local" || life === "expr" || action === "drop" || action === "read") {
     return "runs";
   }
-  if (!["grow", "replace", "shrink"].includes(action)) {
-    return "runs, sees the write";
-  }
-  if (path === "ulist" || path === "umap") {
+  const moves = ["grow", "replace", "shrink"].includes(action);
+  if ((path === "ulist" || path === "umap") && moves) {
     return "panics collection-pinned";
   }
-  return path === "field" ? "runs, sees the write" : "runs, stale";
+  if (path === "field" || !(moves || ((path === "list" || path === "map") && action !== "other"))) {
+    return "runs, sees the write";
+  }
+  // A counted List or Map buffer is shared, so an alias's store copies it.
+  return "runs, stale";
 }
 
 function columns(kind: Kind, path: Path, life: Life, action: Action): string {
-  const fallback = path === "local" || life === "expr" || life === "arg" ? "allowed" : "rejected";
-  return `# Verdicts: elision ${elisionOf(kind, path, life, action)}; call-scoped fallback ${fallback}; Go model ${goOf(path, life, action)}.\n`;
+  return `# Verdicts: loans (A) with elision: ${elisionOf(kind, path, life, action)}; keep-alive (B): ${goOf(path, life, action)}.\n`;
 }
 
 function generate(kind: Kind, path: Path, life: Life, action: Action) {
@@ -1258,52 +1258,48 @@ pub fn main() -> void $ Console:
 ${tail}`,
   },
 ];
-/** Each adversarial case's columns: elision, call-scoped fallback, Go model. */
-const extraColumns: Record<string, [string, string, string]> = {
-  "own-path-other-field": ["loan needed", "rejected", "runs"],
-  "own-path-loop-other-field": ["loan needed", "rejected", "runs"],
-  "root-pointer-last-use-before-reference": ["elided", "rejected", "runs"],
-  "root-pointer-moved-into-a-task": ["elided", "rejected", "runs"],
-  "callee-writes-other-field-panics": ["loan needed", "rejected", "runs"],
-  "callee-only-reads": ["elided", "rejected", "runs"],
-  "later-argument-replaces-panics": ["loan needed", "allowed", "runs, stale"],
-  "receiver-argument-reads-the-receiver": ["loan needed", "allowed", "runs"],
-  "captured-variable-grows-panics": ["loan needed", "rejected", "runs, stale"],
-  "captured-variable-replaced-panics": ["loan needed", "rejected", "runs, stale"],
-  "deep-shared-loans": ["elided", "rejected", "runs"],
-  "dyn-receiver-alias-write-panics": ["loan needed", "allowed", "runs, sees the write"],
-  "generic-argument-alias-write-panics": ["loan needed", "allowed", "runs, sees the write"],
-  "copy-under-element-loan-panics": ["loan needed", "rejected", "runs, the copy sees the write"],
-  "sort-comparator-alias-write-panics": ["loan needed", "allowed", "runs"],
-  "observer-notify-writes-owner-panics": ["loan needed", "rejected", "runs"],
-  "weak-upgrade-root": ["elided", "rejected", "runs"],
-  "elide-callback-panics": ["loan needed", "rejected", "runs, sees the write"],
-  "elide-dyn-call-panics": ["loan needed", "rejected", "runs, sees the write"],
-  "elide-writes-holder-type-panics": ["loan needed", "rejected", "runs, stale"],
-  "elide-writes-through-field-reference-panics": [
-    "loan needed",
-    "rejected",
-    "runs, sees the write",
-  ],
-  "elide-closure-captured-pointer-panics": ["loan needed", "rejected", "runs, sees the write"],
-  "elide-other-task-panics": ["loan needed", "rejected", "panics collection-pinned"],
-  "elide-recursive-call-panics": ["loan needed", "rejected", "runs, sees the write"],
-  "elide-erased-generic-panics": ["loan needed", "rejected", "runs, sees the write"],
-  "elide-read-then-print": ["elided", "rejected", "runs"],
-  "elide-getter-in-loop": ["elided", "rejected", "runs"],
-  "elide-read-only-visitor": ["elided", "rejected", "runs"],
-  "pass-read-with-shared": ["elided", "allowed", "runs"],
-  "dependent-result-alias-panics": ["loan needed", "rejected", "runs"],
-  "pass-alias-mut-with-shared-panics": ["loan needed", "allowed", "runs, sees the write"],
-  "pass-alias-read-with-mut-panics": ["loan needed", "allowed", "runs"],
+/** Each adversarial case's columns: elision under loans (A), keep-alive (B). */
+const extraColumns: Record<string, [string, string]> = {
+  "own-path-other-field": ["loan needed", "runs"],
+  "own-path-loop-other-field": ["loan needed", "runs"],
+  "root-pointer-last-use-before-reference": ["elided", "runs"],
+  "root-pointer-moved-into-a-task": ["elided", "runs"],
+  "callee-writes-other-field-panics": ["loan needed", "runs"],
+  "callee-only-reads": ["elided", "runs"],
+  "later-argument-replaces-panics": ["loan needed", "runs, stale"],
+  "receiver-argument-reads-the-receiver": ["loan needed", "runs"],
+  "captured-variable-grows-panics": ["loan needed", "runs, stale"],
+  "captured-variable-replaced-panics": ["loan needed", "runs, stale"],
+  "deep-shared-loans": ["elided", "runs"],
+  "dyn-receiver-alias-write-panics": ["loan needed", "runs, sees the write"],
+  "generic-argument-alias-write-panics": ["loan needed", "runs, sees the write"],
+  "copy-under-element-loan-panics": ["loan needed", "runs, the copy sees the write"],
+  "sort-comparator-alias-write-panics": ["loan needed", "runs"],
+  "observer-notify-writes-owner-panics": ["loan needed", "runs"],
+  "weak-upgrade-root": ["elided", "runs"],
+  "elide-callback-panics": ["loan needed", "runs, sees the write"],
+  "elide-dyn-call-panics": ["loan needed", "runs, sees the write"],
+  "elide-writes-holder-type-panics": ["loan needed", "runs, stale"],
+  "elide-writes-through-field-reference-panics": ["loan needed", "runs, sees the write"],
+  "elide-closure-captured-pointer-panics": ["loan needed", "runs, sees the write"],
+  "elide-other-task-panics": ["loan needed", "panics collection-pinned"],
+  "elide-recursive-call-panics": ["loan needed", "runs, sees the write"],
+  "elide-erased-generic-panics": ["loan needed", "runs, sees the write"],
+  "elide-read-then-print": ["elided", "runs"],
+  "elide-getter-in-loop": ["elided", "runs"],
+  "elide-read-only-visitor": ["elided", "runs"],
+  "pass-read-with-shared": ["elided", "runs"],
+  "dependent-result-alias-panics": ["loan needed", "runs"],
+  "pass-alias-mut-with-shared-panics": ["loan needed", "runs, sees the write"],
+  "pass-alias-read-with-mut-panics": ["loan needed", "runs"],
 };
 for (const { name, panic, what, source } of extras) {
   const file = `${panic ? "runtime/panic" : "runtime/valid"}/${stem}extra-${name}.hd`;
-  const [elision, fallback, go] = extraColumns[name];
+  const [elision, go] = extraColumns[name];
   const contents = `# test: pointer loans, adversarial: ${what}; ${panic ? "panics borrow-conflict" : "runs"}
 ${panic ? "" : "# expect-stdout: ok\n"}# Generated by spec/tools/generate-pointer-loan-matrix.ts; edit the generator.
 # Proposal: docs/future-work/POINTER_LOANS.md (issue #1323), not yet accepted.
-# Verdicts: elision ${elision}; call-scoped fallback ${fallback}; Go model ${go}.
+# Verdicts: loans (A) with elision: ${elision}; keep-alive (B): ${go}.
 ${source}`;
   output(`conformance/${file}`, contents);
   rows.push(
@@ -1312,7 +1308,7 @@ ${source}`;
 }
 
 // Same-root shapes: two references, or a reference and an access, from
-// one name. The checker sees them, so every variant rejects them at
+// one name. The checker sees them, so both models rejects them at
 // compile time (`ref.excl.place`); only aliasing it cannot see reaches
 // the run-time model.
 const sameRootDecls = `struct Cell:
@@ -1407,7 +1403,7 @@ const sameRoot: { name: string; what: string; body: string; code?: string }[] = 
 ];
 for (const { name, what, body, code = "conflicting-access" } of sameRoot) {
   const file = `typing/invalid/${stem}same-root-${name}.hd`;
-  const contents = `# test: pointer loans, same root: ${what} is a compile-time error in every variant
+  const contents = `# test: pointer loans, same root: ${what} is a compile-time error in both models
 # Generated by spec/tools/generate-pointer-loan-matrix.ts; edit the generator.
 # Proposal: docs/future-work/POINTER_LOANS.md (issue #1323), not yet accepted.
 ${body.includes("UniqList") ? "use std.collections.UniqList\n\n" : ""}${sameRootDecls}
