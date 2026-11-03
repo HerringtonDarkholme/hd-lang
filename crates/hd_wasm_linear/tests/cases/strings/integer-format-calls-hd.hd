@@ -1,5 +1,5 @@
 # @dump: wat
-# expected: integer Display calls std's hd format_int body; no rt:fmt helper exists
+# expected: integer Display calls std's typed hd formatter; no rt:fmt helper exists
 
 fn show(value: i64) -> string:
     # subject

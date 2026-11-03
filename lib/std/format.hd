@@ -5,7 +5,6 @@
 # (Testing T48, T53, T54).
 
 use std.function.Tuple
-use std.num.Integer
 use std.structure.{Structure, UnionType, Walker, Variant, Field}
 use std.rt.bytes.{string_from_bytes, char_scalar}
 use std.rt.memory.{new_string, store_u8, string_bytes}
@@ -417,47 +416,47 @@ impl Display for char:
 # Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for i8:
     fn to_string(&self) -> string:
-        format_int(*self)
+        format_signed(i64(*self))
 
 # Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for i16:
     fn to_string(&self) -> string:
-        format_int(*self)
+        format_signed(i64(*self))
 
 # Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for i32:
     fn to_string(&self) -> string:
-        format_int(*self)
+        format_signed(i64(*self))
 
 # Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for i64:
     fn to_string(&self) -> string:
-        format_int(*self)
+        format_signed(*self)
 
 # Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for u8:
     fn to_string(&self) -> string:
-        format_int(*self)
+        format_unsigned(u64(*self))
 
 # Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for u16:
     fn to_string(&self) -> string:
-        format_int(*self)
+        format_unsigned(u64(*self))
 
 # Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for u32:
     fn to_string(&self) -> string:
-        format_int(*self)
+        format_unsigned(u64(*self))
 
 # Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for usize:
     fn to_string(&self) -> string:
-        format_int(*self)
+        format_unsigned(u64(*self))
 
 # Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for u64:
     fn to_string(&self) -> string:
-        format_int(*self)
+        format_unsigned(*self)
 
 # Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for f32:
@@ -489,39 +488,54 @@ fn scalar_text(point: i32) -> string:
         encoded.push(u8(128 + point % 64))
     string_from_bytes(encoded)
 
-# An integer's decimal digits, with `-` when negative. Count the digits,
-# allocate the exact string once, then write them from its end. Keeping a
-# negative value negative makes the minimum signed integer safe: its
-# remainder fits even though its positive magnitude does not.
-fn format_int[N < Integer](value: N) -> string:
-    zero := N::zero()
-    ten := N::from_i64(10)
-    negative := value < zero
+# An integer's decimal digits, with `-` when negative. Converting to `u64`
+# before negating keeps the minimum signed integer safe.
+fn format_signed(value: i64) -> string:
+    negative := value < 0
+    let magnitude = u64(value)
+    if negative:
+        magnitude = u64(0).wrapping_sub(magnitude)
 
     let count: usize = 1
-    let rest = value
-    while true:
-        rest = rest / ten
-        if rest == zero:
-            break
+    let power: u64 = 10
+    while count < 20 && magnitude >= power:
         count += 1
+        if count < 20:
+            power = power * 10
 
     len := count + (if negative: 1 else: 0)
     text := new_string(len)
     start := string_bytes(text).address
     let at = start + len
-    rest = value
+    let rest = magnitude
     while true:
-        let digit = rest % ten
-        if digit < zero:
-            digit = zero - digit
         at -= 1
-        store_u8(at, 48 + u8(digit.to_u64()))
-        rest = rest / ten
-        if rest == zero:
+        store_u8(at, 48 + u8(rest % 10))
+        rest = rest / 10
+        if rest == 0:
             break
     if negative:
         store_u8(start, 45)
+    text
+
+fn format_unsigned(magnitude: u64) -> string:
+    let count: usize = 1
+    let power: u64 = 10
+    while count < 20 && magnitude >= power:
+        count += 1
+        if count < 20:
+            power = power * 10
+
+    text := new_string(count)
+    start := string_bytes(text).address
+    let at = start + count
+    let rest = magnitude
+    while true:
+        at -= 1
+        store_u8(at, 48 + u8(rest % 10))
+        rest = rest / 10
+        if rest == 0:
+            break
     text
 
 # Primitives (spec/std/README.md#standard-library-primitives): the host
@@ -644,12 +658,12 @@ fn escape_char(each: char, quote: char) -> string:
     if each == '$' && quote == '"':
         return "\\$"
     if scalar < 32 || scalar == 127:
-        return "\\u{" + format_int(scalar / 16) + hex_digit(scalar % 16) + "}"
+        return "\\u{" + format_unsigned(u64(scalar / 16)) + hex_digit(scalar % 16) + "}"
     scalar_text(i32(scalar))
 
 fn hex_digit(digit: u32) -> string:
     if digit < 10:
-        return format_int(digit)
+        return format_unsigned(u64(digit))
     scalar_text(i32(87 + digit))
 
 # Keep handwritten Debug: render logical entries as collection syntax rather than storage fields.
