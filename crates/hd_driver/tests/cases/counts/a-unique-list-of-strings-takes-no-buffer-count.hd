@@ -1,8 +1,11 @@
 # @dump: counts
 # @build: std
-# A `UniqList` owns a raw buffer, which has no count: pushing, lending
-# an element, iterating by reference and dropping the list count only
-# the strings it holds. Rule: std-collections.uniq-list.type.
+# A `UniqList` owns a raw buffer, which has no count:
+# pushing, lending an element, iterating by reference and dropping the
+# list take no count of the list or its buffer. A reference to an element
+# that leaves a short loan (the cursor's) is still counted through the
+# page table, on the room's fixed count word.
+# Rule: std-collections.uniq-list.type.
 use std.collections.UniqList
 
 fn build(word: string) -> UniqList[string]:

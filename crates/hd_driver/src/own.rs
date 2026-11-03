@@ -222,6 +222,10 @@ thread_local! {
 /// passes read that write from `may_write` alone.
 const PURE_INTRINSICS: &[&str] = &[
     "sqrt",
+    "ptr_offset",
+    "ptr_size_of",
+    "ptr_ref",
+    "ptr_mut",
     "downcast_ref",
     "downcast_mut",
     "type_id_of",
@@ -264,6 +268,7 @@ impl Env<'_> {
         match self.intrinsic(*def).as_deref() {
             Some("mem_new_string") => CallMemory::Allocate,
             Some("mem_string_bytes" | "ptr_offset") => CallMemory::Derive(0),
+            Some("ptr_drop_in_place") => CallMemory::Write(0),
             Some(
                 "mem_store_u8" | "mem_store_u16" | "mem_store_u32" | "mem_store_u64" | "mem_copy"
                 | "mem_fill",
@@ -857,6 +862,10 @@ impl InlineEnv for Env<'_> {
 
     fn lent_referent(&self, t: Ty) -> Option<Ty> {
         hd_wasm_linear::lent_referent(&self.run.pool, self, t)
+    }
+
+    fn rooted_referent(&self, t: Ty) -> Option<Ty> {
+        hd_wasm_linear::rooted_referent(&self.run.pool, self, t)
     }
 
     fn counted_referent(&self, t: Ty) -> bool {

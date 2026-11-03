@@ -15,6 +15,7 @@ use std.ops.Range
 use std.format.DebugWriter
 use std.hash.{hash_of, Hasher}
 use std.rt.bytes.{panic_with}
+use std.annotation.inline
 use std.rt.Drop
 use std.rt.memory.{Buffer, copy, fill, load_u32, size_of, store_u32}
 
@@ -29,10 +30,7 @@ impl[T < ?Copy] !Copy for UniqList[T]
 # The list drops the values it holds; its buffer then frees the room.
 impl[T < ?Copy] Drop for UniqList[T]:
     fn drop(&mut self) -> void:
-        let index: usize = 0
-        while index < self.len:
-            _ := self.buffer.at(index).read()
-            index += 1
+        self.buffer.at(0).drop_in_place(self.len)
 
 impl[T < ?Copy] UniqList[T]:
     ## Returns an empty list with no reserved element capacity.
@@ -57,11 +55,13 @@ impl[T < ?Copy] UniqList[T]:
 
     ## Returns a shared reference to the element at `index`, or `.None` outside the list.
     ## See [std-collections.uniq-list.get-ref](../../spec/std/collections.md#r-std-collections.uniq-list.get-ref).
+    @inline
     pub fn get_ref['a](&'a self, index: usize) -> (&'a T)?:
-        if index >= self.len: .None else: .Some(self.item(index))
+        if index >= self.len: .None else: .Some(self.buffer.at(index).as_ref())
 
     ## Returns a mutable reference to the element at `index`, or `.None` outside the list.
     ## See [std-collections.uniq-list.get-mut](../../spec/std/collections.md#r-std-collections.uniq-list.get-mut).
+    @inline
     pub fn get_mut['a](&'a mut self, index: usize) -> (&'a mut T)?:
         if index >= self.len: .None else: .Some(self.buffer.at(index).as_mut())
 
@@ -97,7 +97,7 @@ impl[T < ?Copy] UniqList[T]:
     pub fn find_ref['a](&'a self, test: fn(&T) -> bool) -> (&'a T)?:
         let index: usize = 0
         while index < self.len():
-            item := self.item(index)
+            item := self.buffer.at(index).as_ref()
             if test(item):
                 return .Some(item)
             index += 1
@@ -108,7 +108,7 @@ impl[T < ?Copy] UniqList[T]:
     pub fn any(&self, test: fn(&T) -> bool) -> bool:
         let index: usize = 0
         while index < self.len():
-            if test(self.item(index)):
+            if test(self.buffer.at(index).as_ref()):
                 return true
             index += 1
         false
@@ -118,14 +118,10 @@ impl[T < ?Copy] UniqList[T]:
     pub fn all(&self, test: fn(&T) -> bool) -> bool:
         let index: usize = 0
         while index < self.len():
-            if !test(self.item(index)):
+            if !test(self.buffer.at(index).as_ref()):
                 return false
             index += 1
         true
-
-    # Shared references to the element at `index`, which is below `len`.
-    fn item['a](&'a self, index: usize) -> &'a T:
-        self.buffer.at(index).as_ref()
 
     # Moves every element into a larger room.
     fn reserve_for(&mut self, minimum: usize) -> void:
@@ -214,10 +210,10 @@ impl[T < ?Copy] UniqList[T]:
     ## Drops every element at `len` and after; a larger `len` has no effect.
     ## See [std-collections.uniq-list.truncate](../../spec/std/collections.md#r-std-collections.uniq-list.truncate).
     pub fn truncate(&mut self, len: usize) -> void:
-        while self.len() > len:
-            index := self.len() - 1
-            _ := self.buffer.at(index).read()
-            self.len = index
+        size := self.len
+        if size > len:
+            self.len = len
+            self.buffer.at(len).drop_in_place(size - len)
 
     ## Drops every element, leaving the list empty.
     ## See [std-collections.uniq-list.truncate](../../spec/std/collections.md#r-std-collections.uniq-list.truncate).
@@ -231,7 +227,7 @@ impl[T < ?Copy] UniqList[T]:
         let kept: usize = 0
         let index: usize = 0
         while index < size:
-            if keep(self.item(index)):
+            if keep(self.buffer.at(index).as_ref()):
                 if kept != index:
                     value := self.buffer.at(index).read()
                     self.buffer.at(kept).write(value)
@@ -248,7 +244,7 @@ impl[T < ?Copy] UniqList[T]:
         while index < self.len():
             let hole = index
             while hole > 0:
-                order := compare(self.item(hole), self.item(hole - 1))
+                order := compare(self.buffer.at(hole).as_ref(), self.buffer.at(hole - 1).as_ref())
                 match order:
                     .Less => self.swap(hole, hole - 1)
                     _ => break
@@ -261,7 +257,7 @@ impl[T < ?Copy] UniqList[T]:
         let mut keys: List[K] = []
         let index: usize = 0
         while index < self.len():
-            keys.push(key(self.item(index)))
+            keys.push(key(self.buffer.at(index).as_ref()))
             index += 1
         index = 1
         while index < self.len():
@@ -290,18 +286,15 @@ impl[T < Copy] UniqList[T]:
         let mut out: List[T] = []
         let index: usize = 0
         while index < self.len():
-            out.push(self.copied_at(index))
+            out.push(*self.buffer.at(index).as_ref())
             index += 1
         out
 
-    # Copies one element through its shared reference.
-    fn copied_at(&self, index: usize) -> T:
-        *self.item(index)
-
     ## Returns `.Some` of a copy of the element at `index`, or `.None` outside the list.
     ## See [std-collections.uniq-list.get](../../spec/std/collections.md#r-std-collections.uniq-list.get).
+    @inline
     pub fn get(&self, index: usize) -> T?:
-        if index >= self.len(): .None else: .Some(self.copied_at(index))
+        if index >= self.len: .None else: .Some(*self.buffer.at(index).as_ref())
 
     ## Returns a copy of the first element, or `.None` for an empty list.
     ## See [std-collections.uniq-list.first-last](../../spec/std/collections.md#r-std-collections.uniq-list.first-last).
@@ -333,10 +326,7 @@ impl[K < Eq & Hash, V < ?Copy] !Copy for UniqMap[K, V]
 # The map drops the slots in use; its buffer then frees the room.
 impl[K < Eq & Hash, V < ?Copy] Drop for UniqMap[K, V]:
     fn drop(&mut self) -> void:
-        let index: usize = 0
-        while index < self.used:
-            _ := self.slots.at(index).read()
-            index += 1
+        self.slots.at(0).drop_in_place(self.used)
 
 impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
     ## Returns an empty map.
@@ -367,7 +357,7 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
     pub fn get_ref['a](&'a self, key: K) -> (&'a V)?:
         match self.find_index(key):
             .Some(index) =>
-                match self.slot(index):
+                match self.slots.at(index).as_ref():
                     .Occupied(_, _, value) => .Some(value)
                     .Deleted => panic("uniq map found a deleted entry")
             .None => .None
@@ -401,10 +391,6 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
     pub fn keys['a](&'a self) -> UniqMapKeys[K, V, 'a]:
         UniqMapKeys { entries: self.iter() }
 
-    # A shared reference to slot `index`, which is below `used`.
-    fn slot['a](&'a self, index: usize) -> &'a UniqMapSlot[K, V]:
-        self.slots.at(index).as_ref()
-
     fn index_address(&self, index: usize) -> usize:
         self.slots.at(self.entry_capacity).address + index * size_of::[usize]()
 
@@ -427,7 +413,7 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
             if entry_plus_one == 0:
                 return .None
             entry := entry_plus_one - 1
-            match self.slot(entry):
+            match self.slots.at(entry).as_ref():
                 .Deleted => pass
                 .Occupied(found_hash, found, _) =>
                     if found_hash == hash && found == key:
@@ -462,7 +448,7 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
                 self.size += 1
                 return .None
             entry := entry_plus_one - 1
-            match self.slot(entry):
+            match self.slots.at(entry).as_ref():
                 .Deleted => pass
                 .Occupied(found_hash, found, _) =>
                     if found_hash == hash && found == key:
@@ -480,7 +466,7 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
         let mut next = UniqMap::[K, V].with_capacity(capacity)
         let index: usize = 0
         while index < self.used:
-            let hash: usize? = match self.slot(index):
+            let hash: usize? = match self.slots.at(index).as_ref():
                 .Occupied(found, _, _) => .Some(found)
                 .Deleted => .None
             match hash:
@@ -530,7 +516,7 @@ impl[K < Eq & Hash, V < Copy] UniqMap[K, V]:
     pub fn get(&self, key: K) -> V?:
         match self.find_index(key):
             .Some(index) =>
-                match self.slot(index):
+                match self.slots.at(index).as_ref():
                     .Occupied(_, _, value) => .Some(value)
                     .Deleted => panic("uniq map found a deleted entry")
             .None => .None
@@ -546,7 +532,7 @@ impl[K < Eq & Hash, V < ?Copy, 'a] Iterator[(K, &'a V)] for UniqMapIter[K, V, 'a
         while self.at < self.items.used:
             index := self.at
             self.at += 1
-            match self.items.slot(index):
+            match self.items.slots.at(index).as_ref():
                 .Occupied(_, key, value) => return .Some((key, value))
                 .Deleted => pass
         .None
@@ -607,7 +593,7 @@ impl[T < Copy] Index[usize] for UniqList[T]:
                 "index-out-of-bounds",
                 "uniq list index ${key} out of bounds for length ${self.len()}",
             )
-        self.copied_at(key)
+        *self.buffer.at(key).as_ref()
 
 impl[T < ?Copy & Ord] UniqList[T]:
     ## Stably sorts the elements in ascending order by `Ord`, in place.
@@ -660,7 +646,7 @@ impl[T < ?Copy & Eq] Eq for UniqList[T]:
             return false
         let index: usize = 0
         while index < self.len():
-            if !self.item(index).eq(other.item(index)):
+            if !self.buffer.at(index).as_ref().eq(other.buffer.at(index).as_ref()):
                 return false
             index += 1
         true
@@ -670,7 +656,7 @@ impl[T < ?Copy & Debug] Debug for UniqList[T]:
         let mut list = out.debug_list()
         let index: usize = 0
         while index < self.len():
-            _ := list.entry(self.item(index))
+            _ := list.entry(self.buffer.at(index).as_ref())
             index += 1
         list.finish()
 
@@ -679,7 +665,7 @@ impl[T < ?Copy & Hash] Hash for UniqList[T]:
         state.write_u64(u64(self.len()))
         let index: usize = 0
         while index < self.len():
-            self.item(index).hash(state)
+            self.buffer.at(index).as_ref().hash(state)
             index += 1
 
 impl[T] List[T]:

@@ -663,7 +663,9 @@ impl Em<'_, '_, '_> {
                     && p.steps(self.b)
                         .all(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)))
             }
-            Tag::Drop => !on_path(p.root) || self.drops_only_a_ref(p.root),
+            Tag::Drop => {
+                !on_path(p.root) || self.drops_only_a_ref(p.root) || self.drops_nothing(p.root)
+            }
             Tag::Scope => {
                 let suites = self.b.data[k][1];
                 suites == NONE || self.b.record(suites).is_empty()
@@ -687,6 +689,13 @@ impl Em<'_, '_, '_> {
             ),
             _ => false,
         }
+    }
+
+    /// Whether dropping value `root` releases nothing: a value with no
+    /// counted leaf and no `std.rt.Drop`, as the `Ptr` a pointer
+    /// reference's origin reads.
+    fn drops_nothing(&self, root: Root) -> bool {
+        matches!(root, Root::Value(v) if !self.needs_drop(self.ty_of(v)))
     }
 
     /// Whether dropping `root` leaves its referent's local holding it: a

@@ -81,6 +81,13 @@ pub trait InlineEnv: ProgramEnv {
     fn lent_referent(&self, _t: Ty) -> Option<Ty> {
         None
     }
+    /// The referent of a reference of type `t` that holds a value with a
+    /// `std.rt.Drop` (`hd_wasm_linear::rooted_referent`): an inlined copy
+    /// takes it by value only through its caller's reference parameter,
+    /// which nothing in the caller drops (`promote::inline_args`).
+    fn rooted_referent(&self, _t: Ty) -> Option<Ty> {
+        None
+    }
     /// Whether the referent of a reference of type `t`, one
     /// [`InlineEnv::lent_referent`] gives, holds a counted part.
     fn counted_referent(&self, _t: Ty) -> bool {
@@ -175,11 +182,29 @@ impl dyn InlineEnv + '_ {
                 && self.takes_reference(def, targs)
             {
                 let may_write = |c: &Callee| self.call_may_write(c);
-                let Some((mask, counted)) = self.by_value(def, targs, &copy) else {
+                let Some((mask, counted, rooted)) = self.by_value(def, targs, &copy) else {
                     continue;
                 };
                 let writes = hd_tir::own::writes_in(&copy, 0..copy.len(), &may_write);
-                let args = hd_tir::own::promote::inline_args(body, c, counted, writes, &may_write);
+                let lent_param = |l: u32| {
+                    let mut t = body.local_ty[l as usize];
+                    while let TyData::Mut(inner) = pool.get(t) {
+                        t = inner;
+                    }
+                    match pool.get(t) {
+                        TyData::Ref { .. } => true,
+                        TyData::Adt { def, .. } => self.ref_cells().holds(def),
+                        _ => false,
+                    }
+                };
+                let args = hd_tir::own::promote::inline_args(
+                    body,
+                    c,
+                    (counted, rooted),
+                    writes,
+                    &may_write,
+                    &lent_param,
+                );
                 if args & mask != mask {
                     continue;
                 }
@@ -188,7 +213,11 @@ impl dyn InlineEnv + '_ {
                 0
             };
             if by_value != 0 {
-                let referent = |t: Ty| self.lent_referent(t).unwrap_or(t);
+                let referent = |t: Ty| {
+                    self.lent_referent(t)
+                        .or_else(|| self.rooted_referent(t))
+                        .unwrap_or(t)
+                };
                 copy = hd_tir::own::promote::promote(&copy, by_value, referent);
             }
             sites.push(Site {
@@ -449,18 +478,29 @@ impl dyn InlineEnv + '_ {
     /// call would address the local and count it.
     ///
     /// With the mask, the parameters among them whose referents hold
-    /// counted parts (`InlineEnv::counted_referent`).
-    fn by_value(&self, def: DefId, targs: TyList, copy: &Body) -> Option<(u64, u64)> {
-        let (mut mask, mut counted) = (0, 0);
+    /// counted parts (`InlineEnv::counted_referent`), and those whose
+    /// referents hold a `std.rt.Drop` value (`InlineEnv::rooted_referent`).
+    fn by_value(&self, def: DefId, targs: TyList, copy: &Body) -> Option<(u64, u64, u64)> {
+        let (mut mask, mut counted, mut rooted) = (0, 0, 0);
         for (k, t) in self.reference_params(def, targs)? {
-            self.lent_referent(t).filter(|_| k < 64)?;
-            mask |= 1 << k;
-            if self.counted_referent(t) {
+            if k >= 64 {
+                return None;
+            }
+            if self.lent_referent(t).is_some() {
+                if self.counted_referent(t) {
+                    counted |= 1 << k;
+                }
+            } else {
+                // Read through the caller's reference, as a counted
+                // referent is (`inline_args`).
+                self.rooted_referent(t)?;
+                rooted |= 1 << k;
                 counted |= 1 << k;
             }
+            mask |= 1 << k;
         }
         (mask != 0 && hd_tir::own::promote::read_only_params(copy, mask) == mask)
-            .then_some((mask, counted))
+            .then_some((mask, counted, rooted))
     }
 
     /// Each parameter of `def` at `targs` that is, or may be in an
