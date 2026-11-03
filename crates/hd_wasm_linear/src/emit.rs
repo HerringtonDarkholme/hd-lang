@@ -2623,7 +2623,14 @@ impl Em<'_, '_, '_> {
                 continue;
             }
             params.extend(self.vals(self.ty_of(*r))?);
-            self.push(*r)?;
+            if !self.env().suspends(method)
+                && crate::layout::holds_drop(self.pool(), self.env(), self.ty_of(*r))
+            {
+                let value = self.consumed(*r)?;
+                self.push_src(&value)?;
+            } else {
+                self.push(*r)?;
+            }
         }
         if let Some(o) = &open {
             self.f.push(Ins::VTable(o.witness));

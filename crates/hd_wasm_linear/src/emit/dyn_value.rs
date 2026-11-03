@@ -157,13 +157,11 @@ impl Em<'_, '_, '_> {
         for ((m, t), recv) in methods.iter().zip(&table.slots).zip(&table.recv) {
             let env = self.env();
             let mut params = Vec::new();
-            // What the target owns of what the dynamic call lends it
-            // (`layout::Pass`); a suspending target's cold constructor
-            // counts its arguments itself.
+            // What the target owns of the lent receiver and arguments;
+            // open values and synchronous inline Drop values arrive owned.
             let mut own = Vec::new();
-            // The open value arguments, whose counts a dynamic call hands
-            // in (`erased.rs`): those its target only borrows, released
-            // once it has returned.
+            // Value arguments the call hands in but its target only
+            // borrows, released once it has returned, with Drop hooks.
             let mut given = Vec::new();
             let tys = super::callee_params(self.input, self.m, t.key, t.item, t.args);
             for (k, mut pt) in tys.into_iter().enumerate() {
@@ -189,11 +187,13 @@ impl Em<'_, '_, '_> {
                 }
                 let vs = self.vals(pt)?;
                 let n = u32::try_from(vs.len()).expect("values");
-                if let (true, crate::layout::Pass::Owned(handed)) =
-                    (hd_mono::is_open(self.pool(), pt), self.pass(pt))
+                if matches!(self.pass(pt), crate::layout::Pass::Owned(_))
+                    && (hd_mono::is_open(self.pool(), pt)
+                        || (!env.suspends(t.item)
+                            && crate::layout::holds_drop(self.pool(), env, pt)))
                 {
                     if w.is_none() {
-                        given.push((u32::try_from(k).expect("params"), handed));
+                        given.push((u32::try_from(k).expect("params"), self.ref_layout(pt)?));
                     }
                     own.push((n, None));
                 } else {

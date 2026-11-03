@@ -421,19 +421,19 @@ pub enum Helper {
     /// `(data, params..) -> results`: a vtable slot (`emit/dyn_value.rs`):
     /// calls `target` with the payload, loaded from the box at `data` as
     /// `leaves`, or `data` itself without them, then the parameters.
-    /// The dynamic call lends its arguments but open values, whose counts
-    /// it hands in; `own` has the walk of each other parameter of
-    /// `target`, the receiver first, that it owns (`layout::Pass`), and
-    /// the slot counts a copy of each of those. `given` has each open
-    /// value parameter, by its index in `own`, that `target` only
-    /// borrows, and its walk: the slot releases it after the call.
+    /// The dynamic call hands in open values and synchronous inline Drop
+    /// values, and lends the others. `own` has the walk of each lent
+    /// parameter, the receiver first, that `target` owns; the slot counts
+    /// a copy of each. `given` has each handed-in value, by its index in
+    /// `own`, that `target` only borrows, and its layout: the slot releases
+    /// it after the call, including its Drop hooks.
     DynSlot {
         target: Hash128,
         leaves: Option<Vec<Leaf>>,
         params: Vec<Val>,
         results: Vec<Val>,
         own: Vec<(u32, Option<Walk>)>,
-        given: Vec<(u32, Walk)>,
+        given: Vec<(u32, RefLayout)>,
         ctx: Option<SlotCtx>,
     },
     /// `(ref, params..) -> results`: a vtable slot whose payload is a
@@ -445,7 +445,7 @@ pub enum Helper {
         params: Vec<Val>,
         results: Vec<Val>,
         own: Vec<(u32, Option<Walk>)>,
-        given: Vec<(u32, Walk)>,
+        given: Vec<(u32, RefLayout)>,
         ctx: Option<SlotCtx>,
     },
     /// `(env, at, ctx) -> (usize, (K, V))?`: the step closure code of
@@ -1407,7 +1407,7 @@ fn dyn_read(
     params: &[Val],
     results: &[Val],
     own: &[(u32, Option<Walk>)],
-    given: &[(u32, Walk)],
+    given: &[(u32, RefLayout)],
     ctx: Option<&SlotCtx>,
     m: &Module,
 ) -> Func {
@@ -1423,7 +1423,7 @@ fn dyn_read(
     };
     // The read gave the receiver a count of its own: a target that owns
     // the receiver takes it over, and it is released after one that
-    // borrows it. Only the other owned arguments take counts here.
+    // borrows it. Other arguments follow the slot's handoff rules.
     let mut owned = own.to_vec();
     let recv_owned = owned.first_mut().is_some_and(|r| r.1.take().is_some());
     own_lent(&mut f, &rvals, &recv, params, &owned, m);
@@ -1433,7 +1433,7 @@ fn dyn_read(
     if !recv_owned {
         ref_count(&mut f, &held, &read.value, false);
     }
-    release_given(&mut f, params, own, given, m);
+    release_given(&mut f, own, given, m);
     f
 }
 
@@ -1890,7 +1890,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
                 ctx.as_ref(),
             );
             f.call(Sym::Inst(*target));
-            release_given(&mut f, params, own, given, m);
+            release_given(&mut f, own, given, m);
             f
         }
         Helper::DynRead {
@@ -2324,30 +2324,24 @@ fn own_lent(
     }
 }
 
-/// After a slot's call: releases each open value parameter in `given`
+/// After a slot's call: releases each value parameter in `given`
 /// (an index in `own`, whose entries give each parameter's value count,
-/// and its walk), whose count the dynamic call handed in and the target
+/// and its layout), whose ownership the dynamic call handed in and the target
 /// only borrowed. The target's results stay on the stack.
 fn release_given(
     f: &mut Func,
-    params: &[Val],
     own: &[(u32, Option<Walk>)],
-    given: &[(u32, Walk)],
+    given: &[(u32, RefLayout)],
     m: &Module,
 ) {
     if m.runtime.is_none() {
         return;
     }
-    for (k, w) in given {
+    for (k, value) in given {
         let first: u32 = 1 + own[1..*k as usize].iter().map(|o| o.0).sum::<u32>();
         let n = own[*k as usize].0;
-        for x in first..first + n {
-            f.get(x);
-        }
-        f.helper(Helper::Release {
-            vals: params[(first - 1) as usize..(first - 1 + n) as usize].to_vec(),
-            walk: w.clone(),
-        });
+        let locals: Vec<u32> = (first..first + n).collect();
+        ref_count(f, &locals, value, false);
     }
 }
 

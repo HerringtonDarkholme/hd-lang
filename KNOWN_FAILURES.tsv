@@ -1,4 +1,1 @@
 path	issue	engine	reason
-runtime/valid/erased-call-matrix-dyn-value-mut-unique.hd	#1319		a trait-value call lends a non-copyable argument its callee owns, so its buffer is freed twice
-runtime/valid/erased-call-matrix-dyn-value-ref-unique.hd	#1319		a trait-value call lends a non-copyable argument its callee owns, so its buffer is freed twice
-runtime/valid/erased-call-matrix-dyn-value-value-unique.hd	#1319		a trait-value call lends a non-copyable argument its callee owns, so its buffer is freed twice
