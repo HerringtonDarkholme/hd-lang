@@ -1,5 +1,5 @@
 # test: power preserves integer boundary results and IEEE floating special cases at both widths
-# Spec 05 Exponentiation and Floating-Point Arithmetic: expr.power.int.exponent, expr.power.checked, expr.power.float.pow, expr.float.remainder-truncated, expr.float.remainder-special.
+# Spec 05 Exponentiation and Floating-Point Arithmetic: expr.power.int.exponent, expr.power.checked, expr.power.float.special, expr.float.remainder-truncated, expr.float.remainder-special.
 # expect: test
 
 tests:

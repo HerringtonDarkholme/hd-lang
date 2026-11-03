@@ -901,7 +901,7 @@ is a run ID.
 | string prefixes, literal suffixes (`10ms`) | `Call` of the resolved prefix or suffix function |
 | `x[i]`, `x[i] = v` | `Call` of the resolved index or set method |
 | `x += y`, and the other compound assignments | the place's operands evaluated once (their `Ref`s used twice), `Prim` or a trait `Call`, then a `Store` of the place or a set `Call` |
-| `a ** b` on integers | a `Prim` integer-power operation: checked multiplication in the base's result type (`expr.power.checked`, `expr.power.int.*`); float `**` is the IEEE `pow` hook (`expr.power.float.pow`) |
+| `a ** b` on integers | a `Prim` integer-power operation: checked multiplication in the base's result type (`expr.power.checked`, `expr.power.int.*`); float `**` calls std's `float_pow_f64` (`expr.power.float.special`, `expr.power.float.within-ulp`) |
 | `a ** b` otherwise | the trait `Call` |
 | `a..`, `..b` range patterns | bound comparisons in the decision tree (`n >= a`, `n < b`), no range value built (`flow.match.range.from`, `flow.match.range.to`, `flow.match.range.no-bind`) |
 | `..` full-range expression | `RangeFull {}`: a `NewStruct` of the fieldless struct (`expr.range.form.full`) |

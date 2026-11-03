@@ -1292,7 +1292,8 @@ typing/invalid/power-mixed-numeric-types.hd	type	reject:type-mismatch	lang/05-ex
 runtime/valid/floating-power.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
 runtime/valid/power-and-remainder-edges.hd	runtime	accept	lang/05-expressions.md#exponentiation
 runtime/valid/power-any-unsigned-exponent-type-is-accepted.hd	runtime	accept	lang/05-expressions.md#r-expr.power.int.exponent
-runtime/valid/power-float-powers-follow-ieee-pow.hd	runtime	accept	lang/05-expressions.md#r-expr.power.float.pow
+runtime/valid/power-float-powers-follow-ieee-pow.hd	runtime	accept	lang/05-expressions.md#r-expr.power.float.special
+runtime/valid/power-float-within-one-ulp.hd	runtime	accept	lang/05-expressions.md#r-expr.power.float.within-ulp
 runtime/valid/power-integer-powers-compute-in-the-base-type.hd	runtime	accept	lang/05-expressions.md#r-expr.power.int.exponent
 typing/invalid/reassign-short-binding-in-function.hd	type	reject:non-reassignable-binding	lang/03-names-and-scopes.md#local-bindings
 typing/invalid/function-result-type-mismatch.hd	type	reject:type-mismatch	lang/04-type-system.md#assignability-and-coercion
