@@ -1043,6 +1043,10 @@ pub struct Module {
     /// The loans the program's bindings may register through counted aliases
     /// (`ref.excl.alias`); empty, no access checks any.
     pub loans: Vec<crate::emit::Loan>,
+    /// The types whose objects a pointer loan may hold (model A,
+    /// `emit/borrow.rs`), true where the loan may be exclusive; empty, no
+    /// access through a `*T` checks a borrow state.
+    pub lent: hd_base::HashMap<hd_types::Ty, bool>,
     /// Reachable program operations or exported entry hooks can cancel.
     /// Selected from the conservative reachable graph before specialization.
     pub cancellable: bool,

@@ -632,6 +632,14 @@ pub(crate) fn collect_loans(input: &Input<'_>, m: &mut Module) {
         let sub = |ty| subst(input.pool, input.env, item, args, ty);
         for (_, _, _, loan) in binds(input.pool, input.env, b, &sub) {
             if let Some(loan) = loan {
+                // Model A's loans on bound references (#1336, phase 3)
+                // will hold these objects, in every build: shared ones on
+                // each object before the last, and the reference's kind on
+                // the last.
+                for (object, _) in &loan.guards {
+                    super::borrow::lend(m, *object, false);
+                }
+                super::borrow::lend(m, loan.object, loan.excl);
                 push_loan(m, loan);
             }
         }

@@ -3,6 +3,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:loan_begin" (func $rt:loan_begin (param i32 i32 i32)))
   (import "fixture" "rt:loan_check" (func $rt:loan_check (param i32 i32 i32)))
+  (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:release'1" (func $rt:release'1 (param i32 i32)))
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
   (import "fixture" "rt:release'2" (func $rt:release'2 (param i32)))
@@ -30,6 +31,16 @@
         i32.const 8
         i32.const 1
         call $rt:loan_check
+      end
+      local.get $alias
+      i32.const 4
+      i32.sub
+      i32.load $heap
+      i32.const 4128768
+      i32.and
+      if
+        call $rt:panic
+        unreachable
       end
       i32.const 65 ;; &"b"
       drop
@@ -78,6 +89,16 @@
         i32.const 8
         i32.const 1
         call $rt:loan_check
+      end
+      local.get $alias
+      i32.const 4
+      i32.sub
+      i32.load $heap
+      i32.const 4128768
+      i32.and
+      if
+        call $rt:panic
+        unreachable
       end
       i32.const 65 ;; &"b"
       drop
@@ -163,6 +184,16 @@
         i32.const 8
         i32.const 1
         call $rt:loan_check
+      end
+      local.get $alias
+      i32.const 4
+      i32.sub
+      i32.load $heap
+      i32.const 4128768
+      i32.and
+      if
+        call $rt:panic
+        unreachable
       end
       i32.const 65 ;; &"b"
       drop
