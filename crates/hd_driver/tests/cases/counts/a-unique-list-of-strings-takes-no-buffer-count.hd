@@ -4,7 +4,8 @@
 # pushing, lending an element, iterating by reference and dropping the
 # list take no count of the list or its buffer. A reference to an element
 # that leaves a short loan (the cursor's) is still counted through the
-# page table, on the room's fixed count word.
+# page table, on the room's count word: the list is lent, so it may lie
+# behind a `*T`, and the count pins the room (#1320).
 # Rule: std-collections.uniq-list.type.
 use std.collections.UniqList
 

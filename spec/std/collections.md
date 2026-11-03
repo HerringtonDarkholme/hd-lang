@@ -92,6 +92,7 @@ Its surface is:
 24. r[std-collections.uniq-list.debug] For `T < ?Copy & Debug`, `UniqList[T]` implements `Debug` with the same bracketed, comma-separated form as a `List[T]`.
 25. r[std-collections.uniq-list.hash] For `T < ?Copy & Hash`, `UniqList[T]` hashes its length as a `u64`, then each element in order, as `List[T]` does.
 26. r[std-collections.uniq-list.drop] `UniqList[T]` implements [`std.rt.Drop`](../lang/10-modules.md#r-module.rt.drop.decl): dropping a list drops its elements in order, then its buffer frees the room.
+27. r[std-collections.uniq-list.pinned] An element reference reached through a `*T` counts the list's room ([`module.rt.buffer.pinned`](../lang/10-modules.md#r-module.rt.buffer.pinned)). While one does, a `push`, `insert`, `remove_at` or `retain`, and a `pop` or a `truncate` that removes an element, panics. Panic: `collection-pinned`.
 
 This surface has no literal construction.
 
@@ -127,6 +128,7 @@ non-copyable and move into and out of the table.
 14. r[std-collections.uniq-map.keys] `keys()` borrows the map and yields copies of its keys in the same order as `iter()`. Its cursor is `UniqMapKeys[K, V, 'a]`, with private fields, and lives for the map borrow.
 15. r[std-collections.uniq-map.into-iter] `UniqMap[K, V]` implements `Iterable[(K, V)]`. Its private `UniqMapIntoIter[K, V]` cursor owns the map and moves each key and value out in table order. A `for` loop over a `UniqMap` therefore consumes the map and each value.
 16. r[std-collections.uniq-map.collect] `UniqMap[K, V]` implements `FromIterator[(K, V)]`. When equal keys occur more than once, the last value replaces and drops the former value. An explicitly targeted `collect`, including `let items: UniqMap[_, _] = cursor.collect()`, may therefore collect non-copyable values.
+17. r[std-collections.uniq-map.pinned] A value reference reached through a `*T` counts the map's room ([`module.rt.buffer.pinned`](../lang/10-modules.md#r-module.rt.buffer.pinned)). While one does, an `insert` of a key the map does not hold, a `remove` of a key it holds, and a `clear` of a map with entries panic. Panic: `collection-pinned`.
 
 This surface has no literal construction.
 

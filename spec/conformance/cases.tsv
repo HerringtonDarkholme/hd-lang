@@ -4868,6 +4868,10 @@ runtime/panic/element-reference-remove-at-panics.hd	runtime	panic:collection-pin
 runtime/panic/element-reference-pop-panics.hd	runtime	panic:collection-pinned	lang/13-values-and-references.md#r-ref.elem.pinned
 runtime/panic/element-reference-clear-panics.hd	runtime	panic:collection-pinned	lang/13-values-and-references.md#r-ref.elem.pinned
 runtime/panic/element-reference-extend-panics.hd	runtime	panic:collection-pinned	std/collections.md#r-std-collections.value.pinned-length
+typing/invalid/for-element-references-through-mut-parameter-push-conflict.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.for.ref.conflict
+runtime/panic/for-element-references-alias-push-panics.hd	runtime	panic:collection-pinned	lang/06-control-flow.md#r-flow.for.ref.pinned
+runtime/panic/uniq-list-element-alias-push-panics.hd	runtime	panic:collection-pinned	std/collections.md#r-std-collections.uniq-list.pinned
+runtime/panic/uniq-map-value-alias-insert-panics.hd	runtime	panic:collection-pinned	std/collections.md#r-std-collections.uniq-map.pinned
 typing/valid/element-reference-shared-any-list.hd	type	accept	lang/13-values-and-references.md#r-ref.elem.writable.shared
 typing/invalid/element-reference-mut-short-binding.hd	type	reject:not-writable	lang/13-values-and-references.md#r-ref.elem.writable
 typing/invalid/for-element-references-mut-short-binding.hd	type	reject:not-writable	lang/06-control-flow.md#r-flow.for.ref.writable
@@ -4915,8 +4919,6 @@ typing/invalid/for-cursor-item-outlives-local.hd	type	reject:local-reference-out
 typing/invalid/for-mut-cursor-item-outlives-local.hd	type	reject:local-reference-outlives-local	lang/06-control-flow.md#r-flow.for.iterator.item-origins
 typing/valid/for-element-references-field-reference.hd	type	accept	lang/06-control-flow.md#r-flow.for.ref.binding.local
 typing/invalid/for-element-references-push-conflict.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.for.ref.conflict
-typing/invalid/for-element-references-through-mut-parameter-push-conflict.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.for.ref.conflict
-runtime/panic/for-element-references-alias-push-panics.hd	runtime	panic:collection-pinned	lang/06-control-flow.md#r-flow.for.ref.pinned
 runtime/valid/for-element-references-body-reads-list.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.ref.conflict
 runtime/panic/map-element-reference-insert-panics.hd	runtime	panic:collection-pinned	lang/13-values-and-references.md#r-ref.elem.pinned.map
 runtime/panic/map-get-or-insert-pinned-panics.hd	runtime	panic:collection-pinned	std/collections.md#r-std-collections.map.get-or-insert.pinned
