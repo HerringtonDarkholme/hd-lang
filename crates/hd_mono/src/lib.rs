@@ -2443,11 +2443,13 @@ impl Cx<'_> {
                 global,
             };
             let picked = self.solver.select(&mut cx, tref).map_err(|mut e| {
+                // Optional probes can discard this failure. Bound its context
+                // before expanding a shared type graph into a printed tree.
                 e.what = format!(
                     "{} (`{}` at `{}`)",
                     e.what,
                     env.describe(trait_),
-                    self.pool.display(self_ty)
+                    shown_type(self.pool, env, self_ty)
                 );
                 e
             })?;
