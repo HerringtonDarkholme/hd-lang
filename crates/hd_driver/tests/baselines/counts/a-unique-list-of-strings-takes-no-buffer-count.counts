@@ -32,8 +32,6 @@ fn total(words: &UniqList[string]) -> usize:
 >   retain &std.collections.UniqList[string]
 >   release &std.collections.UniqList[string]
 >   release &string?
->   retain &string?
->   release &string?
 >   release &string?
 >   release &string
         total += word.len()
