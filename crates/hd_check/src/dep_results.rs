@@ -1092,6 +1092,8 @@ struct Inputs<'a> {
     /// The reads of a `&mut` that a typed `let`, an assignment or a `&mut`
     /// field reborrows (`ref.move.reborrow.excl`).
     reborrows: &'a HashSet<u32>,
+    /// The reads that move a binding or a part of it (`ref.excl.move`).
+    moves: &'a HashSet<u32>,
     /// Locals whose closure capture is already `local-reference-escapes`
     /// (`ref.local.escape.capture-stored`): they add no capture origins.
     reported: &'a HashSet<hd_base::LocalId>,
@@ -1581,7 +1583,7 @@ impl Ck<'_, '_> {
         root: hd_tir::ir::Ref,
         ret: Ty,
         fun: Option<NodeRef<'_>>,
-        reborrows: &HashSet<u32>,
+        facts: &crate::moves::MoveFacts,
     ) {
         let pool = self.pool();
         let ls = &Layouts::new(pool, self.cx.names.known.suspend);
@@ -1798,7 +1800,8 @@ impl Ck<'_, '_> {
             params,
             own: mine.as_ref(),
             boxes: &self.boxes,
-            reborrows,
+            reborrows: &facts.reborrows,
+            moves: &facts.moves,
             reported: &self.ref_captured,
             paths: &paths,
         };

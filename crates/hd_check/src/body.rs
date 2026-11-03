@@ -5041,9 +5041,9 @@ impl Ck<'_, '_> {
         self.check_negated_unsigned();
         self.check_literal_ranges();
         self.check_local_ref_types();
-        let reborrows = self.check_moves(root);
+        let move_facts = self.check_moves(root);
         self.check_moves_out_of_place();
-        self.check_dependent_results(root, ret, fun, &reborrows);
+        self.check_dependent_results(root, ret, fun, &move_facts);
         if let Some(node) = fun {
             self.check_inferred_result(node, ret);
         }

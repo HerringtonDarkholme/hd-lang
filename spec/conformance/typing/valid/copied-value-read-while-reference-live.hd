@@ -1,0 +1,13 @@
+# test: reading a copied value while a reference to it is used later is valid, since a copy does not move
+# Spec 13 Writes While Borrowed: ref.excl.move, ref.excl.shared.
+struct Tally:
+    labels: List[string]
+
+fn count(tally: Tally) -> usize:
+    tally.labels.len()
+
+pub fn main() -> void $ Console:
+    tally := Tally { labels: ["a", "b"] }
+    r := &tally
+    n := count(tally)
+    println("$n ${r.labels.len()}")

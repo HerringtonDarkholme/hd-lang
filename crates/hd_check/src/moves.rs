@@ -26,6 +26,18 @@ use crate::body::Ck;
 
 mod out_of_place;
 
+/// What [`Ck::check_moves`] finds for the exclusivity rules.
+#[derive(Default)]
+pub(crate) struct MoveFacts {
+    /// The reads of a whole `&mut` binding or field that a typed `let`,
+    /// an assignment or a field declared `&mut` reborrows, each a loan
+    /// like `&mut *c` (`ref.move.reborrow.excl`).
+    pub(crate) reborrows: HashSet<u32>,
+    /// The reads that move a binding or a part of it (`ref.move.sites`,
+    /// `ref.move.field`, `ref.move.pattern`), which `ref.excl.move` checks.
+    pub(crate) moves: HashSet<u32>,
+}
+
 /// An instruction index as a word.
 fn w(i: usize) -> u32 {
     u32::try_from(i).unwrap_or(u32::MAX)
@@ -318,22 +330,20 @@ impl Ck<'_, '_> {
 
     /// `ref.move`: each use of a binding that is not copied, after its
     /// value moved on some path, is `use-of-moved-value`, reported once
-    /// per binding. Returns the reads of a whole `&mut` binding or field
-    /// that a typed `let`, an assignment or a field declared `&mut`
-    /// reborrows, each a loan like `&mut *c` (`ref.move.reborrow.excl`).
-    pub(crate) fn check_moves(&mut self, root: Ref) -> HashSet<u32> {
+    /// per binding. Returns the reads that move ([`MoveFacts`]).
+    pub(crate) fn check_moves(&mut self, root: Ref) -> MoveFacts {
         let pool = self.pool();
         let b = self.b.body();
-        let mut reborrows = HashSet::default();
+        let mut facts = MoveFacts::default();
         // A body with an error has poison values, whose uses say nothing.
         if b.tags.contains(&Tag::Poison) {
-            return reborrows;
+            return facts;
         }
         let hidden = self.hidden_locals(b);
         let held: Vec<bool> = (b.local_ty.iter()).map(|&t| !self.copies(t)).collect();
         let tracked = |l: LocalId| held[l.idx()] && !hidden[l.idx()];
         if !(0..b.local_ty.len()).any(|l| held[l] && !hidden[l]) {
-            return reborrows;
+            return facts;
         }
         let n = b.len();
         let users = out_of_place::users_of(b);
@@ -414,12 +424,13 @@ impl Ck<'_, '_> {
                 && is_mut_ref(pool, b.ty[i])
                 && self.reborrows(&cx, w(i), 0)
             {
-                reborrows.insert(w(i));
+                facts.reborrows.insert(w(i));
             }
         }
         if bits.is_empty() {
-            return reborrows;
+            return facts;
         }
+        facts.moves = (0..n).filter(|&i| move_bit[i] != NONE).map(w).collect();
         let mut found = HashMap::default();
         let mut flow = Flow::default();
         flow.arena.words = bits.len().div_ceil(64);
@@ -469,7 +480,7 @@ impl Ck<'_, '_> {
             let node = self.cx.src.parse.tree.node(at);
             self.err(Code::UseOfMovedValue, node, &msg);
         }
-        reborrows
+        facts
     }
 
     /// Whether `&mut` value `v` reaches a site that reborrows it as

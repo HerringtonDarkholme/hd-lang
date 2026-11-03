@@ -1,0 +1,17 @@
+# test: a pattern that moves a payload out while a reference to the matched binding is used later is a conflicting access
+# Spec 13 Writes While Borrowed: ref.excl.move, ref.move.pattern.
+struct Bag:
+    labels: List[string]
+
+impl !Copy for Bag
+
+fn consume(bag: Bag) -> usize:
+    bag.labels.len()
+
+pub fn main() -> void $ Console:
+    let held: Bag? = .Some(Bag { labels: ["a"] })
+    r := &held
+    match held:
+        .Some(bag) => # diagnostic: conflicting-access
+            println("${consume(bag)} ${r.is_some()}")
+        .None => pass

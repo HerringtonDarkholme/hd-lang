@@ -1,0 +1,24 @@
+# test: moving a value that is not copied while a reference into it is used later is a conflicting access
+# Spec 13 Writes While Borrowed: ref.excl.move, ref.excl.live.
+struct Bag:
+    labels: List[string]
+
+impl !Copy for Bag
+
+impl Bag:
+    fn first(&self) -> &string?:
+        if self.labels.is_empty():
+            .None
+        else:
+            .Some(&self.labels[0])
+
+fn consume(bag: Bag) -> usize:
+    bag.labels.len()
+
+pub fn main() -> void $ Console:
+    bag := Bag { labels: ["a"] }
+    match bag.first():
+        .Some(r) =>
+            n := consume(bag) # diagnostic: conflicting-access
+            println("${*r} $n")
+        .None => pass
