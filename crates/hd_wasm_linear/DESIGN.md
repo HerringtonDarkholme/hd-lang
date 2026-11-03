@@ -1525,12 +1525,16 @@ reads, and the counts of the code it generates.
   Arguments spread from a tuple do not line up with the parameters one
   to one, so each owned parameter's values take a count wherever they
   come from. A function reference's adapter passes its arguments on
-  unchanged. Code the backend generates lends what it passes: a vtable
-  slot (`Helper::DynSlot`, `DynRead`), the map glue's `key_bucket_hash`
-  and `eq` calls (`KeyOps`), and the boundary's JSON codecs and
-  `host_provider` count a copy of each argument the target owns
-  (`rt::own_arg`). So a dynamic call lends its arguments, as host stubs
-  expect.
+  unchanged. A synchronous dynamic call hands in a native value that
+  holds an inline `Drop` implementation the same way: retaining its
+  counted fields cannot copy its Drop ownership. Its vtable slot
+  (`Helper::DynSlot`, `DynRead`) forwards that value unchanged and
+  releases it, including its hooks, after a target that only borrows it.
+  Other native arguments and the receiver stay lent, as host stubs
+  expect; the slot counts what its target owns of those. Other generated
+  code lends what it passes: the map glue's `key_bucket_hash` and `eq`
+  calls (`KeyOps`), the boundary's JSON codecs and `host_provider` count
+  a copy of each argument the target owns (`rt::own_arg`).
 - **Moves.** The move pass moves a value's count into its one consumer
   and a local's into its last read (docs/compiler/tir-v2.md, "Move",
   rules 1 to 4). The emitter zeroes a moved place once its consumer has
@@ -1629,10 +1633,11 @@ same erased bodies, thunks and witness fields.
 - **The slot.** A generic method's vtable slot takes the receiver, the
   arguments with open ones as open values, the witness address, then the
   context when the method has a row (§23.26). The call owns each open
-  value argument: the caller moves its value into the open value when
+  value argument, and each native inline Drop value of a synchronous
+  call: the caller moves its value into the argument when
   the call consumes it, as a by-value argument of a `!Copy` type always
   is, and otherwise gives it a copy (#1279). The slot hands that count
-  to an erased body that owns the parameter and releases it after one
+  to a body that owns the parameter and releases it after one
   that borrows it (a lent summary, or a suspending method's cold
   constructor, which counts what it keeps). An open reference argument
   crosses as a view the caller releases once the call has returned. The

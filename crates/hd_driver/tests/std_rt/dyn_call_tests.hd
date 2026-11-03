@@ -1,0 +1,104 @@
+# Dyn calls hand off owned values and clean up values their targets only borrow.
+# The conformance runner adds this module to std so it can implement Drop.
+use std.rt.Drop
+use std.collections.UniqList
+
+let drops: usize = 0
+
+struct Token:
+    id: usize
+
+impl !Copy for Token
+
+impl Drop for Token:
+    fn drop(&mut self) -> void:
+        drops = drops + 1
+
+trait Measure < ?Copy:
+    fn amount(&self) -> usize
+
+struct Owner:
+    tokens: UniqList[Token]
+
+impl !Copy for Owner
+
+impl Measure for Owner:
+    fn amount(&self) -> usize:
+        self.tokens.get_ref(0).expect("the owned token").id
+
+fn make(id: usize) -> Owner:
+    let mut tokens = UniqList::[Token].new()
+    tokens.push(Token { id: id })
+    Owner { tokens: tokens }
+
+struct Package:
+    owner: Owner
+    text: string
+
+impl !Copy for Package
+
+impl Measure for Package:
+    fn amount(&self) -> usize:
+        self.owner.amount() + self.text.len()
+
+trait Observer[T < ?Copy & Measure]:
+    fn observe(&self, value: T) -> usize
+
+trait Relay[T < ?Copy]:
+    fn relay(&self, value: T) -> T
+
+struct Worker: pass
+
+impl[T < ?Copy & Measure] Observer[T] for Worker:
+    fn observe(&self, value: T) -> usize:
+        value.amount()
+
+impl[T < ?Copy] Relay[T] for Worker:
+    fn relay(&self, value: T) -> T:
+        value
+
+fn returned_owner(relay: &dyn Relay[Owner], value: Owner) -> usize:
+    back := relay.relay(value)
+    back.amount()
+
+tests:
+    use std.testing.{assert_equal, it}
+
+    it("a returned move drops once in its caller"):
+        worker := Worker {}
+        let relay: &dyn Relay[Owner] = &worker
+        for id in 0..8:
+            value := make(id)
+            before := drops
+            assert_equal(returned_owner(relay, value), id)
+            assert_equal(drops, before + 1)
+
+    it("an implementation that only reads still drops its handed-in value"):
+        worker := Worker {}
+        let observer: &dyn Observer[Owner] = &worker
+        for id in 0..8:
+            value := make(id)
+            before := drops
+            assert_equal(observer.observe(value), id)
+            assert_equal(drops, before + 1)
+
+    it("a borrowed implementation releases nested Drop hooks and counted fields"):
+        worker := Worker {}
+        let observer: &dyn Observer[Package] = &worker
+        for id in 0..8:
+            text := "word_$id"
+            value := Package { owner: make(id), text: text }
+            before := drops
+            assert_equal(observer.observe(value), id + text.len())
+            assert_equal(drops, before + 1)
+            assert_equal(text, "word_$id")
+
+    it("a counted argument can remain shared by its caller"):
+        worker := Worker {}
+        let relay: &dyn Relay[string] = &worker
+        for id in 0..8:
+            text := "word_$id"
+            back := relay.relay(text)
+            assert_equal(back, text)
+            again := relay.relay(text)
+            assert_equal(again, back)
