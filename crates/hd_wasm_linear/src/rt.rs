@@ -237,8 +237,8 @@ pub enum Helper {
     /// `(size, descriptor) -> address`: a new counted object (§23.4) of
     /// `size` payload bytes, from std's allocator: its count 1 and its
     /// descriptor word, the table slot of its [`Helper::DropFields`] plus
-    /// one, or 0 when its payload holds no counted reference. The address
-    /// is its payload's.
+    /// one, or 0 when its payload holds no counted reference and has no
+    /// `std.rt.Drop` hook. The address is its payload's.
     New,
     /// The same ABI as New, with a statically known payload size.
     NewFixed {
@@ -293,10 +293,14 @@ pub enum Helper {
     /// (0). An open value leaves its box this way (`emit/erased.rs`).
     TakeBox,
     /// `(payload)`: the release glue of an object whose payload is laid
-    /// out as `leaves`: one count less on each counted reference in it.
+    /// out as `leaves`: its `std.rt.Drop` hooks, then one count less on
+    /// each counted reference in it.
     DropFields {
         leaves: Vec<Leaf>,
         walk: Walk,
+        /// The `std.rt.Drop.drop` instances to call before the fields,
+        /// each with its byte offset from this payload's start.
+        drops: Vec<(u32, Hash128)>,
     },
     /// `(payload)`: a type-keyed descriptor alias for a weak-target type
     /// whose payload has no counted fields.
@@ -1815,15 +1819,17 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             }
             f
         }
-        Helper::DropFields { leaves, walk } => {
-            fields_glue(m, "rt:drop", leaves, walk, &release_call)
-        }
+        Helper::DropFields {
+            leaves,
+            walk,
+            drops,
+        } => fields_glue(m, "rt:drop", leaves, walk, drops, &release_call),
         Helper::WeakNoopDrop => m.func("rt:weak_noop_drop", vec![Val::I32], vec![]),
         Helper::WeakNew => weak_new(m),
         Helper::WeakEntryDrop => weak_entry_drop(m),
         Helper::WeakTypeInit => weak_type_init(m),
         Helper::RetainFields { leaves, walk } => {
-            fields_glue(m, "rt:retain_fields", leaves, walk, &retain_call(m))
+            fields_glue(m, "rt:retain_fields", leaves, walk, &[], &retain_call(m))
         }
         Helper::LoanBegin => loan_begin(m),
         Helper::LoanCount => loan_count(m),
@@ -2448,11 +2454,20 @@ fn fields_glue(
     name: &str,
     leaves: &[Leaf],
     walk: &Walk,
+    drops: &[(u32, Hash128)],
     on: &dyn Fn(&mut Func, Addr),
 ) -> Func {
     let mut f = m.func(name, vec![Val::I32], vec![]);
     if name == "rt:retain_fields" {
         trap_buffer_retain(&mut f, walk);
+    }
+    for &(offset, drop) in drops {
+        f.get(0);
+        if offset != 0 {
+            f.u32(offset);
+            f.op(Instruction::I32Add);
+        }
+        f.call(Sym::Inst(drop));
     }
     let ls: Vec<u32> = leaves.iter().map(|l| f.local(l.val)).collect();
     for (l, at) in leaves.iter().zip(&ls) {
@@ -4244,6 +4259,7 @@ fn ref_box(f: &mut Func, ls: &[u32], value: &RefLayout) {
         Sym::Helper(Helper::DropFields {
             leaves: value.leaves.clone(),
             walk: walk.clone(),
+            drops: Vec::new(),
         })
     });
     if let Some(key) = value.weak {

@@ -49,10 +49,25 @@ pub fn wat(p: &Program) -> String {
 /// [`wat`], for the target and level `at` names.
 #[must_use]
 pub fn wat_for(p: &Program, at: Build) -> String {
-    let src = p.sources();
+    let mut src = p.sources();
+    if at.std {
+        src = hd_driver::std_sources();
+        src.insert(super::own::STD_CASE, &p.text);
+    }
+    let (package, module, prefix, case, render_tir): (_, _, _, _, &[&str]) = if at.std {
+        (
+            "std",
+            "rt_tests.stage_case",
+            "std/rt_tests.stage_case/",
+            super::own::STD_CASE,
+            &["std/rt_tests.stage_case/*"],
+        )
+    } else {
+        ("app", "main", "app/", "main.hd", &["app/*"])
+    };
     let store = hd_cache::MemoryStore::default();
     let host = Host {
-        render_tir: &["app/*"],
+        render_tir,
         sources: &src,
         store: &store,
         clock: &NoClock,
@@ -76,10 +91,10 @@ pub fn wat_for(p: &Program, at: Build) -> String {
     };
     let built = build_packages(
         &host,
-        "app",
+        package,
         &packages,
         &Goal::Fixture {
-            module: "main".into(),
+            module: module.into(),
         },
     );
     let mut out = String::from("(module\n");
@@ -96,7 +111,7 @@ pub fn wat_for(p: &Program, at: Build) -> String {
         // Each function's excerpt, as tokens, before anything is named.
         let mut excerpts: Vec<(&FunctionOrigins, Instructions)> = Vec::new();
         for f in &built.instruction_origins {
-            let Some(item) = f.item.as_deref().filter(|i| i.starts_with("app/")) else {
+            let Some(item) = f.item.as_deref().filter(|i| i.starts_with(prefix)) else {
                 continue;
             };
             let start = module.bodies[&f.index];
@@ -107,7 +122,7 @@ pub fn wat_for(p: &Program, at: Build) -> String {
                     let source = ins
                         .origin
                         .and_then(|o| positions.span(item, o))
-                        .filter(|(file, _, _)| *file == "main.hd")
+                        .filter(|(file, _, _)| *file == case)
                         .map(|(_, lo, hi)| (lo as usize, hi as usize));
                     let at = start + u64::from(ins.offset);
                     (
@@ -519,7 +534,10 @@ fn static_label(data: &StaticData, module: &Module) -> String {
 /// repeats the obvious: the case's own module path, an instance body's
 /// `#0`, a helper's module-order `#k`.
 fn short_name(name: &str) -> String {
-    let name = name.strip_prefix("app/main/").unwrap_or(name);
+    let name = name
+        .strip_prefix("app/main/")
+        .or_else(|| name.strip_prefix("std/rt_tests.stage_case/"))
+        .unwrap_or(name);
     // A suspending body's part: `f#0.poll`.
     if let Some((base, part)) = name.split_once("#0.") {
         return format!("{base}.{part}");

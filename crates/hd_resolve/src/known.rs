@@ -145,6 +145,11 @@ pub struct KnownItems {
     pub suspend: DefId,
     /// `std.rt.memory.Buffer`, a counted buffer object (`module.rt.buffer.type`).
     pub buffer: DefId,
+    /// `std.rt.Drop`, whose implementation a value's release glue calls
+    /// before releasing its fields (`module.rt.drop.glue`).
+    pub drop_trait: DefId,
+    /// `std.rt.Drop.drop`.
+    pub drop_method: DefId,
     pub block_on: DefId,
     /// `std.task.race`, whose call needs a task (`req.combinator.race-empty`).
     pub race: DefId,
@@ -252,6 +257,7 @@ impl KnownItems {
         let integer = item("std.num", "Integer");
         let float = item("std.num", "Float");
         let copy = item("std.core", "Copy");
+        let drop_trait = item("std.rt", "Drop");
         Self {
             any,
             any_val,
@@ -261,6 +267,8 @@ impl KnownItems {
             list_is_empty: inherent_method("std.collections", "impl [ T ] List [ T ]", "is_empty"),
             map: item("std.core", "Map"),
             buffer: item("std.rt.memory", "Buffer"),
+            drop_trait,
+            drop_method: trait_method(drop_trait, "drop"),
             ref_cell: item("std.core", "Ref"),
             counted_cell: item("std.core", "Counted"),
             function_module: module("std.function"),

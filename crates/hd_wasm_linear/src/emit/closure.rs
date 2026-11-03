@@ -310,7 +310,7 @@ impl Em<'_, '_, '_> {
     /// of a cell is the cell's.
     fn release_slot(&mut self, l: usize, c: u32) -> StageResult<()> {
         let t = self.cell_ty(l);
-        if self.counted(t).is_none() {
+        if !self.needs_drop(t) {
             return Ok(());
         }
         let (m, _) = self.cell_mem(l)?;

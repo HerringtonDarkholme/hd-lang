@@ -1,0 +1,35 @@
+# The release-glue tests for std.rt.Drop. The conformance runner adds this
+# file to std as `std.rt_tests.drop_tests`, since only std may implement the
+# runtime trait.
+use std.rt.Drop
+
+let log = ""
+
+struct Inner:
+    name: string
+
+impl Drop for Inner:
+    fn drop(&mut self) -> void:
+        log = log + self.name
+
+struct Outer:
+    name: string
+    inner: Inner
+
+impl Drop for Outer:
+    fn drop(&mut self) -> void:
+        log = log + self.name
+
+fn make_and_release() -> void:
+    _ := Outer {
+        name: "outer,",
+        inner: Inner { name: "inner" },
+    }
+
+tests:
+    use std.testing.{assert, it}
+
+    it("release glue calls Drop before releasing fields"):
+        log = ""
+        make_and_release()
+        assert(log == "outer,inner", "the outer hook ran before its field's hook: $log")

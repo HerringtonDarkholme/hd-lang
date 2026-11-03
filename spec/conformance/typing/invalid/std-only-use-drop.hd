@@ -1,0 +1,12 @@
+# test: a program outside the standard library cannot implement the runtime Drop hook
+# Spec 10 Runtime Drop Hook: module.rt.std-only.error, module.rt.drop.decl.
+use std.rt.Drop # diagnostic: std-only-use
+
+struct Item: pass
+
+impl Drop for Item:
+    fn drop(&mut self) -> void:
+        pass
+
+pub fn main() -> void:
+    _ := Item {}
