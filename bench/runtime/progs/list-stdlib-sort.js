@@ -7,7 +7,9 @@ for (let i = 0; i < size; i++) {
 }
 items.sort((left, right) => left - right);
 let total = 0n;
-for (let i = 0; i < items.length; i += 1024) total ^= BigInt(items[i]);
+for (let i = 0; i < items.length; i += 1024) {
+  total ^= BigInt(items[i]);
+}
 total ^= BigInt(items[0]);
 total ^= BigInt(items[items.length - 1]);
 console.log(total.toString());
