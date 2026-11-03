@@ -193,3 +193,4 @@ runtime/panic/pointer-loan-struct-ref-umap-replace-panics.hd	#1323		unsound toda
 runtime/valid/pointer-loan-extra-callee-only-reads.hd	#1323		not built: today passing a *mut to a call counts as a write of its whole object
 runtime/valid/pointer-loan-extra-root-pointer-last-use-before-reference.hd	#1327		unsound today: the reference reads freed memory after its root pointer is released
 runtime/valid/pointer-loan-extra-root-pointer-moved-into-a-task.hd	#1327		unsound today: the reference reads freed memory after its root pointer is released
+runtime/panic/pointer-loan-extra-elide-other-task-panics.hd	#1323		unsound today: the reference reads freed memory after another task replaces the list; the proposal panics borrow-conflict
