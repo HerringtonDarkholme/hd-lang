@@ -226,6 +226,11 @@ contract header without executing its JavaScript body, then emits SDK-owned
 bindings. These checks establish ABI compatibility and provenance; they do
 not authenticate arbitrary compiler output.
 
+The server schema targets an hd-lang semantic version and the package-host
+ABI version. It hashes the SDK-owned `server.hd` declaration for maintenance,
+but does not hash std sources; an implementation-only std edit at the same
+hd-lang version needs no schema regeneration.
+
 The SDK owns the output marker, generation store and regular `wrangler.json`
 selector. Repeated preparation selects a complete immutable generation and
 retains previous generations for readers already using them. Unrelated root
