@@ -1,0 +1,24 @@
+# @dump: counts
+# @build: release
+
+use std.text.StringBuilder
+
+fn make_text() -> string:
+    out := StringBuilder::new()
+    out.push("prefix:")
+    out.push("tiny text")
+    out.push(":suffix")
+    out.build()
+
+pub fn main() -> void:
+    text := make_text()
+    let equal: usize = 0
+    let i: usize = 0
+    while i < 20000000:
+        # subject
+        same := text.slice(7, 16) == "tiny text"
+        if same:
+            equal += 1
+        i += 1
+    if equal != 20000000:
+        panic("substring differs")

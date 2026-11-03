@@ -6,7 +6,7 @@
 
 use crate::op::Op as I;
 use hd_base::StageResult;
-use hd_tir::ir::{IntrinsicOp, NONE, Ref, Tag};
+use hd_tir::ir::{NONE, Ref};
 use hd_types::{Ty, TyData};
 use wasm_encoder::BlockType;
 
@@ -280,25 +280,14 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    /// The string equality instruction that directly consumes `slice`, when
-    /// `slice` is a direct call of `string.slice`.
-    pub(super) fn string_slice_comparison(&self, slice: u32) -> Option<u32> {
-        let target = matches!(
+    /// Whether `slice` is a direct call of `string.slice`.
+    pub(super) fn is_string_slice_call(&self, slice: u32) -> bool {
+        matches!(
             self.calls.get(&slice),
             Some(hd_mono::Target::Call(call))
                 if call.kind == hd_mono::TargetKind::Instance
                     && (self.input.path)(call.item) == "std/text/impl string.slice"
-        );
-        target.then_some(())?;
-        self.b.tags.iter().enumerate().find_map(|(equal, tag)| {
-            if *tag != Tag::Intrinsic
-                || IntrinsicOp::from_u32(self.b.data[equal][0]) != Some(IntrinsicOp::StrEq)
-                || !self.rec(self.b.data[equal][1]).contains(&slice)
-            {
-                return None;
-            }
-            u32::try_from(equal).ok()
-        })
+        )
     }
 
     /// Equality of two byte ranges, with no whole-string helper call.

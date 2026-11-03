@@ -29,6 +29,7 @@ const ALL_CASES = [
   "string-add-assign-build",
   "string-builder-push",
   "string-slice",
+  "string-slice-compare",
   "string-split",
   "string-trim",
   "string-eq-short",
