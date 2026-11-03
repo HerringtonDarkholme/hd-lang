@@ -212,9 +212,14 @@ collector for acyclic data, so the list must drop them.
   2. The read-mode rule for `!Copy` values; the verifier passes.
   3. `std.rt.Drop` and its glue call; a stage case and a checked case. Applied by #1297 ([Runtime Drop Hook](../../spec/lang/10-modules.md#runtime-drop-hook)).
   4. Raw `Buffer`, `UniqList` with `len`; uniq fixtures in checked
-     builds.
+     builds. Applied by #1298 ([Typed Memory](../../spec/lang/10-modules.md#typed-memory)):
+     a room keeps an 8-byte head whose count word no balanced count of
+     a reference into it brings to its last count, since the backend
+     still counts a reference that leaves a short loan.
   5. `UniqMap` and the iterators on `Drop`; the collector's deferred
-     free; the cycle tests.
+     free; the cycle tests. `UniqMap`'s `Drop` and the deferred free
+     applied by #1298; the iterators are #1299.
   6. Remove `OWNED`, `BufferDrop` and the item-reference counts; release
-     sizes and the #1205 benchmark against `Map`.
+     sizes and the #1205 benchmark against `Map`. `OWNED` and the buffer
+     glue removed by #1298.
   7. The generated test matrix.
