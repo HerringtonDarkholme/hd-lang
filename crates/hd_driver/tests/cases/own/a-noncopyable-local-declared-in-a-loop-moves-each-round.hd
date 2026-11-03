@@ -1,0 +1,24 @@
+# @dump: own
+# A `!Copy` local declared in a loop body, which a `&mut` call puts in a
+# frame slot, moves at its last read of each round: the next round's
+# declaration stores it anew, so the loop's back edge keeps nothing live
+# (`ref.move.sites`, `ref.excl.declare`).
+use std.collections.UniqList
+
+struct Parcel:
+    words: UniqList[string]
+
+impl !Copy for Parcel
+
+fn consume(value: Parcel) -> usize:
+    value.words.len()
+
+fn rounds(n: usize) -> usize:
+    let total: usize = 0
+    for round in 0..n:
+        let mut words = UniqList::[string].new()
+        words.push("word_$round")
+        # subject
+        item := Parcel { words: words }
+        total += consume(item)
+    total
