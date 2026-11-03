@@ -53,7 +53,8 @@ reference the value that its own writes left, and it panics where B
 silently loses a write. With elision it adds nothing to any bench
 program, and where a loan stays it costs 0.5 ns against B's 8 ns count.
 B is about 1,500 lines smaller to build and removes the friction of
-object granularity, at the cost of stale reads and lost writes.
+object granularity, at the cost of stale reads and lost writes. The
+owner leans to B; its plan is [E.4](#e4-model-b-implementation-phases).
 
 ## Open Questions
 
@@ -144,7 +145,10 @@ lives and a write while a `&` one lives are `conflicting-access`.
 **B: counts.** A reference through a `*T` that leaves a short loan
 counts each object it crosses and the `List`/`Map` buffer or string it
 points into (#1320's rule, kept). An alias's write, growth or
-replacement goes ahead; the reference reads the storage it counted. A
+replacement goes ahead; the reference reads the storage it counted. An
+element store is seen in place, and a copy of a list with a live
+element reference still gets its own elements (the pin's eager copy
+stays; only its length panic goes). A
 `UniqList`/`UniqMap` growth, shrink or replacement while an element
 reference lives panics `collection-pinned`, since its elements move.
 
@@ -187,12 +191,12 @@ cases 5 times.
 | --- | --- | --- |
 | a plain field | an alias's conflicting access panics | runs; the reference sees the write |
 | data behind a nested `*T` | replacing the inner pointer panics | runs on the old object, stale |
-| a `List`/`Map` | a length change or element write panics | runs on the old buffer, stale; a write through the reference is lost |
+| a `List`/`Map` | a length change or element write panics | an element store is seen in place; a grown or replaced list leaves the reference on the old buffer, stale, and its later writes are lost |
 | a `UniqList`/`UniqMap` | a length change or replacement panics | panics `collection-pinned` |
 
 | Measure | A | B |
 | --- | --- | --- |
-| 362 matrix cases on `*T` paths | panics in 283, runs in 79 (all 79 elided) | runs 302 (86 of them stale), panics 60 |
+| 362 matrix cases on `*T` paths | panics in 283, runs in 79 (all 79 elided) | runs 302 (74 of them stale), panics 60 |
 | stress friction (Appendix A) | A2 and A4 panic | none |
 | semantics lost | none | `&mut` exclusivity behind a pointer; writes through stale element references |
 | bench time, release, default V8 tier | elision keeps 0 loans, so it adds nothing; it also drops main's counts (not measured) | byte-identical to main: its counts stay, and no bench program emits the loan table it removes |
@@ -213,8 +217,8 @@ run in debug and test builds only, so verdicts differ by mode (#1331).
 
 | | A: loans | B: keep-alive |
 | --- | --- | --- |
-| added | loan bits and checks in every build; own loans, the element rules and cells in the checker; per-type write summaries for elision | a pin check on replacing or dropping a pinned unique collection |
-| removed | page-table counts on references through `*T`, the loan table, the `List`/`Map` pin, the room count | the loan table, the `List`/`Map` pin |
+| added | loan bits and checks in every build; own loans, the element rules and cells in the checker; per-type write summaries for elision | a pin check on replacing or dropping a pinned unique collection; the roots rule |
+| removed | page-table counts on references through `*T`, the loan table, the `List`/`Map` pin, the room count | the loan table; the `List`/`Map` pin's length panic behind a `*T` (its eager copy stays, so `ref.elem.copy` holds) |
 | behaviour, 362 matrix cases on `*T` paths | 100 `borrow-conflict` panics stay; 56 `collection-pinned` become `borrow-conflict`; 103 that run start to panic; 24 unsound ones panic; 79 still run | 92 `borrow-conflict` panics run instead and 8 become `collection-pinned`; 28 `List`/`Map` pins run on stale buffers; 28 unique pins stay; 24 unsound ones panic `collection-pinned`; 182 still run |
 | all builds agree | yes | yes |
 | per spanning reference (micro, against main's 16.6 ns) | 0.5 ns, or 0 elided | 8.0 ns |
@@ -224,8 +228,8 @@ run in debug and test builds only, so verdicts differ by mode (#1331).
 
 | Component | A | B |
 | --- | --- | --- |
-| code removed | the loan table (`emit/excl.rs`, 1,151 lines, and `rt:loan_*`, about 220), the `List`/`Map` pin, #1320's room count, page-table counts on references through `*T` | the loan table and the `List`/`Map` pin |
-| code added (estimated) | loans and checks inline, about 400 lines; own loans, the element rules and cells in the checker, about 500; loan ends in the ownership insertion, about 300; per-type write summaries, about 250; `rt:loan_spill` | the same-root checker rules both share, about 150 |
+| code removed | the loan table (`emit/excl.rs`, 1,151 lines, and `rt:loan_*`, about 220), the `List`/`Map` pin, #1320's room count, page-table counts on references through `*T` | the loan table, and the `List`/`Map` pin's length panic behind a `*T` |
+| code added (estimated) | loans and checks inline, about 400 lines; own loans, the element rules and cells in the checker, about 500; loan ends in the ownership insertion, about 300; per-type write summaries, about 250; `rt:loan_spill` | the same-root checker rules both share, about 150; the unique replace and drop check and the roots rule, about 100 |
 | runtime, bench (measured) | nothing added after elision; without it `binary_trees` +7%, `json` +1.5% | byte-identical to main |
 | compile time (estimated) | per-type summaries in release, under 1% | none |
 | web compiler (estimated) | under +10 KB gzip, far below the 2 MB cap | smaller |
@@ -769,9 +773,9 @@ count audit for freed blocks; local-path rows are left out:
 | --- | --- | --- | --- | --- | --- |
 | a plain field | 98 | 64 | 34 | 98 / 0 / 0 | 86 / 12 / 0 / 0 |
 | data behind a nested `*T` | 48 | 39 | 9 | 34 / 14 / 0 | 38 / 10 / 0 / 0 |
-| a `List`/`Map` | 108 | 90 | 18 | 36 / 72 / 0 | 27 / 53 / 28 / 0 |
+| a `List`/`Map` | 108 | 90 | 18 | 48 / 60 / 0 | 27 / 53 / 28 / 0 |
 | a `UniqList`/`UniqMap` | 108 | 90 | 18 | 48 / 0 / 60 | 28 / 28 / 28 / 24 |
-| **all** | **362** | **283** | **79** | **216 / 86 / 60** | **179 / 103 / 56 / 24** |
+| **all** | **362** | **283** | **79** | **228 / 74 / 60** | **179 / 103 / 56 / 24** |
 
 | Lifetime (`*T` paths) | A: loan needed | A: elided |
 | --- | --- | --- |
@@ -948,7 +952,24 @@ iterations:
   through `*T`, for example `json`'s 26, which point into static records
   where a count returns at once.
 
-### E.4 Implementation Phases
+### E.4 Model B Implementation Phases
+
+Each about an hour, with its test. The counts are the matrix rows each
+phase turns green once phase 1 has rewritten the matrix to B's
+verdicts; 244 of its 410 runtime rows already pass under B on main.
+
+| Phase | Change | Where | Test, rows turned green |
+| --- | --- | --- | --- |
+| 1 | The matrix asserts B: the generator writes each case's B verdict (`runs`, with the stored-value check, or `panic:collection-pinned`); `KNOWN_FAILURES.tsv` is recomputed | `spec/tools/generate-pointer-loan-matrix.ts` | `--check`; focused runs in three modes agree |
+| 2 | Same-root static rules: a `*T` argument reads its pointee for the call's other arguments; a method result through a pointer names the pointer local as its origin, and cannot outlive it | `crates/hd_check` (`ref.excl.args`, `ref.dep.call`) | the 3 typing cases not built today |
+| 3 | Remove the `ref.excl.alias.*` loans: `emit/excl.rs`, `rt:loan_begin`, `rt:loan_count`, `rt:loan_check`, and the call and path loans of debug builds, so every build agrees (closes #1331's second item) | `crates/hd_wasm_linear` | 102 rows that panic `borrow-conflict` today and run under B |
+| 4 | Drop the `List`/`Map` pin's length panic behind a `*T`; keep the owner word's eager copy; a variable a closure shares counts as behind a `*mut` (question 6) | `rt:list_pinned`, `emit/list.rs`, `emit/map.rs`, `hd_tir` insertion rule 6 | 29: 28 `List`/`Map` grow and shrink rows that panic `collection-pinned` today, and `extra-captured-variable-grows` |
+| 5 | Unique rooms behind a `*T`: replacing or dropping a pinned `UniqList`/`UniqMap` panics `collection-pinned` before any element moves | `lib/std/collections.hd` (`Drop`, assignment through a place), `std.rt.memory` | 33: the 25 that read freed memory today, and 8 that panic `borrow-conflict` today (after phase 3) |
+| 6 | Roots: a pointer local or a frame's pointer parameter lives until the last use of a reference through it (#1327) | `hd_tir` own passes, the frame layout | 2: `extra-root-pointer-*` |
+| 7 | Spec: `ref.excl.alias.*` become the non-exclusive aliasing rules (an alias's access runs; a reference reads the storage it counted); `ref.elem.pinned*` and `flow.for.ref.pinned` apply to unique rooms only; `ref.elem.copy` stays; `collection-pinned` names unique rooms; `std-collections.uniq-list.pinned` and `.uniq-map.pinned` add replace and drop | `spec/lang/13-values-and-references.md`, `06-control-flow.md`, `spec/std/collections.md`, README Diagnostics | `bash spec/check.sh`; the `spec-update` skill |
+| 8 | Docs and the size and time table | `crates/hd_wasm_linear/DESIGN.md` §23.20, this note removed | bench: byte-identical to main expected |
+
+### E.5 Model A Implementation Phases, If Chosen
 
 Each about an hour, with its test; the matrix rows leave
 `KNOWN_FAILURES.tsv` as they pass.
@@ -971,7 +992,7 @@ Each about an hour, with its test; the matrix rows leave
 11. Release elision and its type summary; the size and time table.
 12. Spill past 31 shared loans; `extra-deep-shared-loans`.
 
-### E.5 Checklist
+### E.6 Checklist
 
 - **Grammar, typing:** no new syntax; three checker rules (own loans, the
   element copy and write rules, cells as pointers).

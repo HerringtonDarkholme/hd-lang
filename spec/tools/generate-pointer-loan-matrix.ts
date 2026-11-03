@@ -396,11 +396,9 @@ function goOf(path: Path, life: Life, action: Action): string {
   if ((path === "ulist" || path === "umap") && moves) {
     return "panics collection-pinned";
   }
-  if (path === "field" || !(moves || ((path === "list" || path === "map") && action !== "other"))) {
-    return "runs, sees the write";
-  }
-  // A counted List or Map buffer is shared, so an alias's store copies it.
-  return "runs, stale";
+  // A moved-on collection or a replaced object leaves the reference on the
+  // storage it counted; a store in place is seen.
+  return moves && path !== "field" ? "runs, stale" : "runs, sees the write";
 }
 
 function columns(kind: Kind, path: Path, life: Life, action: Action): string {
@@ -1273,7 +1271,7 @@ const extraColumns: Record<string, [string, string]> = {
   "deep-shared-loans": ["elided", "runs"],
   "dyn-receiver-alias-write-panics": ["loan needed", "runs, sees the write"],
   "generic-argument-alias-write-panics": ["loan needed", "runs, sees the write"],
-  "copy-under-element-loan-panics": ["loan needed", "runs, the copy sees the write"],
+  "copy-under-element-loan-panics": ["loan needed", "runs; the copy keeps its own elements"],
   "sort-comparator-alias-write-panics": ["loan needed", "runs"],
   "observer-notify-writes-owner-panics": ["loan needed", "runs"],
   "weak-upgrade-root": ["elided", "runs"],
