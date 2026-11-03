@@ -46,6 +46,7 @@ stays open (#18, #163, #166, #181, #182, #646, #807).
 ### Memory model and performance
 
 
+- [Pointer Loans](POINTER_LOANS.md): proposal, not accepted: `*T` as `Rc<RefCell<T>>`, a borrow state in each object header, loans on references that cross a `*T`, nothing on paths with none; stress test and a 395-case runtime matrix (#1323).
 - [Parallelism And Locality](PARALLELISM_AND_LOCALITY.md): workers, copied messages and shared bytes on Wasm today; frozen data later is parked. There is no `^` mode (#163).
 - [The Path To Returned Local References](RETURNED_REFERENCES_PATH.md): accepted 2026-10-29: Rust lifetime variables and elision over counted references, in stages; stages 1 to 9 built (6i not planned for now; stage 8 without borrow flags); `&mut` copies and parameter view types not scheduled.
 - [One Lifetime Solver](LIFETIME_SOLVER.md): accepted 2026-10-30: region variables per reference slot, outlives constraints per TIR instruction and one SCC solver in place of the per-shape paths; S1 to S12 built, and every spec union is dropped; stage 7 built on it.
