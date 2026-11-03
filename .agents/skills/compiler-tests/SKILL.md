@@ -1,6 +1,6 @@
 ---
 name: compiler-tests
-description: Test the hd compiler with stage fixtures and benchmarks - write a focused .hd case, pick the view that shows one topic (tokens, tree, tir, own, wat, counts, layout), bless and review generated baselines, record bad emitted code with an expected note, and measure performance (perf jobs: attribute, then a ceiling experiment, then build), run the gates for a compiler change (conformance in three modes, stage tests), and report perf and size in the standard table (every bench program against JS, the three V8 tier columns, sizes, compile time). Use when adding or changing a compiler test, checking what a stage emits for some code, gating a compiler change, or measuring a perf change.
+description: Test the hd compiler with stage fixtures and benchmarks - write a focused .hd case, pick the view that shows one topic (tokens, tree, tir, own, wat, counts, layout), bless and review generated baselines, record bad emitted code with an expected note, and measure performance (perf jobs: attribute, then a ceiling experiment, then build), run the gates for a compiler change (conformance in three modes, stage tests), and report perf and size in the standard table (every bench program against JS, the default V8 tier, sizes, compile time). Use when adding or changing a compiler test, checking what a stage emits for some code, gating a compiler change, or measuring a perf change.
 ---
 
 # Test The hd Compiler
@@ -151,9 +151,9 @@ time, never per-call nanoseconds. Fixed costs swamp shorter runs.
 
 2. **Ceiling.** Build the cheapest hack that removes the attributed cost
    entirely. It may be unsafe, behind an environment variable, or only
-   valid for the bench. Measure it at all three V8 tiers, interleaved.
+   valid for the bench. Measure it in the default V8 tier, interleaved.
    That is the most the real change can win. If it's under about 3% on the
-   target program, or it only helps one tier while hurting another, stop.
+   target program, stop.
    Examples: #704's count-only hack showed −14% on binary_trees before it
    was built; #901's add-or-remove-every-lookup run bounded it at 4–9%;
    #876's shadow-stack run showed returns into a slot only grew code.
@@ -161,9 +161,9 @@ time, never per-call nanoseconds. Fixed costs swamp shorter runs.
    gates, one cause per commit. Then report it with the table below.
 
 The 3% bar decides whether a change is worth *building*. It doesn't block
-*merging*. A change that is already built, small, sound, and slows no tier
-and no program (a pure win, even if under 3%) merges. Example: moving the
-collector-due check to the slow path, -1.8% default and -7.8% Liftoff.
+*merging*. A change that is already built, small, sound, and slows no
+program (a pure win, even if under 3%) merges. Example: moving the
+collector-due check to the slow path, -1.8%.
 Don't merge a change that adds real complexity for a sub-3% gain: #893 was
 92 bytes of hello for about 200 lines.
 
@@ -184,10 +184,9 @@ Every perf change reports the same table, so results compare across jobs.
   or interleaved runs of the two compilers' modules. Give each program's
   ms before and after, the geometric mean of head/base, and the machine
   load.
-- **Three V8 columns** for any program whose Wasm changed: default tier,
-  `--no-liftoff` and `--liftoff-only`. Wasm has no on-stack replacement,
-  so one long call stays in Liftoff (#724; the owner leaves tiering
-  alone). Name any default-tier change that comes only from tiering.
+- **The default V8 tier is the source of truth.** Report one time column.
+  Use `--no-liftoff` or `--liftoff-only` only while pinpointing a perf
+  cliff (a slowdown that appears in one tier), never as report columns.
 - **Interleaved base/head runs** for each program whose Wasm changed.
   Pick the run count by purpose: about 5 (`--runs 5`) to fast-check
   whether an idea moves anything; 15 for this table, baselines and
