@@ -88,31 +88,32 @@ Its surface is:
 17. r[std-collections.uniq-list.any-all] `any(test)` and `all(test)` have the behavior of [`std-collections.helper.any-all`](#r-std-collections.helper.any-all) and [`std-collections.helper.short-circuit`](#r-std-collections.helper.short-circuit), with `fn(&T)` callbacks.
 18. r[std-collections.uniq-list.retain] `retain(keep)` drops each rejected element in place and preserves the order of those accepted.
 19. r[std-collections.uniq-list.sort] `sort`, `sort_by`, and `sort_by_key` sort in place and are stable. They order as [`std-collections.helper.sort`](#r-std-collections.helper.sort), [`std-collections.helper.sort-by`](#r-std-collections.helper.sort-by), and [`std-collections.helper.sort-by-key`](#r-std-collections.helper.sort-by-key) do.
-20. r[std-collections.uniq-list.into-iter] `UniqList[T]` implements `Iterable[T]`. Its private `UniqListIntoIter[T]` cursor owns the list and moves its elements out in order. A `for` loop over a `UniqList` therefore consumes the list and each item.
-21. r[std-collections.uniq-list.collect] `UniqList[T]` implements `FromIterator[T]` for every `T < ?Copy`, preserving item order. An explicitly targeted `collect`, including `let items: UniqList[_] = cursor.collect()`, may therefore collect non-copyable items.
-22. r[std-collections.uniq-list.conversion] For `T < Copy`, `from_list(items)` copies the list's elements in order into a new `UniqList`, and `to_list()` copies a `UniqList`'s elements in order into a new `List`.
-23. r[std-collections.uniq-list.eq] For `T < ?Copy & Eq`, two `UniqList[T]` values are equal exactly when they have the same length and equal elements at every position.
-24. r[std-collections.uniq-list.debug] For `T < ?Copy & Debug`, `UniqList[T]` implements `Debug` with the same bracketed, comma-separated form as a `List[T]`.
-25. r[std-collections.uniq-list.hash] For `T < ?Copy & Hash`, `UniqList[T]` hashes its length as a `u64`, then each element in order, as `List[T]` does.
-26. r[std-collections.uniq-list.drop] `UniqList[T]` implements [`std.rt.Drop`](../lang/10-modules.md#r-module.rt.drop.decl): dropping a list drops its elements in order, then its buffer frees the room.
-27. r[std-collections.uniq-list.pinned] An element reference reached through a `*T` counts the list's room ([`module.rt.buffer.pinned`](../lang/10-modules.md#r-module.rt.buffer.pinned)). While one does, a `push`, `insert`, `remove_at` or `retain`, and a `pop` or a `truncate` that removes an element, panics. Panic: `collection-pinned`.
+20. r[std-collections.uniq-list.sort-complexity] Each `UniqList` sort uses at most O(n log n) comparisons in the worst case.
+21. r[std-collections.uniq-list.into-iter] `UniqList[T]` implements `Iterable[T]`. Its private `UniqListIntoIter[T]` cursor owns the list and moves its elements out in order. A `for` loop over a `UniqList` therefore consumes the list and each item.
+22. r[std-collections.uniq-list.collect] `UniqList[T]` implements `FromIterator[T]` for every `T < ?Copy`, preserving item order. An explicitly targeted `collect`, including `let items: UniqList[_] = cursor.collect()`, may therefore collect non-copyable items.
+23. r[std-collections.uniq-list.conversion] For `T < Copy`, `from_list(items)` copies the list's elements in order into a new `UniqList`, and `to_list()` copies a `UniqList`'s elements in order into a new `List`.
+24. r[std-collections.uniq-list.eq] For `T < ?Copy & Eq`, two `UniqList[T]` values are equal exactly when they have the same length and equal elements at every position.
+25. r[std-collections.uniq-list.debug] For `T < ?Copy & Debug`, `UniqList[T]` implements `Debug` with the same bracketed, comma-separated form as a `List[T]`.
+26. r[std-collections.uniq-list.hash] For `T < ?Copy & Hash`, `UniqList[T]` hashes its length as a `u64`, then each element in order, as `List[T]` does.
+27. r[std-collections.uniq-list.drop] `UniqList[T]` implements [`std.rt.Drop`](../lang/10-modules.md#r-module.rt.drop.decl): dropping a list drops its elements in order, then its buffer frees the room.
+28. r[std-collections.uniq-list.pinned] An element reference reached through a `*T` counts the list's room ([`module.rt.buffer.pinned`](../lang/10-modules.md#r-module.rt.buffer.pinned)). While one does, a `push`, `insert`, `remove_at` or `retain`, and a `pop` or a `truncate` that removes an element, panics. Panic: `collection-pinned`.
 
 
-28. r[std-collections.uniq-list.capacity] `capacity()` returns the number of element slots reserved by the list's current buffer, including for zero-sized elements.
-29. r[std-collections.uniq-list.reserve] `reserve(additional)` preserves the length and elements and reserves room for at least `len() + additional` elements without further growth.
-30. r[std-collections.uniq-list.extend] `extend[I < ?Copy & Iterable[T]](other: I)` consumes `other`, moving its elements onto the list in iteration order.
-31. r[std-collections.uniq-list.contains] For `T < ?Copy & Eq`, `contains(value: &T)` is true exactly when an element equals `value`.
-32. r[std-collections.uniq-list.index-of] For `T < ?Copy & Eq`, `index_of(value: &T)` returns the first equal element's index in `.Some`, or `.None` when absent.
-33. r[std-collections.uniq-list.reverse] `reverse()` reverses the elements in place without copying them or changing the length or capacity.
-34. r[std-collections.uniq-list.dedup] For `T < ?Copy & Eq`, `dedup()` drops every element equal to its preceding retained neighbour, keeping each run's first element and the capacity.
-35. r[std-collections.uniq-list.split-off] `split_off(at)` moves the suffix starting at `at` into a new list, preserving both parts' order and the original capacity; `at > len()` panics. Panic: `index-out-of-bounds`.
-36. r[std-collections.uniq-list.append] `append(other: &mut UniqList[T])` moves every element of `other` after the receiver's elements, leaving `other` empty with its capacity unchanged.
-37. r[std-collections.uniq-list.drain] `drain(range: Range[usize])` returns a non-copyable `UniqListDrain[T, 'a]` that holds the mutable receiver borrow and moves selected elements out in order.
-38. r[std-collections.uniq-list.drain-bounds] The drain range selects its half-open bounds, or includes its upper bound when `inclusive` is true; reversed or out-of-bounds ranges panic. Panic: `index-out-of-bounds`.
-39. r[std-collections.uniq-list.drain-drop] Dropping the drain cursor drops every unvisited selected element and restores the unselected tail after the prefix, preserving order and capacity.
-40. r[std-collections.uniq-list.binary-search] For `T < Ord`, `binary_search(value: &T)` searches an ascending list, returning `.Ok(index)` for any equal element or `.Err(index)` for its insertion point.
-41. r[std-collections.uniq-list.basic-pinned] While an element reference counts the room, increasing capacity, appending nonempty lists, splitting nonempty suffixes, draining, or deduplicating at least two elements panics. Panic: `collection-pinned`.
-42. r[std-collections.uniq-list.reserve-overflow] A `reserve` whose length sum exceeds the address space panics in every build profile. Panic: `heap-exhausted`.
+29. r[std-collections.uniq-list.capacity] `capacity()` returns the number of element slots reserved by the list's current buffer, including for zero-sized elements.
+30. r[std-collections.uniq-list.reserve] `reserve(additional)` preserves the length and elements and reserves room for at least `len() + additional` elements without further growth.
+31. r[std-collections.uniq-list.extend] `extend[I < ?Copy & Iterable[T]](other: I)` consumes `other`, moving its elements onto the list in iteration order.
+32. r[std-collections.uniq-list.contains] For `T < ?Copy & Eq`, `contains(value: &T)` is true exactly when an element equals `value`.
+33. r[std-collections.uniq-list.index-of] For `T < ?Copy & Eq`, `index_of(value: &T)` returns the first equal element's index in `.Some`, or `.None` when absent.
+34. r[std-collections.uniq-list.reverse] `reverse()` reverses the elements in place without copying them or changing the length or capacity.
+35. r[std-collections.uniq-list.dedup] For `T < ?Copy & Eq`, `dedup()` drops every element equal to its preceding retained neighbour, keeping each run's first element and the capacity.
+36. r[std-collections.uniq-list.split-off] `split_off(at)` moves the suffix starting at `at` into a new list, preserving both parts' order and the original capacity; `at > len()` panics. Panic: `index-out-of-bounds`.
+37. r[std-collections.uniq-list.append] `append(other: &mut UniqList[T])` moves every element of `other` after the receiver's elements, leaving `other` empty with its capacity unchanged.
+38. r[std-collections.uniq-list.drain] `drain(range: Range[usize])` returns a non-copyable `UniqListDrain[T, 'a]` that holds the mutable receiver borrow and moves selected elements out in order.
+39. r[std-collections.uniq-list.drain-bounds] The drain range selects its half-open bounds, or includes its upper bound when `inclusive` is true; reversed or out-of-bounds ranges panic. Panic: `index-out-of-bounds`.
+40. r[std-collections.uniq-list.drain-drop] Dropping the drain cursor drops every unvisited selected element and restores the unselected tail after the prefix, preserving order and capacity.
+41. r[std-collections.uniq-list.binary-search] For `T < Ord`, `binary_search(value: &T)` searches an ascending list, returning `.Ok(index)` for any equal element or `.Err(index)` for its insertion point.
+42. r[std-collections.uniq-list.basic-pinned] While an element reference counts the room, increasing capacity, appending nonempty lists, splitting nonempty suffixes, draining, or deduplicating at least two elements panics. Panic: `collection-pinned`.
+43. r[std-collections.uniq-list.reserve-overflow] A `reserve` whose length sum exceeds the address space panics in every build profile. Panic: `heap-exhausted`.
 
 > Note: hd's `Range[usize]` also represents inclusive bounds, as in `drain(1..=3)`.
 > As with [`Span.slice`](#r-std-collections.span.slice), open bounds are written explicitly: `drain(0..items.len())` drains the whole list.

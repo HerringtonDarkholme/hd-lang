@@ -1,0 +1,22 @@
+use std.collections.UniqList
+
+fn fill(size: usize) -> UniqList[u32]:
+    let mut items = UniqList::[u32].with_capacity(size)
+    let state: u32 = 0x00C0FFEE
+    for _ in 0..size:
+        state = state * 1664525 + 1013904223
+        items.push(state)
+    items
+
+fn checksum(items: &UniqList[u32]) -> u64:
+    let total: u64 = 0
+    let index: usize = 0
+    while index < items.len():
+        total ^= u64(items.get(index).unwrap_or(0))
+        index += 1024
+    total ^ u64(items.first().unwrap_or(0)) ^ u64(items.last().unwrap_or(0))
+
+pub fn main() -> void $ Console:
+    let mut items = fill(1_000_000)
+    items.sort()
+    println(checksum(&items))
