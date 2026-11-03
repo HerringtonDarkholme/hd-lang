@@ -9,7 +9,7 @@ use hd_base::{DefId, Hash128, StageResult};
 use hd_types::{Ty, TyData, TyList};
 use wasm_encoder::BlockType;
 
-use crate::layout::{Leaf, Walk};
+use crate::layout::{Addr, Leaf, Walk};
 use crate::map::{self, KeyOps};
 use crate::module::{
     BUF, CYCLIC, DescriptorKey, EMPTY, Func, GLUE, Global, HEADER, HEAP, Import, Ins, Module,
@@ -279,6 +279,12 @@ pub enum Helper {
     /// Count a statically known payload start without a block lookup.
     RetainKnown,
     ReleaseKnown,
+    /// `(address)`: [`Helper::ReleaseKnown`] on a `std.rt.memory.Buffer`,
+    /// which only the glue of the value that holds it releases
+    /// ([`Walk::Buffer`]). Checked builds alone emit it; their
+    /// [`Helper::ReleaseRef`] and [`Helper::ReleaseKnown`] trap on a
+    /// buffer.
+    ReleaseBuffer,
     /// `(payload)`: the release glue of an object whose payload is laid
     /// out as `leaves`: one count less on each counted reference in it.
     DropFields {
@@ -1119,9 +1125,9 @@ fn teardown(m: &Module) -> Func {
             }
             f.set(*l);
         }
-        if let Some(k) = s.walk.single() {
+        if let (Some(k), Some(addr)) = (s.walk.single(), s.walk.addr()) {
             f.get(ls[k as usize]);
-            release_call(&mut f, s.walk.known());
+            release_call(&mut f, addr);
         } else {
             for l in &ls {
                 f.get(*l);
@@ -1784,8 +1790,9 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             walk_code(&mut f, walk, &|f, k| f.get(k), &release_call);
             f
         }
-        Helper::ReleaseRef => release_ref(m, false),
-        Helper::ReleaseKnown => release_ref(m, true),
+        Helper::ReleaseRef => release_ref(m, Addr::Ref),
+        Helper::ReleaseKnown => release_ref(m, Addr::Known),
+        Helper::ReleaseBuffer => release_ref(m, Addr::Buffer),
         Helper::ReleaseDrain => release_drain(m),
         Helper::RetainKnown => {
             let mut f = m.func("rt:retain_known", vec![Val::I32], vec![]);
@@ -2321,42 +2328,47 @@ pub(crate) fn trap_buffer_retain(f: &mut Func, walk: &Walk) {
     }
 }
 
-pub(crate) fn retain_call(m: &Module) -> impl Fn(&mut Func, bool) {
+pub(crate) fn retain_call(m: &Module) -> impl Fn(&mut Func, Addr) {
     let retain = m.runtime.map(|r| r.retain);
-    move |f: &mut Func, known: bool| match retain {
-        Some(_) if known => f.helper(Helper::RetainKnown),
+    move |f: &mut Func, addr: Addr| match retain {
+        Some(_) if addr != Addr::Ref => f.helper(Helper::RetainKnown),
         Some(k) => f.call(Sym::Inst(k)),
         None => f.op(Instruction::Drop),
     }
 }
 
-/// The release of one counted address on the stack, without finding its
-/// block when it is a `known` payload start.
-pub(crate) fn release_call(f: &mut Func, known: bool) {
-    f.helper(if known {
-        Helper::ReleaseKnown
-    } else {
-        Helper::ReleaseRef
+/// The release of one counted address on the stack, of leaf `addr`:
+/// without finding its block when it is a known payload start, through
+/// the buffer's own release when it is a [`Walk::Buffer`].
+pub(crate) fn release_call(f: &mut Func, addr: Addr) {
+    f.helper(match addr {
+        Addr::Ref => Helper::ReleaseRef,
+        Addr::Known => Helper::ReleaseKnown,
+        Addr::Buffer => Helper::ReleaseBuffer,
     });
 }
 
 /// Emits `walk` over the values that `get(k)` pushes, running `on` with
-/// each counted address on the stack, and whether it is a known payload
-/// start ([`Walk::Known`]): an enum's arms by its tag.
+/// each counted address on the stack and the leaf that holds it: an
+/// enum's arms by its tag.
 pub(crate) fn walk_code(
     f: &mut Func,
     walk: &Walk,
     get: &dyn Fn(&mut Func, u32),
-    on: &dyn Fn(&mut Func, bool),
+    on: &dyn Fn(&mut Func, Addr),
 ) {
     match walk {
         Walk::Ref(k) => {
             get(f, *k);
-            on(f, false);
+            on(f, Addr::Ref);
         }
-        Walk::Known(k) | Walk::Buffer(k) => {
+        Walk::Known(k) => {
             get(f, *k);
-            on(f, true);
+            on(f, Addr::Known);
+        }
+        Walk::Buffer(k) => {
+            get(f, *k);
+            on(f, Addr::Buffer);
         }
         Walk::Seq(ws) => {
             for w in ws {
@@ -2394,7 +2406,7 @@ fn fields_glue(
     name: &str,
     leaves: &[Leaf],
     walk: &Walk,
-    on: &dyn Fn(&mut Func, bool),
+    on: &dyn Fn(&mut Func, Addr),
 ) -> Func {
     let mut f = m.func(name, vec![Val::I32], vec![]);
     if name == "rt:retain_fields" {
@@ -2971,12 +2983,25 @@ fn collect(m: &Module) -> Func {
 /// collector traces an object (`Tracing`), the reference goes to its
 /// `visit` instead, checked here so that `visit` is called only during a
 /// collection (§23.28).
-fn release_ref(m: &Module, known: bool) -> Func {
-    let mut f = m.func("rt:release_ref", vec![Val::I32], vec![]);
+///
+/// `addr` says what the address is: any address ([`Helper::ReleaseRef`]),
+/// a known payload start ([`Helper::ReleaseKnown`]), or a buffer's, which
+/// only its holder's glue releases ([`Helper::ReleaseBuffer`]).
+fn release_ref(m: &Module, addr: Addr) -> Func {
+    let name = if addr == Addr::Buffer {
+        "rt:release_buffer"
+    } else {
+        "rt:release_ref"
+    };
+    let mut f = m.func(name, vec![Val::I32], vec![]);
     let Some(r) = m.runtime else {
         return f;
     };
     let block = f.local(Val::I32);
+    if r.checked.is_some() && addr != Addr::Buffer {
+        trap_plain_buffer_release(&mut f, &r, block);
+    }
+    let known = addr != Addr::Ref;
     if !m.acyclic {
         // A drain cannot overlap collector tracing. Nested releases therefore
         // bypass the collector test; only the outer release performs it.
@@ -3027,6 +3052,38 @@ fn release_ref(m: &Module, known: bool) -> Func {
         f.helper(Helper::ReleaseDrain);
     }
     f
+}
+
+/// A checked build's panic where a plain release ([`Helper::ReleaseRef`],
+/// [`Helper::ReleaseKnown`]) of the address in parameter 0 reaches an
+/// owned buffer's payload start: a buffer has one holder, whose glue
+/// releases it ([`Helper::ReleaseBuffer`]), so that a buffer without a
+/// count word is dropped exactly once. An item reference into a buffer is
+/// never at its payload start. Uses `block` as scratch.
+fn trap_plain_buffer_release(f: &mut Func, r: &crate::Runtime, block: u32) {
+    f.get(0);
+    f.call(Sym::Inst(r.block_of));
+    f.op(Instruction::LocalTee(block));
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(block);
+    f.u32(HEADER);
+    f.op(Instruction::I32Add);
+    f.get(0);
+    f.op(Instruction::I32Eq);
+    f.get(block);
+    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+    // Both color bits without CYCLIC: no object that takes part.
+    f.u32(CYCLIC | OWNED);
+    f.op(Instruction::I32And);
+    f.u32(OWNED);
+    f.op(Instruction::I32Eq);
+    f.op(Instruction::I32And);
+    f.op(Instruction::If(BlockType::Empty));
+    f.helper(Helper::Panic(
+        "count-audit: rt:release_ref releases a buffer as a plain reference".into(),
+    ));
+    f.op(Instruction::End);
+    f.op(Instruction::End);
 }
 
 /// [`Helper::ReleaseDrain`]. A recursive type's glue
@@ -4127,18 +4184,18 @@ fn ref_count(f: &mut Func, ls: &[u32], value: &RefLayout, retain: bool) {
     if retain && let Some(w) = &value.walk {
         trap_buffer_retain(f, w);
     }
-    if let Some(k) = value
+    if let Some((k, addr)) = value
         .walk
         .as_ref()
         .filter(|w| w.known())
-        .and_then(Walk::single)
+        .and_then(|w| Some((w.single()?, w.addr()?)))
     {
         f.get(ls[k as usize]);
-        f.helper(if retain {
-            Helper::RetainKnown
+        if retain {
+            f.helper(Helper::RetainKnown);
         } else {
-            Helper::ReleaseKnown
-        });
+            release_call(f, addr);
+        }
     } else if let Some(walk) = &value.walk {
         for l in ls {
             f.get(*l);

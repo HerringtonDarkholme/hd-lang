@@ -1436,6 +1436,12 @@ is unchanged.
   (`rt::trap_buffer_retain`). A normal build's walks and module are
   unchanged. The traps list the copies an uncounted buffer would first
   have to remove (#1254).
+- **Buffers released by their holder.** A marked `Buffer` leaf releases
+  through `rt:release_buffer` (`Helper::ReleaseBuffer`). The plain
+  releases (`rt:release_ref`, `ReleaseRef` and `ReleaseKnown`) panic
+  `count-audit` when the address is an `OWNED` block's payload start
+  (§23.28), so every buffer is dropped by its holder's glue. An item
+  reference into a buffer is never at that start (#1279).
 - **Leaks at the end.** `std.rt.checked` counts the blocks given and not
   freed. The entry's poll (`Helper::CheckedPoll`) audits once it answers
   anything but Pending. It frees the wake table, which is the runtime's
