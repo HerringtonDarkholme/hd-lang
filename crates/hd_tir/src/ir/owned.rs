@@ -88,23 +88,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
             _ => None,
         })
         .collect();
-    let mut addressed = vec![false; b.local_ty.len()];
-    for (i, p) in places.iter().enumerate() {
-        if b.tags[i] == Tag::Ref
-            && p.is_some()
-            && let Some(l) = b.local_in_place(b.data[i][0])
-            && let Some(a) = addressed.get_mut(l.idx())
-        {
-            *a = true;
-        }
-    }
-    for (l, m) in b.cap_local.iter().zip(&b.cap_mode) {
-        if *m == super::CaptureMode::Shared
-            && let Some(a) = addressed.get_mut(l.idx())
-        {
-            *a = true;
-        }
-    }
+    let addressed = crate::own::borrow::escaping(b, cx);
     let own = cx;
     let cx = Cx {
         b,
@@ -641,7 +625,8 @@ fn decided(b: &Body, errs: &mut Vec<VerifyError>) {
 }
 
 /// What both walks read: the body, each instruction's decoded place, and
-/// the locals a reference or a shared capture can reach.
+/// the locals a reference or a shared capture can reach outside the one
+/// call a local reference lends to.
 struct Cx<'a> {
     b: &'a Body,
     topo: &'a Topology,
@@ -655,9 +640,9 @@ impl Cx<'_> {
     /// projections are a prefix of the other's, element indices ignored.
     /// With two roots, one goes behind a reference or into a list's buffer
     /// and the other is where a reference can reach: behind one too, a
-    /// top-level binding, or a local that is addressed or shared with a
-    /// closure. A value root alone is a temporary that nothing else
-    /// reaches.
+    /// top-level binding, or a local shared with a closure or addressed by
+    /// a reference that outlives its one call. A value root alone is a
+    /// temporary that nothing else reaches.
     fn overlap(&self, p: &Place, q: &Place) -> bool {
         if same_root(p.root, q.root) {
             return p.proj.iter().zip(&q.proj).all(|(x, y)| match (x, y) {
@@ -800,13 +785,14 @@ impl<'a> Empties<'a> {
         }
     }
 
-    /// Whether emptying `p` at `e` empties what `q` reads. A `Drop` of a
-    /// whole local, or a `Ref` that takes its count, ends the local's own
-    /// hold on its value: a local that a reference or a closure reaches
-    /// lives in a cell, whose holders keep it, so only a read of the local
-    /// itself sees it empty.
+    /// Whether emptying `p` at `e` empties what `q` reads. A move of a
+    /// whole local transfers its value, so it empties the local's slot but
+    /// not storage the value owns. A `Drop` of a whole local, or a `Ref`
+    /// that takes its count, ends the local's own hold on its value: a local
+    /// that a reference or a closure reaches lives in a cell, whose holders
+    /// keep it, so only a read of the local itself sees it empty.
     fn empties(&self, e: u32, p: &Place, q: &Place) -> bool {
-        if matches!(self.cx.b.tags[e as usize], Tag::Drop | Tag::Ref)
+        if matches!(self.cx.b.tags[e as usize], Tag::Read | Tag::Drop | Tag::Ref)
             && matches!(p.root, PlaceRoot::Local(_))
             && p.proj.is_empty()
         {

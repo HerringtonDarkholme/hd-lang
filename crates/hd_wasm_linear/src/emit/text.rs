@@ -189,6 +189,41 @@ impl Em<'_, '_, '_> {
         self.f.set(lo);
         self.comp(end, 0)?;
         self.f.set(hi);
+        self.str_slice_offsets(i, text, lo, hi, false, false)
+    }
+
+    /// A `string.slice` whose only consumer is string equality: the public
+    /// method's range and scalar-boundary checks, then the byte range itself.
+    pub(super) fn compared_str_slice(
+        &mut self,
+        i: u32,
+        text: u32,
+        start: u32,
+        end: u32,
+    ) -> StageResult<()> {
+        let borrowed = self.loans.contains(&i);
+        let moved = !borrowed && self.take(text);
+        if !borrowed && !moved {
+            self.comp(text, 0)?;
+            self.f.helper(Helper::RetainKnown);
+        }
+        let (lo, hi) = (self.f.local(Val::I32), self.f.local(Val::I32));
+        self.comp(start, 0)?;
+        self.f.set(lo);
+        self.comp(end, 0)?;
+        self.f.set(hi);
+        self.str_slice_offsets(i, text, lo, hi, true, !borrowed)
+    }
+
+    fn str_slice_offsets(
+        &mut self,
+        i: u32,
+        text: u32,
+        lo: u32,
+        hi: u32,
+        scalar_boundaries: bool,
+        owned: bool,
+    ) -> StageResult<()> {
         self.f.get(lo);
         self.f.get(hi);
         self.f.op(I::I32GtU);
@@ -199,6 +234,33 @@ impl Em<'_, '_, '_> {
         self.f.op(I::If(BlockType::Empty));
         self.panic("index-out-of-bounds: string slice out of bounds");
         self.f.op(I::End);
+        if scalar_boundaries {
+            for offset in [lo, hi] {
+                // The bounds check makes `offset <= len`; only a UTF-8
+                // continuation byte at a smaller offset is not a boundary.
+                self.f.get(offset);
+                self.comp(text, 1)?;
+                self.f.op(I::I32Ne);
+                self.f.op(I::If(BlockType::Empty));
+                self.comp(text, 0)?;
+                self.f.get(offset);
+                self.f.op(I::I32Add);
+                self.f.op(I::I32Load8U(mem(HEAP, 0, 0)));
+                let byte = self.f.local(Val::I32);
+                self.f.set(byte);
+                self.f.get(byte);
+                self.f.i32(128);
+                self.f.op(I::I32GeU);
+                self.f.get(byte);
+                self.f.i32(192);
+                self.f.op(I::I32LtU);
+                self.f.op(I::I32And);
+                self.f.op(I::If(BlockType::Empty));
+                self.panic("index-out-of-bounds: string slice offset is inside a character");
+                self.f.op(I::End);
+                self.f.op(I::End);
+            }
+        }
         // The address: the empty value's when `lo == hi`.
         self.comp(text, 0)?;
         self.f.get(lo);
@@ -211,6 +273,40 @@ impl Em<'_, '_, '_> {
         self.f.get(hi);
         self.f.get(lo);
         self.f.op(I::I32Sub);
+        if owned {
+            self.store_owned(i)
+        } else {
+            self.store(i)
+        }
+    }
+
+    /// Whether `slice` is a direct call of `string.slice`.
+    pub(super) fn is_string_slice_call(&self, slice: u32) -> bool {
+        matches!(
+            self.calls.get(&slice),
+            Some(hd_mono::Target::Call(call))
+                if call.kind == hd_mono::TargetKind::Instance
+                    && (self.input.path)(call.item) == "std/text/impl string.slice"
+        )
+    }
+
+    /// Equality of two byte ranges, with no whole-string helper call.
+    pub(super) fn str_range_eq(&mut self, i: u32, left: u32, right: u32) -> StageResult<()> {
+        self.comp(left, 1)?;
+        self.comp(right, 1)?;
+        self.f.op(I::I32Eq);
+        self.f
+            .op(I::If(BlockType::Result(wasm_encoder::ValType::I32)));
+        self.comp(left, 0)?;
+        self.comp(left, 1)?;
+        self.comp(right, 0)?;
+        self.comp(right, 1)?;
+        self.f.helper(Helper::BytesMismatch);
+        self.comp(left, 1)?;
+        self.f.op(I::I32Eq);
+        self.f.op(I::Else);
+        self.f.i32(0);
+        self.f.op(I::End);
         self.store(i)
     }
 

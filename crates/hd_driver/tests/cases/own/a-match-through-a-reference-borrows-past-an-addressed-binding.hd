@@ -1,0 +1,21 @@
+# @dump: own
+# A `match` of a returned reference reads its subject in place although an
+# arm lends its binding by reference (`found == key` on a generic `K`
+# takes `&found`): that reference dies with its call, so the store into
+# the binding cannot write what the subject reads (`Read borrow [*%..]`,
+# not a whole copy of the slot).
+enum Slot[K < Eq, V]:
+    Empty
+    Full(K, V)
+
+struct Table[K < Eq, V]:
+    slot: Slot[K, V]
+
+fn slot_of['a, K < Eq, V](table: &'a Table[K, V]) -> &'a Slot[K, V]:
+    &table.slot
+
+fn holds[K < Eq, V](table: &Table[K, V], key: K) -> bool:
+    # subject
+    match slot_of(table):
+        .Empty => false
+        .Full(found, _) => found == key

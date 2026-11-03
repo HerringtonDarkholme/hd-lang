@@ -452,7 +452,7 @@ pub fn view(name: &str, build: Build, p: &Program) -> Option<String> {
 /// `release`: the optimized pipeline and the release profile, as
 /// `--release` builds). `std` builds the case as module `std.rt_tests.stage_case`
 /// of the standard library, which may use the runtime modules
-/// (`module.rt.std-only`); only the `own` view reads it.
+/// (`module.rt.std-only`); the `own` and `counts` views read it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Build {
     pub target: hd_driver::EngineTarget,

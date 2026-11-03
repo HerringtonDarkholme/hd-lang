@@ -444,6 +444,48 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
+    /// Moves local `l`'s value out of its cell into instruction `i`,
+    /// leaving no payload for the cell's release and no cell for a later
+    /// exit drop. A frame slot is emptied in place; an ordinary cell is
+    /// released. Move proves this is the local's last access; suspending
+    /// cells and shared captures are not candidates.
+    pub(super) fn cell_take(&mut self, i: u32, l: usize) -> StageResult<()> {
+        let slot = self.slots.contains_key(&l);
+        let (m, walk) = self.cell_mem(l)?;
+        let c = self.cell_of(l)?;
+        let held: Vec<u32> = m.leaves.iter().map(|leaf| self.f.local(leaf.val)).collect();
+        for (leaf, x) in m.leaves.iter().zip(&held) {
+            self.f.get(c);
+            self.f.op(leaf.load(0));
+            self.f.set(*x);
+        }
+        // Only a counted payload needs its old copy cleared: an uncounted
+        // one is never released from the cell.
+        if walk.is_some() {
+            let zero = self.zero_src(l)?;
+            let all = Part {
+                first: 0,
+                count: m.leaves.len(),
+                offset: 0,
+            };
+            self.store_part(c, &m, all, &zero)?;
+        }
+        if !slot {
+            self.f.get(c);
+            self.release_cell();
+        }
+        self.f.zero(c);
+        let values = if self.cell_converts(l) {
+            self.unerase(held[0], self.cell_ty(l), self.sub(self.b.local_ty[l]), true)?
+        } else {
+            held
+        };
+        for x in values {
+            self.f.get(x);
+        }
+        self.store_owned(i)
+    }
+
     /// A `Store` into the whole of a cell's local. Its declaration makes a
     /// new cell, the last one's (from an earlier loop iteration) released;
     /// any other store writes the cell, counting the new value before it

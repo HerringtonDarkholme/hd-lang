@@ -1,0 +1,4 @@
+# test: a compared slice offset past the end panics as index-out-of-bounds
+# Spec 10 String Methods: module.string.slice.bad-offset (Strings STR7).
+text := "abc"
+same := text.slice(1, 4) == "bc" # panic: index-out-of-bounds

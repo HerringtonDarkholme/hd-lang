@@ -8,11 +8,17 @@ pub(super) fn view(p: &super::Program, at: super::Build) -> String {
     let mut pool = hd_driver::PositionPool::default();
     let positions = built.positions(&mut pool);
     let mut out = super::Dump::new(p);
+    // A `std` build's case is a module of the standard library.
+    let (prefix, case) = if at.std {
+        ("std/rt_tests.stage_case/", super::own::STD_CASE)
+    } else {
+        ("app/", "main.hd")
+    };
     for f in &built.instruction_origins {
         let Some(item) = &f.item else {
             continue;
         };
-        if !item.starts_with("app/") {
+        if !item.starts_with(prefix) {
             continue;
         }
         let operations: Vec<_> = f
@@ -22,7 +28,7 @@ pub(super) fn view(p: &super::Program, at: super::Build) -> String {
                 c.origin
                     .and_then(|i| positions.span(item, i))
                     .is_some_and(|(file, lo, hi)| {
-                        file == "main.hd" && p.inside(lo as usize, hi as usize)
+                        file == case && p.inside(lo as usize, hi as usize)
                     })
             })
             .collect();

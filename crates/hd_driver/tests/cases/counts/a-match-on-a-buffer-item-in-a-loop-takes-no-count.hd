@@ -1,0 +1,39 @@
+# @dump: counts
+# @build: std
+# A probe loop matches `item_ref(entry)`, as `UniqMap.insert` does (#1230).
+# The reference only decides the match: its arms see copies of the
+# payload, so it ends before the found arm writes the buffer and returns.
+# It lives on the buffer's own count: no retain or release of
+# `&Slot` per iteration. The found arm's release of the slot it read out
+# runs once.
+use std.rt.memory.Buffer
+
+enum Slot:
+    Deleted
+    Occupied(usize, usize, string)
+
+impl !Copy for Slot
+
+struct Table:
+    slots: Buffer[Slot]
+    mask: usize
+
+impl !Copy for Table
+
+impl Table:
+    fn insert(&mut self, key: usize, value: string, start: usize) -> string?:
+        let index = start
+        while true:
+            entry := index & self.mask
+            # subject
+            match self.slots.item_ref(entry):
+                .Deleted => pass
+                .Occupied(found_hash, found, _) =>
+                    if found_hash == key && found == key:
+                        place := self.slots.at(entry)
+                        match place.read():
+                            .Occupied(matched_hash, matched, old) =>
+                                place.write(.Occupied(matched_hash, matched, value))
+                                return .Some(old)
+                            .Deleted => panic("deleted")
+            index += 1

@@ -4,8 +4,9 @@
 //! count of the buffer, and a shared one makes the buffer neither unique
 //! nor pinned.
 //!
-//! An **origin** is a reference-returning `map_probe` intrinsic or a shared
-//! `Ref` of an element of a local's list. Its **holders** are the values
+//! An **origin** is a reference-returning `map_probe` intrinsic, a
+//! `buffer_item_ref` intrinsic, or a shared `Ref` of an element of a
+//! local's list, or of a read of all of one. Its **holders** are the values
 //! and locals its reference flows into: a variant built around it, a
 //! block's tail its owner takes, a `break` value's target, a coercion
 //! that keeps its values, a local stored once from it, and a read of a
@@ -21,6 +22,11 @@
 //! uniqueness check or pin, no call that may write (`OwnCx::may_write`),
 //! no intrinsic but a read, no return and no jump out. Anything else keeps
 //! the counted reference.
+//!
+//! A loan that a `match` on a holder only decides with ends with the
+//! decision ([`Em::decided_in_match`]): then only the statements up to
+//! the match and the decision must leave the collection alone, and every
+//! holder `Drop` in the origin's loop, one per path, ends the loan.
 
 use hd_base::HashSet;
 use hd_mono::Target;
@@ -57,7 +63,7 @@ struct Uses {
 struct Found {
     values: Vec<u32>,
     locals: Vec<usize>,
-    end: u32,
+    ends: Vec<u32>,
 }
 
 impl Em<'_, '_, '_> {
@@ -93,7 +99,9 @@ impl Em<'_, '_, '_> {
                 self.loan_locals.entry(l).or_insert(o);
             }
             self.short_skips.extend(skips);
-            self.short_ends.insert(found.end, o);
+            for &end in &found.ends {
+                self.short_ends.insert(end, o);
+            }
             self.short_loans.insert(o, ShortLoan::default());
         }
     }
@@ -119,12 +127,23 @@ impl Em<'_, '_, '_> {
                     _ => None,
                 }
             }
+            Tag::Call if self.buffer_item_ref_call(x) => Some((x, false, Vec::new())),
             Tag::Ref => {
                 let skips = self.shared_elem_ref(x)?;
                 Some((x, false, skips))
             }
             _ => None,
         }
+    }
+
+    /// Whether call `x` is `Buffer[T].item_ref`, whose lowering is the
+    /// element's address in the buffer its receiver lends, with no count.
+    fn buffer_item_ref_call(&self, x: u32) -> bool {
+        matches!(
+            self.calls.get(&x),
+            Some(hd_mono::Target::Call(call))
+                if matches!(&call.kind, hd_mono::TargetKind::Intrinsic(key) if key == "buffer_item_ref")
+        )
     }
 
     /// For a shared `Ref` of an element of a local's list, `[$l [%i]]` or
@@ -142,8 +161,12 @@ impl Em<'_, '_, '_> {
             return None;
         }
         let p = self.b.view(self.b.data[i][0]);
-        let Root::Local(l) = p.root else {
-            return None;
+        // A list that a read of all of its local gives, `[%r [%i]]` after
+        // `%r = Read borrow [$l]`, is the local's.
+        let (l, read) = match p.root {
+            Root::Local(l) => (l, NONE),
+            Root::Value(r) => (self.whole_local_read(r)?, r),
+            _ => return None,
         };
         let steps: Vec<Proj> = p.steps(self.b).collect();
         let lt = self.sub(self.b.local_ty[l as usize]);
@@ -166,6 +189,9 @@ impl Em<'_, '_, '_> {
         let members = self.b.record(self.b.data[blk as usize][0]);
         let mut skips = Vec::new();
         for &m in members[..self.topo.pos[i] as usize].iter().rev() {
+            if m == read {
+                continue;
+            }
             let k = m as usize;
             let tag = self.b.tags[k];
             let ours = matches!(tag, Tag::IsUnique | Tag::Pin)
@@ -180,6 +206,22 @@ impl Em<'_, '_, '_> {
             .iter()
             .any(|&m| self.b.tags[m as usize] == Tag::Pin)
             .then_some(skips)
+    }
+
+    /// The local that value `r` reads all of without moving it, `[$l]`.
+    fn whole_local_read(&self, r: u32) -> Option<u32> {
+        let k = r as usize;
+        if hd_tir::ir::Ref(r).as_inst().is_none()
+            || self.b.tags.get(k) != Some(&Tag::Read)
+            || self.b.data[k][1] == ReadMode::Move as u32
+        {
+            return None;
+        }
+        let p = self.b.view(self.b.data[k][0]);
+        match p.root {
+            Root::Local(l) if p.whole() => Some(l),
+            _ => None,
+        }
     }
 
     /// Every instruction's uses of each value and of each local, the
@@ -227,7 +269,7 @@ impl Em<'_, '_, '_> {
         let mut found = Found {
             values: Vec::new(),
             locals: Vec::new(),
-            end: NONE,
+            ends: Vec::new(),
         };
         let mut ends = Vec::new();
         let mut own = HashSet::default();
@@ -238,9 +280,11 @@ impl Em<'_, '_, '_> {
                 continue;
             }
             found.values.push(v);
-            let dropped = u.of_value[v as usize]
-                .iter()
-                .any(|&j| self.b.tags[j as usize] == Tag::Drop);
+            // A borrow read has no count a call could take.
+            let dropped = self.b.is_borrow(v)
+                || u.of_value[v as usize]
+                    .iter()
+                    .any(|&j| self.b.tags[j as usize] == Tag::Drop);
             for &j in &u.of_value[v as usize] {
                 let next = self.holder_use(v, j, mutable, dropped, &mut ends, &mut own)?;
                 match next {
@@ -255,29 +299,140 @@ impl Em<'_, '_, '_> {
                 }
             }
         }
-        let [end] = ends[..] else {
-            return None;
-        };
-        if self.topo.loop_of[o as usize] != self.topo.loop_of[end as usize] {
-            return None;
-        }
         let roots = self.loan_roots(o);
-        for m in span(self.b, &self.topo, o, end)? {
+        if let [end] = ends[..]
+            && self.topo.loop_of[o as usize] == self.topo.loop_of[end as usize]
+            && self.quiet_span(o, end, &roots, &own)
+        {
+            found.ends = vec![end];
+            return Some(found);
+        }
+        if self.decided_in_match(u, o, &found, &ends, &roots, &own) {
+            found.ends = ends;
+            return Some(found);
+        }
+        None
+    }
+
+    /// Whether every statement from origin `o` to instruction `end`
+    /// leaves the collection alone, but for the holders' own uses.
+    fn quiet_span(
+        &self,
+        o: u32,
+        end: u32,
+        roots: &(HashSet<u32>, HashSet<u32>),
+        own: &HashSet<u32>,
+    ) -> bool {
+        let Some(statements) = span(self.b, &self.topo, o, end) else {
+            return false;
+        };
+        statements.into_iter().all(|m| {
             let first = self.topo.first[m as usize];
-            for j in first..=m {
-                if j != o && !own.contains(&j) && !self.leaves_alone(j, &roots, first, end) {
-                    return None;
-                }
+            (first..=m)
+                .all(|j| j == o || own.contains(&j) || self.leaves_alone(j, roots, first, end))
+        })
+    }
+
+    /// A loan that a `match` on a holder only decides with: every use of
+    /// a holder but a `Drop` runs before the match or in its decision
+    /// (the tag tests, guards and bindings, before any arm), and no
+    /// value the decision makes, nor a borrow a binding holds, reaches an
+    /// arm. The loan ends when the decision does, so only the statements
+    /// up to the match and the decision must leave the collection alone;
+    /// the holders' `Drop`s, after it or before an arm's `return`, count
+    /// nothing. Each must be in the origin's loop.
+    fn decided_in_match(
+        &self,
+        u: &Uses,
+        o: u32,
+        found: &Found,
+        ends: &[u32],
+        roots: &(HashSet<u32>, HashSet<u32>),
+        own: &HashSet<u32>,
+    ) -> bool {
+        let lp = self.topo.loop_of[o as usize];
+        if ends.is_empty() || ends.iter().any(|&e| self.topo.loop_of[e as usize] != lp) {
+            return false;
+        }
+        let mut matches = found.values.iter().flat_map(|&v| {
+            u.of_value[v as usize].iter().copied().filter(move |&j| {
+                self.b.tags[j as usize] == Tag::Match && self.b.data[j as usize][0] == v
+            })
+        });
+        let (Some(m), None) = (matches.next(), matches.next()) else {
+            return false;
+        };
+        let Some(&decision) = self.b.record(self.b.data[m as usize][1]).first() else {
+            return false;
+        };
+        if decision == NONE || self.b.tags[decision as usize] != Tag::Block {
+            return false;
+        }
+        let lo = self.topo.first[decision as usize];
+        let inside = |j: u32| (lo..=decision).contains(&j);
+        // The statements before the match, without its own blocks, which
+        // its block lists right before it.
+        let Some(mut before) = span(self.b, &self.topo, o, m) else {
+            return false;
+        };
+        before.retain(|&s| self.topo.owner[s as usize] != m);
+        let ahead = |j: u32| {
+            before
+                .iter()
+                .any(|&s| (self.topo.first[s as usize]..=s).contains(&j))
+        };
+        let dropped = |j: u32| self.b.tags[j as usize] == Tag::Drop;
+        // Every use of a holder but a `Drop` is the match, before it or
+        // in its decision.
+        let uses = found
+            .values
+            .iter()
+            .flat_map(|&v| u.of_value[v as usize].iter())
+            .chain(found.locals.iter().flat_map(|&l| u.of_local[l].iter()));
+        for &j in uses {
+            if !(j == m || dropped(j) || ahead(j) || inside(j)) {
+                return false;
             }
         }
-        found.end = end;
-        Some(found)
+        // A borrow through a holder lends the collection for as long as
+        // it lives: only one the decision makes is checked to end there.
+        if own
+            .iter()
+            .any(|&j| self.b.is_borrow(j) && !found.values.contains(&j) && !inside(j))
+        {
+            return false;
+        }
+        // Nothing the decision makes reaches an arm: no value but in a
+        // `Drop`, and no borrow through a binding.
+        for j in lo..=decision {
+            let k = j as usize;
+            if u.of_value[k]
+                .iter()
+                .any(|&w| !(inside(w) || w == m || dropped(w)))
+            {
+                return false;
+            }
+            if self.b.tags[k] == Tag::Store
+                && let w = self.b.data[k][1]
+                && (self.b.loan_read(w).is_some()
+                    || (hd_tir::ir::Ref(w).as_inst().is_some() && self.loans.contains(&w)))
+            {
+                return false;
+            }
+        }
+        let quiet_before = before.iter().all(|&s| {
+            let first = self.topo.first[s as usize];
+            (first..=s).all(|j| j == o || own.contains(&j) || self.leaves_alone(j, roots, first, m))
+        });
+        quiet_before
+            && (lo..=decision)
+                .all(|j| own.contains(&j) || self.leaves_alone(j, roots, lo, decision))
     }
 
     /// How use `j` of holder `v` goes on: to the holder it makes, into a
     /// local that holds the loan, or no further; `None` when it may keep
-    /// the reference. `dropped`: `v` itself has a `Drop`, so a call only
-    /// lends it.
+    /// the reference. `dropped`: `v` itself has a `Drop`, or is a borrow
+    /// read, so a call only lends it.
     fn holder_use(
         &self,
         v: u32,
@@ -562,7 +717,8 @@ impl Em<'_, '_, '_> {
         let Some(loan) = self.short_loans.get_mut(&o) else {
             return Ok(());
         };
-        let fresh = std::mem::take(&mut loan.fresh);
+        // Each path runs one of the loan's ends.
+        let fresh = loan.fresh.clone();
         let table = loan.table;
         self.release_fresh(&fresh)?;
         if let Some((owned, m, t)) = table {

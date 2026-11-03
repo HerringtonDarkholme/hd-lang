@@ -30,10 +30,12 @@
 //! 4. **References at last access.** A `Ref` of a whole local that lives
 //!    in a cell, after which no path reaches the local, takes the local's
 //!    count of the cell (`ref_word::TAKES`); the local's `Drop` right after
-//!    it goes. Not in a sub-body that holds a suspension point (an
+//!    it goes. A later whole-value read can instead move the value out of
+//!    the cell and release the emptied cell. Not in a sub-body that holds a suspension point (an
 //!    `Await`, as known-null's points), whose frame saves the cell's local
-//!    at each point, and not for a frame local (`ref_word::FRAME`), whose
-//!    `Drop` follows the uses of every reference into it.
+//!    at each point. A frame local's `Ref` never takes a count
+//!    (`ref_word::FRAME`); its final whole read may move the slot payload
+//!    when insertion put the local's drop immediately after it.
 //!
 //! "No path reads it again" is a backward liveness walk over the
 //! structured control flow of each sub-body, with one bit per candidate
@@ -76,8 +78,13 @@ pub(crate) struct Tables {
     keep_l: Vec<bool>,
     keep_v: Vec<bool>,
     /// Locals a `Ref` addresses, which live in a cell: no read of one
-    /// moves, and only a `Ref` of the whole local takes its count.
+    /// moves except a last whole read, and only a `Ref` of the whole local
+    /// takes its count.
     pub(super) addr: Vec<bool>,
+    /// Addressed locals held in frame slots, whose references never take
+    /// a cell count. A whole read immediately before their inserted drop
+    /// may still move the slot's payload out.
+    frame: Vec<bool>,
     /// Per local: the `borrow` read a binding local holds (the borrow
     /// pass's), or `NONE`; and whether the body owns it (its exit row).
     pub(super) holds: Vec<u32>,
@@ -114,6 +121,7 @@ impl Tables {
         fill(&mut self.keep_l, locals, false);
         fill(&mut self.keep_v, n, false);
         fill(&mut self.addr, locals, false);
+        fill(&mut self.frame, locals, false);
         fill(&mut self.holds, locals, NONE);
         fill(&mut self.owns, locals, false);
         fill(&mut self.decide, n, UNSEEN);
@@ -227,9 +235,8 @@ fn candidates(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> bool
             Tag::Ref => {
                 if let Some(l) = b.local_in_place(a) {
                     t.addr[l.idx()] = true;
-                    // A frame local's references are its own uses.
                     if w & crate::ir::ref_word::FRAME != 0 {
-                        t.keep_l[l.idx()] = true;
+                        t.frame[l.idx()] = true;
                     }
                 }
             }
@@ -422,10 +429,18 @@ impl Backward for Tables {
                     let addr = matches!(p.root, Root::Local(l) if self.addr[l as usize]);
                     let last = if s.get(live, bit) { KEEP } else { MOVE };
                     match b.tags[i] {
-                        Tag::Read if w == ReadMode::Copy as u32 && !addr && p.in_place(b) => {
+                        Tag::Read
+                            if w == ReadMode::Copy as u32
+                                && p.in_place(b)
+                                && (!addr || p.whole()) =>
+                        {
                             self.decide[i] = last;
                         }
-                        Tag::Ref if addr && p.whole() => {
+                        Tag::Ref
+                            if addr
+                                && p.whole()
+                                && !matches!(p.root, Root::Local(l) if self.frame[l as usize]) =>
+                        {
                             self.decide[i] = if last == MOVE { TAKE } else { KEEP };
                         }
                         _ => {}
@@ -506,6 +521,13 @@ fn apply(
             }
         });
         if from == to {
+            // A frame reference's later uses do not name its source local
+            // in this pass. Insertion put the local's drop directly after
+            // its actual last use, so only that adjacent pair proves a
+            // frame slot can be emptied here.
+            if matches!(root, Root::Local(l) if t.frame[l as usize]) && drop != Some(x + 1) {
+                continue;
+            }
             // A whole value moves only when its drop goes with it: no
             // other drop of it may follow on the moved path.
             if drop.is_none() && matches!(root, Root::Value(_)) {

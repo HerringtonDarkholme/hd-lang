@@ -27,7 +27,7 @@
 
 use hd_base::SliceSort as _;
 use hd_base::StageResult;
-use hd_tir::ir::{NONE, Ref, Tag};
+use hd_tir::ir::{IntrinsicOp, NONE, Ref, Tag};
 use hd_types::Ty;
 
 use super::Em;
@@ -52,6 +52,7 @@ impl Em<'_, '_, '_> {
     /// into owns it.
     pub(super) fn prepare_own_loans(&mut self) {
         use hd_tir::ir::place;
+        self.prepare_string_slice_comparisons();
         for i in 0..self.b.len() {
             let [a, w] = self.b.data[i];
             let x = u32::try_from(i).expect("insts");
@@ -159,7 +160,43 @@ impl Em<'_, '_, '_> {
                 _ => {}
             }
         }
+        // A substring compared immediately borrows its byte range. When
+        // the source read is not a move, neither that read nor the view
+        // needs a count before the equality instruction consumes it.
+        let compared_slices: Vec<u32> = self.string_slice_comparisons.keys().copied().collect();
+        for call in compared_slices {
+            let mut args = self.rec(self.b.data[call as usize][1]);
+            args.truncate(args.len().saturating_sub(3));
+            let Some(&text) = args.first() else {
+                continue;
+            };
+            if super::shape::read_local(self.b, text).is_some()
+                && self.b.data[text as usize][1] != hd_tir::ir::ReadMode::Move as u32
+            {
+                self.loans.insert(text);
+                self.loans.insert(call);
+            }
+        }
         self.frame_loans();
+    }
+
+    /// Build the direct `string.slice` call to string-equality map once
+    /// for the body. Count preparation and emission then do constant-time
+    /// lookups instead of rescanning the body for every instruction.
+    fn prepare_string_slice_comparisons(&mut self) {
+        for (equal, tag) in self.b.tags.iter().enumerate() {
+            if *tag != Tag::Intrinsic
+                || IntrinsicOp::from_u32(self.b.data[equal][0]) != Some(IntrinsicOp::StrEq)
+            {
+                continue;
+            }
+            let equal = u32::try_from(equal).expect("insts");
+            for slice in self.rec(self.b.data[equal as usize][1]) {
+                if self.is_string_slice_call(slice) {
+                    self.string_slice_comparisons.insert(slice, equal);
+                }
+            }
+        }
     }
 
     /// The addresses in the frame's slots (§23.38), which take no count, as
@@ -359,6 +396,9 @@ impl Em<'_, '_, '_> {
         let Some(mut w) = self.counted(t) else {
             return Ok(());
         };
+        if retain {
+            crate::rt::trap_buffer_retain(&mut self.f, &w);
+        }
         let colls = if retain { self.copied(t) } else { Vec::new() };
         for &c in &colls {
             self.f.get(ls[c as usize]);
@@ -373,7 +413,7 @@ impl Em<'_, '_, '_> {
         }
         if let Some(k) = w.single() {
             self.f.get(ls[k as usize]);
-            if matches!(w, Walk::Known(_)) {
+            if w.known() {
                 self.f.helper(if retain {
                     Helper::RetainKnown
                 } else {
@@ -1045,9 +1085,11 @@ impl Em<'_, '_, '_> {
                     self.loans.insert(i);
                     self.cell_get(i, l)
                 }
-                // The move pass moves a celled local's count by its
-                // reference (`docs/compiler/tir-v2.md`, "Move" rule 4).
-                _ => crate::unsupported("a `move` read of a local in a cell"),
+                // A last whole-value read moves the payload out and ends
+                // the cell. A last reference instead takes the cell's
+                // count (`docs/compiler/tir-v2.md`, "Move" rule 4).
+                Some(ReadMode::Move) => self.cell_take(i, l),
+                _ => crate::unsupported("a read of a local in a cell with no mode"),
             };
         }
         let ls = self.local(u32::try_from(l).expect("locals"))?;

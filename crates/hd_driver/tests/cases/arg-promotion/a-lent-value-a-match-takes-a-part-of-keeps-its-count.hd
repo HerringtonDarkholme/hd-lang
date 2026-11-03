@@ -1,10 +1,10 @@
 # @dump: wat
 # @build: v8 release
 # Release (§23.40, #1151): `check[Res[string]]` lends `a` and `b` to the
-# promoted copy `same'1` with no count. Its `match *self` copies the
-# value and moves the payload into `left`, which its exit releases, so
-# the copy takes a count (`rt:retain`) although the parameter is
-# borrowed. Without it, each call released a count it never took.
+# promoted copy `same'1` with no count. Its `match *self` reads the
+# value in place and copies the payload into `left`, which its exit
+# releases, so the copy takes a count (`retain`) although the parameter
+# is borrowed. Without it, each call released a count it never took.
 use std.annotation.inline
 
 enum Res[T]:
