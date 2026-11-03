@@ -157,10 +157,9 @@ pub fn kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Kind {
             .list_items(args)
             .first()
             .map_or(Ty::VOID, |a| strip(pool, env, *a));
-        // A reference to an open trait value is one open value
-        // (`emit/erased.rs`), however the caller lays it out.
-        let fat = matches!(pool.get(target), TyData::TraitValue { .. })
-            && !hd_mono::is_open(pool, target);
+        // A reference to a trait value is the value itself, including
+        // when its open representation is one box (`emit/erased.rs`).
+        let fat = matches!(pool.get(target), TyData::TraitValue { .. });
         let whole = def == env.ref_cells().counted;
         return Kind::Ref { target, fat, whole };
     }
