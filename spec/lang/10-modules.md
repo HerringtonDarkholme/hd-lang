@@ -1764,11 +1764,13 @@ pub fn size_of[T < ?Copy]() -> usize
 
 pub struct Buffer[T < ?Copy]
 
+impl[T < ?Copy] !Copy for Buffer[T]
+
 impl[T < ?Copy] Buffer[T]:
     pub fn new(capacity: usize) -> Buffer[T]
     pub fn capacity(&self) -> usize
     pub fn len(&self) -> usize
-    pub fn set_len(&self, len: usize) -> void
+    pub fn set_len(&mut self, len: usize) -> void
     pub fn at(&self, index: usize) -> Ptr[T]
     pub fn item_ref['a](&'a self, index: usize) -> &'a T
     pub fn item_mut['a](&'a mut self, index: usize) -> &'a mut T
@@ -1790,12 +1792,12 @@ pub fn new_string(len: usize) -> string
 11. r[module.rt.ptr.holds] Only the standard library reads or writes through a `Ptr[T]`, and it reads only where the heap holds a value of `T`.
 12. r[module.rt.ptr.bounds] A read or a write that reaches a byte outside the heap stops the program instance with no panic category, as for [`module.rt.memory.bounds`](#r-module.rt.memory.bounds).
 13. r[module.rt.buffer.type] A `Buffer[T]` is a counted heap object with room for `capacity()` values of `T`, of which it holds the first `len()`. Its fields are private.
-14. r[module.rt.buffer.copy] A copy of a `Buffer[T]` is the same object with one count more. It never copies the values the buffer holds.
-15. r[module.rt.buffer.borrowed-access] `capacity`, `len`, `set_len`, and `at` take `&self`, so a call borrows the buffer and takes no count.
+14. r[module.rt.buffer.not-copyable] `Buffer[T]` is not copyable: a read by value moves it, so one owner holds its one count.
+15. r[module.rt.buffer.borrowed-access] `capacity`, `len`, and `at` take `&self`, and `set_len` takes `&mut self`, so a call borrows the buffer and takes no count, and only a writable buffer changes its length.
 16. r[module.rt.buffer.new] `Buffer::new(capacity)` returns a new buffer whose capacity is `capacity` and whose length is 0. A capacity whose bytes do not fit the heap panics. Panic: `heap-exhausted`.
 17. r[module.rt.buffer.at] `b.at(index)` returns the `Ptr[T]` of value `index` of the buffer's room: `b.at(0).offset(index)`. It checks no bound; reads and writes through it follow [`module.rt.ptr.holds`](#r-module.rt.ptr.holds).
 18. r[module.rt.buffer.len] `b.set_len(len)` sets the length that `b.len()` returns and changes no value. Before it raises the length, std writes each new value through `at`; before it lowers the length, std reads each value past the new length out through `at`.
-19. r[module.rt.buffer.drop] When the last count of a buffer is released, the buffer drops each of its first `len()` values, then its storage is freed.
+19. r[module.rt.buffer.drop] When a buffer's owner releases it, the buffer drops each of its first `len()` values, then its storage is freed.
 20. r[module.rt.buffer.item-ref] `b.item_ref(index)` returns an `&T` to value `index`, whose lifetime is the receiver borrow's lifetime.
 21. r[module.rt.buffer.item-mut] `b.item_mut(index)` returns an `&mut T` to value `index`, whose lifetime is the mutable receiver borrow's lifetime.
 22. r[module.rt.buffer.item-bounds] `item_ref` and `item_mut` check no bound; std calls either only after checking that `index < b.len()`.

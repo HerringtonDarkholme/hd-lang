@@ -1,0 +1,28 @@
+# test: boxed nodes linked through unique lists are collected
+# expect: test
+# Spec std/collections UniqList: std-collections.uniq-list.type, std-collections.uniq-list.push.
+use std.collections.UniqList
+
+struct Node:
+    name: string
+    links: UniqList[*mut Node]
+
+impl !Copy for Node
+
+fn node(name: string) -> *mut Node:
+    box(Node { name: name, links: UniqList::[*mut Node].new() })
+
+tests:
+    use std.testing.assert_equal
+
+    it("collects nodes that link each other through unique lists"):
+        let round: usize = 0
+        while round < 30:
+            a := node("a")
+            b := node("b")
+            a.links.push(b)
+            b.links.push(a)
+            self_link := a
+            a.links.push(self_link)
+            assert_equal(a.links.len(), 2, reason="two links")
+            round += 1

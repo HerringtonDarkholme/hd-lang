@@ -114,7 +114,7 @@ impl[T < ?Copy] UniqList[T]:
         true
 
     # Moves every element into a larger buffer. The old buffer holds none
-    # when its last count is released.
+    # when it is replaced and released.
     fn reserve_for(&mut self, minimum: usize) -> void:
         current := self.buffer.capacity()
         if current >= minimum:
@@ -122,12 +122,11 @@ impl[T < ?Copy] UniqList[T]:
         let capacity = if current == 0: 4 else: current * 2
         while capacity < minimum:
             capacity *= 2
-        old := self.buffer
-        next := Buffer::[T].new(capacity)
-        size := old.len()
+        let mut next = Buffer::[T].new(capacity)
+        size := self.buffer.len()
         if size > 0:
-            copy(next.at(0).address, old.at(0).address, size * size_of::[T]())
-        old.set_len(0)
+            copy(next.at(0).address, self.buffer.at(0).address, size * size_of::[T]())
+        self.buffer.set_len(0)
         next.set_len(size)
         self.buffer = next
 
@@ -455,13 +454,12 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
             index = (index + 1) & (capacity - 1)
 
     fn grow(&mut self) -> void:
-        old := self.slots
         old_capacity := self.entry_capacity
         capacity := if self.size * 2 < old_capacity: old_capacity else: old_capacity * 2
         let mut next = UniqMap::[K, V].with_capacity(capacity)
         let index: usize = 0
-        while index < old.len():
-            let hash: usize? = match old.item_ref(index):
+        while index < self.slots.len():
+            let hash: usize? = match self.slots.item_ref(index):
                 .Occupied(found, _, _) => .Some(found)
                 .Deleted => .None
             match hash:
@@ -469,7 +467,7 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
                     entry := next.slots.len()
                     copy(
                         next.slots.at(entry).address,
-                        old.at(index).address,
+                        self.slots.at(index).address,
                         size_of::[UniqMapSlot[K, V]](),
                     )
                     next.slots.set_len(entry + 1)
@@ -477,7 +475,7 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
                     next.size += 1
                 .None => pass
             index += 1
-        old.set_len(0)
+        self.slots.set_len(0)
         *self = next
 
     ## True exactly when the map has an entry whose key equals `key`.
