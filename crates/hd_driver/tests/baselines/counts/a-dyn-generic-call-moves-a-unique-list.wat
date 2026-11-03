@@ -47,7 +47,7 @@
     end
     ;; ...
   )
-  (func $round_trip (param $s.0 i32) (param $s.1 i32) (param $list.buffer.address i32) (param $list.buffer.capacity i32) (param $list.len i32) (result i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $back i32) (local $t4 i32)
+  (func $round_trip (param $s.0 i32) (param $s.1 i32) (param $list.buffer.address i32) (param $list.buffer.capacity i32) (param $list.len i32) (result i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $back i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32)
     ;; ...
     block
     ;; 29 |     back := s.relay(list)
@@ -113,28 +113,55 @@
         local.get $back
         i32.load $heap offset=8
         local.set $t3
-        i32.const 12
+        local.get $back
+        i32.load $heap offset=12
+        local.set $t4
+        local.get $back
+        i32.load $heap offset=16
+        local.set $t5
+        i32.const 20
         i32.const 0
         call $rt:new
-        local.tee $back
+        local.tee $t6
         local.get $s.0
         i32.store $heap
-        local.get $back
+        local.get $t6
         local.get $s.1
         i32.store $heap offset=4
-        local.get $back
+        local.get $t6
         local.get $t3
         i32.store $heap offset=8
-        local.get $back
+        local.get $t6
+        local.get $t4
+        i32.store $heap offset=12
+        local.get $t6
+        local.get $t5
+        i32.store $heap offset=16
+        local.get $t6
         call $rt:drop
-        local.get $back
+        local.get $t6
         call $rt:take_box
         drop
+        local.get $back
+        i32.const 0
+        i32.store $heap offset=12
+        local.get $back
+        i32.const 0
+        i32.store $heap offset=16
+        local.get $back
+        i32.const 0
+        i32.store $heap offset=20
+        local.get $back
+        i32.const 0
+        i32.store $heap offset=24
+        local.get $back
+        i32.const 0
+        i32.store $heap offset=28
       end
-      local.get $t4
+      local.get $t7
       i32.const 0
       i32.store $heap
-      local.get $t4
+      local.get $t7
       i32.const 8
       i32.add
       local.tee $back
@@ -146,6 +173,21 @@
       local.get $back
       local.get $t0
       i32.store $heap offset=8
+      local.get $back
+      i32.const 1
+      i32.store $heap offset=12
+      local.get $back
+      i32.const 1
+      i32.store $heap offset=16
+      local.get $back
+      i32.const 1
+      i32.store $heap offset=20
+      local.get $back
+      i32.const 1
+      i32.store $heap offset=24
+      local.get $back
+      i32.const 1
+      i32.store $heap offset=28
       local.get $back
     ;; 30 |     back.len()
       call $"impl [ T < ? Copy ] UniqList [ T ].len[string]"

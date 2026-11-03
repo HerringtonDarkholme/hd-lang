@@ -218,7 +218,7 @@ These arrive in stage 2. The checker never writes them.
 
 | Tag | Operands | Meaning |
 | --- | --- | --- |
-| `Drop` | a: place | releases the value at the place and leaves it empty. A drop of an empty place does nothing at run time, so a drop needs no flag of its own: a moved place is zero |
+| `Drop` | a: place | releases the value at the place and leaves it empty. A drop of an empty place does nothing. Counted references use zero for emptiness; inline runtime Drop values have initialization flags because zero is a valid payload |
 | `IsUnique` | a: place of a list or map | makes the collection's buffer the place's own: copies it when another holder shares it. Precedes every in-place change |
 | `Pin` | a: place of a list | after an `IsUnique` of the same place, marks the header as its buffer's one owner, so element references keep the buffer in place. The pin lasts while element references hold counts of the buffer; their drops end it, so there is no `Unpin` |
 | `FlagSet`, `FlagClear` | a: place | tier 2 only (reserved): set and clear a borrow flag next to a pin |
@@ -227,6 +227,9 @@ These arrive in stage 2. The checker never writes them.
 today). Its `exit_drops` column lists the owned locals that may still
 hold a value there; the exit drops them. Insertion fills it, and
 known-null removes the locals that are empty on every path to the exit.
+The backend tracks initialization separately for inline runtime Drop hooks,
+including zero-sized values and partially moved fields. Addressable cells
+keep this state after their payload; it does not change the value's layout.
 A `Break` or `Continue` that leaves a block gets explicit `Drop`s of
 what that block still owns, before the jump.
 

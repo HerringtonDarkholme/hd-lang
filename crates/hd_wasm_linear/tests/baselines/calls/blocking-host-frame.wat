@@ -2,6 +2,7 @@
 (module
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:forbid_check" (func $rt:forbid_check))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "hd:rt/block" (func $hd:rt/block (result i32)))
   (import "fixture" "rt:wake_mark" (func $rt:wake_mark (param i32)))
   (import "fixture" "rewake" (global $rewake (mut i32)))
@@ -29,7 +30,8 @@
       local.set $t3
       local.set $provider0.vtable
       local.set $path.1
-      ;; ...
+      local.get $provider0
+      call $rt:release_ref
     ;; 10 |     match block_on(call):
       local.tee $provider0
       local.tee $t4

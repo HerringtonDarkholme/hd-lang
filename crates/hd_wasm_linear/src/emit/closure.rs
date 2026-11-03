@@ -191,7 +191,14 @@ impl Em<'_, '_, '_> {
     /// references: its erased view's in a generic method (`erased.rs`).
     pub(super) fn cell_mem(&self, l: usize) -> StageResult<(Mem, Option<Walk>)> {
         let t = self.cell_ty(l);
-        Ok((mem_of(self.pool(), self.env(), t)?, self.counted(t)))
+        let mut m = mem_of(self.pool(), self.env(), t)?;
+        let flags = self.drop_node_paths(t).len();
+        if flags != 0 {
+            m.align = m.align.max(4);
+            m.size = (m.size.next_multiple_of(4) + u32::try_from(flags).expect("flags") * 4)
+                .next_multiple_of(m.align);
+        }
+        Ok((m, self.counted(t)))
     }
 
     /// The layout of closure `ci`'s environment: a cell's address for a
@@ -213,7 +220,7 @@ impl Em<'_, '_, '_> {
     /// address.
     fn new_cell(&mut self, l: usize, src: Src) -> StageResult<u32> {
         let src = self.cell_src(l, src)?;
-        self.raw_cell(l, &src)
+        self.raw_cell(l, &src, true)
     }
 
     /// Pushes the zero of each value of local `l`'s type, for a cell that
@@ -236,7 +243,7 @@ impl Em<'_, '_, '_> {
         self.f.op(I::I32Eqz);
         self.f.op(I::If(BlockType::Empty));
         let z = self.zero_src(l)?;
-        let at = self.raw_cell(l, &z)?;
+        let at = self.raw_cell(l, &z, false)?;
         self.f.get(at);
         self.f.set(c);
         self.f.op(I::End);
@@ -322,7 +329,7 @@ impl Em<'_, '_, '_> {
             self.f.op(leaf.load(0));
             self.f.set(*x);
         }
-        self.release_locals(&ls, t)?;
+        self.release_drop_place(&ls, t, &Self::local_place(l))?;
         self.f.op(I::End);
         Ok(())
     }
@@ -340,7 +347,7 @@ impl Em<'_, '_, '_> {
 
     /// A new cell for local `l` holding `src`, already in the cell's
     /// layout; for a slot local, its slot.
-    fn raw_cell(&mut self, l: usize, src: &Src) -> StageResult<u32> {
+    fn raw_cell(&mut self, l: usize, src: &Src, live: bool) -> StageResult<u32> {
         if let Some(&off) = self.slots.get(&l)
             && let Some(base) = self.frame_base()
         {
@@ -363,16 +370,20 @@ impl Em<'_, '_, '_> {
                 offset: 0,
             };
             self.store_part(at, &m, part, src)?;
+            self.init_cell_drop(at, self.cell_ty(l), live);
             return Ok(at);
         }
         if let Some(key) = self.static_cells {
-            return self.static_cell(key, l, src);
+            let at = self.static_cell(key, l, src)?;
+            self.init_cell_drop(at, self.cell_ty(l), live);
+            return Ok(at);
         }
         let (m, walk) = self.cell_mem(l)?;
         let ty = self.cell_ty(l);
         let cyclic = self.cyclic_holding(&[ty]);
         let recursive = self.recursive_object(ty);
-        let at = self.object(&m, walk.as_ref(), cyclic, recursive, Some(ty));
+        let drops = self.cell_drop_calls(ty);
+        let at = self.object_drops(&m, walk.as_ref(), cyclic, recursive, Some(ty), drops);
         #[cfg(feature = "checked-report")]
         if self.input.runtime.is_some_and(|r| r.checked.is_some())
             && cell_locals(self.b, &[]).contains_key(&l)
@@ -385,6 +396,7 @@ impl Em<'_, '_, '_> {
             offset: 0,
         };
         self.store_part(at, &m, part, src)?;
+        self.init_cell_drop(at, ty, live);
         Ok(at)
     }
 
@@ -471,6 +483,7 @@ impl Em<'_, '_, '_> {
             self.store_part(c, &m, all, &zero)?;
         }
         if !slot {
+            self.init_cell_drop(c, self.cell_ty(l), false);
             self.f.get(c);
             self.release_cell();
         }
@@ -507,7 +520,7 @@ impl Em<'_, '_, '_> {
             if slot && self.counting {
                 self.release_slot(l, c)?;
             }
-            let at = self.raw_cell(l, &src)?;
+            let at = self.raw_cell(l, &src, v != NONE)?;
             if self.counting && !slot {
                 self.f.get(c);
                 self.release_cell();
