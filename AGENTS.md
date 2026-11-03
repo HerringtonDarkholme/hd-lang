@@ -57,6 +57,22 @@ one function.
 6. Check a design against these rules and the Design Cost Order before
    proposing it.
 
+## Testing A Change
+
+Know what the change touches, and test that first.
+
+1. Run the touched crates' unit tests and the stage cases and conformance
+   cases that cover the changed rules (`HD_CONFORMANCE_ONLY` names them;
+   use the checked or optimized mode when the change concerns counts,
+   drops or the release pipeline).
+2. Then default conformance, which runs every case on the dev pipeline.
+3. The full suite is not a catch-all. Branch CI runs it on every push, in
+   all four conformance modes. Run it locally only for a truly
+   cross-cutting change (the ownership passes, reference counting, the
+   type pool), rarely, after the focused tests pass, and say why.
+4. Keep the machine usable: cargo `-j 2`, `RUST_TEST_THREADS=2`, one heavy
+   command at a time, and delete build output you made outside `target/`.
+
 ## Spec Scope For The Standard Library
 
 The specification has three tiers, one style, and one conformance suite:
