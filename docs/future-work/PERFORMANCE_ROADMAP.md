@@ -137,7 +137,7 @@ has touched:
 | `sorted_by`, 3 × 200,000 `i64` | 132 ms | - | three new lists per merge level | 18 |
 | sort 3 × 100,000 strings | 136 ms | 56.4 ms | as above | 18 |
 | base64 round trip, 3 × 1 MiB | 96 ms | 0.8 ms (native) | a push per byte, symbols by comparison chains, output revalidated | 20 |
-| map with `(i32, i32)` keys | 190 ns per op | - | a `List[u8]` per integer through `dyn Hasher`; an `i64` key takes 22 ns | 21 (#434) |
+| map with `(i32, i32)` keys | 190 ns per op | - | integers are mixed one byte at a time; an `i64` key takes 22 ns | 21 (#434) |
 | derived `Eq` / hand-written, 10⁶ | 16 / 5 ms | - | field-handle walkers | 22 |
 | derived `Ord` sort / hand comparator | 55 / 27 ms | - | a variant probe walk before each compare | 22 |
 | `debug` of a record, 100,000 | 78 ms | 50.5 ms | one string per character in `escape_text`, 40% | 19 |
@@ -255,7 +255,7 @@ counts 2 toward the bound. std adds boxes the layout does not need:
 | **`Heap` on `List[T]`** with `pop` and a hole (review fix 17) | heap 167 to about 50 ms (3x) | std only | low | nothing |
 | **`Deque` on plain slots**: the ring over `List[T]` with `pop` and truncation (the redesign's finding) | a tag test per access; half the arrays for a scalar `T` | std only | low; a removed slot keeps its value alive until overwritten, as a ring over `T?` does not | nothing |
 | **`Set` without the `bool`**: `Map[T, void]` | one byte per entry; a values array less | needs `Array[void]` lowering | low | #180 or a smaller map change |
-| **Known-vtable devirtualization**: a `dyn` call on a constant vtable global becomes direct | an indirect call; on wasmtime it opens inlining, `mut dyn Hasher` above all | a small pass; vtables are already globals (§15.4) | low | nothing |
+| **Known-vtable devirtualization**: a `dyn` call on a constant vtable global becomes direct | an indirect call; on wasmtime it opens inlining for fixed trait-value callees | a small pass; vtables are already globals (§15.4) | low | nothing |
 
 ### 3.3 String building and concatenation
 
@@ -320,15 +320,14 @@ which is why the closures bench is 781 ms there against 292 ms on V8.
 **Today.** `Map` is an insertion-ordered table with linear probing, the
 right design. Since #353 and #511 every bucket hash is keyed by the
 run's seed, which stopped hash flooding and cost 25% to 35% on short
-string-key lookups. A composite key hashes through `Hash` impls that
-build a `List[u8]` per integer and call through `dyn Hasher`.
+string-key lookups. A composite key hashes through `Hash` impls specialized
+to their concrete hasher (#1231), but integers are still mixed byte by byte.
 
 | Fix | Gain | Cost | Risk | Waits on |
 | --- | --- | --- | --- | --- |
 | **Wrapping and bit-count methods as instructions** (review fix 16) | SHA-256 128 to about 45 ms (2.8x); `checked_*` and `saturating_*` lose a 64-step loop per call | intrinsic bodies (question 1); signatures stay plain hd | low | question 1 |
 | **SipHash-1-3 on a native `i64.add`** for string keys | short keys as fast as FNV, long keys 1.7x faster (#426 comment); recovers the regression | std only (`std.hash`) | low; the collision tests of #353 and #511 stay | the wrapping methods |
 | **`Hasher.write_u64` and `write_str`** (#434, approved) | tuple-key map 190 to about 70 ns per op; no list per integer | std, derived `Hash` | low | nothing |
-| **`BucketHasher` as plain locals** | 15% to 25% on short keys, which `string_bucket_hash` now gets by repeating code (`2a274b8ad`) | none once scalar replacement exists | low | scalar replacement |
 
 ### 3.7 JSON parse and encode
 

@@ -294,7 +294,7 @@ trait Hasher:
     fn write_str(&mut self, text: string) -> void
 
 trait Hash < ?Copy:
-    fn hash(&self, state: &mut dyn Hasher) -> void
+    fn hash[H < Hasher](&self, state: &mut H) -> void
 ```
 
 1. r[trait.hash.module] The standard library declares `Hash` and `Hasher` in [`std.core`](10-modules.md#core-layer), and `std.hash` re-exports them.
@@ -306,9 +306,10 @@ trait Hash < ?Copy:
 7. r[trait.hash.typed-bytes] Each integer method writes the value's bytes least significant first, using two's-complement representation for signed values. Widths are one byte for `i8` and `u8`, two for `i16` and `u16`, four for `i32`, `u32` and `usize`, and eight for `i64` and `u64`.
 8. r[trait.hash.string-bytes] `write_str(text)` writes the UTF-8 bytes of `text`, with no length.
 9. r[trait.hash.override-equivalent] An implementation may override a typed method, but it must give the same result as writing the specified bytes through `write`.
-10. r[trait.hash.ref-receiver] `Hasher`'s methods take `&mut self`, and `Hash.hash` receives its hasher as `&mut dyn Hasher`. So a struct that implements `Hasher` changes in place through a bound and through a trait value reference, and its caller reads the changed state afterwards.
-11. r[trait.hash.self-ref] `Hash.hash` takes its value as `&self`, so `value.hash(state)` lends `value` to the call, as any `&self` receiver is lent, and copies nothing.
-12. r[trait.hash.noncopy] `Hash` is declared `< ?Copy`, so a non-copyable type may implement hashing.
+10. r[trait.hash.mut-receiver] `Hasher` methods take `&mut self`, so they change the hasher in place and the caller observes the changed state.
+11. r[trait.hash.generic-hasher] `Hash.hash` declares `H < Hasher` and takes `&mut H`, so calls to `H`'s `Hasher` methods dispatch statically.
+12. r[trait.hash.self-ref] `Hash.hash` takes its value as `&self`, so `value.hash(state)` lends `value` to the call, as any `&self` receiver is lent, and copies nothing.
+13. r[trait.hash.noncopy] `Hash` is declared `< ?Copy`, so a non-copyable type may implement hashing.
 
 > **Note.** A key that holds a reference can still change through another
 > reference to the same place, potentially leaving its map entry unreachable.

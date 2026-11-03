@@ -18,8 +18,8 @@ pub trait Copy:
 pub trait Eq < ?Copy:
     fn eq(&self, other: &Self) -> bool
 
-## A sink that hashes the bytes written to it; its methods change it, so a hasher is passed as `&mut dyn Hasher`.
-## See [trait.hash.ref-receiver](../../../spec/lang/09-traits.md#r-trait.hash.ref-receiver).
+## A sink that hashes the bytes written to it; its methods change it through `&mut self`.
+## See [trait.hash.generic-hasher](../../../spec/lang/09-traits.md#r-trait.hash.generic-hasher).
 pub trait Hasher:
     fn write(&mut self, bytes: List[u8]) -> void
 
@@ -76,7 +76,7 @@ pub trait Hasher:
 ## A type whose values write their hash bytes to a `Hasher`; a map key needs it with `Eq`.
 ## See [trait.hash.module](../../../spec/lang/09-traits.md#r-trait.hash.module).
 pub trait Hash < ?Copy:
-    fn hash(&self, state: &mut dyn Hasher) -> void
+    fn hash[H < Hasher](&self, state: &mut H) -> void
 
 fn unsigned_bytes(value: u64, count: usize) -> List[u8]:
     let mut bytes: List[u8] = []

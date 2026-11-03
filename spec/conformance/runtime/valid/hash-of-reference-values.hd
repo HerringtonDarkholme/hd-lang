@@ -1,6 +1,6 @@
 # test: hash_of gives the same u64 in every implementation, from the specified bytes and FNV-1a
 # Spec std Hash, Bytes Written: std-hash.bytes.sequence, with std-hash.default.algorithm and
-# std-hash.hash-of (batch 65, HASH-BYTES). Each expected value is 64-bit FNV-1a over the bytes in
+# std-hash.hash-of-local (batch 65, HASH-BYTES). Each expected value is 64-bit FNV-1a over the bytes in
 # its reason, computed outside any hd implementation.
 use std.hash.hash_of
 @derive(Eq, Hash)

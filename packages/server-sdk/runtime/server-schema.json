@@ -11,7 +11,7 @@
     "sourceHashes": {
       "packages/server-sdk/src/server.hd": "0994272ae05a870220076afc844edbb48c085ea07095f00438d1e2fb83bcfee6",
       "lib/std/console.hd": "25bbfdb5a767e1bd0899f5595c1f352e18f1c1c978f67e550c3c61054cb0e5e7",
-      "lib/std/http.hd": "e8df35702b14f36f28b3909e585f81df71fa14b3b4f9af5c5a547bc314ccd9dd",
+      "lib/std/http.hd": "eb28955daa30a731783d2e12cad6ed9da6f76746f8be5de6e26e868ecb364649",
       "lib/std/http_wire.hd": "bc8ccf8a09b048b3b102639f8f4a409d39ff27dc77ac3b38610f9352187afa11",
       "lib/std/time.hd": "3dd7d4ad9ffcd864874cd23bddf21fc02c50fc628b129babd01901f7e4d8b4f3"
     }
@@ -1380,5 +1380,5 @@
       }
     ]
   },
-  "fingerprint": "96f3e2b669c30e9a41b5dda5961ac84aacb9154190f86366dd4aca333e7c69f5"
+  "fingerprint": "114a6b53d8ae270d01d1a16a9ecb2dbc3a2ca18ce5162c1737df22131c515772"
 }

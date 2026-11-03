@@ -654,7 +654,7 @@ impl[T < ?Copy & Debug] Debug for UniqList[T]:
         list.finish()
 
 impl[T < ?Copy & Hash] Hash for UniqList[T]:
-    fn hash(&self, state: &mut dyn Hasher) -> void:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
         state.write_u64(u64(self.len()))
         let index: usize = 0
         while index < self.len():

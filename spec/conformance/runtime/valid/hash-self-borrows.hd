@@ -8,7 +8,7 @@ struct Node:
 
 # Writes 1 when the receiver is the place `me` refers to, and 0 for a copy.
 impl Hash for Node:
-    fn hash(&self, state: &mut dyn Hasher) -> void:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
         let byte: u8 = 0
         match self.me:
             .Some(place) =>

@@ -1,0 +1,9 @@
+# @dump: wat
+# @build: v8 dev
+# The local DefaultHasher stays in caller stack storage, and its generic
+# Hasher calls are direct: the subject has no allocation and no call_indirect.
+use std.hash.hash_of
+
+fn digest(value: usize) -> u64:
+    # subject
+    hash_of(value)

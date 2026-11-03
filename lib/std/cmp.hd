@@ -495,7 +495,7 @@ impl[T] Eq for Id[T]:
 
 # Keep handwritten Hash: hash the reference identity instead of its referent.
 impl[T] Hash for Id[T]:
-    fn hash(&self, state: &mut dyn Hasher) -> void:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
         identity_of(self.target).hash(state)
 
 # The place a reference refers to, as `is` compares it: the data object
@@ -516,7 +516,7 @@ impl Eq for RefIdentity:
 # their field path.
 # Keep handwritten Hash: hash only the serial and field path; the base is an identity reference.
 impl Hash for RefIdentity:
-    fn hash(&self, state: &mut dyn Hasher) -> void:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
         self.serial.hash(state)
         self.key.hash(state)
 

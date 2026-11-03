@@ -24,7 +24,7 @@ impl Eq for Key:
         self.value == other.value
 
 impl Hash for Key:
-    fn hash(&self, state: &mut dyn Hasher) -> void:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
         self.calls.count += 1
         state.write_i32(self.value)
 

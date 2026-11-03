@@ -126,7 +126,7 @@ impl Eq for HttpStatus:
         self.code() == other.code()
 
 impl Hash for HttpStatus:
-    fn hash(&self, state: &mut dyn Hasher) -> void:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
         self.code().hash(state)
 
 ## A header name; equality and hashing use its lowercase wire name.
@@ -296,7 +296,7 @@ impl Eq for HeaderName:
         self.wire_name() == other.wire_name()
 
 impl Hash for HeaderName:
-    fn hash(&self, state: &mut dyn Hasher) -> void:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
         self.wire_name().hash(state)
 
 @error
