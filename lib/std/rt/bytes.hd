@@ -34,9 +34,17 @@ pub fn bytes_concat(left: string, right: string) -> string:
     result
 
 ## Every part's bytes in order, copied once into one new string.
-@intrinsic("concat_all")
 pub fn concat_all(parts: List[string]) -> string:
-    panic("intrinsic")
+    let total: usize = 0
+    for part in &parts:
+        total += bytes_len(*part)
+    result := new_string(total)
+    let address = string_bytes(result).address
+    for part in parts:
+        size := bytes_len(part)
+        copy(address, string_bytes(part).address, size)
+        address += size
+    result
 
 ## The string of `bytes`, which the caller has checked are UTF-8. It takes over the list's buffer when nothing else holds it, else copies the bytes.
 @intrinsic("string_from_bytes")

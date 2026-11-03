@@ -21,8 +21,8 @@ quality, fixed in hd and in how hd compiles, never with a new intrinsic.
 
 | Kind | Count | keep | hd later | hd now | review |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| 1. `@intrinsic` functions (`hd_host_abi::INTRINSICS`) | 95 keys | 74 | 15 | 0 | 6 |
-| 2. Compiler-emitted runtime helpers (`hd_wasm_linear::rt::Helper`) | 146 | 110 | 34 | 2 | 0 |
+| 1. `@intrinsic` functions (`hd_host_abi::INTRINSICS`) | 93 keys | 74 | 13 | 0 | 6 |
+| 2. Compiler-emitted runtime helpers (`hd_wasm_linear::rt::Helper`) | 145 | 110 | 33 | 2 | 0 |
 | 3. Built-in types | 34 forms | 32 | 2 | 0 | 0 |
 | 4. Built-in methods (spec ch. 10) | 17 | 6 | 11 | 0 | 0 |
 | 5. Known std items (`hd_resolve::KnownItems`) | 102 | 76 | 9 | 0 | 17 |
@@ -31,7 +31,7 @@ quality, fixed in hd and in how hd compiles, never with a new intrinsic.
 
 The two big "hd later" groups are the same code seen from two sides: the
 `List`/`Map` built-ins (two types, eleven methods, five intrinsics and
-25 runtime helpers) and the string kernels (ten intrinsics and nine
+25 runtime helpers) and the string kernels (eight intrinsics and eight
 helpers).
 Both wait on one thing: hd-level memory code compiling as well as the
 compiler's hand-emitted helpers. #1205 measures it on `UniqMap`: the same
@@ -39,16 +39,16 @@ table design is 2.3x slower in hd.
 
 ## 1. `@intrinsic` Functions
 
-93 declarations in lib/std name 89 keys; with the compiler-supplied
+92 declarations in lib/std name 88 keys; with the compiler-supplied
 `panic`, `box`, `task_all`, `test_case` and `assert_equal` the table has
-94. All lower inline (`Lowering::Compiler`) except the seven host
+93. All lower inline (`Lowering::Compiler`) except the seven host
 primitives in the last rows.
 
 | Group | Keys | Verdict | Why |
 | --- | --- | --- | --- |
 | Memory (`std.rt.memory`, 21) | `mem_pages`, `mem_grow`, `mem_load_u8`..`u64`, `mem_store_u8`..`u64`, `mem_copy`, `mem_fill`, `ptr_size_of`, `ptr_read`, `ptr_write`, `ptr_offset`, `mem_buffer`, `buffer_item_ref`, `buffer_item_mut`, `mem_string_bytes`, `mem_new_string` | keep | the primitives hd collections are written over |
 | String layout (6) | `bytes_len`, `bytes_at`, `string_from_bytes`, `string_to_bytes`, `char_scalar`, `char_from_scalar` | keep | they read and build the string representation itself |
-| String kernels (9) | `bytes_slice`, `bytes_index`, `bytes_index_pair`, `bytes_index_json`, `bytes_mismatch`, `utf8_valid_len`, `concat_all`, `bytes_append`, `format_int` | hd later | loops over bytes; the hd versions measured 1.14x to 1.34x slower (#514) |
+| String kernels (8) | `bytes_slice`, `bytes_index`, `bytes_index_pair`, `bytes_index_json`, `bytes_mismatch`, `utf8_valid_len`, `bytes_append`, `format_int` | hd later | loops over bytes; the hd versions measured 1.14x to 1.34x slower (#514) |
 | Machine operations (12) | `int_wrapping_add`, `_sub`, `_mul`, `int_count_ones`, `int_leading_zeros`, `int_trailing_zeros`, `int_min`, `int_max`, `f64_to_bits`, `f64_from_bits`, `f32_to_bits`, `f32_from_bits` | keep | one Wasm instruction or a per-width constant |
 | Collections (5) | `list_truncate`, `list_extend`, `list_reserve`, `map_probe`, `map_steps` | hd later | `List`/`Map` internals; they go with the built-in types (kind 3) |
 | Panics and boxes (3) | `panic`, `panic_message`, `box` | keep | the trap and the counted allocation |
@@ -62,7 +62,7 @@ primitives in the last rows.
 
 ## 2. Runtime Helpers
 
-`hd_wasm_linear::rt::Helper` has 146 variants: functions the backend emits
+`hd_wasm_linear::rt::Helper` has 145 variants: functions the backend emits
 into each module on demand.
 
 | Group | Helpers | Verdict |
@@ -73,7 +73,7 @@ into each module on demand.
 | Host ABI encoding (7) | `Fit`, `LebPut`, `LebGet`, `Enc`, `Dec`, `HandleSlot`, `PackageHandleRelease` | keep |
 | Panics (3) | `Panic`, `PanicStr`, `PanicWith` | keep |
 | Collections (25) | `ListBuf`, `ListClone`, `ListUnique`, `ListCopy`, `ListGrow`, `ListTruncate`, `ListReserve`, `ListExtend`, `CopyElems`, `DropElems`, `CollCopy`, `ToBuf`, `MapTable`, `DropEntries`, `MapHash`, `MapFind`, `MapPut`, `MapGrow`, `MapUnique`, `MapClone`, `MapSlotNext`, `MapStep`, `DynSlot`, `DynRead`, `BytesAppend` | hd later (with kind 3) |
-| String kernels (11) | `StrFromBytes`, `StrToBytes`, `ConcatAll`, `FmtInt`, `StrEq`, `StrCmp`, `BytesIndexJson`, `BytesIndex`, `BytesIndexPair`, `BytesMismatch`, `Utf8ValidLen` | hd later, except `StrFromBytes`/`StrToBytes` (keep: layout) |
+| String kernels (10) | `StrFromBytes`, `StrToBytes`, `FmtInt`, `StrEq`, `StrCmp`, `BytesIndexJson`, `BytesIndex`, `BytesIndexPair`, `BytesMismatch`, `Utf8ValidLen` | hd later, except `StrFromBytes`/`StrToBytes` (keep: layout) |
 | Float math (2) | `PowF64`, `RemF64` | hd now: Wasm has no `pow` or `fmod` instruction, so these are already ordinary code the backend writes; an hd version in `std.num` is the same code in the library |
 
 ## 3. Built-In Types

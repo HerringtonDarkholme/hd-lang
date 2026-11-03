@@ -3160,8 +3160,8 @@ Rust 1.97 `library/alloc`, cranelift-codegen 0.136.2 and hashbrown
   call (30), a `ListIterMut` (20 hd), and a fold of a `Match` on a
   variant the inlined `next` just built, so a range loop does not build
   an option per step (150).
-- **Strings in std.** Replaces `str_eq`, `str_cmp`, `str_from_bytes`
-  and `concat_all` in `rt.rs` (186), `str_at`, `str_slice`,
+- **Strings in std.** Replaces `str_eq`, `str_cmp` and `str_from_bytes`
+  in `rt.rs` (about 120), `str_at`, `str_slice`,
   `char_from_scalar` and `str_ordering` in `emit/text.rs` (90 of 226),
   their arms in `emit.rs` (16) and the checker's `+`, `==` and indexing
   on strings (25). Stays: string literals, host primitives, `format_int`,
