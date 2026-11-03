@@ -493,11 +493,6 @@ pub enum Helper {
     /// `(list: List[string]) -> string`: every part's bytes in order,
     /// copied once into one new string.
     ConcatAll,
-    /// `(value: i64) -> string`: an integer's decimal text, read as
-    /// signed when `signed`.
-    FmtInt {
-        signed: bool,
-    },
     /// `(a, b) -> bool`: two strings' bytes are equal.
     StrEq,
     /// `(a, b) -> i32`: -1, 0 or 1 as `a` sorts before, with or after `b`,
@@ -1909,7 +1904,6 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f
         }
         Helper::HostPrim { name, args, result } => host_prim(m, name, args, *result),
-        Helper::FmtInt { signed } => fmt_int(m, *signed),
         Helper::ForbidCheck => {
             let mut f = m.func("rt:forbid_check", vec![], vec![]);
             f.global_get(Global::Forbid);
@@ -2006,87 +2000,6 @@ fn alloc(m: &Module) -> Func {
     f.op(Instruction::I32Add);
     f.global_set(Global::HeapTop);
     f.get(at);
-    f
-}
-
-/// [`Helper::FmtInt`]: the digits go backward into a 20-byte buffer,
-/// the most a `u64` or a signed `i64` needs; the string is its tail.
-fn fmt_int(m: &Module, signed: bool) -> Func {
-    let mut f = m.func(
-        if signed { "rt:fmt_i64" } else { "rt:fmt_u64" },
-        vec![Val::I64],
-        vec![Val::I32, Val::I32],
-    );
-    let (buf, at, neg, v) = (
-        f.local(Val::I32),
-        f.local(Val::I32),
-        f.local(Val::I32),
-        f.local(Val::I64),
-    );
-    f.i32(20);
-    f.helper(Helper::Str);
-    f.set(buf);
-    f.get(buf);
-    f.i32(20);
-    f.op(Instruction::I32Add);
-    f.set(at);
-    f.get(0);
-    f.set(v);
-    if signed {
-        // The magnitude of a negative value, read unsigned, is `0 - v`:
-        // that holds for `i64::MIN` too.
-        f.get(0);
-        f.op(Instruction::I64Const(0));
-        f.op(Instruction::I64LtS);
-        f.set(neg);
-        f.get(neg);
-        f.op(Instruction::If(BlockType::Empty));
-        f.op(Instruction::I64Const(0));
-        f.get(0);
-        f.op(Instruction::I64Sub);
-        f.set(v);
-        f.op(Instruction::End);
-    }
-    f.op(Instruction::Loop(BlockType::Empty));
-    f.get(at);
-    f.i32(1);
-    f.op(Instruction::I32Sub);
-    f.set(at);
-    f.get(at);
-    f.get(v);
-    f.op(Instruction::I64Const(10));
-    f.op(Instruction::I64RemU);
-    f.op(Instruction::I32WrapI64);
-    f.i32(i32::from(b'0'));
-    f.op(Instruction::I32Add);
-    f.op(Instruction::I32Store8(mem(HEAP, 0, 0)));
-    f.get(v);
-    f.op(Instruction::I64Const(10));
-    f.op(Instruction::I64DivU);
-    f.set(v);
-    f.get(v);
-    f.op(Instruction::I64Const(0));
-    f.op(Instruction::I64Ne);
-    f.op(Instruction::BrIf(0));
-    f.op(Instruction::End);
-    if signed {
-        f.get(neg);
-        f.op(Instruction::If(BlockType::Empty));
-        f.get(at);
-        f.i32(1);
-        f.op(Instruction::I32Sub);
-        f.set(at);
-        f.get(at);
-        f.i32(i32::from(b'-'));
-        f.op(Instruction::I32Store8(mem(HEAP, 0, 0)));
-        f.op(Instruction::End);
-    }
-    f.get(at);
-    f.get(buf);
-    f.i32(20);
-    f.op(Instruction::I32Add);
-    f.get(at);
-    f.op(Instruction::I32Sub);
     f
 }
 

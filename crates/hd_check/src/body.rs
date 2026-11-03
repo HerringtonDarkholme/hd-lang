@@ -4663,9 +4663,13 @@ impl Ck<'_, '_> {
     ) -> StageResult<(hd_tir::ir::ChoiceKind, u32)> {
         let pool = self.pool();
         let waited = choice == crate::call::PENDING_CHOICE;
+        let concrete_display = choice.0 == hd_tir::ir::ChoiceKind::Builtin
+            && trait_ == self.cx.names.known.display
+            && matches!(pool.get(self_ty), TyData::Prim(_));
         if !waited
             && (choice.0 != hd_tir::ir::ChoiceKind::Builtin
-                || !matches!(pool.get(self_ty), TyData::Adt { .. } | TyData::Tuple { .. }))
+                || (!matches!(pool.get(self_ty), TyData::Adt { .. } | TyData::Tuple { .. })
+                    && !concrete_display))
         {
             return Ok(choice);
         }

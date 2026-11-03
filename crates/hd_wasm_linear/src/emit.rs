@@ -2860,24 +2860,6 @@ impl Em<'_, '_, '_> {
                 }
                 self.store(i)
             }
-            // std's `format_int[N < Integer](value: N)`.
-            "format_int" => {
-                let t = self.ty_of(args[0]);
-                let (bits, signed, float) = self.num(t);
-                if float {
-                    return unsupported("`format_int` of a float");
-                }
-                self.push(args[0])?;
-                if bits < 64 {
-                    self.f.op(if signed {
-                        Instruction::I64ExtendI32S
-                    } else {
-                        Instruction::I64ExtendI32U
-                    });
-                }
-                self.f.helper(Helper::FmtInt { signed });
-                self.store_owned(i)
-            }
             "block_on" => self.block_on(i, args[0]),
             // `cancel!`'s cleanup frame over the task, a `Suspend[bool]`
             // that starts or continues the task's one cleanup and waits it
@@ -3464,7 +3446,7 @@ impl Em<'_, '_, '_> {
         if name == "runtime_type" {
             return self.runtime_type(i, self.strip_mut(self_ty), args[0]);
         }
-        let (_, signed, float) = self.num(t);
+        let (_, _, float) = self.num(t);
         match name {
             "cmp" | "partial_cmp" if prim && t != Ty::STRING => {
                 self.ordering(i, args, name == "partial_cmp", float)
@@ -3487,19 +3469,6 @@ impl Em<'_, '_, '_> {
             "to_string" if t == Ty::STRING => {
                 self.push(args[0])?;
                 self.store(i)
-            }
-            "to_string" if prim && !float => {
-                let (bits, _, _) = self.num(t);
-                self.push(args[0])?;
-                if bits < 64 {
-                    self.f.op(if signed {
-                        I::I64ExtendI32S
-                    } else {
-                        I::I64ExtendI32U
-                    });
-                }
-                self.f.helper(Helper::FmtInt { signed });
-                self.store_owned(i)
             }
             // A float's text is the host primitive its `Display`
             // implementation calls.

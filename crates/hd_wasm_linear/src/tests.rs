@@ -166,12 +166,6 @@ fn every_runtime_helper_validates() {
     f.i32(8);
     f.helper(Helper::Alloc);
     f.op(crate::op::Op::Drop);
-    for signed in [false, true] {
-        f.op(crate::op::Op::I64Const(-5));
-        f.helper(Helper::FmtInt { signed });
-        f.op(crate::op::Op::Drop);
-        f.op(crate::op::Op::Drop);
-    }
     for _ in 0..4 {
         f.i32(0);
     }

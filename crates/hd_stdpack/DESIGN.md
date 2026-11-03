@@ -71,7 +71,6 @@ others are private to the one module that calls them.
 | `string_to_bytes` | the intrinsic method `string.to_utf8(self) -> List[u8]`, in `core/mod.hd`, which `Hasher.write_str` calls | compiler |
 | `char_scalar` | `(value: char) -> u32`, in `rt/bytes.hd` | compiler |
 | `char_from_scalar` | `(point: u32) -> char?`, in `rt/bytes.hd` | compiler |
-| `format_int` | `[N < Integer](value: N) -> string`, in `format.hd`; the runtime's `IntToStr` helper | compiler |
 | `list_truncate` | `[T](items: &mut List[T], len: usize) -> void`, in `collections.hd` | compiler |
 | `list_extend` | `[T](items: &mut List[T], other: List[T]) -> void`, in `collections.hd`; `other` is lent | compiler |
 | `list_reserve` | `[T](items: &mut List[T], count: usize) -> void`, in `text.hd`, under `StringBuilder.reserve`; the runtime's one reserve routine, which `list_extend` and `bytes_append` call too | compiler |

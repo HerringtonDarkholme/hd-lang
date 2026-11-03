@@ -3157,8 +3157,8 @@ Rust 1.97 `library/alloc`, cranelift-codegen 0.136.2 and hashbrown
   and `concat_all` in `rt.rs` (186), `str_at`, `str_slice`,
   `char_from_scalar` and `str_ordering` in `emit/text.rs` (90 of 226),
   their arms in `emit.rs` (16) and the checker's `+`, `==` and indexing
-  on strings (25). Stays: string literals, host primitives, `format_int`,
-  and the `Interp` kernel `concat` with its fixed-length fast path, so
+  on strings (25). Stays: string literals, host primitives, and the
+  `Interp` kernel `concat` with its fixed-length fast path, so
   interpolation and `println` pull in no std `List` code. Adds 80 hd and
   30 Rust.
 - **Deleting the intrinsics.** Under option B, `ListLen`, `ListPush`,

@@ -155,7 +155,6 @@ const PURE_INTRINSICS: &[&str] = &[
     "string_upper",
     "char_from_scalar",
     "char_scalar",
-    "format_int",
     "format_f64",
     "format_f32",
     "format_f64_fixed",

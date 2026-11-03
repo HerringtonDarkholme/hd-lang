@@ -668,7 +668,6 @@ pub static INTRINSICS: &[(&str, Lowering)] = &[
     ("weak_upgrade_mut", Lowering::Compiler),
     ("weak_weaken", Lowering::Compiler),
     ("descriptor_glue_mask", Lowering::Compiler),
-    ("format_int", Lowering::Compiler),
     ("mem_pages", Lowering::Compiler),
     ("mem_grow", Lowering::Compiler),
     ("mem_load_u8", Lowering::Compiler),

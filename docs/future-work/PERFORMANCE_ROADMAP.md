@@ -402,7 +402,6 @@ steps for them.
 | 25 | Property runner: one import object per test, synchronous instantiation | #426 | cases per second (28k) |
 | 26 | One `realpath` per host file call, in both hosts | #426 | `list_dir!` (41 µs), `read_text!` (32 µs) |
 | 27 | The literal host fast path | #426 | tiny program release bytes (2399 B), hello.wasm, start to first output |
-| 28 | `format_int` in hd (the `StringBuilder` byte path landed in 6ad81d02e) | #426 sub-item; its prerequisites #857, #858 and #859 were measured misses | text-build MB/s, integer-interpolation bytes per iteration, hello.wasm |
 | 29 | SIMD128 intrinsics for byte scans, called from std hd, after TIR v2 stage 3 | #428 | byte scan of 1 MiB, JSON string scan, Wasm bytes |
 | 30 | Map update probes once; `unwrap_or` inlines | #426 (idea) | map update loop ns per op |
 

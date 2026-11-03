@@ -8,6 +8,7 @@ use std.function.Tuple
 use std.num.Integer
 use std.structure.{Structure, UnionType, Walker, Variant, Field}
 use std.rt.bytes.{string_from_bytes, char_scalar}
+use std.rt.memory.{new_string, store_u8, string_bytes}
 
 # A value's text in string interpolation
 # (spec/lang/05-expressions.md#string-interpolation).
@@ -488,15 +489,60 @@ fn scalar_text(point: i32) -> string:
         encoded.push(u8(128 + point % 64))
     string_from_bytes(encoded)
 
+# An integer's decimal digits, with `-` when negative. The three integer
+# locals are a 20-byte stack buffer: collect the digits there, allocate the
+# exact string once, then copy them in reverse. Keeping a negative value
+# negative makes the minimum signed integer safe: its remainder fits even
+# though its positive magnitude does not.
+fn format_int[N < Integer](value: N) -> string:
+    zero := N::zero()
+    ten := N::from_i64(10)
+    negative := value < zero
+
+    let low: u64 = 0
+    let middle: u64 = 0
+    let high: u32 = 0
+    let count: usize = 0
+    let rest = value
+    while true:
+        let digit = rest % ten
+        if digit < zero:
+            digit = zero - digit
+        byte := 48 + u8(digit.to_u64())
+        if count < 8:
+            low |= u64(byte) << u32(count * 8)
+        else if count < 16:
+            middle |= u64(byte) << u32((count - 8) * 8)
+        else:
+            high |= u32(byte) << u32((count - 16) * 8)
+        count += 1
+        rest = rest / ten
+        if rest == zero:
+            break
+
+    len := count + (if negative: 1 else: 0)
+    text := new_string(len)
+    start := string_bytes(text).address
+    let at = if negative: start + 1 else: start
+    if negative:
+        store_u8(start, 45)
+    let out: usize = 0
+    while out < count:
+        index := count - 1 - out
+        byte := if index < 8:
+            u8((low >> u32(index * 8)) & 255)
+        else if index < 16:
+            u8((middle >> u32((index - 8) * 8)) & 255)
+        else:
+            u8((high >> u32((index - 16) * 8)) & 255)
+        store_u8(at, byte)
+        at += 1
+        out += 1
+    text
+
 # Primitives (spec/std/README.md#standard-library-primitives): the host
 # writes a float's text. `@intrinsic` is prototype-internal and accepted
 # only in lib/std.
-
-# An integer's decimal digits, with `-` when negative: the runtime writes
-# them into one buffer.
-@intrinsic("format_int")
-fn format_int[N < Integer](value: N) -> string:
-    panic("intrinsic")
 
 @intrinsic("format_f64")
 fn f64_text(value: f64) -> string:
