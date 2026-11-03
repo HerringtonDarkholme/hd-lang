@@ -1,5 +1,5 @@
 # test: float powers follow ieee pow
-# Spec lang/05-expressions.md: expr.power.float.pow.
+# Spec lang/05-expressions.md: expr.power.float.special.
 # expect-stdout: true
 # expect-stdout: true
 # expect-stdout: true

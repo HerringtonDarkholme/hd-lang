@@ -1548,15 +1548,43 @@ fn scale(x: i64, n: i32) -> i64:
 5. r[expr.power.negated-literal.not-other] That error is not a runtime panic.
 6. r[expr.power.checked] Integer exponentiation uses checked multiplication in the base's result type.
 7. r[expr.power.float.same-type] For a floating-point base, the exponent must have the base's type, as for a [binary numeric operator](04-type-system.md#binary-numeric-operators). A floating-point literal exponent takes that type. Error: `type-mismatch`.
-8. r[expr.power.float.pow] Floating `**` computes IEEE 754-2019 `pow` as specified in clause 9.2, including its special cases, and rounds the result correctly to the destination format.
-9. r[expr.power.mixed] Integer and floating operands do not mix without an explicit cast; a mixed power expression is an error. Error: `type-mismatch`.
-10. r[expr.power.type-parameter] For a base of a type parameter, its bound picks the rule: `T < Integer` takes the integer rules, and `T < Float` the float rules. Any other type parameter base is an error. Error: `type-mismatch`.
+8. r[expr.power.float.special] For each special case of IEEE 754-2019 `pow` in clause 9.2, floating `x ** y` gives exactly the result in the table below.
+9. r[expr.power.float.within-ulp] Every other floating `x ** y` is within 1 ULP of the exact value of `x` raised to `y`, in the operands' format. It need not be the correctly rounded value.
+10. r[expr.power.mixed] Integer and floating operands do not mix without an explicit cast; a mixed power expression is an error. Error: `type-mismatch`.
+11. r[expr.power.type-parameter] For a base of a type parameter, its bound picks the rule: `T < Integer` takes the integer rules, and `T < Float` the float rules. Any other type parameter base is an error. Error: `type-mismatch`.
+
+| `x` | `y` | `x ** y` |
+| --- | --- | --- |
+| any, NaN included | `±0` | `1` |
+| `+1` | any, NaN included | `1` |
+| `-1` | `±∞` | `1` |
+| NaN | any nonzero | NaN |
+| any other than `+1` | NaN | NaN |
+| `±0` | an odd integer below 0 | `±∞`, with the sign of `x` |
+| `±0` | `-∞`, or finite below 0 and not an odd integer | `+∞` |
+| `±0` | an odd integer above 0 | `±0`, with the sign of `x` |
+| `±0` | `+∞`, or finite above 0 and not an odd integer | `+0` |
+| `\|x\|` below 1 | `+∞` | `+0` |
+| `\|x\|` below 1 | `-∞` | `+∞` |
+| `\|x\|` above 1, infinities included | `+∞` | `+∞` |
+| `\|x\|` above 1, infinities included | `-∞` | `+0` |
+| `+∞` | finite below 0 | `+0` |
+| `+∞` | finite above 0 | `+∞` |
+| `-∞` | an odd integer below 0 | `-0` |
+| `-∞` | finite below 0 and not an odd integer | `+0` |
+| `-∞` | an odd integer above 0 | `-∞` |
+| `-∞` | finite above 0 and not an odd integer | `+∞` |
+| finite below 0 | finite and not an integer | NaN |
 
 ```text
 fn power(exponent: i32) -> i32: 2 ** exponent  # error: type-mismatch
 fn inverse() -> i32: 2 ** -1                   # error: type-mismatch
 fn main() -> f64: 2 ** 2.0                     # error: type-mismatch
 ```
+
+> **Why.** C's `pow`, Rust's `powf`, Go's `math.Pow`, and JavaScript's
+> `Math.pow` do not round correctly. Correct rounding needs extended
+> precision, which costs tens of times a fast `pow`.
 
 ### Floating-Point Arithmetic
 
