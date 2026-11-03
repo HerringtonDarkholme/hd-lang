@@ -298,9 +298,8 @@ pub enum Helper {
     DropFields {
         leaves: Vec<Leaf>,
         walk: Walk,
-        /// The `std.rt.Drop.drop` instances to call before the fields,
-        /// each with its byte offset from this payload's start.
-        drops: Vec<(u32, Hash128)>,
+        /// The `std.rt.Drop.drop` instances to call before the fields.
+        drops: Vec<DropCall>,
     },
     /// `(payload)`: a type-keyed descriptor alias for a weak-target type
     /// whose payload has no counted fields.
@@ -765,6 +764,7 @@ pub struct Elem {
     pub size: u32,
     pub leaves: Vec<Leaf>,
     pub walk: Option<Walk>,
+    pub drops: Vec<DropCall>,
     pub colls: Vec<u32>,
     pub cyclic: bool,
 }
@@ -776,6 +776,20 @@ impl Elem {
     pub fn counts(&self) -> bool {
         self.walk.is_some() || !self.colls.is_empty()
     }
+
+    #[must_use]
+    pub fn needs_drop(&self) -> bool {
+        self.walk.is_some() || !self.drops.is_empty()
+    }
+}
+
+/// One `std.rt.Drop.drop` call in structural release glue. Every guard is
+/// an enclosing enum tag and the variant that contains the value.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct DropCall {
+    pub offset: u32,
+    pub target: Hash128,
+    pub guards: Vec<(Leaf, u32)>,
 }
 
 /// The owner word of a list buffer and of a map table (§23.7), at the same
@@ -821,6 +835,7 @@ pub fn ctx_elem() -> Elem {
             leaf(12, Val::I32, 4),
         ],
         walk: Some(Walk::Ref(1)),
+        drops: Vec::new(),
         colls: Vec::new(),
         cyclic: true,
     }
@@ -2454,21 +2469,14 @@ fn fields_glue(
     name: &str,
     leaves: &[Leaf],
     walk: &Walk,
-    drops: &[(u32, Hash128)],
+    drops: &[DropCall],
     on: &dyn Fn(&mut Func, Addr),
 ) -> Func {
     let mut f = m.func(name, vec![Val::I32], vec![]);
     if name == "rt:retain_fields" {
         trap_buffer_retain(&mut f, walk);
     }
-    for &(offset, drop) in drops {
-        f.get(0);
-        if offset != 0 {
-            f.u32(offset);
-            f.op(Instruction::I32Add);
-        }
-        f.call(Sym::Inst(drop));
-    }
+    call_drops(&mut f, m, 0, drops);
     let ls: Vec<u32> = leaves.iter().map(|l| f.local(l.val)).collect();
     for (l, at) in leaves.iter().zip(&ls) {
         f.get(0);
@@ -3393,9 +3401,8 @@ fn list_buf(m: &Module, elem: &Elem, owned: bool) -> Func {
     f.u32(LIST_ELEMS);
     f.op(Instruction::I32Add);
     let glue = elem
-        .walk
-        .as_ref()
-        .map(|_| Sym::Helper(Helper::DropElems { elem: elem.clone() }));
+        .needs_drop()
+        .then(|| Sym::Helper(Helper::DropElems { elem: elem.clone() }));
     if owned {
         push_desc_recursive(&mut f, glue, false, elem.cyclic);
         f.u32(OWNED);
@@ -3590,9 +3597,9 @@ fn list_truncate(m: &Module, elem: &Elem) -> Func {
 fn drop_elems(m: &Module, elem: &Elem) -> Func {
     let mut f = m.func("rt:drop_elems", vec![Val::I32], vec![]);
     let (at, n) = (f.local(Val::I32), f.local(Val::I32));
-    let Some(walk) = &elem.walk else {
+    if !elem.needs_drop() {
         return f;
-    };
+    }
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
     f.set(n);
@@ -3602,10 +3609,50 @@ fn drop_elems(m: &Module, elem: &Elem) -> Func {
     f.set(at);
     let ls = load_elem_locals(&mut f, &elem.leaves);
     each_elem(&mut f, at, n, elem.size, &|f| {
+        call_drops(f, m, at, &elem.drops);
         fill_elem(f, at, &elem.leaves, &ls);
-        walk_code(f, walk, &|f, k| f.get(ls[k as usize]), &release_call);
+        if let Some(walk) = &elem.walk {
+            walk_code(f, walk, &|f, k| f.get(ls[k as usize]), &release_call);
+        }
     });
     f
+}
+
+fn call_drops(f: &mut Func, m: &Module, base: u32, drops: &[DropCall]) {
+    if drops.is_empty() {
+        return;
+    }
+    let guarded = m.runtime.filter(|_| !m.acyclic);
+    if let Some(runtime) = guarded {
+        f.global_get(Global::Tracing);
+        f.op(Instruction::If(BlockType::Result(Val::I32.wasm())));
+        f.call(Sym::Inst(runtime.cycle.dropping));
+        f.op(Instruction::Else);
+        f.i32(1);
+        f.op(Instruction::End);
+        f.op(Instruction::If(BlockType::Empty));
+    }
+    for drop in drops {
+        for &(tag, variant) in &drop.guards {
+            f.get(base);
+            f.op(tag.load(0));
+            f.u32(variant);
+            f.op(Instruction::I32Eq);
+            f.op(Instruction::If(BlockType::Empty));
+        }
+        f.get(base);
+        if drop.offset != 0 {
+            f.u32(drop.offset);
+            f.op(Instruction::I32Add);
+        }
+        f.call(Sym::Inst(drop.target));
+        for _ in &drop.guards {
+            f.op(Instruction::End);
+        }
+    }
+    if guarded.is_some() {
+        f.op(Instruction::End);
+    }
 }
 
 /// Fresh locals for an element's leaves.

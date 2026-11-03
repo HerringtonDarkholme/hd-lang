@@ -353,9 +353,9 @@ pub const CHECKED_FNS: &[&str] = &[
 ];
 
 /// The cycle collector (`crates/hd_wasm_linear/DESIGN.md` §23.28), which both
-/// runtimes link: `collect`, `due`, `opaque` and `visit`.
+/// runtimes link: `collect`, `due`, `opaque`, `visit` and `dropping`.
 pub const CYCLE_MODULE: &str = "std.rt.cycle";
-pub const CYCLE_FNS: [&str; 4] = ["collect", "due", "opaque", "visit"];
+pub const CYCLE_FNS: [&str; 5] = ["collect", "due", "opaque", "visit", "dropping"];
 
 /// The on-demand weak-reference side table. Its functions are collected with
 /// the allocator roots, but ordinary programs emit none because no generated
@@ -479,6 +479,7 @@ pub struct Cycle {
     pub due: Hash128,
     pub opaque: Hash128,
     pub visit: Hash128,
+    pub dropping: Hash128,
 }
 
 /// The weak side table's raw entry lookup and lifecycle operations.
@@ -553,7 +554,7 @@ impl Runtime {
             }
             _ => return None,
         };
-        let [collect, due, opaque, visit] = *rest else {
+        let [collect, due, opaque, visit, dropping] = *rest else {
             return None;
         };
         let [
@@ -585,6 +586,7 @@ impl Runtime {
                 due,
                 opaque,
                 visit,
+                dropping,
             },
             weak: Weak {
                 lookup: *weak_lookup,

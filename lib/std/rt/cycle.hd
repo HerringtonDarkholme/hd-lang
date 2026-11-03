@@ -202,6 +202,10 @@ pub fn visit(address: usize) -> bool:
             stack = push(stack, block + RESTORE)
     true
 
+## True only while tracing release glue to free white objects.
+pub fn dropping() -> bool:
+    mode == COLLECT
+
 # Traces the owned buffer at `block`, which the object being traced holds,
 # in the same mode, as part of that object.
 fn enter(block: usize) -> void:

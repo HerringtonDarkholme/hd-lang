@@ -1138,6 +1138,11 @@ struct Em<'i, 'a, 'm> {
     /// A consumer that cannot move the count in takes a count of its own,
     /// and the value is released after it ([`Em::release_untaken`]).
     consumer: Vec<u32>,
+    /// Whether each value appears as any operand, including an explicit
+    /// ownership `Drop`. Custom `Drop` values with no counted leaves are
+    /// invisible to the ownership pass, so an otherwise-unused one is
+    /// released directly after its instruction.
+    used: Vec<bool>,
     /// The body's block structure.
     topo: hd_tir::ir::Topology,
     own_ops: Vec<hd_tir::own::Operand>,
@@ -1260,6 +1265,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             thunk_takes: false,
             sub_id: 0,
             consumer: Vec::new(),
+            used: Vec::new(),
             topo: hd_tir::ir::Topology::new(b),
             own_ops: Vec::new(),
             hoisted: Vec::new(),
@@ -1712,6 +1718,12 @@ impl Em<'_, '_, '_> {
         self.f.at = outer;
         if r.is_ok() && self.owned {
             r = self.release_untaken(i);
+            if r.is_ok()
+                && !self.used.get(i as usize).copied().unwrap_or(false)
+                && self.needs_drop(self.ty(i))
+            {
+                r = self.release_value(i);
+            }
         }
         self.settle(i);
         self.f.origin_at = origin_outer;

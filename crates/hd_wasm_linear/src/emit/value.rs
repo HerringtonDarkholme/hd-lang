@@ -18,7 +18,7 @@ use crate::layout::{
     walk,
 };
 use crate::module::{HEADER, HEAP, Sym, Val, mem};
-use crate::rt::Helper;
+use crate::rt::{DropCall, Helper};
 use crate::unsupported;
 
 /// Where a payload field's values come from: a TIR value, or locals.
@@ -202,18 +202,53 @@ impl Em<'_, '_, '_> {
     /// in pre-order: the value itself, then each inline field. A field that
     /// is its own counted data object runs its hook in that object's
     /// descriptor glue instead.
-    pub(super) fn drop_calls(&self, t: Ty) -> Vec<(u32, hd_base::Hash128)> {
+    pub(super) fn drop_calls(&self, t: Ty) -> Vec<DropCall> {
         fn add(
             em: &Em<'_, '_, '_>,
             t: Ty,
             base: u32,
             root: bool,
-            out: &mut Vec<(u32, hd_base::Hash128)>,
+            guards: &[(Leaf, u32)],
+            out: &mut Vec<DropCall>,
         ) {
             if (root || matches!(em.kind(t), Kind::Value))
                 && let Some(&key) = em.input.collected.drop_glue.get(&t)
             {
-                out.push((base, key));
+                out.push(DropCall {
+                    offset: base,
+                    target: key,
+                    guards: guards.to_vec(),
+                });
+            }
+            if let Ok(variants) = em.variant_tys(t)
+                && let Ok(flat) = em.flat(t)
+                && variants.len() == flat.1.len()
+            {
+                let (layout, positions) = &*flat;
+                let tag = Leaf {
+                    offset: base + layout.leaves[0].offset,
+                    ..layout.leaves[0]
+                };
+                for (variant, (fields, places)) in variants.iter().zip(positions).enumerate() {
+                    let mut nested = guards.to_vec();
+                    nested.push((tag, u32::try_from(variant).expect("variants")));
+                    for (&field, place) in fields.iter().zip(places) {
+                        if !matches!(em.kind(field), Kind::Value) {
+                            continue;
+                        }
+                        let Ok(field_mem) = crate::layout::mem(em.pool(), em.env(), field) else {
+                            continue;
+                        };
+                        let offset = match (place.first(), field_mem.leaves.first()) {
+                            (Some(&position), Some(leaf)) => {
+                                layout.leaves[position].offset.saturating_sub(leaf.offset)
+                            }
+                            _ => 0,
+                        };
+                        add(em, field, base + offset, false, &nested, out);
+                    }
+                }
+                return;
             }
             let (fields, parts) = match em.kind(t) {
                 Kind::Value => {
@@ -238,13 +273,13 @@ impl Em<'_, '_, '_> {
             };
             for (&field, part) in fields.iter().zip(parts) {
                 if matches!(em.kind(field), Kind::Value) {
-                    add(em, field, base + part.offset, false, out);
+                    add(em, field, base + part.offset, false, guards, out);
                 }
             }
         }
 
         let mut out = Vec::new();
-        add(self, t, 0, true, &mut out);
+        add(self, t, 0, true, &[], &mut out);
         out
     }
 

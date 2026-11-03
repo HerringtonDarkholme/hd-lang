@@ -2,8 +2,14 @@
 # file to std as `std.rt_tests.drop_tests`, since only std may implement the
 # runtime trait.
 use std.rt.Drop
+use std.collections.UniqList
 
 let log = ""
+let box_drops: usize = 0
+let enum_drops: usize = 0
+let list_drops: usize = 0
+let erased_drops: usize = 0
+let cycle_drops: usize = 0
 
 struct Inner:
     name: string
@@ -26,6 +32,63 @@ fn make_and_release() -> void:
         inner: Inner { name: "inner" },
     }
 
+struct Token:
+    kind: usize
+
+impl !Copy for Token
+
+impl Drop for Token:
+    fn drop(&mut self) -> void:
+        match self.kind:
+            0 => box_drops = box_drops + 1
+            1 => enum_drops = enum_drops + 1
+            2 => list_drops = list_drops + 1
+            _ => erased_drops = erased_drops + 1
+
+enum Payload:
+    Token(Token)
+
+trait ErasedRelease:
+    fn release[T < ?Copy](&self, value: T) -> void
+
+struct Releaser: pass
+
+impl ErasedRelease for Releaser:
+    fn release[T < ?Copy](&self, value: T) -> void:
+        pass
+
+fn release_box() -> void:
+    _ := box(Token { kind: 0 })
+
+fn release_enum() -> void:
+    _ := Payload.Token(Token { kind: 1 })
+
+fn release_list() -> void:
+    let mut items = UniqList::[Token].new()
+    items.push(Token { kind: 2 })
+
+fn release_erased() -> void:
+    releaser := Releaser {}
+    let erased: &dyn ErasedRelease = &releaser
+    erased.release(Token { kind: 3 })
+
+struct CycleToken:
+    next: (*mut CycleToken)?
+
+impl Drop for CycleToken:
+    fn drop(&mut self) -> void:
+        cycle_drops = cycle_drops + 1
+
+struct Pressure:
+    next: (*mut Pressure)?
+
+fn release_cycle() -> void:
+    token := box(CycleToken { next: .None })
+    token.next = .Some(token)
+    for _ in 0..200000:
+        pressure := box(Pressure { next: .None })
+        pressure.next = .Some(pressure)
+
 tests:
     use std.testing.{assert, it}
 
@@ -33,3 +96,28 @@ tests:
         log = ""
         make_and_release()
         assert(log == "outer,inner", "the outer hook ran before its field's hook: $log")
+
+    it("a boxed value calls Drop exactly once"):
+        box_drops = 0
+        release_box()
+        assert(box_drops == 1, "a boxed value drops once: $box_drops")
+
+    it("an enum payload calls Drop exactly once"):
+        enum_drops = 0
+        release_enum()
+        assert(enum_drops == 1, "an enum payload drops once: $enum_drops")
+
+    it("a UniqList element calls Drop exactly once"):
+        list_drops = 0
+        release_list()
+        assert(list_drops == 1, "a UniqList element drops once: $list_drops")
+
+    it("an erased generic value calls Drop exactly once"):
+        erased_drops = 0
+        release_erased()
+        assert(erased_drops == 1, "an erased generic value drops once: $erased_drops")
+
+    it("a collector-freed cycle calls Drop exactly once"):
+        cycle_drops = 0
+        release_cycle()
+        assert(cycle_drops == 1, "the collected cycle drops once: $cycle_drops")
