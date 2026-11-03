@@ -2,7 +2,11 @@ use hd_driver::{Executor, Goal, Host, NoClock, Output, Packages, build_packages}
 use hd_sched::SerialOrder;
 
 pub(super) fn build(p: &super::Program, origins: bool, at: super::Build) -> Output {
-    let sources = p.sources();
+    let mut sources = p.sources();
+    if at.std {
+        sources = hd_driver::std_sources();
+        sources.insert(super::own::STD_CASE, &p.text);
+    }
     let store = hd_cache::MemoryStore::default();
     let host = Host {
         sources: &sources,
@@ -13,7 +17,7 @@ pub(super) fn build(p: &super::Program, origins: bool, at: super::Build) -> Outp
     };
     build_packages(
         &host,
-        "app",
+        if at.std { "std" } else { "app" },
         &Packages {
             instruction_origins: origins,
             target: at.target,
@@ -30,7 +34,12 @@ pub(super) fn build(p: &super::Program, origins: bool, at: super::Build) -> Outp
             ..Packages::default()
         },
         &Goal::Fixture {
-            module: "main".to_owned(),
+            module: if at.std {
+                "rt_tests.stage_case"
+            } else {
+                "main"
+            }
+            .to_owned(),
         },
     )
 }

@@ -48,6 +48,7 @@ type Referent = (Ty, bool);
 /// getter's value, with counts of its own, in `vals` when `flag` is set.
 /// What the walk found lives in memory the view's source holds too, so
 /// the instruction releases this ([`Em::release_fresh`]) once it is done.
+#[derive(Clone)]
 pub(super) struct Fresh {
     flag: u32,
     vals: Vec<u32>,
