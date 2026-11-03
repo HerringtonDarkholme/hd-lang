@@ -528,6 +528,56 @@ every output carries the same build ID.
   decode is `Unknown` at the caller, never a panic. A decoded remote
   reference takes the transport its frame came on as its home's.
 
+### Homes, Roots, Sessions And Refusals
+
+Five words recur in the std items below. Each names one step of how a
+call from another domain reaches an object.
+
+- **Home.** The table one domain keeps of the objects it serves. A server
+  has one home, and so does each worker and each GPU. A call arrives at a
+  home, which finds the object the call names and runs the method there.
+  Std writes it as `Home[S, C]`.
+- **Root.** The object a caller can reach with no reference in hand: the
+  first object of a home, number 0. `remote::[Users](transport)` returns
+  a stub of the root at the far end of that transport. Every other object
+  a caller holds was returned by a method, starting from the root. For
+  the api server, the root is a `PgUsers`.
+- **Session.** Who a call comes from, as the home has verified it, such
+  as one login of one user. The home learns it from the call itself,
+  never from the frame's bytes: over HTTP, from the session cookie, which
+  the server's own code checks against its database. Each object a method
+  returns is recorded with the session it was returned to, and a later
+  call to that object from another session is refused. That is why a
+  page cannot call another user's server action by editing an object
+  number.
+- **Rooted.** What the home builds for each incoming call: a root and
+  the session of its caller, `Rooted { root, session }`. The program
+  supplies the function that builds it, the **request factory**. A
+  server builds a new root per request, `per_request(...)`, so the root
+  can hold the verified caller (`PgUsers.caller`) and two interleaved
+  requests never share one. A worker, which has one peer, uses one fixed
+  root and session, `home(root, session)`.
+- **Refusal.** A call turned away before any method runs. It happens at
+  two steps, and both reach the caller as a `CrossError` that says only
+  that the call did not run:
+  - the factory refuses the caller as a whole, as when the cookie is
+    missing. It returns `Refused { reason }`, whose reason is for the
+    server's own log; the caller sees `WrongHome`. Over HTTP it is a 403.
+  - the dispatcher refuses one call after the factory accepted the
+    caller: another build, another interface, an object of another
+    session, an expired lease. It answers `Reply.Refused(cross)`, which
+    carries the `CrossError` itself (`OtherBuild` or `WrongHome`).
+
+  A `Reply` is the envelope of every answer, so a caller tells a refusal
+  apart from an application result: `Ran` carries the method's encoded
+  `Result[V, E]`, and only then is there a result to decode.
+
+The api server's call, in order: the request arrives; the factory checks
+the cookie and builds `Rooted { root: PgUsers { pool, caller }, session }`,
+or refuses; the dispatcher checks the build ID, the interface, and the
+object's session and lease, or refuses; then `load_user` runs on the root
+and its answer goes back as `Reply.Ran`.
+
 ### What Std Adds
 
 Everything the design adds to std, written out. Serving over HTTP reuses
