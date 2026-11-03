@@ -710,11 +710,11 @@ impl Env<'_> {
         Ok((body, summary, relies))
     }
 
-    /// The copy verifier's findings in `body` (#1295): the build fails on
-    /// the first with an internal error when
-    /// [`hd_tir::own::UNCOPIED_FAILS`] is set, and otherwise collects them
-    /// ([`super::Output::copy_sites`]), and with `HD_COPY_REPORT` set
-    /// appends each to that file ([`copy_report`]).
+    /// The copy verifier's findings in `body` (#1295): with
+    /// `HD_COPY_REPORT` set, each is appended to that file
+    /// ([`copy_report`]); then the build fails on the first with an
+    /// internal error when [`hd_tir::own::UNCOPIED_FAILS`] is set, and
+    /// otherwise collects them ([`super::Output::copy_sites`]).
     fn uncopied(&self, body: &Body, sites: &[Uncopied]) -> StageResult<()> {
         let names = self.run.names();
         let path = names.path(body.item);
@@ -738,6 +738,10 @@ impl Env<'_> {
                 hd_resolve::show_ty(&names, s.ty)
             )
         };
+        if let Some(file) = copy_report_file() {
+            let text = self.run.render_owned(self.p, body);
+            copy_report(file, &path, &text, sites);
+        }
         if hd_tir::own::UNCOPIED_FAILS {
             return Err(NotImplemented::bug(
                 Stage::Collect,
@@ -749,10 +753,6 @@ impl Env<'_> {
             ));
         }
         lock(&self.run.copy_sites).extend(sites.iter().map(line));
-        if let Some(file) = copy_report_file() {
-            let text = self.run.render_owned(self.p, body);
-            copy_report(file, &path, &text, sites);
-        }
         Ok(())
     }
 

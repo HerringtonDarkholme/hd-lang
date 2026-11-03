@@ -489,9 +489,10 @@ impl OwnScratch {
 }
 
 /// Whether a copy of a non-copyable value fails the build (#1295,
-/// `docs/future-work/RAW_BUFFER.md`). False while the verifier reports:
-/// the driver then collects each finding without failing.
-pub const UNCOPIED_FAILS: bool = false;
+/// `docs/future-work/RAW_BUFFER.md`): an internal error in every build.
+/// False only to survey the passes, when the driver collects each finding
+/// without failing.
+pub const UNCOPIED_FAILS: bool = true;
 
 /// A copy of a value whose type is not `Copy`, after the passes: a `Read`
 /// with mode `copy`, or a capture with mode `Copy`.
@@ -511,14 +512,20 @@ pub struct Uncopied {
 /// The copy verifier (`docs/future-work/RAW_BUFFER.md`, "The verifier"):
 /// after the passes, no `Read` of a non-copyable type has mode `copy`
 /// and no closure captures one by copy, since a copy is a retain of what
-/// the value owns. Every finding goes to `out`, in instruction order. One
-/// pass over the body's instructions and captures.
+/// the value owns. A value with no counted leaf owns nothing to retain:
+/// its copy is its move. Every finding goes to `out`, in instruction
+/// order. One pass over the body's instructions and captures.
 pub fn uncopied(b: &Body, cx: &dyn OwnCx, out: &mut Vec<Uncopied>) {
     out.clear();
     let mut last = (Ty::VOID, Tri::Yes);
     let mut copies = |t: Ty| {
         if last.0 != t {
-            last = (t, cx.copies(t));
+            let c = if cx.counted(t) == Tri::No {
+                Tri::Yes
+            } else {
+                cx.copies(t)
+            };
+            last = (t, c);
         }
         last.1
     };

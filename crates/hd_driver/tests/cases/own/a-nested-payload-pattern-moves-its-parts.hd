@@ -1,0 +1,15 @@
+# @dump: own
+# A tuple inside a variant: the payload moves out of the matched
+# temporary, and each part out of the payload; no read copies the parcel.
+use std.collections.UniqMap
+
+struct Parcel:
+    label: string
+
+impl !Copy for Parcel
+
+fn drain(parcels: UniqMap[string, Parcel]) -> usize:
+    let n: usize = 0
+    for (key, parcel) in parcels:
+        n += key.len() + parcel.label.len()
+    n

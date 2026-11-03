@@ -1,0 +1,14 @@
+# @dump: own
+# Move liveness is per field (`ref.move.field`): `p.a` moves out though
+# `p.b` is read after it, and the local's drop releases the rest.
+use std.collections.UniqList
+
+struct Pair:
+    a: UniqList[string]
+    b: UniqList[string]
+
+fn eat(xs: UniqList[string]) -> usize:
+    xs.len()
+
+fn split(p: Pair) -> usize:
+    eat(p.a) + p.b.len()

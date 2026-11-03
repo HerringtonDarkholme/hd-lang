@@ -926,10 +926,54 @@ impl Em<'_, '_, '_> {
             }
             return self.release_fresh(&fresh);
         }
+        if self.cell_part_move(i, &p)? {
+            return Ok(());
+        }
         let (at, ty) = self.walk_place(i, &p, p.proj.len(), start, &mut fresh)?;
         self.push_at(&at, ty)?;
         self.store(i)?;
         self.release_fresh(&fresh)
+    }
+
+    /// `Read move` `i` of a field path of a local whose value lives in
+    /// memory (a cell or a frame slot, `[$l .a]`): the part's count, and
+    /// zeros left in its place, which the local's `Drop` then releases as
+    /// nothing. False, emitting nothing, for any other read, and for a cell
+    /// that converts to an erased view, which is read as a copy, and the
+    /// local's `Drop` releases the whole.
+    fn cell_part_move(&mut self, i: u32, p: &Place) -> StageResult<bool> {
+        let PlaceRoot::Local(l) = p.root else {
+            return Ok(false);
+        };
+        let l = l.idx();
+        let Some(path) = fields(&p.proj) else {
+            return Ok(false);
+        };
+        if !self.owned
+            || self.b.data[i as usize][1] != hd_tir::ir::ReadMode::Move as u32
+            || path.is_empty()
+            || !self.is_cell(l)
+            || self.cell_converts(l)
+        {
+            return Ok(false);
+        }
+        let (m, _) = self.cell_mem(l)?;
+        let (pt, part) = self.fold_path(self.cell_ty(l), &path)?;
+        let leaves = m.leaves[part.first..part.first + part.count].to_vec();
+        let c = self.cell_of(l)?;
+        for leaf in &leaves {
+            self.f.get(c);
+            self.f.op(leaf.load(0));
+        }
+        self.store_owned(i)?;
+        if self.counted(pt).is_some() {
+            for leaf in &leaves {
+                self.f.get(c);
+                self.zero(leaf.val);
+                self.f.op(leaf.store(0));
+            }
+        }
+        Ok(true)
     }
 
     /// Reads only `part` of the value that the reference in local `at`

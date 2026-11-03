@@ -871,7 +871,10 @@ deletes the place's `Drop`:
 3. **Partial moves.** A `copy` read of a projection of an owned
    temporary or local, such as `[%3 as .Ok .0]` in the arm that matched,
    at the base's last use, becomes `move`, and the base's `Drop` becomes
-   drops of the base's other counted fields, or nothing (#679).
+   drops of the base's other counted fields, or nothing (#679). A part
+   whose type no instance copies is live per field: its read moves at
+   that part's last use, while other parts of the local are still read
+   (`ref.move.field`).
 4. **References at last access.** A `Ref` of a celled local `$l` at its
    last access takes `$l`'s count of the cell, and `$l`'s drop goes
    (#701). A frame local's never does (#1006). A frame local's last

@@ -1,0 +1,35 @@
+# test: a field moves out of a binding while another field is still read, and each list is dropped once
+# expect: test
+# Spec 13 Moves: ref.move.field.
+use std.collections.UniqList
+
+struct Pair:
+    a: UniqList[string]
+    b: UniqList[string]
+
+fn eat(xs: UniqList[string]) -> usize:
+    xs.len()
+
+fn first_then_rest(p: Pair) -> usize:
+    eat(p.a) + p.b.len()
+
+fn first_then_moved_rest(p: Pair) -> usize:
+    n := eat(p.a)
+    n * 10 + eat(p.b)
+
+fn pair() -> Pair:
+    let mut a = UniqList::[string].new()
+    a.push("a${1}")
+    let mut b = UniqList::[string].new()
+    b.push("b${1}")
+    b.push("b${2}")
+    Pair { a: a, b: b }
+
+tests:
+    use std.testing.assert_equal
+
+    it("moves one field out and reads the other in place"):
+        assert_equal(first_then_rest(pair()), 3, reason="one item, then two")
+
+    it("moves both fields out in turn"):
+        assert_equal(first_then_moved_rest(pair()), 12, reason="one item, then two")
