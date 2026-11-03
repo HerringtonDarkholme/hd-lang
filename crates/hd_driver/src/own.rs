@@ -19,13 +19,99 @@ use hd_opt::fact_specialize::FactEnv;
 use hd_opt::inline::{InlineEnv, InlineHint};
 use hd_opt::structure_specialize::{GeneratedHandle, StructureEnv};
 use hd_tir::ir::{Body, Callee, ChoiceKind, Tag};
-use hd_tir::own::{OwnCx, OwnScratch, Pass, Summary, Tri};
+use hd_tir::own::{OwnCx, OwnScratch, Pass, Summary, Tri, Uncopied};
 use hd_types::solver::{
     BodyMemo, ConcreteTraitRef, ParamEnv, Selection, SolveCx, Solver, TableSolver, TraitRef,
 };
 use hd_types::{Ty, TyData, TyList};
 
 use super::{Env, LazyBody, ProgramTables, Run, lock};
+
+thread_local! {
+    /// What [`copy_report`] names the program being built by: a test
+    /// harness sets it before each build ([`copy_report_label`]).
+    static COPY_LABEL: RefCell<String> = const { RefCell::new(String::new()) };
+}
+
+/// Names the builds this thread runs next in the copy verifier's report
+/// (`HD_COPY_REPORT`, [`copy_report`]): a conformance case's path.
+pub fn copy_report_label(label: &str) {
+    COPY_LABEL.with(|l| label.clone_into(&mut l.borrow_mut()));
+}
+
+/// The file `HD_COPY_REPORT` names, read once per process.
+fn copy_report_file() -> Option<&'static str> {
+    static FILE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    FILE.get_or_init(|| {
+        std::env::var("HD_COPY_REPORT")
+            .ok()
+            .filter(|f| !f.is_empty())
+    })
+    .as_deref()
+}
+
+/// Appends the copy verifier's findings in one body to `file`, one
+/// tab-separated row per finding: the build's label, the body's path,
+/// `fixed` or `open` (a `?Copy` parameter), the finding's line of the
+/// rendered body `text`, the lines that use its value, and the locals
+/// they name. A report tool for #1295; no build reads it.
+fn copy_report(file: &str, path: &str, text: &str, sites: &[Uncopied]) {
+    let label = COPY_LABEL.with(|l| l.borrow().clone());
+    let lines: Vec<&str> = text.lines().map(str::trim).collect();
+    let words = |l: &str| -> Vec<String> {
+        l.split(|c: char| !(c.is_ascii_alphanumeric() || c == '%' || c == '$' || c == '_'))
+            .filter(|w| !w.is_empty())
+            .map(str::to_owned)
+            .collect()
+    };
+    let mut out = String::new();
+    for s in sites {
+        let me = format!("%{}", s.inst);
+        let own = lines
+            .iter()
+            .find(|l| l.split(' ').next() == Some(me.as_str()))
+            .copied()
+            .unwrap_or_default();
+        let users: Vec<&str> = lines
+            .iter()
+            .filter(|l| l.split(' ').next() != Some(me.as_str()) && words(l).contains(&me))
+            .copied()
+            .collect();
+        let named: Vec<String> = std::iter::once(own)
+            .chain(users.iter().copied())
+            .flat_map(words)
+            .filter(|w| w.starts_with('$'))
+            .collect();
+        let locals: Vec<&str> = lines
+            .iter()
+            .filter(|l| {
+                l.strip_prefix("local ")
+                    .and_then(|r| r.split(' ').next())
+                    .is_some_and(|id| named.iter().any(|n| n == id))
+            })
+            .copied()
+            .collect();
+        let kind = if s.copies == Tri::Maybe {
+            "open"
+        } else {
+            "fixed"
+        };
+        let _ = writeln!(
+            out,
+            "{label}\t{path}\t{kind}\t{own}\t{}\t{}",
+            users.join(" | "),
+            locals.join(" | ")
+        );
+    }
+    let open = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(file);
+    if let Ok(mut f) = open {
+        use std::io::Write as _;
+        let _ = f.write_all(out.as_bytes());
+    }
+}
 
 /// The run's release summaries (`docs/future-work/RELEASE_INTERPROC.md`,
 /// "Data structures"): per body the passes ran over, what its code says of
@@ -335,6 +421,109 @@ impl OwnCx for Env<'_> {
     fn holds_ref(&self, ty: Ty) -> bool {
         holds_ref(&self.run.pool, self.ref_cells(), ty, 0)
     }
+
+    fn copies(&self, ty: Ty) -> Tri {
+        if let Some(&c) = lock(&self.run.copy_types).get(&ty) {
+            return c;
+        }
+        let c = self.copy_parts(ty, &mut Vec::new());
+        lock(&self.run.copy_types).insert(ty, c);
+        c
+    }
+}
+
+impl Env<'_> {
+    /// [`OwnCx::copies`] of `t`, as the `Copy` row reads it
+    /// (`ref.copy.structure`): `No` when a part held by value is a type
+    /// declared `!Copy`, else `Maybe` when one is a type parameter declared
+    /// `?Copy`. A reference, a projection and an opaque type copy; so does
+    /// a nominal type `open` already walks (a recursive one).
+    fn copy_parts(&self, t: Ty, open: &mut Vec<Ty>) -> Tri {
+        let pool = &self.run.pool;
+        let meet = |a: Tri, b: Tri| match (a, b) {
+            (Tri::No, _) | (_, Tri::No) => Tri::No,
+            (Tri::Maybe, _) | (_, Tri::Maybe) => Tri::Maybe,
+            _ => Tri::Yes,
+        };
+        match pool.get(t) {
+            TyData::Mut(i) | TyData::Option(i) => self.copy_parts(i, open),
+            TyData::Tuple { elems, rest } => {
+                let mut c = rest.map_or(Tri::Yes, |r| self.copy_parts(r, open));
+                for &e in pool.list_items(elems) {
+                    c = meet(c, self.copy_parts(e, open));
+                }
+                c
+            }
+            TyData::Union(ms) => pool
+                .list_items(ms)
+                .iter()
+                .fold(Tri::Yes, |c, &m| meet(c, self.copy_parts(m, open))),
+            TyData::Param(p) => {
+                if self.param_copies(p) {
+                    Tri::Yes
+                } else {
+                    Tri::Maybe
+                }
+            }
+            TyData::Adt { def, args } => {
+                if open.contains(&t) || open.len() > 32 {
+                    return Tri::Yes;
+                }
+                let Some(item) = self.p.items.get(def) else {
+                    return Tri::Yes;
+                };
+                match item.copy_decl() {
+                    hd_types::CopyDecl::Copies => Tri::Yes,
+                    hd_types::CopyDecl::NotCopy => Tri::No,
+                    hd_types::CopyDecl::Members(ms) => {
+                        let argv = pool.list_items(args);
+                        open.push(t);
+                        let mut c = Tri::Yes;
+                        for m in ms {
+                            let m = pool.subst(m, &|p: hd_types::ParamRef| {
+                                (p.owner == def)
+                                    .then(|| argv.get(usize::from(p.index)).copied())
+                                    .flatten()
+                            });
+                            c = meet(c, self.copy_parts(m, open));
+                            if c == Tri::No {
+                                break;
+                            }
+                        }
+                        open.pop();
+                        c
+                    }
+                }
+            }
+            _ => Tri::Yes,
+        }
+    }
+
+    /// Whether type parameter `p` is `Copy`: it has a bound on a trait
+    /// that implies it, as every parameter has unless declared `?Copy`
+    /// (`ref.copy.generic.default`); a trait's `Self` is, unless the trait
+    /// is declared `< ?Copy` (`ref.copy.trait.default`).
+    fn param_copies(&self, p: hd_types::ParamRef) -> bool {
+        let Some(item) = self.p.items.get(p.owner) else {
+            return true;
+        };
+        let in_trait = matches!(item.data, hd_resolve::ItemData::Trait(_));
+        if in_trait && p.index == 0 {
+            return !item.not_copy;
+        }
+        let generics = item.sig().map_or(&item.generics[..], |s| &s.generics[..]);
+        let at = usize::from(p.index) - usize::from(in_trait);
+        generics.get(at).is_none_or(|g| {
+            g.bounds.iter().any(|&b| {
+                self.run.pool.trait_value(b).is_some_and(|(d, _)| {
+                    self.p
+                        .items
+                        .get(d)
+                        .is_some_and(hd_resolve::Item::requires_copy)
+                })
+            })
+        })
+    }
 }
 
 /// Whether a value of type `t` may hold a reference: a reference type,
@@ -468,6 +657,7 @@ impl Env<'_> {
             (refused, summary)
         });
         let relies = scratch.relies();
+        let uncopied = scratch.uncopied().to_vec();
         SCRATCH.with(|s| *s.borrow_mut() = scratch);
         let path = || self.run.names().path(body.item);
         if let Err(what) = refused {
@@ -475,6 +665,9 @@ impl Env<'_> {
                 Stage::Collect,
                 format!("the ownership passes refused `{}`: {what}", path()),
             ));
+        }
+        if !uncopied.is_empty() {
+            self.uncopied(&body, &uncopied)?;
         }
         if cfg!(debug_assertions) || self.run.checked || self.run.verify_own {
             let errs = hd_tir::ir::verify_owned(&body, self);
@@ -493,6 +686,52 @@ impl Env<'_> {
             }
         }
         Ok((body, summary, relies))
+    }
+
+    /// The copy verifier's findings in `body` (#1295): the build fails on
+    /// the first with an internal error when
+    /// [`hd_tir::own::UNCOPIED_FAILS`] is set, and otherwise collects them
+    /// ([`super::Output::copy_sites`]), and with `HD_COPY_REPORT` set
+    /// appends each to that file ([`copy_report`]).
+    fn uncopied(&self, body: &Body, sites: &[Uncopied]) -> StageResult<()> {
+        let names = self.run.names();
+        let path = names.path(body.item);
+        let line = |s: &Uncopied| {
+            let what = s.capture.map_or_else(
+                || {
+                    let place = body.decode_place(body.data[s.inst as usize][0]);
+                    let place = place.map(|p| p.to_string()).unwrap_or_default();
+                    format!("Read copy {place}")
+                },
+                |k| format!("capture copy ${}", body.cap_local[k as usize].raw()),
+            );
+            let open = if s.copies == Tri::Maybe {
+                " (a `?Copy` parameter)"
+            } else {
+                ""
+            };
+            format!(
+                "`{path}` %{}: {what} : {}{open}",
+                s.inst,
+                hd_resolve::show_ty(&names, s.ty)
+            )
+        };
+        if hd_tir::own::UNCOPIED_FAILS {
+            return Err(NotImplemented::bug(
+                Stage::Collect,
+                format!(
+                    "internal: copy of a non-copyable value in {} ({} findings)",
+                    line(&sites[0]),
+                    sites.len()
+                ),
+            ));
+        }
+        lock(&self.run.copy_sites).extend(sites.iter().map(line));
+        if let Some(file) = copy_report_file() {
+            let text = self.run.render_owned(self.p, body);
+            copy_report(file, &path, &text, sites);
+        }
+        Ok(())
     }
 
     /// Roots `body`'s places again, across the calls that write nothing the

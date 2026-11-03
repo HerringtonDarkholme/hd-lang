@@ -60,6 +60,7 @@ pub mod bench;
 mod dbg;
 pub mod diagnostics;
 mod own;
+pub use own::copy_report_label;
 mod pipeline;
 mod positions;
 mod report;
@@ -668,6 +669,10 @@ pub struct Output {
     /// The bodies a `Host::render_tir` named that collection read, after
     /// the ownership passes, by item path.
     pub own_text: std::collections::BTreeMap<String, OwnText>,
+    /// The copy verifier's findings while it reports (#1295,
+    /// `hd_tir::own::UNCOPIED_FAILS`): one line per copy of a non-copyable
+    /// value, `path %inst: type`, in the order the passes ran.
+    pub copy_sites: Vec<String>,
     /// Deterministic development fixture notes, separate from language diagnostics.
     pub fixture_notes: Vec<String>,
     /// Actual backend layouts of a development fixture's concrete struct declarations.
@@ -1493,6 +1498,11 @@ struct Run<'a> {
     /// per run (`own.rs`): whether it holds a counted leaf, and whether it
     /// is a reference.
     own_types: Mutex<HashMap<Ty, (bool, bool)>>,
+    /// Whether a value of a type may be copied, per run (`own.rs`,
+    /// `OwnCx::copies`).
+    copy_types: Mutex<HashMap<Ty, hd_tir::own::Tri>>,
+    /// The copy verifier's findings ([`Output::copy_sites`]).
+    copy_sites: Mutex<Vec<String>>,
     /// How each parameter of a callee passes its argument, by the
     /// callee's item, the parameter and the argument count (`own.rs`).
     own_params: Mutex<HashMap<(DefId, u32, u32), hd_tir::own::Pass>>,
@@ -2326,6 +2336,8 @@ fn build_packages_inner(
         checked: packages.checked,
         verify_own: packages.verify_own,
         own_types: Mutex::new(HashMap::default()),
+        copy_types: Mutex::new(HashMap::default()),
+        copy_sites: Mutex::new(Vec::new()),
         own_params: Mutex::new(HashMap::default()),
         summaries: hd_opt::passes::pipeline(packages.target, packages.level)
             .tir
@@ -2645,6 +2657,7 @@ fn build_packages_inner(
         scopes,
         tir_text: std::mem::take(&mut *lock(&run.tir_text)),
         own_text: std::mem::take(&mut *lock(&run.own_text)),
+        copy_sites: std::mem::take(&mut *lock(&run.copy_sites)),
         fixture_notes: run.fixture_notes.get().cloned().unwrap_or_default(),
         fixture_layouts: run.fixture_layouts.get().cloned().unwrap_or_default(),
         pool_items: run.pool.len(),
@@ -8585,11 +8598,25 @@ impl Run<'_> {
     /// names it ([`Output::own_text`]), once: the body as collection reads
     /// it, after the ownership passes.
     fn render_own(&self, p: &ProgramTables, def: DefId, body: &Body) {
-        let names = self.names();
-        let path = names.path(def);
+        let path = self.names().path(def);
         if !self.renders_tir(&path) || lock(&self.own_text).contains_key(&path) {
             return;
         }
+        let mut text = self.render_owned(p, body);
+        if let Some(all) = &self.summaries {
+            text.push_str(&own::summary_line(body, all));
+        }
+        let own = OwnText {
+            text,
+            syn: body.syn.clone(),
+        };
+        lock(&self.own_text).insert(path, own);
+    }
+
+    /// Body `body` after the ownership passes, as the `own` view reads it:
+    /// locals and fields by name.
+    fn render_owned(&self, p: &ProgramTables, body: &Body) -> String {
+        let names = self.names();
         // A field by name, its type as the program's bodies hold it, with
         // references lowered.
         let fields = |t: Ty, k: u32| -> Option<(String, Ty)> {
@@ -8616,15 +8643,7 @@ impl Run<'_> {
                 pool.lower_refs(self.known.ref_cells(), ft),
             ))
         };
-        let mut text = hd_check::render(&names, body, &fields);
-        if let Some(all) = &self.summaries {
-            text.push_str(&own::summary_line(body, all));
-        }
-        let own = OwnText {
-            text,
-            syn: body.syn.clone(),
-        };
-        lock(&self.own_text).insert(path, own);
+        hd_check::render(&names, body, &fields)
     }
 
     /// A body, decoding its wire bytes on first use.

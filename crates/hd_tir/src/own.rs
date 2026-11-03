@@ -153,6 +153,16 @@ pub trait OwnCx {
         let _ = ty;
         true
     }
+    /// Whether a value of `ty` may be copied (`ref.copy.structure`): `No`
+    /// when it holds a type declared `!Copy` by value, `Maybe` when it
+    /// holds a type parameter declared `?Copy`, which an instance decides.
+    /// A `&mut` counts as copied here: a copy of one is a reborrow, which
+    /// takes no count. The copy verifier ([`uncopied`]) reads it. The
+    /// default answers yes.
+    fn copies(&self, ty: Ty) -> Tri {
+        let _ = ty;
+        Tri::Yes
+    }
     /// Whether the optimized pipeline's release summaries read the body's
     /// result (`docs/future-work/RELEASE_INTERPROC.md`): an owned parameter
     /// whose only kept reads go to binding locals is then left unowned too,
@@ -433,6 +443,8 @@ pub struct OwnScratch {
     pub(crate) moves: moves::Tables,
     pub(crate) pairs: pairs::Tables,
     pub(crate) splice: splice::Tables,
+    /// The copy verifier's findings in the body the passes ran over last.
+    pub(crate) uncopied: Vec<Uncopied>,
 }
 
 impl OwnScratch {
@@ -444,12 +456,94 @@ impl OwnScratch {
     pub fn relies(&self) -> u64 {
         self.borrow.relies
     }
+
+    /// The copies of a non-copyable value the copy verifier found in the
+    /// body the passes ran over last ([`uncopied`]).
+    #[must_use]
+    pub fn uncopied(&self) -> &[Uncopied] {
+        &self.uncopied
+    }
+}
+
+/// Whether a copy of a non-copyable value fails the build (#1295,
+/// `docs/future-work/RAW_BUFFER.md`). False while the verifier reports:
+/// the driver then collects each finding without failing.
+pub const UNCOPIED_FAILS: bool = false;
+
+/// A copy of a value whose type is not `Copy`, after the passes: a `Read`
+/// with mode `copy`, or a capture with mode `Copy`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Uncopied {
+    /// The `Read`, or for a capture the `Closure` that makes it.
+    pub inst: u32,
+    /// For a capture, its row in `Body::cap_local`.
+    pub capture: Option<u32>,
+    /// The copied value's type.
+    pub ty: Ty,
+    /// `Maybe`: the type holds a `?Copy` type parameter, so only some
+    /// instances copy a non-copyable value; `No`: every instance does.
+    pub copies: Tri,
+}
+
+/// The copy verifier (`docs/future-work/RAW_BUFFER.md`, "The verifier"):
+/// after the passes, no `Read` of a non-copyable type has mode `copy`
+/// and no closure captures one by copy, since a copy is a retain of what
+/// the value owns. Every finding goes to `out`, in instruction order. One
+/// pass over the body's instructions and captures.
+pub fn uncopied(b: &Body, cx: &dyn OwnCx, out: &mut Vec<Uncopied>) {
+    out.clear();
+    let mut last = (Ty::VOID, Tri::Yes);
+    let mut copies = |t: Ty| {
+        if last.0 != t {
+            last = (t, cx.copies(t));
+        }
+        last.1
+    };
+    for i in 0..b.len() {
+        match b.tags[i] {
+            Tag::Read if b.data[i][1] == ReadMode::Copy as u32 => {
+                let c = copies(b.ty[i]);
+                if c != Tri::Yes {
+                    out.push(Uncopied {
+                        inst: u32_of(i),
+                        capture: None,
+                        ty: b.ty[i],
+                        copies: c,
+                    });
+                }
+            }
+            Tag::Closure => {
+                let rec = b.record(b.data[i][1]);
+                let (start, len) = (rec[0], rec[1]);
+                for k in start..start + len {
+                    let mode = b.cap_mode.get(k as usize);
+                    let local = b.cap_local.get(k as usize);
+                    let (Some(CaptureMode::Copy), Some(l)) = (mode, local) else {
+                        continue;
+                    };
+                    let t = b.local_ty[l.idx()];
+                    let c = copies(t);
+                    if c != Tri::Yes {
+                        out.push(Uncopied {
+                            inst: u32_of(i),
+                            capture: Some(k),
+                            ty: t,
+                            copies: c,
+                        });
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
 }
 
 /// Runs the ownership passes over every sub-body of `b`, in order: late
 /// operand reads, insertion, borrow, move, pair cancellation, known-null,
 /// then hoisting. The last five record their deletions and insertions in
-/// one set of edits, applied once at the end. A body the passes cannot
+/// one set of edits, applied once at the end. Then the copy verifier
+/// ([`uncopied`]) leaves its findings in `scratch`, for the driver to
+/// report or refuse ([`UNCOPIED_FAILS`]). A body the passes cannot
 /// handle is refused, with what stopped them.
 pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(), String> {
     late::run(
@@ -468,7 +562,9 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     pairs::run(b, topo, cx, &mut scratch.moves, &mut scratch.pairs, edits);
     known::run(b, topo, cx, &mut scratch.known, edits);
     hoist::run(b, topo, cx, &mut scratch.hoist, edits);
-    splice::apply(b, topo, edits)
+    splice::apply(b, topo, edits)?;
+    uncopied(b, cx, &mut scratch.uncopied);
+    Ok(())
 }
 
 /// What the optimized pipeline reads of one body
@@ -720,6 +816,10 @@ pub(crate) mod tests {
 
     /// A list type: counted, and changed in place by a push.
     const LIST: Ty = Ty(1_000_000);
+    /// A counted type declared `!Copy`.
+    const UNIQ: Ty = Ty(1_000_001);
+    /// A counted type that holds a `?Copy` type parameter.
+    const OPEN: Ty = Ty(1_000_002);
 
     /// `string` and `LIST` are counted; callee 9 takes its argument as a value
     /// parameter, callee 8 by reference.
@@ -727,7 +827,7 @@ pub(crate) mod tests {
 
     impl super::OwnCx for Cx {
         fn counted(&self, ty: Ty) -> Tri {
-            if ty == Ty::STRING || ty == LIST {
+            if ty == Ty::STRING || ty == LIST || ty == UNIQ || ty == OPEN {
                 Tri::Yes
             } else {
                 Tri::No
@@ -756,6 +856,13 @@ pub(crate) mod tests {
         }
         fn local_ref_param(&self, _: DefId, _: usize, _: usize) -> bool {
             true
+        }
+        fn copies(&self, ty: Ty) -> Tri {
+            match ty {
+                UNIQ => Tri::No,
+                OPEN => Tri::Maybe,
+                _ => Tri::Yes,
+            }
         }
     }
 
@@ -905,6 +1012,49 @@ pub(crate) mod tests {
              %5 Read move [$0]\n%6 Call %4 %5\n%7 Drop [%5]\n%8 Drop [%4]\n\
              %9 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8]\nexit 0 $0\n"
         );
+    }
+
+    /// The copy verifier finds each `copy` read of a type that is not
+    /// `Copy`, whether every instance or only some copy one; a `move` and
+    /// a copyable type's copy are fine.
+    #[test]
+    fn the_copy_verifier_finds_each_copy_of_a_non_copyable_value() {
+        let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let blk = b.open_block();
+        let n = NodeIdx::from_raw(1);
+        for ty in [UNIQ, OPEN, Ty::STRING] {
+            let x = b.local(ty, Symbol::from_raw(0), 0, n);
+            let made = call(&mut b, 7, &[], ty);
+            b.set(x, made, n);
+            let first = b.get(x, ty, n);
+            call(&mut b, 9, &[first], Ty::VOID);
+            let second = b.get(x, ty, n);
+            call(&mut b, 9, &[second], Ty::VOID);
+        }
+        let root = b.close_block(blk, None, Ty::VOID, n);
+        let mut body = b.finish(root, &[]).expect("verifies");
+        let mut scratch = OwnScratch::default();
+        run(&mut body, &Cx, &mut scratch).expect("passes");
+        let text = show(&body);
+        let found: Vec<(String, Tri)> = scratch
+            .uncopied()
+            .iter()
+            .map(|u| {
+                (
+                    text.lines().nth(u.inst as usize).unwrap_or("").to_owned(),
+                    u.copies,
+                )
+            })
+            .collect();
+        assert_eq!(
+            found,
+            [
+                ("%2 Read copy [$0]".to_owned(), Tri::No),
+                ("%8 Read copy [$1]".to_owned(), Tri::Maybe)
+            ],
+            "{text}"
+        );
+        assert!(text.contains("%4 Read move [$0]"), "{text}");
     }
 
     /// A value made before a loop and consumed inside it: the consumer

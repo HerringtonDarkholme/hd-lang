@@ -44,6 +44,9 @@
 //! fails its case as `unsupported:Collect` (#851).
 
 //! `HD_TEST_TIMINGS=1` logs per-case or per-command wall times for profiling.
+//! `HD_COPY_REPORT=FILE` appends each copy of a non-copyable value the
+//! copy verifier finds (#1295, `hd_tir::own::uncopied`) to FILE, named by
+//! its case.
 
 use hd_base::SliceSort as _;
 use std::cell::RefCell;
@@ -1865,6 +1868,8 @@ fn judge_run(case: &Case, fixture: &Fixture, run: &Ran) -> Verdict {
 }
 
 fn run_case(case: &Case, store: &MemoryStore, serial: usize) -> Verdict {
+    // The copy verifier's report (`HD_COPY_REPORT`) names each finding's case.
+    hd_driver::copy_report_label(&case.path);
     let fixture = match fixture(case) {
         Ok(fixture) => fixture,
         Err(stage) => return Verdict::Unsupported(stage),
