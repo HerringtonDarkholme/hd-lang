@@ -5,8 +5,8 @@ std/rt_tests.stage_case/change
   %9 = Ref local frame [$1] : Counted[Buffer[Ticket]]
   %10 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].at[Ticket] (%9, 0:usize) : Ptr[Ticket]
   %11 = Drop [%9] : ()
-  %12 = Drop [$1] : ()
-  %13 = Read move [ptr %10] : Ticket
-  %14 = Store [$2] %13 : ()
+  %12 = Read move [ptr %10] : Ticket
+  %13 = Drop [$1] : ()
+  %14 = Store [$2] %12 : ()
   %9 finds [$1] full
   exit sub 0 drops [$0]
