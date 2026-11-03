@@ -258,9 +258,31 @@ fn step(b: &Body, cx: &dyn OwnCx, t: &mut Tables, ops: &mut Vec<super::Operand>,
             }
         }
         Tag::Coerce => dep(t, a),
+        // A value that may hold a reference, a `Ptr` too, made from
+        // others lives on what they live on: `Ptr.as_ref` of an address
+        // read out of a borrowed buffer points into its owner.
+        Tag::Store | Tag::Break => 0,
+        _ if cx.holds_ref(b.ty[i]) => {
+            operands(b, i, ops);
+            let mut m = ops.iter().fold(0, |m, op| m | dep(t, op.value));
+            slots(b, i, |_, x, word| {
+                if word == Word::Block {
+                    m |= dep(t, x);
+                }
+            });
+            m
+        }
         _ => 0,
     };
     let mut changed = grow(&mut t.dep[i], d);
+    if b.tags[i] == Tag::Break
+        && let Some(&x) = b.label_inst.get(a as usize)
+        && x != NONE
+        && (x as usize) < t.dep.len()
+    {
+        let m = dep(t, w);
+        changed |= grow(&mut t.dep[x as usize], m);
+    }
     if let (Tag::Store, Root::Local(l)) = (b.tags[i], p.root)
         && p.in_place(b)
     {
