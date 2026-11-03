@@ -60,7 +60,7 @@ impl Em<'_, '_, '_> {
         let m = mem_of(self.pool(), self.env(), ty)?;
         let walk = self.counted(ty);
         let boxed = self.vals(ty)? != [Val::I32]
-            || crate::layout::walk(self.pool(), self.env(), ty).and_then(|w| w.single()) != Some(0);
+            || !crate::layout::walk(self.pool(), self.env(), ty).is_some_and(|w| w.plain_single());
         let key = canon(
             self.pool(),
             &|d| self.env().path_hash(d),
