@@ -196,6 +196,12 @@ jobs:
           - mode: optimized
             engine: wasmtime
             pipeline: optimized
+          # Checked builds: the count audit, leak report and buffer traps, so
+          # an ownership bug fails CI instead of a local run.
+          - mode: checked
+            engine: ""
+            pipeline: ""
+            checked: "1"
     steps:
       - name: Check out
         uses: actions/checkout@v5
@@ -215,6 +221,7 @@ jobs:
       - name: Conformance
         env:
           HD_CONFORMANCE_ENGINE: ${{ matrix.engine }}
+          HD_CONFORMANCE_CHECKED: ${{ matrix.checked }}
           HD_CONFORMANCE_PIPELINE: ${{ matrix.pipeline }}
         run: cargo test --release --workspace --all-features --test conformance -- --exact specification_conformance_passes_except_known_failures
 
