@@ -15,7 +15,8 @@
 //!    still read (`eat(p.a)` then `p.b.len()`); in a local a `Ref`
 //!    addresses, only where no `Ref` of it overlaps the part, and the
 //!    local's `Drop` stays whole, the backend zeroing the moved part in
-//!    the cell.
+//!    the cell. A non-copyable local with no counted leaf owns no count,
+//!    and its reads move all the same: a copy of it is never chosen.
 //! 2. **Temporaries.** A `copy` of a whole temporary `[%v]` at its last
 //!    use moves when the temporary's `Drop` follows it in its block: the
 //!    copy is the temporary's count, and the drop goes.
@@ -333,7 +334,8 @@ fn next_drop(b: &Body, topo: &Topology, t: &Tables, i: usize, bit: u32) -> Optio
     })
 }
 
-/// Numbers the candidates: the counted locals no reference, shared
+/// Numbers the candidates: the counted locals the body owns and the
+/// non-copyable locals with no counted leaf, that no reference, shared
 /// capture or cleanup suite reaches and that hold no borrowed value, and
 /// the tracked values a `copy` read reads a part of, or all of, in place.
 /// Whether there is any.
@@ -395,7 +397,11 @@ fn candidates(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> bool
     let mut k = 0u32;
     for l in 0..b.local_ty.len() {
         let counted = t.addr[l] || cx.counted(b.local_ty[l]) != Tri::No;
-        if !t.keep_l[l] && t.owns[l] && counted {
+        // A non-copyable local with no counted leaf owns no count, yet a
+        // read of it moves too (`ref.move.sites`): its move takes the
+        // value, as a copy of it would.
+        let uncounted = !counted && cx.copies(b.local_ty[l]) != Tri::Yes;
+        if !t.keep_l[l] && ((t.owns[l] && counted) || uncounted) {
             t.lnum[l] = k;
             k += 1;
         }
@@ -440,7 +446,6 @@ fn parts_of_locals(b: &Body, cx: &dyn OwnCx, t: &mut Tables, k: &mut u32) {
         if t.lnum[l as usize] == NONE
             || p.whole()
             || !p.in_place(b)
-            || cx.counted(b.ty[i]) == Tri::No
             || cx.copies(b.ty[i]) == Tri::Yes
             || (t.addr[l as usize]
                 && (!p.steps(b).all(|s| matches!(s, Proj::Field(_)))
@@ -747,9 +752,10 @@ fn apply(
             }
             continue;
         }
-        // A part with no counted leaf copies for free: moving it would only
-        // split the base's drop into one drop per other counted part.
-        if cx.counted(b.ty[i]) == Tri::No {
+        // A copyable part with no counted leaf copies for free: moving it
+        // would only split the base's drop into one drop per other counted
+        // part.
+        if cx.counted(b.ty[i]) == Tri::No && cx.copies(b.ty[i]) == Tri::Yes {
             continue;
         }
         b.data[i][1] = ReadMode::Move as u32;

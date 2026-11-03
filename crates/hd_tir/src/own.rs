@@ -512,20 +512,14 @@ pub struct Uncopied {
 /// The copy verifier (`docs/future-work/RAW_BUFFER.md`, "The verifier"):
 /// after the passes, no `Read` of a non-copyable type has mode `copy`
 /// and no closure captures one by copy, since a copy is a retain of what
-/// the value owns. A value with no counted leaf owns nothing to retain:
-/// its copy is its move. Every finding goes to `out`, in instruction
-/// order. One pass over the body's instructions and captures.
+/// the value owns. Every finding goes to `out`, in instruction order. One
+/// pass over the body's instructions and captures.
 pub fn uncopied(b: &Body, cx: &dyn OwnCx, out: &mut Vec<Uncopied>) {
     out.clear();
     let mut last = (Ty::VOID, Tri::Yes);
     let mut copies = |t: Ty| {
         if last.0 != t {
-            let c = if cx.counted(t) == Tri::No {
-                Tri::Yes
-            } else {
-                cx.copies(t)
-            };
-            last = (t, c);
+            last = (t, cx.copies(t));
         }
         last.1
     };
