@@ -1223,6 +1223,17 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   (`UniqMap.insert`'s probe, #1230). A table or
   list a view's getter made stays until that `Drop`. Any other reference keeps
   its count and pin, so `map-get-ref-pinned-panics` still panics.
+- **Borrow-state checks** (model A of `docs/future-work/POINTER_LOANS.md`,
+  #1336; `emit/borrow.rs`). Before a `Store`, an `IsUnique`, a `&mut`
+  `Ref` or any other `Ref` or `Read` of a place, each `*T` dereference on
+  the place tests the borrow state of the object it reaches (§23.4),
+  `load(o - 4)`: the last one with the whole state's mask for a write or a
+  `&mut`, else with the exclusive bit, and every earlier one, which is only
+  read to reach the next, with the exclusive bit. A set bit panics
+  `borrow-conflict`. Only a type some loan may hold is tested
+  (`Module::lent`, today the types of the loan table's binding loans and
+  their path objects, in every build); a place that crosses no `*T` emits
+  nothing, and a pointer argument is no access. Nothing sets a loan yet.
 - **Bounded memory.** `crates/hd_driver/tests/std_rt/ref_tests.hd` writes
   through references to locals and elements, checks that a pin ends with
   its reference's last use, and takes references to locals and elements

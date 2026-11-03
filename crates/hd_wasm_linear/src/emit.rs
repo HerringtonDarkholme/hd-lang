@@ -31,6 +31,7 @@ use crate::module::{
 use crate::rt::Helper;
 use crate::{Input, unsupported};
 
+mod borrow;
 mod closure;
 mod count;
 mod ctx;
@@ -1773,6 +1774,7 @@ impl Em<'_, '_, '_> {
             return self.open_inst(i, k);
         }
         self.loan_access(i)?;
+        self.borrow_access(i)?;
         if self.calls.contains_key(&i)
             || matches!(self.b.tags[i as usize], Tag::CallValue | Tag::DefaultCall)
         {
