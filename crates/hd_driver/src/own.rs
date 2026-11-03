@@ -19,7 +19,7 @@ use hd_opt::fact_specialize::FactEnv;
 use hd_opt::inline::{InlineEnv, InlineHint};
 use hd_opt::structure_specialize::{GeneratedHandle, StructureEnv};
 use hd_tir::ir::{Body, Callee, ChoiceKind, Tag};
-use hd_tir::own::{OwnCx, OwnScratch, Pass, Summary, Tri, Uncopied};
+use hd_tir::own::{CallMemory, OwnCx, OwnScratch, Pass, Summary, Tri, Uncopied};
 use hd_types::solver::{
     BodyMemo, ConcreteTraitRef, ParamEnv, Selection, SolveCx, Solver, TableSolver, TraitRef,
 };
@@ -254,6 +254,24 @@ const PURE_INTRINSICS: &[&str] = &[
 const OWNING_INTRINSICS: &[&str] = &["string_from_bytes", "weak_weaken"];
 
 impl Env<'_> {
+    /// The compiler-known raw-memory relation of an intrinsic. This names
+    /// intrinsic semantics, never an ordinary hd function: a body such as
+    /// `concat_all` earns its summary from the write walk over its code.
+    fn declared_call_memory(&self, callee: &Callee) -> CallMemory {
+        let Callee::Item { def, .. } = callee else {
+            return CallMemory::None;
+        };
+        match self.intrinsic(*def).as_deref() {
+            Some("mem_buffer" | "mem_new_string") => CallMemory::Allocate,
+            Some("mem_string_bytes" | "ptr_offset") => CallMemory::Derive(0),
+            Some(
+                "mem_store_u8" | "mem_store_u16" | "mem_store_u32" | "mem_store_u64" | "mem_copy"
+                | "mem_fill",
+            ) => CallMemory::Write(0),
+            _ => CallMemory::None,
+        }
+    }
+
     /// [`OwnCx::may_write`] from the declarations alone, without a
     /// release summary: only the compiler's code of an intrinsic that
     /// reads its arguments writes nothing.
@@ -372,6 +390,10 @@ impl OwnCx for Env<'_> {
             return w;
         }
         self.declared_may_write(callee)
+    }
+
+    fn call_memory(&self, callee: &Callee) -> CallMemory {
+        self.declared_call_memory(callee)
     }
 
     fn received(&self, item: DefId, k: usize, n: usize) -> Pass {

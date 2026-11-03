@@ -1,0 +1,26 @@
+# @dump: own
+# @build: v8 release std
+# A raw write through an address derived from this body's fresh allocation
+# writes nothing its caller reaches. The same write through an address
+# parameter keeps its `writes` summary. Once a collection takes the fresh
+# value, a later raw write keeps it too (#1285).
+use std.rt.memory.{copy, new_string, string_bytes}
+
+fn local_copy(from: usize, n: usize) -> string:
+    result := new_string(n)
+    address := string_bytes(result).address
+    copy(address, from, n)
+    result
+
+fn local_pointer_write() -> string:
+    result := new_string(1)
+    string_bytes(result).write(65)
+    result
+
+fn taken_then_write(mut strings: List[string]) -> void:
+    result := new_string(1)
+    strings.push(result)
+    string_bytes(result).write(65)
+
+fn parameter_copy(address: usize, from: usize, n: usize) -> void:
+    copy(address, from, n)
