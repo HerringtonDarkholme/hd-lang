@@ -33,7 +33,6 @@ fn collect(f: Field) -> usize:
 >   retain app.main.Field [name.0]
     remember(&mut all, f)
     all.len()
->   copy List[app.main.Field]
 
 fn apply(g: fn(Field) -> i64, f: Field) -> i64:
     g(f)
@@ -57,8 +56,6 @@ pub fn main() -> void $ Console:
 >   retain app.main.Field [name.0]
 >   release List[app.main.Field]
 >   retain app.main.Field [name.0]
->   copy List[app.main.Field]
->   release List[app.main.Field]
 >   release List[app.main.Field]
     println(apply(weight, f))
     println(pinned())

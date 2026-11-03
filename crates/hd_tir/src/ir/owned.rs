@@ -800,13 +800,14 @@ impl<'a> Empties<'a> {
         }
     }
 
-    /// Whether emptying `p` at `e` empties what `q` reads. A `Drop` of a
-    /// whole local, or a `Ref` that takes its count, ends the local's own
-    /// hold on its value: a local that a reference or a closure reaches
-    /// lives in a cell, whose holders keep it, so only a read of the local
-    /// itself sees it empty.
+    /// Whether emptying `p` at `e` empties what `q` reads. A move of a
+    /// whole local transfers its value, so it empties the local's slot but
+    /// not storage the value owns. A `Drop` of a whole local, or a `Ref`
+    /// that takes its count, ends the local's own hold on its value: a local
+    /// that a reference or a closure reaches lives in a cell, whose holders
+    /// keep it, so only a read of the local itself sees it empty.
     fn empties(&self, e: u32, p: &Place, q: &Place) -> bool {
-        if matches!(self.cx.b.tags[e as usize], Tag::Drop | Tag::Ref)
+        if matches!(self.cx.b.tags[e as usize], Tag::Read | Tag::Drop | Tag::Ref)
             && matches!(p.root, PlaceRoot::Local(_))
             && p.proj.is_empty()
         {

@@ -1048,9 +1048,11 @@ impl Em<'_, '_, '_> {
                     self.loans.insert(i);
                     self.cell_get(i, l)
                 }
-                // The move pass moves a celled local's count by its
-                // reference (`docs/compiler/tir-v2.md`, "Move" rule 4).
-                _ => crate::unsupported("a `move` read of a local in a cell"),
+                // A last whole-value read moves the payload out and ends
+                // the cell. A last reference instead takes the cell's
+                // count (`docs/compiler/tir-v2.md`, "Move" rule 4).
+                Some(ReadMode::Move) => self.cell_take(i, l),
+                _ => crate::unsupported("a read of a local in a cell with no mode"),
             };
         }
         let ls = self.local(u32::try_from(l).expect("locals"))?;
