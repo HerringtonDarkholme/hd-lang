@@ -887,11 +887,10 @@ impl Em<'_, '_, '_> {
         let mut fresh = Vec::new();
         if let Some((d, Some((target, fat)))) = last {
             let (at, ref_ty) = self.walk_place(i, &p, d, start, &mut fresh)?;
-            let Some(fields) = fields(&p.proj[d + 1..]) else {
-                return unsupported("a payload read through a reference");
-            };
+            let steps = &p.proj[d + 1..];
+            let fields = fields(steps);
             if fat {
-                if !fields.is_empty() {
+                if fields.as_ref().is_none_or(|fields| !fields.is_empty()) {
                     return unsupported("a field read through a trait value reference");
                 }
                 self.push_at(&at, ref_ty)?;
@@ -900,7 +899,7 @@ impl Em<'_, '_, '_> {
             }
             let r = self.at_i32(&at)?;
             let value = self.ref_layout(target)?;
-            if fields.is_empty() {
+            if fields.as_ref().is_some_and(Vec::is_empty) {
                 // A loan is the leaves its place holds, through a view
                 // too. An erased body's loan of an open value is a copy
                 // through a view, whose box over a concrete place goes
@@ -917,10 +916,13 @@ impl Em<'_, '_, '_> {
                     self.load_through(r, &value);
                 }
                 self.store_owned(i)?;
-            } else {
+            } else if let Some(fields) = fields {
                 let declared = self.declared_referent(&p, d)?;
                 let (_, part) = self.fold_path(declared, &fields)?;
                 self.read_part(i, r, &value, part)?;
+            } else {
+                let declared = self.declared_referent(&p, d)?;
+                self.read_path(i, r, declared, steps)?;
             }
             return self.release_fresh(&fresh);
         }
@@ -948,6 +950,33 @@ impl Em<'_, '_, '_> {
             self.f.get(at);
             self.f.op(leaf.load(0));
         }
+        self.store(dest)?;
+        self.f.op(I::End);
+        Ok(())
+    }
+
+    /// Reads a payload path from the value reference `at` names. A recursive
+    /// enum stores its payload in its boxed cell, while a flat enum selects
+    /// shared slots; [`Em::walk_steps`] handles both layouts for a view and a
+    /// physical referent.
+    fn read_path(&mut self, dest: u32, at: u32, ty: Ty, steps: &[Proj]) -> StageResult<()> {
+        if steps
+            .iter()
+            .any(|step| matches!(step, Proj::Deref | Proj::Elem(_)))
+        {
+            return unsupported("a payload read through this reference");
+        }
+        let value = self.ref_layout(ty)?;
+        self.f.get(at);
+        self.f.helper(Helper::RefIsView);
+        self.f.op(I::If(wasm_encoder::BlockType::Empty));
+        let parent = rt::view_lend(&mut self.f, at, &value);
+        let (view, view_ty) = self.walk_steps(At::Vals(parent), ty, steps, &mut Vec::new())?;
+        self.push_at(&view, view_ty)?;
+        self.store(dest)?;
+        self.f.op(I::Else);
+        let (place, place_ty) = self.walk_steps(At::Mem(at, 0), ty, steps, &mut Vec::new())?;
+        self.push_at(&place, place_ty)?;
         self.store(dest)?;
         self.f.op(I::End);
         Ok(())

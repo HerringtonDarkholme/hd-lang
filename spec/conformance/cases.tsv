@@ -5775,6 +5775,7 @@ typing/invalid/collect-without-a-target.hd	type	reject:cannot-infer-type	std/ite
 typing/invalid/uniq-list-use-after-consuming-loop.hd	type	reject:use-of-moved-value	std/collections.md#r-std-collections.uniq-list.into-iter
 runtime/valid/uniq-list-cycle-collected.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.type
 runtime/valid/uniq-storage-drops-once.hd	runtime	accept	std/collections.md#r-std-collections.uniq-map.insert
+runtime/valid/match-mut-reference-noncopyable-payload.hd	runtime	accept	lang/13-values-and-references.md#r-ref.match.borrow
 typing/invalid/move-while-reference-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.move
 typing/invalid/move-in-later-argument-while-call-takes-reference.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.args.shared
 typing/invalid/pattern-move-while-reference-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.move

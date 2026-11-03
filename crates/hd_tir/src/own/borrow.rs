@@ -126,8 +126,8 @@
 
 use super::{Loc, OwnCx, Pass, Role, Tri, consumes, fill, operands, splice};
 use crate::ir::{
-    Body, BodyKind, Callee, DEREF, ELEM, IntrinsicOp, NONE, Proj, ReadMode, Ref, Root, Tag,
-    Topology, is_suspension, local_flags, place, sub_flags, u32_of,
+    Body, BodyKind, Callee, DEREF, ELEM, IntrinsicOp, NONE, PlaceRoot, Proj, ReadMode, Ref, Root,
+    Tag, Topology, is_suspension, local_flags, place, sub_flags, u32_of,
 };
 use hd_base::SliceSort as _;
 
@@ -669,6 +669,7 @@ pub(crate) fn run(
     for r in (0..n).rev() {
         decide(b, topo, cx, t, edits, r);
     }
+    flatten_match_reference_reads(b, topo);
     lent_refs(b, t);
     if t.unowned.iter().any(|&u| u) {
         let unowned = &t.unowned;
@@ -1018,6 +1019,98 @@ fn index_writes(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     }
 }
 
+/// Whether read `r` is in a match's decision block and reads through that
+/// match's reference scrutinee. With `nested`, follows borrowed decision reads
+/// to recognize their payload reads too.
+fn match_reference_read(b: &Body, topo: &Topology, r: usize, nested: bool) -> bool {
+    let Some(&first) = topo.blk.get(r).filter(|&&block| block != NONE) else {
+        return false;
+    };
+    let mut block = first;
+    let mut subject = NONE;
+    for _ in 0..b.len() {
+        let owner = topo.owner[block as usize];
+        if owner != NONE && b.tags.get(owner as usize) == Some(&Tag::Match) {
+            let [candidate, blocks] = b.data[owner as usize];
+            if b.record(blocks).first() == Some(&block) {
+                subject = candidate;
+                break;
+            }
+        }
+        let Some((parent, _)) = topo.up(block) else {
+            return false;
+        };
+        block = parent;
+    }
+    if subject == NONE {
+        return false;
+    }
+    let mut word = b.data[r][0];
+    let mut behind = false;
+    for _ in 0..DEPTH {
+        let place = b.view(word);
+        behind |= place.kinds(b).0 > 0;
+        match place.root {
+            Root::Value(value) if value == subject => return behind,
+            Root::Value(value)
+                if nested
+                    && b.tags.get(value as usize) == Some(&Tag::Read)
+                    && b.data[value as usize][1] == ReadMode::Borrow as u32 =>
+            {
+                word = b.data[value as usize][0];
+            }
+            _ => return false,
+        }
+    }
+    false
+}
+
+/// Re-roots borrowed match payload reads at the place the borrowed scrutinee
+/// reads. The lowering initially spells a payload as a part of the decision
+/// read (`[%decision as .variant .field]`). That decision read may keep a
+/// `Drop` for an erased instance that makes its value fresh; the payload loan
+/// instead lives on the referenced scrutinee, which the match keeps alive.
+fn flatten_match_reference_reads(b: &mut Body, topo: &Topology) {
+    let mut changed = Vec::new();
+    for r in 0..b.len() {
+        if b.tags[r] != Tag::Read
+            || b.data[r][1] != ReadMode::Borrow as u32
+            || !match_reference_read(b, topo, r, true)
+        {
+            continue;
+        }
+        let Some(mut p) = b.decode_place(b.data[r][0]) else {
+            continue;
+        };
+        let mut flattened = false;
+        for _ in 0..DEPTH {
+            let PlaceRoot::Value(base) = p.root else {
+                break;
+            };
+            let i = base.0 as usize;
+            if b.tags.get(i) != Some(&Tag::Read) || b.data[i][1] != ReadMode::Borrow as u32 {
+                break;
+            }
+            let Some(mut outer) = b.decode_place(b.data[i][0]) else {
+                break;
+            };
+            outer.proj.extend(p.proj);
+            p = outer;
+            flattened = true;
+        }
+        if flattened {
+            changed.push((r, p));
+        }
+    }
+    for (r, p) in changed {
+        let words = p.words().expect("a non-bare match place");
+        let at = u32_of(b.extra.len());
+        b.extra.push(u32_of(words.len()));
+        b.extra.extend_from_slice(&words);
+        b.data[r][0] = at;
+    }
+}
+
 /// Decides read `r`: whether it borrows, and if so, its edits.
 fn decide(
     b: &mut Body,
@@ -1027,6 +1120,13 @@ fn decide(
     edits: &mut splice::Tables,
     r: usize,
 ) {
+    // The scrutinee decision has already run before any arm does, even though
+    // an arm's instructions precede its decision block in the columns. A
+    // payload read still uses the ordinary conflict check: a copied binding
+    // must keep its count across a call that can write (`ref.match.copy`).
+    let match_read = b.tags[r] == Tag::Read && match_reference_read(b, topo, r, false);
+    let match_payload =
+        !match_read && b.tags[r] == Tag::Read && match_reference_read(b, topo, r, true);
     if b.tags[r] != Tag::Read || b.data[r][1] != ReadMode::Copy as u32 || t.keeps[r] {
         return;
     }
@@ -1098,12 +1198,36 @@ fn decide(
     {
         return;
     }
-    let chain = t.walk(b, b.data[r][0], true);
-    let mut relied = 0;
-    let blocked = !chain.ok
-        || (chain.shut != NONE && window_open(t, chain.shut, lo, end))
-        || conflicts(t, chain, x, lo, end, &mut relied);
-    t.relies |= relied;
+    let blocked = if match_read {
+        false
+    } else {
+        let mut chain = t.walk(b, b.data[r][0], true);
+        // The match subject keeps its reference alive through the selected
+        // arm. A call known not to write may therefore run while a payload is
+        // lent, even though projections below the dereference ordinarily make
+        // `chain.param` conservative. Writes and calls that may write still
+        // conflict, so copied payload bindings keep their count across them.
+        if match_payload {
+            chain.param = true;
+            let locals = u32_of(b.local_ty.len());
+            // The emitted place is flattened past these borrowed decision
+            // reads below. Their kept `Drop`s release only values an erased
+            // instance made fresh, not the referenced payload.
+            t.links.retain(|link| {
+                let Some(value) = link.key.checked_sub(locals) else {
+                    return true;
+                };
+                b.tags.get(value as usize) != Some(&Tag::Read)
+                    || b.data[value as usize][1] != ReadMode::Borrow as u32
+            });
+        }
+        let mut relied = 0;
+        let blocked = !chain.ok
+            || (chain.shut != NONE && window_open(t, chain.shut, lo, end))
+            || conflicts(t, chain, x, lo, end, &mut relied);
+        t.relies |= relied;
+        blocked
+    };
     if blocked {
         return;
     }
