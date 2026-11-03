@@ -992,6 +992,9 @@ struct Em<'i, 'a, 'm> {
     /// reference owns. The direct drop can release the known table without
     /// resolving the interior address through the page table.
     map_probe_refs: HashMap<u32, (u32, bool)>,
+    /// Each direct `string.slice` call consumed by string equality, with
+    /// that equality instruction (`count.rs`).
+    string_slice_comparisons: HashMap<u32, u32>,
     /// The short loans, by origin (`emit/loan.rs`).
     short_loans: HashMap<u32, loan::ShortLoan>,
     /// Each short loan's end `Drop`, with its origin.
@@ -1201,6 +1204,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             vals: HashMap::default(),
             map_probes: HashMap::default(),
             map_probe_refs: HashMap::default(),
+            string_slice_comparisons: HashMap::default(),
             short_loans: HashMap::default(),
             short_ends: HashMap::default(),
             short_skips: hd_base::HashSet::default(),
@@ -2066,8 +2070,8 @@ impl Em<'_, '_, '_> {
                     Some(hd_tir::ir::IntrinsicOp::StrConcat) => self.concat(i, &args)?,
                     Some(hd_tir::ir::IntrinsicOp::StrIndex) => self.str_at(i, args[0], args[1])?,
                     Some(hd_tir::ir::IntrinsicOp::StrEq) => {
-                        if self.string_slice_comparison(args[0]) == Some(i)
-                            || self.string_slice_comparison(args[1]) == Some(i)
+                        if self.string_slice_comparisons.get(&args[0]) == Some(&i)
+                            || self.string_slice_comparisons.get(&args[1]) == Some(&i)
                         {
                             self.str_range_eq(i, args[0], args[1])?;
                         } else {
@@ -2366,7 +2370,7 @@ impl Em<'_, '_, '_> {
     fn call(&mut self, i: u32, a: u32, bw: u32) -> StageResult<()> {
         let mut args = self.rec(bw);
         args.truncate(args.len().saturating_sub(3));
-        if self.string_slice_comparison(i).is_some() {
+        if self.string_slice_comparisons.contains_key(&i) {
             let [text, start, end] = args.as_slice() else {
                 return unsupported("a string slice call without three arguments");
             };
