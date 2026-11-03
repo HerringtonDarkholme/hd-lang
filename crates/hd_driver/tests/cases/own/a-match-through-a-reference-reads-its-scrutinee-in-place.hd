@@ -1,0 +1,11 @@
+# @dump: own
+# A match through a reference reads the scrutinee in place. Its non-copyable
+# payload binding is a reference into that place, never a copy of the option.
+use std.collections.UniqList
+
+fn append(value: &mut Option[UniqList[string]], item: string) -> usize:
+    match value:
+        .Some(items) =>
+            items.push(item)
+            items.len()
+        .None => 0

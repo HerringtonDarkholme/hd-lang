@@ -1,0 +1,11 @@
+# @dump: own
+# A match reads its non-copyable enum scrutinee in place but copies pointer
+# payloads before recursive calls, so no loan crosses either call.
+enum Expr:
+    Num(i64)
+    Add(*Expr, *Expr)
+
+fn eval(expr: &Expr) -> i64:
+    match expr:
+        .Num(value) => value
+        .Add(left, right) => eval(left) + eval(right)

@@ -1,0 +1,23 @@
+# test: matching a mutable reference to an option lends its non-copyable payload and changes it in place
+# expect: test
+# Spec 13 Matching Through A Reference: ref.match.borrow.
+use std.collections.UniqList
+
+fn append(value: &mut Option[UniqList[string]], item: string) -> usize:
+    match value:
+        .Some(items) =>
+            items.push(item)
+            items.len()
+        .None => 0
+
+tests:
+    use std.testing.assert_equal
+
+    it("lends a non-copyable option payload through a mutable reference"):
+        let mut items = UniqList::[string].new()
+        items.push("first")
+        let mut value: Option[UniqList[string]] = .Some(items)
+        assert_equal(append(&mut value, "second"), 2, reason="the payload grows in place")
+        match &value:
+            .Some(items) => assert_equal(items.len(), 2, reason="the option keeps the change")
+            .None => panic("expected the list")
