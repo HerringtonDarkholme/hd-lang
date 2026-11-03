@@ -8,7 +8,7 @@ use hd_tir::inline::Site;
 use hd_tir::ir::{Body, BodyKind, Callee, Place, PlaceRoot, PrimOp, Proj, ReadMode, Ref, Tag};
 use hd_types::{Ty, TyData, TyList};
 
-use crate::inline::InlineEnv;
+use crate::inline::{InlineEnv, InlineHint};
 
 /// The generator facts needed by this pass, supplied by the driver so
 /// `hd_opt` remains independent of `hd_structure`.
@@ -29,9 +29,6 @@ pub trait StructureEnv: InlineEnv {
     /// protocol.
     fn walker_data_variant(&self) -> DefId;
     fn walker_data_member(&self) -> DefId;
-
-    /// The data-only format boundaries exposed by a specialized serde walk.
-    fn data_format_boundaries(&self) -> [DefId; 2];
 
     /// A generated immutable handle factory, if `def` is one.
     fn generated_structure_handle(&self, def: DefId) -> Option<GeneratedHandle>;
@@ -93,7 +90,7 @@ pub fn specialize_calls(env: &dyn StructureEnv, body: &mut Body, hash: Hash128) 
         let nested_hashes = if walk {
             let mut hashes = inline_data_walker_methods(env, &mut copy);
             hashes.extend(inline_walker_methods(env, &mut copy));
-            hashes.extend(inline_data_format_boundaries(env, &mut copy));
+            hashes.extend(inline_always_methods(env, &mut copy));
             fold_handle_accessors(env, &mut copy);
             hashes
         } else {
@@ -322,12 +319,11 @@ fn inline_data_walker_methods(env: &dyn StructureEnv, body: &mut Body) -> Vec<Ha
     )
 }
 
-fn inline_data_format_boundaries(env: &dyn StructureEnv, body: &mut Body) -> Vec<Hash128> {
-    let boundaries = env.data_format_boundaries();
+fn inline_always_methods(env: &dyn StructureEnv, body: &mut Body) -> Vec<Hash128> {
     inline_selected_methods(
         env,
         body,
-        &|callee| matches!(callee, Callee::TraitMethod { method, .. } if boundaries.contains(method)),
+        &|callee| matches!(callee, Callee::TraitMethod { method, .. } if env.inline_hint(*method) == InlineHint::Always),
     )
 }
 

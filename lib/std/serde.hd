@@ -5,7 +5,7 @@
 # (spec/std/json.md#typed-json) and the host boundary
 # (spec/lang/10-modules.md#r-module.boundary.out). The standard
 # implementations and the templates are spec/std/serde.md.
-use std.annotation.{annotate, cold}
+use std.annotation.{annotate, cold, inline}
 use std.collections.Set
 use std.function.Tuple
 use std.hash.Hash
@@ -304,6 +304,7 @@ pub trait Serializer:
     fn map_key(&mut self, key: MapKeyValue) -> Result[void, Self::Error]:
         self.key(key.as_text())
     fn end_map(&mut self) -> Result[void, Self::Error]
+    @inline(.Always)
     fn begin_data(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, Self::Error]:
         self.begin_variant(facts, v)
     fn begin_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, Self::Error]
@@ -315,6 +316,7 @@ pub trait Serializer:
         len: usize,
     ) -> Result[void, Self::Error]
     fn member(&mut self, m: &Member) -> Result[void, Self::Error]
+    @inline(.Always)
     fn end_data(&mut self) -> Result[void, Self::Error]:
         self.end_variant()
     fn end_variant(&mut self) -> Result[void, Self::Error]
