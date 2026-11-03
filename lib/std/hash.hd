@@ -9,6 +9,7 @@
 use std.function.Tuple
 use std.structure.{Structure, UnionType, Walker, Variant, Field}
 use std.rt.bytes.{bytes_len, bytes_at, char_scalar}
+use std.rt.memory.{load_u32, string_bytes}
 
 # `Hash` and `Hasher` are declared in std.core, which `Map` names.
 pub use std.core.{Hash, Hasher}
@@ -457,17 +458,13 @@ fn string_bucket_hash(key: string) -> u32:
     let v2 = v0 ^ 1819895653
     let v3 = v1 ^ 1952801890
     n := bytes_len(key)
+    bytes := string_bytes(key).address
     let i: usize = 0
     let last = false
     while !last:
         let m: u64 = 0
         if i + 4 <= n:
-            m = (
-                u64(bytes_at(key, i))
-                | (u64(bytes_at(key, i + 1)) << 8)
-                | (u64(bytes_at(key, i + 2)) << 16)
-                | (u64(bytes_at(key, i + 3)) << 24)
-            )
+            m = u64(load_u32(bytes + i))
             i = i + 4
         else:
             m = u64(n & 255) << 24
