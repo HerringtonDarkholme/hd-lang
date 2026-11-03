@@ -1136,6 +1136,7 @@ pub(crate) mod tests {
         Body, BodyKind, Callee, NONE, Providers, ReadMode, Tag, TirBuilder, TirSink, local_flags,
         verify_owned,
     };
+    use hd_base::SliceSort as _;
     use hd_base::{DefId, LocalId, NodeIdx, Symbol};
     use hd_types::{Ty, TyList};
 
@@ -2629,5 +2630,54 @@ pub(crate) mod tests {
                 .any(|e| e.what.contains("a change in place of $0")),
             "{errs:?}"
         );
+    }
+    #[test]
+    fn every_cell_owner_lives_through_its_references_last_call() {
+        let n = NodeIdx::from_raw(1);
+        for count in [1, 66] {
+            for suspends in [false, true] {
+                let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+                let block = b.open_block();
+                if suspends {
+                    let point = call(&mut b, 8, &[], Ty::VOID);
+                    b.body_mut().tags[point.0 as usize] = Tag::Await;
+                }
+                let mut owners = Vec::new();
+                let mut refs = Vec::new();
+                for _ in 0..count {
+                    let owner = local(&mut b, 0);
+                    let value = call(&mut b, 7, &[], Ty::STRING);
+                    b.set(owner, value, n);
+                    let place = b.place(&format!("[${}]", owner.raw()).parse().expect("place"));
+                    refs.push(b.emit(Tag::Ref, place, 0, Ty::STRING, n));
+                    owners.push(owner.raw());
+                }
+                let use_at = call(&mut b, 8, &refs, Ty::VOID).0;
+                let root = b.close_block(block, None, Ty::VOID, n);
+                let mut body = b.finish(root, &[]).expect("verifies");
+                let mut topo = crate::ir::Topology::default();
+                topo.build(&body);
+                let mut used = Vec::new();
+                super::frame::run(
+                    &mut body,
+                    &topo,
+                    &Cx,
+                    &mut super::frame::Tables::default(),
+                    |i, l, frame| {
+                        if i == use_at {
+                            assert!(!frame);
+                            used.push(l);
+                        }
+                    },
+                );
+                used.sort_stable();
+                used.dedup();
+                if suspends {
+                    assert!(used.is_empty(), "the async root keeps counted references");
+                } else {
+                    assert_eq!(used, owners, "count={count}");
+                }
+            }
+        }
     }
 }

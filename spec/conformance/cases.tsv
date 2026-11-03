@@ -5793,6 +5793,7 @@ runtime/valid/a-field-moves-out-while-another-is-read.hd	runtime	accept	lang/13-
 runtime/valid/erased-nested-trait-reference.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param
 runtime/valid/field-move-after-local-borrow.hd	runtime	accept	lang/13-values-and-references.md#r-ref.move.field
 runtime/valid/uniq-list-field-move-after-local-borrow.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.type
+runtime/valid/closure-parameter-field-borrow.hd	runtime	accept	lang/13-values-and-references.md#r-ref.count.local
 runtime/valid/erased-call-matrix-generic-ref-ref-i32.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param
 runtime/valid/erased-call-matrix-generic-ref-ref-string.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param
 runtime/valid/erased-call-matrix-generic-ref-ref-unique.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.type

@@ -27,12 +27,14 @@
 //!
 //! Their `Ref`s get `ref_word::FRAME`, and move never takes their count.
 //!
-//! 4. **Cell locals.** A local that keeps its cell (a closure captures it,
+//! 4. **Cell locals.** In every sub-body, a local that keeps its cell (a closure captures it,
 //!    or a candidate escapes) is tracked the same way, after the frame
 //!    candidates: the uses of what points into it are its accesses too, so
 //!    its drop follows them, as a frame local's does. A reference into
 //!    what a cell holds (an element of a list in it) takes no count of the
 //!    cell, so the local's own count keeps the cell alive until then.
+
+use hd_base::SliceSort as _;
 
 use super::{OwnCx, Role, fill, operands, suite_touches};
 use crate::ir::{Body, NONE, Proj, Ref, Root, Tag, Topology, Word, is_suspension, slots, u32_of};
@@ -163,8 +165,10 @@ pub(crate) fn run(
     t.targets.clear();
     t.out = 0;
     t.frame = 0;
-    // A suspending root keeps its locals in its frame object.
+    // A suspending root keeps its locals in its frame object, but its
+    // synchronous closures may still lend uncounted cell references.
     if (0..n).any(|i| is_suspension(b.tags[i]) && topo.sub[i] == 0) {
+        extra_cell_uses(b, cx, t, |i| topo.sub[i] != 0, &mut uses);
         return;
     }
     for c in &b.cap_local {
@@ -181,11 +185,11 @@ pub(crate) fn run(
             t.bad[l] = true;
         }
     }
-    // The frame candidates take the first bits, then the cell locals
-    // (rule 4) that a `Ref` of the root addresses.
+    // The frame candidates take the first bits, then cell locals from
+    // every sub-body. Only the root may use physical frame slots.
     for cells in [false, true] {
         for i in 0..n {
-            if b.tags[i] != Tag::Ref || topo.sub[i] != 0 {
+            if b.tags[i] != Tag::Ref || (!cells && topo.sub[i] != 0) {
                 continue;
             }
             let Some(l) = b.local_in_place(b.data[i][0]).map(hd_base::LocalId::idx) else {
@@ -245,6 +249,38 @@ pub(crate) fn run(
         {
             b.data[i][1] = w | crate::ir::ref_word::FRAME;
         }
+    }
+    extra_cell_uses(b, cx, t, |_| true, &mut uses);
+}
+
+/// Frame-slot promotion is bounded, but cell liveness is required for
+/// every uncounted reference. Track the remaining owners in batches.
+fn extra_cell_uses(
+    b: &Body,
+    cx: &dyn OwnCx,
+    t: &Tables,
+    eligible: impl Fn(usize) -> bool,
+    uses: &mut impl FnMut(u32, u32, bool),
+) {
+    let mut locals = Vec::new();
+    for (i, &tag) in b.tags.iter().enumerate() {
+        if tag == Tag::Ref
+            && eligible(i)
+            && let Some(l) = b.local_in_place(b.data[i][0])
+            && t.bit[l.idx()] == 0
+        {
+            locals.push(l.raw());
+        }
+    }
+    locals.sort_stable();
+    locals.dedup();
+    let mut extra = Tables::default();
+    for batch in locals.chunks(64) {
+        let targets: Vec<_> = batch
+            .iter()
+            .map(|&l| (l, l | crate::ir::place::BARE_LOCAL))
+            .collect();
+        part_uses(b, cx, &mut extra, &targets, |i, k| uses(i, batch[k], false));
     }
 }
 
