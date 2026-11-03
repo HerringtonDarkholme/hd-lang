@@ -667,7 +667,10 @@ impl Env<'_> {
                 return true;
             }
             match pool.get(t) {
-                TyData::Param(_) | TyData::Assoc { .. } | TyData::Opaque { .. } => true,
+                // Copy-bound arguments may be lent to the constructor.
+                // Only a ?Copy parameter needs a possible ownership transfer.
+                TyData::Param(p) => !env.param_copies(p),
+                TyData::Assoc { .. } | TyData::Opaque { .. } => true,
                 TyData::Tuple { elems, rest } => pool
                     .list_items(elems)
                     .iter()
