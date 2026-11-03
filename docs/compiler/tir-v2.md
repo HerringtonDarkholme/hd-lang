@@ -2914,7 +2914,9 @@ instructions). The ownership passes then run on the combined body, so a
 `ListIter.next` inlined into a loop borrows its list like a hand-written
 index loop.
 
-One selection rule covers std and user callees (2026-10-26, #856): a
+One selection rule covers std, `std.rt` included (2026-11-02, #1228: no
+runtime exception, and no inline hints in `lib/std/rt/`), and user callees
+(2026-10-26, #856): a
 callee of at most 16 instructions (`INLINE_LIMIT`) that takes no
 reference and is not recursive. A reference parameter would be bound in a local, where it is
 counted and makes a local it points at a counted cell; a call lends both,

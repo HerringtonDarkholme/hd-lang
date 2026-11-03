@@ -377,7 +377,7 @@ impl dyn InlineEnv + '_ {
 
     /// A fresh decoding of the checker's body of `def`, for the caller to
     /// change, and its hash, when a call of it may inline: a function
-    /// outside `std.rt`, with a body of its own, not marked
+    /// with a body of its own, not marked
     /// `@inline(.Never)` or `@cold` (`annot.inline.never`), and that does
     /// not suspend or call itself. Dev builds consider std functions and
     /// explicitly decorated user functions; release builds consider all
@@ -386,12 +386,10 @@ impl dyn InlineEnv + '_ {
     fn inline_callee(&self, def: DefId) -> Option<(Body, Hash128)> {
         let module = self.module_text(def);
         let std = module.starts_with("std.");
-        let rt = module == "std.rt" || module.starts_with("std.rt.");
         let release = self.memo().is_some();
         let hint = self.inline_hint(def);
         let decorated = matches!(hint, InlineHint::Auto | InlineHint::Always);
         if (hint == InlineHint::Default && INLINE_LIMIT == 0)
-            || rt
             || !(std || release || decorated)
             || self.intrinsic(def).is_some()
             || hint == InlineHint::Never
