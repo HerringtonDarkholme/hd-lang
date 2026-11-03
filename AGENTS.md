@@ -67,9 +67,9 @@ Know what the change touches, and test that first.
    drops or the release pipeline).
 2. Then default conformance, which runs every case on the dev pipeline.
 3. The full suite is not a catch-all. Branch CI runs it on every push, in
-   all four conformance modes. Run it locally only for a truly
+   all four conformance modes. Locally it is only the last step of a truly
    cross-cutting change (the ownership passes, reference counting, the
-   type pool), rarely, after the focused tests pass, and say why.
+   type pool), after the focused tests pass, and rare; say why.
 4. Keep the machine usable: cargo `-j 2`, `RUST_TEST_THREADS=2`, one heavy
    command at a time, and delete build output you made outside `target/`.
 
