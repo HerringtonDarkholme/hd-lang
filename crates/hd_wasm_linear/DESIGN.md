@@ -1421,6 +1421,13 @@ is unchanged.
   address that is not a block's start, or of a poisoned block, fails.
 - **Counts audited.** `retain` and `release` fail on a block whose count
   word is poison, a freed object, or 0 or fresh, a block with no count.
+- **No copied buffers.** A `std.rt.memory.Buffer` is not copyable, so no
+  code should retain one. A checked link marks buffer leaves in its walks
+  (`Walk::Buffer`, `layout::mark_buffers`), and every retain of a walk
+  holding one panics `count-audit`, naming the function
+  (`rt::trap_buffer_retain`). A normal build's walks and module are
+  unchanged. The traps list the copies an uncounted buffer would first
+  have to remove (#1254).
 - **Leaks at the end.** `std.rt.checked` counts the blocks given and not
   freed. The entry's poll (`Helper::CheckedPoll`) audits once it answers
   anything but Pending. It frees the wake table, which is the runtime's
