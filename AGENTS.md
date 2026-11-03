@@ -32,6 +32,30 @@ option, list which kinds of change it needs, and prefer the one whose
 costliest change is highest on this list (closest to 4). Break ties by
 counting changes. Owner direction, 2026-09-28.
 
+## Performance Work: General Causes, Not Cases
+
+Fix the cause under a whole category of slow code, never one benchmark or
+one function.
+
+1. Measure the whole workload set (`bench/runtime`, `bench/study`, and
+   any external suite under study), not only the program that looked slow.
+2. Name the under-the-hood cause of each gap: an indirect call, a small
+   closure or call not inlined, an `Option` or `Result` return, a bounds
+   check, a local spilled to memory, a count operation, a copy, an
+   effect-free loop. Rank the causes by total cost across all workloads.
+3. One ticket per cause. Its done check is measured on every workload the
+   cause touches, never on the one that exposed it.
+4. Rewriting one std function is a case fix. Do it only when the
+   measurement shows the cause is local to that function.
+5. Do not add a compiler intrinsic to fix a case. Intrinsics are being
+   removed (#1206). First ask which general rule would make the plain hd
+   version fast, usually an optimizer rule (an effect-free loop is
+   deleted; a small known closure is inlined). A new intrinsic needs all
+   three: no hd or optimizer route exists, it serves a category, and the
+   owner approves it.
+6. Check a design against these rules and the Design Cost Order before
+   proposing it.
+
 ## Spec Scope For The Standard Library
 
 The specification has three tiers, one style, and one conformance suite:
