@@ -489,9 +489,10 @@ impl OwnScratch {
 }
 
 /// Whether a copy of a non-copyable value fails the build (#1295,
-/// `docs/future-work/RAW_BUFFER.md`). False while the verifier reports:
-/// the driver then collects each finding without failing.
-pub const UNCOPIED_FAILS: bool = false;
+/// `docs/future-work/RAW_BUFFER.md`): an internal error in every build.
+/// False only to survey the passes, when the driver collects each finding
+/// without failing.
+pub const UNCOPIED_FAILS: bool = true;
 
 /// A copy of a value whose type is not `Copy`, after the passes: a `Read`
 /// with mode `copy`, or a capture with mode `Copy`.

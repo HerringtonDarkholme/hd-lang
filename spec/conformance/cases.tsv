@@ -5784,3 +5784,4 @@ typing/valid/move-after-last-use-of-reference.hd	type	accept	lang/13-values-and-
 typing/valid/move-field-while-reference-to-another-field-live.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.move
 typing/valid/copied-value-read-while-reference-live.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.move
 runtime/valid/a-move-after-the-last-use-of-a-reference-keeps-the-value.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.move
+runtime/valid/a-field-moves-out-while-another-is-read.hd	runtime	accept	lang/13-values-and-references.md#r-ref.move.field
