@@ -122,7 +122,7 @@ fn digest() -> u64:
 use std.hash.{DefaultHasher, hash_of}
 
 fn digest() -> u64:
-    hasher := DefaultHasher::new()
+    let mut hasher = DefaultHasher::new()
     hasher.write([97])
     hasher.finish()  # 12638187200555641996
 
@@ -136,14 +136,14 @@ fn bucket(key: string) -> u64:
 | each byte `b`, in order | XOR `b` into the state, then multiply by the FNV prime `0x100000001b3`, modulo 2^64 |
 | `finish` | returns the state |
 
-1. r[std-hash.default.decl-struct] `std.hash` declares the struct `DefaultHasher` with private fields, used behind `*mut`, and the function `hash_of`. Code imports them, as in `use std.hash.{DefaultHasher, hash_of}`.
+1. r[std-hash.default.declarations] `std.hash` declares `DefaultHasher` with private fields and the function `hash_of`, imported with `use std.hash.{DefaultHasher, hash_of}`.
 2. r[std-hash.default.algorithm] `DefaultHasher` computes 64-bit FNV-1a over the bytes written to it, by the table above.
-3. r[std-hash.default.new-ref] `DefaultHasher::new() -> *mut DefaultHasher` returns a new object, a hasher whose state is the offset basis. Copies of the reference share it, so `value.hash(hasher)` changes the state that `hasher.finish()` then returns.
+3. r[std-hash.default.new-value] `DefaultHasher::new() -> DefaultHasher` returns a hasher value whose state is the offset basis.
 4. r[std-hash.default.write] `DefaultHasher` implements `Hasher`. Its `write(bytes)` processes each byte in order, so two writes give the state of one write of both byte lists joined.
 5. r[std-hash.default.finish] `finish(self) -> u64` returns the state and does not change it.
 6. r[std-hash.default.typed-writes] `DefaultHasher` overrides every [typed `Hasher` method](../lang/09-traits.md#r-trait.hash.typed-methods) to process the specified bytes without building a list.
 7. r[std-hash.default.fixed] The algorithm has no seed and no key, so the same bytes give the same result in every run, every program, and every implementation.
-8. r[std-hash.hash-of] `hash_of[T < Hash](value: T) -> u64` calls `value.hash` on a new `DefaultHasher` and returns its `finish()`.
+8. r[std-hash.hash-of-local] `hash_of[T < Hash](value: T) -> u64` hashes through a mutable borrow of a local `DefaultHasher`, then returns its `finish()`.
 9. r[std-hash.map.bucket-hash] The hash by which the built-in `Map` buckets its keys is an implementation detail. It need not be `hash_of`, and it may differ between runs.
 
 > **Why.** FNV-1a is a few lines of hd that need only XOR and one

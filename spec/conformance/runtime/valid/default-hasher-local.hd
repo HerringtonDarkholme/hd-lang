@@ -1,0 +1,21 @@
+# test: DefaultHasher::new returns a local value whose mutable borrow is hashed in place, while copies have independent state
+# Spec std Hash, Default Hasher: std-hash.default.new-value, std-hash.default.declarations, std-hash.hash-of-local.
+# expect-stdout: true
+# expect-stdout: true
+# expect-stdout: true
+use std.hash.{DefaultHasher, Hasher, hash_of}
+
+fn hash_twice[T < Hash, H < Hasher](value: T, hasher: &mut H) -> void:
+    value.hash(hasher)
+    value.hash(hasher)
+
+pub fn main() -> void $ Console:
+    let mut hasher = DefaultHasher::new()
+    "hd".hash(&mut hasher)
+    println(hasher.finish() == hash_of("hd"))
+    let mut independent = hasher
+    (+7).hash(&mut independent)
+    println(independent.finish() != hasher.finish())
+    let mut other = DefaultHasher::new()
+    hash_twice(+7, &mut other)
+    println(other.finish() == hash_of((+7, +7)))

@@ -4601,9 +4601,9 @@ runtime/valid/option-or.hd	runtime	accept	std/option.md#r-std-option.or
 runtime/valid/ordering-then.hd	runtime	accept	std/cmp.md#r-std-cmp.ordering.then.result
 runtime/valid/choices-int-range.hd	runtime	accept	std/testing.md#r-std-testing.choices.int-range
 runtime/valid/hasher-write-methods.hd	runtime	accept	std/hash.md#r-std-hash.default.typed-writes
-runtime/valid/hasher-struct-ref-receivers.hd	runtime	accept	lang/09-traits.md#r-trait.hash.ref-receiver
+runtime/valid/hasher-struct-ref-receivers.hd	runtime	accept	lang/09-traits.md#r-trait.hash.generic-hasher
 runtime/valid/hash-self-borrows.hd	runtime	accept	lang/09-traits.md#r-trait.hash.self-ref
-runtime/valid/default-hasher-shared.hd	runtime	accept	std/hash.md#r-std-hash.default.new-ref
+runtime/valid/default-hasher-local.hd	runtime	accept	std/hash.md#r-std-hash.default.new-value
 runtime/valid/integer-display-every-width.hd	runtime	accept	lang/04-type-system.md#r-types.display.int
 typing/invalid/shared-enum-type-parameter.hd	type	reject:shared-data-type-parameter	lang/08-data-and-enums.md#r-data.shared.type-parameter
 typing/invalid/shared-enum-lifetime-parameter.hd	type	reject:shared-data-type-parameter	lang/08-data-and-enums.md#r-data.shared.lifetime
@@ -4800,7 +4800,7 @@ typing/invalid/bare-dyn-parameter.hd	type	reject:trait-used-as-type	lang/09-trai
 typing/invalid/dyn-ref-value-shared.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.dyn.ref.written.reference-fix.reference-values
 typing/invalid/dyn-ref-value-mutable.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.dyn.ref.written.reference-fix.reference-values
 typing/invalid/dyn-ref-value-list-literal.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.dyn.ref.written.reference-fix.reference-values
-typing/invalid/dyn-ref-value-hasher.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.dyn.ref.written
+typing/invalid/dyn-ref-value-hasher.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.hash.generic-hasher
 typing/invalid/dyn-ref-member-unavailable.hd	type	reject:dyn-member-unavailable	lang/09-traits.md#r-trait.dyn.ref.member.other.reference-values
 typing/invalid/anyref-rejects-struct.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.sealed.anyref-members.counted
 typing/valid/anyref-accepts-references.hd	type	accept	lang/04-type-system.md#r-types.sealed.anyref-members.counted
@@ -5659,7 +5659,7 @@ runtime/valid/alias-write-beside-call-result-loan-passes.hd	runtime	accept	lang/
 runtime/valid/union-runtime-layout-and-ownership.hd	runtime	accept	lang/04-type-system.md#r-types.union.representation
 runtime/valid/union-trait-forwarding.hd	runtime	accept	lang/09-traits.md#r-trait.target.union.conditional
 typing/invalid/union-trait-requires-every-member.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.target.union.conditional
-runtime/valid/union-hash.hd	runtime	accept	std/hash.md#r-std-hash.hash-of
+runtime/valid/union-hash.hd	runtime	accept	std/hash.md#r-std-hash.hash-of-local
 runtime/valid/union-serde.hd	runtime	accept	std/json.md#r-std-json.decode.direct
 runtime/panic/alias-write-under-call-result-loan-across-sleep-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.loan
 runtime/valid/alias-write-beside-call-result-loan-across-sleep-passes.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.loan

@@ -1,5 +1,5 @@
-# test: a struct hasher with &mut self methods changes in place through a bound, through &mut dyn Hasher, and under Hash.hash
-# Spec 09 Hashing: trait.hash.ref-receiver, trait.hash.typed-methods.
+# test: a struct hasher changes in place through a bound and a trait value, while Hash.hash dispatches statically through its hasher bound
+# Spec 09 Hashing: trait.hash.generic-hasher, trait.hash.typed-methods.
 # expect-stdout: 11 7
 # expect-stdout: 2 195
 # expect-stdout: 13 103
@@ -25,8 +25,8 @@ fn feed[H < Hasher](h: &mut H, bytes: List[u8]) -> void:
 fn feed_dyn(h: &mut dyn Hasher, text: string) -> void:
     h.write_str(text)
 
-# A bound on the hashed value, with the hasher passed on as `&mut dyn Hasher`.
-fn hash_into[T < Hash](value: T, h: &mut dyn Hasher) -> void:
+# Bounds on both values keep Hash.hash's hasher calls static.
+fn hash_into[T < Hash, H < Hasher](value: T, h: &mut H) -> void:
     value.hash(h)
 
 fn shown(tally: Tally) -> string:

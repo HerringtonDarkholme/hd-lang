@@ -9,7 +9,7 @@ impl Display for Label:
         self.value
 
 impl Hash for Label:
-    fn hash(&self, state: &mut dyn Hasher) -> void:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
         self.value.hash(state)
 
 fn normalize(values: &mut List[string], entries: &mut Map[string, i32]) -> i32:

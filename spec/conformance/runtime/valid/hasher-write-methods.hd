@@ -129,7 +129,7 @@ impl Eq for ByteKey:
         self.padding == other.padding
 
 impl Hash for ByteKey:
-    fn hash(&self, state: &mut dyn Hasher) -> void:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
         for _index in 0..self.padding:
             state.write([23])
         if self.typed:
@@ -230,13 +230,13 @@ tests:
 
     it("DefaultHasher typed writes match bytes across mixed call boundaries"):
         for padding in 0..4:
-            typed := DefaultHasher::new()
-            raw := DefaultHasher::new()
+            let mut typed = DefaultHasher::new()
+            let mut raw = DefaultHasher::new()
             for _index in 0..padding:
                 typed.write([23])
                 raw.write([23])
-            write_typed(typed)
-            write_edges(typed)
+            write_typed(&mut typed)
+            write_edges(&mut typed)
             raw.write(typed_bytes())
             raw.write(edge_bytes())
             assert_equal(

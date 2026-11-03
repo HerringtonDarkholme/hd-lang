@@ -1,6 +1,6 @@
 # test: DefaultHasher is 64-bit FNV-1a, and hash_of hashes a value into a new DefaultHasher
 # Spec std Hash, Default Hasher: std-hash.default.algorithm, std-hash.default.write,
-# std-hash.default.finish, std-hash.hash-of (batch 64, DEFAULT-HASHER).
+# std-hash.default.finish, std-hash.hash-of-local (batch 64, DEFAULT-HASHER).
 use std.hash.{DefaultHasher, Hasher, hash_of}
 fn digest(bytes: List[u8]) -> u64:
     let mut hasher = DefaultHasher::new()
@@ -9,7 +9,7 @@ fn digest(bytes: List[u8]) -> u64:
 
 fn by_hand(value: string) -> u64:
     let mut hasher = DefaultHasher::new()
-    value.hash(hasher)
+    value.hash(&mut hasher)
     hasher.finish()
 
 tests:

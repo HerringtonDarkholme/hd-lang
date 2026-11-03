@@ -9,5 +9,5 @@ impl Eq for Key:
         self.name == other.name
 
 impl Hash for Key:
-    fn hash(&self, state: &mut dyn Hasher) -> void:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
         pass
