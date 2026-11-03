@@ -2088,6 +2088,15 @@ fn fmt_int(m: &Module, signed: bool) -> Func {
 /// [`Helper::StrEq`]: equal lengths, then no mismatch before the end.
 fn str_eq(m: &Module) -> Func {
     let mut f = m.func("rt:str_eq", vec![Val::I32; 4], vec![Val::I32]);
+    f.get(0);
+    f.get(2);
+    f.op(Instruction::I32Eq);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(1);
+    f.get(3);
+    f.op(Instruction::I32Eq);
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
     f.get(1);
     f.get(3);
     f.op(Instruction::I32Ne);

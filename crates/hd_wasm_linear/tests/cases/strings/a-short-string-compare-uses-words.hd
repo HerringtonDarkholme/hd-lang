@@ -1,0 +1,5 @@
+# @dump: wat
+# expected: the under-16 mismatch path uses overlapping word loads, not a byte loop
+
+fn same(left: string, right: string) -> bool:
+    left == right

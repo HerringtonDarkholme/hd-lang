@@ -5,9 +5,10 @@
 //!
 //! Each scan reads 16 bytes at a time with `v128.load` while 16 or more
 //! remain, then the last 16 bytes of the string once, overlapping what it
-//! already read, with the bits below the start shifted out. A string
-//! shorter than 16 bytes is read byte by byte. No load reaches past the
-//! string's last byte or before its view's first.
+//! already read, with the bits below the start shifted out. A shorter
+//! mismatch scan compares overlapping 8- or 4-byte words, then individual
+//! bytes below 4. No load reaches past the string's last byte or before its
+//! view's first.
 
 use crate::module::HEAP;
 use wasm_encoder::{BlockType, Function, MemArg, ValType};
@@ -21,6 +22,20 @@ const V128: MemArg = MemArg {
 
 /// A one-byte load from the heap.
 const U8: MemArg = MemArg {
+    offset: 0,
+    align: 0,
+    memory_index: HEAP,
+};
+
+/// An unaligned four-byte load from the heap.
+const U32: MemArg = MemArg {
+    offset: 0,
+    align: 0,
+    memory_index: HEAP,
+};
+
+/// An unaligned eight-byte load from the heap.
+const U64: MemArg = MemArg {
     offset: 0,
     align: 0,
     memory_index: HEAP,
@@ -230,7 +245,8 @@ pub fn index_code() -> Vec<u8> {
 pub fn mismatch_code() -> Vec<u8> {
     let (left, left_len, right, right_len) = (0, 1, 2, 3);
     let (i, n, mask) = (4, 5, 6);
-    let mut f = Function::new([(3, ValType::I32)]);
+    let diff64 = 7;
+    let mut f = Function::new([(3, ValType::I32), (1, ValType::I64)]);
     let mut s = f.instructions();
     // The lanes of the 16 bytes at `left + off` and `right + off` that
     // differ, as a bit mask.
@@ -303,22 +319,117 @@ pub fn mismatch_code() -> Vec<u8> {
         .return_()
         .end();
     s.local_get(n).return_().end();
-    // Under 16 bytes: one byte at a time.
-    s.block(BlockType::Empty).loop_(BlockType::Empty);
-    s.local_get(i).local_get(n).i32_ge_u().br_if(1);
+    // Eight to 15 bytes: compare the first and last eight-byte words. If
+    // they overlap, a difference in the overlap was already found by the
+    // first word, so the second word's first set byte is still the first
+    // mismatch.
+    s.local_get(n).i32_const(8).i32_ge_u().if_(BlockType::Empty);
     s.local_get(left)
-        .local_get(i)
-        .i32_add()
-        .i32_load8_u(U8)
+        .i64_load(U64)
         .local_get(right)
-        .local_get(i)
-        .i32_add()
-        .i32_load8_u(U8)
-        .i32_ne()
+        .i64_load(U64)
+        .i64_xor()
+        .local_tee(diff64)
+        .i64_const(0)
+        .i64_ne()
         .if_(BlockType::Empty);
-    s.local_get(i).return_().end();
-    s.local_get(i).i32_const(1).i32_add().local_set(i).br(0);
-    s.end().end();
+    s.local_get(diff64)
+        .i64_ctz()
+        .i64_const(3)
+        .i64_shr_u()
+        .i32_wrap_i64()
+        .return_()
+        .end();
+    s.local_get(left)
+        .local_get(n)
+        .i32_const(8)
+        .i32_sub()
+        .i32_add()
+        .i64_load(U64)
+        .local_get(right)
+        .local_get(n)
+        .i32_const(8)
+        .i32_sub()
+        .i32_add()
+        .i64_load(U64)
+        .i64_xor()
+        .local_tee(diff64)
+        .i64_const(0)
+        .i64_ne()
+        .if_(BlockType::Empty);
+    s.local_get(n)
+        .i32_const(8)
+        .i32_sub()
+        .local_get(diff64)
+        .i64_ctz()
+        .i64_const(3)
+        .i64_shr_u()
+        .i32_wrap_i64()
+        .i32_add()
+        .return_()
+        .end();
+    s.local_get(n).return_().end();
+    // Four to seven bytes: the same overlapping comparison with two
+    // four-byte words.
+    s.local_get(n).i32_const(4).i32_ge_u().if_(BlockType::Empty);
+    s.local_get(left)
+        .i32_load(U32)
+        .local_get(right)
+        .i32_load(U32)
+        .i32_xor()
+        .local_tee(mask)
+        .if_(BlockType::Empty);
+    s.local_get(mask)
+        .i32_ctz()
+        .i32_const(3)
+        .i32_shr_u()
+        .return_()
+        .end();
+    s.local_get(left)
+        .local_get(n)
+        .i32_const(4)
+        .i32_sub()
+        .i32_add()
+        .i32_load(U32)
+        .local_get(right)
+        .local_get(n)
+        .i32_const(4)
+        .i32_sub()
+        .i32_add()
+        .i32_load(U32)
+        .i32_xor()
+        .local_tee(mask)
+        .if_(BlockType::Empty);
+    s.local_get(n)
+        .i32_const(4)
+        .i32_sub()
+        .local_get(mask)
+        .i32_ctz()
+        .i32_const(3)
+        .i32_shr_u()
+        .i32_add()
+        .return_()
+        .end();
+    s.local_get(n).return_().end();
+    // Zero to three bytes, unrolled so a short comparison has no byte loop.
+    s.local_get(n).i32_eqz().if_(BlockType::Empty);
+    s.local_get(n).return_().end();
+    for offset in 0..3 {
+        s.local_get(left)
+            .i32_load8_u(MemArg { offset, ..U8 })
+            .local_get(right)
+            .i32_load8_u(MemArg { offset, ..U8 })
+            .i32_ne()
+            .if_(BlockType::Empty);
+        s.i32_const(i32::try_from(offset).expect("byte offset"))
+            .return_()
+            .end();
+        s.local_get(n)
+            .i32_const(i32::try_from(offset + 1).expect("byte length"))
+            .i32_eq()
+            .if_(BlockType::Empty);
+        s.local_get(n).return_().end();
+    }
     s.local_get(n).end();
     f.into_raw_body()
 }
