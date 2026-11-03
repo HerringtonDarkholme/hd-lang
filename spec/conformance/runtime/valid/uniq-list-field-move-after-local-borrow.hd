@@ -1,0 +1,19 @@
+# test: a UniqList field moves from an addressed binding after its borrow ends and keeps its elements
+use std.collections.UniqList
+
+struct Holder:
+    words: UniqList[string]
+
+impl !Copy for Holder
+
+fn read(holder: &Holder) -> usize:
+    holder.words.len()
+
+pub fn main() -> void:
+    let mut words = UniqList::[string].new()
+    words.push("word")
+    holder := Holder { words: words }
+    _ := read(&holder)
+    moved := holder.words
+    if moved.len() != 1 || moved.get(0).unwrap_or("") != "word":
+        panic("lost the word")
