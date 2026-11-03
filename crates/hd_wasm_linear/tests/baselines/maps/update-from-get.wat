@@ -3,11 +3,11 @@
   (import "fixture" "rt:map_hash" (func $rt:map_hash (param i32 i32) (result i32)))
   (import "fixture" "rt:map_find" (func $rt:map_find (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "impl [ T < ? Copy ] T ?.unwrap_or[i64]" (func $"impl [ T < ? Copy ] T ?.unwrap_or[i64]" (param i32 i64 i64) (result i64)))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
+  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:map_put" (func $rt:map_put (param i32 i32 i32 i32 i32 i64) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
-  (func $changed_between (param $counts i32) (param $word.0 i32) (param $word.1 i32) (param $other.0 i32) (param $other.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i32)
+  (func $changed_between (param $counts i32) (param $word.0 i32) (param $word.1 i32) (param $other.0 i32) (param $other.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i32) (local $t4 i32)
     block
     ;; 21 |     seen := counts.get(word).unwrap_or(0)
       local.get $counts
@@ -57,8 +57,14 @@
       call $rt:map_find
       local.set $t3
       local.get $other.0
+      local.set $t4
       local.get $other.1
-      call $rt:retain
+      i32.const 0
+      i32.ge_s
+      if
+        local.get $t4
+        call $retain
+      end
       local.get $counts
       ;; ...
       local.get $t1
@@ -82,8 +88,14 @@
       call $rt:map_find
       local.set $t0
       local.get $word.0
+      local.set $t4
       local.get $word.1
-      call $rt:retain
+      i32.const 0
+      i32.ge_s
+      if
+        local.get $t4
+        call $retain
+      end
       local.get $counts
       ;; ...
       local.get $other.1
@@ -95,7 +107,7 @@
       i32.store $heap
     end
   )
-  (func $tally_match (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $seen i64)
+  (func $tally_match (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $seen i64) (local $t4 i32) (local $t3 i32)
     block
     ;; 9 |     counts[word] = match counts.get(word):
       local.get $counts
@@ -169,7 +181,15 @@
       ;; ...
       local.get $word.0
       local.get $word.1
-      call $rt:retain
+      local.set $t3
+      local.set $t4
+      local.get $t3
+      i32.const 0
+      i32.ge_s
+      if
+        local.get $t4
+        call $retain
+      end
       local.get $counts
       ;; ...
       local.get $t1
@@ -181,7 +201,7 @@
       i32.store $heap
     end
   )
-  (func $increment_existing (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64)
+  (func $increment_existing (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64) (local $t5 i32) (local $t4 i32)
     block
     ;; 14 |     counts[word] += 1
       local.get $counts
@@ -221,7 +241,15 @@
       ;; ...
       local.get $word.0
       local.get $word.1
-      call $rt:retain
+      local.set $t4
+      local.set $t5
+      local.get $t4
+      i32.const 0
+      i32.ge_s
+      if
+        local.get $t5
+        call $retain
+      end
       local.get $counts
       ;; ...
       local.get $t2
@@ -233,7 +261,7 @@
       i32.store $heap
     end
   )
-  (func $tally (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64)
+  (func $tally (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64) (local $t5 i32) (local $t4 i32)
     block
     ;; 6 |     counts[word] = counts.get(word).unwrap_or(0) + 1
       local.get $counts
@@ -279,7 +307,15 @@
       ;; ...
       local.get $word.0
       local.get $word.1
-      call $rt:retain
+      local.set $t4
+      local.set $t5
+      local.get $t4
+      i32.const 0
+      i32.ge_s
+      if
+        local.get $t5
+        call $retain
+      end
       local.get $counts
       ;; ...
       local.get $t1

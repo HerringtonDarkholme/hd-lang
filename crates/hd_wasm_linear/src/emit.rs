@@ -2997,32 +2997,13 @@ impl Em<'_, '_, '_> {
             "bytes_concat" => self.concat(i, args),
             // A SIMD128 scan in place of the hd reference body (#428).
             "bytes_index_json" => {
-                self.push_view(args[0], 0)?;
-                self.comp(args[1], 0)?;
-                self.f.helper(Helper::BytesIndexJson);
-                self.store(i)
+                self.viewed_call(i, Helper::BytesIndexJson, &args[..1], &args[1..2])
             }
             "bytes_index_pair" => {
-                self.push_view(args[0], 0)?;
-                for arg in &args[1..5] {
-                    self.comp(*arg, 0)?;
-                }
-                self.f.helper(Helper::BytesIndexPair);
-                self.store(i)
+                self.viewed_call(i, Helper::BytesIndexPair, &args[..1], &args[1..5])
             }
-            "bytes_index" => {
-                self.push_view(args[0], 0)?;
-                self.comp(args[1], 0)?;
-                self.comp(args[2], 0)?;
-                self.f.helper(Helper::BytesIndex);
-                self.store(i)
-            }
-            "bytes_mismatch" => {
-                self.push_view(args[0], 0)?;
-                self.push_view(args[1], 1)?;
-                self.f.helper(Helper::BytesMismatch);
-                self.store(i)
-            }
+            "bytes_index" => self.viewed_call(i, Helper::BytesIndex, &args[..1], &args[1..3]),
+            "bytes_mismatch" => self.viewed_call(i, Helper::BytesMismatch, &args[..2], &[]),
             "utf8_valid_len" => {
                 self.comp(args[0], 0)?;
                 self.f.helper(Helper::Utf8ValidLen);

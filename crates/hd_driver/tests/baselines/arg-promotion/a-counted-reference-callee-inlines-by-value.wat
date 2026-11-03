@@ -2,8 +2,7 @@
 (module
   (import "fixture" "rt:fmt_i64" (func $rt:fmt_i64 (param i64) (result i32 i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
-  (import "fixture" "rt:str_view0" (func $rt:str_view0 (param i32 i32) (result i32 i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $"impl Text.size" (param $self i32) (result i32) (local $t0 i32)
     block
@@ -39,7 +38,7 @@
     end
     ;; ...
   )
-  (func $temp (param $n i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
+  (func $temp (param $n i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
     block
     ;; 22 |     make(n).size()
       block
@@ -76,13 +75,44 @@
           local.get $t3
           i32.const 1
           i32.add
+          local.set $t3
           local.get $n
+          local.set $t4
           local.get $t0
-          call $rt:str_view0
+          local.tee $t5
+          i32.const 0
+          i32.lt_s
+          if
+            i32.const 0
+            local.get $t4
+            i32.store $heap
+            i32.const 0
+            local.get $t5
+            i32.store $heap offset=4
+            i32.const 0
+            local.set $t4
+            local.get $t5
+            i32.const 16
+            i32.shr_u
+            i32.const 7
+            i32.and
+            local.set $t5
+          end
+          local.get $t3
+          local.get $t4
+          local.get $t5
           memory.copy $heap $heap
           local.get $n
           local.get $t0
-          call $rt:release
+          local.set $t0
+          local.set $n
+          local.get $t0
+          i32.const 0
+          i32.ge_s
+          if
+            local.get $n
+            call $rt:release_ref
+          end
           local.get $t2
           local.get $t1
           local.set $t0
@@ -161,7 +191,7 @@
     end
     ;; ...
   )
-  (func $named (param $n i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
+  (func $named (param $n i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
     block
     ;; 39 |     Name("n${n}").width()
       block
@@ -196,9 +226,32 @@
       local.get $t3
       i32.const 1
       i32.add
+      local.set $t3
       local.get $n
+      local.set $t4
       local.get $t0
-      call $rt:str_view0
+      local.tee $t5
+      i32.const 0
+      i32.lt_s
+      if
+        i32.const 0
+        local.get $t4
+        i32.store $heap
+        i32.const 0
+        local.get $t5
+        i32.store $heap offset=4
+        i32.const 0
+        local.set $t4
+        local.get $t5
+        i32.const 16
+        i32.shr_u
+        i32.const 7
+        i32.and
+        local.set $t5
+      end
+      local.get $t3
+      local.get $t4
+      local.get $t5
       memory.copy $heap $heap
       ;; ...
       local.get $t2
@@ -238,7 +291,7 @@
     end
     ;; ...
   )
-  (func $make (param $n i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
+  (func $make (param $n i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
     block
     ;; 15 |     Text { s: "x${n}" }
       block
@@ -273,9 +326,32 @@
       local.get $t3
       i32.const 1
       i32.add
+      local.set $t3
       local.get $n
+      local.set $t4
       local.get $t0
-      call $rt:str_view0
+      local.tee $t5
+      i32.const 0
+      i32.lt_s
+      if
+        i32.const 0
+        local.get $t4
+        i32.store $heap
+        i32.const 0
+        local.get $t5
+        i32.store $heap offset=4
+        i32.const 0
+        local.set $t4
+        local.get $t5
+        i32.const 16
+        i32.shr_u
+        i32.const 7
+        i32.and
+        local.set $t5
+      end
+      local.get $t3
+      local.get $t4
+      local.get $t5
       memory.copy $heap $heap
       ;; ...
       local.get $t2
@@ -317,7 +393,7 @@
     end
     ;; ...
   )
-  (func $twice (param $n i32) (result i32) (local $t.s.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $twice (param $n i32) (result i32) (local $t.s.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     block
     ;; 25 |     let t = make(n)
       block
@@ -354,13 +430,44 @@
           local.get $t2
           i32.const 1
           i32.add
+          local.set $t2
           local.get $n
+          local.set $t3
           local.get $t.s.1
-          call $rt:str_view0
+          local.tee $t4
+          i32.const 0
+          i32.lt_s
+          if
+            i32.const 0
+            local.get $t3
+            i32.store $heap
+            i32.const 0
+            local.get $t4
+            i32.store $heap offset=4
+            i32.const 0
+            local.set $t3
+            local.get $t4
+            i32.const 16
+            i32.shr_u
+            i32.const 7
+            i32.and
+            local.set $t4
+          end
+          local.get $t2
+          local.get $t3
+          local.get $t4
           memory.copy $heap $heap
           local.get $n
           local.get $t.s.1
-          call $rt:release
+          local.set $t.s.1
+          local.set $n
+          local.get $t.s.1
+          i32.const 0
+          i32.ge_s
+          if
+            local.get $n
+            call $rt:release_ref
+          end
           local.get $t1
           local.get $t0
           local.set $t.s.1

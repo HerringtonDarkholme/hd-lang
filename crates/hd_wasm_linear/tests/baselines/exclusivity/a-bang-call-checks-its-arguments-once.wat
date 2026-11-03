@@ -11,7 +11,6 @@
   (import "fixture" "rt:loan_begin" (func $rt:loan_begin (param i32 i32 i32)))
   (import "fixture" "rt:loan_check" (func $rt:loan_check (param i32 i32 i32)))
   (import "fixture" "rt:frame'2" (func $rt:frame'2 (result i32)))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
   (import "fixture" "loan_top" (global $loan_top (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 14 funcref))
@@ -740,7 +739,15 @@
       local.get $held
       i32.load $heap offset=4
       local.tee $t19
-      call $rt:retain
+      local.set $provider0.vtable
+      local.set $provider0
+      local.get $provider0.vtable
+      i32.const 0
+      i32.ge_s
+      if
+        local.get $provider0
+        call $retain
+      end
       ;; ...
       local.get $t18
       local.get $t19

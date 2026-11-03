@@ -1601,6 +1601,7 @@ impl Module {
                 ),
             &arity,
         );
+        let mut strings = false;
         for (id, f) in self
             .funcs
             .iter_mut()
@@ -1613,7 +1614,15 @@ impl Module {
                 if crate::opt::count_pairs(f, r.retain) | constant {
                     crate::opt::locals(f, &arity);
                 }
+                if crate::opt::inline_string_counts(f, r.retain) {
+                    crate::opt::locals(f, &arity);
+                    f.rebuild_callees();
+                    strings = true;
+                }
             }
+        }
+        if strings {
+            self.reach();
         }
         // Checked mode keeps every count a call, so its runtime audits them.
         if self.inline_counts && self.runtime.is_some_and(|r| r.checked.is_none()) {

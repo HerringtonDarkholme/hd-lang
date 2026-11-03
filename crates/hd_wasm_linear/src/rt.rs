@@ -256,20 +256,6 @@ pub enum Helper {
     /// `(len) -> address`: a new string buffer (§23.7) of `len` bytes, a
     /// counted object with nothing to release in it.
     Str,
-    /// `(address, length) -> (address, length)`: a string as a view of
-    /// its bytes (§23.7). An allocated string is itself; a packed one's
-    /// two words are spilled to scratch slot `slot` and the view is of
-    /// the slot, valid until the slot's next spill.
-    StrView {
-        slot: u8,
-    },
-    /// `(address, length, index) -> byte`: byte `index`, below the
-    /// length, of a packed string.
-    StrBytePacked,
-    /// `(address, length, start, end) -> string`: bytes `start` to `end`
-    /// of a packed string, `start <= end <= len`: a packed string, or the
-    /// empty one.
-    StrSlicePacked,
     /// `(address, length) -> string`: the string's packed form when it is
     /// 1 to 6 ASCII bytes, else the string itself (§23.7).
     StrPack,
@@ -513,6 +499,20 @@ pub enum Helper {
     },
     /// `(a, b) -> bool`: two strings' bytes are equal.
     StrEq,
+    /// [`Helper::StrEq`] when either string is packed.
+    StrEqPacked,
+    /// `(params) -> results`: `inner` over views of the strings whose
+    /// address words are parameters `strings` (their lengths follow), the
+    /// first in scratch slot 0 and the second in slot 1: the copy of a
+    /// string kernel a packed string takes, called cold.
+    Viewed {
+        inner: Box<Helper>,
+        params: Vec<Val>,
+        results: Vec<Val>,
+        strings: Vec<u32>,
+    },
+    /// [`Helper::StrCmp`] when either string is packed.
+    StrCmpPacked,
     /// `(a, b) -> i32`: -1, 0 or 1 as `a` sorts before, with or after `b`,
     /// byte by byte and a prefix first (`expr.ord.string`).
     StrCmp,
@@ -1767,10 +1767,25 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f
         }
         Helper::Alloc => alloc(m),
-        Helper::StrEq => str_eq(m),
-        Helper::StrView { slot } => str_view(m, *slot),
-        Helper::StrBytePacked => str_byte_packed(m),
-        Helper::StrSlicePacked => str_slice_packed(m),
+        Helper::StrEq => str_eq(m, false),
+        Helper::StrEqPacked => str_eq(m, true),
+        Helper::Viewed {
+            inner,
+            params,
+            results,
+            strings,
+        } => {
+            let mut f = m.func("rt:viewed", params.clone(), results.clone());
+            for (slot, k) in strings.iter().enumerate() {
+                view_params(&mut f, *k, *k + 1, u8::try_from(slot).expect("two strings"));
+            }
+            for k in 0..params.len() {
+                f.get(u32::try_from(k).expect("params"));
+            }
+            f.helper((**inner).clone());
+            f
+        }
+        Helper::StrCmpPacked => str_cmp(m, true),
         Helper::StrPack => str_pack(m),
         Helper::New => new_object(m, None),
         Helper::NewFixed { size } => new_object(m, Some(*size)),
@@ -1899,7 +1914,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::StrFromBytes => str_from_bytes(m),
         Helper::StrToBytes { elem } => str_to_bytes(m, elem),
         Helper::ConcatAll => concat_all(m),
-        Helper::StrCmp => str_cmp(m),
+        Helper::StrCmp => str_cmp(m, false),
         Helper::BytesIndexJson => {
             let mut f = m.func("rt:bytes_index_json", vec![Val::I32; 3], vec![Val::I32]);
             f.raw = Some(crate::scan::json_index_code());
@@ -2108,13 +2123,71 @@ fn fmt_int(m: &Module, signed: bool) -> Func {
 }
 
 /// Replaces the string in locals `at` and `len` by a view of its bytes
-/// ([`Helper::StrView`] with scratch slot `slot`).
+/// (§23.7): a packed string's two words go to scratch slot `slot`, whose
+/// first bytes are then its text. Inline, with no call, so an allocated
+/// string pays the tag test alone.
 pub(crate) fn view_params(f: &mut Func, at: u32, len: u32, slot: u8) {
-    f.get(at);
     f.get(len);
-    f.helper(Helper::StrView { slot });
-    f.set(len);
+    f.i32(0);
+    f.op(Instruction::I32LtS);
+    f.op(Instruction::If(BlockType::Empty));
+    spill_params(f, at, len, slot);
+    f.op(Instruction::End);
+}
+
+/// [`view_params`] without the tag test: the string is packed.
+fn spill_params(f: &mut Func, at: u32, len: u32, slot: u8) {
+    let to = SCRATCH + 8 * u32::from(slot);
+    f.u32(to);
+    f.get(at);
+    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    f.u32(to);
+    f.get(len);
+    f.op(Instruction::I32Store(mem(HEAP, 4, 2)));
+    f.u32(to);
     f.set(at);
+    packed_len(f, len);
+    f.set(len);
+}
+
+/// Views the two strings in locals `(a, a + 1)` and `(b, b + 1)` behind
+/// one test of both tags, so two allocated strings pay one branch.
+fn view_pair(f: &mut Func, a: u32, b: u32) {
+    f.get(a + 1);
+    f.get(b + 1);
+    f.op(Instruction::I32Or);
+    f.i32(0);
+    f.op(Instruction::I32LtS);
+    f.op(Instruction::If(BlockType::Empty));
+    view_params(f, a, a + 1, 0);
+    view_params(f, b, b + 1, 1);
+    f.op(Instruction::End);
+}
+
+/// The start of a kernel over the two strings in parameters `(0, 1)` and
+/// `(2, 3)`: in its `packed` copy, views of both; in the other, one test of
+/// both tags that hands a packed string to the copy `copy`, so the kernel
+/// an allocated pair runs stays small enough for an engine to inline.
+fn packed_pair(f: &mut Func, packed: bool, copy: Helper) {
+    if packed {
+        view_pair(f, 0, 2);
+        return;
+    }
+
+    f.get(1);
+    f.get(3);
+    f.op(Instruction::I32Or);
+    f.i32(0);
+    f.op(Instruction::I32LtS);
+    f.op(Instruction::If(BlockType::Empty));
+    for l in 0..4 {
+        f.get(l);
+    }
+    // A cold call, through the table: an engine that inlined the copy here
+    // would grow the kernel past what it inlines into its callers.
+    f.cold_helper(copy, vec![Val::I32; 4], vec![Val::I32]);
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
 }
 
 /// Pushes the length of the packed string whose length word is in local
@@ -2156,46 +2229,25 @@ fn push_packed(f: &mut Func, v: u32, n: u32) {
     f.op(Instruction::I32Or);
 }
 
-/// [`Helper::StrView`]: a packed string's two words go to the scratch
-/// slot, whose first bytes are then its text.
-fn str_view(m: &Module, slot: u8) -> Func {
-    let mut f = m.func(
-        format!("rt:str_view{slot}"),
-        vec![Val::I32; 2],
-        vec![Val::I32; 2],
-    );
-    let at = SCRATCH + 8 * u32::from(slot);
-    f.get(1);
+/// The slow arm of `s[i]` on the string in locals `at` and `len` and the
+/// index in local `ix`, taken for a packed string or an index past an
+/// allocated string's length: the index panic, unless the string is
+/// packed and the index below its length, then that byte, shifted out of
+/// the words. Inline with no call that returns, so the fast arm keeps its
+/// registers.
+pub(crate) fn packed_byte(f: &mut Func, at: u32, len: u32, ix: u32) {
+    f.get(len);
     f.i32(0);
-    f.op(Instruction::I32LtS);
-    f.op(Instruction::If(BlockType::Empty));
-    f.u32(at);
-    f.get(0);
-    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
-    f.u32(at);
-    f.get(1);
-    f.op(Instruction::I32Store(mem(HEAP, 4, 2)));
-    f.u32(at);
-    packed_len(&mut f, 1);
-    f.op(Instruction::Return);
-    f.op(Instruction::End);
-    f.get(0);
-    f.get(1);
-    f
-}
-
-/// [`Helper::StrBytePacked`]: the byte at bit `8 * index` of the word,
-/// after the index check `s[i]` makes.
-fn str_byte_packed(m: &Module) -> Func {
-    let mut f = m.func("rt:str_byte_packed", vec![Val::I32; 3], vec![Val::I32]);
-    f.get(2);
-    packed_len(&mut f, 1);
+    f.op(Instruction::I32GeS);
+    f.get(ix);
+    packed_len(f, len);
     f.op(Instruction::I32GeU);
+    f.op(Instruction::I32Or);
     f.op(Instruction::If(BlockType::Empty));
     f.helper(Helper::Panic(crate::emit::STR_INDEX.into()));
     f.op(Instruction::End);
-    push_word(&mut f, 0, 1);
-    f.get(2);
+    push_word(f, at, len);
+    f.get(ix);
     f.op(Instruction::I64ExtendI32U);
     f.op(Instruction::I64Const(3));
     f.op(Instruction::I64Shl);
@@ -2203,43 +2255,57 @@ fn str_byte_packed(m: &Module) -> Func {
     f.op(Instruction::I32WrapI64);
     f.i32(0xff);
     f.op(Instruction::I32And);
-    f
 }
 
-/// [`Helper::StrSlicePacked`]: the text's bytes shifted down by `start`
-/// and cut to `end - start`, so the unused bytes stay zero.
-fn str_slice_packed(m: &Module) -> Func {
-    let mut f = m.func("rt:str_slice_packed", vec![Val::I32; 4], vec![Val::I32; 2]);
+/// The slow arm of `bytes_slice` on the string in locals `at` and `len`
+/// and the bounds in locals `lo` and `hi`, taken for a packed string or
+/// bounds an allocated string fails: the slice panic, unless the string is
+/// packed and `lo <= hi <= len`, then the slice into locals `out_at` and
+/// `out_len`: the text's bytes shifted down by `lo` and cut to `hi - lo`,
+/// so the unused bytes stay zero, or the empty string. Inline, as
+/// [`packed_byte`] is.
+pub(crate) fn packed_slice(
+    f: &mut Func,
+    [at, len]: [u32; 2],
+    [lo, hi]: [u32; 2],
+    [out_at, out_len]: [u32; 2],
+) {
     let (n, v) = (f.local(Val::I32), f.local(Val::I64));
-    // The bounds check a slice makes: `start <= end <= len`.
-    f.get(2);
-    f.get(3);
+    f.get(lo);
+    f.get(hi);
     f.op(Instruction::I32GtU);
-    f.get(3);
-    packed_len(&mut f, 1);
+    f.get(hi);
+    packed_len(f, len);
     f.op(Instruction::I32GtU);
+    f.op(Instruction::I32Or);
+    f.get(len);
+    f.i32(0);
+    f.op(Instruction::I32GeS);
     f.op(Instruction::I32Or);
     f.op(Instruction::If(BlockType::Empty));
     f.helper(Helper::Panic(crate::emit::STR_SLICE.into()));
     f.op(Instruction::End);
-    f.get(3);
-    f.get(2);
+    f.get(hi);
+    f.get(lo);
     f.op(Instruction::I32Sub);
     f.set(n);
-    f.get(n);
-    f.op(Instruction::I32Eqz);
-    f.op(Instruction::If(BlockType::Empty));
     f.u32(EMPTY);
+    f.set(out_at);
     f.i32(0);
-    f.op(Instruction::Return);
-    f.op(Instruction::End);
-    // The text alone: the length word's bytes 4 and 5.
-    f.get(1);
+    f.set(out_len);
+    f.get(n);
+    f.op(Instruction::If(BlockType::Empty));
+    // The text alone: the address word and the length word's bytes 4, 5.
+    f.get(at);
+    f.op(Instruction::I64ExtendI32U);
+    f.get(len);
     f.i32(0xffff);
     f.op(Instruction::I32And);
-    f.set(1);
-    push_word(&mut f, 0, 1);
-    f.get(2);
+    f.op(Instruction::I64ExtendI32U);
+    f.op(Instruction::I64Const(32));
+    f.op(Instruction::I64Shl);
+    f.op(Instruction::I64Or);
+    f.get(lo);
     f.op(Instruction::I64ExtendI32U);
     f.op(Instruction::I64Const(3));
     f.op(Instruction::I64Shl);
@@ -2254,8 +2320,10 @@ fn str_slice_packed(m: &Module) -> Func {
     f.op(Instruction::I64Sub);
     f.op(Instruction::I64And);
     f.set(v);
-    push_packed(&mut f, v, n);
-    f
+    push_packed(f, v, n);
+    f.set(out_len);
+    f.set(out_at);
+    f.op(Instruction::End);
 }
 
 /// [`Helper::StrPack`]: a packed string, the empty one, a longer one or
@@ -2310,17 +2378,51 @@ fn str_pack(m: &Module) -> Func {
 }
 
 /// [`Helper::StrEq`]: equal lengths, then no mismatch before the end.
-fn str_eq(m: &Module) -> Func {
-    let mut f = m.func("rt:str_eq", vec![Val::I32; 4], vec![Val::I32]);
-    view_params(&mut f, 0, 1, 0);
-    view_params(&mut f, 2, 3, 1);
+fn str_eq(m: &Module, packed: bool) -> Func {
+    let name = if packed {
+        "rt:str_eq_packed"
+    } else {
+        "rt:str_eq"
+    };
+    let mut f = m.func(name, vec![Val::I32; 4], vec![Val::I32]);
+    if packed {
+        view_pair(&mut f, 0, 2);
+    }
     f.get(1);
     f.get(3);
     f.op(Instruction::I32Ne);
     f.op(Instruction::If(BlockType::Empty));
+    if !packed {
+        // Unequal length words: one string packed and the other not may
+        // still have one text.
+        f.get(1);
+        f.get(3);
+        f.op(Instruction::I32Xor);
+        f.i32(0);
+        f.op(Instruction::I32LtS);
+        f.op(Instruction::If(BlockType::Empty));
+        for l in 0..4 {
+            f.get(l);
+        }
+        f.cold_helper(Helper::StrEqPacked, vec![Val::I32; 4], vec![Val::I32]);
+        f.op(Instruction::Return);
+        f.op(Instruction::End);
+    }
     f.i32(0);
     f.op(Instruction::Return);
     f.op(Instruction::End);
+    if !packed {
+        // Equal length words, both packed: equal words.
+        f.get(1);
+        f.i32(0);
+        f.op(Instruction::I32LtS);
+        f.op(Instruction::If(BlockType::Empty));
+        f.get(0);
+        f.get(2);
+        f.op(Instruction::I32Eq);
+        f.op(Instruction::Return);
+        f.op(Instruction::End);
+    }
     for l in 0..4 {
         f.get(l);
     }
@@ -2332,11 +2434,15 @@ fn str_eq(m: &Module) -> Func {
 
 /// [`Helper::StrCmp`]: the first differing byte decides; when the shorter
 /// is a prefix of the longer, the lengths do.
-fn str_cmp(m: &Module) -> Func {
-    let mut f = m.func("rt:str_cmp", vec![Val::I32; 4], vec![Val::I32]);
+fn str_cmp(m: &Module, packed: bool) -> Func {
+    let name = if packed {
+        "rt:str_cmp_packed"
+    } else {
+        "rt:str_cmp"
+    };
+    let mut f = m.func(name, vec![Val::I32; 4], vec![Val::I32]);
     let (k, x, y) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
-    view_params(&mut f, 0, 1, 0);
-    view_params(&mut f, 2, 3, 1);
+    packed_pair(&mut f, packed, Helper::StrCmpPacked);
     // The sign of `x - y` as -1, 0 or 1, for two values in locals.
     let sign = |f: &mut Func, x: u32, y: u32| {
         f.get(x);
@@ -4179,11 +4285,11 @@ fn concat_all(m: &Module) -> Func {
     let part = |f: &mut Func| {
         f.get(at);
         f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+        f.set(pa);
         f.get(at);
         f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
-        f.helper(Helper::StrView { slot: 0 });
         f.set(pl);
-        f.set(pa);
+        view_params(f, pa, pl, 0);
     };
     each_elem(&mut f, at, n, 8, &|f| {
         part(f);

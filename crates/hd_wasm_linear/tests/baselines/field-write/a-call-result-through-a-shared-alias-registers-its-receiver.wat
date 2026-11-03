@@ -4,11 +4,10 @@
   (import "fixture" "rt:loan_count" (func $rt:loan_count (param i32 i32 i32 i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:loan_check" (func $rt:loan_check (param i32 i32 i32)))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "loan_top" (global $loan_top (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $older (param $view i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
+  (func $older (param $view i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
     block
     ;; 12 |     held := view.label()
       local.get $view
@@ -77,7 +76,15 @@
       local.get $view
       i32.load $heap offset=4
       local.tee $t1
-      call $rt:retain
+      local.set $t2
+      local.set $t3
+      local.get $t2
+      i32.const 0
+      i32.ge_s
+      if
+        local.get $t3
+        call $retain
+      end
       ;; ...
       local.get $alias
       local.get $t1

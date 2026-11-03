@@ -50,21 +50,103 @@ impl Em<'_, '_, '_> {
     }
 
     /// Pushes string `r` as a view of its bytes, `(address, length)`: a
-    /// packed string's go to scratch slot `slot` ([`Helper::StrView`]).
+    /// packed string's go to scratch slot `slot` (`rt::view_params`).
     pub(super) fn push_view(&mut self, r: u32, slot: u8) -> StageResult<()> {
-        self.comp(r, 0)?;
-        self.comp(r, 1)?;
-        if self.const_text(r).is_none() {
-            self.f.helper(Helper::StrView { slot });
+        if self.const_text(r).is_some() {
+            self.comp(r, 0)?;
+            return self.comp(r, 1);
         }
+        // An allocated string pays the tag test alone.
+        let (at, len) = (self.f.local(Val::I32), self.f.local(Val::I32));
+        self.comp(r, 0)?;
+        self.f.set(at);
+        self.comp(r, 1)?;
+        self.f.set(len);
+        crate::rt::view_params(&mut self.f, at, len, slot);
+        self.f.get(at);
+        self.f.get(len);
         Ok(())
     }
 
-    /// Whether string `r` is packed: its length word's top bit.
-    fn push_packed_test(&mut self, r: u32) -> StageResult<()> {
+    /// Instruction `i` as a call of the string kernel `inner` over strings
+    /// `texts`, then the `i32` values `rest`: a packed string takes the
+    /// kernel's [`Helper::Viewed`] copy, called cold, after one test of the
+    /// tags, so the call an allocated string makes is the kernel's own.
+    pub(super) fn viewed_call(
+        &mut self,
+        i: u32,
+        inner: Helper,
+        texts: &[u32],
+        rest: &[u32],
+    ) -> StageResult<()> {
+        let mut ls = Vec::new();
+        let mut tags = Vec::new();
+        let mut strings = Vec::new();
+        for t in texts {
+            let (at, len) = (self.f.local(Val::I32), self.f.local(Val::I32));
+            self.comp(*t, 0)?;
+            self.f.set(at);
+            self.comp(*t, 1)?;
+            self.f.set(len);
+            strings.push(u32::try_from(ls.len()).expect("params"));
+            ls.extend([at, len]);
+            if self.const_text(*t).is_none() {
+                tags.push(len);
+            }
+        }
+        for r in rest {
+            let x = self.f.local(Val::I32);
+            self.comp(*r, 0)?;
+            self.f.set(x);
+            ls.push(x);
+        }
+        if let Some((first, more)) = tags.split_first() {
+            self.f.get(*first);
+            for l in more {
+                self.f.get(*l);
+                self.f.op(I::I32Or);
+            }
+            self.f.i32(0);
+            self.f.op(I::I32LtS);
+            self.f
+                .op(I::If(BlockType::Result(wasm_encoder::ValType::I32)));
+            for l in &ls {
+                self.f.get(*l);
+            }
+            let params = vec![Val::I32; ls.len()];
+            self.f.cold_helper(
+                Helper::Viewed {
+                    inner: Box::new(inner.clone()),
+                    params: params.clone(),
+                    results: vec![Val::I32],
+                    strings,
+                },
+                params,
+                vec![Val::I32],
+            );
+            self.f.op(I::Else);
+        }
+        for l in &ls {
+            self.f.get(*l);
+        }
+        self.f.helper(inner);
+        if !tags.is_empty() {
+            self.f.op(I::End);
+        }
+        self.store(i)
+    }
+
+    /// Pushes the bound an index of string `r` is checked against: an
+    /// allocated string's length, and 0 for a packed one, so one unsigned
+    /// test sends a packed string to the slow arm. It reads only the length
+    /// word, so an engine computes it once outside a loop over the string.
+    fn push_bound(&mut self, r: u32) -> StageResult<()> {
+        self.f.i32(0);
+        self.comp(r, 1)?;
         self.comp(r, 1)?;
         self.f.i32(0);
         self.f.op(I::I32LtS);
+        self.f.op(I::Select);
         Ok(())
     }
 
@@ -196,31 +278,39 @@ impl Em<'_, '_, '_> {
         let ix = self.f.local(Val::I32);
         self.comp(index, 0)?;
         self.f.set(ix);
-        // A packed string's helper checks the index itself.
-        let constant = self.const_text(text).is_some();
-        if !constant {
-            self.push_packed_test(text)?;
-            self.f
-                .op(I::If(BlockType::Result(wasm_encoder::ValType::I32)));
-            self.comp(text, 0)?;
-            self.comp(text, 1)?;
+        if self.const_text(text).is_some() {
             self.f.get(ix);
-            self.f.helper(Helper::StrBytePacked);
-            self.f.op(I::Else);
+            self.comp(text, 1)?;
+            self.f.op(I::I32GeU);
+            self.f.op(I::If(BlockType::Empty));
+            self.panic(STR_INDEX);
+            self.f.op(I::End);
+            self.comp(text, 0)?;
+            self.f.get(ix);
+            self.f.op(I::I32Add);
+            self.f.op(I::I32Load8U(mem(HEAP, 0, 0)));
+            return self.store(i);
         }
+        // One test: an index past an allocated string's length, or any
+        // index of a packed string, takes the slow arm, which gives a
+        // packed string's byte or panics.
         self.f.get(ix);
-        self.comp(text, 1)?;
+        self.push_bound(text)?;
         self.f.op(I::I32GeU);
-        self.f.op(I::If(BlockType::Empty));
-        self.panic(STR_INDEX);
-        self.f.op(I::End);
+        self.f
+            .op(I::If(BlockType::Result(wasm_encoder::ValType::I32)));
+        let (at, len) = (self.f.local(Val::I32), self.f.local(Val::I32));
+        self.comp(text, 0)?;
+        self.f.set(at);
+        self.comp(text, 1)?;
+        self.f.set(len);
+        crate::rt::packed_byte(&mut self.f, at, len, ix);
+        self.f.op(I::Else);
         self.comp(text, 0)?;
         self.f.get(ix);
         self.f.op(I::I32Add);
         self.f.op(I::I32Load8U(mem(HEAP, 0, 0)));
-        if !constant {
-            self.f.op(I::End);
-        }
+        self.f.op(I::End);
         self.store(i)
     }
 
@@ -251,19 +341,24 @@ impl Em<'_, '_, '_> {
             return self.store(i);
         }
         let (at, len) = (self.f.local(Val::I32), self.f.local(Val::I32));
-        // A packed string's slice is packed, or the empty value; its
-        // helper checks the bounds itself.
-        self.push_packed_test(text)?;
-        self.f.op(I::If(BlockType::Empty));
-        self.comp(text, 0)?;
-        self.comp(text, 1)?;
+        let (ta, tl) = (self.f.local(Val::I32), self.f.local(Val::I32));
+        // One test: bounds an allocated string fails, or a packed string
+        // other than its empty slice at 0, take the slow arm, which gives a
+        // packed string's slice, packed or empty, or panics.
         self.f.get(lo);
         self.f.get(hi);
-        self.f.helper(Helper::StrSlicePacked);
-        self.f.set(len);
-        self.f.set(at);
+        self.f.op(I::I32GtU);
+        self.f.get(hi);
+        self.push_bound(text)?;
+        self.f.op(I::I32GtU);
+        self.f.op(I::I32Or);
+        self.f.op(I::If(BlockType::Empty));
+        self.comp(text, 0)?;
+        self.f.set(ta);
+        self.comp(text, 1)?;
+        self.f.set(tl);
+        crate::rt::packed_slice(&mut self.f, [ta, tl], [lo, hi], [at, len]);
         self.f.op(I::Else);
-        check(self)?;
         self.view_slice(text, lo, hi)?;
         self.f.set(len);
         self.f.set(at);

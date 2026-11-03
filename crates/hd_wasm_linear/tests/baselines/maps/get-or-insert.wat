@@ -3,7 +3,7 @@
   (import "fixture" "rt:map_hash" (func $rt:map_hash (param i32 i32) (result i32)))
   (import "fixture" "rt:map_find" (func $rt:map_find (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:map_unique" (func $rt:map_unique (param i32) (result i32)))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
+  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:map_put" (func $rt:map_put (param i32 i32 i32 i32 i32 i64) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $increment_or_insert (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64)
@@ -58,9 +58,13 @@
         i32.add
         local.set $counts
       else
-        local.get $word.0
         local.get $word.1
-        call $rt:retain
+        i32.const 0
+        i32.ge_s
+        if
+          local.get $word.0
+          call $retain
+        end
         local.get $t0
         local.get $t1
         local.get $t2

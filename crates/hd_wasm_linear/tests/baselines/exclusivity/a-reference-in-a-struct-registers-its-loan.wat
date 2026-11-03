@@ -3,12 +3,11 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:loan_begin" (func $rt:loan_begin (param i32 i32 i32)))
   (import "fixture" "rt:loan_check" (func $rt:loan_check (param i32 i32 i32)))
-  (import "fixture" "rt:release'1" (func $rt:release'1 (param i32 i32)))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
-  (import "fixture" "rt:release'2" (func $rt:release'2 (param i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "rt:release" (func $rt:release (param i32)))
   (import "fixture" "loan_top" (global $loan_top (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $in_struct (param $t i32) (param $alias i32) (result i32 i32) (local $held i32)
+  (func $in_struct (param $t i32) (param $alias i32) (result i32 i32) (local $held i32) (local $t1 i32) (local $t0 i32)
     block
     ;; 13 |     held := Held { name: &t.lead.name }
       local.get $t
@@ -43,7 +42,15 @@
       local.get $alias
       i32.const 1
       i32.store $heap offset=4
-      call $rt:release'1
+      local.set $t0
+      local.set $t1
+      local.get $t0
+      i32.const 0
+      i32.ge_s
+      if
+        local.get $t1
+        call $rt:release_ref
+      end
     ;; 15 |     *held.name
       local.get $held
       i32.load $heap
@@ -51,12 +58,20 @@
       local.get $held
       i32.load $heap offset=4
       local.tee $alias
-      call $rt:retain
+      local.set $t0
+      local.set $t1
+      local.get $t0
+      i32.const 0
+      i32.ge_s
+      if
+        local.get $t1
+        call $retain
+      end
       ;; ...
     end
     ;; ...
   )
-  (func $in_option (param $t i32) (param $alias i32) (result i32 i32) (local $held i32) (local $t0 i32) (local $name i32)
+  (func $in_option (param $t i32) (param $alias i32) (result i32 i32) (local $held i32) (local $t1 i32) (local $name i32) (local $t0 i32)
     block
     ;; 23 |     let held: Option[&string] = .Some(&t.lead.name)
       local.get $t
@@ -91,7 +106,15 @@
       local.get $alias
       i32.const 1
       i32.store $heap offset=4
-      call $rt:release'1
+      local.set $t0
+      local.set $alias
+      local.get $t0
+      i32.const 0
+      i32.ge_s
+      if
+        local.get $alias
+        call $rt:release_ref
+      end
     ;; 25 |     match held:
       local.get $held
       local.set $t
@@ -112,7 +135,7 @@
               i32.eqz
               if
                 local.get $t
-                call $rt:release'2
+                call $rt:release
                 br 3
               else
                 unreachable
@@ -128,8 +151,16 @@
           local.tee $t
           local.get $name
           i32.load $heap offset=4
-          local.tee $t0
-          call $rt:retain
+          local.tee $t1
+          local.set $t0
+          local.set $alias
+          local.get $t0
+          i32.const 0
+          i32.ge_s
+          if
+            local.get $alias
+            call $retain
+          end
     ;; 25 |     match held:
           br 1
         end
@@ -141,7 +172,7 @@
     end
     ;; ...
   )
-  (func $in_tuple (param $t i32) (param $alias i32) (result i32 i32) (local $held.0 i32)
+  (func $in_tuple (param $t i32) (param $alias i32) (result i32 i32) (local $held.0 i32) (local $t1 i32) (local $t0 i32)
     block
     ;; 18 |     held := (&t.lead.name, +1)
       local.get $t
@@ -176,7 +207,15 @@
       local.get $alias
       i32.const 1
       i32.store $heap offset=4
-      call $rt:release'1
+      local.set $t0
+      local.set $t1
+      local.get $t0
+      i32.const 0
+      i32.ge_s
+      if
+        local.get $t1
+        call $rt:release_ref
+      end
     ;; 20 |     *held._0
       local.get $held.0
       i32.load $heap
@@ -184,7 +223,15 @@
       local.get $held.0
       i32.load $heap offset=4
       local.tee $alias
-      call $rt:retain
+      local.set $t0
+      local.set $t1
+      local.get $t0
+      i32.const 0
+      i32.ge_s
+      if
+        local.get $t1
+        call $retain
+      end
       ;; ...
     end
     ;; ...

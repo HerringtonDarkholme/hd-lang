@@ -4,11 +4,10 @@
   (import "fixture" "rt:loan_begin" (func $rt:loan_begin (param i32 i32 i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:loan_check" (func $rt:loan_check (param i32 i32 i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "loan_top" (global $loan_top (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $rename (param $t i32) (param $alias i32) (result i32 i32) (local $n i32)
+  (func $rename (param $t i32) (param $alias i32) (result i32 i32) (local $n i32) (local $t1 i32) (local $t0 i32)
     block
     ;; 11 |     n := &t.lead.name
       local.get $t
@@ -60,7 +59,15 @@
       local.get $alias
       i32.const 1
       i32.store $heap offset=4
-      call $rt:release
+      local.set $t0
+      local.set $t1
+      local.get $t0
+      i32.const 0
+      i32.ge_s
+      if
+        local.get $t1
+        call $rt:release_ref
+      end
     ;; 14 |     *n
       local.get $n
       i32.load $heap
@@ -68,7 +75,15 @@
       local.get $n
       i32.load $heap offset=4
       local.tee $alias
-      call $rt:retain
+      local.set $t0
+      local.set $t1
+      local.get $t0
+      i32.const 0
+      i32.ge_s
+      if
+        local.get $t1
+        call $retain
+      end
       ;; ...
     end
     ;; ...

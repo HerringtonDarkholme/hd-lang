@@ -363,15 +363,23 @@ The allocator is hd in `std.rt.alloc`, REFCOUNT_RUNTIME.md §6's
     string's walk is `Walk::Str`, which retains or releases the address
     only when the length word's top bit is clear, so neither the page
     table nor a header sees it.
-  - **Readers take both forms.** `bytes_len` decodes the length, `s[i]`
-    and `bytes_at` shift the byte out of the words (`rt:str_byte_packed`),
-    and a slice of a packed string is packed (`rt:str_slice_packed`).
-    Every other reader of a string's bytes (concatenation and
-    interpolation, `concat_all`, `bytes_append`, `to_utf8`, the scans,
-    `==`, ordering, the exchange-buffer copy `rt:to_buf` and the host
-    encoder) first makes it a view with `rt:str_view0` or `rt:str_view1`,
-    which spill a packed string's two words to scratch slot 0 (address 0)
-    or slot 1 (address 8), below static data, and view the slot.
+  - **Readers take both forms, and an allocated string pays one test.**
+    `bytes_len` decodes the length with a `select` on the length word.
+    `s[i]`, `bytes_at` and `bytes_slice` check their bounds against the
+    length, or 0 for a packed string (a `select` that reads only the
+    length word, so an engine computes it once outside a loop): one
+    unsigned test sends a packed string, or a bad index, to an inline
+    slow arm that panics or shifts the bytes out of the words; a slice of
+    a packed string is packed. The arm makes no call that returns, which
+    would make an engine keep the fast arm's values in memory across it.
+    `==` and ordering test both tags at once and hand a packed pair to a
+    copy of the kernel, called cold through the table so it adds nothing
+    an engine inlines; the scans and `bytes_mismatch` do the same through
+    `rt:viewed`. Every other reader (concatenation, `concat_all`,
+    `bytes_append`, `to_utf8`, `rt:to_buf`, the host encoder, and the
+    copies above) views a packed string inline: it spills the two words
+    to scratch slot 0 (address 0) or slot 1 (address 8), below static
+    data, and reads the slot.
   - **The scratch rule.** A reader spills the first string it reads at
     once to slot 0 and the second to slot 1. No reader reads three
     strings at once. It reads the slots before it calls anything that may
@@ -379,6 +387,12 @@ The allocator is hd in `std.rt.alloc`, REFCOUNT_RUNTIME.md §6's
     next. `string_bytes`, whose address outlives the call, spills to a
     static slot of its own call site instead, valid until that site runs
     again.
+  - **Counts.** A count of one string is `rt:retain` or `rt:release` over
+    its two words while the count rules run, so they pair and drop string
+    counts as they do addresses (`opt::count_pairs`, `opt::static_counts`).
+    Then `opt::inline_string_counts` makes each one the tag test and the
+    plain count of the address, so a string's count costs no call more
+    than an address's.
   - **Producers.** `bytes_pack` (`rt:str_pack`), which only std's tests
     declare, gives a string's packed form when it can have one. String
     literals and runtime producers do not pack yet (#1246, #1248), and no

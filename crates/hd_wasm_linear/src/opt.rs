@@ -2517,15 +2517,44 @@ pub fn count_pairs(f: &mut Func, retain: Hash128) -> bool {
                 // the plain gets after it, as a string's length is.
                 Ins::Op(I::LocalTee(_)) if locals.len() + 1 == n => {
                     let mut aliases = Vec::new();
-                    for ins in body[..=i].iter().rev() {
-                        match ins {
+                    let mut written = Vec::new();
+                    let mut copies: Vec<(u32, u32)> = Vec::new();
+                    let mut j = i + 1;
+                    while j > 0 {
+                        j -= 1;
+                        match &body[j] {
                             Ins::Anchor(_) => {}
                             Ins::Op(I::LocalTee(l)) => aliases.push(*l),
                             Ins::Op(I::LocalGet(l)) => {
-                                aliases.push(*l);
+                                if !written.contains(l) {
+                                    aliases.push(*l);
+                                }
                                 break;
                             }
+                            // A copy of another local between the producer
+                            // and its tee, as a string's two words are
+                            // copied, leaves the stack as it was.
+                            Ins::Op(I::LocalSet(to))
+                                if j > 0
+                                    && !aliases.contains(to)
+                                    && matches!(body[j - 1], Ins::Op(I::LocalGet(from)) if from != *to) =>
+                            {
+                                if let Ins::Op(I::LocalGet(from)) = body[j - 1] {
+                                    copies.push((from, *to));
+                                }
+                                written.push(*to);
+                                j -= 1;
+                            }
                             _ => break,
+                        }
+                    }
+                    // A later argument read from a copy's target is the
+                    // copy's source too: nothing runs between them.
+                    for operand in &mut locals {
+                        for &(from, to) in &copies {
+                            if operand.contains(&to) && !operand.contains(&from) {
+                                operand.push(from);
+                            }
                         }
                     }
                     locals.push(aliases);
@@ -2934,6 +2963,63 @@ pub fn fold_constant_branches(f: &mut Func) -> bool {
         }
         changed = true;
     }
+}
+
+/// Expands each count of one string, [`Helper::Retain`] or
+/// [`Helper::Release`] of [`Walk::Str`] over its two words, into the test
+/// of the packed tag and the count of the address, so a string's count
+/// costs no call more than an address's (§23.7). It runs after the count
+/// rules, which pair and drop the helper calls. Gives whether anything
+/// changed.
+pub fn inline_string_counts(f: &mut Func, retain: Hash128) -> bool {
+    use crate::module::Val;
+    use wasm_encoder::BlockType;
+    let string = |f: &Func, ins: &Ins| -> Option<bool> {
+        let Ins::Call(id) = ins else {
+            return None;
+        };
+        match &*f.symbol(*id) {
+            Sym::Helper(Helper::Retain {
+                vals,
+                walk: Walk::Str(0, 1),
+            }) if vals.len() == 2 => Some(true),
+            Sym::Helper(Helper::Release {
+                vals,
+                walk: Walk::Str(0, 1),
+            }) if vals.len() == 2 => Some(false),
+            _ => None,
+        }
+    };
+    if !f.body.iter().any(|i| string(f, i).is_some()) {
+        return false;
+    }
+    let (at, len) = (f.local(Val::I32), f.local(Val::I32));
+    let body = std::mem::take(&mut f.body);
+    let origins = f.origins.as_mut().map(std::mem::take);
+    let outer = f.origin_at;
+    for (position, ins) in body.into_iter().enumerate() {
+        f.origin_at = origins.as_ref().and_then(|o| o[position]);
+        match string(f, &ins) {
+            Some(adds) => {
+                f.set(len);
+                f.set(at);
+                f.get(len);
+                f.i32(0);
+                f.op(I::I32GeS);
+                f.op(I::If(BlockType::Empty));
+                f.get(at);
+                if adds {
+                    f.call(Sym::Inst(retain));
+                } else {
+                    f.call(Sym::Helper(Helper::ReleaseRef));
+                }
+                f.op(I::End);
+            }
+            None => f.push(ins),
+        }
+    }
+    f.origin_at = outer;
+    true
 }
 
 /// Inlines the fast paths of the counts on known block starts
