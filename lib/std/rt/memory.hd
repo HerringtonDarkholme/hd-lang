@@ -136,7 +136,7 @@ impl[T < ?Copy] Buffer[T]:
     ## A new buffer with room for `capacity` values of `T`, whose bytes hold no value yet.
     ## See [module.rt.buffer.new](../../../spec/lang/10-modules.md#r-module.rt.buffer.new).
     pub fn new(capacity: usize) -> Buffer[T]:
-        Buffer::[T] { address: room(capacity * size_of::[T]()), capacity: capacity }
+        Buffer::[T] { address: room(capacity, size_of::[T]()), capacity: capacity }
 
     ## How many values of `T` the buffer has room for.
     pub fn capacity(&self) -> usize:
@@ -153,7 +153,7 @@ impl[T < ?Copy] Buffer[T]:
         if capacity <= self.capacity:
             return
         size := size_of::[T]()
-        next := room(capacity * size)
+        next := room(capacity, size)
         if self.capacity > 0:
             copy(next, self.address, self.capacity * size)
         free_room(self.address)
@@ -169,12 +169,17 @@ impl[T < ?Copy] Drop for Buffer[T]:
 # word of 0: no glue, and no part in cycle collection. Its values follow.
 # Only its buffer frees it.
 ROOM_COUNT := 0x40000000
+# The most bytes a room holds: its block's pages fit the 4 GiB heap.
+ROOM_MOST := u64(0xfffe0000)
 
-# A new room of `bytes` bytes, or 0 for none.
-fn room(bytes: usize) -> usize:
+# A new room for `capacity` values of `size` bytes, or 0 for none.
+fn room(capacity: usize, size: usize) -> usize:
+    bytes := u64(capacity) * u64(size)
     if bytes == 0:
         return 0
-    block := alloc(bytes + 8)
+    if bytes > ROOM_MOST:
+        panic_with("heap-exhausted", "a buffer does not fit the heap")
+    block := alloc(usize(bytes) + 8)
     store_u32(block, u32(ROOM_COUNT))
     store_u32(block + 4, 0)
     block + 8
@@ -195,4 +200,8 @@ pub fn string_bytes(text: string) -> Ptr[u8]:
 ## See [module.rt.string.new](../../../spec/lang/10-modules.md#r-module.rt.string.new).
 @intrinsic("mem_new_string")
 pub fn new_string(len: usize) -> string:
+    panic("intrinsic")
+
+@intrinsic("panic")
+fn panic_with(category: string, message: string) -> never:
     panic("intrinsic")
