@@ -605,7 +605,6 @@ pub static INTRINSICS: &[(&str, Lowering)] = &[
     ("bytes_len", Lowering::Compiler),
     ("bytes_at", Lowering::Compiler),
     ("bytes_slice", Lowering::Compiler),
-    ("bytes_concat", Lowering::Compiler),
     ("bytes_index_json", Lowering::Compiler),
     ("bytes_index", Lowering::Compiler),
     ("bytes_index_pair", Lowering::Compiler),

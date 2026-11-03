@@ -779,7 +779,7 @@ fn bytes_walks_a_non_ascii_string() {
     );
 }
 
-/// `join` concatenates a list of strings through `bytes_concat`.
+/// `join` concatenates a list of strings.
 #[test]
 fn join_list_of_strings() {
     let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-run-join");

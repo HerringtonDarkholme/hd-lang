@@ -6,6 +6,7 @@
 # The compiler supplies each body: the byte primitives come from the Wasm
 # runtime and the case mappings from the host. Where a body below is hd, it
 # defines the result, and the compiler supplies a SIMD128 one (#428).
+use std.rt.memory.{copy, new_string, string_bytes}
 
 ## The number of bytes in `text`.
 @intrinsic("bytes_len")
@@ -23,9 +24,14 @@ pub fn bytes_slice(text: string, start: usize, end: usize) -> string:
     panic("intrinsic")
 
 ## The bytes of `left`, then those of `right`, in one new string.
-@intrinsic("bytes_concat")
 pub fn bytes_concat(left: string, right: string) -> string:
-    panic("intrinsic")
+    left_size := bytes_len(left)
+    right_size := bytes_len(right)
+    result := new_string(left_size + right_size)
+    address := string_bytes(result).address
+    copy(address, string_bytes(left).address, left_size)
+    copy(address + left_size, string_bytes(right).address, right_size)
+    result
 
 ## Every part's bytes in order, copied once into one new string.
 @intrinsic("concat_all")

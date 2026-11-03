@@ -61,7 +61,7 @@ others are private to the one module that calls them.
 
 | Key | Declaration in `lib/std` | Lowering |
 | --- | --- | --- |
-| `bytes_len`, `bytes_at`, `bytes_slice`, `bytes_concat` | `rt/bytes.hd`: `(text: string) -> usize`, `(text, index: usize) -> u8`, `(text, start, end: usize) -> string`, `(left, right: string) -> string` | compiler |
+| `bytes_len`, `bytes_at`, `bytes_slice` | `rt/bytes.hd`: `(text: string) -> usize`, `(text, index: usize) -> u8`, `(text, start, end: usize) -> string` | compiler |
 | `string_from_bytes` | `(bytes: List[u8]) -> string`, in `rt/bytes.hd`; it owns its argument and takes over an unshared buffer | compiler |
 | `bytes_index_json` | `(text: string, from: usize) -> usize`, in `rt/bytes.hd`; the body there is the reference, and the linear backend links the SIMD128 helper `rt:bytes_index_json` (#428) | compiler |
 | `bytes_index` | `(text: string, from: usize, byte: u8) -> usize`, in `rt/bytes.hd`; the body there is the reference, and the linear backend links the SIMD128 helper `rt:bytes_index` (#428) | compiler |

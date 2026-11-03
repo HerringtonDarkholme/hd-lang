@@ -3023,7 +3023,6 @@ impl Em<'_, '_, '_> {
             }
             "bytes_at" => self.str_at(i, args[0], args[1]),
             "bytes_slice" => self.str_slice(i, args[0], args[1], args[2]),
-            "bytes_concat" => self.concat(i, args),
             // A SIMD128 scan in place of the hd reference body (#428).
             "bytes_index_json" => {
                 self.comp(args[0], 0)?;
