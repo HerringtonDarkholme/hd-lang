@@ -1,0 +1,7 @@
+# @dump: wat counts
+# @build: std
+
+fn left(text: string, start: usize, end: usize, needle: string) -> bool:
+    # subject
+    same := text.slice(start, end) == needle
+    same && text.len() >= end

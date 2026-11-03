@@ -159,6 +159,26 @@ impl Em<'_, '_, '_> {
                 _ => {}
             }
         }
+        // A substring compared immediately borrows its byte range. When
+        // the source read is not a move, neither that read nor the view
+        // needs a count before the equality instruction consumes it.
+        for call in 0..self.b.len() {
+            let call = u32::try_from(call).expect("insts");
+            if self.string_slice_comparison(call).is_none() {
+                continue;
+            }
+            let mut args = self.rec(self.b.data[call as usize][1]);
+            args.truncate(args.len().saturating_sub(3));
+            let Some(&text) = args.first() else {
+                continue;
+            };
+            if super::shape::read_local(self.b, text).is_some()
+                && self.b.data[text as usize][1] != hd_tir::ir::ReadMode::Move as u32
+            {
+                self.loans.insert(text);
+                self.loans.insert(call);
+            }
+        }
         self.frame_loans();
     }
 
