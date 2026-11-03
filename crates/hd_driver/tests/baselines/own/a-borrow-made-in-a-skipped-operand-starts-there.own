@@ -15,7 +15,7 @@ fn greeting(input: string) -> string:
 >   %0 = Read move [$0] : string
 >   %1 = Call std/text/impl string.split[] (%0, ",") : List[string]
 >   %2 = Store [$1] %1 : ()
->   %34 = Block %31 : string
+>   %35 = Block %32 : string
     msg := if args.len() < 2 || (name := args[1]) == "":
 >   %3 = Read borrow [$1] : List[string]
 >   %4 = Intrinsic ListLen [%3] : usize
@@ -45,11 +45,12 @@ fn greeting(input: string) -> string:
 >   %24 = Read copy [$4] : usize
 >   %25 = Store [$5] %24 : ()
 >   %26 = Read copy [$5] : usize
->   %27 = Call std/format/format_int[usize] (%26) : string
->   %28 = Break L0 %27 : never
->   %29 = Block - : string
->   %30 = Scope %29 [] : string
->   %31 = Interp [%19 " " %30] : string
->   %32 = Drop [%30] : ()
->   %33 = Drop [%19] : ()
+>   %27 = Prim Conv [%26] : u64
+>   %28 = Call std/format/format_unsigned[] (%27) : string
+>   %29 = Break L0 %28 : never
+>   %30 = Block - : string
+>   %31 = Scope %30 [] : string
+>   %32 = Interp [%19 " " %31] : string
+>   %33 = Drop [%31] : ()
+>   %34 = Drop [%19] : ()
 >   exit sub 0 drops [$0]

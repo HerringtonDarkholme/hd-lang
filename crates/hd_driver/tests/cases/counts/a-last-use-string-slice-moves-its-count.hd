@@ -1,0 +1,9 @@
+# @dump: own
+# @build: std
+# A last-use slice takes the source string's count for its view; retaining
+# the result and releasing the source would only cancel out.
+use std.rt.bytes.bytes_slice
+
+fn tail(text: string, start: usize, end: usize) -> string:
+    # subject
+    bytes_slice(text, start, end)

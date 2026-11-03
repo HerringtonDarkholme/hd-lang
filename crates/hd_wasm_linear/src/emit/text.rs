@@ -184,12 +184,16 @@ impl Em<'_, '_, '_> {
     /// `bytes_slice(text, start, end)`: `start <= end <= len`, then a view
     /// of the same bytes, or the empty value when it has none.
     pub(super) fn str_slice(&mut self, i: u32, text: u32, start: u32, end: u32) -> StageResult<()> {
+        // A final slice can take the source view's count: its result refers
+        // to the same allocation, so retaining the result and releasing the
+        // consumed source would only cancel out.
+        let moved = self.take(text);
         let (lo, hi) = (self.f.local(Val::I32), self.f.local(Val::I32));
         self.comp(start, 0)?;
         self.f.set(lo);
         self.comp(end, 0)?;
         self.f.set(hi);
-        self.str_slice_offsets(i, text, lo, hi, false, false)
+        self.str_slice_offsets(i, text, lo, hi, false, moved)
     }
 
     /// A `string.slice` whose only consumer is string equality: the public

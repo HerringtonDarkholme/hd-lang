@@ -22,8 +22,9 @@
 //!    joined by `+`, `-` or `*` are one constant, adding 0 on either side
 //!    goes, `+ a ± b` is one addition, `x == 0` is `i32.eqz`, a test of
 //!    `x != 0` is a test of `x`, a multiplication, quotient or remainder by
-//!    a power of two is a shift or a mask, and a constant added to a load's
-//!    or store's address is its offset;
+//!    a power of two is a shift or a mask, a byte mask immediately before
+//!    `store8` goes because the store truncates, and a constant added to a
+//!    load's or store's address is its offset;
 //! 8. `local.set a; R; local.set b; local.get a; local.get b`, where
 //!    those are `a`'s and `b`'s only writes and reads and `R` is a
 //!    straight-line run that pushes one value over what it found, is
@@ -1452,6 +1453,17 @@ fn fold(f: &mut Func) -> bool {
             continue;
         }
         match (at(0), at(1), at(2), at(3)) {
+            // `store8` already keeps only the low byte.
+            (
+                Some(Ins::Op(I::I32Const(255))),
+                Some(Ins::Op(I::I32And)),
+                Some(Ins::Op(store @ I::I32Store8(_))),
+                _,
+            ) => {
+                out.push(Ins::Op(*store));
+                k += 3;
+                changed = true;
+            }
             // Two constants joined by `+`, `-` or `*` are one constant
             // (`i32` wraps either way).
             (
@@ -3185,6 +3197,32 @@ mod origin_tests {
             assert!(fold(f));
         });
         assert_eq!(spans(&f), [10, 12]);
+        let store = I::I32Store8(mem(HEAP, 0, 0));
+        let f = run(
+            tracked(
+                &symbols,
+                2,
+                0,
+                vec![
+                    op(I::LocalGet(0)),
+                    op(I::LocalGet(1)),
+                    op(I::I32Const(255)),
+                    op(I::I32And),
+                    op(store),
+                ],
+            ),
+            |f| {
+                assert!(fold(f));
+            },
+        );
+        assert!(matches!(
+            f.body.as_slice(),
+            [
+                Ins::Op(I::LocalGet(0)),
+                Ins::Op(I::LocalGet(1)),
+                Ins::Op(I::I32Store8(_))
+            ]
+        ));
         let f = run(
             tracked(
                 &symbols,

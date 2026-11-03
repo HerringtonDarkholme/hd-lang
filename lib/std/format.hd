@@ -5,8 +5,9 @@
 # (Testing T48, T53, T54).
 
 use std.function.Tuple
+use std.annotation.inline
 use std.structure.{Structure, UnionType, Walker, Variant, Field}
-use std.rt.bytes.{string_from_bytes, char_scalar}
+use std.rt.bytes.{bytes_slice, string_from_bytes, char_scalar}
 use std.rt.memory.{new_string, store_u8, string_bytes}
 
 # A value's text in string interpolation
@@ -488,55 +489,120 @@ fn scalar_text(point: i32) -> string:
         encoded.push(u8(128 + point % 64))
     string_from_bytes(encoded)
 
-# An integer's decimal digits, with `-` when negative. Converting to `u64`
-# before negating keeps the minimum signed integer safe.
+# Writes exactly two decimal digits. For a value below 100, multiplying by
+# 205 and shifting 11 places is its quotient by 10.
+@inline(.Always)
+fn write_decimal_pair(at: usize, pair: u32) -> void:
+    tens := pair * 205 >> 11
+    store_u8(at, u8(tens + 48))
+    store_u8(at + 1, u8(pair - tens * 10 + 48))
+
+# The number of decimal digits in a value below 100,000.
+@inline(.Always)
+fn small_decimal_digits(value: u32) -> usize:
+    if value >= 10_000:
+        return 5
+    if value >= 1_000:
+        return 4
+    if value >= 100:
+        return 3
+    if value >= 10:
+        return 2
+    1
+
+# Writes a value below 100,000 and returns its first byte. The bounded
+# quotients use exact multiply-and-shift forms instead of division.
+@inline(.Always)
+fn write_small_decimal(end: usize, value: u32) -> usize:
+    if value >= 10_000:
+        first := u32(u64(value) * 107_375 >> 30)
+        rest := value - first * 10_000
+        high := rest * 5_243 >> 19
+        at := end - 5
+        store_u8(at, u8(first + 48))
+        write_decimal_pair(at + 1, high)
+        write_decimal_pair(at + 3, rest - high * 100)
+        return at
+    if value >= 1_000:
+        high := value * 5_243 >> 19
+        at := end - 4
+        write_decimal_pair(at, high)
+        write_decimal_pair(at + 2, value - high * 100)
+        return at
+    if value >= 100:
+        first := value * 5_243 >> 19
+        at := end - 3
+        store_u8(at, u8(first + 48))
+        write_decimal_pair(at + 1, value - first * 100)
+        return at
+    if value >= 10:
+        at := end - 2
+        write_decimal_pair(at, value)
+        return at
+    at := end - 1
+    store_u8(at, u8(value + 48))
+    at
+
+# Writes a value of at least 100,000 backward from `end` and returns its
+# first byte.
+@inline(.Never)
+fn write_large_decimal(end: usize, value: u64) -> usize:
+    let at = end
+    let rest = value
+    while rest >= 100:
+        pair := u32(rest % 100)
+        rest = rest / 100
+        at -= 2
+        write_decimal_pair(at, pair)
+    final := u32(rest)
+    if final >= 10:
+        at -= 2
+        write_decimal_pair(at, final)
+    else:
+        at -= 1
+        store_u8(at, u8(final + 48))
+    at
+
+# An integer's decimal digits, with `-` when negative. Small values get an
+# exact buffer; larger values go backward into the largest integer buffer.
+# Converting to `u64` before negating keeps the minimum signed integer safe.
 fn format_signed(value: i64) -> string:
     negative := value < 0
     let magnitude = u64(value)
     if negative:
         magnitude = u64(0).wrapping_sub(magnitude)
 
-    let count: usize = 1
-    let power: u64 = 10
-    while count < 20 && magnitude >= power:
-        count += 1
-        if count < 20:
-            power = power * 10
+    if magnitude < 100_000:
+        small := u32(magnitude)
+        len := small_decimal_digits(small) + (if negative: 1 else: 0)
+        text := new_string(len)
+        start := string_bytes(text).address
+        _ := write_small_decimal(start + len, small)
+        if negative:
+            store_u8(start, 45)
+        return text
 
-    len := count + (if negative: 1 else: 0)
-    text := new_string(len)
+    text := new_string(20)
     start := string_bytes(text).address
-    let at = start + len
-    let rest = magnitude
-    while true:
-        at -= 1
-        store_u8(at, u8(rest % 10 + 48))
-        rest = rest / 10
-        if rest == 0:
-            break
+    let at = write_large_decimal(start + 20, magnitude)
     if negative:
-        store_u8(start, 45)
-    text
+        at -= 1
+        store_u8(at, 45)
+    bytes_slice(text, at - start, 20)
 
 fn format_unsigned(magnitude: u64) -> string:
-    let count: usize = 1
-    let power: u64 = 10
-    while count < 20 && magnitude >= power:
-        count += 1
-        if count < 20:
-            power = power * 10
+    if magnitude < 100_000:
+        small := u32(magnitude)
+        len := small_decimal_digits(small)
+        text := new_string(len)
+        start := string_bytes(text).address
+        _ := write_small_decimal(start + len, small)
+        return text
 
-    text := new_string(count)
+    text := new_string(20)
     start := string_bytes(text).address
-    let at = start + count
-    let rest = magnitude
-    while true:
-        at -= 1
-        store_u8(at, u8(rest % 10 + 48))
-        rest = rest / 10
-        if rest == 0:
-            break
-    text
+    at := write_large_decimal(start + 20, magnitude)
+    bytes_slice(text, at - start, 20)
 
 # Primitives (spec/std/README.md#standard-library-primitives): the host
 # writes a float's text. `@intrinsic` is prototype-internal and accepted
