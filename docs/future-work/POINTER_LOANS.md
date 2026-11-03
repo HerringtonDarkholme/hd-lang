@@ -1,7 +1,9 @@
 # Pointer Loans: `*T` As `Rc<RefCell<T>>`
 
-Proposal, 2026-11-03; domain: references, ownership passes, runtime;
-not accepted. Issue #1323, part of #1205, after #1320.
+Accepted 2026-11-03 (model A); domain: references, ownership passes, runtime.
+Being built under #1336, part of #1205. The owner chose A: a garbage-collected
+language iterates `for a in arr`, a copy, never `for a in &arr`, so the friction
+cases are written as value loops over copy-on-write lists and take no loan.
 
 ## The Proposal
 
