@@ -1,0 +1,26 @@
+# test: an erased thunk releases a view lent from a mutable open argument to a shared receiver
+# Spec 13 Reference Types: ref.type.kind-runtime; Generic Calls: ref.generic.local.
+
+trait Sink:
+    fn put[T](&self, into: &mut Bag[T], x: T) -> usize
+
+struct Bag[T]:
+    a: T
+    b: T
+
+impl[T] Bag[T]:
+    fn count(&self) -> usize: 2
+
+struct Bin:
+    n: usize
+
+impl Sink for Bin:
+    fn put[T](&self, into: &mut Bag[T], x: T) -> usize:
+        into.count()
+
+tests:
+    it("releases the erased view after the shared receiver call"):
+        b := Bin { n: 7 }
+        let sink: &dyn Sink = &b
+        let mut bag = Bag { a: +1, b: +2 }
+        assert_equal(sink.put(&mut bag, +3), 2, reason="the thunk reads the open argument")

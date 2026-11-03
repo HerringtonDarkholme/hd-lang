@@ -79,7 +79,7 @@ enum Cross {
     RefBox { target: Ty },
 }
 
-/// A caller-owned argument view released when a synchronous call returns.
+/// An argument view released by its caller when a synchronous call returns.
 pub(super) struct Back {
     held: u32,
     ty: Ty,
@@ -220,7 +220,8 @@ pub(super) fn thunk(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResul
         let ct = em.ty_of(r);
         let ls = if is_open(pool, et) {
             let o = u32::try_from(p).expect("params");
-            em.unerase_arg(o, et, ct, returns.then_some(&mut backs))?
+            let borrowed = returns && b.is_borrowed_coercion(r);
+            em.unerase_arg(o, et, ct, borrowed.then_some(&mut backs))?
         } else {
             range(p, n)
         };
@@ -591,15 +592,25 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    /// A thunk takes an owned view; it remains live if the call keeps it.
+    /// A thunk takes an owned view. A borrowed coercion has no ordinary
+    /// `Drop`, so a synchronous call records its view for release on return;
+    /// a cold call keeps the view through ordinary argument ownership.
     fn unerase_arg(
         &mut self,
         o: u32,
         et: Ty,
         ct: Ty,
-        _backs: Option<&mut Vec<Back>>,
+        backs: Option<&mut Vec<Back>>,
     ) -> StageResult<Vec<u32>> {
-        self.unerase(o, et, ct, true)
+        let view = matches!(self.crossing(et, ct)?, Cross::RefBox { .. });
+        let locals = self.unerase(o, et, ct, true)?;
+        if view && let Some(backs) = backs {
+            let Some(&held) = locals.first() else {
+                return unsupported("a reference view without its address");
+            };
+            backs.push(Back { held, ty: ct });
+        }
+        Ok(locals)
     }
 
     /// Turns the erased frame on the stack, a dynamic call's suspension
