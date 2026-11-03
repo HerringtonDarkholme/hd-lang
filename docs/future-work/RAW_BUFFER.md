@@ -1,24 +1,35 @@
 # Raw Buffers: Lists Own Their Elements
 
-Proposal, 2026-11-03; domain: runtime, ownership pass, `std.rt`,
-`std.collections`; not accepted.
+Accepted 2026-11-03; domain: runtime, ownership pass, `std.rt`,
+`std.collections`; being built under #1205.
 
 ## The Proposal
 
-`std.rt.memory.Buffer[T]` becomes raw memory: an address and a
-capacity, with no count, no length and no glue. Dropping it does
-nothing; `free` returns its memory. `UniqList` (and later `List` and
-`UniqMap`) keeps the length and drops its own elements, through a
-`Drop` trait that only std may implement. Under it, one invariant holds
-in every build: **no value of a non-copyable type is ever copied**. A
-verifier checks it after the ownership pass, and the ownership pass
-never chooses a copy for such a value.
+The two collection families stay as decided: `List[T]` and `Map` are
+`Copy` with copy-on-write and are counted; `UniqList[T]` and `UniqMap`
+are `!Copy`, have one owner, and take no count and no copy-on-write
+check. What changes is the storage under them:
+
+- `std.rt.memory.Buffer[T]` is raw memory: an address and a capacity.
+  It is `!Copy`, has one owner, and dropping it frees the memory and
+  nothing else. It knows nothing about elements: no length, no element
+  references, no element drops.
+- `UniqList[T]` is a buffer plus a length. It moves elements in and out
+  through `at(i)`, gives element references, and drops its first `len`
+  elements before its buffer frees the memory. `UniqMap` is the same over
+  a buffer of slots. `List[T]` is the counted copy-on-write layer over
+  the same storage (#1219).
+- One invariant holds in every build: **no value of a non-copyable type
+  is ever copied**. The ownership pass never chooses a copy for one, and
+  a verifier checks it after the pass.
 
 ```text
 # hypothetical syntax; std.rt.memory
-pub struct Buffer[T < ?Copy]:           # copyable: an address, like Ptr[T]
+pub struct Buffer[T < ?Copy]:           # raw memory; dropping it frees the room, never an element
     address: usize
     capacity: usize
+
+impl[T < ?Copy] !Copy for Buffer[T]
 
 # std.collections
 pub struct UniqList[T < ?Copy]:
@@ -27,26 +38,22 @@ pub struct UniqList[T < ?Copy]:
 
 impl[T < ?Copy] !Copy for UniqList[T]
 
-impl[T < ?Copy] Drop for UniqList[T]:   # std.rt.Drop: std only
+impl[T < ?Copy] Drop for UniqList[T]:   # std.rt.Drop: only std implements it
     fn drop(&mut self) -> void:
         let index: usize = 0
         while index < self.len:
-            _ := self.buffer.at(index).read()   # moves the value out; its glue runs
+            _ := self.buffer.at(index).read()   # moves the element out; its glue runs
             index += 1
-        self.buffer.free()
+        # then the buffer field's own drop frees the room
 ```
 
-## Open Questions
+## Decisions
 
-1. Is `Buffer` copyable (an address, as `Ptr[T]`) rather than `!Copy`?
-   Recommended: yes; the owner is the list, and a copy of an address
-   frees nothing.
-2. How does a list drop its elements: a `Drop` trait in `std.rt`, which
-   only std may implement ([`module.rt.std-only`](../../spec/lang/10-modules.md#r-module.rt.std-only)),
-   or compiler glue that calls a std function by name? Recommended: the
-   trait; it is a declaration, not a name the compiler knows.
-3. Does the verifier run in every build, or only in checked builds?
-   Recommended: every build; it is one pass over each body's reads.
+1. `Buffer` is `!Copy`, owns its memory, and frees it when dropped, as
+   Rust's `RawVec`. It has no length and no element operations.
+2. A list drops its elements through `std.rt.Drop`, a trait only std may
+   implement ([`module.rt.std-only`](../../spec/lang/10-modules.md#r-module.rt.std-only)).
+3. The verifier runs in every build.
 
 ## Problems It Solves
 
@@ -60,10 +67,13 @@ still in use (#1283 again). Under
 the proposal a copy of a `!Copy` value is a verifier error at compile
 time, so one run over the conformance suite and std lists every site.
 
-**2. Element references are counted.** `buffer.item_ref(i)` outside a
-short loan takes a count on the buffer through the page table (#1280).
-A raw buffer has no count, so an element reference is an address, as in
-Rust.
+**2. `UniqList` pays for counting it was defined without.** Today's
+`Buffer` is a counted heap object with a length that drops its own
+elements: `List`'s storage under another name. So every by-value use of
+a `UniqList` is a count operation, and `item_ref(i)` outside a short
+loan counts the buffer through the page table (#1280). With a raw buffer
+there is nothing to count, and an element reference is an address, as
+in Rust.
 
 **3. The collector special-cases buffers.** #1255 marks a buffer's
 header with both color bits (`OWNED`) so a trace enters it as part of
@@ -71,16 +81,16 @@ its holder. With no buffer header, the holder's release glue is the
 list's `drop`, which releases each element, so the collector traces the
 elements through the same glue it already runs for every object.
 
-**4. `UniqList` pays for a header it does not need.** Each buffer has a
-16-byte header (capacity, length, owner, padding) and a count operation
-per by-value use. The proposal keeps capacity and length in the list
-value itself, as Rust's `Vec`.
+**4. A header per list.** Each buffer has a 16-byte header (capacity,
+length, owner, padding). The proposal keeps capacity and length in the
+list value itself, as Rust's `Vec`.
 
 ## How It Works
 
 - **Buffer.** `Buffer::new(capacity)` allocates room for `capacity`
-  values; `at(i)` is a `Ptr[T]`; `free()` frees the room and drops
-  nothing. `Buffer` has no glue, so the compiler never counts it.
+  values, `at(i)` is a `Ptr[T]`, and `grow(capacity)` moves the bytes to
+  a larger room. Its glue frees the room and drops nothing; it is never
+  counted.
 - **Drop.** `std.rt.Drop` has one method, `fn drop(&mut self)`. A type
   that implements it gets glue that calls `drop`, then releases its
   fields. Only std may implement it; user code keeps `Disposable` and
@@ -108,7 +118,7 @@ value itself, as Rust's `Vec`.
 | Component | Change |
 | --- | --- |
 | Removed | `BufferBuf`/`BufferDrop` glue, the `OWNED` mark, the 16-byte buffer header, page-table counts of item references, #1280, #1290 |
-| Added | `std.rt.Drop` and its glue call; the verifier (one pass over reads); `Buffer.free`; the test matrix |
+| Added | `std.rt.Drop` and its glue call; the verifier (one pass over reads); `UniqList`'s length field; the test matrix |
 | Compile time | one linear pass per body |
 | Runtime | no buffer count operations; one fewer allocation header per list |
 | Wasm size | smaller: no buffer glue |
@@ -128,7 +138,7 @@ value itself, as Rust's `Vec`.
 | `UniqListIntoIter` dropped half consumed | it implements `Drop` too: it drops the values from its cursor to the length |
 | a panic inside an element's glue during `drop` | as today: a panic ends the program, so no partial state is observed |
 | `UniqMap` over a buffer of slots | the same `Drop`: it drops the occupied slots, then frees the room |
-| copying `Buffer` inside `UniqList`'s own methods | allowed: a copy of an address; only `drop` frees |
+| `UniqList.push` grows the buffer | `grow` moves the bytes, and the old room is freed once; the buffer is moved or borrowed, never copied |
 | user code implements `std.rt.Drop` | `std-only-use`: a runtime module |
 
 ## Appendix B. Prior Art
@@ -145,8 +155,7 @@ impl<T> Drop for Vec<T> {
 }
 ```
 
-hd takes the split; its raw buffer frees only when told, so it can be
-copyable. Source: <https://doc.rust-lang.org/src/alloc/vec/mod.rs.html>.
+hd takes the split as it is. Source: <https://doc.rust-lang.org/src/alloc/vec/mod.rs.html>.
 
 **Swift, `ManagedBuffer`.** A counted heap object with a header and
 elements; the subclass's `deinit` destroys the elements.
@@ -170,7 +179,8 @@ collector for acyclic data, so the list must drop them.
 | Alternative | Why not |
 | --- | --- |
 | keep a counted `Buffer` and fix copies as lanes find them | the count hides each copy; the lanes since #1252 show it never ends |
-| `Buffer` frees on drop, as `RawVec` | needs `Buffer` to be `!Copy` and its own glue; the list frees it once anyway |
+| today's `Buffer`, counted, with a length and element drops | it is `List`'s storage under another name, and its count is what `UniqList` exists to avoid |
+| a copyable `Buffer` freed by an explicit `free` | an owner of memory that copies invites a double free; the verifier could not tell which copy frees |
 | a `Drop` trait for user code | resources already have `Disposable` and `using`; automatic user drops are a language feature this does not need |
 | a checked-build runtime trap only (#1252) | it fires only on paths a test reaches; the verifier covers every body |
 
@@ -192,8 +202,8 @@ collector for acyclic data, so the list must drop them.
 ## Appendix E. Details
 
 - **Spec.** `module.rt.buffer.type`, `.not-copyable` and `.drop` are
-  replaced: raw, copyable, freed by `free`. New: `std.rt.Drop`, std
-  only. `ref.move.sites` unchanged.
+  replaced: raw memory with one owner, freed when dropped, no length.
+  New: `std.rt.Drop`, std only. `ref.move.sites` unchanged.
 - **Soundness.** Only std reaches `Buffer` and `Drop`. A list's methods
   keep `len` honest, as `set_len` callers do today.
 - **Phases**, each about an hour, each with its test:

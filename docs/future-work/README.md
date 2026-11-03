@@ -27,7 +27,7 @@ stays open (#18, #163, #166, #181, #182, #646, #807).
 
 ### Language and library
 
-- [Raw Buffers](RAW_BUFFER.md): proposal, 2026-11-03: `Buffer` as raw memory, lists drop their own elements through a std-only `Drop`, and a verifier that no non-copyable value is ever copied (#1205).
+- [Raw Buffers](RAW_BUFFER.md): accepted 2026-11-03, being built: `Buffer` as raw memory with one owner, lists own their elements through a std-only `Drop`, and a verifier that no non-copyable value is ever copied (#1205).
 - [Compile-Time Values](CONST_VALUES.md): typed const parameters and explicit `const fn`, staged; direction accepted 2026-10-28, not scheduled (#875).
 - [Positional Union Types](UNION_TYPES.md): fully built with conformance, both-engine parity, and size measurements (#1120-#1125).
 - [Decimal](DECIMAL.md): fixed 128-bit exact decimal with explicit rounding and exact string serde; design accepted 2026-10-28 as a future package, not in std and not scheduled (#840).
