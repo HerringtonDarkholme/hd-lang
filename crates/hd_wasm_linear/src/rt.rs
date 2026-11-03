@@ -1111,7 +1111,7 @@ fn teardown(m: &Module) -> Func {
         }
         if let Some(k) = s.walk.single() {
             f.get(ls[k as usize]);
-            release_call(&mut f, matches!(s.walk, Walk::Known(_)));
+            release_call(&mut f, s.walk.known());
         } else {
             for l in &ls {
                 f.get(*l);
@@ -1764,6 +1764,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::Retain { vals, walk } => {
             let mut f = m.func("rt:retain", vals.clone(), vec![]);
+            trap_buffer_retain(&mut f, walk);
             let on = retain_call(m);
             walk_code(&mut f, walk, &|f, k| f.get(k), &on);
             f
@@ -2286,6 +2287,17 @@ pub(crate) fn own_arg(f: &mut Func, vals: &[Val], walk: Option<&Walk>, get: &dyn
 /// What retains the address on the stack, given whether it is a known
 /// payload start: std's `retain`, `retain_known` for a known start, or
 /// nothing when the program counts nothing.
+/// In a checked build, whose walks mark buffers ([`crate::layout::mark_buffers`]),
+/// a panic where `walk` is retained and holds a `Buffer`: a buffer is not
+/// copyable, so the retain counts a copy the backend should have moved or
+/// lent (§23.24).
+pub(crate) fn trap_buffer_retain(f: &mut Func, walk: &Walk) {
+    if walk.holds_buffer() {
+        let msg = format!("count-audit: {} retains a copy of a buffer", f.name);
+        f.helper(Helper::Panic(msg));
+    }
+}
+
 pub(crate) fn retain_call(m: &Module) -> impl Fn(&mut Func, bool) {
     let retain = m.runtime.map(|r| r.retain);
     move |f: &mut Func, known: bool| match retain {
@@ -2319,7 +2331,7 @@ pub(crate) fn walk_code(
             get(f, *k);
             on(f, false);
         }
-        Walk::Known(k) => {
+        Walk::Known(k) | Walk::Buffer(k) => {
             get(f, *k);
             on(f, true);
         }
@@ -2362,6 +2374,9 @@ fn fields_glue(
     on: &dyn Fn(&mut Func, bool),
 ) -> Func {
     let mut f = m.func(name, vec![Val::I32], vec![]);
+    if name == "rt:retain_fields" {
+        trap_buffer_retain(&mut f, walk);
+    }
     let ls: Vec<u32> = leaves.iter().map(|l| f.local(l.val)).collect();
     for (l, at) in leaves.iter().zip(&ls) {
         f.get(0);
@@ -3439,6 +3454,7 @@ fn copy_elems(elem: &Elem, m: &Module) -> Func {
     each_elem(&mut f, 0, 1, elem.size, &|f| {
         fill_elem(f, 0, &elem.leaves, &ls);
         if let Some(w) = &walk {
+            trap_buffer_retain(f, w);
             walk_code(f, w, &|f, k| f.get(ls[k as usize]), &retain);
         }
         for c in &elem.colls {
@@ -3980,8 +3996,16 @@ fn ref_vals(value: &RefLayout) -> Vec<Val> {
 }
 
 fn ref_count(f: &mut Func, ls: &[u32], value: &RefLayout, retain: bool) {
-    if let Some(Walk::Known(k)) = &value.walk {
-        f.get(ls[*k as usize]);
+    if retain && let Some(w) = &value.walk {
+        trap_buffer_retain(f, w);
+    }
+    if let Some(k) = value
+        .walk
+        .as_ref()
+        .filter(|w| w.known())
+        .and_then(Walk::single)
+    {
+        f.get(ls[k as usize]);
         f.helper(if retain {
             Helper::RetainKnown
         } else {

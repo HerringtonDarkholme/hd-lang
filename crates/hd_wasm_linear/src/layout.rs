@@ -409,6 +409,20 @@ type Memo<T> = std::cell::RefCell<Option<hd_base::HashMap<Ty, T>>>;
 thread_local! {
     static MEMS: Memo<StageResult<Mem>> = const { std::cell::RefCell::new(None) };
     static WALKS: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
+    static MARK_BUFFERS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Runs `link` with buffer leaves marked [`Walk::Buffer`] when `on`, as a
+/// checked build's link does; other builds' walks are unchanged.
+pub fn mark_buffers<R>(on: bool, link: impl FnOnce() -> R) -> R {
+    struct Reset(bool);
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            MARK_BUFFERS.set(self.0);
+        }
+    }
+    let _reset = Reset(MARK_BUFFERS.replace(on));
+    link()
 }
 
 /// Runs `link` with the layout cache in place: within it, [`mem`] and
@@ -547,6 +561,11 @@ pub enum Walk {
     /// thin counted reference ([`block_start`]); counting
     /// reads the header at `k - 8` (§23.30).
     Known(u32),
+    /// Value `k` is a `std.rt.memory.Buffer`, counted as [`Walk::Known`].
+    /// Only a checked build's walks mark it ([`mark_buffers`]), so that
+    /// every retain of a walk holding one traps (§23.24): a buffer is not
+    /// copyable, so no code should count a copy of it.
+    Buffer(u32),
     /// Each part in turn.
     Seq(Vec<Walk>),
     /// Value `k` is an enum's tag; arm `v`, when there is one, walks
@@ -564,6 +583,7 @@ impl Walk {
         match self {
             Walk::Ref(k) => Walk::Ref(to(*k)),
             Walk::Known(k) => Walk::Known(to(*k)),
+            Walk::Buffer(k) => Walk::Buffer(to(*k)),
             Walk::Seq(ws) => Walk::Seq(ws.iter().map(|w| w.remap(to)).collect()),
             Walk::Switch(k, arms) => Walk::Switch(
                 to(*k),
@@ -582,6 +602,7 @@ impl Walk {
         match self {
             Walk::Ref(k) => (!skip.contains(k)).then_some(Walk::Ref(*k)),
             Walk::Known(k) => (!skip.contains(k)).then_some(Walk::Known(*k)),
+            Walk::Buffer(k) => (!skip.contains(k)).then_some(Walk::Buffer(*k)),
             Walk::Seq(ws) => Walk::seq(ws.iter().filter_map(|w| w.without(skip)).collect()),
             Walk::Switch(k, arms) => Some(Walk::Switch(
                 *k,
@@ -598,8 +619,28 @@ impl Walk {
     #[must_use]
     pub fn single(&self) -> Option<u32> {
         match self {
-            Walk::Ref(k) | Walk::Known(k) => Some(*k),
+            Walk::Ref(k) | Walk::Known(k) | Walk::Buffer(k) => Some(*k),
             Walk::Seq(_) | Walk::Switch(..) | Walk::Nullable(_) => None,
+        }
+    }
+
+    /// Whether the walk is a known payload start: [`Walk::Known`] or a
+    /// marked [`Walk::Buffer`].
+    #[must_use]
+    pub fn known(&self) -> bool {
+        matches!(self, Walk::Known(_) | Walk::Buffer(_))
+    }
+
+    /// Whether the walk holds a marked [`Walk::Buffer`]: only in a checked
+    /// build, where a retain of it is a backend bug.
+    #[must_use]
+    pub fn holds_buffer(&self) -> bool {
+        match self {
+            Walk::Buffer(_) => true,
+            Walk::Ref(_) | Walk::Known(_) => false,
+            Walk::Seq(ws) => ws.iter().any(Walk::holds_buffer),
+            Walk::Switch(_, arms) => arms.iter().flatten().any(Walk::holds_buffer),
+            Walk::Nullable(w) => w.holds_buffer(),
         }
     }
 
@@ -638,6 +679,9 @@ fn walk_one(
         TyData::TraitValue { .. } => Some(Walk::Ref(0)),
         TyData::Context(_) => Some(Walk::Known(0)),
         TyData::Tuple { .. } => fields_walk_by(pool, env, &tuple_members(pool, t), part),
+        TyData::Adt { def, .. } if env.std_kind(def) == StdKind::Buffer && MARK_BUFFERS.get() => {
+            Some(Walk::Buffer(0))
+        }
         TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => Some(Walk::Known(0)),
         TyData::Option(inner) => switch_walk_by(pool, env, &[vec![], vec![inner]], part),
         TyData::Union(members) => switch_walk_by(pool, env, &union_variants(pool, members), part),
