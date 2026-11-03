@@ -3,26 +3,43 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:new" (func $rt:new (param i32 i32) (result i32)))
   (import "fixture" "rt:take_box" (func $rt:take_box (param i32) (result i32)))
-  (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
-  (import "fixture" "rt:release_buffer" (func $rt:release_buffer (param i32)))
+  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32 i32)))
+  (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (import "fixture" "impl [ T < ? Copy ] UniqList [ T ].len[string]" (func $"impl [ T < ? Copy ] UniqList [ T ].len[string]" (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $drop_into (param $s.0 i32) (param $s.1 i32) (param $list i32) (result i32) (local $t0 i32)
+  (func $drop_into (param $s.0 i32) (param $s.1 i32) (param $list.buffer.address i32) (param $list.buffer.capacity i32) (param $list.len i32) (result i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t3 i32)
     block
     ;; 26 |     s.take(list)
       local.get $s.0
       call $retain
+      local.get $list.buffer.address
+      local.get $list.buffer.capacity
+      local.get $list.len
+      local.set $t0
+      local.set $t1
+      local.set $t2
+      i32.const 0
+      local.set $list.buffer.address
+      i32.const 0
+      local.set $list.buffer.capacity
+      i32.const 0
+      local.set $list.len
       local.get $s.0
-      i32.const 4
+      i32.const 12
       i32.const 1
       call $rt:new
-      local.tee $t0
-      local.get $list
+      local.tee $t3
+      local.get $t2
       i32.store $heap
+      local.get $t3
+      local.get $t1
+      i32.store $heap offset=4
+      local.get $t3
       local.get $t0
-      i32.const 740 ;; &vtable[]
+      i32.store $heap offset=8
+      local.get $t3
+      i32.const 532 ;; &vtable[]
       local.get $s.1
       i32.load $heap
       call_indirect $table0 (param i32 i32 i32) (result i32)
@@ -30,52 +47,105 @@
     end
     ;; ...
   )
-  (func $round_trip (param $s.0 i32) (param $s.1 i32) (param $list i32) (result i32) (local $t0 i32) (local $back i32) (local $t1 i32)
+  (func $round_trip (param $s.0 i32) (param $s.1 i32) (param $list.buffer.address i32) (param $list.buffer.capacity i32) (param $list.len i32) (result i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $back i32) (local $t4 i32)
     ;; ...
     block
     ;; 29 |     back := s.relay(list)
       local.get $s.0
       call $retain
+      local.get $list.buffer.address
+      local.get $list.buffer.capacity
+      local.get $list.len
+      local.set $t0
+      local.set $t1
+      local.set $t2
+      i32.const 0
+      local.set $list.buffer.address
+      i32.const 0
+      local.set $list.buffer.capacity
+      i32.const 0
+      local.set $list.len
       local.get $s.0
-      i32.const 4
+      i32.const 12
       i32.const 1
       call $rt:new
-      local.tee $t0
-      local.get $list
+      local.tee $t3
+      local.get $t2
       i32.store $heap
+      local.get $t3
+      local.get $t1
+      i32.store $heap offset=4
+      local.get $t3
       local.get $t0
-      i32.const 740 ;; &vtable[]
+      i32.store $heap offset=8
+      local.get $t3
+      i32.const 532 ;; &vtable[]
       local.get $s.1
       i32.load $heap offset=4
       call_indirect $table0 (param i32 i32 i32) (result i32)
       local.tee $s.1
       i32.load $heap
-      local.set $list
+      local.set $t2
+      local.get $s.1
+      i32.load $heap offset=4
+      local.set $t1
+      local.get $s.1
+      i32.load $heap offset=8
+      local.set $t0
       local.get $s.1
       call $rt:take_box
       i32.eqz
       if
-        call $rt:panic
-        unreachable
-        local.get $list
-        call $rt:retain_known
+        local.get $t2
+        local.get $t1
+        local.get $t0
+        call $rt:retain
       end
       ;; ...
       local.get $back
       if
         local.get $back
         i32.load $heap
-        call $rt:release_buffer
+        local.set $s.0
+        local.get $back
+        i32.load $heap offset=4
+        local.set $s.1
+        local.get $back
+        i32.load $heap offset=8
+        local.set $t3
+        i32.const 12
+        i32.const 0
+        call $rt:new
+        local.tee $back
+        local.get $s.0
+        i32.store $heap
+        local.get $back
+        local.get $s.1
+        i32.store $heap offset=4
+        local.get $back
+        local.get $t3
+        i32.store $heap offset=8
+        local.get $back
+        call $rt:drop
+        local.get $back
+        call $rt:take_box
+        drop
       end
-      local.get $t1
+      local.get $t4
       i32.const 0
       i32.store $heap
-      local.get $t1
+      local.get $t4
       i32.const 8
       i32.add
       local.tee $back
-      local.get $list
+      local.get $t2
       i32.store $heap
+      local.get $back
+      local.get $t1
+      i32.store $heap offset=4
+      local.get $back
+      local.get $t0
+      i32.store $heap offset=8
       local.get $back
     ;; 30 |     back.len()
       call $"impl [ T < ? Copy ] UniqList [ T ].len[string]"

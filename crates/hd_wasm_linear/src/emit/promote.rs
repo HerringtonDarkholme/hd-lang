@@ -44,6 +44,7 @@ pub fn lent_referent(
     if crate::layout::ref_mutable(pool, env, t)
         || hd_mono::is_open(pool, target)
         || !matches!(kind(pool, env, target), Kind::Value)
+        || crate::layout::holds_drop(pool, env, target)
     {
         return None;
     }

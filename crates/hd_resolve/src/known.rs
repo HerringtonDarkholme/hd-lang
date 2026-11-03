@@ -143,7 +143,8 @@ pub struct KnownItems {
     pub copy: DefId,
     // std.task
     pub suspend: DefId,
-    /// `std.rt.memory.Buffer`, a counted buffer object (`module.rt.buffer.type`).
+    /// `std.rt.memory.Buffer`, raw memory whose room holds values of its
+    /// type argument (`module.rt.buffer.type`).
     pub buffer: DefId,
     /// `std.rt.Drop`, whose implementation a value's release glue calls
     /// before releasing its fields (`module.rt.drop.glue`).

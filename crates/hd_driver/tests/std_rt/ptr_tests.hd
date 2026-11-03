@@ -170,29 +170,41 @@ tests:
         _ := p.read()
         _ := q.read()
 
-    it("a buffer holds values at its places, moves as one handle, and drops them with its count"):
+    it("a buffer holds values at its places and moves as one handle"):
         let mut b: Buffer[string] = Buffer::new(3)
-        assert(b.capacity() == 3 && b.len() == 0, "room for three, holding none")
+        assert(b.capacity() == 3, "room for three")
         b.at(0).write(label(+1))
         b.at(1).write(label(+2))
-        b.set_len(2)
         let mut moved = b
-        assert(moved.len() == 2, "a move keeps the buffer")
+        assert(moved.capacity() == 3, "a move keeps the buffer")
         assert(peek(moved.at(1)) == "n2", "the second value")
         last := moved.at(1).read()
-        moved.set_len(1)
-        assert(last == "n2" && moved.len() == 1, "a value moved out")
+        first := moved.at(0).read()
+        assert(last == "n2" && first == "n1", "the values moved out")
 
-    it("a buffer lends a non-copyable item for reading and changing"):
+    it("a buffer grows by moving its bytes to a larger room"):
+        let mut b: Buffer[string] = Buffer::new(1)
+        b.at(0).write(label(+1))
+        b.grow(4)
+        assert(b.capacity() == 4, "room for four")
+        b.at(3).write(label(+4))
+        assert(b.at(0).read() == "n1" && b.at(3).read() == "n4", "the moved and the new value")
+
+    it("a pointer lends a non-copyable value for reading and changing"):
         let mut b: Buffer[Ticket] = Buffer::new(1)
         b.at(0).write(Ticket { qty: +3 })
-        b.set_len(1)
-        assert(b.item_ref(0).qty == +3, "item_ref reads the item in place")
-        b.item_mut(0).qty = +7
-        assert(b.item_ref(0).qty == +7, "item_mut changes the item in place")
+        assert(b.at(0).as_ref().qty == +3, "as_ref reads the value in place")
+        b.at(0).as_mut().qty = +7
+        assert(b.at(0).as_ref().qty == +7, "as_mut changes the value in place")
         ticket := b.at(0).read()
-        b.set_len(0)
-        assert(ticket.qty == +7, "the changed item moves out whole")
+        assert(ticket.qty == +7, "the changed value moves out whole")
+
+    it("a buffer drops none of its values"):
+        let mut b: Buffer[Ticket] = Buffer::new(1)
+        b.at(0).write(Ticket { qty: +3 })
+        b.grow(2)
+        ticket := b.at(0).read()
+        assert(ticket.qty == +3, "the value outlives its first room")
 
     it("buffers run in bounded memory"):
         _ := Buffer::[List[i32]].new(1)
@@ -201,9 +213,7 @@ tests:
         while n < 100000:
             let mut b: Buffer[List[i32]] = Buffer::new(2)
             b.at(0).write([n, n])
-            b.set_len(1)
             assert(b.at(0).read().len() == 2, "the value reads back")
-            b.set_len(0)
             n = n + 1
         if released() == 0:
             assert(pages() <= start + 1, "each buffer is freed")

@@ -262,7 +262,7 @@ impl Env<'_> {
             return CallMemory::None;
         };
         match self.intrinsic(*def).as_deref() {
-            Some("mem_buffer" | "mem_new_string") => CallMemory::Allocate,
+            Some("mem_new_string") => CallMemory::Allocate,
             Some("mem_string_bytes" | "ptr_offset") => CallMemory::Derive(0),
             Some(
                 "mem_store_u8" | "mem_store_u16" | "mem_store_u32" | "mem_store_u64" | "mem_copy"
