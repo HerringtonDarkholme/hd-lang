@@ -1837,7 +1837,9 @@ is worth deciding only if they are hot.
      header) keeps that value. Each read in the chain also refuses what
      the verifier's overlap counts against its own place.
    - **Rule 3.** A chain ending at an unshared local whose references
-     each die with the one call that takes them is
+     each die with the one call that takes them, or with the last use of
+     that call's result when the body only reads and writes through it
+     (the span then lies outside that window), is
      changed only by the body, calls included; so is its list's buffer
      when every value stored into the local is fresh (a call's result, a
      copy or snapshot, a literal), which shares its header with no other
