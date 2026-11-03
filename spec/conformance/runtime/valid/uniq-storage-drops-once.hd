@@ -1,6 +1,6 @@
 # test: unique collections drop their storage once on every ownership path
 # expect: test
-# Spec 10-modules: module.rt.buffer.not-copyable, module.rt.buffer.drop.
+# Spec std/collections UniqList and UniqMap: std-collections.uniq-list.into-iter, std-collections.uniq-map.insert, std-collections.uniq-map.clear.
 use std.collections.{UniqList, UniqMap}
 use std.iter.Iterable
 
