@@ -12,8 +12,8 @@ use wasm_encoder::BlockType;
 use crate::layout::{Leaf, Walk};
 use crate::map::{self, KeyOps};
 use crate::module::{
-    BUF, CYCLIC, DescriptorKey, EMPTY, Func, GLUE, Global, HEADER, HEAP, Import, Ins, Module, Sym,
-    Val, WEAK, WEAK_GLUE, mem,
+    BUF, CYCLIC, DescriptorKey, EMPTY, Func, GLUE, Global, HEADER, HEAP, Import, Ins, Module,
+    OWNED, Sym, Val, WEAK, WEAK_GLUE, mem,
 };
 use crate::{Entry, Input, unsupported};
 
@@ -315,6 +315,12 @@ pub enum Helper {
     /// `(capacity) -> buffer`: a new, empty list buffer with room for
     /// `capacity` elements laid out as `elem`.
     ListBuf {
+        elem: Elem,
+    },
+    /// `(capacity) -> buffer`: a new, empty `std.rt.memory.Buffer`, laid
+    /// out as a list buffer, whose descriptor has the [`OWNED`] color: the
+    /// collector traces it with the object that holds it (§23.28).
+    OwnedBuf {
         elem: Elem,
     },
     /// `(payload)`: the release glue of a list buffer: one count less on
@@ -1804,7 +1810,8 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::LoanCheck => loan_check(m),
         Helper::ListPinned => list_pinned(m),
         Helper::ListClone { elem } => list_clone(m, elem),
-        Helper::ListBuf { elem } => list_buf(m, elem),
+        Helper::ListBuf { elem } => list_buf(m, elem, false),
+        Helper::OwnedBuf { elem } => list_buf(m, elem, true),
         Helper::DropElems { elem } => drop_elems(m, elem),
         Helper::CollCopy => coll_copy(m),
         Helper::CtxFind => ctx_find(m),
@@ -1932,7 +1939,9 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
     };
     #[cfg(feature = "checked-report")]
     match h {
-        Helper::ListBuf { .. } | Helper::MapTable { .. } => checked_kind(&mut f, m, 5),
+        Helper::ListBuf { .. } | Helper::OwnedBuf { .. } | Helper::MapTable { .. } => {
+            checked_kind(&mut f, m, 5);
+        }
         _ => {}
     }
     f
@@ -3217,8 +3226,12 @@ fn list_clone(m: &Module, elem: &Elem) -> Func {
 
 /// [`Helper::ListBuf`]: a capacity whose bytes pass 4 GiB is
 /// `heap-exhausted`.
-fn list_buf(m: &Module, elem: &Elem) -> Func {
-    let mut f = m.func("rt:list_buf", vec![Val::I32], vec![Val::I32]);
+/// With `owned`, the buffer is a `std.rt.memory.Buffer`: it never takes
+/// part on its own, and its [`OWNED`] color has the collector trace and
+/// free it with the object that holds it (§23.28).
+fn list_buf(m: &Module, elem: &Elem, owned: bool) -> Func {
+    let name = if owned { "rt:owned_buf" } else { "rt:list_buf" };
+    let mut f = m.func(name, vec![Val::I32], vec![Val::I32]);
     let b = f.local(Val::I32);
     if let Some(most) = (u32::MAX - LIST_ELEMS - HEADER).checked_div(elem.size) {
         f.get(0);
@@ -3239,7 +3252,13 @@ fn list_buf(m: &Module, elem: &Elem) -> Func {
         .walk
         .as_ref()
         .map(|_| Sym::Helper(Helper::DropElems { elem: elem.clone() }));
-    push_desc(&mut f, glue, elem.cyclic);
+    if owned {
+        push_desc_recursive(&mut f, glue, false, elem.cyclic);
+        f.u32(OWNED);
+        f.op(Instruction::I32Or);
+    } else {
+        push_desc(&mut f, glue, elem.cyclic);
+    }
     f.helper(Helper::New);
     f.set(b);
     f.get(b);

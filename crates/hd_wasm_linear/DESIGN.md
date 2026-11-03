@@ -253,7 +253,7 @@ the slot's start:
 | Offset | Size | Field |
 | --- | --- | --- |
 | 0 | 4 | the count: 32-bit, non-atomic, with no overflow check on wasm32 (REFCOUNT_RUNTIME.md §4.4) |
-| 4 | 4 | the descriptor word: bits 0 to 21 the release glue's function-table slot plus one (0 for none), bits 22 and 23 the collector's color and bit 24 its frame flag (REFCOUNT_RUNTIME.md §7.2), bits 25 to 29 the allocator class; bit 30 set while the object is a cycle candidate, bit 31 when its type is cycle-capable (§23.28) |
+| 4 | 4 | the descriptor word: bits 0 to 21 the release glue's function-table slot plus one (0 for none), bits 22 and 23 the collector's color (both set, `OWNED`, on a `Buffer`, §23.28) and bit 24 its frame flag (REFCOUNT_RUNTIME.md §7.2), bits 25 to 29 the allocator class; bit 30 set while the object is a cycle candidate, bit 31 when its type is cycle-capable (§23.28) |
 | 8 | the payload's size | the payload: the fields, or a buffer's header and elements |
 
 - A reference to a whole object is the payload's address, slot + 8, so
@@ -446,8 +446,9 @@ issue-backed exceptions; there is no per-backend rollout pass list.
   count they held; a store writes its value as an element store does
   (`slot_src`, `retain_src`) and releases nothing. A `Buffer[T]`
   (`StdKind::Buffer`) is the address of a list's buffer, §23.7's
-  capacity and length words and the elements, made by `ListBuf` with
-  its element glue, counted and dropped as any counted address is; a
+  capacity and length words and the elements, made by `OwnedBuf` with
+  its element glue, counted and dropped as any counted address is, and
+  traced by the collector as part of its holder (§23.28); a
   string's bytes are its address, and a new string is a `Str` block, or
   the static empty string for no bytes.
 - **Runtime modules are std's.** `hd_project::UseRoots` refuses a use of
@@ -1732,6 +1733,24 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   frees it, so this was a sixth of its run. `free` takes counted objects
   only (`BUFFERED` is a header bit); the wake table, a raw block, goes
   to the free without the collector test.
+- **Buffers are part of their holder** (#1255). A `std.rt.memory.Buffer`
+  has one holder, so it never takes part on its own: `rt:owned_buf`
+  allocates it without `CYCLIC` and with both color bits set (`OWNED`),
+  which no object that takes part has. When a trace's release reaches
+  an owned block at its payload start, `visit` traces that block in
+  place with the holder's mode (`enter`): a mark's work list, a scan's
+  `INNER` tag (traced with SCAN whatever its color), a restore's tag. So
+  what the buffer holds counts as the holder's references, and the
+  buffer's own count, always one, is never touched. A white holder's
+  buffers are listed while the white objects are walked and freed
+  through `free` after the references to objects that do not take part
+  are released, since one of those can be an item reference into a
+  buffer. (A count from outside the holder would be an item reference
+  that outlives it; checked mode's poison catches its release.)
+  Any glue reaches it this way, whether its walk names a `Buffer` or an
+  open value carries one. `cycle_tests.hd` drops 200,000 rings of boxes
+  linked through `UniqList`s and checks the heap, and
+  `uniq-list-cycle-collected` runs under checked mode's leak audit.
 - **Tracing is the release glue.** `CycleTrace` runs the descriptor's
   glue on the payload with the `Tracing` global set, and `rt:release_ref`
   hands each reference to the collector's `visit` instead of counting it

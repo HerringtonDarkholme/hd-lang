@@ -61,6 +61,10 @@ pub const CLASS_MASK: u32 = 31 << CLASS_SHIFT;
 /// object's color (two bits) and its frame mark (§23.28). The backend
 /// writes them 0, black and no frame, with the rest of the word.
 pub const COLLECTOR_SHIFT: u32 = 22;
+/// The color of a `std.rt.memory.Buffer`, both color bits, on a block
+/// without [`CYCLIC`]: it has no color of its own, and the collector
+/// traces and frees it with the object whose release reaches it (§23.28).
+pub const OWNED: u32 = 3 << COLLECTOR_SHIFT;
 /// A weak-linked module's descriptor bit: a side entry currently names the
 /// object. Programs that do not use weak references keep the old 22-bit glue
 /// mask and therefore their encoded constants byte-identical.

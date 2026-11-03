@@ -3,10 +3,11 @@
 # since a collection frees each cycle once the candidate buffer is full.
 # Only std may read the heap's size, so the conformance runner adds this
 # file to std as `std.rt_tests.cycle_tests`, as it does count_tests.hd.
+use std.collections.UniqList
 use std.rt.alloc.{alloc, free_block}
 use std.rt.cycle.{collect, opaque, pending, suspect}
 use std.rt.memory.{pages, store_u32}
-use std.rt.checked.released
+use std.rt.checked.{live, released}
 use std.testing.assert
 
 # The heap's pages in a bounded run: the static page, the page table, a
@@ -14,6 +15,9 @@ use std.testing.assert
 # collection (the candidate buffer's threshold of 10,000), and the buffer.
 # The rings take 23 pages; without the collector they take 430.
 BOUND := 32
+# The unique-list knots take 33 pages; without their buffers freed with
+# their holders they take 423.
+KNOT_BOUND := 48
 
 struct Stop:
     name: string
@@ -27,6 +31,24 @@ fn ring(round: i32) -> i32:
         .Some(stop) =>
             if stop.name == "second $round": 1 else: 0
         .None => 0
+
+# Two boxes that hold each other through the buffers of unique lists,
+# which take part only through their holders (§23.28).
+struct Knot:
+    name: string
+    links: UniqList[*mut Knot]
+
+impl !Copy for Knot
+
+fn knot(name: string) -> *mut Knot:
+    box(Knot { name: name, links: UniqList::[*mut Knot].new() })
+
+fn knot_ring(round: i32) -> usize:
+    a := knot("a $round")
+    b := knot("b $round")
+    a.links.push(b)
+    b.links.push(a)
+    a.links.len() + b.links.len()
 
 fn sum_to(limit: i32) -> i32:
     sum := fn(n: i32) -> i32:
@@ -161,6 +183,20 @@ tests:
         # Checked frees quarantine blocks; only the normal allocator reuses them.
         if released() == 0:
             assert(pages() <= BOUND, "the rings' blocks are reused")
+
+    it("two hundred thousand dropped unique-list rings free their buffers"):
+        let total: usize = 0
+        let round = +0
+        while round < 200000:
+            total += knot_ring(round)
+            round += 1
+        assert(total == 400000, "each knot holds the other")
+        # Without the buffers freed with their holders, each round would
+        # keep its two boxes, two buffers and two names.
+        if released() == 0:
+            assert(pages() <= KNOT_BOUND, "the knots' boxes and buffers are reused")
+        else:
+            assert(live() < 100000, "checked mode frees the knots and their buffers")
 
     it("two hundred thousand dropped recursive closures run in bounded memory"):
         let total = +0
