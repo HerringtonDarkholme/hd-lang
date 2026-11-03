@@ -1,0 +1,14 @@
+# @dump: counts
+# A `for` over `&xs`, a local list, lends each element: the loop body only
+# reads it, so the element reference lives on the list's own count, with
+# no retain or release per element (#1230; bench/micro list_for_borrow).
+fn total(n: usize) -> i32:
+    xs := [+1, +2, +3, +4]
+    let sum = +0
+    let i: usize = 0
+    while i < n:
+        # subject
+        for x in &xs:
+            sum += x
+        i += 1
+    sum

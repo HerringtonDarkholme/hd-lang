@@ -103,7 +103,7 @@ pub(super) fn view(p: &super::Program, at: super::Build) -> String {
 
 /// Where a `std` build puts the case: a std module of its own folder, which
 /// may use the runtime modules and the root std modules alike.
-const STD_CASE: &str = "rt_tests/stage_case.hd";
+pub(super) const STD_CASE: &str = "rt_tests/stage_case.hd";
 
 /// The case module's functions, built as a fixture through the ownership
 /// passes (the default path), with their bodies rendered after them.

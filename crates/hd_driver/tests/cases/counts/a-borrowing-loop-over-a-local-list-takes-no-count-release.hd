@@ -1,0 +1,15 @@
+# @dump: counts
+# @build: v8 release
+# A `for` over `&xs`, a local list of strings, lends each element to a
+# read that writes nothing: no retain or release per element (#1230;
+# bench/micro list_for_borrow_string).
+fn total(n: usize) -> usize:
+    xs := ["a", "bb", "ccc"]
+    let sum: usize = 0
+    let i: usize = 0
+    while i < n:
+        # subject
+        for x in &xs:
+            sum += x.len()
+        i += 1
+    sum

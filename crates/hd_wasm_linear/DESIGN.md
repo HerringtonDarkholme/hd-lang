@@ -1150,8 +1150,9 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   Two references to one slot share its address (`ref.elem.identity`). A
   trait value of a value that is one counted address is that address,
   never a copy.
-- **Short loans.** A reference from a `map_probe` intrinsic or a shared
-  element `Ref` of a local's list whose every holder ends before
+- **Short loans.** A reference from a `map_probe` or `buffer_item_ref`
+  intrinsic or a shared element `Ref` of a local's list (or of a read of
+  all of it, as `for x in &xs` makes) whose every holder ends before
   anything could write or drop its collection lives on the collection's
   own count (`emit/loan.rs`): no count of the buffer, and for a shared
   one no uniqueness check or pin, so the `IsUnique` and `Pin` insertion
@@ -1161,7 +1162,13 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   Each use of a holder lends, and one `Drop` in the origin's loop ends
   the loan. No statement between them stores outside a local off the
   collection's path, drops or moves that path, takes a `&mut`, checks or pins
-  a buffer, calls a function that may write, or jumps out. A table or
+  a buffer, calls a function that may write, or jumps out. A loan that
+  a `match` on a holder only decides with (every other use of a holder
+  is before the match or in its decision, and no binding holds a
+  borrow) ends with the decision: only the statements up to the match
+  and the decision are checked, so an arm may write the collection or
+  return, and each holder `Drop` in the origin's loop ends it
+  (`UniqMap.insert`'s probe, #1230). A table or
   list a view's getter made stays until that `Drop`. Any other reference keeps
   its count and pin, so `map-get-ref-pinned-panics` still panics.
 - **Bounded memory.** `crates/hd_driver/tests/std_rt/ref_tests.hd` writes
