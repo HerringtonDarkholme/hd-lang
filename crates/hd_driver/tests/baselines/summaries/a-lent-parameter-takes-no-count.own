@@ -100,7 +100,7 @@ fn collect(f: Field) -> usize:
 >   local $1 all: List[Field] [read assigned captured captured-assigned]
 >   %0 = NewList - [] : List[Field]
 >   %1 = Store [$1] %0 : ()
->   %14 = Block %12 : usize
+>   %13 = Block %11 : usize
     remember(&mut all, f)
 >   %2 = Ref mut local frame [$1] : Counted[mut List[Field]]
 >   %3 = Read copy [$0] : Field
@@ -114,10 +114,9 @@ fn collect(f: Field) -> usize:
 >   %9 = Drop [%6] : ()
 >   %6 finds [$1] full
     all.len()
->   %10 = Read copy [$1] : List[Field]
->   %11 = Drop [$1] : ()
->   %12 = Intrinsic ListLen [%10] : usize
->   %13 = Drop [%10] : ()
+>   %10 = Read move [$1] : List[Field]
+>   %11 = Intrinsic ListLen [%10] : usize
+>   %12 = Drop [%10] : ()
 >   %10 finds [$1] full
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes
@@ -183,7 +182,7 @@ pub fn main() -> void $ Console:
 >   %6 = Drop [%2] : ()
 >   %7 = NewStruct [%5 2:i64] : Field
 >   %8 = Store [$1] %7 : ()
->   %58 = Block - : ()
+>   %57 = Block - : ()
 >   %1 finds [$0] full
     println(total(f, 3))
 >   %9 = Read borrow [$1] : Field
@@ -202,43 +201,42 @@ pub fn main() -> void $ Console:
 >   %21 = Read move [$5] : Field
 >   %22 = Call app/main/remember[] (%20, %21) : ()
 >   %23 = Drop [%20] : ()
->   %24 = Read copy [$6] : List[Field]
->   %25 = Drop [$6] : ()
->   %26 = Intrinsic ListLen [%24] : usize
->   %27 = Drop [%24] : ()
->   %28 = Break L2 %26 : never
->   %29 = Block - : usize
->   %30 = Scope %29 [] : usize
->   %31 = Call std/console/println[usize] (%30) : ()
+>   %24 = Read move [$6] : List[Field]
+>   %25 = Intrinsic ListLen [%24] : usize
+>   %26 = Drop [%24] : ()
+>   %27 = Break L2 %25 : never
+>   %28 = Block - : usize
+>   %29 = Scope %28 [] : usize
+>   %30 = Call std/console/println[usize] (%29) : ()
 >   %16 finds [$6] full
 >   %20 finds [$6] full
 >   %24 finds [$6] full
     println(apply(weight, f))
->   %32 = ItemRef #56 [..] : fn(Field) -> i64
->   %33 = Read move [$1] : Field
->   %34 = Store [$3] %32 : ()
->   %35 = Store [$4] %33 : ()
->   %36 = Read borrow [$3] : fn(Field) -> i64
->   %37 = Read move [$4] : Field
->   %38 = CallValue %36 [%37] : i64
->   %39 = Break L1 %38 : never
->   %40 = Block - : i64
->   %41 = Scope %40 [] : i64
->   %42 = Drop [$3] : ()
->   %43 = Call std/console/println[i64] (%41) : ()
+>   %31 = ItemRef #56 [..] : fn(Field) -> i64
+>   %32 = Read move [$1] : Field
+>   %33 = Store [$3] %31 : ()
+>   %34 = Store [$4] %32 : ()
+>   %35 = Read borrow [$3] : fn(Field) -> i64
+>   %36 = Read move [$4] : Field
+>   %37 = CallValue %35 [%36] : i64
+>   %38 = Break L1 %37 : never
+>   %39 = Block - : i64
+>   %40 = Scope %39 [] : i64
+>   %41 = Drop [$3] : ()
+>   %42 = Call std/console/println[i64] (%40) : ()
     println(pinned())
->   %44 = NewList - [1:i64 2:i64] : List[i64]
->   %45 = Store [$2] %44 : ()
->   %46 = IsUnique [$2] : ()
->   %47 = Pin [$2] : ()
->   %48 = Ref mut local [$2 [0:usize]] : Ref[mut i64]
->   %49 = Read copy [$2] : List[i64]
->   %50 = Drop [$2] : ()
->   %51 = Call app/main/set_first[] (%48, %49) : i64
->   %52 = Drop [%49] : ()
->   %53 = Drop [%48] : ()
->   %54 = Break L0 %51 : never
->   %55 = Block - : i64
->   %56 = Scope %55 [] : i64
->   %57 = Call std/console/println[i64] (%56) : ()
+>   %43 = NewList - [1:i64 2:i64] : List[i64]
+>   %44 = Store [$2] %43 : ()
+>   %45 = IsUnique [$2] : ()
+>   %46 = Pin [$2] : ()
+>   %47 = Ref mut local [$2 [0:usize]] : Ref[mut i64]
+>   %48 = Read copy [$2] : List[i64]
+>   %49 = Drop [$2] : ()
+>   %50 = Call app/main/set_first[] (%47, %48) : i64
+>   %51 = Drop [%48] : ()
+>   %52 = Drop [%47] : ()
+>   %53 = Break L0 %50 : never
+>   %54 = Block - : i64
+>   %55 = Scope %54 [] : i64
+>   %56 = Call std/console/println[i64] (%55) : ()
 >   summary kept [] writes
