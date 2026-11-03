@@ -123,8 +123,6 @@ fn every_known_item_is_declared() {
         ("hash", known.hash),
         ("display", known.display),
         ("debug", known.debug),
-        ("serializer_begin_data", known.serializer_begin_data),
-        ("serializer_end_data", known.serializer_end_data),
         ("iterator", known.iterator),
         ("iterable", known.iterable),
         ("from", known.from),

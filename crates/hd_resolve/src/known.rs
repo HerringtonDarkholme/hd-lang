@@ -129,9 +129,6 @@ pub struct KnownItems {
     pub json_decode: DefId,
     pub serialize: DefId,
     pub deserialize: DefId,
-    /// The data-only format boundaries on `Serializer`.
-    pub serializer_begin_data: DefId,
-    pub serializer_end_data: DefId,
     // std.iter, std.convert, std.error
     pub iterator: DefId,
     pub iterable: DefId,
@@ -246,7 +243,6 @@ impl KnownItems {
         let union_type = item("std.structure", "UnionType");
         let static_bound = item("std.core", "'static");
         let walker = item("std.structure", "Walker");
-        let serializer = item("std.serde", "Serializer");
         let tuple = item("std.function", "Tuple");
         let fn_trait = item("std.function", "Fn");
         let fn_mut_trait = item("std.function", "FnMut");
@@ -344,8 +340,6 @@ impl KnownItems {
             json_decode: item("std.json", "decode"),
             serialize: item("std.serde", "Serialize"),
             deserialize: item("std.serde", "Deserialize"),
-            serializer_begin_data: trait_method(serializer, "begin_data"),
-            serializer_end_data: trait_method(serializer, "end_data"),
             iterator: item("std.iter", "Iterator"),
             iterable: item("std.iter", "Iterable"),
             from: item("std.convert", "From"),
