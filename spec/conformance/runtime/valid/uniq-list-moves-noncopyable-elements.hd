@@ -11,6 +11,13 @@ struct Ticket:
 
 impl !Copy for Ticket
 
+struct RankedTicket:
+    rank: usize
+    serial: usize
+    label: string
+
+impl !Copy for RankedTicket
+
 fn take_last(items: &mut UniqList[Ticket]) -> Ticket:
     match items.pop():
         .Some(ticket) => ticket
@@ -139,6 +146,49 @@ tests:
         values.push(2)
         values.sort()
         assert_equal(values[0], +1, reason="indexing copies the sorted item")
+
+    it("driftsort is stable for non-copyable elements and sorts strings"):
+        let mut tickets = UniqList::[RankedTicket].new()
+        for serial in 0..96:
+            tickets.push(RankedTicket { rank: serial % 4, serial: serial, label: "ticket_$serial" })
+        tickets.sort_by(
+            fn(left: &RankedTicket, right: &RankedTicket) -> Ordering: left.rank.cmp(&right.rank)
+        )
+        for at in 0..96:
+            ticket := tickets.get_ref(at).expect("sorted ticket")
+            expected_rank := at / 24
+            expected_serial := expected_rank + (at % 24) * 4
+            assert_equal(ticket.rank, expected_rank, reason="ranks are ordered")
+            assert_equal(ticket.serial, expected_serial, reason="equal ranks stay stable")
+        let mut words = UniqList::[string].new()
+        for word in ["pear", "apple", "banana", "apple"]:
+            words.push(word)
+        words.sort()
+        assert_equal(
+            words.to_list(),
+            ["apple", "apple", "banana", "pear"],
+            reason="a UniqList[string] sorts in order",
+        )
+
+    it("driftsort detects and powersort-merges natural runs"):
+        let mut values = UniqList::[i32].new()
+        for value in 64..128:
+            values.push(i32(value))
+        for value in 0..64:
+            values.push(i32(value))
+        for value in 192..256:
+            values.push(i32(value))
+        for value in 128..192:
+            values.push(i32(value))
+        values.sort()
+        for index in 0..256:
+            assert_equal(values.get(index), .Some(i32(index)), reason="natural runs merge")
+        let mut reversed = UniqList::[i32].new()
+        for index in 0..128:
+            reversed.push(i32(127 - index))
+        reversed.sort()
+        for index in 0..128:
+            assert_equal(reversed.get(index), .Some(i32(index)), reason="a descending run reverses")
 
     it("consumes, filters, and collects non-copyable elements"):
         assert_equal(open_labels(), ["open", "ready"], reason="the cursor moves matching items")

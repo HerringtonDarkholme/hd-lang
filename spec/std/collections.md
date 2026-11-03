@@ -85,12 +85,13 @@ Its surface is:
 17. r[std-collections.uniq-list.any-all] `any(test)` and `all(test)` have the behavior of [`std-collections.helper.any-all`](#r-std-collections.helper.any-all) and [`std-collections.helper.short-circuit`](#r-std-collections.helper.short-circuit), with `fn(&T)` callbacks.
 18. r[std-collections.uniq-list.retain] `retain(keep)` drops each rejected element in place and preserves the order of those accepted.
 19. r[std-collections.uniq-list.sort] `sort`, `sort_by`, and `sort_by_key` sort in place and are stable. They order as [`std-collections.helper.sort`](#r-std-collections.helper.sort), [`std-collections.helper.sort-by`](#r-std-collections.helper.sort-by), and [`std-collections.helper.sort-by-key`](#r-std-collections.helper.sort-by-key) do.
-20. r[std-collections.uniq-list.into-iter] `UniqList[T]` implements `Iterable[T]`. Its private `UniqListIntoIter[T]` cursor owns the list and moves its elements out in order. A `for` loop over a `UniqList` therefore consumes the list and each item.
-21. r[std-collections.uniq-list.collect] `UniqList[T]` implements `FromIterator[T]` for every `T < ?Copy`, preserving item order. An explicitly targeted `collect`, including `let items: UniqList[_] = cursor.collect()`, may therefore collect non-copyable items.
-22. r[std-collections.uniq-list.conversion] For `T < Copy`, `from_list(items)` copies the list's elements in order into a new `UniqList`, and `to_list()` copies a `UniqList`'s elements in order into a new `List`.
-23. r[std-collections.uniq-list.eq] For `T < ?Copy & Eq`, two `UniqList[T]` values are equal exactly when they have the same length and equal elements at every position.
-24. r[std-collections.uniq-list.debug] For `T < ?Copy & Debug`, `UniqList[T]` implements `Debug` with the same bracketed, comma-separated form as a `List[T]`.
-25. r[std-collections.uniq-list.hash] For `T < ?Copy & Hash`, `UniqList[T]` hashes its length as a `u64`, then each element in order, as `List[T]` does.
+20. r[std-collections.uniq-list.sort-complexity] Each `UniqList` sort uses at most O(n log n) comparisons in the worst case.
+21. r[std-collections.uniq-list.into-iter] `UniqList[T]` implements `Iterable[T]`. Its private `UniqListIntoIter[T]` cursor owns the list and moves its elements out in order. A `for` loop over a `UniqList` therefore consumes the list and each item.
+22. r[std-collections.uniq-list.collect] `UniqList[T]` implements `FromIterator[T]` for every `T < ?Copy`, preserving item order. An explicitly targeted `collect`, including `let items: UniqList[_] = cursor.collect()`, may therefore collect non-copyable items.
+23. r[std-collections.uniq-list.conversion] For `T < Copy`, `from_list(items)` copies the list's elements in order into a new `UniqList`, and `to_list()` copies a `UniqList`'s elements in order into a new `List`.
+24. r[std-collections.uniq-list.eq] For `T < ?Copy & Eq`, two `UniqList[T]` values are equal exactly when they have the same length and equal elements at every position.
+25. r[std-collections.uniq-list.debug] For `T < ?Copy & Debug`, `UniqList[T]` implements `Debug` with the same bracketed, comma-separated form as a `List[T]`.
+26. r[std-collections.uniq-list.hash] For `T < ?Copy & Hash`, `UniqList[T]` hashes its length as a `u64`, then each element in order, as `List[T]` does.
 
 This surface has no literal construction.
 
