@@ -1,0 +1,52 @@
+# test: a unique list declared in a loop body moves at its last use in each round
+# expect: test
+# Spec std/collections UniqList: std-collections.uniq-list.type; Spec 13 Values and References: ref.move.sites, ref.excl.declare.
+use std.collections.UniqList
+
+struct Parcel:
+    words: UniqList[string]
+
+impl !Copy for Parcel
+
+fn consume(value: Parcel) -> usize:
+    value.words.len()
+
+fn make(round: usize) -> UniqList[string]:
+    let mut words = UniqList::[string].new()
+    words.push("word_$round")
+    words.push("tail_$round")
+    words
+
+fn eat(words: UniqList[string]) -> usize:
+    words.len()
+
+tests:
+    use std.testing.assert_equal
+
+    it("moves a new unique list into a struct on each iteration"):
+        for round in 0..8:
+            let mut words = UniqList::[string].new()
+            words.push("word_$round")
+            item := Parcel { words: words }
+            assert_equal(consume(item), 1, reason="one word per round")
+
+    it("moves a unique list after an element reference on each iteration"):
+        let total: usize = 0
+        for round in 0..8:
+            words := make(round)
+            match words.get_ref(0):
+                .Some(first) => assert_equal(*first, "word_$round", reason="first word")
+                .None => assert_equal(0, 1, reason="missing word")
+            total += eat(words)
+        assert_equal(total, 16, reason="two words per round")
+
+    it("moves an outer unique list each round and refills it"):
+        let total: usize = 0
+        let mut words = UniqList::[string].new()
+        for round in 0..4:
+            words.push("word_$round")
+            total += eat(words)
+            words = UniqList::[string].new()
+        words.push("last")
+        total += eat(words)
+        assert_equal(total, 5, reason="one word per list")
