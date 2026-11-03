@@ -304,9 +304,9 @@ fn frame_uses(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
     let (lnum, frame) = (&t.lnum, &t.frame);
     let mut ft = std::mem::take(&mut t.frame_scratch);
     let tags = b.tags.clone();
-    super::frame::run(b, topo, cx, &mut ft, |i, l| {
+    super::frame::run(b, topo, cx, &mut ft, |i, l, in_frame| {
         let bit = lnum[l as usize];
-        if frame[l as usize] && bit != NONE && tags[i as usize] != Tag::Drop {
+        if in_frame && frame[l as usize] && bit != NONE && tags[i as usize] != Tag::Drop {
             out.push((i, bit));
         }
     });

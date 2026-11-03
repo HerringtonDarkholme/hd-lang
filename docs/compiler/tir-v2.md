@@ -798,7 +798,10 @@ release, made explicit.
    the innermost block holding all its accesses that holds the last one
    (today's `live::plan` rule). A frame local's accesses include each use
    of a value that may point into it (#1006,
-   `crates/hd_wasm_linear/DESIGN.md` §23.38). Parameters and captures live
+   `crates/hd_wasm_linear/DESIGN.md` §23.38), and so do a cell local's
+   (one a closure captures), since a reference into what the cell holds,
+   as a `UniqList` element's, takes no count of the cell (#1299,
+   `hd_tir::own::frame` rule 4). Parameters and captures live
    in the sub-body's root block. A `Break` or `Continue` that leaves that block
    before the drop gets a `Drop` before it; the function's exit drops
    the rest through `exit_drops`.

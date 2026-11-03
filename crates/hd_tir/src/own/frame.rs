@@ -26,6 +26,13 @@
 //!    whose value holds no reference (a list push).
 //!
 //! Their `Ref`s get `ref_word::FRAME`, and move never takes their count.
+//!
+//! 4. **Cell locals.** A local that keeps its cell (a closure captures it,
+//!    or a candidate escapes) is tracked the same way, after the frame
+//!    candidates: the uses of what points into it are its accesses too, so
+//!    its drop follows them, as a frame local's does. A reference into
+//!    what a cell holds (an element of a list in it) takes no count of the
+//!    cell, so the local's own count keeps the cell alive until then.
 
 use super::{OwnCx, Role, fill, operands, suite_touches};
 use crate::ir::{Body, NONE, Proj, Ref, Root, Tag, Topology, Word, is_suspension, slots, u32_of};
@@ -111,14 +118,15 @@ fn bits(mut m: u64) -> impl Iterator<Item = usize> {
 }
 
 /// Finds the body's frame locals, sets `ref_word::FRAME` on their `Ref`s,
-/// and calls `uses` with each instruction that uses one of them through a
-/// value or a local that may point into it: (instruction, local).
+/// and calls `uses` with each instruction that uses a tracked local (a
+/// frame local or a cell local, rule 4) through a value or a local that
+/// may point into it: (instruction, local, whether it is a frame local).
 pub(crate) fn run(
     b: &mut Body,
     topo: &Topology,
     cx: &dyn OwnCx,
     t: &mut Tables,
-    mut uses: impl FnMut(u32, u32),
+    mut uses: impl FnMut(u32, u32, bool),
 ) {
     let (n, locals) = (b.len(), b.local_ty.len());
     fill(&mut t.bit, locals, 0);
@@ -143,9 +151,21 @@ pub(crate) fn run(
         if b.data[i][1] & crate::ir::ref_word::LOCAL == 0 || topo.sub[i] != 0 {
             t.bad[l] = true;
         }
-        if !t.bad[l] && t.bit[l] == 0 && t.cands.len() < 64 {
-            t.bit[l] = 1 << t.cands.len();
-            t.cands.push(u32_of(l));
+    }
+    // The frame candidates take the first bits, then the cell locals
+    // (rule 4) that a `Ref` of the root addresses.
+    for cells in [false, true] {
+        for i in 0..n {
+            if b.tags[i] != Tag::Ref || topo.sub[i] != 0 {
+                continue;
+            }
+            let Some(l) = b.local_in_place(b.data[i][0]).map(hd_base::LocalId::idx) else {
+                continue;
+            };
+            if t.bad[l] == cells && t.bit[l] == 0 && t.cands.len() < 64 {
+                t.bit[l] = 1 << t.cands.len();
+                t.cands.push(u32_of(l));
+            }
         }
     }
     for k in 0..t.cands.len() {
@@ -194,11 +214,9 @@ pub(crate) fn run(
         t.out |= out.get();
     }
     t.ops = ops;
-    let frame = !t.out & (u64::MAX >> (64 - t.cands.len()));
+    let tracked = u64::MAX >> (64 - t.cands.len());
+    let frame = !t.out & tracked;
     t.frame = frame;
-    if frame == 0 {
-        return;
-    }
     for i in 0..n {
         let [a, w] = b.data[i];
         let mut m = 0;
@@ -213,8 +231,8 @@ pub(crate) fn run(
         for op in &t.ops {
             m |= t.of(op.value) | t.dep.get(op.value as usize).copied().unwrap_or(0);
         }
-        for k in bits(m & frame) {
-            uses(u32_of(i), t.cands[k]);
+        for k in bits(m & tracked) {
+            uses(u32_of(i), t.cands[k], frame & (1 << k) != 0);
         }
         if b.tags[i] == Tag::Ref
             && let Some(l) = b.local_in_place(a)
