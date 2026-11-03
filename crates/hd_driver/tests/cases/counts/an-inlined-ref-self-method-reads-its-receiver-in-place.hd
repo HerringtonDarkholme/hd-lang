@@ -1,7 +1,7 @@
 # @dump: own counts
-# An inlined `&self` method reads its receiver in place: the copy's
-# `self` borrows the caller's map, though a `&mut` call addresses the
-# map elsewhere, so no count of its buffer is taken or released.
+# A `&self` method reads its receiver in place: a `UniqMap` holds a
+# value with a `std.rt.Drop`, so no copy of the method binds it by value
+# (#1298), and the call lends the map with no count taken or released.
 use std.collections.UniqMap
 
 fn sizes(key: string) -> usize:

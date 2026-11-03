@@ -82,8 +82,11 @@ pub struct RefLayout {
     pub size: u32,
     pub leaves: Vec<Leaf>,
     pub walk: Option<Walk>,
+    /// The `std.rt.Drop` implementations a release of an inline value
+    /// runs before its fields (`module.rt.drop.glue`).
+    pub drops: Box<[DropCall]>,
     /// The leaves a copy takes through the copy glue (`rt:coll_copy`).
-    pub colls: Vec<u32>,
+    pub colls: Box<[u32]>,
     pub boxed: bool,
     pub known: bool,
     /// Exact referent type alias when a weak constructor can observe this box.
@@ -4156,6 +4159,10 @@ fn ref_vals(value: &RefLayout) -> Vec<Val> {
 }
 
 fn ref_count(f: &mut Func, ls: &[u32], value: &RefLayout, retain: bool) {
+    if !retain && !value.drops.is_empty() {
+        drop_value(f, ls, value, &value.drops);
+        return;
+    }
     if let Some((k, addr)) = value
         .walk
         .as_ref()
@@ -4187,6 +4194,31 @@ fn ref_count(f: &mut Func, ls: &[u32], value: &RefLayout, retain: bool) {
     }
 }
 
+/// Releases the inline value in locals `ls`, whose type runs `std.rt.Drop`
+/// implementations: as `Em::drop_inline` does, a box of no glue holds the
+/// value for the drops and the fields' release, then is freed.
+fn drop_value(f: &mut Func, ls: &[u32], value: &RefLayout, drops: &[DropCall]) {
+    let at = f.local(Val::I32);
+    f.u32(value.size);
+    push_desc(f, None, false);
+    f.helper(Helper::New);
+    f.set(at);
+    for (leaf, l) in value.leaves.iter().zip(ls) {
+        f.get(at);
+        f.get(*l);
+        f.op(leaf.store(0));
+    }
+    f.get(at);
+    f.helper(Helper::DropFields {
+        leaves: value.leaves.clone(),
+        walk: value.walk.clone().unwrap_or(Walk::Glue),
+        drops: drops.to_vec(),
+    });
+    f.get(at);
+    f.helper(Helper::TakeBox);
+    f.op(Instruction::Drop);
+}
+
 fn ref_box(f: &mut Func, ls: &[u32], value: &RefLayout) {
     if value.leaves.is_empty() {
         f.i32(0);
@@ -4204,7 +4236,7 @@ fn ref_box(f: &mut Func, ls: &[u32], value: &RefLayout) {
         Sym::Helper(Helper::DropFields {
             leaves: value.leaves.clone(),
             walk: walk.clone(),
-            drops: Vec::new(),
+            drops: value.drops.to_vec(),
         })
     });
     if let Some(key) = value.weak {
