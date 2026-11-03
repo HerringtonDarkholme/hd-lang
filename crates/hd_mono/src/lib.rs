@@ -2785,7 +2785,8 @@ impl Cx<'_> {
     /// concrete type implementing `std.rt.Drop`. Absence of an impl is the
     /// common case, just as it is for the optional `Debug` specialization.
     fn note_drop(&mut self, ty: Ty, parent: InstId) -> StageResult<()> {
-        if !self.drop_checked.insert(ty) {
+        // An open value is a box, which its concrete type's glue releases.
+        if is_open(self.pool, ty) || !self.drop_checked.insert(ty) {
             return Ok(());
         }
         if let TyData::Adt { .. } = self.pool.get(ty)

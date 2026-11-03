@@ -3478,7 +3478,9 @@ is. So the 60 planned lines are plumbing: the kind, its known path, and
 its rows in `layout.rs` and `cycle.rs`. `new` is an intrinsic
 (`mem_buffer`); `capacity`, `len`, `set_len` and `at` are hd over the
 untyped loads and stores and `Ptr`. A copy of a buffer is a retain.
-`List` keeps its header until its own commits. The two string views are
+`List` keeps its header until its own commits. (#1298 since made the
+buffer raw memory: an hd struct of an address and a capacity whose
+`Drop` frees its room, with no count and no `StdKind`.) The two string views are
 `string_bytes(text) -> Ptr[u8]` (`mem_string_bytes`: the view's address)
 and `new_string(n) -> string` (`mem_new_string`: a `Str` block, or the
 static empty string for none).

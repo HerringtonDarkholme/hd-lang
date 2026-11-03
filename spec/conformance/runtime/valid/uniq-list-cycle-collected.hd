@@ -1,6 +1,6 @@
 # test: boxed nodes linked through unique lists are collected
 # expect: test
-# Spec std/collections UniqList: std-collections.uniq-list.type, std-collections.uniq-list.push.
+# Spec std/collections UniqList: std-collections.uniq-list.type, std-collections.uniq-list.push, std-collections.uniq-list.drop.
 use std.collections.UniqList
 
 struct Node:
