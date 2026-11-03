@@ -3425,6 +3425,11 @@ impl Cx<'_> {
         // instance of its own, requested by its `Closure`.
         let own_sub = match sub {
             Sub::Body(k) if k != 0 => Some(u32::from(k)),
+            // Closure construction is outlined by open_insts, and its
+            // thunk collects the closure body at the caller's concrete
+            // types. The erased root must not also collect that body's
+            // calls against open placeholders with no trait witnesses.
+            Sub::Erased => Some(0),
             _ => None,
         };
         let subs = (own_sub.is_some()
