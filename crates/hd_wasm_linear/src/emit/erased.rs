@@ -6,7 +6,8 @@
 //! - **Open values.** A value of an open type is one `i32`, a counted
 //!   address that owns a count like any other: the caller's value itself
 //!   when its layout is one counted address (a list, a map, a data value,
-//!   a reference), 0 when it has no values, and otherwise a new counted
+//!   a reference) that a plain release counts, 0 when it has no values,
+//!   and otherwise (a checked build's marked buffer too) a new counted
 //!   box of its layout, as a trait value boxes its data (§23.19). So the
 //!   erased body moves, stores, counts and releases open values with no
 //!   knowledge of their types.
@@ -427,8 +428,7 @@ impl Em<'_, '_, '_> {
             return Ok(Cross::Same);
         }
         let one = |t: Ty| -> StageResult<bool> {
-            Ok(self.vals(t)? == [Val::I32]
-                && walk(pool, env, t).and_then(|w| w.single()) == Some(0))
+            Ok(self.vals(t)? == [Val::I32] && walk(pool, env, t).is_some_and(|w| w.plain_single()))
         };
         if let Kind::Ref { .. } = kind(pool, env, et) {
             return match kind(pool, env, ct) {

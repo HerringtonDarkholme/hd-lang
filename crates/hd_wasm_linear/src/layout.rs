@@ -636,6 +636,16 @@ impl Walk {
         }
     }
 
+    /// Whether the walk is value 0 alone, as a plain count takes it: a
+    /// value that is one such address can stand for itself where an open
+    /// value or a reference view holds one counted address
+    /// (`emit/erased.rs`). A marked [`Walk::Buffer`] is not: only its
+    /// holder's glue releases it, so its value crosses in a box.
+    #[must_use]
+    pub fn plain_single(&self) -> bool {
+        matches!(self, Walk::Ref(0) | Walk::Known(0))
+    }
+
     /// How the walk's one counted address is counted, when it is one.
     #[must_use]
     pub fn addr(&self) -> Option<Addr> {

@@ -1441,7 +1441,9 @@ is unchanged.
   releases (`rt:release_ref`, `ReleaseRef` and `ReleaseKnown`) panic
   `count-audit` when the address is an `OWNED` block's payload start
   (§23.28), so every buffer is dropped by its holder's glue. An item
-  reference into a buffer is never at that start (#1279).
+  reference into a buffer is never at that start. An open value whose
+  one counted address is a marked buffer crosses in a box
+  (`Walk::plain_single`), whose glue releases it (#1279).
 - **Leaks at the end.** `std.rt.checked` counts the blocks given and not
   freed. The entry's poll (`Helper::CheckedPoll`) audits once it answers
   anything but Pending. It frees the wake table, which is the runtime's
