@@ -1,22 +1,4 @@
 path	issue	engine	reason
-runtime/valid/erased-call-matrix-closure-mut-mut-i32.hd	#1309		closure collection loses the open reference argument's Item witness
-runtime/valid/erased-call-matrix-closure-mut-mut-string.hd	#1309		closure collection loses the open reference argument's Item witness
-runtime/valid/erased-call-matrix-closure-mut-mut-unique.hd	#1309		closure collection loses the open reference argument's Item witness
-runtime/valid/erased-call-matrix-closure-mut-ref-i32.hd	#1309		closure collection loses the open reference argument's Item witness
-runtime/valid/erased-call-matrix-closure-mut-ref-string.hd	#1309		closure collection loses the open reference argument's Item witness
-runtime/valid/erased-call-matrix-closure-mut-ref-unique.hd	#1309		closure collection loses the open reference argument's Item witness
-runtime/valid/erased-call-matrix-closure-mut-value-i32.hd	#1309		closure collection loses the open reference argument's Item witness
-runtime/valid/erased-call-matrix-closure-mut-value-string.hd	#1309		closure collection loses the open reference argument's Item witness
-runtime/valid/erased-call-matrix-closure-mut-value-unique.hd	#1309		closure collection loses the open reference argument's Item witness
-runtime/valid/erased-call-matrix-closure-ref-mut-i32.hd	#1309		closure collection loses the open reference argument's Item witness
-runtime/valid/erased-call-matrix-closure-ref-mut-string.hd	#1309		closure collection loses the open reference argument's Item witness
-runtime/valid/erased-call-matrix-closure-ref-mut-unique.hd	#1309		closure collection loses the open reference argument's Item witness
-runtime/valid/erased-call-matrix-closure-ref-ref-i32.hd	#1309		closure collection loses the open reference argument's Item witness
-runtime/valid/erased-call-matrix-closure-ref-ref-string.hd	#1309		closure collection loses the open reference argument's Item witness
-runtime/valid/erased-call-matrix-closure-ref-ref-unique.hd	#1309		closure collection loses the open reference argument's Item witness
-runtime/valid/erased-call-matrix-closure-ref-value-i32.hd	#1309		closure collection loses the open reference argument's Item witness
-runtime/valid/erased-call-matrix-closure-ref-value-string.hd	#1309		closure collection loses the open reference argument's Item witness
-runtime/valid/erased-call-matrix-closure-ref-value-unique.hd	#1309		closure collection loses the open reference argument's Item witness
 runtime/valid/erased-call-matrix-closure-value-mut-unique.hd	#1310		ownership pass copies a loop-local non-copyable value at a move
 runtime/valid/erased-call-matrix-closure-value-ref-unique.hd	#1310		ownership pass copies a loop-local non-copyable value at a move
 runtime/valid/erased-call-matrix-closure-value-value-unique.hd	#1310		ownership pass copies a loop-local non-copyable value at a move
