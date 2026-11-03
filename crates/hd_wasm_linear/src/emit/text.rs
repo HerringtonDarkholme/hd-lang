@@ -6,7 +6,7 @@
 
 use crate::op::Op as I;
 use hd_base::StageResult;
-use hd_tir::ir::Ref;
+use hd_tir::ir::{NONE, Ref};
 use hd_types::{Ty, TyData};
 use wasm_encoder::BlockType;
 
@@ -41,6 +41,26 @@ impl Em<'_, '_, '_> {
                 return self.store(i);
             }
             _ => {}
+        }
+        if let [left, right] = parts {
+            let moved = if self.take(*left) {
+                Some(Vec::new())
+            } else {
+                self.appended_local(i, *left)?
+            };
+            if let Some(locals) = moved {
+                self.comp(*left, 0)?;
+                self.comp(*left, 1)?;
+                self.comp(*right, 0)?;
+                self.comp(*right, 1)?;
+                self.f.helper(Helper::StrAppend);
+                // The helper took the old count. The following store sees
+                // zeros, so it only installs the helper's owned result.
+                for local in locals {
+                    self.f.zero(local);
+                }
+                return self.store_owned(i);
+            }
         }
         let (len, at, to) = (
             self.f.local(Val::I32),
@@ -81,6 +101,28 @@ impl Em<'_, '_, '_> {
         self.f.get(len);
         // A new buffer arrives with its count.
         self.store_owned(i)
+    }
+
+    /// The Wasm locals whose count `left` lends to `i` in `x = x + right`.
+    /// The append helper consumes that count before the whole-local store.
+    fn appended_local(&mut self, i: u32, left: u32) -> StageResult<Option<Vec<u32>>> {
+        let Some(local) = super::shape::read_local(self.b, left) else {
+            return Ok(None);
+        };
+        let Some(&store) = self.consumer.get(i as usize) else {
+            return Ok(None);
+        };
+        if store == NONE {
+            return Ok(None);
+        }
+        let Some((target, value)) = super::shape::local_store(self.b, store as usize) else {
+            return Ok(None);
+        };
+        if target != local || value != i || self.is_cell(local) {
+            return Ok(None);
+        }
+        self.local(u32::try_from(local).expect("local index"))
+            .map(Some)
     }
 
     /// The total length the constant parts of `parts` guarantee: every

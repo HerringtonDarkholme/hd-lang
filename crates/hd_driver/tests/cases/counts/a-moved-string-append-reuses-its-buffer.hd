@@ -1,0 +1,29 @@
+# @dump: wat counts own
+# @build: v8 dev
+# A last-use left operand moves its count into the concatenation. The helper
+# grows a unique buffer in place when it has room and doubles it otherwise.
+fn build(n: usize) -> string:
+    let out = ""
+    let i: usize = 0
+    while i < n:
+        # subject
+        out = out + "abcdefgh"
+        i += 1
+    out
+
+pub fn main() -> void:
+    if build(3) != "abcdefghabcdefghabcdefgh":
+        panic("bad append")
+    let shared = build(2)
+    snapshot := shared
+    shared += "x"
+    if shared != "abcdefghabcdefghx" || snapshot != "abcdefghabcdefgh":
+        panic("shared append changed its snapshot")
+    let tail = build(4).slice(8, 32)
+    tail += "x"
+    if tail != "abcdefghabcdefghabcdefghx":
+        panic("bad sliced append")
+    let self_alias = build(1)
+    self_alias += self_alias
+    if self_alias != "abcdefghabcdefgh":
+        panic("bad self append")
