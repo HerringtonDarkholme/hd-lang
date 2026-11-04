@@ -17,7 +17,7 @@ fn apply(by: fn(&i32, &i32) -> i32, left: &i32, right: &i32) -> i32:
 >   %2 = Read borrow [$2] : Ref[i32]
 >   %3 = CallValue %0 [%1 %2] : i32
 >   %4 = Block %3 : i32
->   summary kept [] writes
+>   summary kept [] borrows [$0] writes
 
 fn difference(reverse: bool, left: &i32, right: &i32) -> i32:
     by := if reverse: fn(a: &i32, b: &i32): *b - *a else: fn(a: &i32, b: &i32): *a - *b

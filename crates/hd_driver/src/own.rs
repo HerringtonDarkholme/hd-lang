@@ -136,6 +136,13 @@ pub(super) struct Summaries {
     /// ([`Env::summary_lends`]), which stays: a body and its emission read
     /// the same one, and a bit read as kept before the record stays kept.
     read: std::sync::Mutex<HashMap<(DefId, u32), bool>>,
+    /// While a recursive component's fixed point runs
+    /// ([`Env::component_borrows`]), each member's assumed borrows, which
+    /// [`Env::summary_lends`] answers without recording.
+    assume: std::sync::Mutex<HashMap<DefId, u64>>,
+    /// Per member of a recursive component, the borrows of its fixed
+    /// point ([`Env::component_borrows`]).
+    borrowable: std::sync::Mutex<HashMap<DefId, u64>>,
     /// The inliner's copies and the functions it found recursive.
     inline: hd_opt::inline::Memo,
     /// Per item whose passes would borrow through a `&T` or `&mut T`
@@ -159,7 +166,9 @@ type PromotedKey = (DefId, TyList, bool, u64, u64);
 pub(super) type Exclusive = (u64, std::sync::Arc<Body>);
 
 /// The `own` view's line for `body`'s summary in `all`: its kept
-/// parameters, by local, the one every result is, and whether it is
+/// parameters, by local, those it borrows (a recursive component's
+/// member's from the component's fixed point), the one every result is,
+/// and whether it is
 /// recursive; `summary none` for a function with none (one that suspends),
 /// nothing for any other body.
 pub(super) fn summary_line(body: &Body, all: &Summaries) -> String {
@@ -174,6 +183,14 @@ pub(super) fn summary_line(body: &Body, all: &Summaries) -> String {
         .map(|(_, l)| format!("${l}"))
         .collect();
     let mut line = format!("summary kept [{}]", kept.join(" "));
+    let borrows = lock(&all.borrowable).get(&body.item).copied();
+    let borrows: Vec<String> = (params.iter().enumerate())
+        .filter(|&(k, _)| k < 64 && borrows.unwrap_or(s.borrows) & (1 << k) != 0)
+        .map(|(_, l)| format!("${l}"))
+        .collect();
+    if !borrows.is_empty() {
+        let _ = write!(line, " borrows [{}]", borrows.join(" "));
+    }
     if let Some(&l) = s.returns.and_then(|k| params.get(usize::from(k))) {
         let _ = write!(line, " returns ${l}");
     }
@@ -1425,19 +1442,7 @@ impl Env<'_> {
             // host boundary codec's items), and no bit the passes already
             // read as kept.
             let item = body.item;
-            let glue = self.run.item_module_text(item).starts_with("std.rt")
-                || self.json_items().is_some_and(|j| {
-                    [
-                        j.package_encode,
-                        j.package_decode,
-                        j.encode,
-                        j.decode,
-                        j.result_is_ok,
-                        j.result_expect,
-                        j.host_provider,
-                    ]
-                    .contains(&item)
-                });
+            let glue = self.called_by_glue(item);
             let n = hd_tir::own::params(&body).len().min(64);
             let read = lock(&all.read);
             let mut lent = !s.kept
@@ -1469,11 +1474,114 @@ impl Env<'_> {
         let Some(all) = &self.run.summaries else {
             return false;
         };
+        if let Some(&m) = lock(&all.assume).get(&def) {
+            return k < 64 && m & (1 << k) != 0;
+        }
         let key = (def, u32::try_from(k).expect("arguments"));
         let mut read = lock(&all.read);
         *read.entry(key).or_insert_with(|| {
             k < 64 && lock(&all.lent).get(&def).is_some_and(|m| m & (1 << k) != 0)
         })
+    }
+
+    /// Whether emitted glue calls `item` with owned arguments: an item of
+    /// the runtime or one a host boundary codec calls, which lends
+    /// nothing.
+    fn called_by_glue(&self, item: DefId) -> bool {
+        self.run.item_module_text(item).starts_with("std.rt")
+            || self.json_items().is_some_and(|j| {
+                [
+                    j.package_encode,
+                    j.package_decode,
+                    j.encode,
+                    j.decode,
+                    j.result_is_ok,
+                    j.result_expect,
+                    j.host_provider,
+                ]
+                .contains(&item)
+            })
+    }
+
+    /// Release (#1289): the borrows of each member of recursive component
+    /// `members`, whose inlined bodies are `bodies`, by Lean 4's borrow
+    /// inference: every member starts borrowing each value parameter that
+    /// may hold a count, and the passes run over each member with calls inside
+    /// the component lending what is assumed. A parameter the body keeps
+    /// is dropped from the assumption, until no member keeps an assumed
+    /// one. Dropping a parameter only makes calls pass owned, which keeps
+    /// more, so the bits only fall and the loop ends. A member with no
+    /// inlined body, one the passes refuse, one that suspends, and one
+    /// glue calls ([`Env::called_by_glue`]) borrow nothing, as does a
+    /// parameter a caller's passes already read as kept.
+    pub(super) fn component_borrows(
+        &self,
+        members: &[DefId],
+        bodies: &HashMap<DefId, (Body, Hash128)>,
+    ) -> HashMap<DefId, u64> {
+        let mut assume: HashMap<DefId, u64> = HashMap::default();
+        let Some(all) = &self.run.summaries else {
+            return assume;
+        };
+        for &m in members {
+            let mut mask = 0;
+            if let Some((b, _)) = bodies.get(&m)
+                && !self.called_by_glue(m)
+                && !ProgramEnv::suspends(self, m)
+            {
+                let read = lock(&all.read);
+                let params = hd_tir::own::params(b);
+                for (k, &l) in params.iter().enumerate().take(64) {
+                    let kept_before = read.get(&(m, u32::try_from(k).expect("params")));
+                    if self.counted(b.local_ty[l as usize]) != Tri::No
+                        && self.received(m, k, params.len()) == Pass::Owned
+                        && kept_before != Some(&false)
+                    {
+                        mask |= 1 << k;
+                    }
+                }
+            }
+            assume.insert(m, mask);
+        }
+        lock(&all.assume).clone_from(&assume);
+        let mut fell = true;
+        while fell {
+            fell = false;
+            for &m in members {
+                let a = assume[&m];
+                if a == 0 {
+                    continue;
+                }
+                let kept = bodies
+                    .get(&m)
+                    .and_then(|(b, _)| self.trial_kept(b.clone()))
+                    .unwrap_or(u64::MAX);
+                if a & kept != 0 {
+                    assume.insert(m, a & !kept);
+                    lock(&all.assume).insert(m, a & !kept);
+                    fell = true;
+                }
+            }
+        }
+        lock(&all.assume).clear();
+        assume
+    }
+
+    /// The kept bits of `body` after a run of the passes alone, with no
+    /// verification and nothing recorded ([`Env::component_borrows`]);
+    /// `None` when the passes refuse it or it has no summary.
+    fn trial_kept(&self, mut body: Body) -> Option<u64> {
+        let mut scratch = SCRATCH.with(RefCell::take);
+        if body.anchors.is_empty() {
+            body.anchors = (0..u32::try_from(body.len()).expect("insts")).collect();
+        }
+        self.root_across_pure_calls(&mut body);
+        let kept = hd_wasm_linear::with_layout_cache(|| {
+            hd_tir::own::run(&mut body, self, &mut scratch).ok()?;
+            hd_tir::own::summary(&body, self, &scratch, None).map(|s| s.kept)
+        });
+        SCRATCH.with(|s| *s.borrow_mut() = scratch);
+        kept
     }
 
     /// The value parameters, the receiver first, that every instance of
@@ -1683,6 +1791,8 @@ impl Run<'_> {
                     for &m in members.iter() {
                         lock(&all.cycle).insert(m, members[0]);
                     }
+                    let borrows = env.component_borrows(members, &inlined.borrow());
+                    lock(&all.borrowable).extend(borrows);
                 }
                 for &m in members.iter() {
                     let body = inlined.borrow_mut().remove(&m);

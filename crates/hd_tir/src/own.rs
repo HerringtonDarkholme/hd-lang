@@ -676,6 +676,10 @@ pub struct Summary {
     /// call. Parameters past 63 are always kept; a suspending body has no
     /// summary.
     pub kept: u64,
+    /// Bit k: value parameter k may hold a count and the body keeps none of it
+    /// (`kept` clear), so a caller may pass it borrowed, with no count on
+    /// either side (#1289). Parameters past 63 never borrow.
+    pub borrows: u64,
     /// The parameter every result of the body is, unchanged: a whole read
     /// of a parameter the body never stores.
     pub returns: Option<u8>,
@@ -690,6 +694,7 @@ impl Summary {
     pub fn meet(self, other: Self) -> Self {
         Self {
             kept: self.kept | other.kept,
+            borrows: self.borrows & other.borrows,
             returns: self.returns.filter(|&k| other.returns == Some(k)),
             writes: self.writes || other.writes,
         }
@@ -1195,9 +1200,10 @@ pub fn summary(
     scratch: &OwnScratch,
     returns: Option<u8>,
 ) -> Option<Summary> {
-    let kept = borrow::kept(b, cx, &scratch.borrow)?;
+    let (kept, borrows) = borrow::kept(b, cx, &scratch.borrow)?;
     Some(Summary {
         kept,
+        borrows,
         returns,
         writes: true,
     })
@@ -2547,7 +2553,7 @@ pub(crate) mod tests {
             Ty::VOID,
         );
         assert_eq!(returns, None);
-        assert_eq!(s.map(|s| s.kept), Some(0b10));
+        assert_eq!(s.map(|s| (s.kept, s.borrows)), Some((0b10, 0b01)));
         let (returns, s) = summarized(|b, _, p1| Some(b.get(p1, Ty::STRING, n)), Ty::STRING);
         assert_eq!((returns, s.and_then(|s| s.returns)), (Some(1), Some(1)));
         let (returns, _) = summarized(
@@ -2561,11 +2567,13 @@ pub(crate) mod tests {
         assert_eq!(returns, None);
         let a = super::Summary {
             kept: 0b01,
+            borrows: 0b10,
             returns: Some(0),
             writes: false,
         };
         let b = super::Summary {
             kept: 0b10,
+            borrows: 0b01,
             returns: Some(1),
             writes: true,
         };
@@ -2573,6 +2581,7 @@ pub(crate) mod tests {
             a.meet(b),
             super::Summary {
                 kept: 0b11,
+                borrows: 0,
                 returns: None,
                 writes: true
             }

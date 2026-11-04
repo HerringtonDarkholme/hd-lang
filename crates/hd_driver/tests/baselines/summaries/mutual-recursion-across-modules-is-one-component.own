@@ -26,4 +26,4 @@ pub fn ping(c: Config, n: i64) -> i64:
 >   %8 = Prim Sub [%7 1:i64] : i64
 >   %9 = Call app/other/pong[] (%6, %8) : i64
 >   exit sub 0 drops [$0]
->   summary kept [$0] recursive
+>   summary kept [$0] borrows [$0] recursive

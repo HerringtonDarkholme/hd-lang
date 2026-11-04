@@ -1,0 +1,29 @@
+# @dump: own
+# @build: v8 release
+# Release summaries: a parameter the body never moves, stores, returns or
+# captures borrows. `Bag.size` only reads its list field, and `twice`
+# passes its bag on to `size`, so both borrow. `wrap` moves its list into
+# a field, `same` returns it, `add` pushes it into a list and `later`
+# captures it, so each keeps it.
+struct Bag:
+    items: List[string]
+    n: i64
+
+impl Bag:
+    fn size(self) -> usize:
+        self.items.len()
+
+fn twice(b: Bag) -> usize:
+    b.size() + b.size()
+
+fn wrap(items: List[string]) -> Bag:
+    Bag { items: items, n: 0 }
+
+fn same(b: Bag) -> Bag:
+    b
+
+fn add(all: &mut List[Bag], b: Bag) -> void:
+    all.push(b)
+
+fn later(b: Bag) -> fn() -> usize:
+    fn() -> usize: b.items.len()

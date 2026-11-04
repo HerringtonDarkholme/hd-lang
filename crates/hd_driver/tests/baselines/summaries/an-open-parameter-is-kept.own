@@ -23,4 +23,4 @@ fn pick[T](x: T, m: Member) -> T:
     x
 >   %6 = Read move [$0] : T
 >   exit sub 0 drops [$0]
->   summary kept [$0] returns $0
+>   summary kept [$0] borrows [$1] returns $0

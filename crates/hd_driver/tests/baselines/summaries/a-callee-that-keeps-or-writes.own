@@ -33,7 +33,7 @@ fn rename(target: &mut Member, m: Member) -> void:
 >   %1 = Interp [%0 "!"] : string
 >   %2 = Store [*$0 .name] %1 : ()
 >   %3 = Block - : ()
->   summary kept [] writes
+>   summary kept [] borrows [$1] writes
 
 impl Tally:
     fn add(*mut self) -> *mut Tally:
@@ -73,4 +73,4 @@ fn other(a: string, b: string) -> string:
 >   %13 = Read borrow [$1] : string
 >   %14 = Interp [%13] : string
 >   exit sub 0 drops [$0]
->   summary kept [$0]
+>   summary kept [$0] borrows [$1]

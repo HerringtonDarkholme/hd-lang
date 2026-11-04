@@ -23,4 +23,4 @@ fn unnamed(m: Member) -> bool:
 >   %0 = Read borrow [$0 .name] : string
 >   %1 = Intrinsic StrEq [%0 ""] : bool
 >   %2 = Block %1 : bool
->   summary kept []
+>   summary kept [] borrows [$0]

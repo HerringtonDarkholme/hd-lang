@@ -35,7 +35,7 @@ fn weight(f: Field) -> i64:
 >   %15 = Prim Add [%14 6:i64] : i64
 >   %16 = Prim Div [%13 %15] : i64
 >   %17 = Block %16 : i64
->   summary kept []
+>   summary kept [] borrows [$0]
 
 fn remember(all: &mut List[Field], f: Field) -> void:
     all.push(f)
@@ -91,7 +91,7 @@ fn total(f: Field, times: i64) -> i64:
 >   %20 = Store [$2] %19 : ()
     sum
 >   %27 = Read copy [$2] : i64
->   summary kept []
+>   summary kept [] borrows [$0]
 
 fn collect(f: Field) -> usize:
     let mut all: List[Field] = []
@@ -131,7 +131,7 @@ fn apply(g: fn(Field) -> i64, f: Field) -> i64:
 >   %2 = CallValue %0 [%1] : i64
 >   %3 = Block %2 : i64
 >   exit sub 0 drops [$1]
->   summary kept [$1] writes
+>   summary kept [$1] borrows [$0] writes
 
 fn set_first(target: &i64, xs: List[i64]) -> i64:
     *target + xs[0]
@@ -142,7 +142,7 @@ fn set_first(target: &i64, xs: List[i64]) -> i64:
 >   %1 = Read copy [$1 [0:usize]] : i64
 >   %2 = Prim Add [%0 %1] : i64
 >   %3 = Block %2 : i64
->   summary kept []
+>   summary kept [] borrows [$1]
 
 fn pinned() -> i64:
     let mut xs: List[i64] = [1, 2]

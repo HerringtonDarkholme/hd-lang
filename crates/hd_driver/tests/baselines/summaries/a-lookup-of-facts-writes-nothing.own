@@ -39,7 +39,7 @@ fn has_style(facts: Facts) -> bool:
 >   %21 = Block - : bool
 >   %22 = Scope %21 [] : bool
 >   %23 = Block %22 : bool
->   summary kept []
+>   summary kept [] borrows [$0]
 
 fn name_of(m: &Member, frames: &List[Frame]) -> string:
     member_name(m, frames[0].facts)
