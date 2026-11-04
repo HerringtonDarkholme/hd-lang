@@ -1,0 +1,22 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Lifetime Stores (spec/lang/13-values-and-references.md, #1364).
+# expected: `List[&User]` and `Map[string, &User]` hold addresses: no
+# retain of a `User` per store; the map key `u.name` is retained once
+# (a second owner).
+struct User:
+    name: string
+
+fn remember['a](seen: &mut List[&'a User], u: &'a User) -> void:
+    seen.push(u)
+
+fn index['a](by: &mut Map[string, &'a User], u: &'a User) -> void:
+    by[u.name] = u
+
+fn total(a: User, b: User) -> usize:
+    let mut seen: List[&User] = []
+    remember(&mut seen, &a)
+    remember(&mut seen, &b)
+    let mut by: Map[string, &User] = {}
+    index(&mut by, &a)
+    seen[0].name.len() + seen[1].name.len() + by.len()

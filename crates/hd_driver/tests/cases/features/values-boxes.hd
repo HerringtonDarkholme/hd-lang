@@ -1,0 +1,27 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Boxes (spec/lang/13-values-and-references.md, #1364).
+# expected: `copy_box` retains `s` once (the box and the changed `p`
+# are two owners); `move_box` moves `p` into the box; `shared`
+# retains the box once for the holder (reason 1).
+struct Point:
+    name: string
+
+struct Holder:
+    point: *mut Point
+
+fn copy_box(s: string, t: string) -> usize:
+    let mut p = Point { name: s }
+    copy := box(p)
+    p.name = t
+    copy.name.len() + p.name.len()
+
+fn move_box(s: string) -> *mut Point:
+    p := Point { name: s }
+    box(p)
+
+fn shared(s: string, t: string) -> usize:
+    b := box(Point { name: s })
+    h := Holder { point: b }
+    b.name = t
+    h.point.name.len()
