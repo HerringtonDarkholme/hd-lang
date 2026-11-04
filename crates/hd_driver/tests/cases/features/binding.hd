@@ -1,0 +1,18 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: `let` and `:=` bindings of a counted value (#1364).
+# expected: no count operation and every parameter borrowed: a binding
+# that only reads its value borrows it; `bind_kept` moves `xs` into the
+# list, with no count.
+fn bind(s: string) -> usize:
+    t := s
+    let u = t
+    u.len()
+
+fn bind_twice(xs: List[string]) -> usize:
+    ys := xs
+    ys.len() + xs.len()
+
+fn bind_kept(xs: List[string], all: &mut List[List[string]]) -> void:
+    ys := xs
+    all.push(ys)

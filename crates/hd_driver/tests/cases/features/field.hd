@@ -1,0 +1,22 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: field read and write (#1364).
+# expected: reads borrow `r` with no count; a write releases only the
+# field's old value; `take_field` moves the field out.
+struct Rec:
+    name: string
+    tags: List[string]
+
+fn read_field(r: Rec) -> usize:
+    r.name.len() + r.tags.len()
+
+fn take_field(r: Rec) -> string:
+    r.name
+
+fn write_field(r: Rec, n: string) -> Rec:
+    let mut s = r
+    s.name = n
+    s
+
+fn write_through(r: &mut Rec, n: string) -> void:
+    r.name = n
