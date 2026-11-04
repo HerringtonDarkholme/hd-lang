@@ -1,0 +1,29 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Requirement Polymorphism, Row Parameters, Omitted Requirement
+# Clauses (spec/lang/11-requirements-and-suspension.md, #1364).
+# expected: `with_tag` installs one provider object and calls the
+# callback with no environment; `run` passes `read_tag` with no
+# allocation; `closure` captures nothing and allocates nothing.
+trait Tag:
+    fn name(self) -> string
+
+struct Named:
+    label: string
+
+impl Tag for Named:
+    fn name(self) -> string:
+        self.label
+
+fn read_tag() -> usize $ Tag:
+    $.use(Tag).name().len()
+
+fn with_tag[$ R](s: string, callback: fn() -> usize $ R + Tag) -> usize $ R:
+    $.with(Tag=Named { label: s }):
+        callback()
+
+fn run(s: string) -> usize:
+    with_tag(s, read_tag)
+
+fn closure(s: string) -> usize:
+    with_tag(s, fn() -> usize $ Tag: $.use(Tag).name().len())

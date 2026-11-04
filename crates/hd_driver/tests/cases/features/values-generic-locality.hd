@@ -1,0 +1,34 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Generic Locality, Lifetime Bounds, Generic Calls
+# (spec/lang/13-values-and-references.md, #1364).
+# expected: `id(&u.name)` and `left_or_right` pass addresses with no
+# count; `keep` moves `value` into one box; `later` moves it into one
+# environment.
+struct User:
+    name: string
+
+struct Pair:
+    left: User
+    right: User
+
+fn id[T](value: T) -> T:
+    value
+
+fn left_or_right(pair: &Pair, left: bool) -> &User:
+    let o: (&User)? = if left: .Some(&pair.left) else: .None
+    o.unwrap_or(&pair.right)
+
+fn demo(u: &User) -> usize:
+    n := id(&u.name)
+    n.len()
+
+fn keep[T < 'static](value: T) -> *mut T:
+    box(value)
+
+fn later[T < 'static](value: T) -> fn() -> T:
+    fn() -> T: value
+
+fn bounded(u: User) -> usize:
+    kept := keep(u)
+    later(kept)().name.len()

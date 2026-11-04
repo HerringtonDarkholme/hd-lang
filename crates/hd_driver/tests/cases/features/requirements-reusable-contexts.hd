@@ -1,0 +1,25 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Reusable Contexts, Provider Grammar
+# (spec/lang/11-requirements-and-suspension.md, #1364).
+# expected: `make` boxes the provider once and moves it into the context;
+# `run` installs the context's provider with no copy of the context.
+trait Tag:
+    fn name(self) -> string
+
+struct Named:
+    label: string
+
+impl Tag for Named:
+    fn name(self) -> string:
+        self.label
+
+fn read_tag() -> usize $ Tag:
+    $.use(Tag).name().len()
+
+fn make(s: string) -> $.Context[$ Tag]:
+    $.context(Tag=Named { label: s })
+
+fn run(ctx: $.Context[$ Tag]) -> usize:
+    $.with(ctx...):
+        read_tag()

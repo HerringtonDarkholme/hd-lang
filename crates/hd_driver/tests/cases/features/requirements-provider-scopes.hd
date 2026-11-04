@@ -1,0 +1,38 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Provider Scopes, Lexical And Dynamic Providers, References To
+# Other Providers (spec/lang/11-requirements-and-suspension.md, #1364).
+# expected: `by_value` copies the `Named` value into one new object and
+# moves `s` into it; `nested` makes one object per scope; `$.use` and
+# `name` read the provider with the `&dyn` count of #1354 at most;
+# `lexical` captures the provider reference with no environment.
+trait Tag:
+    fn name(self) -> string
+
+struct Named:
+    label: string
+
+impl Tag for Named:
+    fn name(self) -> string:
+        self.label
+
+fn read_tag() -> usize $ Tag:
+    $.use(Tag).name().len()
+
+fn by_value(s: string) -> usize:
+    $.with(Tag=Named { label: s }):
+        read_tag()
+
+fn nested(a: string, b: string) -> usize:
+    $.with(Tag=Named { label: a }):
+        outer := read_tag()
+        $.with(Tag=Named { label: b }):
+            outer + read_tag()
+
+fn apply(f: fn() -> usize) -> usize:
+    f()
+
+fn lexical(s: string) -> usize:
+    $.with(Tag=Named { label: s }):
+        tag := $.use(Tag)
+        apply(fn() -> usize: tag.name().len())

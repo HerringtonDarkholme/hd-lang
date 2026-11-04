@@ -1,0 +1,21 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Provider Values (counted `*dyn K`), Captured Access
+# (spec/lang/11-requirements-and-suspension.md, #1364).
+# expected: `keep` retains the provider once for the returned `*dyn
+# Store` (moves into storage, reason 1); `holder` retains it once for
+# the field; `fetch` holds it in the frame (#1355 at most).
+trait Store:
+    fn get(self) -> string
+
+struct Holder:
+    store: *dyn Store
+
+fn keep() -> *dyn Store $ Store:
+    $.use(Store)
+
+fn holder() -> Holder $ Store:
+    Holder { store: $.use(Store) }
+
+fn fetch!() -> usize $ Store:
+    $.use(Store).get().len()

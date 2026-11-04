@@ -1,0 +1,28 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Lifetime Structs, Lifetime Enums, Lifetime Variables
+# (spec/lang/13-values-and-references.md, #1364).
+# expected: a struct or enum holding `&string` is a pair of words; making,
+# reading and passing it takes no count and allocates nothing.
+struct Parser[T, 'src]:
+    src: &'src T
+    pos: usize
+
+enum Token[T, 'src]:
+    Word(&'src T)
+    End
+
+fn parser['a](src: &'a string) -> Parser[string, 'a]:
+    Parser { src: src, pos: 0 }
+
+fn word['a](t: Token[string, 'a], fallback: &'a string) -> &'a string:
+    match t:
+        Token.Word(w) => w
+        Token.End => fallback
+
+fn length(text: string) -> usize:
+    p := parser(&text)
+    p.src.len() + p.pos
+
+fn token(text: string, other: string) -> usize:
+    word(Token.Word(&text), &other).len()

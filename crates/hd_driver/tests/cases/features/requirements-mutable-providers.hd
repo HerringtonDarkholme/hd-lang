@@ -1,0 +1,32 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Mutable Providers, Installing, Retrieving, Providers Behind
+# References (spec/lang/11-requirements-and-suspension.md, #1364).
+# expected: `demo` boxes one `Log` and installs it with one count for
+# the scope; `note` pushes `s` into the provider's list in place (moves
+# `s`, no copy of the list); `tally.lines.len()` reads with no count.
+trait Recorder:
+    fn note(&mut self, s: string) -> void
+    fn total(&self) -> usize
+
+struct Log:
+    lines: List[string]
+
+impl Recorder for Log:
+    fn note(&mut self, s: string) -> void:
+        self.lines.push(s)
+
+    fn total(&self) -> usize:
+        self.lines.len()
+
+fn tick(s: string) -> usize $ Recorder:
+    rec := $.use(Recorder)
+    rec.note(s)
+    rec.total()
+
+fn demo(a: string, b: string) -> usize:
+    tally := box(Log { lines: [] })
+    $.with(Recorder=tally):
+        _ := tick(a)
+        _ := tick(b)
+    tally.lines.len()

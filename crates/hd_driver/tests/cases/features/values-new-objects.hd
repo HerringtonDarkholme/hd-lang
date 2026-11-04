@@ -1,0 +1,26 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Places And New Objects (spec/lang/13-values-and-references.md, #1364).
+# expected: `&make(s)` and `&mut Named { .. }` never escape, so they need
+# no heap object: the value lives in the frame and `s` moves in with no
+# count; `field_ref` changes `p.name` in place.
+struct Named:
+    name: string
+
+fn make(s: string) -> Named:
+    Named { name: s }
+
+fn temp_ref(s: string) -> usize:
+    n := &make(s)
+    n.name.len()
+
+fn new_mut(s: string, t: string) -> usize:
+    m := &mut Named { name: s }
+    m.name = t
+    m.name.len()
+
+fn field_ref(s: string, t: string) -> usize:
+    let mut p = Named { name: s }
+    q := &mut p.name
+    *q = t
+    p.name.len()

@@ -1,0 +1,15 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: owning iterator chains (`iter`, `map`, `filter`,
+# `collect`) (spec/std/iter.md, #1364).
+# expected: the chain is one loop over `xs` with no adapter object on
+# the heap and no closure environment; each element moves through
+# `filter` and `map` with no retain; `collect` reserves once.
+fn lens(xs: List[string]) -> List[usize]:
+    xs.iter().map(fn(s: string) -> usize: s.len()).collect()
+
+fn loud(xs: List[string]) -> List[string]:
+    xs.iter()
+        .filter(fn(s: &string) -> bool: s.len() > 2)
+        .map(fn(s: string) -> string: s + "!")
+        .collect()

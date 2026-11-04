@@ -1,0 +1,32 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Inline And Cold (spec/lang/14-annotations.md, #1364).
+# expected: `first_len` is copied into `use_first` with no call and no
+# count; `checksum` stays a call that borrows `xs`; `unexpected` is a
+# table call on the rare path only.
+use std.annotation.{InlineHint, cold, inline}
+
+@cold
+fn unexpected(at: usize) -> string:
+    "unexpected byte at $at"
+
+@inline(.Never)
+fn checksum(xs: &List[string]) -> usize:
+    let mut n = 0
+    for x in xs:
+        n += x.len()
+    n
+
+@inline
+fn first_len(xs: &List[string]) -> usize:
+    if xs.len() == 0:
+        return 0
+    xs[0].len()
+
+fn use_first(xs: List[string]) -> usize:
+    first_len(&xs) + checksum(&xs)
+
+fn check(xs: List[string], at: usize) -> string:
+    if at >= xs.len():
+        return unexpected(at)
+    xs[at]
