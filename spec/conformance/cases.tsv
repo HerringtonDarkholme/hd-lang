@@ -6294,10 +6294,10 @@ typing/invalid/pointer-loan-same-root-uniq-replace.hd	type	reject:conflicting-ac
 typing/invalid/pointer-loan-same-root-pass-mut-with-shared.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.args.pointer
 typing/invalid/pointer-loan-same-root-pass-mut-with-mut.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.args.pointer
 typing/invalid/pointer-loan-same-root-pass-read-with-mut.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.args.pointer
-typing/invalid/pointer-loan-same-root-dependent-call.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place
-typing/invalid/pointer-loan-same-root-dependent-method.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place
+typing/invalid/pointer-loan-same-root-dependent-call.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.dep.call.pointer
+typing/invalid/pointer-loan-same-root-dependent-method.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.dep.call.pointer
 typing/invalid/pointer-loan-same-root-observer-notify.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place
-typing/invalid/pointer-loan-same-root-dependent-outlives-root.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.scope
+typing/invalid/pointer-loan-same-root-dependent-outlives-root.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.call.pointer
 runtime/valid/erased-call-matrix-generic-ref-ref-i32.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param
 runtime/valid/erased-call-matrix-generic-ref-ref-string.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param
 runtime/valid/erased-call-matrix-generic-ref-ref-unique.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.type

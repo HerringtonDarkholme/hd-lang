@@ -601,6 +601,8 @@ ${body}`;
   let rule = "ref.dep.scope";
   if (name.includes("-with-")) {
     rule = "ref.excl.args.pointer";
+  } else if (name.startsWith("dependent-")) {
+    rule = "ref.dep.call.pointer";
   } else if (code === "conflicting-access") {
     rule = "ref.excl.place";
   }

@@ -476,6 +476,11 @@ impl Gen<'_, '_> {
                 vs.dedup();
                 let h = self.t.fresh(1).start;
                 self.lend(a, h);
+                // The result holds the call's loan on its argument too
+                // (`ref.dep.call`, `ref.excl.call`).
+                if exclusive::call_site(self.s, a) {
+                    self.seed(h, Origin::Site(a));
+                }
                 let rs: Vec<Region> = vs.into_iter().map(|v| var(&mut self.t, v)).collect();
                 self.flow_vars(&[h], &rs, cat);
                 continue;
@@ -913,6 +918,14 @@ impl Gen<'_, '_> {
             Tag::Coerce => {
                 if let Some(v) = self.val(a) {
                     self.relate(&v, &me, false, false);
+                }
+                // A `*T` where a `&T` is expected is `&*p`: a local
+                // reference to what `p` was read from (`ref.dep.call`).
+                let from = self.s.ty(a).and_then(|t| local_ref(pool, t));
+                if let (Some((true, _)), Some((false, _)), Some(&r)) =
+                    (from, local_ref(pool, me.1), me.0.first())
+                {
+                    self.lend(i, r);
                 }
             }
             // A block's, a branch's and a loop's value, and a construction's

@@ -191,6 +191,11 @@ pub(super) fn reborrow(s: &Inputs<'_>, i: u32) -> bool {
     read && loan_path(s, i).is_some()
 }
 
+/// Whether call argument `v` takes a site loan (`ref.excl.call`).
+pub(super) fn call_site(s: &Inputs<'_>, v: u32) -> bool {
+    loan_path(s, v).is_some()
+}
+
 /// Whether argument `u` passes local `root` itself as a counted pointer,
 /// `*T` or `*mut T`, through any same-value coercion.
 fn passes_pointer(s: &Inputs<'_>, u: u32, root: u32) -> bool {
@@ -466,7 +471,7 @@ impl Gen<'_, '_> {
                 }
             });
             for v in args {
-                if loan_path(self.s, v).is_some()
+                if call_site(self.s, v)
                     && let Some(&top) = self.val(v).as_ref().and_then(|x| x.0.first())
                 {
                     self.seed(top, Origin::Site(v));
