@@ -15,7 +15,6 @@ fn build(word: string) -> UniqList[string]:
     let mut words = UniqList::[string].new()
 > std/rt_tests.stage_case/build
 >   release counted reference
->   release counted reference
     words.push(word)
     words
 

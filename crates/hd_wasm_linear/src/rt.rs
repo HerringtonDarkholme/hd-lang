@@ -308,6 +308,14 @@ pub enum Helper {
         /// The `std.rt.Drop.drop` instances to call before the fields.
         drops: Vec<DropCall>,
     },
+    /// `(values)`: moves an inline value into a local-stack frame, runs
+    /// its Drop hooks, then releases its fields. No counted box is made.
+    DropValue {
+        size: u32,
+        leaves: Vec<Leaf>,
+        walk: Walk,
+        drops: Vec<DropCall>,
+    },
     /// `(payload)`: a type-keyed descriptor alias for a weak-target type
     /// whose payload has no counted fields.
     WeakNoopDrop,
@@ -1786,6 +1794,12 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             walk,
             drops,
         } => fields_glue(m, "rt:drop", leaves, walk, drops, &release_call),
+        Helper::DropValue {
+            size,
+            leaves,
+            walk,
+            drops,
+        } => drop_value_glue(m, *size, leaves, walk, drops),
         Helper::WeakNoopDrop => m.func("rt:weak_noop_drop", vec![Val::I32], vec![]),
         Helper::WeakNew => weak_new(m),
         Helper::WeakEntryDrop => weak_entry_drop(m),
@@ -3957,29 +3971,59 @@ fn ref_count(f: &mut Func, ls: &[u32], value: &RefLayout, retain: bool) {
     }
 }
 
-/// Releases the inline value in locals `ls`, whose type runs `std.rt.Drop`
-/// implementations: as `Em::drop_inline` does, a box of no glue holds the
-/// value for the drops and the fields' release, then is freed.
+/// Releases an inline value through the same local-stack helper as
+/// `Em::drop_inline`, including values moved out of representation views.
 fn drop_value(f: &mut Func, ls: &[u32], value: &RefLayout, drops: &[DropCall]) {
-    let at = f.local(Val::I32);
-    f.u32(value.size);
-    push_desc(f, None, false);
-    f.helper(Helper::New);
-    f.set(at);
-    for (leaf, l) in value.leaves.iter().zip(ls) {
-        f.get(at);
-        f.get(*l);
-        f.op(leaf.store(0));
+    for &l in ls {
+        f.get(l);
     }
-    f.get(at);
-    f.helper(Helper::DropFields {
+    f.helper(Helper::DropValue {
+        size: value.size,
         leaves: value.leaves.clone(),
         walk: value.walk.clone().unwrap_or(Walk::Glue),
         drops: drops.to_vec(),
     });
-    f.get(at);
-    f.helper(Helper::TakeBox);
-    f.op(Instruction::Drop);
+}
+
+/// Each invocation has its own frame, so nested Drop calls cannot
+/// overwrite a parent's payload. The zero header gives references to the
+/// frame the same uncounted representation as every other local slot.
+fn drop_value_glue(
+    m: &Module,
+    size: u32,
+    leaves: &[Leaf],
+    walk: &Walk,
+    drops: &[DropCall],
+) -> Func {
+    let mut f = m.func(
+        "rt:drop_value",
+        leaves.iter().map(|l| l.val).collect(),
+        vec![],
+    );
+    let base = f.local(Val::I32);
+    let at = f.local(Val::I32);
+    f.get(base);
+    f.op(Instruction::I64Const(0));
+    f.op(Instruction::I64Store(mem(HEAP, 0, 3)));
+    f.get(base);
+    f.u32(crate::module::HEADER);
+    f.op(Instruction::I32Add);
+    f.set(at);
+    for (i, leaf) in leaves.iter().enumerate() {
+        f.get(at);
+        f.get(u32::try_from(i).expect("leaves"));
+        f.op(leaf.store(0));
+    }
+    call_drops(&mut f, at, drops);
+    let ls = load_elem_locals(&mut f, leaves);
+    fill_elem(&mut f, at, leaves, &ls);
+    walk_code(&mut f, walk, &|f, k| f.get(ls[k as usize]), &release_call);
+    crate::wide::locals_frame(
+        &mut f,
+        base,
+        (crate::module::HEADER + size).next_multiple_of(8),
+    );
+    f
 }
 
 fn ref_box(f: &mut Func, ls: &[u32], value: &RefLayout) {

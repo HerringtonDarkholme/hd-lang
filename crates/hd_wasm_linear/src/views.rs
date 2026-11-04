@@ -201,6 +201,7 @@ pub(crate) fn count_action(
             | Helper::ReleaseKnown
             | Helper::TakeBox
             | Helper::DropFields { .. }
+            | Helper::DropValue { .. }
             | Helper::CycleRelease,
         ) => Some(Release),
         Sym::Helper(Helper::CycleFree) => Some(Free),

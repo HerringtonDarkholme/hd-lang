@@ -20,6 +20,7 @@ use super::Em;
 use super::value::{Dst, Src};
 use crate::layout::{Mem, Part, Walk, env_mem, mem as mem_of, strip};
 use crate::module::{Sym, Val};
+use crate::rt::Helper;
 use crate::unsupported;
 
 /// Each local a closure shares, or that a reference refers to (`roots`,
@@ -339,13 +340,24 @@ impl Em<'_, '_, '_> {
         let (m, _) = self.cell_mem(l)?;
         self.f.get(c);
         self.f.op(I::If(BlockType::Empty));
-        let ls: Vec<u32> = m.leaves.iter().map(|x| self.f.local(x.val)).collect();
-        for (leaf, x) in m.leaves.iter().zip(&ls) {
+        if !matches!(self.kind(t), crate::layout::Kind::Value) || self.drop_calls(t).is_empty() {
+            let ls: Vec<u32> = m.leaves.iter().map(|x| self.f.local(x.val)).collect();
+            for (leaf, x) in m.leaves.iter().zip(&ls) {
+                self.f.get(c);
+                self.f.op(leaf.load(0));
+                self.f.set(*x);
+            }
+            self.release_locals(&ls, t)?;
+        } else {
             self.f.get(c);
-            self.f.op(leaf.load(0));
-            self.f.set(*x);
+            self.f.helper(Helper::DropFields {
+                leaves: m.leaves,
+                walk: crate::layout::walk(self.pool(), self.env(), t)
+                    .unwrap_or_else(|| Walk::Seq(Vec::new())),
+                drops: self.cell_drop_calls(t),
+            });
+            self.mark_drop_place(&Self::local_place(l), false);
         }
-        self.release_drop_place(&ls, t, &Self::local_place(l))?;
         self.f.op(I::End);
         Ok(())
     }
