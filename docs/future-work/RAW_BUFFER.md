@@ -208,8 +208,10 @@ collector for acyclic data, so the list must drop them.
   keep `len` honest, as `set_len` callers do today.
 - **Phases**, each about an hour, each with its test:
   1. The verifier, reporting every site on the conformance suite and std;
-     the site list goes on the tracking issue.
-  2. The read-mode rule for `!Copy` values; the verifier passes.
+     the site list goes on the tracking issue. Applied by #1295: it runs
+     on every body in every build and is an error.
+  2. The read-mode rule for `!Copy` values; the verifier passes. Applied
+     by #1296.
   3. `std.rt.Drop` and its glue call; a stage case and a checked case. Applied by #1297 ([Runtime Drop Hook](../../spec/lang/10-modules.md#runtime-drop-hook)).
   4. Raw `Buffer`, `UniqList` with `len`; uniq fixtures in checked
      builds. Applied by #1298 ([Typed Memory](../../spec/lang/10-modules.md#typed-memory)):
@@ -222,5 +224,5 @@ collector for acyclic data, so the list must drop them.
      applied by #1298; the iterators are #1299.
   6. Remove `OWNED`, `BufferDrop` and the item-reference counts; release
      sizes and the #1205 benchmark against `Map`. `OWNED` and the buffer
-     glue removed by #1298.
-  7. The generated test matrix.
+     glue removed by #1298; the room head goes with #1336 phase 8 (#1321).
+  7. The generated test matrix. Applied by #1300.
