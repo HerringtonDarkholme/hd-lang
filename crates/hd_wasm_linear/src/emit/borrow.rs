@@ -1294,12 +1294,7 @@ impl Em<'_, '_, '_> {
     /// through the pointer whose index plus one local `key` holds.
     fn borrow_add(&mut self, header: u32, key: u32, delta: u32, sign: i32) {
         let op = if sign < 0 { I::I32Sub } else { I::I32Add };
-        self.f.get(header);
-        self.f.get(header);
-        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-        self.f.u32(delta);
-        self.f.op(op);
-        self.f.op(I::I32Store(mem(HEAP, 0, 2)));
+        self.loan_state_add(header, delta, sign);
         for k in 0..self.borrows.loans {
             let own = self.own_local(k);
             self.f.get(key);
@@ -1313,6 +1308,47 @@ impl Em<'_, '_, '_> {
             self.own_mirror(k, own);
             self.f.op(I::End);
         }
+    }
+
+    /// Adds `delta` (or subtracts it, with `sign` -1) to the borrow state
+    /// at the header address in local `header`. A shared loan goes
+    /// through `rt:loan_share`, which spills past 31 (E.2).
+    fn loan_state_add(&mut self, header: u32, delta: u32, sign: i32) {
+        let op = if sign < 0 { I::I32Sub } else { I::I32Add };
+        if delta == LOAN_SHARED {
+            // Inline below a count of 31; the helper at 31.
+            let full = LOAN_STATE - LOAN_EXCL;
+            let st = self.f.local(Val::I32);
+            self.f.get(header);
+            self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+            self.f.set(st);
+            self.f.get(st);
+            self.f.u32(full);
+            self.f.op(I::I32And);
+            self.f.u32(full);
+            self.f.op(I::I32Eq);
+            self.f.op(I::If(BlockType::Empty));
+            self.f.get(header);
+            self.f.helper(if sign < 0 {
+                Helper::LoanUnshare
+            } else {
+                Helper::LoanShare
+            });
+            self.f.op(I::Else);
+            self.f.get(header);
+            self.f.get(st);
+            self.f.u32(delta);
+            self.f.op(op);
+            self.f.op(I::I32Store(mem(HEAP, 0, 2)));
+            self.f.op(I::End);
+            return;
+        }
+        self.f.get(header);
+        self.f.get(header);
+        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+        self.f.u32(delta);
+        self.f.op(op);
+        self.f.op(I::I32Store(mem(HEAP, 0, 2)));
     }
 
     /// After `Store` `i` into a holder: the loans of the reference it
@@ -1650,12 +1686,7 @@ impl Em<'_, '_, '_> {
             KeyOf::Local(kl) => self.borrow_add(loan.header, kl, loan.delta, sign),
             KeyOf::Known(key) => {
                 let op = if sign < 0 { I::I32Sub } else { I::I32Add };
-                self.f.get(loan.header);
-                self.f.get(loan.header);
-                self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-                self.f.u32(loan.delta);
-                self.f.op(op);
-                self.f.op(I::I32Store(mem(HEAP, 0, 2)));
+                self.loan_state_add(loan.header, loan.delta, sign);
                 if let Some(k) = key.filter(|&k| k < self.borrows.loans) {
                     let own = self.own_local(k);
                     self.f.get(own);
@@ -2034,12 +2065,21 @@ impl Em<'_, '_, '_> {
             self.f.op(I::I32Or);
             self.f.op(I::I32Eqz);
             self.f.op(I::If(BlockType::Empty));
+            // A shared loan's end consults the spill table.
+            self.f.get(d);
+            self.f.u32(LOAN_SHARED);
+            self.f.op(I::I32Eq);
+            self.f.op(I::If(BlockType::Empty));
+            self.f.get(h);
+            self.f.helper(Helper::LoanUnshare);
+            self.f.op(I::Else);
             self.f.get(h);
             self.f.get(h);
             self.f.op(I::I32Load(mem(HEAP, 0, 2)));
             self.f.get(d);
             self.f.op(I::I32Sub);
             self.f.op(I::I32Store(mem(HEAP, 0, 2)));
+            self.f.op(I::End);
             self.f.op(I::End);
         }
         self.f.op(I::End);

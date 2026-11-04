@@ -12,8 +12,8 @@ use wasm_encoder::BlockType;
 use crate::layout::{Addr, Leaf, Walk};
 use crate::map::{self, KeyOps};
 use crate::module::{
-    BUF, CYCLIC, DescriptorKey, EMPTY, Func, GLUE, Global, HEADER, HEAP, Import, Ins, Module, Sym,
-    Val, WEAK, WEAK_GLUE, mem,
+    BUF, CYCLIC, DescriptorKey, EMPTY, Func, GLUE, Global, HEADER, HEAP, Import, Ins, LOAN_EXCL,
+    LOAN_SHARED, LOAN_STATE, Module, Sym, Val, WEAK, WEAK_GLUE, mem,
 };
 use crate::{Entry, Input, unsupported};
 
@@ -226,6 +226,11 @@ pub enum Helper {
     Panic(String),
     /// `(text)`: the `explicit-panic` report of `panic(text)`.
     PanicStr,
+    /// `(header)`: a shared loan's begin on the object whose descriptor
+    /// word is at `header`, spilling past 31 ([`loan_share`]).
+    LoanShare,
+    /// `(header)`: a shared loan's end, from the spill table first.
+    LoanUnshare,
     /// `(category, message)`: std's `panic_with`, whose report shows the
     /// message after the category when it is not empty
     /// (`flow.panic.report`).
@@ -1669,6 +1674,8 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f.op(Instruction::Unreachable);
             f
         }
+        Helper::LoanShare => loan_share(m, true),
+        Helper::LoanUnshare => loan_share(m, false),
         Helper::PanicStr => {
             let mut f = m.func("rt:panic_str", vec![Val::I32, Val::I32], vec![]);
             f.call(rt_import("panic", &[], &[]));
@@ -4741,4 +4748,124 @@ pub(crate) fn grow_table(m: &Module, f: &mut Func, [tab, len]: [Global; 2], cap:
     f.global_set(tab);
     f.get(cap);
     f.global_set(len);
+}
+
+/// The entries of the loan spill table (`rt:loan_share`): objects with
+/// more than 31 shared loans at once.
+const SPILL_ENTRIES: u32 = 64;
+
+/// [`Helper::LoanShare`] and [`Helper::LoanUnshare`]: a shared loan's
+/// begin or end on the object whose descriptor word is at address
+/// parameter 0 (model A, `docs/future-work/POINTER_LOANS.md` E.2). At a
+/// count of 31 a begin adds to the object's entry in a static side table
+/// keyed by that address instead, leaving the count at 31 so the inline
+/// checks still see a shared loan; an end consults the table first.
+fn loan_share(m: &mut Module, begin: bool) -> Func {
+    let name = if begin {
+        "rt:loan_share"
+    } else {
+        "rt:loan_unshare"
+    };
+    let mut f = m.func(name, vec![Val::I32], vec![]);
+    if m.loan_spill == 0 {
+        m.loan_spill = m.static_slot(SPILL_ENTRIES * 8, 4);
+    }
+    let table = m.loan_spill;
+    let full = LOAN_STATE - LOAN_EXCL;
+    let (s, e, free) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.set(s);
+    // Below 31: the count itself.
+    f.get(s);
+    f.u32(full);
+    f.op(Instruction::I32And);
+    f.u32(full);
+    f.op(Instruction::I32Ne);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(0);
+    f.get(s);
+    f.u32(LOAN_SHARED);
+    f.op(if begin {
+        Instruction::I32Add
+    } else {
+        Instruction::I32Sub
+    });
+    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+    // At 31: the object's entry, and a free one.
+    f.static_addr(table);
+    f.set(e);
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.get(e);
+    f.static_addr(table + SPILL_ENTRIES * 8);
+    f.op(Instruction::I32Eq);
+    f.op(Instruction::BrIf(1));
+    f.get(e);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.get(0);
+    f.op(Instruction::I32Eq);
+    f.op(Instruction::If(BlockType::Empty));
+    // The entry: one more, or one fewer, emptied at none.
+    f.get(e);
+    f.get(e);
+    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+    f.i32(if begin { 1 } else { -1 });
+    f.op(Instruction::I32Add);
+    f.op(Instruction::I32Store(mem(HEAP, 4, 2)));
+    if !begin {
+        f.get(e);
+        f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+        f.op(Instruction::I32Eqz);
+        f.op(Instruction::If(BlockType::Empty));
+        f.get(e);
+        f.i32(0);
+        f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+        f.op(Instruction::End);
+    }
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+    f.get(free);
+    f.op(Instruction::I32Eqz);
+    f.get(e);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::I32And);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(e);
+    f.set(free);
+    f.op(Instruction::End);
+    f.get(e);
+    f.i32(8);
+    f.op(Instruction::I32Add);
+    f.set(e);
+    f.op(Instruction::Br(0));
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+    if begin {
+        // No entry yet: a new one with one loan.
+        f.get(free);
+        f.op(Instruction::I32Eqz);
+        f.op(Instruction::If(BlockType::Empty));
+        f.helper(Helper::Panic(
+            "heap-exhausted: more than 64 objects hold over 31 shared loans each".into(),
+        ));
+        f.op(Instruction::End);
+        f.get(free);
+        f.get(0);
+        f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+        f.get(free);
+        f.i32(1);
+        f.op(Instruction::I32Store(mem(HEAP, 4, 2)));
+    } else {
+        // No spilled loan: the count itself.
+        f.get(0);
+        f.get(s);
+        f.u32(LOAN_SHARED);
+        f.op(Instruction::I32Sub);
+        f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    }
+    f
 }

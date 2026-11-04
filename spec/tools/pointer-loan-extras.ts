@@ -264,6 +264,31 @@ pub fn main() -> void $ Console:
 `,
   },
   {
+    name: "deep-shared-loans-kept",
+    panic: false,
+    what: "seventy nested shared loans on one object that a `&mut` elsewhere keeps, past an inline counter's width and into the bits above it",
+    source: `struct Cell:
+    value: string
+
+@@HELPERS@@
+fn depth(p: *Cell, w: *mut Cell, n: usize) -> usize:
+    r := &p.value
+    below := if n == 0: 0 else: depth(p, w, n - 1)
+    if n > 1000:
+        m := &mut w.value
+        *m = fresh()
+    r.len() + below
+
+pub fn main() -> void $ Console:
+    p := box(Cell { value: orig() })
+    w := box(Cell { value: fresh() })
+    if depth(p, w, 70) != 71 * orig().len():
+        panic("the nested reads disagree")
+    p.value = fresh()
+    println("ok")
+`,
+  },
+  {
     name: "dyn-receiver-alias-write-panics",
     panic: true,
     what: "a `&mut self` call through a `*mut dyn` writes the object through an alias it was given",
@@ -904,6 +929,7 @@ export const extraColumns: Record<string, [string, string]> = {
   "captured-variable-grows-panics": ["loan needed", "runs, stale"],
   "captured-variable-replaced-panics": ["loan needed", "runs, stale"],
   "deep-shared-loans": ["elided", "runs"],
+  "deep-shared-loans-kept": ["loan needed", "runs"],
   "dyn-receiver-alias-write-panics": ["loan needed", "runs, sees the write"],
   "generic-argument-alias-write-panics": ["loan needed", "runs, sees the write"],
   "copy-under-element-loan-panics": ["loan needed", "runs; the copy keeps its own elements"],

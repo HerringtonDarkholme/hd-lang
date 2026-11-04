@@ -3,7 +3,9 @@
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:panic'3" (func $rt:panic'3))
+  (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
   (import "fixture" "rt:panic'4" (func $rt:panic'4))
+  (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $"impl Counter.add" (param $self i32) (param $k i32) (param $other i32) (local $t0 i64)
     ;; 12 |         self.n += k
@@ -71,7 +73,7 @@
     ;; 12 |         self.n += k
     end
   )
-  (func $bump (param $p i32) (param $other i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $bump (param $p i32) (param $other i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 16 |     p.add(p.n, other)
     block
       local.get $p
@@ -107,11 +109,22 @@
         unreachable
       end
       local.get $t2
-      local.get $t2
       i32.load $heap
-      i32.const 65536
-      i32.add
-      i32.store $heap
+      local.tee $t3
+      i32.const 2031616
+      i32.and
+      i32.const 2031616
+      i32.eq
+      if
+        local.get $t2
+        call $rt:loan_share
+      else
+        local.get $t2
+        local.get $t3
+        i32.const 65536
+        i32.add
+        i32.store $heap
+      end
       local.get $t0
       i32.const 65536
       i32.add
@@ -127,11 +140,22 @@
         unreachable
       end
       local.get $t2
-      local.get $t2
       i32.load $heap
-      i32.const 65536
-      i32.sub
-      i32.store $heap
+      local.tee $t3
+      i32.const 2031616
+      i32.and
+      i32.const 2031616
+      i32.eq
+      if
+        local.get $t2
+        call $rt:loan_unshare
+      else
+        local.get $t2
+        local.get $t3
+        i32.const 65536
+        i32.sub
+        i32.store $heap
+      end
       local.get $t0
       i32.const 65536
       i32.sub

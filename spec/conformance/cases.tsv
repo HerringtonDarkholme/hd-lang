@@ -6259,6 +6259,7 @@ runtime/valid/pointer-loan-extra-receiver-argument-reads-the-receiver.hd	runtime
 runtime/panic/pointer-loan-extra-captured-variable-grows-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.shared-variable
 runtime/panic/pointer-loan-extra-captured-variable-replaced-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.shared-variable
 runtime/valid/pointer-loan-extra-deep-shared-loans.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
+runtime/valid/pointer-loan-extra-deep-shared-loans-kept.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/panic/pointer-loan-extra-dyn-receiver-alias-write-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/panic/pointer-loan-extra-generic-argument-alias-write-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/panic/pointer-loan-extra-copy-under-element-loan-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases

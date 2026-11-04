@@ -1731,6 +1731,16 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   erased body's open type counts as any of them, and its pointer may be
   a representation view, whose source the check reads); a place that
   crosses no `*T` emits nothing, and a pointer argument is no access.
+  A closure checks an access through a `*T` it captured against its
+  creator's own loans through it (E.2): its environment holds the
+  address of a 4-byte cell the creator keeps them in (`Em::own_caps`).
+  A `*dyn` or `*mut dyn` receiver lends the object at the pointer's data
+  address; its loan is decided per type over the types the program
+  converts to the trait (`Module::dyn_types`, class-hierarchy analysis).
+  A shared loan's begin and end go through `rt:loan_share` and
+  `rt:loan_unshare`: at a count of 31 the begin adds to the object's
+  entry in a 64-entry static side table instead (`Module::loan_spill`),
+  leaving the count at 31, and the end consults the table first.
 - **Bounded memory.** `crates/hd_driver/tests/std_rt/ref_tests.hd` writes
   through references to locals and elements, checks that a pin ends with
   its reference's last use, and takes references to locals and elements
