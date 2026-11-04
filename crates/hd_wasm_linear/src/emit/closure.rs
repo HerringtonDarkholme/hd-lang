@@ -690,20 +690,19 @@ impl Em<'_, '_, '_> {
                 self.f.set(*x);
             }
         }
-        // A suspending closure's frame holds no cell: its own loans start
-        // at none.
-        if env == 0 {
-            let cells: Vec<u32> = (parts[caps.len()..].iter())
-                .map(|p| {
-                    let c = self.f.local(Val::I32);
-                    self.f.get(env);
-                    self.f.op(m.leaves[p.first].load(0));
-                    self.f.set(c);
-                    c
-                })
-                .collect();
-            self.own_cells_load(ci, &cells);
-        }
+        // The cells of the creator's own loans. A suspending closure's
+        // frame holds a count of each (`susp::finish`), which its end or
+        // abandonment releases.
+        let cells: Vec<u32> = (parts[caps.len()..].iter())
+            .map(|p| {
+                let c = self.f.local(Val::I32);
+                self.f.get(env);
+                self.f.op(m.leaves[p.first].load(0));
+                self.f.set(c);
+                c
+            })
+            .collect();
+        self.own_cells_load(ci, &cells, env != 0);
         Ok(())
     }
 

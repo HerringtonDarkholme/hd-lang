@@ -179,8 +179,9 @@ pub(super) struct Borrows {
     /// own loans through them ([`Em::own_caps`]).
     own_shared: hd_base::HashSet<usize>,
     /// The cell holding the own loans through each of them: the local of
-    /// its address, and whether this body made it (and so releases it) or
-    /// read it from its environment.
+    /// its address, and whether this body holds a count of it, which its
+    /// end or abandonment releases: one it made, or a suspending closure's,
+    /// whose frame counts its environment's cells.
     own_cells: HashMap<usize, (u32, bool)>,
     /// The header locals of call loans on a `*dyn` receiver's object,
     /// which are 0 where its data address is (a trait value of no Wasm
@@ -810,10 +811,11 @@ impl Em<'_, '_, '_> {
 
     /// In closure `ci`'s prologue: the cells of the own loans through
     /// the pointers it captures, from the environment's slots `cells`, and
-    /// its own loans through each start as its creator's.
-    pub(super) fn own_cells_load(&mut self, ci: usize, cells: &[u32]) {
+    /// its own loans through each start as its creator's; `held` when its
+    /// frame holds a count of each.
+    pub(super) fn own_cells_load(&mut self, ci: usize, cells: &[u32], held: bool) {
         for (l, c) in self.own_caps(ci).into_iter().zip(cells.iter().copied()) {
-            self.borrows.own_cells.insert(l, (c, false));
+            self.borrows.own_cells.insert(l, (c, held));
             if let Some(k) = self.own_key(l) {
                 let own = self.own_local(k);
                 self.f.get(c);
@@ -823,22 +825,71 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    /// After own loans through key `k` change: their cell, if a closure
-    /// captured the pointer, keeps them.
-    fn own_mirror(&mut self, k: usize, own: u32) {
+    /// The cell of own loans through key `k`'s pointer, when a closure
+    /// of the body captures that pointer.
+    fn own_cell_of_key(&mut self, k: usize) -> Option<u32> {
         let l = match &self.borrows.keys[k].0 {
             (PlaceRoot::Local(x), proj, f) if proj.is_empty() && *f == ANY_FRAME => x.idx(),
-            _ => return,
+            _ => return None,
         };
-        if !self.borrows.own_shared.contains(&l) {
-            return;
+        self.borrows
+            .own_shared
+            .contains(&l)
+            .then(|| self.own_cell(l))
+    }
+
+    /// The local of the own loans through key `k`, read again from their
+    /// cell where one is made: the creator and its closures, suspending
+    /// ones too, change one count (E.2).
+    fn own_read(&mut self, k: usize) -> u32 {
+        let own = self.own_local(k);
+        if let Some(c) = self.own_cell_of_key(k) {
+            self.f.get(c);
+            self.f.op(I::If(BlockType::Empty));
+            self.f.get(c);
+            self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+            self.f.set(own);
+            self.f.op(I::End);
         }
-        let c = self.own_cell(l);
+        own
+    }
+
+    /// The body's locals for captured pointer `l`'s own loans, for a
+    /// suspending closure's frame: its cell's (`true`) and its own count's.
+    pub(super) fn own_frame_locals(&self, l: usize) -> Vec<(u32, bool)> {
+        let mut out: Vec<(u32, bool)> = self
+            .borrows
+            .own_cells
+            .get(&l)
+            .map(|x| (x.0, true))
+            .into_iter()
+            .collect();
+        if let Some(k) = self.own_key(l)
+            && let Some(own) = self.borrows.keys[k].1
+        {
+            out.push((own, false));
+        }
+        out
+    }
+
+    /// After own loans through key `k` change by `delta` (`sign` -1 for
+    /// an end): their cell, once made, takes the same change, and the
+    /// local reads it back.
+    fn own_mirror(&mut self, k: usize, own: u32, delta: u32, sign: i32) {
+        let Some(c) = self.own_cell_of_key(k) else {
+            return;
+        };
         self.f.get(c);
         self.f.op(I::If(BlockType::Empty));
         self.f.get(c);
-        self.f.get(own);
+        self.f.get(c);
+        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+        self.f.u32(delta);
+        self.f.op(if sign < 0 { I::I32Sub } else { I::I32Add });
         self.f.op(I::I32Store(mem(HEAP, 0, 2)));
+        self.f.get(c);
+        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+        self.f.set(own);
         self.f.op(I::End);
     }
 
@@ -1231,7 +1282,7 @@ impl Em<'_, '_, '_> {
     ) {
         let own = key
             .filter(|&k| k < self.borrows.loans)
-            .map(|k| self.own_local(k));
+            .map(|k| self.own_read(k));
         self.f.get(header);
         self.f.op(I::I32Load(mem(HEAP, 0, 2)));
         self.f.u32(mask);
@@ -1295,7 +1346,7 @@ impl Em<'_, '_, '_> {
             self.f.u32(delta);
             self.f.op(op);
             self.f.set(own);
-            self.own_mirror(k, own);
+            self.own_mirror(k, own, delta, sign);
             self.f.op(I::End);
         }
     }
@@ -1552,7 +1603,7 @@ impl Em<'_, '_, '_> {
             self.f.set(kl);
             match key {
                 Some(k) => {
-                    let own = self.own_local(k);
+                    let own = self.own_read(k);
                     self.borrow_check_own(h, mask, own);
                 }
                 None => self.borrow_check_raw(h, mask),
@@ -1683,7 +1734,7 @@ impl Em<'_, '_, '_> {
                     self.f.u32(loan.delta);
                     self.f.op(op);
                     self.f.set(own);
-                    self.own_mirror(k, own);
+                    self.own_mirror(k, own, loan.delta, sign);
                 }
             }
         }
@@ -1857,7 +1908,7 @@ impl Em<'_, '_, '_> {
                 }
                 let own = key
                     .filter(|&k| k < self.borrows.loans)
-                    .map(|k| self.own_local(k));
+                    .map(|k| self.own_read(k));
                 self.f.get(loan.header);
                 self.f.op(I::I32Load(mem(HEAP, 0, 2)));
                 self.f.u32(LOAN_STATE);
@@ -1916,7 +1967,7 @@ impl Em<'_, '_, '_> {
                 };
                 match key {
                     Some(k) => {
-                        let own = self.own_local(k);
+                        let own = self.own_read(k);
                         self.borrow_check_own(header, mask, own);
                     }
                     None => self.borrow_check_raw(header, mask),

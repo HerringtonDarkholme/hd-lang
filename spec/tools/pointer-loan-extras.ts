@@ -344,6 +344,35 @@ pub fn main!() -> void $ Console + Clock:
 `,
   },
   {
+    name: "suspending-closure-writes-another-field",
+    panic: false,
+    what: "a suspending closure writes another field through its creator's pointer, across a suspension, while the creator's reference lives",
+    source: `use std.time.{Clock, ms, sleep}
+
+struct Cell:
+    value: string
+    other: string
+
+fn run!(f: fn!() -> void $ Clock) -> void $ Clock:
+    f!()
+
+fn run_plain(f: fn() -> void) -> void:
+    f()
+
+pub fn main!() -> void $ Console + Clock:
+    p := box(Cell { value: "a", other: "o" })
+    r := &p.other
+    run_plain(fn() -> void: p.value = "b")
+    run!(fn!() -> void $ Clock:
+        sleep!(ms(1))
+        p.value = "c"
+    )
+    if *r != "o" || p.value != "c":
+        panic("the writes disagree")
+    println("ok")
+`,
+  },
+  {
     name: "dyn-receiver-alias-write-panics",
     panic: true,
     what: "a `&mut self` call through a `*mut dyn` writes the object through an alias it was given",
@@ -987,6 +1016,7 @@ export const extraColumns: Record<string, [string, string]> = {
   "deep-shared-loans-kept": ["loan needed", "runs"],
   "deep-shared-loans-many-objects": ["loan needed", "runs"],
   "suspending-creator-closure-write-panics": ["loan needed", "runs"],
+  "suspending-closure-writes-another-field": ["loan needed", "runs"],
   "dyn-receiver-alias-write-panics": ["loan needed", "runs, sees the write"],
   "generic-argument-alias-write-panics": ["loan needed", "runs, sees the write"],
   "copy-under-element-loan-panics": ["loan needed", "runs; the copy keeps its own elements"],

@@ -1113,20 +1113,18 @@ Each about an hour, with its test; the matrix rows leave
     each over 31 at once).
 
 A closure checks an access through a `*T` it captured against its
-creator's own loans through that pointer (E.2), which a cell in its
-environment holds and the creator keeps current, a suspending creator
-too. A snapshot of them taken at the closure's creation could miss a
-conflict: with a stale count above the true one, another function's
-loans could make up the difference and an access would pass
-(`extra-suspending-creator-closure-write-panics` ran before the cell
-was kept current in suspending bodies). One gap remains, and it is
-only stricter: a suspending closure (`fn!`) starts with no own loans,
-since its frame does not load the cell. Its checks then also count the
-creator's loans, so it can panic where a plain closure would not, and
-never passes where one would panic. For example, with
-`p: *mut Cell` and `r := &p.other` live,
-`run_plain(fn() -> void: p.value = "b")` runs, while
-`run!(fn!() -> void: p.value = "c")` panics `borrow-conflict`.
+creator's own loans through that pointer (E.2). They live in one cell
+that the creator and every closure it makes change together: the
+creator makes it at its first such closure, each change through that
+pointer adds to the cell, and each check reads it. The environment holds
+a count of it, and so does a suspending closure's frame, which keeps it
+across suspensions and releases it at its end or abandonment; a
+suspending creator keeps its count in its frame as well. There is no
+gap: a snapshot of the creator's loans taken when the closure is made
+could miss a conflict
+(`extra-suspending-creator-closure-write-panics`), and a suspending
+closure that started with none panicked where a plain one runs
+(`extra-suspending-closure-writes-another-field`).
 
 ### E.6 Checklist
 

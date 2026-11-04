@@ -1475,6 +1475,27 @@ pub(super) fn finish(
                     }
                 }
             }
+            // The cells of the creator's own loans (E.2), each with a count
+            // the frame holds, and the body's own loans as they stand.
+            let own = em.own_caps(ci);
+            for (l, p) in own.into_iter().zip(&parts[caps.len()..]) {
+                let y = em.f.local(Val::I32);
+                em.f.get(0);
+                em.f.op(m.leaves[p.first].load(0));
+                em.f.set(y);
+                em.f.get(y);
+                em.f.helper(Helper::RetainKnown);
+                for (x, cell) in em.own_frame_locals(l) {
+                    if let Some((at, v)) = at_of(x) {
+                        em.f.get(fr);
+                        em.f.get(y);
+                        if !cell {
+                            em.f.op(I::I32Load(crate::module::mem(crate::module::HEAP, 0, 2)));
+                        }
+                        em.f.op(store_op(v, at));
+                    }
+                }
+            }
         }
     }
     em.f.get(fr);

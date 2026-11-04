@@ -1743,8 +1743,9 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   first: an open-addressed table keyed by the descriptor's address, in a
   raw block allocated on first use, doubled at three quarters full and
   freed when its last entry goes (`SpillTab`, `SpillCap`, `SpillLen`).
-  A suspending creator keeps its closures' cell current too; a
-  suspending closure starts with no own loans (stricter only, E.5).
+  The creator and its closures change the cell together (each change
+  adds to it, each check reads it); a suspending closure's frame holds
+  a count of it across suspensions.
 - **Bounded memory.** `crates/hd_driver/tests/std_rt/ref_tests.hd` writes
   through references to locals and elements, checks that a pin ends with
   its reference's last use, and takes references to locals and elements

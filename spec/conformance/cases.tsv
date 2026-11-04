@@ -6262,6 +6262,7 @@ runtime/valid/pointer-loan-extra-deep-shared-loans.hd	runtime	accept	lang/13-val
 runtime/valid/pointer-loan-extra-deep-shared-loans-kept.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-extra-deep-shared-loans-many-objects.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/panic/pointer-loan-extra-suspending-creator-closure-write-panics.hd	runtime	panic:borrow-conflict	std/time.md#r-std-time.helper.sleep
+runtime/valid/pointer-loan-extra-suspending-closure-writes-another-field.hd	runtime	accept	std/time.md#r-std-time.helper.sleep
 runtime/panic/pointer-loan-extra-dyn-receiver-alias-write-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/panic/pointer-loan-extra-generic-argument-alias-write-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/panic/pointer-loan-extra-copy-under-element-loan-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
