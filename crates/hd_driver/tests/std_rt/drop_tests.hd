@@ -4,6 +4,7 @@
 use std.rt.Drop
 use std.rt.cycle.marking
 use std.collections.{UniqList, UniqMap}
+use std.iter.Iterable
 use std.rt.memory.pages
 use std.rt.checked.released
 
@@ -30,10 +31,7 @@ impl Drop for Outer:
         log = log + self.name
 
 fn make_and_release() -> void:
-    _ := Outer {
-        name: "outer,",
-        inner: Inner { name: "inner" },
-    }
+    _ := Outer { name: "outer,", inner: Inner { name: "inner" } }
 
 struct Token:
     kind: usize
@@ -93,6 +91,28 @@ fn release_map() -> void:
         _ := items.insert(key, Token { kind: 2 })
     _ := items.insert(3, Token { kind: 2 })
     _ := items.remove(4)
+
+fn release_drop[T < ?Copy & Drop](value: T) -> void:
+    pass
+
+fn release_list_cursor(taken: usize) -> void:
+    let mut items = UniqList::[Token].new()
+    for _ in 0..3:
+        items.push(Token { kind: 2 })
+    let mut cursor = Iterable::[Token]::iter(items)
+    for _ in 0..taken:
+        _ := cursor.next()
+    release_drop(cursor)
+
+fn release_map_cursor(taken: usize) -> void:
+    let mut items = UniqMap::[string, Token].new()
+    for index in 0..4:
+        _ := items.insert("key-$index", Token { kind: 2 })
+    _ := items.remove("key-1")
+    let mut cursor = Iterable::[(string, Token)]::iter(items)
+    for _ in 0..taken:
+        _ := cursor.next()
+    release_drop(cursor)
 
 fn scalars(n: i32) -> usize:
     let mut items = UniqList::[i32].new()
@@ -162,6 +182,18 @@ tests:
         list_drops = 0
         release_map()
         assert(list_drops == 21, "each value drops once: $list_drops")
+
+    it("a consuming list cursor implements Drop at every consumption point"):
+        for taken in 0..=3:
+            list_drops = 0
+            release_list_cursor(taken)
+            assert(list_drops == 3, "yielded and unyielded values drop once: $list_drops")
+
+    it("a consuming map cursor implements Drop and skips removed entries"):
+        for taken in 0..=3:
+            list_drops = 0
+            release_map_cursor(taken)
+            assert(list_drops == 4, "removed, yielded and unyielded values drop once: $list_drops")
 
     it("UniqLists of scalars free their rooms"):
         _ := scalars(+8)
