@@ -47,6 +47,8 @@ struct Acc {
     w: Vec<Ty>,
     r: Vec<Ty>,
     any: bool,
+    /// An access through a `*T` of an open type, which may be any type.
+    open: bool,
     callees: Vec<InstId>,
 }
 
@@ -95,7 +97,7 @@ fn callees(m: &Module, t: &Target) -> Option<Vec<hd_base::Hash128>> {
 
 /// Whether type `t` names a type parameter: an erased body's open type.
 fn open(pool: &hd_types::InternPool, t: Ty) -> bool {
-    matches!(pool.get(t), TyData::Param(..))
+    matches!(pool.get(t), TyData::Param(..)) || hd_mono::is_open(pool, t)
 }
 
 /// The accesses of each instruction of instance `id`'s body `b`.
@@ -106,8 +108,10 @@ fn accesses(input: &Input<'_>, m: &Module, id: InstId, b: &Body) -> HashMap<u32,
     let sub = |ty| subst(pool, env, item, args, ty);
     let calls = &input.collected.calls[id.idx()];
     let shared = super::closure::shared_locals(b);
+    let pointers = super::borrow::pointer_locals(pool, env, b, &sub);
     let roots = Roots {
         shared: &shared,
+        pointers: &pointers,
         objects: &m.objects,
         env,
     };
@@ -138,6 +142,7 @@ fn accesses(input: &Input<'_>, m: &Module, id: InstId, b: &Body) -> HashMap<u32,
                 let acc = out.entry(iu).or_default();
                 for (n, (_, object)) in crossed.into_iter().enumerate() {
                     acc.any |= open(pool, object);
+                    acc.open |= open(pool, object);
                     if write && n == last {
                         acc.w.push(object);
                     } else {
@@ -188,6 +193,7 @@ fn accesses(input: &Input<'_>, m: &Module, id: InstId, b: &Body) -> HashMap<u32,
                 {
                     let acc = out.entry(u32::try_from(v).expect("insts")).or_default();
                     acc.any |= open(pool, target);
+                    acc.open |= open(pool, target);
                     if mutable {
                         acc.w.push(target);
                     } else {
@@ -228,7 +234,7 @@ pub(crate) fn decide(input: &Input<'_>, m: &mut Module) {
             }
             // Only an open access is unknown program-wide: a call's
             // callees are counted at their own bodies.
-            every |= erased && acc.any && (!acc.w.is_empty() || !acc.r.is_empty());
+            every |= acc.open || erased && acc.any && (!acc.w.is_empty() || !acc.r.is_empty());
         }
         if !erased {
             accs.insert(*id, a);
@@ -308,8 +314,10 @@ pub(crate) fn decide(input: &Input<'_>, m: &mut Module) {
         let sub = |ty| subst(pool, env, item, args, ty);
         let n = u32::try_from(b.tags.len()).expect("insts");
         let shared = super::closure::shared_locals(b);
+        let pointers = super::borrow::pointer_locals(pool, env, b, &sub);
         let roots = Roots {
             shared: &shared,
+            pointers: &pointers,
             objects: &objects,
             env,
         };
