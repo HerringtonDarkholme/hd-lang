@@ -1,0 +1,20 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: `dyn` calls (#1364).
+# expected: the `&dyn` count of #1354 at most; the method returns a
+# copy of `self.n` with one retain.
+trait Named:
+    fn name(&self) -> string
+
+struct Dog:
+    n: string
+
+impl Named for Dog:
+    fn name(&self) -> string:
+        self.n
+
+fn call_dyn(x: &dyn Named) -> usize:
+    x.name().len()
+
+fn make_dyn(d: Dog) -> usize:
+    call_dyn(&d)

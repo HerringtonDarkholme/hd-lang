@@ -1,0 +1,27 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: `match` and its payload bindings (#1364).
+# expected: `read_match` and `ref_match` take no count; `take_match`
+# retains only the payload it returns, since `s` is lent.
+enum Shape:
+    Named(string)
+    Pair(string, string)
+    Empty
+
+fn read_match(s: Shape) -> usize:
+    match s:
+        .Named(n) => n.len()
+        .Pair(a, b) => a.len() + b.len()
+        .Empty => 0
+
+fn take_match(s: Shape) -> string:
+    match s:
+        .Named(n) => n
+        .Pair(a, _) => a
+        .Empty => ""
+
+fn ref_match(s: &Shape) -> usize:
+    match s:
+        .Named(n) => n.len()
+        .Pair(a, b) => a.len() + b.len()
+        .Empty => 0

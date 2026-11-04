@@ -1,0 +1,30 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: `for` over a value, `&` and `&mut`, and comprehensions (#1364).
+# expected: no count for an element that is only read, in any of the
+# three forms or the comprehension; `keep_each` retains each element it
+# pushes; `over_mut` releases each old element it replaces.
+fn over_value(xs: List[string]) -> usize:
+    let n: usize = 0
+    for x in xs:
+        n += x.len()
+    n
+
+fn over_ref(xs: &List[string]) -> usize:
+    let n: usize = 0
+    for x in xs:
+        n += x.len()
+    n
+
+fn over_mut(xs: &mut List[string]) -> void:
+    for x in &mut *xs:
+        *x += "!"
+
+fn keep_each(xs: List[string]) -> List[string]:
+    let mut out: List[string] = []
+    for x in xs:
+        out.push(x)
+    out
+
+fn comprehension(xs: List[string]) -> List[usize]:
+    [for x in xs => x.len()]

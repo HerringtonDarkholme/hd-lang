@@ -1,0 +1,20 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: `while` (#1364).
+# expected: `count_while` takes no count per round; `build_while` retains
+# `s` once for `out` and appends in place each round.
+fn count_while(xs: List[string]) -> usize:
+    let i: usize = 0
+    let n: usize = 0
+    while i < xs.len():
+        n += xs[i].len()
+        i += 1
+    n
+
+fn build_while(s: string, k: usize) -> string:
+    let out = s
+    let i: usize = 0
+    while i < k:
+        out += s
+        i += 1
+    out

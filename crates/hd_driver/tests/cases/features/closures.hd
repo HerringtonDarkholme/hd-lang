@@ -1,0 +1,21 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: closures: capture, call, escape and a shared cell (#1364).
+# expected: a capture at the value's last use moves it into the
+# environment; calling a local closure takes no count; no release of a
+# plain reference.
+fn capture_call(s: string) -> usize:
+    f := fn() -> usize: s.len()
+    f() + f()
+
+fn escape(s: string) -> fn() -> usize:
+    fn() -> usize: s.len()
+
+fn call_value(f: fn(string) -> usize, s: string) -> usize:
+    f(s)
+
+fn shared(s: string) -> string:
+    let mut t = s
+    add := fn() -> void: t += "x"
+    add()
+    t
