@@ -104,7 +104,12 @@ impl Tables {
         let p = b.view(word);
         let (mut lies, mut held) = match p.root {
             Root::Local(l) => (self.bit[l as usize], self.held[l as usize]),
-            Root::Value(v) => (0, self.of(v)),
+            // A read of all of a local (`%h = Read [$xs]`) is that local's
+            // storage, a borrow's, or a copy sharing its buffer.
+            Root::Value(v) => match whole_local_read(b, v) {
+                Some(w) => (self.place(b, w).map_or(0, |(lies, _)| lies), self.of(v)),
+                None => (0, self.of(v)),
+            },
             _ => return None,
         };
         if let Root::Local(l) = p.root
@@ -274,6 +279,14 @@ pub(crate) fn run(
     root_uses(b, cx, t, &mut uses);
 }
 
+/// The place word of value `v` when it is a read of all of a local
+/// (`%h = Read [$xs]`), which a place rooted at `%h` goes through.
+fn whole_local_read(b: &Body, v: u32) -> Option<u32> {
+    let x = Ref(v).as_inst()?.0 as usize;
+    let w = b.data[x][0];
+    (b.tags[x] == Tag::Read && b.view(w).whole() && b.view(w).local().is_some()).then_some(w)
+}
+
 /// Rule 5 alone: `uses` gets each use of a root local through what may
 /// point into its object or buffer, as (instruction, local). The move pass
 /// reads them, so a root is not moved before a reference's last use.
@@ -304,7 +317,11 @@ fn root_uses(b: &Body, cx: &dyn OwnCx, t: &Tables, uses: &mut impl FnMut(u32, u3
         // local reference roots the reference there too.
         let lent =
             b.tags[i] == Tag::Read && p.whole() && lent_reads.binary_search(&u32_of(i)).is_ok();
-        if let Root::Local(l) = p.root
+        let root = match p.root {
+            Root::Value(v) => whole_local_read(b, v).map_or(p.root, |w| b.view(w).root),
+            r => r,
+        };
+        if let Root::Local(l) = root
             && (lent || p.steps(b).any(|s| matches!(s, Proj::Deref | Proj::Elem(_))))
             && cx.counted(b.local_ty[l as usize]) == super::Tri::Yes
             && t.bit.get(l as usize).is_none_or(|&m| m == 0)
@@ -612,9 +629,10 @@ fn step_val(
     if tag == Tag::Return || is_suspension(tag) {
         return grow(&mut t.out, m);
     }
-    // A generic call may store what its other arguments point into
-    // through a `&mut` of a local whose type holds a reference
-    // (`ref.generic.store`), so that local holds them.
+    // A call may store what its other arguments point into through a
+    // `&mut` of a local whose type holds a reference (`ref.generic.store`,
+    // `ref.lifetime.store.call`), so that local holds them: a candidate
+    // the reference points into, or the local its place lies in.
     let mut changed = false;
     if matches!(tag, Tag::Call | Tag::CallValue | Tag::CallDyn) {
         for op in ops.iter() {
@@ -637,6 +655,11 @@ fn step_val(
                 if cx.holds_ref(b.local_ty[l]) {
                     changed |= grow(&mut t.held[l], others);
                 }
+            }
+            if let Some(l) = b.local_in_place(b.data[v][0]).map(hd_base::LocalId::idx)
+                && cx.holds_ref(b.local_ty[l])
+            {
+                changed |= grow(&mut t.held[l], others);
             }
         }
     }
