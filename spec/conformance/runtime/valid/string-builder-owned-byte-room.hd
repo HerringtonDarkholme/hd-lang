@@ -1,0 +1,39 @@
+# test: StringBuilder hands over its byte room and Debug keeps an independent snapshot
+# expect: test
+# Spec std/text Joining And Building: std-text.builder.build-local, std-text.builder.reserve-local, std-text.builder.push-char-local.
+use std.text.StringBuilder
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("builds empty and reused storage while earlier strings and Debug remain live"):
+        out := StringBuilder::new()
+        assert_equal(out.build(), "")
+        out.reserve(32)
+        out.push("first")
+        out.push_char('λ')
+        snapshot := debug(out)
+        out.push_ascii(33)
+        first := out.build()
+        assert_equal(first, "firstλ!")
+        out.push("next")
+        assert_equal(out.build(), "next")
+        assert_equal(first, "firstλ!")
+        assert_equal(snapshot, "StringBuilder { text: \"firstλ\" }")
+        assert(out.build().is_empty())
+
+    it("keeps every transferred allocation alive across repeated growth and reuse"):
+        out := StringBuilder::new()
+        let mut texts: List[string] = []
+        let index: usize = 0
+        while index < 256:
+            out.reserve(index % 17)
+            out.push("run$index")
+            out.push_char('😀')
+            texts.push(out.build())
+            index += 1
+        index = 0
+        while index < texts.len():
+            assert_equal(texts[index], "run${index}😀")
+            index += 1
+        assert_equal(out.build(), "")

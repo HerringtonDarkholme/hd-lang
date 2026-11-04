@@ -463,7 +463,7 @@ pub enum Helper {
         elem: Elem,
     },
     /// `(list, extra) -> list`: std's `list_reserve`, and the reserve
-    /// of [`Helper::ListExtend`] and [`Helper::BytesAppend`]: room for
+    /// of [`Helper::ListExtend`]: room for
     /// `extra` (more than 0, which each caller tests) more elements
     /// without another growth: a pinned list panics; a shared
     /// buffer is copied, its elements taking their own counts; a buffer
@@ -476,14 +476,6 @@ pub enum Helper {
     /// appended with one [`Helper::ListReserve`] and one `memory.copy`,
     /// each taking its own counts. `other` may be the list itself.
     ListExtend {
-        elem: Elem,
-    },
-    /// `(list, address, length) -> list`: std's `bytes_append`: the
-    /// `length` bytes at `address`, a string's view, appended to a
-    /// `List[u8]` with one `memory.copy`, after a
-    /// [`Helper::ListReserve`] only when the buffer is shared, pinned or
-    /// short of room.
-    BytesAppend {
         elem: Elem,
     },
     /// `() -> TypeId`: a `TypeId` of static strings.
@@ -508,8 +500,8 @@ pub enum Helper {
     /// left string's count. An unshared buffer with tail room is extended in
     /// place; otherwise its bytes move to a buffer with doubled capacity.
     StrAppend,
-    /// `(value: i64) -> string`: an integer's decimal text, read as
-    /// signed when `signed`.
+    /// `(value: i64, destination: i32) -> (start, length)`: writes decimal
+    /// bytes into the tail of twenty bytes of caller-owned room.
     FmtInt {
         signed: bool,
     },
@@ -1905,7 +1897,6 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::ListTruncate { elem } => list_truncate(m, elem),
         Helper::ListReserve { elem } => list_reserve(elem, m),
         Helper::ListExtend { elem } => list_extend(elem, m),
-        Helper::BytesAppend { elem } => bytes_append(elem, m),
         Helper::TypeIdOf(parts) => type_id(parts, vec![], m),
         Helper::RuntimeType(parts) => type_id(parts, vec![Val::I32], m),
         Helper::MapStep {
@@ -2051,11 +2042,13 @@ fn alloc(m: &Module) -> Func {
 }
 
 /// [`Helper::FmtInt`]: the digits go backward into a 20-byte buffer,
-/// the most a `u64` or a signed `i64` needs; the string is its tail.
+/// the most a `u64` or a signed `i64` needs. The remaining prefix is zeroed,
+/// so all twenty bytes are initialized; the caller may expose only the
+/// written tail. The kernel neither allocates nor copies its digits.
 fn fmt_int(m: &Module, signed: bool) -> Func {
     let mut f = m.func(
         if signed { "rt:fmt_i64" } else { "rt:fmt_u64" },
-        vec![Val::I64],
+        vec![Val::I64, Val::I32],
         vec![Val::I32, Val::I32],
     );
     let (buf, at, neg, v) = (
@@ -2064,9 +2057,19 @@ fn fmt_int(m: &Module, signed: bool) -> Func {
         f.local(Val::I32),
         f.local(Val::I64),
     );
-    f.i32(20);
-    f.helper(Helper::Str);
+    f.get(1);
     f.set(buf);
+    // Fixed-size stores keep initialization local to this tiny kernel;
+    // a variable-length memory.fill needs a runtime builtin on V8.
+    f.get(buf);
+    f.op(Instruction::I64Const(0));
+    f.op(Instruction::I64Store(mem(HEAP, 0, 0)));
+    f.get(buf);
+    f.op(Instruction::I64Const(0));
+    f.op(Instruction::I64Store(mem(HEAP, 8, 0)));
+    f.get(buf);
+    f.i32(0);
+    f.op(Instruction::I32Store(mem(HEAP, 16, 0)));
     f.get(buf);
     f.i32(20);
     f.op(Instruction::I32Add);
@@ -2123,6 +2126,8 @@ fn fmt_int(m: &Module, signed: bool) -> Func {
         f.op(Instruction::End);
     }
     f.get(at);
+    f.get(buf);
+    f.op(Instruction::I32Sub);
     f.get(buf);
     f.i32(20);
     f.op(Instruction::I32Add);
@@ -3936,38 +3941,6 @@ fn reserve_room(f: &mut Func, elem: &Elem, b: u32, extra: u32) {
     f.helper(Helper::ListReserve { elem: elem.clone() });
     f.set(b);
     f.op(Instruction::End);
-}
-
-/// [`Helper::BytesAppend`]: no bytes changes nothing.
-fn bytes_append(elem: &Elem, m: &Module) -> Func {
-    let mut f = m.func("rt:bytes_append", vec![Val::I32; 3], vec![Val::I32]);
-    let (b, src, len) = (0, 1, 2);
-    let n = f.local(Val::I32);
-    f.get(len);
-    f.op(Instruction::If(BlockType::Empty));
-    reserve_room(&mut f, elem, b, len);
-    f.get(b);
-    f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
-    f.set(n);
-    f.get(b);
-    f.u32(LIST_ELEMS);
-    f.op(Instruction::I32Add);
-    f.get(n);
-    f.op(Instruction::I32Add);
-    f.get(src);
-    f.get(len);
-    f.op(Instruction::MemoryCopy {
-        src_mem: HEAP,
-        dst_mem: HEAP,
-    });
-    f.get(b);
-    f.get(n);
-    f.get(len);
-    f.op(Instruction::I32Add);
-    f.op(Instruction::I32Store(mem(HEAP, LIST_LEN, 2)));
-    f.op(Instruction::End);
-    f.get(b);
-    f
 }
 
 /// [`Helper::StrFromBytes`]: takes a count of the list's buffer. An

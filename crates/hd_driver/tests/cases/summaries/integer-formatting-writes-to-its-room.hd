@@ -1,0 +1,11 @@
+# @dump: own counts wat
+# @build: std release
+# expected: the caller's room is written; no allocation, retain or release formats the digits
+use std.rt.bytes.{format_signed, format_unsigned}
+use std.rt.memory.Buffer
+
+fn signed(value: i64, room: &mut Buffer[u8]) -> (usize, usize):
+    format_signed(value, room.at(0))
+
+fn unsigned(value: u64, room: &mut Buffer[u8]) -> (usize, usize):
+    format_unsigned(value, room.at(0))

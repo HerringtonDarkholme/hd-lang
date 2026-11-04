@@ -2936,7 +2936,7 @@ impl Em<'_, '_, '_> {
                 }
                 self.store(i)
             }
-            // std's `format_int[N < Integer](value: N)`.
+            // The allocation-free integer writer, shared by both std forms.
             "format_int" => {
                 let t = self.ty_of(args[0]);
                 let (bits, signed, float) = self.num(t);
@@ -2951,8 +2951,9 @@ impl Em<'_, '_, '_> {
                         Instruction::I64ExtendI32U
                     });
                 }
+                self.push(args[1])?;
                 self.f.helper(Helper::FmtInt { signed });
-                self.store_owned(i)
+                self.store(i)
             }
             "block_on" => self.block_on(i, args[0]),
             // `cancel!`'s cleanup frame over the task, a `Suspend[bool]`
@@ -3058,9 +3059,7 @@ impl Em<'_, '_, '_> {
                 Ok(())
             }
             // std's list changes through a reference (`emit/list.rs`).
-            "list_truncate" | "list_extend" | "list_reserve" | "bytes_append" => {
-                self.list_ref_change(key, args)
-            }
+            "list_truncate" | "list_extend" | "list_reserve" => self.list_ref_change(key, args),
             // std's map cursor step closure (`emit/iter.rs`).
             "map_steps" => self.map_iter(i, args[0]),
             "bytes_len" => {
@@ -3115,6 +3114,49 @@ impl Em<'_, '_, '_> {
             "char_from_scalar" => self.char_from_scalar(i, args[0]),
             // The list's count goes to the helper, which takes over an
             // unshared buffer: the moved-in argument's, else one of its own.
+            "string_from_bytes" if args.len() == 3 && self.ty_of(args[0]) == Ty::STRING => {
+                // The caller owns initialized room from new_string. Keep its
+                // allocation and replace only the exposed byte length.
+                let moved = self.take(args[0]);
+                self.comp(args[0], 0)?;
+                if !moved {
+                    self.comp(args[0], 0)?;
+                    self.f.helper(Helper::RetainKnown);
+                }
+                self.push(args[1])?;
+                self.f.op(I::I32Add);
+                self.push(args[2])?;
+                self.store_owned(i)
+            }
+            "string_from_bytes" if args.len() == 2 => {
+                // Raw Buffer room uses std's allocator directly, outside the
+                // checked object's allocation ledger. Checked builds copy into
+                // a tracked string and drop the raw owner normally; unchecked
+                // builds transfer its room with no copy or count.
+                self.take(args[0]);
+                if self.input.runtime.is_some_and(|r| r.checked.is_some()) {
+                    let destination = self.f.local(Val::I32);
+                    self.push(args[1])?;
+                    self.f.helper(Helper::Str);
+                    self.f.set(destination);
+                    self.f.get(destination);
+                    self.comp(args[0], 0)?;
+                    self.push(args[1])?;
+                    self.f.op(I::MemoryCopy {
+                        src_mem: HEAP,
+                        dst_mem: HEAP,
+                    });
+                    let Some(buffer) = self.vals.get(&args[0]).cloned() else {
+                        return unsupported("a transferred raw buffer without value locals");
+                    };
+                    self.release_locals(&buffer, self.ty(args[0]))?;
+                    self.f.get(destination);
+                } else {
+                    self.comp(args[0], 0)?;
+                }
+                self.push(args[1])?;
+                self.store_owned(i)
+            }
             "string_from_bytes" => {
                 let moved = self.take(args[0]);
                 self.comp(args[0], 0)?;
@@ -3542,6 +3584,10 @@ impl Em<'_, '_, '_> {
             }
             "to_string" if prim && !float => {
                 let (bits, _, _) = self.num(t);
+                let room = self.f.local(Val::I32);
+                self.f.i32(20);
+                self.f.helper(Helper::Str);
+                self.f.set(room);
                 self.push(args[0])?;
                 if bits < 64 {
                     self.f.op(if signed {
@@ -3550,7 +3596,16 @@ impl Em<'_, '_, '_> {
                         I::I64ExtendI32U
                     });
                 }
+                self.f.get(room);
                 self.f.helper(Helper::FmtInt { signed });
+                let length = self.f.local(Val::I32);
+                let offset = self.f.local(Val::I32);
+                self.f.set(length);
+                self.f.set(offset);
+                self.f.get(room);
+                self.f.get(offset);
+                self.f.op(I::I32Add);
+                self.f.get(length);
                 self.store_owned(i)
             }
             // A float's text is the host primitive its `Display`

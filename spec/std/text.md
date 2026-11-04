@@ -349,6 +349,7 @@ fn report(names: List[string]) -> string:
 8. r[std-text.builder.push-ascii.range] A `byte` of 128 or more panics. Panic: `explicit-panic`.
 9. r[std-text.builder.reserve-local] `StringBuilder.reserve(&mut self, count: usize) -> void` makes room for at least `count` more bytes without appending text.
 10. r[std-text.builder.build-local] `StringBuilder.build(&mut self) -> string` returns every text pushed since the builder was made or last built, in push order, joined with nothing between, and empties the builder.
+11. r[std-text.builder.unique-storage] A `StringBuilder` value owns its byte storage uniquely and does not implement `Copy`; its counted references remain copyable.
 
 | Calls on a new builder `b` | `b.build()` gives | A second `b.build()` gives |
 | --- | --- | --- |

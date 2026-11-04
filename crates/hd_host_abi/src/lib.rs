@@ -629,7 +629,6 @@ pub static INTRINSICS: &[(&str, Lowering)] = &[
     ("list_truncate", Lowering::Compiler),
     ("list_extend", Lowering::Compiler),
     ("list_reserve", Lowering::Compiler),
-    ("bytes_append", Lowering::Compiler),
     ("map_steps", Lowering::Compiler),
     ("map_probe", Lowering::Compiler),
     ("panic", Lowering::Compiler),

@@ -7,7 +7,8 @@
 use std.function.Tuple
 use std.num.Integer
 use std.structure.{Structure, UnionType, Walker, Variant, Field}
-use std.rt.bytes.{string_from_bytes, char_scalar}
+use std.rt.bytes.{string_from_bytes, string_prefix, char_scalar}
+use std.rt.memory.{Ptr, new_string, string_bytes}
 
 # A value's text in string interpolation
 # (spec/lang/05-expressions.md#string-interpolation).
@@ -494,8 +495,13 @@ fn scalar_text(point: i32) -> string:
 
 # An integer's decimal digits, with `-` when negative: the runtime writes
 # them into one buffer.
-@intrinsic("format_int")
 fn format_int[N < Integer](value: N) -> string:
+    text := new_string(20)
+    digits := format_int_into(value, string_bytes(text))
+    string_prefix(text, digits._0, digits._1)
+
+@intrinsic("format_int")
+fn format_int_into[N < Integer](value: N, destination: Ptr[u8]) -> (usize, usize):
     panic("intrinsic")
 
 @intrinsic("format_f64")

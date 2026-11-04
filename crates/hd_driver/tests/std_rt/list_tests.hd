@@ -46,6 +46,14 @@ fn buffer_address(at: usize, bytes: List[u8]) -> usize:
     _ := p.read()
     address
 
+# Read the boxed builder's payload address while keeping its value alive.
+fn builder_address(at: usize, builder: *StringBuilder) -> usize:
+    let p: Ptr[*StringBuilder] = Ptr { address: at }
+    p.write(builder)
+    address := usize(load_u32(at))
+    _ := p.read()
+    address
+
 # Room in `items` for at least `count` more elements; 0 does nothing.
 @intrinsic("list_reserve")
 fn list_reserve[T](items: &mut List[T], count: usize) -> void:
@@ -193,20 +201,21 @@ tests:
             "the other holder is unchanged",
         )
 
-    it("StringBuilder.reserve makes the room in one buffer"):
+    it("StringBuilder.reserve makes room once and build transfers it"):
         out := StringBuilder::new()
         out.reserve(100)
+        builder := builder_address(fresh_page(), out)
+        room := usize(load_u32(builder))
+        assert(usize(load_u32(builder + 4)) >= 100, "at least the reserved raw capacity")
         let i = +0
         while i < 100:
             out.push_ascii(97)
             i = i + 1
+        assert(usize(load_u32(builder)) == room, "no append reallocated the reserved room")
         text := out.build()
-        # The string took over the builder's buffer, whose first word is
-        # its capacity: exactly the room reserved, so no push grew it.
-        assert(
-            usize(load_u32(string_bytes(text).address - 16)) == 100,
-            "one buffer of the reserved size",
-        )
+        if released() == 0:
+            # Checked transfer copies raw room into its allocation ledger.
+            assert(string_bytes(text).address == room, "build transfers raw room without copying")
         assert(text.len() == 100, "every byte kept")
 
     it("string_from_bytes copies a shared buffer, which a later change misses"):
