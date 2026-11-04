@@ -1,0 +1,6 @@
+# test: uniq list reserve overflow
+use std.collections.UniqList
+
+pub fn main() -> void:
+    let mut items = UniqList::[i32].from_list([+1])
+    items.reserve(4294967295) # panic: heap-exhausted

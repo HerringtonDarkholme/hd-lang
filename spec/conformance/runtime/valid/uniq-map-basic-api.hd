@@ -1,0 +1,118 @@
+# test: unique map capacity, retention, extension, values and drain move non-copyable values
+# expect: test
+# Spec std/collections UniqMap: std-collections.uniq-map.with-capacity, std-collections.uniq-map.reserve, std-collections.uniq-map.retain, std-collections.uniq-map.values, std-collections.uniq-map.extend, std-collections.uniq-map.drain.
+use std.collections.{UniqList, UniqMap}
+use std.testing.assert_equal
+
+struct Item:
+    label: string
+    payload: UniqList[i32]
+
+impl !Copy for Item
+
+struct Stock:
+    items: UniqMap[string, Item]
+
+fn item(label: string) -> Item:
+    Item { label: label, payload: UniqList::[i32].from_list([+1, 2]) }
+
+fn drain_one(items: &mut UniqMap[string, Item]) -> string:
+    for (key, value) in items.drain():
+        assert_equal(value.payload.len(), 2)
+        return key
+    "none"
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("starts at zero or arbitrary capacity, reserves and preserves entries after deletions"):
+        let mut empty = UniqMap::[string, Item].with_capacity(0)
+        assert(empty.is_empty())
+        assert_equal(empty.contains_key("absent"), false)
+        _ := empty.insert("first", item("a"))
+        assert_equal(empty.len(), 1)
+        let mut items = UniqMap::[string, Item].with_capacity(13)
+        let index: usize = 0
+        while index < 30:
+            _ := items.insert("k$index", item("v$index"))
+            index += 1
+        index = 0
+        while index < 25:
+            _ := items.remove("k$index")
+            index += 1
+        items.reserve(50)
+        assert_equal(items.len(), 5)
+        assert_equal(items.get_ref("k29").map(fn(v: &Item) -> string: v.label), .Some("v29"))
+        items.reserve(0)
+        index = 30
+        while index < 80:
+            _ := items.insert("k$index", item("v$index"))
+            index += 1
+        assert_equal(items.len(), 55)
+
+    it("retains with mutable values and visits each entry once"):
+        let mut items = UniqMap::[string, Item].new()
+        _ := items.insert("a", item("old-a"))
+        _ := items.insert("b", item("old-b"))
+        _ := items.insert("c", item("old-c"))
+        let visited: usize = 0
+        items.retain(fn(key: &string, value: &mut Item) -> bool:
+            visited += 1
+            value.label = "new-$key"
+            *key != "b"
+        )
+        assert_equal(visited, 3)
+        assert_equal(items.len(), 2)
+        assert_equal(items.contains_key("b"), false)
+        let mut labels: List[string] = []
+        for value in items.values():
+            labels.push(value.label)
+        labels.sort()
+        assert_equal(labels, ["new-a", "new-c"])
+        _ := items.insert("b", item("again"))
+        assert_equal(items.len(), 3)
+        items.retain(fn(key: &string, value: &mut Item) -> bool: false)
+        assert(items.is_empty())
+        let mut values = items.values()
+        assert(values.next().is_none())
+
+    it("extends by moving values, replacing equal keys and draining all entries"):
+        let mut items = UniqMap::[string, Item].with_capacity(3)
+        _ := items.insert("a", item("old"))
+        let mut source = UniqList::[(string, Item)].new()
+        source.push(("a", item("new")))
+        source.push(("b", item("b")))
+        source.push(("a", item("last")))
+        items.extend(source)
+        assert_equal(items.len(), 2)
+        assert_equal(items.get_ref("a").map(fn(v: &Item) -> string: v.label), .Some("last"))
+        let mut labels: List[string] = []
+        for (key, value) in items.drain():
+            labels.push("$key=${value.label}")
+        labels.sort()
+        assert_equal(labels, ["a=last", "b=b"])
+        assert(items.is_empty())
+        _ := items.insert("c", item("c"))
+        assert_equal(drain_one(&mut items), "c")
+        assert(items.is_empty())
+        _ := items.insert("d", item("d"))
+        _ := items.insert("e", item("e"))
+        _ := drain_one(&mut items)
+        assert(items.is_empty())
+        _ := items.insert("f", item("f"))
+        _ := items.drain()
+        assert(items.is_empty())
+        assert_equal(items.contains_key("f"), false)
+        _ := items.insert("f", item("reused"))
+        assert_equal(items.len(), 1)
+        _ := items.drain()
+        _ := items.drain()
+
+    it("keeps a boxed map alive through a borrowed drain and then reuses it"):
+        stock := box(Stock { items: UniqMap::[string, Item].with_capacity(5) })
+        _ := stock.items.insert("a", item("a"))
+        _ := stock.items.insert("b", item("b"))
+        _ := drain_one(&mut stock.items)
+        assert(stock.items.is_empty())
+        _ := stock.items.insert("c", item("c"))
+        assert_equal(stock.items.len(), 1)

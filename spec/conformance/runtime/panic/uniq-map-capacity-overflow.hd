@@ -1,0 +1,5 @@
+# test: uniq map capacity overflow
+use std.collections.UniqMap
+
+pub fn main() -> void:
+    _ := UniqMap::[i32, i32].with_capacity(4294967295) # panic: heap-exhausted

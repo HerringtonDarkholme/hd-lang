@@ -1,0 +1,19 @@
+# test: retain cannot move or drop a pinned unique map's values
+use std.collections.UniqMap
+
+struct Bag:
+    items: UniqMap[string, string]
+
+fn change(first: &mut string, alias: *mut Bag) -> void:
+    alias.items.reserve(0)
+    alias.items.retain(fn(key: &string, value: &mut string) -> bool: false) # panic: collection-pinned
+    *first = "still live"
+
+tests:
+    it("keeps a pinned value in its room"):
+        bag := box(Bag { items: UniqMap::[string, string].new() })
+        _ := bag.items.insert("key", "original")
+        alias := bag
+        match bag.items.get_mut("key"):
+            .Some(first) => change(first, alias)
+            .None => panic("missing value")
