@@ -1,0 +1,13 @@
+# test: comparing the identity of a `&` and a `&mut` argument lent from two aliases of one boxed object panics, since the two loans conflict for the call
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.call-loan, ref.excl.alias.conflict.
+struct Point:
+    x: i32
+    y: i32
+
+fn same(a: &Point, b: &mut Point) -> bool:
+    a is b
+
+pub fn main() -> void $ Console:
+    p := box(Point { x: +1, y: +2 })
+    s := p
+    println("${same(s, p)}") # panic: borrow-conflict

@@ -1,0 +1,13 @@
+# test: a `&` and a `&mut` argument lent from two aliases of one boxed list conflict for the call, so a loop that reads one while the other grows the list panics
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.call-loan, ref.excl.alias.conflict.
+fn read_after_other_resize(read: &List[i32], write: &mut List[i32]) -> i32:
+    let total = +0
+    for i in 0..3:
+        write.push(i32(i) + 10)
+        total = total + read[3 + i]
+    total
+
+pub fn main() -> void $ Console:
+    resized := box([+1, +2, +3])
+    other := resized
+    println(read_after_other_resize(other, resized)) # panic: borrow-conflict

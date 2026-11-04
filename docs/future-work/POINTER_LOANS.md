@@ -989,7 +989,13 @@ Each about an hour, with its test; the matrix rows leave
    The `UniqList`/`UniqMap` rows wait for phase 8: `get_mut` is inlined,
    so its result no longer shows that it depends on the receiver.
 4. Call loans with two-phase receivers; the `arg`, `closure` and
-   `extra-later-argument` rows.
+   `extra-later-argument` rows, but not their `UniqList`/`UniqMap` ones
+   (phase 8). It needed two fixes first: an impl on a `*T` lowered every
+   reference in its signatures to a local one, and the structure
+   templates kept a reborrowed `&mut` as a `*mut`, so their walkers now
+   hold `&'a mut`. A closure still checks a write through a pointer it
+   captured against no loan rather than its creator's own (E.2), which
+   phase 9 adds.
 5. Returned and stored references; the `ret` and `struct` rows.
 6. Suspension and abandonment; the `bang` rows.
 7. Element references: remove the pin, add the two static rules; the

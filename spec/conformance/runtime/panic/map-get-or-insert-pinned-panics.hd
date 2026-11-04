@@ -1,7 +1,7 @@
-# test: Map.get_or_insert panics when inserting while a value reference pins the map
-# std Collections: std-collections.map.get-or-insert.pinned.
+# test: Map.get_or_insert panics when inserting while a value reference holds a loan on the map, as model A gives a write through an alias of a borrowed collection
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.call-loan, ref.excl.alias.conflict.
 fn insert(stock: &mut Map[string, i32], apples: &mut i32) -> void:
-    _ := stock.get_or_insert("pear", 1) # panic: collection-pinned
+    _ := stock.get_or_insert("pear", 1) # panic: borrow-conflict
     *apples += 1
 
 fn through(stock: &mut Map[string, i32], alias: &mut Map[string, i32]) -> void:

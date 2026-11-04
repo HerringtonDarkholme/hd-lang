@@ -92,7 +92,3 @@ tests:
             round += 1
         assert_equal(all.len(), 300, reason="every element kept")
         assert_equal(all[299], 101, reason="the last one")
-
-    it("extending a pinned list by nothing does not panic"):
-        words := box(["w"])
-        assert_equal(through(words), "w", reason="the length is unchanged")

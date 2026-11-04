@@ -1,0 +1,14 @@
+# @dump: wat
+# The `&mut self` receiver `&mut *p` takes a shared loan (0x10000) when it
+# is evaluated, so the argument may still read `p`; when the call begins
+# the loan becomes exclusive (0x200000) after a check that `p`'s own loans
+# are all there is, and it ends when the call returns.
+struct Counter:
+    n: i32
+
+impl Counter:
+    fn add(&mut self, k: i32) -> void:
+        self.n += k
+
+fn bump(p: *mut Counter) -> void:
+    p.add(p.n)

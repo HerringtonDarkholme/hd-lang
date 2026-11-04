@@ -1,0 +1,72 @@
+# test: a `&` argument and a `&mut` argument from two aliases of one boxed object conflict, so the call panics before its arm runs
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.call-loan, ref.excl.alias.conflict.
+struct Node:
+    value: i64
+    left: (*Node)?
+
+fn value(node: &Node) -> i64:
+    match node.left:
+        .None => 0
+        .Some(left) => left.value
+
+fn clear(node: &mut Node) -> void:
+    node.left = .None
+
+fn across_call(node: &Node, alias: &mut Node) -> i64:
+    match node.left:
+        .None => 0
+        .Some(left) =>
+            clear(alias)
+            left.value
+
+fn across_store(node: &Node, alias: &mut Node) -> i64:
+    match node.left:
+        .None => 0
+        .Some(left) =>
+            alias.left = .None
+            left.value
+
+fn selected(node: *Node) -> *Node:
+    match node.left:
+        .None => node
+        .Some(left) => left
+
+fn guard_clear(node: &mut Node) -> bool:
+    clear(node)
+    true
+
+fn across_guard(node: &Node, alias: &mut Node) -> i64:
+    match node.left:
+        .Some(left) if guard_clear(alias) => left.value
+        _ => 0
+
+trait HasValue:
+    fn number(&self) -> i64
+
+impl HasValue for Node:
+    fn number(&self) -> i64:
+        self.value
+
+fn selected_erased(node: *Node) -> *dyn HasValue:
+    match node.left:
+        .None => node
+        .Some(left) => left
+
+struct Holder[T]:
+    item: *mut T
+
+trait Factory:
+    fn hold[T < 'static](self, item: T) -> Holder[T]:
+        Holder { item: box(item) }
+
+struct Maker: pass
+impl Factory for Maker
+
+tests:
+    use std.testing.assert_equal
+
+    it("a call replacing the field keeps its former payload alive"):
+        node := box(Node { value: 1, left: .Some(box(Node { value: 42, left: .None })) })
+        alias := node
+        assert_equal(across_call(node, alias), 42, reason="the arm owns the replaced payload") # panic: borrow-conflict
+        assert_equal(value(node), 0, reason="the call reached the aliased field")

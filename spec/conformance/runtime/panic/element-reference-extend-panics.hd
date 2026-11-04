@@ -1,7 +1,7 @@
-# test: a std extend that adds elements through a box alias the checker cannot see during an element reference's call panics with collection-pinned
-# std Collections, List And Map Values: std-collections.value.pinned-length.
+# test: a std extend that adds elements through a box alias the checker cannot see during an element reference's call panics borrow-conflict, as model A gives a write through an alias of a borrowed collection
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.call-loan, ref.excl.alias.conflict.
 fn change(list: &mut List[i32], first: &i32) -> i32:
-    list.extend([+3]) # panic: collection-pinned
+    list.extend([+3]) # panic: borrow-conflict
     *first
 
 tests:

@@ -1,0 +1,15 @@
+# test: a read-only and a writable argument from two aliases of one boxed object conflict for the call, so comparing their identity that way panics
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.call-loan, ref.excl.alias.conflict.
+struct User:
+    name: string
+
+fn same(view: &User, owner: &mut User) -> bool:
+    view is owner
+
+tests:
+    use std.testing.assert
+
+    it("a shared and a writable argument of one object conflict"):
+        users := box(User { name: "Ada" })
+        view := users
+        assert(same(view, users), reason="mutability does not affect identity") # panic: borrow-conflict

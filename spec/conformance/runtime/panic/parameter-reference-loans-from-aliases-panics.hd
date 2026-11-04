@@ -1,5 +1,5 @@
-# test: borrowed parameter and receiver reads survive alias mutation and calls
-# Spec 13 Reference Lifetime: ref.box.lifetime; Spec 04 Value Types: types.value.copy.
+# test: two `&mut` arguments from two aliases of one boxed object both hold loans for the call, so the second one panics
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.call-loan, ref.excl.alias.conflict.
 use std.testing.assert_equal
 
 struct Holder:
@@ -30,7 +30,7 @@ tests:
             holder := box(Holder { text: "before $n" })
             shared := holder
             assert_equal(
-                across_call(holder, shared, n),
+                across_call(holder, shared, n), # panic: borrow-conflict
                 "before $n",
                 reason="the earlier field owns its value across the call",
             )

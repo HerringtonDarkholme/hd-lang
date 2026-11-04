@@ -1,5 +1,5 @@
-# test: sorting a pinned list by element stores is allowed, and the reference then sees the element that moved into its slot
-# Spec 13 Element References: ref.elem.slot, ref.elem.pinned.allowed.
+# test: a boxed list lent as a `&mut` argument beside an element reference from another alias of it conflicts for the call, so sorting through it panics
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.call-loan, ref.excl.alias.conflict.
 fn sort_then_read(list: &mut List[i32], first: &i32) -> i32:
     let i: usize = 1
     while i < list.len():
@@ -15,7 +15,7 @@ fn sort_then_read(list: &mut List[i32], first: &i32) -> i32:
 # The list comes through a box alias, which the checker does not see.
 fn sorted_first(list: *mut List[i32]) -> i32:
     alias := list
-    sort_then_read(alias, &list[0])
+    sort_then_read(alias, &list[0]) # panic: borrow-conflict
 
 tests:
     use std.testing.assert_equal

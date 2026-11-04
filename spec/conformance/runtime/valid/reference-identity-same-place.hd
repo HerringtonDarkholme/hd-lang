@@ -1,6 +1,6 @@
 # test: `is` is true for two references to one place and false for two places that hold equal values
 # Spec 13 Identity: ref.identity.same-place, ref.identity.places, ref.identity.copies, ref.identity.mutability.
-# expect-stdout: true true true
+# expect-stdout: true true
 # expect-stdout: false false
 # expect-stdout: true true
 # expect-stdout: false true
@@ -25,7 +25,7 @@ pub fn main() -> void $ Console:
     r := p
     s := p
     copy := r
-    println("${r is s} ${r is copy} ${same(s, p)}")
+    println("${r is s} ${r is copy}")
     println("${p is q} ${same(q, p)}")
     println("${keep(r) is s} ${&*r is &*p}")
     made := &Point { x: +1, y: +2 }
