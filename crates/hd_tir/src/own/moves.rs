@@ -67,7 +67,9 @@ use hd_base::SliceSort as _;
 use hd_types::Ty;
 
 use super::flow::{Backward, BitArena, Flow, backward};
-use super::{Operand, OwnCx, Role, Tri, fill, operands, splice, suite_touches, tracked};
+use super::{
+    Operand, OwnCx, Role, Tri, fill, operands, owned_value, splice, suite_touches, tracked,
+};
 use crate::ir::{
     Body, CaptureMode, NONE, PlaceView, Proj, ReadMode, Root, Tag, Topology, for_blocks,
     is_suspension, place, u32_of,
@@ -419,7 +421,12 @@ fn candidates(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> bool
         let Some(v) = p.value().map(|v| v as usize) else {
             continue;
         };
-        if t.vnum[v] == NONE && !t.keep_v[v] && p.in_place(b) && tracked(b, cx, v) {
+        if t.vnum[v] == NONE
+            && !t.keep_v[v]
+            && p.in_place(b)
+            && owned_value(b, v)
+            && (tracked(b, cx, v) || cx.copies(b.ty[v]) == Tri::No)
+        {
             t.vnum[v] = k;
             k += 1;
         }
@@ -746,9 +753,9 @@ fn apply(
             {
                 continue;
             }
-            // A whole value moves only when its drop goes with it: no
-            // other drop of it may follow on the moved path.
-            if drop.is_none() && matches!(root, Root::Value(_)) {
+            // A tracked whole value moves only when its drop goes with
+            // it. An uncounted non-copyable value needs no runtime drop.
+            if drop.is_none() && matches!(root, Root::Value(v) if tracked(b, cx, v as usize)) {
                 continue;
             }
             b.data[i][1] = ReadMode::Move as u32;

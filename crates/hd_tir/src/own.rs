@@ -320,6 +320,11 @@ pub(crate) fn fill<T: Clone>(v: &mut Vec<T>, n: usize, x: T) {
 /// a statement has none; a switch has one outside a decision tree. A
 /// `borrow` read owns no count.
 pub(crate) fn tracked(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
+    owned_value(b, i) && cx.counted(b.ty[i]) != Tri::No
+}
+
+/// An owned value, including one with no runtime count or drop.
+pub(crate) fn owned_value(b: &Body, i: usize) -> bool {
     let t = b.ty[i];
     if t == Ty::VOID || t == Ty::NEVER || t == Ty::POISON {
         return false;
@@ -349,7 +354,7 @@ pub(crate) fn tracked(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
     ) {
         return false;
     }
-    cx.counted(t) != Tri::No
+    true
 }
 
 /// Whether operand `op` of instruction `i` consumes its value
@@ -1145,6 +1150,8 @@ pub(crate) mod tests {
     const UNIQ: Ty = Ty(1_000_001);
     /// A counted type that holds a `?Copy` type parameter.
     const OPEN: Ty = Ty(1_000_002);
+    /// A non-copyable value with no counted fields or drop hook.
+    const UNCOUNTED: Ty = Ty(1_000_003);
 
     /// `string` and `LIST` are counted; callee 9 takes its argument as a value
     /// parameter, callee 8 by reference.
@@ -1184,7 +1191,7 @@ pub(crate) mod tests {
         }
         fn copies(&self, ty: Ty) -> Tri {
             match ty {
-                UNIQ => Tri::No,
+                UNIQ | UNCOUNTED => Tri::No,
                 OPEN => Tri::Maybe,
                 _ => Tri::Yes,
             }
@@ -1591,6 +1598,31 @@ pub(crate) mod tests {
         assert!(text.contains("Read copy [*%"), "{text}");
         assert!(!text.contains("Drop [$1]"), "{text}");
         assert!(!text.contains("exit 0 $1"), "{text}");
+    }
+
+    /// A non-copyable temporary needs moves even without a runtime drop:
+    /// whole reads and payload projections must not become copies.
+    #[test]
+    fn uncounted_noncopyable_temporaries_move_whole_and_projected() {
+        let n = NodeIdx::from_raw(1);
+        let text = passes(
+            |b| {
+                let source = call(b, 7, &[], UNCOUNTED);
+                let word = b.place(&format!("[%{} as .1 .0]", source.0).parse().expect("place"));
+                let part = b.emit(Tag::Read, word, ReadMode::Use as u32, UNCOUNTED, n);
+                call(b, 9, &[part], Ty::VOID);
+                let source = call(b, 7, &[], UNCOUNTED);
+                let word = b.place(&format!("[%{}]", source.0).parse().expect("place"));
+                let whole = b.emit(Tag::Read, word, ReadMode::Use as u32, UNCOUNTED, n);
+                call(b, 9, &[whole], Ty::VOID);
+                None
+            },
+            Ty::VOID,
+        );
+        assert!(text.contains("Read move [%0 as .1 .0]"), "{text}");
+        assert!(text.contains("Read move [%3]"), "{text}");
+        assert!(!text.contains("Read copy"), "{text}");
+        assert!(!text.contains("Drop"), "{text}");
     }
 
     /// Pair cancellation: a part read of a temporary that is read again
