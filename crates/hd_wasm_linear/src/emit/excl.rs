@@ -421,6 +421,47 @@ fn value_binds(
     value_binds_at(pool, env, b, sub, known, v, 0, every_ref)
 }
 
+/// Whether holder slot `held` holds a `&mut`.
+pub(super) fn held_mutable(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    b: &Body,
+    sub: &dyn Fn(Ty) -> Ty,
+    held: Held,
+) -> bool {
+    ref_slots(pool, env, sub(b.local_ty[held.local]))
+        .into_iter()
+        .any(|(slot, t)| slot == held.slot && ref_mutable(pool, env, t))
+}
+
+/// The `Ref`s whose loans argument value `v` carries through calls'
+/// results, when it is no `Ref` itself, as `observe(p.items.get_mut(1)
+/// .expect("slot"))` passes the `&mut p.items` it got: each takes its call
+/// loan until the call that `v` is an argument of returns.
+pub(super) fn carried_refs(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    b: &Body,
+    sub: &dyn Fn(Ty) -> Ty,
+    v: usize,
+) -> Vec<u32> {
+    if b.tags.get(v) == Some(&Tag::Ref) {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    for (_, bind, _) in value_binds_at(pool, env, b, sub, &[], v, 0, true) {
+        if let Bind::Call(a) = bind
+            && let Some(r) = direct_value(b, a).filter(|&r| b.tags[r] == Tag::Ref)
+        {
+            let r = u32::try_from(r).expect("insts");
+            if !out.contains(&r) {
+                out.push(r);
+            }
+        }
+    }
+    out
+}
+
 fn value_binds_at(
     pool: &InternPool,
     env: &dyn ProgramEnv,
@@ -444,6 +485,20 @@ fn value_binds_at(
     if c >= b.tags.len() {
         return Vec::new();
     }
+    // A call's result holds the arguments its callee's result depends on.
+    // An inlined call's `Scope` keeps the call's rows, which stand in for
+    // its result when its body shows no reference (a pointer's `as_mut`).
+    let held = || -> Vec<(usize, Bind, Option<Loan>)> {
+        if let Some(&(_, a)) = b.held_args.iter().find(|r| r.0 as usize == c)
+            && let Some(loan) = arg_loan(pool, env, b, sub, a)
+        {
+            return ref_slots(pool, env, sub(b.ty[c]))
+                .into_iter()
+                .map(|(slot, _)| (slot, Bind::Call(a), Some(loan.clone())))
+                .collect();
+        }
+        Vec::new()
+    };
     // A block's or scope's value is its tail's or a `break`'s to it,
     // as an inlined getter leaves its result (`borrow.rs`).
     if every_ref && matches!(b.tags[c], Tag::Block | Tag::Scope) {
@@ -478,7 +533,14 @@ fn value_binds_at(
                 }
             }
         }
+        if out.is_empty() {
+            return held();
+        }
         return out;
+    }
+    let direct = held();
+    if !direct.is_empty() {
+        return direct;
     }
     // An `if`'s value is its arms' blocks', as an inlined getter that
     // chooses its result leaves it.
@@ -493,13 +555,37 @@ fn value_binds_at(
         }
         return out;
     }
-    if let Some(&(_, a)) = b.held_args.iter().find(|r| r.0 as usize == c)
-        && let Some(loan) = arg_loan(pool, env, b, sub, a)
+    // A call's result of one reference holds the references its
+    // arguments pass by value, as `expect` passes on its option's.
+    if every_ref
+        && b.tags[c] == Tag::Call
+        && let [(slot, _)] = ref_slots(pool, env, sub(b.ty[c]))[..]
     {
-        return ref_slots(pool, env, sub(b.ty[c]))
-            .into_iter()
-            .map(|(slot, _)| (slot, Bind::Call(a), Some(loan.clone())))
-            .collect();
+        let mut out = Vec::new();
+        for a in call_args(b, c) {
+            let Some(&t) = b.ty.get(a as usize) else {
+                continue;
+            };
+            let t = sub(t);
+            if ref_slots(pool, env, t).is_empty()
+                || matches!(kind(pool, env, strip(pool, env, t)), Kind::Ref { .. })
+            {
+                continue;
+            }
+            for (_, bind, loan) in
+                value_binds_at(pool, env, b, sub, known, a as usize, depth + 1, every_ref)
+            {
+                if !out
+                    .iter()
+                    .any(|x: &(usize, Bind, Option<Loan>)| x.1 == bind)
+                {
+                    out.push((slot, bind, loan));
+                }
+            }
+        }
+        if !out.is_empty() {
+            return out;
+        }
     }
     match b.tags[c] {
         Tag::Ref => {

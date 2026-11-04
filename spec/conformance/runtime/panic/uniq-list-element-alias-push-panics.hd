@@ -1,12 +1,12 @@
-# test: a push through a box alias while an element reference into the unique list behind it is live panics with collection-pinned
-# std Collections: std-collections.uniq-list.pinned.
+# test: a push through a box alias while an element reference into the unique list behind it is live panics borrow-conflict, as the reference holds the list's object
+# std Collections: std-collections.uniq-list.type; Spec 13 Conflicts Through Aliases: ref.excl.alias.loan.
 use std.collections.UniqList
 
 struct Bag:
     items: UniqList[string]
 
 fn grow(first: &mut string, alias: *mut Bag) -> void:
-    alias.items.push("pushed") # panic: collection-pinned
+    alias.items.push("pushed") # panic: borrow-conflict
     *first = "written"
 
 tests:

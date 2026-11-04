@@ -1,4 +1,4 @@
-# test: retain cannot move or drop a pinned unique map's values
+# test: retain through an alias while a value reference into the unique map is live panics borrow-conflict, so it cannot move or drop the values
 use std.collections.UniqMap
 
 struct Bag:

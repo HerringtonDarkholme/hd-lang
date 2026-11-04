@@ -142,11 +142,6 @@ impl[T < ?Copy] Buffer[T]:
     pub fn capacity(&self) -> usize:
         self.capacity
 
-    ## Whether a reference into the room counts it, as one reached through a `*T` does: then the room's owner must not change how many values it holds.
-    ## See [module.rt.buffer.pinned](../../../spec/lang/10-modules.md#r-module.rt.buffer.pinned).
-    pub fn pinned(&self) -> bool:
-        self.address != 0 && load_u32(self.address - 8) > 1
-
     ## The place of value `index` of the buffer's room.
     ## See [module.rt.buffer.at](../../../spec/lang/10-modules.md#r-module.rt.buffer.at).
     pub fn at(&self, index: usize) -> Ptr[T]:

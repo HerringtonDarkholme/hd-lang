@@ -168,6 +168,10 @@ pub(super) struct Borrows {
     /// when that value is dropped, as such a binding borrows it and has no
     /// `Drop` of its own.
     via_call: HashMap<u32, Vec<usize>>,
+    /// The `Ref`s each call's arguments carry through calls' results, and
+    /// whether each is `&mut`: their loans run while the call does
+    /// ([`super::excl::carried_refs`]).
+    carried: HashMap<u32, Vec<(u32, bool)>>,
 }
 
 /// One loan a call holds from its argument's evaluation to its return.
@@ -503,9 +507,11 @@ impl Em<'_, '_, '_> {
                         st.via_call.entry(from).or_default().push(held.local);
                     }
                     let s = u32::try_from(s).expect("insts");
+                    let sub = |t| self.sub(t);
                     let excl = [c, s]
                         .iter()
-                        .any(|&x| ref_mutable(self.pool(), self.env(), self.ty(x)));
+                        .any(|&x| ref_mutable(self.pool(), self.env(), self.ty(x)))
+                        || super::excl::held_mutable(self.pool(), self.env(), self.b, &sub, held);
                     st.excl.insert(held, excl);
                 }
             }
@@ -552,7 +558,22 @@ impl Em<'_, '_, '_> {
                             st.call_ptrs.insert(v, (call, mutable, two_phase));
                         }
                     }
-                    _ => {}
+                    _ => {
+                        let sub = |t| self.sub(t);
+                        let carried = super::excl::carried_refs(
+                            self.pool(),
+                            self.env(),
+                            self.b,
+                            &sub,
+                            v as usize,
+                        );
+                        for r in carried {
+                            self.intern_ref_keys(&mut st, r);
+                            st.call_holds.insert(r);
+                            let excl = ref_mutable(self.pool(), self.env(), self.ty(r));
+                            st.carried.entry(call).or_default().push((r, excl));
+                        }
+                    }
                 }
             }
         }
@@ -1403,6 +1424,7 @@ impl Em<'_, '_, '_> {
     /// shared loan becomes exclusive, which needs no loan but the
     /// function's own through its pointer.
     pub(super) fn borrow_call_begin(&mut self, i: u32) {
+        self.borrow_carried(i);
         let Some(loans) = self.borrows.call_loans.get(&i).cloned() else {
             return;
         };
@@ -1437,6 +1459,59 @@ impl Em<'_, '_, '_> {
             out.push(loan);
         }
         self.borrows.call_loans.insert(i, out);
+    }
+
+    /// As call `i` begins: the loans of the `Ref`s its arguments carry
+    /// through calls' results, on the objects each crossed, until it
+    /// returns.
+    fn borrow_carried(&mut self, i: u32) {
+        let Some(refs) = self.borrows.carried.get(&i).cloned() else {
+            return;
+        };
+        for (r, excl) in refs {
+            let heads = self.borrows.arg_heads.get(&r).cloned().unwrap_or_default();
+            let n = heads.len();
+            for (j, (head, key, k)) in heads.into_iter().enumerate() {
+                if !self.m.kept.contains(&(self.inst, r, k)) {
+                    continue;
+                }
+                // A local of its own: another call's loan on the same
+                // `Ref` may clear its header local when it ends.
+                let header = self.f.local(Val::I32);
+                self.f.get(head);
+                self.f.set(header);
+                let delta = if excl && j + 1 == n {
+                    LOAN_EXCL
+                } else {
+                    LOAN_SHARED
+                };
+                let mask = if delta == LOAN_EXCL {
+                    LOAN_STATE
+                } else {
+                    LOAN_EXCL
+                };
+                match key {
+                    Some(k) => {
+                        let own = self.own_local(k);
+                        self.borrow_check_own(header, mask, own);
+                    }
+                    None => self.borrow_check_raw(header, mask),
+                }
+                let loan = CallLoan {
+                    header,
+                    key: KeyOf::Known(key),
+                    delta,
+                    upgrade: false,
+                    exit: self.jumps_between(r, i),
+                    live: self.susp_live(),
+                };
+                self.call_loan_add(loan, 1);
+                self.borrows.call_loans.entry(i).or_default().push(loan);
+                if loan.exit {
+                    self.borrows.all_calls.push(loan);
+                }
+            }
+        }
     }
 
     /// After call `i` returns: the loans it held end.

@@ -454,7 +454,8 @@ issue-backed exceptions; there is no per-backend rollout pass list.
   its room is a block whose count word starts at 1, the buffer's, and
   whose descriptor word is 0, then the values. A reference into the room
   that takes a count adds one (§23.20, "References count what they
-  cross"), so `Buffer.pinned` is a load of that word. Its `Drop` and
+  cross"), until the reference counts go (`POINTER_LOANS.md`, phase 10);
+  nothing reads that word as a pin. Its `Drop` and
   `grow` give up the buffer's count and free the room when it was the
   last; else the last reference's release frees it, with no glue. The
   collector's `hold_room` defers that free while it traces (§23.28). A string's bytes are its address, and a new string is a
@@ -1093,7 +1094,7 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   | no dereference of a counted reference, no list or map element: a local's frame slot or cell, a field path in it, or such a reference's referent | no count (`Em::frame_loans`) |
   | a `*T` or `*mut T` dereference, fields after it | a count of that object, through the page table at its address: an alias may replace it |
   | a `List` or `Map` element | the pin, a count of the buffer (below) |
-  | a `UniqList` or `UniqMap` element (`Ptr.as_ref`, `as_mut`) | a count of the room, so `Buffer.pinned` is true while an alias could grow it (`std-collections.uniq-list.pinned`), unless a short loan holds it |
+  | a `UniqList` or `UniqMap` element (`Ptr.as_ref`, `as_mut`) | a count of the room, unless a short loan holds it; an alias that could grow it meets the reference's pointer loan instead (`ref.excl.alias.loan`) |
   A reference into a slot needs none because a slot is static (§23.38); one
   into a cell because the passes keep a cell local alive over every use of
   what may point into it (`hd_tir/src/own/frame.rs`, the origin rule), in
@@ -1612,7 +1613,7 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   | no dereference of a counted reference, no list or map element: a local's frame slot or cell, a field path in it, or such a reference's referent | no count (`Em::frame_loans`) |
   | a `*T` or `*mut T` dereference, fields after it | a count of that object, through the page table at its address: an alias may replace it |
   | a `List` or `Map` element | the pin, a count of the buffer (below) |
-  | a `UniqList` or `UniqMap` element (`Ptr.as_ref`, `as_mut`) | a count of the room, so `Buffer.pinned` is true while an alias could grow it (`std-collections.uniq-list.pinned`), unless a short loan holds it |
+  | a `UniqList` or `UniqMap` element (`Ptr.as_ref`, `as_mut`) | a count of the room, unless a short loan holds it; an alias that could grow it meets the reference's pointer loan instead (`ref.excl.alias.loan`) |
   A reference into a slot needs none because a slot is static (§23.38); one
   into a cell because the passes keep a cell local alive over every use of
   what may point into it (`hd_tir/src/own/frame.rs`, the origin rule), in

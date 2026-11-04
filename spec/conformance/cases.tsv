@@ -4870,7 +4870,7 @@ runtime/panic/element-reference-clear-panics.hd	runtime	panic:borrow-conflict	la
 runtime/panic/element-reference-extend-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.call-loan
 typing/invalid/for-element-references-through-mut-parameter-push-conflict.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.for.ref.conflict
 runtime/panic/for-element-references-alias-push-panics.hd	runtime	panic:borrow-conflict	lang/06-control-flow.md#r-flow.for.ref.access
-runtime/panic/uniq-list-element-alias-push-panics.hd	runtime	panic:collection-pinned	std/collections.md#r-std-collections.uniq-list.pinned
+runtime/panic/uniq-list-element-alias-push-panics.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-list.type
 runtime/panic/uniq-map-value-alias-insert-panics.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-map.type
 typing/valid/element-reference-shared-any-list.hd	type	accept	lang/13-values-and-references.md#r-ref.elem.writable.shared
 typing/invalid/element-reference-mut-short-binding.hd	type	reject:not-writable	lang/13-values-and-references.md#r-ref.elem.writable
@@ -5822,9 +5822,9 @@ runtime/panic/uniq-map-reserve-overflow.hd	runtime	panic:heap-exhausted	std/coll
 runtime/panic/uniq-map-capacity-overflow.hd	runtime	panic:heap-exhausted	std/collections.md#r-std-collections.uniq-map.reserve-overflow
 typing/invalid/uniq-list-drain-keeps-mutable-borrow.hd	type	reject:conflicting-access	std/collections.md#r-std-collections.uniq-list.drain
 typing/invalid/uniq-map-drain-keeps-mutable-borrow.hd	type	reject:conflicting-access	std/collections.md#r-std-collections.uniq-map.drain
-runtime/panic/uniq-list-reserve-while-pinned.hd	runtime	panic:collection-pinned	std/collections.md#r-std-collections.uniq-list.basic-pinned
-runtime/panic/uniq-list-drain-while-pinned.hd	runtime	panic:collection-pinned	std/collections.md#r-std-collections.uniq-list.basic-pinned
-runtime/panic/uniq-list-append-source-while-pinned.hd	runtime	panic:collection-pinned	std/collections.md#r-std-collections.uniq-list.basic-pinned
+runtime/panic/uniq-list-reserve-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-list.type
+runtime/panic/uniq-list-drain-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-list.type
+runtime/panic/uniq-list-append-source-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-list.type
 runtime/panic/uniq-map-reserve-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-map.type
 runtime/panic/uniq-map-drain-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-map.type
 runtime/panic/uniq-map-retain-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-map.type

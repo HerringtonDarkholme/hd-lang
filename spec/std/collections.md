@@ -96,24 +96,22 @@ Its surface is:
 25. r[std-collections.uniq-list.debug] For `T < ?Copy & Debug`, `UniqList[T]` implements `Debug` with the same bracketed, comma-separated form as a `List[T]`.
 26. r[std-collections.uniq-list.hash] For `T < ?Copy & Hash`, `UniqList[T]` hashes its length as a `u64`, then each element in order, as `List[T]` does.
 27. r[std-collections.uniq-list.drop] `UniqList[T]` implements [`std.rt.Drop`](../lang/10-modules.md#r-module.rt.drop.decl): dropping a list drops its elements in order, then its buffer frees the room.
-28. r[std-collections.uniq-list.pinned] An element reference reached through a `*T` counts the list's room ([`module.rt.buffer.pinned`](../lang/10-modules.md#r-module.rt.buffer.pinned)). While one does, a `push`, `insert`, `remove_at` or `retain`, and a `pop` or a `truncate` that removes an element, panics. Panic: `collection-pinned`.
 
 
-29. r[std-collections.uniq-list.capacity] `capacity()` returns the number of element slots reserved by the list's current buffer, including for zero-sized elements.
-30. r[std-collections.uniq-list.reserve] `reserve(additional)` preserves the length and elements and reserves room for at least `len() + additional` elements without further growth.
-31. r[std-collections.uniq-list.extend] `extend[I < ?Copy & Iterable[T]](other: I)` consumes `other`, moving its elements onto the list in iteration order.
-32. r[std-collections.uniq-list.contains] For `T < ?Copy & Eq`, `contains(value: &T)` is true exactly when an element equals `value`.
-33. r[std-collections.uniq-list.index-of] For `T < ?Copy & Eq`, `index_of(value: &T)` returns the first equal element's index in `.Some`, or `.None` when absent.
-34. r[std-collections.uniq-list.reverse] `reverse()` reverses the elements in place without copying them or changing the length or capacity.
-35. r[std-collections.uniq-list.dedup] For `T < ?Copy & Eq`, `dedup()` drops every element equal to its preceding retained neighbour, keeping each run's first element and the capacity.
-36. r[std-collections.uniq-list.split-off] `split_off(at)` moves the suffix starting at `at` into a new list, preserving both parts' order and the original capacity; `at > len()` panics. Panic: `index-out-of-bounds`.
-37. r[std-collections.uniq-list.append] `append(other: &mut UniqList[T])` moves every element of `other` after the receiver's elements, leaving `other` empty with its capacity unchanged.
-38. r[std-collections.uniq-list.drain] `drain(range: Range[usize])` returns a non-copyable `UniqListDrain[T, 'a]` that holds the mutable receiver borrow and moves selected elements out in order.
-39. r[std-collections.uniq-list.drain-bounds] The drain range selects its half-open bounds, or includes its upper bound when `inclusive` is true; reversed or out-of-bounds ranges panic. Panic: `index-out-of-bounds`.
-40. r[std-collections.uniq-list.drain-drop] Dropping the drain cursor drops every unvisited selected element and restores the unselected tail after the prefix, preserving order and capacity.
-41. r[std-collections.uniq-list.binary-search] For `T < Ord`, `binary_search(value: &T)` searches an ascending list, returning `.Ok(index)` for any equal element or `.Err(index)` for its insertion point.
-42. r[std-collections.uniq-list.basic-pinned] While an element reference counts the room, increasing capacity, appending nonempty lists, splitting nonempty suffixes, draining, or deduplicating at least two elements panics. Panic: `collection-pinned`.
-43. r[std-collections.uniq-list.reserve-overflow] A `reserve` whose length sum exceeds the address space panics in every build profile. Panic: `heap-exhausted`.
+28. r[std-collections.uniq-list.capacity] `capacity()` returns the number of element slots reserved by the list's current buffer, including for zero-sized elements.
+29. r[std-collections.uniq-list.reserve] `reserve(additional)` preserves the length and elements and reserves room for at least `len() + additional` elements without further growth.
+30. r[std-collections.uniq-list.extend] `extend[I < ?Copy & Iterable[T]](other: I)` consumes `other`, moving its elements onto the list in iteration order.
+31. r[std-collections.uniq-list.contains] For `T < ?Copy & Eq`, `contains(value: &T)` is true exactly when an element equals `value`.
+32. r[std-collections.uniq-list.index-of] For `T < ?Copy & Eq`, `index_of(value: &T)` returns the first equal element's index in `.Some`, or `.None` when absent.
+33. r[std-collections.uniq-list.reverse] `reverse()` reverses the elements in place without copying them or changing the length or capacity.
+34. r[std-collections.uniq-list.dedup] For `T < ?Copy & Eq`, `dedup()` drops every element equal to its preceding retained neighbour, keeping each run's first element and the capacity.
+35. r[std-collections.uniq-list.split-off] `split_off(at)` moves the suffix starting at `at` into a new list, preserving both parts' order and the original capacity; `at > len()` panics. Panic: `index-out-of-bounds`.
+36. r[std-collections.uniq-list.append] `append(other: &mut UniqList[T])` moves every element of `other` after the receiver's elements, leaving `other` empty with its capacity unchanged.
+37. r[std-collections.uniq-list.drain] `drain(range: Range[usize])` returns a non-copyable `UniqListDrain[T, 'a]` that holds the mutable receiver borrow and moves selected elements out in order.
+38. r[std-collections.uniq-list.drain-bounds] The drain range selects its half-open bounds, or includes its upper bound when `inclusive` is true; reversed or out-of-bounds ranges panic. Panic: `index-out-of-bounds`.
+39. r[std-collections.uniq-list.drain-drop] Dropping the drain cursor drops every unvisited selected element and restores the unselected tail after the prefix, preserving order and capacity.
+40. r[std-collections.uniq-list.binary-search] For `T < Ord`, `binary_search(value: &T)` searches an ascending list, returning `.Ok(index)` for any equal element or `.Err(index)` for its insertion point.
+41. r[std-collections.uniq-list.reserve-overflow] A `reserve` whose length sum exceeds the address space panics in every build profile. Panic: `heap-exhausted`.
 
 > Note: hd's `Range[usize]` also represents inclusive bounds, as in `drain(1..=3)`.
 > As with [`Span.slice`](#r-std-collections.span.slice), open bounds are written explicitly: `drain(0..items.len())` drains the whole list.
@@ -165,18 +163,16 @@ fn positive_stock() -> UniqMap[string, i32]:
 14. r[std-collections.uniq-map.keys] `keys()` borrows the map and yields copies of its keys in the same order as `iter()`. Its cursor is `UniqMapKeys[K, V, 'a]`, with private fields, and lives for the map borrow.
 15. r[std-collections.uniq-map.into-iter] `UniqMap[K, V]` implements `Iterable[(K, V)]`. Its private `UniqMapIntoIter[K, V]` cursor owns the map and moves each key and value out in table order. A `for` loop over a `UniqMap` therefore consumes the map and each value.
 16. r[std-collections.uniq-map.collect] `UniqMap[K, V]` implements `FromIterator[(K, V)]`. When equal keys occur more than once, the last value replaces and drops the former value. An explicitly targeted `collect`, including `let items: UniqMap[_, _] = cursor.collect()`, may therefore collect non-copyable values.
-17. r[std-collections.uniq-map.pinned] A value reference reached through a `*T` counts the map's room ([`module.rt.buffer.pinned`](../lang/10-modules.md#r-module.rt.buffer.pinned)). While one does, an `insert` of a key the map does not hold, a `remove` of a key it holds, and a `clear` of a map with entries panic. Panic: `collection-pinned`.
 
 
-18. r[std-collections.uniq-map.with-capacity] `with_capacity(capacity)` returns an empty map whose first `capacity` new entries need no growth; zero capacity allocates no room.
-19. r[std-collections.uniq-map.reserve] `reserve(additional)` preserves every entry and reserves room for at least `additional` new entries without growth, including after removals.
-20. r[std-collections.uniq-map.retain] `retain(keep: fn(&K, &mut V) -> bool)` calls `keep` once per entry in table order, permits value changes, and drops rejected entries.
-21. r[std-collections.uniq-map.values] `values()` returns `UniqMapValues[K, V, 'a]`, borrowing the map and yielding shared value references in the same order as `iter()`.
-22. r[std-collections.uniq-map.extend] `extend[I < ?Copy & Iterable[(K, V)]](other: I)` consumes and inserts each pair in iteration order, replacing and dropping former values for equal keys.
-23. r[std-collections.uniq-map.drain] `drain()` returns a non-copyable `UniqMapDrain[K, V, 'a]` that holds the mutable receiver borrow and moves every entry out in table order.
-24. r[std-collections.uniq-map.drain-drop] Dropping the drain cursor drops every unvisited entry and leaves the map empty with its allocation available for reuse.
-25. r[std-collections.uniq-map.basic-pinned] While a value reference counts the room, a reserve that moves entries, retaining a nonempty map, or draining a nonempty map panics. Panic: `collection-pinned`.
-26. r[std-collections.uniq-map.reserve-overflow] A capacity request that exceeds the address space or cannot fit the table in the heap panics in every build profile. Panic: `heap-exhausted`.
+17. r[std-collections.uniq-map.with-capacity] `with_capacity(capacity)` returns an empty map whose first `capacity` new entries need no growth; zero capacity allocates no room.
+18. r[std-collections.uniq-map.reserve] `reserve(additional)` preserves every entry and reserves room for at least `additional` new entries without growth, including after removals.
+19. r[std-collections.uniq-map.retain] `retain(keep: fn(&K, &mut V) -> bool)` calls `keep` once per entry in table order, permits value changes, and drops rejected entries.
+20. r[std-collections.uniq-map.values] `values()` returns `UniqMapValues[K, V, 'a]`, borrowing the map and yielding shared value references in the same order as `iter()`.
+21. r[std-collections.uniq-map.extend] `extend[I < ?Copy & Iterable[(K, V)]](other: I)` consumes and inserts each pair in iteration order, replacing and dropping former values for equal keys.
+22. r[std-collections.uniq-map.drain] `drain()` returns a non-copyable `UniqMapDrain[K, V, 'a]` that holds the mutable receiver borrow and moves every entry out in table order.
+23. r[std-collections.uniq-map.drain-drop] Dropping the drain cursor drops every unvisited entry and leaves the map empty with its allocation available for reuse.
+24. r[std-collections.uniq-map.reserve-overflow] A capacity request that exceeds the address space or cannot fit the table in the heap panics in every build profile. Panic: `heap-exhausted`.
 
 > Note: like Rust's `HashMap.drain`, map draining takes no positional range; map entries have keys rather than list positions.
 > The collection extensions consume `Iterable` sources; [`flow.for.iterator.iterable-not-implied`](../lang/06-control-flow.md#r-flow.for.iterator.iterable-not-implied) keeps cursors distinct from iterables.

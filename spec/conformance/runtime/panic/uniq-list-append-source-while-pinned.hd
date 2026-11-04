@@ -1,4 +1,4 @@
-# test: append-source cannot move a pinned unique list's elements
+# test: appending from an alias's list while an element reference into it is live panics borrow-conflict, so it cannot move the elements
 use std.collections.UniqList
 
 struct Bag:
@@ -7,7 +7,7 @@ struct Bag:
 fn change(first: &mut string, alias: *mut Bag) -> void:
     alias.items.reserve(0)
     let mut destination = UniqList::[string].new()
-    destination.append(&mut alias.items) # panic: collection-pinned
+    destination.append(&mut alias.items) # panic: borrow-conflict
     *first = "still live"
 
 tests:

@@ -1,4 +1,4 @@
-# test: reserve cannot move a pinned unique list's elements
+# test: reserve through an alias while an element reference into the unique list is live panics borrow-conflict, so it cannot move the elements
 use std.collections.UniqList
 
 struct Bag:
@@ -6,7 +6,7 @@ struct Bag:
 
 fn change(first: &mut string, alias: *mut Bag) -> void:
     alias.items.reserve(0)
-    alias.items.reserve(100) # panic: collection-pinned
+    alias.items.reserve(100) # panic: borrow-conflict
     *first = "still live"
 
 tests:
