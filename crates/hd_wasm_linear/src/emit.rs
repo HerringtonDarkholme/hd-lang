@@ -32,6 +32,8 @@ use crate::rt::Helper;
 use crate::{Input, unsupported};
 
 mod borrow;
+mod elide;
+pub(crate) use elide::LoanSite;
 mod closure;
 mod count;
 mod ctx;
@@ -139,7 +141,9 @@ fn body_func<'a>(
     let roots = ref_roots(input, b, item, args, suspending, &promoted);
     let cells = closure::cell_locals(b, &roots);
     let direct_json = input.direct_json_encoders.contains(&own.key);
+    let inst = (m.inst_of.get(&own.key).copied()).unwrap_or(InstId::from_raw(u32::MAX));
     let mut em = Em::new(input, m, b, (item, args), targets, cells, direct_json);
+    em.inst = inst;
     em.type_promoted(promoted)?;
     // A local only local references lend lives in the frame (§23.38): a
     // plain function's own, at a runtime that counts.
@@ -1059,6 +1063,8 @@ struct Em<'i, 'a, 'm> {
     holders: HashMap<excl::Held, excl::Holder>,
     /// The pointer loans the body's holders take (`borrow.rs`).
     borrows: borrow::Borrows,
+    /// The instance this body emits, which keys its kept pointer loans.
+    inst: InstId,
     /// How each `Store` into a holder binding registers its loan.
     binds: HashMap<u32, Vec<excl::Binding>>,
     /// The argument of each call whose result a holder binds, with the
@@ -1253,6 +1259,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             loan_locals: HashMap::default(),
             holders: HashMap::default(),
             borrows: borrow::Borrows::default(),
+            inst: InstId::from_raw(u32::MAX),
             binds: HashMap::default(),
             held_srcs: HashMap::default(),
             loan_keys: HashMap::default(),

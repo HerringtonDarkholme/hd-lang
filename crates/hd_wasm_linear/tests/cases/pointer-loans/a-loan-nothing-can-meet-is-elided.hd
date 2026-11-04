@@ -1,0 +1,17 @@
+# @dump: wat
+# Nothing in `greet` writes a `Named` through a `*T`, and `rename`'s callee
+# writes only through its own `&mut self`, so neither takes a loan or
+# emits a check: the code is what it is without pointer loans.
+struct Named:
+    name: string
+
+impl Named:
+    fn set(&mut self, name: string) -> void:
+        self.name = name
+
+fn greet(p: *Named) -> usize:
+    n := &p.name
+    n.len()
+
+fn rename(p: *mut Named) -> void:
+    p.set("b")

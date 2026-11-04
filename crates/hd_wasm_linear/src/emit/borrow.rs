@@ -60,8 +60,9 @@ pub(super) struct Borrows {
     /// The holder bindings each `Store` makes.
     binds: HashMap<u32, Vec<(Held, Bind)>>,
     /// The `Ref`s whose loans a holder takes, and the objects each one
-    /// crossed, once emitted: the header address and the pointer's key.
-    refs: HashMap<u32, Vec<(u32, Option<usize>)>>,
+    /// crossed, once emitted: the header address, the pointer's key, and
+    /// whether elision keeps that loan (`elide.rs`).
+    refs: HashMap<u32, Vec<(u32, Option<usize>, bool)>>,
     /// Each holder's loans, the last crossing first: the local of the
     /// object's header address (0 while the holder holds none), and the
     /// local of its key's index plus one.
@@ -113,12 +114,6 @@ enum KeyOf {
     Local(u32),
 }
 
-/// Records that objects of type `object` may be lent, exclusively when
-/// `excl`.
-fn lend(m: &mut Module, object: Ty, excl: bool) {
-    *m.lent.entry(object).or_insert(false) |= excl;
-}
-
 /// The type of struct, tuple or newtype field `f` of `t`.
 fn field_ty(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, f: u32) -> Option<Ty> {
     let t = match pool.get(t) {
@@ -140,7 +135,7 @@ fn field_ty(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, f: u32) -> Option<Ty
 /// The `*T` dereferences on `steps` from a value of type `root`: each
 /// step's index and the type of the object it reaches. The walk stops at
 /// a step it cannot type.
-fn crossings(
+pub(super) fn crossings(
     pool: &InternPool,
     env: &dyn ProgramEnv,
     root: Ty,
@@ -197,7 +192,7 @@ fn crossings(
 }
 
 /// The type of a place's root, `sub` giving a type at this instance.
-fn root_ty(b: &Body, sub: &dyn Fn(Ty) -> Ty, root: PlaceRoot) -> Option<Ty> {
+pub(super) fn root_ty(b: &Body, sub: &dyn Fn(Ty) -> Ty, root: PlaceRoot) -> Option<Ty> {
     match root {
         PlaceRoot::Local(l) => Some(sub(b.local_ty[l.idx()])),
         PlaceRoot::Global(_, t) => Some(sub(t)),
@@ -224,7 +219,7 @@ pub(super) fn call_params(
 /// a `*T` where the parameter is `&T` or `&mut T`, or an auto-ref receiver
 /// (`receiver`, its mutability). Gives whether it lends `&mut`, and
 /// whether that is a two-phase receiver.
-fn pointer_lent(
+pub(super) fn pointer_lent(
     pool: &InternPool,
     env: &dyn ProgramEnv,
     param: Option<Ty>,
@@ -251,58 +246,6 @@ fn pointer_lent(
             ..
         } => Some((ref_mutable(pool, env, param), false)),
         _ => None,
-    }
-}
-
-/// Records the objects call `i`'s arguments lend for the call
-/// ([`Module::lent`]): a `Ref`'s, and a `*T` lent as a local reference.
-pub(super) fn lend_call(
-    pool: &InternPool,
-    env: &dyn ProgramEnv,
-    b: &Body,
-    sub: &dyn Fn(Ty) -> Ty,
-    m: &mut Module,
-    (args, receiver, params): (Vec<u32>, Option<bool>, Vec<Ty>),
-) {
-    for (k, a) in args.into_iter().enumerate() {
-        lend_ref(pool, env, b, sub, m, a);
-        let Some(v) = direct_value(b, a) else {
-            continue;
-        };
-        let value = sub(b.ty[v]);
-        let param = params.get(k).copied();
-        if let Some((mutable, _)) = pointer_lent(pool, env, param, value, k, receiver)
-            && let Kind::Ref { target, .. } = kind(pool, env, value)
-        {
-            lend(m, target, mutable);
-        }
-    }
-}
-
-/// Records the objects a holder's loan on `Ref` `a` may hold
-/// ([`Module::lent`]).
-pub(super) fn lend_ref(
-    pool: &InternPool,
-    env: &dyn ProgramEnv,
-    b: &Body,
-    sub: &dyn Fn(Ty) -> Ty,
-    m: &mut Module,
-    a: u32,
-) {
-    let Some(v) = direct_value(b, a).filter(|&v| b.tags[v] == Tag::Ref) else {
-        return;
-    };
-    let Some(p) = b.decode_place(b.data[v][0]) else {
-        return;
-    };
-    let Some(root) = root_ty(b, sub, p.root) else {
-        return;
-    };
-    let excl = ref_mutable(pool, env, sub(b.ty[v]));
-    let crossed = crossings(pool, env, root, &p.proj);
-    let last = crossed.len().wrapping_sub(1);
-    for (n, (_, object)) in crossed.into_iter().enumerate() {
-        lend(m, object, excl && n == last);
     }
 }
 
@@ -474,8 +417,6 @@ impl Em<'_, '_, '_> {
         }
         let call = self.borrows.call_refs.get(&i).copied();
         let lends = self.borrows.refs.contains_key(&i) || call.is_some();
-        // A two-phase receiver is shared until its call begins.
-        let write = write && !call.is_some_and(|(_, two_phase)| two_phase);
         // Each dereference of a `*T`, with the type of the object it reaches.
         let root = self.at_root_ty(p.root);
         let mut crossed = Vec::new();
@@ -493,6 +434,12 @@ impl Em<'_, '_, '_> {
             }
         }
         let last = crossed.len().wrapping_sub(1);
+        // A two-phase receiver is shared until its call begins. One whose
+        // loan elision drops takes the access check of its `&mut` now.
+        let last_kept = crossed.last().is_some_and(|&(k, _)| {
+            (self.m.kept).contains(&(self.inst, i, u32::try_from(k).expect("steps")))
+        });
+        let write = write && !(call.is_some_and(|(_, two_phase)| two_phase) && last_kept);
         let mut taken = Vec::new();
         for (n, (k, object)) in crossed.into_iter().enumerate() {
             let writes = write && n == last;
@@ -501,11 +448,16 @@ impl Em<'_, '_, '_> {
                 Some(true) => Some(LOAN_EXCL),
                 _ => None,
             };
-            if mask.is_none() && !lends {
-                continue;
-            }
+            let keep =
+                lends && (self.m.kept).contains(&(self.inst, i, u32::try_from(k).expect("steps")));
             let key = matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..))
                 .then(|| self.borrow_key((p.root, p.proj[..k].to_vec())));
+            if mask.is_none() && !keep {
+                if lends {
+                    taken.push((u32::MAX, key, false));
+                }
+                continue;
+            }
             let mut fresh = Vec::new();
             let (at, _) = self.walk_place(i, &p, k, None, &mut fresh)?;
             let o = self.at_i32(&at)?;
@@ -518,11 +470,14 @@ impl Em<'_, '_, '_> {
             if let Some(mask) = mask {
                 self.borrow_check(header, mask, key, object, writes);
             }
-            taken.push((header, key));
+            taken.push((header, key, keep));
         }
         if let Some((call, two_phase)) = call {
             let n = taken.len();
-            for (j, (header, key)) in taken.into_iter().enumerate() {
+            for (j, (header, key, keep)) in taken.into_iter().enumerate() {
+                if !keep {
+                    continue;
+                }
                 let last = j + 1 == n;
                 let delta = if last && write {
                     LOAN_EXCL
@@ -644,7 +599,10 @@ impl Em<'_, '_, '_> {
                     let Some(taken) = self.borrows.refs.get_mut(&v).map(std::mem::take) else {
                         continue;
                     };
-                    for (s, (header, key)) in taken.into_iter().rev().enumerate() {
+                    for (s, (header, key, keep)) in taken.into_iter().rev().enumerate() {
+                        if !keep {
+                            continue;
+                        }
                         let (h, kl) = self.borrow_slot(held, s);
                         let delta = self.borrow_delta(held, s);
                         self.f.get(header);
@@ -829,6 +787,15 @@ impl Em<'_, '_, '_> {
         self.f.u32(crate::module::HEADER - 4);
         self.f.op(I::I32Sub);
         self.f.set(header);
+        if !self.m.kept.contains(&(self.inst, i, u32::MAX)) {
+            // No loan: only the access check of the lend, a write for a
+            // `&mut`, whose two-phase window nothing can meet.
+            if mutable || self.m.lent.get(&target) == Some(&true) {
+                let mask = if mutable { LOAN_STATE } else { LOAN_EXCL };
+                self.borrow_check(header, mask, key, target, mutable);
+            }
+            return Ok(());
+        }
         let excl = mutable && !two_phase;
         let mask = if excl { LOAN_STATE } else { LOAN_EXCL };
         self.borrow_check(header, mask, key, target, excl);
