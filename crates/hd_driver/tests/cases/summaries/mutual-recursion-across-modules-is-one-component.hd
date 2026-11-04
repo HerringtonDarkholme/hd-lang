@@ -3,7 +3,7 @@
 # @file: main.hd
 # Release summaries, recursion across modules: `ping` and `pong` call each
 # other from two modules, so they are one recursive component whatever
-# order collection reaches them in, and `c` stays kept.
+# order collection reaches them in, and `c` borrows.
 use pkg.other.{Config, pong}
 
 pub fn ping(c: Config, n: i64) -> i64:

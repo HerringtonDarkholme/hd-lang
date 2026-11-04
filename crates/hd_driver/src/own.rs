@@ -123,26 +123,26 @@ pub(super) struct Summaries {
     by_item: std::sync::Mutex<HashMap<DefId, Summary>>,
     /// The members of recursive strongly connected components, each with
     /// its component's first member in path order: a call between two
-    /// members reads the declared convention.
+    /// members reads the component's fixed point
+    /// ([`Env::component_borrows`]).
     cycle: std::sync::Mutex<HashMap<DefId, DefId>>,
     /// Whether each walked body may write memory its caller can reach
     /// (`hd_tir::own::writes`), known before the passes run over its
     /// component: `OwnCx::may_write` reads it for a call of the body.
     writes: std::sync::Mutex<HashMap<DefId, bool>>,
-    /// Per summarized item outside a recursive component, the value
-    /// parameters its summary lends ([`Env::lent_mask`]), once recorded.
+    /// Per summarized item, the value parameters its summary lends
+    /// ([`Env::lent_mask`]), once recorded; a recursive component's
+    /// member's are its fixed point.
     lent: std::sync::Mutex<HashMap<DefId, u64>>,
     /// Per item and parameter, the answer the passes first read
     /// ([`Env::summary_lends`]), which stays: a body and its emission read
     /// the same one, and a bit read as kept before the record stays kept.
     read: std::sync::Mutex<HashMap<(DefId, u32), bool>>,
-    /// While a recursive component's fixed point runs
-    /// ([`Env::component_borrows`]), each member's assumed borrows, which
-    /// [`Env::summary_lends`] answers without recording.
+    /// While a recursive component is owned, each member's borrows, which
+    /// [`Env::summary_lends`] answers without recording: assumed while
+    /// its fixed point runs ([`Env::component_borrows`]), then the fixed
+    /// point while the passes run over the members.
     assume: std::sync::Mutex<HashMap<DefId, u64>>,
-    /// Per member of a recursive component, the borrows of its fixed
-    /// point ([`Env::component_borrows`]).
-    borrowable: std::sync::Mutex<HashMap<DefId, u64>>,
     /// The inliner's copies and the functions it found recursive.
     inline: hd_opt::inline::Memo,
     /// Per item whose passes would borrow through a `&T` or `&mut T`
@@ -166,9 +166,8 @@ type PromotedKey = (DefId, TyList, bool, u64, u64);
 pub(super) type Exclusive = (u64, std::sync::Arc<Body>);
 
 /// The `own` view's line for `body`'s summary in `all`: its kept
-/// parameters, by local, those it borrows (a recursive component's
-/// member's from the component's fixed point), the one every result is,
-/// and whether it is
+/// parameters, by local, those it borrows, the one every result is, and
+/// whether it is
 /// recursive; `summary none` for a function with none (one that suspends),
 /// nothing for any other body.
 pub(super) fn summary_line(body: &Body, all: &Summaries) -> String {
@@ -183,9 +182,8 @@ pub(super) fn summary_line(body: &Body, all: &Summaries) -> String {
         .map(|(_, l)| format!("${l}"))
         .collect();
     let mut line = format!("summary kept [{}]", kept.join(" "));
-    let borrows = lock(&all.borrowable).get(&body.item).copied();
     let borrows: Vec<String> = (params.iter().enumerate())
-        .filter(|&(k, _)| k < 64 && borrows.unwrap_or(s.borrows) & (1 << k) != 0)
+        .filter(|&(k, _)| k < 64 && s.borrows & (1 << k) != 0)
         .map(|(_, l)| format!("${l}"))
         .collect();
     if !borrows.is_empty() {
@@ -1436,10 +1434,10 @@ impl Env<'_> {
                 );
             }
             lock(&all.by_item).insert(body.item, s);
-            // What it lends, but nothing of a recursive component's member
-            // (its callers inside read the declared convention), nothing
+            // What it lends: a recursive component's member its fixed
+            // point, which its callers inside the component read; nothing
             // emitted glue calls with owned arguments (the runtime and a
-            // host boundary codec's items), and no bit the passes already
+            // host boundary codec's items); and no bit the passes already
             // read as kept.
             let item = body.item;
             let glue = self.called_by_glue(item);
@@ -1449,8 +1447,17 @@ impl Env<'_> {
                 & u64::MAX
                     .checked_shr(64 - u32::try_from(n).expect("params"))
                     .unwrap_or(0);
-            if glue || lock(&all.cycle).contains_key(&item) {
+            if glue {
                 lent = 0;
+            }
+            if let Some(&fixed) = lock(&all.assume).get(&item) {
+                // The fixed point holds of the passes' last run.
+                assert!(
+                    fixed & s.kept == 0,
+                    "{}: keeps a parameter its component lends",
+                    self.run.names().path(item)
+                );
+                lent = fixed;
             }
             for k in 0..u32::try_from(n).expect("params") {
                 if read.get(&(item, k)) == Some(&false) {
@@ -1503,7 +1510,7 @@ impl Env<'_> {
             })
     }
 
-    /// Release (#1289): the borrows of each member of recursive component
+    /// Release (#1289, #1232): the borrows of each member of recursive component
     /// `members`, whose inlined bodies are `bodies`, by Lean 4's borrow
     /// inference: every member starts borrowing each value parameter that
     /// may hold a count, and the passes run over each member with calls inside
@@ -1792,7 +1799,7 @@ impl Run<'_> {
                         lock(&all.cycle).insert(m, members[0]);
                     }
                     let borrows = env.component_borrows(members, &inlined.borrow());
-                    lock(&all.borrowable).extend(borrows);
+                    *lock(&all.assume) = borrows;
                 }
                 for &m in members.iter() {
                     let body = inlined.borrow_mut().remove(&m);
@@ -1802,6 +1809,7 @@ impl Run<'_> {
                         let _ = lazy.owned.set(Some(owned));
                     }
                 }
+                lock(&all.assume).clear();
             };
             hd_opt::inline::bottom_up(root, &done, &mut callees, &mut own);
         });
