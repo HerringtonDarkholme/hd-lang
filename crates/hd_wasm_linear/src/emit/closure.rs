@@ -650,7 +650,13 @@ impl Em<'_, '_, '_> {
             return Ok(());
         }
         let (m, parts, _) = self.env_layout(&caps)?;
-        for ((l, _), p) in caps.iter().zip(&parts) {
+        for ((l, shared), p) in caps.iter().zip(&parts) {
+            // The environment outlives every call of the code, so a
+            // reference to a copy points into it (a suspending code's
+            // environment is read once, into its frame).
+            if !shared && env == 0 {
+                self.env_caps.insert(*l, (env, p.offset));
+            }
             let ls = self.local(u32::try_from(*l).expect("locals"))?;
             for (leaf, x) in m.leaves[p.first..p.first + p.count].iter().zip(&ls) {
                 self.f.get(env);

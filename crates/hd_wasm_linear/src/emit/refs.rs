@@ -609,6 +609,15 @@ impl Em<'_, '_, '_> {
         };
         let mut fresh = Vec::new();
         let (mut at, mut ty) = self.walk_place(i, &p, upto, start, &mut fresh)?;
+        // A capture's copy lies in the closure's environment too, which
+        // outlives the code's call: a local reference points there. (A
+        // receiver's counted carrier points at a whole object: a copy.)
+        if let (At::Vals(_), PlaceRoot::Local(l), None) = (&at, p.root, head)
+            && let Some(&(env, off)) = self.env_caps.get(&l.idx())
+            && matches!(self.kind(self.ty(i)), Kind::Ref { whole: false, .. })
+        {
+            at = At::Mem(env, off);
+        }
         let mut from = upto;
         if let Some(through) = head {
             from += 1;

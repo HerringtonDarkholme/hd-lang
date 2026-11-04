@@ -1,0 +1,18 @@
+# @dump: wat
+# A closure's copy of `p` lies in its environment, which outlives each
+# call of the code, so `&p` and `&p.name` point there: no new object
+# holds a copy (`ref.expr.allocate` applies to no place, and a capture
+# is one).
+struct Point:
+    x: i32
+    name: string
+
+fn peek(p: &Point) -> i32:
+    p.x + 1
+
+fn first(s: &string) -> string:
+    s + "!"
+
+fn make(p: Point) -> fn() -> string:
+    # subject
+    fn() -> string: "${peek(&p)} ${first(&p.name)}"
