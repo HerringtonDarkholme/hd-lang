@@ -110,6 +110,28 @@ fn borrowed_depth(point: &TextCell, depth: usize) -> usize:
     below := if depth == 0: 0 else: borrowed_depth(point, depth - 1)
     field.len() + below
 
+@inline(.Never)
+fn closure_number(by: fn(&i32) -> i32, value: &i32) -> i32:
+    by(value)
+
+@inline(.Never)
+fn closure_field(by: fn(&TextCell) -> &string, point: &TextCell) -> &string:
+    by(point)
+
+@inline(.Never)
+fn closure_copy[T](by: fn(&T) -> T, value: &T) -> T:
+    by(value)
+
+@inline(.Never)
+fn generic_closure_copy[T](value: &T) -> T:
+    closure_copy(fn(input: &T): *input, value)
+
+fn closure_view_round(round: i32) -> usize:
+    point := TextCell { value: label(round).repeat(20) }
+    copy := generic_closure_copy(&point)
+    field := closure_field(fn(value): &value.value, &copy)
+    field.len()
+
 tests:
     use std.testing.{assert, it}
 
@@ -252,3 +274,27 @@ tests:
             round += 1
         assert(sum == 2497500, "every moved field loan reads its parent")
         assert(live() == before, "each fresh reference view is released once")
+
+    it("a read-only closure borrows its physical reference parameter"):
+        point := box(+42)
+        reference := &*point
+        before := retained()
+        let round = +0
+        while round < 1000:
+            assert(
+                closure_number(fn(value): *value, reference) == 42,
+                "the closure reads its caller's value",
+            )
+            round += 1
+        assert(retained() == before, "the closure takes no referent count")
+        assert(*reference == 42, "the caller's loan stays valid")
+
+    it("closure copies and dependent results preserve erased reference cleanup"):
+        before := live()
+        let round = +0
+        let total: usize = 0
+        while round < 1000:
+            total += closure_view_round(round)
+            round += 1
+        assert(total > 60000, "every copy and dependent field result stays valid")
+        assert(live() == before, "every copied value and fresh view is released once")

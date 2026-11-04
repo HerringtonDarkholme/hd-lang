@@ -5691,7 +5691,7 @@ runtime/valid/union-hash.hd	runtime	accept	std/hash.md#r-std-hash.hash-of-local
 runtime/valid/union-serde.hd	runtime	accept	std/json.md#r-std-json.decode.direct
 runtime/panic/alias-write-under-call-result-loan-across-sleep-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.loan
 runtime/panic/alias-write-beside-call-result-loan-across-sleep-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
-runtime/panic/bang-call-mut-argument-under-loan-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.counted-access
+runtime/valid/bang-call-pointer-argument-beside-a-shared-loan.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.counted-access
 runtime/valid/bang-call-disjoint-argument-checks-once.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.counted-access
 runtime/valid/alias-write-after-abandoned-call-result-loan-passes.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.loan
 runtime/panic/shared-counted-reference-loan-write-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.shared-counted-loan
@@ -5868,6 +5868,7 @@ runtime/valid/json-writer-copy-isolation.hd	runtime	accept	std/json.md#r-std-jso
 runtime/valid/integer-text-byte-room.hd	runtime	accept	std/json.md#r-std-json.display.compact
 typing/invalid/string-builder-value-is-not-copyable.hd	type	reject:move-out-of-place	std/text.md#r-std-text.builder.unique-storage
 runtime/valid/uniq-list-assigned-through-pointer-in-bang-function.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.type
+runtime/valid/unique-list-reference-outlives-its-pointer-local.hd	runtime	accept	lang/13-values-and-references.md#r-ref.box.root
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

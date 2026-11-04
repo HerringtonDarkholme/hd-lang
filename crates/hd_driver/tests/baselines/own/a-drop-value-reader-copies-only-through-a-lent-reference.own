@@ -47,10 +47,10 @@ fn through_owned_box() -> usize:
 >   %10 = Store [$0] %9 : ()
 >   %11 = Ref take mut [$0] : Counted[mut Bag]
 >   %12 = Store [$1] %11 : ()
->   %17 = Block %15 : usize
+>   %17 = Block %14 : usize
 >   %11 finds [$0] full
     bag.buffer.capacity()
 >   %13 = Ref local [*$1 .buffer] : Ref[Buffer[i32]]
->   %14 = Drop [$1] : ()
->   %15 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].capacity[i32] (%13) : usize
->   %16 = Drop [%13] : ()
+>   %14 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].capacity[i32] (%13) : usize
+>   %15 = Drop [%13] : ()
+>   %16 = Drop [$1] : ()

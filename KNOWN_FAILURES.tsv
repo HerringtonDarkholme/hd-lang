@@ -2,8 +2,5 @@ path	issue	engine	reason
 runtime/valid/parameter-list-unique-loops.hd	#1336		not built: a closure checks a write through a pointer it captured against no loan, not against its creator's own loans through that pointer (POINTER_LOANS.md E.2, phase 9)
 runtime/panic/pointer-loan-extra-dyn-receiver-alias-write-panics.hd	#1336		not built: today the alias access runs with no loan on this path; the proposal panics borrow-conflict
 runtime/panic/pointer-loan-extra-observer-notify-writes-owner-panics.hd	#1336		not built: today the alias access runs with no loan on this path; the proposal panics borrow-conflict
-runtime/valid/pointer-loan-extra-callee-only-reads.hd	#1336		not built: today passing a *mut to a call counts as a write of its whole object at run time
-runtime/valid/pointer-loan-extra-root-pointer-last-use-before-reference.hd	#1327		unsound today: the reference reads freed memory after its root pointer is released
-runtime/valid/pointer-loan-extra-root-pointer-moved-into-a-task.hd	#1327		unsound today: the reference reads freed memory after its root pointer is released
 typing/invalid/pointer-loan-same-root-dependent-method.hd	#1336		not built: today a method result through a *T does not hold the pointer local as its origin
 typing/invalid/pointer-loan-same-root-dependent-outlives-root.hd	#1336		not built: today a call result through a *T counts the object instead of naming the pointer local as its origin

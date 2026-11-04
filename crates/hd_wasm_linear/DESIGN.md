@@ -1755,9 +1755,10 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   `&mut`, else with the exclusive bit, and every earlier one, which is only
   read to reach the next, with the exclusive bit. A set bit panics
   `borrow-conflict`. Only a type some loan may hold is tested
-  (`Module::lent`, today the types of the loan table's binding loans and
-  their path objects, in every build); a place that crosses no `*T` emits
-  nothing, and a pointer argument is no access. Nothing sets a loan yet.
+  (`Module::lent`, the types elision keeps a loan on, in every build; an
+  erased body's open type counts as any of them, and its pointer may be
+  a representation view, whose source the check reads); a place that
+  crosses no `*T` emits nothing, and a pointer argument is no access.
 - **Bounded memory.** `crates/hd_driver/tests/std_rt/ref_tests.hd` writes
   through references to locals and elements, checks that a pin ends with
   its reference's last use, and takes references to locals and elements

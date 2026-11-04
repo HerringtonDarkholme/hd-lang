@@ -452,6 +452,28 @@ impl OwnCx for Env<'_> {
         holds_ref(&self.run.pool, self.ref_cells(), self.run.known.ptr, ty, 0)
     }
 
+    fn lends(&self, from: Ty, to: Ty) -> bool {
+        !self.is_open(from)
+            && !self.is_open(to)
+            && hd_wasm_linear::lending_types(&self.run.pool, self, from, to)
+    }
+
+    fn counted_refs_only(&self, ty: Ty) -> bool {
+        // A type of counted references: what `holds_ref` finds with each
+        // counted `Ref` taken out holds none.
+        let pool = &self.run.pool;
+        let mut counted = false;
+        let only = refs_kinds(
+            pool,
+            self.ref_cells(),
+            self.run.known.ptr,
+            ty,
+            0,
+            &mut counted,
+        );
+        only && counted
+    }
+
     fn copies(&self, ty: Ty) -> Tri {
         if let Some(&c) = lock(&self.run.copy_types).get(&ty) {
             return c;
@@ -564,6 +586,47 @@ impl Env<'_> {
 /// reference (`ref.generic.local`), but never one into a local of the
 /// body that holds it: no expression makes a `T` from that body's storage
 /// (`ref.generic.body`), so for frame locals it holds none.
+/// Whether every reference `t` may hold is a counted `Ref`, setting
+/// `counted` when it holds one: no local `Ref`, trait value, `Ptr`, cell
+/// or open type.
+fn refs_kinds(
+    pool: &hd_types::InternPool,
+    cells: hd_types::RefCells,
+    ptr: DefId,
+    t: Ty,
+    depth: u32,
+    counted: &mut bool,
+) -> bool {
+    if depth > 32 {
+        return false;
+    }
+    let all = |l, counted: &mut bool| {
+        pool.list_items(l)
+            .iter()
+            .all(|&a| refs_kinds(pool, cells, ptr, a, depth + 1, counted))
+    };
+    match pool.get(t) {
+        TyData::Ref { counted: true, .. } => {
+            *counted = true;
+            true
+        }
+        TyData::Ref { .. } | TyData::TraitValue { .. } => false,
+        TyData::Adt { def, .. } if def == cells.counted && def != cells.local => {
+            *counted = true;
+            true
+        }
+        TyData::Adt { def, args } => def != ptr && !cells.holds(def) && all(args, counted),
+        TyData::Tuple { elems, rest } => {
+            all(elems, counted)
+                && rest.is_none_or(|r| refs_kinds(pool, cells, ptr, r, depth + 1, counted))
+        }
+        TyData::Union(members) => all(members, counted),
+        TyData::Option(i) | TyData::Mut(i) => refs_kinds(pool, cells, ptr, i, depth + 1, counted),
+        TyData::Param(..) => false,
+        _ => true,
+    }
+}
+
 fn holds_ref(
     pool: &hd_types::InternPool,
     cells: hd_types::RefCells,

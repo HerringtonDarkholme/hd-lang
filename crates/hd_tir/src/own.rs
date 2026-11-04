@@ -176,6 +176,24 @@ pub trait OwnCx {
         let _ = ty;
         true
     }
+    /// Whether a same-value coercion from `from` to `to` lends a counted
+    /// reference as a local one (`ref.convert.lend`): the result points
+    /// where the counted one does and holds none of its count, so the
+    /// coercion consumes nothing, and what it lends from lives until the
+    /// result's last use (`frame`, rule 5). The default answers no.
+    fn lends(&self, from: Ty, to: Ty) -> bool {
+        let _ = (from, to);
+        false
+    }
+    /// Whether every reference a value of `ty` may hold is counted (a
+    /// `*T`), and it holds one: a copy of it keeps its own count of what
+    /// it points into, and the borrow pass lends one only from a place
+    /// that outlives the loan. Roots (`frame`, rule 5) follow no such
+    /// value. The default answers no.
+    fn counted_refs_only(&self, ty: Ty) -> bool {
+        let _ = ty;
+        false
+    }
     /// Whether a value of `ty` may be copied (`ref.copy.structure`): `No`
     /// when it holds a type declared `!Copy` by value, `Maybe` when it
     /// holds a type parameter declared `?Copy`, which an instance decides.
@@ -360,9 +378,17 @@ pub(crate) fn owned_value(b: &Body, i: usize) -> bool {
 /// Whether operand `op` of instruction `i` consumes its value
 /// (`docs/compiler/tir-v2.md`, "Where values are owned"). For a block's
 /// tail, `owner` is the block's owner, `NONE` for a sub-body's root.
+/// Whether instruction `i` is a coercion that lends a counted reference
+/// as a local one ([`OwnCx::lends`]).
+pub(crate) fn lending_coercion(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
+    b.same_value_coercion(i)
+        && Ref(b.data[i][0]).as_inst().is_some()
+        && cx.lends(b.ty[b.data[i][0] as usize], b.ty[i])
+}
+
 pub(crate) fn consumes(b: &Body, cx: &dyn OwnCx, i: usize, op: &Operand, owner: u32) -> bool {
     match op.role {
-        Role::Consume => true,
+        Role::Consume => !lending_coercion(b, cx, i),
         Role::Lend | Role::Dropped => false,
         // `NONE`: a sub-body's root, whose tail is the body's result.
         Role::Tail => owner == NONE || owner_takes_tail(b, owner, u32::try_from(i).expect("insts")),

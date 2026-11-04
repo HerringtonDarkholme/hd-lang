@@ -512,7 +512,6 @@ impl Em<'_, '_, '_> {
             Tag::Await => {
                 let rec = self.rec(bw);
                 let args = rec[..rec.len().saturating_sub(3)].to_vec();
-                self.loan_call_args(&args, Some((self.pc(), k)))?;
                 match self.calls.get(&i).cloned() {
                     Some(Target::Call(t)) if t.kind == TargetKind::Instance => {
                         if !self.env().suspends(t.item) {
@@ -1274,19 +1273,6 @@ pub(super) fn finish(
         for t in em.temps.clone() {
             places.push((None, None, vec![t]));
         }
-        // The key of a call's result's loan, from the frame's save of the
-        // body's local that keeps it.
-        let mut keys: Vec<(super::excl::Held, u32)> = em.loan_keys.drain().collect();
-        keys.sort_stable();
-        for (l, k) in keys {
-            if let Some((at, v)) = at_of(k) {
-                let x = em.f.local(v);
-                em.f.get(FRAME);
-                em.f.op(load_op(v, at));
-                em.f.set(x);
-                em.loan_keys.insert(l, x);
-            }
-        }
         // The pointer loans the waiting body holds end with it.
         em.borrow_abandon(&at_of);
         for (inst, local, ls) in places {
@@ -1309,7 +1295,7 @@ pub(super) fn finish(
             match (inst, local) {
                 (Some(i), _) => em.release_drop_place(&loaded, em.ty(i), &Em::value_place(i))?,
                 (None, Some(l)) => {
-                    em.loan_release(l, &loaded);
+                    em.borrow_release(l);
                     if em.is_cell(l) {
                         em.count_local(l, &loaded, false)?;
                     } else {
