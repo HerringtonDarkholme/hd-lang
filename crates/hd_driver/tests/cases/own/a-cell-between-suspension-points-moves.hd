@@ -1,0 +1,22 @@
+# @dump: own
+# @build: v8 release
+# Release inlines `fresh` into the suspending `reset!`. Its local `items`
+# lives in a cell (the `push` receiver addresses it), yet only between
+# suspension points: every use is in the inlined block, after `sleep!`,
+# and a store makes it first. So its last read moves the non-copyable
+# list out, as in a plain body, rather than copying it.
+use std.collections.UniqList
+use std.time.{Clock, sleep}
+
+struct Holder:
+    items: UniqList[string]
+
+fn fresh(first: string) -> UniqList[string]:
+    let mut items = UniqList::[string].new()
+    items.push(first)
+    items
+
+fn reset!(holder: *mut Holder) -> void $ Clock:
+    sleep!(1ms)
+    # subject
+    holder.items = fresh("a")
