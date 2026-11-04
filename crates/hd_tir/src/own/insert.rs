@@ -10,7 +10,9 @@
 //!    other consumer gets a `Read copy` of the value just before it, which
 //!    it consumes instead, so a consumed value always has exactly one use;
 //!    the value then gets a `Drop` after the statement of its **home**
-//!    block that holds its last use. The drops after one statement run
+//!    block that holds its last use. A coercion that lends a counted
+//!    reference as a local one ([`OwnCx::lends`]) consumes nothing, and
+//!    its uses are uses of the value it lends. The drops after one statement run
 //!    youngest first, so a binding made from a value (a payload's) is
 //!    dropped before that value. The home is the innermost block
 //!    around the value that holds every use: its own block, or for a value
@@ -100,6 +102,8 @@ pub(crate) struct Tables {
     mark: Vec<u32>,
     pub(super) chain: Vec<(u32, u32)>,
     levels: Vec<(u32, u32)>,
+    /// A value's uses and those of the coercions that lend it (rule 2).
+    lent: Vec<usize>,
     /// Local accesses as (sub-body, local, instruction), sorted.
     acc: Vec<(u32, u32, u32)>,
     /// Entry locals as (sub-body, local), sorted: parameters and a
@@ -377,7 +381,20 @@ fn values(
         t.levels.clear();
         let mut home = 0;
         let mut stray = None;
-        for k in lo..hi {
+        // A coercion that lends the value as a local reference
+        // (`ref.convert.lend`) uses it until the reference's own last use.
+        let mut lent = std::mem::take(&mut t.lent);
+        lent.clear();
+        lent.extend(lo..hi);
+        let mut x = 0;
+        while x < lent.len() {
+            let (u, _) = t.uses[lent[x]];
+            if super::lending_coercion(b, cx, u as usize) && t.tracked[u as usize] {
+                lent.extend(t.start[u as usize] as usize..t.start[u as usize + 1] as usize);
+            }
+            x += 1;
+        }
+        for &k in &lent {
             let (u, op) = t.uses[k];
             // A change that reads its place again no longer uses it.
             if u == t.reread[v] {
@@ -391,6 +408,7 @@ fn values(
                 None => stray = Some(u),
             }
         }
+        t.lent = lent;
         // A key is used again where its change looks its entry up.
         for x in 0..t.relook.len() {
             let u = t.relook[x].1 as usize;

@@ -34,11 +34,16 @@
 //!    what a cell holds (an element of a list in it) takes no count of the
 //!    cell, so the local's own count keeps the cell alive until then.
 //! 5. **Roots.** A counted local a place dereferences (`[*$p .items]`) or
-//!    takes an element of (`[$xs [%i]]`) is tracked the same way
+//!    takes an element of (`[$xs [%i]]`), or whose whole value a coercion
+//!    lends as a local reference (`ref.convert.lend`, [`OwnCx::lends`]),
+//!    is tracked the same way
 //!    (`ref.box.root`), in a body with no frame candidate too: what a
 //!    reference or a borrowed read through it points into holds no count
 //!    of its object or buffer, so the uses of what may point there are the
-//!    local's uses too, and its drop or a move of it waits for them.
+//!    local's uses too, and its drop or a move of it waits for them (the
+//!    move pass reads them through [`roots`]). A value such a coercion
+//!    lends stays undropped until the reference's last use (insertion,
+//!    rule 2).
 
 use hd_base::SliceSort as _;
 
@@ -269,6 +274,13 @@ pub(crate) fn run(
     root_uses(b, cx, t, &mut uses);
 }
 
+/// Rule 5 alone: `uses` gets each use of a root local through what may
+/// point into its object or buffer, as (instruction, local). The move pass
+/// reads them, so a root is not moved before a reference's last use.
+pub(crate) fn roots(b: &Body, cx: &dyn OwnCx, mut uses: impl FnMut(u32, u32)) {
+    root_uses(b, cx, &Tables::default(), &mut |i, l, _| uses(i, l));
+}
+
 /// Rule 5, roots (`ref.box.root`): a counted local whose value a place
 /// dereferences (`[*$p .items]`, a `*T`) or takes an element of
 /// (`[$xs [%i]]`, a list or a map) is the root of
@@ -278,13 +290,22 @@ pub(crate) fn run(
 /// use, in a suspending body's frame too.
 fn root_uses(b: &Body, cx: &dyn OwnCx, t: &Tables, uses: &mut impl FnMut(u32, u32, bool)) {
     let mut locals = Vec::new();
+    let mut lent_reads: Vec<u32> = (0..b.len())
+        .filter(|&c| super::lending_coercion(b, cx, c))
+        .map(|c| b.data[c][0])
+        .collect();
+    lent_reads.sort_stable();
     for i in 0..b.len() {
         if !matches!(b.tags[i], Tag::Ref | Tag::Read) {
             continue;
         }
         let p = b.view(b.data[i][0]);
+        // A read of all of a counted local that a coercion lends as a
+        // local reference roots the reference there too.
+        let lent =
+            b.tags[i] == Tag::Read && p.whole() && lent_reads.binary_search(&u32_of(i)).is_ok();
         if let Root::Local(l) = p.root
-            && p.steps(b).any(|s| matches!(s, Proj::Deref | Proj::Elem(_)))
+            && (lent || p.steps(b).any(|s| matches!(s, Proj::Deref | Proj::Elem(_))))
             && cx.counted(b.local_ty[l as usize]) == super::Tri::Yes
             && t.bit.get(l as usize).is_none_or(|&m| m == 0)
             && !b.cap_local.iter().any(|c| c.raw() == l)
@@ -305,6 +326,19 @@ fn root_uses(b: &Body, cx: &dyn OwnCx, t: &Tables, uses: &mut impl FnMut(u32, u3
             .collect();
         part_uses(b, cx, &mut extra, &targets, |i, k| uses(i, batch[k], false));
     }
+}
+
+/// What a coercion `i` that lends a counted reference as a local one
+/// (`ref.convert.lend`) points into: where the counted reference it reads
+/// lies, as a `Ref` through it would (`[*$p]`), so the local holding the
+/// counted reference lives until the local one's last use.
+fn lent_from(b: &Body, cx: &dyn OwnCx, t: &Tables, i: usize) -> u64 {
+    let a = b.data[i][0];
+    if !super::lending_coercion(b, cx, i) || b.tags[a as usize] != Tag::Read {
+        return 0;
+    }
+    t.place(b, b.data[a as usize][0])
+        .map_or(0, |(lies, _)| lies)
 }
 
 /// Frame-slot promotion is bounded, but cell liveness is required for
@@ -465,7 +499,7 @@ fn step(b: &Body, cx: &dyn OwnCx, t: &mut Tables, ops: &mut Vec<super::Operand>,
                 0
             }
         }
-        Tag::Coerce => dep(t, a),
+        Tag::Coerce => dep(t, a) | lent_from(b, cx, t, i),
         // A value that may hold a reference, a `Ptr` too, made from
         // others lives on what they live on: `Ptr.as_ref` of an address
         // read out of a borrowed buffer points into its owner.
@@ -513,6 +547,10 @@ fn step_val(
     match tag {
         Tag::Ref => {
             let m = t.place(b, a).map_or(0, |(lies, _)| lies);
+            return grow(&mut t.val[i], m);
+        }
+        Tag::Coerce if super::lending_coercion(b, cx, i) => {
+            let m = lent_from(b, cx, t, i) | t.of(a);
             return grow(&mut t.val[i], m);
         }
         Tag::Read if cx.holds_ref(b.ty[i]) => {

@@ -452,6 +452,12 @@ impl OwnCx for Env<'_> {
         holds_ref(&self.run.pool, self.ref_cells(), self.run.known.ptr, ty, 0)
     }
 
+    fn lends(&self, from: Ty, to: Ty) -> bool {
+        !self.is_open(from)
+            && !self.is_open(to)
+            && hd_wasm_linear::lending_types(&self.run.pool, self, from, to)
+    }
+
     fn counted_refs_only(&self, ty: Ty) -> bool {
         // A type of counted references: what `holds_ref` finds with each
         // counted `Ref` taken out holds none.

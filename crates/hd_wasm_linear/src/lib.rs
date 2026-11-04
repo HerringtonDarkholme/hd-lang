@@ -81,6 +81,28 @@ pub fn reference_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
     matches!(layout::kind(pool, env, ty), layout::Kind::Ref { .. })
 }
 
+/// Whether a same-value coercion from `from` to `to` lends a thin counted
+/// reference as a thin local one (`ref.convert.lend`): one address, which
+/// the ownership passes' `OwnCx::lends` treats as no consumer.
+#[must_use]
+pub fn lending_types(pool: &InternPool, env: &dyn ProgramEnv, from: Ty, to: Ty) -> bool {
+    matches!(
+        layout::kind(pool, env, from),
+        layout::Kind::Ref {
+            whole: true,
+            fat: false,
+            ..
+        }
+    ) && matches!(
+        layout::kind(pool, env, to),
+        layout::Kind::Ref {
+            whole: false,
+            fat: false,
+            ..
+        }
+    )
+}
+
 /// The parts of a value of `ty`, which names no parameter, laid out in
 /// this backend's locals (`layout::Kind::Value`), into `out`: a newtype's
 /// one field, a struct's fields, a tuple's members, or the payload of
