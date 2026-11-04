@@ -1385,15 +1385,15 @@ impl Ck<'_, '_> {
     ///
     /// An implementation on a reference type covers both kinds
     /// (`ref.type.kind-runtime`), so its receiver may be a local reference:
-    /// its bodies lower every reference to the local carrier.
+    /// its bodies lower that target type to the local carrier. Every other
+    /// reference keeps the kind its declaration writes.
     pub(crate) fn lower_body_refs(&mut self) {
         let pool = self.pool();
         let mut cell = self.cx.names.known.ref_cells();
-        if self
-            .self_ty
-            .is_some_and(|t| matches!(pool.get(t), hd_types::TyData::Ref { .. }))
+        if let Some(t) = self.self_ty
+            && matches!(pool.get(t), hd_types::TyData::Ref { .. })
         {
-            cell = cell.local_only();
+            cell = cell.with_local_self(t);
         }
         let b = self.b.body_mut();
         for i in 0..b.tags.len() {

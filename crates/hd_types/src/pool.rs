@@ -108,11 +108,13 @@ impl Prim {
 }
 
 /// The data types reference types lower to ([`Types::lower_refs`]):
-/// `local` for `&T` and `&mut T`, `counted` for `*T` and `*mut T`.
+/// `local` for `&T` and `&mut T`, `counted` for `*T` and `*mut T`, except
+/// that the reference type `local_ty`, when set, lowers to `local` too.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct RefCells {
     pub local: DefId,
     pub counted: DefId,
+    pub local_ty: Option<Ty>,
 }
 
 impl RefCells {
@@ -128,6 +130,17 @@ impl RefCells {
         Self {
             local: self.local,
             counted: self.local,
+            local_ty: None,
+        }
+    }
+    /// The carriers of an implementation on the reference type `self_ty`:
+    /// its target covers both kinds (`ref.type.kind-runtime`), so `self_ty`
+    /// lowers to the local carrier; every other reference keeps its kind.
+    #[must_use]
+    pub fn with_local_self(self, self_ty: Ty) -> Self {
+        Self {
+            local_ty: Some(self_ty),
+            ..self
         }
     }
 }
@@ -1660,7 +1673,11 @@ impl<'a> Types<'a> {
                     inner
                 };
                 TyData::Adt {
-                    def: if counted { cell.counted } else { cell.local },
+                    def: if counted && cell.local_ty != Some(t) {
+                        cell.counted
+                    } else {
+                        cell.local
+                    },
                     args: self.list(&[identity]),
                 }
             }
@@ -2661,6 +2678,7 @@ mod tests {
         let cell = super::RefCells {
             local: hd_base::DefId::from_raw(776),
             counted: hd_base::DefId::from_raw(777),
+            local_ty: None,
         };
         let shared = pool.intern_ty(&TyData::Ref {
             inner: Ty::I32,

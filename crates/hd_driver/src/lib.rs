@@ -11342,9 +11342,9 @@ impl Env<'_> {
     }
 
     /// The carriers that the declarations of `def`, an impl or one of its
-    /// methods, lower to: only the local one for an impl on a reference
-    /// type, which covers both kinds (`ref.type.kind-runtime`), as its
-    /// bodies do (`hd_check`'s `lower_body_refs`).
+    /// methods, lower to: an impl on a reference type, which covers both
+    /// kinds (`ref.type.kind-runtime`), lowers that target type to the
+    /// local one, as its bodies do (`hd_check`'s `lower_body_refs`).
     fn cells_in(&self, def: DefId) -> hd_types::RefCells {
         let cells = self.run.known.ref_cells();
         let owner = match self.p.items.get(def).map(|it| &it.data) {
@@ -11355,7 +11355,7 @@ impl Env<'_> {
             Some(ItemData::Impl { self_ty, .. })
                 if matches!(self.run.pool.get(*self_ty), TyData::Ref { .. }) =>
             {
-                cells.local_only()
+                cells.with_local_self(*self_ty)
             }
             _ => cells,
         }

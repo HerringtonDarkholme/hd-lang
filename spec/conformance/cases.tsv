@@ -5797,6 +5797,7 @@ runtime/valid/field-move-after-local-borrow.hd	runtime	accept	lang/13-values-and
 runtime/valid/uniq-list-field-move-after-local-borrow.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.type
 runtime/valid/closure-parameter-field-borrow.hd	runtime	accept	lang/13-values-and-references.md#r-ref.count.local
 runtime/valid/frame-slot-header-starts-with-no-borrow-state.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.conflict
+runtime/valid/pointer-impl-keeps-declared-pointer-parameters.hd	runtime	accept	lang/13-values-and-references.md#r-ref.type.kind-distinct
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
