@@ -2,7 +2,7 @@
 # @dump: own counts wat
 # @build: v8 release
 # A reader too large to promote keeps its reference. The stored field
-# loan remains lent when the copy binds it to another local (#1346).
+# loan remains lent when the copy uses its evaluated argument (#1346).
 use std.annotation.inline
 use std.collections.UniqList
 
@@ -44,11 +44,10 @@ fn total(owner: &Owner, depth: usize) -> usize:
 >   local $1 depth: usize [param read]
 >   local $2 field: Ref[Room] [:= read assigned]
 >   local $3 below: usize [:= read assigned]
->   local $4 room: Ref[Room] [read]
 >   local $5 self: string [read]
 >   %0 = Ref lent local [*$0 .room] : Ref[Room]
 >   %1 = Store [$2] %0 : ()
->   %32 = Block %31 : usize
+>   %31 = Block %30 : usize
     below := if depth == 0: 0 else: total(owner, depth - 1)
 >   %2 = Read copy [$1] : usize
 >   %3 = Prim Eq [%2 0:usize] : bool
@@ -64,21 +63,20 @@ fn total(owner: &Owner, depth: usize) -> usize:
 >   %13 = Store [$3] %12 : ()
     measure(field) + below
 >   %14 = Read move [$2] : Ref[Room]
->   %15 = Store [$4] %14 : ()
->   %16 = Read borrow [*$4 .text] : string
->   %17 = Store [$5] %16 : ()
->   %18 = Read borrow [$5] : string
->   %19 = Call std/rt.bytes/bytes_len[] (%18) : usize
->   %20 = Break L0 %19 : never
->   %21 = Block - : usize
->   %22 = Scope %21 [] : usize
->   %23 = Drop [$5] : ()
->   %24 = Read copy [*$4 .offset] : usize
->   %25 = Prim Add [%22 %24] : usize
->   %26 = Break L1 %25 : never
->   %27 = Block - : usize
->   %28 = Scope %27 [] : usize
->   %29 = Drop [$4] : ()
->   %30 = Read copy [$3] : usize
->   %31 = Prim Add [%28 %30] : usize
+>   %15 = Read borrow [*%14 .text] : string
+>   %16 = Store [$5] %15 : ()
+>   %17 = Read borrow [$5] : string
+>   %18 = Call std/rt.bytes/bytes_len[] (%17) : usize
+>   %19 = Break L0 %18 : never
+>   %20 = Block - : usize
+>   %21 = Scope %20 [] : usize
+>   %22 = Drop [$5] : ()
+>   %23 = Read copy [*%14 .offset] : usize
+>   %24 = Prim Add [%21 %23] : usize
+>   %25 = Break L1 %24 : never
+>   %26 = Block - : usize
+>   %27 = Scope %26 [] : usize
+>   %28 = Drop [%14] : ()
+>   %29 = Read copy [$3] : usize
+>   %30 = Prim Add [%27 %29] : usize
 >   summary kept [] recursive

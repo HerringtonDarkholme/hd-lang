@@ -574,24 +574,31 @@ fn window_open(t: &Tables, l: u32, lo: u32, hi: u32) -> bool {
 }
 
 /// Per local: whether a reference to it outlives the one call it lends to,
-/// or a closure shares it ([`lends_once`]). Any other local is reached only
-/// inside such a call, so no place behind a reference names it elsewhere.
+/// or a closure shares it ([`lends_once`]). A reference used only for
+/// read-through projections does not escape either; an inlined reader
+/// has those uses instead of its original call.
 pub(crate) fn escaping(b: &Body, cx: &dyn OwnCx) -> Vec<bool> {
     let n = b.len();
     let (mut counts, mut last) = (vec![0; n], vec![NONE; n]);
+    let mut read_through = vec![true; n];
     let mut ops = Vec::new();
     for i in 0..n {
         operands(b, i, &mut ops);
-        for op in ops.iter().filter(|op| op.role != Role::Dropped) {
-            counts[op.value as usize] += 1;
-            last[op.value as usize] = u32_of(i);
+        for op in &ops {
+            let value = op.value as usize;
+            read_through[value] &= super::promote::read_through_use(b, i, op.value);
+            if op.role != Role::Dropped {
+                counts[value] += 1;
+                last[value] = u32_of(i);
+            }
         }
     }
     let mut out = vec![false; b.local_ty.len()];
-    for i in 0..n {
+    for (i, &read_through) in read_through.iter().enumerate() {
         if b.tags[i] == Tag::Ref
             && let Some(l) = b.local_in_place(b.data[i][0])
             && !lends_once(b, cx, &counts, &last, i)
+            && !read_through
         {
             out[l.idx()] = true;
         }
@@ -1521,21 +1528,12 @@ fn lent_refs(b: &mut Body, cx: &dyn OwnCx, t: &Tables) {
             continue;
         }
         if t.stored[r] != NONE {
-            let Some(mut local) = binding(b, t, t.stored[r]) else {
+            let Some(local) = binding(b, t, t.stored[r]) else {
                 continue;
             };
             // Inlining binds a callee's reference parameter to the field
             // loan. A local used only through its referent owns no part
             // of the caller's block, just as the direct argument does.
-            // A newly inlined reader can forward the field loan into
-            // its own receiver local. Follow the same single-read,
-            // single-store bindings the borrow pass already recognizes.
-            for _ in 0..DEPTH {
-                let Some((_, next)) = forwards(b, t, local) else {
-                    break;
-                };
-                local = next;
-            }
             if t.kept_read[local as usize] != 0 {
                 continue;
             }

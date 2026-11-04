@@ -112,6 +112,7 @@ pub fn specialize_calls(env: &dyn StructureEnv, body: &mut Body, hash: Hash128) 
             call,
             copy,
             by_value: 0,
+            by_ref: 0,
         });
         let mut site_key = StableHasher::new("structure-walk-site-v1");
         site_key.hash(copy_hash);
@@ -356,6 +357,7 @@ fn inline_selected_methods(
             call,
             copy,
             by_value: 0,
+            by_ref: 0,
         });
         hashes.push(hash);
     }

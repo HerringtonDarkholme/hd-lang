@@ -37,8 +37,6 @@
       local.get $unrelated
       local.get $t0
       i32.store $heap offset=20
-      local.get $unrelated
-      local.set $unrelated
       block
         block
           block

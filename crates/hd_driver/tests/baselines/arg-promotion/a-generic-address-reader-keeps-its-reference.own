@@ -29,20 +29,18 @@ fn address[T < ?Copy](room: &Room[T], index: usize) -> usize:
 > app/main/address
 >   local $0 room: Ref[Room[T]] [param read]
 >   local $1 index: usize [param read]
->   local $2 self: Ref[Room[T]] [read]
 >   local $3 index: usize [read]
 >   %0 = Read borrow [$0] : Ref[Room[T]]
 >   %1 = Read copy [$1] : usize
->   %2 = Store [$2] %0 : ()
->   %3 = Store [$3] %1 : ()
->   %4 = Read copy [*$2 .address] : usize
->   %5 = Read copy [$3] : usize
->   %6 = Prim Mul [%5 4:usize] : usize
->   %7 = Prim Add [%4 %6] : usize
->   %8 = Break L0 %7 : never
->   %9 = Block - : usize
->   %10 = Scope %9 [] : usize
->   %11 = Block %10 : usize
+>   %2 = Store [$3] %1 : ()
+>   %3 = Read copy [*%0 .address] : usize
+>   %4 = Read copy [$3] : usize
+>   %5 = Prim Mul [%4 4:usize] : usize
+>   %6 = Prim Add [%3 %5] : usize
+>   %7 = Break L0 %6 : never
+>   %8 = Block - : usize
+>   %9 = Scope %8 [] : usize
+>   %10 = Block %9 : usize
 >   summary kept []
 
 fn caller(room: &Room[u32], index: usize) -> usize:
@@ -50,9 +48,25 @@ fn caller(room: &Room[u32], index: usize) -> usize:
 > app/main/caller
 >   local $0 room: Ref[Room[u32]] [param read]
 >   local $1 index: usize [param read]
+>   local $3 index: usize [read]
+>   local $5 index: usize [read]
 >   %0 = Read borrow [$0] : Ref[Room[u32]]
 >   %1 = Coerce %0 [Weaken -] : Ref[Room[u32]]
 >   %2 = Read copy [$1] : usize
->   %3 = Call app/main/address[u32] (%1, %2) : usize
->   %4 = Block %3 : usize
+>   %3 = Store [$3] %2 : ()
+>   %4 = Read borrow [%1] : Ref[Room[u32]]
+>   %5 = Coerce %4 [Identity -] : Ref[Room[u32]]
+>   %6 = Read copy [$3] : usize
+>   %7 = Store [$5] %6 : ()
+>   %8 = Read copy [*%5 .address] : usize
+>   %9 = Read copy [$5] : usize
+>   %10 = Prim Mul [%9 4:usize] : usize
+>   %11 = Prim Add [%8 %10] : usize
+>   %12 = Break L0 %11 : never
+>   %13 = Block - : usize
+>   %14 = Scope %13 [] : usize
+>   %15 = Break L1 %14 : never
+>   %16 = Block - : usize
+>   %17 = Scope %16 [] : usize
+>   %18 = Block %17 : usize
 >   summary kept []

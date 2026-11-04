@@ -178,6 +178,7 @@ impl dyn InlineEnv + '_ {
             // Prefer taking a reader's referent by value when each
             // argument names a place the copy may read once. A small
             // release reader can otherwise keep the reference itself.
+            let mut by_ref = 0;
             let by_value = if self.inline_hint(def) == InlineHint::Default
                 && self.takes_reference(def, targs)
             {
@@ -208,6 +209,11 @@ impl dyn InlineEnv + '_ {
                     if self.memo().is_none() || !self.read_only_refs(def, targs, &copy) {
                         continue;
                     }
+                    by_ref = self
+                        .reference_params(def, targs, true)
+                        .unwrap_or_default()
+                        .iter()
+                        .fold(0, |mask, (k, _)| mask | 1 << k);
                     0
                 } else if args & mask != mask {
                     // A Drop owner must keep its address when no caller
@@ -219,6 +225,7 @@ impl dyn InlineEnv + '_ {
                     {
                         continue;
                     }
+                    by_ref = mask & !args;
                     mask & args
                 } else {
                     mask
@@ -238,6 +245,7 @@ impl dyn InlineEnv + '_ {
                 call: c,
                 copy,
                 by_value,
+                by_ref,
             });
             hashes.push(callee_hash);
         }
@@ -529,11 +537,55 @@ impl dyn InlineEnv + '_ {
         let Some(refs) = self.reference_params(def, targs, true) else {
             return false;
         };
-        if refs.iter().any(|(k, _)| *k >= 64) {
+        let shared = |ty| match self.pool().get(ty) {
+            TyData::Ref { mutable, .. } => !mutable,
+            TyData::Adt { def, args } if self.ref_cells().holds(def) => self
+                .pool()
+                .list_items(args)
+                .first()
+                .is_some_and(|&inner| !matches!(self.pool().get(inner), TyData::Mut(_))),
+            _ => false,
+        };
+        // A mutable-reference parameter establishes its call loan even
+        // if this particular body only reads it. Keep that boundary.
+        if refs.iter().any(|(k, ty)| *k >= 64 || !shared(*ty)) {
             return false;
         }
         let mask = refs.iter().fold(0, |mask, (k, _)| mask | 1 << k);
-        mask != 0 && hd_tir::own::promote::read_only_params(copy, mask) == mask
+        let params = hd_tir::own::params(copy);
+        let parameter = |local| params.iter().position(|&p| p == local).filter(|&k| k < 64);
+        let value_parameter = |value| {
+            copy.local_read(value as usize)
+                .and_then(|local| parameter(local.raw()))
+        };
+        let mut read = 0;
+        for i in 0..copy.len() {
+            let param = if copy.tags[i] == Tag::Read {
+                let place = copy.view(copy.data[i][0]);
+                if place.steps(copy).next() == Some(hd_tir::ir::Proj::Deref) {
+                    match place.root {
+                        hd_tir::ir::Root::Local(local) => parameter(local),
+                        hd_tir::ir::Root::Value(value) => value_parameter(value),
+                        _ => None,
+                    }
+                } else {
+                    None
+                }
+            } else if copy.tags[i] == Tag::Match {
+                value_parameter(copy.data[i][0])
+            } else {
+                None
+            };
+            if let Some(param) = param {
+                read |= 1 << param;
+            }
+        }
+        // An unused receiver still has its argument's loan/view cleanup
+        // contract. This fallback requires an actual read through each
+        // reference, rather than treating a constant body as a reader.
+        mask != 0
+            && read & mask == mask
+            && hd_tir::own::promote::read_only_params(copy, mask) == mask
     }
 
     /// Each parameter of `def` at `targs` that is, or may be in an

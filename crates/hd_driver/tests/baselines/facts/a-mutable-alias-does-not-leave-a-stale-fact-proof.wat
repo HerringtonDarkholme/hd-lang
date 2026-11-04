@@ -43,8 +43,6 @@
       local.get $t0
       local.get $t1
       i32.store $heap offset=20
-      local.get $t0
-      local.set $t0
       block
         block
           block

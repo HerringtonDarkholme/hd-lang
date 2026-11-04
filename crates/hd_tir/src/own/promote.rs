@@ -80,28 +80,35 @@ pub fn read_only_params(b: &Body, candidates: u64) -> u64 {
 fn only_deref(b: &Body, v: usize) -> bool {
     let mut ops = Vec::new();
     (0..b.len()).all(|j| {
-        let tag = b.tags[j];
-        if matches!(
-            tag,
-            Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique | Tag::Pin
-        ) {
-            let p = b.view(b.data[j][0]);
-            if p.root == Root::Value(u32::try_from(v).expect("insts")) {
-                let mut steps = p.steps(b);
-                return match tag {
-                    Tag::Read => {
-                        steps.next() == Some(Proj::Deref)
-                            && steps.all(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)))
-                    }
-                    Tag::Drop => p.whole(),
-                    _ => false,
-                };
-            }
-        }
         super::operands(b, j, &mut ops);
         !ops.iter().any(|o| o.value as usize == v)
-            || (tag == Tag::Match && b.data[j][0] as usize == v)
+            || read_through_use(b, j, u32::try_from(v).expect("insts"))
     })
+}
+
+/// One use allowed by the read-through-value proof. The escape scan
+/// applies this while indexing operands, rather than rescanning the
+/// whole body separately for each reference value.
+pub(super) fn read_through_use(b: &Body, at: usize, value: u32) -> bool {
+    let tag = b.tags[at];
+    if matches!(
+        tag,
+        Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique | Tag::Pin
+    ) {
+        let place = b.view(b.data[at][0]);
+        if place.root == Root::Value(value) {
+            let mut steps = place.steps(b);
+            return match tag {
+                Tag::Read => {
+                    steps.next() == Some(Proj::Deref)
+                        && steps.all(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)))
+                }
+                Tag::Drop => place.whole(),
+                _ => false,
+            };
+        }
+    }
+    tag == Tag::Match && b.data[at][0] == value
 }
 
 /// Body `b` with each parameter in `mask` ([`read_only_params`]) taking

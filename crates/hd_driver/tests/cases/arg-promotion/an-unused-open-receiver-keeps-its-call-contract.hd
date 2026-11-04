@@ -1,0 +1,14 @@
+# @dump: own
+# @build: v8 release
+# The reference-preserving reader fallback requires an actual read;
+# an unused open receiver keeps its argument loan and view cleanup.
+struct Room[T]:
+    first: T
+    second: T
+
+impl[T] Room[T]:
+    fn count(&self) -> usize:
+        2
+
+fn caller[T](room: &Room[T]) -> usize:
+    room.count()
