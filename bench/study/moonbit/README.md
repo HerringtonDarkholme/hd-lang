@@ -28,14 +28,17 @@ node bench/study/moonbit/compare.ts --build --target wasm-gc   # then run with -
 ```
 
 Each run is a fresh `node` process; one discarded warm-up, then `--runs`
-measured runs with hd and MoonBit interleaved, at two V8 tiers (default and
-`--no-liftoff`). Run time is `performance.now()` around the entry call after
+measured runs with hd and MoonBit interleaved, alternating which runs first.
+Default-tier V8 is the performance source of truth.
+Run time is `performance.now()` around the entry call after
 instantiation (hd: `host.run(instance, "hd.init", "hd.poll")` on hd's own
 `host/node.ts`; MoonBit: `_start()`). Wall time is the whole process.
 The MoonBit host is only `wasi_snapshot_preview1.fd_write` (wasm) or
 `spectest.print_char` (wasm-gc). Medians are
 printed as markdown tables with the geometric mean of hd/MBT (empty excluded)
 and the load average.
+Raw samples and per-program load averages are saved in
+`work/comparison-<target>.json`.
 
 Ports use core `Array`/`Map`/`StringBuilder`, `for .. in` ranges and
 iterators. `moon fmt` rewrites `Int` as `Int32`; they are the same type.

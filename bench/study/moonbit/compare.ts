@@ -6,9 +6,9 @@
 //
 // Every run is a fresh `node` process: a child (`--child`) loads one module,
 // instantiates it, then times only the call of its entry. The parent also
-// times the whole process (wall). Per program and tier, one discarded
+// times the whole process (wall). Per program, one discarded
 // warm-up, then --runs measured runs with hd and MoonBit interleaved.
-// Tiers: V8 default, and `--no-liftoff` (optimizing compiler only).
+// Default-tier V8 is the performance source of truth.
 import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -159,16 +159,12 @@ const median = (samples: number[]): number =>
 const gmean = (samples: number[]): number =>
   Math.exp(samples.reduce((sum, value) => sum + Math.log(value), 0) / samples.length);
 
-function once(kind: string, file: string, flags: string[]): Dynamic {
+function once(kind: string, file: string): Dynamic {
   const started = performance.now();
-  const execution = spawnSync(
-    "node",
-    [...flags, fileURLToPath(import.meta.url), "--child", kind, file],
-    {
-      encoding: "utf8",
-      maxBuffer: 1 << 26,
-    },
-  );
+  const execution = spawnSync("node", [fileURLToPath(import.meta.url), "--child", kind, file], {
+    encoding: "utf8",
+    maxBuffer: 1 << 26,
+  });
   const wall = performance.now() - started;
   if (execution.status !== 0) {
     throw new Error(`${kind} ${file}: ${execution.stderr.slice(-400)}`);
@@ -177,16 +173,17 @@ function once(kind: string, file: string, flags: string[]): Dynamic {
   return { ms, wall, out };
 }
 
-function measure(context: Dynamic, flags: string[], runs: number): Dynamic {
+function measure(context: Dynamic, runs: number): Dynamic {
   const files: Record<string, string> = { hd: hdWasm(context), mbt: mbtWasm(context) };
   const res: Record<string, { ms: number[]; wall: number[] }> = {
     hd: { ms: [], wall: [] },
     mbt: { ms: [], wall: [] },
   };
   const outs: Record<string, string> = {};
+  const loadStart = os.loadavg();
   for (let i = -1; i < runs; i++) {
-    for (const k of ["hd", "mbt"]) {
-      const measurement = once(k, files[k], flags);
+    for (const k of i % 2 === 0 ? ["hd", "mbt"] : ["mbt", "hd"]) {
+      const measurement = once(k, files[k]);
       outs[k] ??= measurement.out;
       if (measurement.out !== outs[k]) {
         throw new Error(`${context.name} ${k}: output changed between runs`);
@@ -207,6 +204,9 @@ function measure(context: Dynamic, flags: string[], runs: number): Dynamic {
     mbt: median(res.mbt.ms),
     hdWall: median(res.hd.wall),
     mbtWall: median(res.mbt.wall),
+    samples: res,
+    loadStart,
+    loadEnd: os.loadavg(),
   };
 }
 
@@ -240,38 +240,28 @@ async function main() {
   if (argv.includes("--build")) {
     return build(cases, hd);
   }
-  const tiers: string[][] = [[], ["--no-liftoff"]];
   const rows: Dynamic[] = [];
   for (const context of cases) {
-    const measurements = tiers.map((flags) => measure(context, flags, runs));
-    rows.push({ name: context.name, def: measurements[0], nl: measurements[1] });
+    rows.push({ name: context.name, ...measure(context, runs) });
     console.error(`done ${context.name}`);
   }
   const format = (value: number): string => value.toFixed(value < 10 ? 2 : 1);
   const ratio = (left: number, right: number): number => left / right;
   const table = (title: string, key: string): void => {
     console.log(`\n${title}\n`);
-    console.log(
-      "| program | hd default ms | MoonBit default ms | hd/MBT | hd --no-liftoff ms | MBT --no-liftoff ms | hd/MBT |",
-    );
-    console.log("| --- | ---: | ---: | ---: | ---: | ---: | ---: |");
-    const value: number[][] = [[], []];
+    console.log("| program | hd default ms | MoonBit default ms | hd/MBT |");
+    console.log("| --- | ---: | ---: | ---: |");
+    const value: number[] = [];
     for (const result of rows) {
-      const [h1, m1, h2, m2] =
-        key === "ms"
-          ? [result.def.hd, result.def.mbt, result.nl.hd, result.nl.mbt]
-          : [result.def.hdWall, result.def.mbtWall, result.nl.hdWall, result.nl.mbtWall];
+      const [h1, m1] = key === "ms" ? [result.hd, result.mbt] : [result.hdWall, result.mbtWall];
       console.log(
-        `| ${result.name} | ${format(h1)} | ${format(m1)} | ${ratio(h1, m1).toFixed(2)} | ${format(h2)} | ${format(m2)} | ${ratio(h2, m2).toFixed(2)} |`,
+        `| ${result.name} | ${format(h1)} | ${format(m1)} | ${ratio(h1, m1).toFixed(2)} |`,
       );
       if (result.name !== "empty") {
-        value[0].push(ratio(h1, m1));
-        value[1].push(ratio(h2, m2));
+        value.push(ratio(h1, m1));
       }
     }
-    console.log(
-      `| **geomean (excl. empty)** | | | ${gmean(value[0]).toFixed(2)} | | | ${gmean(value[1]).toFixed(2)} |`,
-    );
+    console.log(`| **geomean (excl. empty)** | | | ${gmean(value).toFixed(2)} |`);
   };
   console.log(
     `MoonBit target ${TARGET}; node ${process.version}, runs ${runs} (median, 1 discarded warm-up), load avg at end ${os
@@ -281,5 +271,9 @@ async function main() {
   );
   table("Run time (entry call only, after instantiation)", "ms");
   table("Wall time (whole node process)", "wall");
+  writeFileSync(
+    join(WORK, `comparison-${TARGET}.json`),
+    JSON.stringify({ target: TARGET, node: process.version, runs, rows }, null, 2),
+  );
 }
 await main();
