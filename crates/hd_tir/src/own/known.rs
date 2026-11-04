@@ -518,7 +518,7 @@ impl Tables {
         // leaves there.
         if !self.clocs.is_empty() {
             match tag {
-                Tag::Read | Tag::Store | Tag::Ref | Tag::IsUnique | Tag::Pin => {
+                Tag::Read | Tag::Store | Tag::Ref | Tag::IsUnique => {
                     if let Some(l) = b.view(a).local() {
                         self.cell_visit(x, l, s, st);
                         match tag {

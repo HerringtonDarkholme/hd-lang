@@ -97,7 +97,6 @@ pub fn copyable(c: &Body) -> bool {
                 | Tag::Poison
                 | Tag::Drop
                 | Tag::IsUnique
-                | Tag::Pin
                 | Tag::FlagSet
                 | Tag::FlagClear
         ),

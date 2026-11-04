@@ -261,7 +261,7 @@ pub(crate) fn suite_touches(
 ) {
     inside(b, roots, stack, |i| {
         match b.tags[i] {
-            Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique | Tag::Pin => {
+            Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique => {
                 if let Some(l) = b.view(b.data[i][0]).local() {
                     local(l);
                 }
@@ -356,7 +356,6 @@ pub(crate) fn owned_value(b: &Body, i: usize) -> bool {
             | Tag::Store
             | Tag::Drop
             | Tag::IsUnique
-            | Tag::Pin
             | Tag::FlagSet
             | Tag::FlagClear
             | Tag::Defer
@@ -795,7 +794,7 @@ pub fn returned_param(b: &Body) -> Option<u8> {
     }
     let shared = |c: usize| b.cap_local[c].raw() == at && b.cap_mode[c] == CaptureMode::Shared;
     let touched = |i: usize| {
-        matches!(b.tags[i], Tag::Store | Tag::Ref | Tag::IsUnique | Tag::Pin)
+        matches!(b.tags[i], Tag::Store | Tag::Ref | Tag::IsUnique)
             && b.local_in_place(b.data[i][0]).map(hd_base::LocalId::raw) == Some(at)
     };
     if (0..b.cap_local.len()).any(shared) || (0..b.len()).any(touched) {
@@ -1130,7 +1129,7 @@ fn writes_with(
     range.any(|i| {
         let [a, w] = b.data[i];
         match b.tags[i] {
-            Tag::Store | Tag::IsUnique | Tag::Pin | Tag::FlagSet | Tag::FlagClear => {
+            Tag::Store | Tag::IsUnique | Tag::FlagSet | Tag::FlagClear => {
                 !place(a).0
                     && !origins
                         .as_mut()
@@ -1303,7 +1302,7 @@ pub(crate) mod tests {
             let mut line = format!("%{i} {}", tag.name());
             if matches!(
                 tag,
-                Tag::Read | Tag::Drop | Tag::Store | Tag::Ref | Tag::IsUnique | Tag::Pin
+                Tag::Read | Tag::Drop | Tag::Store | Tag::Ref | Tag::IsUnique
             ) && let Some(p) = b.decode_place(b.data[i][0])
             {
                 if tag == Tag::Read
@@ -1555,12 +1554,12 @@ pub(crate) mod tests {
     /// Rules 5 and 6: an `IsUnique` of the collection before each change
     /// of it (a push, an element store, each list on the path outermost
     /// first); a push through an element names the element's place, which
-    /// it reads again after the checks; and an `IsUnique` and a `Pin` of
+    /// it reads again after the checks; and an `IsUnique` of
     /// the list before an element reference. The element reference addresses the buffer, not the
     /// local, so the local (of a type with no counted leaf here) takes no
     /// cell and no drop.
     #[test]
-    fn changes_make_their_collection_unique_and_element_references_pin_it() {
+    fn changes_and_element_references_make_their_collection_unique() {
         use crate::ir::IntrinsicOp;
         let n = NodeIdx::from_raw(1);
         let us = Ty::prim(hd_types::Prim::Usize);
@@ -1599,8 +1598,8 @@ pub(crate) mod tests {
             "%0 Call\n%1 Call\n%2 Read borrow [%0 [%1]]\n%3 IsUnique [%0]\n\
              %4 IsUnique [%0 [%1]]\n%5 Read borrow [%0 [%1]]\n%6 Intrinsic %5 %1\n\
              %7 IsUnique [%0]\n%8 IsUnique [%0 [%1] .0]\n%9 Store [%0 [%1] .0 [%1]] %1\n\
-             %10 IsUnique [$0]\n%11 Pin [$0]\n%12 Ref [$0 [%1]]\n\
-             %13 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8 %9 %10 %11 %12]\n"
+             %10 IsUnique [$0]\n%11 Ref [$0 [%1]]\n\
+             %12 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8 %9 %10 %11]\n"
         );
     }
 

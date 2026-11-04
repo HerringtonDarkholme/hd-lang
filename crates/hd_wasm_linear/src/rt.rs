@@ -316,12 +316,6 @@ pub enum Helper {
         leaves: Vec<Leaf>,
         walk: Walk,
     },
-    /// `(list) -> list`: a copy of the list's buffer, whose elements take
-    /// their own counts: how [`Helper::CollCopy`] copies a pinned list,
-    /// through the owner word's slot.
-    ListClone {
-        elem: Elem,
-    },
     /// `(capacity) -> buffer`: a new, empty list buffer with room for
     /// `capacity` elements laid out as `elem`.
     ListBuf {
@@ -403,12 +397,6 @@ pub enum Helper {
     /// table it shares is copied, its entries taking their own counts. A
     /// table with an owner word has one holder (a pinned map).
     MapUnique {
-        entry: map::Entry,
-    },
-    /// `(map) -> map`: a copy of the map's table: how [`Helper::CollCopy`]
-    /// copies a pinned map, through the owner word's slot, as
-    /// [`Helper::ListClone`] copies a pinned list.
-    MapClone {
         entry: map::Entry,
     },
     /// `(map, pos, end) -> slot`: the first live entry in `pos..end`, or
@@ -762,23 +750,14 @@ pub struct DropCall {
     pub guards: Vec<(Leaf, u32)>,
 }
 
-/// The owner word of a list buffer and of a map table (§23.7), at the same
-/// payload offset of both: 0 while the buffer may be shared, or, once an
-/// element reference pinned the collection, the function-table slot of
-/// its [`Helper::ListClone`] or [`Helper::MapClone`] plus one, with
-/// [`LIST_EXPOSED`] for transitive exposure. A buffer whose owner word is
-/// set has one holder, so each count past the first is an element
-/// reference's: the collection is pinned while its buffer's count is over
-/// 1 (§23.20).
+/// A reserved word of a list buffer and of a map table (§23.7), at the
+/// same payload offset of both, which stays 0. It held the owner word of a
+/// pinned collection until element references stopped counting their
+/// buffer (#1336 phase 10); the elements still start after it.
 pub const LIST_OWN: u64 = 8;
 
-/// A list containing collection values has exposed an element. Keep its
-/// buffer unshared even after the direct pin ends: a descendant reference
-/// may still be alive. The remaining owner bits name the clone glue.
-pub const LIST_EXPOSED: u32 = 1 << 31;
-
-/// A list buffer's payload: the capacity in elements, the length, the
-/// owner word ([`LIST_OWN`]), then the elements inline from
+/// A list buffer's payload: the capacity in elements, the length, a
+/// reserved word ([`LIST_OWN`]), then the elements inline from
 /// [`LIST_ELEMS`].
 pub const LIST_LEN: u64 = 4;
 pub const LIST_ELEMS: u32 = 16;
@@ -1803,7 +1782,6 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::RetainFields { leaves, walk } => {
             fields_glue(m, "rt:retain_fields", leaves, walk, &[], &retain_call(m))
         }
-        Helper::ListClone { elem } => list_clone(m, elem),
         Helper::ListBuf { elem } => list_buf(m, elem),
         Helper::DropElems { elem } => drop_elems(m, elem),
         Helper::CollCopy => coll_copy(m),
@@ -1819,8 +1797,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::MapFind { entry, ops } => map::find(m, entry, ops),
         Helper::MapPut { entry, ops } => map::put(m, entry, ops),
         Helper::MapGrow { entry } => map::grow(entry, m),
-        Helper::MapUnique { entry } => map::unique(entry, m, false),
-        Helper::MapClone { entry } => map::unique(entry, m, true),
+        Helper::MapUnique { entry } => map::unique(entry, m),
         Helper::MapSlotNext => map::slot_next(m),
         Helper::DynSlot {
             target,
@@ -3186,83 +3163,15 @@ fn dispatch_glue(f: &mut Func, glues: &[Sym], block: u32, slot: u32) {
 }
 
 /// [`Helper::CollCopy`]: one more count on the buffer of a list or a map,
-/// which counts its holders. A pinned collection's buffer has one holder,
-/// so its copy is a clone (the pin's eager copy); an unpinned one whose buffer
-/// still has an owner word gives the word up, as the buffer is shared now.
-/// Exposed ancestors stay unshared even without a direct pin: their
-/// recursively copied elements may contain a still-pinned descendant.
+/// which counts its holders; a change through either holder copies it
+/// first (`rt:list_unique`). A local reference into it counts nothing, so
+/// its count is its holders' alone (`ref.count.local`).
 fn coll_copy(m: &Module) -> Func {
     let mut f = m.func("rt:coll_copy", vec![Val::I32], vec![Val::I32]);
-    let (b, own) = (0, f.local(Val::I32));
-    f.get(b);
-    f.op(Instruction::I32Load(mem(HEAP, LIST_OWN, 2)));
-    f.set(own);
-    f.get(own);
-    f.op(Instruction::If(BlockType::Empty));
-    f.get(b);
-    f.u32(HEADER);
-    f.op(Instruction::I32Sub);
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-    f.i32(1);
-    f.op(Instruction::I32GtU);
-    f.get(own);
-    f.u32(LIST_EXPOSED);
-    f.op(Instruction::I32And);
-    f.op(Instruction::I32Or);
-    f.op(Instruction::If(BlockType::Empty));
-    f.get(b);
-    f.get(own);
-    f.u32(!LIST_EXPOSED);
-    f.op(Instruction::I32And);
-    f.i32(1);
-    f.op(Instruction::I32Sub);
-    f.call_indirect(vec![Val::I32], vec![Val::I32]);
-    f.op(Instruction::Return);
-    f.op(Instruction::End);
-    f.get(b);
-    f.i32(0);
-    f.op(Instruction::I32Store(mem(HEAP, LIST_OWN, 2)));
-    f.op(Instruction::End);
+    let b = 0;
     f.get(b);
     f.helper(Helper::RetainKnown);
     f.get(b);
-    f
-}
-
-/// [`Helper::ListClone`].
-fn list_clone(m: &Module, elem: &Elem) -> Func {
-    let mut f = m.func("rt:list_clone", vec![Val::I32], vec![Val::I32]);
-    let (b, n, nb) = (0, f.local(Val::I32), f.local(Val::I32));
-    f.get(b);
-    f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
-    f.set(n);
-    f.get(n);
-    f.helper(Helper::ListBuf { elem: elem.clone() });
-    f.set(nb);
-    f.get(nb);
-    f.get(n);
-    f.op(Instruction::I32Store(mem(HEAP, LIST_LEN, 2)));
-    f.get(nb);
-    f.u32(LIST_ELEMS);
-    f.op(Instruction::I32Add);
-    f.get(b);
-    f.u32(LIST_ELEMS);
-    f.op(Instruction::I32Add);
-    f.get(n);
-    f.u32(elem.size);
-    f.op(Instruction::I32Mul);
-    f.op(Instruction::MemoryCopy {
-        src_mem: HEAP,
-        dst_mem: HEAP,
-    });
-    if elem.counts() {
-        f.get(nb);
-        f.u32(LIST_ELEMS);
-        f.op(Instruction::I32Add);
-        f.get(n);
-        f.helper(Helper::CopyElems { elem: elem.clone() });
-    }
-    f.get(nb);
     f
 }
 
@@ -3559,12 +3468,6 @@ fn list_unique(elem: &Elem, m: &Module) -> Func {
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
     f.i32(1);
     f.op(Instruction::I32Ne);
-    // A buffer with an owner word has one holder; the other counts are
-    // element references, which see the change in place.
-    f.get(b);
-    f.op(Instruction::I32Load(mem(HEAP, LIST_OWN, 2)));
-    f.op(Instruction::I32Eqz);
-    f.op(Instruction::I32And);
     f.op(Instruction::If(BlockType::Empty));
     f.get(b);
     f.cold_helper(
@@ -3656,11 +3559,6 @@ fn list_grow(elem: &Elem, m: &Module) -> Func {
         src_mem: HEAP,
         dst_mem: HEAP,
     });
-    // An exposed list stays unshared after its pin ends, so the word moves.
-    f.get(nb);
-    f.get(b);
-    f.op(Instruction::I32Load(mem(HEAP, LIST_OWN, 2)));
-    f.op(Instruction::I32Store(mem(HEAP, LIST_OWN, 2)));
     f.get(b);
     f.i32(0);
     f.op(Instruction::I32Store(mem(HEAP, LIST_LEN, 2)));
@@ -3673,8 +3571,7 @@ fn list_grow(elem: &Elem, m: &Module) -> Func {
     f
 }
 
-/// Pushes whether the buffer in local `b` is the list's own: one holder,
-/// or an owner word, whose other counts are element references.
+/// Pushes whether the buffer in local `b` is the list's own: one holder.
 fn buffer_own(f: &mut Func, b: u32) {
     f.get(b);
     f.u32(HEADER);
@@ -3682,11 +3579,6 @@ fn buffer_own(f: &mut Func, b: u32) {
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
     f.i32(1);
     f.op(Instruction::I32Eq);
-    f.get(b);
-    f.op(Instruction::I32Load(mem(HEAP, LIST_OWN, 2)));
-    f.i32(0);
-    f.op(Instruction::I32Ne);
-    f.op(Instruction::I32Or);
 }
 
 /// [`Helper::ListReserve`].
@@ -3756,12 +3648,8 @@ fn list_reserve(elem: &Elem, m: &Module) -> Func {
     });
     f.get(own);
     f.op(Instruction::If(BlockType::Empty));
-    // The list's own buffer: its elements move, its owner word with them
-    // (an exposed list stays unshared), and the old block is freed.
-    f.get(nb);
-    f.get(b);
-    f.op(Instruction::I32Load(mem(HEAP, LIST_OWN, 2)));
-    f.op(Instruction::I32Store(mem(HEAP, LIST_OWN, 2)));
+    // The list's own buffer: its elements move, and the old block is
+    // freed.
     f.get(b);
     f.i32(0);
     f.op(Instruction::I32Store(mem(HEAP, LIST_LEN, 2)));
@@ -3852,18 +3740,15 @@ fn list_extend(elem: &Elem, m: &Module) -> Func {
 }
 
 /// Room for local `extra` more elements in the list in local `b`: the
-/// inline test of a buffer the list owns alone, with no owner word and
-/// room left, else [`Helper::ListReserve`].
+/// inline test of a buffer the list owns alone with room left, else
+/// [`Helper::ListReserve`].
 fn reserve_room(f: &mut Func, elem: &Elem, b: u32, extra: u32) {
-    f.get(b);
-    f.op(Instruction::I32Load(mem(HEAP, LIST_OWN, 2)));
     f.get(b);
     f.u32(HEADER);
     f.op(Instruction::I32Sub);
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
     f.i32(1);
     f.op(Instruction::I32Ne);
-    f.op(Instruction::I32Or);
     f.get(b);
     f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
     f.get(extra);
@@ -3881,7 +3766,7 @@ fn reserve_room(f: &mut Func, elem: &Elem, b: u32, extra: u32) {
 }
 
 /// [`Helper::StrFromBytes`]: takes a count of the list's buffer. An
-/// unshared buffer (count 1, no owner word) becomes the string's: the view
+/// unshared buffer (count 1) becomes the string's: the view
 /// is its bytes in place. A shared or pinned one is copied into a string
 /// buffer and loses the count. No bytes is the static empty string.
 fn str_from_bytes(m: &Module) -> Func {
@@ -3900,10 +3785,6 @@ fn str_from_bytes(m: &Module) -> Func {
         f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
         f.i32(1);
         f.op(Instruction::I32Eq);
-        f.get(b);
-        f.op(Instruction::I32Load(mem(HEAP, LIST_OWN, 2)));
-        f.op(Instruction::I32Eqz);
-        f.op(Instruction::I32And);
         f.op(Instruction::If(BlockType::Empty));
         f.get(b);
         f.u32(LIST_ELEMS);

@@ -45,14 +45,10 @@
     ;; 8 |         write.push(i)
           local.tee $t2
           i32.load $heap offset=4
-          local.set $t3
-          local.get $t2
-          i32.load $heap offset=8
-          local.get $t3
+          local.tee $t3
           local.get $t2
           i32.load $heap
           i32.eq
-          i32.or
           if
             local.get $t2
             i32.const 1

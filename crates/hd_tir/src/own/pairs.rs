@@ -190,7 +190,7 @@ pub(crate) fn run(
 fn is_place(tag: Tag) -> bool {
     matches!(
         tag,
-        Tag::Read | Tag::Ref | Tag::Store | Tag::Drop | Tag::IsUnique | Tag::Pin
+        Tag::Read | Tag::Ref | Tag::Store | Tag::Drop | Tag::IsUnique
     )
 }
 

@@ -1090,6 +1090,13 @@ Each about an hour, with its test; the matrix rows leave
     still reaches it; only suspending calls that take reference
     parameters pay it. A map probe's reference takes no count of its
     table.
+    The pin goes too: no `Pin` statement, no eager copy in `coll_copy`, and
+    no owner-word test in `rt:list_unique`, `rt:map_unique` or a push; the
+    word stays in the layout as a reserved 0. Since a copy can no longer be
+    made eager, insertion makes the base's lists of an element reference's
+    path unique again after any index evaluation that ran since the base
+    was read (`set(&mut a[0][snapshot()][0], 9)`), as a push does. The
+    room's head and counts go with #1321.
 11. Release elision and its type summary; the size and time table.
     Built right after phase 4, in every build: a holder's live range is
     its whole function, and a call loan's runs from its argument to the

@@ -772,7 +772,6 @@ fn tags_only(body: &Body, root: u32) -> bool {
                     | Tag::Ref
                     | Tag::Drop
                     | Tag::IsUnique
-                    | Tag::Pin
                     | Tag::FlagSet
                     | Tag::FlagClear
             )

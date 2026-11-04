@@ -131,7 +131,7 @@ fn append_tag_id_words(b: &Body, i: usize, out: &mut Vec<IdWord>) -> StageResult
         // The ownership passes run after decoding, so their statements
         // never reach the wire (`docs/compiler/tir-v2.md`, "Encoding, wire
         // format and caching").
-        Tag::Drop | Tag::IsUnique | Tag::Pin | Tag::FlagSet | Tag::FlagClear => {
+        Tag::Drop | Tag::IsUnique | Tag::FlagSet | Tag::FlagClear => {
             return Err(NotImplemented::bug(
                 Stage::ModuleFinish,
                 format!("wire form of the ownership statement {}", b.tags[i].name()),

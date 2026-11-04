@@ -821,7 +821,7 @@ fn place_word(b: &mut Body, t: &Tables, c: &Cand) -> u32 {
 /// Checks one instruction of the loop (`x`, or `NONE` for a pending edit)
 /// against every candidate (rules 2 and 3).
 fn check(b: &Body, cx: &dyn OwnCx, t: &mut Tables, x: u32, tag: Tag, [a, w]: [u32; 2]) {
-    if is_suspension(tag) || tag == Tag::Pin {
+    if is_suspension(tag) {
         for c in &mut t.cands {
             c.ok = false;
         }

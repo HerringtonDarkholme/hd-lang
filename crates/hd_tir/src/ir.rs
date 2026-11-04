@@ -150,7 +150,6 @@ tags! {
     // is a place word. `FlagSet` and `FlagClear` are reserved for tier 2.
     Drop: Place, None;
     IsUnique: Place, Meta;
-    Pin: Place, None;
     FlagSet: Place, None;
     FlagClear: Place, None;
     // providers
@@ -1087,7 +1086,7 @@ impl Body {
             Tag::Prim | Tag::NewStruct | Tag::NewVariant | Tag::NewMap | Tag::DefaultCall => true,
             Tag::Call | Tag::CallValue | Tag::Intrinsic | Tag::Interp | Tag::Is => true,
             Tag::Coerce | Tag::CopyStruct | Tag::NewTuple | Tag::ProviderGet | Tag::ItemRef => true,
-            Tag::Read | Tag::Ref | Tag::IsUnique | Tag::Pin | Tag::Store => true,
+            Tag::Read | Tag::Ref | Tag::IsUnique | Tag::Store => true,
             Tag::NewList => self.data[i][0] == NONE,
             _ => false,
         };
@@ -2091,7 +2090,7 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
                 Some(m) => format!("a `Read` of mode {m:?} before the ownership passes"),
                 None => format!("a `Read` of unknown mode {w}"),
             },
-            Tag::Drop | Tag::IsUnique | Tag::Pin | Tag::FlagSet | Tag::FlagClear => {
+            Tag::Drop | Tag::IsUnique | Tag::FlagSet | Tag::FlagClear => {
                 format!("an ownership statement `{}` before the passes", tag.name())
             }
             Tag::Ref if w & ref_word::TAKES != 0 => {
@@ -3554,7 +3553,6 @@ mod tests {
         let mut body = owned_body(|b, n| {
             read(b, "[$0]", ReadMode::Borrow, n);
             statement(b, Tag::IsUnique, "[$1]", n);
-            statement(b, Tag::Pin, "[$1]", n);
             statement(b, Tag::Drop, "[$0]", n);
         });
         body.exit_drops
@@ -3757,7 +3755,7 @@ mod tests {
         let root = b.close_block(blk, Some(one), Ty::I32, NodeIdx::NONE);
         let body = b.finish(root, &[]).expect("ok");
         assert_eq!(body.len(), 1);
-        assert_eq!(Tag::ALL.len(), 57);
+        assert_eq!(Tag::ALL.len(), 56);
         assert!(
             Tag::ALL
                 .iter()

@@ -1183,42 +1183,16 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   that may still hold a count, up to the innermost cleanup scope it
   crosses, whose suites may still read the scope's locals. The emitter
   lowers each `Drop` where it stands.
-- **Element references own their pin.** An element reference is the
-  element's address in its list's buffer, and its count is a count of
-  the buffer. Insertion puts an `IsUnique` and a `Pin` of each list on
-  the reference's path before it, outermost first (docs/compiler/tir-v2.md,
-  "Insertion" rule 6). `IsUnique` makes the buffer the list's own, and
-  `Pin` gives the buffer its owner word (§23.7), with no count: the
-  function-table slot of the list's clone glue plus one. A buffer whose
-  owner word is set has one header holding it, so every
-  count past the first is a reference's, and `rt:list_unique` copies
-  no such buffer. Nothing checks the length at run time: a change of it
-  while a reference lives is a compile-time conflict
-  (`ref.elem.access.length`) or, behind a `*T` or a shared variable, a
-  pointer-loan one (`ref.excl.alias.conflict`). The owner word, the
-  reference's count and the eager copy below go with the reference
-  counts (`docs/future-work/POINTER_LOANS.md`, phase 10).
-  The reference's own count of the innermost buffer is the pin, so it
-  ends with the reference's `Drop`; an ancestor list is exposed and never
-  pinned. A change through the list writes the buffer in place, which
-  every element reference sees. A copy of a pinned list copies its buffer
-  at once through the owner word's clone glue (`rt:list_copy`), and a
-  copy of an unpinned one clears the word, since the buffer is shared
-  again. When the element layout contains collection values, `Pin` also
-  sets bit 31 of the owner word. This exposure survives the pin: an
-  escaped reference can still reach a descendant after that pin ends.
-  `ListCopy` clones exposed buffers regardless of the direct pin count,
-  masking off bit 31 before calling the clone glue. Recursive collection
-  copies isolate pinned descendants; the new header starts unexposed.
-  Fresh containment uses the same collection-copy glue, so it cannot hide
-  an exposed child behind a shared outer buffer. Lists of scalar or
-  reference elements gain no exposure bit: their ordinary pin/count fast
-  path is unchanged. Each copy of an element reference holds its own
-  count, so a reference stored in a field, returned, or captured by a
-  closure called later keeps the list pinned until that copy's last use.
-  Two references to one slot share its address (`ref.elem.identity`). A
-  trait value of a value that is one counted address is that address,
-  never a copy.
+- **Element references.** An element reference is the element's address
+  in its list's buffer, and counts nothing (#1336 phase 10). Insertion
+  puts an `IsUnique` of each list on the reference's path before it,
+  outermost first, again after any index evaluation since the path's base
+  was read (docs/compiler/tir-v2.md, "Insertion" rule 6), so the buffer is
+  the list's own when the reference writes. The ownership passes keep the
+  list's holder alive until the reference's last use, and the checker
+  forbids changing the collection meanwhile (`ref.elem.access.*`). The
+  buffer's third word ([`LIST_OWN`]) is reserved and stays 0; it held the
+  pin's owner word before.
 - **Short loans.** A reference from a `map_probe` or `ptr_ref`
   intrinsic or a shared element `Ref` of a local's list (or of a read of
   all of it, as `for x in &xs` makes) whose every holder ends before
@@ -1714,42 +1688,16 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   that may still hold a count, up to the innermost cleanup scope it
   crosses, whose suites may still read the scope's locals. The emitter
   lowers each `Drop` where it stands.
-- **Element references own their pin.** An element reference is the
-  element's address in its list's buffer, and its count is a count of
-  the buffer. Insertion puts an `IsUnique` and a `Pin` of each list on
-  the reference's path before it, outermost first (docs/compiler/tir-v2.md,
-  "Insertion" rule 6). `IsUnique` makes the buffer the list's own, and
-  `Pin` gives the buffer its owner word (§23.7), with no count: the
-  function-table slot of the list's clone glue plus one. A buffer whose
-  owner word is set has one header holding it, so every
-  count past the first is a reference's, and `rt:list_unique` copies
-  no such buffer. Nothing checks the length at run time: a change of it
-  while a reference lives is a compile-time conflict
-  (`ref.elem.access.length`) or, behind a `*T` or a shared variable, a
-  pointer-loan one (`ref.excl.alias.conflict`). The owner word, the
-  reference's count and the eager copy below go with the reference
-  counts (`docs/future-work/POINTER_LOANS.md`, phase 10).
-  The reference's own count of the innermost buffer is the pin, so it
-  ends with the reference's `Drop`; an ancestor list is exposed and never
-  pinned. A change through the list writes the buffer in place, which
-  every element reference sees. A copy of a pinned list copies its buffer
-  at once through the owner word's clone glue (`rt:list_copy`), and a
-  copy of an unpinned one clears the word, since the buffer is shared
-  again. When the element layout contains collection values, `Pin` also
-  sets bit 31 of the owner word. This exposure survives the pin: an
-  escaped reference can still reach a descendant after that pin ends.
-  `ListCopy` clones exposed buffers regardless of the direct pin count,
-  masking off bit 31 before calling the clone glue. Recursive collection
-  copies isolate pinned descendants; the new header starts unexposed.
-  Fresh containment uses the same collection-copy glue, so it cannot hide
-  an exposed child behind a shared outer buffer. Lists of scalar or
-  reference elements gain no exposure bit: their ordinary pin/count fast
-  path is unchanged. Each copy of an element reference holds its own
-  count, so a reference stored in a field, returned, or captured by a
-  closure called later keeps the list pinned until that copy's last use.
-  Two references to one slot share its address (`ref.elem.identity`). A
-  trait value of a value that is one counted address is that address,
-  never a copy.
+- **Element references.** An element reference is the element's address
+  in its list's buffer, and counts nothing (#1336 phase 10). Insertion
+  puts an `IsUnique` of each list on the reference's path before it,
+  outermost first, again after any index evaluation since the path's base
+  was read (docs/compiler/tir-v2.md, "Insertion" rule 6), so the buffer is
+  the list's own when the reference writes. The ownership passes keep the
+  list's holder alive until the reference's last use, and the checker
+  forbids changing the collection meanwhile (`ref.elem.access.*`). The
+  buffer's third word ([`LIST_OWN`]) is reserved and stays 0; it held the
+  pin's owner word before.
 - **Short loans.** A reference from a `map_probe` or `ptr_ref`
   intrinsic or a shared element `Ref` of a local's list (or of a read of
   all of it, as `for x in &xs` makes) whose every holder ends before

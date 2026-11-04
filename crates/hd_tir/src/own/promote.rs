@@ -44,7 +44,7 @@ pub fn read_only_params(b: &Body, candidates: u64) -> u64 {
         let tag = b.tags[i];
         if !matches!(
             tag,
-            Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique | Tag::Pin
+            Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique
         ) {
             continue;
         }
@@ -83,7 +83,7 @@ fn only_deref(b: &Body, v: usize) -> bool {
         let tag = b.tags[j];
         if matches!(
             tag,
-            Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique | Tag::Pin
+            Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique
         ) {
             let p = b.view(b.data[j][0]);
             if p.root == Root::Value(u32::try_from(v).expect("insts")) {

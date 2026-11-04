@@ -816,11 +816,10 @@ release, made explicit.
    through (`xs[i].push(v)`, today's `ListIndexMut`), `MapSet`,
    `MapRemove`, `MapIndexMut`. The intrinsics stop checking for
    themselves.
-6. **Pins.** A `Ref` of an element place gets `IsUnique` and `Pin` of
-   its list place before it. The reference holds a count of the buffer;
-   its drop (rule 3) ends the pin at its last use, which is the rule
-   `pins.rs` implements today at statement granularity with flags and
-   a `defer` per pin.
+6. **Element references.** A `Ref` of an element place gets `IsUnique`
+   of its list places before it, outermost first, again after any index
+   evaluation since its base was read. The reference counts nothing; the
+   list's holder lives until its last use (#1336 phase 10).
 7. **Header copies** (commit 13a). A list or map value that a store, a
    result, an argument or a capture would leave held by two places, one
    of which a change may reach in place, gets a `ValueCopy`: the

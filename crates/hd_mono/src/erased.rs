@@ -355,21 +355,19 @@ pub fn open_insts(
             // A projection from an open root has an open offset, and a
             // collection made unique or pinned there needs its concrete
             // element layout.
-            Tag::IsUnique | Tag::Pin
+            Tag::IsUnique
                 if outlined_change_local(b, u32::try_from(i).expect("insts")).is_none() =>
             {
                 false
             }
-            Tag::Read | Tag::Store | Tag::IsUnique | Tag::Pin => {
-                match b.decode_place(a).map(|p| p.root) {
-                    Some(PlaceRoot::Local(l)) => b
-                        .local_ty
-                        .get(l.idx())
-                        .is_some_and(|t| is_open(pool, s(*t))),
-                    Some(PlaceRoot::Global(_, t)) => is_open(pool, s(t)),
-                    _ => false,
-                }
-            }
+            Tag::Read | Tag::Store | Tag::IsUnique => match b.decode_place(a).map(|p| p.root) {
+                Some(PlaceRoot::Local(l)) => b
+                    .local_ty
+                    .get(l.idx())
+                    .is_some_and(|t| is_open(pool, s(*t))),
+                Some(PlaceRoot::Global(_, t)) => is_open(pool, s(t)),
+                _ => false,
+            },
             _ => false,
         };
         if !open {
@@ -440,7 +438,7 @@ pub fn outlined_store_local(b: &Body, i: u32) -> Option<u32> {
 /// holds.
 #[must_use]
 pub fn outlined_change_local(b: &Body, i: u32) -> Option<u32> {
-    if !matches!(b.tags[i as usize], Tag::IsUnique | Tag::Pin) {
+    if !matches!(b.tags[i as usize], Tag::IsUnique) {
         return None;
     }
     let v = b.view(b.data[i as usize][0]);

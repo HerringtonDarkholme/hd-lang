@@ -427,13 +427,6 @@ fn candidates(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> bool
                     t.holds[l as usize] = b.loan_read(w).unwrap_or(w);
                 }
             }
-            // A pinned collection's copy is a clone (the pin's eager copy, until phase 10 of `docs/future-work/POINTER_LOANS.md`), so
-            // a read of its local copies even at its last use.
-            Tag::Pin => {
-                if let Some(l) = b.view(a).local() {
-                    t.keep_l[l as usize] = true;
-                }
-            }
             Tag::Scope if w != NONE => keep_suites(b, t, b.record(w)),
             Tag::Defer => keep_suites(b, t, &[a]),
             _ => {}
@@ -614,7 +607,7 @@ fn between_points(b: &Body, topo: &Topology, l: u32) -> bool {
     for i in 0..b.len() {
         if matches!(
             b.tags[i],
-            Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique | Tag::Pin
+            Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique
         ) && b.view(b.data[i][0]).local() == Some(l)
         {
             if topo.blk[i] == NONE {
@@ -722,7 +715,7 @@ fn touches(b: &Body, t: &mut Tables) {
                 }
             };
             match b.tags[i] {
-                Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique | Tag::Pin => {
+                Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique => {
                     if let Some(l) = b.view(b.data[i][0]).local()
                         && t.lnum[l as usize] != NONE
                     {
@@ -781,7 +774,7 @@ impl Backward for Tables {
             s.set(live, self.vnum[i], false);
         }
         match b.tags[i] {
-            Tag::Read | Tag::Ref | Tag::IsUnique | Tag::Pin => {
+            Tag::Read | Tag::Ref | Tag::IsUnique => {
                 // A read through a binding local reads what its read lives on.
                 self.place_deps(b, a, &mut |bit| s.set(live, bit, true));
                 if let Some(bit) = self.bit(b, a) {
