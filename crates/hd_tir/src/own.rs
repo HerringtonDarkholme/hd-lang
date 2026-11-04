@@ -176,6 +176,15 @@ pub trait OwnCx {
         let _ = ty;
         true
     }
+    /// Whether every reference a value of `ty` may hold is counted (a
+    /// `*T`), and it holds one: a copy of it keeps its own count of what
+    /// it points into, and the borrow pass lends one only from a place
+    /// that outlives the loan. Roots (`frame`, rule 5) follow no such
+    /// value. The default answers no.
+    fn counted_refs_only(&self, ty: Ty) -> bool {
+        let _ = ty;
+        false
+    }
     /// Whether a value of `ty` may be copied (`ref.copy.structure`): `No`
     /// when it holds a type declared `!Copy` by value, `Maybe` when it
     /// holds a type parameter declared `?Copy`, which an instance decides.

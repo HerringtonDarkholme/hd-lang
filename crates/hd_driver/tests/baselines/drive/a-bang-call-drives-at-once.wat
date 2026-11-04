@@ -14,10 +14,10 @@
       if
         ;; ...
     ;; 10 |     s.put!(text)
+        local.get $s.1
         local.set $t0
         local.tee $t1
         call $retain
-        ;; ...
         local.get $text.0
         local.get $text.1
         local.set $t2

@@ -222,8 +222,9 @@ fn demo() -> i32:
 6. r[ref.box.no-local] `box(e)` is an error when the type of `e` holds a local reference, by [`ref.local.holding`](#r-ref.local.holding), since that type does not meet the bound `'static` ([Generic Locality](#generic-locality)). Error: `local-reference-escapes`.
 7. r[ref.box.object] Every counted reference refers to a whole object: one that `box` made, or one that another rule names as a new object. No expression makes a counted reference to a local, a parameter, a top-level binding, a field, or an element.
 8. r[ref.box.lifetime] A counted reference keeps the object it refers to alive. It may outlive the block that made it, and may be returned.
-9. r[ref.count.pointer] A local reference whose place passes through a counted reference keeps the storage it points into valid while it lives. That storage is the object the last counted reference on its path refers to, or a `UniqList`'s or `UniqMap`'s buffer reached after it. Another alias may replace that object, and the local reference still reads and writes the original.
-10. r[ref.count.local] A local reference whose place passes through no counted reference, nor a list or map element, keeps nothing alive: the local, parameter or field it points into outlives it ([Local Scope](#local-scope)).
+9. r[ref.box.root] The local or parameter that holds the first counted reference a live local reference's place passes through, its **root**, stays alive until the reference's last use: its release, or a move of its value, waits for that use, in a suspending function's frame too.
+10. r[ref.count.pointer] A local reference whose place passes through a counted reference keeps the storage it points into valid while it lives. That storage is the object the last counted reference on its path refers to, or a `UniqList`'s or `UniqMap`'s buffer reached after it. Another alias may replace that object, and the local reference still reads and writes the original.
+11. r[ref.count.local] A local reference whose place passes through no counted reference, nor a list or map element, keeps nothing alive: the local, parameter or field it points into outlives it ([Local Scope](#local-scope)).
 
 ```text
 struct Point:

@@ -347,7 +347,6 @@
         call $retain
         local.get $t
         local.set $t2
-        ;; ...
         local.get $held
         call $rt:release_ref'1
         local.get $t1

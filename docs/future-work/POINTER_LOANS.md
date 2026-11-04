@@ -1034,6 +1034,16 @@ Each about an hour, with its test; the matrix rows leave
    carried that way lends for the call it is passed to. The room's
    reference counts stay, as plain bookkeeping, until phase 10.
 9. Roots and cells; the `extra-root-*` and `extra-captured-*` rows.
+   Roots (`ref.box.root`) extend the root's live range rather than
+   count: the ownership passes treat each use of a value that may point
+   into a `*T` local's object, through a reference or a borrowed read or
+   an address read through it, as a use of that local (rule 5 of
+   `hd_tir/src/own/frame.rs`), so its drop, or a move of it, follows the
+   reference's last use, in a suspending body's frame too. No count is
+   needed where the checker cannot see that last use: a local reference
+   never leaves the function that holds its root
+   (`local-reference-escapes`), and a call's counted result keeps its own
+   count.
    The cell part comes before phase 7, so removing the pin leaves no
    reference into a captured variable unchecked: a variable a closure
    shares is an object, its cell, whose descriptor holds the loans of

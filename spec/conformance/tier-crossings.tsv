@@ -67,3 +67,4 @@ runtime/valid/join-list-cancelled-child.hd	std.time.Clock, std.time.ms, std.time
 runtime/valid/join-list-order.hd	std.task.channel, std.task.Receiver, std.task.Sender	the tasks must complete in an order other than their list order, and channels set that order without real-clock timing
 runtime/valid/match-mut-reference-noncopyable-payload.hd	std.collections.UniqList	the payload must hold a buffer, so a copy would show as a buffer retain in checked builds; only std collections hold one
 runtime/valid/a-field-moves-out-while-another-is-read.hd	std.collections.UniqList	the fields must hold buffers, so a copy would show as a buffer retain in checked builds; only std collections hold one
+runtime/valid/unique-list-reference-outlives-its-pointer-local.hd	std.collections.UniqList	the root rule matters only where a reference holds no count of what it points into, which a UniqList element reference is; a List element reference counts its buffer
