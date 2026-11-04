@@ -722,7 +722,10 @@ impl Em<'_, '_, '_> {
             self.comp(callee, 0)?;
             self.f.call_indirect(ps, results);
         }
-        let ty = self.ty(i);
+        let ty = match self.pool().get(strip(self.pool(), self.env(), ft)) {
+            TyData::Fn { result, .. } if !suspends => self.sub(result),
+            _ => self.ty(i),
+        };
         self.call_results(i, ty)?;
         self.release_ctx(c);
         Ok(())

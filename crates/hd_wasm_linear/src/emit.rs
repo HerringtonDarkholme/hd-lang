@@ -1103,6 +1103,8 @@ struct Em<'i, 'a, 'm> {
     /// body returns one (`hd_mono::Target::Default`'s `owned`), and a
     /// `Ref` of a suspending body's parameter, a copy (`ref.expr.allocate`).
     owned_refs: hd_base::HashSet<u32>,
+    /// The locals such a value moves into, whose release releases it.
+    owned_locals: hd_base::HashSet<usize>,
     /// A suspending body's reference parameters, each with the temporary
     /// holding the page-table count its frame keeps of the object.
     frame_refs: Vec<(usize, u32)>,
@@ -1283,6 +1285,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             view_loans: HashMap::default(),
             env_caps: HashMap::default(),
             owned_refs: hd_base::HashSet::default(),
+            owned_locals: hd_base::HashSet::default(),
             frame_refs: Vec::new(),
             init_key: None,
             unowned_params: Vec::new(),
@@ -1580,6 +1583,32 @@ impl Em<'_, '_, '_> {
     /// is copied with a count of its own. In a suspending body the operand
     /// keeps its locals, which a cancelled point's unwind may release.
     fn same_value(&mut self, i: u32, a: u32) -> StageResult<()> {
+        // A counted reference that an instance lends as a local one (a
+        // generic body's `*T` to `&T`, which the passes saw consume it): the
+        // local reference holds no count. A copy read's count goes at once,
+        // since its place keeps the object; any other value's count is the
+        // object's own, which the local reference then owns.
+        if matches!(
+            self.counted(self.ty_of(a)),
+            Some(crate::layout::Walk::Known(_))
+        ) && matches!(self.counted(self.ty(i)), Some(crate::layout::Walk::View(_)))
+            && self.take(a)
+        {
+            self.push(a)?;
+            self.store_owned(i)?;
+            if self.b.tags.get(a as usize) == Some(&Tag::Read) {
+                // A borrow took no count to give up.
+                if !self.loans.contains(&a)
+                    && let Some(&x) = self.vals.get(&i).and_then(|ls| ls.first())
+                {
+                    self.f.get(x);
+                    self.f.helper(Helper::ReleaseKnown);
+                }
+            } else {
+                self.owned_refs.insert(i);
+            }
+            return Ok(());
+        }
         if self.take(a)
             && self.susp.is_none()
             && !self.vals.contains_key(&i)
@@ -2431,7 +2460,14 @@ impl Em<'_, '_, '_> {
             self.f.op(Instruction::Unreachable);
             return Ok(());
         }
-        // A function returns its result with a count for the caller.
+        // A function returns its result with a count for the caller. One
+        // the checker typed as a local reference (`ref.convert.lend`, as
+        // `let r: &mut T = make()`) owns the object that count keeps.
+        if matches!(self.counted(ret), Some(crate::layout::Walk::Known(_)))
+            && matches!(self.counted(self.ty(i)), Some(crate::layout::Walk::View(_)))
+        {
+            self.owned_refs.insert(i);
+        }
         self.store_owned(i)
     }
 

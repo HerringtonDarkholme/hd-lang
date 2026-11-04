@@ -795,6 +795,14 @@ impl Em<'_, '_, '_> {
     /// ([`Em::view_loans`]) says so, and is cleared.
     fn release_owned_local(&mut self, l: usize, ls: &[u32]) -> StageResult<()> {
         self.borrow_release(l);
+        if self.owned_locals.contains(&l) {
+            self.f.get(ls[0]);
+            self.f.op(crate::op::Op::If(wasm_encoder::BlockType::Empty));
+            self.f.get(ls[0]);
+            self.f.helper(Helper::ReleaseKnown);
+            self.f.op(crate::op::Op::End);
+            return Ok(());
+        }
         match self.loan_locals.get(&l) {
             None if !self.is_cell(l) => {
                 self.release_drop_place(ls, self.sub(self.b.local_ty[l]), &Self::local_place(l))
