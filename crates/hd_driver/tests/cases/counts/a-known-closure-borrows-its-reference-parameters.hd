@@ -1,0 +1,7 @@
+# @dump: own counts wat
+# @build: v8 release
+# A resolved closure lends its physical reference parameters. Its body
+# must not retain them on entry or release them on exit (#1343).
+fn total(left: &i32, right: &i32) -> i32:
+    by := fn(a: &i32, b: &i32): *a + *b
+    by(left, right)
