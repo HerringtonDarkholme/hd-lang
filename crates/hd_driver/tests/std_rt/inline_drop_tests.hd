@@ -1,6 +1,7 @@
 # A moved or uninitialized place must not run an inline Drop hook.
 # This module joins std because only std may implement its runtime trait.
 use std.rt.Drop
+use std.annotation.inline
 
 let drops: usize = 0
 let empty_drops: usize = 0
@@ -104,6 +105,43 @@ struct Named:
 
 impl !Copy for Named
 
+struct ReadRoom[T < ?Copy]:
+    text: string
+    guard: T
+
+impl[T < ?Copy] !Copy for ReadRoom[T]
+
+struct ReadContainer[T < ?Copy]:
+    room: ReadRoom[T]
+
+impl[T < ?Copy] !Copy for ReadContainer[T]
+
+impl[T < ?Copy] ReadRoom[T]:
+    fn length(&self) -> usize:
+        self.text.len()
+
+fn room_length[T < ?Copy](room: &ReadRoom[T]) -> usize:
+    room.length()
+
+@inline(.Never)
+fn container_length[T < ?Copy](container: &ReadContainer[T]) -> usize:
+    field := &container.room
+    room_length(field)
+
+fn local_room(id: usize) -> usize:
+    room := ReadRoom { text: "owned".repeat(40), guard: Token { id: id } }
+    room_length(&room)
+
+fn boxed_room(id: usize) -> usize:
+    room := box(ReadRoom { text: "owned".repeat(40), guard: Token { id: id } })
+    room_length(room)
+
+fn container_room(id: usize) -> usize:
+    container := ReadContainer {
+        room: ReadRoom { text: "owned".repeat(40), guard: Token { id: id } },
+    }
+    container_length(&container)
+
 fn consume_named(value: Named) -> usize:
     if value.name.len() == 0:
         panic("lost the name")
@@ -137,6 +175,14 @@ tests:
         assert_equal(drops, before + 1)
         assert_equal(moved(7), 7)
         assert_equal(drops, before + 2)
+
+    it("small generic readers keep local and boxed Drop owners alive"):
+        before := drops
+        for id in 0..100:
+            assert_equal(local_room(id), 200)
+            assert_equal(boxed_room(id), 200)
+            assert_equal(container_room(id), 200)
+        assert_equal(drops, before + 300)
 
     it("a zero-sized value still has Drop ownership"):
         before := empty_drops

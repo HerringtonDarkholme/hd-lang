@@ -175,16 +175,15 @@ impl dyn InlineEnv + '_ {
             if !self.fits_call(body, c, &mut copy) {
                 continue;
             }
-            // A callee that takes references fits only by taking them by
-            // value (`fits`), which needs each argument to be a `Ref` of
-            // a place the copy may read once (`inline_args`).
+            // Prefer taking a reader's referent by value when each
+            // argument names a place the copy may read once. A small
+            // release reader can otherwise keep the reference itself.
             let by_value = if self.inline_hint(def) == InlineHint::Default
                 && self.takes_reference(def, targs)
             {
                 let may_write = |c: &Callee| self.call_may_write(c);
-                let Some((mask, counted, rooted)) = self.by_value(def, targs, &copy) else {
-                    continue;
-                };
+                let promote = self.by_value(def, targs, &copy);
+                let (mask, counted, rooted) = promote.unwrap_or((0, 0, 0));
                 let writes = hd_tir::own::writes_in(&copy, 0..copy.len(), &may_write);
                 let lent_param = |l: u32| {
                     let mut t = body.local_ty[l as usize];
@@ -205,10 +204,25 @@ impl dyn InlineEnv + '_ {
                     &may_write,
                     &lent_param,
                 );
-                if args & mask != mask {
-                    continue;
+                if promote.is_none() {
+                    if self.memo().is_none() || !self.read_only_refs(def, targs, &copy) {
+                        continue;
+                    }
+                    0
+                } else if args & mask != mask {
+                    // A Drop owner must keep its address when no caller
+                    // parameter roots a snapshot. Other promotable
+                    // referents retain the existing call-site checks.
+                    if mask & !args & !rooted != 0
+                        || self.memo().is_none()
+                        || !self.read_only_refs(def, targs, &copy)
+                    {
+                        continue;
+                    }
+                    mask & args
+                } else {
+                    mask
                 }
-                mask
             } else {
                 0
             };
@@ -385,9 +399,9 @@ impl dyn InlineEnv + '_ {
 
     /// Whether `copy`, the body of `def` at `targs`, may inline:
     /// The rule selected by `def`'s [`InlineHint`]: ordinary calls use
-    /// [`INLINE_LIMIT`] and refuse reference parameters, but for a
-    /// getter's ([`Self::takes_reference`]) and those the copy takes by
-    /// value ([`Self::by_value`]); `.Auto` uses
+    /// [`INLINE_LIMIT`] and accept a getter's reference parameters
+    /// ([`Self::takes_reference`]), promoted ones ([`Self::by_value`]),
+    /// and small release readers that keep them ([`Self::read_only_refs`]); `.Auto` uses
     /// [`AUTO_INLINE_LIMIT`] and accepts them, and `.Always` has neither
     /// limit. The checker has already rejected uncopyable `.Always`
     /// bodies.
@@ -396,7 +410,8 @@ impl dyn InlineEnv + '_ {
             InlineHint::Default => {
                 hd_tir::inline::inlinable(copy, INLINE_LIMIT)
                     && (!self.takes_reference(def, targs)
-                        || self.by_value(def, targs, copy).is_some())
+                        || self.by_value(def, targs, copy).is_some()
+                        || (self.memo().is_some() && self.read_only_refs(def, targs, copy)))
             }
             InlineHint::Auto => hd_tir::inline::inlinable(copy, AUTO_INLINE_LIMIT),
             InlineHint::Always => hd_tir::inline::copyable(copy),
@@ -454,7 +469,7 @@ impl dyn InlineEnv + '_ {
     /// points into a frame slot with no count
     /// (`crates/hd_wasm_linear/DESIGN.md` §23.38).
     fn takes_reference(&self, def: DefId, targs: TyList) -> bool {
-        let Some(refs) = self.reference_params(def, targs) else {
+        let Some(refs) = self.reference_params(def, targs, false) else {
             return true;
         };
         let getter = self
@@ -482,7 +497,7 @@ impl dyn InlineEnv + '_ {
     /// referents hold a `std.rt.Drop` value (`InlineEnv::rooted_referent`).
     fn by_value(&self, def: DefId, targs: TyList, copy: &Body) -> Option<(u64, u64, u64)> {
         let (mut mask, mut counted, mut rooted) = (0, 0, 0);
-        for (k, t) in self.reference_params(def, targs)? {
+        for (k, t) in self.reference_params(def, targs, false)? {
             if k >= 64 {
                 return None;
             }
@@ -503,10 +518,34 @@ impl dyn InlineEnv + '_ {
             .then_some((mask, counted, rooted))
     }
 
+    /// A small release copy may keep its reference parameters when it
+    /// only reads through them. Unlike promotion, this preserves each
+    /// address and its lifetime, including an open or uncopyable referent.
+    fn read_only_refs(&self, def: DefId, targs: TyList, copy: &Body) -> bool {
+        let may_write = |callee: &Callee| self.call_may_write(callee);
+        if hd_tir::own::writes_in(copy, 0..copy.len(), &may_write) {
+            return false;
+        }
+        let Some(refs) = self.reference_params(def, targs, true) else {
+            return false;
+        };
+        if refs.iter().any(|(k, _)| *k >= 64) {
+            return false;
+        }
+        let mask = refs.iter().fold(0, |mask, (k, _)| mask | 1 << k);
+        mask != 0 && hd_tir::own::promote::read_only_params(copy, mask) == mask
+    }
+
     /// Each parameter of `def` at `targs` that is, or may be in an
     /// instance, a reference, with its type as the backend reads it;
-    /// `None` when a parameter's type does not settle.
-    fn reference_params(&self, def: DefId, targs: TyList) -> Option<Vec<(usize, Ty)>> {
+    /// `None` when a parameter's type does not settle, except a declared
+    /// reference may keep an open referent when it need not be promoted.
+    fn reference_params(
+        &self,
+        def: DefId,
+        targs: TyList,
+        open_referents: bool,
+    ) -> Option<Vec<(usize, Ty)>> {
         let (params, _, _) = self.signature(def)?;
         let pool = self.pool();
         let mut refs = Vec::new();
@@ -520,13 +559,12 @@ impl dyn InlineEnv + '_ {
             while let TyData::Mut(inner) = pool.get(t) {
                 t = inner;
             }
-            if t == Ty::POISON || self.is_open(t) {
+            let reference = matches!(pool.get(t), TyData::Ref { .. })
+                || matches!(pool.get(t), TyData::Adt { def, .. } if self.ref_cells().holds(def));
+            if t == Ty::POISON || (self.is_open(t) && !(open_referents && reference)) {
                 return None;
             }
-            if matches!(pool.get(t), TyData::Ref { .. })
-                || matches!(pool.get(t), TyData::Adt { def, .. } if self.ref_cells().holds(def))
-                || self.reference(t)
-            {
+            if reference || self.reference(t) {
                 refs.push((k, t));
             }
         }

@@ -10,12 +10,22 @@ fn signed(value: i64, room: &mut Buffer[u8]) -> (usize, usize):
 > std/rt_tests.stage_case/signed
 >   local $0 value: i64 [param read]
 >   local $1 room: Ref[mut Buffer[u8]] [param read]
+>   local $2 self: Ref[Buffer[u8]] [read]
+>   local $3 index: usize [read]
 >   %0 = Read copy [$0] : i64
 >   %1 = Read borrow [$1] : Ref[mut Buffer[u8]]
 >   %2 = Coerce %1 [Weaken -] : Ref[Buffer[u8]]
->   %3 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].at[u8] (%2, 0:usize) : Ptr[u8]
->   %4 = Call std/rt.bytes/format_signed[] (%0, %3) : (usize, usize)
->   %5 = Block %4 : (usize, usize)
+>   %3 = Store [$2] %2 : ()
+>   %4 = Store [$3] 0:usize : ()
+>   %5 = Read copy [*$2 .address] : usize
+>   %6 = NewStruct [%5] : Ptr[u8]
+>   %7 = Read copy [$3] : usize
+>   %8 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[u8] (%6, %7) : Ptr[u8]
+>   %9 = Break L0 %8 : never
+>   %10 = Block - : Ptr[u8]
+>   %11 = Scope %10 [] : Ptr[u8]
+>   %12 = Call std/rt.bytes/format_signed[] (%0, %11) : (usize, usize)
+>   %13 = Block %12 : (usize, usize)
 >   summary kept [] writes
 
 fn unsigned(value: u64, room: &mut Buffer[u8]) -> (usize, usize):
@@ -23,10 +33,20 @@ fn unsigned(value: u64, room: &mut Buffer[u8]) -> (usize, usize):
 > std/rt_tests.stage_case/unsigned
 >   local $0 value: u64 [param read]
 >   local $1 room: Ref[mut Buffer[u8]] [param read]
+>   local $2 self: Ref[Buffer[u8]] [read]
+>   local $3 index: usize [read]
 >   %0 = Read copy [$0] : u64
 >   %1 = Read borrow [$1] : Ref[mut Buffer[u8]]
 >   %2 = Coerce %1 [Weaken -] : Ref[Buffer[u8]]
->   %3 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].at[u8] (%2, 0:usize) : Ptr[u8]
->   %4 = Call std/rt.bytes/format_unsigned[] (%0, %3) : (usize, usize)
->   %5 = Block %4 : (usize, usize)
+>   %3 = Store [$2] %2 : ()
+>   %4 = Store [$3] 0:usize : ()
+>   %5 = Read copy [*$2 .address] : usize
+>   %6 = NewStruct [%5] : Ptr[u8]
+>   %7 = Read copy [$3] : usize
+>   %8 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[u8] (%6, %7) : Ptr[u8]
+>   %9 = Break L0 %8 : never
+>   %10 = Block - : Ptr[u8]
+>   %11 = Scope %10 [] : Ptr[u8]
+>   %12 = Call std/rt.bytes/format_unsigned[] (%0, %11) : (usize, usize)
+>   %13 = Block %12 : (usize, usize)
 >   summary kept [] writes

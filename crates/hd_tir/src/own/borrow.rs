@@ -1521,12 +1521,21 @@ fn lent_refs(b: &mut Body, cx: &dyn OwnCx, t: &Tables) {
             continue;
         }
         if t.stored[r] != NONE {
-            let Some(local) = binding(b, t, t.stored[r]) else {
+            let Some(mut local) = binding(b, t, t.stored[r]) else {
                 continue;
             };
             // Inlining binds a callee's reference parameter to the field
             // loan. A local used only through its referent owns no part
             // of the caller's block, just as the direct argument does.
+            // A newly inlined reader can forward the field loan into
+            // its own receiver local. Follow the same single-read,
+            // single-store bindings the borrow pass already recognizes.
+            for _ in 0..DEPTH {
+                let Some((_, next)) = forwards(b, t, local) else {
+                    break;
+                };
+                local = next;
+            }
             if t.kept_read[local as usize] != 0 {
                 continue;
             }

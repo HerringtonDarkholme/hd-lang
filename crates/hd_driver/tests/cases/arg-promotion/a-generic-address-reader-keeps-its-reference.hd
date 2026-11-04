@@ -1,0 +1,21 @@
+# @dump: own counts wat
+# @build: v8 release
+# A small generic reader may inline through its reference without
+# copying a uniquely owned receiver or its buffer (#1346).
+use std.collections.UniqList
+
+struct Room[T < ?Copy]:
+    address: usize
+    owner: UniqList[T]
+
+impl[T < ?Copy] !Copy for Room[T]
+
+impl[T < ?Copy] Room[T]:
+    fn at(&self, index: usize) -> usize:
+        self.address + index * 4
+
+fn address[T < ?Copy](room: &Room[T], index: usize) -> usize:
+    room.at(index)
+
+fn caller(room: &Room[u32], index: usize) -> usize:
+    address(room, index)
