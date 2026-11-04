@@ -273,33 +273,72 @@ fn tail(f: &mut Func, address: u32, width: u32) {
     f.op(I::I32Add);
 }
 
-fn pair(f: &mut Func, source: u32, dest: u32, width: u32, filled: Option<u32>) {
+fn filled(f: &mut Func, value: u32, width: u32) {
+    f.get(value);
+    if width != 8 {
+        f.op(I::I32WrapI64);
+    }
+}
+
+fn pair(f: &mut Func, source: u32, dest: u32, width: u32, pattern: Option<u32>) {
+    // Keep the first destination beneath the source loads, so the tail
+    // value can flow directly from its load into the first store.
+    tail(f, 0, width);
+    let first = if let Some(value) = pattern {
+        filled(f, value, width);
+        None
+    } else {
+        let value = f.local(if width == 8 { Val::I64 } else { Val::I32 });
+        f.get(1);
+        load(f, source, 0, width);
+        f.set(value);
+        tail(f, 1, width);
+        load(f, source, 0, width);
+        Some(value)
+    };
+    store(f, dest, 0, width);
+    f.get(0);
+    if let Some(value) = first {
+        f.get(value);
+    } else {
+        filled(f, pattern.expect("fill pattern"), width);
+    }
+    store(f, dest, 0, width);
+}
+
+// The tiny class uses byte 0, byte n/2 and byte n-1. These may coincide;
+// reading all three first makes every overlap direction safe.
+fn tiny_at(f: &mut Func, address: u32, position: u32) {
+    f.get(address);
+    if position != 0 {
+        f.get(2);
+        f.i32(1);
+        f.op(if position == 1 { I::I32ShrU } else { I::I32Sub });
+        f.op(I::I32Add);
+    }
+}
+
+fn tiny(f: &mut Func, source: u32, dest: u32, copying: bool) {
+    tiny_at(f, 0, 2);
     let mut parts = Vec::new();
-    if filled.is_none() {
-        for end in [false, true] {
-            let value = f.local(if width == 8 { Val::I64 } else { Val::I32 });
-            if end {
-                tail(f, 1, width);
-            } else {
-                f.get(1);
-            }
-            load(f, source, 0, width);
+    if copying {
+        for position in 0..2 {
+            let value = f.local(Val::I32);
+            tiny_at(f, 1, position);
+            load(f, source, 0, 1);
             f.set(value);
             parts.push(value);
         }
+        tiny_at(f, 1, 2);
+        load(f, source, 0, 1);
+    } else {
+        f.get(1);
     }
-    for end in [true, false] {
-        if end {
-            tail(f, 0, width);
-        } else {
-            f.get(0);
-        }
-        if let Some(value) = filled {
-            f.get(value);
-        } else {
-            f.get(parts[usize::from(end)]);
-        }
-        store(f, dest, 0, width);
+    store(f, dest, 0, 1);
+    for position in (0..2).rev() {
+        tiny_at(f, 0, position);
+        f.get(if copying { parts[position as usize] } else { 1 });
+        store(f, dest, 0, 1);
     }
 }
 
@@ -310,31 +349,26 @@ pub fn helper(m: &Module, source: u32, dest: u32, copying: bool) -> Func {
         vec![Val::I32; 3],
         vec![],
     );
-    // Copies retain their scalar-width fast paths. Fills dispatch by ranges
-    // below: a repeated-byte pattern needs only the selected store width.
+    // The maximum scalar width needs one load/store and no address math.
+    // Keep that natural boundary direct before the overlapping range cases.
     if copying {
-        for width in [8, 4, 2, 1] {
-            f.get(2);
-            f.i32(width);
-            f.op(I::I32Eq);
-            f.op(I::If(BlockType::Empty));
-            f.get(0);
-            f.get(1);
-            inline(
-                &mut f,
-                &mut Scratch::default(),
-                width.cast_unsigned(),
-                source,
-                dest,
-                true,
-            );
-            f.op(I::Return);
-            f.op(I::End);
-        }
+        f.get(2);
+        f.i32(8);
+        f.op(I::I32Eq);
+        f.op(I::If(BlockType::Empty));
+        f.get(0);
+        f.get(1);
+        inline(&mut f, &mut Scratch::default(), 8, source, dest, true);
+        f.op(I::Return);
+        f.op(I::End);
     }
+    // One unsigned interval test routes both zero and lengths above 16 to
+    // the bulk instruction. In particular, zero retains native bounds checks.
     f.get(2);
+    f.i32(1);
+    f.op(I::I32Sub);
     f.i32(SMALL);
-    f.op(I::I32GtU);
+    f.op(I::I32GeU);
     f.op(I::If(BlockType::Empty));
     for k in 0..3 {
         f.get(k);
@@ -346,60 +380,38 @@ pub fn helper(m: &Module, source: u32, dest: u32, copying: bool) -> Func {
     });
     f.op(I::Return);
     f.op(I::End);
+    no_wrap(&mut f, 0);
     if copying {
-        f.get(2);
-        f.op(I::I32Eqz);
-        f.op(I::If(BlockType::Empty));
-        f.get(0);
-        f.get(1);
-        inline(&mut f, &mut Scratch::default(), 0, source, dest, true);
-        f.op(I::Return);
-        f.op(I::End);
-        no_wrap(&mut f, 0);
         no_wrap(&mut f, 1);
-        for (limit, width) in [(4, 2), (8, 4)] {
+        for width in [8, 4] {
             f.get(2);
-            f.i32(limit);
-            f.op(I::I32LtU);
+            f.u32(width);
+            f.op(I::I32GeU);
             f.op(I::If(BlockType::Empty));
             pair(&mut f, source, dest, width, None);
             f.op(I::Return);
             f.op(I::End);
         }
-        pair(&mut f, source, dest, 8, None);
+        tiny(&mut f, source, dest, true);
     } else {
-        for width in [8, 4, 2] {
-            f.get(2);
-            f.u32(width);
-            f.op(I::I32GeU);
-            f.op(I::If(BlockType::Empty));
-            f.get(2);
-            f.u32(width);
-            f.op(I::I32Eq);
-            f.op(I::If(BlockType::Empty));
-            f.get(0);
-            f.get(1);
-            inline(&mut f, &mut Scratch::default(), width, source, dest, false);
-            f.op(I::Return);
-            f.op(I::End);
-            no_wrap(&mut f, 0);
-            let value = f.local(if width == 8 { Val::I64 } else { Val::I32 });
-            f.get(1);
-            byte_pattern(&mut f, width);
-            f.set(value);
-            pair(&mut f, source, dest, width, Some(value));
-            f.op(I::Return);
-            f.op(I::End);
-        }
         f.get(2);
+        f.i32(4);
+        f.op(I::I32GeU);
         f.op(I::If(BlockType::Empty));
-        f.get(0);
+        let value = f.local(Val::I64);
         f.get(1);
-        inline(&mut f, &mut Scratch::default(), 1, source, dest, false);
+        byte_pattern(&mut f, 8);
+        f.set(value);
+        f.get(2);
+        f.i32(8);
+        f.op(I::I32GeU);
+        f.op(I::If(BlockType::Empty));
+        pair(&mut f, source, dest, 8, Some(value));
         f.op(I::Else);
-        f.get(0);
-        f.get(1);
-        inline(&mut f, &mut Scratch::default(), 0, source, dest, false);
+        pair(&mut f, source, dest, 4, Some(value));
+        f.op(I::End);
+        f.op(I::Else);
+        tiny(&mut f, source, dest, false);
         f.op(I::End);
     }
     crate::opt::locals(&mut f, &vec![]);
