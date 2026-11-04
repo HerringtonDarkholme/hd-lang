@@ -287,11 +287,24 @@ fn whole_local_read(b: &Body, v: u32) -> Option<u32> {
     (b.tags[x] == Tag::Read && b.view(w).whole() && b.view(w).local().is_some()).then_some(w)
 }
 
-/// Rule 5 alone: `uses` gets each use of a root local through what may
-/// point into its object or buffer, as (instruction, local). The move pass
-/// reads them, so a root is not moved before a reference's last use.
+/// Rules 4 and 5 alone: `uses` gets each use of a cell local (one a local
+/// `Ref` that is no frame slot's addresses) or a root local through what may
+/// point into it, as (instruction, local). The move pass reads them, so
+/// neither is moved, nor its cell taken, before a reference's last use.
 pub(crate) fn roots(b: &Body, cx: &dyn OwnCx, mut uses: impl FnMut(u32, u32)) {
-    root_uses(b, cx, &Tables::default(), &mut |i, l, _| uses(i, l));
+    let t = Tables::default();
+    let mut each = |i, l, _| uses(i, l);
+    extra_cell_uses(
+        b,
+        cx,
+        &t,
+        |i| {
+            let w = b.data[i][1];
+            w & crate::ir::ref_word::LOCAL != 0 && w & crate::ir::ref_word::FRAME == 0
+        },
+        &mut each,
+    );
+    root_uses(b, cx, &t, &mut each);
 }
 
 /// Rule 5, roots (`ref.box.root`): a counted local whose value a place
@@ -372,7 +385,7 @@ fn extra_cell_uses(
         if tag == Tag::Ref
             && eligible(i)
             && let Some(l) = b.local_in_place(b.data[i][0])
-            && t.bit[l.idx()] == 0
+            && t.bit.get(l.idx()).is_none_or(|&m| m == 0)
         {
             locals.push(l.raw());
         }

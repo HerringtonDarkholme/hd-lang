@@ -773,9 +773,13 @@ impl Backward for Tables {
                         {
                             self.decide[i] = last;
                         }
+                        // A local reference never takes its local's count
+                        // (`ref.count.local`): the local lives until the
+                        // reference's last use instead (frame rule 4).
                         Tag::Ref
                             if addr
                                 && p.whole()
+                                && w & crate::ir::ref_word::LOCAL == 0
                                 && !matches!(p.root, Root::Local(l) if self.frame[l as usize]) =>
                         {
                             self.decide[i] = if last == MOVE { TAKE } else { KEEP };
