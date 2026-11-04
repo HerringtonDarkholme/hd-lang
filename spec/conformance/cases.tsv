@@ -6220,6 +6220,7 @@ typing/invalid/pointer-loan-same-root-pass-read-with-mut.hd	type	reject:conflict
 typing/invalid/pointer-loan-same-root-dependent-call.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place
 typing/invalid/pointer-loan-same-root-dependent-method.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place
 typing/invalid/pointer-loan-same-root-dependent-outlives-root.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.scope
+runtime/valid/frame-slot-header-starts-with-no-borrow-state.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.conflict
 runtime/valid/erased-call-matrix-generic-ref-ref-i32.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param
 runtime/valid/erased-call-matrix-generic-ref-ref-string.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param
 runtime/valid/erased-call-matrix-generic-ref-ref-unique.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.type
