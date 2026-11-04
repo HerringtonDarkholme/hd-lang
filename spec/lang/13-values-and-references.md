@@ -683,7 +683,7 @@ fn early(bag: Bag) -> usize:
 
 ### Conflicts Through Aliases
 
-Another `*mut` to the same object is a path the compile-time rules do not see. Through it, a conflicting access to a place that a binding borrows panics at run time, as Swift's dynamic exclusivity does for class properties.
+Another `*mut` to the same object is a path the compile-time rules do not see. Through it, a conflicting access to an object that a binding borrows panics at run time, as Rust's `RefCell` does.
 
 ```text
 struct Team:
@@ -691,8 +691,7 @@ struct Team:
 
 fn rename(t: &Team, alias: *mut User) -> void $ Console:
     n := &t.lead.name
-    alias.age += 1     # valid: another field
-    alias.name = "b"   # panics borrow-conflict when alias is t.lead
+    alias.age += 1     # panics borrow-conflict when alias is t.lead: n holds all of it
     println(*n)        # the last use of n
     alias.name = "c"   # valid
     m := t.lead.name() # a result of `fn name(&self) -> &string`
@@ -700,13 +699,16 @@ fn rename(t: &Team, alias: *mut User) -> void $ Console:
     println(*m)
 ```
 
-1. r[ref.excl.alias.loan] A **run-time loan** is a `&p` or `&mut p` that a `:=` or `let` binding of type `&T` or `&mut T` holds, or that an optional, tuple or struct holds. It holds it directly, through a call's result that depends on it ([`ref.excl.call`](13-values-and-references.md#r-ref.excl.call)), or from another such holder by a copy or a move. The last dereference in `p`'s path reads a `*mut`, and only fields follow it. A `*mut` that a call takes for a `&self` or `&mut self` receiver lends the whole object it refers to. The loan covers the address range of `p`'s value. It is live until the last use of every binding that holds it and the release of every value that contains it ([`ref.excl.live`](#r-ref.excl.live)).
-2. r[ref.excl.alias.counted-access] An **access through a counted reference** is a use of a place whose last dereference reads a `*mut` or a `*T`, with only fields after it. An assignment, a `&mut` and a built-in change of the place write it; a read and a `&` read it. A call that takes a `*mut` writes the whole object it refers to, and a call that takes a `*T` reads it. A bang call checks its arguments as accesses on its first poll; later polls do not access them again.
-3. r[ref.excl.alias.conflict] An access through a counted reference whose address range overlaps a live run-time loan's panics when it writes, or when the loan is a `&mut`. Panic: `borrow-conflict`.
+1. r[ref.excl.alias.loan] A **run-time loan** is a `&p` or `&mut p` that a `:=` or `let` binding of type `&T` or `&mut T` holds, or that an optional, tuple or struct holds. It holds it directly, through a call's result that depends on it ([`ref.excl.call`](13-values-and-references.md#r-ref.excl.call)), or from another such holder by a copy or a move. The loan holds each object that a dereference of a `*mut` or a `*T` in `p`'s path reaches. A `&mut p` holds the last such object exclusively; every other object, and every object of a `&p`, is held shared. A `*mut` that a call takes for a `&self` or `&mut self` receiver lends the whole object it refers to. The loan is live until the last use of every binding that holds it and the release of every value that contains it ([`ref.excl.live`](#r-ref.excl.live)).
+2. r[ref.excl.alias.counted-access] An **access through a counted reference** is a use of a place whose path dereferences a `*mut` or a `*T`. An assignment, a `&mut` and a built-in change of the place write the object its last dereference reaches; a read and a `&` read it. Every earlier object on the path is read. A call that takes a `*mut` writes the whole object it refers to, and a call that takes a `*T` reads it. A bang call checks its arguments as accesses on its first poll only.
+3. r[ref.excl.alias.conflict] An access through a counted reference panics when it writes an object a live run-time loan holds, or reads an object a live loan holds exclusively. A loan that the accessing function took through the same pointer, with the same root and path, does not conflict with it. [`ref.excl.place`](#r-ref.excl.place) already checks that pair. Panic: `borrow-conflict`.
+
 4. r[ref.excl.alias.shared-counted-loan] A reference held directly or through a call's result from a place reached through a `*T` takes the same run-time loan as one reached through a `*mut`.
 5. r[ref.excl.alias.call-loan] A `&` or `&mut` argument or auto-ref receiver whose place is reached through a `*mut` takes a run-time loan from immediately before its call until the call returns, in a debug or test build. A release build does not check this loan.
 6. r[ref.excl.alias.path-pointer] A run-time loan also covers each `*mut` slot read along its place's path as a shared loan, so replacing any such slot conflicts until the loan ends, in a debug or test build. A release build does not check these slots.
 7. r[ref.excl.alias.untracked-path] Other references take no run-time loan, so an alias reads or writes their place in place.
+
+> **Note.** Rules 4 to 7 describe the call and path loans that implementation phases 4 and 10 of the pointer-loan model replace.
 
 ### Lifetime Variables
 

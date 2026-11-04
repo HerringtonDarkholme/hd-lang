@@ -1,0 +1,18 @@
+# test: a reference a tuple holds keeps its run-time loan on the whole object until the tuple's release, so an alias write to another field panics
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.loan, ref.excl.alias.conflict.
+struct User:
+    name: string
+    age: i32
+
+struct Team:
+    lead: *mut User
+
+fn tuple(t: &Team, alias: *mut User) -> string:
+    held := (&t.lead.name, +1)
+    alias.age += 1 # panic: borrow-conflict
+    *held._0
+
+pub fn main() -> void $ Console:
+    t := Team { lead: box(User { name: "a", age: +1 }) }
+    alias := t.lead
+    println(tuple(&t, alias))

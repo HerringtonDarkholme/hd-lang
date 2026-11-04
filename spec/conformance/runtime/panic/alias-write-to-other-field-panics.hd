@@ -1,0 +1,18 @@
+# test: while a `&` binding borrows one field of a `*mut` object, a write through an alias to another field of that object panics, since a run-time loan holds the whole object
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.loan, ref.excl.alias.conflict.
+struct User:
+    name: string
+    age: i32
+
+struct Team:
+    lead: *mut User
+
+fn older(t: &Team, alias: *mut User) -> string:
+    n := &t.lead.name
+    alias.age += 1 # panic: borrow-conflict
+    "${*n} ${alias.age}"
+
+pub fn main() -> void $ Console:
+    t := Team { lead: box(User { name: "a", age: +1 }) }
+    alias := t.lead
+    println(older(&t, alias))
