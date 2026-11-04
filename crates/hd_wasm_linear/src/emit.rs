@@ -1076,6 +1076,11 @@ struct Em<'i, 'a, 'm> {
     projs: Vec<shape::Projected>,
     /// A loan owns a temporary only when its source is an erased view.
     view_loans: HashMap<u32, u32>,
+    /// Each capture a closure's code copied out of its environment, by
+    /// local: the Wasm local holding the environment's address and the
+    /// capture's offset there, where a reference to it points
+    /// ([`Em::load_captures`]).
+    env_caps: HashMap<usize, (u32, u32)>,
     /// In an owned body: the lent parameters the passes left unowned that
     /// this instance takes owned (`count.rs`): its exit releases them.
     unowned_params: Vec<usize>,
@@ -1248,6 +1253,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             variant_tys: std::cell::RefCell::default(),
             projs: Vec::new(),
             view_loans: HashMap::default(),
+            env_caps: HashMap::default(),
             unowned_params: Vec::new(),
             list_caches: Vec::new(),
             cached_buffers: Vec::new(),
