@@ -224,5 +224,9 @@ collector for acyclic data, so the list must drop them.
      applied by #1298; the iterators are #1299.
   6. Remove `OWNED`, `BufferDrop` and the item-reference counts; release
      sizes and the #1205 benchmark against `Map`. `OWNED` and the buffer
-     glue removed by #1298; the room head goes with #1336 phase 8 (#1321).
+     glue removed by #1298. The room's count went with #1336 phase 10
+     (#1321): no reference counts a room and `free_room` frees outright;
+     its 8 bytes stay only as a reserved header (count 1, descriptor 0)
+     that a bytes-to-string transfer takes as the string's, so that
+     transfer copies nothing.
   7. The generated test matrix. Applied by #1300.

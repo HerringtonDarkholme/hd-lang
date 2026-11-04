@@ -1,0 +1,37 @@
+# test: a reference to a `UniqList` element at the start of its room crosses into an erased generic method as a plain address, never as a view, though the module makes views
+# Spec std Collections: std-collections.uniq-list.type; Spec 10 Raw Memory: module.rt.buffer.not-copyable.
+# expect-stdout: 7 8
+# expect-stdout: 9 8
+use std.collections.UniqList
+
+trait Show:
+    fn show[T < Display](self, x: &T) -> string
+
+struct Plain:
+    tag: string
+
+impl Show for Plain:
+    fn show[T < Display](self, x: &T) -> string:
+        self.tag + x.to_string()
+
+fn first_two(s: &dyn Show, items: &UniqList[i32]) -> string:
+    let a = ""
+    let b = ""
+    match items.get_ref(0):
+        .Some(r) => a = s.show(r)
+        .None => pass
+    match items.get_ref(1):
+        .Some(r) => b = s.show(r)
+        .None => pass
+    "$a $b"
+
+pub fn main() -> void $ Console:
+    let mut items = UniqList::[i32].new()
+    items.push(+7)
+    items.push(+8)
+    shower := Plain { tag: "" }
+    println(first_two(&shower, &items))
+    match items.get_mut(0):
+        .Some(slot) => *slot = +9
+        .None => pass
+    println(first_two(&shower, &items))

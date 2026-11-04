@@ -174,9 +174,12 @@ impl[T < ?Copy] Drop for Buffer[T]:
         free_room(self.address)
 
 # A new room for `capacity` values of `size` bytes, or 0 for none. Its
-# block starts with a count word of 1, its buffer's, which each reference
-# that keeps the room alive adds to (one reached through a `*T`), and a
-# descriptor word of 0: no glue, and no part in cycle collection. Its
+# block starts with an 8-byte header that no reference counts (#1336
+# phase 10): a count word of 1 and a descriptor word of 0. It is reserved
+# for a bytes-to-string transfer (`string_from_bytes`), whose string takes
+# it as its own header with no copy. A descriptor of 0 is no glue, so a
+# view test (`rt:ref_is_view`) never takes the room for a view, and a view
+# over an element's place counts the block as it counts any other. Its
 # values follow.
 fn room(capacity: usize, size: usize) -> usize:
     bytes := u64(capacity) * u64(size)
@@ -190,18 +193,13 @@ fn room(capacity: usize, size: usize) -> usize:
     store_u32(block + 4, 0)
     block + 8
 
-# Gives up the buffer's count of the room at `address`, unless it is 0,
-# and frees the room when no reference counts it; else the last such
-# reference's release frees it. While the collector traces its holder, the
-# collector frees it instead (`std.rt.cycle.hold_room`).
+# Frees the room at `address`, unless it is 0. While the collector traces
+# its holder, the collector frees it instead (`std.rt.cycle.hold_room`).
 fn free_room(address: usize) -> void:
     if address == 0:
         return
     block := address - 8
-    count := load_u32(block)
-    if count > 1:
-        store_u32(block, count - 1)
-    else if !hold_room(block):
+    if !hold_room(block):
         free_block(block)
 
 ## The address of the first of the bytes of `text`, which stay where they are while `text` or a copy of it lives.

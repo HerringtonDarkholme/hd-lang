@@ -1095,8 +1095,11 @@ Each about an hour, with its test; the matrix rows leave
     word stays in the layout as a reserved 0. Since a copy can no longer be
     made eager, insertion makes the base's lists of an element reference's
     path unique again after any index evaluation that ran since the base
-    was read (`set(&mut a[0][snapshot()][0], 9)`), as a push does. The
-    room's head and counts go with #1321.
+    was read (`set(&mut a[0][snapshot()][0], 9)`), as a push does. A
+    `Buffer`'s room keeps no count (#1321): `free_room` frees it outright,
+    and its 8-byte slot stays only as a reserved header (count 1,
+    descriptor 0) that a bytes-to-string transfer takes as the string's,
+    zero-copy, as Rust's `String::from_utf8(Vec)` is.
 11. Release elision and its type summary; the size and time table.
     Built right after phase 4, in every build: a holder's live range is
     its whole function, and a call loan's runs from its argument to the
