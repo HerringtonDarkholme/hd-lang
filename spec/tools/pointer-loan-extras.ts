@@ -803,7 +803,7 @@ pub fn main() -> void $ Console:
     panic: true,
     what: "another task of a `join!` writes the object a task's reference holds across a suspension",
     source: `use std.task.join
-use std.time.{Clock, sleep}
+use std.time.{Clock, s, sleep}
 
 struct Cell:
     value: string
@@ -812,15 +812,15 @@ struct Cell:
 @@HELPERS@@
 fn hold!(p: *mut Cell) -> string $ Clock:
     r := &p.value
-    # Long enough that the other task's write comes first under any load.
-    sleep!(200ms)
+    # join! polls its tasks in argument order (req.schedule.all-unfinished),
+    # so act! runs, and writes, while this task waits here.
+    sleep!(s(60))
     junk := churn()
     seen := *r
     _ := junk.len()
     seen
 
-fn act!(alias: *mut Cell) -> string $ Clock:
-    sleep!(1ms)
+fn act!(alias: *mut Cell) -> string:
     alias.other = fresh() # panic: borrow-conflict
     "acted"
 

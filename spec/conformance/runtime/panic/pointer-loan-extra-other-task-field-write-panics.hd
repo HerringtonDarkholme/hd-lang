@@ -3,7 +3,7 @@
 # Proposal: docs/future-work/POINTER_LOANS.md (issue #1336), not yet accepted.
 # Verdicts: loans (A) with elision: loan needed; keep-alive (B): runs.
 use std.task.join
-use std.time.{Clock, sleep}
+use std.time.{Clock, s, sleep}
 
 struct Cell:
     value: string
@@ -23,15 +23,15 @@ fn churn() -> List[string]:
 
 fn hold!(p: *mut Cell) -> string $ Clock:
     r := &p.value
-    # Long enough that the other task's write comes first under any load.
-    sleep!(200ms)
+    # join! polls its tasks in argument order (req.schedule.all-unfinished),
+    # so act! runs, and writes, while this task waits here.
+    sleep!(s(60))
     junk := churn()
     seen := *r
     _ := junk.len()
     seen
 
-fn act!(alias: *mut Cell) -> string $ Clock:
-    sleep!(1ms)
+fn act!(alias: *mut Cell) -> string:
     alias.other = fresh() # panic: borrow-conflict
     "acted"
 

@@ -1187,7 +1187,9 @@ impl Em<'_, '_, '_> {
     /// In an abandoned task's release glue: ends the loans the frame still
     /// holds, its holders' and its call loans', each read from the frame's
     /// save of the body's local (`at_of`), so no object stays borrowed
-    /// after the task is gone (phase 6).
+    /// after the task is gone (phase 6). Every std driver cancels a started
+    /// child before it drops it, and the cancel unwinds, so only a host
+    /// that drops a started suspension (`req.discard.dropped`) gets here.
     pub(super) fn borrow_abandon(&mut self, at_of: &dyn Fn(u32) -> Option<(u32, Val)>) {
         self.borrows.abandoned = true;
         let mut ends: Vec<(u32, Result<u32, u32>)> = Vec::new();
