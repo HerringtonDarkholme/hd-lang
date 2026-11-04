@@ -579,6 +579,11 @@ const sameRoot: { name: string; what: string; body: string; code?: string }[] = 
     body: "impl Cell:\n    fn slot(&self) -> &i32:\n        &self.n\n\nfn probe(boxed: *mut Cell) -> i32:\n    r := boxed.slot()\n    boxed.n += 1 # diagnostic: conflicting-access\n    *r\n",
   },
   {
+    name: "observer-notify",
+    what: "a listener loop over a list behind a pointer that passes the same pointer to each listener",
+    body: "struct Bus:\n    listeners: List[i32]\n    total: i32\n\nfn notify(bus: *mut Bus, weight: i32) -> void:\n    bus.total += weight\n\nfn publish(bus: *mut Bus) -> void:\n    for weight in &bus.listeners:\n        notify(bus, *weight) # diagnostic: conflicting-access\n",
+  },
+  {
     name: "dependent-outlives-root",
     what: "a call result that depends on a local pointer, used after the local's block",
     code: "local-reference-outlives-local",
