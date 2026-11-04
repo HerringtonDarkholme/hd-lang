@@ -1084,6 +1084,18 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   profile and in release; 16 of them are the count of blocks
   `std.rt.alloc.allocated` reports, which `ref_tests.hd` reads to see
   that a loop writing through `&mut` to a local allocates nothing.
+- **References count only views** (model A,
+  `docs/future-work/POINTER_LOANS.md` phase 10, spec
+  `ref.count.pointer`, `ref.count.local`, `ref.count.new-object`). A
+  thin local reference is a plain address: its count walk is
+  `Walk::View`, which retains or releases only where `rt:ref_is_view`
+  finds a representation view, the one reference that owns an object; the
+  test folds to nothing in a module that makes no view. The ownership
+  passes still track a reference as counted, so its `Drop`s stay, and keep
+  what it points into alive until its last use (`hd_tir/src/own/frame.rs`,
+  rules 4 and 5). A `&dyn` reference's data address keeps its page-table
+  count. The paragraphs below, from #1320, describe which references
+  took a count before this; their loans remain.
 - **References count what they cross** (issue #1320,
   spec/lang/13-values-and-references.md `ref.count.pointer`,
   `ref.count.local`). A reference's count protects the storage its place
@@ -1603,6 +1615,18 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   profile and in release; 16 of them are the count of blocks
   `std.rt.alloc.allocated` reports, which `ref_tests.hd` reads to see
   that a loop writing through `&mut` to a local allocates nothing.
+- **References count only views** (model A,
+  `docs/future-work/POINTER_LOANS.md` phase 10, spec
+  `ref.count.pointer`, `ref.count.local`, `ref.count.new-object`). A
+  thin local reference is a plain address: its count walk is
+  `Walk::View`, which retains or releases only where `rt:ref_is_view`
+  finds a representation view, the one reference that owns an object; the
+  test folds to nothing in a module that makes no view. The ownership
+  passes still track a reference as counted, so its `Drop`s stay, and keep
+  what it points into alive until its last use (`hd_tir/src/own/frame.rs`,
+  rules 4 and 5). A `&dyn` reference's data address keeps its page-table
+  count. The paragraphs below, from #1320, describe which references
+  took a count before this; their loans remain.
 - **References count what they cross** (issue #1320,
   spec/lang/13-values-and-references.md `ref.count.pointer`,
   `ref.count.local`). A reference's count protects the storage its place

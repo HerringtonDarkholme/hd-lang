@@ -1204,7 +1204,7 @@ fn leaf_drop(area: &Elem) -> Option<Sym> {
 /// Every value index a walk reads: its references and its tags.
 fn walk_indices(w: &Walk, out: &mut Vec<u32>) {
     match w {
-        Walk::Ref(k) | Walk::Known(k) => out.push(*k),
+        Walk::Ref(k) | Walk::View(k) | Walk::Known(k) => out.push(*k),
         Walk::Glue => {}
         Walk::Seq(ws) => ws.iter().for_each(|w| walk_indices(w, out)),
         Walk::Nullable(w) => walk_indices(w, out),

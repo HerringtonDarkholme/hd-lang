@@ -812,7 +812,10 @@ impl Em<'_, '_, '_> {
                 self.f.u32(off);
                 self.f.op(I::I32Add);
             }
+            // A plain address counts nothing; a trait value read at it is
+            // released below as the view's projection would be.
             if loan.is_none()
+                && fat
                 && let Some(runtime) = self.m.runtime
             {
                 let physical = self.f.local(Val::I32);
@@ -877,6 +880,11 @@ impl Em<'_, '_, '_> {
                 let colls = self.copied(ty);
                 self.retain_fields(obj, &m, w.as_ref(), &colls);
                 self.f.get(obj);
+                // A local reference owns the copy; a counted carrier's
+                // count of it is the carrier's own.
+                if matches!(self.counted(self.ty(i)), Some(crate::layout::Walk::View(_))) {
+                    self.owned_refs.insert(i);
+                }
                 return self.store_owned(i);
             }
             At::Globals(..) | At::Leaves(..) => {

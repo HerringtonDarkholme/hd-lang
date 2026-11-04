@@ -339,6 +339,10 @@ pub enum Target {
     Default {
         call: CallTarget,
         bracket: bool,
+        /// The body returns a local reference to a new object of its own
+        /// (`&mut []`, `ref.expr.allocate`), which the reference took:
+        /// the caller releases that object after the call.
+        owned: bool,
     },
     /// An omitted argument whose default body is one scalar constant, such
     /// as `retries: i32 = 3`: the constant's bits, inlined at the call
@@ -3646,9 +3650,18 @@ impl Cx<'_> {
                         pool.list_items(TyList(l)).iter().copied().map(s).collect();
                     let t = self.target(def, pool.list(&targs), id)?;
                     let bracket = env.body(def).is_some_and(makes_call);
+                    let owned = env.body(def).is_some_and(returns_new_object);
                     reps.u8(u8::from(bracket));
+                    reps.u8(u8::from(owned));
                     self.hash_target(&t, &mut reps);
-                    calls.insert(ix, Target::Default { call: t, bracket });
+                    calls.insert(
+                        ix,
+                        Target::Default {
+                            call: t,
+                            bracket,
+                            owned,
+                        },
+                    );
                 }
                 Tag::Closure => {
                     let sub_k = u16::try_from(a).expect("subs");
@@ -3959,6 +3972,31 @@ fn scalar_constant(body: &Body) -> Option<u64> {
         .consts
         .get((tail.0 & !hd_tir::ir::Ref::CONST_BIT) as usize)?;
     (ty != Ty::STRING).then_some(bits)
+}
+
+/// Whether a default body's result is a reference to all of one of its
+/// own locals (`&mut []`): a new object that the reference takes.
+fn returns_new_object(body: &Body) -> bool {
+    let Some(&root) = body.sub_root.first() else {
+        return false;
+    };
+    let mut v = root;
+    while let Some(i) = hd_tir::ir::Ref(v).as_inst() {
+        let i = i.0 as usize;
+        let [a, w] = body.data[i];
+        match body.tags[i] {
+            Tag::Block => v = w,
+            Tag::Scope | Tag::Coerce => v = a,
+            Tag::Ref => {
+                let p = body.view(a);
+                return p.whole()
+                    && matches!(p.root, hd_tir::ir::Root::Local(l)
+                        if body.local_flags[l as usize] & hd_tir::ir::local_flags::PARAM == 0);
+            }
+            _ => return false,
+        }
+    }
+    false
 }
 
 fn makes_call(body: &Body) -> bool {

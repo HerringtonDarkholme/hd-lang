@@ -223,8 +223,9 @@ fn demo() -> i32:
 7. r[ref.box.object] Every counted reference refers to a whole object: one that `box` made, or one that another rule names as a new object. No expression makes a counted reference to a local, a parameter, a top-level binding, a field, or an element.
 8. r[ref.box.lifetime] A counted reference keeps the object it refers to alive. It may outlive the block that made it, and may be returned.
 9. r[ref.box.root] The local or parameter that holds the first counted reference a live local reference's place passes through, its **root**, stays alive until the reference's last use: its release, or a move of its value, waits for that use, in a suspending function's frame too.
-10. r[ref.count.pointer] A local reference whose place passes through a counted reference keeps the storage it points into valid while it lives. That storage is the object the last counted reference on its path refers to, or a `UniqList`'s or `UniqMap`'s buffer reached after it. Another alias may replace that object, and the local reference still reads and writes the original.
-11. r[ref.count.local] A local reference whose place passes through no counted reference, nor a list or map element, keeps nothing alive: the local, parameter or field it points into outlives it ([Local Scope](#local-scope)).
+10. r[ref.count.pointer] A local reference whose place passes through a counted reference keeps nothing alive. Its root keeps the object alive ([`ref.box.root`](#r-ref.box.root)), and a replacement through another alias panics ([`ref.excl.alias.conflict`](#r-ref.excl.alias.conflict)).
+11. r[ref.count.local] A local reference is an address that keeps nothing alive. The local, parameter, field, element or object it points into outlives it ([Local Scope](#local-scope)).
+12. r[ref.count.new-object] The new object that `&e` makes ([`ref.expr.allocate`](#r-ref.expr.allocate)) lives until the last use of the reference that made it and of every copy of that reference.
 
 ```text
 struct Point:

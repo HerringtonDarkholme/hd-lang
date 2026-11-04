@@ -4,7 +4,6 @@
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "peek" (func $peek (param i32) (result i32)))
   (import "fixture" "format_int[i32]" (func $"format_int[i32]" (param i32) (result i32 i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "first" (func $first (param i32) (result i32 i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -77,22 +76,18 @@
       local.get $env
       i32.const 4
       i32.add
-      local.tee $env
-      call $retain
-      local.get $env
       call $first
-      local.set $t1
       local.set $t0
-      local.get $env
+      local.set $env
       ;; ...
       local.get $p.name.1
       i32.const 1
       i32.add
-      local.get $t1
+      local.get $t0
       i32.add
-      local.tee $env
-      call $rt:str
       local.tee $p.name.0
+      call $rt:str
+      local.tee $t1
       local.tee $t2
       local.get $ctx
       local.get $p.name.1
@@ -107,12 +102,12 @@
       local.get $t2
       i32.const 1
       i32.add
+      local.get $env
       local.get $t0
-      local.get $t1
       memory.copy $heap $heap
       ;; ...
+      local.get $t1
       local.get $p.name.0
-      local.get $env
       ;; ...
     end
     ;; ...

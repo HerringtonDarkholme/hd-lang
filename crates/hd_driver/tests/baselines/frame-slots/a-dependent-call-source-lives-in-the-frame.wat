@@ -50,9 +50,8 @@
       local.get $seen
       call $"impl User.name"
     ;; 22 |     n.len()
-      local.tee $seen
       call $"impl string.len"
-      local.set $t3
+      local.set $seen
       ;; ...
     end
     ;; ...

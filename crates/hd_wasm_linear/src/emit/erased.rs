@@ -554,8 +554,9 @@ impl Em<'_, '_, '_> {
             }
             Cross::RefBox { target, .. } => {
                 let view = self.ref_view(ls[0], target)?;
+                // The reference's own count: none for a plain address.
                 if owned {
-                    self.release_open(ls[0]);
+                    self.release_locals(&[ls[0]], ct)?;
                 }
                 self.f.get(view);
                 self.f.set(out);
@@ -595,7 +596,7 @@ impl Em<'_, '_, '_> {
                 };
                 let view = self.ref_view(o, source)?;
                 if owned {
-                    self.release_open(o);
+                    self.release_locals(&[o], et)?;
                 }
                 Ok(vec![view])
             }

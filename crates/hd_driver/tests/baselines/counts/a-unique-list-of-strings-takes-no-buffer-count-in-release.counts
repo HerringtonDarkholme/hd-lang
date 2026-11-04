@@ -28,10 +28,7 @@ fn total(words: &UniqList[string]) -> usize:
     let total: usize = 0
     for word in words.iter():
 > std/rt_tests.stage_case/total
->   retain &std.collections.UniqList[string]
->   release std.collections.UniqListIter[string, &()] [items]
 >   release &string?
->   release &string
         total += word.len()
     total
 

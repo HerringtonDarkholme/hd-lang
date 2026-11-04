@@ -313,6 +313,9 @@ fn body_func<'a>(
         results: results.clone(),
         fact,
     });
+    if b.kind == BodyKind::Init && sub == 0 {
+        em.init_key = Some(key);
+    }
     if let Some(cell) = &once {
         if b.kind == BodyKind::Handle {
             em.static_cells = Some(key);
@@ -446,6 +449,20 @@ fn body_func<'a>(
     }
     if suspending {
         em.f.op(Instruction::End);
+        // A frame owns its reference parameters (POINTER_LOANS.md E.2): a
+        // local reference counts nothing, so the cold constructor takes a
+        // page-table count of each one's object into a temporary that the
+        // frame's exit or release glue releases (`susp::finish`).
+        if em.counting {
+            for &l in &plocals {
+                let t = em.sub(b.local_ty[l]);
+                if matches!(em.counted(t), Some(crate::layout::Walk::View(_))) {
+                    let held = em.f.local(Val::I32);
+                    em.temps.push(held);
+                    em.frame_refs.push((l, held));
+                }
+            }
+        }
     }
     if let Some(c) = ctx {
         for k in row {
@@ -1081,6 +1098,17 @@ struct Em<'i, 'a, 'm> {
     /// capture's offset there, where a reference to it points
     /// ([`Em::load_captures`]).
     env_caps: HashMap<usize, (u32, u32)>,
+    /// Each value that is a local reference to a new object the
+    /// reference owns, which its `Drop` releases: a `DefaultCall` whose
+    /// body returns one (`hd_mono::Target::Default`'s `owned`), and a
+    /// `Ref` of a suspending body's parameter, a copy (`ref.expr.allocate`).
+    owned_refs: hd_base::HashSet<u32>,
+    /// A suspending body's reference parameters, each with the temporary
+    /// holding the page-table count its frame keeps of the object.
+    frame_refs: Vec<(usize, u32)>,
+    /// A top-level binding's initializer: its key, for a cell that the
+    /// binding's reference keeps for the whole program (a static cell).
+    init_key: Option<Hash128>,
     /// In an owned body: the lent parameters the passes left unowned that
     /// this instance takes owned (`count.rs`): its exit releases them.
     unowned_params: Vec<usize>,
@@ -1254,6 +1282,9 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             projs: Vec::new(),
             view_loans: HashMap::default(),
             env_caps: HashMap::default(),
+            owned_refs: hd_base::HashSet::default(),
+            frame_refs: Vec::new(),
+            init_key: None,
             unowned_params: Vec::new(),
             list_caches: Vec::new(),
             cached_buffers: Vec::new(),
@@ -2730,7 +2761,11 @@ impl Em<'_, '_, '_> {
                 }
                 self.store(i)
             }
-            Some(Target::Default { call, bracket }) => {
+            Some(Target::Default {
+                call,
+                bracket,
+                owned,
+            }) => {
                 let args = self.rec(bw);
                 let params = self.param_tys(call.key, call.item, call.args);
                 let lends = self.env().lends(call.item);
@@ -2745,6 +2780,9 @@ impl Em<'_, '_, '_> {
                 }
                 self.call_results(i, call.ret)?;
                 self.release_ctx(c);
+                if owned {
+                    self.owned_refs.insert(i);
+                }
                 Ok(())
             }
             _ => unsupported("a default argument without a target"),

@@ -695,9 +695,11 @@ impl Em<'_, '_, '_> {
         // A short loan (`emit/loan.rs`) takes no count of the table; a
         // shared one neither makes it unique nor pins it.
         let short = self.short_loans.contains_key(&i);
-        let counted = default.is_some() && !short;
+        // A local reference takes no count of its table (`ref.count.local`):
+        // the map's root lives until its last use.
+        let pins = default.is_some() && !short;
         if default.is_some() {
-            self.map_probe_refs.insert(i, (m, counted));
+            self.map_probe_refs.insert(i, (m, false));
         }
         let (kl, hash) = self.map_key(key, &entry, &ops)?;
         let found = self.map_find(m, hash, &kl, &entry, &ops);
@@ -721,13 +723,9 @@ impl Em<'_, '_, '_> {
         if default.is_none() {
             self.map_probe_unique(m, &entry);
         }
-        self.map_probe_store(at, owned, m, mt, default.is_none() || counted)?;
+        self.map_probe_store(at, owned, m, mt, default.is_none() || pins)?;
         let (_, value_at) = self.map_value_from(m, mt, &Src::Locals(vec![found]))?;
         if default.is_some() {
-            if counted {
-                self.f.get(m);
-                self.f.helper(Helper::RetainKnown);
-            }
             self.f.get(value_at);
             self.store_owned(i)?;
         } else {
@@ -749,12 +747,8 @@ impl Em<'_, '_, '_> {
             self.f.i32(1);
             self.f.op(I::I32Sub);
             self.f.set(inserted);
-            self.map_probe_store(at, owned, m, mt, counted)?;
+            self.map_probe_store(at, owned, m, mt, pins)?;
             let (_, value_at) = self.map_value_from(m, mt, &Src::Locals(vec![inserted]))?;
-            if counted {
-                self.f.get(m);
-                self.f.helper(Helper::RetainKnown);
-            }
             self.f.get(value_at);
             self.store_owned(i)?;
         } else {
