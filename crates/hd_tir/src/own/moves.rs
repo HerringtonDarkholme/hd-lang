@@ -149,6 +149,9 @@ pub(crate) struct Tables {
     /// Per instruction: whether its value leaves its sub-body as the
     /// sub-body's result (a default argument's `&mut []`).
     returned: Vec<bool>,
+    /// Per instruction: whether it is a read that lends its local as a
+    /// local reference ([`super::lending_read`]), which never moves.
+    lending: Vec<bool>,
 }
 
 impl Tables {
@@ -172,6 +175,7 @@ impl Tables {
         self.part_uses.clear();
         self.part_keep.clear();
         fill(&mut self.returned, n, false);
+        fill(&mut self.lending, n, false);
     }
 
     /// Calls `f` with the part bit of each part of local `l` that the
@@ -274,6 +278,9 @@ pub(crate) fn run(
         return;
     }
     returned(b, t);
+    for i in 0..b.len() {
+        t.lending[i] = super::lending_read(b, cx, i);
+    }
     part_uses(b, cx, t);
     touches(b, t);
     let mut back = std::mem::take(&mut t.back);
@@ -796,6 +803,7 @@ impl Backward for Tables {
                         Tag::Read
                             if w == ReadMode::Copy as u32
                                 && p.in_place(b)
+                                && !self.lending[i]
                                 && (!addr || p.whole()) =>
                         {
                             self.decide[i] = last;

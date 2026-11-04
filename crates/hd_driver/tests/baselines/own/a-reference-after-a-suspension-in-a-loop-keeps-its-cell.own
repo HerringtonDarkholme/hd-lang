@@ -52,8 +52,8 @@ fn run!(n: i32) -> void:
 >   %9 = Store [$2] %8 : ()
     tick(&mut c)
 >   %16 = Ref mut local [$1] : Counted[mut Counter]
->   %17 = Drop [$1] : ()
->   %18 = Call app/main/tick[] (%16) : ()
->   %19 = Drop [%16] : ()
+>   %17 = Call app/main/tick[] (%16) : ()
+>   %18 = Drop [%16] : ()
+>   %19 = Drop [$1] : ()
 >   %16 finds [$1] full
 >   exit sub 0 drops [$1]

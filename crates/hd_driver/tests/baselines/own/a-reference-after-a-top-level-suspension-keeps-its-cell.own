@@ -34,8 +34,8 @@ fn run!(go: bool) -> void:
 >   %2 = Await app/main/pause[] () : ()
     tick(&mut c)
 >   %3 = Ref mut local [$1] : Counted[mut Counter]
->   %4 = Drop [$1] : ()
->   %5 = Call app/main/tick[] (%3) : ()
->   %6 = Drop [%3] : ()
+>   %4 = Call app/main/tick[] (%3) : ()
+>   %5 = Drop [%3] : ()
+>   %6 = Drop [$1] : ()
 >   %3 finds [$1] full
 >   exit sub 0 drops [$1]

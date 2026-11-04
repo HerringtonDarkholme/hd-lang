@@ -386,6 +386,52 @@ pub(crate) fn lending_coercion(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
         && cx.lends(b.ty[b.data[i][0] as usize], b.ty[i])
 }
 
+/// Whether `Read` `i` reads all of a local holding a counted reference
+/// as a local one (`ref.convert.lend`, a read the checker typed with the
+/// local reference's carrier): it lends the local, which never moves
+/// there and lives until the read value's last use (`frame`, rule 5).
+pub(crate) fn lending_read(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
+    if b.tags[i] != Tag::Read {
+        return false;
+    }
+    let p = b.view(b.data[i][0]);
+    p.whole()
+        && matches!(p.root, crate::ir::Root::Local(l)
+            if cx.lends(b.local_ty[l as usize], b.ty[i]))
+}
+
+/// The values instruction `i` lends as local references that its own
+/// value may point through, into `out`: a lending coercion's operand
+/// ([`lending_coercion`]), and each counted reference a call lends whose
+/// result holds a local reference (`ref.dep.call`): the result may point
+/// into what that reference refers to. What each one refers to must live
+/// until the last use of `i`'s value.
+pub(crate) fn lent_values(b: &Body, cx: &dyn OwnCx, i: usize, out: &mut Vec<u32>) {
+    out.clear();
+    if lending_coercion(b, cx, i) {
+        out.push(b.data[i][0]);
+        return;
+    }
+    if !matches!(b.tags[i], Tag::Call | Tag::CallValue | Tag::CallDyn)
+        || !cx.holds_ref(b.ty[i])
+        || cx.counted_refs_only(b.ty[i])
+    {
+        return;
+    }
+    let mut ops = Vec::new();
+    operands(b, i, &mut ops);
+    for op in &ops {
+        let v = op.value;
+        if Ref(v).as_inst().is_some()
+            && matches!(op.role, Role::Arg(_))
+            && cx.counted_refs_only(b.ty[v as usize])
+            && !consumes(b, cx, i, op, NONE)
+        {
+            out.push(v);
+        }
+    }
+}
+
 pub(crate) fn consumes(b: &Body, cx: &dyn OwnCx, i: usize, op: &Operand, owner: u32) -> bool {
     match op.role {
         Role::Consume => !lending_coercion(b, cx, i),
@@ -2730,11 +2776,9 @@ pub(crate) mod tests {
                 );
                 used.sort_stable();
                 used.dedup();
-                if suspends {
-                    assert!(used.is_empty(), "the async root keeps counted references");
-                } else {
-                    assert_eq!(used, owners, "count={count}");
-                }
+                // A suspending root's cells hold no frame slot, but a
+                // reference into one holds no count of it either.
+                assert_eq!(used, owners, "count={count} suspends={suspends}");
             }
         }
     }

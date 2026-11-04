@@ -188,11 +188,12 @@ pub(crate) fn run(
     t.targets.clear();
     t.out = 0;
     t.frame = 0;
-    // A suspending root keeps its locals in its frame object, but its
-    // synchronous closures may still lend uncounted cell references.
+    // A suspending root keeps its locals in its frame object, so none is
+    // a frame slot, but a reference into one of its cells, or one its
+    // synchronous closures lend, holds no count of the cell.
     if (0..n).any(|i| is_suspension(b.tags[i]) && topo.sub[i] == 0) {
-        extra_cell_uses(b, cx, t, |i| topo.sub[i] != 0, &mut uses);
-        root_uses(b, cx, t, &mut uses);
+        extra_cell_uses(b, cx, t, |_| true, &mut uses);
+        root_uses(b, cx, &mut uses);
         return;
     }
     for c in &b.cap_local {
@@ -231,7 +232,7 @@ pub(crate) fn run(
         }
     }
     if t.cands.is_empty() {
-        root_uses(b, cx, t, &mut uses);
+        root_uses(b, cx, &mut uses);
         return;
     }
     fill(&mut t.val, n, 0);
@@ -276,7 +277,7 @@ pub(crate) fn run(
         }
     }
     extra_cell_uses(b, cx, t, |_| true, &mut uses);
-    root_uses(b, cx, t, &mut uses);
+    root_uses(b, cx, &mut uses);
 }
 
 /// The place word of value `v` when it is a read of all of a local
@@ -304,7 +305,7 @@ pub(crate) fn roots(b: &Body, cx: &dyn OwnCx, mut uses: impl FnMut(u32, u32)) {
         },
         &mut each,
     );
-    root_uses(b, cx, &t, &mut each);
+    root_uses(b, cx, &mut each);
 }
 
 /// Rule 5, roots (`ref.box.root`): a counted local whose value a place
@@ -314,13 +315,16 @@ pub(crate) fn roots(b: &Body, cx: &dyn OwnCx, mut uses: impl FnMut(u32, u32)) {
 /// holds no count of that object. Each use of such a value is a use of
 /// the root, so its drop, or a move of it, follows the reference's last
 /// use, in a suspending body's frame too.
-fn root_uses(b: &Body, cx: &dyn OwnCx, t: &Tables, uses: &mut impl FnMut(u32, u32, bool)) {
+fn root_uses(b: &Body, cx: &dyn OwnCx, uses: &mut impl FnMut(u32, u32, bool)) {
     let mut locals = Vec::new();
-    let mut lent_reads: Vec<u32> = (0..b.len())
-        .filter(|&c| super::lending_coercion(b, cx, c))
-        .map(|c| b.data[c][0])
-        .collect();
+    let mut lent_reads: Vec<u32> = Vec::new();
+    let mut lent = Vec::new();
+    for c in 0..b.len() {
+        super::lent_values(b, cx, c, &mut lent);
+        lent_reads.extend_from_slice(&lent);
+    }
     lent_reads.sort_stable();
+    lent_reads.dedup();
     for i in 0..b.len() {
         if !matches!(b.tags[i], Tag::Ref | Tag::Read) {
             continue;
@@ -328,16 +332,16 @@ fn root_uses(b: &Body, cx: &dyn OwnCx, t: &Tables, uses: &mut impl FnMut(u32, u3
         let p = b.view(b.data[i][0]);
         // A read of all of a counted local that a coercion lends as a
         // local reference roots the reference there too.
-        let lent =
-            b.tags[i] == Tag::Read && p.whole() && lent_reads.binary_search(&u32_of(i)).is_ok();
+        let lent = b.tags[i] == Tag::Read
+            && p.whole()
+            && (lent_reads.binary_search(&u32_of(i)).is_ok() || super::lending_read(b, cx, i));
         let root = match p.root {
             Root::Value(v) => whole_local_read(b, v).map_or(p.root, |w| b.view(w).root),
             r => r,
         };
         if let Root::Local(l) = root
             && (lent || p.steps(b).any(|s| matches!(s, Proj::Deref | Proj::Elem(_))))
-            && cx.counted(b.local_ty[l as usize]) == super::Tri::Yes
-            && t.bit.get(l as usize).is_none_or(|&m| m == 0)
+            && cx.counted(b.local_ty[l as usize]) != super::Tri::No
             && !b.cap_local.iter().any(|c| c.raw() == l)
         {
             locals.push(l);
@@ -363,12 +367,15 @@ fn root_uses(b: &Body, cx: &dyn OwnCx, t: &Tables, uses: &mut impl FnMut(u32, u3
 /// lies, as a `Ref` through it would (`[*$p]`), so the local holding the
 /// counted reference lives until the local one's last use.
 fn lent_from(b: &Body, cx: &dyn OwnCx, t: &Tables, i: usize) -> u64 {
-    let a = b.data[i][0];
-    if !super::lending_coercion(b, cx, i) || b.tags[a as usize] != Tag::Read {
-        return 0;
-    }
-    t.place(b, b.data[a as usize][0])
-        .map_or(0, |(lies, _)| lies)
+    let mut lent = Vec::new();
+    super::lent_values(b, cx, i, &mut lent);
+    lent.iter()
+        .filter(|&&v| b.tags[v as usize] == Tag::Read)
+        .fold(0, |m, &v| {
+            m | t
+                .place(b, b.data[v as usize][0])
+                .map_or(0, |(lies, _)| lies)
+        })
 }
 
 /// Frame-slot promotion is bounded, but cell liveness is required for
@@ -536,7 +543,7 @@ fn step(b: &Body, cx: &dyn OwnCx, t: &mut Tables, ops: &mut Vec<super::Operand>,
         Tag::Store | Tag::Break => 0,
         _ if cx.holds_ref(b.ty[i]) => {
             operands(b, i, ops);
-            let mut m = ops.iter().fold(0, |m, op| m | dep(t, op.value));
+            let mut m = ops.iter().fold(0, |m, op| m | dep(t, op.value)) | lent_from(b, cx, t, i);
             slots(b, i, |_, x, word| {
                 if word == Word::Block {
                     m |= dep(t, x);
@@ -584,7 +591,12 @@ fn step_val(
             return grow(&mut t.val[i], m);
         }
         Tag::Read if cx.holds_ref(b.ty[i]) => {
-            let m = t.place(b, a).map_or(0, |(_, held)| held);
+            let (lies, held) = t.place(b, a).unwrap_or((0, 0));
+            let m = if super::lending_read(b, cx, i) {
+                lies | held
+            } else {
+                held
+            };
             return grow(&mut t.val[i], m);
         }
         Tag::Store if t.of(w) != 0 => {
@@ -616,7 +628,9 @@ fn step_val(
             for c in &b.cap_local[start..start + len] {
                 m |= t.held[c.idx()];
             }
-            return grow(&mut t.out, m);
+            // The closure points where the references it captured do; a
+            // use that lets it escape lets them escape.
+            return grow(&mut t.val[i], m);
         }
         Tag::Break => {
             let m = t.of(w);
@@ -638,6 +652,11 @@ fn step_val(
         if op.role == Role::Consume {
             consumed |= o;
         }
+    }
+    // A result that depends on a counted reference the call lends points
+    // where that reference lies (`ref.dep.call`).
+    if matches!(tag, Tag::Call | Tag::CallValue | Tag::CallDyn) {
+        m |= lent_from(b, cx, t, i);
     }
     if tag == Tag::Return || is_suspension(tag) {
         return grow(&mut t.out, m);
