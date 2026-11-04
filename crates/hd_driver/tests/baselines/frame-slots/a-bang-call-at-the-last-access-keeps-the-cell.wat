@@ -2,6 +2,7 @@
 (module
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
+  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "bump" (func $bump (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:frame" (func $rt:frame (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
@@ -41,8 +42,8 @@
           local.set $tally
         end
         local.get $tally
-        local.set $t4
-        ;; ...
+        local.tee $t4
+        call $rt:retain_known
       end
       block
         block

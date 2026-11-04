@@ -643,7 +643,8 @@ fn holds_ref(
             .any(|&a| holds_ref(pool, cells, ptr, a, depth + 1))
     };
     match pool.get(t) {
-        TyData::Ref { .. } | TyData::TraitValue { .. } => true,
+        // A function value may hold the references its closure captured.
+        TyData::Ref { .. } | TyData::TraitValue { .. } | TyData::Fn { .. } => true,
         TyData::Adt { def, args } => def == ptr || cells.holds(def) || any(args),
         TyData::Tuple { elems, rest } => {
             any(elems) || rest.is_some_and(|r| holds_ref(pool, cells, ptr, r, depth + 1))

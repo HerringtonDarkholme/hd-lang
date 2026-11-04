@@ -387,10 +387,14 @@ fn values(
         lent.clear();
         lent.extend(lo..hi);
         let mut x = 0;
+        let mut through = Vec::new();
         while x < lent.len() {
             let (u, _) = t.uses[lent[x]];
-            if super::lending_coercion(b, cx, u as usize) && t.tracked[u as usize] {
-                lent.extend(t.start[u as usize] as usize..t.start[u as usize + 1] as usize);
+            if t.tracked[u as usize] && (u as usize) < b.len() {
+                super::lent_values(b, cx, u as usize, &mut through);
+                if through.contains(&u32_of(v)) {
+                    lent.extend(t.start[u as usize] as usize..t.start[u as usize + 1] as usize);
+                }
             }
             x += 1;
         }

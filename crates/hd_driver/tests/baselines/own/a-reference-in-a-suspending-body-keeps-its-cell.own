@@ -38,11 +38,12 @@ fn run!() -> void:
 >   %6 = Block - : ()
     bump!(&mut c)
 >   %2 = Ref mut local [$0] : Counted[mut Counter]
->   %3 = Drop [$0] : ()
->   %4 = Await app/main/bump[] (%2) : ()
->   %5 = Drop [%2] : ()
+>   %3 = Await app/main/bump[] (%2) : ()
+>   %4 = Drop [%2] : ()
+>   %5 = Drop [$0] : ()
 >   %2 finds [$0] full
->   unwind %4 drops [%2]
+>   exit sub 0 drops [$0]
+>   unwind %3 drops [%2]
 
 fn fresh() -> void:
     let mut c = Counter { hits: +0, name: "a" }
