@@ -30,7 +30,7 @@ use std.rt.Drop
 use std.rt.memory.{
     Buffer,
     Ptr,
-    copy,
+    copy_bytes,
     fill,
     load_u8,
     load_u32,
@@ -394,7 +394,7 @@ impl TextRoom:
             capacity *= 2
         next := new_string(capacity)
         address := string_bytes(next).address
-        copy(address, string_bytes(self.room).address, self.len)
+        copy_bytes(address, string_bytes(self.room).address, self.len)
         fill(address + self.len, 0, capacity - self.len)
         self.room = next
 
@@ -431,21 +431,21 @@ impl TextSink for TextRoom:
         if size == 0:
             return
         destination := self.spare(size)
-        copy(destination.address, string_bytes(text).address, size)
+        copy_bytes(destination.address, string_bytes(text).address, size)
         self.len += size
 
     @inline(.Never)
     fn append_signed(&mut self, value: i64) -> void:
         destination := self.spare(20)
         digits := format_signed(value, destination)
-        copy(destination.address, destination.address + digits._0, digits._1)
+        copy_bytes(destination.address, destination.address + digits._0, digits._1)
         self.len += digits._1
 
     @inline(.Never)
     fn append_unsigned(&mut self, value: u64) -> void:
         destination := self.spare(20)
         digits := format_unsigned(value, destination)
-        copy(destination.address, destination.address + digits._0, digits._1)
+        copy_bytes(destination.address, destination.address + digits._0, digits._1)
         self.len += digits._1
 
 # String builders and JSON writers keep these bytes private: no element
@@ -457,21 +457,21 @@ impl TextSink for UniqList[u8]:
         if size == 0:
             return
         destination := self.spare(size)
-        copy(destination.address, string_bytes(text).address, size)
+        copy_bytes(destination.address, string_bytes(text).address, size)
         self.advance(size)
 
     @inline(.Never)
     fn append_signed(&mut self, value: i64) -> void:
         destination := self.spare(20)
         digits := format_signed(value, destination)
-        copy(destination.address, destination.address + digits._0, digits._1)
+        copy_bytes(destination.address, destination.address + digits._0, digits._1)
         self.advance(digits._1)
 
     @inline(.Never)
     fn append_unsigned(&mut self, value: u64) -> void:
         destination := self.spare(20)
         digits := format_unsigned(value, destination)
-        copy(destination.address, destination.address + digits._0, digits._1)
+        copy_bytes(destination.address, destination.address + digits._0, digits._1)
         self.advance(digits._1)
 
 impl ByteBuffer for UniqList[u8]:
@@ -497,7 +497,7 @@ impl ByteBuffer for UniqList[u8]:
 
     fn copy_text(&self) -> string:
         out := new_string(self.len)
-        copy(string_bytes(out).address, self.buffer.at(0).address, self.len)
+        copy_bytes(string_bytes(out).address, self.buffer.at(0).address, self.len)
         out
 
 impl UniqList[u8]:
@@ -574,7 +574,7 @@ impl[T < ?Copy] UniqList[T]:
         count := self.len - at
         let mut out = UniqList::[T].with_capacity(count)
         if count > 0:
-            copy(out.buffer.at(0).address, self.buffer.at(at).address, count * size_of::[T]())
+            copy_bytes(out.buffer.at(0).address, self.buffer.at(at).address, count * size_of::[T]())
             self.len = at
             out.len = count
         out
@@ -585,7 +585,7 @@ impl[T < ?Copy] UniqList[T]:
         if other.len == 0:
             return
         self.reserve(other.len)
-        copy(
+        copy_bytes(
             self.buffer.at(self.len).address,
             other.buffer.at(0).address,
             other.len * size_of::[T](),
@@ -718,7 +718,7 @@ impl[T < ?Copy] UniqList[T]:
         if self.buffer.capacity() <= size:
             self.reserve_for(size + 1)
         if index < size:
-            copy(
+            copy_bytes(
                 self.buffer.at(index + 1).address,
                 self.buffer.at(index).address,
                 (size - index) * size_of::[T](),
@@ -737,7 +737,7 @@ impl[T < ?Copy] UniqList[T]:
             )
         removed := self.buffer.at(index).read()
         if index + 1 < size:
-            copy(
+            copy_bytes(
                 self.buffer.at(index).address,
                 self.buffer.at(index + 1).address,
                 (size - index - 1) * size_of::[T](),
@@ -1146,7 +1146,7 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
             match hash:
                 .Some(found) =>
                     entry := next.used
-                    copy(
+                    copy_bytes(
                         next.slots.at(entry).address,
                         self.slots.at(index).address,
                         size_of::[UniqMapSlot[K, V]](),
@@ -1378,7 +1378,7 @@ impl[T < ?Copy, 'a] Drop for UniqListDrain[T, 'a]:
                     _ := items.buffer.at(self.at).read()
                     self.at += 1
                 if self.tail > 0:
-                    copy(
+                    copy_bytes(
                         items.buffer.at(items.len).address,
                         items.buffer.at(self.end).address,
                         self.tail * size_of::[T](),
