@@ -1,0 +1,6 @@
+# test: uniq list split off out of bounds
+use std.collections.UniqList
+
+pub fn main() -> void:
+    let mut items = UniqList::[i32].new()
+    _ := items.split_off(1) # panic: index-out-of-bounds

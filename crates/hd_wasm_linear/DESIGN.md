@@ -253,16 +253,19 @@ the slot's start:
 | Offset | Size | Field |
 | --- | --- | --- |
 | 0 | 4 | the count: 32-bit, non-atomic, with no overflow check on wasm32 (REFCOUNT_RUNTIME.md §4.4) |
-| 4 | 4 | the descriptor word: bits 0 to 21 the release glue's function-table slot plus one (0 for none), bits 22 and 23 the collector's color (§23.28) and bit 24 its frame flag (REFCOUNT_RUNTIME.md §7.2), bits 25 to 29 the allocator class; bit 30 set while the object is a cycle candidate, bit 31 when its type is cycle-capable (§23.28) |
+| 4 | 4 | the descriptor word: bits 0 to 15 the release glue's function-table slot plus one (0 for none; in a weak-linked module bits 0 to 14, and bit 15 set while a weak side entry names the object), bits 16 to 21 the borrow state (bits 16 to 20 the shared loan count, bit 21 an exclusive loan; `docs/future-work/POINTER_LOANS.md`), bits 22 and 23 the collector's color (§23.28) and bit 24 its frame flag (REFCOUNT_RUNTIME.md §7.2), bits 25 to 29 the allocator class; bit 30 set while the object is a cycle candidate, bit 31 when its type is cycle-capable (§23.28) |
 | 8 | the payload's size | the payload: the fields, or a buffer's header and elements |
 
 - A reference to a whole object is the payload's address, slot + 8, so
   its fields read at constant offsets with no lookup; the header is at
   `address - 8`.
 - **The descriptor word** identifies shared release glue, not a nominal
-  type record. Its low 22 bits are the glue's table slot plus one; three
-  bits are the collector's state, five carry an allocator class, and the
-  top two are collector flags. Every block is header plus payload, so a
+  type record. Its low 16 bits are the glue's table slot plus one, so a
+  module's function table has fewer than 65,535 slots (32,767 when weak
+  references are linked); six bits are the borrow state, three the
+  collector's state, five carry an allocator class, and the top two are
+  collector flags. Every update of one field is a read-modify-write that
+  keeps the others. Every block is header plus payload, so a
   cycle-capable type's object takes the same class as any other.
   The allocator supplies the block size. An interior reference finds its
   block through the page table, then runs that block's glue. Types with
@@ -448,11 +451,13 @@ issue-backed exceptions; there is no per-backend rollout pass list.
   `as_mut` are the pointer's address (`Em::ptr_ref`), a short loan's
   origin when its holders allow (§23.20). A `Buffer[T]` is an ordinary
   struct of an address and a capacity, hd over these (`std.rt.memory`):
-  its room is a block whose count word holds 2^30, which no
-  balanced count of a reference into the room brings to its last count,
-  and whose descriptor word is 0, then the values. Its `Drop` frees the
-  room; the collector's `hold_room` defers that while it traces
-  (§23.28). A string's bytes are its address, and a new string is a
+  its room is a block whose count word starts at 1, the buffer's, and
+  whose descriptor word is 0, then the values. A reference into the room
+  that takes a count adds one (§23.20, "References count what they
+  cross"), so `Buffer.pinned` is a load of that word. Its `Drop` and
+  `grow` give up the buffer's count and free the room when it was the
+  last; else the last reference's release frees it, with no glue. The
+  collector's `hold_room` defers that free while it traces (§23.28). A string's bytes are its address, and a new string is a
   `Str` block, or the static empty string for no bytes.
 - **Release glue only.** A type whose values hold no counted address but
   implement `std.rt.Drop` (a `UniqList` of scalars) has the walk
@@ -1060,10 +1065,11 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   without rebuilding its parent.
   The source reference evaluates once before the RHS. A compound assignment
   reads the old field before its RHS; both kinds store after the RHS,
-  preserving changes it makes to neighboring fields through aliases. A local reference
-  is counted through the page table at any address in its object, so a
-  reference to a field keeps the whole object alive (a counted one is a
-  payload start, §23.30). `is` compares
+  preserving changes it makes to neighboring fields through aliases. A local
+  reference that takes a count is counted through the page table at any
+  address in its object, so a reference to a field keeps the whole object
+  alive (a counted one is a payload start, §23.30); which ones take one is
+  below ("References count what they cross"). `is` compares
   addresses, and `identity_of` is no base, the address as the serial and
   no key. A reference to a trait value is that trait value, the data
   address and the vtable, as Rust's `&dyn Tr` is: `RefDyn`'s other block
@@ -1077,6 +1083,40 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   profile and in release; 16 of them are the count of blocks
   `std.rt.alloc.allocated` reports, which `ref_tests.hd` reads to see
   that a loop writing through `&mut` to a local allocates nothing.
+- **References count what they cross** (issue #1320,
+  spec/lang/13-values-and-references.md `ref.count.pointer`,
+  `ref.count.local`). A reference's count protects the storage its place
+  crosses that an alias the checker cannot see may change, and nothing
+  else; the place decides it, never the named type:
+  | The place crosses | The reference takes |
+  | --- | --- |
+  | no dereference of a counted reference, no list or map element: a local's frame slot or cell, a field path in it, or such a reference's referent | no count (`Em::frame_loans`) |
+  | a `*T` or `*mut T` dereference, fields after it | a count of that object, through the page table at its address: an alias may replace it |
+  | a `List` or `Map` element | the pin, a count of the buffer (below) |
+  | a `UniqList` or `UniqMap` element (`Ptr.as_ref`, `as_mut`) | a count of the room, so `Buffer.pinned` is true while an alias could grow it (`std-collections.uniq-list.pinned`), unless a short loan holds it |
+  A reference into a slot needs none because a slot is static (§23.38); one
+  into a cell because the passes keep a cell local alive over every use of
+  what may point into it (`hd_tir/src/own/frame.rs`, the origin rule), in
+  an owned body with no suspension point. Such a **loan** flows into a
+  `Ref` through it to a part of its referent, a read of all or a part of
+  it, a same-value coercion, a variant, struct or tuple whose counted parts
+  are all loans (`Option[&T]`, a cursor of references), a block's, scope's
+  or `break`'s value, and a local every store of which stores one and which
+  no `&mut` reaches. None of these counts or releases. A loan into a cell
+  is **scoped** (`Em::scoped_loans`): a consumer that is no loan, as a
+  return or a store into a counted place, does not take it (`Em::take_from`)
+  but counts a copy of its own, so every count that leaves the body is a
+  real one. A slot's loan may move anywhere, as a count of a slot's address
+  does nothing. A reference through a parameter's referent keeps the lent
+  rule (`ref_word::LENT`): the caller keeps that referent alive for the
+  call, and a result that holds one is counted where it is returned.
+  **View owners.** A `Ref` to a field of a loan may be a projection of a
+  representation view (`rt:ref_project`) where the base is an erased
+  view: the loan's flag (`Em::view_loans`) marks that fresh object, and
+  the loan's `Drop` releases it, so the loan owns it. A payload field
+  reference (`rt:ref_payload`) and a copy of a local no cell holds
+  (`ref.expr.allocate`) are new objects whose one count the reference
+  holds; they take no other count, and their `Drop` frees them.
 - **Cells made before use** (issue #678). A use of a cell reads its local
   directly when the cell certainly exists there (`Em::cell_made`): the
   prologue made or received it (a parameter moved into its cell, a
@@ -1183,6 +1223,494 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   (`UniqMap.insert`'s probe, #1230). A table or
   list a view's getter made stays until that `Drop`. Any other reference keeps
   its count and pin, so `map-get-ref-pinned-panics` still panics.
+- **Pointer loans and borrow-state checks** (model A of
+  `docs/future-work/POINTER_LOANS.md`, #1336; `emit/borrow.rs`). A
+  reference a binding, struct, tuple or option holds takes a shared loan
+  on each `*T` object its place crosses and, on the last, a shared one for
+  `&` or an exclusive one for `&mut`: the store into the holder adds them
+  to the objects' states (§23.4) and keeps each header address in a local,
+  and the holder's release, after its last use, subtracts them. A copy of a
+  holder takes its own loans on the same objects; a move passes them over.
+  Before a `Store`, an `IsUnique`, a `&mut` `Ref` or any other `Ref` or
+  `Read` of a place, each `*T` dereference on the place tests the state of
+  the object it reaches, `load(o - 4)`: the last one with the whole state's
+  mask for a write or a `&mut`, else with the exclusive bit, and every
+  earlier one, which is only read to reach the next, with the exclusive
+  bit. The masked state must equal the function's own loans taken through
+  the same pointer (the place's root local and the steps to the pointer),
+  which a local per pointer sums, and 0 through any other. A difference
+  panics `borrow-conflict`. Only a type some loan may hold is tested
+  (`Module::lent`); a place that crosses no `*T` emits nothing, and a
+  pointer argument is no access. Call arguments, returned references and
+  suspending bodies take no loan yet.
+- **Bounded memory.** `crates/hd_driver/tests/std_rt/count_tests.hd`
+  repeatedly builds strings, chains of nodes and enum payloads, checking
+  that the heap stays bounded.
+
+### 23.17 List Operations
+
+List kernels live in `emit/list.rs`, with buffer glue in `rt.rs`;
+changes preserve collection value semantics (§23.7).
+
+- **Literals.** A literal sizes its buffer exactly for its items and its
+  spreads (`expr.list.spread.insert`), stores each item, copies each
+  spread's elements with one `memory.copy`. Every empty literal shares
+  one static empty
+  buffer, whose count word is 0, a static object's, so no count changes it and a change always copies it first. A
+  tuple's rest list is its last member.
+- **Copies.** Every count of a list or a map counts
+  one more holder of the same buffer, or clones a pinned or exposed one
+  (`rt:coll_copy`), and the result replaces the value in the copy: a
+  count of a struct copies each list among its fields at any depth
+  (`layout::coll_leaves`, after `hd_mono::holds_coll`). The count glue
+  does it for a value in locals (`Em::count_locals`, `Em::copy_locals`
+  for a value another place keeps), a new object's payload
+  (`Em::retain_fields`), a value read through a reference (`rt:ref_load`)
+  and a frame's arguments and captures.
+- **Changes.** The passes' `IsUnique` before a `push` or an element
+  store makes the buffer the list's own (`rt:list_unique`). A shared
+  buffer is copied: its elements take their own counts, the lists among
+  them become copies in turn, so a nested write never reaches another
+  list, and the old buffer loses one holder. A `push` into a buffer
+  with no owner word and room left stores the element and the length
+  inline; any other goes through `rt:list_grow`, which panics on a pin
+  and moves a full buffer to one of twice the length plus 4, freeing
+  the old block without releasing its elements, which moved. Either
+  stores the new buffer into the place the change names. A store counts
+  the new element before it releases the old one.
+- **Cold calls** (#165). The copy of a shared buffer (`rt:list_copy`,
+  behind `rt:list_unique`'s check), a `push`'s `rt:list_grow`, the panics
+  that format a string (`rt:panic_str`, `rt:panic_with`) and the
+  exchange buffer's growth failure in `rt:to_buf`, and the collector's
+  `collect` before an allocation and `visit` in a release (§23.28), are
+  called through the function table (`Func::cold_helper`), not with
+  `call`. V8 inlines no
+  `call_indirect` by default, and without call feedback (`--no-liftoff`)
+  it inlines small direct callees by size. Through a `call`,
+  `rt:list_unique` brought the copy loop, the allocator and its panics
+  into each function that changes a list, and the cycle of a panic and
+  `rt:to_buf` was unrolled about 20 calls deep, so the caller's budget
+  never reached its own small callees (spectral_norm's `a`). What the
+  engine inlines now is the check: a few loads and a compare. A table
+  slot costs a few bytes per call site.
+- **Bulk appends.** std's `list_extend(items: &mut List[T], other)`
+  (`List.extend`) reads the list through its reference, as
+  `list_truncate` does, and stores the buffer back. `rt:list_extend`
+  reads `other`'s length first, then makes room once
+  (`rt:list_reserve`, the runtime's one reserve routine): a pinned list
+  panics; a shared buffer, or one
+  without room, is replaced by one new buffer of the needed length or
+  twice the length plus 4, whichever is more (a shared one with room
+  keeps its capacity); the shared one's elements take their own counts,
+  the list's own moves with its owner word. One `memory.copy` appends
+  `other`'s elements, which take their own counts (`rt:copy_elems`).
+  `other` is lent, so it may be the list's own buffer itself
+  (`items.extend(items)`): the copy then reads from wherever the reserve
+  put that buffer, up to the length read first. std's
+  `bytes_append(bytes: &mut List[u8], text)` (`StringBuilder.push`) is
+  the same through the reference, with the source the string's view
+  (`rt:bytes_append`): a buffer the list owns alone, with no owner word
+  and room for the bytes, takes them inline with one `memory.copy`; any
+  other goes through `rt:list_reserve` first.
+  std's `list_reserve(items: &mut List[T], count)`
+  (`StringBuilder.reserve`) is that routine itself through the
+  reference, behind the same inline `count != 0` test, so a count of 0
+  neither copies nor panics on a pin. After it the list has room for
+  `count` more elements with no further growth: a shared buffer, or one
+  short of room, becomes one new buffer as above; a buffer the list owns
+  with the room stays. The TIR's `ListReserve` (a list comprehension
+  over a range or a list, before its loop) is the same routine on a
+  list value, as `ListPush` is: its new buffer goes back into the
+  operand's place.
+- **Release.** A buffer's release glue (`rt:drop_elems`) releases each element's counted references up to the
+  length. A list of strings or of structs holding lists frees everything
+  at its last release.
+- **Loops.** A `for` loop's copy of its list is an ordinary value: its
+  drop after the loop gives the buffer back, so the list's next change
+  copies only when something else still shares the buffer.
+- **Pins.** The passes' `Pin` gives the buffer its owner word while
+  element references hold counts of the buffer, and a `push` into a
+  pinned list panics `collection-pinned`. Element
+  references use the typed views of §23.20, preserving the header and
+  the referenced slot when a buffer is copied.
+- **Indexing.** An index is checked against the length before it is
+  narrowed: a 64-bit index past 4 GiB is `index-out-of-bounds`, never
+  wrapped.
+- **Strings over lists.** `string_from_bytes` takes over its list: the
+  call consumes the argument, moved in at its last use (the one
+  `@intrinsic` whose value argument is owned, not lent). When that count
+  is the buffer's only one and the owner word is 0, the string is a view
+  of the buffer's bytes in place, at payload offset 16, with no copy
+  (`rt:str_from_bytes`); the capacity past the length stays unused. A
+  shared or pinned buffer is copied into a new string buffer and loses
+  the count. A view into a former list buffer is released as any
+  interior view is: the page table finds the block, and a `List[u8]`
+  buffer has no release glue, so its last release
+  frees it as it frees a `rt:str` buffer. `StringBuilder` is one such
+  `List[u8]`: `push` appends a string's bytes (`bytes_append`, above) and
+  `build` moves the list out of the builder into `string_from_bytes`, so
+  the string takes the buffer over. `concat_all` copies its
+  strings' bytes into one new string buffer. `string_to_bytes` is the
+  other way: one list buffer of exactly the string's length and one
+  `memory.copy`.
+- **Bounded memory.** `crates/hd_driver/tests/std_rt/list_tests.hd`
+  builds lists of strings and lists of structs holding lists, and copies
+  and changes a list, each in a loop, and checks that the heap does not
+  grow after a warm-up.
+
+### 23.18 Map Operations
+
+Map kernels live in `emit/map.rs`, with table glue in `map.rs` (§23.7).
+Each operation implements collection value semantics (§15.2;
+`crates/hd_mono/DESIGN.md` §13.12), using the table's count for copy-on-write.
+
+- **The table.** A map is the address of one counted block: the live and written entry counts, the owner word (at a list
+  buffer's offset), the capacity, the rebuild count, then an index of entry numbers plus one (0 empty) twice the
+  capacity long, each entry's hash (-1 once removed), and the entries
+  in the order they were added, each a `(K, V)` record laid out as a
+  tuple. Probing is linear from the hash's low bits; the index is at
+  most half full, so a probe always meets an empty slot.
+- **Keys.** A key hashes and compares through the operations collection
+  chose: an integer, `bool` or `char` through `int_bucket_hash` over its
+  bits zero-extended and `i32.eq` or `i64.eq`, a string through
+  `string_bucket_hash` and a byte comparison, any other key through its
+  `key_bucket_hash` and `key_equal` instances, which take the key by
+  value (`key_equal` lends both to `Eq.eq`). `map_hash_seed` is a runtime
+  global filled from the host's `hd:rt.hash_seed` on first use.
+- **Literals and puts.** A literal makes a table with room for its
+  entries and puts each in source order (`expr.map.order`). A put of an
+  equal key replaces the value in the entry's place
+  (`expr.map.duplicate.last`) and releases the key it was given; a new
+  key appends an entry. The table takes a count of each key and value it
+  keeps. Every empty literal shares the static empty buffer of §23.17,
+  now 16 zero bytes, which is an empty table too.
+- **Growth.** A put into a full table moves the live entries in order
+  into a new table, of twice the capacity (at least 4) when at least half
+  are live and of the same capacity otherwise, rebuilds the index from
+  the kept hashes, and frees the old block without release, since its
+  entries moved.
+- **Removal.** `remove` marks the entry's hash -1 and lowers the live
+  count: probes pass it, iteration skips it, and the survivors keep
+  their order. The result takes its own count of the value before the
+  table releases the entry's key and value.
+- **Copies and changes.** Copies are the
+  list ones (§23.17), with the owner word where a list's is. `m[k] = v`,
+  `remove` and a change through a value place first make the table the
+  map's own (`rt:map_unique`): a shared table is copied whole, each live entry
+  takes its own counts, and the collections among the values become
+  copies, so a write through `m[k].push(v)` reaches only this map.
+- **Probes.** `get` is the `MapGet` built-in, which copies the value
+  out. `get_or_insert` has the `map_probe` body: one hash and one search,
+  reusing a missing search position for insertion. A mutable probe makes
+  the table the map's own and stores it back; a counted reference pins it
+  (§23.20). A probe whose reference is a short loan (§23.20) takes no
+  count.
+- **Iteration.** A counted `for` iterates the snapshot through
+  `MapSlots`, `MapSlotNext` and `MapSlotEntry`, which read the entries
+  in place.
+- **Release.** A table's glue (`rt:drop_entries`) releases each live
+  entry's key and value.
+- **Bounded memory.** `crates/hd_driver/tests/std_rt/map_tests.hd`
+  builds maps of strings and maps of lists, removes in a loop, and
+  copies and changes a map, and checks that the heap does not grow after
+  a warm-up.
+- **Why glue, not hd.** The table's code depends on the entry's layout,
+  which only the backend knows: std has no size or layout of a type
+  parameter over `std.rt.memory`, as for list buffers.
+
+### 23.19 Closure And Trait Values
+
+Closure environments and function-value calls are in `emit/closure.rs`.
+Trait values and vtables use `emit/dyn_value.rs`; map cursor closures use
+`emit/iter.rs` (§23.8).
+
+- **Function values.** `(code, environment)`: the function-table slot of
+  the code instance and the address of a counted environment, 0 when
+  nothing is captured. A code instance takes the environment first, then
+  its parameters, then the providers of its type's row in key order, so a
+  call of a value pushes them and makes one `call_indirect`, or a direct
+  call when collection knows the closure (`KnownClosure`). A function
+  reference (`double` as a value) is an adapter instance that ignores its
+  environment and calls its target.
+- **Environments.** One counted object per closure value, holding each
+  capture inline (the tier-1 design (`58c3d470f:docs/future-work/OBJECT_MODEL_TIER1.md`) §9.1): an immutable capture's
+  value, with a count of its own, or a shared local's cell address. Its
+  descriptor's glue releases the captures, so each closure literal's
+  layout has its own release, as §23.8 says. A closure copied counts its
+  environment once more; the environment goes at its last copy.
+- **Cells.** A local that a closure shares (`CaptureMode::Shared`, one
+  assigned after it is captured) lives in a cell: a counted object
+  holding its value, whose address is the local's one Wasm value. The
+  local's declaration makes the cell (a new one per loop iteration, so
+  closures made in a loop each see their own, `flow.for.binding.fresh`);
+  every later store writes the cell, counting the new value before it
+  releases the old; a read copies the value out with a count. A shared
+  `mut` parameter moves into a cell on entry. A capture reached before
+  its declaration (a recursive reassignable local function's own name)
+  makes a cell of zeros, which the declaration fills.
+- **Immutable self-recursion.** A recursive `:=` local function's own
+  binding is not an environment field. Its code reconstructs that value
+  from its current function-table slot and hidden environment parameter.
+  Entry liveness owns that value like a copied capture; a suspending cold
+  constructor saves it in the initial frame. A nested closure copies the
+  reconstructed value. Thus value-only captures form no cell/environment
+  back-link. A reassignable `let` keeps its shared cell, as does explicit
+  address-taking of the binding, whose address must remain stable.
+- **Trait values.** `(data, vtable)`. The data is the value itself when
+  its layout is one counted address (a data value, a list, a map, a
+  reference), 0 when it has no Wasm values, and otherwise a new counted
+  box of the value's layout, whose descriptor releases its fields. So the
+  data is always one counted address, and copying or dropping a trait
+  value counts its data with no knowledge of the type; this is why a
+  vtable carries no release word. A vtable is static data: one
+  function-table slot per method of the trait, in declared order, each an
+  adapter that loads the payload from the box (or passes the data itself)
+  and calls the method's instance, then the addresses of the direct
+  supertraits' vtables. Widening to a supertrait loads those addresses
+  along the path; a supertrait's method dispatches the same way.
+- **Reference payloads.** A `&S` converted to a trait value
+  (`RefToTraitValue`) keeps the `Ref` object as its data. A slot whose
+  method takes the value reads it through the `Ref`'s `get` closure
+  (`SlotRecv::ReadThrough`); a `&self` or `&mut self` slot gets the `Ref`
+  itself. A trait value reference installed as a provider
+  (`RefAsProvider`) is the `Ref` with the vtable that its `get` returns,
+  and `$.use(K)` (`ProviderAsRef`) reads the `Ref` back, so two uses are
+  one reference (`req.ref.same-place`).
+- **Inspection.** `TypeId` is a struct of two static strings, the key and
+  the printable name, never counted. `TypeId::of`, a concrete value's
+  `runtime_type` and the vtable's `runtime_type` slot answer them with no
+  allocation; a downcast compares the key the payload's vtable reports
+  with the target's and unboxes on a match.
+- **Identity.** `is` compares the first counted address: a data value's,
+  a list's or a map's header, a trait value's data; two references
+  compare their addresses (§23.20). A trait value that boxed a value
+  compares its boxes (`ref.identity.same-place`).
+- **Providers.** `$.with(K: v) body` makes `v` the provider of `K` in the
+  body, borrowing `v`'s locals, whose count lasts to the function's
+  exit. (`Guard`, a match guard's condition block and its two branches,
+  lowers here too.)
+- **Iterators.** A cursor iterates a snapshot
+  (`flow.for.cursor.snapshot`): it holds a count of the collection's
+  buffer, so a later change copies the buffer first. `List.iter()` uses
+  std's direct cursor, the list and an independent position; neither
+  constructing nor stepping it needs a closure. `Map.iter()`'s
+  `MapEntries` uses `map_steps`: its step closure keeps the map's table
+  and its written entry count at creation, while the cursor keeps its own
+  position. `list_truncate`, used by `pop`, `insert`, `remove_at` and
+  `clear`, reads the list through its reference, truncates it, and stores
+  the buffer back, through a view's setter for a representation view.
+- **Bounded memory.** `crates/hd_driver/tests/std_rt/closure_tests.hd`
+  calls function references and closures, shares a local between a scope
+  and its closures, dispatches through boxed and widened trait values,
+  and makes closures and trait values in a loop, checking that the heap
+  does not grow after a warm-up.
+
+### 23.20 Reference Addresses And Typed Views
+
+References use addresses and typed views; cleanup scopes and element
+references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/future-work/OBJECT_MODEL_TIER1.md`) §6.3).
+
+- **References as addresses** (issue #587). The checker names each
+  reference's place in the TIR (`Ref` of a place: a local, a top-level
+  binding, a place through another reference, a data object's field or a
+  list element, then a struct field path; `docs/compiler/tir-v2.md`)
+  and each read, write and identity through one (a `Read` or `Store` of
+  a place through it, `RefIdentity`), with no closure form (stage 1 of
+  TIR v2 removed them).
+  Here `std.core.Ref[T]` and `std.core.Counted[T]` are one address
+  (`layout::Kind::Ref`, `emit/refs.rs`), the thin form of §23.5:
+  - a local some reference refers to lives in a cell
+    (`closure::cell_locals`), one per execution of its declaration, and
+    the reference is the cell's payload address plus the field path's
+    offset, so `&mut x` in a loop over a local declared outside it
+    allocates nothing;
+  - a top-level binding some reference refers to lives in a static slot
+    of its layout instead of Wasm globals (`Module::addressed`), whose
+    address no count changes;
+  - a local in a structure handle's body (kind `Handle`), which runs once
+    per instance, lives in a static cell: a zero count word, then the
+    value, which the program never releases (`Em::static_cell`), so a
+    `Field`, `Variant`, `Members` or `Key` value is one static address;
+  - a place through a reference is that address plus the path's offset;
+  - a field of a compiler-supplied data object is its payload address
+    plus the field's offset;
+  - a list element is its address in the buffer (below).
+  A read loads the target's values from the address and a write stores
+  them, moving in a value the store consumes and counting any other,
+  before it releases the old. A struct field
+  assignment through a reference is one `Store [*r .f]` of that field,
+  without rebuilding its parent.
+  The source reference evaluates once before the RHS. A compound assignment
+  reads the old field before its RHS; both kinds store after the RHS,
+  preserving changes it makes to neighboring fields through aliases. A local
+  reference that takes a count is counted through the page table at any
+  address in its object, so a reference to a field keeps the whole object
+  alive (a counted one is a payload start, §23.30); which ones take one is
+  below ("References count what they cross"). `is` compares
+  addresses, and `identity_of` is no base, the address as the serial and
+  no key. A reference to a trait value is that trait value, the data
+  address and the vtable, as Rust's `&dyn Tr` is: `RefDyn`'s other block
+  makes it, `&mut held` of a trait value is the trait value in `held`,
+  and a provider installed behind a reference is that trait value
+  (`RefAsProvider`). A local copy that a closure captured and a
+  suspending body's parameter, whose cell the frame cannot hold yet, are
+  no places in memory: a read-only reference to one is to a new object
+  holding a copy, and `&mut` to one stays refused.
+  hello (`println(42)`) went from 6,007 to 5,040 bytes in the dev
+  profile and in release; 16 of them are the count of blocks
+  `std.rt.alloc.allocated` reports, which `ref_tests.hd` reads to see
+  that a loop writing through `&mut` to a local allocates nothing.
+- **References count what they cross** (issue #1320,
+  spec/lang/13-values-and-references.md `ref.count.pointer`,
+  `ref.count.local`). A reference's count protects the storage its place
+  crosses that an alias the checker cannot see may change, and nothing
+  else; the place decides it, never the named type:
+  | The place crosses | The reference takes |
+  | --- | --- |
+  | no dereference of a counted reference, no list or map element: a local's frame slot or cell, a field path in it, or such a reference's referent | no count (`Em::frame_loans`) |
+  | a `*T` or `*mut T` dereference, fields after it | a count of that object, through the page table at its address: an alias may replace it |
+  | a `List` or `Map` element | the pin, a count of the buffer (below) |
+  | a `UniqList` or `UniqMap` element (`Ptr.as_ref`, `as_mut`) | a count of the room, so `Buffer.pinned` is true while an alias could grow it (`std-collections.uniq-list.pinned`), unless a short loan holds it |
+  A reference into a slot needs none because a slot is static (§23.38); one
+  into a cell because the passes keep a cell local alive over every use of
+  what may point into it (`hd_tir/src/own/frame.rs`, the origin rule), in
+  an owned body with no suspension point. Such a **loan** flows into a
+  `Ref` through it to a part of its referent, a read of all or a part of
+  it, a same-value coercion, a variant, struct or tuple whose counted parts
+  are all loans (`Option[&T]`, a cursor of references), a block's, scope's
+  or `break`'s value, and a local every store of which stores one and which
+  no `&mut` reaches. None of these counts or releases. A loan into a cell
+  is **scoped** (`Em::scoped_loans`): a consumer that is no loan, as a
+  return or a store into a counted place, does not take it (`Em::take_from`)
+  but counts a copy of its own, so every count that leaves the body is a
+  real one. A slot's loan may move anywhere, as a count of a slot's address
+  does nothing. A reference through a parameter's referent keeps the lent
+  rule (`ref_word::LENT`): the caller keeps that referent alive for the
+  call, and a result that holds one is counted where it is returned.
+  **View owners.** A `Ref` to a field of a loan may be a projection of a
+  representation view (`rt:ref_project`) where the base is an erased
+  view: the loan's flag (`Em::view_loans`) marks that fresh object, and
+  the loan's `Drop` releases it, so the loan owns it. A payload field
+  reference (`rt:ref_payload`) and a copy of a local no cell holds
+  (`ref.expr.allocate`) are new objects whose one count the reference
+  holds; they take no other count, and their `Drop` frees them.
+- **Cells made before use** (issue #678). A use of a cell reads its local
+  directly when the cell certainly exists there (`Em::cell_made`): the
+  prologue made or received it (a parameter moved into its cell, a
+  closure's or a thunk's shared capture), or known-null found the local
+  holding its value there (`Body::full_cells`, rule 5 of
+  docs/compiler/tir-v2.md, "Known-null"). The pass gives each local a
+  `Ref` of its own storage or a shared capture puts in a cell a bit that
+  is set where it may hold no value: before its first store, after a
+  `Drop` of it, a `move` read of it and a `Ref` that takes its count;
+  states join by union at the ends of branches and arms and at a loop's
+  head. A `Read`, `Store`, `Ref`, `IsUnique` or `Pin` of a place rooted
+  at the local, a `Closure` that captures it, and a `Loop` (whose stable
+  places and hoisted checks are read before it) get a row where the bit
+  is clear on every path. Every store makes the cell (its declaration,
+  or `Em::cell_of` for any other), and only a `Drop`, a move or a taking
+  `Ref` zeroes the local, so the local holds the cell's address there.
+  Any other use tests the local and makes a cell of zeros when it is 0: a
+  use some path reaches before a store, one inside a cleanup suite (which
+  also runs at jumps the walk does not follow there), and every use in a
+  suspending body, whose resume reloads the locals from the frame and
+  enters blocks in the middle (§23.21).
+- **A reference at its local's last access** (issue #701). `&x`, the
+  address of cell local `x`'s cell with no field path, takes the local's
+  count of the cell where move's rule 4 marks it (`Ref take`,
+  `ref_word::TAKES`, docs/compiler/tir-v2.md, "Move"): the reference is
+  stored as owned and the local is zeroed, and the pass deleted the
+  local's `Drop`. Where the reference is no cell's address at this
+  instance (a trait value's, an open cell's view), it takes a count of
+  its own and the local is released after it. The pass keeps the count
+  for a cell a closure shares, every cell of a suspending sub-body (its
+  frame saves the local, and a resume enters blocks in the middle), and
+  `&x.field`, whose address `rt:ref_project` makes with a count of its
+  own. `&Node { ... }`, which the checker binds to a hidden local, makes
+  its node with no count change (`allocation/new-reference`);
+  `hd_driver/tests/cases/counts/reference-*` hold the boundaries.
+- **Cleanup scopes.** A `Scope` with `defer` suites uses an
+  exit ladder (`emit/scope.rs`, crates/hd_mono/DESIGN.md
+  §12.2): each suite has a flag that its `Defer` sets; a `break`,
+  `continue` or `return` that leaves the body stores its exit's code and
+  branches to the scope's end, which runs the registered suites last in,
+  first out, as a forbidden context, then takes the exit again through
+  the next scope out. A suite that suspends (`using!`'s `dispose!`) uses the
+  cleanup state machine (§23.21).
+- **Releases at last use.** A reference is released after its last use,
+  not at the end of its block (§6.3 rule 5), so a counted value never
+  waits for the function's exit (§23.16). Insertion places the `Drop`s
+  (docs/compiler/tir-v2.md, "Insertion" rules 2 to 4): a value's after the
+  statement of its home block that holds its last use, a local's after
+  the statement of the innermost block holding all its accesses that
+  holds the last one, and before each jump the drops of what it leaves
+  that may still hold a count, up to the innermost cleanup scope it
+  crosses, whose suites may still read the scope's locals. The emitter
+  lowers each `Drop` where it stands.
+- **Element references own their pin.** An element reference is the
+  element's address in its list's buffer, and its count is a count of
+  the buffer. Insertion puts an `IsUnique` and a `Pin` of each list on
+  the reference's path before it, outermost first (docs/compiler/tir-v2.md,
+  "Insertion" rule 6). `IsUnique` makes the buffer the list's own, and
+  `Pin` gives the buffer its owner word (§23.7), with no count: the
+  function-table slot of the list's clone glue plus one. A buffer whose
+  owner word is set has one header holding it, so every
+  count past the first is a reference's: the list is pinned while the
+  buffer's count is over 1 (`rt:list_pinned`), and a `push` or a
+  truncation then panics `collection-pinned` (`ref.elem.release.copies`).
+  The reference's own count of the innermost buffer is the pin, so it
+  ends with the reference's `Drop`; an ancestor list is exposed and never
+  pinned. A change through the list writes the buffer in place, which
+  every element reference sees. A copy of a pinned list copies its buffer
+  at once through the owner word's clone glue (`rt:list_copy`), and a
+  copy of an unpinned one clears the word, since the buffer is shared
+  again. When the element layout contains collection values, `Pin` also
+  sets bit 31 of the owner word. This exposure survives the pin: an
+  escaped reference can still reach a descendant after that pin ends.
+  `ListCopy` clones exposed buffers regardless of the direct pin count,
+  masking off bit 31 before calling the clone glue. Recursive collection
+  copies isolate pinned descendants; the new header starts unexposed.
+  Fresh containment uses the same collection-copy glue, so it cannot hide
+  an exposed child behind a shared outer buffer. Lists of scalar or
+  reference elements gain no exposure bit: their ordinary pin/count fast
+  path is unchanged. Each copy of an element reference holds its own
+  count, so a reference stored in a field, returned, or captured by a
+  closure called later keeps the list pinned until that copy's last use.
+  Two references to one slot share its address (`ref.elem.identity`). A
+  trait value of a value that is one counted address is that address,
+  never a copy.
+- **Short loans.** A reference from a `map_probe` or `ptr_ref`
+  intrinsic or a shared element `Ref` of a local's list (or of a read of
+  all of it, as `for x in &xs` makes) whose every holder ends before
+  anything could write or drop its collection lives on the collection's
+  own count (`emit/loan.rs`): no count of the buffer, and for a shared
+  one no uniqueness check or pin, so the `IsUnique` and `Pin` insertion
+  put right before such an element `Ref` emit nothing. Its holders are the values and locals it flows into: a variant
+  around it, a block tail its owner takes, a `break` value, a local
+  stored once from it, a read of a part that is the reference again.
+  Each use of a holder lends, and one `Drop` in the origin's loop ends
+  the loan. No statement between them stores outside a local off the
+  collection's path, drops or moves that path, takes a `&mut`, checks or pins
+  a buffer, calls a function that may write, or jumps out. A loan that
+  a `match` on a holder only decides with (every other use of a holder
+  is before the match or in its decision, and no binding holds a
+  borrow) ends with the decision: only the statements up to the match
+  and the decision are checked, so an arm may write the collection or
+  return, and each holder `Drop` in the origin's loop ends it
+  (`UniqMap.insert`'s probe, #1230). A table or
+  list a view's getter made stays until that `Drop`. Any other reference keeps
+  its count and pin, so `map-get-ref-pinned-panics` still panics.
+- **Borrow-state checks** (model A of `docs/future-work/POINTER_LOANS.md`,
+  #1336; `emit/borrow.rs`). Before a `Store`, an `IsUnique`, a `&mut`
+  `Ref` or any other `Ref` or `Read` of a place, each `*T` dereference on
+  the place tests the borrow state of the object it reaches (§23.4),
+  `load(o - 4)`: the last one with the whole state's mask for a write or a
+  `&mut`, else with the exclusive bit, and every earlier one, which is only
+  read to reach the next, with the exclusive bit. A set bit panics
+  `borrow-conflict`. Only a type some loan may hold is tested
+  (`Module::lent`, today the types of the loan table's binding loans and
+  their path objects, in every build); a place that crosses no `*T` emits
+  nothing, and a pointer argument is no access. Nothing sets a loan yet.
 - **Bounded memory.** `crates/hd_driver/tests/std_rt/ref_tests.hd` writes
   through references to locals and elements, checks that a pin ends with
   its reference's last use, and takes references to locals and elements

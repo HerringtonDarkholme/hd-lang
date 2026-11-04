@@ -2,10 +2,10 @@
 std/rt_tests.stage_case/later
   local $0 items: UniqList[i64] [:= read assigned captured]
   %19 = Ref local [$0] : Counted[UniqList[i64]]
-  %20 = Drop [$0] : ()
-  %21 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].len[i64] (%19) : usize
-  %22 = Drop [%19] : ()
-  %23 = Block %21 : usize
+  %20 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].len[i64] (%19) : usize
+  %21 = Drop [%19] : ()
+  %22 = Drop [$0] : ()
+  %23 = Block %20 : usize
   %24 = Closure #1 [%0 %1] : fn() -> usize
   %25 = Drop [$0] : ()
   %24 finds [$0] full

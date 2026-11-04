@@ -142,6 +142,11 @@ impl[T < ?Copy] Buffer[T]:
     pub fn capacity(&self) -> usize:
         self.capacity
 
+    ## Whether a reference into the room counts it, as one reached through a `*T` does: then the room's owner must not change how many values it holds.
+    ## See [module.rt.buffer.pinned](../../../spec/lang/10-modules.md#r-module.rt.buffer.pinned).
+    pub fn pinned(&self) -> bool:
+        self.address != 0 && load_u32(self.address - 8) > 1
+
     ## The place of value `index` of the buffer's room.
     ## See [module.rt.buffer.at](../../../spec/lang/10-modules.md#r-module.rt.buffer.at).
     pub fn at(&self, index: usize) -> Ptr[T]:
@@ -165,11 +170,10 @@ impl[T < ?Copy] Drop for Buffer[T]:
         free_room(self.address)
 
 # A new room for `capacity` values of `size` bytes, or 0 for none. Its
-# block starts with a count word that no balanced retain and release of a
-# reference into it brings to its last count, 2^30, and a descriptor word
-# of 0: no glue, and no part in cycle collection. Its values follow. Only
-# its buffer frees it. (A literal, not a binding: this module has no
-# top-level code to initialize.)
+# block starts with a count word of 1, its buffer's, which each reference
+# that keeps the room alive adds to (one reached through a `*T`), and a
+# descriptor word of 0: no glue, and no part in cycle collection. Its
+# values follow.
 fn room(capacity: usize, size: usize) -> usize:
     bytes := u64(capacity) * u64(size)
     if bytes == 0:
@@ -178,15 +182,23 @@ fn room(capacity: usize, size: usize) -> usize:
     if bytes > 0xfffe0000:
         panic_with("heap-exhausted", "a buffer does not fit the heap")
     block := alloc(usize(bytes) + 8)
-    store_u32(block, 0x40000000)
+    store_u32(block, 1)
     store_u32(block + 4, 0)
     block + 8
 
-# Frees the room at `address`, unless it is 0. While the collector traces
-# its holder, the collector frees it instead (`std.rt.cycle.hold_room`).
+# Gives up the buffer's count of the room at `address`, unless it is 0,
+# and frees the room when no reference counts it; else the last such
+# reference's release frees it. While the collector traces its holder, the
+# collector frees it instead (`std.rt.cycle.hold_room`).
 fn free_room(address: usize) -> void:
-    if address != 0 && !hold_room(address - 8):
-        free_block(address - 8)
+    if address == 0:
+        return
+    block := address - 8
+    count := load_u32(block)
+    if count > 1:
+        store_u32(block, count - 1)
+    else if !hold_room(block):
+        free_block(block)
 
 ## The address of the first of the bytes of `text`, which stay where they are while `text` or a copy of it lives.
 ## See [module.rt.string.bytes](../../../spec/lang/10-modules.md#r-module.rt.string.bytes).

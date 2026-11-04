@@ -63,8 +63,8 @@ pub(super) enum Bind {
 /// One flattened value slot of a local that holds a run-time loan.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub(super) struct Held {
-    local: usize,
-    slot: usize,
+    pub(super) local: usize,
+    pub(super) slot: usize,
 }
 
 /// One loan action after a store into a holder slot.
@@ -234,7 +234,7 @@ fn ref_loan_place(
 }
 
 /// The instruction behind representation-preserving coercions of `a`.
-fn direct_value(b: &Body, a: u32) -> Option<usize> {
+pub(super) fn direct_value(b: &Body, a: u32) -> Option<usize> {
     let mut v = Ref(a).as_inst()?.0 as usize;
     while b.same_value_coercion(v) {
         v = Ref(b.data[v][0]).as_inst()?.0 as usize;
@@ -416,8 +416,9 @@ fn value_binds(
     sub: &dyn Fn(Ty) -> Ty,
     known: &[(usize, Held, Bind, Option<Loan>)],
     v: usize,
+    every_ref: bool,
 ) -> Vec<(usize, Bind, Option<Loan>)> {
-    value_binds_at(pool, env, b, sub, known, v, 0)
+    value_binds_at(pool, env, b, sub, known, v, 0, every_ref)
 }
 
 fn value_binds_at(
@@ -428,6 +429,7 @@ fn value_binds_at(
     known: &[(usize, Held, Bind, Option<Loan>)],
     v: usize,
     depth: usize,
+    every_ref: bool,
 ) -> Vec<(usize, Bind, Option<Loan>)> {
     if depth > 64 {
         return Vec::new();
@@ -451,9 +453,14 @@ fn value_binds_at(
             .collect();
     }
     match b.tags[c] {
-        Tag::Ref => arg_loan(pool, env, b, sub, u32::try_from(c).expect("insts"))
-            .map(|loan| vec![(0, Bind::Begin(u32::try_from(c).expect("insts")), Some(loan))])
-            .unwrap_or_default(),
+        Tag::Ref => {
+            let r = u32::try_from(c).expect("insts");
+            match arg_loan(pool, env, b, sub, r) {
+                Some(loan) => vec![(0, Bind::Begin(r), Some(loan))],
+                None if every_ref => vec![(0, Bind::Begin(r), None)],
+                None => Vec::new(),
+            }
+        }
         Tag::Read => {
             let Some(place) = b.decode_place(b.data[c][0]) else {
                 return Vec::new();
@@ -481,7 +488,16 @@ fn value_binds_at(
                 }
                 PlaceRoot::Value(root) if root.as_inst().is_some() => (
                     sub(b.ty[root.0 as usize]),
-                    value_binds_at(pool, env, b, sub, known, root.0 as usize, depth + 1),
+                    value_binds_at(
+                        pool,
+                        env,
+                        b,
+                        sub,
+                        known,
+                        root.0 as usize,
+                        depth + 1,
+                        every_ref,
+                    ),
                 ),
                 _ => return Vec::new(),
             };
@@ -522,9 +538,18 @@ fn value_binds_at(
                 .zip(fields)
                 .zip(parts)
                 .flat_map(|((value, _), part)| {
-                    value_binds_at(pool, env, b, sub, known, value as usize, depth + 1)
-                        .into_iter()
-                        .map(move |(slot, bind, loan)| (part.first + slot, bind, loan))
+                    value_binds_at(
+                        pool,
+                        env,
+                        b,
+                        sub,
+                        known,
+                        value as usize,
+                        depth + 1,
+                        every_ref,
+                    )
+                    .into_iter()
+                    .map(move |(slot, bind, loan)| (part.first + slot, bind, loan))
                 })
                 .collect()
         }
@@ -546,9 +571,18 @@ fn value_binds_at(
                 .zip(fields)
                 .zip(at)
                 .flat_map(|((&value, _), slots)| {
-                    value_binds_at(pool, env, b, sub, known, value as usize, depth + 1)
-                        .into_iter()
-                        .filter_map(|(slot, bind, loan)| Some((*slots.get(slot)?, bind, loan)))
+                    value_binds_at(
+                        pool,
+                        env,
+                        b,
+                        sub,
+                        known,
+                        value as usize,
+                        depth + 1,
+                        every_ref,
+                    )
+                    .into_iter()
+                    .filter_map(|(slot, bind, loan)| Some((*slots.get(slot)?, bind, loan)))
                 })
                 .collect()
         }
@@ -561,11 +595,12 @@ fn value_binds_at(
 /// a call's result that holds one ([`Body::held_args`]), or a copy or move
 /// of another holder. `sub` gives a local's or instruction's type at this
 /// instance.
-fn binds(
+pub(super) fn binds(
     pool: &InternPool,
     env: &dyn ProgramEnv,
     b: &Body,
     sub: &dyn Fn(Ty) -> Ty,
+    every_ref: bool,
 ) -> Vec<(usize, Held, Bind, Option<Loan>)> {
     let mut out: Vec<(usize, Held, Bind, Option<Loan>)> = Vec::new();
     let mut grew = true;
@@ -586,7 +621,7 @@ fn binds(
             if slots.is_empty() {
                 continue;
             }
-            for (slot, bind, loan) in value_binds(pool, env, b, sub, &out, v) {
+            for (slot, bind, loan) in value_binds(pool, env, b, sub, &out, v, every_ref) {
                 let held = Held { local: l, slot };
                 if slots.contains(&slot) && !out.iter().any(|x| x.0 == i && x.1 == held) {
                     out.push((i, held, bind, loan));
@@ -630,9 +665,14 @@ pub(crate) fn collect_loans(input: &Input<'_>, m: &mut Module) {
         };
         let (item, args) = (t.item[id.idx()], t.args[id.idx()]);
         let sub = |ty| subst(input.pool, input.env, item, args, ty);
-        for (_, _, _, loan) in binds(input.pool, input.env, b, &sub) {
+        for (_, _, _, loan) in binds(input.pool, input.env, b, &sub, false) {
             if let Some(loan) = loan {
                 push_loan(m, loan);
+            }
+        }
+        for (_, _, bind, _) in binds(input.pool, input.env, b, &sub, true) {
+            if let Bind::Begin(a) = bind {
+                super::borrow::lend_ref(input.pool, input.env, b, &sub, m, a);
             }
         }
         // Call loans are development-build checks; release registers none.
@@ -798,7 +838,7 @@ impl Em<'_, '_, '_> {
             return;
         }
         let sub = |t| self.sub(t);
-        let found = binds(self.pool(), self.env(), self.b, &sub);
+        let found = binds(self.pool(), self.env(), self.b, &sub, false);
         if !self.input.release {
             let mut marked = Vec::new();
             for (_, _, bind, loan) in &found {
@@ -906,6 +946,7 @@ impl Em<'_, '_, '_> {
     /// Locals whose flattened value contains at least one loan holder.
     pub(super) fn loan_holder_locals(&self) -> Vec<usize> {
         let mut locals: Vec<usize> = self.holders.keys().map(|held| held.local).collect();
+        locals.extend(self.borrow_locals());
         locals.sort_stable();
         locals.dedup();
         locals
@@ -923,6 +964,7 @@ impl Em<'_, '_, '_> {
     /// The end of the loan holder local `l` (Wasm locals `ls`) holds, at
     /// its release: one count less of its entry.
     pub(super) fn loan_release(&mut self, l: usize, ls: &[u32]) {
+        self.borrow_release(l);
         let mut held: Vec<Held> = self
             .holders
             .keys()

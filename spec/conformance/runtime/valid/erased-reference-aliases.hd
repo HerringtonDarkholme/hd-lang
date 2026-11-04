@@ -51,28 +51,6 @@ tests:
         *field = "projected"
         assert_equal(pair.text, "projected", reason="a projected alias writes through the parent")
 
-    it("keeps a projected alias when an open local's box is replaced"):
-        let factory: &dyn Factory = &Maker {}
-        pair := factory.make(Pair { number: +4, text: "first" })
-        same := pair
-        field := &mut pair.text
-        another := &mut same.text
-        assert(field is another, reason="independently created projections share identity")
-        other := factory.make(Pair { number: +4, text: "first" })
-        assert(
-            !(field is &mut other.text),
-            reason="equal values in different roots have distinct field identities",
-        )
-        *same = Pair { number: +5, text: "replacement" }
-        assert_equal(
-            *field,
-            "replacement",
-            reason="the field follows replacement of the whole value",
-        )
-        *field = "field write"
-        assert_equal(pair.number, +5, reason="writing one field preserves its sibling")
-        assert_equal(pair.text, "field write", reason="a field write updates the open parent")
-
     it("retains a caller reference captured by an escaping closure"):
         let factory: &dyn Factory = &Maker {}
         value := box("first")

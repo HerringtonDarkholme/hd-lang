@@ -31,6 +31,7 @@ use crate::module::{
 use crate::rt::Helper;
 use crate::{Input, unsupported};
 
+mod borrow;
 mod closure;
 mod count;
 mod ctx;
@@ -164,6 +165,9 @@ fn body_func<'a>(
     em.own_consumers();
     if erased.is_none() && own.cold.is_none() {
         em.find_holders();
+        if !suspending {
+            em.find_borrows();
+        }
     }
     let mut params = Vec::new();
     // A suspending body takes its frame first (`susp::FRAME`).
@@ -1044,11 +1048,17 @@ struct Em<'i, 'a, 'm> {
     /// reads and references, [`Em::prepare_own_loans`],
     /// [`Em::instance_loans`]): their places are no place's to release.
     loans: hd_base::HashSet<u32>,
+    /// The loans that point into no static page, a cell's
+    /// ([`Em::frame_loans`]): a consumer that is no loan takes a count of
+    /// its own for one.
+    scoped_loans: hd_base::HashSet<u32>,
     /// The locals the passes store a borrow into, with the stored value
     /// ([`Em::prepare_own_loans`]): they hold no count.
     loan_locals: HashMap<usize, u32>,
     /// The bindings that hold a registered loan (`excl.rs`).
     holders: HashMap<excl::Held, excl::Holder>,
+    /// The pointer loans the body's holders take (`borrow.rs`).
+    borrows: borrow::Borrows,
     /// How each `Store` into a holder binding registers its loan.
     binds: HashMap<u32, Vec<excl::Binding>>,
     /// The argument of each call whose result a holder binds, with the
@@ -1239,8 +1249,10 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             scopes: HashMap::default(),
             defer_flags: HashMap::default(),
             loans: hd_base::HashSet::default(),
+            scoped_loans: hd_base::HashSet::default(),
             loan_locals: HashMap::default(),
             holders: HashMap::default(),
+            borrows: borrow::Borrows::default(),
             binds: HashMap::default(),
             held_srcs: HashMap::default(),
             loan_keys: HashMap::default(),
@@ -1776,14 +1788,18 @@ impl Em<'_, '_, '_> {
             return self.open_inst(i, k);
         }
         self.loan_access(i)?;
+        self.borrow_access(i)?;
         if self.calls.contains_key(&i)
             || matches!(self.b.tags[i as usize], Tag::CallValue | Tag::DefaultCall)
         {
             return self.inst_call(i, a, bw);
         }
         self.loan_before_store(i);
+        self.borrow_before_store(i);
         self.inst_tag(i, a, bw)?;
-        self.loan_after_store(i)
+        self.loan_after_store(i)?;
+        self.borrow_after_store(i);
+        Ok(())
     }
 
     /// Emits an instruction that may be an ordinary call while keeping
@@ -1792,9 +1808,12 @@ impl Em<'_, '_, '_> {
     fn inst_call(&mut self, i: u32, a: u32, bw: u32) -> StageResult<()> {
         let loans = self.loan_call_begin(i)?;
         self.loan_before_store(i);
+        self.borrow_before_store(i);
         self.inst_tag(i, a, bw)?;
         self.loan_call_end(&loans);
-        self.loan_after_store(i)
+        self.loan_after_store(i)?;
+        self.borrow_after_store(i);
+        Ok(())
     }
 
     fn inst_tag(&mut self, i: u32, a: u32, bw: u32) -> StageResult<()> {
@@ -1845,6 +1864,7 @@ impl Em<'_, '_, '_> {
             // The ownership passes' statements, in an owned body
             // (`count.rs`); the checker's TIR has none (invariant 22).
             Tag::Drop if self.owned => {
+                self.borrow_drop(i);
                 self.end_short_loan(i)?;
                 if !self.drop_map_probe_ref(i) {
                     self.own_drop(i)?;

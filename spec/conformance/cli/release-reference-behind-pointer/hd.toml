@@ -1,0 +1,5 @@
+[package]
+name = "alias"
+
+[capabilities]
+Console = true

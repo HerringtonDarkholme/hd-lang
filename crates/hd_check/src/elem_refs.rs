@@ -133,11 +133,24 @@ impl Ck<'_, '_> {
             };
             if let Some(l) = self.b.body_mut().local_read(i) {
                 let lt = self.b.local_ty(l);
-                if self.ref_of(lt).is_some() {
+                if self.ref_of(lt).is_some() && !self.exclusive_ref(l) {
                     return None;
                 }
                 steps.reverse();
                 return Some(CollPath { root: l, steps });
+            }
+            // `*r` of a `&mut` binding `r` stands for `r` where its
+            // referent is seen whole ([`Self::exclusive_ref`]).
+            if tag == Tag::Read && self.mut_ref_loops > 0 {
+                let body = self.b.body_mut();
+                let p = body.view(data[0]);
+                let mut s = p.steps(body);
+                if let (hd_tir::ir::Root::Value(v), Some(hd_tir::ir::Proj::Deref), None) =
+                    (p.root, s.next(), s.next())
+                {
+                    cur = Ref(v);
+                    continue;
+                }
             }
             if let Some((base, step)) = self.b.body_mut().read_step(i) {
                 let ReadStep::Field(k) = step else {
@@ -158,6 +171,21 @@ impl Ck<'_, '_> {
             }
         }
         None
+    }
+
+    /// Whether binding `l` is a `&mut T` that nothing reassigns, inside an
+    /// element reference loop over what it refers to: `ref.excl.mut` makes
+    /// its referent reachable through it alone, so the loop's body sees
+    /// every change of that list's length (`flow.for.ref.conflict`).
+    fn exclusive_ref(&mut self, l: LocalId) -> bool {
+        if self.mut_ref_loops == 0 {
+            return false;
+        }
+        let lt = self.b.local_ty(l);
+        let f = self.b.body_mut().local_flags[l.idx()];
+        let fixed = f & local_flags::SHORT != 0
+            || (f & local_flags::PARAM != 0 && !self.mut_params.contains(&l));
+        fixed && self.ref_counted(lt) == Some(false) && self.ref_of(lt).is_some_and(|(_, m)| m)
     }
 
     /// The collection path of the place `p`, or `None` when a reference
@@ -467,10 +495,13 @@ impl Ck<'_, '_> {
             self.irrefutable_loop_pattern(pat, rt);
         }
         let ab = self.b.open_block();
-        // The loop is one access to the list (`flow.for.ref.access`).
+        // The loop is one access to the list (`flow.for.ref.access`). A
+        // list reached through a `&mut` binding is seen whole.
         self.open_access_frame();
+        self.mut_ref_loops += 1;
         self.begin_access(lr);
         let checked = body(self);
+        self.mut_ref_loops -= 1;
         self.close_access_frame();
         checked?;
         let arm = self.b.close_block(ab, None, Ty::VOID, at);

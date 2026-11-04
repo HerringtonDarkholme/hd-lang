@@ -1,0 +1,17 @@
+# test: a reference through `t.lead` holds a shared loan on the `Team` it crosses, so replacing another pointer field of that `Team` through an alias panics
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.loan, ref.excl.alias.conflict.
+struct User:
+    name: string
+
+struct Team:
+    lead: *mut User
+    spare: *mut User
+
+fn replace(t: *mut Team, alias: *mut Team) -> string:
+    name := &t.lead.name
+    alias.spare = box(User { name: "new spare" }) # panic: borrow-conflict
+    *name
+
+pub fn main() -> void:
+    t := box(Team { lead: box(User { name: "old" }), spare: box(User { name: "spare" }) })
+    _ := replace(t, t)

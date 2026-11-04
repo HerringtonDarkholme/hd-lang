@@ -320,6 +320,11 @@ pub(crate) fn fill<T: Clone>(v: &mut Vec<T>, n: usize, x: T) {
 /// a statement has none; a switch has one outside a decision tree. A
 /// `borrow` read owns no count.
 pub(crate) fn tracked(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
+    owned_value(b, i) && cx.counted(b.ty[i]) != Tri::No
+}
+
+/// An owned value, including one with no runtime count or drop.
+pub(crate) fn owned_value(b: &Body, i: usize) -> bool {
     let t = b.ty[i];
     if t == Ty::VOID || t == Ty::NEVER || t == Ty::POISON {
         return false;
@@ -349,7 +354,7 @@ pub(crate) fn tracked(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
     ) {
         return false;
     }
-    cx.counted(t) != Tri::No
+    true
 }
 
 /// Whether operand `op` of instruction `i` consumes its value
@@ -1136,6 +1141,7 @@ pub(crate) mod tests {
         Body, BodyKind, Callee, NONE, Providers, ReadMode, Tag, TirBuilder, TirSink, local_flags,
         verify_owned,
     };
+    use hd_base::SliceSort as _;
     use hd_base::{DefId, LocalId, NodeIdx, Symbol};
     use hd_types::{Ty, TyList};
 
@@ -1145,6 +1151,8 @@ pub(crate) mod tests {
     const UNIQ: Ty = Ty(1_000_001);
     /// A counted type that holds a `?Copy` type parameter.
     const OPEN: Ty = Ty(1_000_002);
+    /// A non-copyable value with no counted fields or drop hook.
+    const UNCOUNTED: Ty = Ty(1_000_003);
 
     /// `string` and `LIST` are counted; callee 9 takes its argument as a value
     /// parameter, callee 8 by reference.
@@ -1184,7 +1192,7 @@ pub(crate) mod tests {
         }
         fn copies(&self, ty: Ty) -> Tri {
             match ty {
-                UNIQ => Tri::No,
+                UNIQ | UNCOUNTED => Tri::No,
                 OPEN => Tri::Maybe,
                 _ => Tri::Yes,
             }
@@ -1593,6 +1601,31 @@ pub(crate) mod tests {
         assert!(!text.contains("exit 0 $1"), "{text}");
     }
 
+    /// A non-copyable temporary needs moves even without a runtime drop:
+    /// whole reads and payload projections must not become copies.
+    #[test]
+    fn uncounted_noncopyable_temporaries_move_whole_and_projected() {
+        let n = NodeIdx::from_raw(1);
+        let text = passes(
+            |b| {
+                let source = call(b, 7, &[], UNCOUNTED);
+                let word = b.place(&format!("[%{} as .1 .0]", source.0).parse().expect("place"));
+                let part = b.emit(Tag::Read, word, ReadMode::Use as u32, UNCOUNTED, n);
+                call(b, 9, &[part], Ty::VOID);
+                let source = call(b, 7, &[], UNCOUNTED);
+                let word = b.place(&format!("[%{}]", source.0).parse().expect("place"));
+                let whole = b.emit(Tag::Read, word, ReadMode::Use as u32, UNCOUNTED, n);
+                call(b, 9, &[whole], Ty::VOID);
+                None
+            },
+            Ty::VOID,
+        );
+        assert!(text.contains("Read move [%0 as .1 .0]"), "{text}");
+        assert!(text.contains("Read move [%3]"), "{text}");
+        assert!(!text.contains("Read copy"), "{text}");
+        assert!(!text.contains("Drop"), "{text}");
+    }
+
     /// Pair cancellation: a part read of a temporary that is read again
     /// later copies under move's per-base liveness; with nothing touching
     /// that part before the base's drop, the copy moves. The test facts
@@ -1620,11 +1653,76 @@ pub(crate) mod tests {
         );
     }
 
+    /// References block a partial move only while their uses still reach
+    /// the field. A deliberately live overlap must remain a copy.
+    #[test]
+    fn field_moves_wait_for_overlapping_reference_uses() {
+        for live in [false, true] {
+            let n = NodeIdx::from_raw(1);
+            let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+            let block = b.open_block();
+            let owner = b.local(OPEN, Symbol::from_raw(0), 0, n);
+            let value = call(&mut b, 7, &[], OPEN);
+            b.set(owner, value, n);
+            let whole = b.place(&"[$0]".parse().expect("place"));
+            let reference = b.emit(Tag::Ref, whole, crate::ir::ref_word::LOCAL, Ty::I32, n);
+            if !live {
+                call(&mut b, 8, &[reference], Ty::VOID);
+            }
+            let at = b.place(&"[$0 .0]".parse().expect("place"));
+            let field = b.emit(Tag::Read, at, ReadMode::Use as u32, UNIQ, n);
+            call(&mut b, 9, &[field], Ty::VOID);
+            if live {
+                call(&mut b, 8, &[reference], Ty::VOID);
+            }
+            let root = b.close_block(block, None, Ty::VOID, n);
+            let mut body = b.finish(root, &[]).expect("verifies");
+            run(&mut body, &Cx, &mut OwnScratch::default()).expect("passes");
+            let i = (0..body.len())
+                .find(|&i| body.tags[i] == Tag::Read && body.ty[i] == UNIQ)
+                .expect("field read");
+            assert_eq!(
+                body.data[i][1],
+                if live { ReadMode::Copy } else { ReadMode::Move } as u32,
+                "{}",
+                show(&body)
+            );
+        }
+    }
+
+    #[test]
+    fn field_reference_liveness_has_no_machine_word_field_limit() {
+        let n = NodeIdx::from_raw(1);
+        let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let block = b.open_block();
+        let owner = b.local(OPEN, Symbol::from_raw(0), 0, n);
+        let value = call(&mut b, 7, &[], OPEN);
+        b.set(owner, value, n);
+        let whole = b.place(&"[$0]".parse().expect("place"));
+        let reference = b.emit(Tag::Ref, whole, crate::ir::ref_word::LOCAL, Ty::I32, n);
+        call(&mut b, 8, &[reference], Ty::VOID);
+        for field in 0..66 {
+            let at = b.place(&format!("[$0 .{field}]").parse().expect("place"));
+            let value = b.emit(Tag::Read, at, ReadMode::Use as u32, UNIQ, n);
+            call(&mut b, 9, &[value], Ty::VOID);
+        }
+        let root = b.close_block(block, None, Ty::VOID, n);
+        let mut body = b.finish(root, &[]).expect("verifies");
+        let mut scratch = OwnScratch::default();
+        run(&mut body, &Cx, &mut scratch).expect("passes");
+        assert!(scratch.uncopied().is_empty(), "{}", show(&body));
+        assert_eq!(
+            (0..body.len())
+                .filter(|&i| body.tags[i] == Tag::Read
+                    && body.ty[i] == UNIQ
+                    && body.data[i][1] == ReadMode::Move as u32)
+                .count(),
+            66
+        );
+    }
+
     /// Exclusive mode (#1118): a read through a `&T` parameter borrows across
-    /// a call that may write, and the body reports that it relies on it,
-    /// unless the call receives the reference itself. The verifier accepts
-    /// that borrow only in an exclusive body. Without the flag nothing
-    /// changes.
+    /// a call that may write, unless the call receives that reference.
     #[test]
     fn exclusive_mode_borrows_through_a_reference_parameter_across_a_call() {
         use crate::ir::sub_flags::EXCLUSIVE;
@@ -2564,5 +2662,54 @@ pub(crate) mod tests {
                 .any(|e| e.what.contains("a change in place of $0")),
             "{errs:?}"
         );
+    }
+    #[test]
+    fn every_cell_owner_lives_through_its_references_last_call() {
+        let n = NodeIdx::from_raw(1);
+        for count in [1, 66] {
+            for suspends in [false, true] {
+                let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+                let block = b.open_block();
+                if suspends {
+                    let point = call(&mut b, 8, &[], Ty::VOID);
+                    b.body_mut().tags[point.0 as usize] = Tag::Await;
+                }
+                let mut owners = Vec::new();
+                let mut refs = Vec::new();
+                for _ in 0..count {
+                    let owner = local(&mut b, 0);
+                    let value = call(&mut b, 7, &[], Ty::STRING);
+                    b.set(owner, value, n);
+                    let place = b.place(&format!("[${}]", owner.raw()).parse().expect("place"));
+                    refs.push(b.emit(Tag::Ref, place, 0, Ty::STRING, n));
+                    owners.push(owner.raw());
+                }
+                let use_at = call(&mut b, 8, &refs, Ty::VOID).0;
+                let root = b.close_block(block, None, Ty::VOID, n);
+                let mut body = b.finish(root, &[]).expect("verifies");
+                let mut topo = crate::ir::Topology::default();
+                topo.build(&body);
+                let mut used = Vec::new();
+                super::frame::run(
+                    &mut body,
+                    &topo,
+                    &Cx,
+                    &mut super::frame::Tables::default(),
+                    |i, l, frame| {
+                        if i == use_at {
+                            assert!(!frame);
+                            used.push(l);
+                        }
+                    },
+                );
+                used.sort_stable();
+                used.dedup();
+                if suspends {
+                    assert!(used.is_empty(), "the async root keeps counted references");
+                } else {
+                    assert_eq!(used, owners, "count={count}");
+                }
+            }
+        }
     }
 }

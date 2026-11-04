@@ -1,0 +1,23 @@
+struct Node:
+    name: string
+
+struct Holder:
+    child: *mut Node
+
+fn replace_then_read(name: &string, alias: *mut Holder) -> usize $ Console:
+    alias.child = box(Node { name: "replacement-" + "x".repeat(40) })
+    junk := "y".repeat(64)
+    println(junk.len())
+    println(*name)
+    name.len()
+
+pub fn main() -> void $ Console:
+    first := "original-" + "z".repeat(40)
+    h := box(Holder { child: box(Node { name: first }) })
+    alias := h
+    println(replace_then_read(&h.child.name, alias))
+    name := &h.child.name
+    alias.child = box(Node { name: "second-" + "w".repeat(40) })
+    other := box(Node { name: "q".repeat(49) })
+    println(other.name.len())
+    println(*name)

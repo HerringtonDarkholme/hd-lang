@@ -1,0 +1,75 @@
+# test: a non-copyable field moves after overlapping borrows end, including nested fields, branches, reinitialization, disjoint live borrows, and loop-local bindings
+struct Parcel:
+    name: string
+
+impl !Copy for Parcel
+
+struct Pair:
+    left: Parcel
+    right: Parcel
+
+impl !Copy for Pair
+
+struct Outer:
+    pair: Pair
+
+impl !Copy for Outer
+
+fn pair(prefix: string) -> Pair:
+    Pair { left: Parcel { name: "${prefix}-left" }, right: Parcel { name: "${prefix}-right" } }
+
+fn observe(value: &Pair) -> usize:
+    value.left.name.len() + value.right.name.len()
+
+fn consume(value: Parcel) -> string:
+    value.name
+
+fn split(value: Pair) -> string:
+    _ := observe(&value)
+    first := value.left
+    second := value.right
+    consume(first) + "," + consume(second)
+
+fn disjoint(value: Pair) -> string:
+    _ := observe(&value)
+    other := &value.right
+    first := value.left
+    name := other.name
+    consume(first) + "," + name
+
+fn nested(value: Outer) -> string:
+    _ := observe(&value.pair)
+    first := value.pair.left
+    consume(first) + "," + value.pair.right.name
+
+fn branch(value: Pair, left: bool) -> string:
+    _ := observe(&value)
+    if left: consume(value.left) else: consume(value.right)
+
+fn refill() -> string:
+    let mut value = pair("old")
+    _ := observe(&value)
+    first := value.left
+    value.left = Parcel { name: "new-left" }
+    _ := observe(&value)
+    consume(first) + "," + consume(value.left) + "," + consume(value.right)
+
+pub fn main() -> void:
+    if split(pair("split")) != "split-left,split-right":
+        panic("split lost a field")
+    if disjoint(pair("disjoint")) != "disjoint-left,disjoint-right":
+        panic("a disjoint borrow lost its field")
+    if nested(Outer { pair: pair("nested") }) != "nested-left,nested-right":
+        panic("nested move lost a field")
+    if branch(pair("branch"), true) != "branch-left":
+        panic("left branch lost its field")
+    if branch(pair("branch"), false) != "branch-right":
+        panic("right branch lost its field")
+    if refill() != "old-left,new-left,old-right":
+        panic("refill lost a field")
+    for i in 0..40:
+        value := pair("loop-$i")
+        _ := observe(&value)
+        first := value.left
+        if consume(first) != "loop-${i}-left":
+            panic("a loop iteration lost its field")

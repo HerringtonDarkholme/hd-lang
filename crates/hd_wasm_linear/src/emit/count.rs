@@ -204,79 +204,174 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    /// The addresses in the frame's slots (§23.38), which take no count, as
-    /// a count of a slot's address does nothing: a `Ref` of a slot local's
-    /// storage; a `Ref` through one of them, or through a local that holds
-    /// only them, to a part of its referent; a read of all of one; and a
-    /// coercion that keeps its value. A local every store of which stores
-    /// one holds no count ([`Em::loan_locals`]). A `Ref` to a part may be a
-    /// view's projection where it is no slot's, so its flag marks a fresh
-    /// one for its `Drop`, as a lent reference's does.
+    /// The references that take no count because their place crosses no
+    /// counted object (§23.20, "References count what they cross"): what
+    /// keeps their target alive outlives them in this body. Seeds: a `Ref`
+    /// of a frame slot's or a cell's storage, a field path after it. They
+    /// flow through a
+    /// `Ref` through one of them, or through a local that holds only them,
+    /// to a part of its referent; a read of all or of a part of one; a
+    /// coercion that keeps its value; a variant, struct or tuple whose
+    /// counted parts are all such references; and a block's, a scope's or
+    /// a `break`'s value. A local every store of which stores one, and
+    /// which no `&mut` reaches, holds no count ([`Em::loan_locals`]).
+    ///
+    /// A slot's address is in a static page, where a count does nothing,
+    /// so such a reference may move into any value. A cell's is
+    /// **scoped** ([`Em::scoped_loans`]): a consumer that is not one of
+    /// these values, as a return or a store into a counted place, takes a
+    /// count of its own ([`Em::take_from`]). A `Ref` to a part may be a
+    /// view's projection, so its flag marks a fresh one for its `Drop`,
+    /// as a lent reference's does: the loan owns that view.
     fn frame_loans(&mut self) {
         use hd_tir::ir::{Proj, Root};
-        if self.slots.is_empty() {
-            return;
-        }
         let b = self.b;
         let n = b.len();
+        // Cells take part only in an owned body with no suspension point,
+        // where the passes keep a cell local alive over every use of what
+        // may point into it.
+        let cells = self.owned && self.susp.is_none() && self.input.runtime.is_some();
+        let seed = |em: &Self, l: usize| {
+            em.slots.contains_key(&l) || (cells && em.is_cell(l) && !em.cell_converts(l))
+        };
+        if !(0..b.local_ty.len()).any(|l| seed(self, l)) {
+            return;
+        }
         let thin = |em: &Self, t: Ty| {
             !hd_mono::is_open(em.pool(), t) && em.ref_target(t).is_some_and(|(_, fat)| !fat)
         };
-        // A local that may hold only slot addresses: a reference, stored
-        // whole, that no capture or cell reaches.
+        // A value whose every counted leaf is a reference such a loan may
+        // be: a thin reference, or a struct, tuple or enum of them.
+        let refs_only = |em: &Self, t: Ty| {
+            thin(em, t)
+                || (cells
+                    && em.drop_calls(t).is_empty()
+                    && !hd_mono::is_open(em.pool(), t)
+                    && em.counted(t).is_some()
+                    && crate::layout::value_parts(em.pool(), em.env(), t)
+                        .into_iter()
+                        .all(|p| em.counted(p).is_none() || thin(em, p)))
+        };
+        // A local that may hold only such references: stored whole, that
+        // no capture, cell or `&mut` reaches.
         let mut holder: Vec<bool> = (0..b.local_ty.len())
             .map(|l| {
                 !self.is_cell(l)
                     && b.local_flags[l] & hd_tir::ir::local_flags::PARAM == 0
                     && !b.cap_local.iter().any(|c| c.idx() == l)
                     && !self.loan_locals.contains_key(&l)
-                    && thin(self, self.sub(b.local_ty[l]))
+                    && refs_only(self, self.sub(b.local_ty[l]))
             })
             .collect();
         for i in 0..n {
+            let x = u32::try_from(i).expect("insts");
             if let Some((l, false)) = b.stored_local(i) {
                 holder[l.idx()] = false;
             }
+            if b.tags[i] == Tag::Store
+                && let Some(l) = b.local_in_place(b.data[i][0])
+                && !b.view(b.data[i][0]).whole()
+            {
+                holder[l.idx()] = false;
+            }
+            if b.tags[i] == Tag::Ref
+                && let Some(l) = b.local_in_place(b.data[i][0])
+                && (b.data[i][1] & hd_tir::ir::ref_word::MUT != 0
+                    || crate::layout::ref_mutable(self.pool(), self.env(), self.ty(x)))
+            {
+                holder[l.idx()] = false;
+            }
         }
+        let mut scoped_holder = vec![false; b.local_ty.len()];
         let (mut loan, mut broke) = (vec![false; n], vec![false; n]);
+        let mut scoped = vec![false; n];
+        let mut ops = Vec::new();
         let mut changed = true;
         while changed {
             broke.fill(false);
             for i in 0..n {
                 let [a, v] = b.data[i];
                 let is = |loan: &[bool], v: u32| Ref(v).as_inst().is_some() && loan[v as usize];
+                let sc = |scoped: &[bool], v: u32| Ref(v).as_inst().is_some() && scoped[v as usize];
+                let x = u32::try_from(i).expect("insts");
+                let tag = b.tags[i];
                 let p = b.view(a);
-                let mut steps = p.steps(b);
-                let first = steps.next();
-                let fields = steps.all(|s| matches!(s, Proj::Field(_)));
+                let place = matches!(tag, Tag::Ref | Tag::Read);
+                let (first, fields, parts) = if place {
+                    let mut steps = p.steps(b);
+                    let first = steps.next();
+                    let rest: Vec<Proj> = steps.collect();
+                    let fields = rest.iter().all(|s| matches!(s, Proj::Field(_)));
+                    let parts = first
+                        .is_none_or(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)))
+                        && rest
+                            .iter()
+                            .all(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)));
+                    (first, fields, parts)
+                } else {
+                    (None, false, false)
+                };
+                let w = b.data[i][1];
+                let takes = tag == Tag::Ref && w & hd_tir::ir::ref_word::TAKES != 0;
                 // A block's value comes from its tail and the breaks to it,
                 // which come before it; a cleanup scope's is its body's.
-                let ok = match (b.tags[i], p.root, first) {
+                let (ok, s) = match (tag, p.root, first) {
                     (Tag::Ref, Root::Local(l), None | Some(Proj::Field(_))) => {
-                        fields && self.slots.contains_key(&(l as usize))
+                        let l = l as usize;
+                        let ok = fields && !takes && !self.promoted.contains(&x) && seed(self, l);
+                        (ok, !self.slots.contains_key(&l))
                     }
-                    (Tag::Ref, Root::Local(l), Some(Proj::Deref)) => fields && holder[l as usize],
-                    (Tag::Ref, Root::Value(r), Some(Proj::Deref)) => fields && loan[r as usize],
-                    (Tag::Read, Root::Local(l), None) => holder[l as usize],
-                    (Tag::Read, Root::Value(r), None) => loan[r as usize],
-                    (Tag::Coerce, ..) => b.same_value_coercion(i) && is(&loan, a),
-                    (Tag::Block, ..) => (v == NONE || is(&loan, v)) && !broke[i],
-                    (Tag::Scope, ..) => is(&loan, a) && !broke[i],
+                    (Tag::Ref, Root::Local(l), Some(Proj::Deref)) => {
+                        (fields && holder[l as usize], scoped_holder[l as usize])
+                    }
+                    (Tag::Ref, Root::Value(r), Some(Proj::Deref)) => {
+                        (fields && loan[r as usize], scoped[r as usize])
+                    }
+                    (Tag::Read, Root::Local(l), _) => {
+                        (parts && holder[l as usize], scoped_holder[l as usize])
+                    }
+                    (Tag::Read, Root::Value(r), _) => {
+                        (parts && loan[r as usize], scoped[r as usize])
+                    }
+                    (Tag::NewVariant | Tag::NewStruct | Tag::NewTuple, ..) => {
+                        hd_tir::own::operands(b, i, &mut ops);
+                        let counted: Vec<u32> = ops
+                            .iter()
+                            .map(|o| o.value)
+                            .filter(|&o| self.counted(self.ty_of(o)).is_some())
+                            .collect();
+                        let ok = refs_only(self, self.ty(x))
+                            && !counted.is_empty()
+                            && counted
+                                .iter()
+                                .all(|&o| is(&loan, o) && !self.view_loans.contains_key(&o));
+                        (ok, counted.iter().any(|&o| sc(&scoped, o)))
+                    }
+                    (Tag::Coerce, ..) => (b.same_value_coercion(i) && is(&loan, a), sc(&scoped, a)),
+                    (Tag::Block, ..) => (
+                        (v == NONE || is(&loan, v)) && !broke[i],
+                        scoped[i] || sc(&scoped, v),
+                    ),
+                    (Tag::Scope, ..) => (is(&loan, a) && !broke[i], scoped[i] || sc(&scoped, a)),
                     (Tag::Break, ..) => {
                         if let Some(&t) = b.label_inst.get(a as usize)
                             && (t as usize) < n
-                            && !is(&loan, v)
                         {
-                            broke[t as usize] = true;
+                            if !is(&loan, v) {
+                                broke[t as usize] = true;
+                            } else if scoped[v as usize] && !scoped[t as usize] {
+                                scoped[t as usize] = true;
+                            }
                         }
-                        false
+                        (false, false)
                     }
-                    _ => false,
+                    _ => (false, false),
                 };
-                let x = u32::try_from(i).expect("insts");
-                loan[i] = ok
-                    && thin(self, self.ty(x))
+                let ok = ok
+                    && (thin(self, self.ty(x)) || (tag != Tag::Ref && refs_only(self, self.ty(x))))
                     && !matches!(self.calls.get(&x), Some(hd_mono::Target::Open(_)));
+                loan[i] = ok;
+                scoped[i] = ok && (s || scoped[i]);
             }
             changed = false;
             for i in 0..n {
@@ -284,16 +379,23 @@ impl Em<'_, '_, '_> {
                 if let Some((l, true)) = b.stored_local(i)
                     && holder[l.idx()]
                     && v != NONE
-                    && !(Ref(v).as_inst().is_some() && loan[v as usize])
                 {
-                    holder[l.idx()] = false;
-                    changed = true;
+                    if !(Ref(v).as_inst().is_some() && loan[v as usize]) {
+                        holder[l.idx()] = false;
+                        changed = true;
+                    } else if scoped[v as usize] && !scoped_holder[l.idx()] {
+                        scoped_holder[l.idx()] = true;
+                        changed = true;
+                    }
                 }
             }
         }
         for i in (0..n).filter(|&i| loan[i]) {
             let x = u32::try_from(i).expect("insts");
             self.loans.insert(x);
+            if scoped[i] {
+                self.scoped_loans.insert(x);
+            }
             let p = b.view(b.data[i][0]);
             let part = b.tags[i] == Tag::Ref && p.steps(b).any(|s| matches!(s, Proj::Field(_)));
             if part && !self.view_loans.contains_key(&x) {
@@ -948,6 +1050,7 @@ impl Em<'_, '_, '_> {
             || !self.vals.contains_key(&r)
             || !self.needs_drop(self.ty_of(r))
             || self.moving.contains(&(user, r))
+            || (self.scoped_loans.contains(&r) && !self.loans.contains(&user))
         {
             return false;
         }

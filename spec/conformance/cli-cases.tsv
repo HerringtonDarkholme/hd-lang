@@ -309,3 +309,4 @@ lint-unbound-disposable	cli.lint.unbound-disposable,cli.lint.default,cli.lint.le
 lint-unselected-main	cli.exe.unselected-main.lint
 lint-unselected-main-prerequisites	cli.lint.prerequisites
 lint-lifetime-order	cli.lint.lifetime-order,cli.lint.default,cli.lint.levels
+release-reference-behind-pointer	cli.profile.release

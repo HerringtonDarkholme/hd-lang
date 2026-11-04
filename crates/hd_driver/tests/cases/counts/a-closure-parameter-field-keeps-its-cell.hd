@@ -1,0 +1,12 @@
+# @dump: own counts
+# expected: the parameter cell remains alive until is_none returns; the local reference takes no count
+struct Payload:
+    count: u32
+    note: string?
+
+struct Envelope:
+    filter: Payload?
+
+fn absent(value: Result[Envelope, string]) -> Result[bool, string]:
+    value.map(fn(value): value.filter.is_none())
+    #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

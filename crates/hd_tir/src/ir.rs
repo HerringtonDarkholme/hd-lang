@@ -3622,6 +3622,53 @@ mod tests {
         assert!(verify_owned(&body, &Counts).is_empty());
     }
 
+    /// A known reference into another field stays usable after a partial
+    /// move. An overlapping reference, including one reassigned later,
+    /// must still report the read of moved storage.
+    #[test]
+    fn verifier_distinguishes_known_local_reference_fields() {
+        use super::{ReadMode, ref_word, verify_owned};
+        for (field, reassign, allowed) in [(1, false, true), (0, false, false), (1, true, false)] {
+            let body = owned_body(|b, n| {
+                let at = b.place(&format!("[$0 .{field}]").parse().expect("place"));
+                let reference = b.emit(Tag::Ref, at, ref_word::LOCAL, Ty::I32, n);
+                let slot = b.place(&"[$1]".parse().expect("place"));
+                b.emit(Tag::Store, slot, reference.0, Ty::VOID, n);
+                if reassign {
+                    let at = b.place(&"[$0 .0]".parse().expect("place"));
+                    let reference = b.emit(Tag::Ref, at, ref_word::LOCAL, Ty::I32, n);
+                    b.emit(Tag::Store, slot, reference.0, Ty::VOID, n);
+                }
+                read(b, "[$0 .0]", ReadMode::Move, n);
+                read(b, "[*$1 .0]", ReadMode::Copy, n);
+            });
+            let errors = verify_owned(&body, &Counts);
+            assert_eq!(errors.is_empty(), allowed, "{field} {reassign}: {errors:?}");
+        }
+    }
+
+    #[test]
+    fn verifier_resolves_long_local_reference_alias_chains() {
+        use super::{ReadMode, ref_word, verify_owned};
+        let body = owned_body(|b, n| {
+            let at = b.place(&"[$0 .1]".parse().expect("place"));
+            let reference = b.emit(Tag::Ref, at, ref_word::LOCAL, Ty::I32, n);
+            let slot = b.place(&"[$1]".parse().expect("place"));
+            b.emit(Tag::Store, slot, reference.0, Ty::VOID, n);
+            let mut previous = 1;
+            for k in 0..24 {
+                let local = b.local(Ty::I32, Symbol::from_raw(k + 2), 0, n);
+                let value = read(b, &format!("[${previous}]"), ReadMode::Copy, n);
+                b.set(local, value, n);
+                previous = local.raw();
+            }
+            read(b, "[$0 .0]", ReadMode::Move, n);
+            read(b, &format!("[*${previous} .0]"), ReadMode::Copy, n);
+        });
+        let errors = verify_owned(&body, &Counts);
+        assert!(errors.is_empty(), "{errors:?}");
+    }
+
     /// Invariant 23: no value a loop's body computes is still owned where
     /// the loop goes round again.
     #[test]

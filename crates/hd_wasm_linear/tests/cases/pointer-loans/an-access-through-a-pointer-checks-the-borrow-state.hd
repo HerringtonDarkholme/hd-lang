@@ -1,0 +1,42 @@
+# @dump: wat
+# A write or a `&mut` through a `*T` to a `User` tests the whole borrow
+# state (mask 0x3f0000), and a read or a `&` the exclusive bit (0x200000).
+# `lend_lead` may lend a `Team` exclusively, so reading `t.lead` through a
+# `*Team` tests its exclusive bit too. `Plain` is lent by no reference, so
+# its accesses check nothing.
+struct User:
+    name: string
+    age: i32
+
+struct Team:
+    lead: *mut User
+
+struct Plain:
+    name: string
+
+fn lend(t: *Team) -> string:
+    held := &t.lead.name
+    *held
+
+fn lend_mut(t: *mut Team) -> void:
+    held := &mut t.lead.age
+    *held = +1
+
+fn lend_lead(t: *mut Team) -> void:
+    held := &mut t.lead
+    *held = box(User { name: "c", age: +0 })
+
+fn write(u: *mut User) -> void:
+    u.age = +2
+
+fn read(t: *Team) -> i32:
+    t.lead.age
+
+fn mutate(u: *mut User) -> void:
+    set(&mut u.age)
+
+fn set(slot: &mut i32) -> void:
+    *slot = +3
+
+fn plain(p: *mut Plain) -> void:
+    p.name = "b"

@@ -1,0 +1,17 @@
+# @dump: own
+# expected: the non-copyable payload moves out of the temporary Option even though it needs no runtime drop
+struct Empty: pass
+
+impl !Copy for Empty
+
+fn next() -> Empty?:
+    .Some(Empty {})
+
+fn consume(item: Empty) -> void:
+    pass
+
+fn route() -> void:
+    # subject
+    match next():
+        .Some(item) => consume(item)
+        .None => pass
