@@ -7,6 +7,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "first" (func $first (param i32) (result i32 i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
+  (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $make (param $t0 i32) (param $t1 i32) (param $t2 i32) (result i32 i32) (local $p i32) (local $t3 i32)
     ;; ...
@@ -96,20 +97,20 @@
       local.tee $t2
       local.get $ctx
       local.get $p.name.1
-      memory.copy $heap $heap
+      call $rt:memory_copy/0/0
       local.get $t2
       local.get $p.name.1
       i32.add
       local.tee $t2
       i32.const 66 ;; &" "
-      i32.const 1
-      memory.copy $heap $heap
+      i32.load8_u $heap
+      i32.store8 $heap
       local.get $t2
       i32.const 1
       i32.add
       local.get $t0
       local.get $t1
-      memory.copy $heap $heap
+      call $rt:memory_copy/0/0
       ;; ...
       local.get $p.name.0
       local.get $env

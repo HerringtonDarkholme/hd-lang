@@ -10,6 +10,7 @@
 //! calls [`build`] once per program, at link.
 
 mod boundary;
+mod bulk;
 mod cycle;
 mod drive;
 mod emit;

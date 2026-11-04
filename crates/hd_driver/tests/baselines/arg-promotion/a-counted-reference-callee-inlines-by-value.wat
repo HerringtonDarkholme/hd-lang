@@ -2,6 +2,7 @@
 (module
   (import "fixture" "format_int[i32]" (func $"format_int[i32]" (param i32) (result i32 i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
+  (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $"impl Text.size" (param $self i32) (result i32)
@@ -47,14 +48,14 @@
           local.tee $t2
           local.tee $t3
           i32.const 65 ;; &"x"
-          i32.const 1
-          memory.copy $heap $heap
+          i32.load8_u $heap
+          i32.store8 $heap
           local.get $t3
           i32.const 1
           i32.add
           local.get $n
           local.get $t0
-          memory.copy $heap $heap
+          call $rt:memory_copy/0/0
           local.get $n
           call $rt:release_ref
           local.get $t2
@@ -129,14 +130,14 @@
       local.tee $t2
       local.tee $t3
       i32.const 66 ;; &"n"
-      i32.const 1
-      memory.copy $heap $heap
+      i32.load8_u $heap
+      i32.store8 $heap
       local.get $t3
       i32.const 1
       i32.add
       local.get $n
       local.get $t0
-      memory.copy $heap $heap
+      call $rt:memory_copy/0/0
       ;; ...
       local.get $t2
       local.get $t1
@@ -182,14 +183,14 @@
       local.tee $t2
       local.tee $t3
       i32.const 65 ;; &"x"
-      i32.const 1
-      memory.copy $heap $heap
+      i32.load8_u $heap
+      i32.store8 $heap
       local.get $t3
       i32.const 1
       i32.add
       local.get $n
       local.get $t0
-      memory.copy $heap $heap
+      call $rt:memory_copy/0/0
       ;; ...
       local.get $t2
       local.get $t1
@@ -243,14 +244,14 @@
           local.tee $t1
           local.tee $t2
           i32.const 65 ;; &"x"
-          i32.const 1
-          memory.copy $heap $heap
+          i32.load8_u $heap
+          i32.store8 $heap
           local.get $t2
           i32.const 1
           i32.add
           local.get $n
           local.get $t.s.1
-          memory.copy $heap $heap
+          call $rt:memory_copy/0/0
           local.get $n
           call $rt:release_ref
           local.get $t1
