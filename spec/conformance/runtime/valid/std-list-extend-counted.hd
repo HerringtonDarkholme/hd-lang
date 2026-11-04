@@ -1,5 +1,5 @@
-# test: extend appends counted elements with their own counts in order, by itself doubles, copies a shared receiver first, and appends nothing without a pin panic
-# std Collections, List Access And Building: std-collections.access.extend, std-collections.access.extend.self, std-collections.value.own-copy, std-collections.value.pinned-length.
+# test: extend appends counted elements with their own counts in order, by itself doubles, and copies a shared receiver first
+# std Collections, List Access And Building: std-collections.access.extend, std-collections.access.extend.self, std-collections.value.own-copy.
 @derive(Eq, Debug)
 struct Bag:
     name: string
@@ -10,16 +10,6 @@ struct Holder:
 
 fn grow(words: &mut List[string], more: List[string]) -> void:
     words.extend(more)
-
-# Extending by nothing keeps the length, so the pin of `first` allows it.
-fn nothing_more(list: &mut List[string], first: &string) -> string:
-    list.extend([])
-    *first
-
-# The list comes through a box alias, which the checker does not see.
-fn through(list: *mut List[string]) -> string:
-    alias := list
-    nothing_more(alias, &list[0])
 
 tests:
     use std.testing.assert_equal

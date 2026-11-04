@@ -1,0 +1,8 @@
+# test: a closure that reads a captured list while a loop holds `&mut` references into it panics borrow-conflict
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.shared-variable; Call-Scoped Access: ref.elem.access.alias.
+pub fn main() -> void $ Console:
+    let mut xs = [+1, 2]
+    peek := fn() -> usize: xs.len() # panic: borrow-conflict
+    for x in &mut xs:
+        *x += i32(peek())
+    println("${xs[0]}")

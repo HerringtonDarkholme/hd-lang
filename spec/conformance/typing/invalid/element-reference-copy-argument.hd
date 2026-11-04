@@ -1,0 +1,9 @@
+# test: copying a list into a later argument of a call that takes `&mut` of an element of it is a conflicting access
+# Spec 13 Call-Scoped Access: ref.elem.conflict, ref.elem.access.mut.
+fn set_last(target: &mut i64, copy: List[i64]) -> List[i64]:
+    *target = 7
+    copy
+
+fn invalid() -> List[i64]:
+    let mut xs = [1i64, 2, 3]
+    set_last(&mut xs[0], xs) # diagnostic: conflicting-access

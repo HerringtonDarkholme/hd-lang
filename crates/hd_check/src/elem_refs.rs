@@ -8,9 +8,10 @@
 //! reference per step. An element reference is a `Ref` of the element
 //! place and nothing else: the ownership passes make the collection unique
 //! and pin it before the reference, and the reference's drop at its last
-//! use ends the pin (`docs/compiler/tir-v2.md`, stage 2 commit 12b; a
-//! pinned list panics `collection-pinned` on a length change, a pinned map
-//! on a store of a new key or a removal of a held one).
+//! use ends the pin (`docs/compiler/tir-v2.md`, stage 2 commit 12b). The
+//! pin only keeps the buffer the list's own while references count it; a
+//! change of the collection's length while one lives is a compile-time
+//! conflict, or a pointer-loan one behind a `*T` or a shared variable.
 
 use hd_base::{HashSet, LocalId, NodeIdx, StageResult, Symbol};
 use hd_diag::Code;
@@ -313,20 +314,18 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// Reports the conflicts found in the body on collections that stay
-    /// unaliased: a closure that captures the collection's binding may
-    /// change it where the checker cannot see, and the pin catches that
-    /// (`ref.elem.unaliased`, `ref.elem.access.pin`). Any closure counts
-    /// as escaping here, which only leaves more to the pin. The reported
-    /// ones stay, so the exclusivity check skips their nodes.
+    /// Reports the conflicts found in the body. A collection a closure
+    /// captures is checked too: a change the closure makes while an
+    /// element reference lives meets the reference's loan on the
+    /// variable's cell at run time (`ref.excl.alias.shared-variable`). The
+    /// reported ones stay, so the exclusivity check skips their nodes.
     pub(crate) fn report_conflicts(&mut self) {
         let mut found = std::mem::take(&mut self.conflicts);
         if found.is_empty() {
             return;
         }
-        let captured: HashSet<LocalId> = self.b.body_mut().cap_local.iter().copied().collect();
         let mut seen = HashSet::default();
-        found.retain(|&(l, at)| !captured.contains(&l) && seen.insert(at));
+        found.retain(|&(_, at)| seen.insert(at));
         for &(_, at) in &found {
             let node = self.cx.src.parse.tree.node(at);
             self.err(

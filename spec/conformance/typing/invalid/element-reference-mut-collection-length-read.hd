@@ -1,0 +1,8 @@
+# test: reading the list's length while a `&mut` element reference into it is live is a conflicting access
+# Spec 13 Call-Scoped Access: ref.elem.access.mut.
+fn scores() -> i32:
+    let mut xs = [+1, 2]
+    first := &mut xs[0]
+    n := xs.len() # diagnostic: conflicting-access
+    *first += i32(n)
+    xs[0]

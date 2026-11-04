@@ -1,0 +1,8 @@
+# test: copying the outer list in a loop over `&mut` references into one of its lists is a conflicting access
+# Spec 06 Element Reference Loops: flow.for.ref.conflict; Spec 13 Call-Scoped Access: ref.elem.access.mut.
+fn copy_in_loop(a: &mut List[List[i32]]) -> List[List[i32]]:
+    let mut kept: List[List[i32]] = []
+    for p in &mut a[0]:
+        kept = *a # diagnostic: conflicting-access
+        *p = 9
+    kept

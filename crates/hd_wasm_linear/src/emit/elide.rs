@@ -335,7 +335,10 @@ pub(crate) fn decide(input: &Input<'_>, m: &mut Module) {
                 continue;
             };
             let iu = u32::try_from(i).expect("insts");
-            let (Some(c), Some(v)) = (direct_value(b, b.data[i][1]), direct_value(b, a)) else {
+            let call = b.held_args.iter().find(|x| x.1 == a).map(|x| x.0 as usize);
+            let (Some(c), Some(v), Some(s)) =
+                (call, direct_value(b, a), direct_value(b, b.data[i][1]))
+            else {
                 continue;
             };
             let (cu, vu) = (
@@ -345,7 +348,7 @@ pub(crate) fn decide(input: &Input<'_>, m: &mut Module) {
             if !b.held_args.contains(&(cu, a)) {
                 continue;
             }
-            let excl = ref_mutable(pool, env, sub(b.ty[c]));
+            let excl = [c, s].iter().any(|&x| ref_mutable(pool, env, sub(b.ty[x])));
             let mut heads: Vec<(u32, Ty)> = Vec::new();
             match b.tags[v] {
                 Tag::Ref => {

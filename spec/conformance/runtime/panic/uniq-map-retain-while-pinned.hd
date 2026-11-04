@@ -6,7 +6,7 @@ struct Bag:
 
 fn change(first: &mut string, alias: *mut Bag) -> void:
     alias.items.reserve(0)
-    alias.items.retain(fn(key: &string, value: &mut string) -> bool: false) # panic: collection-pinned
+    alias.items.retain(fn(key: &string, value: &mut string) -> bool: false) # panic: borrow-conflict
     *first = "still live"
 
 tests:

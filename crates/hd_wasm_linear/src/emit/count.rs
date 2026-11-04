@@ -501,7 +501,7 @@ impl Em<'_, '_, '_> {
     /// One count more (`retain`) or less on each counted reference of the
     /// value in locals `ls` of type `t`. A count more of a collection is
     /// its copy glue's result, which replaces it in `ls`: a clone when the
-    /// collection is pinned or exposed (`ref.elem.copy`), so `ls` must hold
+    /// collection is pinned or exposed (the pin's eager copy, until phase 10 of `docs/future-work/POINTER_LOANS.md`), so `ls` must hold
     /// a value no count of its own keeps, which the count makes a copy.
     pub(super) fn count_locals(&mut self, ls: &[u32], t: Ty, retain: bool) -> StageResult<()> {
         let start = self.f.body.len();

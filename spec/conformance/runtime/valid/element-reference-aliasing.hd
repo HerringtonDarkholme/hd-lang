@@ -1,15 +1,11 @@
 # test: element references, copies and changes of one list never reach another list value
-# Spec 13 Element References: ref.elem.copy, ref.elem.slot.
+# Spec 13 Element References: ref.elem.slot; Call-Scoped Access: ref.elem.access.mut.
 struct Holder:
     items: List[i32]
     at: *mut i32
 
 fn set(target: &mut i32, value: i32) -> void:
     *target = value
-
-fn write_then_read(target: &mut i32, seen: &i32) -> i32:
-    *target = 8
-    *seen
 
 fn write_then_read_copy(xs: List[i32], target: &mut i32) -> i32:
     *target = 6
@@ -24,10 +20,6 @@ tests:
         set(&mut xs[0], 5)
         assert_equal(before[0], 1, reason="the copy is unchanged")
         assert_equal(xs[0], 5, reason="the write reaches the list it was taken from")
-
-    it("a shared and a mutable reference to one slot see one value"):
-        let mut xs = [+1, 2]
-        assert_equal(write_then_read(&mut xs[1], &xs[1]), 8, reason="the read sees the write")
 
     it("a copied struct copies its list and keeps its reference's target"):
         n := box(+3)

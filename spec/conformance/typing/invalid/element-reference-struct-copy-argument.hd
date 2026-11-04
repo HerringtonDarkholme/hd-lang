@@ -1,0 +1,12 @@
+# test: copying a struct that holds the list a `&mut` element reference indexes, in a later argument of the same call, is a conflicting access
+# Spec 13 Call-Scoped Access: ref.elem.conflict, ref.elem.access.mut.
+struct Bag:
+    items: List[i32]
+
+fn write_after_copy(target: &mut i32, before: Bag) -> Bag:
+    *target = 11
+    before
+
+fn invalid() -> Bag:
+    let mut bag = Bag { items: [+1, 2] }
+    write_after_copy(&mut bag.items[0], bag) # diagnostic: conflicting-access

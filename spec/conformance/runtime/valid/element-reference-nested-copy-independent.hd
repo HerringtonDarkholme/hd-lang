@@ -1,57 +1,14 @@
-# test: copies isolate references into nested lists, including shared ancestors
-# Spec 13 Element References: ref.elem.copy.
-struct Bag:
-    items: List[i32]
-
+# test: copies made before an element reference, after it, and while its indexes are evaluated stay values of their own
+# Spec 13 Element References: ref.elem.index, ref.elem.slot.
 fn set(target: &mut i32, value: i32) -> void:
     *target = value
-
-fn set_after[T](target: &mut i32, copy: T) -> T:
-    *target = 9
-    copy
-
-fn set_in_row(row: &mut List[i32], copy: List[List[i32]]) -> List[List[i32]]:
-    set_after(&mut row[0], copy)
-
-fn next_index(calls: &mut usize) -> usize:
-    *calls += 1
-    0
 
 fn save_outer(a: &List[List[List[i32]]], saved: &mut List[List[List[i32]]]) -> usize:
     *saved = *a
     0
 
-fn copy_in_loop(a: &mut List[List[i32]]) -> List[List[i32]]:
-    let mut kept: List[List[i32]] = []
-    for p in &mut a[0]:
-        kept = *a
-        *p = 9
-    kept
-
 tests:
     use std.testing.assert_equal
-
-    it("a nested reference leaves an outer copy unchanged"):
-        let mut a = [[+1]]
-        b := set_after(&mut a[0][0], a)
-        assert_equal(a[0][0], 9, reason="the original changes")
-        assert_equal(b[0][0], 1, reason="the copy owns the referenced descendant")
-
-    it("a struct field list is isolated"):
-        let mut a = Bag { items: [+1] }
-        b := set_after(&mut a.items[0], a)
-        assert_equal(b.items[0], 1, reason="the struct copies its referenced list")
-
-    it("a list of structs isolates list fields"):
-        let mut a = [Bag { items: [+1] }]
-        b := set_after(&mut a[0].items[0], a)
-        assert_equal(a[0].items[0], 9, reason="the original field changes")
-        assert_equal(b[0].items[0], 1, reason="the outer copy isolates the field")
-
-    it("three levels expose every ancestor"):
-        let mut a = [[[+1]]]
-        b := set_after(&mut a[0][0][0], a)
-        assert_equal(b[0][0][0], 1, reason="the outermost copy is isolated")
 
     it("an earlier copy detaches before a reference is taken"):
         let mut a = [[[+1]]]
@@ -59,33 +16,6 @@ tests:
         set(&mut a[0][0][0], 9)
         assert_equal(a[0][0][0], 9, reason="the detached original changes")
         assert_equal(b[0][0][0], 1, reason="the earlier copy is isolated")
-
-    it("fresh containment copies an exposed value"):
-        let mut a = [[+1]]
-        b := set_after(&mut a[0][0], [a])
-        assert_equal(b[0][0][0], 1, reason="fresh containers do not reintroduce sharing")
-
-    it("a reference through an element reference exposes the outer list"):
-        let mut a = [[+1]]
-        b := set_in_row(&mut a[0], a)
-        assert_equal(a[0][0], 9, reason="the inner write reaches the original")
-        assert_equal(b[0][0], 1, reason="the parent was exposed when its element was referenced")
-
-    it("each index is evaluated once"):
-        let mut a = [[[+1]]]
-        let mut calls = 0
-        b := set_after(
-            &mut a[next_index(&mut calls)][next_index(&mut calls)][next_index(&mut calls)],
-            a,
-        )
-        assert_equal(calls, 3, reason="exposure reuses evaluated indices")
-        assert_equal(b[0][0][0], 1, reason="the copy remains isolated")
-
-    it("a reference loop exposes its containing list"):
-        let mut a = [[+1]]
-        b := copy_in_loop(&mut a)
-        assert_equal(a[0][0], 9, reason="the loop wrote its slot")
-        assert_equal(b[0][0], 1, reason="loop references isolate outer copies")
 
     it("a copy made after the call still behaves as a value"):
         let mut a = [[+1]]

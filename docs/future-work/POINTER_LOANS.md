@@ -1004,9 +1004,29 @@ Each about an hour, with its test; the matrix rows leave
    `UniqList`/`UniqMap` ones (phase 8). A `join!` task that writes an
    object another task holds across a suspension now panics in every
    build (#1331, item 2).
-7. Element references: remove the pin, add the two static rules; the
-   `List`/`Map` rows and the copy fixtures.
-8. `UniqList`/`UniqMap` through loans; drop #1320's room count.
+7. Element references: remove the pin's checks and add the static
+   rules; the `List`/`Map` rows stay green and the copy fixtures become
+   reject cases. The `collection-pinned` length panics of `List` and
+   `Map` go (`rt:list_pinned`, the map store's and `remove`'s). A
+   `&mut` element reference excludes, as Rust's does, any use of its
+   collection or of a place holding it and any other reference into it;
+   a `&` one excludes a change of the collection or a `&mut` into it;
+   stores to other elements stay valid, and a `for` loop over element
+   references is one access for the whole loop. A captured collection is
+   no longer exempt from the static check. The pin's bookkeeping stays
+   until phase 10: `Pin`, the owner word that keeps `rt:list_unique` from
+   copying a buffer whose extra counts are element references, and the
+   eager copy of a pinned collection. Two shapes the length panic alone
+   had caught take loans now: a reference rooted at a read through a
+   `*T`, as a loop over `&mut list` with `list: *mut List[T]` makes,
+   crosses that read's dereferences, and a binding a `match` makes from a
+   call's result holds the result's loans, as a direct holder does.
+8. `UniqList`/`UniqMap` through loans; drop #1320's room count. That
+   retires `std-collections.uniq-list.pinned`, `.uniq-list.basic-pinned`,
+   `.uniq-map.pinned` and `.uniq-map.basic-pinned` with
+   `module.rt.buffer.pinned`; since phase 7 the `uniq-map` pinned
+   fixtures already panic `borrow-conflict`, as a match-bound value
+   reference holds the map's object.
 9. Roots and cells; the `extra-root-*` and `extra-captured-*` rows.
    The cell part comes before phase 7, so removing the pin leaves no
    reference into a captured variable unchecked: a variable a closure
@@ -1019,7 +1039,9 @@ Each about an hour, with its test; the matrix rows leave
    static slot follows a header, so a write from another function sees
    the loans of references into it. One no reference reaches stays in a
    Wasm global with no check.
-10. Remove the loan table and page-table counts on references.
+10. Remove the loan table and page-table counts on references, and with
+    the element references' counts of their buffers the rest of the pin:
+    `Tag::Pin`, the owner word and the eager copy in `coll_copy`.
 11. Release elision and its type summary; the size and time table.
     Built right after phase 4, in every build: a holder's live range is
     its whole function, and a call loan's runs from its argument to the

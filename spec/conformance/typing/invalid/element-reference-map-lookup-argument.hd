@@ -1,0 +1,9 @@
+# test: a map lookup that copies the list a `&mut` element reference indexes, in a later argument of the same call, is a conflicting access
+# Spec 13 Call-Scoped Access: ref.elem.conflict, ref.elem.access.mut.
+fn set_after(target: &mut i64, copy: List[i64]?) -> List[i64]:
+    *target = 9
+    copy.unwrap_or([])
+
+fn invalid() -> List[i64]:
+    let mut m: Map[string, List[i64]] = { "a": [1i64, 2] }
+    set_after(&mut m["a"][0], m.get("a")) # diagnostic: conflicting-access

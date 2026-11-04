@@ -1,4 +1,4 @@
-# test: inserting a new key through a box alias while a value reference into the unique map behind it is live panics with collection-pinned
+# test: inserting a new key through a box alias while a value reference into the unique map behind it is live panics borrow-conflict, as the reference holds the map's object
 # std Collections: std-collections.uniq-map.pinned.
 use std.collections.UniqMap
 
@@ -6,7 +6,7 @@ struct Stock:
     counts: UniqMap[string, i32]
 
 fn add(apples: &mut i32, alias: *mut Stock) -> void:
-    _ := alias.counts.insert("pear", 1) # panic: collection-pinned
+    _ := alias.counts.insert("pear", 1) # panic: borrow-conflict
     *apples += 1
 
 tests:

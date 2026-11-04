@@ -25,9 +25,6 @@ pub const CAP: u64 = 12;
 pub const GROWN: u64 = 16;
 pub const INDEX: u32 = 24;
 
-/// The panic of a change of a pinned map's length (`ref.elem.pinned.map`).
-pub const MAP_PINNED: &str = "collection-pinned: map length changed while pinned";
-
 /// How a map hashes and compares its key (`crates/hd_mono/DESIGN.md`
 /// §13.12): an inline key through the keyed bucket hash collection chose
 /// and an inline comparison, any other through the key type's
@@ -486,9 +483,10 @@ fn index_insert(f: &mut Func, t: u32, cap: u32, h: u32, slot: u32) {
 /// [`Helper::MapFind`]. An equal key's entry keeps its
 /// place and takes the value (`types.map.replace.in-place`,
 /// `expr.map.duplicate.last`), and the key given is released; a new key
-/// appends an entry, after growth when the entries are full, and panics
-/// `collection-pinned` while an element reference pins the map
-/// (`ref.elem.pinned.map`). The map's table is its own already.
+/// appends an entry, after growth when the entries are full. A live
+/// element reference makes that a compile-time or a pointer-loan conflict
+/// (`ref.elem.access.length`, `ref.excl.alias.conflict`). The map's table
+/// is its own already.
 pub fn put(m: &Module, entry: &Entry, _ops: &KeyOps) -> Func {
     let nk = entry.keys;
     let n = entry.leaves.len();
@@ -541,12 +539,6 @@ pub fn put(m: &Module, entry: &Entry, _ops: &KeyOps) -> Func {
     }
     f.get(t);
     f.op(I::Return);
-    f.op(I::End);
-    // A new key changes a pinned map's length (`ref.elem.pinned.map`).
-    f.get(0);
-    f.helper(Helper::ListPinned);
-    f.op(I::If(BlockType::Empty));
-    f.helper(Helper::Panic(MAP_PINNED.into()));
     f.op(I::End);
     load_u32(&mut f, t, USED);
     f.get(cap);
@@ -695,7 +687,7 @@ pub fn grow(entry: &Entry, m: &Module) -> Func {
 /// become copies, and the old table loses one holder. With `clone`,
 /// [`Helper::MapClone`]: the table is copied whatever its count, the copy
 /// starts with no owner word, and the original keeps its own
-/// (`ref.elem.copy`).
+/// (the pin's eager copy, until phase 10 of `docs/future-work/POINTER_LOANS.md`).
 pub fn unique(entry: &Entry, m: &Module, clone: bool) -> Func {
     let name = if clone {
         "rt:map_clone"
