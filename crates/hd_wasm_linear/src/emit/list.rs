@@ -1179,10 +1179,7 @@ impl Em<'_, '_, '_> {
                     self.f.u32(LIST_ELEMS);
                     self.f.op(I::I32Add);
                     self.f.get(bytes);
-                    self.f.op(I::MemoryCopy {
-                        src_mem: HEAP,
-                        dst_mem: HEAP,
-                    });
+                    self.f.push(crate::bulk::copy(HEAP, HEAP));
                     if e.counts() {
                         self.f.get(at);
                         self.f.u32(LIST_ELEMS);

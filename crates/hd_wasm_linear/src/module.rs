@@ -1661,7 +1661,16 @@ impl Module {
         for f in self.funcs.iter_mut().flatten() {
             crate::opt::coalesce(f);
         }
+        for f in self.funcs.iter_mut().flatten() {
+            crate::bulk::lower(f);
+        }
         let stack = crate::wide::lower(&mut self.funcs, &self.exports, &self.symbols)? || session;
+        // Wide storage introduces a frame fill after the ordinary lowering.
+        // Its only new scalar scratch is bounded; all earlier scratch locals
+        // participate in wide lowering with the body's other locals.
+        for f in self.funcs.iter_mut().flatten() {
+            crate::bulk::lower(f);
+        }
         if let Some(previous) = previous {
             // Wide lowering can introduce helpers; discover them before
             // translating every old target to its imported ABI.

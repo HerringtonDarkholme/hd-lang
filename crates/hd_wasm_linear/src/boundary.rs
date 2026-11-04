@@ -1449,18 +1449,12 @@ fn copy(f: &mut Func, off: u32, n: u32, out: bool, at: impl FnOnce(&mut Func)) {
         f.get(off);
         at(f);
         f.get(n);
-        f.op(I::MemoryCopy {
-            src_mem: HEAP,
-            dst_mem: BUF,
-        });
+        f.push(crate::bulk::copy(HEAP, BUF));
     } else {
         at(f);
         f.get(off);
         f.get(n);
-        f.op(I::MemoryCopy {
-            src_mem: BUF,
-            dst_mem: HEAP,
-        });
+        f.push(crate::bulk::copy(BUF, HEAP));
     }
     f.get(off);
     f.get(n);

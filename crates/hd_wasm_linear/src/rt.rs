@@ -96,6 +96,11 @@ pub struct RefLayout {
 /// A generated function, by what it does.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Helper {
+    MemoryCopy {
+        source: u32,
+        dest: u32,
+    },
+    MemoryFill(u32),
     /// A field reference forwards reads and writes through its parent view.
     RefProject {
         borrowed: bool,
@@ -1410,6 +1415,8 @@ fn write_str(f: &mut Func, s: u32) {
 pub fn helper(h: &Helper, m: &mut Module) -> Func {
     #[cfg_attr(not(feature = "checked-report"), allow(unused_mut))]
     let mut f = match h {
+        Helper::MemoryCopy { source, dest } => crate::bulk::helper(m, *source, *dest, true),
+        Helper::MemoryFill(memory) => crate::bulk::helper(m, *memory, *memory, false),
         Helper::CanCancel => {
             let mut f = m.func("rt:can_cancel", vec![], vec![Val::I32]);
             f.i32(i32::from(m.cancellable));
@@ -1733,10 +1740,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f.i32(0);
             f.get(0);
             f.get(1);
-            f.op(Instruction::MemoryCopy {
-                src_mem: HEAP,
-                dst_mem: BUF,
-            });
+            f.push(crate::bulk::copy(HEAP, BUF));
             f.get(1);
             f
         }
@@ -2242,10 +2246,7 @@ fn host_prim(m: &Module, name: &str, args: &[PrimArg], result: Option<Val>) -> F
     f.get(out);
     f.get(at);
     f.get(len);
-    f.op(Instruction::MemoryCopy {
-        src_mem: BUF,
-        dst_mem: HEAP,
-    });
+    f.push(crate::bulk::copy(BUF, HEAP));
     f.get(out);
     f.get(len);
     f
@@ -3298,10 +3299,7 @@ fn ctx_new(m: &Module) -> Func {
     f.get(len);
     f.u32(CTX_ENTRY);
     f.op(Instruction::I32Mul);
-    f.op(Instruction::MemoryCopy {
-        src_mem: HEAP,
-        dst_mem: HEAP,
-    });
+    f.push(crate::bulk::copy(HEAP, HEAP));
     f.get(at);
     f.get(len);
     f.helper(Helper::CopyElems { elem: ctx_elem() });
@@ -3511,10 +3509,7 @@ fn list_copy(elem: &Elem, m: &Module) -> Func {
     f.get(n);
     f.u32(elem.size);
     f.op(Instruction::I32Mul);
-    f.op(Instruction::MemoryCopy {
-        src_mem: HEAP,
-        dst_mem: HEAP,
-    });
+    f.push(crate::bulk::copy(HEAP, HEAP));
     if elem.counts() {
         f.get(nb);
         f.u32(LIST_ELEMS);
@@ -3562,10 +3557,7 @@ fn list_grow(elem: &Elem, m: &Module) -> Func {
     f.get(n);
     f.u32(elem.size);
     f.op(Instruction::I32Mul);
-    f.op(Instruction::MemoryCopy {
-        src_mem: HEAP,
-        dst_mem: HEAP,
-    });
+    f.push(crate::bulk::copy(HEAP, HEAP));
     f.get(b);
     f.i32(0);
     f.op(Instruction::I32Store(mem(HEAP, LIST_LEN, 2)));
@@ -3649,10 +3641,7 @@ fn list_reserve(elem: &Elem, m: &Module) -> Func {
     f.get(n);
     f.u32(elem.size);
     f.op(Instruction::I32Mul);
-    f.op(Instruction::MemoryCopy {
-        src_mem: HEAP,
-        dst_mem: HEAP,
-    });
+    f.push(crate::bulk::copy(HEAP, HEAP));
     f.get(own);
     f.op(Instruction::If(BlockType::Empty));
     // The list's own buffer: its elements move, and the old block is
@@ -3727,10 +3716,7 @@ fn list_extend(elem: &Elem, m: &Module) -> Func {
     f.get(count);
     f.u32(elem.size);
     f.op(Instruction::I32Mul);
-    f.op(Instruction::MemoryCopy {
-        src_mem: HEAP,
-        dst_mem: HEAP,
-    });
+    f.push(crate::bulk::copy(HEAP, HEAP));
     if elem.counts() {
         f.get(at);
         f.get(count);
@@ -3808,10 +3794,7 @@ fn str_from_bytes(m: &Module) -> Func {
     f.u32(LIST_ELEMS);
     f.op(Instruction::I32Add);
     f.get(n);
-    f.op(Instruction::MemoryCopy {
-        src_mem: HEAP,
-        dst_mem: HEAP,
-    });
+    f.push(crate::bulk::copy(HEAP, HEAP));
     f.op(Instruction::Else);
     f.u32(EMPTY);
     f.set(s);
@@ -3839,10 +3822,7 @@ fn str_to_bytes(m: &Module, elem: &Elem) -> Func {
     f.op(Instruction::I32Add);
     f.get(0);
     f.get(1);
-    f.op(Instruction::MemoryCopy {
-        src_mem: HEAP,
-        dst_mem: HEAP,
-    });
+    f.push(crate::bulk::copy(HEAP, HEAP));
     f.get(b);
     f
 }
@@ -3892,10 +3872,7 @@ fn str_append(m: &Module) -> Func {
         f.op(Instruction::I32Add);
         f.get(right);
         f.get(right_len);
-        f.op(Instruction::MemoryCopy {
-            src_mem: HEAP,
-            dst_mem: HEAP,
-        });
+        f.push(crate::bulk::copy(HEAP, HEAP));
         f.get(left);
         f.get(total);
         f.op(Instruction::Return);
@@ -3918,19 +3895,13 @@ fn str_append(m: &Module) -> Func {
     f.get(at);
     f.get(left);
     f.get(left_len);
-    f.op(Instruction::MemoryCopy {
-        src_mem: HEAP,
-        dst_mem: HEAP,
-    });
+    f.push(crate::bulk::copy(HEAP, HEAP));
     f.get(at);
     f.get(left_len);
     f.op(Instruction::I32Add);
     f.get(right);
     f.get(right_len);
-    f.op(Instruction::MemoryCopy {
-        src_mem: HEAP,
-        dst_mem: HEAP,
-    });
+    f.push(crate::bulk::copy(HEAP, HEAP));
     f.get(left);
     f.helper(Helper::ReleaseRef);
     f.get(at);
@@ -4727,7 +4698,7 @@ pub(crate) fn grow_table(m: &Module, f: &mut Func, [tab, len]: [Global; 2], cap:
     f.get(cap);
     f.i32(stride);
     f.op(Instruction::I32Mul);
-    f.op(Instruction::MemoryFill(HEAP));
+    f.push(crate::bulk::fill(HEAP));
     f.global_get(tab);
     f.op(Instruction::If(BlockType::Empty));
     f.get(fresh);
@@ -4735,10 +4706,7 @@ pub(crate) fn grow_table(m: &Module, f: &mut Func, [tab, len]: [Global; 2], cap:
     f.global_get(len);
     f.i32(stride);
     f.op(Instruction::I32Mul);
-    f.op(Instruction::MemoryCopy {
-        src_mem: HEAP,
-        dst_mem: HEAP,
-    });
+    f.push(crate::bulk::copy(HEAP, HEAP));
     if let Some(r) = m.runtime {
         f.global_get(tab);
         f.call(Sym::Inst(r.acyclic.free));
@@ -4944,7 +4912,7 @@ fn spill_grow(f: &mut Func, m: &Module) {
     f.global_get(Global::SpillCap);
     f.i32(8);
     f.op(Instruction::I32Mul);
-    f.op(Instruction::MemoryFill(HEAP));
+    f.push(crate::bulk::fill(HEAP));
     f.get(old);
     f.op(Instruction::If(BlockType::Empty));
     f.get(old);

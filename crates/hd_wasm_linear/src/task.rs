@@ -190,7 +190,7 @@ fn new_zeroed(f: &mut Func, size: u32, drop: Option<Sym>, cyclic: bool) -> u32 {
     f.get(at);
     f.i32(0);
     f.u32(size);
-    f.op(Instruction::MemoryFill(HEAP));
+    f.push(crate::bulk::fill(HEAP));
     at
 }
 
@@ -702,7 +702,7 @@ fn wake_slot(m: &Module) -> Func {
     f.get(cap);
     f.i32(WAKE_STRIDE);
     f.op(Instruction::I32Mul);
-    f.op(Instruction::MemoryFill(HEAP));
+    f.push(crate::bulk::fill(HEAP));
     f.global_get(Global::WakeTab);
     f.op(Instruction::If(BlockType::Empty));
     f.get(fresh);
@@ -710,10 +710,7 @@ fn wake_slot(m: &Module) -> Func {
     f.global_get(Global::WakeCap);
     f.i32(WAKE_STRIDE);
     f.op(Instruction::I32Mul);
-    f.op(Instruction::MemoryCopy {
-        src_mem: HEAP,
-        dst_mem: HEAP,
-    });
+    f.push(crate::bulk::copy(HEAP, HEAP));
     if let Some(r) = m.runtime {
         // A raw block: the free that skips the collector's candidate test.
         f.global_get(Global::WakeTab);
@@ -1485,7 +1482,7 @@ fn host_drive(
         f.op(Instruction::I32Sub);
         f.i32(0);
         f.u32(crate::module::HEADER + LEAF_ARGS + area.size);
-        f.op(Instruction::MemoryFill(HEAP));
+        f.push(crate::bulk::fill(HEAP));
         init_host_leaf(
             &mut f,
             m,
@@ -2221,7 +2218,7 @@ fn all_cold(m: &Module, elem: &Elem) -> Func {
     f.i32(0);
     f.get(bytes);
     f.op(Instruction::I32WrapI64);
-    f.op(Instruction::MemoryFill(HEAP));
+    f.push(crate::bulk::fill(HEAP));
     f.get(at);
     f.table_slot(Sym::Helper(Helper::All {
         part: 1,

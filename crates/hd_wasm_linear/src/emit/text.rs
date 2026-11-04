@@ -88,10 +88,7 @@ impl Em<'_, '_, '_> {
             self.f.get(to);
             self.comp(*p, 0)?;
             self.comp(*p, 1)?;
-            self.f.op(I::MemoryCopy {
-                src_mem: HEAP,
-                dst_mem: HEAP,
-            });
+            self.f.push(crate::bulk::copy(HEAP, HEAP));
             self.f.get(to);
             self.comp(*p, 1)?;
             self.f.op(I::I32Add);

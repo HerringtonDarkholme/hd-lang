@@ -144,7 +144,7 @@ fn storage(f: &mut Func) -> StageResult<bool> {
         Ins::Op(I::LocalGet(base)),
         Ins::Op(I::I32Const(0)),
         Ins::Op(I::I32Const(size)),
-        Ins::Op(I::MemoryFill(STACK)),
+        crate::bulk::fill(STACK),
     ];
     let restore = |out: &mut Vec<Ins>| {
         out.extend([

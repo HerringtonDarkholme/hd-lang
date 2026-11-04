@@ -3205,10 +3205,7 @@ impl Em<'_, '_, '_> {
                     self.f.get(destination);
                     self.comp(args[0], 0)?;
                     self.push(args[1])?;
-                    self.f.op(I::MemoryCopy {
-                        src_mem: HEAP,
-                        dst_mem: HEAP,
-                    });
+                    self.f.push(crate::bulk::copy(HEAP, HEAP));
                     let Some(buffer) = self.vals.get(&args[0]).cloned() else {
                         return unsupported("a transferred raw buffer without value locals");
                     };
@@ -3263,6 +3260,17 @@ impl Em<'_, '_, '_> {
     /// bytes are its address, and a new string of no bytes the static
     /// empty one (`module.rt.string.*`).
     fn memory(&mut self, i: u32, key: &str, args: &[u32]) -> StageResult<()> {
+        if matches!(key, "mem_copy" | "mem_fill") {
+            for &arg in args {
+                self.push(arg)?;
+            }
+            self.f.push(if key == "mem_copy" {
+                crate::bulk::copy(HEAP, HEAP)
+            } else {
+                crate::bulk::fill(HEAP)
+            });
+            return self.store(i);
+        }
         let op = match key {
             "mem_string_bytes" => {
                 self.comp(args[0], 0)?;
@@ -3302,11 +3310,6 @@ impl Em<'_, '_, '_> {
             "mem_store_u16" => I::I32Store16(mem(HEAP, 0, 1)),
             "mem_store_u32" => I::I32Store(mem(HEAP, 0, 2)),
             "mem_store_u64" => I::I64Store(mem(HEAP, 0, 3)),
-            "mem_copy" => I::MemoryCopy {
-                src_mem: HEAP,
-                dst_mem: HEAP,
-            },
-            "mem_fill" => I::MemoryFill(HEAP),
             other => return unsupported(format!("the intrinsic `{other}`")),
         };
         for a in args {

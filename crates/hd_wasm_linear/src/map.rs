@@ -250,7 +250,7 @@ pub fn table(m: &Module, entry: &Entry) -> Func {
     f.get(0);
     f.i32(8);
     f.op(I::I32Mul);
-    f.op(I::MemoryFill(HEAP));
+    f.push(crate::bulk::fill(HEAP));
     f.get(t);
     f
 }
@@ -654,10 +654,7 @@ pub fn grow(entry: &Entry, m: &Module) -> Func {
         entry_at(f, nt, ncap, j, entry.size);
         entry_at(f, t, cap, e, entry.size);
         f.u32(entry.size);
-        f.op(I::MemoryCopy {
-            src_mem: HEAP,
-            dst_mem: HEAP,
-        });
+        f.push(crate::bulk::copy(HEAP, HEAP));
         f.get(j);
         f.i32(1);
         f.op(I::I32Add);
@@ -709,10 +706,7 @@ pub fn unique(entry: &Entry, m: &Module) -> Func {
     f.get(nt);
     f.get(t);
     table_bytes(&mut f, cap, entry.size);
-    f.op(I::MemoryCopy {
-        src_mem: HEAP,
-        dst_mem: HEAP,
-    });
+    f.push(crate::bulk::copy(HEAP, HEAP));
     store_u32(&mut f, nt, LIST_OWN, &|f| f.i32(0));
     let walk = entry.walk().and_then(|w| w.without(&entry.colls));
     let retain = retain_call(m);
