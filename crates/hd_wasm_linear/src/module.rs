@@ -1606,6 +1606,13 @@ impl Module {
         for f in self.funcs.iter_mut().flatten() {
             crate::opt::locals(f, &arity);
         }
+        // A helper the folds above emptied leaves calls that do nothing.
+        let quiet = crate::opt::effect_free_calls(&mut self.funcs, &self.symbols);
+        for (f, changed) in self.funcs.iter_mut().zip(quiet) {
+            if let Some(f) = f.as_mut().filter(|_| changed) {
+                crate::opt::locals(f, &arity);
+            }
+        }
         // Retained fixture roots are entered by the harness, and a suspending
         // body can resume with frame-loaded arguments that no direct call site
         // supplies. Neither is closed-world input to the static-value proof.

@@ -2,9 +2,8 @@
 (module
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "rt:release'1" (func $rt:release'1 (param i32 i32)))
+  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
-  (import "fixture" "rt:release'2" (func $rt:release'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $in_struct (param $t i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     block
@@ -63,7 +62,7 @@
       local.get $alias
       i32.const 1
       i32.store $heap offset=4
-      call $rt:release'1
+      call $rt:release
     ;; 15 |     *held.name
       local.get $t
       i32.load $heap
@@ -137,7 +136,7 @@
       local.get $alias
       i32.const 1
       i32.store $heap offset=4
-      call $rt:release'1
+      call $rt:release
     ;; 25 |     match held:
       block
         block
@@ -159,8 +158,6 @@
               local.get $t
               i32.eqz
               if
-                local.get $t
-                call $rt:release'2
                 br 3
               else
                 unreachable
@@ -248,7 +245,7 @@
       local.get $alias
       i32.const 1
       i32.store $heap offset=4
-      call $rt:release'1
+      call $rt:release
     ;; 20 |     *held._0
       local.get $t
       i32.load $heap
