@@ -2735,6 +2735,7 @@ typing/invalid/derived-arbitrary-tuned-member-not-arbitrary.hd	type	reject:membe
 runtime/valid/structure-name.hd	runtime	accept	lang/14-annotations.md#r-annot.structure.name
 runtime/valid/structure-optional-keys.hd	runtime	accept	lang/14-annotations.md#r-annot.build.next-option
 runtime/valid/structure-protocol-ref.hd	runtime	accept	lang/14-annotations.md#r-annot.structure.protocol-ref
+runtime/valid/structure-walker-holds-a-mut-reference.hd	runtime	accept	lang/14-annotations.md#r-annot.structure.protocol-move
 runtime/valid/structure-self-ref-enum.hd	runtime	accept	lang/14-annotations.md#r-annot.self-ref.needs.enum
 runtime/valid/structure-self-ref-type-arguments.hd	runtime	accept	lang/14-annotations.md#r-annot.self-ref.enclosing.arguments
 typing/valid/expression-type-arguments.hd	type	accept	lang/02-grammar.md#r-grammar.expr.type-arguments.marker

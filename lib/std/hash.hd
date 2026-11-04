@@ -223,27 +223,27 @@ pub fn hash_of[T < Hash](value: T) -> u64:
 # Derived `Hash` (spec/std/hash.md#derived-hashing): an enum's variant index
 # as a `u32`, then each member in declaration order.
 impl[T] Hash for T by Structure:
-    fn hash[H < Hasher](&self, state: *mut H) -> void:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
         let mut w = HashWalker::[T, H] { state: state }
         _ := Structure::walk(*self, &mut w)
 
 # Union `Hash`: the ordinary enum derivation, including the active case index.
 impl[T < UnionType] Hash for T by Structure:
-    fn hash[H < Hasher](&self, state: *mut H) -> void:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
         let mut w = HashWalker::[T, H] { state: state }
         _ := Structure::walk(*self, &mut w)
 
 # The field is public because the prototype checks the instantiated walker
 # in the deriving module.
-struct HashWalker[S, H < Hasher]:
-    pub state: *mut H
+struct HashWalker[S, H < Hasher, 'a]:
+    pub state: &'a mut H
 
-impl[S, H < Hasher] Walker[S] for HashWalker[S, H]:
+impl['a, S, H < Hasher] Walker[S] for HashWalker[S, H, 'a]:
     type Error = never
 
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         if !v.info.of_data:
-            u32(v.info.index).hash(self.state)
+            u32(v.info.index).hash(&mut *self.state)
         .Ok(())
 
     # A rest member is one `List[T]` member (annot.walk.rest.default),
@@ -252,14 +252,14 @@ impl[S, H < Hasher] Walker[S] for HashWalker[S, H]:
         self.member(h, items)
 
     fn member[F < Hash](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
-        value.hash(self.state)
+        value.hash(&mut *self.state)
         .Ok(())
 
 # Tuple hashing (spec/std/hash.md#tuple-hashing): each element in order, at
 # every size. A rest element hashes as its `List`, so a rest tuple is
 # hashable when its rest's items are (r-std-hash.tuple.rest-list).
 impl[T < Tuple] Hash for T by Structure:
-    fn hash[H < Hasher](&self, state: *mut H) -> void:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
         let mut w = HashWalker::[T, H] { state: state }
         _ := Structure::walk(*self, &mut w)
 

@@ -225,7 +225,7 @@ impl[HdS] MembersRecord[HdS]:
 # (annot.structure.protocol-ref), so a struct walker changes in place.
 ## The protocol that walks a value variant and member by member.
 ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
-pub trait Walker[S]:
+pub trait Walker[S] < ?Copy:
     type Error
     fn data_variant(&mut self, v: Variant[S]) -> Result[void, Self::Error]:
         self.variant(v)
@@ -238,14 +238,14 @@ pub trait Walker[S]:
 
 ## The protocol that describes a type variant and member by member, without a value.
 ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
-pub trait Describer[S]:
+pub trait Describer[S] < ?Copy:
     type Error
     fn variant(&mut self, v: Variant[S]) -> Result[void, Self::Error]
     fn member[F](&mut self, h: Field[S, F]) -> Result[void, Self::Error]
 
 ## The protocol that builds a value: it chooses a variant and supplies each member.
 ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
-pub trait Source[S]:
+pub trait Source[S] < ?Copy:
     type Error
     fn data_variant(&mut self, choice: Variant[S]) -> Result[Variant[S], Self::Error]:
         self.variant([choice])

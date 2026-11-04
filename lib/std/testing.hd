@@ -358,7 +358,7 @@ pub trait Arbitrary:
 # implementation below; the prototype joins neither into a program by
 # itself, because they name `std.structure` (checker/typed-derivation.ts).
 impl[T] Arbitrary for T by Structure:
-    fn arbitrary(c: *mut Choices) -> T:
+    fn arbitrary(c: &mut Choices) -> T:
         let mut s = ArbitrarySource::[T] { c: c, at: 0 }
         match T::build(&mut s):
             .Ok(value) => value
@@ -367,14 +367,14 @@ impl[T] Arbitrary for T by Structure:
 
 # The fields are public because the prototype checks the instantiated
 # `Source` implementation in the target's module.
-struct ArbitrarySource[S]:
-    pub c: *mut Choices
+struct ArbitrarySource[S, 'a]:
+    pub c: &'a mut Choices
     pub at: usize
 
 # The one way an `ArbitrarySource` fails: every variant is recursive.
 struct NoFiniteValue: pass
 
-impl[S] Source[S] for ArbitrarySource[S]:
+impl['a, S] Source[S] for ArbitrarySource[S, 'a]:
     type Error = NoFiniteValue
 
     # The simplest choice is the first variant whose `self_ref` is not
@@ -415,8 +415,8 @@ impl[S] Source[S] for ArbitrarySource[S]:
     # handle (r-std-testing.arbitrary.with.typed-read).
     fn member[F < Arbitrary](&mut self, h: Field[S, F], previous: F?) -> Result[F, NoFiniteValue]:
         match h.fact::[With[F]]():
-            .None => .Ok(F::arbitrary(self.c))
-            .Some(tuned) => .Ok((tuned.gen)(self.c))
+            .None => .Ok(F::arbitrary(&mut *self.c))
+            .Some(tuned) => .Ok((tuned.gen)(&mut *self.c))
 
     fn missing[F](&mut self, h: Field[S, F]) -> Result[F, NoFiniteValue]:
         panic("an arbitrary source names every member")

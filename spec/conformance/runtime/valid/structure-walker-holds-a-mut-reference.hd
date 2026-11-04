@@ -1,0 +1,83 @@
+# test: the structure protocol traits do not require `Copy`, so a walker and a source may hold a `&mut` reference to a caller's log and write it member by member
+# Spec 14 The Structure Trait: annot.structure.protocol-move.
+# expect-stdout: x=1;y=2;
+# expect-stdout: 7 8 2
+use std.structure.{Structure, Field, Variant, Members, Key, Walker, Source}
+
+trait Report:
+    fn report(self, log: &mut string) -> void
+
+trait Seed:
+    fn seed(n: i32) -> Self
+
+impl Seed for i32:
+    fn seed(n: i32) -> i32:
+        n
+
+trait Make:
+    fn make(start: i32, made: &mut i32) -> Self
+
+struct Writer['a]:
+    log: &'a mut string
+
+impl['a, S] Walker[S] for Writer['a]:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F < Display](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        *self.log = *self.log + h.info.name + "=$value;"
+        .Ok(())
+
+struct Counter['a]:
+    next: i32
+    at: usize
+    made: &'a mut i32
+
+impl['a, S] Source[S] for Counter['a]:
+    type Error = never
+
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], never]:
+        .Ok(choices[0])
+
+    fn next(&mut self, members: Members[S]) -> Result[Key[S]?, never]:
+        if self.at >= members.infos.len():
+            return .Ok(.None)
+        info := members.infos[self.at]
+        self.at = self.at + 1
+        .Ok(members.at(info.position))
+
+    fn member[F < Seed](&mut self, h: Field[S, F], previous: F?) -> Result[F, never]:
+        value := F::seed(self.next)
+        self.next = self.next + 1
+        *self.made = *self.made + 1
+        .Ok(value)
+
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, never]:
+        panic("the counter names every member")
+
+impl[T] Report for T by Structure:
+    fn report(self, log: &mut string) -> void:
+        let mut w = Writer { log: log }
+        _ := Structure::walk(self, &mut w)
+
+impl[T] Make for T by Structure:
+    fn make(start: i32, made: &mut i32) -> T:
+        let mut s = Counter { next: start, at: 0, made: made }
+        match T::build(&mut s):
+            .Ok(value) => value
+            .Err(_) => panic("the counter never fails")
+
+@derive(Report, Make)
+struct Point:
+    x: i32
+    y: i32
+
+pub fn main() -> void $ Console:
+    let mut log = ""
+    Point { x: 1, y: 2 }.report(&mut log)
+    println(log)
+    let mut made = +0
+    p := Point::make(7, &mut made)
+    println("${p.x} ${p.y} $made")
