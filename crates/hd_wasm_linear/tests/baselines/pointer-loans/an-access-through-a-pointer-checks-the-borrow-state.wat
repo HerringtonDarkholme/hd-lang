@@ -127,7 +127,7 @@
       i32.store $heap offset=8
     end
   )
-  (func $mutate (param $u i32) (local $t0 i32)
+  (func $mutate (param $u i32) (local $t0 i32) (local $t1 i32)
     block
     ;; 36 |     set(&mut u.age)
       global.get $loan_top
@@ -142,26 +142,45 @@
       local.get $u
       i32.const 4
       i32.sub
+      local.tee $t0
       i32.load $heap
       i32.const 4128768
       i32.and
+      local.get $t1
+      i32.ne
       if
         call $rt:panic'2
         unreachable
       end
+      local.get $t0
+      local.get $t0
+      i32.load $heap
+      i32.const 2097152
+      i32.add
+      i32.store $heap
+      local.get $t1
+      i32.const 2097152
+      i32.add
       local.get $u
       i32.const 8
       i32.add
       local.tee $u
-      local.tee $t0
+      local.tee $t1
       i32.const 4
       i32.const 1
       call $rt:loan_begin
       local.get $u
       call $set
       local.get $t0
+      local.get $t0
+      i32.load $heap
+      i32.const 2097152
+      i32.sub
+      i32.store $heap
+      drop
+      local.get $t1
       if
-        local.get $t0
+        local.get $t1
         i32.const 4
         i32.const 1
         i32.const -1

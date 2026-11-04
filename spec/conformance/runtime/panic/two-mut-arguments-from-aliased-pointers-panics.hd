@@ -1,0 +1,14 @@
+# test: two `&mut` arguments lent from two aliases of one boxed object both hold exclusive loans for the call, so the second one panics
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.call-loan, ref.excl.alias.conflict.
+struct Point:
+    x: i32
+    y: i32
+
+fn set_x(a: &mut Point, b: &mut Point) -> void:
+    a.x = 8
+    println("${a.x} ${b.x}")
+
+pub fn main() -> void $ Console:
+    p := box(Point { x: 0, y: 0 })
+    q := p
+    set_x(p, q) # panic: borrow-conflict

@@ -1241,8 +1241,13 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   which a local per pointer sums, and 0 through any other. A difference
   panics `borrow-conflict`. Only a type some loan may hold is tested
   (`Module::lent`); a place that crosses no `*T` emits nothing, and a
-  pointer argument is no access. Call arguments, returned references and
-  suspending bodies take no loan yet.
+  pointer argument is no access. A call's argument takes a loan from its
+  evaluation until the call returns: a `Ref` that crosses a `*T`, and a
+  `*T` the callee's parameter takes as a `&T` or `&mut T` (its whole
+  object). A `&mut self` receiver's loan is shared until the call begins,
+  when a check that only the function's own loans hold its object makes
+  it exclusive; a closure argument takes over the loans of the holders it
+  captures for the call. Suspending bodies take no loan yet.
 - **Bounded memory.** `crates/hd_driver/tests/std_rt/count_tests.hd`
   repeatedly builds strings, chains of nodes and enum payloads, checking
   that the heap stays bounded.

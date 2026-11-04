@@ -1,0 +1,21 @@
+# test: a boxed list lent as a `&mut` argument holds an exclusive loan for the call, so a closure argument that pushes through another alias panics
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.call-loan, ref.excl.alias.conflict.
+fn len_after(items: List[i32], change: fn() -> void) -> usize:
+    change()
+    items.len()
+
+fn read_through(shared: &mut List[i32], change: fn() -> void) -> usize:
+    len_after(*shared, change)
+
+tests:
+    use std.testing.assert_equal
+
+    it("a value read through a reference is copied before the call"):
+        items := box::[List[i32]]([+1])
+        alias := items
+        assert_equal(
+            read_through(items, fn(): alias.push(2)), # panic: borrow-conflict
+            1,
+            reason="the parameter is the list as read",
+        )
+        assert_equal(items.len(), 2, reason="the referenced list grew")

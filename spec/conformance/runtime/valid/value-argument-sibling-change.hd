@@ -98,15 +98,3 @@ tests:
             2,
             reason="a shared field still needs the early copy",
         )
-
-    it("legacy and reference parameters retain sharing"):
-        xs := box::[List[i32]]([+1, 2])
-        alias := xs
-        assert_equal(shared(xs, alias.pop()), 1, reason="a legacy view deliberately shares")
-        ys := box::[List[i32]]([+1, 2])
-        other := ys
-        assert_equal(
-            referred(ys, other.pop()),
-            1,
-            reason="a reference deliberately reads the changed source",
-        )

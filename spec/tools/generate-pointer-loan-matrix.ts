@@ -1255,6 +1255,55 @@ pub fn main() -> void $ Console:
     seen := probe(boxed, boxed)
 ${tail}`,
   },
+  {
+    name: "hidden-alias-in-another-object-panics",
+    panic: true,
+    what: "a callee writes another field through an alias it reaches in another object while a reference argument holds a loan",
+    source: `struct Cell:
+    value: string
+    other: string
+
+struct Writer:
+    cell: *mut Cell
+
+${helpers}
+fn older(writer: &Writer, seen: &string) -> string:
+    writer.cell.other = fresh() # panic: borrow-conflict
+    *seen
+
+fn probe(boxed: *mut Cell, writer: &Writer) -> string:
+    older(writer, &boxed.value)
+
+pub fn main() -> void $ Console:
+    boxed := box(Cell { value: orig(), other: fresh() })
+    writer := Writer { cell: boxed }
+    seen := probe(boxed, &writer)
+${tail}`,
+  },
+  {
+    name: "pointer-lent-as-mut-argument-panics",
+    panic: true,
+    what: "a pointer passed where \`&mut\` is expected lends its whole object from its evaluation, so a later argument that writes through an alias panics",
+    source: `struct Cell:
+    value: string
+    other: string
+
+${helpers}
+fn write_other(alias: *mut Cell) -> usize:
+    alias.other = fresh() # panic: borrow-conflict
+    1
+
+fn observe(c: &mut Cell, n: usize) -> string:
+    c.value
+
+fn probe(boxed: *mut Cell, alias: *mut Cell) -> string:
+    observe(boxed, write_other(alias))
+
+pub fn main() -> void $ Console:
+    boxed := box(Cell { value: orig(), other: fresh() })
+    seen := probe(boxed, boxed)
+${tail}`,
+  },
 ];
 /** Each adversarial case's columns: elision under loans (A), keep-alive (B). */
 const extraColumns: Record<string, [string, string]> = {
@@ -1290,6 +1339,8 @@ const extraColumns: Record<string, [string, string]> = {
   "dependent-result-alias-panics": ["loan needed", "runs"],
   "pass-alias-mut-with-shared-panics": ["loan needed", "runs, sees the write"],
   "pass-alias-read-with-mut-panics": ["loan needed", "runs"],
+  "hidden-alias-in-another-object-panics": ["loan needed", "runs"],
+  "pointer-lent-as-mut-argument-panics": ["loan needed", "runs"],
 };
 for (const { name, panic, what, source } of extras) {
   const file = `${panic ? "runtime/panic" : "runtime/valid"}/${stem}extra-${name}.hd`;
@@ -1407,7 +1458,11 @@ for (const { name, what, body, code = "conflicting-access" } of sameRoot) {
 ${body.includes("UniqList") ? "use std.collections.UniqList\n\n" : ""}${sameRootDecls}
 ${body}`;
   output(`conformance/${file}`, contents);
-  const rule = code === "conflicting-access" ? "ref.excl.place" : "ref.dep.scope";
+  const rule = name.includes("-with-")
+    ? "ref.excl.args.pointer"
+    : code === "conflicting-access"
+      ? "ref.excl.place"
+      : "ref.dep.scope";
   const cited = body.includes("UniqList")
     ? "std/collections.md#r-std-collections.uniq-list.type"
     : `lang/13-values-and-references.md#r-${rule}`;

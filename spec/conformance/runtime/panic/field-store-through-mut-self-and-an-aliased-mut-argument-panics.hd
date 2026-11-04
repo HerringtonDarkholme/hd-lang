@@ -1,0 +1,61 @@
+# test: a `&mut self` receiver and a `&mut` argument from two aliases of one boxed object both hold loans on it for the call, so the second one panics
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.call-loan, ref.excl.alias.conflict.
+# Spec 04 Collection Values: types.coll.value.
+
+struct Pair:
+    a: i32
+    b: i32
+
+fn changed(other: &mut Pair) -> i32:
+    other.b = +9
+    +42
+
+fn changed_both(other: &mut Pair) -> i32:
+    other.a = +100
+    other.b = +9
+    +3
+
+impl Pair:
+    fn assign(&mut self, other: &mut Pair) -> void:
+        self.a = changed(other)
+
+    fn compound(&mut self, other: &mut Pair) -> void:
+        self.a += changed_both(other)
+
+let selections: usize = 0
+
+fn selected(pair: *mut Pair) -> *mut Pair:
+    selections = selections + 1
+    pair
+
+struct Nested:
+    pair: Pair
+    text: string
+    items: List[string]
+
+fn changed_nested(other: &mut Nested) -> i32:
+    other.pair.b = +9
+    +42
+
+fn nested_assign(value: &mut Nested, other: &mut Nested) -> void:
+    value.pair.a = changed_nested(other)
+
+fn assign_items(value: &mut Nested, items: List[string]) -> void:
+    value.items = items
+
+trait Factory:
+    fn make[T < 'static](self, value: T) -> *mut T:
+        box(value)
+
+struct Maker: pass
+impl Factory for Maker
+
+tests:
+    use std.testing.assert_equal
+
+    it("self.a = f() preserves a write to self.b through an alias"):
+        pair := box(Pair { a: +1, b: +2 })
+        alias := pair
+        pair.assign(alias) # panic: borrow-conflict
+        assert_equal(pair.a, +42, reason="the assigned result")
+        assert_equal(pair.b, +9, reason="the RHS changed the neighboring field")

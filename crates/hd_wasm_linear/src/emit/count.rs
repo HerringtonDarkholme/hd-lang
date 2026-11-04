@@ -839,6 +839,7 @@ impl Em<'_, '_, '_> {
             // A value made only of references needs no ownership drop, so
             // the move pass may omit it from `exit_drops`. Its contained
             // run-time loans still end when the value is released here.
+            self.borrow_exit();
             for l in self.loan_holder_locals() {
                 if !released.contains(&l)
                     && let Some(ls) = self.locals.get(&l).cloned()

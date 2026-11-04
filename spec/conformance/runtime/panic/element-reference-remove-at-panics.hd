@@ -1,7 +1,7 @@
-# test: a remove_at through a box alias the checker cannot see during an element reference's call panics with collection-pinned
-# Spec 13 Call-Scoped Access: ref.elem.access.pin, ref.elem.pinned.
+# test: a remove_at through a box alias the checker cannot see during an element reference's call panics borrow-conflict, as model A gives a write through an alias of a borrowed collection
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.call-loan, ref.excl.alias.conflict.
 fn change(list: &mut List[i32], first: &mut i32) -> void:
-    _ := list.remove_at(0) # panic: collection-pinned
+    _ := list.remove_at(0) # panic: borrow-conflict
     *first = 5
 
 tests:

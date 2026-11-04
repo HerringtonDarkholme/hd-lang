@@ -9,7 +9,5 @@ tests:
 
     it("is compares a read-only reference and a writable one by identity"):
         users := box(User { name: "Ada" })
-        view := users
         others := &mut User { name: "Ada" }
-        assert(same(view, users), reason="mutability does not affect identity")
         assert(!same(others, users), reason="distinct objects stay distinct")

@@ -1,5 +1,5 @@
-# test: replacing the whole list while it is pinned is allowed, and the old reference keeps the old elements
-# Spec 13 Element References: ref.elem.replace.
+# test: a boxed list lent as a `&mut` argument beside an element reference from another alias of it conflicts for the call, so replacing the list through it panics
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.call-loan, ref.excl.alias.conflict.
 fn replace_then_write(list: &mut List[i32], old: &mut i32) -> i32:
     *list = []
     list.push(5)
@@ -9,16 +9,12 @@ fn replace_then_write(list: &mut List[i32], old: &mut i32) -> i32:
 # The list comes through a box alias, which the checker does not see.
 fn replaced(list: *mut List[i32]) -> i32:
     alias := list
-    replace_then_write(alias, &mut list[1])
+    replace_then_write(alias, &mut list[1]) # panic: borrow-conflict
 
 tests:
     use std.testing.assert_equal
 
     it("xs = [] leaves the reference on the old elements"):
         xs := box([+1, 2, 3])
-        assert_equal(
-            replaced(xs),
-            20,
-            reason="the old reference still reads and writes its slot",
-        )
+        assert_equal(replaced(xs), 20, reason="the old reference still reads and writes its slot")
         assert_equal(*xs, [+5], reason="the new list is untouched by the old reference")

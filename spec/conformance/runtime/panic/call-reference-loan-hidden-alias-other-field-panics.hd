@@ -1,6 +1,5 @@
-# test: a direct reference argument through a counted object permits a disjoint write through an alias hidden in another object
+# test: a direct reference argument holds a loan on the whole counted object for its call, so a write to another field through an alias hidden in another object panics
 # Spec 13 Conflicts Through Aliases: ref.excl.alias.call-loan, ref.excl.alias.conflict.
-# expect-stdout: a 2
 struct User:
     name: string
     age: i32
@@ -9,7 +8,7 @@ struct Writer:
     user: *mut User
 
 fn older(writer: &Writer, name: &string) -> string:
-    writer.user.age += 1
+    writer.user.age += 1 # panic: borrow-conflict
     "${*name} ${writer.user.age}"
 
 fn disjoint(view: *mut User, writer: &Writer) -> string:
