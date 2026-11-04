@@ -146,6 +146,9 @@ pub(crate) struct Tables {
     pread: Vec<u32>,
     part_uses: Vec<(u32, u32)>,
     part_keep: Vec<bool>,
+    /// Per instruction: whether its value leaves its sub-body as the
+    /// sub-body's result (a default argument's `&mut []`).
+    returned: Vec<bool>,
 }
 
 impl Tables {
@@ -168,6 +171,7 @@ impl Tables {
         fill(&mut self.pread, n, NONE);
         self.part_uses.clear();
         self.part_keep.clear();
+        fill(&mut self.returned, n, false);
     }
 
     /// Calls `f` with the part bit of each part of local `l` that the
@@ -269,6 +273,7 @@ pub(crate) fn run(
     if !candidates(b, topo, cx, t) {
         return;
     }
+    returned(b, t);
     part_uses(b, cx, t);
     touches(b, t);
     let mut back = std::mem::take(&mut t.back);
@@ -288,6 +293,28 @@ pub(crate) fn run(
     }
     t.back = back;
     apply(b, topo, cx, t, edits);
+}
+
+/// Marks each value its sub-body returns as its result: the root block's
+/// tail, through blocks, scopes and coercions that keep it. A local
+/// reference returned so (a default argument's `&mut []`) takes its
+/// cell, which nothing in the body outlives.
+fn returned(b: &Body, t: &mut Tables) {
+    for &r in &b.sub_root {
+        let mut v = r;
+        while crate::ir::Ref(v).as_inst().is_some()
+            && (v as usize) < b.len()
+            && !t.returned[v as usize]
+        {
+            t.returned[v as usize] = true;
+            let [a, w] = b.data[v as usize];
+            v = match b.tags[v as usize] {
+                Tag::Block => w,
+                Tag::Scope | Tag::Coerce => a,
+                _ => break,
+            };
+        }
+    }
 }
 
 /// Whether read `i` is a whole read of a frame local that the walk found
@@ -779,7 +806,7 @@ impl Backward for Tables {
                         Tag::Ref
                             if addr
                                 && p.whole()
-                                && w & crate::ir::ref_word::LOCAL == 0
+                                && (w & crate::ir::ref_word::LOCAL == 0 || self.returned[i])
                                 && !matches!(p.root, Root::Local(l) if self.frame[l as usize]) =>
                         {
                             self.decide[i] = if last == MOVE { TAKE } else { KEEP };

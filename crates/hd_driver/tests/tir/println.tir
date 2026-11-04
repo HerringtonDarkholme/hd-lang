@@ -11,7 +11,7 @@ std/console/println (Fn)
   %5 = Call std/format/Display.to_string for T [] via Bound (%4) : string
   %6 = Call std/console/Console.write_sync for Console [] via TraitValue (%3, %5) : Result[(), ConsoleError]
   %7 = Store [$2] %6 : ()
-  %8 = Ref [$2] : Counted[Result[(), ConsoleError]]
+  %8 = Ref local [$2] : Counted[Result[(), ConsoleError]]
   %9 = Call std/result/impl [ T < ? Copy , E < ? Copy ] Result [ T , E ].is_err[(), ConsoleError] (%8) : bool
   %10 = Call std/core/panic[] ("println: write_sync returned .Err(ConsoleError)") : never
   %11 = Block - : never
@@ -19,7 +19,7 @@ std/console/println (Fn)
   %13 = Read [*$1] : mut Console
   %14 = Call std/console/Console.write_sync for Console [] via TraitValue (%13, "\n") : Result[(), ConsoleError]
   %15 = Store [$3] %14 : ()
-  %16 = Ref [$3] : Counted[Result[(), ConsoleError]]
+  %16 = Ref local [$3] : Counted[Result[(), ConsoleError]]
   %17 = Call std/result/impl [ T < ? Copy , E < ? Copy ] Result [ T , E ].is_err[(), ConsoleError] (%16) : bool
   %18 = Call std/core/panic[] ("println: write_sync returned .Err(ConsoleError)") : never
   %19 = Block - : never
