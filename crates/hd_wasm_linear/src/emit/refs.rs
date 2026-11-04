@@ -1088,6 +1088,15 @@ impl Em<'_, '_, '_> {
             PlaceRoot::Local(l) if whole => Some((l.idx(), Vec::new())),
             _ => None,
         };
+        // A local reference that owns its object moves it into the local,
+        // whose release then releases the object.
+        if let Some((l, _)) = &local
+            && !self.is_cell(*l)
+            && v != NONE
+            && self.owned_refs.contains(&v)
+        {
+            self.owned_locals.insert(*l);
+        }
         match &local {
             // A thunk lowers only the places stage 1 lowers.
             _ if rooted && !self.owned => {
