@@ -541,7 +541,7 @@ pub fn main() -> void $ Console:
     what: "another task replaces a `UniqList` while the reference waits across a bang call",
     source: `use std.collections.UniqList
 use std.task.join
-use std.time.{Clock, sleep}
+use std.time.{Clock, s, sleep}
 
 struct Bag:
     items: UniqList[string]
@@ -554,14 +554,15 @@ fn uniq(value: string) -> UniqList[string]:
 
 fn hold!(p: *mut Bag) -> string $ Clock:
     r := p.items.get_ref(0).expect("slot")
-    sleep!(2ms)
+    # join! polls its tasks in argument order (req.schedule.all-unfinished),
+    # so act! writes while this task waits; the panic ends the run.
+    sleep!(s(60))
     junk := churn()
     seen := *r
     _ := junk.len()
     seen
 
-fn act!(alias: *mut Bag) -> string $ Clock:
-    sleep!(1ms)
+fn act!(alias: *mut Bag) -> string:
     alias.items = uniq(fresh()) # panic: borrow-conflict
     "acted"
 
