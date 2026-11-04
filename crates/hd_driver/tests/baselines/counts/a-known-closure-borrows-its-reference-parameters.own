@@ -12,11 +12,11 @@ fn total(left: &i32, right: &i32) -> i32:
 >   local $3 b: Ref[i32] [param read]
 >   local $4 by: fn(Ref[i32], Ref[i32]) -> i32 [:= read assigned]
 >   %0 = Read copy [*$2] : i32
->   %1 = Drop [$2] : ()
->   %2 = Read copy [*$3] : i32
->   %3 = Drop [$3] : ()
->   %4 = Prim Add [%0 %2] : i32
->   %5 = Coerce %4 [Identity -] : i32
+>   %1 = Read copy [*$3] : i32
+>   %2 = Prim Add [%0 %1] : i32
+>   %3 = Drop [$2] : ()
+>   %4 = Drop [$3] : ()
+>   %5 = Coerce %2 [Identity -] : i32
 >   %6 = Block %5 : i32
 >   %7 = Closure #1 [%0 %0] : fn(Ref[i32], Ref[i32]) -> i32
 >   %8 = Store [$4] %7 : ()

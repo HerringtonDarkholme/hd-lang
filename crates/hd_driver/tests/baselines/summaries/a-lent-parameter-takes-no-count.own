@@ -150,7 +150,7 @@ fn pinned() -> i64:
 >   local $0 xs: List[i64] [read assigned]
 >   %0 = NewList - [1:i64 2:i64] : List[i64]
 >   %1 = Store [$0] %0 : ()
->   %12 = Block %9 : i64
+>   %11 = Block %8 : i64
     xs[1] = 3
 >   %2 = IsUnique [$0] : ()
 >   %3 = Store [$0 [1:usize]] 3:i64 : ()
@@ -158,11 +158,10 @@ fn pinned() -> i64:
 >   %4 = IsUnique [$0] : ()
 >   %5 = Pin [$0] : ()
 >   %6 = Ref local [$0 [0:usize]] : Ref[i64]
->   %7 = Read copy [$0] : List[i64]
->   %8 = Drop [$0] : ()
->   %9 = Call app/main/set_first[] (%6, %7) : i64
->   %10 = Drop [%7] : ()
->   %11 = Drop [%6] : ()
+>   %7 = Read borrow [$0] : List[i64]
+>   %8 = Call app/main/set_first[] (%6, %7) : i64
+>   %9 = Drop [%6] : ()
+>   %10 = Drop [$0] : ()
 >   summary kept []
 
 pub fn main() -> void $ Console:
@@ -184,7 +183,7 @@ pub fn main() -> void $ Console:
 >   %6 = Drop [%2] : ()
 >   %7 = NewStruct [%5 2:i64] : Field
 >   %8 = Store [$1] %7 : ()
->   %59 = Block - : ()
+>   %58 = Block - : ()
 >   %1 finds [$0] full
     println(total(f, 3))
 >   %9 = Read borrow [$1] : Field
@@ -234,13 +233,12 @@ pub fn main() -> void $ Console:
 >   %47 = IsUnique [$2] : ()
 >   %48 = Pin [$2] : ()
 >   %49 = Ref local [$2 [0:usize]] : Ref[i64]
->   %50 = Read copy [$2] : List[i64]
->   %51 = Drop [$2] : ()
->   %52 = Call app/main/set_first[] (%49, %50) : i64
->   %53 = Drop [%50] : ()
->   %54 = Drop [%49] : ()
->   %55 = Break L0 %52 : never
->   %56 = Block - : i64
->   %57 = Scope %56 [] : i64
->   %58 = Call std/console/println[i64] (%57) : ()
+>   %50 = Read borrow [$2] : List[i64]
+>   %51 = Call app/main/set_first[] (%49, %50) : i64
+>   %52 = Drop [%49] : ()
+>   %53 = Drop [$2] : ()
+>   %54 = Break L0 %51 : never
+>   %55 = Block - : i64
+>   %56 = Scope %55 [] : i64
+>   %57 = Call std/console/println[i64] (%56) : ()
 >   summary kept [] writes

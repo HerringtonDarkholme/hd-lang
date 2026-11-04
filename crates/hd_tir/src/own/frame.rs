@@ -33,11 +33,12 @@
 //!    its drop follows them, as a frame local's does. A reference into
 //!    what a cell holds (an element of a list in it) takes no count of the
 //!    cell, so the local's own count keeps the cell alive until then.
-//! 5. **Roots.** A counted local a place dereferences (`[*$p .items]`) is
-//!    tracked the same way (`ref.box.root`): what a reference or a borrowed
-//!    read through it points into holds no count of its object, so the
-//!    uses of what may point there are the local's uses too, and its drop
-//!    or a move of it waits for them.
+//! 5. **Roots.** A counted local a place dereferences (`[*$p .items]`) or
+//!    takes an element of (`[$xs [%i]]`) is tracked the same way
+//!    (`ref.box.root`), in a body with no frame candidate too: what a
+//!    reference or a borrowed read through it points into holds no count
+//!    of its object or buffer, so the uses of what may point there are the
+//!    local's uses too, and its drop or a move of it waits for them.
 
 use hd_base::SliceSort as _;
 
@@ -220,6 +221,7 @@ pub(crate) fn run(
         }
     }
     if t.cands.is_empty() {
+        root_uses(b, cx, t, &mut uses);
         return;
     }
     fill(&mut t.val, n, 0);
@@ -268,7 +270,8 @@ pub(crate) fn run(
 }
 
 /// Rule 5, roots (`ref.box.root`): a counted local whose value a place
-/// dereferences (`[*$p .items]`, a `*T`) is the root of
+/// dereferences (`[*$p .items]`, a `*T`) or takes an element of
+/// (`[$xs [%i]]`, a list or a map) is the root of
 /// what a reference or a borrowed read through it points into, which
 /// holds no count of that object. Each use of such a value is a use of
 /// the root, so its drop, or a move of it, follows the reference's last
@@ -281,7 +284,7 @@ fn root_uses(b: &Body, cx: &dyn OwnCx, t: &Tables, uses: &mut impl FnMut(u32, u3
         }
         let p = b.view(b.data[i][0]);
         if let Root::Local(l) = p.root
-            && p.steps(b).next() == Some(Proj::Deref)
+            && p.steps(b).any(|s| matches!(s, Proj::Deref | Proj::Elem(_)))
             && cx.counted(b.local_ty[l as usize]) == super::Tri::Yes
             && t.bit.get(l as usize).is_none_or(|&m| m == 0)
             && !b.cap_local.iter().any(|c| c.raw() == l)
