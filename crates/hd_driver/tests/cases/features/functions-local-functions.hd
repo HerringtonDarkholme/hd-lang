@@ -1,0 +1,18 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Local Functions (spec/lang/07-functions.md, #1364).
+# expected: a local function that never escapes reads `prefix` in place
+# (no environment allocation, no count); `total` takes no count per
+# element; `local_plain` passes `xs` borrowed.
+fn local_capture(prefix: string, xs: List[string]) -> usize:
+    fn width(s: string) -> usize:
+        prefix.len() + s.len()
+    let total: usize = 0
+    for x in xs:
+        total += width(x)
+    total
+
+fn local_plain(xs: List[string]) -> usize:
+    fn first_len(ys: List[string]) -> usize:
+        if ys.len() > 0: ys[0].len() else: 0
+    first_len(xs)

@@ -1,0 +1,25 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Parameters, `mut` parameters (spec/lang/07-functions.md, #1364).
+# expected: `last_use` moves `t` into the `mut` parameter with no
+# count, and `bumped` pushes in place; `kept_after` makes one
+# copy-on-write copy of `t.tags` (the caller still reads `t`);
+# `bump_only` frees its copy and keeps nothing else.
+struct Tagged:
+    name: string
+    tags: List[string]
+
+fn bumped(mut t: Tagged, s: string) -> Tagged:
+    t.tags.push(s)
+    t
+
+fn bump_only(mut t: Tagged, s: string) -> usize:
+    t.tags.push(s)
+    t.tags.len()
+
+fn last_use(t: Tagged, s: string) -> Tagged:
+    bumped(t, s)
+
+fn kept_after(t: Tagged, s: string) -> usize:
+    u := bumped(t, s)
+    u.tags.len() + t.tags.len()

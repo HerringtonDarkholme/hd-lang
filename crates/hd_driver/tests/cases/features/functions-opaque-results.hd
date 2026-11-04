@@ -1,0 +1,13 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Opaque Results (spec/lang/07-functions.md, #1364).
+# expected: the opaque iterator is the concrete `ListIter` with no box;
+# `count_long` takes no count per element.
+fn names(xs: &List[string]) -> impl Iterator[string]:
+    xs.iter()
+
+fn count_long(xs: List[string]) -> usize:
+    let n: usize = 0
+    for x in names(&xs):
+        n += x.len()
+    n
