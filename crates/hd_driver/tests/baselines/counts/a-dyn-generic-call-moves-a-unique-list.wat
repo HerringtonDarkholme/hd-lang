@@ -3,7 +3,6 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:new" (func $rt:new (param i32 i32) (result i32)))
   (import "fixture" "rt:take_box" (func $rt:take_box (param i32) (result i32)))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32 i32)))
   (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (import "fixture" "impl [ T < ? Copy ] UniqList [ T ].len[string]" (func $"impl [ T < ? Copy ] UniqList [ T ].len[string]" (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -96,10 +95,6 @@
       call $rt:take_box
       i32.eqz
       if
-        local.get $t2
-        local.get $t1
-        local.get $t0
-        call $rt:retain
       end
       ;; ...
       local.get $back

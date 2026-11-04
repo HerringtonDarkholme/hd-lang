@@ -2784,6 +2784,95 @@ fn fixed_locals(f: &Func, params: &[bool], results: &[Vec<bool>], arity: &Arity)
     fixed
 }
 
+/// Makes each direct call of a runtime helper with no effect and no result
+/// the `drop` of its arguments. Such a helper is one whose body only reads
+/// and writes its locals and branches forward, or calls another such
+/// helper. A release helper whose counted part folded away is one: in a
+/// module that makes no representation view, the release of a `(&T)?`
+/// keeps its option test around nothing. A body with a loop, a store, a
+/// trap or any other call keeps its calls. Gives, per function, whether
+/// any of its calls went.
+pub fn effect_free_calls(funcs: &mut [Option<Func>], symbols: &Symbols) -> Vec<bool> {
+    use wasm_encoder::BlockType;
+    let mut free: Vec<Option<usize>> = vec![None; funcs.len()];
+    loop {
+        let mut grew = false;
+        for (k, f) in funcs.iter().enumerate() {
+            let Some(f) = f else { continue };
+            if free[k].is_some()
+                || f.raw.is_some()
+                || !f.results.is_empty()
+                || !matches!(
+                    &*symbols.get(SymId(u32::try_from(k).expect("symbols"))),
+                    Sym::Helper(_)
+                )
+            {
+                continue;
+            }
+            let quiet = f.body.iter().all(|ins| match ins {
+                Ins::Op(
+                    I::LocalGet(_)
+                    | I::LocalSet(_)
+                    | I::LocalTee(_)
+                    | I::Drop
+                    | I::If(BlockType::Empty)
+                    | I::Block(BlockType::Empty)
+                    | I::Else
+                    | I::End
+                    | I::Br(_)
+                    | I::BrIf(_)
+                    | I::Return
+                    | I::I32Const(_)
+                    | I::I32Eqz
+                    | I::I32Eq
+                    | I::I32Ne,
+                )
+                | Ins::Anchor(_) => true,
+                Ins::Call(id) => free.get(id.idx()).is_some_and(Option::is_some),
+                _ => false,
+            });
+            if quiet {
+                free[k] = Some(f.params.len());
+                grew = true;
+            }
+        }
+        if !grew {
+            break;
+        }
+    }
+    let mut changed = vec![false; funcs.len()];
+    if free.iter().all(Option::is_none) {
+        return changed;
+    }
+    for (k, f) in funcs.iter_mut().enumerate() {
+        let Some(f) = f else { continue };
+        let gone = |ins: &Ins| match ins {
+            Ins::Call(id) => free.get(id.idx()).copied().flatten(),
+            _ => None,
+        };
+        if f.raw.is_some() || !f.body.iter().any(|ins| gone(ins).is_some()) {
+            continue;
+        }
+        let mut origins = Remap::new(f.origins.as_deref());
+        let mut body = Vec::with_capacity(f.body.len());
+        for (at, ins) in std::mem::take(&mut f.body).into_iter().enumerate() {
+            if let Some(params) = gone(&ins) {
+                let origin = origins.first(at..at + 1);
+                origins.repeat(origin, params);
+                body.extend(std::iter::repeat_n(Ins::Op(I::Drop), params));
+            } else {
+                origins.copy(at..at + 1);
+                body.push(ins);
+            }
+        }
+        f.body = body;
+        origins.finish(f);
+        f.rebuild_callees();
+        changed[k] = true;
+    }
+    changed
+}
+
 /// Folds code that a constant decides (#655): an `if` whose condition is
 /// an `i32` constant becomes the arm that runs (or goes, with no `else`
 /// and no result), and an `i32` local whose every write stores 0 is read
