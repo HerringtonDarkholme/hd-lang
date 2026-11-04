@@ -112,6 +112,7 @@ Its surface is:
 39. r[std-collections.uniq-list.drain-drop] Dropping the drain cursor drops every unvisited selected element and restores the unselected tail after the prefix, preserving order and capacity.
 40. r[std-collections.uniq-list.binary-search] For `T < Ord`, `binary_search(value: &T)` searches an ascending list, returning `.Ok(index)` for any equal element or `.Err(index)` for its insertion point.
 41. r[std-collections.uniq-list.reserve-overflow] A `reserve` whose length sum exceeds the address space panics in every build profile. Panic: `heap-exhausted`.
+42. r[std-collections.uniq-list.into-iter.release-rest] Releasing the consuming cursor drops every element it has not yielded.
 
 > Note: hd's `Range[usize]` also represents inclusive bounds, as in `drain(1..=3)`.
 > As with [`Span.slice`](#r-std-collections.span.slice), open bounds are written explicitly: `drain(0..items.len())` drains the whole list.
@@ -173,6 +174,7 @@ fn positive_stock() -> UniqMap[string, i32]:
 22. r[std-collections.uniq-map.drain] `drain()` returns a non-copyable `UniqMapDrain[K, V, 'a]` that holds the mutable receiver borrow and moves every entry out in table order.
 23. r[std-collections.uniq-map.drain-drop] Dropping the drain cursor drops every unvisited entry and leaves the map empty with its allocation available for reuse.
 24. r[std-collections.uniq-map.reserve-overflow] A capacity request that exceeds the address space or cannot fit the table in the heap panics in every build profile. Panic: `heap-exhausted`.
+25. r[std-collections.uniq-map.into-iter.release-rest] Releasing the consuming cursor drops every key and value it has not yielded.
 
 > Note: like Rust's `HashMap.drain`, map draining takes no positional range; map entries have keys rather than list positions.
 > The collection extensions consume `Iterable` sources; [`flow.for.iterator.iterable-not-implied`](../lang/06-control-flow.md#r-flow.for.iterator.iterable-not-implied) keeps cursors distinct from iterables.

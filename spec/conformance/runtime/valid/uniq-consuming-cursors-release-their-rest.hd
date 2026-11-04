@@ -1,0 +1,66 @@
+# test: consuming unique-collection cursors release unyielded values and preserve yielded values
+# expect: test
+use std.collections.{UniqList, UniqMap}
+use std.iter.Iterable
+
+struct Parcel:
+    label: string
+
+impl !Copy for Parcel
+
+fn parcels() -> UniqList[Parcel]:
+    let mut out = UniqList::[Parcel].new()
+    for index in 0..4:
+        out.push(Parcel { label: "parcel-$index" })
+    out
+
+fn deliveries() -> UniqMap[string, Parcel]:
+    let mut out = UniqMap::[string, Parcel].new()
+    for index in 0..4:
+        _ := out.insert("key-$index", Parcel { label: "parcel-$index" })
+    _ := out.remove("key-1")
+    out
+
+fn first_parcel() -> Parcel:
+    let mut cursor = Iterable::[Parcel]::iter(parcels())
+    match cursor.next():
+        .Some(parcel) => parcel
+        .None => panic("missing parcel")
+
+fn first_delivery() -> Parcel:
+    let mut cursor = Iterable::[(string, Parcel)]::iter(deliveries())
+    match cursor.next():
+        .Some((_, parcel)) => parcel
+        .None => panic("missing delivery")
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("releases cursors without polling"):
+        for _ in 0..20:
+            _ := Iterable::[Parcel]::iter(parcels())
+            _ := Iterable::[(string, Parcel)]::iter(deliveries())
+
+    it("preserves a yielded value after releasing the rest"):
+        assert_equal(first_parcel().label, "parcel-0")
+        parcel := first_delivery()
+        assert(parcel.label.starts_with("parcel-"), "a yielded map value remains alive")
+
+    it("releases cursors after an early break"):
+        for parcel in parcels():
+            assert_equal(parcel.label, "parcel-0")
+            break
+        for (key, parcel) in deliveries():
+            assert(key.starts_with("key-"), "a yielded key remains alive")
+            assert(parcel.label.starts_with("parcel-"), "a yielded value remains alive")
+            break
+
+    it("releases exhausted cursors without dropping yielded values again"):
+        let count: usize = 0
+        for parcel in parcels():
+            assert(parcel.label.starts_with("parcel-"), "list item")
+            count += 1
+        for (_, parcel) in deliveries():
+            assert(parcel.label.starts_with("parcel-"), "map item")
+            count += 1
+        assert_equal(count, 7)
