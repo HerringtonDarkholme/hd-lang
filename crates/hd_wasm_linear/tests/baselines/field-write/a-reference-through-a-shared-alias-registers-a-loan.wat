@@ -9,9 +9,12 @@
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
   (import "fixture" "loan_top" (global $loan_top (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $rename (param $view i32) (param $alias i32) (result i32 i32) (local $held i32)
+  (func $rename (param $view i32) (param $alias i32) (result i32 i32) (local $held i32) (local $t0 i32) (local $t1 i32)
     block
     ;; 8 |     held := &view.name
+      local.get $view
+      i32.const 4
+      i32.sub
       local.get $view
       call $retain
       local.get $view
@@ -19,6 +22,19 @@
       i32.const 8
       i32.const 0
       call $rt:loan_begin
+      local.tee $t0
+      i32.const 1
+      local.set $t1
+      local.get $t0
+      i32.load $heap
+      i32.const 65536
+      i32.add
+      i32.store $heap
+      local.get $t1
+      i32.const 1
+      i32.eq
+      if
+      end
     ;; 9 |     alias.age += 1
       local.get $alias
       i32.load $heap offset=8
