@@ -1,0 +1,8 @@
+# test: the drain cursor holds the unique collection's mutable borrow
+use std.collections.UniqMap
+
+pub fn main() -> void:
+    let mut items = UniqMap::[i32, i32].new()
+    let mut cursor = items.drain()
+    _ := items.len() # diagnostic: conflicting-access
+    _ := cursor.next()

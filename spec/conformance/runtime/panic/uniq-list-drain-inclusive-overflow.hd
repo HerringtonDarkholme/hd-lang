@@ -1,0 +1,6 @@
+# test: uniq list drain inclusive overflow
+use std.collections.UniqList
+
+pub fn main() -> void:
+    let mut items = UniqList::[i32].from_list([+1, 2])
+    _ := items.drain(0..=4294967295) # panic: index-out-of-bounds
