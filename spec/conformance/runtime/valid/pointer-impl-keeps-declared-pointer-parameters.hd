@@ -1,0 +1,32 @@
+# test: an implementation on `*T` lowers its target to a local reference, since it covers both kinds, but a parameter it declares as `*mut W` stays a counted reference, so passing it on to another `*mut W` parameter and writing through it runs
+# Spec 13 Reference Types: ref.type.kinds.elsewhere, ref.type.kind-distinct.
+# expect-stdout: 1
+struct W:
+    n: i32
+
+impl W:
+    fn touch(&mut self) -> void:
+        self.n += 1
+
+trait D:
+    fn d(&self, out: *mut W) -> void
+
+struct Leaf:
+    n: i32
+
+impl D for Leaf:
+    fn d(&self, out: *mut W) -> void:
+        out.touch()
+
+impl[T < D] D for *T:
+    fn d(&self, out: *mut W) -> void:
+        (*(*self)).d(out)
+
+fn nested[T < D](value: T, out: *mut W) -> void:
+    value.d(out)
+
+pub fn main() -> void $ Console:
+    w := box(W { n: +0 })
+    let p: *Leaf = box(Leaf { n: +1 })
+    nested(p, w)
+    println(w.n)

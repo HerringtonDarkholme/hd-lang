@@ -772,6 +772,7 @@ mod tests {
         let cells = RefCells {
             local: DefId::from_raw(70),
             counted: DefId::from_raw(71),
+            local_ty: None,
         };
         let local = pool.lower_refs(
             cells,

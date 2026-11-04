@@ -5814,6 +5814,7 @@ runtime/panic/uniq-list-append-source-while-pinned.hd	runtime	panic:collection-p
 runtime/panic/uniq-map-reserve-while-pinned.hd	runtime	panic:collection-pinned	std/collections.md#r-std-collections.uniq-map.basic-pinned
 runtime/panic/uniq-map-drain-while-pinned.hd	runtime	panic:collection-pinned	std/collections.md#r-std-collections.uniq-map.basic-pinned
 runtime/panic/uniq-map-retain-while-pinned.hd	runtime	panic:collection-pinned	std/collections.md#r-std-collections.uniq-map.basic-pinned
+runtime/valid/pointer-impl-keeps-declared-pointer-parameters.hd	runtime	accept	lang/13-values-and-references.md#r-ref.type.kind-distinct
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
