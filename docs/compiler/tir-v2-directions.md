@@ -52,7 +52,9 @@ header), a closure (the reference), or a rebuilt copy (the struct).
 - **One IR.** It replaces TIR. The checker emits it, the emitter consumes
   it, and nothing sits between them.
 - **Compile time, memory and compiler size count** as much as run time.
-  Work is done once per generic body where possible, not per instance.
+  Checking runs once per generic body; inlining and ownership run per
+  instance ([Ownership Per Instance](../future-work/OWNERSHIP_ARCHITECTURE.md),
+  owner 2026-11-04; 1.03 times the instructions, measured).
 - **RC on linear memory** with the cycle collector. A reference is one
   address. Value-only recursion is acyclic (#707).
 - **Per-function reasoning only**: no whole-program analysis (#702, #703

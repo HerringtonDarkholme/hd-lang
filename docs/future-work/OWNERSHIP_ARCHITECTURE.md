@@ -1,7 +1,8 @@
 # Ownership Per Instance
 
-Status: proposal, 2026-11-04; domain: compiler internals (ownership, counts,
-storage); not accepted. The owner picked this direction (Option 1 of the
+Status: accepted design, 2026-11-04; domain: compiler internals (ownership, counts,
+storage); accepted by the owner on 2026-11-04, including the reopened
+decision below. The owner picked this direction (Option 1 of the
 brainstorm, in this file's git history at d1e8f3bc5) on 2026-11-04. Nothing
 here is in the specification, and it changes no spec rule. It reviews
 `crates/hd_tir/src/own.rs` and `own/*`, `crates/hd_driver/src/own.rs`,
