@@ -1105,7 +1105,28 @@ Each about an hour, with its test; the matrix rows leave
     its whole function, and a call loan's runs from its argument to the
     callee's return. With it every bench program is byte-identical to
     the build before phase 4 except json, 128 bytes smaller.
-12. Spill past 31 shared loans; `extra-deep-shared-loans`.
+12. Spill past 31 shared loans; `extra-deep-shared-loans`. The side
+    table is an open-addressed map keyed by the descriptor's address, in
+    a raw block allocated on first use, doubled at three quarters full
+    and freed when empty, so only memory limits it
+    (`extra-deep-shared-loans-kept`, `-many-objects`: seventy objects
+    each over 31 at once).
+
+A closure checks an access through a `*T` it captured against its
+creator's own loans through that pointer (E.2), which a cell in its
+environment holds and the creator keeps current, a suspending creator
+too. A snapshot of them taken at the closure's creation could miss a
+conflict: with a stale count above the true one, another function's
+loans could make up the difference and an access would pass
+(`extra-suspending-creator-closure-write-panics` ran before the cell
+was kept current in suspending bodies). One gap remains, and it is
+only stricter: a suspending closure (`fn!`) starts with no own loans,
+since its frame does not load the cell. Its checks then also count the
+creator's loans, so it can panic where a plain closure would not, and
+never passes where one would panic. For example, with
+`p: *mut Cell` and `r := &p.other` live,
+`run_plain(fn() -> void: p.value = "b")` runs, while
+`run!(fn!() -> void: p.value = "c")` panics `borrow-conflict`.
 
 ### E.6 Checklist
 

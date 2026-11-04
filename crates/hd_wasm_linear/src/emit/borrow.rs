@@ -783,39 +783,29 @@ impl Em<'_, '_, '_> {
 
     /// At a closure that captures pointer local `l`: the cell of the own
     /// loans through it, for its environment, which takes a count of it.
-    /// A plain body makes it once and keeps it current as its own loans
-    /// change; a suspending one gives each closure a copy of its own loans
-    /// now, whose count the environment takes over (`owned`).
-    pub(super) fn own_cell_for(&mut self, l: usize) -> StageResult<(u32, bool)> {
+    /// The body makes it once, at its first such closure, and keeps it
+    /// current as its own loans change, across suspensions too.
+    pub(super) fn own_cell_for(&mut self, l: usize) -> StageResult<u32> {
         let own = self.own_key(l).map(|k| self.own_local(k));
         let m = crate::layout::mem(self.pool(), self.env(), Ty::I32)?;
-        let keep = self.susp.is_none();
-        let c = if keep {
-            self.own_cell(l)
-        } else {
-            self.f.local(Val::I32)
-        };
-        let made = keep && self.borrows.own_cells.get(&l).is_some_and(|x| !x.1);
-        if !made {
-            if keep {
-                self.f.get(c);
-                self.f.op(I::I32Eqz);
-                self.f.op(I::If(BlockType::Empty));
-            }
-            let at = self.object(&m, None, false, false, None);
-            self.f.get(at);
-            self.f.set(c);
-            self.f.get(c);
-            match own {
-                Some(own) => self.f.get(own),
-                None => self.f.i32(0),
-            }
-            self.f.op(I::I32Store(mem(HEAP, 0, 2)));
-            if keep {
-                self.f.op(I::End);
-            }
+        let c = self.own_cell(l);
+        if self.borrows.own_cells.get(&l).is_some_and(|x| !x.1) {
+            return Ok(c);
         }
-        Ok((c, !keep))
+        self.f.get(c);
+        self.f.op(I::I32Eqz);
+        self.f.op(I::If(BlockType::Empty));
+        let at = self.object(&m, None, false, false, None);
+        self.f.get(at);
+        self.f.set(c);
+        self.f.get(c);
+        match own {
+            Some(own) => self.f.get(own),
+            None => self.f.i32(0),
+        }
+        self.f.op(I::I32Store(mem(HEAP, 0, 2)));
+        self.f.op(I::End);
+        Ok(c)
     }
 
     /// In closure `ci`'s prologue: the cells of the own loans through
@@ -840,7 +830,7 @@ impl Em<'_, '_, '_> {
             (PlaceRoot::Local(x), proj, f) if proj.is_empty() && *f == ANY_FRAME => x.idx(),
             _ => return,
         };
-        if !self.borrows.own_shared.contains(&l) || self.susp.is_some() {
+        if !self.borrows.own_shared.contains(&l) {
             return;
         }
         let c = self.own_cell(l);
@@ -2009,6 +1999,26 @@ impl Em<'_, '_, '_> {
     /// that drops a started suspension (`req.discard.dropped`) gets here.
     pub(super) fn borrow_abandon(&mut self, at_of: &dyn Fn(u32) -> Option<(u32, Val)>) {
         self.borrows.abandoned = true;
+        // The cells of own loans the body made, from the frame's save.
+        let mut mine: Vec<u32> = (self.borrows.own_cells.values())
+            .filter(|x| x.1)
+            .map(|x| x.0)
+            .collect();
+        mine.sort_stable();
+        for c in mine {
+            let Some((at, v)) = at_of(c) else {
+                continue;
+            };
+            let x = self.f.local(v);
+            self.f.get(super::susp::FRAME);
+            self.f.op(super::susp::load_op(v, at));
+            self.f.set(x);
+            self.f.get(x);
+            self.f.op(I::If(BlockType::Empty));
+            self.f.get(x);
+            self.release_cell();
+            self.f.op(I::End);
+        }
         let mut ends: Vec<(u32, Result<u32, u32>)> = Vec::new();
         let mut held: Vec<Held> = self.borrows.slots.keys().copied().collect();
         held.sort_stable();

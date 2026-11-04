@@ -631,11 +631,9 @@ impl Em<'_, '_, '_> {
             }));
         }
         // The cells of the creator's own loans (`POINTER_LOANS.md` E.2).
-        let mut own_copies = Vec::new();
         for l in self.own_caps(i as usize) {
-            let (c, copy) = self.own_cell_for(l)?;
+            let c = self.own_cell_for(l)?;
             srcs.push(Src::Locals(vec![c]));
-            own_copies.extend(copy.then_some(c));
         }
         let tys: Vec<Ty> = caps
             .iter()
@@ -658,11 +656,6 @@ impl Em<'_, '_, '_> {
             .collect();
         let colls = self.part_colls(&copied, &parts);
         self.retain_fields(at, &m, walk.as_ref(), &colls);
-        // A copy's one count passes to the environment.
-        for c in own_copies {
-            self.f.get(c);
-            self.release_cell();
-        }
         self.f.get(at);
         self.store_owned(i)
     }

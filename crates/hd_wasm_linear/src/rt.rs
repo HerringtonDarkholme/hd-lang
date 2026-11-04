@@ -4750,65 +4750,90 @@ pub(crate) fn grow_table(m: &Module, f: &mut Func, [tab, len]: [Global; 2], cap:
     f.global_set(len);
 }
 
-/// The entries of the loan spill table (`rt:loan_share`): objects with
-/// more than 31 shared loans at once.
-const SPILL_ENTRIES: u32 = 64;
-
 /// [`Helper::LoanShare`] and [`Helper::LoanUnshare`]: a shared loan's
 /// begin or end on the object whose descriptor word is at address
-/// parameter 0 (model A, `docs/future-work/POINTER_LOANS.md` E.2). At a
-/// count of 31 a begin adds to the object's entry in a static side table
-/// keyed by that address instead, leaving the count at 31 so the inline
-/// checks still see a shared loan; an end consults the table first.
-fn loan_share(m: &mut Module, begin: bool) -> Func {
+/// parameter 0, at a count of 31 (model A,
+/// `docs/future-work/POINTER_LOANS.md` E.2). A begin adds to the object's
+/// entry in the spill map instead, leaving the count at 31 so the inline
+/// checks still see a shared loan; an end takes from the entry first. The
+/// map is an open-addressed table of `(address, count)` pairs, linearly
+/// probed, in a raw block it allocates on first use, doubles at three
+/// quarters full and frees when its last entry goes (`SpillTab`,
+/// `SpillCap` entries, `SpillLen` used), so only memory limits it.
+fn loan_share(m: &Module, begin: bool) -> Func {
     let name = if begin {
         "rt:loan_share"
     } else {
         "rt:loan_unshare"
     };
     let mut f = m.func(name, vec![Val::I32], vec![]);
-    if m.loan_spill == 0 {
-        m.loan_spill = m.static_slot(SPILL_ENTRIES * 8, 4);
-    }
-    let table = m.loan_spill;
-    let full = LOAN_STATE - LOAN_EXCL;
-    let (s, e, free) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
+    let (s, i, e) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
     f.set(s);
-    // Below 31: the count itself.
+    // Below 31 (an end whose object has no entry too): the count itself.
+    let plain = |f: &mut Func| {
+        f.get(0);
+        f.get(s);
+        f.u32(LOAN_SHARED);
+        f.op(if begin {
+            Instruction::I32Add
+        } else {
+            Instruction::I32Sub
+        });
+        f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    };
     f.get(s);
-    f.u32(full);
+    f.u32(LOAN_STATE - LOAN_EXCL);
     f.op(Instruction::I32And);
-    f.u32(full);
+    f.u32(LOAN_STATE - LOAN_EXCL);
     f.op(Instruction::I32Ne);
+    if !begin {
+        f.global_get(Global::SpillTab);
+        f.op(Instruction::I32Eqz);
+        f.op(Instruction::I32Or);
+    }
     f.op(Instruction::If(BlockType::Empty));
-    f.get(0);
-    f.get(s);
-    f.u32(LOAN_SHARED);
-    f.op(if begin {
-        Instruction::I32Add
-    } else {
-        Instruction::I32Sub
-    });
-    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    plain(&mut f);
     f.op(Instruction::Return);
     f.op(Instruction::End);
-    // At 31: the object's entry, and a free one.
-    f.static_addr(table);
-    f.set(e);
-    f.op(Instruction::Block(BlockType::Empty));
-    f.op(Instruction::Loop(BlockType::Empty));
-    f.get(e);
-    f.static_addr(table + SPILL_ENTRIES * 8);
-    f.op(Instruction::I32Eq);
-    f.op(Instruction::BrIf(1));
+    if begin {
+        // Room for one more at three quarters full.
+        f.global_get(Global::SpillLen);
+        f.i32(1);
+        f.op(Instruction::I32Add);
+        f.i32(4);
+        f.op(Instruction::I32Mul);
+        f.global_get(Global::SpillCap);
+        f.i32(3);
+        f.op(Instruction::I32Mul);
+        f.op(Instruction::I32GtU);
+        f.op(Instruction::If(BlockType::Empty));
+        spill_grow(&mut f, m);
+        f.op(Instruction::End);
+    }
+    // The object's entry, or the empty slot that ends its probe.
+    spill_find(&mut f, 0, i, e);
     f.get(e);
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-    f.get(0);
-    f.op(Instruction::I32Eq);
+    f.op(Instruction::I32Eqz);
     f.op(Instruction::If(BlockType::Empty));
-    // The entry: one more, or one fewer, emptied at none.
+    if begin {
+        f.get(e);
+        f.get(0);
+        f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+        f.get(e);
+        f.i32(1);
+        f.op(Instruction::I32Store(mem(HEAP, 4, 2)));
+        f.global_get(Global::SpillLen);
+        f.i32(1);
+        f.op(Instruction::I32Add);
+        f.global_set(Global::SpillLen);
+    } else {
+        plain(&mut f);
+    }
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
     f.get(e);
     f.get(e);
     f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
@@ -4820,52 +4845,213 @@ fn loan_share(m: &mut Module, begin: bool) -> Func {
         f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
         f.op(Instruction::I32Eqz);
         f.op(Instruction::If(BlockType::Empty));
-        f.get(e);
-        f.i32(0);
-        f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+        spill_remove(&mut f, m, i, e);
         f.op(Instruction::End);
     }
-    f.op(Instruction::Return);
-    f.op(Instruction::End);
-    f.get(free);
-    f.op(Instruction::I32Eqz);
+    f
+}
+
+/// Pushes the home slot of address `key`'s entry in the spill map.
+fn spill_home(f: &mut Func, key: u32) {
+    f.get(key);
+    f.i32(4);
+    f.op(Instruction::I32ShrU);
+    f.get(key);
+    f.i32(12);
+    f.op(Instruction::I32ShrU);
+    f.op(Instruction::I32Xor);
+    f.global_get(Global::SpillCap);
+    f.i32(1);
+    f.op(Instruction::I32Sub);
+    f.op(Instruction::I32And);
+}
+
+/// Sets `i` and `e` to the slot and address of `key`'s entry in the spill
+/// map, or of the empty slot where its probe ends.
+fn spill_find(f: &mut Func, key: u32, i: u32, e: u32) {
+    spill_home(f, key);
+    f.set(i);
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.global_get(Global::SpillTab);
+    f.get(i);
+    f.i32(8);
+    f.op(Instruction::I32Mul);
+    f.op(Instruction::I32Add);
+    f.set(e);
     f.get(e);
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
     f.op(Instruction::I32Eqz);
-    f.op(Instruction::I32And);
-    f.op(Instruction::If(BlockType::Empty));
     f.get(e);
-    f.set(free);
-    f.op(Instruction::End);
-    f.get(e);
-    f.i32(8);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.get(key);
+    f.op(Instruction::I32Eq);
+    f.op(Instruction::I32Or);
+    f.op(Instruction::BrIf(1));
+    f.get(i);
+    f.i32(1);
     f.op(Instruction::I32Add);
-    f.set(e);
+    f.global_get(Global::SpillCap);
+    f.i32(1);
+    f.op(Instruction::I32Sub);
+    f.op(Instruction::I32And);
+    f.set(i);
     f.op(Instruction::Br(0));
     f.op(Instruction::End);
     f.op(Instruction::End);
-    if begin {
-        // No entry yet: a new one with one loan.
-        f.get(free);
-        f.op(Instruction::I32Eqz);
-        f.op(Instruction::If(BlockType::Empty));
-        f.helper(Helper::Panic(
-            "heap-exhausted: more than 64 objects hold over 31 shared loans each".into(),
-        ));
-        f.op(Instruction::End);
-        f.get(free);
-        f.get(0);
-        f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
-        f.get(free);
-        f.i32(1);
-        f.op(Instruction::I32Store(mem(HEAP, 4, 2)));
-    } else {
-        // No spilled loan: the count itself.
-        f.get(0);
-        f.get(s);
-        f.u32(LOAN_SHARED);
-        f.op(Instruction::I32Sub);
-        f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+}
+
+/// Stores the entry `(key, count)`, whose key the map lacks, at the empty
+/// slot its probe ends at.
+fn spill_put(f: &mut Func, key: u32, count: u32) {
+    let (i, e) = (f.local(Val::I32), f.local(Val::I32));
+    spill_find(f, key, i, e);
+    f.get(e);
+    f.get(key);
+    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    f.get(e);
+    f.get(count);
+    f.op(Instruction::I32Store(mem(HEAP, 4, 2)));
+}
+
+/// Doubles the spill map (16 entries at first), moving its entries.
+fn spill_grow(f: &mut Func, m: &Module) {
+    let (old, cap, at, key, count) = (
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+    );
+    f.global_get(Global::SpillTab);
+    f.set(old);
+    f.global_get(Global::SpillCap);
+    f.set(cap);
+    f.get(cap);
+    f.i32(2);
+    f.op(Instruction::I32Mul);
+    f.i32(16);
+    f.get(cap);
+    f.op(Instruction::Select);
+    f.global_set(Global::SpillCap);
+    f.global_get(Global::SpillCap);
+    f.i32(8);
+    f.op(Instruction::I32Mul);
+    spill_alloc(f, m);
+    f.global_set(Global::SpillTab);
+    f.global_get(Global::SpillTab);
+    f.i32(0);
+    f.global_get(Global::SpillCap);
+    f.i32(8);
+    f.op(Instruction::I32Mul);
+    f.op(Instruction::MemoryFill(HEAP));
+    f.get(old);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(old);
+    f.set(at);
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.get(at);
+    f.get(old);
+    f.get(cap);
+    f.i32(8);
+    f.op(Instruction::I32Mul);
+    f.op(Instruction::I32Add);
+    f.op(Instruction::I32Eq);
+    f.op(Instruction::BrIf(1));
+    f.get(at);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.set(key);
+    f.get(key);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(at);
+    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+    f.set(count);
+    spill_put(f, key, count);
+    f.op(Instruction::End);
+    f.get(at);
+    f.i32(8);
+    f.op(Instruction::I32Add);
+    f.set(at);
+    f.op(Instruction::Br(0));
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+    f.get(old);
+    spill_free(f, m);
+    f.op(Instruction::End);
+}
+
+/// Empties slot `i` at address `e` of the spill map and moves back the
+/// entries of its probe run after it, so no probe stops short; frees the
+/// map when it holds no entry.
+fn spill_remove(f: &mut Func, m: &Module, i: u32, e: u32) {
+    let (key, count) = (f.local(Val::I32), f.local(Val::I32));
+    f.get(e);
+    f.i32(0);
+    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    f.global_get(Global::SpillLen);
+    f.i32(1);
+    f.op(Instruction::I32Sub);
+    f.global_set(Global::SpillLen);
+    f.global_get(Global::SpillLen);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::If(BlockType::Empty));
+    f.global_get(Global::SpillTab);
+    spill_free(f, m);
+    f.i32(0);
+    f.global_set(Global::SpillTab);
+    f.i32(0);
+    f.global_set(Global::SpillCap);
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+    // Each later entry of the run, taken out and put back.
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.get(i);
+    f.i32(1);
+    f.op(Instruction::I32Add);
+    f.global_get(Global::SpillCap);
+    f.i32(1);
+    f.op(Instruction::I32Sub);
+    f.op(Instruction::I32And);
+    f.set(i);
+    f.global_get(Global::SpillTab);
+    f.get(i);
+    f.i32(8);
+    f.op(Instruction::I32Mul);
+    f.op(Instruction::I32Add);
+    f.set(e);
+    f.get(e);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.set(key);
+    f.get(key);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::BrIf(1));
+    f.get(e);
+    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+    f.set(count);
+    f.get(e);
+    f.i32(0);
+    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    spill_put(f, key, count);
+    f.op(Instruction::Br(0));
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+}
+
+/// Allocates a raw block of the size on the stack, leaving its address.
+fn spill_alloc(f: &mut Func, m: &Module) {
+    match m.runtime {
+        Some(r) => f.call(Sym::Inst(r.alloc)),
+        None => f.helper(Helper::Alloc),
     }
-    f
+}
+
+/// Frees the raw block whose address is on the stack: the free that skips
+/// the collector's candidate test.
+fn spill_free(f: &mut Func, m: &Module) {
+    match m.runtime {
+        Some(r) => f.call(Sym::Inst(r.acyclic.free)),
+        None => f.op(Instruction::Drop),
+    }
 }

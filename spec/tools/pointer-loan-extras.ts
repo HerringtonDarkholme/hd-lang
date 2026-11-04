@@ -289,6 +289,61 @@ pub fn main() -> void $ Console:
 `,
   },
   {
+    name: "deep-shared-loans-many-objects",
+    panic: false,
+    what: "seventy objects each over 31 shared loans at once, which a `&mut` elsewhere keeps",
+    source: `struct Cell:
+    value: string
+
+@@HELPERS@@
+fn hold(ps: &List[*Cell], w: *mut Cell, k: usize, n: usize) -> usize:
+    if k == ps.len():
+        return 0
+    p := ps[k]
+    r := &p.value
+    below := if n == 0: hold(ps, w, k + 1, 32) else: hold(ps, w, k, n - 1)
+    if k > 100000:
+        m := &mut w.value
+        *m = fresh()
+    r.len() + below
+
+pub fn main() -> void $ Console:
+    let mut ps: List[*Cell] = []
+    for _ in 0..70:
+        ps.push(box(Cell { value: orig() }))
+    w := box(Cell { value: fresh() })
+    if hold(&ps, w, 0, 32) != 70 * 33 * orig().len():
+        panic("the nested reads disagree")
+    w.value = orig()
+    println("ok")
+`,
+  },
+  {
+    name: "suspending-creator-closure-write-panics",
+    panic: true,
+    what: "a closure a suspending body made writes through its pointer while another function's reference to the object lives",
+    source: `use std.time.{Clock, ms, sleep}
+
+struct Cell:
+    value: string
+    other: string
+
+fn hold(a: *Cell, f: fn() -> void) -> usize:
+    x := &a.value
+    f()
+    x.len()
+
+pub fn main!() -> void $ Console + Clock:
+    p := box(Cell { value: "a", other: "o" })
+    alias := p
+    r := &p.other
+    f := fn() -> void: p.value = "b" # panic: borrow-conflict
+    println(*r)
+    sleep!(ms(1))
+    println("\${hold(alias, f)}")
+`,
+  },
+  {
     name: "dyn-receiver-alias-write-panics",
     panic: true,
     what: "a `&mut self` call through a `*mut dyn` writes the object through an alias it was given",
@@ -930,6 +985,8 @@ export const extraColumns: Record<string, [string, string]> = {
   "captured-variable-replaced-panics": ["loan needed", "runs, stale"],
   "deep-shared-loans": ["elided", "runs"],
   "deep-shared-loans-kept": ["loan needed", "runs"],
+  "deep-shared-loans-many-objects": ["loan needed", "runs"],
+  "suspending-creator-closure-write-panics": ["loan needed", "runs"],
   "dyn-receiver-alias-write-panics": ["loan needed", "runs, sees the write"],
   "generic-argument-alias-write-panics": ["loan needed", "runs, sees the write"],
   "copy-under-element-loan-panics": ["loan needed", "runs; the copy keeps its own elements"],

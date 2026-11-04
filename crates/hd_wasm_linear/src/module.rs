@@ -382,6 +382,12 @@ pub enum Global {
     NodeCap,
     NodeLen,
     NodeFree,
+    /// The spill map of shared loans past 31 on one object
+    /// (`rt:loan_share`): its raw block, 0 while it has no entry, its
+    /// capacity in entries, and the entries used.
+    SpillTab,
+    SpillCap,
+    SpillLen,
     /// The enclosing all! node and child bit while a child is polled.
     Waker,
     WakeBit,
@@ -432,6 +438,9 @@ impl Global {
             | Global::NodeCap
             | Global::NodeLen
             | Global::NodeFree
+            | Global::SpillTab
+            | Global::SpillCap
+            | Global::SpillLen
             | Global::Waker
             | Global::WakeBit
             | Global::AllPolls
@@ -1052,9 +1061,6 @@ pub struct Module {
     /// (`emit/elide.rs`), so a loan on a `*mut dyn` receiver's object
     /// holds one of them.
     pub dyn_types: hd_base::HashMap<hd_base::DefId, Vec<hd_types::Ty>>,
-    /// The static spill table of shared loans past 31 on one object
-    /// (`rt:loan_share`), 0 until a helper needs it.
-    pub loan_spill: u32,
     /// Reachable program operations or exported entry hooks can cancel.
     /// Selected from the conservative reachable graph before specialization.
     pub cancellable: bool,

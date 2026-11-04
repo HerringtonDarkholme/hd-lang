@@ -1737,10 +1737,14 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   A `*dyn` or `*mut dyn` receiver lends the object at the pointer's data
   address; its loan is decided per type over the types the program
   converts to the trait (`Module::dyn_types`, class-hierarchy analysis).
-  A shared loan's begin and end go through `rt:loan_share` and
-  `rt:loan_unshare`: at a count of 31 the begin adds to the object's
-  entry in a 64-entry static side table instead (`Module::loan_spill`),
-  leaving the count at 31, and the end consults the table first.
+  A shared loan's begin and end test the count inline; at 31 they call
+  `rt:loan_share` and `rt:loan_unshare`, which add to the object's entry
+  in a spill map instead, leaving the count at 31, and take from it
+  first: an open-addressed table keyed by the descriptor's address, in a
+  raw block allocated on first use, doubled at three quarters full and
+  freed when its last entry goes (`SpillTab`, `SpillCap`, `SpillLen`).
+  A suspending creator keeps its closures' cell current too; a
+  suspending closure starts with no own loans (stricter only, E.5).
 - **Bounded memory.** `crates/hd_driver/tests/std_rt/ref_tests.hd` writes
   through references to locals and elements, checks that a pin ends with
   its reference's last use, and takes references to locals and elements
