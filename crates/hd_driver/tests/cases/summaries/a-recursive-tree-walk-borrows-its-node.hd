@@ -1,10 +1,10 @@
 # @dump: own counts
 # @build: v8 release
 # Release summaries, recursion: `walk` only reads its node and passes the
-# children on to itself, so the component's fixed point borrows `n`.
-# `leftmost` returns `last`, so `last` stays kept through the recursion,
-# while `n` borrows.
-# expected: no count at either call of `walk` and no release of `n` (#1232)
+# children on to itself, so the component's fixed point borrows `n`: no
+# count at either call and no release of `n` in the body. `leftmost`
+# returns `last`, so `last` stays kept through the recursion, while `n`
+# borrows.
 struct Node:
     left: *Node?
     right: *Node?

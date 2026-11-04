@@ -1,10 +1,9 @@
 # @dump: own
 # @build: v8 release
-# Release summaries, recursion: the first version is conservative, so a
-# parameter passed to a call inside its own strongly connected component is
-# kept. Today the passes still read the declared convention, so `walk`'s
-# `c` is owned by its recursive call and kept; `depth` only reads `c`, so
-# it keeps nothing.
+# Release summaries, recursion: a strongly connected component reaches a
+# fixed point. `walk` only reads `c` and passes it on to itself, and
+# `ping` and `pong` pass `c` to each other and to `depth`, which only
+# reads it, so every member borrows `c` and its calls take no count.
 struct Config:
     name: string
     depth: i64

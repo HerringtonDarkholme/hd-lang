@@ -158,7 +158,7 @@ would be part of the signature, which is option B below.
 | --- | --- |
 | Facts | kept parameters (Lean's borrowed, Go's leaks, LLVM's `captures`), a returned parameter (LLVM's `returned`), writes (LLVM's `memory`) |
 | Order | bottom-up over SCCs, as Go and LLVM |
-| Recursion | conservative in the first version: a parameter passed to a call inside its own SCC is kept. Lean's fixed point is the next step ([Options](#options)) |
+| Recursion | Lean's fixed point: a component's members start borrowing every counted value parameter, and one a member keeps leaves the assumption until none does (#1289, #1232) |
 | Indirect calls | function values and `dyn` keep the declared convention at the call; the adapter or vtable slot converts, as Swift's thunks do, but with no new function |
 | One convention per callee | every caller of an instance reads one table; generated callers too |
 | Separate compilation and caching | none needed today: the release cache is per program (`prog_key`). For per-instance code entries, a caller's key hashes the summaries it read, as Go's export data carries tags |
@@ -794,8 +794,8 @@ fn pick[T](x: T, m: Member) -> T:
 | a parameter passed to a `CallValue` | reads a summary it cannot know | declared convention: kept |
 | `emit(s: &mut dyn Sink, m: Member)` calling `s.put(m)` | lends to every `put` | declared at the call; the slot glue converts for a lending impl |
 | a function value of a lending function, stored and called later | the adapter and the item disagree | the adapter is a direct caller: owned in, lent on |
-| self recursion `walk(c, n - 1)` | assumes `c` lent before proving it | kept, conservatively; Lean's fixed point would lend it (next best) |
-| mutual recursion across two modules | depends on visit order | SCC rule: no member reads another's summary |
+| self recursion `walk(c, n - 1)` | assumes `c` lent before proving it | the component's fixed point: lent only when no member keeps it |
+| mutual recursion across two modules | depends on visit order | one component, one fixed point, whatever the visit order |
 | a bang function `save!(m: Member)` | lends into a frame that keeps it | no summary; its callers already lend |
 | a generic `fn f[T](x: T, m: Member)` | lends `x`, an instance's reference | lent only when the body owns none of `x`; a reference instance takes no count either way |
 | an erased generic method through a trait value | boxes and lends an open value | the caller releases its box after the call; the slot retains only what the body's lent bit leaves owned |
@@ -856,9 +856,10 @@ both pipelines (checked on the optimized one), and the bench rows named.
    checked optimized conformance green; json bench before and after.
    As built: the passes read a callee's bit once and keep that answer, so
    a body and its emission agree; a bit read before the record stays
-   kept. Members of a recursive component, `std.rt` and the items a host
-   boundary codec calls lend nothing. A read that a binding local may
-   borrow (an inlined method's `self`) does not keep its parameter.
+   kept. `std.rt` and the items a host boundary codec calls lend
+   nothing; a recursive component's members lend their fixed point. A
+   read that a binding local may borrow (an inlined method's `self`) does
+   not keep its parameter.
 5. **Writes.** The `writes` walk feeds `may_write`. Done: a case where a
    borrow through `&self` survives a pure hd helper; json bench.
 6. **Returned parameters (#681).** Callee and caller sides, adapter and
