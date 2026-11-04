@@ -1,0 +1,30 @@
+# @dump: counts wat
+# @build: release
+# A module that makes no representation view decides so before
+# emission: a thin `&T`, `&mut T` or `(&T)?` is then a plain address, so
+# neither a matched element reference nor an optional reference local
+# gets a release (#1360).
+use std.annotation.inline
+use std.collections.UniqList
+
+@inline(.Never)
+fn set_at(xs: &mut UniqList[i32], i: usize, v: i32) -> void:
+    match xs.get_mut(i):
+        .Some(r) => *r = v
+        .None => pass
+
+@inline(.Never)
+fn pick(names: &UniqList[string], first: bool) -> usize:
+    let found: (&string)? = if first: names.first_ref() else: .None
+    match found:
+        .Some(name) => name.len()
+        .None => 0
+
+pub fn main() -> void $ Console:
+    let mut xs = UniqList::[i32].new()
+    xs.push(+1)
+    xs.push(+2)
+    set_at(&mut xs, 1, +7)
+    let mut names = UniqList::[string].new()
+    names.push("bc")
+    println("${xs.get(1).unwrap_or(+0)} ${pick(&names, true)}")
