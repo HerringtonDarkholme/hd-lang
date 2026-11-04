@@ -24,3 +24,8 @@ fn use_generic(s: string, xs: List[string]) -> usize:
 > app/main/use_generic
 >   retain string
 >   retain string
+>   (no span) release string
+>   (no span) release List[string]
+>   (no span) release string
+>   (no span) release List[string]
+>   (no span) release List[string]

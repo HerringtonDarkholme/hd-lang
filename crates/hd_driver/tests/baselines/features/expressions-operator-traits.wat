@@ -76,7 +76,9 @@
         end
       end
     end
-    ;; ...
+    ;; (no span)
+    local.get $a.text.0
+    local.get $a.text.1
   )
   (func $"impl Add for Tag.add" (param $self.text.0 i32) (param $self.text.1 i32) (param $rhs.text.0 i32) (param $rhs.text.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 15 |         Tag { text: self.text + rhs.text }
@@ -146,7 +148,9 @@
         end
       end
     end
-    ;; ...
+    ;; (no span)
+    local.get $a.text.0
+    local.get $a.text.1
   )
   (func $"sum[string]" (param $items i32) (param $zero.0 i32) (param $zero.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $item.0 i32) (local $item.1 i32)
     block
@@ -216,8 +220,11 @@
     ;; 32 |     total
       local.get $zero.0
       local.get $zero.1
-      ;; ...
+    ;; (no span)
+      local.set $zero.0
+      local.set $items
     end
-    ;; ...
+    local.get $items
+    local.get $zero.0
   )
 )

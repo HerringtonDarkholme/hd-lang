@@ -27,9 +27,14 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
 >   retain string
 >   release &mut List[string]
     s.len()
+>   (no span) retain &mut List[string]
+>   (no span) release counted reference
+>   (no span) release &mut List[string]
+>   (no span) release counted reference
 
 fn with_using(log: *mut List[string], s: string) -> usize:
     using r = box(Res { name: s, log: log })
 > app/main/with_using
 >   retain &mut List[string]
     r.name.len()
+>   (no span) release &mut app.main.Res

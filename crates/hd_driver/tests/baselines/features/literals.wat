@@ -2,6 +2,7 @@
 (module
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
+  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
   (func $reuse (param $n.0 i32) (param $n.1 i32) (result i32 i32 i32 i32 i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
     ;; 27 |     (Rec { name: n, tags: [] }, Rec { name: n, tags: [] })
     block
@@ -53,11 +54,19 @@
       local.set $r.name.0
       local.set $n.0
       local.get $r.name.1
-      ;; ...
+    ;; (no span)
+      local.get $r.tags
+      call $rt:release
+      local.get $n.0
+    ;; 24 |     Rec { ...r, name: n }
       local.get $r.name.0
-      ;; ...
+    ;; (no span)
+      local.set $r.name.1
+      local.set $r.name.0
     end
-    ;; ...
+    local.get $r.name.0
+    local.get $n.1
+    local.get $r.name.1
   )
   (func $make_enum (param $n.0 i32) (param $n.1 i32) (result i32 i32 i32) (local $t0 i32)
     ;; 21 |     Shape.Named(n)

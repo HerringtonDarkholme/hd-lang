@@ -3,6 +3,7 @@
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32 i32) (result i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $"impl From [ ReadError ] for AppError.from" (param $value.0 i32) (param $value.1 i32) (param $value.2 i32) (result i32 i32 i32 i32) (local $t0 i32)
     ;; 17 |         AppError.Read(value)
@@ -21,7 +22,7 @@
     local.get $value.2
     local.get $t0
   )
-  (func $result_try (param $path.0 i32) (param $path.1 i32) (result i32 i32 i32 i32) (local $t0 i32) (local $t3 i32) (local $t1 i32) (local $t2 i32)
+  (func $result_try (param $path.0 i32) (param $path.1 i32) (result i32 i32 i32 i32) (local $t4 i32) (local $t0 i32) (local $t3 i32) (local $t1 i32) (local $t2 i32)
     block
     ;; 23 |     text := read(path)?
       local.get $path.0
@@ -74,7 +75,10 @@
           br 0
         end
       end
-      ;; ...
+    ;; (no span)
+      local.get $path.0
+      call $rt:release_ref
+    ;; 23 |     text := read(path)?
       local.get $path.1
       i32.eqz
       if
@@ -95,11 +99,18 @@
           br 0
         end
       end
-      ;; ...
+    ;; (no span)
+      local.get $path.0
+      call $rt:release_ref
+    ;; 24 |     .Ok(text.len())
       i32.const 0
-      ;; ...
+    ;; (no span)
+      local.set $path.0
     end
-    ;; ...
+    local.get $path.0
+    local.get $path.1
+    local.get $t4
+    local.get $t4
   )
   (func $converted (param $path.0 i32) (param $path.1 i32) (result i32 i32 i32 i32 i32) (local $t4 i32) (local $t0 i32) (local $t3 i32) (local $t1 i32) (local $t2 i32)
     block
@@ -154,7 +165,10 @@
           br 0
         end
       end
-      ;; ...
+    ;; (no span)
+      local.get $path.0
+      call $rt:release_ref
+    ;; 27 |     text := read(path)?
       local.get $path.1
       i32.eqz
       if
@@ -191,11 +205,19 @@
           br 0
         end
       end
-      ;; ...
+    ;; (no span)
+      local.get $path.0
+      call $rt:release_ref
+    ;; 28 |     .Ok(text.len())
       i32.const 0
-      ;; ...
+    ;; (no span)
+      local.set $path.0
     end
-    ;; ...
+    local.get $path.0
+    local.get $path.1
+    local.get $t4
+    local.get $t4
+    local.get $t4
   )
   (func $read (param $path.0 i32) (param $path.1 i32) (result i32 i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
     block
@@ -243,8 +265,21 @@
         local.set $t0
         local.set $path.1
       end
-      ;; ...
+    ;; (no span)
+      local.get $path.0
+      call $rt:release_ref
+      local.get $path.1
+      local.get $t0
+      local.get $t1
+      local.get $t3
+      local.set $t1
+      local.set $t0
+      local.set $path.1
+      local.set $path.0
     end
-    ;; ...
+    local.get $path.0
+    local.get $path.1
+    local.get $t0
+    local.get $t1
   )
 )

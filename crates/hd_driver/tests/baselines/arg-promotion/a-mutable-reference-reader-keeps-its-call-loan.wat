@@ -8,9 +8,10 @@
       local.get $items
       i32.load $heap
       i32.load $heap offset=4
-      ;; ...
+    ;; (no span)
+      local.set $items
     end
-    ;; ...
+    local.get $items
   )
   (func $caller (param $items i32) (result i32)
     ;; 9 |     size(items, items.pop())

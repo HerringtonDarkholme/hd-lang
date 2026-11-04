@@ -14,6 +14,7 @@ fn count_while(xs: List[string]) -> usize:
 >   retain string
         i += 1
     n
+>   (no span) release List[string]
 
 fn build_while(s: string, k: usize) -> string:
     let out = s
@@ -24,3 +25,4 @@ fn build_while(s: string, k: usize) -> string:
         out += s
         i += 1
     out
+>   (no span) release string

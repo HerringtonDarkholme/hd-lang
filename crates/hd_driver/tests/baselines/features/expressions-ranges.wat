@@ -2,7 +2,8 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $lens (param $xs i32) (result i32) (local $n i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
     block
@@ -50,7 +51,7 @@
           end
     ;; 16 |     for i in 0..xs.len():
           local.get $t2
-          call $rt:release_ref
+          call $rt:release_ref'1
     ;; 17 |         n += xs[i].len()
           local.get $n
           local.get $t3
@@ -60,12 +61,15 @@
           br 0
         end
       end
-      ;; ...
+    ;; (no span)
+      local.get $xs
+      call $rt:release_ref'2
     ;; 18 |     n
       local.get $n
-      ;; ...
+    ;; (no span)
+      local.set $xs
     end
-    ;; ...
+    local.get $xs
   )
   (func $make (param $n i32) (result i32 i32 i32)
     ;; 9 |     0..n

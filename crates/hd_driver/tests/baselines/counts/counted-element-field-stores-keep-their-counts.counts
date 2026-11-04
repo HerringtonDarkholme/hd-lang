@@ -2,3 +2,4 @@
 app/main/rename
   retain string
   release string
+  (no span) release string

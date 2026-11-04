@@ -22,6 +22,8 @@ fn must(s: string, n: i32) -> usize:
     if n < 0:
         panic("negative: $t")
     t.len()
+> app/main/must
+>   (no span) release string
 
 fn guarded(log: *mut List[string], s: string, n: i32) -> usize:
     using r = Res { name: s + "?", log: log }
@@ -32,3 +34,4 @@ fn guarded(log: *mut List[string], s: string, n: i32) -> usize:
         panic("negative")
     r.name.len()
 >   retain string
+>   (no span) release counted reference

@@ -14,6 +14,8 @@ fn clean(raw: string) -> string:
 
 fn tag(label: string, level: i64) -> string:
     "${label}:${level}"
+> app/main/tag
+>   (no span) release string
 
 fn bare(raw: string) -> string:
     raw |> clean
@@ -22,11 +24,13 @@ fn chain(raw: string) -> string:
     raw |> clean |> tag(_, 2)
 > app/main/chain
 >   release string
+>   (no span) release string
 
 fn direct(raw: string) -> string:
     tag(clean(raw), 2)
 > app/main/direct
 >   release string
+>   (no span) release string
 
 fn method_slot(raw: string) -> usize:
     raw |> _.len()

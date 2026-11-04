@@ -18,6 +18,11 @@ fn discard(s: string) -> usize:
     let _ = save(s)
 >   retain string
     s.len()
+>   (no span) release Result[string, app.main.SaveError]
+>   (no span) release string
+>   (no span) release string
+>   (no span) release Result[string, app.main.SaveError]
+>   (no span) release string
 
 fn unused(s: string) -> usize:
     _kept := s

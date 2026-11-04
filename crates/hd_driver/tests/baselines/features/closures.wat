@@ -134,7 +134,16 @@
     end
   )
   (func $escape (param $t0 i32) (param $t1 i32) (result i32 i32) (local $s i32) (local $t2 i32)
-    ;; ...
+    ;; (no span)
+    i32.const 8
+    i32.const 2
+    call $rt:new/class-1'1
+    local.tee $s
+    local.get $t0
+    i32.store $heap
+    local.get $s
+    local.get $t1
+    i32.store $heap offset=4
     block
     ;; 12 |     fn() -> usize: s.len()
       i32.const 2
@@ -155,11 +164,17 @@
       i32.store $heap offset=4
       local.get $t2
       call $rt:retain_fields'1
-      ;; ...
+    ;; (no span)
+      local.get $s
+      call $rt:release_ref'1
+    ;; 12 |     fn() -> usize: s.len()
       local.get $t2
-      ;; ...
+    ;; (no span)
+      local.set $t1
+      local.set $t0
     end
-    ;; ...
+    local.get $t0
+    local.get $t1
   )
   (func $shared (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t0 i32)
     block
@@ -190,7 +205,9 @@
       local.get $s.1
       i32.const 0
       call $shared#1
-      ;; ...
+    ;; (no span)
+      local.get $s.1
+      call $rt:release_ref'1
     ;; 21 |     t
       local.get $s.0
       i32.load $heap
@@ -199,12 +216,28 @@
       local.set $t0
       local.tee $s.1
       call $retain
-      ;; ...
+    ;; (no span)
+      local.get $s.0
+      call $rt:release_ref'1
+      local.get $s.1
+      local.get $t0
+      local.set $s.1
+      local.set $s.0
     end
-    ;; ...
+    local.get $s.0
+    local.get $s.1
   )
   (func $capture_call (param $t0 i32) (param $t1 i32) (result i32) (local $s i32) (local $t2 i32)
-    ;; ...
+    ;; (no span)
+    i32.const 8
+    i32.const 2
+    call $rt:new/class-1'1
+    local.tee $s
+    local.get $t0
+    i32.store $heap
+    local.get $s
+    local.get $t1
+    i32.store $heap offset=4
     block
     ;; 8 |     f := fn() -> usize: s.len()
       i32.const 5
@@ -225,7 +258,10 @@
       i32.store $heap offset=4
       local.get $t2
       call $rt:retain_fields'1
-      ;; ...
+    ;; (no span)
+      local.get $s
+      call $rt:release_ref'1
+    ;; 8 |     f := fn() -> usize: s.len()
       local.get $t2
     ;; 9 |     f() + f()
       i32.const 0
@@ -236,12 +272,16 @@
       i32.const 0
       call $capture_call#1
       local.set $t1
-      ;; ...
+    ;; (no span)
+      local.get $t2
+      call $rt:release_ref'1
+    ;; 9 |     f() + f()
       local.get $t0
       local.get $t1
       i32.add
-      ;; ...
+    ;; (no span)
+      local.set $t0
     end
-    ;; ...
+    local.get $t0
   )
 )

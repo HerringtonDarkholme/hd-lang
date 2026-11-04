@@ -18,6 +18,8 @@ fn pick(t: Tag) -> string:
 >   retain string
 >   retain string
         .Pair(left = _, right = r) => r
+>   (no span) release string
+>   (no span) release string
         _ => "short"
 
 fn whole(o: string?) -> usize:
@@ -28,3 +30,4 @@ fn whole(o: string?) -> usize:
 >   retain string?
         other =>
             if other.is_some(): 1 else: 0
+>   (no span) release string?

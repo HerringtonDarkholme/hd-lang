@@ -35,7 +35,8 @@
         end
       end
     end
-    ;; ...
+    ;; (no span)
+    local.get $o.0
   )
   (func $read_user (param $u.name.0 i32) (param $u.name.1 i32) (param $u.tags i32) (result i32)
     block
@@ -61,9 +62,10 @@
       local.get $u.tags
       i32.load $heap offset=4
       i32.add
-      ;; ...
+    ;; (no span)
+      local.set $u.name.0
     end
-    ;; ...
+    local.get $u.name.0
   )
   (func $pair (param $p.0.0 i32) (param $p.0.1 i32) (param $p.1.0 i32) (param $p.1.1 i32) (result i32)
     block
@@ -97,9 +99,10 @@
       local.get $p.0.0
       local.get $p.0.1
       i32.add
-      ;; ...
+    ;; (no span)
+      local.set $p.0.0
     end
-    ;; ...
+    local.get $p.0.0
   )
   (func $take_name (param $u.name.0 i32) (param $u.name.1 i32) (param $u.tags i32) (result i32 i32)
     ;; 16 |     let User { name } = u

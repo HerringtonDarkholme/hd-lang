@@ -20,3 +20,4 @@ fn lens(xs: List[string]) -> usize:
         n += xs[i].len()
 >   retain string
     n
+>   (no span) release List[string]

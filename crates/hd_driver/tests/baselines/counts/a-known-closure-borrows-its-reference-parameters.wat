@@ -21,8 +21,9 @@
       local.get $right
       i32.const 0
       call $total#1
-      ;; ...
+    ;; (no span)
+      local.set $left
     end
-    ;; ...
+    local.get $left
   )
 )

@@ -2,6 +2,7 @@
 (module
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:ref_serial" (func $rt:ref_serial (param i32) (result i64)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $"impl Named for User.name" (param $self i32) (result i32 i32) (local $t0 i32)
     ;; 14 |         self.name
@@ -34,8 +35,13 @@
       local.get $user
       call $rt:ref_serial
       i64.eq
-      ;; ...
+    ;; (no span)
+      local.get $user
+      call $rt:release_ref
+      local.get $t0
+      call $rt:release_ref
+      local.set $user
     end
-    ;; ...
+    local.get $user
   )
 )

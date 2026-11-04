@@ -8,11 +8,14 @@ fn map_index(m: Map[string, string], k: string) -> usize:
     m[k].len()
 > app/main/map_index
 >   retain string
+>   (no span) release Map[string, string]
+>   (no span) release string
 
 fn map_index_take(m: Map[string, string], k: string) -> string:
     m[k]
 > app/main/map_index_take
 >   retain string
+>   (no span) release Map[string, string]
 
 fn string_byte(s: string, i: usize) -> u8:
     s[i]

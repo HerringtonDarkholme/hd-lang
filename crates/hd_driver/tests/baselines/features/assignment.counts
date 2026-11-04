@@ -10,6 +10,7 @@ fn assign(a: string, b: string) -> usize:
 > app/main/assign
 >   release string
     s.len()
+>   (no span) release string
 
 fn compound(a: string) -> string:
     let s = a
@@ -22,3 +23,4 @@ fn assign_list(xs: List[string], ys: List[string]) -> usize:
 > app/main/assign_list
 >   release List[string]
     zs.len()
+>   (no span) release List[string]

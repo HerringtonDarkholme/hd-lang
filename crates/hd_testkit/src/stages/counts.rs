@@ -1,6 +1,8 @@
 use std::fmt::Write as _;
 
-/// Count operations that survived emission/optimization inside the subject.
+/// Count operations that survived emission/optimization inside the subject,
+/// plus a subject function's operations with no source position (exit
+/// releases, a temporary's free), marked `(no span)` at its last line.
 /// The backend supplies semantic labels and real source origins; this view
 /// never searches WAT text or guesses values from numbered locals.
 pub(super) fn view(p: &super::Program, at: super::Build) -> String {
@@ -21,35 +23,49 @@ pub(super) fn view(p: &super::Program, at: super::Build) -> String {
         if !item.starts_with(prefix) {
             continue;
         }
-        let operations: Vec<_> = f
+        let span = |origin: Option<u32>| {
+            origin
+                .and_then(|i| positions.span(item, i))
+                .filter(|(file, _, _)| *file == case)
+                .map(|(_, lo, hi)| (lo as usize, hi as usize))
+        };
+        // The function belongs to the subject when any instruction does;
+        // its operations with no source position print at its last line.
+        let Some(last) = f
+            .instructions
+            .iter()
+            .filter_map(|i| span(i.origin))
+            .filter(|(lo, hi)| p.inside(*lo, *hi))
+            .map(|(lo, _)| lo)
+            .max()
+        else {
+            continue;
+        };
+        let spanned: Vec<_> = f
             .counts
             .iter()
-            .filter(|c| {
-                c.origin
-                    .and_then(|i| positions.span(item, i))
-                    .is_some_and(|(file, lo, hi)| {
-                        file == case && p.inside(lo as usize, hi as usize)
-                    })
-            })
+            .filter_map(|c| span(c.origin).map(|s| (s, c)))
+            .filter(|((lo, hi), _)| p.inside(*lo, *hi))
+            .map(|((lo, _), c)| (lo, c))
             .collect();
-        if operations.is_empty() {
+        let unspanned: Vec<_> = f
+            .counts
+            .iter()
+            .filter(|c| span(c.origin).is_none())
+            .collect();
+        if spanned.is_empty() && unspanned.is_empty() {
             continue;
         }
-        let first = operations
-            .iter()
-            .filter_map(|c| c.origin.and_then(|i| positions.span(item, i)))
-            .map(|(_, lo, _)| lo)
-            .min()
-            .expect("kept origin");
-        out.at(first as usize);
+        let first = spanned.iter().map(|(lo, _)| *lo).min().unwrap_or(last);
+        out.at(first);
         let _ = writeln!(out, "{item}");
-        for c in operations {
-            let (_, lo, _) = c
-                .origin
-                .and_then(|i| positions.span(item, i))
-                .expect("kept origin");
-            out.at(lo as usize);
+        for (lo, c) in spanned {
+            out.at(lo);
             let _ = writeln!(out, "  {} {}", c.action.name(), c.subject);
+        }
+        out.at(last);
+        for c in unspanned {
+            let _ = writeln!(out, "  (no span) {} {}", c.action.name(), c.subject);
         }
     }
     if out.flat.is_empty() && !built.diags.has_errors() {

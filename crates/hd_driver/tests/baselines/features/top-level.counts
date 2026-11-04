@@ -10,6 +10,8 @@ greeting := "hello ${1}"
 
 names := ["a${1}", "b"]
 >   release List[string]
+>   (no span) release string
+>   (no span) release string
 
 fn read_top() -> usize:
     greeting.len() + names.len()

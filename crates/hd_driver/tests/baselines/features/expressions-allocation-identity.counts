@@ -23,3 +23,5 @@ fn same_dyn(user: &mut User) -> bool:
     let second: &mut dyn Named = user
 >   retain app.main.Named
     first is second
+>   (no span) release &mut app.main.Named
+>   (no span) release &mut app.main.Named

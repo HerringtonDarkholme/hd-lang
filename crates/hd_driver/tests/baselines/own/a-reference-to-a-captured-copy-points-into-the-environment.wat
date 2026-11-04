@@ -2,14 +2,29 @@
 (module
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
+  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
+  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "peek" (func $peek (param i32) (result i32)))
   (import "fixture" "format_int[i32]" (func $"format_int[i32]" (param i32) (result i32 i32)))
   (import "fixture" "first" (func $first (param i32) (result i32 i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $make (param $t0 i32) (param $t1 i32) (param $t2 i32) (result i32 i32) (local $p i32) (local $t3 i32)
-    ;; ...
+    ;; (no span)
+    i32.const 12
+    i32.const 2
+    call $rt:new/class-2
+    local.tee $p
+    local.get $t0
+    i32.store $heap
+    local.get $p
+    local.get $t1
+    i32.store $heap offset=4
+    local.get $p
+    local.get $t2
+    i32.store $heap offset=8
     block
     ;; 18 |     fn() -> string: "${peek(&p)} ${first(&p.name)}"
       i32.const 2
@@ -36,14 +51,30 @@
       i32.store $heap offset=8
       local.get $t3
       call $rt:retain_fields
-      ;; ...
+    ;; (no span)
+      local.get $p
+      call $rt:release_ref'1
+    ;; 18 |     fn() -> string: "${peek(&p)} ${first(&p.name)}"
       local.get $t3
-      ;; ...
+    ;; (no span)
+      local.set $t1
+      local.set $t0
     end
-    ;; ...
+    local.get $t0
+    local.get $t1
   )
   (func $make#1 (param $env i32) (param $ctx i32) (result i32 i32) (local $p.name.0 i32) (local $p.name.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    ;; ...
+    ;; (no span)
+    local.get $env
+    i32.load $heap
+    local.set $ctx
+    local.get $env
+    i32.load $heap offset=4
+    local.tee $p.name.0
+    local.get $env
+    i32.load $heap offset=8
+    local.set $p.name.1
+    call $retain
     block
     ;; 18 |     fn() -> string: "${peek(&p)} ${first(&p.name)}"
       i32.const 12
@@ -63,7 +94,9 @@
       local.get $t0
       call $peek
       local.get $t0
-      ;; ...
+    ;; (no span)
+      call $rt:release_ref'1
+    ;; 18 |     fn() -> string: "${peek(&p)} ${first(&p.name)}"
       local.set $ctx
       block
         block
@@ -80,7 +113,10 @@
       call $first
       local.set $t0
       local.set $env
-      ;; ...
+    ;; (no span)
+      local.get $p.name.0
+      call $rt:release_ref'2
+    ;; 18 |     fn() -> string: "${peek(&p)} ${first(&p.name)}"
       local.get $p.name.1
       i32.const 1
       i32.add
@@ -106,11 +142,19 @@
       local.get $env
       local.get $t0
       call $rt:memory_copy/0/0
-      ;; ...
+    ;; (no span)
+      local.get $env
+      call $rt:release_ref'2
+      local.get $ctx
+      call $rt:release_ref'2
+    ;; 18 |     fn() -> string: "${peek(&p)} ${first(&p.name)}"
       local.get $t1
       local.get $p.name.0
-      ;; ...
+    ;; (no span)
+      local.set $ctx
+      local.set $env
     end
-    ;; ...
+    local.get $env
+    local.get $ctx
   )
 )

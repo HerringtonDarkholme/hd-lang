@@ -68,8 +68,9 @@
       local.get $t.1
       i32.load $heap offset=4
       i32.add
-      ;; ...
+    ;; (no span)
+      local.set $t.0.0
     end
-    ;; ...
+    local.get $t.0.0
   )
 )

@@ -28,3 +28,6 @@ fn calls(s: string, n: *Node) -> usize:
 >   release string
     by_mut(&mut t)
     by_value(s) + by_ref(&s) + by_value(t) + by_ptr(n)
+>   (no span) release string
+>   (no span) release string
+>   (no span) release string

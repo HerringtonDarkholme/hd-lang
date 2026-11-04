@@ -50,12 +50,18 @@
       local.get $t1
       local.get $t0
       call $rt:memory_copy/0/0
-      ;; ...
+    ;; (no span)
+      local.get $t1
+      call $rt:release_ref
+    ;; 15 |     "${label}:${level}"
       local.get $t3
       local.get $t2
-      ;; ...
+    ;; (no span)
+      local.set $label.1
+      local.set $label.0
     end
-    ;; ...
+    local.get $label.0
+    local.get $label.1
   )
   (func $direct (param $raw.0 i32) (param $raw.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64) (local $t4 i32) (local $t5 i32)
     block
@@ -141,9 +147,16 @@
           br 0
         end
       end
-      ;; ...
+    ;; (no span)
+      local.get $raw.0
+      call $rt:release_ref
+      local.get $raw.1
+      local.get $t0
+      local.set $raw.1
+      local.set $raw.0
     end
-    ;; ...
+    local.get $raw.0
+    local.get $raw.1
   )
   (func $method_slot (param $raw.0 i32) (param $raw.1 i32) (result i32)
     block
@@ -158,7 +171,8 @@
         end
       end
     end
-    ;; ...
+    ;; (no span)
+    local.get $raw.0
   )
   (func $chain (param $raw.0 i32) (param $raw.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64) (local $t4 i32) (local $t5 i32)
     block
@@ -244,9 +258,16 @@
           br 0
         end
       end
-      ;; ...
+    ;; (no span)
+      local.get $raw.0
+      call $rt:release_ref
+      local.get $raw.1
+      local.get $t0
+      local.set $raw.1
+      local.set $raw.0
     end
-    ;; ...
+    local.get $raw.0
+    local.get $raw.1
   )
   (func $clean (param $raw.0 i32) (param $raw.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 12 |     "[${raw}]"
@@ -322,6 +343,8 @@
         end
       end
     end
-    ;; ...
+    ;; (no span)
+    local.get $raw.0
+    local.get $raw.1
   )
 )

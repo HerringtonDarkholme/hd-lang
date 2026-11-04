@@ -38,9 +38,10 @@
       local.get $depth
     ;; 36 |     field.len() + below
       i32.add
-      ;; ...
+    ;; (no span)
+      local.set $point
     end
-    ;; ...
+    local.get $point
   )
   (func $project (param $point i32) (result i32)
     block
@@ -51,7 +52,8 @@
         end
       end
     end
-    ;; ...
+    ;; (no span)
+    local.get $point
   )
   (func $identity (param $target i32) (result i32)
     ;; 23 |     target
@@ -123,8 +125,9 @@
       local.get $depth
     ;; 42 |     field.len() + below
       i32.add
-      ;; ...
+    ;; (no span)
+      local.set $point
     end
-    ;; ...
+    local.get $point
   )
 )

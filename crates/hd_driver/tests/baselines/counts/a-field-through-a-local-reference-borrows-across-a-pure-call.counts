@@ -35,6 +35,8 @@ impl Reader:
         frame := self.top()
         name := member_name(m, frame.facts)
         frame.next = frame.next + 1
+> app/main/impl Reader.name
+>   (no span) release &mut app.main.Frame
         name
 
     fn count(&mut self) -> usize:
@@ -43,3 +45,5 @@ impl Reader:
 > app/main/impl Reader.count
 >   copy std.structure.Facts
         frame.next
+>   (no span) release std.structure.Facts
+>   (no span) release &mut app.main.Frame

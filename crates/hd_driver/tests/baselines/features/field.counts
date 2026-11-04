@@ -13,6 +13,8 @@ fn read_field(r: Rec) -> usize:
 
 fn take_field(r: Rec) -> string:
     r.name
+> app/main/take_field
+>   (no span) release List[string]
 
 fn write_field(r: Rec, n: string) -> Rec:
     let mut s = r

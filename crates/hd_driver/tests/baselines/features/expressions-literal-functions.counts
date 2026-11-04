@@ -17,6 +17,8 @@ struct Query:
 @num_suffix
 fn lbl(n: i64) -> Label:
     Label { text: "#${n}" }
+> app/main/lbl
+>   (no span) release string
 
 @str_prefix
 fn sql(t: Template[i64]) -> Query:
@@ -35,6 +37,9 @@ fn prefixed(id: i64) -> Query:
     sql"select * from users where id = $id"
 > app/main/prefixed
 >   copy List[string]
+>   (no span) release std.ops.Template[i64] [raw_parts, values]
 
 fn tagged(s: string) -> usize:
     tag"<$s>"
+> app/main/tagged
+>   (no span) release std.ops.Template[string] [raw_parts, values]

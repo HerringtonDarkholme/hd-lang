@@ -2,6 +2,7 @@
 (module
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $guard (param $s.0 i32) (param $s.1 i32) (result i32)
     block
@@ -23,9 +24,10 @@
       else
         i32.const 0
       end
-      ;; ...
+    ;; (no span)
+      local.set $s.0
     end
-    ;; ...
+    local.get $s.0
   )
   (func $bind_param (param $xs i32) (result i32)
     ;; 13 |     if (ys := xs).len() > 0: ys.len() else: 0
@@ -87,8 +89,12 @@
         end
       else
       end
-      ;; ...
+    ;; (no span)
+      local.get $t.0
+      call $rt:release_ref
+      local.get $t1
+      local.set $s.0
     end
-    ;; ...
+    local.get $s.0
   )
 )

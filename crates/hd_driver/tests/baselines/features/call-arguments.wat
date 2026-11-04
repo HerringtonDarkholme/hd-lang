@@ -7,6 +7,8 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "locals" (global $locals (mut i32)))
+  (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $by_mut (param $s i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     block
@@ -166,9 +168,10 @@
       end
       local.get $s.0
       i32.div_u
-      ;; ...
+    ;; (no span)
+      local.set $s.0
     end
-    ;; ...
+    local.get $s.0
   )
   (func $by_ptr (param $n i32) (result i32) (local $t0 i32) (local $t1 i32)
     block
@@ -245,19 +248,61 @@
       end
       local.get $n
       i32.div_u
-      ;; ...
+    ;; (no span)
+      local.set $n
     end
-    ;; ...
+    local.get $n
   )
-  (func $calls (param $t1 i32) (param $t0 i32) (param $n i32) (result i32) (local $t2 i32) (local $s i32) (local $t i32)
-    ;; ...
+  (func $calls (param $t1 i32) (param $t2 i32) (param $n i32) (result i32) (local $t0 i32) (local $s i32) (local $t i32)
+    ;; (no span)
+    global.get $locals
+    global.get $locals_base
+    i32.sub
+    i32.const 32
+    i32.lt_u
+    if
+      i32.const 1
+      memory.grow $heap
+      local.tee $t0
+      i32.const -1
+      i32.eq
+      if
+        unreachable
+      end
+      local.get $t0
+      i32.const 16
+      i32.shl
+      local.tee $t0
+      global.set $locals_base
+      local.get $t0
+      i32.const 65536
+      i32.add
+      global.set $locals
+    end
+    global.get $locals
+    i32.const 32
+    i32.sub
+    local.tee $t0
+    global.set $locals
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $s
+    local.get $t1
+    i32.store $heap
+    local.get $s
+    local.get $t2
+    i32.store $heap offset=4
     block
     ;; 22 |     let mut t = s
       local.get $s
       i32.load $heap
       local.get $s
       i32.load $heap offset=4
-      local.set $t0
+      local.set $t2
       local.tee $t1
       call $retain
       local.get $t
@@ -266,17 +311,17 @@
         i32.load $heap
         call $rt:release_ref
       end
-      local.get $t2
+      local.get $t0
       i64.const 0
       i64.store $heap offset=16
-      local.get $t2
+      local.get $t0
       i32.const 24
       i32.add
       local.tee $t
       local.get $t1
       i32.store $heap
       local.get $t
-      local.get $t0
+      local.get $t2
       i32.store $heap offset=4
       local.get $t
     ;; 23 |     by_mut(&mut t)
@@ -290,10 +335,19 @@
       local.set $t1
       local.get $s
       call $by_ref
-      local.set $t0
-      ;; ...
+      local.set $t2
+    ;; (no span)
+      local.get $s
+      if
+        local.get $s
+        i32.load $heap
+        call $rt:release_ref
+      end
+      i32.const 0
+      local.set $s
+    ;; 24 |     by_value(s) + by_ref(&s) + by_value(t) + by_ptr(n)
       local.get $t1
-      local.get $t0
+      local.get $t2
       i32.add
       local.get $t
       i32.load $heap
@@ -306,16 +360,30 @@
       local.get $t
       i32.const 0
       i32.store $heap offset=4
-      local.tee $t0
+      local.tee $t2
       local.get $t1
       call $by_value
-      ;; ...
+    ;; (no span)
+      local.get $t2
+      call $rt:release_ref
+    ;; 24 |     by_value(s) + by_ref(&s) + by_value(t) + by_ptr(n)
       i32.add
       local.get $n
       call $by_ptr
       i32.add
-      ;; ...
+    ;; (no span)
+      local.set $t1
     end
-    ;; ...
+    local.get $s
+    if
+      local.get $s
+      i32.load $heap
+      call $rt:release_ref
+    end
+    local.get $t1
+    local.get $t0
+    i32.const 32
+    i32.add
+    global.set $locals
   )
 )

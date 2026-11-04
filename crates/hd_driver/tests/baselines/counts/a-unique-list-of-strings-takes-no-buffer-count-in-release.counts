@@ -32,3 +32,8 @@ fn total(words: &UniqList[string]) -> usize:
 
 fn finish(words: UniqList[string]) -> usize:
     words.len()
+> std/rt_tests.stage_case/finish
+>   (no span) release counted reference
+>   (no span) release counted reference
+>   (no span) release counted reference
+>   (no span) release counted reference

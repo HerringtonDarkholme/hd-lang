@@ -28,6 +28,7 @@ fn user_cursor(words: Words) -> usize:
 >   release string
         n += w.len()
     n
+>   (no span) release app.main.Words [items]
 
 fn twice(xs: List[string]) -> usize:
     let n: usize = 0
@@ -44,3 +45,5 @@ fn twice(xs: List[string]) -> usize:
 >   release string
         n += x.len()
     n
+>   (no span) release std.iter.ListIter[string] [items]
+>   (no span) release std.iter.ListIter[string] [items]

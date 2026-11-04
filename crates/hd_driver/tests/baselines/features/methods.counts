@@ -27,3 +27,5 @@ fn use_methods(s: Shelf, b: string) -> usize:
 >   release app.main.Shelf
     t.by_mut(b)
     s.by_self() + s.by_ref() + t.consume().len()
+>   (no span) release app.main.Shelf
+>   (no span) release List[string]

@@ -15,6 +15,8 @@ fn ret_field(r: Rec) -> string:
 
 fn ret_new(n: i64) -> string:
     "n=${n}"
+> app/main/ret_new
+>   (no span) release string
 
 fn ret_ref_field(r: &Rec) -> &string:
     &r.name
@@ -24,3 +26,7 @@ fn use_rets(r: Rec) -> usize:
 > app/main/use_rets
 >   retain string
 >   retain app.main.Rec [name.0]
+>   (no span) release string
+>   (no span) release string
+>   (no span) release app.main.Rec [name.0]
+>   (no span) release app.main.Rec [name.0]

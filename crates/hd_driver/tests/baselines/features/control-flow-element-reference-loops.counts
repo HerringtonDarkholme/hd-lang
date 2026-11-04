@@ -11,6 +11,8 @@ fn total_len(xs: List[string]) -> usize:
     for p in &xs:
         n += p.len()
     n
+> app/main/total_len
+>   (no span) release List[string]
 
 fn through_ref(r: &List[string]) -> usize:
     let n: usize = 0

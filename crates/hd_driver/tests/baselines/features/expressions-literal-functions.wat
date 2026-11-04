@@ -5,6 +5,7 @@
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:list_buf'1" (func $rt:list_buf'1 (param i32) (result i32)))
+  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "rt:list_buf'2" (func $rt:list_buf'2 (param i32) (result i32)))
   (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -57,7 +58,9 @@
         end
       end
     end
-    ;; ...
+    ;; (no span)
+    local.get $t2
+    local.get $t1
   )
   (func $tag (param $t.raw_parts i32) (param $t.values i32) (result i32)
     ;; 26 |     t.raw_parts.len() + t.values.len()
@@ -119,9 +122,14 @@
           br 0
         end
       end
-      ;; ...
+    ;; (no span)
+      local.get $s.0
+      local.get $t1
+      call $rt:release
+      local.get $s.1
+      local.set $s.0
     end
-    ;; ...
+    local.get $s.0
   )
   (func $prefixed (param $id i64) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
     block
@@ -169,9 +177,17 @@
           br 0
         end
       end
-      ;; ...
+    ;; (no span)
+      local.get $t0
+      local.get $t1
+      call $rt:release
+      local.get $t3
+      local.get $t2
+      local.set $t1
+      local.set $t0
     end
-    ;; ...
+    local.get $t0
+    local.get $t1
   )
   (func $lbl (param $n i64) (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     block
@@ -201,11 +217,17 @@
       local.get $t1
       local.get $t0
       call $rt:memory_copy/0/0
-      ;; ...
+    ;; (no span)
+      local.get $t1
+      call $rt:release_ref
+    ;; 18 |     Label { text: "#${n}" }
       local.get $t3
       local.get $t2
-      ;; ...
+    ;; (no span)
+      local.set $t0
+      local.set $t1
     end
-    ;; ...
+    local.get $t1
+    local.get $t0
   )
 )

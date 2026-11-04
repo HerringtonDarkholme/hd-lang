@@ -19,12 +19,15 @@ fn pick(xs: List[*mut Node], i: usize) -> *mut Node:
     xs[i]
 > app/main/pick
 >   retain &mut app.main.Node
+>   (no span) release List[&mut app.main.Node]
 
 fn call_receiver(xs: List[*mut Node], s: string) -> void:
     pick(xs, 0).name = s
 > app/main/call_receiver
 >   retain &mut app.main.Node
 >   release counted reference
+>   (no span) release List[&mut app.main.Node]
+>   (no span) release &mut app.main.Node
 
 fn deref_store(r: &mut string, s: string) -> void:
     *r = s

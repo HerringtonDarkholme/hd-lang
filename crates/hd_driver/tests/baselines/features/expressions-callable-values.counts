@@ -26,6 +26,8 @@ struct Handler:
 
 fn read_cell(c: Cell) -> usize:
     c().len()
+> app/main/read_cell
+>   (no span) release string
 
 fn store_cell(c: &mut Cell, s: string) -> void:
     c() = s
@@ -34,6 +36,7 @@ fn append_cell(c: &mut Cell) -> void:
     c() += "!"
 > app/main/append_cell
 >   retain counted reference
+>   (no span) release string
 
 fn stored_fn(h: Handler, s: string) -> usize:
     (h.callback)(s)

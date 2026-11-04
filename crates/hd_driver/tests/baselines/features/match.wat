@@ -99,7 +99,8 @@
         br 0
       end
     end
-    ;; ...
+    ;; (no span)
+    local.get $s
   )
   (func $read_match (param $s.0 i32) (param $s.1 i32) (param $s.2 i32) (param $s.3 i32) (param $s.4 i32) (result i32)
     block
@@ -178,7 +179,8 @@
         br 0
       end
     end
-    ;; ...
+    ;; (no span)
+    local.get $s.0
   )
   (func $take_match (param $s.0 i32) (param $s.1 i32) (param $s.2 i32) (param $s.3 i32) (param $s.4 i32) (result i32 i32) (local $n.1 i32)
     ;; 18 |     match s:

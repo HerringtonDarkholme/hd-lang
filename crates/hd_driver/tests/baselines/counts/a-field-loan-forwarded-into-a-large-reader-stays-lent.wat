@@ -19,9 +19,10 @@
       local.get $room
       i32.load $heap offset=8
       i32.add
-      ;; ...
+    ;; (no span)
+      local.set $room
     end
-    ;; ...
+    local.get $room
   )
   (func $total (param $owner i32) (param $depth i32) (result i32) (local $t0 i32)
     block
@@ -63,8 +64,9 @@
       local.get $owner
       local.get $depth
       i32.add
-      ;; ...
+    ;; (no span)
+      local.set $owner
     end
-    ;; ...
+    local.get $owner
   )
 )

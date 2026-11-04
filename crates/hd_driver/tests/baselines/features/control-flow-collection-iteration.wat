@@ -109,9 +109,10 @@
       end
     ;; 22 |     out
       local.get $out
-      ;; ...
+    ;; (no span)
+      local.set $m
     end
-    ;; ...
+    local.get $m
   )
   (func $by_ref (param $m i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $v.0 i32) (local $v.1 i32) (local $t4 i32)
     block
@@ -196,9 +197,10 @@
       end
     ;; 16 |     n
       local.get $n
-      ;; ...
+    ;; (no span)
+      local.set $m
     end
-    ;; ...
+    local.get $m
   )
   (func $by_value (param $m i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $k.0 i32) (local $k.1 i32) (local $v.0 i32) (local $v.1 i32) (local $t2 i32) (local $t3 i32)
     block
@@ -292,8 +294,9 @@
       end
     ;; 10 |     n
       local.get $n
-      ;; ...
+    ;; (no span)
+      local.set $m
     end
-    ;; ...
+    local.get $m
   )
 )

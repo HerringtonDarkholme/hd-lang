@@ -46,9 +46,13 @@
       i32.store8 $heap
       i32.const 1
       local.get $t1
-      ;; ...
+    ;; (no span)
+      local.set $s.1
+      local.set $s.0
     end
-    ;; ...
+    local.get $s.0
+    local.get $s.1
+    local.get $t0
   )
   (func $report (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32)
     block
@@ -137,6 +141,8 @@
         br 0
       end
     end
-    ;; ...
+    ;; (no span)
+    local.get $s.0
+    local.get $s.1
   )
 )

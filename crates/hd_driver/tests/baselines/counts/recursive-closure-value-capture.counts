@@ -15,3 +15,5 @@ fn sum_to(limit: i32, seed: i32) -> i32:
     sum(limit)
 > app/main/sum_to
 >   retain fn(i32) -> i32
+>   (no span) release fn(i32) -> i32
+>   (no span) release fn(i32) -> i32

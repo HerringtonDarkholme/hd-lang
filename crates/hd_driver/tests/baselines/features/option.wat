@@ -3,6 +3,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "impl [ T < ? Copy ] T ?.unwrap_or[string]" (func $"impl [ T < ? Copy ] T ?.unwrap_or[string]" (param i32 i32 i32 i32 i32) (result i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $question (param $o.0 i32) (param $o.1 i32) (param $o.2 i32) (result i32 i32 i32) (local $t0 i32) (local $t1 i32)
@@ -37,13 +38,21 @@
       i32.const 65 ;; &"!"
       i32.load8_u $heap
       i32.store8 $heap
-      ;; ...
+    ;; (no span)
+      local.get $o.1
+      call $rt:release_ref
+    ;; 13 |     .Some(s + "!")
       i32.const 1
       local.get $t0
       local.get $o.0
-      ;; ...
+    ;; (no span)
+      local.set $o.2
+      local.set $o.1
+      local.set $o.0
     end
-    ;; ...
+    local.get $o.0
+    local.get $o.1
+    local.get $o.2
   )
   (func $unwrap (param $o.0 i32) (param $o.1 i32) (param $o.2 i32) (result i32)
     block
@@ -86,7 +95,8 @@
         br 0
       end
     end
-    ;; ...
+    ;; (no span)
+    local.get $o.0
   )
   (func $or_default (param $o.0 i32) (param $o.1 i32) (param $o.2 i32) (result i32 i32)
     ;; 16 |     o.unwrap_or("none")

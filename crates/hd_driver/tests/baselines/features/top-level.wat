@@ -8,10 +8,41 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
+  (import "fixture" "locals" (global $locals (mut i32)))
+  (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "names" (global $names (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $init.init (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32)
-    ;; ...
+    ;; (no span)
+    global.get $locals
+    global.get $locals_base
+    i32.sub
+    i32.const 32
+    i32.lt_u
+    if
+      i32.const 1
+      memory.grow $heap
+      local.tee $t0
+      i32.const -1
+      i32.eq
+      if
+        unreachable
+      end
+      local.get $t0
+      i32.const 16
+      i32.shl
+      local.tee $t0
+      global.set $locals_base
+      local.get $t0
+      i32.const 65536
+      i32.add
+      global.set $locals
+    end
+    global.get $locals
+    i32.const 32
+    i32.sub
+    local.tee $t0
+    global.set $locals
     block
     ;; 6 | greeting := "hello ${1}"
       local.get $t0
@@ -63,7 +94,10 @@
       local.get $t1
       local.get $t2
       call $rt:memory_copy/0/0
-      ;; ...
+    ;; (no span)
+      local.get $t1
+      call $rt:release_ref'1
+    ;; 6 | greeting := "hello ${1}"
       i32.const 24 ;; &greeting
       local.tee $t1
       i32.load $heap
@@ -115,7 +149,10 @@
       local.get $t1
       local.get $t2
       call $rt:memory_copy/0/0
-      ;; ...
+    ;; (no span)
+      local.get $t1
+      call $rt:release_ref'1
+    ;; 8 | names := ["a${1}", "b"]
       i32.const 2
       call $rt:list_buf
       local.tee $t1
@@ -142,7 +179,11 @@
       local.get $t1
       global.set $names
     end
-    ;; ...
+    ;; (no span)
+    local.get $t0
+    i32.const 32
+    i32.add
+    global.set $locals
   )
   (func $copy_top (result i32 i32) (local $t1 i32) (local $t0 i32)
     ;; 14 |     greeting
@@ -158,7 +199,7 @@
     local.get $t1
     local.get $t0
   )
-  (func $read_top (result i32)
+  (func $read_top (result i32) (local $t0 i32)
     block
     ;; 11 |     greeting.len() + names.len()
       i32.const 24 ;; &greeting
@@ -166,8 +207,9 @@
       global.get $names
       i32.load $heap offset=4
       i32.add
-      ;; ...
+    ;; (no span)
+      local.set $t0
     end
-    ;; ...
+    local.get $t0
   )
 )

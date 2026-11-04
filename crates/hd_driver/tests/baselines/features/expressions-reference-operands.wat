@@ -15,9 +15,10 @@
       i32.const 16 ;; &"ada"
       i32.const 3
       call $rt:str_eq
-      ;; ...
+    ;; (no span)
+      local.set $name
     end
-    ;; ...
+    local.get $name
   )
   (func $list_eq (param $a i32) (param $b i32) (result i32)
     ;; 21 |     a == b
@@ -38,9 +39,10 @@
       i32.const 1
       i32.const 0
       call $"impl [ T < Eq ] Eq for T ?.eq[Ordering]"
-      ;; ...
+    ;; (no span)
+      local.set $a
     end
-    ;; ...
+    local.get $a
   )
   (func $eq_refs (param $a i32) (param $b i32) (result i32)
     block
@@ -54,9 +56,10 @@
       local.get $b
       i32.load $heap offset=4
       call $rt:str_eq
-      ;; ...
+    ;; (no span)
+      local.set $a
     end
-    ;; ...
+    local.get $a
   )
   (func $arith (param $x i32) (param $y i32) (result i64) (local $t0 i64)
     ;; 13 |     let total = x * 2 + 1

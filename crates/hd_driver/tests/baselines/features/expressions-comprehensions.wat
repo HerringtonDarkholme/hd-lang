@@ -105,9 +105,10 @@
         end
       end
       local.get $t0
-      ;; ...
+    ;; (no span)
+      local.set $users
     end
-    ;; ...
+    local.get $users
   )
   (func $by_name (param $users i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $u.name.0 i32) (local $u.id i64) (local $u.name.1 i32) (local $u.active i32) (local $t3 i32)
     block
@@ -180,9 +181,10 @@
         end
       end
       local.get $t0
-      ;; ...
+    ;; (no span)
+      local.set $users
     end
-    ;; ...
+    local.get $users
   )
   (func $sizes (param $users i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $u.name.0 i32) (local $t3 i64) (local $u.name.1 i32) (local $t4 i32) (local $t5 i32)
     block
@@ -274,9 +276,10 @@
         end
       end
       local.get $t0
-      ;; ...
+    ;; (no span)
+      local.set $users
     end
-    ;; ...
+    local.get $users
   )
   (func $pairs (param $xs i32) (param $ys i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $x.0 i32) (local $x.1 i32) (local $t3 i32) (local $t4 i32) (local $y.0 i32) (local $y.1 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32)
     block
@@ -433,8 +436,9 @@
         end
       end
       local.get $t0
-      ;; ...
+    ;; (no span)
+      local.set $xs
     end
-    ;; ...
+    local.get $xs
   )
 )

@@ -6,8 +6,8 @@
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "rt:list_reserve" (func $rt:list_reserve (param i32 i32) (result i32)))
   (import "fixture" "rt:list_unique'2" (func $rt:list_unique'2 (param i32) (result i32)))
+  (import "fixture" "rt:list_reserve" (func $rt:list_reserve (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 13 funcref))
   (func $over_ref (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $x.0 i32) (local $x.1 i32)
@@ -72,9 +72,10 @@
       end
     ;; 17 |     n
       local.get $n
-      ;; ...
+    ;; (no span)
+      local.set $xs
     end
-    ;; ...
+    local.get $xs
   )
   (func $keep_each (param $xs i32) (result i32) (local $out i32) (local $t0 i32) (local $t1 i32) (local $x.0 i32) (local $x.1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     block
@@ -155,9 +156,10 @@
       end
     ;; 27 |     out
       local.get $out
-      ;; ...
+    ;; (no span)
+      local.set $xs
     end
-    ;; ...
+    local.get $xs
   )
   (func $over_mut (param $xs i32) (local $t0 i32) (local $t1 i32) (local $x i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
     block
@@ -299,9 +301,10 @@
       end
     ;; 11 |     n
       local.get $n
-      ;; ...
+    ;; (no span)
+      local.set $xs
     end
-    ;; ...
+    local.get $xs
   )
   (func $comprehension (param $xs i32) (result i32) (local $t0 i32) (local $t1 i32) (local $x.0 i32) (local $x.1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     block
@@ -312,7 +315,10 @@
       i32.load $heap offset=4
       local.tee $t1
       local.set $x.0
-      ;; ...
+    ;; (no span)
+      call $rt:list_unique'2
+      local.tee $xs
+    ;; 30 |     [for x in xs => x.len()]
       local.set $x.1
       local.get $x.0
       if
@@ -394,6 +400,7 @@
         end
       end
     end
-    ;; ...
+    ;; (no span)
+    local.get $xs
   )
 )

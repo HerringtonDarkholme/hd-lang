@@ -2,8 +2,9 @@
 (module
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
+  (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "forbid" (global $forbid (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 11 funcref))
@@ -17,7 +18,7 @@
     local.get $label.0
     local.get $label.1
   )
-  (func $"impl Disposable for Guard.dispose" (param $self i32) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32)
+  (func $"impl Disposable for Guard.dispose" (param $self i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
     block
     ;; 14 |         self.log.push(self.label)
       local.get $self
@@ -27,24 +28,35 @@
       local.set $t0
       local.tee $t1
       call $retain
-      ;; ...
+    ;; (no span)
+      local.get $self
+      i32.load $heap
+      i32.load $heap
+      call $rt:list_unique
+      local.set $t2
+      local.get $self
+      i32.load $heap
+      local.get $t2
+      i32.store $heap
+      local.get $t2
+    ;; 14 |         self.log.push(self.label)
       i32.load $heap offset=4
-      local.tee $t2
-      local.get $t3
+      local.tee $t3
+      local.get $t2
       i32.load $heap
       i32.eq
       if
-        local.get $t3
+        local.get $t2
         i32.const 1
         call_indirect $table0 (param i32) (result i32)
-        local.set $t3
+        local.set $t2
         local.get $self
         i32.load $heap
-        local.get $t3
+        local.get $t2
         i32.store $heap
       end
-      local.get $t3
       local.get $t2
+      local.get $t3
       i32.const 8
       i32.mul
       i32.add
@@ -54,8 +66,8 @@
       local.get $self
       local.get $t0
       i32.store $heap offset=20
-      local.get $t3
       local.get $t2
+      local.get $t3
       i32.const 1
       i32.add
       i32.store $heap offset=4
@@ -158,7 +170,9 @@
         i32.add
         global.set $forbid
       end
-      ;; ...
+    ;; (no span)
+      local.get $label.1
+      call $rt:release_ref
     end
   )
 )

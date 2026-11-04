@@ -33,6 +33,7 @@ fn collect(f: Field) -> usize:
 >   retain app.main.Field [name.0]
     remember(&mut all, f)
     all.len()
+>   (no span) release List[app.main.Field]
 
 fn apply(g: fn(Field) -> i64, f: Field) -> i64:
     g(f)
@@ -44,6 +45,8 @@ fn pinned() -> i64:
     let mut xs: List[i64] = [1, 2]
     xs[1] = 3
     set_first(&xs[0], xs)
+> app/main/pinned
+>   (no span) release List[i64]
 
 pub fn main() -> void $ Console:
     f := Field { name: "abc${1}", n: 2 }
@@ -57,3 +60,4 @@ pub fn main() -> void $ Console:
     println(apply(weight, f))
     println(pinned())
 >   release List[i64]
+>   (no span) release string

@@ -8,6 +8,9 @@ use std.task.{join, race}
 
 fn label!(s: string) -> string:
     s + "!"
+> app/main/label
+>   (no span) retain string
+>   (no span) release string
 
 fn one!(s: string) -> usize:
     label!(s).len()
@@ -17,6 +20,11 @@ fn one!(s: string) -> usize:
 >   release string
 >   release counted reference
 >   retain &string
+>   (no span) retain string
+>   (no span) release string
+>   (no span) release &string
+>   (no span) release counted reference
+>   (no span) release string
 
 fn both!(a: string, b: string) -> usize:
     let (x, y) = join!(label(a), label(b))
@@ -34,6 +42,18 @@ fn both!(a: string, b: string) -> usize:
     x.len() + y.len()
 >   retain &string
 >   retain &string
+>   (no span) retain string
+>   (no span) retain string
+>   (no span) release Suspend[string]
+>   (no span) release string
+>   (no span) release Suspend[string]
+>   (no span) release string
+>   (no span) release &string
+>   (no span) release counted reference
+>   (no span) release &string
+>   (no span) release counted reference
+>   (no span) release string
+>   (no span) release string
 
 fn either!(a: string, b: string) -> usize:
     race!(label(a), label(b)).len()
@@ -43,3 +63,12 @@ fn either!(a: string, b: string) -> usize:
 >   release List[mut Suspend[string]]
 >   release counted reference
 >   retain &string
+>   (no span) retain string
+>   (no span) retain string
+>   (no span) release string
+>   (no span) release string
+>   (no span) release List[mut Suspend[string]]
+>   (no span) release &string
+>   (no span) release counted reference
+>   (no span) release string
+>   (no span) release string

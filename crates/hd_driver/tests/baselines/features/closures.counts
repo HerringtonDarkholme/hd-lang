@@ -15,6 +15,8 @@ fn capture_call(s: string) -> usize:
 > app/main/capture_call
 >   retain counted reference
     f() + f()
+>   (no span) release counted reference
+>   (no span) release fn() -> usize
 
 fn escape(s: string) -> fn() -> usize:
     fn() -> usize: s.len()
@@ -25,6 +27,7 @@ fn escape(s: string) -> fn() -> usize:
 >   release string
 > app/main/escape
 >   retain counted reference
+>   (no span) release counted reference
 
 fn call_value(f: fn(string) -> usize, s: string) -> usize:
     f(s)
@@ -43,3 +46,5 @@ fn shared(s: string) -> string:
     add()
     t
 >   retain string
+>   (no span) release fn() -> ()
+>   (no span) release counted reference

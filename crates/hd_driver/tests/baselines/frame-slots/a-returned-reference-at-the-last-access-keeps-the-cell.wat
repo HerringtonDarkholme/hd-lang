@@ -2,8 +2,9 @@
 (module
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "pass_on" (func $pass_on (param i32) (result i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $returned (result i64) (local $r i32)
+  (func $returned (result i64) (local $t0 i64) (local $r i32)
     block
     ;; 15 |     tally := box(Tally { n: 0 })
       i32.const 8
@@ -17,13 +18,17 @@
       call $pass_on
     ;; 15 |     tally := box(Tally { n: 0 })
       local.get $r
-      ;; ...
+    ;; (no span)
+      call $rt:release_ref
     ;; 16 |     r := pass_on(tally)
       local.tee $r
     ;; 17 |     r.n
       i64.load $heap
-      ;; ...
+    ;; (no span)
+      local.get $r
+      call $rt:release_ref
+      local.set $t0
     end
-    ;; ...
+    local.get $t0
   )
 )

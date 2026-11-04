@@ -22,7 +22,12 @@ fn read_again(m: Member) -> usize:
     count(x.facts) + m.name.len()
 > app/main/read_again
 >   copy app.main.Facts
+>   (no span) release app.main.Member [name.0, facts, doc.0]
+>   (no span) release string
 
 fn last_read(m: Member) -> usize:
     x := m
     count(x.facts) + x.doc.len()
+> app/main/last_read
+>   (no span) release app.main.Member [name.0, facts, doc.0]
+>   (no span) release string

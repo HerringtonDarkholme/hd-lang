@@ -43,6 +43,7 @@ fn through_parent(node: *mut Node) -> i64:
         .None => 0
 >   release &app.main.Node?
         .Some(left) => prune(node) + left.value
+>   (no span) release &app.main.Node
 
 fn through_alias(node: &Node) -> i64:
     match node.left:
@@ -51,6 +52,7 @@ fn through_alias(node: &Node) -> i64:
         .None => 0
 >   release &app.main.Node?
         .Some(left) => prune_global(0) + left.value
+>   (no span) release &app.main.Node
 
 fn through_a_cycle(node: *mut Node) -> i64:
     match node.left:
@@ -59,3 +61,4 @@ fn through_a_cycle(node: *mut Node) -> i64:
         .None => 0
 >   release &app.main.Node?
         .Some(left) => ping(node, 3) + left.value
+>   (no span) release &app.main.Node

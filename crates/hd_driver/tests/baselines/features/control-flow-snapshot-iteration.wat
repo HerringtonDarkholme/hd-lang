@@ -5,6 +5,9 @@
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "impl [ T ] Iterator [ T ] for ListIter [ T ].next[string]" (func $"impl [ T ] Iterator [ T ] for ListIter [ T ].next[string]" (param i32) (result i32 i32 i32)))
+  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
+  (import "fixture" "locals" (global $locals (mut i32)))
+  (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $doubled (param $values i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $v.0 i32) (local $v.1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
@@ -85,19 +88,50 @@
           br 0
         end
       end
-      ;; ...
+    ;; (no span)
+      local.get $t0
+      call $rt:release_ref
     end
-    ;; ...
+    local.get $values
   )
-  (func $cursor_then_push (param $values i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $cursor i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
-    ;; ...
+  (func $cursor_then_push (param $values i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $cursor i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
+    ;; (no span)
+    global.get $locals
+    global.get $locals_base
+    i32.sub
+    i32.const 16
+    i32.lt_u
+    if
+      i32.const 1
+      memory.grow $heap
+      local.tee $t0
+      i32.const -1
+      i32.eq
+      if
+        unreachable
+      end
+      local.get $t0
+      i32.const 16
+      i32.shl
+      local.tee $t0
+      global.set $locals_base
+      local.get $t0
+      i32.const 65536
+      i32.add
+      global.set $locals
+    end
+    global.get $locals
+    i32.const 16
+    i32.sub
+    local.tee $t0
+    global.set $locals
     block
     ;; 15 |     let mut items = values
       local.get $values
       local.tee $values
     ;; 16 |     let mut cursor = items.iter()
       call $rt:coll_copy
-      local.set $t0
+      local.set $t1
       block
         block
           br 0
@@ -109,34 +143,37 @@
         i32.load $heap
         call $rt:release_ref
       end
-      local.get $t1
+      local.get $t0
       i64.const 0
       i64.store $heap
-      local.get $t1
+      local.get $t0
       i32.const 8
       i32.add
       local.tee $cursor
-      local.get $t0
+      local.get $t1
       i32.store $heap
       local.get $cursor
       i32.const 0
       i32.store $heap offset=4
-      ;; ...
+    ;; (no span)
+      local.get $values
+      call $rt:list_unique
+      local.tee $values
     ;; 17 |     items.push(s)
-      local.tee $t0
+      local.tee $t1
       i32.load $heap offset=4
       local.tee $t2
-      local.get $t0
+      local.get $t1
       i32.load $heap
       i32.eq
       if
-        local.get $t0
+        local.get $t1
         i32.const 0
         call_indirect $table0 (param i32) (result i32)
-        local.tee $t0
+        local.tee $t1
         local.set $values
       end
-      local.get $t0
+      local.get $t1
       local.get $t2
       i32.const 8
       i32.mul
@@ -147,7 +184,7 @@
       local.get $t3
       local.get $s.1
       i32.store $heap offset=20
-      local.get $t0
+      local.get $t1
       local.get $t2
       i32.const 1
       i32.add
@@ -155,10 +192,17 @@
     ;; 18 |     match cursor.next():
       local.get $cursor
       call $"impl [ T ] Iterator [ T ] for ListIter [ T ].next[string]"
-      local.set $t0
+      local.set $t1
       local.set $s.1
       local.set $s.0
-      ;; ...
+    ;; (no span)
+      local.get $cursor
+      if
+        local.get $cursor
+        i32.load $heap
+        call $rt:release_ref
+      end
+    ;; 18 |     match cursor.next():
       block
         block
           block
@@ -181,7 +225,7 @@
           end
     ;; 19 |         .Some(first) => first.len() + items.len()
           local.get $s.1
-          local.get $t0
+          local.get $t1
           local.set $cursor
           drop
           block
@@ -204,8 +248,20 @@
         local.set $cursor
         br 0
       end
-      ;; ...
+    ;; (no span)
+      local.get $s.0
+      local.get $s.1
+      local.get $t1
+      call $rt:release
+      local.get $values
+      call $rt:release_ref
+      local.get $cursor
+      local.set $values
     end
-    ;; ...
+    local.get $values
+    local.get $t0
+    i32.const 16
+    i32.add
+    global.set $locals
   )
 )

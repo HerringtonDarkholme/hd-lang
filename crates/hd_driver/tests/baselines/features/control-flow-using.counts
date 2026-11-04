@@ -29,6 +29,8 @@ fn two(log: *mut List[string], a: string, b: string) -> usize:
     first.name.len() + second.name.len()
 >   retain string
 >   retain string
+>   (no span) release counted reference
+>   (no span) release counted reference
 
 fn per_round(log: *mut List[string], xs: List[string]) -> void:
     for x in xs:

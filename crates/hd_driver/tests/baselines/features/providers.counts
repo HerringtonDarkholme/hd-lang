@@ -21,8 +21,12 @@ fn ask() -> usize $ Namer:
     $.use(Namer).name().len()
 > app/main/ask
 >   retain app.main.Namer
+>   (no span) release app.main.Namer
+>   (no span) release string
 
 fn install(s: string) -> usize:
     f := box(Fixed { n: s })
     $.with(Namer=f):
         ask()
+> app/main/install
+>   (no span) release app.main.Namer

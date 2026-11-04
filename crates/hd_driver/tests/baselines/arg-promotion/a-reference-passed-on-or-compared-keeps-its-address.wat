@@ -3,6 +3,8 @@
   (import "fixture" "rt:ref_serial" (func $rt:ref_serial (param i32) (result i64)))
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
+  (import "fixture" "locals" (global $locals (mut i32)))
+  (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $same_place (param $a i32) (param $b i32) (result i32)
     ;; 18 |     a is b
@@ -26,7 +28,36 @@
     local.get $p
   )
   (func $use_all (result i32) (local $p i32) (local $t0 i32) (local $n i32)
-    ;; ...
+    ;; (no span)
+    global.get $locals
+    global.get $locals_base
+    i32.sub
+    i32.const 16
+    i32.lt_u
+    if
+      i32.const 1
+      memory.grow $heap
+      local.tee $t0
+      i32.const -1
+      i32.eq
+      if
+        unreachable
+      end
+      local.get $t0
+      i32.const 16
+      i32.shl
+      local.tee $t0
+      global.set $locals_base
+      local.get $t0
+      i32.const 65536
+      i32.add
+      global.set $locals
+    end
+    global.get $locals
+    i32.const 16
+    i32.sub
+    local.tee $t0
+    global.set $locals
     block
     ;; 21 |     let p = Point { x: +1, y: +2 }
       local.get $t0
@@ -60,9 +91,14 @@
         local.get $n
     ;; 23 |     if same_place(&p, &p):
       end
-      ;; ...
+    ;; (no span)
+      local.set $p
     end
-    ;; ...
+    local.get $p
+    local.get $t0
+    i32.const 16
+    i32.add
+    global.set $locals
   )
   (func $norm (param $p i32) (result i32) (local $t0 i64)
     ;; 12 |     (p.x + 1) * (p.y + 2) * (p.x + 3) * (p.y + 4) * (p.x + 5) / (p.y + 6)

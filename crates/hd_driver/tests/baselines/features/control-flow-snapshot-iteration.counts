@@ -13,6 +13,7 @@ fn doubled(values: List[string]) -> List[string]:
 >   copy List[string]
 >   retain string
         out.push(v)
+>   (no span) release List[string]
     out
 
 fn cursor_then_push(values: List[string], s: string) -> usize:
@@ -25,3 +26,6 @@ fn cursor_then_push(values: List[string], s: string) -> usize:
     match cursor.next():
         .Some(first) => first.len() + items.len()
         .None => items.len()
+>   (no span) release std.iter.ListIter[string] [items]
+>   (no span) release string?
+>   (no span) release List[string]

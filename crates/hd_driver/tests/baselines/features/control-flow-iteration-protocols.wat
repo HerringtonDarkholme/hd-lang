@@ -7,6 +7,8 @@
   (import "fixture" "impl [ T ] Iterator [ T ] for ListIter [ T ].next[string]" (func $"impl [ T ] Iterator [ T ] for ListIter [ T ].next[string]" (param i32) (result i32 i32 i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "locals" (global $locals (mut i32)))
+  (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $"impl Iterator [ string ] for Words.next" (param $self i32) (result i32 i32 i32) (local $t0 i32) (local $t1 i32)
     block
@@ -63,45 +65,77 @@
       local.tee $t0
       call $retain
       i32.const 1
-      ;; ...
+    ;; (no span)
+      local.set $self
     end
-    ;; ...
+    local.get $self
+    local.get $t0
+    local.get $t1
   )
-  (func $twice (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $x.0 i32) (local $t3 i32) (local $x.1 i32) (local $t4 i32)
-    ;; ...
+  (func $twice (param $xs i32) (result i32) (local $n i32) (local $t1 i32) (local $t2 i32) (local $t0 i32) (local $x.0 i32) (local $t3 i32) (local $x.1 i32) (local $t4 i32)
+    ;; (no span)
+    global.get $locals
+    global.get $locals_base
+    i32.sub
+    i32.const 32
+    i32.lt_u
+    if
+      i32.const 1
+      memory.grow $heap
+      local.tee $t0
+      i32.const -1
+      i32.eq
+      if
+        unreachable
+      end
+      local.get $t0
+      i32.const 16
+      i32.shl
+      local.tee $t0
+      global.set $locals_base
+      local.get $t0
+      i32.const 65536
+      i32.add
+      global.set $locals
+    end
+    global.get $locals
+    i32.const 32
+    i32.sub
+    local.tee $t0
+    global.set $locals
     block
     ;; 27 |     for x in xs.iter():
       local.get $xs
       call $rt:coll_copy
-      local.set $t0
+      local.set $t1
       block
         block
           br 0
         end
       end
-      local.get $t1
+      local.get $t2
       if
-        local.get $t1
+        local.get $t2
         i32.load $heap
         call $rt:release_ref'1
       end
-      local.get $t2
+      local.get $t0
       i64.const 0
       i64.store $heap
-      local.get $t2
+      local.get $t0
       i32.const 8
       i32.add
-      local.tee $t1
-      local.get $t0
-      i32.store $heap
+      local.tee $t2
       local.get $t1
+      i32.store $heap
+      local.get $t2
       i32.const 0
       i32.store $heap offset=4
-      local.get $t1
-      local.set $t0
+      local.get $t2
+      local.set $t1
       block
         loop
-          local.get $t0
+          local.get $t1
           call $"impl [ T ] Iterator [ T ] for ListIter [ T ].next[string]"
           local.set $x.1
           local.set $t3
@@ -150,7 +184,13 @@
           br 0
         end
       end
-      ;; ...
+    ;; (no span)
+      local.get $t2
+      if
+        local.get $t2
+        i32.load $heap
+        call $rt:release_ref'1
+      end
     ;; 29 |     for x in xs.iter():
       local.get $xs
       local.set $xs
@@ -165,10 +205,10 @@
         i32.load $heap
         call $rt:release_ref'1
       end
-      local.get $t2
+      local.get $t0
       i64.const 0
       i64.store $heap offset=16
-      local.get $t2
+      local.get $t0
       i32.const 24
       i32.add
       local.tee $t4
@@ -184,21 +224,21 @@
           local.get $xs
           call $"impl [ T ] Iterator [ T ] for ListIter [ T ].next[string]"
           local.set $x.0
+          local.set $t2
           local.set $t1
-          local.set $t0
           block
             block
               block
-                local.get $t0
+                local.get $t1
                 i32.const 1
                 i32.eq
                 if
-                  local.get $t1
-                  local.set $t0
+                  local.get $t2
+                  local.set $t1
                   br 1
                 else
-                  local.get $t0
                   local.get $t1
+                  local.get $t2
                   local.get $x.0
                   call $rt:release
                   br 2
@@ -206,17 +246,17 @@
                 unreachable
               end
     ;; 30 |         n += x.len()
-              local.get $t0
+              local.get $t1
               drop
               block
                 block
                   local.get $x.0
-                  local.set $t1
+                  local.set $t2
                   br 0
                 end
               end
               local.get $n
-              local.get $t1
+              local.get $t2
               i32.add
               local.set $n
     ;; 29 |     for x in xs.iter():
@@ -225,41 +265,81 @@
             br 2
             br 0
           end
-          local.get $t0
+          local.get $t1
           call $rt:release_ref'2
           br 0
         end
       end
-      ;; ...
-    ;; 31 |     n
-      local.get $n
-      ;; ...
-    end
-    ;; ...
-  )
-  (func $user_cursor (param $words.items i32) (param $words.at i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $w.1 i32)
-    ;; ...
-    block
-    ;; 21 |     for w in words:
-      local.get $t0
+    ;; (no span)
+      local.get $t4
       if
-        local.get $t0
+        local.get $t4
         i32.load $heap
         call $rt:release_ref'1
       end
+    ;; 31 |     n
+      local.get $n
+    ;; (no span)
+      local.set $xs
+    end
+    local.get $xs
+    local.get $t0
+    i32.const 32
+    i32.add
+    global.set $locals
+  )
+  (func $user_cursor (param $words.items i32) (param $words.at i32) (result i32) (local $n i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $w.1 i32)
+    ;; (no span)
+    global.get $locals
+    global.get $locals_base
+    i32.sub
+    i32.const 16
+    i32.lt_u
+    if
+      i32.const 1
+      memory.grow $heap
+      local.tee $t0
+      i32.const -1
+      i32.eq
+      if
+        unreachable
+      end
+      local.get $t0
+      i32.const 16
+      i32.shl
+      local.tee $t0
+      global.set $locals_base
+      local.get $t0
+      i32.const 65536
+      i32.add
+      global.set $locals
+    end
+    global.get $locals
+    i32.const 16
+    i32.sub
+    local.tee $t0
+    global.set $locals
+    block
+    ;; 21 |     for w in words:
       local.get $t1
+      if
+        local.get $t1
+        i32.load $heap
+        call $rt:release_ref'1
+      end
+      local.get $t0
       i64.const 0
       i64.store $heap
-      local.get $t1
+      local.get $t0
       i32.const 8
       i32.add
-      local.tee $t0
+      local.tee $t1
       local.get $words.items
       i32.store $heap
-      local.get $t0
+      local.get $t1
       local.get $words.at
       i32.store $heap offset=4
-      local.get $t0
+      local.get $t1
       local.set $words.items
       block
         loop
@@ -312,11 +392,22 @@
           br 0
         end
       end
-      ;; ...
+    ;; (no span)
+      local.get $t1
+      if
+        local.get $t1
+        i32.load $heap
+        call $rt:release_ref'1
+      end
     ;; 23 |     n
       local.get $n
-      ;; ...
+    ;; (no span)
+      local.set $words.items
     end
-    ;; ...
+    local.get $words.items
+    local.get $t0
+    i32.const 16
+    i32.add
+    global.set $locals
   )
 )

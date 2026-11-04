@@ -128,8 +128,9 @@
       end
     ;; 16 |     n
       local.get $n
-      ;; ...
+    ;; (no span)
+      local.set $xs
     end
-    ;; ...
+    local.get $xs
   )
 )

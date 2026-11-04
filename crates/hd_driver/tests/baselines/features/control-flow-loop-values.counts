@@ -26,6 +26,7 @@ fn first_index(xs: List[string]) -> usize:
         i += 1
     else:
         xs.len()
+>   (no span) release List[string]
 
 fn forever(s: string) -> string:
     let out = s
@@ -33,3 +34,5 @@ fn forever(s: string) -> string:
         if out.len() > 8:
             return out
         out += "!"
+> app/main/forever
+>   (no span) release string

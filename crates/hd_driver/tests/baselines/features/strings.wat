@@ -2,6 +2,7 @@
 (module
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "format_int[i64]" (func $"format_int[i64]" (param i64) (result i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $concat_len (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
@@ -38,9 +39,13 @@
           br 0
         end
       end
-      ;; ...
+    ;; (no span)
+      local.get $a.0
+      call $rt:release_ref
+      local.get $a.1
+      local.set $a.0
     end
-    ;; ...
+    local.get $a.0
   )
   (func $concat (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 10 |     a + b
@@ -112,11 +117,17 @@
       local.get $t1
       local.get $t0
       call $rt:memory_copy/0/0
-      ;; ...
+    ;; (no span)
+      local.get $t1
+      call $rt:release_ref
+    ;; 7 |     "${a}:${n}"
       local.get $t3
       local.get $t2
-      ;; ...
+    ;; (no span)
+      local.set $a.1
+      local.set $a.0
     end
-    ;; ...
+    local.get $a.0
+    local.get $a.1
   )
 )

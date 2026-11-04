@@ -31,9 +31,11 @@
       i32.load $heap offset=4
     ;; 18 |     zs = ys
       local.get $ys
-      ;; ...
+    ;; (no span)
+      call $rt:release_ref'1
+      local.set $xs
     end
-    ;; ...
+    local.get $xs
   )
   (func $assign (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32)
     block
@@ -51,8 +53,12 @@
           br 0
         end
       end
-      ;; ...
+    ;; (no span)
+      local.get $a.0
+      call $rt:release_ref'2
+      local.get $a.1
+      local.set $a.0
     end
-    ;; ...
+    local.get $a.0
   )
 )
