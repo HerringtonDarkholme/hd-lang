@@ -392,8 +392,21 @@ fn values(
             let (u, _) = t.uses[lent[x]];
             if t.tracked[u as usize] && (u as usize) < b.len() {
                 super::lent_values(b, cx, u as usize, &mut through);
-                if through.contains(&u32_of(v)) {
-                    lent.extend(t.start[u as usize] as usize..t.start[u as usize + 1] as usize);
+                let (ulo, uhi) = (
+                    t.start[u as usize] as usize,
+                    t.start[u as usize + 1] as usize,
+                );
+                // A suspending call's frame is awaited later: an argument
+                // it lends lives until then, since a frame holds no count
+                // of a local reference (`ref.count.local`).
+                let awaited = matches!(
+                    b.tags[u as usize],
+                    Tag::Call | Tag::CallValue | Tag::CallDyn
+                ) && t.uses[ulo..uhi]
+                    .iter()
+                    .any(|&(w, _)| crate::ir::is_suspension(b.tags[w as usize]));
+                if awaited || through.contains(&u32_of(v)) {
+                    lent.extend(ulo..uhi);
                 }
             }
             x += 1;
