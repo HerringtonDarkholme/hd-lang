@@ -196,3 +196,86 @@ tests:
             ["0.0.0.0:5000", "0.0.0.0:5000", "0.0.0.0:8"],
             reason="every call",
         )
+
+    it("connection queues preserve failures, wrap, and refill after exhaustion"):
+        net := ScriptedNet::new()
+        let mut peers: List[*mut ScriptedStream] = []
+        for _ in 0..16:
+            peers.push(ScriptedStream::new([]))
+        for index in 0..8:
+            net.fail_connection("queue:7", .Other("failure-$index"))
+            net.add_connection("queue:7", peers[index])
+        $.with(Net=net):
+            client := $.use(Net)
+            for index in 0..16:
+                if index == 4:
+                    for later in 8..16:
+                        net.fail_connection("queue:7", .Other("failure-$later"))
+                        net.add_connection("queue:7", peers[later])
+                match client.connect!("queue", 7):
+                    .Err(error) => assert_equal(error, NetError.Other("failure-$index"))
+                    .Ok(_) => panic("failure precedes stream")
+                match client.connect!("queue", 7):
+                    .Ok(stream) => _ := stream.close()
+                    .Err(_) => panic("stream follows failure")
+                assert_equal(peers[index].is_closed(), true)
+            match client.connect!("queue", 7):
+                .Err(error) => assert_equal(error, NetError.Refused("queue:7"))
+                .Ok(_) => panic("queue exhausted")
+            net.add_connection("queue:7", ScriptedStream::new([]))
+            match client.connect!("queue", 7):
+                .Ok(_) => pass
+                .Err(_) => panic("queue refilled")
+        assert_equal(net.received().len(), 34)
+
+    it("listener queues preserve order through wrap and exhaustion"):
+        net := ScriptedNet::new()
+        let mut listeners: List[*mut ScriptedListener] = []
+        for _ in 0..16:
+            listeners.push(ScriptedListener::new([]))
+        for index in 0..8:
+            net.add_listener("queue:7", listeners[index])
+        $.with(Net=net):
+            client := $.use(Net)
+            for index in 0..16:
+                if index == 4:
+                    for later in 8..16:
+                        net.add_listener("queue:7", listeners[later])
+                match client.listen!("queue", 7):
+                    .Ok(listener) => _ := listener.close()
+                    .Err(_) => panic("scripted listener")
+                assert_equal(listeners[index].is_closed(), true)
+            match client.listen!("queue", 7):
+                .Err(error) => assert_equal(error, NetError.Refused("queue:7"))
+                .Ok(_) => panic("queue exhausted")
+            net.add_listener("queue:7", ScriptedListener::new([]))
+            match client.listen!("queue", 7):
+                .Ok(_) => pass
+                .Err(_) => panic("queue refilled")
+        assert_equal(net.received().len(), 18)
+
+    it("socket queues preserve order through wrap and exhaustion"):
+        net := ScriptedNet::new()
+        let mut sockets: List[*mut ScriptedUdp] = []
+        for _ in 0..16:
+            sockets.push(ScriptedUdp::new([]))
+        for index in 0..8:
+            net.add_udp("queue:7", sockets[index])
+        $.with(Net=net):
+            client := $.use(Net)
+            for index in 0..16:
+                if index == 4:
+                    for later in 8..16:
+                        net.add_udp("queue:7", sockets[later])
+                match client.bind_udp!("queue", 7):
+                    .Ok(socket) => _ := socket.close()
+                    .Err(_) => panic("scripted socket")
+                assert_equal(sockets[index].is_closed(), true)
+            match client.bind_udp!("queue", 7):
+                .Err(error) => assert_equal(error, NetError.Refused("queue:7"))
+                .Ok(_) => panic("queue exhausted")
+            net.add_udp("queue:7", ScriptedUdp::new([]))
+            match client.bind_udp!("queue", 7):
+                .Ok(_) => pass
+                .Err(_) => panic("queue refilled")
+        assert_equal(net.received().len(), 18)

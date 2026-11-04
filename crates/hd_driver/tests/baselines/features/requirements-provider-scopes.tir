@@ -45,7 +45,7 @@ fn by_value(s: string) -> usize:
 >   %4 = Block %3 : Tag
 >   %5 = RefDyn %4 : Counted[Tag]
 >   %6 = Coerce %5 [RefAsProvider -] : Tag
->   %9 = With [%5855 %6] %8 : usize
+>   %9 = With [%5858 %6] %8 : usize
 >   %10 = Block %9 : usize
         read_tag()
 >   %7 = Call app/main/read_tag[] () : usize
@@ -64,7 +64,7 @@ fn nested(a: string, b: string) -> usize:
 >   %4 = Block %3 : Tag
 >   %5 = RefDyn %4 : Counted[Tag]
 >   %6 = Coerce %5 [RefAsProvider -] : Tag
->   %22 = With [%5855 %6] %21 : usize
+>   %22 = With [%5858 %6] %21 : usize
 >   %23 = Block %22 : usize
         outer := read_tag()
 >   %7 = Call app/main/read_tag[] () : usize
@@ -78,7 +78,7 @@ fn nested(a: string, b: string) -> usize:
 >   %13 = Block %12 : Tag
 >   %14 = RefDyn %13 : Counted[Tag]
 >   %15 = Coerce %14 [RefAsProvider -] : Tag
->   %20 = With [%5855 %15] %19 : usize
+>   %20 = With [%5858 %15] %19 : usize
             outer + read_tag()
 >   %16 = Read [$2] : usize
 >   %17 = Call app/main/read_tag[] () : usize
@@ -106,7 +106,7 @@ fn lexical(s: string) -> usize:
 >   %4 = Block %3 : Tag
 >   %5 = RefDyn %4 : Counted[Tag]
 >   %6 = Coerce %5 [RefAsProvider -] : Tag
->   %19 = With [%5855 %6] %18 : usize
+>   %19 = With [%5858 %6] %18 : usize
 >   %20 = Block %19 : usize
         tag := $.use(Tag)
 >   %7 = ProviderGet #19 : Tag

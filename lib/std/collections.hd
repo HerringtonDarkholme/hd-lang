@@ -1390,18 +1390,34 @@ impl[T < ?Copy, 'a] Drop for UniqListDrain[T, 'a]:
 ## The consuming cursor of a `UniqList`; it moves the elements out in order.
 ## See [std-collections.uniq-list.into-iter](../../spec/std/collections.md#r-std-collections.uniq-list.into-iter).
 pub struct UniqListIntoIter[T < ?Copy]:
-    items: UniqList[T]
+    buffer: Buffer[T]
+    at: usize
+    end: usize
 
 impl[T < ?Copy] !Copy for UniqListIntoIter[T]
 
+# Only the unread range still owns values; Buffer frees the room afterward.
+# Use a local index so collector trace passes leave the cursor unchanged.
+impl[T < ?Copy] Drop for UniqListIntoIter[T]:
+    fn drop(&mut self) -> void:
+        let index = self.at
+        while index < self.end:
+            _ := self.buffer.at(index).read()
+            index += 1
+
 impl[T < ?Copy] Iterator[T] for UniqListIntoIter[T]:
     fn next(&mut self) -> T?:
-        if self.items.is_empty(): .None else: .Some(self.items.remove_at(0))
+        if self.at >= self.end:
+            return .None
+        index := self.at
+        self.at += 1
+        .Some(self.buffer.at(index).read())
 
 impl[T < ?Copy] Iterable[T] for UniqList[T]:
     type IntoIter = UniqListIntoIter[T]
     fn iter(self) -> UniqListIntoIter[T]:
-        UniqListIntoIter::[T] { items: self }
+        end := self.len
+        UniqListIntoIter::[T] { buffer: self.buffer, at: 0, end: end }
 
 impl[T < ?Copy] FromIterator[T] for UniqList[T]:
     fn from_iter[I < ?Copy & Iterator[T]](items: I) -> UniqList[T]:

@@ -3,7 +3,7 @@
 # runtime trait.
 use std.rt.Drop
 use std.rt.cycle.marking
-use std.collections.{UniqList, UniqMap}
+use std.collections.{UniqList, UniqListIntoIter, UniqMap}
 use std.iter.Iterable
 use std.rt.memory.pages
 use std.rt.checked.released
@@ -14,6 +14,8 @@ let enum_drops: usize = 0
 let list_drops: usize = 0
 let erased_drops: usize = 0
 let cycle_drops: usize = 0
+let empty_drops: usize = 0
+let cursor_cycle_drops: usize = 0
 
 struct Inner:
     name: string
@@ -125,6 +127,23 @@ fn release_erased() -> void:
     let erased: &dyn ErasedRelease = &releaser
     erased.release(Token { kind: 3 })
 
+struct EmptyToken: pass
+
+impl !Copy for EmptyToken
+
+impl Drop for EmptyToken:
+    fn drop(&mut self) -> void:
+        if !marking():
+            empty_drops = empty_drops + 1
+
+fn release_empty_cursor(taken: usize) -> void:
+    let mut items = UniqList::[EmptyToken].with_capacity(4)
+    for _ in 0..4:
+        items.push(EmptyToken {})
+    let mut cursor = Iterable::[EmptyToken]::iter(items)
+    for _ in 0..taken:
+        _ := cursor.next()
+
 struct CycleToken:
     next: (*mut CycleToken)?
 
@@ -134,6 +153,25 @@ impl Drop for CycleToken:
     fn drop(&mut self) -> void:
         if !marking():
             cycle_drops = cycle_drops + 1
+
+struct CursorCycle:
+    cursor: UniqListIntoIter[*mut CursorCycle]?
+
+impl !Copy for CursorCycle
+
+impl Drop for CursorCycle:
+    fn drop(&mut self) -> void:
+        if !marking():
+            cursor_cycle_drops = cursor_cycle_drops + 1
+
+fn release_cursor_cycle() -> void:
+    node := box(CursorCycle { cursor: .None })
+    let mut items = UniqList::[*mut CursorCycle].new()
+    items.push(node)
+    items.push(node)
+    let mut cursor = Iterable::[*mut CursorCycle]::iter(items)
+    _ := cursor.next()
+    node.cursor = .Some(cursor)
 
 struct Pressure:
     next: (*mut Pressure)?
@@ -214,3 +252,17 @@ tests:
         cycle_drops = 0
         release_cycle()
         assert(cycle_drops == 1, "the collected cycle drops once: $cycle_drops")
+
+    it("a consuming cursor drops zero-sized items once at every position"):
+        for taken in 0..=4:
+            empty_drops = 0
+            release_empty_cursor(taken)
+            assert(empty_drops == 4, "each logical element drops once: $empty_drops")
+
+    it("a partially consumed cursor traces only its unread range in a cycle"):
+        cursor_cycle_drops = 0
+        release_cursor_cycle()
+        for _ in 0..200000:
+            pressure := box(Pressure { next: .None })
+            pressure.next = .Some(pressure)
+        assert(cursor_cycle_drops == 1, "the cursor cycle drops once: $cursor_cycle_drops")

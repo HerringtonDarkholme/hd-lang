@@ -3,6 +3,7 @@
 # deterministic providers ScriptedNet, ScriptedStream, ScriptedListener,
 # and ScriptedUdp. Sockets are traits, so declaring them is plain hd; a
 # live socket provider that opens real connections is host-bound.
+use std.collections.Deque
 use std.convert.From
 use std.task.TimedOut
 use std.format.DebugWriter
@@ -470,9 +471,9 @@ enum ScriptedConnection:
 ## See [std-net.scripted.decl](../../spec/std/net.md#r-std-net.scripted.decl).
 pub struct ScriptedNet:
     hosts: Map[string, List[string]]
-    connections: Map[string, List[ScriptedConnection]]
-    listeners: Map[string, List[*mut ScriptedListener]]
-    sockets: Map[string, List[*mut ScriptedUdp]]
+    connections: Map[string, Deque[ScriptedConnection]]
+    listeners: Map[string, Deque[*mut ScriptedListener]]
+    sockets: Map[string, Deque[*mut ScriptedUdp]]
     calls: List[string]
 
 impl ScriptedNet:
@@ -500,16 +501,12 @@ impl ScriptedNet:
     ## Queues `listener` for one `listen!` of `address` (`host:port`).
     ## See [std-net.scripted.setup-ref](../../spec/std/net.md#r-std-net.scripted.setup-ref).
     pub fn add_listener(&mut self, address: string, listener: *mut ScriptedListener) -> void:
-        match self.listeners.get(address):
-            .Some(_) => self.listeners[address].push(listener)
-            .None => self.listeners[address] = [listener]
+        self.listeners.get_or_insert(address, Deque::new()).push_back(listener)
 
     ## Queues `socket` for one `bind_udp!` of `address` (`host:port`).
     ## See [std-net.scripted.setup-ref](../../spec/std/net.md#r-std-net.scripted.setup-ref).
     pub fn add_udp(&mut self, address: string, socket: *mut ScriptedUdp) -> void:
-        match self.sockets.get(address):
-            .Some(_) => self.sockets[address].push(socket)
-            .None => self.sockets[address] = [socket]
+        self.sockets.get_or_insert(address, Deque::new()).push_back(socket)
 
     ## The address of every call, in order, the failed ones included; a lookup records the host alone.
     ## See [std-net.scripted.received-connect](../../spec/std/net.md#r-std-net.scripted.received-connect).
@@ -521,17 +518,15 @@ impl ScriptedNet:
     fn take_connection(&mut self, host: string, port: u16) -> Result[*mut dyn TcpStream, NetError]:
         address := "${host}:${port}"
         self.calls.push(address)
-        match self.connections.get(address):
-            .Some(queue) if !queue.is_empty() =>
-                match self.connections[address].remove_at(0):
-                    .Stream(stream) => .Ok(stream)
-                    .Failure(error) => .Err(error)
-            _ => .Err(.Refused(address))
+        if !self.connections.contains_key(address):
+            return .Err(.Refused(address))
+        match self.connections[address].pop_front():
+            .Some(.Stream(stream)) => .Ok(stream)
+            .Some(.Failure(error)) => .Err(error)
+            .None => .Err(.Refused(address))
 
     fn queue_connection(&mut self, address: string, entry: ScriptedConnection) -> void:
-        match self.connections.get(address):
-            .Some(_) => self.connections[address].push(entry)
-            .None => self.connections[address] = [entry]
+        self.connections.get_or_insert(address, Deque::new()).push_back(entry)
 
 impl Net for ScriptedNet:
     fn lookup!(&mut self, host: string) -> Result[List[string], NetError]:
@@ -546,16 +541,20 @@ impl Net for ScriptedNet:
     fn listen!(&mut self, host: string, port: u16) -> Result[*mut dyn TcpListener, NetError]:
         address := "${host}:${port}"
         self.calls.push(address)
-        match self.listeners.get(address):
-            .Some(queue) if !queue.is_empty() => .Ok(self.listeners[address].remove_at(0))
-            _ => .Err(.Refused(address))
+        if !self.listeners.contains_key(address):
+            return .Err(.Refused(address))
+        match self.listeners[address].pop_front():
+            .Some(handle) => .Ok(handle)
+            .None => .Err(.Refused(address))
 
     fn bind_udp!(&mut self, host: string, port: u16) -> Result[*mut dyn UdpSocket, NetError]:
         address := "${host}:${port}"
         self.calls.push(address)
-        match self.sockets.get(address):
-            .Some(queue) if !queue.is_empty() => .Ok(self.sockets[address].remove_at(0))
-            _ => .Err(.Refused(address))
+        if !self.sockets.contains_key(address):
+            return .Err(.Refused(address))
+        match self.sockets[address].pop_front():
+            .Some(handle) => .Ok(handle)
+            .None => .Err(.Refused(address))
 
 # Keep handwritten Debug: label bytes as written and omit pending read state.
 impl Debug for ScriptedStream:

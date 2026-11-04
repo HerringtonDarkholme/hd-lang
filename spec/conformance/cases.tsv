@@ -5803,6 +5803,7 @@ typing/invalid/uniq-list-use-after-consuming-loop.hd	type	reject:use-of-moved-va
 runtime/valid/uniq-list-cycle-collected.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.type
 runtime/valid/uniq-list-element-reference-outlives-capturing-closure.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.get-ref
 runtime/valid/uniq-consuming-cursors-release-their-rest.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.into-iter.release-rest
+runtime/valid/uniq-list-consuming-cursor-linear.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.into-iter.linear
 runtime/valid/uniq-storage-drops-once.hd	runtime	accept	std/collections.md#r-std-collections.uniq-map.insert
 runtime/valid/uniq-list-loop-local-moves-each-round.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.type
 runtime/valid/match-mut-reference-noncopyable-payload.hd	runtime	accept	lang/13-values-and-references.md#r-ref.match.borrow

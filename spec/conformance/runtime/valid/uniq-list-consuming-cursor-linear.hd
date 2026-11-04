@@ -1,0 +1,44 @@
+# test: consuming a large unique list moves each item once and preserves order
+# Spec std/collections: std-collections.uniq-list.into-iter.linear, std-collections.uniq-list.into-iter.release-rest.
+# expect: test
+use std.collections.UniqList
+use std.iter.Iterable
+
+struct Empty: pass
+impl !Copy for Empty
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("consumes 100000 elements in order"):
+        let mut items = UniqList::[u64].with_capacity(100000)
+        for index in 0..100000:
+            items.push(u64(index))
+        let count: usize = 0
+        let sum: u64 = 0
+        for value in items:
+            assert_equal(value, u64(count))
+            sum += value
+            count += 1
+        assert_equal(count, 100000)
+        assert_equal(sum, 4999950000)
+
+    it("empty and exhausted cursors keep returning None"):
+        let mut cursor = Iterable::[u32]::iter(UniqList::[u32].new())
+        assert_equal(cursor.next(), .None)
+        assert_equal(cursor.next(), .None)
+        let mut items = UniqList::[u32].new()
+        items.push(7)
+        let mut one = Iterable::[u32]::iter(items)
+        assert_equal(one.next(), .Some(7))
+        assert_equal(one.next(), .None)
+        assert_equal(one.next(), .None)
+
+    it("zero-sized elements advance by logical positions"):
+        let mut items = UniqList::[Empty].with_capacity(100000)
+        for _ in 0..100000:
+            items.push(Empty {})
+        let count: usize = 0
+        for _ in items:
+            count += 1
+        assert_equal(count, 100000)

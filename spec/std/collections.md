@@ -113,6 +113,7 @@ Its surface is:
 40. r[std-collections.uniq-list.binary-search] For `T < Ord`, `binary_search(value: &T)` searches an ascending list, returning `.Ok(index)` for any equal element or `.Err(index)` for its insertion point.
 41. r[std-collections.uniq-list.reserve-overflow] A `reserve` whose length sum exceeds the address space panics in every build profile. Panic: `heap-exhausted`.
 42. r[std-collections.uniq-list.into-iter.release-rest] Releasing the consuming cursor drops every element it has not yielded.
+43. r[std-collections.uniq-list.into-iter.linear] Consuming a `UniqList` takes O(n) time, excluding element cleanup; each `next()` moves one element without shifting the rest.
 
 > Note: hd's `Range[usize]` also represents inclusive bounds, as in `drain(1..=3)`.
 > As with [`Span.slice`](#r-std-collections.span.slice), open bounds are written explicitly: `drain(0..items.len())` drains the whole list.
