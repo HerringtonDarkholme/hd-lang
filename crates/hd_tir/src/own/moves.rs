@@ -276,8 +276,13 @@ pub(crate) fn run(
     // A frame local's references are no reads of it here. Where its last
     // whole read has no drop right after it, the walk runs again with
     // their uses as reads of it.
-    if (0..b.len()).any(|i| frame_move_apart(b, topo, t, i)) {
+    let apart = (0..b.len()).any(|i| frame_move_apart(b, topo, t, i));
+    if apart {
         frame_uses(b, topo, cx, t);
+    }
+    // A root local (`ref.box.root`) is read by each use of what points
+    // into its object or buffer, so no move of it comes before one.
+    if root_reads(b, cx, t) || apart {
         fill(&mut t.decide, b.len(), UNSEEN);
         backward(b, topo, &mut back, t);
     }
@@ -322,6 +327,26 @@ fn frame_uses(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
     }
     t.frame_scratch = ft;
     t.frame_uses = out;
+}
+
+/// Adds the uses of each root local through what may point into it
+/// ([`super::frame::roots`]) to [`Tables::frame_uses`], drops aside:
+/// whether there was any.
+fn root_reads(b: &Body, cx: &dyn OwnCx, t: &mut Tables) -> bool {
+    let mut out = std::mem::take(&mut t.frame_uses);
+    let before = out.len();
+    let lnum = &t.lnum;
+    super::frame::roots(b, cx, |i, l| {
+        let bit = lnum[l as usize];
+        if bit != NONE && b.tags[i as usize] != Tag::Drop {
+            out.push((i, bit));
+        }
+    });
+    let added = out.len() > before;
+    out.sort_stable();
+    out.dedup();
+    t.frame_uses = out;
+    added
 }
 
 /// The drop of the whole place of read `i`, candidate `bit`, right after
