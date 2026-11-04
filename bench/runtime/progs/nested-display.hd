@@ -1,5 +1,8 @@
 # 330,000 orders, with three nested Display levels: Order -> Line -> Money.
 # Keep interpolation at every level: this measures intermediate text copies.
+# Measurement port: write overrides stream the same text into the shared builder.
+use std.text.StringBuilder
+
 N := 330_000
 
 struct Money:
@@ -11,6 +14,14 @@ impl Display for Money:
         fraction := self.cents % 100
         if fraction < 10: "$whole.0$fraction" else: "$whole.$fraction"
 
+    fn write(&self, out: &mut StringBuilder) -> void:
+        whole := self.cents / 100
+        fraction := self.cents % 100
+        if fraction < 10:
+            out.push("$whole.0$fraction")
+        else:
+            out.push("$whole.$fraction")
+
 struct Line:
     sku: usize
     quantity: usize
@@ -19,6 +30,9 @@ struct Line:
 impl Display for Line:
     fn to_string(&self) -> string:
         "item#${self.sku} x${self.quantity} @${self.price}"
+
+    fn write(&self, out: &mut StringBuilder) -> void:
+        out.push("item#${self.sku} x${self.quantity} @${self.price}")
 
 struct Order:
     id: usize
@@ -29,6 +43,9 @@ struct Order:
 impl Display for Order:
     fn to_string(&self) -> string:
         "order#${self.id}[${self.first};${self.second};${self.third}]"
+
+    fn write(&self, out: &mut StringBuilder) -> void:
+        out.push("order#${self.id}[${self.first};${self.second};${self.third}]")
 
 fn line(seed: usize) -> Line:
     Line {

@@ -616,7 +616,6 @@ is readonly; `Read [@g]` has the binding's type.
 | `CallHost` | a: host method, b: `[arguments]` | the method's result; only in std's provider bodies |
 | `Intrinsic` | a: intrinsic, b: `[type arguments, arguments]` | the intrinsic's declared result |
 | `DefaultCall` | a: `[default body DefId, type arguments]`, b: `[earlier argument values]` | the parameter's or field's type, substituted. One per omitted argument, per call |
-| `Interp` | b: `[parts]`, each a literal constant or a value with its `Display` callee | `string` |
 | `Coerce` | a: value, b: `[kind, evidence or NONE]` | the target type in `ty`; the kinds are in the table below |
 
 **Coercion kinds** (crates/hd_check/DESIGN.md (type checking) §4.2). Each
@@ -897,7 +896,7 @@ is a run ID.
 | Source | TIR |
 | --- | --- |
 | `a \|> f(_, b)` | `a`'s instructions, then `Call` with `a` in the placeholder's slot |
-| `"x $y"` | `Interp` |
+| `"x $y"` | `Call`s of `StringBuilder.new`, `push` per text piece, `Display.write` per value, and `build` ([`expr.interp.builder`](../../spec/lang/05-expressions.md#r-expr.interp.builder)); `b.push("x $y")` whose values are names or field paths writes to `b` itself |
 | string prefixes, literal suffixes (`10ms`) | `Call` of the resolved prefix or suffix function |
 | `x[i]`, `x[i] = v` | `Call` of the resolved index or set method |
 | `x += y`, and the other compound assignments | the place's operands evaluated once (their `Ref`s used twice), `Prim` or a trait `Call`, then a `Store` of the place or a set `Call` |

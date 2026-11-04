@@ -1970,10 +1970,6 @@ impl Em<'_, '_, '_> {
             }
             Tag::Call => self.call(i, a, bw)?,
             Tag::DefaultCall => self.default_call(i, bw)?,
-            Tag::Interp => {
-                let parts = self.rec(bw);
-                self.concat(i, &parts)?;
-            }
             Tag::Coerce => {
                 let kind = self.rec(bw).first().copied().unwrap_or(NONE);
                 match kind {

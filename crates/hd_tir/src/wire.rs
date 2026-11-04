@@ -151,7 +151,6 @@ fn append_tag_id_words(b: &Body, i: usize, out: &mut Vec<IdWord>) -> StageResult
         | Tag::NewList
         | Tag::NewMap
         | Tag::Closure
-        | Tag::Interp
         | Tag::Coerce
         | Tag::And
         | Tag::Or

@@ -15,27 +15,46 @@ impl Display for YamlError:
     fn to_string(&self) -> string:
         "bad yaml at line ${self.line}"
 > app/main/impl Display for YamlError.to_string
->   (no span) release string (last use)
+>   release counted reference
+>   (no span) release counted reference
 
 impl Error for YamlError
 
 @error
+> app/main/error Display for FsError.to_string
+>   retain app.main.FsError
+> app/main/error Display for FsError.to_string
+>   retain counted reference
 enum FsError:
     @error("not found: $path")
+>   release counted reference
+>   release string
+>   release counted reference
+>   release counted reference
+>   release string
+>   release counted reference
     NotFound(path: string)
+>   (no span) release app.main.FsError
+>   (no span) release app.main.FsError
     Busy
 
 @error
+> app/main/error Display for LoadError.to_string
+>   retain counted reference
 > app/main/error Error for LoadError.source
->   retain counted reference (conservative: copy read)
+>   retain counted reference
 enum LoadError:
     @error("cannot read $path")
+>   release counted reference
+>   release string
+>   release counted reference
     Read(
         path: string,
         @source
         error: FsError,
     )
     @error("bad config")
+>   release app.main.FsError
     Yaml(
         @from
         error: YamlError,
@@ -43,7 +62,8 @@ enum LoadError:
     @error(transparent)
     Fs(
         @from
->   (no span) release app.main.LoadError (last use)
+>   (no span) release app.main.LoadError
+>   (no span) release app.main.LoadError
         error: FsError,
     )
 
@@ -59,4 +79,4 @@ fn load(text: string) -> Result[i64, LoadError]:
 fn message(e: &LoadError) -> usize:
     e.to_string().len()
 > app/main/message
->   (no span) release string (last use)
+>   (no span) release string

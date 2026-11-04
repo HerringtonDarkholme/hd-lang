@@ -26,22 +26,36 @@ fn must(s: string, n: i32) -> usize:
 >   local $0 s: string [param read]
 >   local $1 n: i32 [param read]
 >   local $2 t: string [:= read assigned captured]
+>   local $3 $interpolation: StringBuilder [read assigned captured captured-assigned]
+>   local $4 $ref: string [read assigned captured captured-assigned]
 >   %0 = Read [$0] : string
 >   %1 = Intrinsic StrConcat [%0 "!"] : string
 >   %2 = Store [$2] %1 : ()
->   %12 = Block %11 : usize
+>   %24 = Block %23 : usize
     if n < 0:
 >   %3 = Read [$1] : i32
 >   %4 = Prim Lt [%3 0:i32] : bool
->   %9 = If %4 [%8 -] : ()
+>   %21 = If %4 [%20 -] : ()
         panic("negative: $t")
 >   %5 = Read [$2] : string
->   %6 = Interp ["negative: " %5] : string
->   %7 = Call std/core/panic[] (%6) : never
->   %8 = Block - : never
+>   %6 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].new[u8] () : UniqList[u8]
+>   %7 = NewStruct [%6] : StringBuilder
+>   %8 = Store [$3] %7 : ()
+>   %9 = Ref mut local [$3] : Counted[mut StringBuilder]
+>   %10 = Call std/text/impl StringBuilder.reserve[] (%9, 20:usize) : ()
+>   %11 = Ref mut local [$3] : Counted[mut StringBuilder]
+>   %12 = Call std/text/impl StringBuilder.push[] (%11, "negative: ") : ()
+>   %13 = Store [$4] %5 : ()
+>   %14 = Ref local [$4] : Counted[string]
+>   %15 = Ref mut local [$3] : Counted[mut StringBuilder]
+>   %16 = Call std/format/Display.write for string [] via Impl (%14, %15) : ()
+>   %17 = Ref mut local [$3] : Counted[mut StringBuilder]
+>   %18 = Call std/text/impl StringBuilder.build[] (%17) : string
+>   %19 = Call std/core/panic[] (%18) : never
+>   %20 = Block - : never
     t.len()
->   %10 = Ref local [$2] : Counted[string]
->   %11 = Call std/text/impl string.len[] (%10) : usize
+>   %22 = Ref local [$2] : Counted[string]
+>   %23 = Call std/text/impl string.len[] (%22) : usize
 
 fn guarded(log: *mut List[string], s: string, n: i32) -> usize:
     using r = Res { name: s + "?", log: log }

@@ -16,7 +16,8 @@ struct Wrap:
 fn make(n: i32) -> Wrap:
     Wrap { name: "x${n}" }
 > app/main/make
->   (no span) release string (last use)
+>   release counted reference
+>   (no span) release counted reference
 
 impl Wrap:
     @inline(.Never)
@@ -26,20 +27,22 @@ impl Wrap:
 fn total(n: i32) -> usize:
     make(n).size()
 > app/main/total
->   release string (last use)
->   (no span) release app.main.Wrap [name.0] (last use)
+>   release counted reference
+>   release counted reference
+>   (no span) release app.main.Wrap [name.0]
 
 fn named(n: i32) -> usize:
     let w = make(n)
 > app/main/named
->   release string (last use)
+>   release counted reference
+>   release counted reference
     w.size()
->   (no span) release app.main.Wrap [name.0] (last use)
+>   (no span) release app.main.Wrap [name.0]
 
 fn param(w: Wrap) -> usize:
     w.size()
 > app/main/param
->   (no span) release app.main.Wrap [name.0] (last use)
+>   (no span) release app.main.Wrap [name.0]
 
 struct Nums:
     xs: List[i64]
@@ -52,4 +55,4 @@ impl Nums:
 fn nums(n: i64) -> usize:
     Nums { xs: [n, n] }.count()
 > app/main/nums
->   (no span) release app.main.Nums (last use)
+>   (no span) release app.main.Nums

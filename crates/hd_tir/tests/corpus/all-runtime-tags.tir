@@ -2,7 +2,7 @@
 body 1 Fn
 local 4 0 - 32
 sub 0 0 0 - 0
-labels 35
+labels 34
 caps
 modes
 extra 0
@@ -21,41 +21,40 @@ const 4 0
 %11 = CallHost 0 0 : 4 @-
 %12 = Intrinsic 0 0 : 4 @-
 %13 = DefaultCall 0 0 : 4 @-
-%14 = Interp - 0 : 4 @-
-%15 = Coerce 2147483648 0 : 4 @-
-%16 = Await 0 0 : 4 @-
-%17 = AwaitValue 2147483648 - : 4 @-
-%18 = AwaitAll - 0 : 4 @-
-%19 = AwaitRace 2147483648 - : 4 @-
-%20 = Hook 0 0 : 4 @-
-%21 = NewStruct - 0 : 4 @-
-%22 = CopyStruct 2147483648 0 : 4 @-
-%23 = NewVariant 0 0 : 4 @-
-%24 = NewTuple - 0 : 4 @-
-%25 = NewList - 0 : 4 @-
-%26 = NewMap - 0 : 4 @-
-%27 = Closure 0 0 : 4 @-
-%28 = With 0 0 : 4 @-
-%29 = ContextNew 0 - : 4 @-
-%30 = ContextFor 0 - : 4 @-
-%31 = Block 0 2147483648 : 4 @-
-%32 = Scope 0 0 : 4 @-
-%33 = Defer 0 - : 4 @-
-%34 = If 2147483648 0 : 4 @-
-%35 = Loop 0 0 : 4 @-
-%36 = Break 0 2147483648 : 4 @-
-%37 = Continue 0 - : 4 @-
-%38 = Return 2147483648 - : 4 @-
-%39 = Unreachable - - : 4 @-
-%40 = Match 2147483648 0 : 4 @-
-%41 = SwitchTag 2147483648 0 : 4 @-
-%42 = SwitchInt 2147483648 0 : 4 @-
-%43 = SwitchChar 2147483648 0 : 4 @-
-%44 = SwitchStr 2147483648 0 : 4 @-
-%45 = Guard 0 0 : 4 @-
-%46 = ToArm 0 - : 4 @-
-%47 = RefDyn 0 - : 4 @-
-%48 = RefIdentity 2147483648 - : 4 @-
-%49 = Read 2147483648 0 : 4 @-
-%50 = Store 2147483648 2147483648 : 4 @-
-%51 = Ref 2147483648 1 : 4 @-
+%14 = Coerce 2147483648 0 : 4 @-
+%15 = Await 0 0 : 4 @-
+%16 = AwaitValue 2147483648 - : 4 @-
+%17 = AwaitAll - 0 : 4 @-
+%18 = AwaitRace 2147483648 - : 4 @-
+%19 = Hook 0 0 : 4 @-
+%20 = NewStruct - 0 : 4 @-
+%21 = CopyStruct 2147483648 0 : 4 @-
+%22 = NewVariant 0 0 : 4 @-
+%23 = NewTuple - 0 : 4 @-
+%24 = NewList - 0 : 4 @-
+%25 = NewMap - 0 : 4 @-
+%26 = Closure 0 0 : 4 @-
+%27 = With 0 0 : 4 @-
+%28 = ContextNew 0 - : 4 @-
+%29 = ContextFor 0 - : 4 @-
+%30 = Block 0 2147483648 : 4 @-
+%31 = Scope 0 0 : 4 @-
+%32 = Defer 0 - : 4 @-
+%33 = If 2147483648 0 : 4 @-
+%34 = Loop 0 0 : 4 @-
+%35 = Break 0 2147483648 : 4 @-
+%36 = Continue 0 - : 4 @-
+%37 = Return 2147483648 - : 4 @-
+%38 = Unreachable - - : 4 @-
+%39 = Match 2147483648 0 : 4 @-
+%40 = SwitchTag 2147483648 0 : 4 @-
+%41 = SwitchInt 2147483648 0 : 4 @-
+%42 = SwitchChar 2147483648 0 : 4 @-
+%43 = SwitchStr 2147483648 0 : 4 @-
+%44 = Guard 0 0 : 4 @-
+%45 = ToArm 0 - : 4 @-
+%46 = RefDyn 0 - : 4 @-
+%47 = RefIdentity 2147483648 - : 4 @-
+%48 = Read 2147483648 0 : 4 @-
+%49 = Store 2147483648 2147483648 : 4 @-
+%50 = Ref 2147483648 1 : 4 @-

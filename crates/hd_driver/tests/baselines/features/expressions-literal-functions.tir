@@ -19,11 +19,21 @@ fn lbl(n: i64) -> Label:
     Label { text: "#${n}" }
 > app/main/lbl
 >   local $0 n: i64 [param read captured]
+>   local $1 $interpolation: StringBuilder [read assigned captured captured-assigned]
 >   %0 = Ref local [$0] : Counted[i64]
->   %1 = Call std/format/Display.to_string for i64 [] via Impl (%0) : string
->   %2 = Interp ["#" %1] : string
->   %3 = NewStruct [%2] : Label
->   %4 = Block %3 : Label
+>   %1 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].new[u8] () : UniqList[u8]
+>   %2 = NewStruct [%1] : StringBuilder
+>   %3 = Store [$1] %2 : ()
+>   %4 = Ref mut local [$1] : Counted[mut StringBuilder]
+>   %5 = Call std/text/impl StringBuilder.reserve[] (%4, 2:usize) : ()
+>   %6 = Ref mut local [$1] : Counted[mut StringBuilder]
+>   %7 = Call std/text/impl StringBuilder.push[] (%6, "#") : ()
+>   %8 = Ref mut local [$1] : Counted[mut StringBuilder]
+>   %9 = Call std/format/Display.write for i64 [] via Impl (%0, %8) : ()
+>   %10 = Ref mut local [$1] : Counted[mut StringBuilder]
+>   %11 = Call std/text/impl StringBuilder.build[] (%10) : string
+>   %12 = NewStruct [%11] : Label
+>   %13 = Block %12 : Label
 
 @str_prefix
 fn sql(t: Template[i64]) -> Query:

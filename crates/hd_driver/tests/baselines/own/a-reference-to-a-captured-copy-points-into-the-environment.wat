@@ -5,11 +5,16 @@
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "peek" (func $peek (param i32) (result i32)))
-  (import "fixture" "format_int[i32]" (func $"format_int[i32]" (param i32) (result i32 i32)))
+  (import "fixture" "room" (func $room (param i32 i32) (result i32)))
+  (import "fixture" "rt:new/class-3" (func $rt:new/class-3 (param i32 i32) (result i32)))
+  (import "fixture" "rt:new/class-1'1" (func $rt:new/class-1'1 (param i32 i32) (result i32)))
+  (import "fixture" "impl Display for i32.write" (func $"impl Display for i32.write" (param i32 i32)))
   (import "fixture" "first" (func $first (param i32) (result i32 i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
-  (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
+  (import "fixture" "impl StringBuilder.push" (func $"impl StringBuilder.push" (param i32 i32 i32)))
+  (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
+  (import "fixture" "impl Display for string.write" (func $"impl Display for string.write" (param i32 i32)))
+  (import "fixture" "impl StringBuilder.build" (func $"impl StringBuilder.build" (param i32) (result i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $make (param $t0 i32) (param $t1 i32) (param $t2 i32) (result i32 i32) (local $p i32) (local $t3 i32)
     ;; (no span)
@@ -63,7 +68,7 @@
     local.get $t0
     local.get $t1
   )
-  (func $make#1 (param $env i32) (param $ctx i32) (result i32 i32) (local $p.name.0 i32) (local $p.name.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $make#1 (param $env i32) (param $ctx i32) (result i32 i32) (local $p.name.0 i32) (local $p.name.1 i32) (local $t0 i32)
     ;; (no span)
     local.get $env
     i32.load $heap
@@ -93,64 +98,110 @@
       call $rt:retain_fields
       local.get $t0
       call $peek
+      local.set $ctx
       local.get $t0
     ;; (no span)
       call $rt:release_ref'1
     ;; 18 |     fn() -> string: "${peek(&p)} ${first(&p.name)}"
-      local.set $ctx
       block
         block
-          local.get $ctx
-          call $"format_int[i32]"
-          local.set $p.name.1
-          local.set $ctx
+          block
+            block
+              block
+                block
+                  i32.const 0
+                  i32.const 1
+                  call $room
+                  local.set $p.name.1
+                  br 0
+                end
+              end
+              br 0
+            end
+          end
           br 0
         end
       end
+      i32.const 36
+      i32.const 4
+      call $rt:new/class-3
+      local.tee $t0
+      local.get $p.name.1
+      i32.store $heap
+      local.get $t0
+      i32.const 0
+      i32.store $heap offset=4
+      local.get $t0
+      i32.const 0
+      i32.store $heap offset=8
+      local.get $t0
+      i32.const 1
+      i32.store $heap offset=12
+      local.get $t0
+      i32.const 1
+      i32.store $heap offset=16
+      local.get $t0
+      i32.const 1
+      i32.store $heap offset=20
+      local.get $t0
+      i32.const 1
+      i32.store $heap offset=24
+      local.get $t0
+      i32.const 1
+      i32.store $heap offset=28
+      local.get $t0
+      i32.const 1
+      i32.store $heap offset=32
+      local.get $t0
+      local.set $p.name.1
+      i32.const 4
+      i32.const 0
+      call $rt:new/class-1'1
+      local.tee $t0
+      local.get $ctx
+      i32.store $heap
+      local.get $t0
+      local.get $p.name.1
+      call $"impl Display for i32.write"
+      local.get $t0
+    ;; (no span)
+      call $rt:release_ref'1
+    ;; 18 |     fn() -> string: "${peek(&p)} ${first(&p.name)}"
       local.get $env
       i32.const 4
       i32.add
       call $first
-      local.set $t0
+      local.set $ctx
       local.set $env
     ;; (no span)
       local.get $p.name.0
       call $rt:release_ref'2
     ;; 18 |     fn() -> string: "${peek(&p)} ${first(&p.name)}"
       local.get $p.name.1
+      i32.const 146 ;; &" "
       i32.const 1
-      i32.add
-      local.get $t0
-      i32.add
+      call $"impl StringBuilder.push"
+      i32.const 8
+      i32.const 5
+      call $rt:new/class-1'2
       local.tee $p.name.0
-      call $rt:str
-      local.tee $t1
-      local.tee $t2
-      local.get $ctx
-      local.get $p.name.1
-      call $rt:memory_copy/0/0
-      local.get $t2
-      local.get $p.name.1
-      i32.add
-      local.tee $t2
-      i32.const 66 ;; &" "
-      i32.load8_u $heap
-      i32.store8 $heap
-      local.get $t2
-      i32.const 1
-      i32.add
       local.get $env
-      local.get $t0
-      call $rt:memory_copy/0/0
-    ;; (no span)
-      local.get $env
-      call $rt:release_ref'2
+      i32.store $heap
+      local.get $p.name.0
       local.get $ctx
-      call $rt:release_ref'2
-    ;; 18 |     fn() -> string: "${peek(&p)} ${first(&p.name)}"
-      local.get $t1
+      i32.store $heap offset=4
+      local.get $p.name.0
+      local.get $p.name.1
+      call $"impl Display for string.write"
       local.get $p.name.0
     ;; (no span)
+      call $rt:release_ref'1
+    ;; 18 |     fn() -> string: "${peek(&p)} ${first(&p.name)}"
+      local.get $p.name.1
+      call $"impl StringBuilder.build"
+    ;; (no span)
+      local.get $p.name.1
+      call $rt:release_ref'1
       local.set $ctx
       local.set $env
     end

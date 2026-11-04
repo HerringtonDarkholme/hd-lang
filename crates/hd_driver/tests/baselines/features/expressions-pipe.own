@@ -13,112 +13,227 @@ fn clean(raw: string) -> string:
     "[${raw}]"
 > app/main/clean
 >   local $0 raw: string [param read]
->   %0 = Read borrow [$0] : string
->   %1 = Interp ["[" %0 "]"] : string
->   %2 = Block %1 : string
->   summary kept [] borrows [$0]
+>   local $1 $interpolation: StringBuilder [read assigned captured captured-assigned]
+>   local $2 $ref: string [read assigned captured captured-assigned]
+>   local $3 capacity: usize [read]
+>   local $4 capacity: usize [read]
+>   %0 = Read move [$0] : string
+>   %1 = Store [$3] 0:usize : ()
+>   %2 = Read copy [$3] : usize
+>   %3 = Store [$4] %2 : ()
+>   %4 = Read copy [$4] : usize
+>   %5 = Call std/rt.memory/size_of[u8] () : usize
+>   %6 = Call std/rt.memory/room[] (%4, %5) : usize
+>   %7 = Read copy [$4] : usize
+>   %8 = NewStruct [%6 %7] : Buffer[u8]
+>   %9 = Break L0 %8 : never
+>   %10 = Block - : Buffer[u8]
+>   %11 = Scope %10 [] : Buffer[u8]
+>   %12 = NewStruct [%11 0:usize] : UniqList[u8]
+>   %13 = Break L1 %12 : never
+>   %14 = Block - : UniqList[u8]
+>   %15 = Scope %14 [] : UniqList[u8]
+>   %16 = Break L2 %15 : never
+>   %17 = Block - : UniqList[u8]
+>   %18 = Scope %17 [] : UniqList[u8]
+>   %19 = NewStruct [%18] : StringBuilder
+>   %20 = Store [$1] %19 : ()
+>   %21 = Ref mut local frame [$1] : Counted[mut StringBuilder]
+>   %22 = Call std/text/impl StringBuilder.reserve[] (%21, 4:usize) : ()
+>   %23 = Drop [%21] : ()
+>   %24 = Ref mut local frame [$1] : Counted[mut StringBuilder]
+>   %25 = Call std/text/impl StringBuilder.push[] (%24, "[") : ()
+>   %26 = Drop [%24] : ()
+>   %27 = Store [$2] %0 : ()
+>   %28 = Ref local frame [$2] : Counted[string]
+>   %29 = Ref mut local frame [$1] : Counted[mut StringBuilder]
+>   %30 = Call std/format/Display.write for string [] via Impl (%28, %29) : ()
+>   %31 = Drop [%29] : ()
+>   %32 = Drop [%28] : ()
+>   %33 = Drop [$2] : ()
+>   %34 = Ref mut local frame [$1] : Counted[mut StringBuilder]
+>   %35 = Call std/text/impl StringBuilder.push[] (%34, "]") : ()
+>   %36 = Drop [%34] : ()
+>   %37 = Ref mut local frame [$1] : Counted[mut StringBuilder]
+>   %38 = Call std/text/impl StringBuilder.build[] (%37) : string
+>   %39 = Drop [%37] : ()
+>   %40 = Drop [$1] : ()
+>   %41 = Block %38 : string
+>   %21 finds [$1] full
+>   %24 finds [$1] full
+>   %28 finds [$2] full
+>   %29 finds [$1] full
+>   %34 finds [$1] full
+>   %37 finds [$1] full
+>   exit sub 0 drops [$0]
+>   summary kept [$0] writes
 
 fn tag(label: string, level: i64) -> string:
     "${label}:${level}"
 > app/main/tag
 >   local $0 label: string [param read]
->   local $1 level: i64 [param read]
->   local $2 self: i64 [read]
->   %0 = Read borrow [$0] : string
->   %1 = Read copy [$1] : i64
->   %2 = Store [$2] %1 : ()
->   %3 = Read copy [$2] : i64
->   %4 = Call std/format/format_int[i64] (%3) : string
->   %5 = Break L0 %4 : never
->   %6 = Block - : string
->   %7 = Scope %6 [] : string
->   %8 = Interp [%0 ":" %7] : string
->   %9 = Drop [%7] : ()
->   %10 = Block %8 : string
->   summary kept [] borrows [$0]
+>   local $1 level: i64 [param read captured]
+>   local $2 $interpolation: StringBuilder [read assigned captured captured-assigned]
+>   local $3 $ref: string [read assigned captured captured-assigned]
+>   local $4 capacity: usize [read]
+>   local $5 capacity: usize [read]
+>   %0 = Read move [$0] : string
+>   %1 = Store [$4] 0:usize : ()
+>   %2 = Read copy [$4] : usize
+>   %3 = Store [$5] %2 : ()
+>   %4 = Read copy [$5] : usize
+>   %5 = Call std/rt.memory/size_of[u8] () : usize
+>   %6 = Call std/rt.memory/room[] (%4, %5) : usize
+>   %7 = Read copy [$5] : usize
+>   %8 = NewStruct [%6 %7] : Buffer[u8]
+>   %9 = Break L0 %8 : never
+>   %10 = Block - : Buffer[u8]
+>   %11 = Scope %10 [] : Buffer[u8]
+>   %12 = NewStruct [%11 0:usize] : UniqList[u8]
+>   %13 = Break L1 %12 : never
+>   %14 = Block - : UniqList[u8]
+>   %15 = Scope %14 [] : UniqList[u8]
+>   %16 = Break L2 %15 : never
+>   %17 = Block - : UniqList[u8]
+>   %18 = Scope %17 [] : UniqList[u8]
+>   %19 = NewStruct [%18] : StringBuilder
+>   %20 = Store [$2] %19 : ()
+>   %21 = Store [$3] %0 : ()
+>   %22 = Ref local frame [$3] : Counted[string]
+>   %23 = Ref mut local frame [$2] : Counted[mut StringBuilder]
+>   %24 = Call std/format/Display.write for string [] via Impl (%22, %23) : ()
+>   %25 = Drop [%23] : ()
+>   %26 = Drop [%22] : ()
+>   %27 = Drop [$3] : ()
+>   %28 = Ref local frame [$1] : Counted[i64]
+>   %29 = Ref mut local frame [$2] : Counted[mut StringBuilder]
+>   %30 = Call std/text/impl StringBuilder.push[] (%29, ":") : ()
+>   %31 = Drop [%29] : ()
+>   %32 = Ref mut local frame [$2] : Counted[mut StringBuilder]
+>   %33 = Call std/format/Display.write for i64 [] via Impl (%28, %32) : ()
+>   %34 = Drop [%32] : ()
+>   %35 = Drop [%28] : ()
+>   %36 = Drop [$1] : ()
+>   %37 = Ref mut local frame [$2] : Counted[mut StringBuilder]
+>   %38 = Call std/text/impl StringBuilder.build[] (%37) : string
+>   %39 = Drop [%37] : ()
+>   %40 = Drop [$2] : ()
+>   %41 = Block %38 : string
+>   %22 finds [$3] full
+>   %23 finds [$2] full
+>   %29 finds [$2] full
+>   %32 finds [$2] full
+>   %37 finds [$2] full
+>   exit sub 0 drops [$0 $1]
+>   summary kept [$0] writes
 
 fn bare(raw: string) -> string:
     raw |> clean
 > app/main/bare
 >   local $0 raw: string [param read]
->   local $1 raw: string [read]
->   %0 = Read borrow [$0] : string
->   %1 = Store [$1] %0 : ()
->   %2 = Read borrow [$1] : string
->   %3 = Interp ["[" %2 "]"] : string
->   %4 = Break L0 %3 : never
->   %5 = Block - : string
->   %6 = Scope %5 [] : string
->   %7 = Block %6 : string
->   summary kept [] borrows [$0]
+>   %0 = Read move [$0] : string
+>   %1 = Call app/main/clean[] (%0) : string
+>   %2 = Block %1 : string
+>   exit sub 0 drops [$0]
+>   summary kept [$0] writes
 
 fn chain(raw: string) -> string:
     raw |> clean |> tag(_, 2)
 > app/main/chain
 >   local $0 raw: string [param read]
 >   local $1 label: string [read]
->   local $2 level: i64 [read]
->   local $3 self: i64 [read]
->   local $4 raw: string [read]
->   %0 = Read borrow [$0] : string
->   %1 = Store [$4] %0 : ()
->   %2 = Read borrow [$4] : string
->   %3 = Interp ["[" %2 "]"] : string
->   %4 = Break L2 %3 : never
->   %5 = Block - : string
->   %6 = Scope %5 [] : string
->   %7 = Store [$1] %6 : ()
->   %8 = Store [$2] 2:i64 : ()
->   %9 = Read borrow [$1] : string
->   %10 = Read copy [$2] : i64
->   %11 = Store [$3] %10 : ()
->   %12 = Read copy [$3] : i64
->   %13 = Call std/format/format_int[i64] (%12) : string
->   %14 = Break L0 %13 : never
->   %15 = Block - : string
->   %16 = Scope %15 [] : string
->   %17 = Interp [%9 ":" %16] : string
+>   local $2 level: i64 [read captured]
+>   local $3 $interpolation: StringBuilder [read assigned captured captured-assigned]
+>   local $4 $ref: string [read assigned captured captured-assigned]
+>   %0 = Read move [$0] : string
+>   %1 = Call app/main/clean[] (%0) : string
+>   %2 = Store [$1] %1 : ()
+>   %3 = Store [$2] 2:i64 : ()
+>   %4 = Read move [$1] : string
+>   %5 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].new[u8] () : UniqList[u8]
+>   %6 = NewStruct [%5] : StringBuilder
+>   %7 = Store [$3] %6 : ()
+>   %8 = Store [$4] %4 : ()
+>   %9 = Ref local frame [$4] : Counted[string]
+>   %10 = Ref mut local frame [$3] : Counted[mut StringBuilder]
+>   %11 = Call std/format/Display.write for string [] via Impl (%9, %10) : ()
+>   %12 = Drop [%10] : ()
+>   %13 = Drop [%9] : ()
+>   %14 = Drop [$4] : ()
+>   %15 = Ref local frame [$2] : Counted[i64]
+>   %16 = Ref mut local frame [$3] : Counted[mut StringBuilder]
+>   %17 = Call std/text/impl StringBuilder.push[] (%16, ":") : ()
 >   %18 = Drop [%16] : ()
->   %19 = Break L1 %17 : never
->   %20 = Block - : string
->   %21 = Scope %20 [] : string
->   %22 = Drop [$1] : ()
->   %23 = Block %21 : string
->   summary kept [] borrows [$0]
+>   %19 = Ref mut local frame [$3] : Counted[mut StringBuilder]
+>   %20 = Call std/format/Display.write for i64 [] via Impl (%15, %19) : ()
+>   %21 = Drop [%19] : ()
+>   %22 = Drop [%15] : ()
+>   %23 = Ref mut local frame [$3] : Counted[mut StringBuilder]
+>   %24 = Call std/text/impl StringBuilder.build[] (%23) : string
+>   %25 = Drop [%23] : ()
+>   %26 = Drop [$3] : ()
+>   %27 = Break L0 %24 : never
+>   %28 = Block - : string
+>   %29 = Scope %28 [] : string
+>   %30 = Drop [$2] : ()
+>   %31 = Block %29 : string
+>   %9 finds [$4] full
+>   %10 finds [$3] full
+>   %15 finds [$2] full
+>   %16 finds [$3] full
+>   %19 finds [$3] full
+>   %23 finds [$3] full
+>   exit sub 0 drops [$0]
+>   summary kept [$0] writes
 
 fn direct(raw: string) -> string:
     tag(clean(raw), 2)
 > app/main/direct
 >   local $0 raw: string [param read]
 >   local $1 label: string [read]
->   local $2 level: i64 [read]
->   local $3 self: i64 [read]
->   local $4 raw: string [read]
->   %0 = Read borrow [$0] : string
->   %1 = Store [$4] %0 : ()
->   %2 = Read borrow [$4] : string
->   %3 = Interp ["[" %2 "]"] : string
->   %4 = Break L2 %3 : never
->   %5 = Block - : string
->   %6 = Scope %5 [] : string
->   %7 = Store [$1] %6 : ()
->   %8 = Store [$2] 2:i64 : ()
->   %9 = Read borrow [$1] : string
->   %10 = Read copy [$2] : i64
->   %11 = Store [$3] %10 : ()
->   %12 = Read copy [$3] : i64
->   %13 = Call std/format/format_int[i64] (%12) : string
->   %14 = Break L0 %13 : never
->   %15 = Block - : string
->   %16 = Scope %15 [] : string
->   %17 = Interp [%9 ":" %16] : string
+>   local $2 level: i64 [read captured]
+>   local $3 $interpolation: StringBuilder [read assigned captured captured-assigned]
+>   local $4 $ref: string [read assigned captured captured-assigned]
+>   %0 = Read move [$0] : string
+>   %1 = Call app/main/clean[] (%0) : string
+>   %2 = Store [$1] %1 : ()
+>   %3 = Store [$2] 2:i64 : ()
+>   %4 = Read move [$1] : string
+>   %5 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].new[u8] () : UniqList[u8]
+>   %6 = NewStruct [%5] : StringBuilder
+>   %7 = Store [$3] %6 : ()
+>   %8 = Store [$4] %4 : ()
+>   %9 = Ref local frame [$4] : Counted[string]
+>   %10 = Ref mut local frame [$3] : Counted[mut StringBuilder]
+>   %11 = Call std/format/Display.write for string [] via Impl (%9, %10) : ()
+>   %12 = Drop [%10] : ()
+>   %13 = Drop [%9] : ()
+>   %14 = Drop [$4] : ()
+>   %15 = Ref local frame [$2] : Counted[i64]
+>   %16 = Ref mut local frame [$3] : Counted[mut StringBuilder]
+>   %17 = Call std/text/impl StringBuilder.push[] (%16, ":") : ()
 >   %18 = Drop [%16] : ()
->   %19 = Break L1 %17 : never
->   %20 = Block - : string
->   %21 = Scope %20 [] : string
->   %22 = Drop [$1] : ()
->   %23 = Block %21 : string
->   summary kept [] borrows [$0]
+>   %19 = Ref mut local frame [$3] : Counted[mut StringBuilder]
+>   %20 = Call std/format/Display.write for i64 [] via Impl (%15, %19) : ()
+>   %21 = Drop [%19] : ()
+>   %22 = Drop [%15] : ()
+>   %23 = Ref mut local frame [$3] : Counted[mut StringBuilder]
+>   %24 = Call std/text/impl StringBuilder.build[] (%23) : string
+>   %25 = Drop [%23] : ()
+>   %26 = Drop [$3] : ()
+>   %27 = Break L0 %24 : never
+>   %28 = Block - : string
+>   %29 = Scope %28 [] : string
+>   %30 = Drop [$2] : ()
+>   %31 = Block %29 : string
+>   %9 finds [$4] full
+>   %10 finds [$3] full
+>   %15 finds [$2] full
+>   %16 finds [$3] full
+>   %19 finds [$3] full
+>   %23 finds [$3] full
+>   exit sub 0 drops [$0]
+>   summary kept [$0] writes
 
 fn method_slot(raw: string) -> usize:
     raw |> _.len()

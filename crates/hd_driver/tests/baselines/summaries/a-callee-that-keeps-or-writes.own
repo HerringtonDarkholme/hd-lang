@@ -29,11 +29,53 @@ fn rename(target: &mut Member, m: Member) -> void:
 > app/main/rename
 >   local $0 target: Ref[mut Member] [param read]
 >   local $1 m: Member [param read]
->   %0 = Read borrow [$1 .name] : string
->   %1 = Interp [%0 "!"] : string
->   %2 = Store [*$0 .name] %1 : ()
->   %3 = Block - : ()
->   summary kept [] borrows [$1] writes
+>   local $2 $interpolation: StringBuilder [read assigned captured captured-assigned]
+>   local $3 $ref: string [read assigned captured captured-assigned]
+>   local $4 capacity: usize [read]
+>   local $5 capacity: usize [read]
+>   %0 = Read move [$1 .name] : string
+>   %1 = Store [$4] 0:usize : ()
+>   %2 = Read copy [$4] : usize
+>   %3 = Store [$5] %2 : ()
+>   %4 = Read copy [$5] : usize
+>   %5 = Call std/rt.memory/size_of[u8] () : usize
+>   %6 = Call std/rt.memory/room[] (%4, %5) : usize
+>   %7 = Read copy [$5] : usize
+>   %8 = NewStruct [%6 %7] : Buffer[u8]
+>   %9 = Break L0 %8 : never
+>   %10 = Block - : Buffer[u8]
+>   %11 = Scope %10 [] : Buffer[u8]
+>   %12 = NewStruct [%11 0:usize] : UniqList[u8]
+>   %13 = Break L1 %12 : never
+>   %14 = Block - : UniqList[u8]
+>   %15 = Scope %14 [] : UniqList[u8]
+>   %16 = Break L2 %15 : never
+>   %17 = Block - : UniqList[u8]
+>   %18 = Scope %17 [] : UniqList[u8]
+>   %19 = NewStruct [%18] : StringBuilder
+>   %20 = Store [$2] %19 : ()
+>   %21 = Store [$3] %0 : ()
+>   %22 = Ref local frame [$3] : Counted[string]
+>   %23 = Ref mut local frame [$2] : Counted[mut StringBuilder]
+>   %24 = Call std/format/Display.write for string [] via Impl (%22, %23) : ()
+>   %25 = Drop [%23] : ()
+>   %26 = Drop [%22] : ()
+>   %27 = Drop [$3] : ()
+>   %28 = Ref mut local frame [$2] : Counted[mut StringBuilder]
+>   %29 = Call std/text/impl StringBuilder.push[] (%28, "!") : ()
+>   %30 = Drop [%28] : ()
+>   %31 = Ref mut local frame [$2] : Counted[mut StringBuilder]
+>   %32 = Call std/text/impl StringBuilder.build[] (%31) : string
+>   %33 = Drop [%31] : ()
+>   %34 = Drop [$2] : ()
+>   %35 = Store [*$0 .name] %32 : ()
+>   %36 = Block - : ()
+>   %22 finds [$3] full
+>   %23 finds [$2] full
+>   %28 finds [$2] full
+>   %31 finds [$2] full
+>   exit sub 0 drops [$1]
+>   summary kept [$1] writes
 
 impl Tally:
     fn add(*mut self) -> *mut Tally:
@@ -53,24 +95,61 @@ fn other(a: string, b: string) -> string:
 > app/main/other
 >   local $0 a: string [param read]
 >   local $1 b: string [param read]
->   local $2 self: string [read]
+>   local $2 $interpolation: StringBuilder [read assigned captured captured-assigned]
+>   local $3 $ref: string [read assigned captured captured-assigned]
+>   local $4 capacity: usize [read]
+>   local $5 capacity: usize [read]
+>   local $6 self: string [read]
 >   %0 = Read borrow [$0] : string
->   %1 = Store [$2] %0 : ()
->   %2 = Read borrow [$2] : string
+>   %1 = Store [$6] %0 : ()
+>   %2 = Read borrow [$6] : string
 >   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
->   %4 = Break L0 %3 : never
+>   %4 = Break L3 %3 : never
 >   %5 = Block - : usize
 >   %6 = Scope %5 [] : usize
 >   %7 = Prim Gt [%6 3:usize] : bool
 >   %11 = If %7 [%10 -] : ()
 >   %12 = Drop [$0] : ()
->   %15 = Block %14 : string
+>   %45 = Block %42 : string
         return a
 >   %8 = Read move [$0] : string
 >   %9 = Return %8 : never
 >   %10 = Block - : never
     "${b}"
->   %13 = Read borrow [$1] : string
->   %14 = Interp [%13] : string
->   exit sub 0 drops [$0]
->   summary kept [$0] borrows [$1]
+>   %13 = Read move [$1] : string
+>   %14 = Store [$4] 0:usize : ()
+>   %15 = Read copy [$4] : usize
+>   %16 = Store [$5] %15 : ()
+>   %17 = Read copy [$5] : usize
+>   %18 = Call std/rt.memory/size_of[u8] () : usize
+>   %19 = Call std/rt.memory/room[] (%17, %18) : usize
+>   %20 = Read copy [$5] : usize
+>   %21 = NewStruct [%19 %20] : Buffer[u8]
+>   %22 = Break L0 %21 : never
+>   %23 = Block - : Buffer[u8]
+>   %24 = Scope %23 [] : Buffer[u8]
+>   %25 = NewStruct [%24 0:usize] : UniqList[u8]
+>   %26 = Break L1 %25 : never
+>   %27 = Block - : UniqList[u8]
+>   %28 = Scope %27 [] : UniqList[u8]
+>   %29 = Break L2 %28 : never
+>   %30 = Block - : UniqList[u8]
+>   %31 = Scope %30 [] : UniqList[u8]
+>   %32 = NewStruct [%31] : StringBuilder
+>   %33 = Store [$2] %32 : ()
+>   %34 = Store [$3] %13 : ()
+>   %35 = Ref local frame [$3] : Counted[string]
+>   %36 = Ref mut local frame [$2] : Counted[mut StringBuilder]
+>   %37 = Call std/format/Display.write for string [] via Impl (%35, %36) : ()
+>   %38 = Drop [%36] : ()
+>   %39 = Drop [%35] : ()
+>   %40 = Drop [$3] : ()
+>   %41 = Ref mut local frame [$2] : Counted[mut StringBuilder]
+>   %42 = Call std/text/impl StringBuilder.build[] (%41) : string
+>   %43 = Drop [%41] : ()
+>   %44 = Drop [$2] : ()
+>   %35 finds [$3] full
+>   %36 finds [$2] full
+>   %41 finds [$2] full
+>   exit sub 0 drops [$0 $1]
+>   summary kept [$0 $1] writes

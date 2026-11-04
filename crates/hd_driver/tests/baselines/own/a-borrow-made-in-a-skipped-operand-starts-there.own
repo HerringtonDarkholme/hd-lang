@@ -9,47 +9,132 @@ fn greeting(input: string) -> string:
 >   local $0 input: string [param read]
 >   local $1 args: List[string] [:= read assigned]
 >   local $2 name: string [:= read assigned]
->   local $3 msg: string [:= read assigned]
->   local $4 $ref: usize [read assigned captured captured-assigned]
->   local $5 self: usize [read]
+>   local $3 $interpolation: StringBuilder [read assigned captured captured-assigned]
+>   local $4 $ref: string [read assigned captured captured-assigned]
+>   local $5 msg: string [:= read assigned]
+>   local $6 $interpolation: StringBuilder [read assigned captured captured-assigned]
+>   local $7 $ref: string [read assigned captured captured-assigned]
+>   local $8 $ref: usize [read assigned captured captured-assigned]
+>   local $9 capacity: usize [read]
+>   local $10 capacity: usize [read]
+>   local $11 capacity: usize [read]
+>   local $12 capacity: usize [read]
 >   %0 = Read move [$0] : string
 >   %1 = Call std/text/impl string.split[] (%0, ",") : List[string]
 >   %2 = Store [$1] %1 : ()
->   %34 = Block %31 : string
+>   %101 = Block %98 : string
     msg := if args.len() < 2 || (name := args[1]) == "":
 >   %3 = Read borrow [$1] : List[string]
 >   %4 = Intrinsic ListLen [%3] : usize
 >   %5 = Prim Lt [%4 2:usize] : bool
->   %6 = Read borrow [$1 [1:usize]] : string
+>   %6 = Read copy [$1 [1:usize]] : string
 >   %7 = Store [$2] %6 : ()
 >   %8 = Read borrow [$2] : string
 >   %9 = Intrinsic StrEq [%8 ""] : bool
 >   %10 = Block %9 : bool
 >   %11 = Or %5 %10 : bool
->   %17 = If %11 [%13 %16] : string
->   %18 = Store [$3] %17 : ()
+>   %53 = If %11 [%13 %52] : string
+>   %54 = Drop [$2] : ()
+>   %55 = Store [$5] %53 : ()
         "usage"
 >   %12 = Coerce "usage" [Identity -] : string
 >   %13 = Block %12 : string
     else:
->   %16 = Block %15 : string
+>   %52 = Block %49 : string
         "hello $name"
->   %14 = Read borrow [$2] : string
->   %15 = Interp ["hello " %14] : string
+>   %14 = Read move [$2] : string
+>   %15 = Store [$11] 0:usize : ()
+>   %16 = Read copy [$11] : usize
+>   %17 = Store [$12] %16 : ()
+>   %18 = Read copy [$12] : usize
+>   %19 = Call std/rt.memory/size_of[u8] () : usize
+>   %20 = Call std/rt.memory/room[] (%18, %19) : usize
+>   %21 = Read copy [$12] : usize
+>   %22 = NewStruct [%20 %21] : Buffer[u8]
+>   %23 = Break L3 %22 : never
+>   %24 = Block - : Buffer[u8]
+>   %25 = Scope %24 [] : Buffer[u8]
+>   %26 = NewStruct [%25 0:usize] : UniqList[u8]
+>   %27 = Break L4 %26 : never
+>   %28 = Block - : UniqList[u8]
+>   %29 = Scope %28 [] : UniqList[u8]
+>   %30 = Break L5 %29 : never
+>   %31 = Block - : UniqList[u8]
+>   %32 = Scope %31 [] : UniqList[u8]
+>   %33 = NewStruct [%32] : StringBuilder
+>   %34 = Store [$3] %33 : ()
+>   %35 = Ref mut local frame [$3] : Counted[mut StringBuilder]
+>   %36 = Call std/text/impl StringBuilder.reserve[] (%35, 12:usize) : ()
+>   %37 = Drop [%35] : ()
+>   %38 = Ref mut local frame [$3] : Counted[mut StringBuilder]
+>   %39 = Call std/text/impl StringBuilder.push[] (%38, "hello ") : ()
+>   %40 = Drop [%38] : ()
+>   %41 = Store [$4] %14 : ()
+>   %42 = Ref local frame [$4] : Counted[string]
+>   %43 = Ref mut local frame [$3] : Counted[mut StringBuilder]
+>   %44 = Call std/format/Display.write for string [] via Impl (%42, %43) : ()
+>   %45 = Drop [%43] : ()
+>   %46 = Drop [%42] : ()
+>   %47 = Drop [$4] : ()
+>   %48 = Ref mut local frame [$3] : Counted[mut StringBuilder]
+>   %49 = Call std/text/impl StringBuilder.build[] (%48) : string
+>   %50 = Drop [%48] : ()
+>   %51 = Drop [$3] : ()
+>   %35 finds [$3] full
+>   %38 finds [$3] full
+>   %42 finds [$4] full
+>   %43 finds [$3] full
+>   %48 finds [$3] full
     "$msg ${args.len()}"
->   %19 = Read move [$3] : string
->   %20 = Read move [$1] : List[string]
->   %21 = Intrinsic ListLen [%20] : usize
->   %22 = Drop [%20] : ()
->   %23 = Store [$4] %21 : ()
->   %24 = Read copy [$4] : usize
->   %25 = Store [$5] %24 : ()
->   %26 = Read copy [$5] : usize
->   %27 = Call std/format/format_int[usize] (%26) : string
->   %28 = Break L0 %27 : never
->   %29 = Block - : string
->   %30 = Scope %29 [] : string
->   %31 = Interp [%19 " " %30] : string
->   %32 = Drop [%30] : ()
->   %33 = Drop [%19] : ()
+>   %56 = Read move [$5] : string
+>   %57 = Store [$9] 0:usize : ()
+>   %58 = Read copy [$9] : usize
+>   %59 = Store [$10] %58 : ()
+>   %60 = Read copy [$10] : usize
+>   %61 = Call std/rt.memory/size_of[u8] () : usize
+>   %62 = Call std/rt.memory/room[] (%60, %61) : usize
+>   %63 = Read copy [$10] : usize
+>   %64 = NewStruct [%62 %63] : Buffer[u8]
+>   %65 = Break L0 %64 : never
+>   %66 = Block - : Buffer[u8]
+>   %67 = Scope %66 [] : Buffer[u8]
+>   %68 = NewStruct [%67 0:usize] : UniqList[u8]
+>   %69 = Break L1 %68 : never
+>   %70 = Block - : UniqList[u8]
+>   %71 = Scope %70 [] : UniqList[u8]
+>   %72 = Break L2 %71 : never
+>   %73 = Block - : UniqList[u8]
+>   %74 = Scope %73 [] : UniqList[u8]
+>   %75 = NewStruct [%74] : StringBuilder
+>   %76 = Store [$6] %75 : ()
+>   %77 = Store [$7] %56 : ()
+>   %78 = Ref local frame [$7] : Counted[string]
+>   %79 = Ref mut local frame [$6] : Counted[mut StringBuilder]
+>   %80 = Call std/format/Display.write for string [] via Impl (%78, %79) : ()
+>   %81 = Drop [%79] : ()
+>   %82 = Drop [%78] : ()
+>   %83 = Drop [$7] : ()
+>   %84 = Read move [$1] : List[string]
+>   %85 = Intrinsic ListLen [%84] : usize
+>   %86 = Drop [%84] : ()
+>   %87 = Ref mut local frame [$6] : Counted[mut StringBuilder]
+>   %88 = Call std/text/impl StringBuilder.push[] (%87, " ") : ()
+>   %89 = Drop [%87] : ()
+>   %90 = Store [$8] %85 : ()
+>   %91 = Ref local frame [$8] : Counted[usize]
+>   %92 = Ref mut local frame [$6] : Counted[mut StringBuilder]
+>   %93 = Call std/format/Display.write for usize [] via Impl (%91, %92) : ()
+>   %94 = Drop [%92] : ()
+>   %95 = Drop [%91] : ()
+>   %96 = Drop [$8] : ()
+>   %97 = Ref mut local frame [$6] : Counted[mut StringBuilder]
+>   %98 = Call std/text/impl StringBuilder.build[] (%97) : string
+>   %99 = Drop [%97] : ()
+>   %100 = Drop [$6] : ()
+>   %78 finds [$7] full
+>   %79 finds [$6] full
+>   %87 finds [$6] full
+>   %91 finds [$8] full
+>   %92 finds [$6] full
+>   %97 finds [$6] full
 >   exit sub 0 drops [$0]

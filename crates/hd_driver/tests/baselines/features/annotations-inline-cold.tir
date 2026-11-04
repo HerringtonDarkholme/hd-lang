@@ -12,10 +12,20 @@ fn unexpected(at: usize) -> string:
     "unexpected byte at $at"
 > app/main/unexpected
 >   local $0 at: usize [param read captured]
+>   local $1 $interpolation: StringBuilder [read assigned captured captured-assigned]
 >   %0 = Ref local [$0] : Counted[usize]
->   %1 = Call std/format/Display.to_string for usize [] via Impl (%0) : string
->   %2 = Interp ["unexpected byte at " %1] : string
->   %3 = Block %2 : string
+>   %1 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].new[u8] () : UniqList[u8]
+>   %2 = NewStruct [%1] : StringBuilder
+>   %3 = Store [$1] %2 : ()
+>   %4 = Ref mut local [$1] : Counted[mut StringBuilder]
+>   %5 = Call std/text/impl StringBuilder.reserve[] (%4, 38:usize) : ()
+>   %6 = Ref mut local [$1] : Counted[mut StringBuilder]
+>   %7 = Call std/text/impl StringBuilder.push[] (%6, "unexpected byte at ") : ()
+>   %8 = Ref mut local [$1] : Counted[mut StringBuilder]
+>   %9 = Call std/format/Display.write for usize [] via Impl (%0, %8) : ()
+>   %10 = Ref mut local [$1] : Counted[mut StringBuilder]
+>   %11 = Call std/text/impl StringBuilder.build[] (%10) : string
+>   %12 = Block %11 : string
 
 @inline(.Never)
 fn checksum(xs: &List[string]) -> usize:

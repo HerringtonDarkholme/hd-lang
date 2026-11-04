@@ -16,13 +16,50 @@ impl Display for YamlError:
         "bad yaml at line ${self.line}"
 > app/main/impl Display for YamlError.to_string
 >   local $0 self: Ref[YamlError] [param read]
+>   local $1 $interpolation: StringBuilder [read assigned captured captured-assigned]
+>   local $2 capacity: usize [read]
+>   local $3 capacity: usize [read]
 >   %0 = Ref lent local [*$0 .line] : Ref[i64]
->   %1 = Call std/format/Display.to_string for i64 [] via Impl (%0) : string
->   %2 = Drop [%0] : ()
->   %3 = Interp ["bad yaml at line " %1] : string
->   %4 = Drop [%1] : ()
->   %5 = Block %3 : string
->   summary kept []
+>   %1 = Store [$2] 0:usize : ()
+>   %2 = Read copy [$2] : usize
+>   %3 = Store [$3] %2 : ()
+>   %4 = Read copy [$3] : usize
+>   %5 = Call std/rt.memory/size_of[u8] () : usize
+>   %6 = Call std/rt.memory/room[] (%4, %5) : usize
+>   %7 = Read copy [$3] : usize
+>   %8 = NewStruct [%6 %7] : Buffer[u8]
+>   %9 = Break L0 %8 : never
+>   %10 = Block - : Buffer[u8]
+>   %11 = Scope %10 [] : Buffer[u8]
+>   %12 = NewStruct [%11 0:usize] : UniqList[u8]
+>   %13 = Break L1 %12 : never
+>   %14 = Block - : UniqList[u8]
+>   %15 = Scope %14 [] : UniqList[u8]
+>   %16 = Break L2 %15 : never
+>   %17 = Block - : UniqList[u8]
+>   %18 = Scope %17 [] : UniqList[u8]
+>   %19 = NewStruct [%18] : StringBuilder
+>   %20 = Store [$1] %19 : ()
+>   %21 = Ref mut local frame [$1] : Counted[mut StringBuilder]
+>   %22 = Call std/text/impl StringBuilder.reserve[] (%21, 34:usize) : ()
+>   %23 = Drop [%21] : ()
+>   %24 = Ref mut local frame [$1] : Counted[mut StringBuilder]
+>   %25 = Call std/text/impl StringBuilder.push[] (%24, "bad yaml at line ") : ()
+>   %26 = Drop [%24] : ()
+>   %27 = Ref mut local frame [$1] : Counted[mut StringBuilder]
+>   %28 = Call std/format/Display.write for i64 [] via Impl (%0, %27) : ()
+>   %29 = Drop [%27] : ()
+>   %30 = Drop [%0] : ()
+>   %31 = Ref mut local frame [$1] : Counted[mut StringBuilder]
+>   %32 = Call std/text/impl StringBuilder.build[] (%31) : string
+>   %33 = Drop [%31] : ()
+>   %34 = Drop [$1] : ()
+>   %35 = Block %32 : string
+>   %21 finds [$1] full
+>   %24 finds [$1] full
+>   %27 finds [$1] full
+>   %31 finds [$1] full
+>   summary kept [] writes
 
 impl Error for YamlError
 
@@ -31,22 +68,67 @@ impl Error for YamlError
 >   local $0 self: Ref[FsError] [param]
 >   local $1 $self: FsError [assigned]
 >   local $2 path: string [read assigned]
->   %0 = Read borrow [*$0] : FsError
+>   local $3 $interpolation: StringBuilder [read assigned captured captured-assigned]
+>   local $4 $ref: string [read assigned captured captured-assigned]
+>   local $5 capacity: usize [read]
+>   local $6 capacity: usize [read]
+>   %0 = Read copy [*$0] : FsError
 >   %1 = Store [$1] %0 : ()
->   %11 = Block %9 : string
+>   %47 = Block %45 : string
 enum FsError:
     @error("not found: $path")
->   %4 = Read borrow [$2] : string
->   %5 = Interp ["not found: " %4] : string
->   %6 = Block %5 : string
->   %7 = Block "Busy" : string
->   %8 = Read borrow [$1] : FsError
->   %9 = SwitchTag %8 [#0 %6 %7] : string
->   %10 = Drop [$1] : ()
+>   %4 = Read move [$2] : string
+>   %5 = Store [$5] 0:usize : ()
+>   %6 = Read copy [$5] : usize
+>   %7 = Store [$6] %6 : ()
+>   %8 = Read copy [$6] : usize
+>   %9 = Call std/rt.memory/size_of[u8] () : usize
+>   %10 = Call std/rt.memory/room[] (%8, %9) : usize
+>   %11 = Read copy [$6] : usize
+>   %12 = NewStruct [%10 %11] : Buffer[u8]
+>   %13 = Break L0 %12 : never
+>   %14 = Block - : Buffer[u8]
+>   %15 = Scope %14 [] : Buffer[u8]
+>   %16 = NewStruct [%15 0:usize] : UniqList[u8]
+>   %17 = Break L1 %16 : never
+>   %18 = Block - : UniqList[u8]
+>   %19 = Scope %18 [] : UniqList[u8]
+>   %20 = Break L2 %19 : never
+>   %21 = Block - : UniqList[u8]
+>   %22 = Scope %21 [] : UniqList[u8]
+>   %23 = NewStruct [%22] : StringBuilder
+>   %24 = Store [$3] %23 : ()
+>   %25 = Ref mut local frame [$3] : Counted[mut StringBuilder]
+>   %26 = Call std/text/impl StringBuilder.reserve[] (%25, 22:usize) : ()
+>   %27 = Drop [%25] : ()
+>   %28 = Ref mut local frame [$3] : Counted[mut StringBuilder]
+>   %29 = Call std/text/impl StringBuilder.push[] (%28, "not found: ") : ()
+>   %30 = Drop [%28] : ()
+>   %31 = Store [$4] %4 : ()
+>   %32 = Ref local frame [$4] : Counted[string]
+>   %33 = Ref mut local frame [$3] : Counted[mut StringBuilder]
+>   %34 = Call std/format/Display.write for string [] via Impl (%32, %33) : ()
+>   %35 = Drop [%33] : ()
+>   %36 = Drop [%32] : ()
+>   %37 = Drop [$4] : ()
+>   %38 = Ref mut local frame [$3] : Counted[mut StringBuilder]
+>   %39 = Call std/text/impl StringBuilder.build[] (%38) : string
+>   %40 = Drop [%38] : ()
+>   %41 = Drop [$3] : ()
+>   %42 = Block %39 : string
+>   %43 = Block "Busy" : string
+>   %44 = Read borrow [$1] : FsError
+>   %45 = SwitchTag %44 [#0 %42 %43] : string
+>   %46 = Drop [$1] : ()
+>   %25 finds [$3] full
+>   %28 finds [$3] full
+>   %32 finds [$4] full
+>   %33 finds [$3] full
+>   %38 finds [$3] full
     NotFound(path: string)
->   %2 = Read borrow [$1 as #0 .0] : string
+>   %2 = Read move [$1 as #0 .0] : string
 >   %3 = Store [$2] %2 : ()
->   summary kept []
+>   summary kept [$0] writes
     Busy
 
 @error
@@ -54,13 +136,14 @@ enum FsError:
 >   local $0 self: Ref[LoadError] [param]
 >   local $1 $self: LoadError [assigned]
 >   local $2 path: string [read assigned]
->   local $3 $ref: FsError [read assigned captured captured-assigned]
->   local $4 self: FsError
->   local $5 $self: FsError [assigned]
->   local $6 path: string [read assigned]
->   %0 = Read borrow [*$0] : LoadError
+>   local $3 $interpolation: StringBuilder [read assigned captured captured-assigned]
+>   local $4 $ref: string [read assigned captured captured-assigned]
+>   local $5 $ref: FsError [read assigned captured captured-assigned]
+>   local $6 capacity: usize [read]
+>   local $7 capacity: usize [read]
+>   %0 = Read copy [*$0] : LoadError
 >   %1 = Store [$1] %0 : ()
->   %32 = Block %30 : string
+>   %57 = Block %55 : string
 > app/main/error Error for LoadError.source
 >   local $0 self: Ref[LoadError] [param]
 >   local $1 $self: LoadError [assigned]
@@ -88,13 +171,54 @@ enum FsError:
 >   summary kept [$0]
 enum LoadError:
     @error("cannot read $path")
->   %4 = Read borrow [$2] : string
->   %5 = Interp ["cannot read " %4] : string
->   %6 = Block %5 : string
->   %28 = Block %27 : string
->   %29 = Read borrow [$1] : LoadError
->   %30 = SwitchTag %29 [#0 %6 %28] : string
->   %31 = Drop [$1] : ()
+>   %4 = Read move [$2] : string
+>   %5 = Store [$6] 0:usize : ()
+>   %6 = Read copy [$6] : usize
+>   %7 = Store [$7] %6 : ()
+>   %8 = Read copy [$7] : usize
+>   %9 = Call std/rt.memory/size_of[u8] () : usize
+>   %10 = Call std/rt.memory/room[] (%8, %9) : usize
+>   %11 = Read copy [$7] : usize
+>   %12 = NewStruct [%10 %11] : Buffer[u8]
+>   %13 = Break L0 %12 : never
+>   %14 = Block - : Buffer[u8]
+>   %15 = Scope %14 [] : Buffer[u8]
+>   %16 = NewStruct [%15 0:usize] : UniqList[u8]
+>   %17 = Break L1 %16 : never
+>   %18 = Block - : UniqList[u8]
+>   %19 = Scope %18 [] : UniqList[u8]
+>   %20 = Break L2 %19 : never
+>   %21 = Block - : UniqList[u8]
+>   %22 = Scope %21 [] : UniqList[u8]
+>   %23 = NewStruct [%22] : StringBuilder
+>   %24 = Store [$3] %23 : ()
+>   %25 = Ref mut local frame [$3] : Counted[mut StringBuilder]
+>   %26 = Call std/text/impl StringBuilder.reserve[] (%25, 24:usize) : ()
+>   %27 = Drop [%25] : ()
+>   %28 = Ref mut local frame [$3] : Counted[mut StringBuilder]
+>   %29 = Call std/text/impl StringBuilder.push[] (%28, "cannot read ") : ()
+>   %30 = Drop [%28] : ()
+>   %31 = Store [$4] %4 : ()
+>   %32 = Ref local frame [$4] : Counted[string]
+>   %33 = Ref mut local frame [$3] : Counted[mut StringBuilder]
+>   %34 = Call std/format/Display.write for string [] via Impl (%32, %33) : ()
+>   %35 = Drop [%33] : ()
+>   %36 = Drop [%32] : ()
+>   %37 = Drop [$4] : ()
+>   %38 = Ref mut local frame [$3] : Counted[mut StringBuilder]
+>   %39 = Call std/text/impl StringBuilder.build[] (%38) : string
+>   %40 = Drop [%38] : ()
+>   %41 = Drop [$3] : ()
+>   %42 = Block %39 : string
+>   %53 = Block %52 : string
+>   %54 = Read borrow [$1] : LoadError
+>   %55 = SwitchTag %54 [#0 %42 %53] : string
+>   %56 = Drop [$1] : ()
+>   %25 finds [$3] full
+>   %28 finds [$3] full
+>   %32 finds [$4] full
+>   %33 finds [$3] full
+>   %38 finds [$3] full
 >   %13 = Block %11 : Counted[Error]?
 >   %37 = Block %36 : Counted[Error]?
 >   %38 = Read borrow [$1] : LoadError
@@ -102,7 +226,7 @@ enum LoadError:
 >   %40 = Drop [$1] : ()
     Read(
         path: string,
->   %2 = Read borrow [$1 as #0 .0] : string
+>   %2 = Read move [$1 as #0 .0] : string
 >   %3 = Store [$2] %2 : ()
         @source
 >   %2 = Read move [$1 as #0 .1] : FsError
@@ -120,10 +244,10 @@ enum LoadError:
         error: FsError,
     )
     @error("bad config")
->   %7 = Block "bad config" : string
->   %25 = Block %24 : string
->   %26 = Read borrow [$1] : LoadError
->   %27 = SwitchTag %26 [#1 %7 %25] : string
+>   %43 = Block "bad config" : string
+>   %50 = Block %47 : string
+>   %51 = Read borrow [$1] : LoadError
+>   %52 = SwitchTag %51 [#1 %43 %50] : string
 >   %25 = Block %23 : Counted[Error]?
 >   %34 = Block %33 : Counted[Error]?
 >   %35 = Read borrow [$1] : LoadError
@@ -147,24 +271,14 @@ enum LoadError:
     @error(transparent)
     Fs(
         @from
->   %8 = Read borrow [$1 as #2 .0] : FsError
->   %9 = Store [$3] %8 : ()
->   %10 = Read borrow [$3] : FsError
->   %11 = Store [$4] %10 : ()
->   %12 = Read borrow [$4] : FsError
->   %13 = Store [$5] %12 : ()
->   %14 = Read borrow [$5 as #0 .0] : string
->   %15 = Store [$6] %14 : ()
->   %16 = Read borrow [$6] : string
->   %17 = Interp ["not found: " %16] : string
->   %18 = Block %17 : string
->   %19 = Block "Busy" : string
->   %20 = Read borrow [$5] : FsError
->   %21 = SwitchTag %20 [#0 %18 %19] : string
->   %22 = Break L0 %21 : never
->   %23 = Block - : string
->   %24 = Scope %23 [] : string
->   summary kept []
+>   %44 = Read move [$1 as #2 .0] : FsError
+>   %45 = Store [$5] %44 : ()
+>   %46 = Ref local frame [$5] : Counted[FsError]
+>   %47 = Call std/format/Display.to_string for FsError [] via Impl (%46) : string
+>   %48 = Drop [%46] : ()
+>   %49 = Drop [$5] : ()
+>   %46 finds [$5] full
+>   summary kept [$0] writes
 >   %26 = Read borrow [$1 as #2 .0] : FsError
 >   %27 = Store [$6] %26 : ()
 >   %28 = Read borrow [$6] : FsError
@@ -266,4 +380,4 @@ fn message(e: &LoadError) -> usize:
 >   %9 = Scope %8 [] : usize
 >   %10 = Drop [$2] : ()
 >   %11 = Block %9 : usize
->   summary kept []
+>   summary kept [] writes

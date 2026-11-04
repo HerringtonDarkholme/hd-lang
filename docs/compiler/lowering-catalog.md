@@ -378,25 +378,29 @@ not necessary for every assignment.
 
 ### String Interpolation And Concatenation
 
-Interpolation and concatenation operate on address/length views. From
-[constant-plus-constant.wat](../../crates/hd_wasm_linear/tests/baselines/arithmetic/constant-plus-constant.wat),
-this interpolation allocates its summed byte length and starts copying:
+Interpolation writes through ordinary `Display.write` and `StringBuilder`
+calls. Concatenation still operates on address/length views, as
+[constant-plus-constant.wat](../../crates/hd_wasm_linear/tests/baselines/arithmetic/constant-plus-constant.wat) shows:
 
 ```wat
-i32.const 3
-local.get $t0
-i32.add
-local.tee $t2
-call $rt:str
-local.tee $t3
-local.tee $t4
-i32.const 65 ;; &"id "
-i32.const 3
-memory.copy $heap $heap
+;; "id=$id name=$name": std's StringBuilder, written by each value's Display.write
+(call $"impl StringBuilder.new")                ;; one builder for the whole string
+(call $"impl StringBuilder.push" (local.get $sb) (i32.const &"id=") (i32.const 3))
+(call $"impl Display for i32.write" (local.get $id) (local.get $sb))
+(call $"impl StringBuilder.push" (local.get $sb) (i32.const &" name=") (i32.const 6))
+(call $"impl Display for string.write" (local.get $name) (local.get $sb))
+(call $"impl StringBuilder.build" (local.get $sb))  ;; takes the buffer without copying
+;; sb.push("item-$i;"), every value a name or a field path: written to sb itself
+;; a + b on strings: one allocation of the summed length, two copies
 ```
 
-See [§23.15](../../crates/hd_wasm_linear/DESIGN.md#2315-string-emission-and-host-primitives)
-for empty and single-part results and host text primitives.
+- **Speed:** one byte-buffer builder; each value's `write` appends its
+  bytes and `build` takes the buffer without copying.
+- **Size:** a call per text piece and per value.
+- **Engines:** no difference.
+- **Boundary:** `println("...")` of a literal alone takes the host fast
+  path (no array built).
+- **Type-only:** yes. The callee per part is the impl `select` picks.
 
 ### Pipes, Binding Expressions And Ranges
 

@@ -8,20 +8,60 @@ fn interp(a: string, n: i64) -> string:
     "${a}:${n}"
 > app/main/interp
 >   local $0 a: string [param read]
->   local $1 n: i64 [param read]
->   local $2 self: i64 [read]
->   %0 = Read borrow [$0] : string
->   %1 = Read copy [$1] : i64
->   %2 = Store [$2] %1 : ()
->   %3 = Read copy [$2] : i64
->   %4 = Call std/format/format_int[i64] (%3) : string
->   %5 = Break L0 %4 : never
->   %6 = Block - : string
->   %7 = Scope %6 [] : string
->   %8 = Interp [%0 ":" %7] : string
->   %9 = Drop [%7] : ()
->   %10 = Block %8 : string
->   summary kept [] borrows [$0]
+>   local $1 n: i64 [param read captured]
+>   local $2 $interpolation: StringBuilder [read assigned captured captured-assigned]
+>   local $3 $ref: string [read assigned captured captured-assigned]
+>   local $4 capacity: usize [read]
+>   local $5 capacity: usize [read]
+>   %0 = Read move [$0] : string
+>   %1 = Store [$4] 0:usize : ()
+>   %2 = Read copy [$4] : usize
+>   %3 = Store [$5] %2 : ()
+>   %4 = Read copy [$5] : usize
+>   %5 = Call std/rt.memory/size_of[u8] () : usize
+>   %6 = Call std/rt.memory/room[] (%4, %5) : usize
+>   %7 = Read copy [$5] : usize
+>   %8 = NewStruct [%6 %7] : Buffer[u8]
+>   %9 = Break L0 %8 : never
+>   %10 = Block - : Buffer[u8]
+>   %11 = Scope %10 [] : Buffer[u8]
+>   %12 = NewStruct [%11 0:usize] : UniqList[u8]
+>   %13 = Break L1 %12 : never
+>   %14 = Block - : UniqList[u8]
+>   %15 = Scope %14 [] : UniqList[u8]
+>   %16 = Break L2 %15 : never
+>   %17 = Block - : UniqList[u8]
+>   %18 = Scope %17 [] : UniqList[u8]
+>   %19 = NewStruct [%18] : StringBuilder
+>   %20 = Store [$2] %19 : ()
+>   %21 = Store [$3] %0 : ()
+>   %22 = Ref local frame [$3] : Counted[string]
+>   %23 = Ref mut local frame [$2] : Counted[mut StringBuilder]
+>   %24 = Call std/format/Display.write for string [] via Impl (%22, %23) : ()
+>   %25 = Drop [%23] : ()
+>   %26 = Drop [%22] : ()
+>   %27 = Drop [$3] : ()
+>   %28 = Ref local frame [$1] : Counted[i64]
+>   %29 = Ref mut local frame [$2] : Counted[mut StringBuilder]
+>   %30 = Call std/text/impl StringBuilder.push[] (%29, ":") : ()
+>   %31 = Drop [%29] : ()
+>   %32 = Ref mut local frame [$2] : Counted[mut StringBuilder]
+>   %33 = Call std/format/Display.write for i64 [] via Impl (%28, %32) : ()
+>   %34 = Drop [%32] : ()
+>   %35 = Drop [%28] : ()
+>   %36 = Drop [$1] : ()
+>   %37 = Ref mut local frame [$2] : Counted[mut StringBuilder]
+>   %38 = Call std/text/impl StringBuilder.build[] (%37) : string
+>   %39 = Drop [%37] : ()
+>   %40 = Drop [$2] : ()
+>   %41 = Block %38 : string
+>   %22 finds [$3] full
+>   %23 finds [$2] full
+>   %29 finds [$2] full
+>   %32 finds [$2] full
+>   %37 finds [$2] full
+>   exit sub 0 drops [$0 $1]
+>   summary kept [$0] writes
 
 fn concat(a: string, b: string) -> string:
     a + b

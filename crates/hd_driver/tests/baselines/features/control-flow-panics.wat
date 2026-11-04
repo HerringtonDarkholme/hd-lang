@@ -4,10 +4,18 @@
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
+  (import "fixture" "room" (func $room (param i32 i32) (result i32)))
+  (import "fixture" "rt:drop" (func $rt:drop (param i32)))
+  (import "fixture" "impl StringBuilder.reserve" (func $"impl StringBuilder.reserve" (param i32 i32)))
+  (import "fixture" "impl StringBuilder.push" (func $"impl StringBuilder.push" (param i32 i32 i32)))
+  (import "fixture" "impl Display for string.write" (func $"impl Display for string.write" (param i32 i32 i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
+  (import "fixture" "impl StringBuilder.build" (func $"impl StringBuilder.build" (param i32) (result i32 i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "locals" (global $locals (mut i32)))
+  (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "forbid" (global $forbid (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 12 funcref))
@@ -66,7 +74,37 @@
       i32.store $heap offset=4
     end
   )
-  (func $must (param $s.0 i32) (param $s.1 i32) (param $n i32) (result i32) (local $t.1 i32) (local $t.0 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64)
+  (func $must (param $s.0 i32) (param $s.1 i32) (param $n i32) (result i32) (local $t.1 i32) (local $t.0 i32) (local $t1 i32) (local $t2 i32) (local $t0 i32)
+    ;; (no span)
+    global.get $locals
+    global.get $locals_base
+    i32.sub
+    i32.const 48
+    i32.lt_u
+    if
+      i32.const 1
+      memory.grow $heap
+      local.tee $t0
+      i32.const -1
+      i32.eq
+      if
+        unreachable
+      end
+      local.get $t0
+      i32.const 16
+      i32.shl
+      local.tee $t0
+      global.set $locals_base
+      local.get $t0
+      i32.const 65536
+      i32.add
+      global.set $locals
+    end
+    global.get $locals
+    i32.const 48
+    i32.sub
+    local.tee $t0
+    global.set $locals
     block
     ;; 18 |     t := s + "!"
       local.get $s.1
@@ -75,14 +113,14 @@
       local.tee $t.1
       call $rt:str
       local.tee $t.0
-      local.tee $t0
+      local.tee $t1
       local.get $s.0
       local.get $s.1
       call $rt:memory_copy/0/0
-      local.get $t0
+      local.get $t1
       local.get $s.1
       i32.add
-      i32.const 65 ;; &"!"
+      i32.const 95 ;; &"!"
       i32.load8_u $heap
       i32.store8 $heap
     ;; 19 |     if n < 0:
@@ -91,37 +129,135 @@
       i32.lt_s
       if
     ;; 20 |         panic("negative: $t")
-        i32.const 10
-        local.get $t.1
-        i32.add
-        local.tee $s.0
-        call $rt:str
-        local.tee $s.1
-        local.tee $n
-        i32.const 66 ;; &"negative: "
-        local.set $t1
-        local.tee $t2
-        local.get $t1
-        i64.load $heap align=1
-        local.set $t3
-        local.get $t1
-        i32.load16_u $heap offset=8 align=1
-        i32.store16 $heap offset=8 align=1
+        local.get $t.0
+        call $retain
+        block
+          block
+            block
+              block
+                block
+                  block
+                    i32.const 0
+                    i32.const 1
+                    call $room
+                    local.set $s.0
+                    br 0
+                  end
+                end
+                br 0
+              end
+            end
+            br 0
+          end
+        end
         local.get $t2
-        local.get $t3
-        i64.store $heap align=1
-        local.get $n
-        i32.const 10
+        if
+          local.get $t2
+          call $rt:drop
+          local.get $t2
+          i32.const 0
+          i32.store $heap offset=12
+          local.get $t2
+          i32.const 0
+          i32.store $heap offset=16
+          local.get $t2
+          i32.const 0
+          i32.store $heap offset=20
+          local.get $t2
+          i32.const 0
+          i32.store $heap offset=24
+          local.get $t2
+          i32.const 0
+          i32.store $heap offset=28
+          local.get $t2
+          i32.const 0
+          i32.store $heap offset=32
+        end
+        local.get $t0
+        i64.const 0
+        i64.store $heap
+        local.get $t0
+        i32.const 8
         i32.add
+        local.tee $t2
+        local.get $s.0
+        i32.store $heap
+        local.get $t2
+        i32.const 0
+        i32.store $heap offset=4
+        local.get $t2
+        i32.const 0
+        i32.store $heap offset=8
+        local.get $t2
+        i32.const 1
+        i32.store $heap offset=12
+        local.get $t2
+        i32.const 1
+        i32.store $heap offset=16
+        local.get $t2
+        i32.const 1
+        i32.store $heap offset=20
+        local.get $t2
+        i32.const 1
+        i32.store $heap offset=24
+        local.get $t2
+        i32.const 1
+        i32.store $heap offset=28
+        local.get $t2
+        i32.const 1
+        i32.store $heap offset=32
+        local.get $t2
+        i32.const 20
+        call $"impl StringBuilder.reserve"
+        local.get $t2
+        i32.const 96 ;; &"negative: "
+        i32.const 10
+        call $"impl StringBuilder.push"
         local.get $t.0
         local.get $t.1
-        call $rt:memory_copy/0/0
-        local.get $s.1
+        local.get $t2
+        call $"impl Display for string.write"
+        local.get $t.0
+    ;; 19 |     if n < 0:
+        call $rt:release_ref'1
+    ;; 20 |         panic("negative: $t")
+        local.get $t2
+        call $"impl StringBuilder.build"
+        local.set $s.1
+        local.set $s.0
+    ;; 19 |     if n < 0:
+        local.get $t2
+        if
+          local.get $t2
+          call $rt:drop
+          local.get $t2
+          i32.const 0
+          i32.store $heap offset=12
+          local.get $t2
+          i32.const 0
+          i32.store $heap offset=16
+          local.get $t2
+          i32.const 0
+          i32.store $heap offset=20
+          local.get $t2
+          i32.const 0
+          i32.store $heap offset=24
+          local.get $t2
+          i32.const 0
+          i32.store $heap offset=28
+          local.get $t2
+          i32.const 0
+          i32.store $heap offset=32
+        end
+    ;; 20 |         panic("negative: $t")
         local.get $s.0
+        local.get $s.1
         i32.const 2
         call_indirect $table0 (param i32 i32)
         unreachable
     ;; 19 |     if n < 0:
+        local.get $s.0
+        call $rt:release_ref'1
       end
     ;; 21 |     t.len()
       local.get $t.0
@@ -140,6 +276,10 @@
       local.set $s.0
     end
     local.get $s.0
+    local.get $t0
+    i32.const 48
+    i32.add
+    global.set $locals
   )
   (func $guarded (param $log i32) (param $s.0 i32) (param $s.1 i32) (param $n i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     block
@@ -158,7 +298,7 @@
         local.get $t2
         local.get $s.1
         i32.add
-        i32.const 76 ;; &"?"
+        i32.const 156 ;; &"?"
         i32.load8_u $heap
         i32.store8 $heap
         local.get $log
@@ -183,7 +323,7 @@
         i32.lt_s
         if
     ;; 26 |         panic("negative")
-          i32.const 77 ;; &"negative"
+          i32.const 157 ;; &"negative"
           i32.const 8
           i32.const 2
           call_indirect $table0 (param i32 i32)

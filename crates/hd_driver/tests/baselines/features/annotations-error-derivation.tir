@@ -15,10 +15,20 @@ impl Display for YamlError:
     fn to_string(&self) -> string:
         "bad yaml at line ${self.line}"
 > app/main/impl Display for YamlError.to_string
+>   local $1 $interpolation: StringBuilder [read assigned captured captured-assigned]
 >   %0 = Ref local [*$0 .line] : Ref[i64]
->   %1 = Call std/format/Display.to_string for i64 [] via Impl (%0) : string
->   %2 = Interp ["bad yaml at line " %1] : string
->   %3 = Block %2 : string
+>   %1 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].new[u8] () : UniqList[u8]
+>   %2 = NewStruct [%1] : StringBuilder
+>   %3 = Store [$1] %2 : ()
+>   %4 = Ref mut local [$1] : Counted[mut StringBuilder]
+>   %5 = Call std/text/impl StringBuilder.reserve[] (%4, 34:usize) : ()
+>   %6 = Ref mut local [$1] : Counted[mut StringBuilder]
+>   %7 = Call std/text/impl StringBuilder.push[] (%6, "bad yaml at line ") : ()
+>   %8 = Ref mut local [$1] : Counted[mut StringBuilder]
+>   %9 = Call std/format/Display.write for i64 [] via Impl (%0, %8) : ()
+>   %10 = Ref mut local [$1] : Counted[mut StringBuilder]
+>   %11 = Call std/text/impl StringBuilder.build[] (%10) : string
+>   %12 = Block %11 : string
 
 impl Error for YamlError
 
@@ -26,17 +36,31 @@ impl Error for YamlError
 > app/main/error Display for FsError.to_string
 >   local $1 $self: FsError [assigned]
 >   local $2 path: string [read assigned]
+>   local $3 $interpolation: StringBuilder [read assigned captured captured-assigned]
+>   local $4 $ref: string [read assigned captured captured-assigned]
 >   %0 = Read [*$0] : FsError
 >   %1 = Store [$1] %0 : ()
->   %10 = Block %9 : string
+>   %22 = Block %21 : string
 enum FsError:
     @error("not found: $path")
 >   %4 = Read [$2] : string
->   %5 = Interp ["not found: " %4] : string
->   %6 = Block %5 : string
->   %7 = Block "Busy" : string
->   %8 = Read [$1] : FsError
->   %9 = SwitchTag %8 [#0 %6 %7] : string
+>   %5 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].new[u8] () : UniqList[u8]
+>   %6 = NewStruct [%5] : StringBuilder
+>   %7 = Store [$3] %6 : ()
+>   %8 = Ref mut local [$3] : Counted[mut StringBuilder]
+>   %9 = Call std/text/impl StringBuilder.reserve[] (%8, 22:usize) : ()
+>   %10 = Ref mut local [$3] : Counted[mut StringBuilder]
+>   %11 = Call std/text/impl StringBuilder.push[] (%10, "not found: ") : ()
+>   %12 = Store [$4] %4 : ()
+>   %13 = Ref local [$4] : Counted[string]
+>   %14 = Ref mut local [$3] : Counted[mut StringBuilder]
+>   %15 = Call std/format/Display.write for string [] via Impl (%13, %14) : ()
+>   %16 = Ref mut local [$3] : Counted[mut StringBuilder]
+>   %17 = Call std/text/impl StringBuilder.build[] (%16) : string
+>   %18 = Block %17 : string
+>   %19 = Block "Busy" : string
+>   %20 = Read [$1] : FsError
+>   %21 = SwitchTag %20 [#0 %18 %19] : string
     NotFound(path: string)
 >   %2 = Read [$1 as #0 .0] : string
 >   %3 = Store [$2] %2 : ()
@@ -46,10 +70,12 @@ enum FsError:
 > app/main/error Display for LoadError.to_string
 >   local $1 $self: LoadError [assigned]
 >   local $2 path: string [read assigned]
->   local $3 $ref: FsError [read assigned captured captured-assigned]
+>   local $3 $interpolation: StringBuilder [read assigned captured captured-assigned]
+>   local $4 $ref: string [read assigned captured captured-assigned]
+>   local $5 $ref: FsError [read assigned captured captured-assigned]
 >   %0 = Read [*$0] : LoadError
 >   %1 = Store [$1] %0 : ()
->   %18 = Block %17 : string
+>   %30 = Block %29 : string
 > app/main/error Error for LoadError.source
 >   local $1 $self: LoadError [assigned]
 >   local $2 $ref: FsError [read assigned captured captured-assigned]
@@ -73,11 +99,23 @@ enum FsError:
 enum LoadError:
     @error("cannot read $path")
 >   %4 = Read [$2] : string
->   %5 = Interp ["cannot read " %4] : string
->   %6 = Block %5 : string
->   %15 = Block %14 : string
->   %16 = Read [$1] : LoadError
->   %17 = SwitchTag %16 [#0 %6 %15] : string
+>   %5 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].new[u8] () : UniqList[u8]
+>   %6 = NewStruct [%5] : StringBuilder
+>   %7 = Store [$3] %6 : ()
+>   %8 = Ref mut local [$3] : Counted[mut StringBuilder]
+>   %9 = Call std/text/impl StringBuilder.reserve[] (%8, 24:usize) : ()
+>   %10 = Ref mut local [$3] : Counted[mut StringBuilder]
+>   %11 = Call std/text/impl StringBuilder.push[] (%10, "cannot read ") : ()
+>   %12 = Store [$4] %4 : ()
+>   %13 = Ref local [$4] : Counted[string]
+>   %14 = Ref mut local [$3] : Counted[mut StringBuilder]
+>   %15 = Call std/format/Display.write for string [] via Impl (%13, %14) : ()
+>   %16 = Ref mut local [$3] : Counted[mut StringBuilder]
+>   %17 = Call std/text/impl StringBuilder.build[] (%16) : string
+>   %18 = Block %17 : string
+>   %27 = Block %26 : string
+>   %28 = Read [$1] : LoadError
+>   %29 = SwitchTag %28 [#0 %18 %27] : string
 >   %11 = Block %10 : Counted[Error]?
 >   %29 = Block %28 : Counted[Error]?
 >   %30 = Read [$1] : LoadError
@@ -99,10 +137,10 @@ enum LoadError:
         error: FsError,
     )
     @error("bad config")
->   %7 = Block "bad config" : string
->   %12 = Block %11 : string
->   %13 = Read [$1] : LoadError
->   %14 = SwitchTag %13 [#1 %7 %12] : string
+>   %19 = Block "bad config" : string
+>   %24 = Block %23 : string
+>   %25 = Read [$1] : LoadError
+>   %26 = SwitchTag %25 [#1 %19 %24] : string
 >   %21 = Block %20 : Counted[Error]?
 >   %26 = Block %25 : Counted[Error]?
 >   %27 = Read [$1] : LoadError
@@ -123,10 +161,10 @@ enum LoadError:
     @error(transparent)
     Fs(
         @from
->   %8 = Read [$1 as #2 .0] : FsError
->   %9 = Store [$3] %8 : ()
->   %10 = Ref local [$3] : Counted[FsError]
->   %11 = Call std/format/Display.to_string for FsError [] via Impl (%10) : string
+>   %20 = Read [$1 as #2 .0] : FsError
+>   %21 = Store [$5] %20 : ()
+>   %22 = Ref local [$5] : Counted[FsError]
+>   %23 = Call std/format/Display.to_string for FsError [] via Impl (%22) : string
 >   %22 = Read [$1 as #2 .0] : FsError
 >   %23 = Store [$6] %22 : ()
 >   %24 = Ref local [$6] : Counted[FsError]

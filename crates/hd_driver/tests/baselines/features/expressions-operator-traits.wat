@@ -5,7 +5,6 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "impl Add [ string ] for string.add" (func $"impl Add [ string ] for string.add" (param i32 i32 i32 i32) (result i32 i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $"impl Neg for Tag.neg" (param $self.text.0 i32) (param $self.text.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 20 |         Tag { text: "-" + self.text }
@@ -205,10 +204,6 @@
             local.get $item.0
             local.get $item.1
             call $"impl Add [ string ] for string.add"
-            local.get $zero.0
-            call $rt:release_ref
-            local.get $item.0
-            call $rt:release_ref
             local.set $zero.1
             local.set $zero.0
     ;; 30 |     for item in items:

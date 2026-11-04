@@ -68,3 +68,6 @@ runtime/valid/join-list-order.hd	std.task.channel, std.task.Receiver, std.task.S
 runtime/valid/match-mut-reference-noncopyable-payload.hd	std.collections.UniqList	the payload must hold a buffer, so a copy would show as a buffer retain in checked builds; only std collections hold one
 runtime/valid/a-field-moves-out-while-another-is-read.hd	std.collections.UniqList	the fields must hold buffers, so a copy would show as a buffer retain in checked builds; only std collections hold one
 runtime/valid/unique-list-reference-outlives-its-pointer-local.hd	std.collections.UniqList	the root rule matters only where a reference holds no count of what it points into, which a UniqList element reference is; a List element reference counts its buffer
+runtime/valid/display-write-nested.hd	std.text.StringBuilder	the owner decision (#436) gives Display.write a std.text.StringBuilder parameter, so a type that overrides write imports it
+typing/invalid/display-write-readonly-builder.hd	std.text.StringBuilder	the owner decision (#436) gives Display.write a std.text.StringBuilder parameter, so a type that overrides write imports it
+runtime/valid/display-write-expression-order.hd	std.text.StringBuilder	the decided Display.write parameter names StringBuilder, and the override must write through it to test expression/write order

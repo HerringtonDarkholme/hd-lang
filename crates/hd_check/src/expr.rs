@@ -49,6 +49,32 @@ pub(crate) enum Indexed {
 
 pub(crate) use hd_resolve::literal::{Piece, decode_piece, normalize_line_endings, strip_piece};
 
+/// An interpolated string being lowered: its builder, made at the first
+/// value, and the text read since the last value, pushed as one piece.
+#[derive(Default)]
+struct Interpolation {
+    builder: Option<InterpolationBuilder>,
+    text: String,
+    reserved: bool,
+}
+
+#[derive(Clone, Copy)]
+enum InterpolationBuilder {
+    Local(hd_base::LocalId),
+    Existing(Ref),
+}
+
+/// Whether `e` is a name or a field path of one, which reads a place and
+/// calls nothing.
+fn is_place_path(e: NodeRef<'_>) -> bool {
+    match e.kind() {
+        SyntaxKind::NameExpr => true,
+        SyntaxKind::FieldExpr => e.children().next().is_some_and(is_place_path),
+        SyntaxKind::ParenExpr => e.children().next().is_some_and(is_place_path),
+        _ => false,
+    }
+}
+
 /// Whether an explicit field of a copy-update may run code when it is
 /// evaluated: anything but shorthand, a plain name or a scalar literal.
 fn may_run_code(field: NodeRef<'_>) -> bool {
@@ -417,16 +443,119 @@ impl Ck<'_, '_> {
         })
     }
 
-    /// A string literal: one constant, or `Interp` over its parts, each
-    /// converted with `Display.to_string` (lowering-catalog "String
-    /// Interpolation And Concatenation").
+    /// A string literal: one constant, or one `StringBuilder` that the
+    /// literal's text pieces are pushed to and each interpolated value
+    /// writes itself to with `Display.write`, then built
+    /// (`expr.interp.builder`, `expr.interp.write`).
     pub(crate) fn string_expr(&mut self, n: NodeRef<'_>) -> StageResult<Ref> {
         let first = self.cx.src.first(n);
         let ftext = self.cx.src.text(first);
         if !ftext.starts_with('"') {
             return unsupported("a prefixed string");
         }
-        let mut parts: Vec<Ref> = Vec::new();
+        let mut out = Interpolation::default();
+        self.interpolate(n, &mut out)?;
+        // `expr.interp.constant`: no value, so no builder and no call.
+        let Some(builder) = out.builder else {
+            return Ok(self.b.const_str(&out.text));
+        };
+        self.push_pending_text(&mut out, builder, n)?;
+        let receiver = self.interpolation_ref(builder, n);
+        Ok(self.builder_call("build", &[receiver], n)?.0)
+    }
+
+    /// `b.push("...")` of an interpolated literal whose every value is a
+    /// name or a field path (`expr.interp.builder.push`): the literal is
+    /// written to `b` itself, with no builder of its own. Such a value
+    /// can neither leave the call early nor reach `b`, so only `write`
+    /// sees which builder it is. Like `push`, the result is void.
+    pub(crate) fn push_interpolation(
+        &mut self,
+        method: DefId,
+        recv: Ref,
+        args: &crate::call::Args<'_>,
+        n: NodeRef<'_>,
+    ) -> StageResult<Option<(Ref, Ty)>> {
+        let ([arg], None, [], [], None) = (
+            args.positional.as_slice(),
+            args.spread,
+            args.after_spread.as_slice(),
+            args.named.as_slice(),
+            args.trailing,
+        ) else {
+            return Ok(None);
+        };
+        if self
+            .cx
+            .lookup
+            .item(method)
+            .is_none_or(|i| self.cx.names.text(i.name) != "push")
+            || !self.is_builder(self.b.ty_of(recv))
+            || !self.writes_only_places(*arg)
+        {
+            return Ok(None);
+        }
+        let mut out = Interpolation {
+            builder: Some(InterpolationBuilder::Existing(recv)),
+            text: String::new(),
+            reserved: false,
+        };
+        self.interpolate(*arg, &mut out)?;
+        if !out.text.is_empty() {
+            let text = self.b.const_str(&std::mem::take(&mut out.text));
+            return Ok(Some(self.builder_call("push", &[recv, text], n)?));
+        }
+        Ok(Some((Ref(NONE), Ty::VOID)))
+    }
+
+    /// Whether `t` is `&mut std.text.StringBuilder`.
+    fn is_builder(&self, t: Ty) -> bool {
+        let pool = self.pool();
+        let sb = self.cx.names.item("std.text", "StringBuilder");
+        matches!(pool.get(self.strip_mut(t)), TyData::Ref { inner, mutable: true, .. }
+            if matches!(pool.get(inner), TyData::Adt { def, .. } if def == sb))
+    }
+
+    /// Whether `n` is an unprefixed string literal with at least one
+    /// interpolated value, each a name or a field path of one.
+    fn writes_only_places(&self, n: NodeRef<'_>) -> bool {
+        if n.kind() != SyntaxKind::StringExpr
+            || !self.cx.src.text(self.cx.src.first(n)).starts_with('"')
+        {
+            return false;
+        }
+        let mut values = 0usize;
+        for ip in n.children() {
+            let Some(e) = ip.children().next() else {
+                return false;
+            };
+            if !is_place_path(e) {
+                return false;
+            }
+            values += 1;
+        }
+        for t in n.direct_tokens() {
+            let Some(k) = self.cx.src.tkind(t) else {
+                continue;
+            };
+            if matches!(
+                k,
+                TokenKind::String | TokenKind::StrHead | TokenKind::StrMid | TokenKind::StrTail
+            ) {
+                let mut pieces = Vec::new();
+                decode_piece(strip_piece(self.cx.src.text(t), k), &mut pieces);
+                values += pieces
+                    .iter()
+                    .filter(|p| matches!(p, Piece::Name(_)))
+                    .count();
+            }
+        }
+        values > 0
+    }
+
+    /// Lowers the pieces and values of the string literal `n` into `out`
+    /// in source order: each value is evaluated, then written.
+    fn interpolate(&mut self, n: NodeRef<'_>, out: &mut Interpolation) -> StageResult<()> {
         let mut kids = n.children();
         for t in n.direct_tokens().collect::<Vec<_>>() {
             let Some(k) = self.cx.src.tkind(t) else {
@@ -451,15 +580,14 @@ impl Ck<'_, '_> {
                     let (r, ty) = self.expr(e, None)?;
                     (r, ty, false)
                 };
-                let s = self.display_str((r, ty, held), e)?;
-                parts.push(s);
+                self.interpolate_value(out, (r, ty, held), e, n)?;
             }
             let raw = strip_piece(self.cx.src.text(t), k).to_owned();
             let mut pieces = Vec::new();
             decode_piece(&raw, &mut pieces);
             for p in pieces {
                 match p {
-                    Piece::Text(s) => parts.push(self.b.const_str(&s)),
+                    Piece::Text(s) => out.text.push_str(&s),
                     Piece::Name(name) => {
                         let sym = self.cx.names.syms.intern(&name);
                         // A local, which passes its address, else a
@@ -481,24 +609,16 @@ impl Ck<'_, '_> {
                             }
                             continue;
                         };
-                        let s = self.display_str((r, ty, held), n)?;
-                        parts.push(s);
+                        self.interpolate_value(out, (r, ty, held), n, n)?;
                     }
                 }
             }
         }
-        Ok(match parts.as_slice() {
-            [] => self.b.const_str(""),
-            [one] if self.b.const_of(*one).is_some() => *one,
-            _ => {
-                let rec = self.b.refs_record(&parts);
-                self.b.emit(Tag::Interp, NONE, rec, Ty::STRING, n.index())
-            }
-        })
+        Ok(())
     }
 
     /// Whether the interpolated expression `e` passes its address to
-    /// `Display.to_string` (`expr.interp.display.ref`): a place outside
+    /// `Display.write` (`expr.interp.display.ref`): a place outside
     /// any element whose value is no reference and no string, of a known
     /// type.
     fn display_place(&self, e: NodeRef<'_>) -> bool {
@@ -509,12 +629,12 @@ impl Ck<'_, '_> {
     }
 
     /// Whether the local `l`, interpolated by name, passes its address to
-    /// `Display.to_string` (`expr.interp.display.ref`).
+    /// `Display.write` (`expr.interp.display.ref`).
     fn display_local(&self, l: hd_base::LocalId) -> bool {
         !self.local_generics.contains_key(&l) && self.displayed_by_ref(self.b.local_ty(l))
     }
 
-    /// Whether a place of type `t` is lent to `Display.to_string`: its
+    /// Whether a place of type `t` is lent to `Display.write`: its
     /// value is no reference and no string, and its type is known.
     fn displayed_by_ref(&self, t: Ty) -> bool {
         let pool = self.pool();
@@ -545,32 +665,182 @@ impl Ck<'_, '_> {
         (r, ty, true)
     }
 
-    /// A value's `Display` text: itself for a string, else `to_string`,
-    /// which takes it by reference (`expr.interp.display.ref`): `held`
-    /// when `r` already is the address of its place, else `r` is held in
-    /// a new local that the call refers to.
-    pub(crate) fn display_str(
+    /// Writes one interpolated value of type `t` to the literal's
+    /// builder with `Display.write`, after the text before it; the
+    /// builder is made at the first value.
+    fn interpolate_value(
         &mut self,
+        out: &mut Interpolation,
         (r, t, held): (Ref, Ty, bool),
         n: NodeRef<'_>,
-    ) -> StageResult<Ref> {
-        let pool = self.pool();
-        let tt = self.infer.shallow(pool, t);
-        let tt = match pool.get(tt) {
-            TyData::Mut(i) => self.infer.shallow(pool, i),
-            _ => tt,
-        };
-        if tt == Ty::STRING {
-            return Ok(if held {
-                self.emit_deref(r, self.b.ty_of(r), n.index()).0
-            } else {
-                r
+        source: NodeRef<'_>,
+    ) -> StageResult<()> {
+        let builder = if let Some(b) = out.builder {
+            b
+        } else {
+            let pool = self.pool();
+            let def = self.cx.names.item("std.text", "StringBuilder");
+            let Some(item) = self.cx.lookup.item(def) else {
+                return unsupported("string interpolation without StringBuilder");
+            };
+            let ItemData::Data(fields) = &item.data else {
+                return unsupported("a non-struct StringBuilder");
+            };
+            let [field] = fields.as_slice() else {
+                return unsupported("a StringBuilder without one byte buffer");
+            };
+            // The approved builder field owns its bytes. Initialize it
+            // through its ordinary constructor rather than assuming the
+            // representation of a built-in list.
+            let Some((init, _, vars)) = self.find_inherent_any(field.ty, "new") else {
+                return unsupported("a StringBuilder field without an empty constructor");
+            };
+            self.note_call(init);
+            let constructor = hd_tir::ir::Callee::Item {
+                def: init,
+                targs: pool.list(&vars),
+            };
+            let bytes = self.b.call(
+                &constructor,
+                &[],
+                hd_tir::ir::Providers::None,
+                field.ty,
+                n.index(),
+            );
+            let fields = self.b.refs_record(&[bytes]);
+            let ty = pool.intern_ty(&TyData::Adt {
+                def,
+                args: pool.list(&[]),
             });
+            let value = self.b.emit(Tag::NewStruct, NONE, fields, ty, n.index());
+            let name = self.cx.names.syms.intern("$interpolation");
+            let local = self.b.local(ty, name, local_flags::ASSIGNED, n.index());
+            self.set_local(local, value, n.index());
+            self.mut_locals.push(local);
+            let b = InterpolationBuilder::Local(local);
+            out.builder = Some(b);
+            b
+        };
+        if !out.reserved {
+            let size = self.interpolation_capacity(source);
+            if size != 0 {
+                let hint = self.b.const_value(Ty::prim(Prim::Usize), u64::from(size));
+                let receiver = self.interpolation_ref(builder, n);
+                self.builder_call("reserve", &[receiver, hint], n)?;
+            }
+            out.reserved = true;
         }
-        let recv = self.eq_operand_ref((r, t, held), n);
+        self.push_pending_text(out, builder, n)?;
         let display = self.cx.names.known.display;
-        let r2 = self.trait_call(display, "to_string", recv, t, &[], n)?;
-        Ok(r2.0)
+        let value_receiver = self.eq_operand_ref((r, t, held), n);
+        let receiver = self.interpolation_ref(builder, n);
+        let bt = self.b.ty_of(receiver);
+        self.trait_call_args(display, "write", value_receiver, t, &[(receiver, bt, n)], n)?;
+        Ok(())
+    }
+
+    /// Rust's `Arguments::estimated_capacity` policy, computed entirely
+    /// from decoded literal bytes. No interpolated expression or string
+    /// place is read for this hint.
+    /// <https://doc.rust-lang.org/src/core/fmt/mod.rs.html>
+    fn interpolation_capacity(&self, source: NodeRef<'_>) -> u32 {
+        let mut literal = 0usize;
+        let mut starts_with_value = false;
+        for token in source.direct_tokens() {
+            let Some(kind) = self.cx.src.tkind(token) else {
+                continue;
+            };
+            if !matches!(
+                kind,
+                TokenKind::String | TokenKind::StrHead | TokenKind::StrMid | TokenKind::StrTail
+            ) {
+                continue;
+            }
+            if matches!(kind, TokenKind::StrMid | TokenKind::StrTail) && literal == 0 {
+                starts_with_value = true;
+            }
+            let mut pieces = Vec::new();
+            decode_piece(strip_piece(self.cx.src.text(token), kind), &mut pieces);
+            for piece in pieces {
+                match piece {
+                    Piece::Text(text) => literal = literal.saturating_add(text.len()),
+                    Piece::Name(_) if literal == 0 => starts_with_value = true,
+                    Piece::Name(_) => {}
+                }
+            }
+        }
+        if starts_with_value && literal < 16 {
+            0
+        } else {
+            u32::try_from(literal).unwrap_or(0).wrapping_mul(2)
+        }
+    }
+
+    /// Each local loan belongs to one call; it is not held across the
+    /// evaluation or write of another segment.
+    fn interpolation_ref(&mut self, builder: InterpolationBuilder, n: NodeRef<'_>) -> Ref {
+        match builder {
+            InterpolationBuilder::Existing(receiver) => receiver,
+            InterpolationBuilder::Local(local) => {
+                let ty = self.b.local_ty(local);
+                let place = crate::refs::Place {
+                    root: crate::refs::Root::Local(local, self.scopes.len() - 1),
+                    path: Vec::new(),
+                    ty,
+                };
+                self.make_ref(&place, true, self.ref_ty(ty, true, false), n)
+            }
+        }
+    }
+
+    /// Pushes the text gathered since the last value, if any.
+    fn push_pending_text(
+        &mut self,
+        out: &mut Interpolation,
+        builder: InterpolationBuilder,
+        n: NodeRef<'_>,
+    ) -> StageResult<()> {
+        if out.text.is_empty() {
+            return Ok(());
+        }
+        let text = self.b.const_str(&std::mem::take(&mut out.text));
+        let receiver = self.interpolation_ref(builder, n);
+        self.builder_call("push", &[receiver, text], n)?;
+        Ok(())
+    }
+
+    /// A call of the `std.text.StringBuilder` method `name` that
+    /// interpolation lowers to, each argument fitted to its parameter.
+    pub(crate) fn builder_call(
+        &mut self,
+        name: &str,
+        args: &[Ref],
+        n: NodeRef<'_>,
+    ) -> StageResult<(Ref, Ty)> {
+        let pool = self.pool();
+        let def = self.cx.names.item("std.text", "StringBuilder");
+        let sb = pool.intern_ty(&TyData::Adt {
+            def,
+            args: pool.list(&[]),
+        });
+        let Some((method, _, _)) = self.find_inherent_any(sb, name) else {
+            return unsupported("string interpolation without `std.text.StringBuilder`");
+        };
+        let sig = self.sig_of(method)?;
+        self.note_call(method);
+        let mut refs = Vec::with_capacity(args.len());
+        for (r, p) in args.iter().zip(&sig.params) {
+            let at = self.b.ty_of(*r);
+            refs.push(self.coerce(*r, at, p.1, n, "operand", ExpectPosition::Operand));
+        }
+        let c = hd_tir::ir::Callee::Item {
+            def: method,
+            targs: pool.list(&[]),
+        };
+        let r = self
+            .b
+            .call(&c, &refs, hd_tir::ir::Providers::None, sig.ret, n.index());
+        Ok((r, sig.ret))
     }
 
     /// The bits of the constant `bits` of type `ct`, negated: a float

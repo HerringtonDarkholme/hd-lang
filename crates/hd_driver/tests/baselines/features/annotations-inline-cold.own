@@ -11,19 +11,53 @@ use std.annotation.{InlineHint, cold, inline}
 fn unexpected(at: usize) -> string:
     "unexpected byte at $at"
 > app/main/unexpected
->   local $0 at: usize [param read]
->   local $1 self: usize [read]
->   %0 = Read copy [$0] : usize
->   %1 = Store [$1] %0 : ()
->   %2 = Read copy [$1] : usize
->   %3 = Call std/format/format_int[usize] (%2) : string
->   %4 = Break L0 %3 : never
->   %5 = Block - : string
->   %6 = Scope %5 [] : string
->   %7 = Interp ["unexpected byte at " %6] : string
->   %8 = Drop [%6] : ()
->   %9 = Block %7 : string
->   summary kept []
+>   local $0 at: usize [param read captured]
+>   local $1 $interpolation: StringBuilder [read assigned captured captured-assigned]
+>   local $2 capacity: usize [read]
+>   local $3 capacity: usize [read]
+>   %0 = Ref local frame [$0] : Counted[usize]
+>   %1 = Store [$2] 0:usize : ()
+>   %2 = Read copy [$2] : usize
+>   %3 = Store [$3] %2 : ()
+>   %4 = Read copy [$3] : usize
+>   %5 = Call std/rt.memory/size_of[u8] () : usize
+>   %6 = Call std/rt.memory/room[] (%4, %5) : usize
+>   %7 = Read copy [$3] : usize
+>   %8 = NewStruct [%6 %7] : Buffer[u8]
+>   %9 = Break L0 %8 : never
+>   %10 = Block - : Buffer[u8]
+>   %11 = Scope %10 [] : Buffer[u8]
+>   %12 = NewStruct [%11 0:usize] : UniqList[u8]
+>   %13 = Break L1 %12 : never
+>   %14 = Block - : UniqList[u8]
+>   %15 = Scope %14 [] : UniqList[u8]
+>   %16 = Break L2 %15 : never
+>   %17 = Block - : UniqList[u8]
+>   %18 = Scope %17 [] : UniqList[u8]
+>   %19 = NewStruct [%18] : StringBuilder
+>   %20 = Store [$1] %19 : ()
+>   %21 = Ref mut local frame [$1] : Counted[mut StringBuilder]
+>   %22 = Call std/text/impl StringBuilder.reserve[] (%21, 38:usize) : ()
+>   %23 = Drop [%21] : ()
+>   %24 = Ref mut local frame [$1] : Counted[mut StringBuilder]
+>   %25 = Call std/text/impl StringBuilder.push[] (%24, "unexpected byte at ") : ()
+>   %26 = Drop [%24] : ()
+>   %27 = Ref mut local frame [$1] : Counted[mut StringBuilder]
+>   %28 = Call std/format/Display.write for usize [] via Impl (%0, %27) : ()
+>   %29 = Drop [%27] : ()
+>   %30 = Drop [%0] : ()
+>   %31 = Drop [$0] : ()
+>   %32 = Ref mut local frame [$1] : Counted[mut StringBuilder]
+>   %33 = Call std/text/impl StringBuilder.build[] (%32) : string
+>   %34 = Drop [%32] : ()
+>   %35 = Drop [$1] : ()
+>   %36 = Block %33 : string
+>   %21 finds [$1] full
+>   %24 finds [$1] full
+>   %27 finds [$1] full
+>   %32 finds [$1] full
+>   exit sub 0 drops [$0]
+>   summary kept [] writes
 
 @inline(.Never)
 fn checksum(xs: &List[string]) -> usize:
@@ -167,4 +201,4 @@ fn check(xs: List[string], at: usize) -> string:
 >   %10 = Read copy [$0 [%9]] : string
 >   %11 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
->   summary kept [$0]
+>   summary kept [$0] writes

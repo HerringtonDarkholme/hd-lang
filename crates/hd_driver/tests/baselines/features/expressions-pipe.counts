@@ -11,11 +11,17 @@ struct Point:
 
 fn clean(raw: string) -> string:
     "[${raw}]"
+> app/main/clean
+>   release counted reference
+>   (no span) release string
+>   (no span) release counted reference
 
 fn tag(label: string, level: i64) -> string:
     "${label}:${level}"
 > app/main/tag
->   (no span) release string (last use)
+>   release counted reference
+>   (no span) release string
+>   (no span) release counted reference
 
 fn bare(raw: string) -> string:
     raw |> clean
@@ -23,14 +29,16 @@ fn bare(raw: string) -> string:
 fn chain(raw: string) -> string:
     raw |> clean |> tag(_, 2)
 > app/main/chain
->   release string (last use)
->   (no span) release string (last use)
+>   release counted reference
+>   release string
+>   release counted reference
 
 fn direct(raw: string) -> string:
     tag(clean(raw), 2)
 > app/main/direct
->   release string (last use)
->   (no span) release string (last use)
+>   release counted reference
+>   release string
+>   release counted reference
 
 fn method_slot(raw: string) -> usize:
     raw |> _.len()

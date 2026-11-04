@@ -17,8 +17,9 @@ fn collected_link() -> Weak[Ring]:
     link
 
 fn make_cycle(n: i32) -> void:
-    first := box(Ring { name: "first $n", next: .None })
-    second := box(Ring { name: "second $n", next: .Some(first) })
+    # Keep collection pressure independent of interpolation's builder strategy.
+    first := box(Ring { name: "first " + n.to_string(), next: .None })
+    second := box(Ring { name: "second " + n.to_string(), next: .Some(first) })
     first.next = .Some(second)
 
 tests:

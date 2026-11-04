@@ -141,7 +141,7 @@
         local.set $path.1
       else
         i32.const 12
-        i32.const 5
+        i32.const 6
         call $rt:new/class-2
         local.tee $path.0
         local.get $t0
@@ -156,7 +156,7 @@
         local.set $path.0
         i32.const 1
         local.get $path.0
-        i32.const 196 ;; &vtable[func41]
+        i32.const 280 ;; &vtable[func51]
         return
       end
     ;; 23 |     .Ok(text)

@@ -4,4 +4,4 @@
 # literal text makes at least 3, and no `if (result i32)` choosing the
 # empty string (binary_trees and every program that prints with `$`).
 fn label(name: string) -> string:
-    "id $name"
+    "id " + name

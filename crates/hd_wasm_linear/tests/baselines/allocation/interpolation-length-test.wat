@@ -4,7 +4,7 @@
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $label (param $name.0 i32) (param $name.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
-    ;; 7 |     "id $name"
+    ;; 7 |     "id " + name
     block
       i32.const 3
       local.get $name.1
