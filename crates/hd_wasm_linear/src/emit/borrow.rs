@@ -196,17 +196,15 @@ fn root_ty(b: &Body, sub: &dyn Fn(Ty) -> Ty, root: PlaceRoot) -> Option<Ty> {
     }
 }
 
-/// The declared parameter types of a call to `target`, at the call's
-/// type arguments: a direct call's.
+/// The parameter types of a call to `target`, as the callee instance's
+/// own body has them ([`crate::emit::callee_params`]): a direct call's.
 pub(super) fn call_params(
-    pool: &InternPool,
-    env: &dyn ProgramEnv,
+    input: &crate::Input<'_>,
+    m: &Module,
     target: Option<&Target>,
 ) -> Vec<Ty> {
     match target {
-        Some(Target::Call(c)) => (env.params(c.item).unwrap_or_default().into_iter())
-            .map(|t| hd_mono::subst(pool, env, c.item, c.args, t))
-            .collect(),
+        Some(Target::Call(c)) => super::callee_params(input, m, c.key, c.item, c.args),
         _ => Vec::new(),
     }
 }
@@ -342,7 +340,7 @@ impl Em<'_, '_, '_> {
             let Some(receiver) = call_info(self.input, self.b, i, self.calls.get(&call)) else {
                 continue;
             };
-            let params = call_params(self.pool(), self.env(), self.calls.get(&call));
+            let params = call_params(self.input, self.m, self.calls.get(&call));
             for (k, a) in call_args(self.b, i).into_iter().enumerate() {
                 let Some(v) = direct_value(self.b, a) else {
                     continue;

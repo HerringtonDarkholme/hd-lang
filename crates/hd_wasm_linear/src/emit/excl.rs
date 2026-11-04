@@ -679,7 +679,7 @@ pub(crate) fn collect_loans(input: &Input<'_>, m: &mut Module) {
         for i in 0..b.tags.len() {
             let target = input.collected.calls[id.idx()].get(&u32::try_from(i).expect("insts"));
             if let Some(receiver) = call_info(input, b, i, target) {
-                let params = super::borrow::call_params(input.pool, input.env, target);
+                let params = super::borrow::call_params(input, m, target);
                 let args = (call_args(b, i), receiver, params);
                 super::borrow::lend_call(input.pool, input.env, b, &sub, m, args);
             }
