@@ -32,7 +32,7 @@ impl Sink for Count:
 >   %3 = Prim Add [%2 1:usize] : usize
 >   %4 = Store [*$0 .n] %3 : ()
 >   %5 = Block - : ()
->   summary kept [] writes
+>   summary kept [] borrows [$1] writes
 
 impl Sink for Keep:
     fn put(&mut self, m: Member) -> void:

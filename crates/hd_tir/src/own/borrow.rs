@@ -1484,23 +1484,31 @@ fn finish_lent_params(b: &Body, t: &mut Tables, edits: &mut splice::Tables) -> b
 /// its value, whether its type is closed or one an instance decides: an
 /// instance that makes it a reference or gives it no counted leaf takes no
 /// count of a lent one anyway. One with no counted leaf keeps nothing.
+/// Second, its borrows bits (`crate::own::Summary::borrows`): each other
+/// value parameter whose type may hold a counted leaf.
 /// `None` for a body that is no function's or that suspends.
-pub(crate) fn kept(b: &Body, cx: &dyn OwnCx, t: &Tables) -> Option<u64> {
+pub(crate) fn kept(b: &Body, cx: &dyn OwnCx, t: &Tables) -> Option<(u64, u64)> {
     if (b.kind != BodyKind::Fn && b.kind != BodyKind::DeriveInstance) || cx.suspending(b.item) {
         return None;
     }
-    let mut kept = 0;
-    for (k, l) in super::params(b).into_iter().enumerate() {
+    let (mut kept, mut borrows) = (0, 0);
+    let params = super::params(b);
+    let n = params.len();
+    for (k, l) in params.into_iter().enumerate() {
         let l = l as usize;
-        let keeps = match cx.counted(b.local_ty[l]) {
-            Tri::No => false,
-            Tri::Maybe | Tri::Yes => !t.unowned[l] || t.kept_read[l] > 0,
+        let (counted, keeps) = match cx.counted(b.local_ty[l]) {
+            Tri::No => (false, false),
+            Tri::Maybe | Tri::Yes => (true, !t.unowned[l] || t.kept_read[l] > 0),
         };
-        if keeps && k < 64 {
-            kept |= 1 << k;
+        if k < 64 {
+            if keeps {
+                kept |= 1 << k;
+            } else if counted && cx.received(b.item, k, n) == Pass::Owned {
+                borrows |= 1 << k;
+            }
         }
     }
-    Some(kept)
+    Some((kept, borrows))
 }
 
 /// The `Ref`s of a field of what a lent parameter refers to, which take no
