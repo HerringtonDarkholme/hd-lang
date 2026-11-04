@@ -731,6 +731,7 @@ fn link(
     );
     address_globals(input, &mut m, session.is_some(), previous)?;
     drive::collect(input, &mut m);
+    m.views_absent = !m.open_world && views_absent(input);
     emit::collect_loans(input, &mut m);
     for id in input.order {
         let f = emit::instance(input, &mut m, *id)?;
@@ -773,6 +774,43 @@ fn link(
             functions: Vec::new(),
         })
     }
+}
+
+/// Whether no function of the program can make a representation view
+/// (`rt:ref_view`, `rt:ref_payload`), an over-approximation of what
+/// emission would make: a view crosses into or out of an erased body or
+/// a thunk, a generic method's shared cell holds its erased view, and a
+/// reference into an enum's payload (`ref.match.borrow`) is one. Without
+/// them a thin local reference is a plain address, which counts nothing
+/// (`ref.count.local`), so emission neither retains nor releases one.
+fn views_absent(input: &Input<'_>) -> bool {
+    input.order.iter().all(|id| {
+        if matches!(
+            input.collected.calls[id.idx()].get(&hd_mono::INFO),
+            Some(Target::Erased { .. } | Target::Thunk { .. })
+        ) {
+            return false;
+        }
+        let Some(b) = (input.body)(*id) else {
+            return true;
+        };
+        let item = input.collected.table.item[id.idx()];
+        let shared_cell = || {
+            (0..b.len())
+                .any(|i| b.tags[i] == hd_tir::ir::Tag::Closure && emit::shares_capture(b, i))
+        };
+        if emit::erased_cells(input.env, item) && shared_cell() {
+            return false;
+        }
+        !(0..b.len()).any(|i| {
+            b.tags[i] == hd_tir::ir::Tag::Ref
+                && b.decode_place(b.data[i][0]).is_some_and(|p| {
+                    p.proj
+                        .iter()
+                        .any(|s| matches!(s, hd_tir::ir::Proj::Variant(_)))
+                })
+        })
+    })
 }
 
 /// Gives each top-level binding that some reference refers to a static
