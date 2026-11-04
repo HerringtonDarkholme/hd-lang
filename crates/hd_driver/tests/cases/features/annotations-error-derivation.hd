@@ -1,0 +1,54 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Error Derivation, Error Types, Error Messages, Error Causes,
+# Error Conversions, Transparent Errors (spec/lang/14-annotations.md, #1364).
+# expected: `load`'s `?` moves the `YamlError` into `LoadError.Yaml`
+# with no count; `message` builds one string from the payload with no
+# retain of `path`.
+use std.error.Error
+
+struct YamlError:
+    line: i64
+
+impl Display for YamlError:
+    fn to_string(&self) -> string:
+        "bad yaml at line ${self.line}"
+
+impl Error for YamlError
+
+@error
+enum FsError:
+    @error("not found: $path")
+    NotFound(path: string)
+    Busy
+
+@error
+enum LoadError:
+    @error("cannot read $path")
+    Read(
+        path: string,
+        @source
+        error: FsError,
+    )
+    @error("bad config")
+    Yaml(
+        @from
+        error: YamlError,
+    )
+    @error(transparent)
+    Fs(
+        @from
+        error: FsError,
+    )
+
+fn parse(text: string) -> Result[i64, YamlError]:
+    if text.len() > 3:
+        return .Err(YamlError { line: 1 })
+    .Ok(+0)
+
+fn load(text: string) -> Result[i64, LoadError]:
+    value := parse(text)?
+    .Ok(value)
+
+fn message(e: &LoadError) -> usize:
+    e.to_string().len()
