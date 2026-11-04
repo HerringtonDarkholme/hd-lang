@@ -27,13 +27,6 @@ pub struct UniqList[T < ?Copy]:
 
 impl[T < ?Copy] !Copy for UniqList[T]
 
-# The list drops the values it holds; its buffer then frees the room.
-impl[T < ?Copy] Drop for UniqList[T]:
-    fn drop(&mut self) -> void:
-        let index: usize = 0
-        while index < self.len:
-            _ := self.buffer.at(index).read()
-            index += 1
 # The stable driftsort shape from Rust 1.81: long natural runs scheduled by
 # powersort, lazy three-way stable quicksort runs, small insertion sorts, and
 # merge-sort fallback at the quicksort depth limit. Both list families use
