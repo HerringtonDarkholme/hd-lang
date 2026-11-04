@@ -6263,7 +6263,6 @@ runtime/panic/pointer-loan-extra-dyn-receiver-alias-write-panics.hd	runtime	pani
 runtime/panic/pointer-loan-extra-generic-argument-alias-write-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/panic/pointer-loan-extra-copy-under-element-loan-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/panic/pointer-loan-extra-sort-comparator-alias-write-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
-runtime/panic/pointer-loan-extra-observer-notify-writes-owner-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-extra-weak-upgrade-root.hd	runtime	accept	std/weak.md#r-std-weak.upgrade.readonly
 runtime/panic/pointer-loan-extra-elide-callback-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/panic/pointer-loan-extra-elide-dyn-call-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
@@ -6297,6 +6296,7 @@ typing/invalid/pointer-loan-same-root-pass-mut-with-mut.hd	type	reject:conflicti
 typing/invalid/pointer-loan-same-root-pass-read-with-mut.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.args.pointer
 typing/invalid/pointer-loan-same-root-dependent-call.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place
 typing/invalid/pointer-loan-same-root-dependent-method.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place
+typing/invalid/pointer-loan-same-root-observer-notify.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place
 typing/invalid/pointer-loan-same-root-dependent-outlives-root.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.scope
 runtime/valid/erased-call-matrix-generic-ref-ref-i32.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param
 runtime/valid/erased-call-matrix-generic-ref-ref-string.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param

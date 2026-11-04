@@ -353,27 +353,6 @@ pub fn main() -> void $ Console:
 `,
   },
   {
-    name: "observer-notify-writes-owner-panics",
-    panic: true,
-    what: "a listener loop over a list behind a pointer calls listeners that write the owner",
-    source: `struct Bus:
-    listeners: List[i32]
-    total: i32
-
-fn notify(bus: *mut Bus, weight: i32) -> void:
-    bus.total += weight # panic: borrow-conflict
-
-fn publish(bus: *mut Bus) -> void:
-    for weight in &bus.listeners:
-        notify(bus, *weight)
-
-pub fn main() -> void $ Console:
-    bus := box(Bus { listeners: [+1, 2], total: +0 })
-    publish(bus)
-    println("\${bus.total}")
-`,
-  },
-  {
     name: "weak-upgrade-root",
     panic: false,
     what: "a reference through an upgraded weak pointer outlives the last strong holder's release",
@@ -929,7 +908,6 @@ export const extraColumns: Record<string, [string, string]> = {
   "generic-argument-alias-write-panics": ["loan needed", "runs, sees the write"],
   "copy-under-element-loan-panics": ["loan needed", "runs; the copy keeps its own elements"],
   "sort-comparator-alias-write-panics": ["loan needed", "runs"],
-  "observer-notify-writes-owner-panics": ["loan needed", "runs"],
   "weak-upgrade-root": ["elided", "runs"],
   "elide-callback-panics": ["loan needed", "runs, sees the write"],
   "elide-dyn-call-panics": ["loan needed", "runs, sees the write"],
