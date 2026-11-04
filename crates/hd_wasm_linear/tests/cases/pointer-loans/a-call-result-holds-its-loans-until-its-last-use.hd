@@ -1,0 +1,19 @@
+# @dump: wat
+# `r` holds the result of `slot`, which points into the `Cell` behind
+# `p.next`: the store takes an exclusive loan on the object the page table
+# finds for it (`block_of`), and its release gives the loan back. The
+# write through `alias` in its live range keeps the loan.
+struct Cell:
+    value: string
+
+struct Outer:
+    next: *mut Cell
+
+impl Outer:
+    fn slot(&mut self) -> &mut string:
+        &mut self.next.value
+
+fn probe(p: *mut Outer, alias: *mut Cell) -> string:
+    r := p.slot()
+    alias.value = "b"
+    *r

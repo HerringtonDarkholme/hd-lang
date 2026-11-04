@@ -9,7 +9,7 @@
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
   (import "fixture" "loan_top" (global $loan_top (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $replace (param $t i32) (param $alias i32) (result i32 i32) (local $r i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $n i32)
+  (func $replace (param $t i32) (param $alias i32) (result i32 i32) (local $r i32) (local $t0 i32) (local $t1 i32) (local $n i32) (local $t2 i32) (local $t3 i32)
     block
     ;; 10 |     r := &*t
       local.get $t
@@ -41,15 +41,16 @@
       if
       end
     ;; 11 |     n := &r.lead.name
+      local.get $t0
+      local.set $t
       local.get $r
       i32.load $heap
-      local.tee $t
+      local.tee $n
       call $retain
       local.get $r
       local.set $t2
       ;; ...
-      local.get $t
-      local.tee $n
+      local.get $n
       local.get $t2
       i32.const 4
       i32.const -1
@@ -57,6 +58,28 @@
       i32.const 8
       i32.const 0
       call $rt:loan_begin
+      local.get $t
+      local.tee $t2
+      local.get $t1
+      local.set $t3
+      if
+        local.get $t2
+        local.get $t2
+        i32.load $heap
+        i32.const 65536
+        i32.add
+        i32.store $heap
+        local.get $t3
+        i32.const 1
+        i32.eq
+        if
+        end
+        local.get $t3
+        i32.const 2
+        i32.eq
+        if
+        end
+      end
     ;; 12 |     alias.lead = box(User { name: "new" })
       i32.const 8
       i32.const 2

@@ -2,19 +2,25 @@
 (module
   (import "fixture" "rt:loan_begin" (func $rt:loan_begin (param i32 i32 i32)))
   (import "fixture" "rt:loan_count" (func $rt:loan_count (param i32 i32 i32 i32)))
-  (import "fixture" "rt:panic" (func $rt:panic))
+  (import "fixture" "rt:panic'1" (func $rt:panic'1))
+  (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:loan_check" (func $rt:loan_check (param i32 i32 i32)))
+  (import "fixture" "rt:panic'3" (func $rt:panic'3))
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "loan_top" (global $loan_top (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $older (param $view i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
+  (func $older (param $view i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     block
     ;; 12 |     held := view.label()
       local.get $view
+      i32.const 4
+      i32.sub
       local.set $t0
       local.get $view
-      local.tee $t1
+      local.set $t1
+      local.get $view
+      local.tee $t2
       i32.const 8
       i32.sub
       i32.load $heap
@@ -22,9 +28,9 @@
       i32.eq
       if
         i32.const 0
-        local.set $t1
+        local.set $t2
       else
-        local.get $t1
+        local.get $t2
         i32.const 12
         i32.const 0
         call $rt:loan_begin
@@ -32,32 +38,57 @@
       local.get $view
       call $"impl User.label"
       local.set $view
-      local.get $t1
+      local.get $t2
       if
-        local.get $t1
+        local.get $t2
         i32.const 12
         i32.const 0
         i32.const -1
         call $rt:loan_count
       end
-      local.get $t0
+      local.get $t1
       i32.const 12
       i32.const 0
       call $rt:loan_begin
+      local.get $t0
+      i32.const 1
+      local.set $t2
+      i32.load $heap
+      i32.const 2097152
+      i32.and
+      local.get $t3
+      i32.const 2097152
+      i32.and
+      i32.ne
+      if
+        call $rt:panic'1
+        unreachable
+      end
+      local.get $t0
+      local.get $t0
+      i32.load $heap
+      i32.const 65536
+      i32.add
+      i32.store $heap
+      local.get $t2
+      i32.const 1
+      i32.eq
+      if
+      end
     ;; 13 |     alias.age += 1
       local.get $alias
       i32.load $heap offset=8
-      local.tee $t1
+      local.tee $t3
       i32.const 2147483646
       i32.gt_s
       if
-        call $rt:panic
+        call $rt:panic'2
         unreachable
       end
-      local.get $t1
+      local.get $t3
       i32.const 1
       i32.add
-      local.set $t1
+      local.set $t3
       global.get $loan_top
       if
         local.get $alias
@@ -68,7 +99,17 @@
         call $rt:loan_check
       end
       local.get $alias
-      local.get $t1
+      i32.const 4
+      i32.sub
+      i32.load $heap
+      i32.const 4128768
+      i32.and
+      if
+        call $rt:panic'3
+        unreachable
+      end
+      local.get $alias
+      local.get $t3
       i32.store $heap offset=8
     ;; 14 |     *held
       local.get $view
@@ -76,11 +117,8 @@
       local.tee $alias
       local.get $view
       i32.load $heap offset=4
-      local.tee $t1
+      local.tee $t3
       call $rt:retain
-      ;; ...
-      local.get $alias
-      local.get $t1
       ;; ...
     end
     ;; ...

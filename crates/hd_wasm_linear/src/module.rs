@@ -1050,6 +1050,9 @@ pub struct Module {
     /// The pointer loans elision keeps (`emit/elide.rs`): by instance, the
     /// instruction that takes the loan, and the dereference it lies at.
     pub kept: hd_base::HashSet<crate::emit::LoanSite>,
+    /// The stores of a call's result whose callee's reference reaches one
+    /// more object than its argument, which the page table finds.
+    pub result_inner: hd_base::HashSet<(hd_base::InstId, u32)>,
     /// Reachable program operations or exported entry hooks can cancel.
     /// Selected from the conservative reachable graph before specialization.
     pub cancellable: bool,
