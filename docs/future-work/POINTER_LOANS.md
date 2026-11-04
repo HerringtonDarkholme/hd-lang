@@ -1059,6 +1059,37 @@ Each about an hour, with its test; the matrix rows leave
     the element references' counts of their buffers the rest of the pin:
     `Tag::Pin`, the owner word and the eager copy in `coll_copy`; and the
     counts references take of a `Buffer`'s room.
+    The rule: a representation view is the only reference that owns
+    anything; every other local reference is a plain address that counts
+    nothing, and the ownership passes keep its root alive until its last
+    use. The new object `&e` makes belongs to the reference that made it:
+    a hidden local the passes keep alive, a static cell in a top-level
+    binding's initializer, or, for a default argument's `&mut []`, an
+    object the caller releases after the call (`Target::Default`'s
+    `owned`). A plain reference's count is `Walk::View`: a retain or
+    release only when `rt:ref_is_view` says it is a view, which folds to
+    nothing in a module that makes no view.
+    The passes that keep roots alive: a `*T` coerced to `&T` lends
+    (`OwnCx::lends`); a call's result keeps alive the counted references it
+    was lent; an element place roots its collection's local; a call that
+    takes a `&mut` of a local is taken to store its other arguments'
+    references there (sound but coarse; using the callee's signature
+    lifetimes or release summaries instead is a later follow-up); a
+    closure carries its captured references' origins; a suspending call's
+    lent arguments live until its await; and a local reference never
+    takes its local's cell (`TAKES`) unless its sub-body returns it.
+    A reference to a suspending body's parameter (which lives in no
+    memory between suspension points) is still a copy, which that
+    reference owns and its `Drop` releases.
+    Two counts remain on references. A `&dyn` reference's data address
+    still takes a page-table count, as a trait value does. And a
+    suspending function's frame owns its reference parameters (E.2): its
+    cold constructor takes a page-table count of each one's object, which
+    the frame releases at its end or when it is dropped, so a frame kept
+    past its call (`map_join!`'s workers, a frame stored in an object)
+    still reaches it; only suspending calls that take reference
+    parameters pay it. A map probe's reference takes no count of its
+    table.
 11. Release elision and its type summary; the size and time table.
     Built right after phase 4, in every build: a holder's live range is
     its whole function, and a call loan's runs from its argument to the

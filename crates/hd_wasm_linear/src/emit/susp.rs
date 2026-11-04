@@ -1401,6 +1401,20 @@ pub(super) fn finish(
             em.f.op(store_op(v, at));
         }
     }
+    // The frame's count of each reference parameter's object, in the
+    // temporary its exit or release glue releases.
+    if let Some(r) = em.input.runtime.filter(|_| em.counting) {
+        for (l, held) in em.frame_refs.clone() {
+            let (Some(&x), Some((at, v))) = (em.locals[&l].first(), at_of(held)) else {
+                continue;
+            };
+            em.f.get(x - 1);
+            em.f.call(Sym::Inst(r.retain));
+            em.f.get(fr);
+            em.f.get(x - 1);
+            em.f.op(store_op(v, at));
+        }
+    }
     em.save_initial_drop_flags(plocals, fr, &area);
     if em.counting {
         for d in em

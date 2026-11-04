@@ -2375,6 +2375,15 @@ pub(crate) fn walk_code(
             get(f, *k);
             on(f, Addr::Known);
         }
+        // A plain reference: only a representation view, a payload start.
+        Walk::View(k) => {
+            get(f, *k);
+            f.helper(Helper::RefIsView);
+            f.op(Instruction::If(BlockType::Empty));
+            get(f, *k);
+            on(f, Addr::Known);
+            f.op(Instruction::End);
+        }
         Walk::Glue => {}
         Walk::Seq(ws) => {
             for w in ws {

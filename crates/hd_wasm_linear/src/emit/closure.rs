@@ -386,7 +386,23 @@ impl Em<'_, '_, '_> {
             self.init_cell_drop(at, self.cell_ty(l), live);
             return Ok(at);
         }
-        if let Some(key) = self.static_cells {
+        // A local a top-level binding's initializer takes a local
+        // reference to (its `&e`, `ref.expr.allocate`): the binding may
+        // keep the new object for the whole program, so it is static.
+        let key = self.static_cells.or_else(|| {
+            self.init_key.filter(|_| {
+                (0..self.b.len()).any(|i| {
+                    self.b.tags[i] == Tag::Ref
+                        && self.b.data[i][1] & ref_word::LOCAL != 0
+                        && self
+                            .b
+                            .local_in_place(self.b.data[i][0])
+                            .map(hd_base::LocalId::idx)
+                            == Some(l)
+                })
+            })
+        });
+        if let Some(key) = key {
             let at = self.static_cell(key, l, src)?;
             self.init_cell_drop(at, self.cell_ty(l), live);
             return Ok(at);

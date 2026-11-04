@@ -32,7 +32,7 @@ use hd_types::Ty;
 
 use super::Em;
 use super::value::Src;
-use crate::layout::{Walk, coll_kind, coll_leaves, walk};
+use crate::layout::{Walk, coll_kind, coll_leaves};
 use crate::module::Val;
 use crate::rt::Helper;
 
@@ -458,7 +458,7 @@ impl Em<'_, '_, '_> {
     /// The counted references of a `t` value, when the program counts.
     pub(super) fn counted(&self, t: Ty) -> Option<Walk> {
         self.input.runtime?;
-        walk(self.pool(), self.env(), t)
+        crate::layout::count_walk(self.pool(), self.env(), t)
     }
 
     /// Whether releasing a value has work: reference counts, a
@@ -540,6 +540,20 @@ impl Em<'_, '_, '_> {
                 Some(rest) => w = rest,
                 None => return Ok(()),
             }
+        }
+        // A plain reference counts only a representation view it owns.
+        if let Walk::View(k) = w {
+            self.f.get(ls[k as usize]);
+            self.f.helper(Helper::RefIsView);
+            self.f.op(crate::op::Op::If(wasm_encoder::BlockType::Empty));
+            self.f.get(ls[k as usize]);
+            if retain {
+                self.f.helper(Helper::RetainKnown);
+            } else {
+                self.f.helper(Helper::ReleaseKnown);
+            }
+            self.f.op(crate::op::Op::End);
+            return Ok(());
         }
         if let (Some(k), Some(addr)) = (w.single(), w.addr()) {
             self.f.get(ls[k as usize]);
@@ -742,7 +756,10 @@ impl Em<'_, '_, '_> {
         if !self.needs_drop(t) {
             return Ok(());
         }
-        if self.view_loans.contains_key(&x) {
+        if self.owned_refs.contains(&x) {
+            self.f.get(ls[0]);
+            self.f.helper(Helper::ReleaseKnown);
+        } else if self.view_loans.contains_key(&x) {
             self.release_view_loan(x, &ls)?;
         } else if !self.loans.contains(&x) {
             self.release_drop_place(&ls, t, &Self::value_place(x))?;

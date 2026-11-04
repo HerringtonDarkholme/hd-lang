@@ -408,6 +408,7 @@ type Memo<T> = std::cell::RefCell<Option<hd_base::HashMap<Ty, T>>>;
 thread_local! {
     static MEMS: Memo<StageResult<Mem>> = const { std::cell::RefCell::new(None) };
     static WALKS: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
+    static COUNT_WALKS: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
     static DROPS: Memo<bool> = const { std::cell::RefCell::new(None) };
 }
 
@@ -418,12 +419,14 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
     struct Reset {
         mems: Option<hd_base::HashMap<Ty, StageResult<Mem>>>,
         walks: Option<hd_base::HashMap<Ty, Option<Walk>>>,
+        count_walks: Option<hd_base::HashMap<Ty, Option<Walk>>>,
         drops: Option<hd_base::HashMap<Ty, bool>>,
     }
     impl Drop for Reset {
         fn drop(&mut self) {
             MEMS.set(self.mems.take());
             WALKS.set(self.walks.take());
+            COUNT_WALKS.set(self.count_walks.take());
             DROPS.set(self.drops.take());
         }
     }
@@ -431,10 +434,12 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
     let _reset = Reset {
         mems: MEMS.take(),
         walks: WALKS.take(),
+        count_walks: COUNT_WALKS.take(),
         drops: DROPS.take(),
     };
     MEMS.set(Some(hd_base::HashMap::default()));
     WALKS.set(Some(hd_base::HashMap::default()));
+    COUNT_WALKS.set(Some(hd_base::HashMap::default()));
     DROPS.set(Some(hd_base::HashMap::default()));
     link()
 }
@@ -554,6 +559,11 @@ pub enum Walk {
     /// string's bytes, a local reference, an open value; counting finds its
     /// block through the page table (§23.5).
     Ref(u32),
+    /// Value `k` is a thin local reference (`ref.count.local`): a plain
+    /// address, which counts nothing, unless it is a representation view
+    /// (`rt:ref_is_view`), a payload start that the reference owns; that
+    /// test folds to false in a module that makes no view.
+    View(u32),
     /// Value `k` is null, a static object's, or the payload start of a
     /// counted object, eight bytes after its header: a data value, a boxed
     /// enum's cell, a collection's buffer, a closure's environment, a
@@ -581,6 +591,7 @@ impl Walk {
     pub fn remap(&self, to: &dyn Fn(u32) -> u32) -> Walk {
         match self {
             Walk::Ref(k) => Walk::Ref(to(*k)),
+            Walk::View(k) => Walk::View(to(*k)),
             Walk::Known(k) => Walk::Known(to(*k)),
             Walk::Glue => Walk::Glue,
             Walk::Seq(ws) => Walk::Seq(ws.iter().map(|w| w.remap(to)).collect()),
@@ -600,6 +611,7 @@ impl Walk {
     pub fn without(&self, skip: &[u32]) -> Option<Walk> {
         match self {
             Walk::Ref(k) => (!skip.contains(k)).then_some(Walk::Ref(*k)),
+            Walk::View(k) => (!skip.contains(k)).then_some(Walk::View(*k)),
             Walk::Known(k) => (!skip.contains(k)).then_some(Walk::Known(*k)),
             Walk::Glue => Some(Walk::Glue),
             Walk::Seq(ws) => Walk::seq(ws.iter().filter_map(|w| w.without(skip)).collect()),
@@ -618,7 +630,7 @@ impl Walk {
     #[must_use]
     pub fn single(&self) -> Option<u32> {
         match self {
-            Walk::Ref(k) | Walk::Known(k) => Some(*k),
+            Walk::Ref(k) | Walk::View(k) | Walk::Known(k) => Some(*k),
             Walk::Glue | Walk::Seq(_) | Walk::Switch(..) | Walk::Nullable(_) => None,
         }
     }
@@ -638,7 +650,9 @@ impl Walk {
         match self {
             Walk::Ref(_) => Some(Addr::Ref),
             Walk::Known(_) => Some(Addr::Known),
-            Walk::Glue | Walk::Seq(_) | Walk::Switch(..) | Walk::Nullable(_) => None,
+            Walk::View(_) | Walk::Glue | Walk::Seq(_) | Walk::Switch(..) | Walk::Nullable(_) => {
+                None
+            }
         }
     }
 
@@ -667,7 +681,16 @@ impl Walk {
 /// backend does not lay out has none here; its layout refuses it.
 pub fn walk(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Walk> {
     memoized(&WALKS, pool, env, t, &|u, part| {
-        walk_one(pool, env, u, part)
+        walk_one(pool, env, u, part, false)
+    })
+}
+
+/// [`walk`] as counting sees it: a thin local reference is a
+/// [`Walk::View`], which counts only a representation view, though the
+/// ownership passes track it as a counted value ([`walk`]).
+pub fn count_walk(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Walk> {
+    memoized(&COUNT_WALKS, pool, env, t, &|u, part| {
+        walk_one(pool, env, u, part, true)
     })
 }
 
@@ -677,6 +700,7 @@ fn walk_one(
     env: &dyn ProgramEnv,
     t: Ty,
     part: &dyn Fn(Ty) -> Option<Walk>,
+    views: bool,
 ) -> Option<Walk> {
     let t = strip(pool, env, t);
     if hd_mono::is_open(pool, t) {
@@ -694,6 +718,11 @@ fn walk_one(
         TyData::Adt { def, args } if env.std_kind(def) == StdKind::Other => {
             match kind(pool, env, t) {
                 Kind::Data(_) | Kind::Boxed => Some(Walk::Known(0)),
+                Kind::Ref {
+                    fat: false,
+                    whole: false,
+                    ..
+                } if views => Some(Walk::View(0)),
                 Kind::Ref { fat, whole, .. } => Some(if whole && !fat {
                     Walk::Known(0)
                 } else {
@@ -756,20 +785,20 @@ pub fn pass(pool: &InternPool, env: &dyn ProgramEnv, counts: bool, t: Ty) -> Pas
     if !counts {
         return Pass::Uncounted;
     }
-    let Some(w) = walk(pool, env, t) else {
-        return Pass::Uncounted;
-    };
     if matches!(kind(pool, env, t), Kind::Ref { .. }) {
-        Pass::Borrowed
-    } else {
-        Pass::Owned(w)
+        return if walk(pool, env, t).is_some() {
+            Pass::Borrowed
+        } else {
+            Pass::Uncounted
+        };
     }
+    count_walk(pool, env, t).map_or(Pass::Uncounted, Pass::Owned)
 }
 
 /// The walk of fields laid out in order, as a struct, a tuple or a data
 /// payload lays them out.
 pub fn fields_walk(pool: &InternPool, env: &dyn ProgramEnv, fields: &[Ty]) -> Option<Walk> {
-    fields_walk_by(pool, env, fields, &|f| walk(pool, env, f))
+    fields_walk_by(pool, env, fields, &|f| count_walk(pool, env, f))
 }
 
 /// [`fields_walk`], with each field's own walk read by `part`.
@@ -820,7 +849,7 @@ pub fn env_mem(
             if *shared {
                 Some(Walk::Known(at))
             } else {
-                walk(pool, env, *t).map(|w| w.remap(&|k| at + k))
+                count_walk(pool, env, *t).map(|w| w.remap(&|k| at + k))
             }
         })
         .collect();
@@ -830,7 +859,7 @@ pub fn env_mem(
 /// The walk of an enum of `variants`: by the tag, each variant's fields at
 /// the slots they share.
 pub fn switch_walk(pool: &InternPool, env: &dyn ProgramEnv, variants: &[Vec<Ty>]) -> Option<Walk> {
-    switch_walk_by(pool, env, variants, &|f| walk(pool, env, f))
+    switch_walk_by(pool, env, variants, &|f| count_walk(pool, env, f))
 }
 
 /// [`switch_walk`], with each field's own walk read by `part`.
