@@ -985,6 +985,7 @@ fn first_or[M](facts: Facts, fallback: M) -> M:
 12. r[annot.structure.name.constant] `T::name()` is a compile-time constant. Like every use of `Structure`, it may be called only inside a template.
 13. r[annot.structure.name.newtype] A newtype has its own name: its `name()` is the newtype's declared name, not its base type's.
 14. r[annot.structure.name.alias] A transparent alias has no `Structure` of its own. A derivation through it sees its base type's, so `name()` is the base type's declared name.
+15. r[annot.structure.protocol-move] `Walker`, `Describer`, and `Source` do not require `Copy`. So a walker, describer, or source may hold a `&mut` reference, as a serializer's walker holds its writer.
 
 ```text
 use std.structure.Structure

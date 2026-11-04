@@ -386,7 +386,7 @@ pub trait Deserializer:
 # `serialize` for each included walked member, then `end_variant`
 # (r-std-serde.derive.serialize.data-and-enum-forms).
 impl[T] Serialize for T by Structure:
-    fn serialize[W < Serializer](&self, out: *mut W) -> Result[void, W::Error]:
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         let mut walker = SerializeWalker::[T, W] {
             out: out,
             facts: T::facts(),
@@ -394,12 +394,12 @@ impl[T] Serialize for T by Structure:
         }
         Structure::walk(*self, &mut walker)?
         match walker.form:
-            .Data => out.end_data()
-            _ => out.end_variant()
+            .Data => walker.out.end_data()
+            _ => walker.out.end_variant()
 
 # Union `Serialize`: the ordinary enum derivation over positional cases.
 impl[T < UnionType] Serialize for T by Structure:
-    fn serialize[W < Serializer](&self, out: *mut W) -> Result[void, W::Error]:
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         let mut walker = SerializeWalker::[T, W] {
             out: out,
             facts: T::facts(),
@@ -407,8 +407,8 @@ impl[T < UnionType] Serialize for T by Structure:
         }
         Structure::walk(*self, &mut walker)?
         match walker.form:
-            .Data => out.end_data()
-            _ => out.end_variant()
+            .Data => walker.out.end_data()
+            _ => walker.out.end_variant()
 
 enum VariantForm:
     Data
@@ -430,8 +430,8 @@ fn variant_form(v: &VariantInfo) -> VariantForm:
 
 # The fields are public because the prototype checks the instantiated
 # walker in the deriving module.
-struct SerializeWalker[S, W < Serializer]:
-    pub out: *mut W
+struct SerializeWalker[S, W < Serializer, 'a]:
+    pub out: &'a mut W
     pub facts: Facts
     pub form: VariantForm
 
@@ -440,7 +440,7 @@ struct SerializeWalker[S, W < Serializer]:
 # in `member` covers a `Skip` that only an opaque list or a spread attaches
 # to a named member (r-std-serde.skip.named-unknown-fact).
 @skips::[Skip]()
-impl[S, W < Serializer] Walker[S] for SerializeWalker[S, W]:
+impl['a, S, W < Serializer] Walker[S] for SerializeWalker[S, W, 'a]:
     type Error = W::Error
 
     fn data_variant(&mut self, v: Variant[S]) -> Result[void, W::Error]:
@@ -483,7 +483,7 @@ impl[S, W < Serializer] Walker[S] for SerializeWalker[S, W]:
         if !h.info.facts.items.is_empty() && skipped(h, value):
             return .Ok(())
         self.out.member(&h.info)?
-        value.serialize(self.out)
+        value.serialize(&mut *self.out)
 
     fn member[F < Serialize](&mut self, h: Field[S, F], value: F) -> Result[void, W::Error]:
         # A member with no facts has neither `Skip` nor `SkipNone`.
@@ -492,7 +492,7 @@ impl[S, W < Serializer] Walker[S] for SerializeWalker[S, W]:
         match self.form:
             .Record => self.out.member(&h.info)?
             _ => pass
-        value.serialize(self.out)
+        value.serialize(&mut *self.out)
 
 # Whether a member's facts omit it with `value`: a `Skip`, or a `SkipNone`
 # whose test holds. Out of line, since most members have no facts: each
@@ -510,7 +510,7 @@ fn skipped[S, F < Serialize](h: Field[S, F], value: F) -> bool:
 # `deserialize`, or given its declared default when absent, then
 # its matching end hook (r-std-serde.derive.deserialize.data-and-enum-forms).
 impl[T] Deserialize for T by Structure:
-    fn deserialize[R < Deserializer](input: *mut R) -> Result[T, R::Error]:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[T, R::Error]:
         facts := T::facts()
         if !facts.items.is_empty():
             match enum_tagging(facts):
@@ -524,24 +524,26 @@ impl[T] Deserialize for T by Structure:
                             at: attempt + 1,
                             form: VariantForm.Raw,
                         }
+                        # The source holds `input` while the built value
+                        # lives, so the end hooks go through it.
                         match T::build(&mut source):
                             .Ok(built) =>
                                 let finished = match source.form:
-                                    .Data => input.end_data()
+                                    .Data => source.input.end_data()
                                     .List =>
-                                        if input.next_item()?:
-                                            .Err(input.invalid("tuple variant end"))
+                                        if source.input.next_item()?:
+                                            .Err(source.input.invalid("tuple variant end"))
                                         else:
                                             .Ok(())
                                     .Raw => .Ok(())
-                                    _ => input.end_variant()
+                                    _ => source.input.end_variant()
                                 match finished:
                                     .Ok(_) => return .Ok(built)
                                     .Err(_) => pass
                             .Err(_) => pass
-                        *input = saved
+                        *source.input = saved
                         match source.form:
-                            .Exhausted => return .Err(input.invalid("variant"))
+                            .Exhausted => return .Err(source.input.invalid("variant"))
                             _ => pass
                         attempt += 1
                 _ => pass
@@ -553,13 +555,13 @@ impl[T] Deserialize for T by Structure:
         }
         built := T::build(&mut source)?
         match source.form:
-            .Data => input.end_data()?
-            _ => input.end_variant()?
+            .Data => source.input.end_data()?
+            _ => source.input.end_variant()?
         .Ok(built)
 
 # Union `Deserialize`: the ordinary enum derivation over positional cases.
 impl[T < UnionType] Deserialize for T by Structure:
-    fn deserialize[R < Deserializer](input: *mut R) -> Result[T, R::Error]:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[T, R::Error]:
         facts := T::facts()
         let mut source = DeserializeSource::[T, R] {
             input: input,
@@ -569,8 +571,8 @@ impl[T < UnionType] Deserialize for T by Structure:
         }
         built := T::build(&mut source)?
         match source.form:
-            .Data => input.end_data()?
-            _ => input.end_variant()?
+            .Data => source.input.end_data()?
+            _ => source.input.end_variant()?
         .Ok(built)
 
 @cold
@@ -579,8 +581,8 @@ fn enum_tagging(facts: Facts) -> EnumTagging?:
 
 # The fields are public because the prototype checks the instantiated
 # source in the deriving module.
-struct DeserializeSource[S, R < Deserializer]:
-    pub input: *mut R
+struct DeserializeSource[S, R < Deserializer, 'a]:
+    pub input: &'a mut R
     pub facts: Facts
     pub at: usize
     pub form: VariantForm
@@ -593,7 +595,7 @@ struct DeserializeSource[S, R < Deserializer]:
 # `missing` cover a `Skip` that only an opaque list or a spread attaches to
 # a named member (r-std-serde.skip.named-unknown-fact).
 @skips::[Skip]()
-impl[S, R < Deserializer] Source[S] for DeserializeSource[S, R]:
+impl['a, S, R < Deserializer] Source[S] for DeserializeSource[S, R, 'a]:
     type Error = R::Error
 
     fn data_variant(&mut self, choice: Variant[S]) -> Result[Variant[S], R::Error]:
@@ -674,7 +676,7 @@ impl[S, R < Deserializer] Source[S] for DeserializeSource[S, R]:
             match h.default():
                 .Some(value) => return .Ok(value)
                 .None => pass
-        F::deserialize(self.input)
+        F::deserialize(&mut *self.input)
 
     fn member[F < Deserialize](&mut self, h: Field[S, F], previous: F?) -> Result[F, R::Error]:
         match self.form:
@@ -693,7 +695,7 @@ impl[S, R < Deserializer] Source[S] for DeserializeSource[S, R]:
             match h.default():
                 .Some(value) => return .Ok(value)
                 .None => pass
-        F::deserialize(self.input)
+        F::deserialize(&mut *self.input)
 
     fn missing[F](&mut self, h: Field[S, F]) -> Result[F, R::Error]:
         if h.fact::[Skip]().is_none():
@@ -1250,7 +1252,7 @@ impl[T < Eq & Hash & Deserialize] Deserialize for Set[T]:
 # order. A counting pass over the members' types gives `begin_list` its
 # length before the one walk over the values.
 impl[T < Tuple] Serialize for T by Structure:
-    fn serialize[W < Serializer](&self, out: *mut W) -> Result[void, W::Error]:
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         let mut count = MemberCount { total: 0 }
         _ := T::describe(&mut count)
         out.begin_list(count.total)?
@@ -1273,10 +1275,10 @@ impl[S] Describer[S] for MemberCount:
         self.total = self.total + 1
         .Ok(())
 
-struct TupleWriter[S, W < Serializer]:
-    pub out: *mut W
+struct TupleWriter[S, W < Serializer, 'a]:
+    pub out: &'a mut W
 
-impl[S, W < Serializer] Walker[S] for TupleWriter[S, W]:
+impl['a, S, W < Serializer] Walker[S] for TupleWriter[S, W, 'a]:
     type Error = W::Error
 
     fn variant(&mut self, v: Variant[S]) -> Result[void, W::Error]:
@@ -1284,25 +1286,25 @@ impl[S, W < Serializer] Walker[S] for TupleWriter[S, W]:
 
     # A rest element is one `List[T]` member (annot.walk.rest.default).
     fn member[F < Serialize](&mut self, h: Field[S, F], value: F) -> Result[void, W::Error]:
-        value.serialize(self.out)
+        value.serialize(&mut *self.out)
 
 # Tuple `Deserialize` (r-std-serde.std.tuple): a list with one item per
 # member, in order. A short or a long list is the reader's `invalid`
 # error.
 impl[T < Tuple] Deserialize for T by Structure:
-    fn deserialize[R < Deserializer](input: *mut R) -> Result[T, R::Error]:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[T, R::Error]:
         input.begin_list()?
         let mut source = TupleReader::[T, R] { input: input, at: 0 }
         built := T::build(&mut source)?
-        if input.next_item()?:
-            return .Err(input.invalid("end of the tuple"))
+        if source.input.next_item()?:
+            return .Err(source.input.invalid("end of the tuple"))
         .Ok(built)
 
-struct TupleReader[S, R < Deserializer]:
-    pub input: *mut R
+struct TupleReader[S, R < Deserializer, 'a]:
+    pub input: &'a mut R
     pub at: usize
 
-impl[S, R < Deserializer] Source[S] for TupleReader[S, R]:
+impl['a, S, R < Deserializer] Source[S] for TupleReader[S, R, 'a]:
     type Error = R::Error
 
     fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], R::Error]:
@@ -1318,7 +1320,7 @@ impl[S, R < Deserializer] Source[S] for TupleReader[S, R]:
     fn member[F < Deserialize](&mut self, h: Field[S, F], previous: F?) -> Result[F, R::Error]:
         if !self.input.next_item()?:
             return .Err(self.input.invalid("tuple element"))
-        F::deserialize(self.input)
+        F::deserialize(&mut *self.input)
 
     fn missing[F](&mut self, h: Field[S, F]) -> Result[F, R::Error]:
         panic("std.serde: the source names every member")

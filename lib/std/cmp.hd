@@ -635,14 +635,14 @@ impl[T < DeepEq] DeepEq for *mut T:
 # Derived `DeepEq` (r-std-cmp.deep-equal.derive): the same variant, and
 # every member deeply equal, in declaration order.
 impl[T] DeepEq for T by Structure:
-    fn deep_eq(&self, other: &T, visits: *mut DeepVisits) -> bool:
+    fn deep_eq(&self, other: &T, visits: &mut DeepVisits) -> bool:
         let mut w = DeepEqualWalker::[T] { other: *other, visits: visits }
         match Structure::walk(*self, &mut w):
             .Ok(_) => true
             .Err(_) => false
 
 impl[T < Tuple] DeepEq for T by Structure:
-    fn deep_eq(&self, other: &T, visits: *mut DeepVisits) -> bool:
+    fn deep_eq(&self, other: &T, visits: &mut DeepVisits) -> bool:
         let mut w = DeepEqualWalker::[T] { other: *other, visits: visits }
         match Structure::walk(*self, &mut w):
             .Ok(_) => true
@@ -650,11 +650,11 @@ impl[T < Tuple] DeepEq for T by Structure:
 
 # The fields are public because the prototype checks the instantiated
 # walker in the deriving module. A walk's `.Err` only stops it.
-struct DeepEqualWalker[S]:
+struct DeepEqualWalker[S, 'a]:
     pub other: S
-    pub visits: *mut DeepVisits
+    pub visits: &'a mut DeepVisits
 
-impl[S] Walker[S] for DeepEqualWalker[S]:
+impl['a, S] Walker[S] for DeepEqualWalker[S, 'a]:
     type Error = bool
 
     fn variant(&mut self, v: Variant[S]) -> Result[void, bool]:
@@ -666,6 +666,6 @@ impl[S] Walker[S] for DeepEqualWalker[S]:
         self.member(h, items)
 
     fn member[F < DeepEq](&mut self, h: Field[S, F], value: F) -> Result[void, bool]:
-        if value.deep_eq(&h.get(self.other), self.visits):
+        if value.deep_eq(&h.get(self.other), &mut *self.visits):
             return .Ok(())
         .Err(false)
