@@ -1,0 +1,44 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Suspending Function Types, Driving A Stored Suspension,
+# Suspension Values, Discarding A Suspension, Construction-Time
+# Requirement Binding (spec/lang/11-requirements-and-suspension.md, #1364).
+# expected: `later` builds one frame holding `key` (moved, no retain)
+# and drives it; `blocking` the same through `block_on`; `discard`
+# frees the cold frame and `key` with no poll; `bound` captures the
+# provider at construction (one count, #1355).
+use std.task.{BlockOn, block_on}
+
+trait Tag:
+    fn name(self) -> string
+
+struct Named:
+    label: string
+
+impl Tag for Named:
+    fn name(self) -> string:
+        self.label
+
+fn fetch!(key: string) -> string:
+    key + "?"
+
+fn tagged!() -> usize $ Tag:
+    $.use(Tag).name().len()
+
+fn later!(key: string) -> usize:
+    let mut pending = fetch(key)
+    pending!().len()
+
+fn blocking(key: string) -> usize:
+    match block_on(fetch(key)):
+        .Completed(v) => v.len()
+        _ => 0
+
+fn discard(key: string) -> usize:
+    _ := fetch(key)
+    0
+
+fn bound!(s: string) -> usize:
+    let mut pending: mut Suspend[usize] = $.with(Tag=Named { label: s }):
+        tagged()
+    pending!()
