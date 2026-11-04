@@ -212,15 +212,20 @@ impl Em<'_, '_, '_> {
         Ok((m, self.counted(t)))
     }
 
-    /// The layout of closure `ci`'s environment: a cell's address for a
-    /// shared capture, the value for any other.
+    /// The layout of closure `ci`'s environment, whose captures are
+    /// `caps`: a cell's address for a shared capture, the value for any
+    /// other, and after them the address of the cell of its creator's own
+    /// loans through each pointer of [`Em::own_caps`].
     pub(super) fn env_layout(
         &self,
+        ci: usize,
         caps: &[(usize, bool)],
     ) -> StageResult<(Mem, Vec<Part>, Option<Walk>)> {
+        let own = self.own_caps(ci).into_iter().map(|_| (Ty::I32, true));
         let fields: Vec<(Ty, bool)> = caps
             .iter()
             .map(|(l, shared)| (self.sub(self.b.local_ty[*l]), *shared))
+            .chain(own)
             .collect();
         let (m, parts, walk) = env_mem(self.pool(), self.env(), &fields)?;
         Ok((m, parts, walk.filter(|_| self.input.runtime.is_some())))
@@ -611,7 +616,7 @@ impl Em<'_, '_, '_> {
             self.f.i32(0);
             return self.store_owned(i);
         }
-        let (m, parts, walk) = self.env_layout(&caps)?;
+        let (m, parts, walk) = self.env_layout(i as usize, &caps)?;
         let mut srcs = Vec::new();
         for (l, shared) in &caps {
             let l32 = u32::try_from(*l).expect("locals");
@@ -624,6 +629,13 @@ impl Em<'_, '_, '_> {
             } else {
                 self.local(l32)?
             }));
+        }
+        // The cells of the creator's own loans (`POINTER_LOANS.md` E.2).
+        let mut own_copies = Vec::new();
+        for l in self.own_caps(i as usize) {
+            let (c, copy) = self.own_cell_for(l)?;
+            srcs.push(Src::Locals(vec![c]));
+            own_copies.extend(copy.then_some(c));
         }
         let tys: Vec<Ty> = caps
             .iter()
@@ -646,6 +658,11 @@ impl Em<'_, '_, '_> {
             .collect();
         let colls = self.part_colls(&copied, &parts);
         self.retain_fields(at, &m, walk.as_ref(), &colls);
+        // A copy's one count passes to the environment.
+        for c in own_copies {
+            self.f.get(c);
+            self.release_cell();
+        }
         self.f.get(at);
         self.store_owned(i)
     }
@@ -665,7 +682,7 @@ impl Em<'_, '_, '_> {
         if caps.is_empty() {
             return Ok(());
         }
-        let (m, parts, _) = self.env_layout(&caps)?;
+        let (m, parts, _) = self.env_layout(ci, &caps)?;
         for ((l, shared), p) in caps.iter().zip(&parts) {
             // The environment outlives every call of the code, so a
             // reference to a copy points into it (a suspending code's
@@ -679,6 +696,20 @@ impl Em<'_, '_, '_> {
                 self.f.op(leaf.load(0));
                 self.f.set(*x);
             }
+        }
+        // A suspending closure's frame holds no cell: its own loans start
+        // at none.
+        if env == 0 {
+            let cells: Vec<u32> = (parts[caps.len()..].iter())
+                .map(|p| {
+                    let c = self.f.local(Val::I32);
+                    self.f.get(env);
+                    self.f.op(m.leaves[p.first].load(0));
+                    self.f.set(c);
+                    c
+                })
+                .collect();
+            self.own_cells_load(ci, &cells);
         }
         Ok(())
     }

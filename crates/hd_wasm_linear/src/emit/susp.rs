@@ -1451,7 +1451,7 @@ pub(super) fn finish(
         }
         let caps = super::closure::captures(em.b, ci);
         if !caps.is_empty() {
-            let (m, parts, _) = em.env_layout(&caps)?;
+            let (m, parts, _) = em.env_layout(ci, &caps)?;
             for ((l, _), p) in caps.iter().zip(&parts) {
                 let Some(ls) = em.locals.get(l).cloned() else {
                     continue;
