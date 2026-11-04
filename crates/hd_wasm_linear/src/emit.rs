@@ -1777,7 +1777,10 @@ impl Em<'_, '_, '_> {
         if let Some(&Target::Open(k)) = self.calls.get(&i)
             && self.b.tags[i as usize] != Tag::SwitchTag
         {
-            return self.open_inst(i, k);
+            self.borrow_call_begin(i);
+            self.open_inst(i, k)?;
+            self.borrow_call_end(i);
+            return Ok(());
         }
         self.loan_access(i)?;
         self.borrow_access(i)?;
@@ -1801,7 +1804,9 @@ impl Em<'_, '_, '_> {
         let loans = self.loan_call_begin(i)?;
         self.loan_before_store(i);
         self.borrow_before_store(i);
+        self.borrow_call_begin(i);
         self.inst_tag(i, a, bw)?;
+        self.borrow_call_end(i);
         self.loan_call_end(&loans);
         self.loan_after_store(i)?;
         self.borrow_after_store(i);

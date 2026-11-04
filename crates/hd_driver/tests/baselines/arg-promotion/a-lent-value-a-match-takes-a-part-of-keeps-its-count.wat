@@ -26,8 +26,8 @@
                 call $rt:release_ref
               end
               local.get $t0
-              i32.const 0
-              i32.store $heap
+              i64.const 0
+              i64.store $heap
               local.get $t0
               i32.const 8
               i32.add
@@ -53,8 +53,8 @@
                   call $rt:release_ref
                 end
                 local.get $t0
-                i32.const 0
-                i32.store $heap offset=32
+                i64.const 0
+                i64.store $heap offset=32
                 local.get $t0
                 i32.const 40
                 i32.add
@@ -90,8 +90,8 @@
                     call $rt:release_ref
                   end
                   local.get $t0
-                  i32.const 0
-                  i32.store $heap offset=16
+                  i64.const 0
+                  i64.store $heap offset=16
                   local.get $t0
                   i32.const 24
                   i32.add
@@ -153,8 +153,8 @@
                   call $rt:release_ref
                 end
                 local.get $t0
-                i32.const 0
-                i32.store $heap offset=48
+                i64.const 0
+                i64.store $heap offset=48
                 local.get $t0
                 i32.const 56
                 i32.add
@@ -265,8 +265,8 @@
                 call $rt:release_ref
               end
               local.get $t4
-              i32.const 0
-              i32.store $heap
+              i64.const 0
+              i64.store $heap
               local.get $t4
               i32.const 8
               i32.add
@@ -298,8 +298,8 @@
                   call $rt:release_ref
                 end
                 local.get $t4
-                i32.const 0
-                i32.store $heap offset=32
+                i64.const 0
+                i64.store $heap offset=32
                 local.get $t4
                 i32.const 40
                 i32.add
@@ -351,8 +351,8 @@
                     call $rt:release_ref
                   end
                   local.get $t4
-                  i32.const 0
-                  i32.store $heap offset=16
+                  i64.const 0
+                  i64.store $heap offset=16
                   local.get $t4
                   i32.const 24
                   i32.add
@@ -434,8 +434,8 @@
                   call $rt:release_ref
                 end
                 local.get $t4
-                i32.const 0
-                i32.store $heap offset=48
+                i64.const 0
+                i64.store $heap offset=48
                 local.get $t4
                 i32.const 56
                 i32.add
