@@ -6298,3 +6298,4 @@ runtime/valid/erased-call-matrix-closure-value-mut-unique.hd	runtime	accept	std/
 runtime/valid/erased-call-matrix-closure-value-value-i32.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param
 runtime/valid/erased-call-matrix-closure-value-value-string.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param
 runtime/valid/erased-call-matrix-closure-value-value-unique.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.type
+runtime/valid/frame-slot-header-starts-with-no-borrow-state.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.conflict

@@ -17,8 +17,8 @@
     block
     ;; 9 |     pair := (+3, +4)
       local.get $t0
-      i32.const 0
-      i32.store $heap
+      i64.const 0
+      i64.store $heap
       local.get $t0
       i32.const 8
       i32.add
