@@ -1452,18 +1452,6 @@ impl Em<'_, '_, '_> {
         Ok(x)
     }
 
-    /// The memory address of the one pointer slot at `at`. A slot kept
-    /// only in Wasm locals has no address another counted alias can replace.
-    pub(super) fn at_address(&mut self, at: &At) -> Option<u32> {
-        match at {
-            At::Mem(base, offset) => Some(self.offset_local(*base, *offset)),
-            At::Leaves(base, leaves) if leaves.len() == 1 => {
-                Some(self.offset_local(*base, leaves[0].offset))
-            }
-            At::Vals(_) | At::Globals(..) | At::Leaves(..) => None,
-        }
-    }
-
     /// The leaves of a value of type `ty` at `at` in memory, at their
     /// offsets from its address local; `None` for a value in locals.
     fn at_leaves(&self, at: &At, ty: Ty) -> StageResult<Option<(u32, Vec<Leaf>)>> {

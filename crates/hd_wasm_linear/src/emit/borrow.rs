@@ -163,6 +163,9 @@ pub(super) struct Borrows {
     shared: hd_base::HashSet<usize>,
     /// The inlined copy each instruction came from ([`frames_of`]).
     frames: Vec<u32>,
+    /// The local references that hold only `*T` values
+    /// ([`pointer_locals`]).
+    pointers: hd_base::HashSet<usize>,
     /// The locals a match binds from a part of a call's result, by the
     /// value the match decides on: their loans end with the match, or
     /// when that value is dropped, as such a binding borrows it and has no
@@ -308,6 +311,9 @@ pub(crate) fn global_root(b: &Body, p: &hd_tir::ir::Place) -> Option<(hd_base::D
 /// top-level bindings that are objects ([`Module::objects`]).
 pub(super) struct Roots<'a> {
     pub(super) shared: &'a hd_base::HashSet<usize>,
+    /// The local references that hold only `*T` values ([`pointer_locals`]):
+    /// a place through one crosses the object it points to.
+    pub(super) pointers: &'a hd_base::HashSet<usize>,
     pub(super) objects: &'a hd_base::HashSet<hd_base::Hash128>,
     pub(super) env: &'a dyn ProgramEnv,
 }
@@ -360,6 +366,9 @@ pub(super) fn place_crossings(
     if let Some((_, t)) = roots.of(b, p) {
         out.push((ROOT, sub(t)));
     }
+    if let Some(t) = pointer_root(pool, roots.env, (b, sub), roots.pointers, p) {
+        out.push((0, t));
+    }
     if let Some((_, q)) = root_read(b, p)
         && let Some(qt) = root_ty(b, sub, q.root)
     {
@@ -369,6 +378,74 @@ pub(super) fn place_crossings(
     }
     out.extend(crossings(pool, roots.env, root, &p.proj));
     out
+}
+
+/// The local references of `b` that hold only whole `*T` values: every
+/// store of all of one stores a `*T` read (through a same-value coercion),
+/// as an inlined callee's `&T` parameter bound to a `*T` argument does.
+/// Such a reference is the address of the object, so a place through it
+/// crosses that object.
+pub(super) fn pointer_locals(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    b: &Body,
+    sub: &dyn Fn(Ty) -> Ty,
+) -> hd_base::HashSet<usize> {
+    let thin_local = |t: Ty| {
+        matches!(
+            kind(pool, env, t),
+            Kind::Ref {
+                whole: false,
+                fat: false,
+                ..
+            }
+        )
+    };
+    let whole_ptr = |t: Ty| {
+        matches!(
+            kind(pool, env, t),
+            Kind::Ref {
+                whole: true,
+                fat: false,
+                ..
+            }
+        )
+    };
+    let mut ok: HashMap<usize, bool> = HashMap::default();
+    for i in 0..b.tags.len() {
+        let Some((l, true)) = b.stored_local(i) else {
+            continue;
+        };
+        let l = l.idx();
+        if !thin_local(sub(b.local_ty[l])) {
+            continue;
+        }
+        let pointer = direct_value(b, b.data[i][1]).is_some_and(|v| whole_ptr(sub(b.ty[v])));
+        let e = ok.entry(l).or_insert(true);
+        *e &= pointer;
+    }
+    ok.into_iter().filter(|(_, y)| *y).map(|(l, _)| l).collect()
+}
+
+/// The object a place starting `*$l` crosses when `l` holds only `*T`
+/// values ([`pointer_locals`]): the type the reference refers to.
+fn pointer_root(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    (b, sub): (&Body, &dyn Fn(Ty) -> Ty),
+    pointers: &hd_base::HashSet<usize>,
+    p: &hd_tir::ir::Place,
+) -> Option<Ty> {
+    let PlaceRoot::Local(l) = p.root else {
+        return None;
+    };
+    if p.proj.first() != Some(&Proj::Deref) || !pointers.contains(&l.idx()) {
+        return None;
+    }
+    match kind(pool, env, sub(b.local_ty[l.idx()])) {
+        Kind::Ref { target, .. } => Some(target),
+        _ => None,
+    }
 }
 
 /// The type of a place's root, `sub` giving a type at this instance.
@@ -441,6 +518,7 @@ impl Em<'_, '_, '_> {
         let mut st = Borrows {
             shared: super::closure::shared_locals(self.b),
             frames: frames_of(self.b),
+            pointers: pointer_locals(self.pool(), self.env(), self.b, &sub),
             ..Borrows::default()
         };
         for (i, held, bind, _) in found {
@@ -592,10 +670,45 @@ impl Em<'_, '_, '_> {
         self.borrows = st;
     }
 
+    /// The object a `*T` of type `t` at local `o` refers to: an erased
+    /// body's pointer of an open type may be a representation view, which
+    /// holds its source at offset 0 (`rt:ref_view`).
+    fn view_source(&mut self, o: u32, t: Ty) -> u32 {
+        if !hd_mono::is_open(self.pool(), t) {
+            return o;
+        }
+        let x = self.f.local(Val::I32);
+        self.f.get(o);
+        self.f.helper(Helper::RefIsView);
+        self.f.op(I::If(BlockType::Result(Val::I32.wasm())));
+        self.f.get(o);
+        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+        self.f.op(I::Else);
+        self.f.get(o);
+        self.f.op(I::End);
+        self.f.set(x);
+        x
+    }
+
+    /// Whether a loan may hold an object of type `t`, and an exclusive
+    /// one: an erased body's open type may be any type a loan holds.
+    fn lent_of(&self, t: Ty) -> Option<bool> {
+        if hd_mono::is_open(self.pool(), t) {
+            (!self.m.lent.is_empty()).then(|| self.m.lent.values().any(|&x| x))
+        } else {
+            self.m.lent.get(&t).copied()
+        }
+    }
+
     /// The objects this body's places may start at.
-    fn roots<'s>(&'s self, shared: &'s hd_base::HashSet<usize>) -> Roots<'s> {
+    fn roots<'s>(
+        &'s self,
+        shared: &'s hd_base::HashSet<usize>,
+        pointers: &'s hd_base::HashSet<usize>,
+    ) -> Roots<'s> {
         Roots {
             shared,
+            pointers,
             objects: &self.m.objects,
             env: self.env(),
         }
@@ -606,7 +719,7 @@ impl Em<'_, '_, '_> {
         let Some(p) = self.b.decode_place(self.b.data[v as usize][0]) else {
             return;
         };
-        if let Some((r, _)) = self.roots(&st.shared).of(self.b, &p) {
+        if let Some((r, _)) = self.roots(&st.shared, &st.pointers).of(self.b, &p) {
             let key = (r, Vec::new(), st.frames[v as usize]);
             if !st.keys.iter().any(|(x, _)| *x == key) {
                 st.keys.push((key, None));
@@ -620,16 +733,18 @@ impl Em<'_, '_, '_> {
             return;
         }
         let root = self.at_root_ty(p.root);
+        let pointer_root = matches!(p.root, PlaceRoot::Local(l) if st.pointers.contains(&l.idx()));
         for (k, step) in p.proj.iter().enumerate() {
             let thin = *step == Proj::Deref
-                && matches!(
-                    self.walk_ty(root, &p.proj[..k]).map(|t| self.kind(t)),
-                    Ok(Kind::Ref {
-                        fat: false,
-                        whole: true,
-                        ..
-                    })
-                );
+                && (k == 0 && pointer_root
+                    || matches!(
+                        self.walk_ty(root, &p.proj[..k]).map(|t| self.kind(t)),
+                        Ok(Kind::Ref {
+                            fat: false,
+                            whole: true,
+                            ..
+                        })
+                    ));
             let key = (p.root, p.proj[..k].to_vec(), ANY_FRAME);
             if thin && !st.keys.iter().any(|(x, _)| *x == key) {
                 st.keys.push((key, None));
@@ -701,11 +816,22 @@ impl Em<'_, '_, '_> {
         // that makes it, as no reference reaches a cell before it exists;
         // or a top-level binding's slot.
         let shared = std::mem::take(&mut self.borrows.shared);
-        let root_obj = self.roots(&shared).of(self.b, &p).filter(|(r, _)| match r {
-            PlaceRoot::Local(l) => self.is_cell(l.idx()) && self.cells.get(&l.idx()) != Some(&i),
-            _ => true,
-        });
+        let pointers = std::mem::take(&mut self.borrows.pointers);
+        let root_obj = self
+            .roots(&shared, &pointers)
+            .of(self.b, &p)
+            .filter(|(r, _)| match r {
+                PlaceRoot::Local(l) => {
+                    self.is_cell(l.idx()) && self.cells.get(&l.idx()) != Some(&i)
+                }
+                _ => true,
+            });
+        let ptr_root = {
+            let sub = |t| self.sub(t);
+            pointer_root(self.pool(), self.env(), (self.b, &sub), &pointers, &p)
+        };
         self.borrows.shared = shared;
+        self.borrows.pointers = pointers;
         if let Some((_, t)) = root_obj {
             crossed.push((ROOT, self.sub(t)));
         }
@@ -726,6 +852,9 @@ impl Em<'_, '_, '_> {
                     crossed.push((READ + k, target));
                 }
             }
+        }
+        if let Some(t) = ptr_root {
+            crossed.push((0, t));
         }
         for (k, step) in p.proj.iter().enumerate() {
             if *step != Proj::Deref {
@@ -751,7 +880,7 @@ impl Em<'_, '_, '_> {
         let mut heads = Vec::new();
         for (n, (k, object)) in crossed.into_iter().enumerate() {
             let writes = write && n == last;
-            let mask = match self.m.lent.get(&object) {
+            let mask = match self.lent_of(object) {
                 Some(_) if writes => Some(LOAN_STATE),
                 Some(true) => Some(LOAN_EXCL),
                 _ => None,
@@ -804,6 +933,7 @@ impl Em<'_, '_, '_> {
                     o
                 }
             };
+            let o = self.view_source(o, object);
             let header = self.f.local(Val::I32);
             self.f.get(o);
             self.f.u32(crate::module::HEADER - 4);
@@ -906,9 +1036,16 @@ impl Em<'_, '_, '_> {
         }
         self.f.op(I::If(BlockType::Empty));
         let access = if writes { "written" } else { "read" };
+        let what = if hd_mono::is_open(self.pool(), object) {
+            "an object".to_owned()
+        } else {
+            format!(
+                "a `{}`",
+                hd_mono::printed_type_name(self.pool(), self.env(), object)
+            )
+        };
         self.f.helper(Helper::Panic(format!(
-            "borrow-conflict: a `{}` a live reference borrows was {access} through another `*T`",
-            hd_mono::printed_type_name(self.pool(), self.env(), object)
+            "borrow-conflict: {what} a live reference borrows was {access} through another `*T`"
         )));
         self.f.op(I::End);
     }
@@ -1373,7 +1510,8 @@ impl Em<'_, '_, '_> {
         let Kind::Ref { target, .. } = self.kind(self.ty(i)) else {
             return Ok(());
         };
-        if !self.m.lent.contains_key(&target) {
+        let lent = self.lent_of(target);
+        if lent.is_none() {
             return Ok(());
         }
         let key = matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..))
@@ -1382,6 +1520,7 @@ impl Em<'_, '_, '_> {
         let (at, _) = self.walk_place(i, &p, p.proj.len(), None, &mut fresh)?;
         let o = self.at_i32(&at)?;
         self.release_fresh(&fresh)?;
+        let o = self.view_source(o, target);
         let header = self.f.local(Val::I32);
         self.f.get(o);
         self.f.u32(crate::module::HEADER - 4);
@@ -1395,7 +1534,7 @@ impl Em<'_, '_, '_> {
         if !self.m.kept.contains(&(self.inst, i, u32::MAX)) {
             // No loan: only the access check of the lend, a write for a
             // `&mut`, whose two-phase window nothing can meet.
-            if mutable || self.m.lent.get(&target) == Some(&true) {
+            if mutable || lent == Some(true) {
                 let mask = if mutable { LOAN_STATE } else { LOAN_EXCL };
                 self.borrow_check(header, mask, key, target, mutable);
             }
@@ -1639,6 +1778,17 @@ impl Em<'_, '_, '_> {
     }
 
     /// The locals whose holders hold pointer loans.
+    /// Whether the body takes a pointer loan that its exit may have to
+    /// end: a holder's, or a call's.
+    pub(super) fn borrow_needs_exit(&self) -> bool {
+        let b = &self.borrows;
+        !b.binds.is_empty()
+            || !b.call_refs.is_empty()
+            || !b.call_ptrs.is_empty()
+            || !b.call_closures.is_empty()
+            || !b.carried.is_empty()
+    }
+
     pub(super) fn borrow_locals(&self) -> Vec<usize> {
         let mut out: Vec<usize> = self.borrows.slots.keys().map(|h| h.local).collect();
         out.sort_stable();

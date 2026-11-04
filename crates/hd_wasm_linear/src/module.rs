@@ -412,11 +412,6 @@ pub enum Global {
     /// One value of a top-level binding: its item's path hash and the
     /// value's index in its layout.
     Storage(Hash128, u32, Val),
-    /// The loan table of `ref.excl.alias` (`emit/excl.rs`): its address,
-    /// its capacity and its number of entries, live or ended.
-    LoanTab,
-    LoanCap,
-    LoanTop,
 }
 
 impl Global {
@@ -447,9 +442,6 @@ impl Global {
             | Global::Locals
             | Global::LocalsBase
             | Global::SessionData
-            | Global::LoanTab
-            | Global::LoanCap
-            | Global::LoanTop
             | Global::Binding(_) => Val::I32,
             Global::HashSeed => Val::I64,
             Global::Storage(_, _, v) => *v,
@@ -1045,9 +1037,6 @@ pub struct Module {
     pub drain_glues: Vec<Sym>,
     /// Reachable all! nodes use generation-checked weak waker targets.
     pub wakers: bool,
-    /// The loans the program's bindings may register through counted aliases
-    /// (`ref.excl.alias`); empty, no access checks any.
-    pub loans: Vec<crate::emit::Loan>,
     /// The types whose objects a pointer loan may hold (model A,
     /// `emit/borrow.rs`), true where the loan may be exclusive; empty, no
     /// access through a `*T` checks a borrow state.

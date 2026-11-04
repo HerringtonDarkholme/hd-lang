@@ -777,7 +777,7 @@ impl Em<'_, '_, '_> {
     /// where it is a copy read through a view: the borrow's flag
     /// ([`Em::view_loans`]) says so, and is cleared.
     fn release_owned_local(&mut self, l: usize, ls: &[u32]) -> StageResult<()> {
-        self.loan_release(l, ls);
+        self.borrow_release(l);
         match self.loan_locals.get(&l) {
             None if !self.is_cell(l) => {
                 self.release_drop_place(ls, self.sub(self.b.local_ty[l]), &Self::local_place(l))
@@ -796,7 +796,7 @@ impl Em<'_, '_, '_> {
             return false;
         }
         let b = self.b;
-        !self.holders.is_empty()
+        self.borrow_needs_exit()
             || !self.cells.is_empty()
             || (0..b.local_ty.len()).any(|l| self.needs_drop(self.sub(b.local_ty[l])))
             || (0..b.ty.len()).any(|i| self.needs_drop(self.ty(u32::try_from(i).expect("insts"))))
@@ -857,11 +857,9 @@ impl Em<'_, '_, '_> {
             // the move pass may omit it from `exit_drops`. Its contained
             // run-time loans still end when the value is released here.
             self.borrow_exit();
-            for l in self.loan_holder_locals() {
-                if !released.contains(&l)
-                    && let Some(ls) = self.locals.get(&l).cloned()
-                {
-                    self.loan_release(l, &ls);
+            for l in self.borrow_locals() {
+                if !released.contains(&l) {
+                    self.borrow_release(l);
                 }
             }
             for l in self.unowned_params.clone() {

@@ -44,7 +44,7 @@ pub(crate) use ctx::slot_ctx;
 mod dyn_value;
 mod erased;
 mod excl;
-pub(crate) use excl::{Loan, collect_loans};
+pub(crate) use excl::collect_loans;
 mod iter;
 mod list;
 mod loan;
@@ -168,8 +168,9 @@ fn body_func<'a>(
         em.lends = own.lends;
     }
     em.own_consumers();
-    if erased.is_none() && own.cold.is_none() {
-        em.find_holders();
+    // An erased body takes no loan of its own (elision keeps none there),
+    // but checks what it accesses and lends through a `*T`.
+    if own.cold.is_none() {
         em.find_borrows();
     }
     let mut params = Vec::new();
@@ -1058,22 +1059,10 @@ struct Em<'i, 'a, 'm> {
     /// The locals the passes store a borrow into, with the stored value
     /// ([`Em::prepare_own_loans`]): they hold no count.
     loan_locals: HashMap<usize, u32>,
-    /// The bindings that hold a registered loan (`excl.rs`).
-    holders: HashMap<excl::Held, excl::Holder>,
     /// The pointer loans the body's holders take (`borrow.rs`).
     borrows: borrow::Borrows,
     /// The instance this body emits, which keys its kept pointer loans.
     inst: InstId,
-    /// How each `Store` into a holder binding registers its loan.
-    binds: HashMap<u32, Vec<excl::Binding>>,
-    /// The argument of each call whose result a holder binds, with the
-    /// local its address is kept in once emitted.
-    held_srcs: HashMap<u32, Option<u32>>,
-    /// Each keyed holder's local of its loan's address.
-    loan_keys: HashMap<excl::Held, u32>,
-    /// The `Ref`s whose loans register path-slot markers, in a
-    /// development build (`excl.rs`).
-    marked_refs: hd_base::HashSet<u32>,
     /// Each enum type's layout and payload positions ([`Em::flat`]), and
     /// its variants' payload types ([`Em::variant_tys`]), once per body:
     /// a body over a large enum, such as a derived `eq`, reads them once
@@ -1082,9 +1071,6 @@ struct Em<'i, 'a, 'm> {
         HashMap<Ty, std::rc::Rc<(crate::layout::Mem, crate::layout::Positions)>>,
     >,
     variant_tys: std::cell::RefCell<HashMap<Ty, std::rc::Rc<Vec<Vec<Ty>>>>>,
-    /// Each such `Ref`'s marker slot addresses, kept in locals when it is
-    /// emitted: its place's root may be released before its loan begins.
-    path_marks: HashMap<u32, Vec<u32>>,
     /// What each projection read reads, by its base value's type
     /// ([`Em::projected`]).
     projs: Vec<shape::Projected>,
@@ -1256,16 +1242,10 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             loans: hd_base::HashSet::default(),
             scoped_loans: hd_base::HashSet::default(),
             loan_locals: HashMap::default(),
-            holders: HashMap::default(),
             borrows: borrow::Borrows::default(),
             inst: InstId::from_raw(u32::MAX),
-            binds: HashMap::default(),
-            held_srcs: HashMap::default(),
-            loan_keys: HashMap::default(),
-            marked_refs: hd_base::HashSet::default(),
             flats: std::cell::RefCell::default(),
             variant_tys: std::cell::RefCell::default(),
-            path_marks: HashMap::default(),
             projs: Vec::new(),
             view_loans: HashMap::default(),
             unowned_params: Vec::new(),
@@ -1796,17 +1776,14 @@ impl Em<'_, '_, '_> {
             self.borrow_call_end(i);
             return Ok(());
         }
-        self.loan_access(i)?;
         self.borrow_access(i)?;
         if self.calls.contains_key(&i)
             || matches!(self.b.tags[i as usize], Tag::CallValue | Tag::DefaultCall)
         {
             return self.inst_call(i, a, bw);
         }
-        self.loan_before_store(i);
         self.borrow_before_store(i);
         self.inst_tag(i, a, bw)?;
-        self.loan_after_store(i)?;
         self.borrow_after_store(i);
         Ok(())
     }
@@ -1815,14 +1792,10 @@ impl Em<'_, '_, '_> {
     /// its temporary argument loans out of non-call emitter frames.
     #[inline(never)]
     fn inst_call(&mut self, i: u32, a: u32, bw: u32) -> StageResult<()> {
-        let loans = self.loan_call_begin(i)?;
-        self.loan_before_store(i);
         self.borrow_before_store(i);
         self.borrow_call_begin(i);
         self.inst_tag(i, a, bw)?;
         self.borrow_call_end(i);
-        self.loan_call_end(&loans);
-        self.loan_after_store(i)?;
         self.borrow_after_store(i);
         Ok(())
     }
