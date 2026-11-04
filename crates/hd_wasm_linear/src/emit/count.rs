@@ -118,6 +118,18 @@ impl Em<'_, '_, '_> {
                     let flag = self.f.local(crate::module::Val::I32);
                     self.view_loans.insert(x, flag);
                 }
+                // The last read moves a binding's reference, including
+                // its conditional ownership of a projected view. A move
+                // of a physical loan must not turn it into an owner.
+                Tag::Read
+                    if w == hd_tir::ir::ReadMode::Move as u32
+                        && let Some(l) = self.b.local_read(i)
+                        && let Some(origin) = self.loan_locals.get(&l.idx())
+                        && let Some(&flag) = self.view_loans.get(origin) =>
+                {
+                    self.loans.insert(x);
+                    self.view_loans.insert(x, flag);
+                }
                 // A coercion of a borrow keeps its value, with no count.
                 Tag::Coerce if self.b.is_borrowed_coercion(x) => {
                     self.loans.insert(x);
@@ -133,8 +145,13 @@ impl Em<'_, '_, '_> {
                     self.loans.insert(x);
                     self.view_loans.insert(x, flag);
                 }
-                // A coercion of a borrow stores that borrow.
-                Tag::Store if let Some(w) = self.b.loan_read(w) => {
+                // A borrowed read or lent field reference stores its loan,
+                // including the flag for a view that makes fresh storage.
+                Tag::Store
+                    if let Some(w) = self.b.loan_read(w).or_else(|| {
+                        (self.loans.contains(&w) && self.view_loans.contains_key(&w)).then_some(w)
+                    }) =>
+                {
                     let l = if a & place::BARE_LOCAL != 0 {
                         Some(a & !place::BARE_LOCAL)
                     } else {

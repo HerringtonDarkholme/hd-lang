@@ -145,10 +145,11 @@ impl[T < ?Copy] Buffer[T]:
     # Transfers this raw allocation without moving a field out through a borrow.
     # The collection that owns values in it transfers their ownership separately.
     pub fn take(&mut self) -> Buffer[T]:
-        out := Buffer::[T] { address: self.address, capacity: self.capacity }
+        address := self.address
+        capacity := self.capacity
         self.address = 0
         self.capacity = 0
-        out
+        Buffer::[T] { address: address, capacity: capacity }
 
     ## Whether a reference into the room counts it, as one reached through a `*T` does: then the room's owner must not change how many values it holds.
     ## See [module.rt.buffer.pinned](../../../spec/lang/10-modules.md#r-module.rt.buffer.pinned).

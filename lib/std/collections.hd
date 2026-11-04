@@ -451,7 +451,7 @@ impl TextSink for TextRoom:
 # String builders and JSON writers keep these bytes private: no element
 # reference can pin their room. This internal trait needs no count check.
 impl TextSink for UniqList[u8]:
-    @inline(.Never)
+    @inline(.Always)
     fn append_text(&mut self, text: string) -> void:
         size := bytes_len(text)
         if size == 0:

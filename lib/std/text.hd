@@ -679,7 +679,7 @@ impl StringBuilder:
     ## See [std-text.builder.push-local](../../spec/std/text.md#r-std-text.builder.push-local).
     @inline(.Never)
     pub fn push(&mut self, text: string) -> void:
-        TextSink::append_text(&mut self.bytes, text)
+        self.bytes.append_text(text)
 
     ## Appends the character `c` to the builder.
     ## See [std-text.builder.push-char-local](../../spec/std/text.md#r-std-text.builder.push-char-local).
