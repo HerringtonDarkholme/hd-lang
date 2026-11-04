@@ -1,0 +1,17 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Field Defaults, Data Literals, Field Shorthand (spec/lang/08-data-and-enums.md, #1364).
+# expected: `make` moves `name` in and fills `retries`, `label` and
+# `tags` inline: a static string and the empty list need no call and
+# no count; `shorthand` moves both parameters.
+struct Config:
+    retries: i32 = 3
+    label: string = "default"
+    tags: List[string] = []
+    name: string
+
+fn make(name: string) -> Config:
+    Config { name: name }
+
+fn shorthand(name: string, tags: List[string]) -> Config:
+    Config { name, tags }

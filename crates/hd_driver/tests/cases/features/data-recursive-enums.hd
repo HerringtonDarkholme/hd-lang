@@ -1,0 +1,24 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Generic And Recursive Enums (spec/lang/08-data-and-enums.md, #1364).
+# expected: `size` walks the tree with no count per node; `join`
+# allocates one `Branch` box and moves both subtrees; `some_of`
+# moves `s` into the payload.
+enum Tree:
+    Leaf(name: string)
+    Branch(left: *Tree, right: *Tree)
+
+enum Maybe[T]:
+    Some(value: T)
+    Nothing
+
+fn size(t: *Tree) -> usize:
+    match t:
+        .Leaf(name) => name.len()
+        .Branch(l, r) => size(l) + size(r)
+
+fn join(a: *Tree, b: *Tree) -> *Tree:
+    box(Tree.Branch(a, b))
+
+fn some_of(s: string) -> Maybe[string]:
+    .Some(s)

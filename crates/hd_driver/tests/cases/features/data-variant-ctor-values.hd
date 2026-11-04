@@ -1,0 +1,24 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Variant Constructors As Function Values, Variant Construction (spec/lang/08-data-and-enums.md, #1364).
+# expected: `wrap_all` moves each `FsError` into a `SyncError` with one
+# retain per element (the source list lives on), no closure object, and
+# the constructor inlined; `named` moves `p`.
+enum FsError:
+    NotFound(path: string)
+
+enum SyncError:
+    Fs(error: FsError)
+    Retry(attempt: i32, error: FsError)
+
+fn wrap_all(errors: List[FsError]) -> List[SyncError]:
+    [for e in errors => SyncError.Fs(e)]
+
+fn wrap_with(errors: List[FsError], wrap: fn(FsError) -> SyncError) -> List[SyncError]:
+    [for e in errors => wrap(e)]
+
+fn as_value(errors: List[FsError]) -> List[SyncError]:
+    wrap_with(errors, SyncError.Fs)
+
+fn named(p: string) -> SyncError:
+    SyncError.Retry(error=FsError.NotFound(p), attempt=1)
