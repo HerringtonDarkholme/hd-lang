@@ -330,7 +330,7 @@ pub(crate) fn decide(input: &Input<'_>, m: &mut Module) {
             });
         }
         // A call's result's loans: its whole function (phase 5).
-        for (i, _, bind, _) in binds(pool, env, b, &sub, true) {
+        for (i, held, bind, _) in binds(pool, env, b, &sub, true) {
             let Bind::Call(a) = bind else {
                 continue;
             };
@@ -348,7 +348,8 @@ pub(crate) fn decide(input: &Input<'_>, m: &mut Module) {
             if !b.held_args.contains(&(cu, a)) {
                 continue;
             }
-            let excl = [c, s].iter().any(|&x| ref_mutable(pool, env, sub(b.ty[x])));
+            let excl = [c, s].iter().any(|&x| ref_mutable(pool, env, sub(b.ty[x])))
+                || super::excl::held_mutable(pool, env, b, &sub, held);
             let mut heads: Vec<(u32, Ty)> = Vec::new();
             match b.tags[v] {
                 Tag::Ref => {
@@ -447,7 +448,20 @@ pub(crate) fn decide(input: &Input<'_>, m: &mut Module) {
                             kept.push(((*id, vu, u32::MAX), target, mutable));
                         }
                     }
-                    _ => {}
+                    _ => {
+                        // A `Ref` the argument carries through calls'
+                        // results: its loan runs from it to this call.
+                        for r in super::excl::carried_refs(pool, env, b, &sub, v) {
+                            let mut e = range(*id, r + 1, iu, &[r]);
+                            e.add(&callee);
+                            ref_sites(input, b, &sub, *id, r, &roots, |site, object, excl| {
+                                if program(object, excl, accs[id].get(&r)) && e.meets(object, excl)
+                                {
+                                    kept.push((site, object, excl));
+                                }
+                            });
+                        }
+                    }
                 }
             }
         }

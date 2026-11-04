@@ -1024,9 +1024,15 @@ Each about an hour, with its test; the matrix rows leave
 8. `UniqList`/`UniqMap` through loans; drop #1320's room count. That
    retires `std-collections.uniq-list.pinned`, `.uniq-list.basic-pinned`,
    `.uniq-map.pinned` and `.uniq-map.basic-pinned` with
-   `module.rt.buffer.pinned`; since phase 7 the `uniq-map` pinned
-   fixtures already panic `borrow-conflict`, as a match-bound value
-   reference holds the map's object.
+   `module.rt.buffer.pinned` and the `collection-pinned` panic category;
+   since phase 7 the `uniq-map` pinned fixtures already panic
+   `borrow-conflict`, as a match-bound value reference holds the map's
+   object. A reference an inlined getter returns holds the getter's
+   argument (the call's held rows survive inlining on its `Scope`); a
+   call's result of one reference holds the references its by-value
+   arguments carry, as `get_mut(1).expect("slot")` does; and an argument
+   carried that way lends for the call it is passed to. The room's
+   reference counts stay, as plain bookkeeping, until phase 10.
 9. Roots and cells; the `extra-root-*` and `extra-captured-*` rows.
    The cell part comes before phase 7, so removing the pin leaves no
    reference into a captured variable unchecked: a variable a closure
@@ -1041,7 +1047,8 @@ Each about an hour, with its test; the matrix rows leave
    Wasm global with no check.
 10. Remove the loan table and page-table counts on references, and with
     the element references' counts of their buffers the rest of the pin:
-    `Tag::Pin`, the owner word and the eager copy in `coll_copy`.
+    `Tag::Pin`, the owner word and the eager copy in `coll_copy`; and the
+    counts references take of a `Buffer`'s room.
 11. Release elision and its type summary; the size and time table.
     Built right after phase 4, in every build: a holder's live range is
     its whole function, and a call loan's runs from its argument to the

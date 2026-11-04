@@ -545,7 +545,6 @@ impl[T < ?Copy] UniqList[T]:
     pub fn reserve(&mut self, additional: usize) -> void:
         minimum := collection_capacity_sum(self.len, additional)
         if minimum > self.capacity():
-            self.unpinned()
             self.buffer.grow(minimum)
 
     ## Moves every item from `other` onto the end, in iteration order.
@@ -575,7 +574,6 @@ impl[T < ?Copy] UniqList[T]:
         count := self.len - at
         let mut out = UniqList::[T].with_capacity(count)
         if count > 0:
-            self.unpinned()
             copy(out.buffer.at(0).address, self.buffer.at(at).address, count * size_of::[T]())
             self.len = at
             out.len = count
@@ -586,8 +584,6 @@ impl[T < ?Copy] UniqList[T]:
     pub fn append(&mut self, other: &mut UniqList[T]) -> void:
         if other.len == 0:
             return
-        self.unpinned()
-        other.unpinned()
         self.reserve(other.len)
         copy(
             self.buffer.at(self.len).address,
@@ -607,7 +603,6 @@ impl[T < ?Copy] UniqList[T]:
             end += 1
         if range.start > end || end > self.len:
             panic_with("index-out-of-bounds", "uniq list drain range out of bounds")
-        self.unpinned()
         tail := self.len - end
         self.len = range.start
         UniqListDrain { items: .Some(self), at: range.start, end: end, tail: tail }
@@ -682,16 +677,6 @@ impl[T < ?Copy] UniqList[T]:
             index += 1
         true
 
-    # Panics while a reference into the room counts it, as one reached
-    # through a `*T` does: a change of the length would move or drop the
-    # element it refers to.
-    fn unpinned(&self) -> void:
-        if self.buffer.pinned():
-            panic_with(
-                "collection-pinned",
-                "a uniq list changes its length while an element reference pins it",
-            )
-
     # Moves every element into a larger room.
     fn reserve_for(&mut self, minimum: usize) -> void:
         current := self.buffer.capacity()
@@ -705,7 +690,6 @@ impl[T < ?Copy] UniqList[T]:
     ## Moves `value` onto the end of the list.
     ## See [std-collections.uniq-list.push](../../spec/std/collections.md#r-std-collections.uniq-list.push).
     pub fn push(&mut self, value: T) -> void:
-        self.unpinned()
         size := self.len()
         if self.buffer.capacity() <= size:
             self.reserve_for(size + 1)
@@ -718,7 +702,6 @@ impl[T < ?Copy] UniqList[T]:
         size := self.len()
         if size == 0:
             return .None
-        self.unpinned()
         value := self.buffer.at(size - 1).read()
         self.len = size - 1
         .Some(value)
@@ -732,7 +715,6 @@ impl[T < ?Copy] UniqList[T]:
                 "index-out-of-bounds",
                 "uniq list insert index ${index} out of bounds for length ${size}",
             )
-        self.unpinned()
         if self.buffer.capacity() <= size:
             self.reserve_for(size + 1)
         if index < size:
@@ -753,7 +735,6 @@ impl[T < ?Copy] UniqList[T]:
                 "index-out-of-bounds",
                 "uniq list remove_at index ${index} out of bounds for length ${size}",
             )
-        self.unpinned()
         removed := self.buffer.at(index).read()
         if index + 1 < size:
             copy(
@@ -783,8 +764,6 @@ impl[T < ?Copy] UniqList[T]:
     ## Drops every element at `len` and after; a larger `len` has no effect.
     ## See [std-collections.uniq-list.truncate](../../spec/std/collections.md#r-std-collections.uniq-list.truncate).
     pub fn truncate(&mut self, len: usize) -> void:
-        if self.len() > len:
-            self.unpinned()
         while self.len() > len:
             index := self.len() - 1
             _ := self.buffer.at(index).read()
@@ -798,7 +777,6 @@ impl[T < ?Copy] UniqList[T]:
     ## Keeps the elements for which `keep` is true, in order, and drops the rest.
     ## See [std-collections.uniq-list.retain](../../spec/std/collections.md#r-std-collections.uniq-list.retain).
     pub fn retain(&mut self, keep: fn(&T) -> bool) -> void:
-        self.unpinned()
         size := self.len()
         let kept: usize = 0
         let index: usize = 0
@@ -874,7 +852,6 @@ impl[T < ?Copy & Eq] UniqList[T]:
     pub fn dedup(&mut self) -> void:
         if self.len < 2:
             return
-        self.unpinned()
         let kept: usize = 1
         let index: usize = 1
         while index < self.len:
@@ -1038,22 +1015,12 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
         minimum := collection_capacity_sum(self.size, additional)
         if additional <= self.entry_capacity - self.used:
             return
-        if self.slots.pinned():
-            panic_with(
-                "collection-pinned",
-                "a uniq map reserves room while a value reference pins it",
-            )
         capacity := if minimum > self.entry_capacity: minimum else: self.entry_capacity
         self.rehash(UniqMap::[K, V].with_capacity(capacity))
 
     ## Keeps the entries accepted by `keep`, which may change their values in place.
     ## See [std-collections.uniq-map.retain](../../spec/std/collections.md#r-std-collections.uniq-map.retain).
     pub fn retain(&mut self, keep: fn(&K, &mut V) -> bool) -> void:
-        if self.size > 0 && self.slots.pinned():
-            panic_with(
-                "collection-pinned",
-                "a uniq map retains entries while a value reference pins it",
-            )
         let index: usize = 0
         while index < self.used:
             place := self.slots.at(index)
@@ -1078,11 +1045,6 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
     ## Borrows the map and moves every entry out, retaining its allocation.
     ## See [std-collections.uniq-map.drain](../../spec/std/collections.md#r-std-collections.uniq-map.drain).
     pub fn drain['a](&'a mut self) -> UniqMapDrain[K, V, 'a]:
-        if self.size > 0 && self.slots.pinned():
-            panic_with(
-                "collection-pinned",
-                "a uniq map drains entries while a value reference pins it",
-            )
         end := self.used
         self.size = 0
         self.used = 0
@@ -1137,11 +1099,6 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
     ## Moves `value` into the entry for `key`; returns the replaced value, or `.None` for a new key.
     ## See [std-collections.uniq-map.insert](../../spec/std/collections.md#r-std-collections.uniq-map.insert).
     pub fn insert(&mut self, key: K, value: V) -> V?:
-        if self.slots.pinned() && self.find_index(key).is_none():
-            panic_with(
-                "collection-pinned",
-                "a uniq map inserts a key while a value reference pins it",
-            )
         if self.used == self.entry_capacity:
             self.grow()
         capacity := self.entry_capacity * 2
@@ -1213,11 +1170,6 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
         match self.find_index(key):
             .None => .None
             .Some(index) =>
-                if self.slots.pinned():
-                    panic_with(
-                        "collection-pinned",
-                        "a uniq map removes a key while a value reference pins it",
-                    )
                 place := self.slots.at(index)
                 match place.read():
                     .Occupied(_, _, value) =>
@@ -1229,11 +1181,6 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
     ## Removes every entry and drops every value.
     ## See [std-collections.uniq-map.clear](../../spec/std/collections.md#r-std-collections.uniq-map.clear).
     pub fn clear(&mut self) -> void:
-        if self.size > 0 && self.slots.pinned():
-            panic_with(
-                "collection-pinned",
-                "a uniq map clears its entries while a value reference pins it",
-            )
         capacity := self.entry_capacity
         *self = UniqMap::[K, V].allocate(capacity)
 

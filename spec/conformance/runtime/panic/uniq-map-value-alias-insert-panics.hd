@@ -1,5 +1,5 @@
 # test: inserting a new key through a box alias while a value reference into the unique map behind it is live panics borrow-conflict, as the reference holds the map's object
-# std Collections: std-collections.uniq-map.pinned.
+# std Collections: std-collections.uniq-map.type; Spec 13 Conflicts Through Aliases: ref.excl.alias.loan.
 use std.collections.UniqMap
 
 struct Stock:

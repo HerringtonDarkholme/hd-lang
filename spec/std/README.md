@@ -74,7 +74,7 @@ a `char`, or a list.
 | `f32_to_bits`, `f32_from_bits` | `(value: f32) -> u32`, `(bits: u32) -> f32` | the same bit cast for `f32` |
 | `list_truncate` | `[T](items: &mut List[T], len: usize) -> void` | shortens the list `items` refers to, to its first `len` elements, the one hook under `List.pop`, `insert`, `remove_at` and `clear`; panics when `len` is greater than the size. Panic: `index-out-of-bounds` |
 | `list_extend` | `[T](items: &mut List[T], other: List[T]) -> void` | appends `other`'s elements to the list `items` refers to with one capacity check and one copy of all of them, where `push` in a loop checks and may grow once per element; `List.extend` is this call. `other` may be the list itself |
-| `list_reserve` | `[T](items: &mut List[T], count: usize) -> void` | makes room in the list `items` refers to for at least `count` more elements with at most one new buffer, where pushing and truncating elements would grow it once per doubling; `count` 0 does nothing. `list_extend` and `List.reserve` reuse it. Panic: `collection-pinned` when `count` is above 0 and the list is pinned |
+| `list_reserve` | `[T](items: &mut List[T], count: usize) -> void` | makes room in the list `items` refers to for at least `count` more elements with at most one new buffer, where pushing and truncating elements would grow it once per doubling; `count` 0 does nothing. `list_extend` and `List.reserve` reuse it. |
 
 **Scans.** These search the bytes of a string or a byte list. Each has an hd reference body
 that defines its result, and an implementation may supply a faster body
