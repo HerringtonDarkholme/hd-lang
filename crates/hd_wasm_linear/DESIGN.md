@@ -1256,6 +1256,10 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   loans' locals, so a loan held across a suspension stays held while the
   task waits; an abandoned task ends its loans as it unwinds, and the
   release glue of a frame dropped while it waits ends those still held.
+  No hd program reaches that glue today: every driver in std cancels a
+  started child before it drops it (`req.discard.started`), and the
+  cancel unwinds. It serves a host that drops a started suspension
+  (`req.discard.dropped`); the collector's trace skips it (`marking()`).
   **Elision** (`emit/elide.rs`, in every build): each instance's
   accesses through a `*T`, by object type, with its callees', make a
   summary; a call of a function or trait value, an erased body's open
