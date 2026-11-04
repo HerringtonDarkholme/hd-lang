@@ -55,10 +55,6 @@ runtime/panic/pointer-loan-loop-ref-ulist-grow-panics.hd	#1336		not built: today
 runtime/panic/pointer-loan-loop-ref-ulist-replace-panics.hd	#1336		unsound today: the reference reads a freed block, which the checked build reports; the proposal panics borrow-conflict
 runtime/panic/pointer-loan-loop-ref-umap-grow-panics.hd	#1336		not built: today the length change panics collection-pinned; the proposal panics borrow-conflict
 runtime/panic/pointer-loan-loop-ref-umap-replace-panics.hd	#1336		unsound today: the reference reads a freed block, which the checked build reports; the proposal panics borrow-conflict
-runtime/panic/pointer-loan-ret-mut-list-read-panics.hd	#1336		not built: today the alias access runs with no loan on this path; the proposal panics borrow-conflict
-runtime/panic/pointer-loan-ret-mut-ptr2-read-panics.hd	#1336		not built: today the alias access runs with no loan on this path; the proposal panics borrow-conflict
-runtime/panic/pointer-loan-ret-mut-ptr2-write-panics.hd	#1336		not built: today the alias access runs with no loan on this path; the proposal panics borrow-conflict
-runtime/panic/pointer-loan-ret-ref-ptr2-write-panics.hd	#1336		not built: today the alias access runs with no loan on this path; the proposal panics borrow-conflict
 runtime/panic/pointer-loan-stmt-mut-ulist-elem-panics.hd	#1336		not built: today the alias access runs with no loan on this path; the proposal panics borrow-conflict
 runtime/panic/pointer-loan-stmt-mut-ulist-grow-panics.hd	#1336		not built: today the length change panics collection-pinned; the proposal panics borrow-conflict
 runtime/panic/pointer-loan-stmt-mut-ulist-mut-panics.hd	#1336		not built: today the alias access runs with no loan on this path; the proposal panics borrow-conflict

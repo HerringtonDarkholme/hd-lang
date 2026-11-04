@@ -444,6 +444,42 @@ fn value_binds_at(
     if c >= b.tags.len() {
         return Vec::new();
     }
+    // A block's or scope's value is its tail's or a `break`'s to it,
+    // as an inlined getter leaves its result (`borrow.rs`).
+    if every_ref && matches!(b.tags[c], Tag::Block | Tag::Scope) {
+        let mut targets = vec![u32::try_from(c).expect("insts")];
+        let mut values = Vec::new();
+        let tail = |blk: usize, values: &mut Vec<u32>| {
+            if b.tags.get(blk) == Some(&Tag::Block) && b.data[blk][1] != hd_tir::ir::NONE {
+                values.push(b.data[blk][1]);
+            }
+        };
+        tail(c, &mut values);
+        if b.tags[c] == Tag::Scope {
+            let inner = b.data[c][0];
+            targets.push(inner);
+            tail(inner as usize, &mut values);
+        }
+        for j in 0..b.tags.len() {
+            if b.tags[j] == Tag::Break
+                && b.data[j][1] != hd_tir::ir::NONE
+                && b.label_inst
+                    .get(b.data[j][0] as usize)
+                    .is_some_and(|l| targets.contains(l))
+            {
+                values.push(b.data[j][1]);
+            }
+        }
+        let mut out = Vec::new();
+        for v in values {
+            for x in value_binds_at(pool, env, b, sub, known, v as usize, depth + 1, every_ref) {
+                if !out.contains(&x) {
+                    out.push(x);
+                }
+            }
+        }
+        return out;
+    }
     if let Some(&(_, a)) = b.held_args.iter().find(|r| r.0 as usize == c)
         && let Some(loan) = arg_loan(pool, env, b, sub, a)
     {

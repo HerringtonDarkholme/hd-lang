@@ -1283,7 +1283,7 @@ ${tail}`,
   {
     name: "pointer-lent-as-mut-argument-panics",
     panic: true,
-    what: "a pointer passed where \`&mut\` is expected lends its whole object from its evaluation, so a later argument that writes through an alias panics",
+    what: "a pointer passed where `&mut` is expected lends its whole object from its evaluation, so a later argument that writes through an alias panics",
     source: `struct Cell:
     value: string
     other: string

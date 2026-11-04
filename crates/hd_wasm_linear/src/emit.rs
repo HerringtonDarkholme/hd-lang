@@ -950,7 +950,7 @@ pub(crate) fn callee_params(
 
 /// The parameter locals of the body's own function, in order: those
 /// flagged as parameters that belong to no closure.
-fn param_locals(b: &Body) -> Vec<usize> {
+pub(super) fn param_locals(b: &Body) -> Vec<usize> {
     let mut in_sub = vec![false; b.local_ty.len()];
     for r in &b.sub_params[1..] {
         for &l in &b.extra[r.start as usize + 1..(r.start + 1 + r.len) as usize] {

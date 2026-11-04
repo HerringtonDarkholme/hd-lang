@@ -1247,7 +1247,12 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   object). A `&mut self` receiver's loan is shared until the call begins,
   when a check that only the function's own loans hold its object makes
   it exclusive; a closure argument takes over the loans of the holders it
-  captures for the call. Suspending bodies take no loan yet.
+  captures for the call. A holder of a call's result that holds an
+  argument takes, at the store, loans on the objects the argument crossed
+  and, where the callee's reference reaches one more object, on the object
+  the page table finds for the result (`block_of`); a reference reborrowed
+  through a holder local, as an inlined getter's result is through its
+  `self`, takes that holder's loans. Suspending bodies take no loan yet.
   **Elision** (`emit/elide.rs`, in every build): each instance's
   accesses through a `*T`, by object type, with its callees', make a
   summary; a call of a function or trait value, an erased body's open

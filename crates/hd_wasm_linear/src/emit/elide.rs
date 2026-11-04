@@ -266,10 +266,10 @@ pub(crate) fn decide(input: &Input<'_>, m: &mut Module) {
         }
     }
     // The effects of the instructions of a range, the loan's own aside.
-    let range = |id: InstId, from: u32, to: u32, own: u32| -> Eff {
+    let range = |id: InstId, from: u32, to: u32, own: &[u32]| -> Eff {
         let mut e = Eff::default();
         for (&j, acc) in &accs[&id] {
-            if j == own || j < from || j >= to {
+            if own.contains(&j) || j < from || j >= to {
                 continue;
             }
             e.w.extend(acc.w.iter().copied());
@@ -309,12 +309,83 @@ pub(crate) fn decide(input: &Input<'_>, m: &mut Module) {
                 continue;
             };
             let vu = u32::try_from(v).expect("insts");
-            let e = range(*id, 0, n, vu);
+            let e = range(*id, 0, n, &[vu]);
             ref_sites(input, b, &sub, *id, vu, |site, object, excl| {
                 if program(object, excl, accs[id].get(&vu)) && e.meets(object, excl) {
                     kept.push((site, object, excl));
                 }
             });
+        }
+        // A call's result's loans: its whole function (phase 5).
+        for (i, _, bind, _) in binds(pool, env, b, &sub, true) {
+            let Bind::Call(a) = bind else {
+                continue;
+            };
+            let iu = u32::try_from(i).expect("insts");
+            let (Some(c), Some(v)) = (direct_value(b, b.data[i][1]), direct_value(b, a)) else {
+                continue;
+            };
+            let (cu, vu) = (
+                u32::try_from(c).expect("insts"),
+                u32::try_from(v).expect("insts"),
+            );
+            if !b.held_args.contains(&(cu, a)) {
+                continue;
+            }
+            let excl = ref_mutable(pool, env, sub(b.ty[c]));
+            let mut heads: Vec<(u32, Ty)> = Vec::new();
+            match b.tags[v] {
+                Tag::Ref => {
+                    let Some(p) = b.decode_place(b.data[v][0]) else {
+                        continue;
+                    };
+                    let Some(root) = root_ty(b, &sub, p.root) else {
+                        continue;
+                    };
+                    for (k, t) in crossings(pool, env, root, &p.proj) {
+                        heads.push((u32::try_from(k).expect("steps"), t));
+                    }
+                }
+                Tag::Read => {
+                    if let Kind::Ref {
+                        target,
+                        whole: true,
+                        fat: false,
+                    } = kind(pool, env, sub(b.ty[v]))
+                    {
+                        heads.push((u32::MAX, target));
+                    }
+                }
+                _ => {}
+            }
+            if heads.is_empty() {
+                continue;
+            }
+            let k_arg = call_args(b, c).iter().position(|&x| x == a);
+            let inner = match (k_arg, accs[id].get(&cu).map(|x| &x.callees[..])) {
+                (Some(k), Some([callee])) => returned_inner(input, *callee, k),
+                _ => Vec::new(),
+            };
+            // The call and its argument make the loan; neither is in its range.
+            let e = range(*id, 0, n, &[vu, cu]);
+            let last = heads.len() - 1;
+            for (j, (k, t)) in heads.iter().enumerate() {
+                let x = excl && inner.is_empty() && j == last;
+                if program(*t, x, accs[id].get(&vu)) && e.meets(*t, x) {
+                    kept.push(((*id, iu, *k), *t, x));
+                }
+            }
+            if !inner.is_empty() {
+                m.result_inner.insert((*id, iu));
+                if inner
+                    .iter()
+                    .any(|t| program(*t, excl, None) && e.meets(*t, excl))
+                {
+                    for t in &inner {
+                        kept.push(((*id, iu, u32::MAX - 1), *t, excl));
+                    }
+                }
+            }
         }
         // Call loans: from the argument to the call, and the callee.
         for i in 0..b.tags.len() {
@@ -339,7 +410,7 @@ pub(crate) fn decide(input: &Input<'_>, m: &mut Module) {
                     continue;
                 };
                 let vu = u32::try_from(v).expect("insts");
-                let mut e = range(*id, vu + 1, iu, vu);
+                let mut e = range(*id, vu + 1, iu, &[vu]);
                 e.add(&callee);
                 match b.tags[v] {
                     Tag::Ref => ref_sites(input, b, &sub, *id, vu, |site, object, excl| {
@@ -396,4 +467,52 @@ fn ref_sites(
             excl && n == last,
         );
     }
+}
+
+/// The types of the objects a reference that instance `callee` returns
+/// from its parameter `k` may point into, past the argument's own object:
+/// the last `*T` each `Ref` rooted at that parameter crosses after it.
+fn returned_inner(input: &Input<'_>, callee: InstId, k: usize) -> Vec<Ty> {
+    let (pool, env) = (input.pool, input.env);
+    let t = &input.collected.table;
+    let Some(b) = (input.body)(callee) else {
+        return Vec::new();
+    };
+    let Some(&l) = super::param_locals(b).get(k) else {
+        return Vec::new();
+    };
+    let (item, args) = (t.item[callee.idx()], t.args[callee.idx()]);
+    let sub = |ty| subst(pool, env, item, args, ty);
+    let param = sub(b.local_ty[l]);
+    let counted = matches!(
+        kind(pool, env, param),
+        Kind::Ref {
+            whole: true,
+            fat: false,
+            ..
+        }
+    );
+    let mut out = Vec::new();
+    for i in 0..b.tags.len() {
+        if b.tags[i] != Tag::Ref {
+            continue;
+        }
+        let Some(p) = b.decode_place(b.data[i][0]) else {
+            continue;
+        };
+        if !matches!(p.root, PlaceRoot::Local(x) if x.idx() == l) {
+            continue;
+        }
+        let inner: Vec<Ty> = crossings(pool, env, param, &p.proj)
+            .into_iter()
+            .filter(|&(j, _)| !(counted && j == 0))
+            .map(|x| x.1)
+            .collect();
+        if let Some(&last) = inner.last()
+            && !out.contains(&last)
+        {
+            out.push(last);
+        }
+    }
+    out
 }

@@ -34,8 +34,10 @@
 //! callee's parameter takes as a `&T` or `&mut T`, on its whole object. A
 //! `&mut self` receiver is shared until the call begins, when it becomes
 //! exclusive (two-phase). A closure argument takes over the loans of the
-//! holders it captures until the call returns. Returned references and
-//! suspending bodies take no loan yet (phases 5 and 6).
+//! holders it captures until the call returns. A holder of a call's
+//! result takes loans on the argument's objects and on the object the
+//! result points into; a reborrow through a holder takes its loans.
+//! Suspending bodies take no loan yet (phase 6).
 
 use hd_base::{HashMap, SliceSort as _, StageResult};
 use hd_mono::{ProgramEnv, Target};
@@ -92,6 +94,19 @@ pub(super) struct Borrows {
     call_loans: HashMap<u32, Vec<CallLoan>>,
     /// Every call loan taken, for the function's exit.
     all_calls: Vec<CallLoan>,
+    /// The arguments whose call's result a holder binds: their crossed
+    /// objects' header addresses are kept at their evaluation.
+    call_holds: hd_base::HashSet<u32>,
+    /// Those header addresses, once emitted: the local, the pointer's key
+    /// and the dereference index (`u32::MAX` for a whole `*T`).
+    arg_heads: HashMap<u32, Vec<(u32, Option<usize>, u32)>>,
+    /// The `Ref`s that reborrow through a holder local, as an inlined
+    /// getter's result does through its `self`: the holder's local.
+    reborrows: HashMap<u32, usize>,
+    /// Their source's loans, once emitted, by the source's slot: the
+    /// header's and key's copies, and the source's delta when the loan was
+    /// exclusive and so passed over rather than shared.
+    reborrowed: HashMap<u32, Vec<(u32, u32, Option<u32>)>>,
 }
 
 /// One loan a call holds from its argument's evaluation to its return.
@@ -282,7 +297,29 @@ impl Em<'_, '_, '_> {
                     };
                     st.excl.insert(held, x);
                 }
-                Bind::Call(_) => continue,
+                Bind::Call(a) => {
+                    // A direct holder of a call's result that holds
+                    // argument `a`: the result's loans (phase 5).
+                    let stored = self.b.data[i][1];
+                    let (Some(c), Some(v)) =
+                        (direct_value(self.b, stored), direct_value(self.b, a))
+                    else {
+                        continue;
+                    };
+                    let (c, v) = (
+                        u32::try_from(c).expect("insts"),
+                        u32::try_from(v).expect("insts"),
+                    );
+                    if !self.b.held_args.contains(&(c, a)) {
+                        continue;
+                    }
+                    if self.b.tags[v as usize] == Tag::Ref {
+                        self.intern_ref_keys(&mut st, v);
+                    }
+                    st.call_holds.insert(v);
+                    st.excl
+                        .insert(held, ref_mutable(self.pool(), self.env(), self.ty(c)));
+                }
             }
             let i = u32::try_from(i).expect("insts");
             st.binds.entry(i).or_default().push((held, bind));
@@ -329,6 +366,17 @@ impl Em<'_, '_, '_> {
                     }
                     _ => {}
                 }
+            }
+        }
+        for &v in st.refs.keys() {
+            let Some(p) = self.b.decode_place(self.b.data[v as usize][0]) else {
+                continue;
+            };
+            if let PlaceRoot::Local(l) = p.root
+                && p.proj.first() == Some(&Proj::Deref)
+                && st.excl.keys().any(|h| h.local == l.idx())
+            {
+                st.reborrows.insert(v, l.idx());
             }
         }
         st.loans = st.keys.len();
@@ -416,7 +464,8 @@ impl Em<'_, '_, '_> {
             return Ok(());
         }
         let call = self.borrows.call_refs.get(&i).copied();
-        let lends = self.borrows.refs.contains_key(&i) || call.is_some();
+        let holds = self.borrows.call_holds.contains(&i);
+        let lends = self.borrows.refs.contains_key(&i) || call.is_some() || holds;
         // Each dereference of a `*T`, with the type of the object it reaches.
         let root = self.at_root_ty(p.root);
         let mut crossed = Vec::new();
@@ -441,6 +490,7 @@ impl Em<'_, '_, '_> {
         });
         let write = write && !(call.is_some_and(|(_, two_phase)| two_phase) && last_kept);
         let mut taken = Vec::new();
+        let mut heads = Vec::new();
         for (n, (k, object)) in crossed.into_iter().enumerate() {
             let writes = write && n == last;
             let mask = match self.m.lent.get(&object) {
@@ -452,7 +502,7 @@ impl Em<'_, '_, '_> {
                 lends && (self.m.kept).contains(&(self.inst, i, u32::try_from(k).expect("steps")));
             let key = matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..))
                 .then(|| self.borrow_key((p.root, p.proj[..k].to_vec())));
-            if mask.is_none() && !keep {
+            if mask.is_none() && !keep && !holds {
                 if lends {
                     taken.push((u32::MAX, key, false));
                 }
@@ -471,6 +521,13 @@ impl Em<'_, '_, '_> {
                 self.borrow_check(header, mask, key, object, writes);
             }
             taken.push((header, key, keep));
+            heads.push((header, key, u32::try_from(k).expect("steps")));
+        }
+        if let Some(&l) = self.borrows.reborrows.get(&i) {
+            self.borrow_reborrow(i, l);
+        }
+        if holds && self.b.tags[i as usize] == Tag::Ref {
+            self.borrows.arg_heads.insert(i, heads);
         }
         if let Some((call, two_phase)) = call {
             let n = taken.len();
@@ -596,9 +653,15 @@ impl Em<'_, '_, '_> {
                         continue;
                     };
                     let v = u32::try_from(v).expect("insts");
+                    let source = self.borrows.reborrowed.remove(&v);
                     let Some(taken) = self.borrows.refs.get_mut(&v).map(std::mem::take) else {
                         continue;
                     };
+                    // The objects the reborrowed holder's place crosses come
+                    // first on the path, so after this `Ref`'s own.
+                    if let Some(source) = source {
+                        self.borrow_from_reborrow(held, &source, taken.len());
+                    }
                     for (s, (header, key, keep)) in taken.into_iter().rev().enumerate() {
                         if !keep {
                             continue;
@@ -627,20 +690,196 @@ impl Em<'_, '_, '_> {
                         self.f.set(h);
                         self.f.get(fk);
                         self.f.set(kl);
-                        if matches!(bind, Bind::Move(_)) {
+                        let delta = self.borrow_delta(held, s);
+                        // An exclusive loan cannot be shared: a reborrow of
+                        // one passes it over, as a move does.
+                        if matches!(bind, Bind::Move(_)) || delta == LOAN_EXCL {
                             self.f.zero(fh);
                             continue;
                         }
-                        let delta = self.borrow_delta(held, s);
                         self.f.get(h);
                         self.f.op(I::If(BlockType::Empty));
                         self.borrow_add(h, kl, delta, 1);
                         self.f.op(I::End);
                     }
                 }
-                Bind::Call(_) => {}
+                Bind::Call(a) => self.borrow_result(i, held, a),
             }
         }
+    }
+
+    /// At `Ref` `i`, a reborrow through holder local `l`: keeps its loans
+    /// for the holder the reference is stored in. An exclusive loan passes
+    /// over, since it cannot be shared; a shared one is copied.
+    fn borrow_reborrow(&mut self, i: u32, l: usize) {
+        let mut held: Vec<Held> = (self.borrows.slots.keys())
+            .filter(|h| h.local == l)
+            .copied()
+            .collect();
+        held.sort_stable();
+        let Some(&from) = held.first() else {
+            return;
+        };
+        let slots = self.borrows.slots[&from].clone();
+        let mut out = Vec::new();
+        for (s, (h, kl)) in slots.into_iter().enumerate() {
+            let delta = self.borrow_delta(from, s);
+            let (ch, ck) = (self.f.local(Val::I32), self.f.local(Val::I32));
+            self.f.get(h);
+            self.f.set(ch);
+            self.f.get(kl);
+            self.f.set(ck);
+            let moved = (delta == LOAN_EXCL).then_some(delta);
+            if moved.is_some() {
+                self.f.zero(h);
+            }
+            out.push((ch, ck, moved));
+        }
+        self.borrows.reborrowed.insert(i, out);
+    }
+
+    /// At the store of a reborrow into `held`: the loans [`Em::borrow_reborrow`]
+    /// kept, slot by slot, as `held`'s kind gives them.
+    fn borrow_from_reborrow(&mut self, held: Held, source: &[(u32, u32, Option<u32>)], at: usize) {
+        for (s, &(ch, ck, moved)) in source.iter().enumerate() {
+            let s = s + at;
+            let (h, kl) = self.borrow_slot(held, s);
+            let delta = self.borrow_delta(held, s);
+            self.f.get(ch);
+            self.f.set(h);
+            self.f.get(ck);
+            self.f.set(kl);
+            self.f.get(h);
+            self.f.op(I::If(BlockType::Empty));
+            match moved {
+                // An exclusive loan passed over keeps its state, in the
+                // holder's kind.
+                Some(old) if old != delta => {
+                    self.borrow_add(h, kl, old, -1);
+                    self.borrow_add(h, kl, delta, 1);
+                }
+                Some(_) => {}
+                None => self.borrow_add(h, kl, delta, 1),
+            }
+            self.f.op(I::End);
+        }
+    }
+
+    /// After `Store` `i` binds into `held` a call's result that holds
+    /// argument `a`: the result's loans, until the holder's release. They
+    /// are the argument's objects, as its evaluation found them, and the
+    /// object the result points into, which the page table finds, where
+    /// the callee's reference reaches one more object (`elide.rs`). The
+    /// last of them takes the result's kind; the others are shared.
+    fn borrow_result(&mut self, i: u32, held: Held, a: u32) {
+        let Some(v) = direct_value(self.b, a) else {
+            return;
+        };
+        let v = u32::try_from(v).expect("insts");
+        // An argument whose objects no kept loan holds recorded none.
+        let heads = self.borrows.arg_heads.get(&v).cloned().unwrap_or_default();
+        let inner = self.m.result_inner.contains(&(self.inst, i));
+        let mut s = usize::from(inner);
+        if inner
+            && self.m.kept.contains(&(self.inst, i, u32::MAX - 1))
+            && let Some(rt) = self.m.runtime
+        {
+            let Some(&r) = self
+                .locals
+                .get(&held.local)
+                .and_then(|ls| ls.get(held.slot))
+            else {
+                return;
+            };
+            let (h, kl) = self.borrow_slot(held, 0);
+            let delta = self.borrow_delta(held, 0);
+            let mask = if delta == LOAN_EXCL {
+                LOAN_STATE
+            } else {
+                LOAN_EXCL
+            };
+            self.f.get(r);
+            self.f.call(crate::module::Sym::Inst(rt.block_of));
+            self.f.op(I::LocalTee(h));
+            self.f.op(I::If(BlockType::Empty));
+            self.f.get(h);
+            self.f.u32(4);
+            self.f.op(I::I32Add);
+            self.f.set(h);
+            self.f.i32(0);
+            self.f.set(kl);
+            self.borrow_check_raw(h, mask);
+            self.borrow_add(h, kl, delta, 1);
+            self.f.op(I::End);
+        }
+        for (header, key, k) in heads.into_iter().rev() {
+            if !self.m.kept.contains(&(self.inst, i, k)) {
+                s += 1;
+                continue;
+            }
+            let (h, kl) = self.borrow_slot(held, s);
+            let delta = self.borrow_delta(held, s);
+            let mask = if delta == LOAN_EXCL {
+                LOAN_STATE
+            } else {
+                LOAN_EXCL
+            };
+            self.f.get(header);
+            self.f.set(h);
+            match key {
+                Some(k) => {
+                    let own = self.own_local(k);
+                    let _ = own;
+                    self.f.u32(u32::try_from(k + 1).expect("keys"));
+                }
+                None => self.f.i32(0),
+            }
+            self.f.set(kl);
+            match key {
+                Some(k) => {
+                    let own = self.own_local(k);
+                    self.borrow_check_own(h, mask, own);
+                }
+                None => self.borrow_check_raw(h, mask),
+            }
+            self.borrow_add(h, kl, delta, 1);
+            s += 1;
+        }
+    }
+
+    /// Panics `borrow-conflict` when the state at header address `h` has a
+    /// bit of `mask` set.
+    fn borrow_check_raw(&mut self, h: u32, mask: u32) {
+        self.f.get(h);
+        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+        self.f.u32(mask);
+        self.f.op(I::I32And);
+        self.f.op(I::If(BlockType::Empty));
+        self.f.helper(Helper::Panic(
+            "borrow-conflict: an object a live reference borrows was lent by a call's result"
+                .into(),
+        ));
+        self.f.op(I::End);
+    }
+
+    /// [`Em::borrow_check_raw`], against the own loans in local `own`.
+    fn borrow_check_own(&mut self, h: u32, mask: u32, own: u32) {
+        self.f.get(h);
+        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+        self.f.u32(mask);
+        self.f.op(I::I32And);
+        self.f.get(own);
+        if mask != LOAN_STATE {
+            self.f.u32(mask);
+            self.f.op(I::I32And);
+        }
+        self.f.op(I::I32Ne);
+        self.f.op(I::If(BlockType::Empty));
+        self.f.helper(Helper::Panic(
+            "borrow-conflict: an object a live reference borrows was lent by a call's result"
+                .into(),
+        ));
+        self.f.op(I::End);
     }
 
     /// Ends the loans local `l`'s holders hold, at its release or before
@@ -787,6 +1026,11 @@ impl Em<'_, '_, '_> {
         self.f.u32(crate::module::HEADER - 4);
         self.f.op(I::I32Sub);
         self.f.set(header);
+        if self.borrows.call_holds.contains(&i) {
+            self.borrows
+                .arg_heads
+                .insert(i, vec![(header, key, u32::MAX)]);
+        }
         if !self.m.kept.contains(&(self.inst, i, u32::MAX)) {
             // No loan: only the access check of the lend, a write for a
             // `&mut`, whose two-phase window nothing can meet.

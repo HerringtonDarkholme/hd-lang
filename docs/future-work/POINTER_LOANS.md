@@ -996,7 +996,10 @@ Each about an hour, with its test; the matrix rows leave
    hold `&'a mut`. A closure still checks a write through a pointer it
    captured against no loan rather than its creator's own (E.2), which
    phase 9 adds.
-5. Returned and stored references; the `ret` and `struct` rows.
+5. Returned and stored references; the `ret` and `struct` rows, but not
+   the `struct` `UniqList`/`UniqMap` ones (phase 8). The object a
+   returned reference points into comes from the page table; an inlined
+   getter's result takes its `self`'s loans.
 6. Suspension and abandonment; the `bang` rows.
 7. Element references: remove the pin, add the two static rules; the
    `List`/`Map` rows and the copy fixtures.

@@ -1,7 +1,5 @@
-# test: a call's result through a `*mut` holds only the place its receiver refers to, until its last use, so writes through an alias beside it or after it pass
+# test: a call's result through a `*mut` holds a loan on the whole object its argument reaches until its last use, so a write to another field through an alias beside it panics
 # Spec 13 Conflicts Through Aliases: ref.excl.alias.loan, ref.excl.alias.conflict.
-# expect-stdout: c a 2
-# expect-stdout: d
 struct Addr:
     city: string
 
@@ -19,7 +17,7 @@ struct Team:
 
 fn moved(t: &Team, alias: *mut User) -> void $ Console:
     c := t.lead.addr.place()
-    alias.age += 1
+    alias.age += 1 # panic: borrow-conflict
     println("${*c} ${alias.name} ${alias.age}")
     alias.addr.city = "d"
     println(*t.lead.addr.place())
