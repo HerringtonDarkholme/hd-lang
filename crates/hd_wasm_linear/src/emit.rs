@@ -3192,28 +3192,10 @@ impl Em<'_, '_, '_> {
                 self.store_owned(i)
             }
             "string_from_bytes" if args.len() == 2 => {
-                // Raw Buffer room uses std's allocator directly, outside the
-                // checked object's allocation ledger. Checked builds copy into
-                // a tracked string and drop the raw owner normally; unchecked
-                // builds transfer its room with no copy or count.
+                // Rooms already belong to the allocation ledger in checked
+                // builds too. Move that same allocation into the string.
                 self.take(args[0]);
-                if self.input.runtime.is_some_and(|r| r.checked.is_some()) {
-                    let destination = self.f.local(Val::I32);
-                    self.push(args[1])?;
-                    self.f.helper(Helper::Str);
-                    self.f.set(destination);
-                    self.f.get(destination);
-                    self.comp(args[0], 0)?;
-                    self.push(args[1])?;
-                    self.f.push(crate::bulk::copy(HEAP, HEAP));
-                    let Some(buffer) = self.vals.get(&args[0]).cloned() else {
-                        return unsupported("a transferred raw buffer without value locals");
-                    };
-                    self.release_locals(&buffer, self.ty(args[0]))?;
-                    self.f.get(destination);
-                } else {
-                    self.comp(args[0], 0)?;
-                }
+                self.comp(args[0], 0)?;
                 self.push(args[1])?;
                 self.store_owned(i)
             }
