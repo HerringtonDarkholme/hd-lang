@@ -560,6 +560,8 @@ impl Em<'_, '_, '_> {
         };
         if self.cells.get(&l) == Some(&i) {
             let c = self.local(u32::try_from(l).expect("locals"))?[0];
+            // The last value or cell (an earlier round's) is overwritten.
+            let was = self.f.reason.replace(hd_tir::own::Reason::Overwritten);
             // A slot is the same memory each time, so the last value in
             // it ends before the new one is stored.
             let slot = self.slots.contains_key(&l);
@@ -571,6 +573,7 @@ impl Em<'_, '_, '_> {
                 self.f.get(c);
                 self.release_cell();
             }
+            self.f.reason = was;
             self.f.get(at);
             self.f.set(c);
             return Ok(());

@@ -184,7 +184,10 @@ impl Em<'_, '_, '_> {
         self.f.op(I::I32Store(mem(HEAP, CTX_VTABLE + off, 2)));
         if let Some(r) = self.input.runtime {
             self.f.get(d);
-            self.f.call(crate::module::Sym::Inst(r.retain));
+            self.f.count_call(
+                crate::module::Sym::Inst(r.retain),
+                crate::views::CountAction::Retain,
+            );
         }
     }
 

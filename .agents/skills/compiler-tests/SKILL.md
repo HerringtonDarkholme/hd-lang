@@ -81,7 +81,7 @@ fn place(bodies: &mut List[Body], i: usize, x: f64) -> void:
 | `tir` | the subject's TIR instructions, locals by name, type and flags (`[param read]`), fields by name |
 | `own` | the subject's TIR after the ownership passes: read modes (`Read copy [$1]`), `Drop`, `IsUnique` and `Pin` statements, and the body's exit set |
 | `wat` | the Wasm instructions that came from the subject: calls by name (`rt:retain_known`, `identity[i32]`, `println`), locals by source name or field path (`bodies`, `b.vx`), temporaries `t0`, `t1`... |
-| `counts` | only the retains, releases and frees inside the subject, with what they count |
+| `counts` | only the retains, releases, frees and uniqueness checks inside the subject, with what they count and why (`last use`, `conservative: copy read`) |
 | `layout` | a type's fields, offsets, sizes, counted parts and cycle-capable bit |
 
 Pick the narrowest view for the topic: `counts` for reference counting,

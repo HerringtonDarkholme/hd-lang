@@ -20,34 +20,34 @@ impl[T] Members[T]:
     fn position_at(self, i: usize) -> usize:
         self.infos[i].position
 > app/main/impl [ T ] Members [ T ].position_at
->   release app.main.Members[i32] [infos, points]
+>   release app.main.Members[i32] [infos, points] (conservative: unowned parameter)
 
     fn name_at(self, i: usize) -> string:
         self.infos[i].name
 > app/main/impl [ T ] Members [ T ].name_at
->   retain string
->   (no span) release app.main.Members[i32] [infos, points]
+>   retain string (conservative: copy read)
+>   (no span) release app.main.Members[i32] [infos, points] (last use)
 
     fn y_at(self, i: usize) -> i64:
         self.points[i].y
 > app/main/impl [ T ] Members [ T ].y_at
->   release app.main.Members[i32] [infos, points]
+>   release app.main.Members[i32] [infos, points] (conservative: unowned parameter)
 
 fn position_at(infos: List[Info], i: usize) -> usize:
     infos[i].position
 > app/main/position_at
->   release List[app.main.Info]
+>   release List[app.main.Info] (conservative: unowned parameter)
 
 fn name_at(infos: List[Info], i: usize) -> string:
     infos[i].name
 > app/main/name_at
->   retain string
->   (no span) release List[app.main.Info]
+>   retain string (conservative: copy read)
+>   (no span) release List[app.main.Info] (last use)
 
 fn y_at(points: List[Point], i: usize) -> i64:
     points[i].y
 > app/main/y_at
->   release List[app.main.Point]
+>   release List[app.main.Point] (conservative: unowned parameter)
 
 struct Wrap[T]:
     n: usize
@@ -56,15 +56,15 @@ struct Wrap[T]:
 fn n_at[T](xs: List[Wrap[T]], i: usize) -> usize:
     xs[i].n
 > app/main/n_at
->   (no span) release List[app.main.Wrap[string]]
+>   (no span) release List[app.main.Wrap[string]] (conservative: unowned parameter)
 
 fn use_generic(m: Members[i32], xs: List[Wrap[string]], i: usize) -> i64:
     name := m.name_at(i)
 > app/main/use_generic
->   copy app.main.Members[i32] [infos, points]
+>   copy app.main.Members[i32] [infos, points] (conservative: copy read)
     if m.position_at(i) + n_at(xs, i) + name.len() > 0:
->   copy app.main.Members[i32] [infos, points]
+>   copy app.main.Members[i32] [infos, points] (conservative: copy read)
         return m.y_at(i)
->   (no span) release string
->   (no span) release app.main.Members[i32] [infos, points]
+>   (no span) release string (last use)
+>   (no span) release app.main.Members[i32] [infos, points] (last use)
     0

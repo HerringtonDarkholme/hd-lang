@@ -15,7 +15,7 @@ impl Describe for Logger:
     fn describe(&self) -> string:
         self.name
 > app/main/impl Describe for Logger.describe
->   retain string
+>   retain string (conservative: copy read)
 
 struct Service:
     Logger
@@ -23,14 +23,14 @@ struct Service:
 
 impl Describe for Service by Logger
 > app/main/impl Describe for Service by Logger.describe
->   retain app.main.Logger [name.0]
+>   retain app.main.Logger [name.0] (conservative: copy read)
 
 fn delegated(s: Service) -> usize:
     s.describe().len()
 > app/main/delegated
->   (no span) release string
+>   (no span) release string (last use)
 
 fn explicit(s: Service) -> usize:
     s.Logger.describe().len()
 > app/main/explicit
->   (no span) release string
+>   (no span) release string (last use)

@@ -14,20 +14,21 @@ impl Index[usize] for Names:
     fn index(&self, key: usize) -> string:
         self.items[key]
 > app/main/impl Index [ usize ] for Names.index
->   retain string
+>   retain string (conservative: copy read)
 
 impl IndexSet[usize, string] for Names:
     fn index_set(&mut self, key: usize, value: string) -> void:
         self.items[key] = value
 > app/main/impl IndexSet [ usize , string ] for Names.index_set
->   release string
+>   release string (overwritten)
+>   (no span) unique List[string] (conservative: unique)
 
 fn read_len(n: Names, i: usize) -> usize:
     n[i].len()
 > app/main/read_len
->   (no span) release app.main.Names
->   (no span) release string
->   (no span) release app.main.Names
+>   (no span) release app.main.Names (last use)
+>   (no span) release string (last use)
+>   (no span) release app.main.Names (last use)
 
 fn write(n: &mut Names, i: usize, s: string) -> void:
     n[i] = s
@@ -38,6 +39,6 @@ fn first[C < Index[usize]](items: C) -> C::Out:
 fn generic_first(xs: List[string]) -> usize:
     first(xs).len()
 > app/main/generic_first
->   release List[string]
->   (no span) release List[string]
->   (no span) release string
+>   release List[string] (overwritten)
+>   (no span) release List[string] (last use)
+>   (no span) release string (last use)

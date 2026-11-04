@@ -18,11 +18,11 @@ impl Joiner:
 fn joined(j: Joiner) -> usize:
     j.join()
 > app/main/joined
->   (no span) release string
->   (no span) release app.main.Joiner
->   (no span) release app.main.Joiner
+>   (no span) release string (last use)
+>   (no span) release app.main.Joiner (last use)
+>   (no span) release app.main.Joiner (last use)
 
 fn generic_method(j: Joiner, s: string) -> usize:
     j.tagged(s).len()
 > app/main/generic_method
->   (no span) release string
+>   (no span) release string (last use)

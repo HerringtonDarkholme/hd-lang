@@ -21,13 +21,13 @@ impl Vec2:
     fn renamed(mut self, n: string) -> Vec2:
         self.name = n
 > app/main/impl Vec2.renamed
->   release string
+>   release string (overwritten)
         self
 
     fn keep(*self) -> *Vec2:
         self
 > app/main/impl Vec2.keep
->   retain &app.main.Vec2
+>   retain &app.main.Vec2 (conservative: copy read)
 
 fn make(s: string) -> Vec2:
     Vec2 { name: s, x: 0 }
@@ -35,38 +35,40 @@ fn make(s: string) -> Vec2:
 fn temp_receiver(s: string) -> usize:
     make(s).label_len()
 > app/main/temp_receiver
->   (no span) release app.main.Vec2 [name.0]
+>   (no span) release app.main.Vec2 [name.0] (last use)
 
 fn element_receiver(xs: &mut List[Vec2], i: usize) -> void:
     xs[i].shift(1)
+> app/main/element_receiver
+>   (no span) unique List[app.main.Vec2] (conservative: unique)
 
 fn element_read(xs: List[Vec2], i: usize) -> usize:
     xs[i].label_len()
 > app/main/element_read
->   retain app.main.Vec2 [name.0]
->   (no span) release List[app.main.Vec2]
->   (no span) release app.main.Vec2 [name.0]
+>   retain app.main.Vec2 [name.0] (conservative: copy read)
+>   (no span) release List[app.main.Vec2] (last use)
+>   (no span) release app.main.Vec2 [name.0] (last use)
 
 fn place_receiver(s: string) -> i64:
     let mut p = make(s)
 > app/main/place_receiver
->   release app.main.Vec2 [name.0]
+>   release app.main.Vec2 [name.0] (overwritten)
     p.shift(2)
     p.x
->   (no span) release app.main.Vec2 [name.0]
+>   (no span) release app.main.Vec2 [name.0] (last use)
 
 fn mut_self(v: Vec2, n: string) -> usize:
     w := v.renamed(n)
 > app/main/mut_self
->   retain app.main.Vec2 [name.0]
->   release string
+>   retain app.main.Vec2 [name.0] (conservative: copy read)
+>   release string (overwritten)
     w.name.len() + v.name.len()
->   (no span) release string
->   (no span) release string
+>   (no span) release string (last use)
+>   (no span) release string (last use)
 
 fn counted(b: *Vec2) -> usize:
     b.keep().name.len()
 > app/main/counted
->   retain string
->   (no span) release &app.main.Vec2
->   (no span) release string
+>   retain string (conservative: copy read)
+>   (no span) release &app.main.Vec2 (last use)
+>   (no span) release string (last use)

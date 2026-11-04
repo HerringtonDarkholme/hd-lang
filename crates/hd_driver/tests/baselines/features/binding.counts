@@ -10,7 +10,7 @@ fn bind(s: string) -> usize:
     let u = t
     u.len()
 > app/main/bind
->   (no span) release string
+>   (no span) release string (last use)
 
 fn bind_twice(xs: List[string]) -> usize:
     ys := xs
@@ -19,3 +19,5 @@ fn bind_twice(xs: List[string]) -> usize:
 fn bind_kept(xs: List[string], all: &mut List[List[string]]) -> void:
     ys := xs
     all.push(ys)
+> app/main/bind_kept
+>   (no span) unique List[List[string]] (conservative: unique)

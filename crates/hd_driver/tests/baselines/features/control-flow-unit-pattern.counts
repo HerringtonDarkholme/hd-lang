@@ -13,5 +13,5 @@ fn report(s: string) -> string:
     match save(s):
         .Ok(()) => "saved"
 > app/main/report
->   release Result[(), string]
+>   release Result[(), string] (last use)
         .Err(message) => message

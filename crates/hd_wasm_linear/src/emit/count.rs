@@ -28,6 +28,7 @@
 use hd_base::SliceSort as _;
 use hd_base::StageResult;
 use hd_tir::ir::{IntrinsicOp, NONE, Ref, Tag};
+use hd_tir::own::Reason;
 use hd_types::Ty;
 
 use super::Em;
@@ -436,7 +437,7 @@ impl Em<'_, '_, '_> {
         let flag = self.view_loans[&i];
         self.f.get(flag);
         self.f.op(crate::op::Op::If(wasm_encoder::BlockType::Empty));
-        self.release_locals(ls, self.ty(i))?;
+        self.because(Reason::View, |em| em.release_locals(ls, em.ty(i)))?;
         self.f.op(crate::op::Op::End);
         self.f.zero(flag);
         Ok(())
@@ -508,6 +509,15 @@ impl Em<'_, '_, '_> {
         let result = self.count_locals_inner(ls, t, retain);
         if result.is_ok() && self.f.origins.is_some() {
             let subject = crate::views::count_subject(self.pool(), self.env(), t);
+            // A `&dyn`'s data count stands by design (#1354); a thin
+            // reference counts only a view it owns.
+            let reason = if self.ref_target(t).is_some_and(|(_, fat)| fat) {
+                Some(Reason::ByDesign)
+            } else if matches!(self.counted(t), Some(Walk::View(_))) {
+                Some(Reason::View)
+            } else {
+                self.f.reason
+            };
             self.f.note_count(
                 start,
                 u32::try_from(self.b.anchor_len()).expect("TIR instructions"),
@@ -517,9 +527,19 @@ impl Em<'_, '_, '_> {
                     crate::views::CountAction::Release
                 },
                 &subject,
+                reason,
             );
         }
         result
+    }
+
+    /// Runs `f` with `reason` as the reason of the count code it writes
+    /// ([`crate::module::Func::reason`]).
+    pub(super) fn because<T>(&mut self, reason: Reason, f: impl FnOnce(&mut Self) -> T) -> T {
+        let was = self.f.reason.replace(reason);
+        let out = f(self);
+        self.f.reason = was;
+        out
     }
 
     fn count_locals_inner(&mut self, ls: &[u32], t: Ty, retain: bool) -> StageResult<()> {
@@ -606,7 +626,10 @@ impl Em<'_, '_, '_> {
     /// One count more or less on the address on the stack.
     fn ref_count(&mut self, retain: bool) {
         match (retain, self.input.runtime) {
-            (true, Some(r)) => self.f.call(crate::module::Sym::Inst(r.retain)),
+            (true, Some(r)) => self.f.count_call(
+                crate::module::Sym::Inst(r.retain),
+                crate::views::CountAction::Retain,
+            ),
             (false, Some(_)) => self.f.helper(Helper::ReleaseRef),
             (_, None) => self.f.op(crate::op::Op::Drop),
         }
@@ -838,7 +861,9 @@ impl Em<'_, '_, '_> {
     pub(super) fn release_all(&mut self) -> StageResult<()> {
         let outer = self.f.origin_at;
         self.f.origin_at = self.f.origin_root;
+        let was = self.f.reason;
         let result = self.release_all_inner();
+        self.f.reason = was;
         self.f.origin_at = outer;
         result
     }
@@ -867,6 +892,7 @@ impl Em<'_, '_, '_> {
         let root = self.f.origin_root;
         if self.owned {
             // The exit set: the locals that may still hold a value here.
+            self.f.reason = Some(Reason::LastUse);
             let b = self.b;
             let mut released = hd_base::HashSet::default();
             for &(s, l) in &b.exit_drops {
@@ -887,6 +913,7 @@ impl Em<'_, '_, '_> {
                     self.borrow_release(l);
                 }
             }
+            self.f.reason = Some(Reason::Conservative("unowned parameter"));
             for l in self.unowned_params.clone() {
                 if let Some(ls) = self.locals.get(&l).cloned() {
                     if self.is_cell(l) {
@@ -900,12 +927,10 @@ impl Em<'_, '_, '_> {
                     }
                 }
             }
-            for tmp in self.temps.clone() {
-                self.f.get(tmp);
-                self.f.helper(Helper::ReleaseRef);
-            }
+            self.release_temps();
             return Ok(());
         }
+        self.f.reason = Some(Reason::Conservative("thunk exit"));
         let mut vals: Vec<(u32, Vec<u32>)> =
             self.vals.iter().map(|(k, v)| (*k, v.clone())).collect();
         vals.sort_stable();
@@ -936,11 +961,23 @@ impl Em<'_, '_, '_> {
             }
         }
         self.f.origin_at = root;
+        self.release_temps();
+        Ok(())
+    }
+
+    /// Releases the locals that own one count until the exit: a
+    /// suspending body's count of a reference parameter's object stands
+    /// by design (#1355).
+    fn release_temps(&mut self) {
         for tmp in self.temps.clone() {
+            self.f.reason = Some(if self.frame_refs.iter().any(|r| r.1 == tmp) {
+                Reason::ByDesign
+            } else {
+                Reason::Conservative("exit temporary")
+            });
             self.f.get(tmp);
             self.f.helper(Helper::ReleaseRef);
         }
-        Ok(())
     }
 }
 
@@ -1193,12 +1230,23 @@ impl Em<'_, '_, '_> {
             return Ok(h);
         }
         self.f.get(h);
+        let start = self.f.body.len();
         // A map's type has its key and value types; a list's, one.
         if let Ok((_, _, e)) = self.entry(t) {
             self.f.helper(Helper::MapUnique { entry: e });
         } else {
             let (_, e) = self.elem(t)?;
             self.f.helper(Helper::ListUnique { elem: e });
+        }
+        if self.f.origins.is_some() {
+            let subject = crate::views::count_subject(self.pool(), self.env(), t);
+            self.f.note_count(
+                start,
+                u32::try_from(self.b.anchor_len()).expect("TIR instructions"),
+                crate::views::CountAction::Unique,
+                &subject,
+                hd_tir::own::reason(self.b, i as usize),
+            );
         }
         let Some(at) = at else {
             self.f.set(h);
@@ -1316,9 +1364,8 @@ impl Em<'_, '_, '_> {
         }
         vals.sort_stable();
         vals.dedup();
-        for v in vals {
-            self.release_value(v)?;
-        }
-        Ok(())
+        self.because(Reason::Cancelled, |em| {
+            vals.into_iter().try_for_each(|v| em.release_value(v))
+        })
     }
 }

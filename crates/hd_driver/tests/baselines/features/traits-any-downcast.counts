@@ -14,17 +14,17 @@ fn user_name(value: &dyn Inspectable) -> string:
     match value.downcast_ref::[User]():
         .Some(user) => user.name
 > app/main/user_name
->   retain string
+>   retain string (conservative: copy read)
         .None => "not a user"
 
 fn is_user(value: &dyn Inspectable) -> bool:
     value.runtime_type() == TypeId::of::[User]()
 > app/main/is_user
->   retain std.inspect.Inspectable
->   retain std.inspect.TypeId [key.0, name.0]
->   (no span) release std.inspect.Inspectable
->   (no span) release std.inspect.TypeId [key.0, name.0]
->   (no span) release std.inspect.TypeId [key.0, name.0]
+>   retain std.inspect.Inspectable (conservative: copy read)
+>   retain std.inspect.TypeId [key.0, name.0] (conservative: Call)
+>   (no span) release std.inspect.Inspectable (last use)
+>   (no span) release std.inspect.TypeId [key.0, name.0] (last use)
+>   (no span) release std.inspect.TypeId [key.0, name.0] (last use)
 
 fn erase(u: User) -> *dyn Inspectable:
     box(u)

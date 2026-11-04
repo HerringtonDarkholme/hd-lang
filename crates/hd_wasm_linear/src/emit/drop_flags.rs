@@ -168,10 +168,12 @@ impl Em<'_, '_, '_> {
     }
 
     pub(super) fn release_old_drop(&mut self, ls: &[u32], ty: Ty) -> StageResult<()> {
-        match self.store_drop_place() {
-            Some(p) => self.release_drop_place(ls, ty, &p),
-            None => self.release_locals(ls, ty),
-        }
+        self.because(hd_tir::own::Reason::Overwritten, |em| {
+            match em.store_drop_place() {
+                Some(p) => em.release_drop_place(ls, ty, &p),
+                None => em.release_locals(ls, ty),
+            }
+        })
     }
 
     pub(super) fn stored_drop(&mut self) {

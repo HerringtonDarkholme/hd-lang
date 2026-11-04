@@ -8,23 +8,23 @@
 enum HttpStatus(code: i32, phrase: string, retryable: bool = false):
     Ok -> HttpStatus(200, phrase="OK")
 > app/main/init.init
->   release string
+>   release string (overwritten)
     NotFound -> HttpStatus(404, phrase="Not Found")
->   release string
+>   release string (overwritten)
     Busy -> HttpStatus(503, phrase="Busy", retryable=true)
->   release string
+>   release string (overwritten)
 
 fn phrase_len(s: HttpStatus) -> usize:
     s.phrase.len()
 > app/main/phrase_len
->   retain string
->   retain string
->   retain string
->   (no span) release string
+>   retain string (conservative: copy read)
+>   retain string (conservative: copy read)
+>   retain string (conservative: copy read)
+>   (no span) release string (last use)
 
 fn phrase_of(s: HttpStatus) -> string:
     s.phrase
 > app/main/phrase_of
->   retain string
->   retain string
->   retain string
+>   retain string (conservative: copy read)
+>   retain string (conservative: copy read)
+>   retain string (conservative: copy read)

@@ -46,6 +46,7 @@
 //! line. The edits join the pipeline's last rebuild.
 
 use super::moves;
+use super::reason::LAST_USE;
 use super::splice;
 use super::{Loc, Operand, OwnCx, Tri, operands};
 use crate::ir::{
@@ -461,7 +462,7 @@ fn pair(
     }
     for k in 0..mt.drops.len() {
         let at = mt.drops[k];
-        let e = edits.insert(blk, pos, Tag::Drop, [at, NONE], hd_types::Ty::VOID, syn);
+        let e = edits.insert(blk, pos, Tag::Drop, [at, LAST_USE], hd_types::Ty::VOID, syn);
         let item = n + e;
         if t.prev.len() <= item as usize {
             t.prev.resize(item as usize + 1, EMPTY);

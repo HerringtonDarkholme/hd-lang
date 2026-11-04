@@ -13,4 +13,5 @@ struct Point:
 fn keep(all: &mut List[Field[Point, i32]], h: Field[Point, i32]) -> void:
     all.push(h)
 > app/main/keep
->   retain &std.structure.FieldRecord[app.main.Point, i32]
+>   retain &std.structure.FieldRecord[app.main.Point, i32] (conservative: copy read)
+>   (no span) unique List[&std.structure.FieldRecord[app.main.Point, i32]] (conservative: unique)

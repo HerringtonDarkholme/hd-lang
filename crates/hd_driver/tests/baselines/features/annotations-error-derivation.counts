@@ -15,7 +15,7 @@ impl Display for YamlError:
     fn to_string(&self) -> string:
         "bad yaml at line ${self.line}"
 > app/main/impl Display for YamlError.to_string
->   (no span) release string
+>   (no span) release string (last use)
 
 impl Error for YamlError
 
@@ -27,7 +27,7 @@ enum FsError:
 
 @error
 > app/main/error Error for LoadError.source
->   retain counted reference
+>   retain counted reference (conservative: copy read)
 enum LoadError:
     @error("cannot read $path")
     Read(
@@ -43,7 +43,7 @@ enum LoadError:
     @error(transparent)
     Fs(
         @from
->   (no span) release app.main.LoadError
+>   (no span) release app.main.LoadError (last use)
         error: FsError,
     )
 
@@ -59,4 +59,4 @@ fn load(text: string) -> Result[i64, LoadError]:
 fn message(e: &LoadError) -> usize:
     e.to_string().len()
 > app/main/message
->   (no span) release string
+>   (no span) release string (last use)

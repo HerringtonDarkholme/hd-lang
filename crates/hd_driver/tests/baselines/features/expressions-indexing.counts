@@ -7,15 +7,15 @@
 fn map_index(m: Map[string, string], k: string) -> usize:
     m[k].len()
 > app/main/map_index
->   retain string
->   (no span) release Map[string, string]
->   (no span) release string
+>   retain string (conservative: copy read)
+>   (no span) release Map[string, string] (last use)
+>   (no span) release string (last use)
 
 fn map_index_take(m: Map[string, string], k: string) -> string:
     m[k]
 > app/main/map_index_take
->   retain string
->   (no span) release Map[string, string]
+>   retain string (conservative: copy read)
+>   (no span) release Map[string, string] (last use)
 
 fn string_byte(s: string, i: usize) -> u8:
     s[i]

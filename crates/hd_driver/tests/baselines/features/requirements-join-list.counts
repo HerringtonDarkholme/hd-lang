@@ -11,26 +11,28 @@ use std.task.join
 fn fetch!(key: string) -> string:
     key + "?"
 > app/main/fetch
->   (no span) retain string
->   (no span) release string
+>   (no span) retain string (conservative: entry)
+>   (no span) release string (last use)
 
 fn all!(keys: List[string]) -> usize:
     let tasks: List[mut Suspend[string]] = [for k in keys => fetch(k)]
 > app/main/all
->   release List[mut Suspend[string]]
->   release List[string]
->   release List[mut Suspend[string]]
+>   release List[mut Suspend[string]] (overwritten)
+>   release List[string] (overwritten)
+>   unique List[mut Suspend[string]] (conservative: unique)
+>   release List[mut Suspend[string]] (overwritten)
     results := join!(tasks...)
->   release counted reference
->   release counted reference
->   release List[mut Suspend[string]]
->   release List[string]
+>   release counted reference (conservative: Await)
+>   release counted reference (conservative: Await)
+>   release List[mut Suspend[string]] (cancelled)
+>   release List[string] (overwritten)
     let mut n = 0
     for r in &results:
         n += r.len()
     n
->   (no span) copy List[string]
->   (no span) release List[string]
->   (no span) release List[mut Suspend[string]]
->   (no span) release List[string]
->   (no span) release List[string]
+>   (no span) copy List[string] (conservative: entry)
+>   (no span) unique List[mut Suspend[string]] (conservative: unique)
+>   (no span) release List[string] (last use)
+>   (no span) release List[mut Suspend[string]] (last use)
+>   (no span) release List[string] (last use)
+>   (no span) release List[string] (last use)

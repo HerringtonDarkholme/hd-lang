@@ -67,6 +67,7 @@ use hd_base::SliceSort as _;
 use hd_types::Ty;
 
 use super::flow::{Backward, BitArena, Flow, backward};
+use super::reason::LAST_USE;
 use super::{
     Operand, OwnCx, Role, Tri, fill, operands, owned_value, splice, suite_touches, tracked,
 };
@@ -964,7 +965,7 @@ fn apply(
             edits.remove(d);
             for k in 0..t.drops.len() {
                 let at = t.drops[k];
-                edits.insert(blk, pos, Tag::Drop, [at, NONE], Ty::VOID, syn);
+                edits.insert(blk, pos, Tag::Drop, [at, LAST_USE], Ty::VOID, syn);
             }
         }
     }
@@ -1077,7 +1078,14 @@ fn sink(
         edits.remove(u);
     }
     for &(blk, pos, at) in &t.sink_ins {
-        edits.insert(blk, pos, Tag::Drop, [at, NONE], Ty::VOID, b.syn[d as usize]);
+        edits.insert(
+            blk,
+            pos,
+            Tag::Drop,
+            [at, LAST_USE],
+            Ty::VOID,
+            b.syn[d as usize],
+        );
     }
     for &m in &t.sink_mv {
         b.data[m as usize][1] = ReadMode::Move as u32;

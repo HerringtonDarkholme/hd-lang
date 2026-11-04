@@ -9,66 +9,66 @@ use std.task.{join, race}
 fn label!(s: string) -> string:
     s + "!"
 > app/main/label
->   (no span) retain string
->   (no span) release string
+>   (no span) retain string (conservative: entry)
+>   (no span) release string (last use)
 
 fn one!(s: string) -> usize:
     label!(s).len()
 > app/main/one
->   release counted reference
->   release counted reference
->   release string
->   release counted reference
->   retain &string
->   (no span) retain string
->   (no span) release string
->   (no span) release &string
->   (no span) release counted reference
->   (no span) release string
+>   release counted reference (conservative: Await)
+>   release counted reference (conservative: Await)
+>   release string (cancelled)
+>   release counted reference (overwritten)
+>   retain &string (conservative: Ref)
+>   (no span) retain string (conservative: entry)
+>   (no span) release string (last use)
+>   (no span) release &string (last use)
+>   (no span) release counted reference (last use)
+>   (no span) release string (last use)
 
 fn both!(a: string, b: string) -> usize:
     let (x, y) = join!(label(a), label(b))
 > app/main/both
->   release counted reference
->   release string
->   release string
->   release counted reference
->   release string
->   release Suspend[string]
->   release string
->   release Suspend[string]
->   release counted reference
->   release counted reference
+>   release counted reference (conservative: AwaitAll)
+>   release string (conservative: AwaitAll)
+>   release string (conservative: AwaitAll)
+>   release counted reference (conservative: AwaitAll)
+>   release string (cancelled)
+>   release Suspend[string] (cancelled)
+>   release string (cancelled)
+>   release Suspend[string] (cancelled)
+>   release counted reference (overwritten)
+>   release counted reference (overwritten)
     x.len() + y.len()
->   retain &string
->   retain &string
->   (no span) retain string
->   (no span) retain string
->   (no span) release Suspend[string]
->   (no span) release string
->   (no span) release Suspend[string]
->   (no span) release string
->   (no span) release &string
->   (no span) release counted reference
->   (no span) release &string
->   (no span) release counted reference
->   (no span) release string
->   (no span) release string
+>   retain &string (conservative: Ref)
+>   retain &string (conservative: Ref)
+>   (no span) retain string (conservative: entry)
+>   (no span) retain string (conservative: entry)
+>   (no span) release Suspend[string] (last use)
+>   (no span) release string (last use)
+>   (no span) release Suspend[string] (last use)
+>   (no span) release string (last use)
+>   (no span) release &string (last use)
+>   (no span) release counted reference (last use)
+>   (no span) release &string (last use)
+>   (no span) release counted reference (last use)
+>   (no span) release string (last use)
+>   (no span) release string (last use)
 
 fn either!(a: string, b: string) -> usize:
     race!(label(a), label(b)).len()
 > app/main/either
->   release counted reference
->   release counted reference
->   release List[mut Suspend[string]]
->   release counted reference
->   retain &string
->   (no span) retain string
->   (no span) retain string
->   (no span) release string
->   (no span) release string
->   (no span) release List[mut Suspend[string]]
->   (no span) release &string
->   (no span) release counted reference
->   (no span) release string
->   (no span) release string
+>   release counted reference (conservative: Await)
+>   release counted reference (conservative: Await)
+>   release List[mut Suspend[string]] (cancelled)
+>   release counted reference (overwritten)
+>   retain &string (conservative: Ref)
+>   (no span) retain string (conservative: entry)
+>   (no span) retain string (conservative: entry)
+>   (no span) release string (last use)
+>   (no span) release string (last use)
+>   (no span) release List[mut Suspend[string]] (last use)
+>   (no span) release &string (last use)
+>   (no span) release counted reference (last use)
+>   (no span) release string (last use)
+>   (no span) release string (last use)

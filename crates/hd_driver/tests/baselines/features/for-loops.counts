@@ -9,8 +9,8 @@ fn over_value(xs: List[string]) -> usize:
     let n: usize = 0
     for x in xs:
 > app/main/over_value
->   retain string
->   release string
+>   retain string (conservative: copy read)
+>   release string (last use)
         n += x.len()
     n
 
@@ -22,20 +22,24 @@ fn over_ref(xs: &List[string]) -> usize:
 
 fn over_mut(xs: &mut List[string]) -> void:
     for x in &mut *xs:
-        *x += "!"
 > app/main/over_mut
->   release counted reference
+>   unique List[string] (conservative: unique)
+        *x += "!"
+>   release counted reference (conservative: Store)
 
 fn keep_each(xs: List[string]) -> List[string]:
     let mut out: List[string] = []
     for x in xs:
 > app/main/keep_each
->   retain string
+>   retain string (conservative: copy read)
+>   unique List[string] (conservative: unique)
         out.push(x)
     out
 
 fn comprehension(xs: List[string]) -> List[usize]:
     [for x in xs => x.len()]
 > app/main/comprehension
->   retain string
->   release string
+>   retain string (conservative: copy read)
+>   unique List[usize] (conservative: unique)
+>   release string (last use)
+>   (no span) unique List[usize] (conservative: unique)

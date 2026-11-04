@@ -7,15 +7,15 @@
 fn names(xs: &List[string]) -> impl Iterator[string]:
     xs.iter()
 > app/main/names
->   copy counted reference
+>   copy counted reference (conservative: copy read)
 
 fn count_long(xs: List[string]) -> usize:
     let n: usize = 0
     for x in names(&xs):
 > app/main/count_long
->   release std.iter.ListIter[string] [items]
->   release string?
->   release string
+>   release std.iter.ListIter[string] [items] (overwritten)
+>   release string? (last use)
+>   release string (last use)
         n += x.len()
     n
->   (no span) release std.iter.ListIter[string] [items]
+>   (no span) release std.iter.ListIter[string] [items] (last use)

@@ -10,27 +10,27 @@ use std.task.CleanupEnd
 fn fetch!(key: string) -> string:
     key + "?"
 > app/main/fetch
->   (no span) retain string
->   (no span) release string
+>   (no span) retain string (conservative: entry)
+>   (no span) release string (last use)
 
 fn stop!(key: string) -> bool:
     let mut job = fetch(key)
 > app/main/stop
->   release Suspend[string]
+>   release Suspend[string] (overwritten)
     end := job.cancel!()
->   release counted reference
->   release counted reference
->   release Suspend[string]
+>   release counted reference (conservative: Await)
+>   release counted reference (conservative: Await)
+>   release Suspend[string] (cancelled)
     match end:
         .Finished => true
         .Abandoned => false
->   (no span) retain string
->   (no span) release string
->   (no span) release Suspend[string]
->   (no span) release string
+>   (no span) retain string (conservative: entry)
+>   (no span) release string (last use)
+>   (no span) release Suspend[string] (last use)
+>   (no span) release string (last use)
 
 fn drop_now(key: string) -> void:
     let mut job = fetch(key)
     job.abandon()
 > app/main/drop_now
->   (no span) release Suspend[string]
+>   (no span) release Suspend[string] (last use)

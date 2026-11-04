@@ -16,7 +16,7 @@ impl User:
     fn rename(&mut self, n: string) -> void:
         self.name = n
 > app/main/impl User.rename
->   release counted reference
+>   release counted reference (conservative: Store)
 
 fn unbound(u: User) -> usize:
     f := User::name_len
@@ -25,33 +25,33 @@ fn unbound(u: User) -> usize:
 fn bound(u: User) -> usize:
     f := u::name_len
 > app/main/bound
->   retain counted reference
+>   retain counted reference (conservative: Closure)
 > app/main/bound
->   (no span) retain app.main.User [name.0]
->   (no span) release app.main.User [name.0]
+>   (no span) retain app.main.User [name.0] (conservative: entry)
+>   (no span) release app.main.User [name.0] (last use)
     f() + f()
->   (no span) release app.main.User [name.0]
->   (no span) release fn() -> usize
+>   (no span) release app.main.User [name.0] (last use)
+>   (no span) release fn() -> usize (last use)
 
 fn bound_mut(u: *mut User, n: string) -> void:
     f := u::rename
 > app/main/bound_mut
->   retain &mut app.main.User
->   release &mut app.main.User
+>   retain &mut app.main.User (conservative: entry)
+>   release &mut app.main.User (last use)
 > app/main/bound_mut
->   retain &mut app.main.User
->   retain counted reference
+>   retain &mut app.main.User (conservative: copy read)
+>   retain counted reference (conservative: Closure)
     f(n)
->   (no span) release &mut app.main.User
->   (no span) release fn(string) -> ()
+>   (no span) release &mut app.main.User (last use)
+>   (no span) release fn(string) -> () (last use)
 
 fn adapter(us: List[User]) -> usize:
     g := fn(u: User) -> usize: u.name_len()
     let n: usize = 0
     for u in us:
 > app/main/adapter
->   release app.main.User [name.0]
+>   release app.main.User [name.0] (last use)
 > app/main/adapter
->   retain app.main.User [name.0]
+>   retain app.main.User [name.0] (conservative: copy read)
         n += g(u)
     n

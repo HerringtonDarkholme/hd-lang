@@ -8,26 +8,26 @@
 fn capture_call(s: string) -> usize:
     f := fn() -> usize: s.len()
 > app/main/capture_call
->   retain string
->   retain counted reference
->   release &string
->   release string
+>   retain string (conservative: entry)
+>   retain counted reference (conservative: Ref)
+>   release &string (last use)
+>   release string (last use)
 > app/main/capture_call
->   retain counted reference
+>   retain counted reference (conservative: Closure)
     f() + f()
->   (no span) release counted reference
->   (no span) release fn() -> usize
+>   (no span) release counted reference (last use)
+>   (no span) release fn() -> usize (last use)
 
 fn escape(s: string) -> fn() -> usize:
     fn() -> usize: s.len()
 > app/main/escape
->   retain string
->   retain counted reference
->   release &string
->   release string
+>   retain string (conservative: entry)
+>   retain counted reference (conservative: Ref)
+>   release &string (last use)
+>   release string (last use)
 > app/main/escape
->   retain counted reference
->   (no span) release counted reference
+>   retain counted reference (conservative: Closure)
+>   (no span) release counted reference (last use)
 
 fn call_value(f: fn(string) -> usize, s: string) -> usize:
     f(s)
@@ -36,15 +36,15 @@ fn shared(s: string) -> string:
     let mut t = s
     add := fn() -> void: t += "x"
 > app/main/shared
->   retain counted reference
->   retain string
->   release string
->   release string
->   release counted reference
+>   retain counted reference (conservative: entry)
+>   retain string (conservative: copy read)
+>   release string (last use)
+>   release string (overwritten)
+>   release counted reference (last use)
 > app/main/shared
->   retain counted reference
+>   retain counted reference (conservative: Closure)
     add()
     t
->   retain string
->   (no span) release fn() -> ()
->   (no span) release counted reference
+>   retain string (conservative: copy read)
+>   (no span) release fn() -> () (last use)
+>   (no span) release counted reference (last use)

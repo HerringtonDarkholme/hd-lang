@@ -16,25 +16,27 @@ impl Disposable for Res:
     fn dispose(&mut self) -> void:
         self.log.push(self.name)
 > app/main/impl Disposable for Res.dispose
->   retain string
+>   retain string (conservative: copy read)
+>   (no span) unique List[string] (conservative: unique)
 
 fn with_defer(log: *mut List[string], s: string) -> usize:
     defer(fn() -> void: log.push(s))
 > app/main/with_defer
->   retain counted reference
+>   retain counted reference (conservative: Closure)
 > app/main/with_defer
->   retain &mut List[string]
->   retain string
->   release &mut List[string]
+>   retain &mut List[string] (conservative: entry)
+>   retain string (conservative: entry)
+>   unique List[string] (conservative: unique)
+>   release &mut List[string] (last use)
     s.len()
->   (no span) retain &mut List[string]
->   (no span) release counted reference
->   (no span) release &mut List[string]
->   (no span) release counted reference
+>   (no span) retain &mut List[string] (conservative: entry)
+>   (no span) release counted reference (last use)
+>   (no span) release &mut List[string] (last use)
+>   (no span) release counted reference (last use)
 
 fn with_using(log: *mut List[string], s: string) -> usize:
     using r = box(Res { name: s, log: log })
 > app/main/with_using
->   retain &mut List[string]
+>   retain &mut List[string] (conservative: copy read)
     r.name.len()
->   (no span) release &mut app.main.Res
+>   (no span) release &mut app.main.Res (last use)

@@ -30,12 +30,12 @@ impl Stack:
     fn drain(&self) -> usize:
         for peer in self.peers:
 > app/main/impl Stack.drain
->   copy List[&mut app.main.Stack]
->   retain &mut app.main.Stack
->   release &mut app.main.Stack
+>   copy List[&mut app.main.Stack] (conservative: copy read)
+>   retain &mut app.main.Stack (conservative: copy read)
+>   release &mut app.main.Stack (last use)
             peer.items = []
->   release counted reference
->   (no span) release List[&mut app.main.Stack]
+>   release counted reference (conservative: Store)
+>   (no span) release List[&mut app.main.Stack] (last use)
         0
 
     fn read(&self) -> usize:
@@ -47,15 +47,15 @@ impl Stack:
     fn read_bump(&mut self) -> usize:
         self.items[self.bump()].home
 > app/main/impl Stack.read_bump
->   copy List[app.main.Item]
->   retain app.main.Item [name.0]
->   (no span) release List[app.main.Item]
->   (no span) release app.main.Item [name.0]
+>   copy List[app.main.Item] (conservative: copy read)
+>   retain app.main.Item [name.0] (conservative: copy read)
+>   (no span) release List[app.main.Item] (last use)
+>   (no span) release app.main.Item [name.0] (last use)
 
     fn read_drain(&self) -> usize:
         self.items[self.drain()].home
 > app/main/impl Stack.read_drain
->   copy List[app.main.Item]
->   retain app.main.Item [name.0]
->   (no span) release List[app.main.Item]
->   (no span) release app.main.Item [name.0]
+>   copy List[app.main.Item] (conservative: copy read)
+>   retain app.main.Item [name.0] (conservative: copy read)
+>   (no span) release List[app.main.Item] (last use)
+>   (no span) release app.main.Item [name.0] (last use)

@@ -21,6 +21,7 @@ use hd_mono::{ProgramEnv, Sub, Target, TargetKind, subst};
 use hd_tir::ir::{
     Body, BodyKind, Callee, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, local_flags,
 };
+use hd_tir::own::Reason;
 use hd_types::{InternPool, Ty, TyData, TyList};
 use wasm_encoder::BlockType;
 
@@ -274,6 +275,7 @@ fn body_func<'a>(
         em.f.origin_item = Some((input.path)(b.item));
         em.f.origin_root = Some(b.sub_root[sub as usize]);
         em.f.origin_at = em.f.origin_root;
+        em.f.reason = Some(Reason::Conservative("entry"));
         em.f.local_names = Some(BTreeMap::new());
         em.f.statics = Some(BTreeSet::new());
         em.f.origin_args = input
@@ -487,6 +489,7 @@ fn body_func<'a>(
         if tail == NONE || em.diverges(tail) {
             em.f.op(Instruction::Unreachable);
         } else if em.counting {
+            em.f.reason = Some(Reason::Conservative("return"));
             let moved = em.take_from(tail, root);
             let s = if moved {
                 value::Src::Ref(tail)
@@ -1221,7 +1224,8 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
         }
     }
 
-    fn inherit_origin_source(&mut self) {
+    fn inherit_origin_source(&mut self, reason: Reason) {
+        self.f.reason = Some(reason);
         if self.m.track_origins {
             self.f.origins = Some(Vec::new());
             self.f.set_origin_source_len(self.b.anchor_len());
@@ -1782,12 +1786,24 @@ impl Em<'_, '_, '_> {
             }
         }
         self.emitting.push(i);
+        // With origins: a count statement's reason; the glue of any other
+        // instruction names its tag.
+        let was = self.f.reason;
+        if self.f.origins.is_some() {
+            self.f.reason = Some(
+                hd_tir::own::reason(self.b, i as usize)
+                    .unwrap_or(Reason::Conservative(self.b.tags[i as usize].name())),
+            );
+        }
         let mut r = match self.walked.take() {
             Some((x, h)) if x == i => self.read_walked(i, h),
             _ => self.inst_body(i),
         };
         self.emitting.pop();
         self.f.at = outer;
+        // What `i` consumed and did not take, and its value when nothing
+        // uses it, end at their last use (`hd_tir::own::consumers`).
+        self.f.reason = Some(Reason::LastUse);
         if r.is_ok() && self.owned {
             r = self.release_untaken(i);
             if r.is_ok()
@@ -1797,6 +1813,7 @@ impl Em<'_, '_, '_> {
                 r = self.release_value(i);
             }
         }
+        self.f.reason = was;
         self.settle(i);
         self.f.origin_at = origin_outer;
         r

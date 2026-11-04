@@ -16,7 +16,7 @@ fn ret_field(r: Rec) -> string:
 fn ret_new(n: i64) -> string:
     "n=${n}"
 > app/main/ret_new
->   (no span) release string
+>   (no span) release string (last use)
 
 fn ret_ref_field(r: &Rec) -> &string:
     &r.name
@@ -24,9 +24,9 @@ fn ret_ref_field(r: &Rec) -> &string:
 fn use_rets(r: Rec) -> usize:
     ret_param(r.name).len() + ret_field(r).len() + ret_ref_field(&r).len()
 > app/main/use_rets
->   retain string
->   retain app.main.Rec [name.0]
->   (no span) release string
->   (no span) release string
->   (no span) release app.main.Rec [name.0]
->   (no span) release app.main.Rec [name.0]
+>   retain string (conservative: copy read)
+>   retain app.main.Rec [name.0] (conservative: copy read)
+>   (no span) release string (last use)
+>   (no span) release string (last use)
+>   (no span) release app.main.Rec [name.0] (last use)
+>   (no span) release app.main.Rec [name.0] (last use)

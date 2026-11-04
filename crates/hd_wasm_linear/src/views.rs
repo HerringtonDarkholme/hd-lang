@@ -158,6 +158,8 @@ pub struct CountOperation {
     pub action: CountAction,
     /// A source type or a named runtime object, never a Wasm local index.
     pub subject: String,
+    /// Why the operation stands.
+    pub reason: hd_tir::own::Reason,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -167,6 +169,9 @@ pub enum CountAction {
     Copy,
     Release,
     Free,
+    /// A list's or a map's uniqueness check (`rt:list_unique`,
+    /// `rt:map_unique`).
+    Unique,
 }
 
 impl CountAction {
@@ -177,6 +182,7 @@ impl CountAction {
             Self::Copy => "copy",
             Self::Release => "release",
             Self::Free => "free",
+            Self::Unique => "unique",
         }
     }
 }
@@ -186,9 +192,10 @@ pub(crate) fn count_action(
     runtime: Option<&crate::Runtime>,
 ) -> Option<CountAction> {
     use crate::{Helper, module::Sym};
-    use CountAction::{Copy, Free, Release, Retain};
+    use CountAction::{Copy, Free, Release, Retain, Unique};
     match s {
         Sym::Helper(Helper::CollCopy) => Some(Copy),
+        Sym::Helper(Helper::ListUnique { .. } | Helper::MapUnique { .. }) => Some(Unique),
         Sym::Helper(
             Helper::Retain { .. }
             | Helper::RetainKnown
@@ -237,6 +244,7 @@ pub(crate) struct CountOrigin {
     pub site: u32,
     pub action: CountAction,
     pub subject: String,
+    pub reason: hd_tir::own::Reason,
 }
 
 /// Name the counted parts through the same value paths used by WAT locals.

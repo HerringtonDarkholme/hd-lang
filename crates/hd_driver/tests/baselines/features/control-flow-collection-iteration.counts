@@ -8,8 +8,8 @@ fn by_value(m: Map[string, string]) -> usize:
     let n: usize = 0
     for (k, v) in m:
 > app/main/by_value
->   retain (string, string) [0.0, 1.0]
->   release (string, string) [0.0, 1.0]
+>   retain (string, string) [0.0, 1.0] (conservative: Intrinsic)
+>   release (string, string) [0.0, 1.0] (last use)
         n += k.len() + v.len()
     n
 
@@ -17,8 +17,8 @@ fn by_ref(m: &Map[string, string]) -> usize:
     let n: usize = 0
     for (_, v) in m:
 > app/main/by_ref
->   retain (string, string) [0.0, 1.0]
->   release (string, string) [0.0, 1.0]
+>   retain (string, string) [0.0, 1.0] (conservative: Intrinsic)
+>   release (string, string) [0.0, 1.0] (last use)
         n += v.len()
     n
 
@@ -26,7 +26,8 @@ fn keys(m: Map[string, string]) -> List[string]:
     let mut out: List[string] = []
     for (k, _) in m:
 > app/main/keys
->   retain (string, string) [0.0, 1.0]
->   release string
+>   retain (string, string) [0.0, 1.0] (conservative: Intrinsic)
+>   release string (last use)
+>   unique List[string] (conservative: unique)
         out.push(k)
     out

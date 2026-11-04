@@ -5,16 +5,16 @@
 fn sum_to(limit: i32) -> i32:
     let sum = fn(n: i32) -> i32:
 > app/main/sum_to
->   retain counted reference
->   release counted reference
+>   retain counted reference (conservative: entry)
+>   release counted reference (last use)
 > app/main/sum_to
->   retain counted reference
->   release fn(i32) -> i32
+>   retain counted reference (conservative: Closure)
+>   release fn(i32) -> i32 (overwritten)
         if n == 0: 0
->   release fn(i32) -> i32
+>   release fn(i32) -> i32 (last use)
         else: n + sum(n - 1)
->   retain fn(i32) -> i32
+>   retain fn(i32) -> i32 (conservative: copy read)
     sum(limit)
->   retain fn(i32) -> i32
->   (no span) release counted reference
->   (no span) release fn(i32) -> i32
+>   retain fn(i32) -> i32 (conservative: copy read)
+>   (no span) release counted reference (last use)
+>   (no span) release fn(i32) -> i32 (last use)

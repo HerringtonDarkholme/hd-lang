@@ -18,7 +18,7 @@ fn queue(q: &mut Deque[string], a: string) -> usize:
         .Some(x) => x.len()
         .None => 0
 > app/main/queue
->   (no span) release string?
+>   (no span) release string? (last use)
 
 fn top(h: &mut Heap[string], a: string) -> usize:
     h.push(a)
@@ -26,4 +26,4 @@ fn top(h: &mut Heap[string], a: string) -> usize:
         .Some(x) => x.len()
         .None => 0
 > app/main/top
->   (no span) release string?
+>   (no span) release string? (last use)

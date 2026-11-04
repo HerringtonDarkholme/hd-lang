@@ -10,7 +10,7 @@ fn guard(s: string) -> usize:
 fn bind_counted(s: string) -> usize:
     if (t := s + "!").len() > 3: t.len() else: 0
 > app/main/bind_counted
->   (no span) release string
+>   (no span) release string (last use)
 
 fn bind_param(xs: List[string]) -> usize:
     if (ys := xs).len() > 0: ys.len() else: 0

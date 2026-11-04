@@ -16,8 +16,8 @@ fn lens(xs: List[string]) -> usize:
     let n: usize = 0
     for i in 0..xs.len():
 > app/main/lens
->   release string
+>   release string (last use)
         n += xs[i].len()
->   retain string
+>   retain string (conservative: copy read)
     n
->   (no span) release List[string]
+>   (no span) release List[string] (last use)

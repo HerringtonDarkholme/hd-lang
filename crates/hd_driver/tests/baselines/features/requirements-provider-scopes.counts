@@ -20,30 +20,30 @@ impl Tag for Named:
 fn read_tag() -> usize $ Tag:
     $.use(Tag).name().len()
 > app/main/read_tag
->   retain app.main.Tag
->   release app.main.Tag
->   (no span) release string
+>   retain app.main.Tag (conservative: copy read)
+>   release app.main.Tag (last use)
+>   (no span) release string (last use)
 
 fn by_value(s: string) -> usize:
     $.with(Tag=Named { label: s }):
 > app/main/by_value
->   retain app.main.Tag
+>   retain app.main.Tag (conservative: Coerce)
         read_tag()
->   (no span) release &app.main.Tag
->   (no span) release app.main.Tag
+>   (no span) release &app.main.Tag (by design)
+>   (no span) release app.main.Tag (last use)
 
 fn nested(a: string, b: string) -> usize:
     $.with(Tag=Named { label: a }):
 > app/main/nested
->   retain app.main.Tag
->   release &app.main.Tag
->   release app.main.Tag
+>   retain app.main.Tag (conservative: Coerce)
+>   release &app.main.Tag (by design)
+>   release app.main.Tag (last use)
         outer := read_tag()
         $.with(Tag=Named { label: b }):
->   retain app.main.Tag
+>   retain app.main.Tag (conservative: Coerce)
             outer + read_tag()
->   (no span) release &app.main.Tag
->   (no span) release app.main.Tag
+>   (no span) release &app.main.Tag (by design)
+>   (no span) release app.main.Tag (last use)
 
 fn apply(f: fn() -> usize) -> usize:
     f()
@@ -51,16 +51,16 @@ fn apply(f: fn() -> usize) -> usize:
 fn lexical(s: string) -> usize:
     $.with(Tag=Named { label: s }):
 > app/main/lexical
->   retain app.main.Tag
->   release &app.main.Tag
->   release fn() -> usize
+>   retain app.main.Tag (conservative: Coerce)
+>   release &app.main.Tag (by design)
+>   release fn() -> usize (last use)
         tag := $.use(Tag)
->   retain app.main.Tag
+>   retain app.main.Tag (conservative: ProviderGet)
         apply(fn() -> usize: tag.name().len())
->   retain counted reference
->   (no span) release &app.main.Tag
->   (no span) release app.main.Tag
+>   retain counted reference (conservative: Closure)
+>   (no span) release &app.main.Tag (by design)
+>   (no span) release app.main.Tag (last use)
 > app/main/lexical
->   release app.main.Tag
->   (no span) retain &app.main.Tag
->   (no span) release string
+>   release app.main.Tag (last use)
+>   (no span) retain &app.main.Tag (by design)
+>   (no span) release string (last use)

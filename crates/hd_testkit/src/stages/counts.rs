@@ -1,6 +1,6 @@
 use std::fmt::Write as _;
 
-/// Count operations that survived emission/optimization inside the subject,
+/// Count operations, each with its reason, that survived emission/optimization inside the subject,
 /// plus a subject function's operations with no source position (exit
 /// releases, a temporary's free), marked `(no span)` at its last line.
 /// The backend supplies semantic labels and real source origins; this view
@@ -61,11 +61,17 @@ pub(super) fn view(p: &super::Program, at: super::Build) -> String {
         let _ = writeln!(out, "{item}");
         for (lo, c) in spanned {
             out.at(lo);
-            let _ = writeln!(out, "  {} {}", c.action.name(), c.subject);
+            let _ = writeln!(out, "  {} {} ({})", c.action.name(), c.subject, c.reason);
         }
         out.at(last);
         for c in unspanned {
-            let _ = writeln!(out, "  (no span) {} {}", c.action.name(), c.subject);
+            let _ = writeln!(
+                out,
+                "  (no span) {} {} ({})",
+                c.action.name(),
+                c.subject,
+                c.reason
+            );
         }
     }
     if out.flat.is_empty() && !built.diags.has_errors() {

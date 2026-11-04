@@ -15,24 +15,24 @@ struct Key:
 fn same(a: Key, b: Key) -> bool:
     a == b
 > app/main/same
->   (no span) release app.main.Key [name.0]
->   (no span) release app.main.Key [name.0]
+>   (no span) release app.main.Key [name.0] (last use)
+>   (no span) release app.main.Key [name.0] (last use)
 
 fn before(a: Key, b: Key) -> bool:
     a < b
 > app/main/before
->   (no span) release app.main.Key [name.0]
->   (no span) release app.main.Key [name.0]
+>   (no span) release app.main.Key [name.0] (last use)
+>   (no span) release app.main.Key [name.0] (last use)
 
 fn lookup(m: Map[Key, string], k: Key) -> usize:
     match m.get(k):
 > app/main/lookup
->   retain string
+>   retain string (conservative: Intrinsic)
         .Some(v) => v.len()
         .None => 0
->   (no span) release string?
+>   (no span) release string? (last use)
 
 fn tuple_key(m: Map[(string, i32), i32], s: string) -> i32:
     m.get((s, 1)).unwrap_or(0)
 > app/main/tuple_key
->   (no span) release (string, i32) [0.0]
+>   (no span) release (string, i32) [0.0] (last use)

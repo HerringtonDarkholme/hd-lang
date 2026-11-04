@@ -14,7 +14,7 @@ use std.collections.UniqList
 fn build(word: string) -> UniqList[string]:
     let mut words = UniqList::[string].new()
 > std/rt_tests.stage_case/build
->   release counted reference
+>   release counted reference (overwritten)
     words.push(word)
     words
 
@@ -32,5 +32,5 @@ fn total(words: &UniqList[string]) -> usize:
 fn finish(words: UniqList[string]) -> usize:
     words.len()
 > std/rt_tests.stage_case/finish
->   (no span) release counted reference
->   (no span) release counted reference
+>   (no span) release counted reference (last use)
+>   (no span) release counted reference (last use)

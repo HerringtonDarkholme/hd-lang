@@ -14,15 +14,15 @@ fn save(s: string) -> Result[string, SaveError]:
 fn discard(s: string) -> usize:
     _ := save(s)
 > app/main/discard
->   retain string
+>   retain string (conservative: copy read)
     let _ = save(s)
->   retain string
+>   retain string (conservative: copy read)
     s.len()
->   (no span) release Result[string, app.main.SaveError]
->   (no span) release string
->   (no span) release string
->   (no span) release Result[string, app.main.SaveError]
->   (no span) release string
+>   (no span) release Result[string, app.main.SaveError] (last use)
+>   (no span) release string (last use)
+>   (no span) release string (last use)
+>   (no span) release Result[string, app.main.SaveError] (last use)
+>   (no span) release string (last use)
 
 fn unused(s: string) -> usize:
     _kept := s

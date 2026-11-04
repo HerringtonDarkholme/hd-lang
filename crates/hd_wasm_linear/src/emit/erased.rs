@@ -199,7 +199,7 @@ pub(super) fn thunk(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResul
         params,
         results.clone(),
     );
-    em.inherit_origin_source();
+    em.inherit_origin_source(hd_tir::own::Reason::Conservative("thunk"));
     em.counting = em.counts_anything();
     if em.counting {
         em.ret = results.iter().map(|v| em.f.local(*v)).collect();
@@ -450,7 +450,10 @@ impl Em<'_, '_, '_> {
     fn retain_addr(&mut self, x: u32) {
         if let Some(r) = self.input.runtime {
             self.f.get(x);
-            self.f.call(crate::module::Sym::Inst(r.retain));
+            self.f.count_call(
+                crate::module::Sym::Inst(r.retain),
+                crate::views::CountAction::Retain,
+            );
         }
     }
 

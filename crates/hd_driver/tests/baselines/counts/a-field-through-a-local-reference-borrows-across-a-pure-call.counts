@@ -22,12 +22,12 @@ impl Reader:
     fn top(&self) -> *mut Frame:
         self.frames[self.frames.len() - 1]
 > app/main/impl Reader.top
->   retain &mut app.main.Frame
+>   retain &mut app.main.Frame (conservative: copy read)
 
     fn tally(&mut self, facts: Facts) -> void:
         for _ in 0..facts.items.len():
 > app/main/impl Reader.tally
->   release &mut app.main.Frame?
+>   release &mut app.main.Frame? (last use)
             self.seen = self.seen + 1
             _ := self.frames.pop()
 
@@ -36,14 +36,14 @@ impl Reader:
         name := member_name(m, frame.facts)
         frame.next = frame.next + 1
 > app/main/impl Reader.name
->   (no span) release &mut app.main.Frame
+>   (no span) release &mut app.main.Frame (last use)
         name
 
     fn count(&mut self) -> usize:
         frame := self.top()
         self.tally(frame.facts)
 > app/main/impl Reader.count
->   copy std.structure.Facts
+>   copy std.structure.Facts (conservative: copy read)
         frame.next
->   (no span) release std.structure.Facts
->   (no span) release &mut app.main.Frame
+>   (no span) release std.structure.Facts (last use)
+>   (no span) release &mut app.main.Frame (last use)

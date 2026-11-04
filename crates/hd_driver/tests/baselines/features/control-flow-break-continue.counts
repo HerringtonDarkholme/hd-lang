@@ -9,17 +9,17 @@ fn until_long(xs: List[string]) -> usize:
     let n: usize = 0
     for x in xs:
 > app/main/until_long
->   retain string
->   release string
->   release string
+>   retain string (conservative: copy read)
+>   release string (last use)
+>   release string (last use)
         t := x + "!"
         if t.len() < 3:
->   release string
->   release string
+>   release string (last use)
+>   release string (last use)
             continue
         if t.len() > 9:
->   release string
->   release string
+>   release string (last use)
+>   release string (last use)
             break
         n += t.len()
     n

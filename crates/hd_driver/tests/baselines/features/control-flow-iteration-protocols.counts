@@ -17,33 +17,33 @@ impl Iterator[string] for Words:
         self.at += 1
         .Some(self.items[self.at - 1])
 > app/main/impl Iterator [ string ] for Words.next
->   retain string
+>   retain string (conservative: copy read)
 
 fn user_cursor(words: Words) -> usize:
     let n: usize = 0
     for w in words:
 > app/main/user_cursor
->   release app.main.Words [items]
->   release string?
->   release string
+>   release app.main.Words [items] (overwritten)
+>   release string? (last use)
+>   release string (last use)
         n += w.len()
     n
->   (no span) release app.main.Words [items]
+>   (no span) release app.main.Words [items] (last use)
 
 fn twice(xs: List[string]) -> usize:
     let n: usize = 0
     for x in xs.iter():
 > app/main/twice
->   copy List[string]
->   release std.iter.ListIter[string] [items]
->   release string?
->   release string
+>   copy List[string] (conservative: copy read)
+>   release std.iter.ListIter[string] [items] (overwritten)
+>   release string? (last use)
+>   release string (last use)
         n += x.len()
     for x in xs.iter():
->   release std.iter.ListIter[string] [items]
->   release string?
->   release string
+>   release std.iter.ListIter[string] [items] (overwritten)
+>   release string? (last use)
+>   release string (last use)
         n += x.len()
     n
->   (no span) release std.iter.ListIter[string] [items]
->   (no span) release std.iter.ListIter[string] [items]
+>   (no span) release std.iter.ListIter[string] [items] (last use)
+>   (no span) release std.iter.ListIter[string] [items] (last use)

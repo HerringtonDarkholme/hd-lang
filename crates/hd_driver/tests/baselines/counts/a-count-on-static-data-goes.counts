@@ -11,4 +11,4 @@ fn literal_twice() -> (string, string):
 fn name_twice(name: string) -> (string, string):
     (name, name)
 > app/main/name_twice
->   retain string
+>   retain string (conservative: copy read)

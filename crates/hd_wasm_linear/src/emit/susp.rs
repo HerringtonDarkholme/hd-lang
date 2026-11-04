@@ -13,6 +13,7 @@ use hd_base::SliceSort as _;
 use hd_base::{Hash128, HashMap, StageResult};
 use hd_mono::{Target, TargetKind};
 use hd_tir::ir::{Body, NONE, Tag};
+use hd_tir::own::Reason;
 use wasm_encoder::BlockType;
 
 use super::scope::Exit;
@@ -1041,7 +1042,8 @@ impl Em<'_, '_, '_> {
     fn ref_retain(&mut self, x: u32) {
         if let Some(r) = self.input.runtime {
             self.f.get(x);
-            self.f.call(Sym::Inst(r.retain));
+            self.f
+                .count_call(Sym::Inst(r.retain), crate::views::CountAction::Retain);
         }
     }
 }
@@ -1244,7 +1246,7 @@ pub(super) fn finish(
     // The release glue: the places the body owns while it waits, unless
     // it has left, then the child.
     em.f = em.m.func(format!("{name}.drop"), vec![Val::I32], vec![]);
-    em.inherit_origin_source();
+    em.inherit_origin_source(Reason::Conservative("frame drop"));
     em.counting = em.input.runtime.is_some();
     if em.counting {
         em.f.get(FRAME);
@@ -1378,7 +1380,7 @@ pub(super) fn finish(
     // the providers, with a count of each counted argument.
     let cold_params: Vec<Val> = params[1..].to_vec();
     em.f = em.m.func(name.clone(), cold_params.clone(), vec![Val::I32]);
-    em.inherit_origin_source();
+    em.inherit_origin_source(Reason::Conservative("cold constructor"));
     let fr = em.f.local(Val::I32);
     em.f.helper(Helper::Frame(key));
     em.f.set(fr);
@@ -1409,7 +1411,9 @@ pub(super) fn finish(
                 continue;
             };
             em.f.get(x - 1);
-            em.f.call(Sym::Inst(r.retain));
+            em.because(Reason::ByDesign, |em| {
+                em.f.count_call(Sym::Inst(r.retain), crate::views::CountAction::Retain);
+            });
             em.f.get(fr);
             em.f.get(x - 1);
             em.f.op(store_op(v, at));
@@ -1547,7 +1551,7 @@ pub(super) fn finish(
     // The cancel (§14.6): a frame that never started is only marked; a
     // started one unwinds until its body leaves by its cancellation.
     em.f = em.m.func(format!("{name}.cancel"), vec![Val::I32], vec![]);
-    em.inherit_origin_source();
+    em.inherit_origin_source(Reason::Cancelled);
     let seen = em.f.local(Val::I32);
     let tmp: Vec<u32> = results.iter().map(|v| em.f.local(*v)).collect();
     let back = em.f.local(Val::I32);

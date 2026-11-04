@@ -9,20 +9,20 @@ fn count_while(xs: List[string]) -> usize:
     let n: usize = 0
     while i < xs.len():
 > app/main/count_while
->   release string
+>   release string (last use)
         n += xs[i].len()
->   retain string
+>   retain string (conservative: copy read)
         i += 1
     n
->   (no span) release List[string]
+>   (no span) release List[string] (last use)
 
 fn build_while(s: string, k: usize) -> string:
     let out = s
 > app/main/build_while
->   retain string
+>   retain string (conservative: copy read)
     let i: usize = 0
     while i < k:
         out += s
         i += 1
     out
->   (no span) release string
+>   (no span) release string (last use)

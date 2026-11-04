@@ -14,7 +14,8 @@ impl Disposable for Guard:
     fn dispose(&mut self) -> void:
         self.log.push(self.label)
 > app/main/impl Disposable for Guard.dispose
->   retain string
+>   retain string (conservative: copy read)
+>   (no span) unique List[string] (conservative: unique)
 
 impl AutoClosing for Guard:
     pass
@@ -23,10 +24,11 @@ impl AutoClosing for Guard:
 fn guard(log: *mut List[string], label: string) -> Guard:
     Guard { log: log, label: label }
 > app/main/guard
->   retain &mut List[string]
+>   retain &mut List[string] (conservative: copy read)
 
 fn work(log: *mut List[string], label: string) -> void:
     guard(log, label)
-    log.push("work")
 > app/main/work
->   (no span) release counted reference
+>   unique List[string] (conservative: unique)
+    log.push("work")
+>   (no span) release counted reference (last use)

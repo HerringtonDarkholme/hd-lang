@@ -19,4 +19,4 @@ fn name_len(w: Weak[Node]) -> usize:
         .Some(n) => n.name.len()
         .None => 0
 > app/main/name_len
->   (no span) release &app.main.Node?
+>   (no span) release &app.main.Node? (last use)

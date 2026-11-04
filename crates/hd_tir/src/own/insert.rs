@@ -65,6 +65,7 @@ use hd_base::SliceSort as _;
 use hd_base::{LocalId, NodeIdx, SubId};
 use hd_types::Ty;
 
+use super::reason::LAST_USE;
 use super::{
     Loc, Operand, OwnCx, OwnScratch, Role, Tri, consumes, fill, operands, splice, suite_touches,
     tracked,
@@ -522,7 +523,7 @@ fn after_drops(t: &mut Tables, edits: &mut splice::Tables) {
     t.after
         .sort_stable_by_key(|a| (a.blk, a.pos, std::cmp::Reverse(a.age)));
     for a in &t.after {
-        edits.insert(a.blk, a.pos, Tag::Drop, [a.word, NONE], Ty::VOID, a.syn);
+        edits.insert(a.blk, a.pos, Tag::Drop, [a.word, LAST_USE], Ty::VOID, a.syn);
     }
 }
 
@@ -617,7 +618,7 @@ fn locals(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables, edits: &mut
                 root,
                 0,
                 Tag::Drop,
-                [l | place::BARE_LOCAL, NONE],
+                [l | place::BARE_LOCAL, LAST_USE],
                 Ty::VOID,
                 b.syn[root as usize],
             );
@@ -737,7 +738,7 @@ fn jumps(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice::Tabl
                         continue;
                     }
                     let word = l | place::BARE_LOCAL;
-                    edits.insert(jb, jp, Tag::Drop, [word, NONE], Ty::VOID, b.syn[j]);
+                    edits.insert(jb, jp, Tag::Drop, [word, LAST_USE], Ty::VOID, b.syn[j]);
                 } else {
                     let v = it.what;
                     if v as usize >= j
@@ -748,7 +749,7 @@ fn jumps(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice::Tabl
                         continue;
                     }
                     let word = value_place(b, v);
-                    edits.insert(jb, jp, Tag::Drop, [word, NONE], Ty::VOID, b.syn[j]);
+                    edits.insert(jb, jp, Tag::Drop, [word, LAST_USE], Ty::VOID, b.syn[j]);
                 }
             }
             let owner = topo.owner[blk as usize];

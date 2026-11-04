@@ -15,19 +15,19 @@ struct Member:
 fn count(facts: Facts) -> usize:
     facts.items.len()
 > app/main/count
->   release app.main.Facts
+>   release app.main.Facts (conservative: unowned parameter)
 
 fn read_again(m: Member) -> usize:
     x := m
     count(x.facts) + m.name.len()
 > app/main/read_again
->   copy app.main.Facts
->   (no span) release app.main.Member [name.0, facts, doc.0]
->   (no span) release string
+>   copy app.main.Facts (conservative: copy read)
+>   (no span) release app.main.Member [name.0, facts, doc.0] (last use)
+>   (no span) release string (last use)
 
 fn last_read(m: Member) -> usize:
     x := m
     count(x.facts) + x.doc.len()
 > app/main/last_read
->   (no span) release app.main.Member [name.0, facts, doc.0]
->   (no span) release string
+>   (no span) release app.main.Member [name.0, facts, doc.0] (last use)
+>   (no span) release string (last use)

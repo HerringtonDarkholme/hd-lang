@@ -8,116 +8,116 @@
 fn fetch!(key: string) -> string:
     key + "?"
 > app/main/fetch
->   (no span) retain string
->   (no span) release string
+>   (no span) retain string (conservative: entry)
+>   (no span) release string (last use)
 
 fn construct(key: string) -> usize:
     _ := fetch(key)
     key.len()
 > app/main/construct
->   (no span) release Suspend[string]
+>   (no span) release Suspend[string] (last use)
 
 fn run_twice!(body: fn!() -> string) -> usize:
     body!().len() + body!().len()
 > app/main/run_twice
->   retain fn!() -> string
->   retain counted reference
->   release counted reference
->   release counted reference
->   release fn!() -> string
->   release Suspend[string]
->   release counted reference
->   retain &string
->   retain counted reference
->   release counted reference
->   release counted reference
->   release fn!() -> string
->   release Suspend[string]
->   release counted reference
->   retain &string
->   (no span) retain fn!() -> string
->   (no span) release Suspend[string]
->   (no span) release fn!() -> string
->   (no span) release &string
->   (no span) release counted reference
->   (no span) release Suspend[string]
->   (no span) release fn!() -> string
->   (no span) release &string
->   (no span) release counted reference
->   (no span) release fn!() -> string
+>   retain fn!() -> string (conservative: copy read)
+>   retain counted reference (conservative: AwaitValue)
+>   release counted reference (conservative: AwaitValue)
+>   release counted reference (conservative: AwaitValue)
+>   release fn!() -> string (cancelled)
+>   release Suspend[string] (cancelled)
+>   release counted reference (overwritten)
+>   retain &string (conservative: Ref)
+>   retain counted reference (conservative: AwaitValue)
+>   release counted reference (conservative: AwaitValue)
+>   release counted reference (conservative: AwaitValue)
+>   release fn!() -> string (cancelled)
+>   release Suspend[string] (cancelled)
+>   release counted reference (overwritten)
+>   retain &string (conservative: Ref)
+>   (no span) retain fn!() -> string (conservative: entry)
+>   (no span) release Suspend[string] (last use)
+>   (no span) release fn!() -> string (last use)
+>   (no span) release &string (last use)
+>   (no span) release counted reference (last use)
+>   (no span) release Suspend[string] (last use)
+>   (no span) release fn!() -> string (last use)
+>   (no span) release &string (last use)
+>   (no span) release counted reference (last use)
+>   (no span) release fn!() -> string (last use)
 
 fn closure_bang!(key: string) -> usize:
     run_twice!():
 > app/main/closure_bang
->   release counted reference
->   release counted reference
->   release fn!() -> string
+>   release counted reference (conservative: Await)
+>   release counted reference (conservative: Await)
+>   release fn!() -> string (cancelled)
         fetch!(key)
 > app/main/closure_bang
->   retain string
->   retain counted reference
->   retain counted reference
->   release counted reference
->   retain counted reference
->   release counted reference
->   release string
->   release string
->   release string
+>   retain string (conservative: entry)
+>   retain counted reference (conservative: Await)
+>   retain counted reference (conservative: Await)
+>   release counted reference (conservative: Await)
+>   retain counted reference (conservative: Await)
+>   release counted reference (conservative: Await)
+>   release string (cancelled)
+>   release string (last use)
+>   release string (last use)
 > app/main/closure_bang
->   release string
+>   release string (cancelled)
 > app/main/closure_bang
->   release string
->   release string
->   release string
->   release counted reference
->   release counted reference
+>   release string (conservative: frame drop)
+>   release string (conservative: frame drop)
+>   release string (conservative: frame drop)
+>   release counted reference (conservative: frame drop)
+>   release counted reference (conservative: frame drop)
 > app/main/closure_bang
->   retain counted reference
->   retain string
->   retain counted reference
->   (no span) retain string
->   (no span) release string
->   (no span) release fn!() -> string
->   (no span) release string
+>   retain counted reference (conservative: cold constructor)
+>   retain string (conservative: cold constructor)
+>   retain counted reference (conservative: Closure)
+>   (no span) retain string (conservative: entry)
+>   (no span) release string (last use)
+>   (no span) release fn!() -> string (last use)
+>   (no span) release string (last use)
 
 fn stored!(key: string) -> usize:
     loader := fn!(k: string) -> string: fetch!(k)
 > app/main/stored
->   release fn!(string) -> string
+>   release fn!(string) -> string (overwritten)
 > app/main/stored
->   retain string
->   retain counted reference
->   retain counted reference
->   release counted reference
->   retain counted reference
->   release counted reference
->   release string
->   release string
->   release string
+>   retain string (conservative: entry)
+>   retain counted reference (conservative: Await)
+>   retain counted reference (conservative: Await)
+>   release counted reference (conservative: Await)
+>   retain counted reference (conservative: Await)
+>   release counted reference (conservative: Await)
+>   release string (cancelled)
+>   release string (last use)
+>   release string (last use)
 > app/main/stored
->   release string
+>   release string (cancelled)
 > app/main/stored
->   release string
->   release string
->   release string
->   release counted reference
->   release counted reference
+>   release string (conservative: frame drop)
+>   release string (conservative: frame drop)
+>   release string (conservative: frame drop)
+>   release counted reference (conservative: frame drop)
+>   release counted reference (conservative: frame drop)
 > app/main/stored
->   retain string
->   retain counted reference
+>   retain string (conservative: cold constructor)
+>   retain counted reference (conservative: cold constructor)
     loader!(key).len()
->   retain counted reference
->   release counted reference
->   release counted reference
->   release fn!(string) -> string
->   release string
->   release Suspend[string]
->   release counted reference
->   retain &string
->   (no span) retain string
->   (no span) release Suspend[string]
->   (no span) release string
->   (no span) release fn!(string) -> string
->   (no span) release &string
->   (no span) release counted reference
->   (no span) release string
+>   retain counted reference (conservative: AwaitValue)
+>   release counted reference (conservative: AwaitValue)
+>   release counted reference (conservative: AwaitValue)
+>   release fn!(string) -> string (cancelled)
+>   release string (cancelled)
+>   release Suspend[string] (cancelled)
+>   release counted reference (overwritten)
+>   retain &string (conservative: Ref)
+>   (no span) retain string (conservative: entry)
+>   (no span) release Suspend[string] (last use)
+>   (no span) release string (last use)
+>   (no span) release fn!(string) -> string (last use)
+>   (no span) release &string (last use)
+>   (no span) release counted reference (last use)
+>   (no span) release string (last use)

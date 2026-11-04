@@ -59,7 +59,10 @@ mod moves;
 mod pairs;
 pub(crate) mod parts;
 pub mod promote;
+mod reason;
 pub(crate) mod splice;
+
+pub use reason::{Reason, reason};
 
 /// Whether a type holds a counted leaf.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

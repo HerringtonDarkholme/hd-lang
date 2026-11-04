@@ -13,4 +13,4 @@ fn nested_length(value: Nested) -> usize:
                 ._1(text) => text.len()
         ._1(_) => 0
 > app/main/nested_length
->   (no span) release (i32 | string) | bool
+>   (no span) release (i32 | string) | bool (conservative: unowned parameter)

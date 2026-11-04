@@ -8,27 +8,27 @@
 fn local_capture(prefix: string, xs: List[string]) -> usize:
     fn width(s: string) -> usize:
 > app/main/local_capture
->   retain counted reference
+>   retain counted reference (conservative: Closure)
         prefix.len() + s.len()
 > app/main/local_capture
->   retain counted reference
+>   retain counted reference (conservative: Ref)
     let total: usize = 0
     for x in xs:
->   retain string
->   retain string
->   release &string
->   release string
->   release string
+>   retain string (conservative: copy read)
+>   retain string (conservative: entry)
+>   release &string (last use)
+>   release string (last use)
+>   release string (last use)
         total += width(x)
     total
->   (no span) release counted reference
->   (no span) release fn(string) -> usize
+>   (no span) release counted reference (last use)
+>   (no span) release fn(string) -> usize (last use)
 
 fn local_plain(xs: List[string]) -> usize:
     fn first_len(ys: List[string]) -> usize:
         if ys.len() > 0: ys[0].len() else: 0
 > app/main/local_plain
->   retain string
->   release string
->   (no span) release List[string]
+>   retain string (conservative: copy read)
+>   release string (last use)
+>   (no span) release List[string] (last use)
     first_len(xs)

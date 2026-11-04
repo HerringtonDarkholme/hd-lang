@@ -15,18 +15,18 @@ impl Namer for Fixed:
     fn name(&self) -> string:
         self.n
 > app/main/impl Namer for Fixed.name
->   retain string
+>   retain string (conservative: copy read)
 
 fn ask() -> usize $ Namer:
     $.use(Namer).name().len()
 > app/main/ask
->   retain app.main.Namer
->   (no span) release app.main.Namer
->   (no span) release string
+>   retain app.main.Namer (conservative: copy read)
+>   (no span) release app.main.Namer (last use)
+>   (no span) release string (last use)
 
 fn install(s: string) -> usize:
     f := box(Fixed { n: s })
     $.with(Namer=f):
         ask()
 > app/main/install
->   (no span) release app.main.Namer
+>   (no span) release app.main.Namer (last use)

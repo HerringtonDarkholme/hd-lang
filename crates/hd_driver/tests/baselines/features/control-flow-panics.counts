@@ -15,7 +15,8 @@ impl Disposable for Res:
     fn dispose(&mut self) -> void:
         self.log.push(self.name)
 > app/main/impl Disposable for Res.dispose
->   retain string
+>   retain string (conservative: copy read)
+>   (no span) unique List[string] (conservative: unique)
 
 fn must(s: string, n: i32) -> usize:
     t := s + "!"
@@ -23,15 +24,15 @@ fn must(s: string, n: i32) -> usize:
         panic("negative: $t")
     t.len()
 > app/main/must
->   (no span) release string
+>   (no span) release string (last use)
 
 fn guarded(log: *mut List[string], s: string, n: i32) -> usize:
     using r = Res { name: s + "?", log: log }
 > app/main/guarded
->   retain &mut List[string]
->   release string
+>   retain &mut List[string] (conservative: copy read)
+>   release string (last use)
     if n < 0:
         panic("negative")
     r.name.len()
->   retain string
->   (no span) release counted reference
+>   retain string (conservative: copy read)
+>   (no span) release counted reference (last use)

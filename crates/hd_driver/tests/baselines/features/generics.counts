@@ -22,10 +22,11 @@ fn keep[T](x: T) -> List[T]:
 fn use_generic(s: string, xs: List[string]) -> usize:
     ident(s).len() + size(&xs) + first(xs).unwrap_or("").len() + keep(s).len()
 > app/main/use_generic
->   retain string
->   retain string
->   (no span) release string
->   (no span) release List[string]
->   (no span) release string
->   (no span) release List[string]
->   (no span) release List[string]
+>   retain string (conservative: copy read)
+>   retain string (conservative: copy read)
+>   unique List[string] (conservative: unique)
+>   (no span) release string (last use)
+>   (no span) release List[string] (last use)
+>   (no span) release string (last use)
+>   (no span) release List[string] (last use)
+>   (no span) release List[string] (last use)

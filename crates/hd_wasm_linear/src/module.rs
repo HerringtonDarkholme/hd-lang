@@ -541,6 +541,9 @@ pub struct Func {
     count_origin_base: Option<u32>,
     count_origins: Vec<crate::views::CountOrigin>,
     count_sites: u32,
+    /// With origins: why the count code written now stands
+    /// ([`hd_tir::own::Reason`]); `None` is emitter glue no site names.
+    pub reason: Option<hd_tir::own::Reason>,
     /// A complete relocation-free body, including locals and the final end.
     pub raw: Option<Vec<u8>>,
     /// The TIR instruction whose code is being written, when it has a
@@ -638,6 +641,7 @@ impl Func {
         source_len: u32,
         action: crate::views::CountAction,
         subject: &str,
+        reason: Option<hd_tir::own::Reason>,
     ) {
         if self.origins.is_none() || start == self.body.len() {
             return;
@@ -665,6 +669,7 @@ impl Func {
                     site,
                     action,
                     subject: subject.to_owned(),
+                    reason: reason.unwrap_or(hd_tir::own::Reason::Conservative("glue")),
                 });
                 token
             });
@@ -777,7 +782,7 @@ impl Func {
             (action, self.count_origin_base, self.origin_at)
             && self.count_origin(origin).is_none()
         {
-            self.note_count(start, base, action, "counted reference");
+            self.note_count(start, base, action, "counted reference", self.reason);
         }
     }
 
@@ -810,6 +815,18 @@ impl Func {
         self.anchor();
         let id = self.symbols.intern_signature(params, results);
         self.push(Ins::CallIndirect(id));
+    }
+
+    /// A call of runtime count function `s`, labeled as [`Func::push`]
+    /// labels a count helper's.
+    pub fn count_call(&mut self, s: Sym, action: crate::views::CountAction) {
+        let start = self.body.len();
+        self.call(s);
+        if let (Some(base), Some(origin)) = (self.count_origin_base, self.origin_at)
+            && self.count_origin(origin).is_none()
+        {
+            self.note_count(start, base, action, "counted reference", self.reason);
+        }
     }
 
     /// Writes [`Ins::Anchor`] before a call whose anchor is new.
@@ -2115,6 +2132,12 @@ impl Module {
                             offset: u32::try_from(body.byte_len()).expect("offset"),
                             origin: f.source_origin(origin),
                             action,
+                            // No note: a call the source itself makes
+                            // (`std.rt`'s own `free`).
+                            reason: note
+                                .map_or(hd_tir::own::Reason::Conservative("source call"), |n| {
+                                    n.reason
+                                }),
                             subject: note.map_or_else(
                                 || {
                                     if action == crate::views::CountAction::Free {

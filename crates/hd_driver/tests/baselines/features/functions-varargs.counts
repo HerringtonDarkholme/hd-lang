@@ -10,15 +10,15 @@ fn total(parts...: List[string]) -> usize:
     let n: usize = 0
     for p in parts:
 > app/main/total
->   retain string
->   release string
+>   retain string (conservative: copy read)
+>   release string (last use)
         n += p.len()
     n
 
 fn three(a: string, b: string, c: string) -> usize:
     total(a, b, c)
 > app/main/three
->   (no span) release List[string]
+>   (no span) release List[string] (last use)
 
 fn spread(xs: List[string]) -> usize:
     total(xs...)

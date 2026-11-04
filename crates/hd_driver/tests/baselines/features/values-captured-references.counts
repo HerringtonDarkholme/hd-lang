@@ -12,12 +12,12 @@ struct Point:
 fn bump(p: *mut Point) -> fn() -> void:
     fn() -> void: p.x = p.x + 1
 > app/main/bump
->   retain &mut app.main.Point
->   release &mut app.main.Point
+>   retain &mut app.main.Point (conservative: entry)
+>   release &mut app.main.Point (last use)
 > app/main/bump
->   retain counted reference
->   (no span) retain &mut app.main.Point
->   (no span) release &mut app.main.Point
+>   retain counted reference (conservative: Closure)
+>   (no span) retain &mut app.main.Point (conservative: entry)
+>   (no span) release &mut app.main.Point (last use)
 
 fn demo(s: string) -> i32:
     origin := box(Point { name: s, x: 0 })
@@ -26,8 +26,8 @@ fn demo(s: string) -> i32:
     step()
     origin.x
 > app/main/demo
->   (no span) release fn() -> ()
->   (no span) release &mut app.main.Point
+>   (no span) release fn() -> () (last use)
+>   (no span) release &mut app.main.Point (last use)
 
 fn apply(f: fn() -> usize) -> usize:
     f()
@@ -35,7 +35,7 @@ fn apply(f: fn() -> usize) -> usize:
 fn local(xs: &List[string]) -> usize:
     apply(fn() -> usize: xs.len())
 > app/main/local
->   copy counted reference
->   release List[string]
+>   copy counted reference (conservative: copy read)
+>   release List[string] (last use)
 > app/main/local
->   (no span) release fn() -> usize
+>   (no span) release fn() -> usize (last use)

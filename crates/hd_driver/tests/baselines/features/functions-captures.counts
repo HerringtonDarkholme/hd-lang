@@ -11,64 +11,66 @@
 fn copied(s: string) -> usize:
     f := fn() -> usize: s.len()
 > app/main/copied
->   retain counted reference
+>   retain counted reference (conservative: Closure)
 > app/main/copied
->   retain string
->   retain counted reference
->   release &string
->   release string
+>   retain string (conservative: entry)
+>   retain counted reference (conservative: Ref)
+>   release &string (last use)
+>   release string (last use)
     f() + s.len()
->   (no span) release fn() -> usize
->   (no span) release counted reference
+>   (no span) release fn() -> usize (last use)
+>   (no span) release counted reference (last use)
 
 fn shared_list(s: string) -> usize:
     let mut xs: List[string] = []
     add := fn() -> void: xs.push(s)
 > app/main/shared_list
->   retain string
->   retain counted reference
->   release counted reference
+>   retain string (conservative: entry)
+>   retain counted reference (conservative: entry)
+>   unique List[string] (conservative: unique)
+>   release counted reference (last use)
 > app/main/shared_list
->   retain counted reference
+>   retain counted reference (conservative: Closure)
     add()
     add()
     xs.len()
->   copy List[string]
->   (no span) release string
->   (no span) release fn() -> ()
->   (no span) release counted reference
->   (no span) release List[string]
+>   copy List[string] (conservative: copy read)
+>   (no span) release string (last use)
+>   (no span) release fn() -> () (last use)
+>   (no span) release counted reference (last use)
+>   (no span) release List[string] (last use)
 
 fn copy_shares(s: string) -> usize:
     let n: usize = 0
     inc := fn() -> void: n += s.len()
 > app/main/copy_shares
->   retain counted reference
+>   retain counted reference (conservative: Ref)
 > app/main/copy_shares
->   retain counted reference
+>   retain counted reference (conservative: Closure)
     again := inc
->   retain string
->   retain counted reference
->   release &string
->   release string
->   release counted reference
->   retain fn() -> ()
+>   retain string (conservative: entry)
+>   retain counted reference (conservative: entry)
+>   release &string (last use)
+>   release string (last use)
+>   release counted reference (last use)
+>   retain fn() -> () (conservative: copy read)
     inc()
     again()
     n
->   (no span) release counted reference
->   (no span) release fn() -> ()
->   (no span) release fn() -> ()
->   (no span) release counted reference
+>   (no span) release counted reference (last use)
+>   (no span) release fn() -> () (last use)
+>   (no span) release fn() -> () (last use)
+>   (no span) release counted reference (last use)
 
 fn through_ptr(items: *mut List[string], s: string) -> fn() -> void:
     fn() -> void: items.push(s)
 > app/main/through_ptr
->   retain counted reference
->   (no span) retain &mut List[string]
->   (no span) release &mut List[string]
->   (no span) release string
+>   retain counted reference (conservative: Closure)
+>   (no span) retain &mut List[string] (conservative: entry)
+>   (no span) release &mut List[string] (last use)
+>   (no span) release string (last use)
 > app/main/through_ptr
->   retain &mut List[string]
->   retain string
->   release &mut List[string]
+>   retain &mut List[string] (conservative: entry)
+>   retain string (conservative: entry)
+>   unique List[string] (conservative: unique)
+>   release &mut List[string] (last use)

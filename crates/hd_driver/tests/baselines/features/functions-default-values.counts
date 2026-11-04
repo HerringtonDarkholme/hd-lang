@@ -8,16 +8,18 @@
 # static data with no count.
 fn collect(item: string, into: &mut List[string] = &mut []) -> usize:
 > app/main/collect.into
->   (no span) release string
+>   (no span) release string (last use)
     into.push(item)
     into.len()
+> app/main/collect
+>   (no span) unique List[string] (conservative: unique)
 
 fn with_default(s: string) -> usize:
     collect(s)
 > app/main/with_default
->   retain string
->   retain string
->   (no span) release counted reference
+>   retain string (conservative: DefaultCall)
+>   retain string (conservative: Call)
+>   (no span) release counted reference (last use)
 
 fn with_given(s: string, out: &mut List[string]) -> usize:
     collect(s, out)
@@ -28,5 +30,5 @@ fn labeled(name: string, suffix: string = "!") -> string:
 fn use_label(s: string) -> string:
     labeled(s)
 > app/main/use_label
->   retain string
->   (no span) release string
+>   retain string (conservative: DefaultCall)
+>   (no span) release string (last use)

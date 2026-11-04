@@ -10,21 +10,24 @@
 fn lookup(m: &Map[string, string], k: string) -> usize:
     match m.get(k):
 > app/main/lookup
->   retain string
+>   retain string (conservative: Intrinsic)
         .Some(v) => v.len()
         .None => 0
->   (no span) release string?
+>   (no span) release string? (last use)
 
 fn put(m: &mut Map[string, string], k: string, v: string) -> void:
     m[k] = v
 > app/main/put
->   retain string
+>   retain string (conservative: Intrinsic)
+>   (no span) unique Map[string, string] (conservative: unique)
 
 fn group(m: &mut Map[string, List[string]], k: string, v: string) -> void:
     m.get_or_insert(k, []).push(v)
 > app/main/group
->   retain string
->   copy List[string]
+>   unique counted reference (conservative: Call)
+>   retain string (conservative: Call)
+>   copy List[string] (conservative: Call)
+>   (no span) unique List[string] (conservative: unique)
 
 fn has(m: &Map[string, string], k: string) -> bool:
     m.contains_key(k)

@@ -26,4 +26,4 @@ fn promoted(p: Post) -> usize:
 fn stamp_of(p: &Post) -> Stamp:
     p.Stamp
 > app/main/stamp_of
->   retain app.main.Stamp [by.0]
+>   retain app.main.Stamp [by.0] (conservative: copy read)

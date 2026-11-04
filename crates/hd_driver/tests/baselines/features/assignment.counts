@@ -8,9 +8,9 @@ fn assign(a: string, b: string) -> usize:
     let s = a
     s = b
 > app/main/assign
->   release string
+>   release string (overwritten)
     s.len()
->   (no span) release string
+>   (no span) release string (last use)
 
 fn compound(a: string) -> string:
     let s = a
@@ -21,6 +21,6 @@ fn assign_list(xs: List[string], ys: List[string]) -> usize:
     let zs = xs
     zs = ys
 > app/main/assign_list
->   release List[string]
+>   release List[string] (overwritten)
     zs.len()
->   (no span) release List[string]
+>   (no span) release List[string] (last use)

@@ -11,33 +11,35 @@ use std.collections.{UniqList}
 fn list_read(xs: List[string], i: usize) -> usize:
     xs[i].len()
 > app/main/list_read
->   retain string
->   (no span) release List[string]
->   (no span) release string
+>   retain string (conservative: copy read)
+>   (no span) release List[string] (last use)
+>   (no span) release string (last use)
 
 fn list_take(xs: List[string], i: usize) -> string:
     xs[i]
 > app/main/list_take
->   retain string
->   (no span) release List[string]
+>   retain string (conservative: copy read)
+>   (no span) release List[string] (last use)
 
 fn list_write(xs: &mut List[string], i: usize, s: string) -> void:
     xs[i] = s
 > app/main/list_write
->   release string
+>   release string (overwritten)
+>   (no span) unique List[string] (conservative: unique)
 
 fn map_read(m: Map[string, string], k: string) -> usize:
     match m.get(k):
 > app/main/map_read
->   retain string
+>   retain string (conservative: Intrinsic)
         .Some(v) => v.len()
         .None => 0
->   (no span) release string?
+>   (no span) release string? (last use)
 
 fn map_write(m: &mut Map[string, string], k: string, v: string) -> void:
     m[k] = v
 > app/main/map_write
->   retain string
+>   retain string (conservative: Intrinsic)
+>   (no span) unique Map[string, string] (conservative: unique)
 
 fn uniq_read(xs: &UniqList[string], i: usize) -> usize:
     match xs.get_ref(i):
@@ -48,5 +50,5 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
     match xs.get_mut(i):
         .Some(r) => *r = s
 > app/main/uniq_write
->   release counted reference
+>   release counted reference (conservative: Store)
         .None => panic("index")

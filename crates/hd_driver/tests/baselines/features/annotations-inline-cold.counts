@@ -11,7 +11,7 @@ use std.annotation.{InlineHint, cold, inline}
 fn unexpected(at: usize) -> string:
     "unexpected byte at $at"
 > app/main/unexpected
->   (no span) release string
+>   (no span) release string (last use)
 
 @inline(.Never)
 fn checksum(xs: &List[string]) -> usize:
@@ -29,14 +29,14 @@ fn first_len(xs: &List[string]) -> usize:
 fn use_first(xs: List[string]) -> usize:
     first_len(&xs) + checksum(&xs)
 > app/main/use_first
->   (no span) release List[string]
->   (no span) release List[string]
+>   (no span) release List[string] (last use)
+>   (no span) release List[string] (last use)
 
 fn check(xs: List[string], at: usize) -> string:
     if at >= xs.len():
         return unexpected(at)
     xs[at]
 > app/main/check
->   retain string
->   (no span) release List[string]
->   (no span) release List[string]
+>   retain string (conservative: copy read)
+>   (no span) release List[string] (last use)
+>   (no span) release List[string] (last use)

@@ -18,10 +18,10 @@ fn read_ptr(p: *Node) -> usize:
 fn write_ptr(p: *mut Node, n: string) -> void:
     p.name = n
 > app/main/write_ptr
->   release counted reference
+>   release counted reference (conservative: Store)
 
 fn share(p: *Node) -> (*Node, *Node):
     (p, p)
 > app/main/share
->   retain &app.main.Node
->   retain &app.main.Node
+>   retain &app.main.Node (conservative: copy read)
+>   retain &app.main.Node (conservative: copy read)

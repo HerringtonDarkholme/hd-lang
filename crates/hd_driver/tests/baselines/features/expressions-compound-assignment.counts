@@ -11,14 +11,16 @@ struct Tally:
 fn map_add(m: &mut Map[string, i64], k: string) -> void:
     m[k] += 1
 > app/main/map_add
->   retain string
+>   retain string (conservative: Intrinsic)
+>   (no span) unique Map[string, i64] (conservative: unique)
 
 fn list_append(xs: &mut List[string], i: usize) -> void:
     xs[i] += "!"
 > app/main/list_append
->   release string
+>   release string (overwritten)
+>   (no span) unique List[string] (conservative: unique)
 
 fn field_append(t: &mut Tally, s: string) -> void:
     t.log += s
 > app/main/field_append
->   release counted reference
+>   release counted reference (conservative: Store)

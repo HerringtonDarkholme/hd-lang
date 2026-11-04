@@ -8,19 +8,19 @@
 fn measure(label: string, body: fn() -> string) -> usize:
     label.len() + body().len()
 > app/main/measure
->   (no span) release string
+>   (no span) release string (last use)
 
 fn trailing(s: string) -> usize:
     measure("t"):
 > app/main/trailing
->   release string
+>   release string (last use)
         s + "!"
->   retain counted reference
->   (no span) release string
->   (no span) release fn() -> string
+>   retain counted reference (conservative: Closure)
+>   (no span) release string (last use)
+>   (no span) release fn() -> string (last use)
 > app/main/trailing
->   retain string
->   release string
+>   retain string (conservative: entry)
+>   release string (last use)
 
 fn twice(body: fn() -> usize) -> usize:
     body() + body()
@@ -28,12 +28,12 @@ fn twice(body: fn() -> usize) -> usize:
 fn no_args(s: string) -> usize:
     twice:
 > app/main/no_args
->   retain string
->   release &string
->   release string
+>   retain string (conservative: entry)
+>   release &string (last use)
+>   release string (last use)
         s.len()
->   retain counted reference
+>   retain counted reference (conservative: Ref)
 > app/main/no_args
->   retain counted reference
->   (no span) release counted reference
->   (no span) release fn() -> usize
+>   retain counted reference (conservative: Closure)
+>   (no span) release counted reference (last use)
+>   (no span) release fn() -> usize (last use)

@@ -16,6 +16,8 @@ struct Log:
 impl Recorder for Log:
     fn note(&mut self, s: string) -> void:
         self.lines.push(s)
+> app/main/impl Recorder for Log.note
+>   (no span) unique List[string] (conservative: unique)
 
     fn total(&self) -> usize:
         self.lines.len()
@@ -23,23 +25,23 @@ impl Recorder for Log:
 fn tick(s: string) -> usize $ Recorder:
     rec := $.use(Recorder)
 > app/main/tick
->   retain app.main.Recorder
+>   retain app.main.Recorder (conservative: ProviderGet)
     rec.note(s)
->   retain app.main.Recorder
->   release string
+>   retain app.main.Recorder (conservative: copy read)
+>   release string (last use)
     rec.total()
->   retain app.main.Recorder
->   (no span) release app.main.Recorder
->   (no span) release app.main.Recorder
->   (no span) release &mut app.main.Recorder
+>   retain app.main.Recorder (conservative: copy read)
+>   (no span) release app.main.Recorder (last use)
+>   (no span) release app.main.Recorder (last use)
+>   (no span) release &mut app.main.Recorder (by design)
 
 fn demo(a: string, b: string) -> usize:
     tally := box(Log { lines: [] })
     $.with(Recorder=tally):
 > app/main/demo
->   retain app.main.Recorder
+>   retain app.main.Recorder (conservative: Coerce)
         _ := tick(a)
         _ := tick(b)
     tally.lines.len()
->   (no span) release app.main.Recorder
->   (no span) release &mut app.main.Log
+>   (no span) release app.main.Recorder (last use)
+>   (no span) release &mut app.main.Log (last use)

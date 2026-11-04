@@ -9,11 +9,11 @@ struct Node:
 fn value(node: &Node, other: &mut Node) -> i64:
     match node.left:
 > app/main/value
->   retain &app.main.Node?
+>   retain &app.main.Node? (conservative: copy read)
         .None => 0
->   release &app.main.Node?
+>   release &app.main.Node? (last use)
         .Some(left) =>
             other.left = .None
->   release counted reference
+>   release counted reference (conservative: Store)
             left.value
->   (no span) release &app.main.Node
+>   (no span) release &app.main.Node (last use)

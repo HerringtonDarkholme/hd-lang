@@ -12,7 +12,7 @@ fn str_slice(s: string) -> string:
 fn str_slice_len(s: string, n: usize) -> usize:
     s[0..n].len()
 > app/main/str_slice_len
->   (no span) release string
+>   (no span) release string (last use)
 
 fn list_slice(xs: List[string]) -> List[string]:
     xs[1..]
@@ -23,4 +23,4 @@ fn list_full(xs: List[string]) -> List[string]:
 fn list_slice_len(xs: List[string]) -> usize:
     xs[..2].len()
 > app/main/list_slice_len
->   (no span) release List[string]
+>   (no span) release List[string] (last use)

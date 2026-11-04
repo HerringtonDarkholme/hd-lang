@@ -19,7 +19,7 @@ impl Update[string] for Cell:
     fn update(&mut self, value: string) -> void:
         self.value = value
 > app/main/impl Update [ string ] for Cell.update
->   release counted reference
+>   release counted reference (conservative: Store)
 
 struct Handler:
     callback: fn(string) -> usize
@@ -27,7 +27,7 @@ struct Handler:
 fn read_cell(c: Cell) -> usize:
     c().len()
 > app/main/read_cell
->   (no span) release string
+>   (no span) release string (last use)
 
 fn store_cell(c: &mut Cell, s: string) -> void:
     c() = s
@@ -35,8 +35,8 @@ fn store_cell(c: &mut Cell, s: string) -> void:
 fn append_cell(c: &mut Cell) -> void:
     c() += "!"
 > app/main/append_cell
->   retain counted reference
->   (no span) release string
+>   retain counted reference (conservative: copy read)
+>   (no span) release string (last use)
 
 fn stored_fn(h: Handler, s: string) -> usize:
     (h.callback)(s)

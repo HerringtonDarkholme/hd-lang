@@ -821,7 +821,8 @@ impl Em<'_, '_, '_> {
                 let physical = self.f.local(Val::I32);
                 self.f.set(physical);
                 self.f.get(physical);
-                self.f.call(Sym::Inst(runtime.retain));
+                self.f
+                    .count_call(Sym::Inst(runtime.retain), crate::views::CountAction::Retain);
                 self.f.get(physical);
             }
             self.f.op(I::End);
@@ -1271,7 +1272,9 @@ impl Em<'_, '_, '_> {
         let ls = self.local(l)?;
         // An outlined `IsUnique` or `Pin` took the local's count with it.
         if self.needs_drop(t) && hd_mono::outlined_change_local(self.b, i).is_none() {
-            self.release_locals(&ls, t)?;
+            self.because(hd_tir::own::Reason::Overwritten, |em| {
+                em.release_locals(&ls, t)
+            })?;
         }
         for (x, n) in ls.iter().zip(&new) {
             self.f.get(*n);
@@ -1853,7 +1856,9 @@ impl Em<'_, '_, '_> {
         for x in fresh {
             self.f.get(x.flag);
             self.f.op(I::If(wasm_encoder::BlockType::Empty));
-            self.release_locals(&x.vals, x.ty)?;
+            self.because(hd_tir::own::Reason::View, |em| {
+                em.release_locals(&x.vals, x.ty)
+            })?;
             self.f.zero(x.flag);
             self.f.op(I::End);
         }

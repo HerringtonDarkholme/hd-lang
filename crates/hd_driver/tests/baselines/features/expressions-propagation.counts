@@ -20,18 +20,18 @@ impl From[ReadError] for AppError:
 fn read(path: string) -> Result[string, ReadError]:
     if path.len() > 0: .Ok(path + "/") else: .Err(ReadError.Missing(path))
 > app/main/read
->   (no span) release string
+>   (no span) release string (last use)
 
 fn result_try(path: string) -> Result[usize, ReadError]:
     text := read(path)?
     .Ok(text.len())
 > app/main/result_try
->   (no span) release string
->   (no span) release string
+>   (no span) release string (last use)
+>   (no span) release string (last use)
 
 fn converted(path: string) -> Result[usize, AppError]:
     text := read(path)?
     .Ok(text.len())
 > app/main/converted
->   (no span) release string
->   (no span) release string
+>   (no span) release string (last use)
+>   (no span) release string (last use)

@@ -30,18 +30,18 @@ fn keep[T < 'static](value: T) -> *mut T:
 fn later[T < 'static](value: T) -> fn() -> T:
     fn() -> T: value
 > app/main/later
->   retain &app.main.User
+>   retain &app.main.User (conservative: entry)
 > app/main/later
->   retain counted reference
->   (no span) retain &app.main.User
->   (no span) release &app.main.User
+>   retain counted reference (conservative: Closure)
+>   (no span) retain &app.main.User (conservative: entry)
+>   (no span) release &app.main.User (last use)
 
 fn bounded(u: User) -> usize:
     kept := keep(u)
     later(kept)().name.len()
 > app/main/bounded
->   release &mut app.main.User
->   retain string
->   (no span) release fn() -> &mut app.main.User
->   (no span) release &mut app.main.User
->   (no span) release string
+>   release &mut app.main.User (last use)
+>   retain string (conservative: copy read)
+>   (no span) release fn() -> &mut app.main.User (last use)
+>   (no span) release &mut app.main.User (last use)
+>   (no span) release string (last use)

@@ -10,31 +10,34 @@ struct User:
 
 fn remember['a](seen: &mut List[&'a User], u: &'a User) -> void:
     seen.push(u)
+> app/main/remember
+>   (no span) unique List[&app.main.User] (conservative: unique)
 
 fn index['a](by: &mut Map[string, &'a User], u: &'a User) -> void:
     by[u.name] = u
 > app/main/index
->   retain string
->   retain string
->   (no span) release string
+>   retain string (conservative: copy read)
+>   retain string (conservative: Intrinsic)
+>   (no span) unique Map[string, &app.main.User] (conservative: unique)
+>   (no span) release string (last use)
 
 fn total(a: User, b: User) -> usize:
     let mut seen: List[&User] = []
 > app/main/total
->   release List[&app.main.User]
+>   release List[&app.main.User] (overwritten)
     remember(&mut seen, &a)
     remember(&mut seen, &b)
     let mut by: Map[string, &User] = {}
->   release Map[string, &app.main.User]
+>   release Map[string, &app.main.User] (overwritten)
     index(&mut by, &a)
     seen[0].name.len() + seen[1].name.len() + by.len()
->   retain string
->   retain string
->   (no span) release string
->   (no span) release app.main.User [name.0]
->   (no span) release string
->   (no span) release List[&app.main.User]
->   (no span) release Map[string, &app.main.User]
->   (no span) release app.main.User [name.0]
->   (no span) release app.main.User [name.0]
->   (no span) release app.main.User [name.0]
+>   retain string (conservative: copy read)
+>   retain string (conservative: copy read)
+>   (no span) release string (last use)
+>   (no span) release app.main.User [name.0] (last use)
+>   (no span) release string (last use)
+>   (no span) release List[&app.main.User] (last use)
+>   (no span) release Map[string, &app.main.User] (last use)
+>   (no span) release app.main.User [name.0] (last use)
+>   (no span) release app.main.User [name.0] (last use)
+>   (no span) release app.main.User [name.0] (last use)

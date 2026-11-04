@@ -11,12 +11,12 @@ fn build(parts: &List[string]) -> string:
     sb := StringBuilder::new()
     for p in parts:
 > app/main/build
->   copy counted reference
+>   copy counted reference (conservative: copy read)
         sb.push(p)
         sb.push(",")
     sb.build()
->   (no span) release List[string]
->   (no span) release &mut std.text.StringBuilder
+>   (no span) release List[string] (last use)
+>   (no span) release &mut std.text.StringBuilder (last use)
 
 fn fields(line: string) -> usize:
     let mut n = 0
@@ -24,4 +24,4 @@ fn fields(line: string) -> usize:
         n += f.len()
     n
 > app/main/fields
->   (no span) release List[string]
+>   (no span) release List[string] (last use)

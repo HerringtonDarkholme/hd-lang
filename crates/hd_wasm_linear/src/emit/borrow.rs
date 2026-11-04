@@ -904,7 +904,10 @@ impl Em<'_, '_, '_> {
             self.f.get(c);
             self.f.op(I::If(BlockType::Empty));
             self.f.get(c);
-            self.release_cell();
+            self.because(
+                hd_tir::own::Reason::Conservative("loan cell"),
+                Self::release_cell,
+            );
             self.f.zero(c);
             self.f.op(I::End);
         }

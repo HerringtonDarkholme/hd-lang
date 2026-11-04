@@ -14,14 +14,14 @@ impl Named for User:
     fn name(&self) -> string:
         self.name
 > app/main/impl Named for User.name
->   retain string
+>   retain string (conservative: copy read)
 
 fn same_dyn(user: &mut User) -> bool:
     let first: &mut dyn Named = user
 > app/main/same_dyn
->   retain app.main.Named
+>   retain app.main.Named (conservative: Coerce)
     let second: &mut dyn Named = user
->   retain app.main.Named
+>   retain app.main.Named (conservative: Coerce)
     first is second
->   (no span) release &mut app.main.Named
->   (no span) release &mut app.main.Named
+>   (no span) release &mut app.main.Named (by design)
+>   (no span) release &mut app.main.Named (by design)

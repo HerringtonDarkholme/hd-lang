@@ -31,13 +31,15 @@ fn into_field(photo: Photo) -> Album:
 fn uniq(xs: UniqList[string], s: string) -> UniqList[string]:
     let mut ys = xs
 > app/main/uniq
->   release counted reference
+>   release counted reference (overwritten)
     ys.push(s)
     ys
->   (no span) release counted reference
+>   (no span) release counted reference (last use)
 
 fn grow(c: &mut Photo, s: string) -> void:
     c.tags.push(s)
+> app/main/grow
+>   (no span) unique List[string] (conservative: unique)
 
 fn reborrow(c: &mut Photo, s: string, t: string) -> void:
     grow(c, s)

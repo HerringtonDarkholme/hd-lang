@@ -15,18 +15,18 @@ struct Holder:
 fn keep() -> *dyn Store $ Store:
     $.use(Store)
 > app/main/keep
->   retain app.main.Store
+>   retain app.main.Store (conservative: ProviderGet)
 
 fn holder() -> Holder $ Store:
     Holder { store: $.use(Store) }
 > app/main/holder
->   retain app.main.Store
+>   retain app.main.Store (conservative: ProviderGet)
 
 fn fetch!() -> usize $ Store:
     $.use(Store).get().len()
 > app/main/fetch
->   retain app.main.Store
->   release app.main.Store
->   release string
->   release string
->   (no span) release string
+>   retain app.main.Store (conservative: copy read)
+>   release app.main.Store (last use)
+>   release string (overwritten)
+>   release string (overwritten)
+>   (no span) release string (last use)

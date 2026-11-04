@@ -5,10 +5,10 @@
 fn sum_to(limit: i32) -> i32:
     sum := fn(n: i32) -> i32:
 > app/main/sum_to
->   retain fn(i32) -> i32
->   release fn(i32) -> i32
+>   retain fn(i32) -> i32 (conservative: entry)
+>   release fn(i32) -> i32 (last use)
         if n == 0: 0
->   release fn(i32) -> i32
+>   release fn(i32) -> i32 (last use)
         else: n + sum(n - 1)
->   retain fn(i32) -> i32
+>   retain fn(i32) -> i32 (conservative: copy read)
     sum(limit)

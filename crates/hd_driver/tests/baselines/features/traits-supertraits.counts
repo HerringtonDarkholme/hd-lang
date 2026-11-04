@@ -19,9 +19,9 @@ impl Animal for Pup:
     fn name(&self) -> string:
         self.name
 > app/main/impl Animal for Pup.name
->   retain string
+>   retain string (conservative: copy read)
 > app/main/impl Animal for Pup.name
->   retain string
+>   retain string (conservative: copy read)
 
 impl Dog for Pup:
     fn bark(&self) -> string:
@@ -30,20 +30,20 @@ impl Dog for Pup:
 fn name_of(a: &dyn Animal) -> usize:
     a.name().len()
 > app/main/name_of
->   retain app.main.Animal
->   (no span) release app.main.Animal
->   (no span) release string
+>   retain app.main.Animal (conservative: copy read)
+>   (no span) release app.main.Animal (last use)
+>   (no span) release string (last use)
 
 fn widen(d: &dyn Dog) -> usize:
     name_of(d) + d.bark().len()
 > app/main/widen
->   retain app.main.Dog
->   retain app.main.Animal
->   release app.main.Dog
->   retain app.main.Dog
->   (no span) release &app.main.Animal
->   (no span) release app.main.Dog
->   (no span) release string
+>   retain app.main.Dog (conservative: copy read)
+>   retain app.main.Animal (conservative: Coerce)
+>   release app.main.Dog (last use)
+>   retain app.main.Dog (conservative: copy read)
+>   (no span) release &app.main.Animal (by design)
+>   (no span) release app.main.Dog (last use)
+>   (no span) release string (last use)
 
 fn loud[T < Dog](d: T) -> usize:
     d.name().len() + d.bark().len()
@@ -51,9 +51,9 @@ fn loud[T < Dog](d: T) -> usize:
 fn use_pup(p: Pup) -> usize:
     widen(&p) + loud(p)
 > app/main/use_pup
->   retain app.main.Dog
->   release string
->   release string
->   (no span) release &app.main.Dog
->   (no span) release app.main.Pup [name.0]
->   (no span) release app.main.Pup [name.0]
+>   retain app.main.Dog (conservative: Coerce)
+>   release string (last use)
+>   release string (last use)
+>   (no span) release &app.main.Dog (by design)
+>   (no span) release app.main.Pup [name.0] (last use)
+>   (no span) release app.main.Pup [name.0] (last use)
