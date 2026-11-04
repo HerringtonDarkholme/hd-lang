@@ -243,7 +243,7 @@ pub(super) fn direct_value(b: &Body, a: u32) -> Option<usize> {
 }
 
 /// The values passed as arguments by call instruction `i`.
-fn call_args(b: &Body, i: usize) -> Vec<u32> {
+pub(super) fn call_args(b: &Body, i: usize) -> Vec<u32> {
     if b.tags[i] == Tag::CallValue {
         return b.record(b.data[i][1]).to_vec();
     }
@@ -259,7 +259,7 @@ fn call_args(b: &Body, i: usize) -> Vec<u32> {
 /// Whether call `i` is non-suspending, and its auto-ref receiver's
 /// mutability when it has one.
 #[allow(clippy::option_option)] // Outer: ordinary call; inner: auto-ref receiver.
-fn call_info(
+pub(super) fn call_info(
     input: &Input<'_>,
     b: &Body,
     i: usize,
@@ -673,6 +673,15 @@ pub(crate) fn collect_loans(input: &Input<'_>, m: &mut Module) {
         for (_, _, bind, _) in binds(input.pool, input.env, b, &sub, true) {
             if let Bind::Begin(a) = bind {
                 super::borrow::lend_ref(input.pool, input.env, b, &sub, m, a);
+            }
+        }
+        // A `Ref` argument's call loan (`borrow.rs`), in every build.
+        for i in 0..b.tags.len() {
+            let target = input.collected.calls[id.idx()].get(&u32::try_from(i).expect("insts"));
+            if let Some(receiver) = call_info(input, b, i, target) {
+                let params = super::borrow::call_params(input.pool, input.env, target);
+                let args = (call_args(b, i), receiver, params);
+                super::borrow::lend_call(input.pool, input.env, b, &sub, m, args);
             }
         }
         // Call loans are development-build checks; release registers none.

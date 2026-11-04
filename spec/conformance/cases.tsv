@@ -4924,6 +4924,8 @@ runtime/panic/map-element-reference-insert-panics.hd	runtime	panic:collection-pi
 runtime/panic/map-get-or-insert-pinned-panics.hd	runtime	panic:collection-pinned	std/collections.md#r-std-collections.map.get-or-insert.pinned
 runtime/panic/map-element-place-pinned-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
 runtime/valid/value-argument-sibling-change.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
+runtime/panic/pointer-as-mut-argument-later-alias-pop-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.call-loan
+runtime/panic/pointer-as-shared-argument-later-alias-pop-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.call-loan
 runtime/valid/provider-ref-mut-changes-caller.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.ref.use.reference-values
 runtime/valid/provider-ref-new-object.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.ref.install-counted
 runtime/valid/provider-ref-same-place.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.ref.same-place
@@ -5683,7 +5685,7 @@ runtime/valid/alias-write-after-abandoned-call-result-loan-passes.hd	runtime	acc
 runtime/panic/shared-counted-reference-loan-write-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.shared-counted-loan
 runtime/panic/shared-counted-reference-loan-other-field-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
 runtime/panic/call-reference-loan-hidden-alias-write-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.call-loan
-runtime/valid/call-reference-loan-hidden-alias-disjoint-write-passes.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.call-loan
+runtime/panic/call-reference-loan-hidden-alias-other-field-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.call-loan
 runtime/panic/replace-pointer-on-live-loan-path-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.path-pointer
 runtime/panic/replace-sibling-pointer-beside-live-loan-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
 runtime/panic/replace-pointer-on-shared-reference-loan-path-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.path-pointer
@@ -6216,9 +6218,9 @@ typing/invalid/pointer-loan-same-root-nested-pointer.hd	type	reject:conflicting-
 typing/invalid/pointer-loan-same-root-list-push.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place
 typing/invalid/pointer-loan-same-root-map-store.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place
 typing/invalid/pointer-loan-same-root-uniq-replace.hd	type	reject:conflicting-access	std/collections.md#r-std-collections.uniq-list.type
-typing/invalid/pointer-loan-same-root-pass-mut-with-shared.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place
-typing/invalid/pointer-loan-same-root-pass-mut-with-mut.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place
-typing/invalid/pointer-loan-same-root-pass-read-with-mut.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place
+typing/invalid/pointer-loan-same-root-pass-mut-with-shared.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.args.pointer
+typing/invalid/pointer-loan-same-root-pass-mut-with-mut.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.args.pointer
+typing/invalid/pointer-loan-same-root-pass-read-with-mut.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.args.pointer
 typing/invalid/pointer-loan-same-root-dependent-call.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place
 typing/invalid/pointer-loan-same-root-dependent-method.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place
 typing/invalid/pointer-loan-same-root-dependent-outlives-root.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.scope

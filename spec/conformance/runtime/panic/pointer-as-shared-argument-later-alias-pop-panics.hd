@@ -1,0 +1,9 @@
+# test: a `*mut` list passed as a `&` argument holds a shared loan on the list from its evaluation, so a later argument that pops it through an alias panics
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.call-loan, ref.excl.alias.conflict.
+fn referred(items: &List[i32], removed: i32?) -> usize:
+    items.len()
+
+pub fn main() -> void $ Console:
+    ys := box::[List[i32]]([+1, 2])
+    other := ys
+    println(referred(ys, other.pop())) # panic: borrow-conflict

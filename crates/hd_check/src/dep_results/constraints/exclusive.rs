@@ -170,6 +170,25 @@ pub(super) fn reborrow(s: &Inputs<'_>, i: u32) -> bool {
     read && loan_path(s, i).is_some()
 }
 
+/// Whether argument `u` passes local `root` itself as a counted pointer,
+/// `*T` or `*mut T`, through any same-value coercion.
+fn passes_pointer(s: &Inputs<'_>, u: u32, root: u32) -> bool {
+    let b = s.b;
+    let counted = |t: Ty| matches!(s.pool.get(t), TyData::Ref { counted: true, .. });
+    if b.ty.get(u as usize).is_none_or(|&t| !counted(t)) {
+        return false;
+    }
+    let mut v = u;
+    while (v as usize) < b.tags.len() && b.tags[v as usize] == Tag::Coerce {
+        v = b.data[v as usize][0];
+    }
+    (v as usize) < b.tags.len()
+        && b.tags[v as usize] == Tag::Read
+        && b.decode_place(b.data[v as usize][0]).is_some_and(|p| {
+            matches!(p.root, PlaceRoot::Local(l) if l.raw() == root) && p.proj.is_empty()
+        })
+}
+
 /// Whether `t`, under any `mut`, is a `&mut`, not a counted `*mut`.
 fn local_mut(pool: Types<'_>, t: Ty) -> bool {
     match pool.get(t) {
@@ -643,6 +662,16 @@ impl Gen<'_, '_> {
                     }) {
                         hits.push(u);
                     }
+                }
+                // A pointer argument accesses its whole pointee for the
+                // call (`ref.excl.args.pointer`): a `*T` beside a `&mut` of
+                // a place behind it reads that place.
+                if excl && b.tags[v as usize] == Tag::Ref && path.first() == Some(&Proj::Deref) {
+                    hits.extend(
+                        (args.iter())
+                            .filter(|&&u| u != v && passes_pointer(self.s, u, root))
+                            .copied(),
+                    );
                 }
                 if excl && site(self.s, v) {
                     let uses = uses.get_or_insert_with(|| self.accesses());

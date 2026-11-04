@@ -1407,7 +1407,11 @@ for (const { name, what, body, code = "conflicting-access" } of sameRoot) {
 ${body.includes("UniqList") ? "use std.collections.UniqList\n\n" : ""}${sameRootDecls}
 ${body}`;
   output(`conformance/${file}`, contents);
-  const rule = code === "conflicting-access" ? "ref.excl.place" : "ref.dep.scope";
+  const rule = name.includes("-with-")
+    ? "ref.excl.args.pointer"
+    : code === "conflicting-access"
+      ? "ref.excl.place"
+      : "ref.dep.scope";
   const cited = body.includes("UniqList")
     ? "std/collections.md#r-std-collections.uniq-list.type"
     : `lang/13-values-and-references.md#r-${rule}`;
