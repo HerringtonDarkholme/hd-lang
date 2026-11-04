@@ -1,0 +1,21 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Slicing strings and lists (spec/lang/05-expressions.md, #1364).
+# expected: a string slice is a view that retains its base once; a list
+# slice allocates one list and retains each copied element; `xs[..]`
+# shares the list with one retain; a slice only measured
+# (`str_slice_len`, `list_slice_len`) needs no allocation and no count.
+fn str_slice(s: string) -> string:
+    s[1..3]
+
+fn str_slice_len(s: string, n: usize) -> usize:
+    s[0..n].len()
+
+fn list_slice(xs: List[string]) -> List[string]:
+    xs[1..]
+
+fn list_full(xs: List[string]) -> List[string]:
+    xs[..]
+
+fn list_slice_len(xs: List[string]) -> usize:
+    xs[..2].len()

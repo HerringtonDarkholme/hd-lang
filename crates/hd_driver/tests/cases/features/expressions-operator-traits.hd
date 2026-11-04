@@ -1,0 +1,35 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Operator Traits on a user type and the `string` Primitive Implementation (spec/lang/05-expressions.md, #1364).
+# expected: `add_tags` and `neg_tag` build one string each and take no
+# other count; `sum_strings` builds one string per element and releases
+# the previous total, with no count for the element or for `zero`.
+use std.ops.{Add, Neg}
+
+struct Tag:
+    text: string
+
+impl Add for Tag:
+    type Out = Tag
+    fn add(self, rhs: Tag) -> Tag:
+        Tag { text: self.text + rhs.text }
+
+impl Neg for Tag:
+    type Out = Tag
+    fn neg(self) -> Tag:
+        Tag { text: "-" + self.text }
+
+fn add_tags(a: Tag, b: Tag) -> Tag:
+    a + b
+
+fn neg_tag(a: Tag) -> Tag:
+    -a
+
+fn sum[T < Add[Out = T]](items: List[T], zero: T) -> T:
+    let total = zero
+    for item in items:
+        total = total + item
+    total
+
+fn sum_strings(xs: List[string]) -> string:
+    sum(xs, "")

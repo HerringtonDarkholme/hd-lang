@@ -1,0 +1,15 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Identity `is` on `&T`, `*T` and `*mut T` (spec/lang/05-expressions.md, #1364).
+# expected: one address comparison with no count and no call.
+struct User:
+    name: string
+
+fn same_ref(a: &User, b: &User) -> bool:
+    a is b
+
+fn same_box(a: *User, b: *User) -> bool:
+    a is b
+
+fn mixed(a: *mut User, b: *User) -> bool:
+    a is b
