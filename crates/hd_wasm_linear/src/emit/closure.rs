@@ -71,6 +71,17 @@ pub(super) fn cell_locals(b: &Body, roots: &[usize]) -> HashMap<usize, u32> {
     cells
 }
 
+/// The locals some closure of `b` shares through a cell. A cell is an
+/// object a closure reaches as a `*mut` does its pointee, so a reference
+/// into the variable takes a loan on it (`POINTER_LOANS.md`, question 6).
+pub(super) fn shared_locals(b: &Body) -> hd_base::HashSet<usize> {
+    (0..b.len())
+        .filter(|&ci| b.tags[ci] == Tag::Closure)
+        .flat_map(|ci| captures(b, ci))
+        .filter_map(|(l, shared)| shared.then_some(l))
+        .collect()
+}
+
 /// The locals of `roots` that live in a slot of the function's frame on
 /// the local stack, not in a counted cell (`crates/hd_wasm_linear/DESIGN.md`
 /// §23.38): those every `Ref` of whose own storage makes a local

@@ -8,6 +8,8 @@ export interface Extra {
   panic: boolean;
   what: string;
   source: string;
+  /** The rule the case checks, when it is not its section's. */
+  rule?: string;
 }
 
 /**
@@ -209,6 +211,7 @@ pub fn main() -> void $ Console:
   {
     name: "captured-variable-grows-panics",
     panic: true,
+    rule: "ref.excl.alias.shared-variable",
     what: "a closure that shares a variable grows its list while a loop holds element references",
     source: `pub fn main() -> void $ Console:
     let mut xs = [+1, 2, 3]
@@ -224,6 +227,7 @@ pub fn main() -> void $ Console:
   {
     name: "captured-variable-replaced-panics",
     panic: true,
+    rule: "ref.excl.alias.shared-variable",
     what: "a stored closure that shares a variable replaces it while a reference into it lives",
     source: `struct Hook:
     run: fn() -> void

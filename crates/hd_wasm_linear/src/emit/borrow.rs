@@ -29,6 +29,12 @@
 //! that crosses no `*T`, or only `*T`s to such types, emits nothing.
 //! Passing a pointer is no access.
 //!
+//! **Cells.** A variable a closure shares lives in a cell, an object with
+//! a descriptor, which a place rooted at the variable crosses before its
+//! first step ([`CELL`]): a reference into the variable takes a loan on
+//! the cell, and each use of it, in the closure or in its own function,
+//! checks it, so a closure cannot change a variable under a reference.
+//!
 //! **Call loans.** A call's argument takes a loan from its evaluation to
 //! the call's return: a `Ref` that crosses a `*T`, and a `*T` that the
 //! callee's parameter takes as a `&T` or `&mut T`, on its whole object. A
@@ -118,6 +124,9 @@ pub(super) struct Borrows {
     /// Set once the release glue of an abandoned task is emitted: the
     /// body's locals are gone, and [`Em::borrow_abandon`] ended the loans.
     abandoned: bool,
+    /// The locals a closure shares: each lives in a cell, an object its
+    /// places cross at their root ([`CELL`]).
+    shared: hd_base::HashSet<usize>,
 }
 
 /// One loan a call holds from its argument's evaluation to its return.
@@ -221,6 +230,53 @@ pub(super) fn crossings(
     out
 }
 
+/// The step index of a place's root cell: a variable a closure shares is
+/// an object the place crosses before its first step.
+pub(super) const CELL: usize = u32::MAX as usize - 2;
+
+/// The local a closure shares (`shared`) whose cell place `p` crosses:
+/// its root, or the root of the read its root value is, as a loop over
+/// `&mut xs` makes. That cell's value has type `ty`.
+pub(super) fn cell_root(
+    b: &Body,
+    shared: &hd_base::HashSet<usize>,
+    p: &hd_tir::ir::Place,
+) -> Option<usize> {
+    let l = match p.root {
+        PlaceRoot::Local(l) => l.idx(),
+        PlaceRoot::Value(r) => {
+            let x = r.as_inst()?.0 as usize;
+            if b.tags[x] != Tag::Read {
+                return None;
+            }
+            match b.decode_place(b.data[x][0])?.root {
+                PlaceRoot::Local(l) => l.idx(),
+                _ => return None,
+            }
+        }
+        _ => return None,
+    };
+    shared.contains(&l).then_some(l)
+}
+
+/// [`crossings`], led by the cell of a local a closure shares
+/// ([`cell_root`]).
+pub(super) fn place_crossings(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    (b, sub): (&Body, &dyn Fn(Ty) -> Ty),
+    shared: &hd_base::HashSet<usize>,
+    root: Ty,
+    p: &hd_tir::ir::Place,
+) -> Vec<(usize, Ty)> {
+    let mut out = Vec::new();
+    if let Some(l) = cell_root(b, shared, p) {
+        out.push((CELL, sub(b.local_ty[l])));
+    }
+    out.extend(crossings(pool, env, root, &p.proj));
+    out
+}
+
 /// The type of a place's root, `sub` giving a type at this instance.
 pub(super) fn root_ty(b: &Body, sub: &dyn Fn(Ty) -> Ty, root: PlaceRoot) -> Option<Ty> {
     match root {
@@ -288,7 +344,10 @@ impl Em<'_, '_, '_> {
         }
         let sub = |t| self.sub(t);
         let found = binds(self.pool(), self.env(), self.b, &sub, true);
-        let mut st = Borrows::default();
+        let mut st = Borrows {
+            shared: super::closure::shared_locals(self.b),
+            ..Borrows::default()
+        };
         for (i, held, bind, _) in found {
             if self.is_cell(held.local) {
                 continue;
@@ -405,6 +464,17 @@ impl Em<'_, '_, '_> {
         if !matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..)) {
             return;
         }
+        if let Some(l) = cell_root(self.b, &st.shared, &p) {
+            let key = (
+                PlaceRoot::Local(hd_base::LocalId::from_raw(
+                    u32::try_from(l).expect("locals"),
+                )),
+                Vec::new(),
+            );
+            if !st.keys.iter().any(|(x, _)| *x == key) {
+                st.keys.push((key, None));
+            }
+        }
         let root = self.at_root_ty(p.root);
         for (k, step) in p.proj.iter().enumerate() {
             let thin = *step == Proj::Deref
@@ -483,6 +553,13 @@ impl Em<'_, '_, '_> {
         // Each dereference of a `*T`, with the type of the object it reaches.
         let root = self.at_root_ty(p.root);
         let mut crossed = Vec::new();
+        // The cell of a variable a closure shares, but at the store that
+        // makes it: no reference reaches a cell before it exists.
+        let root_cell = cell_root(self.b, &self.borrows.shared, &p)
+            .filter(|&l| self.is_cell(l) && self.cells.get(&l) != Some(&i));
+        if let Some(l) = root_cell {
+            crossed.push((CELL, self.sub(self.b.local_ty[l])));
+        }
         for (k, step) in p.proj.iter().enumerate() {
             if *step != Proj::Deref {
                 continue;
@@ -514,18 +591,31 @@ impl Em<'_, '_, '_> {
             };
             let keep =
                 lends && (self.m.kept).contains(&(self.inst, i, u32::try_from(k).expect("steps")));
-            let key = matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..))
-                .then(|| self.borrow_key((p.root, p.proj[..k].to_vec())));
+            let key = match (k, root_cell) {
+                (CELL, Some(l)) => Some(self.borrow_key((
+                    PlaceRoot::Local(hd_base::LocalId::from_raw(
+                        u32::try_from(l).expect("locals"),
+                    )),
+                    Vec::new(),
+                ))),
+                _ => matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..))
+                    .then(|| self.borrow_key((p.root, p.proj[..k].to_vec()))),
+            };
             if mask.is_none() && !keep && !holds {
                 if lends {
                     taken.push((u32::MAX, key, false));
                 }
                 continue;
             }
-            let mut fresh = Vec::new();
-            let (at, _) = self.walk_place(i, &p, k, None, &mut fresh)?;
-            let o = self.at_i32(&at)?;
-            self.release_fresh(&fresh)?;
+            let o = if let (CELL, Some(l)) = (k, root_cell) {
+                self.cell_of(l)?
+            } else {
+                let mut fresh = Vec::new();
+                let (at, _) = self.walk_place(i, &p, k, None, &mut fresh)?;
+                let o = self.at_i32(&at)?;
+                self.release_fresh(&fresh)?;
+                o
+            };
             let header = self.f.local(Val::I32);
             self.f.get(o);
             self.f.u32(crate::module::HEADER - 4);
