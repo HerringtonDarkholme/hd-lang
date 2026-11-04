@@ -408,6 +408,7 @@ type Memo<T> = std::cell::RefCell<Option<hd_base::HashMap<Ty, T>>>;
 thread_local! {
     static MEMS: Memo<StageResult<Mem>> = const { std::cell::RefCell::new(None) };
     static WALKS: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
+    static DROPS: Memo<bool> = const { std::cell::RefCell::new(None) };
 }
 
 /// Runs `link` with the layout cache in place: within it, [`mem`] and
@@ -417,20 +418,24 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
     struct Reset {
         mems: Option<hd_base::HashMap<Ty, StageResult<Mem>>>,
         walks: Option<hd_base::HashMap<Ty, Option<Walk>>>,
+        drops: Option<hd_base::HashMap<Ty, bool>>,
     }
     impl Drop for Reset {
         fn drop(&mut self) {
             MEMS.set(self.mems.take());
             WALKS.set(self.walks.take());
+            DROPS.set(self.drops.take());
         }
     }
 
     let _reset = Reset {
         mems: MEMS.take(),
         walks: WALKS.take(),
+        drops: DROPS.take(),
     };
     MEMS.set(Some(hd_base::HashMap::default()));
     WALKS.set(Some(hd_base::HashMap::default()));
+    DROPS.set(Some(hd_base::HashMap::default()));
     link()
 }
 
@@ -1042,21 +1047,14 @@ fn enum_mem_by(
 /// `std.rt.Drop`: releasing it runs that implementation, so the value is
 /// never bound twice (a `UniqList`).
 pub fn holds_drop(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
-    fn go(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, depth: u32) -> bool {
-        let t = strip(pool, env, t);
-        if depth > 16 {
-            return false;
-        }
+    memoized(&DROPS, pool, env, t, &|t, part| {
         if let TyData::Adt { def, .. } = pool.get(t)
             && env.has_drop(def)
         {
             return true;
         }
-        value_parts(pool, env, t)
-            .into_iter()
-            .any(|p| go(pool, env, p, depth + 1))
-    }
-    go(pool, env, t, 0)
+        value_parts(pool, env, t).into_iter().any(part)
+    })
 }
 
 /// The variants' payload types of an enum or optional type, `None` for
@@ -1101,7 +1099,9 @@ mod tests {
     use super::*;
 
     fn caches_are_absent() -> bool {
-        MEMS.with(|m| m.borrow().is_none()) && WALKS.with(|w| w.borrow().is_none())
+        MEMS.with(|m| m.borrow().is_none())
+            && WALKS.with(|w| w.borrow().is_none())
+            && DROPS.with(|d| d.borrow().is_none())
     }
 
     #[test]

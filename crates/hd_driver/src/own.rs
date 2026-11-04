@@ -15,6 +15,7 @@ use std::fmt::Write as _;
 use hd_base::HashMap;
 use hd_base::{DefId, Hash128, NotImplemented, StableHasher, Stage, StageResult};
 use hd_mono::ProgramEnv;
+use hd_mono::layout::LayoutEnv as _;
 use hd_opt::fact_specialize::FactEnv;
 use hd_opt::inline::{InlineEnv, InlineHint};
 use hd_opt::structure_specialize::{GeneratedHandle, StructureEnv};
@@ -374,7 +375,10 @@ impl OwnCx for Env<'_> {
             return Pass::Lent;
         };
         let params = pool.list_items(params);
-        if suspends || params.len() != n {
+        if params.len() != n {
+            return Pass::Lent;
+        }
+        if suspends && !self.cold_moves(params[k]) {
             return Pass::Lent;
         }
         self.value_parameter(params[k])
@@ -602,12 +606,16 @@ impl Env<'_> {
         let Some(sig) = self.sig(def) else {
             return Pass::Lent;
         };
-        // A suspending callee's cold constructor counts what its frame
-        // keeps; its callers lend every argument. So does a call of an
+        // A cold constructor retains counted arguments, but takes Drop
+        // values by ownership. An open parameter may become such a value.
+        // A call of an
         // `@intrinsic` function, which the backend lowers in place and
         // which counts whatever it keeps itself (`Em::intrinsic`), unless
         // it takes over its argument ([`OWNING_INTRINSICS`]).
-        if sig.suspends || sig.params.len() != n {
+        if sig.params.len() != n {
+            return Pass::Lent;
+        }
+        if sig.suspends && !self.cold_moves(self.low(sig.params[k].1)) {
             return Pass::Lent;
         }
         if let Some(key) = self.intrinsic(def)
@@ -643,6 +651,50 @@ impl Env<'_> {
                 _ => Pass::Lent,
             },
         }
+    }
+
+    /// A cold frame can retain reference-counted values, including open
+    /// Suspend[T] handles. Only an inline Drop value must transfer its
+    /// ownership; an open value parameter may become one at instantiation.
+    fn cold_moves(&self, t: Ty) -> bool {
+        fn visit(env: &Env<'_>, t: Ty, seen: &mut hd_base::HashSet<Ty>) -> bool {
+            let pool = &env.run.pool;
+            let t = hd_wasm_linear::strip_type(pool, env, t);
+            if !seen.insert(t) {
+                return false;
+            }
+            if hd_wasm_linear::holds_drop_type(pool, env, t) {
+                return true;
+            }
+            match pool.get(t) {
+                // Copy-bound arguments may be lent to the constructor.
+                // Only a ?Copy parameter needs a possible ownership transfer.
+                TyData::Param(p) => !env.param_copies(p),
+                TyData::Assoc { .. } | TyData::Opaque { .. } => true,
+                TyData::Tuple { elems, rest } => pool
+                    .list_items(elems)
+                    .iter()
+                    .copied()
+                    .chain(rest)
+                    .any(|t| visit(env, t, seen)),
+                TyData::Option(inner) => visit(env, inner, seen),
+                TyData::Union(members) => pool
+                    .list_items(members)
+                    .iter()
+                    .any(|&t| visit(env, t, seen)),
+                TyData::Adt { def, args }
+                    if env.std_kind(def) == hd_mono::layout::StdKind::Other
+                        && env.is_struct(def) =>
+                {
+                    env.data_fields(def)
+                        .unwrap_or_default()
+                        .into_iter()
+                        .any(|field| visit(env, hd_mono::subst(pool, env, def, args, field), seen))
+                }
+                _ => false,
+            }
+        }
+        visit(self, t, &mut hd_base::HashSet::default())
     }
 
     /// Whether a value of type `t`, which names no parameter, holds a

@@ -35,6 +35,7 @@ mod borrow;
 mod closure;
 mod count;
 mod ctx;
+mod drop_flags;
 pub(crate) use ctx::ctx_lookup;
 pub(crate) use ctx::slot_ctx;
 mod dyn_value;
@@ -416,7 +417,9 @@ fn body_func<'a>(
                         Pass::Borrowed => {}
                     }
                 }
-                em.count_locals(ls, t, true)?;
+                if !crate::layout::holds_drop(em.pool(), em.env(), t) {
+                    em.count_locals(ls, t, true)?;
+                }
             } else {
                 em.count_local(*l, ls, true)?;
             }
@@ -430,6 +433,11 @@ fn body_func<'a>(
             if !suspending {
                 em.entry_cells.insert(*l);
             }
+        }
+    }
+    for &l in &plocals {
+        if !em.is_cell(l) && !em.borrowed.contains(&l) {
+            em.mark_drop_root(drop_flags::Root::Local(l), em.sub(b.local_ty[l]), true);
         }
     }
     if suspending {
@@ -1098,6 +1106,7 @@ struct Em<'i, 'a, 'm> {
     /// with that instruction: their locals are zeroed once it has read
     /// them ([`Em::take`]).
     moving: Vec<(u32, u32)>,
+    drop_states: HashMap<drop_flags::Root, drop_flags::State>,
     /// The state machine of a suspending body (`susp.rs`).
     susp: Option<susp::Susp>,
     /// How many `using` dispose suites that wait the instruction being
@@ -1261,6 +1270,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             lends: 0,
             emitting: Vec::new(),
             moving: Vec::new(),
+            drop_states: HashMap::default(),
             susp: None,
             shield: 0,
             cancel_from: NONE,
@@ -1657,9 +1667,7 @@ impl Em<'_, '_, '_> {
                     }
                     if self.owned {
                         self.store_owned(d)?;
-                        for l in ls {
-                            self.f.zero(l);
-                        }
+                        self.settle_value(blk);
                     } else {
                         self.store(d)?;
                     }
@@ -1674,7 +1682,7 @@ impl Em<'_, '_, '_> {
     fn tail_into(&mut self, r: u32, dest: u32, user: u32) -> StageResult<()> {
         // A value with no parts, such as a field-less struct, is computed
         // with no locals; a later read of `dest` pushes nothing.
-        if self.vals(self.ty(dest))?.is_empty() {
+        if self.vals(self.ty(dest))?.is_empty() && !self.needs_drop(self.ty(dest)) {
             self.slot(dest)?;
             return Ok(());
         }
@@ -1827,9 +1835,7 @@ impl Em<'_, '_, '_> {
                 self.push(r)?;
                 self.store_owned(i)?;
                 if self.needs_drop(self.ty_of(r)) {
-                    for l in self.slot(r)? {
-                        self.f.zero(l);
-                    }
+                    self.settle_value(r);
                 }
             }
             // A move of a part of a local or a value laid out in its
@@ -2341,7 +2347,12 @@ impl Em<'_, '_, '_> {
     ) -> StageResult<()> {
         let Some(params) = params else {
             for r in args {
-                self.push(*r)?;
+                if crate::layout::holds_drop(self.pool(), self.env(), self.ty_of(*r)) {
+                    let src = self.consumed(*r)?;
+                    self.push_src(&src)?;
+                } else {
+                    self.push(*r)?;
+                }
             }
             return Ok(());
         };
@@ -2643,9 +2654,7 @@ impl Em<'_, '_, '_> {
                 continue;
             }
             params.extend(self.vals(self.ty_of(*r))?);
-            if !self.env().suspends(method)
-                && crate::layout::holds_drop(self.pool(), self.env(), self.ty_of(*r))
-            {
+            if crate::layout::holds_drop(self.pool(), self.env(), self.ty_of(*r)) {
                 let value = self.consumed(*r)?;
                 self.push_src(&value)?;
             } else {

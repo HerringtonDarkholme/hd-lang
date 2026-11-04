@@ -667,6 +667,7 @@ impl Em<'_, '_, '_> {
         if !owned && self.counted(t).is_some() && !self.loans.contains(&i) {
             self.retain_locals(&ls, t)?;
         }
+        self.mark_drop_root(super::drop_flags::Root::Value(i), t, true);
         Ok(())
     }
 
@@ -711,6 +712,7 @@ impl Em<'_, '_, '_> {
         for l in self.vals.get(&r).cloned().unwrap_or_default() {
             self.f.zero(l);
         }
+        self.mark_drop_root(super::drop_flags::Root::Value(r), self.ty_of(r), false);
     }
 
     /// Releases value `x`'s count, when it holds a counted value, and
@@ -726,7 +728,7 @@ impl Em<'_, '_, '_> {
         if self.view_loans.contains_key(&x) {
             self.release_view_loan(x, &ls)?;
         } else if !self.loans.contains(&x) {
-            self.release_locals(&ls, t)?;
+            self.release_drop_place(&ls, t, &Self::value_place(x))?;
         }
         for l in ls {
             self.f.zero(l);
@@ -760,6 +762,9 @@ impl Em<'_, '_, '_> {
     fn release_owned_local(&mut self, l: usize, ls: &[u32]) -> StageResult<()> {
         self.loan_release(l, ls);
         match self.loan_locals.get(&l) {
+            None if !self.is_cell(l) => {
+                self.release_drop_place(ls, self.sub(self.b.local_ty[l]), &Self::local_place(l))
+            }
             None => self.count_local(l, ls, false),
             Some(w) if self.view_loans.contains_key(w) => self.release_view_loan(*w, ls),
             Some(_) => Ok(()),
@@ -843,7 +848,15 @@ impl Em<'_, '_, '_> {
             }
             for l in self.unowned_params.clone() {
                 if let Some(ls) = self.locals.get(&l).cloned() {
-                    self.count_local(l, &ls, false)?;
+                    if self.is_cell(l) {
+                        self.count_local(l, &ls, false)?;
+                    } else {
+                        self.release_drop_place(
+                            &ls,
+                            self.sub(self.b.local_ty[l]),
+                            &Self::local_place(l),
+                        )?;
+                    }
                 }
             }
             for tmp in self.temps.clone() {
@@ -860,7 +873,7 @@ impl Em<'_, '_, '_> {
             if self.view_loans.contains_key(&i) {
                 self.release_view_loan(i, &ls)?;
             } else if !self.loans.contains(&i) {
-                self.release_locals(&ls, self.ty(i))?;
+                self.release_drop_place(&ls, self.ty(i), &Self::value_place(i))?;
             }
         }
         let mut locals: Vec<(usize, Vec<u32>)> =
@@ -870,7 +883,15 @@ impl Em<'_, '_, '_> {
         for (l, ls) in locals {
             self.f.origin_at = bound.get(&l).copied().or(root);
             if !self.borrowed.contains(&l) && !self.loan_locals.contains_key(&l) {
-                self.count_local(l, &ls, false)?;
+                if self.is_cell(l) {
+                    self.count_local(l, &ls, false)?;
+                } else {
+                    self.release_drop_place(
+                        &ls,
+                        self.sub(self.b.local_ty[l]),
+                        &Self::local_place(l),
+                    )?;
+                }
             }
         }
         self.f.origin_at = root;
@@ -1224,6 +1245,11 @@ impl Em<'_, '_, '_> {
             Some(ReadMode::Copy) => self.store(i),
             Some(ReadMode::Move) => {
                 self.store_owned(i)?;
+                self.mark_drop_root(
+                    super::drop_flags::Root::Local(l),
+                    self.sub(self.b.local_ty[l]),
+                    false,
+                );
                 if self.needs_drop(self.ty(i)) {
                     for x in ls {
                         self.f.zero(x);

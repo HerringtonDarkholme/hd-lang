@@ -4,22 +4,27 @@
   (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (import "fixture" "rt:take_box" (func $rt:take_box (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $release (param $item.name.0 i32) (param $item.name.1 i32) (local $t0 i32)
+  (func $release (param $item.name.0 i32) (param $item.name.1 i32) (local $t0 i32) (local $t1 i32)
     ;; 16 |     pass
+    i32.const 1
+    local.set $t0
     block
     end
-    i32.const 8
+    i32.const 12
     i32.const 0
     call $rt:new
-    local.tee $t0
+    local.tee $t1
     local.get $item.name.0
     i32.store $heap
-    local.get $t0
+    local.get $t1
     local.get $item.name.1
     i32.store $heap offset=4
+    local.get $t1
     local.get $t0
+    i32.store $heap offset=8
+    local.get $t1
     call $rt:drop
-    local.get $t0
+    local.get $t1
     call $rt:take_box
     drop
   )

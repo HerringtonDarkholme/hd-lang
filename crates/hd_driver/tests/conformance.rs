@@ -1915,6 +1915,10 @@ const STD_RT_TESTS: &[(&str, &str)] = &[
         include_str!("std_rt/dyn_call_tests.hd"),
     ),
     (
+        "rt_tests/inline_drop_tests.hd",
+        include_str!("std_rt/inline_drop_tests.hd"),
+    ),
+    (
         "rt_tests/list_tests.hd",
         include_str!("std_rt/list_tests.hd"),
     ),
@@ -1951,6 +1955,7 @@ const STD_RT_TESTS: &[(&str, &str)] = &[
 const STD_RT_CHECKED_TOO: &[&str] = &[
     "rt_tests/drop_tests.hd",
     "rt_tests/dyn_call_tests.hd",
+    "rt_tests/inline_drop_tests.hd",
     "rt_tests/ref_tests.hd",
 ];
 

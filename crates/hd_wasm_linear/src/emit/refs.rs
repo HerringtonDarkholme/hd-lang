@@ -277,6 +277,7 @@ impl Em<'_, '_, '_> {
             self.f.get(ls[k]);
         }
         self.store_owned(i)?;
+        self.mark_drop_place(&p, false);
         if self.needs_drop(pt) {
             for &k in &slots {
                 self.f.zero(ls[k]);
@@ -296,7 +297,7 @@ impl Em<'_, '_, '_> {
             return unsupported("a `Drop` of a part that is not laid out in its root's locals");
         };
         let part: Vec<u32> = slots.iter().map(|&k| ls[k]).collect();
-        self.release_locals(&part, pt)?;
+        self.release_drop_place(&part, pt, p)?;
         for l in part {
             self.f.zero(l);
         }
@@ -375,7 +376,7 @@ impl Em<'_, '_, '_> {
                 return Ok(false);
             };
             if !taken.contains(&f) && self.needs_drop(ft) {
-                rest.push((ft, slots));
+                rest.push((ft, slots, f));
             }
         }
         // More than one part left: the whole value's glue releases them in
@@ -383,9 +384,13 @@ impl Em<'_, '_, '_> {
         if rest.len() > 1 {
             return Ok(false);
         }
-        for (ft, slots) in rest {
+        for (ft, slots, field) in rest {
             let part: Vec<u32> = slots.iter().map(|&k| ls[k]).collect();
-            self.release_locals(&part, ft)?;
+            let place = Place {
+                root: PlaceRoot::Value(hd_tir::ir::Ref(r)),
+                proj: step(field),
+            };
+            self.release_drop_place(&part, ft, &place)?;
             for l in part {
                 self.f.zero(l);
             }
@@ -971,6 +976,7 @@ impl Em<'_, '_, '_> {
             self.f.op(leaf.load(0));
         }
         self.store_owned(i)?;
+        self.mark_drop_place(p, false);
         if self.needs_drop(pt) {
             for leaf in &leaves {
                 self.f.get(c);

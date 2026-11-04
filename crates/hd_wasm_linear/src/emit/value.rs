@@ -151,9 +151,21 @@ impl Em<'_, '_, '_> {
         recursive: bool,
         target: Option<Ty>,
     ) -> u32 {
+        let drops = target.map_or_else(Vec::new, |ty| self.drop_calls(ty));
+        self.object_drops(m, walk, cyclic, recursive, target, drops)
+    }
+
+    pub(super) fn object_drops(
+        &mut self,
+        m: &Mem,
+        walk: Option<&Walk>,
+        cyclic: bool,
+        recursive: bool,
+        target: Option<Ty>,
+        drops: Vec<DropCall>,
+    ) -> u32 {
         let at = self.f.local(Val::I32);
         self.f.u32(m.size);
-        let drops = target.map_or_else(Vec::new, |ty| self.drop_calls(ty));
         let glue = walk
             .map(|w| {
                 Sym::Helper(Helper::DropFields {
@@ -203,22 +215,33 @@ impl Em<'_, '_, '_> {
     /// is its own counted data object runs its hook in that object's
     /// descriptor glue instead.
     pub(super) fn drop_calls(&self, t: Ty) -> Vec<DropCall> {
+        self.drop_paths(t)
+            .into_iter()
+            .map(|(call, _)| call)
+            .collect()
+    }
+
+    pub(super) fn drop_paths(&self, t: Ty) -> Vec<(DropCall, Vec<hd_tir::ir::Proj>)> {
         fn add(
             em: &Em<'_, '_, '_>,
             t: Ty,
             base: u32,
             root: bool,
             guards: &[(Leaf, u32)],
-            out: &mut Vec<DropCall>,
+            path: &[hd_tir::ir::Proj],
+            out: &mut Vec<(DropCall, Vec<hd_tir::ir::Proj>)>,
         ) {
             if (root || matches!(em.kind(t), Kind::Value))
                 && let Some(&key) = em.input.collected.drop_glue.get(&t)
             {
-                out.push(DropCall {
-                    offset: base,
-                    target: key,
-                    guards: guards.to_vec(),
-                });
+                out.push((
+                    DropCall {
+                        offset: base,
+                        target: key,
+                        guards: guards.to_vec(),
+                    },
+                    path.to_vec(),
+                ));
             }
             if let Ok(variants) = em.variant_tys(t)
                 && let Ok(flat) = em.flat(t)
@@ -232,7 +255,7 @@ impl Em<'_, '_, '_> {
                 for (variant, (fields, places)) in variants.iter().zip(positions).enumerate() {
                     let mut nested = guards.to_vec();
                     nested.push((tag, u32::try_from(variant).expect("variants")));
-                    for (&field, place) in fields.iter().zip(places) {
+                    for (index, (&field, place)) in fields.iter().zip(places).enumerate() {
                         if !matches!(em.kind(field), Kind::Value) {
                             continue;
                         }
@@ -245,7 +268,12 @@ impl Em<'_, '_, '_> {
                             }
                             _ => 0,
                         };
-                        add(em, field, base + offset, false, &nested, out);
+                        let mut child = path.to_vec();
+                        child.extend([
+                            hd_tir::ir::Proj::Variant(u32::try_from(variant).expect("variant")),
+                            hd_tir::ir::Proj::Field(u32::try_from(index).expect("field")),
+                        ]);
+                        add(em, field, base + offset, false, &nested, &child, out);
                     }
                 }
                 return;
@@ -271,15 +299,19 @@ impl Em<'_, '_, '_> {
                 }
                 _ => return,
             };
-            for (&field, part) in fields.iter().zip(parts) {
+            for (index, (&field, part)) in fields.iter().zip(parts).enumerate() {
                 if matches!(em.kind(field), Kind::Value) {
-                    add(em, field, base + part.offset, false, guards, out);
+                    let mut child = path.to_vec();
+                    child.push(hd_tir::ir::Proj::Field(
+                        u32::try_from(index).expect("field"),
+                    ));
+                    add(em, field, base + part.offset, false, guards, &child, out);
                 }
             }
         }
 
         let mut out = Vec::new();
-        add(self, t, 0, true, &[], &mut out);
+        add(self, t, 0, true, &[], &[], &mut out);
         out
     }
 
@@ -288,17 +320,61 @@ impl Em<'_, '_, '_> {
     /// the fields; the temporary object is taken without running its
     /// descriptor, so those actions happen exactly once.
     pub(super) fn drop_inline(&mut self, ls: &[u32], t: Ty) -> StageResult<bool> {
-        let drops = self.drop_calls(t);
-        if drops.is_empty() || !matches!(self.kind(t), Kind::Value) {
+        self.drop_inline_flags(ls, t, &[])
+    }
+
+    pub(super) fn drop_inline_flags(
+        &mut self,
+        ls: &[u32],
+        t: Ty,
+        flags: &[Option<u32>],
+    ) -> StageResult<bool> {
+        if !matches!(self.kind(t), Kind::Value)
+            || !crate::layout::holds_drop(self.pool(), self.env(), t)
+        {
+            return Ok(false);
+        }
+        let mut drops = self.drop_calls(t);
+        if drops.is_empty() {
             return Ok(false);
         }
         let m = crate::layout::mem(self.pool(), self.env(), t)?;
+        let mut storage = m.clone();
+        let flag_base = m.size.next_multiple_of(4);
+        if !flags.is_empty() {
+            storage.size = (flag_base + u32::try_from(flags.len()).expect("flags") * 4)
+                .next_multiple_of(m.align.max(4));
+        }
+        for (index, (call, flag)) in drops.iter_mut().zip(flags).enumerate() {
+            if flag.is_some() {
+                call.guards.push((
+                    Leaf {
+                        offset: flag_base + u32::try_from(index).expect("flag") * 4,
+                        val: Val::I32,
+                        bytes: 4,
+                        signed: false,
+                    },
+                    1,
+                ));
+            }
+        }
         let walk = walk(self.pool(), self.env(), t).unwrap_or_else(|| Walk::Seq(Vec::new()));
-        let at = self.object(&m, None, false, false, None);
+        let at = self.object(&storage, None, false, false, None);
         for (&local, leaf) in ls.iter().zip(&m.leaves) {
             self.f.get(at);
             self.f.get(local);
             self.f.op(leaf.store(0));
+        }
+        for (index, flag) in flags.iter().enumerate() {
+            if let Some(flag) = flag {
+                self.f.get(at);
+                self.f.get(*flag);
+                self.f.op(I::I32Store(mem(
+                    HEAP,
+                    u64::from(flag_base) + index as u64 * 4,
+                    2,
+                )));
+            }
         }
         self.f.get(at);
         self.f.helper(Helper::DropFields {
@@ -451,13 +527,17 @@ impl Em<'_, '_, '_> {
     /// one's before the write.
     pub(super) fn replace(&mut self, d: Dst, t: Ty, v: u32) -> StageResult<()> {
         if !self.needs_drop(t) {
-            return self.write_new(d, &Src::Ref(v));
+            self.write_new(d, &Src::Ref(v))?;
+            self.stored_drop();
+            return Ok(());
         }
         let s = self.consumed(v)?;
         let old = self.old_locals(d);
         self.load_old(d, &old);
-        self.release_locals(&old, t)?;
-        self.write_new(d, &s)
+        self.release_old_drop(&old, t)?;
+        self.write_new(d, &s)?;
+        self.stored_drop();
+        Ok(())
     }
 
     /// Replaces the `t` value at `d` with `s`, which holds its count
@@ -470,8 +550,9 @@ impl Em<'_, '_, '_> {
         }
         self.write_new(d, s)?;
         if drops {
-            self.release_locals(old, t)?;
+            self.release_old_drop(old, t)?;
         }
+        self.stored_drop();
         Ok(())
     }
 
