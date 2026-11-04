@@ -44,9 +44,6 @@ fn pinned() -> i64:
     let mut xs: List[i64] = [1, 2]
     xs[1] = 3
     set_first(&xs[0], xs)
-> app/main/pinned
->   retain &i64
->   copy List[i64]
 
 pub fn main() -> void $ Console:
     f := Field { name: "abc${1}", n: 2 }
@@ -59,8 +56,4 @@ pub fn main() -> void $ Console:
 >   release List[app.main.Field]
     println(apply(weight, f))
     println(pinned())
->   retain &i64
->   copy List[i64]
 >   release List[i64]
->   release List[i64]
->   release &i64
