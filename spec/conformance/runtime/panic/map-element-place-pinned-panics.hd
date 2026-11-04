@@ -1,9 +1,9 @@
-# test: a map element reference pins its map until the reference's last use, so an insert through a box alias the checker cannot see panics
-# Spec 13 Element References: ref.elem.map, ref.elem.pinned.map.
+# test: a map element reference holds a loan on the boxed map it crosses until its last use, so an insert through a box alias the checker cannot see panics
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.loan, ref.excl.alias.conflict.
 tests:
     it("an insert panics while an element reference is live"):
         counts := box({ "a": +1 })
         alias := counts
         n := &counts["a"]
-        alias["b"] = 2 # panic: collection-pinned
+        alias["b"] = 2 # panic: borrow-conflict
         assert(n == 1)
