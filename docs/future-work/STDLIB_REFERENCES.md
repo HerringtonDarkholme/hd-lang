@@ -53,7 +53,7 @@ fn first_line(lines: &List[Line]) -> &Line:
 The std shape below needs these rules of the language:
 
 1. Operators read through a `&T` operand (`total += x`, `x > 1`, `name == "ada"`), and `==` of two `&T` compares values, as in Rust; identity stays `is`.
-2. `Index.index(&self, key) -> &Self::Out`, so `c[k]` is a place for every `Index` type: reading it copies, `&c[k]` borrows.
+2. `Index` is element access: `Index.index(&self, key) -> &Self::Out`, so `c[k]` is a place for every `Index` type: reading it copies, `&c[k]` borrows. Range and substring indexing are methods that return a new value (for example `s.slice(a, b)`) until hd has slices (owner, 2026-11-04).
 3. `for (k, v) in m` binds `(&K, &V)`, and `for (k, v) in &mut m` binds `(&K, &mut V)`; a key is never `&mut`.
 4. Inside `for p in &mut xs`, `xs` is reachable only through `p`, the same loan rule as the shared loop.
 5. Three body-only intrinsics move values: `std.ops.swap`, `list_swap` and `list_take_last`. Every other mover is plain hd over them.
