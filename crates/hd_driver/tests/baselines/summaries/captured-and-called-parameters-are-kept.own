@@ -9,13 +9,14 @@ fn later(name: string) -> fn() -> usize:
     fn() -> usize: name.len()
 > app/main/later
 >   local $0 name: string [param read captured]
->   %0 = Ref take local [$0] : Counted[string]
+>   %0 = Ref local [$0] : Counted[string]
 >   %1 = Call std/text/impl string.len[] (%0) : usize
 >   %2 = Drop [%0] : ()
->   %3 = Block %1 : usize
->   %4 = Closure #1 [%0 %1] : fn() -> usize
->   %5 = Drop [$0] : ()
->   %6 = Block %4 : fn() -> usize
+>   %3 = Drop [$0] : ()
+>   %4 = Block %1 : usize
+>   %5 = Closure #1 [%0 %1] : fn() -> usize
+>   %6 = Drop [$0] : ()
+>   %7 = Block %5 : fn() -> usize
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0]

@@ -432,9 +432,29 @@ impl Ck<'_, '_> {
             && self.ref_of(self.b.ty_of(recv)).is_none()
             && !self.is_coll_ty(rt)
         {
-            return self.new_object_ref(recv, rt, true, n).0;
+            let r = self.new_object_ref(recv, rt, true, n).0;
+            return self.local_receiver(r);
         }
-        self.fit_receiver(recv, rt, (mutable, counted), name, n)
+        let r = self.fit_receiver(recv, rt, (mutable, counted), name, n);
+        if counted || r == recv {
+            return r;
+        }
+        self.local_receiver(r)
+    }
+
+    /// A call's `&self` or `&mut self` receiver on a temporary: the address
+    /// of the new object holding it, which the call takes as a local
+    /// reference (`ref_word::LOCAL`, as [`Self::auto_address`] marks one of
+    /// a place), so the object's local lives until the last use of what
+    /// the call's result points into it (`ref.dep.temporary`).
+    fn local_receiver(&mut self, r: Ref) -> Ref {
+        if let Some(i) = r.as_inst() {
+            let b = self.b.body_mut();
+            if b.tags[i.0 as usize] == Tag::Ref {
+                b.data[i.0 as usize][1] |= hd_tir::ir::ref_word::LOCAL;
+            }
+        }
+        r
     }
 
     /// Whether `recv`, the receiver value of a method call, is a reference
