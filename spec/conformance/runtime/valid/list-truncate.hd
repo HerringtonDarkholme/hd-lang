@@ -1,0 +1,18 @@
+# test: list-truncate preserves values and copy independence
+# expect: test
+# Spec std/collections: std-collections.list.truncate.
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("list-truncate"):
+        let mut items = ["a", "b", "c"]
+        snapshot := items
+        items.truncate(9)
+        assert_equal(items, snapshot)
+        items.truncate(1)
+        assert_equal(items, ["a"])
+        assert_equal(snapshot, ["a", "b", "c"])
+        items.truncate(0)
+        items.truncate(0)
+        assert(items.is_empty())

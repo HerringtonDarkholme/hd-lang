@@ -1,0 +1,7 @@
+# test: map drain retains its mutable receiver borrow
+
+pub fn main() -> void:
+    let mut items: Map[string, i32] = { "a": +1 }
+    let mut cursor = items.drain()
+    _ := items.len() # diagnostic: conflicting-access
+    _ := cursor.next()

@@ -1,0 +1,17 @@
+# test: list-fill preserves values and copy independence
+# expect: test
+# Spec std/collections: std-collections.list.fill.
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("list-fill"):
+        let mut items = [["a"], ["b"]]
+        snapshot := items
+        items.fill(["new"])
+        items[0].push("only-first")
+        assert_equal(items, [["new", "only-first"], ["new"]])
+        assert_equal(snapshot, [["a"], ["b"]])
+        let mut empty: List[string] = []
+        empty.fill("unused")
+        assert(empty.is_empty())

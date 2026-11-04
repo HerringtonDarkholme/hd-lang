@@ -1,0 +1,22 @@
+# test: map-retain preserves values and copy independence
+# expect: test
+# Spec std/collections: std-collections.map.retain.
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("map-retain"):
+        let mut items = { "a": +1, "b": 2, "c": 3 }
+        snapshot := items
+        let visited: List[string] = []
+        items.retain(fn(key: &string, value: &mut i32) -> bool:
+            visited = [visited..., *key]
+            *value *= 10
+            *key != "b"
+        )
+        assert_equal(visited, ["a", "b", "c"])
+        assert_equal(items.entries(), [("a", +10), ("c", +30)])
+        assert_equal(snapshot, { "a": +1, "b": 2, "c": 3 })
+        items.retain(fn(key: &string, value: &mut i32) -> bool: false)
+        assert(items.is_empty())
+        items.retain(fn(key: &string, value: &mut i32) -> bool: false)

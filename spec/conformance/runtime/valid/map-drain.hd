@@ -1,0 +1,40 @@
+# test: map draining empties only its receiver and yields entries in insertion order
+# expect: test
+# Spec std/collections: std-collections.map.drain.
+
+fn first(items: &mut Map[string, List[string]]) -> string:
+    for (key, value) in items.drain():
+        return key + value[0]
+    "none"
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("empties the receiver after early return and keeps snapshots"):
+        let mut items = { "a": ["one"], "b": ["two"] }
+        snapshot := items
+        assert_equal(first(&mut items), "aone")
+        assert(items.is_empty())
+        assert_equal(snapshot, { "a": ["one"], "b": ["two"] })
+        items["new"] = ["three"]
+        _ := items.drain()
+        assert(items.is_empty())
+
+    it("yields every live entry once and handles an empty map"):
+        let mut items = { "a": +1, "b": 2, "c": 3 }
+        _ := items.remove("b")
+        let mut found: List[(string, i32)] = []
+        for entry in items.drain():
+            found.push(entry)
+        assert_equal(found, [("a", +1), ("c", +3)])
+        assert(items.is_empty())
+        for entry in items.drain():
+            assert(false)
+
+    it("drains a nested map without changing another copy"):
+        let mut groups = [{ "a": +1 }, { "b": +2 }]
+        snapshot := groups
+        _ := groups[0].drain()
+        assert(groups[0].is_empty())
+        assert_equal(groups[1], { "b": +2 })
+        assert_equal(snapshot[0], { "a": +1 })

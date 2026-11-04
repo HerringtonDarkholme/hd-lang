@@ -225,6 +225,43 @@ fn pairs(items: List[i32]) -> List[ListView[i32]]:
 > `items[start..end]`, a new list
 > ([Slicing](../lang/05-expressions.md#slicing)).
 
+### List Capacity And Bulk Changes
+
+These methods use the existing list primitives and preserve value copying:
+
+| Item | Signature |
+| --- | --- |
+| construction | `with_capacity(capacity: usize) -> List[T]` |
+| reservation | `reserve(&mut self, additional: usize) -> void` |
+| shortening | `truncate(&mut self, len: usize) -> void`; `split_off(&mut self, at: usize) -> List[T]` |
+| bulk change | `append(&mut self, other: &mut List[T]) -> void`; `resize(&mut self, len: usize, value: T) -> void`; `fill(&mut self, value: T) -> void`; `reverse(&mut self) -> void` |
+| draining | `drain['a](&'a mut self, range: Range[usize]) -> ListDrain[T, 'a]` |
+| ordered, `T < Ord` | `binary_search(&self, value: &T) -> Result[usize, usize]` |
+
+1. r[std-collections.list.with-capacity] `with_capacity(capacity)` returns an empty list whose first `capacity` pushes need no growth.
+2. r[std-collections.list.reserve] `reserve(additional)` leaves the elements unchanged and reserves room for at least `additional` more elements without growth.
+3. r[std-collections.list.reserve-zero] Reserving zero has no effect.
+4. r[std-collections.list.truncate] `truncate(len)` removes every element at an index at least `len`, and has no effect when `len` is at least the current length.
+5. r[std-collections.list.split-off] `split_off(at)` removes the suffix beginning at `at` and returns it as a new list in the original order.
+6. r[std-collections.list.split-off-bounds] A split index greater than the length panics. Panic: `index-out-of-bounds`.
+7. r[std-collections.list.append] `append(other)` appends the elements of `other` in order and empties `other`.
+8. r[std-collections.list.resize] `resize(len, value)` shortens the list by truncation or appends copies of `value` until its length is `len`.
+9. r[std-collections.list.fill] `fill(value)` replaces each element with a copy of `value`, without changing the length.
+10. r[std-collections.list.reverse] `reverse()` reverses the elements in place, without changing the length.
+11. r[std-collections.list.binary-search] On an ascending sorted list, `binary_search(value)` returns `.Ok(index)` for an equal element or `.Err(index)` for its sorted insertion position.
+12. r[std-collections.list.binary-search-duplicates] When several elements compare equal, any matching index may be returned.
+13. r[std-collections.list.drain] `drain(range)` returns a non-copyable `ListDrain[T, 'a]` holding the mutable receiver borrow and yielding the selected elements in order.
+14. r[std-collections.list.drain-bounds] The range selects half-open bounds, or includes its upper bound when `inclusive` is true; reversed or out-of-bounds ranges panic. Panic: `index-out-of-bounds`.
+15. r[std-collections.list.drain-drop] Dropping the cursor discards unvisited selected elements and restores the unselected tail after the prefix in its original order.
+16. r[std-collections.list.bulk-copy] Each bulk change leaves other copies of the list unchanged, including copies shared with `append`'s source.
+
+> **Note.** As with `UniqList.drain`, hd takes `Range[usize]`, including
+> inclusive bounds; write `0..items.len()` for the whole list.
+> The copying list drain retains a snapshot until the cursor is dropped.
+> Unlike Rust's exclusive borrow, hd's mutable borrow can have aliases;
+> `append` reads its source before clearing it, so two box aliases
+> naming the same list leave that list empty.
+
 ### Views
 
 `view` gives a read-only window on a run of a list's elements. It takes
@@ -558,6 +595,24 @@ fn tally(words: List[string]) -> Map[string, usize]:
 > its tie rule with no extra bookkeeping. `get_or_insert` is Rust's
 > `HashMap::entry(key).or_insert(default)` operation without exposing an
 > entry object that holds a reference.
+
+### Map Bulk Changes
+
+| Item | Signature |
+| --- | --- |
+| retaining | `retain(&mut self, keep: fn(&K, &mut V) -> bool) -> void` |
+| extending | `extend[I < ?Copy & Iterable[(K, V)]](&mut self, other: I) -> void` |
+| draining | `drain['a](&'a mut self) -> MapDrain[K, V, 'a]` |
+
+1. r[std-collections.map.retain] `retain(keep)` visits each entry once in iteration order, lets `keep` change its value, and removes entries for which it returns false.
+2. r[std-collections.map.extend] `extend(other)` inserts each yielded pair in order, replacing the value of an equal key as indexed assignment does.
+3. r[std-collections.map.extend-order] Replacing a key keeps its iteration position, and new keys follow the existing entries in their first insertion order.
+4. r[std-collections.map.drain] `drain()` empties the map and returns a non-copyable `MapDrain[K, V, 'a]` that borrows its receiver mutably and yields entries in iteration order.
+5. r[std-collections.map.drain-drop] Dropping the drain discards every unvisited entry and leaves the map empty.
+6. r[std-collections.map.bulk-copy] These methods leave other copies of the map unchanged.
+
+> **Note.** Map draining takes no positional range, as in Rust.
+> The cursor retains an entry snapshot until it is dropped.
 
 See also: [Map Key Types](../lang/04-type-system.md#map-key-types).
 

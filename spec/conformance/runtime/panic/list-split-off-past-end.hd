@@ -1,0 +1,5 @@
+# test: list-split-off-past-end rejects invalid bounds
+
+pub fn main() -> void:
+    let mut items = [+1, 2]
+    _ := items.split_off(3) # panic: index-out-of-bounds

@@ -1,0 +1,15 @@
+# test: list-reserve preserves values and copy independence
+# expect: test
+# Spec std/collections: std-collections.list.reserve.
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("list-reserve"):
+        let mut items = ["a", "b"]
+        snapshot := items
+        items.reserve(50)
+        items.reserve(0)
+        items.push("c")
+        assert_equal(items, ["a", "b", "c"])
+        assert_equal(snapshot, ["a", "b"])

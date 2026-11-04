@@ -1,0 +1,17 @@
+# test: list-with-capacity preserves values and copy independence
+# expect: test
+# Spec std/collections: std-collections.list.with-capacity.
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("list-with-capacity"):
+        let mut items = List::[string].with_capacity(16)
+        assert(items.is_empty())
+        let i: usize = 0
+        while i < 16:
+            items.push("v$i")
+            i += 1
+        assert_equal(items.len(), 16)
+        assert_equal(items[15], "v15")
+        assert(List::[i32].with_capacity(0).is_empty())

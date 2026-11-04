@@ -1,0 +1,7 @@
+# test: list drain retains its mutable receiver borrow
+
+pub fn main() -> void:
+    let mut items: List[i32] = [+1, 2]
+    let mut cursor = items.drain(0..1)
+    _ := items.len() # diagnostic: conflicting-access
+    _ := cursor.next()
