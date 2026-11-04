@@ -1252,7 +1252,10 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   and, where the callee's reference reaches one more object, on the object
   the page table finds for the result (`block_of`); a reference reborrowed
   through a holder local, as an inlined getter's result is through its
-  `self`, takes that holder's loans. Suspending bodies take no loan yet.
+  `self`, takes that holder's loans. A suspending body's frame saves the
+  loans' locals, so a loan held across a suspension stays held while the
+  task waits; an abandoned task ends its loans as it unwinds, and the
+  release glue of a frame dropped while it waits ends those still held.
   **Elision** (`emit/elide.rs`, in every build): each instance's
   accesses through a `*T`, by object type, with its callees', make a
   summary; a call of a function or trait value, an erased body's open

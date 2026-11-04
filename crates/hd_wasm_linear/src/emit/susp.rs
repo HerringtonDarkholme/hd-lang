@@ -1287,6 +1287,8 @@ pub(super) fn finish(
                 em.loan_keys.insert(l, x);
             }
         }
+        // The pointer loans the waiting body holds end with it.
+        em.borrow_abandon(&at_of);
         for (inst, local, ls) in places {
             let mut loaded = Vec::new();
             let mut ok = true;

@@ -169,9 +169,7 @@ fn body_func<'a>(
     em.own_consumers();
     if erased.is_none() && own.cold.is_none() {
         em.find_holders();
-        if !suspending {
-            em.find_borrows();
-        }
+        em.find_borrows();
     }
     let mut params = Vec::new();
     // A suspending body takes its frame first (`susp::FRAME`).

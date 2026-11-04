@@ -1,7 +1,5 @@
-# test: a call's result held across a suspension in a suspending body keeps only the place its receiver refers to, until its last use, so writes through an alias beside it or after it pass
+# test: a call's result held across a suspension keeps its loan on the whole object its argument reaches while the body waits, so a write to another field through an alias after the suspension panics
 # Spec 13 Conflicts Through Aliases: ref.excl.alias.loan, ref.excl.alias.conflict.
-# expect-stdout: c a 2
-# expect-stdout: d
 use std.time.{Clock, sleep}
 
 struct Addr:
@@ -22,7 +20,7 @@ struct Team:
 fn moved!(t: &Team, alias: *mut User) -> void $ Console + Clock:
     c := t.lead.addr.place()
     sleep!(1ms)
-    alias.age += 1
+    alias.age += 1 # panic: borrow-conflict
     println("${*c} ${alias.name} ${alias.age}")
     sleep!(1ms)
     alias.addr.city = "d"

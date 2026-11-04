@@ -37,7 +37,12 @@
 //! holders it captures until the call returns. A holder of a call's
 //! result takes loans on the argument's objects and on the object the
 //! result points into; a reborrow through a holder takes its loans.
-//! Suspending bodies take no loan yet (phase 6).
+//!
+//! **Suspension.** A suspending body's frame saves every local, the
+//! loans' too, so a loan held across a suspension stays held while the
+//! task waits. A task that unwinds ends its loans at its exits; one whose
+//! frame is released while it waits ends them in its release glue
+//! ([`Em::borrow_abandon`]), so no object stays borrowed after it.
 
 use hd_base::{HashMap, SliceSort as _, StageResult};
 use hd_mono::{ProgramEnv, Target};
@@ -107,6 +112,12 @@ pub(super) struct Borrows {
     /// header's and key's copies, and the source's delta when the loan was
     /// exclusive and so passed over rather than shared.
     reborrowed: HashMap<u32, Vec<(u32, u32, Option<u32>)>>,
+    /// In a suspending body, every call loan taken, for an abandoned
+    /// task's release.
+    live_calls: Vec<CallLoan>,
+    /// Set once the release glue of an abandoned task is emitted: the
+    /// body's locals are gone, and [`Em::borrow_abandon`] ended the loans.
+    abandoned: bool,
 }
 
 /// One loan a call holds from its argument's evaluation to its return.
@@ -119,6 +130,10 @@ struct CallLoan {
     /// Whether a jump may leave between the loan's begin and its call's
     /// return: the function's exit then ends it if it is still held.
     exit: bool,
+    /// In a suspending body: the local holding the loan's delta while it
+    /// is held, 0 otherwise, which the frame keeps, so an abandoned task's
+    /// release ends it (phase 6).
+    live: Option<u32>,
 }
 
 /// The pointer a loan was taken through: known, unknown, or held in a
@@ -266,8 +281,7 @@ pub(super) fn pointer_lent(
 
 impl Em<'_, '_, '_> {
     /// Finds the body's holder bindings that take pointer loans, where the
-    /// program lends any object. A suspending body takes none yet: its
-    /// frame does not save the loans' locals.
+    /// program lends any object.
     pub(super) fn find_borrows(&mut self) {
         if self.m.lent.is_empty() {
             return;
@@ -547,6 +561,7 @@ impl Em<'_, '_, '_> {
                     delta,
                     upgrade: last && two_phase,
                     exit: self.jumps_between(i, call),
+                    live: self.susp_live(),
                 };
                 self.call_loan_add(loan, 1);
                 self.borrows.call_loans.entry(call).or_default().push(loan);
@@ -885,6 +900,9 @@ impl Em<'_, '_, '_> {
     /// Ends the loans local `l`'s holders hold, at its release or before
     /// a store replaces its value.
     pub(super) fn borrow_release(&mut self, l: usize) {
+        if self.borrows.abandoned {
+            return;
+        }
         let mut held: Vec<Held> = (self.borrows.slots.keys())
             .filter(|h| h.local == l)
             .copied()
@@ -928,6 +946,23 @@ impl Em<'_, '_, '_> {
     /// Adds (or with `sign` -1 subtracts) call loan `loan`'s delta to its
     /// object's state and the function's own loans through its pointer.
     fn call_loan_add(&mut self, loan: CallLoan, sign: i32) {
+        if let Some(l) = loan.live {
+            if sign < 0 {
+                self.f.zero(l);
+            } else {
+                self.f.u32(loan.delta);
+                self.f.set(l);
+            }
+            if sign > 0
+                && !self
+                    .borrows
+                    .live_calls
+                    .iter()
+                    .any(|x| x.header == loan.header)
+            {
+                self.borrows.live_calls.push(loan);
+            }
+        }
         match loan.key {
             KeyOf::Local(kl) => self.borrow_add(loan.header, kl, loan.delta, sign),
             KeyOf::Known(key) => {
@@ -982,6 +1017,7 @@ impl Em<'_, '_, '_> {
                         delta,
                         upgrade: false,
                         exit: self.jumps_between(c, call),
+                        live: self.susp_live(),
                     };
                     self.borrows.call_loans.entry(call).or_default().push(loan);
                     if loan.exit {
@@ -1049,6 +1085,7 @@ impl Em<'_, '_, '_> {
             delta: if excl { LOAN_EXCL } else { LOAN_SHARED },
             upgrade: two_phase,
             exit: self.jumps_between(i, call),
+            live: self.susp_live(),
         };
         self.call_loan_add(loan, 1);
         self.borrows.call_loans.entry(call).or_default().push(loan);
@@ -1139,6 +1176,84 @@ impl Em<'_, '_, '_> {
         self.f.op(I::If(BlockType::Empty));
         self.call_loan_add(loan, -1);
         self.f.zero(loan.header);
+        self.f.op(I::End);
+    }
+
+    /// A local for a call loan's held delta, in a suspending body only.
+    fn susp_live(&mut self) -> Option<u32> {
+        self.susp.is_some().then(|| self.f.local(Val::I32))
+    }
+
+    /// In an abandoned task's release glue: ends the loans the frame still
+    /// holds, its holders' and its call loans', each read from the frame's
+    /// save of the body's local (`at_of`), so no object stays borrowed
+    /// after the task is gone (phase 6).
+    pub(super) fn borrow_abandon(&mut self, at_of: &dyn Fn(u32) -> Option<(u32, Val)>) {
+        self.borrows.abandoned = true;
+        let mut ends: Vec<(u32, Result<u32, u32>)> = Vec::new();
+        let mut held: Vec<Held> = self.borrows.slots.keys().copied().collect();
+        held.sort_stable();
+        for h in held {
+            for (s, (header, _)) in self.borrows.slots[&h].clone().into_iter().enumerate() {
+                ends.push((header, Ok(self.borrow_delta(h, s))));
+            }
+        }
+        for loan in self.borrows.live_calls.clone() {
+            if let Some(l) = loan.live {
+                ends.push((loan.header, Err(l)));
+            }
+        }
+        if ends.is_empty() {
+            return;
+        }
+        // A collection that traces the glue to mark or scan changes nothing
+        // but through releases (`module.rt.drop.trace`).
+        let Some(rt) = self.m.runtime else {
+            return;
+        };
+        self.f.call(crate::module::Sym::Inst(rt.cycle.marking));
+        self.f.op(I::I32Eqz);
+        self.f.op(I::If(BlockType::Empty));
+        let load = |em: &mut Self, l: u32| -> Option<u32> {
+            let (at, v) = at_of(l)?;
+            let x = em.f.local(v);
+            em.f.get(super::susp::FRAME);
+            em.f.op(super::susp::load_op(v, at));
+            em.f.set(x);
+            Some(x)
+        };
+        for (header, delta) in ends {
+            let Some(h) = load(self, header) else {
+                continue;
+            };
+            let d = match delta {
+                Ok(d) => {
+                    let x = self.f.local(Val::I32);
+                    self.f.u32(d);
+                    self.f.set(x);
+                    x
+                }
+                Err(l) => match load(self, l) {
+                    Some(x) => x,
+                    None => continue,
+                },
+            };
+            // Held: a header and a delta, both nonzero.
+            self.f.get(h);
+            self.f.op(I::I32Eqz);
+            self.f.get(d);
+            self.f.op(I::I32Eqz);
+            self.f.op(I::I32Or);
+            self.f.op(I::I32Eqz);
+            self.f.op(I::If(BlockType::Empty));
+            self.f.get(h);
+            self.f.get(h);
+            self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+            self.f.get(d);
+            self.f.op(I::I32Sub);
+            self.f.op(I::I32Store(mem(HEAP, 0, 2)));
+            self.f.op(I::End);
+        }
         self.f.op(I::End);
     }
 
