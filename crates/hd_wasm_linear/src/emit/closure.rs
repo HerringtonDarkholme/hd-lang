@@ -346,12 +346,14 @@ impl Em<'_, '_, '_> {
         {
             let (m, _) = self.cell_mem(l)?;
             let at = self.f.local(Val::I32);
+            // A zero count word and a zero descriptor word: a `*T` that
+            // reaches the slot reads its borrow state there (§23.4).
             self.f.get(base);
-            self.f.i32(0);
-            self.f.op(I::I32Store(crate::module::mem(
+            self.f.op(I::I64Const(0));
+            self.f.op(I::I64Store(crate::module::mem(
                 crate::module::HEAP,
                 u64::from(off - crate::module::HEADER),
-                2,
+                3,
             )));
             self.f.get(base);
             self.f.u32(off);

@@ -1,0 +1,19 @@
+# test: reserve cannot move a pinned unique list's elements
+use std.collections.UniqList
+
+struct Bag:
+    items: UniqList[string]
+
+fn change(first: &mut string, alias: *mut Bag) -> void:
+    alias.items.reserve(0)
+    alias.items.reserve(100) # panic: collection-pinned
+    *first = "still live"
+
+tests:
+    it("keeps a pinned element in its room"):
+        bag := box(Bag { items: UniqList::[string].new() })
+        bag.items.push("original")
+        alias := bag
+        match bag.items.get_mut(0):
+            .Some(first) => change(first, alias)
+            .None => panic("missing element")

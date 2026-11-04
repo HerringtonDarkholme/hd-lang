@@ -61,15 +61,41 @@ pub const CLASS_MASK: u32 = 31 << CLASS_SHIFT;
 /// object's color (two bits) and its frame mark (§23.28). The backend
 /// writes them 0, black and no frame, with the rest of the word.
 pub const COLLECTOR_SHIFT: u32 = 22;
-/// A weak-linked module's descriptor bit: a side entry currently names the
-/// object. Programs that do not use weak references keep the old 22-bit glue
-/// mask and therefore their encoded constants byte-identical.
-pub const WEAK: u32 = 1 << 21;
+/// First of the six descriptor bits that hold an object's borrow state
+/// (`docs/future-work/POINTER_LOANS.md`, model A): bits 16 to 20 count its
+/// shared loans and bit 21 marks an exclusive one. Every object starts
+/// with no loan, a state of 0.
+pub const LOAN_SHIFT: u32 = 16;
+/// One shared loan, the unit of the shared count.
+pub const LOAN_SHARED: u32 = 1 << LOAN_SHIFT;
+/// The descriptor bit of an exclusive loan.
+pub const LOAN_EXCL: u32 = 1 << 21;
+/// The whole borrow state: the shared count and the exclusive bit. A write
+/// through a `*T` needs all of it clear; a read only [`LOAN_EXCL`].
+pub const LOAN_STATE: u32 = (1 << COLLECTOR_SHIFT) - LOAN_SHARED;
+/// The descriptor's release glue in a module without weak references: its
+/// table slot plus one, zero for none, below the borrow state.
+pub const GLUE: u32 = LOAN_SHARED - 1;
+/// A weak-linked module's descriptor bit, the glue's top one: a side entry
+/// currently names the object. Programs that do not use weak references
+/// keep the 16-bit glue mask.
+pub const WEAK: u32 = 1 << (LOAN_SHIFT - 1);
 /// The descriptor's release glue in a weak-linked module: its table slot plus
-/// one, zero for none. Bit 21 is then [`WEAK`].
+/// one, zero for none. Bit 15 is then [`WEAK`].
 pub const WEAK_GLUE: u32 = WEAK - 1;
-/// The descriptor's release glue in a module without weak references.
-pub const GLUE: u32 = (1 << COLLECTOR_SHIFT) - 1;
+
+// The descriptor word's fields (§23.4) are disjoint and fill it: the glue
+// slot, the borrow state, the collector's three bits, the class and the
+// two collector flags; the weak bit is the glue's top bit.
+const _: () = assert!(
+    GLUE & LOAN_STATE == 0
+        && LOAN_STATE & (7 << COLLECTOR_SHIFT) == 0
+        && (7 << COLLECTOR_SHIFT) & CLASS_MASK == 0
+        && CLASS_MASK & (BUFFERED | CYCLIC) == 0
+        && GLUE | LOAN_STATE | (7 << COLLECTOR_SHIFT) | CLASS_MASK | BUFFERED | CYCLIC == u32::MAX
+        && LOAN_STATE == LOAN_EXCL | (31 * LOAN_SHARED)
+        && WEAK | WEAK_GLUE == GLUE
+);
 
 /// A duplicate function-table slot used as an object descriptor. The weak
 /// type key distinguishes exact allocation types; checked-report's kind is
@@ -1017,6 +1043,10 @@ pub struct Module {
     /// The loans the program's bindings may register through counted aliases
     /// (`ref.excl.alias`); empty, no access checks any.
     pub loans: Vec<crate::emit::Loan>,
+    /// The types whose objects a pointer loan may hold (model A,
+    /// `emit/borrow.rs`), true where the loan may be exclusive; empty, no
+    /// access through a `*T` checks a borrow state.
+    pub lent: hd_base::HashMap<hd_types::Ty, bool>,
     /// Reachable program operations or exported entry hooks can cancel.
     /// Selected from the conservative reachable graph before specialization.
     pub cancellable: bool,

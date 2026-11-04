@@ -1,0 +1,40 @@
+# expect: test
+# test: an uncounted reference into a closure parameter keeps its cell alive through the call
+# Spec: lang/13-values-and-references.md#r-ref.count.local.
+struct Payload:
+    count: u32
+    note: string?
+
+struct Envelope:
+    filter: Payload?
+
+fn absent(value: Envelope) -> bool:
+    value.filter.is_none()
+
+fn pause!() -> void:
+    pass
+
+fn suspended!() -> Result[bool, string]:
+    pause!()
+    let value: Result[Envelope, string] = .Ok(Envelope { filter: .None })
+    value.map(fn(value): value.filter.is_none())
+
+tests:
+    it("reads an absent field through a call"):
+        assert_equal(absent(Envelope { filter: .None }), true)
+
+    it("reads an absent field in a Result map"):
+        let value: Result[Envelope, string] = .Ok(Envelope { filter: .None })
+        assert_equal(value.map(fn(value): value.filter.is_none()), .Ok(true))
+
+    it("keeps a closure parameter alive inside a suspending root"):
+        assert_equal(suspended!(), .Ok(true))
+
+    it("keeps counted payload fields alive and drops them once"):
+        for index in 0..40:
+            let value: Result[Envelope, string] = .Ok(
+                Envelope {
+                    filter: .Some(Payload { count: u32(index), note: .Some("value-$index") }),
+                },
+            )
+            assert_equal(value.map(fn(value): value.filter.is_some()), .Ok(true))

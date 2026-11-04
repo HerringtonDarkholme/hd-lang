@@ -1,0 +1,31 @@
+# test: with a `&T` root the `Team` crosses no `*T`, so replacing its spare beside a loan runs; `leaf` holds a shared loan on the `Mid` it crosses, so replacing Mid's other pointer through an alias panics
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.loan, ref.excl.alias.conflict.
+struct User:
+    name: string
+
+struct Mid:
+    leaf: *mut User
+    spare: *mut User
+
+struct Team:
+    lead: *mut User
+    spare: *mut User
+    mid: *mut Mid
+
+fn replace(t: &Team, alias: *mut Team) -> string:
+    name := &t.lead.name
+    alias.spare = box(User { name: "new spare" })
+    leaf := &t.mid.leaf.name
+    alias.mid.spare = box(User { name: "new mid spare" }) # panic: borrow-conflict
+    *name + " " + *leaf
+
+pub fn main() -> void:
+    t := box(
+        Team {
+            lead: box(User { name: "old" }),
+            spare: box(User { name: "spare" }),
+            mid: box(Mid { leaf: box(User { name: "leaf" }), spare: box(User { name: "s" }) }),
+        },
+    )
+    alias := t
+    _ := replace(t, alias)

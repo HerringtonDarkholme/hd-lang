@@ -1,0 +1,15 @@
+# @dump: wat
+# `r` takes an exclusive loan on the `Cell` (adds 0x200000 to its header)
+# when it is bound, and gives it back after its last use. The write
+# through `p`, the loan's own pointer, compares the state with `p`'s own
+# loans; the write through `alias` compares it with 0.
+struct Cell:
+    value: string
+    other: string
+
+fn own_write(p: *mut Cell, alias: *mut Cell) -> string:
+    r := &mut p.value
+    p.other = "b"
+    seen := *r
+    alias.other = "c"
+    seen

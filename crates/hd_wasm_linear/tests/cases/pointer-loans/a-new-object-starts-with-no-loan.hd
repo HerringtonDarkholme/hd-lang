@@ -1,0 +1,15 @@
+# @dump: wat
+# The descriptor word passed to `rt:new` is the release glue's table slot
+# plus one in bits 0 to 15, with the cycle-capable bit 31 for `Node`; the
+# borrow state, bits 16 to 21, starts at 0.
+struct Cell:
+    value: string
+
+struct Node:
+    next: Option[*mut Node]
+
+fn cell() -> *mut Cell:
+    box(Cell { value: "a" })
+
+fn node() -> *mut Node:
+    box(Node { next: .None })

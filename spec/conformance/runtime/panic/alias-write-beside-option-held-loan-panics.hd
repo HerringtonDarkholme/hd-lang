@@ -1,0 +1,20 @@
+# test: a reference an Option holds keeps its run-time loan on the whole object until the Option's release, so an alias write to another field panics
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.loan, ref.excl.alias.conflict.
+struct User:
+    name: string
+    age: i32
+
+struct Team:
+    lead: *mut User
+
+fn option(t: &Team, alias: *mut User) -> string:
+    let held: Option[&string] = .Some(&t.lead.name)
+    alias.age += 1 # panic: borrow-conflict
+    match held:
+        .Some(value) => *value
+        .None => ""
+
+pub fn main() -> void $ Console:
+    t := Team { lead: box(User { name: "a", age: +1 }) }
+    alias := t.lead
+    println(option(&t, alias))

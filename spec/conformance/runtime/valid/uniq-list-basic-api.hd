@@ -1,0 +1,192 @@
+# test: unique list capacity, searches, bulk moves and draining preserve ownership and order
+# expect: test
+# Spec std/collections UniqList: std-collections.uniq-list.capacity, std-collections.uniq-list.reserve, std-collections.uniq-list.extend, std-collections.uniq-list.contains, std-collections.uniq-list.index-of, std-collections.uniq-list.reverse, std-collections.uniq-list.dedup, std-collections.uniq-list.split-off, std-collections.uniq-list.append, std-collections.uniq-list.drain, std-collections.uniq-list.binary-search.
+use std.collections.UniqList
+
+struct Item:
+    key: i32
+    label: string
+
+impl !Copy for Item
+
+impl Eq for Item:
+    fn eq(&self, other: &Item) -> bool:
+        self.key == other.key && self.label == other.label
+
+struct Empty: pass
+
+impl !Copy for Empty
+
+struct Bag:
+    items: UniqList[Item]
+
+fn item(key: i32) -> Item:
+    Item { key: key, label: "item$key" }
+
+fn keys(items: &UniqList[Item]) -> List[i32]:
+    let mut out: List[i32] = []
+    for entry in items.iter():
+        out.push(entry.key)
+    out
+
+fn drain_first(items: &mut UniqList[Item]) -> i32:
+    for entry in items.drain(1..3):
+        return entry.key
+    -1
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("reserves without changing elements, and moves items from an iterable"):
+        let mut items = UniqList::[Item].new()
+        assert_equal(items.capacity(), 0)
+        items.reserve(13)
+        capacity := items.capacity()
+        assert(capacity >= 13)
+        items.reserve(0)
+        assert_equal(items.capacity(), capacity)
+        let mut source = UniqList::[Item].new()
+        source.push(item(+1))
+        source.push(item(2))
+        items.extend(source)
+        assert_equal(keys(&items), [+1, 2])
+        assert_equal(items.capacity(), capacity)
+        assert(items.contains(&item(2)))
+        assert_equal(items.index_of(&item(2)), .Some(1))
+        assert_equal(items.index_of(&item(3)), .None)
+        items.reverse()
+        assert_equal(keys(&items), [+2, 1])
+
+    it("deduplicates consecutive equal items and returns matching or insertion indices"):
+        let mut items = UniqList::[Item].new()
+        items.push(item(+1))
+        items.push(item(1))
+        items.push(item(3))
+        items.push(item(3))
+        items.push(item(5))
+        items.dedup()
+        assert_equal(keys(&items), [+1, 3, 5])
+        numbers := UniqList::[i32].from_list([+1, 3, 5])
+        assert_equal(numbers.binary_search(&+3), .Ok(1))
+        assert_equal(numbers.binary_search(&+0), .Err(0))
+        assert_equal(numbers.binary_search(&+4), .Err(2))
+        assert_equal(numbers.binary_search(&+6), .Err(3))
+        let mut empty = UniqList::[Item].new()
+        empty.reverse()
+        empty.dedup()
+        assert_equal(UniqList::[i32].new().binary_search(&+0), .Err(0))
+        items.push(item(1))
+        items.dedup()
+        assert_equal(keys(&items), [+1, 3, 5, 1])
+        assert_equal(items.index_of(&item(1)), .Some(0))
+
+    it("splits and appends by moving the suffix and keeps both allocations"):
+        let mut items = UniqList::[Item].with_capacity(12)
+        items.push(item(+1))
+        items.push(item(2))
+        items.push(item(3))
+        capacity := items.capacity()
+        let mut tail = items.split_off(1)
+        tail_capacity := tail.capacity()
+        assert_equal(keys(&items), [+1])
+        assert_equal(keys(&tail), [+2, 3])
+        assert_equal(items.capacity(), capacity)
+        items.append(&mut tail)
+        assert_equal(keys(&items), [+1, 2, 3])
+        assert(tail.is_empty())
+        assert_equal(tail.capacity(), tail_capacity)
+        tail.push(item(4))
+        assert_equal(keys(&tail), [+4])
+        assert(items.split_off(3).is_empty())
+        let mut all = items.split_off(0)
+        assert(items.is_empty())
+        items.append(&mut all)
+        assert_equal(keys(&items), [+1, 2, 3])
+
+    it("moves a range in order, drops the rest on early exit and restores its tail"):
+        let mut items = UniqList::[Item].new()
+        let n: i32 = +0
+        while n < 6:
+            items.push(item(n))
+            n += 1
+        capacity := items.capacity()
+        assert_equal(drain_first(&mut items), +1)
+        assert_equal(keys(&items), [+0, 3, 4, 5])
+        assert_equal(items.capacity(), capacity)
+        let mut moved: List[i32] = []
+        for entry in items.drain(1..=2):
+            moved.push(entry.key)
+        assert_equal(moved, [+3, 4])
+        assert_equal(keys(&items), [+0, 5])
+        _ := items.drain(1..1)
+        assert_equal(keys(&items), [+0, 5])
+        _ := items.drain(0..2)
+        assert(items.is_empty())
+        items.push(item(9))
+        assert_equal(keys(&items), [+9])
+
+    it("drains nested non-copyable storage, including unused and exhausted cursors"):
+        let round: usize = 0
+        while round < 12:
+            let mut nested = UniqList::[UniqList[Item]].new()
+            let index: usize = 0
+            while index < 8:
+                let mut inner = UniqList::[Item].new()
+                inner.push(item(i32(index)))
+                nested.push(inner)
+                index += 1
+            let mut cursor = nested.drain(2..6)
+            assert_equal(
+                cursor.next().map(fn(inner: UniqList[Item]) -> usize: inner.len()),
+                .Some(1),
+            )
+            _ := cursor
+            assert_equal(nested.len(), 4)
+            for inner in nested.drain(0..4):
+                assert_equal(inner.len(), 1)
+            assert(nested.is_empty())
+            round += 1
+
+    it("reports reserved slots for zero-sized elements and permits an empty drain at the end"):
+        let mut items = UniqList::[void].with_capacity(5)
+        assert_equal(items.capacity(), 5)
+        items.push(())
+        items.reserve(10)
+        assert(items.capacity() >= 11)
+        _ := items.drain(1..1)
+        assert_equal(items.len(), 1)
+        _ := items.drain(0..1)
+        assert(items.is_empty())
+
+    it("keeps exhausted drain cursors exhausted, and permits any duplicate match"):
+        let mut items = UniqList::[i32].from_list([+1, 2, 2, 2, 4])
+        match items.binary_search(&+2):
+            .Ok(index) => assert(index >= 1 && index <= 3)
+            .Err(_) => panic("duplicate was absent")
+        let mut cursor = items.drain(1..4)
+        assert_equal(cursor.next(), .Some(+2))
+        assert_equal(cursor.next(), .Some(+2))
+        assert_equal(cursor.next(), .Some(+2))
+        assert_equal(cursor.next(), .None)
+        assert_equal(cursor.next(), .None)
+        _ := cursor
+        assert_equal(items.to_list(), [+1, 4])
+
+    it("moves zero-sized non-copyable items and drains a boxed list"):
+        let mut empty = UniqList::[Empty].with_capacity(3)
+        empty.push(Empty {})
+        empty.push(Empty {})
+        let mut tail = empty.split_off(1)
+        empty.append(&mut tail)
+        assert_equal(empty.len(), 2)
+        let consumed: usize = 0
+        for value in empty.drain(0..2):
+            _ := value
+            consumed += 1
+        assert_equal(consumed, 2)
+        bag := box(Bag { items: UniqList::[Item].new() })
+        bag.items.push(item(+1))
+        bag.items.push(item(2))
+        bag.items.push(item(3))
+        assert_equal(drain_first(&mut bag.items), +2)
+        assert_equal(keys(&bag.items), [+1])

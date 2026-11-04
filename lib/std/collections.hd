@@ -365,6 +365,83 @@ impl[T < ?Copy] UniqList[T]:
     pub fn is_empty(&self) -> bool:
         self.len() == 0
 
+    ## Returns the number of elements the current buffer can hold without growing.
+    ## See [std-collections.uniq-list.capacity](../../spec/std/collections.md#r-std-collections.uniq-list.capacity).
+    pub fn capacity(&self) -> usize:
+        self.buffer.capacity()
+
+    ## Reserves room for at least `additional` more elements without changing the length.
+    ## See [std-collections.uniq-list.reserve](../../spec/std/collections.md#r-std-collections.uniq-list.reserve).
+    pub fn reserve(&mut self, additional: usize) -> void:
+        minimum := collection_capacity_sum(self.len, additional)
+        if minimum > self.capacity():
+            self.unpinned()
+            self.buffer.grow(minimum)
+
+    ## Moves every item from `other` onto the end, in iteration order.
+    ## See [std-collections.uniq-list.extend](../../spec/std/collections.md#r-std-collections.uniq-list.extend).
+    pub fn extend[I < ?Copy & Iterable[T]](&mut self, other: I) -> void:
+        let mut cursor = other.iter()
+        while true:
+            match cursor.next():
+                .Some(item) => self.push(item)
+                .None => break
+
+    ## Reverses the order of the elements in place.
+    ## See [std-collections.uniq-list.reverse](../../spec/std/collections.md#r-std-collections.uniq-list.reverse).
+    pub fn reverse(&mut self) -> void:
+        let left: usize = 0
+        let right = self.len
+        while left < right:
+            right -= 1
+            self.swap(left, right)
+            left += 1
+
+    ## Moves the suffix starting at `at` into a new list, preserving this list's capacity.
+    ## See [std-collections.uniq-list.split-off](../../spec/std/collections.md#r-std-collections.uniq-list.split-off).
+    pub fn split_off(&mut self, at: usize) -> UniqList[T]:
+        if at > self.len:
+            panic_with("index-out-of-bounds", "uniq list split_off index out of bounds")
+        count := self.len - at
+        let mut out = UniqList::[T].with_capacity(count)
+        if count > 0:
+            self.unpinned()
+            copy(out.buffer.at(0).address, self.buffer.at(at).address, count * size_of::[T]())
+            self.len = at
+            out.len = count
+        out
+
+    ## Moves all of `other` after this list's elements, leaving `other` empty with its capacity.
+    ## See [std-collections.uniq-list.append](../../spec/std/collections.md#r-std-collections.uniq-list.append).
+    pub fn append(&mut self, other: &mut UniqList[T]) -> void:
+        if other.len == 0:
+            return
+        self.unpinned()
+        other.unpinned()
+        self.reserve(other.len)
+        copy(
+            self.buffer.at(self.len).address,
+            other.buffer.at(0).address,
+            other.len * size_of::[T](),
+        )
+        self.len += other.len
+        other.len = 0
+
+    ## Borrows the list and moves the selected elements out through a cursor.
+    ## See [std-collections.uniq-list.drain](../../spec/std/collections.md#r-std-collections.uniq-list.drain).
+    pub fn drain['a](&'a mut self, range: Range[usize]) -> UniqListDrain[T, 'a]:
+        let end = range.end
+        if range.inclusive:
+            if end >= self.len:
+                panic_with("index-out-of-bounds", "uniq list drain range out of bounds")
+            end += 1
+        if range.start > end || end > self.len:
+            panic_with("index-out-of-bounds", "uniq list drain range out of bounds")
+        self.unpinned()
+        tail := self.len - end
+        self.len = range.start
+        UniqListDrain { items: .Some(self), at: range.start, end: end, tail: tail }
+
     ## Returns a shared reference to the element at `index`, or `.None` outside the list.
     ## See [std-collections.uniq-list.get-ref](../../spec/std/collections.md#r-std-collections.uniq-list.get-ref).
     @inline
@@ -598,6 +675,48 @@ impl[T < ?Copy] UniqList[T]:
             index += 1
         self.len = size
 
+# Capacity overflow is an impossible allocation in every build profile.
+fn collection_capacity_sum(left: usize, right: usize) -> usize:
+    match left.checked_add(right):
+        .Some(total) => total
+        .None =>
+            panic_with("heap-exhausted", "collection capacity does not fit the address space")
+            0
+
+impl[T < ?Copy & Eq] UniqList[T]:
+    ## True exactly when an element equals `value`.
+    ## See [std-collections.uniq-list.contains](../../spec/std/collections.md#r-std-collections.uniq-list.contains).
+    pub fn contains(&self, value: &T) -> bool:
+        self.index_of(value).is_some()
+
+    ## Returns the index of the first equal element, or `.None`.
+    ## See [std-collections.uniq-list.index-of](../../spec/std/collections.md#r-std-collections.uniq-list.index-of).
+    pub fn index_of(&self, value: &T) -> usize?:
+        let index: usize = 0
+        while index < self.len:
+            if self.buffer.at(index).as_ref().eq(value):
+                return .Some(index)
+            index += 1
+        .None
+
+    ## Removes consecutive equal elements, keeping the first in each run.
+    ## See [std-collections.uniq-list.dedup](../../spec/std/collections.md#r-std-collections.uniq-list.dedup).
+    pub fn dedup(&mut self) -> void:
+        if self.len < 2:
+            return
+        self.unpinned()
+        let kept: usize = 1
+        let index: usize = 1
+        while index < self.len:
+            if self.buffer.at(kept - 1).as_ref().eq(self.buffer.at(index).as_ref()):
+                _ := self.buffer.at(index).read()
+            else:
+                if kept != index:
+                    self.buffer.at(kept).write(self.buffer.at(index).read())
+                kept += 1
+            index += 1
+        self.len = kept
+
 impl[T < Copy] UniqList[T]:
     ## Copies the elements of `items`, in order, into a new uniquely owned list.
     ## See [std-collections.uniq-list.conversion](../../spec/std/collections.md#r-std-collections.uniq-list.conversion).
@@ -662,9 +781,31 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
     ## Returns an empty map.
     ## See [std-collections.uniq-map.new](../../spec/std/collections.md#r-std-collections.uniq-map.new).
     pub fn new() -> UniqMap[K, V]:
-        UniqMap::[K, V].with_capacity(8)
+        UniqMap::[K, V].allocate(8)
 
-    fn with_capacity(capacity: usize) -> UniqMap[K, V]:
+    ## Returns an empty map with room for at least `capacity` entries before growing.
+    ## See [std-collections.uniq-map.with-capacity](../../spec/std/collections.md#r-std-collections.uniq-map.with-capacity).
+    pub fn with_capacity(capacity: usize) -> UniqMap[K, V]:
+        let room: usize = 0
+        if capacity > 0:
+            room = 8
+            while room < capacity:
+                match room.checked_mul(2):
+                    .Some(next) => room = next
+                    .None =>
+                        panic_with(
+                            "heap-exhausted",
+                            "uniq map capacity does not fit the address space",
+                        )
+        # The probe index and slots must fit one buffer, including its header.
+        slot_bytes := u64(size_of::[UniqMapSlot[K, V]]())
+        index_bytes := u64(room) * 2 * u64(size_of::[usize]())
+        slots := u64(room) + (index_bytes + slot_bytes - 1) / slot_bytes
+        if slots * slot_bytes > 0xfffe0000:
+            panic_with("heap-exhausted", "uniq map capacity does not fit the heap")
+        UniqMap::[K, V].allocate(room)
+
+    fn allocate(capacity: usize) -> UniqMap[K, V]:
         slot_bytes := size_of::[UniqMapSlot[K, V]]()
         index_bytes := capacity * 2 * size_of::[usize]()
         index_slots := (index_bytes + slot_bytes - 1) / slot_bytes
@@ -716,6 +857,67 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
     pub fn iter['a](&'a self) -> UniqMapIter[K, V, 'a]:
         UniqMapIter { items: self, at: 0 }
 
+    ## Returns a cursor that borrows the map and yields its values.
+    ## See [std-collections.uniq-map.values](../../spec/std/collections.md#r-std-collections.uniq-map.values).
+    pub fn values['a](&'a self) -> UniqMapValues[K, V, 'a]:
+        UniqMapValues { entries: self.iter() }
+
+    ## Reserves room for at least `additional` new entries, preserving every entry.
+    ## See [std-collections.uniq-map.reserve](../../spec/std/collections.md#r-std-collections.uniq-map.reserve).
+    pub fn reserve(&mut self, additional: usize) -> void:
+        minimum := collection_capacity_sum(self.size, additional)
+        if additional <= self.entry_capacity - self.used:
+            return
+        if self.slots.pinned():
+            panic_with(
+                "collection-pinned",
+                "a uniq map reserves room while a value reference pins it",
+            )
+        capacity := if minimum > self.entry_capacity: minimum else: self.entry_capacity
+        self.rehash(UniqMap::[K, V].with_capacity(capacity))
+
+    ## Keeps the entries accepted by `keep`, which may change their values in place.
+    ## See [std-collections.uniq-map.retain](../../spec/std/collections.md#r-std-collections.uniq-map.retain).
+    pub fn retain(&mut self, keep: fn(&K, &mut V) -> bool) -> void:
+        if self.size > 0 && self.slots.pinned():
+            panic_with(
+                "collection-pinned",
+                "a uniq map retains entries while a value reference pins it",
+            )
+        let index: usize = 0
+        while index < self.used:
+            place := self.slots.at(index)
+            accepted := match place.as_mut():
+                .Occupied(_, key, value) => keep(&key, value)
+                .Deleted => true
+            if !accepted:
+                _ := place.read()
+                place.write(.Deleted)
+                self.size -= 1
+            index += 1
+
+    ## Moves each key-value pair into the map; a later equal key replaces the former value.
+    ## See [std-collections.uniq-map.extend](../../spec/std/collections.md#r-std-collections.uniq-map.extend).
+    pub fn extend[I < ?Copy & Iterable[(K, V)]](&mut self, other: I) -> void:
+        let mut cursor = other.iter()
+        while true:
+            match cursor.next():
+                .Some((key, value)) => _ := self.insert(key, value)
+                .None => break
+
+    ## Borrows the map and moves every entry out, retaining its allocation.
+    ## See [std-collections.uniq-map.drain](../../spec/std/collections.md#r-std-collections.uniq-map.drain).
+    pub fn drain['a](&'a mut self) -> UniqMapDrain[K, V, 'a]:
+        if self.size > 0 && self.slots.pinned():
+            panic_with(
+                "collection-pinned",
+                "a uniq map drains entries while a value reference pins it",
+            )
+        end := self.used
+        self.size = 0
+        self.used = 0
+        UniqMapDrain { items: .Some(self), at: 0, end: end }
+
     ## Returns a cursor that borrows the map and yields its keys.
     ## See [std-collections.uniq-map.keys](../../spec/std/collections.md#r-std-collections.uniq-map.keys).
     pub fn keys['a](&'a self) -> UniqMapKeys[K, V, 'a]:
@@ -735,6 +937,8 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
 
     # The index of `key`, borrowing every probed slot rather than moving it.
     fn find_index(&self, key: K) -> usize?:
+        if self.entry_capacity == 0:
+            return .None
         capacity := self.entry_capacity * 2
         hash := usize(hash_of(key))
         let index = self.start(hash)
@@ -797,8 +1001,16 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
 
     fn grow(&mut self) -> void:
         old_capacity := self.entry_capacity
-        capacity := if self.size * 2 < old_capacity: old_capacity else: old_capacity * 2
-        let mut next = UniqMap::[K, V].with_capacity(capacity)
+        capacity := if old_capacity == 0:
+            8
+        else if self.size * 2 < old_capacity:
+            old_capacity
+        else:
+            old_capacity * 2
+        self.rehash(UniqMap::[K, V].allocate(capacity))
+
+    fn rehash(&mut self, next: UniqMap[K, V]) -> void:
+        let mut next = next
         let index: usize = 0
         while index < self.used:
             let hash: usize? = match self.slots.at(index).as_ref():
@@ -853,7 +1065,7 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
                 "a uniq map clears its entries while a value reference pins it",
             )
         capacity := self.entry_capacity
-        *self = UniqMap::[K, V].with_capacity(capacity)
+        *self = UniqMap::[K, V].allocate(capacity)
 
 impl[K < Eq & Hash, V < Copy] UniqMap[K, V]:
     ## Returns a copy of the value for `key`, or `.None` when absent.
@@ -892,6 +1104,54 @@ impl[K < Eq & Hash, V < ?Copy, 'a] Iterator[K] for UniqMapKeys[K, V, 'a]:
         match self.entries.next():
             .Some((key, _)) => .Some(key)
             .None => .None
+
+## A cursor that borrows a `UniqMap` and yields references to its values.
+## See [std-collections.uniq-map.values](../../spec/std/collections.md#r-std-collections.uniq-map.values).
+pub struct UniqMapValues[K < Eq & Hash, V < ?Copy, 'a]:
+    entries: UniqMapIter[K, V, 'a]
+
+impl[K < Eq & Hash, V < ?Copy, 'a] Iterator[&'a V] for UniqMapValues[K, V, 'a]:
+    fn next(&mut self) -> (&'a V)?:
+        match self.entries.next():
+            .Some((_, value)) => .Some(value)
+            .None => .None
+
+## A borrowing cursor that moves all entries out and drops any unvisited entries.
+## See [std-collections.uniq-map.drain](../../spec/std/collections.md#r-std-collections.uniq-map.drain).
+pub struct UniqMapDrain[K < Eq & Hash, V < ?Copy, 'a]:
+    items: (&'a mut UniqMap[K, V])?
+    at: usize
+    end: usize
+
+impl[K < Eq & Hash, V < ?Copy, 'a] !Copy for UniqMapDrain[K, V, 'a]
+
+impl[K < Eq & Hash, V < ?Copy, 'a] Iterator[(K, V)] for UniqMapDrain[K, V, 'a]:
+    fn next(&mut self) -> (K, V)?:
+        match self.items:
+            .Some(items) =>
+                while self.at < self.end:
+                    index := self.at
+                    self.at += 1
+                    match items.slots.at(index).read():
+                        .Occupied(_, key, value) => return .Some((key, value))
+                        .Deleted => pass
+            .None => pass
+        .None
+
+impl[K < Eq & Hash, V < ?Copy, 'a] Drop for UniqMapDrain[K, V, 'a]:
+    fn drop(&mut self) -> void:
+        match self.items:
+            .Some(items) =>
+                while self.at < self.end:
+                    _ := items.slots.at(self.at).read()
+                    self.at += 1
+                fill(
+                    items.slots.at(items.entry_capacity).address,
+                    0,
+                    items.entry_capacity * 2 * size_of::[usize](),
+                )
+                self.items = .None
+            .None => pass
 
 ## The consuming cursor of a `UniqMap`; it moves each key and value out.
 ## See [std-collections.uniq-map.into-iter](../../spec/std/collections.md#r-std-collections.uniq-map.into-iter).
@@ -941,6 +1201,19 @@ impl[T < Copy] Index[usize] for UniqList[T]:
         *self.buffer.at(key).as_ref()
 
 impl[T < ?Copy & Ord] UniqList[T]:
+    ## Searches a sorted list, returning a matching index or the insertion index.
+    ## See [std-collections.uniq-list.binary-search](../../spec/std/collections.md#r-std-collections.uniq-list.binary-search).
+    pub fn binary_search(&self, value: &T) -> Result[usize, usize]:
+        let left: usize = 0
+        let right = self.len
+        while left < right:
+            middle := left + (right - left) / 2
+            match self.buffer.at(middle).as_ref().cmp(value):
+                .Less => left = middle + 1
+                .Greater => right = middle
+                .Equal => return .Ok(middle)
+        .Err(left)
+
     ## Stably sorts the elements in ascending order by `Ord`, in place.
     ## See [std-collections.uniq-list.sort](../../spec/std/collections.md#r-std-collections.uniq-list.sort).
     pub fn sort(&mut self) -> void:
@@ -958,6 +1231,44 @@ impl[T < ?Copy, 'a] Iterator[&'a T] for UniqListIter[T, 'a]:
         if item.is_some():
             self.at += 1
         item
+
+## A borrowing cursor that moves a list range out and restores the remaining tail on drop.
+## See [std-collections.uniq-list.drain](../../spec/std/collections.md#r-std-collections.uniq-list.drain).
+pub struct UniqListDrain[T < ?Copy, 'a]:
+    items: (&'a mut UniqList[T])?
+    at: usize
+    end: usize
+    tail: usize
+
+impl[T < ?Copy, 'a] !Copy for UniqListDrain[T, 'a]
+
+impl[T < ?Copy, 'a] Iterator[T] for UniqListDrain[T, 'a]:
+    fn next(&mut self) -> T?:
+        if self.at >= self.end:
+            return .None
+        match self.items:
+            .Some(items) =>
+                index := self.at
+                self.at += 1
+                .Some(items.buffer.at(index).read())
+            .None => .None
+
+impl[T < ?Copy, 'a] Drop for UniqListDrain[T, 'a]:
+    fn drop(&mut self) -> void:
+        match self.items:
+            .Some(items) =>
+                while self.at < self.end:
+                    _ := items.buffer.at(self.at).read()
+                    self.at += 1
+                if self.tail > 0:
+                    copy(
+                        items.buffer.at(items.len).address,
+                        items.buffer.at(self.end).address,
+                        self.tail * size_of::[T](),
+                    )
+                items.len += self.tail
+                self.items = .None
+            .None => pass
 
 ## The consuming cursor of a `UniqList`; it moves the elements out in order.
 ## See [std-collections.uniq-list.into-iter](../../spec/std/collections.md#r-std-collections.uniq-list.into-iter).

@@ -52,8 +52,8 @@ fn start() -> fn!(bool) -> void:
 >   %10 = Block - : ()
         tick(&mut c)
 >   %12 = Ref mut local [$2] : Counted[mut Counter]
->   %13 = Drop [$2] : ()
->   %14 = Call app/main/tick[] (%12) : ()
->   %15 = Drop [%12] : ()
+>   %13 = Call app/main/tick[] (%12) : ()
+>   %14 = Drop [%12] : ()
+>   %15 = Drop [$2] : ()
 >   %12 finds [$2] full
 >   exit sub 1 drops [$2]

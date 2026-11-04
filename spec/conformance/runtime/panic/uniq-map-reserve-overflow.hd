@@ -1,0 +1,7 @@
+# test: uniq map reserve overflow
+use std.collections.UniqMap
+
+pub fn main() -> void:
+    let mut items = UniqMap::[i32, i32].new()
+    _ := items.insert(+1, +2)
+    items.reserve(4294967295) # panic: heap-exhausted

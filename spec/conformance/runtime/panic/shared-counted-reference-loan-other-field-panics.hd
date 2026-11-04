@@ -1,0 +1,15 @@
+# test: a reference taken through a read-only `*T` loans the whole object as one through a `*mut` does, so a write to another field through a writable alias panics
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.shared-counted-loan, ref.excl.alias.conflict.
+struct User:
+    name: string
+    age: i32
+
+fn other_field(view: *User, alias: *mut User) -> string:
+    held := &view.name
+    alias.age += 1 # panic: borrow-conflict
+    "${*held} ${alias.age}"
+
+pub fn main() -> void $ Console:
+    alias := box(User { name: "a", age: 1 })
+    let view: *User = alias
+    println(other_field(view, alias))

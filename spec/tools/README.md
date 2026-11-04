@@ -16,6 +16,7 @@ source, so they serve any implementation. The one exception is an adapter module
 | `rule-inventory.ts` | one chapter's inventory, and the restyle diff ([STYLE.md](../STYLE.md#restyling-a-chapter)) |
 | `run-conformance.ts` | the conformance runner for any implementation ([Adapters](#adapters)) |
 | `generate-erased-call-matrix.ts` | the checked-in erased-call runtime matrix; regenerate without arguments, or verify with `--check` |
+| `generate-pointer-loan-matrix.ts` | the checked-in pointer-loan runtime matrix of #1323 (reference kind, path, lifetime, alias action); regenerate without arguments, or verify with `--check` |
 | `fuzz/` | the implementation-neutral fuzzer ([README](fuzz/README.md)) |
 | `spec-tools.test.ts` | the tests of these tools, run by `pnpm test` |
 
