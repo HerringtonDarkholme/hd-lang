@@ -1,0 +1,85 @@
+# These tests always run checked: raw room blocks share the object ledger.
+use std.rt.checked.{allocate, allocated, free, live}
+use std.rt.memory.{Buffer, Ptr, load_u8, load_u32, store_u32}
+use std.rt.bytes.string_from_buffer
+use std.rt.cycle.{collect, suspect, visit}
+use std.testing.assert
+
+struct Empty: pass
+
+fn grow_room() -> void:
+    before := live()
+    given := allocated()
+    let mut room = Buffer::[u8].new(8)
+    assert(live() == before + 1, "a room is one live block")
+    assert(allocated() == given + 1, "room allocation is recorded")
+    room.at(0).write(42)
+    room.grow(32)
+    assert(live() == before + 1, "growth frees the old room")
+    assert(allocated() == given + 2, "growth records the new room")
+    assert(load_u8(room.at(0).address) == 42, "growth preserves bytes")
+    assert(room.capacity() == 32, "the grown room stays alive through its raw read")
+
+fn transfer() -> string:
+    room := Buffer::[u8].new(8)
+    room.at(0).write(104)
+    room.at(1).write(105)
+    string_from_buffer(room, 2)
+
+fn check_transfer() -> void:
+    before := live()
+    given := allocated()
+    text := transfer()
+    assert(live() == before + 1, "the string owns the room's block")
+    assert(allocated() == given + 1, "transfer allocates no second block")
+    assert(text == "hi", "the transferred bytes remain alive")
+
+fn trace_room_owner(block: usize) -> void:
+    _ := visit(usize(load_u32(block + 8)))
+    _ := Ptr::[Buffer[u8]] { address: block + 16 }.read()
+
+fn unexpected_release(address: usize) -> void:
+    panic("this cycle has no outgoing references")
+
+tests:
+    use std.testing.it
+
+    it("room growth and drop balance the allocation ledger"):
+        before := live()
+        grow_room()
+        assert(live() == before, "dropping the grown room frees its block")
+
+    it("transferring room to a string keeps one audited allocation"):
+        before := live()
+        check_transfer()
+        assert(live() == before, "the string releases the transferred block")
+
+    it("zero capacity and zero-sized elements allocate no room"):
+        before := live()
+        given := allocated()
+        let mut bytes = Buffer::[u8].new(0)
+        let mut empty = Buffer::[Empty].new(16)
+        empty.grow(32)
+        bytes.grow(0)
+        assert(allocated() == given, "empty rooms allocate no block")
+        assert(live() == before, "no empty block remains live")
+        assert(bytes.capacity() == 0, "zero capacity stays zero")
+        assert(empty.capacity() == 32, "zero-sized room still records its capacity")
+
+    it("the collector audits deferred room frees once after tracing"):
+        before := live()
+        a := allocate(32)
+        b := allocate(32)
+        store_u32(a, 1)
+        store_u32(b, 1)
+        store_u32(a + 4, 0x80000001)
+        store_u32(b + 4, 0x80000002)
+        store_u32(a + 8, u32(b + 8))
+        store_u32(b + 8, u32(a + 8))
+        Ptr::[Buffer[u8]] { address: a + 16 }.write(Buffer::[u8].new(8))
+        Ptr::[Buffer[u8]] { address: b + 16 }.write(Buffer::[u8].new(8))
+        assert(live() == before + 4, "two nodes and two rooms are audited")
+        suspect(a)
+        suspect(b)
+        collect(trace_room_owner, unexpected_release, free)
+        assert(live() == before, "tracing preserves rooms until their deferred free")

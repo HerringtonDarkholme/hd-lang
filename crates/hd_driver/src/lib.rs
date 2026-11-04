@@ -57,6 +57,7 @@ pub use hd_wasm_linear::{FunctionOrigins, InstructionOrigin, StaticData};
 #[cfg(feature = "analysis")]
 pub mod analysis;
 pub mod bench;
+mod checked_rooms;
 mod dbg;
 pub mod diagnostics;
 mod own;
@@ -8658,6 +8659,7 @@ impl Run<'_> {
                 let bytes = entry.get(at.clone())?;
                 let mut body = hd_tir::wire::read_body(bytes, &self.pool, &self.paths, &self.syms)?;
                 let mut hash = hd_tir::wire::tir_hash(bytes);
+                hash = self.checked_room_calls(&mut body, hash);
                 if self.fetched[usize::from(self.table.modules[*m].package)]
                     && dbg::suppress(&mut body, &self.names())
                 {

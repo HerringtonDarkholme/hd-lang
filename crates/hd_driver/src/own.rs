@@ -986,6 +986,7 @@ impl InlineEnv for Env<'_> {
         let (m, entry, at) = run.lazy_body(self.p, def)?.wire.as_ref()?;
         let mut fresh =
             hd_tir::wire::read_body(entry.get(at.clone())?, &run.pool, &run.paths, &run.syms)?;
+        run.checked_room_calls(&mut fresh, Hash128::default());
         // A fetched package's `dbg` prints nothing (`module.dbg.dependency`):
         // the copy keeps the suppression `decode` gave its body.
         if run.fetched[usize::from(run.table.modules[*m].package)] {

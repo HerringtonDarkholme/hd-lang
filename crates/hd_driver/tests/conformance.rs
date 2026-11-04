@@ -1937,6 +1937,10 @@ const STD_RT_TESTS: &[(&str, &str)] = &[
         include_str!("std_rt/checked_tests.hd"),
     ),
     (
+        "rt_tests/room_tests.hd",
+        include_str!("std_rt/room_tests.hd"),
+    ),
+    (
         "rt_tests/cycle_tests.hd",
         include_str!("std_rt/cycle_tests.hd"),
     ),
@@ -1966,7 +1970,12 @@ fn std_runtime_modules_pass_their_hd_tests_on_the_linear_backend() {
     let store = MemoryStore::default();
     let runs = STD_RT_TESTS
         .iter()
-        .map(|file| (file, checked_runtime()))
+        .map(|file| {
+            (
+                file,
+                checked_runtime() || file.0 == "rt_tests/room_tests.hd",
+            )
+        })
         .chain(
             STD_RT_TESTS
                 .iter()
@@ -2046,6 +2055,109 @@ fn unit_runtime(text: &str, expectation: &str, serial: usize) -> Verdict {
     let case = unit_case(expectation, serial);
     let store = MemoryStore::default();
     runtime_case(&case, &unit_fixture(text), &store, (1 << 40) + serial)
+}
+
+#[test]
+fn checked_rooms_reject_leaks_and_double_frees() {
+    let probes = [
+        // Raw Buffer frees its storage, not values written into it. Losing
+        // the inner Buffer must leave one audited room live.
+        r"use std.rt.memory.Buffer
+pub fn main() -> void:
+    slots := Buffer::[Buffer[u8]].new(1)
+    slots.at(0).write(Buffer::[u8].new(8))
+",
+        // Deliberately duplicate raw ownership bits: freeing one alias must
+        // poison the room and make the other alias's free fail.
+        r"use std.rt.memory.{Buffer, copy, size_of}
+pub fn main() -> void:
+    slots := Buffer::[Buffer[u8]].new(2)
+    slots.at(0).write(Buffer::[u8].new(8))
+    copy(slots.at(1).address, slots.at(0).address, size_of::[Buffer[u8]]())
+    _ := slots.at(0).read()
+    _ := slots.at(1).read()
+",
+    ];
+    for (i, text) in probes.into_iter().enumerate() {
+        let path = "main.hd";
+        let mut sources = hd_driver::std_sources();
+        sources.insert(path, text);
+        let fixture = Fixture {
+            sources,
+            primary: path.to_owned(),
+            checked: true,
+            package: "std",
+            ..unit_fixture(text)
+        };
+        let case = unit_case("panic:count-audit", 900 + i);
+        let runnable = build_runnable(
+            &fixture,
+            &fixture.sources,
+            &MemoryStore::default(),
+            &Goal::Program {
+                entry: "main".to_owned(),
+            },
+        );
+        let wasm = runnable.out.wasm.as_ref().expect("room audit program");
+        let ran = run_program(&case, runnable.modules(wasm), (1 << 40) + 900 + i, None)
+            .expect("room audit run");
+        assert_eq!(judge_run(&case, &fixture, &ran), Verdict::Pass);
+        let expected = if i == 0 {
+            "blocks leaked:"
+        } else {
+            "double free of the block"
+        };
+        assert!(
+            String::from_utf8_lossy(&ran.stderr).contains(expected),
+            "room audit probe {i}: {}",
+            String::from_utf8_lossy(&ran.stderr)
+        );
+    }
+}
+
+#[test]
+fn room_body_cache_keeps_checked_and_unchecked_profiles_separate() {
+    let text = r"use std.rt.memory.Buffer
+use std.rt.checked.allocated
+pub fn main() -> void $ Console:
+    before := allocated()
+    _ := Buffer::[u8].new(8)
+    count := allocated() - before
+    println(count)
+";
+    let store = MemoryStore::default();
+    for (i, checked) in [false, true, false, true].into_iter().enumerate() {
+        let mut sources = hd_driver::std_sources();
+        let path = "rt_tests/room_cache.hd";
+        sources.insert(path, text);
+        let fixture = Fixture {
+            sources,
+            primary: path.to_owned(),
+            checked,
+            package: "std",
+            text: format!("# expect-stdout: {}\n{text}", usize::from(checked)),
+            ..unit_fixture(text)
+        };
+        let runnable = build_runnable(
+            &fixture,
+            &fixture.sources,
+            &store,
+            &Goal::Program {
+                entry: "rt_tests.room_cache".to_owned(),
+            },
+        );
+        let wasm = runnable.out.wasm.as_ref().unwrap_or_else(|| {
+            panic!("room cache build: {}", runnable.out.render());
+        });
+        let case = unit_case("accept", 910 + i);
+        let ran = run_program(&case, runnable.modules(wasm), (1 << 40) + 910 + i, None)
+            .expect("room cache run");
+        assert_eq!(
+            judge_run(&case, &fixture, &ran),
+            Verdict::Pass,
+            "room cache run {i}, checked={checked}"
+        );
+    }
 }
 
 const PENDING_TICKS: &str = "\
