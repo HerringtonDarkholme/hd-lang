@@ -1,0 +1,22 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Built-In Collection Iteration over a map (spec/lang/06-control-flow.md, #1364).
+# expected: no count for a key or a value that is only read, by value or
+# through `&`; `keys` retains each key it pushes.
+fn by_value(m: Map[string, string]) -> usize:
+    let n: usize = 0
+    for (k, v) in m:
+        n += k.len() + v.len()
+    n
+
+fn by_ref(m: &Map[string, string]) -> usize:
+    let n: usize = 0
+    for (_, v) in m:
+        n += v.len()
+    n
+
+fn keys(m: Map[string, string]) -> List[string]:
+    let mut out: List[string] = []
+    for (k, _) in m:
+        out.push(k)
+    out

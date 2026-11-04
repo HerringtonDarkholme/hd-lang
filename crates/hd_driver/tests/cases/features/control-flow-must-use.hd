@@ -1,0 +1,20 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Must-Use Values and Unused Bindings (spec/lang/06-control-flow.md, #1364).
+# expected: `discard` releases the discarded `Result` payload once and
+# keeps nothing else; `unused` takes no count for `_kept`, which is only
+# a second name for the lent `s`.
+enum SaveError:
+    Failed(message: string)
+
+fn save(s: string) -> Result[string, SaveError]:
+    if s.len() > 0: .Ok(s + "!") else: .Err(SaveError.Failed("empty"))
+
+fn discard(s: string) -> usize:
+    _ := save(s)
+    let _ = save(s)
+    s.len()
+
+fn unused(s: string) -> usize:
+    _kept := s
+    s.len()

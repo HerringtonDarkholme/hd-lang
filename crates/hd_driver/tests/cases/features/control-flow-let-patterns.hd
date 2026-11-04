@@ -1,0 +1,26 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Let Patterns and let-else (spec/lang/06-control-flow.md, #1364).
+# expected: a data or tuple `let` pattern binds fields with no count when
+# they are only read; let-else on a `string?` reads the payload with no
+# count; `take_name` retains only the field it returns.
+struct User:
+    name: string
+    tags: List[string]
+
+fn read_user(u: User) -> usize:
+    let User { name, tags } = u
+    name.len() + tags.len()
+
+fn take_name(u: User) -> string:
+    let User { name } = u
+    name
+
+fn pair(p: (string, string)) -> usize:
+    let (a, b) = p
+    a.len() + b.len()
+
+fn present(o: string?) -> usize:
+    let .Some(s) = o else:
+        return 0
+    s.len()
