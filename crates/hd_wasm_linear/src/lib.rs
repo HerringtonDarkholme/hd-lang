@@ -362,7 +362,7 @@ pub const CHECKED_FNS: &[&str] = &[
 /// The cycle collector (`crates/hd_wasm_linear/DESIGN.md` §23.28), which both
 /// runtimes link: `collect`, `due`, `opaque` and `visit`.
 pub const CYCLE_MODULE: &str = "std.rt.cycle";
-pub const CYCLE_FNS: [&str; 4] = ["collect", "due", "opaque", "visit"];
+pub const CYCLE_FNS: [&str; 5] = ["collect", "due", "opaque", "visit", "marking"];
 
 /// The on-demand weak-reference side table. Its functions are collected with
 /// the allocator roots, but ordinary programs emit none because no generated
@@ -479,13 +479,16 @@ pub struct Acyclic {
 /// The cycle collector's functions (`crates/hd_wasm_linear/DESIGN.md` §23.28):
 /// `collect(trace, release, free)`, `due()`, whether a collection is due,
 /// `opaque(address)`, which marks a new frame as never entered, and
-/// `visit(address)`, which takes a reference that traced glue releases.
+/// `visit(address)`, which takes a reference that traced glue releases, and
+/// `marking()`, whether a collection traces release glue only to mark or
+/// scan, when glue changes nothing but through its releases.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Cycle {
     pub collect: Hash128,
     pub due: Hash128,
     pub opaque: Hash128,
     pub visit: Hash128,
+    pub marking: Hash128,
 }
 
 /// The weak side table's raw entry lookup and lifecycle operations.
@@ -560,7 +563,7 @@ impl Runtime {
             }
             _ => return None,
         };
-        let [collect, due, opaque, visit] = *rest else {
+        let [collect, due, opaque, visit, marking] = *rest else {
             return None;
         };
         let [
@@ -592,6 +595,7 @@ impl Runtime {
                 due,
                 opaque,
                 visit,
+                marking,
             },
             weak: Weak {
                 lookup: *weak_lookup,

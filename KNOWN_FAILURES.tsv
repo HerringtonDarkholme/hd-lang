@@ -10,22 +10,12 @@ runtime/panic/pointer-loan-arg-ref-ulist-grow-panics.hd	#1336		not built: today 
 runtime/panic/pointer-loan-arg-ref-ulist-replace-panics.hd	#1336		unsound today: the reference reads freed memory after the alias access; the proposal panics borrow-conflict
 runtime/panic/pointer-loan-arg-ref-umap-grow-panics.hd	#1336		not built: today the length change panics collection-pinned; the proposal panics borrow-conflict
 runtime/panic/pointer-loan-arg-ref-umap-replace-panics.hd	#1336		unsound today: the reference reads freed memory after the alias access; the proposal panics borrow-conflict
-runtime/panic/pointer-loan-bang-mut-list-grow-panics.hd	#1336		not built: today the length change panics collection-pinned; the proposal panics borrow-conflict
-runtime/panic/pointer-loan-bang-mut-list-read-panics.hd	#1336		not built: today the alias access runs with no loan on this path; the proposal panics borrow-conflict
-runtime/panic/pointer-loan-bang-mut-list-replace-panics.hd	#1336		not built: today the alias access runs with no loan on this path; the proposal panics borrow-conflict
-runtime/panic/pointer-loan-bang-mut-map-grow-panics.hd	#1336		not built: today the length change panics collection-pinned; the proposal panics borrow-conflict
-runtime/panic/pointer-loan-bang-mut-map-read-panics.hd	#1336		not built: today the alias access runs with no loan on this path; the proposal panics borrow-conflict
-runtime/panic/pointer-loan-bang-mut-map-replace-panics.hd	#1336		not built: today the alias access runs with no loan on this path; the proposal panics borrow-conflict
 runtime/panic/pointer-loan-bang-mut-ulist-grow-panics.hd	#1336		not built: today the length change panics collection-pinned; the proposal panics borrow-conflict
 runtime/panic/pointer-loan-bang-mut-ulist-read-panics.hd	#1336		not built: today the alias access runs with no loan on this path; the proposal panics borrow-conflict
 runtime/panic/pointer-loan-bang-mut-ulist-replace-panics.hd	#1336		unsound today: the reference reads freed memory after the alias access; the proposal panics borrow-conflict
 runtime/panic/pointer-loan-bang-mut-umap-grow-panics.hd	#1336		not built: today the length change panics collection-pinned; the proposal panics borrow-conflict
 runtime/panic/pointer-loan-bang-mut-umap-read-panics.hd	#1336		not built: today the alias access runs with no loan on this path; the proposal panics borrow-conflict
 runtime/panic/pointer-loan-bang-mut-umap-replace-panics.hd	#1336		unsound today: the reference reads freed memory after the alias access; the proposal panics borrow-conflict
-runtime/panic/pointer-loan-bang-ref-list-grow-panics.hd	#1336		not built: today the length change panics collection-pinned; the proposal panics borrow-conflict
-runtime/panic/pointer-loan-bang-ref-list-replace-panics.hd	#1336		not built: today the alias access runs with no loan on this path; the proposal panics borrow-conflict
-runtime/panic/pointer-loan-bang-ref-map-grow-panics.hd	#1336		not built: today the length change panics collection-pinned; the proposal panics borrow-conflict
-runtime/panic/pointer-loan-bang-ref-map-replace-panics.hd	#1336		not built: today the alias access runs with no loan on this path; the proposal panics borrow-conflict
 runtime/panic/pointer-loan-bang-ref-ulist-grow-panics.hd	#1336		not built: today the length change panics collection-pinned; the proposal panics borrow-conflict
 runtime/panic/pointer-loan-bang-ref-ulist-replace-panics.hd	#1336		unsound today: the reference reads freed memory after the alias access; the proposal panics borrow-conflict
 runtime/panic/pointer-loan-bang-ref-umap-grow-panics.hd	#1336		not built: today the length change panics collection-pinned; the proposal panics borrow-conflict

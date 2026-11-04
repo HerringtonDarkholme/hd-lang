@@ -1000,7 +1000,10 @@ Each about an hour, with its test; the matrix rows leave
    the `struct` `UniqList`/`UniqMap` ones (phase 8). The object a
    returned reference points into comes from the page table; an inlined
    getter's result takes its `self`'s loans.
-6. Suspension and abandonment; the `bang` rows.
+6. Suspension and abandonment; the `bang` rows, but not their
+   `UniqList`/`UniqMap` ones (phase 8). A `join!` task that writes an
+   object another task holds across a suspension now panics in every
+   build (#1331, item 2).
 7. Element references: remove the pin, add the two static rules; the
    `List`/`Map` rows and the copy fixtures.
 8. `UniqList`/`UniqMap` through loans; drop #1320's room count.

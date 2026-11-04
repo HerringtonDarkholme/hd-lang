@@ -5679,7 +5679,7 @@ typing/invalid/union-trait-requires-every-member.hd	type	reject:type-mismatch	la
 runtime/valid/union-hash.hd	runtime	accept	std/hash.md#r-std-hash.hash-of-local
 runtime/valid/union-serde.hd	runtime	accept	std/json.md#r-std-json.decode.direct
 runtime/panic/alias-write-under-call-result-loan-across-sleep-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.loan
-runtime/valid/alias-write-beside-call-result-loan-across-sleep-passes.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.loan
+runtime/panic/alias-write-beside-call-result-loan-across-sleep-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
 runtime/panic/bang-call-mut-argument-under-loan-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.counted-access
 runtime/valid/bang-call-disjoint-argument-checks-once.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.counted-access
 runtime/valid/alias-write-after-abandoned-call-result-loan-passes.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.loan
@@ -6259,6 +6259,8 @@ runtime/valid/pointer-loan-extra-pass-read-with-shared.hd	runtime	accept	lang/13
 runtime/panic/pointer-loan-extra-pass-alias-mut-with-shared-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/panic/pointer-loan-extra-pass-alias-read-with-mut-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/panic/pointer-loan-extra-dependent-result-alias-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
+runtime/panic/pointer-loan-extra-other-task-field-write-panics.hd	runtime	panic:borrow-conflict	std/time.md#r-std-time.helper.sleep
+runtime/valid/pointer-loan-extra-abandoned-task-ends-its-loans.hd	runtime	accept	std/time.md#r-std-time.helper.sleep
 runtime/panic/pointer-loan-extra-hidden-alias-in-another-object-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/panic/pointer-loan-extra-pointer-lent-as-mut-argument-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
 typing/invalid/pointer-loan-same-root-whole-object.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place
