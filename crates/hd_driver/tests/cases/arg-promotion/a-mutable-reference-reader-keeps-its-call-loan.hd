@@ -1,0 +1,9 @@
+# @dump: wat
+# @build: v8 release
+# A read-only body still has its mutable-reference parameter's call loan.
+# In particular, that loan precedes evaluation of the later argument.
+fn size(items: &mut List[i32], removed: i32?) -> usize:
+    items.len()
+
+fn caller(items: *mut List[i32]) -> usize:
+    size(items, items.pop())

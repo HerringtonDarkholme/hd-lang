@@ -2,9 +2,8 @@
 (module
   (import "fixture" "impl Facts.find[std.serde.EnumTagging]" (func $"impl Facts.find[std.serde.EnumTagging]" (param i32) (result i32 i32 i32 i32 i32 i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32 i32 i32 i32)))
-  (import "fixture" "impl [ T < ? Copy ] T ?.is_some[std.serde.EnumTagging]" (func $"impl [ T < ? Copy ] T ?.is_some[std.serde.EnumTagging]" (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $mutated (param $value i64) (result i64) (local $t0 i32) (local $t5 i32) (local $facts i32) (local $t7 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t6 i32)
+  (func $mutated (param $value i64) (result i64) (local $t0 i32) (local $t5 i32) (local $facts i32) (local $t7 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t6 i32) (local $t8 i32)
     ;; ...
     block
       ;; ...
@@ -64,8 +63,35 @@
       local.get $t1
       i32.store $heap offset=20
       local.get $t6
-      call $"impl [ T < ? Copy ] T ?.is_some[std.serde.EnumTagging]"
       local.set $t0
+      block
+        block
+          block
+            block
+              block
+                local.get $t0
+                i32.load8_u $heap
+                local.tee $t0
+                i32.const 1
+                i32.eq
+                br_if 0
+                local.get $t0
+                i32.eqz
+                br_if 1
+                unreachable
+                unreachable
+              end
+              i32.const 1
+              local.set $t8
+              br 1
+            end
+            br 0
+          end
+          local.get $t8
+          local.set $t0
+          br 0
+        end
+      end
       ;; ...
       local.get $t0
       if (result i64)

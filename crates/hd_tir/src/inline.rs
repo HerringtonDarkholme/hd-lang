@@ -139,6 +139,9 @@ pub struct Site {
     pub call: usize,
     pub copy: Body,
     pub by_value: u64,
+    /// Read-through reference parameters substituted with their already
+    /// evaluated argument, without an intermediate owning binding.
+    pub by_ref: u64,
 }
 
 /// A site that passed its checks: its parameters a `Store` binds (local,
@@ -147,6 +150,7 @@ struct Ready {
     c: usize,
     k: Body,
     params: Vec<(u32, usize)>,
+    refs: Vec<(u32, usize)>,
     outer: usize,
     base: u32,
 }
@@ -315,22 +319,33 @@ fn still_reached(b: &Body, l: u32) -> bool {
 /// parameters it binds; `None` skips it.
 fn prepare(b: &Body, site: Site, outer: &[u32]) -> Option<Ready> {
     let Site {
-        call: c, copy: k, ..
+        call: c,
+        copy: k,
+        by_ref,
+        by_value,
     } = site;
     let r = b.record(b.data[c][1]);
     let args = &r[..r.len().saturating_sub(3)];
     let mut params = Vec::new();
+    let mut refs = Vec::new();
+    let mut count = 0;
     for l in 0..k.local_flags.len() {
         if k.local_flags[l] & local_flags::PARAM == 0 {
             continue;
         }
-        params.push((u32_of(l), params.len()));
+        if count < 64 && by_ref & (1 << count) != 0 {
+            refs.push((u32_of(l), count));
+        } else {
+            params.push((u32_of(l), count));
+        }
+        count += 1;
     }
     let outer = *outer.get(c).filter(|&&o| o != NONE)?;
-    (args.len() == params.len() && !k.is_empty()).then_some(Ready {
+    (args.len() == count && by_ref & by_value == 0 && !k.is_empty()).then_some(Ready {
         c,
         k,
         params,
+        refs,
         outer: outer as usize,
         base: 0,
     })
@@ -345,10 +360,12 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(usize, u32, Vec<u32>), String> {
         c,
         mut k,
         params,
+        refs,
         outer,
         base,
     } = r;
     let (m, np) = (k.len(), params.len());
+    let args = out.record(out.data[c][1]).to_vec();
     let root_at = base + u32_of(np + m);
     let mut new_of = Vec::with_capacity(m);
     for j in 0..m {
@@ -359,6 +376,11 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(usize, u32, Vec<u32>), String> {
         });
     }
     renumber_through(&mut k, new_of, u32_of(out.consts.len()))?;
+    let refs: Vec<(u32, u32)> = refs
+        .into_iter()
+        .map(|(local, arg)| (local, args[arg]))
+        .collect();
+    substitute_refs(&mut k, &refs)?;
     let (xbase, lbase) = (u32_of(out.extra.len()), u32_of(out.local_ty.len()));
     let label = u32_of(out.label_inst.len() + k.label_inst.len());
     relocate(&mut k, xbase, lbase, u32_of(out.label_inst.len()), label);
@@ -404,7 +426,6 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(usize, u32, Vec<u32>), String> {
         k.anchors.iter().map(|&a| moved(a)).collect()
     };
     // The arguments, renumbered with the caller.
-    let args = out.record(out.data[c][1]).to_vec();
     let mut put = |tag: Tag, data: [u32; 2], ty: Ty, at: Option<usize>| {
         out.tags.push(tag);
         out.data.push(data);
@@ -451,6 +472,48 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(usize, u32, Vec<u32>), String> {
     }
     out.held_args.append(&mut k.held_args);
     Ok((outer, scope, before))
+}
+
+/// The reader proof permits only reads through a reference parameter,
+/// including a whole read used as a match scrutinee. Substitute the
+/// caller's evaluated reference after the copy's values are renumbered,
+/// so the argument is neither duplicated nor mistaken for a callee value.
+fn substitute_refs(body: &mut Body, refs: &[(u32, u32)]) -> Result<(), String> {
+    if refs.is_empty() {
+        return Ok(());
+    }
+    for i in 0..body.len() {
+        let ops = body.tags[i].operands();
+        for (x, op) in [ops.0, ops.1].into_iter().enumerate() {
+            if op != Op::Place {
+                continue;
+            }
+            let Some(mut place) = body.decode_place(body.data[i][x]) else {
+                return Err("a reader with a malformed place".to_owned());
+            };
+            let crate::ir::PlaceRoot::Local(local) = place.root else {
+                continue;
+            };
+            let Some(&(_, argument)) = refs.iter().find(|&&(l, _)| l == local.raw()) else {
+                continue;
+            };
+            if place.proj.is_empty() {
+                if body.tags[i] != Tag::Read {
+                    return Err("a reader that changes its reference binding".to_owned());
+                }
+                let identity = push_record(body, &[crate::ir::Coercion::Identity as u32, NONE]);
+                body.tags[i] = Tag::Coerce;
+                body.data[i] = [argument, identity];
+            } else {
+                place.root = crate::ir::PlaceRoot::Value(crate::ir::Ref(argument));
+                body.data[i][x] = push_record(body, &place.words().expect("a value-rooted place"));
+            }
+        }
+    }
+    for &(local, _) in refs {
+        body.local_flags[local as usize] = 0;
+    }
+    Ok(())
 }
 
 /// Moves the copy's record words `xbase` on, its locals `lbase` on and
@@ -521,6 +584,7 @@ mod tests {
                 call,
                 copy,
                 by_value: 0,
+                by_ref: 0,
             }],
         )?[..]
         {
@@ -530,6 +594,63 @@ mod tests {
     }
     /// The callee's type parameter, which the call substitutes by `string`.
     const T: Ty = Ty(1_000_001);
+
+    #[test]
+    fn a_read_through_copy_uses_its_evaluated_reference_without_a_binding() {
+        let pool = hd_types::InternPool::default();
+        let reference = pool.intern_ty(&hd_types::TyData::Ref {
+            inner: Ty::I32,
+            mutable: false,
+            counted: false,
+        });
+        let mut b = TirBuilder::new(DefId::from_raw(3), BodyKind::Fn);
+        let block = b.open_block();
+        let parameter = b.local(reference, Symbol::from_raw(0), local_flags::PARAM, N);
+        let place = b.place(&Place {
+            root: PlaceRoot::Local(parameter),
+            proj: vec![Proj::Deref],
+        });
+        let value = b.emit(Tag::Read, place, ReadMode::Use as u32, Ty::I32, N);
+        let root = b.close_block(block, Some(value), Ty::I32, N);
+        let copy = b.finish(root, &[]).expect("reader verifies");
+        let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let block = b.open_block();
+        let argument = b.call(&item(7), &[], Providers::None, reference, N);
+        let call = b.call(&item(3), &[argument], Providers::None, Ty::I32, N);
+        let root = b.close_block(block, Some(call), Ty::I32, N);
+        let mut body = b.finish(root, &[]).expect("caller verifies");
+        assert_eq!(
+            inline_calls(
+                &mut body,
+                vec![Site {
+                    call: call.0 as usize,
+                    copy,
+                    by_value: 0,
+                    by_ref: 1,
+                }]
+            ),
+            Ok(vec![true])
+        );
+        assert_eq!(body.tags.iter().filter(|&&t| t == Tag::Store).count(), 0);
+        assert_eq!(
+            (0..body.len())
+                .filter(|&i| plain_call(&body, i) == Some(item(7)))
+                .count(),
+            1
+        );
+        let read = (0..body.len())
+            .find(|&i| body.tags[i] == Tag::Read)
+            .expect("the dereference");
+        assert_eq!(
+            body.decode_place(body.data[read][0]),
+            Some(Place {
+                root: PlaceRoot::Value(argument),
+                proj: vec![Proj::Deref],
+            })
+        );
+        body.anchors.clear();
+        assert_eq!(verify(&body), []);
+    }
 
     /// `fn f(x: T) -> T { loop { if true { return x } break }; "s" }`:
     /// a loop, a `return` inside it, a constant and a string.
@@ -716,6 +837,7 @@ mod tests {
             call,
             copy: copy(),
             by_value: 0,
+            by_ref: 0,
         };
         let mut one = b.clone();
         let sites = calls.iter().map(|&c| site(c)).collect();
@@ -987,6 +1109,7 @@ mod tests {
                     call: 1,
                     copy: callee(),
                     by_value: 0,
+                    by_ref: 0,
                 }]
             ),
             Ok(vec![true])

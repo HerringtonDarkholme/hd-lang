@@ -2938,10 +2938,23 @@ index loop.
 One selection rule covers std, `std.rt` included (2026-11-02, #1228: no
 runtime exception, and no inline hints in `lib/std/rt/`), and user callees
 (2026-10-26, #856): a
-callee of at most 16 instructions (`INLINE_LIMIT`) that takes no
-reference and is not recursive. A reference parameter would be bound in a local, where it is
-counted and makes a local it points at a counted cell; a call lends both,
-so such a callee stays a call. The build profile is the only difference:
+callee of at most 16 instructions (`INLINE_LIMIT`) that is not recursive.
+Reference getters and proved argument promotion also qualify. In release,
+a small reader may keep shared references to unpromotable referents or
+Drop owners when it only reads through them and has no reachable write
+effect (#1346). Mutable-reference parameters keep their call boundary,
+including its loan contract, even when the body only reads. The fallback
+requires each reference parameter to be read through; an unused receiver
+keeps its argument loan and view cleanup contract. Other
+promotable referents keep their existing call-site checks. The outer
+reference must be known; its generic referent need not have a concrete
+layout. The copy substitutes the already evaluated reference argument
+into its read-through places, preserving an erased view without an
+intermediate reference local or an owner copy. Those read-through uses
+also keep the existing non-escaping proof of the original call. Normal
+ownership lowering preserves the reference's lifetime.
+
+The build profile also selects which ordinary bodies are candidates:
 a dev build copies std callees only, so user code stays as written for
 stepping, stack traces and `dbg`; a release build copies both, like the
 other cross-function work, which is release-only. 16 lets a one-line

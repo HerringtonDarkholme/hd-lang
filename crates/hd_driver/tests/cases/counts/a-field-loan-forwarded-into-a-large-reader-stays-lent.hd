@@ -1,0 +1,27 @@
+# @dump: own counts wat
+# @build: v8 release
+# A reader too large to promote keeps its reference. The stored field
+# loan remains lent when the copy uses its evaluated argument (#1346).
+use std.annotation.inline
+use std.collections.UniqList
+
+struct Room:
+    text: string
+    offset: usize
+    owner: UniqList[u8]
+
+impl !Copy for Room
+
+struct Owner:
+    room: Room
+
+impl !Copy for Owner
+
+fn measure(room: &Room) -> usize:
+    room.text.len() + room.offset
+
+@inline(.Never)
+fn total(owner: &Owner, depth: usize) -> usize:
+    field := &owner.room
+    below := if depth == 0: 0 else: total(owner, depth - 1)
+    measure(field) + below
