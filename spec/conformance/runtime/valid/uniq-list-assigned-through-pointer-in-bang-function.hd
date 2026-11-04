@@ -1,0 +1,24 @@
+# expect-stdout: 1 a
+# test: a bang function assigns a new unique list through a `*mut` after a suspension point, in every pipeline
+# std Collections: std-collections.uniq-list.type.
+use std.collections.UniqList
+
+struct Holder:
+    items: UniqList[string]
+
+fn fresh(first: string) -> UniqList[string]:
+    let mut items = UniqList::[string].new()
+    items.push(first)
+    items
+
+fn tick!() -> i32:
+    +1
+
+fn reset!(holder: *mut Holder) -> void:
+    _ := tick!()
+    holder.items = fresh("a")
+
+pub fn main!() -> void $ Console:
+    holder := box(Holder { items: UniqList::[string].new() })
+    reset!(holder)
+    println("${holder.items.len()} ${holder.items.get(0).unwrap_or("")}")

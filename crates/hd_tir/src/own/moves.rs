@@ -397,7 +397,7 @@ fn candidates(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> bool
     // sub-body is its exit row's.
     suspending_subs(b, topo, t);
     for &(s, l) in &b.exit_drops {
-        if t.susp_sub[s.idx()] && t.addr[l.idx()] {
+        if t.susp_sub[s.idx()] && t.addr[l.idx()] && !between_points(b, topo, l.raw()) {
             t.keep_l[l.idx()] = true;
         }
     }
@@ -538,6 +538,74 @@ fn overlaps(b: &Body, a: u32, c: u32) -> bool {
 fn covers(b: &Body, a: u32, c: u32) -> bool {
     let (x, y) = (b.view(a), b.view(c));
     x.to - x.from <= y.to - y.from && overlaps(b, a, c)
+}
+
+/// Whether local `l` lives only between suspension points: every place
+/// rooted at it lies in one block whose statements hold no suspension
+/// point, and the first of them in that block is a store of all of it,
+/// so each run of the block makes it anew (the locals of a body the
+/// inliner copied into a suspending one). Then no resume enters its
+/// life, the frame saves no value of it, and its cell may move as in a
+/// plain body.
+fn between_points(b: &Body, topo: &Topology, l: u32) -> bool {
+    if b.cap_local.iter().any(|c| c.raw() == l) {
+        return false;
+    }
+    let mut touches = Vec::new();
+    for i in 0..b.len() {
+        if matches!(
+            b.tags[i],
+            Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique | Tag::Pin
+        ) && b.view(b.data[i][0]).local() == Some(l)
+        {
+            if topo.blk[i] == NONE {
+                return false;
+            }
+            touches.push(u32_of(i));
+        }
+    }
+    let Some(&first) = touches.first() else {
+        return false;
+    };
+    // The innermost block that holds every touch.
+    let chains: Vec<Vec<u32>> = touches
+        .iter()
+        .map(|&i| topo.enclosing(i).collect())
+        .collect();
+    let Some(&lca) = chains[0]
+        .iter()
+        .find(|blk| chains.iter().all(|c| c.contains(blk)))
+    else {
+        return false;
+    };
+    if (0..u32_of(b.len()))
+        .filter(|&p| is_suspension(b.tags[p as usize]))
+        .any(|p| topo.enclosing(p).any(|blk| blk == lca))
+    {
+        return false;
+    }
+    // The statement of `lca` that holds each touch, and the first.
+    let top = |i: u32| -> u32 {
+        let mut x = i;
+        while topo.blk[x as usize] != lca {
+            x = topo.blk[x as usize];
+        }
+        x
+    };
+    let decl = touches
+        .iter()
+        .copied()
+        .min_by_key(|&i| (topo.pos[top(i) as usize], i))
+        .unwrap_or(first);
+    let whole = b.tags[decl as usize] == Tag::Store
+        && topo.blk[decl as usize] == lca
+        && b.local_in_place(b.data[decl as usize][0])
+            .is_some_and(|x| x.raw() == l)
+        && b.view(b.data[decl as usize][0]).whole();
+    whole
+        && touches
+            .iter()
+            .all(|&i| i == decl || topo.pos[top(i) as usize] > topo.pos[decl as usize])
 }
 
 /// Marks each sub-body that holds a suspension point: from each point,
@@ -770,7 +838,11 @@ fn apply(
 ) {
     for i in 0..b.len() {
         if t.decide[i] == TAKE && topo.blk[i] != NONE {
-            take(b, topo, t, edits, i);
+            // Not in a suspending sub-body (invariant 23): a cell between
+            // its points moves by a read, and a `Ref` keeps its count.
+            if !t.susp_sub[topo.sub[i] as usize] {
+                take(b, topo, t, edits, i);
+            }
             continue;
         }
         if t.decide[i] != MOVE || topo.blk[i] == NONE {
