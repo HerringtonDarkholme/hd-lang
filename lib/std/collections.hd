@@ -1278,11 +1278,6 @@ pub struct UniqMapIntoIter[K < Eq & Hash, V < ?Copy]:
 
 impl[K < Eq & Hash, V < ?Copy] !Copy for UniqMapIntoIter[K, V]
 
-# The owned map's field glue drops every entry not moved out by next.
-impl[K < Eq & Hash, V < ?Copy] Drop for UniqMapIntoIter[K, V]:
-    fn drop(&mut self) -> void:
-        pass
-
 impl[K < Eq & Hash, V < ?Copy] Iterator[(K, V)] for UniqMapIntoIter[K, V]:
     fn next(&mut self) -> (K, V)?:
         while self.at < self.items.used:
@@ -1398,11 +1393,6 @@ pub struct UniqListIntoIter[T < ?Copy]:
     items: UniqList[T]
 
 impl[T < ?Copy] !Copy for UniqListIntoIter[T]
-
-# The owned list's field glue drops every element not moved out by next.
-impl[T < ?Copy] Drop for UniqListIntoIter[T]:
-    fn drop(&mut self) -> void:
-        pass
 
 impl[T < ?Copy] Iterator[T] for UniqListIntoIter[T]:
     fn next(&mut self) -> T?:

@@ -92,7 +92,7 @@ fn release_map() -> void:
     _ := items.insert(3, Token { kind: 2 })
     _ := items.remove(4)
 
-fn release_drop[T < ?Copy & Drop](value: T) -> void:
+fn release_cursor[T < ?Copy](value: T) -> void:
     pass
 
 fn release_list_cursor(taken: usize) -> void:
@@ -102,7 +102,7 @@ fn release_list_cursor(taken: usize) -> void:
     let mut cursor = Iterable::[Token]::iter(items)
     for _ in 0..taken:
         _ := cursor.next()
-    release_drop(cursor)
+    release_cursor(cursor)
 
 fn release_map_cursor(taken: usize) -> void:
     let mut items = UniqMap::[string, Token].new()
@@ -112,7 +112,7 @@ fn release_map_cursor(taken: usize) -> void:
     let mut cursor = Iterable::[(string, Token)]::iter(items)
     for _ in 0..taken:
         _ := cursor.next()
-    release_drop(cursor)
+    release_cursor(cursor)
 
 fn scalars(n: i32) -> usize:
     let mut items = UniqList::[i32].new()
@@ -183,13 +183,13 @@ tests:
         release_map()
         assert(list_drops == 21, "each value drops once: $list_drops")
 
-    it("a consuming list cursor implements Drop at every consumption point"):
+    it("a consuming list cursor releases its rest at every consumption point"):
         for taken in 0..=3:
             list_drops = 0
             release_list_cursor(taken)
             assert(list_drops == 3, "yielded and unyielded values drop once: $list_drops")
 
-    it("a consuming map cursor implements Drop and skips removed entries"):
+    it("a consuming map cursor releases its rest and skips removed entries"):
         for taken in 0..=3:
             list_drops = 0
             release_map_cursor(taken)

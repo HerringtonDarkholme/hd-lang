@@ -135,7 +135,7 @@ list value itself, as Rust's `Vec`.
 | `eat(p.a)` then `p.b.len()`, with `p.a` non-copyable | today `Read copy [$0 .a]`: move liveness is per local, not per field (found by #1283). The verifier rejects it, so phase 2 needs per-field liveness and a backend move of a part out of a cell |
 | an erased generic method lends `&mut UniqList[T]` to a thunk (#1281) | the view moves the value out and back; no copy |
 | a cycle through `UniqList[*Node]` | the holder's glue calls `drop` in trace mode, which hands each `*Node` to `visit`; the room is freed after `later` |
-| `UniqListIntoIter` dropped half consumed | it implements `Drop` too: it drops the values from its cursor to the length |
+| `UniqListIntoIter` dropped half consumed | unyielded values are dropped, then the room is freed |
 | a panic inside an element's glue during `drop` | as today: a panic ends the program, so no partial state is observed |
 | `UniqMap` over a buffer of slots | the same `Drop`: it drops the occupied slots, then frees the room |
 | `UniqList.push` grows the buffer | `grow` moves the bytes, and the old room is freed once; the buffer is moved or borrowed, never copied |
