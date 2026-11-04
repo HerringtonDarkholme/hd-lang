@@ -1,0 +1,13 @@
+# test: a function that grows a top-level list while a loop holds references to its elements panics borrow-conflict
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.global.
+let mut SCORES: List[i32] = [+1, 2, 3]
+
+fn grow() -> void:
+    for round in 0..16:
+        SCORES.push(4) # panic: borrow-conflict
+
+pub fn main() -> void $ Console:
+    for score in &mut SCORES:
+        grow()
+        *score += 1
+    println("${SCORES.len()}")

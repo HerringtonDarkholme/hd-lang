@@ -1,0 +1,14 @@
+# expect-stdout: 3 5
+# test: the function holding a reference into a top-level binding writes another field of it, which its own loan allows
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.global, ref.excl.alias.conflict.
+struct Point:
+    x: i32
+    y: i32
+
+let mut ORIGIN: Point = Point { x: +1, y: +2 }
+
+pub fn main() -> void $ Console:
+    r := &mut ORIGIN.x
+    ORIGIN.y = 5
+    *r += 2
+    println("${ORIGIN.x} ${ORIGIN.y}")

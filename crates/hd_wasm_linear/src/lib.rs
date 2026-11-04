@@ -761,6 +761,26 @@ fn address_globals(
     session: bool,
     previous: Option<&Session>,
 ) -> StageResult<()> {
+    // The bindings a place writes: a store, a change in place or a `&mut`,
+    // through the binding or a read of it.
+    let mut written = hd_base::HashSet::default();
+    for id in input.order {
+        let Some(b) = (input.body)(*id) else {
+            continue;
+        };
+        for i in 0..b.len() {
+            let write = match b.tags[i] {
+                hd_tir::ir::Tag::Store | hd_tir::ir::Tag::IsUnique => true,
+                hd_tir::ir::Tag::Ref => layout::ref_mutable(input.pool, input.env, b.ty[i]),
+                _ => false,
+            };
+            if let Some(p) = write.then(|| b.decode_place(b.data[i][0])).flatten()
+                && let Some((def, _)) = emit::global_root(b, &p)
+            {
+                written.insert(input.env.path_hash(def));
+            }
+        }
+    }
     for id in input.order {
         let Some(b) = (input.body)(*id) else {
             continue;
@@ -773,7 +793,7 @@ fn address_globals(
                         _ => None,
                     })
                 } else {
-                    referenced_global(b, i)
+                    referenced_global(input.env, b, i, &written)
                 };
             let Some((def, ty)) = global else {
                 continue;
@@ -782,20 +802,28 @@ fn address_globals(
             if m.addressed.contains_key(&h) {
                 continue;
             }
+            // An object's slot follows a zero header (`ref.excl.alias.global`).
+            // A session's bindings all have one, as a later input may write
+            // one that this one only reads.
+            let object = session || written.contains(&h);
+            let header = if object { module::HEADER } else { 0 };
             let address = if session {
                 if !previous.is_some_and(|p| p.has_binding(h)) {
                     let lay = layout::mem(input.pool, input.env, ty)?;
-                    let at = m.static_slot(lay.size, lay.align.max(4));
+                    let at = m.static_slot(header + lay.size, lay.align.max(4)) + header;
                     m.binding_slots.insert(h, at);
                     m.label_static(at, &(input.path)(def));
                 }
                 module::Address::Binding(h)
             } else {
                 let lay = layout::mem(input.pool, input.env, ty)?;
-                let at = m.static_slot(lay.size, lay.align.max(4));
+                let at = m.static_slot(header + lay.size, lay.align.max(4)) + header;
                 m.label_static(at, &(input.path)(def));
                 module::Address::Static(at)
             };
+            if object {
+                m.objects.insert(h);
+            }
             m.addressed.insert(h, address);
         }
     }
@@ -803,14 +831,23 @@ fn address_globals(
 }
 
 /// The top-level binding, with its type, that reference `i` of body `b`
-/// starts its place from: a `Ref` with a global root.
-fn referenced_global(b: &hd_tir::ir::Body, i: usize) -> Option<(DefId, Ty)> {
-    match b.tags[i] {
-        hd_tir::ir::Tag::Ref => match b.decode_place(b.data[i][0])?.root {
-            hd_tir::ir::PlaceRoot::Global(def, ty) => Some((def, ty)),
-            _ => None,
-        },
-        _ => None,
+/// starts its place from: a `Ref` with a global root, or one rooted at a
+/// read of a binding some place writes (`written`), as a loop over
+/// `&mut G` makes, since an access from another function must then see
+/// its loans.
+fn referenced_global(
+    env: &dyn ProgramEnv,
+    b: &hd_tir::ir::Body,
+    i: usize,
+    written: &hd_base::HashSet<hd_base::Hash128>,
+) -> Option<(DefId, Ty)> {
+    if b.tags[i] != hd_tir::ir::Tag::Ref {
+        return None;
+    }
+    let p = b.decode_place(b.data[i][0])?;
+    match p.root {
+        hd_tir::ir::PlaceRoot::Global(def, ty) => Some((def, ty)),
+        _ => emit::global_root(b, &p).filter(|(def, _)| written.contains(&env.path_hash(*def))),
     }
 }
 

@@ -1014,7 +1014,11 @@ Each about an hour, with its test; the matrix rows leave
    the references into it, and each use of it is a checked access
    (`ref.excl.alias.shared-variable`). That turns the
    `extra-captured-*` rows green, and every bench program stays
-   byte-identical.
+   byte-identical. A top-level binding a reference reaches and a place
+   writes is an object the same way (`ref.excl.alias.global`): its
+   static slot follows a header, so a write from another function sees
+   the loans of references into it. One no reference reaches stays in a
+   Wasm global with no check.
 10. Remove the loan table and page-table counts on references.
 11. Release elision and its type summary; the size and time table.
     Built right after phase 4, in every build: a holder's live range is

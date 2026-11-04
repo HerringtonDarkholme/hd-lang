@@ -1260,7 +1260,12 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   word (a heap cell's, or the zero header word of a frame slot or a
   static cell) holds the loans of references into it, and a place
   rooted at it, or at a read of it, crosses the cell first
-  (`borrow::CELL`).
+  (`borrow::ROOT`). So is a top-level binding that a reference reaches
+  and a place writes (`Module::objects`): `address_globals` puts its
+  static slot after a zero header (every binding of a REPL session, as a
+  later input may write it), so an access from any function checks the
+  loans in its descriptor. A binding no reference reaches stays a Wasm
+  global and costs nothing.
   No hd program reaches that glue today: every driver in std cancels a
   started child before it drops it (`req.discard.started`), and the
   cancel unwinds. It serves a host that drops a started suspension

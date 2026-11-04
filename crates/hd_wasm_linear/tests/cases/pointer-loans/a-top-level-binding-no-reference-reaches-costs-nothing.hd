@@ -1,0 +1,22 @@
+# @dump: wat
+# No reference reaches `COUNT`, so it stays in a Wasm global and is no
+# object: its writes from `bump` take no borrow-state check. `TOTAL` is an
+# object, since `held` takes a reference into it and `add` writes it: its
+# slot follows a header, `held`'s `&mut` takes an exclusive loan there,
+# and the write in `add` checks it.
+struct Sum:
+    value: i32
+
+let COUNT: i32 = +0
+let mut TOTAL: Sum = Sum { value: +0 }
+
+fn bump() -> void:
+    COUNT = COUNT + 1
+
+fn add() -> void:
+    TOTAL.value = TOTAL.value + 1
+
+fn held() -> i32:
+    r := &mut TOTAL.value
+    add()
+    *r

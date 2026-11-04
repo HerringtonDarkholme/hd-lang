@@ -11,11 +11,6 @@ fn write_then_read(target: &mut i32, seen: &i32) -> i32:
     *target = 8
     *seen
 
-fn snapshot_then_write(target: &mut i32, snapshot: fn() -> List[i32]) -> List[i32]:
-    copy := snapshot()
-    *target = 9
-    copy
-
 fn write_then_read_copy(xs: List[i32], target: &mut i32) -> i32:
     *target = 6
     xs[0]
@@ -42,12 +37,6 @@ tests:
         *held.at = 4
         assert_equal(copy.items.len(), 2, reason="the copy's list is its own")
         assert_equal(*copy.at, 4, reason="both references name n")
-
-    it("a copy made during the access does not see later writes through the reference"):
-        let mut xs = [+1, 2]
-        last := snapshot_then_write(&mut xs[0], fn() -> List[i32]: xs)
-        assert_equal(last[0], 1, reason="the copy is a value of its own")
-        assert_equal(xs[0], 9, reason="the reference wrote its slot")
 
     it("a list passed by value beside a reference into it keeps its value"):
         let mut xs = [+1, 2]

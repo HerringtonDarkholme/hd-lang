@@ -29,11 +29,13 @@
 //! that crosses no `*T`, or only `*T`s to such types, emits nothing.
 //! Passing a pointer is no access.
 //!
-//! **Cells.** A variable a closure shares lives in a cell, an object with
-//! a descriptor, which a place rooted at the variable crosses before its
-//! first step ([`CELL`]): a reference into the variable takes a loan on
-//! the cell, and each use of it, in the closure or in its own function,
-//! checks it, so a closure cannot change a variable under a reference.
+//! **Root objects.** A variable a closure shares lives in a cell, an
+//! object with a descriptor, which a place rooted at the variable crosses
+//! before its first step ([`ROOT`]): a reference into the variable takes
+//! a loan on the cell, and each use of it, in the closure or in its own
+//! function, checks it, so a closure cannot change a variable under a
+//! reference. A top-level binding that is an object ([`Module::objects`])
+//! is crossed the same way, at its static slot.
 //!
 //! **Call loans.** A call's argument takes a loan from its evaluation to
 //! the call's return: a `Ref` that crosses a `*T`, and a `*T` that the
@@ -64,8 +66,40 @@ use crate::op::Op as I;
 use crate::rt::Helper;
 
 /// A pointer a function reaches objects through: a place's root and the
-/// steps to the pointer value.
-type Key = (PlaceRoot, Vec<Proj>);
+/// steps to the pointer value. A root object's key ([`ROOT`]) has no
+/// steps and names the inlined copy the access came from
+/// ([`frame_of`]), since the checker saw each copy's own references
+/// apart from the caller's; a pointer's key names [`ANY_FRAME`], as an
+/// inlined copy reaches a pointer through locals of its own.
+type Key = (PlaceRoot, Vec<Proj>, u32);
+
+/// The frame of a pointer's key ([`Key`]).
+const ANY_FRAME: u32 = u32::MAX;
+
+/// The inlined copy each instruction of `b` came from: its anchor's row
+/// in [`Body::inlined`], or `ANY_FRAME - 1` for the body's own. An
+/// instruction the passes added takes the next one's, as an `IsUnique`
+/// stands before the change it guards.
+fn frames_of(b: &Body) -> Vec<u32> {
+    const OWN: u32 = ANY_FRAME - 1;
+    let n = b.tags.len();
+    let mut out = vec![OWN; n];
+    let mut next = OWN;
+    for i in (0..n).rev() {
+        let a = b.anchors.get(i).copied().unwrap_or(hd_tir::ir::NONE);
+        if a != hd_tir::ir::NONE {
+            next = if a & hd_tir::ir::INLINED == 0 {
+                OWN
+            } else {
+                let a = a & !hd_tir::ir::INLINED;
+                let k = b.inlined.partition_point(|e| e[0] <= a);
+                u32::try_from(k).expect("inlined copies")
+            };
+        }
+        out[i] = next;
+    }
+    out
+}
 
 /// The per-body state of the loans its holders take.
 #[derive(Default)]
@@ -125,8 +159,10 @@ pub(super) struct Borrows {
     /// body's locals are gone, and [`Em::borrow_abandon`] ended the loans.
     abandoned: bool,
     /// The locals a closure shares: each lives in a cell, an object its
-    /// places cross at their root ([`CELL`]).
+    /// places cross at their root ([`ROOT`]).
     shared: hd_base::HashSet<usize>,
+    /// The inlined copy each instruction came from ([`frames_of`]).
+    frames: Vec<u32>,
 }
 
 /// One loan a call holds from its argument's evaluation to its return.
@@ -230,50 +266,72 @@ pub(super) fn crossings(
     out
 }
 
-/// The step index of a place's root cell: a variable a closure shares is
-/// an object the place crosses before its first step.
-pub(super) const CELL: usize = u32::MAX as usize - 2;
+/// The step index of a place's root object: a variable a closure shares
+/// (its cell) or a top-level binding that is an object, which the place
+/// crosses before its first step.
+pub(super) const ROOT: usize = u32::MAX as usize - 2;
 
-/// The local a closure shares (`shared`) whose cell place `p` crosses:
-/// its root, or the root of the read its root value is, as a loop over
-/// `&mut xs` makes. That cell's value has type `ty`.
-pub(super) fn cell_root(
-    b: &Body,
-    shared: &hd_base::HashSet<usize>,
-    p: &hd_tir::ir::Place,
-) -> Option<usize> {
-    let l = match p.root {
-        PlaceRoot::Local(l) => l.idx(),
+/// The local or top-level binding place `p` starts from: its root, or the
+/// root of the read its root value is, as a loop over `&mut xs` makes.
+fn root_binding(b: &Body, p: &hd_tir::ir::Place) -> Option<PlaceRoot> {
+    let root = match p.root {
         PlaceRoot::Value(r) => {
             let x = r.as_inst()?.0 as usize;
             if b.tags[x] != Tag::Read {
                 return None;
             }
-            match b.decode_place(b.data[x][0])?.root {
-                PlaceRoot::Local(l) => l.idx(),
-                _ => return None,
-            }
+            b.decode_place(b.data[x][0])?.root
         }
-        _ => return None,
+        root => root,
     };
-    shared.contains(&l).then_some(l)
+    matches!(root, PlaceRoot::Local(_) | PlaceRoot::Global(..)).then_some(root)
 }
 
-/// [`crossings`], led by the cell of a local a closure shares
-/// ([`cell_root`]).
+/// The top-level binding place `p` starts from ([`root_binding`]).
+pub(crate) fn global_root(b: &Body, p: &hd_tir::ir::Place) -> Option<(hd_base::DefId, Ty)> {
+    match root_binding(b, p)? {
+        PlaceRoot::Global(def, ty) => Some((def, ty)),
+        _ => None,
+    }
+}
+
+/// The objects a place may start at: the locals a closure shares, and the
+/// top-level bindings that are objects ([`Module::objects`]).
+pub(super) struct Roots<'a> {
+    pub(super) shared: &'a hd_base::HashSet<usize>,
+    pub(super) objects: &'a hd_base::HashSet<hd_base::Hash128>,
+    pub(super) env: &'a dyn ProgramEnv,
+}
+
+impl Roots<'_> {
+    /// The object place `p` crosses at its root, as the root it is keyed
+    /// by, and its type before substitution.
+    pub(super) fn of(&self, b: &Body, p: &hd_tir::ir::Place) -> Option<(PlaceRoot, Ty)> {
+        match root_binding(b, p)? {
+            PlaceRoot::Local(l) if self.shared.contains(&l.idx()) => {
+                Some((PlaceRoot::Local(l), b.local_ty[l.idx()]))
+            }
+            PlaceRoot::Global(def, ty) if self.objects.contains(&self.env.path_hash(def)) => {
+                Some((PlaceRoot::Global(def, ty), ty))
+            }
+            _ => None,
+        }
+    }
+}
+
+/// [`crossings`], led by the place's root object ([`Roots::of`]).
 pub(super) fn place_crossings(
     pool: &InternPool,
-    env: &dyn ProgramEnv,
     (b, sub): (&Body, &dyn Fn(Ty) -> Ty),
-    shared: &hd_base::HashSet<usize>,
+    roots: &Roots<'_>,
     root: Ty,
     p: &hd_tir::ir::Place,
 ) -> Vec<(usize, Ty)> {
     let mut out = Vec::new();
-    if let Some(l) = cell_root(b, shared, p) {
-        out.push((CELL, sub(b.local_ty[l])));
+    if let Some((_, t)) = roots.of(b, p) {
+        out.push((ROOT, sub(t)));
     }
-    out.extend(crossings(pool, env, root, &p.proj));
+    out.extend(crossings(pool, roots.env, root, &p.proj));
     out
 }
 
@@ -346,6 +404,7 @@ impl Em<'_, '_, '_> {
         let found = binds(self.pool(), self.env(), self.b, &sub, true);
         let mut st = Borrows {
             shared: super::closure::shared_locals(self.b),
+            frames: frames_of(self.b),
             ..Borrows::default()
         };
         for (i, held, bind, _) in found {
@@ -429,7 +488,7 @@ impl Em<'_, '_, '_> {
                             if let Some(p) = self.b.decode_place(self.b.data[v as usize][0])
                                 && matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..))
                             {
-                                let key = (p.root, p.proj);
+                                let key = (p.root, p.proj, ANY_FRAME);
                                 if !st.keys.iter().any(|(x, _)| *x == key) {
                                     st.keys.push((key, None));
                                 }
@@ -456,24 +515,28 @@ impl Em<'_, '_, '_> {
         self.borrows = st;
     }
 
+    /// The objects this body's places may start at.
+    fn roots<'s>(&'s self, shared: &'s hd_base::HashSet<usize>) -> Roots<'s> {
+        Roots {
+            shared,
+            objects: &self.m.objects,
+            env: self.env(),
+        }
+    }
+
     /// Interns the pointers `Ref` `v`'s place reaches objects through.
     fn intern_ref_keys(&self, st: &mut Borrows, v: u32) {
         let Some(p) = self.b.decode_place(self.b.data[v as usize][0]) else {
             return;
         };
-        if !matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..)) {
-            return;
-        }
-        if let Some(l) = cell_root(self.b, &st.shared, &p) {
-            let key = (
-                PlaceRoot::Local(hd_base::LocalId::from_raw(
-                    u32::try_from(l).expect("locals"),
-                )),
-                Vec::new(),
-            );
+        if let Some((r, _)) = self.roots(&st.shared).of(self.b, &p) {
+            let key = (r, Vec::new(), st.frames[v as usize]);
             if !st.keys.iter().any(|(x, _)| *x == key) {
                 st.keys.push((key, None));
             }
+        }
+        if !matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..)) {
+            return;
         }
         let root = self.at_root_ty(p.root);
         for (k, step) in p.proj.iter().enumerate() {
@@ -486,7 +549,7 @@ impl Em<'_, '_, '_> {
                         ..
                     })
                 );
-            let key = (p.root, p.proj[..k].to_vec());
+            let key = (p.root, p.proj[..k].to_vec(), ANY_FRAME);
             if thin && !st.keys.iter().any(|(x, _)| *x == key) {
                 st.keys.push((key, None));
             }
@@ -553,12 +616,17 @@ impl Em<'_, '_, '_> {
         // Each dereference of a `*T`, with the type of the object it reaches.
         let root = self.at_root_ty(p.root);
         let mut crossed = Vec::new();
-        // The cell of a variable a closure shares, but at the store that
-        // makes it: no reference reaches a cell before it exists.
-        let root_cell = cell_root(self.b, &self.borrows.shared, &p)
-            .filter(|&l| self.is_cell(l) && self.cells.get(&l) != Some(&i));
-        if let Some(l) = root_cell {
-            crossed.push((CELL, self.sub(self.b.local_ty[l])));
+        // The root object: a shared variable's cell, but not at the store
+        // that makes it, as no reference reaches a cell before it exists;
+        // or a top-level binding's slot.
+        let shared = std::mem::take(&mut self.borrows.shared);
+        let root_obj = self.roots(&shared).of(self.b, &p).filter(|(r, _)| match r {
+            PlaceRoot::Local(l) => self.is_cell(l.idx()) && self.cells.get(&l.idx()) != Some(&i),
+            _ => true,
+        });
+        self.borrows.shared = shared;
+        if let Some((_, t)) = root_obj {
+            crossed.push((ROOT, self.sub(t)));
         }
         for (k, step) in p.proj.iter().enumerate() {
             if *step != Proj::Deref {
@@ -591,15 +659,13 @@ impl Em<'_, '_, '_> {
             };
             let keep =
                 lends && (self.m.kept).contains(&(self.inst, i, u32::try_from(k).expect("steps")));
-            let key = match (k, root_cell) {
-                (CELL, Some(l)) => Some(self.borrow_key((
-                    PlaceRoot::Local(hd_base::LocalId::from_raw(
-                        u32::try_from(l).expect("locals"),
-                    )),
-                    Vec::new(),
-                ))),
+            let key = match (k, root_obj) {
+                (ROOT, Some((r, _))) => {
+                    let frame = self.borrows.frames[i as usize];
+                    Some(self.borrow_key((r, Vec::new(), frame)))
+                }
                 _ => matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..))
-                    .then(|| self.borrow_key((p.root, p.proj[..k].to_vec()))),
+                    .then(|| self.borrow_key((p.root, p.proj[..k].to_vec(), ANY_FRAME))),
             };
             if mask.is_none() && !keep && !holds {
                 if lends {
@@ -607,14 +673,24 @@ impl Em<'_, '_, '_> {
                 }
                 continue;
             }
-            let o = if let (CELL, Some(l)) = (k, root_cell) {
-                self.cell_of(l)?
-            } else {
-                let mut fresh = Vec::new();
-                let (at, _) = self.walk_place(i, &p, k, None, &mut fresh)?;
-                let o = self.at_i32(&at)?;
-                self.release_fresh(&fresh)?;
-                o
+            let o = match (k, root_obj) {
+                (ROOT, Some((PlaceRoot::Local(l), _))) => self.cell_of(l.idx())?,
+                (ROOT, Some((PlaceRoot::Global(def, _), _))) => {
+                    let Some(at) = self.def_slot(def) else {
+                        return crate::unsupported("an object binding with no slot");
+                    };
+                    let o = self.f.local(Val::I32);
+                    self.f.address(at);
+                    self.f.set(o);
+                    o
+                }
+                _ => {
+                    let mut fresh = Vec::new();
+                    let (at, _) = self.walk_place(i, &p, k, None, &mut fresh)?;
+                    let o = self.at_i32(&at)?;
+                    self.release_fresh(&fresh)?;
+                    o
+                }
             };
             let header = self.f.local(Val::I32);
             self.f.get(o);
@@ -1142,7 +1218,7 @@ impl Em<'_, '_, '_> {
             return Ok(());
         }
         let key = matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..))
-            .then(|| self.borrow_key((p.root, p.proj.clone())));
+            .then(|| self.borrow_key((p.root, p.proj.clone(), ANY_FRAME)));
         let mut fresh = Vec::new();
         let (at, _) = self.walk_place(i, &p, p.proj.len(), None, &mut fresh)?;
         let o = self.at_i32(&at)?;
