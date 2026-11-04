@@ -30,7 +30,9 @@ use hd_mono::{Sub, Target, TargetKind, subst};
 use hd_tir::ir::{Body, PlaceRoot, Tag};
 use hd_types::{Ty, TyData};
 
-use super::borrow::{Roots, call_params, crossings, place_crossings, pointer_lent, root_ty};
+use super::borrow::{
+    Roots, call_params, crossings, dyn_receiver, place_crossings, pointer_lent, root_ty,
+};
 use super::excl::{Bind, binds, call_args, call_info, direct_value};
 use crate::Input;
 use crate::layout::{Kind, kind, ref_mutable};
@@ -186,10 +188,8 @@ fn accesses(input: &Input<'_>, m: &Module, id: InstId, b: &Body) -> HashMap<u32,
                 if b.tags[v] != Tag::Read {
                     continue;
                 }
-                let value = sub(b.ty[v]);
-                let lent = pointer_lent(pool, env, params.get(k).copied(), value, k, receiver);
-                if let (Some((mutable, _)), Kind::Ref { target, .. }) =
-                    (lent, kind(pool, env, value))
+                for (mutable, target) in
+                    lent_objects(input, m, (b, &sub), params.get(k), v, k, receiver)
                 {
                     let acc = out.entry(u32::try_from(v).expect("insts")).or_default();
                     acc.any |= open(pool, target);
@@ -211,6 +211,7 @@ fn accesses(input: &Input<'_>, m: &Module, id: InstId, b: &Body) -> HashMap<u32,
 pub(crate) fn decide(input: &Input<'_>, m: &mut Module) {
     let t = &input.collected.table;
     let (pool, env) = (input.pool, input.env);
+    m.dyn_types = dyn_types(input);
     // Each body's accesses, and the program's per-type counts.
     let mut accs: HashMap<InstId, HashMap<u32, Acc>> = HashMap::default();
     let mut count_w: HashMap<Ty, u32> = HashMap::default();
@@ -446,14 +447,13 @@ pub(crate) fn decide(input: &Input<'_>, m: &mut Module) {
                         });
                     }
                     Tag::Read => {
-                        let value = sub(b.ty[v]);
-                        if let (Some((mutable, _)), Kind::Ref { target, .. }) = (
-                            pointer_lent(pool, env, params.get(k).copied(), value, k, receiver),
-                            kind(pool, env, value),
-                        ) && program(target, mutable, accs[id].get(&vu))
-                            && e.meets(target, mutable)
-                        {
-                            kept.push(((*id, vu, u32::MAX), target, mutable));
+                        let lent = lent_objects(input, m, (b, &sub), params.get(k), v, k, receiver);
+                        for (mutable, target) in lent {
+                            if program(target, mutable, accs[id].get(&vu))
+                                && e.meets(target, mutable)
+                            {
+                                kept.push(((*id, vu, u32::MAX), target, mutable));
+                            }
                         }
                     }
                     _ => {
@@ -478,6 +478,81 @@ pub(crate) fn decide(input: &Input<'_>, m: &mut Module) {
         m.kept.insert(site);
         *m.lent.entry(object).or_insert(false) |= excl;
     }
+}
+
+/// The objects read `v`, argument `k` of a call declared with `param`,
+/// lends whole as a local reference, each with whether it lends `&mut`:
+/// a `*T`'s, or the object at a `*dyn` receiver's data address, which is
+/// of a type the program converts to that trait ([`dyn_types`]).
+fn lent_objects(
+    input: &Input<'_>,
+    m: &Module,
+    (b, sub): (&Body, &dyn Fn(Ty) -> Ty),
+    param: Option<&Ty>,
+    v: usize,
+    k: usize,
+    receiver: Option<bool>,
+) -> Vec<(bool, Ty)> {
+    let (pool, env) = (input.pool, input.env);
+    let value = sub(b.ty[v]);
+    if let (Some((mutable, _)), Kind::Ref { target, .. }) = (
+        pointer_lent(pool, env, param.copied(), value, k, receiver),
+        kind(pool, env, value),
+    ) {
+        return vec![(mutable, target)];
+    }
+    match (k, receiver, dyn_receiver(pool, env, (b, sub), v)) {
+        (0, Some(mutable), Some(tr)) => (m.dyn_types.get(&tr).into_iter().flatten())
+            .map(|&t| (mutable, t))
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// A vtable's trait and its supertraits', through its parents.
+fn vtable_traits(vt: &hd_mono::VTable, f: &mut impl FnMut(hd_base::DefId)) {
+    f(vt.trait_);
+    for p in &vt.parents {
+        vtable_traits(p, f);
+    }
+}
+
+/// Class-hierarchy analysis of trait values: for each trait, the types of
+/// the objects its trait values may hold. A conversion of a `T` or a `*T`
+/// to a trait value holds a `T`, and so does every trait value it widens
+/// to, a supertrait's of its vtable.
+fn dyn_types(input: &Input<'_>) -> HashMap<hd_base::DefId, Vec<Ty>> {
+    let t = &input.collected.table;
+    let (pool, env) = (input.pool, input.env);
+    let mut out: HashMap<hd_base::DefId, Vec<Ty>> = HashMap::default();
+    for id in input.order {
+        let Some(b) = (input.body)(*id) else {
+            continue;
+        };
+        let (item, args) = (t.item[id.idx()], t.args[id.idx()]);
+        for (&i, target) in &input.collected.calls[id.idx()] {
+            let (Target::VTable(vt), Some(&Tag::Coerce)) = (target, b.tags.get(i as usize)) else {
+                continue;
+            };
+            let a = b.data[i as usize][0];
+            let Some(&from) = b.ty.get(a as usize) else {
+                continue;
+            };
+            let from = subst(pool, env, item, args, from);
+            let object = match kind(pool, env, from) {
+                Kind::Ref { target, .. } => target,
+                _ => from,
+            };
+            let object = crate::layout::strip(pool, env, object);
+            vtable_traits(vt, &mut |tr| {
+                let types = out.entry(tr).or_default();
+                if !types.contains(&object) {
+                    types.push(object);
+                }
+            });
+        }
+    }
+    out
 }
 
 /// Calls `f` with each loan `Ref` `v` takes: its site, the object's type,

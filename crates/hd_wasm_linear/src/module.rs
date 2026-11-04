@@ -1047,6 +1047,11 @@ pub struct Module {
     /// The stores of a call's result whose callee's reference reaches one
     /// more object than its argument, which the page table finds.
     pub result_inner: hd_base::HashSet<(hd_base::InstId, u32)>,
+    /// The types of the objects a trait value of each trait may hold:
+    /// those the program converts to it or to a trait below it
+    /// (`emit/elide.rs`), so a loan on a `*mut dyn` receiver's object
+    /// holds one of them.
+    pub dyn_types: hd_base::HashMap<hd_base::DefId, Vec<hd_types::Ty>>,
     /// Reachable program operations or exported entry hooks can cancel.
     /// Selected from the conservative reachable graph before specialization.
     pub cancellable: bool,

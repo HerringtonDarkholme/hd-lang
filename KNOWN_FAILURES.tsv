@@ -1,2 +1,1 @@
 path	issue	engine	reason
-runtime/panic/pointer-loan-extra-dyn-receiver-alias-write-panics.hd	#1336		not built: today the alias access runs with no loan on this path; the proposal panics borrow-conflict

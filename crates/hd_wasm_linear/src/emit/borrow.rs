@@ -182,6 +182,10 @@ pub(super) struct Borrows {
     /// its address, and whether this body made it (and so releases it) or
     /// read it from its environment.
     own_cells: HashMap<usize, (u32, bool)>,
+    /// The header locals of call loans on a `*dyn` receiver's object,
+    /// which are 0 where its data address is (a trait value of no Wasm
+    /// values): no loan is taken then.
+    nullable: hd_base::HashSet<u32>,
 }
 
 /// One loan a call holds from its argument's evaluation to its return.
@@ -235,6 +239,16 @@ pub(super) fn crossings(
     root: Ty,
     steps: &[Proj],
 ) -> Vec<(usize, Ty)> {
+    walk_crossings(pool, env, root, steps).0
+}
+
+/// [`crossings`], and the type `steps` reach when the walk types them all.
+fn walk_crossings(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    root: Ty,
+    steps: &[Proj],
+) -> (Vec<(usize, Ty)>, Option<Ty>) {
     let mut out = Vec::new();
     let mut ty = root;
     let mut k = 0;
@@ -277,12 +291,44 @@ pub(super) fn crossings(
             },
         };
         let Some(next) = next else {
-            break;
+            return (out, None);
         };
         ty = next;
         k += 1;
     }
-    out
+    (out, (k == steps.len()).then_some(ty))
+}
+
+/// The trait of a call's receiver read `v` that reads a trait value
+/// through a `*dyn Tr` or `*mut dyn Tr` (`Read [*$t]`): such a receiver
+/// lends the object at the pointer's data address, of one of the types
+/// [`Module::dyn_types`] lists for the trait.
+pub(super) fn dyn_receiver(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    (b, sub): (&Body, &dyn Fn(Ty) -> Ty),
+    v: usize,
+) -> Option<hd_base::DefId> {
+    if b.tags[v] != Tag::Read {
+        return None;
+    }
+    let p = b.decode_place(b.data[v][0])?;
+    let (Some(Proj::Deref), Some(root)) = (p.proj.last(), root_ty(b, sub, p.root)) else {
+        return None;
+    };
+    let pointer = walk_crossings(pool, env, root, &p.proj[..p.proj.len() - 1]).1?;
+    let Kind::Ref {
+        target,
+        fat: true,
+        whole: true,
+    } = kind(pool, env, pointer)
+    else {
+        return None;
+    };
+    match pool.get(strip(pool, env, target)) {
+        TyData::TraitValue { def, .. } => Some(def),
+        _ => None,
+    }
 }
 
 /// The step index of a place's root object: a variable a closure shares
@@ -630,11 +676,23 @@ impl Em<'_, '_, '_> {
                         let pool = self.pool();
                         let env = self.env();
                         let param = params.get(k).copied();
-                        let lent = pointer_lent(pool, env, param, self.ty(v), k, receiver);
+                        let sub = |t| self.sub(t);
+                        let dyn_recv = dyn_receiver(pool, env, (self.b, &sub), v as usize);
+                        let lent = pointer_lent(pool, env, param, self.ty(v), k, receiver).or(
+                            match (k, receiver, dyn_recv) {
+                                (0, Some(m), Some(_)) => Some((m, m)),
+                                _ => None,
+                            },
+                        );
                         if let Some((mutable, two_phase)) = lent {
-                            if let Some(p) = self.b.decode_place(self.b.data[v as usize][0])
+                            if let Some(mut p) = self.b.decode_place(self.b.data[v as usize][0])
                                 && matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..))
                             {
+                                // A `*dyn` receiver's pointer is the place
+                                // before its dereference.
+                                if dyn_recv.is_some() {
+                                    p.proj.pop();
+                                }
                                 let key = (p.root, p.proj, ANY_FRAME);
                                 if !st.keys.iter().any(|(x, _)| *x == key) {
                                     st.keys.push((key, None));
@@ -838,6 +896,27 @@ impl Em<'_, '_, '_> {
             (!self.m.lent.is_empty()).then(|| self.m.lent.values().any(|&x| x))
         } else {
             self.m.lent.get(&t).copied()
+        }
+    }
+
+    /// Whether a loan may hold the object at a trait value of trait
+    /// `tr`'s data address, and an exclusive one: of any type the program
+    /// converts to `tr` ([`Module::dyn_types`]).
+    fn lent_dyn(&self, tr: hd_base::DefId) -> Option<bool> {
+        (self.m.dyn_types.get(&tr).into_iter().flatten())
+            .filter_map(|&t| self.lent_of(t))
+            .reduce(|a, b| a || b)
+    }
+
+    /// The local holding the data address of the trait value reference at
+    /// `at`, its first value.
+    fn data_address(&mut self, at: &super::refs::At) -> StageResult<u32> {
+        match at {
+            super::refs::At::Vals(ls) if !ls.is_empty() => Ok(ls[0]),
+            super::refs::At::Leaves(a, lv) if !lv.is_empty() => {
+                self.at_i32(&super::refs::At::Leaves(*a, vec![lv[0]]))
+            }
+            _ => self.at_i32(at),
         }
     }
 
@@ -1650,30 +1729,62 @@ impl Em<'_, '_, '_> {
         ) {
             return Ok(());
         }
-        let Kind::Ref { target, .. } = self.kind(self.ty(i)) else {
-            return Ok(());
+        // A `*dyn` receiver lends the object at its data address, of one
+        // of the types the program converts to its trait.
+        let sub = |t| self.sub(t);
+        let dyn_recv = dyn_receiver(self.pool(), self.env(), (self.b, &sub), i as usize);
+        let (target, lent) = match (self.kind(self.ty(i)), dyn_recv) {
+            (_, Some(tr)) => (
+                strip(self.pool(), self.env(), self.ty(i)),
+                self.lent_dyn(tr),
+            ),
+            (Kind::Ref { target, .. }, None) => (target, self.lent_of(target)),
+            _ => return Ok(()),
         };
-        let lent = self.lent_of(target);
         if lent.is_none() {
             return Ok(());
         }
+        let pointer = p.proj.len() - usize::from(dyn_recv.is_some());
         let key = matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..))
-            .then(|| self.borrow_key((p.root, p.proj.clone(), ANY_FRAME)));
+            .then(|| self.borrow_key((p.root, p.proj[..pointer].to_vec(), ANY_FRAME)));
         let mut fresh = Vec::new();
-        let (at, _) = self.walk_place(i, &p, p.proj.len(), None, &mut fresh)?;
-        let o = self.at_i32(&at)?;
+        let (at, _) = self.walk_place(i, &p, pointer, None, &mut fresh)?;
+        let o = if dyn_recv.is_some() {
+            self.data_address(&at)?
+        } else {
+            self.at_i32(&at)?
+        };
         self.release_fresh(&fresh)?;
-        let o = self.view_source(o, target);
         let header = self.f.local(Val::I32);
-        self.f.get(o);
-        self.f.u32(crate::module::HEADER - 4);
-        self.f.op(I::I32Sub);
-        self.f.set(header);
+        if dyn_recv.is_some() {
+            // No object behind a data address of 0: header 0, no loan.
+            self.borrows.nullable.insert(header);
+            self.f.get(o);
+            self.f.u32(crate::module::HEADER - 4);
+            self.f.op(I::I32Sub);
+            self.f.i32(0);
+            self.f.get(o);
+            self.f.op(I::Select);
+            self.f.set(header);
+            self.f.get(header);
+            self.f.op(I::If(BlockType::Empty));
+        } else {
+            let o = self.view_source(o, target);
+            self.f.get(o);
+            self.f.u32(crate::module::HEADER - 4);
+            self.f.op(I::I32Sub);
+            self.f.set(header);
+        }
         if self.borrows.call_holds.contains(&i) {
             self.borrows
                 .arg_heads
                 .insert(i, vec![(header, key, u32::MAX)]);
         }
+        let end = |em: &mut Self| {
+            if dyn_recv.is_some() {
+                em.f.op(I::End);
+            }
+        };
         if !self.m.kept.contains(&(self.inst, i, u32::MAX)) {
             // No loan: only the access check of the lend, a write for a
             // `&mut`, whose two-phase window nothing can meet.
@@ -1681,6 +1792,7 @@ impl Em<'_, '_, '_> {
                 let mask = if mutable { LOAN_STATE } else { LOAN_EXCL };
                 self.borrow_check(header, mask, key, target, mutable);
             }
+            end(self);
             return Ok(());
         }
         let excl = mutable && !two_phase;
@@ -1695,6 +1807,7 @@ impl Em<'_, '_, '_> {
             live: self.susp_live(),
         };
         self.call_loan_add(loan, 1);
+        end(self);
         self.borrows.call_loans.entry(call).or_default().push(loan);
         if loan.exit {
             self.borrows.all_calls.push(loan);
@@ -1716,6 +1829,11 @@ impl Em<'_, '_, '_> {
                 let KeyOf::Known(key) = loan.key else {
                     continue;
                 };
+                let nullable = self.borrows.nullable.contains(&loan.header);
+                if nullable {
+                    self.f.get(loan.header);
+                    self.f.op(I::If(BlockType::Empty));
+                }
                 let own = key
                     .filter(|&k| k < self.borrows.loans)
                     .map(|k| self.own_local(k));
@@ -1737,6 +1855,9 @@ impl Em<'_, '_, '_> {
                 self.call_loan_add(loan, -1);
                 loan.delta = LOAN_EXCL;
                 self.call_loan_add(loan, 1);
+                if nullable {
+                    self.f.op(I::End);
+                }
             }
             out.push(loan);
         }
@@ -1803,7 +1924,10 @@ impl Em<'_, '_, '_> {
         };
         for loan in loans.into_iter().rev() {
             // A closure's lent holder may hold no loan, so its end tests.
-            if loan.exit || matches!(loan.key, KeyOf::Local(_)) {
+            if loan.exit
+                || matches!(loan.key, KeyOf::Local(_))
+                || self.borrows.nullable.contains(&loan.header)
+            {
                 self.borrow_end_call_loan(loan);
             } else {
                 self.call_loan_add(loan, -1);
