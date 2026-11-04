@@ -1047,6 +1047,9 @@ pub struct Module {
     /// `emit/borrow.rs`), true where the loan may be exclusive; empty, no
     /// access through a `*T` checks a borrow state.
     pub lent: hd_base::HashMap<hd_types::Ty, bool>,
+    /// The pointer loans elision keeps (`emit/elide.rs`): by instance, the
+    /// instruction that takes the loan, and the dereference it lies at.
+    pub kept: hd_base::HashSet<crate::emit::LoanSite>,
     /// Reachable program operations or exported entry hooks can cancel.
     /// Selected from the conservative reachable graph before specialization.
     pub cancellable: bool,

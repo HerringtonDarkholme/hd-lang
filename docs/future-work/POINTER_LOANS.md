@@ -1004,6 +1004,10 @@ Each about an hour, with its test; the matrix rows leave
 9. Roots and cells; the `extra-root-*` and `extra-captured-*` rows.
 10. Remove the loan table and page-table counts on references.
 11. Release elision and its type summary; the size and time table.
+    Built right after phase 4, in every build: a holder's live range is
+    its whole function, and a call loan's runs from its argument to the
+    callee's return. With it every bench program is byte-identical to
+    the build before phase 4 except json, 128 bytes smaller.
 12. Spill past 31 shared loans; `extra-deep-shared-loans`.
 
 ### E.6 Checklist

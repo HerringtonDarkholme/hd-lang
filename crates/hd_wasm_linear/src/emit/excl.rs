@@ -670,20 +670,6 @@ pub(crate) fn collect_loans(input: &Input<'_>, m: &mut Module) {
                 push_loan(m, loan);
             }
         }
-        for (_, _, bind, _) in binds(input.pool, input.env, b, &sub, true) {
-            if let Bind::Begin(a) = bind {
-                super::borrow::lend_ref(input.pool, input.env, b, &sub, m, a);
-            }
-        }
-        // A `Ref` argument's call loan (`borrow.rs`), in every build.
-        for i in 0..b.tags.len() {
-            let target = input.collected.calls[id.idx()].get(&u32::try_from(i).expect("insts"));
-            if let Some(receiver) = call_info(input, b, i, target) {
-                let params = super::borrow::call_params(input, m, target);
-                let args = (call_args(b, i), receiver, params);
-                super::borrow::lend_call(input.pool, input.env, b, &sub, m, args);
-            }
-        }
         // Call loans are development-build checks; release registers none.
         if input.release {
             continue;
@@ -698,6 +684,7 @@ pub(crate) fn collect_loans(input: &Input<'_>, m: &mut Module) {
             }
         }
     }
+    super::elide::decide(input, m);
 }
 
 impl Em<'_, '_, '_> {

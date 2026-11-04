@@ -1248,6 +1248,14 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   when a check that only the function's own loans hold its object makes
   it exclusive; a closure argument takes over the loans of the holders it
   captures for the call. Suspending bodies take no loan yet.
+  **Elision** (`emit/elide.rs`, in every build): each instance's
+  accesses through a `*T`, by object type, with its callees', make a
+  summary; a call of a function or trait value, an erased body's open
+  call and a suspension access everything. A loan is kept only when its
+  live range (a holder's whole function, a call loan's instructions up to
+  its call and the callee) may write its type through a `*T`, or for an
+  exclusive one read it, and something in the program does; the loan's own
+  instruction is left out. A type no kept loan holds gets no check.
 - **Bounded memory.** `crates/hd_driver/tests/std_rt/count_tests.hd`
   repeatedly builds strings, chains of nodes and enum payloads, checking
   that the heap stays bounded.

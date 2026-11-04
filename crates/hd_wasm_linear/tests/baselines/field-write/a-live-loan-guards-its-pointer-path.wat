@@ -9,15 +9,10 @@
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
   (import "fixture" "loan_top" (global $loan_top (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $replace (param $t i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $n i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
+  (func $replace (param $t i32) (param $alias i32) (result i32 i32) (local $n i32) (local $t0 i32) (local $t1 i32)
     block
     ;; 10 |     n := &t.lead.name
       local.get $t
-      i32.const 4
-      i32.sub
-      local.set $t0
-      local.get $t
-      i32.load $heap
       i32.const 4
       i32.sub
       local.get $t
@@ -32,38 +27,20 @@
       i32.const 8
       i32.const 0
       call $rt:loan_begin
-      local.tee $t1
-      i32.const 2
-      local.set $t2
+      local.tee $t0
+      i32.const 1
+      local.set $t1
+      local.get $t0
+      i32.load $heap
+      i32.const 65536
+      i32.add
+      i32.store $heap
       local.get $t1
-      i32.load $heap
-      i32.const 65536
-      i32.add
-      i32.store $heap
-      local.get $t2
       i32.const 1
       i32.eq
       if
       end
-      local.get $t2
-      i32.const 2
-      i32.eq
-      if
-      end
-      local.get $t0
-      i32.const 1
-      local.set $t3
-      local.get $t0
-      i32.load $heap
-      i32.const 65536
-      i32.add
-      i32.store $heap
-      local.get $t3
-      i32.const 1
-      i32.eq
-      if
-      end
-      local.get $t3
+      local.get $t1
       i32.const 2
       i32.eq
       if

@@ -3,13 +3,14 @@
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:loan_check" (func $rt:loan_check (param i32 i32 i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
-  (import "fixture" "rt:loan_begin" (func $rt:loan_begin (param i32 i32 i32)))
   (import "fixture" "rt:panic'3" (func $rt:panic'3))
+  (import "fixture" "rt:loan_begin" (func $rt:loan_begin (param i32 i32 i32)))
+  (import "fixture" "rt:panic'4" (func $rt:panic'4))
   (import "fixture" "rt:loan_count" (func $rt:loan_count (param i32 i32 i32 i32)))
   (import "fixture" "loan_top" (global $loan_top (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $"impl Counter.add" (param $self i32) (param $k i32) (local $t0 i64)
-    ;; 11 |         self.n += k
+  (func $"impl Counter.add" (param $self i32) (param $k i32) (param $other i32) (local $t0 i64)
+    ;; 12 |         self.n += k
     block
       local.get $self
       i32.load $heap
@@ -34,10 +35,62 @@
       local.get $self
       local.get $k
       i32.store $heap
+    ;; 13 |         other.n += 1
+      global.get $loan_top
+      if
+        local.get $other
+        i32.const 4
+        i32.const 0
+        call $rt:loan_check
+      end
+      local.get $other
+      i32.const 4
+      i32.sub
+      i32.load $heap
+      i32.const 2097152
+      i32.and
+      if
+        call $rt:panic'2
+        unreachable
+      end
+      local.get $other
+      i32.load $heap
+      local.tee $self
+      i32.const 2147483646
+      i32.gt_s
+      if
+        call $rt:panic'1
+        unreachable
+      end
+      local.get $self
+      i32.const 1
+      i32.add
+      local.set $self
+      global.get $loan_top
+      if
+        local.get $other
+        i32.const 4
+        i32.const 1
+        call $rt:loan_check
+      end
+      local.get $other
+      i32.const 4
+      i32.sub
+      i32.load $heap
+      i32.const 4128768
+      i32.and
+      if
+        call $rt:panic'3
+        unreachable
+      end
+      local.get $other
+      local.get $self
+      i32.store $heap
+    ;; 12 |         self.n += k
     end
   )
-  (func $bump (param $p i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
-    ;; 14 |     p.add(p.n)
+  (func $bump (param $p i32) (param $other i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
+    ;; 16 |     p.add(p.n, other)
     block
       global.get $loan_top
       if
@@ -95,6 +148,13 @@
         i32.const 1
         call $rt:loan_check
       end
+      global.get $loan_top
+      if
+        local.get $other
+        i32.const 4
+        i32.const 1
+        call $rt:loan_check
+      end
       local.get $p
       local.tee $t3
       i32.const 8
@@ -118,7 +178,7 @@
       local.get $t0
       i32.ne
       if
-        call $rt:panic'3
+        call $rt:panic'4
         unreachable
       end
       local.get $t2
@@ -140,6 +200,7 @@
       i32.add
       local.get $p
       local.get $t1
+      local.get $other
       call $"impl Counter.add"
       local.get $t2
       local.get $t2

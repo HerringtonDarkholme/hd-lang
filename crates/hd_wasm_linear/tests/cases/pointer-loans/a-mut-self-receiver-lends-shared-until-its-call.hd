@@ -2,13 +2,15 @@
 # The `&mut self` receiver `&mut *p` takes a shared loan (0x10000) when it
 # is evaluated, so the argument may still read `p`; when the call begins
 # the loan becomes exclusive (0x200000) after a check that `p`'s own loans
-# are all there is, and it ends when the call returns.
+# are all there is, and it ends when the call returns. The callee writes a
+# `Counter` through another pointer, so elision keeps the loan.
 struct Counter:
     n: i32
 
 impl Counter:
-    fn add(&mut self, k: i32) -> void:
+    fn add(&mut self, k: i32, other: *mut Counter) -> void:
         self.n += k
+        other.n += 1
 
-fn bump(p: *mut Counter) -> void:
-    p.add(p.n)
+fn bump(p: *mut Counter, other: *mut Counter) -> void:
+    p.add(p.n, other)

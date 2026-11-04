@@ -1,9 +1,11 @@
 # @dump: wat
 # A write or a `&mut` through a `*T` to a `User` tests the whole borrow
 # state (mask 0x3f0000), and a read or a `&` the exclusive bit (0x200000).
-# `lend_lead` may lend a `Team` exclusively, so reading `t.lead` through a
+# `lend_lead` keeps an exclusive loan on a `Team`, since its function also
+# writes a `Team` through another pointer, so reading `t.lead` through a
 # `*Team` tests its exclusive bit too. `Plain` is lent by no reference, so
-# its accesses check nothing.
+# its accesses check nothing. Each lending function writes through another
+# pointer, so elision keeps its loans.
 struct User:
     name: string
     age: i32
@@ -14,16 +16,19 @@ struct Team:
 struct Plain:
     name: string
 
-fn lend(t: *Team) -> string:
+fn lend(t: *Team, other: *mut User) -> string:
     held := &t.lead.name
+    other.name = "b"
     *held
 
-fn lend_mut(t: *mut Team) -> void:
+fn lend_mut(t: *mut Team, other: *mut User) -> void:
     held := &mut t.lead.age
+    other.age = +4
     *held = +1
 
-fn lend_lead(t: *mut Team) -> void:
+fn lend_lead(t: *mut Team, other: *mut Team) -> void:
     held := &mut t.lead
+    other.lead = box(User { name: "d", age: +0 })
     *held = box(User { name: "c", age: +0 })
 
 fn write(u: *mut User) -> void:

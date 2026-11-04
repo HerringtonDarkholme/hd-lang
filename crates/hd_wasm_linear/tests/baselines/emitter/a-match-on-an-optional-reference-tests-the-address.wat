@@ -2,10 +2,9 @@
 (module
   (import "fixture" "rt:retain" (func $rt:retain (param i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32)))
-  (import "fixture" "rt:panic'1" (func $rt:panic'1))
-  (import "fixture" "rt:panic'2" (func $rt:panic'2))
+  (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
-  (func $depth (param $node i32) (result i32) (local $next i32) (local $t0 i32)
+  (func $depth (param $node i32) (result i32) (local $next i32)
     block
     ;; 9 |     match node.next:
       local.get $node
@@ -43,48 +42,16 @@
         end
     ;; 11 |         .Some(next) => 1 + depth(next)
         local.get $next
-        i32.const 4
-        i32.sub
-        local.tee $node
-        i32.load $heap
-        i32.const 2097152
-        i32.and
-        local.get $t0
-        i32.const 2097152
-        i32.and
-        i32.ne
-        if
-          call $rt:panic'1
-          unreachable
-        end
-        local.get $node
-        local.get $node
-        i32.load $heap
-        i32.const 65536
-        i32.add
-        i32.store $heap
-        local.get $t0
-        i32.const 65536
-        i32.add
-        local.get $next
         call $depth
-        local.set $t0
-        local.get $node
-        local.get $node
-        i32.load $heap
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-        drop
-        local.get $t0
+        local.tee $node
         i32.const 2147483646
         i32.gt_s
         if
-          call $rt:panic'2
+          call $rt:panic
           unreachable
         end
         i32.const 1
-        local.get $t0
+        local.get $node
         i32.add
     ;; 9 |     match node.next:
         local.set $node
