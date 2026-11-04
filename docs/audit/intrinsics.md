@@ -17,6 +17,11 @@ type a meaning of its own is listed once, in seven kinds, with a verdict:
 Owner direction (2026-11-02): a std performance gap is std and optimizer
 quality, fixed in hd and in how hd compiles, never with a new intrinsic.
 
+Implementation update for #1324: `bytes_append` has no intrinsic key or
+backend helper; builders append with an hd memory copy over unique room.
+`format_int` stays one allocation-free writer intrinsic, with its string
+wrapper in hd. The tables below retain the dated audit snapshot.
+
 ## Summary
 
 | Kind | Count | keep | hd later | hd now | review |

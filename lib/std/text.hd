@@ -10,6 +10,7 @@
 # `interpolate`, `process_escapes`, and `EscapeError` (L22).
 use std.ops.{Template, str_prefix}
 use std.format.DebugWriter
+use std.collections.UniqList
 use std.annotation.inline
 use std.rt.bytes.{
     bytes_len,
@@ -18,7 +19,8 @@ use std.rt.bytes.{
     bytes_concat,
     concat_all,
     string_from_bytes,
-    bytes_append,
+    ByteBuffer,
+    TextSink,
     host_lower,
     host_upper,
     char_from_scalar,
@@ -664,59 +666,67 @@ impl List[string]:
 ## See [std-text.builder.decl-struct](../../spec/std/text.md#r-std-text.builder.decl-struct).
 pub struct StringBuilder:
     # The UTF-8 bytes pushed since the last build, the string `build` takes over.
-    bytes: List[u8]
+    bytes: UniqList[u8]
 
 impl StringBuilder:
     ## Returns an empty builder, a new object that `push` changes.
     ## See [std-text.builder.new-ref](../../spec/std/text.md#r-std-text.builder.new-ref).
     pub fn new() -> *mut StringBuilder:
         # Boxed because the returned builder is mutated across later calls.
-        box(StringBuilder { bytes: [] })
+        box(StringBuilder { bytes: UniqList::[u8].new() })
 
     ## Appends `text` to the builder.
     ## See [std-text.builder.push-local](../../spec/std/text.md#r-std-text.builder.push-local).
+    @inline(.Never)
     pub fn push(&mut self, text: string) -> void:
-        bytes_append(&mut self.bytes, text)
+        self.bytes.append_text(text)
 
     ## Appends the character `c` to the builder.
     ## See [std-text.builder.push-char-local](../../spec/std/text.md#r-std-text.builder.push-char-local).
     pub fn push_char(&mut self, c: char) -> void:
         point := i32(char_scalar(c))
         if point < 128:
-            self.bytes.push(u8(point))
+            ByteBuffer::push_byte(&mut self.bytes, u8(point))
         else if point < 2048:
-            self.bytes.push(u8(192 + point / 64))
-            self.bytes.push(u8(128 + point % 64))
+            ByteBuffer::push_byte(&mut self.bytes, u8(192 + point / 64))
+            ByteBuffer::push_byte(&mut self.bytes, u8(128 + point % 64))
         else if point < 65536:
-            self.bytes.push(u8(224 + point / 4096))
-            self.bytes.push(u8(128 + point / 64 % 64))
-            self.bytes.push(u8(128 + point % 64))
+            ByteBuffer::push_byte(&mut self.bytes, u8(224 + point / 4096))
+            ByteBuffer::push_byte(&mut self.bytes, u8(128 + point / 64 % 64))
+            ByteBuffer::push_byte(&mut self.bytes, u8(128 + point % 64))
         else:
-            self.bytes.push(u8(240 + point / 262144))
-            self.bytes.push(u8(128 + point / 4096 % 64))
-            self.bytes.push(u8(128 + point / 64 % 64))
-            self.bytes.push(u8(128 + point % 64))
+            ByteBuffer::push_byte(&mut self.bytes, u8(240 + point / 262144))
+            ByteBuffer::push_byte(&mut self.bytes, u8(128 + point / 4096 % 64))
+            ByteBuffer::push_byte(&mut self.bytes, u8(128 + point / 64 % 64))
+            ByteBuffer::push_byte(&mut self.bytes, u8(128 + point % 64))
 
     ## Appends the ASCII byte `byte`. A byte of 128 or more panics.
     ## See [std-text.builder.push-ascii-local](../../spec/std/text.md#r-std-text.builder.push-ascii-local).
     pub fn push_ascii(&mut self, byte: u8) -> void:
         if byte >= 128:
             panic("push_ascii: the byte must be ASCII, below 128")
-        self.bytes.push(byte)
+        ByteBuffer::push_byte(&mut self.bytes, byte)
 
     ## Makes room for at least `count` more bytes and appends nothing.
     ## See [std-text.builder.reserve-local](../../spec/std/text.md#r-std-text.builder.reserve-local).
     pub fn reserve(&mut self, count: usize) -> void:
-        list_reserve(&mut self.bytes, count)
+        _ := self.bytes.spare(count)
 
     ## Returns every text pushed since the builder was made or last built, in push order, joined with nothing between, and empties the builder.
     ## See [std-text.builder.build-local](../../spec/std/text.md#r-std-text.builder.build-local).
     pub fn build(&mut self) -> string:
-        # The buffer moves out of the builder, so `string_from_bytes` takes
-        # it over with no copy. Every push appends only UTF-8, so it checks nothing.
-        bytes := self.bytes
-        self.bytes = []
-        string_from_bytes(bytes)
+        self.bytes.take_text()
+
+# The Display.write port uses this private protocol for allocation-free numbers.
+impl TextSink for StringBuilder:
+    fn append_text(&mut self, text: string) -> void:
+        TextSink::append_text(&mut self.bytes, text)
+
+    fn append_signed(&mut self, value: i64) -> void:
+        TextSink::append_signed(&mut self.bytes, value)
+
+    fn append_unsigned(&mut self, value: u64) -> void:
+        TextSink::append_unsigned(&mut self.bytes, value)
 
 # Whether `needle`'s bytes appear in `text` at byte `start`. A valid UTF-8
 # needle can only match at a scalar boundary, so comparing bytes is exact.
@@ -1218,16 +1228,10 @@ fn string_compare(left: string, right: string) -> i32:
 # share are in std.rt.bytes. `@intrinsic` is prototype-internal and
 # accepted only in lib/std.
 
-# Makes room in `items` for at least `count` more elements, so that many
-# appends grow no buffer; 0 does nothing.
-@intrinsic("list_reserve")
-fn list_reserve[T](items: &mut List[T], count: usize) -> void:
-    panic("intrinsic")
-
 # Keep handwritten Debug: show the text pushed so far.
 impl Debug for StringBuilder:
     fn debug(&self, out: *mut DebugWriter) -> void:
-        out.debug_struct("StringBuilder").field("text", string_from_bytes(self.bytes)).finish()
+        out.debug_struct("StringBuilder").field("text", self.bytes.copy_text()).finish()
 
 ## The cursor of a string's `chars`: its characters in order.
 ## See [module.string.chars](../../spec/lang/10-modules.md#r-module.string.chars).

@@ -5853,6 +5853,10 @@ runtime/panic/two-mut-arguments-from-aliased-pointers-panics.hd	runtime	panic:bo
 runtime/panic/top-level-binding-written-under-a-reference-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.global
 runtime/panic/top-level-list-grown-under-an-element-loop-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.global
 runtime/valid/top-level-binding-own-field-write-under-a-reference.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.global
+runtime/valid/string-builder-owned-byte-room.hd	runtime	accept	std/text.md#r-std-text.builder.build-local
+runtime/valid/json-writer-copy-isolation.hd	runtime	accept	std/json.md#r-std-json.encode
+runtime/valid/integer-text-byte-room.hd	runtime	accept	std/json.md#r-std-json.display.compact
+typing/invalid/string-builder-value-is-not-copyable.hd	type	reject:move-out-of-place	std/text.md#r-std-text.builder.unique-storage
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

@@ -1,0 +1,53 @@
+# test: generic serializer writer copies preserve JSON encode's tree equivalence
+# expect: test
+# Spec std/json: std-json.encode, std-json.encode-pretty.
+use std.serde.{Serialize, Serializer}
+use std.json.{encode, encode_pretty, to_json}
+
+struct CopyWriter:
+    nested: bool
+
+impl Serialize for CopyWriter:
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        if self.nested:
+            out.begin_list(1)?
+        let mut ignored = *out
+        ignored.int(7)?
+        out.int(42)?
+        if self.nested:
+            out.end_list()?
+        .Ok(())
+
+struct CopyPopulatedWriter:
+    pass
+
+impl Serialize for CopyPopulatedWriter:
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        out.begin_list(3)?
+        out.text("λ😀".repeat(100))?
+        let mut ignored = *out
+        ignored.text("discarded".repeat(200))?
+        ignored.end_list()?
+        out.int(-9223372036854775808i64)?
+        out.uint(18446744073709551615u64)?
+        out.end_list()
+
+tests:
+    use std.testing.assert_equal
+
+    it("ignores writes to a copy of a scalar writer"):
+        value := CopyWriter { nested: false }
+        assert_equal(encode(value), "42")
+        assert_equal(encode(value), to_json(value).to_string())
+        assert_equal(encode_pretty(value), to_json(value).pretty())
+
+    it("isolates writer copies inside an open container"):
+        value := CopyWriter { nested: true }
+        assert_equal(encode(value), "[42]")
+        assert_equal(encode(value), to_json(value).to_string())
+        assert_equal(encode_pretty(value), to_json(value).pretty())
+
+    it("copies populated room before either writer grows or writes digits"):
+        value := CopyPopulatedWriter {}
+        assert_equal(encode(value), to_json(value).to_string())
+        assert_equal(encode_pretty(value), to_json(value).pretty())

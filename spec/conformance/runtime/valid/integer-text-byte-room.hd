@@ -1,0 +1,40 @@
+# test: decimal text preserves every integer width and writes directly into JSON byte output
+# expect: test
+# Spec Numeric Display and std/json: types.display.int, std-json.display.compact.
+use std.json.{Json, Number}
+
+tests:
+    use std.testing.assert_equal
+
+    it("formats signed minima and unsigned maxima without narrowing"):
+        assert_equal((-128i8).to_string(), "-128")
+        assert_equal((127i8).to_string(), "127")
+        assert_equal((255u8).to_string(), "255")
+        assert_equal((-32768i16).to_string(), "-32768")
+        assert_equal((32767i16).to_string(), "32767")
+        assert_equal((65535u16).to_string(), "65535")
+        assert_equal((-2147483648i32).to_string(), "-2147483648")
+        assert_equal((2147483647i32).to_string(), "2147483647")
+        assert_equal((4294967295u32).to_string(), "4294967295")
+        assert_equal((4294967295usize).to_string(), "4294967295")
+        assert_equal((-9223372036854775808i64).to_string(), "-9223372036854775808")
+        assert_equal((9223372036854775807i64).to_string(), "9223372036854775807")
+        assert_equal((18446744073709551615u64).to_string(), "18446744073709551615")
+        assert_equal((0u64).to_string(), "0")
+        assert_equal((0i64).to_string(), "0")
+        assert_equal((-1i64).to_string(), "-1")
+
+    it("appends numbers beside other JSON tokens with exactly their digit lengths"):
+        value := Json.Array(
+            [
+                Json.Number(Number::from_i64(-9223372036854775808i64)),
+                Json.Number(Number::from_u64(18446744073709551615u64)),
+                Json.Number(Number::from_u64(0)),
+                Json.Number(Number::from_i64(-1)),
+            ],
+        )
+        assert_equal(value.to_string(), "[-9223372036854775808,18446744073709551615,0,-1]")
+        assert_equal(Json.Number(Number::from_u64(9)).to_string(), "9")
+        assert_equal(Json.Number(Number::from_u64(10)).to_string(), "10")
+        assert_equal(Json.Number(Number::from_u64(99)).to_string(), "99")
+        assert_equal(Json.Number(Number::from_u64(100)).to_string(), "100")

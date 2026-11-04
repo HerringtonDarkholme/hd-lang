@@ -22,7 +22,8 @@ use std.rt.bytes.{
     bytes_slice,
     concat_all,
     string_from_bytes,
-    bytes_append,
+    TextSink,
+    TextRoom,
     bytes_index,
     bytes_index_json,
 }
@@ -231,9 +232,9 @@ impl Json:
     ## The pretty text of the value: each item of an array and each entry of an object on its own line, indented by two spaces for each level of nesting.
     ## See [std-json.value.pretty](../../spec/std/json.md#r-std-json.value.pretty).
     pub fn pretty(&self) -> string:
-        let mut out: List[u8] = []
+        let mut out = TextRoom::new()
         render(*self, &mut out, true, 0)
-        string_from_bytes(out)
+        out.take_text()
 
     ## The value of `key` when the value is an `Object` with that key.
     ## See [std-json.value.accessors.get](../../spec/std/json.md#r-std-json.value.accessors.get).
@@ -370,62 +371,66 @@ fn pointer_token(path: string, start: usize, end: usize) -> string:
 # Keep handwritten Display: render JSON syntax rather than an Error message.
 impl Display for Json:
     fn to_string(&self) -> string:
-        let mut out: List[u8] = []
+        let mut out = TextRoom::new()
         render(*self, &mut out, false, 0)
-        string_from_bytes(out)
+        out.take_text()
 
 # The text is appended to one byte buffer. Every piece is valid UTF-8 (a
 # literal, a number's text, or a run of a string cut next to an ASCII
 # byte), so the text needs no check.
-fn render(value: Json, out: &mut List[u8], spaced: bool, depth: usize) -> void:
+fn render(value: Json, out: &mut TextRoom, spaced: bool, depth: usize) -> void:
     match value:
-        .Null => bytes_append(out, "null")
+        .Null => TextSink::append_text(out, "null")
         .Bool(flag) =>
-            bytes_append(out, if flag: "true" else: "false")
-        .Number(number) => bytes_append(out, "$number")
+            TextSink::append_text(out, if flag: "true" else: "false")
+        .Number(number) =>
+            match number.repr:
+                .Negative(value) => TextSink::append_signed(out, value)
+                .NonNegative(value) => TextSink::append_unsigned(out, value)
+                .Float(value) => TextSink::append_text(out, "$value")
         .Text(text) => push_quoted(out, text)
         .Array(items) =>
             if items.len() == 0:
-                bytes_append(out, "[]")
+                TextSink::append_text(out, "[]")
                 return
-            bytes_append(out, "[")
+            TextSink::append_text(out, "[")
             let first = true
             for item in items:
                 if !first:
-                    bytes_append(out, ",")
+                    TextSink::append_text(out, ",")
                 first = false
                 line_break(out, spaced, depth + 1)
                 render(item, out, spaced, depth + 1)
             line_break(out, spaced, depth)
-            bytes_append(out, "]")
+            TextSink::append_text(out, "]")
         .Object(fields) =>
             if fields.len() == 0:
-                bytes_append(out, "{}")
+                TextSink::append_text(out, "{}")
                 return
-            bytes_append(out, "{")
+            TextSink::append_text(out, "{")
             let first = true
             for entry in fields:
                 if !first:
-                    bytes_append(out, ",")
+                    TextSink::append_text(out, ",")
                 first = false
                 line_break(out, spaced, depth + 1)
                 push_quoted(out, entry._0)
-                bytes_append(out, if spaced: ": " else: ":")
+                TextSink::append_text(out, if spaced: ": " else: ":")
                 render(entry._1, out, spaced, depth + 1)
             line_break(out, spaced, depth)
-            bytes_append(out, "}")
+            TextSink::append_text(out, "}")
 
-fn line_break(out: &mut List[u8], spaced: bool, depth: usize) -> void:
+fn line_break(out: &mut TextRoom, spaced: bool, depth: usize) -> void:
     if !spaced:
         return
-    bytes_append(out, "\n")
+    TextSink::append_text(out, "\n")
     if depth > 0:
-        bytes_append(out, "  ".repeat(depth))
+        TextSink::append_text(out, "  ".repeat(depth))
 
-fn push_quoted(out: &mut List[u8], text: string) -> void:
-    bytes_append(out, "\"")
+fn push_quoted(out: &mut TextRoom, text: string) -> void:
+    TextSink::append_text(out, "\"")
     push_escaped(out, text)
-    bytes_append(out, "\"")
+    TextSink::append_text(out, "\"")
 
 # The inside of a quoted string: `"` and `\` escaped, the control
 # characters below U+0020 as `\b`, `\f`, `\n`, `\r`, `\t`, or `\u00XX` with
@@ -433,21 +438,21 @@ fn push_quoted(out: &mut List[u8], text: string) -> void:
 # (r-std-json.display.text). Each run of bytes that needs no escape goes in
 # whole, as a slice that shares the string's bytes; an escaped byte is
 # ASCII, so every run starts and ends on a scalar boundary.
-fn push_escaped(out: &mut List[u8], text: string) -> void:
+fn push_escaped(out: &mut TextRoom, text: string) -> void:
     size := bytes_len(text)
     let plain: usize = 0
     let index = bytes_index_json(text, 0)
     while index < size:
         if index > plain:
-            bytes_append(out, bytes_slice(text, plain, index))
-        bytes_append(out, escape_text(bytes_at(text, index)))
+            TextSink::append_text(out, bytes_slice(text, plain, index))
+        TextSink::append_text(out, escape_text(bytes_at(text, index)))
         plain = index + 1
         index = bytes_index_json(text, plain)
     if plain == 0:
         if size > 0:
-            bytes_append(out, text)
+            TextSink::append_text(out, text)
     else if plain < size:
-        bytes_append(out, bytes_slice(text, plain, size))
+        TextSink::append_text(out, bytes_slice(text, plain, size))
 
 fn escape_text(byte: u8) -> string:
     match byte:
@@ -1655,7 +1660,7 @@ enum Irregular:
 
 # Writes the compact text of the `Json` that `JsonWriter` would build, or
 # its pretty text when `spaced` is true, as
-# the walk reaches each part, into pieces joined once at the end. It writes
+# the walk reaches each part, into copy-on-write byte room. It writes
 # the walks that derived and standard implementations make: one value, a
 # key before each value in an object, every key new in its object, and each
 # end matching its begin. Any other walk sets `regular` to false and stops,
@@ -1671,7 +1676,7 @@ enum Irregular:
 # text: a list, a map, or a record adds one, and a variant two, for its
 # `{"Variant": {` once a member opens it.
 struct TextWriter:
-    pub out: List[u8]
+    pub out: TextRoom
     pub depth: usize
     pub kinds: List[FrameKind]
     pub names: List[string]
@@ -1693,7 +1698,7 @@ struct TextWriter:
 impl TextWriter:
     fn new(spaced: bool) -> TextWriter:
         TextWriter {
-            out: [],
+            out: TextRoom::new(),
             depth: 0,
             kinds: [],
             names: [],
@@ -1716,11 +1721,7 @@ impl TextWriter:
     fn finish(&mut self) -> string?:
         if !self.regular || !self.written || self.depth > 0:
             return .None
-        # The buffer moves out, so `string_from_bytes` takes it over with
-        # no copy.
-        bytes := self.out
-        self.out = []
-        .Some(string_from_bytes(bytes))
+        .Some(self.out.take_text())
 
     fn give_up(&mut self) -> Result[void, Irregular]:
         self.regular = false
@@ -1744,7 +1745,7 @@ impl TextWriter:
         match kind:
             .Items =>
                 if count > 0:
-                    bytes_append(&mut self.out, ",")
+                    TextSink::append_text(&mut self.out, ",")
                 line_break(&mut self.out, self.spaced, self.indent)
                 return .Ok(())
             _ => pass
@@ -1758,20 +1759,20 @@ impl TextWriter:
             self.spaced_key(kind, count, self.names[last], key)
             return .Ok(())
         if count > 0:
-            bytes_append(&mut self.out, ",\"")
+            TextSink::append_text(&mut self.out, ",\"")
         else:
             match kind:
                 .Tagged =>
-                    bytes_append(&mut self.out, "{\"")
+                    TextSink::append_text(&mut self.out, "{\"")
                     push_escaped(&mut self.out, self.names[last])
-                    bytes_append(&mut self.out, "\":{\"")
+                    TextSink::append_text(&mut self.out, "\":{\"")
                 .Named =>
-                    bytes_append(&mut self.out, "{\"")
+                    TextSink::append_text(&mut self.out, "{\"")
                     push_escaped(&mut self.out, self.names[last])
-                    bytes_append(&mut self.out, "\":{\"")
-                _ => bytes_append(&mut self.out, "\"")
+                    TextSink::append_text(&mut self.out, "\":{\"")
+                _ => TextSink::append_text(&mut self.out, "\"")
         push_escaped(&mut self.out, key)
-        bytes_append(&mut self.out, "\":")
+        TextSink::append_text(&mut self.out, "\":")
         .Ok(())
 
     # The pretty text before a value of an object: a comma after an earlier
@@ -1779,23 +1780,23 @@ impl TextWriter:
     # opens `{`, its name, and `: {` first, each on its own line.
     fn spaced_key(&mut self, kind: FrameKind, count: usize, name: string, key: string) -> void:
         if count > 0:
-            bytes_append(&mut self.out, ",")
+            TextSink::append_text(&mut self.out, ",")
         else:
             match kind:
                 .Tagged =>
-                    bytes_append(&mut self.out, "{")
+                    TextSink::append_text(&mut self.out, "{")
                     line_break(&mut self.out, true, self.indent - 1)
                     push_quoted(&mut self.out, name)
-                    bytes_append(&mut self.out, ": {")
+                    TextSink::append_text(&mut self.out, ": {")
                 .Named =>
-                    bytes_append(&mut self.out, "{")
+                    TextSink::append_text(&mut self.out, "{")
                     line_break(&mut self.out, true, self.indent - 1)
                     push_quoted(&mut self.out, name)
-                    bytes_append(&mut self.out, ": {")
+                    TextSink::append_text(&mut self.out, ": {")
                 _ => pass
         line_break(&mut self.out, true, self.indent)
         push_quoted(&mut self.out, key)
-        bytes_append(&mut self.out, ": ")
+        TextSink::append_text(&mut self.out, ": ")
 
     # Reuse the writer's key slots across objects. No object allocates a
     # duplicate-key map; nested objects use disjoint ranges of the buffer.
@@ -1819,10 +1820,10 @@ impl TextWriter:
     fn open(&mut self, kind: FrameKind, name: string, facts: Facts) -> Result[void, Irregular]:
         self.start()?
         match kind:
-            .Items => bytes_append(&mut self.out, "[")
+            .Items => TextSink::append_text(&mut self.out, "[")
             .Tagged => pass
             .Named => pass
-            _ => bytes_append(&mut self.out, "{")
+            _ => TextSink::append_text(&mut self.out, "{")
         at := self.depth
         if at < self.kinds.len():
             self.kinds[at] = kind
@@ -1855,43 +1856,43 @@ impl TextWriter:
         match (kind, open_kind):
             (.Items, .Items) =>
                 line_break(&mut self.out, spaced, self.indent - 1)
-                bytes_append(&mut self.out, "]")
+                TextSink::append_text(&mut self.out, "]")
             (.Entries, .Entries) =>
                 line_break(&mut self.out, spaced, self.indent - 1)
-                bytes_append(&mut self.out, "}")
+                TextSink::append_text(&mut self.out, "}")
             (.Record, .Record) =>
                 line_break(&mut self.out, spaced, self.indent - 1)
-                bytes_append(&mut self.out, "}")
+                TextSink::append_text(&mut self.out, "}")
             (.Record, .Tagged) =>
                 if spaced:
                     line_break(&mut self.out, true, self.indent - 1)
-                    bytes_append(&mut self.out, "}")
+                    TextSink::append_text(&mut self.out, "}")
                     line_break(&mut self.out, true, self.indent - 2)
-                    bytes_append(&mut self.out, "}")
+                    TextSink::append_text(&mut self.out, "}")
                 else if count > 0:
-                    bytes_append(&mut self.out, "}}")
+                    TextSink::append_text(&mut self.out, "}}")
                 else:
                     push_quoted(&mut self.out, self.names[last])
             (.Record, .Named) =>
                 if count > 0:
                     if spaced:
                         line_break(&mut self.out, true, self.indent - 1)
-                        bytes_append(&mut self.out, "}")
+                        TextSink::append_text(&mut self.out, "}")
                         line_break(&mut self.out, true, self.indent - 2)
-                        bytes_append(&mut self.out, "}")
+                        TextSink::append_text(&mut self.out, "}")
                     else:
-                        bytes_append(&mut self.out, "}}")
+                        TextSink::append_text(&mut self.out, "}}")
                 else if self.spaced:
-                    bytes_append(&mut self.out, "{")
+                    TextSink::append_text(&mut self.out, "{")
                     line_break(&mut self.out, true, self.indent - 1)
                     push_quoted(&mut self.out, self.names[last])
-                    bytes_append(&mut self.out, ": {}")
+                    TextSink::append_text(&mut self.out, ": {}")
                     line_break(&mut self.out, true, self.indent - 2)
-                    bytes_append(&mut self.out, "}")
+                    TextSink::append_text(&mut self.out, "}")
                 else:
-                    bytes_append(&mut self.out, "{\"")
+                    TextSink::append_text(&mut self.out, "{\"")
                     push_escaped(&mut self.out, self.names[last])
-                    bytes_append(&mut self.out, "\":{}}")
+                    TextSink::append_text(&mut self.out, "\":{}}")
             _ => return self.give_up()
         self.key_count = self.key_starts[last]
         self.depth = last
@@ -1913,7 +1914,7 @@ impl TextWriter:
 
     fn scalar(&mut self, text: string) -> Result[void, Irregular]:
         self.start()?
-        bytes_append(&mut self.out, text)
+        TextSink::append_text(&mut self.out, text)
         .Ok(())
 
 impl Serializer for TextWriter:
@@ -1926,17 +1927,21 @@ impl Serializer for TextWriter:
         self.scalar(if value: "true" else: "false")
 
     fn int(&mut self, value: i64) -> Result[void, Irregular]:
-        self.scalar("$value")
+        self.start()?
+        TextSink::append_signed(&mut self.out, value)
+        .Ok(())
 
     fn uint(&mut self, value: u64) -> Result[void, Irregular]:
-        self.scalar("$value")
+        self.start()?
+        TextSink::append_unsigned(&mut self.out, value)
+        .Ok(())
 
     # A NaN or an infinity writes `null` (r-std-json.std.float-special).
     fn float(&mut self, value: f64) -> Result[void, Irregular]:
         if value.is_finite():
             self.start()?
             if !push_short_float(&mut self.out, value):
-                bytes_append(&mut self.out, "$value")
+                TextSink::append_text(&mut self.out, "$value")
             return .Ok(())
         self.scalar("null")
 
@@ -2028,7 +2033,7 @@ impl Serializer for TextWriter:
 # that decimal (Clinger's exact case), so the test is exact. The text is
 # fixed notation, as Display writes these magnitudes: `9.5`, `3.0`,
 # `0.00125`.
-fn push_short_float(out: &mut List[u8], value: f64) -> bool:
+fn push_short_float(out: &mut TextRoom, value: f64) -> bool:
     magnitude := if value < 0.0: -value else: value
     if !(magnitude >= 0.00001 && magnitude < 1000000000000000.0):
         return false
@@ -2048,31 +2053,25 @@ fn push_short_float(out: &mut List[u8], value: f64) -> bool:
 
 # Appends `n / 10^k` in fixed notation, with at least one digit after the
 # point: the bytes go in from the last, then the run is reversed.
-fn push_fixed(out: &mut List[u8], negative: bool, n: u64, k: usize) -> void:
-    let low = out.len()
+fn push_fixed(out: &mut TextRoom, negative: bool, n: u64, k: usize) -> void:
+    start := out.len
     let rest = n
     let place: usize = 0
     while place < k:
-        out.push(u8(rest % 10) + 48)
+        out.push_byte(u8(rest % 10) + 48)
         rest = rest / 10
         place = place + 1
     if k == 0:
-        out.push(48)
-    out.push(46)
-    out.push(u8(rest % 10) + 48)
+        out.push_byte(48)
+    out.push_byte(46)
+    out.push_byte(u8(rest % 10) + 48)
     rest = rest / 10
     while rest > 0:
-        out.push(u8(rest % 10) + 48)
+        out.push_byte(u8(rest % 10) + 48)
         rest = rest / 10
     if negative:
-        out.push(45)
-    let high = out.len() - 1
-    while low < high:
-        byte := out[low]
-        out[low] = out[high]
-        out[high] = byte
-        low = low + 1
-        high = high - 1
+        out.push_byte(45)
+    out.reverse_bytes(start)
 
 # The nesting levels a frame adds to the pretty text: a variant's
 # `{"Variant": {` is two.

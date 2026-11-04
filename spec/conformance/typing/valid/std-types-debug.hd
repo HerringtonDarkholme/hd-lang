@@ -35,7 +35,7 @@ fn error_texts(
 fn value_texts(
     order: Ordering,
     reverse: Reverse[i32],
-    builder: StringBuilder,
+    builder: *StringBuilder,
     random: SeededRandom,
 ) -> List[string]:
     [shown(order), shown(reverse), shown(builder), shown(random)]

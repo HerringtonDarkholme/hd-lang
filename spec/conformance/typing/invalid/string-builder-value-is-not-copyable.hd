@@ -1,0 +1,6 @@
+# test: copying a builder value through its shared reference is rejected
+# Spec std/text: std-text.builder.unique-storage.
+use std.text.StringBuilder
+
+fn copy_builder(value: &StringBuilder) -> StringBuilder:
+    *value # diagnostic: move-out-of-place

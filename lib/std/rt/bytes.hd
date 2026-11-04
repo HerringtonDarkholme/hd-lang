@@ -6,7 +6,8 @@
 # The compiler supplies each body: the byte primitives come from the Wasm
 # runtime and the case mappings from the host. Where a body below is hd, it
 # defines the result, and the compiler supplies a SIMD128 one (#428).
-use std.rt.memory.{copy, new_string, string_bytes}
+use std.core.Copy
+use std.rt.memory.{Buffer, Ptr, copy, new_string, string_bytes}
 
 ## The number of bytes in `text`.
 @intrinsic("bytes_len")
@@ -51,9 +52,46 @@ pub fn concat_all(parts: List[string]) -> string:
 pub fn string_from_bytes(bytes: List[u8]) -> string:
     panic("intrinsic")
 
-## Appends the bytes of `text` to the list `bytes` refers to, in one copy.
-@intrinsic("bytes_append")
-pub fn bytes_append(bytes: &mut List[u8], text: string) -> void:
+# Internal byte storage used only with valid UTF-8 and no outstanding element
+# references. `spare` reserves room without changing the initialized length;
+# `advance` commits the bytes the caller initialized in that room.
+pub trait TextSink < ?Copy:
+    fn append_text(&mut self, text: string) -> void
+    fn append_signed(&mut self, value: i64) -> void
+    fn append_unsigned(&mut self, value: u64) -> void
+
+# A copyable serializer must keep independent output snapshots. Its room is
+# an initialized, counted string at the allocation's payload start, with a
+# separate used length. Only std can name or mutate this internal storage.
+pub struct TextRoom:
+    pub room: string
+    pub len: usize
+
+pub trait ByteBuffer < ?Copy & TextSink:
+    fn push_byte(&mut self, byte: u8) -> void
+    fn spare(&mut self, additional: usize) -> Ptr[u8]
+    fn advance(&mut self, count: usize) -> void
+    fn take_text(&mut self) -> string
+    fn copy_text(&self) -> string
+
+## Takes over `len` initialized UTF-8 bytes of this owned raw allocation.
+@intrinsic("string_from_bytes")
+pub fn string_from_buffer(bytes: Buffer[u8], len: usize) -> string:
+    panic("intrinsic")
+
+# Consumes initialized string room from new_string, exposing only the selected initialized bytes.
+# Like raw Buffer transfer, this changes ownership metadata, not the bytes.
+@intrinsic("string_from_bytes")
+pub fn string_prefix(room: string, start: usize, len: usize) -> string:
+    panic("intrinsic")
+
+# Primitive aliases share one intrinsic key and write into twenty bytes of room.
+@intrinsic("format_int")
+pub fn format_signed(value: i64, destination: Ptr[u8]) -> (usize, usize):
+    panic("intrinsic")
+
+@intrinsic("format_int")
+pub fn format_unsigned(value: u64, destination: Ptr[u8]) -> (usize, usize):
     panic("intrinsic")
 
 ## The lowercase mapping of `text`, from the host.

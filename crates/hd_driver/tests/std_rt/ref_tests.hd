@@ -8,7 +8,8 @@
 # checked in every mode (`STD_RT_CHECKED_TOO`); without it `allocated()`
 # stays 0, and the cases that compare it check nothing.
 use std.rt.memory.pages
-use std.rt.checked.{allocated, released}
+use std.rt.checked.{allocated, released, retained, live}
+use std.annotation.inline
 
 fn label(n: i32) -> string:
     "r$n"
@@ -46,6 +47,68 @@ fn odd(item: &i64) -> bool:
 
 fn small(item: &i64) -> bool:
     item < 100
+
+@inline(.Always)
+fn inline_bump(target: &mut i32) -> void:
+    *target += 1
+
+@inline(.Always)
+fn forward_left(point: &mut Pair) -> void:
+    inline_bump(&mut point.left)
+
+@inline(.Never)
+fn twice_left(point: &mut Pair) -> void:
+    forward_left(point)
+    forward_left(point)
+
+struct Tagged[T]:
+    marker: T
+    value: i32
+
+@inline(.Always)
+fn forward_value[T](point: &mut Tagged[T]) -> void:
+    inline_bump(&mut point.value)
+
+@inline(.Never)
+fn twice_value[T](point: &mut Tagged[T]) -> void:
+    forward_value(point)
+    forward_value(point)
+
+fn projected_round(round: i32) -> i32:
+    let mut point = Tagged { marker: [label(round)], value: round }
+    twice_value(&mut point)
+    point.value
+
+@inline(.Never)
+fn reference_value(value: &i32) -> i32:
+    *value
+
+@inline(.Never)
+fn projected_depth[T](point: &Tagged[T], depth: usize) -> i32:
+    field := &point.value
+    below := if depth == 0: +0 else: projected_depth(point, depth - 1)
+    reference_value(field) + below
+
+fn projected_read_round(round: i32) -> i32:
+    point := Tagged { marker: [label(round)], value: round }
+    projected_depth(&point, 4)
+
+struct TextCell:
+    value: string
+
+@inline(.Always)
+fn inline_length(target: &mut string) -> usize:
+    target.len()
+
+@inline(.Never)
+fn field_length(point: &mut TextCell) -> usize:
+    inline_length(&mut point.value)
+
+@inline(.Never)
+fn borrowed_depth(point: &TextCell, depth: usize) -> usize:
+    field := &point.value
+    below := if depth == 0: 0 else: borrowed_depth(point, depth - 1)
+    field.len() + below
 
 tests:
     use std.testing.{assert, it}
@@ -142,3 +205,50 @@ tests:
         # Checked frees quarantine blocks; only the normal allocator reuses them.
         if released() == 0:
             assert(pages() == start, "each cell, pin and list is freed")
+
+    it("inlined field loans take no parent count"):
+        point := box(Pair { left: +0, right: +1 })
+        before := retained()
+        let round = +0
+        while round < 1000:
+            twice_left(point)
+            round += 1
+        assert(retained() == before, "the caller keeps the parent alive")
+        assert(point.left == 2000 && point.right == 1, "every field write reached the parent")
+
+    it("inlined field loans through erased views release their fresh owners"):
+        before := live()
+        let round = +0
+        let sum = +0
+        while round < 1000:
+            sum += projected_round(round)
+            round += 1
+        assert(sum == 501500, "every erased field write reached the parent")
+        assert(live() == before, "no fresh projected owner remains live")
+
+    it("a caller's local reference keeps recursive stored field loans alive"):
+        point := box(TextCell { value: "live".repeat(20) })
+        before := retained()
+        assert(borrowed_depth(point, 40) == 41 * 80, "each recursive field loan stays valid")
+        assert(retained() == before, "the caller's loan needs no parent count")
+        assert(point.value.len() == 80, "the parent remains valid after recursion")
+
+    it("inlined mutable field loans preserve counted referents"):
+        point := box(TextCell { value: "live".repeat(20) })
+        before := retained()
+        let round = +0
+        while round < 1000:
+            assert(field_length(point) == 80, "the mutable loan reads the same string")
+            round += 1
+        assert(retained() == before, "the field loan takes no parent count")
+        assert(point.value.len() == 80, "the counted referent remains valid")
+
+    it("moving stored field loans preserves cleanup through erased views"):
+        before := live()
+        let round = +0
+        let sum = +0
+        while round < 1000:
+            sum += projected_read_round(round)
+            round += 1
+        assert(sum == 2497500, "every moved field loan reads its parent")
+        assert(live() == before, "each fresh reference view is released once")

@@ -244,7 +244,6 @@ const PURE_INTRINSICS: &[&str] = &[
     "string_upper",
     "char_from_scalar",
     "char_scalar",
-    "format_int",
     "format_f64",
     "format_f32",
     "format_f64_fixed",
@@ -273,6 +272,7 @@ impl Env<'_> {
                 "mem_store_u8" | "mem_store_u16" | "mem_store_u32" | "mem_store_u64" | "mem_copy"
                 | "mem_fill",
             ) => CallMemory::Write(0),
+            Some("format_int") => CallMemory::Write(1),
             _ => CallMemory::None,
         }
     }
