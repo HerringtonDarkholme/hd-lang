@@ -39,6 +39,25 @@ fn moved(id: usize) -> usize:
 fn empty_move() -> void:
     _ := identity(Empty {})
 
+let cascade_drops: usize = 0
+
+struct Cascade:
+    depth: usize
+    name: string
+
+impl !Copy for Cascade
+
+impl Drop for Cascade:
+    fn drop(&mut self) -> void:
+        if self.depth > 0:
+            _ := Cascade { depth: self.depth - 1, name: "level-${self.depth - 1}" }
+        if self.name != "level-${self.depth}":
+            panic("a nested drop overwrote its parent's value")
+        cascade_drops = cascade_drops + 1
+
+fn cascade() -> void:
+    _ := Cascade { depth: 15, name: "level-15" }
+
 fn nested_move() -> usize:
     value := identity(Pair { left: Token { id: 0 }, right: Token { id: 0 } })
     value.left.id + value.right.id
@@ -188,6 +207,11 @@ tests:
         before := empty_drops
         empty_move()
         assert_equal(empty_drops, before + 1)
+
+    it("nested Drop calls keep each invocation's value in its own frame"):
+        before := cascade_drops
+        cascade()
+        assert_equal(cascade_drops, before + 16)
 
     it("nested fields drop once after the container moves"):
         before := drops

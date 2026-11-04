@@ -315,10 +315,8 @@ impl Em<'_, '_, '_> {
         out
     }
 
-    /// Runs an inline value's drop glue by moving its Wasm locals through
-    /// a temporary payload. The helper calls `Drop` hooks, then releases
-    /// the fields; the temporary object is taken without running its
-    /// descriptor, so those actions happen exactly once.
+    /// Moves an inline value's Wasm locals into a local-stack frame for
+    /// its Drop hooks and the subsequent release of its fields.
     pub(super) fn drop_inline(&mut self, ls: &[u32], t: Ty) -> StageResult<bool> {
         self.drop_inline_flags(ls, t, &[])
     }
@@ -359,32 +357,26 @@ impl Em<'_, '_, '_> {
             }
         }
         let walk = walk(self.pool(), self.env(), t).unwrap_or_else(|| Walk::Seq(Vec::new()));
-        let at = self.object(&storage, None, false, false, None);
-        for (&local, leaf) in ls.iter().zip(&m.leaves) {
-            self.f.get(at);
+        for &local in ls {
             self.f.get(local);
-            self.f.op(leaf.store(0));
         }
         for (index, flag) in flags.iter().enumerate() {
             if let Some(flag) = flag {
-                self.f.get(at);
                 self.f.get(*flag);
-                self.f.op(I::I32Store(mem(
-                    HEAP,
-                    u64::from(flag_base) + index as u64 * 4,
-                    2,
-                )));
+                storage.leaves.push(Leaf {
+                    offset: flag_base + u32::try_from(index).expect("flag") * 4,
+                    val: Val::I32,
+                    bytes: 4,
+                    signed: false,
+                });
             }
         }
-        self.f.get(at);
-        self.f.helper(Helper::DropFields {
-            leaves: m.leaves,
+        self.f.helper(Helper::DropValue {
+            size: storage.size,
+            leaves: storage.leaves,
             walk,
             drops,
         });
-        self.f.get(at);
-        self.f.helper(Helper::TakeBox);
-        self.f.op(I::Drop);
         Ok(true)
     }
 
