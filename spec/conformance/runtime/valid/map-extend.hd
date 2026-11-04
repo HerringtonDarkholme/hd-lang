@@ -1,0 +1,20 @@
+# test: map-extend preserves values and copy independence
+# expect: test
+# Spec std/collections: std-collections.map.extend.
+use std.collections.UniqList
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("map-extend"):
+        let mut items = { "a": +1, "b": 2 }
+        snapshot := items
+        items.extend([("b", +20), ("c", +3), ("c", +30)])
+        assert_equal(items.entries(), [("a", +1), ("b", +20), ("c", +30)])
+        assert_equal(snapshot, { "a": +1, "b": 2 })
+        items.extend(items)
+        assert_equal(items.len(), 3)
+        let mut unique = UniqList::[(string, i32)].new()
+        unique.push(("d", +4))
+        items.extend(unique)
+        assert_equal(items["d"], +4)

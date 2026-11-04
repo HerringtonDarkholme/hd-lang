@@ -1,0 +1,27 @@
+# test: list-append preserves values and copy independence
+# expect: test
+# Spec std/collections: std-collections.list.append.
+
+struct Bag:
+    items: List[string]
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("list-append"):
+        let mut items = ["a", "b"]
+        let mut other = items
+        snapshot := other
+        items.append(&mut other)
+        assert_equal(items, ["a", "b", "a", "b"])
+        assert(other.is_empty())
+        assert_equal(snapshot, ["a", "b"])
+        items.append(&mut other)
+        other.push("new")
+        assert_equal(other, ["new"])
+
+    it("applies append sequentially when both references name the same place"):
+        bag := box(Bag { items: ["a", "b"] })
+        alias := bag
+        bag.items.append(&mut alias.items)
+        assert(bag.items.is_empty())

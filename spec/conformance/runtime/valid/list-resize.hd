@@ -1,0 +1,18 @@
+# test: list-resize preserves values and copy independence
+# expect: test
+# Spec std/collections: std-collections.list.resize.
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("list-resize"):
+        let mut items = ["a", "b"]
+        snapshot := items
+        items.resize(5, "new")
+        assert_equal(items, ["a", "b", "new", "new", "new"])
+        items.resize(1, "unused")
+        assert_equal(items, ["a"])
+        assert_equal(snapshot, ["a", "b"])
+        items.resize(0, "unused")
+        items.resize(0, "unused")
+        assert(items.is_empty())

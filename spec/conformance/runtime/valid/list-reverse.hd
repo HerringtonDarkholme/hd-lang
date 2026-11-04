@@ -1,0 +1,22 @@
+# test: list-reverse preserves values and copy independence
+# expect: test
+# Spec std/collections: std-collections.list.reverse.
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("list-reverse"):
+        let mut items = ["a", "b", "c", "d", "e"]
+        snapshot := items
+        items.reverse()
+        assert_equal(items, ["e", "d", "c", "b", "a"])
+        assert_equal(snapshot, ["a", "b", "c", "d", "e"])
+        let mut even = [+1, 2, 3, 4]
+        even.reverse()
+        assert_equal(even, [+4, 3, 2, 1])
+        let mut empty: List[i32] = []
+        empty.reverse()
+        assert(empty.is_empty())
+        let mut one = [+1]
+        one.reverse()
+        assert_equal(one, [+1])

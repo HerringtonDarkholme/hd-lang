@@ -521,7 +521,7 @@ the code `hd check` reports today.
 | `a == b` on two references | `reference-equality` | `a is b`, or `*a == *b` |
 | `$.with(Mailer=fake)` with `fake` a plain value, or `Mailer=&mut fake` | `type-mismatch` or `local-reference-escapes` | `fake := box(Fake { ... })`, then `$.with(Mailer=fake)` |
 | `data Item:` | `syntax-error` | `struct Item:` |
-| `xs.append(x)` | `unknown-method` | `xs.push(x)` |
+| `xs.append(x)` for one element | `type-mismatch` | `xs.push(x)`; `append` takes another `&mut List[T]` |
 | `pair.0` | `syntax-error` | `pair._0` |
 | `defer(fn() -> void: save())` without an import | `unknown-name` | add `use std.ops.defer` |
 | `List[Shape]` for a trait | `trait-used-as-type` | `List[*dyn Shape]`, filled with `box(Circle { ... })` |

@@ -1,0 +1,14 @@
+# test: map drain preserves the collection pin check
+
+struct Bag:
+    items: Map[string, string]
+
+fn change(first: &mut string, alias: *mut Bag) -> void:
+    _ := alias.items.drain() # panic: collection-pinned
+    *first = "still live"
+
+tests:
+    it("rejects a drain through an alias of a pinned collection"):
+        bag := box(Bag { items: { "key": "original" } })
+        alias := bag
+        change(&mut bag.items["key"], alias)

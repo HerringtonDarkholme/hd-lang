@@ -1,0 +1,18 @@
+# test: list-split-off preserves values and copy independence
+# expect: test
+# Spec std/collections: std-collections.list.split-off.
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("list-split-off"):
+        let mut items = ["a", "b", "c"]
+        snapshot := items
+        let mut tail = items.split_off(1)
+        assert_equal(items, ["a"])
+        assert_equal(tail, ["b", "c"])
+        tail[0] = "changed"
+        assert_equal(snapshot, ["a", "b", "c"])
+        assert(items.split_off(1).is_empty())
+        assert_equal(items.split_off(0), ["a"])
+        assert(items.is_empty())

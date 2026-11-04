@@ -1325,6 +1325,81 @@ impl[T < ?Copy & Hash] Hash for UniqList[T]:
             index += 1
 
 impl[T] List[T]:
+    ## Returns an empty list with room for at least `capacity` elements.
+    ## See [std-collections.list.with-capacity](../../spec/std/collections.md#r-std-collections.list.with-capacity).
+    pub fn with_capacity(capacity: usize) -> List[T]:
+        let mut items: List[T] = []
+        items.reserve(capacity)
+        items
+
+    ## Reserves room for `additional` elements without changing the length.
+    ## See [std-collections.list.reserve](../../spec/std/collections.md#r-std-collections.list.reserve).
+    pub fn reserve(&mut self, additional: usize) -> void:
+        list_reserve(self, additional)
+
+    ## Removes elements after `len`; a greater length has no effect.
+    ## See [std-collections.list.truncate](../../spec/std/collections.md#r-std-collections.list.truncate).
+    pub fn truncate(&mut self, len: usize) -> void:
+        if len < self.len():
+            list_truncate(self, len)
+
+    ## Splits off the suffix starting at `at` into a new list.
+    ## See [std-collections.list.split-off](../../spec/std/collections.md#r-std-collections.list.split-off).
+    pub fn split_off(&mut self, at: usize) -> List[T]:
+        if at > self.len():
+            panic_with("index-out-of-bounds", "list split_off index out of bounds")
+        tail := self.view(at, self.len()).to_list()
+        self.truncate(at)
+        tail
+
+    ## Appends every element of `other`, leaving `other` empty.
+    ## See [std-collections.list.append](../../spec/std/collections.md#r-std-collections.list.append).
+    pub fn append(&mut self, other: &mut List[T]) -> void:
+        self.extend(*other)
+        other.clear()
+
+    ## Borrows this list and yields the selected range, restoring the tail on drop.
+    ## See [std-collections.list.drain](../../spec/std/collections.md#r-std-collections.list.drain).
+    pub fn drain['a](&'a mut self, range: Range[usize]) -> ListDrain[T, 'a]:
+        let end = range.end
+        if range.inclusive:
+            if end >= self.len():
+                panic_with("index-out-of-bounds", "list drain range out of bounds")
+            end += 1
+        if range.start > end || end > self.len():
+            panic_with("index-out-of-bounds", "list drain range out of bounds")
+        snapshot := *self
+        self.truncate(range.start)
+        ListDrain { items: .Some(self), snapshot: snapshot, at: range.start, end: end }
+
+    ## Changes the length to `len`, copying `value` into new elements.
+    ## See [std-collections.list.resize](../../spec/std/collections.md#r-std-collections.list.resize).
+    pub fn resize(&mut self, len: usize, value: T) -> void:
+        if len <= self.len():
+            self.truncate(len)
+            return
+        self.reserve(len - self.len())
+        while self.len() < len:
+            self.push(value)
+
+    ## Replaces every element with a copy of `value`.
+    ## See [std-collections.list.fill](../../spec/std/collections.md#r-std-collections.list.fill).
+    pub fn fill(&mut self, value: T) -> void:
+        let index: usize = 0
+        while index < self.len():
+            self[index] = value
+            index += 1
+
+    ## Reverses the elements in place.
+    ## See [std-collections.list.reverse](../../spec/std/collections.md#r-std-collections.list.reverse).
+    pub fn reverse(&mut self) -> void:
+        let left: usize = 0
+        let right = self.len()
+        while left < right:
+            right -= 1
+            self.swap(left, right)
+            left += 1
+
     # `push` is a language-tier intrinsic method of the checker
     # (spec/lang/10-modules.md#built-in-methods). The other mutators are
     # plain hd over it, `list_truncate`, the one shrinking primitive, and
@@ -1688,6 +1763,19 @@ impl[T < Num] List[T]:
         total
 
 impl[T < Ord] List[T]:
+    ## Returns a matching index, or the insertion position when absent.
+    ## See [std-collections.list.binary-search](../../spec/std/collections.md#r-std-collections.list.binary-search).
+    pub fn binary_search(&self, value: &T) -> Result[usize, usize]:
+        let left: usize = 0
+        let right = self.len()
+        while left < right:
+            middle := left + (right - left) / 2
+            match self[middle].cmp(value):
+                .Less => left = middle + 1
+                .Greater => right = middle
+                .Equal => return .Ok(middle)
+        .Err(left)
+
     # A stable sort in ascending order.
     ## Returns the elements in ascending order by `Ord`.
     ## See [std-collections.helper.sorted](../../spec/std/collections.md#r-std-collections.helper.sorted).
@@ -1794,6 +1882,27 @@ pub fn counts[T < Eq & Hash](items: List[T]) -> Map[T, usize]:
 # (spec/std/collections.md#map-methods). `keys` and `values` copy into new
 # lists, so a later change to the map does not show in them.
 impl[K < Eq & Hash, V] Map[K, V]:
+    ## Keeps entries selected by `keep`, which may change their values.
+    ## See [std-collections.map.retain](../../spec/std/collections.md#r-std-collections.map.retain).
+    pub fn retain(&mut self, keep: fn(&K, &mut V) -> bool) -> void:
+        for (key, _) in *self:
+            if !keep(&key, &mut self[key]):
+                _ := self.remove(key)
+
+    ## Inserts entries in order, replacing values of equal keys.
+    ## See [std-collections.map.extend](../../spec/std/collections.md#r-std-collections.map.extend).
+    pub fn extend[I < ?Copy & Iterable[(K, V)]](&mut self, other: I) -> void:
+        for (key, value) in other:
+            self[key] = value
+
+    ## Empties this map and yields its entries while borrowing it.
+    ## See [std-collections.map.drain](../../spec/std/collections.md#r-std-collections.map.drain).
+    pub fn drain['a](&'a mut self) -> MapDrain[K, V, 'a]:
+        entries := self.iter()
+        for (key, _) in *self:
+            _ := self.remove(key)
+        MapDrain { items: self, entries: entries }
+
     ## Returns a mutable reference to the value for `key`; when the map has no equal key, inserts `default` first.
     ## See [std-collections.map.get-or-insert](../../spec/std/collections.md#r-std-collections.map.get-or-insert).
     @intrinsic("map_probe")
@@ -1848,6 +1957,48 @@ impl[K < Eq & Hash] Map[K, usize]:
                 fn(left: &(K, usize), right: &(K, usize)) -> Ordering: right._1.cmp(&left._1)
             )
             .take(n)
+
+## A borrowed range drain that restores the unselected tail on drop.
+## See [std-collections.list.drain](../../spec/std/collections.md#r-std-collections.list.drain).
+pub struct ListDrain[T, 'a]:
+    items: (&'a mut List[T])?
+    snapshot: List[T]
+    at: usize
+    end: usize
+
+impl[T, 'a] !Copy for ListDrain[T, 'a]
+
+impl[T, 'a] Iterator[T] for ListDrain[T, 'a]:
+    fn next(&mut self) -> T?:
+        if self.at >= self.end:
+            return .None
+        item := self.snapshot[self.at]
+        self.at += 1
+        .Some(item)
+
+impl[T, 'a] Drop for ListDrain[T, 'a]:
+    fn drop(&mut self) -> void:
+        match self.items:
+            .Some(items) =>
+                let index = self.end
+                items.reserve(self.snapshot.len() - index)
+                while index < self.snapshot.len():
+                    items.push(self.snapshot[index])
+                    index += 1
+                self.items = .None
+            .None => pass
+
+## A borrowed cursor over the entries removed by `Map.drain`.
+## See [std-collections.map.drain](../../spec/std/collections.md#r-std-collections.map.drain).
+pub struct MapDrain[K < Eq & Hash, V, 'a]:
+    items: &'a mut Map[K, V]
+    entries: MapEntries[K, V]
+
+impl[K < Eq & Hash, V, 'a] !Copy for MapDrain[K, V, 'a]
+
+impl[K < Eq & Hash, V, 'a] Iterator[(K, V)] for MapDrain[K, V, 'a]:
+    fn next(&mut self) -> (K, V)?:
+        self.entries.next()
 
 # A read-only window on a run of a list's elements
 # (spec/std/collections.md#views). It holds a copy-on-write snapshot of the
@@ -2413,4 +2564,8 @@ fn list_truncate[T](items: &mut List[T], len: usize) -> void:
 # counts; `other` may be the list `items` refers to.
 @intrinsic("list_extend")
 fn list_extend[T](items: &mut List[T], other: List[T]) -> void:
+    panic("intrinsic")
+
+@intrinsic("list_reserve")
+fn list_reserve[T](items: &mut List[T], additional: usize) -> void:
     panic("intrinsic")

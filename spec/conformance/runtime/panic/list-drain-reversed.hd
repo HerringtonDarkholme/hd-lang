@@ -1,0 +1,5 @@
+# test: list-drain-reversed rejects invalid bounds
+
+pub fn main() -> void:
+    let mut items = [+1, 2]
+    _ := items.drain(2..1) # panic: index-out-of-bounds
