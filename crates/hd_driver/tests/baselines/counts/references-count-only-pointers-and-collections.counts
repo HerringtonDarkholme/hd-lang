@@ -41,6 +41,7 @@ fn local_field(name: string) -> usize:
 >   release std.rt_tests.stage_case.Pair [name.0, tag.0]
     r := &pair.name
     show(r) + show(r)
+>   (no span) release std.rt_tests.stage_case.Pair [name.0, tag.0]
 
 fn cell_field(name: string) -> usize:
     let mut pair = Pair { name: name, tag: "t" }
@@ -54,6 +55,8 @@ fn cell_field(name: string) -> usize:
     retag()
     r := &pair.name
     show(r)
+>   (no span) release fn() -> ()
+>   (no span) release counted reference
 
 fn behind_pointer(h: *mut Holder, alias: *mut Holder) -> usize:
     name := &h.child.name

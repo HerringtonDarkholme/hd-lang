@@ -1,0 +1,24 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: call arguments by value, `&`, `&mut` and `*T` (#1364).
+# expected: one retain for `t`, a copy that `by_mut` changes while `s`
+# lives on, and its release; no count for `&s`, `n` or a lent `s`.
+struct Node:
+    name: string
+
+fn by_value(s: string) -> usize:
+    (s.len() + 1) * (s.len() + 2) * (s.len() + 3) * (s.len() + 4) / (s.len() + 5)
+
+fn by_ref(s: &string) -> usize:
+    (s.len() + 1) * (s.len() + 2) * (s.len() + 3) * (s.len() + 4) / (s.len() + 5)
+
+fn by_mut(s: &mut string) -> void:
+    *s += "x"
+
+fn by_ptr(n: *Node) -> usize:
+    (n.name.len() + 1) * (n.name.len() + 2) * (n.name.len() + 3) / (n.name.len() + 5)
+
+fn calls(s: string, n: *Node) -> usize:
+    let mut t = s
+    by_mut(&mut t)
+    by_value(s) + by_ref(&s) + by_value(t) + by_ptr(n)

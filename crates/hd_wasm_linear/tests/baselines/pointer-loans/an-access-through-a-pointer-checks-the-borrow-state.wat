@@ -9,6 +9,7 @@
   (import "fixture" "rt:panic'4" (func $rt:panic'4))
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
+  (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $lend_lead (param $t i32) (param $other i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     block
@@ -87,9 +88,51 @@
       local.get $other
       i32.store $heap
       call $rt:release_ref
+    ;; (no span)
+      local.get $t0
+      if
+        local.get $t0
+        local.get $t0
+        i32.load $heap
+        i32.const 2097152
+        i32.sub
+        i32.store $heap
+        local.get $t1
+        i32.const 1
+        i32.eq
+        ;; ...
+        i32.const 0
+        local.set $t0
+      end
+      local.get $t0
+      if
+        local.get $t0
+        local.get $t0
+        i32.load $heap
+        i32.const 2097152
+        i32.sub
+        i32.store $heap
+        local.get $t1
+        i32.const 1
+        i32.eq
+        ;; ...
+        i32.const 0
+        local.set $t0
+      end
+    end
+    local.get $t0
+    if
+      local.get $t0
+      local.get $t0
+      i32.load $heap
+      i32.const 2097152
+      i32.sub
+      i32.store $heap
+      local.get $t1
+      i32.const 1
+      i32.eq
       ;; ...
     end
-    ;; ...
   )
   (func $plain (param $p i32)
     ;; 47 |     p.name = "b"
@@ -278,9 +321,98 @@
       local.get $t
       local.set $other
       local.set $t
+    ;; (no span)
+      local.get $t0
+      if
+        local.get $t0
+        i32.load $heap
+        local.tee $t2
+        i32.const 2031616
+        i32.and
+        i32.const 2031616
+        i32.eq
+        if
+          local.get $t0
+          call $rt:loan_unshare
+        else
+          local.get $t0
+          local.get $t2
+          i32.const 65536
+          i32.sub
+          i32.store $heap
+        end
+        local.get $t1
+        i32.const 1
+        i32.eq
+        ;; ...
+        local.get $t1
+        i32.const 2
+        i32.eq
+        ;; ...
+        i32.const 0
+        local.set $t0
+      end
+      local.get $t0
+      if
+        local.get $t0
+        i32.load $heap
+        local.tee $t2
+        i32.const 2031616
+        i32.and
+        i32.const 2031616
+        i32.eq
+        if
+          local.get $t0
+          call $rt:loan_unshare
+        else
+          local.get $t0
+          local.get $t2
+          i32.const 65536
+          i32.sub
+          i32.store $heap
+        end
+        local.get $t1
+        i32.const 1
+        i32.eq
+        ;; ...
+        local.get $t1
+        i32.const 2
+        i32.eq
+        ;; ...
+        i32.const 0
+        local.set $t0
+      end
+    end
+    local.get $t0
+    if
+      local.get $t0
+      i32.load $heap
+      local.tee $t2
+      i32.const 2031616
+      i32.and
+      i32.const 2031616
+      i32.eq
+      if
+        local.get $t0
+        call $rt:loan_unshare
+      else
+        local.get $t0
+        local.get $t2
+        i32.const 65536
+        i32.sub
+        i32.store $heap
+      end
+      local.get $t1
+      i32.const 1
+      i32.eq
+      ;; ...
+      local.get $t1
+      i32.const 2
+      i32.eq
       ;; ...
     end
-    ;; ...
+    local.get $t
+    local.get $other
   )
   (func $lend_mut (param $t i32) (param $other i32) (local $t0 i32) (local $t1 i32)
     block
@@ -354,9 +486,63 @@
       local.get $t
       i32.const 1
       i32.store $heap
+    ;; (no span)
+      local.get $t0
+      if
+        local.get $t0
+        local.get $t0
+        i32.load $heap
+        i32.const 2097152
+        i32.sub
+        i32.store $heap
+        local.get $t1
+        i32.const 1
+        i32.eq
+        ;; ...
+        local.get $t1
+        i32.const 2
+        i32.eq
+        ;; ...
+        i32.const 0
+        local.set $t0
+      end
+      local.get $t0
+      if
+        local.get $t0
+        local.get $t0
+        i32.load $heap
+        i32.const 2097152
+        i32.sub
+        i32.store $heap
+        local.get $t1
+        i32.const 1
+        i32.eq
+        ;; ...
+        local.get $t1
+        i32.const 2
+        i32.eq
+        ;; ...
+        i32.const 0
+        local.set $t0
+      end
+    end
+    local.get $t0
+    if
+      local.get $t0
+      local.get $t0
+      i32.load $heap
+      i32.const 2097152
+      i32.sub
+      i32.store $heap
+      local.get $t1
+      i32.const 1
+      i32.eq
+      ;; ...
+      local.get $t1
+      i32.const 2
+      i32.eq
       ;; ...
     end
-    ;; ...
   )
   (func $set (param $slot i32)
     ;; 44 |     *slot = +3

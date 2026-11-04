@@ -1,0 +1,26 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Named Arguments and Positional Spreads (spec/lang/05-expressions.md, #1364).
+# expected: `named`, `positional`, `spread_tuple` and `spread_list`
+# pass borrowed values with no count; `collect` allocates one vararg list holding `a`
+# and `b` (one retain each) and frees it after the call.
+fn join2(first: string, second: string) -> usize:
+    first.len() * 3 + second.len()
+
+fn count(values...: List[string]) -> usize:
+    values.len()
+
+fn named(a: string, b: string) -> usize:
+    join2(second=a, first=b)
+
+fn positional(a: string, b: string) -> usize:
+    join2(b, a)
+
+fn spread_tuple(pair: (string, string)) -> usize:
+    join2(pair...)
+
+fn spread_list(xs: List[string]) -> usize:
+    count(xs...)
+
+fn collect(a: string, b: string) -> usize:
+    count(a, b)

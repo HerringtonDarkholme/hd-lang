@@ -22,6 +22,10 @@
 //! - Memories are `buf`, `heap` and `stack`. Labels go; branch depths stay.
 //! - Two different things that would print alike take `'1`, `'2`, ... in
 //!   the order the view first names them.
+//! - A function with any instruction in the subject also prints every
+//!   instruction that has no source position (exit releases, the free of
+//!   a temporary, inlined glue) under `;; (no span)`, so the excerpt
+//!   hides nothing the function executes.
 //! - The excerpt is a WAT module with only referenced imports. Source
 //!   lines and omitted code are comments; control delimiters remain so
 //!   a filtered body parses without pretending it validates.
@@ -266,14 +270,26 @@ pub fn wat_for(p: &Program, at: Build) -> String {
             out.push('\n');
             let mut depth = 0usize;
             let mut source = None;
-            for (lo, toks) in kept {
-                if let Some(lo) = lo {
-                    let line = p.text[..*lo].bytes().filter(|b| *b == b'\n').count();
-                    if source != Some(line) {
-                        let text = p.text.lines().nth(line).unwrap_or_default();
-                        let _ = writeln!(out, "    ;; {} | {text}", line + 1);
-                        source = Some(line);
+            let mut unspanned = false;
+            for (at, toks) in kept {
+                match at {
+                    At::Source(lo) => {
+                        let line = p.text[..*lo].bytes().filter(|b| *b == b'\n').count();
+                        if source != Some(line) {
+                            let text = p.text.lines().nth(line).unwrap_or_default();
+                            let _ = writeln!(out, "    ;; {} | {text}", line + 1);
+                            source = Some(line);
+                        }
+                        unspanned = false;
                     }
+                    At::NoSpan => {
+                        if !unspanned {
+                            let _ = writeln!(out, "    ;; (no span)");
+                            unspanned = true;
+                        }
+                        source = None;
+                    }
+                    At::Structure => {}
                 }
                 let first = toks.first();
                 let closes = matches!(first, Some(Tok::Text(w)) if w == "end" || w == "else");
@@ -313,17 +329,45 @@ pub fn wat_for(p: &Program, at: Build) -> String {
     out
 }
 
-type Instructions = Vec<(Option<usize>, Vec<Tok>)>;
+type Instructions = Vec<(At, Vec<Tok>)>;
 type SourceInstructions = Vec<(Option<(usize, usize)>, Vec<Tok>)>;
 
-/// Keep the subject's instructions, plus only the control delimiters
+/// Where a kept instruction of an excerpt comes from.
+enum At {
+    /// The subject, at this source byte.
+    Source(usize),
+    /// No source position (an exit release, a temporary's free, inlined
+    /// glue): printed under `;; (no span)` so the excerpt hides nothing
+    /// a subject function executes.
+    NoSpan,
+    /// A control delimiter kept only so the excerpt parses.
+    Structure,
+}
+
+fn delimiter(ts: &[Tok]) -> bool {
+    matches!(ts.first(), Some(Tok::Text(w)) if matches!(w.as_str(), "block" | "loop" | "if" | "else" | "end"))
+}
+
+/// Keep the subject's instructions, every instruction of a subject
+/// function with no source position, and only the control delimiters
 /// needed to parse the excerpt. Omitted runs are comments, not code.
 fn focused(p: &Program, code: SourceInstructions) -> Instructions {
-    let mut keep: Vec<bool> = code
+    let subject: Vec<bool> = code
         .iter()
         .map(|(span, _)| span.is_some_and(|(lo, hi)| p.inside(lo, hi)))
         .collect();
-    let subject = keep.clone();
+    let unspanned: Vec<bool> = if subject.iter().any(|k| *k) {
+        code.iter()
+            .map(|(span, ts)| span.is_none() && !delimiter(ts))
+            .collect()
+    } else {
+        vec![false; code.len()]
+    };
+    let mut keep: Vec<bool> = subject
+        .iter()
+        .zip(&unspanned)
+        .map(|(s, u)| *s || *u)
+        .collect();
     let mut stack = Vec::new();
     let mut function_end = None;
     for (i, (_, ts)) in code.iter().enumerate() {
@@ -364,10 +408,15 @@ fn focused(p: &Program, code: SourceInstructions) -> Instructions {
             continue;
         }
         if keep {
-            out.push((span.filter(|_| subject[i]).map(|(lo, _)| lo), ts));
+            let at = match span {
+                Some((lo, _)) if subject[i] => At::Source(lo),
+                _ if unspanned[i] => At::NoSpan,
+                _ => At::Structure,
+            };
+            out.push((at, ts));
             omitted = false;
         } else if !omitted {
-            out.push((None, vec![Tok::Text(";; ...".into())]));
+            out.push((At::Structure, vec![Tok::Text(";; ...".into())]));
             omitted = true;
         }
     }

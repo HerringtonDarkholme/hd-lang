@@ -15,3 +15,5 @@ app/main/main
   release string
   release string
   release string
+  (no span) release app.main.Message
+  (no span) release string

@@ -16,3 +16,5 @@ fn sum_to(limit: i32) -> i32:
 >   retain fn(i32) -> i32
     sum(limit)
 >   retain fn(i32) -> i32
+>   (no span) release counted reference
+>   (no span) release fn(i32) -> i32

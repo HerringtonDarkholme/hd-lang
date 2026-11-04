@@ -3,8 +3,9 @@
   (import "fixture" "format_int[i32]" (func $"format_int[i32]" (param i32) (result i32 i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
   (func $named (param $n i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
@@ -38,7 +39,7 @@
           local.get $t0
           call $rt:memory_copy/0/0
           local.get $n
-          call $rt:release_ref
+          call $rt:release_ref'1
           local.get $t2
           local.get $t1
           local.set $t0
@@ -52,9 +53,11 @@
       call $"impl Wrap.size'1"
     ;; 27 |     let w = make(n)
       local.get $n
-      ;; ...
+    ;; (no span)
+      call $rt:release_ref'1
+      local.set $n
     end
-    ;; ...
+    local.get $n
   )
   (func $nums (param $n i64) (result i32) (local $t0 i32)
     block
@@ -73,9 +76,11 @@
       local.get $t0
       call $"impl Nums.count'1"
       local.get $t0
-      ;; ...
+    ;; (no span)
+      call $rt:release_ref'2
+      local.set $t0
     end
-    ;; ...
+    local.get $t0
   )
   (func $make (param $n i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     block
@@ -105,12 +110,18 @@
       local.get $n
       local.get $t0
       call $rt:memory_copy/0/0
-      ;; ...
+    ;; (no span)
+      local.get $n
+      call $rt:release_ref'1
+    ;; 16 |     Wrap { name: "x${n}" }
       local.get $t2
       local.get $t1
-      ;; ...
+    ;; (no span)
+      local.set $t0
+      local.set $n
     end
-    ;; ...
+    local.get $n
+    local.get $t0
   )
   (func $param (param $w.name.0 i32) (param $w.name.1 i32) (result i32)
     block
@@ -118,9 +129,12 @@
       local.get $w.name.0
       local.get $w.name.1
       call $"impl Wrap.size'1"
-      ;; ...
+    ;; (no span)
+      local.get $w.name.0
+      call $rt:release_ref'1
+      local.set $w.name.0
     end
-    ;; ...
+    local.get $w.name.0
   )
   (func $"impl Wrap.size'2" (param $self i32) (result i32) (local $t0 i32) (local $t1 i32)
     block
@@ -197,9 +211,10 @@
       end
       local.get $self
       i32.div_u
-      ;; ...
+    ;; (no span)
+      local.set $self
     end
-    ;; ...
+    local.get $self
   )
   (func $"impl Wrap.size'1" (param $self.name.0 i32) (param $self.name.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     block
@@ -268,9 +283,10 @@
       end
       local.get $self.name.0
       i32.div_u
-      ;; ...
+    ;; (no span)
+      local.set $self.name.0
     end
-    ;; ...
+    local.get $self.name.0
   )
   (func $total (param $n i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     block
@@ -303,7 +319,7 @@
           local.get $t0
           call $rt:memory_copy/0/0
           local.get $n
-          call $rt:release_ref
+          call $rt:release_ref'1
           local.get $t2
           local.get $t1
           local.set $t0
@@ -315,9 +331,11 @@
       local.get $t0
       call $"impl Wrap.size'1"
       local.get $n
-      ;; ...
+    ;; (no span)
+      call $rt:release_ref'1
+      local.set $n
     end
-    ;; ...
+    local.get $n
   )
   (func $"impl Nums.count'1" (param $self i32) (result i32)
     block
@@ -326,9 +344,10 @@
       i32.load $heap offset=4
       i32.const 1
       i32.add
-      ;; ...
+    ;; (no span)
+      local.set $self
     end
-    ;; ...
+    local.get $self
   )
   (func $"impl Nums.count'2" (param $self i32) (result i32)
     block
@@ -338,8 +357,9 @@
       i32.load $heap offset=4
       i32.const 1
       i32.add
-      ;; ...
+    ;; (no span)
+      local.set $self
     end
-    ;; ...
+    local.get $self
   )
 )

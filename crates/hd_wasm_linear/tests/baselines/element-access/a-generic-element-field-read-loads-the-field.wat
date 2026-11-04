@@ -47,6 +47,7 @@
         end
       end
     end
-    ;; ...
+    ;; (no span)
+    local.get $m.infos
   )
 )

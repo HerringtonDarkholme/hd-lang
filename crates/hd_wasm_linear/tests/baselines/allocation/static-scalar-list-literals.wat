@@ -4,7 +4,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "top_values" (global $top_values (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $local (result f64) (local $values i32)
+  (func $local (result f64) (local $t0 f64) (local $values i32)
     block
     ;; 10 |     values := [1.5, 2.5, 3.5]
       i32.const 24 ;; &scalar-list-buffer
@@ -20,9 +20,10 @@
       end
       local.get $values
       f64.load $heap offset=32
-      ;; ...
+    ;; (no span)
+      local.set $t0
     end
-    ;; ...
+    local.get $t0
   )
   (func $init.init
     block

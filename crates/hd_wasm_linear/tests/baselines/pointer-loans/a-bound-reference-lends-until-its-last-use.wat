@@ -75,7 +75,38 @@
       i32.load $heap offset=4
       local.tee $p
       call $rt:retain
-      ;; ...
+    ;; (no span)
+      local.get $t0
+      if
+        local.get $t0
+        local.get $t0
+        i32.load $heap
+        i32.const 2097152
+        i32.sub
+        i32.store $heap
+        local.get $t2
+        i32.const 1
+        i32.eq
+        ;; ...
+        i32.const 0
+        local.set $t0
+      end
+      local.get $t0
+      if
+        local.get $t0
+        local.get $t0
+        i32.load $heap
+        i32.const 2097152
+        i32.sub
+        i32.store $heap
+        local.get $t2
+        i32.const 1
+        i32.eq
+        ;; ...
+        i32.const 0
+        local.set $t0
+      end
+    ;; 13 |     seen := *r
       local.get $t1
     ;; 14 |     alias.other = "c"
       local.get $alias
@@ -107,8 +138,24 @@
       call $rt:release
     ;; 13 |     seen := *r
       local.get $p
+    ;; (no span)
+      local.set $alias
+      local.set $p
+    end
+    local.get $t0
+    if
+      local.get $t0
+      local.get $t0
+      i32.load $heap
+      i32.const 2097152
+      i32.sub
+      i32.store $heap
+      local.get $t2
+      i32.const 1
+      i32.eq
       ;; ...
     end
-    ;; ...
+    local.get $p
+    local.get $alias
   )
 )

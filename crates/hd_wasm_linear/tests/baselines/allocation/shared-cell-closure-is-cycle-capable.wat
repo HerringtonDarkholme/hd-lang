@@ -34,7 +34,12 @@
       local.get $t0
       call $rt:retain_fields
       ;; ...
+    ;; (no span)
+      local.get $seed
+      call $rt:release_ref
+      local.set $seed
     end
-    ;; ...
+    local.get $seed
+    local.get $t0
   )
 )

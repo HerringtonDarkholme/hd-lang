@@ -1,0 +1,19 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: assignment and compound assignment (#1364).
+# expected: `assign` and `assign_list` borrow both parameters and emit no
+# count; `compound` builds one new string and frees the old one.
+fn assign(a: string, b: string) -> usize:
+    let s = a
+    s = b
+    s.len()
+
+fn compound(a: string) -> string:
+    let s = a
+    s += "x"
+    s
+
+fn assign_list(xs: List[string], ys: List[string]) -> usize:
+    let zs = xs
+    zs = ys
+    zs.len()

@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $make (result i32 i32) (local $t0 i32)
+  (func $make (result i32 i32) (local $t0 i32) (local $t1 i32)
     block
     ;; 15 |     box(DynNode { next: .None })
       i32.const 12
@@ -19,9 +19,12 @@
       i32.store $heap offset=8
       local.get $t0
       i32.const 160 ;; &vtable[func55]
-      ;; ...
+    ;; (no span)
+      local.set $t1
+      local.set $t0
     end
-    ;; ...
+    local.get $t0
+    local.get $t1
   )
   (func $"impl Value for DynNode.value" (param $self i32) (result i32)
     ;; 12 |     fn value(&self) -> i32: +1

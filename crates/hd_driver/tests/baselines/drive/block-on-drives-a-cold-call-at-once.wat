@@ -2,13 +2,46 @@
 (module
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:forbid_check" (func $rt:forbid_check))
+  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "hd:rt/block" (func $hd:rt/block (result i32)))
   (import "fixture" "rt:wake_mark" (func $rt:wake_mark (param i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "locals" (global $locals (mut i32)))
+  (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "rewake" (global $rewake (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
   (func $drive_put (param $s.0 i32) (param $s.1 i32) (param $text.0 i32) (param $text.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $n i32)
-    ;; ...
+    ;; (no span)
+    global.get $locals
+    global.get $locals_base
+    i32.sub
+    i32.const 56
+    i32.lt_u
+    if
+      i32.const 1
+      memory.grow $heap
+      local.tee $t0
+      i32.const -1
+      i32.eq
+      if
+        unreachable
+      end
+      local.get $t0
+      i32.const 16
+      i32.shl
+      local.tee $t0
+      global.set $locals_base
+      local.get $t0
+      i32.const 65536
+      i32.add
+      global.set $locals
+    end
+    global.get $locals
+    i32.const 56
+    i32.sub
+    local.tee $t0
+    global.set $locals
     block
     ;; 11 |     let call: mut Suspend[i32] = s.put(text)
       local.get $s.0
@@ -26,7 +59,9 @@
       i32.load $heap offset=4
       call_indirect $table0 (param i32 i32 i32 i32) (result i32 i32)
       local.set $s.1
-      ;; ...
+    ;; (no span)
+      local.get $s.0
+      call $rt:release_ref'1
     ;; 12 |     match block_on(call):
       local.tee $s.0
       local.tee $text.1
@@ -81,7 +116,10 @@
           call_indirect $table0 (param i32)
         end
       end
-      ;; ...
+    ;; (no span)
+      local.get $s.0
+      call $rt:release_ref'2
+    ;; 12 |     match block_on(call):
       block
         block
           block
@@ -116,8 +154,16 @@
         end
         br 0
       end
-      ;; ...
+    ;; (no span)
+      local.get $n
+      local.set $s.0
     end
-    ;; ...
+    local.get $text.0
+    call $rt:release_ref'1
+    local.get $s.0
+    local.get $t0
+    i32.const 56
+    i32.add
+    global.set $locals
   )
 )

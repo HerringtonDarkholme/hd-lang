@@ -17,6 +17,7 @@
         end
       end
     end
-    ;; ...
+    ;; (no span)
+    local.get $values
   )
 )

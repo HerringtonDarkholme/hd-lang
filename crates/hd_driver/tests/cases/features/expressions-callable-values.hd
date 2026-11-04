@@ -1,0 +1,34 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Callable Values (`Apply`, `Update`) and a stored function field (spec/lang/05-expressions.md, #1364).
+# expected: `read_cell` and `stored_fn` take no count; `store_cell`
+# releases only the old value; `append_cell` builds one string and
+# releases the old one.
+use std.ops.{Apply, Update}
+
+struct Cell:
+    value: string
+
+impl Apply for Cell:
+    type Out = string
+    fn apply(self) -> string:
+        self.value
+
+impl Update[string] for Cell:
+    fn update(&mut self, value: string) -> void:
+        self.value = value
+
+struct Handler:
+    callback: fn(string) -> usize
+
+fn read_cell(c: Cell) -> usize:
+    c().len()
+
+fn store_cell(c: &mut Cell, s: string) -> void:
+    c() = s
+
+fn append_cell(c: &mut Cell) -> void:
+    c() += "!"
+
+fn stored_fn(h: Handler, s: string) -> usize:
+    (h.callback)(s)

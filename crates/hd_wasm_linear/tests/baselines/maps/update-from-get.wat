@@ -3,6 +3,7 @@
   (import "fixture" "rt:map_hash" (func $rt:map_hash (param i32 i32) (result i32)))
   (import "fixture" "rt:map_find" (func $rt:map_find (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "impl [ T < ? Copy ] T ?.unwrap_or[i64]" (func $"impl [ T < ? Copy ] T ?.unwrap_or[i64]" (param i32 i64 i64) (result i64)))
+  (import "fixture" "rt:map_unique" (func $rt:map_unique (param i32) (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:map_put" (func $rt:map_put (param i32 i32 i32 i32 i32 i64) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
@@ -46,7 +47,15 @@
       local.get $t2
       i64.const 0
       call $"impl [ T < ? Copy ] T ?.unwrap_or[i64]"
-      ;; ...
+    ;; (no span)
+      local.get $counts
+      i32.load $heap
+      call $rt:map_unique
+      local.set $t0
+      local.get $counts
+      local.get $t0
+      i32.store $heap
+      local.get $t0
     ;; 22 |     counts[other] = 0
       local.get $other.0
       local.get $other.1
@@ -59,7 +68,9 @@
       local.get $other.0
       call $retain
       local.get $counts
-      ;; ...
+    ;; (no span)
+      local.get $t0
+    ;; 22 |     counts[other] = 0
       local.get $t1
       local.get $t3
       local.get $other.0
@@ -71,7 +82,16 @@
       i64.const 1
       i64.add
       local.set $t2
-      ;; ...
+    ;; (no span)
+      local.get $counts
+      i32.load $heap
+      call $rt:map_unique
+      local.set $other.0
+      local.get $counts
+      local.get $other.0
+      i32.store $heap
+      local.get $other.0
+    ;; 23 |     counts[word] = seen + 1
       local.get $word.0
       local.get $word.1
       call $rt:map_hash
@@ -83,7 +103,9 @@
       local.get $word.0
       call $retain
       local.get $counts
-      ;; ...
+    ;; (no span)
+      local.get $other.0
+    ;; 23 |     counts[word] = seen + 1
       local.get $other.1
       local.get $t0
       local.get $word.0
@@ -164,11 +186,21 @@
         local.set $seen
         br 0
       end
-      ;; ...
+    ;; (no span)
+      local.get $counts
+      i32.load $heap
+      call $rt:map_unique
+      local.set $t0
+      local.get $counts
+      local.get $t0
+      i32.store $heap
+    ;; 9 |     counts[word] = match counts.get(word):
       local.get $word.0
       call $retain
       local.get $counts
-      ;; ...
+    ;; (no span)
+      local.get $t0
+    ;; 9 |     counts[word] = match counts.get(word):
       local.get $t1
       local.get $t2
       local.get $word.0
@@ -215,11 +247,21 @@
       i64.const 1
       i64.add
       local.set $t3
-      ;; ...
+    ;; (no span)
+      local.get $counts
+      i32.load $heap
+      call $rt:map_unique
+      local.set $t0
+      local.get $counts
+      local.get $t0
+      i32.store $heap
+    ;; 14 |     counts[word] += 1
       local.get $word.0
       call $retain
       local.get $counts
-      ;; ...
+    ;; (no span)
+      local.get $t0
+    ;; 14 |     counts[word] += 1
       local.get $t2
       local.get $t1
       local.get $word.0
@@ -272,11 +314,21 @@
       i64.const 1
       i64.add
       local.set $t3
-      ;; ...
+    ;; (no span)
+      local.get $counts
+      i32.load $heap
+      call $rt:map_unique
+      local.set $t0
+      local.get $counts
+      local.get $t0
+      i32.store $heap
+    ;; 6 |     counts[word] = counts.get(word).unwrap_or(0) + 1
       local.get $word.0
       call $retain
       local.get $counts
-      ;; ...
+    ;; (no span)
+      local.get $t0
+    ;; 6 |     counts[word] = counts.get(word).unwrap_or(0) + 1
       local.get $t1
       local.get $t2
       local.get $word.0

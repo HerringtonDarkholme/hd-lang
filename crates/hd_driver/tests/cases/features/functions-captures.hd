@@ -1,0 +1,30 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Captures, Copied And Shared Captures, Plain Closures, Mutable
+# Closures (spec/lang/07-functions.md, #1364).
+# expected: `copied` reads `s` from a closure that never escapes (no
+# environment allocation, no count); `shared_list` shares `xs` in one
+# cell and retains `s` once per push; `copy_shares` copies no cell;
+# `through_ptr` retains `items` and `s` into the escaping
+# environment once each.
+fn copied(s: string) -> usize:
+    f := fn() -> usize: s.len()
+    f() + s.len()
+
+fn shared_list(s: string) -> usize:
+    let mut xs: List[string] = []
+    add := fn() -> void: xs.push(s)
+    add()
+    add()
+    xs.len()
+
+fn copy_shares(s: string) -> usize:
+    let n: usize = 0
+    inc := fn() -> void: n += s.len()
+    again := inc
+    inc()
+    again()
+    n
+
+fn through_ptr(items: *mut List[string], s: string) -> fn() -> void:
+    fn() -> void: items.push(s)

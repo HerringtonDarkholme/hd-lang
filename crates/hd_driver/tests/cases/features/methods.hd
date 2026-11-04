@@ -1,0 +1,25 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: method calls and `self` kinds (#1364).
+# expected: `by_self` and `by_ref` take no count; `use_methods` copies
+# `s` once into the changed `t` and releases nothing else.
+struct Shelf:
+    books: List[string]
+
+impl Shelf:
+    fn by_self(self) -> usize:
+        (self.books.len() + 1) * (self.books.len() + 2) * (self.books.len() + 3) / 7
+
+    fn by_ref(&self) -> usize:
+        (self.books.len() + 1) * (self.books.len() + 2) * (self.books.len() + 3) / 7
+
+    fn by_mut(&mut self, b: string) -> void:
+        self.books.push(b)
+
+    fn consume(self) -> List[string]:
+        self.books
+
+fn use_methods(s: Shelf, b: string) -> usize:
+    let mut t = s
+    t.by_mut(b)
+    s.by_self() + s.by_ref() + t.consume().len()

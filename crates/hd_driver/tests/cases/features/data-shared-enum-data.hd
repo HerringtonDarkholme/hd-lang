@@ -1,0 +1,16 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Shared Enum Constructor Data, Shared Parameter Defaults,
+# Shared Fields (spec/lang/08-data-and-enums.md, #1364).
+# expected: `phrase_len` reads the variant's static `phrase` with no
+# count and no allocation; `phrase_of` returns static data.
+enum HttpStatus(code: i32, phrase: string, retryable: bool = false):
+    Ok -> HttpStatus(200, phrase="OK")
+    NotFound -> HttpStatus(404, phrase="Not Found")
+    Busy -> HttpStatus(503, phrase="Busy", retryable=true)
+
+fn phrase_len(s: HttpStatus) -> usize:
+    s.phrase.len()
+
+fn phrase_of(s: HttpStatus) -> string:
+    s.phrase

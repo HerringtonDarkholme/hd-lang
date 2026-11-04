@@ -19,6 +19,8 @@ impl[S] Handle[S]:
     fn keep(self, all: &mut List[Handle[S]]) -> void:
         if (self.n + 1) * (self.n + 2) * (self.n + 3) * (self.n + 4) > 0:
             all.push(self)
+> app/main/impl [ S ] Handle [ S ].keep
+>   (no span) release app.main.Handle[i32] [names, get.1]
 
 fn total(h: Handle[i32], times: i64) -> i64:
     let sum: i64 = 0
@@ -37,6 +39,7 @@ fn collect(h: Handle[i32]) -> usize:
 >   copy app.main.Handle[i32] [names, get.1]
     h.keep(&mut all)
     all.len()
+>   (no span) release List[app.main.Handle[i32]]
 
 fn size(x: i32) -> i64:
     i64(x)
@@ -50,3 +53,4 @@ pub fn main() -> void $ Console:
 >   release List[app.main.Handle[i32]]
 >   copy app.main.Handle[i32] [names, get.1]
 >   release List[app.main.Handle[i32]]
+>   (no span) release string

@@ -1,0 +1,18 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Data Patterns (spec/lang/08-data-and-enums.md, #1364).
+# expected: `sizes` binds `name` and `tags` without a count; `pick`
+# moves only the field it returns and releases the rest once.
+struct User:
+    name: string
+    tags: List[string]
+    age: i32
+
+fn sizes(u: User) -> usize:
+    match u:
+        User { name, tags } => name.len() + tags.len()
+
+fn pick(u: User) -> string:
+    match u:
+        User { age: 0 } => "none"
+        User { name } => name

@@ -4,30 +4,61 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "advance" (func $advance (param i32 f64)))
   (import "fixture" "first" (func $first (param i32) (result f64)))
+  (import "fixture" "locals" (global $locals (mut i32)))
+  (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $run (param $steps i64) (result f64) (local $t4 f64) (local $t0 i32) (local $t1 i32) (local $bodies i32) (local $t2 i32) (local $t3 i64)
-    ;; ...
+  (func $run (param $steps i64) (result f64) (local $t4 f64) (local $t1 i32) (local $t2 i32) (local $bodies i32) (local $t0 i32) (local $t3 i64)
+    ;; (no span)
+    global.get $locals
+    global.get $locals_base
+    i32.sub
+    i32.const 16
+    i32.lt_u
+    if
+      i32.const 1
+      memory.grow $heap
+      local.tee $t0
+      i32.const -1
+      i32.eq
+      if
+        unreachable
+      end
+      local.get $t0
+      i32.const 16
+      i32.shl
+      local.tee $t0
+      global.set $locals_base
+      local.get $t0
+      i32.const 65536
+      i32.add
+      global.set $locals
+    end
+    global.get $locals
+    i32.const 16
+    i32.sub
+    local.tee $t0
+    global.set $locals
     block
     ;; 21 |     let mut bodies = [Body { x: 1.0, vx: 2.0 }, Body { x: 3.0, vx: 4.0 }]
       i32.const 2
       call $rt:list_buf
-      local.tee $t0
+      local.tee $t1
       i32.const 2
       i32.store $heap offset=4
-      local.get $t0
-      local.tee $t1
+      local.get $t1
+      local.tee $t2
       f64.const 0x1p+0
       f64.store $heap offset=16
-      local.get $t1
+      local.get $t2
       f64.const 0x1p+1
       f64.store $heap offset=24
-      local.get $t1
+      local.get $t2
       i32.const 16
       i32.add
-      local.tee $t1
+      local.tee $t2
       f64.const 0x1.8p+1
       f64.store $heap offset=16
-      local.get $t1
+      local.get $t2
       f64.const 0x1p+2
       f64.store $heap offset=24
       local.get $bodies
@@ -36,14 +67,14 @@
         i32.load $heap
         call $rt:release_ref
       end
-      local.get $t2
+      local.get $t0
       i64.const 0
       i64.store $heap
-      local.get $t2
+      local.get $t0
       i32.const 8
       i32.add
       local.tee $bodies
-      local.get $t0
+      local.get $t1
       i32.store $heap
     ;; 22 |     for _ in 0..steps:
       block
@@ -69,8 +100,18 @@
       local.get $bodies
       call $first
       local.set $t4
-      ;; ...
+    ;; (no span)
+      local.get $bodies
+      if
+        local.get $bodies
+        i32.load $heap
+        call $rt:release_ref
+      end
     end
-    ;; ...
+    local.get $t4
+    local.get $t0
+    i32.const 16
+    i32.add
+    global.set $locals
   )
 )

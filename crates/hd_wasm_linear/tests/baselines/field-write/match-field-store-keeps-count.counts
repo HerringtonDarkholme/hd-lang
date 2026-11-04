@@ -16,3 +16,4 @@ fn value(node: &Node, other: &mut Node) -> i64:
             other.left = .None
 >   release counted reference
             left.value
+>   (no span) release &app.main.Node

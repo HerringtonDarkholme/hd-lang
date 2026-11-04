@@ -1,0 +1,16 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Fieldless Data Types (spec/lang/08-data-and-enums.md, #1364).
+# expected: constructing, passing and returning `Unit` allocates nothing
+# and counts nothing.
+struct Unit: pass
+
+struct Tagged:
+    unit: Unit
+    name: string
+
+fn make() -> Unit:
+    Unit {}
+
+fn wrap(name: string) -> Tagged:
+    Tagged { unit: make(), name: name }

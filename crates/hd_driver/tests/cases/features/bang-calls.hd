@@ -1,0 +1,19 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: bang calls, `join!` and `race!` (#1364).
+# expected: a frame holds one count of each argument; the results are
+# moved out; at most the suspension counts of #1355.
+use std.task.{join, race}
+
+fn label!(s: string) -> string:
+    s + "!"
+
+fn one!(s: string) -> usize:
+    label!(s).len()
+
+fn both!(a: string, b: string) -> usize:
+    let (x, y) = join!(label(a), label(b))
+    x.len() + y.len()
+
+fn either!(a: string, b: string) -> usize:
+    race!(label(a), label(b)).len()

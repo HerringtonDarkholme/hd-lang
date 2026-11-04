@@ -1,0 +1,26 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Data Embedding, Embedded Field Names, Member Promotion,
+# Composition (spec/lang/08-data-and-enums.md, #1364).
+# expected: the literal moves `s` and `t` into the embedded struct
+# inline; a promoted field read and a promoted `&self` method take no
+# count; `stamp_of` retains only the `Stamp` it returns.
+struct Stamp:
+    pub by: string
+
+impl Stamp:
+    pub fn by_len(&self) -> usize:
+        self.by.len()
+
+struct Post:
+    Stamp
+    title: string
+
+fn make(s: string, t: string) -> Post:
+    Post { Stamp: Stamp { by: s }, title: t }
+
+fn promoted(p: Post) -> usize:
+    p.by.len() + p.by_len() + p.title.len()
+
+fn stamp_of(p: &Post) -> Stamp:
+    p.Stamp

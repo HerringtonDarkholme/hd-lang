@@ -3,9 +3,40 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "impl User.name" (func $"impl User.name" (param i32 i32) (result i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
+  (import "fixture" "locals" (global $locals (mut i32)))
+  (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $length (result i32) (local $seen i32) (local $t0 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $user i32)
-    ;; ...
+    ;; (no span)
+    global.get $locals
+    global.get $locals_base
+    i32.sub
+    i32.const 40
+    i32.lt_u
+    if
+      i32.const 1
+      memory.grow $heap
+      local.tee $t0
+      i32.const -1
+      i32.eq
+      if
+        unreachable
+      end
+      local.get $t0
+      i32.const 16
+      i32.shl
+      local.tee $t0
+      global.set $locals_base
+      local.get $t0
+      i32.const 65536
+      i32.add
+      global.set $locals
+    end
+    global.get $locals
+    i32.const 40
+    i32.sub
+    local.tee $t0
+    global.set $locals
     block
     ;; 19 |     let mut seen = +0
       local.get $t0
@@ -52,8 +83,18 @@
     ;; 22 |     n.len()
       call $"impl string.len"
       local.set $seen
-      ;; ...
+    ;; (no span)
+      local.get $user
+      if
+        local.get $user
+        i32.load $heap
+        call $rt:release_ref
+      end
     end
-    ;; ...
+    local.get $seen
+    local.get $t0
+    i32.const 40
+    i32.add
+    global.set $locals
   )
 )

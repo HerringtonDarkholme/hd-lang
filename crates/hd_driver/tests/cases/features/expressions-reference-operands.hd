@@ -1,0 +1,21 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Reference Operands of `==`, `<` and arithmetic (spec/lang/05-expressions.md, #1364).
+# expected: no count and no release: every operator reads through the
+# local reference in place.
+fn eq_refs(a: &string, b: &mut string) -> bool:
+    a == b
+
+fn eq_lit(name: &string) -> bool:
+    name == "ada"
+
+fn arith(x: &i64, y: &i64) -> i64:
+    let total = x * 2 + 1
+    total += y
+    total
+
+fn order_refs(a: &string, b: &string) -> bool:
+    a < b
+
+fn list_eq(a: &List[string], b: &List[string]) -> bool:
+    a == b

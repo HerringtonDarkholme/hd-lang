@@ -18,9 +18,10 @@
       local.get $p
     ;; 14 |     n.len()
       call $"impl string.len"
-      ;; ...
+    ;; (no span)
+      local.set $p
     end
-    ;; ...
+    local.get $p
   )
   (func $"impl Named.set" (param $self i32) (param $name.0 i32) (param $name.1 i32)
     ;; 10 |         self.name = name

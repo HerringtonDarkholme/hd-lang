@@ -15,3 +15,4 @@ fn value(node: &Node) -> i64:
         .None => 0
 >   release &app.main.Node?
         .Some(left) => read(left)
+>   (no span) release &app.main.Node

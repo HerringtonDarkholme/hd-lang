@@ -1,0 +1,30 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Generic Traits, Associated Types, Associated Type Bindings,
+# Bound Associated Types (spec/lang/09-traits.md, #1364).
+# expected: `first` and `read` return the stored `string` with one
+# retain; `first_len` reads it with no count; `read` dispatches through
+# the vtable with the `&dyn` count of #1354 at most.
+trait Supplier:
+    type Item
+    fn get(&self) -> Self::Item
+
+struct Constant:
+    value: string
+
+impl Supplier for Constant:
+    type Item = string
+    fn get(&self) -> string:
+        self.value
+
+fn first[T < Supplier](source: T) -> T::Item:
+    source.get()
+
+fn first_len(c: Constant) -> usize:
+    first(c).len()
+
+fn read(source: &dyn Supplier[Item = string]) -> usize:
+    source.get().len()
+
+fn read_const(c: Constant) -> usize:
+    read(&c)

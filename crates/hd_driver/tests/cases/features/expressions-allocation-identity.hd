@@ -1,0 +1,19 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Allocation Identity: `is` after a `&mut dyn` conversion (spec/lang/05-expressions.md, #1364).
+# expected: the conversions allocate no wrapper, and `is` compares one
+# place; any count on the conversion is the `&dyn` design (#1354).
+trait Named:
+    fn name(&self) -> string
+
+struct User:
+    name: string
+
+impl Named for User:
+    fn name(&self) -> string:
+        self.name
+
+fn same_dyn(user: &mut User) -> bool:
+    let first: &mut dyn Named = user
+    let second: &mut dyn Named = user
+    first is second

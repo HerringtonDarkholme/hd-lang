@@ -1,0 +1,14 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Unit Pattern (spec/lang/06-control-flow.md, #1364).
+# expected: `.Ok(())` reads the tag only; `report` returns the error
+# message moved out of the result with no extra count.
+fn save(s: string) -> Result[void, string]:
+    if s.len() > 0:
+        return .Ok(())
+    .Err(s + "?")
+
+fn report(s: string) -> string:
+    match save(s):
+        .Ok(()) => "saved"
+        .Err(message) => message

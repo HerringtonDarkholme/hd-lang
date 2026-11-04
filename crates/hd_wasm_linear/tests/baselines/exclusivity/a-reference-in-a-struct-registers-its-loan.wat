@@ -4,6 +4,7 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
+  (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $in_struct (param $t i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     block
@@ -75,9 +76,86 @@
       local.get $t
       local.set $alias
       local.set $t
+    ;; (no span)
+      local.get $t0
+      if
+        local.get $t0
+        i32.load $heap
+        local.tee $t2
+        i32.const 2031616
+        i32.and
+        i32.const 2031616
+        i32.eq
+        if
+          local.get $t0
+          call $rt:loan_unshare
+        else
+          local.get $t0
+          local.get $t2
+          i32.const 65536
+          i32.sub
+          i32.store $heap
+        end
+        local.get $t1
+        i32.const 1
+        i32.eq
+        ;; ...
+        i32.const 0
+        local.set $t0
+      end
+      local.get $t0
+      if
+        local.get $t0
+        i32.load $heap
+        local.tee $t2
+        i32.const 2031616
+        i32.and
+        i32.const 2031616
+        i32.eq
+        if
+          local.get $t0
+          call $rt:loan_unshare
+        else
+          local.get $t0
+          local.get $t2
+          i32.const 65536
+          i32.sub
+          i32.store $heap
+        end
+        local.get $t1
+        i32.const 1
+        i32.eq
+        ;; ...
+        i32.const 0
+        local.set $t0
+      end
+    end
+    local.get $t0
+    if
+      local.get $t0
+      i32.load $heap
+      local.tee $t2
+      i32.const 2031616
+      i32.and
+      i32.const 2031616
+      i32.eq
+      if
+        local.get $t0
+        call $rt:loan_unshare
+      else
+        local.get $t0
+        local.get $t2
+        i32.const 65536
+        i32.sub
+        i32.store $heap
+      end
+      local.get $t1
+      i32.const 1
+      i32.eq
       ;; ...
     end
-    ;; ...
+    local.get $t
+    local.get $alias
   )
   (func $in_option (param $t i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t5 i32) (local $t3 i32) (local $t4 i32)
     block
@@ -184,9 +262,112 @@
         local.set $t
         br 0
       end
+    ;; (no span)
+      local.get $t3
+      if
+        local.get $t3
+        i32.load $heap
+        local.tee $alias
+        i32.const 2031616
+        i32.and
+        i32.const 2031616
+        i32.eq
+        if
+          local.get $t3
+          call $rt:loan_unshare
+        else
+          local.get $t3
+          local.get $alias
+          i32.const 65536
+          i32.sub
+          i32.store $heap
+        end
+        local.get $t4
+        i32.const 1
+        i32.eq
+        ;; ...
+        i32.const 0
+        local.set $t3
+      end
+      local.get $t3
+      if
+        local.get $t3
+        i32.load $heap
+        local.tee $alias
+        i32.const 2031616
+        i32.and
+        i32.const 2031616
+        i32.eq
+        if
+          local.get $t3
+          call $rt:loan_unshare
+        else
+          local.get $t3
+          local.get $alias
+          i32.const 65536
+          i32.sub
+          i32.store $heap
+        end
+        local.get $t4
+        i32.const 1
+        i32.eq
+        ;; ...
+        i32.const 0
+        local.set $t3
+      end
+      local.get $t5
+      local.set $alias
+    end
+    local.get $t0
+    if
+      local.get $t0
+      i32.load $heap
+      local.tee $t2
+      i32.const 2031616
+      i32.and
+      i32.const 2031616
+      i32.eq
+      if
+        local.get $t0
+        call $rt:loan_unshare
+      else
+        local.get $t0
+        local.get $t2
+        i32.const 65536
+        i32.sub
+        i32.store $heap
+      end
+      local.get $t1
+      i32.const 1
+      i32.eq
       ;; ...
     end
-    ;; ...
+    local.get $t3
+    if
+      local.get $t3
+      i32.load $heap
+      local.tee $t0
+      i32.const 2031616
+      i32.and
+      i32.const 2031616
+      i32.eq
+      if
+        local.get $t3
+        call $rt:loan_unshare
+      else
+        local.get $t3
+        local.get $t0
+        i32.const 65536
+        i32.sub
+        i32.store $heap
+      end
+      local.get $t4
+      i32.const 1
+      i32.eq
+      ;; ...
+    end
+    local.get $t
+    local.get $alias
   )
   (func $in_tuple (param $t i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     block
@@ -258,8 +439,85 @@
       local.get $t
       local.set $alias
       local.set $t
+    ;; (no span)
+      local.get $t0
+      if
+        local.get $t0
+        i32.load $heap
+        local.tee $t2
+        i32.const 2031616
+        i32.and
+        i32.const 2031616
+        i32.eq
+        if
+          local.get $t0
+          call $rt:loan_unshare
+        else
+          local.get $t0
+          local.get $t2
+          i32.const 65536
+          i32.sub
+          i32.store $heap
+        end
+        local.get $t1
+        i32.const 1
+        i32.eq
+        ;; ...
+        i32.const 0
+        local.set $t0
+      end
+      local.get $t0
+      if
+        local.get $t0
+        i32.load $heap
+        local.tee $t2
+        i32.const 2031616
+        i32.and
+        i32.const 2031616
+        i32.eq
+        if
+          local.get $t0
+          call $rt:loan_unshare
+        else
+          local.get $t0
+          local.get $t2
+          i32.const 65536
+          i32.sub
+          i32.store $heap
+        end
+        local.get $t1
+        i32.const 1
+        i32.eq
+        ;; ...
+        i32.const 0
+        local.set $t0
+      end
+    end
+    local.get $t0
+    if
+      local.get $t0
+      i32.load $heap
+      local.tee $t2
+      i32.const 2031616
+      i32.and
+      i32.const 2031616
+      i32.eq
+      if
+        local.get $t0
+        call $rt:loan_unshare
+      else
+        local.get $t0
+        local.get $t2
+        i32.const 65536
+        i32.sub
+        i32.store $heap
+      end
+      local.get $t1
+      i32.const 1
+      i32.eq
       ;; ...
     end
-    ;; ...
+    local.get $t
+    local.get $alias
   )
 )

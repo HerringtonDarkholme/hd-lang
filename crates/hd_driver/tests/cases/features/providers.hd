@@ -1,0 +1,23 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: `$.with` providers (#1364).
+# expected: installing the box takes no count beyond the provider slot's;
+# `$.use` reads the provider with no count (the `&dyn` class of #1354 at
+# most); `name` retains the string it returns.
+trait Namer:
+    fn name(&self) -> string
+
+struct Fixed:
+    n: string
+
+impl Namer for Fixed:
+    fn name(&self) -> string:
+        self.n
+
+fn ask() -> usize $ Namer:
+    $.use(Namer).name().len()
+
+fn install(s: string) -> usize:
+    f := box(Fixed { n: s })
+    $.with(Namer=f):
+        ask()

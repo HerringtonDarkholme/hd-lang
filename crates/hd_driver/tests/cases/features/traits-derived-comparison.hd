@@ -1,0 +1,26 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Comparison Traits, Hashing, Derived Implementations, Derived
+# Equality, Derived Ordering, Derived Hashing, Derived Tuple
+# Implementations (spec/lang/09-traits.md, #1364).
+# expected: `same` and `before` compare the fields in place with no
+# count and no frame slot; `lookup` hashes `k` borrowed and takes no
+# count beyond the returned value's.
+@derive(Eq, PartialOrd, Ord, Hash)
+struct Key:
+    name: string
+    n: i32
+
+fn same(a: Key, b: Key) -> bool:
+    a == b
+
+fn before(a: Key, b: Key) -> bool:
+    a < b
+
+fn lookup(m: Map[Key, string], k: Key) -> usize:
+    match m.get(k):
+        .Some(v) => v.len()
+        .None => 0
+
+fn tuple_key(m: Map[(string, i32), i32], s: string) -> i32:
+    m.get((s, 1)).unwrap_or(0)

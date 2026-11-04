@@ -26,6 +26,7 @@ impl[T] Members[T]:
         self.infos[i].name
 > app/main/impl [ T ] Members [ T ].name_at
 >   retain string
+>   (no span) release app.main.Members[i32] [infos, points]
 
     fn y_at(self, i: usize) -> i64:
         self.points[i].y
@@ -41,6 +42,7 @@ fn name_at(infos: List[Info], i: usize) -> string:
     infos[i].name
 > app/main/name_at
 >   retain string
+>   (no span) release List[app.main.Info]
 
 fn y_at(points: List[Point], i: usize) -> i64:
     points[i].y
@@ -53,6 +55,8 @@ struct Wrap[T]:
 
 fn n_at[T](xs: List[Wrap[T]], i: usize) -> usize:
     xs[i].n
+> app/main/n_at
+>   (no span) release List[app.main.Wrap[string]]
 
 fn use_generic(m: Members[i32], xs: List[Wrap[string]], i: usize) -> i64:
     name := m.name_at(i)
@@ -61,4 +65,6 @@ fn use_generic(m: Members[i32], xs: List[Wrap[string]], i: usize) -> i64:
     if m.position_at(i) + n_at(xs, i) + name.len() > 0:
 >   copy app.main.Members[i32] [infos, points]
         return m.y_at(i)
+>   (no span) release string
+>   (no span) release app.main.Members[i32] [infos, points]
     0

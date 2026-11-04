@@ -69,9 +69,52 @@
       local.get $r
       i32.load $heap
       local.set $r
+    ;; (no span)
+      local.get $t0
+      if
+        local.get $t0
+        local.get $t0
+        i32.load $heap
+        i32.const 2097152
+        i32.sub
+        i32.store $heap
+        local.get $t1
+        i32.const 1
+        i32.eq
+        ;; ...
+        i32.const 0
+        local.set $t0
+      end
+      local.get $t0
+      if
+        local.get $t0
+        local.get $t0
+        i32.load $heap
+        i32.const 2097152
+        i32.sub
+        i32.store $heap
+        local.get $t1
+        i32.const 1
+        i32.eq
+        ;; ...
+        i32.const 0
+        local.set $t0
+      end
+    end
+    local.get $t0
+    if
+      local.get $t0
+      local.get $t0
+      i32.load $heap
+      i32.const 2097152
+      i32.sub
+      i32.store $heap
+      local.get $t1
+      i32.const 1
+      i32.eq
       ;; ...
     end
-    ;; ...
+    local.get $r
   )
   (func $add (local $t0 i32)
     ;; 17 |     TOTAL.value = TOTAL.value + 1

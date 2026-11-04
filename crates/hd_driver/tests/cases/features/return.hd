@@ -1,0 +1,22 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: return (#1364).
+# expected: `use_rets` only reads the results, so it takes no count
+# beyond what a callee must hand back as its own result.
+struct Rec:
+    name: string
+
+fn ret_param(s: string) -> string:
+    s
+
+fn ret_field(r: Rec) -> string:
+    r.name
+
+fn ret_new(n: i64) -> string:
+    "n=${n}"
+
+fn ret_ref_field(r: &Rec) -> &string:
+    &r.name
+
+fn use_rets(r: Rec) -> usize:
+    ret_param(r.name).len() + ret_field(r).len() + ret_ref_field(&r).len()

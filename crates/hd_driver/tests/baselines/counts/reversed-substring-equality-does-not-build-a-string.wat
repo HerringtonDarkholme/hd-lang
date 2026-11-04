@@ -3,8 +3,9 @@
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:bytes_mismatch" (func $rt:bytes_mismatch (param i32 i32 i32 i32) (result i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $right (param $text.0 i32) (param $text.1 i32) (param $start i32) (param $end i32) (param $needle.0 i32) (param $needle.1 i32) (result i32) (local $t0 i32)
+  (func $right (param $text.0 i32) (param $text.1 i32) (param $start i32) (param $end i32) (param $needle.0 i32) (param $needle.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     block
     ;; 6 |     same := needle == text.slice(start, end)
       local.get $start
@@ -86,7 +87,14 @@
         i32.const 0
       end
       ;; ...
+    ;; (no span)
+      local.get $text.0
+      call $rt:release_ref
+      local.get $t1
+      local.set $text.0
     end
-    ;; ...
+    local.get $needle.0
+    call $rt:release_ref
+    local.get $text.0
   )
 )

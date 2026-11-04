@@ -2,3 +2,7 @@
 app/main/reassigned
   copy List[string]
   release List[string]
+  (no span) release List[string]
+  (no span) release List[string]
+  (no span) release string
+  (no span) release List[string]

@@ -1,0 +1,14 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: top-level bindings (#1364).
+# expected: the initializer stores each value with no count beyond the
+# temporaries it frees; a read takes none; `copy_top` retains once.
+greeting := "hello ${1}"
+
+names := ["a${1}", "b"]
+
+fn read_top() -> usize:
+    greeting.len() + names.len()
+
+fn copy_top() -> string:
+    greeting

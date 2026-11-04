@@ -60,8 +60,9 @@
       end
     ;; 10 |     sum
       local.get $sum
-      ;; ...
+    ;; (no span)
+      local.set $xs
     end
-    ;; ...
+    local.get $xs
   )
 )

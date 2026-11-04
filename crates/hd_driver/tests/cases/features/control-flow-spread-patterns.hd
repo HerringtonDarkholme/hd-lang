@@ -1,0 +1,17 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Spread Patterns (spec/lang/06-control-flow.md, #1364).
+# expected: a spread binding names the tuple's rest list in place: no
+# copy and no count when it is only read; `rest` returns the list with
+# one retain at most.
+fn total(t: (string, List[string]...)) -> usize:
+    let (a, xs...) = t
+    a.len() + xs.len()
+
+fn describe(t: (string, List[string]...)) -> usize:
+    match t:
+        (_, xs...) => xs.len()
+
+fn rest(t: (string, List[string]...)) -> List[string]:
+    let (_, xs...) = t
+    xs

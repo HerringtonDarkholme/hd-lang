@@ -32,9 +32,10 @@
       local.get $left
       local.get $right
       call $apply
-      ;; ...
+    ;; (no span)
+      local.set $reverse
     end
-    ;; ...
+    local.get $reverse
   )
   (func $difference#2 (param $env i32) (param $a i32) (param $b i32) (param $ctx i32) (result i32)
     ;; 12 |     by := if reverse: fn(a: &i32, b: &i32): *b - *a else: fn(a: &i32, b: &i32): *a - *b

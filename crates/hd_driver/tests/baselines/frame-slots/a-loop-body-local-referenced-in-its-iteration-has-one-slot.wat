@@ -2,49 +2,80 @@
 (module
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "bump" (func $bump (param i32)))
+  (import "fixture" "locals" (global $locals (mut i32)))
+  (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $each (param $k i64) (result i64) (local $sum i64) (local $t0 i64) (local $t2 i64) (local $r i32) (local $t1 i32) (local $tally i32) (local $t3 i32)
-    ;; ...
+  (func $each (param $k i64) (result i64) (local $sum i64) (local $t1 i64) (local $t3 i64) (local $r i32) (local $t2 i32) (local $tally i32) (local $t0 i32)
+    ;; (no span)
+    global.get $locals
+    global.get $locals_base
+    i32.sub
+    i32.const 24
+    i32.lt_u
+    if
+      i32.const 1
+      memory.grow $heap
+      local.tee $t0
+      i32.const -1
+      i32.eq
+      if
+        unreachable
+      end
+      local.get $t0
+      i32.const 16
+      i32.shl
+      local.tee $t0
+      global.set $locals_base
+      local.get $t0
+      i32.const 65536
+      i32.add
+      global.set $locals
+    end
+    global.get $locals
+    i32.const 24
+    i32.sub
+    local.tee $t0
+    global.set $locals
     block
     ;; 17 |     for i in 0..k:
       block
         loop
-          local.get $t0
+          local.get $t1
           local.get $k
           i64.lt_s
           i32.eqz
           br_if 1
-          local.get $t0
-          local.get $t0
+          local.get $t1
+          local.get $t1
           i64.const 1
           i64.add
-          local.set $t0
+          local.set $t1
     ;; 18 |         let mut tally = Tally { n: i, name: "tally" }
           i32.const 65 ;; &"tally"
           i32.const 5
-          local.set $t1
-          local.set $r
           local.set $t2
+          local.set $r
+          local.set $t3
           local.get $tally
           if
             local.get $tally
             i32.load $heap offset=8
             call $rt:release_ref
           end
-          local.get $t3
+          local.get $t0
           i64.const 0
           i64.store $heap
-          local.get $t3
+          local.get $t0
           i32.const 8
           i32.add
           local.tee $tally
-          local.get $t2
+          local.get $t3
           i64.store $heap
           local.get $tally
           local.get $r
           i32.store $heap offset=8
           local.get $tally
-          local.get $t1
+          local.get $t2
           i32.store $heap offset=12
           local.get $tally
     ;; 19 |         let r = &mut tally
@@ -71,8 +102,13 @@
       end
     ;; 22 |     sum
       local.get $sum
-      ;; ...
+    ;; (no span)
+      local.set $k
     end
-    ;; ...
+    local.get $k
+    local.get $t0
+    i32.const 24
+    i32.add
+    global.set $locals
   )
 )

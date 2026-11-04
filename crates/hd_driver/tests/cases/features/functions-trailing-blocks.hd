@@ -1,0 +1,19 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Trailing Callback Blocks, Multiple Inline Closures (spec/lang/07-functions.md, #1364).
+# expected: each trailing block is a closure that never escapes: no
+# environment allocation; `trailing` builds one string and frees it;
+# `no_args` takes no count.
+fn measure(label: string, body: fn() -> string) -> usize:
+    label.len() + body().len()
+
+fn trailing(s: string) -> usize:
+    measure("t"):
+        s + "!"
+
+fn twice(body: fn() -> usize) -> usize:
+    body() + body()
+
+fn no_args(s: string) -> usize:
+    twice:
+        s.len()

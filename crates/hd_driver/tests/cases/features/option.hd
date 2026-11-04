@@ -1,0 +1,16 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: `Option` and `?` (#1364).
+# expected: no count in `unwrap` or `question`: the payload is only read
+# or consumed by `+`; `or_default` moves the payload out.
+fn unwrap(o: string?) -> usize:
+    match o:
+        .Some(s) => s.len()
+        .None => 0
+
+fn question(o: string?) -> string?:
+    s := o?
+    .Some(s + "!")
+
+fn or_default(o: string?) -> string:
+    o.unwrap_or("none")

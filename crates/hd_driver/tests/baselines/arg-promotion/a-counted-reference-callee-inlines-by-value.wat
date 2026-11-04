@@ -22,9 +22,10 @@
       local.get $self
       i32.const 1
       i32.add
-      ;; ...
+    ;; (no span)
+      local.set $self
     end
-    ;; ...
+    local.get $self
   )
   (func $temp (param $n i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     block
@@ -85,9 +86,13 @@
           br 0
         end
       end
-      ;; ...
+    ;; (no span)
+      local.get $n
+      call $rt:release_ref
+      local.get $t0
+      local.set $n
     end
-    ;; ...
+    local.get $n
   )
   (func $"impl Name.width" (param $self i32) (result i32)
     block
@@ -106,9 +111,10 @@
       local.get $self
       i32.const 1
       i32.add
-      ;; ...
+    ;; (no span)
+      local.set $self
     end
-    ;; ...
+    local.get $self
   )
   (func $named (param $n i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     block
@@ -138,7 +144,10 @@
       local.get $n
       local.get $t0
       call $rt:memory_copy/0/0
-      ;; ...
+    ;; (no span)
+      local.get $n
+      call $rt:release_ref
+    ;; 39 |     Name("n${n}").width()
       local.get $t2
       local.get $t1
       local.set $t0
@@ -159,9 +168,13 @@
           br 0
         end
       end
-      ;; ...
+    ;; (no span)
+      local.get $n
+      call $rt:release_ref
+      local.get $t0
+      local.set $n
     end
-    ;; ...
+    local.get $n
   )
   (func $make (param $n i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     block
@@ -191,12 +204,18 @@
       local.get $n
       local.get $t0
       call $rt:memory_copy/0/0
-      ;; ...
+    ;; (no span)
+      local.get $n
+      call $rt:release_ref
+    ;; 15 |     Text { s: "x${n}" }
       local.get $t2
       local.get $t1
-      ;; ...
+    ;; (no span)
+      local.set $t0
+      local.set $n
     end
-    ;; ...
+    local.get $n
+    local.get $t0
   )
   (func $param (param $t.s.0 i32) (param $t.s.1 i32) (result i32)
     block
@@ -220,7 +239,8 @@
         end
       end
     end
-    ;; ...
+    ;; (no span)
+    local.get $t.s.0
   )
   (func $twice (param $n i32) (result i32) (local $t.s.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     block
@@ -301,12 +321,16 @@
           br 0
         end
       end
-      ;; ...
+    ;; (no span)
+      local.get $n
+      call $rt:release_ref
+    ;; 27 |     a + t.size()
       local.get $t0
       local.get $t.s.1
       i32.add
-      ;; ...
+    ;; (no span)
+      local.set $n
     end
-    ;; ...
+    local.get $n
   )
 )

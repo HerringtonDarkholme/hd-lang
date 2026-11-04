@@ -50,7 +50,9 @@
         end
       end
       ;; ...
+    ;; (no span)
+      local.set $n
     end
-    ;; ...
+    local.get $n
   )
 )

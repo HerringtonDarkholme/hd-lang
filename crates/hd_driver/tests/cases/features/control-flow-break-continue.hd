@@ -1,0 +1,16 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Break And Continue (spec/lang/06-control-flow.md, #1364).
+# expected: the body's string `t` is released once on every path out of
+# the body: `continue`, `break` and the normal end; no count for the
+# element `x`, which is only read.
+fn until_long(xs: List[string]) -> usize:
+    let n: usize = 0
+    for x in xs:
+        t := x + "!"
+        if t.len() < 3:
+            continue
+        if t.len() > 9:
+            break
+        n += t.len()
+    n
