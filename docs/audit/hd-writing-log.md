@@ -958,3 +958,4 @@ says that the check covered syntax only.
 | 2026-11-03 | #1317 capacity helper | type | Returned `panic_with(...)` as the `usize` result of a match arm. | `type-mismatch: in result: expected usize, found ()` | yes | Add an unreachable `0` after the void-returning runtime panic intrinsic. | GPT-6 |
 | 2026-11-03 | #1317 map retain | type | Passed the copyable key bound by `.Occupied(_, key, value)` directly to `keep: fn(&K, &mut V)`. | `type-mismatch: in argument: expected &K, found K` | yes | Pass `&key`; the non-copyable value remains borrowed mutably. | GPT-6 |
 | 2026-11-03 | #1317 formatting | api | Passed the std module and both fixtures together to `hd fmt`. | ``error: `hd fmt` takes at most one FILE`` | yes | Format each file in a separate invocation. | GPT-6 |
+| 2026-11-03 | #1329 | api | `hd fmt FILE1 FILE2 FILE3` | ``error: `hd fmt` takes at most one FILE`` | yes | Run `hd fmt FILE` once per file. | GPT-6 |

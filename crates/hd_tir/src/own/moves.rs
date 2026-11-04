@@ -13,7 +13,7 @@
 //!    liveness bit of its own (`ref.move.field`): its read moves when no
 //!    path touches that part again, though another part of the local is
 //!    still read (`eat(p.a)` then `p.b.len()`); in a local a `Ref`
-//!    addresses, only where no `Ref` of it overlaps the part, and the
+//!    addresses, only where no live reference use overlaps the part, and the
 //!    local's `Drop` stays whole, the backend zeroing the moved part in
 //!    the cell. A non-copyable local with no counted leaf owns no count,
 //!    and its reads move all the same: a copy of it is never chosen.
@@ -93,8 +93,8 @@ pub(crate) struct Tables {
     /// locals, which own nothing, and the places a cleanup suite touches.
     keep_l: Vec<bool>,
     keep_v: Vec<bool>,
-    /// Locals a `Ref` addresses, which live in a cell: no read of one
-    /// moves except a last whole read, and only a `Ref` of the whole local
+    /// Locals a `Ref` addresses, which live in a cell: last whole reads
+    /// and dead field paths may move; only a `Ref` of the whole local
     /// takes its count.
     pub(super) addr: Vec<bool>,
     /// Addressed locals held in frame slots, whose references never take
@@ -144,7 +144,8 @@ pub(crate) struct Tables {
     pbits: Vec<(u32, u32, u32)>,
     pstart: Vec<u32>,
     pread: Vec<u32>,
-    refs: Vec<(u32, u32)>,
+    part_uses: Vec<(u32, u32)>,
+    part_keep: Vec<bool>,
 }
 
 impl Tables {
@@ -165,7 +166,8 @@ impl Tables {
         self.pbits.clear();
         fill(&mut self.pstart, locals + 1, 0);
         fill(&mut self.pread, n, NONE);
-        self.refs.clear();
+        self.part_uses.clear();
+        self.part_keep.clear();
     }
 
     /// Calls `f` with the part bit of each part of local `l` that the
@@ -267,6 +269,7 @@ pub(crate) fn run(
     if !candidates(b, topo, cx, t) {
         return;
     }
+    part_uses(b, cx, t);
     touches(b, t);
     let mut back = std::mem::take(&mut t.back);
     backward(b, topo, &mut back, t);
@@ -351,7 +354,6 @@ fn candidates(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> bool
         match b.tags[i] {
             Tag::Ref => {
                 if let Some(l) = b.local_in_place(a) {
-                    t.refs.push((l.raw(), a));
                     t.addr[l.idx()] = true;
                     if w & crate::ir::ref_word::FRAME != 0 {
                         t.frame[l.idx()] = true;
@@ -440,8 +442,8 @@ fn candidates(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> bool
 /// field of a field, a payload field), so that the read moves when no path
 /// touches that part again, though another part of the local is still
 /// read (`ref.move.field`). A local a `Ref` addresses, which lives in
-/// memory, has one only for a path of fields that no `Ref` of it
-/// overlaps, so no reference reaches the part.
+/// memory, has one only for a path of fields. Uses through references
+/// keep the part live until the borrow ends ([`part_uses`]).
 fn parts_of_locals(b: &Body, cx: &dyn OwnCx, t: &mut Tables, k: &mut u32) {
     let mut found = Vec::new();
     for i in 0..b.len() {
@@ -457,9 +459,7 @@ fn parts_of_locals(b: &Body, cx: &dyn OwnCx, t: &mut Tables, k: &mut u32) {
             || p.whole()
             || !p.in_place(b)
             || cx.copies(b.ty[i]) == Tri::Yes
-            || (t.addr[l as usize]
-                && (!p.steps(b).all(|s| matches!(s, Proj::Field(_)))
-                    || t.refs.iter().any(|&(m, r)| m == l && overlaps(b, r, a))))
+            || (t.addr[l as usize] && !p.steps(b).all(|s| matches!(s, Proj::Field(_))))
         {
             continue;
         }
@@ -489,6 +489,37 @@ fn parts_of_locals(b: &Body, cx: &dyn OwnCx, t: &mut Tables, k: &mut u32) {
     for l in 0..t.pstart.len() - 1 {
         t.pstart[l + 1] += t.pstart[l];
     }
+}
+
+/// Index reference uses of addressed field candidates before the backward
+/// liveness walk. Queries use bounded batches, so the number of fields is
+/// not limited by the origin analysis's machine-word representation.
+fn part_uses(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
+    let parts: Vec<_> = t
+        .pbits
+        .iter()
+        .copied()
+        .filter(|&(l, _, _)| t.addr[l as usize])
+        .collect();
+    if parts.is_empty() {
+        return;
+    }
+    fill(&mut t.part_keep, t.back.arena.words * 64, false);
+    let mut ft = std::mem::take(&mut t.frame_scratch);
+    for chunk in parts.chunks(64) {
+        let targets: Vec<_> = chunk.iter().map(|&(l, word, _)| (l, word)).collect();
+        let escaped = super::frame::part_uses(b, cx, &mut ft, &targets, |i, k| {
+            t.part_uses.push((i, chunk[k].2));
+        });
+        for (k, &(_, _, bit)) in chunk.iter().enumerate() {
+            if escaped & (1 << k) != 0 {
+                t.part_keep[bit as usize] = true;
+            }
+        }
+    }
+    t.frame_scratch = ft;
+    t.part_uses.sort_stable();
+    t.part_uses.dedup();
 }
 
 /// Whether the places at words `a` and `c` of one root overlap: the steps
@@ -634,7 +665,13 @@ impl Backward for Tables {
                         // A part with a bit of its own decides on it.
                         Tag::Read if w == ReadMode::Copy as u32 && self.pread[i] != NONE => {
                             let pbit = self.pread[i];
-                            self.decide[i] = if s.get(live, pbit) { KEEP } else { MOVE };
+                            self.decide[i] = if s.get(live, pbit)
+                                || self.part_keep.get(pbit as usize) == Some(&true)
+                            {
+                                KEEP
+                            } else {
+                                MOVE
+                            };
                         }
                         Tag::Read
                             if w == ReadMode::Copy as u32
@@ -713,6 +750,10 @@ impl Backward for Tables {
     fn reads(&mut self, _: &Body, x: u32, s: &mut BitArena, live: usize) {
         let k = self.frame_uses.partition_point(|u| u.0 < x);
         for &(_, bit) in self.frame_uses[k..].iter().take_while(|u| u.0 == x) {
+            s.set(live, bit, true);
+        }
+        let k = self.part_uses.partition_point(|u| u.0 < x);
+        for &(_, bit) in self.part_uses[k..].iter().take_while(|u| u.0 == x) {
             s.set(live, bit, true);
         }
     }

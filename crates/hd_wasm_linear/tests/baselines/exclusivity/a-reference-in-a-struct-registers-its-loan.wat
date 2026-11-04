@@ -9,9 +9,13 @@
   (import "fixture" "rt:release'2" (func $rt:release'2 (param i32)))
   (import "fixture" "loan_top" (global $loan_top (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $in_struct (param $t i32) (param $alias i32) (result i32 i32) (local $held i32)
+  (func $in_struct (param $t i32) (param $alias i32) (result i32 i32) (local $held i32) (local $t0 i32) (local $t1 i32)
     block
     ;; 13 |     held := Held { name: &t.lead.name }
+      local.get $t
+      i32.load $heap
+      i32.const 4
+      i32.sub
       local.get $t
       i32.load $heap
       local.tee $held
@@ -24,6 +28,19 @@
       i32.const 8
       i32.const 0
       call $rt:loan_begin
+      local.tee $t0
+      i32.const 1
+      local.set $t1
+      local.get $t0
+      i32.load $heap
+      i32.const 65536
+      i32.add
+      i32.store $heap
+      local.get $t1
+      i32.const 1
+      i32.eq
+      if
+      end
     ;; 14 |     alias.name = "b"
       global.get $loan_top
       if
@@ -67,9 +84,13 @@
     end
     ;; ...
   )
-  (func $in_option (param $t i32) (param $alias i32) (result i32 i32) (local $held i32) (local $t0 i32) (local $name i32)
+  (func $in_option (param $t i32) (param $alias i32) (result i32 i32) (local $held i32) (local $t0 i32) (local $t1 i32) (local $t4 i32) (local $name i32) (local $t2 i32) (local $t3 i32)
     block
     ;; 23 |     let held: Option[&string] = .Some(&t.lead.name)
+      local.get $t
+      i32.load $heap
+      i32.const 4
+      i32.sub
       local.get $t
       i32.load $heap
       local.tee $held
@@ -82,6 +103,19 @@
       i32.const 8
       i32.const 0
       call $rt:loan_begin
+      local.tee $t0
+      i32.const 1
+      local.set $t1
+      local.get $t0
+      i32.load $heap
+      i32.const 65536
+      i32.add
+      i32.store $heap
+      local.get $t1
+      i32.const 1
+      i32.eq
+      if
+      end
     ;; 24 |     alias.name = "b"
       global.get $loan_top
       if
@@ -126,6 +160,12 @@
             if
               local.get $t
               local.set $name
+              local.get $t0
+              local.set $t2
+              local.get $t1
+              local.set $t3
+              i32.const 0
+              local.set $t0
               br 1
             else
     ;; 27 |         .None => ""
@@ -149,7 +189,7 @@
           local.tee $t
           local.get $name
           i32.load $heap offset=4
-          local.tee $t0
+          local.tee $t4
           call $rt:retain
     ;; 25 |     match held:
           br 1
@@ -162,9 +202,13 @@
     end
     ;; ...
   )
-  (func $in_tuple (param $t i32) (param $alias i32) (result i32 i32) (local $held.0 i32)
+  (func $in_tuple (param $t i32) (param $alias i32) (result i32 i32) (local $held.0 i32) (local $t0 i32) (local $t1 i32)
     block
     ;; 18 |     held := (&t.lead.name, +1)
+      local.get $t
+      i32.load $heap
+      i32.const 4
+      i32.sub
       local.get $t
       i32.load $heap
       local.tee $held.0
@@ -177,6 +221,19 @@
       i32.const 8
       i32.const 0
       call $rt:loan_begin
+      local.tee $t0
+      i32.const 1
+      local.set $t1
+      local.get $t0
+      i32.load $heap
+      i32.const 65536
+      i32.add
+      i32.store $heap
+      local.get $t1
+      i32.const 1
+      i32.eq
+      if
+      end
     ;; 19 |     alias.name = "b"
       global.get $loan_top
       if

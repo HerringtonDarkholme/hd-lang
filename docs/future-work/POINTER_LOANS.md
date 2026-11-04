@@ -852,7 +852,8 @@ The fixtures `element-reference-copy-independent.hd` and
 ### E.2 The Mechanism In Detail
 
 - **Header.** Descriptor bits 16 to 21: bit 21 exclusive, bits 16 to 20
-  the shared count. The release glue's slot narrows to bits 0 to 15; the
+  the shared count. The release glue's slot narrows to bits 0 to 15 (0 to
+  14 in a weak-linked module, whose side-entry bit is 15); the
   collector's colors and flags keep bits 22 to 31. Every loan update is a
   read-modify-write that keeps the other bits, as a count update is. A
   static object has the same header. A static cell (§23.20) has only a
@@ -977,11 +978,16 @@ Each about an hour, with its test; the matrix rows leave
 `KNOWN_FAILURES.tsv` as they pass.
 
 1. Header bits: narrow the glue slot, add the state; a stage case for
-   the descriptor.
-2. Access checks on writes and reads through `*T`; the `other`, `write`
-   and `read` rows of the matrix.
+   the descriptor. A weak-linked module's side-entry bit moves from 21
+   to 15. The narrower glue mask shrinks every program by 1 or 2 bytes.
+2. Access checks on writes and reads through `*T`. Alone it turns no
+   row green: every failing `other`, `write` and `read` row needs a loan
+   set, which phase 3 does.
 3. Loans on bound references, with own loans in the checker; the `stmt`
-   and `loop` rows.
+   and `loop` rows, with their `other`, `write` and `read` rows, and
+   the `struct` rows on a `List`/`Map` and `extra-copy-under-element-loan`.
+   The `UniqList`/`UniqMap` rows wait for phase 8: `get_mut` is inlined,
+   so its result no longer shows that it depends on the receiver.
 4. Call loans with two-phase receivers; the `arg`, `closure` and
    `extra-later-argument` rows.
 5. Returned and stored references; the `ret` and `struct` rows.

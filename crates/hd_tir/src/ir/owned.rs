@@ -89,12 +89,14 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
         })
         .collect();
     let addressed = crate::own::borrow::escaping(b, cx);
+    let reference_values = reference_values(b);
     let own = cx;
     let cx = Cx {
         b,
         topo: &topo,
         places: &places,
         addressed: &addressed,
+        reference_values: &reference_values,
     };
     decided(b, &mut errs);
     takes_outside_suspension(b, &topo, &mut errs);
@@ -632,9 +634,110 @@ struct Cx<'a> {
     topo: &'a Topology,
     places: &'a [Option<Place>],
     addressed: &'a [bool],
+    reference_values: &'a [u32],
+}
+
+/// The value stored once into each unaddressed local. Multiple stores,
+/// parameters and references to the local's storage rule out substitution.
+fn reference_values(b: &Body) -> Vec<u32> {
+    let mut values = vec![NONE; b.local_ty.len()];
+    let mut stores: Vec<u8> = b
+        .local_flags
+        .iter()
+        .map(|f| if f & local_flags::PARAM != 0 { 2 } else { 0 })
+        .collect();
+    for i in 0..b.len() {
+        let [a, w] = b.data[i];
+        match b.tags[i] {
+            Tag::Store => {
+                let p = b.view(a);
+                if let Some(l) = p.local() {
+                    let l = l as usize;
+                    stores[l] = stores[l].saturating_add(1);
+                    values[l] = if stores[l] == 1 && p.whole() { w } else { NONE };
+                }
+            }
+            Tag::Ref => {
+                if let Some(l) = b.local_in_place(a) {
+                    stores[l.idx()] = 2;
+                    values[l.idx()] = NONE;
+                }
+            }
+            _ => {}
+        }
+    }
+    for (l, mode) in b.cap_local.iter().zip(&b.cap_mode) {
+        if *mode == super::CaptureMode::Shared {
+            values[l.idx()] = NONE;
+        }
+    }
+    values
 }
 
 impl Cx<'_> {
+    /// Resolve only direct local places and references whose one immutable
+    /// definition names such a place. Unknown aliases retain the ordinary
+    /// conservative overlap check.
+    fn local_place(&self, p: &Place) -> Option<Place> {
+        if matches!(p.root, PlaceRoot::Local(_))
+            && p.proj
+                .iter()
+                .all(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)))
+        {
+            return Some(p.clone());
+        }
+        let (Proj::Deref, rest) = p.proj.split_first()? else {
+            return None;
+        };
+        if !rest
+            .iter()
+            .all(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)))
+        {
+            return None;
+        }
+        let mut value = match p.root {
+            PlaceRoot::Local(l) => *self.reference_values.get(l.idx())?,
+            PlaceRoot::Value(r) => r.0,
+            _ => return None,
+        };
+        // A valid definition chain visits each instruction at most once.
+        // Bound malformed cycles by graph size, not a source alias limit.
+        for _ in 0..self.b.len() {
+            let i = Ref(value).as_inst()?.0 as usize;
+            match self.b.tags.get(i)? {
+                Tag::Ref => {
+                    let mut origin = self.places[i].clone()?;
+                    if !matches!(origin.root, PlaceRoot::Local(_))
+                        || !origin
+                            .proj
+                            .iter()
+                            .all(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)))
+                    {
+                        return None;
+                    }
+                    origin.proj.extend_from_slice(rest);
+                    return Some(origin);
+                }
+                Tag::Read => {
+                    let Place {
+                        root: PlaceRoot::Local(l),
+                        proj,
+                    } = self.places[i].as_ref()?
+                    else {
+                        return None;
+                    };
+                    if !proj.is_empty() {
+                        return None;
+                    }
+                    value = *self.reference_values.get(l.idx())?;
+                }
+                Tag::Coerce if self.b.same_value_coercion(i) => value = self.b.data[i][0],
+                _ => return None,
+            }
+        }
+        None
+    }
+
     /// Whether places `p` and `q` may name overlapping storage
     /// (`docs/compiler/tir-v2.md`, "Places"). With one root, one's
     /// projections are a prefix of the other's, element indices ignored.
@@ -797,6 +900,9 @@ impl<'a> Empties<'a> {
             && p.proj.is_empty()
         {
             return p.root == q.root;
+        }
+        if let (Some(p), Some(q)) = (self.cx.local_place(p), self.cx.local_place(q)) {
+            return self.cx.overlap(&p, &q);
         }
         self.cx.overlap(p, q)
     }
