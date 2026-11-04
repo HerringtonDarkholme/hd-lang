@@ -5,7 +5,6 @@
 # runs in an instance of its own, so each starts with a fresh heap.
 use std.rt.memory.{
     copy,
-    copy_bytes,
     fill,
     grow,
     load_u8,
@@ -25,23 +24,6 @@ fn fresh_page() -> usize:
     match grow(1):
         .Some(before) => before * 65536
         .None => panic("the heap cannot grow by one page")
-
-# Check the whole surrounding region, so partial widths, overlap and
-# unaligned transfers cannot hide an overread or an extra written byte.
-fn check_byte_copy(at: usize, from: usize, to: usize, count: usize) -> void:
-    fill(at, 0xa5, 1024)
-    for i in 0..512:
-        store_u8(at + i, u8(i % 251))
-    copy_bytes(at + to, at + from, count)
-    for i in 0..1024:
-        expected := if i >= to && i - to < count:
-            u8((from + i - to) % 251)
-        else if i < 512:
-            u8(i % 251)
-        else:
-            u8(0xa5)
-        if load_u8(at + i) != expected:
-            panic("copy changed a byte outside the snapshot result")
 
 tests:
     use std.testing.{assert, it}
@@ -124,27 +106,3 @@ tests:
         assert(load_u8(at) == 0x5a, "the page's first byte is kept")
         assert(load_u8(at + 65535) == 0x5a, "the page's last byte is kept")
         assert(text != "ab", "the text grew")
-
-    it("short copies preserve every byte at every alignment and overlap"):
-        at := fresh_page()
-        for count in 0..65:
-            for from in 32..40:
-                for to in 24..48:
-                    check_byte_copy(at, from, to, count)
-
-    it("bulk and disjoint copies preserve the snapshot and surrounding bytes"):
-        at := fresh_page()
-        for count in [0, 1, 2, 3, 4, 7, 8, 9, 15, 16, 31, 32, 63, 64, 127, 256]:
-            check_byte_copy(at, 7, 600, count)
-            check_byte_copy(at, 7, 19, count)
-            check_byte_copy(at, 19, 7, count)
-        # A short copy right at the heap end must not read a wider word.
-        end := pages() * 65536
-        store_u64(at + 7, 0x0807060504030201)
-        for count in [1, 2, 4, 8]:
-            copy_bytes(end - count, at + 7, count)
-            for i in 0..count:
-                assert(load_u8(end - count + i) == u8(i + 1), "exact width")
-            copy_bytes(at + 600, end - count, count)
-            for i in 0..count:
-                assert(load_u8(at + 600 + i) == u8(i + 1), "exact read width")

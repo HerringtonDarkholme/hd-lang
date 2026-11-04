@@ -75,21 +75,6 @@ pub fn store_u64(address: usize, value: u64) -> void:
 pub fn copy(to: usize, from: usize, count: usize) -> void:
     panic("intrinsic")
 
-# A short transfer uses one load before one store, so overlapping ranges
-# keep memmove semantics and neither operation reaches outside the range.
-# Other sizes keep the bulk intrinsic, including its zero-length bounds.
-pub fn copy_bytes(to: usize, from: usize, count: usize) -> void:
-    if count == 8:
-        store_u64(to, load_u64(from))
-    else if count == 4:
-        store_u32(to, load_u32(from))
-    else if count == 2:
-        store_u16(to, load_u16(from))
-    else if count == 1:
-        store_u8(to, load_u8(from))
-    else:
-        copy(to, from, count)
-
 @intrinsic("mem_fill")
 ## Sets the `count` bytes from `to` to `byte`.
 ## See [module.rt.memory.fill](../../../spec/lang/10-modules.md#r-module.rt.memory.fill).
