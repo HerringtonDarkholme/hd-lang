@@ -774,7 +774,7 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                     t.reached[l.idx()] = true;
                 }
             }
-            Tag::IsUnique | Tag::Pin => {
+            Tag::IsUnique => {
                 if let Some(l) = b.local_in_place(a) {
                     t.changed[l.idx()] = true;
                 }
@@ -836,7 +836,6 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                     Tag::Read
                     | Tag::Store
                     | Tag::IsUnique
-                    | Tag::Pin
                     | Tag::Prim
                     | Tag::Intrinsic
                     | Tag::Call
@@ -977,7 +976,7 @@ fn index_writes(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
         };
         let place = matches!(
             tag,
-            Tag::Store | Tag::Drop | Tag::IsUnique | Tag::Pin | Tag::Read | Tag::Ref
+            Tag::Store | Tag::Drop | Tag::IsUnique | Tag::Read | Tag::Ref
         );
         let through = match place.then(|| b.view(a).root) {
             Some(Root::Value(v)) => v,
@@ -1024,7 +1023,7 @@ fn index_writes(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 t.links.truncate(1);
                 t.write_links(x, false);
             }
-            Tag::IsUnique | Tag::Pin => {
+            Tag::IsUnique => {
                 t.walk(b, a, false);
                 t.links.truncate(1);
                 t.write_links(x, true);
@@ -1605,7 +1604,7 @@ fn receivers(b: &Body, t: &mut Tables) {
         };
         let harmless = matches!(
             b.tags[i],
-            Tag::Read | Tag::Ref | Tag::Store | Tag::Drop | Tag::IsUnique | Tag::Pin | Tag::Prim
+            Tag::Read | Tag::Ref | Tag::Store | Tag::Drop | Tag::IsUnique | Tag::Prim
         );
         operands(b, i, &mut t.ops);
         for o in &t.ops {

@@ -1920,9 +1920,8 @@ impl Em<'_, '_, '_> {
                     self.own_drop(i)?;
                 }
             }
-            Tag::IsUnique | Tag::Pin if self.short_skips.contains(&i) => {}
+            Tag::IsUnique if self.short_skips.contains(&i) => {}
             Tag::IsUnique => self.own_unique(i)?,
-            Tag::Pin => self.own_pin(i)?,
             Tag::Drop | Tag::FlagSet | Tag::FlagClear => {
                 return unsupported(format!(
                     "an ownership statement `{}` the backend does not lower here",

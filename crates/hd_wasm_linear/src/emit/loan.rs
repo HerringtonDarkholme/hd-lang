@@ -195,7 +195,7 @@ impl Em<'_, '_, '_> {
             }
             let k = m as usize;
             let tag = self.b.tags[k];
-            let ours = matches!(tag, Tag::IsUnique | Tag::Pin)
+            let ours = matches!(tag, Tag::IsUnique)
                 && self.b.view(self.b.data[k][0]).root == Root::Local(l)
                 && !(tag == Tag::IsUnique && self.b.data[k][1] == unique_word::HOISTED);
             if !ours {
@@ -203,10 +203,7 @@ impl Em<'_, '_, '_> {
             }
             skips.push(m);
         }
-        skips
-            .iter()
-            .any(|&m| self.b.tags[m as usize] == Tag::Pin)
-            .then_some(skips)
+        (!skips.is_empty()).then_some(skips)
     }
 
     /// The local that value `r` reads all of without moving it, `[$l]`.
@@ -247,7 +244,7 @@ impl Em<'_, '_, '_> {
             }
             if matches!(
                 self.b.tags[j],
-                Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique | Tag::Pin
+                Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique
             ) && let Some(l) = self.b.view(self.b.data[j][0]).local()
             {
                 u.of_local[l as usize].push(x);

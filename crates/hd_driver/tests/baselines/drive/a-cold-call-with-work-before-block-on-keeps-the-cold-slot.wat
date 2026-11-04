@@ -24,14 +24,10 @@
     ;; 11 |     log.push("started")
       local.get $s.1
       i32.load $heap offset=4
-      local.set $text.1
-      local.get $s.1
-      i32.load $heap offset=8
-      local.get $text.1
+      local.tee $text.1
       local.get $s.1
       i32.load $heap
       i32.eq
-      i32.or
       if
         local.get $s.1
         i32.const 1

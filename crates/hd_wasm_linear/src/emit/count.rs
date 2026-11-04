@@ -1247,17 +1247,6 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
-    /// `Pin` `i`: the list's place becomes its buffer's one holder while
-    /// element references hold counts of the buffer, each its own
-    /// (§23.20).
-    pub(super) fn own_pin(&mut self, i: u32) -> StageResult<()> {
-        let (h, t, _) = self.place_header(self.b.data[i as usize][0])?;
-        if self.input.runtime.is_none() {
-            return Ok(());
-        }
-        self.pin_owner(h, t)
-    }
-
     /// `Read [$l]` `i` of an owned body, as its mode says: a copy takes a
     /// count of its own; a move takes the local's and empties it; a
     /// borrow takes none and is no place's to release.

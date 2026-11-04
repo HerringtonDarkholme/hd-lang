@@ -47,13 +47,13 @@
 //!    step's entry up again with its key, since growth renumbers entries
 //!    ([`changes`]). The backend's intrinsics then check nothing
 //!    themselves.
-//! 6. **Pins.** A `Ref` of an element place gets an `IsUnique` and a `Pin`
-//!    of each list on its path, and of each list on the path of a read its
-//!    root was made from, outermost first. The reference holds a count of
-//!    the buffer, so the pin ends with the reference's drop (rule 2 or 3);
-//!    nothing else releases it. A `for` over element references pins its
-//!    list this way at each step, from the step's reference to the end of
-//!    the step, where its binding is dropped.
+//! 6. **Element references.** A `Ref` of an element place gets an
+//!    `IsUnique` of each list on its path, and of each list on the path of
+//!    a read its root was made from, outermost first; where that read ran
+//!    before the `Ref` (an index call between them may copy the
+//!    collection), the base's own lists are made unique again right before
+//!    the `Ref`, which reads the base again. The reference counts nothing
+//!    (#1336 phase 10): the list's holder lives until its last use.
 //!
 //! Why it is sound: on every path an owned value is consumed by its one
 //! use or dropped once, after its last use or before a jump that leaves
@@ -274,7 +274,7 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Res
             Tag::CallDyn | Tag::ContextFor | Tag::Hole | Tag::Poison => {
                 return Err(format!("`{}` at %{i}", tag.name()));
             }
-            Tag::Drop | Tag::IsUnique | Tag::Pin | Tag::FlagSet | Tag::FlagClear => {
+            Tag::Drop | Tag::IsUnique | Tag::FlagSet | Tag::FlagClear => {
                 return Err(format!("an ownership statement `{}` at %{i}", tag.name()));
             }
             Tag::Call | Tag::Await => {
@@ -812,15 +812,27 @@ fn uniqueness(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice:
                 // after them, as a change does.
                 let root = b.view(a).value();
                 let base = root.and_then(|v| read_place(b, topo, v));
+                // The change reads its base's place again here, after what
+                // ran since that read (an index call may copy the
+                // collection): each list on the base's own path is made
+                // unique again first, outermost first, as a push's is.
+                if let Some(w) = base
+                    && w & place::BARE_LOCAL == 0
+                {
+                    let lists = std::mem::take(&mut t.elems);
+                    path_lists(b, t, w);
+                    let outer = std::mem::replace(&mut t.elems, lists);
+                    for x in outer {
+                        let word = prefix(b, w, x);
+                        edits.insert(blk, pos, Tag::IsUnique, [word, 0], Ty::VOID, syn);
+                    }
+                }
                 for k in 0..t.elems.len() {
                     let word = match base {
                         Some(w) => graft(b, w, a, t.elems[k]),
                         None => prefix(b, a, t.elems[k]),
                     };
                     edits.insert(blk, pos, Tag::IsUnique, [word, 0], Ty::VOID, syn);
-                    if pin {
-                        edits.insert(blk, pos, Tag::Pin, [word, NONE], Ty::VOID, syn);
-                    }
                 }
                 if let (Some(w), Some(v), false) = (base, root, t.elems.is_empty()) {
                     let w = match w & place::BARE_LOCAL {
@@ -1165,9 +1177,6 @@ fn through(
                         };
                         if done & 1 == 0 {
                             edits.insert(blk, pos, Tag::IsUnique, [place, 0], Ty::VOID, syn);
-                        }
-                        if pin && done & 2 == 0 {
-                            edits.insert(blk, pos, Tag::Pin, [place, NONE], Ty::VOID, syn);
                         }
                     }
                     t.walked[i] = done | need;

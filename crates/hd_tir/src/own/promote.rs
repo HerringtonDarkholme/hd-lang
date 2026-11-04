@@ -44,7 +44,7 @@ pub fn read_only_params(b: &Body, candidates: u64) -> u64 {
         let tag = b.tags[i];
         if !matches!(
             tag,
-            Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique | Tag::Pin
+            Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique
         ) {
             continue;
         }
@@ -93,7 +93,7 @@ pub(super) fn read_through_use(b: &Body, at: usize, value: u32) -> bool {
     let tag = b.tags[at];
     if matches!(
         tag,
-        Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique | Tag::Pin
+        Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique
     ) {
         let place = b.view(b.data[at][0]);
         if place.root == Root::Value(value) {

@@ -673,8 +673,6 @@ pub fn grow(entry: &Entry, m: &Module) -> Func {
         f.i32(1);
         f.op(I::I32Add);
     });
-    // An exposed map stays unshared after its pin ends, so the word moves.
-    store_u32(&mut f, nt, LIST_OWN, &|f| load_u32(f, t, LIST_OWN));
     store_u32(&mut f, t, USED, &|f| f.i32(0));
     f.get(t);
     f.helper(Helper::ReleaseKnown);
@@ -684,16 +682,9 @@ pub fn grow(entry: &Entry, m: &Module) -> Func {
 
 /// [`Helper::MapUnique`]: `(map) -> map`: a shared table is copied whole, its
 /// live entries take their own counts, the collections among their values
-/// become copies, and the old table loses one holder. With `clone`,
-/// [`Helper::MapClone`]: the table is copied whatever its count, the copy
-/// starts with no owner word, and the original keeps its own
-/// (the pin's eager copy, until phase 10 of `docs/future-work/POINTER_LOANS.md`).
-pub fn unique(entry: &Entry, m: &Module, clone: bool) -> Func {
-    let name = if clone {
-        "rt:map_clone"
-    } else {
-        "rt:map_unique"
-    };
+/// become copies, and the old table loses one holder.
+pub fn unique(entry: &Entry, m: &Module) -> Func {
+    let name = "rt:map_unique";
     let mut f = m.func(name, vec![Val::I32], vec![Val::I32]);
     let (t, cap, nt, e, at) = (
         0,
@@ -708,13 +699,6 @@ pub fn unique(entry: &Entry, m: &Module, clone: bool) -> Func {
     f.op(I::I32Load(mem(HEAP, 0, 2)));
     f.i32(1);
     f.op(I::I32Ne);
-    // A table with an owner word has one holder; the other counts are
-    // element references, which see the change in place.
-    load_u32(&mut f, t, LIST_OWN);
-    f.op(I::I32Eqz);
-    f.op(I::I32And);
-    f.i32(i32::from(clone));
-    f.op(I::I32Or);
     f.op(I::If(BlockType::Empty));
     load_u32(&mut f, t, CAP);
     f.set(cap);
@@ -751,10 +735,8 @@ pub fn unique(entry: &Entry, m: &Module, clone: bool) -> Func {
             }
         });
     }
-    if !clone {
-        f.get(t);
-        f.helper(Helper::ReleaseKnown);
-    }
+    f.get(t);
+    f.helper(Helper::ReleaseKnown);
     f.get(nt);
     f.set(t);
     f.op(I::End);

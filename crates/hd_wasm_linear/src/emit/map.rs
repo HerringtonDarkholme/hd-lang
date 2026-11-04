@@ -18,7 +18,7 @@ use super::{Ctl, Em, MapProbe};
 use crate::layout::{coll_kind, coll_leaves, payload_mem, strip};
 use crate::map::{Entry, KeyOps, LIVE, USED, entry_address, hash_address};
 use crate::module::{Global, HEADER, HEAP, Import, Sym, Val, mem};
-use crate::rt::{Helper, LIST_OWN, empty_buffer};
+use crate::rt::{Helper, empty_buffer};
 use crate::unsupported;
 
 impl Em<'_, '_, '_> {
@@ -596,15 +596,11 @@ impl Em<'_, '_, '_> {
     /// reference. Entry numbers and a miss probe survive this copy.
     fn map_probe_unique(&mut self, m: u32, entry: &Entry) {
         self.f.get(m);
-        self.f.op(I::I32Load(mem(HEAP, LIST_OWN, 2)));
-        self.f.op(I::I32Eqz);
-        self.f.get(m);
         self.f.u32(HEADER);
         self.f.op(I::I32Sub);
         self.f.op(I::I32Load(mem(HEAP, 0, 2)));
         self.f.i32(1);
         self.f.op(I::I32Ne);
-        self.f.op(I::I32And);
         self.f.op(I::If(BlockType::Empty));
         self.f.get(m);
         self.f.helper(Helper::MapUnique {
@@ -614,16 +610,8 @@ impl Em<'_, '_, '_> {
         self.f.op(I::End);
     }
 
-    /// Stores a probe's changed table through its map reference, then pins
-    /// it so the returned element reference keeps naming that table.
-    fn map_probe_store(
-        &mut self,
-        at: u32,
-        owned: u32,
-        m: u32,
-        t: Ty,
-        pin: bool,
-    ) -> StageResult<()> {
+    /// Stores a probe's changed table through its map reference.
+    fn map_probe_store(&mut self, at: u32, owned: u32, m: u32, t: Ty) -> StageResult<()> {
         self.f.get(owned);
         self.f.op(I::If(BlockType::Empty));
         let value = self.ref_layout(t)?;
@@ -633,9 +621,6 @@ impl Em<'_, '_, '_> {
         self.f.get(m);
         self.f.op(I::I32Store(mem(HEAP, 0, 2)));
         self.f.op(I::End);
-        if pin {
-            self.pin_owner(m, t)?;
-        }
         Ok(())
     }
 
@@ -697,7 +682,6 @@ impl Em<'_, '_, '_> {
         let short = self.short_loans.contains_key(&i);
         // A local reference takes no count of its table (`ref.count.local`):
         // the map's root lives until its last use.
-        let pins = default.is_some() && !short;
         if default.is_some() {
             self.map_probe_refs.insert(i, (m, false));
         }
@@ -723,7 +707,7 @@ impl Em<'_, '_, '_> {
         if default.is_none() {
             self.map_probe_unique(m, &entry);
         }
-        self.map_probe_store(at, owned, m, mt, default.is_none() || pins)?;
+        self.map_probe_store(at, owned, m, mt)?;
         let (_, value_at) = self.map_value_from(m, mt, &Src::Locals(vec![found]))?;
         if default.is_some() {
             self.f.get(value_at);
@@ -747,7 +731,7 @@ impl Em<'_, '_, '_> {
             self.f.i32(1);
             self.f.op(I::I32Sub);
             self.f.set(inserted);
-            self.map_probe_store(at, owned, m, mt, pins)?;
+            self.map_probe_store(at, owned, m, mt)?;
             let (_, value_at) = self.map_value_from(m, mt, &Src::Locals(vec![inserted]))?;
             self.f.get(value_at);
             self.store_owned(i)?;

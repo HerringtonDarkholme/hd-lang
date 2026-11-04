@@ -498,7 +498,7 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
             let xi = x as usize;
             let tag = b.tags[xi];
             let [a, xw] = b.data[xi];
-            let what = if is_suspension(tag) || tag == Tag::Pin {
+            let what = if is_suspension(tag) {
                 Some("pins or suspends")
             } else if !whole && hoist::writes(b, cx, xi) {
                 Some("calls what may write")
@@ -940,7 +940,7 @@ impl Forward for Empties<'_> {
         self.enter(b, x, s, st);
         let st = s.row_mut(st);
         match b.tags[x as usize] {
-            Tag::Read | Tag::IsUnique | Tag::Pin => {
+            Tag::Read | Tag::IsUnique => {
                 self.check(x, st);
                 self.empty(x, st);
             }
@@ -1045,7 +1045,7 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
             Tag::Drop if !dropped[l.idx()] => "a `Drop` of",
             Tag::Read if b.data[i][1] == ReadMode::Move as u32 => "a `move` out of",
             Tag::Ref => "a reference to",
-            Tag::IsUnique | Tag::Pin => "a change in place of",
+            Tag::IsUnique => "a change in place of",
             _ => continue,
         };
         err(

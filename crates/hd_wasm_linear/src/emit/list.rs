@@ -22,8 +22,8 @@ use super::Em;
 use super::shape::Through;
 use super::value::{Dst, Src};
 use crate::layout::{Kind, coll_kind, coll_leaves, mem as mem_of, strip};
-use crate::module::{HEADER, HEAP, Sym, Val, mem};
-use crate::rt::{Elem, Helper, LIST_ELEMS, LIST_EXPOSED, LIST_LEN, LIST_OWN, empty_buffer};
+use crate::module::{HEADER, HEAP, Val, mem};
+use crate::rt::{Elem, Helper, LIST_ELEMS, LIST_LEN, empty_buffer};
 use crate::unsupported;
 
 /// A stable list, directly in a local or behind a reference local.
@@ -1240,7 +1240,7 @@ impl Em<'_, '_, '_> {
 
     /// `ListPush`: the value is stored at the length, after the buffer,
     /// which the passes' `IsUnique` made the list's own, has room for it.
-    /// A buffer with no owner word and room left is the fast path. Any
+    /// A buffer with room left is the fast path. Any
     /// other goes through `rt:list_grow`, which moves a full buffer into
     /// the operand's place, keeping the length.
     pub(super) fn list_push(&mut self, args: &[u32]) -> StageResult<()> {
@@ -1250,13 +1250,10 @@ impl Em<'_, '_, '_> {
         self.f.get(b);
         self.f.op(I::I32Load(mem(HEAP, LIST_LEN, 2)));
         self.f.set(n);
-        self.f.get(b);
-        self.f.op(I::I32Load(mem(HEAP, LIST_OWN, 2)));
         self.f.get(n);
         self.f.get(b);
         self.f.op(I::I32Load(mem(HEAP, 0, 2)));
         self.f.op(I::I32Eq);
-        self.f.op(I::I32Or);
         self.f.op(I::If(BlockType::Empty));
         self.f.get(b);
         self.f.cold_helper(
@@ -1352,33 +1349,6 @@ impl Em<'_, '_, '_> {
         if reserve {
             self.f.op(I::End);
         }
-        Ok(())
-    }
-
-    /// Gives the buffer in local `b` of a list or a map of type `t` its
-    /// owner word: the function-table slot of the collection's clone glue
-    /// plus one, with bit 31 when its elements hold collections (§23.20).
-    pub(super) fn pin_owner(&mut self, b: u32, t: Ty) -> StageResult<()> {
-        // A map's table holds its owner word where a list buffer does
-        // (`ref.elem.map`): its clone glue copies the table.
-        let (clone, exposed) = if self.is_map(t) {
-            let (_, _, entry) = self.entry(t)?;
-            let exposed = !entry.colls.is_empty();
-            (Helper::MapClone { entry }, exposed)
-        } else {
-            let (_, e) = self.elem(t)?;
-            let exposed = !e.colls.is_empty();
-            (Helper::ListClone { elem: e }, exposed)
-        };
-        self.f.get(b);
-        self.f.table_slot(Sym::Helper(clone));
-        self.f.i32(1);
-        self.f.op(I::I32Add);
-        if exposed {
-            self.f.u32(LIST_EXPOSED);
-            self.f.op(I::I32Or);
-        }
-        self.f.op(I::I32Store(mem(HEAP, LIST_OWN, 2)));
         Ok(())
     }
 }

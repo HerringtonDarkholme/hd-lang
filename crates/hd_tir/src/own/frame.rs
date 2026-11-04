@@ -255,10 +255,8 @@ pub(crate) fn run(
     for i in 0..n {
         let [a, w] = b.data[i];
         let mut m = 0;
-        if matches!(
-            b.tags[i],
-            Tag::Read | Tag::Store | Tag::Ref | Tag::IsUnique | Tag::Pin
-        ) && let Some(l) = b.view(a).local()
+        if matches!(b.tags[i], Tag::Read | Tag::Store | Tag::Ref | Tag::IsUnique)
+            && let Some(l) = b.view(a).local()
         {
             m |= t.held[l as usize] | t.ldep[l as usize];
         }
@@ -450,10 +448,8 @@ pub(crate) fn part_uses(
             continue;
         }
         let mut origins = 0;
-        if matches!(
-            b.tags[i],
-            Tag::Read | Tag::Store | Tag::Ref | Tag::IsUnique | Tag::Pin
-        ) && let Some(l) = b.view(b.data[i][0]).local()
+        if matches!(b.tags[i], Tag::Read | Tag::Store | Tag::Ref | Tag::IsUnique)
+            && let Some(l) = b.view(b.data[i][0]).local()
         {
             origins |= t.held[l as usize] | t.ldep[l as usize];
         }

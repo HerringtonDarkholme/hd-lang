@@ -30,14 +30,10 @@
           local.get $flags
           local.tee $t1
           i32.load $heap offset=4
-          local.set $t2
-          local.get $t1
-          i32.load $heap offset=8
-          local.get $t2
+          local.tee $t2
           local.get $t1
           i32.load $heap
           i32.eq
-          i32.or
           if
             local.get $t1
             i32.const 1

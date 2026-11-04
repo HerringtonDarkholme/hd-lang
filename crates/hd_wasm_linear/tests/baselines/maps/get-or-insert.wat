@@ -21,15 +21,11 @@
       call $rt:map_find
       local.set $t2
       local.get $t0
-      i32.load $heap offset=8
-      i32.eqz
-      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       i32.const 1
       i32.ne
-      i32.and
       if
         local.get $t0
         call $rt:map_unique
