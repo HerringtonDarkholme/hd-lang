@@ -1008,6 +1008,13 @@ Each about an hour, with its test; the matrix rows leave
    `List`/`Map` rows and the copy fixtures.
 8. `UniqList`/`UniqMap` through loans; drop #1320's room count.
 9. Roots and cells; the `extra-root-*` and `extra-captured-*` rows.
+   The cell part comes before phase 7, so removing the pin leaves no
+   reference into a captured variable unchecked: a variable a closure
+   shares is an object, its cell, whose descriptor holds the loans of
+   the references into it, and each use of it is a checked access
+   (`ref.excl.alias.shared-variable`). That turns the
+   `extra-captured-*` rows green, and every bench program stays
+   byte-identical.
 10. Remove the loan table and page-table counts on references.
 11. Release elision and its type summary; the size and time table.
     Built right after phase 4, in every build: a holder's live range is

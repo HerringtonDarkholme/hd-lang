@@ -6235,8 +6235,8 @@ runtime/panic/pointer-loan-extra-callee-writes-other-field-panics.hd	runtime	pan
 runtime/valid/pointer-loan-extra-callee-only-reads.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/panic/pointer-loan-extra-later-argument-replaces-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-extra-receiver-argument-reads-the-receiver.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
-runtime/panic/pointer-loan-extra-captured-variable-grows-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
-runtime/panic/pointer-loan-extra-captured-variable-replaced-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
+runtime/panic/pointer-loan-extra-captured-variable-grows-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.shared-variable
+runtime/panic/pointer-loan-extra-captured-variable-replaced-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.shared-variable
 runtime/valid/pointer-loan-extra-deep-shared-loans.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/panic/pointer-loan-extra-dyn-receiver-alias-write-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/panic/pointer-loan-extra-generic-argument-alias-write-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases

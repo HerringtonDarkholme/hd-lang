@@ -1256,6 +1256,11 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   loans' locals, so a loan held across a suspension stays held while the
   task waits; an abandoned task ends its loans as it unwinds, and the
   release glue of a frame dropped while it waits ends those still held.
+  A variable a closure shares is an object too: its cell's descriptor
+  word (a heap cell's, or the zero header word of a frame slot or a
+  static cell) holds the loans of references into it, and a place
+  rooted at it, or at a read of it, crosses the cell first
+  (`borrow::CELL`).
   No hd program reaches that glue today: every driver in std cancels a
   started child before it drops it (`req.discard.started`), and the
   cancel unwinds. It serves a host that drops a started suspension

@@ -30,8 +30,6 @@ runtime/panic/pointer-loan-closure-ref-ulist-grow-panics.hd	#1336		not built: to
 runtime/panic/pointer-loan-closure-ref-ulist-replace-panics.hd	#1336		unsound today: the reference reads freed memory after the alias access; the proposal panics borrow-conflict
 runtime/panic/pointer-loan-closure-ref-umap-grow-panics.hd	#1336		not built: today the length change panics collection-pinned; the proposal panics borrow-conflict
 runtime/panic/pointer-loan-closure-ref-umap-replace-panics.hd	#1336		unsound today: the reference reads freed memory after the alias access; the proposal panics borrow-conflict
-runtime/panic/pointer-loan-extra-captured-variable-grows-panics.hd	#1336		not built: today the length change panics collection-pinned; the proposal panics borrow-conflict
-runtime/panic/pointer-loan-extra-captured-variable-replaced-panics.hd	#1336		not built: today the alias access runs with no loan on this path; the proposal panics borrow-conflict
 runtime/panic/pointer-loan-extra-dyn-receiver-alias-write-panics.hd	#1336		not built: today the alias access runs with no loan on this path; the proposal panics borrow-conflict
 runtime/panic/pointer-loan-extra-elide-other-task-panics.hd	#1336		unsound today: the reference reads freed memory after the alias access; the proposal panics borrow-conflict
 runtime/panic/pointer-loan-extra-observer-notify-writes-owner-panics.hd	#1336		not built: today the alias access runs with no loan on this path; the proposal panics borrow-conflict
