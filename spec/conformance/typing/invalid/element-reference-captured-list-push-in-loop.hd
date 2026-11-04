@@ -1,0 +1,9 @@
+# test: a push to a list a closure also captures, in a loop over `&mut` references into it, is a conflicting access
+# Spec 13 Call-Scoped Access: ref.elem.access.length; Spec 06 Element Reference Loops: flow.for.ref.conflict.
+fn invalid() -> usize:
+    let mut xs = [+1, 2]
+    peek := fn() -> usize: xs.len()
+    for x in &mut xs:
+        xs.push(1) # diagnostic: conflicting-access
+        *x += 1
+    peek()

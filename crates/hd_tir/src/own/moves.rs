@@ -8,7 +8,7 @@
 //!    replaces all of it, moves. Its local is not addressed and lives in
 //!    no cell (a `Ref` or a shared capture reaches it), no cleanup suite
 //!    touches it, no `borrow` reads it, and no `Pin` names a place in it:
-//!    a pinned collection's copy is a clone (`ref.elem.copy`), which a
+//!    a pinned collection's copy is a clone (the pin's eager copy, until phase 10 of `docs/future-work/POINTER_LOANS.md`), which a
 //!    move would skip. A part whose type no instance copies has a
 //!    liveness bit of its own (`ref.move.field`): its read moves when no
 //!    path touches that part again, though another part of the local is
@@ -368,7 +368,7 @@ fn candidates(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> bool
                     t.holds[l as usize] = b.loan_read(w).unwrap_or(w);
                 }
             }
-            // A pinned collection's copy is a clone (`ref.elem.copy`), so
+            // A pinned collection's copy is a clone (the pin's eager copy, until phase 10 of `docs/future-work/POINTER_LOANS.md`), so
             // a read of its local copies even at its last use.
             Tag::Pin => {
                 if let Some(l) = b.view(a).local() {

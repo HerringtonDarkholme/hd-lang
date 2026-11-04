@@ -480,6 +480,19 @@ fn value_binds_at(
         }
         return out;
     }
+    // An `if`'s value is its arms' blocks', as an inlined getter that
+    // chooses its result leaves it.
+    if every_ref && b.tags[c] == Tag::If {
+        let mut out = Vec::new();
+        for &arm in b.record(b.data[c][1]) {
+            for x in value_binds_at(pool, env, b, sub, known, arm as usize, depth + 1, every_ref) {
+                if !out.contains(&x) {
+                    out.push(x);
+                }
+            }
+        }
+        return out;
+    }
     if let Some(&(_, a)) = b.held_args.iter().find(|r| r.0 as usize == c)
         && let Some(loan) = arg_loan(pool, env, b, sub, a)
     {

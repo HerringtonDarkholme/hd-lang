@@ -1238,13 +1238,11 @@ impl Em<'_, '_, '_> {
         Ok((et, self.slot_at(b, ix, e.size)))
     }
 
-    /// `ListPush`: a pinned list panics (`ref.elem.pinned`); otherwise the
-    /// value is stored at the length, after the buffer, which the passes'
-    /// `IsUnique` made the list's own, has room for it. A buffer with no
-    /// owner word and room left is the fast path: an owner word is the
-    /// only way to a pin, and only a full buffer moves. Any other goes
-    /// through `rt:list_grow`, which checks the pin and moves a full
-    /// buffer into the operand's place, keeping the length.
+    /// `ListPush`: the value is stored at the length, after the buffer,
+    /// which the passes' `IsUnique` made the list's own, has room for it.
+    /// A buffer with no owner word and room left is the fast path. Any
+    /// other goes through `rt:list_grow`, which moves a full buffer into
+    /// the operand's place, keeping the length.
     pub(super) fn list_push(&mut self, args: &[u32]) -> StageResult<()> {
         let (et, e) = self.elem(self.ty_of(args[0]))?;
         let b = self.buffer(args[0])?;

@@ -8,5 +8,6 @@ fn snapshot_then_write(target: &mut i32, snapshot: fn() -> List[i32]) -> List[i3
 tests:
     it("the copy reads the list the argument lends exclusively"):
         let mut xs = [+1, 2]
-        last := snapshot_then_write(&mut xs[0], fn() -> List[i32]: xs) # panic: borrow-conflict
+        snapshot := fn() -> List[i32]: xs # panic: borrow-conflict
+        last := snapshot_then_write(&mut xs[0], snapshot)
         _ := last.len()

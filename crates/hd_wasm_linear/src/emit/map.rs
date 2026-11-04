@@ -16,7 +16,7 @@ use wasm_encoder::BlockType;
 use super::value::Src;
 use super::{Ctl, Em, MapProbe};
 use crate::layout::{coll_kind, coll_leaves, payload_mem, strip};
-use crate::map::{Entry, KeyOps, LIVE, MAP_PINNED, USED, entry_address, hash_address};
+use crate::map::{Entry, KeyOps, LIVE, USED, entry_address, hash_address};
 use crate::module::{Global, HEADER, HEAP, Import, Sym, Val, mem};
 use crate::rt::{Helper, LIST_OWN, empty_buffer};
 use crate::unsupported;
@@ -560,12 +560,6 @@ impl Em<'_, '_, '_> {
         let (at, vl) = read(self, e.keys, n);
         self.new_variant(i, 1, &[Src::Locals(vl.clone())])?;
         if op == IntrinsicOp::MapRemove {
-            // A held key of a pinned map stays (`ref.elem.pinned.map`).
-            self.f.get(m);
-            self.f.helper(Helper::ListPinned);
-            self.f.op(I::If(BlockType::Empty));
-            self.f.helper(Helper::Panic(MAP_PINNED.into()));
-            self.f.op(I::End);
             // The entry stays in place, marked removed: probes pass it and
             // iteration skips it, so the survivors keep their order. The
             // table's counts of it go: the value's after the result took

@@ -226,7 +226,6 @@ The stdlib chapters' terms are in the
 | **enum** | A nominal sum type. See [`data.kind.enum`](lang/08-data-and-enums.md#r-data.kind.enum). |
 | **error derivation** | Implementing `Display`, `Error`, and `From` for an error type from its `@error` lines. See [Error Derivation](lang/14-annotations.md#error-derivation). |
 | **error type** | An enum with a bare `@error` line, or a struct with an `@error("...")` or `@error(transparent)` line. See [`annot.error.type`](lang/14-annotations.md#r-annot.error.type). |
-| **escaping** | A closure that is passed as an argument, returned, stored, or captured by an escaping closure. See [`ref.elem.escaping`](lang/13-values-and-references.md#r-ref.elem.escaping). |
 | **executable** | A program a package ships, declared by an `[[executable]]` table of `hd.toml`, or `src/main.hd` when the manifest declares none. See [`cli.exe.table`](cli/command-line.md#r-cli.exe.table) and [`cli.exe.default-main`](cli/command-line.md#r-cli.exe.default-main). |
 | **exhausted** | An iterator whose `next` has returned `.None`. See [`flow.for.iterator-exhausted`](lang/06-control-flow.md#r-flow.for.iterator-exhausted). |
 | **exhausted iterator** | An iterator whose `next` has returned `.None`. What a later `next` returns is unspecified. See [`flow.for.iterator-exhausted`](lang/06-control-flow.md#r-flow.for.iterator-exhausted). |
@@ -284,7 +283,6 @@ The stdlib chapters' terms are in the
 | **package mode** | How a command works when the nearest `hd.toml` at or above its start directory declares a package. See [`cli.mode.package.nearest`](cli/command-line.md#r-cli.mode.package.nearest). |
 | **partially denied** | A trait whose grant is a list of scope entries; a call outside them returns a `NotGranted` error. See [Partial Deny](cli/command-line.md#partial-deny). |
 | **path requirement** | A manifest value `{ path = "DIR" }` through which a package depends on the local package in `DIR`. See [`module.path-dep.form`](lang/10-modules.md#r-module.path-dep.form). |
-| **pin** | What an access holds on its collection while it lasts: while the collection is pinned, a change of its length panics. See [`ref.elem.access.pin`](lang/13-values-and-references.md#r-ref.elem.access.pin). |
 | **pipe expression** | `value \|> step`, which passes a value to a step. See [Pipe Expressions](lang/05-expressions.md#pipe-expressions). |
 | **place expression** | An expression that identifies a storage location, which may be read or, when it is writable, assigned. See [`expr.category.place`](lang/05-expressions.md#r-expr.category.place). |
 | **positional spread** | An argument `x...` that passes the value `x` in place of separate arguments: a tuple fills the callee's remaining inputs, and a vararg takes a value of its own type. See [Positional Spreads](lang/05-expressions.md#positional-spreads). |
@@ -348,7 +346,7 @@ The stdlib chapters' terms are in the
 | **type-argument marker** | The `::` before an explicit type-argument list in an expression, as in `first::[string](names)`. See [`grammar.expr.type-arguments.marker`](lang/02-grammar.md#r-grammar.expr.type-arguments.marker). |
 | **typed derivation** | Implementing a trait for a struct or enum from its members through the trait's template. See [Typed Derivation](lang/14-annotations.md#typed-derivation). |
 | **typed fact type** | A fact type whose `@annotate` decorator writes a type argument, a pattern such as `T` in `@annotate::[T](.Field)` or `fn(T) -> R`. The pattern's parameters are inferred from a target's type as a call's are, and a value on that target checks against the fact type at them. See [`annot.typed-fact.declare`](lang/14-annotations.md#r-annot.typed-fact.declare). |
-| **unaliased** | A collection that is a local binding or a value parameter, or a field or element of one, that no escaping closure captures. See [`ref.elem.unaliased`](lang/13-values-and-references.md#r-ref.elem.unaliased). |
+| **unaliased** | A collection that is a local binding or a value parameter, or a field or element of one. See [`ref.elem.unaliased`](lang/13-values-and-references.md#r-ref.elem.unaliased). |
 | **unbound method reference** | `Owner::name` without an argument clause, where `Owner` names a type, a trait, or a type parameter. See [`fn.ref.unbound`](lang/07-functions.md#r-fn.ref.unbound). |
 | **unit test** | A test case in a `tests:` block or a test module, wherever its file lies, whose body gets `TestRunner` alone from the runner. See [`module.testing.unit-row.anywhere`](lang/10-modules.md#r-module.testing.unit-row.anywhere). |
 | **untyped fact type** | A fact type whose `annotate` type argument is the default `*dyn Any`, as in `@annotate(.Field)`, so its values stay unchecked. See [`annot.typed-fact.untyped.reference-values`](lang/14-annotations.md#r-annot.typed-fact.untyped.reference-values). |

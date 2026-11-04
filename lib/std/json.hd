@@ -3367,7 +3367,9 @@ impl Deserializer for TextReader:
                         probe = probe + 1
                 if hit:
                     frame.next = slot + 1
-                    self.at_slot(frame.entry, frame.count, slot)
+                    entry := frame.entry
+                    count := frame.count
+                    self.at_slot(entry, count, slot)
                     found = true
             else:
                 let slot = frame.next
@@ -3401,7 +3403,8 @@ impl Deserializer for TextReader:
             .Tagged =>
                 if bytes_at(self.parser.text, frame.at) != 123:
                     base := frame.base
-                    self.step_key(base - 1, frame.name)
+                    name := frame.name
+                    self.step_key(base - 1, name)
                     return .Err(JsonError.WrongType(self.path_to(base), "object"))
             _ => pass
         self.leave()

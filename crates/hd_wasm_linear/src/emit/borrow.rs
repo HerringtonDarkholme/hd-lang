@@ -163,6 +163,11 @@ pub(super) struct Borrows {
     shared: hd_base::HashSet<usize>,
     /// The inlined copy each instruction came from ([`frames_of`]).
     frames: Vec<u32>,
+    /// The locals a match binds from a part of a call's result, by the
+    /// value the match decides on: their loans end with the match, or
+    /// when that value is dropped, as such a binding borrows it and has no
+    /// `Drop` of its own.
+    via_call: HashMap<u32, Vec<usize>>,
 }
 
 /// One loan a call holds from its argument's evaluation to its return.
@@ -319,7 +324,27 @@ impl Roots<'_> {
     }
 }
 
-/// [`crossings`], led by the place's root object ([`Roots::of`]).
+/// The step index of a dereference on the place of the read a place's
+/// root value is ([`root_read`]): `READ + k` for its step `k`.
+pub(super) const READ: usize = 1 << 30;
+
+/// The read whose value place `p` starts at, and that read's place, as a
+/// loop over `&mut p.items` makes: the read's dereferences are crossed
+/// too.
+pub(super) fn root_read(b: &Body, p: &hd_tir::ir::Place) -> Option<(u32, hd_tir::ir::Place)> {
+    let PlaceRoot::Value(r) = p.root else {
+        return None;
+    };
+    let r = r.as_inst()?.0;
+    if b.tags.get(r as usize) != Some(&Tag::Read) {
+        return None;
+    }
+    let q = b.decode_place(b.data[r as usize][0])?;
+    matches!(q.root, PlaceRoot::Local(_) | PlaceRoot::Global(..)).then_some((r, q))
+}
+
+/// [`crossings`], led by the place's root object ([`Roots::of`]) and by
+/// the dereferences of the read its root value is ([`root_read`]).
 pub(super) fn place_crossings(
     pool: &InternPool,
     (b, sub): (&Body, &dyn Fn(Ty) -> Ty),
@@ -330,6 +355,13 @@ pub(super) fn place_crossings(
     let mut out = Vec::new();
     if let Some((_, t)) = roots.of(b, p) {
         out.push((ROOT, sub(t)));
+    }
+    if let Some((_, q)) = root_read(b, p)
+        && let Some(qt) = root_ty(b, sub, q.root)
+    {
+        out.extend(
+            (crossings(pool, roots.env, qt, &q.proj).into_iter()).map(|(k, t)| (READ + k, t)),
+        );
     }
     out.extend(crossings(pool, roots.env, root, &p.proj));
     out
@@ -430,11 +462,18 @@ impl Em<'_, '_, '_> {
                     st.excl.insert(held, x);
                 }
                 Bind::Call(a) => {
-                    // A direct holder of a call's result that holds
-                    // argument `a`: the result's loans (phase 5).
+                    // A holder of a call's result, or of a part of it a
+                    // match binds, that holds argument `a`: the result's
+                    // loans (phase 5).
                     let stored = self.b.data[i][1];
-                    let (Some(c), Some(v)) =
-                        (direct_value(self.b, stored), direct_value(self.b, a))
+                    let call = self
+                        .b
+                        .held_args
+                        .iter()
+                        .find(|x| x.1 == a)
+                        .map(|x| x.0 as usize);
+                    let (Some(c), Some(v), Some(s)) =
+                        (call, direct_value(self.b, a), direct_value(self.b, stored))
                     else {
                         continue;
                     };
@@ -449,8 +488,25 @@ impl Em<'_, '_, '_> {
                         self.intern_ref_keys(&mut st, v);
                     }
                     st.call_holds.insert(v);
-                    st.excl
-                        .insert(held, ref_mutable(self.pool(), self.env(), self.ty(c)));
+                    if s != c as usize {
+                        // Keyed by the value the binding's read projects,
+                        // which the match decides on: the call, or the
+                        // block an inlined getter leaves its result in.
+                        let from = (self.b.tags[s] == Tag::Read)
+                            .then(|| self.b.decode_place(self.b.data[s][0]))
+                            .flatten()
+                            .and_then(|p| match p.root {
+                                PlaceRoot::Value(r) => r.as_inst().map(|r| r.0),
+                                _ => None,
+                            })
+                            .unwrap_or(c);
+                        st.via_call.entry(from).or_default().push(held.local);
+                    }
+                    let s = u32::try_from(s).expect("insts");
+                    let excl = [c, s]
+                        .iter()
+                        .any(|&x| ref_mutable(self.pool(), self.env(), self.ty(x)));
+                    st.excl.insert(held, excl);
                 }
             }
             let i = u32::try_from(i).expect("insts");
@@ -535,6 +591,10 @@ impl Em<'_, '_, '_> {
                 st.keys.push((key, None));
             }
         }
+        let p = match root_read(self.b, &p) {
+            Some((_, q)) => q,
+            None => p,
+        };
         if !matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..)) {
             return;
         }
@@ -628,6 +688,24 @@ impl Em<'_, '_, '_> {
         if let Some((_, t)) = root_obj {
             crossed.push((ROOT, self.sub(t)));
         }
+        // The dereferences of the read the place's root value is.
+        let read = root_read(self.b, &p);
+        if let Some((_, q)) = &read {
+            let qt = self.at_root_ty(q.root);
+            for (k, step) in q.proj.iter().enumerate() {
+                if *step != Proj::Deref {
+                    continue;
+                }
+                if let Kind::Ref {
+                    target,
+                    fat: false,
+                    whole: true,
+                } = self.kind(self.walk_ty(qt, &q.proj[..k])?)
+                {
+                    crossed.push((READ + k, target));
+                }
+            }
+        }
         for (k, step) in p.proj.iter().enumerate() {
             if *step != Proj::Deref {
                 continue;
@@ -664,6 +742,9 @@ impl Em<'_, '_, '_> {
                     let frame = self.borrows.frames[i as usize];
                     Some(self.borrow_key((r, Vec::new(), frame)))
                 }
+                (k, _) if k >= READ && k != ROOT => read.as_ref().map(|(_, q)| {
+                    self.borrow_key((q.root, q.proj[..k - READ].to_vec(), ANY_FRAME))
+                }),
                 _ => matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..))
                     .then(|| self.borrow_key((p.root, p.proj[..k].to_vec(), ANY_FRAME))),
             };
@@ -682,6 +763,16 @@ impl Em<'_, '_, '_> {
                     let o = self.f.local(Val::I32);
                     self.f.address(at);
                     self.f.set(o);
+                    o
+                }
+                (k, _) if k >= READ && k != ROOT => {
+                    let Some((r, q)) = &read else {
+                        return crate::unsupported("a read crossing with no read");
+                    };
+                    let mut fresh = Vec::new();
+                    let (at, _) = self.walk_place(*r, q, k - READ, None, &mut fresh)?;
+                    let o = self.at_i32(&at)?;
+                    self.release_fresh(&fresh)?;
                     o
                 }
                 _ => {
@@ -705,6 +796,31 @@ impl Em<'_, '_, '_> {
         }
         if let Some(&l) = self.borrows.reborrows.get(&i) {
             self.borrow_reborrow(i, l);
+        }
+        // A `*T` whose callee's result holds it: its whole object.
+        if holds
+            && self.b.tags[i as usize] == Tag::Read
+            && let Kind::Ref {
+                target,
+                fat: false,
+                whole: true,
+            } = self.kind(self.ty(i))
+            && self.m.lent.contains_key(&target)
+        {
+            let key = matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..))
+                .then(|| self.borrow_key((p.root, p.proj.clone(), ANY_FRAME)));
+            let mut fresh = Vec::new();
+            let (at, _) = self.walk_place(i, &p, p.proj.len(), None, &mut fresh)?;
+            let o = self.at_i32(&at)?;
+            self.release_fresh(&fresh)?;
+            let header = self.f.local(Val::I32);
+            self.f.get(o);
+            self.f.u32(crate::module::HEADER - 4);
+            self.f.op(I::I32Sub);
+            self.f.set(header);
+            self.borrows
+                .arg_heads
+                .insert(i, vec![(header, key, u32::MAX)]);
         }
         if holds && self.b.tags[i as usize] == Tag::Ref {
             self.borrows.arg_heads.insert(i, heads);
@@ -824,6 +940,19 @@ impl Em<'_, '_, '_> {
     /// stores, a copy's own loans on its source's objects, or a move's.
     #[inline(never)]
     pub(super) fn borrow_after_store(&mut self, i: u32) {
+        // A match on a call's result ends the loans of the bindings its
+        // arms made from the result.
+        if self.b.tags[i as usize] == Tag::Match
+            && let Some(bound) = self
+                .borrows
+                .via_call
+                .get(&self.b.data[i as usize][0])
+                .cloned()
+        {
+            for l in bound {
+                self.borrow_release(l);
+            }
+        }
         let Some(binds) = self.borrows.binds.get(&i).cloned() else {
             return;
         };
@@ -1101,11 +1230,20 @@ impl Em<'_, '_, '_> {
         if self.borrows.slots.is_empty() {
             return;
         }
-        if let Some(p) = self.b.decode_place(self.b.data[i as usize][0])
-            && p.proj.is_empty()
-            && let PlaceRoot::Local(l) = p.root
-        {
-            self.borrow_release(l.idx());
+        let Some(p) = self.b.decode_place(self.b.data[i as usize][0]) else {
+            return;
+        };
+        match p.root {
+            PlaceRoot::Local(l) if p.proj.is_empty() => self.borrow_release(l.idx()),
+            PlaceRoot::Value(r) if p.proj.is_empty() => {
+                let bound = r
+                    .as_inst()
+                    .and_then(|c| self.borrows.via_call.get(&c.0).cloned());
+                for l in bound.unwrap_or_default() {
+                    self.borrow_release(l);
+                }
+            }
+            _ => {}
         }
     }
 

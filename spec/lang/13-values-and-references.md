@@ -1719,9 +1719,7 @@ fn rewarded(players: List[Player], best: usize) -> List[Player]:
 6. r[ref.elem.writable] `&mut xs[i]` needs `xs` in a writable place, as an element store does ([`types.coll.writable.store`](04-type-system.md#r-types.coll.writable.store)). Its fix-it makes the binding writable. Error: `not-writable`.
 7. r[ref.elem.writable.shared] `&xs[i]` needs no writable place, so it may refer into a `:=` list or a value parameter.
 8. r[ref.elem.through-reference] `xs` may be a reference to a list: `&r[i]` and `&mut r[i]` refer to the slot `i` of the list `r` refers to. Through a read-only reference, `*T` or `&T`, `&mut r[i]` is an error. Error: `not-writable`.
-9. r[ref.elem.copy] Copying a pinned list gives a list with elements of its own. A change to the copy never reaches a reference into the original, and a write through such a reference never reaches the copy.
-10. r[ref.elem.replace] Assigning a whole list to the pinned list's place, as in `xs = []`, is allowed. The old references keep the old elements and no longer refer into `xs`.
-11. r[ref.elem.identity] Two element references refer to the same place when they refer to the same slot of the same list's elements and read the same struct fields from it.
+9. r[ref.elem.identity] Two element references refer to the same place when they refer to the same slot of the same list's elements and read the same struct fields from it.
 
 ```text
 fn bump(score: &mut i32) -> void:
@@ -1734,10 +1732,9 @@ fn invalid() -> void:
 
 > **Why.** A list grows by moving its elements. Go keeps the old array
 > alive, so a write through an old pointer silently stops reaching the
-> slice. An element reference instead pins the collection while it lives,
-> so a length change cannot silently detach the reference. A handle that
-> survives a sort is a reference stored in the list, `List[*mut Player]`,
-> or an ID.
+> slice. An element reference instead holds its collection while it
+> lives, so nothing can move or detach its slot. A handle that survives a
+> sort is a reference stored in the list, `List[*mut Player]`, or an ID.
 
 ### Call-Scoped Access
 
@@ -1757,28 +1754,26 @@ fn demo() -> void:
     record(&mut scores, &mut scores[0])  # error: conflicting-access
     best := &mut scores[1]
     scores.push(3)                       # error: conflicting-access
+    n := scores.len()                    # error: conflicting-access
+    scores[0] = 5                        # valid: a store to another element
     *best += 1
     scores.push(4)                       # valid: after best's last use
 ```
 
 1. r[ref.elem.local-value] An element reference is a local reference value. It may be bound, assigned, passed, and used as the source or result of a dependent call, subject to every rule of [Local References](#local-references) and [Dependent Results](#dependent-results).
 2. r[ref.elem.access.live] The reference's **access** to its collection begins when the reference is taken and ends after its last use.
-3. r[ref.elem.access.live-length] While an access lasts, nothing may change the collection's length. Reads of the collection, and writes to its elements, the referenced one included, stay valid.
-4. r[ref.elem.access.length] While a binding that holds an element reference is live ([`ref.excl.live`](#r-ref.excl.live)), a change that may move its collection's length is an error. Error: `conflicting-access`.
+3. r[ref.elem.access.live-length] While an access lasts, nothing may change the collection, or a place that holds it, other than by a store to one of its elements. Reads of the collection, and stores to its elements, the referenced one included, stay valid.
+4. r[ref.elem.access.length] While a binding that holds an element reference is live ([`ref.excl.live`](#r-ref.excl.live)), a change of its collection or of a place that holds it is an error, and so is a `&mut` of another element of it. Error: `conflicting-access`.
    - The collection is a place that [`ref.excl.place`](#r-ref.excl.place) covers, so it may be reached through a `&mut` parameter.
-   - Such a change is a call that takes `&mut` of the collection or of a place that holds it, as `push`, `insert`, `remove_at`, `pop` and `clear` do.
+   - Such a change is a call that takes `&mut` of the collection or of a place that holds it, as `push`, `insert`, `remove_at`, `pop`, `clear` and `reserve` do, or an assignment of a whole value to it, as in `xs = []`.
    - A map's `remove` is one, and so is a map store of a key other than the referenced one.
    - Two keys are one key when both are one constant or reads of one `:=` binding.
-5. r[ref.elem.unaliased] A collection is **unaliased** when it is a local binding or a value parameter, or a struct field or element reached from one through no reference, and no escaping closure captures that binding.
-6. r[ref.elem.escaping] A closure is **escaping** when it is passed as an argument, returned, stored in a field, an element, a payload, or a top-level binding, or captured by an escaping closure.
-7. r[ref.elem.conflict] During an access to an unaliased collection, another argument or the receiver of the same call that may change the collection's length, or a later argument that moves it ([`ref.excl.move`](#r-ref.excl.move)), is an error. Error: `conflicting-access`.
+5. r[ref.elem.access.mut] While a binding that holds a `&mut` element reference is live, any use of its collection or of a place that holds it is an error: a copy, a `&` of it, a `len()` or another method call. So is any other reference into the collection, `&` or `&mut`, at any index. A read of another element or a store to one stays valid. Error: `conflicting-access`.
+6. r[ref.elem.unaliased] A collection is **unaliased** when it is a local binding or a value parameter, or a struct field or element reached from one through no reference.
+7. r[ref.elem.conflict] During an access to an unaliased collection, another argument or the receiver of the same call that may change the collection, or a later argument that moves it ([`ref.excl.move`](#r-ref.excl.move)), is an error. For a `&mut` element reference, so is another argument that refers into the collection, and a later argument that uses it ([`ref.elem.access.mut`](#r-ref.elem.access.mut)). Error: `conflicting-access`.
    - The collection may also be a place that [`ref.excl.place`](#r-ref.excl.place) covers, so one reached through a `&mut` parameter, as in `change(list, &mut list[2])`.
    - An argument that holds an element reference is an access, whether the call takes the reference or a binding holds it, as in `grow(&mut xs, first)` after `first := &xs[0]`.
-8. r[ref.elem.access.pin] Every access **pins** its collection while it lasts, so a length change that no rule rejects at compile time panics.
-9. r[ref.elem.pinned] While a list is pinned, an operation that changes its length where no compile-time rule sees it, through another `*mut` alias or inside a callee, is a checked runtime panic. The operations are `push`, `insert`, `remove_at`, and a `pop` or a `clear` that removes an element. Panic: `collection-pinned`.
-10. r[ref.elem.pinned.map] While a map is pinned, a store of a key it does not hold and a `remove` of a key it holds are checked runtime panics where no compile-time rule sees them. Panic: `collection-pinned`.
-11. r[ref.elem.pinned.allowed] Replacing an element keeps the length, so it is allowed while the list is pinned: an element store, a write through an element reference, and a sort or a swap written with element stores.
-12. r[ref.elem.pinned.end] A collection that several accesses pin stays pinned until each has ended.
+8. r[ref.elem.access.alias] Where a `*T` or a variable a closure shares reaches the collection, the element reference holds that object as [Conflicts Through Aliases](#conflicts-through-aliases) says, so a change through another path panics. Panic: `borrow-conflict`.
 
 An argument may change the collection's length when it does one of the
 following to the collection, or to a place that holds it:
@@ -1788,15 +1783,11 @@ following to the collection, or to a place that holds it:
 | r[ref.elem.conflict.reference] Reference | takes `&mut` of it | `record(&mut scores, &mut scores[0])` |
 | r[ref.elem.conflict.method] Method call | calls a `&mut self` method on it | `place(&mut scores[0], scores.remove_at(1))` |
 
-> **Note.** An implementation may omit a pin where it can prove that no
-> reference reaches the collection and that no callee keeps the element
-> reference.
-
-> **Why.** This is Swift's Law of Exclusivity, narrowed to length. A
-> conflict is caught at compile time where every path to the collection
-> is in view, and by the pin where a reference or a global may reach it.
-> Writes to other elements cannot move the referenced slot, so they stay
-> legal.
+> **Why.** This is Swift's Law of Exclusivity, and for a `&mut` element
+> reference Rust's borrow rules. A conflict is caught at compile time
+> where every path to the collection is in view, and by a pointer loan
+> where a pointer or a shared variable may reach it. Stores to other
+> elements cannot move the referenced slot, so they stay legal.
 
 See also: [Element Reference Loops](06-control-flow.md#element-reference-loops),
 [Collection Values](04-type-system.md#collection-values),

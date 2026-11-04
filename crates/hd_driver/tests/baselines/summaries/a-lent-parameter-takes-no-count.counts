@@ -6,7 +6,7 @@
 # stores `f`, so `collect` still counts a copy for it. `apply` calls
 # `weight` through a function value: the value's caller passes `f` owned,
 # and the adapter releases it after the call. `set_first` keeps nothing,
-# but `pinned` passes it a mutable reference into `xs` beside `xs`, so
+# but `pinned` passes it a reference into `xs` beside `xs`, so
 # `xs` is copied for the call. `weight` has more than 16 instructions, so
 # a release build leaves it a call.
 struct Field:
@@ -37,15 +37,15 @@ fn collect(f: Field) -> usize:
 fn apply(g: fn(Field) -> i64, f: Field) -> i64:
     g(f)
 
-fn set_first(target: &mut i64, xs: List[i64]) -> i64:
-    *target = 9
-    xs[0]
+fn set_first(target: &i64, xs: List[i64]) -> i64:
+    *target + xs[0]
 
 fn pinned() -> i64:
     let mut xs: List[i64] = [1, 2]
-    set_first(&mut xs[0], xs)
+    xs[1] = 3
+    set_first(&xs[0], xs)
 > app/main/pinned
->   retain &mut i64
+>   retain &i64
 >   copy List[i64]
 
 pub fn main() -> void $ Console:
@@ -59,8 +59,8 @@ pub fn main() -> void $ Console:
 >   release List[app.main.Field]
     println(apply(weight, f))
     println(pinned())
->   retain &mut i64
+>   retain &i64
 >   copy List[i64]
 >   release List[i64]
 >   release List[i64]
->   release &mut i64
+>   release &i64

@@ -1,15 +1,15 @@
-# test: a boxed list lent as a `&mut` argument beside element references from another alias of it conflicts for the call, so an element store through it panics
+# test: a boxed list lent as a `&mut` argument beside an element reference from another alias of it conflicts for the call, so an element store through it panics
 # Spec 13 Conflicts Through Aliases: ref.excl.alias.call-loan, ref.excl.alias.conflict.
-fn store_then_read(list: &mut List[i32], seen: &mut i32, other: &mut i32) -> i32:
+fn store_then_read(list: &mut List[i32], seen: &mut i32) -> i32:
     list[2] = 30
     first := *seen
-    *other = 300
+    *seen = 300
     first + *seen
 
 # The list comes through a box alias, which the checker does not see.
 fn stored(list: *mut List[i32]) -> i32:
     alias := list
-    store_then_read(alias, &mut list[2], &mut list[2]) # panic: borrow-conflict
+    store_then_read(alias, &mut list[2]) # panic: borrow-conflict
 
 tests:
     use std.testing.assert_equal

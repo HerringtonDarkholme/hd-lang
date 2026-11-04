@@ -796,8 +796,8 @@ changes preserve collection value semantics (§23.7).
   them become copies in turn, so a nested write never reaches another
   list, and the old buffer loses one holder. A `push` into a buffer
   with no owner word and room left stores the element and the length
-  inline; any other goes through `rt:list_grow`, which panics on a pin
-  and moves a full buffer to one of twice the length plus 4, freeing
+  inline; any other goes through `rt:list_grow`, which moves a full
+  buffer to one of twice the length plus 4, freeing
   the old block without releasing its elements, which moved. Either
   stores the new buffer into the place the change names. A store counts
   the new element before it releases the old one.
@@ -820,8 +820,8 @@ changes preserve collection value semantics (§23.7).
   (`List.extend`) reads the list through its reference, as
   `list_truncate` does, and stores the buffer back. `rt:list_extend`
   reads `other`'s length first, then makes room once
-  (`rt:list_reserve`, the runtime's one reserve routine): a pinned list
-  panics; a shared buffer, or one
+  (`rt:list_reserve`, the runtime's one reserve routine): a shared
+  buffer, or one
   without room, is replaced by one new buffer of the needed length or
   twice the length plus 4, whichever is more (a shared one with room
   keeps its capacity); the shared one's elements take their own counts,
@@ -838,7 +838,7 @@ changes preserve collection value semantics (§23.7).
   std's `list_reserve(items: &mut List[T], count)`
   (`StringBuilder.reserve`) is that routine itself through the
   reference, behind the same inline `count != 0` test, so a count of 0
-  neither copies nor panics on a pin. After it the list has room for
+  does not copy. After it the list has room for
   `count` more elements with no further growth: a shared buffer, or one
   short of room, becomes one new buffer as above; a buffer the list owns
   with the room stays. The TIR's `ListReserve` (a list comprehension
@@ -852,8 +852,8 @@ changes preserve collection value semantics (§23.7).
   drop after the loop gives the buffer back, so the list's next change
   copies only when something else still shares the buffer.
 - **Pins.** The passes' `Pin` gives the buffer its owner word while
-  element references hold counts of the buffer, and a `push` into a
-  pinned list panics `collection-pinned`. Element
+  element references hold counts of the buffer, so `rt:list_unique`
+  leaves it in place. Element
   references use the typed views of §23.20, preserving the header and
   the referenced slot when a buffer is copied.
 - **Indexing.** An index is checked against the length before it is
@@ -1178,9 +1178,13 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   `Pin` gives the buffer its owner word (§23.7), with no count: the
   function-table slot of the list's clone glue plus one. A buffer whose
   owner word is set has one header holding it, so every
-  count past the first is a reference's: the list is pinned while the
-  buffer's count is over 1 (`rt:list_pinned`), and a `push` or a
-  truncation then panics `collection-pinned` (`ref.elem.release.copies`).
+  count past the first is a reference's, and `rt:list_unique` copies
+  no such buffer. Nothing checks the length at run time: a change of it
+  while a reference lives is a compile-time conflict
+  (`ref.elem.access.length`) or, behind a `*T` or a shared variable, a
+  pointer-loan one (`ref.excl.alias.conflict`). The owner word, the
+  reference's count and the eager copy below go with the reference
+  counts (`docs/future-work/POINTER_LOANS.md`, phase 10).
   The reference's own count of the innermost buffer is the pin, so it
   ends with the reference's `Drop`; an ancestor list is exposed and never
   pinned. A change through the list writes the buffer in place, which
@@ -1222,7 +1226,7 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   return, and each holder `Drop` in the origin's loop ends it
   (`UniqMap.insert`'s probe, #1230). A table or
   list a view's getter made stays until that `Drop`. Any other reference keeps
-  its count and pin, so `map-get-ref-pinned-panics` still panics.
+  its count and pin.
 - **Pointer loans and borrow-state checks** (model A of
   `docs/future-work/POINTER_LOANS.md`, #1336; `emit/borrow.rs`). A
   reference a binding, struct, tuple or option holds takes a shared loan
@@ -1270,6 +1274,9 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   started child before it drops it (`req.discard.started`), and the
   cancel unwinds. It serves a host that drops a started suspension
   (`req.discard.dropped`); the collector's trace skips it (`marking()`).
+  A place rooted at a read through a `*T`, as a loop over `&mut list`
+  makes, crosses that read's dereferences too (`borrow::READ`), and a
+  binding a `match` makes from a call's result holds the result's loans.
   **Elision** (`emit/elide.rs`, in every build): each instance's
   accesses through a `*T`, by object type, with its callees', make a
   summary; a call of a function or trait value, an erased body's open
@@ -1308,8 +1315,8 @@ changes preserve collection value semantics (§23.7).
   them become copies in turn, so a nested write never reaches another
   list, and the old buffer loses one holder. A `push` into a buffer
   with no owner word and room left stores the element and the length
-  inline; any other goes through `rt:list_grow`, which panics on a pin
-  and moves a full buffer to one of twice the length plus 4, freeing
+  inline; any other goes through `rt:list_grow`, which moves a full
+  buffer to one of twice the length plus 4, freeing
   the old block without releasing its elements, which moved. Either
   stores the new buffer into the place the change names. A store counts
   the new element before it releases the old one.
@@ -1332,8 +1339,8 @@ changes preserve collection value semantics (§23.7).
   (`List.extend`) reads the list through its reference, as
   `list_truncate` does, and stores the buffer back. `rt:list_extend`
   reads `other`'s length first, then makes room once
-  (`rt:list_reserve`, the runtime's one reserve routine): a pinned list
-  panics; a shared buffer, or one
+  (`rt:list_reserve`, the runtime's one reserve routine): a shared
+  buffer, or one
   without room, is replaced by one new buffer of the needed length or
   twice the length plus 4, whichever is more (a shared one with room
   keeps its capacity); the shared one's elements take their own counts,
@@ -1350,7 +1357,7 @@ changes preserve collection value semantics (§23.7).
   std's `list_reserve(items: &mut List[T], count)`
   (`StringBuilder.reserve`) is that routine itself through the
   reference, behind the same inline `count != 0` test, so a count of 0
-  neither copies nor panics on a pin. After it the list has room for
+  does not copy. After it the list has room for
   `count` more elements with no further growth: a shared buffer, or one
   short of room, becomes one new buffer as above; a buffer the list owns
   with the room stays. The TIR's `ListReserve` (a list comprehension
@@ -1364,8 +1371,8 @@ changes preserve collection value semantics (§23.7).
   drop after the loop gives the buffer back, so the list's next change
   copies only when something else still shares the buffer.
 - **Pins.** The passes' `Pin` gives the buffer its owner word while
-  element references hold counts of the buffer, and a `push` into a
-  pinned list panics `collection-pinned`. Element
+  element references hold counts of the buffer, so `rt:list_unique`
+  leaves it in place. Element
   references use the typed views of §23.20, preserving the header and
   the referenced slot when a buffer is copied.
 - **Indexing.** An index is checked against the length before it is
@@ -1690,9 +1697,13 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   `Pin` gives the buffer its owner word (§23.7), with no count: the
   function-table slot of the list's clone glue plus one. A buffer whose
   owner word is set has one header holding it, so every
-  count past the first is a reference's: the list is pinned while the
-  buffer's count is over 1 (`rt:list_pinned`), and a `push` or a
-  truncation then panics `collection-pinned` (`ref.elem.release.copies`).
+  count past the first is a reference's, and `rt:list_unique` copies
+  no such buffer. Nothing checks the length at run time: a change of it
+  while a reference lives is a compile-time conflict
+  (`ref.elem.access.length`) or, behind a `*T` or a shared variable, a
+  pointer-loan one (`ref.excl.alias.conflict`). The owner word, the
+  reference's count and the eager copy below go with the reference
+  counts (`docs/future-work/POINTER_LOANS.md`, phase 10).
   The reference's own count of the innermost buffer is the pin, so it
   ends with the reference's `Drop`; an ancestor list is exposed and never
   pinned. A change through the list writes the buffer in place, which
@@ -1734,7 +1745,7 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   return, and each holder `Drop` in the origin's loop ends it
   (`UniqMap.insert`'s probe, #1230). A table or
   list a view's getter made stays until that `Drop`. Any other reference keeps
-  its count and pin, so `map-get-ref-pinned-panics` still panics.
+  its count and pin.
 - **Borrow-state checks** (model A of `docs/future-work/POINTER_LOANS.md`,
   #1336; `emit/borrow.rs`). Before a `Store`, an `IsUnique`, a `&mut`
   `Ref` or any other `Ref` or `Read` of a place, each `*T` dereference on

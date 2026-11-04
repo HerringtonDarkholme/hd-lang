@@ -316,9 +316,6 @@ pub enum Helper {
         leaves: Vec<Leaf>,
         walk: Walk,
     },
-    /// `(list) -> bool`: whether an element reference pins the list: its
-    /// buffer has an owner word and a count over 1 (§23.20).
-    ListPinned,
     /// `(list) -> list`: a copy of the list's buffer, whose elements take
     /// their own counts: how [`Helper::CollCopy`] copies a pinned list,
     /// through the owner word's slot.
@@ -365,8 +362,7 @@ pub enum Helper {
     ListCopy {
         elem: Elem,
     },
-    /// `(list) -> list`: a `push`'s slow path: a pinned list panics
-    /// (`ref.elem.pinned`); otherwise the list's buffer, its own already
+    /// `(list) -> list`: a `push`'s slow path: the list's buffer, its own already
     /// (an owned body's `IsUnique` made it so), moved to one with room
     /// for the `push` when full.
     ListGrow {
@@ -1838,7 +1834,6 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::LoanBegin => loan_begin(m),
         Helper::LoanCount => loan_count(m),
         Helper::LoanCheck => loan_check(m),
-        Helper::ListPinned => list_pinned(m),
         Helper::ListClone { elem } => list_clone(m, elem),
         Helper::ListBuf { elem } => list_buf(m, elem),
         Helper::DropElems { elem } => drop_elems(m, elem),
@@ -3201,7 +3196,7 @@ fn dispatch_glue(f: &mut Func, glues: &[Sym], block: u32, slot: u32) {
 
 /// [`Helper::CollCopy`]: one more count on the buffer of a list or a map,
 /// which counts its holders. A pinned collection's buffer has one holder,
-/// so its copy is a clone (`ref.elem.pin`); an unpinned one whose buffer
+/// so its copy is a clone (the pin's eager copy); an unpinned one whose buffer
 /// still has an owner word gives the word up, as the buffer is shared now.
 /// Exposed ancestors stay unshared even without a direct pin: their
 /// recursively copied elements may contain a still-pinned descendant.
@@ -3240,24 +3235,6 @@ fn coll_copy(m: &Module) -> Func {
     f.get(b);
     f.helper(Helper::RetainKnown);
     f.get(b);
-    f
-}
-
-/// [`Helper::ListPinned`].
-fn list_pinned(m: &Module) -> Func {
-    let mut f = m.func("rt:list_pinned", vec![Val::I32], vec![Val::I32]);
-    let b = 0;
-    f.get(b);
-    f.op(Instruction::I32Load(mem(HEAP, LIST_OWN, 2)));
-    f.i32(0);
-    f.op(Instruction::I32Ne);
-    f.get(b);
-    f.u32(HEADER);
-    f.op(Instruction::I32Sub);
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-    f.i32(1);
-    f.op(Instruction::I32GtU);
-    f.op(Instruction::I32And);
     f
 }
 
@@ -3464,18 +3441,6 @@ fn list_truncate(m: &Module, elem: &Elem) -> Func {
     let mut f = m.func("rt:list_truncate", vec![Val::I32, Val::I32], vec![Val::I32]);
     let (b, at, n) = (0, f.local(Val::I32), f.local(Val::I32));
     f.get(b);
-    f.helper(Helper::ListPinned);
-    f.get(b);
-    f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
-    f.get(1);
-    f.op(Instruction::I32Ne);
-    f.op(Instruction::I32And);
-    f.op(Instruction::If(BlockType::Empty));
-    f.helper(Helper::Panic(
-        "collection-pinned: list length changed while pinned".into(),
-    ));
-    f.op(Instruction::End);
-    f.get(b);
     f.helper(Helper::ListUnique { elem: elem.clone() });
     f.set(b);
     if let Some(walk) = &elem.walk {
@@ -3662,20 +3627,13 @@ fn list_copy(elem: &Elem, m: &Module) -> Func {
     f
 }
 
-/// [`Helper::ListGrow`]: a pinned list panics; a full buffer moves to
+/// [`Helper::ListGrow`]: a full buffer moves to
 /// one of twice its length plus 4, and the old one, its elements moved and its length 0, loses
 /// the count the list held: an outlined change's thunk holds one more
 /// until it returns (`emit/erased.rs`).
 fn list_grow(elem: &Elem, m: &Module) -> Func {
     let mut f = m.func("rt:list_grow", vec![Val::I32], vec![Val::I32]);
     let (b, n, nb) = (0, f.local(Val::I32), f.local(Val::I32));
-    f.get(b);
-    f.helper(Helper::ListPinned);
-    f.op(Instruction::If(BlockType::Empty));
-    f.helper(Helper::Panic(
-        "collection-pinned: list length changed while pinned".into(),
-    ));
-    f.op(Instruction::End);
     f.get(b);
     f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
     f.set(n);
@@ -3750,13 +3708,6 @@ fn list_reserve(elem: &Elem, m: &Module) -> Func {
         f.local(Val::I32),
         f.local(Val::I32),
     );
-    f.get(b);
-    f.helper(Helper::ListPinned);
-    f.op(Instruction::If(BlockType::Empty));
-    f.helper(Helper::Panic(
-        "collection-pinned: list length changed while pinned".into(),
-    ));
-    f.op(Instruction::End);
     f.get(b);
     f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
     f.set(n);
@@ -4285,7 +4236,7 @@ fn ref_unbox_into(f: &mut Func, at: u32, value: &RefLayout, ls: &[u32]) {
 
 /// One more count on each counted reference of the value in locals `ls`,
 /// loads no count keeps: a collection's is the copy glue's result, which
-/// replaces it, a clone when the collection is pinned (`ref.elem.copy`).
+/// replaces it, a clone when the collection is pinned (the pin's eager copy, until phase 10 of `docs/future-work/POINTER_LOANS.md`).
 fn ref_copy(f: &mut Func, ls: &[u32], value: &RefLayout) {
     for &c in &value.colls {
         f.get(ls[c as usize]);

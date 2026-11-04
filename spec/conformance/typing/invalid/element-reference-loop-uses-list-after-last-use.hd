@@ -1,0 +1,9 @@
+# test: a loop over `&mut` element references is one access, so reading the list's length after the binding's last use in the body is a conflicting access
+# Spec 06 Element Reference Loops: flow.for.ref.access, flow.for.ref.conflict.
+fn invalid() -> usize:
+    let mut xs = [+1, 2]
+    let mut n: usize = 0
+    for x in &mut xs:
+        *x += 1
+        n = xs.len() # diagnostic: conflicting-access
+    n
