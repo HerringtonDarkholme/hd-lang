@@ -382,8 +382,8 @@ fn body_func<'a>(
     }
     // The parameters this instance receives borrowed whose value the body
     // only lends or passes on to callees that borrow it here too
-    // (`Em::instance_loans`).
-    let lent_here = if em.counting && by_type && sub == 0 {
+    // (`Em::instance_loans`), including a lifted closure's own parameters.
+    let lent_here = if em.counting && by_type {
         em.instance_loans(&plocals)
     } else {
         hd_base::HashSet::default()
