@@ -1,0 +1,15 @@
+# test: a function that writes a top-level binding while a reference into it lives panics borrow-conflict
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.global.
+struct Point:
+    x: i32
+
+let mut ORIGIN: Point = Point { x: +1 }
+
+fn shift() -> void:
+    ORIGIN.x = 10 # panic: borrow-conflict
+
+pub fn main() -> void $ Console:
+    r := &mut ORIGIN.x
+    shift()
+    *r += 1
+    println("${ORIGIN.x}")

@@ -30,7 +30,7 @@ use hd_mono::{Sub, Target, TargetKind, subst};
 use hd_tir::ir::{Body, PlaceRoot, Tag};
 use hd_types::{Ty, TyData};
 
-use super::borrow::{call_params, crossings, place_crossings, pointer_lent, root_ty};
+use super::borrow::{Roots, call_params, crossings, place_crossings, pointer_lent, root_ty};
 use super::excl::{Bind, binds, call_args, call_info, direct_value};
 use crate::Input;
 use crate::layout::{Kind, kind, ref_mutable};
@@ -106,6 +106,11 @@ fn accesses(input: &Input<'_>, m: &Module, id: InstId, b: &Body) -> HashMap<u32,
     let sub = |ty| subst(pool, env, item, args, ty);
     let calls = &input.collected.calls[id.idx()];
     let shared = super::closure::shared_locals(b);
+    let roots = Roots {
+        shared: &shared,
+        objects: &m.objects,
+        env,
+    };
     let mut out: HashMap<u32, Acc> = HashMap::default();
     for i in 0..b.tags.len() {
         let iu = u32::try_from(i).expect("insts");
@@ -128,7 +133,7 @@ fn accesses(input: &Input<'_>, m: &Module, id: InstId, b: &Body) -> HashMap<u32,
                     Tag::Ref => ref_mutable(pool, env, sub(b.ty[i])),
                     _ => false,
                 };
-                let crossed = place_crossings(pool, env, (b, &sub), &shared, root, &p);
+                let crossed = place_crossings(pool, (b, &sub), &roots, root, &p);
                 let last = crossed.len().wrapping_sub(1);
                 let acc = out.entry(iu).or_default();
                 for (n, (_, object)) in crossed.into_iter().enumerate() {
@@ -296,12 +301,18 @@ pub(crate) fn decide(input: &Input<'_>, m: &mut Module) {
         every || w > 0 || (excl && r > 0)
     };
     let mut kept: Vec<(LoanSite, Ty, bool)> = Vec::new();
+    let objects = m.objects.clone();
     for id in &ids {
         let b = (input.body)(*id).expect("body");
         let (item, args) = (t.item[id.idx()], t.args[id.idx()]);
         let sub = |ty| subst(pool, env, item, args, ty);
         let n = u32::try_from(b.tags.len()).expect("insts");
         let shared = super::closure::shared_locals(b);
+        let roots = Roots {
+            shared: &shared,
+            objects: &objects,
+            env,
+        };
         // A holder's loans: its whole function.
         for (_, _, bind, _) in binds(pool, env, b, &sub, true) {
             let Bind::Begin(a) = bind else {
@@ -312,7 +323,7 @@ pub(crate) fn decide(input: &Input<'_>, m: &mut Module) {
             };
             let vu = u32::try_from(v).expect("insts");
             let e = range(*id, 0, n, &[vu]);
-            ref_sites(input, b, &sub, *id, vu, &shared, |site, object, excl| {
+            ref_sites(input, b, &sub, *id, vu, &roots, |site, object, excl| {
                 if program(object, excl, accs[id].get(&vu)) && e.meets(object, excl) {
                     kept.push((site, object, excl));
                 }
@@ -344,7 +355,7 @@ pub(crate) fn decide(input: &Input<'_>, m: &mut Module) {
                     let Some(root) = root_ty(b, &sub, p.root) else {
                         continue;
                     };
-                    for (k, t) in place_crossings(pool, env, (b, &sub), &shared, root, &p) {
+                    for (k, t) in place_crossings(pool, (b, &sub), &roots, root, &p) {
                         heads.push((u32::try_from(k).expect("steps"), t));
                     }
                 }
@@ -416,7 +427,7 @@ pub(crate) fn decide(input: &Input<'_>, m: &mut Module) {
                 e.add(&callee);
                 match b.tags[v] {
                     Tag::Ref => {
-                        ref_sites(input, b, &sub, *id, vu, &shared, |site, object, excl| {
+                        ref_sites(input, b, &sub, *id, vu, &roots, |site, object, excl| {
                             if program(object, excl, accs[id].get(&vu)) && e.meets(object, excl) {
                                 kept.push((site, object, excl));
                             }
@@ -452,7 +463,7 @@ fn ref_sites(
     sub: &dyn Fn(Ty) -> Ty,
     id: InstId,
     v: u32,
-    shared: &HashSet<usize>,
+    roots: &Roots<'_>,
     mut f: impl FnMut(LoanSite, Ty, bool),
 ) {
     let (pool, env) = (input.pool, input.env);
@@ -463,7 +474,7 @@ fn ref_sites(
         return;
     };
     let excl = ref_mutable(pool, env, sub(b.ty[v as usize]));
-    let crossed = place_crossings(pool, env, (b, sub), shared, root, &p);
+    let crossed = place_crossings(pool, (b, sub), roots, root, &p);
     let last = crossed.len().wrapping_sub(1);
     for (n, (k, object)) in crossed.into_iter().enumerate() {
         f(

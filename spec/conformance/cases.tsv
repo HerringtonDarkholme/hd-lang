@@ -4850,6 +4850,7 @@ typing/invalid/impl-unknown-trait-no-cascade.hd	type	reject:unknown-trait	lang/0
 typing/invalid/impl-unknown-trait-cross-module.hd	type	reject:unknown-trait	lang/09-traits.md#r-trait.from.import
 typing/valid/from-import-repairs-conversion.hd	type	accept	lang/09-traits.md#r-trait.from.import
 runtime/valid/element-reference-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.elem.place
+runtime/panic/element-reference-captured-copy-during-call-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.call-loan
 runtime/panic/element-reference-sort-through-an-alias-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.call-loan
 runtime/panic/element-reference-swap-through-an-alias-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.call-loan
 runtime/panic/element-reference-store-through-an-alias-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.call-loan
@@ -5849,6 +5850,9 @@ runtime/panic/match-shared-and-mut-arguments-from-aliases-panics.hd	runtime	pani
 runtime/panic/mut-argument-then-closure-pushes-through-an-alias-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.call-loan
 runtime/panic/mut-parameter-then-closure-pushes-through-an-alias-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.call-loan
 runtime/panic/two-mut-arguments-from-aliased-pointers-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.call-loan
+runtime/panic/top-level-binding-written-under-a-reference-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.global
+runtime/panic/top-level-list-grown-under-an-element-loop-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.global
+runtime/valid/top-level-binding-own-field-write-under-a-reference.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.global
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

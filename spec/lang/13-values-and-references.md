@@ -706,11 +706,12 @@ fn rename(t: &Team, alias: *mut User) -> void $ Console:
 
 4. r[ref.excl.alias.shared-counted-loan] A reference held directly or through a call's result from a place reached through a `*T` takes the same run-time loan as one reached through a `*mut`.
 5. r[ref.excl.alias.shared-variable] A local variable that a closure shares is an object, as a `*mut` pointee is. A reference whose place starts at the variable holds that object, and each use of the variable, in the closure or in its own function, is an access through a counted reference.
-6. r[ref.excl.alias.call-loan] A `&` or `&mut` argument or auto-ref receiver whose path dereferences a `*mut` or a `*T` takes a run-time loan from its evaluation until its call returns. A `&mut self` receiver's loan is shared until the call begins, then exclusive. A closure argument holds the run-time loans of the references it captures until its call returns.
-7. r[ref.excl.alias.path-pointer] A run-time loan also covers each `*mut` slot read along its place's path as a shared loan, so replacing any such slot conflicts until the loan ends, in a debug or test build. A release build does not check these slots.
-8. r[ref.excl.alias.untracked-path] Other references take no run-time loan, so an alias reads or writes their place in place.
+6. r[ref.excl.alias.global] A top-level binding is an object. A reference whose place starts at the binding holds that object, and each use of the binding, from any function, is an access through a counted reference.
+7. r[ref.excl.alias.call-loan] A `&` or `&mut` argument or auto-ref receiver whose path dereferences a `*mut` or a `*T` takes a run-time loan from its evaluation until its call returns. A `&mut self` receiver's loan is shared until the call begins, then exclusive. A closure argument holds the run-time loans of the references it captures until its call returns.
+8. r[ref.excl.alias.path-pointer] A run-time loan also covers each `*mut` slot read along its place's path as a shared loan, so replacing any such slot conflicts until the loan ends, in a debug or test build. A release build does not check these slots.
+9. r[ref.excl.alias.untracked-path] Other references take no run-time loan, so an alias reads or writes their place in place.
 
-> **Note.** The call sentences of rule 2 and rules 7 and 8 describe the loan table that implementation phase 10 of the pointer-loan model removes.
+> **Note.** The call sentences of rule 2 and rules 8 and 9 describe the loan table that implementation phase 10 of the pointer-loan model removes.
 
 ### Lifetime Variables
 

@@ -33,6 +33,7 @@ use crate::{Input, unsupported};
 
 mod borrow;
 mod elide;
+pub(crate) use borrow::global_root;
 pub(crate) use elide::LoanSite;
 mod closure;
 mod count;

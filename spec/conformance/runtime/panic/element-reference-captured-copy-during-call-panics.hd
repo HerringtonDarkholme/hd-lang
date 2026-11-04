@@ -1,0 +1,12 @@
+# test: a closure that copies a captured list while a call holds `&mut` of an element of it panics borrow-conflict
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.call-loan, ref.excl.alias.shared-variable.
+fn snapshot_then_write(target: &mut i32, snapshot: fn() -> List[i32]) -> List[i32]:
+    copy := snapshot()
+    *target = 9
+    copy
+
+tests:
+    it("the copy reads the list the argument lends exclusively"):
+        let mut xs = [+1, 2]
+        last := snapshot_then_write(&mut xs[0], fn() -> List[i32]: xs) # panic: borrow-conflict
+        _ := last.len()

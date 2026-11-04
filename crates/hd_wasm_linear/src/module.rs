@@ -1002,6 +1002,11 @@ pub struct Module {
     /// each lives in a static slot at this address, not in Wasm globals
     /// (`crates/hd_wasm_linear/DESIGN.md` §23.20).
     pub addressed: BTreeMap<Hash128, Address>,
+    /// Those of them that are objects (`ref.excl.alias.global`): a binding
+    /// a reference reaches and a place writes. Its slot starts after a
+    /// header whose descriptor word holds the loans of references into
+    /// it, so an access from any function checks them.
+    pub objects: hd_base::HashSet<Hash128>,
     /// New REPL bindings own these slots in this module's static segment.
     pub binding_slots: BTreeMap<Hash128, u32>,
     /// In checked mode, each stored binding or once-cell, which the audit
