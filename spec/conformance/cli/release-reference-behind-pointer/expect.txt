@@ -1,10 +1,14 @@
-# A reference to a field behind a `*mut` counts that object, so when another
-# alias replaces the object, a release build (which checks no run-time loan)
-# still reads the original value through the reference, in a callee and in
-# a binding.
+# A reference to a field behind a `*mut` holds a loan on each object it
+# crosses (`ref.excl.alias.loan`), in a release build too. While `name`
+# lives, replacing the `Holder`'s child through another alias writes an
+# object the loan holds, so it panics borrow-conflict
+# (`ref.excl.alias.conflict`). The callee's reference argument is not
+# bound, so the first replacement runs and the reference reads the
+# original value it counted.
 run: hd run --release
+exit: 3
 stdout: 64
 stdout: original-zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
 stdout: 49
-stdout: 49
-stdout: replacement-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+stderr: panic: borrow-conflict: a `alias.main.Holder` a live reference borrows was written through another `*T`
+stderr:     src/main.hd:20 alias.main.main
