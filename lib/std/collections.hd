@@ -29,8 +29,8 @@ impl[T < ?Copy] !Copy for UniqList[T]
 
 # The stable driftsort shape from Rust 1.81: long natural runs scheduled by
 # powersort, lazy three-way stable quicksort runs, small insertion sorts, and
-# merge-sort fallback at the quicksort depth limit. The engine sorts original
-# indices so a `?Copy` element stays in its buffer until the final move cycle.
+# merge-sort fallback at the quicksort depth limit. Both list families use
+# this kernel, moving elements between their room and raw scratch storage.
 # One logical run in driftsort's powersort merge tree. An unsorted run is
 # sorted lazily, only when it meets a natural run or reaches the root.
 struct DriftRun:
@@ -39,66 +39,71 @@ struct DriftRun:
     sorted: bool
 
 fn drift_less[T < ?Copy](
-    items: &UniqList[T],
+    items: &Buffer[T],
     by: fn(&T, &T) -> Ordering,
     left: usize,
     right: usize,
 ) -> bool:
-    match (by)(items.buffer.at(left).as_ref(), items.buffer.at(right).as_ref()):
+    match (by)(items.at(left).as_ref(), items.at(right).as_ref()):
         .Less => true
         _ => false
 
 fn drift_insertion_sort[T < ?Copy](
-    items: &UniqList[T],
+    items: &Buffer[T],
     by: fn(&T, &T) -> Ordering,
-    order: &mut List[usize],
     start: usize,
     end: usize,
 ) -> void:
     let index = start + 1
     while index < end:
-        value := order[index]
         let hole = index
-        while hole > start && drift_less(items, by, value, order[hole - 1]):
-            order[hole] = order[hole - 1]
+        while hole > start && drift_less(items, by, index, hole - 1):
             hole -= 1
-        order[hole] = value
+        if hole != index:
+            value := items.at(index).read()
+            let at = index
+            while at > hole:
+                items.at(at).write(items.at(at - 1).read())
+                at -= 1
+            items.at(hole).write(value)
         index += 1
 
-fn drift_reverse(order: &mut List[usize], start: usize, end: usize) -> void:
+fn drift_reverse[T < ?Copy](items: &Buffer[T], start: usize, end: usize) -> void:
     let left = start
     let right = end
     while left + 1 < right:
         right -= 1
-        order.swap(left, right)
+        held := items.at(left).read()
+        items.at(left).write(items.at(right).read())
+        items.at(right).write(held)
         left += 1
 
 # Finds an ascending run, or a strictly descending run which may be reversed
 # without changing the order of equal elements.
 fn drift_natural_run[T < ?Copy](
-    items: &UniqList[T],
+    items: &Buffer[T],
     by: fn(&T, &T) -> Ordering,
-    order: &List[usize],
     start: usize,
+    size: usize,
 ) -> (usize, bool):
-    if start + 1 >= order.len():
+    if start + 1 >= size:
         return (1, false)
     let end = start + 2
-    descending := drift_less(items, by, order[start + 1], order[start])
+    descending := drift_less(items, by, start + 1, start)
     if descending:
-        while end < order.len() && drift_less(items, by, order[end], order[end - 1]):
+        while end < size && drift_less(items, by, end, end - 1):
             end += 1
     else:
-        while end < order.len() && !drift_less(items, by, order[end], order[end - 1]):
+        while end < size && !drift_less(items, by, end, end - 1):
             end += 1
     (end - start, descending)
 
 # Stable physical merge. Equal elements come from the left run.
 fn drift_merge[T < ?Copy](
-    items: &UniqList[T],
+    items: &Buffer[T],
     by: fn(&T, &T) -> Ordering,
-    order: &mut List[usize],
-    scratch: &mut List[usize],
+    scratch: &Buffer[T],
+    classes: &Buffer[u8],
     start: usize,
     middle: usize,
     end: usize,
@@ -109,24 +114,35 @@ fn drift_merge[T < ?Copy](
     while out < end:
         let take_right = left == middle
         if !take_right && right < end:
-            take_right = drift_less(items, by, order[right], order[left])
+            take_right = drift_less(items, by, right, left)
+        classes.at(out).write(if take_right: 1u8 else: 0u8)
         if take_right:
-            scratch[out] = order[right]
             right += 1
         else:
-            scratch[out] = order[left]
+            left += 1
+        out += 1
+    # Finish callbacks before opening holes in either input run.
+    left = start
+    right = middle
+    out = start
+    while out < end:
+        if classes.at(out).read() == 1:
+            scratch.at(out).write(items.at(right).read())
+            right += 1
+        else:
+            scratch.at(out).write(items.at(left).read())
             left += 1
         out += 1
     let index = start
     while index < end:
-        order[index] = scratch[index]
+        items.at(index).write(scratch.at(index).read())
         index += 1
 
 fn drift_merge_sort[T < ?Copy](
-    items: &UniqList[T],
+    items: &Buffer[T],
     by: fn(&T, &T) -> Ordering,
-    order: &mut List[usize],
-    scratch: &mut List[usize],
+    scratch: &Buffer[T],
+    classes: &Buffer[u8],
     start: usize,
     end: usize,
 ) -> void:
@@ -134,7 +150,7 @@ fn drift_merge_sort[T < ?Copy](
     let at = start
     while at < end:
         stop := at + (if run < end - at: run else: end - at)
-        drift_insertion_sort(items, by, order, at, stop)
+        drift_insertion_sort(items, by, at, stop)
         at = stop
     let width = run
     while width < end - start:
@@ -143,7 +159,7 @@ fn drift_merge_sort[T < ?Copy](
             middle := at + (if width < end - at: width else: end - at)
             stop := middle + (if width < end - middle: width else: end - middle)
             if middle < stop:
-                drift_merge(items, by, order, scratch, at, middle, stop)
+                drift_merge(items, by, scratch, classes, at, middle, stop)
             at = stop
         if width >= end - start - width:
             break
@@ -160,36 +176,38 @@ fn drift_log2(value: usize) -> usize:
 # A stable three-way quicksort. It is driftsort's lazy-run engine: equal keys
 # form one finished middle partition, which keeps low-cardinality inputs fast.
 fn drift_quick_sort[T < ?Copy](
-    items: &UniqList[T],
+    items: &Buffer[T],
     by: fn(&T, &T) -> Ordering,
-    order: &mut List[usize],
-    scratch: &mut List[usize],
+    scratch: &Buffer[T],
+    classes: &Buffer[u8],
     start: usize,
     end: usize,
     limit: usize,
 ) -> void:
     size := end - start
     if size <= 16:
-        drift_insertion_sort(items, by, order, start, end)
+        drift_insertion_sort(items, by, start, end)
         return
     if limit == 0:
-        drift_merge_sort(items, by, order, scratch, start, end)
+        drift_merge_sort(items, by, scratch, classes, start, end)
         return
-    pivot := order[start + size / 2]
+    pivot := start + size / 2
     let less: usize = 0
     let equal: usize = 0
     let index = start
     while index < end:
-        item := order[index]
-        class := match (by)(items.buffer.at(item).as_ref(), items.buffer.at(pivot).as_ref()):
+        class := match (by)(items.at(index).as_ref(), items.at(pivot).as_ref()):
             .Less =>
                 less += 1
-                0
+                0u8
             .Equal =>
                 equal += 1
-                1
-            .Greater => 2
-        scratch[index] = item * 3 + class
+                1u8
+            .Greater => 2u8
+        # Classify before moving any value, so the pivot's slot stays live.
+        # One byte per element also keeps inconsistent callbacks from changing
+        # the partition sizes between counting and distributing.
+        classes.at(index).write(class)
         index += 1
     if equal == size:
         return
@@ -198,47 +216,49 @@ fn drift_quick_sort[T < ?Copy](
     let greater_at = equal_at + equal
     index = start
     while index < end:
-        encoded := scratch[index]
-        item := encoded / 3
-        match encoded % 3:
+        match classes.at(index).read():
             0 =>
-                order[less_at] = item
+                scratch.at(less_at).write(items.at(index).read())
                 less_at += 1
             1 =>
-                order[equal_at] = item
+                scratch.at(equal_at).write(items.at(index).read())
                 equal_at += 1
             _ =>
-                order[greater_at] = item
+                scratch.at(greater_at).write(items.at(index).read())
                 greater_at += 1
         index += 1
-    drift_quick_sort(items, by, order, scratch, start, start + less, limit - 1)
-    drift_quick_sort(items, by, order, scratch, start + less + equal, end, limit - 1)
+    index = start
+    while index < end:
+        items.at(index).write(scratch.at(index).read())
+        index += 1
+    drift_quick_sort(items, by, scratch, classes, start, start + less, limit - 1)
+    drift_quick_sort(items, by, scratch, classes, start + less + equal, end, limit - 1)
 
 fn drift_sort_lazy_run[T < ?Copy](
-    items: &UniqList[T],
+    items: &Buffer[T],
     by: fn(&T, &T) -> Ordering,
-    order: &mut List[usize],
-    scratch: &mut List[usize],
+    scratch: &Buffer[T],
+    classes: &Buffer[u8],
     start: usize,
     end: usize,
 ) -> void:
-    drift_quick_sort(items, by, order, scratch, start, end, 2 * drift_log2(end - start))
+    drift_quick_sort(items, by, scratch, classes, start, end, 2 * drift_log2(end - start))
 
 fn drift_logical_merge[T < ?Copy](
-    items: &UniqList[T],
+    items: &Buffer[T],
     by: fn(&T, &T) -> Ordering,
-    order: &mut List[usize],
-    scratch: &mut List[usize],
+    scratch: &Buffer[T],
+    classes: &Buffer[u8],
     left: DriftRun,
     right: DriftRun,
 ) -> DriftRun:
     if !left.sorted && !right.sorted:
         return DriftRun { start: left.start, len: left.len + right.len, sorted: false }
     if !left.sorted:
-        drift_sort_lazy_run(items, by, order, scratch, left.start, left.start + left.len)
+        drift_sort_lazy_run(items, by, scratch, classes, left.start, left.start + left.len)
     if !right.sorted:
-        drift_sort_lazy_run(items, by, order, scratch, right.start, right.start + right.len)
-    drift_merge(items, by, order, scratch, left.start, right.start, right.start + right.len)
+        drift_sort_lazy_run(items, by, scratch, classes, right.start, right.start + right.len)
+    drift_merge(items, by, scratch, classes, left.start, right.start, right.start + right.len)
     DriftRun { start: left.start, len: left.len + right.len, sorted: true }
 
 fn drift_scale_factor(size: usize) -> u64:
@@ -254,29 +274,36 @@ fn drift_sqrt_approx(size: usize) -> usize:
     ((1usize << shift) + (size >> shift)) / 2
 
 fn drift_create_run[T < ?Copy](
-    items: &UniqList[T],
+    items: &Buffer[T],
     by: fn(&T, &T) -> Ordering,
-    order: &mut List[usize],
     start: usize,
     minimum: usize,
+    size: usize,
 ) -> DriftRun:
-    remaining := order.len() - start
+    remaining := size - start
     if remaining >= minimum:
-        let (len, reversed) = drift_natural_run(items, by, order, start)
+        let (len, reversed) = drift_natural_run(items, by, start, size)
         if len >= minimum:
             if reversed:
-                drift_reverse(order, start, start + len)
+                drift_reverse(items, start, start + len)
             return DriftRun { start: start, len: len, sorted: true }
     DriftRun { start: start, len: if minimum < remaining: minimum else: remaining, sorted: false }
 
 # Driftsort's top-level policy: preserve long natural runs, keep the other
 # runs lazy for stable quicksort, and merge them in powersort order.
-fn drift_order[T < ?Copy](items: &UniqList[T], by: fn(&T, &T) -> Ordering) -> List[usize]:
-    size := items.len()
-    let mut order: List[usize] = [for index in 0..size => index]
+fn drift_sort[T < ?Copy](items: &Buffer[T], size: usize, by: fn(&T, &T) -> Ordering) -> void:
     if size < 2:
-        return order
-    let mut scratch = order
+        return
+    if size <= 16:
+        drift_insertion_sort(items, by, 0, size)
+        return
+    let (run, reversed) = drift_natural_run(items, by, 0, size)
+    if run == size:
+        if reversed:
+            drift_reverse(items, 0, size)
+        return
+    scratch := Buffer::[T].new(size)
+    classes := Buffer::[u8].new(size)
     scale := drift_scale_factor(size)
     minimum := if size <= 64 * 64:
         half := size - size / 2
@@ -289,7 +316,7 @@ fn drift_order[T < ?Copy](items: &UniqList[T], by: fn(&T, &T) -> Ordering) -> Li
     let prev = DriftRun { start: 0, len: 0, sorted: true }
     while true:
         next := if scan < size:
-            drift_create_run(items, by, &mut order, scan, minimum)
+            drift_create_run(items, by, scan, minimum, size)
         else:
             DriftRun { start: scan, len: 0, sorted: true }
         depth := if scan < size:
@@ -299,7 +326,7 @@ fn drift_order[T < ?Copy](items: &UniqList[T], by: fn(&T, &T) -> Ordering) -> Li
         while runs.len() > 1 && depths.last().unwrap_or(0) >= depth:
             left := runs.pop().unwrap_or(DriftRun { start: 0, len: 0, sorted: true })
             _ := depths.pop()
-            prev = drift_logical_merge(items, by, &mut order, &mut scratch, left, prev)
+            prev = drift_logical_merge(items, by, &scratch, &classes, left, prev)
         runs.push(prev)
         depths.push(depth)
         if scan >= size:
@@ -307,8 +334,7 @@ fn drift_order[T < ?Copy](items: &UniqList[T], by: fn(&T, &T) -> Ordering) -> Li
         scan += next.len
         prev = next
     if !prev.sorted:
-        drift_sort_lazy_run(items, by, &mut order, &mut scratch, 0, size)
-    order
+        drift_sort_lazy_run(items, by, &scratch, &classes, 0, size)
 
 # The list drops the values it holds; its buffer then frees the room.
 impl[T < ?Copy] Drop for UniqList[T]:
@@ -414,7 +440,10 @@ impl[T < ?Copy] UniqList[T]:
     # element it refers to.
     fn unpinned(&self) -> void:
         if self.buffer.pinned():
-            panic_with("collection-pinned", "a uniq list changes its length while an element reference pins it")
+            panic_with(
+                "collection-pinned",
+                "a uniq list changes its length while an element reference pins it",
+            )
 
     # Moves every element into a larger room.
     fn reserve_for(&mut self, minimum: usize) -> void:
@@ -540,53 +569,34 @@ impl[T < ?Copy] UniqList[T]:
     ## Stably sorts the elements in ascending order by `compare`, in place.
     ## See [std-collections.uniq-list.sort](../../spec/std/collections.md#r-std-collections.uniq-list.sort).
     pub fn sort_by(&mut self, compare: fn(&T, &T) -> Ordering) -> void:
-        size := self.len()
-        if size <= 1:
-            return
-        order := drift_order(self, compare)
-        self.reorder(order)
+        drift_sort(&self.buffer, self.len, compare)
 
     ## Stably sorts the elements by `key(element)`, calling `key` once per element.
     ## See [std-collections.uniq-list.sort](../../spec/std/collections.md#r-std-collections.uniq-list.sort).
     pub fn sort_by_key[K < Ord](&mut self, key: fn(&T) -> K) -> void:
         size := self.len()
-        if size <= 1:
+        if size == 0:
             return
-        let mut keyed = UniqList::[(K, usize)].with_capacity(size)
+        keys := Buffer::[K].new(size)
         let index: usize = 0
         while index < size:
-            keyed.push((key(self.buffer.at(index).as_ref()), index))
+            keys.at(index).write(key(self.buffer.at(index).as_ref()))
             index += 1
-        keyed.sort_by(fn(left: &(K, usize), right: &(K, usize)) -> Ordering: left._0.cmp(&right._0))
-        let mut order: List[usize] = []
-        for (_, at) in keyed:
-            order.push(at)
-        self.reorder(order)
-
-    # Inverts driftsort's destination-to-source permutation in place, then
-    # follows its cycles with element moves. `size` is an unattainable marker
-    # offset because a buffer cannot hold half of usize's range of elements.
-    fn reorder(&mut self, order: List[usize]) -> void:
-        let mut permutation = order
-        size := permutation.len()
-        for start in 0..size:
-            if permutation[start] >= size:
-                continue
-            let previous = start
-            let current = permutation[start]
-            while current != start:
-                next := permutation[current]
-                permutation[current] = previous + size
-                previous = current
-                current = next
-            permutation[start] = previous + size
-        for index in 0..size:
-            permutation[index] -= size
-        for index in 0..size:
-            while permutation[index] != index:
-                destination := permutation[index]
-                self.swap(index, destination)
-                permutation.swap(index, destination)
+        let mut keyed = UniqList::[(K, T)].with_capacity(size)
+        index = 0
+        while index < size:
+            keyed.push((keys.at(index).read(), self.buffer.at(index).read()))
+            index += 1
+        self.len = 0
+        keyed.sort_by(fn(left: &(K, T), right: &(K, T)) -> Ordering: left._0.cmp(&right._0))
+        # Drain by index so each element moves once, with no tail shifts.
+        keyed.len = 0
+        index = 0
+        while index < size:
+            let (_, item) = keyed.buffer.at(index).read()
+            self.buffer.at(index).write(item)
+            index += 1
+        self.len = size
 
 impl[T < Copy] UniqList[T]:
     ## Copies the elements of `items`, in order, into a new uniquely owned list.
@@ -754,7 +764,10 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
     ## See [std-collections.uniq-map.insert](../../spec/std/collections.md#r-std-collections.uniq-map.insert).
     pub fn insert(&mut self, key: K, value: V) -> V?:
         if self.slots.pinned() && self.find_index(key).is_none():
-            panic_with("collection-pinned", "a uniq map inserts a key while a value reference pins it")
+            panic_with(
+                "collection-pinned",
+                "a uniq map inserts a key while a value reference pins it",
+            )
         if self.used == self.entry_capacity:
             self.grow()
         capacity := self.entry_capacity * 2
@@ -819,7 +832,10 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
             .None => .None
             .Some(index) =>
                 if self.slots.pinned():
-                    panic_with("collection-pinned", "a uniq map removes a key while a value reference pins it")
+                    panic_with(
+                        "collection-pinned",
+                        "a uniq map removes a key while a value reference pins it",
+                    )
                 place := self.slots.at(index)
                 match place.read():
                     .Occupied(_, _, value) =>
@@ -832,7 +848,10 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
     ## See [std-collections.uniq-map.clear](../../spec/std/collections.md#r-std-collections.uniq-map.clear).
     pub fn clear(&mut self) -> void:
         if self.size > 0 && self.slots.pinned():
-            panic_with("collection-pinned", "a uniq map clears its entries while a value reference pins it")
+            panic_with(
+                "collection-pinned",
+                "a uniq map clears its entries while a value reference pins it",
+            )
         capacity := self.entry_capacity
         *self = UniqMap::[K, V].with_capacity(capacity)
 
@@ -1142,67 +1161,21 @@ impl[T] List[T]:
             backwards.push(self[index])
         backwards
 
-    # Stable insertion-sorted runs, merged with one reusable scratch list.
     ## Returns a new list in ascending order by `compare`. The sort is stable.
     ## See [std-collections.access.sorted-by](../../spec/std/collections.md#r-std-collections.access.sorted-by).
     pub fn sorted_by(&self, compare: fn(&T, &T) -> Ordering) -> List[T]:
-        size := self.len()
-        if size <= 1:
+        if self.len() <= 1:
             return *self
-        run := 16
-        let mut sorted = *self
-        let start: usize = 0
-        while start < size:
-            end := start + (if run < size - start: run else: size - start)
-            let index = start + 1
-            while index < end:
-                value := sorted[index]
-                let hole = index
-                while hole > start:
-                    match compare(&value, &sorted[hole - 1]):
-                        .Less => pass
-                        _ => break
-                    sorted[hole] = sorted[hole - 1]
-                    hole -= 1
-                if hole != index:
-                    sorted[hole] = value
-                index += 1
-            start = end
-        if size <= run:
-            return sorted
-        # Copy-on-write provides the output and scratch storage; each pass
-        # overwrites every slot before swapping the two lists for reuse.
-        let mut scratch = *self
-        let width = run
-        while width < size:
-            start = 0
-            while start < size:
-                middle := start + (if width < size - start: width else: size - start)
-                end := middle + (if width < size - middle: width else: size - middle)
-                let left = start
-                let right = middle
-                let out = start
-                while out < end:
-                    let take_right = left == middle
-                    if !take_right && right < end:
-                        take_right = match compare(&sorted[right], &sorted[left]):
-                            .Less => true
-                            _ => false
-                    if take_right:
-                        scratch[out] = sorted[right]
-                        right += 1
-                    else:
-                        scratch[out] = sorted[left]
-                        left += 1
-                    out += 1
-                start = end
-            previous := sorted
-            sorted = scratch
-            scratch = previous
-            if width >= size - width:
-                break
-            width *= 2
-        sorted
+        let mut sorted = UniqList::[T].from_list(*self)
+        sorted.sort_by(compare)
+        let mut out: List[T] = []
+        let index: usize = 0
+        size := sorted.len
+        sorted.len = 0
+        while index < size:
+            out.push(sorted.buffer.at(index).read())
+            index += 1
+        out
 
     # In place, by the stable sort `sorted_by` makes.
     ## Sorts the list in ascending order by `compare`, in place. The sort is stable.
