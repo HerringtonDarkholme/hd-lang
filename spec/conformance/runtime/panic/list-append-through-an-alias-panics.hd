@@ -1,0 +1,11 @@
+# test: append whose receiver and argument name one boxed list through two pointers panics borrow-conflict, as model A gives two exclusive loans on one object
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.call-loan.
+
+struct Bag:
+    items: List[string]
+
+tests:
+    it("append through an alias of its own receiver"):
+        bag := box(Bag { items: ["a", "b"] })
+        alias := bag
+        bag.items.append(&mut alias.items) # panic: borrow-conflict

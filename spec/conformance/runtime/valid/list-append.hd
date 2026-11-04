@@ -19,9 +19,3 @@ tests:
         items.append(&mut other)
         other.push("new")
         assert_equal(other, ["new"])
-
-    it("applies append sequentially when both references name the same place"):
-        bag := box(Bag { items: ["a", "b"] })
-        alias := bag
-        bag.items.append(&mut alias.items)
-        assert(bag.items.is_empty())

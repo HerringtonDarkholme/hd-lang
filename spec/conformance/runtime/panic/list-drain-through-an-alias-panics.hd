@@ -1,10 +1,11 @@
-# test: list drain preserves the collection pin check
+# test: a list drain through a pointer alias while an element reference borrows the same object panics borrow-conflict, as model A gives
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.call-loan.
 
 struct Bag:
     items: List[string]
 
 fn change(first: &mut string, alias: *mut Bag) -> void:
-    _ := alias.items.drain(0..1) # panic: collection-pinned
+    _ := alias.items.drain(0..1) # panic: borrow-conflict
     *first = "still live"
 
 tests:
