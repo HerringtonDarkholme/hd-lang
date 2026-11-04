@@ -34,6 +34,7 @@ It changes no spec, compiler or std code.
 - [Option 4: Borrow By Meaning](#option-4-borrow-by-meaning)
 - [Option 5: Trace Linear Memory, Keep A Shared Bit](#option-5-trace-linear-memory-keep-a-shared-bit)
 - [Making The Right Answer Structural](#making-the-right-answer-structural)
+- [Option 1 Against Option 2](#option-1-against-option-2)
 - [Comparison](#comparison)
 - [Recommendation](#recommendation)
 - [Questions For The Owner](#questions-for-the-owner)
@@ -385,13 +386,16 @@ fn hash_of[usize](value: usize lent) -> u64
 - **Erased bodies and views stay.** Views become a per-value fact (made by
   an erased call or a `!Copy` payload reference), not a module fact, so
   only those values release. Option 3 can remove them later.
-- **Compile time.** Per-instance passes cost what instances cost: 0.8 to
-  1.07 per decoded body on the measured programs. Inlining per instance
-  grows bodies in release only. Emitter glue and `views_absent` go.
+- **Compile time.** Per-instance passes see 1.03 times the instructions
+  today's per-body passes see, 1.17 at most (measured on 25 programs).
+  An edit build of json is estimated at −12% to +4%. Emitter glue and
+  `views_absent` go. See
+  [Option 1 Against Option 2](#option-1-against-option-2).
 - **Size.** Output shrinks with every count and cell removed; release
-  inlining grows some functions. The compiler loses emitter glue and
-  three weakening passes, and gains one derivation and one storage pass;
-  net roughly flat against the 2 MB cap (unmeasured).
+  inlining grows some functions. The compiler loses emitter glue,
+  insertion and three weakening passes, and gains one derivation and one
+  storage pass:
+  about 2,300 Rust lines fewer, 25 to 32 KB of gzip (estimated).
 - **Migration.** Nine steps, each one cause, each with snapshot diffs that
   may only remove operations: per-instance pipeline; value locals;
   derivation behind a flag beside the old passes; uniqueness facts;
@@ -403,9 +407,11 @@ fn hash_of[usize](value: usize lent) -> u64
   local has no alias, by its definition. A missed fact keeps a copy, never
   a dangling value. The verifier's invariant 23 stays.
 
-**Spec impact.** None; compiler internals. It revises two orchestrator
-assumptions in tir-v2 ("once per body, not per instance"; "generic bodies
-keep symbolic count operations").
+**Spec impact.** None; compiler internals. It reopens the fixed
+constraint "work is done once per generic body where possible, not per
+instance" (`tir-v2-directions.md`) and tir-v2's "Why once per body, not
+per instance", and revises its "generic bodies keep symbolic count
+operations".
 
 ## Option 2: A Low Ownership IR After Monomorphization
 
@@ -463,18 +469,22 @@ locals itself. #1385, #1391 and #1394 still need Option 3.
 
 - **Erased bodies and views stay**, as explicit `alloc_box` and view
   instructions the same passes see.
-- **Compile time.** One more lowering per instance. It may be net faster:
-  module finish (Wasm optimization and encoding) was 110 of 126 ms of
-  json's link (tir-v2, Cost), mostly cleaning up one fresh local per TIR
-  value. Unmeasured.
-- **Size.** Best output of the five. The compiler grows by a new crate,
-  estimated 10,000 to 15,000 lines, before the passes (12,000 lines) and
-  emitter glue go: a risk for the 2 MB cap during migration.
+- **Compile time.** One more lowering per instance and a set of passes
+  on a larger IR: an edit build of json is estimated at −25% to +37%.
+  The Wasm cleanup it would shrink is 80% `opt::locals`, a local
+  cleanup any emitter can avoid, so that gain is not Option 2's alone.
+- **Size.** Possibly the best output of the five, by a margin not
+  measured. The new crate is estimated at 21,300 to 30,700 Rust lines
+  against 30,100 to 30,800 deleted (the passes' 8,002 code lines, the
+  emitter, its glue). During a parallel path both backends add 234 to
+  430 KB of gzip, against 33 KB of headroom under the 2 MB cap.
 - **Migration.** A parallel path: the new IR for functions it supports,
-  the old emitter for the rest, with the same ABI. About 50 to 80 tasks,
-  estimated, with the largest gains late.
-- **Reopens an owner decision.** tir-v2's "There is no second IR"
-  (2026-10-21). New evidence: decisions now sit in six layers, and the
+  the old emitter for the rest, with the same ABI, kept out of the web
+  compiler until the switch-over. About 50 to 80 tasks, estimated, with
+  the largest gains late.
+- **Reopens two owner decisions.** "One IR" (2026-10-21; tir-v2's
+  "There is no second IR"), and, as Option 1 does, "work once per
+  generic body". New evidence: decisions now sit in six layers, and the
   emitter is the only post-monomorphization stage.
 
 ## Option 3: Close The World
@@ -631,6 +641,274 @@ frame candidates, loop depth 8, 64-bit parameter masks) runs over the
 feature snapshots in CI and reports every count the fast one keeps; and
 #1361's runtime detector confirms nothing is left on the bench.
 
+## Option 1 Against Option 2
+
+The owner's concern with Option 2 is compiler size, compile time and
+memory. This section measures today's pieces each option replaces and
+estimates both options bottom-up from them. Every figure is marked
+**measured** or **est.** (estimated); an estimate names what it rests on.
+
+**How it was measured.** Commit 4336341bd (main dae8d82c7), the `hd`
+command built with `cargo build --release`, on an Apple M3 Max shared
+with other jobs (load average 5 to 6). Each build ran with `HD_JOBS=1`
+and a fresh `HD_CACHE`, best of three. Stage times come from the
+driver's own per-task clock (`Counters::stage_ns`); times inside a task
+(the passes, the inliner, emission, the Wasm cleanup) came from scratch
+timers that were not committed. The programs are 25 packages: the
+`bench/study` and `bench/runtime/progs` programs (where two share a
+name, one of them) and the four `examples/dogfood` programs. **dev** is
+`hd build`; **release** is `hd build --release`. A **cold** build checks
+the std modules the program imports (about 4,040 bodies); an **edit**
+build finds std in the cache and rebuilds after a one-function edit to
+`main.hd`, the case where collection and link dominate.
+
+### Compiler size
+
+The web compiler is **1,966,709 B** gzip today (measured,
+`node scripts/build-web-compiler.js`), against a cap of 2,000,000 B
+(`scripts/test-web-compiler.js`): **33,291 B of headroom**.
+
+**What a line costs.** Three builds, each stubbing out one more piece;
+each change is against the build before it:
+
+| Stubbed out | Code lines removed (est.) | gzip change (measured) | Per line |
+| --- | ---: | ---: | ---: |
+| the ownership passes: `hd_tir::own::run` returns at once; the verifier, summaries and promotion stay | about 5,800 | −65,106 B | 11.2 B |
+| the Wasm count rules: `static_values`, `static_counts`, `count_pairs` | about 400 | −6,070 B | 15 B |
+| the TIR inliner: `hd_opt::inline::inline_calls` returns at once | about 800 | −9,882 B | 12 B |
+
+That agrees with tir-v2's 11 to 14 B per Rust code line, used below.
+
+**Today's pieces** (code lines: not blank, not comments, before the
+tests; measured):
+
+| Piece | Files | Code lines |
+| --- | --- | ---: |
+| ownership passes | `hd_tir/src/own.rs`, `own/*` | 8,002 |
+| ownership verifier | `hd_tir/src/ir/owned.rs` | 1,498 |
+| summaries, `own_instance`, promotion | `hd_driver/src/own.rs` | 1,468 |
+| TIR inliner | `hd_opt/src/inline.rs`, `hd_tir/src/inline.rs` | 1,051 |
+| emitter | `hd_wasm_linear/src/emit.rs`, `emit/*` | 17,536 |
+| of which ownership glue | `emit/count.rs` 1,030, `borrow.rs` 1,766, `loan.rs` 654, `elide.rs` 552, `excl.rs` 623, `drop_flags.rs` 331, `promote.rs` 146 | 5,102 |
+| Wasm cleanup | `hd_wasm_linear/src/opt.rs` | 2,682 |
+| TIR data structures | `hd_tir/src/ir.rs`, `ir/{root,slots,topo,view}.rs` | 2,841 |
+
+**Option 1, bottom-up** (est.; one row per migration step):
+
+| Step | Adds | Deletes | Where |
+| --- | ---: | ---: | --- |
+| 1. per-instance pipeline | 200-400 | 300-500 | `instance_body` in `hd_driver/src/lib.rs` already substitutes, rechooses impls, inlines and owns one instance; it becomes the only path. `Tri::Maybe` paths and the exclusive copies of `own_inlined` go |
+| 2. value locals (SSA over structured TIR) | 700-1,100 | 0 | new `hd_tir/src/own/values.rs` |
+| 3. one derivation | 1,800-2,800 | 3,800 | replaces `insert.rs`, `borrow.rs`, `moves.rs`, `pairs.rs` |
+| known-null and hoisting absorbed | 0 | 200-950 | `known.rs`, part of `hoist.rs` |
+| 4. uniqueness facts | 200-400 | 0 | |
+| 5. storage pass | 800-1,200 | 860-1,060 | `frame.rs`; cell and environment choice in `emit/closure.rs`, `emit/promote.rs` |
+| 6. suspension live sets | 200-400 | 100-300 | `emit/susp.rs` |
+| 7. count, loan and storage instructions | 1,000-1,600 | 2,800-4,200 | the decisions in the glue files above move into TIR passes; `opt.rs`'s count rules go |
+| 8. `&mut` inlining, values in and out | 400-800 | 0 | `hd_opt/src/inline.rs`, the emitter's ABI |
+| lent by default | 100-200 | 400-800 | release summaries in `hd_driver/src/own.rs` |
+| 9. reason-tag verifier | 400-700 | 0 | `ir/owned.rs` |
+| **total** | **5,800-9,600** | **8,460-11,610** | |
+
+**Option 2, bottom-up** (est.; a new crate, here called `hd_lir`):
+
+| Component | Adds | Deletes | Rests on |
+| --- | ---: | ---: | --- |
+| IR: columns, builder, printer and parser for snapshots | 1,800-2,600 | 0 | TIR's 2,841 lines, with fewer tags |
+| lowering TIR to the IR, per instance | 10,500-13,600 | 12,434 | today's emitter less its glue: every TIR construct still needs lowering, now to explicit memory |
+| printer to Wasm | 1,500-2,500 | 0 | |
+| passes: memory to values 600-900, scalar replacement 500-800, ownership 1,500-2,500, access markers and loans 1,000-1,500, uniqueness 200-400, storage 600-1,000, suspension 800-1,200, inliner 800-1,200 | 6,000-9,500 | 8,002 + 1,051 | today's passes and inliner |
+| ownership verifier | 1,500-2,500 | 1,498 | `ir/owned.rs` |
+| other deletions | 0 | 7,100-7,800 | emitter glue 5,102; `opt.rs` count rules 400 and part of its local cleanup 800-1,500; summaries 800 |
+| **total** | **21,300-30,700** | **30,100-30,800** | |
+
+**The result:**
+
+| | Option 1 | Option 2 |
+| --- | --- | --- |
+| net Rust code lines at the end (est.) | −5,800 to +1,100; about −2,300 at the midpoints | −9,500 to +600; about −4,400 at the midpoints |
+| gzip at the end, at 11-14 B per line (est.) | about −25 to −32 KB; range −81 to +15 KB | about −48 to −62 KB; range −130 to +8 KB |
+| peak during migration (est.) | the largest step beside what it replaces: step 3 behind a flag is +1,800-2,800 lines, +20 to +39 KB, at or over the headroom; landing it pass by pass, each commit deleting what it replaces, keeps the peak under 10 KB | the parallel path keeps both backends: +21,300-30,700 lines, **+234 to +430 KB**, 7 to 13 times the headroom |
+| at a 1.5x overrun of the adds, the stop rule for size estimates (est.) | about +1,550 lines, +17 to +22 KB: under the cap | about +8,600 lines, +95 to +120 KB: **over the cap** |
+
+**Verdict.** Option 1 is likely to shrink the compiler and stays under
+the cap even when its estimate overruns. Option 2 may end smaller, but
+its estimate moves three times as many lines, so its error is three
+times as large in bytes. Its parallel path cannot ship in the web
+compiler: `hd_web` must keep the old backend until one switch-over
+commit, or build the new crate only natively.
+
+### Compile time
+
+**Today, by stage** (measured; milliseconds, edit build):
+
+| Stage | json release | json dev | tasks release | orders release | dyn-iter release |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| whole build | 160 | 150 | 100 | 80 | 80 |
+| check (`Body`) | 3.2 | 3.3 | 4.5 | 4.6 | 1.1 |
+| collection (`Collect`), of which: | 33.9 | 24.1 | 16.3 | 10.6 | 20.1 |
+| — TIR decoding | 1.1 | 1.1 | 0.6 | 0.4 | 0.8 |
+| — inliner | 3.6 | 3.3 | 1.5 | 0.8 | 2.1 |
+| — ownership passes | 16.6 | 11.3 | 5.7 | 3.0 | 7.9 |
+| link (`Link`), of which: | 78.5 | 76.9 | 40.3 | 32.0 | 25.2 |
+| — drives and loan collection | 3.5 | 3.8 | 1.6 | 0.8 | 2.1 |
+| — emission of every instance | 28.6 | 27.8 | 10.1 | 6.0 | 15.3 |
+| — Wasm cleanup | 41.3 | 40.8 | 25.8 | 23.3 | 5.5 |
+| — of which `opt::locals` | 33.2 | 32.8 | 20.2 | 19.1 | 4.0 |
+| — of which the count rules | 2.6 | 3.1 | 1.5 | 2.3 | 0.7 |
+
+A cold build takes 300 to 440 ms (measured), of which checking std is
+about 220 ms in every program (`Body` about 160, `FolderIface` 36,
+`ModuleFinish` 26). Neither option touches that part.
+
+**Sizes and rates** (measured, json release unless named):
+
+| Fact | Value |
+| --- | --- |
+| instances emitted / bodies decoded | 249 / 302 |
+| TIR instructions through the passes / emitted, counted per instance | 17,585 / 17,521 |
+| emitted per instance ÷ through the passes, all 25 programs | **1.03 release, 1.04 dev**; at most 1.17 (json dev), 1.10 (tasks, textstats), 1.09 (dyn-iter, structure-walk) |
+| Wasm instructions before / after the cleanup | 98,919 / 29,327: the cleanup removes 70% (30% to 70% across programs) |
+| ownership passes | 0.95 µs per TIR instruction (0.42 to 0.97 across programs) |
+| emission | 1.7 µs per TIR instruction (0.87 to 1.8) |
+| Wasm cleanup | 0.42 µs per Wasm instruction |
+
+The 1.03 ratio is the cost of Option 1's per-instance passes: the
+instructions an instance-by-instance run would see, against those the
+per-body run sees today. The doc's earlier 0.8 to 1.07 counted
+instances per body; counted by instructions, the extra work is 3% on
+average and 17% at most.
+
+The Wasm cleanup is the largest stage on the bigger programs, and 80%
+of it is `opt::locals`, a fixed-point loop that rebuilds each body
+until no local rule fires. Its input is the emitter's one fresh local
+per value. That cost belongs to how the emitter assigns locals, not to
+where ownership is decided, so both options can remove it: Option 2's
+printer would assign locals itself, and today's emitter, or Option 1's,
+can reuse locals for single-use values the same way.
+
+**Model** (est.; json release, edit build, milliseconds; the rows
+replace today's link and the collection's passes):
+
+| Stage | Today (measured) | Option 1 (est.) | Option 2 (est.) |
+| --- | ---: | ---: | ---: |
+| inliner | 3.6 | 3.6-4.6: per instance ×1.00-1.17, bound calls inlined | 0: moves to the IR |
+| ownership passes on TIR | 16.6 | 12-25: per instance ×1.00-1.17; SSA construction +2-4; one derivation for five passes ×0.6-1.0 | 0 |
+| lowering TIR to the IR | — | — | 20-30: today's emission rate, 1.2-1.7 µs per TIR instruction |
+| passes on the IR, inliner included | — | — | 20-85: eight passes at 0.1-0.2 µs per IR instruction, 1.5-3 IR instructions per TIR instruction |
+| emission or printing | 28.6 | 22-27: no glue | 5-15 |
+| Wasm cleanup | 41.3 | 36-41: fewer counts to cancel | 8-20: locals assigned by the IR |
+| drives, runtime entry, encoding | 7.6 | 5-7 | 5-7 |
+| **sum** | **98** | **79-105** | **58-157** |
+| **edit build** | **160** | **141-167** (−12% to +4%) | **120-219** (−25% to +37%) |
+
+Dev, json, by the same rules: today 91 ms of a 150 ms edit build;
+Option 1 76-98 (the 1.17 ratio applies here); Option 2 48-114, running
+four passes (memory to values, ownership, storage, suspension).
+
+**Verdict.** Neither option moves a cold build by more than about 10%.
+On edit builds Option 1 is about even. Option 2's range is four times
+as wide, and its one clear gain, the local cleanup, is open to both.
+Today's passes run at 0.42 to 0.97 µs per instruction, under tir-v2's
+bound of the checker's 1.2 µs; both options must stay under it.
+
+### Memory
+
+| | Today (measured) | Option 1 (est.) | Option 2 (est.) |
+| --- | --- | --- | --- |
+| peak RSS, cold build | 107-121 MB, all 25 programs | unchanged within 1 MB | +0 to +1.5 MB |
+| peak RSS, edit build | 72-84 MB | unchanged | +0 to +1.5 MB |
+| part that depends on the program | about 10 MB on json (82 against 72 for the smallest) | per-instance TIR copies: ×1.00-1.17 of about 0.5 MB on json | the IR, at about 29 B per instruction (TIR's 17 B plus about 3 `extra` words) and 35,000-53,000 instructions: 1.0-1.5 MB on json when all instances are live |
+| what must be live at once | every decoded TIR body for the run; every instance's Wasm until the module cleanup ends (up to 56 B per Wasm instruction, about 5.5 MB for json's 98,919) | the same; an instance can be owned, emitted and dropped in turn | streams one instance at a time, except that inlining on the IR needs each callee's IR until its callers are done (bottom-up order), and loan elision needs every instance's loan facts (summaries, not bodies) |
+
+**Verdict.** Memory does not decide. The largest live set in both is
+the Wasm module before cleanup, which neither changes.
+
+### Output size and run time
+
+All estimated; nothing here was measured.
+
+| | Option 1 | Option 2 |
+| --- | --- | --- |
+| U1-U6 | counts, checks, cells and #1205's frame removed | the same |
+| locals still addressed after inlining (1.9% of locals in reached code, below) | a small `&mut` struct crosses a call as values in and out; others keep a frame slot | memory to values and scalar replacement also remove a frame slot whose callee inlines on the IR |
+| Wasm size | smaller by every count and cell removed | the same, and perhaps a few percent less from copy canonicalization across blocks |
+| V8 | #1205 closes (85% of UniqMap's V8 gap) | the same |
+| wasmtime, no inliner by default | gains from hd-level inlining | the same |
+
+Swift's 2018 change to +0 parameters, which both options make, gave
+"code size improves on average (up to 5%)" in its first measurement
+[S3]. **Verdict:** equal on the use cases; Option 2's extra is second
+order and unmeasured.
+
+### Risk and migration
+
+**Option 1's hard step, values on a place-based TIR, measured.** Over
+the bodies the 25 programs reach, after inlining and before the passes
+(release):
+
+| Fact | Count | Share |
+| --- | ---: | ---: |
+| locals | 14,902 | |
+| addressed by a `Ref` of the local or a field of it | 288 | 1.9% |
+| captured by a shared cell | 2 | 0.01% |
+| value candidates: neither | 14,612 | **98.1%** |
+| of them defined once (a parameter or one whole `Store`) | 13,122 | 88.1% |
+| of them stored more than once (need SSA joins) | 1,490 | 10.0% |
+| of them stored field by field | 0 | 0% |
+| place operations (`Read`, `Store`, `Ref`, `Drop`, `IsUnique`) on value candidates | 46,925 of 62,234 | 75.4% |
+
+Over every body the checker writes, std included, before inlining
+(4,040 bodies of a json build): 12,219 locals, 20.8% addressed (mostly
+receivers and `&` arguments of calls that inlining later removes), 79%
+candidates, 70% defined once, 9% stored more than once, 7 stored field
+by field.
+
+So step 2 is mostly renaming: nine in ten locals have one definition,
+one in ten needs join values, and one in fifty stays a place.
+
+| | Option 1 | Option 2 |
+| --- | --- | --- |
+| hard step | values on TIR: measured small above | lowering every TIR construct (17,536 emitter lines' worth) before the switch-over |
+| first visible result | step 1 alone, in its first task: no `Maybe`, and `hash_of[usize]`'s bound call becomes `usize`'s impl call on the UniqMap bench | only for functions the new path supports; U4 and U6 need closures, suspension and the inliner on the IR first |
+| each step's check | snapshot diffs that may only remove operations | two backends must agree on every fixture until the switch |
+| rollback | per step | the old backend stays until deleted |
+
+**Prior art.**
+
+- **Swift** added Ownership SSA as a per-function mode of its existing
+  SIL, the `[ossa]` attribute, and moved passes over one by one until
+  "OSSA is lowered" [S33]. That is Option 1's shape: one IR, a flag per
+  function. No compile-time or memory figures for OSSA are published.
+- **Rust** runs its MIR passes and its MIR inliner once per generic body
+  and leaves per-instance work to LLVM, as hd does today. Enabling the
+  MIR inliner moved instruction counts by −1.4% on average (−10% to
+  +7.2%) and raised peak memory 2.8% on average where it rose [S31].
+  hd has no LLVM after it to make each instance exact.
+- **Go 1.7** shipped a new SSA backend, a second IR, on amd64 only,
+  behind `-ssa=0`, with 5% to 35% less CPU time on its benchmarks [S32]:
+  the parallel-backend migration Option 2 needs, done by a large team.
+- **Lean 4** runs λRC on a separate IR below its core [S10], on uniformly
+  boxed values; no compile-time figures are published.
+
+### Decisions each reopens
+
+| Option | Reopens | Where it is written | New evidence |
+| --- | --- | --- | --- |
+| 1 | "Work is done once per generic body where possible, not per instance" | `tir-v2-directions.md`, Fixed constraints; tir-v2, "Why once per body, not per instance" | per-instance work is 1.03 times today's on average, 1.17 at most; every `Maybe` and #1205's bound call come from deciding per body |
+| 2 | the same, and "One IR. It replaces TIR... nothing sits between them" (owner, 2026-10-21) | `tir-v2-directions.md`, Fixed constraints; tir-v2, "There is no second IR"; `data-structures.md` §3.9.1, "No monomorphized IR" | decisions sit in six layers; the emitter is the only stage after monomorphization |
+
+### Verdict
+
+**Unfold Option 1.** It is likely to shrink the web compiler by 25 to
+32 KB and stays under the cap if its estimate overruns by half. It keeps
+compile time and memory about even, and its hard step is measured
+small: 98% of the locals the passes see are values already. Option 2's
+case rests on output quality, which is equal on the use cases, and on
+link time, whose cost is the local cleanup that both options can fix.
+Its parallel path cannot ship in the web compiler, and its estimate's
+error alone is larger than the headroom.
+
 ## Comparison
 
 | | Plan A-E today | 1 Derived, per instance | 2 Low IR | 3 Close the world | 4 Borrow by meaning | 5 Trace + shared bit |
@@ -645,11 +923,12 @@ feature snapshots in CI and reports every count the fast one keeps; and
 | rules added or removed | none | none | none | 3a: four language-tier rules removed | language tier: bindings, loops, parameters borrow; `copy` added | runtime and ch. 08 collection rules |
 | soundness | as today | today's rules on values | OSSA invariants | as today | Hylo exclusivity | standard tracing; spills must cover every root |
 | agent-writability | unchanged | unchanged | unchanged | 3a: one more `dyn` error | worse: snapshots need `copy` | unchanged |
-| compile time | unchanged | about even | uncertain; may drop | 3a less, 3c more | about even | less |
+| compile time, json edit build | 160 ms, measured | 141-167 ms, est. | 120-219 ms, est. | 3a less, 3c more | about even | less |
+| peak memory | 72-121 MB, measured | unchanged | +0 to +1.5 MB, est. | unchanged | unchanged | heap headroom |
 | output size | small cuts | smaller | smallest | 3a smaller, 3c may grow | smaller | smaller, plus spills |
-| compiler size (2 MB cap) | grows with patches | about flat | grows, then shrinks | 3a shrinks | small | shrinks |
+| compiler gzip (cap 2,000,000 B; 1,966,709 today) | grows with patches | −25 to −32 KB at the end; under +10 KB per step, est. | +234 to +430 KB while both backends live, −48 to −62 KB at the end, est. | 3a shrinks | small | shrinks |
 | migration | per ticket | 9 steps, snapshot oracle | parallel backend | three slices | spec, checker, std rewrite | new runtime |
-| owner decisions reopened | none | none | "no second IR" | 3a: generic methods on `dyn` | checker counts nothing; copy by meaning | RC on linear memory |
+| owner decisions reopened | none | work once per generic body | "one IR"; work once per generic body | 3a: generic methods on `dyn` | checker counts nothing; copy by meaning | RC on linear memory |
 | evolution | each std move to generic code adds `Maybe` | std-in-hd collections get exact counts | room for later optimizations | composes with 1 or 2 | composes with 1 | collector work replaces count work |
 
 ## Recommendation
@@ -662,7 +941,13 @@ measurement, and the structural checks.**
   symptoms of three inputs and one method, all of which Option 1 changes.
 - It is the survey's best practice inside hd's owner decisions: Swift's
   shape (specialize, SSA values, +0 parameters, ownership on the result)
-  without the second IR the owner ruled out.
+  without the second IR the owner ruled out. It does reopen "work once
+  per generic body"; per-instance work measures 1.03 times today's.
+- It wins on the owner's three costs, by the measurements in
+  [Option 1 Against Option 2](#option-1-against-option-2): about 25 to
+  32 KB less compiler, edit builds within −12% and +4%, memory unchanged,
+  and its hard step is small: 98% of the locals the passes see are never
+  addressed.
 - It is visible progress early. Step 1 (per-instance inlining and passes)
   should clear every `Maybe` row and turn `hash_of`'s bound call into an
   impl call; step 8 then removes the hasher's frame. Each step reports
@@ -672,12 +957,14 @@ measurement, and the structural checks.**
   `dyn-member-unavailable` case, as in Rust.
 - The reason-tag verifier turns the next audit into a failing build.
 
-**What it gives up.** Option 2's cleaner memory model and probably
-better output and link time; Option 5's chance to remove counts entirely.
+**What it gives up.** Option 2's cleaner memory model and perhaps a few
+percent of output on code that keeps addressed locals; Option 5's chance
+to remove counts entirely. Link time is not among them: the Wasm cleanup
+that dominates it is local cleanup, which either option can avoid.
 
 **Next best: Option 2.** Choose it if step 2 (values in TIR) or the
-storage pass proves awkward on places, or if the Wasm cleanup's compile
-time becomes the bottleneck.
+storage pass proves awkward on places, and only with the new backend
+kept out of the web compiler until one switch-over commit.
 
 **What happens to plan A-E.** Its tickets become the acceptance cases of
 the steps that remove them, rather than point fixes. In-flight work
@@ -690,7 +977,7 @@ the steps that remove them, rather than point fixes. In-flight work
    a new IR. Recommended: (b). Example: `bind`'s kept `s` is fixed by
    value locals, not by a #1365 pattern.
 2. **Ownership and inlining per instance?** Effect: `Maybe` disappears and
-   bound calls inline, at about one instance per body. Options: (a) per
+   bound calls inline, at 1.03 times today's pass work (measured). Options: (a) per
    instance in release only; (b) in every build; (c) keep per generic body.
    Recommended: (b), one pipeline. Example: `value.hash(&mut hasher)` in
    `hash_of[usize]` becomes `usize`'s impl call.
@@ -760,8 +1047,13 @@ the steps that remove them, rather than point fixes. In-flight work
 | S28 | V8, speculative optimizations for WebAssembly using deopts and inlining: https://v8.dev/blog/wasm-speculative-optimizations |
 | S29 | Fitzgerald, the Wasmtime inliner (off by default since Wasmtime 36): https://fitzgen.com/2025/11/19/inliner.html |
 | S30 | Braun et al., Simple and Efficient Construction of SSA Form (CC 2013): https://doi.org/10.1007/978-3-642-37051-9_6 |
+| S31 | rust-lang/rust #91743, enable the MIR inliner (merged 2022-07-02), final perf run: https://github.com/rust-lang/rust/pull/91743 |
+| S32 | Go 1.7 release notes, the SSA back end: https://go.dev/doc/go1.7 |
+| S33 | Swift, SIL Ownership (`[ossa]` functions): https://github.com/swiftlang/swift/blob/main/docs/SIL/Ownership.md |
 
-hd evidence: #1364's audit comments and plan; #1360's evidence comment;
+hd evidence: the measurements of
+[Option 1 Against Option 2](#option-1-against-option-2) (scratch timers,
+not committed); #1364's audit comments and plan; #1360's evidence comment;
 #1205's last two comments; commit 40e6f5b3d on `lane/ownership-ab`;
 `docs/compiler/tir-v2.md` ("The ownership passes", "The inliner", "Cost");
 `crates/hd_wasm_linear/DESIGN.md` §23.3, §23.16, §23.27, §23.38.
@@ -781,3 +1073,5 @@ type-check. `ir` blocks are sketches, not hd, and are not parsed.
 | 5 | Option 3c, `apply` | parse |
 | 6 | Option 4, `snapshot` | parse |
 | 7 | Option 5, `grow` | parse |
+
+Option 1 Against Option 2 (4336341bd) adds no hd block.
