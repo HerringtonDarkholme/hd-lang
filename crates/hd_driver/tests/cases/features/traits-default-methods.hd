@@ -1,0 +1,31 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Trait Declarations, Trait Members, Default Method Bodies,
+# Generic Bounds And Static Dispatch, Trait-Qualified Calls (spec/lang/09-traits.md, #1364).
+# expected: `headline`'s default body and `describe` inline into
+# `direct`, `generic` and `qualified`; one new string per headline,
+# no count on `l`.
+trait Describe:
+    fn describe(&self) -> string
+
+    fn headline(&self) -> string:
+        "* " + self.describe()
+
+struct Logger:
+    name: string
+
+impl Describe for Logger:
+    fn describe(&self) -> string:
+        self.name
+
+fn direct(l: Logger) -> usize:
+    l.headline().len()
+
+fn generic[T < Describe](x: T) -> usize:
+    x.headline().len()
+
+fn use_generic(l: Logger) -> usize:
+    generic(l)
+
+fn qualified(l: Logger) -> usize:
+    Describe::headline(&l).len()

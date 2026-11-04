@@ -1,0 +1,23 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Error Trait, Erased Errors (spec/lang/09-traits.md, #1364).
+# expected: the `Ok` path of `load` moves `text` with no count and
+# no allocation; the `Err` path boxes the `FsError` once.
+use std.error.Error
+
+enum FsError:
+    NotFound(path: string)
+
+impl Display for FsError:
+    fn to_string(&self) -> string:
+        match *self:
+            FsError.NotFound(path) => "not found: " + path
+
+impl Error for FsError
+
+fn read_config(path: string) -> Result[string, FsError]:
+    if path.len() > 0: .Ok(path + "!") else: .Err(FsError.NotFound(path))
+
+fn load(path: string) -> Result[string, *dyn Error]:
+    text := read_config(path)?
+    .Ok(text)

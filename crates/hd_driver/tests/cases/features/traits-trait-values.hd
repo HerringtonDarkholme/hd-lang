@@ -1,0 +1,35 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Dynamic Trait Values, Dynamic Safety, Conversion To Trait
+# Values, Trait Value References, Inherent Methods On dyn Types (spec/lang/09-traits.md, #1364).
+# expected: `boxed` allocates one box and moves `u` into it;
+# `through_mut` changes the user in place through the vtable;
+# `twice` calls `greet` twice through one vtable with no count.
+trait Greet:
+    fn greet(&self) -> string
+    fn rename(&mut self, n: string) -> void
+
+impl dyn Greet:
+    fn twice(&self) -> usize:
+        self.greet().len() * 2
+
+struct User:
+    name: string
+
+impl Greet for User:
+    fn greet(&self) -> string:
+        "hi " + self.name
+
+    fn rename(&mut self, n: string) -> void:
+        self.name = n
+
+fn boxed(u: User) -> *dyn Greet:
+    box(u)
+
+fn through_mut(g: &mut dyn Greet, n: string) -> usize:
+    g.rename(n)
+    g.twice()
+
+fn local_mut(u: User, n: string) -> usize:
+    let mut v = u
+    through_mut(&mut v, n)

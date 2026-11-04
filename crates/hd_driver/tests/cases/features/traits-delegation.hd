@@ -1,0 +1,27 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Embedding And Trait Satisfaction, Trait Methods Of Embedded
+# Types, Trait Delegation, Generated Methods, Delegated Associated Items (spec/lang/09-traits.md, #1364).
+# expected: a delegated call reads the embedded `Logger` in place (no
+# copy of it) and inlines `describe`; `explicit` matches `delegated`.
+trait Describe:
+    fn describe(&self) -> string
+
+struct Logger:
+    name: string
+
+impl Describe for Logger:
+    fn describe(&self) -> string:
+        self.name
+
+struct Service:
+    Logger
+    port: i32
+
+impl Describe for Service by Logger
+
+fn delegated(s: Service) -> usize:
+    s.describe().len()
+
+fn explicit(s: Service) -> usize:
+    s.Logger.describe().len()

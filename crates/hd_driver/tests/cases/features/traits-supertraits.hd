@@ -1,0 +1,35 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Supertraits, Supertrait Member Names, Supertrait Widening,
+# Trait Values As Bounds (spec/lang/09-traits.md, #1364).
+# expected: widening `&dyn Dog` to `&dyn Animal` makes no object and
+# counts nothing beyond #1354; `both` calls each method through the
+# vtable; the static `loud` inlines both.
+trait Animal:
+    fn name(&self) -> string
+
+trait Dog < Animal:
+    fn bark(&self) -> string
+
+struct Pup:
+    name: string
+
+impl Animal for Pup:
+    fn name(&self) -> string:
+        self.name
+
+impl Dog for Pup:
+    fn bark(&self) -> string:
+        "woof"
+
+fn name_of(a: &dyn Animal) -> usize:
+    a.name().len()
+
+fn widen(d: &dyn Dog) -> usize:
+    name_of(d) + d.bark().len()
+
+fn loud[T < Dog](d: T) -> usize:
+    d.name().len() + d.bark().len()
+
+fn use_pup(p: Pup) -> usize:
+    widen(&p) + loud(p)
