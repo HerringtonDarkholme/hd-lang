@@ -1,0 +1,21 @@
+# expect-stdout: orig-zzzz 1
+# test: a reference into a unique list behind a box keeps the box's local alive until its last use, though that local is not used after the reference is taken
+# Spec 13 Boxes: ref.box.root.
+use std.collections.UniqList
+
+struct Outer:
+    items: UniqList[string]
+
+fn uniq() -> UniqList[string]:
+    let mut items = UniqList::[string].new()
+    items.push("orig-" + "z".repeat(4))
+    items
+
+fn probe() -> string:
+    p := box(Outer { items: uniq() })
+    r := p.items.get_ref(0).expect("slot")
+    junk := "j".repeat(44)
+    "${*r} ${junk.len() / 44}"
+
+pub fn main() -> void $ Console:
+    println(probe())

@@ -33,6 +33,11 @@
 //!    its drop follows them, as a frame local's does. A reference into
 //!    what a cell holds (an element of a list in it) takes no count of the
 //!    cell, so the local's own count keeps the cell alive until then.
+//! 5. **Roots.** A counted local a place dereferences (`[*$p .items]`) is
+//!    tracked the same way (`ref.box.root`): what a reference or a borrowed
+//!    read through it points into holds no count of its object, so the
+//!    uses of what may point there are the local's uses too, and its drop
+//!    or a move of it waits for them.
 
 use hd_base::SliceSort as _;
 
@@ -63,6 +68,13 @@ pub(crate) struct Tables {
     /// Projected places for a field-liveness query; empty for frame planning.
     targets: Vec<(u32, u32)>,
     ops: Vec<super::Operand>,
+    /// Roots (rule 5): a value whose references are all counted, or a
+    /// call's result of a counted type that holds no reference, keeps its
+    /// own count of what it points into (or the borrow pass lends it only
+    /// from a place that outlives it), so it carries no origin. A scalar
+    /// read through the root still does: an address may become a `Ptr`
+    /// and then a reference.
+    roots: bool,
 }
 
 impl Tables {
@@ -169,6 +181,7 @@ pub(crate) fn run(
     // synchronous closures may still lend uncounted cell references.
     if (0..n).any(|i| is_suspension(b.tags[i]) && topo.sub[i] == 0) {
         extra_cell_uses(b, cx, t, |i| topo.sub[i] != 0, &mut uses);
+        root_uses(b, cx, t, &mut uses);
         return;
     }
     for c in &b.cap_local {
@@ -251,6 +264,44 @@ pub(crate) fn run(
         }
     }
     extra_cell_uses(b, cx, t, |_| true, &mut uses);
+    root_uses(b, cx, t, &mut uses);
+}
+
+/// Rule 5, roots (`ref.box.root`): a counted local whose value a place
+/// dereferences (`[*$p .items]`, a `*T`) is the root of
+/// what a reference or a borrowed read through it points into, which
+/// holds no count of that object. Each use of such a value is a use of
+/// the root, so its drop, or a move of it, follows the reference's last
+/// use, in a suspending body's frame too.
+fn root_uses(b: &Body, cx: &dyn OwnCx, t: &Tables, uses: &mut impl FnMut(u32, u32, bool)) {
+    let mut locals = Vec::new();
+    for i in 0..b.len() {
+        if !matches!(b.tags[i], Tag::Ref | Tag::Read) {
+            continue;
+        }
+        let p = b.view(b.data[i][0]);
+        if let Root::Local(l) = p.root
+            && p.steps(b).next() == Some(Proj::Deref)
+            && cx.counted(b.local_ty[l as usize]) == super::Tri::Yes
+            && t.bit.get(l as usize).is_none_or(|&m| m == 0)
+            && !b.cap_local.iter().any(|c| c.raw() == l)
+        {
+            locals.push(l);
+        }
+    }
+    locals.sort_stable();
+    locals.dedup();
+    let mut extra = Tables {
+        roots: true,
+        ..Tables::default()
+    };
+    for batch in locals.chunks(64) {
+        let targets: Vec<_> = batch
+            .iter()
+            .map(|&l| (l, l | crate::ir::place::BARE_LOCAL))
+            .collect();
+        part_uses(b, cx, &mut extra, &targets, |i, k| uses(i, batch[k], false));
+    }
 }
 
 /// Frame-slot promotion is bounded, but cell liveness is required for
@@ -383,6 +434,14 @@ fn grow(set: &mut u64, m: u64) -> bool {
 /// its value's uses and a local it is stored into keep the place's
 /// locals alive (`dep`).
 fn step(b: &Body, cx: &dyn OwnCx, t: &mut Tables, ops: &mut Vec<super::Operand>, i: usize) -> bool {
+    if t.roots
+        && (cx.counted_refs_only(b.ty[i])
+            || matches!(b.tags[i], Tag::Call | Tag::CallValue | Tag::CallDyn)
+                && cx.counted(b.ty[i]) == super::Tri::Yes
+                && !cx.holds_ref(b.ty[i]))
+    {
+        return false;
+    }
     let [a, w] = b.data[i];
     let dep = |t: &Tables, v: u32| match Ref(v).as_inst() {
         Some(_) => t.dep.get(v as usize).copied().unwrap_or(0) | t.of(v),

@@ -1,0 +1,14 @@
+# @dump: own
+# `p` is the root of `r` (`ref.box.root`): `r` points into the room of a
+# list in the box, through `p`, and holds no count of it. So `p`'s `Drop`
+# comes after `r`'s last read, not after `p`'s own last use.
+use std.collections.UniqList
+
+struct Outer:
+    items: UniqList[string]
+
+fn probe(items: UniqList[string]) -> string:
+    p := box(Outer { items: items })
+    r := p.items.get_ref(0).expect("slot")
+    junk := "j".repeat(4)
+    *r + junk
