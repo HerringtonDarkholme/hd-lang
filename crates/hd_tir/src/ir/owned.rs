@@ -1156,7 +1156,9 @@ fn borrow_spans(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
         }
     }
     // Per local: a parameter the body never stores, whose count the
-    // frame holds across every suspension point.
+    // frame holds across every suspension point. A store through the
+    // parameter's reference (`[*$0 .text]`) writes what it refers to, not
+    // the parameter, as the borrow pass counts (`own::borrow`'s stores).
     let mut frame: Vec<bool> = b
         .local_flags
         .iter()
@@ -1164,10 +1166,7 @@ fn borrow_spans(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
         .collect();
     for i in 0..n {
         if b.tags[i] == Tag::Store
-            && let Some(Place {
-                root: PlaceRoot::Local(l),
-                ..
-            }) = &cx.places[i]
+            && let Some(l) = b.local_in_place(b.data[i][0])
         {
             frame[l.idx()] = false;
         }
