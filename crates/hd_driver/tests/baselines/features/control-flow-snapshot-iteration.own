@@ -12,52 +12,49 @@ fn doubled(values: List[string]) -> List[string]:
 >   local $0 values: List[string] [param read] value
 >   local $1 out: List[string] [read assigned] value
 >   local $2 $coll: List[string] [assigned] value
->   local $3 $len: usize [assigned] value
 >   local $4 $pos: usize [assigned] value ×2
 >   local $5 $end: usize [assigned] value
 >   local $6 v: string [read assigned] value
 >   %0 = Read move [$0] : List[string]
 >   %1 = Store [$1] %0 : ()
->   %36 = Block %35 : List[string]
+>   %34 = Block %33 : List[string]
     for v in out:
 >   %2 = Read copy [$1] : List[string]
 >   %3 = Store [$2] %2 : ()
 >   %4 = Read borrow [$2] : List[string]
 >   %5 = Intrinsic ListLen [%4] : usize
->   %6 = Store [$3] %5 : ()
->   %7 = Read copy [$3] : usize
->   %8 = Store [$5] %7 : ()
->   %9 = Store [$4] 0:usize : ()
->   %10 = Read copy [$4] : usize
->   %11 = Read copy [$5] : usize
->   %12 = Prim Lt [%10 %11] : bool
+>   %6 = Store [$5] %5 : ()
+>   %7 = Store [$4] 0:usize : ()
+>   %8 = Read copy [$4] : usize
+>   %9 = Read copy [$5] : usize
+>   %10 = Prim Lt [%8 %9] : bool
+>   %11 = Read copy [$4] : usize
+>   %12 = Read borrow [$2 [%11]] : string
 >   %13 = Read copy [$4] : usize
->   %14 = Read borrow [$2 [%13]] : string
->   %15 = Read copy [$4] : usize
->   %16 = Prim Add [%15 1:usize] : usize
->   %17 = Store [$4] %16 : ()
->   %22 = Block - : ()
->   %23 = Read copy [%14] : string
->   %24 = Store [$6] %23 : ()
->   %26 = Block - : never
->   %27 = Match %14 [%26 %22] : ()
+>   %14 = Prim Add [%13 1:usize] : usize
+>   %15 = Store [$4] %14 : ()
+>   %20 = Block - : ()
+>   %21 = Read copy [%12] : string
+>   %22 = Store [$6] %21 : ()
+>   %24 = Block - : never
+>   %25 = Match %12 [%24 %20] : ()
+>   %26 = Block - : ()
+>   %27 = Break L0 - : never
 >   %28 = Block - : ()
->   %29 = Break L0 - : never
+>   %29 = If %10 [%26 %28] : ()
 >   %30 = Block - : ()
->   %31 = If %12 [%28 %30] : ()
->   %32 = Block - : ()
->   %33 = Loop %32 - : ()
->   %34 = Drop [$2] : ()
+>   %31 = Loop %30 - : ()
+>   %32 = Drop [$2] : ()
         out.push(v)
->   %18 = Read move [$6] : string
->   %19 = IsUnique [$1] : ()
->   %20 = Read borrow [$1] : List[string]
->   %21 = Intrinsic ListPush [%20 %18] : ()
+>   %16 = Read move [$6] : string
+>   %17 = IsUnique [$1] : ()
+>   %18 = Read borrow [$1] : List[string]
+>   %19 = Intrinsic ListPush [%18 %16] : ()
     out
->   %35 = Read move [$1] : List[string]
+>   %33 = Read move [$1] : List[string]
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
->   loop %33 keeps [$2]
+>   loop %31 keeps [$2]
 
 fn cursor_then_push(values: List[string], s: string) -> usize:
     let mut items = values

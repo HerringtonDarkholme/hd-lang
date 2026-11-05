@@ -2,16 +2,16 @@
 app/main/last_short
   local $6 line: string [read assigned] value
   local $7 self: string [read] value
-  %17 = Read borrow [$6] : string
-  %18 = Store [$7] %17 : ()
-  %19 = Read borrow [$7] : string
-  %20 = Call std/rt.bytes/bytes_len[] (%19) : usize
-  %21 = Break L1 %20 : never
-  %22 = Block - : usize
-  %23 = Scope %22 [] : usize
-  %24 = Prim Gt [%23 3:usize] : bool
-  %25 = Drop [$6] : ()
-  %26 = Break L0 - : never
-  %27 = Block - : never
-  %28 = If %24 [%27 -] : ()
+  %15 = Read borrow [$6] : string
+  %16 = Store [$7] %15 : ()
+  %17 = Read borrow [$7] : string
+  %18 = Call std/rt.bytes/bytes_len[] (%17) : usize
+  %19 = Break L1 %18 : never
+  %20 = Block - : usize
+  %21 = Scope %20 [] : usize
+  %22 = Prim Gt [%21 3:usize] : bool
+  %23 = Drop [$6] : ()
+  %24 = Break L0 - : never
+  %25 = Block - : never
+  %26 = If %22 [%25 -] : ()
   exit sub 0 drops [$0]

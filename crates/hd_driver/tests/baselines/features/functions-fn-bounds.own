@@ -88,7 +88,6 @@ fn each[F < FnMut(string) -> void](xs: List[string], mut f: F) -> void:
 >   local $0 xs: List[string] [param read] value
 >   local $1 f: F [param read] value
 >   local $2 $coll: List[string] [assigned] value
->   local $3 $len: usize [assigned] value
 >   local $4 $pos: usize [assigned] value ×2
 >   local $5 $end: usize [assigned] value
 >   local $6 x: string [read assigned] value
@@ -96,37 +95,35 @@ fn each[F < FnMut(string) -> void](xs: List[string], mut f: F) -> void:
 >   %1 = Store [$2] %0 : ()
 >   %2 = Read borrow [$2] : List[string]
 >   %3 = Intrinsic ListLen [%2] : usize
->   %4 = Store [$3] %3 : ()
->   %5 = Read copy [$3] : usize
->   %6 = Store [$5] %5 : ()
->   %7 = Store [$4] 0:usize : ()
->   %8 = Read copy [$4] : usize
->   %9 = Read copy [$5] : usize
->   %10 = Prim Lt [%8 %9] : bool
+>   %4 = Store [$5] %3 : ()
+>   %5 = Store [$4] 0:usize : ()
+>   %6 = Read copy [$4] : usize
+>   %7 = Read copy [$5] : usize
+>   %8 = Prim Lt [%6 %7] : bool
+>   %9 = Read copy [$4] : usize
+>   %10 = Read copy [$2 [%9]] : string
 >   %11 = Read copy [$4] : usize
->   %12 = Read copy [$2 [%11]] : string
->   %13 = Read copy [$4] : usize
->   %14 = Prim Add [%13 1:usize] : usize
->   %15 = Store [$4] %14 : ()
->   %19 = Block - : ()
->   %20 = Read move [%12] : string
->   %21 = Store [$6] %20 : ()
->   %23 = Block - : never
->   %24 = Match %12 [%23 %19] : ()
->   %25 = Drop [$6] : ()
+>   %12 = Prim Add [%11 1:usize] : usize
+>   %13 = Store [$4] %12 : ()
+>   %17 = Block - : ()
+>   %18 = Read move [%10] : string
+>   %19 = Store [$6] %18 : ()
+>   %21 = Block - : never
+>   %22 = Match %10 [%21 %17] : ()
+>   %23 = Drop [$6] : ()
+>   %24 = Block - : ()
+>   %25 = Break L0 - : never
 >   %26 = Block - : ()
->   %27 = Break L0 - : never
+>   %27 = If %8 [%24 %26] : ()
 >   %28 = Block - : ()
->   %29 = If %10 [%26 %28] : ()
+>   %29 = Loop %28 - : ()
 >   %30 = Block - : ()
->   %31 = Loop %30 - : ()
->   %32 = Block - : ()
         f(x)
->   %16 = Read borrow [$1] : F
->   %17 = Read borrow [$6] : string
->   %18 = CallValue %16 [%17] : ()
+>   %14 = Read borrow [$1] : F
+>   %15 = Read borrow [$6] : string
+>   %16 = CallValue %14 [%15] : ()
 >   summary kept [] borrows [$0 $1] writes
->   loop %31 keeps [$2]
+>   loop %29 keeps [$2]
 
 fn fn_mut(xs: List[string]) -> usize:
     let n: usize = 0

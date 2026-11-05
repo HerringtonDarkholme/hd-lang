@@ -127,7 +127,6 @@ fn adapter(us: List[User]) -> usize:
 >   local $2 g: fn(User) -> usize [:= read assigned] value
 >   local $3 n: usize [read assigned mutated] value ×2
 >   local $4 $coll: List[User] [assigned] value
->   local $5 $len: usize [assigned] value
 >   local $6 $pos: usize [assigned] value ×2
 >   local $7 $end: usize [assigned] value
 >   local $8 u: User [read assigned] value
@@ -149,7 +148,7 @@ fn adapter(us: List[User]) -> usize:
 >   %13 = Block %11 : usize
 >   %14 = Closure #1 [%0 %0] : fn(User) -> usize
 >   %15 = Store [$2] %14 : ()
->   %53 = Block %52 : usize
+>   %51 = Block %50 : usize
     let n: usize = 0
 >   %16 = Store [$3] 0:usize : ()
     for u in us:
@@ -157,39 +156,37 @@ fn adapter(us: List[User]) -> usize:
 >   %18 = Store [$4] %17 : ()
 >   %19 = Read borrow [$4] : List[User]
 >   %20 = Intrinsic ListLen [%19] : usize
->   %21 = Store [$5] %20 : ()
->   %22 = Read copy [$5] : usize
->   %23 = Store [$7] %22 : ()
->   %24 = Store [$6] 0:usize : ()
->   %25 = Read copy [$6] : usize
->   %26 = Read copy [$7] : usize
->   %27 = Prim Lt [%25 %26] : bool
+>   %21 = Store [$7] %20 : ()
+>   %22 = Store [$6] 0:usize : ()
+>   %23 = Read copy [$6] : usize
+>   %24 = Read copy [$7] : usize
+>   %25 = Prim Lt [%23 %24] : bool
+>   %26 = Read copy [$6] : usize
+>   %27 = Read copy [$4 [%26]] : User
 >   %28 = Read copy [$6] : usize
->   %29 = Read copy [$4 [%28]] : User
->   %30 = Read copy [$6] : usize
->   %31 = Prim Add [%30 1:usize] : usize
->   %32 = Store [$6] %31 : ()
->   %39 = Block - : ()
->   %40 = Read move [%29] : User
->   %41 = Store [$8] %40 : ()
->   %43 = Block - : never
->   %44 = Match %29 [%43 %39] : ()
+>   %29 = Prim Add [%28 1:usize] : usize
+>   %30 = Store [$6] %29 : ()
+>   %37 = Block - : ()
+>   %38 = Read move [%27] : User
+>   %39 = Store [$8] %38 : ()
+>   %41 = Block - : never
+>   %42 = Match %27 [%41 %37] : ()
+>   %43 = Block - : ()
+>   %44 = Break L0 - : never
 >   %45 = Block - : ()
->   %46 = Break L0 - : never
+>   %46 = If %25 [%43 %45] : ()
 >   %47 = Block - : ()
->   %48 = If %27 [%45 %47] : ()
->   %49 = Block - : ()
->   %50 = Loop %49 - : ()
->   %51 = Drop [$2] : ()
+>   %48 = Loop %47 - : ()
+>   %49 = Drop [$2] : ()
         n += g(u)
->   %33 = Read copy [$3] : usize
->   %34 = Read borrow [$2] : fn(User) -> usize
->   %35 = Read move [$8] : User
->   %36 = CallValue %34 [%35] : usize
->   %37 = Prim Add [%33 %36] : usize
->   %38 = Store [$3] %37 : ()
+>   %31 = Read copy [$3] : usize
+>   %32 = Read borrow [$2] : fn(User) -> usize
+>   %33 = Read move [$8] : User
+>   %34 = CallValue %32 [%33] : usize
+>   %35 = Prim Add [%31 %34] : usize
+>   %36 = Store [$3] %35 : ()
     n
->   %52 = Read copy [$3] : usize
+>   %50 = Read copy [$3] : usize
 >   exit sub 1 drops [$1]
 >   summary kept [] borrows [$0] writes
->   loop %50 keeps [$4]
+>   loop %48 keeps [$4]

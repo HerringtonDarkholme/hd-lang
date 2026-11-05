@@ -13,7 +13,7 @@
     local.get $provider0
     local.get $provider0.vtable
   )
-  (func $fetch (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t0 i32)
+  (func $fetch (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t1 i32) (local $t2 i32) (local $t0 i32)
     ;; (no span)
     local.get $frame
     if
@@ -43,9 +43,6 @@
       local.get $frame
       i32.load $heap offset=72
       local.set $t2
-      local.get $frame
-      i32.load $heap offset=88
-      local.set $t3
     else
     end
     block
@@ -60,17 +57,15 @@
       call $rt:release_ref
       local.get $t2
       call $rt:release_ref
-      local.get $t3
-      call $rt:release_ref
       local.set $provider0
-      local.set $t3
+      local.set $t2
       block
         block
           br 0
         end
       end
     ;; (no span)
-      local.get $t3
+      local.get $t2
       call $rt:release_ref
     end
     local.get $provider0

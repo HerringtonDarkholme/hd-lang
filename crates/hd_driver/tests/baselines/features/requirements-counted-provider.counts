@@ -28,5 +28,4 @@ fn fetch!() -> usize $ Store:
 >   retain app.main.Store (conservative: copy read)
 >   release app.main.Store (last use)
 >   release string (overwritten)
->   release string (overwritten)
 >   (no span) release string (last use)

@@ -80,49 +80,46 @@ fn sum[T < Add[Out = T]](items: List[T], zero: T) -> T:
 >   local $1 zero: T [param read] value
 >   local $2 total: T [read assigned mutated] value ×2
 >   local $3 $coll: List[T] [assigned] value
->   local $4 $len: usize [assigned] value
 >   local $5 $pos: usize [assigned] value ×2
 >   local $6 $end: usize [assigned] value
 >   local $7 item: T [read assigned] value
 >   %0 = Read move [$1] : T
 >   %1 = Store [$2] %0 : ()
->   %36 = Block %35 : T
+>   %34 = Block %33 : T
     for item in items:
 >   %2 = Read borrow [$0] : List[T]
 >   %3 = Store [$3] %2 : ()
 >   %4 = Read borrow [$3] : List[T]
 >   %5 = Intrinsic ListLen [%4] : usize
->   %6 = Store [$4] %5 : ()
->   %7 = Read copy [$4] : usize
->   %8 = Store [$6] %7 : ()
->   %9 = Store [$5] 0:usize : ()
->   %10 = Read copy [$5] : usize
->   %11 = Read copy [$6] : usize
->   %12 = Prim Lt [%10 %11] : bool
->   %13 = Read borrow [$3] : List[T]
+>   %6 = Store [$6] %5 : ()
+>   %7 = Store [$5] 0:usize : ()
+>   %8 = Read copy [$5] : usize
+>   %9 = Read copy [$6] : usize
+>   %10 = Prim Lt [%8 %9] : bool
+>   %11 = Read borrow [$3] : List[T]
+>   %12 = Read copy [$5] : usize
+>   %13 = Read copy [%11 [%12]] : T
 >   %14 = Read copy [$5] : usize
->   %15 = Read copy [%13 [%14]] : T
->   %16 = Read copy [$5] : usize
->   %17 = Prim Add [%16 1:usize] : usize
->   %18 = Store [$5] %17 : ()
->   %23 = Block - : ()
->   %24 = Read move [%15] : T
->   %25 = Store [$7] %24 : ()
->   %27 = Block - : never
->   %28 = Match %15 [%27 %23] : ()
+>   %15 = Prim Add [%14 1:usize] : usize
+>   %16 = Store [$5] %15 : ()
+>   %21 = Block - : ()
+>   %22 = Read move [%13] : T
+>   %23 = Store [$7] %22 : ()
+>   %25 = Block - : never
+>   %26 = Match %13 [%25 %21] : ()
+>   %27 = Block - : ()
+>   %28 = Break L0 - : never
 >   %29 = Block - : ()
->   %30 = Break L0 - : never
+>   %30 = If %10 [%27 %29] : ()
 >   %31 = Block - : ()
->   %32 = If %12 [%29 %31] : ()
->   %33 = Block - : ()
->   %34 = Loop %33 - : ()
+>   %32 = Loop %31 - : ()
         total = total + item
->   %19 = Read move [$2] : T
->   %20 = Read move [$7] : T
->   %21 = Call std/ops/Add.add for T [T] via Bound (%19, %20) : T
->   %22 = Store [$2] %21 : ()
+>   %17 = Read move [$2] : T
+>   %18 = Read move [$7] : T
+>   %19 = Call std/ops/Add.add for T [T] via Bound (%17, %18) : T
+>   %20 = Store [$2] %19 : ()
     total
->   %35 = Read move [$2] : T
+>   %33 = Read move [$2] : T
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0] writes
 

@@ -55,7 +55,6 @@ fn result_try(path: string) -> Result[usize, ReadError]:
     text := read(path)?
 > app/main/result_try
 >   local $0 path: string [param read] value
->   local $1 text: string [:= read assigned] value
 >   local $2 self: string [read] value
 >   local $3 path: string [read captured] place
 >   %0 = Read move [$0] : string
@@ -84,21 +83,19 @@ fn result_try(path: string) -> Result[usize, ReadError]:
 >   %23 = Return %22 : never
 >   %24 = Block - : never
 >   %25 = SwitchTag %17 [#0 %20 %24] : string
->   %26 = Store [$1] %25 : ()
->   %36 = Block %35 : Result[usize, ReadError]
+>   %34 = Block %33 : Result[usize, ReadError]
 >   %2 finds [$3] full
 >   %6 finds [$3] full
 >   %10 finds [$3] full
     .Ok(text.len())
->   %27 = Read move [$1] : string
->   %28 = Store [$2] %27 : ()
->   %29 = Read borrow [$2] : string
->   %30 = Call std/rt.bytes/bytes_len[] (%29) : usize
->   %31 = Break L0 %30 : never
->   %32 = Block - : usize
->   %33 = Scope %32 [] : usize
->   %34 = Drop [$2] : ()
->   %35 = NewVariant #0 [%33] : Result[usize, ReadError]
+>   %26 = Store [$2] %25 : ()
+>   %27 = Read borrow [$2] : string
+>   %28 = Call std/rt.bytes/bytes_len[] (%27) : usize
+>   %29 = Break L0 %28 : never
+>   %30 = Block - : usize
+>   %31 = Scope %30 [] : usize
+>   %32 = Drop [$2] : ()
+>   %33 = NewVariant #0 [%31] : Result[usize, ReadError]
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -106,7 +103,6 @@ fn converted(path: string) -> Result[usize, AppError]:
     text := read(path)?
 > app/main/converted
 >   local $0 path: string [param read] value
->   local $1 text: string [:= read assigned] value
 >   local $2 self: string [read] value
 >   local $3 value: ReadError [read] value
 >   local $4 path: string [read captured] place
@@ -142,20 +138,18 @@ fn converted(path: string) -> Result[usize, AppError]:
 >   %29 = Return %28 : never
 >   %30 = Block - : never
 >   %31 = SwitchTag %17 [#0 %20 %30] : string
->   %32 = Store [$1] %31 : ()
->   %42 = Block %41 : Result[usize, AppError]
+>   %40 = Block %39 : Result[usize, AppError]
 >   %2 finds [$4] full
 >   %6 finds [$4] full
 >   %10 finds [$4] full
     .Ok(text.len())
->   %33 = Read move [$1] : string
->   %34 = Store [$2] %33 : ()
->   %35 = Read borrow [$2] : string
->   %36 = Call std/rt.bytes/bytes_len[] (%35) : usize
->   %37 = Break L0 %36 : never
->   %38 = Block - : usize
->   %39 = Scope %38 [] : usize
->   %40 = Drop [$2] : ()
->   %41 = NewVariant #0 [%39] : Result[usize, AppError]
+>   %32 = Store [$2] %31 : ()
+>   %33 = Read borrow [$2] : string
+>   %34 = Call std/rt.bytes/bytes_len[] (%33) : usize
+>   %35 = Break L0 %34 : never
+>   %36 = Block - : usize
+>   %37 = Scope %36 [] : usize
+>   %38 = Drop [$2] : ()
+>   %39 = NewVariant #0 [%37] : Result[usize, AppError]
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

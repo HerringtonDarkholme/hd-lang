@@ -39,7 +39,6 @@ fn first_len(c: Constant) -> usize:
     first(c).len()
 > app/main/first_len
 >   local $0 c: Constant [param read] value
->   local $1 $ref: string [read assigned captured captured-assigned] value
 >   local $2 self: string [read] value
 >   local $3 source: Constant [read] value
 >   local $4 self: Constant [read] value
@@ -54,16 +53,14 @@ fn first_len(c: Constant) -> usize:
 >   %8 = Break L2 %7 : never
 >   %9 = Block - : string
 >   %10 = Scope %9 [] : string
->   %11 = Store [$1] %10 : ()
->   %12 = Read move [$1] : string
->   %13 = Store [$2] %12 : ()
->   %14 = Read borrow [$2] : string
->   %15 = Call std/rt.bytes/bytes_len[] (%14) : usize
->   %16 = Break L0 %15 : never
->   %17 = Block - : usize
->   %18 = Scope %17 [] : usize
->   %19 = Drop [$2] : ()
->   %20 = Block %18 : usize
+>   %11 = Store [$2] %10 : ()
+>   %12 = Read borrow [$2] : string
+>   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
+>   %14 = Break L0 %13 : never
+>   %15 = Block - : usize
+>   %16 = Scope %15 [] : usize
+>   %17 = Drop [$2] : ()
+>   %18 = Block %16 : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -71,21 +68,18 @@ fn read(source: &dyn Supplier[Item = string]) -> usize:
     source.get().len()
 > app/main/read
 >   local $0 source: Ref[Supplier] [param read] value
->   local $1 $ref: string [read assigned captured captured-assigned] value
 >   local $2 self: string [read] value
 >   %0 = Read copy [*$0] : Supplier
 >   %1 = Call app/main/Supplier.get for Supplier [] via TraitValue (%0) : string
 >   %2 = Drop [%0] : ()
->   %3 = Store [$1] %1 : ()
->   %4 = Read move [$1] : string
->   %5 = Store [$2] %4 : ()
->   %6 = Read borrow [$2] : string
->   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
->   %8 = Break L0 %7 : never
->   %9 = Block - : usize
->   %10 = Scope %9 [] : usize
->   %11 = Drop [$2] : ()
->   %12 = Block %10 : usize
+>   %3 = Store [$2] %1 : ()
+>   %4 = Read borrow [$2] : string
+>   %5 = Call std/rt.bytes/bytes_len[] (%4) : usize
+>   %6 = Break L0 %5 : never
+>   %7 = Block - : usize
+>   %8 = Scope %7 [] : usize
+>   %9 = Drop [$2] : ()
+>   %10 = Block %8 : usize
 >   summary kept [] writes relies [$0]
 
 fn read_const(c: Constant) -> usize:

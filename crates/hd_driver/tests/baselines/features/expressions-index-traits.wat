@@ -66,10 +66,6 @@
       i32.const 0
       local.set $n
     ;; 21 |     n[i].len()
-      local.get $t1
-      local.get $i
-      local.set $i
-      local.set $t1
       block
         block
           br 0
@@ -235,12 +231,10 @@
         call $rt:release_ref'1
       end
     ;; 30 |     first(xs).len()
-      local.get $xs
-      local.get $t2
-      local.set $t1
-      local.set $xs
       block
         block
+          local.get $t2
+          local.set $t1
           br 0
         end
       end

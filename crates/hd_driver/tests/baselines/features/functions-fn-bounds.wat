@@ -78,8 +78,8 @@
     local.get $s.0
   )
   (func $"each[fn(string) -> ()]" (param $xs i32) (param $f.0 i32) (param $f.1 i32) (local $t0 i32) (local $x.0 i32) (local $x.1 i32)
-    block
     ;; 20 |     for x in xs:
+    block
       local.get $xs
       i32.load $heap offset=4
       local.set $f.0

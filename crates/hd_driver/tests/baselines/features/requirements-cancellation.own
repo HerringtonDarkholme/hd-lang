@@ -56,19 +56,16 @@ fn drop_now(key: string) -> void:
     let mut job = fetch(key)
 > app/main/drop_now
 >   local $0 key: string [param read] value
->   local $1 job: mut Suspend[string] [read assigned] value
 >   local $2 self: mut Suspend[string] [read] value
 >   %0 = Read borrow [$0] : string
 >   %1 = Call app/main/fetch[] (%0) : mut Suspend[string]
->   %2 = Store [$1] %1 : ()
->   %11 = Block - : ()
+>   %9 = Block - : ()
     job.abandon()
->   %3 = Read move [$1] : mut Suspend[string]
->   %4 = Store [$2] %3 : ()
->   %5 = Read borrow [$2] : mut Suspend[string]
->   %6 = Call std/task/abandon_task[string] (%5) : ()
->   %7 = Break L0 - : never
->   %8 = Block - : ()
->   %9 = Scope %8 [] : ()
->   %10 = Drop [$2] : ()
+>   %2 = Store [$2] %1 : ()
+>   %3 = Read borrow [$2] : mut Suspend[string]
+>   %4 = Call std/task/abandon_task[string] (%3) : ()
+>   %5 = Break L0 - : never
+>   %6 = Block - : ()
+>   %7 = Scope %6 [] : ()
+>   %8 = Drop [$2] : ()
 >   summary kept [] borrows [$0] writes

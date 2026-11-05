@@ -89,18 +89,16 @@
         local.get $t1
         return
       end
-      local.get $t0
-      local.get $t3
     ;; 24 |     .Ok(text.len())
-      local.set $path.1
-      local.set $path.0
       block
         block
+          local.get $t3
+          local.set $path.1
           br 0
         end
       end
     ;; (no span)
-      local.get $path.0
+      local.get $t0
       call $rt:release_ref
     ;; 24 |     .Ok(text.len())
       i32.const 0
@@ -195,18 +193,16 @@
         local.get $t0
         return
       end
-      local.get $t0
-      local.get $t3
     ;; 28 |     .Ok(text.len())
-      local.set $path.1
-      local.set $path.0
       block
         block
+          local.get $t3
+          local.set $path.1
           br 0
         end
       end
     ;; (no span)
-      local.get $path.0
+      local.get $t0
       call $rt:release_ref
     ;; 28 |     .Ok(text.len())
       i32.const 0

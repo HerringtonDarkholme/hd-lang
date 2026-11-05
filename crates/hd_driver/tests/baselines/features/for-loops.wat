@@ -78,8 +78,8 @@
     local.get $xs
   )
   (func $keep_each (param $xs i32) (result i32) (local $out i32) (local $t0 i32) (local $t1 i32) (local $x.0 i32) (local $x.1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
-    block
     ;; 24 |     let mut out: List[string] = []
+    block
       i32.const 80 ;; &empty-buffer
       local.set $out
     ;; 25 |     for x in xs:
@@ -156,7 +156,7 @@
       end
     ;; 27 |     out
       local.get $out
-    ;; (no span)
+    ;; 24 |     let mut out: List[string] = []
       local.set $xs
     end
     local.get $xs

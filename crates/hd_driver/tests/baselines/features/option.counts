@@ -14,7 +14,7 @@ fn question(o: string?) -> string?:
 > app/main/question
 >   retain string (conservative: copy read)
     .Some(s + "!")
->   (no span) release string (last use)
+>   release string (last use)
 
 fn or_default(o: string?) -> string:
     o.unwrap_or("none")

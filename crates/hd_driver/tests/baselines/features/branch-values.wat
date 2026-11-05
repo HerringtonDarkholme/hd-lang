@@ -98,14 +98,11 @@
       call $rt:release_ref
       local.get $b.0
       call $rt:release_ref
-    ;; 10 |     s := if c: a else: b
-      local.get $c
-      local.get $a.1
     ;; 11 |     s.len()
-      local.set $a.0
-      local.set $c
       block
         block
+          local.get $a.1
+          local.set $a.0
           br 0
         end
       end

@@ -1,0 +1,18 @@
+# @dump: own counts
+# @build: std
+# `std.testing.check_equal`'s shape: `message` is stored once and read
+# once, as the argument of a call that never returns.
+# expected: one string release more than before step 6 (#1399): forwarding
+# `message` leaves its value's `Drop` where the local's read ended, and
+# the corpus counts this +1 in every instance of `check_equal`. Per-value
+# last uses (step 8) should take it back.
+use std.rt.bytes.{panic_with}
+
+fn check_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void:
+    if actual != expected:
+        details := "actual ${debug(actual)}, expected ${debug(expected)}"
+        message := if reason == "": details else: "${reason}: ${details}"
+        panic_with("assertion-failed", message)
+
+pub fn run_it() -> void:
+    check_equal([+1], [+1], "x")

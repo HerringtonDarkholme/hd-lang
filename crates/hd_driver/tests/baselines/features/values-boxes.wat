@@ -71,24 +71,22 @@
     local.get $s.0
   )
   (func $move_box (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
-    ;; 20 |     p := Point { name: s }
-    block
-      local.get $s.0
-      local.get $s.1
     ;; 21 |     box(p)
-      local.set $s.1
-      local.set $s.0
+    block
       i32.const 8
       i32.const 2
       call $rt:new/class-1
       local.tee $t0
+    ;; 20 |     p := Point { name: s }
       local.get $s.0
+    ;; 21 |     box(p)
       i32.store $heap
       local.get $t0
+    ;; 20 |     p := Point { name: s }
       local.get $s.1
+    ;; 21 |     box(p)
       i32.store $heap offset=4
       local.get $t0
-    ;; 20 |     p := Point { name: s }
       local.set $s.0
     end
     local.get $s.0

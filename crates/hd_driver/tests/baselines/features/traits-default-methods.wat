@@ -102,10 +102,6 @@
       i32.const 0
       local.set $l
     ;; 31 |     Describe::headline(&l).len()
-      local.get $t1
-      local.get $t2
-      local.set $t2
-      local.set $t1
       block
         block
           br 0
@@ -188,10 +184,6 @@
       i32.const 0
       local.set $l
     ;; 22 |     l.headline().len()
-      local.get $t1
-      local.get $t2
-      local.set $t2
-      local.set $t1
       block
         block
           br 0

@@ -16,29 +16,26 @@ fn has_style(facts: Facts) -> bool:
     facts.find::[RenameAll]().is_some()
 > app/main/has_style
 >   local $0 facts: Facts [param read] value
->   local $1 $ref: RenameAll? [read assigned captured captured-assigned] value
 >   local $2 self: RenameAll? [read] value
 >   %0 = Read borrow [$0] : Facts
 >   %1 = Call std/structure/impl Facts.find[RenameAll] (%0) : RenameAll?
->   %2 = Store [$1] %1 : ()
->   %3 = Read copy [$1] : RenameAll?
->   %4 = Store [$2] %3 : ()
->   %5 = Read copy [$2] : RenameAll?
->   %6 = Block 1:bool : bool
->   %7 = Block 0:bool : bool
->   %8 = Read copy [%5] : RenameAll?
+>   %2 = Store [$2] %1 : ()
+>   %3 = Read copy [$2] : RenameAll?
+>   %4 = Block 1:bool : bool
+>   %5 = Block 0:bool : bool
+>   %6 = Read copy [%3] : RenameAll?
+>   %8 = Block - : never
 >   %10 = Block - : never
 >   %12 = Block - : never
+>   %13 = SwitchTag %6 [#0 %10 %12] : never
 >   %14 = Block - : never
->   %15 = SwitchTag %8 [#0 %12 %14] : never
+>   %15 = SwitchTag %6 [#1 %8 %14] : never
 >   %16 = Block - : never
->   %17 = SwitchTag %8 [#1 %10 %16] : never
->   %18 = Block - : never
->   %19 = Match %5 [%18 %6 %7] : bool
->   %20 = Break L0 %19 : never
->   %21 = Block - : bool
->   %22 = Scope %21 [] : bool
->   %23 = Block %22 : bool
+>   %17 = Match %3 [%16 %4 %5] : bool
+>   %18 = Break L0 %17 : never
+>   %19 = Block - : bool
+>   %20 = Scope %19 [] : bool
+>   %21 = Block %20 : bool
 >   summary kept [] borrows [$0]
 
 fn name_of(m: &Member, frames: &List[Frame]) -> string:
