@@ -223,7 +223,7 @@ impl[S] Walker[S] for Header:
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < ?Copy](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         name := match h.info.facts.find::[Column]():
             .Some(c) => c.name
             .None => h.info.name
@@ -233,7 +233,7 @@ impl[S] Walker[S] for Header:
 impl[T] Columns for T by Structure:
     fn columns(self) -> string:
         let mut w = Header { out: "" }
-        _ := Structure::walk(self, &mut w)
+        _ := Structure::walk(&self, &mut w)
         w.out
 `;
   for (const source of [
