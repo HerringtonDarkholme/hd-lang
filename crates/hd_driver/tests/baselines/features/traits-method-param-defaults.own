@@ -19,11 +19,11 @@ impl Joiner:
         self.parts.len() * sep.len()
 > app/main/impl Joiner.join
 >   local $0 self: Ref[Joiner] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   local $1 sep: string [param read] value
->     uses $1: entry -> %3 consume
+>     uses $1: entry -> %3 consume last
 >   local $2 self: string [read] value
->     uses $2: %4 -> %5 lend
+>     uses $2: %4 -> %5 lend last
 >   %0 = Read borrow [*$0 .parts] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Drop [%0] : ()
@@ -42,7 +42,7 @@ impl Joiner:
         value
 > app/main/impl Joiner.tagged
 >   local $1 value: T [param read] value
->     uses $1: entry -> %0 consume
+>     uses $1: entry -> %0 consume last
 >   %0 = Read move [$1] : T
 >   %1 = Block %0 : T
 >   exit sub 0 drops [$1]
@@ -66,15 +66,15 @@ fn generic_method(j: Joiner, s: string) -> usize:
     j.tagged(s).len()
 > app/main/generic_method
 >   local $0 j: Joiner [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 s: string [param read] value
->     uses $1: entry -> %1 consume
+>     uses $1: entry -> %1 consume last
 >   local $3 self: string [read] value
->     uses $3: %8 -> %9 lend
+>     uses $3: %8 -> %9 lend last
 >   local $4 self: Joiner value
 >     uses $4: none
 >   local $5 value: string [read] value
->     uses $5: %3 -> %4 consume
+>     uses $5: %3 -> %4 consume last
 >   %0 = Read borrow [$0] : Joiner
 >   %1 = Read move [$1] : string
 >   %2 = Store [$4] %0 : ()

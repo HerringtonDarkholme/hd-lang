@@ -22,7 +22,7 @@ fn make(name: string) -> Config:
     Config { name: name }
 > app/main/make
 >   local $0 name: string [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   %0 = Read move [$0] : string
 >   %1 = DefaultCall [%4618 %16] [] : i32
 >   %2 = DefaultCall [%4619 %16] [] : string
@@ -36,9 +36,9 @@ fn shorthand(name: string, tags: List[string]) -> Config:
     Config { name, tags }
 > app/main/shorthand
 >   local $0 name: string [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 tags: List[string] [param read] value
->     uses $1: entry -> %1 consume
+>     uses $1: entry -> %1 consume last
 >   %0 = Read move [$0] : string
 >   %1 = Read move [$1] : List[string]
 >   %2 = DefaultCall [%4618 %16] [] : i32

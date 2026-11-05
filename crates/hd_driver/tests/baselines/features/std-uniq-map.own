@@ -12,11 +12,11 @@ fn put(m: &mut UniqMap[string, string], k: string, v: string) -> void:
     _ := m.insert(k, v)
 > app/main/put
 >   local $0 m: Ref[mut UniqMap[string, string]] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   local $1 k: string [param read] value
->     uses $1: entry -> %1 consume
+>     uses $1: entry -> %1 consume last
 >   local $2 v: string [param read] value
->     uses $2: entry -> %2 consume
+>     uses $2: entry -> %2 consume last
 >   %0 = Read borrow [$0] : Ref[mut UniqMap[string, string]]
 >   %1 = Read move [$1] : string
 >   %2 = Read move [$2] : string
@@ -30,11 +30,11 @@ fn lookup(m: &UniqMap[string, string], k: string) -> usize:
     match m.get_ref(k):
 > app/main/lookup
 >   local $0 m: Ref[UniqMap[string, string]] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   local $1 k: string [param read] value
->     uses $1: entry -> %1 consume
+>     uses $1: entry -> %1 consume last
 >   local $2 v: Ref[string] [read assigned] value
->     uses $2: %8 -> %3 lend
+>     uses $2: %8 -> %3 lend last
 >   %0 = Read borrow [$0] : Ref[UniqMap[string, string]]
 >   %1 = Read move [$1] : string
 >   %2 = Call std/collections/impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].get_ref[string, string] (%0, %1) : Ref[string]?
@@ -63,15 +63,15 @@ fn group(m: &mut UniqMap[string, UniqList[string]], k: string, v: string) -> voi
     m.get_or_insert(k, UniqList::new()).push(v)
 > app/main/group
 >   local $0 m: Ref[mut UniqMap[string, UniqList[string]]] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   local $1 k: string [param read] value
->     uses $1: entry -> %1 consume
+>     uses $1: entry -> %1 consume last
 >   local $2 v: string [param read] value
->     uses $2: entry -> %21 consume
+>     uses $2: entry -> %21 consume last
 >   local $3 capacity: usize [read] value
->     uses $3: %2 -> %3 consume
+>     uses $3: %2 -> %3 consume last
 >   local $4 capacity: usize [read] value
->     uses $4: %4 -> %5 lend, %8 consume
+>     uses $4: %4 -> %5 lend, %8 consume last
 >   %0 = Read borrow [$0] : Ref[mut UniqMap[string, UniqList[string]]]
 >   %1 = Read move [$1] : string
 >   %2 = Store [$3] 0:usize : ()

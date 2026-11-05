@@ -13,7 +13,7 @@ trait Describe:
         "* " + self.describe()
 > app/main/Describe.headline
 >   local $0 self: Ref[Self] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : Ref[Self]
 >   %1 = Call app/main/Describe.describe for Self [] via Bound (%0) : string
 >   %2 = Intrinsic StrConcat ["* " %1] : string
@@ -29,7 +29,7 @@ impl Describe for Logger:
         self.name
 > app/main/impl Describe for Logger.describe
 >   local $0 self: Ref[Logger] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   %0 = Read copy [*$0 .name] : string
 >   %1 = Block %0 : string
 >   summary kept [$0]
@@ -39,7 +39,7 @@ fn direct(l: Logger) -> usize:
 > app/main/direct
 >   local $0 l: Logger [param read captured] place
 >   local $2 self: string [read] value
->     uses $2: %4 -> %5 lend
+>     uses $2: %4 -> %5 lend last
 >   %0 = Ref local frame [$0] : Counted[Logger]
 >   %1 = Call app/main/Describe.headline for Logger [] via Impl (%0) : string
 >   %2 = Drop [%0] : ()
@@ -60,7 +60,7 @@ fn generic[T < Describe](x: T) -> usize:
 > app/main/generic
 >   local $0 x: T [param read captured] place
 >   local $2 self: string [read] value
->     uses $2: %4 -> %5 lend
+>     uses $2: %4 -> %5 lend last
 >   %0 = Ref local frame [$0] : Counted[T]
 >   %1 = Call app/main/Describe.headline for T [] via Bound (%0) : string
 >   %2 = Drop [%0] : ()
@@ -80,10 +80,10 @@ fn use_generic(l: Logger) -> usize:
     generic(l)
 > app/main/use_generic
 >   local $0 l: Logger [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 x: Logger [read captured] place
 >   local $3 self: string [read] value
->     uses $3: %5 -> %6 lend
+>     uses $3: %5 -> %6 lend last
 >   %0 = Read move [$0] : Logger
 >   %1 = Store [$1] %0 : ()
 >   %2 = Ref local frame [$1] : Counted[Logger]
@@ -110,7 +110,7 @@ fn qualified(l: Logger) -> usize:
 > app/main/qualified
 >   local $0 l: Logger [param read captured] place
 >   local $2 self: string [read] value
->     uses $2: %6 -> %7 lend
+>     uses $2: %6 -> %7 lend last
 >   %0 = Ref local frame [$0] : Counted[Logger]
 >   %1 = Coerce %0 [Weaken -] : Ref[Logger]
 >   %2 = Call app/main/Describe.headline for Logger [] via Impl (%1) : string

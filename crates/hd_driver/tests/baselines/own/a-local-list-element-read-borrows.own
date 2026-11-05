@@ -4,9 +4,9 @@ app/main/total
     uses $1: %1 -> %19 lend, %46 lend
   local $6 sum: usize [read assigned mutated] place
   local $10 i: usize [read assigned] value
-    uses $10: %40 -> %45 lend
+    uses $10: %40 -> %45 lend last
   local $11 self: string [read] value
-    uses $11: %47 -> %48 lend
+    uses $11: %47 -> %48 lend last
   %44 = Read copy [$6] : usize
   %45 = Read copy [$10] : usize
   %46 = Read borrow [$1 [%45]] : string

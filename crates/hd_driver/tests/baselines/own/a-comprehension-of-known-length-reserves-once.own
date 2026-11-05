@@ -7,9 +7,9 @@ fn fill(n: usize) -> List[bool]:
     [for _ in 0..n => true]
 > app/main/fill
 >   local $0 n: usize [param read] value
->     uses $0: entry -> %2 consume
+>     uses $0: entry -> %2 consume last
 >   local $1 $acc: mut List[bool] [assigned] value
->     uses $1: %1 -> %21 lend, %31 lend, %39 consume
+>     uses $1: %1 -> %21 lend, %31 lend, %39 consume last
 >   local $2 $cur: usize [assigned] place
 >   local $3 $end: usize [assigned] value
 >     uses $3: %7 -> %12 lend, %25 lend
@@ -62,18 +62,18 @@ fn doubled(xs: List[i32]) -> List[i32]:
     [for x in xs => x * 2]
 > app/main/doubled
 >   local $0 xs: List[i32] [param read] value
->     uses $0: entry -> %2 consume
+>     uses $0: entry -> %2 consume last
 >   local $1 $acc: mut List[i32] [assigned] value
->     uses $1: %1 -> %9 lend, %25 lend, %39 consume
+>     uses $1: %1 -> %9 lend, %25 lend, %39 consume last
 >   local $2 $coll: List[i32] [assigned] value
 >     uses $2: %3 -> %4 lend, %18 lend
 >   local $3 $len: usize [assigned] value
->     uses $3: %6 -> %7 lend, %11 consume
+>     uses $3: %6 -> %7 lend, %11 consume last
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
 >     uses $5: %12 -> %15 lend
 >   local $6 x: i32 [read assigned] value
->     uses $6: %28 -> %22 lend
+>     uses $6: %28 -> %22 lend last
 >   %0 = NewList - [] : mut List[i32]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read move [$0] : List[i32]

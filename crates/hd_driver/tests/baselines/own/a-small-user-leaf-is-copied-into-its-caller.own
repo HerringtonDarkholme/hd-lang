@@ -7,9 +7,9 @@ app/main/row
   local $2 s: f64 [read assigned mutated] place
   local $3 j: usize [read assigned mutated] place
   local $4 i: usize [read] value
-    uses $4: %8 -> %10 lend, %13 lend, %19 lend
+    uses $4: %8 -> %10 lend, %13 lend, %19 lend last
   local $5 j: usize [read] value
-    uses $5: %9 -> %11 lend, %14 lend
+    uses $5: %9 -> %11 lend, %14 lend last
   %2 = Read copy [$3] : usize
   %3 = Read copy [$0] : usize
   %4 = Prim Lt [%2 %3] : bool

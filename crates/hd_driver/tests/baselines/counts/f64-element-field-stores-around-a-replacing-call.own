@@ -10,7 +10,7 @@ app/main/advance
   local $4 $incl: bool [assigned] value
     uses $4: none
   local $5 i: usize [read assigned] value
-    uses $5: %11 -> %15 lend, %16 lend, %24 lend
+    uses $5: %11 -> %15 lend, %16 lend, %24 lend last
   %0 = NewStruct [0:usize 1:usize 0:bool] : Range[usize]
   %1 = Read copy [%0 .start] : usize
   %2 = Store [$2] %1 : ()

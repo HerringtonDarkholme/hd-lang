@@ -15,7 +15,7 @@ fn fill(n: usize) -> List[i32]:
 >   local $0 n: usize [param read] value
 >     uses $0: entry -> %5 lend
 >   local $1 items: List[i32] [read assigned] value
->     uses $1: %1 -> %7 lend, %18 consume
+>     uses $1: %1 -> %7 lend, %18 consume last
 >   local $2 i: usize [read assigned mutated] place
 >   %0 = NewList - [] : List[i32]
 >   %1 = Store [$1] %0 : ()

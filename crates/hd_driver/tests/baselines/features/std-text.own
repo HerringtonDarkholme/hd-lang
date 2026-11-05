@@ -11,16 +11,16 @@ fn build(parts: &List[string]) -> string:
     sb := StringBuilder::new()
 > app/main/build
 >   local $0 parts: Ref[List[string]] [param read] value
->     uses $0: entry -> %8 lend
+>     uses $0: entry -> %8 lend last
 >   local $1 sb: Counted[mut StringBuilder] [:= read assigned] value
->     uses $1: %7 -> %22 lend, %25 lend, %40 lend
+>     uses $1: %7 -> %22 lend, %25 lend, %40 lend last
 >   local $2 $coll: List[string] [assigned] value
 >     uses $2: %9 -> %10 lend, %18 lend
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
 >     uses $5: %12 -> %15 lend
 >   local $6 p: string [read assigned] value
->     uses $6: %29 -> %23 lend
+>     uses $6: %29 -> %23 lend last
 >   local $7 $ref: StringBuilder [read assigned captured captured-assigned] place
 >   %0 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].new[u8] () : UniqList[u8]
 >   %1 = NewStruct [%0] : StringBuilder
@@ -77,7 +77,7 @@ fn fields(line: string) -> usize:
     let mut n = 0
 > app/main/fields
 >   local $0 line: string [param read] value
->     uses $0: entry -> %1 lend
+>     uses $0: entry -> %1 lend last
 >   local $1 n: usize [read assigned mutated] place
 >   local $2 $coll: List[string] [assigned] value
 >     uses $2: %3 -> %4 lend, %12 lend
@@ -85,9 +85,9 @@ fn fields(line: string) -> usize:
 >   local $5 $end: usize [assigned] value
 >     uses $5: %6 -> %9 lend
 >   local $6 f: string [read assigned] value
->     uses $6: %28 -> %17 consume
+>     uses $6: %28 -> %17 consume last
 >   local $7 self: string [read] value
->     uses $7: %18 -> %19 lend
+>     uses $7: %18 -> %19 lend last
 >   %0 = Store [$1] 0:usize : ()
 >   %40 = Block %39 : usize
     for f in line.split(","):

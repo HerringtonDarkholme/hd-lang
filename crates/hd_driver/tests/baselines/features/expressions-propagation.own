@@ -18,7 +18,7 @@ impl From[ReadError] for AppError:
         AppError.Read(value)
 > app/main/impl From [ ReadError ] for AppError.from
 >   local $0 value: ReadError [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   %0 = Read move [$0] : ReadError
 >   %1 = NewVariant #0 [%0] : AppError
 >   %2 = Block %1 : AppError
@@ -29,9 +29,9 @@ fn read(path: string) -> Result[string, ReadError]:
     if path.len() > 0: .Ok(path + "/") else: .Err(ReadError.Missing(path))
 > app/main/read
 >   local $0 path: string [param read] value
->     uses $0: entry -> %0 consume, %8 lend, %12 consume
+>     uses $0: entry -> %0 consume, %8 lend last, %12 consume last
 >   local $1 self: string [read] value
->     uses $1: %1 -> %2 lend
+>     uses $1: %1 -> %2 lend last
 >   %0 = Read borrow [$0] : string
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : string
@@ -58,9 +58,9 @@ fn result_try(path: string) -> Result[usize, ReadError]:
     text := read(path)?
 > app/main/result_try
 >   local $0 path: string [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $2 self: string [read] value
->     uses $2: %26 -> %27 lend
+>     uses $2: %26 -> %27 lend last
 >   local $3 path: string [read captured] place
 >   %0 = Read move [$0] : string
 >   %1 = Store [$3] %0 : ()
@@ -108,11 +108,11 @@ fn converted(path: string) -> Result[usize, AppError]:
     text := read(path)?
 > app/main/converted
 >   local $0 path: string [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $2 self: string [read] value
->     uses $2: %32 -> %33 lend
+>     uses $2: %32 -> %33 lend last
 >   local $3 value: ReadError [read] value
->     uses $3: %22 -> %23 consume
+>     uses $3: %22 -> %23 consume last
 >   local $4 path: string [read captured] place
 >   %0 = Read move [$0] : string
 >   %1 = Store [$4] %0 : ()

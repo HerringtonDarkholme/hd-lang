@@ -18,7 +18,7 @@ fn through_reference(bag: &Bag) -> usize:
     bag.buffer.capacity()
 > std/rt_tests.stage_case/through_reference
 >   local $0 bag: Ref[Bag] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   %0 = Ref lent local [*$0 .buffer] : Ref[Buffer[i32]]
 >   %1 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].capacity[i32] (%0) : usize
 >   %2 = Drop [%0] : ()
@@ -29,9 +29,9 @@ fn through_owned_box() -> usize:
 > std/rt_tests.stage_case/through_owned_box
 >   local $0 $ref: Bag [read assigned captured captured-assigned] place
 >   local $1 bag: Counted[mut Bag] [:= read assigned] value
->     uses $1: %12 -> %13 lend
+>     uses $1: %12 -> %13 lend last
 >   local $2 capacity: usize [read] value
->     uses $2: %0 -> %1 lend, %4 consume
+>     uses $2: %0 -> %1 lend, %4 consume last
 >   %0 = Store [$2] 4:usize : ()
 >   %1 = Read copy [$2] : usize
 >   %2 = Call std/rt.memory/size_of[i32] () : usize

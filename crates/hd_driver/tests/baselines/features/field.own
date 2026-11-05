@@ -12,9 +12,9 @@ fn read_field(r: Rec) -> usize:
     r.name.len() + r.tags.len()
 > app/main/read_field
 >   local $0 r: Rec [param read] value
->     uses $0: entry -> %0 consume, %7 lend
+>     uses $0: entry -> %0 consume, %7 lend last
 >   local $1 self: string [read] value
->     uses $1: %1 -> %2 lend
+>     uses $1: %1 -> %2 lend last
 >   %0 = Read borrow [$0 .name] : string
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : string
@@ -32,7 +32,7 @@ fn take_field(r: Rec) -> string:
     r.name
 > app/main/take_field
 >   local $0 r: Rec [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   %0 = Read move [$0 .name] : string
 >   %1 = Drop [$0 .tags] : ()
 >   %2 = Block %0 : string
@@ -43,11 +43,11 @@ fn write_field(r: Rec, n: string) -> Rec:
     let mut s = r
 > app/main/write_field
 >   local $0 r: Rec [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 n: string [param read] value
->     uses $1: entry -> %2 consume
+>     uses $1: entry -> %2 consume last
 >   local $2 s: Rec [read assigned mutated] value ×2
->     uses $2: %3 -> %4 consume
+>     uses $2: %3 -> %4 consume last
 >   %0 = Read move [$0] : Rec
 >   %1 = Store [$2] %0 : ()
 >   %5 = Block %4 : Rec
@@ -63,9 +63,9 @@ fn write_through(r: &mut Rec, n: string) -> void:
     r.name = n
 > app/main/write_through
 >   local $0 r: Ref[mut Rec] [param read] value
->     uses $0: entry -> %1 lend
+>     uses $0: entry -> %1 lend last
 >   local $1 n: string [param read] value
->     uses $1: entry -> %0 consume
+>     uses $1: entry -> %0 consume last
 >   %0 = Read move [$1] : string
 >   %1 = Store [*$0 .name] %0 : ()
 >   %2 = Block - : ()

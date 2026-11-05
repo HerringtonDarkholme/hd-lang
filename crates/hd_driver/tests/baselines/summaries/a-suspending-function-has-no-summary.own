@@ -21,7 +21,7 @@ fn unnamed(m: Member) -> bool:
     m.name == ""
 > app/main/unnamed
 >   local $0 m: Member [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0 .name] : string
 >   %1 = Intrinsic StrEq [%0 ""] : bool
 >   %2 = Block %1 : bool

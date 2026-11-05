@@ -9,7 +9,7 @@ fn str_slice(s: string) -> string:
     s.slice(1, 3)
 > app/main/str_slice
 >   local $0 s: string [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : string
 >   %1 = Call std/text/impl string.slice[] (%0, 1:usize, 3:usize) : string
 >   %2 = Block %1 : string
@@ -19,11 +19,11 @@ fn str_slice_len(s: string, n: usize) -> usize:
     s.slice(0, n).len()
 > app/main/str_slice_len
 >   local $0 s: string [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   local $1 n: usize [param read] value
->     uses $1: entry -> %1 lend
+>     uses $1: entry -> %1 lend last
 >   local $3 self: string [read] value
->     uses $3: %3 -> %4 lend
+>     uses $3: %3 -> %4 lend last
 >   %0 = Read borrow [$0] : string
 >   %1 = Read copy [$1] : usize
 >   %2 = Call std/text/impl string.slice[] (%0, 0:usize, %1) : string

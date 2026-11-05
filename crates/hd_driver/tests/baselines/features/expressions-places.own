@@ -12,13 +12,13 @@ fn tuple_slot(a: string, b: string, s: string) -> (string, string):
     let mut p = (a, b)
 > app/main/tuple_slot
 >   local $0 a: string [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 b: string [param read] value
->     uses $1: entry -> %1 consume
+>     uses $1: entry -> %1 consume last
 >   local $2 s: string [param read] value
->     uses $2: entry -> %4 consume
+>     uses $2: entry -> %4 consume last
 >   local $3 p: (string, string) [read assigned mutated] value ×2
->     uses $3: %5 -> %6 consume
+>     uses $3: %5 -> %6 consume last
 >   %0 = Read move [$0] : string
 >   %1 = Read move [$1] : string
 >   %2 = NewTuple - [%0 %1] : (string, string)
@@ -36,9 +36,9 @@ fn pick(xs: List[*mut Node], i: usize) -> *mut Node:
     xs[i]
 > app/main/pick
 >   local $0 xs: List[Counted[mut Node]] [param read] value
->     uses $0: entry -> %1 lend
+>     uses $0: entry -> %1 lend last
 >   local $1 i: usize [param read] value
->     uses $1: entry -> %0 lend
+>     uses $1: entry -> %0 lend last
 >   %0 = Read copy [$1] : usize
 >   %1 = Read copy [$0 [%0]] : Counted[mut Node]
 >   %2 = Drop [$0] : ()
@@ -50,13 +50,13 @@ fn call_receiver(xs: List[*mut Node], s: string) -> void:
     pick(xs, 0).name = s
 > app/main/call_receiver
 >   local $0 xs: List[Counted[mut Node]] [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 s: string [param read] value
->     uses $1: entry -> %9 consume
+>     uses $1: entry -> %9 consume last
 >   local $2 xs: List[Counted[mut Node]] [read] value
->     uses $2: %1 -> %4 lend
+>     uses $2: %1 -> %4 lend last
 >   local $3 i: usize [read] value
->     uses $3: %2 -> %3 lend
+>     uses $3: %2 -> %3 lend last
 >   %0 = Read move [$0] : List[Counted[mut Node]]
 >   %1 = Store [$2] %0 : ()
 >   %2 = Store [$3] 0:usize : ()
@@ -77,9 +77,9 @@ fn deref_store(r: &mut string, s: string) -> void:
     *r = s
 > app/main/deref_store
 >   local $0 r: Ref[mut string] [param read] value
->     uses $0: entry -> %1 lend
+>     uses $0: entry -> %1 lend last
 >   local $1 s: string [param read] value
->     uses $1: entry -> %0 consume
+>     uses $1: entry -> %0 consume last
 >   %0 = Read move [$1] : string
 >   %1 = Store [*$0] %0 : ()
 >   %2 = Block - : ()

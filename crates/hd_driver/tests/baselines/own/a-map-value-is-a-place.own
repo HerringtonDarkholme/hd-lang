@@ -11,9 +11,9 @@ fn add(stock: &mut Stock, n: i32) -> void:
     stock.count += n
 > app/main/add
 >   local $0 stock: Ref[mut Stock] [param read] value
->     uses $0: entry -> %0 lend, %3 lend
+>     uses $0: entry -> %0 lend, %3 lend last
 >   local $1 n: i32 [param read] value
->     uses $1: entry -> %1 lend
+>     uses $1: entry -> %1 lend last
 >   %0 = Read copy [*$0 .count] : i32
 >   %1 = Read copy [$1] : i32
 >   %2 = Prim Add [%0 %1] : i32
@@ -25,7 +25,7 @@ fn restock(mut shelves: Map[string, Stock], name: string) -> Map[string, Stock]:
 > app/main/restock
 >   local $0 shelves: Map[string, Stock] [param read] place
 >   local $1 name: string [param read] value
->     uses $1: entry -> %1 lend, %8 lend
+>     uses $1: entry -> %1 lend, %8 lend last
 >   %0 = Read borrow [$0] : Map[string, Stock]
 >   %1 = Read borrow [$1] : string
 >   %2 = Intrinsic MapEntry [%0 %1] : usize

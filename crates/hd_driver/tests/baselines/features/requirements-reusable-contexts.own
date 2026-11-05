@@ -16,7 +16,7 @@ impl Tag for Named:
         self.label
 > app/main/impl Tag for Named.name
 >   local $0 self: Named [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   %0 = Read move [$0 .label] : string
 >   %1 = Block %0 : string
 >   exit sub 0 drops [$0]
@@ -26,7 +26,7 @@ fn read_tag() -> usize $ Tag:
     $.use(Tag).name().len()
 > app/main/read_tag
 >   local $1 self: string [read] value
->     uses $1: %5 -> %6 lend
+>     uses $1: %5 -> %6 lend last
 >   %0 = ProviderGet #0 : Tag
 >   %1 = Coerce %0 [ProviderAsRef -] : Ref[Tag]
 >   %2 = Read copy [*%1] : Tag
@@ -46,9 +46,9 @@ fn make(s: string) -> $.Context[$ Tag]:
     $.context(Tag=Named { label: s })
 > app/main/make
 >   local $0 s: string [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 provider: Named [read] value
->     uses $1: %2 -> %3 consume
+>     uses $1: %2 -> %3 consume last
 >   local $2 $ref: Named [read assigned captured captured-assigned] place
 >   %0 = Read move [$0] : string
 >   %1 = NewStruct [%0] : Named
@@ -76,7 +76,7 @@ fn run(ctx: $.Context[$ Tag]) -> usize:
     $.with(ctx...):
 > app/main/run
 >   local $0 ctx: $.Context[$ Tag] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : $.Context[$ Tag]
 >   %3 = With [%5923 %0] %2 : usize
 >   %4 = Block %3 : usize

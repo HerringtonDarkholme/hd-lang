@@ -20,25 +20,25 @@ fn lbl(n: i64) -> Label:
 > app/main/lbl
 >   local $0 n: i64 [param read captured] place
 >   local $1 result: string [read] value
->     uses $1: %51 -> %56 lend
+>     uses $1: %51 -> %56 lend last
 >   local $2 offset: usize [read] value
->     uses $2: %52 -> %58 lend
+>     uses $2: %52 -> %58 lend last
 >   local $3 value: i64 [read] value
->     uses $3: %53 -> %55 lend
+>     uses $3: %53 -> %55 lend last
 >   local $4 width: usize [read] value
->     uses $4: %54 -> %60 lend
+>     uses $4: %54 -> %60 lend last
 >   local $5 result: string [read] value
->     uses $5: %32 -> %35 lend
+>     uses $5: %32 -> %35 lend last
 >   local $6 offset: usize [read] value
->     uses $6: %33 -> %38 lend
+>     uses $6: %33 -> %38 lend last
 >   local $7 text: string [read] value
->     uses $7: %34 -> %40 lend, %43 lend
+>     uses $7: %34 -> %40 lend, %43 lend last
 >   local $8 size: usize [read] value
->     uses $8: %25 -> %26 lend
+>     uses $8: %25 -> %26 lend last
 >   local $9 value: i64 [read] value
->     uses $9: %5 -> %6 consume
+>     uses $9: %5 -> %6 consume last
 >   local $10 value: i64 [read] value
->     uses $10: %7 -> %8 lend, %11 lend
+>     uses $10: %7 -> %8 lend, %11 lend last
 >   %0 = Ref local frame [$0] : Counted[i64]
 >   %1 = Read copy [*%0] : i64
 >   %2 = Drop [%0] : ()
@@ -115,7 +115,7 @@ fn sql(t: Template[i64]) -> Query:
     Query { text: t.raw_parts, params: t.values }
 > app/main/sql
 >   local $0 t: Template[i64] [param read] value
->     uses $0: entry -> %0 consume, %1 consume
+>     uses $0: entry -> %0 consume, %1 consume last
 >   %0 = Read move [$0 .raw_parts] : List[string]
 >   %1 = Read move [$0 .values] : List[i64]
 >   %2 = NewStruct [%0 %1] : Query
@@ -128,7 +128,7 @@ fn tag(t: Template[string]) -> usize:
     t.raw_parts.len() + t.values.len()
 > app/main/tag
 >   local $0 t: Template[string] [param read] value
->     uses $0: entry -> %0 lend, %2 lend
+>     uses $0: entry -> %0 lend, %2 lend last
 >   %0 = Read borrow [$0 .raw_parts] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Read borrow [$0 .values] : List[string]
@@ -166,9 +166,9 @@ fn prefixed(id: i64) -> Query:
     sql"select * from users where id = $id"
 > app/main/prefixed
 >   local $0 id: i64 [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 t: Template[i64] [read] value
->     uses $1: %4 -> %5 consume, %6 consume
+>     uses $1: %4 -> %5 consume, %6 consume last
 >   %0 = Read copy [$0] : i64
 >   %1 = NewList - ["select * from users where id = " ""] : mut List[string]
 >   %2 = NewList - [%0] : mut List[i64]
@@ -188,9 +188,9 @@ fn tagged(s: string) -> usize:
     tag"<$s>"
 > app/main/tagged
 >   local $0 s: string [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 t: Template[string] [read] value
->     uses $1: %4 -> %5 lend, %7 lend
+>     uses $1: %4 -> %5 lend, %7 lend last
 >   %0 = Read move [$0] : string
 >   %1 = NewList - ["<" ">"] : mut List[string]
 >   %2 = NewList - [%0] : mut List[string]

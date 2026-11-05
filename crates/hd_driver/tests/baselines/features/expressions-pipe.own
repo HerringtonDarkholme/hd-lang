@@ -13,29 +13,29 @@ fn clean(raw: string) -> string:
     "[${raw}]"
 > app/main/clean
 >   local $0 raw: string [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   local $1 result: string [read] value
->     uses $1: %56 -> %59 lend
+>     uses $1: %56 -> %59 lend last
 >   local $2 offset: usize [read] value
->     uses $2: %57 -> %62 lend
+>     uses $2: %57 -> %62 lend last
 >   local $3 text: string [read] value
->     uses $3: %58 -> %64 lend, %67 lend
+>     uses $3: %58 -> %64 lend, %67 lend last
 >   local $4 result: string [read] value
->     uses $4: %37 -> %41 lend
+>     uses $4: %37 -> %41 lend last
 >   local $5 offset: usize [read] value
->     uses $5: %38 -> %44 lend
+>     uses $5: %38 -> %44 lend last
 >   local $6 text: string [read] value
->     uses $6: %40 -> %46 lend, %49 lend
+>     uses $6: %40 -> %46 lend, %49 lend last
 >   local $7 result: string [read] value
->     uses $7: %18 -> %21 lend
+>     uses $7: %18 -> %21 lend last
 >   local $8 offset: usize [read] value
->     uses $8: %19 -> %24 lend
+>     uses $8: %19 -> %24 lend last
 >   local $9 text: string [read] value
->     uses $9: %20 -> %26 lend, %29 lend
+>     uses $9: %20 -> %26 lend, %29 lend last
 >   local $10 size: usize [read] value
->     uses $10: %11 -> %12 lend
+>     uses $10: %11 -> %12 lend last
 >   local $11 value: string [read] value
->     uses $11: %2 -> %3 lend
+>     uses $11: %2 -> %3 lend last
 >   %0 = Read borrow [$0] : string
 >   %1 = Read borrow [%0] : string
 >   %2 = Store [$11] %1 : ()
@@ -118,36 +118,36 @@ fn tag(label: string, level: i64) -> string:
     "${label}:${level}"
 > app/main/tag
 >   local $0 label: string [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   local $1 level: i64 [param read captured] place
 >   local $2 result: string [read] value
->     uses $2: %79 -> %84 lend
+>     uses $2: %79 -> %84 lend last
 >   local $3 offset: usize [read] value
->     uses $3: %80 -> %86 lend
+>     uses $3: %80 -> %86 lend last
 >   local $4 value: i64 [read] value
->     uses $4: %81 -> %83 lend
+>     uses $4: %81 -> %83 lend last
 >   local $5 width: usize [read] value
->     uses $5: %82 -> %88 lend
+>     uses $5: %82 -> %88 lend last
 >   local $6 result: string [read] value
->     uses $6: %60 -> %63 lend
+>     uses $6: %60 -> %63 lend last
 >   local $7 offset: usize [read] value
->     uses $7: %61 -> %66 lend
+>     uses $7: %61 -> %66 lend last
 >   local $8 text: string [read] value
->     uses $8: %62 -> %68 lend, %71 lend
+>     uses $8: %62 -> %68 lend, %71 lend last
 >   local $9 result: string [read] value
->     uses $9: %41 -> %45 lend
+>     uses $9: %41 -> %45 lend last
 >   local $10 offset: usize [read] value
->     uses $10: %42 -> %48 lend
+>     uses $10: %42 -> %48 lend last
 >   local $11 text: string [read] value
->     uses $11: %44 -> %50 lend, %53 lend
+>     uses $11: %44 -> %50 lend, %53 lend last
 >   local $12 size: usize [read] value
->     uses $12: %34 -> %35 lend
+>     uses $12: %34 -> %35 lend last
 >   local $13 value: i64 [read] value
->     uses $13: %13 -> %14 consume
+>     uses $13: %13 -> %14 consume last
 >   local $14 value: i64 [read] value
->     uses $14: %15 -> %16 lend, %19 lend
+>     uses $14: %15 -> %16 lend, %19 lend last
 >   local $15 value: string [read] value
->     uses $15: %2 -> %3 lend
+>     uses $15: %2 -> %3 lend last
 >   %0 = Read borrow [$0] : string
 >   %1 = Read borrow [%0] : string
 >   %2 = Store [$15] %1 : ()
@@ -250,9 +250,9 @@ fn bare(raw: string) -> string:
     raw |> clean
 > app/main/bare
 >   local $0 raw: string [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 raw: string [read] value
->     uses $1: %1 -> %2 lend
+>     uses $1: %1 -> %2 lend last
 >   %0 = Read borrow [$0] : string
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : string
@@ -276,12 +276,12 @@ fn chain(raw: string) -> string:
     raw |> clean |> tag(_, 2)
 > app/main/chain
 >   local $0 raw: string [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 label: string [read] value
->     uses $1: %16 -> %18 lend
+>     uses $1: %16 -> %18 lend last
 >   local $2 level: i64 [read captured] place
 >   local $3 raw: string [read] value
->     uses $3: %1 -> %2 lend
+>     uses $3: %1 -> %2 lend last
 >   %0 = Read borrow [$0] : string
 >   %1 = Store [$3] %0 : ()
 >   %2 = Read borrow [$3] : string
@@ -329,12 +329,12 @@ fn direct(raw: string) -> string:
     tag(clean(raw), 2)
 > app/main/direct
 >   local $0 raw: string [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 label: string [read] value
->     uses $1: %16 -> %18 lend
+>     uses $1: %16 -> %18 lend last
 >   local $2 level: i64 [read captured] place
 >   local $3 raw: string [read] value
->     uses $3: %1 -> %2 lend
+>     uses $3: %1 -> %2 lend last
 >   %0 = Read borrow [$0] : string
 >   %1 = Store [$3] %0 : ()
 >   %2 = Read borrow [$3] : string
@@ -382,9 +382,9 @@ fn method_slot(raw: string) -> usize:
     raw |> _.len()
 > app/main/method_slot
 >   local $0 raw: string [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $2 self: string [read] value
->     uses $2: %1 -> %2 lend
+>     uses $2: %1 -> %2 lend last
 >   %0 = Read borrow [$0] : string
 >   %1 = Store [$2] %0 : ()
 >   %2 = Read borrow [$2] : string
@@ -399,7 +399,7 @@ fn literal_slot(raw: string) -> Point:
     raw |> Point { name: _, x: 0 }
 > app/main/literal_slot
 >   local $0 raw: string [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   %0 = Read move [$0] : string
 >   %1 = NewStruct [%0 0:usize] : Point
 >   %2 = Block %1 : Point

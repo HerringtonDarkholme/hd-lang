@@ -13,9 +13,9 @@ impl Node:
         match self.left:
 > app/main/impl Node.twice
 >   local $0 self: Ref[Node] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   local $1 left: Counted[Node] [read assigned] value
->     uses $1: %11 -> %2 lend, %4 lend
+>     uses $1: %11 -> %2 lend, %4 lend last
 >   %0 = Read borrow [*$0 .left] : Counted[Node]?
 >   %19 = Block - : never
 >   %20 = Match %0 [%19 %1 %7] : usize
@@ -44,9 +44,9 @@ fn depth(node: &Node) -> usize:
     match node.left:
 > app/main/depth
 >   local $0 node: Ref[Node] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   local $1 left: Counted[Node] [read assigned] value
->     uses $1: %9 -> %2 lend
+>     uses $1: %9 -> %2 lend last
 >   %0 = Read borrow [*$0 .left] : Counted[Node]?
 >   %17 = Block - : never
 >   %18 = Match %0 [%17 %1 %5] : usize
@@ -73,11 +73,11 @@ fn check(node: &Node) -> i64:
     match node.left:
 > app/main/check
 >   local $0 node: Ref[Node] [param read] value
->     uses $0: entry -> %0 lend, %2 lend
+>     uses $0: entry -> %0 lend, %2 lend last
 >   local $1 left: Counted[Node] [read assigned] value
->     uses $1: %32 -> %3 lend, %7 lend
+>     uses $1: %32 -> %3 lend last, %7 lend last
 >   local $2 right: Counted[Node] [read assigned] value
->     uses $2: %17 -> %10 lend
+>     uses $2: %17 -> %10 lend last
 >   %0 = Read borrow [*$0 .left] : Counted[Node]?
 >   %40 = Block - : never
 >   %41 = Match %0 [%40 %1 %28] : i64

@@ -8,9 +8,9 @@ fn branch(items: List[usize], n: usize) -> List[usize]:
     let mut items = items
 > app/main/branch
 >   local $0 items: List[usize] [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 n: usize [param read] value
->     uses $1: entry -> %2 consume
+>     uses $1: entry -> %2 consume last
 >   local $2 items: List[usize] [read assigned] place
 >   local $3 $cur: usize [assigned] place
 >   local $4 $end: usize [assigned] value
@@ -25,7 +25,7 @@ fn branch(items: List[usize], n: usize) -> List[usize]:
 >   local $9 $incl: bool [assigned] value
 >     uses $9: none
 >   local $10 i: usize [read assigned] value
->     uses $10: %35 -> %39 lend
+>     uses $10: %35 -> %39 lend last
 >   %0 = Read move [$0] : List[usize]
 >   %1 = Store [$2] %0 : ()
 >   %57 = Block %56 : List[usize]
@@ -96,12 +96,12 @@ fn copy(items: List[usize], n: usize) -> List[List[usize]]:
     let mut items = items
 > app/main/copy
 >   local $0 items: List[usize] [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 n: usize [param read] value
->     uses $1: entry -> %4 consume
+>     uses $1: entry -> %4 consume last
 >   local $2 items: List[usize] [read assigned] place
 >   local $3 saved: List[List[usize]] [read assigned] value
->     uses $3: %3 -> %22 lend, %58 consume
+>     uses $3: %3 -> %22 lend, %58 consume last
 >   local $4 $cur: usize [assigned] place
 >   local $5 $end: usize [assigned] value
 >     uses $5: %9 -> %14 lend
@@ -115,7 +115,7 @@ fn copy(items: List[usize], n: usize) -> List[List[usize]]:
 >   local $10 $incl: bool [assigned] value
 >     uses $10: none
 >   local $11 i: usize [read assigned] value
->     uses $11: %37 -> %41 lend
+>     uses $11: %37 -> %41 lend last
 >   %0 = Read move [$0] : List[usize]
 >   %1 = Store [$2] %0 : ()
 >   %59 = Block %58 : List[List[usize]]
@@ -190,7 +190,7 @@ fn call(items: &mut List[usize], n: usize, f: fn() -> void) -> void:
 >   local $0 items: Ref[mut List[usize]] [param read] value
 >     uses $0: entry -> %18 lend, %40 lend
 >   local $1 n: usize [param read] value
->     uses $1: entry -> %0 consume
+>     uses $1: entry -> %0 consume last
 >   local $2 f: fn() -> () [param read] value
 >     uses $2: entry -> %16 lend
 >   local $3 $cur: usize [assigned] place
@@ -206,7 +206,7 @@ fn call(items: &mut List[usize], n: usize, f: fn() -> void) -> void:
 >   local $9 $incl: bool [assigned] value
 >     uses $9: none
 >   local $10 i: usize [read assigned] value
->     uses $10: %33 -> %37 lend
+>     uses $10: %33 -> %37 lend last
 >   %0 = Read copy [$1] : usize
 >   %1 = NewStruct [0:usize %0 0:bool] : Range[usize]
 >   %2 = Read copy [%1 .start] : usize

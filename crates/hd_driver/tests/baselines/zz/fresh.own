@@ -4,7 +4,7 @@ fn digits(value: u64) -> List[u8]:
     let mut buf: List[u8] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 > app/main/digits
 >   local $0 value: u64 [param read] value
->     uses $0: entry -> %3 consume
+>     uses $0: entry -> %3 consume last
 >   local $1 buf: List[u8] [read assigned] place
 >   local $2 i: usize [read assigned mutated] place
 >   local $3 v: u64 [read assigned mutated] place
@@ -45,7 +45,7 @@ fn pushes(n: usize) -> List[i32]:
     let mut items: List[i32] = []
 > app/main/pushes
 >   local $0 n: usize [param read] value
->     uses $0: entry -> %5 lend
+>     uses $0: entry -> %5 lend last
 >   local $1 items: List[i32] [read assigned captured captured-assigned] place
 >   local $2 p: i32? [assigned] value
 >     uses $2: none
@@ -89,7 +89,7 @@ fn copied(n: usize) -> List[i32]:
 > app/main/copied
 >   local $1 items: List[i32] [read assigned] place
 >   local $2 other: List[i32] [:= read assigned] value
->     uses $2: %3 -> %7 lend
+>     uses $2: %3 -> %7 lend last
 >   %0 = NewList - [1:i32] : List[i32]
 >   %1 = Store [$1] %0 : ()
 >   %12 = Block %11 : List[i32]

@@ -17,7 +17,7 @@ fn parser['a](src: &'a string) -> Parser[string, 'a]:
     Parser { src: src, pos: 0 }
 > app/main/parser
 >   local $0 src: Ref[string] [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   %0 = Read copy [$0] : Ref[string]
 >   %1 = NewStruct [%0 0:usize] : Parser[string, Ref[()]]
 >   %2 = Block %1 : Parser[string, Ref[()]]
@@ -27,11 +27,11 @@ fn word['a](t: Token[string, 'a], fallback: &'a string) -> &'a string:
     match t:
 > app/main/word
 >   local $0 t: Token[string, Ref[()]] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   local $1 fallback: Ref[string] [param read] value
->     uses $1: entry -> %3 consume
+>     uses $1: entry -> %3 consume last
 >   local $2 w: Ref[string] [read assigned] value
->     uses $2: %6 -> %1 consume
+>     uses $2: %6 -> %1 consume last
 >   %0 = Read borrow [$0] : Token[string, Ref[()]]
 >   %16 = Block - : never
 >   %17 = Match %0 [%16 %2 %4] : Ref[string]
@@ -57,9 +57,9 @@ fn length(text: string) -> usize:
 > app/main/length
 >   local $0 text: string [param read captured] place
 >   local $1 p: Parser[string, Ref[()]] [:= read assigned] value
->     uses $1: %7 -> %8 lend, %10 lend
+>     uses $1: %7 -> %8 lend, %10 lend last
 >   local $2 src: Counted[string] [read] value
->     uses $2: %1 -> %2 consume
+>     uses $2: %1 -> %2 consume last
 >   %0 = Ref local frame [$0] : Counted[string]
 >   %1 = Store [$2] %0 : ()
 >   %2 = Read move [$2] : Counted[string]

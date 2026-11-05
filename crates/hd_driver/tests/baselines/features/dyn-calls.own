@@ -15,7 +15,7 @@ impl Named for Dog:
         self.n
 > app/main/impl Named for Dog.name
 >   local $0 self: Ref[Dog] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   %0 = Read copy [*$0 .n] : string
 >   %1 = Block %0 : string
 >   summary kept [$0]
@@ -24,9 +24,9 @@ fn call_dyn(x: &dyn Named) -> usize:
     x.name().len()
 > app/main/call_dyn
 >   local $0 x: Ref[Named] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   local $2 self: string [read] value
->     uses $2: %3 -> %4 lend
+>     uses $2: %3 -> %4 lend last
 >   %0 = Read copy [*$0] : Named
 >   %1 = Call app/main/Named.name for Named [] via TraitValue (%0) : string
 >   %2 = Drop [%0] : ()
@@ -45,7 +45,7 @@ fn make_dyn(d: Dog) -> usize:
 > app/main/make_dyn
 >   local $0 d: Dog [param read captured] place
 >   local $1 $ref: Ref[Dog] [read assigned captured] value
->     uses $1: %1 -> %2 lend
+>     uses $1: %1 -> %2 lend last
 >   %0 = Ref local frame [$0] : Ref[Dog]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read move [$1] : Ref[Dog]

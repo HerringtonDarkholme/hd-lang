@@ -15,9 +15,9 @@ impl dyn Greet:
         self.greet().len() * 2
 > app/main/impl dyn Greet.twice
 >   local $0 self: Ref[Greet] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   local $2 self: string [read] value
->     uses $2: %3 -> %4 lend
+>     uses $2: %3 -> %4 lend last
 >   %0 = Read copy [*$0] : Greet
 >   %1 = Call app/main/Greet.greet for Greet [] via TraitValue (%0) : string
 >   %2 = Drop [%0] : ()
@@ -40,7 +40,7 @@ impl Greet for User:
         "hi " + self.name
 > app/main/impl Greet for User.greet
 >   local $0 self: Ref[User] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [*$0 .name] : string
 >   %1 = Intrinsic StrConcat ["hi " %0] : string
 >   %2 = Drop [%0] : ()
@@ -51,9 +51,9 @@ impl Greet for User:
         self.name = n
 > app/main/impl Greet for User.rename
 >   local $0 self: Ref[mut User] [param read] value
->     uses $0: entry -> %1 lend
+>     uses $0: entry -> %1 lend last
 >   local $1 n: string [param read] value
->     uses $1: entry -> %0 consume
+>     uses $1: entry -> %0 consume last
 >   %0 = Read move [$1] : string
 >   %1 = Store [*$0 .name] %0 : ()
 >   %2 = Block - : ()
@@ -64,10 +64,10 @@ fn boxed(u: User) -> *dyn Greet:
     box(u)
 > app/main/boxed
 >   local $0 u: User [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 $ref: User [read assigned captured captured-assigned] place
 >   local $2 $ref: Counted[User] [read assigned captured] value
->     uses $2: %4 -> %5 lend
+>     uses $2: %4 -> %5 lend last
 >   %0 = Read move [$0] : User
 >   %1 = Store [$1] %0 : ()
 >   %2 = Ref take mut [$1] : Counted[mut User]
@@ -87,9 +87,9 @@ fn through_mut(g: &mut dyn Greet, n: string) -> usize:
     g.rename(n)
 > app/main/through_mut
 >   local $0 g: Ref[mut Greet] [param read] value
->     uses $0: entry -> %0 lend, %4 consume
+>     uses $0: entry -> %0 lend, %4 consume last
 >   local $1 n: string [param read] value
->     uses $1: entry -> %1 consume
+>     uses $1: entry -> %1 consume last
 >   %0 = Read copy [*$0] : mut Greet
 >   %1 = Read move [$1] : string
 >   %2 = Call app/main/Greet.rename for Greet [] via TraitValue (%0, %1) : ()
@@ -106,12 +106,12 @@ fn local_mut(u: User, n: string) -> usize:
     let mut v = u
 > app/main/local_mut
 >   local $0 u: User [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 n: string [param read] value
->     uses $1: entry -> %9 consume
+>     uses $1: entry -> %9 consume last
 >   local $2 v: User [read assigned captured captured-assigned] place
 >   local $3 $ref: Ref[mut User] [read assigned captured] value
->     uses $3: %3 -> %4 lend
+>     uses $3: %3 -> %4 lend last
 >   %0 = Read move [$0] : User
 >   %1 = Store [$2] %0 : ()
 >   %13 = Block %10 : usize

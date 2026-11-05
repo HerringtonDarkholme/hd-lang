@@ -10,9 +10,9 @@ fn select(t: (string, List[string])) -> usize:
     t._0.len() + t._1.len()
 > app/main/select
 >   local $0 t: (string, List[string]) [param read] value
->     uses $0: entry -> %0 consume, %7 lend
+>     uses $0: entry -> %0 consume, %7 lend last
 >   local $1 self: string [read] value
->     uses $1: %1 -> %2 lend
+>     uses $1: %1 -> %2 lend last
 >   %0 = Read borrow [$0 .0] : string
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : string
@@ -30,9 +30,9 @@ fn nested(t: ((string, string), string)) -> usize:
     t._0._1.len()
 > app/main/nested
 >   local $0 t: ((string, string), string) [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 self: string [read] value
->     uses $1: %1 -> %2 lend
+>     uses $1: %1 -> %2 lend last
 >   %0 = Read borrow [$0 .0 .1] : string
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : string
@@ -47,7 +47,7 @@ fn take_first(t: (string, List[string])) -> string:
     t._0
 > app/main/take_first
 >   local $0 t: (string, List[string]) [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   %0 = Read move [$0 .0] : string
 >   %1 = Drop [$0 .1] : ()
 >   %2 = Block %0 : string
@@ -58,11 +58,11 @@ fn rest_collect(a: string, b: string, c: string) -> (string, List[string]...):
     (a, b, c)
 > app/main/rest_collect
 >   local $0 a: string [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 b: string [param read] value
->     uses $1: entry -> %1 consume
+>     uses $1: entry -> %1 consume last
 >   local $2 c: string [param read] value
->     uses $2: entry -> %2 consume
+>     uses $2: entry -> %2 consume last
 >   %0 = Read move [$0] : string
 >   %1 = Read move [$1] : string
 >   %2 = Read move [$2] : string
@@ -76,9 +76,9 @@ fn rest_spread(a: string, xs: List[string]) -> (string, List[string]...):
     (a, xs...)
 > app/main/rest_spread
 >   local $0 a: string [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 xs: List[string] [param read] value
->     uses $1: entry -> %1 consume
+>     uses $1: entry -> %1 consume last
 >   %0 = Read move [$0] : string
 >   %1 = Read move [$1] : List[string]
 >   %2 = NewTuple %1 [%0] : (string, List[string]...)

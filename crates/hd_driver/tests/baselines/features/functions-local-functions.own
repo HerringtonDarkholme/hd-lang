@@ -10,9 +10,9 @@ fn local_capture(prefix: string, xs: List[string]) -> usize:
 > app/main/local_capture
 >   local $0 prefix: string [param read captured] place
 >   local $1 xs: List[string] [param read] value
->     uses $1: entry -> %18 consume
+>     uses $1: entry -> %18 consume last
 >   local $2 s: string [param read] value
->     uses $2: entry -> %4 consume
+>     uses $2: entry -> %4 consume last
 >   local $3 width: fn(string) -> usize [:= read assigned] value
 >     uses $3: %16 -> %33 lend
 >   local $4 total: usize [read assigned mutated] place
@@ -22,9 +22,9 @@ fn local_capture(prefix: string, xs: List[string]) -> usize:
 >   local $8 $end: usize [assigned] value
 >     uses $8: %22 -> %25 lend
 >   local $9 x: string [read assigned] value
->     uses $9: %40 -> %34 consume
+>     uses $9: %40 -> %34 consume last
 >   local $10 self: string [read] value
->     uses $10: %5 -> %6 lend
+>     uses $10: %5 -> %6 lend last
 >   %13 = Block %12 : usize
 >   %14 = Closure #1 [%0 %1] : fn(string) -> usize
 >   %15 = Drop [$0] : ()
@@ -91,13 +91,13 @@ fn local_plain(xs: List[string]) -> usize:
     fn first_len(ys: List[string]) -> usize:
 > app/main/local_plain
 >   local $0 xs: List[string] [param read] value
->     uses $0: entry -> %19 consume
+>     uses $0: entry -> %19 consume last
 >   local $1 ys: List[string] [param read] value
->     uses $1: entry -> %0 lend, %3 lend
+>     uses $1: entry -> %0 lend, %3 lend last
 >   local $2 first_len: fn(List[string]) -> usize [:= read assigned] value
->     uses $2: %17 -> %18 lend
+>     uses $2: %17 -> %18 lend last
 >   local $3 self: string [read] value
->     uses $3: %4 -> %5 lend
+>     uses $3: %4 -> %5 lend last
 >   %15 = Block %13 : usize
 >   %16 = Closure #1 [%0 %0] : fn(List[string]) -> usize
 >   %17 = Store [$2] %16 : ()

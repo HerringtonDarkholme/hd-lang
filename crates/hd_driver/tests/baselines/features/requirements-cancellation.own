@@ -11,7 +11,7 @@ fn fetch!(key: string) -> string:
     key + "?"
 > app/main/fetch
 >   local $0 key: string [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   %0 = Read move [$0] : string
 >   %1 = Intrinsic StrConcat [%0 "?"] : string
 >   %2 = Drop [%0] : ()
@@ -23,11 +23,11 @@ fn stop!(key: string) -> bool:
     let mut job = fetch(key)
 > app/main/stop
 >   local $0 key: string [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   local $1 job: mut Suspend[string] [read assigned] value
->     uses $1: %3 -> %4 lend
+>     uses $1: %3 -> %4 lend last
 >   local $2 end: CleanupEnd [:= read assigned] value
->     uses $2: %7 -> %8 lend
+>     uses $2: %7 -> %8 lend last
 >   %0 = Read move [$0] : string
 >   %1 = Call app/main/fetch[] (%0) : mut Suspend[string]
 >   %2 = Drop [%0] : ()
@@ -60,9 +60,9 @@ fn drop_now(key: string) -> void:
     let mut job = fetch(key)
 > app/main/drop_now
 >   local $0 key: string [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   local $2 self: mut Suspend[string] [read] value
->     uses $2: %2 -> %3 lend
+>     uses $2: %2 -> %3 lend last
 >   %0 = Read borrow [$0] : string
 >   %1 = Call app/main/fetch[] (%0) : mut Suspend[string]
 >   %9 = Block - : ()
