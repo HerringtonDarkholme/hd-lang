@@ -6411,3 +6411,5 @@ runtime/valid/erased-call-matrix-closure-value-mut-unique.hd	runtime	accept	std/
 runtime/valid/erased-call-matrix-closure-value-value-i32.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param
 runtime/valid/erased-call-matrix-closure-value-value-string.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param
 runtime/valid/erased-call-matrix-closure-value-value-unique.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.type
+runtime/valid/call-through-function-reference.hd	runtime	accept	lang/05-expressions.md#r-expr.call.ref-read
+typing/invalid/call-through-nonfunction-reference.hd	type	reject:not-callable	lang/05-expressions.md#r-expr.call.apply.not-callable

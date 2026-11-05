@@ -1,0 +1,53 @@
+# test: calls read function values through local and counted references
+use std.testing.assert_equal
+
+fn add_one(value: i32) -> i32:
+    value + 1
+
+fn shared(route: &(fn(i32) -> i32), value: i32) -> i32:
+    route(value)
+
+fn writable(route: &mut (fn(i32) -> i32), value: i32) -> i32:
+    route(value)
+
+fn counted(route: *(fn(i32) -> i32), value: i32) -> i32:
+    route(value)
+
+fn counted_writable(route: *mut (fn(i32) -> i32), value: i32) -> i32:
+    route(value)
+
+fn later!(value: i32) -> i32:
+    value + 1
+
+fn stored!(route: &(fn!(i32) -> i32)) -> i32:
+    let pending: mut Suspend[i32] = route(+10)
+    pending!()
+
+fn direct!(route: *(fn!(i32) -> i32)) -> i32:
+    route!(+11)
+
+struct Handler:
+    route: *(fn(i32) -> i32)
+
+pub fn main!() -> void:
+    let mut route: fn(i32) -> i32 = add_one
+    assert_equal(shared(&route, +4), +5)
+    assert_equal(writable(&mut route, +5), +6)
+    assert_equal((&route)(+6), +7)
+    owned := box(add_one)
+    assert_equal(counted(owned, +7), +8)
+    assert_equal(counted_writable(owned, +8), +9)
+    handler := Handler { route: owned }
+    assert_equal((handler.route)(+9), +10)
+    let total = +0
+    closure := fn(value: i32) -> i32:
+        total += value
+        total
+    assert_equal(shared(&closure, +2), +2)
+    assert_equal(shared(&closure, +3), +5)
+    routes := { "one": add_one }
+    for (name, run) in routes:
+        assert_equal(*name, "one")
+        assert_equal(run(+10), +11)
+    assert_equal(stored!(&later), +11)
+    assert_equal(direct!(box(later)), +12)

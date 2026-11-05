@@ -1495,6 +1495,7 @@ fn same_name(a: &string, b: &mut string) -> bool:
 5. r[expr.op.ref-read.equal-values] So `==` and `!=` between two local references compare the values they refer to.
 6. r[expr.op.ref-read.counted] A counted reference operand, of type `*T` or `*mut T`, is not read through.
 7. r[expr.op.ref-read.is] `is` does not read through a reference: it compares the places its operands refer to, by [`expr.is.references`](#r-expr.is.references).
+8. r[expr.call.ref-read] A call whose callee has type `&F` or `&mut F`, where `F` is a function type, reads and calls the function value it refers to.
 
 > **Why.** Rust reads through `&` for the same operators: its standard
 > library implements them for `&i32` and implements `PartialEq` for `&A`.

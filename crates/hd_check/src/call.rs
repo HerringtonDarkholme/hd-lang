@@ -1298,6 +1298,20 @@ impl Ck<'_, '_> {
             }
             return Ok((Ref(NONE), Ty::POISON));
         }
+        // `expr.call.ref-read`: read a referenced function before checking
+        // its call, just as an explicit `(*route)(args)` does. Other
+        // referent types keep their existing callable checks.
+        let (f, ft) = match self.ref_of(ft) {
+            Some((inner, _))
+                if matches!(
+                    pool.get(self.strip_mut(self.infer.resolve(pool, inner))),
+                    TyData::Fn { .. }
+                ) =>
+            {
+                self.emit_deref(f, ft, n.index())
+            }
+            _ => (f, ft),
+        };
         let full = ft;
         let ft = self.infer.resolve(pool, ft);
         let mut ft = match pool.get(ft) {

@@ -1,0 +1,3 @@
+# test: a reference to a non-function value is still not callable
+fn shared(value: &i32) -> void:
+    value() # diagnostic: not-callable

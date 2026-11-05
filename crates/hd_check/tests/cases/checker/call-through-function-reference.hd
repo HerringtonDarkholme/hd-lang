@@ -1,0 +1,13 @@
+# @dump: tir
+# expected: each reference callee is read before CallValue
+fn shared(route: &(fn(i32) -> i32), value: i32) -> i32:
+    route(value)
+
+fn writable(route: &mut (fn(i32) -> i32), value: i32) -> i32:
+    route(value)
+
+fn counted(route: *(fn(i32) -> i32), value: i32) -> i32:
+    route(value)
+
+fn counted_writable(route: *mut (fn(i32) -> i32), value: i32) -> i32:
+    route(value)

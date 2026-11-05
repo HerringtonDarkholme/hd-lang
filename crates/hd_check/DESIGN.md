@@ -984,6 +984,11 @@ are their union
 
 ### 5.3 Call Checking
 
+A callee whose type is a reference to a function is read through with
+`emit_deref` before its arguments are checked (`expr.call.ref-read`).
+Local and counted references use the same path. Other referent types
+keep the existing callable checks.
+
 For a call to a callee whose substituted row is `R`:
 
 | `R` holds | Check |

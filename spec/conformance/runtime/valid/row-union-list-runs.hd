@@ -35,7 +35,7 @@ fn from_map() -> string $ Db + Clock:
     routes := { "health": health, "orders": orders }
     let text = ""
     for (name, route) in routes:
-        text = text + name + "=" + (*route)() + ";"
+        text = text + name + "=" + route() + ";"
     text
 
 tests:
