@@ -1062,7 +1062,14 @@ impl Em<'_, '_, '_> {
                     crate::layout::Pass::Borrowed
                 ))
                 || self.is_cell(l)
-                || b.cap_local.iter().any(|c| c.idx() == l)
+                // A closure copying the parameter into its environment
+                // counts its own copy (`Em::closure`); one that moves it in
+                // takes the parameter's count.
+                || b
+                    .cap_local
+                    .iter()
+                    .zip(&b.cap_mode)
+                    .any(|(c, m)| c.idx() == l && *m != hd_tir::ir::CaptureMode::Copy)
             {
                 continue;
             }

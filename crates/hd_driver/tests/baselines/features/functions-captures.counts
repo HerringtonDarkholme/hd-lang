@@ -60,8 +60,6 @@ fn through_ptr(items: *mut List[string], s: string) -> fn() -> void:
     fn() -> void: items.push(s)
 > app/main/through_ptr
 >   retain counted reference (conservative: Closure)
->   (no span) retain &mut List[string] (conservative: entry)
->   (no span) release &mut List[string] (last use)
 >   (no span) release string (last use)
 > app/main/through_ptr
 >   retain string (conservative: entry)
