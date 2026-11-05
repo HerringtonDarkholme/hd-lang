@@ -51,6 +51,7 @@ lock = os.path.join(repo, 'crates/hd_driver/tests/feature-cases.lock')
 
 cases = sorted(f[:-3] for f in os.listdir(cases_dir) if f.endswith('.hd'))
 errors = []
+warnings = []
 
 if '--update-lock' in sys.argv or not os.path.exists(lock):
     known = set(open(lock).read().split()) if os.path.exists(lock) else set()
@@ -158,7 +159,10 @@ for line in open(plan_path):
     # A done step, or the step under --show (a gate checking it is done),
     # may have emptied its evidence: that is its done check.
     if not hits and done != 'x' and show != sid:
-        errors.append(f'step {sid}: evidence matches no feature case')
+        # An earlier step can empty a later step's evidence; a stack of
+        # local commits hits that often. Flag it for the planner (the step
+        # may be done or mis-specified), but don't fail the gate.
+        warnings.append(f'step {sid}: evidence matches no feature case (done by an earlier step, or wrong evidence?)')
     covered.update(hits)
     for c in hits:
         for f, v, l in matched[c]:
@@ -198,6 +202,8 @@ for r in report:
     print(r)
 idle = [c for c in cases if not needs_work(c)]
 print(f'no work (empty counts, no joins): {", ".join(idle) or "none"}')
+for w in warnings:
+    print('WARN', w)
 for e in errors:
     print('FAIL', e)
 sys.exit(1 if errors else 0)
