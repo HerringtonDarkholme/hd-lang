@@ -20,11 +20,9 @@ fn construct(key: string) -> usize:
 fn run_twice!(body: fn!() -> string) -> usize:
     body!().len() + body!().len()
 > app/main/run_twice
->   retain fn!() -> string (conservative: copy read)
 >   retain counted reference (conservative: AwaitValue)
 >   release counted reference (conservative: AwaitValue)
 >   release counted reference (conservative: AwaitValue)
->   release fn!() -> string (cancelled)
 >   release Suspend[string] (cancelled)
 >   release counted reference (overwritten)
 >   retain &string (conservative: Ref)
@@ -37,7 +35,6 @@ fn run_twice!(body: fn!() -> string) -> usize:
 >   retain &string (conservative: Ref)
 >   (no span) retain fn!() -> string (conservative: entry)
 >   (no span) release Suspend[string] (last use)
->   (no span) release fn!() -> string (last use)
 >   (no span) release &string (last use)
 >   (no span) release counted reference (last use)
 >   (no span) release Suspend[string] (last use)

@@ -62,7 +62,10 @@
 //!    the body never stores, or another local, which rule 2 keeps from
 //!    being stored or dropped in the span (`frame := self.top()` and then
 //!    `member_name(m, frame.facts)`; `xs[i].len()`).
-//! 4. **No suspension point** stands in the span.
+//! 4. **No suspension point** stands in the span, unless the read is of
+//!    all or a field path of a parameter the body never stores, with no
+//!    dereference or element on the way: the body's frame holds such a
+//!    parameter's count across every point (`body!()` in `run_twice`).
 //!
 //! A **binding local** is a local whose one `Store` is of a read that
 //! borrows: a loop's element binding (`for word in words`), a `:=` of a
@@ -211,6 +214,11 @@ struct Chain {
     /// by that call's result ([`lends_window`]): the span must lie outside
     /// each one's window. `NONE` otherwise.
     shut: u32,
+    /// The place is all or a field path of a parameter the body never
+    /// stores, with no dereference or element on the way: the body's
+    /// frame holds the parameter's count across a suspension point, so
+    /// one in the span leaves the read alone (rule 4).
+    frame: bool,
 }
 
 /// The borrow pass's dense tables, reused across bodies.
@@ -433,6 +441,7 @@ impl Tables {
                     chain.param = held && (!param || self.stores[li] == 0);
                     chain.excl = (chain.param && derefs == 1 && self.excl_param[li] != NONE)
                         .then(|| (l, self.excl_param[li]));
+                    chain.frame = param && self.stores[li] == 0 && derefs == 0 && !elem;
                     return chain;
                 }
                 Root::Value(v) => {
@@ -487,6 +496,7 @@ impl Tables {
             param: false,
             excl: None,
             shut: NONE,
+            frame: false,
         }
     }
 
@@ -1984,5 +1994,5 @@ fn conflicts_at(t: &Tables, chain: Chain, r: u32, lo: u32, end: u32, relied: &mu
             }
         }
     }
-    any_in(&t.susp, lo, end)
+    !chain.frame && any_in(&t.susp, lo, end)
 }

@@ -42,37 +42,36 @@ fn run_twice!(body: fn!() -> string) -> usize:
     body!().len() + body!().len()
 > app/main/run_twice
 >   local $0 body: fn!() -> string [param read] value
->     uses $0: entry -> %0 lend, %10 lend last
+>     uses $0: entry -> %0 lend, %9 lend last
 >   local $1 $ref: string [read assigned captured captured-assigned] place
 >   local $2 $ref: string [read assigned captured captured-assigned] place
->   %0 = Read copy [$0] : fn!() -> string
+>   %0 = Read borrow [$0] : fn!() -> string
 >   %1 = CallValue %0 [] : mut Suspend[string]
 >   %2 = AwaitValue %1 : string
 >   %3 = Drop [%1] : ()
->   %4 = Drop [%0] : ()
->   %5 = Store [$1] %2 : ()
->   %6 = Ref local [$1] : Counted[string]
->   %7 = Call std/text/impl string.len[] (%6) : usize
->   %8 = Drop [%6] : ()
->   %9 = Drop [$1] : ()
->   %10 = Read move [$0] : fn!() -> string
->   %11 = CallValue %10 [] : mut Suspend[string]
->   %12 = AwaitValue %11 : string
->   %13 = Drop [%11] : ()
->   %14 = Drop [%10] : ()
->   %15 = Store [$2] %12 : ()
->   %16 = Ref local [$2] : Counted[string]
->   %17 = Call std/text/impl string.len[] (%16) : usize
->   %18 = Drop [%16] : ()
->   %19 = Drop [$2] : ()
->   %20 = Prim Add [%7 %17] : usize
->   %21 = Block %20 : usize
->   %6 finds [$1] full
->   %16 finds [$2] full
+>   %4 = Store [$1] %2 : ()
+>   %5 = Ref local [$1] : Counted[string]
+>   %6 = Call std/text/impl string.len[] (%5) : usize
+>   %7 = Drop [%5] : ()
+>   %8 = Drop [$1] : ()
+>   %9 = Read move [$0] : fn!() -> string
+>   %10 = CallValue %9 [] : mut Suspend[string]
+>   %11 = AwaitValue %10 : string
+>   %12 = Drop [%10] : ()
+>   %13 = Drop [%9] : ()
+>   %14 = Store [$2] %11 : ()
+>   %15 = Ref local [$2] : Counted[string]
+>   %16 = Call std/text/impl string.len[] (%15) : usize
+>   %17 = Drop [%15] : ()
+>   %18 = Drop [$2] : ()
+>   %19 = Prim Add [%6 %16] : usize
+>   %20 = Block %19 : usize
+>   %5 finds [$1] full
+>   %15 finds [$2] full
 >   exit sub 0 drops [$0]
 >   summary none
->   unwind %2 drops [%0 %1]
->   unwind %12 drops [%10 %11]
+>   unwind %2 drops [%1]
+>   unwind %11 drops [%9 %10]
 
 fn closure_bang!(key: string) -> usize:
     run_twice!():

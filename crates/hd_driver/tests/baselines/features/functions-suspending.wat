@@ -1303,8 +1303,6 @@
           local.set $t4
           local.set $t3
           local.get $t4
-          call $rt:retain_known
-          local.get $t4
           i32.const 0
           local.get $t3
           call_indirect $table0 (param i32 i32) (result i32)
@@ -1778,8 +1776,6 @@
             local.get $t14
             call $rt:release_ref'2
           end
-          local.get $t4
-          call $rt:release_ref'1
           local.get $t5
           call $rt:release_ref'1
           i32.const 0
@@ -1793,12 +1789,6 @@
         call $rt:release_ref'1
         i32.const 0
         local.set $t5
-        local.get $t4
-        call $rt:release_ref'1
-        i32.const 0
-        local.set $t3
-        i32.const 0
-        local.set $t4
     ;; 15 |     body!().len() + body!().len()
         i32.const 8
         i32.const 3

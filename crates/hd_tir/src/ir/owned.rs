@@ -1155,10 +1155,28 @@ fn borrow_spans(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
             blk = cx.topo.blk[owner as usize];
         }
     }
+    // Per local: a parameter the body never stores, whose count the
+    // frame holds across every suspension point.
+    let mut frame: Vec<bool> = b
+        .local_flags
+        .iter()
+        .map(|&f| f & local_flags::PARAM != 0)
+        .collect();
+    for i in 0..n {
+        if b.tags[i] == Tag::Store
+            && let Some(Place {
+                root: PlaceRoot::Local(l),
+                ..
+            }) = &cx.places[i]
+        {
+            frame[l.idx()] = false;
+        }
+    }
     let mut walk = Live {
         cx,
         may,
         excl,
+        frame,
         bit,
         at,
         holds,
@@ -1179,6 +1197,9 @@ struct Live<'a> {
     /// whose referent exclusive mode lets a borrow live across such calls.
     may: Vec<bool>,
     excl: Vec<bool>,
+    /// Per local: a parameter the body never stores, which a borrow of all
+    /// or a field path of may live across a suspension point.
+    frame: Vec<bool>,
     /// Each borrow's bit, or `NONE`, and each bit's borrow.
     bit: Vec<u32>,
     at: Vec<u32>,
@@ -1302,7 +1323,12 @@ impl Backward for Live<'_> {
             self.uses(b, self.holds[l.idx()], s, live);
         }
         if is_suspension(b.tags[i]) {
-            self.check(x, s, live, |_, _| true);
+            let frame = std::mem::take(&mut self.frame);
+            self.check(x, s, live, |_, p| {
+                !matches!(p.root, PlaceRoot::Local(l) if frame[l.idx()])
+                    || !p.proj.iter().all(|s| matches!(s, Proj::Field(_)))
+            });
+            self.frame = frame;
         }
     }
 
