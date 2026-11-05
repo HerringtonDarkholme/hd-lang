@@ -93,28 +93,35 @@ fn twice(body: fn() -> usize) -> usize:
 fn no_args(s: string) -> usize:
     twice:
 > app/main/no_args
->   local $0 s: string [param read captured] place
+>   local $0 s: string [param read captured] value
+>     uses $0: entry -> %0 consume, %9 consume last
 >   local $1 body: fn() -> usize [read] value
->     uses $1: %7 -> %8 lend, %10 lend last
->   %7 = Store [$1] %5 : ()
->   %8 = Read borrow [$1] : fn() -> usize
->   %9 = CallValue %8 [] : usize
->   %10 = Read borrow [$1] : fn() -> usize
->   %11 = CallValue %10 [] : usize
->   %12 = Prim Add [%9 %11] : usize
->   %13 = Break L0 %12 : never
->   %14 = Block - : usize
->   %15 = Scope %14 [] : usize
->   %16 = Drop [$1] : ()
->   %17 = Block %15 : usize
+>     uses $1: %11 -> %12 lend, %14 lend last
+>   local $2 self: string [read] value
+>     uses $2: %1 -> %2 lend last
+>   %11 = Store [$1] %9 : ()
+>   %12 = Read borrow [$1] : fn() -> usize
+>   %13 = CallValue %12 [] : usize
+>   %14 = Read borrow [$1] : fn() -> usize
+>   %15 = CallValue %14 [] : usize
+>   %16 = Prim Add [%13 %15] : usize
+>   %17 = Break L0 %16 : never
+>   %18 = Block - : usize
+>   %19 = Scope %18 [] : usize
+>   %20 = Drop [$1] : ()
+>   %21 = Block %19 : usize
         s.len()
->   %0 = Ref local [$0] : Counted[string]
->   %1 = Call std/text/impl string.len[] (%0) : usize
->   %2 = Drop [%0] : ()
->   %3 = Drop [$0] : ()
->   %4 = Block %1 : usize
->   %5 = Closure #1 [%0 %1] : fn() -> usize
->   %6 = Drop [$0] : ()
+>   %0 = Read move [$0] : string
+>   %1 = Store [$2] %0 : ()
+>   %2 = Read borrow [$2] : string
+>   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
+>   %4 = Break L1 %3 : never
+>   %5 = Block - : usize
+>   %6 = Scope %5 [] : usize
+>   %7 = Drop [$2] : ()
+>   %8 = Block %6 : usize
+>   %9 = Closure #1 [%0 %1] : fn() -> usize
+>   %10 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0] writes

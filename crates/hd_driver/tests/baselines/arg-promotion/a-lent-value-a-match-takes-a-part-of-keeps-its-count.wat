@@ -2,10 +2,8 @@
 (module
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
   (import "fixture" "retain" (func $retain (param i32)))
+  (import "fixture" "impl Eq for string.eq" (func $"impl Eq for string.eq" (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "impl Eq for string.eq" (func $"impl Eq for string.eq" (param i32 i32) (result i32)))
-  (import "fixture" "locals" (global $locals (mut i32)))
-  (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $"check[Res[string]]" (param $a.0 i32) (param $a.1 i32) (param $a.2 i32) (param $b.0 i32) (param $b.1 i32) (param $b.2 i32) (result i32)
     block
@@ -44,37 +42,7 @@
     end
     local.get $x.0
   )
-  (func $"impl [ T < Eq ] Same for Res [ T ].same[string]'1" (param $self.0 i32) (param $self.1 i32) (param $self.2 i32) (param $other.0 i32) (param $other.1 i32) (param $other.2 i32) (result i32) (local $left'1 i32) (local $t0 i32) (local $left'2 i32) (local $t1 i32) (local $right i32)
-    ;; (no span)
-    global.get $locals
-    global.get $locals_base
-    i32.sub
-    i32.const 64
-    i32.lt_u
-    if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
-    end
-    global.get $locals
-    i32.const 64
-    i32.sub
-    local.tee $t0
-    global.set $locals
+  (func $"impl [ T < Eq ] Same for Res [ T ].same[string]'1" (param $self.0 i32) (param $self.1 i32) (param $self.2 i32) (param $other.0 i32) (param $other.1 i32) (param $other.2 i32) (result i32) (local $left.0'1 i32) (local $left.0'2 i32) (local $t0 i32) (local $right.0 i32)
     block
     ;; 19 |         match *self:
       block
@@ -86,24 +54,8 @@
             if
               local.get $self.1
               call $retain
-              local.get $left'1
-              if
-                local.get $left'1
-                i32.load $heap
-                call $rt:release_ref
-              end
-              local.get $t0
-              i64.const 0
-              i64.store $heap
-              local.get $t0
-              i32.const 8
-              i32.add
-              local.tee $left'1
               local.get $self.1
-              i32.store $heap
-              local.get $left'1
-              local.get $self.2
-              i32.store $heap offset=4
+              local.set $left.0'1
               br 1
             else
     ;; 24 |             .Bad(left) =>
@@ -113,24 +65,8 @@
               if
                 local.get $self.1
                 call $retain
-                local.get $left'2
-                if
-                  local.get $left'2
-                  i32.load $heap
-                  call $rt:release_ref
-                end
-                local.get $t0
-                i64.const 0
-                i64.store $heap offset=32
-                local.get $t0
-                i32.const 40
-                i32.add
-                local.tee $left'2
                 local.get $self.1
-                i32.store $heap
-                local.get $left'2
-                local.get $self.2
-                i32.store $heap offset=4
+                local.set $left.0'2
                 br 3
               else
                 unreachable
@@ -150,24 +86,8 @@
                 if
                   local.get $other.1
                   call $retain
-                  local.get $right
-                  if
-                    local.get $right
-                    i32.load $heap
-                    call $rt:release_ref
-                  end
-                  local.get $t0
-                  i64.const 0
-                  i64.store $heap offset=16
-                  local.get $t0
-                  i32.const 24
-                  i32.add
-                  local.tee $right
                   local.get $other.1
-                  i32.store $heap
-                  local.get $right
-                  local.get $other.2
-                  i32.store $heap offset=4
+                  local.set $right.0
                   br 1
                 else
     ;; 23 |                     .Bad(_) => false
@@ -182,23 +102,21 @@
                 unreachable
               end
     ;; 22 |                     .Good(right) => left == right
-              local.get $left'1
-              local.get $right
+              local.get $left.0'1
+              local.get $self.2
+              local.get $right.0
+              local.get $other.2
               call $"impl Eq for string.eq"
     ;; 21 |                 match *other:
-              local.set $t1
+              local.set $t0
               br 1
             end
             br 0
           end
     ;; 19 |         match *self:
-          local.get $right
-          if
-            local.get $right
-            i32.load $heap
-            call $rt:release_ref
-          end
-          local.get $t1
+          local.get $right.0
+          call $rt:release_ref
+          local.get $t0
           local.set $self.0
           br 1
         end
@@ -213,24 +131,8 @@
               if
                 local.get $other.1
                 call $retain
-                local.get $right
-                if
-                  local.get $right
-                  i32.load $heap
-                  call $rt:release_ref
-                end
-                local.get $t0
-                i64.const 0
-                i64.store $heap offset=48
-                local.get $t0
-                i32.const 56
-                i32.add
-                local.tee $right
                 local.get $other.1
-                i32.store $heap
-                local.get $right
-                local.get $other.2
-                i32.store $heap offset=4
+                local.set $right.0
                 br 1
               else
     ;; 27 |                     .Good(_) => false
@@ -244,77 +146,33 @@
               unreachable
             end
     ;; 26 |                     .Bad(right) => left == right
-            local.get $left'2
-            local.get $right
+            local.get $left.0'2
+            local.get $self.2
+            local.get $right.0
+            local.get $other.2
             call $"impl Eq for string.eq"
     ;; 25 |                 match *other:
-            local.set $t1
+            local.set $t0
             br 1
           end
           br 0
         end
     ;; 19 |         match *self:
-        local.get $right
-        if
-          local.get $right
-          i32.load $heap
-          call $rt:release_ref
-        end
-        local.get $t1
+        local.get $right.0
+        call $rt:release_ref
+        local.get $t0
         local.set $self.0
         br 0
       end
     ;; (no span)
-      local.get $left'2
-      if
-        local.get $left'2
-        i32.load $heap
-        call $rt:release_ref
-      end
-      local.get $left'1
-      if
-        local.get $left'1
-        i32.load $heap
-        call $rt:release_ref
-      end
+      local.get $left.0'2
+      call $rt:release_ref
+      local.get $left.0'1
+      call $rt:release_ref
     end
     local.get $self.0
-    local.get $t0
-    i32.const 64
-    i32.add
-    global.set $locals
   )
-  (func $"impl [ T < Eq ] Same for Res [ T ].same[string]'2" (param $self i32) (param $other i32) (result i32) (local $t2 i32) (local $t1 i32) (local $left'1 i32) (local $t0 i32) (local $left'2 i32) (local $t3 i32) (local $right i32)
-    ;; (no span)
-    global.get $locals
-    global.get $locals_base
-    i32.sub
-    i32.const 64
-    i32.lt_u
-    if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
-    end
-    global.get $locals
-    i32.const 64
-    i32.sub
-    local.tee $t0
-    global.set $locals
+  (func $"impl [ T < Eq ] Same for Res [ T ].same[string]'2" (param $self i32) (param $other i32) (result i32) (local $right.1 i32) (local $left.1 i32) (local $left.0'1 i32) (local $left.0'2 i32) (local $t0 i32) (local $right.0 i32)
     block
     ;; 19 |         match *self:
       local.get $self
@@ -323,8 +181,8 @@
       i32.load $heap offset=4
       local.get $self
       i32.load $heap offset=8
-      local.set $t1
-      local.set $t2
+      local.set $left.1
+      local.set $right.1
       local.set $self
       block
         block
@@ -333,26 +191,10 @@
             local.get $self
             i32.eqz
             if
-              local.get $t2
+              local.get $right.1
               call $retain
-              local.get $left'1
-              if
-                local.get $left'1
-                i32.load $heap
-                call $rt:release_ref
-              end
-              local.get $t0
-              i64.const 0
-              i64.store $heap
-              local.get $t0
-              i32.const 8
-              i32.add
-              local.tee $left'1
-              local.get $t2
-              i32.store $heap
-              local.get $left'1
-              local.get $t1
-              i32.store $heap offset=4
+              local.get $right.1
+              local.set $left.0'1
               br 1
             else
     ;; 24 |             .Bad(left) =>
@@ -360,26 +202,10 @@
               i32.const 1
               i32.eq
               if
-                local.get $t2
+                local.get $right.1
                 call $retain
-                local.get $left'2
-                if
-                  local.get $left'2
-                  i32.load $heap
-                  call $rt:release_ref
-                end
-                local.get $t0
-                i64.const 0
-                i64.store $heap offset=32
-                local.get $t0
-                i32.const 40
-                i32.add
-                local.tee $left'2
-                local.get $t2
-                i32.store $heap
-                local.get $left'2
-                local.get $t1
-                i32.store $heap offset=4
+                local.get $right.1
+                local.set $left.0'2
                 br 3
               else
                 unreachable
@@ -396,7 +222,7 @@
           i32.load $heap offset=4
           local.get $other
           i32.load $heap offset=8
-          local.set $t2
+          local.set $right.1
           local.set $other
           local.set $self
           block
@@ -408,24 +234,8 @@
                 if
                   local.get $other
                   call $retain
-                  local.get $right
-                  if
-                    local.get $right
-                    i32.load $heap
-                    call $rt:release_ref
-                  end
-                  local.get $t0
-                  i64.const 0
-                  i64.store $heap offset=16
-                  local.get $t0
-                  i32.const 24
-                  i32.add
-                  local.tee $right
                   local.get $other
-                  i32.store $heap
-                  local.get $right
-                  local.get $t2
-                  i32.store $heap offset=4
+                  local.set $right.0
                   br 1
                 else
     ;; 23 |                     .Bad(_) => false
@@ -440,23 +250,21 @@
                 unreachable
               end
     ;; 22 |                     .Good(right) => left == right
-              local.get $left'1
-              local.get $right
+              local.get $left.0'1
+              local.get $left.1
+              local.get $right.0
+              local.get $right.1
               call $"impl Eq for string.eq"
     ;; 21 |                 match *other:
-              local.set $t3
+              local.set $t0
               br 1
             end
             br 0
           end
     ;; 19 |         match *self:
-          local.get $right
-          if
-            local.get $right
-            i32.load $heap
-            call $rt:release_ref
-          end
-          local.get $t3
+          local.get $right.0
+          call $rt:release_ref
+          local.get $t0
           local.set $self
           br 1
         end
@@ -467,7 +275,7 @@
         i32.load $heap offset=4
         local.get $other
         i32.load $heap offset=8
-        local.set $t2
+        local.set $right.1
         local.set $other
         local.set $self
         block
@@ -480,24 +288,8 @@
               if
                 local.get $other
                 call $retain
-                local.get $right
-                if
-                  local.get $right
-                  i32.load $heap
-                  call $rt:release_ref
-                end
-                local.get $t0
-                i64.const 0
-                i64.store $heap offset=48
-                local.get $t0
-                i32.const 56
-                i32.add
-                local.tee $right
                 local.get $other
-                i32.store $heap
-                local.get $right
-                local.get $t2
-                i32.store $heap offset=4
+                local.set $right.0
                 br 1
               else
     ;; 27 |                     .Good(_) => false
@@ -511,44 +303,30 @@
               unreachable
             end
     ;; 26 |                     .Bad(right) => left == right
-            local.get $left'2
-            local.get $right
+            local.get $left.0'2
+            local.get $left.1
+            local.get $right.0
+            local.get $right.1
             call $"impl Eq for string.eq"
     ;; 25 |                 match *other:
-            local.set $t3
+            local.set $t0
             br 1
           end
           br 0
         end
     ;; 19 |         match *self:
-        local.get $right
-        if
-          local.get $right
-          i32.load $heap
-          call $rt:release_ref
-        end
-        local.get $t3
+        local.get $right.0
+        call $rt:release_ref
+        local.get $t0
         local.set $self
         br 0
       end
     ;; (no span)
-      local.get $left'2
-      if
-        local.get $left'2
-        i32.load $heap
-        call $rt:release_ref
-      end
-      local.get $left'1
-      if
-        local.get $left'1
-        i32.load $heap
-        call $rt:release_ref
-      end
+      local.get $left.0'2
+      call $rt:release_ref
+      local.get $left.0'1
+      call $rt:release_ref
     end
     local.get $self
-    local.get $t0
-    i32.const 64
-    i32.add
-    global.set $locals
   )
 )

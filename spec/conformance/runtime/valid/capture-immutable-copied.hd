@@ -14,8 +14,32 @@ fn reader_of(point: Point) -> fn() -> i32:
 fn doubler_of(count: i32) -> fn() -> i32:
     fn() -> i32: count * 2
 
+fn width_of(text: string) -> fn() -> usize:
+    fn() -> usize: text.len()
+
 tests:
     use std.testing.assert_equal
+
+    it("an escaped string reader keeps its argument across repeated calls"):
+        let text = "abc"
+        width := width_of(text)
+        again := width
+        text += "def"
+        assert_equal(width(), 3)
+        assert_equal(again(), 3)
+        assert_equal(text.len(), 6)
+
+    it("an immutable string snapshot and a shared string capture stay distinct"):
+        let text = "abc"
+        kept := text
+        snapshot := fn() -> usize: kept.len()
+        shared := fn() -> usize: text.len()
+        text += "def"
+        assert_equal(snapshot(), 3)
+        assert_equal(shared(), 6)
+        text = "x"
+        assert_equal(snapshot(), 3)
+        assert_equal(shared(), 1)
 
     it("a closure over a := struct is unaffected by a copy changing"):
         origin := Point { x: 1, y: 2 }

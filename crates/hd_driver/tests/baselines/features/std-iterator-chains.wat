@@ -5,7 +5,6 @@
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $loud (param $xs i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     block
@@ -159,14 +158,23 @@
     local.get $env
   )
   (func $loud#1 (param $env i32) (param $s i32) (param $ctx i32) (result i32)
-    ;; 14 |         .map(fn(s: string) -> string: s + "!")
     block
     ;; 13 |         .filter(fn(s: &string) -> bool: s.len() > 2)
-      local.get $s
-      call $"impl string.len"
+      block
+        block
+          local.get $s
+          i32.load $heap
+          local.get $s
+          i32.load $heap offset=4
+          local.set $env
+          drop
+          br 0
+        end
+      end
+      local.get $env
       i32.const 2
       i32.gt_u
-    ;; 14 |         .map(fn(s: string) -> string: s + "!")
+    ;; (no span)
       local.set $env
     end
     local.get $env

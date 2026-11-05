@@ -8,15 +8,22 @@
 fn later(name: string) -> fn() -> usize:
     fn() -> usize: name.len()
 > app/main/later
->   local $0 name: string [param read captured] place
->   %0 = Ref local [$0] : Counted[string]
->   %1 = Call std/text/impl string.len[] (%0) : usize
->   %2 = Drop [%0] : ()
->   %3 = Drop [$0] : ()
->   %4 = Block %1 : usize
->   %5 = Closure #1 [%0 %1] : fn() -> usize
->   %6 = Drop [$0] : ()
->   %7 = Block %5 : fn() -> usize
+>   local $0 name: string [param read captured] value
+>     uses $0: entry -> %0 consume, %9 consume last
+>   local $1 self: string [read] value
+>     uses $1: %1 -> %2 lend last
+>   %0 = Read move [$0] : string
+>   %1 = Store [$1] %0 : ()
+>   %2 = Read borrow [$1] : string
+>   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
+>   %4 = Break L0 %3 : never
+>   %5 = Block - : usize
+>   %6 = Scope %5 [] : usize
+>   %7 = Drop [$1] : ()
+>   %8 = Block %6 : usize
+>   %9 = Closure #1 [%0 %1] : fn() -> usize
+>   %10 = Drop [$0] : ()
+>   %11 = Block %9 : fn() -> usize
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0]

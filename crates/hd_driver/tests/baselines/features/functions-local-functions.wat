@@ -6,7 +6,6 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
-  (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $local_plain#1 (param $env i32) (param $ys i32) (param $ctx i32) (result i32) (local $t0 i32)
     block
@@ -62,81 +61,65 @@
     end
     local.get $xs
   )
-  (func $local_capture (param $t0 i32) (param $x.0 i32) (param $xs i32) (result i32) (local $prefix i32) (local $width.1 i32) (local $total i32) (local $t1 i32)
-    ;; (no span)
-    i32.const 8
-    i32.const 2
-    call $rt:new/class-1
-    local.tee $prefix
-    local.get $t0
-    i32.store $heap
-    local.get $prefix
-    local.get $x.0
-    i32.store $heap offset=4
+  (func $local_capture (param $prefix.0 i32) (param $prefix.1 i32) (param $xs i32) (result i32) (local $width.1 i32) (local $total i32) (local $t0 i32) (local $x.1 i32)
     block
     ;; 8 |     fn width(s: string) -> usize:
-      i32.const 2
-      local.get $prefix
-      i32.load $heap
-      local.set $t0
-      local.get $prefix
-      i32.load $heap offset=4
-      local.set $x.0
+      i32.const 1
       i32.const 8
-      i32.const 2
+      i32.const 3
       call $rt:new/class-1
       local.tee $width.1
-      local.get $t0
+      local.get $prefix.0
       i32.store $heap
       local.get $width.1
-      local.get $x.0
+      local.get $prefix.1
       i32.store $heap offset=4
       local.get $width.1
       call $rt:retain_fields
     ;; (no span)
-      local.get $prefix
-      call $rt:release_ref'2
+      local.get $prefix.0
+      call $rt:release_ref'1
     ;; 8 |     fn width(s: string) -> usize:
       drop
     ;; 11 |     for x in xs:
       local.get $xs
       i32.load $heap offset=4
-      local.set $t0
+      local.set $prefix.0
       block
         loop
-          local.get $t1
           local.get $t0
+          local.get $prefix.0
           i32.lt_u
           i32.eqz
           br_if 1
           local.get $xs
-          local.get $t1
+          local.get $t0
           i32.const 8
           i32.mul
           i32.add
-          local.tee $x.0
+          local.tee $prefix.1
           i32.load $heap offset=16
-          local.get $x.0
+          local.get $prefix.1
           i32.load $heap offset=20
-          local.set $prefix
-          local.tee $x.0
+          local.set $x.1
+          local.tee $prefix.1
           call $retain
-          local.get $t1
+          local.get $t0
           i32.const 1
           i32.add
-          local.set $t1
+          local.set $t0
           block
             block
-              local.get $x.0
-              local.set $x.0
+              local.get $prefix.1
+              local.set $prefix.1
               br 0
               unreachable
             end
     ;; 12 |         total += width(x)
             local.get $total
             local.get $width.1
-            local.get $x.0
-            local.get $prefix
+            local.get $prefix.1
+            local.get $x.1
             i32.const 0
             call $local_capture#1
             i32.add
@@ -153,11 +136,11 @@
     ;; 13 |     total
       local.get $total
     ;; (no span)
-      local.set $t0
+      local.set $prefix.0
     end
-    local.get $t0
+    local.get $prefix.0
   )
-  (func $local_capture#1 (param $env i32) (param $s.0 i32) (param $s.1 i32) (param $ctx i32) (result i32) (local $t0 i32)
+  (func $local_capture#1 (param $env i32) (param $s.0 i32) (param $s.1 i32) (param $ctx i32) (result i32)
     ;; 11 |     for x in xs:
     local.get $env
     i32.load $heap
@@ -168,39 +151,34 @@
     call $retain
     block
     ;; 9 |         prefix.len() + s.len()
-      i32.const 8
-      i32.const 2
-      call $rt:new/class-1
-      local.tee $t0
       local.get $ctx
-      i32.store $heap
-      local.get $t0
       local.get $env
-      i32.store $heap offset=4
-      local.get $t0
-      call $rt:retain_fields
-      local.get $t0
-      call $"impl string.len"
+      local.set $ctx
       local.set $env
-      local.get $t0
-    ;; 11 |     for x in xs:
-      call $rt:release_ref'2
-      local.get $ctx
-      call $rt:release_ref'1
-    ;; 9 |         prefix.len() + s.len()
-      local.get $s.0
-      local.set $s.0
       block
         block
           br 0
         end
       end
     ;; 11 |     for x in xs:
-      local.get $s.0
+      local.get $env
       call $rt:release_ref'1
     ;; 9 |         prefix.len() + s.len()
+      local.get $s.0
+      local.set $env
+      block
+        block
+          local.get $s.1
+          local.set $s.0
+          br 0
+        end
+      end
+    ;; 11 |     for x in xs:
       local.get $env
-      local.get $s.1
+      call $rt:release_ref'1
+    ;; 9 |         prefix.len() + s.len()
+      local.get $ctx
+      local.get $s.0
       i32.add
     ;; 11 |     for x in xs:
       local.set $env

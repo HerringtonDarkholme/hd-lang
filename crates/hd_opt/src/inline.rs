@@ -11,7 +11,7 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 use hd_base::{DefId, Hash128, HashMap, HashSet, StableHasher};
 use hd_mono::ProgramEnv;
 use hd_tir::inline::Site;
-use hd_tir::ir::{Body, Callee, Ref, Tag, place};
+use hd_tir::ir::{Body, Callee, CaptureMode, Ref, Tag, local_flags, place, ref_word};
 use hd_types::{InternPool, RefCells, Ty, TyData, TyList};
 
 /// The most instructions a callee's body may have for a call of it to
@@ -196,7 +196,15 @@ impl dyn InlineEnv + '_ {
                 let kept = mask & rooted;
                 let mask = mask & !kept;
                 let writes = hd_tir::own::writes_in(&copy, 0..copy.len(), &may_write);
-                let args = hd_tir::own::promote::inline_args(body, c, counted, writes, &may_write);
+                let mut args =
+                    hd_tir::own::promote::inline_args(body, c, counted, writes, &may_write);
+                let (references, bindings) =
+                    if self.memo().is_some() && self.read_only_refs(def, targs, &copy) {
+                        args |= captured_read_args(body, c);
+                        (reference_read_args(body, c), weakened_read_args(body, c))
+                    } else {
+                        (0, 0)
+                    };
                 if promote.is_none() {
                     if self.memo().is_none() || !self.read_only_refs(def, targs, &copy) {
                         continue;
@@ -210,13 +218,13 @@ impl dyn InlineEnv + '_ {
                 } else if args & mask != mask || kept != 0 {
                     // A Drop owner keeps its address; other promotable
                     // referents retain the existing call-site checks.
-                    if mask & !args != 0
+                    if mask & !(args | references | bindings) != 0
                         || self.memo().is_none()
                         || !self.read_only_refs(def, targs, &copy)
                     {
                         continue;
                     }
-                    by_ref = kept | (mask & !args);
+                    by_ref = kept | (mask & !args & !bindings);
                     mask & args
                 } else {
                     mask
@@ -668,6 +676,119 @@ impl dyn InlineEnv + '_ {
             && root.is_some_and(|root| fits(open(caller.ty[c]), root))
             && (!rebound || carriers_agree(copy))
     }
+}
+
+/// A read of an unchanged reference parameter retains a visible origin
+/// after substitution: the ownership walk follows the read back to that
+/// parameter. References held in fields or call results lack this proof.
+fn reference_read_args(body: &Body, call: usize) -> u64 {
+    let words = body.record(body.data[call][1]);
+    words[..words.len().saturating_sub(3)]
+        .iter()
+        .enumerate()
+        .take(64)
+        .filter(|&(_, &arg)| {
+            let Some(i) = Ref(arg).as_inst().map(|v| v.0 as usize) else {
+                return false;
+            };
+            if body.tags[i] != Tag::Read {
+                return false;
+            }
+            let Some(local) = body.local_read(i) else {
+                return false;
+            };
+            let flags = body.local_flags[local.idx()];
+            flags & local_flags::PARAM != 0
+                && flags & (local_flags::ASSIGNED | local_flags::CAPTURED) == 0
+        })
+        .fold(0, |mask, (k, _)| mask | 1 << k)
+}
+
+/// Weakening an address of an uncaptured local keeps its evaluated
+/// reference. An ordinary inline binding retains that origin; directly
+/// substituting the coercion would hide it behind a value-rooted place.
+fn weakened_read_args(body: &Body, call: usize) -> u64 {
+    if body.tags.iter().any(|t| {
+        matches!(
+            t,
+            Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace | Tag::Hook
+        )
+    }) {
+        return 0;
+    }
+    let words = body.record(body.data[call][1]);
+    words[..words.len().saturating_sub(3)]
+        .iter()
+        .enumerate()
+        .take(64)
+        .filter(|&(_, &arg)| {
+            let Some(i) = Ref(arg).as_inst().map(|v| v.0 as usize) else {
+                return false;
+            };
+            body.tags[i] == Tag::Coerce
+                && body.record(body.data[i][1]).first()
+                    == Some(&(hd_tir::ir::Coercion::Weaken as u32))
+                && Ref(body.data[i][0]).as_inst().is_some_and(|source| {
+                    hd_tir::own::promote::promotable_ref(body, source.0 as usize, i)
+                })
+        })
+        .fold(0, |mask, (k, _)| mask | 1 << k)
+}
+
+/// A single-use shared reference into an immutable value capture may
+/// read that capture once instead. It is the closure's own snapshot,
+/// rather than a cell another invocation can change.
+fn captured_read_args(body: &Body, call: usize) -> u64 {
+    if body.tags.iter().any(|&t| {
+        matches!(
+            t,
+            Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace | Tag::Hook
+        )
+    }) {
+        return 0;
+    }
+    let words = body.record(body.data[call][1]);
+    words[..words.len().saturating_sub(3)]
+        .iter()
+        .enumerate()
+        .take(64)
+        .filter(|&(_, &arg)| {
+            let Some(i) = Ref(arg).as_inst().map(|v| v.0 as usize) else {
+                return false;
+            };
+            if body.tags[i] != Tag::Ref || body.data[i][1] & ref_word::MUT != 0 {
+                return false;
+            }
+            let p = body.view(body.data[i][0]);
+            let Some(local) = p.local().filter(|_| p.steps(body).next().is_none()) else {
+                return false;
+            };
+            let mut captured = false;
+            for (&l, &mode) in body.cap_local.iter().zip(&body.cap_mode) {
+                if l.raw() == local {
+                    if mode == CaptureMode::Shared {
+                        return false;
+                    }
+                    captured = true;
+                }
+            }
+            if !captured {
+                return false;
+            }
+            let mut ops = Vec::new();
+            let mut seen = 0;
+            for j in 0..body.len() {
+                hd_tir::own::operands(body, j, &mut ops);
+                let n = ops.iter().filter(|o| o.value == arg).count();
+                if j == call {
+                    seen += n;
+                } else if n != 0 && body.tags[j] != Tag::Drop {
+                    return false;
+                }
+            }
+            seen == 1
+        })
+        .fold(0, |mask, (k, _)| mask | 1 << k)
 }
 
 /// Carries a rebound parameter's reference kind through copies already

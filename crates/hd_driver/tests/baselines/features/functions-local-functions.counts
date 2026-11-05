@@ -10,18 +10,16 @@ fn local_capture(prefix: string, xs: List[string]) -> usize:
 > app/main/local_capture
 >   retain counted reference (conservative: Closure)
         prefix.len() + s.len()
-> app/main/local_capture
->   retain counted reference (conservative: Ref)
     let total: usize = 0
     for x in xs:
 >   retain string (conservative: copy read)
+> app/main/local_capture
 >   retain string (conservative: entry)
->   release &string (last use)
 >   release string (last use)
 >   release string (last use)
         total += width(x)
     total
->   (no span) release counted reference (last use)
+>   (no span) release string (last use)
 >   (no span) release fn(string) -> usize (last use)
 
 fn local_plain(xs: List[string]) -> usize:

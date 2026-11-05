@@ -38,12 +38,21 @@
     end
   )
   (func $keep (param $r i32) (result i64) (local $t0 i64)
-    ;; 22 |     r.twice()
     block
-      local.get $r
-      call $"impl Twice for i64.twice"
-      local.set $t0
+    ;; 22 |     r.twice()
+      block
+        block
+          local.get $r
+          i64.load $heap
+          local.get $r
+          i64.load $heap
+          i64.add
+          local.set $t0
+          br 0
+        end
+      end
     end
+    ;; (no span)
     local.get $t0
   )
 )

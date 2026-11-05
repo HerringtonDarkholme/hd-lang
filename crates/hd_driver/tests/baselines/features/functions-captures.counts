@@ -12,14 +12,12 @@ fn copied(s: string) -> usize:
     f := fn() -> usize: s.len()
 > app/main/copied
 >   retain counted reference (conservative: Closure)
-> app/main/copied
->   retain string (conservative: entry)
->   retain counted reference (conservative: Ref)
->   release &string (last use)
->   release string (last use)
     f() + s.len()
 >   (no span) release fn() -> usize (last use)
->   (no span) release counted reference (last use)
+>   (no span) release string (last use)
+> app/main/copied
+>   retain string (conservative: entry)
+>   release string (last use)
 
 fn shared_list(s: string) -> usize:
     let mut xs: List[string] = []
@@ -44,20 +42,18 @@ fn copy_shares(s: string) -> usize:
     let n: usize = 0
     inc := fn() -> void: n += s.len()
 > app/main/copy_shares
->   retain counted reference (conservative: Ref)
-> app/main/copy_shares
 >   retain counted reference (conservative: Closure)
     again := inc
->   retain string (conservative: entry)
->   retain counted reference (conservative: entry)
->   release &string (last use)
->   release string (last use)
->   release counted reference (last use)
 >   retain fn() -> () (conservative: copy read)
     inc()
     again()
+> app/main/copy_shares
+>   retain string (conservative: entry)
+>   retain counted reference (conservative: entry)
+>   release string (last use)
+>   release counted reference (last use)
     n
->   (no span) release counted reference (last use)
+>   (no span) release string (last use)
 >   (no span) release fn() -> () (last use)
 >   (no span) release fn() -> () (last use)
 >   (no span) release counted reference (last use)
