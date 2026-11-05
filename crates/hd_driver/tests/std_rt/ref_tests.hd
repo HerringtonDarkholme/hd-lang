@@ -194,8 +194,10 @@ tests:
             if Upto { at: 0, end: 4 }.any(odd) && Upto { at: 0, end: 4 }.all(small):
                 total = total + 1
             assert(allocated() == before, "any and all allocated no block")
-            if Upto { at: 0, end: 4 }.find(odd) == .Some(1):
-                total = total + 1
+            # Measure find without Option.eq's payload-view allocations.
+            match Upto { at: 0, end: 4 }.find(odd):
+                .Some(1) => total = total + 1
+                _ => pass
             assert(allocated() == before, "find allocated no block")
             round = round + 1
         assert(total == 100 * (6 + 6 + 4 + 2), "every consumer read every item")
