@@ -2448,6 +2448,7 @@ runtime/valid/primitive-operator-calls-method.hd	runtime	accept	lang/05-expressi
 typing/invalid/intrinsic-method-user.hd	type	reject:unknown-name	lang/09-traits.md#r-trait.impl.intrinsic.std-only
 typing/valid/compound-assignment.hd	type	accept	lang/05-expressions.md#compound-assignment
 runtime/valid/compound-assignment-run.hd	runtime	accept	lang/05-expressions.md#r-expr.assign.compound.primitive
+runtime/valid/string-place-append.hd	runtime	accept	lang/05-expressions.md#r-expr.assign.compound.fresh-value
 runtime/valid/compound-assignment-alias.hd	runtime	accept	lang/05-expressions.md#r-expr.assign.compound.fresh-value
 typing/invalid/compound-assign-readonly.hd	type	reject:not-writable	lang/05-expressions.md#r-expr.assign.compound.store-rules
 typing/invalid/compound-assign-data-no-operator.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.assign.compound.operator

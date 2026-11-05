@@ -1,0 +1,52 @@
+# test: appending through references and captured cells preserves string value semantics and evaluation order
+use std.testing.assert_equal
+
+fn append(text: &mut string, suffix: string) -> void:
+    *text += suffix
+
+fn replace(text: &mut string) -> string:
+    *text = "replaced"
+    "!"
+
+fn append_after_replace(text: &mut string) -> void:
+    *text += replace(text)
+
+tests:
+    it("reference append preserves shared snapshots and sliced inputs"):
+        let mut text = "prefix" + "-value"
+        snapshot := text
+        append(&mut text, "!")
+        assert_equal(snapshot, "prefix-value", reason="shared snapshot")
+        assert_equal(text, "prefix-value!", reason="reference write")
+        text = text.slice(7, 12)
+        append(&mut text, "é")
+        assert_equal(text, "valueé", reason="slice offset and UTF-8")
+        append(&mut text, "")
+        assert_equal(text, "valueé", reason="empty suffix")
+
+    it("borrowing loops update each element independently"):
+        let mut items = ["first" + "-value", "second"]
+        snapshot := items
+        for text in &mut items:
+            append(text, "!")
+            append(text, "?")
+        assert_equal(items[0], "first-value!?", reason="first element")
+        assert_equal(items[1], "second!?", reason="second element")
+        assert_equal(snapshot[0], "first-value", reason="list snapshot")
+
+    it("captured cells reuse their current value across calls"):
+        let mut text = "start"
+        add := fn(suffix: string) -> void: text += suffix
+        for _ in 0..64:
+            add("x")
+        assert_equal(text.len(), 69, reason="repeated closure append")
+        snapshot := text
+        double := fn() -> void: text += text
+        double()
+        assert_equal(text, snapshot + snapshot, reason="aliased suffix")
+        assert_equal(snapshot.len(), 69, reason="captured snapshot")
+
+    it("an RHS write cannot replace the already-read left operand"):
+        let mut text = "before"
+        append_after_replace(&mut text)
+        assert_equal(text, "before!", reason="read left before evaluating RHS")

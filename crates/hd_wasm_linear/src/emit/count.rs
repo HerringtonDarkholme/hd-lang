@@ -988,11 +988,16 @@ impl Em<'_, '_, '_> {
         hd_tir::own::consumers(self.b, &self.topo, self.input.own_cx, &mut self.consumer);
         self.used.clear();
         self.used.resize(self.b.len(), false);
+        self.value_uses.clear();
+        self.value_uses.resize(self.b.len(), 0);
         let mut ops = std::mem::take(&mut self.own_ops);
         for i in 0..self.b.len() {
             hd_tir::own::operands(self.b, i, &mut ops);
             for op in &ops {
                 self.used[op.value as usize] = true;
+                if op.role != hd_tir::ir::Role::Dropped {
+                    self.value_uses[op.value as usize] += 1;
+                }
             }
         }
         self.own_ops = ops;

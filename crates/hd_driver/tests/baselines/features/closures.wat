@@ -7,8 +7,7 @@
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
-  (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
-  (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
+  (import "fixture" "rt:str_append" (func $rt:str_append (param i32 i32 i32 i32) (result i32 i32)))
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields'2" (func $rt:retain_fields'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -88,7 +87,7 @@
     end
     local.get $f.0
   )
-  (func $shared#1 (param $env i32) (param $ctx i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
+  (func $shared#1 (param $env i32) (param $ctx i32) (local $t0 i32)
     ;; 19 |     add := fn() -> void: t += "x"
     local.get $env
     i32.load $heap
@@ -98,35 +97,25 @@
       local.get $env
       i32.load $heap
       local.get $env
+      i32.const 0
+      i32.store $heap
+      local.get $env
       i32.load $heap offset=4
-      local.set $t0
-      local.tee $ctx
-      call $retain
-      local.get $t0
-      i32.const 1
-      i32.add
-      local.tee $t1
-      call $rt:str
-      local.tee $t2
-      local.tee $t3
-      local.get $ctx
-      local.get $t0
-      call $rt:memory_copy/0/0
-      local.get $t3
-      local.get $t0
-      i32.add
+      local.get $env
+      i32.const 0
+      i32.store $heap offset=4
       i32.const 65 ;; &"x"
-      i32.load8_u $heap
-      i32.store8 $heap
-      local.get $ctx
-      call $rt:release_ref'2
+      i32.const 1
+      call $rt:str_append
+      local.set $t0
+      local.set $ctx
       local.get $env
       i32.load $heap
       local.get $env
-      local.get $t2
+      local.get $ctx
       i32.store $heap
       local.get $env
-      local.get $t1
+      local.get $t0
       i32.store $heap offset=4
       call $rt:release_ref'2
       local.get $env
