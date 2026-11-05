@@ -11,6 +11,7 @@ fn ret_param(s: string) -> string:
     s
 > app/main/ret_param
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %0 consume
 >   %0 = Read move [$0] : string
 >   %1 = Block %0 : string
 >   exit sub 0 drops [$0]
@@ -20,6 +21,7 @@ fn ret_field(r: Rec) -> string:
     r.name
 > app/main/ret_field
 >   local $0 r: Rec [param read] value
+>     uses $0: entry -> %0 consume
 >   %0 = Read move [$0 .name] : string
 >   %1 = Block %0 : string
 >   exit sub 0 drops [$0]
@@ -30,15 +32,25 @@ fn ret_new(n: i64) -> string:
 > app/main/ret_new
 >   local $0 n: i64 [param read captured] place
 >   local $1 result: string [read] value
+>     uses $1: %51 -> %56 lend
 >   local $2 offset: usize [read] value
+>     uses $2: %52 -> %58 lend
 >   local $3 value: i64 [read] value
+>     uses $3: %53 -> %55 lend
 >   local $4 width: usize [read] value
+>     uses $4: %54 -> %60 lend
 >   local $5 result: string [read] value
+>     uses $5: %32 -> %35 lend
 >   local $6 offset: usize [read] value
+>     uses $6: %33 -> %38 lend
 >   local $7 text: string [read] value
+>     uses $7: %34 -> %40 lend, %43 lend
 >   local $8 size: usize [read] value
+>     uses $8: %25 -> %26 lend
 >   local $9 value: i64 [read] value
+>     uses $9: %5 -> %6 consume
 >   local $10 value: i64 [read] value
+>     uses $10: %7 -> %8 lend, %11 lend
 >   %0 = Ref local frame [$0] : Counted[i64]
 >   %1 = Read copy [*%0] : i64
 >   %2 = Drop [%0] : ()
@@ -113,6 +125,7 @@ fn ret_ref_field(r: &Rec) -> &string:
     &r.name
 > app/main/ret_ref_field
 >   local $0 r: Ref[Rec] [param read] value
+>     uses $0: entry -> %0 lend
 >   %0 = Ref local [*$0 .name] : Ref[string]
 >   %1 = Block %0 : Ref[string]
 >   summary kept []
@@ -122,10 +135,15 @@ fn use_rets(r: Rec) -> usize:
 > app/main/use_rets
 >   local $0 r: Rec [param read captured] place
 >   local $3 r: Counted[Rec] [read] value
+>     uses $3: %28 -> %29 lend
 >   local $4 self: string [read] value
+>     uses $4: %19 -> %20 lend
 >   local $5 r: Rec [read] value
+>     uses $5: %14 -> %15 consume
 >   local $6 self: string [read] value
+>     uses $6: %6 -> %7 lend
 >   local $7 s: string [read] value
+>     uses $7: %1 -> %2 consume
 >   %0 = Read copy [$0 .name] : string
 >   %1 = Store [$7] %0 : ()
 >   %2 = Read move [$7] : string

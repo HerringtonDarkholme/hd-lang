@@ -13,9 +13,13 @@ fn read_copy(r: &User) -> usize:
     copy := *r
 > app/main/read_copy
 >   local $0 r: Ref[User] [param read] value
+>     uses $0: entry -> %0 lend, %2 lend
 >   local $1 copy: User [:= read assigned] value
+>     uses $1: %1 -> %10 consume
 >   local $2 self: string [read] value
+>     uses $2: %11 -> %12 lend
 >   local $3 self: string [read] value
+>     uses $3: %3 -> %4 lend
 >   %0 = Read copy [*$0] : User
 >   %1 = Store [$1] %0 : ()
 >   %19 = Block %18 : usize
@@ -43,7 +47,9 @@ fn reset(r: &mut User, s: string) -> void:
     *r = User { name: s, n: 0 }
 > app/main/reset
 >   local $0 r: Ref[mut User] [param read] value
+>     uses $0: entry -> %2 lend, %3 lend, %5 lend
 >   local $1 s: string [param read] value
+>     uses $1: entry -> %0 consume
 >   %0 = Read move [$1] : string
 >   %1 = NewStruct [%0 0:i32] : User
 >   %2 = Store [*$0] %1 : ()

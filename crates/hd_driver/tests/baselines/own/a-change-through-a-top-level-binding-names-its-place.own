@@ -21,6 +21,7 @@ fn twice(n: i64) -> i64:
     n * 2
 > app/main/twice
 >   local $0 n: i64 [param read] value
+>     uses $0: entry -> %0 lend
 >   %0 = Read copy [$0] : i64
 >   %1 = Prim Mul [%0 2:i64] : i64
 >   %2 = Block %1 : i64
@@ -29,7 +30,9 @@ fn add(i: usize, n: i64) -> void:
     saved.push(n)
 > app/main/add
 >   local $0 i: usize [param read] value
+>     uses $0: entry -> %9 lend, %16 lend
 >   local $1 n: i64 [param read] value
+>     uses $1: entry -> %0 consume, %4 lend, %11 consume, %18 lend
 >   %0 = Read copy [$1] : i64
 >   %1 = IsUnique [@app/main/saved] : ()
 >   %2 = Read borrow [@app/main/saved] : List[i64]

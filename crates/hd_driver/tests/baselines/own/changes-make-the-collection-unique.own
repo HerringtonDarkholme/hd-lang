@@ -13,9 +13,12 @@ fn change(mut rows: List[List[i32]], mut bags: List[Bag], mut m: Map[string, Lis
     rows[i].push(1)
 > app/main/change
 >   local $0 rows: List[List[i32]] [param read] value
+>     uses $0: entry -> %3 lend
 >   local $1 bags: List[Bag] [param read] place
 >   local $2 m: Map[string, List[i32]] [param read] value
+>     uses $2: entry -> %17 lend, %19 lend, %23 lend
 >   local $3 i: usize [param read] value
+>     uses $3: entry -> %0 lend, %6 lend, %9 lend
 >   %0 = Read copy [$3] : usize
 >   %1 = IsUnique [$0] : ()
 >   %2 = IsUnique [$0 [%0]] : ()

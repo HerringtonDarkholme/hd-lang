@@ -16,7 +16,9 @@ fn has_style(facts: Facts) -> bool:
     facts.find::[RenameAll]().is_some()
 > app/main/has_style
 >   local $0 facts: Facts [param read] value
+>     uses $0: entry -> %0 lend
 >   local $2 self: RenameAll? [read] value
+>     uses $2: %2 -> %3 lend
 >   %0 = Read borrow [$0] : Facts
 >   %1 = Call std/structure/impl Facts.find[RenameAll] (%0) : RenameAll?
 >   %2 = Store [$2] %1 : ()
@@ -42,7 +44,9 @@ fn name_of(m: &Member, frames: &List[Frame]) -> string:
     member_name(m, frames[0].facts)
 > app/main/name_of
 >   local $0 m: Ref[Member] [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 frames: Ref[List[Frame]] [param read] value
+>     uses $1: entry -> %1 lend
 >   %0 = Read borrow [$0] : Ref[Member]
 >   %1 = Read borrow [*$1 [0:usize] .facts] : Facts
 >   %2 = Call std/serde/member_name[] (%0, %1) : string

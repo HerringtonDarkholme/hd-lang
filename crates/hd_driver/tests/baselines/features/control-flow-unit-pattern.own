@@ -8,7 +8,9 @@ fn save(s: string) -> Result[void, string]:
     if s.len() > 0:
 > app/main/save
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %0 consume, %12 lend
 >   local $1 self: string [read] value
+>     uses $1: %1 -> %2 lend
 >   %0 = Read borrow [$0] : string
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : string
@@ -33,9 +35,13 @@ fn report(s: string) -> string:
     match save(s):
 > app/main/report
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 message: string [read assigned] value
+>     uses $1: %27 -> %21 consume
 >   local $2 s: string [read] value
+>     uses $2: %1 -> %2 consume, %14 lend
 >   local $3 self: string [read] value
+>     uses $3: %3 -> %4 lend
 >   %0 = Read borrow [$0] : string
 >   %1 = Store [$2] %0 : ()
 >   %2 = Read borrow [$2] : string

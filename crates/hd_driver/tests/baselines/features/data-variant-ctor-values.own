@@ -16,12 +16,18 @@ fn wrap_all(errors: List[FsError]) -> List[SyncError]:
     [for e in errors => SyncError.Fs(e)]
 > app/main/wrap_all
 >   local $0 errors: List[FsError] [param read] value
+>     uses $0: entry -> %2 consume
 >   local $1 $acc: mut List[SyncError] [assigned] value
+>     uses $1: %1 -> %9 lend, %25 lend, %39 consume
 >   local $2 $coll: List[FsError] [assigned] value
+>     uses $2: %3 -> %4 lend, %18 lend
 >   local $3 $len: usize [assigned] value
+>     uses $3: %6 -> %7 lend, %11 consume
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
+>     uses $5: %12 -> %15 lend
 >   local $6 e: FsError [read assigned] value
+>     uses $6: %29 -> %22 consume
 >   %0 = NewList - [] : mut List[SyncError]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$0] : List[FsError]
@@ -70,13 +76,20 @@ fn wrap_with(errors: List[FsError], wrap: fn(FsError) -> SyncError) -> List[Sync
     [for e in errors => wrap(e)]
 > app/main/wrap_with
 >   local $0 errors: List[FsError] [param read] value
+>     uses $0: entry -> %2 consume
 >   local $1 wrap: fn(FsError) -> SyncError [param read] value
+>     uses $1: entry -> %22 lend
 >   local $2 $acc: mut List[SyncError] [assigned] value
+>     uses $2: %1 -> %9 lend, %26 lend, %40 consume
 >   local $3 $coll: List[FsError] [assigned] value
+>     uses $3: %3 -> %4 lend, %18 lend
 >   local $4 $len: usize [assigned] value
+>     uses $4: %6 -> %7 lend, %11 consume
 >   local $5 $pos: usize [assigned] place
 >   local $6 $end: usize [assigned] value
+>     uses $6: %12 -> %15 lend
 >   local $7 e: FsError [read assigned] value
+>     uses $7: %30 -> %23 consume
 >   %0 = NewList - [] : mut List[SyncError]
 >   %1 = Store [$2] %0 : ()
 >   %2 = Read borrow [$0] : List[FsError]
@@ -126,7 +139,9 @@ fn as_value(errors: List[FsError]) -> List[SyncError]:
     wrap_with(errors, SyncError.Fs)
 > app/main/as_value
 >   local $0 errors: List[FsError] [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 $0: FsError [param] value
+>     uses $1: entry -> %1 consume
 >   %0 = Read borrow [$0] : List[FsError]
 >   %1 = Read move [$1] : FsError
 >   %2 = NewVariant #0 [%1] : SyncError
@@ -142,6 +157,7 @@ fn named(p: string) -> SyncError:
     SyncError.Retry(error=FsError.NotFound(p), attempt=1)
 > app/main/named
 >   local $0 p: string [param read] value
+>     uses $0: entry -> %0 consume
 >   %0 = Read move [$0] : string
 >   %1 = NewVariant #0 [%0] : FsError
 >   %2 = NewVariant #1 [1:i32 %1] : SyncError

@@ -33,6 +33,7 @@ fn fetch!() -> usize $ Store:
     $.use(Store).get().len()
 > app/main/fetch
 >   local $1 self: string [read] value
+>     uses $1: %5 -> %6 lend
 >   %0 = ProviderGet #0 : Store
 >   %1 = Coerce %0 [ProviderAsRef -] : Ref[Store]
 >   %2 = Read copy [*%1] : Store

@@ -1876,7 +1876,7 @@ impl Run<'_> {
     }
 
     /// Runs `f` with the passes' view of the program.
-    fn with_env<T>(&self, p: &ProgramTables, f: impl FnOnce(&Env<'_>) -> T) -> T {
+    pub(super) fn with_env<T>(&self, p: &ProgramTables, f: impl FnOnce(&Env<'_>) -> T) -> T {
         // The program's impls: a layout normalizes associated types.
         let folders = self.program_folders();
         let arity = p.arity();

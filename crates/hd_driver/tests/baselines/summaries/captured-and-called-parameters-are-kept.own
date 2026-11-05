@@ -25,7 +25,9 @@ fn apply(f: fn(string) -> usize, s: string) -> usize:
     f(s)
 > app/main/apply
 >   local $0 f: fn(string) -> usize [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 s: string [param read] value
+>     uses $1: entry -> %1 consume
 >   %0 = Read borrow [$0] : fn(string) -> usize
 >   %1 = Read move [$1] : string
 >   %2 = CallValue %0 [%1] : usize

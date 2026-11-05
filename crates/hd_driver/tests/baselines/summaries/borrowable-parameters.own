@@ -15,6 +15,7 @@ impl Bag:
         self.items.len()
 > app/main/impl Bag.size
 >   local $0 self: Bag [param read] value
+>     uses $0: entry -> %0 lend
 >   %0 = Read borrow [$0 .items] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Block %1 : usize
@@ -24,8 +25,11 @@ fn twice(b: Bag) -> usize:
     b.size() + b.size()
 > app/main/twice
 >   local $0 b: Bag [param read] value
+>     uses $0: entry -> %0 consume, %7 consume
 >   local $1 self: Bag [read] value
+>     uses $1: %8 -> %9 lend
 >   local $2 self: Bag [read] value
+>     uses $2: %1 -> %2 lend
 >   %0 = Read borrow [$0] : Bag
 >   %1 = Store [$2] %0 : ()
 >   %2 = Read borrow [$2 .items] : List[string]
@@ -48,6 +52,7 @@ fn wrap(items: List[string]) -> Bag:
     Bag { items: items, n: 0 }
 > app/main/wrap
 >   local $0 items: List[string] [param read] value
+>     uses $0: entry -> %0 consume
 >   %0 = Read move [$0] : List[string]
 >   %1 = NewStruct [%0 0:i64] : Bag
 >   %2 = Block %1 : Bag
@@ -58,6 +63,7 @@ fn same(b: Bag) -> Bag:
     b
 > app/main/same
 >   local $0 b: Bag [param read] value
+>     uses $0: entry -> %0 consume
 >   %0 = Read move [$0] : Bag
 >   %1 = Block %0 : Bag
 >   exit sub 0 drops [$0]
@@ -67,7 +73,9 @@ fn add(all: &mut List[Bag], b: Bag) -> void:
     all.push(b)
 > app/main/add
 >   local $0 all: Ref[mut List[Bag]] [param read] value
+>     uses $0: entry -> %2 lend
 >   local $1 b: Bag [param read] value
+>     uses $1: entry -> %0 consume
 >   %0 = Read move [$1] : Bag
 >   %1 = IsUnique [*$0] : ()
 >   %2 = Read borrow [*$0] : List[Bag]
@@ -80,6 +88,7 @@ fn later(b: Bag) -> fn() -> usize:
     fn() -> usize: b.items.len()
 > app/main/later
 >   local $0 b: Bag [param read captured] value
+>     uses $0: entry -> %0 lend, %4 consume
 >   %0 = Read move [$0 .items] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Drop [%0] : ()

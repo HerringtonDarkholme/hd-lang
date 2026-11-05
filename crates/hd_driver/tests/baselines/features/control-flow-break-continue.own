@@ -9,15 +9,23 @@ fn until_long(xs: List[string]) -> usize:
     let n: usize = 0
 > app/main/until_long
 >   local $0 xs: List[string] [param read] value
+>     uses $0: entry -> %1 consume
 >   local $1 n: usize [read assigned mutated] place
 >   local $2 $coll: List[string] [assigned] value
+>     uses $2: %2 -> %3 lend, %11 lend
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
+>     uses $5: %5 -> %8 lend
 >   local $6 x: string [read assigned] value
+>     uses $6: %57 -> %15 lend
 >   local $7 t: string [:= read assigned] value
+>     uses $7: %17 -> %18 consume, %31 consume, %45 consume
 >   local $8 self: string [read] value
+>     uses $8: %46 -> %47 lend
 >   local $9 self: string [read] value
+>     uses $9: %32 -> %33 lend
 >   local $10 self: string [read] value
+>     uses $10: %19 -> %20 lend
 >   %0 = Store [$1] 0:usize : ()
 >   %69 = Block %68 : usize
     for x in xs:

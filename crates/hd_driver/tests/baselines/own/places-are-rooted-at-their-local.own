@@ -18,9 +18,13 @@ fn step(w: &mut World, i: usize, j: usize, dt: f64) -> i32:
     w.bodies[i].x = w.bodies[i].x + dt * w.bodies[i].vx
 > app/main/step
 >   local $0 w: Ref[mut World] [param read] value
+>     uses $0: entry -> %2 lend, %5 lend, %9 lend, %12 lend, %15 lend
 >   local $1 i: usize [param read] value
+>     uses $1: entry -> %0 lend, %1 lend, %4 lend, %10 lend, %14 lend
 >   local $2 j: usize [param read] value
+>     uses $2: entry -> %11 lend, %13 lend
 >   local $3 dt: f64 [param read] value
+>     uses $3: entry -> %3 lend
 >   %0 = Read copy [$1] : usize
 >   %1 = Read copy [$1] : usize
 >   %2 = Read copy [*$0 .bodies [%1] .x] : f64
@@ -45,7 +49,9 @@ fn first(xs: List[Option[Body]]) -> f64:
     match xs[0]:
 > app/main/first
 >   local $0 xs: List[Body?] [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 b: Body [read assigned] value
+>     uses $1: %5 -> %1 consume
 >   %0 = Read copy [$0 [0:usize]] : Body?
 >   %15 = Block - : never
 >   %16 = Match %0 [%15 %2 %3] : f64
@@ -68,6 +74,7 @@ fn sum(p: Body) -> f64:
     p.x + p.vx
 > app/main/sum
 >   local $0 p: Body [param read] value
+>     uses $0: entry -> %0 lend, %1 lend
 >   %0 = Read copy [$0 .x] : f64
 >   %1 = Read copy [$0 .vx] : f64
 >   %2 = Prim Add [%0 %1] : f64

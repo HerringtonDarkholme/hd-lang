@@ -8,9 +8,11 @@ fn count_while(xs: List[string]) -> usize:
     let i: usize = 0
 > app/main/count_while
 >   local $0 xs: List[string] [param read] value
+>     uses $0: entry -> %3 lend, %8 lend
 >   local $1 i: usize [read assigned mutated] place
 >   local $2 n: usize [read assigned mutated] place
 >   local $3 self: string [read] value
+>     uses $3: %9 -> %10 lend
 >   %0 = Store [$1] 0:usize : ()
 >   %29 = Block %28 : usize
     let n: usize = 0
@@ -54,7 +56,9 @@ fn build_while(s: string, k: usize) -> string:
     let out = s
 > app/main/build_while
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %0 consume, %7 lend
 >   local $1 k: usize [param read] value
+>     uses $1: entry -> %4 lend
 >   local $2 out: string [read assigned mutated] place
 >   local $3 i: usize [read assigned mutated] place
 >   %0 = Read copy [$0] : string

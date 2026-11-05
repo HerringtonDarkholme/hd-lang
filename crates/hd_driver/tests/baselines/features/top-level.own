@@ -7,15 +7,25 @@
 greeting := "hello ${1}"
 > app/main/init.init
 >   local $0 result: string [read] value
+>     uses $0: %71 -> %74 lend
 >   local $1 offset: usize [read] value
+>     uses $1: %72 -> %77 lend
 >   local $2 text: string [read] value
+>     uses $2: %73 -> %79 lend, %82 lend
 >   local $3 size: usize [read] value
+>     uses $3: %64 -> %65 lend
 >   local $4 value: usize [read] value
+>     uses $4: %46 -> %47 lend, %50 lend, %54 lend
 >   local $5 result: string [read] value
+>     uses $5: %25 -> %28 lend
 >   local $6 offset: usize [read] value
+>     uses $6: %26 -> %31 lend
 >   local $7 text: string [read] value
+>     uses $7: %27 -> %33 lend, %36 lend
 >   local $8 size: usize [read] value
+>     uses $8: %18 -> %19 lend
 >   local $9 value: usize [read] value
+>     uses $9: %0 -> %1 lend, %4 lend, %8 lend
 >   %0 = Store [$9] 1:usize : ()
 >   %1 = Read copy [$9] : usize
 >   %2 = Call std/num/Num.zero for usize [] via Impl () : usize

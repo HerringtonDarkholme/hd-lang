@@ -9,7 +9,9 @@ fn bind(s: string) -> usize:
     t := s
 > app/main/bind
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %0 consume
 >   local $3 self: string [read] value
+>     uses $3: %1 -> %2 lend
 >   %0 = Read borrow [$0] : string
 >   %7 = Block %6 : usize
     let u = t
@@ -26,6 +28,7 @@ fn bind_twice(xs: List[string]) -> usize:
     ys := xs
 > app/main/bind_twice
 >   local $0 xs: List[string] [param read] value
+>     uses $0: entry -> %0 lend, %2 lend
 >   %0 = Read borrow [$0] : List[string]
 >   %5 = Block %4 : usize
     ys.len() + xs.len()
@@ -39,7 +42,9 @@ fn bind_kept(xs: List[string], all: &mut List[List[string]]) -> void:
     ys := xs
 > app/main/bind_kept
 >   local $0 xs: List[string] [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 all: Ref[mut List[List[string]]] [param read] value
+>     uses $1: entry -> %2 lend
 >   %0 = Read move [$0] : List[string]
 >   %4 = Block - : ()
     all.push(ys)

@@ -10,6 +10,7 @@ fn c(value: i32) -> i32:
     value + 1
 > app/main/c
 >   local $0 value: i32 [param read] value
+>     uses $0: entry -> %0 lend
 >   %0 = Read copy [$0] : i32
 >   %1 = Prim Add [%0 1:i32] : i32
 >   %2 = Block %1 : i32
@@ -19,7 +20,9 @@ fn b(value: i32) -> i32:
     c(value) * 2
 > app/main/b
 >   local $0 value: i32 [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 value: i32 [read] value
+>     uses $1: %1 -> %2 lend
 >   %0 = Read copy [$0] : i32
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read copy [$1] : i32
@@ -35,8 +38,11 @@ fn a(value: i32) -> i32:
     b(value) - 3
 > app/main/a
 >   local $0 value: i32 [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 value: i32 [read] value
+>     uses $1: %1 -> %2 consume
 >   local $2 value: i32 [read] value
+>     uses $2: %3 -> %4 lend
 >   %0 = Read copy [$0] : i32
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read copy [$1] : i32
@@ -57,9 +63,13 @@ fn run(value: i32) -> i32:
     a(value)
 > app/main/run
 >   local $0 value: i32 [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 value: i32 [read] value
+>     uses $1: %1 -> %2 consume
 >   local $2 value: i32 [read] value
+>     uses $2: %3 -> %4 consume
 >   local $3 value: i32 [read] value
+>     uses $3: %5 -> %6 lend
 >   %0 = Read copy [$0] : i32
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read copy [$1] : i32

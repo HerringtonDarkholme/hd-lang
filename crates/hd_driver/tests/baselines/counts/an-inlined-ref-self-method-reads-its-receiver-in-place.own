@@ -2,6 +2,7 @@
 app/main/sizes
   local $1 parcels: UniqMap[string, i32] [read assigned captured captured-assigned] place
   local $2 total: usize [:= read assigned] value
+    uses $2: %20 -> %25 consume
   %9 = Ref local frame [$1] : Counted[UniqMap[string, i32]]
   %10 = Call std/collections/impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].is_empty[string, i32] (%9) : bool
   %11 = Drop [%9] : ()

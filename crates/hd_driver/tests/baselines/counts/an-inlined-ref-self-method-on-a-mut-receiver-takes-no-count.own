@@ -16,6 +16,7 @@ impl Bag:
         self.items.len() + self.n
 > app/main/impl Bag.size
 >   local $0 self: Ref[Bag] [param read] value
+>     uses $0: entry -> %0 lend, %3 lend
 >   %0 = Read borrow [*$0 .items] : List[i32]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Drop [%0] : ()
@@ -29,6 +30,7 @@ impl Bag:
         first(&self.items)
 > app/main/impl Bag.items_ref
 >   local $0 self: Ref[Bag] [param read] value
+>     uses $0: entry -> %0 lend
 >   %0 = Ref lent local [*$0 .items] : Ref[List[i32]]
 >   %1 = Call app/main/first[] (%0) : usize
 >   %2 = Drop [%0] : ()
@@ -39,8 +41,11 @@ impl Bag:
         self.n = self.size() + self.items_ref()
 > app/main/impl Bag.add
 >   local $0 self: Ref[mut Bag] [param read] value
+>     uses $0: entry -> %0 consume, %11 consume, %21 lend, %22 lend
 >   local $1 self: Ref[Bag] [read] value
+>     uses $1: %13 -> %14 lend
 >   local $2 self: Ref[Bag] [read] value
+>     uses $2: %2 -> %3 lend, %6 lend
 >   %0 = Read borrow [$0] : Ref[mut Bag]
 >   %1 = Coerce %0 [Weaken -] : Ref[Bag]
 >   %2 = Store [$2] %1 : ()
@@ -73,6 +78,7 @@ fn first(items: &List[i32]) -> usize:
     items.len()
 > app/main/first
 >   local $0 items: Ref[List[i32]] [param read] value
+>     uses $0: entry -> %0 lend
 >   %0 = Read borrow [*$0] : List[i32]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Drop [%0] : ()

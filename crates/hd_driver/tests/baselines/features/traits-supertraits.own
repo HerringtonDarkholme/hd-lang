@@ -20,6 +20,7 @@ impl Animal for Pup:
         self.name
 > app/main/impl Animal for Pup.name
 >   local $0 self: Ref[Pup] [param read] value
+>     uses $0: entry -> %0 lend
 >   %0 = Read copy [*$0 .name] : string
 >   %1 = Block %0 : string
 >   summary kept [$0]
@@ -35,7 +36,9 @@ fn name_of(a: &dyn Animal) -> usize:
     a.name().len()
 > app/main/name_of
 >   local $0 a: Ref[Animal] [param read] value
+>     uses $0: entry -> %0 lend
 >   local $2 self: string [read] value
+>     uses $2: %3 -> %4 lend
 >   %0 = Read copy [*$0] : Animal
 >   %1 = Call app/main/Animal.name for Animal [] via TraitValue (%0) : string
 >   %2 = Drop [%0] : ()
@@ -53,8 +56,11 @@ fn widen(d: &dyn Dog) -> usize:
     name_of(d) + d.bark().len()
 > app/main/widen
 >   local $0 d: Ref[Dog] [param read] value
+>     uses $0: entry -> %0 consume, %9 lend
 >   local $1 $ref: Ref[Dog] [read assigned captured] value
+>     uses $1: %1 -> %2 lend
 >   local $3 self: string [read] value
+>     uses $3: %12 -> %13 lend
 >   %0 = Read borrow [$0] : Ref[Dog]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read copy [*$1] : Dog
@@ -83,7 +89,9 @@ fn loud[T < Dog](d: T) -> usize:
 > app/main/loud
 >   local $0 d: T [param read captured] place
 >   local $3 self: string [read] value
+>     uses $3: %14 -> %15 lend
 >   local $4 self: string [read] value
+>     uses $4: %3 -> %4 lend
 >   %0 = Ref local frame [$0] : Counted[T]
 >   %1 = Call app/main/Animal.name for T [] via Bound (%0) : string
 >   %2 = Drop [%0] : ()
@@ -115,6 +123,7 @@ fn use_pup(p: Pup) -> usize:
 > app/main/use_pup
 >   local $0 p: Pup [param read captured] place
 >   local $1 $ref: Ref[Pup] [read assigned captured] value
+>     uses $1: %1 -> %2 lend
 >   local $2 d: Pup [read captured] place
 >   local $3 $ref: string [read assigned captured captured-assigned] place
 >   local $4 $ref: string [read assigned captured captured-assigned] place

@@ -15,12 +15,18 @@ fn copy_box(s: string, t: string) -> usize:
     let mut p = Point { name: s }
 > app/main/copy_box
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 t: string [param read] value
+>     uses $1: entry -> %7 consume
 >   local $2 p: Point [read assigned mutated] value ×2
+>     uses $2: %2 -> %3 consume; %8 -> %18 consume
 >   local $3 $ref: Point [read assigned captured captured-assigned] place
 >   local $4 copy: Counted[mut Point] [:= read assigned] value
+>     uses $4: %6 -> %9 lend
 >   local $5 self: string [read] value
+>     uses $5: %19 -> %20 lend
 >   local $6 self: string [read] value
+>     uses $6: %10 -> %11 lend
 >   %0 = Read move [$0] : string
 >   %1 = NewStruct [%0] : Point
 >   %2 = Store [$2] %1 : ()
@@ -60,6 +66,7 @@ fn move_box(s: string) -> *mut Point:
     p := Point { name: s }
 > app/main/move_box
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %0 consume
 >   local $2 $ref: Point [read assigned captured captured-assigned] place
 >   %0 = Read move [$0] : string
 >   %1 = NewStruct [%0] : Point
@@ -75,11 +82,16 @@ fn shared(s: string, t: string) -> usize:
     b := box(Point { name: s })
 > app/main/shared
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 t: string [param read] value
+>     uses $1: entry -> %8 consume
 >   local $2 $ref: Point [read assigned captured captured-assigned] place
 >   local $3 b: Counted[mut Point] [:= read assigned] value
+>     uses $3: %4 -> %5 consume, %9 lend
 >   local $4 h: Holder [:= read assigned] value
+>     uses $4: %7 -> %11 lend
 >   local $5 self: string [read] value
+>     uses $5: %12 -> %13 lend
 >   %0 = Read move [$0] : string
 >   %1 = NewStruct [%0] : Point
 >   %2 = Store [$2] %1 : ()

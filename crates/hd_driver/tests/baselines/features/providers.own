@@ -16,6 +16,7 @@ impl Namer for Fixed:
         self.n
 > app/main/impl Namer for Fixed.name
 >   local $0 self: Ref[Fixed] [param read] value
+>     uses $0: entry -> %0 lend
 >   %0 = Read copy [*$0 .n] : string
 >   %1 = Block %0 : string
 >   summary kept [$0]
@@ -24,6 +25,7 @@ fn ask() -> usize $ Namer:
     $.use(Namer).name().len()
 > app/main/ask
 >   local $1 self: string [read] value
+>     uses $1: %6 -> %7 lend
 >   %0 = ProviderGet #0 : Namer
 >   %1 = Coerce %0 [ProviderAsRef -] : Ref[Namer]
 >   %2 = Read copy [*%1] : Namer
@@ -44,9 +46,12 @@ fn install(s: string) -> usize:
     f := box(Fixed { n: s })
 > app/main/install
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 $ref: Fixed [read assigned captured captured-assigned] place
 >   local $2 f: Counted[mut Fixed] [:= read assigned] value
+>     uses $2: %4 -> %5 consume
 >   local $3 $ref: Counted[Fixed] [read assigned captured] value
+>     uses $3: %7 -> %8 lend
 >   %0 = Read move [$0] : string
 >   %1 = NewStruct [%0] : Fixed
 >   %2 = Store [$1] %1 : ()

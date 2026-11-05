@@ -8,7 +8,9 @@ fn eq_refs(a: &string, b: &mut string) -> bool:
     a == b
 > app/main/eq_refs
 >   local $0 a: Ref[string] [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 b: Ref[mut string] [param read] value
+>     uses $1: entry -> %1 lend
 >   %0 = Read borrow [*$0] : string
 >   %1 = Read borrow [*$1] : string
 >   %2 = Intrinsic StrEq [%0 %1] : bool
@@ -21,6 +23,7 @@ fn eq_lit(name: &string) -> bool:
     name == "ada"
 > app/main/eq_lit
 >   local $0 name: Ref[string] [param read] value
+>     uses $0: entry -> %0 lend
 >   %0 = Read borrow [*$0] : string
 >   %1 = Intrinsic StrEq [%0 "ada"] : bool
 >   %2 = Drop [%0] : ()
@@ -31,7 +34,9 @@ fn arith(x: &i64, y: &i64) -> i64:
     let total = x * 2 + 1
 > app/main/arith
 >   local $0 x: Ref[i64] [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 y: Ref[i64] [param read] value
+>     uses $1: entry -> %3 lend
 >   %0 = Read copy [*$0] : i64
 >   %1 = Prim Mul [%0 2:i64] : i64
 >   %2 = Prim Add [%1 1:i64] : i64
@@ -46,7 +51,9 @@ fn order_refs(a: &string, b: &string) -> bool:
     a < b
 > app/main/order_refs
 >   local $0 a: Ref[string] [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 b: Ref[string] [param read] value
+>     uses $1: entry -> %1 lend
 >   local $2 $order: Ordering? [read assigned captured] place
 >   local $3 $ref: Ordering? [read assigned captured captured-assigned] place
 >   %0 = Read borrow [$0] : Ref[string]
@@ -72,7 +79,9 @@ fn list_eq(a: &List[string], b: &List[string]) -> bool:
     a == b
 > app/main/list_eq
 >   local $0 a: Ref[List[string]] [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 b: Ref[List[string]] [param read] value
+>     uses $1: entry -> %1 lend
 >   %0 = Read borrow [$0] : Ref[List[string]]
 >   %1 = Read borrow [$1] : Ref[List[string]]
 >   %2 = Call std/core/Eq.eq for List[string] [] via Impl (%0, %1) : bool

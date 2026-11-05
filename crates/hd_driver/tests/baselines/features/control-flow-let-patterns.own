@@ -13,9 +13,13 @@ fn read_user(u: User) -> usize:
     let User { name, tags } = u
 > app/main/read_user
 >   local $0 u: User [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 name: string [read assigned] value
+>     uses $1: %4 -> %9 consume
 >   local $2 tags: List[string] [read assigned] value
+>     uses $2: %5 -> %16 lend
 >   local $3 self: string [read] value
+>     uses $3: %10 -> %11 lend
 >   %0 = Read borrow [$0] : User
 >   %1 = Block - : ()
 >   %2 = Read borrow [%0 .name] : string
@@ -42,7 +46,9 @@ fn take_name(u: User) -> string:
     let User { name } = u
 > app/main/take_name
 >   local $0 u: User [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 name: string [read assigned] value
+>     uses $1: %3 -> %7 consume
 >   %0 = Read borrow [$0] : User
 >   %1 = Block - : ()
 >   %2 = Read copy [%0 .name] : string
@@ -58,10 +64,15 @@ fn pair(p: (string, string)) -> usize:
     let (a, b) = p
 > app/main/pair
 >   local $0 p: (string, string) [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 a: string [read assigned] value
+>     uses $1: %4 -> %9 consume
 >   local $2 b: string [read assigned] value
+>     uses $2: %5 -> %16 consume
 >   local $3 self: string [read] value
+>     uses $3: %17 -> %18 lend
 >   local $4 self: string [read] value
+>     uses $4: %10 -> %11 lend
 >   %0 = Read borrow [$0] : (string, string)
 >   %1 = Block - : ()
 >   %2 = Read borrow [%0 .0] : string
@@ -93,8 +104,11 @@ fn present(o: string?) -> usize:
     let .Some(s) = o else:
 > app/main/present
 >   local $0 o: string? [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 s: string [read assigned] value
+>     uses $1: %5 -> %13 consume
 >   local $2 self: string [read] value
+>     uses $2: %14 -> %15 lend
 >   %0 = Read borrow [$0] : string?
 >   %1 = Block - : ()
 >   %3 = Block - : never

@@ -10,8 +10,11 @@ fn apply(by: fn(&i32, &i32) -> i32, left: &i32, right: &i32) -> i32:
     by(left, right)
 > app/main/apply
 >   local $0 by: fn(Ref[i32], Ref[i32]) -> i32 [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 left: Ref[i32] [param read] value
+>     uses $1: entry -> %1 lend
 >   local $2 right: Ref[i32] [param read] value
+>     uses $2: entry -> %2 lend
 >   %0 = Read borrow [$0] : fn(Ref[i32], Ref[i32]) -> i32
 >   %1 = Read borrow [$1] : Ref[i32]
 >   %2 = Read borrow [$2] : Ref[i32]
@@ -23,13 +26,21 @@ fn difference(reverse: bool, left: &i32, right: &i32) -> i32:
     by := if reverse: fn(a: &i32, b: &i32): *b - *a else: fn(a: &i32, b: &i32): *a - *b
 > app/main/difference
 >   local $0 reverse: bool [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 left: Ref[i32] [param read] value
+>     uses $1: entry -> %22 lend
 >   local $2 right: Ref[i32] [param read] value
+>     uses $2: entry -> %23 lend
 >   local $3 a: Ref[i32] [param read] value
+>     uses $3: entry -> %2 lend
 >   local $4 b: Ref[i32] [param read] value
+>     uses $4: entry -> %1 lend
 >   local $5 a: Ref[i32] [param read] value
+>     uses $5: entry -> %11 lend
 >   local $6 b: Ref[i32] [param read] value
+>     uses $6: entry -> %12 lend
 >   local $7 by: fn(Ref[i32], Ref[i32]) -> i32 [:= read assigned] value
+>     uses $7: %20 -> %21 lend
 >   %0 = Read copy [$0] : bool
 >   %1 = Read copy [*$4] : i32
 >   %2 = Read copy [*$3] : i32

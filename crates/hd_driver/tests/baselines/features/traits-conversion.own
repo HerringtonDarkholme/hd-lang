@@ -14,6 +14,7 @@ impl From[string] for Name:
         Name { text: value }
 > app/main/impl From [ string ] for Name.from
 >   local $0 value: string [param read] value
+>     uses $0: entry -> %0 consume
 >   %0 = Read move [$0] : string
 >   %1 = NewStruct [%0] : Name
 >   %2 = Block %1 : Name
@@ -24,7 +25,9 @@ fn convert(s: string) -> Name:
     Name::from(s)
 > app/main/convert
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 value: string [read] value
+>     uses $1: %1 -> %2 consume
 >   %0 = Read move [$0] : string
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read move [$1] : string
@@ -40,9 +43,13 @@ fn name_len(s: string) -> usize:
     Name::from(s).text.len()
 > app/main/name_len
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 $ref: string [read assigned captured captured-assigned] value
+>     uses $1: %8 -> %9 consume
 >   local $2 self: string [read] value
+>     uses $2: %10 -> %11 lend
 >   local $3 value: string [read] value
+>     uses $3: %1 -> %2 consume
 >   %0 = Read move [$0] : string
 >   %1 = Store [$3] %0 : ()
 >   %2 = Read move [$3] : string

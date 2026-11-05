@@ -10,6 +10,7 @@ fn twice(n: i32) -> i32:
     n * 2
 > app/main/twice
 >   local $0 n: i32 [param read] value
+>     uses $0: entry -> %0 lend
 >   %0 = Read copy [$0] : i32
 >   %1 = Prim Mul [%0 2:i32] : i32
 >   %2 = Block %1 : i32
@@ -18,6 +19,7 @@ fn fill(n: usize) -> List[usize]:
     let mut xs: List[usize] = [0, 0]
 > app/main/fill
 >   local $0 n: usize [param read] value
+>     uses $0: entry -> %2 lend, %6 lend
 >   local $1 xs: List[usize] [read assigned] place
 >   %0 = NewList - [0:usize 0:usize] : List[usize]
 >   %1 = Store [$1] %0 : ()
@@ -41,6 +43,7 @@ fn bump(counts: &mut List[i32]) -> void:
     counts[1] += twice(5)
 > app/main/bump
 >   local $0 counts: Ref[mut List[i32]] [param read] value
+>     uses $0: entry -> %0 lend, %6 lend
 >   %0 = Read borrow [*$0] : List[i32]
 >   %1 = Read copy [%0 [1:usize]] : i32
 >   %2 = Drop [%0] : ()
@@ -54,8 +57,11 @@ fn put[T](xs: &mut List[T], k: usize, v: T) -> void:
     xs[k] = v
 > app/main/put
 >   local $0 xs: Ref[mut List[T]] [param read] value
+>     uses $0: entry -> %3 lend, %5 lend, %8 lend
 >   local $1 k: usize [param read] value
+>     uses $1: entry -> %0 lend
 >   local $2 v: T [param read] value
+>     uses $2: entry -> %1 consume, %6 consume
 >   %0 = Read copy [$1] : usize
 >   %1 = Read copy [$2] : T
 >   %2 = IsUnique [*$0] : ()

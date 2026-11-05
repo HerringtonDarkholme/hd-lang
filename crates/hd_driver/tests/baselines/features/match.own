@@ -13,12 +13,19 @@ fn read_match(s: Shape) -> usize:
     match s:
 > app/main/read_match
 >   local $0 s: Shape [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 n: string [read assigned] value
+>     uses $1: %27 -> %1 consume
 >   local $2 a: string [read assigned] value
+>     uses $2: %32 -> %9 consume
 >   local $3 b: string [read assigned] value
+>     uses $3: %33 -> %16 consume
 >   local $4 self: string [read] value
+>     uses $4: %17 -> %18 lend
 >   local $5 self: string [read] value
+>     uses $5: %10 -> %11 lend
 >   local $6 self: string [read] value
+>     uses $6: %2 -> %3 lend
 >   %0 = Read borrow [$0] : Shape
 >   %45 = Block - : never
 >   %46 = Match %0 [%45 %8 %24 %25] : usize
@@ -72,8 +79,11 @@ fn take_match(s: Shape) -> string:
     match s:
 > app/main/take_match
 >   local $0 s: Shape [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 n: string [read assigned] value
+>     uses $1: %7 -> %1 consume
 >   local $2 a: string [read assigned] value
+>     uses $2: %11 -> %3 consume
 >   %0 = Read borrow [$0] : Shape
 >   %23 = Block - : never
 >   %24 = Match %0 [%23 %2 %4 %5] : string
@@ -105,12 +115,19 @@ fn ref_match(s: &Shape) -> usize:
     match s:
 > app/main/ref_match
 >   local $0 s: Ref[Shape] [param read] value
+>     uses $0: entry -> %0 lend, %26 lend, %27 lend, %32 lend, %33 lend
 >   local $1 n: string [read assigned] value
+>     uses $1: %28 -> %1 consume
 >   local $2 a: string [read assigned] value
+>     uses $2: %34 -> %9 consume
 >   local $3 b: string [read assigned] value
+>     uses $3: %35 -> %16 consume
 >   local $4 self: string [read] value
+>     uses $4: %17 -> %18 lend
 >   local $5 self: string [read] value
+>     uses $5: %10 -> %11 lend
 >   local $6 self: string [read] value
+>     uses $6: %2 -> %3 lend
 >   %0 = Read borrow [$0] : Ref[Shape]
 >   %50 = Block - : never
 >   %51 = Match %0 [%50 %8 %24 %25] : usize

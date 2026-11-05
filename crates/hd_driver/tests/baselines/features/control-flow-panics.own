@@ -16,6 +16,7 @@ impl Disposable for Res:
         self.log.push(self.name)
 > app/main/impl Disposable for Res.dispose
 >   local $0 self: Ref[mut Res] [param read] value
+>     uses $0: entry -> %0 lend, %2 lend
 >   %0 = Read copy [*$0 .name] : string
 >   %1 = IsUnique [*$0 .log *] : ()
 >   %2 = Read borrow [*$0 .log *] : List[string]
@@ -27,17 +28,29 @@ fn must(s: string, n: i32) -> usize:
     t := s + "!"
 > app/main/must
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 n: i32 [param read] value
+>     uses $1: entry -> %3 lend
 >   local $2 t: string [:= read assigned] value
+>     uses $2: %2 -> %5 lend, %63 consume
 >   local $3 self: string [read] value
+>     uses $3: %64 -> %65 lend
 >   local $4 result: string [read] value
+>     uses $4: %41 -> %45 lend
 >   local $5 offset: usize [read] value
+>     uses $5: %42 -> %48 lend
 >   local $6 text: string [read] value
+>     uses $6: %44 -> %50 lend, %53 lend
 >   local $7 result: string [read] value
+>     uses $7: %22 -> %25 lend
 >   local $8 offset: usize [read] value
+>     uses $8: %23 -> %28 lend
 >   local $9 text: string [read] value
+>     uses $9: %24 -> %30 lend, %33 lend
 >   local $10 size: usize [read] value
+>     uses $10: %15 -> %16 lend
 >   local $11 value: string [read] value
+>     uses $11: %7 -> %8 lend
 >   %0 = Read borrow [$0] : string
 >   %1 = Intrinsic StrConcat [%0 "!"] : string
 >   %2 = Store [$2] %1 : ()
@@ -119,10 +132,14 @@ fn guarded(log: *mut List[string], s: string, n: i32) -> usize:
     using r = Res { name: s + "?", log: log }
 > app/main/guarded
 >   local $0 log: Counted[mut List[string]] [param read] value
+>     uses $0: entry -> %2 consume
 >   local $1 s: string [param read] value
+>     uses $1: entry -> %0 lend
 >   local $2 n: i32 [param read] value
+>     uses $2: entry -> %10 lend
 >   local $3 r: Res [:= read assigned captured captured-assigned] place
 >   local $4 self: string [read] value
+>     uses $4: %16 -> %17 lend
 >   %0 = Read borrow [$1] : string
 >   %1 = Intrinsic StrConcat [%0 "?"] : string
 >   %2 = Read copy [$0] : Counted[mut List[string]]

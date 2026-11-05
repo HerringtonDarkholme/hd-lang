@@ -9,6 +9,7 @@ fn ident[T](x: T) -> T:
     x
 > app/main/ident
 >   local $0 x: T [param read] value
+>     uses $0: entry -> %0 consume
 >   %0 = Read move [$0] : T
 >   %1 = Block %0 : T
 >   exit sub 0 drops [$0]
@@ -18,6 +19,7 @@ fn first[T](xs: List[T]) -> T?:
     if xs.len() > 0: .Some(xs[0]) else: .None
 > app/main/first
 >   local $0 xs: List[T] [param read] value
+>     uses $0: entry -> %0 lend, %3 lend
 >   %0 = Read borrow [$0] : List[T]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Prim Gt [%1 0:usize] : bool
@@ -35,6 +37,7 @@ fn size[T](xs: &List[T]) -> usize:
     xs.len()
 > app/main/size
 >   local $0 xs: Ref[List[T]] [param read] value
+>     uses $0: entry -> %0 lend
 >   %0 = Read borrow [$0] : Ref[List[T]]
 >   %1 = Read borrow [*%0] : List[T]
 >   %2 = Intrinsic ListLen [%1] : usize
@@ -46,7 +49,9 @@ fn keep[T](x: T) -> List[T]:
     let mut out: List[T] = []
 > app/main/keep
 >   local $0 x: T [param read] value
+>     uses $0: entry -> %2 consume
 >   local $1 out: List[T] [read assigned] value
+>     uses $1: %1 -> %4 lend, %6 consume
 >   %0 = NewList - [] : List[T]
 >   %1 = Store [$1] %0 : ()
 >   %7 = Block %6 : List[T]
@@ -64,13 +69,20 @@ fn use_generic(s: string, xs: List[string]) -> usize:
     ident(s).len() + size(&xs) + first(xs).unwrap_or("").len() + keep(s).len()
 > app/main/use_generic
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %0 consume, %45 consume
 >   local $1 xs: List[string] [param read captured] place
 >   local $4 x: string [read] value
+>     uses $4: %46 -> %49 consume
 >   local $5 out: List[string] [read assigned] value
+>     uses $5: %48 -> %51 lend, %53 consume
 >   local $6 self: string [read] value
+>     uses $6: %37 -> %38 lend
 >   local $7 xs: List[string] [read] value
+>     uses $7: %20 -> %21 lend, %24 lend
 >   local $8 self: string [read] value
+>     uses $8: %6 -> %7 lend
 >   local $9 x: string [read] value
+>     uses $9: %1 -> %2 consume
 >   %0 = Read copy [$0] : string
 >   %1 = Store [$9] %0 : ()
 >   %2 = Read move [$9] : string

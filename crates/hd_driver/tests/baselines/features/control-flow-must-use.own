@@ -12,7 +12,9 @@ fn save(s: string) -> Result[string, SaveError]:
     if s.len() > 0: .Ok(s + "!") else: .Err(SaveError.Failed("empty"))
 > app/main/save
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %0 consume, %8 lend
 >   local $1 self: string [read] value
+>     uses $1: %1 -> %2 lend
 >   %0 = Read borrow [$0] : string
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : string
@@ -36,7 +38,9 @@ fn discard(s: string) -> usize:
     _ := save(s)
 > app/main/discard
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %0 consume, %19 consume, %42 consume
 >   local $1 self: string [read] value
+>     uses $1: %43 -> %44 lend
 >   local $2 s: string [read captured] place
 >   local $3 s: string [read captured] place
 >   %0 = Read copy [$0] : string
@@ -102,8 +106,11 @@ fn unused(s: string) -> usize:
     _kept := s
 > app/main/unused
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %0 consume, %2 consume
 >   local $1 _kept: string [:= assigned] value
+>     uses $1: none
 >   local $2 self: string [read] value
+>     uses $2: %3 -> %4 lend
 >   %0 = Read borrow [$0] : string
 >   %1 = Store [$1] %0 : ()
 >   %9 = Block %8 : usize

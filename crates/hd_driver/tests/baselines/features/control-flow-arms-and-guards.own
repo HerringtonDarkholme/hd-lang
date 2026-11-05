@@ -13,13 +13,21 @@ fn pick(t: Tag) -> string:
     match t:
 > app/main/pick
 >   local $0 t: Tag [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 n: string [read assigned] value
+>     uses $1: %34 -> %1 consume, %10 consume
 >   local $2 l: string [read assigned] value
+>     uses $2: %43 -> %12 consume, %28 consume
 >   local $3 r: string [read assigned] value
+>     uses $3: %45 -> %19 consume
 >   local $4 r: string [read assigned] value
+>     uses $4: %49 -> %30 consume
 >   local $5 self: string [read] value
+>     uses $5: %20 -> %21 lend
 >   local $6 self: string [read] value
+>     uses $6: %13 -> %14 lend
 >   local $7 self: string [read] value
+>     uses $7: %2 -> %3 lend
 >   %0 = Read borrow [$0] : Tag
 >   %59 = Block - : never
 >   %60 = Match %0 [%59 %11 %29 %31 %32] : string
@@ -83,11 +91,16 @@ fn whole(o: string?) -> usize:
     match o:
 > app/main/whole
 >   local $0 o: string? [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 s: string [read assigned] value
+>     uses $1: %43 -> %1 consume, %10 consume
 >   local $2 other: string? [read assigned] place
 >   local $3 self: string? [read] value
+>     uses $3: %19 -> %20 lend
 >   local $4 self: string [read] value
+>     uses $4: %11 -> %12 lend
 >   local $5 self: string [read] value
+>     uses $5: %2 -> %3 lend
 >   %0 = Read borrow [$0] : string?
 >   %57 = Block - : never
 >   %58 = Match %0 [%57 %17 %41] : usize
