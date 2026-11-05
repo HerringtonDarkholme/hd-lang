@@ -4,8 +4,7 @@
   (import "fixture" "rt:map_find" (func $rt:map_find (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:panic'3" (func $rt:panic'3))
   (import "fixture" "heap" (memory $heap 1))
@@ -40,28 +39,19 @@
       i32.add
       i32.const 8
       i32.add
-      local.tee $k.0
+      local.tee $m
       i32.load $heap
-      local.get $k.0
-      i32.load $heap offset=4
-      local.set $k.1
-      local.tee $k.0
-      call $retain
-    ;; (no span)
       local.get $m
-      call $rt:release_ref'1
-    ;; 7 |     m[k].len()
+      i32.load $heap offset=4
+      local.set $m
+      drop
       block
         block
-          local.get $k.1
-          local.set $m
           br 0
         end
       end
-    ;; (no span)
-      local.get $k.0
-      call $rt:release_ref'2
     end
+    ;; (no span)
     local.get $m
   )
   (func $map_index_take (param $m i32) (param $k.0 i32) (param $k.1 i32) (result i32 i32)
@@ -104,7 +94,7 @@
       call $retain
     ;; (no span)
       local.get $m
-      call $rt:release_ref'1
+      call $rt:release_ref
       local.get $k.0
       local.get $k.1
       local.set $k.0

@@ -18,15 +18,11 @@ fn first_long(xs: List[string]) -> string:
 fn first_index(xs: List[string]) -> usize:
     let i: usize = 0
     while i < xs.len():
-> app/main/first_index
->   release string (last use)
         if xs[i].len() > 3:
->   retain string (conservative: copy read)
             break i
         i += 1
     else:
         xs.len()
->   (no span) release List[string] (last use)
 
 fn forever(s: string) -> string:
     let out = s

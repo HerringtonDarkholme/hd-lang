@@ -44,10 +44,6 @@ fn element_receiver(xs: &mut List[Vec2], i: usize) -> void:
 
 fn element_read(xs: List[Vec2], i: usize) -> usize:
     xs[i].label_len()
-> app/main/element_read
->   retain app.main.Vec2 [name.0] (conservative: copy read)
->   (no span) release List[app.main.Vec2] (last use)
->   (no span) release app.main.Vec2 [name.0] (last use)
 
 fn place_receiver(s: string) -> i64:
     let mut p = make(s)

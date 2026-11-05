@@ -43,7 +43,7 @@ fn lens(xs: List[string]) -> usize:
 >   local $6 self: string [read] value
 >     uses $6: %21 -> %22 lend last
 >   %0 = Store [$1] 0:usize : ()
->   %38 = Block %37 : usize
+>   %36 = Block %35 : usize
     for i in 0..xs.len():
 >   %1 = Read borrow [$0] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize
@@ -62,28 +62,25 @@ fn lens(xs: List[string]) -> usize:
 >   %15 = Read copy [$2] : usize
 >   %16 = Prim Add [%15 1:usize] : usize
 >   %17 = Store [$2] %16 : ()
->   %30 = Block - : ()
->   %31 = Break L0 - : never
->   %32 = Block - : ()
->   %33 = If %12 [%30 %32] : ()
->   %34 = Block - : ()
->   %35 = Loop %34 - : ()
->   %36 = Drop [$0] : ()
+>   %29 = Block - : ()
+>   %30 = Break L0 - : never
+>   %31 = Block - : ()
+>   %32 = If %12 [%29 %31] : ()
+>   %33 = Block - : ()
+>   %34 = Loop %33 - : ()
         n += xs[i].len()
 >   %18 = Read copy [$1] : usize
 >   %19 = Read copy [$5] : usize
->   %20 = Read copy [$0 [%19]] : string
+>   %20 = Read borrow [$0 [%19]] : string
 >   %21 = Store [$6] %20 : ()
 >   %22 = Read borrow [$6] : string
 >   %23 = Call std/rt.bytes/bytes_len[] (%22) : usize
 >   %24 = Break L1 %23 : never
 >   %25 = Block - : usize
 >   %26 = Scope %25 [] : usize
->   %27 = Drop [$6] : ()
->   %28 = Prim Add [%18 %26] : usize
->   %29 = Store [$1] %28 : ()
+>   %27 = Prim Add [%18 %26] : usize
+>   %28 = Store [$1] %27 : ()
     n
->   %37 = Read copy [$1] : usize
->   exit sub 0 drops [$0]
->   summary kept [$0]
->   loop %35 keeps [$0]
+>   %35 = Read copy [$1] : usize
+>   summary kept [] borrows [$0]
+>   loop %34 keeps [$0]

@@ -2,12 +2,17 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:str_append" (func $rt:str_append (param i32 i32 i32 i32) (result i32 i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $count_while (param $xs i32) (result i32) (local $i i32) (local $n i32) (local $t0 i32) (local $t1 i32)
+  (func $count_while (param $xs i32) (result i32) (local $i i32) (local $n i32) (local $t0 i32)
     block
+    ;; 7 |     let i: usize = 0
+      i32.const 0
+      local.set $i
+    ;; 8 |     let n: usize = 0
+      i32.const 0
+      local.set $n
     ;; 9 |     while i < xs.len():
       block
         loop
@@ -35,20 +40,15 @@
           i32.load $heap offset=16
           local.get $t0
           i32.load $heap offset=20
-          local.set $t1
-          local.tee $t0
-          call $retain
+          local.set $t0
+          drop
           block
             block
               br 0
             end
           end
-    ;; 9 |     while i < xs.len():
-          local.get $t0
-          call $rt:release_ref'1
-    ;; 10 |         n += xs[i].len()
           local.get $n
-          local.get $t1
+          local.get $t0
           i32.add
           local.set $n
     ;; 11 |         i += 1
@@ -60,9 +60,6 @@
           br 0
         end
       end
-    ;; (no span)
-      local.get $xs
-      call $rt:release_ref'2
     ;; 12 |     n
       local.get $n
     ;; (no span)
@@ -106,7 +103,7 @@
       end
     ;; (no span)
       local.get $s.0
-      call $rt:release_ref'1
+      call $rt:release_ref
     ;; 20 |     out
       local.get $out.0
       local.get $out.1

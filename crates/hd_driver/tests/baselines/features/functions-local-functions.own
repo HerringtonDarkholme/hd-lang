@@ -91,38 +91,37 @@ fn local_plain(xs: List[string]) -> usize:
     fn first_len(ys: List[string]) -> usize:
 > app/main/local_plain
 >   local $0 xs: List[string] [param read] value
->     uses $0: entry -> %19 consume last
+>     uses $0: entry -> %18 consume last
 >   local $1 ys: List[string] [param read] value
 >     uses $1: entry -> %0 lend, %3 lend last
 >   local $2 first_len: fn(List[string]) -> usize [:= read assigned] value
->     uses $2: %17 -> %18 lend last
+>     uses $2: %16 -> %17 lend last
 >   local $3 self: string [read] value
 >     uses $3: %4 -> %5 lend last
->   %15 = Block %13 : usize
->   %16 = Closure #1 [%0 %0] : fn(List[string]) -> usize
->   %17 = Store [$2] %16 : ()
->   %22 = Block %20 : usize
+>   %14 = Block %12 : usize
+>   %15 = Closure #1 [%0 %0] : fn(List[string]) -> usize
+>   %16 = Store [$2] %15 : ()
+>   %21 = Block %19 : usize
         if ys.len() > 0: ys[0].len() else: 0
 >   %0 = Read borrow [$1] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Prim Gt [%1 0:usize] : bool
->   %3 = Read copy [$1 [0:usize]] : string
+>   %3 = Read borrow [$1 [0:usize]] : string
 >   %4 = Store [$3] %3 : ()
 >   %5 = Read borrow [$3] : string
 >   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
 >   %7 = Break L0 %6 : never
 >   %8 = Block - : usize
 >   %9 = Scope %8 [] : usize
->   %10 = Drop [$3] : ()
->   %11 = Block %9 : usize
->   %12 = Block 0:usize : usize
->   %13 = If %2 [%11 %12] : usize
->   %14 = Drop [$1] : ()
+>   %10 = Block %9 : usize
+>   %11 = Block 0:usize : usize
+>   %12 = If %2 [%10 %11] : usize
+>   %13 = Drop [$1] : ()
     first_len(xs)
->   %18 = Read move [$2] : fn(List[string]) -> usize
->   %19 = Read move [$0] : List[string]
->   %20 = CallValue %18 [%19] : usize
->   %21 = Drop [%18] : ()
+>   %17 = Read move [$2] : fn(List[string]) -> usize
+>   %18 = Read move [$0] : List[string]
+>   %19 = CallValue %17 [%18] : usize
+>   %20 = Drop [%17] : ()
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$1]
 >   summary kept [$0] writes

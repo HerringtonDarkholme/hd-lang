@@ -36,6 +36,4 @@ fn by_name(users: List[User]) -> Map[string, i64]:
 fn sizes(users: List[User]) -> List[usize]:
     [for u in users if (n := u.name.len()) > 0 => n]
 > app/main/sizes
->   retain app.main.User [name.0] (conservative: copy read)
 >   unique List[usize] (conservative: unique)
->   release app.main.User [name.0] (last use)

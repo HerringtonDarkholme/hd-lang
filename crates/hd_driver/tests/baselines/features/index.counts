@@ -10,10 +10,6 @@ use std.collections.{UniqList}
 
 fn list_read(xs: List[string], i: usize) -> usize:
     xs[i].len()
-> app/main/list_read
->   retain string (conservative: copy read)
->   (no span) release List[string] (last use)
->   (no span) release string (last use)
 
 fn list_take(xs: List[string], i: usize) -> string:
     xs[i]

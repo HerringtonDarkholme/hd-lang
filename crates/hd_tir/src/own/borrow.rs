@@ -57,10 +57,11 @@
 //!    unknown header) is the **heap**: no write that reaches the heap, and
 //!    no call, may stand in the span; a call that may not write
 //!    (`OwnCx::may_write`) is allowed when the one dereference is of a
-//!    reference that a local holds over the span: a parameter the body
-//!    never stores, or another local, which rule 2 keeps from being
-//!    stored or dropped in the span (`frame := self.top()` and then
-//!    `member_name(m, frame.facts)`).
+//!    reference that a local holds over the span, or the place is an
+//!    element of a list such a local holds (no dereference): a parameter
+//!    the body never stores, or another local, which rule 2 keeps from
+//!    being stored or dropped in the span (`frame := self.top()` and then
+//!    `member_name(m, frame.facts)`; `xs[i].len()`).
 //! 4. **No suspension point** stands in the span.
 //!
 //! A **binding local** is a local whose one `Store` is of a read that
@@ -408,10 +409,12 @@ impl Tables {
                     chain.heap =
                         derefs > 0 || (elem && (param || !self.fresh[li] || self.reached[li]));
                     // A parameter never stored, or another local, whose
-                    // stores and drops rule 2 keeps out of the span.
-                    chain.param =
-                        derefs == 1 && first_deref && !above && (!param || self.stores[li] == 0);
-                    chain.excl = (chain.param && self.excl_param[li] != NONE)
+                    // stores and drops rule 2 keeps out of the span: the
+                    // one reference it holds, or the list whose buffer
+                    // holds the element, stays over the span.
+                    let held = (derefs == 1 && first_deref && !above) || (derefs == 0 && elem);
+                    chain.param = held && (!param || self.stores[li] == 0);
+                    chain.excl = (chain.param && derefs == 1 && self.excl_param[li] != NONE)
                         .then(|| (l, self.excl_param[li]));
                     return chain;
                 }

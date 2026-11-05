@@ -49,7 +49,7 @@ fn pairs(xs: List[string], ys: List[string]) -> List[(string, string)]:
 >   %9 = Read copy [$6] : usize
 >   %10 = Prim Lt [%8 %9] : bool
 >   %11 = Read copy [$5] : usize
->   %12 = Read copy [$3 [%11]] : string
+>   %12 = Read borrow [$3 [%11]] : string
 >   %13 = Read copy [$5] : usize
 >   %14 = Prim Add [%13 1:usize] : usize
 >   %15 = Store [$5] %14 : ()
@@ -63,7 +63,7 @@ fn pairs(xs: List[string], ys: List[string]) -> List[(string, string)]:
 >   %23 = Read copy [$11] : usize
 >   %24 = Prim Lt [%22 %23] : bool
 >   %25 = Read copy [$10] : usize
->   %26 = Read copy [$8 [%25]] : string
+>   %26 = Read borrow [$8 [%25]] : string
 >   %27 = Read copy [$10] : usize
 >   %28 = Prim Add [%27 1:usize] : usize
 >   %29 = Store [$10] %28 : ()
@@ -91,7 +91,7 @@ fn pairs(xs: List[string], ys: List[string]) -> List[(string, string)]:
 >   %51 = Block - : ()
 >   %52 = If %44 [%51 -] : ()
 >   %53 = Block - : ()
->   %54 = Read move [%26] : string
+>   %54 = Read copy [%26] : string
 >   %55 = Store [$12] %54 : ()
 >   %57 = Block - : never
 >   %58 = Match %26 [%57 %53] : ()
@@ -103,7 +103,7 @@ fn pairs(xs: List[string], ys: List[string]) -> List[(string, string)]:
 >   %64 = Block - : ()
 >   %65 = Loop %64 - : ()
 >   %66 = Block - : ()
->   %67 = Read move [%12] : string
+>   %67 = Read copy [%12] : string
 >   %68 = Store [$7] %67 : ()
 >   %70 = Block - : never
 >   %71 = Match %12 [%70 %66] : ()
@@ -237,7 +237,7 @@ fn sizes(users: List[User]) -> List[usize]:
 >   local $0 users: List[User] [param read] value
 >     uses $0: entry -> %2 consume last
 >   local $1 $acc: mut List[usize] [assigned] value
->     uses $1: %1 -> %28 lend, %45 consume last
+>     uses $1: %1 -> %28 lend, %44 consume last
 >   local $2 $coll: List[User] [assigned] value
 >     uses $2: %3 -> %4 lend, %12 lend
 >   local $4 $pos: usize [assigned] place
@@ -261,7 +261,7 @@ fn sizes(users: List[User]) -> List[usize]:
 >   %9 = Read copy [$5] : usize
 >   %10 = Prim Lt [%8 %9] : bool
 >   %11 = Read copy [$4] : usize
->   %12 = Read copy [$2 [%11]] : User
+>   %12 = Read borrow [$2 [%11]] : User
 >   %13 = Read copy [$4] : usize
 >   %14 = Prim Add [%13 1:usize] : usize
 >   %15 = Store [$4] %14 : ()
@@ -282,19 +282,18 @@ fn sizes(users: List[User]) -> List[usize]:
 >   %30 = Block - : ()
 >   %31 = If %25 [%30 -] : ()
 >   %32 = Block - : ()
->   %33 = Read move [%12] : User
+>   %33 = Read borrow [%12] : User
 >   %34 = Store [$6] %33 : ()
 >   %36 = Block - : never
 >   %37 = Match %12 [%36 %32] : ()
->   %38 = Drop [$6] : ()
->   %39 = Block - : ()
->   %40 = Break L0 - : never
->   %41 = Block - : ()
->   %42 = If %10 [%39 %41] : ()
->   %43 = Block - : ()
->   %44 = Loop %43 - : ()
->   %45 = Read move [$1] : mut List[usize]
->   %46 = Coerce %45 [Weaken -] : List[usize]
->   %47 = Block %46 : List[usize]
+>   %38 = Block - : ()
+>   %39 = Break L0 - : never
+>   %40 = Block - : ()
+>   %41 = If %10 [%38 %40] : ()
+>   %42 = Block - : ()
+>   %43 = Loop %42 - : ()
+>   %44 = Read move [$1] : mut List[usize]
+>   %45 = Coerce %44 [Weaken -] : List[usize]
+>   %46 = Block %45 : List[usize]
 >   summary kept [] borrows [$0]
->   loop %44 keeps [$2]
+>   loop %43 keeps [$2]

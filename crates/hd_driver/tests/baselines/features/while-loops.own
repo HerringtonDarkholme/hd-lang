@@ -14,7 +14,7 @@ fn count_while(xs: List[string]) -> usize:
 >   local $3 self: string [read] value
 >     uses $3: %9 -> %10 lend last
 >   %0 = Store [$1] 0:usize : ()
->   %29 = Block %28 : usize
+>   %27 = Block %26 : usize
     let n: usize = 0
 >   %1 = Store [$2] 0:usize : ()
     while i < xs.len():
@@ -22,35 +22,32 @@ fn count_while(xs: List[string]) -> usize:
 >   %3 = Read borrow [$0] : List[string]
 >   %4 = Intrinsic ListLen [%3] : usize
 >   %5 = Prim Lt [%2 %4] : bool
->   %22 = Break L0 - : never
->   %23 = Block - : ()
->   %24 = If %5 [%21 %23] : ()
->   %25 = Block - : ()
->   %26 = Loop %25 - : ()
->   %27 = Drop [$0] : ()
+>   %21 = Break L0 - : never
+>   %22 = Block - : ()
+>   %23 = If %5 [%20 %22] : ()
+>   %24 = Block - : ()
+>   %25 = Loop %24 - : ()
         n += xs[i].len()
 >   %6 = Read copy [$2] : usize
 >   %7 = Read copy [$1] : usize
->   %8 = Read copy [$0 [%7]] : string
+>   %8 = Read borrow [$0 [%7]] : string
 >   %9 = Store [$3] %8 : ()
 >   %10 = Read borrow [$3] : string
 >   %11 = Call std/rt.bytes/bytes_len[] (%10) : usize
 >   %12 = Break L1 %11 : never
 >   %13 = Block - : usize
 >   %14 = Scope %13 [] : usize
->   %15 = Drop [$3] : ()
->   %16 = Prim Add [%6 %14] : usize
->   %17 = Store [$2] %16 : ()
->   %21 = Block - : ()
+>   %15 = Prim Add [%6 %14] : usize
+>   %16 = Store [$2] %15 : ()
+>   %20 = Block - : ()
         i += 1
->   %18 = Read copy [$1] : usize
->   %19 = Prim Add [%18 1:usize] : usize
->   %20 = Store [$1] %19 : ()
+>   %17 = Read copy [$1] : usize
+>   %18 = Prim Add [%17 1:usize] : usize
+>   %19 = Store [$1] %18 : ()
     n
->   %28 = Read copy [$2] : usize
->   exit sub 0 drops [$0]
->   summary kept [$0]
->   loop %26 keeps [$0]
+>   %26 = Read copy [$2] : usize
+>   summary kept [] borrows [$0]
+>   loop %25 keeps [$0]
 
 fn build_while(s: string, k: usize) -> string:
     let out = s

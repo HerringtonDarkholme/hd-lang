@@ -264,7 +264,7 @@
       call $"impl Vec2.shift"
     end
   )
-  (func $element_read (param $xs i32) (param $i i32) (result i32) (local $t0 i32)
+  (func $element_read (param $xs i32) (param $i i32) (result i32)
     block
     ;; 37 |     xs[i].label_len()
       local.get $i
@@ -280,24 +280,19 @@
       i32.const 16
       i32.mul
       i32.add
-      local.tee $i
+      local.tee $xs
       i32.load $heap offset=16
-      local.get $i
-      i32.load $heap offset=20
-      local.set $t0
-      local.tee $i
-      call $retain
-    ;; (no span)
       local.get $xs
-      call $rt:release_ref'2
-    ;; 37 |     xs[i].label_len()
+      i32.load $heap offset=20
+      local.set $i
+      local.set $xs
       block
         block
-          local.get $i
+          local.get $xs
           drop
           block
             block
-              local.get $t0
+              local.get $i
               local.set $xs
               br 0
             end
@@ -305,10 +300,8 @@
           br 0
         end
       end
-    ;; (no span)
-      local.get $i
-      call $rt:release_ref'1
     end
+    ;; (no span)
     local.get $xs
   )
   (func $"impl Vec2.label_len" (param $self i32) (result i32)

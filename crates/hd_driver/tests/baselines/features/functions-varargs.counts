@@ -9,9 +9,6 @@
 fn total(parts...: List[string]) -> usize:
     let n: usize = 0
     for p in parts:
-> app/main/total
->   retain string (conservative: copy read)
->   release string (last use)
         n += p.len()
     n
 

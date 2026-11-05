@@ -4,7 +4,6 @@
   (import "fixture" "rt:list_unique'1" (func $rt:list_unique'1 (param i32) (result i32)))
   (import "fixture" "rt:str_append" (func $rt:str_append (param i32 i32 i32 i32) (result i32 i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:list_unique'2" (func $rt:list_unique'2 (param i32) (result i32)))
   (import "fixture" "rt:list_reserve" (func $rt:list_reserve (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -237,10 +236,15 @@
   )
   (func $over_value (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $x.0 i32) (local $x.1 i32)
     block
+    ;; 8 |     let n: usize = 0
+      i32.const 0
+      local.set $n
     ;; 9 |     for x in xs:
       local.get $xs
       i32.load $heap offset=4
       local.set $t0
+      i32.const 0
+      local.set $t1
       block
         loop
           local.get $t1
@@ -258,16 +262,13 @@
           local.get $x.0
           i32.load $heap offset=20
           local.set $x.1
-          local.tee $x.0
-          call $retain
+          local.set $x.0
           local.get $t1
           i32.const 1
           i32.add
           local.set $t1
           block
             block
-              local.get $x.0
-              local.set $x.0
               br 0
               unreachable
             end
@@ -276,18 +277,18 @@
             drop
             block
               block
+                local.get $x.1
+                local.set $x.0
                 br 0
               end
             end
             local.get $n
-            local.get $x.1
+            local.get $x.0
             i32.add
             local.set $n
     ;; 9 |     for x in xs:
             br 0
           end
-          local.get $x.0
-          call $rt:release_ref
           br 0
         end
       end
@@ -298,7 +299,7 @@
     end
     local.get $xs
   )
-  (func $comprehension (param $xs i32) (result i32) (local $t0 i32) (local $t1 i32) (local $x.0 i32) (local $x.1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
+  (func $comprehension (param $xs i32) (result i32) (local $t0 i32) (local $t1 i32) (local $x.0 i32) (local $x.1 i32) (local $t2 i32) (local $t3 i32)
     block
     ;; 30 |     [for x in xs => x.len()]
       i32.const 80 ;; &empty-buffer
@@ -336,16 +337,13 @@
           local.get $x.0
           i32.load $heap offset=20
           local.set $x.1
-          local.tee $x.0
-          call $retain
+          local.set $x.0
           local.get $t2
           i32.const 1
           i32.add
           local.set $t2
           block
             block
-              local.get $x.0
-              local.set $x.0
               br 0
               unreachable
             end
@@ -353,41 +351,41 @@
             drop
             block
               block
+                local.get $x.1
+                local.set $x.0
                 br 0
               end
             end
             local.get $xs
             call $rt:list_unique'2
             local.tee $xs
-            local.tee $t3
+            local.tee $x.1
             i32.load $heap offset=4
-            local.tee $t4
-            local.get $t3
+            local.tee $t3
+            local.get $x.1
             i32.load $heap
             i32.eq
             if
-              local.get $t3
+              local.get $x.1
               i32.const 2
               call_indirect $table0 (param i32) (result i32)
-              local.tee $t3
+              local.tee $x.1
               local.set $xs
             end
+            local.get $x.1
             local.get $t3
-            local.get $t4
             i32.const 4
             i32.mul
             i32.add
-            local.get $x.1
+            local.get $x.0
             i32.store $heap offset=16
+            local.get $x.1
             local.get $t3
-            local.get $t4
             i32.const 1
             i32.add
             i32.store $heap offset=4
             br 0
           end
-          local.get $x.0
-          call $rt:release_ref
           br 0
         end
       end
