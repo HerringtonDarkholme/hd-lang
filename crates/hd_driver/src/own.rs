@@ -151,14 +151,51 @@ pub(super) struct Summaries {
     /// (`sub_flags::EXCLUSIVE`). Collection gives it to the calls whose
     /// arguments stage 7 keeps exclusive (`hd_tir::own::exclusive_call`).
     exclusive: std::sync::Mutex<HashMap<Node, Exclusive>>,
-    /// Each generic instance's body after the passes
-    /// (`ProgramEnv::instance_body`), owned once, by the walk that
-    /// records its summary ([`Run::owned_bottom_up`]); `None` where the
-    /// passes refused it.
-    instances: std::sync::Mutex<HashMap<Node, Option<std::sync::Arc<Body>>>>,
     /// Per item, type arguments and whether of the exclusive copy, its
     /// promoted copy (#1151, [`Env::promoted_copy`]), once asked.
     promoted: std::sync::Mutex<HashMap<PromotedKey, Option<Exclusive>>>,
+}
+
+/// The most parts by value an instance's type arguments may hold for the
+/// instance to get a body of its own ([`Env::inlined_instance`]); past it
+/// the item's generic body serves, as it does an erased body. The passes'
+/// layout queries walk every part of a concrete type, and a type that
+/// doubles at each level (`Pair[Pair[A, A], Pair[A, A]]`) has
+/// exponentially many: owning its instances would not end before
+/// collection reaches the depth limit (`instantiation-too-deep`).
+const MAX_INSTANCE_LEAVES: u64 = 1 << 12;
+
+/// How many parts the types of `args` hold: each type, and each of its
+/// type arguments and members once per occurrence, as a value holds them.
+/// Each distinct type is computed once, so this costs the number of
+/// distinct types, not of parts.
+fn instance_leaves(pool: &hd_types::InternPool, args: TyList) -> u64 {
+    fn leaves(pool: &hd_types::InternPool, t: Ty, memo: &mut HashMap<Ty, u64>) -> u64 {
+        if let Some(&n) = memo.get(&t) {
+            return n;
+        }
+        let sum = |ts: &[Ty], memo: &mut HashMap<Ty, u64>| {
+            ts.iter()
+                .fold(1u64, |n, &u| n.saturating_add(leaves(pool, u, memo)))
+        };
+        let n = match pool.get(t) {
+            TyData::Tuple { elems, rest } => {
+                let mut ts = pool.list_items(elems).to_vec();
+                ts.extend(rest);
+                sum(&ts, memo)
+            }
+            TyData::Adt { args, .. } => sum(pool.list_items(args), memo),
+            TyData::Union(ms) => sum(pool.list_items(ms), memo),
+            TyData::Option(i) | TyData::Mut(i) => sum(&[i], memo),
+            _ => 1,
+        };
+        memo.insert(t, n);
+        n
+    }
+    let mut memo = HashMap::default();
+    pool.list_items(args)
+        .iter()
+        .fold(0u64, |n, &t| n.saturating_add(leaves(pool, t, &mut memo)))
 }
 
 /// An instance the summaries describe: an item and its type arguments as
@@ -1435,16 +1472,37 @@ impl Env<'_> {
         Some(self.node(def, args))
     }
 
+    /// Generic item `def`'s own body folded and inlined
+    /// ([`Env::inlined_instance`] at no type arguments), once.
+    pub(super) fn generic_inlined(&self, def: DefId) -> Option<&(Body, Hash128)> {
+        let lazy = self.run.lazy_body(self.p, def)?;
+        let inlined = lazy
+            .inlined
+            .get_or_init(|| self.inlined_instance((def, TyList::EMPTY)).map(Box::new));
+        inlined.as_deref()
+    }
+
     /// Instance `node`'s body before the passes: an item's own body, or a
     /// generic item's at its type arguments, with its types substituted
     /// and its trait calls chosen as impl calls; then folded and inlined
     /// ([`Env::fold_and_inline`]). A non-generic item's own body is its
-    /// one instance's.
+    /// one instance's. In dev, a generic instance substitutes its item's
+    /// body after the folds and the inliner ([`Env::generic_inlined`]):
+    /// they run once per generic body, so a trait call the instance
+    /// chooses as an impl call stays a call. `None`, so the item's generic
+    /// body serves, for type arguments past [`MAX_INSTANCE_LEAVES`].
     pub(super) fn inlined_instance(&self, (def, args): Node) -> Option<(Body, Hash128)> {
-        let (raw, hash) = self
-            .run
-            .lazy_body(self.p, def)
-            .and_then(|b| self.run.decode(b))?;
+        if args != TyList::EMPTY && instance_leaves(&self.run.pool, args) > MAX_INSTANCE_LEAVES {
+            return None;
+        }
+        let dev = self.run.summaries.is_none() && args != TyList::EMPTY;
+        let (raw, hash) = if dev {
+            self.generic_inlined(def)?
+        } else {
+            self.run
+                .lazy_body(self.p, def)
+                .and_then(|b| self.run.decode(b))?
+        };
         let mut body = raw.clone();
         if args != TyList::EMPTY {
             let pool = &self.run.pool;
@@ -1463,21 +1521,23 @@ impl Env<'_> {
                 InlineEnv::select_impl(self, trait_, self_ty, targs)
             });
         }
+        if dev {
+            return Some((body, *hash));
+        }
         let hash = self.fold_and_inline(&mut body, *hash);
         Some((body, hash))
     }
 
-    /// Release: generic instance `node`'s body after the passes
-    /// (`ProgramEnv::instance_body`), owned once, with its callees first
-    /// ([`Run::owned_bottom_up`]); `None` when it has no body.
+    /// Generic instance `node`'s body after the passes
+    /// (`ProgramEnv::instance_body`), owned once: in release with its
+    /// callees first ([`Run::owned_bottom_up`]), in dev alone, since no
+    /// summary is read; `None` when it has no body.
     pub(super) fn owned_instance(&self, node: Node) -> StageResult<Option<std::sync::Arc<Body>>> {
-        let Some(all) = &self.run.summaries else {
-            return Ok(None);
-        };
-        if !lock(&all.instances).contains_key(&node) {
+        let instances = &self.run.instances;
+        if self.run.summaries.is_some() && !lock(instances).contains_key(&node) {
             self.run.owned_bottom_up(self.p, node);
         }
-        if let Some(owned) = lock(&all.instances).get(&node).cloned().flatten() {
+        if let Some(owned) = lock(instances).get(&node).cloned().flatten() {
             return Ok(Some(owned));
         }
         // The walk keeps no error: the passes' refusal is reported here.
@@ -1485,7 +1545,11 @@ impl Env<'_> {
             return Ok(None);
         };
         let (owned, _) = self.own_inlined(body, hash, node.1)?;
-        Ok(Some(std::sync::Arc::new(owned)))
+        let owned = std::sync::Arc::new(owned);
+        if self.run.summaries.is_none() {
+            lock(instances).insert(node, Some(owned.clone()));
+        }
+        Ok(Some(owned))
     }
 
     /// Inlined body `body` of instance `(body.item, args)`, with hash
@@ -1858,7 +1922,7 @@ impl Run<'_> {
     /// is its item's own, or a generic item's at its type arguments
     /// ([`Env::inlined_instance`]), and the passes run over it once: an
     /// item's own body is its lazy body's owned entry, a generic
-    /// instance's is kept for collection ([`Summaries::instances`]). Each
+    /// instance's is kept for collection (`Run::instances`). Each
     /// component's members are owned in path order and marked when it is
     /// recursive. A body the passes refuse stays unowned, for
     /// `Run::body_of` or `Env::owned_instance` to report.
@@ -1871,7 +1935,7 @@ impl Run<'_> {
                 self.lazy_body(p, n.0)
                     .is_none_or(|b| b.owned.get().is_some())
             } else {
-                lock(&all.instances).contains_key(&n)
+                lock(&self.instances).contains_key(&n)
             }
         };
         self.with_env(p, |env| {
@@ -1934,7 +1998,7 @@ impl Run<'_> {
                     let owned = body.and_then(|(body, hash)| env.own_inlined(body, hash, m.1).ok());
                     if m.1 != TyList::EMPTY {
                         let owned = owned.map(|(body, _)| std::sync::Arc::new(body));
-                        lock(&all.instances).insert(m, owned);
+                        lock(&self.instances).insert(m, owned);
                     } else if let (Some(lazy), Some(owned)) = (self.lazy_body(p, m.0), owned) {
                         let _ = lazy.owned.set(Some(owned));
                     }

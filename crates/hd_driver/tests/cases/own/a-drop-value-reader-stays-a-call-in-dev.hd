@@ -1,0 +1,21 @@
+# @dump: own
+# @build: std
+# An inlined copy of `Buffer.capacity` never binds its receiver's value,
+# which holds a `std.rt.Drop`. Such a binding borrows only where nothing
+# writes or moves around it; elsewhere it copies, a second owner whose
+# drop frees the room. Release keeps the reference in the copy, and dev
+# keeps the call: through a reference the caller is lent and through a
+# box it owns, the call takes the buffer's reference, with no count.
+use std.rt.memory.Buffer
+
+struct Bag:
+    buffer: Buffer[i32]
+
+impl !Copy for Bag
+
+fn through_reference(bag: &Bag) -> usize:
+    bag.buffer.capacity()
+
+fn through_owned_box() -> usize:
+    bag := box(Bag { buffer: Buffer::[i32].new(4) })
+    bag.buffer.capacity()

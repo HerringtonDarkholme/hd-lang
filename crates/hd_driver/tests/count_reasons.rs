@@ -1,12 +1,15 @@
 //! The count-reason corpus walk (#1399, #1362): builds every corpus module
-//! in release, tallies each emitted count operation by corpus part, side
-//! (`app` or `std` bodies) and reason, and records a digest of each
-//! module's plain Wasm for byte-identity checks between two commits.
+//! in release (or dev, below), tallies each emitted count operation by
+//! corpus part, side (`app` or `std` bodies) and reason, and records a
+//! digest of each module's plain Wasm for byte-identity checks between two
+//! commits.
 //!
 //! `cargo test -p hd_driver --test count_reasons -- --ignored --nocapture`
 //!
 //! - `HD_CORPUS_EVERY=N` builds every Nth module of each part (default 1).
 //! - `HD_CORPUS_OUT=DIR` writes `digests.tsv` and `reasons.tsv` there.
+//! - `HD_CORPUS_DEV=1` builds in dev (checked profile, dev pipeline)
+//!   instead of release.
 //!
 //! The parts: `conformance` (runtime cases of `spec/conformance`), `stage`
 //! (every crate's `tests/cases`), `examples`, `tour` and `guide` (hd blocks
@@ -262,9 +265,18 @@ fn build(store: &MemoryStore, m: &Module, origins: bool) -> hd_driver::Output {
         clock: &NoClock,
         executor: Executor::Serial(SerialOrder::Priority),
     };
+    let dev = std::env::var_os("HD_CORPUS_DEV").is_some();
     let packages = Packages {
-        build_profile: BuildProfile::Release,
-        level: OptLevel::Optimized,
+        build_profile: if dev {
+            BuildProfile::Checked
+        } else {
+            BuildProfile::Release
+        },
+        level: if dev {
+            OptLevel::Dev
+        } else {
+            OptLevel::Optimized
+        },
         instruction_origins: origins,
         ..Packages::default()
     };

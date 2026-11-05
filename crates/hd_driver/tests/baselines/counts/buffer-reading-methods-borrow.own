@@ -19,38 +19,23 @@ impl Bag:
 >   local $1 len: usize [param read]
 >   local $2 capacity: usize [:= read assigned]
 >   local $3 address: usize [:= read assigned]
->   local $4 self: Buffer[i32] [read]
->   local $5 index: usize [read]
->   local $6 self: Buffer[i32] [read]
->   %0 = Read borrow [*$0 .buffer] : Buffer[i32]
->   %1 = Store [$6] %0 : ()
->   %2 = Read copy [$6 .capacity] : usize
->   %3 = Break L1 %2 : never
->   %4 = Block - : usize
->   %5 = Scope %4 [] : usize
->   %6 = Drop [$6] : ()
->   %7 = Store [$2] %5 : ()
->   %28 = Block %27 : usize
+>   %0 = Ref lent local [*$0 .buffer] : Ref[Buffer[i32]]
+>   %1 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].capacity[i32] (%0) : usize
+>   %2 = Drop [%0] : ()
+>   %3 = Store [$2] %1 : ()
+>   %16 = Block %15 : usize
         self.buffer.grow(len)
->   %8 = Ref lent mut local [*$0 .buffer] : Ref[mut Buffer[i32]]
->   %9 = Read copy [$1] : usize
->   %10 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].grow[i32] (%8, %9) : ()
->   %11 = Drop [%8] : ()
+>   %4 = Ref lent mut local [*$0 .buffer] : Ref[mut Buffer[i32]]
+>   %5 = Read copy [$1] : usize
+>   %6 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].grow[i32] (%4, %5) : ()
+>   %7 = Drop [%4] : ()
         address := self.buffer.at(0).address
->   %12 = Read borrow [*$0 .buffer] : Buffer[i32]
->   %13 = Store [$4] %12 : ()
->   %14 = Store [$5] 0:usize : ()
->   %15 = Read copy [$4 .address] : usize
->   %16 = NewStruct [%15] : Ptr[i32]
->   %17 = Read copy [$5] : usize
->   %18 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[i32] (%16, %17) : Ptr[i32]
->   %19 = Break L0 %18 : never
->   %20 = Block - : Ptr[i32]
->   %21 = Scope %20 [] : Ptr[i32]
->   %22 = Drop [$4] : ()
->   %23 = Read copy [%21 .address] : usize
->   %24 = Store [$3] %23 : ()
+>   %8 = Ref lent local [*$0 .buffer] : Ref[Buffer[i32]]
+>   %9 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].at[i32] (%8, 0:usize) : Ptr[i32]
+>   %10 = Drop [%8] : ()
+>   %11 = Read copy [%9 .address] : usize
+>   %12 = Store [$3] %11 : ()
         capacity + address
->   %25 = Read copy [$2] : usize
->   %26 = Read copy [$3] : usize
->   %27 = Prim Add [%25 %26] : usize
+>   %13 = Read copy [$2] : usize
+>   %14 = Read copy [$3] : usize
+>   %15 = Prim Add [%13 %14] : usize

@@ -83,8 +83,8 @@ pub trait InlineEnv: ProgramEnv {
     }
     /// The referent of a reference of type `t` that holds a value with a
     /// `std.rt.Drop` (`hd_wasm_linear::rooted_referent`): an inlined copy
-    /// takes it by value only through its caller's reference parameter,
-    /// which nothing in the caller drops (`promote::inline_args`).
+    /// never takes it by value; it keeps the reference in release, and in
+    /// dev the call stays a call.
     fn rooted_referent(&self, _t: Ty) -> Option<Ty> {
         None
     }
@@ -185,36 +185,18 @@ impl dyn InlineEnv + '_ {
                 let may_write = |c: &Callee| self.call_may_write(c);
                 let promote = self.by_value(def, targs, &copy);
                 let (mask, counted, rooted) = promote.unwrap_or((0, 0, 0));
-                // Release: a referent that holds a `std.rt.Drop` keeps its
-                // reference, as a small release reader may. A copy of it
-                // is a second owner, which the passes drop at the copy's
-                // end even where a value read from it still lives.
-                let kept = if self.memo().is_some() {
-                    mask & rooted
-                } else {
-                    0
-                };
+                // A referent that holds a `std.rt.Drop` keeps its
+                // reference, as a small release reader may; in dev, where
+                // none does, the call stays a call. A by-value binding of
+                // it borrows only where the passes find nothing that
+                // writes or moves around it; elsewhere they copy it, a
+                // second owner, which they drop at the copy's end even
+                // where a value read from it still lives
+                // (`UniqList.swap`'s `self.buffer.at(left)` at `string`).
+                let kept = mask & rooted;
                 let mask = mask & !kept;
                 let writes = hd_tir::own::writes_in(&copy, 0..copy.len(), &may_write);
-                let lent_param = |l: u32| {
-                    let mut t = body.local_ty[l as usize];
-                    while let TyData::Mut(inner) = pool.get(t) {
-                        t = inner;
-                    }
-                    match pool.get(t) {
-                        TyData::Ref { .. } => true,
-                        TyData::Adt { def, .. } => self.ref_cells().holds(def),
-                        _ => false,
-                    }
-                };
-                let args = hd_tir::own::promote::inline_args(
-                    body,
-                    c,
-                    (counted, rooted),
-                    writes,
-                    &may_write,
-                    &lent_param,
-                );
+                let args = hd_tir::own::promote::inline_args(body, c, counted, writes, &may_write);
                 if promote.is_none() {
                     if self.memo().is_none() || !self.read_only_refs(def, targs, &copy) {
                         continue;
@@ -226,10 +208,9 @@ impl dyn InlineEnv + '_ {
                         .fold(0, |mask, (k, _)| mask | 1 << k);
                     0
                 } else if args & mask != mask || kept != 0 {
-                    // A Drop owner must keep its address when no caller
-                    // parameter roots a snapshot. Other promotable
+                    // A Drop owner keeps its address; other promotable
                     // referents retain the existing call-site checks.
-                    if mask & !args & !rooted != 0
+                    if mask & !args != 0
                         || self.memo().is_none()
                         || !self.read_only_refs(def, targs, &copy)
                     {
@@ -524,8 +505,8 @@ impl dyn InlineEnv + '_ {
                     counted |= 1 << k;
                 }
             } else {
-                // Read through the caller's reference, as a counted
-                // referent is (`inline_args`).
+                // Kept a reference, or the call stays a call
+                // ([`InlineEnv::rooted_referent`]).
                 self.rooted_referent(t)?;
                 rooted |= 1 << k;
                 counted |= 1 << k;

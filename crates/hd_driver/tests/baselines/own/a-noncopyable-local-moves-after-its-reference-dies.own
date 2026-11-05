@@ -2,7 +2,7 @@
 app/main/in_arm
   local $0 xs: UniqList[string] [param read captured]
   local $3 n: usize [:= read assigned]
-  %30 = Read move [$0] : UniqList[string]
-  %31 = Call app/main/eat[] (%30) : usize
-  %32 = Store [$3] %31 : ()
+  %22 = Read move [$0] : UniqList[string]
+  %23 = Call app/main/eat[] (%22) : usize
+  %24 = Store [$3] %23 : ()
   exit sub 0 drops [$0]

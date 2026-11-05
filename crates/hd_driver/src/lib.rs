@@ -1062,10 +1062,12 @@ struct LazyBody {
     wire: Option<(usize, Arc<[u8]>, std::ops::Range<usize>)>,
     body: OnceLock<Option<(Body, Hash128)>>,
     owned: OnceLock<Option<(Body, Hash128)>>,
-    /// Release: a generic item's body folded and inlined, before the
-    /// passes (`ProgramEnv::shape_body`). Boxed: the table holds a
-    /// `LazyBody` per body of every module, and few are generic.
-    inlined: OnceLock<Option<Box<Body>>>,
+    /// A generic item's body folded and inlined, before the passes
+    /// (`ProgramEnv::shape_body`), and its hash; in dev, each of its
+    /// instances substitutes it (`own::Env::inlined_instance`). Boxed: the
+    /// table holds a `LazyBody` per body of every module, and few are
+    /// generic.
+    inlined: OnceLock<Option<Box<(Body, Hash128)>>>,
 }
 
 impl LazyBody {
@@ -1518,6 +1520,11 @@ struct Run<'a> {
     /// The release summaries of the bodies the passes ran over
     /// (`own.rs`); `None` in a dev build, which computes none.
     summaries: Option<own::Summaries>,
+    /// Each generic instance's body after the passes
+    /// (`ProgramEnv::instance_body`), owned once: in release by the walk
+    /// that records its summary (`own::Run::owned_bottom_up`), in dev on
+    /// first use; `None` where the passes refused it.
+    instances: Mutex<HashMap<own::Node, Option<Arc<Body>>>>,
     /// The root package's per-body fuel, when a test sets it
     /// ([`Packages::body_fuel`]).
     body_fuel: Option<u64>,
@@ -2352,6 +2359,7 @@ fn build_packages_inner(
             .tir
             .contains(&"summaries")
             .then(own::Summaries::default),
+        instances: Mutex::new(HashMap::default()),
         promote_args: hd_opt::passes::pipeline(packages.target, packages.level)
             .tir
             .contains(&"arg_promote"),
@@ -11766,15 +11774,10 @@ impl ProgramEnv for Env<'_> {
     fn shape_body(&self, def: DefId) -> Option<&Body> {
         let generic = self.parent(def).is_some_and(|(_, n)| n > 0)
             || self.sig(def).is_some_and(|s| !s.generics.is_empty());
-        if self.run.summaries.is_none() || !generic {
+        if !generic {
             return self.body(def);
         }
-        let lazy = self.run.lazy_body(self.p, def)?;
-        let inlined = lazy.inlined.get_or_init(|| {
-            self.inlined_instance((def, TyList::EMPTY))
-                .map(|(body, _)| Box::new(body))
-        });
-        inlined.as_deref()
+        self.generic_inlined(def).map(|b| &b.0)
     }
     fn exclusive_body(&self, def: DefId, args: TyList) -> Option<(u64, Arc<Body>)> {
         self.run.summaries.as_ref()?.exclusive(self.node(def, args))
@@ -11789,9 +11792,8 @@ impl ProgramEnv for Env<'_> {
         self.promoted_copy(def, args, exclusive, want)
     }
     fn instance_body(&self, def: DefId, args: TyList) -> StageResult<Option<Arc<Body>>> {
-        // Release only: dev keeps one owned body per item (#1399 step 3).
         // A non-generic item's own body is its one instance's.
-        if self.run.summaries.is_none() || args == TyList::EMPTY {
+        if args == TyList::EMPTY {
             return Ok(None);
         }
         self.owned_instance(self.node(def, args))

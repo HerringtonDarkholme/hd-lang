@@ -56,7 +56,7 @@ struct Wrap[T]:
 fn n_at[T](xs: List[Wrap[T]], i: usize) -> usize:
     xs[i].n
 > app/main/n_at
->   (no span) release List[app.main.Wrap[string]] (conservative: unowned parameter)
+>   release List[app.main.Wrap[string]] (conservative: unowned parameter)
 
 fn use_generic(m: Members[i32], xs: List[Wrap[string]], i: usize) -> i64:
     name := m.name_at(i)

@@ -50,18 +50,18 @@ pub trait ProgramEnv: LayoutEnv {
         self.body(def).is_some()
     }
     /// The body whose types and calls collection's analyses read (exact
-    /// parameters, permission sharing): in release, a generic item's body
-    /// folded and inlined but not owned, since each of its instances is
+    /// parameters, permission sharing): a generic item's body folded (and,
+    /// in release, inlined) but not owned, since each of its instances is
     /// owned on its own (`ProgramEnv::instance_body`); else
     /// [`ProgramEnv::body`]. The passes add counts and read modes only.
     fn shape_body(&self, def: DefId) -> Option<&Body> {
         self.body(def)
     }
-    /// Release: `def`'s body at `args`, with its types substituted, its
-    /// impls rechosen, its facts folded, inlined and owned. Collection and
-    /// emission both use it in place of the ordinary body, and its
-    /// summary decides how the instance takes its parameters
-    /// ([`ProgramEnv::lends`]). `None` keeps the ordinary body.
+    /// `def`'s body at `args`, with its types substituted, its impls
+    /// rechosen, its facts folded, then, in release, inlined; and owned.
+    /// Collection and emission both use it in place of the ordinary body,
+    /// and in release its summary decides how the instance takes its
+    /// parameters ([`ProgramEnv::lends`]). `None` keeps the ordinary body.
     fn instance_body(&self, _def: DefId, _args: TyList) -> StageResult<Option<Arc<Body>>> {
         Ok(None)
     }
