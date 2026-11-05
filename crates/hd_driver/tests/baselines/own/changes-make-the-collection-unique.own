@@ -32,7 +32,7 @@ fn change(mut rows: List[List[i32]], mut bags: List[Bag], mut m: Map[string, Lis
 >   %8 = Store [$1 [%6] .count] 2:i32 : ()
     bags[i].items.push(3)
 >   %9 = Read copy [$3] : usize
->   %10 = IsUnique [$1] : ()
+>   %10 = IsUnique repeat [$1] : ()
 >   %11 = IsUnique [$1 [%9] .items] : ()
 >   %12 = Read borrow [$1 [%9] .items] : List[i32]
 >   %13 = Intrinsic ListPush [%12 3:i32] : ()

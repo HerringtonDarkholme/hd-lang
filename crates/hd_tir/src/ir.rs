@@ -751,6 +751,10 @@ pub mod unique_word {
     /// Of all of a fresh-buffer local (`own::hoist::fresh_locals`), whose
     /// buffer nothing else can hold: always unique, so no check runs.
     pub const FRESH: u32 = 3;
+    /// Of all of a local an earlier `IsUnique` of its block already made
+    /// unique, with nothing between that can share the buffer
+    /// (`own::hoist::repeats`): no check runs.
+    pub const REPEAT: u32 = 4;
 }
 
 /// How a `Read` reads its place (its `Meta` word b;

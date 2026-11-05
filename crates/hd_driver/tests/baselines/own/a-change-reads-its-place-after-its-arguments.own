@@ -40,7 +40,7 @@ fn add(mut bags: List[Bag], i: usize, n: i64) -> List[Bag]:
 >   %8 = Read copy [$1] : usize
 >   %9 = Read borrow [$0 [%8] .items] : List[i64]
 >   %10 = Read copy [$2] : i64
->   %11 = IsUnique [$0] : ()
+>   %11 = IsUnique repeat [$0] : ()
 >   %12 = IsUnique [$0 [%8] .items] : ()
 >   %13 = Read borrow [$0 [%8] .items] : List[i64]
 >   %14 = Intrinsic ListPush [%13 %10] : ()

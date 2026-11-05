@@ -129,8 +129,6 @@
       i32.store $heap offset=24
     ;; (no span)
       local.get $players
-      call $rt:list_unique
-      local.tee $players
     ;; 19 |     out.push(Player { name: s, score: 0 })
       local.tee $best
       i32.load $heap offset=4

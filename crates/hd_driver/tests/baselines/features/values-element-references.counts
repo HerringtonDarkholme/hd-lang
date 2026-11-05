@@ -21,7 +21,6 @@ fn rewarded(players: List[Player], best: usize, s: string) -> List[Player]:
 > app/main/rewarded
 >   (no span) unique List[app.main.Player] (conservative: unique)
 >   (no span) unique List[app.main.Player] (conservative: unique)
->   (no span) unique List[app.main.Player] (conservative: unique)
     out
 
 fn by_key(m: Map[string, Player], k: string) -> Map[string, Player]:

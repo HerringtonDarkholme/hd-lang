@@ -386,6 +386,17 @@ pub(crate) fn run(
             marked.push(i);
         }
     }
+    for i in 0..n {
+        // Not in a loop, whose checks hoisting may move.
+        if b.tags[i] == Tag::IsUnique
+            && b.data[i][1] == 0
+            && topo.loop_of[i] == NONE
+            && repeats(b, topo, i)
+        {
+            b.data[i][1] = unique_word::REPEAT;
+            marked.push(i);
+        }
+    }
     if !b.tags.contains(&Tag::Loop) {
         return;
     }
@@ -409,6 +420,39 @@ pub(crate) fn run(
     }
     b.stable_lists.sort_stable();
     b.stable_lists.dedup();
+}
+
+/// Whether `IsUnique` `i`, of all of a local, repeats an earlier one of
+/// the same local in its block with nothing between that can share the
+/// buffer (step 15b): the statements between are reads, stores, operators,
+/// constructions, drops and intrinsics other than a std call's, none of
+/// them naming all of the local (no whole read, store or drop of it: an
+/// element or field access is fine), so no copy, call or block between
+/// makes a second owner of the buffer the first check left unique.
+pub(crate) fn repeats(b: &Body, topo: &Topology, i: usize) -> bool {
+    let p = b.view(b.data[i][0]);
+    let (Some(l), true) = (p.local(), p.whole()) else {
+        return false;
+    };
+    let blk = topo.blk[i];
+    if blk == NONE {
+        return false;
+    }
+    let list = b.record(b.data[blk as usize][0]);
+    let pos = topo.pos[i] as usize;
+    for k in (0..pos).rev() {
+        let m = list[k] as usize;
+        let q = b.view(b.data[m][0]);
+        let names_all = q.whole() && q.local() == Some(l);
+        match b.tags[m] {
+            Tag::IsUnique if names_all => return true,
+            Tag::Read | Tag::Store | Tag::Drop | Tag::IsUnique if !names_all => {}
+            Tag::Prim | Tag::NewStruct | Tag::NewTuple | Tag::NewVariant | Tag::Coerce => {}
+            Tag::Intrinsic if IntrinsicOp::from_u32(b.data[m][0]) != Some(IntrinsicOp::Item) => {}
+            _ => return false,
+        }
+    }
+    false
 }
 
 /// Whether `IsUnique` `i` is of all of a local [`fresh_locals`] marks.
