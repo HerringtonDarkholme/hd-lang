@@ -81,16 +81,23 @@ tests:
 
     it("grow adds pages and gives the size before them"):
         before := pages()
+        grown := grow(2)
+        after := pages()
+        unchanged := grow(0)
+        after_zero := pages()
+        # Comparisons may allocate payload views, so measure before asserting.
         assert(before > 0, "the heap starts with a page")
-        assert(grow(2) == .Some(before), "grow gives the size before")
-        assert(pages() == before + 2, "the heap is 2 pages larger")
-        assert(grow(0) == .Some(before + 2), "grow(0) gives the size")
-        assert(pages() == before + 2, "grow(0) adds nothing")
+        assert(grown == .Some(before), "grow gives the size before")
+        assert(after == before + 2, "the heap is 2 pages larger")
+        assert(unchanged == .Some(after), "grow(0) gives the size")
+        assert(after_zero == after, "grow(0) adds nothing")
 
     it("a grow past the largest heap is refused and changes nothing"):
         before := pages()
-        assert(grow(65536) == .None, "no heap holds 65,537 pages")
-        assert(pages() == before, "a refused grow keeps the size")
+        refused := grow(65536)
+        after := pages()
+        assert(refused == .None, "no heap holds 65,537 pages")
+        assert(after == before, "a refused grow keeps the size")
 
     it("grown pages read as zero"):
         at := fresh_page()
