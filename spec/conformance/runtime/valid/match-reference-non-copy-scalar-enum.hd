@@ -1,0 +1,23 @@
+# test: matching through a reference reads a non-copyable enum with no counted part
+# Spec 13 Matching Through A Reference: ref.match.read, ref.match.copy.
+# expect-stdout: true false 0
+enum Slot:
+    Deleted
+    Occupied(usize, i32)
+
+impl !Copy for Slot
+
+fn probe(slot: &Slot, key: usize) -> bool:
+    match slot:
+        .Deleted => false
+        .Occupied(found, _) => found == key
+
+fn value(slot: &Slot) -> i32:
+    match slot:
+        .Deleted => +0
+        .Occupied(_, v) => v
+
+pub fn main() -> void $ Console:
+    full := Slot.Occupied(1, +3)
+    gone := Slot.Deleted
+    println("${probe(&full, 1)} ${probe(&gone, 1)} ${value(&gone)}")

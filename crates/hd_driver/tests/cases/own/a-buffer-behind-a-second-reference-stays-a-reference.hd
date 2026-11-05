@@ -1,0 +1,35 @@
+# @dump: own
+# @build: std release
+# `Buffer.at` inlines into `next` with its receiver `self.items.slots`,
+# which is behind two references. A by-value receiver holding a
+# `std.rt.Drop` is taken only as fields of the one reference the caller
+# lends, so this one stays a reference and is never copied (the copy
+# verifier refuses a copy of a `Buffer`). `UniqMapIter.next` reads its
+# slots this way.
+use std.rt.memory.Buffer
+
+enum Slot:
+    Deleted
+    Occupied(usize, string)
+
+impl !Copy for Slot
+
+struct Table:
+    slots: Buffer[Slot]
+    used: usize
+
+impl !Copy for Table
+
+struct Cursor['a]:
+    items: &'a Table
+    at: usize
+
+impl['a] Cursor['a]:
+    fn next(&mut self) -> usize?:
+        while self.at < self.items.used:
+            index := self.at
+            self.at += 1
+            match self.items.slots.at(index).as_ref():
+                .Occupied(found, _) => return .Some(found)
+                .Deleted => pass
+        .None

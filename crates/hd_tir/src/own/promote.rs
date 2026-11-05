@@ -241,16 +241,22 @@ pub fn promotable_ref(b: &Body, i: usize, user: usize) -> bool {
     lent_ref(b, i, user).is_some_and(|steps| steps == Steps::InPlace)
 }
 
-/// Whether `Ref` `i` names a place behind a reference that `b`'s caller
-/// lends (`lent_param`): `[*$p ...]`, where `$p` is such a parameter or a
-/// local stored once from a read of one, as an inlined copy's `self` is.
-/// The body owns nothing there, so none of its drops reaches the place.
+/// Whether `Ref` `i` names a place inside what a reference that `b`'s
+/// caller lends (`lent_param`) refers to: `[*$p .f ...]`, only fields
+/// after the one dereference, where `$p` is such a parameter or a local
+/// stored once from a read of one, as an inlined copy's `self` is. The
+/// body owns nothing there, so none of its drops reaches the place, and
+/// the borrow pass can see that the read borrows. A second dereference
+/// leaves the caller's referent for memory another reference reaches.
 fn through_param(b: &Body, i: usize, lent_param: &dyn Fn(u32) -> bool) -> bool {
     let p = b.view(b.data[i][0]);
     let Root::Local(l) = p.root else {
         return false;
     };
-    lends_referent(b, l, lent_param, 0) && matches!(p.steps(b).next(), Some(Proj::Deref))
+    let mut steps = p.steps(b);
+    lends_referent(b, l, lent_param, 0)
+        && matches!(steps.next(), Some(Proj::Deref))
+        && steps.all(|s| matches!(s, Proj::Field(_)))
 }
 
 /// Whether local `l` of `b` is a reference its caller lends: a lent
@@ -352,7 +358,7 @@ fn lent_ref(b: &Body, i: usize, user: usize) -> Option<Steps> {
 /// `may_write` for a call), and `copy_writes`, whether the copy may, is
 /// false. An argument in `rooted`, whose referent holds a value with a
 /// `std.rt.Drop`, counts only as what one of the body's reference
-/// parameters refers to, with no element on the way (`self.buffer` in a
+/// parameters refers to, with only fields on the way (`self.buffer` in a
 /// `&self` method): its caller keeps it alive and in place for the whole
 /// call, so the read the copy makes always borrows, where a local's last
 /// use could drop it while the copy still reads it.

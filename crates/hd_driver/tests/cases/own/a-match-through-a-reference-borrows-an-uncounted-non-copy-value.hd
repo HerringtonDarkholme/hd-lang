@@ -1,0 +1,16 @@
+# @dump: own
+# A match through `&Slot` borrows its scrutinee: `Slot` holds no counted
+# part, but it is not `Copy`, so the read is never a copy (the copy
+# verifier refuses one). `UniqMap[i32, i32]`'s probe loop reads its slots
+# this way.
+enum Slot:
+    Deleted
+    Occupied(usize, i32)
+
+impl !Copy for Slot
+
+fn probe(slot: &Slot, key: usize) -> bool:
+    # subject
+    match slot:
+        .Deleted => false
+        .Occupied(found, _) => found == key

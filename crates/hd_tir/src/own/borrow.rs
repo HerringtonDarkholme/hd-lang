@@ -1213,6 +1213,12 @@ fn decide(
         return;
     }
     if cx.counted(b.ty[r]) == Tri::No {
+        // An uncounted copy costs nothing, but a value whose type is not
+        // `Copy` is never copied: a match decides through its scrutinee
+        // by borrowing it. There is no count to end or drop.
+        if match_read && cx.copies(b.ty[r]) != Tri::Yes {
+            b.data[r][1] = ReadMode::Borrow as u32;
+        }
         return;
     }
     let x = u32_of(r);
