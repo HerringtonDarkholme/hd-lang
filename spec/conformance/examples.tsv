@@ -217,7 +217,7 @@ lang/05-expressions.md	3	mixed	typing/invalid/compound-assign-readonly.hd|typing
 lang/05-expressions.md	4	mixed	runtime/panic/compound-assign-map-missing-key.hd|runtime/valid/compound-assign-map-run.hd
 lang/05-expressions.md	5	mixed	typing/invalid/contextual-variant-without-type.hd
 lang/05-expressions.md	6	mixed	typing/invalid/module-path-private-member.hd|typing/invalid/module-path-missing-member.hd
-lang/05-expressions.md	7	accept	typing/valid/prelude-surface.hd
+lang/05-expressions.md	7	accept	runtime/valid/display-write-noncopy.hd
 lang/05-expressions.md	8	mixed	typing/invalid/interpolation-without-display.hd
 lang/05-expressions.md	9	accept	typing/valid/literal-suffix-user.hd|runtime/valid/literal-suffix-call.hd
 lang/05-expressions.md	10	type-fragment	-

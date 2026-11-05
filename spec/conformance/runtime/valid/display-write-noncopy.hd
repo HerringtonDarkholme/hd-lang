@@ -1,0 +1,23 @@
+# test: a non-copyable Display overrides write and remains readable after interpolation
+# expect-stdout: value 7
+# expect-stdout: value 7
+# expect-stdout: 7
+use std.text.StringBuilder
+
+struct Value:
+    id: usize
+
+impl !Copy for Value
+
+impl Display for Value:
+    fn to_string(&self) -> string:
+        "value ${self.id}"
+
+    fn write(&self, out: &mut StringBuilder) -> void:
+        out.push(self.to_string())
+
+pub fn main() -> void $ Console:
+    value := Value { id: 7 }
+    println("$value")
+    println(value.to_string())
+    println("${value.id}")
