@@ -77,9 +77,7 @@
         end
       end
       ;; ...
-    ;; (no span)
-      local.set $items
     end
-    local.get $items
+    ;; ...
   )
 )
