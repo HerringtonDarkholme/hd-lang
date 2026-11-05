@@ -41,7 +41,7 @@ fn user_cursor(words: Words) -> usize:
     let n: usize = 0
 > app/main/user_cursor
 >   local $0 words: Words [param read] value
->   local $1 n: usize [read assigned mutated] value ×2
+>   local $1 n: usize [read assigned mutated] place
 >   local $2 $ref: Words [read assigned captured captured-assigned] place
 >   local $3 $iter: Ref[mut Words] [assigned] value
 >   local $4 w: string [read assigned] value
@@ -90,7 +90,7 @@ fn twice(xs: List[string]) -> usize:
     let n: usize = 0
 > app/main/twice
 >   local $0 xs: List[string] [param read] value
->   local $1 n: usize [read assigned mutated] value ×3
+>   local $1 n: usize [read assigned mutated] place
 >   local $2 $ref: ListIter[string] [read assigned captured captured-assigned] place
 >   local $3 $iter: Ref[mut ListIter[string]] [assigned] value
 >   local $4 x: string [read assigned] value

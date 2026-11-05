@@ -175,7 +175,7 @@ fn mut_self(v: Vec2, n: string) -> usize:
 >   local $2 w: Vec2 [:= read assigned] value
 >   local $3 self: string [read] value
 >   local $4 self: string [read] value
->   local $5 self: Vec2 [read assigned] value ×2
+>   local $5 self: Vec2 [read assigned] place
 >   local $6 n: string [read] value
 >   %0 = Read copy [$0] : Vec2
 >   %1 = Read move [$1] : string

@@ -27,7 +27,7 @@ fn run!(n: i32) -> void:
 > app/main/run
 >   local $0 n: i32 [param read] value
 >   local $1 c: Counter [read assigned captured captured-assigned] place
->   local $2 i: i32 [read assigned mutated] value ×2
+>   local $2 i: i32 [read assigned mutated] place
 >   %0 = NewStruct [0:i32 "a"] : Counter
 >   %1 = Store [$1] %0 : ()
 >   %20 = Block - : ()

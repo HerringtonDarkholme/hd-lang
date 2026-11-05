@@ -30,8 +30,8 @@ fn total(head: *Chain?) -> usize:
     let n: usize = 0
 > app/main/total
 >   local $0 head: Counted[Chain]? [param read] value
->   local $1 n: usize [read assigned mutated] value ×2
->   local $2 cur: Counted[Chain]? [read assigned mutated] value ×2
+>   local $1 n: usize [read assigned mutated] place
+>   local $2 cur: Counted[Chain]? [read assigned mutated] place
 >   local $3 c: Counted[Chain] [read assigned] value
 >   local $4 self: string [read] value
 >   %0 = Store [$1] 0:usize : ()

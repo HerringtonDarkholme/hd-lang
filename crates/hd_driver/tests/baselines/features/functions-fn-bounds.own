@@ -88,7 +88,7 @@ fn each[F < FnMut(string) -> void](xs: List[string], mut f: F) -> void:
 >   local $0 xs: List[string] [param read] value
 >   local $1 f: F [param read] value
 >   local $2 $coll: List[string] [assigned] value
->   local $4 $pos: usize [assigned] value ×2
+>   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
 >   local $6 x: string [read assigned] value
 >   %0 = Read borrow [$0] : List[string]

@@ -2,7 +2,7 @@
 app/main/reassigned
   local $1 t: List[string] [param read] value
   local $2 c: bool [param read] value
-  local $3 cur: List[string] [read assigned mutated] value ×2
+  local $3 cur: List[string] [read assigned mutated] place
   %2 = Read copy [$3] : List[string]
   %3 = Read copy [$2] : bool
   %4 = Read move [$1] : List[string]

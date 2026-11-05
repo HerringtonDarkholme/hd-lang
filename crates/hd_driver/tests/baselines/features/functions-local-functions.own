@@ -12,9 +12,9 @@ fn local_capture(prefix: string, xs: List[string]) -> usize:
 >   local $1 xs: List[string] [param read] value
 >   local $2 s: string [param read] value
 >   local $3 width: fn(string) -> usize [:= read assigned] value
->   local $4 total: usize [read assigned mutated] value ×2
+>   local $4 total: usize [read assigned mutated] place
 >   local $5 $coll: List[string] [assigned] value
->   local $7 $pos: usize [assigned] value ×2
+>   local $7 $pos: usize [assigned] place
 >   local $8 $end: usize [assigned] value
 >   local $9 x: string [read assigned] value
 >   local $10 self: string [read] value

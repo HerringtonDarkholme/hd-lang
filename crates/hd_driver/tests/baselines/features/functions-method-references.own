@@ -125,9 +125,9 @@ fn adapter(us: List[User]) -> usize:
 >   local $0 us: List[User] [param read] value
 >   local $1 u: User [param read] value
 >   local $2 g: fn(User) -> usize [:= read assigned] value
->   local $3 n: usize [read assigned mutated] value ×2
+>   local $3 n: usize [read assigned mutated] place
 >   local $4 $coll: List[User] [assigned] value
->   local $6 $pos: usize [assigned] value ×2
+>   local $6 $pos: usize [assigned] place
 >   local $7 $end: usize [assigned] value
 >   local $8 u: User [read assigned] value
 >   local $9 self: User [read] value

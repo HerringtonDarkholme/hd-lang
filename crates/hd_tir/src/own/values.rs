@@ -9,10 +9,13 @@
 //! it through a cell; a cleanup suite that reads or writes it, which runs
 //! at its scope's exits; or a store into an element or a variant payload
 //! of it, which changes its buffer or its tag in place. A `Ref` or a store
-//! through a dereference reaches what the local refers to, not the local. Every other local is a **value**. Its
-//! definitions are its stores, whole or through fields, and its entry
-//! value when it is a parameter. A read of a value local is the value its
-//! last definition on that path made.
+//! through a dereference reaches what the local refers to, not the local.
+//! A local defined in more than one block (stored in match arms or a loop
+//! body as well as before them) is a place too: a read after such stores
+//! would join values, and TIR has no join form. Every other local is a
+//! **value**. Its definitions are its stores, whole or through fields,
+//! and its entry value when it is a parameter, all in one block. A read of
+//! a value local is the value its last definition before it made.
 //!
 //! The ownership statements (`Drop`, `IsUnique`, `FlagSet`, `FlagClear`)
 //! are not counted: the passes write them, and the classification is of
@@ -80,6 +83,59 @@ pub fn classify(b: &Body, out: &mut Vec<Local>) {
             }
             Tag::Defer => suite_places(b, std::slice::from_ref(&b.data[i][0]), out),
             _ => {}
+        }
+    }
+    joined_places(b, out);
+}
+
+/// Marks as places the value locals defined in more than one block: a
+/// local stored on more than one path (match arms, loop iterations) has
+/// reads that join values, which TIR has no form for. A parameter's
+/// entry value is defined in its sub-body's root block.
+fn joined_places(b: &Body, out: &mut [Local]) {
+    if !out.iter().any(|c| matches!(c, Local::Value(d) if *d > 1)) {
+        return;
+    }
+    let mut home = vec![NONE; out.len()];
+    let root = b.sub_root.first().copied().unwrap_or(NONE);
+    for (l, h) in home.iter_mut().enumerate() {
+        if b.local_flags[l] & crate::ir::local_flags::PARAM != 0 {
+            *h = root;
+        }
+    }
+    for (s, r) in b.sub_params.iter().enumerate().skip(1) {
+        if r.len == 0 {
+            continue;
+        }
+        for &l in b.record(r.start) {
+            if let Some(h) = home.get_mut(l as usize) {
+                *h = b.sub_root[s];
+            }
+        }
+    }
+    for i in 0..b.len() {
+        if b.tags[i] != Tag::Block {
+            continue;
+        }
+        for &m in b.record(b.data[i][0]) {
+            let m = m as usize;
+            if m >= b.len() || b.tags[m] != Tag::Store {
+                continue;
+            }
+            let p = b.view(b.data[m][0]);
+            let Some(l) = p.local().map(|l| l as usize) else {
+                continue;
+            };
+            if !matches!(out[l], Local::Value(d) if d > 1)
+                || !p.steps(b).all(|s| matches!(s, Proj::Field(_)))
+            {
+                continue;
+            }
+            if home[l] == NONE {
+                home[l] = u32_of(i);
+            } else if home[l] != u32_of(i) {
+                out[l] = Local::Place;
+            }
         }
     }
 }

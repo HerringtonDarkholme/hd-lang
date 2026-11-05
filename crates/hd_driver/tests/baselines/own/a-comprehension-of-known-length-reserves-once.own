@@ -8,7 +8,7 @@ fn fill(n: usize) -> List[bool]:
 > app/main/fill
 >   local $0 n: usize [param read] value
 >   local $1 $acc: mut List[bool] [assigned] value
->   local $2 $cur: usize [assigned] value ×2
+>   local $2 $cur: usize [assigned] place
 >   local $3 $end: usize [assigned] value
 >   local $4 $incl: bool [assigned] value
 >   %0 = NewList - [] : mut List[bool]
@@ -61,7 +61,7 @@ fn doubled(xs: List[i32]) -> List[i32]:
 >   local $1 $acc: mut List[i32] [assigned] value
 >   local $2 $coll: List[i32] [assigned] value
 >   local $3 $len: usize [assigned] value
->   local $4 $pos: usize [assigned] value ×2
+>   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
 >   local $6 x: i32 [read assigned] value
 >   %0 = NewList - [] : mut List[i32]

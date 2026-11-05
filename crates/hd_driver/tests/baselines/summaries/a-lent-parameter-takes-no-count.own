@@ -55,8 +55,8 @@ fn total(f: Field, times: i64) -> i64:
 > app/main/total
 >   local $0 f: Field [param read] value
 >   local $1 times: i64 [param read] value
->   local $2 sum: i64 [read assigned mutated] value ×2
->   local $3 $cur: i64 [assigned] value ×2
+>   local $2 sum: i64 [read assigned mutated] place
+>   local $3 $cur: i64 [assigned] place
 >   local $4 $end: i64 [assigned] value
 >   local $5 $incl: bool [assigned] value
 >   %0 = Store [$2] 0:i64 : ()

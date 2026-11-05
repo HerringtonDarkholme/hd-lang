@@ -13,7 +13,7 @@ fn build(parts: &List[string]) -> string:
 >   local $0 parts: Ref[List[string]] [param read] value
 >   local $1 sb: Counted[mut StringBuilder] [:= read assigned] value
 >   local $2 $coll: List[string] [assigned] value
->   local $4 $pos: usize [assigned] value ×2
+>   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
 >   local $6 p: string [read assigned] value
 >   local $7 $ref: StringBuilder [read assigned captured captured-assigned] place
@@ -72,9 +72,9 @@ fn fields(line: string) -> usize:
     let mut n = 0
 > app/main/fields
 >   local $0 line: string [param read] value
->   local $1 n: usize [read assigned mutated] value ×2
+>   local $1 n: usize [read assigned mutated] place
 >   local $2 $coll: List[string] [assigned] value
->   local $4 $pos: usize [assigned] value ×2
+>   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
 >   local $6 f: string [read assigned] value
 >   local $7 self: string [read] value

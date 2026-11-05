@@ -5,8 +5,8 @@ fn digits(value: u64) -> List[u8]:
 > app/main/digits
 >   local $0 value: u64 [param read] value
 >   local $1 buf: List[u8] [read assigned] place
->   local $2 i: usize [read assigned mutated] value ×2
->   local $3 v: u64 [read assigned mutated] value ×2
+>   local $2 i: usize [read assigned mutated] place
+>   local $3 v: u64 [read assigned mutated] place
 >   %0 = NewList - [0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8] : List[u8]
 >   %1 = Store [$1] %0 : ()
 >   %23 = Block %22 : List[u8]

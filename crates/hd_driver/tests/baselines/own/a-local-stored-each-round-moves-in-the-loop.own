@@ -3,8 +3,8 @@ app/main/collect
   local $0 prefix: string [param read] value
   local $1 n: i32 [param read] value
   local $2 out: List[string] [read assigned] value
-  local $3 line: string [read assigned mutated] value ×2
-  local $4 i: i32 [read assigned mutated] value ×2
+  local $3 line: string [read assigned mutated] place
+  local $4 i: i32 [read assigned mutated] place
   local $5 self: i32 [read] value
   %4 = IsUnique hoisted [$2] : ()
   %5 = Read copy [$4] : i32
