@@ -8,10 +8,10 @@ fn by_value(m: Map[string, string]) -> usize:
     let n: usize = 0
 > app/main/by_value
 >   local $0 m: Map[string, string] [param read] value
->   local $1 n: usize [read assigned mutated] value ×2
+>   local $1 n: usize [read assigned mutated] place
 >   local $2 $coll: Map[string, string] [assigned] value
 >   local $3 $len: usize [assigned] value
->   local $4 $pos: usize [assigned] value ×3
+>   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
 >   local $6 k: Ref[string] [read assigned] value
 >   local $7 v: Ref[string] [read assigned] value
@@ -72,10 +72,10 @@ fn by_ref(m: &Map[string, string]) -> usize:
     let n: usize = 0
 > app/main/by_ref
 >   local $0 m: Ref[Map[string, string]] [param read] value
->   local $1 n: usize [read assigned mutated] value ×2
+>   local $1 n: usize [read assigned mutated] place
 >   local $2 $coll: Map[string, string] [assigned] value
 >   local $3 $len: usize [assigned] value
->   local $4 $pos: usize [assigned] value ×3
+>   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
 >   local $6 v: Ref[string] [read assigned] value
 >   %0 = Store [$1] 0:usize : ()
@@ -134,7 +134,7 @@ fn keys(m: Map[string, string]) -> List[string]:
 >   local $1 out: List[string] [read assigned] value
 >   local $2 $coll: Map[string, string] [assigned] value
 >   local $3 $len: usize [assigned] value
->   local $4 $pos: usize [assigned] value ×3
+>   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
 >   local $6 k: Ref[string] [read assigned] value
 >   %0 = NewList - [] : List[string]

@@ -19,7 +19,7 @@ fn wrap_all(errors: List[FsError]) -> List[SyncError]:
 >   local $1 $acc: mut List[SyncError] [assigned] value
 >   local $2 $coll: List[FsError] [assigned] value
 >   local $3 $len: usize [assigned] value
->   local $4 $pos: usize [assigned] value ×2
+>   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
 >   local $6 e: FsError [read assigned] value
 >   %0 = NewList - [] : mut List[SyncError]
@@ -74,7 +74,7 @@ fn wrap_with(errors: List[FsError], wrap: fn(FsError) -> SyncError) -> List[Sync
 >   local $2 $acc: mut List[SyncError] [assigned] value
 >   local $3 $coll: List[FsError] [assigned] value
 >   local $4 $len: usize [assigned] value
->   local $5 $pos: usize [assigned] value ×2
+>   local $5 $pos: usize [assigned] place
 >   local $6 $end: usize [assigned] value
 >   local $7 e: FsError [read assigned] value
 >   %0 = NewList - [] : mut List[SyncError]

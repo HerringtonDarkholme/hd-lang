@@ -34,7 +34,7 @@ run() {
 }
 
 gh issue view 1399 --json body -q .body >"$logs/plan.md" || { echo "cannot fetch #1399"; exit 2; }
-run plancheck python3 scripts/plancheck.py "$logs/plan.md"
+run plancheck python3 scripts/plancheck.py "$logs/plan.md" --show "$step"
 python3 scripts/plancheck.py "$logs/plan.md" --show "$step" | grep -E "^  " >"$logs/evidence.txt"
 echo "evidence: $(wc -l <"$logs/evidence.txt" | tr -d ' ') lines for $step in $logs/evidence.txt"
 run fmt cargo fmt --check

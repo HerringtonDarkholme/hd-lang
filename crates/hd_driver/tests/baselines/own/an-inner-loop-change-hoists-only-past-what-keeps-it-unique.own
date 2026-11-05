@@ -10,11 +10,11 @@ fn branch(items: List[usize], n: usize) -> List[usize]:
 >   local $0 items: List[usize] [param read] value
 >   local $1 n: usize [param read] value
 >   local $2 items: List[usize] [read assigned] place
->   local $3 $cur: usize [assigned] value ×2
+>   local $3 $cur: usize [assigned] place
 >   local $4 $end: usize [assigned] value
 >   local $5 $incl: bool [assigned] value
 >   local $6 r: usize [read assigned] value
->   local $7 $cur: usize [assigned] value ×2
+>   local $7 $cur: usize [assigned] place
 >   local $8 $end: usize [assigned] value
 >   local $9 $incl: bool [assigned] value
 >   local $10 i: usize [read assigned] value
@@ -91,11 +91,11 @@ fn copy(items: List[usize], n: usize) -> List[List[usize]]:
 >   local $1 n: usize [param read] value
 >   local $2 items: List[usize] [read assigned] place
 >   local $3 saved: List[List[usize]] [read assigned] value
->   local $4 $cur: usize [assigned] value ×2
+>   local $4 $cur: usize [assigned] place
 >   local $5 $end: usize [assigned] value
 >   local $6 $incl: bool [assigned] value
 >   local $7 r: usize [read assigned] value
->   local $8 $cur: usize [assigned] value ×2
+>   local $8 $cur: usize [assigned] place
 >   local $9 $end: usize [assigned] value
 >   local $10 $incl: bool [assigned] value
 >   local $11 i: usize [read assigned] value
@@ -173,11 +173,11 @@ fn call(items: &mut List[usize], n: usize, f: fn() -> void) -> void:
 >   local $0 items: Ref[mut List[usize]] [param read] value
 >   local $1 n: usize [param read] value
 >   local $2 f: fn() -> () [param read] value
->   local $3 $cur: usize [assigned] value ×2
+>   local $3 $cur: usize [assigned] place
 >   local $4 $end: usize [assigned] value
 >   local $5 $incl: bool [assigned] value
 >   local $6 r: usize [read assigned] value
->   local $7 $cur: usize [assigned] value ×2
+>   local $7 $cur: usize [assigned] place
 >   local $8 $end: usize [assigned] value
 >   local $9 $incl: bool [assigned] value
 >   local $10 i: usize [read assigned] value

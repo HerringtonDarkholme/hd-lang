@@ -10,9 +10,9 @@ fn total_len(xs: List[string]) -> usize:
     let n: usize = 0
 > app/main/total_len
 >   local $0 xs: List[string] [param read] place
->   local $1 n: usize [read assigned mutated] value ×2
+>   local $1 n: usize [read assigned mutated] place
 >   local $2 $len: usize [assigned] value
->   local $3 $pos: usize [assigned] value ×2
+>   local $3 $pos: usize [assigned] place
 >   local $4 p: Ref[string] [read assigned] value
 >   %0 = Store [$1] 0:usize : ()
 >   %35 = Block %34 : usize
@@ -59,9 +59,9 @@ fn through_ref(r: &List[string]) -> usize:
     let n: usize = 0
 > app/main/through_ref
 >   local $0 r: Ref[List[string]] [param read] value
->   local $1 n: usize [read assigned mutated] value ×2
+>   local $1 n: usize [read assigned mutated] place
 >   local $2 $len: usize [assigned] value
->   local $3 $pos: usize [assigned] value ×2
+>   local $3 $pos: usize [assigned] place
 >   local $4 p: Ref[string] [read assigned] value
 >   %0 = Store [$1] 0:usize : ()
 >   %35 = Block %34 : usize
@@ -109,7 +109,7 @@ fn shouted(prices: List[string]) -> List[string]:
 >   local $0 prices: List[string] [param read] value
 >   local $1 out: List[string] [read assigned] place
 >   local $2 $len: usize [assigned] value
->   local $3 $pos: usize [assigned] value ×2
+>   local $3 $pos: usize [assigned] place
 >   local $4 p: Ref[mut string] [read assigned] value
 >   %0 = Read move [$0] : List[string]
 >   %1 = Store [$1] %0 : ()

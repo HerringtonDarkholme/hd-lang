@@ -2,8 +2,8 @@
 app/main/row
   local $0 n: usize [param read] value
   local $1 i: usize [param read] value
-  local $2 s: f64 [read assigned mutated] value ×2
-  local $3 j: usize [read assigned mutated] value ×2
+  local $2 s: f64 [read assigned mutated] place
+  local $3 j: usize [read assigned mutated] place
   local $4 i: usize [read] value
   local $5 j: usize [read] value
   %2 = Read copy [$3] : usize

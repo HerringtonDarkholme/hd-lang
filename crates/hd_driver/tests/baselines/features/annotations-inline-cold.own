@@ -84,9 +84,9 @@ fn checksum(xs: &List[string]) -> usize:
     let mut n = 0
 > app/main/checksum
 >   local $0 xs: Ref[List[string]] [param read] value
->   local $1 n: usize [read assigned mutated] value ×2
+>   local $1 n: usize [read assigned mutated] place
 >   local $2 $coll: List[string] [assigned] value
->   local $4 $pos: usize [assigned] value ×2
+>   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
 >   local $6 x: string [read assigned] value
 >   local $7 self: string [read] value

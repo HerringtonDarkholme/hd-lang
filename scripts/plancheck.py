@@ -23,7 +23,8 @@ Evidence that starts with `fn:` is function-scoped: every term must hold
 inside one function's section (the `> path` header shared by all four
 views), so `fn: own~X & tir~Loop` means a function with X that loops.
 Checks:
-  1. every evidence term parses and matches at least one case;
+  1. every evidence term parses, and an open step's evidence matches at
+     least one case (a done step, or the --show step, may match none);
   2. every code path exists, and every ::SYMBOL occurs in its file;
   3. every case with work to do (a non-empty counts baseline, or a
      `value xN` join in own) matches at least one step;
@@ -154,7 +155,9 @@ for line in open(plan_path):
         for c in hits:
             for f, v, l in matched[c]:
                 print(f'  {c} {f or "-"} [{v}] {l.strip()[:110]}')
-    if not hits:
+    # A done step, or the step under --show (a gate checking it is done),
+    # may have emptied its evidence: that is its done check.
+    if not hits and done != 'x' and show != sid:
         errors.append(f'step {sid}: evidence matches no feature case')
     covered.update(hits)
     for c in hits:

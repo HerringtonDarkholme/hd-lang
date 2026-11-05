@@ -7,7 +7,7 @@ fn evens(n: usize) -> List[usize]:
 > app/main/evens
 >   local $0 n: usize [param read] value
 >   local $1 $acc: mut List[usize] [assigned] value
->   local $2 $cur: usize [assigned] value ×2
+>   local $2 $cur: usize [assigned] place
 >   local $3 $end: usize [assigned] value
 >   local $4 $incl: bool [assigned] value
 >   local $5 i: usize [read assigned] value

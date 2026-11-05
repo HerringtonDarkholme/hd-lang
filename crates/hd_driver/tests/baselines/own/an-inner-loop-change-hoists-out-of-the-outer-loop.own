@@ -9,10 +9,10 @@ fn flips(perm: List[usize]) -> i64:
 > app/main/flips
 >   local $0 perm: List[usize] [param read] value
 >   local $1 perm: List[usize] [read assigned] place
->   local $2 flips: i64 [read assigned mutated] value ×2
->   local $3 k: usize [read assigned mutated] value ×2
->   local $4 i: usize [read assigned mutated] value ×2
->   local $5 j: usize [read assigned mutated] value ×2
+>   local $2 flips: i64 [read assigned mutated] place
+>   local $3 k: usize [read assigned mutated] place
+>   local $4 i: usize [read assigned mutated] place
+>   local $5 j: usize [read assigned mutated] place
 >   local $6 t: usize [:= read assigned] value
 >   %0 = Read move [$0] : List[usize]
 >   %1 = Store [$1] %0 : ()

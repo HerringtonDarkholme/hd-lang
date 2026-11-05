@@ -84,7 +84,7 @@ fn whole(o: string?) -> usize:
 > app/main/whole
 >   local $0 o: string? [param read] value
 >   local $1 s: string [read assigned] value
->   local $2 other: string? [read assigned] value ×2
+>   local $2 other: string? [read assigned] place
 >   local $3 self: string? [read] value
 >   local $4 self: string [read] value
 >   local $5 self: string [read] value

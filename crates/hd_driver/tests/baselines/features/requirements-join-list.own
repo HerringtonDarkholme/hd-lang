@@ -26,14 +26,14 @@ fn all!(keys: List[string]) -> usize:
 >   local $1 $acc: mut List[mut Suspend[string]] [assigned] value
 >   local $2 $coll: List[string] [assigned] value
 >   local $3 $len: usize [assigned] value
->   local $4 $pos: usize [assigned] value ×2
+>   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
 >   local $6 k: string [read assigned] value
 >   local $7 tasks: List[mut Suspend[string]] [read assigned] value
 >   local $8 results: List[string] [:= read assigned] place
->   local $9 n: usize [read assigned mutated] value ×2
+>   local $9 n: usize [read assigned mutated] place
 >   local $10 $len: usize [assigned] value
->   local $11 $pos: usize [assigned] value ×2
+>   local $11 $pos: usize [assigned] place
 >   local $12 r: Ref[string] [read assigned] value
 >   %0 = NewList - [] : mut List[mut Suspend[string]]
 >   %1 = Store [$1] %0 : ()

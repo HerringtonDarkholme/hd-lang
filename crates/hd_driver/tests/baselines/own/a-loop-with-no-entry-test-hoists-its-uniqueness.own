@@ -11,19 +11,19 @@ fn rotate(n: usize) -> usize:
 > app/main/rotate
 >   local $0 n: usize [param read] value
 >   local $1 $acc: mut List[usize] [assigned] value
->   local $2 $cur: usize [assigned] value ×2
+>   local $2 $cur: usize [assigned] place
 >   local $3 $end: usize [assigned] value
 >   local $4 $incl: bool [assigned] value
 >   local $5 i: usize [read assigned] value
 >   local $6 items: List[usize] [read assigned] place
 >   local $7 $acc: mut List[usize] [assigned] value
->   local $8 $cur: usize [assigned] value ×2
+>   local $8 $cur: usize [assigned] place
 >   local $9 $end: usize [assigned] value
 >   local $10 $incl: bool [assigned] value
 >   local $11 count: List[usize] [read assigned] place
->   local $12 r: usize [read assigned mutated] value ×2
+>   local $12 r: usize [read assigned mutated] place
 >   local $13 first: usize [:= read assigned] value
->   local $14 $cur: usize [assigned] value ×2
+>   local $14 $cur: usize [assigned] place
 >   local $15 $end: usize [assigned] value
 >   local $16 $incl: bool [assigned] value
 >   local $17 i: usize [read assigned] value

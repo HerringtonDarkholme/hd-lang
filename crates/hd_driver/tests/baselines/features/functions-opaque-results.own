@@ -23,7 +23,7 @@ fn count_long(xs: List[string]) -> usize:
     let n: usize = 0
 > app/main/count_long
 >   local $0 xs: List[string] [param read] value
->   local $1 n: usize [read assigned mutated] value ×2
+>   local $1 n: usize [read assigned mutated] place
 >   local $2 $ref: ListIter[string] [read assigned captured captured-assigned] place
 >   local $3 $iter: Ref[mut ListIter[string]] [assigned] value
 >   local $4 x: string [read assigned] value
