@@ -6,31 +6,31 @@
 fn greeting(input: string) -> string:
     args := input.split(",")
 > app/main/greeting
->   local $0 input: string [param read]
->   local $1 args: List[string] [:= read assigned]
->   local $2 name: string [:= read assigned]
->   local $3 msg: string [:= read assigned]
->   local $4 result: string [read]
->   local $5 offset: usize [read]
->   local $6 value: u64 [read]
->   local $7 width: usize [read]
->   local $8 result: string [read]
->   local $9 offset: usize [read]
->   local $10 text: string [read]
->   local $11 result: string [read]
->   local $12 offset: usize [read]
->   local $13 text: string [read]
->   local $14 size: usize [read]
->   local $15 value: u64 [read]
->   local $16 value: string [read]
->   local $17 result: string [read]
->   local $18 offset: usize [read]
->   local $19 text: string [read]
->   local $20 result: string [read]
->   local $21 offset: usize [read]
->   local $22 text: string [read]
->   local $23 size: usize [read]
->   local $24 value: string [read]
+>   local $0 input: string [param read] value
+>   local $1 args: List[string] [:= read assigned] value
+>   local $2 name: string [:= read assigned] value
+>   local $3 msg: string [:= read assigned] value
+>   local $4 result: string [read] value
+>   local $5 offset: usize [read] value
+>   local $6 value: u64 [read] value
+>   local $7 width: usize [read] value
+>   local $8 result: string [read] value
+>   local $9 offset: usize [read] value
+>   local $10 text: string [read] value
+>   local $11 result: string [read] value
+>   local $12 offset: usize [read] value
+>   local $13 text: string [read] value
+>   local $14 size: usize [read] value
+>   local $15 value: u64 [read] value
+>   local $16 value: string [read] value
+>   local $17 result: string [read] value
+>   local $18 offset: usize [read] value
+>   local $19 text: string [read] value
+>   local $20 result: string [read] value
+>   local $21 offset: usize [read] value
+>   local $22 text: string [read] value
+>   local $23 size: usize [read] value
+>   local $24 value: string [read] value
 >   %0 = Read move [$0] : string
 >   %1 = Call std/text/impl string.split[] (%0, ",") : List[string]
 >   %2 = Store [$1] %1 : ()

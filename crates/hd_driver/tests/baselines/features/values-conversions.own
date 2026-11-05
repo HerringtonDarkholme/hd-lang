@@ -11,7 +11,7 @@ struct Point:
 fn nudge(p: &mut Point) -> void:
     p.n += 1
 > app/main/nudge
->   local $0 p: Ref[mut Point] [param read]
+>   local $0 p: Ref[mut Point] [param read] value
 >   %0 = Read copy [*$0 .n] : i32
 >   %1 = Prim Add [%0 1:i32] : i32
 >   %2 = Store [*$0 .n] %1 : ()
@@ -21,8 +21,8 @@ fn nudge(p: &mut Point) -> void:
 fn view(p: &Point) -> usize:
     p.name.len()
 > app/main/view
->   local $0 p: Ref[Point] [param read]
->   local $1 self: string [read]
+>   local $0 p: Ref[Point] [param read] value
+>   local $1 self: string [read] value
 >   %0 = Read borrow [*$0 .name] : string
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : string
@@ -37,8 +37,8 @@ fn view(p: &Point) -> usize:
 fn bump(p: &mut Point) -> void:
     q := p
 > app/main/bump
->   local $0 p: Ref[mut Point] [param read]
->   local $1 q: Ref[mut Point] [:= read assigned]
+>   local $0 p: Ref[mut Point] [param read] value
+>   local $1 q: Ref[mut Point] [:= read assigned] value
 >   %0 = Read borrow [$0] : Ref[mut Point]
 >   %1 = Store [$1] %0 : ()
 >   %4 = Block - : ()
@@ -50,7 +50,7 @@ fn bump(p: &mut Point) -> void:
 fn lend(h: *mut Point) -> usize:
     nudge(h)
 > app/main/lend
->   local $0 h: Counted[mut Point] [param read]
+>   local $0 h: Counted[mut Point] [param read] value
 >   %0 = Read borrow [$0] : Counted[mut Point]
 >   %1 = Call app/main/nudge[] (%0) : ()
 >   %8 = Block %6 : usize
@@ -67,11 +67,11 @@ fn lend(h: *mut Point) -> usize:
 fn local(s: string) -> usize:
     let mut origin = Point { name: s, n: 0 }
 > app/main/local
->   local $0 s: string [param read]
->   local $1 origin: Point [read assigned captured captured-assigned]
->   local $2 r: Ref[mut Point] [read assigned]
->   local $3 p: Point [read]
->   local $4 self: string [read]
+>   local $0 s: string [param read] value
+>   local $1 origin: Point [read assigned captured captured-assigned] place
+>   local $2 r: Ref[mut Point] [read assigned] value
+>   local $3 p: Point [read] value
+>   local $4 self: string [read] value
 >   %0 = Read move [$0] : string
 >   %1 = NewStruct [%0 0:i32] : Point
 >   %2 = Store [$1] %1 : ()
@@ -110,7 +110,7 @@ fn local(s: string) -> usize:
 fn weaken(h: *mut Point) -> *Point:
     h
 > app/main/weaken
->   local $0 h: Counted[mut Point] [param read]
+>   local $0 h: Counted[mut Point] [param read] value
 >   %0 = Read copy [$0] : Counted[mut Point]
 >   %1 = Coerce %0 [Weaken -] : Counted[Point]
 >   %2 = Block %1 : Counted[Point]

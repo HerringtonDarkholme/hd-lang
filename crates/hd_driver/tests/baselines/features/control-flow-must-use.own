@@ -11,8 +11,8 @@ enum SaveError:
 fn save(s: string) -> Result[string, SaveError]:
     if s.len() > 0: .Ok(s + "!") else: .Err(SaveError.Failed("empty"))
 > app/main/save
->   local $0 s: string [param read]
->   local $1 self: string [read]
+>   local $0 s: string [param read] value
+>   local $1 self: string [read] value
 >   %0 = Read borrow [$0] : string
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : string
@@ -35,10 +35,10 @@ fn save(s: string) -> Result[string, SaveError]:
 fn discard(s: string) -> usize:
     _ := save(s)
 > app/main/discard
->   local $0 s: string [param read]
->   local $1 self: string [read]
->   local $2 s: string [read captured]
->   local $3 s: string [read captured]
+>   local $0 s: string [param read] value
+>   local $1 self: string [read] value
+>   local $2 s: string [read captured] place
+>   local $3 s: string [read captured] place
 >   %0 = Read copy [$0] : string
 >   %1 = Store [$3] %0 : ()
 >   %2 = Ref local frame [$3] : Counted[string]
@@ -101,9 +101,9 @@ fn discard(s: string) -> usize:
 fn unused(s: string) -> usize:
     _kept := s
 > app/main/unused
->   local $0 s: string [param read]
->   local $1 _kept: string [:= assigned]
->   local $2 self: string [read]
+>   local $0 s: string [param read] value
+>   local $1 _kept: string [:= assigned] value
+>   local $2 self: string [read] value
 >   %0 = Read borrow [$0] : string
 >   %1 = Store [$1] %0 : ()
 >   %9 = Block %8 : usize

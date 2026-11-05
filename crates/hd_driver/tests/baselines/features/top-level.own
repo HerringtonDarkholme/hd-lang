@@ -6,16 +6,16 @@
 # temporaries it frees; a read takes none; `copy_top` retains once.
 greeting := "hello ${1}"
 > app/main/init.init
->   local $0 result: string [read]
->   local $1 offset: usize [read]
->   local $2 text: string [read]
->   local $3 size: usize [read]
->   local $4 value: usize [read]
->   local $5 result: string [read]
->   local $6 offset: usize [read]
->   local $7 text: string [read]
->   local $8 size: usize [read]
->   local $9 value: usize [read]
+>   local $0 result: string [read] value
+>   local $1 offset: usize [read] value
+>   local $2 text: string [read] value
+>   local $3 size: usize [read] value
+>   local $4 value: usize [read] value
+>   local $5 result: string [read] value
+>   local $6 offset: usize [read] value
+>   local $7 text: string [read] value
+>   local $8 size: usize [read] value
+>   local $9 value: usize [read] value
 >   %0 = Store [$9] 1:usize : ()
 >   %1 = Read copy [$9] : usize
 >   %2 = Call std/num/Num.zero for usize [] via Impl () : usize

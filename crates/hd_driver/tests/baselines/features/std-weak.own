@@ -14,7 +14,7 @@ struct Node:
 fn make(node: *Node) -> Weak[Node]?:
     weak(node)
 > app/main/make
->   local $0 node: Counted[Node] [param read]
+>   local $0 node: Counted[Node] [param read] value
 >   %0 = Read borrow [$0] : Counted[Node]
 >   %1 = Call std/weak/weak[Node] (%0) : Weak[Node]?
 >   %2 = Block %1 : Weak[Node]?
@@ -23,9 +23,9 @@ fn make(node: *Node) -> Weak[Node]?:
 fn name_len(w: Weak[Node]) -> usize:
     match w.upgrade():
 > app/main/name_len
->   local $0 w: Weak[Node] [param read]
->   local $1 n: Counted[Node] [read assigned]
->   local $2 self: string [read]
+>   local $0 w: Weak[Node] [param read] value
+>   local $1 n: Counted[Node] [read assigned] value
+>   local $2 self: string [read] value
 >   %0 = Read borrow [$0] : Weak[Node]
 >   %1 = Call std/weak/impl [ T ] Weak [ T ].upgrade[Node] (%0) : Counted[Node]?
 >   %23 = Block - : never

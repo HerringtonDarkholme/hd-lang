@@ -12,13 +12,13 @@ enum Shape:
 fn read_match(s: Shape) -> usize:
     match s:
 > app/main/read_match
->   local $0 s: Shape [param read]
->   local $1 n: string [read assigned]
->   local $2 a: string [read assigned]
->   local $3 b: string [read assigned]
->   local $4 self: string [read]
->   local $5 self: string [read]
->   local $6 self: string [read]
+>   local $0 s: Shape [param read] value
+>   local $1 n: string [read assigned] value
+>   local $2 a: string [read assigned] value
+>   local $3 b: string [read assigned] value
+>   local $4 self: string [read] value
+>   local $5 self: string [read] value
+>   local $6 self: string [read] value
 >   %0 = Read borrow [$0] : Shape
 >   %45 = Block - : never
 >   %46 = Match %0 [%45 %8 %24 %25] : usize
@@ -71,9 +71,9 @@ fn read_match(s: Shape) -> usize:
 fn take_match(s: Shape) -> string:
     match s:
 > app/main/take_match
->   local $0 s: Shape [param read]
->   local $1 n: string [read assigned]
->   local $2 a: string [read assigned]
+>   local $0 s: Shape [param read] value
+>   local $1 n: string [read assigned] value
+>   local $2 a: string [read assigned] value
 >   %0 = Read borrow [$0] : Shape
 >   %23 = Block - : never
 >   %24 = Match %0 [%23 %2 %4 %5] : string
@@ -104,13 +104,13 @@ fn take_match(s: Shape) -> string:
 fn ref_match(s: &Shape) -> usize:
     match s:
 > app/main/ref_match
->   local $0 s: Ref[Shape] [param read]
->   local $1 n: string [read assigned]
->   local $2 a: string [read assigned]
->   local $3 b: string [read assigned]
->   local $4 self: string [read]
->   local $5 self: string [read]
->   local $6 self: string [read]
+>   local $0 s: Ref[Shape] [param read] value
+>   local $1 n: string [read assigned] value
+>   local $2 a: string [read assigned] value
+>   local $3 b: string [read assigned] value
+>   local $4 self: string [read] value
+>   local $5 self: string [read] value
+>   local $6 self: string [read] value
 >   %0 = Read borrow [$0] : Ref[Shape]
 >   %50 = Block - : never
 >   %51 = Match %0 [%50 %8 %24 %25] : usize

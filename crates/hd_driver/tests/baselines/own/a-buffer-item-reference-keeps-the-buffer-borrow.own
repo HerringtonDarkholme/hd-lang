@@ -6,7 +6,7 @@ use std.rt.memory.Buffer
 fn element['a, T < ?Copy](buffer: &'a Buffer[T]) -> &'a T:
     buffer.at(0).as_ref()
 > std/rt_tests.stage_case/element
->   local $0 buffer: Ref[Buffer[T]] [param read]
+>   local $0 buffer: Ref[Buffer[T]] [param read] value
 >   %0 = Read borrow [$0] : Ref[Buffer[T]]
 >   %1 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].at[T] (%0, 0:usize) : Ptr[T]
 >   %2 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].as_ref[T] (%1) : Ref[T]

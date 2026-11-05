@@ -14,7 +14,7 @@ impl Named for User:
     fn name(&self) -> string:
         self.name
 > app/main/impl Named for User.name
->   local $0 self: Ref[User] [param read]
+>   local $0 self: Ref[User] [param read] value
 >   %0 = Read copy [*$0 .name] : string
 >   %1 = Block %0 : string
 >   summary kept [$0]
@@ -22,11 +22,11 @@ impl Named for User:
 fn same_dyn(user: &mut User) -> bool:
     let first: &mut dyn Named = user
 > app/main/same_dyn
->   local $0 user: Ref[mut User] [param read]
->   local $1 $ref: Ref[mut User] [read assigned captured]
->   local $2 first: Ref[mut Named] [read assigned]
->   local $3 $ref: Ref[mut User] [read assigned captured]
->   local $4 second: Ref[mut Named] [read assigned]
+>   local $0 user: Ref[mut User] [param read] value
+>   local $1 $ref: Ref[mut User] [read assigned captured] value
+>   local $2 first: Ref[mut Named] [read assigned] value
+>   local $3 $ref: Ref[mut User] [read assigned captured] value
+>   local $4 second: Ref[mut Named] [read assigned] value
 >   %0 = Read copy [$0] : Ref[mut User]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read move [$1] : Ref[mut User]

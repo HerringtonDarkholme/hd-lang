@@ -8,10 +8,10 @@
 fn join2(first: string, second: string) -> usize:
     first.len() * 3 + second.len()
 > app/main/join2
->   local $0 first: string [param read]
->   local $1 second: string [param read]
->   local $2 self: string [read]
->   local $3 self: string [read]
+>   local $0 first: string [param read] value
+>   local $1 second: string [param read] value
+>   local $2 self: string [read] value
+>   local $3 self: string [read] value
 >   %0 = Read borrow [$0] : string
 >   %1 = Store [$3] %0 : ()
 >   %2 = Read borrow [$3] : string
@@ -34,7 +34,7 @@ fn join2(first: string, second: string) -> usize:
 fn count(values...: List[string]) -> usize:
     values.len()
 > app/main/count
->   local $0 values: List[string] [param read]
+>   local $0 values: List[string] [param read] value
 >   %0 = Read borrow [$0] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Block %1 : usize
@@ -43,10 +43,10 @@ fn count(values...: List[string]) -> usize:
 fn named(a: string, b: string) -> usize:
     join2(second=a, first=b)
 > app/main/named
->   local $0 a: string [param read]
->   local $1 b: string [param read]
->   local $2 first: string [read captured]
->   local $3 second: string [read captured]
+>   local $0 a: string [param read] value
+>   local $1 b: string [param read] value
+>   local $2 first: string [read captured] place
+>   local $3 second: string [read captured] place
 >   %0 = Read move [$0] : string
 >   %1 = Read move [$1] : string
 >   %2 = Store [$2] %1 : ()
@@ -73,10 +73,10 @@ fn named(a: string, b: string) -> usize:
 fn positional(a: string, b: string) -> usize:
     join2(b, a)
 > app/main/positional
->   local $0 a: string [param read]
->   local $1 b: string [param read]
->   local $2 first: string [read captured]
->   local $3 second: string [read captured]
+>   local $0 a: string [param read] value
+>   local $1 b: string [param read] value
+>   local $2 first: string [read captured] place
+>   local $3 second: string [read captured] place
 >   %0 = Read move [$1] : string
 >   %1 = Read move [$0] : string
 >   %2 = Store [$2] %0 : ()
@@ -103,9 +103,9 @@ fn positional(a: string, b: string) -> usize:
 fn spread_tuple(pair: (string, string)) -> usize:
     join2(pair...)
 > app/main/spread_tuple
->   local $0 pair: (string, string) [param read]
->   local $1 first: string [read captured]
->   local $2 second: string [read captured]
+>   local $0 pair: (string, string) [param read] value
+>   local $1 first: string [read captured] place
+>   local $2 second: string [read captured] place
 >   %0 = Read move [$0 .0] : string
 >   %1 = Read move [$0 .1] : string
 >   %2 = Store [$1] %0 : ()
@@ -132,8 +132,8 @@ fn spread_tuple(pair: (string, string)) -> usize:
 fn spread_list(xs: List[string]) -> usize:
     count(xs...)
 > app/main/spread_list
->   local $0 xs: List[string] [param read]
->   local $1 values: List[string] [read]
+>   local $0 xs: List[string] [param read] value
+>   local $1 values: List[string] [read] value
 >   %0 = Read borrow [$0] : List[string]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : List[string]
@@ -147,9 +147,9 @@ fn spread_list(xs: List[string]) -> usize:
 fn collect(a: string, b: string) -> usize:
     count(a, b)
 > app/main/collect
->   local $0 a: string [param read]
->   local $1 b: string [param read]
->   local $2 values: List[string] [read]
+>   local $0 a: string [param read] value
+>   local $1 b: string [param read] value
+>   local $2 values: List[string] [read] value
 >   %0 = Read move [$0] : string
 >   %1 = Read move [$1] : string
 >   %2 = NewList - [%0 %1] : List[string]

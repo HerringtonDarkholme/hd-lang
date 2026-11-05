@@ -9,8 +9,8 @@ struct User:
 fn same_ref(a: &User, b: &User) -> bool:
     a is b
 > app/main/same_ref
->   local $0 a: Ref[User] [param read]
->   local $1 b: Ref[User] [param read]
+>   local $0 a: Ref[User] [param read] value
+>   local $1 b: Ref[User] [param read] value
 >   %0 = Read borrow [$0] : Ref[User]
 >   %1 = Read borrow [$1] : Ref[User]
 >   %2 = Is %0 %1 : bool
@@ -20,8 +20,8 @@ fn same_ref(a: &User, b: &User) -> bool:
 fn same_box(a: *User, b: *User) -> bool:
     a is b
 > app/main/same_box
->   local $0 a: Counted[User] [param read]
->   local $1 b: Counted[User] [param read]
+>   local $0 a: Counted[User] [param read] value
+>   local $1 b: Counted[User] [param read] value
 >   %0 = Read borrow [$0] : Counted[User]
 >   %1 = Read borrow [$1] : Counted[User]
 >   %2 = Is %0 %1 : bool
@@ -31,8 +31,8 @@ fn same_box(a: *User, b: *User) -> bool:
 fn mixed(a: *mut User, b: *User) -> bool:
     a is b
 > app/main/mixed
->   local $0 a: Counted[mut User] [param read]
->   local $1 b: Counted[User] [param read]
+>   local $0 a: Counted[mut User] [param read] value
+>   local $1 b: Counted[User] [param read] value
 >   %0 = Read borrow [$0] : Counted[mut User]
 >   %1 = Read borrow [$1] : Counted[User]
 >   %2 = Is %0 %1 : bool

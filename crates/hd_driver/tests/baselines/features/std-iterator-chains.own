@@ -9,13 +9,13 @@
 fn lens(xs: List[string]) -> List[usize]:
     xs.iter().map(fn(s: string) -> usize: s.len()).collect()
 > app/main/lens
->   local $0 xs: List[string] [param read]
->   local $1 s: string [param read]
->   local $2 self: MapIter[ListIter[string], string, usize, fn(string) -> usize] [read]
->   local $3 self: ListIter[string] [read]
->   local $4 transform: fn(string) -> usize [read]
->   local $5 self: string [read]
->   local $6 self: List[string] [read]
+>   local $0 xs: List[string] [param read] value
+>   local $1 s: string [param read] value
+>   local $2 self: MapIter[ListIter[string], string, usize, fn(string) -> usize] [read] value
+>   local $3 self: ListIter[string] [read] value
+>   local $4 transform: fn(string) -> usize [read] value
+>   local $5 self: string [read] value
+>   local $6 self: List[string] [read] value
 >   %0 = Read move [$0] : List[string]
 >   %1 = Store [$6] %0 : ()
 >   %2 = Read move [$6] : List[string]
@@ -55,15 +55,15 @@ fn lens(xs: List[string]) -> List[usize]:
 fn loud(xs: List[string]) -> List[string]:
     xs.iter()
 > app/main/loud
->   local $0 xs: List[string] [param read]
->   local $1 s: Ref[string] [param read]
->   local $2 s: string [param read]
->   local $3 self: MapIter[Filter[ListIter[string], string, fn(Ref[string]) -> bool], string, string, fn(string) -> string] [read]
->   local $4 self: Filter[ListIter[string], string, fn(Ref[string]) -> bool] [read]
->   local $5 transform: fn(string) -> string [read]
->   local $6 self: ListIter[string] [read]
->   local $7 keep: fn(Ref[string]) -> bool [read]
->   local $8 self: List[string] [read]
+>   local $0 xs: List[string] [param read] value
+>   local $1 s: Ref[string] [param read] value
+>   local $2 s: string [param read] value
+>   local $3 self: MapIter[Filter[ListIter[string], string, fn(Ref[string]) -> bool], string, string, fn(string) -> string] [read] value
+>   local $4 self: Filter[ListIter[string], string, fn(Ref[string]) -> bool] [read] value
+>   local $5 transform: fn(string) -> string [read] value
+>   local $6 self: ListIter[string] [read] value
+>   local $7 keep: fn(Ref[string]) -> bool [read] value
+>   local $8 self: List[string] [read] value
 >   %0 = Read move [$0] : List[string]
 >   %1 = Store [$8] %0 : ()
 >   %2 = Read move [$8] : List[string]

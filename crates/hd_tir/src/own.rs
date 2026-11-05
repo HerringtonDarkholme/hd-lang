@@ -61,6 +61,7 @@ pub(crate) mod parts;
 pub mod promote;
 mod reason;
 pub(crate) mod splice;
+pub mod values;
 
 pub use reason::{Reason, reason};
 

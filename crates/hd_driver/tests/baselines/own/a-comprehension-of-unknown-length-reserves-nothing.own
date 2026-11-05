@@ -5,12 +5,12 @@
 fn evens(n: usize) -> List[usize]:
     [for i in 0..n if i % 2 == 0 => i]
 > app/main/evens
->   local $0 n: usize [param read]
->   local $1 $acc: mut List[usize] [assigned]
->   local $2 $cur: usize [assigned]
->   local $3 $end: usize [assigned]
->   local $4 $incl: bool [assigned]
->   local $5 i: usize [read assigned]
+>   local $0 n: usize [param read] value
+>   local $1 $acc: mut List[usize] [assigned] value
+>   local $2 $cur: usize [assigned] value ×2
+>   local $3 $end: usize [assigned] value
+>   local $4 $incl: bool [assigned] value
+>   local $5 i: usize [read assigned] value
 >   %0 = NewList - [] : mut List[usize]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read copy [$0] : usize
@@ -51,11 +51,11 @@ fn evens(n: usize) -> List[usize]:
 fn counted(n: usize) -> List[usize]:
     [for i in (0..n).iter() => i]
 > app/main/counted
->   local $0 n: usize [param read]
->   local $1 $acc: mut List[usize] [assigned]
->   local $2 $ref: RangeIter[usize] [read assigned captured captured-assigned]
->   local $3 $iter: Ref[mut RangeIter[usize]] [assigned]
->   local $4 i: usize [read assigned]
+>   local $0 n: usize [param read] value
+>   local $1 $acc: mut List[usize] [assigned] value
+>   local $2 $ref: RangeIter[usize] [read assigned captured captured-assigned] place
+>   local $3 $iter: Ref[mut RangeIter[usize]] [assigned] value
+>   local $4 i: usize [read assigned] value
 >   %0 = NewList - [] : mut List[usize]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read copy [$0] : usize

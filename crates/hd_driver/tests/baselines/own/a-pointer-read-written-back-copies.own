@@ -10,8 +10,8 @@ use std.rt.memory.Ptr
 fn get(p: Ptr[string]) -> string:
     text := p.read()
 > std/rt_tests.stage_case/get
->   local $0 p: Ptr[string] [param read]
->   local $1 text: string [:= read assigned]
+>   local $0 p: Ptr[string] [param read] value
+>   local $1 text: string [:= read assigned] value
 >   %0 = Read copy [$0] : Ptr[string]
 >   %1 = Read copy [ptr %0] : string
 >   %2 = Store [$1] %1 : ()

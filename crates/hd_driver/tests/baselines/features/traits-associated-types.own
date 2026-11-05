@@ -18,7 +18,7 @@ impl Supplier for Constant:
     fn get(&self) -> string:
         self.value
 > app/main/impl Supplier for Constant.get
->   local $0 self: Ref[Constant] [param read]
+>   local $0 self: Ref[Constant] [param read] value
 >   %0 = Read copy [*$0 .value] : string
 >   %1 = Block %0 : string
 >   summary kept [$0]
@@ -26,7 +26,7 @@ impl Supplier for Constant:
 fn first[T < Supplier](source: T) -> T::Item:
     source.get()
 > app/main/first
->   local $0 source: T [param read captured]
+>   local $0 source: T [param read captured] place
 >   %0 = Ref local frame [$0] : Counted[T]
 >   %1 = Call app/main/Supplier.get for T [] via Bound (%0) : T::Item
 >   %2 = Drop [%0] : ()
@@ -38,11 +38,11 @@ fn first[T < Supplier](source: T) -> T::Item:
 fn first_len(c: Constant) -> usize:
     first(c).len()
 > app/main/first_len
->   local $0 c: Constant [param read]
->   local $1 $ref: string [read assigned captured captured-assigned]
->   local $2 self: string [read]
->   local $3 source: Constant [read]
->   local $4 self: Constant [read]
+>   local $0 c: Constant [param read] value
+>   local $1 $ref: string [read assigned captured captured-assigned] value
+>   local $2 self: string [read] value
+>   local $3 source: Constant [read] value
+>   local $4 self: Constant [read] value
 >   %0 = Read move [$0] : Constant
 >   %1 = Store [$3] %0 : ()
 >   %2 = Read move [$3] : Constant
@@ -70,9 +70,9 @@ fn first_len(c: Constant) -> usize:
 fn read(source: &dyn Supplier[Item = string]) -> usize:
     source.get().len()
 > app/main/read
->   local $0 source: Ref[Supplier] [param read]
->   local $1 $ref: string [read assigned captured captured-assigned]
->   local $2 self: string [read]
+>   local $0 source: Ref[Supplier] [param read] value
+>   local $1 $ref: string [read assigned captured captured-assigned] value
+>   local $2 self: string [read] value
 >   %0 = Read copy [*$0] : Supplier
 >   %1 = Call app/main/Supplier.get for Supplier [] via TraitValue (%0) : string
 >   %2 = Drop [%0] : ()
@@ -91,8 +91,8 @@ fn read(source: &dyn Supplier[Item = string]) -> usize:
 fn read_const(c: Constant) -> usize:
     read(&c)
 > app/main/read_const
->   local $0 c: Constant [param read captured]
->   local $1 $ref: Ref[Constant] [read assigned captured]
+>   local $0 c: Constant [param read captured] place
+>   local $1 $ref: Ref[Constant] [read assigned captured] value
 >   %0 = Ref local frame [$0] : Ref[Constant]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read move [$1] : Ref[Constant]

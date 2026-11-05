@@ -10,8 +10,8 @@ use pkg.other.{Config, pong}
 pub fn ping(c: Config, n: i64) -> i64:
     if n == 0:
 > app/main/ping
->   local $0 c: Config [param read]
->   local $1 n: i64 [param read]
+>   local $0 c: Config [param read] value
+>   local $1 n: i64 [param read] value
 >   %0 = Read copy [$1] : i64
 >   %1 = Prim Eq [%0 0:i64] : bool
 >   %5 = If %1 [%4 -] : ()

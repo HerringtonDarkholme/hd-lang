@@ -16,7 +16,7 @@ impl Disposable for Res:
     fn dispose(&mut self) -> void:
         self.log.push(self.name)
 > app/main/impl Disposable for Res.dispose
->   local $0 self: Ref[mut Res] [param read]
+>   local $0 self: Ref[mut Res] [param read] value
 >   %0 = Read copy [*$0 .name] : string
 >   %1 = IsUnique [*$0 .log *] : ()
 >   %2 = Read borrow [*$0 .log *] : List[string]
@@ -27,13 +27,13 @@ impl Disposable for Res:
 fn two(log: *mut List[string], a: string, b: string) -> usize:
     using first = Res { name: a, log: log }
 > app/main/two
->   local $0 log: Counted[mut List[string]] [param read]
->   local $1 a: string [param read]
->   local $2 b: string [param read]
->   local $3 first: Res [:= read assigned captured captured-assigned]
->   local $4 second: Res [:= read assigned captured captured-assigned]
->   local $5 self: string [read]
->   local $6 self: string [read]
+>   local $0 log: Counted[mut List[string]] [param read] value
+>   local $1 a: string [param read] value
+>   local $2 b: string [param read] value
+>   local $3 first: Res [:= read assigned captured captured-assigned] place
+>   local $4 second: Res [:= read assigned captured captured-assigned] place
+>   local $5 self: string [read] value
+>   local $6 self: string [read] value
 >   %0 = Read move [$1] : string
 >   %1 = Read copy [$0] : Counted[mut List[string]]
 >   %2 = NewStruct [%0 %1] : Res
@@ -84,14 +84,14 @@ fn two(log: *mut List[string], a: string, b: string) -> usize:
 fn per_round(log: *mut List[string], xs: List[string]) -> void:
     for x in xs:
 > app/main/per_round
->   local $0 log: Counted[mut List[string]] [param read]
->   local $1 xs: List[string] [param read]
->   local $2 $coll: List[string] [assigned]
->   local $3 $len: usize [assigned]
->   local $4 $pos: usize [assigned]
->   local $5 $end: usize [assigned]
->   local $6 x: string [read assigned]
->   local $7 r: Res [:= read assigned captured captured-assigned]
+>   local $0 log: Counted[mut List[string]] [param read] value
+>   local $1 xs: List[string] [param read] value
+>   local $2 $coll: List[string] [assigned] value
+>   local $3 $len: usize [assigned] value
+>   local $4 $pos: usize [assigned] value ×2
+>   local $5 $end: usize [assigned] value
+>   local $6 x: string [read assigned] value
+>   local $7 r: Res [:= read assigned captured captured-assigned] place
 >   %0 = Read borrow [$1] : List[string]
 >   %1 = Store [$2] %0 : ()
 >   %2 = Read borrow [$2] : List[string]
@@ -141,9 +141,9 @@ fn per_round(log: *mut List[string], xs: List[string]) -> void:
 fn by_ref(r: &mut Res) -> usize:
     using held = r
 > app/main/by_ref
->   local $0 r: Ref[mut Res] [param read]
->   local $1 held: Ref[mut Res] [:= read assigned]
->   local $2 self: string [read]
+>   local $0 r: Ref[mut Res] [param read] value
+>   local $1 held: Ref[mut Res] [:= read assigned] place
+>   local $2 self: string [read] value
 >   %0 = Read borrow [$0] : Ref[mut Res]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : Ref[mut Res]

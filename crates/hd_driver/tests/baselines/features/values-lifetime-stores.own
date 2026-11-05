@@ -11,8 +11,8 @@ struct User:
 fn remember['a](seen: &mut List[&'a User], u: &'a User) -> void:
     seen.push(u)
 > app/main/remember
->   local $0 seen: Ref[mut List[Ref[User]]] [param read]
->   local $1 u: Ref[User] [param read]
+>   local $0 seen: Ref[mut List[Ref[User]]] [param read] value
+>   local $1 u: Ref[User] [param read] value
 >   %0 = Read copy [$1] : Ref[User]
 >   %1 = IsUnique [*$0] : ()
 >   %2 = Read borrow [*$0] : List[Ref[User]]
@@ -23,8 +23,8 @@ fn remember['a](seen: &mut List[&'a User], u: &'a User) -> void:
 fn index['a](by: &mut Map[string, &'a User], u: &'a User) -> void:
     by[u.name] = u
 > app/main/index
->   local $0 by: Ref[mut Map[string, Ref[User]]] [param read]
->   local $1 u: Ref[User] [param read]
+>   local $0 by: Ref[mut Map[string, Ref[User]]] [param read] value
+>   local $1 u: Ref[User] [param read] value
 >   %0 = Read copy [*$1 .name] : string
 >   %1 = Read copy [$1] : Ref[User]
 >   %2 = IsUnique [*$0] : ()
@@ -37,12 +37,12 @@ fn index['a](by: &mut Map[string, &'a User], u: &'a User) -> void:
 fn total(a: User, b: User) -> usize:
     let mut seen: List[&User] = []
 > app/main/total
->   local $0 a: User [param read captured]
->   local $1 b: User [param read captured]
->   local $2 seen: List[Ref[User]] [read assigned captured captured-assigned]
->   local $3 by: Map[string, Ref[User]] [read assigned captured captured-assigned]
->   local $4 self: string [read]
->   local $5 self: string [read]
+>   local $0 a: User [param read captured] place
+>   local $1 b: User [param read captured] place
+>   local $2 seen: List[Ref[User]] [read assigned captured captured-assigned] place
+>   local $3 by: Map[string, Ref[User]] [read assigned captured captured-assigned] place
+>   local $4 self: string [read] value
+>   local $5 self: string [read] value
 >   %0 = NewList - [] : List[Ref[User]]
 >   %1 = Store [$2] %0 : ()
 >   %43 = Block %42 : usize

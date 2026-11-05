@@ -3,10 +3,10 @@
 fn digits(value: u64) -> List[u8]:
     let mut buf: List[u8] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 > app/main/digits
->   local $0 value: u64 [param read]
->   local $1 buf: List[u8] [read assigned]
->   local $2 i: usize [read assigned mutated]
->   local $3 v: u64 [read assigned mutated]
+>   local $0 value: u64 [param read] value
+>   local $1 buf: List[u8] [read assigned] place
+>   local $2 i: usize [read assigned mutated] value ×2
+>   local $3 v: u64 [read assigned mutated] value ×2
 >   %0 = NewList - [0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8] : List[u8]
 >   %1 = Store [$1] %0 : ()
 >   %23 = Block %22 : List[u8]
@@ -43,9 +43,9 @@ fn digits(value: u64) -> List[u8]:
 fn pushes(n: usize) -> List[i32]:
     let mut items: List[i32] = []
 > app/main/pushes
->   local $0 n: usize [param read]
->   local $1 items: List[i32] [read assigned captured captured-assigned]
->   local $2 p: i32? [assigned]
+>   local $0 n: usize [param read] value
+>   local $1 items: List[i32] [read assigned captured captured-assigned] place
+>   local $2 p: i32? [assigned] value
 >   %0 = NewList - [] : List[i32]
 >   %1 = Store [$1] %0 : ()
 >   %19 = Block %18 : List[i32]
@@ -84,8 +84,8 @@ fn pushes(n: usize) -> List[i32]:
 fn copied(n: usize) -> List[i32]:
     let mut items: List[i32] = [+1]
 > app/main/copied
->   local $1 items: List[i32] [read assigned]
->   local $2 other: List[i32] [:= read assigned]
+>   local $1 items: List[i32] [read assigned] place
+>   local $2 other: List[i32] [:= read assigned] value
 >   %0 = NewList - [1:i32] : List[i32]
 >   %1 = Store [$1] %0 : ()
 >   %12 = Block %11 : List[i32]

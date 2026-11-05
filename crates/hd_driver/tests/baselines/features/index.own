@@ -11,9 +11,9 @@ use std.collections.{UniqList}
 fn list_read(xs: List[string], i: usize) -> usize:
     xs[i].len()
 > app/main/list_read
->   local $0 xs: List[string] [param read]
->   local $1 i: usize [param read]
->   local $2 self: string [read]
+>   local $0 xs: List[string] [param read] value
+>   local $1 i: usize [param read] value
+>   local $2 self: string [read] value
 >   %0 = Read copy [$1] : usize
 >   %1 = Read copy [$0 [%0]] : string
 >   %2 = Drop [$0] : ()
@@ -31,8 +31,8 @@ fn list_read(xs: List[string], i: usize) -> usize:
 fn list_take(xs: List[string], i: usize) -> string:
     xs[i]
 > app/main/list_take
->   local $0 xs: List[string] [param read]
->   local $1 i: usize [param read]
+>   local $0 xs: List[string] [param read] value
+>   local $1 i: usize [param read] value
 >   %0 = Read copy [$1] : usize
 >   %1 = Read copy [$0 [%0]] : string
 >   %2 = Drop [$0] : ()
@@ -43,9 +43,9 @@ fn list_take(xs: List[string], i: usize) -> string:
 fn list_write(xs: &mut List[string], i: usize, s: string) -> void:
     xs[i] = s
 > app/main/list_write
->   local $0 xs: Ref[mut List[string]] [param read]
->   local $1 i: usize [param read]
->   local $2 s: string [param read]
+>   local $0 xs: Ref[mut List[string]] [param read] value
+>   local $1 i: usize [param read] value
+>   local $2 s: string [param read] value
 >   %0 = Read copy [$1] : usize
 >   %1 = Read move [$2] : string
 >   %2 = IsUnique [*$0] : ()
@@ -57,10 +57,10 @@ fn list_write(xs: &mut List[string], i: usize, s: string) -> void:
 fn map_read(m: Map[string, string], k: string) -> usize:
     match m.get(k):
 > app/main/map_read
->   local $0 m: Map[string, string] [param read]
->   local $1 k: string [param read]
->   local $2 v: string [read assigned]
->   local $3 self: string [read]
+>   local $0 m: Map[string, string] [param read] value
+>   local $1 k: string [param read] value
+>   local $2 v: string [read assigned] value
+>   local $3 self: string [read] value
 >   %0 = Read borrow [$0] : Map[string, string]
 >   %1 = Read borrow [$1] : string
 >   %2 = Intrinsic MapGet [%0 %1] : string?
@@ -92,9 +92,9 @@ fn map_read(m: Map[string, string], k: string) -> usize:
 fn map_write(m: &mut Map[string, string], k: string, v: string) -> void:
     m[k] = v
 > app/main/map_write
->   local $0 m: Ref[mut Map[string, string]] [param read]
->   local $1 k: string [param read]
->   local $2 v: string [param read]
+>   local $0 m: Ref[mut Map[string, string]] [param read] value
+>   local $1 k: string [param read] value
+>   local $2 v: string [param read] value
 >   %0 = Read borrow [$1] : string
 >   %1 = Read move [$2] : string
 >   %2 = IsUnique [*$0] : ()
@@ -107,12 +107,12 @@ fn map_write(m: &mut Map[string, string], k: string, v: string) -> void:
 fn uniq_read(xs: &UniqList[string], i: usize) -> usize:
     match xs.get_ref(i):
 > app/main/uniq_read
->   local $0 xs: Ref[UniqList[string]] [param read]
->   local $1 i: usize [param read]
->   local $2 s: Ref[string] [read assigned]
->   local $3 self: Ref[UniqList[string]] [read]
->   local $4 index: usize [read]
->   local $6 index: usize [read]
+>   local $0 xs: Ref[UniqList[string]] [param read] value
+>   local $1 i: usize [param read] value
+>   local $2 s: Ref[string] [read assigned] value
+>   local $3 self: Ref[UniqList[string]] [read] value
+>   local $4 index: usize [read] value
+>   local $6 index: usize [read] value
 >   %0 = Read borrow [$0] : Ref[UniqList[string]]
 >   %1 = Read copy [$1] : usize
 >   %2 = Store [$3] %0 : ()
@@ -163,13 +163,13 @@ fn uniq_read(xs: &UniqList[string], i: usize) -> usize:
 fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
     match xs.get_mut(i):
 > app/main/uniq_write
->   local $0 xs: Ref[mut UniqList[string]] [param read]
->   local $1 i: usize [param read]
->   local $2 s: string [param read]
->   local $3 r: Ref[mut string] [read assigned]
->   local $4 self: Ref[mut UniqList[string]] [read]
->   local $5 index: usize [read]
->   local $7 index: usize [read]
+>   local $0 xs: Ref[mut UniqList[string]] [param read] value
+>   local $1 i: usize [param read] value
+>   local $2 s: string [param read] value
+>   local $3 r: Ref[mut string] [read assigned] value
+>   local $4 self: Ref[mut UniqList[string]] [read] value
+>   local $5 index: usize [read] value
+>   local $7 index: usize [read] value
 >   %0 = Read borrow [$0] : Ref[mut UniqList[string]]
 >   %1 = Read copy [$1] : usize
 >   %2 = Store [$4] %0 : ()

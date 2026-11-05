@@ -12,10 +12,10 @@ struct User:
 fn read_user(u: User) -> usize:
     let User { name, tags } = u
 > app/main/read_user
->   local $0 u: User [param read]
->   local $1 name: string [read assigned]
->   local $2 tags: List[string] [read assigned]
->   local $3 self: string [read]
+>   local $0 u: User [param read] value
+>   local $1 name: string [read assigned] value
+>   local $2 tags: List[string] [read assigned] value
+>   local $3 self: string [read] value
 >   %0 = Read borrow [$0] : User
 >   %1 = Block - : ()
 >   %2 = Read borrow [%0 .name] : string
@@ -41,8 +41,8 @@ fn read_user(u: User) -> usize:
 fn take_name(u: User) -> string:
     let User { name } = u
 > app/main/take_name
->   local $0 u: User [param read]
->   local $1 name: string [read assigned]
+>   local $0 u: User [param read] value
+>   local $1 name: string [read assigned] value
 >   %0 = Read borrow [$0] : User
 >   %1 = Block - : ()
 >   %2 = Read copy [%0 .name] : string
@@ -57,11 +57,11 @@ fn take_name(u: User) -> string:
 fn pair(p: (string, string)) -> usize:
     let (a, b) = p
 > app/main/pair
->   local $0 p: (string, string) [param read]
->   local $1 a: string [read assigned]
->   local $2 b: string [read assigned]
->   local $3 self: string [read]
->   local $4 self: string [read]
+>   local $0 p: (string, string) [param read] value
+>   local $1 a: string [read assigned] value
+>   local $2 b: string [read assigned] value
+>   local $3 self: string [read] value
+>   local $4 self: string [read] value
 >   %0 = Read borrow [$0] : (string, string)
 >   %1 = Block - : ()
 >   %2 = Read borrow [%0 .0] : string
@@ -92,9 +92,9 @@ fn pair(p: (string, string)) -> usize:
 fn present(o: string?) -> usize:
     let .Some(s) = o else:
 > app/main/present
->   local $0 o: string? [param read]
->   local $1 s: string [read assigned]
->   local $2 self: string [read]
+>   local $0 o: string? [param read] value
+>   local $1 s: string [read assigned] value
+>   local $2 self: string [read] value
 >   %0 = Read borrow [$0] : string?
 >   %1 = Block - : ()
 >   %3 = Block - : never

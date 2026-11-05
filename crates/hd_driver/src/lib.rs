@@ -8669,7 +8669,28 @@ impl Run<'_> {
                 pool.lower_refs(self.known.ref_cells(), ft),
             ))
         };
-        hd_check::render(&names, body, &fields)
+        let text = hd_check::render(&names, body, &fields);
+        // Each local's class (`hd_tir::own::values`) after its line.
+        let mut classes = Vec::new();
+        hd_tir::own::values::classify(body, &mut classes);
+        let mut out = String::with_capacity(text.len() + 8 * classes.len());
+        for line in text.split_inclusive('\n') {
+            let class = line
+                .strip_prefix("  local $")
+                .and_then(|r| r.split(' ').next())
+                .and_then(|k| k.parse::<usize>().ok())
+                .and_then(|k| classes.get(k));
+            match class {
+                Some(&c) => {
+                    out.push_str(line.trim_end_matches('\n'));
+                    out.push(' ');
+                    out.push_str(&hd_tir::own::values::label(c));
+                    out.push('\n');
+                }
+                None => out.push_str(line),
+            }
+        }
+        out
     }
 
     /// A body, decoding its wire bytes on first use.

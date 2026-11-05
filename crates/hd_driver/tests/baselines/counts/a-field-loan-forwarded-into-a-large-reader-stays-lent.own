@@ -21,8 +21,8 @@ impl !Copy for Owner
 fn measure(room: &Room) -> usize:
     room.text.len() + room.offset
 > app/main/measure
->   local $0 room: Ref[Room] [param read]
->   local $1 self: string [read]
+>   local $0 room: Ref[Room] [param read] value
+>   local $1 self: string [read] value
 >   %0 = Read borrow [*$0 .text] : string
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : string
@@ -40,11 +40,11 @@ fn measure(room: &Room) -> usize:
 fn total(owner: &Owner, depth: usize) -> usize:
     field := &owner.room
 > app/main/total
->   local $0 owner: Ref[Owner] [param read]
->   local $1 depth: usize [param read]
->   local $2 field: Ref[Room] [:= read assigned]
->   local $3 below: usize [:= read assigned]
->   local $5 self: string [read]
+>   local $0 owner: Ref[Owner] [param read] value
+>   local $1 depth: usize [param read] value
+>   local $2 field: Ref[Room] [:= read assigned] value
+>   local $3 below: usize [:= read assigned] value
+>   local $5 self: string [read] value
 >   %0 = Ref lent local [*$0 .room] : Ref[Room]
 >   %1 = Store [$2] %0 : ()
 >   %31 = Block %30 : usize

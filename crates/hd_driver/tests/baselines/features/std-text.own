@@ -10,14 +10,14 @@ use std.text.StringBuilder
 fn build(parts: &List[string]) -> string:
     sb := StringBuilder::new()
 > app/main/build
->   local $0 parts: Ref[List[string]] [param read]
->   local $1 sb: Counted[mut StringBuilder] [:= read assigned]
->   local $2 $coll: List[string] [assigned]
->   local $3 $len: usize [assigned]
->   local $4 $pos: usize [assigned]
->   local $5 $end: usize [assigned]
->   local $6 p: string [read assigned]
->   local $7 $ref: StringBuilder [read assigned captured captured-assigned]
+>   local $0 parts: Ref[List[string]] [param read] value
+>   local $1 sb: Counted[mut StringBuilder] [:= read assigned] value
+>   local $2 $coll: List[string] [assigned] value
+>   local $3 $len: usize [assigned] value
+>   local $4 $pos: usize [assigned] value ×2
+>   local $5 $end: usize [assigned] value
+>   local $6 p: string [read assigned] value
+>   local $7 $ref: StringBuilder [read assigned captured captured-assigned] place
 >   %0 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].new[u8] () : UniqList[u8]
 >   %1 = NewStruct [%0] : StringBuilder
 >   %2 = Store [$7] %1 : ()
@@ -74,14 +74,14 @@ fn build(parts: &List[string]) -> string:
 fn fields(line: string) -> usize:
     let mut n = 0
 > app/main/fields
->   local $0 line: string [param read]
->   local $1 n: usize [read assigned mutated]
->   local $2 $coll: List[string] [assigned]
->   local $3 $len: usize [assigned]
->   local $4 $pos: usize [assigned]
->   local $5 $end: usize [assigned]
->   local $6 f: string [read assigned]
->   local $7 self: string [read]
+>   local $0 line: string [param read] value
+>   local $1 n: usize [read assigned mutated] value ×2
+>   local $2 $coll: List[string] [assigned] value
+>   local $3 $len: usize [assigned] value
+>   local $4 $pos: usize [assigned] value ×2
+>   local $5 $end: usize [assigned] value
+>   local $6 f: string [read assigned] value
+>   local $7 self: string [read] value
 >   %0 = Store [$1] 0:usize : ()
 >   %42 = Block %41 : usize
     for f in line.split(","):

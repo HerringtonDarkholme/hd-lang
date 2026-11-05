@@ -8,10 +8,10 @@
 fn bind(s: string) -> usize:
     t := s
 > app/main/bind
->   local $0 s: string [param read]
->   local $1 t: string [:= read assigned]
->   local $2 u: string [read assigned]
->   local $3 self: string [read]
+>   local $0 s: string [param read] value
+>   local $1 t: string [:= read assigned] value
+>   local $2 u: string [read assigned] value
+>   local $3 self: string [read] value
 >   %0 = Read move [$0] : string
 >   %1 = Store [$1] %0 : ()
 >   %12 = Block %10 : usize
@@ -33,8 +33,8 @@ fn bind(s: string) -> usize:
 fn bind_twice(xs: List[string]) -> usize:
     ys := xs
 > app/main/bind_twice
->   local $0 xs: List[string] [param read]
->   local $1 ys: List[string] [:= read assigned]
+>   local $0 xs: List[string] [param read] value
+>   local $1 ys: List[string] [:= read assigned] value
 >   %0 = Read borrow [$0] : List[string]
 >   %1 = Store [$1] %0 : ()
 >   %7 = Block %6 : usize
@@ -49,9 +49,9 @@ fn bind_twice(xs: List[string]) -> usize:
 fn bind_kept(xs: List[string], all: &mut List[List[string]]) -> void:
     ys := xs
 > app/main/bind_kept
->   local $0 xs: List[string] [param read]
->   local $1 all: Ref[mut List[List[string]]] [param read]
->   local $2 ys: List[string] [:= read assigned]
+>   local $0 xs: List[string] [param read] value
+>   local $1 all: Ref[mut List[List[string]]] [param read] value
+>   local $2 ys: List[string] [:= read assigned] value
 >   %0 = Read move [$0] : List[string]
 >   %1 = Store [$2] %0 : ()
 >   %6 = Block - : ()

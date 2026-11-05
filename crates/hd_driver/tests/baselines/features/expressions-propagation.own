@@ -17,7 +17,7 @@ impl From[ReadError] for AppError:
     fn from(value: ReadError) -> AppError:
         AppError.Read(value)
 > app/main/impl From [ ReadError ] for AppError.from
->   local $0 value: ReadError [param read]
+>   local $0 value: ReadError [param read] value
 >   %0 = Read move [$0] : ReadError
 >   %1 = NewVariant #0 [%0] : AppError
 >   %2 = Block %1 : AppError
@@ -27,8 +27,8 @@ impl From[ReadError] for AppError:
 fn read(path: string) -> Result[string, ReadError]:
     if path.len() > 0: .Ok(path + "/") else: .Err(ReadError.Missing(path))
 > app/main/read
->   local $0 path: string [param read]
->   local $1 self: string [read]
+>   local $0 path: string [param read] value
+>   local $1 self: string [read] value
 >   %0 = Read borrow [$0] : string
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : string
@@ -54,10 +54,10 @@ fn read(path: string) -> Result[string, ReadError]:
 fn result_try(path: string) -> Result[usize, ReadError]:
     text := read(path)?
 > app/main/result_try
->   local $0 path: string [param read]
->   local $1 text: string [:= read assigned]
->   local $2 self: string [read]
->   local $3 path: string [read captured]
+>   local $0 path: string [param read] value
+>   local $1 text: string [:= read assigned] value
+>   local $2 self: string [read] value
+>   local $3 path: string [read captured] place
 >   %0 = Read move [$0] : string
 >   %1 = Store [$3] %0 : ()
 >   %2 = Ref local frame [$3] : Counted[string]
@@ -105,11 +105,11 @@ fn result_try(path: string) -> Result[usize, ReadError]:
 fn converted(path: string) -> Result[usize, AppError]:
     text := read(path)?
 > app/main/converted
->   local $0 path: string [param read]
->   local $1 text: string [:= read assigned]
->   local $2 self: string [read]
->   local $3 value: ReadError [read]
->   local $4 path: string [read captured]
+>   local $0 path: string [param read] value
+>   local $1 text: string [:= read assigned] value
+>   local $2 self: string [read] value
+>   local $3 value: ReadError [read] value
+>   local $4 path: string [read captured] place
 >   %0 = Read move [$0] : string
 >   %1 = Store [$4] %0 : ()
 >   %2 = Ref local frame [$4] : Counted[string]

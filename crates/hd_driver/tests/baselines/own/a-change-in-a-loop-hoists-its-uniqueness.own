@@ -12,9 +12,9 @@
 fn fill(n: usize) -> List[i32]:
     let mut items: List[i32] = []
 > app/main/fill
->   local $0 n: usize [param read]
->   local $1 items: List[i32] [read assigned]
->   local $2 i: usize [read assigned mutated]
+>   local $0 n: usize [param read] value
+>   local $1 items: List[i32] [read assigned] value
+>   local $2 i: usize [read assigned mutated] value ×2
 >   %0 = NewList - [] : List[i32]
 >   %1 = Store [$1] %0 : ()
 >   %19 = Block %18 : List[i32]
@@ -44,9 +44,9 @@ fn fill(n: usize) -> List[i32]:
 fn shift(items: &mut List[i32]) -> void:
     let i: usize = 1
 > app/main/shift
->   local $0 items: Ref[mut List[i32]] [param read]
->   local $1 i: usize [read assigned mutated]
->   local $2 j: usize [read assigned mutated]
+>   local $0 items: Ref[mut List[i32]] [param read] value
+>   local $1 i: usize [read assigned mutated] value ×2
+>   local $2 j: usize [read assigned mutated] value ×2
 >   %0 = Store [$1] 1:usize : ()
 >   %37 = Block - : ()
     while i < items.len():
@@ -98,9 +98,9 @@ fn shift(items: &mut List[i32]) -> void:
 fn total(items: &List[i32]) -> i32:
     let sum = +0
 > app/main/total
->   local $0 items: Ref[List[i32]] [param read]
->   local $1 sum: i32 [read assigned mutated]
->   local $2 i: usize [read assigned mutated]
+>   local $0 items: Ref[List[i32]] [param read] value
+>   local $1 sum: i32 [read assigned mutated] value ×2
+>   local $2 i: usize [read assigned mutated] value ×2
 >   %0 = Store [$1] 0:i32 : ()
 >   %22 = Block %21 : i32
     let i: usize = 0

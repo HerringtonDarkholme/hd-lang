@@ -10,12 +10,12 @@ struct Node:
 fn by_value(s: string) -> usize:
     (s.len() + 1) * (s.len() + 2) * (s.len() + 3) * (s.len() + 4) / (s.len() + 5)
 > app/main/by_value
->   local $0 s: string [param read]
->   local $1 self: string [read]
->   local $2 self: string [read]
->   local $3 self: string [read]
->   local $4 self: string [read]
->   local $5 self: string [read]
+>   local $0 s: string [param read] value
+>   local $1 self: string [read] value
+>   local $2 self: string [read] value
+>   local $3 self: string [read] value
+>   local $4 self: string [read] value
+>   local $5 self: string [read] value
 >   %0 = Read borrow [$0] : string
 >   %1 = Store [$5] %0 : ()
 >   %2 = Read borrow [$5] : string
@@ -66,7 +66,7 @@ fn by_value(s: string) -> usize:
 fn by_ref(s: &string) -> usize:
     (s.len() + 1) * (s.len() + 2) * (s.len() + 3) * (s.len() + 4) / (s.len() + 5)
 > app/main/by_ref
->   local $0 s: Ref[string] [param read]
+>   local $0 s: Ref[string] [param read] value
 >   %0 = Read borrow [$0] : Ref[string]
 >   %1 = Call std/text/impl string.len[] (%0) : usize
 >   %2 = Prim Add [%1 1:usize] : usize
@@ -92,7 +92,7 @@ fn by_ref(s: &string) -> usize:
 fn by_mut(s: &mut string) -> void:
     *s += "x"
 > app/main/by_mut
->   local $0 s: Ref[mut string] [param read]
+>   local $0 s: Ref[mut string] [param read] value
 >   %0 = Read borrow [*$0] : string
 >   %1 = Intrinsic StrConcat [%0 "x"] : string
 >   %2 = Drop [%0] : ()
@@ -103,11 +103,11 @@ fn by_mut(s: &mut string) -> void:
 fn by_ptr(n: *Node) -> usize:
     (n.name.len() + 1) * (n.name.len() + 2) * (n.name.len() + 3) / (n.name.len() + 5)
 > app/main/by_ptr
->   local $0 n: Counted[Node] [param read]
->   local $1 self: string [read]
->   local $2 self: string [read]
->   local $3 self: string [read]
->   local $4 self: string [read]
+>   local $0 n: Counted[Node] [param read] value
+>   local $1 self: string [read] value
+>   local $2 self: string [read] value
+>   local $3 self: string [read] value
+>   local $4 self: string [read] value
 >   %0 = Read borrow [*$0 .name] : string
 >   %1 = Store [$4] %0 : ()
 >   %2 = Read borrow [$4] : string
@@ -153,9 +153,9 @@ fn by_ptr(n: *Node) -> usize:
 fn calls(s: string, n: *Node) -> usize:
     let mut t = s
 > app/main/calls
->   local $0 s: string [param read captured]
->   local $1 n: Counted[Node] [param read]
->   local $2 t: string [read assigned captured captured-assigned]
+>   local $0 s: string [param read captured] place
+>   local $1 n: Counted[Node] [param read] value
+>   local $2 t: string [read assigned captured captured-assigned] place
 >   %0 = Read copy [$0] : string
 >   %1 = Store [$2] %0 : ()
 >   %19 = Block %18 : usize

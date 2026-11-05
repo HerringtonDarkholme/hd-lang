@@ -6,11 +6,11 @@
 fn fill(n: usize) -> List[bool]:
     [for _ in 0..n => true]
 > app/main/fill
->   local $0 n: usize [param read]
->   local $1 $acc: mut List[bool] [assigned]
->   local $2 $cur: usize [assigned]
->   local $3 $end: usize [assigned]
->   local $4 $incl: bool [assigned]
+>   local $0 n: usize [param read] value
+>   local $1 $acc: mut List[bool] [assigned] value
+>   local $2 $cur: usize [assigned] value ×2
+>   local $3 $end: usize [assigned] value
+>   local $4 $incl: bool [assigned] value
 >   %0 = NewList - [] : mut List[bool]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read copy [$0] : usize
@@ -57,13 +57,13 @@ fn fill(n: usize) -> List[bool]:
 fn doubled(xs: List[i32]) -> List[i32]:
     [for x in xs => x * 2]
 > app/main/doubled
->   local $0 xs: List[i32] [param read]
->   local $1 $acc: mut List[i32] [assigned]
->   local $2 $coll: List[i32] [assigned]
->   local $3 $len: usize [assigned]
->   local $4 $pos: usize [assigned]
->   local $5 $end: usize [assigned]
->   local $6 x: i32 [read assigned]
+>   local $0 xs: List[i32] [param read] value
+>   local $1 $acc: mut List[i32] [assigned] value
+>   local $2 $coll: List[i32] [assigned] value
+>   local $3 $len: usize [assigned] value
+>   local $4 $pos: usize [assigned] value ×2
+>   local $5 $end: usize [assigned] value
+>   local $6 x: i32 [read assigned] value
 >   %0 = NewList - [] : mut List[i32]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read move [$0] : List[i32]

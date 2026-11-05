@@ -15,8 +15,8 @@ impl Add for Tag:
     fn add(self, rhs: Tag) -> Tag:
         Tag { text: self.text + rhs.text }
 > app/main/impl Add for Tag.add
->   local $0 self: Tag [param read]
->   local $1 rhs: Tag [param read]
+>   local $0 self: Tag [param read] value
+>   local $1 rhs: Tag [param read] value
 >   %0 = Read borrow [$0 .text] : string
 >   %1 = Read borrow [$1 .text] : string
 >   %2 = Intrinsic StrConcat [%0 %1] : string
@@ -29,7 +29,7 @@ impl Neg for Tag:
     fn neg(self) -> Tag:
         Tag { text: "-" + self.text }
 > app/main/impl Neg for Tag.neg
->   local $0 self: Tag [param read]
+>   local $0 self: Tag [param read] value
 >   %0 = Read borrow [$0 .text] : string
 >   %1 = Intrinsic StrConcat ["-" %0] : string
 >   %2 = NewStruct [%1] : Tag
@@ -39,10 +39,10 @@ impl Neg for Tag:
 fn add_tags(a: Tag, b: Tag) -> Tag:
     a + b
 > app/main/add_tags
->   local $0 a: Tag [param read]
->   local $1 b: Tag [param read]
->   local $2 self: Tag [read]
->   local $3 rhs: Tag [read]
+>   local $0 a: Tag [param read] value
+>   local $1 b: Tag [param read] value
+>   local $2 self: Tag [read] value
+>   local $3 rhs: Tag [read] value
 >   %0 = Read borrow [$0] : Tag
 >   %1 = Read borrow [$1] : Tag
 >   %2 = Store [$2] %0 : ()
@@ -60,8 +60,8 @@ fn add_tags(a: Tag, b: Tag) -> Tag:
 fn neg_tag(a: Tag) -> Tag:
     -a
 > app/main/neg_tag
->   local $0 a: Tag [param read]
->   local $1 self: Tag [read]
+>   local $0 a: Tag [param read] value
+>   local $1 self: Tag [read] value
 >   %0 = Read borrow [$0] : Tag
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1 .text] : string
@@ -76,14 +76,14 @@ fn neg_tag(a: Tag) -> Tag:
 fn sum[T < Add[Out = T]](items: List[T], zero: T) -> T:
     let total = zero
 > app/main/sum
->   local $0 items: List[T] [param read]
->   local $1 zero: T [param read]
->   local $2 total: T [read assigned mutated]
->   local $3 $coll: List[T] [assigned]
->   local $4 $len: usize [assigned]
->   local $5 $pos: usize [assigned]
->   local $6 $end: usize [assigned]
->   local $7 item: T [read assigned]
+>   local $0 items: List[T] [param read] value
+>   local $1 zero: T [param read] value
+>   local $2 total: T [read assigned mutated] value ×2
+>   local $3 $coll: List[T] [assigned] value
+>   local $4 $len: usize [assigned] value
+>   local $5 $pos: usize [assigned] value ×2
+>   local $6 $end: usize [assigned] value
+>   local $7 item: T [read assigned] value
 >   %0 = Read move [$1] : T
 >   %1 = Store [$2] %0 : ()
 >   %36 = Block %35 : T
@@ -129,7 +129,7 @@ fn sum[T < Add[Out = T]](items: List[T], zero: T) -> T:
 fn sum_strings(xs: List[string]) -> string:
     sum(xs, "")
 > app/main/sum_strings
->   local $0 xs: List[string] [param read]
+>   local $0 xs: List[string] [param read] value
 >   %0 = Read borrow [$0] : List[string]
 >   %1 = Call app/main/sum[string] (%0, "") : string
 >   %2 = Block %1 : string

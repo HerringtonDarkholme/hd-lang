@@ -15,15 +15,15 @@ enum Shape:
 fn read_nested(s: Shape) -> usize:
     match s:
 > app/main/read_nested
->   local $0 s: Shape [param read]
->   local $1 name: string [read assigned]
->   local $2 n: string [read assigned]
->   local $3 a: string [read assigned]
->   local $4 b: string [read assigned]
->   local $5 self: string [read]
->   local $6 self: string [read]
->   local $7 self: string [read]
->   local $8 self: string [read]
+>   local $0 s: Shape [param read] value
+>   local $1 name: string [read assigned] value
+>   local $2 n: string [read assigned] value
+>   local $3 a: string [read assigned] value
+>   local $4 b: string [read assigned] value
+>   local $5 self: string [read] value
+>   local $6 self: string [read] value
+>   local $7 self: string [read] value
+>   local $8 self: string [read] value
 >   %0 = Read borrow [$0] : Shape
 >   %61 = Block - : never
 >   %62 = Match %0 [%61 %8 %17 %33] : usize
@@ -92,9 +92,9 @@ fn read_nested(s: Shape) -> usize:
 fn owner(s: Shape) -> string:
     match s:
 > app/main/owner
->   local $0 s: Shape [param read]
->   local $1 name: string [read assigned]
->   local $2 name: string [read assigned]
+>   local $0 s: Shape [param read] value
+>   local $1 name: string [read assigned] value
+>   local $2 name: string [read assigned] value
 >   %0 = Read borrow [$0] : Shape
 >   %20 = Block - : never
 >   %21 = Match %0 [%20 %2 %4] : string

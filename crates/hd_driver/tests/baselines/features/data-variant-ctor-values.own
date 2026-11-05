@@ -15,13 +15,13 @@ enum SyncError:
 fn wrap_all(errors: List[FsError]) -> List[SyncError]:
     [for e in errors => SyncError.Fs(e)]
 > app/main/wrap_all
->   local $0 errors: List[FsError] [param read]
->   local $1 $acc: mut List[SyncError] [assigned]
->   local $2 $coll: List[FsError] [assigned]
->   local $3 $len: usize [assigned]
->   local $4 $pos: usize [assigned]
->   local $5 $end: usize [assigned]
->   local $6 e: FsError [read assigned]
+>   local $0 errors: List[FsError] [param read] value
+>   local $1 $acc: mut List[SyncError] [assigned] value
+>   local $2 $coll: List[FsError] [assigned] value
+>   local $3 $len: usize [assigned] value
+>   local $4 $pos: usize [assigned] value ×2
+>   local $5 $end: usize [assigned] value
+>   local $6 e: FsError [read assigned] value
 >   %0 = NewList - [] : mut List[SyncError]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$0] : List[FsError]
@@ -69,14 +69,14 @@ fn wrap_all(errors: List[FsError]) -> List[SyncError]:
 fn wrap_with(errors: List[FsError], wrap: fn(FsError) -> SyncError) -> List[SyncError]:
     [for e in errors => wrap(e)]
 > app/main/wrap_with
->   local $0 errors: List[FsError] [param read]
->   local $1 wrap: fn(FsError) -> SyncError [param read]
->   local $2 $acc: mut List[SyncError] [assigned]
->   local $3 $coll: List[FsError] [assigned]
->   local $4 $len: usize [assigned]
->   local $5 $pos: usize [assigned]
->   local $6 $end: usize [assigned]
->   local $7 e: FsError [read assigned]
+>   local $0 errors: List[FsError] [param read] value
+>   local $1 wrap: fn(FsError) -> SyncError [param read] value
+>   local $2 $acc: mut List[SyncError] [assigned] value
+>   local $3 $coll: List[FsError] [assigned] value
+>   local $4 $len: usize [assigned] value
+>   local $5 $pos: usize [assigned] value ×2
+>   local $6 $end: usize [assigned] value
+>   local $7 e: FsError [read assigned] value
 >   %0 = NewList - [] : mut List[SyncError]
 >   %1 = Store [$2] %0 : ()
 >   %2 = Read borrow [$0] : List[FsError]
@@ -125,8 +125,8 @@ fn wrap_with(errors: List[FsError], wrap: fn(FsError) -> SyncError) -> List[Sync
 fn as_value(errors: List[FsError]) -> List[SyncError]:
     wrap_with(errors, SyncError.Fs)
 > app/main/as_value
->   local $0 errors: List[FsError] [param read]
->   local $1 $0: FsError [param]
+>   local $0 errors: List[FsError] [param read] value
+>   local $1 $0: FsError [param] value
 >   %0 = Read borrow [$0] : List[FsError]
 >   %1 = Read move [$1] : FsError
 >   %2 = NewVariant #0 [%1] : SyncError
@@ -141,7 +141,7 @@ fn as_value(errors: List[FsError]) -> List[SyncError]:
 fn named(p: string) -> SyncError:
     SyncError.Retry(error=FsError.NotFound(p), attempt=1)
 > app/main/named
->   local $0 p: string [param read]
+>   local $0 p: string [param read] value
 >   %0 = Read move [$0] : string
 >   %1 = NewVariant #0 [%0] : FsError
 >   %2 = NewVariant #1 [1:i32 %1] : SyncError

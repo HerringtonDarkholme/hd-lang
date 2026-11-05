@@ -11,7 +11,7 @@ struct Pair:
 fn eat(xs: UniqList[string]) -> usize:
     xs.len()
 > app/main/eat
->   local $0 xs: UniqList[string] [param read captured]
+>   local $0 xs: UniqList[string] [param read captured] place
 >   %0 = Ref local frame [$0] : Counted[UniqList[string]]
 >   %1 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].len[string] (%0) : usize
 >   %2 = Drop [%0] : ()
@@ -22,7 +22,7 @@ fn eat(xs: UniqList[string]) -> usize:
 fn split(p: Pair) -> usize:
     eat(p.a) + p.b.len()
 > app/main/split
->   local $0 p: Pair [param read captured]
+>   local $0 p: Pair [param read captured] place
 >   %0 = Read move [$0 .a] : UniqList[string]
 >   %1 = Call app/main/eat[] (%0) : usize
 >   %2 = Ref local frame [$0 .b] : Ref[UniqList[string]]

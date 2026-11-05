@@ -16,7 +16,7 @@ impl Tag for Named:
     fn name(self) -> string:
         self.label
 > app/main/impl Tag for Named.name
->   local $0 self: Named [param read]
+>   local $0 self: Named [param read] value
 >   %0 = Read move [$0 .label] : string
 >   %1 = Block %0 : string
 >   exit sub 0 drops [$0]
@@ -25,8 +25,8 @@ impl Tag for Named:
 fn read_tag() -> usize $ Tag:
     $.use(Tag).name().len()
 > app/main/read_tag
->   local $0 $ref: string [read assigned captured captured-assigned]
->   local $1 self: string [read]
+>   local $0 $ref: string [read assigned captured captured-assigned] value
+>   local $1 self: string [read] value
 >   %0 = ProviderGet #0 : Tag
 >   %1 = Coerce %0 [ProviderAsRef -] : Ref[Tag]
 >   %2 = Read copy [*%1] : Tag
@@ -47,10 +47,10 @@ fn read_tag() -> usize $ Tag:
 fn with_tag[$ R](s: string, callback: fn() -> usize $ R + Tag) -> usize $ R:
     $.with(Tag=Named { label: s }):
 > app/main/with_tag
->   local $0 s: string [param read]
->   local $1 callback: fn() -> usize [param read]
->   local $2 provider: Named [read]
->   local $3 $ref: Named [read assigned captured captured-assigned]
+>   local $0 s: string [param read] value
+>   local $1 callback: fn() -> usize [param read] value
+>   local $2 provider: Named [read] value
+>   local $3 $ref: Named [read assigned captured captured-assigned] place
 >   %0 = Read move [$0] : string
 >   %1 = NewStruct [%0] : Named
 >   %2 = Store [$2] %1 : ()
@@ -80,7 +80,7 @@ fn with_tag[$ R](s: string, callback: fn() -> usize $ R + Tag) -> usize $ R:
 fn run(s: string) -> usize:
     with_tag(s, read_tag)
 > app/main/run
->   local $0 s: string [param read]
+>   local $0 s: string [param read] value
 >   %0 = Read move [$0] : string
 >   %1 = ItemRef #0 [..] : fn() -> usize
 >   %2 = Call app/main/with_tag[$()] (%0, %1) : usize
@@ -92,9 +92,9 @@ fn run(s: string) -> usize:
 fn closure(s: string) -> usize:
     with_tag(s, fn() -> usize $ Tag: $.use(Tag).name().len())
 > app/main/closure
->   local $0 s: string [param read]
->   local $1 $ref: string [read assigned captured captured-assigned]
->   local $2 self: string [read]
+>   local $0 s: string [param read] value
+>   local $1 $ref: string [read assigned captured captured-assigned] value
+>   local $2 self: string [read] value
 >   %0 = Read move [$0] : string
 >   %1 = ProviderGet #1 : Tag
 >   %2 = Coerce %1 [ProviderAsRef -] : Ref[Tag]

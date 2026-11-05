@@ -8,11 +8,11 @@
 fn measure(label: string, body: fn() -> string) -> usize:
     label.len() + body().len()
 > app/main/measure
->   local $0 label: string [param read]
->   local $1 body: fn() -> string [param read]
->   local $2 $ref: string [read assigned captured captured-assigned]
->   local $3 self: string [read]
->   local $4 self: string [read]
+>   local $0 label: string [param read] value
+>   local $1 body: fn() -> string [param read] value
+>   local $2 $ref: string [read assigned captured captured-assigned] value
+>   local $3 self: string [read] value
+>   local $4 self: string [read] value
 >   %0 = Read borrow [$0] : string
 >   %1 = Store [$4] %0 : ()
 >   %2 = Read borrow [$4] : string
@@ -38,10 +38,10 @@ fn measure(label: string, body: fn() -> string) -> usize:
 fn trailing(s: string) -> usize:
     measure("t"):
 > app/main/trailing
->   local $0 s: string [param read captured]
->   local $1 label: string [read captured]
->   local $2 body: fn() -> string [read]
->   local $3 $ref: string [read assigned captured captured-assigned]
+>   local $0 s: string [param read captured] value
+>   local $1 label: string [read captured] place
+>   local $2 body: fn() -> string [read] value
+>   local $3 $ref: string [read assigned captured captured-assigned] place
 >   %6 = Store [$1] "t" : ()
 >   %7 = Store [$2] %4 : ()
 >   %8 = Ref local frame [$1] : Counted[string]
@@ -77,7 +77,7 @@ fn trailing(s: string) -> usize:
 fn twice(body: fn() -> usize) -> usize:
     body() + body()
 > app/main/twice
->   local $0 body: fn() -> usize [param read]
+>   local $0 body: fn() -> usize [param read] value
 >   %0 = Read borrow [$0] : fn() -> usize
 >   %1 = CallValue %0 [] : usize
 >   %2 = Read borrow [$0] : fn() -> usize
@@ -89,8 +89,8 @@ fn twice(body: fn() -> usize) -> usize:
 fn no_args(s: string) -> usize:
     twice:
 > app/main/no_args
->   local $0 s: string [param read captured]
->   local $1 body: fn() -> usize [read]
+>   local $0 s: string [param read captured] place
+>   local $1 body: fn() -> usize [read] value
 >   %7 = Store [$1] %5 : ()
 >   %8 = Read borrow [$1] : fn() -> usize
 >   %9 = CallValue %8 [] : usize

@@ -14,8 +14,8 @@ impl Index[usize] for Names:
     fn index(&self, key: usize) -> string:
         self.items[key]
 > app/main/impl Index [ usize ] for Names.index
->   local $0 self: Ref[Names] [param read]
->   local $1 key: usize [param read]
+>   local $0 self: Ref[Names] [param read] value
+>   local $1 key: usize [param read] value
 >   %0 = Read copy [$1] : usize
 >   %1 = Read copy [*$0 .items [%0]] : string
 >   %2 = Block %1 : string
@@ -25,9 +25,9 @@ impl IndexSet[usize, string] for Names:
     fn index_set(&mut self, key: usize, value: string) -> void:
         self.items[key] = value
 > app/main/impl IndexSet [ usize , string ] for Names.index_set
->   local $0 self: Ref[mut Names] [param read]
->   local $1 key: usize [param read]
->   local $2 value: string [param read]
+>   local $0 self: Ref[mut Names] [param read] value
+>   local $1 key: usize [param read] value
+>   local $2 value: string [param read] value
 >   %0 = Read copy [$1] : usize
 >   %1 = Read move [$2] : string
 >   %2 = IsUnique [*$0 .items] : ()
@@ -39,10 +39,10 @@ impl IndexSet[usize, string] for Names:
 fn read_len(n: Names, i: usize) -> usize:
     n[i].len()
 > app/main/read_len
->   local $0 n: Names [param read captured]
->   local $1 i: usize [param read]
->   local $2 $ref: string [read assigned captured captured-assigned]
->   local $3 self: string [read]
+>   local $0 n: Names [param read captured] place
+>   local $1 i: usize [param read] value
+>   local $2 $ref: string [read assigned captured captured-assigned] value
+>   local $3 self: string [read] value
 >   %0 = Ref local frame [$0] : Counted[Names]
 >   %1 = Read copy [$1] : usize
 >   %2 = Call std/ops/Index.index for Names [usize] via Impl (%0, %1) : string
@@ -64,9 +64,9 @@ fn read_len(n: Names, i: usize) -> usize:
 fn write(n: &mut Names, i: usize, s: string) -> void:
     n[i] = s
 > app/main/write
->   local $0 n: Ref[mut Names] [param read]
->   local $1 i: usize [param read]
->   local $2 s: string [param read]
+>   local $0 n: Ref[mut Names] [param read] value
+>   local $1 i: usize [param read] value
+>   local $2 s: string [param read] value
 >   %0 = Read borrow [$0] : Ref[mut Names]
 >   %1 = Read copy [$1] : usize
 >   %2 = Read move [$2] : string
@@ -78,7 +78,7 @@ fn write(n: &mut Names, i: usize, s: string) -> void:
 fn first[C < Index[usize]](items: C) -> C::Out:
     items[0]
 > app/main/first
->   local $0 items: C [param read captured]
+>   local $0 items: C [param read captured] place
 >   %0 = Ref local frame [$0] : Counted[C]
 >   %1 = Call std/ops/Index.index for C [usize] via Bound (%0, 0:usize) : C::Out
 >   %2 = Drop [%0] : ()
@@ -90,10 +90,10 @@ fn first[C < Index[usize]](items: C) -> C::Out:
 fn generic_first(xs: List[string]) -> usize:
     first(xs).len()
 > app/main/generic_first
->   local $0 xs: List[string] [param read]
->   local $1 $ref: string [read assigned captured captured-assigned]
->   local $2 self: string [read]
->   local $3 items: List[string] [read captured]
+>   local $0 xs: List[string] [param read] value
+>   local $1 $ref: string [read assigned captured captured-assigned] value
+>   local $2 self: string [read] value
+>   local $3 items: List[string] [read captured] place
 >   %0 = Read move [$0] : List[string]
 >   %1 = Store [$3] %0 : ()
 >   %2 = Ref local frame [$3] : Counted[List[string]]

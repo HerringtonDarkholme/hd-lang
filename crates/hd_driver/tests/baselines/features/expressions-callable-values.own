@@ -15,7 +15,7 @@ impl Apply for Cell:
     fn apply(self) -> string:
         self.value
 > app/main/impl Apply for Cell.apply
->   local $0 self: Cell [param read]
+>   local $0 self: Cell [param read] value
 >   %0 = Read move [$0 .value] : string
 >   %1 = Block %0 : string
 >   exit sub 0 drops [$0]
@@ -25,8 +25,8 @@ impl Update[string] for Cell:
     fn update(&mut self, value: string) -> void:
         self.value = value
 > app/main/impl Update [ string ] for Cell.update
->   local $0 self: Ref[mut Cell] [param read]
->   local $1 value: string [param read]
+>   local $0 self: Ref[mut Cell] [param read] value
+>   local $1 value: string [param read] value
 >   %0 = Read move [$1] : string
 >   %1 = Store [*$0 .value] %0 : ()
 >   %2 = Block - : ()
@@ -39,10 +39,10 @@ struct Handler:
 fn read_cell(c: Cell) -> usize:
     c().len()
 > app/main/read_cell
->   local $0 c: Cell [param read]
->   local $1 $ref: string [read assigned captured captured-assigned]
->   local $2 self: string [read]
->   local $3 self: Cell [read]
+>   local $0 c: Cell [param read] value
+>   local $1 $ref: string [read assigned captured captured-assigned] value
+>   local $2 self: string [read] value
+>   local $3 self: Cell [read] value
 >   %0 = Read move [$0] : Cell
 >   %1 = Store [$3] %0 : ()
 >   %2 = Read move [$3 .value] : string
@@ -65,8 +65,8 @@ fn read_cell(c: Cell) -> usize:
 fn store_cell(c: &mut Cell, s: string) -> void:
     c() = s
 > app/main/store_cell
->   local $0 c: Ref[mut Cell] [param read]
->   local $1 s: string [param read]
+>   local $0 c: Ref[mut Cell] [param read] value
+>   local $1 s: string [param read] value
 >   %0 = Read borrow [$0] : Ref[mut Cell]
 >   %1 = Read move [$1] : string
 >   %2 = Call std/ops/Update.update for Cell [string] via Impl (%0, %1) : ()
@@ -77,8 +77,8 @@ fn store_cell(c: &mut Cell, s: string) -> void:
 fn append_cell(c: &mut Cell) -> void:
     c() += "!"
 > app/main/append_cell
->   local $0 c: Ref[mut Cell] [param read]
->   local $1 self: Cell [read]
+>   local $0 c: Ref[mut Cell] [param read] value
+>   local $1 self: Cell [read] value
 >   %0 = Read borrow [$0] : Ref[mut Cell]
 >   %1 = Read copy [*%0] : Cell
 >   %2 = Store [$1] %1 : ()
@@ -95,8 +95,8 @@ fn append_cell(c: &mut Cell) -> void:
 fn stored_fn(h: Handler, s: string) -> usize:
     (h.callback)(s)
 > app/main/stored_fn
->   local $0 h: Handler [param read]
->   local $1 s: string [param read]
+>   local $0 h: Handler [param read] value
+>   local $1 s: string [param read] value
 >   %0 = Read borrow [$0 .callback] : fn(string) -> usize
 >   %1 = Read move [$1] : string
 >   %2 = CallValue %0 [%1] : usize

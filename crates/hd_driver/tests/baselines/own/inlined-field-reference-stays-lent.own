@@ -11,7 +11,7 @@ struct Point:
 fn write(target: &mut i32) -> void:
     *target += 1
 > app/main/write
->   local $0 target: Ref[mut i32] [param read]
+>   local $0 target: Ref[mut i32] [param read] value
 >   %0 = Read copy [*$0] : i32
 >   %1 = Prim Add [%0 1:i32] : i32
 >   %2 = Store [*$0] %1 : ()
@@ -22,8 +22,8 @@ fn write(target: &mut i32) -> void:
 fn forward(point: &mut Point) -> void:
     write(&mut point.x)
 > app/main/forward
->   local $0 point: Ref[mut Point] [param read]
->   local $1 target: Ref[mut i32] [read]
+>   local $0 point: Ref[mut Point] [param read] value
+>   local $1 target: Ref[mut i32] [read] value
 >   %0 = Ref lent mut local [*$0 .x] : Ref[mut i32]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read copy [*$1] : i32
@@ -40,9 +40,9 @@ fn forward(point: &mut Point) -> void:
 fn exercise(point: &mut Point) -> void:
     forward(point)
 > app/main/exercise
->   local $0 point: Ref[mut Point] [param read]
->   local $1 point: Ref[mut Point] [read]
->   local $2 target: Ref[mut i32] [read]
+>   local $0 point: Ref[mut Point] [param read] value
+>   local $1 point: Ref[mut Point] [read] value
+>   local $2 target: Ref[mut i32] [read] value
 >   %0 = Read borrow [$0] : Ref[mut Point]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Ref lent mut local [*$1 .x] : Ref[mut i32]
@@ -64,7 +64,7 @@ fn exercise(point: &mut Point) -> void:
 fn identity['a](target: &'a i32) -> &'a i32:
     target
 > app/main/identity
->   local $0 target: Ref[i32] [param read]
+>   local $0 target: Ref[i32] [param read] value
 >   %0 = Read copy [$0] : Ref[i32]
 >   %1 = Block %0 : Ref[i32]
 >   summary kept [$0] returns $0
@@ -73,8 +73,8 @@ fn identity['a](target: &'a i32) -> &'a i32:
 fn project['a](point: &'a Point) -> &'a i32:
     identity(&point.x)
 > app/main/project
->   local $0 point: Ref[Point] [param read]
->   local $1 target: Ref[i32] [read]
+>   local $0 point: Ref[Point] [param read] value
+>   local $1 target: Ref[i32] [read] value
 >   %0 = Ref local [*$0 .x] : Ref[i32]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read move [$1] : Ref[i32]
@@ -91,10 +91,10 @@ struct Owner:
 fn recursive_owned(point: *Owner, depth: usize) -> usize:
     field := &point.value
 > app/main/recursive_owned
->   local $0 point: Counted[Owner] [param read]
->   local $1 depth: usize [param read]
->   local $2 field: Ref[string] [:= read assigned]
->   local $3 below: usize [:= read assigned]
+>   local $0 point: Counted[Owner] [param read] value
+>   local $1 depth: usize [param read] value
+>   local $2 field: Ref[string] [:= read assigned] value
+>   local $3 below: usize [:= read assigned] value
 >   %0 = Ref local [*$0 .value] : Ref[string]
 >   %1 = Store [$2] %0 : ()
 >   %19 = Block %18 : usize
@@ -123,10 +123,10 @@ fn recursive_owned(point: *Owner, depth: usize) -> usize:
 fn recursive_borrowed(point: &Owner, depth: usize) -> usize:
     field := &point.value
 > app/main/recursive_borrowed
->   local $0 point: Ref[Owner] [param read]
->   local $1 depth: usize [param read]
->   local $2 field: Ref[string] [:= read assigned]
->   local $3 below: usize [:= read assigned]
+>   local $0 point: Ref[Owner] [param read] value
+>   local $1 depth: usize [param read] value
+>   local $2 field: Ref[string] [:= read assigned] value
+>   local $3 below: usize [:= read assigned] value
 >   %0 = Ref lent local [*$0 .value] : Ref[string]
 >   %1 = Store [$2] %0 : ()
 >   %19 = Block %18 : usize

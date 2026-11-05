@@ -29,10 +29,10 @@ impl['a] Cursor['a]:
     fn next(&mut self) -> usize?:
         while self.at < self.items.used:
 > std/rt_tests.stage_case/impl [ 'a ] Cursor [ 'a ].next
->   local $0 self: Ref[mut Cursor[Ref[()]]] [param read]
->   local $1 index: usize [:= read assigned]
->   local $2 found: usize [read assigned]
->   local $4 index: usize [read]
+>   local $0 self: Ref[mut Cursor[Ref[()]]] [param read] value
+>   local $1 index: usize [:= read assigned] value
+>   local $2 found: usize [read assigned] value
+>   local $4 index: usize [read] value
 >   %0 = Read copy [*$0 .at] : usize
 >   %1 = Read copy [*$0 .items * .used] : usize
 >   %2 = Prim Lt [%0 %1] : bool

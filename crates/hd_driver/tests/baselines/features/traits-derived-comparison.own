@@ -15,8 +15,8 @@ struct Key:
 fn same(a: Key, b: Key) -> bool:
     a == b
 > app/main/same
->   local $0 a: Key [param read captured]
->   local $1 b: Key [param read captured]
+>   local $0 a: Key [param read captured] place
+>   local $1 b: Key [param read captured] place
 >   %0 = Ref local frame [$0] : Counted[Key]
 >   %1 = Ref local frame [$1] : Counted[Key]
 >   %2 = Call std/core/Eq.eq for Key [] via Impl (%0, %1) : bool
@@ -31,10 +31,10 @@ fn same(a: Key, b: Key) -> bool:
 fn before(a: Key, b: Key) -> bool:
     a < b
 > app/main/before
->   local $0 a: Key [param read captured]
->   local $1 b: Key [param read captured]
->   local $2 $order: Ordering? [read assigned captured]
->   local $3 $ref: Ordering? [read assigned captured captured-assigned]
+>   local $0 a: Key [param read captured] place
+>   local $1 b: Key [param read captured] place
+>   local $2 $order: Ordering? [read assigned captured] place
+>   local $3 $ref: Ordering? [read assigned captured captured-assigned] place
 >   %0 = Ref local frame [$0] : Counted[Key]
 >   %1 = Ref local frame [$1] : Counted[Key]
 >   %2 = Call std/cmp/PartialOrd.partial_cmp for Key [] via Impl (%0, %1) : Ordering?
@@ -62,10 +62,10 @@ fn before(a: Key, b: Key) -> bool:
 fn lookup(m: Map[Key, string], k: Key) -> usize:
     match m.get(k):
 > app/main/lookup
->   local $0 m: Map[Key, string] [param read]
->   local $1 k: Key [param read]
->   local $2 v: string [read assigned]
->   local $3 self: string [read]
+>   local $0 m: Map[Key, string] [param read] value
+>   local $1 k: Key [param read] value
+>   local $2 v: string [read assigned] value
+>   local $3 self: string [read] value
 >   %0 = Read borrow [$0] : Map[Key, string]
 >   %1 = Read borrow [$1] : Key
 >   %2 = Intrinsic MapGet [%0 %1] : string?
@@ -97,8 +97,8 @@ fn lookup(m: Map[Key, string], k: Key) -> usize:
 fn tuple_key(m: Map[(string, i32), i32], s: string) -> i32:
     m.get((s, 1)).unwrap_or(0)
 > app/main/tuple_key
->   local $0 m: Map[(string, i32), i32] [param read]
->   local $1 s: string [param read]
+>   local $0 m: Map[(string, i32), i32] [param read] value
+>   local $1 s: string [param read] value
 >   %0 = Read borrow [$0] : Map[(string, i32), i32]
 >   %1 = Read move [$1] : string
 >   %2 = NewTuple - [%1 1:i32] : (string, i32)

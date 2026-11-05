@@ -8,7 +8,7 @@
 fn ident[T](x: T) -> T:
     x
 > app/main/ident
->   local $0 x: T [param read]
+>   local $0 x: T [param read] value
 >   %0 = Read move [$0] : T
 >   %1 = Block %0 : T
 >   exit sub 0 drops [$0]
@@ -17,7 +17,7 @@ fn ident[T](x: T) -> T:
 fn first[T](xs: List[T]) -> T?:
     if xs.len() > 0: .Some(xs[0]) else: .None
 > app/main/first
->   local $0 xs: List[T] [param read]
+>   local $0 xs: List[T] [param read] value
 >   %0 = Read borrow [$0] : List[T]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Prim Gt [%1 0:usize] : bool
@@ -34,7 +34,7 @@ fn first[T](xs: List[T]) -> T?:
 fn size[T](xs: &List[T]) -> usize:
     xs.len()
 > app/main/size
->   local $0 xs: Ref[List[T]] [param read]
+>   local $0 xs: Ref[List[T]] [param read] value
 >   %0 = Read borrow [$0] : Ref[List[T]]
 >   %1 = Read borrow [*%0] : List[T]
 >   %2 = Intrinsic ListLen [%1] : usize
@@ -45,8 +45,8 @@ fn size[T](xs: &List[T]) -> usize:
 fn keep[T](x: T) -> List[T]:
     let mut out: List[T] = []
 > app/main/keep
->   local $0 x: T [param read]
->   local $1 out: List[T] [read assigned]
+>   local $0 x: T [param read] value
+>   local $1 out: List[T] [read assigned] value
 >   %0 = NewList - [] : List[T]
 >   %1 = Store [$1] %0 : ()
 >   %7 = Block %6 : List[T]
@@ -63,16 +63,16 @@ fn keep[T](x: T) -> List[T]:
 fn use_generic(s: string, xs: List[string]) -> usize:
     ident(s).len() + size(&xs) + first(xs).unwrap_or("").len() + keep(s).len()
 > app/main/use_generic
->   local $0 s: string [param read]
->   local $1 xs: List[string] [param read captured]
->   local $2 $ref: string [read assigned captured captured-assigned]
->   local $3 $ref: string [read assigned captured captured-assigned]
->   local $4 x: string [read]
->   local $5 out: List[string] [read assigned]
->   local $6 self: string [read]
->   local $7 xs: List[string] [read]
->   local $8 self: string [read]
->   local $9 x: string [read]
+>   local $0 s: string [param read] value
+>   local $1 xs: List[string] [param read captured] place
+>   local $2 $ref: string [read assigned captured captured-assigned] value
+>   local $3 $ref: string [read assigned captured captured-assigned] value
+>   local $4 x: string [read] value
+>   local $5 out: List[string] [read assigned] value
+>   local $6 self: string [read] value
+>   local $7 xs: List[string] [read] value
+>   local $8 self: string [read] value
+>   local $9 x: string [read] value
 >   %0 = Read copy [$0] : string
 >   %1 = Store [$9] %0 : ()
 >   %2 = Read move [$9] : string

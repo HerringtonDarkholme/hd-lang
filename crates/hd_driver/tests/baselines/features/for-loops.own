@@ -8,14 +8,14 @@
 fn over_value(xs: List[string]) -> usize:
     let n: usize = 0
 > app/main/over_value
->   local $0 xs: List[string] [param read]
->   local $1 n: usize [read assigned mutated]
->   local $2 $coll: List[string] [assigned]
->   local $3 $len: usize [assigned]
->   local $4 $pos: usize [assigned]
->   local $5 $end: usize [assigned]
->   local $6 x: string [read assigned]
->   local $7 self: string [read]
+>   local $0 xs: List[string] [param read] value
+>   local $1 n: usize [read assigned mutated] value ×2
+>   local $2 $coll: List[string] [assigned] value
+>   local $3 $len: usize [assigned] value
+>   local $4 $pos: usize [assigned] value ×2
+>   local $5 $end: usize [assigned] value
+>   local $6 x: string [read assigned] value
+>   local $7 self: string [read] value
 >   %0 = Store [$1] 0:usize : ()
 >   %41 = Block %40 : usize
     for x in xs:
@@ -66,14 +66,14 @@ fn over_value(xs: List[string]) -> usize:
 fn over_ref(xs: &List[string]) -> usize:
     let n: usize = 0
 > app/main/over_ref
->   local $0 xs: Ref[List[string]] [param read]
->   local $1 n: usize [read assigned mutated]
->   local $2 $coll: List[string] [assigned]
->   local $3 $len: usize [assigned]
->   local $4 $pos: usize [assigned]
->   local $5 $end: usize [assigned]
->   local $6 x: string [read assigned]
->   local $7 self: string [read]
+>   local $0 xs: Ref[List[string]] [param read] value
+>   local $1 n: usize [read assigned mutated] value ×2
+>   local $2 $coll: List[string] [assigned] value
+>   local $3 $len: usize [assigned] value
+>   local $4 $pos: usize [assigned] value ×2
+>   local $5 $end: usize [assigned] value
+>   local $6 x: string [read assigned] value
+>   local $7 self: string [read] value
 >   %0 = Store [$1] 0:usize : ()
 >   %41 = Block %40 : usize
     for x in xs:
@@ -124,10 +124,10 @@ fn over_ref(xs: &List[string]) -> usize:
 fn over_mut(xs: &mut List[string]) -> void:
     for x in &mut *xs:
 > app/main/over_mut
->   local $0 xs: Ref[mut List[string]] [param read]
->   local $1 $len: usize [assigned]
->   local $2 $pos: usize [assigned]
->   local $3 x: Ref[mut string] [read assigned]
+>   local $0 xs: Ref[mut List[string]] [param read] value
+>   local $1 $len: usize [assigned] value
+>   local $2 $pos: usize [assigned] value ×2
+>   local $3 x: Ref[mut string] [read assigned] value
 >   %0 = Read borrow [*$0] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Drop [%0] : ()
@@ -166,13 +166,13 @@ fn over_mut(xs: &mut List[string]) -> void:
 fn keep_each(xs: List[string]) -> List[string]:
     let mut out: List[string] = []
 > app/main/keep_each
->   local $0 xs: List[string] [param read]
->   local $1 out: List[string] [read assigned]
->   local $2 $coll: List[string] [assigned]
->   local $3 $len: usize [assigned]
->   local $4 $pos: usize [assigned]
->   local $5 $end: usize [assigned]
->   local $6 x: string [read assigned]
+>   local $0 xs: List[string] [param read] value
+>   local $1 out: List[string] [read assigned] value
+>   local $2 $coll: List[string] [assigned] value
+>   local $3 $len: usize [assigned] value
+>   local $4 $pos: usize [assigned] value ×2
+>   local $5 $end: usize [assigned] value
+>   local $6 x: string [read assigned] value
 >   %0 = NewList - [] : List[string]
 >   %1 = Store [$1] %0 : ()
 >   %35 = Block %34 : List[string]
@@ -217,14 +217,14 @@ fn keep_each(xs: List[string]) -> List[string]:
 fn comprehension(xs: List[string]) -> List[usize]:
     [for x in xs => x.len()]
 > app/main/comprehension
->   local $0 xs: List[string] [param read]
->   local $1 $acc: mut List[usize] [assigned]
->   local $2 $coll: List[string] [assigned]
->   local $3 $len: usize [assigned]
->   local $4 $pos: usize [assigned]
->   local $5 $end: usize [assigned]
->   local $6 x: string [read assigned]
->   local $7 self: string [read]
+>   local $0 xs: List[string] [param read] value
+>   local $1 $acc: mut List[usize] [assigned] value
+>   local $2 $coll: List[string] [assigned] value
+>   local $3 $len: usize [assigned] value
+>   local $4 $pos: usize [assigned] value ×2
+>   local $5 $end: usize [assigned] value
+>   local $6 x: string [read assigned] value
+>   local $7 self: string [read] value
 >   %0 = NewList - [] : mut List[usize]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$0] : List[string]

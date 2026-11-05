@@ -12,7 +12,7 @@ trait Describe:
     fn headline(&self) -> string:
         "* " + self.describe()
 > app/main/Describe.headline
->   local $0 self: Ref[Self] [param read]
+>   local $0 self: Ref[Self] [param read] value
 >   %0 = Read borrow [$0] : Ref[Self]
 >   %1 = Call app/main/Describe.describe for Self [] via Bound (%0) : string
 >   %2 = Intrinsic StrConcat ["* " %1] : string
@@ -27,7 +27,7 @@ impl Describe for Logger:
     fn describe(&self) -> string:
         self.name
 > app/main/impl Describe for Logger.describe
->   local $0 self: Ref[Logger] [param read]
+>   local $0 self: Ref[Logger] [param read] value
 >   %0 = Read copy [*$0 .name] : string
 >   %1 = Block %0 : string
 >   summary kept [$0]
@@ -35,9 +35,9 @@ impl Describe for Logger:
 fn direct(l: Logger) -> usize:
     l.headline().len()
 > app/main/direct
->   local $0 l: Logger [param read captured]
->   local $1 $ref: string [read assigned captured captured-assigned]
->   local $2 self: string [read]
+>   local $0 l: Logger [param read captured] place
+>   local $1 $ref: string [read assigned captured captured-assigned] value
+>   local $2 self: string [read] value
 >   %0 = Ref local frame [$0] : Counted[Logger]
 >   %1 = Call app/main/Describe.headline for Logger [] via Impl (%0) : string
 >   %2 = Drop [%0] : ()
@@ -58,9 +58,9 @@ fn direct(l: Logger) -> usize:
 fn generic[T < Describe](x: T) -> usize:
     x.headline().len()
 > app/main/generic
->   local $0 x: T [param read captured]
->   local $1 $ref: string [read assigned captured captured-assigned]
->   local $2 self: string [read]
+>   local $0 x: T [param read captured] place
+>   local $1 $ref: string [read assigned captured captured-assigned] value
+>   local $2 self: string [read] value
 >   %0 = Ref local frame [$0] : Counted[T]
 >   %1 = Call app/main/Describe.headline for T [] via Bound (%0) : string
 >   %2 = Drop [%0] : ()
@@ -81,10 +81,10 @@ fn generic[T < Describe](x: T) -> usize:
 fn use_generic(l: Logger) -> usize:
     generic(l)
 > app/main/use_generic
->   local $0 l: Logger [param read]
->   local $1 x: Logger [read captured]
->   local $2 $ref: string [read assigned captured captured-assigned]
->   local $3 self: string [read]
+>   local $0 l: Logger [param read] value
+>   local $1 x: Logger [read captured] place
+>   local $2 $ref: string [read assigned captured captured-assigned] value
+>   local $3 self: string [read] value
 >   %0 = Read move [$0] : Logger
 >   %1 = Store [$1] %0 : ()
 >   %2 = Ref local frame [$1] : Counted[Logger]
@@ -111,9 +111,9 @@ fn use_generic(l: Logger) -> usize:
 fn qualified(l: Logger) -> usize:
     Describe::headline(&l).len()
 > app/main/qualified
->   local $0 l: Logger [param read captured]
->   local $1 $ref: string [read assigned captured captured-assigned]
->   local $2 self: string [read]
+>   local $0 l: Logger [param read captured] place
+>   local $1 $ref: string [read assigned captured captured-assigned] value
+>   local $2 self: string [read] value
 >   %0 = Ref local frame [$0] : Counted[Logger]
 >   %1 = Coerce %0 [Weaken -] : Ref[Logger]
 >   %2 = Call app/main/Describe.headline for Logger [] via Impl (%1) : string

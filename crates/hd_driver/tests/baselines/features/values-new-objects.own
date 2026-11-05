@@ -11,7 +11,7 @@ struct Named:
 fn make(s: string) -> Named:
     Named { name: s }
 > app/main/make
->   local $0 s: string [param read]
+>   local $0 s: string [param read] value
 >   %0 = Read move [$0] : string
 >   %1 = NewStruct [%0] : Named
 >   %2 = Block %1 : Named
@@ -21,11 +21,11 @@ fn make(s: string) -> Named:
 fn temp_ref(s: string) -> usize:
     n := &make(s)
 > app/main/temp_ref
->   local $0 s: string [param read]
->   local $1 $ref: Named [read assigned captured captured-assigned]
->   local $2 n: Ref[Named] [:= read assigned]
->   local $3 self: string [read]
->   local $4 s: string [read]
+>   local $0 s: string [param read] value
+>   local $1 $ref: Named [read assigned captured captured-assigned] place
+>   local $2 n: Ref[Named] [:= read assigned] value
+>   local $3 self: string [read] value
+>   local $4 s: string [read] value
 >   %0 = Read move [$0] : string
 >   %1 = Store [$4] %0 : ()
 >   %2 = Read move [$4] : string
@@ -55,11 +55,11 @@ fn temp_ref(s: string) -> usize:
 fn new_mut(s: string, t: string) -> usize:
     m := &mut Named { name: s }
 > app/main/new_mut
->   local $0 s: string [param read]
->   local $1 t: string [param read]
->   local $2 $ref: Named [read assigned captured captured-assigned]
->   local $3 m: Ref[mut Named] [:= read assigned]
->   local $4 self: string [read]
+>   local $0 s: string [param read] value
+>   local $1 t: string [param read] value
+>   local $2 $ref: Named [read assigned captured captured-assigned] place
+>   local $3 m: Ref[mut Named] [:= read assigned] value
+>   local $4 self: string [read] value
 >   %0 = Read move [$0] : string
 >   %1 = NewStruct [%0] : Named
 >   %2 = Store [$2] %1 : ()
@@ -87,11 +87,11 @@ fn new_mut(s: string, t: string) -> usize:
 fn field_ref(s: string, t: string) -> usize:
     let mut p = Named { name: s }
 > app/main/field_ref
->   local $0 s: string [param read]
->   local $1 t: string [param read]
->   local $2 p: Named [read assigned captured captured-assigned]
->   local $3 q: Ref[mut string] [:= read assigned]
->   local $4 self: string [read]
+>   local $0 s: string [param read] value
+>   local $1 t: string [param read] value
+>   local $2 p: Named [read assigned captured captured-assigned] place
+>   local $3 q: Ref[mut string] [:= read assigned] value
+>   local $4 self: string [read] value
 >   %0 = Read move [$0] : string
 >   %1 = NewStruct [%0] : Named
 >   %2 = Store [$2] %1 : ()

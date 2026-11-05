@@ -17,8 +17,8 @@ impl Recorder for Log:
     fn note(&mut self, s: string) -> void:
         self.lines.push(s)
 > app/main/impl Recorder for Log.note
->   local $0 self: Ref[mut Log] [param read]
->   local $1 s: string [param read]
+>   local $0 self: Ref[mut Log] [param read] value
+>   local $1 s: string [param read] value
 >   %0 = Read move [$1] : string
 >   %1 = IsUnique [*$0 .lines] : ()
 >   %2 = Read borrow [*$0 .lines] : List[string]
@@ -30,7 +30,7 @@ impl Recorder for Log:
     fn total(&self) -> usize:
         self.lines.len()
 > app/main/impl Recorder for Log.total
->   local $0 self: Ref[Log] [param read]
+>   local $0 self: Ref[Log] [param read] value
 >   %0 = Read borrow [*$0 .lines] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Drop [%0] : ()
@@ -40,8 +40,8 @@ impl Recorder for Log:
 fn tick(s: string) -> usize $ Recorder:
     rec := $.use(Recorder)
 > app/main/tick
->   local $0 s: string [param read]
->   local $1 rec: Ref[mut Recorder] [:= read assigned]
+>   local $0 s: string [param read] value
+>   local $1 rec: Ref[mut Recorder] [:= read assigned] value
 >   %0 = ProviderGet #0 : Recorder
 >   %1 = Coerce %0 [ProviderAsRef -] : Ref[mut Recorder]
 >   %2 = Store [$1] %1 : ()
@@ -62,11 +62,11 @@ fn tick(s: string) -> usize $ Recorder:
 fn demo(a: string, b: string) -> usize:
     tally := box(Log { lines: [] })
 > app/main/demo
->   local $0 a: string [param read]
->   local $1 b: string [param read]
->   local $2 $ref: Log [read assigned captured captured-assigned]
->   local $3 tally: Counted[mut Log] [:= read assigned]
->   local $4 $ref: Counted[mut Log] [read assigned captured]
+>   local $0 a: string [param read] value
+>   local $1 b: string [param read] value
+>   local $2 $ref: Log [read assigned captured captured-assigned] place
+>   local $3 tally: Counted[mut Log] [:= read assigned] value
+>   local $4 $ref: Counted[mut Log] [read assigned captured] value
 >   %0 = NewList - [] : List[string]
 >   %1 = NewStruct [%0] : Log
 >   %2 = Store [$2] %1 : ()

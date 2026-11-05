@@ -8,17 +8,17 @@
 fn local_capture(prefix: string, xs: List[string]) -> usize:
     fn width(s: string) -> usize:
 > app/main/local_capture
->   local $0 prefix: string [param read captured]
->   local $1 xs: List[string] [param read]
->   local $2 s: string [param read]
->   local $3 width: fn(string) -> usize [:= read assigned]
->   local $4 total: usize [read assigned mutated]
->   local $5 $coll: List[string] [assigned]
->   local $6 $len: usize [assigned]
->   local $7 $pos: usize [assigned]
->   local $8 $end: usize [assigned]
->   local $9 x: string [read assigned]
->   local $10 self: string [read]
+>   local $0 prefix: string [param read captured] place
+>   local $1 xs: List[string] [param read] value
+>   local $2 s: string [param read] value
+>   local $3 width: fn(string) -> usize [:= read assigned] value
+>   local $4 total: usize [read assigned mutated] value ×2
+>   local $5 $coll: List[string] [assigned] value
+>   local $6 $len: usize [assigned] value
+>   local $7 $pos: usize [assigned] value ×2
+>   local $8 $end: usize [assigned] value
+>   local $9 x: string [read assigned] value
+>   local $10 self: string [read] value
 >   %13 = Block %12 : usize
 >   %14 = Closure #1 [%0 %1] : fn(string) -> usize
 >   %15 = Drop [$0] : ()
@@ -86,10 +86,10 @@ fn local_capture(prefix: string, xs: List[string]) -> usize:
 fn local_plain(xs: List[string]) -> usize:
     fn first_len(ys: List[string]) -> usize:
 > app/main/local_plain
->   local $0 xs: List[string] [param read]
->   local $1 ys: List[string] [param read]
->   local $2 first_len: fn(List[string]) -> usize [:= read assigned]
->   local $3 self: string [read]
+>   local $0 xs: List[string] [param read] value
+>   local $1 ys: List[string] [param read] value
+>   local $2 first_len: fn(List[string]) -> usize [:= read assigned] value
+>   local $3 self: string [read] value
 >   %15 = Block %13 : usize
 >   %16 = Closure #1 [%0 %0] : fn(List[string]) -> usize
 >   %17 = Store [$2] %16 : ()

@@ -11,16 +11,16 @@ use std.annotation.{InlineHint, cold, inline}
 fn unexpected(at: usize) -> string:
     "unexpected byte at $at"
 > app/main/unexpected
->   local $0 at: usize [param read captured]
->   local $1 result: string [read]
->   local $2 offset: usize [read]
->   local $3 value: u64 [read]
->   local $4 width: usize [read]
->   local $5 result: string [read]
->   local $6 offset: usize [read]
->   local $7 text: string [read]
->   local $8 size: usize [read]
->   local $9 value: u64 [read]
+>   local $0 at: usize [param read captured] place
+>   local $1 result: string [read] value
+>   local $2 offset: usize [read] value
+>   local $3 value: u64 [read] value
+>   local $4 width: usize [read] value
+>   local $5 result: string [read] value
+>   local $6 offset: usize [read] value
+>   local $7 text: string [read] value
+>   local $8 size: usize [read] value
+>   local $9 value: u64 [read] value
 >   %0 = Ref local frame [$0] : Counted[usize]
 >   %1 = Read copy [*%0] : usize
 >   %2 = Drop [%0] : ()
@@ -83,14 +83,14 @@ fn unexpected(at: usize) -> string:
 fn checksum(xs: &List[string]) -> usize:
     let mut n = 0
 > app/main/checksum
->   local $0 xs: Ref[List[string]] [param read]
->   local $1 n: usize [read assigned mutated]
->   local $2 $coll: List[string] [assigned]
->   local $3 $len: usize [assigned]
->   local $4 $pos: usize [assigned]
->   local $5 $end: usize [assigned]
->   local $6 x: string [read assigned]
->   local $7 self: string [read]
+>   local $0 xs: Ref[List[string]] [param read] value
+>   local $1 n: usize [read assigned mutated] value ×2
+>   local $2 $coll: List[string] [assigned] value
+>   local $3 $len: usize [assigned] value
+>   local $4 $pos: usize [assigned] value ×2
+>   local $5 $end: usize [assigned] value
+>   local $6 x: string [read assigned] value
+>   local $7 self: string [read] value
 >   %0 = Store [$1] 0:usize : ()
 >   %41 = Block %40 : usize
     for x in xs:
@@ -142,8 +142,8 @@ fn checksum(xs: &List[string]) -> usize:
 fn first_len(xs: &List[string]) -> usize:
     if xs.len() == 0:
 > app/main/first_len
->   local $0 xs: Ref[List[string]] [param read]
->   local $1 self: string [read]
+>   local $0 xs: Ref[List[string]] [param read] value
+>   local $1 self: string [read] value
 >   %0 = Read borrow [*$0] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Drop [%0] : ()
@@ -167,9 +167,9 @@ fn first_len(xs: &List[string]) -> usize:
 fn use_first(xs: List[string]) -> usize:
     first_len(&xs) + checksum(&xs)
 > app/main/use_first
->   local $0 xs: List[string] [param read captured]
->   local $1 xs: Counted[List[string]] [read]
->   local $2 self: string [read]
+>   local $0 xs: List[string] [param read captured] place
+>   local $1 xs: Counted[List[string]] [read] value
+>   local $2 self: string [read] value
 >   %0 = Ref local frame [$0] : Counted[List[string]]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [*$1] : List[string]
@@ -203,8 +203,8 @@ fn use_first(xs: List[string]) -> usize:
 fn check(xs: List[string], at: usize) -> string:
     if at >= xs.len():
 > app/main/check
->   local $0 xs: List[string] [param read]
->   local $1 at: usize [param read]
+>   local $0 xs: List[string] [param read] value
+>   local $1 at: usize [param read] value
 >   %0 = Read copy [$1] : usize
 >   %1 = Read borrow [$0] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize

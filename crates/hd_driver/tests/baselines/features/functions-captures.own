@@ -11,8 +11,8 @@
 fn copied(s: string) -> usize:
     f := fn() -> usize: s.len()
 > app/main/copied
->   local $0 s: string [param read captured]
->   local $1 f: fn() -> usize [:= read assigned]
+>   local $0 s: string [param read captured] place
+>   local $1 f: fn() -> usize [:= read assigned] value
 >   %0 = Ref local [$0] : Counted[string]
 >   %1 = Call std/text/impl string.len[] (%0) : usize
 >   %2 = Drop [%0] : ()
@@ -37,9 +37,9 @@ fn copied(s: string) -> usize:
 fn shared_list(s: string) -> usize:
     let mut xs: List[string] = []
 > app/main/shared_list
->   local $0 s: string [param read captured]
->   local $1 xs: List[string] [read assigned captured]
->   local $2 add: fn() -> () [:= read assigned]
+>   local $0 s: string [param read captured] value
+>   local $1 xs: List[string] [read assigned captured] place
+>   local $2 add: fn() -> () [:= read assigned] value
 >   %0 = NewList - [] : List[string]
 >   %1 = Store [$1] %0 : ()
 >   %20 = Block %18 : usize
@@ -74,10 +74,10 @@ fn shared_list(s: string) -> usize:
 fn copy_shares(s: string) -> usize:
     let n: usize = 0
 > app/main/copy_shares
->   local $0 s: string [param read captured]
->   local $1 n: usize [read assigned captured captured-assigned]
->   local $2 inc: fn() -> () [:= read assigned]
->   local $3 again: fn() -> () [:= read assigned]
+>   local $0 s: string [param read captured] place
+>   local $1 n: usize [read assigned captured captured-assigned] place
+>   local $2 inc: fn() -> () [:= read assigned] value
+>   local $3 again: fn() -> () [:= read assigned] value
 >   %0 = Store [$1] 0:usize : ()
 >   %23 = Block %21 : usize
     inc := fn() -> void: n += s.len()
@@ -116,8 +116,8 @@ fn copy_shares(s: string) -> usize:
 fn through_ptr(items: *mut List[string], s: string) -> fn() -> void:
     fn() -> void: items.push(s)
 > app/main/through_ptr
->   local $0 items: Counted[mut List[string]] [param read captured]
->   local $1 s: string [param read captured]
+>   local $0 items: Counted[mut List[string]] [param read captured] value
+>   local $1 s: string [param read captured] value
 >   %0 = Read move [$1] : string
 >   %1 = IsUnique [*$0] : ()
 >   %2 = Read borrow [*$0] : List[string]

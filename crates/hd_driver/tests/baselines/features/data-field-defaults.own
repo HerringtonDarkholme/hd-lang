@@ -21,7 +21,7 @@ struct Config:
 fn make(name: string) -> Config:
     Config { name: name }
 > app/main/make
->   local $0 name: string [param read]
+>   local $0 name: string [param read] value
 >   %0 = Read move [$0] : string
 >   %1 = DefaultCall [%4697 %16] [] : i32
 >   %2 = DefaultCall [%4698 %16] [] : string
@@ -34,8 +34,8 @@ fn make(name: string) -> Config:
 fn shorthand(name: string, tags: List[string]) -> Config:
     Config { name, tags }
 > app/main/shorthand
->   local $0 name: string [param read]
->   local $1 tags: List[string] [param read]
+>   local $0 name: string [param read] value
+>   local $1 tags: List[string] [param read] value
 >   %0 = Read move [$0] : string
 >   %1 = Read move [$1] : List[string]
 >   %2 = DefaultCall [%4697 %16] [] : i32

@@ -13,9 +13,9 @@ struct Cell[T]:
 fn shift[T](items: List[T], i: usize) -> List[T]:
     let mut xs = items
 > app/main/shift
->   local $0 items: List[T] [param read]
->   local $1 i: usize [param read]
->   local $2 xs: List[T] [read assigned]
+>   local $0 items: List[T] [param read] value
+>   local $1 i: usize [param read] value
+>   local $2 xs: List[T] [read assigned] value
 >   %0 = Read move [$0] : List[T]
 >   %1 = Store [$2] %0 : ()
 >   %11 = Block %10 : List[T]
@@ -35,9 +35,9 @@ fn shift[T](items: List[T], i: usize) -> List[T]:
 fn bump[T](cells: List[Cell[T]], i: usize) -> List[Cell[T]]:
     let mut all = cells
 > app/main/bump
->   local $0 cells: List[Cell[T]] [param read]
->   local $1 i: usize [param read]
->   local $2 all: List[Cell[T]] [read assigned]
+>   local $0 cells: List[Cell[T]] [param read] value
+>   local $1 i: usize [param read] value
+>   local $2 all: List[Cell[T]] [read assigned] value
 >   %0 = Read move [$0] : List[Cell[T]]
 >   %1 = Store [$2] %0 : ()
 >   %12 = Block %11 : List[Cell[T]]
