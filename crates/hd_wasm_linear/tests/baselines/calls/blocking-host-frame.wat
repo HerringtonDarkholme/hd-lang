@@ -63,12 +63,12 @@
       local.set $t3
       local.set $provider0.vtable
       local.set $path.1
+      local.tee $t4
     ;; (no span)
       local.get $provider0
       call $rt:release_ref'1
     ;; 10 |     match block_on(call):
       local.tee $provider0
-      local.tee $t4
       i32.eqz
       local.set $t5
       block
@@ -85,8 +85,8 @@
           end
           i32.const 1
           local.set $t6
-          local.get $t4
-          local.get $t4
+          local.get $provider0
+          local.get $provider0
           i32.load $heap
           call_indirect $table0 (param i32) (result i32 i32 i32 i32 i32)
           local.set $t2
@@ -111,26 +111,26 @@
       local.set $t3
       local.set $provider0.vtable
       local.set $path.1
-      local.get $t4
+      local.get $provider0
       local.get $t1
       i32.eq
       if
-        local.get $t4
+        local.get $provider0
         i32.load $heap offset=20
         local.tee $t1
         i32.const 0
         i32.ge_s
         if
-          local.get $t4
+          local.get $provider0
           i32.const -1
           i32.store $heap offset=20
-          local.get $t4
+          local.get $provider0
           local.get $t1
           call_indirect $table0 (param i32)
         end
       end
     ;; (no span)
-      local.get $provider0
+      local.get $t4
       call $rt:release_ref'2
     ;; 10 |     match block_on(call):
       block

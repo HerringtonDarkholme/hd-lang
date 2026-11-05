@@ -578,8 +578,8 @@ fn string_index_and_slice_on_views() {
          \x20   println(word.slice(1, 3))\n\
          \x20   let lo: usize = 7\n\
          \x20   let hi: usize = 10\n\
-         \x20   println(s[lo..hi])\n\
-         \x20   println(s[lo..])\n\
+         \x20   println(s.slice(lo, hi))\n\
+         \x20   println(s.slice(lo, s.len()))\n\
          \x20   println(word[5])\n",
     )
     .expect("write");

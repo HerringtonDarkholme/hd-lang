@@ -60,20 +60,30 @@ fn is_mut_ref(pool: Types<'_>, t: Ty) -> bool {
 /// `!Copy`, or a type parameter that is not `Copy`, held by value in a
 /// struct, enum, tuple, optional or union. A `*mut T` and a `&T` copy.
 /// `relaxed` lists the body's local functions' `?Copy` parameters.
-fn blocker(cx: (Types<'_>, &Lookup<'_>, &[Ty]), t: Ty, seen: &mut Vec<Ty>) -> Option<Ty> {
+fn blocker(
+    cx: (Types<'_>, &Lookup<'_>, &[Ty]),
+    t: Ty,
+    seen: &mut Vec<Ty>,
+    normalize: &mut dyn FnMut(Ty) -> Ty,
+) -> Option<Ty> {
     let (pool, lookup, relaxed) = cx;
+    let t = if matches!(pool.get(t), TyData::Assoc { .. }) {
+        normalize(t)
+    } else {
+        t
+    };
     if seen.contains(&t) || seen.len() > 32 {
         return None;
     }
-    let any = |ts: &[Ty], seen: &mut Vec<Ty>| ts.iter().find_map(|&e| blocker(cx, e, seen));
+    let mut any =
+        |ts: &[Ty], seen: &mut Vec<Ty>| ts.iter().find_map(|&e| blocker(cx, e, seen, normalize));
     match pool.get(t) {
         TyData::Ref {
             mutable, counted, ..
         } => (mutable && !counted).then_some(t),
-        TyData::Mut(i) | TyData::Option(i) => blocker(cx, i, seen),
-        TyData::Tuple { elems, rest } => {
-            any(pool.list_items(elems), seen).or_else(|| rest.and_then(|r| blocker(cx, r, seen)))
-        }
+        TyData::Mut(i) | TyData::Option(i) => blocker(cx, i, seen, normalize),
+        TyData::Tuple { elems, rest } => any(pool.list_items(elems), seen)
+            .or_else(|| rest.and_then(|r| blocker(cx, r, seen, normalize))),
         TyData::Union(ms) => any(pool.list_items(ms), seen),
         TyData::Param(_) if relaxed.contains(&t) => Some(t),
         TyData::Param(p) => (!param_copies((pool, lookup), p)).then_some(t),
@@ -104,7 +114,7 @@ fn blocker(cx: (Types<'_>, &Lookup<'_>, &[Ty]), t: Ty, seen: &mut Vec<Ty>) -> Op
                         .then(|| argv.get(p.index as usize).copied())
                         .flatten()
                 });
-                blocker(cx, ft, seen)
+                blocker(cx, ft, seen, normalize)
             });
             seen.pop();
             found
@@ -155,6 +165,7 @@ fn local_of(b: &Body, word: u32) -> Option<(LocalId, bool)> {
 
 /// What [`Ck::moves`] follows a value through.
 struct Uses<'x> {
+    copied: &'x [bool],
     b: &'x Body,
     topo: &'x Topology,
     /// Each value's users, with the role of each use.
@@ -280,15 +291,33 @@ fn field_prefix(proj: &[Proj]) -> (Vec<u32>, bool) {
 }
 
 impl Ck<'_, '_> {
+    /// Resolve associated projections before the immutable move walk.
+    /// A substituted field can name a concrete associated type even when
+    /// the enclosing type's argument list contains no projection.
+    fn copy_facts(&mut self) -> Vec<bool> {
+        (0..self.b.body().len())
+            .map(|i| {
+                let b = self.b.body();
+                let (tag, ty) = (b.tags[i], b.ty[i]);
+                matches!(tag, Tag::Read | Tag::Coerce) && self.copies(ty)
+            })
+            .collect()
+    }
+
     /// Whether a value of `t` is copied ([`blocker`]).
-    pub(crate) fn copies(&self, t: Ty) -> bool {
+    pub(crate) fn copies(&mut self, t: Ty) -> bool {
         self.not_copied_by(t).is_none()
     }
 
     /// The part of `t` that keeps it from being copied ([`blocker`]).
-    fn not_copied_by(&self, t: Ty) -> Option<Ty> {
+    fn not_copied_by(&mut self, t: Ty) -> Option<Ty> {
         let relaxed = self.relaxed_local_params();
-        blocker((self.pool(), self.cx.lookup, &relaxed), t, &mut Vec::new())
+        blocker(
+            (self.pool(), self.cx.lookup, &relaxed),
+            t,
+            &mut Vec::new(),
+            &mut |ty| self.norm_ty(ty),
+        )
     }
 
     /// The type parameters of the body's generic local functions declared
@@ -310,7 +339,7 @@ impl Ck<'_, '_> {
 
     /// Why a value of `t` is not copied, for a message: the `&mut`, the
     /// `!Copy` type or the `?Copy` parameter it holds.
-    pub(crate) fn why_not_copied(&self, t: Ty) -> String {
+    pub(crate) fn why_not_copied(&mut self, t: Ty) -> String {
         let pool = self.pool();
         let Some(part) = self.not_copied_by(t) else {
             return "its type is not copied".to_string();
@@ -349,22 +378,29 @@ impl Ck<'_, '_> {
     /// per binding. Returns the reads that move ([`MoveFacts`]).
     pub(crate) fn check_moves(&mut self, root: Ref) -> MoveFacts {
         let pool = self.pool();
-        let b = self.b.body();
         let mut facts = MoveFacts::default();
         // A body with an error has poison values, whose uses say nothing.
-        if b.tags.contains(&Tag::Poison) {
+        if self.b.body().tags.contains(&Tag::Poison) {
             return facts;
         }
-        let hidden = self.hidden_locals(b);
-        let held: Vec<bool> = (b.local_ty.iter()).map(|&t| !self.copies(t)).collect();
+        let held: Vec<bool> = (0..self.b.body().local_ty.len())
+            .map(|i| {
+                let ty = self.b.body().local_ty[i];
+                !self.copies(ty)
+            })
+            .collect();
+        let hidden = self.hidden_locals(self.b.body());
         let tracked = |l: LocalId| held[l.idx()] && !hidden[l.idx()];
-        if !(0..b.local_ty.len()).any(|l| held[l] && !hidden[l]) {
+        if !(0..held.len()).any(|l| held[l] && !hidden[l]) {
             return facts;
         }
+        let copied = self.copy_facts();
+        let b = self.b.body();
         let n = b.len();
         let users = out_of_place::users_of(b);
         let hidden_reads = out_of_place::hidden_reads_of(b, &hidden);
         let cx = Uses {
+            copied: &copied,
             b,
             topo: &Topology::new(b),
             users: &users,
@@ -416,7 +452,7 @@ impl Ck<'_, '_> {
         let mut move_bit = vec![NONE; n];
         for i in 0..n {
             let Some(a) = &acc[i] else { continue };
-            let field_copies = !a.path.is_empty() && self.copies(b.ty[i]);
+            let field_copies = !a.path.is_empty() && copied[i];
             if b.tags[i] != Tag::Read
                 || link[i]
                 || !a.exact
@@ -540,7 +576,7 @@ impl Ck<'_, '_> {
             if b.tags[i] == Tag::Coerce {
                 // A coercion to `&T` reborrows; one that keeps a type
                 // that is not copied passes the value on.
-                return !self.copies(b.ty[i]) && self.moves(cx, u, depth + 1);
+                return !cx.copied[i] && self.moves(cx, u, depth + 1);
             }
             match role {
                 Role::Consume => self.consume_moves(cx, i, v, depth),

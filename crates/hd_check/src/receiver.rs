@@ -162,21 +162,36 @@ impl Ck<'_, '_> {
         call: bool,
     ) -> StageResult<Option<(Ref, Ty)>> {
         let mut bt = self.peek_place_ty(base);
+        let mut indexed = base;
+        let container = loop {
+            match indexed.kind() {
+                SyntaxKind::IndexExpr => break indexed.children().next(),
+                SyntaxKind::FieldExpr | SyntaxKind::ParenExpr => {
+                    let Some(parent) = indexed.children().next() else {
+                        break None;
+                    };
+                    indexed = parent;
+                }
+                _ => break None,
+            }
+        };
         if bt.is_none()
-            && matches!(
-                base.kind(),
-                SyntaxKind::IndexExpr | SyntaxKind::FieldExpr | SyntaxKind::ParenExpr
-            )
-            && (base.kind() == SyntaxKind::IndexExpr
-                || base
-                    .descendants()
-                    .any(|node| node.kind() == SyntaxKind::IndexExpr))
+            && let Some(container) = container
         {
             // A trait's output can depend on its key's type. Resolve the
             // indexed receiver in a rolled-back trial before choosing
             // the method's shared or mutable accessor. The real place
             // still evaluates its receiver and key exactly once.
             let failed = self.trial(|this| {
+                // Extend place lookup for trait indexing. A built-in
+                // temporary index keeps its existing owned-value receiver.
+                let (_, mut container_ty) = this.expr(container, None)?;
+                while let Some((inner, _)) = this.ref_of(container_ty) {
+                    container_ty = inner;
+                }
+                if this.index_kind(container_ty).is_some() {
+                    return Ok(());
+                }
                 let (_, ty) = this.expr(base, None)?;
                 let ty = this.normalize_deep(ty)?;
                 if !this.pool().has_infer(ty) {

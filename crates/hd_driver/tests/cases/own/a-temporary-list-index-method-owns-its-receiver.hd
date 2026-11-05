@@ -1,0 +1,15 @@
+# @dump: own
+# A built-in index on a temporary reads an owned value for a method receiver.
+# Borrowing the temporary list's slot would end its ownership before the call.
+struct Item:
+    name: string
+
+impl Item:
+    fn label(&self) -> string?:
+        .Some(self.name)
+
+fn received(items: List[Item]) -> List[Item]:
+    items
+
+fn read(items: List[Item]) -> string?:
+    received(items)[0].label()
