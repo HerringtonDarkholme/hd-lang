@@ -24,6 +24,7 @@
 //! they hold the same address, which `r is s` and `identity_of` compare
 //! in the backend.
 
+use hd_base::SliceSort as _;
 use hd_base::{DefId, LocalId, NodeIdx, StageResult, Symbol};
 use hd_diag::{Code, FixSafety};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
@@ -1385,9 +1386,12 @@ impl Ck<'_, '_> {
     ///
     /// An implementation on a reference type covers both kinds
     /// (`ref.type.kind-runtime`), so its receiver may be a local reference:
-    /// its bodies lower that target type to the local carrier. Every other
-    /// reference keeps the kind its declaration writes.
-    pub(crate) fn lower_body_refs(&mut self) {
+    /// its bodies lower that target type to the local carrier. What the
+    /// body returns keeps the kind its result declares
+    /// ([`result_flow`]): a `box` returned as `*T` is counted, as its
+    /// callers read it (`ref.box.lifetime`). Every other reference keeps
+    /// the kind its declaration writes.
+    pub(crate) fn lower_body_refs(&mut self, root: u32) {
         let pool = self.pool();
         let mut cell = self.cx.names.known.ref_cells();
         if let Some(t) = self.self_ty
@@ -1395,6 +1399,7 @@ impl Ck<'_, '_> {
         {
             cell = cell.with_local_self(t);
         }
+        let declared = self.cx.names.known.ref_cells();
         let b = self.b.body_mut();
         for i in 0..b.tags.len() {
             if b.tags[i] == hd_tir::ir::Tag::Ref
@@ -1433,10 +1438,90 @@ impl Ck<'_, '_> {
                 b.ty[v as usize] = want;
             }
         }
+        if cell.local_ty.is_some() {
+            let (insts, locals) = result_flow(b, root);
+            for (i, _) in insts.iter().enumerate().filter(|(_, r)| **r) {
+                b.ty[i] = pool.lower_refs(declared, b.ty[i]);
+            }
+            for (l, _) in locals.iter().enumerate().filter(|(_, r)| **r) {
+                b.local_ty[l] = pool.lower_refs(declared, b.local_ty[l]);
+            }
+        }
         hd_tir::ir::map_body_types(self.b.body_mut(), &|t| pool.lower_refs(cell, t), &|l| {
             pool.lower_refs_list(cell, l)
         });
     }
+}
+
+/// The instructions and the locals whose value the body returns: the
+/// value of its root block `root` and each `Return` operand outside its
+/// closures, and what each of those takes its value from: a block's or
+/// an arm's value, a `break` value, a construction's part, a coercion
+/// that keeps its operand's value, and what is stored in a local it
+/// reads. A call's result, a `Ref` and a read through a place are where
+/// the flow starts.
+fn result_flow(b: &hd_tir::ir::Body, root: u32) -> (Vec<bool>, Vec<bool>) {
+    use hd_tir::ir::{Role, Word, place, slots};
+    let n = b.tags.len();
+    let mut insts = vec![false; n];
+    let mut locals = vec![false; b.local_ty.len()];
+    let mut stores = vec![Vec::new(); locals.len()];
+    let mut breaks = Vec::new();
+    for i in 0..n {
+        let [a, v] = b.data[i];
+        match b.tags[i] {
+            Tag::Store if a & place::BARE_LOCAL != 0 => {
+                if let Some(s) = stores.get_mut((a & !place::BARE_LOCAL) as usize) {
+                    s.push(v);
+                }
+            }
+            Tag::Break if v != NONE => {
+                if let Some(&t) = b.label_inst.get(a as usize) {
+                    breaks.push((t, v));
+                }
+            }
+            _ => {}
+        }
+    }
+    breaks.sort_stable();
+    let mut stack = crate::dep_results::returned(b, root);
+    stack.push(root);
+    while let Some(v) = stack.pop() {
+        let i = v as usize;
+        if v & Ref::CONST_BIT != 0 || i >= n || std::mem::replace(&mut insts[i], true) {
+            continue;
+        }
+        let at = breaks.partition_point(|&(t, _)| t < v);
+        stack.extend(
+            breaks[at..]
+                .iter()
+                .take_while(|&&(t, _)| t == v)
+                .map(|&(_, w)| w),
+        );
+        match b.tags[i] {
+            Tag::Read => {
+                let a = b.data[i][0];
+                let l = (a & !place::BARE_LOCAL) as usize;
+                if a & place::BARE_LOCAL != 0
+                    && l < locals.len()
+                    && !std::mem::replace(&mut locals[l], true)
+                {
+                    stack.extend(&stores[l]);
+                }
+                continue;
+            }
+            Tag::Call | Tag::CallValue | Tag::CallDyn | Tag::Await | Tag::Closure | Tag::Ref => {
+                continue;
+            }
+            _ => {}
+        }
+        slots(b, i, |_, w, word| {
+            if matches!(word, Word::Block | Word::Value(Role::Consume | Role::Tail)) {
+                stack.push(w);
+            }
+        });
+    }
+    (insts, locals)
 }
 
 /// Gives each `Ref` the carrier of where its address lies (`ref.box.object`,

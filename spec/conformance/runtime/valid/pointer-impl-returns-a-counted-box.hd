@@ -1,0 +1,42 @@
+# test: an implementation on `*T` or `*mut T` that returns a new `box` as its declared result returns a counted reference that keeps the object alive, so the caller reads its field after the call
+# Spec 13 Boxes: ref.box.lifetime, ref.type.kind-distinct.
+# expect-stdout: Oslo
+# expect-stdout: Bergen
+# expect-stdout: no city
+trait Make:
+    fn make(city: string) -> Result[Self, string]
+
+struct Place:
+    city: string
+
+impl Make for Place:
+    fn make(city: string) -> Result[Place, string]:
+        if city == "":
+            return .Err("no city")
+        .Ok(Place { city })
+
+impl[T < Make & 'static] Make for *T:
+    fn make(city: string) -> Result[*T, string]:
+        .Ok(box(T::make(city)?))
+
+impl[T < Make & 'static] Make for *mut T:
+    fn make(city: string) -> Result[*mut T, string]:
+        let made: *mut T = box(T::make(city)?)
+        .Ok(made)
+
+fn build[T < Make](city: string) -> Result[T, string]:
+    T::make(city)
+
+pub fn main() -> void $ Console:
+    let shared: Result[*Place, string] = build("Oslo")
+    match shared:
+        .Ok(p) => println(p.city)
+        .Err(e) => println(e)
+    let owned: Result[*mut Place, string] = build("Bergen")
+    match owned:
+        .Ok(p) => println(p.city)
+        .Err(e) => println(e)
+    let missing: Result[*Place, string] = build("")
+    match missing:
+        .Ok(p) => println(p.city)
+        .Err(e) => println(e)

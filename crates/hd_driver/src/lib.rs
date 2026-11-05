@@ -11343,10 +11343,11 @@ impl Env<'_> {
         self.run.pool.lower_refs(self.run.known.ref_cells(), t)
     }
 
-    /// The carriers that the declarations of `def`, an impl or one of its
-    /// methods, lower to: an impl on a reference type, which covers both
-    /// kinds (`ref.type.kind-runtime`), lowers that target type to the
-    /// local one, as its bodies do (`hd_check`'s `lower_body_refs`).
+    /// The carriers that the head and the parameters of `def`, an impl or
+    /// one of its methods, lower to: an impl on a reference type, which
+    /// covers both kinds (`ref.type.kind-runtime`), lowers that target
+    /// type to the local one, as its bodies do (`hd_check`'s
+    /// `lower_body_refs`). A result lowers by its declared kind (`ret`).
     fn cells_in(&self, def: DefId) -> hd_types::RefCells {
         let cells = self.run.known.ref_cells();
         let owner = match self.p.items.get(def).map(|it| &it.data) {
@@ -11878,7 +11879,10 @@ impl ProgramEnv for Env<'_> {
             return b.sub_root.first().map(|&r| b.ty[r as usize]);
         }
         if let Some(sig) = self.sig(def) {
-            return Some(self.run.pool.lower_refs(self.cells_in(def), sig.ret));
+            // A result keeps the kind it is declared with, in an impl on a
+            // reference type too: the body made it, so no caller lent it
+            // (`hd_check`'s `lower_body_refs`).
+            return Some(self.low(sig.ret));
         }
         // A script's init returns `Result[void, dyn Error]` when its top
         // level uses `?` (`module.init.script-try.reference-values`).

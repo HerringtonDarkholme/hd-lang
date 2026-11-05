@@ -1,0 +1,18 @@
+# @dump: tir
+# Checker: an impl on `*mut T` lowers its target to the local carrier for
+# the receiver, but the `box` it returns as its declared `*mut T` stays
+# counted: the `Ref` and the result are `Counted[mut T]`.
+trait Make:
+    fn make(city: string) -> Self
+
+struct Place:
+    city: string
+
+impl Make for Place:
+    fn make(city: string) -> Place:
+        Place { city }
+# subject
+impl[T < Make & 'static] Make for *mut T:
+    fn make(city: string) -> *mut T:
+        let made: *mut T = box(T::make(city))
+        made

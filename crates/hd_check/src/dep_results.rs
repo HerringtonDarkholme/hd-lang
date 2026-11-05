@@ -2243,7 +2243,7 @@ fn closure_allows(
 
 /// The values the body returns: its root block's value and each `Return`
 /// operand outside its closures.
-fn returned(b: &Body, root: u32) -> Vec<u32> {
+pub(crate) fn returned(b: &Body, root: u32) -> Vec<u32> {
     let mut out = Vec::new();
     let mut seen = HashSet::default();
     let mut stack = vec![root];

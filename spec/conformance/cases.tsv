@@ -5838,6 +5838,7 @@ runtime/panic/uniq-map-reserve-while-pinned.hd	runtime	panic:borrow-conflict	std
 runtime/panic/uniq-map-drain-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-map.type
 runtime/panic/uniq-map-retain-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-map.type
 runtime/valid/pointer-impl-keeps-declared-pointer-parameters.hd	runtime	accept	lang/13-values-and-references.md#r-ref.type.kind-distinct
+runtime/valid/pointer-impl-returns-a-counted-box.hd	runtime	accept	lang/13-values-and-references.md#r-ref.box.lifetime
 runtime/valid/list-with-capacity.hd	runtime	accept	std/collections.md#r-std-collections.list.with-capacity
 runtime/valid/list-reserve.hd	runtime	accept	std/collections.md#r-std-collections.list.reserve
 runtime/valid/list-truncate.hd	runtime	accept	std/collections.md#r-std-collections.list.truncate
