@@ -1,7 +1,7 @@
 # Pointer Loans: `*T` As `Rc<RefCell<T>>`
 
 Accepted 2026-11-03 (model A); domain: references, ownership passes, runtime.
-Being built under #1336, part of #1205. The owner chose A: a garbage-collected
+Built under #1336 (closed 2026-11-04); [Ownership Per Instance](OWNERSHIP_ARCHITECTURE.md) steps 20-21 move its loan placement and elision into TIR. The owner chose A: a garbage-collected
 language iterates `for a in arr`, a copy, never `for a in &arr`, so the friction
 cases are written as value loops over copy-on-write lists and take no loan.
 
