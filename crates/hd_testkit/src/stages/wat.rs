@@ -35,7 +35,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
 use hd_driver::{
-    BuildProfile, Executor, FunctionOrigins, Goal, Host, NoClock, OptLevel, Packages, PositionPool,
+    BuildProfile, Executor, FunctionOrigins, Host, NoClock, OptLevel, Packages, PositionPool,
     StaticData, build_packages,
 };
 use hd_sched::SerialOrder;
@@ -58,16 +58,15 @@ pub fn wat_for(p: &Program, at: Build) -> String {
         src = hd_driver::std_sources();
         src.insert(super::own::STD_CASE, &p.text);
     }
-    let (package, module, prefix, case, render_tir): (_, _, _, _, &[&str]) = if at.std {
+    let (package, prefix, case, render_tir): (_, _, _, &[&str]) = if at.std {
         (
             "std",
-            "rt_tests.stage_case",
             "std/rt_tests.stage_case/",
             super::own::STD_CASE,
             &["std/rt_tests.stage_case/*"],
         )
     } else {
-        ("app", "main", "app/", "main.hd", &["app/*"])
+        ("app", "app/", "main.hd", &["app/*"])
     };
     let store = hd_cache::MemoryStore::default();
     let host = Host {
@@ -93,14 +92,7 @@ pub fn wat_for(p: &Program, at: Build) -> String {
         checked: at.checked,
         ..Packages::default()
     };
-    let built = build_packages(
-        &host,
-        package,
-        &packages,
-        &Goal::Fixture {
-            module: module.into(),
-        },
-    );
+    let built = build_packages(&host, package, &packages, &at.goal());
     let mut out = String::from("(module\n");
     if let Some(wasm) = &built.wasm {
         let module = Module::read(wasm);

@@ -1,0 +1,33 @@
+# @dump: own counts wat
+# @build: v8 release program
+# expected: a projected runtime view moves into the inlined binding;
+# its conditional release follows the callback's last use.
+use std.annotation.inline
+
+struct Pair:
+    id: usize
+    label: string
+
+impl !Copy for Pair
+
+@inline(.Always)
+fn relay(value: &usize, visit: fn(&usize) -> usize) -> usize:
+    visit(value)
+
+enum Message:
+    Empty
+    Data(Pair)
+
+@inline(.Never)
+fn project(pair: &Pair, visit: fn(&usize) -> usize) -> usize:
+    # subject
+    relay(&pair.id, visit)
+
+fn read(value: &usize) -> usize:
+    *value
+
+pub fn main() -> void $ Console:
+    message := Message.Data(Pair { id: 7, label: "row" })
+    match &message:
+        .Empty => pass
+        .Data(pair) => println("${project(pair, read)}")

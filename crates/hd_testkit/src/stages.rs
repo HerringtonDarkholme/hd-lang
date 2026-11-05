@@ -455,15 +455,33 @@ pub fn view(name: &str, build: Build, p: &Program) -> Option<String> {
 /// (`module.rt.std-only`); the semantic and Wasm views read it.
 /// `checked` links the checked runtime (`crates/hd_wasm_linear/DESIGN.md`
 /// §23.24), whose walks mark buffers, as checked conformance runs do.
+/// `program` links from `pub fn main`, including runtime helpers; fixture
+/// builds otherwise assume physical references and omit runtime views.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Build {
     pub target: hd_driver::EngineTarget,
     pub release: bool,
     pub std: bool,
     pub checked: bool,
+    /// Link a complete program so runtime representation views are emitted.
+    pub program: bool,
 }
 
 impl Build {
+    fn goal(self) -> Goal {
+        let module = if self.std {
+            "rt_tests.stage_case"
+        } else {
+            "main"
+        }
+        .to_owned();
+        if self.program {
+            Goal::Program { entry: module }
+        } else {
+            Goal::Fixture { module }
+        }
+    }
+
     /// The build of a view header's options, comma-separated in any
     /// order; `None` for an option this harness does not know.
     #[must_use]
@@ -477,6 +495,7 @@ impl Build {
                 "dev" => build.release = false,
                 "release" => build.release = true,
                 "std" => build.std = true,
+                "program" => build.program = true,
                 "checked" => build.checked = true,
                 _ => return None,
             }

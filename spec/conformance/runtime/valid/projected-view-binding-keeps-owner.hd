@@ -1,0 +1,33 @@
+# test: a projected runtime view survives an inlined borrowing binding through its callback
+use std.annotation.inline
+use std.testing.assert_equal
+
+struct Pair:
+    id: usize
+    label: string
+
+impl !Copy for Pair
+
+@inline(.Always)
+fn relay(value: &usize, visit: fn(&usize) -> usize) -> usize:
+    visit(value)
+
+enum Message:
+    Empty
+    Data(Pair)
+
+@inline(.Never)
+fn project(pair: &Pair, visit: fn(&usize) -> usize) -> usize:
+    relay(&pair.id, visit)
+
+fn read(value: &usize) -> usize:
+    *value
+
+pub fn main() -> void:
+    for id in 0..16:
+        message := Message.Data(Pair { id, label: "row" })
+        match &message:
+            .Empty => pass
+            .Data(pair) =>
+                assert_equal(project(pair, read), id)
+                assert_equal(project(pair, read), id)

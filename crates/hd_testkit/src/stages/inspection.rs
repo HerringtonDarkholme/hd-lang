@@ -1,4 +1,4 @@
-use hd_driver::{Executor, Goal, Host, NoClock, Output, Packages, build_packages};
+use hd_driver::{Executor, Host, NoClock, Output, Packages, build_packages};
 use hd_sched::SerialOrder;
 
 pub(super) fn build(p: &super::Program, origins: bool, at: super::Build) -> Output {
@@ -34,13 +34,6 @@ pub(super) fn build(p: &super::Program, origins: bool, at: super::Build) -> Outp
             checked: at.checked,
             ..Packages::default()
         },
-        &Goal::Fixture {
-            module: if at.std {
-                "rt_tests.stage_case"
-            } else {
-                "main"
-            }
-            .to_owned(),
-        },
+        &at.goal(),
     )
 }

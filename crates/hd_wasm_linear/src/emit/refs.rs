@@ -1107,6 +1107,10 @@ impl Em<'_, '_, '_> {
                 return self.cell_set(i, *l, v);
             }
             Some((l, ls)) if !self.is_cell(*l) && self.loan_locals.contains_key(l) => {
+                // A projected reference can own a fresh runtime view even
+                // when the physical reference is a loan. Transfer that
+                // ownership with the binding, until the local's last use.
+                self.take(v);
                 return self.write_new(Dst::Locals(ls), &Src::Ref(v));
             }
             Some(_) if v == NONE => return Ok(()),
