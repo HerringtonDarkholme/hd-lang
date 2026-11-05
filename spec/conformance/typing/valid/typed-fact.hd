@@ -35,14 +35,14 @@ impl[S] Walker[S] for Summarizer:
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F < Display](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Display](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         self.out = self.out + h.info.name + "=" + "$value" + note(h) + ";"
         .Ok(())
 
 impl[T] Summary for T by Structure:
     fn summary(self) -> string:
         let mut w = Summarizer { out: "" }
-        _ := Structure::walk(self, &mut w)
+        _ := Structure::walk(&self, &mut w)
         w.out
 
 @derive(Summary)

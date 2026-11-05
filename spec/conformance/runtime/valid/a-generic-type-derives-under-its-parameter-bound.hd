@@ -20,7 +20,7 @@ impl[S] Walker[S] for Lister:
         self.out = self.out + v.info.name + "#" + "${v.info.index}" + "("
         .Ok(())
 
-    fn member[F < Display](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Display](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         self.out = self.out + h.info.name + "=" + "$value" + ";"
         .Ok(())
 
@@ -41,7 +41,7 @@ impl[S] Describer[S] for Shaper:
 impl[T] Listing for T by Structure:
     fn listing(self) -> string:
         let mut w = Lister { out: T::name() + ":" }
-        _ := Structure::walk(self, &mut w)
+        _ := Structure::walk(&self, &mut w)
         w.out + ")"
 
     fn shape() -> string:

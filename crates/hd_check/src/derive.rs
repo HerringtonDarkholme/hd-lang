@@ -693,6 +693,16 @@ pub(crate) fn structure_member_role(
         return None;
     }
     let value = sig.params.last()?.1;
+    // Walker lends its member; Source still passes the optional previous
+    // value by value. Classify the field type inside the Walker's loan.
+    let value = match names.pool.get(value) {
+        TyData::Ref {
+            inner,
+            counted: false,
+            ..
+        } if trait_ == known.walker => inner,
+        _ => value,
+    };
     let direct = match names.pool.get(value) {
         TyData::Param(p) => p.owner == method && p.index == 0,
         TyData::Option(inner) => matches!(

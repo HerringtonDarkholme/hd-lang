@@ -72,20 +72,20 @@ impl[S] Walker[S] for Prober:
         self.out = self.out + " " + v.info.name + show(v.info.facts)
         .Ok(())
 
-    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         self.out = self.out + " " + h.info.name + show(h.info.facts)
         .Ok(())
 
 impl[T] Probe for T by Structure:
     fn probe(self) -> string:
         let mut w = Prober { out: show(T::facts()) }
-        _ := Structure::walk(self, &mut w)
+        _ := Structure::walk(&self, &mut w)
         w.out
 
 impl[T] Plain for T by Structure:
     fn plain(self) -> string:
         let mut w = Prober { out: show(T::facts()) }
-        _ := Structure::walk(self, &mut w)
+        _ := Structure::walk(&self, &mut w)
         w.out
 
 @derive(Plain)

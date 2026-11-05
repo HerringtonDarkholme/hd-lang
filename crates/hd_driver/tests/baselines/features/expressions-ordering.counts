@@ -19,9 +19,13 @@ fn tuple_gt(a: (string, i64), b: (string, i64)) -> bool:
 > app/main/tuple_gt
 >   (no span) release (string, i64) [0.0] (last use)
 >   (no span) release (string, i64) [0.0] (last use)
+>   (no span) release (string, i64) [0.0] (last use)
+>   (no span) release (string, i64) [0.0] (last use)
 
 fn opt_ge(a: string?, b: string?) -> bool:
     a >= b
 > app/main/opt_ge
+>   (no span) release string? (last use)
+>   (no span) release string? (last use)
 >   (no span) release string? (last use)
 >   (no span) release string? (last use)

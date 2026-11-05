@@ -1,0 +1,87 @@
+# Read traits borrow non-copyable structs, enum payloads and generic fields.
+use std.hash.hash_of
+use std.json.encode
+use std.serde.Serialize
+use std.testing.{assert, assert_equal}
+
+@derive(Debug, Serialize, Eq, PartialOrd, Ord, Hash)
+struct Conn:
+    id: usize
+    name: string
+
+impl !Copy for Conn
+
+impl Display for Conn:
+    fn to_string(&self) -> string:
+        "${self.name}:${self.id}"
+
+@derive(Debug, Serialize, Eq, PartialOrd, Ord, Hash)
+enum Packet:
+    Empty
+    Data(Conn)
+
+impl !Copy for Packet
+
+@derive(Debug, Serialize, Eq, PartialOrd, Ord, Hash)
+struct Envelope[T < ?Copy]:
+    value: T
+
+impl[T < ?Copy] !Copy for Envelope[T]
+
+pub fn main() -> void:
+    conn := Conn { id: 7, name: "db" }
+    other := Conn { id: 7, name: "db" }
+    assert_equal(debug(&conn), "Conn { id: 7, name: \"db\" }")
+    assert_equal(encode(&conn), "{\"id\":7,\"name\":\"db\"}")
+    assert_equal("$conn", "db:7")
+    assert(conn == other)
+    assert_equal(conn.cmp(&other), .Equal)
+    assert_equal(conn.partial_cmp(&other), .Some(.Equal))
+    assert_equal(hash_of(&conn), hash_of(&other))
+    assert_equal(conn.id, 7)
+
+    packet := Packet.Data(Conn { id: 8, name: "api" })
+    same := Packet.Data(Conn { id: 8, name: "api" })
+    empty := Packet.Empty
+    assert(packet == same)
+    assert(packet != empty)
+    assert_equal(packet.cmp(&empty), .Greater)
+    assert_equal(packet.partial_cmp(&same), .Some(.Equal))
+    assert_equal(hash_of(&packet), hash_of(&same))
+    assert_equal(debug(&packet), "Packet.Data(Conn { id: 8, name: \"api\" })")
+    assert_equal(encode(&packet), "{\"Data\":{\"id\":8,\"name\":\"api\"}}")
+    assert(packet == same)
+
+    wrapped := Envelope { value: Conn { id: 9, name: "nested" } }
+    wrapped_same := Envelope { value: Conn { id: 9, name: "nested" } }
+    assert(wrapped == wrapped_same)
+    assert_equal(wrapped.cmp(&wrapped_same), .Equal)
+    assert_equal(hash_of(&wrapped), hash_of(&wrapped_same))
+    assert_equal(encode(&wrapped), "{\"value\":{\"id\":9,\"name\":\"nested\"}}")
+    assert_equal(wrapped.value.id, 9)
+
+    let optional: Conn? = .Some(Conn { id: 10, name: "optional" })
+    let optional_same: Conn? = .Some(Conn { id: 10, name: "optional" })
+    assert(optional == optional_same)
+    assert_equal(optional.cmp(&optional_same), .Equal)
+    assert_equal(hash_of(&optional), hash_of(&optional_same))
+    assert_equal(encode(&optional), "{\"id\":10,\"name\":\"optional\"}")
+    assert_equal(debug(&optional), "Option.Some(Conn { id: 10, name: \"optional\" })")
+    assert(optional == optional_same)
+
+    let result: Result[Conn, Conn] = .Ok(Conn { id: 11, name: "result" })
+    let result_same: Result[Conn, Conn] = .Ok(Conn { id: 11, name: "result" })
+    assert(result == result_same)
+    assert_equal(hash_of(&result), hash_of(&result_same))
+    assert_equal(encode(&result), "{\"Ok\":{\"id\":11,\"name\":\"result\"}}")
+    assert_equal(debug(&result), "Result.Ok(Conn { id: 11, name: \"result\" })")
+    assert(result == result_same)
+
+    tuple := (Conn { id: 12, name: "tuple" }, +3)
+    tuple_same := (Conn { id: 12, name: "tuple" }, +3)
+    assert(tuple == tuple_same)
+    assert_equal(tuple.cmp(&tuple_same), .Equal)
+    assert_equal(hash_of(&tuple), hash_of(&tuple_same))
+    assert_equal(encode(&tuple), "[{\"id\":12,\"name\":\"tuple\"},3]")
+    assert_equal("$tuple", "(tuple:12, 3)")
+    assert_equal(tuple._0.id, 12)

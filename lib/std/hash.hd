@@ -27,9 +27,9 @@ impl Hash for char:
 
 # An optional writes the tag byte 0 for `.None`, or 1 and then its payload.
 # Keep handwritten Hash: keep one-byte variant tags instead of structural tag hashing.
-impl[T < Hash] Hash for T?:
+impl[T < ?Copy & Hash] Hash for T?:
     fn hash[H < Hasher](&self, state: &mut H) -> void:
-        match *self:
+        match self:
             .None => state.write_u8(0)
             .Some(value) =>
                 state.write_u8(1)
@@ -48,9 +48,9 @@ impl[T < ?Copy & Hash] Hash for *mut T:
 # A result writes the tag byte 0 and then its `.Ok` payload, or 1 and then
 # its `.Err` payload (spec/std/hash.md#r-std-hash.bytes.result).
 # Keep handwritten Hash: keep one-byte variant tags instead of structural tag hashing.
-impl[T < Hash, E < Hash] Hash for Result[T, E]:
+impl[T < ?Copy & Hash, E < ?Copy & Hash] Hash for Result[T, E]:
     fn hash[H < Hasher](&self, state: &mut H) -> void:
-        match *self:
+        match self:
             .Ok(value) =>
                 state.write_u8(0)
                 value.hash(state)
@@ -222,23 +222,23 @@ pub fn hash_of[T < Hash](value: T) -> u64:
 
 # Derived `Hash` (spec/std/hash.md#derived-hashing): an enum's variant index
 # as a `u32`, then each member in declaration order.
-impl[T] Hash for T by Structure:
+impl[T < ?Copy] Hash for T by Structure:
     fn hash[H < Hasher](&self, state: &mut H) -> void:
         let mut w = HashWalker::[T, H] { state: state }
-        _ := Structure::walk(*self, &mut w)
+        _ := Structure::walk(self, &mut w)
 
 # Union `Hash`: the ordinary enum derivation, including the active case index.
-impl[T < UnionType] Hash for T by Structure:
+impl[T < ?Copy & UnionType] Hash for T by Structure:
     fn hash[H < Hasher](&self, state: &mut H) -> void:
         let mut w = HashWalker::[T, H] { state: state }
-        _ := Structure::walk(*self, &mut w)
+        _ := Structure::walk(self, &mut w)
 
 # The field is public because the prototype checks the instantiated walker
 # in the deriving module.
-struct HashWalker[S, H < Hasher, 'a]:
+struct HashWalker[S < ?Copy, H < Hasher, 'a]:
     pub state: &'a mut H
 
-impl['a, S, H < Hasher] Walker[S] for HashWalker[S, H, 'a]:
+impl['a, S < ?Copy, H < Hasher] Walker[S] for HashWalker[S, H, 'a]:
     type Error = never
 
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
@@ -248,20 +248,20 @@ impl['a, S, H < Hasher] Walker[S] for HashWalker[S, H, 'a]:
 
     # A rest member is one `List[T]` member (annot.walk.rest.default),
     # which needs `T < Hash` here, as `member` needs `F < Hash`.
-    fn rest[T < Hash](&mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, never]:
+    fn rest[T < Hash](&mut self, h: Field[S, List[T]], items: &List[T]) -> Result[void, never]:
         self.member(h, items)
 
-    fn member[F < Hash](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < ?Copy & Hash](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         value.hash(&mut *self.state)
         .Ok(())
 
 # Tuple hashing (spec/std/hash.md#tuple-hashing): each element in order, at
 # every size. A rest element hashes as its `List`, so a rest tuple is
 # hashable when its rest's items are (r-std-hash.tuple.rest-list).
-impl[T < Tuple] Hash for T by Structure:
+impl[T < ?Copy & Tuple] Hash for T by Structure:
     fn hash[H < Hasher](&self, state: &mut H) -> void:
         let mut w = HashWalker::[T, H] { state: state }
-        _ := Structure::walk(*self, &mut w)
+        _ := Structure::walk(self, &mut w)
 
 # The keyed hasher the built-in `Map` buckets its keys by
 # (r-std-hash.map.bucket-hash): HalfSipHash-1-3, the 32-bit-lane SipHash,

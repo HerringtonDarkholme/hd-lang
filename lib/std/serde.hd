@@ -41,11 +41,11 @@ pub fn rename(name: string) -> Rename:
 ## Omits an optional member when it is None.
 ## See [std-serde.skip-none.fact.phantom](../../spec/std/serde.md#r-std-serde.skip-none.fact.phantom).
 @annotate::[F](.Field)
-pub struct SkipNone[F]: pass
+pub struct SkipNone[F < ?Copy]: pass
 
 ## Marks an optional member for omission when absent.
 ## See [std-serde.skip-none.constructor](../../spec/std/serde.md#r-std-serde.skip-none.constructor).
-pub fn skip_none[T]() -> SkipNone[T?]:
+pub fn skip_none[T < ?Copy]() -> SkipNone[T?]:
     SkipNone::[T?] {}
 
 ## Omits a member from serialization and restores its declared default.
@@ -250,7 +250,7 @@ fn joined_name(name: string, camel: bool) -> string:
 # (r-annot.serde.definition).
 ## A type that can write itself to a `Serializer`; the compiler knows it for the boundary rule.
 ## See [annot.serde.module.v2](../../spec/lang/14-annotations.md#r-annot.serde.module.v2).
-pub trait Serialize:
+pub trait Serialize < ?Copy:
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]
 
     fn is_absent(&self) -> bool:
@@ -385,27 +385,27 @@ pub trait Deserializer:
 # Derived `Serialize`: `begin_variant`, then `member` and the member's own
 # `serialize` for each included walked member, then `end_variant`
 # (r-std-serde.derive.serialize.data-and-enum-forms).
-impl[T] Serialize for T by Structure:
+impl[T < ?Copy] Serialize for T by Structure:
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         let mut walker = SerializeWalker::[T, W] {
             out: out,
             facts: T::facts(),
             form: VariantForm.Record,
         }
-        Structure::walk(*self, &mut walker)?
+        Structure::walk(self, &mut walker)?
         match walker.form:
             .Data => walker.out.end_data()
             _ => walker.out.end_variant()
 
 # Union `Serialize`: the ordinary enum derivation over positional cases.
-impl[T < UnionType] Serialize for T by Structure:
+impl[T < ?Copy & UnionType] Serialize for T by Structure:
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         let mut walker = SerializeWalker::[T, W] {
             out: out,
             facts: T::facts(),
             form: VariantForm.Record,
         }
-        Structure::walk(*self, &mut walker)?
+        Structure::walk(self, &mut walker)?
         match walker.form:
             .Data => walker.out.end_data()
             _ => walker.out.end_variant()
@@ -430,7 +430,7 @@ fn variant_form(v: &VariantInfo) -> VariantForm:
 
 # The fields are public because the prototype checks the instantiated
 # walker in the deriving module.
-struct SerializeWalker[S, W < Serializer, 'a]:
+struct SerializeWalker[S < ?Copy, W < Serializer, 'a]:
     pub out: &'a mut W
     pub facts: Facts
     pub form: VariantForm
@@ -440,7 +440,7 @@ struct SerializeWalker[S, W < Serializer, 'a]:
 # in `member` covers a `Skip` that only an opaque list or a spread attaches
 # to a named member (r-std-serde.skip.named-unknown-fact).
 @skips::[Skip]()
-impl['a, S, W < Serializer] Walker[S] for SerializeWalker[S, W, 'a]:
+impl['a, S < ?Copy, W < Serializer] Walker[S] for SerializeWalker[S, W, 'a]:
     type Error = W::Error
 
     fn data_variant(&mut self, v: Variant[S]) -> Result[void, W::Error]:
@@ -474,18 +474,26 @@ impl['a, S, W < Serializer] Walker[S] for SerializeWalker[S, W, 'a]:
     fn rest[T < Serialize](
         &mut self,
         h: Field[S, List[T]],
-        items: List[T],
+        items: &List[T],
     ) -> Result[void, W::Error]:
         self.member(h, items)
 
-    fn data_member[F < Serialize](&mut self, h: Field[S, F], value: F) -> Result[void, W::Error]:
+    fn data_member[F < ?Copy & Serialize](
+        &mut self,
+        h: Field[S, F],
+        value: &F,
+    ) -> Result[void, W::Error]:
         # A member with no facts has neither `Skip` nor `SkipNone`.
         if !h.info.facts.items.is_empty() && skipped(h, value):
             return .Ok(())
         self.out.member(&h.info)?
         value.serialize(&mut *self.out)
 
-    fn member[F < Serialize](&mut self, h: Field[S, F], value: F) -> Result[void, W::Error]:
+    fn member[F < ?Copy & Serialize](
+        &mut self,
+        h: Field[S, F],
+        value: &F,
+    ) -> Result[void, W::Error]:
         # A member with no facts has neither `Skip` nor `SkipNone`.
         if !h.info.facts.items.is_empty() && skipped(h, value):
             return .Ok(())
@@ -498,7 +506,7 @@ impl['a, S, W < Serializer] Walker[S] for SerializeWalker[S, W, 'a]:
 # whose test holds. Out of line, since most members have no facts: each
 # `member` instance then keeps only the test for an empty list.
 @cold
-fn skipped[S, F < Serialize](h: Field[S, F], value: F) -> bool:
+fn skipped[S < ?Copy, F < ?Copy & Serialize](h: Field[S, F], value: &F) -> bool:
     if h.fact::[Skip]().is_some():
         return true
     match h.fact::[SkipNone[F]]():
@@ -581,7 +589,7 @@ fn enum_tagging(facts: Facts) -> EnumTagging?:
 
 # The fields are public because the prototype checks the instantiated
 # source in the deriving module.
-struct DeserializeSource[S, R < Deserializer, 'a]:
+struct DeserializeSource[S < ?Copy, R < Deserializer, 'a]:
     pub input: &'a mut R
     pub facts: Facts
     pub at: usize
@@ -595,7 +603,7 @@ struct DeserializeSource[S, R < Deserializer, 'a]:
 # `missing` cover a `Skip` that only an opaque list or a spread attaches to
 # a named member (r-std-serde.skip.named-unknown-fact).
 @skips::[Skip]()
-impl['a, S, R < Deserializer] Source[S] for DeserializeSource[S, R, 'a]:
+impl['a, S < ?Copy, R < Deserializer] Source[S] for DeserializeSource[S, R, 'a]:
     type Error = R::Error
 
     fn data_variant(&mut self, choice: Variant[S]) -> Result[Variant[S], R::Error]:
@@ -885,9 +893,9 @@ impl Deserialize for f32:
 
 # `.None` is `null` (r-std-serde.std.optional).
 # Keep handwritten Serialize: keep the builtin optional wire form instead of a tagged object.
-impl[T < Serialize] Serialize for T?:
+impl[T < ?Copy & Serialize] Serialize for T?:
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
-        match *self:
+        match self:
             .Some(found) => found.serialize(out)
             .None => out.null()
 
@@ -916,9 +924,9 @@ fn result_variant(name: string, index: usize) -> VariantInfo:
         self_ref: .Absent,
     }
 
-impl[T < Serialize, E < Serialize] Serialize for Result[T, E]:
+impl[T < ?Copy & Serialize, E < ?Copy & Serialize] Serialize for Result[T, E]:
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
-        match *self:
+        match self:
             .Ok(value) =>
                 variant := result_variant("Ok", 0)
                 out.begin_newtype_variant(Facts { items: [] }, &variant)?
@@ -944,12 +952,12 @@ impl[T < Deserialize, E < Deserialize] Deserialize for Result[T, E]:
 # A reference writes the value it refers to, and reads into a new object
 # (r-std-serde.std.reference).
 # Keep handwritten Serialize: delegate through the reference; structural derivation is for its referent.
-impl[T < Serialize] Serialize for *T:
+impl[T < ?Copy & Serialize] Serialize for *T:
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         (*(*self)).serialize(out)
 
 # Keep handwritten Serialize: delegate through the reference; structural derivation is for its referent.
-impl[T < Serialize] Serialize for *mut T:
+impl[T < ?Copy & Serialize] Serialize for *mut T:
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         (*(*self)).serialize(out)
 
@@ -971,7 +979,7 @@ impl[T < Deserialize & 'static] Deserialize for *mut T:
 impl[T] MapKey for T by Structure:
     fn to_key(&self) -> MapKeyValue:
         let mut walker = MapKeyWalker::[T] { name: "" }
-        _ := Structure::walk(*self, &mut walker)
+        _ := Structure::walk(self, &mut walker)
         MapKeyValue.Text(walker.name)
 
     fn from_key(value: MapKeyValue) -> T?:
@@ -985,10 +993,10 @@ impl[T] MapKey for T by Structure:
 
 trait MapKeyPayload
 
-struct MapKeyWalker[S]:
+struct MapKeyWalker[S < ?Copy]:
     pub name: string
 
-impl[S] Walker[S] for MapKeyWalker[S]:
+impl[S < ?Copy] Walker[S] for MapKeyWalker[S]:
     type Error = never
 
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
@@ -998,18 +1006,22 @@ impl[S] Walker[S] for MapKeyWalker[S]:
     fn rest[T < MapKeyPayload](
         &mut self,
         h: Field[S, List[T]],
-        items: List[T],
+        items: &List[T],
     ) -> Result[void, never]:
         .Ok(())
 
-    fn member[F < MapKeyPayload](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < ?Copy & MapKeyPayload](
+        &mut self,
+        h: Field[S, F],
+        value: &F,
+    ) -> Result[void, never]:
         .Ok(())
 
-struct MapKeySource[S]:
+struct MapKeySource[S < ?Copy]:
     pub name: string
     pub at: usize
 
-impl[S] Source[S] for MapKeySource[S]:
+impl[S < ?Copy] Source[S] for MapKeySource[S]:
     type Error = bool
 
     fn data_variant(&mut self, choice: Variant[S]) -> Result[Variant[S], bool]:
@@ -1251,13 +1263,13 @@ impl[T < Eq & Hash & Deserialize] Deserialize for Set[T]:
 # Tuple `Serialize` (r-std-serde.std.tuple): a list of the members, in
 # order. A counting pass over the members' types gives `begin_list` its
 # length before the one walk over the values.
-impl[T < Tuple] Serialize for T by Structure:
+impl[T < ?Copy & Tuple] Serialize for T by Structure:
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         let mut count = MemberCount { total: 0 }
         _ := T::describe(&mut count)
         out.begin_list(count.total)?
         let mut walker = TupleWriter::[T, W] { out: out }
-        Structure::walk(*self, &mut walker)?
+        Structure::walk(self, &mut walker)?
         out.end_list()
 
 # The fields are public because the prototype checks the instantiated
@@ -1265,27 +1277,31 @@ impl[T < Tuple] Serialize for T by Structure:
 struct MemberCount:
     pub total: usize
 
-impl[S] Describer[S] for MemberCount:
+impl[S < ?Copy] Describer[S] for MemberCount:
     type Error = never
 
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:
+    fn member[F < ?Copy](&mut self, h: Field[S, F]) -> Result[void, never]:
         self.total = self.total + 1
         .Ok(())
 
-struct TupleWriter[S, W < Serializer, 'a]:
+struct TupleWriter[S < ?Copy, W < Serializer, 'a]:
     pub out: &'a mut W
 
-impl['a, S, W < Serializer] Walker[S] for TupleWriter[S, W, 'a]:
+impl['a, S < ?Copy, W < Serializer] Walker[S] for TupleWriter[S, W, 'a]:
     type Error = W::Error
 
     fn variant(&mut self, v: Variant[S]) -> Result[void, W::Error]:
         .Ok(())
 
     # A rest element is one `List[T]` member (annot.walk.rest.default).
-    fn member[F < Serialize](&mut self, h: Field[S, F], value: F) -> Result[void, W::Error]:
+    fn member[F < ?Copy & Serialize](
+        &mut self,
+        h: Field[S, F],
+        value: &F,
+    ) -> Result[void, W::Error]:
         value.serialize(&mut *self.out)
 
 # Tuple `Deserialize` (r-std-serde.std.tuple): a list with one item per
@@ -1300,11 +1316,11 @@ impl[T < Tuple] Deserialize for T by Structure:
             return .Err(source.input.invalid("end of the tuple"))
         .Ok(built)
 
-struct TupleReader[S, R < Deserializer, 'a]:
+struct TupleReader[S < ?Copy, R < Deserializer, 'a]:
     pub input: &'a mut R
     pub at: usize
 
-impl['a, S, R < Deserializer] Source[S] for TupleReader[S, R, 'a]:
+impl['a, S < ?Copy, R < Deserializer] Source[S] for TupleReader[S, R, 'a]:
     type Error = R::Error
 
     fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], R::Error]:

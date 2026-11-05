@@ -25,15 +25,22 @@ fn rec_eq(a: Rec, b: Rec) -> bool:
 > app/main/rec_eq
 >   (no span) release app.main.Rec [name.0, tags] (last use)
 >   (no span) release app.main.Rec [name.0, tags] (last use)
+>   (no span) release app.main.Rec [name.0, tags] (last use)
+>   (no span) release app.main.Rec [name.0, tags] (last use)
 
 fn opt_none(o: string?) -> bool:
     o == .None
 > app/main/opt_none
+>   release string? (overwritten)
+>   (no span) release string? (last use)
+>   (no span) release string? (last use)
 >   (no span) release string? (last use)
 
 fn opt_some(o: string?, s: string) -> bool:
     o == .Some(s)
 > app/main/opt_some
+>   release string? (overwritten)
+>   (no span) release string? (last use)
 >   (no span) release string? (last use)
 >   (no span) release string? (last use)
 

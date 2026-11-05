@@ -291,12 +291,12 @@ impl KnownItems {
             field: item("std.structure", "FieldRecord"),
             field_get: inherent_method(
                 "std.structure",
-                "impl [ HdS , HdF ] FieldRecord [ HdS , HdF ]",
+                "impl [ HdS < ? Copy , HdF < ? Copy ] FieldRecord [ HdS , HdF ]",
                 "get",
             ),
             variant_holds: inherent_method(
                 "std.structure",
-                "impl [ HdS ] VariantRecord [ HdS ]",
+                "impl [ HdS < ? Copy ] VariantRecord [ HdS ]",
                 "holds",
             ),
             walker,

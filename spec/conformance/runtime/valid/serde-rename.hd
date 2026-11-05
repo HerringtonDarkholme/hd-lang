@@ -31,17 +31,16 @@ impl[S] Walker[S] for Names:
     type Error = never
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
-    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         self.items.push(
             (h.info.name, h.fact::[Rename]().map(fn(fact): fact.name).unwrap_or("(none)"))
-            ,
         )
         .Ok(())
 
 impl[T] SourceNames for T by Structure:
     fn names(self) -> List[(string, string)]:
         let mut names = Names { items: [] }
-        _ := Structure::walk(self, &mut names)
+        _ := Structure::walk(&self, &mut names)
         names.items
 
 impl SourceNames for Invoice by Structure

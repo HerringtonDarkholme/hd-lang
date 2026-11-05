@@ -13,7 +13,7 @@
 # compiler implements it, as it does `Inspectable` (r-trait.sealed.tuple).
 ## The empty sealed marker trait that every tuple type implements, `()` and `(A,)` included.
 ## See [fn.type.ctor.tuple-trait](../../spec/lang/07-functions.md#r-fn.type.ctor.tuple-trait).
-pub trait Tuple
+pub trait Tuple < ?Copy
 
 ## The static-dispatch trait implemented by every function value, for a callee that may change its captures.
 ## See [fn.trait.mut.decl](../../spec/lang/07-functions.md#r-fn.trait.mut.decl).

@@ -915,7 +915,7 @@ impl<'a, 'n> Gen<'a, 'n> {
             row: hd_types::RowId::EMPTY,
             suspends: false,
             inputs: hd_types::Inputs::Fixed,
-            deps: hd_types::FnDeps::NONE,
+            deps: pool.types().fn_deps_written(params, result, &[]),
         })
     }
 
@@ -1146,15 +1146,39 @@ impl<'a, 'n> Gen<'a, 'n> {
         self.erase_reference(source, reference, tv)
     }
 
-    /// Reads member `m` of variant `v` from `s` (a value of the target):
-    /// a field of a data value, an element of a tuple, or a payload of an
-    /// enum value that holds `v`.
-    fn read(&mut self, s: Ref, v: &Var, m: &Mem, t: Ty) -> Ref {
+    fn shared(&self, t: Ty) -> Ty {
+        self.names.pool.intern_ty(&TyData::Ref {
+            inner: t,
+            mutable: false,
+            counted: false,
+        })
+    }
+
+    /// Lends the target for a tag test without acquiring its value.
+    fn borrowed_value(&mut self, s: Ref) -> Ref {
+        let place = self.b.place(&Place {
+            root: PlaceRoot::Value(s),
+            proj: vec![Proj::Deref],
+        });
+        self.b
+            .emit(Tag::Read, place, ReadMode::Use as u32, self.target, SYN)
+    }
+
+    /// Lends member `m` in the target that `s` refers to, without copying it.
+    fn member_reference(&mut self, s: Ref, v: &Var, m: &Mem, t: Ty) -> Ref {
+        let mut proj = vec![Proj::Deref];
         match v.shape {
-            Shape::Data if self.data_object(v.def) => self.b.data_field(s, m.field, t, SYN),
-            Shape::Data | Shape::Tuple => self.b.field(s, m.field, t, SYN),
-            Shape::Enum => self.b.payload(s, v.index, m.field, t, SYN),
+            Shape::Data if self.data_object(v.def) => {
+                proj.extend([Proj::Deref, Proj::Field(m.field)]);
+            }
+            Shape::Data | Shape::Tuple => proj.push(Proj::Field(m.field)),
+            Shape::Enum => proj.extend([Proj::Variant(v.index), Proj::Field(m.field)]),
         }
+        let place = self.b.place(&Place {
+            root: PlaceRoot::Value(s),
+            proj,
+        });
+        self.b.emit(Tag::Ref, place, 0, self.shared(t), SYN)
     }
 
     /// Whether `def` is a data type that is no struct: a value of it is
@@ -1171,6 +1195,23 @@ impl<'a, 'n> Gen<'a, 'n> {
     fn switch_tag(&mut self, s: Ref, index: u32, then: Ref, other: Ref, t: Ty) -> Ref {
         let rec = self.b.refs_record(&[Ref(index), then, other]);
         self.b.emit(Tag::SwitchTag, s.0, rec, t, SYN)
+    }
+
+    /// A tag test of a borrowed enum uses the ordinary match decision
+    /// region, so ownership lends its scrutinee instead of copying it.
+    fn switch_borrowed_tag(&mut self, s: Ref, index: u32, then: Ref, other: Ref, t: Ty) -> Ref {
+        let db = self.b.open_block();
+        let value = self.borrowed_value(s);
+        let yes = self.b.open_block();
+        self.b.emit(Tag::ToArm, 0, NONE, Ty::NEVER, SYN);
+        let yes = self.b.close_block(yes, None, Ty::NEVER, SYN);
+        let no = self.b.open_block();
+        self.b.emit(Tag::ToArm, 1, NONE, Ty::NEVER, SYN);
+        let no = self.b.close_block(no, None, Ty::NEVER, SYN);
+        self.switch_tag(value, index, yes, no, Ty::VOID);
+        let decision = self.b.close_block(db, None, Ty::NEVER, SYN);
+        let blocks = self.b.refs_record(&[decision, then, other]);
+        self.b.emit(Tag::Match, s.0, blocks, t, SYN)
     }
 
     /// A categorized panic (`flow.panic.report`), through std's
@@ -1283,18 +1324,19 @@ impl<'a, 'n> Gen<'a, 'n> {
         let s = self.target;
         let of_data = v.of_data();
         let index = v.index;
-        let holds = self.closure(&[s], Ty::BOOL, |g, ps| {
+        let borrowed = self.shared(s);
+        let holds = self.closure(&[borrowed], Ty::BOOL, |g, ps| {
             if of_data {
                 return Ok(g.bool_(true));
             }
-            let x = g.b.get(ps[0], s, SYN);
+            let source = g.b.get(ps[0], borrowed, SYN);
             let tb = g.b.open_block();
             let t = g.bool_(true);
             let then = g.b.close_block(tb, Some(t), Ty::BOOL, SYN);
             let eb = g.b.open_block();
             let f = g.bool_(false);
             let other = g.b.close_block(eb, Some(f), Ty::BOOL, SYN);
-            Ok(g.switch_tag(x, index, then, other, Ty::BOOL))
+            Ok(g.switch_borrowed_tag(source, index, then, other, Ty::BOOL))
         })?;
         let var = self.std("VariantRecord");
         let record = self.new_data(var, &[s], &[("info", info), ("hd_holds", holds)])?;
@@ -1333,21 +1375,23 @@ impl<'a, 'n> Gen<'a, 'n> {
     fn new_field_handle(&mut self, v: &Var, m: &Mem, f: Ty) -> StageResult<Ref> {
         let info = self.member_info(v, m)?;
         let s = self.target;
-        let get = self.closure(&[s], f, |g, ps| {
-            let x = g.b.get(ps[0], s, SYN);
+        let borrowed = self.shared(s);
+        let result = self.shared(f);
+        let get = self.closure(&[borrowed], result, |g, ps| {
+            let x = g.b.get(ps[0], borrowed, SYN);
             if v.of_data() {
-                return Ok(g.read(x, v, m, f));
+                return Ok(g.member_reference(x, v, m, f));
             }
             let tb = g.b.open_block();
-            let val = g.read(x, v, m, f);
-            let then = g.b.close_block(tb, Some(val), f, SYN);
+            let val = g.member_reference(x, v, m, f);
+            let then = g.b.close_block(tb, Some(val), result, SYN);
             let eb = g.b.open_block();
             g.panic(
                 "structure-variant-mismatch",
                 &format!("the value does not hold the variant `{}`", v.name),
             );
             let other = g.b.close_block(eb, None, Ty::NEVER, SYN);
-            Ok(g.switch_tag(x, v.index, then, other, f))
+            Ok(g.switch_borrowed_tag(x, v.index, then, other, result))
         })?;
         let has_default = self.bool_(m.has_default);
         let opt = self.names.pool.intern_ty(&TyData::Option(f));
@@ -1540,7 +1584,7 @@ impl<'a, 'n> Gen<'a, 'n> {
             let mut args = vec![h];
             let (method, targ) = match value {
                 Some(s) => {
-                    args.push(self.read(s, v, m, f));
+                    args.push(self.member_reference(s, v, m, f));
                     if data {
                         ("data_member", f)
                     } else if m.rest {
@@ -1574,7 +1618,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         self.b.emit(Tag::NewVariant, 0, rec, ret, SYN)
     }
 
-    /// `walk(self, w)`: matches the value once, then visits its variant.
+    /// `walk(&self, w)`: matches the borrowed value, then lends its members.
     fn walk_body(mut self, sig: &FnSig, vars: &[Var]) -> StageResult<(Body, Vec<Handle>)> {
         let ps = self.params(sig);
         let [(s, st), w] = ps[..] else {
@@ -1583,7 +1627,13 @@ impl<'a, 'n> Gen<'a, 'n> {
         let walker = self.names.known.walker;
         let blk = self.b.open_block();
         let x = self.b.get(s, st, SYN);
-        self.dispatch(vars, x, &mut |g, v| g.visit(walker, w, v, Some(x), sig.ret))?;
+        match vars {
+            [v] if v.of_data() => self.visit(walker, w, v, Some(x), sig.ret)?,
+            [] => {
+                self.b.emit(Tag::Unreachable, NONE, NONE, Ty::NEVER, SYN);
+            }
+            _ => self.dispatch(vars, x, &mut |g, v| g.visit(walker, w, v, Some(x), sig.ret))?,
+        }
         let ok = self.ok_void(sig.ret);
         let root = self.b.close_block(blk, Some(ok), sig.ret, SYN);
         self.finish(root)
@@ -1844,36 +1894,43 @@ impl<'a, 'n> Gen<'a, 'n> {
         Ok(self.switch_int(index, v.index, then, other, s))
     }
 
-    /// Runs `each` for the variant that `x` holds: directly for a data
-    /// type or a tuple, else in a chain of tag tests whose last arm is
-    /// unreachable.
+    /// Walks a borrowed enum through an ordinary match: one decision read,
+    /// then the selected variant's callbacks in its arm.
     fn dispatch(
         &mut self,
         vars: &[Var],
-        x: Ref,
+        subject: Ref,
         each: &mut dyn FnMut(&mut Self, &Var) -> StageResult<()>,
     ) -> StageResult<()> {
-        match vars {
-            [v] if v.of_data() => each(self, v),
-            [] => {
-                self.b.emit(Tag::Unreachable, NONE, NONE, Ty::NEVER, SYN);
-                Ok(())
-            }
-            [v, rest @ ..] => {
-                let tb = self.b.open_block();
-                each(self, v)?;
-                let then = self.b.close_block(tb, None, Ty::VOID, SYN);
-                let eb = self.b.open_block();
-                if rest.is_empty() {
-                    self.b.emit(Tag::Unreachable, NONE, NONE, Ty::NEVER, SYN);
-                } else {
-                    self.dispatch(rest, x, each)?;
-                }
-                let other = self.b.close_block(eb, None, Ty::VOID, SYN);
-                self.switch_tag(x, v.index, then, other, Ty::VOID);
-                Ok(())
-            }
+        let mut arms = Vec::with_capacity(vars.len());
+        for variant in vars {
+            let arm = self.b.open_block();
+            each(self, variant)?;
+            arms.push(self.b.close_block(arm, None, Ty::VOID, SYN));
         }
+        let db = self.b.open_block();
+        let value = self.borrowed_value(subject);
+        self.decide_variants(vars, value, 0);
+        let decision = self.b.close_block(db, None, Ty::NEVER, SYN);
+        let mut blocks = vec![decision];
+        blocks.extend(arms);
+        let blocks = self.b.refs_record(&blocks);
+        self.b.emit(Tag::Match, subject.0, blocks, Ty::VOID, SYN);
+        Ok(())
+    }
+
+    fn decide_variants(&mut self, vars: &[Var], value: Ref, arm: u32) {
+        let Some((variant, rest)) = vars.split_first() else {
+            self.b.emit(Tag::Unreachable, NONE, NONE, Ty::NEVER, SYN);
+            return;
+        };
+        let yes = self.b.open_block();
+        self.b.emit(Tag::ToArm, arm, NONE, Ty::NEVER, SYN);
+        let yes = self.b.close_block(yes, None, Ty::NEVER, SYN);
+        let no = self.b.open_block();
+        self.decide_variants(rest, value, arm + 1);
+        let no = self.b.close_block(no, None, Ty::NEVER, SYN);
+        self.switch_tag(value, variant.index, yes, no, Ty::VOID);
     }
 }
 

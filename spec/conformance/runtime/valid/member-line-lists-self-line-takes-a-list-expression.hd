@@ -33,7 +33,7 @@ impl[S] Walker[S] for Prober:
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         t := match h.info.facts.find::[Tag]():
             .Some(found) => found.text
             .None => "-"
@@ -46,7 +46,7 @@ impl[S] Walker[S] for Prober:
 impl[T] Probe for T by Structure:
     fn probe(self) -> string:
         let mut w = Prober { out: "" }
-        _ := Structure::walk(self, &mut w)
+        _ := Structure::walk(&self, &mut w)
         w.out
 
 trait Label:
@@ -55,7 +55,7 @@ trait Label:
 impl[T] Label for T by Structure:
     fn label(self) -> string:
         let mut w = Prober { out: "" }
-        _ := Structure::walk(self, &mut w)
+        _ := Structure::walk(&self, &mut w)
         match T::facts().find::[Note]():
             .Some(found) => found.text
             .None => "none"

@@ -19,13 +19,15 @@ struct Ignore: pass
 
 impl[S] Walker[S] for Ignore:
     type Error = never
-    fn variant(&mut self, v: Variant[S]) -> Result[void, never]: .Ok(())
-    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]: .Ok(())
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+    fn member[F](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
+        .Ok(())
 
 impl[T] HasTag for T by Structure:
     fn has_tag(self) -> bool:
         let mut walker = Ignore {}
-        _ := Structure::walk(self, &mut walker)
+        _ := Structure::walk(&self, &mut walker)
         T::facts().find::[EnumTagging]().is_some()
 
 # subject

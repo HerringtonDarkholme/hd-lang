@@ -10,9 +10,9 @@ impl[S] Walker[S] for Prober:
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         .Ok(())
 
 fn run(h: Field[i64, i64]) -> void:
     let mut w = Prober { out: "" }
-    _ := w.member(h, 1)
+    _ := w.member(h, &1)

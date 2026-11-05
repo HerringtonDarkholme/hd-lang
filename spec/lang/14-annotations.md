@@ -832,12 +832,12 @@ The module `std.structure` declares the derivation protocol. The compiler
 supplies every body written `pass`:
 
 ```text
-pub trait Structure:
+pub trait Structure < ?Copy:
     fn facts() -> Facts
     fn name() -> string
-    fn walk[W < Walker[Self]](self, w: &mut W) -> Result[void, W::Error]
-    fn describe[D < Describer[Self]](d: &mut D) -> Result[void, D::Error]
-    fn build[S < Source[Self]](s: &mut S) -> Result[Self, S::Error]
+    fn walk[W < ?Copy & Walker[Self]](&self, w: &mut W) -> Result[void, W::Error]
+    fn describe[D < ?Copy & Describer[Self]](d: &mut D) -> Result[void, D::Error]
+    fn build[S < ?Copy & Source[Self]](s: &mut S) -> Result[Self, S::Error]
 
 pub struct Member:
     pub name: string
@@ -866,55 +866,55 @@ pub enum SelfRef:
     Optional
     Required
 
-pub type Field[S, F] = *FieldRecord[S, F]
+pub type Field[S < ?Copy, F < ?Copy] = *FieldRecord[S, F]
 
-pub struct FieldRecord[S, F]:
+pub struct FieldRecord[S < ?Copy, F < ?Copy]:
     pub info: Member
 
-impl[S, F] FieldRecord[S, F]:
-    pub fn get(&self, s: S) -> F: pass
+impl[S < ?Copy, F < ?Copy] FieldRecord[S, F]:
+    pub fn get['a](&self, s: &'a S) -> &'a F: pass
     pub fn has_default(&self) -> bool: pass
     pub fn default(&self) -> F?: pass
     pub fn fact[M](&self) -> M?: pass
 
-pub type Variant[S] = *VariantRecord[S]
+pub type Variant[S < ?Copy] = *VariantRecord[S]
 
-pub struct VariantRecord[S]:
+pub struct VariantRecord[S < ?Copy]:
     pub info: VariantInfo
 
-impl[S] VariantRecord[S]:
-    pub fn holds(&self, s: S) -> bool: pass
+impl[S < ?Copy] VariantRecord[S]:
+    pub fn holds(&self, s: &S) -> bool: pass
 
-pub type Members[S] = *MembersRecord[S]
+pub type Members[S < ?Copy] = *MembersRecord[S]
 
-pub struct MembersRecord[S]:
+pub struct MembersRecord[S < ?Copy]:
     pub infos: List[Member]
 
-impl[S] MembersRecord[S]:
+impl[S < ?Copy] MembersRecord[S]:
     pub fn at(&self, position: usize) -> Key[S]?: pass
     pub fn find(&self, matches: fn(Member) -> bool) -> Key[S]?: pass
 
-pub type Key[S] = *KeyRecord[S]
+pub type Key[S < ?Copy] = *KeyRecord[S]
 
-pub struct KeyRecord[S]:
+pub struct KeyRecord[S < ?Copy]:
     pub info: Member
 
-pub trait Walker[S]:
+pub trait Walker[S < ?Copy] < ?Copy:
     type Error
     fn data_variant(&mut self, v: Variant[S]) -> Result[void, Self::Error]:
         self.variant(v)
     fn variant(&mut self, v: Variant[S]) -> Result[void, Self::Error]
-    fn data_member[F](&mut self, h: Field[S, F], value: F) -> Result[void, Self::Error]:
+    fn data_member[F < ?Copy](&mut self, h: Field[S, F], value: &F) -> Result[void, Self::Error]:
         self.member(h, value)
-    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, Self::Error]
-    fn rest[T](&mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, Self::Error]: pass
+    fn member[F < ?Copy](&mut self, h: Field[S, F], value: &F) -> Result[void, Self::Error]
+    fn rest[T](&mut self, h: Field[S, List[T]], items: &List[T]) -> Result[void, Self::Error]: pass
 
-pub trait Describer[S]:
+pub trait Describer[S < ?Copy] < ?Copy:
     type Error
     fn variant(&mut self, v: Variant[S]) -> Result[void, Self::Error]
-    fn member[F](&mut self, h: Field[S, F]) -> Result[void, Self::Error]
+    fn member[F < ?Copy](&mut self, h: Field[S, F]) -> Result[void, Self::Error]
 
-pub trait Source[S]:
+pub trait Source[S < ?Copy] < ?Copy:
     type Error
     fn data_variant(&mut self, choice: Variant[S]) -> Result[Variant[S], Self::Error]:
         self.variant([choice])
@@ -976,7 +976,7 @@ fn first_or[M](facts: Facts, fallback: M) -> M:
 3. r[annot.structure.per-derivation] Each derivation sees its own `Structure` for the target, which reflects that derivation's facts and omitted members.
 4. r[annot.structure.named-positions] `Structure` may be named, as a bound or in a call such as `T::facts()`, only inside a template. Outside one, it may appear only in the `use` declaration that imports it and after `by` in a derivation block's header.
 5. r[annot.structure.named-positions.error] Any other use of `Structure`, such as the bound in `fn fields[X < Structure]`, is an error. Error: `structure-outside-template`.
-6. r[annot.structure.receivers] `walk` takes the value as `self`. `facts`, `describe`, and `build` are receiverless.
+6. r[annot.structure.borrowed-receiver] `walk` takes `&self`; `facts`, `describe`, and `build` are receiverless.
 7. r[annot.structure.protocol-ref] `walk`, `describe`, and `build` take the walker, describer, or source as a `&mut` reference, and every method of `Walker`, `Describer`, and `Source` takes `&mut self`. So a struct walker changes in place, and its caller reads the walker's fields after the traversal.
 8. r[annot.structure.private] `walk`, `describe`, and `build` include private members. Opting a type in lets the template's library read every member.
 9. r[annot.structure.pure] `walk`, `describe`, and `build`, and every method of `Walker`, `Describer`, and `Source`, have the empty requirement row and are not suspending.
@@ -986,6 +986,11 @@ fn first_or[M](facts: Facts, fallback: M) -> M:
 13. r[annot.structure.name.newtype] A newtype has its own name: its `name()` is the newtype's declared name, not its base type's.
 14. r[annot.structure.name.alias] A transparent alias has no `Structure` of its own. A derivation through it sees its base type's, so `name()` is the base type's declared name.
 15. r[annot.structure.protocol-move] `Walker`, `Describer`, and `Source` do not require `Copy`. So a walker, describer, or source may hold a `&mut` reference, as a serializer's walker holds its writer.
+16. r[annot.structure.noncopy-target] `Structure`, its handles, and the target parameter of `Walker`, `Describer`, and `Source` accept non-copyable types.
+17. r[annot.structure.borrowed-field-types] `Walker.member`, `Walker.data_member`, and `Describer.member` accept non-copyable field types.
+
+> **Why.** Reading a non-copyable value must leave its ownership in place.
+> Borrowed fields let standard derivations inspect it without acquiring it.
 
 ```text
 use std.structure.Structure
@@ -1031,7 +1036,7 @@ use std.structure.Structure
 impl[T] Encode for T by Structure:
     fn encode(self) -> string:
         let mut w = Encoder { style: style_of(T::facts()), out: "" }
-        _ := Structure::walk(self, &mut w)
+        _ := Structure::walk(&self, &mut w)
         w.out
 ```
 
@@ -1097,7 +1102,7 @@ use std.structure.Structure
 impl[T < Tuple] Encode for T by Structure:
     fn encode(self) -> string:
         let mut w = Encoder { style: style_of(T::facts()), out: "" }
-        _ := Structure::walk(self, &mut w)
+        _ := Structure::walk(&self, &mut w)
         w.out
 ```
 
@@ -1463,9 +1468,9 @@ the data hooks, while an enum and a tuple use the variant hooks.
 2. r[annot.walk.data-variant-hook] For a struct value, generated `walk` calls `w.data_variant(v)` for its one variant.
 3. r[annot.walk.enum-members] Generated `walk` calls `w.member(h, value)` for each member of an enum or tuple variant, in declaration order.
 4. r[annot.walk.data-member-hook] For a struct, generated `walk` calls `w.data_member(h, value)` for each member in declaration order.
-5. r[annot.walk.value] Each member value is read from `self`, so it has the member's declared type.
+5. r[annot.walk.borrowed-member] A walked member declared `F` is lent from `self` as `&F`, without copying it.
 6. r[annot.walk.error] The first `.Err` that `variant` or `member` returns ends the walk, and `walk` returns it. Otherwise `walk` returns `.Ok(())`.
-7. r[annot.walk.nested] A member is passed as one value. Its own members are reached only through its own type's implementations.
+7. r[annot.walk.borrowed-nested] A member is passed as one reference; its own members are reached only through its type's implementations.
 8. r[annot.walk.rest] For a [rest member](#r-annot.tuple.rest), generated `walk` calls `w.rest(h, items)` in place of `w.member`, with the rest element's list as `items`.
 9. r[annot.walk.rest.default] `Walker`'s default `rest` calls `self.member(h, items)`. So a walker that does not implement `rest` sees the rest member as one `List[T]` member.
 10. r[annot.walk.data-hook-defaults] `Walker`'s default `data_variant` calls `self.variant(v)`, and its default `data_member` calls `self.member(h, value)`.
@@ -1714,7 +1719,7 @@ variant of a derivation's target.
 1. r[annot.handle.constants] Each member has one constant handle of type `Field[S, F]`, and each variant one of type `Variant[S]`. A handle refers to a record that lives as long as the program.
 2. r[annot.handle.member-type] `walk`, `describe`, and `build` pass handles whose `F` is the member's declared type: for `hits: *mut Counter`, it is `*mut Counter`.
 3. r[annot.handle.field-variance] `Field` is invariant in `S` and `F`, and `Variant`, `Members`, and `Key` are invariant in `S`, as a counted reference is in its referent ([`ref.type.kind-distinct`](13-values-and-references.md#r-ref.type.kind-distinct)).
-4. r[annot.handle.get] `h.get(x)` accepts any `S`. Its type is the type that the field access `x.member` would have, for a member declared `F`.
+4. r[annot.handle.get-borrowed] For `h: Field[S, F]`, `h.get(x)` takes `x: &'a S` and returns `&'a F` into that member.
 5. r[annot.handle.get.variant] `h.get(x)` on a payload member, when `x` holds another variant, is a checked runtime panic with category `structure-variant-mismatch`.
 6. r[annot.handle.holds] `v.holds(x)` is true exactly when `x` holds the variant `v`.
 7. r[annot.handle.default] `h.has_default()` is true when the member declares a default. `h.default()` evaluates that default, or returns `.None` when there is none.
@@ -1774,7 +1779,7 @@ impl[S] Walker[S] for Encoder:
             self.out = self.out + self.style.tag + "=" + v.info.name + ";"
         .Ok(())
 
-    fn member[F < Encode](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Encode](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         self.out = self.out + key_for(self.style, h.info) + "=" + value.encode() + ";"
         .Ok(())
 ```
@@ -1862,7 +1867,7 @@ fn skip() -> Skip:
 impl[S] Walker[S] for Writing:  # variant elided
     type Error = never
 
-    fn member[F < Write](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Write](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         self.out = self.out + value.write()
         .Ok(())
 ```
@@ -2016,7 +2021,7 @@ The module `std.serde` declares the two serialization traits and the format
 protocol they drive:
 
 ```text
-pub trait Serialize:
+pub trait Serialize < ?Copy:
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]
     fn is_absent(&self) -> bool:
         false

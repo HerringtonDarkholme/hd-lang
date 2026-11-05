@@ -64,7 +64,7 @@ fn make(s: string) -> $.Context[$ Tag]:
 >   %12 = Drop [%8] : ()
 >   %13 = Coerce %11 [RefAsProvider -] : Tag
 >   %14 = Drop [%11] : ()
->   %15 = ContextNew [%5858 %13] : $.Context[$ Tag]
+>   %15 = ContextNew [%5918 %13] : $.Context[$ Tag]
 >   %16 = Drop [%13] : ()
 >   %17 = Block %15 : $.Context[$ Tag]
 >   %5 finds [$2] full
@@ -76,7 +76,7 @@ fn run(ctx: $.Context[$ Tag]) -> usize:
 > app/main/run
 >   local $0 ctx: $.Context[$ Tag] [param read]
 >   %0 = Read borrow [$0] : $.Context[$ Tag]
->   %3 = With [%5860 %0] %2 : usize
+>   %3 = With [%5920 %0] %2 : usize
 >   %4 = Block %3 : usize
         read_tag()
 >   %1 = Call app/main/read_tag[] () : usize

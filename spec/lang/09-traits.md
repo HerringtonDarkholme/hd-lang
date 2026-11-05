@@ -614,6 +614,7 @@ shows its declaration.
 3. r[trait.display.write.default] The default body of `write` pushes `self.to_string()` to `out`. So an implementation that writes only `to_string` is complete.
 4. r[trait.display.write.parts] An override may push its text to `out` in parts, avoiding intermediate strings when the caller streams into one builder.
 5. r[trait.display.builder] `StringBuilder` is `std.text.StringBuilder` ([Joining And Building](../std/text.md#joining-and-building)). It is not a prelude name, so an implementation that overrides `write` imports it, as in `use std.text.StringBuilder`.
+6. r[trait.read.noncopy] `Debug`, `Display`, `Eq`, `PartialOrd`, `Ord`, `Hash`, and `Serialize` do not require `Copy`.
 
 > **Note.** Interpolation calls `write`, and `value.to_string()` calls
 > `to_string`. An override that pushes other text than `to_string`

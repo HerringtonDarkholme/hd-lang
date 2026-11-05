@@ -22,20 +22,20 @@ impl[S] Walker[S] for Lister:
         )
         .Ok(())
 
-    fn member[F < Display](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Display](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         self.out = self.out + " " + h.info.name + "=$value"
         .Ok(())
 
 impl[T] Shape for T by Structure:
     fn shape(self) -> string:
         let mut w = Lister { out: T::name() + " ${T::facts().items.len()}" }
-        _ := Structure::walk(self, &mut w)
+        _ := Structure::walk(&self, &mut w)
         w.out
 
 impl[T < Tuple] Shape for T by Structure:
     fn shape(self) -> string:
         let mut w = Lister { out: "'" + T::name() + "' ${T::facts().items.len()}" }
-        _ := Structure::walk(self, &mut w)
+        _ := Structure::walk(&self, &mut w)
         w.out
 
 @derive(Shape)

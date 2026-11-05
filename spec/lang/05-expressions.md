@@ -232,7 +232,7 @@ declaration is:
 ```text
 use std.text.StringBuilder
 
-trait Display:
+trait Display < ?Copy:
     fn to_string(&self) -> string
 
     fn write(&self, out: &mut StringBuilder) -> void:

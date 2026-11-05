@@ -24,12 +24,12 @@ impl[S] Walker[S] for Trace:
         self.variants += 1
         .Ok(())
 
-    fn data_member[F < Display](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn data_member[F < Display](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         self.data_members += 1
         self.text += "${h.info.name}=$value;"
         .Ok(())
 
-    fn member[F < Display](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Display](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         self.members += 1
         self.text += "${h.info.name}=$value;"
         .Ok(())
@@ -46,7 +46,7 @@ impl[T] Seen for T by Structure:
             members: 0,
             text: "",
         }
-        _ := Structure::walk(self, &mut trace)
+        _ := Structure::walk(&self, &mut trace)
         "${trace.data_variants} ${trace.variants} ${trace.data_members} ${trace.members} ${trace.text}"
 
 trait Seed:

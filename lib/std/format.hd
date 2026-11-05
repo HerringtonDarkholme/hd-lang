@@ -15,7 +15,7 @@ use std.text.StringBuilder
 # (spec/lang/05-expressions.md#string-interpolation).
 ## The canonical text trait: string interpolation writes a value through it.
 ## See [expr.interp.display](../../spec/lang/05-expressions.md#r-expr.interp.display).
-pub trait Display:
+pub trait Display < ?Copy:
     fn to_string(&self) -> string
 
     # Interpolation writes a value through `write`
@@ -34,23 +34,23 @@ pub trait Debug < ?Copy:
     fn debug(&self, out: *mut DebugWriter) -> void
 
 # A union's Display forwards directly to its active payload.
-struct UnionText[S]:
+struct UnionText[S < ?Copy]:
     pub text: string
 
-impl[S] Walker[S] for UnionText[S]:
+impl[S < ?Copy] Walker[S] for UnionText[S]:
     type Error = never
 
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F < Display](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < ?Copy & Display](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         self.text = value.to_string()
         .Ok(())
 
-impl[T < UnionType] Display for T by Structure:
+impl[T < ?Copy & UnionType] Display for T by Structure:
     fn to_string(&self) -> string:
         let mut w = UnionText::[T] { text: "" }
-        _ := Structure::walk(*self, &mut w)
+        _ := Structure::walk(self, &mut w)
         w.text
 
 # The structured writer that `Debug.debug` writes through. An implementation
@@ -413,7 +413,7 @@ impl Display for string:
 # (r-std-format.display.reference), as Rust's `&T` does, and its `write`
 # runs the referent's (r-std-format.display.reference.write).
 # Keep handwritten Display: delegate through the reference; structural derivation is for its referent.
-impl[T < Display] Display for *T:
+impl[T < ?Copy & Display] Display for *T:
     fn to_string(&self) -> string:
         (*(*self)).to_string()
 
@@ -421,7 +421,7 @@ impl[T < Display] Display for *T:
         (*(*self)).write(out)
 
 # Keep handwritten Display: delegate through the reference; structural derivation is for its referent.
-impl[T < Display] Display for *mut T:
+impl[T < ?Copy & Display] Display for *mut T:
     fn to_string(&self) -> string:
         (*(*self)).to_string()
 
@@ -710,16 +710,16 @@ impl[T < ?Copy & Debug] Debug for *mut T:
         (*(*self)).debug(out)
 
 # Keep handwritten Debug: render builtin variants, which have no declaration to decorate.
-impl[T < Debug] Debug for T?:
+impl[T < ?Copy & Debug] Debug for T?:
     fn debug(&self, out: *mut DebugWriter) -> void:
-        match *self:
+        match self:
             .Some(value) => out.debug_tuple("Option.Some").field(value).finish()
             .None => out.write("Option.None")
 
 # Keep handwritten Debug: render builtin variants, which have no declaration to decorate.
-impl[T < Debug, E < Debug] Debug for Result[T, E]:
+impl[T < ?Copy & Debug, E < ?Copy & Debug] Debug for Result[T, E]:
     fn debug(&self, out: *mut DebugWriter) -> void:
-        match *self:
+        match self:
             .Ok(value) => out.debug_tuple("Result.Ok").field(value).finish()
             .Err(error) => out.debug_tuple("Result.Err").field(error).finish()
 
@@ -952,10 +952,10 @@ trait DbgStructural:
 impl[T] DbgStructural for T by Structure:
     fn show(&self, out: *mut DebugWriter) -> void:
         let mut shape = DebugShape::[T] { name: "", of_data: false, members: 0, positional: 0 }
-        _ := Structure::walk(*self, &mut shape)
+        _ := Structure::walk(self, &mut shape)
         if shape.of_data && shape.name != "" && shape.positional == 0:
             let mut named = DbgNamed::[T] { fields: out.debug_struct(shape.name) }
-            _ := Structure::walk(*self, &mut named)
+            _ := Structure::walk(self, &mut named)
             named.fields.finish()
             return
         name := if shape.of_data: shape.name else: T::name() + "." + shape.name
@@ -963,42 +963,42 @@ impl[T] DbgStructural for T by Structure:
             out.write(name)
             return
         let mut fields = DbgFields::[T] { tuple: out.debug_tuple(name) }
-        _ := Structure::walk(*self, &mut fields)
+        _ := Structure::walk(self, &mut fields)
         fields.tuple.finish()
 
-struct DbgNamed[S]:
+struct DbgNamed[S < ?Copy]:
     pub fields: DebugStruct
 
-impl[S] Walker[S] for DbgNamed[S]:
+impl[S < ?Copy] Walker[S] for DbgNamed[S]:
     type Error = never
 
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
-        _ := self.fields.part(h.info.name, value, dbg_printer::[F]())
+    fn member[F < ?Copy](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
+        _ := self.fields.part(h.info.name, value, dbg_printer::[&F]())
         .Ok(())
 
-struct DbgFields[S]:
+struct DbgFields[S < ?Copy]:
     pub tuple: DebugTuple
 
-impl[S] Walker[S] for DbgFields[S]:
+impl[S < ?Copy] Walker[S] for DbgFields[S]:
     type Error = never
 
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
-        show := dbg_printer::[F]()
+    fn member[F < ?Copy](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
+        show := dbg_printer::[&F]()
         if h.info.positional:
             _ := self.tuple.part(value, show)
         else:
             _ := self.tuple.named_part(h.info.name, value, show)
         .Ok(())
 
-    fn rest[I](&mut self, h: Field[S, List[I]], items: List[I]) -> Result[void, never]:
-        show := dbg_printer::[I]()
-        for item in items:
+    fn rest[I](&mut self, h: Field[S, List[I]], items: &List[I]) -> Result[void, never]:
+        show := dbg_printer::[&I]()
+        for item in &items:
             _ := self.tuple.part(item, show)
         .Ok(())
 
@@ -1009,13 +1009,13 @@ impl[S] Walker[S] for DbgFields[S]:
 # with positional members first and named ones as `name=value`. A first
 # walk reads the variant and counts its members, so the builder is chosen
 # before any field is written.
-impl[T] Debug for T by Structure:
+impl[T < ?Copy] Debug for T by Structure:
     fn debug(&self, out: *mut DebugWriter) -> void:
         let mut shape = DebugShape::[T] { name: "", of_data: false, members: 0, positional: 0 }
-        _ := Structure::walk(*self, &mut shape)
+        _ := Structure::walk(self, &mut shape)
         if shape.of_data:
             let mut named = DebugNamed::[T] { fields: out.debug_struct(shape.name) }
-            _ := Structure::walk(*self, &mut named)
+            _ := Structure::walk(self, &mut named)
             named.fields.finish()
             return
         qualified := T::name() + "." + shape.name
@@ -1023,29 +1023,29 @@ impl[T] Debug for T by Structure:
             out.write(qualified)
             return
         let mut fields = DebugFields::[T] { tuple: out.debug_tuple(qualified) }
-        _ := Structure::walk(*self, &mut fields)
+        _ := Structure::walk(self, &mut fields)
         fields.tuple.finish()
 
 # Union `Debug`: the ordinary enum derivation with `Union._k` case names.
-impl[T < UnionType] Debug for T by Structure:
+impl[T < ?Copy & UnionType] Debug for T by Structure:
     fn debug(&self, out: *mut DebugWriter) -> void:
         let mut shape = DebugShape::[T] { name: "", of_data: false, members: 0, positional: 0 }
-        _ := Structure::walk(*self, &mut shape)
+        _ := Structure::walk(self, &mut shape)
         qualified := T::name() + "." + shape.name
         let mut fields = DebugFields::[T] { tuple: out.debug_tuple(qualified) }
-        _ := Structure::walk(*self, &mut fields)
+        _ := Structure::walk(self, &mut fields)
         fields.tuple.finish()
 
 # The value's variant name, and how many of its members are positional.
 # The fields are public because the prototype checks the instantiated
 # walker in the program that uses it.
-struct DebugShape[S]:
+struct DebugShape[S < ?Copy]:
     pub name: string
     pub of_data: bool
     pub members: usize
     pub positional: usize
 
-impl[S] Walker[S] for DebugShape[S]:
+impl[S < ?Copy] Walker[S] for DebugShape[S]:
     type Error = never
 
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
@@ -1054,20 +1054,20 @@ impl[S] Walker[S] for DebugShape[S]:
         .Ok(())
 
     # A rest member is one `List[T]` member (annot.walk.rest.default).
-    fn rest[T](&mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, never]:
+    fn rest[T](&mut self, h: Field[S, List[T]], items: &List[T]) -> Result[void, never]:
         self.member(h, items)
 
-    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < ?Copy](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         self.members = self.members + 1
         if h.info.positional:
             self.positional = self.positional + 1
         .Ok(())
 
 # Writes each member as a named field.
-struct DebugNamed[S]:
+struct DebugNamed[S < ?Copy]:
     pub fields: DebugStruct
 
-impl[S] Walker[S] for DebugNamed[S]:
+impl[S < ?Copy] Walker[S] for DebugNamed[S]:
     type Error = never
 
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
@@ -1075,10 +1075,10 @@ impl[S] Walker[S] for DebugNamed[S]:
 
     # A rest member is one `List[T]` member (annot.walk.rest.default),
     # which needs `T < Debug` here, as `member` needs `F < Debug`.
-    fn rest[T < Debug](&mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, never]:
+    fn rest[T < Debug](&mut self, h: Field[S, List[T]], items: &List[T]) -> Result[void, never]:
         self.member(h, items)
 
-    fn member[F < Debug](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < ?Copy & Debug](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         _ := self.fields.field(h.info.name, value)
         .Ok(())
 
@@ -1086,34 +1086,34 @@ impl[S] Walker[S] for DebugNamed[S]:
 # `debug_tuple("")`, a field per element, then `finish`, at every size. The
 # walker implements `rest`, so a rest element's items are fields too
 # (spec/lang/09-traits.md#r-trait.debug.tuples.rest).
-impl[T < Tuple] Debug for T by Structure:
+impl[T < ?Copy & Tuple] Debug for T by Structure:
     fn debug(&self, out: *mut DebugWriter) -> void:
         let mut w = DebugFields::[T] { tuple: out.debug_tuple("") }
-        _ := Structure::walk(*self, &mut w)
+        _ := Structure::walk(self, &mut w)
         w.tuple.finish()
 
 # Writes each member of a variant or tuple: a positional one as an argument,
 # a named one as `name=value`.
 # The field is public because the prototype checks the instantiated walker
 # in the program that uses it.
-struct DebugFields[S]:
+struct DebugFields[S < ?Copy]:
     pub tuple: DebugTuple
 
-impl[S] Walker[S] for DebugFields[S]:
+impl[S < ?Copy] Walker[S] for DebugFields[S]:
     type Error = never
 
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F < Debug](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < ?Copy & Debug](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         if h.info.positional:
             _ := self.tuple.field(value)
         else:
             _ := self.tuple.named_field(h.info.name, value)
         .Ok(())
 
-    fn rest[I < Debug](&mut self, h: Field[S, List[I]], items: List[I]) -> Result[void, never]:
-        for item in items:
+    fn rest[I < Debug](&mut self, h: Field[S, List[I]], items: &List[I]) -> Result[void, never]:
+        for item in &items:
             _ := self.tuple.field(item)
         .Ok(())
 
@@ -1122,10 +1122,10 @@ impl[S] Walker[S] for DebugFields[S]:
 # size. One element ends with a comma, as in `(1,)`
 # (r-expr.interp.std.tuple.one), and a rest element's items are written
 # inline (r-expr.interp.std.tuple.rest-inline).
-impl[T < Tuple] Display for T by Structure:
+impl[T < ?Copy & Tuple] Display for T by Structure:
     fn to_string(&self) -> string:
         let mut w = TupleText::[T] { parts: [] }
-        _ := Structure::walk(*self, &mut w)
+        _ := Structure::walk(self, &mut w)
         text := w.parts.join(", ")
         if w.parts.len() == 1:
             return "(${text},)"
@@ -1134,21 +1134,21 @@ impl[T < Tuple] Display for T by Structure:
 # Each element's text, joined once at the end, since a rest element can
 # hold any number of items. The field is public because the prototype
 # checks the instantiated walker in the program that uses it.
-struct TupleText[S]:
+struct TupleText[S < ?Copy]:
     pub parts: List[string]
 
-impl[S] Walker[S] for TupleText[S]:
+impl[S < ?Copy] Walker[S] for TupleText[S]:
     type Error = never
 
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F < Display](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < ?Copy & Display](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         self.parts.push("$value")
         .Ok(())
 
-    fn rest[I < Display](&mut self, h: Field[S, List[I]], items: List[I]) -> Result[void, never]:
-        for item in items:
+    fn rest[I < Display](&mut self, h: Field[S, List[I]], items: &List[I]) -> Result[void, never]:
+        for item in &items:
             self.parts.push("$item")
         .Ok(())
 

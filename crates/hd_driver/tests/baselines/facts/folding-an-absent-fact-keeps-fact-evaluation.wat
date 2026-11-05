@@ -35,7 +35,7 @@
     i32.add
     global.set $forbid
     block
-    ;; 32 | @fail()
+    ;; 34 | @fail()
       block
         block
           i32.const 19 ;; &"fact body ran"

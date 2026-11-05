@@ -101,7 +101,7 @@ impl[S] Walker[S] for ValidationWalker[S]:
     type Error = never
     fn variant(&mut self, variant: Variant[S]) -> Result[void, never]:
         .Ok(())
-    fn member[F < ApplyFacts](&mut self, handle: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < ApplyFacts](&mut self, handle: Field[S, F], value: &F) -> Result[void, never]:
         value.apply_facts(handle.info.facts, self.context)
         .Ok(())
 
@@ -112,7 +112,7 @@ impl[T] Validate for T by Structure:
     fn validate(self) -> usize:
         context := box(ValidationContext { errors: 0 })
         let mut walker = ValidationWalker::[T] { context: context }
-        _ := Structure::walk(self, &mut walker)
+        _ := Structure::walk(&self, &mut walker)
         context.errors
 
 struct Signup:

@@ -15,23 +15,23 @@ pub trait Error < Display & Inspectable:
         .None
 
 # A union forwards its source transparently to the active payload's source.
-struct UnionSource[S]:
+struct UnionSource[S < ?Copy]:
     pub source: (*dyn Error)?
 
-impl[S] Walker[S] for UnionSource[S]:
+impl[S < ?Copy] Walker[S] for UnionSource[S]:
     type Error = never
 
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F < Error](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < ?Copy & Error](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         self.source = value.source()
         .Ok(())
 
 impl[T < UnionType & Display & Inspectable] Error for T by Structure:
     fn source(&self) -> (*dyn Error)?:
         let mut w = UnionSource::[T] { source: .None }
-        _ := Structure::walk(*self, &mut w)
+        _ := Structure::walk(self, &mut w)
         w.source
 
 # The source-chain helpers are inherent methods of `dyn Error`

@@ -5,7 +5,7 @@
 
 use hd_base::{DefId, Hash128, StableHasher};
 use hd_tir::inline::Site;
-use hd_tir::ir::{Body, BodyKind, Callee, Place, PlaceRoot, PrimOp, Proj, ReadMode, Ref, Tag};
+use hd_tir::ir::{Body, BodyKind, Callee, Place, PlaceRoot, PrimOp, Proj, Ref, Tag};
 use hd_types::{Ty, TyData, TyList};
 
 use crate::inline::{InlineEnv, InlineHint};
@@ -186,14 +186,14 @@ fn fold_handle_accessors(env: &dyn StructureEnv, body: &mut Body) {
                 }
                 let Some(words) = (Place {
                     root: PlaceRoot::Value(Ref(*target)),
-                    proj: vec![Proj::Field(field)],
+                    proj: vec![Proj::Deref, Proj::Field(field)],
                 })
                 .words() else {
                     continue;
                 };
                 let place = push_record(body, &words);
-                body.tags[call] = Tag::Read;
-                body.data[call] = [place, ReadMode::Use as u32];
+                body.tags[call] = Tag::Ref;
+                body.data[call] = [place, 0];
             }
             (StructureAccessor::Holds, GeneratedHandle::Variant { .. }, [_, target]) => {
                 let Some((def, targs)) = adt_of_ref(body, *target, env) else {
@@ -284,7 +284,12 @@ fn adt_of_ref(body: &Body, value: u32, env: &dyn StructureEnv) -> Option<(DefId,
     } else {
         *body.ty.get(value as usize)?
     };
-    match env.pool().get(ty) {
+    let pool = env.pool();
+    let raised = pool.types().raise_refs(env.ref_cells(), ty);
+    let TyData::Ref { inner, .. } = pool.get(raised) else {
+        return None;
+    };
+    match pool.get(inner) {
         TyData::Adt { def, args } => Some((def, args)),
         _ => None,
     }

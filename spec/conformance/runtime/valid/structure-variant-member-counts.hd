@@ -58,7 +58,7 @@ impl[S] Walker[S] for IncludedCounts:
         self.variants.push((v.info.positional, v.info.included_positional))
         .Ok(())
 
-    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         .Ok(())
 
 trait Included:
@@ -67,7 +67,7 @@ trait Included:
 impl[T] Included for T by Structure:
     fn included(self) -> IncludedCounts:
         let mut counts = IncludedCounts { variants: [] }
-        _ := Structure::walk(self, &mut counts)
+        _ := Structure::walk(&self, &mut counts)
         counts
 
 struct Cached: pass

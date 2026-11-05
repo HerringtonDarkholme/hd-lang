@@ -2,4 +2,4 @@
 use std.structure.{Field, Walker}
 
 fn forward[S, W < Walker[S]](w: &mut W, h: Field[S, i64], value: i64) -> void:
-    _ := w.data_member(h, value) # diagnostic: generic-member-call
+    _ := w.data_member(h, &value) # diagnostic: generic-member-call

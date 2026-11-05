@@ -26,14 +26,14 @@ impl[S] Walker[S] for Writing:
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F < Write](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Write](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         self.out = self.out + h.info.name + "=" + value.write() + ";"
         .Ok(())
 
 impl[T] Write for T by Structure:
     fn write(self) -> string:
         let mut walker = Writing { out: "" }
-        _ := Structure::walk(self, &mut walker)
+        _ := Structure::walk(&self, &mut walker)
         walker.out
 
 trait Names:
@@ -48,14 +48,14 @@ impl[S] Walker[S] for Namer:
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         self.out = self.out + h.info.name + ";"
         .Ok(())
 
 impl[T] Names for T by Structure:
     fn names(self) -> string:
         let mut w = Namer { out: "" }
-        _ := Structure::walk(self, &mut w)
+        _ := Structure::walk(&self, &mut w)
         w.out
 
 struct Cached: pass

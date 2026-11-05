@@ -10,7 +10,7 @@ impl Encode for Order by Structure:
 
 impl[T] Encode for T by Structure:
     fn encode(self) -> string:
-        _ := Structure::walk(self, Encoder {})
+        _ := Structure::walk(&self, Encoder {})
         ""
 
 enum Reply:

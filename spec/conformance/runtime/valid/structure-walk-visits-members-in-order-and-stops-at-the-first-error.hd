@@ -17,7 +17,7 @@ impl[S] Walker[S] for Tracer:
         self.out = self.out + v.info.name + ":"
         .Ok(())
 
-    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, string]:
+    fn member[F](&mut self, h: Field[S, F], value: &F) -> Result[void, string]:
         if h.info.name == "stop":
             return .Err("stop@${h.info.position}")
         self.out = self.out + h.info.name + ","
@@ -26,7 +26,7 @@ impl[S] Walker[S] for Tracer:
 impl[T] Trace for T by Structure:
     fn trace(self) -> string:
         let mut w = Tracer { out: "" }
-        match Structure::walk(self, &mut w):
+        match Structure::walk(&self, &mut w):
             .Ok(_) => w.out + "ok"
             .Err(e) => w.out + e
 

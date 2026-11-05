@@ -35,7 +35,7 @@ impl[S] Walker[S] for Tally:
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F < Display](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Display](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         self.n = self.n + 1
         self.text = self.text + h.info.name + "=$value;"
         .Ok(())
@@ -81,15 +81,15 @@ impl[S] Source[S] for Counter:
 impl[T] Summary for T by Structure:
     fn summary(self) -> string:
         let mut w = Tally { n: 0, text: "" }
-        _ := Structure::walk(self, &mut w)
+        _ := Structure::walk(&self, &mut w)
         "${w.n} ${w.text}"
 
 # Both walks change the one object the reference names.
 impl[T] Twice for T by Structure:
     fn twice(self) -> i32:
         shared := &mut Tally { n: 0, text: "" }
-        _ := Structure::walk(self, shared)
-        _ := Structure::walk(self, shared)
+        _ := Structure::walk(&self, shared)
+        _ := Structure::walk(&self, shared)
         shared.n
 
 impl[T] Names for T by Structure:

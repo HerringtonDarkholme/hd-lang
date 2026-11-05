@@ -50,7 +50,7 @@ impl[S] Walker[S] for Encoder:
             self.out = self.out + self.style.tag + "=" + v.info.name + ";"
         .Ok(())
 
-    fn member[F < Encode](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Encode](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         self.out = self.out + key_for(self.style, h.info) + "=" + value.encode() + ";"
         .Ok(())
 
@@ -71,7 +71,7 @@ impl[S] Describer[S] for KeyLister:
 impl[T] Encode for T by Structure:
     fn encode(self) -> string:
         let mut w = Encoder { style: style_of(T::facts()), out: "" }
-        _ := Structure::walk(self, &mut w)
+        _ := Structure::walk(&self, &mut w)
         w.out
 
 impl[T] Keys for T by Structure:

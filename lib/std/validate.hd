@@ -188,7 +188,11 @@ pub trait Validate:
         .None
     fn path_name(&self) -> string?:
         .None
-    fn apply_attached[S](&self, field: Field[S, Self], context: &mut ValidationContext) -> void:
+    fn apply_attached[S < ?Copy](
+        &self,
+        field: Field[S, Self],
+        context: &mut ValidationContext,
+    ) -> void:
         apply_member_facts(self, field, context)
 
 fn visit_value[F < Validate](value: &F, context: &mut ValidationContext) -> void:
@@ -201,31 +205,31 @@ fn visit_value[F < Validate](value: &F, context: &mut ValidationContext) -> void
 impl[T] Validate for T by Structure:
     fn collect(&self, context: &mut ValidationContext) -> void:
         let mut walker = ValidationWalker::[T] { context: *context }
-        _ := Structure::walk(*self, &mut walker)
+        _ := Structure::walk(self, &mut walker)
         *context = walker.context
 
     fn equal_to(&self, other: &T) -> bool?:
-        let mut walker = ValidationEqualWalker::[T] { other: *other, result: .Some(true) }
-        _ := Structure::walk(*self, &mut walker)
+        let mut walker = ValidationEqualWalker::[T] { other: other, result: .Some(true) }
+        _ := Structure::walk(self, &mut walker)
         walker.result
 
     fn partial_cmp_of(&self, other: &T) -> Result[Ordering?, void]:
-        index := fn(value: T) -> usize:
+        index := fn(value: &T) -> usize:
             let mut probe = ValidationVariantIndex::[T] { index: 0 }
             _ := Structure::walk(value, &mut probe)
             probe.index
         let mut walker = ValidationOrderWalker::[T] {
-            other: *other,
+            other: other,
             other_index: index,
             result: .Ok(.Some(.Equal)),
         }
-        _ := Structure::walk(*self, &mut walker)
+        _ := Structure::walk(self, &mut walker)
         walker.result
 
-struct ValidationWalker[S]:
+struct ValidationWalker[S < ?Copy]:
     pub context: ValidationContext
 
-impl[S] Walker[S] for ValidationWalker[S]:
+impl[S < ?Copy] Walker[S] for ValidationWalker[S]:
     type Error = never
 
     fn variant(&mut self, variant: Variant[S]) -> Result[void, never]:
@@ -234,22 +238,26 @@ impl[S] Walker[S] for ValidationWalker[S]:
     fn rest[T < Validate](
         &mut self,
         field: Field[S, List[T]],
-        items: List[T],
+        items: &List[T],
     ) -> Result[void, never]:
         self.member(field, items)
 
-    fn member[F < Validate](&mut self, field: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < ?Copy & Validate](
+        &mut self,
+        field: Field[S, F],
+        value: &F,
+    ) -> Result[void, never]:
         self.context.push(.Field(copy_member(&field.info)))
         value.apply_attached(field, &mut self.context)
-        visit_value(&value, &mut self.context)
+        visit_value(value, &mut self.context)
         self.context.pop()
         .Ok(())
 
-struct ValidationEqualWalker[S]:
-    pub other: S
+struct ValidationEqualWalker[S < ?Copy, 'a]:
+    pub other: &'a S
     pub result: bool?
 
-impl[S] Walker[S] for ValidationEqualWalker[S]:
+impl['a, S < ?Copy] Walker[S] for ValidationEqualWalker[S, 'a]:
     type Error = bool
 
     fn variant(&mut self, variant: Variant[S]) -> Result[void, bool]:
@@ -262,39 +270,39 @@ impl[S] Walker[S] for ValidationEqualWalker[S]:
     fn rest[T < Validate](
         &mut self,
         field: Field[S, List[T]],
-        items: List[T],
+        items: &List[T],
     ) -> Result[void, bool]:
         self.member(field, items)
 
-    fn member[F < Validate](&mut self, field: Field[S, F], value: F) -> Result[void, bool]:
-        match value.equal_to(&field.get(self.other)):
+    fn member[F < ?Copy & Validate](&mut self, field: Field[S, F], value: &F) -> Result[void, bool]:
+        match value.equal_to(field.get(self.other)):
             .Some(true) => .Ok(())
             result =>
                 self.result = result
                 .Err(false)
 
-struct ValidationVariantIndex[S]:
+struct ValidationVariantIndex[S < ?Copy]:
     pub index: usize
 
-impl[S] Walker[S] for ValidationVariantIndex[S]:
+impl[S < ?Copy] Walker[S] for ValidationVariantIndex[S]:
     type Error = bool
 
     fn variant(&mut self, variant: Variant[S]) -> Result[void, bool]:
         self.index = variant.info.index
         .Err(true)
 
-    fn rest[T](&mut self, field: Field[S, List[T]], items: List[T]) -> Result[void, bool]:
+    fn rest[T](&mut self, field: Field[S, List[T]], items: &List[T]) -> Result[void, bool]:
         self.member(field, items)
 
-    fn member[F](&mut self, field: Field[S, F], value: F) -> Result[void, bool]:
+    fn member[F < ?Copy](&mut self, field: Field[S, F], value: &F) -> Result[void, bool]:
         .Ok(())
 
-struct ValidationOrderWalker[S]:
-    pub other: S
-    pub other_index: fn(S) -> usize
+struct ValidationOrderWalker[S < ?Copy, 'a]:
+    pub other: &'a S
+    pub other_index: fn(&S) -> usize
     pub result: Result[Ordering?, void]
 
-impl[S] Walker[S] for ValidationOrderWalker[S]:
+impl['a, S < ?Copy] Walker[S] for ValidationOrderWalker[S, 'a]:
     type Error = bool
 
     fn variant(&mut self, variant: Variant[S]) -> Result[void, bool]:
@@ -309,12 +317,12 @@ impl[S] Walker[S] for ValidationOrderWalker[S]:
     fn rest[T < Validate](
         &mut self,
         field: Field[S, List[T]],
-        items: List[T],
+        items: &List[T],
     ) -> Result[void, bool]:
         self.member(field, items)
 
-    fn member[F < Validate](&mut self, field: Field[S, F], value: F) -> Result[void, bool]:
-        match value.partial_cmp_of(&field.get(self.other)):
+    fn member[F < ?Copy & Validate](&mut self, field: Field[S, F], value: &F) -> Result[void, bool]:
+        match value.partial_cmp_of(field.get(self.other)):
             .Ok(.Some(.Equal)) => .Ok(())
             result =>
                 self.result = result
@@ -403,7 +411,11 @@ impl[T < Validate] Validate for T?:
             .Some(value) => (&value).path_name()
             .None => .None
 
-    fn apply_attached[S](&self, field: Field[S, T?], context: &mut ValidationContext) -> void:
+    fn apply_attached[S < ?Copy](
+        &self,
+        field: Field[S, T?],
+        context: &mut ValidationContext,
+    ) -> void:
         match self:
             .Some(value) => apply_optional_facts(&value, field, context)
             .None => pass
@@ -816,7 +828,7 @@ fn valid_bounds[F < Validate](low: &F, high: &F, context: &mut ValidationContext
 fn rule_message(message: string?, fallback: string) -> string:
     message.unwrap_or(fallback)
 
-fn apply_member_facts[S, F < Validate](
+fn apply_member_facts[S < ?Copy, F < Validate](
     value: &F,
     field: Field[S, F],
     context: &mut ValidationContext,
@@ -864,7 +876,7 @@ fn apply_member_facts[S, F < Validate](
         .Some(rule) => run_rule(&rule, value, context)
         .None => pass
 
-fn apply_optional_facts[S, F < Validate](
+fn apply_optional_facts[S < ?Copy, F < Validate](
     value: &F,
     field: Field[S, F?],
     context: &mut ValidationContext,

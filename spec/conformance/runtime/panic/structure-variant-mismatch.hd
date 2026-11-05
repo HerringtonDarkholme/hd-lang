@@ -18,15 +18,15 @@ impl[S] Walker[S] for SameWalker[S]:
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F < Same](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
-        other := h.get(self.other) # panic: structure-variant-mismatch
-        self.equal = self.equal && value.same(other)
+    fn member[F < Same](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
+        other := h.get(&self.other) # panic: structure-variant-mismatch
+        self.equal = self.equal && value.same(*other)
         .Ok(())
 
 impl[T] Same for T by Structure:
     fn same(self, other: T) -> bool:
         let mut w = SameWalker { other: other, equal: true }
-        _ := Structure::walk(self, &mut w)
+        _ := Structure::walk(&self, &mut w)
         w.equal
 
 @derive(Same)

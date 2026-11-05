@@ -33,31 +33,32 @@ impl[S] Walker[S] for Encoder:
 >   %0 = NewVariant #0 [-] : Result[(), never]
 >   %1 = Block %0 : Result[(), never]
 
-    fn member[F < Encode](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Encode](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         self.out = self.out + value.encode() + ";"
 > app/main/impl [ S ] Walker [ S ] for Encoder.member
->   local $2 value: F [param read]
+>   local $2 value: Ref[F] [param read]
 >   %0 = Read [*$0 .out] : string
->   %1 = Read [$2] : F
->   %2 = Call app/main/Encode.encode for F [] via Bound (%1) : string
->   %3 = Intrinsic StrConcat [%0 %2] : string
->   %4 = Intrinsic StrConcat [%3 ";"] : string
->   %5 = Store [*$0 .out] %4 : ()
->   %7 = Block %6 : Result[(), never]
+>   %1 = Read [$2] : Ref[F]
+>   %2 = Read [*%1] : F
+>   %3 = Call app/main/Encode.encode for F [] via Bound (%2) : string
+>   %4 = Intrinsic StrConcat [%0 %3] : string
+>   %5 = Intrinsic StrConcat [%4 ";"] : string
+>   %6 = Store [*$0 .out] %5 : ()
+>   %8 = Block %7 : Result[(), never]
         .Ok(())
->   %6 = NewVariant #0 [-] : Result[(), never]
+>   %7 = NewVariant #0 [-] : Result[(), never]
 
 impl[T < Tuple] Encode for T by Structure:
     fn encode(self) -> string:
         let mut w = Encoder { out: "" }
 > app/main/impl [ T < Tuple ] Encode for T by Structure.encode
->   local $0 self: T [param read]
+>   local $0 self: T [param read captured]
 >   local $1 w: Encoder [read assigned captured captured-assigned]
 >   %0 = NewStruct [""] : Encoder
 >   %1 = Store [$1] %0 : ()
 >   %6 = Block %5 : string
-        _ := Structure::walk(self, &mut w)
->   %2 = Read [$0] : T
+        _ := Structure::walk(&self, &mut w)
+>   %2 = Ref local [$0] : Counted[T]
 >   %3 = Ref mut local [$1] : Counted[mut Encoder]
 >   %4 = Call std/structure/Structure.walk for T [Encoder] via Bound (%2, %3) : Result[(), never]
         w.out

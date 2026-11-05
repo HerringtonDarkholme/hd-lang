@@ -115,25 +115,25 @@ pub enum SelfRef:
 # handle is one address that no count changes.
 ## A member's handle: a reference to its `FieldRecord`, which holds its `Member` information plus the calls a template needs.
 ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
-pub type Field[HdS, HdF] = *FieldRecord[HdS, HdF]
+pub type Field[HdS < ?Copy, HdF < ?Copy] = *FieldRecord[HdS, HdF]
 
 # `hd_witness` names the member's type, so that `fact` needs no
 # `Inspectable` bound on `HdF` (annot.handle.fact.key).
 ## What a member's handle refers to: its `Member` information plus the calls a template needs.
 ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
-pub struct FieldRecord[HdS, HdF]:
+pub struct FieldRecord[HdS < ?Copy, HdF < ?Copy]:
     ## The member's information.
     ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
     pub info: Member
-    hd_get: fn(HdS) -> HdF
+    hd_get: fn(&HdS) -> &HdF
     hd_has_default: bool
     hd_default: fn() -> HdF?
     hd_witness: *dyn Inspectable
 
-impl[HdS, HdF] FieldRecord[HdS, HdF]:
+impl[HdS < ?Copy, HdF < ?Copy] FieldRecord[HdS, HdF]:
     ## Reads the member's value from `s`.
     ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
-    pub fn get(&self, s: HdS) -> HdF:
+    pub fn get['a](&self, s: &'a HdS) -> &'a HdF:
         (self.hd_get)(s)
 
     ## Whether the member has a default value.
@@ -156,46 +156,46 @@ impl[HdS, HdF] FieldRecord[HdS, HdF]:
 # compiler builds once per instance in static data.
 ## A variant's handle: a reference to its `VariantRecord`, which holds its `VariantInfo` plus the check that a value holds it.
 ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
-pub type Variant[HdS] = *VariantRecord[HdS]
+pub type Variant[HdS < ?Copy] = *VariantRecord[HdS]
 
 ## What a variant's handle refers to: its `VariantInfo` plus the check that a value holds it.
 ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
-pub struct VariantRecord[HdS]:
+pub struct VariantRecord[HdS < ?Copy]:
     ## The variant's information.
     ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
     pub info: VariantInfo
-    hd_holds: fn(HdS) -> bool
+    hd_holds: fn(&HdS) -> bool
 
-impl[HdS] VariantRecord[HdS]:
+impl[HdS < ?Copy] VariantRecord[HdS]:
     ## Whether `s` holds this variant.
     ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
-    pub fn holds(&self, s: HdS) -> bool:
+    pub fn holds(&self, s: &HdS) -> bool:
         (self.hd_holds)(s)
 
 ## A found member's key: a reference to its `KeyRecord`.
 ## See [annot.structure.members.key-entry](../../spec/lang/14-annotations.md#r-annot.structure.members.key-entry).
-pub type Key[HdS] = *KeyRecord[HdS]
+pub type Key[HdS < ?Copy] = *KeyRecord[HdS]
 
 ## What a member's key refers to: the member's information and target type.
 ## See [annot.structure.members.key-entry](../../spec/lang/14-annotations.md#r-annot.structure.members.key-entry).
-pub struct KeyRecord[HdS]:
+pub struct KeyRecord[HdS < ?Copy]:
     pub info: Member
     hd_type: fn(HdS) -> bool
 
 ## The members of the type being derived: a reference to their `MembersRecord`.
 ## See [annot.structure.members.at-option](../../spec/lang/14-annotations.md#r-annot.structure.members.at-option).
-pub type Members[HdS] = *MembersRecord[HdS]
+pub type Members[HdS < ?Copy] = *MembersRecord[HdS]
 
 # `hd_keys[k]` is the key of `infos[k]`.
 ## What a member directory refers to: the members, which a template looks up by position or by a match.
 ## See [annot.structure.members.at-option](../../spec/lang/14-annotations.md#r-annot.structure.members.at-option).
-pub struct MembersRecord[HdS]:
+pub struct MembersRecord[HdS < ?Copy]:
     ## The members' information, in order.
     ## See [annot.structure.members.at-option](../../spec/lang/14-annotations.md#r-annot.structure.members.at-option).
     pub infos: List[Member]
     hd_keys: List[Key[HdS]]
 
-impl[HdS] MembersRecord[HdS]:
+impl[HdS < ?Copy] MembersRecord[HdS]:
     ## The key of the member at `position`, or `.None`.
     ## See [annot.structure.members.at-option](../../spec/lang/14-annotations.md#r-annot.structure.members.at-option).
     pub fn at(&self, position: usize) -> Key[HdS]?:
@@ -225,27 +225,27 @@ impl[HdS] MembersRecord[HdS]:
 # (annot.structure.protocol-ref), so a struct walker changes in place.
 ## The protocol that walks a value variant and member by member.
 ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
-pub trait Walker[S] < ?Copy:
+pub trait Walker[S < ?Copy] < ?Copy:
     type Error
     fn data_variant(&mut self, v: Variant[S]) -> Result[void, Self::Error]:
         self.variant(v)
     fn variant(&mut self, v: Variant[S]) -> Result[void, Self::Error]
-    fn data_member[F](&mut self, h: Field[S, F], value: F) -> Result[void, Self::Error]:
+    fn data_member[F < ?Copy](&mut self, h: Field[S, F], value: &F) -> Result[void, Self::Error]:
         self.member(h, value)
-    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, Self::Error]
-    fn rest[T](&mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, Self::Error]:
+    fn member[F < ?Copy](&mut self, h: Field[S, F], value: &F) -> Result[void, Self::Error]
+    fn rest[T](&mut self, h: Field[S, List[T]], items: &List[T]) -> Result[void, Self::Error]:
         self.member(h, items)
 
 ## The protocol that describes a type variant and member by member, without a value.
 ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
-pub trait Describer[S] < ?Copy:
+pub trait Describer[S < ?Copy] < ?Copy:
     type Error
     fn variant(&mut self, v: Variant[S]) -> Result[void, Self::Error]
-    fn member[F](&mut self, h: Field[S, F]) -> Result[void, Self::Error]
+    fn member[F < ?Copy](&mut self, h: Field[S, F]) -> Result[void, Self::Error]
 
 ## The protocol that builds a value: it chooses a variant and supplies each member.
 ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
-pub trait Source[S] < ?Copy:
+pub trait Source[S < ?Copy] < ?Copy:
     type Error
     fn data_variant(&mut self, choice: Variant[S]) -> Result[Variant[S], Self::Error]:
         self.variant([choice])

@@ -42,8 +42,8 @@ impl[S] Walker[S] for Trace[S]:
     type Error = never
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
-    fn member[F < Sample](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
-        if value.render() != h.get(self.original).render():
+    fn member[F < Sample](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
+        if value.render() != h.get(&self.original).render():
             panic("the field getter must read the visited position")
         self.parts.push("${h.info.name}=${value.render()}")
         .Ok(())
@@ -55,7 +55,7 @@ impl[S] Walker[S] for Count:
     type Error = never
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
-    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         self.members += 1
         .Ok(())
 
@@ -90,9 +90,9 @@ impl[S] Source[S] for Seeds:
 impl[T < Tuple] Sample for T by Structure:
     fn render(self) -> string:
         let mut trace = Trace { original: self, parts: [] }
-        _ := Structure::walk(self, &mut trace)
+        _ := Structure::walk(&self, &mut trace)
         let mut count = Count { members: 0 }
-        _ := Structure::walk(self, &mut count)
+        _ := Structure::walk(&self, &mut count)
         if count.members != trace.parts.len():
             panic("different walkers must visit the same members")
         "(${trace.parts.join(";")})"

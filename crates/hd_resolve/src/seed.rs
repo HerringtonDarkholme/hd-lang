@@ -363,7 +363,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             };
             method("facts", FnSig::simple(vec![], vec![], facts));
             method("name", FnSig::simple(vec![], vec![], Ty::STRING));
-            for (name, proto, by_value, ret_self) in [
+            for (name, proto, has_receiver, ret_self) in [
                 ("walk", "Walker", true, false),
                 ("describe", "Describer", false, false),
                 ("build", "Source", false, true),
@@ -386,8 +386,15 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                 g[0].bound = Some(ptr);
                 g[0].bounds = vec![bound];
                 let mut params = Vec::new();
-                if by_value {
-                    params.push((sym(names, "self"), self_ty));
+                if has_receiver {
+                    params.push((
+                        sym(names, "self"),
+                        pool.intern_ty(&TyData::Ref {
+                            inner: self_ty,
+                            mutable: false,
+                            counted: false,
+                        }),
+                    ));
                 }
                 // The walker, describer or source sits behind `&mut`
                 // (annot.structure.protocol-ref): its methods take
@@ -416,6 +423,11 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                 }),
             );
             item("UnionType", vec![], ItemData::Trait(TraitData::default()));
+            for declaration in &mut out {
+                if declaration.def == tr || declaration.def == names.known.union_type {
+                    declaration.not_copy = true;
+                }
+            }
             out.extend(members);
         }
         "std.testing" => {

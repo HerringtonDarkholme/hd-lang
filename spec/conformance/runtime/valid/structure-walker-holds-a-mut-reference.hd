@@ -26,7 +26,7 @@ impl['a, S] Walker[S] for Writer['a]:
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F < Display](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Display](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         *self.log = *self.log + h.info.name + "=$value;"
         .Ok(())
 
@@ -60,7 +60,7 @@ impl['a, S] Source[S] for Counter['a]:
 impl[T] Report for T by Structure:
     fn report(self, log: &mut string) -> void:
         let mut w = Writer { log: log }
-        _ := Structure::walk(self, &mut w)
+        _ := Structure::walk(&self, &mut w)
 
 impl[T] Make for T by Structure:
     fn make(start: i32, made: &mut i32) -> T:
