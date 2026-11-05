@@ -1,0 +1,6 @@
+# test: substring selection returns a string through the slice method
+fn parts(text: string) -> (string, string, string):
+    (text.slice(0, 3), text.slice(2, text.len()), text.slice(1, 3))
+
+fn whole(text: string) -> string:
+    text.slice(0, text.len())

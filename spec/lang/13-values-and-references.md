@@ -1709,7 +1709,7 @@ See also: [Weak References](../std/weak.md).
 
 ## Element References
 
-`&xs[i]` and `&mut xs[i]` refer to the slot `i` of the list `xs`, and `&m[k]` and `&mut m[k]` to the value of the key `k` in the map `m`. An element reference lives for one call: it is passed to the call, and no name keeps it.
+`&xs[i]` and `&mut xs[i]` refer to the slot `i` of the list `xs`, and `&m[k]` and `&mut m[k]` to the value of the key `k` in the map `m`. An element reference lives until its last use, including when a binding or dependent result holds it.
 
 ```hd
 struct Player:
@@ -1736,6 +1736,7 @@ fn rewarded(players: List[Player], best: usize) -> List[Player]:
 7. r[ref.elem.writable.shared] `&xs[i]` needs no writable place, so it may refer into a `:=` list or a value parameter.
 8. r[ref.elem.through-reference] `xs` may be a reference to a list: `&r[i]` and `&mut r[i]` refer to the slot `i` of the list `r` refers to. Through a read-only reference, `*T` or `&T`, `&mut r[i]` is an error. Error: `not-writable`.
 9. r[ref.elem.identity] Two element references refer to the same place when they refer to the same slot of the same list's elements and read the same struct fields from it.
+10. r[ref.elem.trait-accessors] A reference returned by `Index.index` or `IndexMut.index_mut` is an element reference and follows the same lifetime and access rules as a built-in element reference.
 
 ```text
 fn bump(score: &mut i32) -> void:
@@ -2128,7 +2129,6 @@ See also: [Sealed Traits](09-traits.md#sealed-traits),
 
 ## Not Yet Checked
 
-1. r[ref.check.not-yet-index] A reference to an index result that is neither a list element nor a map value is an error until a later job defines it. A slice `&xs[1..3]` and a user `Index` call are such results. Error: `references-not-yet-checked`.
 2. r[ref.check.formatter] `hd fmt` formats a file that writes references. It keeps each reference token as written, `&mut` and `*mut` included, and a second run changes nothing.
 
 ```text

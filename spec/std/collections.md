@@ -55,7 +55,8 @@ Its surface is:
 | append/remove | `push(&mut self, value: T) -> void`; `pop(&mut self) -> T?` |
 | indexed change | `insert(&mut self, index: usize, value: T) -> void`; `remove_at(&mut self, index: usize) -> T`; `swap(&mut self, left: usize, right: usize) -> void` |
 | shortening | `truncate(&mut self, len: usize) -> void`; `clear(&mut self) -> void` |
-| copyable access, `T < Copy` | `get(&self, index: usize) -> T?`; `first(&self) -> T?`; `last(&self) -> T?`; `Index[usize]` with `Out = T` |
+| copyable access, `T < Copy` | `get(&self, index: usize) -> T?`; `first(&self) -> T?`; `last(&self) -> T?` |
+| element places | `Index[usize]` with `Out = T`; `IndexMut[usize]`; `IndexSet[usize, T]` |
 | shared access | `get_ref['a](&'a self, index: usize) -> (&'a T)?`; `first_ref['a](&'a self) -> (&'a T)?`; `last_ref['a](&'a self) -> (&'a T)?` |
 | mutable access | `get_mut['a](&'a mut self, index: usize) -> (&'a mut T)?`; `first_mut['a](&'a mut self) -> (&'a mut T)?`; `last_mut['a](&'a mut self) -> (&'a mut T)?` |
 | borrowing cursor | `iter['a](&'a self) -> UniqListIter[T, 'a]`, whose item is `&'a T` |
@@ -82,7 +83,7 @@ Its surface is:
 11. r[std-collections.uniq-list.bulk-moves] Growth moves the buffer's room into a larger one with `Buffer.grow`, one `memory.copy`. `insert` and `remove_at` shift a contiguous byte range with one overlapping `memory.copy`. Each source range then counts as empty. No operation tests uniqueness or makes a copy-on-write clone.
 12. r[std-collections.uniq-list.get-ref] `get_ref(index)` returns a shared reference to the indexed element in `.Some`, or `.None` outside the list. `first_ref()` and `last_ref()` return the first or last element by shared reference, or `.None` when the list is empty. Each reference lives for the receiver borrow and is the element's place in the buffer's room ([`module.rt.ptr.as-ref`](../lang/10-modules.md#r-module.rt.ptr.as-ref)).
 13. r[std-collections.uniq-list.get-mut] `get_mut(index)` returns a mutable reference to the indexed element in `.Some`, or `.None` outside the list. `first_mut()` and `last_mut()` return the first or last element by mutable reference, or `.None` when the list is empty. Each reference lives for the mutable receiver borrow.
-14. r[std-collections.uniq-list.index] For `T < Copy`, `items[index]` returns a copy and panics when `index` is outside the list. Panic: `index-out-of-bounds`.
+14. r[std-collections.uniq-list.index-places] `UniqList[T]` implements `Index[usize]`, `IndexMut[usize]`, and `IndexSet[usize, T]` for every `T`, with `Out = T`; an index outside the list panics. Panic: `index-out-of-bounds`.
 15. r[std-collections.uniq-list.iter] `iter()` borrows the list and yields shared references to its elements in order. Its cursor is `UniqListIter[T, 'a]`, with private fields. The cursor and each yielded reference live for the list borrow.
 16. r[std-collections.uniq-list.find-ref] `find_ref(test)` returns a shared reference to the first element for which `test` is true in `.Some`, or `.None` when there is none.
 17. r[std-collections.uniq-list.any-all] `any(test)` and `all(test)` have the behavior of [`std-collections.helper.any-all`](#r-std-collections.helper.any-all) and [`std-collections.helper.short-circuit`](#r-std-collections.helper.short-circuit), with `fn(&T)` callbacks.
@@ -145,6 +146,7 @@ fn positive_stock() -> UniqMap[string, i32]:
 | lookup | `contains_key(&self, key: K) -> bool` |
 | change | `insert(&mut self, key: K, value: V) -> V?`; `remove(&mut self, key: K) -> V?`; `clear(&mut self) -> void` |
 | copyable access, `V < Copy` | `get(&self, key: K) -> V?` |
+| element places | `Index[K]` with `Out = V`; `IndexMut[K]`; `IndexSet[K, V]` |
 | reference access | `get_ref(&self, key: K) -> (&V)?`; `get_mut(&mut self, key: K) -> (&mut V)?`; `get_or_insert(&mut self, key: K, default: V) -> &mut V` |
 | borrowed iteration | `iter(&self) -> UniqMapIter[K, V, '_]`; `keys(&self) -> UniqMapKeys[K, V, '_]`; `values(&self) -> UniqMapValues[K, V, '_]` |
 | bulk changes | `reserve(&mut self, additional: usize) -> void`; `retain(&mut self, keep: fn(&K, &mut V) -> bool) -> void`; `extend[I < ?Copy & Iterable[(K, V)]](&mut self, other: I) -> void`; `drain(&mut self) -> UniqMapDrain[K, V, '_]` |
@@ -181,6 +183,9 @@ fn positive_stock() -> UniqMap[string, i32]:
 > The collection extensions consume `Iterable` sources; [`flow.for.iterator.iterable-not-implied`](../lang/06-control-flow.md#r-flow.for.iterator.iterable-not-implied) keeps cursors distinct from iterables.
 
 This surface has no literal construction.
+
+26. r[std-collections.uniq-map.index-places] `UniqMap[K, V]` implements `Index[K]` and `IndexMut[K]` for every supported `V`, with `Out = V`; a missing key panics. Panic: `index-out-of-bounds`.
+27. r[std-collections.uniq-map.index-set] Its `IndexSet[K, V]` implementation inserts or replaces the key's value, moving `V` and dropping any previous value.
 
 ## List And Map Values
 
@@ -260,6 +265,23 @@ These methods use the existing list primitives and preserve value copying:
 > Unlike Rust's exclusive borrow, hd's mutable borrow can have aliases;
 > `append` reads its source before clearing it, so two box aliases
 > naming the same list leave that list empty.
+
+### List Slices
+
+`List.slice` builds a new value from explicit element offsets:
+
+| Rule | Signature |
+| --- | --- |
+| r[std-collections.list.slice] | `slice(&self, start: usize, end: usize) -> List[T]` |
+
+1. r[std-collections.list.slice.elements] The result contains the elements from `start` up to, but not including, `end`, in order.
+2. r[std-collections.list.slice.value] It is a new list value; changing either list leaves the other unchanged.
+3. r[std-collections.list.slice.bounds] An offset greater than the list length, or `start > end`, panics. Panic: `index-out-of-bounds`.
+4. r[std-collections.list.slice.empty] Equal start and end offsets return an empty list, including at the list's length.
+5. r[std-collections.list.slice.hd] The method is ordinary hd and copies the selected elements.
+
+> **Note.** A whole-list selection is `items.slice(0, items.len())`.
+> A read-only window without an element copy is `view`.
 
 ### Views
 
@@ -352,7 +374,7 @@ fn middle['a](items: &'a List[i32]) -> Span[i32, 'a]:
 | `len` | `len(&self) -> usize` |
 | `get` | `get(self, index: usize) -> (&'a T)?` |
 | `slice` | `slice(self, range: Range[usize]) -> Span[T, 'a]` |
-| index read | `Index[usize]` with `Out = &'a T` |
+| index read | `Index[usize]` with `Out = T` |
 | `iter` | `iter(self) -> SpanIter[T, 'a]` |
 
 1. r[std-collections.span.type] `std.collections` declares `Span[T, 'a]` with private fields and the surface above.
@@ -361,7 +383,7 @@ fn middle['a](items: &'a List[i32]) -> Span[i32, 'a]:
 4. r[std-collections.span.import] `Span` is not a prelude name, so code that names it imports `std.collections.Span`.
 5. r[std-collections.span.len] `len` returns the number of elements in the span.
 6. r[std-collections.span.get] `get(index)` returns the indexed element as `&'a T` in `.Some`, or `.None` when the index is outside the span.
-7. r[std-collections.span.index] `span[index]` returns the indexed element as `&'a T`.
+7. r[std-collections.span.index-copy] `span[index]` copies the indexed element; `&span[index]` borrows its place.
 8. r[std-collections.span.index-range] An index outside the span is a checked runtime panic, even when the list has an element there. Panic: `index-out-of-bounds`.
 9. r[std-collections.span.slice] `slice(start..end)` returns the elements at relative indices `start` up to, not including, `end`.
 10. r[std-collections.span.slice-inclusive] `slice(start..=end)` includes the element at relative index `end`.
@@ -389,6 +411,7 @@ relative to the view, and every mutation preserves the list's length.
 | `get_mut` | `get_mut['b](&'b mut self, index: usize) -> (&'b mut T)?` |
 | `slice_mut` | `slice_mut['b](&'b mut self, range: Range[usize]) -> SpanMut[T, 'b]` |
 | index read | `Index[usize]` with `Out = T` |
+| mutable element place | `IndexMut[usize]` |
 | index write | `IndexSet[usize, T]` |
 | `swap` | `swap(&mut self, left: usize, right: usize) -> void` |
 | `fill` | `fill(&mut self, value: T) -> void` |
@@ -413,6 +436,7 @@ relative to the view, and every mutation preserves the list's length.
 18. r[std-collections.span-mut.lifetime] A mutable span cannot outlive its list. Error: `local-reference-escapes`.
 19. r[std-collections.span-mut.receivers] `len`, `get`, `get_mut`, `slice_mut`, `swap` and `fill` borrow the span, with `&self` or `&mut self` as the table shows, so one span serves any number of calls in a row.
 20. r[std-collections.span-mut.exclusive] While a mutable span is live, its source list may be used only through that span. Error: `conflicting-access`.
+21. r[std-collections.span-mut.index-mut] `SpanMut` implements `IndexMut[usize]` and lends the indexed element mutably, with the same bounds check.
 
 > **Why.** `SpanMut` exposes in-place element updates while the existing
 > exclusive-borrow rules prevent changing the source list behind the view.

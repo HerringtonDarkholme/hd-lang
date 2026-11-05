@@ -1,0 +1,13 @@
+# @dump: counts
+# @build: v8 release
+# expected: moving a Conn into UniqList.push has no count or uniqueness check.
+use std.collections.UniqList
+
+struct Conn:
+    qty: usize
+
+impl !Copy for Conn
+
+fn add(pool: &mut UniqList[Conn], conn: Conn) -> void:
+    pool.push(conn)
+    #^^^^^^^^^^^^^^

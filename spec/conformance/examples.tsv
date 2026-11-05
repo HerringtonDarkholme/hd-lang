@@ -240,10 +240,10 @@ lang/05-expressions.md	26	mixed	typing/invalid/function-typed-field-method-call.
 lang/05-expressions.md	27	mixed	runtime/panic/list-index-underflow.hd|typing/invalid/list-index-negative-literal.hd|typing/invalid/list-index-signed.hd
 lang/05-expressions.md	28	accept	runtime/valid/map-index-reads-value.hd
 lang/05-expressions.md	29	mixed	typing/invalid/string-index-assignment.hd|typing/invalid/string-index-signed.hd
-lang/05-expressions.md	30	accept	typing/valid/slice-types.hd|runtime/valid/slicing-run.hd|typing/valid/slice-full-types.hd|runtime/valid/slicing-full-run.hd
-lang/05-expressions.md	31	mixed	runtime/valid/list-slice-mutable.hd|typing/invalid/slice-assignment.hd
-lang/05-expressions.md	32	mixed	runtime/panic/string-slice-range-boundary.hd|runtime/panic/string-slice-range-reversed.hd|runtime/panic/list-slice-out-of-range.hd
-lang/05-expressions.md	33	mixed	typing/invalid/list-slice-negative-literal.hd|typing/invalid/list-slice-signed-bound.hd
+lang/05-expressions.md	30	accept	typing/valid/string-slice-method-types.hd
+lang/05-expressions.md	31	mixed	typing/valid/string-slice-method-types.hd|typing/invalid/index-range-unavailable.hd|typing/invalid/slice-assignment.hd
+lang/05-expressions.md	32	mixed	runtime/panic/string-slice-range-boundary.hd|runtime/panic/string-slice-range-reversed.hd|runtime/panic/string-slice-range-out-of-range.hd
+lang/05-expressions.md	33	mixed	typing/invalid/string-slice-negative-offset.hd|typing/invalid/string-slice-signed-offset.hd
 lang/05-expressions.md	34	accept	typing/valid/index-traits.hd|runtime/valid/index-traits-run.hd
 lang/05-expressions.md	35	type-fragment	-
 lang/05-expressions.md	36	mixed	typing/invalid/index-set-missing.hd|typing/invalid/index-missing.hd

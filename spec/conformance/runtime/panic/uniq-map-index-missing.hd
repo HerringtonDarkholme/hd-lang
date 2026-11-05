@@ -1,0 +1,6 @@
+# test: a shared unique map element access requires a present key
+use std.collections.UniqMap
+pub fn main() -> void:
+    values := UniqMap::[usize, usize].new()
+    value := &values[0] # panic: index-out-of-bounds
+    _ := *value

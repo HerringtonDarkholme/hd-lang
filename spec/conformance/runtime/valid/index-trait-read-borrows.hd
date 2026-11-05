@@ -7,8 +7,8 @@ struct Grid:
 
 impl Index[usize] for Grid:
     type Out = i32
-    fn index(&self, key: usize) -> i32:
-        self.cells[key]
+    fn index(&self, key: usize) -> &i32:
+        &self.cells[key]
 
 fn through(grid: &Grid) -> i32:
     grid[0] + grid[1]

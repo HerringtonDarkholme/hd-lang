@@ -647,7 +647,7 @@ fn multipart_bytes_at(bytes: &List[u8], at: usize, expected: &List[u8]) -> bool:
     true
 
 fn multipart_copy_bytes(bytes: &List[u8], start: usize, end: usize) -> List[u8]:
-    bytes[start..end]
+    bytes.slice(start, end)
 
 fn multipart_payload_has_boundary(bytes: &List[u8], boundary: &string) -> bool:
     marker := "--$boundary".to_utf8()

@@ -1,5 +1,5 @@
 # test: += on a list element reads the element, then stores p + e back
-# Spec 05 Compound Assignment: expr.assign.compound.index-read-write (Operator Traits OP13, stress test decision 11).
+# Spec 05 Compound Assignment: expr.assign.compound.index-place (Operator Traits OP13, stress test decision 11).
 use std.ops.Add
 struct Score:
     points: i64

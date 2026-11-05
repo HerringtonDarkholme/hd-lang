@@ -5,13 +5,14 @@ struct Tag:
     n: i32
 use std.ops.Index
 
-first := Tag { n: 1 }[2] # diagnostic: top-level-read-before-initialization
+first := Tag { n: 8 }[2] # diagnostic: top-level-read-before-initialization
 later := +5
 
 impl Index[i32] for Tag:
     type Out = i32
-    fn index(&self, key: i32) -> i32:
-        self.n + key + later
+    fn index(&self, key: i32) -> &i32:
+        _ := key + later
+        &self.n
 
 pub fn main() -> void $ Console:
     println(first)

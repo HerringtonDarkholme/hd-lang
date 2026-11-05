@@ -4,16 +4,17 @@ use std.ops.Index
 
 struct Table:
     size: i32
+    text: string = "a"
 
 impl Index[usize] for Table:
     type Out = i32
-    fn index(&self, key: usize) -> i32:
-        self.size
+    fn index(&self, key: usize) -> &i32:
+        &self.size
 
 impl Index[string] for Table:
     type Out = string
-    fn index(&self, key: string) -> string:
-        key
+    fn index(&self, key: string) -> &string:
+        &self.text
 
 fn first(table: Table) -> i32:
     table[0]

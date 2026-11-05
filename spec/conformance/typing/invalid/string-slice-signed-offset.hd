@@ -1,0 +1,3 @@
+# test: substring method offsets have type usize
+fn invalid(text: string, start: i32) -> string:
+    text.slice(start, 1) # diagnostic: type-mismatch

@@ -1,0 +1,5 @@
+# test: an unbounded associated element type cannot be copied out through Index
+use std.ops.Index
+
+fn invalid[C < ?Copy & Index[usize]](container: &C) -> C::Out:
+    container[0] # diagnostic: move-out-of-place

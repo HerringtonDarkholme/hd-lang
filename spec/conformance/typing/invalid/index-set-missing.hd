@@ -1,5 +1,5 @@
 # test: without IndexSet, r[k] is not a place
-# Spec 05 Index Traits: expr.index.trait.place (Operator Traits OP7).
+# Spec 05 Index Traits: expr.index.trait.store-required (Operator Traits OP7).
 use std.ops.Index
 
 struct Row:
@@ -7,8 +7,8 @@ struct Row:
 
 impl Index[usize] for Row:
     type Out = i32
-    fn index(&self, key: usize) -> i32:
-        self.cells[key]
+    fn index(&self, key: usize) -> &i32:
+        &self.cells[key]
 
 fn invalid(row: &mut Row) -> void:
     row[0] = 1 # diagnostic: invalid-assignment-target

@@ -1,5 +1,5 @@
 # test: std.ops declares Index[K] with an associated Out, and IndexSet[K, V]
-# Spec 05 Index Traits: expr.index.trait.std-ref.
+# Spec 05 Index Traits: expr.index.trait.std-places.
 use std.ops.{Index, IndexSet}
 
 struct Names:
@@ -7,15 +7,15 @@ struct Names:
 
 impl Index[usize] for Names:
     type Out = string
-    fn index(&self, key: usize) -> string:
-        self.items[key]
+    fn index(&self, key: usize) -> &string:
+        &self.items[key]
 
 impl IndexSet[usize, string] for Names:
     fn index_set(&mut self, key: usize, value: string) -> void:
         self.items[key] = value
 
-fn first[C < Index[usize]](items: C) -> C::Out:
-    items.index(0)
+fn first[T, C < Index[usize, Out = T]](items: C) -> T:
+    *items.index(0)
 
 fn reset[C < IndexSet[usize, string]](items: &mut C) -> void:
     items.index_set(0, "")

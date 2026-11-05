@@ -1,5 +1,5 @@
 # test: a Span reads, slices, and iterates a list without copying its elements
-# std Collections, Spans: std-collections.span.list, std-collections.span.get, std-collections.span.index, std-collections.span.slice, std-collections.span.iter.
+# std Collections, Spans: std-collections.span.list, std-collections.span.get, std-collections.span.index-copy, std-collections.span.slice, std-collections.span.iter.
 use std.collections.Span
 
 fn middle['a](items: &'a List[i32]) -> Span[i32, 'a]:
@@ -15,10 +15,10 @@ tests:
         inclusive := span.slice(1..=2)
         assert_equal(span.len(), 4, reason="the whole list")
         assert_equal(*span.get(1).expect("index 1"), 20, reason="get returns a reference")
-        assert_equal(*span[2], 30, reason="indexing returns a reference")
+        assert_equal(span[2], 30, reason="indexing copies the element")
         assert_equal(part.len(), 2, reason="the exclusive subspan")
-        assert_equal(*part[0], 20, reason="slice indices are relative")
-        assert_equal(*inclusive[1], 30, reason="the inclusive end is present")
+        assert_equal(part[0], 20, reason="slice indices are relative")
+        assert_equal(inclusive[1], 30, reason="the inclusive end is present")
 
     it("iterates by reference in order"):
         items := [+10, 20, 30, 40]

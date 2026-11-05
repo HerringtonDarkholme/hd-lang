@@ -161,7 +161,34 @@ impl Ck<'_, '_> {
         name: &str,
         call: bool,
     ) -> StageResult<Option<(Ref, Ty)>> {
-        let Some(bt) = self.peek_place_ty(base) else {
+        let mut bt = self.peek_place_ty(base);
+        if bt.is_none()
+            && matches!(
+                base.kind(),
+                SyntaxKind::IndexExpr | SyntaxKind::FieldExpr | SyntaxKind::ParenExpr
+            )
+            && (base.kind() == SyntaxKind::IndexExpr
+                || base
+                    .descendants()
+                    .any(|node| node.kind() == SyntaxKind::IndexExpr))
+        {
+            // A trait's output can depend on its key's type. Resolve the
+            // indexed receiver in a rolled-back trial before choosing
+            // the method's shared or mutable accessor. The real place
+            // still evaluates its receiver and key exactly once.
+            let failed = self.trial(|this| {
+                let (_, ty) = this.expr(base, None)?;
+                let ty = this.normalize_deep(ty)?;
+                if !this.pool().has_infer(ty) {
+                    bt = Some(ty);
+                }
+                Ok(())
+            })?;
+            if failed {
+                bt = None;
+            }
+        }
+        let Some(bt) = bt else {
             return Ok(None);
         };
         let via_ref = self.ref_of(bt);
@@ -231,7 +258,12 @@ impl Ck<'_, '_> {
         mutable: bool,
         part: Vec<(u32, Ty)>,
     ) -> StageResult<(Ref, Ty)> {
-        let Some(op) = self.place_of(base, None, crate::refs::PlaceUse::Ref)? else {
+        let use_ = if mutable {
+            crate::refs::PlaceUse::MutRef
+        } else {
+            crate::refs::PlaceUse::Ref
+        };
+        let Some(op) = self.place_of(base, None, use_)? else {
             return Ok(self.poisoned(base));
         };
         let op = if part.is_empty() {

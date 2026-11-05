@@ -1,0 +1,5 @@
+# test: mutable unique map element access does not insert a missing key
+use std.collections.UniqMap
+pub fn main() -> void:
+    let mut values = UniqMap::[usize, usize].new()
+    values[0] += 1 # panic: index-out-of-bounds

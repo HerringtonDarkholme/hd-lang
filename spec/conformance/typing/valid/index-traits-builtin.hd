@@ -1,8 +1,8 @@
 # test: generic code indexes List and string through Index and IndexSet bounds
-# Spec 05 Built-In Implementations: expr.index.std.list.usize, expr.index.std.string.usize (Strings STR8).
+# Spec 05 Built-In Implementations: expr.index.std.list.places, expr.index.std.string.usize (Strings STR8).
 use std.ops.{Index, IndexSet}
 
-fn first[C < Index[usize]](items: C) -> C::Out:
+fn first[T, C < Index[usize, Out = T]](items: C) -> T:
     items[0]
 
 fn reset[C < IndexSet[usize, i32]](items: &mut C) -> void:

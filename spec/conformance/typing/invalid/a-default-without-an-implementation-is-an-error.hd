@@ -7,13 +7,13 @@ struct Small:
 
 impl Index[(u8, u8)] for Small:
     type Out = i32
-    fn index(&self, at: (u8, u8)) -> i32:
-        self.size
+    fn index(&self, at: (u8, u8)) -> &i32:
+        &self.size
 
 impl Index[(u16, u16)] for Small:
     type Out = i32
-    fn index(&self, at: (u16, u16)) -> i32:
-        self.size
+    fn index(&self, at: (u16, u16)) -> &i32:
+        &self.size
 
 fn read(s: Small) -> void:
     _ := s[(0, 1)] # diagnostic: type-mismatch

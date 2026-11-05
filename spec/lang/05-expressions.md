@@ -119,7 +119,7 @@ fn record(tally: &mut Tally, hits: List[i64]) -> Meters:
 6. r[expr.assign.compound.primitive] When the place and the right operand have primitive types, `p op= e` computes `p op e` by the built-in rules and stores the result in the place. The store follows the rules of `p = p op e`, so a name must be a reassignable local.
 7. r[expr.assign.compound.operator] Otherwise the operator follows [Operator Traits](#operator-traits), so the place's type needs the operator's trait. Without a fitting implementation, the statement is an error. Error: `type-mismatch`.
 8. r[expr.assign.compound.store-rules] The store follows the rules of assignment. So the place must be a reassignable local, a field of a writable place, or an index place that accepts a store. A call place also qualifies.
-9. r[expr.assign.compound.index-read-write] On an index place, the read is `r[k]` and the store is `r[k] = v`. `List` and `Map` use their built-in indexing, and another type needs both `Index` and `IndexSet`, as [Index Traits](#index-traits) defines.
+9. r[expr.assign.compound.index-place] `List` and `Map` use their built-in places for a compound indexed assignment; another type reads and writes through the reference returned by `IndexMut`, as [Index Traits](#index-traits) defines.
 10. r[expr.assign.compound.call-once] On a call place `v() op= e`, the callee `v` is evaluated once, then `e`.
 11. r[expr.assign.compound.call-read-write] On a call place, the read is `v()` and the store is `v() = x`. So the callee's type needs both `Apply` and `Update`, as [Callable Values](#callable-values) defines.
 12. r[expr.assign.compound.fresh-value] On a struct value, the store replaces the place's whole value with the operator's result. A copy made from the place before the store keeps the old value.
@@ -749,8 +749,7 @@ See also: [Method References](07-functions.md#method-references).
 
 1. r[expr.index.order] `receiver[index]` evaluates the receiver, then the index, and invokes the receiver type's indexing behavior.
 2. r[expr.index.expected] For a `List` or `string` receiver, the index is checked with `usize` as its expected type, so an integer literal index is a `usize`.
-3. r[expr.index.expected.range] For such a receiver, an index that is a range expression gives each of its bounds `usize` as the expected type. So `items[1..3]` slices with a `Range[usize]`.
-4. r[expr.index.negative-literal] A negated literal index or slice bound, as in `items[-1]` or `items[-1..]`, negates an unsigned value. It is an error. Error: `type-mismatch`.
+3. r[expr.index.negative-element] A negated literal index, as in `items[-1]`, negates an unsigned value. It is an error. Error: `type-mismatch`.
 
 ```hd
 fn demo(items: List[i32]) -> i32:
@@ -828,95 +827,79 @@ See also: [Strings](04-type-system.md#strings).
 
 #### Slicing
 
-An index of a range type selects a slice of a string or a list:
+Substring and sublist selection use methods that return new values.
+An index names an element place instead.
 
 ```text
-fn parts(text: string, items: List[i32]) -> (string, string, List[i32], List[i32]):
-    (text[0..3], text[2..], items[..2], items[1..=2])
-
-fn whole(text: string, items: List[i32]) -> (string, List[i32], string):
-    (text[..], items[..], text[..=1])
+fn parts(text: string) -> (string, string, string):
+    (text.slice(0, 3), text.slice(2, text.len()), text.slice(1, 3))
 ```
 
-| Rule | Index | Selects the offsets |
-| --- | --- | --- |
-| r[expr.index.slice.half-open] Half-open | `a..b` | from `a` up to, not including, `b` |
-| r[expr.index.slice.from] From | `a..` | from `a` up to the length |
-| r[expr.index.slice.to] To | `..b` | from `0` up to, not including, `b` |
-| r[expr.index.slice.inclusive] Inclusive | `a..=b` | from `a` through `b`, the same as `a..b + 1` computed without overflow |
-| r[expr.index.slice.to-inclusive] To inclusive | `..=b` | from `0` through `b`, the same as `..b + 1` computed without overflow |
-| r[expr.index.slice.full] Full | `..` | from `0` up to the length, so `text[..]` is the whole string and `items[..]` a copy of the whole list |
-
-1. r[expr.index.slice.call] For a `List` or `string` receiver, an index of a range type is the call `Index::[K]::index(r, k)` of an implementation that [Built-In Implementations](#built-in-implementations) lists.
-2. r[expr.index.slice.string] A string slice is the string of the bytes at the selected byte offsets.
-3. r[expr.index.slice.string.shared] A string slice shares the original string's bytes rather than copying them, as [`module.string.slice.shared`](10-modules.md#r-module.string.slice.shared) states for `slice`.
-4. r[expr.index.slice.string.range] A string slice whose start or end offset is greater than the length is a checked runtime panic. Panic: `index-out-of-bounds`.
-5. r[expr.index.slice.string.reversed] A string slice whose start is greater than its end is a checked runtime panic. Panic: `index-out-of-bounds`.
-6. r[expr.index.slice.string.boundary] A string slice whose start or end offset is not a [scalar boundary](04-type-system.md#r-types.string.boundary) is a checked runtime panic. Panic: `index-out-of-bounds`.
-7. r[expr.index.slice.list] A list slice is a new list that holds the selected elements in order. It is not a view: later changes to either list do not change the other.
-8. r[expr.index.slice.list.type-value] A list slice of a `List[T]` has type `List[T]`, the `Out` of its implementation. It is a new list value, so a `let mut` binding of it may change it. Its elements keep the type `T`.
-9. r[expr.index.slice.list.range] A list slice whose start or end offset is greater than the length is a checked runtime panic. Panic: `index-out-of-bounds`.
-10. r[expr.index.slice.list.reversed] A list slice whose start is greater than its end is a checked runtime panic. Panic: `index-out-of-bounds`.
-11. r[expr.index.slice.no-store] No range type has an `IndexSet` implementation for `List` or `string`, so assigning to a slice is an error. Error: `invalid-assignment-target`.
-12. r[expr.index.slice.no-map] `Map` has no slicing: an index on a map is a key of type `K`, whatever its type.
-13. r[expr.index.slice.unsigned] A slice's bounds must have an unsigned integer type. A range of a signed type is an error, as no implementation takes it. Error: `type-mismatch`.
+1. r[expr.index.range.unavailable] `List` and `string` implement no `Index` for `Range`, `RangeFrom`, `RangeTo`, or `RangeFull`. An index of one of those types is an error. Error: `type-mismatch`.
+2. r[expr.index.range.no-store] A range index of a list or string is not an assignment target. Error: `invalid-assignment-target`.
+3. r[expr.index.slice.no-map] `Map` has no slicing: an index on a map is a key of type `K`, whatever its type.
 
 ```text
-fn grow(items: List[i32]) -> List[i32]:
-    let mut part = items[0..2]  # valid: the slice is a new List[i32]
-    part.push(9)
-    part
+fn whole(text: string) -> string:
+    text.slice(0, text.len())
 
 fn invalid(items: &mut List[i32]) -> void:
-    items[0..2] = [7, 8]  # error: invalid-assignment-target
+    part := items[0..2]        # error: type-mismatch
+    items[0..2] = [7, 8]      # error: invalid-assignment-target
 ```
 
 ```text
-fn panics(text: string, items: List[i32]) -> void:
-    a := "héllo"[0..2]  # panics with index-out-of-bounds: offset 2 is inside é
-    b := text[3..1]     # panics with index-out-of-bounds: start after end
-    c := items[0..9]    # panics with index-out-of-bounds when items has fewer than 9
+fn panics(text: string) -> void:
+    a := "héllo".slice(0, 2)  # panics with index-out-of-bounds: offset 2 is inside é
+    b := text.slice(3, 1)     # panics with index-out-of-bounds: start after end
+    c := "a".slice(0, 9)     # panics with index-out-of-bounds: end after length
 ```
 
 ```text
-fn invalid(items: List[i32], start: i32) -> void:
-    a := items[-1..]      # error: type-mismatch
-    b := items[start..]   # error: type-mismatch
+fn invalid(text: string, start: i32) -> void:
+    a := text.slice(-1, 1)     # error: type-mismatch
+    b := text.slice(start, 1)  # error: type-mismatch
 ```
 
-> **Why.** A slice goes through `std.ops.Index`, as Rust's does, so generic
-> code bounded by `Index[Range[usize]]` accepts strings and lists. A list
-> slice is a copy, so later changes to the list never reach it. A
-> string slice shares its bytes because strings are immutable.
+> **Why.** A range or substring produces a new value, while `Index`
+> lends an element place. Separate methods keep those contracts distinct
+> until hd has slice types.
 
-> **Note.** A read-only window on a list with no copy is the `view` method
-> of [Collections](../std/collections.md#views).
+> **Note.** String selection is `string.slice(start, end)`
+> ([String Methods](10-modules.md#string-methods)). List selection is
+> `List.slice(start, end)` ([Collections](../std/collections.md#list-slices)).
+> A read-only window without an element copy is `List.view`.
 
-See also: [String Methods](10-modules.md#string-methods), [Range Expressions](#range-expressions).
+See also: [Range Expressions](#range-expressions).
 
 #### Index Traits
 
-Other types get `[]` by implementing the `std.ops` traits `Index` and
-`IndexSet`:
+`Index` lends a shared element place. `IndexMut` lends a mutable one,
+and `IndexSet` stores a whole value, including insertion:
 
 ```text
-use std.ops.{Index, IndexSet}
+use std.ops.{Index, IndexMut, IndexSet}
 
 struct Ring:
     items: *mut List[i32]
 
 impl Index[usize] for Ring:
     type Out = i32
-    fn index(&self, key: usize) -> i32:
-        self.items[key % self.items.len()]
+    fn index(&self, key: usize) -> &i32:
+        &self.items[key % self.items.len()]
+
+impl IndexMut[usize] for Ring:
+    fn index_mut(&mut self, key: usize) -> &mut i32:
+        &mut self.items[key % self.items.len()]
 
 impl IndexSet[usize, i32] for Ring:
     fn index_set(&mut self, key: usize, value: i32) -> void:
         self.items[key % self.items.len()] = value
 
 fn rotate(ring: &mut Ring) -> i32:
-    ring[5] = (*ring)[0]
-    (*ring)[5]
+    ring[5] = ring[0]
+    ring[1] += 2
+    ring[5]
 ```
 
 `std.ops` declares them in this shape:
@@ -924,23 +907,34 @@ fn rotate(ring: &mut Ring) -> i32:
 ```text
 pub trait Index[K] < ?Copy:
     type Out
-    fn index(&self, key: K) -> Self::Out
+    fn index(&self, key: K) -> &Self::Out
 
-pub trait IndexSet[K, V] < ?Copy:
+pub trait IndexMut[K] < ?Copy & Index[K]:
+    fn index_mut(&mut self, key: K) -> &mut Self::Out
+
+pub trait IndexSet[K, V < ?Copy] < ?Copy:
     fn index_set(&mut self, key: K, value: V) -> void
 ```
 
-1. r[expr.index.trait.std-ref] `std.ops` declares `Index[K]`, with an associated type `Out`, whose `index` takes `&self`, and `IndexSet[K, V]`, whose `index_set` takes `&mut self`, as shown above. Both are declared `< ?Copy`, so a type that is not `Copy`, such as `SpanMut`, implements them ([`ref.copy.trait.relaxed`](13-values-and-references.md#r-ref.copy.trait.relaxed)).
-2. r[expr.index.trait.read-other] For a receiver whose type is not `List`, `Map`, or `string`, a type parameter included, reading `r[k]` is the call `Index::[K]::index(&r, k)`. Its type is that implementation's `Out`.
-3. r[expr.index.trait.read-ref] The read takes the address of the place `r`, as a `&self` call does by [`fn.method.auto-address`](07-functions.md#r-fn.method.auto-address). When `r` is a reference, the call passes it. Any other receiver is held in a new local that the call refers to. So a read neither copies nor moves `r`.
-4. r[expr.index.trait.write-ref] Assigning `r[k] = v` to such a receiver is the call `IndexSet::[K, V]::index_set(&mut r, k, v)`. The call takes the address of the place `r`, as a `&mut self` call does by [`fn.method.auto-address`](07-functions.md#r-fn.method.auto-address). When `r` is a `&mut` reference, the call passes it, so the store changes the value it refers to.
-5. r[expr.index.trait.choice] The candidates are chosen as for a binary operator, by the receiver's type, then by the key and, for a store, the value.
-6. r[expr.index.trait.no-use] Neither call needs a `use` of the trait.
-7. r[expr.index.trait.mut-ref] Since `index_set` takes `&mut self`, the receiver must be a writable place or a `&mut` reference. A store into any other receiver, such as a `:=` binding, a value parameter, or a read-only reference, is an error. Error: `not-writable`.
-8. r[expr.index.trait.place] `r[k]` is a place only when the receiver's type implements `IndexSet`. Assigning to it otherwise is an error. Error: `invalid-assignment-target`.
-9. r[expr.index.trait.no-read] Reading `r[k]` when the receiver's type has no fitting `Index` implementation is an error. Error: `type-mismatch`.
-10. r[expr.index.trait.builtin-direct] A receiver whose type is `List`, `Map`, or `string` keeps the built-in indexing above, even though these types implement the traits, as [Built-In Implementations](#built-in-implementations) states.
-11. r[expr.index.trait.independent] The two traits are independent: a type may implement either one alone.
+1. r[expr.index.trait.std-places] `std.ops` declares `Index`, `IndexMut`, and `IndexSet` as shown above, each with `< ?Copy` on `Self`.
+2. r[expr.index.trait.mutable-output] `IndexMut[K]` extends `Index[K]` and uses its associated type `Out`.
+3. r[expr.index.trait.shared-place] For a non-built-in receiver, a type parameter included, `r[k]` names the place returned by `Index::[K]::index(&r, k)`.
+4. r[expr.index.trait.read-copy] Reading `r[k]` copies the value from that place, with type `Out`; a non-copyable value cannot move out through the reference. Error: `move-out-of-place`.
+5. r[expr.index.trait.borrow-place] `&r[k]` borrows that place without copying its value or allocating a separate value.
+6. r[expr.index.trait.read-ref] The read takes the address of the place `r`, as a `&self` call does by [`fn.method.auto-address`](07-functions.md#r-fn.method.auto-address). When `r` is a reference, the call passes it. Any other receiver is held in a new local that the call refers to. So a read neither copies nor moves `r`.
+7. r[expr.index.trait.mutable-place] `&mut r[k]`, a field write through `r[k]`, and a compound assignment through `r[k]` call `IndexMut::[K]::index_mut(&mut r, k)`.
+8. r[expr.index.trait.mutable-receiver] Such a mutable access needs a writable receiver place or a writable reference to one. Error: `not-writable`.
+9. r[expr.index.trait.mutable-required] A mutable element access with no fitting `IndexMut` implementation is an error. Error: `not-writable`.
+10. r[expr.index.trait.write-ref] Assigning `r[k] = v` to such a receiver is the call `IndexSet::[K, V]::index_set(&mut r, k, v)`. The call takes the address of the place `r`, as a `&mut self` call does by [`fn.method.auto-address`](07-functions.md#r-fn.method.auto-address). When `r` is a `&mut` reference, the call passes it, so the store changes the value it refers to.
+11. r[expr.index.trait.set-precedence] A whole-element assignment uses `IndexSet` even when `IndexMut` is also implemented.
+12. r[expr.index.trait.choice] The candidates are chosen as for a binary operator, by the receiver's type, then by the key and, for a store, the value.
+13. r[expr.index.trait.no-use.places] No index trait call needs a `use` of its trait.
+14. r[expr.index.trait.mut-ref] Since `index_set` takes `&mut self`, the receiver must be a writable place or a `&mut` reference. A store into any other receiver, such as a `:=` binding, a value parameter, or a read-only reference, is an error. Error: `not-writable`.
+15. r[expr.index.trait.store-required] A whole-element assignment with no fitting `IndexSet` implementation is an error. Error: `invalid-assignment-target`.
+16. r[expr.index.trait.no-read] Reading `r[k]` when the receiver's type has no fitting `Index` implementation is an error. Error: `type-mismatch`.
+17. r[expr.index.trait.builtin-direct] A receiver whose type is `List`, `Map`, or `string` keeps the built-in indexing above, even though these types implement the traits, as [Built-In Implementations](#built-in-implementations) states.
+18. r[expr.index.trait.independent-set] `IndexSet` is independent of `Index` and `IndexMut`, so a type may implement whole-value stores alone.
+19. r[expr.index.trait.once] Each access evaluates its receiver and key once, including when it borrows or changes the element.
 
 ```text
 use std.ops.Index
@@ -950,8 +944,8 @@ struct Row:
 
 impl Index[usize] for Row:
     type Out = i32
-    fn index(&self, key: usize) -> i32:
-        self.cells[key]
+    fn index(&self, key: usize) -> &i32:
+        &self.cells[key]
 
 struct Plain:
     value: i32
@@ -969,7 +963,7 @@ The standard library implements the index traits for `List`, `Map`, and
 ```text
 use std.ops.{Index, IndexSet}
 
-fn first[C < Index[usize]](items: C) -> C::Out:
+fn first[T, C < Index[usize, Out = T]](items: C) -> T:
     items[0]
 
 fn reset[C < IndexSet[usize, i32]](items: &mut C) -> void:
@@ -982,15 +976,11 @@ fn lead(counts: &mut List[i32], text: string) -> u8:
 
 | Rule | Type | Implementations |
 | --- | --- | --- |
-| r[expr.index.std.list.usize] List | `List[T]` | `Index[usize]` with `Out = T`, and `IndexSet[usize, T]` |
-| r[expr.index.std.map] Map | `Map[K, V]` | `Index[K]` with `Out = V`, and `IndexSet[K, V]` |
+| r[expr.index.std.list.places] List | `List[T]` | `Index[usize]` with `Out = T`, `IndexMut[usize]`, and `IndexSet[usize, T]` |
+| r[expr.index.std.map.places] Map | `Map[K, V]` | `Index[K]` with `Out = V`, `IndexMut[K]`, and `IndexSet[K, V]` |
 | r[expr.index.std.string.usize] String | `string` | `Index[usize]` with `Out = u8`, and no `IndexSet` |
-| r[expr.index.std.string.range.unsigned] String slice | `string` | `Index[R[I]]` with `Out = string`, for each range type `R` and each unsigned integer type `I` |
-| r[expr.index.std.list.range.unsigned-value] List slice | `List[T]` | `Index[R[I]]` with `Out = List[T]`, for each range type `R` and each unsigned integer type `I` |
-| r[expr.index.std.string.full] Whole string | `string` | `Index[RangeFull]` with `Out = string` |
-| r[expr.index.std.list.full-value] Whole list | `List[T]` | `Index[RangeFull]` with `Out = List[T]` |
 
-1. r[expr.index.std.intrinsic] The body of each implementation in the table is a compiler intrinsic. It behaves as the built-in indexing of its type, including the checks and their panics, so `Map`'s `index` panics when no equal key exists.
+1. r[expr.index.std.hd-bodies] The implementations are ordinary hd over built-in element places and typed memory, with the built-in indexing checks and panics.
 2. r[expr.index.std.map-store] `Map`'s `index_set` inserts or replaces the entry, as `entries[key] = value` does.
 3. r[expr.index.std.string-no-index-set] `string` implements no `IndexSet`, so a bound such as `IndexSet[usize, u8]` rejects it. Error: `unsatisfied-trait-bound`.
 

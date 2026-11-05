@@ -1,4 +1,4 @@
 # test: a slice bound of a signed type is rejected
-# Spec 05 Slicing: expr.index.expected.range, expr.index.slice.unsigned.
+# Spec 05 Slicing: std-collections.list.slice, std-collections.list.slice.
 fn invalid(items: List[i32], start: i32) -> void:
-    b := items[start..] # diagnostic: type-mismatch
+    b := items.slice(start, items.len()) # diagnostic: type-mismatch

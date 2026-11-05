@@ -4283,19 +4283,26 @@ impl Ck<'_, '_> {
                     // A type with no `IndexSet` at all is no place to store
                     // into, whatever its binding (`expr.index.trait.write-ref`).
                     let set = self.cx.names.known.index_set;
-                    if !self.op_fits(set, pt, None)? {
+                    if compound.is_none() && !self.op_fits(set, pt, None)? {
                         self.expr(*base, None)?;
                         self.no_index_set(pt, *lhs);
                         return Ok(());
                     }
-                    if let Some(recv) = self.store_receiver(*base, "index_set")? {
+                    if let Some(recv) = self.store_receiver(
+                        *base,
+                        if compound.is_some() {
+                            "index_mut"
+                        } else {
+                            "index_set"
+                        },
+                    )? {
                         self.index_set(recv, (*base, *key), *rhs, compound, (*lhs, s))?;
                     }
                     return Ok(());
                 }
                 let (br, bt) = self.expr(*base, None)?;
                 let (br, bt) = self.deref_index_base(br, bt, base.index());
-                // `expr.index.trait.place`: a string is not a place.
+                // `expr.index.trait.store-required`: a string is not a place.
                 if self.strip_mut(bt) == Ty::STRING {
                     self.err(
                         Code::InvalidAssignmentTarget,
@@ -4308,13 +4315,22 @@ impl Ck<'_, '_> {
                 let Some((op_get, kt, vt)) = builtin else {
                     // No place: a `&mut` reference stores through what it
                     // refers to.
-                    if let Some(recv) = self.stored_through(br, bt, "index_set", *base) {
+                    if let Some(recv) = self.stored_through(
+                        br,
+                        bt,
+                        if compound.is_some() {
+                            "index_mut"
+                        } else {
+                            "index_set"
+                        },
+                        *base,
+                    ) {
                         self.index_set(recv, (*base, *key), *rhs, compound, (*lhs, s))?;
                     }
                     return Ok(());
                 };
                 let (kr, key_ty) = self.index_key_value(*key, builtin)?;
-                // `expr.index.slice.no-store`: no range type stores into a
+                // `expr.index.range.no-store`: no range type stores into a
                 // list.
                 if op_get != Indexed::Map && self.is_range_ty(key_ty) {
                     self.err(
@@ -4371,7 +4387,7 @@ impl Ck<'_, '_> {
         Ok(())
     }
 
-    /// `expr.index.trait.place`: a store into a type without `IndexSet`.
+    /// `expr.index.trait.store-required`: a store into a type without `IndexSet`.
     fn no_index_set(&mut self, t: Ty, lhs: NodeRef<'_>) {
         let msg = format!("{} does not implement `IndexSet`", self.show(t));
         self.err(Code::InvalidAssignmentTarget, lhs, &msg);
@@ -4390,11 +4406,8 @@ impl Ck<'_, '_> {
             || self.index_kind(t).is_some()
     }
 
-    /// `r[k] = v` and `r[k] op= v` on a receiver without built-in
-    /// indexing: `IndexSet::[K, V]::index_set(&mut r, k, v)`, after
-    /// `Index::[K]::index(&r, k)` for a compound one
-    /// (`expr.index.trait.write-ref`). `br` is the reference to the receiver
-    /// (`Ck::store_receiver`), and `bt` the type of the value it refers to.
+    /// Whole-element stores keep `IndexSet`, which can insert a missing
+    /// key. A compound store instead mutates the `IndexMut` place once.
     fn index_set(
         &mut self,
         (br, bt): (Ref, Ty),
@@ -4404,57 +4417,29 @@ impl Ck<'_, '_> {
         (lhs, s): (NodeRef<'_>, NodeRef<'_>),
     ) -> StageResult<()> {
         let (kr, kt) = self.expr(key, None)?;
+        if let Some(k) = compound {
+            let (reference, rt) = self.index_reference((br, bt), (kr, kt), (key, lhs), true)?;
+            if self.ref_of(rt).is_none() {
+                return Ok(());
+            }
+            let (cur, ct) = self.emit_deref(reference, rt, lhs.index());
+            let value = self.compound(k, cur, ct, rhs, s)?;
+            self.emit_ref_store(reference, rt, value, s.index());
+            return Ok(());
+        }
         let set = self.cx.names.known.index_set;
         self.tuple_key_choice(set, bt, kt)?;
         if !self.op_fits(set, bt, Some(kt))? {
             self.no_index_set(bt, lhs);
             return Ok(());
         }
-        // `expr.index.trait.choice`: an unsuffixed literal key joins the
-        // choice of the implementation, with the value as its second
-        // argument.
-        if compound.is_none()
-            && self
-                .literal_arg_choice(set, "index_set", (br, bt), (&[key, rhs], kt), s)?
-                .is_some()
+        if self
+            .literal_arg_choice(set, "index_set", (br, bt), (&[key, rhs], kt), s)?
+            .is_some()
         {
             return Ok(());
         }
-        let (vr, vt) = match compound {
-            None => self.stored_expr(rhs, None, "through this index")?,
-            Some(k) => {
-                let index = self.cx.names.known.index;
-                if !self.op_fits(index, bt, Some(kt))? {
-                    let msg = format!(
-                        "{} has no `Index` implementation for this key",
-                        self.show(bt)
-                    );
-                    self.err(Code::TypeMismatch, lhs, &msg);
-                    return Ok(());
-                }
-                // `index` reads through the reference (`expr.index.trait.read-ref`).
-                let (bv, bvt) = self.index_receiver(br, self.b.ty_of(br), lhs);
-                let chosen =
-                    self.literal_arg_choice(index, "index", (bv, bvt), (&[key], kt), lhs)?;
-                let (cur, ct) = match chosen {
-                    Some(c) => c,
-                    None => self.trait_call_args(index, "index", bv, bvt, &[(kr, kt, key)], lhs)?,
-                };
-                let v = self.compound(k, cur, ct, rhs, s)?;
-                (v, self.b.ty_of(v))
-            }
-        };
-        if compound.is_some() {
-            // The computed value stands for `rhs` in the trials, so it
-            // is not evaluated again.
-            let pre = self.pre_args.len();
-            self.pre_args.push((rhs.index(), vr, vt));
-            let chosen = self.literal_arg_choice(set, "index_set", (br, bt), (&[key, rhs], kt), s);
-            self.pre_args.truncate(pre);
-            if chosen?.is_some() {
-                return Ok(());
-            }
-        }
+        let (vr, vt) = self.stored_expr(rhs, None, "through this index")?;
         self.trait_call_args(set, "index_set", br, bt, &[(kr, kt, key), (vr, vt, rhs)], s)?;
         Ok(())
     }

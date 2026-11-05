@@ -2,7 +2,7 @@
 # Spec 05 Index Traits: expr.index.trait.builtin-direct.
 use std.ops.Index
 
-fn through[C < Index[usize]](items: C) -> C::Out:
+fn through[T, C < Index[usize, Out = T]](items: C) -> T:
     items[1]
 
 tests:

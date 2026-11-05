@@ -10,8 +10,8 @@ struct Names:
 
 impl Index[usize] for Names:
     type Out = string
-    fn index(&self, key: usize) -> string:
-        self.items[key]
+    fn index(&self, key: usize) -> &string:
+        &self.items[key]
 
 impl IndexSet[usize, string] for Names:
     fn index_set(&mut self, key: usize, value: string) -> void:
@@ -23,7 +23,7 @@ fn read_len(n: Names, i: usize) -> usize:
 fn write(n: &mut Names, i: usize, s: string) -> void:
     n[i] = s
 
-fn first[C < Index[usize]](items: C) -> C::Out:
+fn first[T, C < Index[usize, Out = T]](items: C) -> T:
     items[0]
 
 fn generic_first(xs: List[string]) -> usize:

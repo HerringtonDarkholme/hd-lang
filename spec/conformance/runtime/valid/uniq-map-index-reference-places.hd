@@ -1,0 +1,25 @@
+# test: a move-only unique map lend element places and move whole stores
+use std.collections.UniqMap
+use std.ops.IndexMut
+use std.testing.assert_equal
+
+struct Conn:
+    qty: usize
+
+impl !Copy for Conn
+
+fn selected[C < ?Copy & IndexMut[usize]](pool: &mut C) -> &mut C::Out:
+    &mut pool[0]
+
+pub fn main() -> void:
+    let mut by_id = UniqMap::[usize, Conn].new()
+    by_id[0] = Conn { qty: 3 }
+    by_id[0].qty = 5
+    entry := selected(&mut by_id)
+    entry.qty += 2
+    assert_equal(by_id[0].qty, 7)
+    by_id[0] = Conn { qty: 17 }
+    by_id[1] = Conn { qty: 19 }
+    assert_equal(by_id[0].qty, 17)
+    assert_equal((&by_id[1]).qty, 19)
+    assert_equal(by_id.len(), 2)

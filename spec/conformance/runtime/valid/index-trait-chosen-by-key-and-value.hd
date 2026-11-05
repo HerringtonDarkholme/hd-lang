@@ -4,16 +4,18 @@ use std.ops.{Index, IndexSet}
 
 struct Table:
     log: List[string]
+    number: i32 = +1
+    text: string = "by name"
 
 impl Index[usize] for Table:
     type Out = i32
-    fn index(&self, key: usize) -> i32:
-        +1
+    fn index(&self, key: usize) -> &i32:
+        &self.number
 
 impl Index[string] for Table:
     type Out = string
-    fn index(&self, key: string) -> string:
-        "by name"
+    fn index(&self, key: string) -> &string:
+        &self.text
 
 impl IndexSet[usize, i32] for Table:
     fn index_set(&mut self, key: usize, value: i32) -> void:
