@@ -239,7 +239,7 @@
     end
     local.get $m
   )
-  (func $uniq_write (param $xs i32) (param $i i32) (param $s.0 i32) (param $s.1 i32)
+  (func $uniq_write (param $xs i32) (param $i i32) (param $s.0 i32) (param $s.1 i32) (local $t0 i32)
     block
     ;; 33 |     match xs.get_mut(i):
       block
@@ -248,8 +248,7 @@
           local.get $xs
           i32.load $heap offset=8
           i32.ge_u
-          if (result i32)
-            i32.const 0
+          if
           else
             local.get $xs
             i32.load $heap
@@ -261,12 +260,12 @@
                 i32.const 8
                 i32.mul
                 i32.add
-                local.set $xs
+                local.set $t0
                 br 0
               end
             end
-            local.get $xs
           end
+          local.get $t0
           local.set $xs
           br 0
         end

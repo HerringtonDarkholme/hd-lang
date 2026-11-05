@@ -625,28 +625,6 @@ impl Walk {
         }
     }
 
-    /// The walk without its [`Walk::View`]s, as a module that makes no
-    /// representation view counts (`Module::views_absent`): a thin local
-    /// reference is then a plain address. `None` when nothing is left.
-    #[must_use]
-    pub fn without_views(&self) -> Option<Walk> {
-        match self {
-            Walk::View(_) => None,
-            Walk::Ref(_) | Walk::Known(_) | Walk::Glue => Some(self.clone()),
-            Walk::Seq(ws) => Walk::seq(ws.iter().filter_map(Walk::without_views).collect()),
-            Walk::Switch(k, arms) => {
-                let arms: Vec<_> = arms
-                    .iter()
-                    .map(|a| a.as_ref().and_then(Walk::without_views))
-                    .collect();
-                arms.iter()
-                    .any(Option::is_some)
-                    .then_some(Walk::Switch(*k, arms))
-            }
-            Walk::Nullable(w) => w.without_views().map(|w| Walk::Nullable(Box::new(w))),
-        }
-    }
-
     /// The value index when the walk is one counted address, of either
     /// kind.
     #[must_use]

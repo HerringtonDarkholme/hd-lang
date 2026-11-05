@@ -967,10 +967,6 @@ pub struct Module {
     pub track_origins: bool,
     /// Initialized session interfaces can receive callers from later modules.
     pub open_world: bool,
-    /// No function of the module can make a representation view
-    /// (`crate::views_absent`), decided before emission: a thin local
-    /// reference then counts nothing, so emission releases none.
-    pub views_absent: bool,
     /// Reachable package capabilities and their generated adapter schemas.
     pub package_contract: hd_host_abi::schema::Contract,
     /// Defined functions by symbol. A helper is defined when
@@ -1556,12 +1552,6 @@ impl Module {
                         )
                     )
             });
-        // Emission counted no thin reference on the promise that nothing
-        // makes a view (`crate::views_absent`).
-        debug_assert!(
-            physical || !self.views_absent,
-            "a module decided view-free before emission made a view"
-        );
         for f in self.funcs.iter_mut().flatten() {
             let body = std::mem::take(&mut f.body);
             let origins = f.origins.as_mut().map(std::mem::take);

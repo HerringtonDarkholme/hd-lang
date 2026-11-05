@@ -104,6 +104,21 @@
         i32.const 0
         local.set $t0
       end
+      local.get $t0
+      if
+        local.get $t0
+        local.get $t0
+        i32.load $heap
+        i32.const 2097152
+        i32.sub
+        i32.store $heap
+        local.get $t1
+        i32.const 1
+        i32.eq
+        ;; ...
+        i32.const 0
+        local.set $t0
+      end
     end
     local.get $t0
     if
@@ -337,6 +352,36 @@
         i32.const 0
         local.set $t0
       end
+      local.get $t0
+      if
+        local.get $t0
+        i32.load $heap
+        local.tee $t2
+        i32.const 2031616
+        i32.and
+        i32.const 2031616
+        i32.eq
+        if
+          local.get $t0
+          call $rt:loan_unshare
+        else
+          local.get $t0
+          local.get $t2
+          i32.const 65536
+          i32.sub
+          i32.store $heap
+        end
+        local.get $t1
+        i32.const 1
+        i32.eq
+        ;; ...
+        local.get $t1
+        i32.const 2
+        i32.eq
+        ;; ...
+        i32.const 0
+        local.set $t0
+      end
     end
     local.get $t0
     if
@@ -442,6 +487,25 @@
       i32.const 1
       i32.store $heap
     ;; (no span)
+      local.get $t0
+      if
+        local.get $t0
+        local.get $t0
+        i32.load $heap
+        i32.const 2097152
+        i32.sub
+        i32.store $heap
+        local.get $t1
+        i32.const 1
+        i32.eq
+        ;; ...
+        local.get $t1
+        i32.const 2
+        i32.eq
+        ;; ...
+        i32.const 0
+        local.set $t0
+      end
       local.get $t0
       if
         local.get $t0

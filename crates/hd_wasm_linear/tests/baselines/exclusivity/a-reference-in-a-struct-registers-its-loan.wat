@@ -103,6 +103,32 @@
         i32.const 0
         local.set $t0
       end
+      local.get $t0
+      if
+        local.get $t0
+        i32.load $heap
+        local.tee $t2
+        i32.const 2031616
+        i32.and
+        i32.const 2031616
+        i32.eq
+        if
+          local.get $t0
+          call $rt:loan_unshare
+        else
+          local.get $t0
+          local.get $t2
+          i32.const 65536
+          i32.sub
+          i32.store $heap
+        end
+        local.get $t1
+        i32.const 1
+        i32.eq
+        ;; ...
+        i32.const 0
+        local.set $t0
+      end
     end
     local.get $t0
     if
@@ -196,6 +222,8 @@
     ;; 26 |         .Some(name) => *name
             local.get $t
             if
+              local.get $t
+              local.set $t
               local.get $t0
               local.set $t3
               local.get $t1
@@ -207,8 +235,11 @@
     ;; 27 |         .None => ""
               local.get $t
               i32.eqz
-              br_if 2
-              unreachable
+              if
+                br 3
+              else
+                unreachable
+              end
     ;; 26 |         .Some(name) => *name
             end
     ;; 25 |     match held:
@@ -232,6 +263,32 @@
         br 0
       end
     ;; (no span)
+      local.get $t3
+      if
+        local.get $t3
+        i32.load $heap
+        local.tee $alias
+        i32.const 2031616
+        i32.and
+        i32.const 2031616
+        i32.eq
+        if
+          local.get $t3
+          call $rt:loan_unshare
+        else
+          local.get $t3
+          local.get $alias
+          i32.const 65536
+          i32.sub
+          i32.store $heap
+        end
+        local.get $t4
+        i32.const 1
+        i32.eq
+        ;; ...
+        i32.const 0
+        local.set $t3
+      end
       local.get $t3
       if
         local.get $t3
@@ -383,6 +440,32 @@
       local.set $alias
       local.set $t
     ;; (no span)
+      local.get $t0
+      if
+        local.get $t0
+        i32.load $heap
+        local.tee $t2
+        i32.const 2031616
+        i32.and
+        i32.const 2031616
+        i32.eq
+        if
+          local.get $t0
+          call $rt:loan_unshare
+        else
+          local.get $t0
+          local.get $t2
+          i32.const 65536
+          i32.sub
+          i32.store $heap
+        end
+        local.get $t1
+        i32.const 1
+        i32.eq
+        ;; ...
+        i32.const 0
+        local.set $t0
+      end
       local.get $t0
       if
         local.get $t0

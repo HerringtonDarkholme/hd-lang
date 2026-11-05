@@ -882,7 +882,7 @@ impl Em<'_, '_, '_> {
                 self.f.get(obj);
                 // A local reference owns the copy; a counted carrier's
                 // count of it is the carrier's own.
-                if self.thin_ref(self.ty(i)) {
+                if matches!(self.counted(self.ty(i)), Some(crate::layout::Walk::View(_))) {
                     self.owned_refs.insert(i);
                 }
                 return self.store_owned(i);

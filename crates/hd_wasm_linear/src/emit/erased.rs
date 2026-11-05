@@ -831,7 +831,14 @@ impl Em<'_, '_, '_> {
     /// a method with type parameters of its own, of a trait or an
     /// implementation, whose erased body builds closures through thunks.
     fn erased_cells(&self) -> bool {
-        erased_cells(self.env(), self.item)
+        let env = self.env();
+        if own_count(env, self.item) == 0 {
+            return false;
+        }
+        let owner = env.generics_owner(self.item);
+        env.parent(owner).is_some_and(|(parent, _)| {
+            env.impl_row(parent).is_some() || env.trait_methods(parent).contains(&owner)
+        })
     }
 
     /// The type local `l`'s cell holds: its erased view for a local that
@@ -877,23 +884,4 @@ impl Em<'_, '_, '_> {
         let o = self.erase(&ls, self.cell_ty(l), t, true)?;
         Ok(Src::Locals(vec![o]))
     }
-}
-
-/// Whether `item`'s shared cells hold their erased view
-/// ([`Em::erased_cells`]): a method with type parameters of its own, of
-/// a trait or an implementation, whose erased body builds closures
-/// through thunks.
-pub(crate) fn erased_cells(env: &dyn hd_mono::ProgramEnv, item: DefId) -> bool {
-    if own_count(env, item) == 0 {
-        return false;
-    }
-    let owner = env.generics_owner(item);
-    env.parent(owner).is_some_and(|(parent, _)| {
-        env.impl_row(parent).is_some() || env.trait_methods(parent).contains(&owner)
-    })
-}
-
-/// Whether closure `ci` of `b` shares a captured local's cell.
-pub(crate) fn shares_capture(b: &hd_tir::ir::Body, ci: usize) -> bool {
-    super::closure::captures(b, ci).iter().any(|c| c.1)
 }

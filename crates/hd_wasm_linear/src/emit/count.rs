@@ -458,30 +458,7 @@ impl Em<'_, '_, '_> {
     /// The counted references of a `t` value, when the program counts.
     pub(super) fn counted(&self, t: Ty) -> Option<Walk> {
         self.input.runtime?;
-        let walk = crate::layout::count_walk(self.pool(), self.env(), t)?;
-        if self.m.views_absent {
-            walk.without_views()
-        } else {
-            Some(walk)
-        }
-    }
-
-    /// Whether `t` is a thin local reference (`ref.count.local`), a plain
-    /// address that counts only a representation view, whether or not the
-    /// module makes views (`Module::views_absent`).
-    pub(super) fn thin_ref(&self, t: Ty) -> bool {
-        self.input.runtime.is_some()
-            && matches!(
-                crate::layout::count_walk(self.pool(), self.env(), t),
-                Some(Walk::View(_))
-            )
-    }
-
-    /// Whether value `r` holds something to release: a value of a type
-    /// that needs a drop, or a thin reference that owns its object
-    /// (`Em::owned_refs`).
-    pub(super) fn value_drops(&self, r: u32) -> bool {
-        self.owned_refs.contains(&r) || self.needs_drop(self.ty_of(r))
+        crate::layout::count_walk(self.pool(), self.env(), t)
     }
 
     /// Whether releasing a value has work: reference counts, a
@@ -776,11 +753,10 @@ impl Em<'_, '_, '_> {
             return Ok(());
         };
         let t = self.ty(x);
-        let owned = self.owned_refs.contains(&x);
-        if !owned && !self.needs_drop(t) {
+        if !self.needs_drop(t) {
             return Ok(());
         }
-        if owned {
+        if self.owned_refs.contains(&x) {
             self.f.get(ls[0]);
             self.f.helper(Helper::ReleaseKnown);
         } else if self.view_loans.contains_key(&x) {
@@ -803,10 +779,7 @@ impl Em<'_, '_, '_> {
         let Some(ls) = self.locals.get(&l).cloned() else {
             return Ok(());
         };
-        if !self.is_cell(l)
-            && !self.owned_locals.contains(&l)
-            && !self.needs_drop(self.sub(self.b.local_ty[l]))
-        {
+        if !self.is_cell(l) && !self.needs_drop(self.sub(self.b.local_ty[l])) {
             return Ok(());
         }
         self.release_owned_local(l, &ls)?;
@@ -848,13 +821,10 @@ impl Em<'_, '_, '_> {
             return false;
         }
         let b = self.b;
-        // A thin reference counts here even in a module that makes no
-        // view: one that owns its object (`Em::owned_refs`) releases it.
-        let holds = |t: Ty| self.needs_drop(t) || self.thin_ref(t);
         self.borrow_needs_exit()
             || !self.cells.is_empty()
-            || (0..b.local_ty.len()).any(|l| holds(self.sub(b.local_ty[l])))
-            || (0..b.ty.len()).any(|i| holds(self.ty(u32::try_from(i).expect("insts"))))
+            || (0..b.local_ty.len()).any(|l| self.needs_drop(self.sub(b.local_ty[l])))
+            || (0..b.ty.len()).any(|i| self.needs_drop(self.ty(u32::try_from(i).expect("insts"))))
     }
 
     /// Releases what the function owns at its one exit: its sub-body's
@@ -1119,7 +1089,7 @@ impl Em<'_, '_, '_> {
             || Ref(r).as_inst().is_none()
             || self.consumer.get(r as usize) != Some(&user)
             || !self.vals.contains_key(&r)
-            || !self.value_drops(r)
+            || !self.needs_drop(self.ty_of(r))
             || self.moving.contains(&(user, r))
             || (self.scoped_loans.contains(&r) && !self.loans.contains(&user))
         {
@@ -1310,7 +1280,7 @@ impl Em<'_, '_, '_> {
                     self.sub(self.b.local_ty[l]),
                     false,
                 );
-                if self.owned_locals.contains(&l) || self.needs_drop(self.ty(i)) {
+                if self.needs_drop(self.ty(i)) {
                     for x in ls {
                         self.f.zero(x);
                     }

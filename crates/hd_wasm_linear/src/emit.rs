@@ -43,7 +43,6 @@ pub(crate) use ctx::ctx_lookup;
 pub(crate) use ctx::slot_ctx;
 mod dyn_value;
 mod erased;
-pub(crate) use erased::{erased_cells, shares_capture};
 mod excl;
 pub(crate) use excl::collect_loans;
 mod iter;
@@ -457,7 +456,7 @@ fn body_func<'a>(
         if em.counting {
             for &l in &plocals {
                 let t = em.sub(b.local_ty[l]);
-                if em.thin_ref(t) {
+                if matches!(em.counted(t), Some(crate::layout::Walk::View(_))) {
                     let held = em.f.local(Val::I32);
                     em.temps.push(held);
                     em.frame_refs.push((l, held));
@@ -1592,7 +1591,7 @@ impl Em<'_, '_, '_> {
         if matches!(
             self.counted(self.ty_of(a)),
             Some(crate::layout::Walk::Known(_))
-        ) && self.thin_ref(self.ty(i))
+        ) && matches!(self.counted(self.ty(i)), Some(crate::layout::Walk::View(_)))
             && self.take(a)
         {
             self.push(a)?;
@@ -1793,7 +1792,7 @@ impl Em<'_, '_, '_> {
             r = self.release_untaken(i);
             if r.is_ok()
                 && !self.used.get(i as usize).copied().unwrap_or(false)
-                && self.value_drops(i)
+                && self.needs_drop(self.ty(i))
             {
                 r = self.release_value(i);
             }
@@ -1885,7 +1884,7 @@ impl Em<'_, '_, '_> {
             {
                 self.push(r)?;
                 self.store_owned(i)?;
-                if self.value_drops(r) {
+                if self.needs_drop(self.ty_of(r)) {
                     self.settle_value(r);
                 }
             }
@@ -2464,7 +2463,7 @@ impl Em<'_, '_, '_> {
         // the checker typed as a local reference (`ref.convert.lend`, as
         // `let r: &mut T = make()`) owns the object that count keeps.
         if matches!(self.counted(ret), Some(crate::layout::Walk::Known(_)))
-            && self.thin_ref(self.ty(i))
+            && matches!(self.counted(self.ty(i)), Some(crate::layout::Walk::View(_)))
         {
             self.owned_refs.insert(i);
         }
