@@ -7,7 +7,10 @@ It is additive: a case may be added freely; deleting or merging one needs
 the owner's approval. crates/hd_driver/tests/feature-cases.lock records the
 known cases, and a case missing from the repo fails the check.
 
-Usage: python3 scripts/plancheck.py PLAN.md [--update-lock]
+Usage: python3 scripts/plancheck.py PLAN.md [--show STEP] [--update-lock]
+
+--show STEP prints every line the step's evidence matched, with its case
+and function, so the step's title can be checked against what it covers.
 
 The plan of record is the body of issue #1399; check it with
   gh issue view 1399 --json body -q .body > /tmp/plan.md && python3 scripts/plancheck.py /tmp/plan.md
@@ -16,6 +19,9 @@ Step lines:
   - [ ] ID. text -- evidence: VIEW~REGEX [& VIEW~REGEX ...] -- code: PATH[::SYMBOL], ...
 A step's feature cases are derived, never written: the cases whose
 baselines match every evidence term. `!VIEW~REGEX` negates a term.
+Evidence that starts with `fn:` is function-scoped: every term must hold
+inside one function's section (the `> path` header shared by all four
+views), so `fn: own~X & tir~Loop` means a function with X that loops.
 Checks:
   1. every evidence term parses and matches at least one case;
   2. every code path exists, and every ::SYMBOL occurs in its file;
@@ -30,7 +36,13 @@ import sys
 
 here = os.path.dirname(os.path.abspath(__file__))
 repo = os.path.dirname(here)
-args = [a for a in sys.argv[1:] if not a.startswith('--')]
+argv = sys.argv[1:]
+show = None
+if '--show' in argv:
+    i = argv.index('--show')
+    show = argv[i + 1]
+    del argv[i:i + 2]
+args = [a for a in argv if not a.startswith('--')]
 plan_path = args[0]
 cases_dir = os.path.join(repo, 'crates/hd_driver/tests/cases/features')
 base_dir = os.path.join(repo, 'crates/hd_driver/tests/baselines/features')
@@ -58,6 +70,25 @@ def view(case, v):
         p = os.path.join(base_dir, f'{case}.{v}')
         views[key] = open(p, errors='replace').read() if os.path.exists(p) else ''
     return views[key]
+
+header_re = re.compile(r'^> (\S.*)$')
+
+sections_cache = {}
+def sections(case, v):
+    """The view split into {function path: text}; '' holds lines before
+    the first header (the source preamble)."""
+    key = (case, v)
+    if key not in sections_cache:
+        out = {'': []}
+        cur = ''
+        for l in view(case, v).splitlines():
+            m = header_re.match(l)
+            if m and not l.startswith('>  '):
+                cur = m.group(1)
+                out.setdefault(cur, [])
+            out.setdefault(cur, []).append(l)
+        sections_cache[key] = {k: '\n'.join(ls) for k, ls in out.items()}
+    return sections_cache[key]
 
 def counts_ops(case):
     # An operation line is `>   [(no span) ]ACTION TYPE (REASON)`; a
@@ -88,7 +119,11 @@ for line in open(plan_path):
         errors.append(f'step {sid}: no evidence')
         continue
     terms = []
-    for t in ev[0][len('evidence:'):].split(' & '):
+    evtext = ev[0][len('evidence:'):].strip()
+    scoped = evtext.startswith('fn:')
+    if scoped:
+        evtext = evtext[len('fn:'):].strip()
+    for t in evtext.split(' & '):
         tm = term_re.match(t.strip())
         if not tm:
             errors.append(f'step {sid}: bad evidence term {t!r}')
@@ -98,16 +133,34 @@ for line in open(plan_path):
             terms.append((neg == '!', v, re.compile(rx, re.M)))
         except re.error as e:
             errors.append(f'step {sid}: bad regex {rx!r}: {e}')
-    hits = [c for c in cases if all((not r.search(view(c, v))) if n else r.search(view(c, v)) for n, v, r in terms)]
+    def ok(text, n, r):
+        return (not r.search(text)) if n else bool(r.search(text))
+    matched = {}   # case -> [(function, view, line)] the positive terms matched
+    for c in cases:
+        if scoped:
+            fns = set()
+            for _, v, _ in terms:
+                fns |= set(sections(c, v)) - {''}
+            good = [f for f in sorted(fns)
+                    if all(ok(sections(c, v).get(f, ''), n, r) for n, v, r in terms)]
+            if good:
+                matched[c] = [(f, v, l) for f in good for n, v, r in terms if not n
+                              for l in sections(c, v).get(f, '').splitlines() if r.search(l)]
+        elif all(ok(view(c, v), n, r) for n, v, r in terms):
+            matched[c] = [('', v, l) for n, v, r in terms if not n
+                          for l in view(c, v).splitlines() if r.search(l)]
+    hits = sorted(matched)
+    if show == sid:
+        for c in hits:
+            for f, v, l in matched[c]:
+                print(f'  {c} {f or "-"} [{v}] {l.strip()[:110]}')
     if not hits:
         errors.append(f'step {sid}: evidence matches no feature case')
     covered.update(hits)
     for c in hits:
-        for n, v, r in terms:
-            if v == 'counts' and not n and r.pattern not in ('.', '.*'):
-                for l in counts_ops(c):
-                    if r.search(l):
-                        op_covered.add((c, l))
+        for f, v, l in matched[c]:
+            if v == 'counts' and l.startswith('>   '):
+                op_covered.add((c, l))
     for c in (code[0][len('code:'):].split(',') if code else []):
         c = c.strip()
         if not c:
@@ -118,7 +171,8 @@ for line in open(plan_path):
             errors.append(f'step {sid}: missing path {path}')
         elif sym and sym not in open(full, errors='replace').read():
             errors.append(f'step {sid}: missing symbol {sym} in {path}')
-    report.append(f'{sid} [{"x" if done == "x" else " "}] {len(hits):3d} cases: {", ".join(hits)}')
+    nlines = sum(len(matched[c]) for c in hits)
+    report.append(f'{sid} [{"x" if done == "x" else " "}] {len(hits):3d} cases {nlines:4d} lines{" fn" if scoped else ""}: {", ".join(hits)}')
 
 work = [c for c in cases if needs_work(c)]
 for c in work:
