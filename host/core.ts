@@ -111,6 +111,7 @@ export interface CoreEnv extends DynamicRecord {
   seed?: number | null;
   runner?: Dynamic;
   providers?: ((io: DynamicRecord) => DynamicRecord) | null;
+  countAudit?: (rows: import("./checked-report.ts").CountPairRow[]) => void;
 }
 
 export interface Grant {
@@ -1035,6 +1036,7 @@ function buildCoreImports(options: Dynamic): Dynamic {
 /* oxlint-disable max-lines-per-function -- one host lifetime owns these closures. */
 export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = null): Host {
   const { args, program, grant, seed, st, module, reportsCycles } = coreState(env, layer);
+  const previousCountPairs = new WeakMap<WebAssembly.Instance, Map<string, bigint>>();
   // The instance's mutable state, shared with the provider functions
   // below: the exchange memory, trap reporting, the test timeout, case
   // files, pending operations, output, and noticed names.
@@ -1042,10 +1044,27 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     if (!reportsCycles) {
       return;
     }
-    const { cycleReport } = await import("./checked-report.ts");
+    const { cycleReport, countPairRows } = await import("./checked-report.ts");
     const report = cycleReport(module!, instance);
     if (report !== null) {
       sink.err(report);
+    }
+    if (env.countAudit) {
+      const rows = countPairRows(module, instance);
+      if (rows !== null) {
+        const previous = previousCountPairs.get(instance) ?? new Map<string, bigint>();
+        const current = new Map<string, bigint>();
+        const delta = rows.flatMap((row) => {
+          const key = JSON.stringify([row.function, row.file, row.line, row.reason]);
+          const count = BigInt(row.count);
+          current.set(key, count);
+          const before = previous.get(key) ?? 0n;
+          const difference = count >= before ? count - before : count;
+          return difference === 0n ? [] : [{ ...row, count: String(difference) }];
+        });
+        previousCountPairs.set(instance, current);
+        env.countAudit(delta);
+      }
     }
   };
   const view = (len: number): Uint8Array => new Uint8Array(st.memory.buffer, 0, len);

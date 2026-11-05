@@ -1056,8 +1056,28 @@ export const nodeLayer = {
 
 // One host per instance on Node; `sink` and `env` are `createCoreHost`'s.
 // `env.stdin` is a file descriptor, or `null` for a closed standard input.
-export const createHost = (sink: Sink, env: HostEnv = {}): Host =>
-  createCoreHost(sink, env, nodeLayer);
+export const createHost = (sink: Sink, env: HostEnv = {}): Host => {
+  const report = process.env.HD_COUNT_AUDIT_REPORT;
+  return createCoreHost(
+    sink,
+    {
+      ...env,
+      countAudit:
+        env.countAudit ??
+        (report
+          ? (rows) => {
+              process
+                .getBuiltinModule("node:fs")
+                .appendFileSync(
+                  report,
+                  `${JSON.stringify({ program: env.program ?? "", sites: rows })}\n`,
+                );
+            }
+          : undefined),
+    },
+    nodeLayer,
+  );
+};
 
 // Loaded only by the REPL child; ordinary programs skip the session graph.
 export async function driveNodeSession(): Promise<void> {

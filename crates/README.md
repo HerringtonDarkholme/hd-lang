@@ -170,6 +170,32 @@ HD_BLESS=1 cargo test -p hd_check --test stages
 HD_BLESS=1 cargo test -p hd_driver --test all checker::std_bodies_match_golden_tir
 ```
 
+The `checked-report` feature also audits dynamic retain/release pairs. Set
+`HD_COUNT_AUDIT_REPORT` to a JSONL file while running explicitly selected
+checked conformance cases; reports contain function, source line, reason
+and dynamic pair count. Repeated test snapshots contribute deltas. For example:
+
+```sh
+mkdir -p target/count-audit
+HD_CACHE=target/count-audit/cache HD_COUNT_AUDIT_REPORT=target/count-audit/cases.jsonl \
+HD_CONFORMANCE_ONLY=runtime/valid/projected-view-binding-keeps-owner.hd \
+HD_CONFORMANCE_CHECKED=1 cargo test -q -p hd_driver --features checked-report \
+  --test conformance specification_conformance_passes_except_known_failures -- --exact
+HD_CACHE=target/count-audit/cache cargo run -q -p hd_driver --features checked-report \
+  --example count_audit -- bench/study/structure_walk.hd > target/count-audit/benches.jsonl
+node scripts/count-audit.ts target/count-audit/cases.jsonl target/count-audit/benches.jsonl
+```
+
+The example accepts individual program paths; with no arguments it runs every
+study and runtime benchmark, for CI's complete audit. Local checks stay focused.
+The detector ends an object's pending pairs on a count-word read, a view read,
+heap/global publication or free. Raw memory stores conservatively treat any
+bits naming a live object as a possible pointer; this can suppress a candidate.
+Fixture-only stage dumps and REPL extensions omit audit instrumentation.
+Entry-generated counts without an expression anchor use the body's first
+source instruction. Generated helpers inherit their source caller's site.
+An entry with no source instruction keeps line 0 rather than inventing a line.
+
 ## Pre-Commit Hook
 
 The repository hook is [`.githooks/pre-commit`](../.githooks/pre-commit).

@@ -1,0 +1,103 @@
+use std.rt.checked_report.pairs
+use std.rt.checked_report.{
+    count_audit_start,
+    count_escape,
+    count_header,
+    count_mark,
+    count_mark_generated,
+    count_observe,
+}
+use std.rt.checked.{CountObserver, allocate, free, observe_counts, release, retain}
+use std.rt.memory.store_u32
+
+fn count_event(block: usize, count: usize, event: usize) -> void:
+    if event == 0:
+        pairs.retained(block, 300)
+    else if event == 1:
+        pairs.released(block, count)
+    else:
+        pairs.observed(block)
+
+fn require(value: bool) -> void:
+    if !value:
+        panic("count-pair detector mismatch")
+
+pub fn main() -> void:
+    initial := allocate(16)
+    store_u32(initial, 1)
+    store_u32(initial + 4, 0)
+    _ := count_mark(500)
+    retain(initial + 8)
+    _ := release(initial + 8)
+    require(pairs.flagged(500) == 1)
+    _ := release(initial + 8)
+    free(initial)
+    _ := count_mark(0)
+    pairs.retained(16, 1)
+    pairs.released(16, 2)
+    require(pairs.flagged(1) == 1)
+    pairs.retained(16, 2)
+    pairs.observed(16)
+    pairs.released(16, 2)
+    require(pairs.flagged(2) == 0)
+    pairs.retained(16, 3)
+    pairs.released(16, 1)
+    require(pairs.flagged(3) == 0)
+    pairs.retained(16, 4)
+    pairs.retained(16, 5)
+    pairs.released(16, 3)
+    pairs.released(16, 2)
+    require(pairs.flagged(4) == 1 && pairs.flagged(5) == 1)
+    for index in 0..128:
+        pairs.retained((index + 1) * 16, index + 16)
+    for index in 0..128:
+        if index % 2 == 0:
+            pairs.observed((index + 1) * 16)
+        pairs.released((index + 1) * 16, 2)
+        require(pairs.flagged(index + 16) == (if index % 2 == 0: 0 else: 1))
+    for _ in 0..128:
+        pairs.retained(16, 200)
+        pairs.observed(32)
+        pairs.released(16, 2)
+    require(pairs.flagged(200) == 128)
+    block := allocate(16)
+    store_u32(block, 1)
+    store_u32(block + 4, 0)
+    observe_counts(CountObserver { callback: count_event })
+    retain(block + 8)
+    _ := release(block + 8)
+    require(pairs.flagged(300) == 1)
+    retain(block + 8)
+    pairs.observed(block)
+    _ := release(block + 8)
+    require(pairs.flagged(300) == 1)
+    _ := release(block + 8)
+    free(block)
+    block2 := allocate(16)
+    store_u32(block2, 1)
+    store_u32(block2 + 4, 0)
+    count_audit_start()
+    require(count_mark(400) == 0)
+    require(count_mark_generated(900) == 400)
+    retain(block2 + 8)
+    _ := count_header(block2 + 8, 0, 4)
+    _ := release(block2 + 8)
+    require(pairs.flagged(400) == 1)
+    retain(block2 + 8)
+    _ := count_header(block2, 0, 4)
+    _ := release(block2 + 8)
+    require(pairs.flagged(400) == 1)
+    retain(block2 + 8)
+    _ := count_observe(block2 + 8)
+    _ := release(block2 + 8)
+    require(pairs.flagged(400) == 1)
+    retain(block2 + 8)
+    _ := count_escape(block2 + 8, block2 + 8)
+    _ := release(block2 + 8)
+    require(pairs.flagged(400) == 1)
+    retain(block2 + 8)
+    _ := count_escape(0, block2 + 8)
+    _ := release(block2 + 8)
+    require(pairs.flagged(400) == 2)
+    _ := release(block2 + 8)
+    free(block2)

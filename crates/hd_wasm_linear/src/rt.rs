@@ -906,6 +906,8 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
             if let Some(c) = m.runtime.and_then(|r| r.checked) {
                 m.export("hd.cycles.pointer", Sym::Inst(c.pointer));
                 m.export("hd.cycles.length", Sym::Inst(c.length));
+                m.export("hd.count.pairs.pointer", Sym::Inst(c.count_audit.pointer));
+                m.export("hd.count.pairs.length", Sym::Inst(c.count_audit.length));
             }
             return Ok(());
         }
@@ -958,6 +960,8 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
         {
             m.export("hd.cycles.pointer", Sym::Inst(c.pointer));
             m.export("hd.cycles.length", Sym::Inst(c.length));
+            m.export("hd.count.pairs.pointer", Sym::Inst(c.count_audit.pointer));
+            m.export("hd.count.pairs.length", Sym::Inst(c.count_audit.length));
         }
     }
     if m.frames.contains_key(&key) {

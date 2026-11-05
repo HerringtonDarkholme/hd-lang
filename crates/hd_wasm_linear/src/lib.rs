@@ -11,6 +11,8 @@
 
 mod boundary;
 mod bulk;
+#[cfg(feature = "checked-report")]
+mod count_audit;
 mod cycle;
 mod drive;
 mod emit;
@@ -32,6 +34,8 @@ use hd_mono::{Collected, ProgramEnv, Target, TargetKind};
 use hd_tir::ir::Body;
 use hd_types::{InternPool, Ty, TyData};
 
+#[cfg(feature = "checked-report")]
+pub use count_audit::resolve as resolve_count_audit;
 pub use emit::{lent_referent, promotable_referent, rooted_referent};
 pub use module::{Session, Sym};
 pub use origins::{FunctionOrigins, InstructionOrigin, MappedModule, StaticData};
@@ -380,6 +384,22 @@ pub const CHECKED_FNS: &[&str] = &[
     "pointer",
     #[cfg(feature = "checked-report")]
     "length",
+    #[cfg(feature = "checked-report")]
+    "count_mark",
+    #[cfg(feature = "checked-report")]
+    "count_mark_generated",
+    #[cfg(feature = "checked-report")]
+    "count_observe",
+    #[cfg(feature = "checked-report")]
+    "count_header",
+    #[cfg(feature = "checked-report")]
+    "count_escape",
+    #[cfg(feature = "checked-report")]
+    "count_escape_range",
+    #[cfg(feature = "checked-report")]
+    "count_pairs_pointer",
+    #[cfg(feature = "checked-report")]
+    "count_pairs_length",
 ];
 
 /// The cycle collector (`crates/hd_wasm_linear/DESIGN.md` §23.28), which both
@@ -443,7 +463,10 @@ pub fn runtime_items(checked: bool) -> Vec<(&'static str, &'static str)> {
         .iter()
         .map(|n| {
             #[cfg(feature = "checked-report")]
-            let module = if checked && !matches!(*n, "collected" | "pointer" | "length") {
+            let module = if checked
+                && !n.starts_with("count_")
+                && !matches!(*n, "collected" | "pointer" | "length")
+            {
                 "std.rt.checked"
             } else {
                 module
@@ -542,6 +565,23 @@ pub struct Checked {
     pub pointer: Hash128,
     #[cfg(feature = "checked-report")]
     pub length: Hash128,
+    #[cfg(feature = "checked-report")]
+    pub count_audit: CountAudit,
+}
+
+/// Checked-only runtime hooks. Each address observer returns its address
+/// unchanged, so inserting it preserves the surrounding Wasm stack.
+#[cfg(feature = "checked-report")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CountAudit {
+    pub mark: Hash128,
+    pub generated: Hash128,
+    pub observe: Hash128,
+    pub header: Hash128,
+    pub escape: Hash128,
+    pub escape_range: Hash128,
+    pub pointer: Hash128,
+    pub length: Hash128,
 }
 
 impl Runtime {
@@ -580,6 +620,17 @@ impl Runtime {
                         pointer: c[5],
                         #[cfg(feature = "checked-report")]
                         length: c[6],
+                        #[cfg(feature = "checked-report")]
+                        count_audit: CountAudit {
+                            mark: c[7],
+                            generated: c[8],
+                            observe: c[9],
+                            header: c[10],
+                            escape: c[11],
+                            escape_range: c[12],
+                            pointer: c[13],
+                            length: c[14],
+                        },
                     }),
                     rest,
                 )
@@ -682,7 +733,18 @@ fn link(
     });
     let input = prepared.as_ref().unwrap_or(input);
     let mut m = module::Module::default();
-    m.track_origins = track_origins;
+    #[cfg(feature = "checked-report")]
+    {
+        m.count_audit = input.runtime.is_some_and(|r| r.checked.is_some())
+            && !matches!(input.entry, Entry::Fixture { .. } | Entry::Inputs(_))
+            && session.is_none()
+            && previous.is_none();
+        m.track_origins = track_origins || m.count_audit;
+    }
+    #[cfg(not(feature = "checked-report"))]
+    {
+        m.track_origins = track_origins;
+    }
     m.open_world = session.is_some() || matches!(input.entry, Entry::Inputs(_));
     let mut canons = CanonMemo::default();
     for calls in &input.collected.calls {
@@ -737,6 +799,20 @@ fn link(
         m.define(Sym::Inst(input.collected.table.key[id.idx()]), f);
     }
     rt::entry(input, &mut m)?;
+    #[cfg(feature = "checked-report")]
+    if let Some(c) = m.runtime.and_then(|r| r.checked)
+        && m.count_audit
+    {
+        let h = c.count_audit;
+        m.retain_instances(&[
+            h.mark,
+            h.generated,
+            h.observe,
+            h.header,
+            h.escape,
+            h.escape_range,
+        ]);
+    }
     if let Some(session) = session {
         // Retain the base runtime even when input 1 does not use a facility
         // that a later input needs. Its state must have one owner.

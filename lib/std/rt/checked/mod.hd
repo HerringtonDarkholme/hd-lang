@@ -39,6 +39,27 @@ let given: usize = 0
 let retains: u64 = 0
 let releases: u64 = 0
 
+# Optional count-event observer, installed only by the checked reporter.
+# Event 0 retains, 1 releases, 2 frees. Observers receive validated block
+# starts and the count before a change; metadata must not observe itself.
+let observer: (fn(usize, usize, usize) -> void)? = .None
+let notifying: bool = false
+
+pub struct CountObserver:
+    pub callback: fn(usize, usize, usize) -> void
+
+pub fn observe_counts(value: CountObserver) -> void:
+    observer = .Some(value.callback)
+
+fn notify(block: usize, count: usize, event: usize) -> void:
+    if notifying:
+        return
+    notifying = true
+    match observer:
+        .Some(callback) => callback(block, count, event)
+        .None => pass
+    notifying = false
+
 ## Allocates a block of at least `size` bytes, as `std.rt.alloc.alloc` does, and fills it with FRESH bytes.
 pub fn allocate(size: usize) -> usize:
     held = held + 1
@@ -50,12 +71,14 @@ pub fn allocate(size: usize) -> usize:
 ## Frees the block at `block`: fills it with POISON bytes and keeps it from reuse; a second free of it panics.
 pub fn free(block: usize) -> void:
     freeable(block)
+    notify(block, 0, 2)
     if !keep(block):
         poison(block)
 
 ## Frees the block at `block` as `free` does, in a program where no object takes part in cycle collection.
 pub fn free_acyclic(block: usize) -> void:
     freeable(block)
+    notify(block, 0, 2)
     poison(block)
 
 # Panics unless `block` is the start of a block that is not yet freed.
@@ -74,6 +97,7 @@ pub fn retain(address: usize) -> void:
     block := block_of(address)
     if block != 0:
         count := counted(block, "retain")
+        notify(block, count, 0)
         store_u32(block, u32(count + 1))
         retains = retains + 1
 
@@ -83,6 +107,7 @@ pub fn release(address: usize) -> usize:
     if block == 0:
         return 0
     count := counted(block, "release")
+    notify(block, count, 1)
     releases = releases + 1
     if count == 1:
         return block
@@ -111,6 +136,7 @@ pub fn release_acyclic(address: usize) -> usize:
     if block == 0:
         return 0
     count := counted(block, "release")
+    notify(block, count, 1)
     releases = releases + 1
     if count == 1:
         return block

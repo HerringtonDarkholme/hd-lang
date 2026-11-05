@@ -1,0 +1,154 @@
+# Pending dup/drop pairs for the checked reporter. Callers supply checked
+# block starts and the count immediately before a release. Metadata uses
+# raw allocator storage, so inspecting counts never counts its own table.
+use std.rt.alloc.{alloc, free_block}
+use std.rt.memory.{fill, load_u32, load_u64, store_u32, store_u64}
+
+let buckets: usize = 0
+let capacity: usize = 0
+let entries: usize = 0
+let spare_entries: usize = 0
+let spare_pending: usize = 0
+let counters: usize = 0
+let slots: usize = 0
+
+fn word(address: usize) -> usize:
+    usize(load_u32(address))
+
+fn bucket(block: usize, base: usize, size: usize) -> usize:
+    base + (((block >> 4) ^ (block >> 14)) & (size - 1)) * 4
+
+fn grow() -> void:
+    size := if capacity == 0: 16 else: capacity * 2
+    fresh := alloc(size * 4)
+    fill(fresh, 0, size * 4)
+    let index: usize = 0
+    while index < capacity:
+        let entry = word(buckets + index * 4)
+        while entry != 0:
+            next := word(entry + 8)
+            link := bucket(word(entry), fresh, size)
+            store_u32(entry + 8, load_u32(link))
+            store_u32(link, u32(entry))
+            entry = next
+        index += 1
+    if buckets != 0:
+        free_block(buckets)
+    buckets = fresh
+    capacity = size
+
+# The address of the link to this block's entry, or the empty link that
+# would hold one. Entries are (block, pending head, next bucket entry).
+fn find(block: usize) -> usize:
+    let link = bucket(block, buckets, capacity)
+    let entry = word(link)
+    while entry != 0 && word(entry) != block:
+        link = entry + 8
+        entry = word(link)
+    link
+
+fn pending() -> usize:
+    if spare_pending == 0:
+        return alloc(8)
+    node := spare_pending
+    spare_pending = word(node + 4)
+    node
+
+fn recycle(node: usize) -> void:
+    store_u32(node + 4, u32(spare_pending))
+    spare_pending = node
+
+fn remove(link: usize, entry: usize) -> void:
+    store_u32(link, load_u32(entry + 8))
+    store_u32(entry, u32(spare_entries))
+    spare_entries = entry
+    entries = entries - 1
+
+fn flag(site: usize) -> void:
+    if site >= slots:
+        let size: usize = if slots == 0: 16 else: slots * 2
+        while site >= size:
+            size *= 2
+        fresh := alloc(size * 8)
+        fill(fresh, 0, size * 8)
+        let index: usize = 0
+        while index < slots:
+            store_u64(fresh + index * 8, load_u64(counters + index * 8))
+            index += 1
+        if counters != 0:
+            free_block(counters)
+        counters = fresh
+        slots = size
+    at := counters + site * 8
+    store_u64(at, load_u64(at) + 1)
+
+## Start a pending retain. A later observation invalidates all pending
+## retains of this object; observations of another object are independent.
+pub fn retained(block: usize, site: usize) -> void:
+    if block == 0:
+        return
+    if capacity == 0 || entries + 1 > capacity - capacity / 4:
+        grow()
+    link := find(block)
+    let entry = word(link)
+    if entry == 0:
+        if spare_entries == 0:
+            entry = alloc(12)
+        else:
+            entry = spare_entries
+            spare_entries = word(entry)
+        store_u32(entry, u32(block))
+        store_u32(entry + 4, 0)
+        store_u32(entry + 8, 0)
+        store_u32(link, u32(entry))
+        entries = entries + 1
+    node := pending()
+    store_u32(node, u32(site))
+    store_u32(node + 4, load_u32(entry + 4))
+    store_u32(entry + 4, u32(node))
+
+## Observe the count, free the object, publish an owner to heap storage,
+## or read through a view. Each ends this object's pending-pair window.
+pub fn observed(block: usize) -> void:
+    if block == 0 || entries == 0:
+        return
+    link := find(block)
+    entry := word(link)
+    if entry == 0:
+        return
+    let node = word(entry + 4)
+    while node != 0:
+        next := word(node + 4)
+        recycle(node)
+        node = next
+    remove(link, entry)
+
+## End a pending retain without an observation. A last-owner release is
+## an observation itself and is never reported as a redundant pair.
+pub fn released(block: usize, count: usize) -> void:
+    if block == 0 || entries == 0:
+        return
+    if count <= 1:
+        observed(block)
+        return
+    link := find(block)
+    entry := word(link)
+    if entry == 0:
+        return
+    node := word(entry + 4)
+    next := word(node + 4)
+    flag(word(node))
+    store_u32(entry + 4, u32(next))
+    recycle(node)
+    if next == 0:
+        remove(link, entry)
+
+## Raw u64 counters, indexed by the emitting retain's source-site id.
+pub fn pointer() -> usize:
+    counters
+
+pub fn length() -> usize:
+    slots
+
+pub fn flagged(site: usize) -> u64:
+    if site >= slots: 0 else: load_u64(counters + site * 8)

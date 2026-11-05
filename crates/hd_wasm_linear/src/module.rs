@@ -628,7 +628,7 @@ impl Func {
         origin.map(|o| self.count_origin(o).map_or(o, |n| n.origin))
     }
 
-    fn count_origin(&self, origin: u32) -> Option<&crate::views::CountOrigin> {
+    pub(crate) fn count_origin(&self, origin: u32) -> Option<&crate::views::CountOrigin> {
         self.count_origins
             .get(origin.checked_sub(self.count_origin_base?)? as usize)
     }
@@ -982,6 +982,8 @@ impl Session {
 #[derive(Default)]
 pub struct Module {
     pub track_origins: bool,
+    #[cfg(feature = "checked-report")]
+    pub count_audit: bool,
     /// Initialized session interfaces can receive callers from later modules.
     pub open_world: bool,
     /// Reachable package capabilities and their generated adapter schemas.
@@ -1694,6 +1696,33 @@ impl Module {
         // participate in wide lowering with the body's other locals.
         for f in self.funcs.iter_mut().flatten() {
             crate::bulk::lower(f);
+        }
+        #[cfg(feature = "checked-report")]
+        let mut count_sites = hd_base::wire::Writer::default();
+        #[cfg(feature = "checked-report")]
+        if let Some(r) = self.runtime
+            && let Some(c) = r.checked
+            && self.count_audit
+        {
+            count_sites.u8(1);
+            let mut next = 1;
+            for (id, f) in self
+                .funcs
+                .iter_mut()
+                .enumerate()
+                .filter_map(|(id, f)| f.as_mut().map(|f| (id, f)))
+            {
+                let symbol =
+                    (*self.symbols.get(SymId(u32::try_from(id).expect("symbols")))).clone();
+                crate::count_audit::instrument(
+                    f,
+                    &symbol,
+                    &r,
+                    c.count_audit,
+                    &mut next,
+                    &mut count_sites,
+                );
+            }
         }
         if let Some(previous) = previous {
             // Wide lowering can introduce helpers; discover them before
@@ -2634,6 +2663,13 @@ impl Module {
             module.section(&wasm_encoder::CustomSection {
                 name: "hd.cycles".into(),
                 data: data.into(),
+            });
+        }
+        #[cfg(feature = "checked-report")]
+        if !count_sites.bytes.is_empty() {
+            module.section(&wasm_encoder::CustomSection {
+                name: "hd.count.anchors".into(),
+                data: count_sites.bytes.into(),
             });
         }
         // Last, so that `hd build`, which resolves the frames into
