@@ -1,0 +1,22 @@
+# test: a concrete associated field that is non-copyable keeps its enclosing value non-copyable
+trait Items:
+    type Item
+
+struct Conn:
+    qty: usize
+
+impl !Copy for Conn
+
+struct Source:
+    tag: usize
+
+impl Items for Source:
+    type Item = Conn
+
+struct Holder[S < Items]:
+    item: S::Item
+
+fn invalid(value: Holder[Source]) -> usize:
+    moved := value
+    _ := moved
+    value.item.qty # diagnostic: use-of-moved-value

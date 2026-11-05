@@ -5900,6 +5900,7 @@ typing/invalid/map-loop-mutable-unused-read.hd	type	reject:conflicting-access	la
 typing/invalid/map-loop-shared-return.hd	type	reject:local-reference-escapes	lang/06-control-flow.md#element-reference-loops
 runtime/valid/call-through-function-reference.hd	runtime	accept	lang/05-expressions.md#r-expr.call.ref-read
 typing/invalid/call-through-nonfunction-reference.hd	type	reject:not-callable	lang/05-expressions.md#r-expr.call.apply.not-callable
+typing/invalid/concrete-associated-field-is-not-copy.hd	type	reject:use-of-moved-value	lang/13-values-and-references.md#r-ref.copy.structure
 runtime/valid/uniq-map-borrowed-payload.hd	runtime	accept	std/collections.md#r-std-collections.uniq-map.get-mut
 typing/valid/string-slice-method-types.hd	type	accept	lang/10-modules.md#r-module.string.slice
 typing/invalid/string-slice-signed-offset.hd	type	reject:type-mismatch	lang/10-modules.md#r-module.method.usize-sizes

@@ -81,14 +81,15 @@ impl Ck<'_, '_> {
     /// `ref.move.out-of-place`: each read that moves a value that is not
     /// copied out of a place behind a reference is `move-out-of-place`.
     pub(crate) fn check_moves_out_of_place(&mut self) {
-        let b = self.b.body();
-        if b.tags.contains(&Tag::Poison) {
+        if self.b.body().tags.contains(&Tag::Poison) {
             return;
         }
+        let copied = self.copy_facts();
+        let b = self.b.body();
         // The reads through a reference of a value that is not copied,
         // with whether the reference is `&mut` and the place's root.
         let reads: Vec<(u32, bool, Root)> = (0..b.len())
-            .filter(|&i| b.tags[i] == Tag::Read && !self.copies(b.ty[i]))
+            .filter(|&i| b.tags[i] == Tag::Read && !copied[i])
             .filter_map(|i| {
                 let p = b.decode_place(b.data[i][0])?;
                 let m = self.behind_ref(b, &p)?;
@@ -102,6 +103,7 @@ impl Ck<'_, '_> {
         let users = users_of(b);
         let hidden_reads = hidden_reads_of(b, &hidden);
         let cx = Uses {
+            copied: &copied,
             b,
             topo: &Topology::new(b),
             users: &users,

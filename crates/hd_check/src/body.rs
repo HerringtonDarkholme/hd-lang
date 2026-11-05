@@ -5053,16 +5053,16 @@ impl Ck<'_, '_> {
         let modes: Vec<hd_tir::ir::CaptureMode> = {
             let changed = std::mem::take(&mut self.changed_locals);
             let pool = self.pool();
-            let body = self.b.body();
-            body.cap_local
-                .iter()
-                .map(|l| {
+            (0..self.b.body().cap_local.len())
+                .map(|at| {
+                    let body = self.b.body();
+                    let l = body.cap_local[at];
                     let f = body.local_flags[l.idx()];
                     let ty = self.infer.resolve(pool, body.local_ty[l.idx()]);
                     let owns_noncopyable =
                         !self.copies(ty) && !crate::local_refs::holds_local_ref(pool, ty);
                     if f & (local_flags::CAPTURED_ASSIGNED | local_flags::MUTATED) != 0
-                        || changed.contains(l)
+                        || changed.contains(&l)
                         || owns_noncopyable
                     {
                         hd_tir::ir::CaptureMode::Shared
