@@ -6,7 +6,7 @@
 
 use crate::op::Op as I;
 use hd_base::StageResult;
-use hd_tir::ir::{NONE, Ref};
+use hd_tir::ir::{NONE, PlaceRoot, Proj, ReadMode, Ref, Tag};
 use hd_types::{Ty, TyData};
 use wasm_encoder::BlockType;
 
@@ -43,6 +43,13 @@ impl Em<'_, '_, '_> {
             _ => {}
         }
         if let [left, right] = parts {
+            if let Some(args) = self.appended_place(i, *left, *right)? {
+                for local in args {
+                    self.f.get(local);
+                }
+                self.f.helper(Helper::StrAppend);
+                return self.store_owned(i);
+            }
             let moved = if self.take(*left) {
                 Some(Vec::new())
             } else {
@@ -98,6 +105,100 @@ impl Em<'_, '_, '_> {
         self.f.get(len);
         // A new buffer arrives with its count.
         self.store_owned(i)
+    }
+
+    /// Transfer the destination's count for a read/append/store of the
+    /// same reference or cell place. Do this only across straight-line
+    /// reads and arithmetic: a call or write can replace the destination
+    /// after the left operand has already read its old value.
+    fn appended_place(&mut self, i: u32, left: u32, right: u32) -> StageResult<Option<Vec<u32>>> {
+        let Some(read) = Ref(left).as_inst().map(|r| r.0 as usize) else {
+            return Ok(None);
+        };
+        let store = self.consumer.get(i as usize).copied().unwrap_or(NONE);
+        if store == NONE
+            || self.b.tags[read] != Tag::Read
+            || self.b.data[read][1] == ReadMode::Move as u32
+            || self.value_uses.get(read) != Some(&1)
+            || self.b.tags[store as usize] != Tag::Store
+        {
+            return Ok(None);
+        }
+        let p = self.place(self.b.data[read][0])?;
+        if p != self.place(self.b.data[store as usize][0])? {
+            return Ok(None);
+        }
+        let blk = self.topo.blk[read];
+        if blk == NONE || self.topo.blk[i as usize] != blk || self.topo.blk[store as usize] != blk {
+            return Ok(None);
+        }
+        let (a, b, c) = (
+            self.topo.pos[read] as usize,
+            self.topo.pos[i as usize] as usize,
+            self.topo.pos[store as usize] as usize,
+        );
+        let statements = self.b.record(self.b.data[blk as usize][0]);
+        if a >= b
+            || b >= c
+            || statements[a + 1..b]
+                .iter()
+                .any(|&s| match self.b.tags[s as usize] {
+                    Tag::Read if self.b.data[s as usize][1] == ReadMode::Move as u32 => {
+                        // A move changes its source place too. A distinct
+                        // whole local cannot overlap this destination.
+                        self.b
+                            .local_read(s as usize)
+                            .is_none_or(|l| self.is_cell(l.idx()) || p.root == PlaceRoot::Local(l))
+                    }
+                    Tag::Read | Tag::Coerce | Tag::Prim => false,
+                    _ => true,
+                })
+            || statements[b + 1..c].iter().any(|&s| {
+                self.b.tags[s as usize] != Tag::Drop
+                    || self
+                        .b
+                        .decode_place(self.b.data[s as usize][0])
+                        .is_none_or(|p| {
+                            // Retiring a string operand cannot change the
+                            // destination. Dynamic suffixes have their Drop
+                            // here too, before the replacement store.
+                            !p.proj.is_empty()
+                                || !matches!(p.root, PlaceRoot::Value(r)
+                                if r.0 != i && self.is_string(self.ty_of(r.0)))
+                        })
+            })
+        {
+            return Ok(None);
+        }
+        let reference = match (p.root, p.proj.as_slice()) {
+            (PlaceRoot::Local(l), []) if self.is_cell(l.idx()) && !self.cell_converts(l.idx()) => {
+                self.cell_of(l.idx())?
+            }
+            (PlaceRoot::Local(l), [Proj::Deref]) => self.local_value(l.raw())?[0],
+            (PlaceRoot::Value(r), [Proj::Deref]) => {
+                let at = self.f.local(Val::I32);
+                self.comp(r.0, 0)?;
+                self.f.set(at);
+                at
+            }
+            _ => return Ok(None),
+        };
+        // Preserve a suffix that aliases the left operand before zeroing
+        // its SSA locals or moving the destination's count.
+        let mut suffix = Vec::new();
+        for part in 0..2 {
+            let local = self.f.local(Val::I32);
+            self.comp(right, part)?;
+            self.f.set(local);
+            suffix.push(local);
+        }
+        // A cell read can own a copied count. Retire that copy before
+        // moving the place's count; borrowed reads release nothing.
+        self.release_value(left)?;
+        let value = self.ref_layout(Ty::STRING)?;
+        let mut args = crate::rt::ref_take(&mut self.f, reference, &value);
+        args.extend(suffix);
+        Ok(Some(args))
     }
 
     /// The Wasm locals whose count `left` lends to `i` in `x = x + right`.

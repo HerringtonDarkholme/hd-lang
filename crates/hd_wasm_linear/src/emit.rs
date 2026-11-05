@@ -1192,6 +1192,8 @@ struct Em<'i, 'a, 'm> {
     /// invisible to the ownership pass, so an otherwise-unused one is
     /// released directly after its instruction.
     used: Vec<bool>,
+    /// Non-drop uses, for lowerings that retire a copied operand early.
+    value_uses: Vec<u32>,
     /// The body's block structure.
     topo: hd_tir::ir::Topology,
     own_ops: Vec<hd_tir::own::Operand>,
@@ -1319,6 +1321,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             sub_id: 0,
             consumer: Vec::new(),
             used: Vec::new(),
+            value_uses: Vec::new(),
             topo: hd_tir::ir::Topology::new(b),
             own_ops: Vec::new(),
             hoisted: Vec::new(),

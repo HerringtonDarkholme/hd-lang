@@ -1,0 +1,20 @@
+# @dump: wat counts
+# @build: v8 release
+# Reference and cell appends transfer the destination's existing count to
+# str_append, leaving a zero value for the following replacement store.
+# A call that writes the destination on the RHS keeps the old left value.
+fn through_reference(text: &mut string, suffix: string) -> void:
+    *text += suffix
+
+fn through_cell(text: string) -> string:
+    let mut current = text
+    append := fn(suffix: string) -> void: current += suffix
+    append("!")
+    current
+
+fn replace(text: &mut string) -> string:
+    *text = "replacement"
+    "!"
+
+fn rhs_writes(text: &mut string) -> void:
+    *text += replace(text)

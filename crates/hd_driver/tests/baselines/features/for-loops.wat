@@ -2,8 +2,7 @@
 (module
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:list_unique'1" (func $rt:list_unique'1 (param i32) (result i32)))
-  (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
-  (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
+  (import "fixture" "rt:str_append" (func $rt:str_append (param i32 i32 i32 i32) (result i32 i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:list_unique'2" (func $rt:list_unique'2 (param i32) (result i32)))
@@ -161,7 +160,7 @@
     end
     local.get $xs
   )
-  (func $over_mut (param $xs i32) (local $t0 i32) (local $t1 i32) (local $x i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
+  (func $over_mut (param $xs i32) (local $t0 i32) (local $t1 i32) (local $x i32) (local $t2 i32) (local $t3 i32)
     block
     ;; 20 |     for x in &mut *xs:
       local.get $xs
@@ -205,34 +204,27 @@
             local.get $x
             i32.load $heap
             local.get $x
+            i32.const 0
+            i32.store $heap
+            local.get $x
             i32.load $heap offset=4
+            local.get $x
+            i32.const 0
+            i32.store $heap offset=4
+            i32.const 104 ;; &"!"
+            i32.const 1
+            call $rt:str_append
             local.set $t3
             local.set $t2
-            local.get $t3
-            i32.const 1
-            i32.add
-            local.tee $t4
-            call $rt:str
-            local.tee $t5
-            local.tee $t6
-            local.get $t2
-            local.get $t3
-            call $rt:memory_copy/0/0
-            local.get $t6
-            local.get $t3
-            i32.add
-            i32.const 104 ;; &"!"
-            i32.load8_u $heap
-            i32.store8 $heap
             local.get $x
             i32.load $heap
             local.get $x
             i32.load $heap offset=4
             local.get $x
-            local.get $t5
+            local.get $t2
             i32.store $heap
             local.get $x
-            local.get $t4
+            local.get $t3
             i32.store $heap offset=4
             call $rt:release
     ;; 20 |     for x in &mut *xs:
