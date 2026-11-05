@@ -382,6 +382,10 @@ pub const CHECKED_FNS: &[&str] = &[
     "length",
 ];
 
+/// Checked-only metrics follow the ordinary checked entry points. Keep
+/// these at the end so optional reporter hooks retain their existing slots.
+pub const CHECKED_METRICS_FNS: [&str; 2] = ["observe_unique", "unique_checks"];
+
 /// The cycle collector (`crates/hd_wasm_linear/DESIGN.md` §23.28), which both
 /// runtimes link: `collect`, `due`, `opaque` and `visit`.
 pub const CYCLE_MODULE: &str = "std.rt.cycle";
@@ -432,8 +436,8 @@ pub const fn runtime_fns(checked: bool) -> &'static [&'static str] {
 }
 
 /// Every runtime function that emitted code calls, as `(module, name)`:
-/// [`runtime_fns`] of [`runtime_module`], then the collector's
-/// [`CYCLE_FNS`], then the allocator metadata/class paths, `block_of` and
+/// [`runtime_fns`] of [`runtime_module`], checked metrics when enabled,
+/// then the collector's [`CYCLE_FNS`], then the allocator metadata/class paths, `block_of` and
 /// `block_bytes`.
 /// [`Runtime::from_keys`] reads their keys in this order.
 #[must_use]
@@ -450,6 +454,13 @@ pub fn runtime_items(checked: bool) -> Vec<(&'static str, &'static str)> {
             };
             (module, *n)
         })
+        .chain(
+            checked
+                .then_some(CHECKED_METRICS_FNS)
+                .into_iter()
+                .flatten()
+                .map(|n| ("std.rt.checked", n)),
+        )
         .chain(CYCLE_FNS.iter().map(|n| (CYCLE_MODULE, *n)))
         .chain(WEAK_FNS.iter().map(|n| (WEAK_MODULE, *n)))
         .chain([
@@ -536,6 +547,8 @@ pub struct Checked {
     pub audit: Hash128,
     pub retained: Hash128,
     pub released: Hash128,
+    pub observe_unique: Hash128,
+    pub unique_checks: Hash128,
     #[cfg(feature = "checked-report")]
     pub collected: Hash128,
     #[cfg(feature = "checked-report")]
@@ -566,14 +579,16 @@ impl Runtime {
         let (counts, rest) = keys.split_first_chunk::<9>()?;
         let (checked, rest) = match rest.len() {
             n if n == CYCLE_FNS.len() => (None, rest),
-            n if n == CYCLE_FNS.len() + CHECKED_FNS.len() - 9 => {
-                let (c, rest) = rest.split_at(CHECKED_FNS.len() - 9);
+            n if n == CYCLE_FNS.len() + CHECKED_FNS.len() - 9 + CHECKED_METRICS_FNS.len() => {
+                let (c, rest) = rest.split_at(CHECKED_FNS.len() - 9 + CHECKED_METRICS_FNS.len());
                 (
                     Some(Checked {
                         live: c[0],
                         audit: c[1],
                         retained: c[2],
                         released: c[3],
+                        observe_unique: c[c.len() - 2],
+                        unique_checks: c[c.len() - 1],
                         #[cfg(feature = "checked-report")]
                         collected: c[4],
                         #[cfg(feature = "checked-report")]

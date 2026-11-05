@@ -13566,3 +13566,6 @@ mod main_capability_tests {
         assert!(out.entry_capabilities.is_empty());
     }
 }
+
+#[cfg(test)]
+mod count_ops_tests;

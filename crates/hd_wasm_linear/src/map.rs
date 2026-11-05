@@ -693,7 +693,7 @@ pub fn unique(entry: &Entry, m: &Module) -> Func {
     f.get(t);
     f.u32(HEADER);
     f.op(I::I32Sub);
-    f.op(I::I32Load(mem(HEAP, 0, 2)));
+    crate::rt::unique_count(&mut f, m);
     f.i32(1);
     f.op(I::I32Ne);
     f.op(I::If(BlockType::Empty));

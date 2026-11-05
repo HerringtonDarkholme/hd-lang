@@ -16,9 +16,9 @@ fn make(name: string) -> Config:
 > app/main/make
 >   local $0 name: string [param read]
 >   %0 = Read [$0] : string
->   %1 = DefaultCall [%4622 %16] [] : i32
->   %2 = DefaultCall [%4623 %16] [] : string
->   %3 = DefaultCall [%4624 %16] [] : List[string]
+>   %1 = DefaultCall [%4624 %16] [] : i32
+>   %2 = DefaultCall [%4625 %16] [] : string
+>   %3 = DefaultCall [%4626 %16] [] : List[string]
 >   %4 = NewStruct [%1 %2 %3 %0] : Config
 >   %5 = Block %4 : Config
 
@@ -29,7 +29,7 @@ fn shorthand(name: string, tags: List[string]) -> Config:
 >   local $1 tags: List[string] [param read]
 >   %0 = Read [$0] : string
 >   %1 = Read [$1] : List[string]
->   %2 = DefaultCall [%4622 %16] [] : i32
->   %3 = DefaultCall [%4623 %16] [] : string
+>   %2 = DefaultCall [%4624 %16] [] : i32
+>   %3 = DefaultCall [%4625 %16] [] : string
 >   %4 = NewStruct [%2 %3 %1 %0] : Config
 >   %5 = Block %4 : Config

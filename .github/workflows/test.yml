@@ -252,3 +252,108 @@ jobs:
 
       - name: Spec check
         run: bash spec/check.sh
+
+  count-operations:
+    name: Dynamic count-operation budget
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: package.json
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2.9.2
+
+      - name: Build count compiler
+        run: cargo build -p hd_driver --example count_ops
+
+      - name: Test count comparator
+        run: node --test bench/counts/baseline.test.ts
+
+      - name: Read previous budget
+        shell: bash
+        env:
+          COUNT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          mkdir -p target/count-ops
+          count_base="$COUNT_BASE"
+          if [ -z "$count_base" ] || [[ "$count_base" =~ ^0+$ ]]; then
+            count_base="$(git merge-base HEAD origin/main)"
+          fi
+          if git cat-file -e "$count_base:bench/counts/baseline.json" 2>/dev/null; then
+            git show "$count_base:bench/counts/baseline.json" > target/count-ops/previous.json
+          fi
+
+      - name: Measure and enforce per-program totals
+        shell: bash
+        env:
+          HD_CACHE: target/count-ops/cache
+        run: |
+          set -euo pipefail
+          count_flags=()
+          if [ "$GITHUB_REF" = refs/heads/main ]; then
+            count_flags+=(--refresh)
+          fi
+          node bench/counts/run.ts --previous target/count-ops/previous.json "${count_flags[@]}"
+
+      - name: Show measured counts
+        if: always()
+        shell: bash
+        run: |
+          if [ -f target/count-ops/summary.md ]; then
+            cat target/count-ops/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Store measured counts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: count-operations
+          path: |
+            target/count-ops/actual.json
+            target/count-ops/summary.md
+          if-no-files-found: ignore
+
+      - name: Refresh main's lower baseline
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- bench/counts/baseline.json; then
+            exit 0
+          fi
+          count_source="$(git rev-parse HEAD)"
+          git fetch origin main
+          if [ "$(git rev-parse origin/main)" != "$count_source" ]; then
+            echo "Newer main owns the next baseline refresh."
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add bench/counts/baseline.json
+          git commit -m "Refresh dynamic count-operation baseline"
+          if ! git push origin HEAD:main; then
+            git fetch origin main
+            if [ "$(git rev-parse origin/main)" != "$count_source" ]; then
+              echo "Main advanced during refresh; the newer run will update it."
+              exit 0
+            fi
+            exit 1
+          fi
