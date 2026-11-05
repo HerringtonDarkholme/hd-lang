@@ -114,6 +114,6 @@ tests:
         let mut m: Map[string, i32] = { "a": +1, "b": 2 }
         let seen = +0
         for (k, v) in m:
-            m[k + "!"] = v
+            m[k + "!"] = *v
             seen = seen + 1
         assert(seen == 2 && m.len() == 4, "the inserts were not visited")
