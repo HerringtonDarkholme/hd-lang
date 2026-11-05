@@ -21,7 +21,7 @@ impl Env for FixedEnv:
     fn names(self) -> List[string]:
         let mut found: List[string] = []
         for (name, _) in self.values:
-            found.push(name)
+            found.push(*name)
         found
 
 fn greeting() -> string $ Args + Env:

@@ -1,4 +1,4 @@
-# test: a loop binding is its own copy of the element, so a closure that captures it keeps the element when the collection changes after the loop
+# test: closures keep list loop values and explicit copies of borrowed map values when the collection changes after the loop
 # Spec 04 Collection Values: types.coll.value. Spec 06 For Loops: flow.for.binding.fresh.
 # expect: test
 fn row_counters(rows: List[List[i32]]) -> List[fn() -> usize]:
@@ -9,7 +9,8 @@ fn row_counters(rows: List[List[i32]]) -> List[fn() -> usize]:
 
 fn shelf_counters(shelves: Map[string, List[i32]]) -> List[fn() -> usize]:
     let mut out: List[fn() -> usize] = []
-    for (_, shelf) in shelves:
+    for (_, borrowed_shelf) in shelves:
+        shelf := *borrowed_shelf
         out.push(fn() -> usize: shelf.len())
     out
 
@@ -23,7 +24,7 @@ tests:
         assert_equal(counts[0](), 1, reason="the binding is the element as it was")
         assert_equal(rows[0].len(), 2, reason="the caller's row grew")
 
-    it("a closure over a map value binding keeps the value"):
+    it("a closure over a copied map value keeps the value"):
         let mut shelves: Map[string, List[i32]] = { "a": [+1] }
         counts := shelf_counters(shelves)
         shelves["a"].push(3)

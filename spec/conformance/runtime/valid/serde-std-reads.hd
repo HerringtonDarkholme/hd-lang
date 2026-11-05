@@ -273,7 +273,7 @@ tests:
                 assert_equal(gusts.get("east"), .Some(9), reason="east")
                 let mut order: List[string] = []
                 for entry in gusts:
-                    order.push(entry._0)
+                    order.push(*entry._0)
                 assert_equal(order, ["west", "east"], reason="order read")
             .Err(error) => panic("read failed: $error")
 

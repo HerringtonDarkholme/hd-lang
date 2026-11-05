@@ -5,11 +5,11 @@
 fn churn(entries: &mut Map[string, i32]) -> List[string]:
     let mut seen: List[string] = []
     for (key, _) in entries:
-        seen.push(key)
+        seen.push(*key)
         for i in 0..64:
-            _ := entries.remove(key)
+            _ := entries.remove(*key)
             entries["new$i"] = i
-            entries[key] = 0
+            entries[*key] = 0
             _ := entries.remove("new$i")
     seen
 

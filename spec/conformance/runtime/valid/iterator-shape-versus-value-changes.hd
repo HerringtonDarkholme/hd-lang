@@ -13,7 +13,7 @@ tests:
                 for other in ["a", "b", "c"]:
                     if other != name:
                         values[other] = 30
-            seen.push(value)
+            seen.push(*value)
         assert_equal(seen, [1, 2, 3], reason="the loop reads the values it began with")
         assert_equal(values["c"], 30, reason="the replacement reached the map")
 
@@ -34,7 +34,7 @@ tests:
         let mut names: List[string] = []
         let total = +0
         for (name, value) in values:
-            names.push(name)
+            names.push(*name)
             total = total + value
         assert_equal(names.sorted(), ["a", "b"], reason="each key once")
         assert_equal(total, 5, reason="the reinserted value replaced the old one")

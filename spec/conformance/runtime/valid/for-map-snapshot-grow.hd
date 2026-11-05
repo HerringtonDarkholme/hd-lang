@@ -2,7 +2,7 @@
 # Spec 06 Snapshot Iteration: flow.for.snapshot.change.
 fn grow(entries: &mut Map[string, i32]) -> void:
     for (key, value) in entries:
-        entries[key + "!"] = value
+        entries[key + "!"] = *value
 
 tests:
     use std.testing.assert_equal

@@ -108,7 +108,7 @@ pub fn main() -> void $ Console:
     for (k, _) in big:
         if k <= last:
             ordered = false
-        last = k
+        last = *k
     println(ordered)
     println(big[996])
     println(big.get(997).is_some())

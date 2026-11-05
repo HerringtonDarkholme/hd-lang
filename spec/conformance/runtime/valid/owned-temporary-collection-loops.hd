@@ -104,6 +104,6 @@ tests:
         let mut source = table()
         let original = +0
         for (key, value) in source:
-            source[key] = +99
+            source[*key] = +99
             original = original + value
         assert_equal(original, +3, reason="named map snapshot")

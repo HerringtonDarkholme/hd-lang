@@ -10,4 +10,4 @@ fn update_children(children: Map[string, *mut Child], id: string) -> void $ Cons
         .Some(child) => rename(child, "found")
         .None => println("missing")
     for (key, child) in children:
-        rename(child, key)
+        rename(*child, *key)
