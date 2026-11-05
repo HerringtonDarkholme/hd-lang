@@ -27,9 +27,9 @@ fn make(name: string) -> Config:
 >   local $0 name: string [param read] value
 >     uses $0: entry -> %0 consume last
 >   %0 = Read move [$0] : string
->   %1 = DefaultCall [%4622 %16] [] : i32
->   %2 = DefaultCall [%4623 %16] [] : string
->   %3 = DefaultCall [%4624 %16] [] : List[string]
+>   %1 = DefaultCall [%4651 %16] [] : i32
+>   %2 = DefaultCall [%4652 %16] [] : string
+>   %3 = DefaultCall [%4653 %16] [] : List[string]
 >   %4 = NewStruct [%1 %2 %3 %0] : Config
 >   %5 = Block %4 : Config
 >   exit sub 0 drops [$0]
@@ -44,8 +44,8 @@ fn shorthand(name: string, tags: List[string]) -> Config:
 >     uses $1: entry -> %1 consume last
 >   %0 = Read move [$0] : string
 >   %1 = Read move [$1] : List[string]
->   %2 = DefaultCall [%4622 %16] [] : i32
->   %3 = DefaultCall [%4623 %16] [] : string
+>   %2 = DefaultCall [%4651 %16] [] : i32
+>   %3 = DefaultCall [%4652 %16] [] : string
 >   %4 = NewStruct [%2 %3 %1 %0] : Config
 >   %5 = Block %4 : Config
 >   exit sub 0 drops [$0 $1]

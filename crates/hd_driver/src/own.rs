@@ -40,6 +40,13 @@ pub fn copy_report_label(label: &str) {
     COPY_LABEL.with(|l| label.clone_into(&mut l.borrow_mut()));
 }
 
+/// The harness's source label also resolves a virtual `main.hd` in a
+/// checked count report; it never participates in ownership decisions.
+#[cfg(feature = "checked-report")]
+pub(super) fn count_report_label() -> String {
+    COPY_LABEL.with(|l| l.borrow().clone())
+}
+
 /// The file `HD_COPY_REPORT` names, read once per process.
 fn copy_report_file() -> Option<&'static str> {
     static FILE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();

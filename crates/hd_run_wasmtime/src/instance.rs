@@ -25,6 +25,7 @@ pub struct WasmtimeInstance {
     /// embedding may drop `WasmtimeEngine` while its instance is still running.
     engine: Arc<wasmtime::Engine>,
     pub(crate) report: Option<crate::checked_report::Report>,
+    count_pairs: crate::checked_report::PairTotals,
     init: Option<TypedFunc<(), ()>>,
     instance: Option<wasmtime::Instance>,
     poll: Option<TypedFunc<i32, i32>>,
@@ -77,6 +78,7 @@ impl WasmtimeInstance {
             store,
             engine,
             report: None,
+            count_pairs: crate::checked_report::PairTotals::new(),
             init: None,
             instance: None,
             poll: None,
@@ -239,7 +241,7 @@ impl WasmtimeInstance {
     fn finish(&mut self, event: Control) -> Outcome {
         if let Some(report) = &self.report
             && let Some(instance) = self.instance
-            && let Some(text) = report.summary(instance, &mut self.store)
+            && let Some(text) = report.summary(instance, &mut self.store, &mut self.count_pairs)
         {
             self.store.data_mut().err(&text);
         }

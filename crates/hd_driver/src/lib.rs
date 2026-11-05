@@ -2691,6 +2691,28 @@ fn build_packages_inner(
         input.parse = parse.into_inner().map(Arc::new);
     }
     output.position_inputs = position_inputs.into_iter().map(Arc::new).collect();
+    #[cfg(feature = "checked-report")]
+    if let Some(mut wasm) = output.wasm.take() {
+        let positions = output.positions(&mut PositionPool::default());
+        let label = own::count_report_label();
+        hd_wasm_linear::resolve_count_audit(&mut wasm, |item, inst| {
+            positions
+                .line(item, inst)
+                .or_else(|| positions.entry_line(item))
+                .map(|(file, line)| {
+                    (
+                        if file == "main.hd" && !label.is_empty() {
+                            label.clone()
+                        } else {
+                            file.to_owned()
+                        },
+                        line,
+                    )
+                })
+                .or_else(|| (!label.is_empty()).then(|| (label.clone(), 0)))
+        });
+        output.wasm = Some(wasm);
+    }
     output
 }
 
@@ -13566,3 +13588,6 @@ mod main_capability_tests {
         assert!(out.entry_capabilities.is_empty());
     }
 }
+
+#[cfg(test)]
+mod count_audit_tests;

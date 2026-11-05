@@ -195,6 +195,17 @@ impl Positions {
         Some((source.file.as_str(), line))
     }
 
+    /// Entry-generated count code has no source expression. Locate it at
+    /// the first source instruction of its body, like a function prologue.
+    #[cfg(feature = "checked-report")]
+    pub(crate) fn entry_line(&self, item: &str) -> Option<(&str, u32)> {
+        let (_, source) = self.module_of(item)?;
+        let body = source.module()?.bodies.get(item)?;
+        (0..body.syn.len())
+            .filter_map(|i| self.line(item, u32::try_from(i).ok()?))
+            .min_by_key(|(_, line)| *line)
+    }
+
     /// The byte span of instruction `inst` of the body of the item with
     /// stable path `item` in its file's text, with the package-relative
     /// file, or `None` when the run has no such body or the instruction no

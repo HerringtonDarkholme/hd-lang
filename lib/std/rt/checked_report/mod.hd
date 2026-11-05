@@ -15,12 +15,106 @@ pub use std.rt.checked.{
     retained,
     released,
 }
-use std.rt.alloc.{alloc, free_block}
+use std.rt.alloc.{alloc, block_of, free_block}
+use std.rt.checked.{CountObserver, observe_counts}
+use std.rt.checked_report.pairs
 use std.rt.cycle.freeing_cycles
 use std.rt.memory.{copy, fill, load_u32, load_u64, store_u64}
 
 let counts: usize = 0
 let slots: usize = 0
+
+let count_site: usize = 0
+let observing: bool = false
+
+ACTIVE := activate()
+
+fn activate() -> bool:
+    count_audit_start()
+    true
+
+fn count_event(block: usize, count: usize, event: usize) -> void:
+    if observing:
+        return
+    observing = true
+    if event == 0:
+        pairs.retained(block, count_site)
+    else if event == 1:
+        pairs.released(block, count)
+    else:
+        pairs.observed(block)
+    observing = false
+
+pub fn count_audit_start() -> void:
+    observe_counts(CountObserver { callback: count_event })
+
+# Source count sites override the current site. Generated glue inherits
+# the enclosing source operation, with its own site only as a fallback.
+pub fn count_mark(site: usize) -> usize:
+    previous := count_site
+    count_site = site
+    previous
+
+pub fn count_mark_generated(site: usize) -> usize:
+    previous := count_site
+    if previous == 0:
+        count_site = site
+    previous
+
+pub fn count_observe(address: usize) -> usize:
+    if observing:
+        return address
+    observing = true
+    pairs.observed(block_of(address))
+    observing = false
+    address
+
+# Observe only an actual reference-count word, not an ordinary payload
+# read. Preserve the original base and the load's native bounds trap.
+pub fn count_header(base: usize, offset: usize, width: usize) -> usize:
+    if observing:
+        return base
+    observing = true
+    if offset <= 0xffffffff - base:
+        address := base + offset
+        block := block_of(address)
+        if block != 0 && address - block < 4:
+            pairs.observed(block)
+        if width != 0 && width - 1 <= 0xffffffff - address:
+            last := address + width - 1
+            tail := block_of(last)
+            if tail != 0 && tail >= address && tail <= last:
+                pairs.observed(tail)
+    observing = false
+    base
+
+pub fn count_escape(destination: usize, address: usize) -> usize:
+    if observing:
+        return address
+    observing = true
+    if block_of(destination) != 0:
+        pairs.observed(block_of(address))
+    observing = false
+    address
+
+# A raw bulk copy can carry pointers at any byte alignment. Inspect the
+# destination only after the native operation has passed its bounds check.
+pub fn count_escape_range(destination: usize, length: usize) -> void:
+    if observing || length < 4:
+        return
+    observing = true
+    let index: usize = 0
+    while index <= length - 4:
+        at := destination + index
+        pairs.observed(block_of(usize(load_u32(at))))
+        index += 1
+    observing = false
+
+pub fn count_pairs_pointer() -> usize:
+    pairs.pointer()
+
+pub fn count_pairs_length() -> usize:
+    pairs.length()
 
 @intrinsic("descriptor_glue_mask")
 fn descriptor_glue_mask() -> usize:

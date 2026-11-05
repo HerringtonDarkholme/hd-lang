@@ -1,0 +1,50 @@
+use std.annotation.cold
+use std.rt.checked.{allocate, free, release, retain}
+use std.rt.memory.{copy, load_u32, store_u32}
+
+@cold
+fn read_word(address: usize) -> usize:
+    usize(load_u32(address))
+
+@cold
+fn redundant(address: usize) -> void:
+    retain(address)
+    _ := read_word(address)
+    _ := release(address)
+
+@cold
+fn needed_count(address: usize) -> void:
+    retain(address)
+    _ := read_word(address - 8)
+    _ := release(address)
+
+@cold
+fn needed_escape(address: usize, destination: usize) -> void:
+    retain(address)
+    store_u32(destination, u32(address))
+    _ := release(address)
+
+@cold
+fn needed_copy(address: usize, destination: usize, source: usize) -> void:
+    retain(address)
+    copy(destination, source, 4)
+    _ := release(address)
+
+pub fn main() -> void:
+    block := allocate(16)
+    store_u32(block, 1)
+    store_u32(block + 4, 0)
+    store_u32(block + 8, 42)
+    destination := allocate(16)
+    store_u32(destination, 1)
+    store_u32(destination + 4, 0)
+    redundant(block + 8)
+    redundant(block + 8)
+    redundant(block + 8)
+    needed_count(block + 8)
+    needed_escape(block + 8, destination + 8)
+    needed_copy(block + 8, destination + 12, destination + 8)
+    _ := release(destination + 8)
+    free(destination)
+    _ := release(block + 8)
+    free(block)
