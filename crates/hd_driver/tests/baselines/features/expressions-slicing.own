@@ -3,8 +3,8 @@
 # @build: v8 release
 # Feature: Slicing strings and lists (spec/lang/05-expressions.md, #1364).
 # expected: a string slice is a view that retains its base once; a list
-# slice allocates one list and retains each copied element, including
-# a whole-list selection. String slice length needs no allocation or count.
+# partial slice reserves once and retains each copied element; a full
+# selection shares the list value. String slice length needs no allocation or count.
 fn str_slice(s: string) -> string:
     s.slice(1, 3)
 > app/main/str_slice

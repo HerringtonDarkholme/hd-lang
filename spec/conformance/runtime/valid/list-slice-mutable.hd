@@ -1,4 +1,4 @@
-# test: a list slice is a new list value, the Out type of its Index implementation, which a let mut binding changes
+# test: list slices are independent values, including full selections that may share storage
 # Spec 05 Slicing: std-collections.list.slice.value, std-collections.list.slice, std-collections.list.slice (owner decision SLICE-MUT, batch 54).
 fn grow(items: List[i32]) -> List[i32]:
     let mut part = items.slice(0, 2)
@@ -14,3 +14,20 @@ tests:
         items := [+1, 2, 3]
         assert_equal(grow(items), [1, 2, 9], reason="the slice grows")
         assert_equal(items, [1, 2, 3], reason="the source is unchanged")
+
+    it("a full string-list selection stays independent in both directions"):
+        let mut items = ["left ${+7}", "right ${+9}"]
+        let mut whole = items.slice(0, items.len())
+        items.push("tail")
+        whole[0] = "changed"
+        whole.push("other")
+        assert_equal(items, ["left 7", "right 9", "tail"], reason="source snapshot")
+        assert_equal(whole, ["changed", "right 9", "other"], reason="slice snapshot")
+
+    it("empty selections remain valid at every boundary"):
+        let empty: List[i32] = []
+        assert_equal(empty.slice(0, 0), [], reason="empty full selection")
+        items := [+1, 2, 3]
+        assert_equal(items.slice(0, 0), [], reason="empty prefix")
+        assert_equal(items.slice(1, 1), [], reason="empty middle")
+        assert_equal(items.slice(3, 3), [], reason="empty suffix")
