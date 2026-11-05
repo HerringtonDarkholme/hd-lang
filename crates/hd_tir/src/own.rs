@@ -1581,10 +1581,11 @@ pub(crate) mod tests {
         assert!(!text.contains("Drop [$1]\n%"), "{text}");
     }
 
-    /// Forwarding (`values::forward`): a local stored once and read once
+    /// Forwarding (`values::forward`): a local stored and then read once
     /// right after, in the same block, is the stored value itself, which
-    /// its reader consumes: no local, no copy and no drop. A call between
-    /// the store and the read keeps the local.
+    /// its reader consumes: no local, no copy and no drop. Each store of
+    /// a local stored again starts a new value. A call between the store
+    /// and the read keeps the local.
     #[test]
     fn a_local_read_once_after_its_store_forwards_its_value() {
         /// [`Cx`] whose strings hold no reference.
@@ -1625,6 +1626,11 @@ pub(crate) mod tests {
                 b.set(once, s, n);
                 let r = b.get(once, Ty::STRING, n);
                 call(b, 9, &[r], Ty::VOID);
+                // A store again starts a new value (step 7a).
+                let s = call(b, 7, &[], Ty::STRING);
+                b.set(once, s, n);
+                let r = b.get(once, Ty::STRING, n);
+                call(b, 9, &[r], Ty::VOID);
                 let t = call(b, 7, &[], Ty::STRING);
                 b.set(kept, t, n);
                 call(b, 8, &[], Ty::VOID);
@@ -1634,7 +1640,10 @@ pub(crate) mod tests {
             },
             Ty::VOID,
         );
-        assert!(text.starts_with("%0 Call\n%1 Call %0\n"), "{text}");
+        assert!(
+            text.starts_with("%0 Call\n%1 Call %0\n%2 Call\n%3 Call %2\n"),
+            "{text}"
+        );
         assert!(!text.contains("[$0]"), "{text}");
         assert!(text.contains("Store [$1]"), "{text}");
         assert!(text.contains("Read move [$1]"), "{text}");

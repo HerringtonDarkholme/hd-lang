@@ -21,6 +21,7 @@
 
 use super::splice;
 use crate::ir::{Body, CaptureMode, NONE, Proj, Ref, Root, Tag, Topology, inside, u32_of};
+use hd_base::SliceSort as _;
 
 /// What one local of a body is ([`classify`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -156,17 +157,17 @@ pub fn label(c: Local) -> String {
 #[derive(Default)]
 pub(crate) struct Tables {
     classes: Vec<Local>,
-    /// Per local: its one whole store, or `NONE` while it has none;
-    /// `MANY` once it has another, or anything but one read names it.
-    store: Vec<u32>,
-    /// Per local: its one read, or `NONE`; `MANY` once it has another.
-    read: Vec<u32>,
+    /// Per local: `NONE` while it may be forwarded, `MANY` once not.
+    state: Vec<u32>,
+    /// Each whole store and read of a local that may be forwarded, as
+    /// (local, instruction), then in the order its block runs them.
+    names: Vec<(u32, u32)>,
     /// Per instruction: the value a forwarded read stands for, or `NONE`.
     to: Vec<u32>,
-    /// Statements to delete: each forwarded local's store and read.
+    /// Each store whose value a read forwards, with that read.
+    pairs: Vec<(u32, u32)>,
+    /// Statements to delete: each forwarded store and its read.
     dead: Vec<u32>,
-    /// Per instruction: the local a candidate's read reads, or `NONE`.
-    reads_of: Vec<(u32, u32)>,
 }
 
 const MANY: u32 = NONE - 1;
@@ -203,18 +204,22 @@ fn plain(tag: Tag) -> bool {
     )
 }
 
-/// Forwards each single-definition value local's value (step 6 of the
-/// migration) where the local only carries it from its store to its one
-/// read: a [`Local::Value`] with one definition, a whole
-/// `Store [$l] %v` of an instruction's value of the local's type, and one
-/// whole `Read [$l]` later in the store's own block, with only
-/// [`plain`] statements between them and nothing else naming the local
-/// (no capture). The read's consumers take `%v` itself,
-/// and the store and the read go, so `%v` has the uses the local's read
-/// had: consumed in its own block where the read moved, lent where it
-/// lent. An inlined copy's parameter binding (`self := %v`) is the usual
-/// such local. A body that suspends keeps its locals. Rebuilds nothing
-/// for a body with no such local.
+/// Forwards the values a value local carries from a store to one read
+/// (steps 6 and 7a of the migration). The local is a [`Local::Value`],
+/// not a parameter, whose every naming is a whole `Store [$l]` or a whole
+/// `Read [$l]`, all in one block, with nothing else naming it (no
+/// capture). Each store starts a new value: when the next naming after
+/// it is its value's one read, the store's value is an instruction's
+/// value of the local's type, and only [`plain`] statements are between
+/// them, the read's consumers take the stored `%v` itself, and the store
+/// and the read go. So `%v` has the uses the local's read had: consumed
+/// in its own block where the read moved, lent where it lent. Other
+/// stores of the local stay, as do reads of them. A counted local stored
+/// with a value made from its own read (`s += "x"`) is not forwarded: the
+/// backend appends to its buffer in place. An inlined copy's
+/// parameter binding (`self := %v`) and a re-store read right after
+/// (`s = b; s.len()`) are the usual such values. A body that suspends
+/// keeps its locals. Rebuilds nothing for a body with no such value.
 pub(crate) fn forward(
     b: &mut Body,
     cx: &dyn super::OwnCx,
@@ -226,20 +231,17 @@ pub(crate) fn forward(
         return Ok(());
     }
     classify(b, &mut t.classes);
-    let n = b.local_ty.len();
-    t.store.clear();
-    t.read.clear();
+    t.state.clear();
     let mut any = false;
     for (l, c) in t.classes.iter().enumerate() {
         // A local that holds a reference keeps its name: the backend's
         // loan elision tells two references apart by the local each comes
         // from (`alias := node` beside `node`).
-        let candidate = *c == Local::Value(1)
+        let candidate = matches!(*c, Local::Value(d) if d > 0)
             && b.local_flags[l] & crate::ir::local_flags::PARAM == 0
             && !cx.holds_ref(b.local_ty[l]);
         any |= candidate;
-        t.store.push(if candidate { NONE } else { MANY });
-        t.read.push(NONE);
+        t.state.push(if candidate { NONE } else { MANY });
     }
     if !any {
         return Ok(());
@@ -254,11 +256,12 @@ pub(crate) fn forward(
         | Tag::FlagClear => Some(b.view(b.data[i][0])),
         _ => None,
     };
+    t.names.clear();
     for i in 0..b.len() {
         if b.tags[i] == Tag::Closure {
             let rec = b.record(b.data[i][1]);
             for c in rec[0]..rec[0] + rec[1] {
-                t.store[b.cap_local[c as usize].raw() as usize] = MANY;
+                t.state[b.cap_local[c as usize].raw() as usize] = MANY;
             }
             continue;
         }
@@ -268,41 +271,89 @@ pub(crate) fn forward(
         let Some(l) = p.local() else {
             continue;
         };
-        let l = l as usize;
-        if t.store[l] == MANY {
+        if t.state[l as usize] == MANY {
             continue;
         }
-        match b.tags[i] {
-            Tag::Store if p.whole() && t.store[l] == NONE => t.store[l] = u32_of(i),
-            Tag::Read if p.whole() && t.read[l] == NONE => t.read[l] = u32_of(i),
-            _ => t.store[l] = MANY,
+        if p.whole() && matches!(b.tags[i], Tag::Store | Tag::Read) {
+            t.names.push((l, u32_of(i)));
+        } else {
+            t.state[l as usize] = MANY;
         }
     }
-    t.reads_of.clear();
-    t.reads_of.resize(b.len(), (NONE, NONE));
-    for (l, &r) in t.read.iter().enumerate() {
-        if r != NONE && r != MANY {
-            t.reads_of[r as usize] = (u32_of(l), r);
-        }
-    }
-    let mut found = false;
-    for l in 0..n {
-        let (s, r) = (t.store[l], t.read[l]);
-        if s == MANY || s == NONE || r == NONE || r == MANY || r < s {
-            t.store[l] = MANY;
+    // A counted local stored with a value made from its own read
+    // (`s += "x"`, `s = s + t`) keeps its local: the backend changes such
+    // a value in place, appending to the local's unique buffer.
+    for &(l, s) in &t.names {
+        let s = s as usize;
+        if b.tags[s] != Tag::Store || !cx.counted(b.local_ty[l as usize]) {
             continue;
         }
-        let v = b.data[s as usize][1];
-        let typed = Ref(v)
-            .as_inst()
-            .is_some_and(|v| (v.0 as usize) < b.len() && b.ty[v.0 as usize] == b.local_ty[l]);
-        if !typed || !local_read(b, v as usize) {
-            t.store[l] = MANY;
+        let Some(v) = Ref(b.data[s][1]).as_inst().map(|v| v.0 as usize) else {
+            continue;
+        };
+        if v >= b.len() {
             continue;
         }
-        found = true;
+        let mut own_read = false;
+        crate::ir::slots(b, v, |_, x, slot| {
+            own_read |= matches!(slot, crate::ir::Word::Value(_))
+                && (x as usize) < b.len()
+                && b.tags[x as usize] == Tag::Read
+                && b.view(b.data[x as usize][0]).local() == Some(l);
+        });
+        if own_read {
+            t.state[l as usize] = MANY;
+        }
     }
-    if !found {
+    let state = &t.state;
+    t.names.retain(|&(l, _)| state[l as usize] != MANY);
+    // Whether store `s` of local `l` stores an instruction's value of the
+    // local's type that may be forwarded.
+    let forwardable = |b: &Body, s: usize, l: u32| {
+        let v = b.data[s][1];
+        Ref(v).as_inst().is_some_and(|v| {
+            (v.0 as usize) < b.len() && b.ty[v.0 as usize] == b.local_ty[l as usize]
+        }) && local_read(b, v as usize)
+    };
+    if !t
+        .names
+        .iter()
+        .any(|&(l, i)| b.tags[i as usize] == Tag::Store && forwardable(b, i as usize, l))
+    {
+        return Ok(());
+    }
+    topo.build(b);
+    t.names
+        .sort_stable_by_key(|&(l, i)| (l, topo.blk[i as usize], topo.pos[i as usize]));
+    t.to.clear();
+    t.to.resize(b.len(), NONE);
+    t.pairs.clear();
+    for group in t.names.chunk_by(|x, y| x.0 == y.0) {
+        let (l, blk) = (group[0].0, topo.blk[group[0].1 as usize]);
+        if blk == NONE || group.iter().any(|&(_, i)| topo.blk[i as usize] != blk) {
+            continue;
+        }
+        let list = b.record(b.data[blk as usize][0]);
+        for (k, w) in group.windows(2).enumerate() {
+            let (s, r) = (w[0].1 as usize, w[1].1 as usize);
+            let read_again = group
+                .get(k + 2)
+                .is_some_and(|&(_, x)| b.tags[x as usize] == Tag::Read);
+            if b.tags[s] != Tag::Store
+                || b.tags[r] != Tag::Read
+                || read_again
+                || !forwardable(b, s, l)
+            {
+                continue;
+            }
+            let between = &list[topo.pos[s] as usize + 1..topo.pos[r] as usize];
+            if between.iter().all(|&x| plain(b.tags[x as usize])) {
+                t.to[r] = b.data[s][1];
+                t.pairs.push((u32_of(s), u32_of(r)));
+            }
+        }
+    }
+    if t.pairs.is_empty() {
         return Ok(());
     }
     // A read whose value roots another place keeps its local: the borrow
@@ -314,36 +365,10 @@ pub(crate) fn forward(
             _ => continue,
         };
         if let Root::Value(r) | Root::Ptr(r) = p.root
-            && let Some(&(l, _)) = t.reads_of.get(r as usize)
-            && l != NONE
+            && let Some(w) = t.to.get_mut(r as usize)
         {
-            t.store[l as usize] = MANY;
+            *w = NONE;
         }
-    }
-    topo.build(b);
-    t.to.clear();
-    t.to.resize(b.len(), NONE);
-    t.dead.clear();
-    for l in 0..n {
-        let (s, r) = (t.store[l], t.read[l]);
-        if s == MANY {
-            continue;
-        }
-        let (si, ri) = (s as usize, r as usize);
-        let blk = topo.blk[si];
-        if blk == NONE || blk != topo.blk[ri] || topo.pos[ri] <= topo.pos[si] {
-            continue;
-        }
-        let (from, to) = (topo.pos[si] as usize + 1, topo.pos[ri] as usize);
-        let between = &b.record(b.data[blk as usize][0])[from..to];
-        if !between.iter().all(|&x| plain(b.tags[x as usize])) {
-            continue;
-        }
-        t.to[ri] = b.data[si][1];
-        t.dead.push(s);
-    }
-    if t.dead.is_empty() {
-        return Ok(());
     }
     // A read some instruction names other than as a value, a provider or
     // a block's statement keeps its local (a `Hook` observes it).
@@ -360,13 +385,11 @@ pub(crate) fn forward(
             }
         });
     }
-    t.dead.retain(|&s| {
-        let l = b.view(b.data[s as usize][0]).local().unwrap_or(NONE) as usize;
-        t.read.get(l).is_some_and(|&r| t.to[r as usize] != NONE)
-    });
-    for &s in &t.dead.clone() {
-        let l = b.view(b.data[s as usize][0]).local().unwrap_or(NONE) as usize;
-        t.dead.push(t.read[l]);
+    t.dead.clear();
+    for &(s, r) in &t.pairs {
+        if t.to[r as usize] != NONE {
+            t.dead.extend([s, r]);
+        }
     }
     if t.dead.is_empty() {
         return Ok(());

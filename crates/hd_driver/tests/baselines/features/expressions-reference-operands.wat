@@ -198,8 +198,9 @@
     local.get $a
   )
   (func $arith (param $x i32) (param $y i32) (result i64) (local $t1 i64) (local $t0 i32) (local $t2 i64)
-    ;; 13 |     let total = x * 2 + 1
+    ;; 14 |     total += y
     block
+    ;; 13 |     let total = x * 2 + 1
       local.get $x
       call $rt:ref_is_view
       if
@@ -225,8 +226,8 @@
       i64.mul
       i64.const 1
       i64.add
-    ;; 14 |     total += y
       local.set $t1
+    ;; 14 |     total += y
       local.get $y
       call $rt:ref_is_view
       if
@@ -250,7 +251,6 @@
       local.get $t1
       local.get $t2
       i64.add
-    ;; 13 |     let total = x * 2 + 1
       local.set $t1
     end
     local.get $t1
