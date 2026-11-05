@@ -956,6 +956,7 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
     if let Some(c) = m.runtime.and_then(|r| r.checked) {
         m.export("hd.retained", Sym::Inst(c.retained));
         m.export("hd.released", Sym::Inst(c.released));
+        m.export("hd.uniques", Sym::Inst(c.unique_checks));
         #[cfg(feature = "checked-report")]
         {
             m.export("hd.cycles.pointer", Sym::Inst(c.pointer));
@@ -3077,7 +3078,7 @@ fn take_box(m: &Module) -> Func {
     f.u32(HEADER);
     f.op(Instruction::I32Sub);
     f.op(Instruction::LocalTee(block));
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    unique_count(&mut f, m);
     f.i32(1);
     f.op(Instruction::I32Eq);
     f.op(Instruction::If(BlockType::Empty));
@@ -3521,7 +3522,7 @@ fn list_unique(elem: &Elem, m: &Module) -> Func {
     f.get(b);
     f.u32(HEADER);
     f.op(Instruction::I32Sub);
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    unique_count(&mut f, m);
     f.i32(1);
     f.op(Instruction::I32Ne);
     f.op(Instruction::If(BlockType::Empty));
@@ -3621,12 +3622,21 @@ fn list_grow(elem: &Elem, m: &Module) -> Func {
     f
 }
 
+/// Read a count for a sole-owner decision. Unchecked builds emit only
+/// the original load; checked builds count the executed test in std.
+pub(crate) fn unique_count(f: &mut Func, m: &Module) {
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    if let Some(c) = m.runtime.and_then(|r| r.checked) {
+        f.call(Sym::Inst(c.observe_unique));
+    }
+}
+
 /// Pushes whether the buffer in local `b` is the list's own: one holder.
-fn buffer_own(f: &mut Func, b: u32) {
+fn buffer_own(f: &mut Func, b: u32, m: &Module) {
     f.get(b);
     f.u32(HEADER);
     f.op(Instruction::I32Sub);
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    unique_count(f, m);
     f.i32(1);
     f.op(Instruction::I32Eq);
 }
@@ -3648,7 +3658,7 @@ fn list_reserve(elem: &Elem, m: &Module) -> Func {
     f.get(extra);
     f.op(Instruction::I32Add);
     f.set(need);
-    buffer_own(&mut f, b);
+    buffer_own(&mut f, b, m);
     f.set(own);
     f.get(own);
     f.op(Instruction::I32Eqz);
@@ -3740,10 +3750,10 @@ fn list_extend(elem: &Elem, m: &Module) -> Func {
     f.get(src);
     f.get(b);
     f.op(Instruction::I32Eq);
-    buffer_own(&mut f, b);
+    buffer_own(&mut f, b, m);
     f.op(Instruction::I32And);
     f.set(alias);
-    reserve_room(&mut f, elem, b, count);
+    reserve_room(&mut f, elem, b, count, m);
     f.get(alias);
     f.op(Instruction::If(BlockType::Empty));
     f.get(b);
@@ -3786,11 +3796,11 @@ fn list_extend(elem: &Elem, m: &Module) -> Func {
 /// Room for local `extra` more elements in the list in local `b`: the
 /// inline test of a buffer the list owns alone with room left, else
 /// [`Helper::ListReserve`].
-fn reserve_room(f: &mut Func, elem: &Elem, b: u32, extra: u32) {
+fn reserve_room(f: &mut Func, elem: &Elem, b: u32, extra: u32, m: &Module) {
     f.get(b);
     f.u32(HEADER);
     f.op(Instruction::I32Sub);
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    unique_count(f, m);
     f.i32(1);
     f.op(Instruction::I32Ne);
     f.get(b);
@@ -3826,7 +3836,7 @@ fn str_from_bytes(m: &Module) -> Func {
         f.get(b);
         f.u32(HEADER);
         f.op(Instruction::I32Sub);
-        f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+        unique_count(&mut f, m);
         f.i32(1);
         f.op(Instruction::I32Eq);
         f.op(Instruction::If(BlockType::Empty));
@@ -3903,7 +3913,7 @@ fn str_append(m: &Module) -> Func {
         f.get(block);
         f.op(Instruction::If(BlockType::Empty));
         f.get(block);
-        f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+        unique_count(&mut f, m);
         f.i32(1);
         f.op(Instruction::I32Eq);
         f.op(Instruction::If(BlockType::Empty));

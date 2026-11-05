@@ -1,0 +1,26 @@
+# @dump: counts
+# @build: v8 release program
+# The CI gate must detect one additional owner/release per loop iteration.
+use std.annotation.cold
+
+EXTRA := true
+
+@cold
+fn duplicate(value: *string) -> *string:
+    value
+
+@cold
+fn length(value: &string) -> usize:
+    value.len()
+
+pub fn main() -> void $ Console:
+    root := box("owned counter value")
+    let total: usize = 0
+    for _ in 0..1000:
+        if EXTRA:
+            extra := duplicate(root)
+            total += length(extra)
+        else:
+            total += length(root)
+    println(total)
+    println(root.len())

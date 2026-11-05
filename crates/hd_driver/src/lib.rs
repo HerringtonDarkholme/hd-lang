@@ -13599,3 +13599,6 @@ mod main_capability_tests {
 
 #[cfg(test)]
 mod count_audit_tests;
+
+#[cfg(test)]
+mod count_ops_tests;

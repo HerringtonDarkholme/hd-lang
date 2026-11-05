@@ -39,7 +39,7 @@ fn with_default(s: string) -> usize:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : string
->   %1 = DefaultCall [%4653 %16] [%0] : Ref[mut List[string]]
+>   %1 = DefaultCall [%4655 %16] [%0] : Ref[mut List[string]]
 >   %2 = Call app/main/collect[] (%0, %1) : usize
 >   %3 = Drop [%1] : ()
 >   %4 = Block %2 : usize
@@ -81,7 +81,7 @@ fn use_label(s: string) -> string:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : string
->   %1 = DefaultCall [%4654 %16] [%0] : string
+>   %1 = DefaultCall [%4656 %16] [%0] : string
 >   %2 = Call app/main/labeled[] (%0, %1) : string
 >   %3 = Drop [%1] : ()
 >   %4 = Block %2 : string
