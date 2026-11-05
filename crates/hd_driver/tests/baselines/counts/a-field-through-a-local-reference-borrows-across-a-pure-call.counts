@@ -30,6 +30,7 @@ impl Reader:
 >   release &mut app.main.Frame? (last use)
             self.seen = self.seen + 1
             _ := self.frames.pop()
+>   unique List[&mut app.main.Frame] (may be shared)
 
     fn name(&mut self, m: &Member) -> string:
         frame := self.top()

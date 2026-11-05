@@ -6,6 +6,7 @@ This chapter defines the part of `std.ops` that `lib/std` writes in
 ordinary hd over the language tier:
 
 - the `Default` trait;
+- the value movers `replace` and `take`;
 - the standard `Default` implementations, including its tuple template;
 - derived `Default`, through the trait's template, and the `@default`
   variant marker;
@@ -17,9 +18,27 @@ those items by name:
 
 | Item | Why it stays in the language tier |
 | --- | --- |
+| `swap` | a compiler-supplied move body ([Value Move Intrinsics](../lang/10-modules.md#value-move-intrinsics)) |
 | the operator traits, such as `Add` and `Neg` | lang items that operators call ([Operator Traits](../lang/05-expressions.md#operator-traits)) |
 | `NumSuffix`, `StrPrefix`, `Template` | the compiler recognizes them by their qualified names ([Literal Suffixes](../lang/05-expressions.md#literal-suffixes)) |
 | `Range`, `RangeFrom`, `RangeTo`, `RangeFull` | lang items that range expressions build ([Range Expressions](../lang/05-expressions.md#range-expressions)) |
+
+## Value Movers
+
+`replace` and `take` move the value out of a writable place:
+
+| Rule | Declaration | Result |
+| --- | --- | --- |
+| r[std-ops.replace] | `replace[T < ?Copy](place: &mut T, value: T) -> T` | stores `value` and returns the previous value |
+| r[std-ops.take] | `take[T < ?Copy & Default](place: &mut T) -> T` | stores `T::default()` and returns the previous value |
+
+1. r[std-ops.replace.move] `replace` transfers the previous value and its replacement without copying or releasing either value.
+2. r[std-ops.replace.hd] `replace` is ordinary hd over `swap`.
+3. r[std-ops.take.hd] `take` is ordinary hd over `replace`, calling `T::default()` once.
+4. r[std-ops.move.noncopy] Neither mover requires `T` to implement `Copy`.
+
+> **Note.** The compiler supplies only the body of `std.ops.swap`
+> ([Value Move Intrinsics](../lang/10-modules.md#value-move-intrinsics)).
 
 ## Default Trait
 
@@ -35,7 +54,7 @@ fn start() -> (i32, string, bool):
     fresh()
 ```
 
-1. r[std-ops.default.trait] `std.ops` declares `trait Default` with one associated function, `fn default() -> Self`, which returns the type's default value.
+1. r[std-ops.default.any-copyability] `std.ops` declares `trait Default < ?Copy` with one associated function, `fn default() -> Self`, which returns the type's default value.
 2. r[std-ops.default.import] `Default` is not a prelude name, so code imports it, as in `use std.ops.Default`.
 3. r[std-ops.default.call] Generic code calls it through a bound, as in `T::default()`, by [`trait.assoc-call.parameter`](../lang/09-traits.md#r-trait.assoc-call.parameter).
 

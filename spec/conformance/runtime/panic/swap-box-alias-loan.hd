@@ -1,0 +1,6 @@
+# test: swapping aliased mutable places conflicts before moving either value
+use std.ops.swap
+pub fn main() -> void:
+    value := box("value")
+    alias := value
+    swap(value, alias) # panic: borrow-conflict

@@ -4,7 +4,7 @@ Status: standard library specification draft.
 
 This chapter defines the part of `std.option` that `lib/std` writes in
 ordinary hd over the language tier. That is the inherent methods
-`and_then`, `unwrap_or`, `or`, `ok_or`, `is_some`, `is_none`, and `expect`
+`and_then`, `unwrap_or`, `or`, `ok_or`, `is_some`, `is_none`, `expect`, and `take`
 of `T?`.
 
 The language tier keeps what the compiler knows by name
@@ -138,3 +138,9 @@ For an empty list, `first_word` returns an error that displays as `no words`.
 > `Result[T, *dyn Error]` otherwise needs `ok_or` and an error type.
 
 See also: [Result](result.md), [Runtime Panics](../lang/06-control-flow.md#runtime-panics), [Variance](../lang/04-type-system.md#variance).
+
+## Moving The Payload
+
+1. r[std-option.take] `take(&mut self) -> T?` moves out the optional's value and leaves `.None` in its place.
+2. r[std-option.take.noncopy] `take` does not require `T` to implement `Copy`.
+3. r[std-option.take.hd] `take` is ordinary hd over `std.ops.replace(self, .None)`.

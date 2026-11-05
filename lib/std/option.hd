@@ -1,6 +1,7 @@
 # std.option: inherent methods on `T?` (spec/std/option.md).
 # `map` is the std method of spec/std/iter.md#list-and-optional-map.
 use std.annotation.inline
+use std.ops.replace
 
 ## A cursor yielding an optional's payload once, if present.
 ## See [std-iter.option.iterable-cursor](../../spec/std/iter.md#r-std-iter.option.iterable-cursor).
@@ -9,9 +10,7 @@ pub struct OptionIter[T]:
 
 impl[T] Iterator[T] for OptionIter[T]:
     fn next(&mut self) -> T?:
-        value := self.value
-        self.value = .None
-        value
+        self.value.take()
 
 impl[T] Iterable[T] for T?:
     type IntoIter = OptionIter[T]
@@ -19,6 +18,11 @@ impl[T] Iterable[T] for T?:
         OptionIter { value: self }
 
 impl[T < ?Copy] T?:
+    ## Moves out the payload, leaving `.None` in its place.
+    ## See [std-option.take](../../spec/std/option.md#r-std-option.take).
+    pub fn take(&mut self) -> T?:
+        replace(self, .None)
+
     ## `.Some` of `transform(value)` for a `.Some`, and `.None` for a `.None`.
     ## See [std-iter.method.map](../../spec/std/iter.md#r-std-iter.method.map).
     pub fn map[U](self, transform: fn(T) -> U) -> U?:
@@ -90,7 +94,7 @@ impl[T < ?Copy] T?:
             .None => panic(message)
 
 # A copy of the referred-to payload (STDLIB_REFERENCES slice 2).
-impl['a, T](&'a T)?:
+impl['a, T] (&'a T)?:
     ## `.Some` of a copy of the value a `.Some` refers to, and `.None` for a `.None`.
     ## See [std-option.copied](../../spec/std/option.md#r-std-option.copied).
     @inline(.Always)

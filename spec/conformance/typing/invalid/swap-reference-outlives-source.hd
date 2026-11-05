@@ -1,0 +1,15 @@
+# test: swapping reference values preserves the lifetime of both sources
+# Spec 13 Dependent Results, Local Scope: ref.dep.scope.
+use std.ops.swap
+
+struct Point:
+    n: usize
+
+fn escape() -> usize:
+    outer := Point { n: 1 }
+    let mut stored: &Point = &outer
+    if true:
+        inner := Point { n: 2 }
+        let mut shorter: &Point = &inner
+        swap(&mut stored, &mut shorter)
+    stored.n # diagnostic: local-reference-outlives-local

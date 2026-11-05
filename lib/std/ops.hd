@@ -20,6 +20,24 @@ use std.rt.bytes.{panic_with}
 # `Copy` is declared in std.core, which `List` and `Map` name.
 pub use std.core.{Copy}
 
+## Exchanges two values without copying or dropping either value.
+## See [module.move.swap](../../spec/lang/10-modules.md#r-module.move.swap).
+@intrinsic("swap")
+pub fn swap[T < ?Copy](left: &mut T, right: &mut T) -> void:
+    panic("intrinsic")
+
+## Moves `value` into `place` and returns the previous value.
+## See [std-ops.replace](../../spec/std/ops.md#r-std-ops.replace).
+pub fn replace[T < ?Copy](place: &mut T, value: T) -> T:
+    let mut replacement = value
+    swap(place, &mut replacement)
+    replacement
+
+## Replaces `place` with its default and returns the previous value.
+## See [std-ops.take](../../spec/std/ops.md#r-std-ops.take).
+pub fn take[T < ?Copy & Default](place: &mut T) -> T:
+    replace(place, T::default())
+
 # Both markers are typed fact types (r-annot.typed-fact.declare), so a
 # marker on `fn ms(n: i64) -> Millis` checks like
 # `let f: NumSuffix[fn(i64) -> Millis] = num_suffix()`: the signatures below
@@ -177,7 +195,6 @@ pub trait Disposable[$ R = $ ()]:
 ## See [flow.using.async-disposable.row](../../spec/lang/06-control-flow.md#r-flow.using.async-disposable.row).
 pub trait AsyncDisposable[$ R = $ ()]:
     fn dispose!(&mut self) -> void $ R
-
 
 # The compiler-known marker for a value returned by an `@auto_closing`
 # function and registered as cleanup at its call statement.
@@ -676,8 +693,8 @@ impl Add[string] for string:
 # `Default`: a type's default value (spec/std/ops.md#default-trait). It is
 # not a prelude name; code imports it as `use std.ops.Default`.
 ## A type's default value, which `T::default()` returns.
-## See [std-ops.default.trait](../../spec/std/ops.md#r-std-ops.default.trait).
-pub trait Default:
+## See [std-ops.default.any-copyability](../../spec/std/ops.md#r-std-ops.default.any-copyability).
+pub trait Default < ?Copy:
     fn default() -> Self
 
 # The standard implementations (spec/std/ops.md#standard-implementations).
@@ -758,7 +775,7 @@ impl[K < Eq & Hash, V] Default for Map[K, V]:
         {}
 
 # Keep handwritten Default: construct the builtin zero/empty value, which has no derivable declaration.
-impl[T] Default for T?:
+impl[T < ?Copy] Default for T?:
     fn default() -> T?:
         .None
 
@@ -766,7 +783,7 @@ impl[T] Default for T?:
 # each element's default, at every size. A rest element is one `List[T]`
 # member, whose default is empty, so its `T` needs no `Default`
 # (r-std-ops.default.std.rest-any).
-impl[T < Tuple] Default for T by Structure:
+impl[T < ?Copy & Tuple] Default for T by Structure:
     fn default() -> T:
         let mut s = DefaultSource::[T] { at: 0 }
         match T::build(&mut s):
@@ -779,7 +796,7 @@ impl[T < Tuple] Default for T by Structure:
 # marked `@default`
 # (r-std-ops.default.derive.enum). The compiler checks that a derived enum
 # marks exactly one variant (r-std-ops.default.derive.one-variant).
-impl[T] Default for T by Structure:
+impl[T < ?Copy] Default for T by Structure:
     fn default() -> T:
         let mut s = DefaultSource::[T] { at: 0 }
         match T::build(&mut s):
@@ -807,11 +824,11 @@ pub fn default() -> DefaultVariant:
 # r-std-ops.default.derive.member-bound.declared). The field is public
 # because the prototype checks the instantiated source in the program
 # that uses it.
-struct DefaultSource[S]:
+struct DefaultSource[S < ?Copy]:
     pub at: usize
 
 @fills_defaults()
-impl[S] Source[S] for DefaultSource[S]:
+impl[S < ?Copy] Source[S] for DefaultSource[S]:
     type Error = never
 
     # A tuple or a data type offers one choice. An enum's choice is the
@@ -830,7 +847,7 @@ impl[S] Source[S] for DefaultSource[S]:
         self.at = self.at + 1
         .Ok(members.at(info.position))
 
-    fn member[F < Default](&mut self, h: Field[S, F], previous: F?) -> Result[F, never]:
+    fn member[F < ?Copy & Default](&mut self, h: Field[S, F], previous: F?) -> Result[F, never]:
         .Ok(F::default())
 
     fn missing[F](&mut self, h: Field[S, F]) -> Result[F, never]:

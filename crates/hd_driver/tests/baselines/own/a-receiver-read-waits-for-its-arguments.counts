@@ -24,9 +24,10 @@ impl Members:
 
     fn pop(&mut self) -> usize:
         match self.infos.pop():
+> app/main/impl Members.pop
+>   unique List[app.main.Info] (may be shared)
             .Some(info) => info.position
             .None => 0
-> app/main/impl Members.pop
 >   (no span) release app.main.Info? (last use)
 
 fn by_value(m: Members, i: usize) -> usize:

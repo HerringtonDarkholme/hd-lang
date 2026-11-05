@@ -50,6 +50,7 @@ mod iter;
 mod list;
 mod loan;
 mod map;
+mod movers;
 mod promote;
 pub use promote::{lent_referent, promotable_referent, rooted_referent};
 mod refs;
@@ -2904,6 +2905,9 @@ impl Em<'_, '_, '_> {
 
     fn intrinsic(&mut self, i: u32, key: &str, args: &[u32]) -> StageResult<()> {
         match key {
+            "swap" => self.swap_refs(args),
+            "list_swap" => self.list_swap(args),
+            "list_take_last" => self.list_take_last(i, args[0]),
             "descriptor_glue_mask" => {
                 self.f.u32(if self.m.uses_weak || self.m.open_world {
                     WEAK_GLUE

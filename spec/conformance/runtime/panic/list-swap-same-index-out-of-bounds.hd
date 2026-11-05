@@ -1,0 +1,4 @@
+# test: a same-index swap still checks the index
+pub fn main() -> void:
+    let mut items: List[string] = []
+    items.swap(0, 0) # panic: index-out-of-bounds

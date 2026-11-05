@@ -1,0 +1,24 @@
+# @dump: own counts wat
+# @build: v8 release program
+# expected: a view moves its value through its getter and setter;
+# the physical alternative exchanges the original leaves without copying.
+use std.annotation.inline
+use std.ops.swap
+
+struct Item:
+    name: string
+
+impl !Copy for Item
+
+@inline(.Never)
+fn exchange(left: &mut Item, right: &mut Item) -> void:
+    # subject
+    swap(left, right)
+
+pub fn main() -> void $ Console:
+    let mut wrapped: Item? = .Some(Item { name: "view" })
+    let mut other = Item { name: "physical" }
+    match wrapped.as_mut():
+        .Some(value) => exchange(value, &mut other)
+        .None => panic("missing item")
+    println(other.name)

@@ -1,0 +1,46 @@
+# test: generic swap moves narrow, wide and counted leaves through different representations
+use std.ops.swap
+use std.testing.assert_equal
+
+fn exchange[T < ?Copy](left: &mut T, right: &mut T) -> void:
+    swap(left, right)
+
+struct Item:
+    tag: u8
+    weight: f64
+    name: string
+    count: i64
+    enabled: bool
+
+impl !Copy for Item
+
+pub fn main() -> void:
+    let mut left = Item { tag: 1u8, weight: 1.5, name: "left", count: 7i64, enabled: true }
+    let mut right = Item { tag: 2u8, weight: 2.5, name: "right", count: 9i64, enabled: false }
+    exchange(&mut left, &mut right)
+    assert_equal(left.tag, 2u8)
+    assert_equal(left.weight, 2.5)
+    assert_equal(left.name, "right")
+    assert_equal(left.count, 9i64)
+    assert_equal(left.enabled, false)
+    assert_equal(right.tag, 1u8)
+    assert_equal(right.weight, 1.5)
+    assert_equal(right.name, "left")
+    assert_equal(right.count, 7i64)
+    assert_equal(right.enabled, true)
+    let mut first = [1, 2]
+    let mut second = [3, 4]
+    before := first
+    exchange(&mut first, &mut second)
+    assert_equal(first, [3, 4])
+    assert_equal(second, [1, 2])
+    second.push(5)
+    assert_equal(before, [1, 2])
+    let mut wrapped: Item? = .Some(left)
+    match wrapped.as_mut():
+        .Some(value) => exchange(value, &mut right)
+        .None => panic("missing value")
+    assert_equal(right.name, "right")
+    match wrapped:
+        .Some(value) => assert_equal(value.name, "left")
+        .None => panic("lost value")

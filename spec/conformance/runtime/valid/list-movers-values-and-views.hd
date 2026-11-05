@@ -1,0 +1,41 @@
+# test: list movers values and views
+use std.testing.assert_equal
+
+struct Part:
+    name: string
+    values: List[usize]
+
+fn label(prefix: string, number: usize) -> string:
+    "$prefix-$number"
+
+pub fn main() -> void:
+    let mut items = [
+        Part { name: label("first", 1), values: [1, 2] },
+        Part { name: label("second", 2), values: [3, 4] },
+    ]
+    before := items
+    items.swap(0, 1)
+    assert_equal(items[0].name, "second-2")
+    assert_equal(before[0].name, "first-1")
+    items.swap(0, 0)
+    popped := items.pop().expect("last item")
+    assert_equal(popped.name, "first-1")
+    assert_equal(popped.values, [1, 2])
+    assert_equal(items.len(), 1)
+    assert_equal(before.len(), 2)
+    _ := items.pop()
+    assert_equal(items.pop().is_none(), true)
+    let mut wrapped: List[string]? = .Some([label("left", 1), label("right", 2)])
+    snapshot := wrapped
+    match wrapped.as_mut():
+        .Some(values) =>
+            values.swap(0, 1)
+            assert_equal(values.pop(), .Some("left-1"))
+            assert_equal(values.len(), 1)
+        .None => panic("missing list")
+    match snapshot:
+        .Some(values) => assert_equal(values, ["left-1", "right-2"])
+        .None => panic("missing snapshot")
+    let mut units = [(), ()]
+    assert_equal(units.pop(), .Some(()))
+    assert_equal(units.len(), 1)

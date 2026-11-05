@@ -1,0 +1,14 @@
+# @dump: own counts wat
+# @build: v8 release std
+# expected: load and store both complete values without a retain, release or copy.
+use std.ops.swap
+
+struct Item:
+    name: string
+    value: usize
+
+impl !Copy for Item
+
+fn exchange(left: &mut Item, right: &mut Item) -> void:
+    # subject
+    swap(left, right)

@@ -1,0 +1,13 @@
+# @dump: own counts wat
+# @build: v8 release program
+# expected: move the last string out; no retain or release of that string.
+use std.annotation.inline
+
+@inline(.Never)
+fn pop(items: &mut List[string]) -> string?:
+    # subject
+    items.pop()
+
+pub fn main() -> void:
+    let mut items = ["value-${1}"]
+    _ := pop(&mut items)

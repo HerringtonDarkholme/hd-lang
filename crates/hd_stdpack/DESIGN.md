@@ -72,6 +72,9 @@ others are private to the one module that calls them.
 | `char_scalar` | `(value: char) -> u32`, in `rt/bytes.hd` | compiler |
 | `char_from_scalar` | `(point: u32) -> char?`, in `rt/bytes.hd` | compiler |
 | `format_int` | `[N < Integer](value: N) -> string`, in `format.hd`; the runtime's `IntToStr` helper | compiler |
+| `swap` | `[T < ?Copy](left: &mut T, right: &mut T) -> void`, public in `ops.hd` | compiler |
+| `list_swap` | `[T](items: &mut List[T], left: usize, right: usize) -> void`, private in `collections.hd` | compiler |
+| `list_take_last` | `[T](items: &mut List[T]) -> T`, private in `collections.hd`; the caller checks nonemptiness | compiler |
 | `list_truncate` | `[T](items: &mut List[T], len: usize) -> void`, in `collections.hd` | compiler |
 | `list_extend` | `[T](items: &mut List[T], other: List[T]) -> void`, in `collections.hd`; `other` is lent | compiler |
 | `list_reserve` | `[T](items: &mut List[T], count: usize) -> void`, in `text.hd`, under `StringBuilder.reserve`; the runtime's one reserve routine, which `list_extend` and `bytes_append` call too | compiler |
@@ -99,8 +102,8 @@ others are private to the one module that calls them.
 | `Index.index` on `List`, `Map`, `string`; `IndexSet.index_set` on `List`, `Map` | `ops.hd`; each body is the built-in indexing (`self[key]`) | built-in indexing, with its panics |
 | `List.len`, `List.push`, `List.iter`, `Map.len`, `Map.get`, `Map.remove`, `Map.iter` | no declaration; `hd_check` `builtin_method` | `IntrinsicOp` |
 
-Every other `List` mutator is hd over `push`, `list_truncate` and
-`list_extend`; string
+Every other `List` mutator is hd over `push`, `list_swap`,
+`list_take_last`, `list_truncate` and `list_extend`; string
 methods and `Display.to_string` are hd over the `bytes_*` primitives and
 ordinary impls. Earlier designs made these compiler-supplied; keeping them
 in hd shrinks the compiler to a few kernels and lets a program that never

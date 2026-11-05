@@ -2877,7 +2877,7 @@ runtime/valid/spread-pattern.hd	runtime	accept	lang/06-control-flow.md#r-flow.ma
 typing/invalid/spread-pattern-fixed-tuple.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.match.spread.fixed-tuple
 typing/invalid/spread-pattern-required.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.match.spread.required
 typing/invalid/spread-pattern-arity.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.match.spread.arity
-typing/valid/default-trait.hd	type	accept	std/ops.md#r-std-ops.default.trait
+typing/valid/default-trait.hd	type	accept	std/ops.md#r-std-ops.default.any-copyability
 runtime/valid/default-standard-types.hd	runtime	accept	std/ops.md#standard-implementations
 runtime/valid/default-tuple-rest.hd	runtime	accept	std/ops.md#r-std-ops.default.std.tuple.rest-empty
 typing/invalid/default-tuple-element-without-default.hd	type	reject:unsatisfied-trait-bound	std/ops.md#r-std-ops.default.std.missing-element
@@ -5323,6 +5323,7 @@ typing/invalid/local-reference-escapes-bound-method-result.hd	type	reject:local-
 runtime/valid/dependent-result-caller-side.hd	runtime	accept	lang/13-values-and-references.md#r-ref.dep.caller
 runtime/valid/dependent-result-temporary.hd	runtime	accept	lang/13-values-and-references.md#r-ref.dep.temporary
 typing/invalid/local-reference-outlives-block.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.scope
+typing/invalid/swap-reference-outlives-source.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.scope
 typing/invalid/element-reference-outlives-list-scope.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.scope
 typing/invalid/local-reference-outlives-loop.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.scope.loop
 typing/invalid/local-reference-outlives-loop-before-declaration.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.scope.loop
@@ -5887,6 +5888,15 @@ runtime/valid/interpolation-measured-values.hd	runtime	accept	lang/05-expression
 runtime/valid/display-write-noncopy.hd	runtime	accept	lang/09-traits.md#r-trait.read.noncopy
 runtime/valid/read-traits-noncopy.hd	runtime	accept	std/cmp.md#r-std-cmp.derive.eq.template
 runtime/valid/projected-view-binding-keeps-owner.hd	runtime	accept	lang/13-values-and-references.md#r-ref.match.borrow
+runtime/valid/ops-movers-noncopy-manual.hd	runtime	accept	std/ops.md#value-movers
+runtime/valid/ops-movers-references.hd	runtime	accept	std/ops.md#value-movers
+runtime/valid/default-move-only-derive.hd	runtime	accept	std/ops.md#default-trait
+runtime/valid/list-movers-values-and-views.hd	runtime	accept	std/collections.md#list-helpers
+runtime/valid/swap-function-value.hd	runtime	accept	lang/10-modules.md#value-move-intrinsics
+runtime/valid/ops-movers-unique-resources.hd	runtime	accept	std/ops.md#value-movers
+runtime/panic/list-swap-same-index-out-of-bounds.hd	runtime	panic:index-out-of-bounds	lang/10-modules.md#value-move-intrinsics
+runtime/panic/swap-box-alias-loan.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases
+runtime/valid/swap-generic-value-layouts.hd	runtime	accept	std/ops.md#value-movers
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

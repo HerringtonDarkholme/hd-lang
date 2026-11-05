@@ -1,0 +1,19 @@
+# test: swap function value
+use std.ops.swap
+use std.annotation.inline
+use std.testing.assert_equal
+
+@inline(.Never)
+fn apply(
+    left: &mut string,
+    right: &mut string,
+    exchange: fn(&mut string, &mut string) -> void,
+) -> void:
+    exchange(left, right)
+
+pub fn main() -> void:
+    let mut left = "left"
+    let mut right = "right"
+    apply(&mut left, &mut right, swap)
+    assert_equal(left, "right")
+    assert_equal(right, "left")

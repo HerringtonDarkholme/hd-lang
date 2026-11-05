@@ -658,9 +658,8 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   place, a body's intrinsics and its thunks'
   check no uniqueness themselves: an element store, `MapSet` and
   `MapRemove` skip it, and `ListPush` only moves a full
-  buffer (`rt:list_grow`). One check stays: std's `list_truncate` (`pop`,
-  `insert`, ...) changes the list behind its reference, where no pass
-  sees the change. A hoisted `IsUnique` (docs/compiler/tir-v2.md,
+  buffer (`rt:list_grow`). Body-only list movers and `list_truncate` check uniqueness behind
+  their reference, where no pass sees the change. A hoisted `IsUnique` (docs/compiler/tir-v2.md,
   "Hoisting") waits for the loop that follows it (`Em::hoisted`) and runs
   once before it under the loop's entry test: the statements before the
   test, which the pass found pure, run once more, then the test
@@ -1020,14 +1019,23 @@ Trait values and vtables use `emit/dyn_value.rs`; map cursor closures use
   constructing nor stepping it needs a closure. `Map.iter()`'s
   `MapEntries` uses `map_steps`: its step closure keeps the map's table
   and its written entry count at creation, while the cursor keeps its own
-  position. `list_truncate`, used by `pop`, `insert`, `remove_at` and
-  `clear`, reads the list through its reference, truncates it, and stores
-  the buffer back, through a view's setter for a representation view.
+  position. `list_take_last` moves the last slot to `pop` or
+  `remove_at`; `list_swap` exchanges slots for insertions, removals and
+  heap sifts. These bodies make a shared list unique and restore its
+  header, through a setter for a representation view. `list_truncate`
+  releases a removed suffix for `clear`, `truncate` and `retain`.
 - **Bounded memory.** `crates/hd_driver/tests/std_rt/closure_tests.hd`
   calls function references and closures, shares a local between a scope
   and its closures, dispatches through boxed and widened trait values,
   and makes closures and trait values in a loop, checking that the heap
   does not grow after a warm-up.
+
+Value movers live in `emit/movers.rs`. A physical `std.ops.swap`
+exchanges leaves directly; a view moves its value through the existing
+getter/setter ABI. Neither path copies the moved values. List movers take
+a view's original header before uniqueness rather than retaining it,
+so a unique table stays unique. `list_take_last` transfers ownership of
+its last slot by shortening the list without releasing that slot.
 
 ### 23.20 Reference Addresses And Typed Views
 
@@ -1525,9 +1533,11 @@ Trait values and vtables use `emit/dyn_value.rs`; map cursor closures use
   constructing nor stepping it needs a closure. `Map.iter()`'s
   `MapEntries` uses `map_steps`: its step closure keeps the map's table
   and its written entry count at creation, while the cursor keeps its own
-  position. `list_truncate`, used by `pop`, `insert`, `remove_at` and
-  `clear`, reads the list through its reference, truncates it, and stores
-  the buffer back, through a view's setter for a representation view.
+  position. `list_take_last` moves the last slot to `pop` or
+  `remove_at`; `list_swap` exchanges slots for insertions, removals and
+  heap sifts. These bodies make a shared list unique and restore its
+  header, through a setter for a representation view. `list_truncate`
+  releases a removed suffix for `clear`, `truncate` and `retain`.
 - **Bounded memory.** `crates/hd_driver/tests/std_rt/closure_tests.hd`
   calls function references and closures, shares a local between a scope
   and its closures, dispatches through boxed and widened trait values,

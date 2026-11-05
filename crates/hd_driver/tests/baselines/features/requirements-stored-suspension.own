@@ -149,7 +149,7 @@ fn bound!(s: string) -> usize:
 >   %12 = Drop [%8] : ()
 >   %13 = Coerce %11 [RefAsProvider -] : Tag
 >   %14 = Drop [%11] : ()
->   %17 = With [%5965 %13] %16 : mut Suspend[usize]
+>   %17 = With [%5979 %13] %16 : mut Suspend[usize]
 >   %18 = Drop [%13] : ()
 >   %19 = Drop [$3] : ()
 >   %20 = Store [$1] %17 : ()

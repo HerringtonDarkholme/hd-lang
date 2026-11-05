@@ -1,5 +1,5 @@
 # test: generic code builds a value through the std Default trait, as T::default()
-# Spec std/ops Default Trait: std-ops.default.trait (owner decision Q6-default, batch 35, 2026-10-01).
+# Spec std/ops Default Trait: std-ops.default.any-copyability (owner decision Q6-default, batch 35, 2026-10-01).
 use std.ops.Default
 
 fn fresh[T < Default]() -> T:

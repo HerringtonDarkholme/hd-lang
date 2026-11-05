@@ -1,0 +1,24 @@
+# test: swapping and taking uniquely owned collections preserves every resource
+use std.collections.UniqList
+use std.ops.{replace, swap, take}
+use std.testing.assert_equal
+
+pub fn main() -> void:
+    let mut first: UniqList[string] = UniqList::new()
+    first.push("first")
+    let mut second: UniqList[string] = UniqList::new()
+    second.push("second")
+    swap(&mut first, &mut second)
+    assert_equal(first.get(0), .Some("second"))
+    assert_equal(second.get(0), .Some("first"))
+    old := replace(&mut first, UniqList::new())
+    assert_equal(first.len(), 0)
+    let mut wrapped: UniqList[string]? = .Some(old)
+    match wrapped.as_mut():
+        .Some(items) => swap(items, &mut second)
+        .None => panic("missing unique list")
+    assert_equal(second.get(0), .Some("second"))
+    match take(&mut wrapped):
+        .Some(items) => assert_equal(items.get(0), .Some("first"))
+        .None => panic("lost unique list")
+    assert_equal(wrapped.is_none(), true)

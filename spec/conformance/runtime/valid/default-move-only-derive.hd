@@ -1,0 +1,46 @@
+# test: default move only derive
+use std.ops.{Default, take}
+use std.collections.UniqList
+use std.testing.assert_equal
+
+@derive(Default)
+struct Leaf:
+    name: string
+
+impl !Copy for Leaf
+
+@derive(Default)
+struct Outer:
+    leaf: Leaf
+    tag: usize
+
+impl !Copy for Outer
+
+@derive(Default)
+struct Owner:
+    items: UniqList[string] = UniqList::new()
+
+impl !Copy for Owner
+
+pub fn main() -> void:
+    let mut manual = Outer { leaf: Leaf { name: "kept" }, tag: 7 }
+    old := take(&mut manual)
+    assert_equal(old.leaf.name, "kept")
+    assert_equal(old.tag, 7)
+    assert_equal(manual.leaf.name, "")
+    assert_equal(manual.tag, 0)
+    let mut optional: Leaf? = .Some(Leaf { name: "optional" })
+    match take(&mut optional):
+        .Some(value) => assert_equal(value.name, "optional")
+        .None => panic("missing old optional")
+    assert_equal(optional.is_none(), true)
+    let mut pair = (Leaf { name: "tuple" }, 4)
+    previous := take(&mut pair)
+    assert_equal(previous._0.name, "tuple")
+    assert_equal(pair._0.name, "")
+    assert_equal(pair._1, 0)
+    let mut owner = Owner::default()
+    owner.items.push("owned")
+    previous_owner := take(&mut owner)
+    assert_equal(previous_owner.items.get(0), .Some("owned"))
+    assert_equal(owner.items.len(), 0)

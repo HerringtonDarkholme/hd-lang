@@ -42,26 +42,44 @@ impl Members:
 > app/main/impl Members.pop
 >   local $0 self: Ref[mut Members] [param read]
 >   local $1 info: Info [read assigned]
+>   local $2 self: Ref[mut List[Info]] [read]
+>   local $3 size: usize [:= read assigned]
 >   %0 = Ref lent mut local [*$0 .infos] : Ref[mut List[Info]]
->   %1 = Call std/collections/impl [ T ] List [ T ].pop[Info] (%0) : Info?
->   %2 = Drop [%0] : ()
->   %17 = Block - : never
->   %18 = Match %1 [%17 %4 %5] : usize
->   %19 = Drop [%1] : ()
->   %20 = Block %18 : usize
+>   %1 = Store [$2] %0 : ()
+>   %2 = Read borrow [*$2] : List[Info]
+>   %3 = Intrinsic ListLen [%2] : usize
+>   %4 = Drop [%2] : ()
+>   %5 = Store [$3] %3 : ()
+>   %6 = Read copy [$3] : usize
+>   %7 = Prim Eq [%6 0:usize] : bool
+>   %8 = NewVariant #0 [] : Info?
+>   %9 = Break L0 %8 : never
+>   %10 = Block - : never
+>   %11 = If %7 [%10 -] : ()
+>   %12 = Read borrow [$2] : Ref[mut List[Info]]
+>   %13 = Call std/collections/list_take_last[Info] (%12) : Info
+>   %14 = NewVariant #1 [%13] : Info?
+>   %15 = Break L0 %14 : never
+>   %16 = Block - : Info?
+>   %17 = Scope %16 [] : Info?
+>   %18 = Drop [$2] : ()
+>   %33 = Block - : never
+>   %34 = Match %17 [%33 %20 %21] : usize
+>   %35 = Drop [%17] : ()
+>   %36 = Block %34 : usize
             .Some(info) => info.position
->   %3 = Read copy [$1 .position] : usize
->   %4 = Block %3 : usize
->   %6 = Read borrow [%1 as #1 .0] : Info
->   %7 = Store [$1] %6 : ()
->   %9 = Block - : never
->   %15 = Block - : never
->   %16 = SwitchTag %1 [#1 %9 %15] : never
+>   %19 = Read copy [$1 .position] : usize
+>   %20 = Block %19 : usize
+>   %22 = Read borrow [%17 as #1 .0] : Info
+>   %23 = Store [$1] %22 : ()
+>   %25 = Block - : never
+>   %31 = Block - : never
+>   %32 = SwitchTag %17 [#1 %25 %31] : never
             .None => 0
->   %5 = Block 0:usize : usize
->   %11 = Block - : never
->   %13 = Block - : never
->   %14 = SwitchTag %1 [#0 %11 %13] : never
+>   %21 = Block 0:usize : usize
+>   %27 = Block - : never
+>   %29 = Block - : never
+>   %30 = SwitchTag %17 [#0 %27 %29] : never
 
 fn by_value(m: Members, i: usize) -> usize:
     m.at(m.infos[i].position)

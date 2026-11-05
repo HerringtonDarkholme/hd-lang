@@ -1662,6 +1662,28 @@ builds on. It uses no other module, so every std folder may use it.
 > `List` depends on them. With the traits in `std.core`, a std module that
 > needs only the core names never depends on the rest of std.
 
+## Value Move Intrinsics
+
+These ordinary std declarations have compiler-supplied bodies:
+
+| Rule | Declaration | Visibility |
+| --- | --- | --- |
+| r[module.move.swap.decl] | `swap[T < ?Copy](left: &mut T, right: &mut T) -> void` | public in `std.ops` |
+| r[module.move.list-swap.decl] | `list_swap[T](items: &mut List[T], left: usize, right: usize) -> void` | private in `std.collections` |
+| r[module.move.list-take-last.decl] | `list_take_last[T](items: &mut List[T]) -> T` | private in `std.collections` |
+
+1. r[module.move.swap] `swap` exchanges the two referred-to values without copying or releasing either value.
+2. r[module.move.swap.noncopy] `swap` does not require `T` to implement `Copy`.
+3. r[module.move.list-swap] `list_swap` exchanges the two indexed elements without copying or releasing either element.
+4. r[module.move.list-swap.bounds] An index outside the list's length causes `index-out-of-bounds`, including when both indices are equal. Panic: `index-out-of-bounds`.
+5. r[module.move.list-take-last] Given a nonempty list, `list_take_last` moves out its last element and decreases its length by one.
+6. r[module.move.list-take-last.precondition] Each caller of `list_take_last` checks that the list is nonempty.
+7. r[module.move.list.shared] A list mover preserves other copies of the list through the ordinary copy-on-write rules.
+8. r[module.move.body-only] Each declaration uses `@intrinsic`, and the compiler supplies only its body.
+
+> **Why.** Ordinary reads copy. These three bodies transfer ownership,
+> so std can express its other movers without reading a value out by copy.
+
 ## Runtime Modules
 
 The **runtime modules** hold the standard library's own runtime: the code

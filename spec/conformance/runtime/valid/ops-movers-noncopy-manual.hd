@@ -1,0 +1,37 @@
+# test: ops movers noncopy manual
+use std.ops.{Default, replace, swap, take}
+use std.testing.assert_equal
+
+struct Item:
+    name: string
+
+impl !Copy for Item
+
+impl Default for Item:
+    fn default() -> Item:
+        Item { name: "empty" }
+
+pub fn main() -> void:
+    let mut first = Item { name: "first" }
+    let mut second = Item { name: "second" }
+    swap(&mut first, &mut second)
+    assert_equal(first.name, "second")
+    assert_equal(second.name, "first")
+    previous := replace(&mut first, Item { name: "replacement" })
+    assert_equal(previous.name, "second")
+    let mut wrapped: Item? = .Some(previous)
+    match wrapped.take():
+        .Some(value) => assert_equal(value.name, "second")
+        .None => panic("missing item")
+    assert_equal(wrapped.is_none(), true)
+    removed := take(&mut first)
+    assert_equal(removed.name, "replacement")
+    assert_equal(first.name, "empty")
+    let mut projected: Item? = .Some(Item { name: "view" })
+    match projected.as_mut():
+        .Some(value) => swap(value, &mut second)
+        .None => panic("missing projected item")
+    assert_equal(second.name, "view")
+    match projected:
+        .Some(value) => assert_equal(value.name, "first")
+        .None => panic("lost projected item")
