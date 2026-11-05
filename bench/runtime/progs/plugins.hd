@@ -1,0 +1,70 @@
+# Plugin visitors: recursive tree walking through read-only and mutable local trait values.
+struct Node:
+    value: i64
+    children: List[*Node]
+
+trait Score:
+    fn value(&self, value: i64, depth: usize) -> i64
+
+struct Linear:
+    multiplier: i64
+
+impl Score for Linear:
+    fn value(&self, value: i64, depth: usize) -> i64:
+        value * self.multiplier + i64(depth)
+
+struct DepthBias:
+    bias: i64
+
+impl Score for DepthBias:
+    fn value(&self, value: i64, depth: usize) -> i64:
+        value + i64(depth) * self.bias
+
+trait Sink:
+    fn emit(&mut self, value: i64, depth: usize) -> void
+
+struct Totals:
+    total: i64
+    count: usize
+
+impl Sink for Totals:
+    fn emit(&mut self, value: i64, depth: usize) -> void:
+        self.total += value
+        self.count += 1
+
+struct Histogram:
+    buckets: List[i64]
+    count: usize
+
+impl Sink for Histogram:
+    fn emit(&mut self, value: i64, depth: usize) -> void:
+        self.buckets[depth % self.buckets.len()] += value
+        self.count += 1
+
+fn tree(depth: usize, seed: i64) -> *Node:
+    let mut children: List[*Node] = []
+    if depth > 0:
+        for branch in 0..3:
+            children.push(tree(depth - 1, seed * 3 + i64(branch) + 1))
+    box(Node { value: seed % 97, children: children })
+
+fn walk(node: &Node, score: &dyn Score, sink: &mut dyn Sink, depth: usize) -> void:
+    sink.emit(score.value(node.value, depth), depth)
+    for child in &node.children:
+        walk(*child, score, sink, depth + 1)
+
+pub fn main() -> void $ Console:
+    root := tree(6, 1)
+    linear := Linear { multiplier: 3 }
+    biased := DepthBias { bias: 7 }
+    let mut totals = Totals { total: 0, count: 0 }
+    let mut histogram = Histogram { buckets: [0, 0, 0, 0], count: 0 }
+    for round in 0..15000:
+        if round % 2 == 0:
+            walk(root, &linear, &mut totals, 0)
+        else:
+            walk(root, &biased, &mut histogram, 0)
+    let bucket_total: i64 = 0
+    for value in histogram.buckets:
+        bucket_total += value
+    println("${totals.total} $bucket_total ${totals.count + histogram.count}")

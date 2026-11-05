@@ -1,0 +1,43 @@
+# Inventory transactions: nested List/Map records, spread updates, and mutable helpers.
+struct Item:
+    sku: i32
+    quantity: i64
+    batches: List[i64]
+    depots: Map[string, i64]
+    revision: usize
+
+fn receive(item: &mut Item, depot: string, delta: i64) -> void:
+    item.quantity += delta
+    item.depots[depot] = item.depots.get(depot).unwrap_or(0) + delta
+    item.batches[item.revision % item.batches.len()] += delta
+
+pub fn main() -> void $ Console:
+    let mut items: List[Item] = []
+    for sku in 0..256:
+        items.push(
+            Item {
+                sku: i32(sku),
+                quantity: 1000,
+                batches: [0, 0, 0, 0],
+                depots: { "east": 250, "west": 250, "north": 250, "south": 250 },
+                revision: 0,
+            },
+        )
+    names := ["east", "west", "north", "south"]
+    for step in 0..3200000:
+        index := (step * 73) % items.len()
+        previous := items[index]
+        items[index] = Item { ...previous, revision: previous.revision + 1 }
+        receive(&mut items[index], names[(step / 11) % names.len()], i64(step % 9) - 4)
+    let quantity: i64 = 0
+    let depot_total: i64 = 0
+    let lot_total: i64 = 0
+    let revisions: usize = 0
+    for item in items:
+        quantity += item.quantity
+        revisions += item.revision
+        for name in names:
+            depot_total += item.depots.get(name).expect("known depot")
+        for amount in item.batches:
+            lot_total += amount
+    println("$quantity $depot_total $lot_total $revisions")

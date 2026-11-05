@@ -1,0 +1,56 @@
+# Log analysis: split lines/fields, parse i32s, classify chars, aggregate Map records, sort a report.
+use std.text.StringBuilder
+use std.iter.{Iterable, Iterator}
+
+struct Stats:
+    count: usize
+    total: i64
+    errors: usize
+    letters: usize
+    last: i32
+
+fn record(stats: &mut Stats, timestamp: i32, level: string, amount: i32) -> void:
+    stats.count += 1
+    stats.total += i64(amount)
+    stats.last = timestamp
+    if level == "ERROR":
+        stats.errors += 1
+    for c in level.chars():
+        if c.is_alphabetic():
+            stats.letters += 1
+
+pub fn main() -> void $ Console:
+    let mut names: List[string] = []
+    for index in 0..32:
+        names.push("tenant$index")
+    input := StringBuilder::new()
+    for row in 0..180000:
+        level := if row % 29 == 0: "ERROR" else if row % 7 == 0: "WARN" else: "INFO"
+        input.push(
+            "${row % 86400} ${names[row % names.len()]} $level ${i32((row * 17) % 10000) - 5000}\n",
+        )
+    text := input.build()
+    let mut aggregates: Map[string, Stats] = {}
+    for _ in 0..4:
+        for line in text.lines():
+            fields := line.split(" ")
+            timestamp := fields[0].parse::[i32]().expect("timestamp")
+            amount := fields[3].parse::[i32]().expect("amount")
+            record(
+                aggregates.get_or_insert(
+                    fields[1],
+                    Stats { count: 0, total: 0, errors: 0, letters: 0, last: 0 },
+                ),
+                timestamp,
+                fields[2],
+                amount,
+            )
+    let mut keys = aggregates.keys()
+    keys.sort()
+    report := StringBuilder::new()
+    for key in keys:
+        stats := aggregates.get(key).expect("report key")
+        report.push(
+            "$key:${stats.count}:${stats.total}:${stats.errors}:${stats.letters}:${stats.last};",
+        )
+    println(report.build())

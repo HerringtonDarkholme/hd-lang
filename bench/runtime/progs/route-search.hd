@@ -1,0 +1,69 @@
+# Weighted grid routing: Heap Dijkstra, Deque breadth-first search, and Set visitation.
+use std.collections.{Heap, Deque, Set}
+
+fn neighbors(node: usize, width: usize) -> List[usize]:
+    let mut result: List[usize] = []
+    if node % width > 0:
+        result.push(node - 1)
+    if node % width + 1 < width:
+        result.push(node + 1)
+    if node >= width:
+        result.push(node - width)
+    if node + width < width * width:
+        result.push(node + width)
+    result
+
+fn dijkstra(width: usize) -> (i64, usize):
+    let mut distance: List[i64] = []
+    for _ in 0..width * width:
+        distance.push(1000000000)
+    distance[0] = 0
+    let mut pending = Heap::[(i64, usize)].new()
+    pending.push((0, 0))
+    let mut visited = Set::[usize].new()
+    let total: i64 = 0
+    while !pending.is_empty():
+        entry := pending.pop().expect("pending route")
+        node := entry._1
+        if visited.contains(node):
+            continue
+        _ := visited.insert(node)
+        total -= entry._0
+        for next in neighbors(node, width):
+            cost := distance[node] + 1 + i64((node * 17 + next * 31) % 9)
+            if cost < distance[next]:
+                distance[next] = cost
+                pending.push((-cost, next))
+    (total, visited.len())
+
+fn breadth_first(width: usize) -> (i64, usize):
+    let mut distance: List[i64] = []
+    for _ in 0..width * width:
+        distance.push(0)
+    let mut pending = Deque::[usize].new()
+    pending.push_back(0)
+    let mut visited = Set::[usize].new()
+    _ := visited.insert(0)
+    let total: i64 = 0
+    while !pending.is_empty():
+        node := pending.pop_front().expect("pending cell")
+        total += distance[node]
+        for next in neighbors(node, width):
+            if !visited.contains(next):
+                _ := visited.insert(next)
+                distance[next] = distance[node] + 1
+                pending.push_back(next)
+    (total, visited.len())
+
+pub fn main() -> void $ Console:
+    let weighted: i64 = 0
+    let unweighted: i64 = 0
+    let visited: usize = 0
+    for round in 0..30:
+        width := 100 + round % 3
+        route := dijkstra(width)
+        breadth := breadth_first(width)
+        weighted += route._0
+        unweighted += breadth._0
+        visited += route._1 + breadth._1
+    println("$weighted $unweighted $visited")

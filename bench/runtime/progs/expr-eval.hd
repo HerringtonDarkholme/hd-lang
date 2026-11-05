@@ -1,0 +1,116 @@
+# Parse and evaluate arithmetic: recursive enum trees, match, and Result propagation.
+use std.iter.{Iterable, Iterator}
+
+enum Expr:
+    Number(value: i64)
+    Binary(op: char, left: *Expr, right: *Expr)
+
+struct Parser:
+    chars: List[char]
+    at: usize
+
+impl Parser:
+    fn whitespace(&mut self) -> void:
+        while self.at < self.chars.len() && self.chars[self.at].is_whitespace():
+            self.at += 1
+
+    fn atom(&mut self) -> Result[*Expr, string]:
+        self.whitespace()
+        if self.at == self.chars.len():
+            return .Err("expected a value")
+        c := self.chars[self.at]
+        if c == '(':
+            self.at += 1
+            value := self.expression()?
+            self.whitespace()
+            if self.at == self.chars.len() || self.chars[self.at] != ')':
+                return .Err("expected a closing parenthesis")
+            self.at += 1
+            return .Ok(value)
+        if c == '-':
+            self.at += 1
+            return .Ok(box(Expr.Binary('-', box(Expr.Number(0)), self.atom()?)))
+        if !c.is_ascii_digit():
+            return .Err("expected a number")
+        let value: i64 = 0
+        while self.at < self.chars.len() && self.chars[self.at].is_ascii_digit():
+            value = value * 10 + i64(self.chars[self.at].to_digit(10).expect("ASCII digit"))
+            self.at += 1
+        .Ok(box(Expr.Number(value)))
+
+    fn term(&mut self) -> Result[*Expr, string]:
+        let left = self.atom()?
+        while true:
+            self.whitespace()
+            if self.at == self.chars.len():
+                break
+            op := self.chars[self.at]
+            if op != '*' && op != '/':
+                break
+            self.at += 1
+            right := self.atom()?
+            left = box(Expr.Binary(op, left, right))
+        .Ok(left)
+
+    fn expression(&mut self) -> Result[*Expr, string]:
+        let left = self.term()?
+        while true:
+            self.whitespace()
+            if self.at == self.chars.len():
+                break
+            op := self.chars[self.at]
+            if op != '+' && op != '-':
+                break
+            self.at += 1
+            right := self.term()?
+            left = box(Expr.Binary(op, left, right))
+        .Ok(left)
+
+fn parse(text: string) -> Result[*Expr, string]:
+    let mut parser = Parser { chars: text.chars().collect(), at: 0 }
+    root := parser.expression()?
+    parser.whitespace()
+    if parser.at != parser.chars.len():
+        return .Err("unexpected trailing input")
+    .Ok(root)
+
+fn evaluate(node: &Expr) -> Result[i64, string]:
+    match node:
+        .Number(value) => .Ok(value)
+        .Binary(op, left, right) =>
+            a := evaluate(left)?
+            b := evaluate(right)?
+            match op:
+                '+' => .Ok(a + b)
+                '-' => .Ok(a - b)
+                '*' => .Ok(a * b)
+                '/' =>
+                    if b == 0: .Err("division by zero") else: .Ok(a / b)
+                _ => .Err("unknown operator")
+
+pub fn main() -> void $ Console:
+    inputs := [
+        "(12 + 7) * (31 - 4) / 3",
+        "91 - (8 * 7) + 6 * (5 + 4)",
+        "-(17 + 9) * 3 + 400 / 8",
+        "3 * (2 + (11 - 4) * 5) - 18",
+        "100 / (3 - 3)",
+        "7 + (2 * 9",
+    ]
+    let total: i64 = 0
+    let errors: usize = 0
+    for round in 0..252000:
+        text := if round % 1000 == 0:
+            inputs[5]
+        else if round % 1000 == 1:
+            inputs[4]
+        else:
+            inputs[round % 4]
+        match parse(text):
+            .Ok(tree) =>
+                for _ in 0..16:
+                    match evaluate(tree):
+                        .Ok(value) => total += value
+                        .Err(_) => errors += 1
+            .Err(_) => errors += 1
+    println("$total $errors")

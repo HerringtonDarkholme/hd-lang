@@ -1,0 +1,25 @@
+# Sensor aggregation: state-capturing closures, lazy map/filter/fold, and a bounded generic function.
+use std.iter.{Iterable, Iterator}
+use std.num.Integer
+
+fn weighted[N < Integer](value: N, scale: N, bias: N) -> N:
+    value * scale + bias
+
+pub fn main() -> void $ Console:
+    let mut readings: List[i64] = []
+    for index in 0..20000:
+        readings.push(i64((index * 7919) % 10007))
+    let total: i64 = 0
+    let seen: usize = 0
+    for round in 0..1000:
+        scale := i64(round % 7) + 1
+        bias := i64(round % 13)
+        cutoff := i64((round * 31) % 997)
+        mapped := readings.iter()
+            .map(fn(value: i64) -> i64:
+                seen += 1
+                weighted(value, scale, bias)
+            )
+        total += mapped.filter(fn(value: &i64) -> bool: value % 17 != 0 && value > cutoff)
+            .fold(0i64, fn(sum: i64, value: i64) -> i64: sum + value)
+    println("$total $seen")

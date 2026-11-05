@@ -1,0 +1,46 @@
+# Resource batches: using/Disposable sessions and Drop-backed UniqList buffers owned by a UniqList.
+use std.ops.Disposable
+use std.collections.UniqList
+use std.iter.Iterable
+
+struct Counters:
+    opened: usize
+    closed: usize
+    live: usize
+
+struct Session:
+    counters: *mut Counters
+    active: bool
+
+impl Disposable for Session:
+    fn dispose(&mut self) -> void:
+        if self.active:
+            self.counters.closed += 1
+            self.counters.live -= 1
+            self.active = false
+
+fn open(counters: *mut Counters) -> Session:
+    counters.opened += 1
+    counters.live += 1
+    Session { counters: counters, active: true }
+
+fn batch(counters: *mut Counters, seed: usize) -> u64:
+    using session = open(counters)
+    let mut buffers = UniqList::[UniqList[u8]].new()
+    for part in 0..8:
+        let mut buffer = UniqList::[u8].with_capacity(256)
+        for index in 0..256:
+            buffer.push(u8((seed + part * 13 + index) % 251))
+        buffers.push(buffer)
+    let total: u64 = 0
+    for buffer in buffers.iter():
+        for value in buffer.iter():
+            total += u64(*value)
+    total
+
+pub fn main() -> void $ Console:
+    counters := box(Counters { opened: 0, closed: 0, live: 0 })
+    let total: u64 = 0
+    for index in 0..20000:
+        total += batch(counters, index)
+    println("$total ${counters.opened} ${counters.closed} ${counters.live}")

@@ -1,0 +1,49 @@
+# A bounded asynchronous pipeline: suspending stages, std.task channels/join, and a logger provider.
+use std.task.{channel, join, Receiver, Sender}
+
+trait Meter:
+    fn record(&mut self, value: i64) -> void
+
+struct Counters:
+    calls: usize
+    total: i64
+
+impl Meter for Counters:
+    fn record(&mut self, value: i64) -> void:
+        self.calls += 1
+        self.total += value
+
+fn produce!(output: Sender[i64], count: usize) -> void $ Meter:
+    for index in 0..count:
+        value := i64(index % 1009)
+        $.use(Meter).record(value)
+        output.send!(value)
+    output.close()
+
+fn transform!(input: Receiver[i64], output: Sender[i64]) -> void $ Meter:
+    while true:
+        match input.recv!():
+            .Some(value) =>
+                mapped := value * 3 + 7
+                $.use(Meter).record(mapped)
+                output.send!(mapped)
+            .None => break
+    output.close()
+
+fn consume!(input: Receiver[i64]) -> i64 $ Meter:
+    let total: i64 = 0
+    while true:
+        match input.recv!():
+            .Some(value) =>
+                $.use(Meter).record(value)
+                total += value
+            .None => break
+    total
+
+pub fn main!() -> void $ Console:
+    counters := box(Counters { calls: 0, total: 0 })
+    $.with(Meter=counters):
+        let (source, first) = channel::[i64](capacity=16)
+        let (second, sink) = channel::[i64](capacity=16)
+        result := join!(produce(source, 900000), transform(first, second), consume(sink))
+        println("${result._2} ${counters.calls} ${counters.total}")
