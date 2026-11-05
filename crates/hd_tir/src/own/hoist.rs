@@ -20,7 +20,10 @@
 //!    iteration block, and the hoisted check runs unguarded;
 //! 2. the loop never copies `p` or a place holding it, takes no `Ref` of a
 //!    place that overlaps it, writes no place that holds it, pins nothing
-//!    and holds no suspension point;
+//!    and holds no suspension point. A local `&mut` reference to one
+//!    element of `p` that the loop uses up (`for x in &mut xs`) is an
+//!    address in the buffer, not a second owner of the header, so it is
+//!    allowed;
 //! 3. no call in the loop may write, unless `p`'s root is a local that is
 //!    never addressed or captured, whose every stored value is fresh (a
 //!    call's or a new collection's, or moved out of a local whose own
@@ -29,8 +32,9 @@
 //!    `p` (behind a reference, a field, a parameter's or a shared header)
 //!    may also be reached through another reference or list, so nothing
 //!    in the loop may write through a dereference or into a list's buffer
-//!    unless its place is `p` or below it, or change, copy or pin another
-//!    collection.
+//!    unless its place is `p` or below it (through a loop local whose
+//!    every store is such an element reference counts as below), or
+//!    change, copy or pin another collection.
 //!
 //! `p` is the place the `IsUnique`'s header read reads (`%h = Read
 //! [*$0]` makes `IsUnique [%h]` one of `[*$0]`), rooted at a local that is
@@ -74,7 +78,7 @@ use super::splice;
 use super::{Operand, OwnCx, Role, fill, operands};
 use crate::ir::{
     Body, Callee, DEREF, ELEM, IntrinsicOp, NONE, PlaceView, Proj, ReadMode, Ref, Root, Tag,
-    Topology, VARIANT, is_suspension, local_flags, place, u32_of, unique_word,
+    Topology, VARIANT, is_suspension, local_flags, place, ref_word, u32_of, unique_word,
 };
 
 /// The longest chain of reads a place is resolved through.
@@ -195,6 +199,12 @@ pub(crate) struct Tables {
     escapes: Vec<bool>,
     /// The stores of a whole local moved from another local: (to, from).
     moves: Vec<(u32, u32)>,
+    /// Per local: its stores of all of it.
+    stores: Vec<u32>,
+    /// The loop's element reference locals: (local, candidate), a local
+    /// whose every store is a local `&mut` reference to an element of the
+    /// candidate that the loop uses up ([`elem_ref`]).
+    elems: Vec<(u32, u32)>,
     /// Per value: its uses (user and role), in compressed rows, and its
     /// last use.
     use_start: Vec<u32>,
@@ -605,6 +615,7 @@ fn facts(b: &Body, t: &mut Tables) {
     fill(&mut t.param, locals, false);
     fill(&mut t.fresh, locals, true);
     fill(&mut t.escapes, locals, false);
+    fill(&mut t.stores, locals, 0);
     t.moves.clear();
     for (l, flags) in b.local_flags.iter().enumerate() {
         t.param[l] = flags & local_flags::PARAM != 0;
@@ -674,6 +685,7 @@ fn facts(b: &Body, t: &mut Tables) {
             Tag::Store => {
                 let p = b.view(a);
                 if let Some(l) = p.local().filter(|_| p.whole()) {
+                    t.stores[l as usize] += 1;
                     // Through coercions that keep the value.
                     let mut v = w;
                     while Ref(v).as_inst().is_some() && b.same_value_coercion(v as usize) {
@@ -939,6 +951,7 @@ fn hoist_loop(
             }
         }
     }
+    elem_locals(b, t, lo, l);
     // Rules 2 and 3 over the loop's instructions and the edits pending in
     // its blocks.
     for x in lo..l {
@@ -947,12 +960,12 @@ fn hoist_loop(
             continue;
         }
         let [a, w] = b.data[i];
-        check(b, cx, t, x, b.tags[i], [a, w]);
+        check(b, cx, t, (x, l), b.tags[i], [a, w]);
         if b.tags[i] == Tag::Block {
             for k in 0..t.pending.of(x).len() {
                 let e = t.pending.of(x)[k];
                 let (_, _, tag, data, _) = edits.get(e);
-                check(b, cx, t, NONE, tag, data);
+                check(b, cx, t, (NONE, l), tag, data);
             }
         }
     }
@@ -1015,9 +1028,86 @@ fn place_word(b: &mut Body, t: &Tables, c: &Cand) -> u32 {
     at
 }
 
-/// Checks one instruction of the loop (`x`, or `NONE` for a pending edit)
+/// Whether `Ref` `x` (data word `w`) of an element of a candidate is a
+/// local `&mut` reference that loop `lp` uses up: an address in the
+/// buffer the hoisted check made unique, which makes no second owner of
+/// the header (call-scoped element references, model E). A shared one
+/// stays: the backend's short loans skip the check that serves it.
+fn elem_ref(t: &Tables, x: u32, w: u32, lp: u32) -> bool {
+    let local_mut = ref_word::MUT | ref_word::LOCAL;
+    x != NONE && w & local_mut == local_mut && t.last_use[x as usize] < lp
+}
+
+/// Fills `t.elems` for the loop `lo..l`: the locals stored only inside
+/// it, each store a local `&mut` reference to an element of one
+/// candidate, or a read of all of one ([`elem_ref`]). A write through
+/// such a local writes the candidate's buffer, below its place (rule 3).
+fn elem_locals(b: &Body, t: &mut Tables, lo: u32, l: u32) {
+    t.elems.clear();
+    let mut steps = std::mem::take(&mut t.steps);
+    let mut raw = std::mem::take(&mut t.raw);
+    // (local, candidate, stores seen), until a store disagrees.
+    let mut seen: Vec<(u32, u32, u32)> = Vec::new();
+    for x in lo..l {
+        let i = x as usize;
+        if t.pending.dead[i] || b.tags[i] != Tag::Store {
+            continue;
+        }
+        let p = b.view(b.data[i][0]);
+        let Some(y) = p.local().filter(|_| p.whole()) else {
+            continue;
+        };
+        let mut v = b.data[i][1];
+        if Ref(v).as_inst().is_some() && b.tags[v as usize] == Tag::Read {
+            let r = b.view(b.data[v as usize][0]);
+            v = r.value().filter(|_| r.whole()).unwrap_or(NONE);
+        }
+        let cand = (v != NONE && Ref(v).as_inst().is_some() && b.tags[v as usize] == Tag::Ref)
+            .then(|| {
+                let (rl, _) = resolve(b, b.data[v as usize][0], &mut steps, &mut raw);
+                t.cands.iter().position(|c| {
+                    let cs = t.cand_steps(c);
+                    rl == c.local
+                        && steps.len() == cs.len() + 1
+                        && prefix(cs, &steps)
+                        && steps[cs.len()] == ELEM
+                        && elem_ref(t, v, b.data[v as usize][1], l)
+                })
+            })
+            .flatten()
+            .map_or(NONE, u32_of);
+        match seen.iter_mut().find(|e| e.0 == y) {
+            Some(e) if e.1 == cand => e.2 += 1,
+            Some(e) => e.1 = NONE,
+            None => seen.push((y, cand, 1)),
+        }
+    }
+    for (y, k, n) in seen {
+        let yi = y as usize;
+        if k != NONE
+            && n == t.stores[yi]
+            && !t.param[yi]
+            && !t.addressed[yi]
+            && !t.captured[yi]
+            && !t.escapes[yi]
+        {
+            t.elems.push((y, k));
+        }
+    }
+    t.steps = steps;
+    t.raw = raw;
+}
+
+/// Checks one instruction of loop `lp` (`x`, or `NONE` for a pending edit)
 /// against every candidate (rules 2 and 3).
-fn check(b: &Body, cx: &dyn OwnCx, t: &mut Tables, x: u32, tag: Tag, [a, w]: [u32; 2]) {
+fn check(
+    b: &Body,
+    cx: &dyn OwnCx,
+    t: &mut Tables,
+    (x, lp): (u32, u32),
+    tag: Tag,
+    [a, w]: [u32; 2],
+) {
     if is_suspension(tag) {
         for c in &mut t.cands {
             c.ok = false;
@@ -1038,6 +1128,8 @@ fn check(b: &Body, cx: &dyn OwnCx, t: &mut Tables, x: u32, tag: Tag, [a, w]: [u3
             for k in 0..t.cands.len() {
                 let c = t.cands[k];
                 let mine = l == c.local;
+                // Through an element reference local: into the buffer.
+                let through = steps.first() == Some(&DEREF) && t.elems.contains(&(l, u32_of(k)));
                 let (covers, below, next_elem) = {
                     let cs = t.cand_steps(&c);
                     (
@@ -1047,6 +1139,7 @@ fn check(b: &Body, cx: &dyn OwnCx, t: &mut Tables, x: u32, tag: Tag, [a, w]: [u3
                     )
                 };
                 let exact = covers && steps.len() == c.len as usize;
+                let mine = mine || through;
                 let ok = match tag {
                     Tag::Read if w == ReadMode::Move as u32 => temp || !covers,
                     // A read of the header, or of a place holding it, whose
@@ -1063,7 +1156,9 @@ fn check(b: &Body, cx: &dyn OwnCx, t: &mut Tables, x: u32, tag: Tag, [a, w]: [u3
                                     || !cx.holds_coll(b.ty[x as usize])))
                     }
                     Tag::Store | Tag::Drop => temp || (!covers && (mine || !c.external || !memory)),
-                    Tag::Ref => temp || !(covers || below),
+                    Tag::Ref => {
+                        temp || !(covers || below) || (below && next_elem && elem_ref(t, x, w, lp))
+                    }
                     // A removed or covered `IsUnique` an outer loop hoisted
                     // stands for nothing here.
                     _ if x != NONE && t.gone[x as usize] => true,

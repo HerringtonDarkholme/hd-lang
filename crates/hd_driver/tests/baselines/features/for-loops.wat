@@ -156,34 +156,44 @@
     end
     local.get $xs
   )
-  (func $over_mut (param $xs i32) (local $t0 i32) (local $t1 i32) (local $x i32) (local $t2 i32) (local $t3 i32)
+  (func $over_mut (param $xs i32) (local $t0 i32) (local $t2 i32) (local $x i32) (local $t1 i32) (local $t3 i32)
     block
     ;; 20 |     for x in &mut *xs:
+      local.get $t0
       local.get $xs
       i32.load $heap
       i32.load $heap offset=4
-      local.set $t0
+      local.tee $t0
+      i32.lt_u
+      if
+        local.get $xs
+        i32.load $heap
+        local.tee $x
+        call $rt:list_unique
+        local.tee $t1
+        local.get $x
+        i32.ne
+        if
+          local.get $xs
+          local.get $t1
+          i32.store $heap
+        end
+      end
       block
         loop
-          local.get $t1
+          local.get $t2
           local.get $t0
           i32.lt_u
           i32.eqz
           br_if 1
-          local.get $t1
+          local.get $t2
           local.set $x
-          local.get $t1
+          local.get $t2
           i32.const 1
           i32.add
-          local.set $t1
-          local.get $xs
-          i32.load $heap
-          call $rt:list_unique
           local.set $t2
           local.get $xs
-          local.get $t2
-          i32.store $heap
-          local.get $t2
+          i32.load $heap
           local.get $x
           i32.const 8
           i32.mul
@@ -211,13 +221,13 @@
             i32.const 1
             call $rt:str_append
             local.set $t3
-            local.set $t2
+            local.set $t1
             local.get $x
             i32.load $heap
             local.get $x
             i32.load $heap offset=4
             local.get $x
-            local.get $t2
+            local.get $t1
             i32.store $heap
             local.get $x
             local.get $t3

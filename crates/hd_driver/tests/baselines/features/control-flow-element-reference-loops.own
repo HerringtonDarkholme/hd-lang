@@ -115,7 +115,7 @@ fn shouted(prices: List[string]) -> List[string]:
 >     uses $0: entry -> %0 consume last
 >   local $1 out: List[string] [read assigned] place
 >   local $2 $len: usize [assigned] value
->     uses $2: %4 -> %7 lend
+>     uses $2: %4 -> %8 lend
 >   local $3 $pos: usize [assigned] place
 >   local $4 p: Ref[mut string] [read assigned] value
 >     uses $4: %22 -> %16 lend, %19 lend last
@@ -127,16 +127,16 @@ fn shouted(prices: List[string]) -> List[string]:
 >   %3 = Intrinsic ListLen [%2] : usize
 >   %4 = Store [$2] %3 : ()
 >   %5 = Store [$3] 0:usize : ()
->   %6 = Read copy [$3] : usize
->   %7 = Read copy [$2] : usize
->   %8 = Prim Lt [%6 %7] : bool
->   %9 = Read copy [$3] : usize
+>   %6 = IsUnique hoisted [$1] : ()
+>   %7 = Read copy [$3] : usize
+>   %8 = Read copy [$2] : usize
+>   %9 = Prim Lt [%7 %8] : bool
 >   %10 = Read copy [$3] : usize
->   %11 = Prim Add [%10 1:usize] : usize
->   %12 = Store [$3] %11 : ()
->   %13 = IsUnique [$1] : ()
+>   %11 = Read copy [$3] : usize
+>   %12 = Prim Add [%11 1:usize] : usize
+>   %13 = Store [$3] %12 : ()
 >   %14 = Read borrow [$1] : List[string]
->   %15 = Ref mut local [%14 [%9]] : Ref[mut string]
+>   %15 = Ref mut local [%14 [%10]] : Ref[mut string]
 >   %20 = Block - : ()
 >   %21 = Read borrow [%15] : Ref[mut string]
 >   %22 = Store [$4] %21 : ()
@@ -146,7 +146,7 @@ fn shouted(prices: List[string]) -> List[string]:
 >   %27 = Block - : ()
 >   %28 = Break L0 - : never
 >   %29 = Block - : ()
->   %30 = If %8 [%27 %29] : ()
+>   %30 = If %9 [%27 %29] : ()
 >   %31 = Block - : ()
 >   %32 = Loop %31 - : ()
         *p = *p + "!"

@@ -62,12 +62,20 @@
   )
   (func $shouted (param $prices i32) (result i32) (local $t0 i32) (local $t1 i32) (local $p i32) (local $t3 i32) (local $t2 i32)
     block
+    ;; 22 |     for p in &mut out:
+      local.get $t0
     ;; 21 |     let mut out = prices
       local.get $prices
       local.tee $prices
     ;; 22 |     for p in &mut out:
       i32.load $heap offset=4
-      local.set $t0
+      local.tee $t0
+      i32.lt_u
+      if
+        local.get $prices
+        call $rt:list_unique
+        local.set $prices
+      end
       block
         loop
           local.get $t1
@@ -82,8 +90,6 @@
           i32.add
           local.set $t1
           local.get $prices
-          call $rt:list_unique
-          local.tee $prices
           local.get $p
           i32.const 8
           i32.mul

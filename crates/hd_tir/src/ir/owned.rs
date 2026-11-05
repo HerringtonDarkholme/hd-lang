@@ -65,7 +65,7 @@
 //! maps.
 
 use super::{
-    Body, INLINED, NONE, Op, Place, PlaceRoot, Proj, ReadMode, Ref, Root, Tag, Topology,
+    Body, ELEM, INLINED, NONE, Op, Place, PlaceRoot, Proj, ReadMode, Ref, Root, Tag, Topology,
     VerifyError, is_suspension, local_flags, place, u32_of, verify_structure,
 };
 use crate::own::flow::{
@@ -454,6 +454,7 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
         }
     }
     let mut kept = vec![false; n];
+    let mut last = vec![0; n];
     let mut ops = Vec::new();
     for i in 0..n {
         operands(b, i, &mut ops);
@@ -461,6 +462,7 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
             if hoist::keeps(b, u32_of(i), op.role) {
                 kept[op.value as usize] = true;
             }
+            last[op.value as usize] = u32_of(i);
         }
     }
     let (mut steps, mut raw, mut other) = (Vec::new(), Vec::new(), Vec::new());
@@ -535,11 +537,20 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
                 let mine = ol == local;
                 let covers = mine && hoist::prefix(&other, &steps);
                 let below = mine && other.len() > steps.len() && hoist::prefix(&steps, &other);
+                // A local `&mut` reference to one element that the loop
+                // uses up.
+                let local_mut = super::ref_word::MUT | super::ref_word::LOCAL;
+                let elem_ref = below
+                    && other[steps.len()] == ELEM
+                    && xw & local_mut == local_mut
+                    && last[xi] < l;
                 match tag {
                     Tag::Read if xw == ReadMode::Move as u32 && covers && !temp => Some("moves it"),
                     Tag::Read if covers && kept[xi] => Some("copies it"),
                     Tag::Store | Tag::Drop if covers && !temp => Some("writes it"),
-                    Tag::Ref if (covers || below) && !temp => Some("takes a reference to it"),
+                    Tag::Ref if (covers || below) && !temp && !elem_ref => {
+                        Some("takes a reference to it")
+                    }
                     _ => None,
                 }
             } else {
