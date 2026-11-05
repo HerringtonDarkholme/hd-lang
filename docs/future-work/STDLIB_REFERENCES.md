@@ -1,6 +1,6 @@
 # Standard Library For References
 
-Status: accepted 2026-11-01; domain: std and the `for` loop; slices 1-4 built (in-place `retain`/`sort_by`, copying accessors, operators through `&`, borrowing loops); slices 5-9 open: #1348, #1349, #1350, #1351, #1352. It builds on [Non-Copyable Types](NON_COPYABLE.md), ch. 13's
+Status: accepted 2026-11-01; domain: std and the `for` loop; slices 1-6 built (in-place `retain`/`sort_by`, copying accessors, operators through `&`, borrowing loops, map loops #1348, read traits #1349); slice 7 movers parked (#1350); slice 8 in progress (#1351); slice 9 dropped (#1352: generics stay copyable). It builds on [Non-Copyable Types](NON_COPYABLE.md), ch. 13's
 [Local References](../../spec/lang/13-values-and-references.md#local-references)
 and [Element References](../../spec/lang/13-values-and-references.md#element-references),
 and argument promotion (#1151). Signatures and examples:
@@ -144,8 +144,8 @@ pool.idle.push(conn)                           # moves back
   value yields values, and `map(fn(x: &T) -> T: *x)` covers the rest.
 - **Moves.** `swap(a: &mut T, b: &mut T)` is plain hd (rule 5);
   `replace` is three lines of hd over it, and `Option.take` is
-  `replace(self, .None)`. `List.pop` and `List.swap` use `list_take_last`
-  and `list_swap`; `insert`, `remove_at` and the heap sifts are hd.
+  `replace(self, .None)`. `List.pop` and `List.swap` move elements once
+  `List` is hd over `Buffer` (#1219); `insert`, `remove_at` and the heap sifts are hd.
 - **Derivation.** `Structure::walk(&self, w)` lends each field as
   `value: &F`, and `FieldRecord.get(&self, s: &'a S) -> &'a F` reads in
   place. Read traits (`Debug`, `Display`, `Eq`, `Hash`, `Serialize`) take
@@ -404,7 +404,7 @@ hand:
 | `List.map`, `filter`, `any`, `all`, `partition`, `group_by`, `sorted_by_key` | `self`, `fn(T)` | `&self`, `fn(&T)`; builders `T < Copy` | `iter().filter(\|x\| ..)` |
 | `List.sorted_by` | `fn(T, T) -> Ordering` | `fn(&T, &T) -> Ordering` | `sort_by(&mut self, ..)` |
 | `List.sort`, `sort_by`, `sort_by_key`, `retain`, `swap` | none | new, `&mut self`, any `T` | same names |
-| `List.pop`, `remove_at`, `insert` | copy then truncate | move (`list_take_last`, `list_swap`) | `Vec::pop` |
+| `List.pop`, `remove_at`, `insert` | copy then truncate | move, once `List` is hd (#1219) | `Vec::pop` |
 | `List.iter` | snapshot `ListIter[T]` | `iter['a](&'a self) -> ListIter[T, 'a]`, `&'a T` items | `iter()` |
 | `Iterable for List` | yields `T` copies | yields `T`, consuming the list value | `IntoIterator for Vec<T>` |
 | `List.contains`, `index_of` | `value: T` | unchanged, `&self` | `contains(&T)` |
@@ -412,7 +412,7 @@ hand:
 | `Map.keys`, `values`, `entries` | `self -> List` | `&self -> List`, copies | iterators |
 | `Map.iter`, map loop | `(K, V)` copies | `(&'a K, &'a V)` | `iter()` |
 | `Deque.front`, `back`, `get`; `Heap.peek` | `-> T?` | copies | `front()`, `peek()` |
-| `Deque.pop_front`, `pop_back`; `Heap.push`, `pop` | copy, `.None` store | move: `Option.take`, `list_swap` | same |
+| `Deque.pop_front`, `pop_back`; `Heap.push`, `pop` | copy, `.None` store | move: `Option.take`, element moves in hd (#1219) | same |
 | `Set.contains`, `insert`, `remove`, `iter` | `self` | `&self`; elements `Copy`; `iter` borrows | `HashSet` |
 | `ListView`, `Span`, `SpanMut` | `len(self)`, `view[i]` copies | `&self`; `[i]` a place by language rule 2 | `&[T]` |
 | `SpanMut.swap`, `fill` | copies | `swap` moves; `fill` keeps `T < Copy` | `swap`, `fill(T: Clone)` |

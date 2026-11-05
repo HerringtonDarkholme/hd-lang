@@ -912,7 +912,8 @@ Rust's elision instead, which ties a result to one source. Source:
 Each fact below was checked at cc63fb077. The two spec errors are first.
 
 - **The spec is wrong that local references are counted.**
-  `ref.type.kind-runtime` says a local reference is counted at run time.
+  `ref.type.kind-runtime` said a local reference is counted at run time
+  (replaced by `ref.type.local-uncounted` in #1401).
   The Local References Why says the escape check "changes nothing at run
   time". Both are stale. Since #702 (§23.38, `emit/closure.rs`
   `slot_locals`), a local whose every `Ref` is local and is one call's
