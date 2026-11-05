@@ -1963,6 +1963,7 @@ runtime/valid/inspectable-generic-arguments-exact.hd	runtime	accept	lang/09-trai
 runtime/valid/inspectable-downcast-mut.hd	runtime	accept	lang/09-traits.md#recovering-a-concrete-type
 runtime/valid/inspectable-alias-and-newtype-identity.hd	runtime	accept	lang/09-traits.md#inspectable-and-typeid
 runtime/valid/typeid-of-equality.hd	runtime	accept	lang/09-traits.md#inspectable-and-typeid
+runtime/valid/typeid-map-keys.hd	runtime	accept	lang/09-traits.md#r-trait.typeid.traits
 runtime/valid/inspectable-generic-target-helper.hd	runtime	accept	lang/09-traits.md#recovering-a-concrete-type
 runtime/valid/error-downcast-through-inspectable.hd	runtime	accept	lang/09-traits.md#error-trait
 runtime/valid/inspectable-function-fields-and-trait-arguments.hd	runtime	accept	lang/09-traits.md#inspectable-types

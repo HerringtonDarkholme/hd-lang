@@ -21,10 +21,7 @@ fn is_user(value: &dyn Inspectable) -> bool:
     value.runtime_type() == TypeId::of::[User]()
 > app/main/is_user
 >   retain std.inspect.Inspectable (conservative: copy read)
->   retain std.inspect.TypeId [key.0, name.0] (conservative: Call)
 >   (no span) release std.inspect.Inspectable (last use)
->   (no span) release std.inspect.TypeId [key.0, name.0] (last use)
->   (no span) release std.inspect.TypeId [key.0, name.0] (last use)
 
 fn erase(u: User) -> *dyn Inspectable:
     box(u)

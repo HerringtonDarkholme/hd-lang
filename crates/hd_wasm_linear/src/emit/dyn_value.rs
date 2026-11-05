@@ -306,11 +306,10 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
-    /// The `TypeId` struct `id` (`runtime_type`'s result) of `t`: its key
-    /// and its printable name (trait.typeid.name), static strings.
+    /// The canonical descriptor for `t`, addressed by the one-word `TypeId`.
     fn type_id_parts(&self, t: Ty, id: Ty) -> StageResult<TypeIdParts> {
-        if self.vals(id)? != [Val::I32; 4] {
-            return unsupported("a `TypeId` that is not its key and name strings");
+        if self.vals(id)? != [Val::I32] {
+            return unsupported("a `TypeId` that is not its descriptor address");
         }
         let (pool, env) = (self.pool(), self.env());
         Ok(TypeIdParts {
@@ -346,7 +345,7 @@ impl Em<'_, '_, '_> {
             self.f.op(I::I32Load(mem(HEAP, u64::from(at), 2)));
         }
         self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-        self.f.call_indirect(vec![Val::I32], vec![Val::I32; 4]);
+        self.f.call_indirect(vec![Val::I32], vec![Val::I32]);
         self.store(i)
     }
 
@@ -405,7 +404,6 @@ impl Em<'_, '_, '_> {
             return unsupported("a recovered target that is not a reference");
         }
         let concrete = self.pool().list_items(args)[0];
-        let want = hd_mono::type_name(self.pool(), self.env(), concrete);
         let recv_t = self.strip_mut(self.ty_of(recv));
         let value_t = match self.pool().get(recv_t) {
             TyData::TraitValue { .. } => recv_t,
@@ -446,22 +444,17 @@ impl Em<'_, '_, '_> {
         let Some(id_ty) = self.env().ret(rt) else {
             return unsupported("a `runtime_type` without its result");
         };
-        self.type_id_parts(concrete, id_ty)?;
-        // The payload's recorded type, then its key against `T`'s; the
-        // name is dropped, and neither is counted.
+        let want = self.type_id_parts(concrete, id_ty)?;
+        // The payload's recorded descriptor and T's canonical descriptor.
         self.f.get(data);
         self.f.get(table);
         for at in steps {
             self.f.op(I::I32Load(mem(HEAP, u64::from(at), 2)));
         }
         self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-        self.f.call_indirect(vec![Val::I32], vec![Val::I32; 4]);
-        self.f.op(I::Drop);
-        self.f.op(I::Drop);
-        let at = self.m.static_bytes(want.as_bytes(), 1);
-        self.f.static_addr(at);
-        self.f.u32(u32::try_from(want.len()).expect("type name"));
-        self.f.helper(Helper::StrEq);
+        self.f.call_indirect(vec![Val::I32], vec![Val::I32]);
+        self.f.helper(Helper::TypeInfo(want));
+        self.f.op(I::I32Eq);
         let same = self.f.local(Val::I32);
         self.f.set(same);
         // The payload as `trait_value` stored it: the data itself, no
