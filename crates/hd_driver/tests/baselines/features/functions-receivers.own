@@ -75,7 +75,6 @@ fn temp_receiver(s: string) -> usize:
     make(s).label_len()
 > app/main/temp_receiver
 >   local $0 s: string [param read] value
->   local $1 $ref: Vec2 [read assigned captured captured-assigned] value
 >   local $2 self: Vec2 [read] value
 >   local $3 self: string [read] value
 >   local $4 s: string [read] value
@@ -86,21 +85,19 @@ fn temp_receiver(s: string) -> usize:
 >   %4 = Break L2 %3 : never
 >   %5 = Block - : Vec2
 >   %6 = Scope %5 [] : Vec2
->   %7 = Store [$1] %6 : ()
->   %8 = Read move [$1] : Vec2
->   %9 = Store [$2] %8 : ()
->   %10 = Read borrow [$2 .name] : string
->   %11 = Store [$3] %10 : ()
->   %12 = Read borrow [$3] : string
->   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
->   %14 = Break L0 %13 : never
->   %15 = Block - : usize
->   %16 = Scope %15 [] : usize
->   %17 = Break L1 %16 : never
->   %18 = Block - : usize
->   %19 = Scope %18 [] : usize
->   %20 = Drop [$2] : ()
->   %21 = Block %19 : usize
+>   %7 = Store [$2] %6 : ()
+>   %8 = Read borrow [$2 .name] : string
+>   %9 = Store [$3] %8 : ()
+>   %10 = Read borrow [$3] : string
+>   %11 = Call std/rt.bytes/bytes_len[] (%10) : usize
+>   %12 = Break L0 %11 : never
+>   %13 = Block - : usize
+>   %14 = Scope %13 [] : usize
+>   %15 = Break L1 %14 : never
+>   %16 = Block - : usize
+>   %17 = Scope %16 [] : usize
+>   %18 = Drop [$2] : ()
+>   %19 = Block %17 : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 

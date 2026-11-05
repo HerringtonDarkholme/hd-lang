@@ -41,29 +41,23 @@ fn is_user(value: &dyn Inspectable) -> bool:
     value.runtime_type() == TypeId::of::[User]()
 > app/main/is_user
 >   local $0 value: Ref[Inspectable] [param read] value
->   local $1 $ref: TypeId [read assigned captured captured-assigned] value
->   local $2 $ref: TypeId [read assigned captured captured-assigned] value
 >   local $3 self: TypeId [read] value
 >   local $4 other: TypeId [read] value
 >   %0 = Read copy [*$0] : Inspectable
 >   %1 = Call std/inspect/Inspectable.runtime_type for Inspectable [] via TraitValue (%0) : TypeId
 >   %2 = Drop [%0] : ()
 >   %3 = Call std/inspect/impl TypeId.of[User] () : TypeId
->   %4 = Store [$1] %1 : ()
->   %5 = Read move [$1] : TypeId
->   %6 = Store [$2] %3 : ()
->   %7 = Read move [$2] : TypeId
->   %8 = Store [$3] %5 : ()
->   %9 = Store [$4] %7 : ()
->   %10 = Read borrow [$3 .key] : string
->   %11 = Read borrow [$4 .key] : string
->   %12 = Intrinsic StrEq [%10 %11] : bool
->   %13 = Break L0 %12 : never
->   %14 = Block - : bool
->   %15 = Scope %14 [] : bool
->   %16 = Drop [$4] : ()
->   %17 = Drop [$3] : ()
->   %18 = Block %15 : bool
+>   %4 = Store [$3] %1 : ()
+>   %5 = Store [$4] %3 : ()
+>   %6 = Read borrow [$3 .key] : string
+>   %7 = Read borrow [$4 .key] : string
+>   %8 = Intrinsic StrEq [%6 %7] : bool
+>   %9 = Break L0 %8 : never
+>   %10 = Block - : bool
+>   %11 = Scope %10 [] : bool
+>   %12 = Drop [$4] : ()
+>   %13 = Drop [$3] : ()
+>   %14 = Block %11 : bool
 >   summary kept [] writes relies [$0]
 
 fn erase(u: User) -> *dyn Inspectable:

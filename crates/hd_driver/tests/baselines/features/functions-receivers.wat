@@ -27,10 +27,6 @@
           br 0
         end
       end
-      local.get $s.0
-      local.get $s.1
-      local.set $s.1
-      local.set $s.0
       block
         block
           local.get $s.0

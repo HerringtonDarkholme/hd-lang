@@ -41,23 +41,20 @@ fn read_len(n: Names, i: usize) -> usize:
 > app/main/read_len
 >   local $0 n: Names [param read captured] place
 >   local $1 i: usize [param read] value
->   local $2 $ref: string [read assigned captured captured-assigned] value
 >   local $3 self: string [read] value
 >   %0 = Ref local frame [$0] : Counted[Names]
 >   %1 = Read copy [$1] : usize
 >   %2 = Call std/ops/Index.index for Names [usize] via Impl (%0, %1) : string
 >   %3 = Drop [%0] : ()
 >   %4 = Drop [$0] : ()
->   %5 = Store [$2] %2 : ()
->   %6 = Read move [$2] : string
->   %7 = Store [$3] %6 : ()
->   %8 = Read borrow [$3] : string
->   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
->   %10 = Break L0 %9 : never
->   %11 = Block - : usize
->   %12 = Scope %11 [] : usize
->   %13 = Drop [$3] : ()
->   %14 = Block %12 : usize
+>   %5 = Store [$3] %2 : ()
+>   %6 = Read borrow [$3] : string
+>   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
+>   %8 = Break L0 %7 : never
+>   %9 = Block - : usize
+>   %10 = Scope %9 [] : usize
+>   %11 = Drop [$3] : ()
+>   %12 = Block %10 : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -91,7 +88,6 @@ fn generic_first(xs: List[string]) -> usize:
     first(xs).len()
 > app/main/generic_first
 >   local $0 xs: List[string] [param read] value
->   local $1 $ref: string [read assigned captured captured-assigned] value
 >   local $2 self: string [read] value
 >   local $3 items: List[string] [read captured] place
 >   %0 = Read move [$0] : List[string]
@@ -103,16 +99,14 @@ fn generic_first(xs: List[string]) -> usize:
 >   %6 = Block - : string
 >   %7 = Scope %6 [] : string
 >   %8 = Drop [$3] : ()
->   %9 = Store [$1] %7 : ()
->   %10 = Read move [$1] : string
->   %11 = Store [$2] %10 : ()
->   %12 = Read borrow [$2] : string
->   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
->   %14 = Break L0 %13 : never
->   %15 = Block - : usize
->   %16 = Scope %15 [] : usize
->   %17 = Drop [$2] : ()
->   %18 = Block %16 : usize
+>   %9 = Store [$2] %7 : ()
+>   %10 = Read borrow [$2] : string
+>   %11 = Call std/rt.bytes/bytes_len[] (%10) : usize
+>   %12 = Break L0 %11 : never
+>   %13 = Block - : usize
+>   %14 = Scope %13 [] : usize
+>   %15 = Drop [$2] : ()
+>   %16 = Block %14 : usize
 >   %2 finds [$3] full
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

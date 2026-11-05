@@ -60,17 +60,14 @@ fn move_box(s: string) -> *mut Point:
     p := Point { name: s }
 > app/main/move_box
 >   local $0 s: string [param read] value
->   local $1 p: Point [:= read assigned] value
 >   local $2 $ref: Point [read assigned captured captured-assigned] place
 >   %0 = Read move [$0] : string
 >   %1 = NewStruct [%0] : Point
->   %2 = Store [$1] %1 : ()
->   %6 = Block %5 : Counted[mut Point]
+>   %4 = Block %3 : Counted[mut Point]
     box(p)
->   %3 = Read move [$1] : Point
->   %4 = Store [$2] %3 : ()
->   %5 = Ref take mut [$2] : Counted[mut Point]
->   %5 finds [$2] full
+>   %2 = Store [$2] %1 : ()
+>   %3 = Ref take mut [$2] : Counted[mut Point]
+>   %3 finds [$2] full
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 

@@ -111,8 +111,8 @@
     local.get $users
   )
   (func $by_name (param $users i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $u.name.0 i32) (local $u.id i64) (local $u.name.1 i32) (local $u.active i32) (local $t3 i32)
-    block
     ;; 19 |     {for u in users if u.active => u.name: u.id}
+    block
       i32.const 80 ;; &empty-buffer
       local.set $t0
       local.get $users
@@ -181,7 +181,6 @@
         end
       end
       local.get $t0
-    ;; (no span)
       local.set $users
     end
     local.get $users

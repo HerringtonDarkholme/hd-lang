@@ -34,7 +34,6 @@ fn str_slice_len(s: string, n: usize) -> usize:
 > app/main/str_slice_len
 >   local $0 s: string [param read] value
 >   local $1 n: usize [param read] value
->   local $2 $ref: string [read assigned captured captured-assigned] value
 >   local $3 self: string [read] value
 >   local $4 self: string [read] value
 >   local $5 key: Range[usize] [read] value
@@ -53,16 +52,14 @@ fn str_slice_len(s: string, n: usize) -> usize:
 >   %12 = Break L1 %11 : never
 >   %13 = Block - : string
 >   %14 = Scope %13 [] : string
->   %15 = Store [$2] %14 : ()
->   %16 = Read move [$2] : string
->   %17 = Store [$3] %16 : ()
->   %18 = Read borrow [$3] : string
->   %19 = Call std/rt.bytes/bytes_len[] (%18) : usize
->   %20 = Break L0 %19 : never
->   %21 = Block - : usize
->   %22 = Scope %21 [] : usize
->   %23 = Drop [$3] : ()
->   %24 = Block %22 : usize
+>   %15 = Store [$3] %14 : ()
+>   %16 = Read borrow [$3] : string
+>   %17 = Call std/rt.bytes/bytes_len[] (%16) : usize
+>   %18 = Break L0 %17 : never
+>   %19 = Block - : usize
+>   %20 = Scope %19 [] : usize
+>   %21 = Drop [$3] : ()
+>   %22 = Block %20 : usize
 >   summary kept [] borrows [$0]
 
 fn list_slice(xs: List[string]) -> List[string]:

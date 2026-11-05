@@ -7,6 +7,7 @@
   (import "fixture" "impl [ T < ? Copy ] T ?.unwrap_or[string]" (func $"impl [ T < ? Copy ] T ?.unwrap_or[string]" (param i32 i32 i32 i32 i32) (result i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $question (param $o.0 i32) (param $o.1 i32) (param $o.2 i32) (result i32 i32 i32) (local $t0 i32) (local $t1 i32)
+    ;; 13 |     .Some(s + "!")
     block
     ;; 12 |     s := o?
       local.get $o.0
@@ -38,14 +39,11 @@
       i32.const 65 ;; &"!"
       i32.load8_u $heap
       i32.store8 $heap
-    ;; (no span)
       local.get $o.1
       call $rt:release_ref
-    ;; 13 |     .Some(s + "!")
       i32.const 1
       local.get $t0
       local.get $o.0
-    ;; (no span)
       local.set $o.2
       local.set $o.1
       local.set $o.0

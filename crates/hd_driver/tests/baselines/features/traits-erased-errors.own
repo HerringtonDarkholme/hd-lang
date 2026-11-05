@@ -66,7 +66,6 @@ fn load(path: string) -> Result[string, *dyn Error]:
 >   local $0 path: string [param read] value
 >   local $1 $ref: FsError [read assigned captured captured-assigned] place
 >   local $2 $ref: Counted[FsError] [read assigned captured] value
->   local $3 text: string [:= read assigned] value
 >   local $4 path: string [read captured] place
 >   %0 = Read move [$0] : string
 >   %1 = Store [$4] %0 : ()
@@ -102,14 +101,12 @@ fn load(path: string) -> Result[string, *dyn Error]:
 >   %31 = Return %30 : never
 >   %32 = Block - : never
 >   %33 = SwitchTag %17 [#0 %20 %32] : string
->   %34 = Store [$3] %33 : ()
->   %37 = Block %36 : Result[string, Counted[Error]]
+>   %35 = Block %34 : Result[string, Counted[Error]]
 >   %2 finds [$4] full
 >   %6 finds [$4] full
 >   %10 finds [$4] full
 >   %23 finds [$1] full
     .Ok(text)
->   %35 = Read move [$3] : string
->   %36 = NewVariant #0 [%35] : Result[string, Counted[Error]]
+>   %34 = NewVariant #0 [%33] : Result[string, Counted[Error]]
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

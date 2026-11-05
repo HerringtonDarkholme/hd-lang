@@ -15,7 +15,6 @@ fn probe(items: UniqList[string]) -> string:
 >   local $1 $ref: Outer [read assigned captured captured-assigned] place
 >   local $2 p: Counted[mut Outer] [:= read assigned] value
 >   local $3 r: Ref[string] [:= read assigned] value
->   local $4 junk: string [:= read assigned] value
 >   local $5 self: Ref[UniqList[string]] [read] value
 >   local $6 index: usize [read] value
 >   %0 = Read move [$0] : UniqList[string]
@@ -23,7 +22,7 @@ fn probe(items: UniqList[string]) -> string:
 >   %2 = Store [$1] %1 : ()
 >   %3 = Ref take mut [$1] : Counted[mut Outer]
 >   %4 = Store [$2] %3 : ()
->   %36 = Block %32 : string
+>   %34 = Block %30 : string
 >   %3 finds [$1] full
     r := p.items.get_ref(0).expect("slot")
 >   %5 = Ref local [*$2 .items] : Ref[UniqList[string]]
@@ -50,13 +49,11 @@ fn probe(items: UniqList[string]) -> string:
 >   %26 = Store [$3] %25 : ()
     junk := "j".repeat(4)
 >   %27 = Call std/text/impl string.repeat[] ("j", 4:usize) : string
->   %28 = Store [$4] %27 : ()
     *r + junk
->   %29 = Read copy [*$3] : string
->   %30 = Drop [$3] : ()
->   %31 = Read move [$4] : string
->   %32 = Intrinsic StrConcat [%29 %31] : string
->   %33 = Drop [%31] : ()
->   %34 = Drop [%29] : ()
->   %35 = Drop [$2] : ()
+>   %28 = Read copy [*$3] : string
+>   %29 = Drop [$3] : ()
+>   %30 = Intrinsic StrConcat [%28 %27] : string
+>   %31 = Drop [%28] : ()
+>   %32 = Drop [%27] : ()
+>   %33 = Drop [$2] : ()
 >   exit sub 0 drops [$0]

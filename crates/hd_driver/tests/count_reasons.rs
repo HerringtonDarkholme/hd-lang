@@ -7,7 +7,8 @@
 //! `cargo test -p hd_driver --test count_reasons -- --ignored --nocapture`
 //!
 //! - `HD_CORPUS_EVERY=N` builds every Nth module of each part (default 1).
-//! - `HD_CORPUS_OUT=DIR` writes `digests.tsv` and `reasons.tsv` there.
+//! - `HD_CORPUS_OUT=DIR` writes `digests.tsv` and `reasons.tsv` there,
+//!   and `counts.tsv`: each module's items with their count operations.
 //! - `HD_CORPUS_DEV=1` builds in dev (checked profile, dev pipeline)
 //!   instead of release.
 //!
@@ -313,8 +314,10 @@ fn run(mods: &[&Module], tally: &mut Tally, digests: &mut Vec<String>) {
             .entry((m.part.into(), "-".into(), "built".into(), "-".into()))
             .or_default() += 1;
         let mapped = build(&store, m, true);
+        let mut per_item: BTreeMap<&str, usize> = BTreeMap::new();
         for f in &mapped.instruction_origins {
             let Some(item) = &f.item else { continue };
+            *per_item.entry(item).or_default() += f.counts.len();
             let side = if item.starts_with("std/") {
                 "std"
             } else {
@@ -329,6 +332,9 @@ fn run(mods: &[&Module], tally: &mut Tally, digests: &mut Vec<String>) {
                 );
                 *tally.entry(key).or_default() += 1;
             }
+        }
+        for (item, n) in per_item.into_iter().filter(|&(_, n)| n > 0) {
+            digests.push(format!("~{}\t{}\t{item}\t{n}", m.part, m.name));
         }
     }
 }
@@ -389,6 +395,10 @@ fn count_reasons() {
         let dir = PathBuf::from(dir);
         std::fs::create_dir_all(&dir).expect("out dir");
         std::fs::write(dir.join("reasons.tsv"), &reasons).expect("reasons");
+        let (counts, digests): (Vec<String>, Vec<String>) =
+            digests.into_iter().partition(|d| d.starts_with('~'));
+        let counts: Vec<&str> = counts.iter().map(|c| &c[1..]).collect();
         std::fs::write(dir.join("digests.tsv"), digests.join("\n") + "\n").expect("digests");
+        std::fs::write(dir.join("counts.tsv"), counts.join("\n") + "\n").expect("counts");
     }
 }

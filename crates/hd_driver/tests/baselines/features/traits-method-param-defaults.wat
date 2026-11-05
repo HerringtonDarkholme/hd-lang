@@ -119,10 +119,6 @@
           br 0
         end
       end
-      local.get $j
-      local.get $s.0
-      local.set $s.0
-      local.set $j
       block
         block
           br 0

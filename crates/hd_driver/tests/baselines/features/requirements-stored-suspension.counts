@@ -32,7 +32,6 @@ fn tagged!() -> usize $ Tag:
 >   retain app.main.Tag (conservative: copy read)
 >   release app.main.Tag (last use)
 >   release string (overwritten)
->   release string (overwritten)
 >   (no span) release string (last use)
 
 fn later!(key: string) -> usize:

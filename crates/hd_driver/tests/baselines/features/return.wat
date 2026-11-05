@@ -218,10 +218,6 @@
           br 0
         end
       end
-      local.get $t1
-      local.get $t2
-      local.set $t2
-      local.set $t1
       block
         block
           br 0
@@ -243,10 +239,6 @@
           br 0
         end
       end
-      local.get $t1
-      local.get $t3
-      local.set $t3
-      local.set $t1
       block
         block
           br 0

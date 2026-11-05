@@ -87,7 +87,6 @@ fn per_round(log: *mut List[string], xs: List[string]) -> void:
 >   local $0 log: Counted[mut List[string]] [param read] value
 >   local $1 xs: List[string] [param read] value
 >   local $2 $coll: List[string] [assigned] value
->   local $3 $len: usize [assigned] value
 >   local $4 $pos: usize [assigned] value ×2
 >   local $5 $end: usize [assigned] value
 >   local $6 x: string [read assigned] value
@@ -96,46 +95,44 @@ fn per_round(log: *mut List[string], xs: List[string]) -> void:
 >   %1 = Store [$2] %0 : ()
 >   %2 = Read borrow [$2] : List[string]
 >   %3 = Intrinsic ListLen [%2] : usize
->   %4 = Store [$3] %3 : ()
->   %5 = Read copy [$3] : usize
->   %6 = Store [$5] %5 : ()
->   %7 = Store [$4] 0:usize : ()
->   %8 = Read copy [$4] : usize
->   %9 = Read copy [$5] : usize
->   %10 = Prim Lt [%8 %9] : bool
+>   %4 = Store [$5] %3 : ()
+>   %5 = Store [$4] 0:usize : ()
+>   %6 = Read copy [$4] : usize
+>   %7 = Read copy [$5] : usize
+>   %8 = Prim Lt [%6 %7] : bool
+>   %9 = Read copy [$4] : usize
+>   %10 = Read copy [$2 [%9]] : string
 >   %11 = Read copy [$4] : usize
->   %12 = Read copy [$2 [%11]] : string
->   %13 = Read copy [$4] : usize
->   %14 = Prim Add [%13 1:usize] : usize
->   %15 = Store [$4] %14 : ()
->   %28 = Block - : ()
->   %29 = Read move [%12] : string
->   %30 = Store [$6] %29 : ()
->   %32 = Block - : never
->   %33 = Match %12 [%32 %28] : ()
+>   %12 = Prim Add [%11 1:usize] : usize
+>   %13 = Store [$4] %12 : ()
+>   %26 = Block - : ()
+>   %27 = Read move [%10] : string
+>   %28 = Store [$6] %27 : ()
+>   %30 = Block - : never
+>   %31 = Match %10 [%30 %26] : ()
+>   %32 = Block - : ()
+>   %33 = Break L0 - : never
 >   %34 = Block - : ()
->   %35 = Break L0 - : never
+>   %35 = If %8 [%32 %34] : ()
 >   %36 = Block - : ()
->   %37 = If %10 [%34 %36] : ()
+>   %37 = Loop %36 - : ()
 >   %38 = Block - : ()
->   %39 = Loop %38 - : ()
->   %40 = Block - : ()
         using r = Res { name: x, log: log }
->   %16 = Read move [$6] : string
->   %17 = Read copy [$0] : Counted[mut List[string]]
->   %18 = NewStruct [%16 %17] : Res
->   %19 = Store [$7] %18 : ()
->   %20 = Ref mut [$7] : Counted[mut Res]
->   %21 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%20) : ()
->   %22 = Drop [%20] : ()
+>   %14 = Read move [$6] : string
+>   %15 = Read copy [$0] : Counted[mut List[string]]
+>   %16 = NewStruct [%14 %15] : Res
+>   %17 = Store [$7] %16 : ()
+>   %18 = Ref mut [$7] : Counted[mut Res]
+>   %19 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%18) : ()
+>   %20 = Drop [%18] : ()
+>   %21 = Block - : ()
+>   %22 = Defer #21 : ()
 >   %23 = Block - : ()
->   %24 = Defer #23 : ()
->   %25 = Block - : ()
->   %26 = Scope %25 [%23] : ()
->   %27 = Drop [$7] : ()
+>   %24 = Scope %23 [%21] : ()
+>   %25 = Drop [$7] : ()
 >   exit sub 0 drops [$7]
 >   summary kept [$0] borrows [$1] writes
->   loop %39 keeps [$2]
+>   loop %37 keeps [$2]
         pass
 
 fn by_ref(r: &mut Res) -> usize:

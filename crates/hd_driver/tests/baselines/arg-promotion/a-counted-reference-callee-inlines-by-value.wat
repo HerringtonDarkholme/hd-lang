@@ -110,10 +110,6 @@
           br 0
         end
       end
-      local.get $n
-      local.get $t1
-      local.set $t1
-      local.set $n
       block
         block
           local.get $n

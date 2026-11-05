@@ -120,10 +120,6 @@
         end
         local.set $s
       end
-      local.get $s
-      local.get $t0
-      local.set $t0
-      local.set $s
       block
         block
           br 0

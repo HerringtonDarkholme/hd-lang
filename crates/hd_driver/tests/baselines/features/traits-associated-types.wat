@@ -23,10 +23,6 @@
           br 0
         end
       end
-      local.get $c.value.0
-      local.get $c.value.1
-      local.set $c.value.1
-      local.set $c.value.0
       block
         block
           br 0

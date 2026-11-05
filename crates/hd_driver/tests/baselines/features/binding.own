@@ -9,41 +9,30 @@ fn bind(s: string) -> usize:
     t := s
 > app/main/bind
 >   local $0 s: string [param read] value
->   local $1 t: string [:= read assigned] value
->   local $2 u: string [read assigned] value
 >   local $3 self: string [read] value
->   %0 = Read move [$0] : string
->   %1 = Store [$1] %0 : ()
->   %12 = Block %10 : usize
+>   %0 = Read borrow [$0] : string
+>   %7 = Block %6 : usize
     let u = t
->   %2 = Read move [$1] : string
->   %3 = Store [$2] %2 : ()
     u.len()
->   %4 = Read move [$2] : string
->   %5 = Store [$3] %4 : ()
->   %6 = Read borrow [$3] : string
->   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
->   %8 = Break L0 %7 : never
->   %9 = Block - : usize
->   %10 = Scope %9 [] : usize
->   %11 = Drop [$3] : ()
->   exit sub 0 drops [$0]
->   summary kept [$0]
+>   %1 = Store [$3] %0 : ()
+>   %2 = Read borrow [$3] : string
+>   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
+>   %4 = Break L0 %3 : never
+>   %5 = Block - : usize
+>   %6 = Scope %5 [] : usize
+>   summary kept [] borrows [$0]
 
 fn bind_twice(xs: List[string]) -> usize:
     ys := xs
 > app/main/bind_twice
 >   local $0 xs: List[string] [param read] value
->   local $1 ys: List[string] [:= read assigned] value
 >   %0 = Read borrow [$0] : List[string]
->   %1 = Store [$1] %0 : ()
->   %7 = Block %6 : usize
+>   %5 = Block %4 : usize
     ys.len() + xs.len()
->   %2 = Read borrow [$1] : List[string]
+>   %1 = Intrinsic ListLen [%0] : usize
+>   %2 = Read borrow [$0] : List[string]
 >   %3 = Intrinsic ListLen [%2] : usize
->   %4 = Read borrow [$0] : List[string]
->   %5 = Intrinsic ListLen [%4] : usize
->   %6 = Prim Add [%3 %5] : usize
+>   %4 = Prim Add [%1 %3] : usize
 >   summary kept [] borrows [$0]
 
 fn bind_kept(xs: List[string], all: &mut List[List[string]]) -> void:
@@ -51,14 +40,11 @@ fn bind_kept(xs: List[string], all: &mut List[List[string]]) -> void:
 > app/main/bind_kept
 >   local $0 xs: List[string] [param read] value
 >   local $1 all: Ref[mut List[List[string]]] [param read] value
->   local $2 ys: List[string] [:= read assigned] value
 >   %0 = Read move [$0] : List[string]
->   %1 = Store [$2] %0 : ()
->   %6 = Block - : ()
+>   %4 = Block - : ()
     all.push(ys)
->   %2 = Read move [$2] : List[string]
->   %3 = IsUnique [*$1] : ()
->   %4 = Read borrow [*$1] : List[List[string]]
->   %5 = Intrinsic ListPush [%4 %2] : ()
+>   %1 = IsUnique [*$1] : ()
+>   %2 = Read borrow [*$1] : List[List[string]]
+>   %3 = Intrinsic ListPush [%2 %0] : ()
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes

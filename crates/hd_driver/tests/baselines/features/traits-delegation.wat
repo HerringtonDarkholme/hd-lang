@@ -54,10 +54,6 @@
           br 0
         end
       end
-      local.get $s.Logger.name.0
-      local.get $s.Logger.name.1
-      local.set $s.Logger.name.1
-      local.set $s.Logger.name.0
       block
         block
           br 0
@@ -81,10 +77,6 @@
           br 0
         end
       end
-      local.get $s.Logger.name.0
-      local.get $s.Logger.name.1
-      local.set $s.Logger.name.1
-      local.set $s.Logger.name.0
       block
         block
           br 0

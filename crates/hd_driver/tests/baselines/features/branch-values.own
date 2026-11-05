@@ -28,7 +28,6 @@ fn pick_len(c: bool, a: string, b: string) -> usize:
 >   local $0 c: bool [param read] value
 >   local $1 a: string [param read] value
 >   local $2 b: string [param read] value
->   local $3 s: string [:= read assigned] value
 >   local $4 self: string [read] value
 >   %0 = Read copy [$0] : bool
 >   %1 = Read move [$1] : string
@@ -39,17 +38,15 @@ fn pick_len(c: bool, a: string, b: string) -> usize:
 >   %6 = If %0 [%3 %5] : string
 >   %7 = Drop [$1] : ()
 >   %8 = Drop [$2] : ()
->   %9 = Store [$3] %6 : ()
->   %18 = Block %16 : usize
+>   %16 = Block %14 : usize
     s.len()
->   %10 = Read move [$3] : string
->   %11 = Store [$4] %10 : ()
->   %12 = Read borrow [$4] : string
->   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
->   %14 = Break L0 %13 : never
->   %15 = Block - : usize
->   %16 = Scope %15 [] : usize
->   %17 = Drop [$4] : ()
+>   %9 = Store [$4] %6 : ()
+>   %10 = Read borrow [$4] : string
+>   %11 = Call std/rt.bytes/bytes_len[] (%10) : usize
+>   %12 = Break L0 %11 : never
+>   %13 = Block - : usize
+>   %14 = Scope %13 [] : usize
+>   %15 = Drop [$4] : ()
 >   exit sub 0 drops [$1 $2]
 >   summary kept [$1 $2]
 

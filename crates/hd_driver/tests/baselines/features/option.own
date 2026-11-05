@@ -39,7 +39,6 @@ fn question(o: string?) -> string?:
     s := o?
 > app/main/question
 >   local $0 o: string? [param read] value
->   local $1 s: string [:= read assigned] value
 >   %0 = Read borrow [$0] : string?
 >   %1 = Read copy [%0 as #1 .0] : string
 >   %2 = Block %1 : string
@@ -47,13 +46,11 @@ fn question(o: string?) -> string?:
 >   %4 = Return %3 : never
 >   %5 = Block - : never
 >   %6 = SwitchTag %0 [#1 %2 %5] : string
->   %7 = Store [$1] %6 : ()
->   %12 = Block %11 : string?
+>   %10 = Block %9 : string?
     .Some(s + "!")
->   %8 = Read move [$1] : string
->   %9 = Intrinsic StrConcat [%8 "!"] : string
->   %10 = Drop [%8] : ()
->   %11 = NewVariant #1 [%9] : string?
+>   %7 = Intrinsic StrConcat [%6 "!"] : string
+>   %8 = Drop [%6] : ()
+>   %9 = NewVariant #1 [%7] : string?
 >   summary kept [] borrows [$0]
 
 fn or_default(o: string?) -> string:

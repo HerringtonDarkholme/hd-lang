@@ -34,7 +34,6 @@ fn phrase_len(s: HttpStatus) -> usize:
     s.phrase.len()
 > app/main/phrase_len
 >   local $0 s: HttpStatus [param read] value
->   local $1 $ref: string [read assigned captured captured-assigned] value
 >   local $2 self: string [read] value
 >   %0 = Read copy [$0] : HttpStatus
 >   %1 = Read copy [@app/main/HttpStatus.Ok.phrase] : string
@@ -46,16 +45,14 @@ fn phrase_len(s: HttpStatus) -> usize:
 >   %7 = SwitchTag %0 [#1 %4 %6] : string
 >   %8 = Block %7 : string
 >   %9 = SwitchTag %0 [#0 %2 %8] : string
->   %10 = Store [$1] %9 : ()
->   %11 = Read move [$1] : string
->   %12 = Store [$2] %11 : ()
->   %13 = Read borrow [$2] : string
->   %14 = Call std/rt.bytes/bytes_len[] (%13) : usize
->   %15 = Break L0 %14 : never
->   %16 = Block - : usize
->   %17 = Scope %16 [] : usize
->   %18 = Drop [$2] : ()
->   %19 = Block %17 : usize
+>   %10 = Store [$2] %9 : ()
+>   %11 = Read borrow [$2] : string
+>   %12 = Call std/rt.bytes/bytes_len[] (%11) : usize
+>   %13 = Break L0 %12 : never
+>   %14 = Block - : usize
+>   %15 = Scope %14 [] : usize
+>   %16 = Drop [$2] : ()
+>   %17 = Block %15 : usize
 >   summary kept []
 
 fn phrase_of(s: HttpStatus) -> string:

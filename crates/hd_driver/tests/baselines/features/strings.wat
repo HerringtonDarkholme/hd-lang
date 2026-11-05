@@ -34,20 +34,16 @@
       local.get $b.0
       local.get $b.1
       call $rt:memory_copy/0/0
-      local.get $t1
-      local.get $t0
-      local.set $a.1
-      local.set $a.0
       block
         block
+          local.get $t0
+          local.set $a.0
           br 0
         end
       end
     ;; (no span)
-      local.get $a.0
+      local.get $t1
       call $rt:release_ref
-      local.get $a.1
-      local.set $a.0
     end
     local.get $a.0
   )

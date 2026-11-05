@@ -558,6 +558,7 @@ pub struct OwnScratch {
     pub(crate) moves: moves::Tables,
     pub(crate) pairs: pairs::Tables,
     pub(crate) splice: splice::Tables,
+    pub(crate) values: values::Tables,
     /// The copy verifier's findings in the body the passes ran over last.
     pub(crate) uncopied: Vec<Uncopied>,
 }
@@ -662,6 +663,13 @@ pub fn uncopied(b: &Body, cx: &dyn OwnCx, out: &mut Vec<Uncopied>) {
 /// report or refuse ([`UNCOPIED_FAILS`]). A body the passes cannot
 /// handle is refused, with what stopped them.
 pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(), String> {
+    values::forward(
+        b,
+        cx,
+        &mut scratch.topo,
+        &mut scratch.values,
+        &mut scratch.splice,
+    )?;
     late::run(
         b,
         &mut scratch.topo,
@@ -1299,13 +1307,22 @@ pub(crate) mod tests {
     /// A body of one root block built by `f`, run through the passes and
     /// verified, as one line per instruction in block order.
     fn passes(f: impl FnOnce(&mut TirBuilder) -> Option<crate::ir::Ref>, ty: Ty) -> String {
+        passes_in(&Cx, f, ty)
+    }
+
+    /// [`passes`] with facts `cx`.
+    fn passes_in(
+        cx: &dyn super::OwnCx,
+        f: impl FnOnce(&mut TirBuilder) -> Option<crate::ir::Ref>,
+        ty: Ty,
+    ) -> String {
         let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
         let blk = b.open_block();
         let tail = f(&mut b);
         let root = b.close_block(blk, tail, ty, NodeIdx::from_raw(1));
         let mut body = b.finish(root, &[]).expect("verifies");
-        run(&mut body, &Cx, &mut OwnScratch::default()).expect("passes");
-        let errs = verify_owned(&body, &Cx);
+        run(&mut body, cx, &mut OwnScratch::default()).expect("passes");
+        let errs = verify_owned(&body, cx);
         assert!(errs.is_empty(), "{errs:?}\n{}", show(&body));
         show(&body)
     }
@@ -1549,6 +1566,8 @@ pub(crate) mod tests {
                 call(b, 8, &[r], Ty::VOID);
                 let t = call(b, 7, &[], Ty::STRING);
                 b.set(fresh, t, n);
+                // A call between keeps the local (`values::forward`).
+                call(b, 8, &[], Ty::VOID);
                 let r = b.get(fresh, Ty::STRING, n);
                 call(b, 9, &[r], Ty::VOID);
                 let body = b.close_block(body, None, Ty::VOID, n);
@@ -1560,6 +1579,65 @@ pub(crate) mod tests {
         assert!(text.contains("Read borrow [$0]"), "{text}");
         assert!(text.contains("Read move [$1]"), "{text}");
         assert!(!text.contains("Drop [$1]\n%"), "{text}");
+    }
+
+    /// Forwarding (`values::forward`): a local stored once and read once
+    /// right after, in the same block, is the stored value itself, which
+    /// its reader consumes: no local, no copy and no drop. A call between
+    /// the store and the read keeps the local.
+    #[test]
+    fn a_local_read_once_after_its_store_forwards_its_value() {
+        /// [`Cx`] whose strings hold no reference.
+        struct NoRefs;
+        impl super::OwnCx for NoRefs {
+            fn counted(&self, ty: Ty) -> bool {
+                Cx.counted(ty)
+            }
+            fn pass(&self, c: &Callee, k: usize, n: usize) -> Pass {
+                Cx.pass(c, k, n)
+            }
+            fn pass_value(&self, ty: Ty, k: usize, n: usize) -> Pass {
+                Cx.pass_value(ty, k, n)
+            }
+            fn may_write(&self, c: &Callee) -> bool {
+                Cx.may_write(c)
+            }
+            fn parts(&self, ty: Ty, v: Option<u32>, out: &mut Vec<Ty>) -> bool {
+                Cx.parts(ty, v, out)
+            }
+            fn received(&self, item: DefId, k: usize, n: usize) -> Pass {
+                Cx.received(item, k, n)
+            }
+            fn holds_coll(&self, ty: Ty) -> bool {
+                Cx.holds_coll(ty)
+            }
+            fn holds_ref(&self, _: Ty) -> bool {
+                false
+            }
+        }
+        let text = passes_in(
+            &NoRefs,
+            |b| {
+                let n = NodeIdx::from_raw(1);
+                let once = local(b, 0);
+                let kept = local(b, 0);
+                let s = call(b, 7, &[], Ty::STRING);
+                b.set(once, s, n);
+                let r = b.get(once, Ty::STRING, n);
+                call(b, 9, &[r], Ty::VOID);
+                let t = call(b, 7, &[], Ty::STRING);
+                b.set(kept, t, n);
+                call(b, 8, &[], Ty::VOID);
+                let r = b.get(kept, Ty::STRING, n);
+                call(b, 9, &[r], Ty::VOID);
+                None
+            },
+            Ty::VOID,
+        );
+        assert!(text.starts_with("%0 Call\n%1 Call %0\n"), "{text}");
+        assert!(!text.contains("[$0]"), "{text}");
+        assert!(text.contains("Store [$1]"), "{text}");
+        assert!(text.contains("Read move [$1]"), "{text}");
     }
 
     /// The result of a body moves out as its root block's tail.
