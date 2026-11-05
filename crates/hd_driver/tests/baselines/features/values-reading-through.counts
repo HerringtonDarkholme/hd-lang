@@ -12,7 +12,7 @@ struct User:
 fn read_copy(r: &User) -> usize:
     copy := *r
 > app/main/read_copy
->   retain counted reference (conservative: copy read)
+>   retain counted reference (stored)
     r.name.len() + copy.name.len()
 >   (no span) release string (last use)
 

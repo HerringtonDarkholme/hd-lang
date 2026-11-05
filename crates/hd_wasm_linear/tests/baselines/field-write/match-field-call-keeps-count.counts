@@ -11,7 +11,7 @@ fn read(node: &Node) -> i64: node.value
 fn value(node: &Node) -> i64:
     match node.left:
 > app/main/value
->   retain &app.main.Node? (conservative: copy read)
+>   retain &app.main.Node? (second owner)
         .None => 0
 >   release &app.main.Node? (last use)
         .Some(left) => read(left)

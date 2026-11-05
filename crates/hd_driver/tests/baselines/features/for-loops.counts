@@ -28,7 +28,7 @@ fn keep_each(xs: List[string]) -> List[string]:
     let mut out: List[string] = []
     for x in xs:
 > app/main/keep_each
->   retain string (conservative: copy read)
+>   retain string (stored)
 >   unique List[string] (conservative: unique)
         out.push(x)
     out

@@ -11,7 +11,7 @@ fn build(parts: &List[string]) -> string:
     sb := StringBuilder::new()
     for p in parts:
 > app/main/build
->   copy counted reference (conservative: copy read)
+>   copy counted reference (second owner)
         sb.push(p)
         sb.push(",")
     sb.build()

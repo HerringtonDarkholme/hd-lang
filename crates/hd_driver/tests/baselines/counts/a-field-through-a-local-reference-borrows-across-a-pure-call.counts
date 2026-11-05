@@ -22,7 +22,7 @@ impl Reader:
     fn top(&self) -> *mut Frame:
         self.frames[self.frames.len() - 1]
 > app/main/impl Reader.top
->   retain &mut app.main.Frame (conservative: copy read)
+>   retain &mut app.main.Frame (stored)
 
     fn tally(&mut self, facts: Facts) -> void:
         for _ in 0..facts.items.len():
@@ -43,7 +43,7 @@ impl Reader:
         frame := self.top()
         self.tally(frame.facts)
 > app/main/impl Reader.count
->   copy std.structure.Facts (conservative: copy read)
+>   copy std.structure.Facts (second owner)
         frame.next
 >   (no span) release std.structure.Facts (last use)
 >   (no span) release &mut app.main.Frame (last use)

@@ -63,7 +63,7 @@ mod reason;
 pub(crate) mod splice;
 pub mod values;
 
-pub use reason::{Reason, reason};
+pub use reason::{Reason, copy_reasons, reason};
 
 /// Whether a value of a type may be copied ([`OwnCx::copies`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

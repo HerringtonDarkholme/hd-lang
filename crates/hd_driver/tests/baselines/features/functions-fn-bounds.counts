@@ -17,14 +17,14 @@ fn invoke[F < Fn(string) -> usize](f: F, s: string) -> usize:
 fn static_bound(s: string) -> usize:
     invoke(width, s) + invoke(fn(x: string) -> usize: x.len() + 1, s)
 > app/main/static_bound
->   retain string (conservative: copy read)
+>   retain string (stored)
 > app/main/static_bound
 >   (no span) release string (last use)
 
 fn each[F < FnMut(string) -> void](xs: List[string], mut f: F) -> void:
     for x in xs:
 > app/main/each
->   retain string (conservative: copy read)
+>   retain string (second owner)
         f(x)
 
 fn fn_mut(xs: List[string]) -> usize:

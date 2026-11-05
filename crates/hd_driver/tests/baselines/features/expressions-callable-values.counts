@@ -35,7 +35,7 @@ fn store_cell(c: &mut Cell, s: string) -> void:
 fn append_cell(c: &mut Cell) -> void:
     c() += "!"
 > app/main/append_cell
->   retain counted reference (conservative: copy read)
+>   retain counted reference (stored)
 >   (no span) release string (last use)
 
 fn stored_fn(h: Handler, s: string) -> usize:

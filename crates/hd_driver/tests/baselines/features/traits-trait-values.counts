@@ -14,7 +14,7 @@ impl dyn Greet:
     fn twice(&self) -> usize:
         self.greet().len() * 2
 > app/main/impl dyn Greet.twice
->   retain app.main.Greet (conservative: copy read)
+>   retain app.main.Greet (second owner)
 >   (no span) release app.main.Greet (last use)
 >   (no span) release string (last use)
 
@@ -36,7 +36,7 @@ fn boxed(u: User) -> *dyn Greet:
 fn through_mut(g: &mut dyn Greet, n: string) -> usize:
     g.rename(n)
 > app/main/through_mut
->   retain app.main.Greet (conservative: copy read)
+>   retain app.main.Greet (second owner)
 >   release string (last use)
     g.twice()
 >   (no span) release app.main.Greet (last use)

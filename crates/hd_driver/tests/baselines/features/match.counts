@@ -19,9 +19,9 @@ fn take_match(s: Shape) -> string:
     match s:
         .Named(n) => n
 > app/main/take_match
->   retain string (conservative: copy read)
+>   retain string (stored)
         .Pair(a, _) => a
->   retain string (conservative: copy read)
+>   retain string (stored)
         .Empty => ""
 
 fn ref_match(s: &Shape) -> usize:

@@ -2,4 +2,4 @@
 app/main/impl Tally.fill
   release &mut app.main.Tally (last use)
 app/main/impl Tally.add
-  retain &mut app.main.Tally (conservative: copy read)
+  retain &mut app.main.Tally (stored)

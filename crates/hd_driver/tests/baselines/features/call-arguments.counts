@@ -24,7 +24,7 @@ fn by_ptr(n: *Node) -> usize:
 fn calls(s: string, n: *Node) -> usize:
     let mut t = s
 > app/main/calls
->   retain string (conservative: copy read)
+>   retain string (stored)
 >   release string (overwritten)
     by_mut(&mut t)
     by_value(s) + by_ref(&s) + by_value(t) + by_ptr(n)

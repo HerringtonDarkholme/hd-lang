@@ -378,23 +378,7 @@ pub fn uses(
 /// `Continue` that leaves past a later use, is last on its path. A call
 /// that never returns is not seen as an exit.
 pub fn mark_last(b: &Body, topo: &Topology, uses: &mut [ValueUse]) {
-    // The statements around instruction `i`, innermost first, as (block,
-    // position, statement), to its sub-body's root.
-    let chain = |i: u32, out: &mut Vec<Level>| {
-        out.clear();
-        let mut x = i;
-        loop {
-            let blk = topo.blk[x as usize];
-            if blk == NONE {
-                return;
-            }
-            out.push((blk, topo.pos[x as usize], x));
-            if topo.is_root[blk as usize] || topo.owner[blk as usize] == NONE {
-                return;
-            }
-            x = topo.owner[blk as usize];
-        }
-    };
+    let chain = |i: u32, out: &mut Vec<Level>| statement_chain(topo, i, out);
     let root_of = |c: &[Level]| c.last().map_or(NONE, |&(blk, _, _)| blk);
     // Whether loop `l` holds instruction `i`.
     let holds = |l: u32, i: u32| {
@@ -445,7 +429,25 @@ pub fn mark_last(b: &Body, topo: &Topology, uses: &mut [ValueUse]) {
 
 /// One level of a use's statement chain ([`mark_last`]): the block, the
 /// position in it, and the statement there.
-type Level = (u32, u32, u32);
+pub(crate) type Level = (u32, u32, u32);
+
+/// The statements around instruction `i`, innermost first, as (block,
+/// position, statement), to its sub-body's root ([`after`]).
+pub(crate) fn statement_chain(topo: &Topology, i: u32, out: &mut Vec<Level>) {
+    out.clear();
+    let mut x = i;
+    loop {
+        let blk = topo.blk[x as usize];
+        if blk == NONE {
+            return;
+        }
+        out.push((blk, topo.pos[x as usize], x));
+        if topo.is_root[blk as usize] || topo.owner[blk as usize] == NONE {
+            return;
+        }
+        x = topo.owner[blk as usize];
+    }
+}
 
 /// Whether the use with statement chain `w` may run after the one with
 /// chain `u` ([`mark_last`]): at the innermost block both are in, `w`'s
@@ -455,7 +457,7 @@ type Level = (u32, u32, u32);
 /// `Unreachable` after `u` in a block around it, below `w`'s statement;
 /// or a `Break` or `Continue` there whose target holds both uses' block,
 /// which it leaves.
-fn after(b: &Body, u: &[Level], w: &[Level]) -> bool {
+pub(crate) fn after(b: &Body, u: &[Level], w: &[Level]) -> bool {
     let Some((at, pw)) = u.iter().enumerate().find_map(|(j, &(blk, _, _))| {
         w.iter()
             .find(|&&(x, _, _)| x == blk)

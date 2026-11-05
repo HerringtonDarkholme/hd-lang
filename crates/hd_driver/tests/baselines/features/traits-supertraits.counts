@@ -19,9 +19,9 @@ impl Animal for Pup:
     fn name(&self) -> string:
         self.name
 > app/main/impl Animal for Pup.name
->   retain string (conservative: copy read)
+>   retain string (stored)
 > app/main/impl Animal for Pup.name
->   retain string (conservative: copy read)
+>   retain string (stored)
 
 impl Dog for Pup:
     fn bark(&self) -> string:
@@ -30,7 +30,7 @@ impl Dog for Pup:
 fn name_of(a: &dyn Animal) -> usize:
     a.name().len()
 > app/main/name_of
->   retain app.main.Animal (conservative: copy read)
+>   retain app.main.Animal (second owner)
 >   (no span) release app.main.Animal (last use)
 >   (no span) release string (last use)
 
@@ -40,7 +40,7 @@ fn widen(d: &dyn Dog) -> usize:
 >   retain app.main.Dog (conservative: copy read)
 >   retain app.main.Animal (conservative: Coerce)
 >   release app.main.Dog (last use)
->   retain app.main.Dog (conservative: copy read)
+>   retain app.main.Dog (second owner)
 >   (no span) release &app.main.Animal (by design)
 >   (no span) release app.main.Dog (last use)
 >   (no span) release string (last use)

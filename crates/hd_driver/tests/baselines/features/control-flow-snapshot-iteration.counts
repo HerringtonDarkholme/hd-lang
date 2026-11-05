@@ -10,8 +10,8 @@ fn doubled(values: List[string]) -> List[string]:
     let mut out = values
     for v in out:
 > app/main/doubled
->   copy List[string] (conservative: copy read)
->   retain string (conservative: copy read)
+>   copy List[string] (second owner)
+>   retain string (stored)
 >   unique List[string] (conservative: unique)
         out.push(v)
 >   (no span) release List[string] (last use)
@@ -21,7 +21,7 @@ fn cursor_then_push(values: List[string], s: string) -> usize:
     let mut items = values
     let mut cursor = items.iter()
 > app/main/cursor_then_push
->   copy List[string] (conservative: copy read)
+>   copy List[string] (stored)
 >   release std.iter.ListIter[string] [items] (overwritten)
     items.push(s)
     match cursor.next():

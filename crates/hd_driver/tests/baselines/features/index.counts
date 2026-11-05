@@ -14,7 +14,7 @@ fn list_read(xs: List[string], i: usize) -> usize:
 fn list_take(xs: List[string], i: usize) -> string:
     xs[i]
 > app/main/list_take
->   retain string (conservative: copy read)
+>   retain string (stored)
 >   (no span) release List[string] (last use)
 
 fn list_write(xs: &mut List[string], i: usize, s: string) -> void:

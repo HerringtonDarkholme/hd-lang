@@ -14,12 +14,12 @@ impl Named for Dog:
     fn name(&self) -> string:
         self.n
 > app/main/impl Named for Dog.name
->   retain string (conservative: copy read)
+>   retain string (stored)
 
 fn call_dyn(x: &dyn Named) -> usize:
     x.name().len()
 > app/main/call_dyn
->   retain app.main.Named (conservative: copy read)
+>   retain app.main.Named (second owner)
 >   (no span) release app.main.Named (last use)
 >   (no span) release string (last use)
 

@@ -8,7 +8,7 @@
 fn first_long(xs: List[string]) -> string:
     for x in xs:
 > app/main/first_long
->   retain string (conservative: copy read)
+>   retain string (stored)
 >   release string (last use)
         if x.len() > 3:
             break x

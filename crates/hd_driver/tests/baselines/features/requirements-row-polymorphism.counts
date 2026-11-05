@@ -19,7 +19,7 @@ impl Tag for Named:
 fn read_tag() -> usize $ Tag:
     $.use(Tag).name().len()
 > app/main/read_tag
->   retain app.main.Tag (conservative: copy read)
+>   retain app.main.Tag (stored)
 >   release app.main.Tag (last use)
 >   (no span) release string (last use)
 
@@ -45,6 +45,6 @@ fn run(s: string) -> usize:
 fn closure(s: string) -> usize:
     with_tag(s, fn() -> usize $ Tag: $.use(Tag).name().len())
 > app/main/closure
->   retain app.main.Tag (conservative: copy read)
+>   retain app.main.Tag (stored)
 >   release app.main.Tag (last use)
 >   (no span) release string (last use)

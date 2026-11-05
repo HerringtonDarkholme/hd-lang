@@ -43,5 +43,5 @@ fn changed_by_argument(items: List[Info]) -> usize:
 > app/main/changed_by_argument
 >   release app.main.Members (overwritten)
     m.at(m.pop())
->   copy app.main.Members (conservative: copy read)
+>   copy app.main.Members (stored)
 >   (no span) release app.main.Members (last use)

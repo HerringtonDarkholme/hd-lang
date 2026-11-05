@@ -17,7 +17,7 @@ impl Iterator[string] for Words:
         self.at += 1
         .Some(self.items[self.at - 1])
 > app/main/impl Iterator [ string ] for Words.next
->   retain string (conservative: copy read)
+>   retain string (stored)
 
 fn user_cursor(words: Words) -> usize:
     let n: usize = 0
@@ -34,7 +34,7 @@ fn twice(xs: List[string]) -> usize:
     let n: usize = 0
     for x in xs.iter():
 > app/main/twice
->   copy List[string] (conservative: copy read)
+>   copy List[string] (stored)
 >   release std.iter.ListIter[string] [items] (overwritten)
 >   release string? (last use)
 >   release string (last use)

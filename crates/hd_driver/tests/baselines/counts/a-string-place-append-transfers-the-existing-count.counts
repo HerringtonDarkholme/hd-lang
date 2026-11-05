@@ -34,7 +34,7 @@ fn replace(text: &mut string) -> string:
 fn rhs_writes(text: &mut string) -> void:
     *text += replace(text)
 > app/main/rhs_writes
->   retain counted reference (conservative: copy read)
+>   retain counted reference (second owner)
 >   release counted reference (conservative: Store)
 >   (no span) release string (last use)
 >   (no span) release string (last use)

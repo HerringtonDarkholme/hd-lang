@@ -4,9 +4,9 @@
 fn first(text: string) -> (string, string):
     (text, text)
 > app/main/first
->   retain string (conservative: copy read)
+>   retain string (stored)
 
 fn second(text: string) -> (string, string):
     (text, text)
 > app/main/second
->   retain string (conservative: copy read)
+>   retain string (stored)

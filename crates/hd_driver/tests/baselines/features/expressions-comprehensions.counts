@@ -13,9 +13,9 @@ struct User:
 fn pairs(xs: List[string], ys: List[string]) -> List[(string, string)]:
     [for x in xs for y in ys if x.len() == y.len() => (x, y)]
 > app/main/pairs
->   retain string (conservative: copy read)
->   retain string (conservative: copy read)
->   retain string (conservative: copy read)
+>   retain string (stored)
+>   retain string (stored)
+>   retain string (stored)
 >   unique List[(string, string)] (conservative: unique)
 >   release string (last use)
 >   release string (last use)
@@ -23,7 +23,7 @@ fn pairs(xs: List[string], ys: List[string]) -> List[(string, string)]:
 fn names(users: List[User]) -> List[string]:
     [for u in users if u.active => u.name]
 > app/main/names
->   retain app.main.User [name.0] (conservative: copy read)
+>   retain app.main.User [name.0] (stored)
 >   unique List[string] (conservative: unique)
 >   release app.main.User [name.0] (last use)
 

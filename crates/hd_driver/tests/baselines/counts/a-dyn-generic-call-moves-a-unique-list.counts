@@ -26,14 +26,14 @@ impl Sink for Bin:
 fn drop_into(s: &dyn Sink, list: UniqList[string]) -> usize:
     s.take(list)
 > app/main/drop_into
->   retain app.main.Sink (conservative: copy read)
+>   retain app.main.Sink (second owner)
 >   (no span) release app.main.Sink (last use)
 >   (no span) release counted reference (last use)
 
 fn round_trip(s: &dyn Sink, list: UniqList[string]) -> usize:
     back := s.relay(list)
 > app/main/round_trip
->   retain app.main.Sink (conservative: copy read)
+>   retain app.main.Sink (second owner)
 >   release counted reference (conservative: Call)
 >   release counted reference (overwritten)
     back.len()

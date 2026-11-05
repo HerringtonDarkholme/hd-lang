@@ -11,9 +11,9 @@ struct Bag:
 fn keep(xs: List[i64], name: string) -> (Bag, List[List[i64]], fn() -> usize, List[i64]):
     bag := Bag { items: xs, name: name }
 > app/main/keep
->   copy List[i64] (conservative: copy read)
+>   copy List[i64] (stored)
     rows := [xs]
->   copy List[i64] (conservative: copy read)
+>   copy List[i64] (stored)
     count := fn() -> usize: xs.len()
 > app/main/keep
 >   copy List[i64] (conservative: entry)

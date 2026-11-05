@@ -17,5 +17,5 @@ fn pick(u: User) -> string:
     match u:
         User { age: 0 } => "none"
 > app/main/pick
->   retain string (conservative: copy read)
+>   retain string (stored)
         User { name } => name

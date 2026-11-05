@@ -22,5 +22,5 @@ fn keys(m: Map[string, string]) -> List[string]:
 > app/main/keys
 >   unique List[string] (conservative: unique)
         out.push(*k)
->   retain counted reference (conservative: copy read)
+>   retain counted reference (stored)
     out

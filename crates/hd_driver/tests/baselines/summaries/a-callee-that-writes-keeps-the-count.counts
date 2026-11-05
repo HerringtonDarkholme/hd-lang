@@ -39,7 +39,7 @@ fn pong(node: *mut Node, k: i64) -> i64:
 fn through_parent(node: *mut Node) -> i64:
     match node.left:
 > app/main/through_parent
->   retain &app.main.Node? (conservative: copy read)
+>   retain &app.main.Node? (second owner)
         .None => 0
 >   release &app.main.Node? (last use)
         .Some(left) => prune(node) + left.value
@@ -48,7 +48,7 @@ fn through_parent(node: *mut Node) -> i64:
 fn through_alias(node: &Node) -> i64:
     match node.left:
 > app/main/through_alias
->   retain &app.main.Node? (conservative: copy read)
+>   retain &app.main.Node? (second owner)
         .None => 0
 >   release &app.main.Node? (last use)
         .Some(left) => prune_global(0) + left.value
@@ -57,7 +57,7 @@ fn through_alias(node: &Node) -> i64:
 fn through_a_cycle(node: *mut Node) -> i64:
     match node.left:
 > app/main/through_a_cycle
->   retain &app.main.Node? (conservative: copy read)
+>   retain &app.main.Node? (second owner)
         .None => 0
 >   release &app.main.Node? (last use)
         .Some(left) => ping(node, 3) + left.value

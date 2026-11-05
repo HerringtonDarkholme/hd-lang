@@ -16,7 +16,7 @@ fn remember['a](seen: &mut List[&'a User], u: &'a User) -> void:
 fn index['a](by: &mut Map[string, &'a User], u: &'a User) -> void:
     by[u.name] = u
 > app/main/index
->   retain string (conservative: copy read)
+>   retain string (second owner)
 >   retain string (conservative: Intrinsic)
 >   (no span) unique Map[string, &app.main.User] (conservative: unique)
 >   (no span) release string (last use)

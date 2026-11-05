@@ -12,7 +12,7 @@ fn unwrap(o: string?) -> usize:
 fn question(o: string?) -> string?:
     s := o?
 > app/main/question
->   retain string (conservative: copy read)
+>   retain string (stored)
     .Some(s + "!")
 >   release string (last use)
 

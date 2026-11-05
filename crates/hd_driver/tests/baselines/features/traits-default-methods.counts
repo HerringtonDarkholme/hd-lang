@@ -21,7 +21,7 @@ impl Describe for Logger:
     fn describe(&self) -> string:
         self.name
 > app/main/impl Describe for Logger.describe
->   retain string (conservative: copy read)
+>   retain string (stored)
 
 fn direct(l: Logger) -> usize:
     l.headline().len()

@@ -16,7 +16,7 @@ fn read_user(u: User) -> usize:
 fn take_name(u: User) -> string:
     let User { name } = u
 > app/main/take_name
->   retain string (conservative: copy read)
+>   retain string (stored)
     name
 
 fn pair(p: (string, string)) -> usize:

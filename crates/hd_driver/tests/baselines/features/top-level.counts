@@ -17,4 +17,4 @@ fn read_top() -> usize:
 fn copy_top() -> string:
     greeting
 > app/main/copy_top
->   retain string (conservative: copy read)
+>   retain string (stored)

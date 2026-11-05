@@ -19,7 +19,7 @@ impl Error for YamlError
 
 @error
 > app/main/error Display for FsError.to_string
->   retain counted reference (conservative: copy read)
+>   retain counted reference (second owner)
 enum FsError:
     @error("not found: $path")
     NotFound(path: string)
@@ -28,9 +28,9 @@ enum FsError:
 
 @error
 > app/main/error Display for LoadError.to_string
->   retain counted reference (conservative: copy read)
+>   retain counted reference (stored)
 > app/main/error Error for LoadError.source
->   retain counted reference (conservative: copy read)
+>   retain counted reference (stored)
 enum LoadError:
     @error("cannot read $path")
     Read(

@@ -39,7 +39,7 @@ fn bound_mut(u: *mut User, n: string) -> void:
 >   retain &mut app.main.User (conservative: entry)
 >   release &mut app.main.User (last use)
 > app/main/bound_mut
->   retain &mut app.main.User (conservative: copy read)
+>   retain &mut app.main.User (stored)
 >   retain counted reference (conservative: Closure)
     f(n)
 >   (no span) release &mut app.main.User (last use)
@@ -52,6 +52,6 @@ fn adapter(us: List[User]) -> usize:
 > app/main/adapter
 >   release app.main.User [name.0] (last use)
 > app/main/adapter
->   retain app.main.User [name.0] (conservative: copy read)
+>   retain app.main.User [name.0] (second owner)
         n += g(u)
     n

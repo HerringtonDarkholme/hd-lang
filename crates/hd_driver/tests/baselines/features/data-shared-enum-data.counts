@@ -17,14 +17,14 @@ enum HttpStatus(code: i32, phrase: string, retryable: bool = false):
 fn phrase_len(s: HttpStatus) -> usize:
     s.phrase.len()
 > app/main/phrase_len
->   retain string (conservative: copy read)
->   retain string (conservative: copy read)
->   retain string (conservative: copy read)
+>   retain string (stored)
+>   retain string (stored)
+>   retain string (stored)
 >   (no span) release string (last use)
 
 fn phrase_of(s: HttpStatus) -> string:
     s.phrase
 > app/main/phrase_of
->   retain string (conservative: copy read)
->   retain string (conservative: copy read)
->   retain string (conservative: copy read)
+>   retain string (stored)
+>   retain string (stored)
+>   retain string (stored)

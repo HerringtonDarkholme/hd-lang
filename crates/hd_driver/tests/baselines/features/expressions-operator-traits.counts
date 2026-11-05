@@ -30,7 +30,7 @@ fn sum[T < Add[Out = T]](items: List[T], zero: T) -> T:
     let total = zero
     for item in items:
 > app/main/sum
->   retain string (conservative: copy read)
+>   retain string (second owner)
 >   release string (last use)
         total = total + item
 >   release string (last use)

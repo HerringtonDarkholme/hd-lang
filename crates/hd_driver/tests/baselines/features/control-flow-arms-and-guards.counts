@@ -13,10 +13,10 @@ fn pick(t: Tag) -> string:
     match t:
         .Named(n) if n.len() > 3 => n
 > app/main/pick
->   retain string (conservative: copy read)
+>   retain string (stored)
         .Pair(right = r, left = l) if l.len() > r.len() => l
->   retain string (conservative: copy read)
->   retain string (conservative: copy read)
+>   retain string (stored)
+>   retain string (stored)
         .Pair(left = _, right = r) => r
 >   (no span) release string (last use)
 >   (no span) release string (last use)
@@ -26,8 +26,8 @@ fn whole(o: string?) -> usize:
     match o:
         .Some(s) if s.len() > 0 => s.len()
 > app/main/whole
->   retain string? (conservative: copy read)
->   retain string? (conservative: copy read)
+>   retain string? (stored)
+>   retain string? (stored)
         other =>
             if other.is_some(): 1 else: 0
 >   (no span) release string? (last use)

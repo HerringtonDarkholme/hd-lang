@@ -22,7 +22,7 @@ fn total(head: *Chain?) -> usize:
             .Some(c) =>
                 n += c.name.len()
                 cur = c.next
->   retain &app.main.Chain? (conservative: copy read)
+>   retain &app.main.Chain? (stored)
             .None => break
 >   release &app.main.Chain? (last use)
     n

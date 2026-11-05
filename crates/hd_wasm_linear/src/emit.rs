@@ -1187,6 +1187,9 @@ struct Em<'i, 'a, 'm> {
     /// A consumer that cannot move the count in takes a count of its own,
     /// and the value is released after it ([`Em::release_untaken`]).
     consumer: Vec<u32>,
+    /// With origins, in an owned body: each `copy` read's reason
+    /// (`hd_tir::own::copy_reasons`), for the counts view.
+    copy_reasons: Vec<Option<Reason>>,
     /// Whether each value appears as any operand, including an explicit
     /// ownership `Drop`. Custom `Drop` values with no counted leaves are
     /// invisible to the ownership pass, so an otherwise-unused one is
@@ -1320,6 +1323,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             thunk_takes: false,
             sub_id: 0,
             consumer: Vec::new(),
+            copy_reasons: Vec::new(),
             used: Vec::new(),
             value_uses: Vec::new(),
             topo: hd_tir::ir::Topology::new(b),
@@ -1795,7 +1799,11 @@ impl Em<'_, '_, '_> {
         let was = self.f.reason;
         if self.f.origins.is_some() {
             self.f.reason = Some(
-                hd_tir::own::reason(self.b, i as usize)
+                self.copy_reasons
+                    .get(i as usize)
+                    .copied()
+                    .flatten()
+                    .or_else(|| hd_tir::own::reason(self.b, i as usize))
                     .unwrap_or(Reason::Conservative(self.b.tags[i as usize].name())),
             );
         }

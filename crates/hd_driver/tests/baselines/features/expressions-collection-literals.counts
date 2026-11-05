@@ -22,6 +22,6 @@ fn list_spread_two(xs: List[string], ys: List[string]) -> List[string]:
 fn map_of(k: string, v: string) -> Map[string, string]:
     { k: v, "fixed": v }
 > app/main/map_of
->   retain string (conservative: copy read)
+>   retain string (stored)
 >   retain string (conservative: NewMap)
 >   release string (last use)

@@ -15,7 +15,7 @@ fn count_while(xs: List[string]) -> usize:
 fn build_while(s: string, k: usize) -> string:
     let out = s
 > app/main/build_while
->   retain string (conservative: copy read)
+>   retain string (stored)
     let i: usize = 0
     while i < k:
         out += s

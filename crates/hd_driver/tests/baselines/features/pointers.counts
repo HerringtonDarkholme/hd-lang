@@ -23,5 +23,5 @@ fn write_ptr(p: *mut Node, n: string) -> void:
 fn share(p: *Node) -> (*Node, *Node):
     (p, p)
 > app/main/share
->   retain &app.main.Node (conservative: copy read)
->   retain &app.main.Node (conservative: copy read)
+>   retain &app.main.Node (stored)
+>   retain &app.main.Node (stored)

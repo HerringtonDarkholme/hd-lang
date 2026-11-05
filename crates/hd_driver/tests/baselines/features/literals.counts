@@ -30,4 +30,4 @@ fn update(r: Rec, n: string) -> Rec:
 fn reuse(n: string) -> (Rec, Rec):
     (Rec { name: n, tags: [] }, Rec { name: n, tags: [] })
 > app/main/reuse
->   retain string (conservative: copy read)
+>   retain string (stored)

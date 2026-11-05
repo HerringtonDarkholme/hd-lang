@@ -14,7 +14,7 @@ fn local_capture(prefix: string, xs: List[string]) -> usize:
 >   retain counted reference (conservative: Ref)
     let total: usize = 0
     for x in xs:
->   retain string (conservative: copy read)
+>   retain string (second owner)
 >   retain string (conservative: entry)
 >   release &string (last use)
 >   release string (last use)

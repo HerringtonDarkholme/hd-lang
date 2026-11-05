@@ -7,7 +7,7 @@
 fn names(xs: &List[string]) -> impl Iterator[string]:
     xs.iter()
 > app/main/names
->   copy counted reference (conservative: copy read)
+>   copy counted reference (stored)
 
 fn count_long(xs: List[string]) -> usize:
     let n: usize = 0

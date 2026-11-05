@@ -15,12 +15,12 @@ impl Namer for Fixed:
     fn name(&self) -> string:
         self.n
 > app/main/impl Namer for Fixed.name
->   retain string (conservative: copy read)
+>   retain string (stored)
 
 fn ask() -> usize $ Namer:
     $.use(Namer).name().len()
 > app/main/ask
->   retain app.main.Namer (conservative: copy read)
+>   retain app.main.Namer (second owner)
 >   (no span) release app.main.Namer (last use)
 >   (no span) release string (last use)
 

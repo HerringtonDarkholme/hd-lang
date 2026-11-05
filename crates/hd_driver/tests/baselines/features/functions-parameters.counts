@@ -32,7 +32,7 @@ fn last_use(t: Tagged, s: string) -> Tagged:
 fn kept_after(t: Tagged, s: string) -> usize:
     u := bumped(t, s)
 > app/main/kept_after
->   copy app.main.Tagged [name.0, tags] (conservative: copy read)
+>   copy app.main.Tagged [name.0, tags] (stored)
 >   unique List[string] (conservative: unique)
     u.tags.len() + t.tags.len()
 >   (no span) release string (last use)

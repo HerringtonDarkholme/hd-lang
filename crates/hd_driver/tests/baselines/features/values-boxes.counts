@@ -28,7 +28,7 @@ fn shared(s: string, t: string) -> usize:
     b := box(Point { name: s })
     h := Holder { point: b }
 > app/main/shared
->   retain &mut app.main.Point (conservative: copy read)
+>   retain &mut app.main.Point (stored)
     b.name = t
 >   release counted reference (conservative: Store)
     h.point.name.len()

@@ -20,7 +20,7 @@ fn size(t: Tag) -> i64:
 fn both(name: string) -> i64:
     size(tag(name, 2)) + i64(name.len())
 > app/main/both
->   retain string (conservative: copy read)
+>   retain string (stored)
 >   (no span) release app.main.Tag [name.0] (last use)
 >   (no span) release string (last use)
 

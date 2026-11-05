@@ -22,6 +22,6 @@ fn owner(s: Shape) -> string:
     match s:
         .Dot(User { name }) => name
 > app/main/owner
->   retain string (conservative: copy read)
+>   retain string (stored)
         .Line(start = _, end = User { name }) => name
->   retain string (conservative: copy read)
+>   retain string (stored)

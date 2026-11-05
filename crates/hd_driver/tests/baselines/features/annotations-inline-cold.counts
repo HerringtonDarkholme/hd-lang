@@ -35,6 +35,6 @@ fn check(xs: List[string], at: usize) -> string:
         return unexpected(at)
     xs[at]
 > app/main/check
->   retain string (conservative: copy read)
+>   retain string (stored)
 >   (no span) release List[string] (last use)
 >   (no span) release List[string] (last use)

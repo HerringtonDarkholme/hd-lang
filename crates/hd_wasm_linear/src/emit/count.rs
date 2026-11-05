@@ -986,6 +986,14 @@ impl Em<'_, '_, '_> {
     /// (`hd_tir::own::consumers`).
     pub(super) fn own_consumers(&mut self) {
         hd_tir::own::consumers(self.b, &self.topo, self.input.own_cx, &mut self.consumer);
+        if self.m.track_origins {
+            hd_tir::own::copy_reasons(
+                self.b,
+                &self.topo,
+                self.input.own_cx,
+                &mut self.copy_reasons,
+            );
+        }
         self.used.clear();
         self.used.resize(self.b.len(), false);
         self.value_uses.clear();
