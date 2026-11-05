@@ -454,7 +454,7 @@ Running gzip total, est.: at midpoints the peak is +12.7 KB after step 8,
 and the end is −43 KB. With every add at its top and every delete at its
 bottom, it peaks at +24.4 KB after step 28, and +31.4 KB if step 29 runs.
 Headroom today is 33,291 B, so step 29 runs only if the measured total
-leaves room. Steps 2, 9, 12, 13 and 23 each report the V8 and wasmtime
+leaves room. Steps 2, 9, 12, 13 and 23 each report the default-tier V8
 bench table; step 2 is the first visible result: `hash_of[usize]`'s bound
 call should become an impl call (expected, not measured).
 
