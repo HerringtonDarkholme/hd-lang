@@ -28,7 +28,7 @@ impl[S] Walker[S] for Totaller:
     type Error = never
     fn variant(&mut self, variant: Variant[S]) -> Result[void, never]:
         .Ok(())
-    fn member[F < Add](&mut self, handle: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Add](&mut self, handle: Field[S, F], value: &F) -> Result[void, never]:
         value.add(self.out)
         .Ok(())
 
@@ -36,7 +36,7 @@ impl[T] Total for T by Structure:
     fn total(self) -> i32:
         out := box(0i32)
         let mut walker = Totaller { out: out }
-        _ := Structure::walk(self, &mut walker)
+        _ := Structure::walk(&self, &mut walker)
         *out
 
 struct NullWriter: pass
@@ -75,8 +75,8 @@ impl[S] Walker[S] for FormatWalker:
         _ := self.out.begin_data(Facts { items: [] }, &variant.info)?
         self.out.end_data()
     fn variant(&mut self, variant: Variant[S]) -> Result[void, never]: .Ok(())
-    fn data_member[F](&mut self, handle: Field[S, F], value: F) -> Result[void, never]: .Ok(())
-    fn member[F](&mut self, handle: Field[S, F], value: F) -> Result[void, never]: .Ok(())
+    fn data_member[F](&mut self, handle: Field[S, F], value: &F) -> Result[void, never]: .Ok(())
+    fn member[F](&mut self, handle: Field[S, F], value: &F) -> Result[void, never]: .Ok(())
 
 trait FormatWalk:
     fn format_walk(self) -> void
@@ -85,7 +85,7 @@ impl[T] FormatWalk for T by Structure:
     fn format_walk(self) -> void:
         writer := box(NullWriter {})
         let mut walker = FormatWalker { out: writer }
-        _ := Structure::walk(self, &mut walker)
+        _ := Structure::walk(&self, &mut walker)
 
 @derive(Total, Eq, FormatWalk)
 struct Pair:
@@ -115,15 +115,15 @@ impl[S] Walker[S] for SameWalker[S]:
     type Error = never
     fn variant(&mut self, variant: Variant[S]) -> Result[void, never]:
         .Ok(())
-    fn member[F < Same](&mut self, handle: Field[S, F], value: F) -> Result[void, never]:
-        other := handle.get(self.other)
-        self.equal = self.equal && value.same(other)
+    fn member[F < Same](&mut self, handle: Field[S, F], value: &F) -> Result[void, never]:
+        other := handle.get(&self.other)
+        self.equal = self.equal && value.same(*other)
         .Ok(())
 
 impl[T] Same for T by Structure:
     fn same(self, other: T) -> bool:
         let mut walker = SameWalker { other: other, equal: true }
-        _ := Structure::walk(self, &mut walker)
+        _ := Structure::walk(&self, &mut walker)
         walker.equal
 
 @derive(Same)

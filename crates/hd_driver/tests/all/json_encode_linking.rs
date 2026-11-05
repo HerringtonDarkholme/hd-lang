@@ -98,7 +98,7 @@ fn a_generated_regular_serializer_does_not_link_the_tree_fallback() {
 #[test]
 fn empty_member_and_variant_handles_do_not_link_skip_searches() {
     let functions = emitted_functions(
-        "use std.serde.Skip\nuse std.structure.{Field, Structure, Variant, Walker}\n\ntrait HasSkip:\n    fn has_skip(self) -> bool\n\nstruct Finder:\n    found: bool\n\nimpl[S] Walker[S] for Finder:\n    type Error = never\n    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:\n        self.found = self.found || v.info.facts.find::[Skip]().is_some()\n        .Ok(())\n    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:\n        self.found = self.found || h.fact::[Skip]().is_some()\n        .Ok(())\n\nimpl[T] HasSkip for T by Structure:\n    fn has_skip(self) -> bool:\n        let mut finder = Finder { found: false }\n        _ := Structure::walk(self, &mut finder)\n        finder.found\n\n@derive(HasSkip)\nstruct Row:\n    value: i64\n\npub fn main() -> void $ Console:\n    println(Row { value: 1 }.has_skip())\n",
+        "use std.serde.Skip\nuse std.structure.{Field, Structure, Variant, Walker}\n\ntrait HasSkip:\n    fn has_skip(self) -> bool\n\nstruct Finder:\n    found: bool\n\nimpl[S] Walker[S] for Finder:\n    type Error = never\n    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:\n        self.found = self.found || v.info.facts.find::[Skip]().is_some()\n        .Ok(())\n    fn member[F](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:\n        self.found = self.found || h.fact::[Skip]().is_some()\n        .Ok(())\n\nimpl[T] HasSkip for T by Structure:\n    fn has_skip(self) -> bool:\n        let mut finder = Finder { found: false }\n        _ := Structure::walk(&self, &mut finder)\n        finder.found\n\n@derive(HasSkip)\nstruct Row:\n    value: i64\n\npub fn main() -> void $ Console:\n    println(Row { value: 1 }.has_skip())\n",
     );
     assert!(
         !has_skip_fact_search(&functions),
@@ -132,7 +132,7 @@ impl[S] Walker[S] for Finder:
             .None => false
         self.found = self.found || found
         .Ok(())
-    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         found := match h.fact::[Skip]():
             .Some(_) => fact_was_present()
             .None => false
@@ -142,7 +142,7 @@ impl[S] Walker[S] for Finder:
 impl[T] HasSkip for T by Structure:
     fn has_skip(self) -> bool:
         let mut finder = Finder { found: false }
-        _ := Structure::walk(self, &mut finder)
+        _ := Structure::walk(&self, &mut finder)
         finder.found
 
 @derive(HasSkip)

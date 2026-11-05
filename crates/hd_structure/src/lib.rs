@@ -1166,6 +1166,16 @@ impl<'a, 'n> Gen<'a, 'n> {
 
     /// Lends member `m` in the target that `s` refers to, without copying it.
     fn member_reference(&mut self, s: Ref, v: &Var, m: &Mem, t: Ty) -> Ref {
+        // A newtype's sole member has the same representation as its
+        // owner. Lend that place as its base, as a derived receiver does.
+        if matches!(
+            self.cx.items.item(v.def).map(|i| &i.data),
+            Some(ItemData::Newtype(_))
+        ) {
+            return self
+                .b
+                .coerce(Coercion::Weaken, NONE, s, self.shared(t), SYN);
+        }
         let mut proj = vec![Proj::Deref];
         match v.shape {
             Shape::Data if self.data_object(v.def) => {

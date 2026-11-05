@@ -5880,6 +5880,8 @@ typing/invalid/string-builder-value-is-not-copyable.hd	type	reject:move-out-of-p
 runtime/valid/uniq-list-assigned-through-pointer-in-bang-function.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.type
 runtime/valid/unique-list-reference-outlives-its-pointer-local.hd	runtime	accept	lang/13-values-and-references.md#r-ref.box.root
 runtime/valid/interpolation-measured-values.hd	runtime	accept	lang/05-expressions.md#r-expr.interp.value-snapshot
+runtime/valid/read-traits-noncopy.hd	runtime	accept	std/cmp.md#r-std-cmp.derive.eq.template
+runtime/valid/projected-view-binding-keeps-owner.hd	runtime	accept	lang/13-values-and-references.md#r-ref.match.borrow
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
@@ -6393,5 +6395,3 @@ runtime/valid/erased-call-matrix-closure-value-mut-unique.hd	runtime	accept	std/
 runtime/valid/erased-call-matrix-closure-value-value-i32.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param
 runtime/valid/erased-call-matrix-closure-value-value-string.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param
 runtime/valid/erased-call-matrix-closure-value-value-unique.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.type
-runtime/valid/read-traits-noncopy.hd	runtime	accept	std/cmp.md#r-std-cmp.derive.eq.template
-runtime/valid/projected-view-binding-keeps-owner.hd	runtime	accept	lang/13-values-and-references.md#r-ref.match.borrow

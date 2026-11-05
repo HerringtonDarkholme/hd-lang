@@ -59,7 +59,7 @@ impl[S] Walker[S] for Prober:
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         t := match h.info.facts.find::[Tag]():
             .Some(found) => found.text
             .None => \"-\"
@@ -69,7 +69,7 @@ impl[S] Walker[S] for Prober:
 impl[T] Probe for T by Structure:
     fn probe(self) -> string:
         let mut w = Prober { out: \"\" }
-        _ := Structure::walk(self, &mut w)
+        _ := Structure::walk(&self, &mut w)
         w.out
 ";
 
@@ -182,7 +182,7 @@ fn two_derivations_report_a_declaration_fact_once() {
 impl[T] Other for T by Structure:
     fn other(self) -> string:
         let mut w = Prober { out: \"\" }
-        _ := Structure::walk(self, &mut w)
+        _ := Structure::walk(&self, &mut w)
         T::name()
 
 struct A:

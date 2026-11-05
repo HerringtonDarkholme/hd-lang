@@ -67,7 +67,7 @@ impl[S] Walker[S] for Shower:
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F < Show](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Show](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         self.out = self.out + value.show() + \";\"
         .Ok(())
 
@@ -81,7 +81,7 @@ fn wrapped(start: string) -> Shower:
 impl[T] Show for T by Structure:
     fn show(self) -> string:
         let mut w = {walker}
-        _ := Structure::walk(self, &mut w)
+        _ := Structure::walk(&self, &mut w)
         w.out
 "
     )
@@ -185,7 +185,7 @@ impl[S] Walker[S] for Quiet:
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         .Ok(())
 "
     };

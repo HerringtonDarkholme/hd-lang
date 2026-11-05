@@ -248,7 +248,7 @@ impl[S] Walker[S] for Lister:
         self.out = self.out + \"[\" + v.info.name + \"#\" + \"${v.info.index}\" + \" data=\" + \"${v.info.of_data}\" + \"]\"
         .Ok(())
 
-    fn member[F < Display](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+    fn member[F < Display](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         self.out = self.out + \" \" + h.info.name + \"@\" + \"${h.info.position}\" + \"=\" + \"$value\"
         if h.info.positional:
             self.out = self.out + \"p\"
@@ -270,7 +270,7 @@ impl[S] Describer[S] for Lister:
 impl[T < Tuple] Shape for T by Structure:
     fn shape(self) -> string:
         let mut w = Lister { out: \"name=\" + T::name() + \" \" }
-        _ := Structure::walk(self, &mut w)
+        _ := Structure::walk(&self, &mut w)
         w.out
 
     fn members() -> string:
