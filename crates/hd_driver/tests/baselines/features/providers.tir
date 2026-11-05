@@ -53,7 +53,7 @@ fn install(s: string) -> usize:
 >   %10 = Block %9 : Namer
 >   %11 = RefDyn %10 : Counted[Namer]
 >   %12 = Coerce %11 [RefAsProvider -] : Namer
->   %15 = With [%5922 %12] %14 : usize
+>   %15 = With [%5927 %12] %14 : usize
         ask()
 >   %13 = Call app/main/ask[] () : usize
 >   %14 = Block %13 : usize

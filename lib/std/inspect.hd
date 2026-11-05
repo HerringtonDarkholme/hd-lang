@@ -6,6 +6,9 @@
 # inherent `downcast_ref` and `downcast_mut` methods, so its dictionary holds
 # `runtime_type` alone. `TypeId::of` is declared below; only its body is the
 # compiler's.
+use std.format.{Debug, DebugWriter}
+use std.hash.Hasher
+use std.rt.memory.Ptr
 
 ## The sealed trait of types with a runtime identity, which the compiler supplies.
 ## See [module.prelude.inspect-reference-api](../../spec/lang/10-modules.md#r-module.prelude.inspect-reference-api).
@@ -23,15 +26,17 @@ impl dyn Inspectable:
     pub fn downcast_mut[T < Inspectable](&mut self) -> (&mut T)?:
         panic("intrinsic")
 
-# `key` is the type's identity, which `Eq` compares; `name` is its canonical
-# printable name (trait.typeid.name), which `Display` prints. Two types of
-# different identity can print alike, as two packages that share a name do.
-## The runtime identity of an inspectable type.
-## See [module.prelude.inspect-reference-api](../../spec/lang/10-modules.md#r-module.prelude.inspect-reference-api).
-@derive(Debug)
-pub struct TypeId:
+# One canonical descriptor per identity in the compiled program. The
+# compiler keeps its key and printable name in static storage; TypeId
+# carries only the descriptor's address, with no owned string counts.
+struct TypeInfo:
     key: string
     name: string
+
+## The runtime identity of an inspectable type.
+## See [module.prelude.inspect-reference-api](../../spec/lang/10-modules.md#r-module.prelude.inspect-reference-api).
+pub struct TypeId:
+    info: Ptr[TypeInfo]
 
 impl TypeId:
     ## The `TypeId` of `T`.
@@ -39,15 +44,31 @@ impl TypeId:
     pub fn of[T < Inspectable]() -> TypeId:
         panic("intrinsic")
 
-# Keep handwritten Eq: compare the identity key, ignoring the descriptive name.
+# Keep handwritten Eq: descriptor identity ignores the descriptive name.
 impl Eq for TypeId:
     fn eq(&self, other: &TypeId) -> bool:
-        self.key == other.key
+        self.info.address == other.info.address
+
+# The descriptor address is deterministic within a build, as TypeId's
+# equality and hash promise. It is not a cross-build or boundary tag.
+impl Hash for TypeId:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        self.info.address.hash(state)
 
 # Keep handwritten Display: display only the descriptive type name; this is not an Error.
 impl Display for TypeId:
     fn to_string(&self) -> string:
-        self.name
+        self.info.as_ref().name
+
+# Keep the existing key/name debug representation instead of exposing
+# the private descriptor address.
+impl Debug for TypeId:
+    fn debug(&self, out: *mut DebugWriter) -> void:
+        info := self.info.as_ref()
+        let mut record = out.debug_struct("TypeId")
+        record.field("key", info.key)
+        record.field("name", info.name)
+        record.finish()
 
 # `Debug` for this module's public types (r-std-format.debug.std-types),
 # written by hand with the builder calls that `@derive(Debug)` generates

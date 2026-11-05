@@ -1,0 +1,3 @@
+# Type identity survives linked inputs, dynamic dictionaries, and reload.
+run: hd --repl session.in
+transcript: transcript.txt

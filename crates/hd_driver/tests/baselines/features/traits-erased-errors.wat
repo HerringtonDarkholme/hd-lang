@@ -156,7 +156,7 @@
         local.set $path.0
         i32.const 1
         local.get $path.0
-        i32.const 280 ;; &vtable[func50]
+        i32.const 328 ;; &vtable[func50]
         return
       end
     ;; 23 |     .Ok(text)

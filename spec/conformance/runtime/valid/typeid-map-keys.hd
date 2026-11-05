@@ -1,0 +1,26 @@
+# test: TypeId hashes consistently with equality and can key a map
+use std.inspect.{Inspectable, TypeId}
+use std.testing.{assert, assert_equal}
+
+struct User:
+    name: string
+
+struct Other:
+    name: string
+
+fn recorded(value: &dyn Inspectable) -> TypeId:
+    value.runtime_type()
+
+tests:
+    it("static and recorded identities find the same map entry"):
+        let mut counts: Map[TypeId, usize] = {}
+        counts[TypeId::of::[User]()] = 7
+        counts[TypeId::of::[Other]()] = 11
+        user := User { name: "Ada" }
+        assert_equal(counts.get(recorded(&user)), .Some(7), reason="dynamic identity")
+        assert_equal(counts.get(TypeId::of::[Other]()), .Some(11), reason="distinct identity")
+        assert(counts.get(TypeId::of::[i32]()).is_none(), reason="missing identity")
+        copy := TypeId::of::[User]()
+        counts[copy] = 13
+        assert_equal(counts.len(), 2, reason="equal key replaces")
+        assert_equal(counts.get(recorded(&user)), .Some(13), reason="replacement")

@@ -54,15 +54,13 @@ fn is_user(value: &dyn Inspectable) -> bool:
 >   %3 = Call std/inspect/impl TypeId.of[User] () : TypeId
 >   %4 = Store [$3] %1 : ()
 >   %5 = Store [$4] %3 : ()
->   %6 = Read borrow [$3 .key] : string
->   %7 = Read borrow [$4 .key] : string
->   %8 = Intrinsic StrEq [%6 %7] : bool
+>   %6 = Read copy [$3 .info .address] : usize
+>   %7 = Read copy [$4 .info .address] : usize
+>   %8 = Prim Eq [%6 %7] : bool
 >   %9 = Break L0 %8 : never
 >   %10 = Block - : bool
 >   %11 = Scope %10 [] : bool
->   %12 = Drop [$4] : ()
->   %13 = Drop [$3] : ()
->   %14 = Block %11 : bool
+>   %12 = Block %11 : bool
 >   summary kept [] writes relies [$0]
 
 fn erase(u: User) -> *dyn Inspectable:

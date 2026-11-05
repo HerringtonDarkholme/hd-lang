@@ -45,7 +45,7 @@ fn with_tag[$ R](s: string, callback: fn() -> usize $ R + Tag) -> usize $ R:
 >   %4 = Block %3 : Tag
 >   %5 = RefDyn %4 : Counted[Tag]
 >   %6 = Coerce %5 [RefAsProvider -] : Tag
->   %10 = With [%5921 %6] %9 : usize
+>   %10 = With [%5926 %6] %9 : usize
 >   %11 = Block %10 : usize
         callback()
 >   %7 = Read [$1] : fn() -> usize

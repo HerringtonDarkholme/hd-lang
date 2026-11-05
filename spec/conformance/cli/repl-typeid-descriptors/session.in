@@ -1,0 +1,10 @@
+use std.inspect.{Inspectable, TypeId}
+old := TypeId::of::[i32]()
+old == TypeId::of::[i32]()
+value := box(+7)
+from_value := value.runtime_type()
+old == from_value
+old != TypeId::of::[string]()
+old.to_string()
+:reload
+old == TypeId::of::[i32]()

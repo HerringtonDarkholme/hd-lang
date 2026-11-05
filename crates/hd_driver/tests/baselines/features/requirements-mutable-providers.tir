@@ -69,7 +69,7 @@ fn demo(a: string, b: string) -> usize:
 >   %9 = Block %8 : Recorder
 >   %10 = RefDyn %9 : Counted[mut Recorder]
 >   %11 = Coerce %10 [RefAsProvider -] : Recorder
->   %17 = With [%5923 %11] %16 : ()
+>   %17 = With [%5928 %11] %16 : ()
         _ := tick(a)
 >   %12 = Read [$0] : string
 >   %13 = Call app/main/tick[] (%12) : usize

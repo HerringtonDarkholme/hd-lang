@@ -2,14 +2,12 @@
 (module
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "rt:type_id" (func $rt:type_id (result i32 i32 i32 i32)))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32 i32 i32)))
-  (import "fixture" "rt:str_eq" (func $rt:str_eq (param i32 i32 i32 i32) (result i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32 i32)))
+  (import "fixture" "rt:type_id" (func $rt:type_id (result i32)))
+  (import "fixture" "rt:type_info" (func $rt:type_info (result i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 4 funcref))
-  (func $is_user (param $value.0 i32) (param $value.1 i32) (result i32) (local $t1 i32) (local $t0 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t6 i32)
+  (func $is_user (param $value.0 i32) (param $value.1 i32) (result i32)
     block
     ;; 18 |     value.runtime_type() == TypeId::of::[User]()
       local.get $value.0
@@ -17,49 +15,25 @@
       local.get $value.0
       local.get $value.1
       i32.load $heap
-      call_indirect $table0 (param i32) (result i32 i32 i32 i32)
+      call_indirect $table0 (param i32) (result i32)
     ;; (no span)
       local.get $value.0
       call $rt:release_ref
     ;; 18 |     value.runtime_type() == TypeId::of::[User]()
       call $rt:type_id
-      local.set $t0
-      local.set $t1
+      local.set $value.0
       local.set $value.1
-      local.tee $value.0
-      local.get $value.1
-      local.get $t1
-      local.get $t0
-      call $rt:retain
-      local.set $t2
-      local.set $t3
-      local.set $t4
-      local.set $t5
       block
         block
-          local.get $t5
-          local.get $t4
-          local.get $value.0
           local.get $value.1
-          call $rt:str_eq
-          local.set $t6
+          local.get $value.0
+          i32.eq
+          local.set $value.0
           br 0
         end
       end
-    ;; (no span)
-      local.get $value.0
-      local.get $value.1
-      local.get $t1
-      local.get $t0
-      call $rt:release
-      local.get $t5
-      local.get $t4
-      local.get $t3
-      local.get $t2
-      call $rt:release
-      local.get $t6
-      local.set $value.0
     end
+    ;; (no span)
     local.get $value.0
   )
   (func $user_name (param $value.0 i32) (param $value.1 i32) (result i32 i32) (local $t0 i32)
@@ -68,12 +42,9 @@
       local.get $value.0
       local.get $value.1
       i32.load $heap
-      call_indirect $table0 (param i32) (result i32 i32 i32 i32)
-      drop
-      drop
-      i32.const 65 ;; &"app.main.User"
-      i32.const 13
-      call $rt:str_eq
+      call_indirect $table0 (param i32) (result i32)
+      call $rt:type_info
+      i32.eq
       if
         local.get $value.0
         local.set $t0
@@ -113,7 +84,7 @@
     ;; 13 |     match value.downcast_ref::[User]():
           br 1
         end
-        i32.const 78 ;; &"not a user"
+        i32.const 65 ;; &"not a user"
         i32.const 10
         local.set $value.1
         local.set $value.0
@@ -137,7 +108,7 @@
       local.get $u.name.1
       i32.store $heap offset=4
       local.get $t0
-      i32.const 180 ;; &vtable[func40]
+      i32.const 216 ;; &vtable[func39]
     ;; (no span)
       local.set $u.name.1
       local.set $u.name.0

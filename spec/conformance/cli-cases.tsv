@@ -215,6 +215,7 @@ repl-value-stream	cli.repl.script.output,cli.repl.value.stream,cli.dbg.repl
 repl-checkpoint	cli.repl.checkpoint.continue,cli.repl.checkpoint.initialized,cli.repl.checkpoint.effects,cli.repl.checkpoint.history
 repl-declarations	cli.repl.declarations.bindings,cli.repl.redeclare.binding,cli.repl.redeclare.type
 repl-member	cli.repl.declarations.bindings,cli.repl.value
+repl-typeid-descriptors	cli.repl.declarations.bindings,cli.repl.input-types,cli.repl.command.reload
 repl-bang	cli.repl.input.driver,cli.repl.host.cwd,cli.repl.host.default-profile
 repl-panic	cli.repl.panic,cli.repl.panic.binding,cli.repl.panic.mutations,cli.repl.panic.declarations,cli.repl.script.exit
 repl-host	cli.repl.host.once,cli.repl.host.args,cli.repl.host.default-profile

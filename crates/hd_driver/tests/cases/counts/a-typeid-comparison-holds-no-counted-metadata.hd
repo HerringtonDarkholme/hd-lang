@@ -1,0 +1,8 @@
+# @dump: counts wat
+# @build: v8 release
+# TypeId itself is an uncounted descriptor address. Comparing saved ids
+# never copies, retains, releases, or scans their key/name strings.
+use std.inspect.TypeId
+
+fn equal(left: TypeId, right: TypeId) -> bool:
+    left == right

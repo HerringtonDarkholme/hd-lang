@@ -17,8 +17,8 @@ use crate::module::{
 };
 use crate::{Entry, Input, unsupported};
 
-/// A `TypeId` value (`emit/dyn_value.rs`): the key and the printable name
-/// it holds, two views of static data that are never counted.
+/// The canonical descriptor behind a `TypeId` (`emit/dyn_value.rs`):
+/// its identity key and printable name, both in static storage.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TypeIdParts {
     pub name: String,
@@ -480,8 +480,10 @@ pub enum Helper {
     ListExtend {
         elem: Elem,
     },
-    /// `() -> TypeId`: a `TypeId` of static strings.
+    /// `() -> TypeId`: a `TypeId` addressing its static descriptor.
     TypeIdOf(TypeIdParts),
+    /// `() -> address`: the canonical static descriptor of a type.
+    TypeInfo(TypeIdParts),
     /// `(data) -> TypeId`: a vtable's `runtime_type` slot, the `TypeId`
     /// of the type the vtable is built at.
     RuntimeType(TypeIdParts),
@@ -1872,6 +1874,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::ListReserve { elem } => list_reserve(elem, m),
         Helper::ListExtend { elem } => list_extend(elem, m),
         Helper::TypeIdOf(parts) => type_id(parts, vec![], m),
+        Helper::TypeInfo(parts) => type_info(parts, m),
         Helper::RuntimeType(parts) => type_id(parts, vec![Val::I32], m),
         Helper::MapStep {
             entry,
@@ -3344,14 +3347,44 @@ fn each_elem(f: &mut Func, at: u32, n: u32, size: u32, body: &dyn Fn(&mut Func))
     f.op(Instruction::End);
 }
 
-/// A function of `params`, which it ignores, that returns a `TypeId`: its
-/// key and its name, two views of static data.
+/// A function of `params`, which it ignores, that returns the canonical
+/// descriptor's address. Both entry forms use the same helper symbol,
+/// including when the session linker reuses an earlier module's helper.
 fn type_id(parts: &TypeIdParts, params: Vec<Val>, m: &mut Module) -> Func {
-    let mut f = m.func("rt:type_id", params, vec![Val::I32; 4]);
-    for text in [&parts.name, &parts.shown] {
-        f.static_addr(m.static_bytes(text.as_bytes(), 1));
-        f.u32(u32::try_from(text.len()).expect("type name"));
+    let mut f = m.func("rt:type_id", params, vec![Val::I32]);
+    f.helper(Helper::TypeInfo(parts.clone()));
+    f
+}
+
+/// Initialize the descriptor through relocatable instructions rather
+/// than embedding absolute string addresses in a linked data segment.
+/// Its first word doubles as the initialized flag; type keys are nonempty.
+fn type_info(parts: &TypeIdParts, m: &mut Module) -> Func {
+    let mut f = m.func("rt:type_info", vec![], vec![Val::I32]);
+    let at = m.static_slot(16, 4);
+    m.label_static(at, &format!("type descriptor {}", parts.name));
+    let fields = [&parts.name, &parts.shown].map(|text| {
+        (
+            m.static_bytes(text.as_bytes(), 1),
+            u32::try_from(text.len()).expect("type name"),
+        )
+    });
+    f.static_addr(at);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::If(BlockType::Empty));
+    // Publish the first word last, after the complete descriptor is ready.
+    for (index, (text, len)) in fields.into_iter().enumerate().rev() {
+        let offset = (index * 8) as u64;
+        f.static_addr(at);
+        f.u32(len);
+        f.op(Instruction::I32Store(mem(HEAP, offset + 4, 2)));
+        f.static_addr(at);
+        f.static_addr(text);
+        f.op(Instruction::I32Store(mem(HEAP, offset, 2)));
     }
+    f.op(Instruction::End);
+    f.static_addr(at);
     f
 }
 
