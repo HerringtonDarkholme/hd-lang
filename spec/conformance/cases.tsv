@@ -4027,7 +4027,7 @@ typing/invalid/from-no-fitting-instantiation.hd	type	reject:type-mismatch	lang/0
 runtime/valid/from-propagation-and-panic.hd	runtime	accept	lang/09-traits.md#r-trait.from.propagation
 runtime/valid/erased-error-result.hd	runtime	accept	lang/09-traits.md#r-trait.error.result.reference-values
 runtime/valid/erased-method-local-reference.hd	runtime	accept	lang/13-values-and-references.md#r-ref.expr.place
-runtime/valid/erased-thunk-mut-open-argument-ref-self-release.hd	runtime	accept	lang/13-values-and-references.md#r-ref.type.kind-runtime
+runtime/valid/erased-thunk-mut-open-argument-ref-self-release.hd	runtime	accept	lang/13-values-and-references.md#r-ref.type.local-uncounted
 typing/valid/erased-error-entry-point.hd	type	accept	lang/09-traits.md#r-trait.dyn.bound.reference
 runtime/valid/local-inherent-and-trait-impls.hd	runtime	accept	lang/09-traits.md#r-trait.impl.local.inherent
 typing/invalid/local-impl-second-pair.hd	type	reject:overlapping-impl	lang/09-traits.md#r-trait.impl.local.no-second
@@ -4744,7 +4744,7 @@ runtime/valid/reference-derived-eq-structural.hd	runtime	accept	std/cmp.md#r-std
 runtime/valid/reference-derived-hash-key.hd	runtime	accept	std/hash.md#r-std-hash.derive.hash.references
 runtime/panic/reference-derived-eq-cycle.hd	runtime	panic:stack-exhausted	std/cmp.md#r-std-cmp.derive.eq.stack
 runtime/valid/reference-eq-generic.hd	runtime	accept	std/cmp.md#r-std-cmp.ref.eq-noncopy
-runtime/valid/deep-equal-rings.hd	runtime	accept	std/cmp.md#r-std-cmp.deep-equal.references
+runtime/valid/deep-equal-rings.hd	runtime	accept	std/cmp.md#r-std-cmp.deep-equal.reference-kinds
 runtime/valid/deep-equal-values.hd	runtime	accept	std/cmp.md#r-std-cmp.deep-equal.containers
 runtime/valid/deep-equal-visits-shared.hd	runtime	accept	std/cmp.md#r-std-cmp.deep-equal.visits-ref
 runtime/valid/deep-recursive-release.hd	runtime	accept	lang/13-values-and-references.md#r-ref.expr.allocate
@@ -4830,7 +4830,7 @@ runtime/valid/match-reference-declared-payload.hd	runtime	accept	lang/13-values-
 runtime/valid/match-reference-non-copy-scalar-enum.hd	runtime	accept	lang/13-values-and-references.md#r-ref.match.read
 runtime/valid/match-reference-payload-borrow.hd	runtime	accept	lang/13-values-and-references.md#r-ref.match.borrow
 typing/invalid/match-reference-nonexhaustive.hd	type	reject:nonexhaustive-match	lang/06-control-flow.md#r-flow.match.cover.reference
-runtime/valid/serde-reference-round-trip.hd	runtime	accept	std/serde.md#r-std-serde.std.reference
+runtime/valid/serde-reference-round-trip.hd	runtime	accept	std/serde.md#r-std-serde.std.counted-reference
 runtime/valid/list-copy-independent.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/a-match-binding-of-a-map-list-keeps-its-value.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/list-value-parameter-copy.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
@@ -5839,6 +5839,10 @@ runtime/panic/uniq-map-drain-while-pinned.hd	runtime	panic:borrow-conflict	std/c
 runtime/panic/uniq-map-retain-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-map.type
 runtime/valid/pointer-impl-keeps-declared-pointer-parameters.hd	runtime	accept	lang/13-values-and-references.md#r-ref.type.kind-distinct
 runtime/valid/pointer-impl-returns-a-counted-box.hd	runtime	accept	lang/13-values-and-references.md#r-ref.box.lifetime
+runtime/valid/reference-impls-keep-their-kind.hd	runtime	accept	lang/13-values-and-references.md#r-ref.type.kind-impl
+typing/invalid/reference-impl-covers-only-its-kind.hd	type	reject:unsatisfied-trait-bound	lang/13-values-and-references.md#r-ref.type.kind-impl
+typing/invalid/generic-pointer-impl-rejects-local-caller.hd	type	reject:unsatisfied-trait-bound	lang/13-values-and-references.md#r-ref.type.kind-impl
+typing/invalid/local-impl-rejects-counted-caller.hd	type	reject:unsatisfied-trait-bound	lang/13-values-and-references.md#r-ref.type.kind-impl
 runtime/valid/list-with-capacity.hd	runtime	accept	std/collections.md#r-std-collections.list.with-capacity
 runtime/valid/list-reserve.hd	runtime	accept	std/collections.md#r-std-collections.list.reserve
 runtime/valid/list-truncate.hd	runtime	accept	std/collections.md#r-std-collections.list.truncate

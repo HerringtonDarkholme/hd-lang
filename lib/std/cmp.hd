@@ -221,6 +221,16 @@ impl[T < ?Copy & Eq] Eq for *mut T:
     fn eq(&self, other: &Self) -> bool:
         *(*self) == *(*other)
 
+# Keep handwritten Eq: delegate through the reference; structural derivation is for its referent.
+impl[T < ?Copy & Eq] Eq for &T:
+    fn eq(&self, other: &Self) -> bool:
+        *(*self) == *(*other)
+
+# Keep handwritten Eq: delegate through the reference; structural derivation is for its referent.
+impl[T < ?Copy & Eq] Eq for &mut T:
+    fn eq(&self, other: &Self) -> bool:
+        *(*self) == *(*other)
+
 # `.None` is less than every present value
 # (spec/lang/05-expressions.md#r-expr.ord.std.optional).
 impl[T < ?Copy & PartialOrd] PartialOrd for T?:
@@ -609,7 +619,7 @@ impl[K < Eq & Hash, V < DeepEq] DeepEq for Map[K, V]:
 
 # Two references are deeply equal when they refer to one place, when the
 # pair is already being compared, or when the values they refer to are
-# (r-std-cmp.deep-equal.references).
+# (r-std-cmp.deep-equal.reference-kinds).
 impl[T < DeepEq] DeepEq for *T:
     fn deep_eq(&self, other: &Self, visits: &mut DeepVisits) -> bool:
         if *self is *other:
@@ -622,6 +632,17 @@ impl[T < DeepEq] DeepEq for *T:
         (*(*self)).deep_eq(&*(*other), visits)
 
 impl[T < DeepEq] DeepEq for *mut T:
+    fn deep_eq(&self, other: &Self, visits: &mut DeepVisits) -> bool:
+        if *self is *other:
+            return true
+        pair := (identity_of(*self), identity_of(*other))
+        match visits.pairs.get(pair):
+            .Some(_) => return true
+            .None => pass
+        visits.pairs[pair] = true
+        (*(*self)).deep_eq(&*(*other), visits)
+
+impl[T < DeepEq] DeepEq for &T:
     fn deep_eq(&self, other: &Self, visits: &mut DeepVisits) -> bool:
         if *self is *other:
             return true

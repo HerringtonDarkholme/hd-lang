@@ -303,15 +303,16 @@ For example, `@skip()` on `cached: usize = 0` leaves the cache out of documents.
 | r[std-serde.std.map-key-entries] Map | `Map[K, V]`, where `K` implements `Eq`, `Hash`, and `MapKey`, and `V` implements the trait | a map of the scalar-keyed entries, in the map's [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic) | a map, entry by entry, in its order |
 | r[std-serde.std.set] Set | `Set[T]`, where `T` implements the trait | a list of the elements, in insertion order | a list, element by element; a repeated element keeps one entry |
 | r[std-serde.std.tuple] Tuple | a tuple type whose members implement the trait | a list of the members, in order | a list with one item per member, in order |
-| r[std-serde.std.reference] Reference | `&T` and `&mut T`, where `T` implements the trait | what `T` writes for the value the reference refers to | a new object that holds what `T` reads |
+| r[std-serde.std.counted-reference] Counted reference | `*T` and `*mut T`, where `T` implements the trait | what `T` writes for the value the reference refers to | a new object that holds what `T` reads |
 
 1. r[std-serde.std.range] A value that its scalar call reads but the type cannot hold is the reader's `invalid(expected)` error. That is an integer outside the type's range, a `char` text of another length, or an `f32` past its finite range. The range of `usize` is the target's, by [`types.usize.width`](../lang/04-type-system.md#r-types.usize.width), so on the Wasm32 target it is that of `u32`.
 2. r[std-serde.std.float-read] An `f32` reads the nearest `f32` to the `f64` it reads.
 3. r[std-serde.std.tuple-length] A tuple reads exactly one list item per member. A list with fewer items, or with items left after the last member, is the reader's `invalid(expected)` error, so JSON reports it at the path of the list or of the first extra item.
 4. r[std-serde.std.tuple-rest] A rest element is one member of type `List[T]`, by [`annot.walk.rest.default`](../lang/14-annotations.md#r-annot.walk.rest.default). So `(i32, List[i32]...)` writes `[1, [2, 3]]`, a list whose last item is the rest list.
 5. r[std-serde.std.map-key-bound] A `Map[K, V]` implements a serde trait only when `K` implements `Eq`, `Hash`, and `MapKey` and `V` implements that serde trait.
-6. r[std-serde.std.reference.static] The reference implementations bound `T` by `'static`, since reading one keeps the value in a new object ([Generic Locality](../lang/13-values-and-references.md#generic-locality)).
-7. r[std-serde.std.map-key-missing] Using a map key without `MapKey` where a serde trait is required is an error. Error: `unsatisfied-trait-bound`.
+6. r[std-serde.std.local-reference] `&T` and `&mut T` implement `Serialize` when `T` does, and write what `T` writes for the value they refer to. They do not implement `Deserialize`, since reading makes a new object, which only a counted reference refers to.
+7. r[std-serde.std.reference.static] The reference implementations bound `T` by `'static`, since reading one keeps the value in a new object ([Generic Locality](../lang/13-values-and-references.md#generic-locality)).
+8. r[std-serde.std.map-key-missing] Using a map key without `MapKey` where a serde trait is required is an error. Error: `unsatisfied-trait-bound`.
 
 ```text
 use std.serde.Serialize

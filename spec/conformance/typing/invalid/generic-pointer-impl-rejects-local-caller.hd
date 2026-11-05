@@ -1,0 +1,19 @@
+# test: a generic implementation on `*T` does not cover `&Leaf`, so a bounded call with a `&Leaf` argument is an error
+# Spec 13 Reference Types: ref.type.kind-impl.
+trait D:
+    fn d(&self) -> i32
+
+struct Leaf:
+    n: i32
+
+impl D for Leaf:
+    fn d(&self) -> i32: self.n
+
+impl[T < D] D for *T:
+    fn d(&self) -> i32: (*(*self)).d()
+
+fn nested[T < D](value: T) -> i32:
+    value.d()
+
+fn local(leaf: &Leaf) -> i32:
+    nested(leaf)  # diagnostic: unsatisfied-trait-bound

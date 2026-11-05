@@ -1,5 +1,5 @@
 # test: deep_equal ends on cyclic structures: two equal rings are equal, two different rings are not
-# Spec std/cmp Deep Equality: std-cmp.deep-equal.decl, std-cmp.deep-equal.references, std-cmp.deep-equal.derive, std-cmp.deep-equal.ends.
+# Spec std/cmp Deep Equality: std-cmp.deep-equal.decl, std-cmp.deep-equal.reference-kinds, std-cmp.deep-equal.derive, std-cmp.deep-equal.ends.
 # expect-stdout: true
 # expect-stdout: false
 # expect-stdout: true

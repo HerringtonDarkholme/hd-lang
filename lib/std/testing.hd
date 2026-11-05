@@ -539,7 +539,7 @@ impl[T < Arbitrary, E < Arbitrary] Arbitrary for Result[T, E]:
         if c.bool(): .Err(E::arbitrary(c)) else: .Ok(T::arbitrary(c))
 
 # A reference refers to a new object holding a drawn value
-# (r-std-testing.arbitrary.reference).
+# (r-std-testing.arbitrary.counted-reference).
 impl[T < Arbitrary & 'static] Arbitrary for *T:
     fn arbitrary(c: &mut Choices) -> *T:
         # Boxed because the generated reference escapes in the returned arbitrary value.

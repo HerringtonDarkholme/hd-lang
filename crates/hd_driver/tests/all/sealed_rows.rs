@@ -71,7 +71,7 @@ struct User:
 trait Named < AnyRef:
     fn name(self) -> string
 
-impl Named for &User:
+impl Named for *User:
     fn name(self) -> string: self.name
 
 fn pick[T < AnyRef](a: T, b: T, left: bool) -> T:

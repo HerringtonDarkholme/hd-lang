@@ -108,13 +108,11 @@ impl Prim {
 }
 
 /// The data types reference types lower to ([`Types::lower_refs`]):
-/// `local` for `&T` and `&mut T`, `counted` for `*T` and `*mut T`, except
-/// that the reference type `local_ty`, when set, lowers to `local` too.
+/// `local` for `&T` and `&mut T`, `counted` for `*T` and `*mut T`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct RefCells {
     pub local: DefId,
     pub counted: DefId,
-    pub local_ty: Option<Ty>,
 }
 
 impl RefCells {
@@ -123,24 +121,13 @@ impl RefCells {
     pub fn holds(self, def: DefId) -> bool {
         def == self.local || def == self.counted
     }
-    /// Both kinds lowered to the local carrier, for an implementation on
-    /// a reference type, which covers both kinds (`ref.type.kind-runtime`).
+    /// Both kinds lowered to the local carrier, to compare two types
+    /// that may differ only by reference kinds.
     #[must_use]
     pub fn local_only(self) -> Self {
         Self {
             local: self.local,
             counted: self.local,
-            local_ty: None,
-        }
-    }
-    /// The carriers of an implementation on the reference type `self_ty`:
-    /// its target covers both kinds (`ref.type.kind-runtime`), so `self_ty`
-    /// lowers to the local carrier; every other reference keeps its kind.
-    #[must_use]
-    pub fn with_local_self(self, self_ty: Ty) -> Self {
-        Self {
-            local_ty: Some(self_ty),
-            ..self
         }
     }
 }
@@ -1659,8 +1646,9 @@ impl<'a> Types<'a> {
             )
         };
         let d = match self.get(t) {
-            // Both kinds have one representation (`ref.type.kind-runtime`);
-            // only a counted one is a whole object's address (`ref.box.object`).
+            // Both kinds have one layout; only a counted one holds a count
+            // and is a whole object's address (`ref.type.local-uncounted`,
+            // `ref.box.object`).
             TyData::Ref {
                 inner,
                 mutable,
@@ -1673,11 +1661,7 @@ impl<'a> Types<'a> {
                     inner
                 };
                 TyData::Adt {
-                    def: if counted && cell.local_ty != Some(t) {
-                        cell.counted
-                    } else {
-                        cell.local
-                    },
+                    def: if counted { cell.counted } else { cell.local },
                     args: self.list(&[identity]),
                 }
             }
@@ -2678,7 +2662,6 @@ mod tests {
         let cell = super::RefCells {
             local: hd_base::DefId::from_raw(776),
             counted: hd_base::DefId::from_raw(777),
-            local_ty: None,
         };
         let shared = pool.intern_ty(&TyData::Ref {
             inner: Ty::I32,

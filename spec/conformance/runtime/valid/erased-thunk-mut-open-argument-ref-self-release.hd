@@ -1,5 +1,5 @@
 # test: an erased thunk releases a view lent from a mutable open argument to a shared receiver
-# Spec 13 Reference Types: ref.type.kind-runtime; Generic Calls: ref.generic.local.
+# Spec 13 Reference Types: ref.type.local-uncounted; Generic Calls: ref.generic.local.
 
 trait Sink:
     fn put[T](&self, into: &mut Bag[T], x: T) -> usize

@@ -73,7 +73,7 @@ trait Arbitrary:
 9. r[std-testing.choices.float-range.end] A `float` range whose `inclusive` is `false` never returns its `end`, and one whose `inclusive` is `true` may. A range whose `start` is not below its `end` returns `start` and records no draw.
 10. r[std-testing.arbitrary] `Arbitrary` gives a type its default generator, which `it_prop` and `Choices.draw` use.
 11. r[std-testing.arbitrary.std] `std` implements `Arbitrary` for the primitives, `string`, `List[T]`, `Map[K, V]`, `T?`, `Result[T, E]`, and tuples, each when its type arguments implement it.
-12. r[std-testing.arbitrary.reference] `std` also implements `Arbitrary` for `&T` and `&mut T` when `T` implements it. Each draws a `T` and refers to a new object that holds it.
+12. r[std-testing.arbitrary.counted-reference] `std` also implements `Arbitrary` for `*T` and `*mut T` when `T` implements it. Each draws a `T` and refers to a new object that holds it.
 13. r[std-testing.arbitrary.reference.static] Those two implementations bound `T` by `'static`, since the new object keeps the drawn value ([Generic Locality](../lang/13-values-and-references.md#generic-locality)).
 14. r[std-testing.arbitrary.float] The `Arbitrary` implementations of `f32` and `f64` draw any value of the type, including NaN, both infinities, `-0.0`, and subnormal values, as Hypothesis's `floats()` does.
 15. r[std-testing.prop.generate-and-shrink] The runner generates inputs for `it_prop` and `it_prop_with`, shrinking a failure only after observing it in a fresh instance.

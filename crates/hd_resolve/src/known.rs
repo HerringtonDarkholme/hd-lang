@@ -197,7 +197,6 @@ impl KnownItems {
         hd_types::RefCells {
             local: self.ref_cell,
             counted: self.counted_cell,
-            local_ty: None,
         }
     }
     /// The sealed traits the solver's compiler-supplied rows answer

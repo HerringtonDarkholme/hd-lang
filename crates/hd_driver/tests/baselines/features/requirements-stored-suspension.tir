@@ -106,7 +106,7 @@ fn bound!(s: string) -> usize:
 >   %4 = Block %3 : Tag
 >   %5 = RefDyn %4 : Counted[Tag]
 >   %6 = Coerce %5 [RefAsProvider -] : Tag
->   %9 = With [%5918 %6] %8 : mut Suspend[usize]
+>   %9 = With [%5965 %6] %8 : mut Suspend[usize]
 >   %10 = Store [$1] %9 : ()
 >   %13 = Block %12 : usize
         tagged()

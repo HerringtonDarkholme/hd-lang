@@ -313,7 +313,12 @@ impl<'a> Universe<'a> {
             TyData::TraitValue { def, .. } => Some(HeadKey::Trait(def)),
             TyData::Option(_) => Some(HeadKey::Ctor(0, 0)),
             TyData::Mut(_) => Some(HeadKey::Ctor(1, 0)),
-            TyData::Ref { mutable, .. } => Some(HeadKey::Ctor(4, u32::from(mutable))),
+            TyData::Ref {
+                mutable, counted, ..
+            } => Some(HeadKey::Ctor(
+                4,
+                u32::from(mutable) | u32::from(counted) << 1,
+            )),
             TyData::Fn { .. } => Some(HeadKey::Ctor(2, 0)),
             TyData::Tuple { elems, rest: None } => Some(HeadKey::Ctor(
                 3,
@@ -423,19 +428,19 @@ impl<'a> Universe<'a> {
                 x == y
             }
             (
-                // One impl covers both kinds of reference
-                // (`ref.type.kind-runtime`), so they overlap.
+                // An impl on `*T` and one on `&T` never overlap
+                // (`ref.type.kind-impl`).
                 TyData::Ref {
                     inner: x,
                     mutable: mx,
-                    ..
+                    counted: cx,
                 },
                 TyData::Ref {
                     inner: y,
                     mutable: my,
-                    ..
+                    counted: cy,
                 },
-            ) => mx == my && self.unify(x, y, oa, ob, sub),
+            ) => mx == my && cx == cy && self.unify(x, y, oa, ob, sub),
             (
                 TyData::Tuple {
                     elems: x,

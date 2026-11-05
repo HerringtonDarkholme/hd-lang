@@ -1400,20 +1400,20 @@ fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Optio
         (TyData::Adt { def: d1, args: a1 }, TyData::Adt { def: d2, args: a2 }) if d1 == d2 => {
             match_list(pool, owner, a1, a2, binds)
         }
-        // An impl for a reference covers both kinds: they are one type
-        // at run time (`ref.type.kind-runtime`).
+        // An impl for a reference covers only its own kind
+        // (`ref.type.kind-impl`).
         (
             TyData::Ref {
                 inner: p,
                 mutable: m1,
-                ..
+                counted: c1,
             },
             TyData::Ref {
                 inner: x,
                 mutable: m2,
-                ..
+                counted: c2,
             },
-        ) if m1 == m2 => match_ty(pool, owner, p, x, binds),
+        ) if m1 == m2 && c1 == c2 => match_ty(pool, owner, p, x, binds),
         (
             TyData::Tuple {
                 elems: e1,

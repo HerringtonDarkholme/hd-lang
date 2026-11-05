@@ -1,0 +1,14 @@
+# test: an implementation for `&Point` does not cover `*Point`, so a generic call with a `*Point` argument is an error
+# Spec 13 Reference Types: ref.type.kind-impl.
+struct Point:
+    x: i32
+
+trait Named:
+    fn name(&self) -> string
+
+impl Named for &Point:
+    fn name(&self) -> string: "point"
+
+fn label[T < Named](value: T) -> string: value.name()
+
+fn bad_kind(p: *Point) -> string: label(p)  # diagnostic: unsatisfied-trait-bound

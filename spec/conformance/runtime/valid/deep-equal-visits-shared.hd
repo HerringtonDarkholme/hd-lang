@@ -1,5 +1,5 @@
 # test: a hand-written DeepEq passes its &mut DeepVisits on, so the record of pairs reaches every depth and a ring compares to an end
-# Spec std/cmp Deep Equality: std-cmp.deep-equal.visits-ref, std-cmp.deep-equal.trait-ref, std-cmp.deep-equal.references.
+# Spec std/cmp Deep Equality: std-cmp.deep-equal.visits-ref, std-cmp.deep-equal.trait-ref, std-cmp.deep-equal.reference-kinds.
 # expect-stdout: true
 # expect-stdout: false
 use std.cmp.{DeepEq, DeepVisits, deep_equal}

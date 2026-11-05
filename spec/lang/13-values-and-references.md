@@ -34,8 +34,8 @@ fn each(f: fn(&Point) -> *mut Point, pending: *Point?) -> void: pass
 1. r[ref.type.forms] `&T` is a local reference type, and `&mut T` is a writable local reference type. The operand `T` is a named, `dyn`, tuple, or grouped type, or a counted reference type with no parentheses: `&*T`, `&*mut T`, and `&mut *T`.
 2. r[ref.type.counted-forms] `*T` is a counted reference type, and `*mut T` is a writable counted reference type. Their operand is a named, `dyn`, tuple, or grouped type.
 3. r[ref.type.kinds] Counted and local are the two kinds of reference. A rule of this chapter that says "a reference" holds for both kinds.
-4. r[ref.type.kinds.elsewhere] A rule in another chapter that writes `&T` or `&mut T` for a reference that is read, written, matched, compared, or printed holds for `*T` and `*mut T` too. This rule is temporary, as the note below says.
-5. r[ref.type.kind-runtime] A local reference is counted at run time, as a counted reference is. Only the rules of [Local References](#local-references) tell the two kinds apart.
+4. r[ref.type.kinds.elsewhere] A rule in another chapter that writes `&T` or `&mut T` for a reference that is read, written, matched, compared, or printed holds for `*T` and `*mut T` too. It does not extend which implementations a reference type has: [`ref.type.kind-impl`](#r-ref.type.kind-impl) alone decides that. This rule is temporary, as the note below says.
+5. r[ref.type.local-uncounted] A local reference counts nothing at run time: making, copying, or ending one changes no count. Only a counted reference holds a count of the object it refers to.
 6. r[ref.type.position] A counted reference type may appear wherever a type may: a parameter, a result, a field, a binding annotation, a type argument, and a function type's parameters and result.
 7. r[ref.type.optional] `?` applies to the whole reference type: `*T?` is an optional `*T`.
 8. r[ref.type.group] To refer to an optional, to a local reference, or from a counted reference to another reference, group the operand: `&(T?)`, `&(&T)`, and `*(*T)`. `&(*T)` is the same type as `&*T`.
@@ -45,20 +45,35 @@ fn each(f: fn(&Point) -> *mut Point, pending: *Point?) -> void: pass
 12. r[ref.type.counted-no-function] `*` never directly precedes `fn` either: `*fn() -> i32` and `*mut fn() -> i32` are errors. Error: `syntax-error`.
 13. r[ref.type.distinct] `&T` and `&mut T` are distinct types. Each is invariant in `T`: `&A` is `&B` only when `A` is `B`.
 14. r[ref.type.kind-distinct] `*T` and `*mut T` are distinct types, and distinct from `&T` and `&mut T`. Each is invariant in `T`.
-15. r[ref.type.any-ref] A reference type implements `AnyRef`.
-16. r[ref.type.dyn] `&dyn Tr` and `&mut dyn Tr` are trait value references, whose conversions and members [Trait Value References](09-traits.md#trait-value-references) states.
-17. r[ref.type.dyn-counted] `*dyn Tr` and `*mut dyn Tr` are counted trait value references. They take the same conversions and members, with `*` in place of `&` on both sides of each conversion.
-18. r[ref.type.dyn.no-fn] `Fn` has no trait-value reference form, so local and counted `dyn Fn` references are errors. Error: `trait-not-dynamically-safe`.
-19. r[ref.type.dyn.no-fn-mut] `FnMut` has no trait-value reference form either. Error: `trait-not-dynamically-safe`.
+15. r[ref.type.kind-impl] An implementation for a reference type covers that kind only. One for `*T` does not cover `&T`, and one for `&T` does not cover `*T`; so too for `*mut T` and `&mut T`. Using a `&T` where only `*T` implements a bound is an error. Error: `unsatisfied-trait-bound`.
+16. r[ref.type.any-ref] A reference type implements `AnyRef`.
+17. r[ref.type.dyn] `&dyn Tr` and `&mut dyn Tr` are trait value references, whose conversions and members [Trait Value References](09-traits.md#trait-value-references) states.
+18. r[ref.type.dyn-counted] `*dyn Tr` and `*mut dyn Tr` are counted trait value references. They take the same conversions and members, with `*` in place of `&` on both sides of each conversion.
+19. r[ref.type.dyn.no-fn] `Fn` has no trait-value reference form, so local and counted `dyn Fn` references are errors. Error: `trait-not-dynamically-safe`.
+20. r[ref.type.dyn.no-fn-mut] `FnMut` has no trait-value reference form either. Error: `trait-not-dynamically-safe`.
 
 > **Note.** [`ref.type.kinds.elsewhere`](#r-ref.type.kinds.elsewhere)
 > bridges the chapters until the respelling slices of
 > [#834](https://github.com/HerringtonDarkholme/hd-lang/issues/834) spell
 > each such rule for both kinds. Those slices then remove it.
 
+> **Why.** A counted `*T` holds a count and a local `&T` holds none, so
+> one compiled body cannot serve both kinds. As in Rust, an implementation
+> for one reference type covers that type alone, and code that needs both
+> kinds writes both implementations.
+
 ```text
 use std.function.{Fn, FnMut}
 
+trait Named:
+    fn name(&self) -> string
+
+impl Named for *Point:
+    fn name(&self) -> string: "point"
+
+fn label[T < Named](value: T) -> string: value.name()
+
+fn bad_kind(p: &Point) -> string: label(p)  # error: unsatisfied-trait-bound
 fn bad_and(p: &&Point) -> void: pass  # error: syntax-error
 fn bad_mut(p: mut &Point) -> void: pass  # error: syntax-error
 fn bad_fn(f: &fn() -> i32) -> void: pass  # error: syntax-error

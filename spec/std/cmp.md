@@ -167,7 +167,7 @@ fn has_value(items: List[*i32], value: *i32) -> bool:
     items.contains(value)  # compares the values the references refer to
 ```
 
-1. r[std-cmp.ref.eq-noncopy] `std.cmp` implements `Eq` for `&T` and for `&mut T` when `T < ?Copy & Eq`. Two references are equal when the values they refer to are, so `r.eq(&s)` is `*r == *s`.
+1. r[std-cmp.ref.eq-noncopy] `std.cmp` implements `Eq` for each reference type, `*T`, `*mut T`, `&T`, and `&mut T`, when `T < ?Copy & Eq`. Two references are equal when the values they refer to are, so `r.eq(&s)` is `*r == *s`.
 2. r[std-cmp.ref.eq-operator] `==` written between two counted references stays an error, by [`ref.identity.no-equality`](../lang/13-values-and-references.md#r-ref.identity.no-equality). Between two local references it compares values, by [`expr.op.ref-read.equal-values`](../lang/05-expressions.md#r-expr.op.ref-read.equal-values). Generic code and derived implementations reach this implementation.
 
 > **Why.** A reference is equal by value, as in Rust, so a derived `Eq`
@@ -221,7 +221,7 @@ fn same_ring(a: &mut Node, b: &mut Node) -> bool:
 5. r[std-cmp.deep-equal.derive] A derived `DeepEq` compares the variant, then every member in declaration order by its `DeepEq`, as a derived `Eq` does.
 6. r[std-cmp.deep-equal.leaves] The number types, `char`, `bool`, and `string` implement `DeepEq` by `==`.
 7. r[std-cmp.deep-equal.containers] Optionals, results, lists, and tuples implement `DeepEq` when their elements do, and compare element by element. `Map[K, V]` implements it when `K < Eq & Hash` and `V < DeepEq`: both maps have the same keys, and the values under each key are deeply equal.
-8. r[std-cmp.deep-equal.references] `&T` and `&mut T` implement `DeepEq` when `T < DeepEq`. Two references to one place are deeply equal. Otherwise a pair the call is already comparing counts as equal, and a new pair is remembered before the values it refers to are compared.
+8. r[std-cmp.deep-equal.reference-kinds] `*T`, `*mut T`, and `&T` implement `DeepEq` when `T < DeepEq`. `&mut T` does not, since it is not `Copy`. Two references to one place are deeply equal. Otherwise a pair the call is already comparing counts as equal, and a new pair is remembered before the values it refers to are compared.
 9. r[std-cmp.deep-equal.ends] So `deep_equal` ends on every structure, cyclic ones included, as Go's `reflect.DeepEqual` does.
 
 > **Why.** A derived `Eq` stays as light as a field-by-field comparison, so

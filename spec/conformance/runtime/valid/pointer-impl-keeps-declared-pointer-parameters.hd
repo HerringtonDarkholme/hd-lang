@@ -1,5 +1,5 @@
-# test: an implementation on `*T` lowers its target to a local reference, since it covers both kinds, but a parameter it declares as `*mut W` stays a counted reference, so passing it on to another `*mut W` parameter and writing through it runs
-# Spec 13 Reference Types: ref.type.kinds.elsewhere, ref.type.kind-distinct.
+# test: an implementation on `*T` serves only `*T`, and a parameter it declares as `*mut W` stays a counted reference, so passing it on to another `*mut W` parameter and writing through it runs
+# Spec 13 Reference Types: ref.type.kind-impl, ref.type.kind-distinct.
 # expect-stdout: 1
 struct W:
     n: i32

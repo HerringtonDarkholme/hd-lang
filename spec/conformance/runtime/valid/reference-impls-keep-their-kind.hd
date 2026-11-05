@@ -1,0 +1,57 @@
+# test: an implementation on `*Leaf` and one on `&Leaf` each keep their declared kind, so a function value of the target type runs in each, and a receiver returned as the target type stays usable after the call, through a generic caller of either
+# Spec 13 Reference Types: ref.type.kind-impl, ref.type.kind-distinct, ref.type.local-uncounted.
+# expect-stdout: 40
+# expect-stdout: 2
+# expect-stdout: 7
+# expect-stdout: 9
+# expect-stdout: 1
+trait Probe:
+    fn me(&self) -> Self
+    fn twice(&self, f: fn(Self) -> i32) -> i32
+
+struct Leaf:
+    n: i32
+
+fn read_counted(p: *Leaf) -> i32:
+    p.n
+
+fn read_local(p: &Leaf) -> i32:
+    p.n
+
+impl Probe for *Leaf:
+    fn me(&self) -> *Leaf:
+        *self
+
+    fn twice(&self, f: fn(*Leaf) -> i32) -> i32:
+        let g: fn(*Leaf) -> i32 = f
+        g(*self) + g(self.me())
+
+impl['a] Probe for &'a Leaf:
+    fn me(&self) -> &'a Leaf:
+        *self
+
+    fn twice(&self, f: fn(&Leaf) -> i32) -> i32:
+        let g: fn(&Leaf) -> i32 = f
+        g(*self) + g(self.me())
+
+fn run[T < Probe](value: T, f: fn(T) -> i32) -> i32:
+    kept := value.me()
+    kept.twice(f)
+
+fn hold[T < Probe](value: T) -> T:
+    value.me()
+
+fn keep(p: *Leaf) -> *Leaf:
+    (&p).me()
+
+pub fn main() -> void $ Console:
+    let shared: *Leaf = box(Leaf { n: 20 })
+    println(run(shared, read_counted))
+    leaf := Leaf { n: 1 }
+    println(run(&leaf, read_local))
+    kept := keep(box(Leaf { n: 7 }))
+    println(kept.n)
+    let held: *Leaf = hold::[*Leaf](box(Leaf { n: 9 }))
+    println(held.n)
+    local := hold(&leaf)
+    println(local.n)

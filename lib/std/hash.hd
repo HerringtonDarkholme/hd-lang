@@ -45,6 +45,16 @@ impl[T < ?Copy & Hash] Hash for *mut T:
     fn hash[H < Hasher](&self, state: &mut H) -> void:
         (*(*self)).hash(state)
 
+# Keep handwritten Hash: delegate through the reference; structural derivation is for its referent.
+impl[T < ?Copy & Hash] Hash for &T:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        (*(*self)).hash(state)
+
+# Keep handwritten Hash: delegate through the reference; structural derivation is for its referent.
+impl[T < ?Copy & Hash] Hash for &mut T:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        (*(*self)).hash(state)
+
 # A result writes the tag byte 0 and then its `.Ok` payload, or 1 and then
 # its `.Err` payload (spec/std/hash.md#r-std-hash.bytes.result).
 # Keep handwritten Hash: keep one-byte variant tags instead of structural tag hashing.

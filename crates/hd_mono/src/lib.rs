@@ -981,8 +981,8 @@ fn name_into(
             out.push_str("mut ");
             name_into(pool, env, printed, i, out, limit);
         }
-        // The kind is erased after checking (`ref.type.kind-runtime`), so
-        // a run-time name keeps one spelling.
+        // Checking lowers each reference type to its carrier, which keeps
+        // the kind, so a run-time name keeps one spelling here.
         TyData::Ref { inner, mutable, .. } => {
             out.push_str(if mutable { "&mut " } else { "&" });
             name_into(pool, env, printed, inner, out, limit);

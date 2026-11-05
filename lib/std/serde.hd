@@ -950,7 +950,7 @@ impl[T < Deserialize, E < Deserialize] Deserialize for Result[T, E]:
         .Ok(found)
 
 # A reference writes the value it refers to, and reads into a new object
-# (r-std-serde.std.reference).
+# (r-std-serde.std.counted-reference).
 # Keep handwritten Serialize: delegate through the reference; structural derivation is for its referent.
 impl[T < ?Copy & Serialize] Serialize for *T:
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
@@ -958,6 +958,16 @@ impl[T < ?Copy & Serialize] Serialize for *T:
 
 # Keep handwritten Serialize: delegate through the reference; structural derivation is for its referent.
 impl[T < ?Copy & Serialize] Serialize for *mut T:
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        (*(*self)).serialize(out)
+
+# Keep handwritten Serialize: delegate through the reference; structural derivation is for its referent.
+impl[T < ?Copy & Serialize] Serialize for &T:
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        (*(*self)).serialize(out)
+
+# Keep handwritten Serialize: delegate through the reference; structural derivation is for its referent.
+impl[T < ?Copy & Serialize] Serialize for &mut T:
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         (*(*self)).serialize(out)
 

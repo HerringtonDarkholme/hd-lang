@@ -428,6 +428,22 @@ impl[T < ?Copy & Display] Display for *mut T:
     fn write(&self, out: &mut StringBuilder) -> void:
         (*(*self)).write(out)
 
+# Keep handwritten Display: delegate through the reference; structural derivation is for its referent.
+impl[T < ?Copy & Display] Display for &T:
+    fn to_string(&self) -> string:
+        (*(*self)).to_string()
+
+    fn write(&self, out: &mut StringBuilder) -> void:
+        (*(*self)).write(out)
+
+# Keep handwritten Display: delegate through the reference; structural derivation is for its referent.
+impl[T < ?Copy & Display] Display for &mut T:
+    fn to_string(&self) -> string:
+        (*(*self)).to_string()
+
+    fn write(&self, out: &mut StringBuilder) -> void:
+        (*(*self)).write(out)
+
 # Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for bool:
     fn to_string(&self) -> string:
@@ -706,6 +722,16 @@ impl[T < ?Copy & Debug] Debug for *T:
 
 # Keep handwritten Debug: delegate through the reference; structural derivation is for its referent.
 impl[T < ?Copy & Debug] Debug for *mut T:
+    fn debug(&self, out: *mut DebugWriter) -> void:
+        (*(*self)).debug(out)
+
+# Keep handwritten Debug: delegate through the reference; structural derivation is for its referent.
+impl[T < ?Copy & Debug] Debug for &T:
+    fn debug(&self, out: *mut DebugWriter) -> void:
+        (*(*self)).debug(out)
+
+# Keep handwritten Debug: delegate through the reference; structural derivation is for its referent.
+impl[T < ?Copy & Debug] Debug for &mut T:
     fn debug(&self, out: *mut DebugWriter) -> void:
         (*(*self)).debug(out)
 

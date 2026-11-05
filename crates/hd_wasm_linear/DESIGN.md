@@ -2583,10 +2583,9 @@ references, and open or erased values.
   - a counted value stored in a local reference's local, or given as a
     block's value, takes the local type, since a lend changes nothing at
     run time;
-  - an implementation on a reference type covers both kinds
-    (`ref.type.kind-runtime`), so its receiver may be a local
-    reference: its head, signatures and bodies lower every reference as
-    local (the driver's `Env::cells_in`).
+  - an implementation on a reference type covers only its declared kind
+    (`ref.type.kind-impl`), so its head, signatures and bodies lower each
+    reference by the kind they write.
 - **Checked proofs.** Checked mode verifies that every claimed payload
   start agrees with `block_of`, then performs the existing audited count
   update. An incorrect proof fails even when the ordinary count would
