@@ -1058,25 +1058,16 @@ export const nodeLayer = {
 // `env.stdin` is a file descriptor, or `null` for a closed standard input.
 export const createHost = (sink: Sink, env: HostEnv = {}): Host => {
   const report = process.env.HD_COUNT_AUDIT_REPORT;
-  return createCoreHost(
-    sink,
-    {
-      ...env,
-      countAudit:
-        env.countAudit ??
-        (report
-          ? (rows) => {
-              process
-                .getBuiltinModule("node:fs")
-                .appendFileSync(
-                  report,
-                  `${JSON.stringify({ program: env.program ?? "", sites: rows })}\n`,
-                );
-            }
-          : undefined),
-    },
-    nodeLayer,
-  );
+  // Property runs update this same environment's runner between cases.
+  // Preserve its identity when adding the optional reporting hook.
+  if (report && !env.countAudit) {
+    env.countAudit = (rows) => {
+      process
+        .getBuiltinModule("node:fs")
+        .appendFileSync(report, `${JSON.stringify({ program: env.program ?? "", sites: rows })}\n`);
+    };
+  }
+  return createCoreHost(sink, env, nodeLayer);
 };
 
 // Loaded only by the REPL child; ordinary programs skip the session graph.
