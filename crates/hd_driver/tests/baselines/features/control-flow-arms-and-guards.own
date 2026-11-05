@@ -12,14 +12,14 @@ enum Tag:
 fn pick(t: Tag) -> string:
     match t:
 > app/main/pick
->   local $0 t: Tag [param read]
->   local $1 n: string [read assigned]
->   local $2 l: string [read assigned]
->   local $3 r: string [read assigned]
->   local $4 r: string [read assigned]
->   local $5 self: string [read]
->   local $6 self: string [read]
->   local $7 self: string [read]
+>   local $0 t: Tag [param read] value
+>   local $1 n: string [read assigned] value
+>   local $2 l: string [read assigned] value
+>   local $3 r: string [read assigned] value
+>   local $4 r: string [read assigned] value
+>   local $5 self: string [read] value
+>   local $6 self: string [read] value
+>   local $7 self: string [read] value
 >   %0 = Read borrow [$0] : Tag
 >   %59 = Block - : never
 >   %60 = Match %0 [%59 %11 %29 %31 %32] : string
@@ -82,12 +82,12 @@ fn pick(t: Tag) -> string:
 fn whole(o: string?) -> usize:
     match o:
 > app/main/whole
->   local $0 o: string? [param read]
->   local $1 s: string [read assigned]
->   local $2 other: string? [read assigned]
->   local $3 self: string? [read]
->   local $4 self: string [read]
->   local $5 self: string [read]
+>   local $0 o: string? [param read] value
+>   local $1 s: string [read assigned] value
+>   local $2 other: string? [read assigned] value ×2
+>   local $3 self: string? [read] value
+>   local $4 self: string [read] value
+>   local $5 self: string [read] value
 >   %0 = Read borrow [$0] : string?
 >   %57 = Block - : never
 >   %58 = Match %0 [%57 %17 %41] : usize

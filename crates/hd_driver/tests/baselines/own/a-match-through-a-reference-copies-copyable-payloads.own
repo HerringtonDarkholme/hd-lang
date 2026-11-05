@@ -9,10 +9,10 @@ enum Expr:
 fn eval(expr: &Expr) -> i64:
     match expr:
 > app/main/eval
->   local $0 expr: Ref[Expr] [param read]
->   local $1 value: i64 [read assigned]
->   local $2 left: Counted[Expr] [read assigned]
->   local $3 right: Counted[Expr] [read assigned]
+>   local $0 expr: Ref[Expr] [param read] value
+>   local $1 value: i64 [read assigned] value
+>   local $2 left: Counted[Expr] [read assigned] value
+>   local $3 right: Counted[Expr] [read assigned] value
 >   %0 = Read borrow [$0] : Ref[Expr]
 >   %28 = Block - : never
 >   %29 = Match %0 [%28 %2 %8] : i64

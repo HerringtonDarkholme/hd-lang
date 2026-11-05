@@ -9,7 +9,7 @@ use std.task.{join, race}
 fn label!(s: string) -> string:
     s + "!"
 > app/main/label
->   local $0 s: string [param read]
+>   local $0 s: string [param read] value
 >   %0 = Read move [$0] : string
 >   %1 = Intrinsic StrConcat [%0 "!"] : string
 >   %2 = Drop [%0] : ()
@@ -20,8 +20,8 @@ fn label!(s: string) -> string:
 fn one!(s: string) -> usize:
     label!(s).len()
 > app/main/one
->   local $0 s: string [param read]
->   local $1 $ref: string [read assigned captured captured-assigned]
+>   local $0 s: string [param read] value
+>   local $1 $ref: string [read assigned captured captured-assigned] place
 >   %0 = Read move [$0] : string
 >   %1 = Await app/main/label[] (%0) : string
 >   %2 = Drop [%0] : ()
@@ -39,10 +39,10 @@ fn one!(s: string) -> usize:
 fn both!(a: string, b: string) -> usize:
     let (x, y) = join!(label(a), label(b))
 > app/main/both
->   local $0 a: string [param read]
->   local $1 b: string [param read]
->   local $2 x: string [read assigned captured]
->   local $3 y: string [read assigned captured]
+>   local $0 a: string [param read] value
+>   local $1 b: string [param read] value
+>   local $2 x: string [read assigned captured] place
+>   local $3 y: string [read assigned captured] place
 >   %0 = Read move [$0] : string
 >   %1 = Call app/main/label[] (%0) : mut Suspend[string]
 >   %2 = Read move [$1] : string
@@ -79,9 +79,9 @@ fn both!(a: string, b: string) -> usize:
 fn either!(a: string, b: string) -> usize:
     race!(label(a), label(b)).len()
 > app/main/either
->   local $0 a: string [param read]
->   local $1 b: string [param read]
->   local $2 $ref: string [read assigned captured captured-assigned]
+>   local $0 a: string [param read] value
+>   local $1 b: string [param read] value
+>   local $2 $ref: string [read assigned captured captured-assigned] place
 >   %0 = Read move [$0] : string
 >   %1 = Call app/main/label[] (%0) : mut Suspend[string]
 >   %2 = Drop [%0] : ()

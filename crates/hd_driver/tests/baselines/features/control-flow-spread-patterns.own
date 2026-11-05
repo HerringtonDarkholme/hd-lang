@@ -8,10 +8,10 @@
 fn total(t: (string, List[string]...)) -> usize:
     let (a, xs...) = t
 > app/main/total
->   local $0 t: (string, List[string]...) [param read]
->   local $1 a: string [read assigned]
->   local $2 xs: List[string] [read assigned]
->   local $3 self: string [read]
+>   local $0 t: (string, List[string]...) [param read] value
+>   local $1 a: string [read assigned] value
+>   local $2 xs: List[string] [read assigned] value
+>   local $3 self: string [read] value
 >   %0 = Read borrow [$0] : (string, List[string]...)
 >   %1 = Block - : ()
 >   %2 = Read borrow [%0 .0] : string
@@ -37,8 +37,8 @@ fn total(t: (string, List[string]...)) -> usize:
 fn describe(t: (string, List[string]...)) -> usize:
     match t:
 > app/main/describe
->   local $0 t: (string, List[string]...) [param read]
->   local $1 xs: List[string] [read assigned]
+>   local $0 t: (string, List[string]...) [param read] value
+>   local $1 xs: List[string] [read assigned] value
 >   %0 = Read borrow [$0] : (string, List[string]...)
 >   %7 = Block - : never
 >   %8 = Match %0 [%7 %3] : usize
@@ -54,8 +54,8 @@ fn describe(t: (string, List[string]...)) -> usize:
 fn rest(t: (string, List[string]...)) -> List[string]:
     let (_, xs...) = t
 > app/main/rest
->   local $0 t: (string, List[string]...) [param read]
->   local $1 xs: List[string] [read assigned]
+>   local $0 t: (string, List[string]...) [param read] value
+>   local $1 xs: List[string] [read assigned] value
 >   %0 = Read borrow [$0] : (string, List[string]...)
 >   %1 = Block - : ()
 >   %2 = Read copy [%0 .1] : List[string]

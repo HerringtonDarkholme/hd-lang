@@ -9,24 +9,24 @@
 fn rotate(n: usize) -> usize:
     let mut items = [for i in 0..n => i]
 > app/main/rotate
->   local $0 n: usize [param read]
->   local $1 $acc: mut List[usize] [assigned]
->   local $2 $cur: usize [assigned]
->   local $3 $end: usize [assigned]
->   local $4 $incl: bool [assigned]
->   local $5 i: usize [read assigned]
->   local $6 items: List[usize] [read assigned]
->   local $7 $acc: mut List[usize] [assigned]
->   local $8 $cur: usize [assigned]
->   local $9 $end: usize [assigned]
->   local $10 $incl: bool [assigned]
->   local $11 count: List[usize] [read assigned]
->   local $12 r: usize [read assigned mutated]
->   local $13 first: usize [:= read assigned]
->   local $14 $cur: usize [assigned]
->   local $15 $end: usize [assigned]
->   local $16 $incl: bool [assigned]
->   local $17 i: usize [read assigned]
+>   local $0 n: usize [param read] value
+>   local $1 $acc: mut List[usize] [assigned] value
+>   local $2 $cur: usize [assigned] value ×2
+>   local $3 $end: usize [assigned] value
+>   local $4 $incl: bool [assigned] value
+>   local $5 i: usize [read assigned] value
+>   local $6 items: List[usize] [read assigned] place
+>   local $7 $acc: mut List[usize] [assigned] value
+>   local $8 $cur: usize [assigned] value ×2
+>   local $9 $end: usize [assigned] value
+>   local $10 $incl: bool [assigned] value
+>   local $11 count: List[usize] [read assigned] place
+>   local $12 r: usize [read assigned mutated] value ×2
+>   local $13 first: usize [:= read assigned] value
+>   local $14 $cur: usize [assigned] value ×2
+>   local $15 $end: usize [assigned] value
+>   local $16 $incl: bool [assigned] value
+>   local $17 i: usize [read assigned] value
 >   %0 = NewList - [] : mut List[usize]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read copy [$0] : usize

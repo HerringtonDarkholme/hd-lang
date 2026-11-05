@@ -16,7 +16,7 @@ struct Pair:
 fn id[T](value: T) -> T:
     value
 > app/main/id
->   local $0 value: T [param read]
+>   local $0 value: T [param read] value
 >   %0 = Read move [$0] : T
 >   %1 = Block %0 : T
 >   exit sub 0 drops [$0]
@@ -25,9 +25,9 @@ fn id[T](value: T) -> T:
 fn left_or_right(pair: &Pair, left: bool) -> &User:
     let o: (&User)? = if left: .Some(&pair.left) else: .None
 > app/main/left_or_right
->   local $0 pair: Ref[Pair] [param read]
->   local $1 left: bool [param read]
->   local $2 o: Ref[User]? [read assigned]
+>   local $0 pair: Ref[Pair] [param read] value
+>   local $1 left: bool [param read] value
+>   local $2 o: Ref[User]? [read assigned] value
 >   %0 = Read copy [$1] : bool
 >   %1 = Ref local [*$0 .left] : Ref[User]
 >   %2 = NewVariant #1 [%1] : Ref[User]?
@@ -47,8 +47,8 @@ fn left_or_right(pair: &Pair, left: bool) -> &User:
 fn demo(u: &User) -> usize:
     n := id(&u.name)
 > app/main/demo
->   local $0 u: Ref[User] [param read]
->   local $1 n: Ref[string] [:= read assigned]
+>   local $0 u: Ref[User] [param read] value
+>   local $1 n: Ref[string] [:= read assigned] value
 >   %0 = Ref local [*$0 .name] : Ref[string]
 >   %1 = Call app/main/id[Ref[string]] (%0) : Ref[string]
 >   %2 = Store [$1] %1 : ()
@@ -62,8 +62,8 @@ fn demo(u: &User) -> usize:
 fn keep[T < 'static](value: T) -> *mut T:
     box(value)
 > app/main/keep
->   local $0 value: T [param read]
->   local $1 $ref: T [read assigned captured captured-assigned]
+>   local $0 value: T [param read] value
+>   local $1 $ref: T [read assigned captured captured-assigned] place
 >   %0 = Read move [$0] : T
 >   %1 = Store [$1] %0 : ()
 >   %2 = Ref take mut [$1] : Counted[mut T]
@@ -75,7 +75,7 @@ fn keep[T < 'static](value: T) -> *mut T:
 fn later[T < 'static](value: T) -> fn() -> T:
     fn() -> T: value
 > app/main/later
->   local $0 value: T [param read captured]
+>   local $0 value: T [param read captured] value
 >   %0 = Read move [$0] : T
 >   %1 = Block %0 : T
 >   %2 = Closure #1 [%0 %1] : fn() -> T
@@ -88,12 +88,12 @@ fn later[T < 'static](value: T) -> fn() -> T:
 fn bounded(u: User) -> usize:
     kept := keep(u)
 > app/main/bounded
->   local $0 u: User [param read]
->   local $1 kept: Counted[mut User] [:= read assigned]
->   local $2 $ref: string [read assigned captured captured-assigned]
->   local $3 self: string [read]
->   local $4 value: User [read]
->   local $5 $ref: User [read assigned captured captured-assigned]
+>   local $0 u: User [param read] value
+>   local $1 kept: Counted[mut User] [:= read assigned] value
+>   local $2 $ref: string [read assigned captured captured-assigned] value
+>   local $3 self: string [read] value
+>   local $4 value: User [read] value
+>   local $5 $ref: User [read assigned captured captured-assigned] place
 >   %0 = Read move [$0] : User
 >   %1 = Store [$4] %0 : ()
 >   %2 = Read move [$4] : User

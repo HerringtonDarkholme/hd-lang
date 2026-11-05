@@ -10,7 +10,7 @@ struct Rec:
 fn ret_param(s: string) -> string:
     s
 > app/main/ret_param
->   local $0 s: string [param read]
+>   local $0 s: string [param read] value
 >   %0 = Read move [$0] : string
 >   %1 = Block %0 : string
 >   exit sub 0 drops [$0]
@@ -19,7 +19,7 @@ fn ret_param(s: string) -> string:
 fn ret_field(r: Rec) -> string:
     r.name
 > app/main/ret_field
->   local $0 r: Rec [param read]
+>   local $0 r: Rec [param read] value
 >   %0 = Read move [$0 .name] : string
 >   %1 = Block %0 : string
 >   exit sub 0 drops [$0]
@@ -28,17 +28,17 @@ fn ret_field(r: Rec) -> string:
 fn ret_new(n: i64) -> string:
     "n=${n}"
 > app/main/ret_new
->   local $0 n: i64 [param read captured]
->   local $1 result: string [read]
->   local $2 offset: usize [read]
->   local $3 value: i64 [read]
->   local $4 width: usize [read]
->   local $5 result: string [read]
->   local $6 offset: usize [read]
->   local $7 text: string [read]
->   local $8 size: usize [read]
->   local $9 value: i64 [read]
->   local $10 value: i64 [read]
+>   local $0 n: i64 [param read captured] place
+>   local $1 result: string [read] value
+>   local $2 offset: usize [read] value
+>   local $3 value: i64 [read] value
+>   local $4 width: usize [read] value
+>   local $5 result: string [read] value
+>   local $6 offset: usize [read] value
+>   local $7 text: string [read] value
+>   local $8 size: usize [read] value
+>   local $9 value: i64 [read] value
+>   local $10 value: i64 [read] value
 >   %0 = Ref local frame [$0] : Counted[i64]
 >   %1 = Read copy [*%0] : i64
 >   %2 = Drop [%0] : ()
@@ -112,7 +112,7 @@ fn ret_new(n: i64) -> string:
 fn ret_ref_field(r: &Rec) -> &string:
     &r.name
 > app/main/ret_ref_field
->   local $0 r: Ref[Rec] [param read]
+>   local $0 r: Ref[Rec] [param read] value
 >   %0 = Ref local [*$0 .name] : Ref[string]
 >   %1 = Block %0 : Ref[string]
 >   summary kept []
@@ -120,14 +120,14 @@ fn ret_ref_field(r: &Rec) -> &string:
 fn use_rets(r: Rec) -> usize:
     ret_param(r.name).len() + ret_field(r).len() + ret_ref_field(&r).len()
 > app/main/use_rets
->   local $0 r: Rec [param read captured]
->   local $1 $ref: string [read assigned captured captured-assigned]
->   local $2 $ref: string [read assigned captured captured-assigned]
->   local $3 r: Counted[Rec] [read]
->   local $4 self: string [read]
->   local $5 r: Rec [read]
->   local $6 self: string [read]
->   local $7 s: string [read]
+>   local $0 r: Rec [param read captured] place
+>   local $1 $ref: string [read assigned captured captured-assigned] value
+>   local $2 $ref: string [read assigned captured captured-assigned] value
+>   local $3 r: Counted[Rec] [read] value
+>   local $4 self: string [read] value
+>   local $5 r: Rec [read] value
+>   local $6 self: string [read] value
+>   local $7 s: string [read] value
 >   %0 = Read copy [$0 .name] : string
 >   %1 = Store [$7] %0 : ()
 >   %2 = Read move [$7] : string

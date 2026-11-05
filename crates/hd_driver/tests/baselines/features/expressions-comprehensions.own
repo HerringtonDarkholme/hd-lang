@@ -13,21 +13,21 @@ struct User:
 fn pairs(xs: List[string], ys: List[string]) -> List[(string, string)]:
     [for x in xs for y in ys if x.len() == y.len() => (x, y)]
 > app/main/pairs
->   local $0 xs: List[string] [param read]
->   local $1 ys: List[string] [param read]
->   local $2 $acc: mut List[(string, string)] [assigned]
->   local $3 $coll: List[string] [assigned]
->   local $4 $len: usize [assigned]
->   local $5 $pos: usize [assigned]
->   local $6 $end: usize [assigned]
->   local $7 x: string [read assigned]
->   local $8 $coll: List[string] [assigned]
->   local $9 $len: usize [assigned]
->   local $10 $pos: usize [assigned]
->   local $11 $end: usize [assigned]
->   local $12 y: string [read assigned]
->   local $13 self: string [read]
->   local $14 self: string [read]
+>   local $0 xs: List[string] [param read] value
+>   local $1 ys: List[string] [param read] value
+>   local $2 $acc: mut List[(string, string)] [assigned] value
+>   local $3 $coll: List[string] [assigned] value
+>   local $4 $len: usize [assigned] value
+>   local $5 $pos: usize [assigned] value ×2
+>   local $6 $end: usize [assigned] value
+>   local $7 x: string [read assigned] value
+>   local $8 $coll: List[string] [assigned] value
+>   local $9 $len: usize [assigned] value
+>   local $10 $pos: usize [assigned] value ×2
+>   local $11 $end: usize [assigned] value
+>   local $12 y: string [read assigned] value
+>   local $13 self: string [read] value
+>   local $14 self: string [read] value
 >   %0 = NewList - [] : mut List[(string, string)]
 >   %1 = Store [$2] %0 : ()
 >   %2 = Read borrow [$0] : List[string]
@@ -119,13 +119,13 @@ fn pairs(xs: List[string], ys: List[string]) -> List[(string, string)]:
 fn names(users: List[User]) -> List[string]:
     [for u in users if u.active => u.name]
 > app/main/names
->   local $0 users: List[User] [param read]
->   local $1 $acc: mut List[string] [assigned]
->   local $2 $coll: List[User] [assigned]
->   local $3 $len: usize [assigned]
->   local $4 $pos: usize [assigned]
->   local $5 $end: usize [assigned]
->   local $6 u: User [read assigned]
+>   local $0 users: List[User] [param read] value
+>   local $1 $acc: mut List[string] [assigned] value
+>   local $2 $coll: List[User] [assigned] value
+>   local $3 $len: usize [assigned] value
+>   local $4 $pos: usize [assigned] value ×2
+>   local $5 $end: usize [assigned] value
+>   local $6 u: User [read assigned] value
 >   %0 = NewList - [] : mut List[string]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$0] : List[User]
@@ -172,13 +172,13 @@ fn names(users: List[User]) -> List[string]:
 fn by_name(users: List[User]) -> Map[string, i64]:
     {for u in users if u.active => u.name: u.id}
 > app/main/by_name
->   local $0 users: List[User] [param read]
->   local $1 $acc: mut Map[string, i64] [assigned]
->   local $2 $coll: List[User] [assigned]
->   local $3 $len: usize [assigned]
->   local $4 $pos: usize [assigned]
->   local $5 $end: usize [assigned]
->   local $6 u: User [read assigned]
+>   local $0 users: List[User] [param read] value
+>   local $1 $acc: mut Map[string, i64] [assigned] value
+>   local $2 $coll: List[User] [assigned] value
+>   local $3 $len: usize [assigned] value
+>   local $4 $pos: usize [assigned] value ×2
+>   local $5 $end: usize [assigned] value
+>   local $6 u: User [read assigned] value
 >   %0 = NewMap [] : mut Map[string, i64]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$0] : List[User]
@@ -225,15 +225,15 @@ fn by_name(users: List[User]) -> Map[string, i64]:
 fn sizes(users: List[User]) -> List[usize]:
     [for u in users if (n := u.name.len()) > 0 => n]
 > app/main/sizes
->   local $0 users: List[User] [param read]
->   local $1 $acc: mut List[usize] [assigned]
->   local $2 $coll: List[User] [assigned]
->   local $3 $len: usize [assigned]
->   local $4 $pos: usize [assigned]
->   local $5 $end: usize [assigned]
->   local $6 u: User [read assigned]
->   local $7 n: usize [:= read assigned]
->   local $8 self: string [read]
+>   local $0 users: List[User] [param read] value
+>   local $1 $acc: mut List[usize] [assigned] value
+>   local $2 $coll: List[User] [assigned] value
+>   local $3 $len: usize [assigned] value
+>   local $4 $pos: usize [assigned] value ×2
+>   local $5 $end: usize [assigned] value
+>   local $6 u: User [read assigned] value
+>   local $7 n: usize [:= read assigned] value
+>   local $8 self: string [read] value
 >   %0 = NewList - [] : mut List[usize]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$0] : List[User]

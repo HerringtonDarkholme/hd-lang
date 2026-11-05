@@ -11,15 +11,15 @@ struct Joiner:
 impl Joiner:
     fn join(&self, sep: string = ", ") -> usize:
 > app/main/impl Joiner.join.sep
->   local $0 self: Ref[Joiner] [param]
+>   local $0 self: Ref[Joiner] [param] value
 >   %0 = Drop [$0] : ()
 >   %1 = Block ", " : string
 >   exit sub 0 drops [$0]
         self.parts.len() * sep.len()
 > app/main/impl Joiner.join
->   local $0 self: Ref[Joiner] [param read]
->   local $1 sep: string [param read]
->   local $2 self: string [read]
+>   local $0 self: Ref[Joiner] [param read] value
+>   local $1 sep: string [param read] value
+>   local $2 self: string [read] value
 >   %0 = Read borrow [*$0 .parts] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Drop [%0] : ()
@@ -37,7 +37,7 @@ impl Joiner:
     fn tagged[T](&self, value: T) -> T:
         value
 > app/main/impl Joiner.tagged
->   local $1 value: T [param read]
+>   local $1 value: T [param read] value
 >   %0 = Read move [$1] : T
 >   %1 = Block %0 : T
 >   exit sub 0 drops [$1]
@@ -46,7 +46,7 @@ impl Joiner:
 fn joined(j: Joiner) -> usize:
     j.join()
 > app/main/joined
->   local $0 j: Joiner [param read captured]
+>   local $0 j: Joiner [param read captured] place
 >   %0 = Ref local frame [$0] : Counted[Joiner]
 >   %1 = DefaultCall [%4700 %16] [%0] : string
 >   %2 = Call app/main/impl Joiner.join[] (%0, %1) : usize
@@ -60,12 +60,12 @@ fn joined(j: Joiner) -> usize:
 fn generic_method(j: Joiner, s: string) -> usize:
     j.tagged(s).len()
 > app/main/generic_method
->   local $0 j: Joiner [param read]
->   local $1 s: string [param read]
->   local $2 $ref: string [read assigned captured captured-assigned]
->   local $3 self: string [read]
->   local $4 self: Joiner
->   local $5 value: string [read]
+>   local $0 j: Joiner [param read] value
+>   local $1 s: string [param read] value
+>   local $2 $ref: string [read assigned captured captured-assigned] value
+>   local $3 self: string [read] value
+>   local $4 self: Joiner value
+>   local $5 value: string [read] value
 >   %0 = Read borrow [$0] : Joiner
 >   %1 = Read move [$1] : string
 >   %2 = Store [$4] %0 : ()

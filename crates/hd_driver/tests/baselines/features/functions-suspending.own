@@ -8,7 +8,7 @@
 fn fetch!(key: string) -> string:
     key + "?"
 > app/main/fetch
->   local $0 key: string [param read]
+>   local $0 key: string [param read] value
 >   %0 = Read move [$0] : string
 >   %1 = Intrinsic StrConcat [%0 "?"] : string
 >   %2 = Drop [%0] : ()
@@ -19,8 +19,8 @@ fn fetch!(key: string) -> string:
 fn construct(key: string) -> usize:
     _ := fetch(key)
 > app/main/construct
->   local $0 key: string [param read]
->   local $1 self: string [read]
+>   local $0 key: string [param read] value
+>   local $1 self: string [read] value
 >   %0 = Read borrow [$0] : string
 >   %1 = Call app/main/fetch[] (%0) : mut Suspend[string]
 >   %2 = Drop [%1] : ()
@@ -38,9 +38,9 @@ fn construct(key: string) -> usize:
 fn run_twice!(body: fn!() -> string) -> usize:
     body!().len() + body!().len()
 > app/main/run_twice
->   local $0 body: fn!() -> string [param read]
->   local $1 $ref: string [read assigned captured captured-assigned]
->   local $2 $ref: string [read assigned captured captured-assigned]
+>   local $0 body: fn!() -> string [param read] value
+>   local $1 $ref: string [read assigned captured captured-assigned] place
+>   local $2 $ref: string [read assigned captured captured-assigned] place
 >   %0 = Read copy [$0] : fn!() -> string
 >   %1 = CallValue %0 [] : mut Suspend[string]
 >   %2 = AwaitValue %1 : string
@@ -73,7 +73,7 @@ fn run_twice!(body: fn!() -> string) -> usize:
 fn closure_bang!(key: string) -> usize:
     run_twice!():
 > app/main/closure_bang
->   local $0 key: string [param read captured]
+>   local $0 key: string [param read captured] value
 >   %6 = Await app/main/run_twice[] (%4) : usize
 >   %7 = Drop [%4] : ()
 >   %8 = Block %6 : usize
@@ -93,10 +93,10 @@ fn closure_bang!(key: string) -> usize:
 fn stored!(key: string) -> usize:
     loader := fn!(k: string) -> string: fetch!(k)
 > app/main/stored
->   local $0 key: string [param read]
->   local $1 k: string [param read]
->   local $2 loader: fn!(string) -> string [:= read assigned]
->   local $3 $ref: string [read assigned captured captured-assigned]
+>   local $0 key: string [param read] value
+>   local $1 k: string [param read] value
+>   local $2 loader: fn!(string) -> string [:= read assigned] value
+>   local $3 $ref: string [read assigned captured captured-assigned] place
 >   %0 = Read move [$1] : string
 >   %1 = Await app/main/fetch[] (%0) : string
 >   %2 = Drop [%0] : ()

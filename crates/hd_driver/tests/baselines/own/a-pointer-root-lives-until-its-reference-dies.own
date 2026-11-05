@@ -11,13 +11,13 @@ struct Outer:
 fn probe(items: UniqList[string]) -> string:
     p := box(Outer { items: items })
 > app/main/probe
->   local $0 items: UniqList[string] [param read]
->   local $1 $ref: Outer [read assigned captured captured-assigned]
->   local $2 p: Counted[mut Outer] [:= read assigned]
->   local $3 r: Ref[string] [:= read assigned]
->   local $4 junk: string [:= read assigned]
->   local $5 self: Ref[UniqList[string]] [read]
->   local $6 index: usize [read]
+>   local $0 items: UniqList[string] [param read] value
+>   local $1 $ref: Outer [read assigned captured captured-assigned] place
+>   local $2 p: Counted[mut Outer] [:= read assigned] value
+>   local $3 r: Ref[string] [:= read assigned] value
+>   local $4 junk: string [:= read assigned] value
+>   local $5 self: Ref[UniqList[string]] [read] value
+>   local $6 index: usize [read] value
 >   %0 = Read move [$0] : UniqList[string]
 >   %1 = NewStruct [%0] : Outer
 >   %2 = Store [$1] %1 : ()

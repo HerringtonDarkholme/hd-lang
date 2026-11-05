@@ -9,7 +9,7 @@ use std.ops.Range
 fn make(n: usize) -> Range[usize]:
     0..n
 > app/main/make
->   local $0 n: usize [param read]
+>   local $0 n: usize [param read] value
 >   %0 = Read copy [$0] : usize
 >   %1 = NewStruct [0:usize %0 0:bool] : Range[usize]
 >   %2 = Block %1 : Range[usize]
@@ -18,7 +18,7 @@ fn make(n: usize) -> Range[usize]:
 fn width(r: Range[usize]) -> usize:
     r.end - r.start
 > app/main/width
->   local $0 r: Range[usize] [param read]
+>   local $0 r: Range[usize] [param read] value
 >   %0 = Read copy [$0 .end] : usize
 >   %1 = Read copy [$0 .start] : usize
 >   %2 = Prim Sub [%0 %1] : usize
@@ -28,13 +28,13 @@ fn width(r: Range[usize]) -> usize:
 fn lens(xs: List[string]) -> usize:
     let n: usize = 0
 > app/main/lens
->   local $0 xs: List[string] [param read]
->   local $1 n: usize [read assigned mutated]
->   local $2 $cur: usize [assigned]
->   local $3 $end: usize [assigned]
->   local $4 $incl: bool [assigned]
->   local $5 i: usize [read assigned]
->   local $6 self: string [read]
+>   local $0 xs: List[string] [param read] value
+>   local $1 n: usize [read assigned mutated] value ×2
+>   local $2 $cur: usize [assigned] value ×2
+>   local $3 $end: usize [assigned] value
+>   local $4 $incl: bool [assigned] value
+>   local $5 i: usize [read assigned] value
+>   local $6 self: string [read] value
 >   %0 = Store [$1] 0:usize : ()
 >   %38 = Block %37 : usize
     for i in 0..xs.len():

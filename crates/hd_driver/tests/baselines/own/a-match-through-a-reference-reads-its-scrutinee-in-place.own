@@ -7,9 +7,9 @@ use std.collections.UniqList
 fn append(value: &mut Option[UniqList[string]], item: string) -> usize:
     match value:
 > app/main/append
->   local $0 value: Ref[mut UniqList[string]?] [param read]
->   local $1 item: string [param read]
->   local $2 items: Ref[mut UniqList[string]] [read assigned]
+>   local $0 value: Ref[mut UniqList[string]?] [param read] value
+>   local $1 item: string [param read] value
+>   local $2 items: Ref[mut UniqList[string]] [read assigned] value
 >   %0 = Read borrow [$0] : Ref[mut UniqList[string]?]
 >   %25 = Block - : never
 >   %26 = Match %0 [%25 %7 %8] : usize

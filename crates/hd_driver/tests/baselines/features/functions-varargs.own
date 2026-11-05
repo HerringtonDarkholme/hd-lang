@@ -9,14 +9,14 @@
 fn total(parts...: List[string]) -> usize:
     let n: usize = 0
 > app/main/total
->   local $0 parts: List[string] [param read]
->   local $1 n: usize [read assigned mutated]
->   local $2 $coll: List[string] [assigned]
->   local $3 $len: usize [assigned]
->   local $4 $pos: usize [assigned]
->   local $5 $end: usize [assigned]
->   local $6 p: string [read assigned]
->   local $7 self: string [read]
+>   local $0 parts: List[string] [param read] value
+>   local $1 n: usize [read assigned mutated] value ×2
+>   local $2 $coll: List[string] [assigned] value
+>   local $3 $len: usize [assigned] value
+>   local $4 $pos: usize [assigned] value ×2
+>   local $5 $end: usize [assigned] value
+>   local $6 p: string [read assigned] value
+>   local $7 self: string [read] value
 >   %0 = Store [$1] 0:usize : ()
 >   %41 = Block %40 : usize
     for p in parts:
@@ -67,9 +67,9 @@ fn total(parts...: List[string]) -> usize:
 fn three(a: string, b: string, c: string) -> usize:
     total(a, b, c)
 > app/main/three
->   local $0 a: string [param read]
->   local $1 b: string [param read]
->   local $2 c: string [param read]
+>   local $0 a: string [param read] value
+>   local $1 b: string [param read] value
+>   local $2 c: string [param read] value
 >   %0 = Read move [$0] : string
 >   %1 = Read move [$1] : string
 >   %2 = Read move [$2] : string
@@ -83,7 +83,7 @@ fn three(a: string, b: string, c: string) -> usize:
 fn spread(xs: List[string]) -> usize:
     total(xs...)
 > app/main/spread
->   local $0 xs: List[string] [param read]
+>   local $0 xs: List[string] [param read] value
 >   %0 = Read borrow [$0] : List[string]
 >   %1 = Call app/main/total[] (%0) : usize
 >   %2 = Block %1 : usize
@@ -101,9 +101,9 @@ fn none() -> usize:
 fn through_value(a: string, b: string) -> usize:
     f := total
 > app/main/through_value
->   local $0 a: string [param read]
->   local $1 b: string [param read]
->   local $2 f: fn(List[string]) -> usize [:= read assigned]
+>   local $0 a: string [param read] value
+>   local $1 b: string [param read] value
+>   local $2 f: fn(List[string]) -> usize [:= read assigned] value
 >   %0 = ItemRef #0 [..] : fn(List[string]) -> usize
 >   %1 = Store [$2] %0 : ()
 >   %8 = Block %6 : usize

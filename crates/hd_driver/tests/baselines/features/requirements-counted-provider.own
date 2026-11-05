@@ -32,8 +32,8 @@ fn holder() -> Holder $ Store:
 fn fetch!() -> usize $ Store:
     $.use(Store).get().len()
 > app/main/fetch
->   local $0 $ref: string [read assigned captured captured-assigned]
->   local $1 self: string [read]
+>   local $0 $ref: string [read assigned captured captured-assigned] value
+>   local $1 self: string [read] value
 >   %0 = ProviderGet #0 : Store
 >   %1 = Coerce %0 [ProviderAsRef -] : Ref[Store]
 >   %2 = Read copy [*%1] : Store

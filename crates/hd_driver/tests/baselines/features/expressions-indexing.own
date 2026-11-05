@@ -7,9 +7,9 @@
 fn map_index(m: Map[string, string], k: string) -> usize:
     m[k].len()
 > app/main/map_index
->   local $0 m: Map[string, string] [param read]
->   local $1 k: string [param read]
->   local $2 self: string [read]
+>   local $0 m: Map[string, string] [param read] value
+>   local $1 k: string [param read] value
+>   local $2 self: string [read] value
 >   %0 = Read borrow [$0] : Map[string, string]
 >   %1 = Read borrow [$1] : string
 >   %2 = Intrinsic MapEntry [%0 %1] : usize
@@ -29,8 +29,8 @@ fn map_index(m: Map[string, string], k: string) -> usize:
 fn map_index_take(m: Map[string, string], k: string) -> string:
     m[k]
 > app/main/map_index_take
->   local $0 m: Map[string, string] [param read]
->   local $1 k: string [param read]
+>   local $0 m: Map[string, string] [param read] value
+>   local $1 k: string [param read] value
 >   %0 = Read borrow [$0] : Map[string, string]
 >   %1 = Read borrow [$1] : string
 >   %2 = Intrinsic MapEntry [%0 %1] : usize
@@ -43,8 +43,8 @@ fn map_index_take(m: Map[string, string], k: string) -> string:
 fn string_byte(s: string, i: usize) -> u8:
     s[i]
 > app/main/string_byte
->   local $0 s: string [param read]
->   local $1 i: usize [param read]
+>   local $0 s: string [param read] value
+>   local $1 i: usize [param read] value
 >   %0 = Read borrow [$0] : string
 >   %1 = Read copy [$1] : usize
 >   %2 = Intrinsic StrIndex [%0 %1] : u8
@@ -54,9 +54,9 @@ fn string_byte(s: string, i: usize) -> u8:
 fn ref_list_index(xs: &List[string], i: usize) -> usize:
     xs[i].len()
 > app/main/ref_list_index
->   local $0 xs: Ref[List[string]] [param read]
->   local $1 i: usize [param read]
->   local $2 self: string [read]
+>   local $0 xs: Ref[List[string]] [param read] value
+>   local $1 i: usize [param read] value
+>   local $2 self: string [read] value
 >   %0 = Read copy [$1] : usize
 >   %1 = Read borrow [*$0 [%0]] : string
 >   %2 = Store [$2] %1 : ()

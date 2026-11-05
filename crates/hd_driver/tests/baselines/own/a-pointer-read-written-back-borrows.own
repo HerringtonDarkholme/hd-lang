@@ -9,9 +9,9 @@ use std.rt.memory.Ptr
 fn size(p: Ptr[List[i32]]) -> usize:
     xs := p.read()
 > std/rt_tests.stage_case/size
->   local $0 p: Ptr[List[i32]] [param read]
->   local $1 xs: List[i32] [:= read assigned]
->   local $2 n: usize [:= read assigned]
+>   local $0 p: Ptr[List[i32]] [param read] value
+>   local $1 xs: List[i32] [:= read assigned] value
+>   local $2 n: usize [:= read assigned] value
 >   %0 = Read copy [$0] : Ptr[List[i32]]
 >   %1 = Read borrow [ptr %0] : List[i32]
 >   %2 = Store [$1] %1 : ()

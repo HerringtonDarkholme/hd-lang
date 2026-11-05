@@ -13,8 +13,8 @@ impl User:
     fn name_len(self) -> usize:
         self.name.len()
 > app/main/impl User.name_len
->   local $0 self: User [param read]
->   local $1 self: string [read]
+>   local $0 self: User [param read] value
+>   local $1 self: string [read] value
 >   %0 = Read borrow [$0 .name] : string
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : string
@@ -28,8 +28,8 @@ impl User:
     fn rename(&mut self, n: string) -> void:
         self.name = n
 > app/main/impl User.rename
->   local $0 self: Ref[mut User] [param read]
->   local $1 n: string [param read]
+>   local $0 self: Ref[mut User] [param read] value
+>   local $1 n: string [param read] value
 >   %0 = Read move [$1] : string
 >   %1 = Store [*$0 .name] %0 : ()
 >   %2 = Block - : ()
@@ -39,8 +39,8 @@ impl User:
 fn unbound(u: User) -> usize:
     f := User::name_len
 > app/main/unbound
->   local $0 u: User [param read]
->   local $1 f: fn(User) -> usize [:= read assigned]
+>   local $0 u: User [param read] value
+>   local $1 f: fn(User) -> usize [:= read assigned] value
 >   %0 = ItemRef #0 [..] : fn(User) -> usize
 >   %1 = Store [$1] %0 : ()
 >   %6 = Block %4 : usize
@@ -55,11 +55,11 @@ fn unbound(u: User) -> usize:
 fn bound(u: User) -> usize:
     f := u::name_len
 > app/main/bound
->   local $0 u: User [param read]
->   local $1 $receiver: User [read assigned captured]
->   local $2 f: fn() -> usize [:= read assigned]
->   local $3 self: User [read]
->   local $4 self: string [read]
+>   local $0 u: User [param read] value
+>   local $1 $receiver: User [read assigned captured] value
+>   local $2 f: fn() -> usize [:= read assigned] value
+>   local $3 self: User [read] value
+>   local $4 self: string [read] value
 >   %0 = Read move [$0] : User
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read move [$1] : User
@@ -94,11 +94,11 @@ fn bound(u: User) -> usize:
 fn bound_mut(u: *mut User, n: string) -> void:
     f := u::rename
 > app/main/bound_mut
->   local $0 u: Counted[mut User] [param read]
->   local $1 n: string [param read]
->   local $2 $receiver: Counted[mut User] [read assigned captured]
->   local $3 $0: string [param]
->   local $4 f: fn(string) -> () [:= read assigned]
+>   local $0 u: Counted[mut User] [param read] value
+>   local $1 n: string [param read] value
+>   local $2 $receiver: Counted[mut User] [read assigned captured] value
+>   local $3 $0: string [param] value
+>   local $4 f: fn(string) -> () [:= read assigned] value
 >   %0 = Read copy [$0] : Counted[mut User]
 >   %1 = Store [$2] %0 : ()
 >   %2 = Read move [$2] : Counted[mut User]
@@ -122,17 +122,17 @@ fn bound_mut(u: *mut User, n: string) -> void:
 fn adapter(us: List[User]) -> usize:
     g := fn(u: User) -> usize: u.name_len()
 > app/main/adapter
->   local $0 us: List[User] [param read]
->   local $1 u: User [param read]
->   local $2 g: fn(User) -> usize [:= read assigned]
->   local $3 n: usize [read assigned mutated]
->   local $4 $coll: List[User] [assigned]
->   local $5 $len: usize [assigned]
->   local $6 $pos: usize [assigned]
->   local $7 $end: usize [assigned]
->   local $8 u: User [read assigned]
->   local $9 self: User [read]
->   local $10 self: string [read]
+>   local $0 us: List[User] [param read] value
+>   local $1 u: User [param read] value
+>   local $2 g: fn(User) -> usize [:= read assigned] value
+>   local $3 n: usize [read assigned mutated] value ×2
+>   local $4 $coll: List[User] [assigned] value
+>   local $5 $len: usize [assigned] value
+>   local $6 $pos: usize [assigned] value ×2
+>   local $7 $end: usize [assigned] value
+>   local $8 u: User [read assigned] value
+>   local $9 self: User [read] value
+>   local $10 self: string [read] value
 >   %0 = Read move [$1] : User
 >   %1 = Store [$9] %0 : ()
 >   %2 = Read borrow [$9 .name] : string

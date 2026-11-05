@@ -21,8 +21,8 @@ impl Sink for Count:
     fn put(&mut self, m: Member) -> void:
         if m.name == "":
 > app/main/impl Sink for Count.put
->   local $0 self: Ref[mut Count] [param read]
->   local $1 m: Member [param read]
+>   local $0 self: Ref[mut Count] [param read] value
+>   local $1 m: Member [param read] value
 >   %0 = Read borrow [$1 .name] : string
 >   %1 = Intrinsic StrEq [%0 ""] : bool
 >   %6 = If %1 [%5 -] : ()
@@ -38,8 +38,8 @@ impl Sink for Keep:
     fn put(&mut self, m: Member) -> void:
         self.all.push(m)
 > app/main/impl Sink for Keep.put
->   local $0 self: Ref[mut Keep] [param read]
->   local $1 m: Member [param read]
+>   local $0 self: Ref[mut Keep] [param read] value
+>   local $1 m: Member [param read] value
 >   %0 = Read move [$1] : Member
 >   %1 = IsUnique [*$0 .all] : ()
 >   %2 = Read borrow [*$0 .all] : List[Member]
@@ -51,8 +51,8 @@ impl Sink for Keep:
 fn emit(s: &mut dyn Sink, m: Member) -> void:
     s.put(m)
 > app/main/emit
->   local $0 s: Ref[mut Sink] [param read]
->   local $1 m: Member [param read]
+>   local $0 s: Ref[mut Sink] [param read] value
+>   local $1 m: Member [param read] value
 >   %0 = Read copy [*$0] : mut Sink
 >   %1 = Read move [$1] : Member
 >   %2 = Call app/main/Sink.put for Sink [] via TraitValue (%0, %1) : ()

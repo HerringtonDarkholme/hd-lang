@@ -9,7 +9,7 @@ use std.annotation.inline
 fn c(value: i32) -> i32:
     value + 1
 > app/main/c
->   local $0 value: i32 [param read]
+>   local $0 value: i32 [param read] value
 >   %0 = Read copy [$0] : i32
 >   %1 = Prim Add [%0 1:i32] : i32
 >   %2 = Block %1 : i32
@@ -18,8 +18,8 @@ fn c(value: i32) -> i32:
 fn b(value: i32) -> i32:
     c(value) * 2
 > app/main/b
->   local $0 value: i32 [param read]
->   local $1 value: i32 [read]
+>   local $0 value: i32 [param read] value
+>   local $1 value: i32 [read] value
 >   %0 = Read copy [$0] : i32
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read copy [$1] : i32
@@ -34,9 +34,9 @@ fn b(value: i32) -> i32:
 fn a(value: i32) -> i32:
     b(value) - 3
 > app/main/a
->   local $0 value: i32 [param read]
->   local $1 value: i32 [read]
->   local $2 value: i32 [read]
+>   local $0 value: i32 [param read] value
+>   local $1 value: i32 [read] value
+>   local $2 value: i32 [read] value
 >   %0 = Read copy [$0] : i32
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read copy [$1] : i32
@@ -56,10 +56,10 @@ fn a(value: i32) -> i32:
 fn run(value: i32) -> i32:
     a(value)
 > app/main/run
->   local $0 value: i32 [param read]
->   local $1 value: i32 [read]
->   local $2 value: i32 [read]
->   local $3 value: i32 [read]
+>   local $0 value: i32 [param read] value
+>   local $1 value: i32 [read] value
+>   local $2 value: i32 [read] value
+>   local $3 value: i32 [read] value
 >   %0 = Read copy [$0] : i32
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read copy [$1] : i32

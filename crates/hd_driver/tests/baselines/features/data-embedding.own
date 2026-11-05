@@ -13,8 +13,8 @@ impl Stamp:
     pub fn by_len(&self) -> usize:
         self.by.len()
 > app/main/impl Stamp.by_len
->   local $0 self: Ref[Stamp] [param read]
->   local $1 self: string [read]
+>   local $0 self: Ref[Stamp] [param read] value
+>   local $1 self: string [read] value
 >   %0 = Read borrow [*$0 .by] : string
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : string
@@ -33,8 +33,8 @@ struct Post:
 fn make(s: string, t: string) -> Post:
     Post { Stamp: Stamp { by: s }, title: t }
 > app/main/make
->   local $0 s: string [param read]
->   local $1 t: string [param read]
+>   local $0 s: string [param read] value
+>   local $1 t: string [param read] value
 >   %0 = Read move [$0] : string
 >   %1 = NewStruct [%0] : Stamp
 >   %2 = Read move [$1] : string
@@ -46,12 +46,12 @@ fn make(s: string, t: string) -> Post:
 fn promoted(p: Post) -> usize:
     p.by.len() + p.by_len() + p.title.len()
 > app/main/promoted
->   local $0 p: Post [param read]
->   local $1 $ref: string [read assigned captured captured-assigned]
->   local $2 self: string [read]
->   local $3 self: Stamp [read]
->   local $4 self: string [read]
->   local $5 self: string [read]
+>   local $0 p: Post [param read] value
+>   local $1 $ref: string [read assigned captured captured-assigned] value
+>   local $2 self: string [read] value
+>   local $3 self: Stamp [read] value
+>   local $4 self: string [read] value
+>   local $5 self: string [read] value
 >   %0 = Read borrow [$0 .Stamp .by] : string
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : string
@@ -88,7 +88,7 @@ fn promoted(p: Post) -> usize:
 fn stamp_of(p: &Post) -> Stamp:
     p.Stamp
 > app/main/stamp_of
->   local $0 p: Ref[Post] [param read]
+>   local $0 p: Ref[Post] [param read] value
 >   %0 = Read copy [*$0 .Stamp] : Stamp
 >   %1 = Block %0 : Stamp
 >   summary kept [$0]

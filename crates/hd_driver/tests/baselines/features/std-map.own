@@ -10,10 +10,10 @@
 fn lookup(m: &Map[string, string], k: string) -> usize:
     match m.get(k):
 > app/main/lookup
->   local $0 m: Ref[Map[string, string]] [param read]
->   local $1 k: string [param read]
->   local $2 v: string [read assigned]
->   local $3 self: string [read]
+>   local $0 m: Ref[Map[string, string]] [param read] value
+>   local $1 k: string [param read] value
+>   local $2 v: string [read assigned] value
+>   local $3 self: string [read] value
 >   %0 = Read borrow [*$0] : Map[string, string]
 >   %1 = Read borrow [$1] : string
 >   %2 = Intrinsic MapGet [%0 %1] : string?
@@ -46,9 +46,9 @@ fn lookup(m: &Map[string, string], k: string) -> usize:
 fn put(m: &mut Map[string, string], k: string, v: string) -> void:
     m[k] = v
 > app/main/put
->   local $0 m: Ref[mut Map[string, string]] [param read]
->   local $1 k: string [param read]
->   local $2 v: string [param read]
+>   local $0 m: Ref[mut Map[string, string]] [param read] value
+>   local $1 k: string [param read] value
+>   local $2 v: string [param read] value
 >   %0 = Read borrow [$1] : string
 >   %1 = Read move [$2] : string
 >   %2 = IsUnique [*$0] : ()
@@ -61,9 +61,9 @@ fn put(m: &mut Map[string, string], k: string, v: string) -> void:
 fn group(m: &mut Map[string, List[string]], k: string, v: string) -> void:
     m.get_or_insert(k, []).push(v)
 > app/main/group
->   local $0 m: Ref[mut Map[string, List[string]]] [param read]
->   local $1 k: string [param read]
->   local $2 v: string [param read]
+>   local $0 m: Ref[mut Map[string, List[string]]] [param read] value
+>   local $1 k: string [param read] value
+>   local $2 v: string [param read] value
 >   %0 = Read borrow [$0] : Ref[mut Map[string, List[string]]]
 >   %1 = Read borrow [$1] : string
 >   %2 = NewList - [] : List[string]
@@ -81,8 +81,8 @@ fn group(m: &mut Map[string, List[string]], k: string, v: string) -> void:
 fn has(m: &Map[string, string], k: string) -> bool:
     m.contains_key(k)
 > app/main/has
->   local $0 m: Ref[Map[string, string]] [param read]
->   local $1 k: string [param read]
+>   local $0 m: Ref[Map[string, string]] [param read] value
+>   local $1 k: string [param read] value
 >   %0 = Read borrow [$0] : Ref[Map[string, string]]
 >   %1 = Read borrow [$1] : string
 >   %2 = Call std/collections/impl [ K < Eq & Hash , V ] Map [ K , V ].contains_key[string, string] (%0, %1) : bool

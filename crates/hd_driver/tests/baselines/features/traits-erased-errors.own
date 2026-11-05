@@ -13,8 +13,8 @@ impl Display for FsError:
     fn to_string(&self) -> string:
         match *self:
 > app/main/impl Display for FsError.to_string
->   local $0 self: Ref[FsError] [param read]
->   local $1 path: string [read assigned]
+>   local $0 self: Ref[FsError] [param read] value
+>   local $1 path: string [read assigned] value
 >   %0 = Read borrow [*$0] : FsError
 >   %11 = Block - : never
 >   %12 = Match %0 [%11 %3] : string
@@ -36,8 +36,8 @@ impl Error for FsError
 fn read_config(path: string) -> Result[string, FsError]:
     if path.len() > 0: .Ok(path + "!") else: .Err(FsError.NotFound(path))
 > app/main/read_config
->   local $0 path: string [param read]
->   local $1 self: string [read]
+>   local $0 path: string [param read] value
+>   local $1 self: string [read] value
 >   %0 = Read borrow [$0] : string
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : string
@@ -63,11 +63,11 @@ fn read_config(path: string) -> Result[string, FsError]:
 fn load(path: string) -> Result[string, *dyn Error]:
     text := read_config(path)?
 > app/main/load
->   local $0 path: string [param read]
->   local $1 $ref: FsError [read assigned captured captured-assigned]
->   local $2 $ref: Counted[FsError] [read assigned captured]
->   local $3 text: string [:= read assigned]
->   local $4 path: string [read captured]
+>   local $0 path: string [param read] value
+>   local $1 $ref: FsError [read assigned captured captured-assigned] place
+>   local $2 $ref: Counted[FsError] [read assigned captured] value
+>   local $3 text: string [:= read assigned] value
+>   local $4 path: string [read captured] place
 >   %0 = Read move [$0] : string
 >   %1 = Store [$4] %0 : ()
 >   %2 = Ref local frame [$4] : Counted[string]

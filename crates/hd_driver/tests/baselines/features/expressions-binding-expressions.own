@@ -7,9 +7,9 @@
 fn guard(s: string) -> usize:
     if (n := s.len()) > 0: n else: 0
 > app/main/guard
->   local $0 s: string [param read]
->   local $1 n: usize [:= read assigned]
->   local $2 self: string [read]
+>   local $0 s: string [param read] value
+>   local $1 n: usize [:= read assigned] value
+>   local $2 self: string [read] value
 >   %0 = Read borrow [$0] : string
 >   %1 = Store [$2] %0 : ()
 >   %2 = Read borrow [$2] : string
@@ -30,11 +30,11 @@ fn guard(s: string) -> usize:
 fn bind_counted(s: string) -> usize:
     if (t := s + "!").len() > 3: t.len() else: 0
 > app/main/bind_counted
->   local $0 s: string [param read]
->   local $1 t: string [:= read assigned]
->   local $2 $ref: string [read assigned captured captured-assigned]
->   local $3 self: string [read]
->   local $4 self: string [read]
+>   local $0 s: string [param read] value
+>   local $1 t: string [:= read assigned] value
+>   local $2 $ref: string [read assigned captured captured-assigned] value
+>   local $3 self: string [read] value
+>   local $4 self: string [read] value
 >   %0 = Read borrow [$0] : string
 >   %1 = Intrinsic StrConcat [%0 "!"] : string
 >   %2 = Store [$1] %1 : ()
@@ -65,8 +65,8 @@ fn bind_counted(s: string) -> usize:
 fn bind_param(xs: List[string]) -> usize:
     if (ys := xs).len() > 0: ys.len() else: 0
 > app/main/bind_param
->   local $0 xs: List[string] [param read]
->   local $1 ys: List[string] [:= read assigned]
+>   local $0 xs: List[string] [param read] value
+>   local $1 ys: List[string] [:= read assigned] value
 >   %0 = Read borrow [$0] : List[string]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : List[string]

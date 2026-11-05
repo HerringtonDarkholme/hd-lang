@@ -12,8 +12,8 @@ struct Rec:
 fn str_eq(a: string, b: string) -> bool:
     a == b
 > app/main/str_eq
->   local $0 a: string [param read]
->   local $1 b: string [param read]
+>   local $0 a: string [param read] value
+>   local $1 b: string [param read] value
 >   %0 = Read borrow [$0] : string
 >   %1 = Read borrow [$1] : string
 >   %2 = Intrinsic StrEq [%0 %1] : bool
@@ -23,8 +23,8 @@ fn str_eq(a: string, b: string) -> bool:
 fn list_ne(a: List[string], b: List[string]) -> bool:
     a != b
 > app/main/list_ne
->   local $0 a: List[string] [param read captured]
->   local $1 b: List[string] [param read captured]
+>   local $0 a: List[string] [param read captured] place
+>   local $1 b: List[string] [param read captured] place
 >   %0 = Ref local frame [$0] : Counted[List[string]]
 >   %1 = Ref local frame [$1] : Counted[List[string]]
 >   %2 = Call std/core/Eq.eq for List[string] [] via Impl (%0, %1) : bool
@@ -40,8 +40,8 @@ fn list_ne(a: List[string], b: List[string]) -> bool:
 fn rec_eq(a: Rec, b: Rec) -> bool:
     a == b
 > app/main/rec_eq
->   local $0 a: Rec [param read captured]
->   local $1 b: Rec [param read captured]
+>   local $0 a: Rec [param read captured] place
+>   local $1 b: Rec [param read captured] place
 >   %0 = Ref local frame [$0] : Counted[Rec]
 >   %1 = Ref local frame [$1] : Counted[Rec]
 >   %2 = Call std/core/Eq.eq for Rec [] via Impl (%0, %1) : bool
@@ -56,8 +56,8 @@ fn rec_eq(a: Rec, b: Rec) -> bool:
 fn opt_none(o: string?) -> bool:
     o == .None
 > app/main/opt_none
->   local $0 o: string? [param read captured]
->   local $1 $ref: string? [read assigned captured captured-assigned]
+>   local $0 o: string? [param read captured] place
+>   local $1 $ref: string? [read assigned captured captured-assigned] place
 >   %0 = Ref local frame [$0] : Counted[string?]
 >   %1 = NewVariant #0 [] : string?
 >   %2 = Store [$1] %1 : ()
@@ -75,9 +75,9 @@ fn opt_none(o: string?) -> bool:
 fn opt_some(o: string?, s: string) -> bool:
     o == .Some(s)
 > app/main/opt_some
->   local $0 o: string? [param read captured]
->   local $1 s: string [param read]
->   local $2 $ref: string? [read assigned captured captured-assigned]
+>   local $0 o: string? [param read captured] place
+>   local $1 s: string [param read] value
+>   local $2 $ref: string? [read assigned captured captured-assigned] place
 >   %0 = Ref local frame [$0] : Counted[string?]
 >   %1 = Read move [$1] : string
 >   %2 = NewVariant #1 [%1] : string?
@@ -96,8 +96,8 @@ fn opt_some(o: string?, s: string) -> bool:
 fn map_eq(a: Map[string, string], b: Map[string, string]) -> bool:
     a == b
 > app/main/map_eq
->   local $0 a: Map[string, string] [param read captured]
->   local $1 b: Map[string, string] [param read captured]
+>   local $0 a: Map[string, string] [param read captured] place
+>   local $1 b: Map[string, string] [param read captured] place
 >   %0 = Ref local frame [$0] : Counted[Map[string, string]]
 >   %1 = Ref local frame [$1] : Counted[Map[string, string]]
 >   %2 = Call std/core/Eq.eq for Map[string, string] [] via Impl (%0, %1) : bool

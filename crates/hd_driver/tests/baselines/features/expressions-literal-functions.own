@@ -18,17 +18,17 @@ struct Query:
 fn lbl(n: i64) -> Label:
     Label { text: "#${n}" }
 > app/main/lbl
->   local $0 n: i64 [param read captured]
->   local $1 result: string [read]
->   local $2 offset: usize [read]
->   local $3 value: i64 [read]
->   local $4 width: usize [read]
->   local $5 result: string [read]
->   local $6 offset: usize [read]
->   local $7 text: string [read]
->   local $8 size: usize [read]
->   local $9 value: i64 [read]
->   local $10 value: i64 [read]
+>   local $0 n: i64 [param read captured] place
+>   local $1 result: string [read] value
+>   local $2 offset: usize [read] value
+>   local $3 value: i64 [read] value
+>   local $4 width: usize [read] value
+>   local $5 result: string [read] value
+>   local $6 offset: usize [read] value
+>   local $7 text: string [read] value
+>   local $8 size: usize [read] value
+>   local $9 value: i64 [read] value
+>   local $10 value: i64 [read] value
 >   %0 = Ref local frame [$0] : Counted[i64]
 >   %1 = Read copy [*%0] : i64
 >   %2 = Drop [%0] : ()
@@ -104,7 +104,7 @@ fn lbl(n: i64) -> Label:
 fn sql(t: Template[i64]) -> Query:
     Query { text: t.raw_parts, params: t.values }
 > app/main/sql
->   local $0 t: Template[i64] [param read]
+>   local $0 t: Template[i64] [param read] value
 >   %0 = Read move [$0 .raw_parts] : List[string]
 >   %1 = Read move [$0 .values] : List[i64]
 >   %2 = NewStruct [%0 %1] : Query
@@ -116,7 +116,7 @@ fn sql(t: Template[i64]) -> Query:
 fn tag(t: Template[string]) -> usize:
     t.raw_parts.len() + t.values.len()
 > app/main/tag
->   local $0 t: Template[string] [param read]
+>   local $0 t: Template[string] [param read] value
 >   %0 = Read borrow [$0 .raw_parts] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Read borrow [$0 .values] : List[string]
@@ -128,7 +128,7 @@ fn tag(t: Template[string]) -> usize:
 fn suffixed() -> Label:
     12lbl
 > app/main/suffixed
->   local $0 n: i64 [read captured]
+>   local $0 n: i64 [read captured] place
 >   %0 = Store [$0] 12:i64 : ()
 >   %1 = Ref local frame [$0] : Counted[i64]
 >   %2 = Read copy [*%1] : i64
@@ -153,8 +153,8 @@ fn suffixed() -> Label:
 fn prefixed(id: i64) -> Query:
     sql"select * from users where id = $id"
 > app/main/prefixed
->   local $0 id: i64 [param read]
->   local $1 t: Template[i64] [read]
+>   local $0 id: i64 [param read] value
+>   local $1 t: Template[i64] [read] value
 >   %0 = Read copy [$0] : i64
 >   %1 = NewList - ["select * from users where id = " ""] : mut List[string]
 >   %2 = NewList - [%0] : mut List[i64]
@@ -173,8 +173,8 @@ fn prefixed(id: i64) -> Query:
 fn tagged(s: string) -> usize:
     tag"<$s>"
 > app/main/tagged
->   local $0 s: string [param read]
->   local $1 t: Template[string] [read]
+>   local $0 s: string [param read] value
+>   local $1 t: Template[string] [read] value
 >   %0 = Read move [$0] : string
 >   %1 = NewList - ["<" ">"] : mut List[string]
 >   %2 = NewList - [%0] : mut List[string]

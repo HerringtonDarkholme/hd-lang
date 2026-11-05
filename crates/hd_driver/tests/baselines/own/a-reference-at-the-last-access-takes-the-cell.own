@@ -9,7 +9,7 @@ struct Counter:
 fn bump(c: &mut Counter) -> void:
     c.hits = c.hits + 1
 > app/main/bump
->   local $0 c: Ref[mut Counter] [param read]
+>   local $0 c: Ref[mut Counter] [param read] value
 >   %0 = Read copy [*$0 .hits] : i32
 >   %1 = Prim Add [%0 1:i32] : i32
 >   %2 = Store [*$0 .hits] %1 : ()
@@ -18,7 +18,7 @@ fn bump(c: &mut Counter) -> void:
 fn fresh() -> void:
     let mut c = Counter { hits: +0, name: "a" }
 > app/main/fresh
->   local $0 c: Counter [read assigned captured captured-assigned]
+>   local $0 c: Counter [read assigned captured captured-assigned] place
 >   %0 = NewStruct [0:i32 "a"] : Counter
 >   %1 = Store [$0] %0 : ()
 >   %6 = Block - : ()

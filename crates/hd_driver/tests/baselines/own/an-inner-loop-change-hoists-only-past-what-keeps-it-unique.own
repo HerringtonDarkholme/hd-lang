@@ -7,17 +7,17 @@
 fn branch(items: List[usize], n: usize) -> List[usize]:
     let mut items = items
 > app/main/branch
->   local $0 items: List[usize] [param read]
->   local $1 n: usize [param read]
->   local $2 items: List[usize] [read assigned]
->   local $3 $cur: usize [assigned]
->   local $4 $end: usize [assigned]
->   local $5 $incl: bool [assigned]
->   local $6 r: usize [read assigned]
->   local $7 $cur: usize [assigned]
->   local $8 $end: usize [assigned]
->   local $9 $incl: bool [assigned]
->   local $10 i: usize [read assigned]
+>   local $0 items: List[usize] [param read] value
+>   local $1 n: usize [param read] value
+>   local $2 items: List[usize] [read assigned] place
+>   local $3 $cur: usize [assigned] value ×2
+>   local $4 $end: usize [assigned] value
+>   local $5 $incl: bool [assigned] value
+>   local $6 r: usize [read assigned] value
+>   local $7 $cur: usize [assigned] value ×2
+>   local $8 $end: usize [assigned] value
+>   local $9 $incl: bool [assigned] value
+>   local $10 i: usize [read assigned] value
 >   %0 = Read move [$0] : List[usize]
 >   %1 = Store [$2] %0 : ()
 >   %57 = Block %56 : List[usize]
@@ -87,18 +87,18 @@ fn branch(items: List[usize], n: usize) -> List[usize]:
 fn copy(items: List[usize], n: usize) -> List[List[usize]]:
     let mut items = items
 > app/main/copy
->   local $0 items: List[usize] [param read]
->   local $1 n: usize [param read]
->   local $2 items: List[usize] [read assigned]
->   local $3 saved: List[List[usize]] [read assigned]
->   local $4 $cur: usize [assigned]
->   local $5 $end: usize [assigned]
->   local $6 $incl: bool [assigned]
->   local $7 r: usize [read assigned]
->   local $8 $cur: usize [assigned]
->   local $9 $end: usize [assigned]
->   local $10 $incl: bool [assigned]
->   local $11 i: usize [read assigned]
+>   local $0 items: List[usize] [param read] value
+>   local $1 n: usize [param read] value
+>   local $2 items: List[usize] [read assigned] place
+>   local $3 saved: List[List[usize]] [read assigned] value
+>   local $4 $cur: usize [assigned] value ×2
+>   local $5 $end: usize [assigned] value
+>   local $6 $incl: bool [assigned] value
+>   local $7 r: usize [read assigned] value
+>   local $8 $cur: usize [assigned] value ×2
+>   local $9 $end: usize [assigned] value
+>   local $10 $incl: bool [assigned] value
+>   local $11 i: usize [read assigned] value
 >   %0 = Read move [$0] : List[usize]
 >   %1 = Store [$2] %0 : ()
 >   %59 = Block %58 : List[List[usize]]
@@ -170,17 +170,17 @@ fn copy(items: List[usize], n: usize) -> List[List[usize]]:
 fn call(items: &mut List[usize], n: usize, f: fn() -> void) -> void:
     for r in 0..n:
 > app/main/call
->   local $0 items: Ref[mut List[usize]] [param read]
->   local $1 n: usize [param read]
->   local $2 f: fn() -> () [param read]
->   local $3 $cur: usize [assigned]
->   local $4 $end: usize [assigned]
->   local $5 $incl: bool [assigned]
->   local $6 r: usize [read assigned]
->   local $7 $cur: usize [assigned]
->   local $8 $end: usize [assigned]
->   local $9 $incl: bool [assigned]
->   local $10 i: usize [read assigned]
+>   local $0 items: Ref[mut List[usize]] [param read] value
+>   local $1 n: usize [param read] value
+>   local $2 f: fn() -> () [param read] value
+>   local $3 $cur: usize [assigned] value ×2
+>   local $4 $end: usize [assigned] value
+>   local $5 $incl: bool [assigned] value
+>   local $6 r: usize [read assigned] value
+>   local $7 $cur: usize [assigned] value ×2
+>   local $8 $end: usize [assigned] value
+>   local $9 $incl: bool [assigned] value
+>   local $10 i: usize [read assigned] value
 >   %0 = Read copy [$1] : usize
 >   %1 = NewStruct [0:usize %0 0:bool] : Range[usize]
 >   %2 = Read copy [%1 .start] : usize

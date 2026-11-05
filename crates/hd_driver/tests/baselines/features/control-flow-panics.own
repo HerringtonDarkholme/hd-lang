@@ -15,7 +15,7 @@ impl Disposable for Res:
     fn dispose(&mut self) -> void:
         self.log.push(self.name)
 > app/main/impl Disposable for Res.dispose
->   local $0 self: Ref[mut Res] [param read]
+>   local $0 self: Ref[mut Res] [param read] value
 >   %0 = Read copy [*$0 .name] : string
 >   %1 = IsUnique [*$0 .log *] : ()
 >   %2 = Read borrow [*$0 .log *] : List[string]
@@ -26,18 +26,18 @@ impl Disposable for Res:
 fn must(s: string, n: i32) -> usize:
     t := s + "!"
 > app/main/must
->   local $0 s: string [param read]
->   local $1 n: i32 [param read]
->   local $2 t: string [:= read assigned]
->   local $3 self: string [read]
->   local $4 result: string [read]
->   local $5 offset: usize [read]
->   local $6 text: string [read]
->   local $7 result: string [read]
->   local $8 offset: usize [read]
->   local $9 text: string [read]
->   local $10 size: usize [read]
->   local $11 value: string [read]
+>   local $0 s: string [param read] value
+>   local $1 n: i32 [param read] value
+>   local $2 t: string [:= read assigned] value
+>   local $3 self: string [read] value
+>   local $4 result: string [read] value
+>   local $5 offset: usize [read] value
+>   local $6 text: string [read] value
+>   local $7 result: string [read] value
+>   local $8 offset: usize [read] value
+>   local $9 text: string [read] value
+>   local $10 size: usize [read] value
+>   local $11 value: string [read] value
 >   %0 = Read borrow [$0] : string
 >   %1 = Intrinsic StrConcat [%0 "!"] : string
 >   %2 = Store [$2] %1 : ()
@@ -118,11 +118,11 @@ fn must(s: string, n: i32) -> usize:
 fn guarded(log: *mut List[string], s: string, n: i32) -> usize:
     using r = Res { name: s + "?", log: log }
 > app/main/guarded
->   local $0 log: Counted[mut List[string]] [param read]
->   local $1 s: string [param read]
->   local $2 n: i32 [param read]
->   local $3 r: Res [:= read assigned captured captured-assigned]
->   local $4 self: string [read]
+>   local $0 log: Counted[mut List[string]] [param read] value
+>   local $1 s: string [param read] value
+>   local $2 n: i32 [param read] value
+>   local $3 r: Res [:= read assigned captured captured-assigned] place
+>   local $4 self: string [read] value
 >   %0 = Read borrow [$1] : string
 >   %1 = Intrinsic StrConcat [%0 "?"] : string
 >   %2 = Read copy [$0] : Counted[mut List[string]]

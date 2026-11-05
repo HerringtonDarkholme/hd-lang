@@ -9,9 +9,9 @@ use std.annotation.inline
 fn apply(by: fn(&i32, &i32) -> i32, left: &i32, right: &i32) -> i32:
     by(left, right)
 > app/main/apply
->   local $0 by: fn(Ref[i32], Ref[i32]) -> i32 [param read]
->   local $1 left: Ref[i32] [param read]
->   local $2 right: Ref[i32] [param read]
+>   local $0 by: fn(Ref[i32], Ref[i32]) -> i32 [param read] value
+>   local $1 left: Ref[i32] [param read] value
+>   local $2 right: Ref[i32] [param read] value
 >   %0 = Read borrow [$0] : fn(Ref[i32], Ref[i32]) -> i32
 >   %1 = Read borrow [$1] : Ref[i32]
 >   %2 = Read borrow [$2] : Ref[i32]
@@ -22,14 +22,14 @@ fn apply(by: fn(&i32, &i32) -> i32, left: &i32, right: &i32) -> i32:
 fn difference(reverse: bool, left: &i32, right: &i32) -> i32:
     by := if reverse: fn(a: &i32, b: &i32): *b - *a else: fn(a: &i32, b: &i32): *a - *b
 > app/main/difference
->   local $0 reverse: bool [param read]
->   local $1 left: Ref[i32] [param read]
->   local $2 right: Ref[i32] [param read]
->   local $3 a: Ref[i32] [param read]
->   local $4 b: Ref[i32] [param read]
->   local $5 a: Ref[i32] [param read]
->   local $6 b: Ref[i32] [param read]
->   local $7 by: fn(Ref[i32], Ref[i32]) -> i32 [:= read assigned]
+>   local $0 reverse: bool [param read] value
+>   local $1 left: Ref[i32] [param read] value
+>   local $2 right: Ref[i32] [param read] value
+>   local $3 a: Ref[i32] [param read] value
+>   local $4 b: Ref[i32] [param read] value
+>   local $5 a: Ref[i32] [param read] value
+>   local $6 b: Ref[i32] [param read] value
+>   local $7 by: fn(Ref[i32], Ref[i32]) -> i32 [:= read assigned] value
 >   %0 = Read copy [$0] : bool
 >   %1 = Read copy [*$4] : i32
 >   %2 = Read copy [*$3] : i32

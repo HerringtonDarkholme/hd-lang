@@ -20,7 +20,7 @@ impl Tag for Named:
     fn name(self) -> string:
         self.label
 > app/main/impl Tag for Named.name
->   local $0 self: Named [param read]
+>   local $0 self: Named [param read] value
 >   %0 = Read move [$0 .label] : string
 >   %1 = Block %0 : string
 >   exit sub 0 drops [$0]
@@ -29,7 +29,7 @@ impl Tag for Named:
 fn fetch!(key: string) -> string:
     key + "?"
 > app/main/fetch
->   local $0 key: string [param read]
+>   local $0 key: string [param read] value
 >   %0 = Read move [$0] : string
 >   %1 = Intrinsic StrConcat [%0 "?"] : string
 >   %2 = Drop [%0] : ()
@@ -40,8 +40,8 @@ fn fetch!(key: string) -> string:
 fn tagged!() -> usize $ Tag:
     $.use(Tag).name().len()
 > app/main/tagged
->   local $0 $ref: string [read assigned captured captured-assigned]
->   local $1 self: string [read]
+>   local $0 $ref: string [read assigned captured captured-assigned] value
+>   local $1 self: string [read] value
 >   %0 = ProviderGet #0 : Tag
 >   %1 = Coerce %0 [ProviderAsRef -] : Ref[Tag]
 >   %2 = Read copy [*%1] : Tag
@@ -62,9 +62,9 @@ fn tagged!() -> usize $ Tag:
 fn later!(key: string) -> usize:
     let mut pending = fetch(key)
 > app/main/later
->   local $0 key: string [param read]
->   local $1 pending: mut Suspend[string] [read assigned]
->   local $2 $ref: string [read assigned captured captured-assigned]
+>   local $0 key: string [param read] value
+>   local $1 pending: mut Suspend[string] [read assigned] value
+>   local $2 $ref: string [read assigned captured captured-assigned] place
 >   %0 = Read move [$0] : string
 >   %1 = Call app/main/fetch[] (%0) : mut Suspend[string]
 >   %2 = Drop [%0] : ()
@@ -87,9 +87,9 @@ fn later!(key: string) -> usize:
 fn blocking(key: string) -> usize:
     match block_on(fetch(key)):
 > app/main/blocking
->   local $0 key: string [param read]
->   local $1 v: string [read assigned]
->   local $2 self: string [read]
+>   local $0 key: string [param read] value
+>   local $1 v: string [read assigned] value
+>   local $2 self: string [read] value
 >   %0 = Read borrow [$0] : string
 >   %1 = Call app/main/fetch[] (%0) : mut Suspend[string]
 >   %2 = Call std/task/block_on[string] (%1) : BlockOn[string]
@@ -119,7 +119,7 @@ fn blocking(key: string) -> usize:
 fn discard(key: string) -> usize:
     _ := fetch(key)
 > app/main/discard
->   local $0 key: string [param read]
+>   local $0 key: string [param read] value
 >   %0 = Read borrow [$0] : string
 >   %1 = Call app/main/fetch[] (%0) : mut Suspend[string]
 >   %2 = Drop [%1] : ()
@@ -130,10 +130,10 @@ fn discard(key: string) -> usize:
 fn bound!(s: string) -> usize:
     let mut pending: mut Suspend[usize] = $.with(Tag=Named { label: s }):
 > app/main/bound
->   local $0 s: string [param read]
->   local $1 pending: mut Suspend[usize] [read assigned]
->   local $2 provider: Named [read]
->   local $3 $ref: Named [read assigned captured captured-assigned]
+>   local $0 s: string [param read] value
+>   local $1 pending: mut Suspend[usize] [read assigned] value
+>   local $2 provider: Named [read] value
+>   local $3 $ref: Named [read assigned captured captured-assigned] place
 >   %0 = Read move [$0] : string
 >   %1 = NewStruct [%0] : Named
 >   %2 = Store [$2] %1 : ()

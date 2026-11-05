@@ -20,7 +20,7 @@ fn make() -> Unit:
 fn wrap(name: string) -> Tagged:
     Tagged { unit: make(), name: name }
 > app/main/wrap
->   local $0 name: string [param read]
+>   local $0 name: string [param read] value
 >   %0 = NewStruct [] : Unit
 >   %1 = Break L0 %0 : never
 >   %2 = Block - : Unit

@@ -10,7 +10,7 @@ use std.task.CleanupEnd
 fn fetch!(key: string) -> string:
     key + "?"
 > app/main/fetch
->   local $0 key: string [param read]
+>   local $0 key: string [param read] value
 >   %0 = Read move [$0] : string
 >   %1 = Intrinsic StrConcat [%0 "?"] : string
 >   %2 = Drop [%0] : ()
@@ -21,9 +21,9 @@ fn fetch!(key: string) -> string:
 fn stop!(key: string) -> bool:
     let mut job = fetch(key)
 > app/main/stop
->   local $0 key: string [param read]
->   local $1 job: mut Suspend[string] [read assigned]
->   local $2 end: CleanupEnd [:= read assigned]
+>   local $0 key: string [param read] value
+>   local $1 job: mut Suspend[string] [read assigned] value
+>   local $2 end: CleanupEnd [:= read assigned] value
 >   %0 = Read move [$0] : string
 >   %1 = Call app/main/fetch[] (%0) : mut Suspend[string]
 >   %2 = Drop [%0] : ()
@@ -55,9 +55,9 @@ fn stop!(key: string) -> bool:
 fn drop_now(key: string) -> void:
     let mut job = fetch(key)
 > app/main/drop_now
->   local $0 key: string [param read]
->   local $1 job: mut Suspend[string] [read assigned]
->   local $2 self: mut Suspend[string] [read]
+>   local $0 key: string [param read] value
+>   local $1 job: mut Suspend[string] [read assigned] value
+>   local $2 self: mut Suspend[string] [read] value
 >   %0 = Read borrow [$0] : string
 >   %1 = Call app/main/fetch[] (%0) : mut Suspend[string]
 >   %2 = Store [$1] %1 : ()

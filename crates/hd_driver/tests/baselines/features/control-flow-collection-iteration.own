@@ -7,14 +7,14 @@
 fn by_value(m: Map[string, string]) -> usize:
     let n: usize = 0
 > app/main/by_value
->   local $0 m: Map[string, string] [param read]
->   local $1 n: usize [read assigned mutated]
->   local $2 $coll: Map[string, string] [assigned]
->   local $3 $len: usize [assigned]
->   local $4 $pos: usize [assigned]
->   local $5 $end: usize [assigned]
->   local $6 k: Ref[string] [read assigned]
->   local $7 v: Ref[string] [read assigned]
+>   local $0 m: Map[string, string] [param read] value
+>   local $1 n: usize [read assigned mutated] value ×2
+>   local $2 $coll: Map[string, string] [assigned] value
+>   local $3 $len: usize [assigned] value
+>   local $4 $pos: usize [assigned] value ×3
+>   local $5 $end: usize [assigned] value
+>   local $6 k: Ref[string] [read assigned] value
+>   local $7 v: Ref[string] [read assigned] value
 >   %0 = Store [$1] 0:usize : ()
 >   %48 = Block %47 : usize
     for (k, v) in m:
@@ -71,13 +71,13 @@ fn by_value(m: Map[string, string]) -> usize:
 fn by_ref(m: &Map[string, string]) -> usize:
     let n: usize = 0
 > app/main/by_ref
->   local $0 m: Ref[Map[string, string]] [param read]
->   local $1 n: usize [read assigned mutated]
->   local $2 $coll: Map[string, string] [assigned]
->   local $3 $len: usize [assigned]
->   local $4 $pos: usize [assigned]
->   local $5 $end: usize [assigned]
->   local $6 v: Ref[string] [read assigned]
+>   local $0 m: Ref[Map[string, string]] [param read] value
+>   local $1 n: usize [read assigned mutated] value ×2
+>   local $2 $coll: Map[string, string] [assigned] value
+>   local $3 $len: usize [assigned] value
+>   local $4 $pos: usize [assigned] value ×3
+>   local $5 $end: usize [assigned] value
+>   local $6 v: Ref[string] [read assigned] value
 >   %0 = Store [$1] 0:usize : ()
 >   %44 = Block %43 : usize
     for (_, v) in m:
@@ -130,13 +130,13 @@ fn by_ref(m: &Map[string, string]) -> usize:
 fn keys(m: Map[string, string]) -> List[string]:
     let mut out: List[string] = []
 > app/main/keys
->   local $0 m: Map[string, string] [param read]
->   local $1 out: List[string] [read assigned]
->   local $2 $coll: Map[string, string] [assigned]
->   local $3 $len: usize [assigned]
->   local $4 $pos: usize [assigned]
->   local $5 $end: usize [assigned]
->   local $6 k: Ref[string] [read assigned]
+>   local $0 m: Map[string, string] [param read] value
+>   local $1 out: List[string] [read assigned] value
+>   local $2 $coll: Map[string, string] [assigned] value
+>   local $3 $len: usize [assigned] value
+>   local $4 $pos: usize [assigned] value ×3
+>   local $5 $end: usize [assigned] value
+>   local $6 k: Ref[string] [read assigned] value
 >   %0 = NewList - [] : List[string]
 >   %1 = Store [$1] %0 : ()
 >   %44 = Block %43 : List[string]

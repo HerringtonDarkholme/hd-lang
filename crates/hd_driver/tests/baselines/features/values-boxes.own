@@ -14,13 +14,13 @@ struct Holder:
 fn copy_box(s: string, t: string) -> usize:
     let mut p = Point { name: s }
 > app/main/copy_box
->   local $0 s: string [param read]
->   local $1 t: string [param read]
->   local $2 p: Point [read assigned mutated]
->   local $3 $ref: Point [read assigned captured captured-assigned]
->   local $4 copy: Counted[mut Point] [:= read assigned]
->   local $5 self: string [read]
->   local $6 self: string [read]
+>   local $0 s: string [param read] value
+>   local $1 t: string [param read] value
+>   local $2 p: Point [read assigned mutated] value ×2
+>   local $3 $ref: Point [read assigned captured captured-assigned] place
+>   local $4 copy: Counted[mut Point] [:= read assigned] value
+>   local $5 self: string [read] value
+>   local $6 self: string [read] value
 >   %0 = Read move [$0] : string
 >   %1 = NewStruct [%0] : Point
 >   %2 = Store [$2] %1 : ()
@@ -59,9 +59,9 @@ fn copy_box(s: string, t: string) -> usize:
 fn move_box(s: string) -> *mut Point:
     p := Point { name: s }
 > app/main/move_box
->   local $0 s: string [param read]
->   local $1 p: Point [:= read assigned]
->   local $2 $ref: Point [read assigned captured captured-assigned]
+>   local $0 s: string [param read] value
+>   local $1 p: Point [:= read assigned] value
+>   local $2 $ref: Point [read assigned captured captured-assigned] place
 >   %0 = Read move [$0] : string
 >   %1 = NewStruct [%0] : Point
 >   %2 = Store [$1] %1 : ()
@@ -77,12 +77,12 @@ fn move_box(s: string) -> *mut Point:
 fn shared(s: string, t: string) -> usize:
     b := box(Point { name: s })
 > app/main/shared
->   local $0 s: string [param read]
->   local $1 t: string [param read]
->   local $2 $ref: Point [read assigned captured captured-assigned]
->   local $3 b: Counted[mut Point] [:= read assigned]
->   local $4 h: Holder [:= read assigned]
->   local $5 self: string [read]
+>   local $0 s: string [param read] value
+>   local $1 t: string [param read] value
+>   local $2 $ref: Point [read assigned captured captured-assigned] place
+>   local $3 b: Counted[mut Point] [:= read assigned] value
+>   local $4 h: Holder [:= read assigned] value
+>   local $5 self: string [read] value
 >   %0 = Read move [$0] : string
 >   %1 = NewStruct [%0] : Point
 >   %2 = Store [$2] %1 : ()

@@ -11,7 +11,7 @@ use std.task.join
 fn fetch!(key: string) -> string:
     key + "?"
 > app/main/fetch
->   local $0 key: string [param read]
+>   local $0 key: string [param read] value
 >   %0 = Read move [$0] : string
 >   %1 = Intrinsic StrConcat [%0 "?"] : string
 >   %2 = Drop [%0] : ()
@@ -22,19 +22,19 @@ fn fetch!(key: string) -> string:
 fn all!(keys: List[string]) -> usize:
     let tasks: List[mut Suspend[string]] = [for k in keys => fetch(k)]
 > app/main/all
->   local $0 keys: List[string] [param read]
->   local $1 $acc: mut List[mut Suspend[string]] [assigned]
->   local $2 $coll: List[string] [assigned]
->   local $3 $len: usize [assigned]
->   local $4 $pos: usize [assigned]
->   local $5 $end: usize [assigned]
->   local $6 k: string [read assigned]
->   local $7 tasks: List[mut Suspend[string]] [read assigned]
->   local $8 results: List[string] [:= read assigned]
->   local $9 n: usize [read assigned mutated]
->   local $10 $len: usize [assigned]
->   local $11 $pos: usize [assigned]
->   local $12 r: Ref[string] [read assigned]
+>   local $0 keys: List[string] [param read] value
+>   local $1 $acc: mut List[mut Suspend[string]] [assigned] value
+>   local $2 $coll: List[string] [assigned] value
+>   local $3 $len: usize [assigned] value
+>   local $4 $pos: usize [assigned] value ×2
+>   local $5 $end: usize [assigned] value
+>   local $6 k: string [read assigned] value
+>   local $7 tasks: List[mut Suspend[string]] [read assigned] value
+>   local $8 results: List[string] [:= read assigned] place
+>   local $9 n: usize [read assigned mutated] value ×2
+>   local $10 $len: usize [assigned] value
+>   local $11 $pos: usize [assigned] value ×2
+>   local $12 r: Ref[string] [read assigned] value
 >   %0 = NewList - [] : mut List[mut Suspend[string]]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read move [$0] : List[string]

@@ -14,8 +14,8 @@ enum Event:
 fn width(s: string) -> usize:
     s.len()
 > app/main/width
->   local $0 s: string [param read]
->   local $1 self: string [read]
+>   local $0 s: string [param read] value
+>   local $1 self: string [read] value
 >   %0 = Read borrow [$0] : string
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : string
@@ -29,8 +29,8 @@ fn width(s: string) -> usize:
 fn apply(f: fn(string) -> usize, s: string) -> usize:
     f(s)
 > app/main/apply
->   local $0 f: fn(string) -> usize [param read]
->   local $1 s: string [param read]
+>   local $0 f: fn(string) -> usize [param read] value
+>   local $1 s: string [param read] value
 >   %0 = Read borrow [$0] : fn(string) -> usize
 >   %1 = Read move [$1] : string
 >   %2 = CallValue %0 [%1] : usize
@@ -41,9 +41,9 @@ fn apply(f: fn(string) -> usize, s: string) -> usize:
 fn named_value(s: string) -> usize:
     apply(width, s)
 > app/main/named_value
->   local $0 s: string [param read]
->   local $1 f: fn(string) -> usize [read]
->   local $2 s: string [read]
+>   local $0 s: string [param read] value
+>   local $1 f: fn(string) -> usize [read] value
+>   local $2 s: string [read] value
 >   %0 = ItemRef #0 [..] : fn(string) -> usize
 >   %1 = Read move [$0] : string
 >   %2 = Store [$1] %0 : ()
@@ -62,7 +62,7 @@ fn named_value(s: string) -> usize:
 fn ident[T](x: T) -> T:
     x
 > app/main/ident
->   local $0 x: T [param read]
+>   local $0 x: T [param read] value
 >   %0 = Read move [$0] : T
 >   %1 = Block %0 : T
 >   exit sub 0 drops [$0]
@@ -71,8 +71,8 @@ fn ident[T](x: T) -> T:
 fn map_one[A, B](x: A, f: fn(A) -> B) -> B:
     f(x)
 > app/main/map_one
->   local $0 x: A [param read]
->   local $1 f: fn(A) -> B [param read]
+>   local $0 x: A [param read] value
+>   local $1 f: fn(A) -> B [param read] value
 >   %0 = Read borrow [$1] : fn(A) -> B
 >   %1 = Read move [$0] : A
 >   %2 = CallValue %0 [%1] : B
@@ -83,9 +83,9 @@ fn map_one[A, B](x: A, f: fn(A) -> B) -> B:
 fn generic_value(s: string) -> string:
     map_one(s, ident)
 > app/main/generic_value
->   local $0 s: string [param read]
->   local $1 x: string [read]
->   local $2 f: fn(string) -> string [read]
+>   local $0 s: string [param read] value
+>   local $1 x: string [read] value
+>   local $2 f: fn(string) -> string [read] value
 >   %0 = Read move [$0] : string
 >   %1 = ItemRef #0 [..] : fn(string) -> string
 >   %2 = Store [$1] %0 : ()
@@ -104,10 +104,10 @@ fn generic_value(s: string) -> string:
 fn variant_value(s: string) -> Event:
     map_one(s, Event.Named)
 > app/main/variant_value
->   local $0 s: string [param read]
->   local $1 $0: string [param]
->   local $2 x: string [read]
->   local $3 f: fn(string) -> Event [read]
+>   local $0 s: string [param read] value
+>   local $1 $0: string [param] value
+>   local $2 x: string [read] value
+>   local $3 f: fn(string) -> Event [read] value
 >   %0 = Read move [$0] : string
 >   %1 = Read move [$1] : string
 >   %2 = NewVariant #0 [%1] : Event

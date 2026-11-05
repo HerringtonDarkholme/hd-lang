@@ -8,7 +8,7 @@
 fn later(name: string) -> fn() -> usize:
     fn() -> usize: name.len()
 > app/main/later
->   local $0 name: string [param read captured]
+>   local $0 name: string [param read captured] place
 >   %0 = Ref local [$0] : Counted[string]
 >   %1 = Call std/text/impl string.len[] (%0) : usize
 >   %2 = Drop [%0] : ()
@@ -24,8 +24,8 @@ fn later(name: string) -> fn() -> usize:
 fn apply(f: fn(string) -> usize, s: string) -> usize:
     f(s)
 > app/main/apply
->   local $0 f: fn(string) -> usize [param read]
->   local $1 s: string [param read]
+>   local $0 f: fn(string) -> usize [param read] value
+>   local $1 s: string [param read] value
 >   %0 = Read borrow [$0] : fn(string) -> usize
 >   %1 = Read move [$1] : string
 >   %2 = CallValue %0 [%1] : usize

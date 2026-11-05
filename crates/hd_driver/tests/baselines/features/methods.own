@@ -11,7 +11,7 @@ impl Shelf:
     fn by_self(self) -> usize:
         (self.books.len() + 1) * (self.books.len() + 2) * (self.books.len() + 3) / 7
 > app/main/impl Shelf.by_self
->   local $0 self: Shelf [param read]
+>   local $0 self: Shelf [param read] value
 >   %0 = Read borrow [$0 .books] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Prim Add [%1 1:usize] : usize
@@ -30,7 +30,7 @@ impl Shelf:
     fn by_ref(&self) -> usize:
         (self.books.len() + 1) * (self.books.len() + 2) * (self.books.len() + 3) / 7
 > app/main/impl Shelf.by_ref
->   local $0 self: Ref[Shelf] [param read]
+>   local $0 self: Ref[Shelf] [param read] value
 >   %0 = Read borrow [*$0 .books] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Drop [%0] : ()
@@ -52,8 +52,8 @@ impl Shelf:
     fn by_mut(&mut self, b: string) -> void:
         self.books.push(b)
 > app/main/impl Shelf.by_mut
->   local $0 self: Ref[mut Shelf] [param read]
->   local $1 b: string [param read]
+>   local $0 self: Ref[mut Shelf] [param read] value
+>   local $1 b: string [param read] value
 >   %0 = Read move [$1] : string
 >   %1 = IsUnique [*$0 .books] : ()
 >   %2 = Read borrow [*$0 .books] : List[string]
@@ -65,7 +65,7 @@ impl Shelf:
     fn consume(self) -> List[string]:
         self.books
 > app/main/impl Shelf.consume
->   local $0 self: Shelf [param read]
+>   local $0 self: Shelf [param read] value
 >   %0 = Read move [$0 .books] : List[string]
 >   %1 = Block %0 : List[string]
 >   exit sub 0 drops [$0]
@@ -74,12 +74,12 @@ impl Shelf:
 fn use_methods(s: Shelf, b: string) -> usize:
     let mut t = s
 > app/main/use_methods
->   local $0 s: Shelf [param read]
->   local $1 b: string [param read]
->   local $2 t: Shelf [read assigned captured captured-assigned]
->   local $3 self: Shelf [read]
->   local $4 self: Shelf [read]
->   local $5 self: Shelf [read]
+>   local $0 s: Shelf [param read] value
+>   local $1 b: string [param read] value
+>   local $2 t: Shelf [read assigned captured captured-assigned] place
+>   local $3 self: Shelf [read] value
+>   local $4 self: Shelf [read] value
+>   local $5 self: Shelf [read] value
 >   %0 = Read copy [$0] : Shelf
 >   %1 = Store [$2] %0 : ()
 >   %51 = Block %50 : usize

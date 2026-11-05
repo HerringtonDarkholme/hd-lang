@@ -9,8 +9,8 @@
 fn select(t: (string, List[string])) -> usize:
     t._0.len() + t._1.len()
 > app/main/select
->   local $0 t: (string, List[string]) [param read]
->   local $1 self: string [read]
+>   local $0 t: (string, List[string]) [param read] value
+>   local $1 self: string [read] value
 >   %0 = Read borrow [$0 .0] : string
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : string
@@ -27,8 +27,8 @@ fn select(t: (string, List[string])) -> usize:
 fn nested(t: ((string, string), string)) -> usize:
     t._0._1.len()
 > app/main/nested
->   local $0 t: ((string, string), string) [param read]
->   local $1 self: string [read]
+>   local $0 t: ((string, string), string) [param read] value
+>   local $1 self: string [read] value
 >   %0 = Read borrow [$0 .0 .1] : string
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : string
@@ -42,7 +42,7 @@ fn nested(t: ((string, string), string)) -> usize:
 fn take_first(t: (string, List[string])) -> string:
     t._0
 > app/main/take_first
->   local $0 t: (string, List[string]) [param read]
+>   local $0 t: (string, List[string]) [param read] value
 >   %0 = Read move [$0 .0] : string
 >   %1 = Drop [$0 .1] : ()
 >   %2 = Block %0 : string
@@ -52,9 +52,9 @@ fn take_first(t: (string, List[string])) -> string:
 fn rest_collect(a: string, b: string, c: string) -> (string, List[string]...):
     (a, b, c)
 > app/main/rest_collect
->   local $0 a: string [param read]
->   local $1 b: string [param read]
->   local $2 c: string [param read]
+>   local $0 a: string [param read] value
+>   local $1 b: string [param read] value
+>   local $2 c: string [param read] value
 >   %0 = Read move [$0] : string
 >   %1 = Read move [$1] : string
 >   %2 = Read move [$2] : string
@@ -67,8 +67,8 @@ fn rest_collect(a: string, b: string, c: string) -> (string, List[string]...):
 fn rest_spread(a: string, xs: List[string]) -> (string, List[string]...):
     (a, xs...)
 > app/main/rest_spread
->   local $0 a: string [param read]
->   local $1 xs: List[string] [param read]
+>   local $0 a: string [param read] value
+>   local $1 xs: List[string] [param read] value
 >   %0 = Read move [$0] : string
 >   %1 = Read move [$1] : List[string]
 >   %2 = NewTuple %1 [%0] : (string, List[string]...)

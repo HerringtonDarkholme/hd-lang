@@ -7,8 +7,8 @@
 fn names(xs: &List[string]) -> impl Iterator[string]:
     xs.iter()
 > app/main/names
->   local $0 xs: Ref[List[string]] [param read]
->   local $1 self: List[string] [read]
+>   local $0 xs: Ref[List[string]] [param read] value
+>   local $1 self: List[string] [read] value
 >   %0 = Read copy [*$0] : List[string]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read move [$1] : List[string]
@@ -22,14 +22,14 @@ fn names(xs: &List[string]) -> impl Iterator[string]:
 fn count_long(xs: List[string]) -> usize:
     let n: usize = 0
 > app/main/count_long
->   local $0 xs: List[string] [param read]
->   local $1 n: usize [read assigned mutated]
->   local $2 $ref: ListIter[string] [read assigned captured captured-assigned]
->   local $3 $iter: Ref[mut ListIter[string]] [assigned]
->   local $4 x: string [read assigned]
->   local $5 self: string [read]
->   local $6 xs: List[string] [read]
->   local $7 self: List[string] [read]
+>   local $0 xs: List[string] [param read] value
+>   local $1 n: usize [read assigned mutated] value ×2
+>   local $2 $ref: ListIter[string] [read assigned captured captured-assigned] place
+>   local $3 $iter: Ref[mut ListIter[string]] [assigned] value
+>   local $4 x: string [read assigned] value
+>   local $5 self: string [read] value
+>   local $6 xs: List[string] [read] value
+>   local $7 self: List[string] [read] value
 >   %0 = Store [$1] 0:usize : ()
 >   %47 = Block %46 : usize
     for x in names(&xs):

@@ -11,8 +11,8 @@ impl !Copy for Parcel
 fn label(value: Parcel?) -> string:
     match value:
 > app/main/label
->   local $0 value: Parcel? [param read]
->   local $1 parcel: Parcel [read assigned]
+>   local $0 value: Parcel? [param read] value
+>   local $1 parcel: Parcel [read assigned] value
 >   %0 = Read move [$0] : Parcel?
 >   %8 = Drop [%0] : ()
 >   %16 = Block - : never

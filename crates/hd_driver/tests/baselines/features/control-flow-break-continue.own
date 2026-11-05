@@ -8,17 +8,17 @@
 fn until_long(xs: List[string]) -> usize:
     let n: usize = 0
 > app/main/until_long
->   local $0 xs: List[string] [param read]
->   local $1 n: usize [read assigned mutated]
->   local $2 $coll: List[string] [assigned]
->   local $3 $len: usize [assigned]
->   local $4 $pos: usize [assigned]
->   local $5 $end: usize [assigned]
->   local $6 x: string [read assigned]
->   local $7 t: string [:= read assigned]
->   local $8 self: string [read]
->   local $9 self: string [read]
->   local $10 self: string [read]
+>   local $0 xs: List[string] [param read] value
+>   local $1 n: usize [read assigned mutated] value ×2
+>   local $2 $coll: List[string] [assigned] value
+>   local $3 $len: usize [assigned] value
+>   local $4 $pos: usize [assigned] value ×2
+>   local $5 $end: usize [assigned] value
+>   local $6 x: string [read assigned] value
+>   local $7 t: string [:= read assigned] value
+>   local $8 self: string [read] value
+>   local $9 self: string [read] value
+>   local $10 self: string [read] value
 >   %0 = Store [$1] 0:usize : ()
 >   %71 = Block %70 : usize
     for x in xs:

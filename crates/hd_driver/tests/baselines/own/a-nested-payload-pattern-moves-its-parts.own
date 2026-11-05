@@ -12,15 +12,15 @@ impl !Copy for Parcel
 fn drain(parcels: UniqMap[string, Parcel]) -> usize:
     let n: usize = 0
 > app/main/drain
->   local $0 parcels: UniqMap[string, Parcel] [param read]
->   local $1 n: usize [read assigned mutated]
->   local $2 $ref: UniqMapIntoIter[string, Parcel] [read assigned captured captured-assigned]
->   local $3 $iter: Ref[mut UniqMapIntoIter[string, Parcel]] [assigned]
->   local $4 key: string [read assigned]
->   local $5 parcel: Parcel [read assigned]
->   local $6 self: string [read]
->   local $7 self: string [read]
->   local $8 self: UniqMap[string, Parcel] [read]
+>   local $0 parcels: UniqMap[string, Parcel] [param read] value
+>   local $1 n: usize [read assigned mutated] value ×2
+>   local $2 $ref: UniqMapIntoIter[string, Parcel] [read assigned captured captured-assigned] place
+>   local $3 $iter: Ref[mut UniqMapIntoIter[string, Parcel]] [assigned] value
+>   local $4 key: string [read assigned] value
+>   local $5 parcel: Parcel [read assigned] value
+>   local $6 self: string [read] value
+>   local $7 self: string [read] value
+>   local $8 self: UniqMap[string, Parcel] [read] value
 >   %0 = Store [$1] 0:usize : ()
 >   %54 = Block %53 : usize
     for (key, parcel) in parcels:

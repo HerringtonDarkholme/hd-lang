@@ -7,10 +7,10 @@
 fn assign(a: string, b: string) -> usize:
     let s = a
 > app/main/assign
->   local $0 a: string [param read]
->   local $1 b: string [param read]
->   local $2 s: string [read assigned mutated]
->   local $3 self: string [read]
+>   local $0 a: string [param read] value
+>   local $1 b: string [param read] value
+>   local $2 s: string [read assigned mutated] value ×2
+>   local $3 self: string [read] value
 >   %0 = Read move [$0] : string
 >   %1 = Store [$2] %0 : ()
 >   %12 = Block %10 : usize
@@ -32,8 +32,8 @@ fn assign(a: string, b: string) -> usize:
 fn compound(a: string) -> string:
     let s = a
 > app/main/compound
->   local $0 a: string [param read]
->   local $1 s: string [read assigned mutated]
+>   local $0 a: string [param read] value
+>   local $1 s: string [read assigned mutated] value ×2
 >   %0 = Read move [$0] : string
 >   %1 = Store [$1] %0 : ()
 >   %6 = Block %5 : string
@@ -49,9 +49,9 @@ fn compound(a: string) -> string:
 fn assign_list(xs: List[string], ys: List[string]) -> usize:
     let zs = xs
 > app/main/assign_list
->   local $0 xs: List[string] [param read]
->   local $1 ys: List[string] [param read]
->   local $2 zs: List[string] [read assigned mutated]
+>   local $0 xs: List[string] [param read] value
+>   local $1 ys: List[string] [param read] value
+>   local $2 zs: List[string] [read assigned mutated] value ×2
 >   %0 = Read move [$0] : List[string]
 >   %1 = Store [$2] %0 : ()
 >   %7 = Block %5 : usize
