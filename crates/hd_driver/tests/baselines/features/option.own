@@ -60,8 +60,7 @@ fn or_default(o: string?) -> string:
     o.unwrap_or("none")
 > app/main/or_default
 >   local $0 o: string? [param read]
->   %0 = Read move [$0] : string?
+>   %0 = Read borrow [$0] : string?
 >   %1 = Call std/option/impl [ T < ? Copy ] T ?.unwrap_or[string] (%0, "none") : string
 >   %2 = Block %1 : string
->   exit sub 0 drops [$0]
->   summary kept [$0]
+>   summary kept [] borrows [$0]

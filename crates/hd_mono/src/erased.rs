@@ -601,7 +601,7 @@ impl Cx<'_> {
                     return self.erased_target(trait_, m, base, targs, parent);
                 }
                 match env.impl_method(impl_, m) {
-                    Some(mi) if env.body(mi).is_some() => {
+                    Some(mi) if env.has_body(mi) => {
                         impl_args.extend(opens);
                         (mi, impl_args)
                     }

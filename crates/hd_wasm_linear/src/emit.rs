@@ -87,7 +87,8 @@ pub fn instance(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Fu
         erased,
         cold: None,
         // A promoted copy borrows what it takes by value (§23.40).
-        lends: input.env.lends(item) | hd_mono::defaults::promoted_mask(&t.defaults[id.idx()]),
+        lends: input.env.lends(item, args)
+            | hd_mono::defaults::promoted_mask(&t.defaults[id.idx()]),
     };
     body_func(input, m, &own, sub, &input.collected.calls[id.idx()], b)
 }
@@ -793,7 +794,7 @@ fn adapter(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Func> {
             (ct.item, ct.args),
             ct.ret,
             Sym::Inst(ct.key),
-            input.env.lends(ct.item),
+            input.env.lends(ct.item, ct.args),
         ),
         Some(
             target @ (Target::Call(_) | Target::Dyn | Target::MapKey { .. } | Target::MapInline(_)),
@@ -2501,7 +2502,7 @@ impl Em<'_, '_, '_> {
                         return self.call_results(i, ct.ret);
                     }
                     let params = self.param_tys(ct.key, ct.item, ct.args);
-                    let lends = self.env().lends(ct.item)
+                    let lends = self.env().lends(ct.item, ct.args)
                         | promote::promoted_params(self.input, self.m, ct.key);
                     self.push_args(&args, params.as_deref(), lends)?;
                     let c = self.push_call_providers(ct.item, ct.args)?;
@@ -2816,7 +2817,7 @@ impl Em<'_, '_, '_> {
             }) => {
                 let args = self.rec(bw);
                 let params = self.param_tys(call.key, call.item, call.args);
-                let lends = self.env().lends(call.item);
+                let lends = self.env().lends(call.item, call.args);
                 self.push_args(&args, params.as_deref(), lends)?;
                 let c = self.push_call_providers(call.item, call.args)?;
                 if bracket {

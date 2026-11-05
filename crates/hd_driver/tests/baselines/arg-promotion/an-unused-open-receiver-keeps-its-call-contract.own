@@ -21,4 +21,4 @@ fn caller[T](room: &Room[T]) -> usize:
 >   %0 = Read borrow [$0] : Ref[Room[T]]
 >   %1 = Call app/main/impl [ T ] Room [ T ].count[T] (%0) : usize
 >   %2 = Block %1 : usize
->   summary kept []
+>   summary kept [] writes

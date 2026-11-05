@@ -44,16 +44,32 @@ pub trait ProgramEnv: LayoutEnv {
         None
     }
     fn body(&self, def: DefId) -> Option<&Body>;
-    /// A concrete replacement for `def`'s ordinary body at `args`, when a
-    /// post-monomorphization transformation changed it. Collection and
-    /// emission both use the returned body.
-    fn instance_body(&self, _def: DefId, _args: TyList) -> StageResult<Option<Body>> {
+    /// Whether `def` has a body ([`ProgramEnv::body`]), asked without
+    /// running the passes over it.
+    fn has_body(&self, def: DefId) -> bool {
+        self.body(def).is_some()
+    }
+    /// The body whose types and calls collection's analyses read (exact
+    /// parameters, permission sharing): in release, a generic item's body
+    /// folded and inlined but not owned, since each of its instances is
+    /// owned on its own (`ProgramEnv::instance_body`); else
+    /// [`ProgramEnv::body`]. The passes add counts and read modes only.
+    fn shape_body(&self, def: DefId) -> Option<&Body> {
+        self.body(def)
+    }
+    /// Release: `def`'s body at `args`, with its types substituted, its
+    /// impls rechosen, its facts folded, inlined and owned. Collection and
+    /// emission both use it in place of the ordinary body, and its
+    /// summary decides how the instance takes its parameters
+    /// ([`ProgramEnv::lends`]). `None` keeps the ordinary body.
+    fn instance_body(&self, _def: DefId, _args: TyList) -> StageResult<Option<Arc<Body>>> {
         Ok(None)
     }
-    /// Release (#1118): `def`'s exclusive copy, which borrows through the
-    /// parameters in its mask across calls that may write, and which a
-    /// call may run where `hd_tir::own::exclusive_call` holds.
-    fn exclusive_body(&self, _def: DefId) -> Option<(u64, Arc<Body>)> {
+    /// Release (#1118): the exclusive copy of `def`'s instance at `args`,
+    /// which borrows through the parameters in its mask across calls that
+    /// may write, and which a call may run where
+    /// `hd_tir::own::exclusive_call` holds.
+    fn exclusive_body(&self, _def: DefId, _args: TyList) -> Option<(u64, Arc<Body>)> {
         None
     }
     /// Release (#1151): `def`'s promoted copy at `args`, which takes the
@@ -231,12 +247,12 @@ pub trait ProgramEnv: LayoutEnv {
     /// [`adapter_call_body`]), after the ownership passes, as the driver
     /// runs them over every body it supplies.
     fn own_generated(&self, body: Body) -> StageResult<Body>;
-    /// Bit k: every instance of `item` receives its value parameter k (the
-    /// receiver first) lent, so a call passes it with no count and glue
-    /// that calls the instance counts none for it. Only the optimized
+    /// Bit k: `item`'s instance at `args` receives its value parameter k
+    /// (the receiver first) lent, so a call passes it with no count and
+    /// glue that calls the instance counts none for it. Only the optimized
     /// pipeline's release summaries set one
     /// (`docs/future-work/RELEASE_INTERPROC.md`).
-    fn lends(&self, _item: DefId) -> u64 {
+    fn lends(&self, _item: DefId, _args: TyList) -> u64 {
         0
     }
     /// `std.format.Debug`, whose printer is preferred by `dbg_printer`.
@@ -1400,6 +1416,8 @@ struct Cx<'a> {
     /// Each body's plan, once per build: by item, and by self type for a
     /// compiler-supplied body.
     plans: HashMap<(DefId, Option<Ty>), Option<Arc<BodyPlan>>>,
+    /// Each callee's [`Cx::spec_params`], once per build.
+    spec_params: HashMap<DefId, Option<Vec<bool>>>,
     /// Each item's instance body at its arguments, once per build
     /// (`ProgramEnv::instance_body`): an item's sub-body instances, a
     /// closure each, share it rather than each holding a copy.
@@ -1640,8 +1658,9 @@ impl Cx<'_> {
 
     /// Stage 8 (#1118): call `at` of `body` (instance `caller`'s) as a
     /// call of its callee's exclusive copy, where the callee has one, the
-    /// target is its plain instance with no folded facts, and the
-    /// arguments qualify (`hd_tir::own::exclusive_call`); else `t`.
+    /// target is its plain instance, and the arguments qualify
+    /// (`hd_tir::own::exclusive_call`); else `t`. In release the copy is
+    /// one of the instance body.
     fn exclusive_target(
         &mut self,
         body: &Body,
@@ -1652,7 +1671,7 @@ impl Cx<'_> {
         if t.kind != TargetKind::Instance {
             return Ok(t);
         }
-        let Some((relies, copy)) = self.env.exclusive_body(t.item) else {
+        let Some((relies, copy)) = self.env.exclusive_body(t.item, t.args) else {
             return Ok(t);
         };
         let table = &self.out.table;
@@ -1663,14 +1682,12 @@ impl Cx<'_> {
         let flag = hd_tir::ir::sub_flags::EXCLUSIVE;
         let own = match body.sub_flags.first() {
             Some(f) if f & flag != 0 => {
-                let item = table.item[caller.idx()];
-                self.env.exclusive_body(item).map_or(0, |e| e.0)
+                let (item, args) = (table.item[caller.idx()], table.args[caller.idx()]);
+                self.env.exclusive_body(item, args).map_or(0, |e| e.0)
             }
             _ => 0,
         };
-        if !hd_tir::own::exclusive_call(body, at, relies, own)
-            || self.env.instance_body(t.item, t.args)?.is_some()
-        {
+        if !hd_tir::own::exclusive_call(body, at, relies, own) {
             return Ok(t);
         }
         let mark = [defaults::EXCLUSIVE];
@@ -1686,8 +1703,9 @@ impl Cx<'_> {
     /// Argument promotion (#1151): call `at` of `body` (instance
     /// `caller`'s) as a call of its callee's promoted copy at its type
     /// arguments, where the callee has one, the target is its plain
-    /// instance with no folded facts, and each promoted argument is a
-    /// reference to a local of `body` (`hd_tir::own::promote`).
+    /// instance, and each promoted argument is a reference to a local of
+    /// `body` (`hd_tir::own::promote`). In release the copy is one of the
+    /// instance body.
     fn promoted_target(
         &mut self,
         body: &Body,
@@ -1709,16 +1727,20 @@ impl Cx<'_> {
         }
         // A call that may also run the exclusive copy runs the promoted
         // copy of that one, which borrows what it reads across calls.
-        let exclusive = self.env.exclusive_body(t.item).is_some_and(|(relies, _)| {
-            let own = match body.sub_flags.first() {
-                Some(f) if f & hd_tir::ir::sub_flags::EXCLUSIVE != 0 => {
-                    let item = self.out.table.item[caller.idx()];
-                    self.env.exclusive_body(item).map_or(0, |e| e.0)
-                }
-                _ => 0,
-            };
-            hd_tir::own::exclusive_call(body, at, relies, own)
-        });
+        let exclusive = self
+            .env
+            .exclusive_body(t.item, t.args)
+            .is_some_and(|(relies, _)| {
+                let own = match body.sub_flags.first() {
+                    Some(f) if f & hd_tir::ir::sub_flags::EXCLUSIVE != 0 => {
+                        let table = &self.out.table;
+                        let (item, args) = (table.item[caller.idx()], table.args[caller.idx()]);
+                        self.env.exclusive_body(item, args).map_or(0, |e| e.0)
+                    }
+                    _ => 0,
+                };
+                hd_tir::own::exclusive_call(body, at, relies, own)
+            });
         let want = hd_tir::own::promote::promotable_args(body, at);
         let held = want & hd_tir::own::promote::held_args(body, at);
         let Some((by_value, copy)) = (want != 0)
@@ -1730,9 +1752,7 @@ impl Cx<'_> {
         else {
             return Ok(None);
         };
-        if !hd_tir::own::promote::promoted_call(body, at, by_value)
-            || self.env.instance_body(t.item, t.args)?.is_some()
-        {
+        if !hd_tir::own::promote::promoted_call(body, at, by_value) {
             return Ok(None);
         }
         let marks = [defaults::promoted(by_value), defaults::EXCLUSIVE];
@@ -1755,12 +1775,9 @@ impl Cx<'_> {
         targs: TyList,
         parent: InstId,
     ) -> StageResult<Option<CallTarget>> {
-        if self.env.intrinsic(def).is_some() {
+        if self.env.intrinsic(def).is_some() || !self.env.has_body(def) {
             return Ok(None);
         }
-        let Some(callee) = self.env.body(def) else {
-            return Ok(None);
-        };
         let operands = body.record(body.data[at][1]);
         let values: Vec<_> = operands[..operands.len().saturating_sub(3)]
             .iter()
@@ -1778,12 +1795,18 @@ impl Cx<'_> {
         if values.is_empty() {
             return Ok(None);
         }
-        let Some(transformed) = defaults::specialize(callee, &values) else {
-            return Ok(None);
-        };
         let own_from = self.env.parent(def).map_or(0, |p| p.1);
         let args = self.classify(def, self.pool.list_items(targs), own_from)?;
         let inst = rowless(self.pool, self.env, def, args);
+        // The copy of the body the instance runs: its instance body, whose
+        // summary decides how the copy takes its parameters.
+        let instance = self.item_body(def, inst)?;
+        let Some(callee) = instance.as_deref().or_else(|| self.env.body(def)) else {
+            return Ok(None);
+        };
+        let Some(transformed) = defaults::specialize(callee, &values) else {
+            return Ok(None);
+        };
         let raw = rowless(self.pool, self.env, def, targs);
         let key = self.push_specialized(def, Sub::Body(0), inst, raw, &[], &values, parent)?;
         if let Some(id) = self
@@ -1992,7 +2015,7 @@ impl Cx<'_> {
                 bits: vec![false; n],
                 calls: Vec::new(),
             };
-            if let Some(body) = env.body(def) {
+            if let Some(body) = env.shape_body(def) {
                 for i in 0..body.len() {
                     if body.tags[i] == Tag::DefaultCall {
                         let record = body.record(body.data[i][0]);
@@ -2000,7 +2023,7 @@ impl Cx<'_> {
                             continue;
                         };
                         let callee = DefId::from_raw(callee);
-                        if env.body(callee).is_some() {
+                        if env.has_body(callee) {
                             node.calls.push((callee, TyList(targs)));
                             todo.push(callee);
                         }
@@ -2017,7 +2040,7 @@ impl Cx<'_> {
                                 for &t in pool.list_items(targs) {
                                     pinned(pool, env, def, t, true, &mut node.bits);
                                 }
-                            } else if env.body(callee).is_some() {
+                            } else if env.has_body(callee) {
                                 node.calls.push((callee, targs));
                                 todo.push(callee);
                             }
@@ -2056,7 +2079,7 @@ impl Cx<'_> {
                                 args.extend_from_slice(items);
                                 (method, pool.list(&args))
                             };
-                            if env.body(callee).is_some() {
+                            if env.has_body(callee) {
                                 node.calls.push((callee, args));
                                 todo.push(callee);
                             }
@@ -2124,7 +2147,7 @@ impl Cx<'_> {
         types.extend(env.ret(def));
         // Unsubstituted: the keys over the item's own parameters.
         types.extend(env.row_keys(def, TyList::EMPTY));
-        if let Some(b) = env.body(def) {
+        if let Some(b) = env.shape_body(def) {
             types.extend(b.ty.iter().copied());
             types.extend(b.local_ty.iter().copied());
             for i in 0..b.len() {
@@ -2176,7 +2199,7 @@ impl Cx<'_> {
             return true;
         }
         let (pool, env) = (self.pool, self.env);
-        let Some(body) = env.body(def) else {
+        let Some(body) = env.shape_body(def) else {
             return true;
         };
         visiting.push(def);
@@ -2282,7 +2305,7 @@ impl Cx<'_> {
                 || pinned.get(k - own_from).copied().unwrap_or(false)
                 || is_class_ref(self.pool, t)
                 || matches!(self.pool.get(t), TyData::Row(_))
-                || self.env.body(def).is_none()
+                || !self.env.has_body(def)
                 || holds_coll(self.pool, self.env, t);
             let shared = if exact {
                 false
@@ -2340,7 +2363,7 @@ impl Cx<'_> {
         // A body-less inherent method is an intrinsic method of std
         // (`trait.impl.intrinsic`), such as `f64.sqrt`: the backend lowers
         // it per self type, the impl's head under the call's arguments.
-        if self.env.body(def).is_none()
+        if !self.env.has_body(def)
             && let Some((owner, _)) = self.env.parent(def)
             && let Some((head, _, _)) = self.env.impl_head(owner)
         {
@@ -2355,7 +2378,7 @@ impl Cx<'_> {
                 },
             });
         }
-        if self.env.body(def).is_none() {
+        if !self.env.has_body(def) {
             return Err(NotImplemented::new(
                 Stage::Collect,
                 format!(
@@ -2909,7 +2932,7 @@ impl Cx<'_> {
         }
         let found = self.env.impl_method(impl_, method);
         match found {
-            Some(m) if self.env.body(m).is_some() => {
+            Some(m) if self.env.has_body(m) => {
                 let mut all = impl_args;
                 all.extend_from_slice(method_args);
                 self.target(m, self.pool.list(&all), parent)
@@ -3030,10 +3053,19 @@ impl Cx<'_> {
     }
 
     /// The parameters of `def` a known value is worth specializing on, by
-    /// its plan as a callee (`BodyPlan::spec_params`).
+    /// its plan as a callee (`BodyPlan::spec_params`), of the body
+    /// collection's analyses read (`ProgramEnv::shape_body`).
     fn spec_params(&mut self, def: DefId) -> Option<Vec<bool>> {
-        let body = self.env.body(def)?;
-        self.plan(def, None, body)?.spec_params.clone()
+        if let Some(hit) = self.spec_params.get(&def) {
+            return hit.clone();
+        }
+        let (planner, env) = (self.planner, self.env);
+        let params = env
+            .shape_body(def)
+            .and_then(|body| planner.plan(def, body, env))
+            .and_then(|plan| plan.spec_params.clone());
+        self.spec_params.insert(def, params.clone());
+        params
     }
 
     /// How many specializations nest at `id`: 0 for a plain instance, else
@@ -3315,6 +3347,17 @@ impl Cx<'_> {
         Ok(Target::MapKey { hash, eq })
     }
 
+    /// `item`'s instance body at `args` (`ProgramEnv::instance_body`),
+    /// once per build.
+    fn item_body(&mut self, item: DefId, args: TyList) -> StageResult<Option<Arc<Body>>> {
+        if let Some(hit) = self.item_bodies.get(&(item, args)) {
+            return Ok(hit.clone());
+        }
+        let body = self.env.instance_body(item, args)?;
+        self.item_bodies.insert((item, args), body.clone());
+        Ok(body)
+    }
+
     /// The plan of `body`, the body of `def` or the one supplied for it at
     /// self type `supplied`: asked of the planner once per build.
     fn plan(&mut self, def: DefId, supplied: Option<Ty>, body: &Body) -> Option<Arc<BodyPlan>> {
@@ -3343,23 +3386,22 @@ impl Cx<'_> {
             .list_items(args)
             .first()
             .and_then(|&t| Some((t, self.out.supplied.get(&(item, t))?.clone())));
-        if supplied.is_none() && !self.out.instance_bodies.contains_key(&id) {
-            let shared = if let Some(body) = self.item_bodies.get(&(item, args)) {
-                body.clone()
-            } else {
-                let body = env.instance_body(item, args)?.map(Arc::new);
-                self.item_bodies.insert((item, args), body.clone());
-                body
-            };
-            if let Some(body) = shared {
-                self.out.instance_bodies.insert(id, body);
-            }
+        // An item's root instance asks for its body; each closure's code
+        // instance shares its parent's, which made its environment. An
+        // erased body and its thunks keep the generic body: its open
+        // instructions are numbered on that body (`open_insts`).
+        if supplied.is_none()
+            && sub == Sub::Body(0)
+            && !self.out.instance_bodies.contains_key(&id)
+            && let Some(body) = self.item_body(item, args)?
+        {
+            self.out.instance_bodies.insert(id, body);
         }
         let instance_body = self.out.instance_bodies.get(&id).cloned();
         let Some(body) = instance_body
             .as_deref()
             .or_else(|| supplied.as_ref().map(|s| &*s.1))
-            .or(env.body(item))
+            .or_else(|| env.body(item))
         else {
             return err("an instance whose item has no TIR");
         };
@@ -4201,6 +4243,7 @@ fn collect_roots(
         joined_inputs,
         planner,
         plans: HashMap::default(),
+        spec_params: HashMap::default(),
         item_bodies: HashMap::default(),
         body_subs: HashMap::default(),
         drop_checked: HashSet::default(),

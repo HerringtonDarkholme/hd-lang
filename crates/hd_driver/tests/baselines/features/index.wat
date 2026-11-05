@@ -98,12 +98,10 @@
           if (result i32)
             i32.const 0
           else
-            local.get $xs
-            i32.load $heap
-            local.set $xs
             block
               block
                 local.get $xs
+                i32.load $heap
                 local.get $i
                 i32.const 8
                 i32.mul
@@ -250,12 +248,10 @@
           i32.ge_u
           if
           else
-            local.get $xs
-            i32.load $heap
-            local.set $xs
             block
               block
                 local.get $xs
+                i32.load $heap
                 local.get $i
                 i32.const 8
                 i32.mul

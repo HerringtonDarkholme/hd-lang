@@ -82,4 +82,4 @@ fn list_eq(a: &List[string], b: &List[string]) -> bool:
 >   %1 = Read borrow [$1] : Ref[List[string]]
 >   %2 = Call std/core/Eq.eq for List[string] [] via Impl (%0, %1) : bool
 >   %3 = Block %2 : bool
->   summary kept [] writes
+>   summary kept []

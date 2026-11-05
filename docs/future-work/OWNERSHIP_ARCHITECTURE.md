@@ -592,8 +592,8 @@ the pass and emission rates.
 ## Appendix E. Details
 
 - **Pipeline position.** After decode and substitution, before emission,
-  per instance; the generic body's summary stays the calling-convention
-  authority until step 14.
+  per instance. Since step 2, each release instance's own summary is its
+  calling convention, and the passes run once per instance.
 - **Invariants.** Every count statement has a reason; every `Retain` is of
   a `Copy` value; no emitted count without a statement; read modes imply
   no count after step 23.

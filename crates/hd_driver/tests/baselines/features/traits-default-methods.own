@@ -53,7 +53,7 @@ fn direct(l: Logger) -> usize:
 >   %12 = Drop [$2] : ()
 >   %13 = Block %11 : usize
 >   exit sub 0 drops [$0]
->   summary kept [$0] writes
+>   summary kept [$0]
 
 fn generic[T < Describe](x: T) -> usize:
     x.headline().len()
@@ -106,7 +106,7 @@ fn use_generic(l: Logger) -> usize:
 >   %18 = Block %16 : usize
 >   %2 finds [$1] full
 >   exit sub 0 drops [$0]
->   summary kept [$0] writes
+>   summary kept [$0]
 
 fn qualified(l: Logger) -> usize:
     Describe::headline(&l).len()
@@ -131,4 +131,4 @@ fn qualified(l: Logger) -> usize:
 >   %14 = Drop [$2] : ()
 >   %15 = Block %13 : usize
 >   exit sub 0 drops [$0]
->   summary kept [$0] writes
+>   summary kept [$0]

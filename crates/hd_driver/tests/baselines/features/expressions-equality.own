@@ -35,7 +35,7 @@ fn list_ne(a: List[string], b: List[string]) -> bool:
 >   %7 = Prim Not [%2] : bool
 >   %8 = Block %7 : bool
 >   exit sub 0 drops [$0 $1]
->   summary kept [$0 $1] writes
+>   summary kept [$0 $1]
 
 fn rec_eq(a: Rec, b: Rec) -> bool:
     a == b
@@ -51,7 +51,7 @@ fn rec_eq(a: Rec, b: Rec) -> bool:
 >   %6 = Drop [$1] : ()
 >   %7 = Block %2 : bool
 >   exit sub 0 drops [$0 $1]
->   summary kept [$0 $1] writes
+>   summary kept [$0 $1]
 
 fn opt_none(o: string?) -> bool:
     o == .None
@@ -70,7 +70,7 @@ fn opt_none(o: string?) -> bool:
 >   %9 = Block %4 : bool
 >   %3 finds [$1] full
 >   exit sub 0 drops [$0]
->   summary kept [$0] writes
+>   summary kept [$0]
 
 fn opt_some(o: string?, s: string) -> bool:
     o == .Some(s)
@@ -91,7 +91,7 @@ fn opt_some(o: string?, s: string) -> bool:
 >   %10 = Block %5 : bool
 >   %4 finds [$2] full
 >   exit sub 0 drops [$0 $1]
->   summary kept [$0 $1] writes
+>   summary kept [$0 $1]
 
 fn map_eq(a: Map[string, string], b: Map[string, string]) -> bool:
     a == b
@@ -107,4 +107,4 @@ fn map_eq(a: Map[string, string], b: Map[string, string]) -> bool:
 >   %6 = Drop [$1] : ()
 >   %7 = Block %2 : bool
 >   exit sub 0 drops [$0 $1]
->   summary kept [$0 $1] writes
+>   summary kept [$0 $1]

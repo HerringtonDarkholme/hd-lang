@@ -407,7 +407,7 @@
         local.set $self
         i32.const 1
         local.get $self
-        i32.const 372 ;; &vtable[func75]
+        i32.const 372 ;; &vtable[func74]
     ;; 27 |     @error("cannot read $path")
         local.set $t7
         local.set $t8
@@ -427,7 +427,7 @@
           i64.store $heap
           i32.const 1
           local.get $self
-          i32.const 396 ;; &vtable[func73]
+          i32.const 396 ;; &vtable[func72]
     ;; 33 |     @error("bad config")
           local.set $t9
           local.set $t7

@@ -1062,6 +1062,10 @@ struct LazyBody {
     wire: Option<(usize, Arc<[u8]>, std::ops::Range<usize>)>,
     body: OnceLock<Option<(Body, Hash128)>>,
     owned: OnceLock<Option<(Body, Hash128)>>,
+    /// Release: a generic item's body folded and inlined, before the
+    /// passes (`ProgramEnv::shape_body`). Boxed: the table holds a
+    /// `LazyBody` per body of every module, and few are generic.
+    inlined: OnceLock<Option<Box<Body>>>,
 }
 
 impl LazyBody {
@@ -1070,6 +1074,7 @@ impl LazyBody {
             wire: None,
             body: OnceLock::from(Some((body, tir))),
             owned: OnceLock::new(),
+            inlined: OnceLock::new(),
         }
     }
 }
@@ -8228,17 +8233,24 @@ impl Run<'_> {
             out.dedup();
             edges.insert(def, out);
         }
+        // Each function is its own body's instance, keyed as the release
+        // summaries key one (`own::Node`).
         let done = std::cell::RefCell::new(HashSet::default());
         for &root in &defs {
             hd_opt::inline::bottom_up(
-                root,
-                &|def| done.borrow().contains(&def),
-                &mut |def| edges.get(&def).cloned().unwrap_or_default(),
+                (root, TyList::EMPTY),
+                &|(def, _)| done.borrow().contains(&def),
+                &mut |(def, _)| {
+                    (edges.get(&def).into_iter().flatten())
+                        .map(|&callee| (callee, TyList::EMPTY))
+                        .collect()
+                },
                 &mut |members, recursive| {
-                    done.borrow_mut().extend(members.iter().copied());
+                    done.borrow_mut()
+                        .extend(members.iter().map(|&(def, _)| def));
+                    // `findings` is sorted below, so members go in any order.
                     if recursive {
-                        members.sort_stable_by_key(|def| def.raw());
-                        for &def in members.iter().filter(|def| !bad.contains(def)) {
+                        for &(def, _) in members.iter().filter(|(def, _)| !bad.contains(def)) {
                             findings.push((
                                 def,
                                 "`@inline(.Always)` functions cannot form a call cycle".into(),
@@ -8468,6 +8480,7 @@ impl Run<'_> {
                     wire: Some((m, c.entry.clone(), at)),
                     body: OnceLock::new(),
                     owned: OnceLock::new(),
+                    inlined: OnceLock::new(),
                 };
                 if kept {
                     bodies.entry(item).or_insert(lazy);
@@ -8584,7 +8597,7 @@ impl Run<'_> {
         if let Some((raw, hash)) = out {
             // Release: the callees first (`own::Run::owned_bottom_up`).
             if b.owned.get().is_none() {
-                self.owned_bottom_up(p, def);
+                self.owned_bottom_up(p, (def, TyList::EMPTY));
             }
             out = b
                 .owned
@@ -11432,10 +11445,16 @@ impl Env<'_> {
     /// parameter's or field's declared type. A facts body is one that takes
     /// no parameter.
     fn default_body(&self, def: DefId) -> Option<&Body> {
-        self.run
-            .body_of(self.p, def)
-            .map(|b| &b.0)
-            .filter(|b| matches!(b.kind, hd_tir::BodyKind::Default | hd_tir::BodyKind::Fact))
+        // The kind is the checked body's: only a default's or a fact's
+        // body is owned here.
+        let (checked, _) = self.run.decode(self.run.lazy_body(self.p, def)?)?;
+        if !matches!(
+            checked.kind,
+            hd_tir::BodyKind::Default | hd_tir::BodyKind::Fact
+        ) {
+            return None;
+        }
+        self.run.body_of(self.p, def).map(|b| &b.0)
     }
 
     /// Whether a module's `Init` body suspends: a REPL input's top level
@@ -11761,8 +11780,25 @@ impl ProgramEnv for Env<'_> {
     fn body(&self, def: DefId) -> Option<&Body> {
         self.run.body_of(self.p, def).map(|b| &b.0)
     }
-    fn exclusive_body(&self, def: DefId) -> Option<(u64, Arc<Body>)> {
-        self.run.summaries.as_ref()?.exclusive(def)
+    fn has_body(&self, def: DefId) -> bool {
+        let lazy = self.run.lazy_body(self.p, def);
+        lazy.is_some_and(|b| self.run.decode(b).is_some())
+    }
+    fn shape_body(&self, def: DefId) -> Option<&Body> {
+        let generic = self.parent(def).is_some_and(|(_, n)| n > 0)
+            || self.sig(def).is_some_and(|s| !s.generics.is_empty());
+        if self.run.summaries.is_none() || !generic {
+            return self.body(def);
+        }
+        let lazy = self.run.lazy_body(self.p, def)?;
+        let inlined = lazy.inlined.get_or_init(|| {
+            self.inlined_instance((def, TyList::EMPTY))
+                .map(|(body, _)| Box::new(body))
+        });
+        inlined.as_deref()
+    }
+    fn exclusive_body(&self, def: DefId, args: TyList) -> Option<(u64, Arc<Body>)> {
+        self.run.summaries.as_ref()?.exclusive(self.node(def, args))
     }
     fn promoted_body(
         &self,
@@ -11773,68 +11809,13 @@ impl ProgramEnv for Env<'_> {
     ) -> Option<(u64, Arc<Body>)> {
         self.promoted_copy(def, args, exclusive, want)
     }
-    fn instance_body(&self, def: DefId, args: TyList) -> StageResult<Option<Body>> {
-        if hd_opt::inline::InlineEnv::memo(self).is_none() {
+    fn instance_body(&self, def: DefId, args: TyList) -> StageResult<Option<Arc<Body>>> {
+        // Release only: dev keeps one owned body per item (#1399 step 3).
+        // A non-generic item's own body is its one instance's.
+        if self.run.summaries.is_none() || args == TyList::EMPTY {
             return Ok(None);
         }
-        let lazy = self.run.lazy_body(self.p, def);
-        let Some((raw, original_hash)) = lazy.and_then(|body| self.run.decode(body)) else {
-            return Ok(None);
-        };
-        // Most instances cannot expose a closed declaration-fact query.
-        // Avoid cloning and substituting them: either a query is already in
-        // this body, or the generated walk/build specialization below is the
-        // only pass which can introduce one.
-        let candidate = (0..raw.len()).any(|call| {
-            if matches!(
-                hd_tir::inline::known_call(raw, call),
-                Some(hd_tir::Callee::TraitMethod { trait_, .. })
-                    if trait_ == self.run.known.structure
-            ) {
-                // An open `Structure` call is still `Bound` here.
-                // Substitution and `rechoose` below expose the generated
-                // facts, walk or build body which can contain the lookup.
-                return true;
-            }
-            let Some(hd_tir::Callee::Item { def, targs }) = hd_tir::inline::plain_call(raw, call)
-            else {
-                return false;
-            };
-            hd_opt::structure_specialize::StructureEnv::generated_structure_walk(self, def)
-                || hd_opt::structure_specialize::StructureEnv::generated_structure_build(self, def)
-                || hd_opt::fact_specialize::FactEnv::list_is_empty(self, def)
-                || hd_opt::fact_specialize::FactEnv::fact_lookup_key(self, def, targs).is_some()
-        });
-        if !candidate {
-            return Ok(None);
-        }
-        let pool = &self.run.pool;
-        let mut body = raw.clone();
-        let ty = |t: Ty| hd_mono::subst(pool, self, def, args, t);
-        let list = |l| {
-            pool.list(
-                &pool
-                    .list_items(l)
-                    .iter()
-                    .map(|&t| ty(t))
-                    .collect::<Vec<_>>(),
-            )
-        };
-        hd_tir::ir::map_body_types(&mut body, &ty, &list);
-        hd_tir::inline::rechoose(&mut body, &|trait_, self_ty, targs| {
-            hd_opt::inline::InlineEnv::select_impl(self, trait_, self_ty, targs)
-        });
-        let structure_hash =
-            hd_opt::structure_specialize::specialize_calls(self, &mut body, *original_hash);
-        let fact_hash = hd_opt::fact_specialize::specialize_calls(self, &mut body, structure_hash);
-        if fact_hash == structure_hash {
-            return Ok(None);
-        }
-        let _ = hd_opt::inline::inline_calls(self, &mut body, fact_hash);
-        if let Some(specialized) = hd_mono::defaults::specialize(&body, &[]) {
-            body = specialized;
-        }
-        self.own_instance(body).map(Some)
+        self.owned_instance(self.node(def, args))
     }
     fn opaque_result(
         &self,
@@ -12258,8 +12239,8 @@ impl ProgramEnv for Env<'_> {
     fn own_generated(&self, body: Body) -> StageResult<Body> {
         self.owned_generated(body)
     }
-    fn lends(&self, item: DefId) -> u64 {
-        self.lent_mask(item)
+    fn lends(&self, item: DefId, args: TyList) -> u64 {
+        self.lent_mask(self.node(item, args))
     }
     fn debug_trait(&self) -> DefId {
         self.run.known.debug

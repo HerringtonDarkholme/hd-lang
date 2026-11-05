@@ -1110,7 +1110,7 @@ impl Em<'_, '_, '_> {
             return false;
         }
         let k = args.iter().position(|&a| a == r).expect("argument");
-        let lends = self.env().lends(ct.item);
+        let lends = self.env().lends(ct.item, ct.args);
         matches!(
             self.pass_at(lends, k, params[k]),
             crate::layout::Pass::Borrowed

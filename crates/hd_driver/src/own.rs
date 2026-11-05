@@ -115,46 +115,56 @@ fn copy_report(file: &str, path: &str, text: &str, sites: &[Uncopied]) {
 }
 
 /// The run's release summaries (`docs/future-work/RELEASE_INTERPROC.md`,
-/// "Data structures"): per body the passes ran over, what its code says of
-/// its parameters. Only looked up, never iterated, so output stays
-/// deterministic. Type checking never reads it.
+/// "Data structures"): per instance the passes ran over, what its code
+/// says of its parameters. Only looked up, never iterated, so output
+/// stays deterministic. Type checking never reads it.
 #[derive(Default)]
 pub(super) struct Summaries {
-    by_item: std::sync::Mutex<HashMap<DefId, Summary>>,
+    by_item: std::sync::Mutex<HashMap<Node, Summary>>,
     /// The members of recursive strongly connected components, each with
     /// its component's first member in path order: a call between two
     /// members reads the component's fixed point
     /// ([`Env::component_borrows`]).
-    cycle: std::sync::Mutex<HashMap<DefId, DefId>>,
+    cycle: std::sync::Mutex<HashMap<Node, Node>>,
     /// Whether each walked body may write memory its caller can reach
     /// (`hd_tir::own::writes`), known before the passes run over its
     /// component: `OwnCx::may_write` reads it for a call of the body.
-    writes: std::sync::Mutex<HashMap<DefId, bool>>,
-    /// Per summarized item, the value parameters its summary lends
+    writes: std::sync::Mutex<HashMap<Node, bool>>,
+    /// Per summarized instance, the value parameters its summary lends
     /// ([`Env::lent_mask`]), once recorded; a recursive component's
     /// member's are its fixed point.
-    lent: std::sync::Mutex<HashMap<DefId, u64>>,
-    /// Per item and parameter, the answer the passes first read
+    lent: std::sync::Mutex<HashMap<Node, u64>>,
+    /// Per instance and parameter, the answer the passes first read
     /// ([`Env::summary_lends`]), which stays: a body and its emission read
     /// the same one, and a bit read as kept before the record stays kept.
-    read: std::sync::Mutex<HashMap<(DefId, u32), bool>>,
+    read: std::sync::Mutex<HashMap<(Node, u32), bool>>,
     /// While a recursive component is owned, each member's borrows, which
     /// [`Env::summary_lends`] answers without recording: assumed while
     /// its fixed point runs ([`Env::component_borrows`]), then the fixed
     /// point while the passes run over the members.
-    assume: std::sync::Mutex<HashMap<DefId, u64>>,
+    assume: std::sync::Mutex<HashMap<Node, u64>>,
     /// The inliner's copies and the functions it found recursive.
     inline: hd_opt::inline::Memo,
-    /// Per item whose passes would borrow through a `&T` or `&mut T`
+    /// Per instance whose passes would borrow through a `&T` or `&mut T`
     /// parameter across a call that may write (#1118): the parameters
     /// that relies on, and the body after the passes in exclusive mode
     /// (`sub_flags::EXCLUSIVE`). Collection gives it to the calls whose
     /// arguments stage 7 keeps exclusive (`hd_tir::own::exclusive_call`).
-    exclusive: std::sync::Mutex<HashMap<DefId, Exclusive>>,
+    exclusive: std::sync::Mutex<HashMap<Node, Exclusive>>,
+    /// Each generic instance's body after the passes
+    /// (`ProgramEnv::instance_body`), owned once, by the walk that
+    /// records its summary ([`Run::owned_bottom_up`]); `None` where the
+    /// passes refused it.
+    instances: std::sync::Mutex<HashMap<Node, Option<std::sync::Arc<Body>>>>,
     /// Per item, type arguments and whether of the exclusive copy, its
     /// promoted copy (#1151, [`Env::promoted_copy`]), once asked.
     promoted: std::sync::Mutex<HashMap<PromotedKey, Option<Exclusive>>>,
 }
+
+/// An instance the summaries describe: an item and its type arguments as
+/// collection keys them (`hd_mono::rowless`). A non-generic item's, and
+/// a generic item's own body's, has none.
+pub(super) type Node = (DefId, TyList);
 
 /// A promoted copy's item, type arguments, whether of the exclusive copy,
 /// and the parameters its call may pass by value and lend with no count
@@ -172,7 +182,8 @@ pub(super) type Exclusive = (u64, std::sync::Arc<Body>);
 /// nothing for any other body.
 pub(super) fn summary_line(body: &Body, all: &Summaries) -> String {
     use hd_tir::ir::BodyKind;
-    let Some(s) = all.of(body.item) else {
+    let node = (body.item, TyList::EMPTY);
+    let Some(s) = all.of(node) else {
         let function = matches!(body.kind, BodyKind::Fn | BodyKind::DeriveInstance);
         return if function { "summary none\n" } else { "" }.to_owned();
     };
@@ -195,14 +206,14 @@ pub(super) fn summary_line(body: &Body, all: &Summaries) -> String {
     if s.writes {
         line.push_str(" writes");
     }
-    if let Some((relies, _)) = all.exclusive(body.item) {
+    if let Some((relies, _)) = all.exclusive(node) {
         let on: Vec<String> = (params.iter().enumerate())
             .filter(|&(k, _)| k < 64 && relies & (1 << k) != 0)
             .map(|(_, l)| format!("${l}"))
             .collect();
         let _ = write!(line, " relies [{}]", on.join(" "));
     }
-    if lock(&all.cycle).contains_key(&body.item) {
+    if lock(&all.cycle).contains_key(&node) {
         line.push_str(" recursive");
     }
     line.push('\n');
@@ -210,15 +221,16 @@ pub(super) fn summary_line(body: &Body, all: &Summaries) -> String {
 }
 
 impl Summaries {
-    /// The summary of `item`'s body, once the passes have run over it.
-    pub(super) fn of(&self, item: DefId) -> Option<Summary> {
-        lock(&self.by_item).get(&item).copied()
+    /// The summary of instance `node`'s body, once the passes have run
+    /// over it.
+    pub(super) fn of(&self, node: Node) -> Option<Summary> {
+        lock(&self.by_item).get(&node).copied()
     }
 
-    /// `item`'s exclusive copy and the parameters it relies on, if its
-    /// passes would borrow differently in exclusive mode.
-    pub(super) fn exclusive(&self, item: DefId) -> Option<Exclusive> {
-        lock(&self.exclusive).get(&item).cloned()
+    /// Instance `node`'s exclusive copy and the parameters it relies on,
+    /// if its passes would borrow differently in exclusive mode.
+    pub(super) fn exclusive(&self, node: Node) -> Option<Exclusive> {
+        lock(&self.exclusive).get(&node).cloned()
     }
 }
 
@@ -354,12 +366,9 @@ impl OwnCx for Env<'_> {
         // compiler supplies the code of the call (an intrinsic), whose
         // declared body is no summary of it.
         if self.run.summaries.is_some()
-            && let Some(d) = match callee {
-                Callee::Item { def, .. } => Some(*def),
-                c @ Callee::TraitMethod { .. } => self.impl_target(c).map(|(d, _)| d),
-            }
-            && self.intrinsic(d).is_none()
-            && self.summary_lends(d, k)
+            && let Some(node) = self.callee_node(callee)
+            && self.intrinsic(node.0).is_none()
+            && self.summary_lends(node, k)
         {
             return Pass::Lent;
         }
@@ -403,12 +412,9 @@ impl OwnCx for Env<'_> {
         // Release: the walked body's own answer, unless the compiler
         // supplies the code of the call (an intrinsic).
         if let Some(all) = &self.run.summaries
-            && let Some(def) = match callee {
-                Callee::Item { def, .. } => Some(*def),
-                c @ Callee::TraitMethod { .. } => self.impl_target(c).map(|(d, _)| d),
-            }
-            && self.intrinsic(def).is_none()
-            && let Some(&w) = lock(&all.writes).get(&def)
+            && let Some(node) = self.callee_node(callee)
+            && self.intrinsic(node.0).is_none()
+            && let Some(&w) = lock(&all.writes).get(&node)
         {
             return w;
         }
@@ -1396,17 +1402,98 @@ impl Env<'_> {
         })
     }
 
-    /// Owns one concrete instance body without publishing an item-wide
-    /// summary. Its ordinary generic body remains the calling-convention
-    /// authority; this copy differs only by post-monomorphization folds.
-    pub(super) fn own_instance(&self, body: Body) -> StageResult<Body> {
-        self.own_passes(body, false).map(|(body, ..)| body)
+    /// The folds and inlining a body takes before the ownership passes,
+    /// for an item's own body and for one instance's
+    /// (`ProgramEnv::instance_body`) alike: generated structure walks,
+    /// then, in release, declaration facts and the constants they decide,
+    /// then the inliner. The result's hash.
+    pub(super) fn fold_and_inline(&self, body: &mut Body, hash: Hash128) -> Hash128 {
+        let structure = hd_opt::structure_specialize::specialize_calls(self, body, hash);
+        let facts = hd_opt::fact_specialize::specialize_calls(self, body, structure);
+        let hash = hd_opt::inline::inline_calls(self, body, facts);
+        if facts != structure
+            && let Some(specialized) = hd_mono::defaults::specialize(body, &[])
+        {
+            *body = specialized;
+        }
+        hash
     }
 
-    /// Inlined body `body`, with hash `hash` (`hd_opt::inline::inline_calls`), after
-    /// the ownership passes, and its hash, which changes with them; in
-    /// release, its summary is recorded.
-    fn own_inlined(&self, body: Body, hash: Hash128) -> StageResult<(Body, Hash128)> {
+    /// Instance `(def, args)` as collection keys it ([`Node`]).
+    pub(super) fn node(&self, def: DefId, args: TyList) -> Node {
+        (def, hd_mono::rowless(&self.run.pool, self, def, args))
+    }
+
+    /// The instance a call runs, where the call names one: a direct
+    /// call's callee at its type arguments, or a trait call's impl method
+    /// where the call is chosen as an impl.
+    fn callee_node(&self, callee: &Callee) -> Option<Node> {
+        let (def, args) = match *callee {
+            Callee::Item { def, targs } => (def, targs),
+            Callee::TraitMethod { .. } => self.impl_target(callee)?,
+        };
+        Some(self.node(def, args))
+    }
+
+    /// Instance `node`'s body before the passes: an item's own body, or a
+    /// generic item's at its type arguments, with its types substituted
+    /// and its trait calls chosen as impl calls; then folded and inlined
+    /// ([`Env::fold_and_inline`]). A non-generic item's own body is its
+    /// one instance's.
+    pub(super) fn inlined_instance(&self, (def, args): Node) -> Option<(Body, Hash128)> {
+        let (raw, hash) = self
+            .run
+            .lazy_body(self.p, def)
+            .and_then(|b| self.run.decode(b))?;
+        let mut body = raw.clone();
+        if args != TyList::EMPTY {
+            let pool = &self.run.pool;
+            let ty = |t: Ty| hd_mono::subst(pool, self, def, args, t);
+            let list = |l| {
+                pool.list(
+                    &pool
+                        .list_items(l)
+                        .iter()
+                        .map(|&t| ty(t))
+                        .collect::<Vec<_>>(),
+                )
+            };
+            hd_tir::ir::map_body_types(&mut body, &ty, &list);
+            hd_tir::inline::rechoose(&mut body, &|trait_, self_ty, targs| {
+                InlineEnv::select_impl(self, trait_, self_ty, targs)
+            });
+        }
+        let hash = self.fold_and_inline(&mut body, *hash);
+        Some((body, hash))
+    }
+
+    /// Release: generic instance `node`'s body after the passes
+    /// (`ProgramEnv::instance_body`), owned once, with its callees first
+    /// ([`Run::owned_bottom_up`]); `None` when it has no body.
+    pub(super) fn owned_instance(&self, node: Node) -> StageResult<Option<std::sync::Arc<Body>>> {
+        let Some(all) = &self.run.summaries else {
+            return Ok(None);
+        };
+        if !lock(&all.instances).contains_key(&node) {
+            self.run.owned_bottom_up(self.p, node);
+        }
+        if let Some(owned) = lock(&all.instances).get(&node).cloned().flatten() {
+            return Ok(Some(owned));
+        }
+        // The walk keeps no error: the passes' refusal is reported here.
+        let Some((body, hash)) = self.inlined_instance(node) else {
+            return Ok(None);
+        };
+        let (owned, _) = self.own_inlined(body, hash, node.1)?;
+        Ok(Some(std::sync::Arc::new(owned)))
+    }
+
+    /// Inlined body `body` of instance `(body.item, args)`, with hash
+    /// `hash` (`hd_opt::inline::inline_calls`), after the ownership
+    /// passes, and its hash, which changes with them; in release, its
+    /// summary is recorded.
+    fn own_inlined(&self, body: Body, hash: Hash128, args: TyList) -> StageResult<(Body, Hash128)> {
+        let node = (body.item, args);
         // Release: a body with a `&T` or `&mut T` parameter is kept as it
         // is before the passes, for an exclusive copy (#1118).
         let n = hd_tir::own::params(&body).len();
@@ -1421,11 +1508,11 @@ impl Env<'_> {
             let (excl, _, relies) = self.own_passes(plain, false)?;
             if relies != 0 {
                 let copy = std::sync::Arc::new(excl);
-                lock(&all.exclusive).insert(body.item, (relies, copy));
+                lock(&all.exclusive).insert(node, (relies, copy));
             }
         }
         if let (Some(all), Some(mut s)) = (&self.run.summaries, summary) {
-            s.writes = lock(&all.writes).get(&body.item) != Some(&false);
+            s.writes = lock(&all.writes).get(&node) != Some(&false);
             // The passes add no write the walk before them missed.
             if !s.writes && (self.run.checked || cfg!(debug_assertions)) {
                 let path = self.run.names().path(body.item);
@@ -1434,7 +1521,7 @@ impl Env<'_> {
                     "{path}: writes after the passes"
                 );
             }
-            lock(&all.by_item).insert(body.item, s);
+            lock(&all.by_item).insert(node, s);
             // What it lends: a recursive component's member its fixed
             // point, which its callers inside the component read; nothing
             // emitted glue calls with owned arguments (the runtime and a
@@ -1451,7 +1538,7 @@ impl Env<'_> {
             if glue {
                 lent = 0;
             }
-            if let Some(&fixed) = lock(&all.assume).get(&item) {
+            if let Some(&fixed) = lock(&all.assume).get(&node) {
                 // The fixed point holds of the passes' last run.
                 assert!(
                     fixed & s.kept == 0,
@@ -1461,12 +1548,12 @@ impl Env<'_> {
                 lent = fixed;
             }
             for k in 0..u32::try_from(n).expect("params") {
-                if read.get(&(item, k)) == Some(&false) {
+                if read.get(&(node, k)) == Some(&false) {
                     lent &= !(1 << k);
                 }
             }
             if lent != 0 {
-                lock(&all.lent).insert(item, lent);
+                lock(&all.lent).insert(node, lent);
             }
         }
         let mut k = StableHasher::new("own-passes");
@@ -1475,20 +1562,24 @@ impl Env<'_> {
     }
 
     /// Release (`docs/future-work/RELEASE_INTERPROC.md`, "What each caller
-    /// reads"): whether every caller passes parameter `k` of `def` with no
-    /// count, as its summary lends it. The first answer stays, so a caller's
-    /// passes and its emission agree; one read before the record is no.
-    fn summary_lends(&self, def: DefId, k: usize) -> bool {
+    /// reads"): whether every caller passes parameter `k` of instance
+    /// `node` with no count, as its summary lends it. The first answer
+    /// stays, so a caller's passes and its emission agree; one read before
+    /// the record is no.
+    fn summary_lends(&self, node: Node, k: usize) -> bool {
         let Some(all) = &self.run.summaries else {
             return false;
         };
-        if let Some(&m) = lock(&all.assume).get(&def) {
+        if let Some(&m) = lock(&all.assume).get(&node) {
             return k < 64 && m & (1 << k) != 0;
         }
-        let key = (def, u32::try_from(k).expect("arguments"));
+        let key = (node, u32::try_from(k).expect("arguments"));
         let mut read = lock(&all.read);
         *read.entry(key).or_insert_with(|| {
-            k < 64 && lock(&all.lent).get(&def).is_some_and(|m| m & (1 << k) != 0)
+            k < 64
+                && lock(&all.lent)
+                    .get(&node)
+                    .is_some_and(|m| m & (1 << k) != 0)
         })
     }
 
@@ -1524,25 +1615,25 @@ impl Env<'_> {
     /// parameter a caller's passes already read as kept.
     pub(super) fn component_borrows(
         &self,
-        members: &[DefId],
-        bodies: &HashMap<DefId, (Body, Hash128)>,
-    ) -> HashMap<DefId, u64> {
-        let mut assume: HashMap<DefId, u64> = HashMap::default();
+        members: &[Node],
+        bodies: &HashMap<Node, (Body, Hash128)>,
+    ) -> HashMap<Node, u64> {
+        let mut assume: HashMap<Node, u64> = HashMap::default();
         let Some(all) = &self.run.summaries else {
             return assume;
         };
         for &m in members {
             let mut mask = 0;
             if let Some((b, _)) = bodies.get(&m)
-                && !self.called_by_glue(m)
-                && !ProgramEnv::suspends(self, m)
+                && !self.called_by_glue(m.0)
+                && !ProgramEnv::suspends(self, m.0)
             {
                 let read = lock(&all.read);
                 let params = hd_tir::own::params(b);
                 for (k, &l) in params.iter().enumerate().take(64) {
                     let kept_before = read.get(&(m, u32::try_from(k).expect("params")));
                     if self.counted(b.local_ty[l as usize]) != Tri::No
-                        && self.received(m, k, params.len()) == Pass::Owned
+                        && self.received(m.0, k, params.len()) == Pass::Owned
                         && kept_before != Some(&false)
                     {
                         mask |= 1 << k;
@@ -1592,12 +1683,12 @@ impl Env<'_> {
         kept
     }
 
-    /// The value parameters, the receiver first, that every instance of
-    /// `def` receives lent ([`Env::summary_lends`]): emission takes no
-    /// count of them on either side of a call.
-    pub(super) fn lent_mask(&self, def: DefId) -> u64 {
+    /// The value parameters, the receiver first, that instance `node`
+    /// receives lent ([`Env::summary_lends`]): emission takes no count of
+    /// them on either side of a call.
+    pub(super) fn lent_mask(&self, node: Node) -> u64 {
         (self.run.summaries.as_ref())
-            .and_then(|all| lock(&all.lent).get(&def).copied())
+            .and_then(|all| lock(&all.lent).get(&node).copied())
             .unwrap_or(0)
     }
 
@@ -1644,10 +1735,18 @@ impl Env<'_> {
         if ProgramEnv::suspends(self, def) {
             return None;
         }
-        let excl = exclusive.then(|| self.run.summaries.as_ref()?.exclusive(def));
+        // A copy of the body the instance runs, its instance body or its
+        // exclusive copy, whose summary decides how a call passes the rest.
+        let node = self.node(def, args);
+        let excl = exclusive.then(|| self.run.summaries.as_ref()?.exclusive(node));
+        let instance;
         let b = match &excl {
             Some(e) => &*e.as_ref()?.1,
-            None => ProgramEnv::body(self, def)?,
+            None if node.1 == TyList::EMPTY => ProgramEnv::body(self, def)?,
+            None => {
+                instance = self.owned_instance(node).ok().flatten()?;
+                &*instance
+            }
         };
         let pool = &self.run.pool;
         let params = hd_tir::own::params(b);
@@ -1678,23 +1777,28 @@ impl Env<'_> {
         Some((mask, std::sync::Arc::new(copy)))
     }
 
-    /// The callee scan: the items whose summaries inlined body `body`'s
-    /// calls read, once each in call order: a direct call's callee, and a
-    /// trait call's impl method where the call is chosen as an impl. Only
-    /// items with a body of their own.
-    fn summarized_callees(&self, body: &Body) -> Vec<DefId> {
+    /// The callee scan: the instances whose summaries inlined body
+    /// `body`'s calls read, once each in call order
+    /// ([`Env::callee_node`]). Only items with a body of their own, at
+    /// type arguments that name no parameter: a generic body's call of
+    /// an open instance reads no summary.
+    fn summarized_callees(&self, body: &Body) -> Vec<Node> {
         let (mut out, mut seen) = (Vec::new(), hd_base::HashSet::default());
         for i in (0..body.len()).filter(|&i| body.tags[i] == hd_tir::ir::Tag::Call) {
-            let def = match Callee::from_words(body.record(body.data[i][0])) {
-                Some(Callee::Item { def, .. }) => Some(def),
-                Some(c) => self.impl_target(&c).map(|(d, _)| d),
-                None => None,
-            };
-            if let Some(d) = def
-                && self.run.lazy_body(self.p, d).is_some()
-                && seen.insert(d)
+            let node =
+                Callee::from_words(body.record(body.data[i][0])).and_then(|c| self.callee_node(&c));
+            if let Some(n) = node
+                && self.intrinsic(n.0).is_none()
+                && self.run.lazy_body(self.p, n.0).is_some()
+                && !self
+                    .run
+                    .pool
+                    .list_items(n.1)
+                    .iter()
+                    .any(|&t| self.is_open(t))
+                && seen.insert(n)
             {
-                out.push(d);
+                out.push(n);
             }
         }
         out
@@ -1735,9 +1839,8 @@ impl Run<'_> {
     ) -> Option<(Body, Hash128)> {
         let owned = self.with_env(p, |env| {
             let mut body = body;
-            let hash = hd_opt::structure_specialize::specialize_calls(env, &mut body, hash);
-            let hash = hd_opt::inline::inline_calls(env, &mut body, hash);
-            env.own_inlined(body, hash)
+            let hash = env.fold_and_inline(&mut body, hash);
+            env.own_inlined(body, hash, TyList::EMPTY)
         });
         match owned {
             Ok(owned) => Some(owned),
@@ -1749,31 +1852,55 @@ impl Run<'_> {
     }
 
     /// Release (`docs/future-work/RELEASE_INTERPROC.md`, "Data flow"): owns
-    /// the bodies `root` reaches through the callee scan, the callees'
+    /// the instances `root` reaches through the callee scan, the callees'
     /// strongly connected components first, so every summary a body's
-    /// passes may read is recorded before they run. Each component's
-    /// members are owned in path order and marked when it is recursive. A
-    /// body the passes refuse stays unowned, for `Run::body_of` to report.
-    pub(super) fn owned_bottom_up(&self, p: &ProgramTables, root: DefId) {
+    /// passes may read is recorded before they run. Each instance's body
+    /// is its item's own, or a generic item's at its type arguments
+    /// ([`Env::inlined_instance`]), and the passes run over it once: an
+    /// item's own body is its lazy body's owned entry, a generic
+    /// instance's is kept for collection ([`Summaries::instances`]). Each
+    /// component's members are owned in path order and marked when it is
+    /// recursive. A body the passes refuse stays unowned, for
+    /// `Run::body_of` or `Env::owned_instance` to report.
+    pub(super) fn owned_bottom_up(&self, p: &ProgramTables, root: Node) {
         let Some(all) = &self.summaries else {
             return;
         };
-        let done = |d: DefId| self.lazy_body(p, d).is_none_or(|b| b.owned.get().is_some());
+        let done = |n: Node| {
+            if n.1 == TyList::EMPTY {
+                self.lazy_body(p, n.0)
+                    .is_none_or(|b| b.owned.get().is_some())
+            } else {
+                lock(&all.instances).contains_key(&n)
+            }
+        };
         self.with_env(p, |env| {
             let inlined = RefCell::new(HashMap::default());
-            let mut callees = |d: DefId| {
-                let Some((raw, hash)) = self.lazy_body(p, d).and_then(|b| self.decode(b)) else {
+            let mut callees = |n: Node| {
+                let Some((body, hash)) = env.inlined_instance(n) else {
                     return Vec::new();
                 };
-                let mut body = raw.clone();
-                let hash = hd_opt::structure_specialize::specialize_calls(env, &mut body, *hash);
-                let hash = hd_opt::inline::inline_calls(env, &mut body, hash);
                 let out = env.summarized_callees(&body);
-                inlined.borrow_mut().insert(d, (body, hash));
+                inlined.borrow_mut().insert(n, (body, hash));
                 out
             };
-            let mut own = |members: &mut Vec<DefId>, recursive: bool| {
-                members.sort_stable_by_cached_key(|&m| self.names().path(m));
+            let names = self.names();
+            let mut canons = hd_mono::layout::CanonMemo::default();
+            // A member's path, then one digest of its type arguments.
+            let mut order = |n: &Node| {
+                let mut args = StableHasher::new("instance-order-v1");
+                for &t in self.pool.list_items(n.1) {
+                    args.hash(hd_mono::layout::canon(
+                        &self.pool,
+                        &|d| names.path_hash(d),
+                        &mut canons,
+                        t,
+                    ));
+                }
+                (names.path(n.0), args.finish())
+            };
+            let mut own = |members: &mut Vec<Node>, recursive: bool| {
+                members.sort_stable_by_cached_key(&mut order);
                 // Writes, before the passes read them: the least fixed
                 // point over the component, from every member writing
                 // nothing (a member with no inlined body writes).
@@ -1804,9 +1931,11 @@ impl Run<'_> {
                 }
                 for &m in members.iter() {
                     let body = inlined.borrow_mut().remove(&m);
-                    if let (Some(lazy), Some((body, hash))) = (self.lazy_body(p, m), body)
-                        && let Ok(owned) = env.own_inlined(body, hash)
-                    {
+                    let owned = body.and_then(|(body, hash)| env.own_inlined(body, hash, m.1).ok());
+                    if m.1 != TyList::EMPTY {
+                        let owned = owned.map(|(body, _)| std::sync::Arc::new(body));
+                        lock(&all.instances).insert(m, owned);
+                    } else if let (Some(lazy), Some(owned)) = (self.lazy_body(p, m.0), owned) {
                         let _ = lazy.owned.set(Some(owned));
                     }
                 }

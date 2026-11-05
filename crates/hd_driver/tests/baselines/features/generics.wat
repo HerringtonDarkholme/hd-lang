@@ -5,6 +5,7 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "impl [ T < ? Copy ] T ?.unwrap_or[string]" (func $"impl [ T < ? Copy ] T ?.unwrap_or[string]" (param i32 i32 i32 i32 i32) (result i32 i32)))
+  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
@@ -139,6 +140,12 @@
       i32.const 16 ;; &"heap-exhausted"
       i32.const 0
       call $"impl [ T < ? Copy ] T ?.unwrap_or[string]"
+    ;; (no span)
+      local.get $t5
+      local.get $t4
+      local.get $t3
+      call $rt:release
+    ;; 22 |     ident(s).len() + size(&xs) + first(xs).unwrap_or("").len() + keep(s).len()
       local.set $t5
       local.set $t2
       block

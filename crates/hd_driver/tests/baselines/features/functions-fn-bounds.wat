@@ -116,16 +116,12 @@
     ;; 21 |         f(x)
             local.get $f.1
             local.get $x.0
-            call $retain
-            local.get $x.0
             local.get $x.1
             i32.const 0
             call $fn_mut#1
     ;; 20 |     for x in xs:
             br 0
           end
-          local.get $x.0
-          call $rt:release_ref'1
           br 0
         end
       end

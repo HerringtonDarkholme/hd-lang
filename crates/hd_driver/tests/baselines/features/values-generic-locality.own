@@ -36,11 +36,12 @@ fn left_or_right(pair: &Pair, left: bool) -> &User:
 >   %5 = Block %4 : Ref[User]?
 >   %6 = If %0 [%3 %5] : Ref[User]?
 >   %7 = Store [$2] %6 : ()
->   %11 = Block %10 : Ref[User]
+>   %12 = Block %10 : Ref[User]
     o.unwrap_or(&pair.right)
 >   %8 = Read move [$2] : Ref[User]?
 >   %9 = Ref local [*$0 .right] : Ref[User]
 >   %10 = Call std/option/impl [ T < ? Copy ] T ?.unwrap_or[Ref[User]] (%8, %9) : Ref[User]
+>   %11 = Drop [%8] : ()
 >   summary kept []
 
 fn demo(u: &User) -> usize:

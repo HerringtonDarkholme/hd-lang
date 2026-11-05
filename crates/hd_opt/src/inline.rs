@@ -185,6 +185,16 @@ impl dyn InlineEnv + '_ {
                 let may_write = |c: &Callee| self.call_may_write(c);
                 let promote = self.by_value(def, targs, &copy);
                 let (mask, counted, rooted) = promote.unwrap_or((0, 0, 0));
+                // Release: a referent that holds a `std.rt.Drop` keeps its
+                // reference, as a small release reader may. A copy of it
+                // is a second owner, which the passes drop at the copy's
+                // end even where a value read from it still lives.
+                let kept = if self.memo().is_some() {
+                    mask & rooted
+                } else {
+                    0
+                };
+                let mask = mask & !kept;
                 let writes = hd_tir::own::writes_in(&copy, 0..copy.len(), &may_write);
                 let lent_param = |l: u32| {
                     let mut t = body.local_ty[l as usize];
@@ -215,7 +225,7 @@ impl dyn InlineEnv + '_ {
                         .iter()
                         .fold(0, |mask, (k, _)| mask | 1 << k);
                     0
-                } else if args & mask != mask {
+                } else if args & mask != mask || kept != 0 {
                     // A Drop owner must keep its address when no caller
                     // parameter roots a snapshot. Other promotable
                     // referents retain the existing call-site checks.
@@ -225,7 +235,7 @@ impl dyn InlineEnv + '_ {
                     {
                         continue;
                     }
-                    by_ref = mask & !args;
+                    by_ref = kept | (mask & !args);
                     mask & args
                 } else {
                     mask
