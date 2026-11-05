@@ -1357,6 +1357,9 @@ pub(crate) mod tests {
                 if tag == Tag::IsUnique && b.data[i][1] == crate::ir::unique_word::COVERED {
                     line.push_str(" covered");
                 }
+                if tag == Tag::IsUnique && b.data[i][1] == crate::ir::unique_word::FRESH {
+                    line.push_str(" fresh");
+                }
                 let _ = write!(line, " {p}");
                 if tag == Tag::Store {
                     let _ = write!(line, " %{}", b.data[i][1]);

@@ -104,11 +104,11 @@ fn copy(items: List[usize], n: usize) -> List[List[usize]]:
 >     uses $3: %3 -> %22 lend, %58 consume last
 >   local $4 $cur: usize [assigned] place
 >   local $5 $end: usize [assigned] value
->     uses $5: %9 -> %14 lend
+>     uses $5: %9 -> %13 lend
 >   local $6 $incl: bool [assigned] value
 >     uses $6: none
 >   local $7 r: usize [read assigned] value
->     uses $7: %17 -> %42 consume
+>     uses $7: %16 -> %42 consume
 >   local $8 $cur: usize [assigned] place
 >   local $9 $end: usize [assigned] value
 >     uses $9: %30 -> %34 lend
@@ -131,26 +131,26 @@ fn copy(items: List[usize], n: usize) -> List[List[usize]]:
 >   %9 = Store [$5] %8 : ()
 >   %10 = Read copy [%5 .inclusive] : bool
 >   %11 = Store [$6] %10 : ()
->   %12 = IsUnique hoisted [$3] : ()
->   %13 = Read copy [$4] : usize
->   %14 = Read copy [$5] : usize
->   %15 = Prim Lt [%13 %14] : bool
->   %16 = Read copy [$4] : usize
->   %17 = Store [$7] %16 : ()
->   %18 = Read copy [$4] : usize
->   %19 = Prim Add [%18 1:usize] : usize
->   %20 = Store [$4] %19 : ()
+>   %12 = Read copy [$4] : usize
+>   %13 = Read copy [$5] : usize
+>   %14 = Prim Lt [%12 %13] : bool
+>   %15 = Read copy [$4] : usize
+>   %16 = Store [$7] %15 : ()
+>   %17 = Read copy [$4] : usize
+>   %18 = Prim Add [%17 1:usize] : usize
+>   %19 = Store [$4] %18 : ()
 >   %51 = Block - : ()
 >   %52 = Break L0 - : never
 >   %53 = Block - : ()
->   %54 = If %15 [%51 %53] : ()
+>   %54 = If %14 [%51 %53] : ()
 >   %55 = Block - : ()
 >   %56 = Loop %55 - : ()
 >   %57 = Drop [$2] : ()
         saved.push(items)
->   %21 = Read copy [$2] : List[usize]
+>   %20 = Read copy [$2] : List[usize]
+>   %21 = IsUnique fresh [$3] : ()
 >   %22 = Read borrow [$3] : List[List[usize]]
->   %23 = Intrinsic ListPush [%22 %21] : ()
+>   %23 = Intrinsic ListPush [%22 %20] : ()
         for i in 0..items.len():
 >   %24 = Read borrow [$2] : List[usize]
 >   %25 = Intrinsic ListLen [%24] : usize

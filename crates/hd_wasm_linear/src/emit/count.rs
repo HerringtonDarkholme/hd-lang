@@ -1309,8 +1309,10 @@ impl Em<'_, '_, '_> {
     /// `IsUnique` `i`: the list's or map's buffer made the place's own
     /// (`rt:list_unique`, `rt:map_unique`), and stored there.
     pub(super) fn own_unique(&mut self, i: u32) -> StageResult<()> {
-        use hd_tir::ir::unique_word::{COVERED, HOISTED};
+        use hd_tir::ir::unique_word::{COVERED, FRESH, HOISTED};
         match self.b.data[i as usize][1] {
+            // Of a buffer nothing else can hold: no check.
+            FRESH => return Ok(()),
             // It runs at the loop that follows (`Em::hoisted_uniques`).
             HOISTED => {
                 self.hoisted.push(i);

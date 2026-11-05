@@ -16,7 +16,6 @@ fn pairs(xs: List[string], ys: List[string]) -> List[(string, string)]:
 >   retain string (stored)
 >   retain string (stored)
 >   retain string (stored)
->   unique List[(string, string)] (conservative: unique)
 >   release string (last use)
 >   release string (last use)
 
@@ -24,16 +23,12 @@ fn names(users: List[User]) -> List[string]:
     [for u in users if u.active => u.name]
 > app/main/names
 >   retain app.main.User [name.0] (stored)
->   unique List[string] (conservative: unique)
 >   release app.main.User [name.0] (last use)
 
 fn by_name(users: List[User]) -> Map[string, i64]:
     {for u in users if u.active => u.name: u.id}
 > app/main/by_name
->   unique Map[string, i64] (conservative: unique)
 >   retain string (conservative: Intrinsic)
 
 fn sizes(users: List[User]) -> List[usize]:
     [for u in users if (n := u.name.len()) > 0 => n]
-> app/main/sizes
->   unique List[usize] (conservative: unique)

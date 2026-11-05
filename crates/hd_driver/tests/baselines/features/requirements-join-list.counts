@@ -16,7 +16,6 @@ fn all!(keys: List[string]) -> usize:
 > app/main/all
 >   release List[mut Suspend[string]] (overwritten)
 >   release List[string] (overwritten)
->   unique List[mut Suspend[string]] (conservative: unique)
 >   release List[mut Suspend[string]] (overwritten)
     results := join!(tasks...)
 >   release counted reference (conservative: Await)
@@ -28,7 +27,6 @@ fn all!(keys: List[string]) -> usize:
         n += r.len()
     n
 >   (no span) copy List[string] (conservative: entry)
->   (no span) unique List[mut Suspend[string]] (conservative: unique)
 >   (no span) release List[string] (last use)
 >   (no span) release List[mut Suspend[string]] (last use)
 >   (no span) release List[string] (last use)

@@ -4,7 +4,6 @@
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
-  (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:list_reserve" (func $rt:list_reserve (param i32 i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "fetch'2" (func $fetch'2 (param i32 i32) (result i32)))
@@ -15,7 +14,7 @@
   (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 25 funcref))
+  (import "fixture" "table0" (table $table0 24 funcref))
   (func $fetch'1 (param $frame i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32)
     ;; (no span)
     local.get $frame
@@ -360,6 +359,7 @@
         local.get $t4
         call $rt:release_ref'1
         i32.const 80 ;; &empty-buffer
+        local.set $t4
         i32.const 0
         local.set $t3
         local.get $keys
@@ -375,13 +375,9 @@
         i32.load $heap offset=4
         local.tee $t9
         local.tee $t10
-        local.set $t11
-    ;; (no span)
-        call $rt:list_unique
-        local.tee $t4
-    ;; 14 |     let tasks: List[mut Suspend[string]] = [for k in keys => fetch(k)]
+        local.tee $t11
+        local.get $t4
         local.set $t12
-        local.get $t11
         local.tee $t13
         if
           local.get $t12
@@ -454,8 +450,6 @@
               call $fetch'2
               local.set $t33
               local.get $t4
-              call $rt:list_unique
-              local.tee $t4
               local.tee $t34
               local.tee $t35
               i32.load $heap offset=4

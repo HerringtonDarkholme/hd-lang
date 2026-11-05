@@ -29,12 +29,8 @@ fn keep_each(xs: List[string]) -> List[string]:
     for x in xs:
 > app/main/keep_each
 >   retain string (stored)
->   unique List[string] (conservative: unique)
         out.push(x)
     out
 
 fn comprehension(xs: List[string]) -> List[usize]:
     [for x in xs => x.len()]
-> app/main/comprehension
->   unique List[usize] (conservative: unique)
->   (no span) unique List[usize] (conservative: unique)

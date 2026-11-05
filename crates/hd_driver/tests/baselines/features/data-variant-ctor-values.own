@@ -36,7 +36,7 @@ fn wrap_all(errors: List[FsError]) -> List[SyncError]:
 >   %5 = Intrinsic ListLen [%4] : usize
 >   %6 = Store [$3] %5 : ()
 >   %7 = Read copy [$3] : usize
->   %8 = IsUnique [$1] : ()
+>   %8 = IsUnique fresh [$1] : ()
 >   %9 = Read borrow [$1] : mut List[SyncError]
 >   %10 = Intrinsic ListReserve [%9 %7] : ()
 >   %11 = Read copy [$3] : usize
@@ -52,7 +52,7 @@ fn wrap_all(errors: List[FsError]) -> List[SyncError]:
 >   %21 = Store [$4] %20 : ()
 >   %22 = Read move [$6] : FsError
 >   %23 = NewVariant #0 [%22] : SyncError
->   %24 = IsUnique [$1] : ()
+>   %24 = IsUnique fresh [$1] : ()
 >   %25 = Read borrow [$1] : mut List[SyncError]
 >   %26 = Intrinsic ListPush [%25 %23] : ()
 >   %27 = Block - : ()
@@ -98,7 +98,7 @@ fn wrap_with(errors: List[FsError], wrap: fn(FsError) -> SyncError) -> List[Sync
 >   %5 = Intrinsic ListLen [%4] : usize
 >   %6 = Store [$4] %5 : ()
 >   %7 = Read copy [$4] : usize
->   %8 = IsUnique [$2] : ()
+>   %8 = IsUnique fresh [$2] : ()
 >   %9 = Read borrow [$2] : mut List[SyncError]
 >   %10 = Intrinsic ListReserve [%9 %7] : ()
 >   %11 = Read copy [$4] : usize
@@ -115,7 +115,7 @@ fn wrap_with(errors: List[FsError], wrap: fn(FsError) -> SyncError) -> List[Sync
 >   %22 = Read borrow [$1] : fn(FsError) -> SyncError
 >   %23 = Read move [$7] : FsError
 >   %24 = CallValue %22 [%23] : SyncError
->   %25 = IsUnique [$2] : ()
+>   %25 = IsUnique fresh [$2] : ()
 >   %26 = Read borrow [$2] : mut List[SyncError]
 >   %27 = Intrinsic ListPush [%26 %24] : ()
 >   %28 = Block - : ()

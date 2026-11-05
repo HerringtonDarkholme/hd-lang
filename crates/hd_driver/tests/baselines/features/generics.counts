@@ -24,7 +24,6 @@ fn use_generic(s: string, xs: List[string]) -> usize:
 > app/main/use_generic
 >   retain string (stored)
 >   retain string (stored)
->   unique List[string] (conservative: unique)
 >   (no span) release string (last use)
 >   (no span) release List[string] (last use)
 >   (no span) release string? (last use)

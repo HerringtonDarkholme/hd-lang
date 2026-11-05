@@ -16,19 +16,13 @@ fn wrap_all(errors: List[FsError]) -> List[SyncError]:
     [for e in errors => SyncError.Fs(e)]
 > app/main/wrap_all
 >   retain app.main.FsError (stored)
->   unique List[app.main.SyncError] (conservative: unique)
->   (no span) unique List[app.main.SyncError] (conservative: unique)
 
 fn wrap_with(errors: List[FsError], wrap: fn(FsError) -> SyncError) -> List[SyncError]:
     [for e in errors => wrap(e)]
 > app/main/wrap_with
 >   retain app.main.FsError (second owner)
->   unique List[app.main.SyncError] (conservative: unique)
->   (no span) unique List[app.main.SyncError] (conservative: unique)
 > app/main/wrap_with
 >   retain app.main.FsError (second owner)
->   unique List[app.main.SyncError] (conservative: unique)
->   (no span) unique List[app.main.SyncError] (conservative: unique)
 
 fn as_value(errors: List[FsError]) -> List[SyncError]:
     wrap_with(errors, SyncError.Fs)

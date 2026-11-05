@@ -214,7 +214,7 @@ fn keep_each(xs: List[string]) -> List[string]:
 >   %31 = Loop %30 - : ()
         out.push(x)
 >   %16 = Read move [$6] : string
->   %17 = IsUnique [$1] : ()
+>   %17 = IsUnique fresh [$1] : ()
 >   %18 = Read borrow [$1] : List[string]
 >   %19 = Intrinsic ListPush [%18 %16] : ()
     out
@@ -248,7 +248,7 @@ fn comprehension(xs: List[string]) -> List[usize]:
 >   %5 = Intrinsic ListLen [%4] : usize
 >   %6 = Store [$3] %5 : ()
 >   %7 = Read copy [$3] : usize
->   %8 = IsUnique [$1] : ()
+>   %8 = IsUnique fresh [$1] : ()
 >   %9 = Read borrow [$1] : mut List[usize]
 >   %10 = Intrinsic ListReserve [%9 %7] : ()
 >   %11 = Read copy [$3] : usize
@@ -269,7 +269,7 @@ fn comprehension(xs: List[string]) -> List[usize]:
 >   %26 = Break L1 %25 : never
 >   %27 = Block - : usize
 >   %28 = Scope %27 [] : usize
->   %29 = IsUnique [$1] : ()
+>   %29 = IsUnique fresh [$1] : ()
 >   %30 = Read borrow [$1] : mut List[usize]
 >   %31 = Intrinsic ListPush [%30 %28] : ()
 >   %32 = Block - : ()

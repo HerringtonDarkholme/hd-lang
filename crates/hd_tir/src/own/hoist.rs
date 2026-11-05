@@ -378,6 +378,14 @@ pub(crate) fn run(
 ) {
     b.stable_lists.clear();
     let n = b.len();
+    let fresh = fresh_locals(b);
+    let mut marked = Vec::new();
+    for i in 0..n {
+        if b.tags[i] == Tag::IsUnique && b.data[i][1] == 0 && fresh_unique(b, &fresh, i) {
+            b.data[i][1] = unique_word::FRESH;
+            marked.push(i);
+        }
+    }
     if !b.tags.contains(&Tag::Loop) {
         return;
     }
@@ -391,12 +399,157 @@ pub(crate) fn run(
         .sort_stable_by_key(|&(f, l)| (f, std::cmp::Reverse(l)));
     facts(b, t);
     fill(&mut t.gone, n, false);
+    // A fresh buffer's checks run nowhere: none hoists.
+    for i in marked {
+        t.gone[i] = true;
+    }
     for k in 0..t.loops.len() {
         let l = t.loops[k].1;
         hoist_loop(b, topo, cx, t, edits, l);
     }
     b.stable_lists.sort_stable();
     b.stable_lists.dedup();
+}
+
+/// Whether `IsUnique` `i` is of all of a local [`fresh_locals`] marks.
+pub(crate) fn fresh_unique(b: &Body, fresh: &[bool], i: usize) -> bool {
+    let p = b.view(b.data[i][0]);
+    p.whole() && p.local().is_some_and(|l| fresh[l as usize])
+}
+
+/// The **fresh-buffer locals** of `b` (step 15a), whose buffer nothing
+/// else can hold, so it is always unique: a local that is no parameter,
+/// never addressed or captured, stored at least once, every whole store of
+/// which stores a new collection (`NewList`, `NewMap`) that is empty or
+/// has an element that is no constant (a literal of constants is static
+/// data, shared), and whose every
+/// read lets nothing share its header. A read either moves all of it out,
+/// or is used only by a collection intrinsic that lends it (`ListPush`,
+/// `ListReserve`, `MapSet`, `MapGet`, a length, an entry walk), an
+/// operator, a `Drop`, or as the root of a read or a store (an element or a field). A
+/// copy of all of it, a call argument (the callee may keep it), a store of
+/// it, a `Ref` into it, or any other use keeps its checks.
+pub(crate) fn fresh_locals(b: &Body) -> Vec<bool> {
+    let n = b.len();
+    let locals = b.local_ty.len();
+    let mut ok = vec![false; locals];
+    if !b.tags.contains(&Tag::IsUnique) {
+        return ok;
+    }
+    for (l, flags) in b.local_flags.iter().enumerate() {
+        ok[l] = flags
+            & (local_flags::PARAM | local_flags::CAPTURED | local_flags::CAPTURED_ASSIGNED)
+            == 0;
+    }
+    for r in b.sub_params.iter().skip(1) {
+        if r.len > 0 {
+            for &x in b.record(r.start) {
+                if let Some(o) = ok.get_mut(x as usize) {
+                    *o = false;
+                }
+            }
+        }
+    }
+    for &c in &b.cap_local {
+        if let Some(o) = ok.get_mut(c.idx()) {
+            *o = false;
+        }
+    }
+    let mut stored = vec![false; locals];
+    // Per instruction: the local it reads all of without moving, or `NONE`.
+    let mut read_of = vec![NONE; n];
+    for (i, read) in read_of.iter_mut().enumerate() {
+        let p = b.view(b.data[i][0]);
+        let Some(l) = (match b.tags[i] {
+            Tag::Read | Tag::Store | Tag::Ref => p.local(),
+            _ => None,
+        }) else {
+            continue;
+        };
+        let li = l as usize;
+        match b.tags[i] {
+            Tag::Store if p.whole() => {
+                stored[li] = true;
+                let v = b.data[i][1] as usize;
+                // A nonempty literal of constants is static data the
+                // backend shares (`static_scalar_list`), not a fresh buffer.
+                ok[li] &= Ref(b.data[i][1]).as_inst().is_some()
+                    && v < n
+                    && matches!(b.tags[v], Tag::NewList | Tag::NewMap)
+                    && {
+                        let items = b.record(b.data[v][1]);
+                        items.is_empty() || items.iter().any(|&x| Ref(x).as_inst().is_some())
+                    };
+            }
+            Tag::Ref => ok[li] = false,
+            Tag::Read if p.whole() => {
+                if b.data[i][1] == ReadMode::Copy as u32 {
+                    ok[li] = false;
+                } else if b.data[i][1] != ReadMode::Move as u32 {
+                    *read = l;
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut ops = Vec::new();
+    for i in 0..n {
+        operands(b, i, &mut ops);
+        for op in &ops {
+            let v = op.value as usize;
+            if v >= n || read_of[v] == NONE {
+                continue;
+            }
+            let lends = match b.tags[i] {
+                Tag::Intrinsic => {
+                    op.role == Role::Lend
+                        && matches!(
+                            IntrinsicOp::from_u32(b.data[i][0]),
+                            Some(
+                                IntrinsicOp::ListLen
+                                    | IntrinsicOp::ListPush
+                                    | IntrinsicOp::ListReserve
+                                    | IntrinsicOp::MapLen
+                                    | IntrinsicOp::MapGet
+                                    | IntrinsicOp::MapRemove
+                                    | IntrinsicOp::MapSet
+                                    | IntrinsicOp::MapSlots
+                                    | IntrinsicOp::MapSlotNext
+                                    | IntrinsicOp::MapEntry
+                                    | IntrinsicOp::MapSlotEntry
+                                    | IntrinsicOp::MapSlotEntryMut
+                            )
+                        )
+                }
+                Tag::Prim | Tag::Drop => true,
+                tag => op.role == Role::Lend && matches!(tag, Tag::Read | Tag::Store),
+            };
+            if !lends {
+                ok[read_of[v] as usize] = false;
+            }
+        }
+        // A read or store rooted at such a read's value reaches an element
+        // or a field of it; one of all of it (`Read copy [%h]`) copies
+        // the header, and a reference into it may outlive the read.
+        if matches!(
+            b.tags[i],
+            Tag::Read | Tag::Store | Tag::Ref | Tag::IsUnique | Tag::Drop
+        ) {
+            let p = b.view(b.data[i][0]);
+            if let Root::Value(v) = p.root
+                && (v as usize) < n
+                && read_of[v as usize] != NONE
+                && (matches!(b.tags[i], Tag::Ref | Tag::IsUnique)
+                    || (p.whole() && b.tags[i] != Tag::Drop))
+            {
+                ok[read_of[v as usize] as usize] = false;
+            }
+        }
+    }
+    for (o, s) in ok.iter_mut().zip(&stored) {
+        *o &= *s;
+    }
+    ok
 }
 
 /// The per-local facts and the uses of every value.

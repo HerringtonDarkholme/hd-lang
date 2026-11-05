@@ -412,9 +412,25 @@ fn change_places(b: &Body, topo: &Topology, errs: &mut Vec<VerifyError>) {
 /// Hoisting's `IsUnique`s and stable lists (`docs/compiler/tir-v2.md`,
 /// "Hoisting"): what the pass relies on, checked again.
 fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
-    use super::unique_word::{COVERED, HOISTED};
+    use super::unique_word::{COVERED, FRESH, HOISTED};
     use crate::own::hoist;
     let n = b.len();
+    // A fresh buffer's `IsUnique` is of a local that keeps it fresh.
+    if (0..n).any(|i| b.tags[i] == Tag::IsUnique && b.data[i][1] == FRESH) {
+        let fresh = hoist::fresh_locals(b);
+        for i in 0..n {
+            if b.tags[i] == Tag::IsUnique
+                && b.data[i][1] == FRESH
+                && !hoist::fresh_unique(b, &fresh, i)
+            {
+                err(
+                    errs,
+                    u32_of(i),
+                    "a fresh `IsUnique` of a place that may share its buffer".into(),
+                );
+            }
+        }
+    }
     let any = (0..n).any(|i| b.tags[i] == Tag::IsUnique && b.data[i][1] != 0);
     if !any && b.stable_lists.is_empty() {
         return;
@@ -455,7 +471,7 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
             continue;
         }
         let w = b.data[i][1];
-        if w != 0 && w != HOISTED && w != COVERED {
+        if w != 0 && w != HOISTED && w != COVERED && w != FRESH {
             err(
                 errs,
                 u32_of(i),

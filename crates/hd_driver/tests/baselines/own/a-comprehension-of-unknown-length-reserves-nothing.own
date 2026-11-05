@@ -38,7 +38,7 @@ fn evens(n: usize) -> List[usize]:
 >   %19 = Prim Rem [%18 2:usize] : usize
 >   %20 = Prim Eq [%19 0:usize] : bool
 >   %21 = Read copy [$5] : usize
->   %22 = IsUnique [$1] : ()
+>   %22 = IsUnique fresh [$1] : ()
 >   %23 = Read borrow [$1] : mut List[usize]
 >   %24 = Intrinsic ListPush [%23 %21] : ()
 >   %25 = Block - : ()
@@ -76,7 +76,7 @@ fn counted(n: usize) -> List[usize]:
 >   %8 = Read borrow [$3] : Ref[mut RangeIter[usize]]
 >   %9 = Call std/iter/Iterator.next for RangeIter[usize] [usize] via Impl (%8) : usize?
 >   %10 = Read copy [$4] : usize
->   %11 = IsUnique [$1] : ()
+>   %11 = IsUnique fresh [$1] : ()
 >   %12 = Read borrow [$1] : mut List[usize]
 >   %13 = Intrinsic ListPush [%12 %10] : ()
 >   %14 = Block - : ()

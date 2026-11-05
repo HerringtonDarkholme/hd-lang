@@ -85,7 +85,7 @@ fn pairs(xs: List[string], ys: List[string]) -> List[(string, string)]:
 >   %45 = Read copy [$7] : string
 >   %46 = Read move [$12] : string
 >   %47 = NewTuple - [%45 %46] : (string, string)
->   %48 = IsUnique [$2] : ()
+>   %48 = IsUnique fresh [$2] : ()
 >   %49 = Read borrow [$2] : mut List[(string, string)]
 >   %50 = Intrinsic ListPush [%49 %47] : ()
 >   %51 = Block - : ()
@@ -153,7 +153,7 @@ fn names(users: List[User]) -> List[string]:
 >   %15 = Store [$4] %14 : ()
 >   %16 = Read copy [$6 .active] : bool
 >   %17 = Read move [$6 .name] : string
->   %18 = IsUnique [$1] : ()
+>   %18 = IsUnique fresh [$1] : ()
 >   %19 = Read borrow [$1] : mut List[string]
 >   %20 = Intrinsic ListPush [%19 %17] : ()
 >   %21 = Block - : ()
@@ -209,7 +209,7 @@ fn by_name(users: List[User]) -> Map[string, i64]:
 >   %16 = Read copy [$6 .active] : bool
 >   %17 = Read borrow [$6 .name] : string
 >   %18 = Read copy [$6 .id] : i64
->   %19 = IsUnique [$1] : ()
+>   %19 = IsUnique fresh [$1] : ()
 >   %20 = Read borrow [$1] : mut Map[string, i64]
 >   %21 = Intrinsic MapSet [%20 %17 %18] : ()
 >   %22 = Block - : ()
@@ -276,7 +276,7 @@ fn sizes(users: List[User]) -> List[usize]:
 >   %24 = Read copy [$7] : usize
 >   %25 = Prim Gt [%24 0:usize] : bool
 >   %26 = Read copy [$7] : usize
->   %27 = IsUnique [$1] : ()
+>   %27 = IsUnique fresh [$1] : ()
 >   %28 = Read borrow [$1] : mut List[usize]
 >   %29 = Intrinsic ListPush [%28 %26] : ()
 >   %30 = Block - : ()

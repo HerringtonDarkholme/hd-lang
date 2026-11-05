@@ -324,6 +324,7 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
                 Tag::IsUnique => match w {
                     hd_tir::ir::unique_word::HOISTED => Some("hoisted".to_owned()),
                     hd_tir::ir::unique_word::COVERED => Some("covered".to_owned()),
+                    hd_tir::ir::unique_word::FRESH => Some("fresh".to_owned()),
                     _ => None,
                 },
                 Tag::Ref => {

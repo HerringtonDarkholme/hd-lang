@@ -12,7 +12,7 @@ fn fill(n: usize) -> List[bool]:
 >     uses $1: %1 -> %21 lend, %31 lend, %39 consume last
 >   local $2 $cur: usize [assigned] place
 >   local $3 $end: usize [assigned] value
->     uses $3: %7 -> %12 lend, %25 lend
+>     uses $3: %7 -> %12 lend, %24 lend
 >   local $4 $incl: bool [assigned] value
 >     uses $4: none
 >   %0 = NewList - [] : mut List[bool]
@@ -35,23 +35,23 @@ fn fill(n: usize) -> List[bool]:
 >   %17 = Block %16 : usize
 >   %18 = Block 0:usize : usize
 >   %19 = If %14 [%17 %18] : usize
->   %20 = IsUnique [$1] : ()
+>   %20 = IsUnique fresh [$1] : ()
 >   %21 = Read borrow [$1] : mut List[bool]
 >   %22 = Intrinsic ListReserve [%21 %19] : ()
->   %23 = IsUnique hoisted [$1] : ()
->   %24 = Read copy [$2] : usize
->   %25 = Read copy [$3] : usize
->   %26 = Prim Lt [%24 %25] : bool
+>   %23 = Read copy [$2] : usize
+>   %24 = Read copy [$3] : usize
+>   %25 = Prim Lt [%23 %24] : bool
+>   %26 = Read copy [$2] : usize
 >   %27 = Read copy [$2] : usize
->   %28 = Read copy [$2] : usize
->   %29 = Prim Add [%28 1:usize] : usize
->   %30 = Store [$2] %29 : ()
+>   %28 = Prim Add [%27 1:usize] : usize
+>   %29 = Store [$2] %28 : ()
+>   %30 = IsUnique fresh [$1] : ()
 >   %31 = Read borrow [$1] : mut List[bool]
 >   %32 = Intrinsic ListPush [%31 1:bool] : ()
 >   %33 = Block - : ()
 >   %34 = Break L0 - : never
 >   %35 = Block - : ()
->   %36 = If %26 [%33 %35] : ()
+>   %36 = If %25 [%33 %35] : ()
 >   %37 = Block - : ()
 >   %38 = Loop %37 - : ()
 >   %39 = Read move [$1] : mut List[bool]
@@ -82,7 +82,7 @@ fn doubled(xs: List[i32]) -> List[i32]:
 >   %5 = Intrinsic ListLen [%4] : usize
 >   %6 = Store [$3] %5 : ()
 >   %7 = Read copy [$3] : usize
->   %8 = IsUnique [$1] : ()
+>   %8 = IsUnique fresh [$1] : ()
 >   %9 = Read borrow [$1] : mut List[i32]
 >   %10 = Intrinsic ListReserve [%9 %7] : ()
 >   %11 = Read copy [$3] : usize
@@ -98,7 +98,7 @@ fn doubled(xs: List[i32]) -> List[i32]:
 >   %21 = Store [$4] %20 : ()
 >   %22 = Read copy [$6] : i32
 >   %23 = Prim Mul [%22 2:i32] : i32
->   %24 = IsUnique [$1] : ()
+>   %24 = IsUnique fresh [$1] : ()
 >   %25 = Read borrow [$1] : mut List[i32]
 >   %26 = Intrinsic ListPush [%25 %23] : ()
 >   %27 = Block - : ()

@@ -748,6 +748,9 @@ pub mod unique_word {
     /// makes a fresh value (no reference view is reachable); kept for the
     /// instances where one may.
     pub const COVERED: u32 = 2;
+    /// Of all of a fresh-buffer local (`own::hoist::fresh_locals`), whose
+    /// buffer nothing else can hold: always unique, so no check runs.
+    pub const FRESH: u32 = 3;
 }
 
 /// How a `Read` reads its place (its `Meta` word b;

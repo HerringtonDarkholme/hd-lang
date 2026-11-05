@@ -57,7 +57,7 @@ fn keep[T](x: T) -> List[T]:
 >   %7 = Block %6 : List[T]
     out.push(x)
 >   %2 = Read move [$0] : T
->   %3 = IsUnique [$1] : ()
+>   %3 = IsUnique fresh [$1] : ()
 >   %4 = Read borrow [$1] : List[T]
 >   %5 = Intrinsic ListPush [%4 %2] : ()
     out
@@ -142,7 +142,7 @@ fn use_generic(s: string, xs: List[string]) -> usize:
 >   %54 = NewList - [] : List[string]
 >   %55 = Store [$5] %54 : ()
 >   %56 = Read move [$4] : string
->   %57 = IsUnique [$5] : ()
+>   %57 = IsUnique fresh [$5] : ()
 >   %58 = Read borrow [$5] : List[string]
 >   %59 = Intrinsic ListPush [%58 %56] : ()
 >   %60 = Read move [$5] : List[string]

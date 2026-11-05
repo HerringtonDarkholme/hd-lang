@@ -2,10 +2,9 @@
 (module
   (import "fixture" "rt:map_slot_next" (func $rt:map_slot_next (param i32 i32 i32) (result i32)))
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
-  (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 5 funcref))
+  (import "fixture" "table0" (table $table0 4 funcref))
   (func $keys (param $m i32) (result i32) (local $out i32) (local $t0 i32) (local $t1 i32) (local $k i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
     block
     ;; 19 |     let mut out: List[string] = []
@@ -60,8 +59,6 @@
             call $rt:retain
     ;; 20 |     for (k, _) in m:
             local.get $out
-            call $rt:list_unique
-            local.tee $out
     ;; 21 |         out.push(*k)
             local.tee $t3
             i32.load $heap offset=4

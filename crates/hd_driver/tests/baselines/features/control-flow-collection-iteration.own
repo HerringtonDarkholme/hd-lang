@@ -196,7 +196,7 @@ fn keys(m: Map[string, string]) -> List[string]:
 >   %42 = Loop %41 - : ()
         out.push(*k)
 >   %25 = Read copy [*$6] : string
->   %26 = IsUnique [$1] : ()
+>   %26 = IsUnique fresh [$1] : ()
 >   %27 = Read borrow [$1] : List[string]
 >   %28 = Intrinsic ListPush [%27 %25] : ()
     out

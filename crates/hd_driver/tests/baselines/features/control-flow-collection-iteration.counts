@@ -19,8 +19,7 @@ fn by_ref(m: &Map[string, string]) -> usize:
 fn keys(m: Map[string, string]) -> List[string]:
     let mut out: List[string] = []
     for (k, _) in m:
-> app/main/keys
->   unique List[string] (conservative: unique)
         out.push(*k)
+> app/main/keys
 >   retain counted reference (stored)
     out
