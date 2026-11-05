@@ -22,9 +22,6 @@ impl Tag for Named:
 
 fn fetch!(key: string) -> string:
     key + "?"
-> app/main/fetch
->   (no span) retain string (conservative: entry)
->   (no span) release string (last use)
 
 fn tagged!() -> usize $ Tag:
     $.use(Tag).name().len()

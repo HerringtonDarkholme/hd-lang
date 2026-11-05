@@ -818,8 +818,6 @@
       i32.load $heap offset=32
       local.set $t1
     else
-      local.get $key.0
-      call $retain
     end
     block
     ;; 23 |     key + "?"
@@ -839,10 +837,6 @@
       i32.const 65 ;; &"?"
       i32.load8_u $heap
       i32.store8 $heap
-    ;; (no span)
-      local.get $key.0
-      call $rt:release_ref'1
-    ;; 23 |     key + "?"
       local.get $t3
       local.get $t2
     ;; (no span)

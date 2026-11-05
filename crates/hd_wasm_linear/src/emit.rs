@@ -390,8 +390,20 @@ fn body_func<'a>(
     // The parameters this instance receives borrowed whose value the body
     // only lends or passes on to callees that borrow it here too
     // (`Em::instance_loans`), including a lifted closure's own parameters.
-    let lent_here = if em.counting && by_type {
-        em.instance_loans(&plocals)
+    // A suspending body with no suspension point runs while its frame,
+    // which holds a count of each parameter, lives: it borrows the
+    // parameters its reads only lend, as a plain body borrows a lent one.
+    let unsuspended = suspending
+        && erased.is_none()
+        && closure.is_none()
+        && !b.tags.iter().any(|&t| {
+            matches!(
+                t,
+                Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace
+            )
+        });
+    let lent_here = if em.counting && (by_type || unsuspended) {
+        em.instance_loans(&plocals, unsuspended)
     } else {
         hd_base::HashSet::default()
     };
@@ -426,6 +438,10 @@ fn body_func<'a>(
                         // drop each one.
                         Pass::Borrowed => {}
                     }
+                }
+                if unsuspended && lent_here.contains(l) {
+                    em.borrowed.insert(*l);
+                    continue;
                 }
                 if !crate::layout::holds_drop(em.pool(), em.env(), t) {
                     em.count_locals(ls, t, true)?;

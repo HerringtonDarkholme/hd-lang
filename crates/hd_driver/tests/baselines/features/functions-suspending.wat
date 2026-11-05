@@ -2,11 +2,11 @@
 (module
   (import "fixture" "fetch'1" (func $fetch'1 (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:frame'1" (func $rt:frame'1 (result i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:cancel_enter" (func $rt:cancel_enter (result i32)))
   (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
   (import "fixture" "rt:poll_check" (func $rt:poll_check (param i32) (result i32)))
@@ -71,8 +71,6 @@
       i32.load $heap offset=32
       local.set $t1
     else
-      local.get $key.0
-      call $retain
     end
     block
     ;; 8 |     key + "?"
@@ -92,10 +90,6 @@
       i32.const 65 ;; &"?"
       i32.load8_u $heap
       i32.store8 $heap
-    ;; (no span)
-      local.get $key.0
-      call $rt:release_ref'2
-    ;; 8 |     key + "?"
       local.get $t3
       local.get $t2
     ;; (no span)

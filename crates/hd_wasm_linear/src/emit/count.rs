@@ -1025,8 +1025,15 @@ impl Em<'_, '_, '_> {
     /// unowned is borrowed here already, and its other reads copy as they
     /// say. A read a move takes a part of (`Read move [%r as .v .k]`, as a
     /// `match` binds a payload) keeps its count, which the move takes. The
-    /// reads join [`Em::loans`].
-    pub(super) fn instance_loans(&mut self, plocals: &[usize]) -> hd_base::HashSet<usize> {
+    /// reads join [`Em::loans`]. With `framed`, every parameter is taken
+    /// as borrowed: a suspending body with no suspension point runs while
+    /// its frame holds a count of each. A framed parameter lends only when
+    /// every read of it reads all of it.
+    pub(super) fn instance_loans(
+        &mut self,
+        plocals: &[usize],
+        framed: bool,
+    ) -> hd_base::HashSet<usize> {
         use hd_tir::ir::place;
         let b = self.b;
         let mut out = hd_base::HashSet::default();
@@ -1042,10 +1049,19 @@ impl Em<'_, '_, '_> {
             .collect();
         for (k, &l) in plocals.iter().enumerate() {
             let t = self.sub(b.local_ty[l]);
-            if !matches!(
-                self.pass_at(self.lends, k, t),
-                crate::layout::Pass::Borrowed
-            ) || self.is_cell(l)
+            // A framed parameter (a suspending body's with no suspension
+            // point) is held by the frame, as a borrowed one by its caller;
+            // one holding a collection is not: the frame holds a copy of
+            // it, which the body releases.
+            if framed && !self.copied(t).is_empty() {
+                continue;
+            }
+            if !(framed
+                || matches!(
+                    self.pass_at(self.lends, k, t),
+                    crate::layout::Pass::Borrowed
+                ))
+                || self.is_cell(l)
                 || b.cap_local.iter().any(|c| c.idx() == l)
             {
                 continue;
@@ -1063,7 +1079,11 @@ impl Em<'_, '_, '_> {
                 }
                 let w = b.data[i][0];
                 if w & place::BARE_LOCAL == 0 {
-                    if tag != Tag::Read && b.local_in_place(w).is_some_and(|x| x.idx() == l) {
+                    // A framed parameter lends only through whole reads,
+                    // the reads this walk follows.
+                    if (tag != Tag::Read || framed)
+                        && b.local_in_place(w).is_some_and(|x| x.idx() == l)
+                    {
                         fits = false;
                     }
                     continue;

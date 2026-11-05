@@ -8,9 +8,6 @@ use std.task.{join, race}
 
 fn label!(s: string) -> string:
     s + "!"
-> app/main/label
->   (no span) retain string (conservative: entry)
->   (no span) release string (last use)
 
 fn one!(s: string) -> usize:
     label!(s).len()

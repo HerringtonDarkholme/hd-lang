@@ -9,9 +9,6 @@ use std.task.CleanupEnd
 
 fn fetch!(key: string) -> string:
     key + "?"
-> app/main/fetch
->   (no span) retain string (conservative: entry)
->   (no span) release string (last use)
 
 fn stop!(key: string) -> bool:
     let mut job = fetch(key)

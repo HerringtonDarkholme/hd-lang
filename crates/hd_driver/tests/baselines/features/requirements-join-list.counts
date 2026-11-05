@@ -10,9 +10,6 @@ use std.task.join
 
 fn fetch!(key: string) -> string:
     key + "?"
-> app/main/fetch
->   (no span) retain string (conservative: entry)
->   (no span) release string (last use)
 
 fn all!(keys: List[string]) -> usize:
     let tasks: List[mut Suspend[string]] = [for k in keys => fetch(k)]

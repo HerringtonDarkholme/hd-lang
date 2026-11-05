@@ -7,9 +7,6 @@
 # design, #1355) and build one string per `fetch`.
 fn fetch!(key: string) -> string:
     key + "?"
-> app/main/fetch
->   (no span) retain string (conservative: entry)
->   (no span) release string (last use)
 
 fn construct(key: string) -> usize:
     _ := fetch(key)
