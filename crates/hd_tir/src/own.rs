@@ -55,7 +55,7 @@ pub(crate) mod hoist;
 mod insert;
 mod known;
 mod late;
-mod moves;
+pub(crate) mod moves;
 mod pairs;
 pub(crate) mod parts;
 pub mod promote;

@@ -5,7 +5,9 @@
 //!
 //! 1. **Locals.** A `copy` read of a local `[$l]`, or of a field of one
 //!    (`[$l .a .b]`), after which no path reads `$l` again before a store
-//!    replaces all of it, moves. Its local is not addressed and lives in
+//!    replaces all of it, moves. A store into a field path that is all
+//!    of the local (each struct on the way has that one field) replaces
+//!    all of it too. Its local is not addressed and lives in
 //!    no cell (a `Ref` or a shared capture reaches it), no cleanup suite
 //!    touches it, no `borrow` reads it, and no `Pin` names a place in it:
 //!    a pinned collection's copy is a clone (the pin's eager copy, until phase 10 of `docs/future-work/POINTER_LOANS.md`), which a
@@ -153,6 +155,9 @@ pub(crate) struct Tables {
     /// Per instruction: whether it is a read that lends its local as a
     /// local reference ([`super::lending_read`]), which never moves.
     lending: Vec<bool>,
+    /// Per instruction: whether it is a store into a field path of a local
+    /// that is all of the local's value ([`fills_local`]).
+    fills: Vec<bool>,
 }
 
 impl Tables {
@@ -177,6 +182,7 @@ impl Tables {
         self.part_keep.clear();
         fill(&mut self.returned, n, false);
         fill(&mut self.lending, n, false);
+        fill(&mut self.fills, n, false);
     }
 
     /// Calls `f` with the part bit of each part of local `l` that the
@@ -281,6 +287,7 @@ pub(crate) fn run(
     returned(b, t);
     for i in 0..b.len() {
         t.lending[i] = super::lending_read(b, cx, i);
+        t.fills[i] = fills_local(b, cx, i);
     }
     part_uses(b, cx, t);
     touches(b, t);
@@ -301,6 +308,35 @@ pub(crate) fn run(
     }
     t.back = back;
     apply(b, topo, cx, t, edits);
+}
+
+/// Whether instruction `i` is a `Store` into a field path of a local
+/// (`[$l .a .b]`) where each struct on the way, laid out in place, has
+/// that one field: the store replaces all of the local, as a whole store
+/// does (`p.name = t` for a `Point` of one `name`).
+pub(crate) fn fills_local(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
+    if b.tags[i] != Tag::Store {
+        return false;
+    }
+    let p = b.view(b.data[i][0]);
+    let Some(l) = p.local() else {
+        return false;
+    };
+    if p.whole() {
+        return false;
+    }
+    let mut ty = b.local_ty[l as usize];
+    let mut parts = Vec::new();
+    for step in p.steps(b) {
+        let Proj::Field(k) = step else {
+            return false;
+        };
+        if k != 0 || !cx.parts(ty, None, &mut parts) || parts.len() != 1 {
+            return false;
+        }
+        ty = parts[0];
+    }
+    true
 }
 
 /// Marks each value its sub-body returns as its result: the root block's
@@ -832,7 +868,8 @@ impl Backward for Tables {
                     // (`ref.excl.shared`), nor past a loop body's
                     // declaration (`ref.excl.declare`). Into a part, it
                     // keeps the rest.
-                    s.set(live, self.lnum[l as usize], !p.whole());
+                    let whole = p.whole() || self.fills[i] && !self.addr[l as usize];
+                    s.set(live, self.lnum[l as usize], !whole);
                     // A part the store replaces is dead before it; one it
                     // writes into keeps the rest.
                     let (lo, hi) = (self.pstart[l as usize], self.pstart[l as usize + 1]);

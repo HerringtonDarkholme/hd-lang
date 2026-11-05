@@ -103,7 +103,11 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     lent_refs(b, &mut errs);
     change_places(b, &topo, &mut errs);
     hoisted(b, &topo, own, &mut errs);
-    Empties::new(&cx).walk(&mut errs);
+    // A store into a field path that is all of its local refills it.
+    let fills: Vec<bool> = (0..b.len())
+        .map(|i| crate::own::moves::fills_local(b, own, i))
+        .collect();
+    Empties::new(&cx, fills).walk(&mut errs);
     borrow_spans(&cx, own, &mut errs);
     binding_locals(&cx, own, &mut errs);
     Balance::new(b, &topo, own).walk(&mut errs);
@@ -804,12 +808,15 @@ struct Empties<'a> {
     /// rooted at an instruction's value, sorted: running that instruction
     /// again makes a new value, which refills the place.
     by_value: Vec<(u32, u32)>,
+    /// Per instruction: whether it is a store into a field path that is
+    /// all of its local (`crate::own::moves::fills_local`).
+    fills: Vec<bool>,
     reported: Vec<bool>,
     errs: Vec<VerifyError>,
 }
 
 impl<'a> Empties<'a> {
-    fn new(cx: &'a Cx<'a>) -> Self {
+    fn new(cx: &'a Cx<'a>, fills: Vec<bool>) -> Self {
         let b = cx.b;
         let mut id = vec![NONE; b.len()];
         let mut at = Vec::new();
@@ -845,6 +852,7 @@ impl<'a> Empties<'a> {
             id,
             at,
             by_value,
+            fills,
             reported: vec![false; b.len()],
             errs: Vec::new(),
         }
@@ -873,15 +881,17 @@ impl<'a> Empties<'a> {
         }
     }
 
-    /// A `Store` refills every emptied place it covers.
+    /// A `Store` refills every emptied place it covers, and all of its
+    /// local when its field path is all of it.
     fn refill(&self, x: u32, s: &mut Set) {
         let Some(q) = &self.cx.places[x as usize] else {
             return;
         };
+        let fills = self.fills[x as usize];
         for (k, &e) in self.at.iter().enumerate() {
             if get_bit(s, k)
                 && let Some(p) = &self.cx.places[e as usize]
-                && covers(q, p)
+                && (covers(q, p) || fills && p.proj.is_empty() && p.root == q.root)
             {
                 set_bit(s, k, false);
             }
