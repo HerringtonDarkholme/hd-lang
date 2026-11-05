@@ -56,9 +56,9 @@ The std shape below needs these rules of the language:
 2. `Index` is element access: `Index.index(&self, key) -> &Self::Out`, so `c[k]` is a place for every `Index` type: reading it copies, `&c[k]` borrows. Range and substring indexing are methods that return a new value (for example `s.slice(a, b)`) until hd has slices (owner, 2026-11-04).
 3. `for (k, v) in m` binds `(&K, &V)`, and `for (k, v) in &mut m` binds `(&K, &mut V)`; a key is never `&mut`.
 4. Inside `for p in &mut xs`, `xs` is reachable only through `p`, the same loan rule as the shared loop.
-5. Three body-only intrinsics move values: `std.ops.swap`, `list_swap` and `list_take_last`. Every other mover is plain hd over them.
+5. Movers add no intrinsic (owner, #1206). `swap`, `replace` and `take` are plain hd over `std.rt.memory`'s typed memory once a `&mut T` place can reach a `Ptr[T]`; `List.swap` and `List.pop` move elements when `List` is hd over `Buffer` (#1219). Parked in #1350.
 6. [`ref.copy.collections`](../../spec/lang/13-values-and-references.md#r-ref.copy.collections) stays for the copy-on-write family: `List`, `Map`, `Set`, `Deque` and `Heap` require copyable items, so a write while shared can always duplicate the buffer. `UniqList[T]` and `UniqMap[K, V]` hold any `T` and are `impl !Copy` themselves.
-7. The generic default becomes move-only (`[T < Copy]` to copy), as the last slice, after a re-measure (153 std bounds today, about 36 after this redesign; 0 in examples, bench and the server SDK). `?Copy` then goes away.
+7. Generics stay copyable by default, as in Swift: `[T]` is a copyable type and `[T < ?Copy]` admits non-`Copy` types (owner, 2026-11-05: "use copy as default"; #1352 closed).
 8. No implied bounds: `List[T]` in a signature implies nothing about `T`.
 9. Field access and method calls auto-dereference through every `&`, `&mut`, `*T` and `*mut T` level, as Rust's auto-deref does: `x.name` and `x.describe()` with `x: &*mut User`. Casts, conditions, range bounds, `?`, spreads and calls of a function value keep an explicit `*`.
 10. `&` and `&mut` take a counted pointer type without parentheses: `&*T`, `&*mut T`, `&mut *T`, as Rust's `&*const T`; `*&T` stays an error.
@@ -142,7 +142,7 @@ pool.idle.push(conn)                           # moves back
   turns `(&T)?` into `T?`; a non-copyable value is `move-out-of-place` there and
   needs a mover. No iterator `copied` is needed: a copyable list passed by
   value yields values, and `map(fn(x: &T) -> T: *x)` covers the rest.
-- **Moves.** `swap(a: &mut T, b: &mut T)` is an intrinsic body;
+- **Moves.** `swap(a: &mut T, b: &mut T)` is plain hd (rule 5);
   `replace` is three lines of hd over it, and `Option.take` is
   `replace(self, .None)`. `List.pop` and `List.swap` use `list_take_last`
   and `list_swap`; `insert`, `remove_at` and the heap sifts are hd.
@@ -181,7 +181,7 @@ Estimated bottom-up from the files named; only the second table is measured.
 | Accessors | accessors copy on the copy-on-write family; `_ref` and `_mut` twins only on `UniqList` and `UniqMap` | about 200 line edits |
 | Borrowing loop | the list loop becomes the element loop plus a shared loan; the snapshot path goes | +80 / -60 compiler lines |
 | Questions 1-3 | operator reads, `Index` result, map loops | about +200 compiler lines |
-| Movers | three intrinsic bodies; hd movers over them | +90 compiler, -40 std lines |
+| Movers | plain hd; parked (#1350) | not measured |
 | Walk by reference | `walk` and walkers, six derive templates | +30 compiler, about 150 std lines |
 | Wasm size and gzip | std bodies lose copy and release pairs; about 400 Rust lines | not measured; about +2 KB of 2 MB |
 
@@ -459,15 +459,14 @@ hand:
 5. Map loops (language rule 3) and the `&mut` loop rule (language rule 4).
 6. `walk(&self)`, walkers and derive templates; read traits `< ?Copy`.
    Check: `@derive(Debug, Serialize, Eq)` on a `!Copy` struct checks.
-7. Movers: the three intrinsics, `replace`, `take`, and hd movers over
-   them. Check: a counts case shows no retain or release in `pop`.
+7. Movers in plain hd (rule 5), parked in #1350.
+   Check: a counts case shows no retain or release in `pop`.
 8. `UniqList` and `UniqMap` in hd over the movers (language rule 6),
    with no literal form (rule 11); `Index` returns a reference
    (language rule 2). Check: a `UniqList[Conn]` pool
    checks and runs, and a counts case shows no count or copy-on-write
    check in `push`.
-9. The generic default flip (language rule 7),
-   after re-running the measurement branch.
+9. Dropped: generics stay copyable by default (language rule 7).
 
 **Parse log.** Every `text` block above was parsed with
 `scripts/hd-conformance.sh parse`; parsing checks syntax only. The
