@@ -1223,6 +1223,21 @@ impl Ck<'_, '_> {
         let Some(j) = first.cells.iter().position(|c| !matches!(c, Cell::Wild)) else {
             return self.leaf(rows, occs, m, lits);
         };
+        // Struct and tuple patterns project their places directly. They
+        // need no whole-value read merely to find their fields.
+        if let Cell::Pat(p) = first.cells[j] {
+            match p.kind() {
+                SyntaxKind::TuplePattern => {
+                    let (occs, m) = self.expand_tuple(rows, occs, m, j);
+                    return self.tree(rows, &occs, m, lits);
+                }
+                SyntaxKind::DataPattern => {
+                    let (occs, m) = self.expand_data(rows, occs, m, j);
+                    return self.tree(rows, &occs, m, lits);
+                }
+                _ => {}
+            }
+        }
         // `ref.match.read`: every name bound to this column was set by
         // `settle`, so the test reads the value the reference refers to.
         if self.ref_of(occs[j].1).is_some() {
@@ -1239,14 +1254,6 @@ impl Ck<'_, '_> {
         }
         match first.cells[j] {
             Cell::Pat(p) => match p.kind() {
-                SyntaxKind::TuplePattern => {
-                    let (occs, m) = self.expand_tuple(occs, m, j);
-                    self.tree(rows, &occs, m, lits)
-                }
-                SyntaxKind::DataPattern => {
-                    let (occs, m) = self.expand_data(rows, occs, m, j);
-                    self.tree(rows, &occs, m, lits)
-                }
                 SyntaxKind::VariantPattern => self.switch(rows, occs, &m, j, lits),
                 SyntaxKind::LiteralPattern | SyntaxKind::RangePattern => {
                     self.test(rows, occs, m, j, p, lits)
@@ -1332,10 +1339,23 @@ impl Ck<'_, '_> {
         if b.tags[i] != Tag::Read {
             return None;
         }
-        let mut place = b.decode_place(b.data[i][0])?;
+        let place = b.decode_place(b.data[i][0])?;
+        self.pattern_place_ref(place, self.b.local_ty(l), mutable, at)
+    }
+
+    /// Make the reference directly from the projected place. A matrix
+    /// column used only by borrowed bindings never needs a payload read.
+    fn pattern_place_ref(
+        &mut self,
+        mut place: TirPlace,
+        ty: Ty,
+        mutable: bool,
+        at: NodeIdx,
+    ) -> Option<Ref> {
+        let b = self.b.body();
         // Prefix each read the place is rooted at, until the one that
         // dereferences the reference.
-        loop {
+        while !place.proj.contains(&Proj::Deref) {
             let PlaceRoot::Value(x) = place.root else {
                 return None;
             };
@@ -1344,31 +1364,71 @@ impl Ck<'_, '_> {
                 return None;
             }
             let inner = b.decode_place(b.data[x][0])?;
-            let deref = inner.proj.contains(&Proj::Deref);
             let mut proj = inner.proj;
             proj.extend(place.proj);
             place = TirPlace {
                 root: inner.root,
                 proj,
             };
-            if deref {
-                break;
-            }
         }
-        let ty = self.b.local_ty(l);
         let word = self.b.place(&place);
         Some(self.b.emit(Tag::Ref, word, u32::from(mutable), ty, at))
+    }
+
+    /// A column whose reading patterns all bind references can carry
+    /// that reference itself. Value tests or value bindings still need
+    /// the ordinary read, shared by the rows that use it.
+    fn borrowed_column<'t>(
+        &self,
+        rows: &[Row<'t>],
+        patterns: impl Iterator<Item = (usize, NodeRef<'t>)>,
+    ) -> Option<(Ty, bool)> {
+        let mut found = None;
+        for (row, pattern) in patterns.filter(|(_, p)| reads(*p)) {
+            let &(_, local) = rows[row]
+                .binds
+                .iter()
+                .find(|(node, _)| *node == pattern.index())?;
+            let mutable = *self.ref_bound.get(&local)?;
+            let kind = (self.b.local_ty(local), mutable);
+            if found.is_some_and(|previous| previous != kind) {
+                return None;
+            }
+            found = Some(kind);
+        }
+        found
+    }
+
+    /// Project a struct or tuple through references without reading the
+    /// whole value first. Individual columns decide whether to read or borrow.
+    fn pattern_fields(&self, v: Ref, mut t: Ty) -> (TirPlace, Ty) {
+        let mut proj = Vec::new();
+        while let Some((inner, mutable)) = self.ref_of(t) {
+            proj.push(Proj::Deref);
+            t = self.deref_ty(inner, mutable);
+        }
+        if self.is_data_object_ty(t) {
+            proj.push(Proj::Deref);
+        }
+        (
+            TirPlace {
+                root: PlaceRoot::Value(v),
+                proj,
+            },
+            t,
+        )
     }
 
     /// Replaces tuple column `j` by a column per member that some row
     /// tests or binds, read once with a `Read` of the element.
     fn expand_tuple<'t>(
         &mut self,
+        rows: &[Row<'t>],
         occs: &[(Ref, Ty)],
         m: Vec<DRow<'t>>,
         j: usize,
     ) -> (Vec<(Ref, Ty)>, Vec<DRow<'t>>) {
-        let (v, t) = occs[j];
+        let (base, t) = self.pattern_fields(occs[j].0, occs[j].1);
         let members = self.tuple_members(t);
         let subs: Vec<Vec<NodeRef<'t>>> = m
             .iter()
@@ -1384,10 +1444,24 @@ impl Ck<'_, '_> {
                 continue;
             };
             let et = members.get(k).copied().unwrap_or(Ty::POISON);
-            let g = self
-                .b
-                .field(v, u32::try_from(k).unwrap_or(0), et, s.index());
-            cols.push((k, (g, et)));
+            let field = u32::try_from(k).unwrap_or(0);
+            let borrowed = self.borrowed_column(
+                rows,
+                m.iter()
+                    .zip(&subs)
+                    .filter_map(|(r, subs)| subs.get(k).map(|&pattern| (r.row, pattern))),
+            );
+            let mut place = base.clone();
+            place.proj.push(Proj::Field(field));
+            let reference = borrowed.and_then(|(ty, mutable)| {
+                self.pattern_place_ref(place.clone(), ty, mutable, s.index())
+                    .map(|r| (r, ty))
+            });
+            let value = reference.unwrap_or_else(|| {
+                let word = self.b.place(&place);
+                (self.b.emit(Tag::Read, word, 0, et, s.index()), et)
+            });
+            cols.push((k, value));
         }
         let occs = splice(occs, j, cols.iter().map(|c| c.1));
         let m = m
@@ -1415,7 +1489,7 @@ impl Ck<'_, '_> {
     ) -> (Vec<(Ref, Ty)>, Vec<DRow<'t>>) {
         // Each row's fields: index, type, the field node, its sub-pattern.
         type Fields<'t> = Vec<(u32, Ty, NodeRef<'t>, Option<NodeRef<'t>>)>;
-        let (v, t) = occs[j];
+        let (base, t) = self.pattern_fields(occs[j].0, occs[j].1);
         let fields: Vec<Fields<'t>> = m
             .iter()
             .map(|r| match r.cells[j] {
@@ -1435,8 +1509,26 @@ impl Ck<'_, '_> {
             if cols.iter().any(|c| c.0 == idx) || sub.is_some_and(|s| !reads(s)) {
                 continue;
             }
-            let g = self.field_value(v, idx, ft, f.index());
-            cols.push((idx, (g, ft)));
+            let borrowed = self.borrowed_column(
+                rows,
+                m.iter().zip(&fields).filter_map(|(r, fields)| {
+                    fields
+                        .iter()
+                        .find(|field| field.0 == idx)
+                        .map(|&(_, _, node, sub)| (r.row, sub.unwrap_or(node)))
+                }),
+            );
+            let mut place = base.clone();
+            place.proj.push(Proj::Field(idx));
+            let reference = borrowed.and_then(|(ty, mutable)| {
+                self.pattern_place_ref(place.clone(), ty, mutable, f.index())
+                    .map(|r| (r, ty))
+            });
+            let value = reference.unwrap_or_else(|| {
+                let word = self.b.place(&place);
+                (self.b.emit(Tag::Read, word, 0, ft, f.index()), ft)
+            });
+            cols.push((idx, value));
         }
         let occs = splice(occs, j, cols.iter().map(|c| c.1));
         let m = m
@@ -1558,13 +1650,35 @@ impl Ck<'_, '_> {
                 else {
                     continue;
                 };
-                let g = if is_option {
-                    self.b.payload(v, 1, 0, ft, s.index())
+                let (variant, field) = if is_option {
+                    (1, 0)
                 } else {
-                    let k = u32::try_from(f).unwrap_or(0);
-                    self.b.payload(v, idx, k, ft, s.index())
+                    (idx, u32::try_from(f).unwrap_or(0))
                 };
-                cols.push((f, (g, ft)));
+                let borrowed = self.borrowed_column(
+                    rows,
+                    spec.iter().filter_map(|(r, subs)| {
+                        subs.get(f)
+                            .copied()
+                            .flatten()
+                            .map(|pattern| (r.row, pattern))
+                    }),
+                );
+                let reference = borrowed.and_then(|(ty, mutable)| {
+                    self.pattern_place_ref(
+                        TirPlace {
+                            root: PlaceRoot::Value(v),
+                            proj: vec![Proj::Variant(variant), Proj::Field(field)],
+                        },
+                        ty,
+                        mutable,
+                        s.index(),
+                    )
+                    .map(|r| (r, ty))
+                });
+                let value = reference
+                    .unwrap_or_else(|| (self.b.payload(v, variant, field, ft, s.index()), ft));
+                cols.push((f, value));
             }
             let occs_in = splice(occs, j, cols.iter().map(|c| c.1));
             let m_in = spec

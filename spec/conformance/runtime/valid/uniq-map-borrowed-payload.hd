@@ -1,0 +1,40 @@
+# test: matching a unique map slot lends its move-only payload without a copy
+use std.collections.UniqMap
+use std.testing.assert_equal
+struct Conn:
+    qty: usize
+impl !Copy for Conn
+pub fn main() -> void:
+    let mut pool = UniqMap::[usize, Conn].new()
+    _ := pool.insert(0, Conn { qty: 1 })
+    item := pool.get_mut(0).expect("present")
+    item.qty += 1
+    assert_equal(item.qty, 2)
+    let mut number: usize? = .Some(3)
+    found := borrow(&mut number)
+    *found += 4
+    assert_equal(number, .Some(7))
+    let mut pair = (Conn { qty: 4 }, Conn { qty: 5 })
+    first := from_pair(&mut pair)
+    first.qty += 2
+    assert_equal(first.qty, 6)
+    let mut wrapper = Wrapper { item: Conn { qty: 7 } }
+    wrapped := from_record(&mut wrapper)
+    wrapped.qty += 3
+    assert_equal(wrapped.qty, 10)
+
+fn borrow[T < ?Copy](item: &mut (T?)) -> &mut T:
+    match item:
+        .Some(value) => value
+        .None => panic("absent")
+
+struct Wrapper:
+    item: Conn
+
+fn from_pair(pair: &mut (Conn, Conn)) -> &mut Conn:
+    match pair:
+        (first, _) => first
+
+fn from_record(wrapper: &mut Wrapper) -> &mut Conn:
+    match wrapper:
+        Wrapper { item } => item

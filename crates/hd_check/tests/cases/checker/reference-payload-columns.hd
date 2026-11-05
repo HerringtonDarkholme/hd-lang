@@ -1,0 +1,36 @@
+# @dump: tir
+# Borrowed payload columns name their places directly, without a value Read.
+struct Conn:
+    qty: usize
+
+impl !Copy for Conn
+
+enum Slot:
+    Occupied(usize, Conn)
+    Empty
+
+struct Wrapper:
+    item: Conn
+
+fn shared(slot: &Slot) -> &Conn:
+    match slot:
+        .Occupied(_, item) => item
+        .Empty => panic("empty")
+
+fn mutable(slot: &mut Slot) -> &mut Conn:
+    match slot:
+        .Occupied(_, item) => item
+        .Empty => panic("empty")
+
+fn generic[T < ?Copy](slot: &mut (T?)) -> &mut T:
+    match slot:
+        .Some(item) => item
+        .None => panic("empty")
+
+fn tuple(items: &mut (Conn, Conn)) -> &mut Conn:
+    match items:
+        (first, _) => first
+
+fn record(wrapper: &mut Wrapper) -> &mut Conn:
+    match wrapper:
+        Wrapper { item } => item
