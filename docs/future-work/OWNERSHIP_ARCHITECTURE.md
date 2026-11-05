@@ -405,6 +405,18 @@ for a baseline; the verifier makes them checked.
 
 ## Migration Plan
 
+**The plan of record is #1399's checklist, not the table below.** Each
+step there names its evidence: patterns over the blessed baselines of the
+feature snapshot cases (`crates/hd_driver/tests/cases/features/`, the
+feature map). Its feature cases are derived from that evidence.
+`scripts/plancheck.py` checks the plan against the map. Every count
+operation in the feature baselines must be matched by a step naming its
+reason, every named code path must exist, and no feature case may
+disappear (`crates/hd_driver/tests/feature-cases.lock`). The map is
+additive: cases are added freely, and deleting or merging one needs the
+owner. The table below is the original estimate, kept for its size and
+time budgets.
+
 Each step is about one hour of agent work, ships alone, and passes
 default conformance and the stage snapshots. A snapshot diff may only
 remove operations, except step 13's dev parameter retains. Each step
