@@ -15,7 +15,9 @@ fn width(s: string) -> usize:
     s.len()
 > app/main/width
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 self: string [read] value
+>     uses $1: %1 -> %2 lend
 >   %0 = Read borrow [$0] : string
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : string
@@ -30,7 +32,9 @@ fn apply(f: fn(string) -> usize, s: string) -> usize:
     f(s)
 > app/main/apply
 >   local $0 f: fn(string) -> usize [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 s: string [param read] value
+>     uses $1: entry -> %1 consume
 >   %0 = Read borrow [$0] : fn(string) -> usize
 >   %1 = Read move [$1] : string
 >   %2 = CallValue %0 [%1] : usize
@@ -42,8 +46,11 @@ fn named_value(s: string) -> usize:
     apply(width, s)
 > app/main/named_value
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %1 consume
 >   local $1 f: fn(string) -> usize [read] value
+>     uses $1: %2 -> %4 lend
 >   local $2 s: string [read] value
+>     uses $2: %3 -> %5 consume
 >   %0 = ItemRef #0 [..] : fn(string) -> usize
 >   %1 = Read move [$0] : string
 >   %2 = Store [$1] %0 : ()
@@ -63,6 +70,7 @@ fn ident[T](x: T) -> T:
     x
 > app/main/ident
 >   local $0 x: T [param read] value
+>     uses $0: entry -> %0 consume
 >   %0 = Read move [$0] : T
 >   %1 = Block %0 : T
 >   exit sub 0 drops [$0]
@@ -72,7 +80,9 @@ fn map_one[A, B](x: A, f: fn(A) -> B) -> B:
     f(x)
 > app/main/map_one
 >   local $0 x: A [param read] value
+>     uses $0: entry -> %1 consume
 >   local $1 f: fn(A) -> B [param read] value
+>     uses $1: entry -> %0 lend
 >   %0 = Read borrow [$1] : fn(A) -> B
 >   %1 = Read move [$0] : A
 >   %2 = CallValue %0 [%1] : B
@@ -84,8 +94,11 @@ fn generic_value(s: string) -> string:
     map_one(s, ident)
 > app/main/generic_value
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 x: string [read] value
+>     uses $1: %2 -> %5 consume
 >   local $2 f: fn(string) -> string [read] value
+>     uses $2: %3 -> %4 lend
 >   %0 = Read move [$0] : string
 >   %1 = ItemRef #0 [..] : fn(string) -> string
 >   %2 = Store [$1] %0 : ()
@@ -105,9 +118,13 @@ fn variant_value(s: string) -> Event:
     map_one(s, Event.Named)
 > app/main/variant_value
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 $0: string [param] value
+>     uses $1: entry -> %1 consume
 >   local $2 x: string [read] value
+>     uses $2: %5 -> %8 consume
 >   local $3 f: fn(string) -> Event [read] value
+>     uses $3: %6 -> %7 lend
 >   %0 = Read move [$0] : string
 >   %1 = Read move [$1] : string
 >   %2 = NewVariant #0 [%1] : Event

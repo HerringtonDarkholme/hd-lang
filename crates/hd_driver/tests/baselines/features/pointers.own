@@ -13,6 +13,7 @@ fn make(n: string) -> *Node:
     box(Node { name: n, next: .None })
 > app/main/make
 >   local $0 n: string [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 $ref: Node [read assigned captured captured-assigned] place
 >   %0 = Read move [$0] : string
 >   %1 = NewVariant #0 [] : Counted[Node]?
@@ -29,7 +30,9 @@ fn read_ptr(p: *Node) -> usize:
     p.name.len()
 > app/main/read_ptr
 >   local $0 p: Counted[Node] [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 self: string [read] value
+>     uses $1: %1 -> %2 lend
 >   %0 = Read borrow [*$0 .name] : string
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : string
@@ -45,7 +48,9 @@ fn write_ptr(p: *mut Node, n: string) -> void:
     p.name = n
 > app/main/write_ptr
 >   local $0 p: Counted[mut Node] [param read] value
+>     uses $0: entry -> %1 lend
 >   local $1 n: string [param read] value
+>     uses $1: entry -> %0 consume
 >   %0 = Read move [$1] : string
 >   %1 = Store [*$0 .name] %0 : ()
 >   %2 = Block - : ()
@@ -56,6 +61,7 @@ fn share(p: *Node) -> (*Node, *Node):
     (p, p)
 > app/main/share
 >   local $0 p: Counted[Node] [param read] value
+>     uses $0: entry -> %0 consume, %1 consume
 >   %0 = Read copy [$0] : Counted[Node]
 >   %1 = Read copy [$0] : Counted[Node]
 >   %2 = NewTuple - [%1 %0] : (Counted[Node], Counted[Node])

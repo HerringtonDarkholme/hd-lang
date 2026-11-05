@@ -10,11 +10,16 @@ fn doubled(values: List[string]) -> List[string]:
     let mut out = values
 > app/main/doubled
 >   local $0 values: List[string] [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 out: List[string] [read assigned] value
+>     uses $1: %1 -> %2 consume, %18 lend, %33 consume
 >   local $2 $coll: List[string] [assigned] value
+>     uses $2: %3 -> %4 lend, %12 lend
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
+>     uses $5: %6 -> %9 lend
 >   local $6 v: string [read assigned] value
+>     uses $6: %22 -> %16 consume
 >   %0 = Read move [$0] : List[string]
 >   %1 = Store [$1] %0 : ()
 >   %34 = Block %33 : List[string]
@@ -60,12 +65,18 @@ fn cursor_then_push(values: List[string], s: string) -> usize:
     let mut items = values
 > app/main/cursor_then_push
 >   local $0 values: List[string] [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 s: string [param read] value
+>     uses $1: entry -> %10 consume
 >   local $2 items: List[string] [read assigned] value
+>     uses $2: %1 -> %2 consume, %12 lend, %25 lend, %29 lend
 >   local $3 cursor: ListIter[string] [read assigned captured captured-assigned] place
 >   local $4 first: string [read assigned] value
+>     uses $4: %33 -> %18 consume
 >   local $5 self: string [read] value
+>     uses $5: %19 -> %20 lend
 >   local $6 self: List[string] [read] value
+>     uses $6: %3 -> %4 consume
 >   %0 = Read move [$0] : List[string]
 >   %1 = Store [$2] %0 : ()
 >   %47 = Block %44 : usize

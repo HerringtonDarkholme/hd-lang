@@ -13,14 +13,21 @@ fn drain(parcels: UniqMap[string, Parcel]) -> usize:
     let n: usize = 0
 > app/main/drain
 >   local $0 parcels: UniqMap[string, Parcel] [param read] value
+>     uses $0: entry -> %1 consume
 >   local $1 n: usize [read assigned mutated] place
 >   local $2 $ref: UniqMapIntoIter[string, Parcel] [read assigned captured captured-assigned] place
 >   local $3 $iter: Ref[mut UniqMapIntoIter[string, Parcel]] [assigned] value
+>     uses $3: %10 -> %11 lend
 >   local $4 key: string [read assigned] value
+>     uses $4: %37 -> %14 consume
 >   local $5 parcel: Parcel [read assigned] value
+>     uses $5: %38 -> %21 consume
 >   local $6 self: string [read] value
+>     uses $6: %22 -> %23 lend
 >   local $7 self: string [read] value
+>     uses $7: %15 -> %16 lend
 >   local $8 self: UniqMap[string, Parcel] [read] value
+>     uses $8: %2 -> %3 consume
 >   %0 = Store [$1] 0:usize : ()
 >   %54 = Block %53 : usize
     for (key, parcel) in parcels:

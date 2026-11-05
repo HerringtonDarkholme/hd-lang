@@ -17,6 +17,7 @@ impl Disposable for Res:
         self.log.push(self.name)
 > app/main/impl Disposable for Res.dispose
 >   local $0 self: Ref[mut Res] [param read] value
+>     uses $0: entry -> %0 lend, %2 lend
 >   %0 = Read copy [*$0 .name] : string
 >   %1 = IsUnique [*$0 .log *] : ()
 >   %2 = Read borrow [*$0 .log *] : List[string]
@@ -28,12 +29,17 @@ fn two(log: *mut List[string], a: string, b: string) -> usize:
     using first = Res { name: a, log: log }
 > app/main/two
 >   local $0 log: Counted[mut List[string]] [param read] value
+>     uses $0: entry -> %1 consume, %10 consume
 >   local $1 a: string [param read] value
+>     uses $1: entry -> %0 consume
 >   local $2 b: string [param read] value
+>     uses $2: entry -> %9 consume
 >   local $3 first: Res [:= read assigned captured captured-assigned] place
 >   local $4 second: Res [:= read assigned captured captured-assigned] place
 >   local $5 self: string [read] value
+>     uses $5: %27 -> %28 lend
 >   local $6 self: string [read] value
+>     uses $6: %19 -> %20 lend
 >   %0 = Read move [$1] : string
 >   %1 = Read copy [$0] : Counted[mut List[string]]
 >   %2 = NewStruct [%0 %1] : Res
@@ -85,11 +91,16 @@ fn per_round(log: *mut List[string], xs: List[string]) -> void:
     for x in xs:
 > app/main/per_round
 >   local $0 log: Counted[mut List[string]] [param read] value
+>     uses $0: entry -> %15 consume
 >   local $1 xs: List[string] [param read] value
+>     uses $1: entry -> %0 consume
 >   local $2 $coll: List[string] [assigned] value
+>     uses $2: %1 -> %2 lend, %10 lend
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
+>     uses $5: %4 -> %7 lend
 >   local $6 x: string [read assigned] value
+>     uses $6: %28 -> %14 consume
 >   local $7 r: Res [:= read assigned captured captured-assigned] place
 >   %0 = Read borrow [$1] : List[string]
 >   %1 = Store [$2] %0 : ()
@@ -139,8 +150,10 @@ fn by_ref(r: &mut Res) -> usize:
     using held = r
 > app/main/by_ref
 >   local $0 r: Ref[mut Res] [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 held: Ref[mut Res] [:= read assigned] place
 >   local $2 self: string [read] value
+>     uses $2: %7 -> %8 lend
 >   %0 = Read borrow [$0] : Ref[mut Res]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : Ref[mut Res]

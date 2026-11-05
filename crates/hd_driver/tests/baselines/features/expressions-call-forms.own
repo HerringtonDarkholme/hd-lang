@@ -9,9 +9,13 @@ fn join2(first: string, second: string) -> usize:
     first.len() * 3 + second.len()
 > app/main/join2
 >   local $0 first: string [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 second: string [param read] value
+>     uses $1: entry -> %8 consume
 >   local $2 self: string [read] value
+>     uses $2: %9 -> %10 lend
 >   local $3 self: string [read] value
+>     uses $3: %1 -> %2 lend
 >   %0 = Read borrow [$0] : string
 >   %1 = Store [$3] %0 : ()
 >   %2 = Read borrow [$3] : string
@@ -35,6 +39,7 @@ fn count(values...: List[string]) -> usize:
     values.len()
 > app/main/count
 >   local $0 values: List[string] [param read] value
+>     uses $0: entry -> %0 lend
 >   %0 = Read borrow [$0] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Block %1 : usize
@@ -44,7 +49,9 @@ fn named(a: string, b: string) -> usize:
     join2(second=a, first=b)
 > app/main/named
 >   local $0 a: string [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 b: string [param read] value
+>     uses $1: entry -> %1 consume
 >   local $2 first: string [read captured] place
 >   local $3 second: string [read captured] place
 >   %0 = Read move [$0] : string
@@ -74,7 +81,9 @@ fn positional(a: string, b: string) -> usize:
     join2(b, a)
 > app/main/positional
 >   local $0 a: string [param read] value
+>     uses $0: entry -> %1 consume
 >   local $1 b: string [param read] value
+>     uses $1: entry -> %0 consume
 >   local $2 first: string [read captured] place
 >   local $3 second: string [read captured] place
 >   %0 = Read move [$1] : string
@@ -104,6 +113,7 @@ fn spread_tuple(pair: (string, string)) -> usize:
     join2(pair...)
 > app/main/spread_tuple
 >   local $0 pair: (string, string) [param read] value
+>     uses $0: entry -> %0 consume, %1 consume
 >   local $1 first: string [read captured] place
 >   local $2 second: string [read captured] place
 >   %0 = Read move [$0 .0] : string
@@ -133,7 +143,9 @@ fn spread_list(xs: List[string]) -> usize:
     count(xs...)
 > app/main/spread_list
 >   local $0 xs: List[string] [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 values: List[string] [read] value
+>     uses $1: %1 -> %2 lend
 >   %0 = Read borrow [$0] : List[string]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : List[string]
@@ -148,8 +160,11 @@ fn collect(a: string, b: string) -> usize:
     count(a, b)
 > app/main/collect
 >   local $0 a: string [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 b: string [param read] value
+>     uses $1: entry -> %1 consume
 >   local $2 values: List[string] [read] value
+>     uses $2: %3 -> %4 lend
 >   %0 = Read move [$0] : string
 >   %1 = Read move [$1] : string
 >   %2 = NewList - [%0 %1] : List[string]

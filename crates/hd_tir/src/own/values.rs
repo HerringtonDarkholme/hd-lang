@@ -23,7 +23,7 @@
 //! passes or after them alike.
 
 use super::splice;
-use crate::ir::{Body, CaptureMode, NONE, Proj, Ref, Root, Tag, Topology, inside, u32_of};
+use crate::ir::{Body, CaptureMode, NONE, Proj, Ref, Role, Root, Tag, Topology, inside, u32_of};
 use hd_base::SliceSort as _;
 
 /// What one local of a body is ([`classify`]).
@@ -207,6 +207,197 @@ pub fn label(c: Local) -> String {
         Local::Value(d) if d <= 1 => "value".to_owned(),
         Local::Value(d) => format!("value ×{d}"),
     }
+}
+
+/// How one read of a value local uses the value it reads (step 8a): it
+/// consumes it when one of the read's own uses takes the read's count
+/// ([`super::consumes`]: a store, a construction part, a return, an owned
+/// argument) and it reads the value or a field or payload of it, and
+/// lends it otherwise: a read through an element or a dereference lends.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Use {
+    Lend,
+    Consume,
+}
+
+/// One use of a value local ([`uses`]): a read of it, a store or a
+/// reference through it, or a closure's capture of it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ValueUse {
+    pub local: u32,
+    /// The definition whose value it reads: a `Store`, or `NONE` for a
+    /// parameter's entry value.
+    pub def: u32,
+    /// The using instruction.
+    pub at: u32,
+    pub how: Use,
+}
+
+/// Each use of a value local of `b` (`classes`, from [`classify`]), in
+/// `out` by local, then definition, then instruction: the value it uses
+/// and whether it consumes or lends it. A value local's definitions sit
+/// in one block, so a read's value is the last definition before the
+/// read's statement in that block; a read after that block reads its
+/// last definition, and a read before every store a parameter's entry.
+pub fn uses(
+    b: &Body,
+    cx: &dyn super::OwnCx,
+    topo: &Topology,
+    classes: &[Local],
+    out: &mut Vec<ValueUse>,
+) {
+    out.clear();
+    let value = |l: u32| matches!(classes.get(l as usize), Some(Local::Value(_)));
+    let local_read = |v: usize| {
+        if v >= b.len() || b.tags[v] != Tag::Read {
+            return None;
+        }
+        match b.view(b.data[v][0]).root {
+            Root::Local(l) if value(l) => Some(l),
+            _ => None,
+        }
+    };
+    // Each value local's definitions, in the order their block runs them.
+    let mut defs: Vec<(u32, u32)> = Vec::new();
+    let mut consumed = Vec::new();
+    let mut ops = Vec::new();
+    for i in 0..b.len() {
+        if b.tags[i] == Tag::Store {
+            let p = b.view(b.data[i][0]);
+            if let Some(l) = p.local()
+                && value(l)
+                && p.steps(b).all(|s| matches!(s, Proj::Field(_)))
+            {
+                defs.push((l, u32_of(i)));
+            }
+        }
+        super::operands(b, i, &mut ops);
+        for op in &ops {
+            if local_read(op.value as usize).is_none() {
+                continue;
+            }
+            let owner = if op.role == Role::Tail && !topo.is_root[i] {
+                topo.owner[i]
+            } else {
+                NONE
+            };
+            if super::consumes(b, cx, i, op, owner) {
+                consumed.push(op.value);
+            }
+        }
+    }
+    defs.sort_stable_by_key(|&(l, s)| (l, topo.pos[s as usize]));
+    consumed.sort_stable();
+    // The definition use `r` of local `l` reads.
+    let def_of = |l: u32, r: usize| {
+        let lo = defs.partition_point(|&(x, _)| x < l);
+        let hi = defs.partition_point(|&(x, _)| x <= l);
+        let mine = &defs[lo..hi];
+        let &(_, s) = mine.first()?;
+        let home = topo.blk[s as usize];
+        // The use's statement in the definitions' block, or `NONE` when
+        // the use is after that block or in a closure's body.
+        let mut x = u32_of(r);
+        while x != NONE && topo.blk[x as usize] != home {
+            x = if topo.is_root[x as usize] {
+                NONE
+            } else {
+                topo.blk[x as usize]
+            };
+        }
+        let before =
+            |&&(_, s): &&(u32, u32)| x == NONE || topo.pos[s as usize] < topo.pos[x as usize];
+        mine.iter().rev().find(before).map(|&(_, s)| s)
+    };
+    let mut push = |l: u32, r: usize, how: Use| {
+        let def = def_of(l, r).unwrap_or(NONE);
+        out.push(ValueUse {
+            local: l,
+            def,
+            at: u32_of(r),
+            how,
+        });
+    };
+    for r in 0..b.len() {
+        match b.tags[r] {
+            Tag::Read => {
+                let Some(l) = local_read(r) else {
+                    continue;
+                };
+                // A read through an element or a dereference copies what
+                // the value refers to, and only lends the value.
+                let part = b
+                    .view(b.data[r][0])
+                    .steps(b)
+                    .all(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)));
+                let how = if part && consumed.binary_search(&u32_of(r)).is_ok() {
+                    Use::Consume
+                } else {
+                    Use::Lend
+                };
+                push(l, r, how);
+            }
+            // A store or a reference through the value's dereference
+            // lends the reference the value is.
+            Tag::Store | Tag::Ref => {
+                let p = b.view(b.data[r][0]);
+                if let Root::Local(l) = p.root
+                    && value(l)
+                    && p.steps(b).any(|s| matches!(s, Proj::Deref))
+                {
+                    push(l, r, Use::Lend);
+                }
+            }
+            // A closure that copies or moves the value in consumes it.
+            Tag::Closure => {
+                let rec = b.record(b.data[r][1]);
+                for c in rec[0]..rec[0] + rec[1] {
+                    let l = b.cap_local[c as usize].raw();
+                    if b.cap_mode.get(c as usize) != Some(&CaptureMode::Shared) && value(l) {
+                        push(l, r, Use::Consume);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    out.sort_stable_by_key(|u| (u.local, u.def.wrapping_add(1), u.at));
+}
+
+/// The `own` view's line for the uses of value local `l` (its entries
+/// of [`uses`], by definition): `uses $l: %d -> %u lend, %w consume; ...`,
+/// where `%d` is the definition's `Store`, or `entry` for a parameter's
+/// entry value; `uses $l: none` for a local nothing uses.
+#[must_use]
+pub fn uses_line(l: u32, uses: &[ValueUse]) -> String {
+    use std::fmt::Write as _;
+    let mut out = format!("uses ${l}:");
+    let mine = uses.iter().filter(|u| u.local == l);
+    let mut def = None;
+    for u in mine {
+        if def == Some(u.def) {
+            out.push(',');
+        } else {
+            if def.is_some() {
+                out.push(';');
+            }
+            def = Some(u.def);
+            if u.def == NONE {
+                out.push_str(" entry ->");
+            } else {
+                let _ = write!(out, " %{} ->", u.def);
+            }
+        }
+        let how = match u.how {
+            Use::Lend => "lend",
+            Use::Consume => "consume",
+        };
+        let _ = write!(out, " %{} {how}", u.at);
+    }
+    if def.is_none() {
+        out.push_str(" none");
+    }
+    out
 }
 
 /// The pass's tables, reused across bodies.

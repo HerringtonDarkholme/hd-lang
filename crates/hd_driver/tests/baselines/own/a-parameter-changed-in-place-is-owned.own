@@ -7,6 +7,7 @@ fn grown(mut xs: List[i64]) -> usize:
     xs.push(1)
 > app/main/grown
 >   local $0 xs: List[i64] [param read] value
+>     uses $0: entry -> %1 lend, %3 lend
 >   %0 = IsUnique [$0] : ()
 >   %1 = Read borrow [$0] : List[i64]
 >   %2 = Intrinsic ListPush [%1 1:i64] : ()

@@ -8,13 +8,19 @@ fn by_value(m: Map[string, string]) -> usize:
     let n: usize = 0
 > app/main/by_value
 >   local $0 m: Map[string, string] [param read] value
+>     uses $0: entry -> %1 consume
 >   local $1 n: usize [read assigned mutated] place
 >   local $2 $coll: Map[string, string] [assigned] value
+>     uses $2: %2 -> %3 lend, %6 lend, %10 lend, %18 lend
 >   local $3 $len: usize [assigned] value
+>     uses $3: none
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
+>     uses $5: %8 -> %12 lend, %16 lend
 >   local $6 k: Ref[string] [read assigned] value
+>     uses $6: %35 -> %25 lend
 >   local $7 v: Ref[string] [read assigned] value
+>     uses $7: %36 -> %27 lend
 >   %0 = Store [$1] 0:usize : ()
 >   %48 = Block %47 : usize
     for (k, v) in m:
@@ -72,12 +78,17 @@ fn by_ref(m: &Map[string, string]) -> usize:
     let n: usize = 0
 > app/main/by_ref
 >   local $0 m: Ref[Map[string, string]] [param read] value
+>     uses $0: entry -> %1 lend
 >   local $1 n: usize [read assigned mutated] place
 >   local $2 $coll: Map[string, string] [assigned] value
+>     uses $2: %2 -> %3 lend, %6 lend, %10 lend, %18 lend
 >   local $3 $len: usize [assigned] value
+>     uses $3: none
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
+>     uses $5: %8 -> %12 lend, %16 lend
 >   local $6 v: Ref[string] [read assigned] value
+>     uses $6: %31 -> %25 lend
 >   %0 = Store [$1] 0:usize : ()
 >   %44 = Block %43 : usize
     for (_, v) in m:
@@ -131,12 +142,18 @@ fn keys(m: Map[string, string]) -> List[string]:
     let mut out: List[string] = []
 > app/main/keys
 >   local $0 m: Map[string, string] [param read] value
+>     uses $0: entry -> %2 consume
 >   local $1 out: List[string] [read assigned] value
+>     uses $1: %1 -> %27 lend, %43 consume
 >   local $2 $coll: Map[string, string] [assigned] value
+>     uses $2: %3 -> %4 lend, %7 lend, %11 lend, %19 lend
 >   local $3 $len: usize [assigned] value
+>     uses $3: none
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
+>     uses $5: %9 -> %13 lend, %17 lend
 >   local $6 k: Ref[string] [read assigned] value
+>     uses $6: %31 -> %25 lend
 >   %0 = NewList - [] : List[string]
 >   %1 = Store [$1] %0 : ()
 >   %44 = Block %43 : List[string]

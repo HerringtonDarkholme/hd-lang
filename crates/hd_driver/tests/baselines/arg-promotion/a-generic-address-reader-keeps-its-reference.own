@@ -16,7 +16,9 @@ impl[T < ?Copy] Room[T]:
         self.address + index * 4
 > app/main/impl [ T < ? Copy ] Room [ T ].at
 >   local $0 self: Ref[Room[T]] [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 index: usize [param read] value
+>     uses $1: entry -> %1 lend
 >   %0 = Read copy [*$0 .address] : usize
 >   %1 = Read copy [$1] : usize
 >   %2 = Prim Mul [%1 4:usize] : usize
@@ -28,8 +30,11 @@ fn address[T < ?Copy](room: &Room[T], index: usize) -> usize:
     room.at(index)
 > app/main/address
 >   local $0 room: Ref[Room[T]] [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 index: usize [param read] value
+>     uses $1: entry -> %1 consume
 >   local $3 index: usize [read] value
+>     uses $3: %2 -> %4 lend
 >   %0 = Read borrow [$0] : Ref[Room[T]]
 >   %1 = Read copy [$1] : usize
 >   %2 = Store [$3] %1 : ()
@@ -47,9 +52,13 @@ fn caller(room: &Room[u32], index: usize) -> usize:
     address(room, index)
 > app/main/caller
 >   local $0 room: Ref[Room[u32]] [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 index: usize [param read] value
+>     uses $1: entry -> %2 consume
 >   local $3 index: usize [read] value
+>     uses $3: %3 -> %6 consume
 >   local $5 index: usize [read] value
+>     uses $5: %7 -> %9 lend
 >   %0 = Read borrow [$0] : Ref[Room[u32]]
 >   %1 = Coerce %0 [Weaken -] : Ref[Room[u32]]
 >   %2 = Read copy [$1] : usize

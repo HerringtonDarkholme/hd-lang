@@ -49,6 +49,13 @@ pub(super) fn view(p: &super::Program, at: super::Build) -> String {
                 .any(|(_, l)| l.split([' ', ']', '[', '*']).any(|w| w == id))
             {
                 let _ = writeln!(out, "  local {local}");
+                // A value local's reads, each consuming or lending.
+                let uses = format!("uses {id}:");
+                for l in own.text.lines().map(str::trim) {
+                    if l.starts_with(&uses) {
+                        let _ = writeln!(out, "    {l}");
+                    }
+                }
             }
         }
         let last = lines.iter().map(|(lo, _)| *lo).max().unwrap_or(first);

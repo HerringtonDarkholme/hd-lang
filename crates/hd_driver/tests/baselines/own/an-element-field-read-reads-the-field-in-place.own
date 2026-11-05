@@ -21,7 +21,9 @@ impl[T] Members[T]:
         self.infos[i].position
 > app/main/impl [ T ] Members [ T ].position_at
 >   local $0 self: Members[T] [param read] value
+>     uses $0: entry -> %1 lend
 >   local $1 i: usize [param read] value
+>     uses $1: entry -> %0 lend
 >   %0 = Read copy [$1] : usize
 >   %1 = Read copy [$0 .infos [%0] .position] : usize
 >   %2 = Block %1 : usize
@@ -30,7 +32,9 @@ impl[T] Members[T]:
         self.infos[i].name
 > app/main/impl [ T ] Members [ T ].name_at
 >   local $0 self: Members[T] [param read] value
+>     uses $0: entry -> %1 lend
 >   local $1 i: usize [param read] value
+>     uses $1: entry -> %0 lend
 >   %0 = Read copy [$1] : usize
 >   %1 = Read copy [$0 .infos [%0] .name] : string
 >   %2 = Drop [$0] : ()
@@ -41,7 +45,9 @@ impl[T] Members[T]:
         self.points[i].y
 > app/main/impl [ T ] Members [ T ].y_at
 >   local $0 self: Members[T] [param read] value
+>     uses $0: entry -> %1 lend
 >   local $1 i: usize [param read] value
+>     uses $1: entry -> %0 lend
 >   %0 = Read copy [$1] : usize
 >   %1 = Read copy [$0 .points [%0] .y] : i64
 >   %2 = Block %1 : i64
@@ -50,7 +56,9 @@ fn position_at(infos: List[Info], i: usize) -> usize:
     infos[i].position
 > app/main/position_at
 >   local $0 infos: List[Info] [param read] value
+>     uses $0: entry -> %1 lend
 >   local $1 i: usize [param read] value
+>     uses $1: entry -> %0 lend
 >   %0 = Read copy [$1] : usize
 >   %1 = Read copy [$0 [%0] .position] : usize
 >   %2 = Block %1 : usize
@@ -59,7 +67,9 @@ fn name_at(infos: List[Info], i: usize) -> string:
     infos[i].name
 > app/main/name_at
 >   local $0 infos: List[Info] [param read] value
+>     uses $0: entry -> %1 lend
 >   local $1 i: usize [param read] value
+>     uses $1: entry -> %0 lend
 >   %0 = Read copy [$1] : usize
 >   %1 = Read copy [$0 [%0] .name] : string
 >   %2 = Drop [$0] : ()
@@ -70,7 +80,9 @@ fn y_at(points: List[Point], i: usize) -> i64:
     points[i].y
 > app/main/y_at
 >   local $0 points: List[Point] [param read] value
+>     uses $0: entry -> %1 lend
 >   local $1 i: usize [param read] value
+>     uses $1: entry -> %0 lend
 >   %0 = Read copy [$1] : usize
 >   %1 = Read copy [$0 [%0] .y] : i64
 >   %2 = Block %1 : i64
@@ -83,7 +95,9 @@ fn n_at[T](xs: List[Wrap[T]], i: usize) -> usize:
     xs[i].n
 > app/main/n_at
 >   local $0 xs: List[Wrap[T]] [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 i: usize [param read] value
+>     uses $1: entry -> %1 lend
 >   %0 = Read borrow [$0] : List[Wrap[T]]
 >   %1 = Read copy [$1] : usize
 >   %2 = Read borrow [%0 [%1]] : Wrap[T]
@@ -95,10 +109,15 @@ fn use_generic(m: Members[i32], xs: List[Wrap[string]], i: usize) -> i64:
     name := m.name_at(i)
 > app/main/use_generic
 >   local $0 m: Members[i32] [param read] value
+>     uses $0: entry -> %0 consume, %4 consume, %21 consume
 >   local $1 xs: List[Wrap[string]] [param read] value
+>     uses $1: entry -> %7 consume
 >   local $2 i: usize [param read] value
+>     uses $2: entry -> %1 lend, %5 lend, %8 lend, %22 lend
 >   local $3 name: string [:= read assigned] value
+>     uses $3: %3 -> %11 consume
 >   local $4 self: string [read] value
+>     uses $4: %12 -> %13 lend
 >   %0 = Read copy [$0] : Members[i32]
 >   %1 = Read copy [$2] : usize
 >   %2 = Call app/main/impl [ T ] Members [ T ].name_at[i32] (%0, %1) : string

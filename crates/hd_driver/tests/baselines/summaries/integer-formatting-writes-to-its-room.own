@@ -9,8 +9,11 @@ fn signed(value: i64, room: &mut Buffer[u8]) -> (usize, usize):
     format_signed(value, room.at(0))
 > std/rt_tests.stage_case/signed
 >   local $0 value: i64 [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 room: Ref[mut Buffer[u8]] [param read] value
+>     uses $1: entry -> %1 consume
 >   local $3 index: usize [read] value
+>     uses $3: %3 -> %6 lend
 >   %0 = Read copy [$0] : i64
 >   %1 = Read borrow [$1] : Ref[mut Buffer[u8]]
 >   %2 = Coerce %1 [Weaken -] : Ref[Buffer[u8]]
@@ -30,8 +33,11 @@ fn unsigned(value: u64, room: &mut Buffer[u8]) -> (usize, usize):
     format_unsigned(value, room.at(0))
 > std/rt_tests.stage_case/unsigned
 >   local $0 value: u64 [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 room: Ref[mut Buffer[u8]] [param read] value
+>     uses $1: entry -> %1 consume
 >   local $3 index: usize [read] value
+>     uses $3: %3 -> %6 lend
 >   %0 = Read copy [$0] : u64
 >   %1 = Read borrow [$1] : Ref[mut Buffer[u8]]
 >   %2 = Coerce %1 [Weaken -] : Ref[Buffer[u8]]

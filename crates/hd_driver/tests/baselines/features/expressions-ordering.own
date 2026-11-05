@@ -7,11 +7,15 @@ fn str_lt(a: string, b: string) -> bool:
     a < b
 > app/main/str_lt
 >   local $0 a: string [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 b: string [param read] value
+>     uses $1: entry -> %1 consume
 >   local $2 $order: Ordering? [read assigned captured] place
 >   local $3 $ref: Ordering? [read assigned captured captured-assigned] place
 >   local $4 self: string [read] value
+>     uses $4: %2 -> %4 lend
 >   local $5 other: string [read] value
+>     uses $5: %3 -> %5 lend
 >   %0 = Read borrow [$0] : string
 >   %1 = Read borrow [$1] : string
 >   %2 = Store [$4] %0 : ()

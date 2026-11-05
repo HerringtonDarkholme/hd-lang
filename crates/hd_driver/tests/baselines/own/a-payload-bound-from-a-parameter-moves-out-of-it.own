@@ -12,7 +12,9 @@ fn label(value: Parcel?) -> string:
     match value:
 > app/main/label
 >   local $0 value: Parcel? [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 parcel: Parcel [read assigned] value
+>     uses $1: %5 -> %1 consume
 >   %0 = Read move [$0] : Parcel?
 >   %8 = Drop [%0] : ()
 >   %16 = Block - : never

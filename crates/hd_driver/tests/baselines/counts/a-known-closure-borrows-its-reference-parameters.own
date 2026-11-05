@@ -7,10 +7,15 @@ fn total(left: &i32, right: &i32) -> i32:
     by := fn(a: &i32, b: &i32): *a + *b
 > app/main/total
 >   local $0 left: Ref[i32] [param read] value
+>     uses $0: entry -> %10 lend
 >   local $1 right: Ref[i32] [param read] value
+>     uses $1: entry -> %11 lend
 >   local $2 a: Ref[i32] [param read] value
+>     uses $2: entry -> %0 lend
 >   local $3 b: Ref[i32] [param read] value
+>     uses $3: entry -> %1 lend
 >   local $4 by: fn(Ref[i32], Ref[i32]) -> i32 [:= read assigned] value
+>     uses $4: %8 -> %9 lend
 >   %0 = Read copy [*$2] : i32
 >   %1 = Read copy [*$3] : i32
 >   %2 = Prim Add [%0 %1] : i32

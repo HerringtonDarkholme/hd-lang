@@ -7,29 +7,53 @@ fn greeting(input: string) -> string:
     args := input.split(",")
 > app/main/greeting
 >   local $0 input: string [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 args: List[string] [:= read assigned] value
+>     uses $1: %2 -> %3 lend, %6 lend, %78 lend
 >   local $2 name: string [:= read assigned] value
+>     uses $2: %7 -> %8 lend, %14 lend
 >   local $4 result: string [read] value
+>     uses $4: %137 -> %142 lend
 >   local $5 offset: usize [read] value
+>     uses $5: %138 -> %144 lend
 >   local $6 value: u64 [read] value
+>     uses $6: %139 -> %141 lend
 >   local $7 width: usize [read] value
+>     uses $7: %140 -> %146 lend
 >   local $8 result: string [read] value
+>     uses $8: %118 -> %121 lend
 >   local $9 offset: usize [read] value
+>     uses $9: %119 -> %124 lend
 >   local $10 text: string [read] value
+>     uses $10: %120 -> %126 lend, %129 lend
 >   local $11 result: string [read] value
+>     uses $11: %98 -> %102 lend
 >   local $12 offset: usize [read] value
+>     uses $12: %99 -> %105 lend
 >   local $13 text: string [read] value
+>     uses $13: %101 -> %107 lend, %110 lend
 >   local $14 size: usize [read] value
+>     uses $14: %91 -> %92 lend
 >   local $15 value: u64 [read] value
+>     uses $15: %82 -> %83 lend
 >   local $16 value: string [read] value
+>     uses $16: %72 -> %73 lend
 >   local $17 result: string [read] value
+>     uses $17: %50 -> %54 lend
 >   local $18 offset: usize [read] value
+>     uses $18: %51 -> %57 lend
 >   local $19 text: string [read] value
+>     uses $19: %53 -> %59 lend, %62 lend
 >   local $20 result: string [read] value
+>     uses $20: %31 -> %34 lend
 >   local $21 offset: usize [read] value
+>     uses $21: %32 -> %37 lend
 >   local $22 text: string [read] value
+>     uses $22: %33 -> %39 lend, %42 lend
 >   local $23 size: usize [read] value
+>     uses $23: %24 -> %25 lend
 >   local $24 value: string [read] value
+>     uses $24: %16 -> %17 lend
 >   %0 = Read move [$0] : string
 >   %1 = Call std/text/impl string.split[] (%0, ",") : List[string]
 >   %2 = Store [$1] %1 : ()

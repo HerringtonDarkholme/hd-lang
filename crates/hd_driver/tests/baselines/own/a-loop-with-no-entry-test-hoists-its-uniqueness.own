@@ -10,23 +10,35 @@ fn rotate(n: usize) -> usize:
     let mut items = [for i in 0..n => i]
 > app/main/rotate
 >   local $0 n: usize [param read] value
+>     uses $0: entry -> %2 consume, %46 consume, %130 lend
 >   local $1 $acc: mut List[usize] [assigned] value
+>     uses $1: %1 -> %21 lend, %33 lend, %41 consume
 >   local $2 $cur: usize [assigned] place
 >   local $3 $end: usize [assigned] value
+>     uses $3: %7 -> %12 lend, %25 lend
 >   local $4 $incl: bool [assigned] value
+>     uses $4: none
 >   local $5 i: usize [read assigned] value
+>     uses $5: %28 -> %32 consume
 >   local $6 items: List[usize] [read assigned] place
 >   local $7 $acc: mut List[usize] [assigned] value
+>     uses $7: %45 -> %65 lend, %75 lend, %83 consume
 >   local $8 $cur: usize [assigned] place
 >   local $9 $end: usize [assigned] value
+>     uses $9: %51 -> %56 lend, %69 lend
 >   local $10 $incl: bool [assigned] value
+>     uses $10: none
 >   local $11 count: List[usize] [read assigned] place
 >   local $12 r: usize [read assigned mutated] place
 >   local $13 first: usize [:= read assigned] value
+>     uses $13: %90 -> %119 consume
 >   local $14 $cur: usize [assigned] place
 >   local $15 $end: usize [assigned] value
+>     uses $15: %96 -> %100 lend
 >   local $16 $incl: bool [assigned] value
+>     uses $16: none
 >   local $17 i: usize [read assigned] value
+>     uses $17: %103 -> %107 lend, %108 lend
 >   %0 = NewList - [] : mut List[usize]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read copy [$0] : usize

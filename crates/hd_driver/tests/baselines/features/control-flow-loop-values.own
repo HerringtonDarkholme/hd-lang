@@ -9,11 +9,16 @@ fn first_long(xs: List[string]) -> string:
     for x in xs:
 > app/main/first_long
 >   local $0 xs: List[string] [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 $coll: List[string] [assigned] value
+>     uses $1: %1 -> %2 lend, %10 lend
 >   local $3 $pos: usize [assigned] place
 >   local $4 $end: usize [assigned] value
+>     uses $4: %4 -> %7 lend
 >   local $5 x: string [read assigned] value
+>     uses $5: %28 -> %14 consume, %22 consume
 >   local $6 self: string [read] value
+>     uses $6: %15 -> %16 lend
 >   %0 = Read borrow [$0] : List[string]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : List[string]
@@ -64,8 +69,10 @@ fn first_index(xs: List[string]) -> usize:
     let i: usize = 0
 > app/main/first_index
 >   local $0 xs: List[string] [param read] value
+>     uses $0: entry -> %2 lend, %6 lend, %23 lend
 >   local $1 i: usize [read assigned mutated] place
 >   local $2 self: string [read] value
+>     uses $2: %7 -> %8 lend
 >   %0 = Store [$1] 0:usize : ()
 >   %31 = Block %29 : usize
     while i < xs.len():
@@ -112,8 +119,10 @@ fn forever(s: string) -> string:
     let out = s
 > app/main/forever
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 out: string [read assigned mutated] place
 >   local $2 self: string [read] value
+>     uses $2: %3 -> %4 lend
 >   %0 = Read move [$0] : string
 >   %1 = Store [$1] %0 : ()
 >   %24 = Block - : string

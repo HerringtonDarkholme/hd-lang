@@ -63,9 +63,13 @@ fn lookup(m: Map[Key, string], k: Key) -> usize:
     match m.get(k):
 > app/main/lookup
 >   local $0 m: Map[Key, string] [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 k: Key [param read] value
+>     uses $1: entry -> %1 lend
 >   local $2 v: string [read assigned] value
+>     uses $2: %13 -> %3 consume
 >   local $3 self: string [read] value
+>     uses $3: %4 -> %5 lend
 >   %0 = Read borrow [$0] : Map[Key, string]
 >   %1 = Read borrow [$1] : Key
 >   %2 = Intrinsic MapGet [%0 %1] : string?
@@ -98,7 +102,9 @@ fn tuple_key(m: Map[(string, i32), i32], s: string) -> i32:
     m.get((s, 1)).unwrap_or(0)
 > app/main/tuple_key
 >   local $0 m: Map[(string, i32), i32] [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 s: string [param read] value
+>     uses $1: entry -> %1 consume
 >   %0 = Read borrow [$0] : Map[(string, i32), i32]
 >   %1 = Read move [$1] : string
 >   %2 = NewTuple - [%1 1:i32] : (string, i32)

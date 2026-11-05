@@ -12,8 +12,11 @@ fn list_read(xs: List[string], i: usize) -> usize:
     xs[i].len()
 > app/main/list_read
 >   local $0 xs: List[string] [param read] value
+>     uses $0: entry -> %1 lend
 >   local $1 i: usize [param read] value
+>     uses $1: entry -> %0 lend
 >   local $2 self: string [read] value
+>     uses $2: %3 -> %4 lend
 >   %0 = Read copy [$1] : usize
 >   %1 = Read copy [$0 [%0]] : string
 >   %2 = Drop [$0] : ()
@@ -32,7 +35,9 @@ fn list_take(xs: List[string], i: usize) -> string:
     xs[i]
 > app/main/list_take
 >   local $0 xs: List[string] [param read] value
+>     uses $0: entry -> %1 lend
 >   local $1 i: usize [param read] value
+>     uses $1: entry -> %0 lend
 >   %0 = Read copy [$1] : usize
 >   %1 = Read copy [$0 [%0]] : string
 >   %2 = Drop [$0] : ()
@@ -44,8 +49,11 @@ fn list_write(xs: &mut List[string], i: usize, s: string) -> void:
     xs[i] = s
 > app/main/list_write
 >   local $0 xs: Ref[mut List[string]] [param read] value
+>     uses $0: entry -> %3 lend
 >   local $1 i: usize [param read] value
+>     uses $1: entry -> %0 lend
 >   local $2 s: string [param read] value
+>     uses $2: entry -> %1 consume
 >   %0 = Read copy [$1] : usize
 >   %1 = Read move [$2] : string
 >   %2 = IsUnique [*$0] : ()
@@ -58,9 +66,13 @@ fn map_read(m: Map[string, string], k: string) -> usize:
     match m.get(k):
 > app/main/map_read
 >   local $0 m: Map[string, string] [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 k: string [param read] value
+>     uses $1: entry -> %1 lend
 >   local $2 v: string [read assigned] value
+>     uses $2: %13 -> %3 consume
 >   local $3 self: string [read] value
+>     uses $3: %4 -> %5 lend
 >   %0 = Read borrow [$0] : Map[string, string]
 >   %1 = Read borrow [$1] : string
 >   %2 = Intrinsic MapGet [%0 %1] : string?
@@ -93,8 +105,11 @@ fn map_write(m: &mut Map[string, string], k: string, v: string) -> void:
     m[k] = v
 > app/main/map_write
 >   local $0 m: Ref[mut Map[string, string]] [param read] value
+>     uses $0: entry -> %3 lend
 >   local $1 k: string [param read] value
+>     uses $1: entry -> %0 lend
 >   local $2 v: string [param read] value
+>     uses $2: entry -> %1 consume
 >   %0 = Read borrow [$1] : string
 >   %1 = Read move [$2] : string
 >   %2 = IsUnique [*$0] : ()
@@ -108,11 +123,17 @@ fn uniq_read(xs: &UniqList[string], i: usize) -> usize:
     match xs.get_ref(i):
 > app/main/uniq_read
 >   local $0 xs: Ref[UniqList[string]] [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 i: usize [param read] value
+>     uses $1: entry -> %1 consume
 >   local $2 s: Ref[string] [read assigned] value
+>     uses $2: %32 -> %27 lend
 >   local $3 self: Ref[UniqList[string]] [read] value
+>     uses $3: %2 -> %5 lend, %9 lend
 >   local $4 index: usize [read] value
+>     uses $4: %3 -> %4 lend, %10 consume
 >   local $6 index: usize [read] value
+>     uses $6: %11 -> %14 lend
 >   %0 = Read borrow [$0] : Ref[UniqList[string]]
 >   %1 = Read copy [$1] : usize
 >   %2 = Store [$3] %0 : ()
@@ -164,12 +185,19 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
     match xs.get_mut(i):
 > app/main/uniq_write
 >   local $0 xs: Ref[mut UniqList[string]] [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 i: usize [param read] value
+>     uses $1: entry -> %1 consume
 >   local $2 s: string [param read] value
+>     uses $2: entry -> %27 consume
 >   local $3 r: Ref[mut string] [read assigned] value
+>     uses $3: %33 -> %28 lend
 >   local $4 self: Ref[mut UniqList[string]] [read] value
+>     uses $4: %2 -> %5 lend, %9 lend
 >   local $5 index: usize [read] value
+>     uses $5: %3 -> %4 lend, %10 consume
 >   local $7 index: usize [read] value
+>     uses $7: %11 -> %14 lend
 >   %0 = Read borrow [$0] : Ref[mut UniqList[string]]
 >   %1 = Read copy [$1] : usize
 >   %2 = Store [$4] %0 : ()

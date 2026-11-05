@@ -8670,22 +8670,32 @@ impl Run<'_> {
             ))
         };
         let text = hd_check::render(&names, body, &fields);
-        // Each local's class (`hd_tir::own::values`) after its line.
+        // Each local's class (`hd_tir::own::values`) after its line, and a
+        // value local's reads on the line below.
         let mut classes = Vec::new();
         hd_tir::own::values::classify(body, &mut classes);
-        let mut out = String::with_capacity(text.len() + 8 * classes.len());
+        let mut uses = Vec::new();
+        let topo = hd_tir::ir::Topology::new(body);
+        self.with_env(p, |cx| {
+            hd_tir::own::values::uses(body, cx, &topo, &classes, &mut uses);
+        });
+        let mut out = String::with_capacity(text.len() + 24 * classes.len());
         for line in text.split_inclusive('\n') {
-            let class = line
+            let local = line
                 .strip_prefix("  local $")
                 .and_then(|r| r.split(' ').next())
-                .and_then(|k| k.parse::<usize>().ok())
-                .and_then(|k| classes.get(k));
-            match class {
-                Some(&c) => {
+                .and_then(|k| k.parse::<u32>().ok());
+            match local.and_then(|k| Some((k, *classes.get(k as usize)?))) {
+                Some((k, c)) => {
                     out.push_str(line.trim_end_matches('\n'));
                     out.push(' ');
                     out.push_str(&hd_tir::own::values::label(c));
                     out.push('\n');
+                    if matches!(c, hd_tir::own::values::Local::Value(_)) {
+                        out.push_str("  ");
+                        out.push_str(&hd_tir::own::values::uses_line(k, &uses));
+                        out.push('\n');
+                    }
                 }
                 None => out.push_str(line),
             }

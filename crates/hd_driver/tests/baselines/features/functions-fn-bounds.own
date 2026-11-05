@@ -12,7 +12,9 @@ fn width(s: string) -> usize:
     s.len()
 > app/main/width
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 self: string [read] value
+>     uses $1: %1 -> %2 lend
 >   %0 = Read borrow [$0] : string
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : string
@@ -27,7 +29,9 @@ fn invoke[F < Fn(string) -> usize](f: F, s: string) -> usize:
     f(s)
 > app/main/invoke
 >   local $0 f: F [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 s: string [param read] value
+>     uses $1: entry -> %1 lend
 >   %0 = Read borrow [$0] : F
 >   %1 = Read borrow [$1] : string
 >   %2 = CallValue %0 [%1] : usize
@@ -38,12 +42,19 @@ fn static_bound(s: string) -> usize:
     invoke(width, s) + invoke(fn(x: string) -> usize: x.len() + 1, s)
 > app/main/static_bound
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %1 consume, %22 consume
 >   local $1 x: string [param read] value
+>     uses $1: entry -> %11 consume
 >   local $2 f: fn(string) -> usize [read] value
+>     uses $2: %23 -> %25 lend
 >   local $3 s: string [read] value
+>     uses $3: %24 -> %26 consume
 >   local $4 self: string [read] value
+>     uses $4: %12 -> %13 lend
 >   local $5 f: fn(string) -> usize [read] value
+>     uses $5: %2 -> %4 lend
 >   local $6 s: string [read] value
+>     uses $6: %3 -> %5 consume
 >   %0 = ItemRef #0 [..] : fn(string) -> usize
 >   %1 = Read copy [$0] : string
 >   %2 = Store [$5] %0 : ()
@@ -86,11 +97,16 @@ fn each[F < FnMut(string) -> void](xs: List[string], mut f: F) -> void:
     for x in xs:
 > app/main/each
 >   local $0 xs: List[string] [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 f: F [param read] value
+>     uses $1: entry -> %14 lend
 >   local $2 $coll: List[string] [assigned] value
+>     uses $2: %1 -> %2 lend, %10 lend
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
+>     uses $5: %4 -> %7 lend
 >   local $6 x: string [read assigned] value
+>     uses $6: %19 -> %15 lend
 >   %0 = Read borrow [$0] : List[string]
 >   %1 = Store [$2] %0 : ()
 >   %2 = Read borrow [$2] : List[string]
@@ -129,9 +145,12 @@ fn fn_mut(xs: List[string]) -> usize:
     let n: usize = 0
 > app/main/fn_mut
 >   local $0 xs: List[string] [param read] value
+>     uses $0: entry -> %1 lend
 >   local $1 n: usize [read assigned captured captured-assigned] place
 >   local $2 x: string [param read] value
+>     uses $2: entry -> %3 consume
 >   local $3 self: string [read] value
+>     uses $3: %4 -> %5 lend
 >   %0 = Store [$1] 0:usize : ()
 >   %20 = Block %18 : usize
     each(xs, fn(x: string) -> void: n += x.len())

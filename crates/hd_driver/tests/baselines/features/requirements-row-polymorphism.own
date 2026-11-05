@@ -17,6 +17,7 @@ impl Tag for Named:
         self.label
 > app/main/impl Tag for Named.name
 >   local $0 self: Named [param read] value
+>     uses $0: entry -> %0 consume
 >   %0 = Read move [$0 .label] : string
 >   %1 = Block %0 : string
 >   exit sub 0 drops [$0]
@@ -26,6 +27,7 @@ fn read_tag() -> usize $ Tag:
     $.use(Tag).name().len()
 > app/main/read_tag
 >   local $1 self: string [read] value
+>     uses $1: %5 -> %6 lend
 >   %0 = ProviderGet #0 : Tag
 >   %1 = Coerce %0 [ProviderAsRef -] : Ref[Tag]
 >   %2 = Read copy [*%1] : Tag
@@ -45,8 +47,11 @@ fn with_tag[$ R](s: string, callback: fn() -> usize $ R + Tag) -> usize $ R:
     $.with(Tag=Named { label: s }):
 > app/main/with_tag
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 callback: fn() -> usize [param read] value
+>     uses $1: entry -> %15 lend
 >   local $2 provider: Named [read] value
+>     uses $2: %2 -> %3 consume
 >   local $3 $ref: Named [read assigned captured captured-assigned] place
 >   %0 = Read move [$0] : string
 >   %1 = NewStruct [%0] : Named
@@ -78,6 +83,7 @@ fn run(s: string) -> usize:
     with_tag(s, read_tag)
 > app/main/run
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %0 consume
 >   %0 = Read move [$0] : string
 >   %1 = ItemRef #0 [..] : fn() -> usize
 >   %2 = Call app/main/with_tag[$()] (%0, %1) : usize
@@ -90,7 +96,9 @@ fn closure(s: string) -> usize:
     with_tag(s, fn() -> usize $ Tag: $.use(Tag).name().len())
 > app/main/closure
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %0 consume
 >   local $2 self: string [read] value
+>     uses $2: %6 -> %7 lend
 >   %0 = Read move [$0] : string
 >   %1 = ProviderGet #1 : Tag
 >   %2 = Coerce %1 [ProviderAsRef -] : Ref[Tag]

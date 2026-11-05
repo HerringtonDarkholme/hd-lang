@@ -13,6 +13,7 @@ fn copied(s: string) -> usize:
 > app/main/copied
 >   local $0 s: string [param read captured] place
 >   local $1 f: fn() -> usize [:= read assigned] value
+>     uses $1: %6 -> %7 lend
 >   %0 = Ref local [$0] : Counted[string]
 >   %1 = Call std/text/impl string.len[] (%0) : usize
 >   %2 = Drop [%0] : ()
@@ -38,8 +39,10 @@ fn shared_list(s: string) -> usize:
     let mut xs: List[string] = []
 > app/main/shared_list
 >   local $0 s: string [param read captured] value
+>     uses $0: entry -> %2 consume, %8 consume
 >   local $1 xs: List[string] [read assigned captured] place
 >   local $2 add: fn() -> () [:= read assigned] value
+>     uses $2: %10 -> %11 lend, %13 lend
 >   %0 = NewList - [] : List[string]
 >   %1 = Store [$1] %0 : ()
 >   %20 = Block %18 : usize
@@ -77,7 +80,9 @@ fn copy_shares(s: string) -> usize:
 >   local $0 s: string [param read captured] place
 >   local $1 n: usize [read assigned captured captured-assigned] place
 >   local $2 inc: fn() -> () [:= read assigned] value
+>     uses $2: %12 -> %13 consume, %15 lend
 >   local $3 again: fn() -> () [:= read assigned] value
+>     uses $3: %14 -> %18 lend
 >   %0 = Store [$1] 0:usize : ()
 >   %23 = Block %21 : usize
     inc := fn() -> void: n += s.len()
@@ -117,7 +122,9 @@ fn through_ptr(items: *mut List[string], s: string) -> fn() -> void:
     fn() -> void: items.push(s)
 > app/main/through_ptr
 >   local $0 items: Counted[mut List[string]] [param read captured] value
+>     uses $0: entry -> %2 lend, %6 consume
 >   local $1 s: string [param read captured] value
+>     uses $1: entry -> %0 consume, %6 consume
 >   %0 = Read move [$1] : string
 >   %1 = IsUnique [*$0] : ()
 >   %2 = Read borrow [*$0] : List[string]

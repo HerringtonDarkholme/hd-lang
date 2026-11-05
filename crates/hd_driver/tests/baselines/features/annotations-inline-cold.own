@@ -13,14 +13,23 @@ fn unexpected(at: usize) -> string:
 > app/main/unexpected
 >   local $0 at: usize [param read captured] place
 >   local $1 result: string [read] value
+>     uses $1: %39 -> %44 lend
 >   local $2 offset: usize [read] value
+>     uses $2: %40 -> %46 lend
 >   local $3 value: u64 [read] value
+>     uses $3: %41 -> %43 lend
 >   local $4 width: usize [read] value
+>     uses $4: %42 -> %48 lend
 >   local $5 result: string [read] value
+>     uses $5: %20 -> %23 lend
 >   local $6 offset: usize [read] value
+>     uses $6: %21 -> %26 lend
 >   local $7 text: string [read] value
+>     uses $7: %22 -> %28 lend, %31 lend
 >   local $8 size: usize [read] value
+>     uses $8: %13 -> %14 lend
 >   local $9 value: u64 [read] value
+>     uses $9: %5 -> %6 lend
 >   %0 = Ref local frame [$0] : Counted[usize]
 >   %1 = Read copy [*%0] : usize
 >   %2 = Drop [%0] : ()
@@ -84,12 +93,17 @@ fn checksum(xs: &List[string]) -> usize:
     let mut n = 0
 > app/main/checksum
 >   local $0 xs: Ref[List[string]] [param read] value
+>     uses $0: entry -> %1 lend
 >   local $1 n: usize [read assigned mutated] place
 >   local $2 $coll: List[string] [assigned] value
+>     uses $2: %2 -> %3 lend, %11 lend
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
+>     uses $5: %5 -> %8 lend
 >   local $6 x: string [read assigned] value
+>     uses $6: %27 -> %16 consume
 >   local $7 self: string [read] value
+>     uses $7: %17 -> %18 lend
 >   %0 = Store [$1] 0:usize : ()
 >   %39 = Block %38 : usize
     for x in xs:
@@ -140,7 +154,9 @@ fn first_len(xs: &List[string]) -> usize:
     if xs.len() == 0:
 > app/main/first_len
 >   local $0 xs: Ref[List[string]] [param read] value
+>     uses $0: entry -> %0 lend, %7 lend
 >   local $1 self: string [read] value
+>     uses $1: %8 -> %9 lend
 >   %0 = Read borrow [*$0] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Drop [%0] : ()
@@ -166,7 +182,9 @@ fn use_first(xs: List[string]) -> usize:
 > app/main/use_first
 >   local $0 xs: List[string] [param read captured] place
 >   local $1 xs: Counted[List[string]] [read] value
+>     uses $1: %1 -> %2 lend, %9 lend
 >   local $2 self: string [read] value
+>     uses $2: %10 -> %11 lend
 >   %0 = Ref local frame [$0] : Counted[List[string]]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [*$1] : List[string]
@@ -201,7 +219,9 @@ fn check(xs: List[string], at: usize) -> string:
     if at >= xs.len():
 > app/main/check
 >   local $0 xs: List[string] [param read] value
+>     uses $0: entry -> %1 lend, %10 lend
 >   local $1 at: usize [param read] value
+>     uses $1: entry -> %0 lend, %4 lend, %9 lend
 >   %0 = Read copy [$1] : usize
 >   %1 = Read borrow [$0] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize

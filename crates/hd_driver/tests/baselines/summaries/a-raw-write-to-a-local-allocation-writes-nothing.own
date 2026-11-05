@@ -11,9 +11,13 @@ fn local_copy(from: usize, n: usize) -> string:
     result := new_string(n)
 > std/rt_tests.stage_case/local_copy
 >   local $0 from: usize [param read] value
+>     uses $0: entry -> %8 lend
 >   local $1 n: usize [param read] value
+>     uses $1: entry -> %0 lend, %9 lend
 >   local $2 result: string [:= read assigned] value
+>     uses $2: %2 -> %3 lend, %11 consume
 >   local $3 address: usize [:= read assigned] value
+>     uses $3: %6 -> %7 lend
 >   %0 = Read copy [$1] : usize
 >   %1 = Call std/rt.memory/new_string[] (%0) : string
 >   %2 = Store [$2] %1 : ()
@@ -36,6 +40,7 @@ fn local_pointer_write() -> string:
     result := new_string(1)
 > std/rt_tests.stage_case/local_pointer_write
 >   local $0 result: string [:= read assigned] value
+>     uses $0: %1 -> %2 lend, %5 consume
 >   %0 = Call std/rt.memory/new_string[] (1:usize) : string
 >   %1 = Store [$0] %0 : ()
 >   %6 = Block %5 : string
@@ -51,7 +56,9 @@ fn taken_then_write(mut strings: List[string]) -> void:
     result := new_string(1)
 > std/rt_tests.stage_case/taken_then_write
 >   local $0 strings: List[string] [param read] value
+>     uses $0: entry -> %4 lend
 >   local $1 result: string [:= read assigned] value
+>     uses $1: %1 -> %2 consume, %7 lend
 >   %0 = Call std/rt.memory/new_string[] (1:usize) : string
 >   %1 = Store [$1] %0 : ()
 >   %11 = Block - : ()
@@ -73,8 +80,11 @@ fn parameter_copy(address: usize, from: usize, n: usize) -> void:
     copy(address, from, n)
 > std/rt_tests.stage_case/parameter_copy
 >   local $0 address: usize [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 from: usize [param read] value
+>     uses $1: entry -> %1 lend
 >   local $2 n: usize [param read] value
+>     uses $2: entry -> %2 lend
 >   %0 = Read copy [$0] : usize
 >   %1 = Read copy [$1] : usize
 >   %2 = Read copy [$2] : usize

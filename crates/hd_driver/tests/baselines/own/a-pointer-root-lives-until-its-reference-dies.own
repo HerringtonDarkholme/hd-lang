@@ -12,11 +12,16 @@ fn probe(items: UniqList[string]) -> string:
     p := box(Outer { items: items })
 > app/main/probe
 >   local $0 items: UniqList[string] [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 $ref: Outer [read assigned captured captured-assigned] place
 >   local $2 p: Counted[mut Outer] [:= read assigned] value
+>     uses $2: %4 -> %5 lend
 >   local $3 r: Ref[string] [:= read assigned] value
+>     uses $3: %26 -> %28 lend
 >   local $5 self: Ref[UniqList[string]] [read] value
+>     uses $5: %6 -> %9 lend, %13 lend
 >   local $6 index: usize [read] value
+>     uses $6: %7 -> %8 lend, %14 lend
 >   %0 = Read move [$0] : UniqList[string]
 >   %1 = NewStruct [%0] : Outer
 >   %2 = Store [$1] %1 : ()

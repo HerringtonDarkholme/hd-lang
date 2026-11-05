@@ -11,7 +11,9 @@ fn pick[T](x: T, m: Member) -> T:
     if m.name == "":
 > app/main/pick
 >   local $0 x: T [param read] value
+>     uses $0: entry -> %2 consume, %6 consume
 >   local $1 m: Member [param read] value
+>     uses $1: entry -> %0 lend
 >   %0 = Read borrow [$1 .name] : string
 >   %1 = Intrinsic StrEq [%0 ""] : bool
 >   %5 = If %1 [%4 -] : ()

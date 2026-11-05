@@ -18,6 +18,7 @@ fn tick(c: &mut Counter) -> void:
     c.hits = c.hits + 1
 > app/main/tick
 >   local $0 c: Ref[mut Counter] [param read] value
+>     uses $0: entry -> %0 lend, %2 lend
 >   %0 = Read copy [*$0 .hits] : i32
 >   %1 = Prim Add [%0 1:i32] : i32
 >   %2 = Store [*$0 .hits] %1 : ()
@@ -27,6 +28,7 @@ fn run!(go: bool) -> void:
     let mut c = Counter { hits: +0, name: "a" }
 > app/main/run
 >   local $0 go: bool [param read] value
+>     uses $0: entry -> %2 lend
 >   local $1 c: Counter [read assigned captured captured-assigned] place
 >   %0 = NewStruct [0:i32 "a"] : Counter
 >   %1 = Store [$1] %0 : ()

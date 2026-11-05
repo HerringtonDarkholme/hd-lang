@@ -16,7 +16,9 @@ fn make_struct(n: string, t: List[string]) -> Rec:
     Rec { name: n, tags: t }
 > app/main/make_struct
 >   local $0 n: string [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 t: List[string] [param read] value
+>     uses $1: entry -> %1 consume
 >   %0 = Read move [$0] : string
 >   %1 = Read move [$1] : List[string]
 >   %2 = NewStruct [%0 %1] : Rec
@@ -28,7 +30,9 @@ fn make_tuple(n: string, t: List[string]) -> (string, List[string]):
     (n, t)
 > app/main/make_tuple
 >   local $0 n: string [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 t: List[string] [param read] value
+>     uses $1: entry -> %1 consume
 >   %0 = Read move [$0] : string
 >   %1 = Read move [$1] : List[string]
 >   %2 = NewTuple - [%0 %1] : (string, List[string])
@@ -40,6 +44,7 @@ fn make_enum(n: string) -> Shape:
     Shape.Named(n)
 > app/main/make_enum
 >   local $0 n: string [param read] value
+>     uses $0: entry -> %0 consume
 >   %0 = Read move [$0] : string
 >   %1 = NewVariant #0 [%0] : Shape
 >   %2 = Block %1 : Shape
@@ -50,7 +55,9 @@ fn update(r: Rec, n: string) -> Rec:
     Rec { ...r, name: n }
 > app/main/update
 >   local $0 r: Rec [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 n: string [param read] value
+>     uses $1: entry -> %1 consume
 >   %0 = Read move [$0] : Rec
 >   %1 = Read move [$1] : string
 >   %2 = CopyStruct %0 [.name = %1] : Rec
@@ -63,6 +70,7 @@ fn reuse(n: string) -> (Rec, Rec):
     (Rec { name: n, tags: [] }, Rec { name: n, tags: [] })
 > app/main/reuse
 >   local $0 n: string [param read] value
+>     uses $0: entry -> %0 consume, %3 consume
 >   %0 = Read copy [$0] : string
 >   %1 = NewList - [] : List[string]
 >   %2 = NewStruct [%0 %1] : Rec

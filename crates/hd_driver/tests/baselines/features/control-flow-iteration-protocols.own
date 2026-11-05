@@ -15,6 +15,7 @@ impl Iterator[string] for Words:
         if self.at >= self.items.len():
 > app/main/impl Iterator [ string ] for Words.next
 >   local $0 self: Ref[mut Words] [param read] value
+>     uses $0: entry -> %0 lend, %1 lend, %9 lend, %11 lend, %12 lend, %14 lend
 >   %0 = Read copy [*$0 .at] : usize
 >   %1 = Read borrow [*$0 .items] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize
@@ -41,11 +42,15 @@ fn user_cursor(words: Words) -> usize:
     let n: usize = 0
 > app/main/user_cursor
 >   local $0 words: Words [param read] value
+>     uses $0: entry -> %1 consume
 >   local $1 n: usize [read assigned mutated] place
 >   local $2 $ref: Words [read assigned captured captured-assigned] place
 >   local $3 $iter: Ref[mut Words] [assigned] value
+>     uses $3: %4 -> %5 lend
 >   local $4 w: string [read assigned] value
+>     uses $4: %21 -> %8 consume
 >   local $5 self: string [read] value
+>     uses $5: %9 -> %10 lend
 >   %0 = Store [$1] 0:usize : ()
 >   %36 = Block %35 : usize
     for w in words:
@@ -90,17 +95,26 @@ fn twice(xs: List[string]) -> usize:
     let n: usize = 0
 > app/main/twice
 >   local $0 xs: List[string] [param read] value
+>     uses $0: entry -> %1 consume, %41 consume
 >   local $1 n: usize [read assigned mutated] place
 >   local $2 $ref: ListIter[string] [read assigned captured captured-assigned] place
 >   local $3 $iter: Ref[mut ListIter[string]] [assigned] value
+>     uses $3: %10 -> %11 lend
 >   local $4 x: string [read assigned] value
+>     uses $4: %27 -> %14 consume
 >   local $5 $ref: ListIter[string] [read assigned captured captured-assigned] place
 >   local $6 $iter: Ref[mut ListIter[string]] [assigned] value
+>     uses $6: %50 -> %51 lend
 >   local $7 x: string [read assigned] value
+>     uses $7: %67 -> %54 consume
 >   local $8 self: string [read] value
+>     uses $8: %55 -> %56 lend
 >   local $9 self: List[string] [read] value
+>     uses $9: %42 -> %43 consume
 >   local $10 self: string [read] value
+>     uses $10: %15 -> %16 lend
 >   local $11 self: List[string] [read] value
+>     uses $11: %2 -> %3 consume
 >   %0 = Store [$1] 0:usize : ()
 >   %82 = Block %81 : usize
     for x in xs.iter():

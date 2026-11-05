@@ -10,8 +10,11 @@ fn put(mut m: Map[string, List[i64]], k: string, n: i64) -> Map[string, List[i64
     m[k] = []
 > app/main/put
 >   local $0 m: Map[string, List[i64]] [param read] value
+>     uses $0: entry -> %3 lend, %9 lend, %13 lend, %16 consume
 >   local $1 k: string [param read] value
+>     uses $1: entry -> %0 lend, %5 lend, %11 lend
 >   local $2 n: i64 [param read] value
+>     uses $2: entry -> %6 consume
 >   %0 = Read borrow [$1] : string
 >   %1 = NewList - [] : List[i64]
 >   %2 = IsUnique [$0] : ()
@@ -39,7 +42,9 @@ fn tally(mut counts: Map[string, i64], k: string) -> Map[string, i64]:
     counts[k] += 1
 > app/main/tally
 >   local $0 counts: Map[string, i64] [param read] value
+>     uses $0: entry -> %0 lend, %7 lend, %9 consume
 >   local $1 k: string [param read] value
+>     uses $1: entry -> %1 lend
 >   %0 = Read borrow [$0] : Map[string, i64]
 >   %1 = Read borrow [$1] : string
 >   %2 = Intrinsic MapEntry [%0 %1] : usize

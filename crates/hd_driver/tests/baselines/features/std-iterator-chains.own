@@ -10,12 +10,19 @@ fn lens(xs: List[string]) -> List[usize]:
     xs.iter().map(fn(s: string) -> usize: s.len()).collect()
 > app/main/lens
 >   local $0 xs: List[string] [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 s: string [param read] value
+>     uses $1: entry -> %7 consume
 >   local $2 self: MapIter[ListIter[string], string, usize, fn(string) -> usize] [read] value
+>     uses $2: %25 -> %26 consume
 >   local $3 self: ListIter[string] [read] value
+>     uses $3: %17 -> %19 consume
 >   local $4 transform: fn(string) -> usize [read] value
+>     uses $4: %18 -> %20 consume
 >   local $5 self: string [read] value
+>     uses $5: %8 -> %9 lend
 >   local $6 self: List[string] [read] value
+>     uses $6: %1 -> %2 consume
 >   %0 = Read move [$0] : List[string]
 >   %1 = Store [$6] %0 : ()
 >   %2 = Read move [$6] : List[string]
@@ -56,14 +63,23 @@ fn loud(xs: List[string]) -> List[string]:
     xs.iter()
 > app/main/loud
 >   local $0 xs: List[string] [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 s: Ref[string] [param read] value
+>     uses $1: entry -> %7 lend
 >   local $2 s: string [param read] value
+>     uses $2: entry -> %21 lend
 >   local $3 self: MapIter[Filter[ListIter[string], string, fn(Ref[string]) -> bool], string, string, fn(string) -> string] [read] value
+>     uses $3: %34 -> %35 consume
 >   local $4 self: Filter[ListIter[string], string, fn(Ref[string]) -> bool] [read] value
+>     uses $4: %26 -> %28 consume
 >   local $5 transform: fn(string) -> string [read] value
+>     uses $5: %27 -> %29 consume
 >   local $6 self: ListIter[string] [read] value
+>     uses $6: %13 -> %15 consume
 >   local $7 keep: fn(Ref[string]) -> bool [read] value
+>     uses $7: %14 -> %16 consume
 >   local $8 self: List[string] [read] value
+>     uses $8: %1 -> %2 consume
 >   %0 = Read move [$0] : List[string]
 >   %1 = Store [$8] %0 : ()
 >   %2 = Read move [$8] : List[string]

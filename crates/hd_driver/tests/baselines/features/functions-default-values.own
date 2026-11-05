@@ -9,6 +9,7 @@
 fn collect(item: string, into: &mut List[string] = &mut []) -> usize:
 > app/main/collect.into
 >   local $0 item: string [param] value
+>     uses $0: none
 >   local $2 $ref: List[string] [read assigned captured captured-assigned] place
 >   %0 = Drop [$0] : ()
 >   %1 = NewList - [] : List[string]
@@ -20,7 +21,9 @@ fn collect(item: string, into: &mut List[string] = &mut []) -> usize:
     into.push(item)
 > app/main/collect
 >   local $0 item: string [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 into: Ref[mut List[string]] [param read] value
+>     uses $1: entry -> %2 lend, %4 lend
 >   %0 = Read move [$0] : string
 >   %1 = IsUnique [*$1] : ()
 >   %2 = Read borrow [*$1] : List[string]
@@ -37,6 +40,7 @@ fn with_default(s: string) -> usize:
     collect(s)
 > app/main/with_default
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %0 lend
 >   %0 = Read borrow [$0] : string
 >   %1 = DefaultCall [%4620 %16] [%0] : Ref[mut List[string]]
 >   %2 = Call app/main/collect[] (%0, %1) : usize
@@ -48,7 +52,9 @@ fn with_given(s: string, out: &mut List[string]) -> usize:
     collect(s, out)
 > app/main/with_given
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %0 consume
 >   local $1 out: Ref[mut List[string]] [param read] value
+>     uses $1: entry -> %1 lend
 >   %0 = Read move [$0] : string
 >   %1 = Read borrow [$1] : Ref[mut List[string]]
 >   %2 = Call app/main/collect[] (%0, %1) : usize
@@ -59,13 +65,16 @@ fn with_given(s: string, out: &mut List[string]) -> usize:
 fn labeled(name: string, suffix: string = "!") -> string:
 > app/main/labeled.suffix
 >   local $0 name: string [param] value
+>     uses $0: none
 >   %0 = Drop [$0] : ()
 >   %1 = Block "!" : string
 >   exit sub 0 drops [$0]
     name + suffix
 > app/main/labeled
 >   local $0 name: string [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 suffix: string [param read] value
+>     uses $1: entry -> %1 lend
 >   %0 = Read borrow [$0] : string
 >   %1 = Read borrow [$1] : string
 >   %2 = Intrinsic StrConcat [%0 %1] : string
@@ -76,6 +85,7 @@ fn use_label(s: string) -> string:
     labeled(s)
 > app/main/use_label
 >   local $0 s: string [param read] value
+>     uses $0: entry -> %0 lend
 >   %0 = Read borrow [$0] : string
 >   %1 = DefaultCall [%4621 %16] [%0] : string
 >   %2 = Call app/main/labeled[] (%0, %1) : string

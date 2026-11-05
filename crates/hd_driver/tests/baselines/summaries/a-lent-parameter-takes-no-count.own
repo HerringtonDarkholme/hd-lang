@@ -17,6 +17,7 @@ fn weight(f: Field) -> i64:
     (f.n + 1) * (f.n + 2) * (f.n + 3) * (f.n + 4) * (f.n + 5) / (f.n + 6)
 > app/main/weight
 >   local $0 f: Field [param read] value
+>     uses $0: entry -> %0 lend, %2 lend, %5 lend, %8 lend, %11 lend, %14 lend
 >   %0 = Read copy [$0 .n] : i64
 >   %1 = Prim Add [%0 1:i64] : i64
 >   %2 = Read copy [$0 .n] : i64
@@ -41,7 +42,9 @@ fn remember(all: &mut List[Field], f: Field) -> void:
     all.push(f)
 > app/main/remember
 >   local $0 all: Ref[mut List[Field]] [param read] value
+>     uses $0: entry -> %2 lend
 >   local $1 f: Field [param read] value
+>     uses $1: entry -> %0 consume
 >   %0 = Read move [$1] : Field
 >   %1 = IsUnique [*$0] : ()
 >   %2 = Read borrow [*$0] : List[Field]
@@ -54,11 +57,15 @@ fn total(f: Field, times: i64) -> i64:
     let sum: i64 = 0
 > app/main/total
 >   local $0 f: Field [param read] value
+>     uses $0: entry -> %17 lend
 >   local $1 times: i64 [param read] value
+>     uses $1: entry -> %1 consume
 >   local $2 sum: i64 [read assigned mutated] place
 >   local $3 $cur: i64 [assigned] place
 >   local $4 $end: i64 [assigned] value
+>     uses $4: %6 -> %10 lend
 >   local $5 $incl: bool [assigned] value
+>     uses $5: none
 >   %0 = Store [$2] 0:i64 : ()
 >   %28 = Block %27 : i64
     for _ in 0..times:
@@ -97,6 +104,7 @@ fn collect(f: Field) -> usize:
     let mut all: List[Field] = []
 > app/main/collect
 >   local $0 f: Field [param read] value
+>     uses $0: entry -> %3 consume, %7 consume
 >   local $1 all: List[Field] [read assigned captured captured-assigned] place
 >   %0 = NewList - [] : List[Field]
 >   %1 = Store [$1] %0 : ()
@@ -125,7 +133,9 @@ fn apply(g: fn(Field) -> i64, f: Field) -> i64:
     g(f)
 > app/main/apply
 >   local $0 g: fn(Field) -> i64 [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 f: Field [param read] value
+>     uses $1: entry -> %1 consume
 >   %0 = Read borrow [$0] : fn(Field) -> i64
 >   %1 = Read move [$1] : Field
 >   %2 = CallValue %0 [%1] : i64
@@ -137,7 +147,9 @@ fn set_first(target: &i64, xs: List[i64]) -> i64:
     *target + xs[0]
 > app/main/set_first
 >   local $0 target: Ref[i64] [param read] value
+>     uses $0: entry -> %0 lend
 >   local $1 xs: List[i64] [param read] value
+>     uses $1: entry -> %1 lend
 >   %0 = Read copy [*$0] : i64
 >   %1 = Read copy [$1 [0:usize]] : i64
 >   %2 = Prim Add [%0 %1] : i64
@@ -167,16 +179,25 @@ pub fn main() -> void $ Console:
     f := Field { name: "abc${1}", n: 2 }
 > app/main/main
 >   local $0 f: Field [:= read assigned] value
+>     uses $0: %46 -> %47 lend, %50 consume, %70 consume
 >   local $1 xs: List[i64] [read assigned] place
 >   local $2 g: fn(Field) -> i64 [read] value
+>     uses $2: %71 -> %73 lend
 >   local $3 f: Field [read] value
+>     uses $3: %72 -> %74 consume
 >   local $4 f: Field [read] value
+>     uses $4: %51 -> %55 consume, %59 consume
 >   local $5 all: List[Field] [read assigned captured captured-assigned] place
 >   local $6 result: string [read] value
+>     uses $6: %25 -> %28 lend
 >   local $7 offset: usize [read] value
+>     uses $7: %26 -> %31 lend
 >   local $8 text: string [read] value
+>     uses $8: %27 -> %33 lend, %36 lend
 >   local $9 size: usize [read] value
+>     uses $9: %18 -> %19 lend
 >   local $10 value: usize [read] value
+>     uses $10: %0 -> %1 lend, %4 lend, %8 lend
 >   %0 = Store [$10] 1:usize : ()
 >   %1 = Read copy [$10] : usize
 >   %2 = Call std/num/Num.zero for usize [] via Impl () : usize
