@@ -98,19 +98,17 @@
       call $rt:release_ref'1
     ;; 34 |     later(kept)().name.len()
       local.get $u.name.1
-      local.get $t0
-      local.set $u.name.1
-      local.set $u.name.0
+      drop
       block
         block
+          local.get $t0
+          local.set $u.name.0
           br 0
         end
       end
     ;; (no span)
-      local.get $u.name.0
-      call $rt:release_ref'2
       local.get $u.name.1
-      local.set $u.name.0
+      call $rt:release_ref'2
     end
     local.get $u.name.0
   )

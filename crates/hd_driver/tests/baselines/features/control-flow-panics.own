@@ -118,14 +118,14 @@ fn must(s: string, n: i32) -> usize:
 >   %60 = Drop [%20] : ()
 >   %61 = Block - : never
     t.len()
->   %63 = Read move [$2] : string
+>   %63 = Read borrow [$2] : string
 >   %64 = Store [$3] %63 : ()
 >   %65 = Read borrow [$3] : string
 >   %66 = Call std/rt.bytes/bytes_len[] (%65) : usize
 >   %67 = Break L0 %66 : never
 >   %68 = Block - : usize
 >   %69 = Scope %68 [] : usize
->   %70 = Drop [$3] : ()
+>   %70 = Drop [$2] : ()
 >   summary kept [] borrows [$0] writes
 
 fn guarded(log: *mut List[string], s: string, n: i32) -> usize:

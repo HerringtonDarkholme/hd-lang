@@ -53,12 +53,10 @@ fn copy_shares(s: string) -> usize:
 >   release &string (last use)
 >   release string (last use)
 >   release counted reference (last use)
->   retain fn() -> () (conservative: copy read)
     inc()
     again()
     n
 >   (no span) release counted reference (last use)
->   (no span) release fn() -> () (last use)
 >   (no span) release fn() -> () (last use)
 >   (no span) release counted reference (last use)
 

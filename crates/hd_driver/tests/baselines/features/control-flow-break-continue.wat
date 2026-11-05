@@ -96,20 +96,20 @@
             end
     ;; 15 |         n += t.len()
             local.get $t.0
-            local.set $x.0
+            drop
             block
               block
                 local.get $t.1
-                local.set $x.1
+                local.set $x.0
                 br 0
               end
             end
     ;; 9 |     for x in xs:
-            local.get $x.0
+            local.get $t.0
             call $rt:release_ref
     ;; 15 |         n += t.len()
             local.get $n
-            local.get $x.1
+            local.get $x.0
             i32.add
             local.set $n
     ;; 9 |     for x in xs:

@@ -88,14 +88,14 @@ fn until_long(xs: List[string]) -> usize:
 >   %40 = Block - : never
         n += t.len()
 >   %42 = Read copy [$1] : usize
->   %43 = Read move [$7] : string
+>   %43 = Read borrow [$7] : string
 >   %44 = Store [$8] %43 : ()
 >   %45 = Read borrow [$8] : string
 >   %46 = Call std/rt.bytes/bytes_len[] (%45) : usize
 >   %47 = Break L1 %46 : never
 >   %48 = Block - : usize
 >   %49 = Scope %48 [] : usize
->   %50 = Drop [$8] : ()
+>   %50 = Drop [$7] : ()
 >   %51 = Prim Add [%42 %49] : usize
 >   %52 = Store [$1] %51 : ()
     n

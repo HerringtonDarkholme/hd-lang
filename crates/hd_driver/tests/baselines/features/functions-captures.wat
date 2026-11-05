@@ -282,24 +282,18 @@
       local.get $s
       call $rt:release_ref'1
     ;; 23 |     inc := fn() -> void: n += s.len()
-      local.tee $inc.0
-    ;; 24 |     again := inc
-      local.get $inc.1
-      call $rt:retain_known
+      local.set $inc.0
     ;; 25 |     inc()
-      local.get $inc.0
-      drop
       local.get $inc.1
       i32.const 0
       call $copy_shares#1
-    ;; (no span)
+    ;; 24 |     again := inc
       local.get $inc.1
-      call $rt:release_ref'1
     ;; 26 |     again()
-      local.set $inc.0
-      local.get $inc.1
       i32.const 0
+    ;; 24 |     again := inc
       local.get $inc.0
+    ;; 26 |     again()
       call_indirect $table0 (param i32 i32)
     ;; (no span)
       local.get $inc.1

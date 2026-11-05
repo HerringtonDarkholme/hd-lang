@@ -126,13 +126,13 @@ fn bounded(u: User) -> usize:
 >   %13 = Read copy [*%11 .name] : string
 >   %14 = Drop [%11] : ()
 >   %15 = Store [$2] %13 : ()
->   %16 = Read move [$2] : string
+>   %16 = Read borrow [$2] : string
 >   %17 = Store [$3] %16 : ()
 >   %18 = Read borrow [$3] : string
 >   %19 = Call std/rt.bytes/bytes_len[] (%18) : usize
 >   %20 = Break L0 %19 : never
 >   %21 = Block - : usize
 >   %22 = Scope %21 [] : usize
->   %23 = Drop [$3] : ()
+>   %23 = Drop [$2] : ()
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes

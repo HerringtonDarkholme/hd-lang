@@ -131,14 +131,14 @@ fn use_generic(m: Members[i32], xs: List[Wrap[string]], i: usize) -> i64:
 >   %8 = Read copy [$2] : usize
 >   %9 = Call app/main/n_at[string] (%7, %8) : usize
 >   %10 = Prim Add [%6 %9] : usize
->   %11 = Read move [$3] : string
+>   %11 = Read borrow [$3] : string
 >   %12 = Store [$4] %11 : ()
 >   %13 = Read borrow [$4] : string
 >   %14 = Call std/rt.bytes/bytes_len[] (%13) : usize
 >   %15 = Break L0 %14 : never
 >   %16 = Block - : usize
 >   %17 = Scope %16 [] : usize
->   %18 = Drop [$4] : ()
+>   %18 = Drop [$3] : ()
 >   %19 = Prim Add [%10 %17] : usize
 >   %20 = Prim Gt [%19 0:usize] : bool
 >   %26 = If %20 [%25 -] : ()

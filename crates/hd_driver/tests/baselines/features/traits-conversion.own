@@ -59,14 +59,14 @@ fn name_len(s: string) -> usize:
 >   %6 = Scope %5 [] : Name
 >   %7 = Read move [%6 .text] : string
 >   %8 = Store [$1] %7 : ()
->   %9 = Read move [$1] : string
+>   %9 = Read borrow [$1] : string
 >   %10 = Store [$2] %9 : ()
 >   %11 = Read borrow [$2] : string
 >   %12 = Call std/rt.bytes/bytes_len[] (%11) : usize
 >   %13 = Break L0 %12 : never
 >   %14 = Block - : usize
 >   %15 = Scope %14 [] : usize
->   %16 = Drop [$2] : ()
+>   %16 = Drop [$1] : ()
 >   %17 = Block %15 : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

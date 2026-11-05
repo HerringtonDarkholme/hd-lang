@@ -79,6 +79,15 @@
 //! span lies in the outer one, since the outer's `Drop` in it would have
 //! stopped the inner borrow, so the outer's check covers both.
 //!
+//! A binding read of all of a local the body owns (no parameter, in a body
+//! with no suspension point) that only the local's own whole `Drop`s in
+//! the span keep from borrowing, where every read of the binding is only
+//! called, passed to a call, an operator or an intrinsic, or dropped,
+//! borrows, and those drops **sink** to just after the span and the last
+//! use of each read of the binding (`again := inc` before `inc`'s last
+//! call). Another read of that local borrows only over a span that ends
+//! before the moved drop.
+//!
 //! A binding local that only **forwards** its value, whose one read moves
 //! all of it into another binding local at its last access, stands for
 //! that one: the span is the next local's, and the read into it borrows
@@ -207,6 +216,13 @@ struct Chain {
 /// The borrow pass's dense tables, reused across bodies.
 #[derive(Default)]
 pub(crate) struct Tables {
+    /// The `Drop`s of a local that [`sink_drops`] moved past a span.
+    sunk: Vec<u32>,
+    /// Per local: where [`sink_drops`] moved its drops, as (block,
+    /// position), or `NONE`s. A later read of it borrows only over a span
+    /// that ends before there: the moved drop is an edit the conflict rows
+    /// don't hold.
+    sunk_local: Vec<(u32, u32)>,
     /// Per value: its uses, the last instruction that uses it, whether a
     /// use keeps it (rule 1), the `Store` that takes it, its last `Drop`
     /// of all of it.
@@ -299,6 +315,7 @@ pub(crate) struct Tables {
 impl Tables {
     fn reset(&mut self, n: usize, locals: usize) {
         self.lent_params.clear();
+        fill(&mut self.sunk_local, locals, (NONE, NONE));
         fill(&mut self.uses, n, 0);
         fill(&mut self.user, n, NONE);
         fill(&mut self.through, n, true);
@@ -1215,6 +1232,12 @@ fn decide(
     if b.tags[r] != Tag::Read || b.data[r][1] != ReadMode::Copy as u32 || t.keeps[r] {
         return;
     }
+    // A local whose drops sank past one borrow lends to another only
+    // over a span that ends before the moved drop.
+    let sunk_at = match b.view(b.data[r][0]).root {
+        Root::Local(l) => t.sunk_local[l as usize],
+        _ => (NONE, NONE),
+    };
     if !cx.counted(b.ty[r]) {
         // An uncounted copy costs nothing, but a value whose type is not
         // `Copy` is never copied: a match decides through its scrutinee
@@ -1274,6 +1297,9 @@ fn decide(
     // precede the bindings before it), so the span's instructions are a
     // range from the first instruction of any of those statements.
     let h = topo.blk[end as usize];
+    if sunk_at.0 != NONE && (h != sunk_at.0 || topo.pos[end as usize] >= sunk_at.1) {
+        return;
+    }
     let Some(s) = statement(b, topo, x, h) else {
         return;
     };
@@ -1319,8 +1345,43 @@ fn decide(
         t.relies |= relied;
         blocked
     };
-    if blocked {
+    // A binding read of all of a local that only its own `Drop`s in the
+    // span stop (`again := inc` before `inc`'s last call) borrows, and
+    // those drops sink to just after the span: the local then lives as
+    // long as the binding does.
+    let sunk =
+        blocked && !match_read && bind != NONE && sink_drops(b, topo, t, r, bind, h, lo, end);
+    if blocked && !sunk {
         return;
+    }
+    if sunk {
+        let d = t.sunk[0];
+        let syn = b.syn[d as usize];
+        let [a, w] = b.data[d as usize];
+        // After the span and after the last use of each value read from
+        // the binding, which lives on past the binding's own drop.
+        let members = b.record(b.data[h as usize][0]);
+        let mut pos = topo.pos[end as usize] + 1;
+        let mut ops = Vec::new();
+        for (k, &m) in members.iter().enumerate().skip(pos as usize) {
+            operands(b, m as usize, &mut ops);
+            let from_bind = |v: u32| {
+                b.tags.get(v as usize) == Some(&Tag::Read)
+                    && b.view(b.data[v as usize][0]).local() == Some(bind)
+            };
+            let place = matches!(b.tags[m as usize], Tag::Read | Tag::Drop)
+                && matches!(b.view(b.data[m as usize][0]).root, Root::Value(v) if from_bind(v));
+            if place || ops.iter().any(|o| from_bind(o.value)) {
+                pos = u32_of(k) + 1;
+            }
+        }
+        for k in 0..t.sunk.len() {
+            edits.remove(t.sunk[k]);
+        }
+        edits.insert(h, pos, Tag::Drop, [a, w], Ty::VOID, syn);
+        if let Some(l) = b.view(b.data[r][0]).local() {
+            t.sunk_local[l as usize] = (h, pos);
+        }
     }
     b.data[r][1] = ReadMode::Borrow as u32;
     let locals = u32_of(b.local_ty.len());
@@ -1659,6 +1720,89 @@ fn read_after(b: &Body, t: &Tables, r: usize, end: u32) -> bool {
     b.view(b.data[r][0])
         .local()
         .is_some_and(|l| t.last_read[l as usize] > end)
+}
+
+/// Whether only the source local's own whole `Drop`s, standing in block
+/// `h` of the span `lo..=end`, keep binding read `r` (of all of a local
+/// the body owns, no parameter, in a body with no suspension point) from
+/// borrowing: then those drops are
+/// marked gone, recorded in `t.sunk`, and the read borrows. The caller
+/// sinks them to just after `end`.
+fn sink_drops(
+    b: &Body,
+    topo: &Topology,
+    t: &mut Tables,
+    r: usize,
+    bind: u32,
+    h: u32,
+    lo: u32,
+    end: u32,
+) -> bool {
+    let p = b.view(b.data[r][0]);
+    let Some(l) = p.local().filter(|_| p.whole()) else {
+        return false;
+    };
+    // Each read of the binding is only called, passed to a call, an
+    // operator or an intrinsic, or dropped: no value it makes carries the
+    // borrow past the statement the moved drop follows.
+    let mut ops = Vec::new();
+    for i in 0..b.len() {
+        operands(b, i, &mut ops);
+        let carries = ops.iter().any(|o| {
+            b.tags.get(o.value as usize) == Some(&Tag::Read)
+                && b.view(b.data[o.value as usize][0]).local() == Some(bind)
+        }) && !matches!(
+            b.tags[i],
+            Tag::CallValue | Tag::Call | Tag::CallDyn | Tag::Prim | Tag::Intrinsic | Tag::Drop
+        );
+        let through = matches!(b.tags[i], Tag::Read | Tag::Ref)
+            && matches!(b.view(b.data[i][0]).root, Root::Value(v)
+                if b.tags[v as usize] == Tag::Read
+                    && b.view(b.data[v as usize][0]).local() == Some(bind));
+        if carries || through {
+            return false;
+        }
+    }
+    let li = l as usize;
+    if t.sunk_local[li].0 != NONE {
+        return false;
+    }
+    // A suspending body keeps its drops where they are: a later drop
+    // would hold the local across a suspension point.
+    if !t.susp.is_empty()
+        || b.local_flags[li] & local_flags::PARAM != 0
+        || !b.exit_drops.iter().any(|&(_, x)| x.raw() == l)
+        || t.escapes[li]
+    {
+        return false;
+    }
+    let mut sunk = std::mem::take(&mut t.sunk);
+    sunk.clear();
+    for w in t.row(l, lo, end) {
+        let d = w.at;
+        if is_whole_drop(b, d, Root::Local(l)) && topo.blk[d as usize] == h && !t.gone[d as usize] {
+            sunk.push(d);
+        }
+    }
+    t.sunk = sunk;
+    if t.sunk.is_empty() {
+        return false;
+    }
+    for k in 0..t.sunk.len() {
+        t.gone[t.sunk[k] as usize] = true;
+    }
+    let chain = t.walk(b, b.data[r][0], true);
+    let mut relied = 0;
+    let blocked = !chain.ok
+        || (chain.shut != NONE && window_open(t, chain.shut, lo, end))
+        || conflicts(t, chain, u32_of(r), lo, end, &mut relied);
+    if blocked {
+        for k in 0..t.sunk.len() {
+            t.gone[t.sunk[k] as usize] = false;
+        }
+        t.sunk.clear();
+    }
+    !blocked
 }
 
 /// Whether instruction `d` is a `Drop` of all of `root`.
