@@ -142,11 +142,10 @@
     ;; 12 |         s + "!"
     local.get $env
     i32.load $heap
-    local.tee $ctx
+    local.set $ctx
     local.get $env
     i32.load $heap offset=4
     local.set $env
-    call $retain
     block
       local.get $env
       i32.const 1
@@ -164,8 +163,6 @@
       i32.const 66 ;; &"!"
       i32.load8_u $heap
       i32.store8 $heap
-      local.get $ctx
-      call $rt:release_ref'1
       local.get $t1
       local.get $t0
       local.set $ctx

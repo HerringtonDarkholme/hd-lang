@@ -402,6 +402,13 @@ fn body_func<'a>(
                 Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace
             )
         });
+    // A closure's code runs while the closure value, whose environment
+    // holds a count of each copied capture, lives: it borrows the captures
+    // its reads only lend (`Em::capture_loans`).
+    let lent_caps = match closure {
+        Some(ci) if em.counting && !suspending => em.capture_loans(ci),
+        _ => hd_base::HashSet::default(),
+    };
     let lent_here = if em.counting && (by_type || unsuspended) {
         em.instance_loans(&plocals, unsuspended)
     } else {
@@ -446,6 +453,8 @@ fn body_func<'a>(
                 if !crate::layout::holds_drop(em.pool(), em.env(), t) {
                     em.count_locals(ls, t, true)?;
                 }
+            } else if lent_caps.contains(l) {
+                em.borrowed.insert(*l);
             } else {
                 em.count_local(*l, ls, true)?;
             }

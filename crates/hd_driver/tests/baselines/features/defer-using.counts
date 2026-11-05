@@ -24,10 +24,8 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
 > app/main/with_defer
 >   retain counted reference (conservative: Closure)
 > app/main/with_defer
->   retain &mut List[string] (conservative: entry)
 >   retain string (conservative: entry)
 >   unique List[string] (conservative: unique)
->   release &mut List[string] (last use)
     s.len()
 >   (no span) retain &mut List[string] (conservative: entry)
 >   (no span) release counted reference (last use)

@@ -4,9 +4,9 @@
   (import "fixture" "rt:retain_fields'1" (func $rt:retain_fields'1 (param i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "retain" (func $retain (param i32)))
+  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields'2" (func $rt:retain_fields'2 (param i32)))
   (import "fixture" "impl User.name_len#adapter" (func $"impl User.name_len#adapter" (param i32 i32 i32 i32) (result i32)))
@@ -58,15 +58,12 @@
     ;; 27 |     f := u::rename
     local.get $env
     i32.load $heap
-    local.tee $env
-    call $rt:retain_known
+    local.set $env
     block
       local.get $env
       local.get $t0
       local.get $t1
       call $"impl User.rename"
-      local.get $env
-      call $rt:release_ref'2
     end
   )
   (func $"impl User.rename" (param $self i32) (param $n.0 i32) (param $n.1 i32)

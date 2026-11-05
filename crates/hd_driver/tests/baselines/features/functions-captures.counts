@@ -64,7 +64,5 @@ fn through_ptr(items: *mut List[string], s: string) -> fn() -> void:
 >   (no span) release &mut List[string] (last use)
 >   (no span) release string (last use)
 > app/main/through_ptr
->   retain &mut List[string] (conservative: entry)
 >   retain string (conservative: entry)
 >   unique List[string] (conservative: unique)
->   release &mut List[string] (last use)

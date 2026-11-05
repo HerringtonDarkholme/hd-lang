@@ -12,9 +12,6 @@ struct Point:
 fn bump(p: *mut Point) -> fn() -> void:
     fn() -> void: p.x = p.x + 1
 > app/main/bump
->   retain &mut app.main.Point (conservative: entry)
->   release &mut app.main.Point (last use)
-> app/main/bump
 >   retain counted reference (conservative: Closure)
 >   (no span) retain &mut app.main.Point (conservative: entry)
 >   (no span) release &mut app.main.Point (last use)

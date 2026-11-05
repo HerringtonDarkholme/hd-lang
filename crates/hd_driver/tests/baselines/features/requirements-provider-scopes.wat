@@ -88,13 +88,14 @@
     ;; (no span)
     local.get $env
     i32.load $heap
-    local.tee $ctx
+    local.set $ctx
     local.get $env
     i32.load $heap offset=4
     local.set $env
-    call $retain
     block
     ;; 38 |         apply(fn() -> usize: tag.name().len())
+      local.get $ctx
+      call $retain
       local.get $ctx
       local.get $env
       i32.load $heap

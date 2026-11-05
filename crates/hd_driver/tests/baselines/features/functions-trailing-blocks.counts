@@ -18,9 +18,6 @@ fn trailing(s: string) -> usize:
 >   retain counted reference (conservative: Closure)
 >   (no span) release string (last use)
 >   (no span) release fn() -> string (last use)
-> app/main/trailing
->   retain string (conservative: entry)
->   release string (last use)
 
 fn twice(body: fn() -> usize) -> usize:
     body() + body()

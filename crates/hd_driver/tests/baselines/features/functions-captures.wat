@@ -89,19 +89,17 @@
       call $rt:release_ref'1
     end
   )
-  (func $through_ptr#1 (param $env i32) (param $ctx i32) (local $s.0 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $through_ptr#1 (param $env i32) (param $ctx i32) (local $s.0 i32) (local $t0 i32) (local $t1 i32)
     ;; 30 |     fn() -> void: items.push(s)
     local.get $env
     i32.load $heap
-    local.tee $ctx
+    local.set $ctx
     local.get $env
     i32.load $heap offset=4
-    local.set $s.0
+    local.tee $s.0
     local.get $env
     i32.load $heap offset=8
     local.set $env
-    call $rt:retain_known
-    local.get $s.0
     call $retain
     block
       local.get $ctx
@@ -131,10 +129,10 @@
       i32.const 8
       i32.mul
       i32.add
-      local.tee $t2
+      local.tee $ctx
       local.get $s.0
       i32.store $heap offset=16
-      local.get $t2
+      local.get $ctx
       local.get $env
       i32.store $heap offset=20
       local.get $t0
@@ -142,8 +140,6 @@
       i32.const 1
       i32.add
       i32.store $heap offset=4
-      local.get $ctx
-      call $rt:release_ref'1
     end
   )
   (func $copied (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)

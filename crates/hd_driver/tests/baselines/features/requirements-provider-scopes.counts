@@ -61,6 +61,6 @@ fn lexical(s: string) -> usize:
 >   (no span) release &app.main.Tag (by design)
 >   (no span) release app.main.Tag (last use)
 > app/main/lexical
+>   retain app.main.Tag (stored)
 >   release app.main.Tag (last use)
->   (no span) retain &app.main.Tag (by design)
 >   (no span) release string (last use)

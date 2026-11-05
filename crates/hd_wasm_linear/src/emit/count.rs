@@ -1114,6 +1114,79 @@ impl Em<'_, '_, '_> {
         out
     }
 
+    /// The copied captures of closure `ci`'s code that its environment
+    /// keeps for the call and the code only lends: every naming of one in
+    /// this sub-body is a read of all of it whose value no use keeps (or a
+    /// call argument its callee borrows here too), and no move takes a part
+    /// of such a read. They take no count on entry and none at the exit;
+    /// the reads join [`Em::loans`]. A shared capture is a cell, and a
+    /// capture holding a collection is not taken (its count is a copy).
+    pub(super) fn capture_loans(&mut self, ci: usize) -> hd_base::HashSet<usize> {
+        use hd_tir::ir::place;
+        let b = self.b;
+        let sub = u32::from(self.sub_id);
+        let mut out = hd_base::HashSet::default();
+        let moved: hd_base::HashSet<u32> = (0..b.len())
+            .filter(|&i| {
+                b.tags[i] == Tag::Read && b.data[i][1] == hd_tir::ir::ReadMode::Move as u32
+            })
+            .filter_map(|i| match b.view(b.data[i][0]).root {
+                hd_tir::ir::Root::Value(v) => Some(v),
+                _ => None,
+            })
+            .collect();
+        for (l, shared) in super::closure::captures(b, ci) {
+            let t = self.sub(b.local_ty[l]);
+            if shared || self.is_cell(l) || !self.copied(t).is_empty() {
+                continue;
+            }
+            let mut fits = true;
+            let mut loans = Vec::new();
+            for i in 0..b.len() {
+                if self.topo.sub[i] != sub {
+                    continue;
+                }
+                let tag = b.tags[i];
+                if tag == Tag::Closure {
+                    let rec = b.record(b.data[i][1]);
+                    if (rec[0]..rec[0] + rec[1]).any(|c| b.cap_local[c as usize].idx() == l) {
+                        fits = false;
+                    }
+                    continue;
+                }
+                if !matches!(tag, Tag::Read | Tag::Store | Tag::Ref) {
+                    continue;
+                }
+                let w = b.data[i][0];
+                if w & place::BARE_LOCAL == 0 {
+                    if b.local_in_place(w).is_some_and(|x| x.idx() == l) {
+                        fits = false;
+                    }
+                    continue;
+                }
+                if (w & !place::BARE_LOCAL) as usize != l {
+                    continue;
+                }
+                if tag != Tag::Read {
+                    fits = false;
+                    continue;
+                }
+                let x = u32::try_from(i).expect("insts");
+                let user = self.consumer.get(i).copied().unwrap_or(NONE);
+                if !moved.contains(&x) && (user == NONE || self.borrowed_arg(user, x)) {
+                    loans.push(x);
+                } else {
+                    fits = false;
+                }
+            }
+            if fits {
+                out.insert(l);
+                self.loans.extend(loans);
+            }
+        }
+        out
+    }
+
     /// Whether call `c` passes value `r` as an argument its callee borrows
     /// at this instance (`layout::Pass::Borrowed`).
     fn borrowed_arg(&self, c: u32, r: u32) -> bool {
