@@ -30,4 +30,3 @@ fn calls(s: string, n: *Node) -> usize:
     by_value(s) + by_ref(&s) + by_value(t) + by_ptr(n)
 >   (no span) release string (last use)
 >   (no span) release string (last use)
->   (no span) release string (last use)

@@ -27,13 +27,11 @@ fn twice(body: fn() -> usize) -> usize:
 
 fn no_args(s: string) -> usize:
     twice:
-> app/main/no_args
->   retain string (conservative: entry)
->   release &string (last use)
->   release string (last use)
         s.len()
->   retain counted reference (conservative: Ref)
+> app/main/no_args
+>   (no span) retain string (conservative: entry)
+>   (no span) release string (last use)
 > app/main/no_args
 >   retain counted reference (conservative: Closure)
->   (no span) release counted reference (last use)
+>   (no span) release string (last use)
 >   (no span) release fn() -> usize (last use)

@@ -3,14 +3,13 @@
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
-  (import "fixture" "std/text/impl string.len'1" (func $"std/text/impl string.len'1" (param i32 i32) (result i32)))
+  (import "fixture" "impl string.len" (func $"impl string.len" (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "std/text/impl string.len'2" (func $"std/text/impl string.len'2" (param i32) (result i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 6 funcref))
+  (import "fixture" "table0" (table $table0 5 funcref))
   (func $trailing (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
     block
     ;; 12 |         s + "!"
@@ -39,14 +38,14 @@
         block
           local.get $s.0
           local.get $s.1
-          call $"std/text/impl string.len'1"
+          call $"impl string.len"
           local.get $t0
           i32.const 0
           call $trailing#1
           local.set $s.1
           local.tee $s.0
           local.get $s.1
-          call $"std/text/impl string.len'1"
+          call $"impl string.len"
           local.get $s.0
           call $rt:release_ref'1
           i32.add
@@ -95,8 +94,8 @@
     end
     local.get $label.0
   )
-  (func $no_args#1 (param $env i32) (param $ctx i32) (result i32) (local $t0 i32)
-    ;; 18 |     twice:
+  (func $no_args#1 (param $env i32) (param $ctx i32) (result i32)
+    ;; (no span)
     local.get $env
     i32.load $heap
     local.tee $ctx
@@ -106,24 +105,19 @@
     call $retain
     block
     ;; 19 |         s.len()
-      i32.const 8
-      i32.const 3
-      call $rt:new/class-1
-      local.tee $t0
       local.get $ctx
-      i32.store $heap
-      local.get $t0
       local.get $env
-      i32.store $heap offset=4
-      local.get $t0
-      call $rt:retain_fields
-      local.get $t0
-      call $"std/text/impl string.len'2"
-      local.get $t0
-    ;; 18 |     twice:
-      call $rt:release_ref'2
-      local.get $ctx
+      local.set $ctx
+      local.set $env
+      block
+        block
+          br 0
+        end
+      end
+    ;; (no span)
+      local.get $env
       call $rt:release_ref'1
+      local.get $ctx
       local.set $env
     end
     local.get $env
@@ -180,59 +174,43 @@
     local.get $env
     local.get $ctx
   )
-  (func $no_args (param $t0 i32) (param $t1 i32) (result i32) (local $s i32) (local $t2 i32)
-    ;; (no span)
-    i32.const 8
-    i32.const 3
-    call $rt:new/class-1
-    local.tee $s
-    local.get $t0
-    i32.store $heap
-    local.get $s
-    local.get $t1
-    i32.store $heap offset=4
+  (func $no_args (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
     block
     ;; 19 |         s.len()
       i32.const 3
-      local.get $s
-      i32.load $heap
-      local.set $t0
-      local.get $s
-      i32.load $heap offset=4
-      local.set $t1
       i32.const 8
       i32.const 3
       call $rt:new/class-1
-      local.tee $t2
-      local.get $t0
+      local.tee $t0
+      local.get $s.0
       i32.store $heap
-      local.get $t2
-      local.get $t1
+      local.get $t0
+      local.get $s.1
       i32.store $heap offset=4
-      local.get $t2
+      local.get $t0
       call $rt:retain_fields
     ;; (no span)
-      local.get $s
-      call $rt:release_ref'2
+      local.get $s.0
+      call $rt:release_ref'1
     ;; 18 |     twice:
       drop
       block
         block
-          local.get $t2
+          local.get $t0
           i32.const 0
           call $no_args#1
-          local.get $t2
+          local.get $t0
           i32.const 0
           call $no_args#1
           i32.add
-          local.set $t0
+          local.set $s.0
           br 0
         end
       end
     ;; (no span)
-      local.get $t2
+      local.get $t0
       call $rt:release_ref'2
     end
-    local.get $t0
+    local.get $s.0
   )
 )

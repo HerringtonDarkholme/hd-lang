@@ -6,10 +6,9 @@
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
+  (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:new/class-1'1" (func $rt:new/class-1'1 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields'2" (func $rt:retain_fields'2 (param i32)))
-  (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
-  (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
   (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -49,8 +48,8 @@
     local.get $items
     local.get $s.0
   )
-  (func $copy_shares#1 (param $env i32) (param $ctx i32) (local $s.0 i32) (local $t0 i32) (local $t1 i32)
-    ;; 24 |     again := inc
+  (func $copy_shares#1 (param $env i32) (param $ctx i32) (local $s.0 i32) (local $t0 i32)
+    ;; 26 |     again()
     local.get $env
     i32.load $heap
     local.tee $ctx
@@ -67,32 +66,25 @@
       local.get $ctx
       i32.load $heap
       local.set $t0
-      i32.const 8
-      i32.const 4
-      call $rt:new/class-1'1
-      local.tee $t1
       local.get $s.0
-      i32.store $heap
-      local.get $t1
       local.get $env
-      i32.store $heap offset=4
-      local.get $t1
-      call $rt:retain_fields'2
-      local.get $t1
-      call $"impl string.len"
+      local.set $s.0
       local.set $env
-      local.get $t1
-    ;; 24 |     again := inc
-      call $rt:release_ref'1
-      local.get $s.0
+      block
+        block
+          br 0
+        end
+      end
+    ;; 26 |     again()
+      local.get $env
       call $rt:release_ref'2
     ;; 23 |     inc := fn() -> void: n += s.len()
       local.get $ctx
       local.get $t0
-      local.get $env
+      local.get $s.0
       i32.add
       i32.store $heap
-    ;; 24 |     again := inc
+    ;; 26 |     again()
       local.get $ctx
       call $rt:release_ref'1
     end
@@ -127,7 +119,7 @@
       i32.eq
       if
         local.get $t0
-        i32.const 4
+        i32.const 3
         call_indirect $table0 (param i32) (result i32)
         local.set $t0
         local.get $ctx
@@ -154,60 +146,52 @@
       call $rt:release_ref'1
     end
   )
-  (func $copied (param $t0 i32) (param $t1 i32) (result i32) (local $s i32) (local $t2 i32)
-    ;; (no span)
-    i32.const 8
-    i32.const 4
-    call $rt:new/class-1'1
-    local.tee $s
-    local.get $t0
-    i32.store $heap
-    local.get $s
-    local.get $t1
-    i32.store $heap offset=4
+  (func $copied (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     block
     ;; 11 |     f := fn() -> usize: s.len()
-      i32.const 5
-      local.get $s
-      i32.load $heap
-      local.set $t0
-      local.get $s
-      i32.load $heap offset=4
-      local.set $t1
-      i32.const 8
       i32.const 4
+      i32.const 8
+      i32.const 6
       call $rt:new/class-1'1
-      local.tee $t2
-      local.get $t0
+      local.tee $t0
+      local.get $s.0
       i32.store $heap
-      local.get $t2
-      local.get $t1
+      local.get $t0
+      local.get $s.1
       i32.store $heap offset=4
-      local.get $t2
+      local.get $t0
       call $rt:retain_fields'2
     ;; 12 |     f() + s.len()
       drop
-      local.get $t2
+      local.get $t0
       i32.const 0
       call $copied#1
+      local.set $t1
     ;; (no span)
-      local.get $t2
+      local.get $t0
       call $rt:release_ref'1
     ;; 12 |     f() + s.len()
-      local.get $s
-      call $"impl string.len"
+      local.get $s.0
+      local.set $s.0
+      block
+        block
+          br 0
+        end
+      end
     ;; (no span)
-      local.get $s
-      call $rt:release_ref'1
+      local.get $s.0
+      call $rt:release_ref'2
     ;; 12 |     f() + s.len()
+      local.get $t1
+      local.get $s.1
       i32.add
     ;; (no span)
-      local.set $t0
+      local.set $s.0
     end
-    local.get $t0
+    local.get $s.0
   )
-  (func $copied#1 (param $env i32) (param $ctx i32) (result i32) (local $t0 i32)
-    ;; 11 |     f := fn() -> usize: s.len()
+  (func $copied#1 (param $env i32) (param $ctx i32) (result i32)
+    ;; 12 |     f() + s.len()
     local.get $env
     i32.load $heap
     local.tee $ctx
@@ -216,38 +200,25 @@
     local.set $env
     call $retain
     block
-      i32.const 8
-      i32.const 4
-      call $rt:new/class-1'1
-      local.tee $t0
+    ;; 11 |     f := fn() -> usize: s.len()
       local.get $ctx
-      i32.store $heap
-      local.get $t0
       local.get $env
-      i32.store $heap offset=4
-      local.get $t0
-      call $rt:retain_fields'2
-      local.get $t0
-      call $"impl string.len"
-      local.get $t0
-      call $rt:release_ref'1
-      local.get $ctx
+      local.set $ctx
+      local.set $env
+      block
+        block
+          br 0
+        end
+      end
+    ;; 12 |     f() + s.len()
+      local.get $env
       call $rt:release_ref'2
+      local.get $ctx
       local.set $env
     end
     local.get $env
   )
-  (func $copy_shares (param $n i32) (param $inc.0 i32) (result i32) (local $s i32) (local $t0 i32) (local $inc.1 i32)
-    ;; (no span)
-    i32.const 8
-    i32.const 4
-    call $rt:new/class-1'1
-    local.tee $s
-    local.get $n
-    i32.store $heap
-    local.get $s
-    local.get $inc.0
-    i32.store $heap offset=4
+  (func $copy_shares (param $s.0 i32) (param $s.1 i32) (result i32) (local $n i32) (local $inc.1 i32)
     block
     ;; 22 |     let n: usize = 0
       i32.const 4
@@ -258,12 +229,6 @@
       i32.store $heap
     ;; 23 |     inc := fn() -> void: n += s.len()
       i32.const 6
-      local.get $s
-      i32.load $heap
-      local.set $inc.0
-      local.get $s
-      i32.load $heap offset=4
-      local.set $t0
       i32.const 12
       i32.const -2147483646
       call $rt:new/class-2
@@ -271,18 +236,18 @@
       local.get $n
       i32.store $heap
       local.get $inc.1
-      local.get $inc.0
+      local.get $s.0
       i32.store $heap offset=4
       local.get $inc.1
-      local.get $t0
+      local.get $s.1
       i32.store $heap offset=8
       local.get $inc.1
       call $rt:retain_fields'1
     ;; (no span)
-      local.get $s
-      call $rt:release_ref'1
+      local.get $s.0
+      call $rt:release_ref'2
     ;; 23 |     inc := fn() -> void: n += s.len()
-      local.set $inc.0
+      local.set $s.0
     ;; 25 |     inc()
       local.get $inc.1
       i32.const 0
@@ -292,7 +257,7 @@
     ;; 26 |     again()
       i32.const 0
     ;; 24 |     again := inc
-      local.get $inc.0
+      local.get $s.0
     ;; 26 |     again()
       call_indirect $table0 (param i32 i32)
     ;; (no span)
@@ -304,9 +269,9 @@
     ;; (no span)
       local.get $n
       call $rt:release_ref'1
-      local.set $n
+      local.set $s.0
     end
-    local.get $n
+    local.get $s.0
   )
   (func $shared_list#1 (param $env i32) (param $ctx i32) (local $s.0 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 16 |     add := fn() -> void: xs.push(s)
@@ -337,7 +302,7 @@
       i32.eq
       if
         local.get $t0
-        i32.const 4
+        i32.const 3
         call_indirect $table0 (param i32) (result i32)
         local.set $t0
         local.get $ctx

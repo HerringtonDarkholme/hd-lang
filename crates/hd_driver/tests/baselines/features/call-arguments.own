@@ -73,27 +73,52 @@ fn by_ref(s: &string) -> usize:
     (s.len() + 1) * (s.len() + 2) * (s.len() + 3) * (s.len() + 4) / (s.len() + 5)
 > app/main/by_ref
 >   local $0 s: Ref[string] [param read] value
->     uses $0: entry -> %0 lend, %3 lend, %7 lend, %11 lend, %15 lend last
+>     uses $0: entry -> %0 lend, %8 lend, %17 lend, %26 lend, %35 lend last
 >   %0 = Read borrow [$0] : Ref[string]
->   %1 = Call std/text/impl string.len[] (%0) : usize
->   %2 = Prim Add [%1 1:usize] : usize
->   %3 = Read borrow [$0] : Ref[string]
->   %4 = Call std/text/impl string.len[] (%3) : usize
->   %5 = Prim Add [%4 2:usize] : usize
->   %6 = Prim Mul [%2 %5] : usize
->   %7 = Read borrow [$0] : Ref[string]
->   %8 = Call std/text/impl string.len[] (%7) : usize
->   %9 = Prim Add [%8 3:usize] : usize
->   %10 = Prim Mul [%6 %9] : usize
->   %11 = Read borrow [$0] : Ref[string]
->   %12 = Call std/text/impl string.len[] (%11) : usize
->   %13 = Prim Add [%12 4:usize] : usize
->   %14 = Prim Mul [%10 %13] : usize
->   %15 = Read borrow [$0] : Ref[string]
->   %16 = Call std/text/impl string.len[] (%15) : usize
->   %17 = Prim Add [%16 5:usize] : usize
->   %18 = Prim Div [%14 %17] : usize
->   %19 = Block %18 : usize
+>   %1 = Read borrow [*%0] : string
+>   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
+>   %3 = Drop [%1] : ()
+>   %4 = Break L4 %2 : never
+>   %5 = Block - : usize
+>   %6 = Scope %5 [] : usize
+>   %7 = Prim Add [%6 1:usize] : usize
+>   %8 = Read borrow [$0] : Ref[string]
+>   %9 = Read borrow [*%8] : string
+>   %10 = Call std/rt.bytes/bytes_len[] (%9) : usize
+>   %11 = Drop [%9] : ()
+>   %12 = Break L3 %10 : never
+>   %13 = Block - : usize
+>   %14 = Scope %13 [] : usize
+>   %15 = Prim Add [%14 2:usize] : usize
+>   %16 = Prim Mul [%7 %15] : usize
+>   %17 = Read borrow [$0] : Ref[string]
+>   %18 = Read borrow [*%17] : string
+>   %19 = Call std/rt.bytes/bytes_len[] (%18) : usize
+>   %20 = Drop [%18] : ()
+>   %21 = Break L2 %19 : never
+>   %22 = Block - : usize
+>   %23 = Scope %22 [] : usize
+>   %24 = Prim Add [%23 3:usize] : usize
+>   %25 = Prim Mul [%16 %24] : usize
+>   %26 = Read borrow [$0] : Ref[string]
+>   %27 = Read borrow [*%26] : string
+>   %28 = Call std/rt.bytes/bytes_len[] (%27) : usize
+>   %29 = Drop [%27] : ()
+>   %30 = Break L1 %28 : never
+>   %31 = Block - : usize
+>   %32 = Scope %31 [] : usize
+>   %33 = Prim Add [%32 4:usize] : usize
+>   %34 = Prim Mul [%25 %33] : usize
+>   %35 = Read borrow [$0] : Ref[string]
+>   %36 = Read borrow [*%35] : string
+>   %37 = Call std/rt.bytes/bytes_len[] (%36) : usize
+>   %38 = Drop [%36] : ()
+>   %39 = Break L0 %37 : never
+>   %40 = Block - : usize
+>   %41 = Scope %40 [] : usize
+>   %42 = Prim Add [%41 5:usize] : usize
+>   %43 = Prim Div [%34 %42] : usize
+>   %44 = Block %43 : usize
 >   summary kept []
 
 fn by_mut(s: &mut string) -> void:

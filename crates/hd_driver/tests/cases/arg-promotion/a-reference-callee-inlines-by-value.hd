@@ -4,7 +4,7 @@
 # ordinary callee a call (#856), but its body only reads through `self`
 # and the referent is an `i64`. The copy in `use_twice` binds `x` itself,
 # so the sum reads a local: no call, no frame slot and no load. `keep`
-# passes its reference on whole, so it calls the plain body.
+# keeps its evaluated reference, so it inlines the two loads through it.
 trait Twice:
     fn twice(&self) -> i64
 
