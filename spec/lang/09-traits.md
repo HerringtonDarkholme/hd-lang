@@ -612,7 +612,7 @@ shows its declaration.
 1. r[trait.display.to-string] `Display` declares the required method `fn to_string(&self) -> string`, which returns the value's text.
 2. r[trait.display.write] `Display` declares `fn write(&self, out: &mut StringBuilder) -> void`, which pushes the value's text to `out`.
 3. r[trait.display.write.default] The default body of `write` pushes `self.to_string()` to `out`. So an implementation that writes only `to_string` is complete.
-4. r[trait.display.write.override] An implementation may override `write` to push its text to `out` in parts, as in `_ := out.push(self.first).push(" ").push(self.last)`. Then no string is made for the value itself.
+4. r[trait.display.write.parts] An override may push its text to `out` in parts, avoiding intermediate strings when the caller streams into one builder.
 5. r[trait.display.builder] `StringBuilder` is `std.text.StringBuilder` ([Joining And Building](../std/text.md#joining-and-building)). It is not a prelude name, so an implementation that overrides `write` imports it, as in `use std.text.StringBuilder`.
 
 > **Note.** Interpolation calls `write`, and `value.to_string()` calls

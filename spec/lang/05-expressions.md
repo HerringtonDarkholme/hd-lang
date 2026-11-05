@@ -243,8 +243,8 @@ trait Display:
 2. r[expr.interp.self] `"value: $self"` inside a method interpolates the receiver.
 3. r[expr.interp.order] Embedded expressions are evaluated from left to right at the position of their segment.
 4. r[expr.interp.display] Each embedded expression's type must implement the canonical `std.format.Display` trait.
-5. r[expr.interp.builder] A string with interpolation segments makes one new `StringBuilder`. It pushes the string's text pieces and writes its segments' values in source order, and its value is the builder's `build()`.
-6. r[expr.interp.write] Each segment's value is written by the `write` of its type's `Display` implementation, with that one builder as `out`.
+5. r[expr.interp.builder.sized] A value interpolation gathers its pieces before allocating the result buffer, whose capacity must cover their combined byte length.
+6. r[expr.interp.write.measured] Each segment uses its type's `Display.write` text; each override runs once and may have its output retained for assembly.
 7. r[expr.interp.write.order] A segment's `write` runs after its expression is evaluated and before the next segment's expression.
 8. r[expr.interp.builder.push] When the string is the one argument of `StringBuilder.push` and each value is a name or a field path, the receiver may serve as the string's builder. Its pieces and values are then pushed and written to the receiver itself.
 9. r[expr.interp.display.ref] `Display.write` takes the value by reference, so `"$x"` calls `Display::write(&x, out)`. An embedded expression that is a place passes its address, as a `&self` receiver does by [`fn.method.auto-address`](07-functions.md#r-fn.method.auto-address). Any other expression, and a list element or a map value, is held in a new local that the call refers to. So interpolation never moves its values.
@@ -261,6 +261,15 @@ trait Display:
 
 20. r[expr.interp.collection-debug-fix] For a simple name in braced interpolation, a missing `Display` diagnostic may offer exact `debug(name)` wrapping for `List` and `Map`.
 21. r[expr.interp.collection-debug-fix.proof] This fix requires proven `Debug` support and an unshadowed prelude `debug`.
+
+22. r[expr.interp.value-allocation] A value interpolation allocates its result buffer once and must not grow it while assembling the pieces.
+23. r[expr.interp.value-width] Sizing includes literal bytes, string lengths, and exact formatted numeric widths, rather than maximum numeric widths.
+24. r[expr.interp.value-snapshot] Each piece retains the text or primitive value it had at its segment position, despite later expressions changing its source.
+
+> **Why.** Measuring before assembly avoids a second allocation and copy
+> for short literals containing numbers. Retaining a custom writer's output
+> preserves its effects without invoking it twice. Streaming into an existing
+> builder keeps the source-order writes of [`expr.interp.builder.push`](#r-expr.interp.builder.push).
 
 > **Note.** The empty tuple writes `()`. A `void` value is that tuple, so
 > `"${log()}"` writes `()` too.

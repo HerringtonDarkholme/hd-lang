@@ -1,0 +1,33 @@
+# test: measured value interpolation preserves earlier values and exact numeric text
+# Spec 05 String Interpolation: expr.interp.order, expr.interp.write.order.
+use std.text.StringBuilder
+use std.testing.assert_equal
+
+struct State:
+    number: i64
+    text: string
+    writes: usize
+
+struct Change:
+    state: *mut State
+
+impl Display for Change:
+    fn to_string(&self) -> string:
+        panic("interpolation must use the override")
+
+    fn write(&self, out: &mut StringBuilder) -> void:
+        self.state.number = -9
+        self.state.text = "after"
+        self.state.writes += 1
+        out.push("changed")
+
+pub fn main() -> void:
+    state := box(State { number: -9223372036854775808i64, text: "before", writes: 0 })
+    text := "${state.number}|${state.text}|${Change { state: state }}|${state.number}|${state.text}"
+    assert_equal(text, "-9223372036854775808|before|changed|-9|after")
+    assert_equal(state.writes, 1)
+    assert_equal("${0u64}|${18446744073709551615u64}|${-128i8}", "0|18446744073709551615|-128")
+    assert_equal(
+        "${'a'}${'é'}${'λ'}${'界'}${'🙂'}|${true}|${false}|${1.5f32}",
+        "aéλ界🙂|true|false|1.5",
+    )

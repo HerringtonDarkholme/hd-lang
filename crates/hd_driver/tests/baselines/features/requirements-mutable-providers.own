@@ -84,7 +84,7 @@ fn demo(a: string, b: string) -> usize:
 >   %11 = RefDyn %10 : Counted[mut Recorder]
 >   %12 = Coerce %11 [RefAsProvider -] : Recorder
 >   %13 = Drop [%11] : ()
->   %19 = With [%5831 %12] %18 : ()
+>   %19 = With [%5857 %12] %18 : ()
 >   %20 = Drop [%12] : ()
         _ := tick(a)
 >   %14 = Read move [$0] : string

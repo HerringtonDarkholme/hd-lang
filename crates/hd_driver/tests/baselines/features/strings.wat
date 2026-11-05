@@ -3,12 +3,9 @@
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "room" (func $room (param i32 i32) (result i32)))
-  (import "fixture" "rt:drop" (func $rt:drop (param i32)))
-  (import "fixture" "impl Display for string.write" (func $"impl Display for string.write" (param i32 i32 i32)))
-  (import "fixture" "impl StringBuilder.push" (func $"impl StringBuilder.push" (param i32 i32 i32)))
-  (import "fixture" "impl Display for i64.write" (func $"impl Display for i64.write" (param i64 i32)))
-  (import "fixture" "impl StringBuilder.build" (func $"impl StringBuilder.build" (param i32) (result i32 i32)))
+  (import "fixture" "signed_magnitude" (func $signed_magnitude (param i64) (result i64)))
+  (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
+  (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -87,12 +84,12 @@
     local.get $a.0
     local.get $a.1
   )
-  (func $interp (param $a.0 i32) (param $a.1 i32) (param $n i64) (result i32 i32) (local $t1 i32) (local $t2 i32) (local $t0 i32)
+  (func $interp (param $a.0 i32) (param $a.1 i32) (param $t1 i64) (result i32 i32) (local $t0 i32) (local $n i32) (local $t2 i32) (local $t3 i64) (local $t4 i32) (local $t5 i32) (local $t6 i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
     i32.sub
-    i32.const 48
+    i32.const 16
     i32.lt_u
     if
       i32.const 1
@@ -114,25 +111,54 @@
       global.set $locals
     end
     global.get $locals
-    i32.const 48
+    i32.const 16
     i32.sub
     local.tee $t0
     global.set $locals
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $n
+    local.get $t1
+    i64.store $heap
     block
     ;; 7 |     "${a}:${n}"
+      local.get $a.0
+      drop
+      block
+        block
+          local.get $a.1
+          local.set $t2
+          br 0
+        end
+      end
+      local.get $n
+      i64.load $heap
+      local.tee $t1
+      local.set $t3
       block
         block
           block
             block
-              block
-                block
-                  i32.const 0
-                  i32.const 1
-                  call $room
-                  local.set $t1
-                  br 0
-                end
+              local.get $t3
+              call $signed_magnitude
+              call $unsigned_width
+              local.set $n
+              local.get $t3
+              i64.const 0
+              i64.lt_s
+              if
+                i32.const 1
+                local.set $t4
+              else
               end
+              local.get $n
+              local.get $t4
+              i32.add
+              local.set $n
               br 0
             end
           end
@@ -140,109 +166,74 @@
         end
       end
       local.get $t2
-      if
-        local.get $t2
-        call $rt:drop
-        local.get $t2
-        i32.const 0
-        i32.store $heap offset=12
-        local.get $t2
-        i32.const 0
-        i32.store $heap offset=16
-        local.get $t2
-        i32.const 0
-        i32.store $heap offset=20
-        local.get $t2
-        i32.const 0
-        i32.store $heap offset=24
-        local.get $t2
-        i32.const 0
-        i32.store $heap offset=28
-        local.get $t2
-        i32.const 0
-        i32.store $heap offset=32
-      end
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
+      i32.const 1
       i32.add
-      local.tee $t2
-      local.get $t1
-      i32.store $heap
-      local.get $t2
-      i32.const 0
-      i32.store $heap offset=4
-      local.get $t2
-      i32.const 0
-      i32.store $heap offset=8
-      local.get $t2
-      i32.const 1
-      i32.store $heap offset=12
-      local.get $t2
-      i32.const 1
-      i32.store $heap offset=16
-      local.get $t2
-      i32.const 1
-      i32.store $heap offset=20
-      local.get $t2
-      i32.const 1
-      i32.store $heap offset=24
-      local.get $t2
-      i32.const 1
-      i32.store $heap offset=28
-      local.get $t2
-      i32.const 1
-      i32.store $heap offset=32
-      local.get $a.0
-      local.get $a.1
-      local.get $t2
-      call $"impl Display for string.write"
-      local.get $a.0
-    ;; (no span)
-      call $rt:release_ref
-    ;; 7 |     "${a}:${n}"
-      local.get $t2
-      i32.const 65 ;; &":"
-      i32.const 1
-      call $"impl StringBuilder.push"
+      local.tee $t4
       local.get $n
-      local.get $t2
-      call $"impl Display for i64.write"
-      local.get $t2
-      call $"impl StringBuilder.build"
+      i32.add
+      local.set $t5
+      block
+        block
+          local.get $t5
+          i32.const 16
+          local.set $t6
+          if
+            local.get $t5
+            call $rt:str
+            local.set $t6
+          end
+          local.get $t6
+          local.get $t5
+          local.set $t6
+          local.set $t5
+          br 0
+        end
+      end
+      block
+        block
+          local.get $t5
+          local.get $a.0
+          local.get $a.1
+          call $rt:memory_copy/0/0
+          br 0
+        end
+      end
+      i32.const 65 ;; &":"
+      local.set $a.0
+      block
+        block
+          local.get $t5
+          local.get $t2
+          i32.add
+          local.get $a.0
+          i32.load8_u $heap
+          i32.store8 $heap
+          br 0
+        end
+      end
+      block
+        block
+          local.get $t1
+          local.get $t5
+          local.get $t4
+          i32.const 1
+          i32.mul
+          i32.add
+          local.get $n
+          call $write_signed_sized
+          br 0
+        end
+      end
+    ;; (no span)
+      local.get $t5
+      local.get $t6
       local.set $a.1
       local.set $a.0
-    ;; (no span)
-      local.get $t2
-      if
-        local.get $t2
-        call $rt:drop
-        local.get $t2
-        i32.const 0
-        i32.store $heap offset=12
-        local.get $t2
-        i32.const 0
-        i32.store $heap offset=16
-        local.get $t2
-        i32.const 0
-        i32.store $heap offset=20
-        local.get $t2
-        i32.const 0
-        i32.store $heap offset=24
-        local.get $t2
-        i32.const 0
-        i32.store $heap offset=28
-        local.get $t2
-        i32.const 0
-        i32.store $heap offset=32
-      end
     end
     local.get $a.0
     local.get $a.1
     local.get $t0
-    i32.const 48
+    i32.const 16
     i32.add
     global.set $locals
   )

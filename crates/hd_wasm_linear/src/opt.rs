@@ -12,6 +12,7 @@
 //!    constant and that set is `t`'s only write, moves to `t`'s only read
 //!    when the read follows in the same straight-line run of
 //!    instructions and nothing between writes what `P` reads;
+//!    constant bulk widths may also enter empty blocks on that run;
 //! 5. `if A else br N end`, with `N` past the `if` and no branch in `A`
 //!    to the `if` itself, is `i32.eqz; br_if N-1; A`, and `if br N else A
 //!    end` is `br_if N-1; A`: the shape of a `while` loop's test;
@@ -1380,17 +1381,35 @@ fn forward(f: &mut Func, np: u32) -> bool {
             continue;
         }
         let mut found = None;
+        let mut crossed_block = false;
         for j in k + 2..f.body.len() {
             let i = &f.body[j];
             if matches!(i, Ins::Op(I::LocalGet(u)) if *u == t) {
                 found = Some(j);
                 break;
             }
-            if clobbers(&p, i) || ends_run(i) {
+            // Inlining wraps a callee in empty blocks. Entering one cannot
+            // skip this store or change a literal bulk width.
+            let constant_block = matches!(p, Ins::Op(I::I32Const(_)))
+                && matches!(i, Ins::Op(I::Block(wasm_encoder::BlockType::Empty)));
+            crossed_block |= constant_block;
+            if clobbers(&p, i) || (ends_run(i) && !constant_block) {
                 break;
             }
         }
         if let Some(j) = found {
+            // Exposing a width enables bulk lowering to choose scalar or
+            // native memory operations. Moving unrelated constants into
+            // blocks has no such benefit and can change engine inlining.
+            if crossed_block
+                && !matches!(
+                    f.body.get(j + 1),
+                    Some(Ins::Op(I::MemoryCopy { .. } | I::MemoryFill(_)))
+                )
+            {
+                k += 1;
+                continue;
+            }
             f.body[j] = p;
             if let Some(origins) = &mut f.origins {
                 origins[j] = origins[k].or(origins[k + 1]).or(origins[j]);
@@ -3132,6 +3151,126 @@ mod origin_tests {
             .iter()
             .map(|s| s.expect("retained source"))
             .collect()
+    }
+
+    #[test]
+    fn a_constant_bulk_width_survives_empty_inlining_blocks() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        for bulk in [
+            I::MemoryCopy {
+                src_mem: 0,
+                dst_mem: 0,
+            },
+            I::MemoryFill(0),
+        ] {
+            let f = run(
+                tracked(
+                    &symbols,
+                    2,
+                    1,
+                    vec![
+                        op(I::I32Const(1)),
+                        op(I::LocalSet(2)),
+                        op(I::Block(wasm_encoder::BlockType::Empty)),
+                        op(I::Block(wasm_encoder::BlockType::Empty)),
+                        op(I::LocalGet(0)),
+                        op(I::LocalGet(1)),
+                        op(I::LocalGet(2)),
+                        op(bulk),
+                        op(I::End),
+                        op(I::End),
+                    ],
+                ),
+                |f| {
+                    assert!(forward(f, 2));
+                    assert!(crate::bulk::lower(f));
+                },
+            );
+            assert!(f.body.iter().any(|i| matches!(i, Ins::Op(I::I32Store8(_)))));
+            assert!(!f.body.iter().any(|i| matches!(
+                i,
+                Ins::Call(_) | Ins::Op(I::MemoryCopy { .. } | I::MemoryFill(_))
+            )));
+        }
+    }
+
+    #[test]
+    fn an_ordinary_store_keeps_its_constant_outside_the_block() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        let f = run(
+            tracked(
+                &symbols,
+                1,
+                1,
+                vec![
+                    op(I::I32Const(1 << 30)),
+                    op(I::LocalSet(1)),
+                    op(I::Block(wasm_encoder::BlockType::Empty)),
+                    op(I::Block(wasm_encoder::BlockType::Empty)),
+                    op(I::LocalGet(0)),
+                    op(I::LocalGet(1)),
+                    op(I::I32Store(wasm_encoder::MemArg {
+                        offset: 0,
+                        align: 2,
+                        memory_index: 0,
+                    })),
+                    op(I::End),
+                    op(I::End),
+                ],
+            ),
+            |f| {
+                assert!(!forward(f, 1));
+            },
+        );
+        assert_eq!(spans(&f), (10..19).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn constant_forwarding_still_stops_at_conditional_and_loop_edges() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        for (edge, conditional, produces) in [
+            (I::If(wasm_encoder::BlockType::Empty), true, false),
+            (I::Loop(wasm_encoder::BlockType::Empty), false, false),
+            (
+                I::Block(wasm_encoder::BlockType::Result(wasm_encoder::ValType::I32)),
+                false,
+                true,
+            ),
+        ] {
+            let mut body = vec![op(I::I32Const(1)), op(I::LocalSet(1))];
+            if conditional {
+                body.push(op(I::LocalGet(0)));
+            }
+            body.extend([op(edge), op(I::LocalGet(1))]);
+            if !produces {
+                body.push(op(I::Drop));
+            }
+            body.push(op(I::End));
+            if produces {
+                body.push(op(I::Drop));
+            }
+            let mut f = tracked(&symbols, 1, 1, body);
+            assert!(!forward(&mut f, 1));
+        }
+        // A read after the end of a conditional store may still see zero.
+        let mut f = tracked(
+            &symbols,
+            1,
+            1,
+            vec![
+                op(I::LocalGet(0)),
+                op(I::If(wasm_encoder::BlockType::Empty)),
+                op(I::I32Const(1)),
+                op(I::LocalSet(1)),
+                op(I::End),
+                op(I::LocalGet(1)),
+                op(I::Drop),
+            ],
+        );
+        assert!(!forward(&mut f, 1));
     }
 
     #[test]

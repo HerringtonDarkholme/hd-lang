@@ -12,50 +12,70 @@ fn unexpected(at: usize) -> string:
     "unexpected byte at $at"
 > app/main/unexpected
 >   local $0 at: usize [param read captured]
->   local $1 $interpolation: StringBuilder [read assigned captured captured-assigned]
->   local $2 capacity: usize [read]
->   local $3 capacity: usize [read]
+>   local $1 result: string [read]
+>   local $2 offset: usize [read]
+>   local $3 value: u64 [read]
+>   local $4 width: usize [read]
+>   local $5 result: string [read]
+>   local $6 offset: usize [read]
+>   local $7 text: string [read]
+>   local $8 size: usize [read]
+>   local $9 value: u64 [read]
 >   %0 = Ref local frame [$0] : Counted[usize]
->   %1 = Store [$2] 0:usize : ()
->   %2 = Read copy [$2] : usize
->   %3 = Store [$3] %2 : ()
->   %4 = Read copy [$3] : usize
->   %5 = Call std/rt.memory/size_of[u8] () : usize
->   %6 = Call std/rt.memory/room[] (%4, %5) : usize
->   %7 = Read copy [$3] : usize
->   %8 = NewStruct [%6 %7] : Buffer[u8]
->   %9 = Break L0 %8 : never
->   %10 = Block - : Buffer[u8]
->   %11 = Scope %10 [] : Buffer[u8]
->   %12 = NewStruct [%11 0:usize] : UniqList[u8]
->   %13 = Break L1 %12 : never
->   %14 = Block - : UniqList[u8]
->   %15 = Scope %14 [] : UniqList[u8]
+>   %1 = Read copy [*%0] : usize
+>   %2 = Drop [%0] : ()
+>   %3 = Prim Conv [%1] : u64
+>   %4 = Drop [$0] : ()
+>   %5 = Store [$9] %3 : ()
+>   %6 = Read copy [$9] : u64
+>   %7 = Call std/rt.bytes/unsigned_width[] (%6) : usize
+>   %8 = Break L3 %7 : never
+>   %9 = Block - : usize
+>   %10 = Scope %9 [] : usize
+>   %11 = Prim Add [0:usize 19:usize] : usize
+>   %12 = Prim Add [%11 %10] : usize
+>   %13 = Store [$8] %12 : ()
+>   %14 = Read copy [$8] : usize
+>   %15 = Call std/rt.memory/new_string[] (%14) : string
 >   %16 = Break L2 %15 : never
->   %17 = Block - : UniqList[u8]
->   %18 = Scope %17 [] : UniqList[u8]
->   %19 = NewStruct [%18] : StringBuilder
->   %20 = Store [$1] %19 : ()
->   %21 = Ref mut local frame [$1] : Counted[mut StringBuilder]
->   %22 = Call std/text/impl StringBuilder.reserve[] (%21, 38:usize) : ()
->   %23 = Drop [%21] : ()
->   %24 = Ref mut local frame [$1] : Counted[mut StringBuilder]
->   %25 = Call std/text/impl StringBuilder.push[] (%24, "unexpected byte at ") : ()
->   %26 = Drop [%24] : ()
->   %27 = Ref mut local frame [$1] : Counted[mut StringBuilder]
->   %28 = Call std/format/Display.write for usize [] via Impl (%0, %27) : ()
->   %29 = Drop [%27] : ()
->   %30 = Drop [%0] : ()
->   %31 = Drop [$0] : ()
->   %32 = Ref mut local frame [$1] : Counted[mut StringBuilder]
->   %33 = Call std/text/impl StringBuilder.build[] (%32) : string
->   %34 = Drop [%32] : ()
->   %35 = Drop [$1] : ()
->   %36 = Block %33 : string
->   %21 finds [$1] full
->   %24 finds [$1] full
->   %27 finds [$1] full
->   %32 finds [$1] full
+>   %17 = Block - : string
+>   %18 = Scope %17 [] : string
+>   %19 = Read borrow [%18] : string
+>   %20 = Store [$5] %19 : ()
+>   %21 = Store [$6] 0:usize : ()
+>   %22 = Store [$7] "unexpected byte at " : ()
+>   %23 = Read borrow [$5] : string
+>   %24 = Call std/rt.memory/string_bytes[] (%23) : Ptr[u8]
+>   %25 = Read copy [%24 .address] : usize
+>   %26 = Read copy [$6] : usize
+>   %27 = Prim Add [%25 %26] : usize
+>   %28 = Read borrow [$7] : string
+>   %29 = Call std/rt.memory/string_bytes[] (%28) : Ptr[u8]
+>   %30 = Read copy [%29 .address] : usize
+>   %31 = Read borrow [$7] : string
+>   %32 = Call std/rt.bytes/bytes_len[] (%31) : usize
+>   %33 = Call std/rt.memory/copy[] (%27, %30, %32) : ()
+>   %34 = Break L1 - : never
+>   %35 = Block - : ()
+>   %36 = Scope %35 [] : ()
+>   %37 = Read borrow [%18] : string
+>   %38 = Drop [$7] : ()
+>   %39 = Store [$1] %37 : ()
+>   %40 = Store [$2] %11 : ()
+>   %41 = Store [$3] %3 : ()
+>   %42 = Store [$4] %10 : ()
+>   %43 = Read copy [$3] : u64
+>   %44 = Read borrow [$1] : string
+>   %45 = Call std/rt.memory/string_bytes[] (%44) : Ptr[u8]
+>   %46 = Read copy [$2] : usize
+>   %47 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[u8] (%45, %46) : Ptr[u8]
+>   %48 = Read copy [$4] : usize
+>   %49 = Call std/rt.bytes/write_unsigned_sized[] (%43, %47, %48) : ()
+>   %50 = Break L0 - : never
+>   %51 = Block - : ()
+>   %52 = Scope %51 [] : ()
+>   %53 = Read move [%18] : string
+>   %54 = Block %53 : string
 >   exit sub 0 drops [$0]
 >   summary kept [] writes
 

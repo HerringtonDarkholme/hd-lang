@@ -1,0 +1,8 @@
+# @dump: wat counts
+# @build: v8 release
+# Value interpolation counts every digit before reserving its result. The
+# literal prefix and integer share one allocation; the integer writes only
+# its measured bytes rather than requesting twenty more bytes of room.
+fn render(n: u64) -> string:
+    "w${n}"
+    #^^^^^^^

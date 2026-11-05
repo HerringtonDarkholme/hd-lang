@@ -18,9 +18,10 @@ impl[S] Handle[S]:
 
     fn keep(self, all: &mut List[Handle[S]]) -> void:
         if (self.n + 1) * (self.n + 2) * (self.n + 3) * (self.n + 4) > 0:
-            all.push(self)
 > app/main/impl [ S ] Handle [ S ].keep
->   (no span) release app.main.Handle[i32] [names, get.1]
+>   unique List[app.main.Handle[i32]] (conservative: unique)
+            all.push(self)
+>   (no span) release app.main.Handle[i32] [names, get.1] (last use)
 
 fn total(h: Handle[i32], times: i64) -> i64:
     let sum: i64 = 0
@@ -34,24 +35,22 @@ fn generic_total[S](h: Handle[S]) -> i64:
 fn collect(h: Handle[i32]) -> usize:
     let mut all: List[Handle[i32]] = []
 > app/main/collect
->   release List[app.main.Handle[i32]]
+>   release List[app.main.Handle[i32]] (overwritten)
     h.keep(&mut all)
->   copy app.main.Handle[i32] [names, get.1]
+>   copy app.main.Handle[i32] [names, get.1] (conservative: copy read)
     h.keep(&mut all)
     all.len()
->   (no span) release List[app.main.Handle[i32]]
+>   (no span) release List[app.main.Handle[i32]] (last use)
 
 fn size(x: i32) -> i64:
     i64(x)
 
 pub fn main() -> void $ Console:
     h := Handle::[i32] { names: ["a${1}"], n: 2, get: size }
-> app/main/main
->   release counted reference
     println(total(h, 3))
     println(generic_total(h))
     println(collect(h))
->   release List[app.main.Handle[i32]]
->   copy app.main.Handle[i32] [names, get.1]
->   release List[app.main.Handle[i32]]
->   (no span) release counted reference
+> app/main/main
+>   release List[app.main.Handle[i32]] (overwritten)
+>   copy app.main.Handle[i32] [names, get.1] (conservative: copy read)
+>   release List[app.main.Handle[i32]] (last use)

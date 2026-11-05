@@ -3,7 +3,11 @@
 # file to std as `std.rt_tests.memory_tests` and runs its cases on the linear
 # backend (crates/hd_driver/tests/conformance.rs, `STD_RT_TESTS`). Each case
 # runs in an instance of its own, so each starts with a fresh heap.
+use std.testing.assert
+use std.format.Display
+use std.rt.bytes.{unsigned_width, signed_width, write_unsigned_sized, write_signed_sized, bytes_at}
 use std.rt.memory.{
+    Buffer,
     copy,
     copy_bytes,
     fill,
@@ -18,6 +22,35 @@ use std.rt.memory.{
     store_u32,
     store_u64,
 }
+
+# Sentinel bytes catch a fixed-width padding store or a digit past the room.
+fn exact_unsigned(value: u64) -> void:
+    room := Buffer::[u8].new(32)
+    fill(room.at(0).address, 0xa5, 32)
+    width := unsigned_width(value)
+    write_unsigned_sized(value, room.at(1), width)
+    expected := value.to_string()
+    assert(width == expected.len(), "the width is exact")
+    for i in 0..32:
+        byte := load_u8(room.at(i).address)
+        if i >= 1 && i <= width:
+            assert(byte == bytes_at(expected, i - 1), "each digit matches Display")
+        else:
+            assert(byte == 0xa5, "the writer stays inside its measured room")
+
+fn exact_signed(value: i64) -> void:
+    room := Buffer::[u8].new(32)
+    fill(room.at(0).address, 0xa5, 32)
+    width := signed_width(value)
+    write_signed_sized(value, room.at(1), width)
+    expected := value.to_string()
+    assert(width == expected.len(), "the signed width is exact")
+    for i in 0..32:
+        byte := load_u8(room.at(i).address)
+        if i >= 1 && i <= width:
+            assert(byte == bytes_at(expected, i - 1), "sign and digits match Display")
+        else:
+            assert(byte == 0xa5, "the signed writer stays inside its room")
 
 # The address of a page this case grows the heap by, which no other part of
 # the program uses (module.rt.memory.grow.owner).
@@ -148,3 +181,18 @@ tests:
             copy_bytes(at + 600, end - count, count)
             for i in 0..count:
                 assert(load_u8(at + 600 + i) == u8(i + 1), "exact read width")
+
+    it("measured integer writers cover every decimal boundary without padding stores"):
+        exact_unsigned(0)
+        let boundary = 1u64
+        for digits in 1..21:
+            exact_unsigned(boundary - 1)
+            exact_unsigned(boundary)
+            exact_unsigned(boundary + 1)
+            if digits < 20:
+                boundary *= 10
+        exact_unsigned(18446744073709551615u64)
+        exact_signed(-9223372036854775808i64)
+        exact_signed(9223372036854775807i64)
+        exact_signed(-1)
+        exact_signed(0)

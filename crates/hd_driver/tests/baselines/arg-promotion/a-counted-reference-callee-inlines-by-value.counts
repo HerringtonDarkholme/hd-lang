@@ -14,9 +14,6 @@ struct Text:
 
 fn make(n: i32) -> Text:
     Text { s: "x${n}" }
-> app/main/make
->   release counted reference
->   (no span) release counted reference
 
 impl Text:
     fn size(&self) -> usize:
@@ -25,18 +22,14 @@ impl Text:
 fn temp(n: i32) -> usize:
     make(n).size()
 > app/main/temp
->   release counted reference
->   release counted reference
->   (no span) release app.main.Text [s.0]
+>   (no span) release app.main.Text [s.0] (last use)
 
 fn twice(n: i32) -> usize:
     let t = make(n)
-> app/main/twice
->   release counted reference
->   release counted reference
     let a = t.size()
     a + t.size()
->   (no span) release app.main.Text [s.0]
+> app/main/twice
+>   (no span) release app.main.Text [s.0] (last use)
 
 fn param(t: Text) -> usize:
     t.size()
@@ -50,6 +43,4 @@ impl Name:
 fn named(n: i32) -> usize:
     Name("n${n}").width()
 > app/main/named
->   release counted reference
->   (no span) release counted reference
->   (no span) release app.main.Name
+>   (no span) release app.main.Name (last use)

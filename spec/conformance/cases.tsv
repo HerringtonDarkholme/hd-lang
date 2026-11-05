@@ -2859,7 +2859,7 @@ runtime/valid/trait-delegation-vararg.hd	runtime	accept	lang/09-traits.md#r-trai
 typing/invalid/vararg-function-value-list.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.type.vararg-rest
 runtime/valid/interp-display-borrows.hd	runtime	accept	lang/05-expressions.md#r-expr.interp.display.ref
 runtime/valid/display-write-expression-order.hd	runtime	accept	lang/05-expressions.md#r-expr.interp.write.order
-runtime/valid/display-write-nested.hd	runtime	accept	lang/05-expressions.md#r-expr.interp.write
+runtime/valid/display-write-nested.hd	runtime	accept	lang/05-expressions.md#r-expr.interp.write.measured
 typing/invalid/display-write-readonly-builder.hd	type	reject:trait-method-signature	lang/09-traits.md#r-trait.display.write
 runtime/valid/display-write-std.hd	runtime	accept	std/format.md#r-std-format.display.write.std
 runtime/valid/display-write-reference.hd	runtime	accept	std/format.md#r-std-format.display.reference.write
@@ -5876,6 +5876,7 @@ runtime/valid/integer-text-byte-room.hd	runtime	accept	std/json.md#r-std-json.di
 typing/invalid/string-builder-value-is-not-copyable.hd	type	reject:move-out-of-place	std/text.md#r-std-text.builder.unique-storage
 runtime/valid/uniq-list-assigned-through-pointer-in-bang-function.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.type
 runtime/valid/unique-list-reference-outlives-its-pointer-local.hd	runtime	accept	lang/13-values-and-references.md#r-ref.box.root
+runtime/valid/interpolation-measured-values.hd	runtime	accept	lang/05-expressions.md#r-expr.interp.value-snapshot
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

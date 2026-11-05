@@ -12,16 +12,14 @@ impl Encode for i64:
         "$self"
 > app/main/impl Encode for i64.encode
 >   local $0 self: i64 [param read captured]
->   local $1 $interpolation: StringBuilder [read assigned captured captured-assigned]
 >   %0 = Ref local [$0] : Counted[i64]
->   %1 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].new[u8] () : UniqList[u8]
->   %2 = NewStruct [%1] : StringBuilder
->   %3 = Store [$1] %2 : ()
->   %4 = Ref mut local [$1] : Counted[mut StringBuilder]
->   %5 = Call std/format/Display.write for i64 [] via Impl (%0, %4) : ()
->   %6 = Ref mut local [$1] : Counted[mut StringBuilder]
->   %7 = Call std/text/impl StringBuilder.build[] (%6) : string
->   %8 = Block %7 : string
+>   %1 = Read [*%0] : i64
+>   %2 = Prim Conv [%1] : i64
+>   %3 = Call std/text/impl StringBuilder.signed_width[] (%2) : usize
+>   %4 = Prim Add [0:usize %3] : usize
+>   %5 = Call std/text/impl StringBuilder.value_new[] (%4) : string
+>   %6 = Call std/text/impl StringBuilder.value_signed[] (%5, 0:usize, %2, %3) : ()
+>   %7 = Block %5 : string
 
 struct Encoder:
     out: string

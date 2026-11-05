@@ -2,12 +2,9 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "room" (func $room (param i32 i32) (result i32)))
-  (import "fixture" "rt:drop" (func $rt:drop (param i32)))
-  (import "fixture" "impl StringBuilder.reserve" (func $"impl StringBuilder.reserve" (param i32 i32)))
-  (import "fixture" "impl StringBuilder.push" (func $"impl StringBuilder.push" (param i32 i32 i32)))
-  (import "fixture" "impl Display for usize.write" (func $"impl Display for usize.write" (param i32 i32)))
-  (import "fixture" "impl StringBuilder.build" (func $"impl StringBuilder.build" (param i32) (result i32 i32)))
+  (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
+  (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
+  (import "fixture" "write_unsigned_sized" (func $write_unsigned_sized (param i64 i32 i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
@@ -230,12 +227,12 @@
     ;; (no span)
     local.get $xs
   )
-  (func $unexpected (param $at i32) (result i32 i32) (local $t1 i32) (local $t2 i32) (local $t0 i32)
+  (func $unexpected (param $t1 i32) (result i32 i32) (local $at i32) (local $t0 i32) (local $t2 i64) (local $t3 i64) (local $t4 i32) (local $t5 i32) (local $t6 i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
     i32.sub
-    i32.const 48
+    i32.const 16
     i32.lt_u
     if
       i32.const 1
@@ -257,130 +254,90 @@
       global.set $locals
     end
     global.get $locals
-    i32.const 48
+    i32.const 16
     i32.sub
     local.tee $t0
     global.set $locals
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $at
+    local.get $t1
+    i32.store $heap
     block
     ;; 11 |     "unexpected byte at $at"
+      local.get $at
+      i32.load $heap
+      i64.extend_i32_u
+      local.tee $t2
+      local.set $t3
       block
         block
-          block
-            block
-              block
-                block
-                  i32.const 0
-                  i32.const 1
-                  call $room
-                  local.set $t1
-                  br 0
-                end
-              end
-              br 0
-            end
-          end
+          local.get $t3
+          call $unsigned_width
+          local.set $t1
           br 0
         end
       end
-      local.get $t2
-      if
-        local.get $t2
-        call $rt:drop
-        local.get $t2
-        i32.const 0
-        i32.store $heap offset=12
-        local.get $t2
-        i32.const 0
-        i32.store $heap offset=16
-        local.get $t2
-        i32.const 0
-        i32.store $heap offset=20
-        local.get $t2
-        i32.const 0
-        i32.store $heap offset=24
-        local.get $t2
-        i32.const 0
-        i32.store $heap offset=28
-        local.get $t2
-        i32.const 0
-        i32.store $heap offset=32
-      end
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t2
-      local.get $t1
-      i32.store $heap
-      local.get $t2
-      i32.const 0
-      i32.store $heap offset=4
-      local.get $t2
-      i32.const 0
-      i32.store $heap offset=8
-      local.get $t2
-      i32.const 1
-      i32.store $heap offset=12
-      local.get $t2
-      i32.const 1
-      i32.store $heap offset=16
-      local.get $t2
-      i32.const 1
-      i32.store $heap offset=20
-      local.get $t2
-      i32.const 1
-      i32.store $heap offset=24
-      local.get $t2
-      i32.const 1
-      i32.store $heap offset=28
-      local.get $t2
-      i32.const 1
-      i32.store $heap offset=32
-      local.get $t2
-      i32.const 38
-      call $"impl StringBuilder.reserve"
-      local.get $t2
-      i32.const 65 ;; &"unexpected byte at "
       i32.const 19
-      call $"impl StringBuilder.push"
-      local.get $at
-      local.get $t2
-      call $"impl Display for usize.write"
-      local.get $t2
-      call $"impl StringBuilder.build"
-      local.set $t1
-      local.set $at
-    ;; (no span)
-      local.get $t2
-      if
-        local.get $t2
-        call $rt:drop
-        local.get $t2
-        i32.const 0
-        i32.store $heap offset=12
-        local.get $t2
-        i32.const 0
-        i32.store $heap offset=16
-        local.get $t2
-        i32.const 0
-        i32.store $heap offset=20
-        local.get $t2
-        i32.const 0
-        i32.store $heap offset=24
-        local.get $t2
-        i32.const 0
-        i32.store $heap offset=28
-        local.get $t2
-        i32.const 0
-        i32.store $heap offset=32
+      local.tee $at
+      local.get $t1
+      i32.add
+      local.set $t4
+      block
+        block
+          local.get $t4
+          i32.const 16
+          local.set $t5
+          if
+            local.get $t4
+            call $rt:str
+            local.set $t5
+          end
+          local.get $t5
+          local.get $t4
+          local.set $t5
+          local.set $t4
+          br 0
+        end
       end
+      i32.const 65 ;; &"unexpected byte at "
+      local.set $t6
+      block
+        block
+          local.get $t4
+          local.get $t6
+          i32.const 19
+          memory.copy $heap $heap
+          br 0
+        end
+      end
+      block
+        block
+          local.get $t2
+          local.get $t4
+          local.get $at
+          i32.const 1
+          i32.mul
+          i32.add
+          local.get $t1
+          call $write_unsigned_sized
+          br 0
+        end
+      end
+    ;; (no span)
+      local.get $t4
+      local.get $t5
+      local.set $at
+      local.set $t1
     end
-    local.get $at
     local.get $t1
+    local.get $at
     local.get $t0
-    i32.const 48
+    i32.const 16
     i32.add
     global.set $locals
   )

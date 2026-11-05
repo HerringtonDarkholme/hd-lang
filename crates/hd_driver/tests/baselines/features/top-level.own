@@ -6,104 +6,112 @@
 # temporaries it frees; a read takes none; `copy_top` retains once.
 greeting := "hello ${1}"
 > app/main/init.init
->   local $0 $interpolation: StringBuilder [read assigned captured captured-assigned]
->   local $1 $ref: usize [read assigned captured captured-assigned]
->   local $2 $interpolation: StringBuilder [read assigned captured captured-assigned]
->   local $3 $ref: usize [read assigned captured captured-assigned]
->   local $4 capacity: usize [read]
->   local $5 capacity: usize [read]
->   local $6 capacity: usize [read]
->   local $7 capacity: usize [read]
->   %0 = Store [$6] 0:usize : ()
->   %1 = Read copy [$6] : usize
->   %2 = Store [$7] %1 : ()
->   %3 = Read copy [$7] : usize
->   %4 = Call std/rt.memory/size_of[u8] () : usize
->   %5 = Call std/rt.memory/room[] (%3, %4) : usize
->   %6 = Read copy [$7] : usize
->   %7 = NewStruct [%5 %6] : Buffer[u8]
->   %8 = Break L3 %7 : never
->   %9 = Block - : Buffer[u8]
->   %10 = Scope %9 [] : Buffer[u8]
->   %11 = NewStruct [%10 0:usize] : UniqList[u8]
->   %12 = Break L4 %11 : never
->   %13 = Block - : UniqList[u8]
->   %14 = Scope %13 [] : UniqList[u8]
->   %15 = Break L5 %14 : never
->   %16 = Block - : UniqList[u8]
->   %17 = Scope %16 [] : UniqList[u8]
->   %18 = NewStruct [%17] : StringBuilder
->   %19 = Store [$0] %18 : ()
->   %20 = Ref mut local frame [$0] : Counted[mut StringBuilder]
->   %21 = Call std/text/impl StringBuilder.reserve[] (%20, 12:usize) : ()
->   %22 = Drop [%20] : ()
->   %23 = Ref mut local frame [$0] : Counted[mut StringBuilder]
->   %24 = Call std/text/impl StringBuilder.push[] (%23, "hello ") : ()
->   %25 = Drop [%23] : ()
->   %26 = Store [$1] 1:usize : ()
->   %27 = Ref local frame [$1] : Counted[usize]
->   %28 = Ref mut local frame [$0] : Counted[mut StringBuilder]
->   %29 = Call std/format/Display.write for usize [] via Impl (%27, %28) : ()
->   %30 = Drop [%28] : ()
->   %31 = Drop [%27] : ()
->   %32 = Drop [$1] : ()
->   %33 = Ref mut local frame [$0] : Counted[mut StringBuilder]
->   %34 = Call std/text/impl StringBuilder.build[] (%33) : string
->   %35 = Drop [%33] : ()
->   %36 = Drop [$0] : ()
->   %37 = Store [@app/main/greeting] %34 : ()
->   %20 finds [$0] full
->   %23 finds [$0] full
->   %27 finds [$1] full
->   %28 finds [$0] full
->   %33 finds [$0] full
+>   local $0 result: string [read]
+>   local $1 offset: usize [read]
+>   local $2 text: string [read]
+>   local $3 size: usize [read]
+>   local $4 value: usize [read]
+>   local $5 result: string [read]
+>   local $6 offset: usize [read]
+>   local $7 text: string [read]
+>   local $8 size: usize [read]
+>   local $9 value: usize [read]
+>   %0 = Store [$9] 1:usize : ()
+>   %1 = Read copy [$9] : usize
+>   %2 = Call std/num/Num.zero for usize [] via Impl () : usize
+>   %3 = Prim Lt [%1 %2] : bool
+>   %4 = Read copy [$9] : usize
+>   %5 = Prim Conv [%4] : i64
+>   %6 = Call std/rt.bytes/signed_width[] (%5) : usize
+>   %7 = Block %6 : usize
+>   %8 = Read copy [$9] : usize
+>   %9 = Prim Conv [%8] : u64
+>   %10 = Call std/rt.bytes/unsigned_width[] (%9) : usize
+>   %11 = Block %10 : usize
+>   %12 = If %3 [%7 %11] : usize
+>   %13 = Break L5 %12 : never
+>   %14 = Block - : usize
+>   %15 = Scope %14 [] : usize
+>   %16 = Prim Add [0:usize 6:usize] : usize
+>   %17 = Prim Add [%16 %15] : usize
+>   %18 = Store [$8] %17 : ()
+>   %19 = Read copy [$8] : usize
+>   %20 = Call std/rt.memory/new_string[] (%19) : string
+>   %21 = Break L4 %20 : never
+>   %22 = Block - : string
+>   %23 = Scope %22 [] : string
+>   %24 = Read borrow [%23] : string
+>   %25 = Store [$5] %24 : ()
+>   %26 = Store [$6] 0:usize : ()
+>   %27 = Store [$7] "hello " : ()
+>   %28 = Read borrow [$5] : string
+>   %29 = Call std/rt.memory/string_bytes[] (%28) : Ptr[u8]
+>   %30 = Read copy [%29 .address] : usize
+>   %31 = Read copy [$6] : usize
+>   %32 = Prim Add [%30 %31] : usize
+>   %33 = Read borrow [$7] : string
+>   %34 = Call std/rt.memory/string_bytes[] (%33) : Ptr[u8]
+>   %35 = Read copy [%34 .address] : usize
+>   %36 = Read borrow [$7] : string
+>   %37 = Call std/rt.bytes/bytes_len[] (%36) : usize
+>   %38 = Call std/rt.memory/copy[] (%32, %35, %37) : ()
+>   %39 = Break L3 - : never
+>   %40 = Block - : ()
+>   %41 = Scope %40 [] : ()
+>   %42 = Drop [$7] : ()
+>   %43 = Call std/text/impl StringBuilder.value_integer[usize] (%23, %16, 1:usize, %15) : ()
+>   %44 = Read move [%23] : string
+>   %45 = Store [@app/main/greeting] %44 : ()
 
 names := ["a${1}", "b"]
->   %38 = Store [$4] 0:usize : ()
->   %39 = Read copy [$4] : usize
->   %40 = Store [$5] %39 : ()
->   %41 = Read copy [$5] : usize
->   %42 = Call std/rt.memory/size_of[u8] () : usize
->   %43 = Call std/rt.memory/room[] (%41, %42) : usize
->   %44 = Read copy [$5] : usize
->   %45 = NewStruct [%43 %44] : Buffer[u8]
->   %46 = Break L0 %45 : never
->   %47 = Block - : Buffer[u8]
->   %48 = Scope %47 [] : Buffer[u8]
->   %49 = NewStruct [%48 0:usize] : UniqList[u8]
->   %50 = Break L1 %49 : never
->   %51 = Block - : UniqList[u8]
->   %52 = Scope %51 [] : UniqList[u8]
->   %53 = Break L2 %52 : never
->   %54 = Block - : UniqList[u8]
->   %55 = Scope %54 [] : UniqList[u8]
->   %56 = NewStruct [%55] : StringBuilder
->   %57 = Store [$2] %56 : ()
->   %58 = Ref mut local frame [$2] : Counted[mut StringBuilder]
->   %59 = Call std/text/impl StringBuilder.reserve[] (%58, 2:usize) : ()
->   %60 = Drop [%58] : ()
->   %61 = Ref mut local frame [$2] : Counted[mut StringBuilder]
->   %62 = Call std/text/impl StringBuilder.push[] (%61, "a") : ()
->   %63 = Drop [%61] : ()
->   %64 = Store [$3] 1:usize : ()
->   %65 = Ref local frame [$3] : Counted[usize]
->   %66 = Ref mut local frame [$2] : Counted[mut StringBuilder]
->   %67 = Call std/format/Display.write for usize [] via Impl (%65, %66) : ()
->   %68 = Drop [%66] : ()
->   %69 = Drop [%65] : ()
->   %70 = Drop [$3] : ()
->   %71 = Ref mut local frame [$2] : Counted[mut StringBuilder]
->   %72 = Call std/text/impl StringBuilder.build[] (%71) : string
->   %73 = Drop [%71] : ()
->   %74 = Drop [$2] : ()
->   %75 = Coerce %72 [Identity -] : string
->   %76 = NewList - [%75 "b"] : List[string]
->   %77 = Store [@app/main/names] %76 : ()
->   %58 finds [$2] full
->   %61 finds [$2] full
->   %65 finds [$3] full
->   %66 finds [$2] full
->   %71 finds [$2] full
+>   %46 = Store [$4] 1:usize : ()
+>   %47 = Read copy [$4] : usize
+>   %48 = Call std/num/Num.zero for usize [] via Impl () : usize
+>   %49 = Prim Lt [%47 %48] : bool
+>   %50 = Read copy [$4] : usize
+>   %51 = Prim Conv [%50] : i64
+>   %52 = Call std/rt.bytes/signed_width[] (%51) : usize
+>   %53 = Block %52 : usize
+>   %54 = Read copy [$4] : usize
+>   %55 = Prim Conv [%54] : u64
+>   %56 = Call std/rt.bytes/unsigned_width[] (%55) : usize
+>   %57 = Block %56 : usize
+>   %58 = If %49 [%53 %57] : usize
+>   %59 = Break L2 %58 : never
+>   %60 = Block - : usize
+>   %61 = Scope %60 [] : usize
+>   %62 = Prim Add [0:usize 1:usize] : usize
+>   %63 = Prim Add [%62 %61] : usize
+>   %64 = Store [$3] %63 : ()
+>   %65 = Read copy [$3] : usize
+>   %66 = Call std/rt.memory/new_string[] (%65) : string
+>   %67 = Break L1 %66 : never
+>   %68 = Block - : string
+>   %69 = Scope %68 [] : string
+>   %70 = Read borrow [%69] : string
+>   %71 = Store [$0] %70 : ()
+>   %72 = Store [$1] 0:usize : ()
+>   %73 = Store [$2] "a" : ()
+>   %74 = Read borrow [$0] : string
+>   %75 = Call std/rt.memory/string_bytes[] (%74) : Ptr[u8]
+>   %76 = Read copy [%75 .address] : usize
+>   %77 = Read copy [$1] : usize
+>   %78 = Prim Add [%76 %77] : usize
+>   %79 = Read borrow [$2] : string
+>   %80 = Call std/rt.memory/string_bytes[] (%79) : Ptr[u8]
+>   %81 = Read copy [%80 .address] : usize
+>   %82 = Read borrow [$2] : string
+>   %83 = Call std/rt.bytes/bytes_len[] (%82) : usize
+>   %84 = Call std/rt.memory/copy[] (%78, %81, %83) : ()
+>   %85 = Break L0 - : never
+>   %86 = Block - : ()
+>   %87 = Scope %86 [] : ()
+>   %88 = Drop [$2] : ()
+>   %89 = Call std/text/impl StringBuilder.value_integer[usize] (%69, %62, 1:usize, %61) : ()
+>   %90 = Read move [%69] : string
+>   %91 = Coerce %90 [Identity -] : string
+>   %92 = NewList - [%91 "b"] : List[string]
+>   %93 = Store [@app/main/names] %92 : ()
 
 fn read_top() -> usize:
     greeting.len() + names.len()

@@ -68,7 +68,7 @@ fn install(s: string) -> usize:
 >   %12 = RefDyn %11 : Counted[Namer]
 >   %13 = Coerce %12 [RefAsProvider -] : Namer
 >   %14 = Drop [%12] : ()
->   %17 = With [%5830 %13] %16 : usize
+>   %17 = With [%5856 %13] %16 : usize
 >   %18 = Drop [%13] : ()
         ask()
 >   %15 = Call app/main/ask[] () : usize

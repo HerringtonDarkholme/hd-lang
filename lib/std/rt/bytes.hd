@@ -7,7 +7,7 @@
 # runtime and the case mappings from the host. Where a body below is hd, it
 # defines the result, and the compiler supplies a SIMD128 one (#428).
 use std.core.Copy
-use std.rt.memory.{Buffer, Ptr, copy, new_string, string_bytes}
+use std.rt.memory.{Buffer, Ptr, copy, new_string, string_bytes, store_u8}
 
 ## The number of bytes in `text`.
 @intrinsic("bytes_len")
@@ -93,6 +93,96 @@ pub fn format_signed(value: i64, destination: Ptr[u8]) -> (usize, usize):
 @intrinsic("format_int")
 pub fn format_unsigned(value: u64, destination: Ptr[u8]) -> (usize, usize):
     panic("intrinsic")
+
+# Exact widths and writers for a value interpolation's pre-sized room.
+# These are ordinary hd, shared by every integer width after widening.
+pub fn unsigned_width(value: u64) -> usize:
+    # A balanced search over all twenty decimal widths needs at most five
+    # comparisons and no division, for every u64 including zero.
+    if value < 10_000_000_000:
+        if value < 100_000:
+            if value < 1_000:
+                if value < 100:
+                    if value < 10:
+                        return 1
+                    return 2
+                return 3
+            if value < 10_000:
+                return 4
+            return 5
+        if value < 100_000_000:
+            if value < 10_000_000:
+                if value < 1_000_000:
+                    return 6
+                return 7
+            return 8
+        if value < 1_000_000_000:
+            return 9
+        return 10
+    if value < 1_000_000_000_000_000:
+        if value < 10_000_000_000_000:
+            if value < 1_000_000_000_000:
+                if value < 100_000_000_000:
+                    return 11
+                return 12
+            return 13
+        if value < 100_000_000_000_000:
+            return 14
+        return 15
+    if value < 1_000_000_000_000_000_000:
+        if value < 100_000_000_000_000_000:
+            if value < 10_000_000_000_000_000:
+                return 16
+            return 17
+        return 18
+    if value < 10_000_000_000_000_000_000:
+        return 19
+    return 20
+
+pub fn signed_magnitude(value: i64) -> u64:
+    if value < 0: u64(-(value + 1)) + 1 else: u64(value)
+
+pub fn signed_width(value: i64) -> usize:
+    unsigned_width(signed_magnitude(value)) + (if value < 0: 1 else: 0)
+
+pub fn char_width(value: char) -> usize:
+    scalar := char_scalar(value)
+    if scalar < 128: 1 else if scalar < 2048: 2 else if scalar < 65536: 3 else: 4
+
+# Writes backwards into exactly `width` bytes. No fixed 20-byte reservation
+# or padding store may reach beyond the measured integer's room.
+pub fn write_unsigned_sized(value: u64, destination: Ptr[u8], width: usize) -> void:
+    let remaining = value
+    let at = destination.address + width
+    while true:
+        at -= 1
+        store_u8(at, u8(remaining % 10) + 48)
+        remaining /= 10
+        if remaining == 0:
+            break
+
+pub fn write_signed_sized(value: i64, destination: Ptr[u8], width: usize) -> void:
+    write_unsigned_sized(signed_magnitude(value), destination, width)
+    if value < 0:
+        store_u8(destination.address, 45)
+
+pub fn write_char_sized(value: char, destination: Ptr[u8]) -> void:
+    scalar := char_scalar(value)
+    at := destination.address
+    if scalar < 128:
+        store_u8(at, u8(scalar))
+    else if scalar < 2048:
+        store_u8(at, u8(192 + scalar / 64))
+        store_u8(at + 1, u8(128 + scalar % 64))
+    else if scalar < 65536:
+        store_u8(at, u8(224 + scalar / 4096))
+        store_u8(at + 1, u8(128 + scalar / 64 % 64))
+        store_u8(at + 2, u8(128 + scalar % 64))
+    else:
+        store_u8(at, u8(240 + scalar / 262144))
+        store_u8(at + 1, u8(128 + scalar / 4096 % 64))
+        store_u8(at + 2, u8(128 + scalar / 64 % 64))
+        store_u8(at + 3, u8(128 + scalar % 64))
 
 ## The lowercase mapping of `text`, from the host.
 @intrinsic("string_lower")

@@ -9,24 +9,20 @@ fn interp(a: string, n: i64) -> string:
 > app/main/interp
 >   local $0 a: string [param read]
 >   local $1 n: i64 [param read captured]
->   local $2 $interpolation: StringBuilder [read assigned captured captured-assigned]
->   local $3 $ref: string [read assigned captured captured-assigned]
 >   %0 = Read [$0] : string
->   %1 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].new[u8] () : UniqList[u8]
->   %2 = NewStruct [%1] : StringBuilder
->   %3 = Store [$2] %2 : ()
->   %4 = Store [$3] %0 : ()
->   %5 = Ref local [$3] : Counted[string]
->   %6 = Ref mut local [$2] : Counted[mut StringBuilder]
->   %7 = Call std/format/Display.write for string [] via Impl (%5, %6) : ()
->   %8 = Ref local [$1] : Counted[i64]
->   %9 = Ref mut local [$2] : Counted[mut StringBuilder]
->   %10 = Call std/text/impl StringBuilder.push[] (%9, ":") : ()
->   %11 = Ref mut local [$2] : Counted[mut StringBuilder]
->   %12 = Call std/format/Display.write for i64 [] via Impl (%8, %11) : ()
->   %13 = Ref mut local [$2] : Counted[mut StringBuilder]
->   %14 = Call std/text/impl StringBuilder.build[] (%13) : string
->   %15 = Block %14 : string
+>   %1 = Call std/text/impl StringBuilder.text_width[] (%0) : usize
+>   %2 = Ref local [$1] : Counted[i64]
+>   %3 = Read [*%2] : i64
+>   %4 = Prim Conv [%3] : i64
+>   %5 = Call std/text/impl StringBuilder.signed_width[] (%4) : usize
+>   %6 = Prim Add [0:usize %1] : usize
+>   %7 = Prim Add [%6 1:usize] : usize
+>   %8 = Prim Add [%7 %5] : usize
+>   %9 = Call std/text/impl StringBuilder.value_new[] (%8) : string
+>   %10 = Call std/text/impl StringBuilder.value_text[] (%9, 0:usize, %0) : ()
+>   %11 = Call std/text/impl StringBuilder.value_text[] (%9, %6, ":") : ()
+>   %12 = Call std/text/impl StringBuilder.value_signed[] (%9, %7, %4, %5) : ()
+>   %13 = Block %9 : string
 
 fn concat(a: string, b: string) -> string:
     a + b

@@ -6,10 +6,6 @@
 # temporary and no count beyond the new string's; `concat_len` frees it.
 fn interp(a: string, n: i64) -> string:
     "${a}:${n}"
-> app/main/interp
->   release counted reference
->   (no span) release string
->   (no span) release counted reference
 
 fn concat(a: string, b: string) -> string:
     a + b
@@ -17,4 +13,4 @@ fn concat(a: string, b: string) -> string:
 fn concat_len(a: string, b: string) -> usize:
     (a + b).len()
 > app/main/concat_len
->   (no span) release string
+>   (no span) release string (last use)

@@ -19,9 +19,9 @@ pub trait Display:
     fn to_string(&self) -> string
 
     # Interpolation writes a value through `write`
-    # (spec/lang/05-expressions.md#r-expr.interp.write), so a type whose
-    # text is made of parts can push them into the one builder of the
-    # whole string instead of returning a new string per level
+    # (spec/lang/05-expressions.md#r-expr.interp.write.measured), so a type whose
+    # text is made of parts can stream them into its supplied builder
+    # instead of returning a new string per nested level
     # (spec/lang/09-traits.md#r-trait.display.write.default).
     ## Writes the value's text to `out`; the default pushes `to_string()`.
     ## See [trait.display.write](../../spec/lang/09-traits.md#r-trait.display.write).

@@ -18,6 +18,8 @@ fn weight(f: Field) -> i64:
 
 fn remember(all: &mut List[Field], f: Field) -> void:
     all.push(f)
+> app/main/remember
+>   (no span) unique List[app.main.Field] (conservative: unique)
 
 fn total(f: Field, times: i64) -> i64:
     let sum: i64 = 0
@@ -28,12 +30,12 @@ fn total(f: Field, times: i64) -> i64:
 fn collect(f: Field) -> usize:
     let mut all: List[Field] = []
 > app/main/collect
->   release List[app.main.Field]
+>   release List[app.main.Field] (overwritten)
     remember(&mut all, f)
->   retain app.main.Field [name.0]
+>   retain app.main.Field [name.0] (conservative: copy read)
     remember(&mut all, f)
     all.len()
->   (no span) release List[app.main.Field]
+>   (no span) release List[app.main.Field] (last use)
 
 fn apply(g: fn(Field) -> i64, f: Field) -> i64:
     g(f)
@@ -46,19 +48,19 @@ fn pinned() -> i64:
     xs[1] = 3
     set_first(&xs[0], xs)
 > app/main/pinned
->   (no span) release List[i64]
+>   (no span) unique List[i64] (conservative: unique)
+>   (no span) release List[i64] (last use)
 
 pub fn main() -> void $ Console:
     f := Field { name: "abc${1}", n: 2 }
-> app/main/main
->   release counted reference
     println(total(f, 3))
     println(collect(f))
->   retain app.main.Field [name.0]
->   release List[app.main.Field]
->   retain app.main.Field [name.0]
->   release List[app.main.Field]
+> app/main/main
+>   retain app.main.Field [name.0] (conservative: copy read)
+>   release List[app.main.Field] (overwritten)
+>   retain app.main.Field [name.0] (conservative: copy read)
+>   release List[app.main.Field] (last use)
     println(apply(weight, f))
     println(pinned())
->   release List[i64]
->   (no span) release counted reference
+>   unique List[i64] (conservative: unique)
+>   release List[i64] (last use)

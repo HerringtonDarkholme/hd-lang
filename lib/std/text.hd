@@ -10,7 +10,9 @@
 # `interpolate`, `process_escapes`, and `EscapeError` (L22).
 use std.ops.{Template, str_prefix}
 use std.format.DebugWriter
+use std.num.Integer
 use std.collections.UniqList
+use std.rt.memory.{new_string, string_bytes, copy}
 use std.annotation.inline
 use std.rt.bytes.{
     bytes_len,
@@ -29,6 +31,12 @@ use std.rt.bytes.{
     bytes_index,
     bytes_index_pair,
     bytes_mismatch,
+    write_signed_sized,
+    write_unsigned_sized,
+    unsigned_width,
+    signed_width,
+    char_width,
+    write_char_sized,
 }
 
 # The standard raw-text prefix (spec/std/text.md#r-std-text.prefix.std.r.reference-values):
@@ -669,6 +677,42 @@ pub struct StringBuilder:
     bytes: UniqList[u8]
 
 impl StringBuilder:
+    # Ordinary private helpers for a value interpolation's single result.
+    fn unsigned_width(value: u64) -> usize:
+        unsigned_width(value)
+    fn signed_width(value: i64) -> usize:
+        signed_width(value)
+    fn char_width(value: char) -> usize:
+        char_width(value)
+    fn text_width(value: string) -> usize:
+        bytes_len(value)
+    # Keep an unresolved integer's type open for constraints later in the
+    # same statement/body. These ordinary generic helpers specialize once
+    # that type is known; measuring never defaults it early.
+    fn integer_width[N < Integer](value: N) -> usize:
+        if value < N::zero(): signed_width(i64(value)) else: unsigned_width(u64(value))
+
+    fn value_integer[N < Integer](result: string, offset: usize, value: N, width: usize) -> void:
+        if value < N::zero():
+            write_signed_sized(i64(value), string_bytes(result).offset(offset), width)
+        else:
+            write_unsigned_sized(u64(value), string_bytes(result).offset(offset), width)
+
+    fn value_new(size: usize) -> string:
+        new_string(size)
+
+    fn value_text(result: string, offset: usize, text: string) -> void:
+        copy(string_bytes(result).address + offset, string_bytes(text).address, bytes_len(text))
+
+    fn value_signed(result: string, offset: usize, value: i64, width: usize) -> void:
+        write_signed_sized(value, string_bytes(result).offset(offset), width)
+
+    fn value_unsigned(result: string, offset: usize, value: u64, width: usize) -> void:
+        write_unsigned_sized(value, string_bytes(result).offset(offset), width)
+
+    fn value_char(result: string, offset: usize, value: char) -> void:
+        write_char_sized(value, string_bytes(result).offset(offset))
+
     ## Returns an empty builder, a new object that `push` changes.
     ## See [std-text.builder.new-ref](../../spec/std/text.md#r-std-text.builder.new-ref).
     pub fn new() -> *mut StringBuilder:

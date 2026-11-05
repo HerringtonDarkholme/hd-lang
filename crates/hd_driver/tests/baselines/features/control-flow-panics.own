@@ -29,75 +29,90 @@ fn must(s: string, n: i32) -> usize:
 >   local $0 s: string [param read]
 >   local $1 n: i32 [param read]
 >   local $2 t: string [:= read assigned]
->   local $3 $interpolation: StringBuilder [read assigned captured captured-assigned]
->   local $4 $ref: string [read assigned captured captured-assigned]
->   local $5 self: string [read]
->   local $6 capacity: usize [read]
->   local $7 capacity: usize [read]
+>   local $3 self: string [read]
+>   local $4 result: string [read]
+>   local $5 offset: usize [read]
+>   local $6 text: string [read]
+>   local $7 result: string [read]
+>   local $8 offset: usize [read]
+>   local $9 text: string [read]
+>   local $10 size: usize [read]
+>   local $11 value: string [read]
 >   %0 = Read borrow [$0] : string
 >   %1 = Intrinsic StrConcat [%0 "!"] : string
 >   %2 = Store [$2] %1 : ()
->   %55 = Block %53 : usize
+>   %71 = Block %69 : usize
     if n < 0:
 >   %3 = Read copy [$1] : i32
 >   %4 = Prim Lt [%3 0:i32] : bool
->   %46 = If %4 [%45 -] : ()
+>   %62 = If %4 [%61 -] : ()
         panic("negative: $t")
->   %5 = Read copy [$2] : string
->   %6 = Store [$6] 0:usize : ()
->   %7 = Read copy [$6] : usize
->   %8 = Store [$7] %7 : ()
->   %9 = Read copy [$7] : usize
->   %10 = Call std/rt.memory/size_of[u8] () : usize
->   %11 = Call std/rt.memory/room[] (%9, %10) : usize
->   %12 = Read copy [$7] : usize
->   %13 = NewStruct [%11 %12] : Buffer[u8]
->   %14 = Break L1 %13 : never
->   %15 = Block - : Buffer[u8]
->   %16 = Scope %15 [] : Buffer[u8]
->   %17 = NewStruct [%16 0:usize] : UniqList[u8]
->   %18 = Break L2 %17 : never
->   %19 = Block - : UniqList[u8]
->   %20 = Scope %19 [] : UniqList[u8]
->   %21 = Break L3 %20 : never
->   %22 = Block - : UniqList[u8]
->   %23 = Scope %22 [] : UniqList[u8]
->   %24 = NewStruct [%23] : StringBuilder
->   %25 = Store [$3] %24 : ()
->   %26 = Ref mut local frame [$3] : Counted[mut StringBuilder]
->   %27 = Call std/text/impl StringBuilder.reserve[] (%26, 20:usize) : ()
->   %28 = Drop [%26] : ()
->   %29 = Ref mut local frame [$3] : Counted[mut StringBuilder]
->   %30 = Call std/text/impl StringBuilder.push[] (%29, "negative: ") : ()
->   %31 = Drop [%29] : ()
->   %32 = Store [$4] %5 : ()
->   %33 = Ref local frame [$4] : Counted[string]
->   %34 = Ref mut local frame [$3] : Counted[mut StringBuilder]
->   %35 = Call std/format/Display.write for string [] via Impl (%33, %34) : ()
->   %36 = Drop [%34] : ()
->   %37 = Drop [%33] : ()
->   %38 = Drop [$4] : ()
->   %39 = Ref mut local frame [$3] : Counted[mut StringBuilder]
->   %40 = Call std/text/impl StringBuilder.build[] (%39) : string
->   %41 = Drop [%39] : ()
->   %42 = Drop [$3] : ()
->   %43 = Call std/core/panic[] (%40) : never
->   %44 = Drop [%40] : ()
->   %45 = Block - : never
->   %26 finds [$3] full
->   %29 finds [$3] full
->   %33 finds [$4] full
->   %34 finds [$3] full
->   %39 finds [$3] full
+>   %5 = Read borrow [$2] : string
+>   %6 = Read borrow [%5] : string
+>   %7 = Store [$11] %6 : ()
+>   %8 = Read borrow [$11] : string
+>   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
+>   %10 = Break L4 %9 : never
+>   %11 = Block - : usize
+>   %12 = Scope %11 [] : usize
+>   %13 = Prim Add [0:usize 10:usize] : usize
+>   %14 = Prim Add [%13 %12] : usize
+>   %15 = Store [$10] %14 : ()
+>   %16 = Read copy [$10] : usize
+>   %17 = Call std/rt.memory/new_string[] (%16) : string
+>   %18 = Break L3 %17 : never
+>   %19 = Block - : string
+>   %20 = Scope %19 [] : string
+>   %21 = Read borrow [%20] : string
+>   %22 = Store [$7] %21 : ()
+>   %23 = Store [$8] 0:usize : ()
+>   %24 = Store [$9] "negative: " : ()
+>   %25 = Read borrow [$7] : string
+>   %26 = Call std/rt.memory/string_bytes[] (%25) : Ptr[u8]
+>   %27 = Read copy [%26 .address] : usize
+>   %28 = Read copy [$8] : usize
+>   %29 = Prim Add [%27 %28] : usize
+>   %30 = Read borrow [$9] : string
+>   %31 = Call std/rt.memory/string_bytes[] (%30) : Ptr[u8]
+>   %32 = Read copy [%31 .address] : usize
+>   %33 = Read borrow [$9] : string
+>   %34 = Call std/rt.bytes/bytes_len[] (%33) : usize
+>   %35 = Call std/rt.memory/copy[] (%29, %32, %34) : ()
+>   %36 = Break L2 - : never
+>   %37 = Block - : ()
+>   %38 = Scope %37 [] : ()
+>   %39 = Read borrow [%20] : string
+>   %40 = Drop [$9] : ()
+>   %41 = Store [$4] %39 : ()
+>   %42 = Store [$5] %13 : ()
+>   %43 = Read borrow [%5] : string
+>   %44 = Store [$6] %43 : ()
+>   %45 = Read borrow [$4] : string
+>   %46 = Call std/rt.memory/string_bytes[] (%45) : Ptr[u8]
+>   %47 = Read copy [%46 .address] : usize
+>   %48 = Read copy [$5] : usize
+>   %49 = Prim Add [%47 %48] : usize
+>   %50 = Read borrow [$6] : string
+>   %51 = Call std/rt.memory/string_bytes[] (%50) : Ptr[u8]
+>   %52 = Read copy [%51 .address] : usize
+>   %53 = Read borrow [$6] : string
+>   %54 = Call std/rt.bytes/bytes_len[] (%53) : usize
+>   %55 = Call std/rt.memory/copy[] (%49, %52, %54) : ()
+>   %56 = Break L1 - : never
+>   %57 = Block - : ()
+>   %58 = Scope %57 [] : ()
+>   %59 = Call std/core/panic[] (%20) : never
+>   %60 = Drop [%20] : ()
+>   %61 = Block - : never
     t.len()
->   %47 = Read move [$2] : string
->   %48 = Store [$5] %47 : ()
->   %49 = Read borrow [$5] : string
->   %50 = Call std/rt.bytes/bytes_len[] (%49) : usize
->   %51 = Break L0 %50 : never
->   %52 = Block - : usize
->   %53 = Scope %52 [] : usize
->   %54 = Drop [$5] : ()
+>   %63 = Read move [$2] : string
+>   %64 = Store [$3] %63 : ()
+>   %65 = Read borrow [$3] : string
+>   %66 = Call std/rt.bytes/bytes_len[] (%65) : usize
+>   %67 = Break L0 %66 : never
+>   %68 = Block - : usize
+>   %69 = Scope %68 [] : usize
+>   %70 = Drop [$3] : ()
 >   summary kept [] borrows [$0] writes
 
 fn guarded(log: *mut List[string], s: string, n: i32) -> usize:

@@ -3,9 +3,14 @@ use std.rt.checked.{allocate, allocated, free, live}
 use std.rt.memory.{Buffer, Ptr, load_u8, load_u32, store_u32}
 use std.rt.bytes.string_from_buffer
 use std.rt.cycle.{collect, suspect, visit}
+use std.annotation.inline
 use std.testing.assert
 
 struct Empty: pass
+
+@inline(.Never)
+fn measured_number(value: u64) -> string:
+    "w${value}"
 
 fn grow_room() -> void:
     before := live()
@@ -83,3 +88,25 @@ tests:
         suspect(b)
         collect(trace_room_owner, unexpected_release, free)
         assert(live() == before, "tracing preserves rooms until their deferred free")
+
+    it("a value interpolation makes one audited allocation without growth"):
+        before := live()
+        given := allocated()
+        text := measured_number(123456789)
+        assert(
+            allocated() == given + 1,
+            "one result allocation, no temporary number or grown buffer",
+        )
+        assert(live() == before + 1, "only the result stays live")
+        assert(text == "w123456789", "the prefix and measured digits share the result")
+
+    it("sizing an inferred loop integer allocates once without defaulting its type"):
+        for i in 0..64:
+            given := allocated()
+            text := "w$i"
+            let narrowed: i32 = i
+            assert(
+                allocated() == given + 1,
+                "measuring the still-inferred integer allocates no temporary",
+            )
+            assert(text == "w${narrowed}", "a later i32 constraint preserves the formatted value")

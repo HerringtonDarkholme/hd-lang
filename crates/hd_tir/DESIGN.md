@@ -896,7 +896,7 @@ is a run ID.
 | Source | TIR |
 | --- | --- |
 | `a \|> f(_, b)` | `a`'s instructions, then `Call` with `a` in the placeholder's slot |
-| `"x $y"` | `Call`s of `StringBuilder.new`, `push` per text piece, `Display.write` per value, and `build` ([`expr.interp.builder`](../../spec/lang/05-expressions.md#r-expr.interp.builder)); `b.push("x $y")` whose values are names or field paths writes to `b` itself |
+| `"x $y"` | `Call`s measure each piece, allocate one result, and write its bytes ([`expr.interp.builder.sized`](../../spec/lang/05-expressions.md#r-expr.interp.builder.sized)); a custom `Display.write` runs once and its text is retained for assembly; `b.push("x $y")` whose values are names or field paths writes to `b` itself |
 | string prefixes, literal suffixes (`10ms`) | `Call` of the resolved prefix or suffix function |
 | `x[i]`, `x[i] = v` | `Call` of the resolved index or set method |
 | `x += y`, and the other compound assignments | the place's operands evaluated once (their `Ref`s used twice), `Prim` or a trait `Call`, then a `Store` of the place or a set `Call` |

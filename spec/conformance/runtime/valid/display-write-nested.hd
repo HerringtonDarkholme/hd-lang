@@ -1,5 +1,5 @@
 # test: interpolation writes a nested Display value through write, so an inner type's override pushes into the one builder and the text is unchanged
-# Spec 05 String Interpolation: expr.interp.builder, expr.interp.write; Spec 09 Display Trait: trait.display.write.default (owner decision 2026-10-17, #436).
+# Spec 05 String Interpolation: expr.interp.builder.sized, expr.interp.write.measured; Spec 09 Display Trait: trait.display.write.default (owner decision 2026-10-17, #436).
 use std.text.StringBuilder
 
 # How often the inner value's two methods ran.
