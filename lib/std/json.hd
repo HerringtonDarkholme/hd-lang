@@ -3416,10 +3416,13 @@ impl Deserializer for TextReader:
         !self.present
 
 # Kept as one call so a closed program whose concrete serializer is known
-# to make a regular walk can leave the whole tree path unlinked. These stay
+# to make a regular walk can leave the whole tree path unlinked; `@cold`
+# keeps the inliner from copying the tree path into the encoder. These stay
 # last so adding the private link boundary changes no existing item ID.
+@cold
 fn encode_fallback[T < Serialize](value: T) -> string:
     "${to_json(value)}"
 
+@cold
 fn encode_pretty_fallback[T < Serialize](value: T) -> string:
     to_json(value).pretty()
