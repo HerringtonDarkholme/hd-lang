@@ -1,0 +1,35 @@
+# test: generic readers and writers borrow map slots through concrete callbacks
+# Spec 06 Built-In Collection Iteration and Element Reference Loops.
+use std.testing.assert_equal
+
+struct Stock:
+    qty: usize
+    label: string
+
+fn total[T](items: &Map[string, T], read: fn(&T) -> usize) -> usize:
+    let result = 0
+    for (_, value) in items:
+        result += read(value)
+    result
+
+fn change[T](items: &mut Map[string, T], write: fn(&mut T) -> void) -> void:
+    for (_, value) in &mut items:
+        write(value)
+
+fn quantity(stock: &Stock) -> usize:
+    stock.qty
+
+fn restock(stock: &mut Stock) -> void:
+    stock.qty += 1
+    stock.label = "${stock.label}!"
+
+pub fn main() -> void:
+    let mut items = {
+        "one": Stock { qty: 1, label: "first" },
+        "two": Stock { qty: 2, label: "second" },
+    }
+    assert_equal(total(&items, quantity), 3)
+    change(&mut items, restock)
+    assert_equal(total(&items, quantity), 5)
+    assert_equal(items["one"].label, "first!")
+    assert_equal(items["two"].label, "second!")

@@ -611,6 +611,21 @@ impl Gen<'_, '_> {
                     out.push((node, msg));
                     break 'site;
                 }
+                // A mutable source reference is the loop's loan, even
+                // when none of its yielded bindings is read afterward.
+                if let (Kind::Excl, Some(l), Some(_)) =
+                    (*kind, order.source_loop(*i), holders.first())
+                    && order.chain(at).contains(&l)
+                {
+                    let name = self.s.cx.names.text(b.local_name[root as usize]);
+                    let place = if name.starts_with('$') {
+                        "the borrowed collection".to_owned()
+                    } else {
+                        format!("`{name}`")
+                    };
+                    out.push((node, format!("this accesses {place} while its `&mut` borrowing loop is active; use the loop binding or wait until the loop ends")));
+                    break 'site;
+                }
             }
         }
         out
@@ -1095,6 +1110,40 @@ impl Order<'_, '_, '_> {
             t.owner[i]
         };
         (p != NONE).then_some(p)
+    }
+
+    /// A loop whose written source expression made reference `i`.
+    /// Its exclusive source loan covers every iteration's whole body.
+    fn source_loop(&self, i: u32) -> Option<u32> {
+        let b = self.b;
+        let at = b.syn[i as usize];
+        if at == NodeIdx::NONE || b.tags[i as usize] != Tag::Ref {
+            return None;
+        }
+        let pool = self.cx.s.pool;
+        let TyData::Ref { inner, .. } = pool.get(b.ty[i as usize]) else {
+            return None;
+        };
+        let inner = match pool.get(inner) {
+            TyData::Mut(inner) => inner,
+            _ => inner,
+        };
+        if !matches!(pool.get(inner), TyData::Adt { def, .. } if def == self.cx.s.cx.names.known.map)
+        {
+            return None;
+        }
+        let tree = &self.cx.s.cx.src.parse.tree;
+        (0..b.tags.len()).find_map(|l| {
+            if b.tags[l] != Tag::Loop || b.syn[l] == NodeIdx::NONE {
+                return None;
+            }
+            let node = tree.node(b.syn[l]);
+            if node.kind() != SyntaxKind::ForExpr {
+                return None;
+            }
+            let source = crate::elem_refs::strip_parens(node.children().nth(1)?);
+            (source.index() == at).then_some(w(l))
+        })
     }
 
     /// The loop of `for p in &xs` or `for p in &mut xs` whose element

@@ -266,7 +266,7 @@ impl[K < Eq & Hash, V < Eq] Eq for Map[K, V]:
         if self.len() != other.len():
             return false
         for (key, value) in self:
-            found := match other.get(key):
+            found := match other.get(*key):
                 .Some(hit) => hit
                 .None => return false
             if found != value:
@@ -610,7 +610,7 @@ impl[K < Eq & Hash, V < DeepEq] DeepEq for Map[K, V]:
         if self.len() != other.len():
             return false
         for (key, value) in self:
-            match other.get(key):
+            match other.get(*key):
                 .Some(found) =>
                     if !value.deep_eq(&found, visits):
                         return false

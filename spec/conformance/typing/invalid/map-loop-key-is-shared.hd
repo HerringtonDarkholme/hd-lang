@@ -1,0 +1,6 @@
+# test: a mutable map loop never lends its key mutably
+# Spec 06 Built-In Collection Iteration.
+fn invalid() -> void:
+    let mut values = { "a": 1 }
+    for (key, _) in &mut values:
+        *key = "changed" # diagnostic: not-writable

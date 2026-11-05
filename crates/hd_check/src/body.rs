@@ -4346,6 +4346,10 @@ impl Ck<'_, '_> {
                     });
                     self.b.emit(Tag::Store, word, v.0, Ty::VOID, s.index());
                 } else {
+                    // Inserting a map entry may resize its table, just as
+                    // remove may. An open element loop keeps its access
+                    // for the whole body, even with wildcard bindings.
+                    self.length_changed(br, lhs.index());
                     let rec = self.b.refs_record(&[br, kr, v]);
                     self.b.emit(
                         Tag::Intrinsic,

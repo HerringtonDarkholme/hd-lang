@@ -266,7 +266,8 @@ pub enum IntrinsicOp {
     /// `(map, pos, end) -> usize`: the first live entry slot in
     /// `pos..end`, or `end`.
     MapSlotNext,
-    /// `(map, slot) -> (K, V)`: the entry in a live slot.
+    /// `(map, slot) -> (&K, &V)`: the live entry's slots, lent for one
+    /// iteration by the loop's table snapshot.
     MapSlotEntry,
     /// `(map, key) -> usize`: the number of the key's entry, a panic
     /// `index-out-of-bounds` when the map holds no equal key. A map value
@@ -281,10 +282,13 @@ pub enum IntrinsicOp {
     /// comprehension over a source of known length reserves its result
     /// once before its loop. It changes the list as a push does.
     ListReserve,
+    /// `(map, slot) -> (&K, &mut V)`: lend a live entry of the original
+    /// map place, made unique before the operation as for a map store.
+    MapSlotEntryMut,
 }
 
 impl IntrinsicOp {
-    pub const ALL: [IntrinsicOp; 15] = [
+    pub const ALL: [IntrinsicOp; 16] = [
         IntrinsicOp::ListLen,
         IntrinsicOp::ListPush,
         IntrinsicOp::MapLen,
@@ -300,6 +304,7 @@ impl IntrinsicOp {
         IntrinsicOp::MapSlotEntry,
         IntrinsicOp::MapEntry,
         IntrinsicOp::ListReserve,
+        IntrinsicOp::MapSlotEntryMut,
     ];
     #[must_use]
     pub fn from_u32(v: u32) -> Option<Self> {

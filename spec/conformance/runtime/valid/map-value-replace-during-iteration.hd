@@ -2,7 +2,7 @@
 # Spec 06 Snapshot Iteration: flow.for.snapshot.change.
 fn double(entries: &mut Map[string, i32]) -> void:
     for (key, value) in entries:
-        entries[key] = value * 2
+        entries[*key] = value * 2
 
 tests:
     use std.testing.assert_equal

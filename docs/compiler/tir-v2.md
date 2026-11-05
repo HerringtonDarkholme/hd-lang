@@ -2881,9 +2881,11 @@ are.
   stored value is evaluated, so nothing between can move the entry.
   `m[k].x += 1` looks the key up twice, as `xs[i].x += 1` checks its
   index twice. `Root::MapValue`, the fix-its that read a map value out
-  and stored it back, and `map-value-not-addressable` on `m[k].x = v` and
-  `&m[k]` are gone; a `for` over `&m` keeps that error
-  (`flow.for.ref.map`).
+  and stored it back, and the map-addressing diagnostic are gone.
+  Shared loops lend `(&K, &V)` through `MapSlotEntry`; mutable loops lend
+  `(&K, &mut V)` through `MapSlotEntryMut` (`flow.for.ref.map.entries`).
+  The mutable operation changes the map place for uniqueness insertion;
+  the loop source keeps its pointer loan until the loop ends.
 - **Receivers.** `peek_place_ty` sees a map value, so a `&self` or
   `&mut self` call on `m[k]` refers to the value in the map, as on
   `xs[i]` (`fn.method.auto-address.collection-element`).

@@ -18,5 +18,5 @@ fn by_ref(m: &Map[string, string]) -> usize:
 fn keys(m: Map[string, string]) -> List[string]:
     let mut out: List[string] = []
     for (k, _) in m:
-        out.push(k)
+        out.push(*k)
     out

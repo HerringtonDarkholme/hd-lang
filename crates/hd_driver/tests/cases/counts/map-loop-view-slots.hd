@@ -1,0 +1,20 @@
+# @dump: own counts wat
+# @build: v8 release program
+# expected: uniqueness takes the original map header from a view and
+# restores it through the setter, without retaining a second header.
+use std.annotation.inline
+
+@inline(.Never)
+fn bump(items: &mut Map[usize, usize]) -> usize:
+    let total = 0
+    # subject
+    for (key, value) in &mut items:
+        *value += key
+        total += *value
+    total
+
+pub fn main() -> void $ Console:
+    let mut wrapped: Option[Map[usize, usize]] = .Some({ 1: 2 })
+    match wrapped.as_mut():
+        .Some(items) => println("${bump(items)}")
+        .None => panic("missing map")

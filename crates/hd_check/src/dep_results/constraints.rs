@@ -813,6 +813,17 @@ impl Gen<'_, '_> {
             }
             Tag::Intrinsic => {
                 let ops = intrinsic_ops(b, iu);
+                if matches!(
+                    IntrinsicOp::from_u32(a),
+                    Some(IntrinsicOp::MapSlotEntry | IntrinsicOp::MapSlotEntryMut)
+                ) {
+                    // The loop lends its snapshot's slots for this step.
+                    // Its pattern is the origin's scope, including when a
+                    // holder would otherwise carry a previous iteration.
+                    for &slot in &self.s.ls.of(me.1).tops {
+                        self.seed(me.0[slot], Origin::Hidden(i));
+                    }
+                }
                 let keeps = matches!(
                     IntrinsicOp::from_u32(a),
                     Some(IntrinsicOp::ListPush | IntrinsicOp::MapSet)

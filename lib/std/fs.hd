@@ -626,14 +626,14 @@ impl FsWrite for MemoryFs:
         let mut times: List[(string, Timestamp)] = []
         for (stored, time) in self.modified:
             if stored == source || stored.starts_with(under):
-                times.push((stored, time))
+                times.push((*stored, *time))
         for (stored, _) in times:
             _ := self.modified.remove(stored)
         _ := self.modified.remove(target)
         let mut moved: List[(string, List[u8])] = []
         for (stored, bytes) in self.files:
             if stored.starts_with(under):
-                moved.push((stored, bytes))
+                moved.push((*stored, *bytes))
         for (stored, bytes) in moved:
             _ := self.files.remove(stored)
             destination := "${target}${stored.slice(source.len(), stored.len())}"

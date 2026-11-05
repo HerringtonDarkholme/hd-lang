@@ -2195,7 +2195,14 @@ impl Em<'_, '_, '_> {
                     ) => self.map_op(i, op, &args)?,
                     Some(IntrinsicOp::MapSlots) => self.map_slots(i, args[0])?,
                     Some(IntrinsicOp::MapSlotNext) => self.map_slot_next(i, &args)?,
-                    Some(IntrinsicOp::MapSlotEntry) => self.map_slot_entry(i, args[0], args[1])?,
+                    Some(op @ (IntrinsicOp::MapSlotEntry | IntrinsicOp::MapSlotEntryMut)) => {
+                        self.map_slot_entry(
+                            i,
+                            args[0],
+                            args[1],
+                            op == IntrinsicOp::MapSlotEntryMut,
+                        )?;
+                    }
                     _ => return unsupported("an intrinsic operation without its kernel"),
                 }
             }

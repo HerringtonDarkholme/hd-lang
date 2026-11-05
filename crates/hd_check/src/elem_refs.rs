@@ -262,6 +262,19 @@ impl Ck<'_, '_> {
         let Some(c) = self.value_path(coll) else {
             return;
         };
+        self.begin_access_path(c, frame);
+    }
+
+    fn begin_place_access(&mut self, place: &Place) {
+        let Some(&frame) = self.excl_frames.last() else {
+            return;
+        };
+        if let Some(path) = self.place_path(place) {
+            self.begin_access_path(path, frame);
+        }
+    }
+
+    fn begin_access_path(&mut self, c: CollPath, frame: usize) {
         let held: Vec<NodeIdx> = self.excl[frame..]
             .iter()
             .filter_map(|e| match e {
@@ -389,6 +402,104 @@ impl Ck<'_, '_> {
         );
     }
 
+    fn map_ref_loop(
+        &mut self,
+        pat: NodeRef<'_>,
+        (src, operand, mutable): (NodeRef<'_>, NodeRef<'_>, bool),
+        loop_else: Option<(NodeIdx, Ty)>,
+        e: NodeRef<'_>,
+        body: &mut dyn FnMut(&mut Self) -> StageResult<()>,
+    ) -> StageResult<(Ref, Ty)> {
+        use crate::refs::{Operand, PlaceUse};
+        use hd_tir::ir::local_flags::CAPTURED_ASSIGNED;
+        let (source, source_ty, place) = if mutable {
+            let Some(op) = self.place_of(operand, None, PlaceUse::Ref)? else {
+                let p = self
+                    .b
+                    .emit(Tag::Poison, NONE, NONE, Ty::POISON, src.index());
+                return Ok((p, Ty::VOID));
+            };
+            let op = match op {
+                Operand::Place(p) if self.ref_of(p.ty).is_some() => {
+                    let (r, t) = self.read_place(&p, operand);
+                    Operand::Value(r, t)
+                }
+                op => op,
+            };
+            let mut fresh = false;
+            let place = match op {
+                Operand::Place(p) => Some(p),
+                Operand::Value(mut r, mut t) => {
+                    let mut found = None;
+                    while let Some((inner, access)) = self.ref_of(t) {
+                        if matches!(self.index_kind(inner), Some((Indexed::Map, ..))) {
+                            found = Some(Place {
+                                root: Root::Deref(r, t),
+                                path: vec![],
+                                ty: self.deref_ty(inner, access),
+                            });
+                            break;
+                        }
+                        (r, t) = self.emit_deref(r, t, src.index());
+                    }
+                    if found.is_none() {
+                        fresh = true;
+                        let (l, depth) = self.hold(r, t, operand);
+                        self.add_flags(l, CAPTURED_ASSIGNED);
+                        found = Some(Place {
+                            root: Root::Local(l, depth),
+                            path: vec![],
+                            ty: t,
+                        });
+                    }
+                    found
+                }
+            };
+            let p = place.as_ref().expect("a map source place");
+            if !fresh && !self.place_writable(p, operand) {
+                let p = self
+                    .b
+                    .emit(Tag::Poison, NONE, NONE, Ty::POISON, src.index());
+                return Ok((p, Ty::VOID));
+            }
+            self.mut_place_taken(p, src.index(), false);
+            let rt = self.ref_ty(self.strip_mut(p.ty), true, false);
+            (self.make_ref(p, true, rt, src), rt, place)
+        } else {
+            let (r, t) = self.expr(operand, None)?;
+            let (r, t) = self.deref_index_base(r, t, operand.index());
+            (r, t, None)
+        };
+        let mt = self.ref_of(source_ty).map_or(source_ty, |(inner, _)| inner);
+        let Some((Indexed::Map, key, value)) = self.index_kind(mt) else {
+            return crate::body::unsupported("a map loop source that is not a map");
+        };
+        let item = self.pool().intern_ty(&hd_types::TyData::Tuple {
+            elems: self.pool().list(&[
+                self.ref_ty(key, false, false),
+                self.ref_ty(value, mutable, false),
+            ]),
+            rest: None,
+        });
+        self.collection_loop(
+            pat,
+            (source, source_ty, item, true),
+            (loop_else, None),
+            e,
+            &mut |me| {
+                me.open_access_frame();
+                me.mut_ref_loops += u32::from(mutable);
+                if let Some(p) = &place {
+                    me.begin_place_access(p);
+                }
+                let result = body(me);
+                me.mut_ref_loops -= u32::from(mutable);
+                me.close_access_frame();
+                result
+            },
+        )
+    }
+
     /// `for p in &xs` and `for p in &mut xs` over a list (`flow.for.ref`):
     /// a counted loop over the list's slots that binds an element
     /// reference per step. `None` when
@@ -418,16 +529,10 @@ impl Ck<'_, '_> {
         let vt = match builtin {
             Some((Indexed::List, _, vt)) => vt,
             Some((Indexed::Map, ..)) => {
-                self.commit(cp);
-                self.err(
-                    Code::MapValueNotAddressable,
-                    src,
-                    "a map value is no place, so a loop gives no references to a map's values; loop over the map itself and store changed values with `m[k] = v`",
-                );
-                let p = self
-                    .b
-                    .emit(Tag::Poison, NONE, NONE, Ty::POISON, src.index());
-                return Ok(Some((p, Ty::VOID)));
+                self.rollback(cp);
+                return self
+                    .map_ref_loop(pat, (src, operand, mutable), loop_else, e, body)
+                    .map(Some);
             }
             _ => {
                 self.rollback(cp);

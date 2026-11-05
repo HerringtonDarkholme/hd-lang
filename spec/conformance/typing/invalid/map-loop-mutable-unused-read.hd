@@ -1,0 +1,6 @@
+# test: the mutable loop accesses its source map only through its bindings
+# Spec 06 Element Reference Loops.
+fn invalid() -> void:
+    let mut values = { "a": 1 }
+    for (_, _) in &mut values:
+        count := values.len() # diagnostic: conflicting-access

@@ -1,0 +1,6 @@
+# test: an insertion conflicts with the whole mutable map loop even with unused bindings
+# Spec 06 Element Reference Loops.
+fn invalid() -> void:
+    let mut values = { "a": 1 }
+    for (_, _) in &mut values:
+        values["other"] = 2 # diagnostic: conflicting-access

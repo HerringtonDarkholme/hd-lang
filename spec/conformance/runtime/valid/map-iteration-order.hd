@@ -1,7 +1,7 @@
 fn keys(values: Map[string, i32]) -> List[string]:
     let mut result: List[string] = []
     for (key, value) in values:
-        result.push(key)
+        result.push(*key)
     result
 
 fn total(values: Map[string, i32]) -> i32:

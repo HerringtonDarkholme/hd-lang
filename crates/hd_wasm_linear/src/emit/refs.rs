@@ -398,6 +398,66 @@ impl Em<'_, '_, '_> {
         Ok(true)
     }
 
+    /// A whole map behind a thin reference: uniqueness consumes
+    /// the view's original value and restores it through the setter.
+    /// Moving it out first keeps counts balanced and avoids forcing `CoW`
+    /// by copying a view's header before the uniqueness check.
+    pub(super) fn unique_ref_header(&mut self, i: u32) -> StageResult<Option<u32>> {
+        if self.input.runtime.is_none() {
+            return Ok(None);
+        }
+        let p = self.place(self.b.data[i as usize][0])?;
+        let Some((d, Some((target, false)))) = self.last_through(&p)? else {
+            return Ok(None);
+        };
+        if d + 1 != p.proj.len() || !self.is_map(target) {
+            return Ok(None);
+        }
+        let mut fresh = Vec::new();
+        let (at, _) = self.walk_place(i, &p, d, None, &mut fresh)?;
+        let reference = self.at_i32(&at)?;
+        let value = self.ref_layout(target)?;
+        let helper = Helper::MapUnique {
+            entry: self.entry(target)?.2,
+        };
+        let unique = |me: &mut Self| {
+            let start = me.f.body.len();
+            me.f.helper(helper.clone());
+            if me.f.origins.is_some() {
+                let subject = crate::views::count_subject(me.pool(), me.env(), target);
+                me.f.note_count(
+                    start,
+                    u32::try_from(me.b.anchor_len()).expect("TIR instructions"),
+                    crate::views::CountAction::Unique,
+                    &subject,
+                    hd_tir::own::reason(me.b, i as usize),
+                );
+            }
+        };
+        let header = self.f.local(Val::I32);
+        self.f.get(reference);
+        self.f.helper(Helper::RefIsView);
+        self.f.op(I::If(wasm_encoder::BlockType::Empty));
+        let [taken] = rt::ref_take(&mut self.f, reference, &value)[..] else {
+            return unsupported("a collection view with more than one header");
+        };
+        self.f.get(taken);
+        unique(self);
+        self.f.set(header);
+        rt::ref_store(&mut self.f, reference, &[header], &value, true);
+        self.f.op(I::Else);
+        self.f.get(reference);
+        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+        unique(self);
+        self.f.set(header);
+        self.f.get(reference);
+        self.f.get(header);
+        self.f.op(I::I32Store(mem(HEAP, 0, 2)));
+        self.f.op(I::End);
+        self.release_fresh(&fresh)?;
+        Ok(Some(header))
+    }
+
     /// The list or map buffer at the place `word` of an `IsUnique` or a
     /// `Pin`, in a local, with the collection's type: the place resolved
     /// from its root's value ([`Em::walk_place`]), each element
@@ -468,6 +528,20 @@ impl Em<'_, '_, '_> {
                 self.f.get(r);
                 self.f.helper(Helper::RefIsView);
                 self.f.op(I::If(wasm_encoder::BlockType::Empty));
+                if d + 1 == p.proj.len() && self.is_map(target) {
+                    // The change consumed the old table's count. Take its
+                    // stale header out without releasing it before the
+                    // setter restores the replacement's count.
+                    let value = self.ref_layout(target)?;
+                    rt::ref_take(&mut self.f, r, &value);
+                    rt::ref_store(&mut self.f, r, &[b], &value, true);
+                    self.f.op(I::Else);
+                    self.f.get(r);
+                    self.f.get(b);
+                    self.f.op(I::I32Store(mem(HEAP, 0, 2)));
+                    self.f.op(I::End);
+                    return self.release_fresh(&fresh);
+                }
                 self.f.helper(Helper::Panic(
                     "internal: a collection changed through a reference view".into(),
                 ));

@@ -951,9 +951,9 @@ fn dbg_map[K < Eq & Hash, V](
         let count: usize = 0
         for (key, item) in value:
             if out.entry_item(count, "{"):
-                show_key(key, out)
+                show_key(*key, out)
                 out.write(": ")
-                show_value(item, out)
+                show_value(*item, out)
                 out.end_item()
             count = count + 1
         out.entry_close(count, "{", "}")

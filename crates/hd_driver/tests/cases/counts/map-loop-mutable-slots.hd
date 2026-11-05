@@ -1,0 +1,13 @@
+# @dump: own counts wat
+# @build: v8 release std
+# expected: lend real entry slots without a key, value or map copy.
+fn seed() -> Map[usize, usize]:
+    { 1: 2 }
+
+fn sum(items: &mut Map[usize, usize]) -> usize:
+    let total = 0
+    # subject
+    for (key, value) in &mut items:
+        *value += key
+        total += *value
+    total

@@ -549,6 +549,11 @@ fn tally(words: List[string]) -> Map[string, usize]:
 | `Map[K, V]` | `get_or_insert(&mut self, key: K, default: V) -> &mut V`; `contains_key(&self, key: K) -> bool`; `keys(&self) -> List[K]`; `values(&self) -> List[V]`; `is_empty(&self) -> bool`; `entries(&self) -> List[(K, V)]` |
 | `Map[K, usize]` | `most_common(&self, n: usize) -> List[(K, usize)]` |
 
+> **Note.** Built-in map loops borrow entry slots: shared loops bind
+> `(&K, &V)`, and mutable loops bind `(&K, &mut V)`
+> ([Element Reference Loops](../lang/06-control-flow.md#element-reference-loops)).
+> `keys`, `values` and `entries` return lists of copied values.
+
 ```text
 fn shelf_count(stock: &Map[string, List[string]], item: string) -> usize:
     match stock.get(item):  # List[string]?: one count of the list buffer

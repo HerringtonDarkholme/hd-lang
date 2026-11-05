@@ -306,7 +306,7 @@ lang/06-control-flow.md	8	accept	runtime/valid/user-defined-iterator-trait.hd
 lang/06-control-flow.md	9	accept	typing/valid/for-over-mut-iterator.hd|runtime/valid/iterator-single-pass.hd
 lang/06-control-flow.md	10	mixed	typing/valid/readonly-iterator-in-comprehension.hd|typing/invalid/for-over-non-iterable.hd|typing/invalid/iterator-step-private.hd|typing/invalid/for-over-string.hd|typing/invalid/readonly-iterator-iterable-bound.hd
 lang/06-control-flow.md	11	accept	runtime/valid/for-snapshot-doubled.hd
-lang/06-control-flow.md	12	mixed	typing/invalid/for-element-references-mut-short-binding.hd|typing/invalid/for-element-references-map.hd|typing/invalid/for-element-references-push-conflict.hd|typing/invalid/for-element-references-store.hd
+lang/06-control-flow.md	12	mixed	typing/invalid/for-element-references-mut-short-binding.hd|typing/invalid/for-element-references-push-conflict.hd|typing/invalid/for-element-references-store.hd
 lang/06-control-flow.md	13	accept	runtime/valid/range-iteration.hd
 lang/06-control-flow.md	14	mixed	typing/invalid/range-to-not-iterable.hd|typing/invalid/range-full-not-iterable.hd|typing/invalid/for-float-range.hd
 lang/06-control-flow.md	15	accept	typing/valid/control-flow.hd

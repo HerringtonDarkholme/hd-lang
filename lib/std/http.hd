@@ -536,7 +536,7 @@ impl From[Map[string, string]] for Headers:
     fn from(map: Map[string, string]) -> Headers:
         let mut pairs: List[(string, string)] = []
         for (name, value) in map:
-            pairs.push((name, value))
+            pairs.push((*name, *value))
         Headers::from(pairs)
 
 ## One named part of a buffered multipart/form-data message.

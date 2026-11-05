@@ -1,0 +1,5 @@
+# test: a mutable map loop cannot upgrade a shared map reference
+# Spec 06 Element Reference Loops: flow.for.ref.map.writable.
+fn invalid(items: &Map[string, usize]) -> void:
+    for (_, value) in &mut items: # diagnostic: not-writable
+        *value = 2

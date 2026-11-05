@@ -1,0 +1,22 @@
+# test: shared map loops lend the key and value slots of their original snapshot
+# Spec 06 Built-In Collection Iteration and Snapshot Iteration.
+use std.testing.assert_equal
+
+pub fn main() -> void:
+    let mut values = { "a": 1, "bb": 2 }
+    let mut seen: Map[string, usize] = {}
+    for (key, value) in values:
+        let borrowed_key: &string = key
+        let borrowed_value: &usize = value
+        seen[*borrowed_key] = *borrowed_value
+        values[*key] = 99
+        values["new"] = 100
+    assert_equal(seen.len(), 2)
+    assert_equal(seen["a"], 1)
+    assert_equal(seen["bb"], 2)
+    assert_equal(values["a"], 99)
+    assert_equal(values["bb"], 99)
+    let total = 0
+    for entry in &seen:
+        total += entry._1
+    assert_equal(total, 3)

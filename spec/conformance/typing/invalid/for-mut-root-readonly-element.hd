@@ -1,5 +1,5 @@
 # test: a list behind a &mut reference does not make its loop binding writable
-# Spec 06 Built-In Collection Iteration: flow.for.no-root-grant.
+# Spec 06 Built-In Collection Iteration: flow.for.list.no-root-grant.
 struct Child:
     name: string
 

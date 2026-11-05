@@ -44,7 +44,6 @@ impl Arbitrary for Script:
     fn arbitrary(c: &mut Choices) -> Script:
         Script {
             ops: c.list(96, fn(inner: &mut Choices) -> Operation: Operation::arbitrary(inner))
-            ,
         }
 
 # The oracle has no map, hashing or bucket storage. It scans a list for
@@ -100,7 +99,7 @@ fn apply_map(values: &mut Map[CollisionKey, i32], op: Operation) -> i32?:
 fn snapshot(values: Map[CollisionKey, i32]) -> List[(i32, i32)]:
     let mut pairs: List[(i32, i32)] = []
     for (key, value) in values:
-        pairs.push((key.id, value))
+        pairs.push((key.id, *value))
     pairs
 
 fn key_ids(values: Map[CollisionKey, i32]) -> List[i32]:
@@ -256,10 +255,10 @@ fn removal_churn(size: usize) -> void:
     let mut seen: List[bool] = [for _ in 0..size => false]
     for (key, value) in actual:
         assert(key >= i32(size) && key < i32(size * 2), reason="only the new key range is present")
-        offset := usize(key) - size
+        offset := usize(*key) - size
         assert(!seen[offset], reason="each new key is visited once")
         seen[offset] = true
-        assert_equal(value, key * 3 + 7, reason="each new key has its own value")
+        assert_equal(*value, key * 3 + 7, reason="each new key has its own value")
     for index in 0..size:
         assert(seen[index], reason="no new key is omitted")
         assert_equal(
@@ -280,7 +279,6 @@ tests:
         "colliding map operation sequences follow the list model and replay",
         cases=100,
         prop=fn!(script: Script): exercise(script)
-        ,
     )
 
     it_each(
@@ -306,19 +304,16 @@ tests:
             },
         ],
         body=fn!(script: Script): exercise(script)
-        ,
     )
 
     it_each(
         "colliding keys survive growth overwrite removal and reinsertion",
         [usize(0), 1, 2, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65, 127, 128, 129, 257],
         body=fn!(size: usize): colliding_growth(size)
-        ,
     )
 
     it_each(
         "all removals followed by fresh inserts",
         [usize(0), 1, 31, 10000],
         body=fn!(size: usize): removal_churn(size)
-        ,
     )

@@ -3792,7 +3792,8 @@ impl Ck<'_, '_> {
             let item = match items {
                 [t] if !map => *t,
                 [k, v] if map => pool.intern_ty(&TyData::Tuple {
-                    elems: pool.list(&[*k, *v]),
+                    elems: pool
+                        .list(&[self.ref_ty(*k, false, false), self.ref_ty(*v, false, false)]),
                     rest: None,
                 }),
                 _ => return unsupported("a collection type's arguments"),
@@ -4236,7 +4237,7 @@ impl Ck<'_, '_> {
     /// place's collection sharing its buffer, which a change to the place
     /// during the loop copies first. Each round reads the next element or
     /// live entry, advances, and binds it.
-    fn collection_loop(
+    pub(crate) fn collection_loop(
         &mut self,
         pat: NodeRef<'_>,
         (sr, st, item_ty, map): (Ref, Ty, Ty, bool),
@@ -4264,10 +4265,18 @@ impl Ck<'_, '_> {
         // place's last use.
         let src_l = self.b.local(st, src_s, ASSIGNED, at);
         self.set_local(src_l, sr, at);
+        let collection = |me: &mut Self| {
+            let value = me.b.get(src_l, st, at);
+            if me.ref_of(st).is_some() {
+                me.emit_deref(value, st, at).0
+            } else {
+                value
+            }
+        };
         let len_l = self.b.local(us, len_s, ASSIGNED, at);
         let pos_l = self.b.local(us, pos_s, ASSIGNED, at);
         let end_l = self.b.local(us, end_s, ASSIGNED, at);
-        let c = self.b.get(src_l, st, at);
+        let c = collection(self);
         let len_op = if map {
             IntrinsicOp::MapLen
         } else {
@@ -4282,7 +4291,7 @@ impl Ck<'_, '_> {
         // A map's loop visits the slots written when it began; a list's,
         // its captured length.
         let end = if map {
-            let c = self.b.get(src_l, st, at);
+            let c = collection(self);
             intr(self, IntrinsicOp::MapSlots, &[c], us)
         } else {
             self.b.get(len_l, us, at)
@@ -4294,7 +4303,7 @@ impl Ck<'_, '_> {
         let lb = self.b.open_block();
         if map {
             let (c, p, d) = (
-                self.b.get(src_l, st, at),
+                collection(self),
                 self.b.get(pos_l, us, at),
                 self.b.get(end_l, us, at),
             );
@@ -4307,10 +4316,24 @@ impl Ck<'_, '_> {
         let tb = self.b.open_block();
         self.loops.push((lp, result));
         self.scopes.push(HashMap::default());
-        let (c, p) = (self.b.get(src_l, st, at), self.b.get(pos_l, us, at));
+        let (c, p) = (collection(self), self.b.get(pos_l, us, at));
         // A map's live entry, or a list's element place `[%c [%p]]`.
         let item = if map {
-            intr(self, IntrinsicOp::MapSlotEntry, &[c, p], item_ty)
+            let TyData::Tuple { elems, .. } = self.pool().get(item_ty) else {
+                return unsupported("a map loop item that is not a pair");
+            };
+            let fields = self.pool().list_items(elems);
+            let mutable = fields
+                .get(1)
+                .is_some_and(|&ty| self.ref_of(ty).is_some_and(|(_, mutable)| mutable));
+            let op = if mutable {
+                IntrinsicOp::MapSlotEntryMut
+            } else {
+                IntrinsicOp::MapSlotEntry
+            };
+            let record = self.b.refs_record(&[c, p]);
+            self.b
+                .emit(Tag::Intrinsic, op as u32, record, item_ty, pat.index())
         } else {
             self.b.element(c, p, item_ty, at)
         };

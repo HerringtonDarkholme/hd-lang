@@ -291,25 +291,49 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
-    /// `MapSlotEntry`: the `(K, V)` of a live entry, which lays out as the
-    /// entry does.
-    pub(super) fn map_slot_entry(&mut self, i: u32, map: u32, slot: u32) -> StageResult<()> {
-        let (_, _, e) = self.entry(self.ty_of(map))?;
-        if self.vals(self.ty(i))? != e.leaves.iter().map(|l| l.val).collect::<Vec<_>>() {
-            return unsupported("a map entry that lays out unlike its table's");
+    /// Entry references lent by the loop's table. A mutable entry's map
+    /// place is made unique by the ownership pass before this operation.
+    /// The source reference holds its pointer loan for the whole loop;
+    /// entry bindings only lend slots within that protected table.
+    pub(super) fn map_slot_entry(
+        &mut self,
+        i: u32,
+        map: u32,
+        slot: u32,
+        mutable: bool,
+    ) -> StageResult<()> {
+        let (key, value, entry) = self.entry(self.ty_of(map))?;
+        let TyData::Tuple { elems, rest: None } = self.pool().get(self.ty(i)) else {
+            return unsupported("a borrowed map entry that is not a pair");
+        };
+        let fields = self.pool().list_items(elems);
+        if fields.len() != 2
+            || fields
+                .iter()
+                .zip([key, value])
+                .enumerate()
+                .any(|(index, (&field, target))| {
+                    self.ref_target(field) != Some((target, false))
+                        || crate::layout::ref_mutable(self.pool(), self.env(), field)
+                            != (mutable && index == 1)
+                })
+        {
+            return unsupported("a map entry with inconsistent reference permissions");
         }
+        let (_, parts) = payload_mem(self.pool(), self.env(), &[key, value])?;
         let m = self.buffer(map)?;
-        let s = self.f.local(Val::I32);
+        let index = self.f.local(Val::I32);
         self.comp(slot, 0)?;
-        self.f.set(s);
+        self.f.set(index);
         let at = self.f.local(Val::I32);
-        entry_address(&mut self.f, m, s, e.size);
+        entry_address(&mut self.f, m, index, entry.size);
         self.f.set(at);
-        for l in &e.leaves {
+        for part in parts {
             self.f.get(at);
-            self.f.op(l.load(0));
+            self.f.u32(part.offset);
+            self.f.op(I::I32Add);
         }
-        self.store(i)
+        self.store_owned(i)
     }
 
     /// The map place a probe's reference argument names: a `Ref`'s place,

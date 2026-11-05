@@ -4206,7 +4206,7 @@ fn ref_read(f: &mut Func, at: u32, value: &RefLayout, access: Access) -> Vec<u32
 /// place into new locals, which take its counts, and leaves zeros there:
 /// through a view, the value its getter moves out. Its setter, or
 /// [`ref_store`], puts a value back, releasing the zeros.
-fn ref_take(f: &mut Func, at: u32, value: &RefLayout) -> Vec<u32> {
+pub(crate) fn ref_take(f: &mut Func, at: u32, value: &RefLayout) -> Vec<u32> {
     f.stack_values |= value.leaves.len() > crate::wide::WIDTH;
     let ls: Vec<u32> = value.leaves.iter().map(|l| f.local(l.val)).collect();
     if ls.is_empty() {

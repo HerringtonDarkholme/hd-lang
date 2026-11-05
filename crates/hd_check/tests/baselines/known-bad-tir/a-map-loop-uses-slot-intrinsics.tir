@@ -5,8 +5,8 @@ app/main/visit
   local $2 $len: usize [assigned]
   local $3 $pos: usize [assigned]
   local $4 $end: usize [assigned]
-  local $5 _key: string [assigned]
-  local $6 _value: i32 [assigned]
+  local $5 _key: Ref[string] [assigned]
+  local $6 _value: Ref[i32] [assigned]
   %0 = Read [$0] : Map[string, i32]
   %1 = Store [$1] %0 : ()
   %2 = Read [$1] : Map[string, i32]
@@ -26,13 +26,13 @@ app/main/visit
   %16 = Prim Lt [%14 %15] : bool
   %17 = Read [$1] : Map[string, i32]
   %18 = Read [$3] : usize
-  %19 = Intrinsic MapSlotEntry [%17 %18] : (string, i32)
+  %19 = Intrinsic MapSlotEntry [%17 %18] : (Ref[string], Ref[i32])
   %20 = Read [$3] : usize
   %21 = Prim Add [%20 1:usize] : usize
   %22 = Store [$3] %21 : ()
   %23 = Block - : ()
-  %24 = Read [%19 .0] : string
-  %25 = Read [%19 .1] : i32
+  %24 = Read [%19 .0] : Ref[string]
+  %25 = Read [%19 .1] : Ref[i32]
   %26 = Store [$5] %24 : ()
   %27 = Store [$6] %25 : ()
   %29 = Block - : never

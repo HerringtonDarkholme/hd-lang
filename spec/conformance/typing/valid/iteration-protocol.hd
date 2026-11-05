@@ -1,7 +1,7 @@
 # test: for and comprehensions accept Iterable values and a mutable iterator
 # Spec 06 Iteration Protocols: flow.for.accepts-owned-cursor, flow.for.iterable-collections,
 # flow.for.iterable.cursor, flow.for.iterator.owned-source, flow.for.iterator.owned-position,
-# flow.for.list, flow.for.map.entries, flow.for.map.value
+# flow.for.list, flow.for.map.borrowed-entries, flow.for.map.borrowed-value
 # (Chaining Study CS7, batch 24 IT2).
 
 fn consume(source: &mut dyn Iterator[i32]) -> List[i32]:

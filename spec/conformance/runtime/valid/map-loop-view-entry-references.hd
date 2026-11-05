@@ -1,0 +1,46 @@
+# test: mutable map loops update a projected Option view and preserve a snapshot
+# Spec std/option Borrowed Views; Spec 06 Element Reference Loops.
+use std.testing.assert_equal
+
+pub fn main() -> void:
+    let mut wrapped: Option[Map[string, usize]] = .Some({ "a": 1, "b": 2 })
+    snapshot := wrapped
+    match wrapped.as_mut():
+        .Some(items) =>
+            for (key, value) in &mut items:
+                *value += key.len()
+        .None => panic("missing mutable map")
+    let sum = 0
+    match wrapped.as_ref():
+        .Some(items) =>
+            for (_, value) in items:
+                sum += value
+        .None => panic("missing shared map")
+    assert_equal(sum, 5)
+    match snapshot:
+        .Some(items) =>
+            assert_equal(items["a"], 1)
+            assert_equal(items["b"], 2)
+        .None => panic("missing snapshot")
+
+    # The same view write-back must also work without a borrowing loop,
+    # including replacing the table when it grows.
+    let mut direct: Option[Map[string, usize]] = .Some({ "a": 1 })
+    before := direct
+    match direct.as_mut():
+        .Some(items) =>
+            items["a"] += 1
+            for i in 0..32:
+                items["item-$i"] = i
+        .None => panic("missing direct map")
+    match direct:
+        .Some(items) =>
+            assert_equal(items["a"], 2)
+            assert_equal(items["item-31"], 31)
+            assert_equal(items.len(), 33)
+        .None => panic("missing grown map")
+    match before:
+        .Some(items) =>
+            assert_equal(items["a"], 1)
+            assert_equal(items.len(), 1)
+        .None => panic("missing original map")

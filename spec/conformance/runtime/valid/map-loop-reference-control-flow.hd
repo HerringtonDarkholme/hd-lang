@@ -1,0 +1,26 @@
+# test: map entry loans end correctly at continue, break, and return
+# Spec 06 Element Reference Loops and For Loops.
+use std.testing.assert_equal
+
+fn update_first(items: &mut Map[string, usize]) -> usize:
+    for (_, value) in &mut items:
+        *value += 10
+        return *value
+    0
+
+pub fn main() -> void:
+    let mut values = { "a": 1, "b": 2, "c": 3 }
+    assert_equal(update_first(&mut values), 11)
+    for (key, value) in &mut values:
+        if *key == "a":
+            continue
+        *value += 20
+        break
+    values["after"] = 4
+    assert_equal(values["a"], 11)
+    assert_equal(values["b"], 22)
+    assert_equal(values["c"], 3)
+    let total = 0
+    for (_, value) in values:
+        total += value
+    assert_equal(total, 40)

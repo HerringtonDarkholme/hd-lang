@@ -1,0 +1,6 @@
+# test: a shared map loop reference cannot outlive its iteration
+# Spec 06 Built-In Collection Iteration.
+fn invalid(items: &Map[string, usize]) -> &string:
+    for (key, _) in items:
+        return key # diagnostic: local-reference-escapes
+    panic("empty")

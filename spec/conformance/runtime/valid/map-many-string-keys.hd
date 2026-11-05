@@ -12,7 +12,7 @@ fn key(n: usize) -> string:
 fn keys_of(values: Map[string, usize]) -> List[string]:
     let mut result: List[string] = []
     for (k, _) in values:
-        result.push(k)
+        result.push(*k)
     result
 
 tests:

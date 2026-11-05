@@ -237,7 +237,7 @@ impl Env for ScriptedEnv:
     fn names(self) -> List[string]:
         let mut found: List[string] = []
         for (key, _) in self.values:
-            found.push(key)
+            found.push(*key)
         found
 
 ## The host capability to read four facts about the host system.

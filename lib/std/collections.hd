@@ -2019,8 +2019,8 @@ impl[K < Eq & Hash, V] Map[K, V]:
     ## See [std-collections.map.retain](../../spec/std/collections.md#r-std-collections.map.retain).
     pub fn retain(&mut self, keep: fn(&K, &mut V) -> bool) -> void:
         for (key, _) in *self:
-            if !keep(&key, &mut self[key]):
-                _ := self.remove(key)
+            if !keep(key, &mut self[*key]):
+                _ := self.remove(*key)
 
     ## Inserts entries in order, replacing values of equal keys.
     ## See [std-collections.map.extend](../../spec/std/collections.md#r-std-collections.map.extend).
@@ -2033,7 +2033,7 @@ impl[K < Eq & Hash, V] Map[K, V]:
     pub fn drain['a](&'a mut self) -> MapDrain[K, V, 'a]:
         entries := self.iter()
         for (key, _) in *self:
-            _ := self.remove(key)
+            _ := self.remove(*key)
         MapDrain { items: self, entries: entries }
 
     ## Returns a mutable reference to the value for `key`; when the map has no equal key, inserts `default` first.
@@ -2054,7 +2054,7 @@ impl[K < Eq & Hash, V] Map[K, V]:
     pub fn keys(&self) -> List[K]:
         let mut found: List[K] = []
         for (key, _) in self:
-            found.push(key)
+            found.push(*key)
         found
 
     ## A new list of the values, in the map's iteration order.
@@ -2062,7 +2062,7 @@ impl[K < Eq & Hash, V] Map[K, V]:
     pub fn values(&self) -> List[V]:
         let mut found: List[V] = []
         for (_, value) in self:
-            found.push(value)
+            found.push(*value)
         found
 
     ## True exactly when the map has no entries.
@@ -2078,7 +2078,7 @@ impl[K < Eq & Hash, V] Map[K, V]:
     pub fn entries(&self) -> List[(K, V)]:
         let mut found: List[(K, V)] = []
         for (key, value) in self:
-            found.push((key, value))
+            found.push((*key, *value))
         found
 
 impl[K < Eq & Hash] Map[K, usize]:
@@ -2561,7 +2561,7 @@ impl[T < Eq & Hash] Eq for Set[T]:
         if self.len() != other.len():
             return false
         for (item, _) in self.entries:
-            if !other.contains(item):
+            if !other.contains(*item):
                 return false
         true
 

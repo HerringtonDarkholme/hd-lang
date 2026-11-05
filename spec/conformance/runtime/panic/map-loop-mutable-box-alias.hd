@@ -1,0 +1,10 @@
+# test: a mutable map loop holds its boxed source loan against alias writes
+# Spec 06 Element Reference Loops; Spec 13 Conflicts Through Aliases.
+tests:
+    it("inserting through a box alias conflicts with the loop"):
+        counts := box({ "a": +1, "b": +2 })
+        alias := counts
+        for (_, value) in &mut counts:
+            if *value == 2:
+                alias["c"] = 3 # panic: borrow-conflict
+            *value += 1

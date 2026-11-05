@@ -312,9 +312,9 @@ the iterator adapters, `collect`, and `FromIterator`.
 ### Built-In Collection Iteration
 
 1. r[flow.for.list] The built-in `List[T]` iterable yields each element as `T`, whether the list is reached directly or through a reference.
-2. r[flow.for.map.entries] The built-in `Map[K, V]` iterable yields `(K, V)` tuples in the map's [iteration order](04-type-system.md#r-types.map.order.deterministic).
-3. r[flow.for.map.value] Destructuring each entry yields the value as `V`, whether the map is reached directly or through a reference.
-4. r[flow.for.no-root-grant] A loop binding is not writable, even when the list is in a writable place or behind a `&mut` reference. Changing a field of an element it binds is an error. Writing through an element of a `*mut U` type is valid. Error: `not-writable`.
+2. r[flow.for.map.borrowed-entries] A built-in loop over `Map[K, V]` yields `(&K, &V)` tuples in the map's [iteration order](04-type-system.md#r-types.map.order.deterministic).
+3. r[flow.for.map.borrowed-value] Destructuring a shared map entry binds its value as `&V`, whether the map is reached directly or through a reference.
+4. r[flow.for.list.no-root-grant] A by-value list loop gives no writable access to its item, even when its source is writable or behind `&mut`. Changing a field of that item is an error. Writing through an item of a `*mut U` type is valid. Error: `not-writable`.
 5. r[flow.for.library] Libraries may provide additional mutable-iteration APIs with separate aliasing rules.
 6. r[flow.for.collection.reference] Outside [Element Reference Loops](#element-reference-loops), a `for` over a reference to a `List` or `Map` iterates the referenced value.
 
@@ -356,7 +356,7 @@ fn doubled(values: List[i32]) -> List[i32]:
 ### Element Reference Loops
 
 `for p in &mut xs` and `for p in &xs` bind a reference to each element of
-a list in turn.
+a list in turn; map loops bind references to both the key and value.
 
 ```hd
 fn raised(prices: List[i32]) -> List[i32]:
@@ -372,16 +372,20 @@ fn raised(prices: List[i32]) -> List[i32]:
 4. r[flow.for.ref.conflict] Here `xs` counts as unaliased when it is [unaliased](13-values-and-references.md#r-ref.elem.unaliased), and when it is what a `&mut` parameter or `:=` binding refers to, since [`ref.excl.mut`](13-values-and-references.md#r-ref.excl.mut) makes that reachable through it alone. Then the body may store to the elements of `xs`, but an expression in it that may change `xs`, as the table under [`ref.elem.conflict`](13-values-and-references.md#r-ref.elem.conflict) lists, or that replaces it, is an error. In `for p in &mut xs` so is any other use of `xs`, as [`ref.elem.access.mut`](13-values-and-references.md#r-ref.elem.access.mut) says, and any other reference into it. Error: `conflicting-access`.
 5. r[flow.for.ref.binding.local] The loop binding is an element reference to its slot for one step. It is a local reference value, so the body may bind, assign, read and write through it, and pass it or use it as a dependent source; every local-reference and dependent-result rule applies.
 6. r[flow.for.ref.writable] `for p in &mut xs` needs `xs` in a writable place, as `&mut xs[i]` does. Error: `not-writable`.
-7. r[flow.for.ref.map] A loop over element references takes a list, so a loop over `&m` or `&mut m` with a map `m` is an error. Error: `map-value-not-addressable`.
-8. r[flow.for.ref.through] `xs` may be a reference to a list: `for p in &mut r` and `for p in &r` loop over the slots of the list `r` refers to, as if `*r` were the place. Through `&T`, `for p in &mut r` is an error. Error: `not-writable`.
+7. r[flow.for.ref.map.entries] `for (k, v) in &mut m`, where `m` is a map, binds `k: &K` and `v: &mut V` to its entry slots.
+8. r[flow.for.ref.map.shared] `for (k, v) in &m` binds `k: &K` and `v: &V` to the shared map snapshot's entry slots.
+9. r[flow.for.ref.map.key] A map loop always borrows each key through a shared reference.
+10. r[flow.for.ref.map.local] Each map entry reference is local to its iteration and follows the local-reference and dependent-result rules.
+11. r[flow.for.ref.map.exclusive] A mutable map loop holds one exclusive access for its whole body, including when its bindings are unused.
+12. r[flow.for.ref.map.source] The body of a mutable map loop accesses the source map only through its loop bindings. Error: `conflicting-access`.
+13. r[flow.for.ref.map.writable] A mutable map loop requires a writable map place. Error: `not-writable`.
+14. r[flow.for.ref.through] `xs` may be a reference to a list: `for p in &mut r` and `for p in &r` loop over the slots of the list `r` refers to, as if `*r` were the place. Through `&T`, `for p in &mut r` is an error. Error: `not-writable`.
 
 ```text
 fn invalid(prices: Map[string, i32]) -> void:
     fixed := [+1, 2]
     for x in &mut fixed:  # error: not-writable
         *x = 0
-    for price in &prices:  # error: map-value-not-addressable
-        pass
     let mut scores = [+1, 2]
     for score in &mut scores:
         *score += scores[0]  # reads and element writes are allowed

@@ -102,10 +102,8 @@ impl ArgParser:
     # every command's help, including commands nested in payload records.
     fn set_program(&mut self, program: string) -> void:
         self.program = program
-        for (name, child) in self.commands:
-            let mut scoped = child
-            scoped.set_program("$program $name")
-            self.commands[name] = scoped
+        for (name, child) in &mut self.commands:
+            child.set_program("$program $name")
 
     pub fn parse(&self, arguments: List[string]) -> Result[Parsed, CliError]:
         self.parse_from(arguments, 0)
@@ -226,7 +224,7 @@ impl ArgParser:
                 command_width = max(command_width, name.chars().count())
             for (name, parser) in self.commands:
                 text.push("\n  ")
-                text.push(name)
+                text.push(*name)
                 if parser.about != "":
                     text.push("".pad_end(command_width - name.chars().count(), ' '))
                     text.push("  ")

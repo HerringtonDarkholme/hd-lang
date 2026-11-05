@@ -1224,6 +1224,9 @@ impl Em<'_, '_, '_> {
     /// The uniqueness check of `IsUnique` `i`'s place, which stores the
     /// buffer it leaves there, and the local that holds that buffer.
     pub(super) fn unique_at(&mut self, i: u32) -> StageResult<u32> {
+        if let Some(header) = self.unique_ref_header(i)? {
+            return Ok(header);
+        }
         let word = self.b.data[i as usize][0];
         let (h, t, at) = self.place_header(word)?;
         if self.input.runtime.is_none() {
