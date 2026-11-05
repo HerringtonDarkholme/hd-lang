@@ -14,9 +14,9 @@ fn user_name(value: &dyn Inspectable) -> string:
     match value.downcast_ref::[User]():
 > app/main/user_name
 >   local $0 value: Ref[Inspectable] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   local $1 user: Ref[User] [read assigned] value
->     uses $1: %6 -> %2 lend
+>     uses $1: %6 -> %2 lend last
 >   %0 = Read borrow [$0] : Ref[Inspectable]
 >   %1 = Call std/inspect/impl dyn Inspectable.downcast_ref[User] (%0) : Ref[User]?
 >   %9 = Drop [%1] : ()
@@ -43,11 +43,11 @@ fn is_user(value: &dyn Inspectable) -> bool:
     value.runtime_type() == TypeId::of::[User]()
 > app/main/is_user
 >   local $0 value: Ref[Inspectable] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   local $3 self: TypeId [read] value
->     uses $3: %4 -> %6 lend
+>     uses $3: %4 -> %6 lend last
 >   local $4 other: TypeId [read] value
->     uses $4: %5 -> %7 lend
+>     uses $4: %5 -> %7 lend last
 >   %0 = Read copy [*$0] : Inspectable
 >   %1 = Call std/inspect/Inspectable.runtime_type for Inspectable [] via TraitValue (%0) : TypeId
 >   %2 = Drop [%0] : ()
@@ -69,10 +69,10 @@ fn erase(u: User) -> *dyn Inspectable:
     box(u)
 > app/main/erase
 >   local $0 u: User [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 $ref: User [read assigned captured captured-assigned] place
 >   local $2 $ref: Counted[User] [read assigned captured] value
->     uses $2: %4 -> %5 lend
+>     uses $2: %4 -> %5 lend last
 >   %0 = Read move [$0] : User
 >   %1 = Store [$1] %0 : ()
 >   %2 = Ref take mut [$1] : Counted[mut User]

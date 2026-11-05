@@ -11,7 +11,7 @@ fn name_of(u: &User) -> &string:
     &u.name
 > app/main/name_of
 >   local $0 u: Ref[User] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   %0 = Ref local [*$0 .name] : Ref[string]
 >   %1 = Block %0 : Ref[string]
 >   summary kept []
@@ -20,9 +20,9 @@ fn apply(f: fn(&User) -> &string, u: &User) -> usize:
     f(u).len()
 > app/main/apply
 >   local $0 f: fn(Ref[User]) -> Ref[string] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   local $1 u: Ref[User] [param read] value
->     uses $1: entry -> %1 lend
+>     uses $1: entry -> %1 lend last
 >   %0 = Read borrow [$0] : fn(Ref[User]) -> Ref[string]
 >   %1 = Read borrow [$1] : Ref[User]
 >   %2 = CallValue %0 [%1] : Ref[string]
@@ -35,9 +35,9 @@ fn demo(a: &User) -> usize:
     apply(name_of, a) + apply(fn(u): &u.name, a)
 > app/main/demo
 >   local $0 a: Ref[User] [param read] value
->     uses $0: entry -> %1 lend, %8 lend
+>     uses $0: entry -> %1 lend, %8 lend last
 >   local $1 u: Ref[User] [param read] value
->     uses $1: entry -> %4 lend
+>     uses $1: entry -> %4 lend last
 >   %0 = ItemRef #0 [..] : fn(Ref[User]) -> Ref[string]
 >   %1 = Read borrow [$0] : Ref[User]
 >   %2 = Call app/main/apply[] (%0, %1) : usize

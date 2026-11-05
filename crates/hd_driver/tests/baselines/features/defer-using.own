@@ -17,7 +17,7 @@ impl Disposable for Res:
         self.log.push(self.name)
 > app/main/impl Disposable for Res.dispose
 >   local $0 self: Ref[mut Res] [param read] value
->     uses $0: entry -> %0 lend, %2 lend
+>     uses $0: entry -> %0 lend, %2 lend last
 >   %0 = Read copy [*$0 .name] : string
 >   %1 = IsUnique [*$0 .log *] : ()
 >   %2 = Read borrow [*$0 .log *] : List[string]
@@ -29,11 +29,11 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
     defer(fn() -> void: log.push(s))
 > app/main/with_defer
 >   local $0 log: Counted[mut List[string]] [param read captured] value
->     uses $0: entry -> %2 lend, %6 consume
+>     uses $0: entry -> %2 lend, %6 consume last
 >   local $1 s: string [param read captured] place
 >   local $2 $ref: DeferGuard[fn() -> (), $(), Ref[()]] [:= read assigned captured captured-assigned] place
 >   local $3 action: fn() -> () [read] value
->     uses $3: %7 -> %8 consume
+>     uses $3: %7 -> %8 consume last
 >   %0 = Read move [$1] : string
 >   %1 = IsUnique [*$0] : ()
 >   %2 = Read borrow [*$0] : List[string]
@@ -71,13 +71,13 @@ fn with_using(log: *mut List[string], s: string) -> usize:
     using r = box(Res { name: s, log: log })
 > app/main/with_using
 >   local $0 log: Counted[mut List[string]] [param read] value
->     uses $0: entry -> %1 consume
+>     uses $0: entry -> %1 consume last
 >   local $1 s: string [param read] value
->     uses $1: entry -> %0 consume
+>     uses $1: entry -> %0 consume last
 >   local $2 $ref: Res [read assigned captured captured-assigned] place
 >   local $3 r: Counted[mut Res] [:= read assigned] place
 >   local $4 self: string [read] value
->     uses $4: %11 -> %12 lend
+>     uses $4: %11 -> %12 lend last
 >   %0 = Read move [$1] : string
 >   %1 = Read copy [$0] : Counted[mut List[string]]
 >   %2 = NewStruct [%0 %1] : Res

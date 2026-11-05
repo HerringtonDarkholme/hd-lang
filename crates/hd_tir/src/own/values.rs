@@ -231,6 +231,8 @@ pub struct ValueUse {
     /// The using instruction.
     pub at: u32,
     pub how: Use,
+    /// Whether it is its value's last use on its path ([`mark_last`]).
+    pub last: bool,
 }
 
 /// Each use of a value local of `b` (`classes`, from [`classify`]), in
@@ -316,6 +318,7 @@ pub fn uses(
             def,
             at: u32_of(r),
             how,
+            last: false,
         });
     };
     for r in 0..b.len() {
@@ -364,10 +367,144 @@ pub fn uses(
     out.sort_stable_by_key(|u| (u.local, u.def.wrapping_add(1), u.at));
 }
 
+/// Marks each use in `uses` (one body's, from [`uses`]) that is its
+/// value's last use on its path (step 8b): no other use of the same value
+/// may run after it. A use in a loop that its value's definition is
+/// outside of is never last, since the next round may use the value
+/// again; its value ends where the loop exits. Of two uses in different
+/// arms of one `If` or `Match`, neither runs after the other. A use in a
+/// closure's body, which may run any number of times, is never last. A
+/// use followed by a `Return`, an `Unreachable`, or a `Break` or
+/// `Continue` that leaves past a later use, is last on its path. A call
+/// that never returns is not seen as an exit.
+pub fn mark_last(b: &Body, topo: &Topology, uses: &mut [ValueUse]) {
+    // The statements around instruction `i`, innermost first, as (block,
+    // position, statement), to its sub-body's root.
+    let chain = |i: u32, out: &mut Vec<Level>| {
+        out.clear();
+        let mut x = i;
+        loop {
+            let blk = topo.blk[x as usize];
+            if blk == NONE {
+                return;
+            }
+            out.push((blk, topo.pos[x as usize], x));
+            if topo.is_root[blk as usize] || topo.owner[blk as usize] == NONE {
+                return;
+            }
+            x = topo.owner[blk as usize];
+        }
+    };
+    let root_of = |c: &[Level]| c.last().map_or(NONE, |&(blk, _, _)| blk);
+    // Whether loop `l` holds instruction `i`.
+    let holds = |l: u32, i: u32| {
+        let mut m = topo.loop_of[i as usize];
+        while m != NONE {
+            if m == l {
+                return true;
+            }
+            m = topo.loop_of[m as usize];
+        }
+        false
+    };
+    let (mut cu, mut cw) = (Vec::new(), Vec::new());
+    let mut lo = 0;
+    while lo < uses.len() {
+        let key = (uses[lo].local, uses[lo].def);
+        let hi = lo
+            + uses[lo..]
+                .iter()
+                .take_while(|u| (u.local, u.def) == key)
+                .count();
+        for k in lo..hi {
+            let u = uses[k].at;
+            chain(u, &mut cu);
+            let def = uses[k].def;
+            // In a closure's body, or in a loop without the definition.
+            let def_root = if def == NONE {
+                param_root(b, uses[k].local)
+            } else {
+                chain(def, &mut cw);
+                root_of(&cw)
+            };
+            let elsewhere = def_root != root_of(&cu);
+            let inner = topo.loop_of[u as usize];
+            let looped = inner != NONE && (def == NONE || !holds(inner, def));
+            let later = (lo..hi).any(|j| {
+                if j == k {
+                    return false;
+                }
+                chain(uses[j].at, &mut cw);
+                after(b, &cu, &cw)
+            });
+            uses[k].last = !elsewhere && !looped && !later;
+        }
+        lo = hi;
+    }
+}
+
+/// One level of a use's statement chain ([`mark_last`]): the block, the
+/// position in it, and the statement there.
+type Level = (u32, u32, u32);
+
+/// Whether the use with statement chain `w` may run after the one with
+/// chain `u` ([`mark_last`]): at the innermost block both are in, `w`'s
+/// statement comes later, and no exit runs between them. In one
+/// statement's different blocks (the arms of an `If` or a `Match`)
+/// neither runs after the other. An exit is a `Return` or an
+/// `Unreachable` after `u` in a block around it, below `w`'s statement;
+/// or a `Break` or `Continue` there whose target holds both uses' block,
+/// which it leaves.
+fn after(b: &Body, u: &[Level], w: &[Level]) -> bool {
+    let Some((at, pw)) = u.iter().enumerate().find_map(|(j, &(blk, _, _))| {
+        w.iter()
+            .find(|&&(x, _, _)| x == blk)
+            .map(|&(_, pw, _)| (j, pw))
+    }) else {
+        return false;
+    };
+    if pw <= u[at].1 {
+        return false;
+    }
+    let exits = |m: u32| match b.tags[m as usize] {
+        Tag::Return | Tag::Unreachable => true,
+        Tag::Break | Tag::Continue => {
+            let t = b
+                .label_inst
+                .get(b.data[m as usize][0] as usize)
+                .copied()
+                .unwrap_or(NONE);
+            u[at..].iter().any(|&(blk, _, _)| blk == t)
+                || u[at + 1..].iter().any(|&(_, _, x)| x == t)
+        }
+        _ => false,
+    };
+    for (j, &(blk, p, _)) in u[..=at].iter().enumerate() {
+        let list = b.record(b.data[blk as usize][0]);
+        let end = if j == at { pw as usize } else { list.len() };
+        let from = (p as usize + 1).min(end);
+        if list[from..end].iter().any(|&m| exits(m)) {
+            return false;
+        }
+    }
+    true
+}
+
+/// The root block of the sub-body local `l` is a parameter of.
+fn param_root(b: &Body, l: u32) -> u32 {
+    for (s, r) in b.sub_params.iter().enumerate().skip(1) {
+        if r.len > 0 && b.record(r.start).contains(&l) {
+            return b.sub_root[s];
+        }
+    }
+    b.sub_root.first().copied().unwrap_or(NONE)
+}
+
 /// The `own` view's line for the uses of value local `l` (its entries
 /// of [`uses`], by definition): `uses $l: %d -> %u lend, %w consume; ...`,
 /// where `%d` is the definition's `Store`, or `entry` for a parameter's
-/// entry value; `uses $l: none` for a local nothing uses.
+/// entry value, and a last use ends in `last`; `uses $l: none` for a
+/// local nothing uses.
 #[must_use]
 pub fn uses_line(l: u32, uses: &[ValueUse]) -> String {
     use std::fmt::Write as _;
@@ -393,6 +530,9 @@ pub fn uses_line(l: u32, uses: &[ValueUse]) -> String {
             Use::Consume => "consume",
         };
         let _ = write!(out, " %{} {how}", u.at);
+        if u.last {
+            out.push_str(" last");
+        }
     }
     if def.is_none() {
         out.push_str(" none");

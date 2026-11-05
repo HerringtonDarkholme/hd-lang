@@ -15,7 +15,7 @@ impl Disposable for Guard:
         self.log.push(self.label)
 > app/main/impl Disposable for Guard.dispose
 >   local $0 self: Ref[mut Guard] [param read] value
->     uses $0: entry -> %0 lend, %2 lend
+>     uses $0: entry -> %0 lend, %2 lend last
 >   %0 = Read copy [*$0 .label] : string
 >   %1 = IsUnique [*$0 .log *] : ()
 >   %2 = Read borrow [*$0 .log *] : List[string]
@@ -31,9 +31,9 @@ fn guard(log: *mut List[string], label: string) -> Guard:
     Guard { log: log, label: label }
 > app/main/guard
 >   local $0 log: Counted[mut List[string]] [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 label: string [param read] value
->     uses $1: entry -> %1 consume
+>     uses $1: entry -> %1 consume last
 >   %0 = Read copy [$0] : Counted[mut List[string]]
 >   %1 = Read move [$1] : string
 >   %2 = NewStruct [%0 %1] : Guard
@@ -45,9 +45,9 @@ fn work(log: *mut List[string], label: string) -> void:
     guard(log, label)
 > app/main/work
 >   local $0 log: Counted[mut List[string]] [param read] value
->     uses $0: entry -> %0 lend, %10 lend
+>     uses $0: entry -> %0 lend, %10 lend last
 >   local $1 label: string [param read] value
->     uses $1: entry -> %1 consume
+>     uses $1: entry -> %1 consume last
 >   local $2 $ref: Guard [:= read assigned captured captured-assigned] place
 >   %0 = Read borrow [$0] : Counted[mut List[string]]
 >   %1 = Read move [$1] : string

@@ -10,7 +10,7 @@ impl Item:
         .Some(self.name)
 > app/main/impl Item.label
 >   local $0 self: Ref[Item] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   %0 = Read copy [*$0 .name] : string
 >   %1 = NewVariant #1 [%0] : string?
 >   %2 = Block %1 : string?
@@ -19,7 +19,7 @@ fn received(items: List[Item]) -> List[Item]:
     items
 > app/main/received
 >   local $0 items: List[Item] [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   %0 = Read move [$0] : List[Item]
 >   %1 = Block %0 : List[Item]
 >   exit sub 0 drops [$0]
@@ -28,7 +28,7 @@ fn read(items: List[Item]) -> string?:
     received(items)[0].label()
 > app/main/read
 >   local $0 items: List[Item] [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 $ref: Item [read assigned captured captured-assigned] place
 >   %0 = Read move [$0] : List[Item]
 >   %1 = Call app/main/received[] (%0) : List[Item]

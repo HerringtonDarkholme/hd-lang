@@ -14,9 +14,9 @@ fn reward(player: &mut Player, points: i32) -> void:
     player.score += points
 > app/main/reward
 >   local $0 player: Ref[mut Player] [param read] value
->     uses $0: entry -> %0 lend, %3 lend
+>     uses $0: entry -> %0 lend, %3 lend last
 >   local $1 points: i32 [param read] value
->     uses $1: entry -> %1 lend
+>     uses $1: entry -> %1 lend last
 >   %0 = Read copy [*$0 .score] : i32
 >   %1 = Read copy [$1] : i32
 >   %2 = Prim Add [%0 %1] : i32
@@ -28,11 +28,11 @@ fn rewarded(players: List[Player], best: usize, s: string) -> List[Player]:
     let mut out = players
 > app/main/rewarded
 >   local $0 players: List[Player] [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 best: usize [param read] value
->     uses $1: entry -> %2 lend, %7 lend
+>     uses $1: entry -> %2 lend, %7 lend last
 >   local $2 s: string [param read] value
->     uses $2: entry -> %12 consume
+>     uses $2: entry -> %12 consume last
 >   local $3 out: List[Player] [read assigned] place
 >   %0 = Read move [$0] : List[Player]
 >   %1 = Store [$3] %0 : ()
@@ -64,9 +64,9 @@ fn by_key(m: Map[string, Player], k: string) -> Map[string, Player]:
     let mut out = m
 > app/main/by_key
 >   local $0 m: Map[string, Player] [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 k: string [param read] value
->     uses $1: entry -> %3 lend
+>     uses $1: entry -> %3 lend last
 >   local $2 out: Map[string, Player] [read assigned] place
 >   %0 = Read move [$0] : Map[string, Player]
 >   %1 = Store [$2] %0 : ()

@@ -12,7 +12,7 @@ fn count_while(xs: List[string]) -> usize:
 >   local $1 i: usize [read assigned mutated] place
 >   local $2 n: usize [read assigned mutated] place
 >   local $3 self: string [read] value
->     uses $3: %9 -> %10 lend
+>     uses $3: %9 -> %10 lend last
 >   %0 = Store [$1] 0:usize : ()
 >   %29 = Block %28 : usize
     let n: usize = 0

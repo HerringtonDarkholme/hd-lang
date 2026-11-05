@@ -15,9 +15,9 @@ impl Index[usize] for Names:
         &self.items[key]
 > app/main/impl Index [ usize ] for Names.index
 >   local $0 self: Ref[Names] [param read] value
->     uses $0: entry -> %2 lend
+>     uses $0: entry -> %2 lend last
 >   local $1 key: usize [param read] value
->     uses $1: entry -> %0 lend
+>     uses $1: entry -> %0 lend last
 >   %0 = Read copy [$1] : usize
 >   %1 = IsUnique [*$0 .items] : ()
 >   %2 = Ref local [*$0 .items [%0]] : Ref[string]
@@ -29,11 +29,11 @@ impl IndexSet[usize, string] for Names:
         self.items[key] = value
 > app/main/impl IndexSet [ usize , string ] for Names.index_set
 >   local $0 self: Ref[mut Names] [param read] value
->     uses $0: entry -> %3 lend
+>     uses $0: entry -> %3 lend last
 >   local $1 key: usize [param read] value
->     uses $1: entry -> %0 lend
+>     uses $1: entry -> %0 lend last
 >   local $2 value: string [param read] value
->     uses $2: entry -> %1 consume
+>     uses $2: entry -> %1 consume last
 >   %0 = Read copy [$1] : usize
 >   %1 = Read move [$2] : string
 >   %2 = IsUnique [*$0 .items] : ()
@@ -47,11 +47,11 @@ fn read_len(n: Names, i: usize) -> usize:
 > app/main/read_len
 >   local $0 n: Names [param read captured] place
 >   local $1 i: usize [param read] value
->     uses $1: entry -> %1 consume
+>     uses $1: entry -> %1 consume last
 >   local $2 self: Counted[Names] [read] value
->     uses $2: %2 -> %6 lend
+>     uses $2: %2 -> %6 lend last
 >   local $3 key: usize [read] value
->     uses $3: %3 -> %4 lend
+>     uses $3: %3 -> %4 lend last
 >   %0 = Ref local frame [$0] : Counted[Names]
 >   %1 = Read copy [$1] : usize
 >   %2 = Store [$2] %0 : ()
@@ -76,11 +76,11 @@ fn write(n: &mut Names, i: usize, s: string) -> void:
     n[i] = s
 > app/main/write
 >   local $0 n: Ref[mut Names] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   local $1 i: usize [param read] value
->     uses $1: entry -> %1 lend
+>     uses $1: entry -> %1 lend last
 >   local $2 s: string [param read] value
->     uses $2: entry -> %2 consume
+>     uses $2: entry -> %2 consume last
 >   %0 = Read borrow [$0] : Ref[mut Names]
 >   %1 = Read copy [$1] : usize
 >   %2 = Read move [$2] : string
@@ -107,14 +107,14 @@ fn generic_first(xs: List[string]) -> usize:
     first(xs).len()
 > app/main/generic_first
 >   local $0 xs: List[string] [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $2 self: string [read] value
->     uses $2: %19 -> %20 lend
+>     uses $2: %19 -> %20 lend last
 >   local $3 items: List[string] [read captured] place
 >   local $4 self: Counted[List[string]] [read] value
->     uses $4: %3 -> %7 lend
+>     uses $4: %3 -> %7 lend last
 >   local $5 key: usize [read] value
->     uses $5: %4 -> %5 lend
+>     uses $5: %4 -> %5 lend last
 >   %0 = Read move [$0] : List[string]
 >   %1 = Store [$3] %0 : ()
 >   %2 = Ref local frame [$3] : Counted[List[string]]

@@ -11,7 +11,7 @@ fn name_of(u: &User) -> &string:
     &u.name
 > app/main/name_of
 >   local $0 u: Ref[User] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   %0 = Ref local [*$0 .name] : Ref[string]
 >   %1 = Block %0 : Ref[string]
 >   summary kept []
@@ -20,7 +20,7 @@ fn first_name(us: &List[User]) -> &string:
     &us[0].name
 > app/main/first_name
 >   local $0 us: Ref[List[User]] [param read] value
->     uses $0: entry -> %1 lend
+>     uses $0: entry -> %1 lend last
 >   %0 = IsUnique [*$0] : ()
 >   %1 = Ref local [*$0 [0:usize] .name] : Ref[string]
 >   %2 = Block %1 : Ref[string]
@@ -31,7 +31,7 @@ fn read(u: User) -> usize:
 > app/main/read
 >   local $0 u: User [param read captured] place
 >   local $1 u: Counted[User] [read] value
->     uses $1: %1 -> %2 lend
+>     uses $1: %1 -> %2 lend last
 >   %0 = Ref local frame [$0] : Counted[User]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Ref local [*$1 .name] : Ref[string]
@@ -51,7 +51,7 @@ fn read_list(us: List[User]) -> usize:
 > app/main/read_list
 >   local $0 us: List[User] [param read captured] place
 >   local $1 us: Counted[List[User]] [read] value
->     uses $1: %1 -> %3 lend
+>     uses $1: %1 -> %3 lend last
 >   %0 = Ref local frame [$0] : Counted[List[User]]
 >   %1 = Store [$1] %0 : ()
 >   %2 = IsUnique [*$1] : ()
@@ -71,9 +71,9 @@ fn through_ptr(u: *User) -> usize:
     name_of(u).len()
 > app/main/through_ptr
 >   local $0 u: Counted[User] [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 u: Counted[User] [read] value
->     uses $1: %1 -> %2 lend
+>     uses $1: %1 -> %2 lend last
 >   %0 = Read borrow [$0] : Counted[User]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Ref local [*$1 .name] : Ref[string]

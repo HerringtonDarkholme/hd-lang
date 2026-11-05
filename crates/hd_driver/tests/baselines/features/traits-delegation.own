@@ -16,7 +16,7 @@ impl Describe for Logger:
         self.name
 > app/main/impl Describe for Logger.describe
 >   local $0 self: Ref[Logger] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   %0 = Read copy [*$0 .name] : string
 >   %1 = Block %0 : string
 >   summary kept [$0]
@@ -28,9 +28,9 @@ struct Service:
 impl Describe for Service by Logger
 > app/main/impl Describe for Service by Logger.describe
 >   local $0 self: Ref[Service] [param] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   local $1 self: Logger [read] value
->     uses $1: %1 -> %2 consume
+>     uses $1: %1 -> %2 consume last
 >   %0 = Read copy [*$0 .Logger] : Logger
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read move [$1 .name] : string
@@ -44,13 +44,13 @@ fn delegated(s: Service) -> usize:
     s.describe().len()
 > app/main/delegated
 >   local $0 s: Service [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $2 self: string [read] value
->     uses $2: %11 -> %12 lend
+>     uses $2: %11 -> %12 lend last
 >   local $3 self: Service value
->     uses $3: %1 -> %2 consume
+>     uses $3: %1 -> %2 consume last
 >   local $4 self: Logger [read] value
->     uses $4: %3 -> %4 consume
+>     uses $4: %3 -> %4 consume last
 >   %0 = Read move [$0] : Service
 >   %1 = Store [$3] %0 : ()
 >   %2 = Read move [$3 .Logger] : Logger
@@ -77,11 +77,11 @@ fn explicit(s: Service) -> usize:
     s.Logger.describe().len()
 > app/main/explicit
 >   local $0 s: Service [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $2 self: string [read] value
->     uses $2: %6 -> %7 lend
+>     uses $2: %6 -> %7 lend last
 >   local $3 self: Logger [read] value
->     uses $3: %1 -> %2 consume
+>     uses $3: %1 -> %2 consume last
 >   %0 = Read move [$0 .Logger] : Logger
 >   %1 = Store [$3] %0 : ()
 >   %2 = Read move [$3 .name] : string

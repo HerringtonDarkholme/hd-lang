@@ -13,7 +13,7 @@ fn twice(n: i64) -> i64:
     n * 2
 > app/main/twice
 >   local $0 n: i64 [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   %0 = Read copy [$0] : i64
 >   %1 = Prim Mul [%0 2:i64] : i64
 >   %2 = Block %1 : i64
@@ -22,9 +22,9 @@ fn add(mut m: Map[string, List[i64]], n: i64) -> Map[string, List[i64]]:
     m["a"].push(n)
 > app/main/add
 >   local $0 m: Map[string, List[i64]] [param read] value
->     uses $0: entry -> %0 lend, %2 lend, %5 lend, %8 lend, %10 lend, %12 lend, %16 lend, %19 lend, %21 consume
+>     uses $0: entry -> %0 lend, %2 lend, %5 lend, %8 lend, %10 lend, %12 lend, %16 lend, %19 lend, %21 consume last
 >   local $1 n: i64 [param read] value
->     uses $1: entry -> %3 consume, %13 lend
+>     uses $1: entry -> %3 consume, %13 lend last
 >   %0 = Read borrow [$0] : Map[string, List[i64]]
 >   %1 = Intrinsic MapEntry [%0 "a"] : usize
 >   %2 = Read borrow [$0 [%1]] : List[i64]
@@ -56,7 +56,7 @@ fn next(k: &mut string) -> i64:
     *k = "b"
 > app/main/next
 >   local $0 k: Ref[mut string] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   %0 = Store [*$0] "b" : ()
 >   %1 = Block 1:i64 : i64
     1
@@ -65,7 +65,7 @@ fn add_at(mut m: Map[string, List[i64]], mut k: string) -> Map[string, List[i64]
     m[k].push(next(&mut k))
 > app/main/add_at
 >   local $0 m: Map[string, List[i64]] [param read] value
->     uses $0: entry -> %0 lend, %3 lend, %9 lend, %12 lend, %15 consume
+>     uses $0: entry -> %0 lend, %3 lend, %9 lend, %12 lend, %15 consume last
 >   local $1 k: string [param read assigned captured captured-assigned] place
 >   %0 = Read borrow [$0] : Map[string, List[i64]]
 >   %1 = Read copy [$1] : string

@@ -2,11 +2,11 @@
 app/main/calls
   local $0 xs: List[i64] [param read captured] place
   local $1 g: fn(i64) -> i64 [read] value
-    uses $1: %15 -> %17 lend
+    uses $1: %15 -> %17 lend last
   local $2 x: i64 [read] value
-    uses $2: %16 -> %18 lend
+    uses $2: %16 -> %18 lend last
   local $3 x: i64 [read] value
-    uses $3: %0 -> %1 lend
+    uses $3: %0 -> %1 lend last
   %0 = Store [$3] 1:i64 : ()
   %1 = Read copy [$3] : i64
   %2 = Call app/main/long[] (%1) : i64

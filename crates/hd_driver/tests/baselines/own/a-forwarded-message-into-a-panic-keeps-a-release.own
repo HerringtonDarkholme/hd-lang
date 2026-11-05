@@ -15,63 +15,63 @@ fn check_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void:
 >   local $0 actual: T [param read captured] place
 >   local $1 expected: T [param read captured] place
 >   local $2 reason: string [param read] value
->     uses $2: entry -> %114 lend, %119 lend
+>     uses $2: entry -> %114 lend, %119 lend last
 >   local $3 details: string [:= read assigned] value
->     uses $3: %113 -> %116 consume, %127 lend
+>     uses $3: %113 -> %116 consume last, %127 lend last
 >   local $5 result: string [read] value
->     uses $5: %183 -> %187 lend
+>     uses $5: %183 -> %187 lend last
 >   local $6 offset: usize [read] value
->     uses $6: %184 -> %190 lend
+>     uses $6: %184 -> %190 lend last
 >   local $7 text: string [read] value
->     uses $7: %186 -> %192 lend, %195 lend
+>     uses $7: %186 -> %192 lend, %195 lend last
 >   local $8 result: string [read] value
->     uses $8: %164 -> %167 lend
+>     uses $8: %164 -> %167 lend last
 >   local $9 offset: usize [read] value
->     uses $9: %165 -> %170 lend
+>     uses $9: %165 -> %170 lend last
 >   local $10 text: string [read] value
->     uses $10: %166 -> %172 lend, %175 lend
+>     uses $10: %166 -> %172 lend, %175 lend last
 >   local $11 result: string [read] value
->     uses $11: %145 -> %149 lend
+>     uses $11: %145 -> %149 lend last
 >   local $12 offset: usize [read] value
->     uses $12: %146 -> %152 lend
+>     uses $12: %146 -> %152 lend last
 >   local $13 text: string [read] value
->     uses $13: %148 -> %154 lend, %157 lend
+>     uses $13: %148 -> %154 lend, %157 lend last
 >   local $14 size: usize [read] value
->     uses $14: %138 -> %139 lend
+>     uses $14: %138 -> %139 lend last
 >   local $15 value: string [read] value
->     uses $15: %129 -> %130 lend
+>     uses $15: %129 -> %130 lend last
 >   local $16 value: string [read] value
->     uses $16: %121 -> %122 lend
+>     uses $16: %121 -> %122 lend last
 >   local $17 result: string [read] value
->     uses $17: %93 -> %97 lend
+>     uses $17: %93 -> %97 lend last
 >   local $18 offset: usize [read] value
->     uses $18: %94 -> %100 lend
+>     uses $18: %94 -> %100 lend last
 >   local $19 text: string [read] value
->     uses $19: %96 -> %102 lend, %105 lend
+>     uses $19: %96 -> %102 lend, %105 lend last
 >   local $20 result: string [read] value
->     uses $20: %74 -> %77 lend
+>     uses $20: %74 -> %77 lend last
 >   local $21 offset: usize [read] value
->     uses $21: %75 -> %80 lend
+>     uses $21: %75 -> %80 lend last
 >   local $22 text: string [read] value
->     uses $22: %76 -> %82 lend, %85 lend
+>     uses $22: %76 -> %82 lend, %85 lend last
 >   local $23 result: string [read] value
->     uses $23: %54 -> %58 lend
+>     uses $23: %54 -> %58 lend last
 >   local $24 offset: usize [read] value
->     uses $24: %55 -> %61 lend
+>     uses $24: %55 -> %61 lend last
 >   local $25 text: string [read] value
->     uses $25: %57 -> %63 lend, %66 lend
+>     uses $25: %57 -> %63 lend, %66 lend last
 >   local $26 result: string [read] value
->     uses $26: %35 -> %38 lend
+>     uses $26: %35 -> %38 lend last
 >   local $27 offset: usize [read] value
->     uses $27: %36 -> %41 lend
+>     uses $27: %36 -> %41 lend last
 >   local $28 text: string [read] value
->     uses $28: %37 -> %43 lend, %46 lend
+>     uses $28: %37 -> %43 lend, %46 lend last
 >   local $29 size: usize [read] value
->     uses $29: %28 -> %29 lend
+>     uses $29: %28 -> %29 lend last
 >   local $30 value: string [read] value
->     uses $30: %18 -> %19 lend
+>     uses $30: %18 -> %19 lend last
 >   local $31 value: string [read] value
->     uses $31: %9 -> %10 lend
+>     uses $31: %9 -> %10 lend last
 >   %0 = Ref local frame [$0] : Counted[T]
 >   %1 = Ref local frame [$1] : Counted[T]
 >   %2 = Call std/core/Eq.eq for T [] via Bound (%0, %1) : bool

@@ -14,9 +14,9 @@ impl Stamp:
         self.by.len()
 > app/main/impl Stamp.by_len
 >   local $0 self: Ref[Stamp] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   local $1 self: string [read] value
->     uses $1: %1 -> %2 lend
+>     uses $1: %1 -> %2 lend last
 >   %0 = Read borrow [*$0 .by] : string
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : string
@@ -36,9 +36,9 @@ fn make(s: string, t: string) -> Post:
     Post { Stamp: Stamp { by: s }, title: t }
 > app/main/make
 >   local $0 s: string [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 t: string [param read] value
->     uses $1: entry -> %2 consume
+>     uses $1: entry -> %2 consume last
 >   %0 = Read move [$0] : string
 >   %1 = NewStruct [%0] : Stamp
 >   %2 = Read move [$1] : string
@@ -51,15 +51,15 @@ fn promoted(p: Post) -> usize:
     p.by.len() + p.by_len() + p.title.len()
 > app/main/promoted
 >   local $0 p: Post [param read] value
->     uses $0: entry -> %0 consume, %7 consume, %20 consume
+>     uses $0: entry -> %0 consume, %7 consume, %20 consume last
 >   local $2 self: string [read] value
->     uses $2: %21 -> %22 lend
+>     uses $2: %21 -> %22 lend last
 >   local $3 self: Stamp [read] value
->     uses $3: %8 -> %9 consume
+>     uses $3: %8 -> %9 consume last
 >   local $4 self: string [read] value
->     uses $4: %10 -> %11 lend
+>     uses $4: %10 -> %11 lend last
 >   local $5 self: string [read] value
->     uses $5: %1 -> %2 lend
+>     uses $5: %1 -> %2 lend last
 >   %0 = Read borrow [$0 .Stamp .by] : string
 >   %1 = Store [$5] %0 : ()
 >   %2 = Read borrow [$5] : string
@@ -95,7 +95,7 @@ fn stamp_of(p: &Post) -> Stamp:
     p.Stamp
 > app/main/stamp_of
 >   local $0 p: Ref[Post] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   %0 = Read copy [*$0 .Stamp] : Stamp
 >   %1 = Block %0 : Stamp
 >   summary kept [$0]

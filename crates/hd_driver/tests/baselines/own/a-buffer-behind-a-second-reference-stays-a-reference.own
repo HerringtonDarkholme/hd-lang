@@ -32,11 +32,11 @@ impl['a] Cursor['a]:
 >   local $0 self: Ref[mut Cursor[Ref[()]]] [param read] value
 >     uses $0: entry -> %0 lend, %1 lend, %3 lend, %5 lend, %7 lend, %8 lend
 >   local $1 index: usize [:= read assigned] value
->     uses $1: %4 -> %9 consume
+>     uses $1: %4 -> %9 consume last
 >   local $2 found: usize [read assigned] value
->     uses $2: %28 -> %20 consume
+>     uses $2: %28 -> %20 consume last
 >   local $4 index: usize [read] value
->     uses $4: %10 -> %13 lend
+>     uses $4: %10 -> %13 lend last
 >   %0 = Read copy [*$0 .at] : usize
 >   %1 = Read copy [*$0 .items * .used] : usize
 >   %2 = Prim Lt [%0 %1] : bool

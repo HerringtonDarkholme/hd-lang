@@ -8678,6 +8678,7 @@ impl Run<'_> {
         let topo = hd_tir::ir::Topology::new(body);
         self.with_env(p, |cx| {
             hd_tir::own::values::uses(body, cx, &topo, &classes, &mut uses);
+            hd_tir::own::values::mark_last(body, &topo, &mut uses);
         });
         let mut out = String::with_capacity(text.len() + 24 * classes.len());
         for line in text.split_inclusive('\n') {

@@ -38,9 +38,9 @@ fn phrase_len(s: HttpStatus) -> usize:
     s.phrase.len()
 > app/main/phrase_len
 >   local $0 s: HttpStatus [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   local $2 self: string [read] value
->     uses $2: %10 -> %11 lend
+>     uses $2: %10 -> %11 lend last
 >   %0 = Read copy [$0] : HttpStatus
 >   %1 = Read copy [@app/main/HttpStatus.Ok.phrase] : string
 >   %2 = Block %1 : string
@@ -65,7 +65,7 @@ fn phrase_of(s: HttpStatus) -> string:
     s.phrase
 > app/main/phrase_of
 >   local $0 s: HttpStatus [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   %0 = Read copy [$0] : HttpStatus
 >   %1 = Read copy [@app/main/HttpStatus.Ok.phrase] : string
 >   %2 = Block %1 : string

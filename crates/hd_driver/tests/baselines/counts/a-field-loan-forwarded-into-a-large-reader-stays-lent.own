@@ -22,9 +22,9 @@ fn measure(room: &Room) -> usize:
     room.text.len() + room.offset
 > app/main/measure
 >   local $0 room: Ref[Room] [param read] value
->     uses $0: entry -> %0 lend, %8 lend
+>     uses $0: entry -> %0 lend, %8 lend last
 >   local $1 self: string [read] value
->     uses $1: %1 -> %2 lend
+>     uses $1: %1 -> %2 lend last
 >   %0 = Read borrow [*$0 .text] : string
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : string
@@ -43,15 +43,15 @@ fn total(owner: &Owner, depth: usize) -> usize:
     field := &owner.room
 > app/main/total
 >   local $0 owner: Ref[Owner] [param read] value
->     uses $0: entry -> %0 lend, %6 lend
+>     uses $0: entry -> %0 lend, %6 lend last
 >   local $1 depth: usize [param read] value
->     uses $1: entry -> %2 lend, %7 lend
+>     uses $1: entry -> %2 lend, %7 lend last
 >   local $2 field: Ref[Room] [:= read assigned] value
->     uses $2: %1 -> %14 lend
+>     uses $2: %1 -> %14 lend last
 >   local $3 below: usize [:= read assigned] value
->     uses $3: %13 -> %29 lend
+>     uses $3: %13 -> %29 lend last
 >   local $5 self: string [read] value
->     uses $5: %16 -> %17 lend
+>     uses $5: %16 -> %17 lend last
 >   %0 = Ref lent local [*$0 .room] : Ref[Room]
 >   %1 = Store [$2] %0 : ()
 >   %31 = Block %30 : usize

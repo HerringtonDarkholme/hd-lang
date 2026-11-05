@@ -14,9 +14,9 @@ fn bumped(mut t: Tagged, s: string) -> Tagged:
     t.tags.push(s)
 > app/main/bumped
 >   local $0 t: Tagged [param read] value
->     uses $0: entry -> %2 lend, %4 consume
+>     uses $0: entry -> %2 lend, %4 consume last
 >   local $1 s: string [param read] value
->     uses $1: entry -> %0 consume
+>     uses $1: entry -> %0 consume last
 >   %0 = Read move [$1] : string
 >   %1 = IsUnique [$0 .tags] : ()
 >   %2 = Read borrow [$0 .tags] : List[string]
@@ -31,9 +31,9 @@ fn bump_only(mut t: Tagged, s: string) -> usize:
     t.tags.push(s)
 > app/main/bump_only
 >   local $0 t: Tagged [param read] value
->     uses $0: entry -> %2 lend, %4 lend
+>     uses $0: entry -> %2 lend, %4 lend last
 >   local $1 s: string [param read] value
->     uses $1: entry -> %0 consume
+>     uses $1: entry -> %0 consume last
 >   %0 = Read move [$1] : string
 >   %1 = IsUnique [$0 .tags] : ()
 >   %2 = Read borrow [$0 .tags] : List[string]
@@ -51,13 +51,13 @@ fn last_use(t: Tagged, s: string) -> Tagged:
     bumped(t, s)
 > app/main/last_use
 >   local $0 t: Tagged [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 s: string [param read] value
->     uses $1: entry -> %1 consume
+>     uses $1: entry -> %1 consume last
 >   local $2 t: Tagged [read] value
->     uses $2: %2 -> %6 lend, %8 consume
+>     uses $2: %2 -> %6 lend, %8 consume last
 >   local $3 s: string [read] value
->     uses $3: %3 -> %4 consume
+>     uses $3: %3 -> %4 consume last
 >   %0 = Read move [$0] : Tagged
 >   %1 = Read move [$1] : string
 >   %2 = Store [$2] %0 : ()
@@ -78,15 +78,15 @@ fn kept_after(t: Tagged, s: string) -> usize:
     u := bumped(t, s)
 > app/main/kept_after
 >   local $0 t: Tagged [param read] value
->     uses $0: entry -> %0 consume, %17 lend
+>     uses $0: entry -> %0 consume, %17 lend last
 >   local $1 s: string [param read] value
->     uses $1: entry -> %1 consume
+>     uses $1: entry -> %1 consume last
 >   local $2 u: Tagged [:= read assigned] value
->     uses $2: %12 -> %13 lend
+>     uses $2: %12 -> %13 lend last
 >   local $3 t: Tagged [read] value
->     uses $3: %2 -> %6 lend, %8 consume
+>     uses $3: %2 -> %6 lend, %8 consume last
 >   local $4 s: string [read] value
->     uses $4: %3 -> %4 consume
+>     uses $4: %3 -> %4 consume last
 >   %0 = Read copy [$0] : Tagged
 >   %1 = Read move [$1] : string
 >   %2 = Store [$3] %0 : ()

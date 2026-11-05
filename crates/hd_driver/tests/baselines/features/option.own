@@ -8,11 +8,11 @@ fn unwrap(o: string?) -> usize:
     match o:
 > app/main/unwrap
 >   local $0 o: string? [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   local $1 s: string [read assigned] value
->     uses $1: %11 -> %1 consume
+>     uses $1: %11 -> %1 consume last
 >   local $2 self: string [read] value
->     uses $2: %2 -> %3 lend
+>     uses $2: %2 -> %3 lend last
 >   %0 = Read borrow [$0] : string?
 >   %21 = Block - : never
 >   %22 = Match %0 [%21 %8 %9] : usize
@@ -42,7 +42,7 @@ fn question(o: string?) -> string?:
     s := o?
 > app/main/question
 >   local $0 o: string? [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : string?
 >   %1 = Read copy [%0 as #1 .0] : string
 >   %2 = Block %1 : string
@@ -61,7 +61,7 @@ fn or_default(o: string?) -> string:
     o.unwrap_or("none")
 > app/main/or_default
 >   local $0 o: string? [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : string?
 >   %1 = Call std/option/impl [ T < ? Copy ] T ?.unwrap_or[string] (%0, "none") : string
 >   %2 = Block %1 : string

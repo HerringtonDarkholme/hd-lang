@@ -18,9 +18,9 @@ impl Recorder for Log:
         self.lines.push(s)
 > app/main/impl Recorder for Log.note
 >   local $0 self: Ref[mut Log] [param read] value
->     uses $0: entry -> %2 lend
+>     uses $0: entry -> %2 lend last
 >   local $1 s: string [param read] value
->     uses $1: entry -> %0 consume
+>     uses $1: entry -> %0 consume last
 >   %0 = Read move [$1] : string
 >   %1 = IsUnique [*$0 .lines] : ()
 >   %2 = Read borrow [*$0 .lines] : List[string]
@@ -33,7 +33,7 @@ impl Recorder for Log:
         self.lines.len()
 > app/main/impl Recorder for Log.total
 >   local $0 self: Ref[Log] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [*$0 .lines] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Drop [%0] : ()
@@ -44,9 +44,9 @@ fn tick(s: string) -> usize $ Recorder:
     rec := $.use(Recorder)
 > app/main/tick
 >   local $0 s: string [param read] value
->     uses $0: entry -> %4 consume
+>     uses $0: entry -> %4 consume last
 >   local $1 rec: Ref[mut Recorder] [:= read assigned] value
->     uses $1: %2 -> %3 lend, %7 lend
+>     uses $1: %2 -> %3 lend, %7 lend last
 >   %0 = ProviderGet #0 : Recorder
 >   %1 = Coerce %0 [ProviderAsRef -] : Ref[mut Recorder]
 >   %2 = Store [$1] %1 : ()
@@ -68,14 +68,14 @@ fn demo(a: string, b: string) -> usize:
     tally := box(Log { lines: [] })
 > app/main/demo
 >   local $0 a: string [param read] value
->     uses $0: entry -> %14 consume
+>     uses $0: entry -> %14 consume last
 >   local $1 b: string [param read] value
->     uses $1: entry -> %16 consume
+>     uses $1: entry -> %16 consume last
 >   local $2 $ref: Log [read assigned captured captured-assigned] place
 >   local $3 tally: Counted[mut Log] [:= read assigned] value
->     uses $3: %4 -> %5 consume, %21 lend
+>     uses $3: %4 -> %5 consume, %21 lend last
 >   local $4 $ref: Counted[mut Log] [read assigned captured] value
->     uses $4: %6 -> %7 lend
+>     uses $4: %6 -> %7 lend last
 >   %0 = NewList - [] : List[string]
 >   %1 = NewStruct [%0] : Log
 >   %2 = Store [$2] %1 : ()

@@ -10,7 +10,7 @@ fn total(parts...: List[string]) -> usize:
     let n: usize = 0
 > app/main/total
 >   local $0 parts: List[string] [param read] value
->     uses $0: entry -> %1 consume
+>     uses $0: entry -> %1 consume last
 >   local $1 n: usize [read assigned mutated] place
 >   local $2 $coll: List[string] [assigned] value
 >     uses $2: %2 -> %3 lend, %11 lend
@@ -18,9 +18,9 @@ fn total(parts...: List[string]) -> usize:
 >   local $5 $end: usize [assigned] value
 >     uses $5: %5 -> %8 lend
 >   local $6 p: string [read assigned] value
->     uses $6: %27 -> %16 consume
+>     uses $6: %27 -> %16 consume last
 >   local $7 self: string [read] value
->     uses $7: %17 -> %18 lend
+>     uses $7: %17 -> %18 lend last
 >   %0 = Store [$1] 0:usize : ()
 >   %39 = Block %38 : usize
     for p in parts:
@@ -70,11 +70,11 @@ fn three(a: string, b: string, c: string) -> usize:
     total(a, b, c)
 > app/main/three
 >   local $0 a: string [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 b: string [param read] value
->     uses $1: entry -> %1 consume
+>     uses $1: entry -> %1 consume last
 >   local $2 c: string [param read] value
->     uses $2: entry -> %2 consume
+>     uses $2: entry -> %2 consume last
 >   %0 = Read move [$0] : string
 >   %1 = Read move [$1] : string
 >   %2 = Read move [$2] : string
@@ -89,7 +89,7 @@ fn spread(xs: List[string]) -> usize:
     total(xs...)
 > app/main/spread
 >   local $0 xs: List[string] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : List[string]
 >   %1 = Call app/main/total[] (%0) : usize
 >   %2 = Block %1 : usize
@@ -108,11 +108,11 @@ fn through_value(a: string, b: string) -> usize:
     f := total
 > app/main/through_value
 >   local $0 a: string [param read] value
->     uses $0: entry -> %3 consume
+>     uses $0: entry -> %3 consume last
 >   local $1 b: string [param read] value
->     uses $1: entry -> %4 consume
+>     uses $1: entry -> %4 consume last
 >   local $2 f: fn(List[string]) -> usize [:= read assigned] value
->     uses $2: %1 -> %2 lend
+>     uses $2: %1 -> %2 lend last
 >   %0 = ItemRef #0 [..] : fn(List[string]) -> usize
 >   %1 = Store [$2] %0 : ()
 >   %8 = Block %6 : usize

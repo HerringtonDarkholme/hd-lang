@@ -25,7 +25,7 @@ fn prune(parent: *mut Node) -> i64:
     parent.left = .None
 > app/main/prune
 >   local $0 parent: Counted[mut Node] [param read] value
->     uses $0: entry -> %1 lend
+>     uses $0: entry -> %1 lend last
 >   %0 = NewVariant #0 [] : Counted[Node]?
 >   %1 = Store [*$0 .left] %0 : ()
 >   %2 = Block 0:i64 : i64
@@ -36,7 +36,7 @@ fn prune_global(k: i64) -> i64:
     ROOT.left = .None
 > app/main/prune_global
 >   local $0 k: i64 [param read] value
->     uses $0: entry -> %2 lend, %4 lend
+>     uses $0: entry -> %2 lend, %4 lend last
 >   %0 = NewVariant #0 [] : Counted[Node]?
 >   %1 = Store [*@app/main/ROOT .left] %0 : ()
 >   %10 = Block %9 : i64
@@ -55,9 +55,9 @@ fn ping(node: *mut Node, k: i64) -> i64:
     if k == 0:
 > app/main/ping
 >   local $0 node: Counted[mut Node] [param read] value
->     uses $0: entry -> %5 lend
+>     uses $0: entry -> %5 lend last
 >   local $1 k: i64 [param read] value
->     uses $1: entry -> %0 lend, %6 lend
+>     uses $1: entry -> %0 lend, %6 lend last
 >   %0 = Read copy [$1] : i64
 >   %1 = Prim Eq [%0 0:i64] : bool
 >   %4 = If %1 [%3 -] : ()
@@ -76,9 +76,9 @@ fn pong(node: *mut Node, k: i64) -> i64:
     node.value = k
 > app/main/pong
 >   local $0 node: Counted[mut Node] [param read] value
->     uses $0: entry -> %1 lend, %2 lend
+>     uses $0: entry -> %1 lend, %2 lend last
 >   local $1 k: i64 [param read] value
->     uses $1: entry -> %0 consume, %3 lend
+>     uses $1: entry -> %0 consume, %3 lend last
 >   %0 = Read copy [$1] : i64
 >   %1 = Store [*$0 .value] %0 : ()
 >   %5 = Block %4 : i64
@@ -92,9 +92,9 @@ fn through_parent(node: *mut Node) -> i64:
     match node.left:
 > app/main/through_parent
 >   local $0 node: Counted[mut Node] [param read] value
->     uses $0: entry -> %0 lend, %2 lend
+>     uses $0: entry -> %0 lend, %2 lend last
 >   local $1 left: Counted[Node] [read assigned] value
->     uses $1: %11 -> %4 lend
+>     uses $1: %11 -> %4 lend last
 >   %0 = Read copy [*$0 .left] : Counted[Node]?
 >   %7 = Drop [%0] : ()
 >   %19 = Block - : never
@@ -123,9 +123,9 @@ fn through_alias(node: &Node) -> i64:
     match node.left:
 > app/main/through_alias
 >   local $0 node: Ref[Node] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   local $1 left: Counted[Node] [read assigned] value
->     uses $1: %10 -> %3 lend
+>     uses $1: %10 -> %3 lend last
 >   %0 = Read copy [*$0 .left] : Counted[Node]?
 >   %6 = Drop [%0] : ()
 >   %18 = Block - : never
@@ -153,9 +153,9 @@ fn through_a_cycle(node: *mut Node) -> i64:
     match node.left:
 > app/main/through_a_cycle
 >   local $0 node: Counted[mut Node] [param read] value
->     uses $0: entry -> %0 lend, %2 lend
+>     uses $0: entry -> %0 lend, %2 lend last
 >   local $1 left: Counted[Node] [read assigned] value
->     uses $1: %11 -> %4 lend
+>     uses $1: %11 -> %4 lend last
 >   %0 = Read copy [*$0 .left] : Counted[Node]?
 >   %7 = Drop [%0] : ()
 >   %19 = Block - : never

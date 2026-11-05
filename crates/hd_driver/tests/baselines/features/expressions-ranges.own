@@ -10,7 +10,7 @@ fn make(n: usize) -> Range[usize]:
     0..n
 > app/main/make
 >   local $0 n: usize [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   %0 = Read copy [$0] : usize
 >   %1 = NewStruct [0:usize %0 0:bool] : Range[usize]
 >   %2 = Block %1 : Range[usize]
@@ -20,7 +20,7 @@ fn width(r: Range[usize]) -> usize:
     r.end - r.start
 > app/main/width
 >   local $0 r: Range[usize] [param read] value
->     uses $0: entry -> %0 lend, %1 lend
+>     uses $0: entry -> %0 lend, %1 lend last
 >   %0 = Read copy [$0 .end] : usize
 >   %1 = Read copy [$0 .start] : usize
 >   %2 = Prim Sub [%0 %1] : usize
@@ -39,9 +39,9 @@ fn lens(xs: List[string]) -> usize:
 >   local $4 $incl: bool [assigned] value
 >     uses $4: none
 >   local $5 i: usize [read assigned] value
->     uses $5: %14 -> %19 lend
+>     uses $5: %14 -> %19 lend last
 >   local $6 self: string [read] value
->     uses $6: %21 -> %22 lend
+>     uses $6: %21 -> %22 lend last
 >   %0 = Store [$1] 0:usize : ()
 >   %38 = Block %37 : usize
     for i in 0..xs.len():

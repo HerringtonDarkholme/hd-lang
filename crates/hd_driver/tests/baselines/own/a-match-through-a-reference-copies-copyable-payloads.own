@@ -10,13 +10,13 @@ fn eval(expr: &Expr) -> i64:
     match expr:
 > app/main/eval
 >   local $0 expr: Ref[Expr] [param read] value
->     uses $0: entry -> %0 lend, %9 lend
+>     uses $0: entry -> %0 lend, %9 lend last
 >   local $1 value: i64 [read assigned] value
->     uses $1: %11 -> %1 consume
+>     uses $1: %11 -> %1 consume last
 >   local $2 left: Counted[Expr] [read assigned] value
->     uses $2: %17 -> %3 lend
+>     uses $2: %17 -> %3 lend last
 >   local $3 right: Counted[Expr] [read assigned] value
->     uses $3: %18 -> %5 lend
+>     uses $3: %18 -> %5 lend last
 >   %0 = Read borrow [$0] : Ref[Expr]
 >   %28 = Block - : never
 >   %29 = Match %0 [%28 %2 %8] : i64

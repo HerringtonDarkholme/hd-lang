@@ -16,27 +16,27 @@ impl Display for YamlError:
         "bad yaml at line ${self.line}"
 > app/main/impl Display for YamlError.to_string
 >   local $0 self: Ref[YamlError] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   local $1 result: string [read] value
->     uses $1: %50 -> %55 lend
+>     uses $1: %50 -> %55 lend last
 >   local $2 offset: usize [read] value
->     uses $2: %51 -> %57 lend
+>     uses $2: %51 -> %57 lend last
 >   local $3 value: i64 [read] value
->     uses $3: %52 -> %54 lend
+>     uses $3: %52 -> %54 lend last
 >   local $4 width: usize [read] value
->     uses $4: %53 -> %59 lend
+>     uses $4: %53 -> %59 lend last
 >   local $5 result: string [read] value
->     uses $5: %31 -> %34 lend
+>     uses $5: %31 -> %34 lend last
 >   local $6 offset: usize [read] value
->     uses $6: %32 -> %37 lend
+>     uses $6: %32 -> %37 lend last
 >   local $7 text: string [read] value
->     uses $7: %33 -> %39 lend, %42 lend
+>     uses $7: %33 -> %39 lend, %42 lend last
 >   local $8 size: usize [read] value
->     uses $8: %24 -> %25 lend
+>     uses $8: %24 -> %25 lend last
 >   local $9 value: i64 [read] value
->     uses $9: %4 -> %5 consume
+>     uses $9: %4 -> %5 consume last
 >   local $10 value: i64 [read] value
->     uses $10: %6 -> %7 lend, %10 lend
+>     uses $10: %6 -> %7 lend, %10 lend last
 >   %0 = Ref lent local [*$0 .line] : Ref[i64]
 >   %1 = Read copy [*%0] : i64
 >   %2 = Drop [%0] : ()
@@ -110,25 +110,25 @@ impl Error for YamlError
 @error
 > app/main/error Display for FsError.to_string
 >   local $0 self: Ref[FsError] [param] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   local $1 $self: FsError [assigned] value
->     uses $1: %1 -> %2 lend, %59 lend
+>     uses $1: %1 -> %2 lend last, %59 lend
 >   local $3 result: string [read] value
->     uses $3: %38 -> %42 lend
+>     uses $3: %38 -> %42 lend last
 >   local $4 offset: usize [read] value
->     uses $4: %39 -> %45 lend
+>     uses $4: %39 -> %45 lend last
 >   local $5 text: string [read] value
->     uses $5: %41 -> %47 lend, %50 lend
+>     uses $5: %41 -> %47 lend, %50 lend last
 >   local $6 result: string [read] value
->     uses $6: %19 -> %22 lend
+>     uses $6: %19 -> %22 lend last
 >   local $7 offset: usize [read] value
->     uses $7: %20 -> %25 lend
+>     uses $7: %20 -> %25 lend last
 >   local $8 text: string [read] value
->     uses $8: %21 -> %27 lend, %30 lend
+>     uses $8: %21 -> %27 lend, %30 lend last
 >   local $9 size: usize [read] value
->     uses $9: %12 -> %13 lend
+>     uses $9: %12 -> %13 lend last
 >   local $10 value: string [read] value
->     uses $10: %4 -> %5 lend
+>     uses $10: %4 -> %5 lend last
 >   %0 = Read copy [*$0] : FsError
 >   %1 = Store [$1] %0 : ()
 >   %62 = Block %60 : string
@@ -201,43 +201,43 @@ enum FsError:
 @error
 > app/main/error Display for LoadError.to_string
 >   local $0 self: Ref[LoadError] [param] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   local $1 $self: LoadError [assigned] value
->     uses $1: %1 -> %2 lend, %59 consume, %79 lend, %82 lend
+>     uses $1: %1 -> %2 lend last, %59 consume last, %79 lend, %82 lend
 >   local $4 self: FsError value
->     uses $4: %60 -> %61 consume
+>     uses $4: %60 -> %61 consume last
 >   local $5 $self: FsError [assigned] value
->     uses $5: %62 -> %63 lend, %73 lend
+>     uses $5: %62 -> %63 lend last, %73 lend
 >   local $7 result: string [read] value
->     uses $7: %38 -> %42 lend
+>     uses $7: %38 -> %42 lend last
 >   local $8 offset: usize [read] value
->     uses $8: %39 -> %45 lend
+>     uses $8: %39 -> %45 lend last
 >   local $9 text: string [read] value
->     uses $9: %41 -> %47 lend, %50 lend
+>     uses $9: %41 -> %47 lend, %50 lend last
 >   local $10 result: string [read] value
->     uses $10: %19 -> %22 lend
+>     uses $10: %19 -> %22 lend last
 >   local $11 offset: usize [read] value
->     uses $11: %20 -> %25 lend
+>     uses $11: %20 -> %25 lend last
 >   local $12 text: string [read] value
->     uses $12: %21 -> %27 lend, %30 lend
+>     uses $12: %21 -> %27 lend, %30 lend last
 >   local $13 size: usize [read] value
->     uses $13: %12 -> %13 lend
+>     uses $13: %12 -> %13 lend last
 >   local $14 value: string [read] value
->     uses $14: %4 -> %5 lend
+>     uses $14: %4 -> %5 lend last
 >   %0 = Read copy [*$0] : LoadError
 >   %1 = Store [$1] %0 : ()
 >   %85 = Block %83 : string
 > app/main/error Error for LoadError.source
 >   local $0 self: Ref[LoadError] [param] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   local $1 $self: LoadError [assigned] value
->     uses $1: %1 -> %2 consume, %14 consume, %26 consume, %33 lend, %36 lend
+>     uses $1: %1 -> %2 consume last, %14 consume last, %26 consume last, %33 lend, %36 lend
 >   local $2 $ref: FsError [read assigned captured captured-assigned] place
 >   local $3 $ref: Counted[FsError] [read assigned captured] value
->     uses $3: %5 -> %6 lend
+>     uses $3: %5 -> %6 lend last
 >   local $4 $ref: YamlError [read assigned captured captured-assigned] place
 >   local $5 $ref: Counted[YamlError] [read assigned captured] value
->     uses $5: %17 -> %18 lend
+>     uses $5: %17 -> %18 lend last
 >   local $7 self: FsError value
 >     uses $7: none
 >   %0 = Read copy [*$0] : LoadError
@@ -245,14 +245,14 @@ enum FsError:
 >   %39 = Block %37 : Counted[Error]?
 > app/main/error From 1.0 for LoadError.from
 >   local $0 value: YamlError [param] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   %0 = Read copy [$0] : YamlError
 >   %1 = NewVariant #1 [%0] : LoadError
 >   %2 = Block %1 : LoadError
 >   summary kept []
 > app/main/error From 2.0 for LoadError.from
 >   local $0 value: FsError [param] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   %0 = Read move [$0] : FsError
 >   %1 = NewVariant #2 [%0] : LoadError
 >   %2 = Block %1 : LoadError
@@ -404,9 +404,9 @@ fn parse(text: string) -> Result[i64, YamlError]:
     if text.len() > 3:
 > app/main/parse
 >   local $0 text: string [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $1 self: string [read] value
->     uses $1: %1 -> %2 lend
+>     uses $1: %1 -> %2 lend last
 >   %0 = Read borrow [$0] : string
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : string
@@ -430,13 +430,13 @@ fn load(text: string) -> Result[i64, LoadError]:
     value := parse(text)?
 > app/main/load
 >   local $0 text: string [param read] value
->     uses $0: entry -> %0 consume
+>     uses $0: entry -> %0 consume last
 >   local $2 value: YamlError value
->     uses $2: %22 -> %23 consume
+>     uses $2: %22 -> %23 consume last
 >   local $3 text: string [read] value
->     uses $3: %1 -> %2 consume
+>     uses $3: %1 -> %2 consume last
 >   local $4 self: string [read] value
->     uses $4: %3 -> %4 lend
+>     uses $4: %3 -> %4 lend last
 >   %0 = Read borrow [$0] : string
 >   %1 = Store [$3] %0 : ()
 >   %2 = Read borrow [$3] : string
@@ -478,9 +478,9 @@ fn message(e: &LoadError) -> usize:
     e.to_string().len()
 > app/main/message
 >   local $0 e: Ref[LoadError] [param read] value
->     uses $0: entry -> %0 lend
+>     uses $0: entry -> %0 lend last
 >   local $2 self: string [read] value
->     uses $2: %2 -> %3 lend
+>     uses $2: %2 -> %3 lend last
 >   %0 = Read borrow [$0] : Ref[LoadError]
 >   %1 = Call std/format/Display.to_string for LoadError [] via Impl (%0) : string
 >   %2 = Store [$2] %1 : ()
