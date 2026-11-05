@@ -5898,6 +5898,8 @@ typing/invalid/map-loop-mutable-unused-insert.hd	type	reject:conflicting-access	
 typing/invalid/map-loop-mutable-unused-replace.hd	type	reject:conflicting-access	lang/06-control-flow.md#element-reference-loops
 typing/invalid/map-loop-mutable-unused-read.hd	type	reject:conflicting-access	lang/06-control-flow.md#element-reference-loops
 typing/invalid/map-loop-shared-return.hd	type	reject:local-reference-escapes	lang/06-control-flow.md#element-reference-loops
+runtime/valid/call-through-function-reference.hd	runtime	accept	lang/05-expressions.md#r-expr.call.ref-read
+typing/invalid/call-through-nonfunction-reference.hd	type	reject:not-callable	lang/05-expressions.md#r-expr.call.apply.not-callable
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
@@ -6411,5 +6413,3 @@ runtime/valid/erased-call-matrix-closure-value-mut-unique.hd	runtime	accept	std/
 runtime/valid/erased-call-matrix-closure-value-value-i32.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param
 runtime/valid/erased-call-matrix-closure-value-value-string.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param
 runtime/valid/erased-call-matrix-closure-value-value-unique.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.type
-runtime/valid/call-through-function-reference.hd	runtime	accept	lang/05-expressions.md#r-expr.call.ref-read
-typing/invalid/call-through-nonfunction-reference.hd	type	reject:not-callable	lang/05-expressions.md#r-expr.call.apply.not-callable
