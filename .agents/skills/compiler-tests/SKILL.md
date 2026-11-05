@@ -122,8 +122,10 @@ be 0. Use `nice` and `-j 4`, with the dev profile.
 
 - `cargo fmt --check`, and `cargo clippy -p <touched crate> --all-targets
   -- -D warnings`.
-- The touched crates' tests, and default-mode driver conformance: `cargo
-  test -p hd_driver --test conformance`.
+- The touched crates' tests (for `hd_driver`, name `--lib` and `--test`
+  targets), and focused driver conformance: `HD_CONFORMANCE_ONLY=<names>
+  cargo test -p hd_driver --test conformance`. Default conformance runs on
+  CI only.
 - `bash spec/check.sh` only when spec files change; `cargo test -p
   hd_check --test stages` only when stage baselines can change.
 - Bench byte-identity only when codegen could change.

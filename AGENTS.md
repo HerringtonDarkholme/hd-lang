@@ -65,7 +65,8 @@ Know what the change touches, and test that first.
    cases that cover the changed rules (`HD_CONFORMANCE_ONLY` names them;
    use the checked or optimized mode when the change concerns counts,
    drops or the release pipeline).
-2. Then default conformance, which runs every case on the dev pipeline.
+2. Default conformance, which runs every case on the dev pipeline, runs on
+   CI only. Locally, every conformance run names its cases.
 3. The full suite is not a catch-all. Branch CI runs it on every push, in
    all four conformance modes. Locally it is only the last step of a truly
    cross-cutting change (the ownership passes, reference counting, the
