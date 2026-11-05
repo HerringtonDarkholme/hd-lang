@@ -1569,14 +1569,12 @@ impl[T] List[T]:
     ## Returns a new list containing elements from `start` up to `end`.
     ## See [std-collections.list.slice](../../spec/std/collections.md#r-std-collections.list.slice).
     pub fn slice(&self, start: usize, end: usize) -> List[T]:
-        if start > end || end > self.len():
+        size := self.len()
+        if start > end || end > size:
             panic_with("index-out-of-bounds", "list slice out of bounds")
-        let mut result: List[T] = []
-        let index = start
-        while index < end:
-            result.push(self[index])
-            index += 1
-        result
+        if start == 0 && end == size:
+            return *self
+        [for index in start..end => self[index]]
 
     # `push` is a language-tier intrinsic method of the checker
     # (spec/lang/10-modules.md#built-in-methods). The other mutators are
