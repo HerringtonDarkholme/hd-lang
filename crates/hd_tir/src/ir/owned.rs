@@ -985,7 +985,7 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
             }
         }
         for l in entry_locals(b, 0) {
-            if !exit[l] && own.counted(b.local_ty[l]) != crate::own::Tri::No {
+            if !exit[l] && own.counted(b.local_ty[l]) {
                 lent[l] = true;
                 any = true;
             }
@@ -1369,11 +1369,7 @@ impl<'a> Balance<'a> {
                 k += 1;
             }
         }
-        let mut held: Vec<bool> = b
-            .local_ty
-            .iter()
-            .map(|t| cx.counted(*t) != crate::own::Tri::No)
-            .collect();
+        let mut held: Vec<bool> = b.local_ty.iter().map(|t| cx.counted(*t)).collect();
         for i in 0..n {
             let a = b.data[i][0];
             // A reference to the local's own storage puts it in a cell.

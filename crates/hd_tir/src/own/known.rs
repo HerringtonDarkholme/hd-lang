@@ -62,7 +62,7 @@
 use super::flow::{BitArena, Flow, Forward, Suites, forward};
 use super::parts::{Slots, takes};
 use super::splice;
-use super::{Loc, Operand, OwnCx, Role, Tri, consumes, fill, operands, suite_touches, tracked};
+use super::{Loc, Operand, OwnCx, Role, consumes, fill, operands, suite_touches, tracked};
 use hd_base::SliceSort as _;
 
 use crate::ir::{
@@ -302,7 +302,7 @@ fn number(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &splice::Tables) -> b
     t.nl = k;
     for v in 0..n {
         let owned = if b.is_borrow(u32_of(v)) {
-            t.dropped[v] && cx.counted(b.ty[v]) != Tri::No
+            t.dropped[v] && cx.counted(b.ty[v])
         } else {
             tracked(b, cx, v)
         };

@@ -456,7 +456,7 @@ fn candidates(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> bool
     }
     let mut k = 0u32;
     for l in 0..b.local_ty.len() {
-        let counted = t.addr[l] || cx.counted(b.local_ty[l]) != Tri::No;
+        let counted = t.addr[l] || cx.counted(b.local_ty[l]);
         // A non-copyable local with no counted leaf owns no count, yet a
         // read of it moves too (`ref.move.sites`): its move takes the
         // value, as a copy of it would.
@@ -938,7 +938,7 @@ fn apply(
         // A copyable part with no counted leaf copies for free: moving it
         // would only split the base's drop into one drop per other counted
         // part.
-        if cx.counted(b.ty[i]) == Tri::No && cx.copies(b.ty[i]) == Tri::Yes {
+        if !cx.counted(b.ty[i]) && cx.copies(b.ty[i]) == Tri::Yes {
             continue;
         }
         b.data[i][1] = ReadMode::Move as u32;
@@ -1267,7 +1267,7 @@ pub(super) fn rest(
             return false;
         };
         for k in 0..t.parts.len() {
-            if x < start || u32_of(k) == field || cx.counted(t.parts[k]) == Tri::No {
+            if x < start || u32_of(k) == field || !cx.counted(t.parts[k]) {
                 continue;
             }
             // `[root path-so-far (as v) .k]`

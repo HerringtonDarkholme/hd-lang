@@ -8,7 +8,7 @@ use std::ops::Range;
 
 use hd_types::Ty;
 
-use super::{OwnCx, Tri, fill};
+use super::{OwnCx, fill};
 use crate::ir::{Body, NONE, ReadMode, Tag, place, u32_of};
 
 /// The `move` reads and the `Drop`s that `drop` keeps, by index, with the
@@ -126,7 +126,7 @@ impl Slots {
     ) -> bool {
         let word = |p: (u32, u32), d: u32| (p.0 + d < p.1).then(|| b.extra[(p.0 + d) as usize]);
         if lo == hi {
-            return cx.counted(ty) != Tri::No;
+            return cx.counted(ty);
         }
         if word(self.paths[lo], depth).is_none() {
             return false;
@@ -160,8 +160,7 @@ impl Slots {
                     let s0 = x + run.partition_point(|&p| word(p, step) < field);
                     let s1 = x + run.partition_point(|&p| word(p, step) <= field);
                     let ft = self.tys[j];
-                    if cx.counted(ft) != Tri::No
-                        && (s0 == s1 || self.uncovered(b, cx, ft, (s0, s1), step + 1))
+                    if cx.counted(ft) && (s0 == s1 || self.uncovered(b, cx, ft, (s0, s1), step + 1))
                     {
                         self.tys.truncate(t0);
                         return true;

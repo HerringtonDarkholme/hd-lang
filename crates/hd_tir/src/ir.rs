@@ -3501,12 +3501,8 @@ mod tests {
     pub(crate) struct Counts;
 
     impl crate::own::OwnCx for Counts {
-        fn counted(&self, ty: Ty) -> crate::own::Tri {
-            if ty == Ty::STRING {
-                crate::own::Tri::Yes
-            } else {
-                crate::own::Tri::No
-            }
+        fn counted(&self, ty: Ty) -> bool {
+            ty == Ty::STRING
         }
         fn pass(&self, _: &Callee, _: usize, _: usize) -> crate::own::Pass {
             crate::own::Pass::Owned

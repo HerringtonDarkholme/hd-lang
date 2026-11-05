@@ -387,15 +387,13 @@ impl Env<'_> {
 }
 
 impl OwnCx for Env<'_> {
-    fn counted(&self, ty: Ty) -> Tri {
-        if self.is_open(ty) {
-            return Tri::Maybe;
-        }
-        if self.layout_facts(ty).0 {
-            Tri::Yes
-        } else {
-            Tri::No
-        }
+    fn counted(&self, ty: Ty) -> bool {
+        // An erased body's open value is a counted address.
+        self.is_open(ty) || self.layout_facts(ty).0
+    }
+
+    fn thunk_made(&self, ty: Ty) -> bool {
+        self.is_open(ty)
     }
 
     fn pass(&self, callee: &Callee, k: usize, n: usize) -> Pass {
@@ -1696,7 +1694,7 @@ impl Env<'_> {
                 let params = hd_tir::own::params(b);
                 for (k, &l) in params.iter().enumerate().take(64) {
                     let kept_before = read.get(&(m, u32::try_from(k).expect("params")));
-                    if self.counted(b.local_ty[l as usize]) != Tri::No
+                    if self.counted(b.local_ty[l as usize])
                         && self.received(m.0, k, params.len()) == Pass::Owned
                         && kept_before != Some(&false)
                     {

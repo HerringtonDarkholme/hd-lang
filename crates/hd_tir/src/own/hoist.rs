@@ -71,7 +71,7 @@ use hd_base::SliceSort as _;
 use hd_types::Ty;
 
 use super::splice;
-use super::{Operand, OwnCx, Role, Tri, fill, operands};
+use super::{Operand, OwnCx, Role, fill, operands};
 use crate::ir::{
     Body, Callee, DEREF, ELEM, IntrinsicOp, NONE, PlaceView, Proj, ReadMode, Ref, Root, Tag,
     Topology, VARIANT, is_suspension, local_flags, place, u32_of, unique_word,
@@ -275,7 +275,7 @@ pub(crate) fn writes(b: &Body, cx: &dyn OwnCx, x: usize) -> bool {
     match b.tags[x] {
         Tag::Call => {
             Callee::from_words(b.record(b.data[x][0])).is_none_or(|c| cx.may_write(&c))
-                || cx.counted(b.ty[x]) != Tri::No
+                || cx.counted(b.ty[x])
         }
         Tag::CallValue | Tag::CallDyn | Tag::CallHost | Tag::DefaultCall => true,
         _ => false,
@@ -313,11 +313,11 @@ fn pure(b: &Body, cx: &dyn OwnCx, x: u32, budget: &mut usize) -> bool {
     *budget -= 1;
     let i = x as usize;
     let [a, w] = b.data[i];
-    let scalar = cx.counted(b.ty[i]) == Tri::No;
+    let scalar = !cx.counted(b.ty[i]);
     match b.tags[i] {
         Tag::Read => {
             (w == ReadMode::Copy as u32 && scalar)
-                || (w == ReadMode::Borrow as u32 && cx.counted(b.ty[i]) != Tri::Maybe)
+                || (w == ReadMode::Borrow as u32 && !cx.thunk_made(b.ty[i]))
         }
         // A borrow's kept drop, which releases what an instance's view
         // made fresh.
@@ -588,7 +588,7 @@ fn header_place(b: &Body, cx: &dyn OwnCx, t: &mut Tables, header: u32) -> Option
         }
         _ => return None,
     };
-    if cx.counted(ty) != Tri::Yes || b.data[header as usize][1] == ReadMode::Move as u32 {
+    if !cx.counted(ty) || cx.thunk_made(ty) || b.data[header as usize][1] == ReadMode::Move as u32 {
         return None;
     }
     let (l, _) = resolve(b, word, &mut t.steps, &mut t.raw);

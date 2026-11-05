@@ -36,8 +36,8 @@ impl VerifyCx for CorpusFacts {
 struct NoCounts;
 
 impl hd_tir::own::OwnCx for NoCounts {
-    fn counted(&self, _: Ty) -> hd_tir::own::Tri {
-        hd_tir::own::Tri::No
+    fn counted(&self, _: Ty) -> bool {
+        false
     }
     fn pass(&self, _: &Callee, _: usize, _: usize) -> hd_tir::own::Pass {
         hd_tir::own::Pass::Lent

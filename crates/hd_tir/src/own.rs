@@ -64,13 +64,13 @@ pub(crate) mod splice;
 
 pub use reason::{Reason, reason};
 
-/// Whether a type holds a counted leaf.
+/// Whether a value of a type may be copied ([`OwnCx::copies`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Tri {
     No,
     Yes,
-    /// It mentions a type parameter or an associated type, so it depends
-    /// on the instance: the emitter drops the glue for a scalar one.
+    /// It holds a type parameter declared `?Copy`, which an instance
+    /// decides: only a generic item's own body holds one.
     Maybe,
 }
 
@@ -112,8 +112,20 @@ pub enum CallMemory {
 /// "What the passes read"): layout and signature facts, never another
 /// body's.
 pub trait OwnCx {
-    /// Whether a value of `ty` holds a counted leaf.
-    fn counted(&self, ty: Ty) -> Tri;
+    /// Whether a value of `ty` holds a counted leaf. The passes run over
+    /// instances, whose types are concrete, and over a generic item's own
+    /// body only where an erased body and its thunks still run it: there a
+    /// type parameter's value is one counted address
+    /// (`crates/hd_wasm_linear/src/emit/erased.rs`), so it counts.
+    fn counted(&self, ty: Ty) -> bool;
+    /// Whether `ty` names a type parameter an erased body leaves open,
+    /// whose values its thunks make fresh: a read of one keeps its `Drop`s
+    /// where it borrows, and only a type that does not is counted in every
+    /// instance. The default answers no.
+    fn thunk_made(&self, ty: Ty) -> bool {
+        let _ = ty;
+        false
+    }
     /// How argument `k` of `n` of a `Call` or `Await` of `callee` is
     /// passed. `Lent` whenever it is not `Owned`: a lent argument the
     /// callee's instance owns takes a count at the call, and an owned one
@@ -341,7 +353,7 @@ pub(crate) fn fill<T: Clone>(v: &mut Vec<T>, n: usize, x: T) {
 /// a statement has none; a switch has one outside a decision tree. A
 /// `borrow` read owns no count.
 pub(crate) fn tracked(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
-    owned_value(b, i) && cx.counted(b.ty[i]) != Tri::No
+    owned_value(b, i) && cx.counted(b.ty[i])
 }
 
 /// An owned value, including one with no runtime count or drop.
@@ -1239,12 +1251,8 @@ pub(crate) mod tests {
     pub(crate) struct Cx;
 
     impl super::OwnCx for Cx {
-        fn counted(&self, ty: Ty) -> Tri {
-            if ty == Ty::STRING || ty == LIST || ty == UNIQ || ty == OPEN {
-                Tri::Yes
-            } else {
-                Tri::No
-            }
+        fn counted(&self, ty: Ty) -> bool {
+            ty == Ty::STRING || ty == LIST || ty == UNIQ || ty == OPEN
         }
         fn pass(&self, callee: &Callee, _: usize, _: usize) -> Pass {
             match callee {
@@ -2448,7 +2456,7 @@ pub(crate) mod tests {
     struct Flat;
 
     impl super::OwnCx for Flat {
-        fn counted(&self, ty: Ty) -> Tri {
+        fn counted(&self, ty: Ty) -> bool {
             Cx.counted(ty)
         }
         fn pass(&self, callee: &Callee, k: usize, n: usize) -> Pass {
@@ -2479,7 +2487,7 @@ pub(crate) mod tests {
     struct Memory;
 
     impl super::OwnCx for Memory {
-        fn counted(&self, ty: Ty) -> Tri {
+        fn counted(&self, ty: Ty) -> bool {
             Cx.counted(ty)
         }
         fn pass(&self, callee: &Callee, k: usize, n: usize) -> Pass {
@@ -2599,7 +2607,7 @@ pub(crate) mod tests {
     fn a_rejected_binding_borrow_restores_its_parameters_ownership() {
         struct Summarizing;
         impl super::OwnCx for Summarizing {
-            fn counted(&self, ty: Ty) -> Tri {
+            fn counted(&self, ty: Ty) -> bool {
                 Cx.counted(ty)
             }
             fn pass(&self, c: &Callee, k: usize, n: usize) -> Pass {

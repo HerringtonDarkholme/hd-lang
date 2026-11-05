@@ -339,7 +339,7 @@ fn root_uses(b: &Body, cx: &dyn OwnCx, uses: &mut impl FnMut(u32, u32, bool)) {
         };
         if let Root::Local(l) = root
             && (lent || p.steps(b).any(|s| matches!(s, Proj::Deref | Proj::Elem(_))))
-            && cx.counted(b.local_ty[l as usize]) != super::Tri::No
+            && cx.counted(b.local_ty[l as usize])
             && !b.cap_local.iter().any(|c| c.raw() == l)
         {
             locals.push(l);
@@ -507,7 +507,8 @@ fn step(b: &Body, cx: &dyn OwnCx, t: &mut Tables, ops: &mut Vec<super::Operand>,
     if t.roots
         && (cx.counted_refs_only(b.ty[i])
             || matches!(b.tags[i], Tag::Call | Tag::CallValue | Tag::CallDyn)
-                && cx.counted(b.ty[i]) == super::Tri::Yes
+                && cx.counted(b.ty[i])
+                && !cx.thunk_made(b.ty[i])
                 && !cx.holds_ref(b.ty[i]))
     {
         return false;

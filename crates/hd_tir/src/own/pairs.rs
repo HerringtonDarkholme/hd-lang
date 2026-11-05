@@ -48,7 +48,7 @@
 use super::moves;
 use super::reason::LAST_USE;
 use super::splice;
-use super::{Loc, Operand, OwnCx, Tri, operands};
+use super::{Loc, Operand, OwnCx, operands};
 use crate::ir::{
     Body, NONE, PlaceView, ReadMode, Root, Tag, Topology, for_blocks, is_suspension, place, u32_of,
 };
@@ -378,7 +378,7 @@ fn pair(
     };
     let p = b.view(word);
     let PlaceView { root, from, to } = p;
-    if !p.in_place(b) || cx.counted(b.ty[r as usize]) == Tri::No {
+    if !p.in_place(b) || !cx.counted(b.ty[r as usize]) {
         return;
     }
     let Some(key) = p.first_part(b) else {

@@ -67,8 +67,7 @@ use hd_types::Ty;
 
 use super::reason::LAST_USE;
 use super::{
-    Loc, Operand, OwnCx, OwnScratch, Role, Tri, consumes, fill, operands, splice, suite_touches,
-    tracked,
+    Loc, Operand, OwnCx, OwnScratch, Role, consumes, fill, operands, splice, suite_touches, tracked,
 };
 use crate::ir::{
     Body, CaptureMode, IntrinsicOp, NONE, PlaceView, ReadMode, Ref, Root, Tag, Topology,
@@ -583,9 +582,8 @@ fn locals(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables, edits: &mut
     t.acc.sort_stable();
     t.entries.sort_stable();
     t.entries.dedup();
-    let owned = |b: &Body, t: &Tables, l: u32| {
-        t.celled[l as usize] || cx.counted(b.local_ty[l as usize]) != Tri::No
-    };
+    let owned =
+        |b: &Body, t: &Tables, l: u32| t.celled[l as usize] || cx.counted(b.local_ty[l as usize]);
     let (mut k, mut e) = (0, 0);
     for s in 0..u32_of(b.sub_root.len()) {
         let e0 = e;

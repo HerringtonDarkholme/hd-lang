@@ -670,7 +670,7 @@ fn run_once(
         if b.tags[i] == Tag::Read
             && let Some(l) = p.local()
             && (t.keeps[i] || store_of(t, i) != NONE)
-            && cx.counted(b.ty[i]) != Tri::No
+            && cx.counted(b.ty[i])
         {
             t.kept_read[l as usize] += 1;
             t.kept_whole[l as usize] += u32::from(p.whole());
@@ -917,7 +917,7 @@ fn uncopyable(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
         }
         let ty = b.ty[i];
         if last.0 != ty {
-            last = (ty, cx.copies(ty) != Tri::Yes && cx.counted(ty) != Tri::No);
+            last = (ty, cx.copies(ty) != Tri::Yes && cx.counted(ty));
         }
         let p = b.view(b.data[i][0]);
         let part = !p.whole() && p.in_place(b);
@@ -1212,7 +1212,7 @@ fn decide(
     if b.tags[r] != Tag::Read || b.data[r][1] != ReadMode::Copy as u32 || t.keeps[r] {
         return;
     }
-    if cx.counted(b.ty[r]) == Tri::No {
+    if !cx.counted(b.ty[r]) {
         // An uncounted copy costs nothing, but a value whose type is not
         // `Copy` is never copied: a match decides through its scrutinee
         // by borrowing it. There is no count to end or drop.
@@ -1434,7 +1434,7 @@ fn lent_params(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
             || t.captured[l]
             || t.reached[l]
             || t.changed[l]
-            || cx.counted(b.local_ty[l]) == Tri::No
+            || !cx.counted(b.local_ty[l])
             || t.blocked_lent[l]
         {
             continue;
@@ -1501,10 +1501,8 @@ pub(crate) fn kept(b: &Body, cx: &dyn OwnCx, t: &Tables) -> Option<(u64, u64)> {
     let n = params.len();
     for (k, l) in params.into_iter().enumerate() {
         let l = l as usize;
-        let (counted, keeps) = match cx.counted(b.local_ty[l]) {
-            Tri::No => (false, false),
-            Tri::Maybe | Tri::Yes => (true, !t.unowned[l] || t.kept_read[l] > 0),
-        };
+        let counted = cx.counted(b.local_ty[l]);
+        let keeps = counted && (!t.unowned[l] || t.kept_read[l] > 0);
         if k < 64 {
             if keeps {
                 kept |= 1 << k;
@@ -1750,7 +1748,7 @@ pub(crate) fn keeps_drops(b: &Body, cx: &dyn OwnCx, r: usize) -> bool {
         _ => return true,
     };
     let (derefs, _) = p.kinds(b);
-    derefs > 0 || cx.counted(root_ty) == Tri::Maybe || cx.counted(b.ty[r]) == Tri::Maybe
+    derefs > 0 || cx.thunk_made(root_ty) || cx.thunk_made(b.ty[r])
 }
 
 /// Whether anything in read `r`'s span, the instructions `lo..=end`, may
