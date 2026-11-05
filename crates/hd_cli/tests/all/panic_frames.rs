@@ -275,6 +275,7 @@ PANIC src/cart.hd:15: takes past the end
 PANIC src/cart.hd:19: shows
     panic: explicit-panic: no display
     src/cart.hd:10 corner_shop.cart.Cart.to_string
+    <std>/format.hd:LINE std.format.Display.write
     src/cart.hd:21 test \"shows\"
     repro: hd test src/cart.hd --filter \"shows\"
 PANIC tests/flow.hd:6: flows
