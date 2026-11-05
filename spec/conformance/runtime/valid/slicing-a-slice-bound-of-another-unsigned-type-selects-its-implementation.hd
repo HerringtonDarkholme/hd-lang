@@ -1,11 +1,11 @@
-# test: a slice bound of another unsigned type selects its implementation
+# test: explicit conversions supply slice methods with byte or element offsets
 # expect-stdout: el
 # expect-stdout: 3
 # expect-stdout: ell
 pub fn main() -> void $ Console:
     let n: u8 = 3
     let wide: u64 = 2
-    println("hello"[1..n])
-    println([1, 2, 3, 4][wide..][0])
+    println("hello".slice(1, usize(n)))
+    println([1, 2, 3, 4].slice(usize(wide), 4)[0])
     let start: usize = 1
-    println("hello"[start..=3])
+    println("hello".slice(start, 4))

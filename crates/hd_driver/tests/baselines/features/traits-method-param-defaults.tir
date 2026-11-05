@@ -32,7 +32,7 @@ fn joined(j: Joiner) -> usize:
 > app/main/joined
 >   local $0 j: Joiner [param read captured]
 >   %0 = Ref local [$0] : Counted[Joiner]
->   %1 = DefaultCall [%4700 %16] [%0] : string
+>   %1 = DefaultCall [%4621 %16] [%0] : string
 >   %2 = Call app/main/impl Joiner.join[] (%0, %1) : usize
 >   %3 = Block %2 : usize
 

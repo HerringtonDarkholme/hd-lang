@@ -1,5 +1,5 @@
 # test: the index of a compound assignment is evaluated once, with its own expected type, before the right-hand side
-# Spec 05 Compound Assignment: expr.assign.compound.once, expr.assign.compound.index-read-write.
+# Spec 05 Compound Assignment: expr.assign.compound.once, expr.assign.compound.index-place.
 fn next(counter: &mut List[i32]) -> u64:
     counter[0] = counter[0] + 1
     u64(0)

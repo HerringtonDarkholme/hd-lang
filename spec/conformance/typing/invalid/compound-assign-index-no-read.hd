@@ -1,5 +1,5 @@
-# test: += on a user index place reads through Index, so IndexSet alone is not enough
-# Spec 05 Compound Assignment: expr.assign.compound.index-read-write (Operator Traits OP13, stress test decision 11).
+# test: += on a user index place needs IndexMut, so IndexSet alone is not enough
+# Spec 05 Compound Assignment: expr.assign.compound.index-place (Operator Traits OP13, stress test decision 11).
 use std.ops.IndexSet
 
 struct Sink:
@@ -10,4 +10,4 @@ impl IndexSet[usize, i32] for Sink:
         self.items[key] = value
 
 fn invalid(sink: &mut Sink) -> void:
-    sink[0] += 1 # diagnostic: type-mismatch
+    sink[0] += 1 # diagnostic: not-writable

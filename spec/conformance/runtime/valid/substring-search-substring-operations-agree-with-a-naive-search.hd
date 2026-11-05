@@ -36,10 +36,10 @@ fn naive_split(text: string, separator: string) -> List[string]:
     while true:
         match naive_find(text, separator, start):
             .Some(at) =>
-                pieces.push(text[start..at])
+                pieces.push(text.slice(start, at))
                 start = at + separator.len()
             .None => break
-    pieces.push(text[start..])
+    pieces.push(text.slice(start, text.len()))
     pieces
 
 fn naive_replace(text: string, old: string, new: string) -> string:
@@ -73,7 +73,7 @@ fn agree(text: string, needle: string, failures: &mut List[string]) -> void:
         if text.replace(needle, "<>") != naive_replace(text, needle, "<>"):
             failures.push("replace $case")
     let once: (string, string)? = match naive_find(text, needle, 0):
-        .Some(at) => .Some((text[..at], text[at + needle.len()..]))
+        .Some(at) => .Some((text.slice(0, at), text.slice(at + needle.len(), text.len())))
         .None => .None
     if text.split_once(needle) != once:
         failures.push("split_once $case")
@@ -133,7 +133,7 @@ pub fn main() -> void $ Console:
             chars := text.chars().collect::[List[char]]()
             from := rng.below(chars.len())
             to := from + rng.below(chars.len() - from + 1)
-            [for c in chars[from..to] => "$c"].join("")
+            [for c in chars.slice(from, to) => "$c"].join("")
         else:
             size := rng.below(8)
             word(&mut rng, alphabet, size)

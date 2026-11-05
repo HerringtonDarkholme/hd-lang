@@ -1,0 +1,25 @@
+# test: generic mutable indexing preserves List and Map value copying
+use std.ops.{Index, IndexMut}
+use std.testing.assert_equal
+
+fn increment[K, C < IndexMut[K, Out = usize]](items: &mut C, key: K) -> void:
+    items[key] += 1
+
+fn read[K, C < Index[K, Out = usize]](items: &C, key: K) -> usize:
+    items[key]
+
+pub fn main() -> void:
+    let mut numbers: List[usize] = [2, 3]
+    before := numbers
+    increment(&mut numbers, 0)
+    assert_equal(read(&numbers, 0), 3)
+    assert_equal(before[0], 2)
+    let mut counts: Map[string, usize] = { "a": 4 }
+    old := counts
+    increment(&mut counts, "a")
+    assert_equal(read(&counts, "a"), 5)
+    assert_equal(old["a"], 4)
+    text := "hé"
+    let key: u8 = 1
+    byte := &text[key]
+    assert_equal(*byte, 195u8)

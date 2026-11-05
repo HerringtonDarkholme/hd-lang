@@ -11,10 +11,10 @@ struct Names:
 
 impl Index[usize] for Names:
     type Out = string
-    fn index(&self, key: usize) -> string:
-        self.items[key]
+    fn index(&self, key: usize) -> &string:
+        &self.items[key]
 > app/main/impl Index [ usize ] for Names.index
->   retain string (conservative: copy read)
+>   (no span) unique List[string] (conservative: unique)
 
 impl IndexSet[usize, string] for Names:
     fn index_set(&mut self, key: usize, value: string) -> void:
@@ -26,19 +26,20 @@ impl IndexSet[usize, string] for Names:
 fn read_len(n: Names, i: usize) -> usize:
     n[i].len()
 > app/main/read_len
+>   unique List[string] (conservative: unique)
 >   (no span) release app.main.Names (last use)
->   (no span) release string (last use)
 >   (no span) release app.main.Names (last use)
 
 fn write(n: &mut Names, i: usize, s: string) -> void:
     n[i] = s
 
-fn first[C < Index[usize]](items: C) -> C::Out:
+fn first[T, C < Index[usize, Out = T]](items: C) -> T:
     items[0]
 
 fn generic_first(xs: List[string]) -> usize:
     first(xs).len()
 > app/main/generic_first
 >   release List[string] (overwritten)
+>   retain counted reference (conservative: copy read)
 >   (no span) release List[string] (last use)
 >   (no span) release string (last use)

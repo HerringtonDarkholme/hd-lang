@@ -26,20 +26,23 @@ impl Tag for Named:
 fn read_tag() -> usize $ Tag:
     $.use(Tag).name().len()
 > app/main/read_tag
+>   local $0 $ref: string [read assigned captured captured-assigned] value
 >   local $1 self: string [read] value
 >   %0 = ProviderGet #0 : Tag
 >   %1 = Coerce %0 [ProviderAsRef -] : Ref[Tag]
 >   %2 = Read copy [*%1] : Tag
 >   %3 = Drop [%1] : ()
 >   %4 = Call app/main/Tag.name for Tag [] via TraitValue (%2) : string
->   %5 = Store [$1] %4 : ()
->   %6 = Read borrow [$1] : string
->   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
->   %8 = Break L0 %7 : never
->   %9 = Block - : usize
->   %10 = Scope %9 [] : usize
->   %11 = Drop [$1] : ()
->   %12 = Block %10 : usize
+>   %5 = Store [$0] %4 : ()
+>   %6 = Read move [$0] : string
+>   %7 = Store [$1] %6 : ()
+>   %8 = Read borrow [$1] : string
+>   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
+>   %10 = Break L0 %9 : never
+>   %11 = Block - : usize
+>   %12 = Scope %11 [] : usize
+>   %13 = Drop [$1] : ()
+>   %14 = Block %12 : usize
 >   summary kept [] writes
 
 fn by_value(s: string) -> usize:
@@ -63,7 +66,7 @@ fn by_value(s: string) -> usize:
 >   %12 = Drop [%8] : ()
 >   %13 = Coerce %11 [RefAsProvider -] : Tag
 >   %14 = Drop [%11] : ()
->   %17 = With [%5965 %13] %16 : usize
+>   %17 = With [%5921 %13] %16 : usize
 >   %18 = Drop [%13] : ()
 >   %19 = Block %17 : usize
 >   %5 finds [$2] full
@@ -98,7 +101,7 @@ fn nested(a: string, b: string) -> usize:
 >   %12 = Drop [%8] : ()
 >   %13 = Coerce %11 [RefAsProvider -] : Tag
 >   %14 = Drop [%11] : ()
->   %39 = With [%5965 %13] %38 : usize
+>   %39 = With [%5921 %13] %38 : usize
 >   %40 = Drop [%13] : ()
 >   %41 = Block %39 : usize
 >   %5 finds [$6] full
@@ -122,7 +125,7 @@ fn nested(a: string, b: string) -> usize:
 >   %29 = Drop [%25] : ()
 >   %30 = Coerce %28 [RefAsProvider -] : Tag
 >   %31 = Drop [%28] : ()
->   %36 = With [%5965 %30] %35 : usize
+>   %36 = With [%5921 %30] %35 : usize
 >   %37 = Drop [%30] : ()
 >   %22 finds [$4] full
             outer + read_tag()
@@ -147,6 +150,7 @@ fn lexical(s: string) -> usize:
 > app/main/lexical
 >   local $0 s: string [param read] value
 >   local $1 tag: Ref[Tag] [:= read assigned captured] value
+>   local $2 $ref: string [read assigned captured captured-assigned] value
 >   local $3 f: fn() -> usize [read] value
 >   local $4 self: string [read] value
 >   local $5 provider: Named [read] value
@@ -166,36 +170,38 @@ fn lexical(s: string) -> usize:
 >   %12 = Drop [%8] : ()
 >   %13 = Coerce %11 [RefAsProvider -] : Tag
 >   %14 = Drop [%11] : ()
->   %39 = With [%5965 %13] %38 : usize
->   %40 = Drop [%13] : ()
->   %41 = Block %39 : usize
+>   %41 = With [%5921 %13] %40 : usize
+>   %42 = Drop [%13] : ()
+>   %43 = Block %41 : usize
 >   %5 finds [$6] full
         tag := $.use(Tag)
 >   %15 = ProviderGet #19 : Tag
 >   %16 = Coerce %15 [ProviderAsRef -] : Ref[Tag]
 >   %17 = Store [$1] %16 : ()
->   %38 = Block %36 : usize
+>   %40 = Block %38 : usize
         apply(fn() -> usize: tag.name().len())
 >   %18 = Read copy [*$1] : Tag
 >   %19 = Drop [$1] : ()
 >   %20 = Call app/main/Tag.name for Tag [] via TraitValue (%18) : string
->   %21 = Store [$4] %20 : ()
->   %22 = Read borrow [$4] : string
->   %23 = Call std/rt.bytes/bytes_len[] (%22) : usize
->   %24 = Break L1 %23 : never
->   %25 = Block - : usize
->   %26 = Scope %25 [] : usize
->   %27 = Drop [$4] : ()
->   %28 = Block %26 : usize
->   %29 = Closure #1 [%0 %1] : fn() -> usize
->   %30 = Drop [$1] : ()
->   %31 = Store [$3] %29 : ()
->   %32 = Read borrow [$3] : fn() -> usize
->   %33 = CallValue %32 [] : usize
->   %34 = Break L0 %33 : never
->   %35 = Block - : usize
->   %36 = Scope %35 [] : usize
->   %37 = Drop [$3] : ()
+>   %21 = Store [$2] %20 : ()
+>   %22 = Read move [$2] : string
+>   %23 = Store [$4] %22 : ()
+>   %24 = Read borrow [$4] : string
+>   %25 = Call std/rt.bytes/bytes_len[] (%24) : usize
+>   %26 = Break L1 %25 : never
+>   %27 = Block - : usize
+>   %28 = Scope %27 [] : usize
+>   %29 = Drop [$4] : ()
+>   %30 = Block %28 : usize
+>   %31 = Closure #1 [%0 %1] : fn() -> usize
+>   %32 = Drop [$1] : ()
+>   %33 = Store [$3] %31 : ()
+>   %34 = Read borrow [$3] : fn() -> usize
+>   %35 = CallValue %34 [] : usize
+>   %36 = Break L0 %35 : never
+>   %37 = Block - : usize
+>   %38 = Scope %37 [] : usize
+>   %39 = Drop [$3] : ()
 >   exit sub 0 drops [$0 $1]
 >   exit sub 1 drops [$1]
 >   summary kept [$0] writes

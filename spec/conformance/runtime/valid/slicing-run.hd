@@ -1,7 +1,7 @@
-# test: string slices select byte offsets, and a list slice is a new list
-# Spec 05 Slicing: expr.index.slice.half-open, expr.index.slice.from, expr.index.slice.to, expr.index.slice.inclusive, expr.index.slice.string, expr.index.slice.list (batch 48).
+# test: explicit slice methods select independent list values and string byte ranges
+# Spec std/collections List Slices: std-collections.list.slice; Spec 10: module.string.slice.
 fn parts(text: string, items: List[i32]) -> (string, string, List[i32], List[i32]):
-    (text[0..3], text[2..], items[..2], items[1..=2])
+    (text.slice(0, 3), text.slice(2, text.len()), items.slice(0, 2), items.slice(1, 3))
 
 tests:
     use std.testing.assert_equal
@@ -9,15 +9,15 @@ tests:
     it("slices a string by byte offsets"):
         assert_equal(parts("hello", [1, 2, 3])._0, "hel", reason="a..b")
         assert_equal(parts("hello", [1, 2, 3])._1, "llo", reason="a..")
-        assert_equal("héllo"[0..3], "hé", reason="é takes two bytes")
-        assert_equal("hello"[1..=2], "el", reason="a..=b")
-        assert_equal("hello"[2..2], "", reason="an empty slice")
+        assert_equal("héllo".slice(0, 3), "hé", reason="é takes two bytes")
+        assert_equal("hello".slice(1, 3), "el", reason="a..=b")
+        assert_equal("hello".slice(2, 2), "", reason="an empty slice")
 
     it("slices a list into a new list"):
         items := [+1, 2, 3]
         assert_equal(parts("hello", items)._2, [1, 2], reason="..b")
         assert_equal(parts("hello", items)._3, [2, 3], reason="a..=b")
-        let mut copy = items[0..2]
+        let mut copy = items.slice(0, 2)
         copy.push(9)
         copy[0] = 7
         assert_equal(items, [1, 2, 3], reason="the slice is not a view")

@@ -1,5 +1,5 @@
 # test: a type may implement IndexSet alone, so r[k] = v works with no Index
-# Spec 05 Index Traits: expr.index.trait.independent.
+# Spec 05 Index Traits: expr.index.trait.independent-set.
 use std.ops.IndexSet
 
 struct Sink:

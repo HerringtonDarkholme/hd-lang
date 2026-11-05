@@ -63,7 +63,7 @@ fn with_tag[$ R](s: string, callback: fn() -> usize $ R + Tag) -> usize $ R:
 >   %12 = Drop [%8] : ()
 >   %13 = Coerce %11 [RefAsProvider -] : Tag
 >   %14 = Drop [%11] : ()
->   %18 = With [%5965 %13] %17 : usize
+>   %18 = With [%5921 %13] %17 : usize
 >   %19 = Drop [%13] : ()
 >   %20 = Block %18 : usize
 >   %5 finds [$3] full

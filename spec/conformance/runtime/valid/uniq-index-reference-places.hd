@@ -1,0 +1,26 @@
+# test: a move-only unique list lend element places and move whole stores
+use std.collections.UniqList
+use std.ops.IndexMut
+use std.testing.assert_equal
+
+struct Conn:
+    qty: usize
+
+impl !Copy for Conn
+
+fn selected[C < ?Copy & IndexMut[usize]](pool: &mut C) -> &mut C::Out:
+    &mut pool[0]
+
+pub fn main() -> void:
+    let mut pool = UniqList::[Conn].new()
+    pool.push(Conn { qty: 2 })
+    pool.push(Conn { qty: 7 })
+    assert_equal(pool[0].qty, 2)
+    item := selected(&mut pool)
+    item.qty += 3
+    pool[0].qty += 4
+    pool[1] = Conn { qty: 11 }
+    assert_equal(pool[0].qty, 9)
+    assert_equal((&pool[1]).qty, 11)
+    pool.push(Conn { qty: 13 })
+    assert_equal(pool.len(), 3)

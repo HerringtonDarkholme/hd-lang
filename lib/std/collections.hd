@@ -10,6 +10,7 @@ use std.iter.MapEntries
 use std.num.Num
 use std.iter.FromIterator
 use std.ops.Index
+use std.ops.IndexMut
 use std.ops.IndexSet
 use std.ops.Range
 use std.format.DebugWriter
@@ -1307,15 +1308,47 @@ impl[K < Eq & Hash, V < ?Copy] FromIterator[(K, V)] for UniqMap[K, V]:
                 .None => break
         out
 
-impl[T < Copy] Index[usize] for UniqList[T]:
+impl[T < ?Copy] Index[usize] for UniqList[T]:
     type Out = T
-    fn index(&self, key: usize) -> T:
+    fn index(&self, key: usize) -> &T:
         if key >= self.len():
-            panic_with(
-                "index-out-of-bounds",
-                "uniq list index ${key} out of bounds for length ${self.len()}",
-            )
-        *self.buffer.at(key).as_ref()
+            panic_with("index-out-of-bounds", "uniq list index out of bounds")
+        self.buffer.at(key).as_ref()
+
+impl[T < ?Copy] IndexMut[usize] for UniqList[T]:
+    fn index_mut(&mut self, key: usize) -> &mut T:
+        if key >= self.len():
+            panic_with("index-out-of-bounds", "uniq list index out of bounds")
+        self.buffer.at(key).as_mut()
+
+impl[T < ?Copy] IndexSet[usize, T] for UniqList[T]:
+    fn index_set(&mut self, key: usize, value: T) -> void:
+        if key >= self.len():
+            panic_with("index-out-of-bounds", "uniq list index out of bounds")
+        previous := self.buffer.at(key).read()
+        self.buffer.at(key).write(value)
+        _ := previous
+
+impl[K < Eq & Hash, V < ?Copy] Index[K] for UniqMap[K, V]:
+    type Out = V
+    fn index(&self, key: K) -> &V:
+        match self.get_ref(key):
+            .Some(value) => value
+            .None =>
+                panic_with("index-out-of-bounds", "uniq map key is absent")
+                panic("unreachable after missing-key panic")
+
+impl[K < Eq & Hash, V < ?Copy] IndexMut[K] for UniqMap[K, V]:
+    fn index_mut(&mut self, key: K) -> &mut V:
+        match self.get_mut(key):
+            .Some(value) => value
+            .None =>
+                panic_with("index-out-of-bounds", "uniq map key is absent")
+                panic("unreachable after missing-key panic")
+
+impl[K < Eq & Hash, V < ?Copy] IndexSet[K, V] for UniqMap[K, V]:
+    fn index_set(&mut self, key: K, value: V) -> void:
+        _ := self.insert(key, value)
 
 impl[T < ?Copy & Ord] UniqList[T]:
     ## Searches a sorted list, returning a matching index or the insertion index.
@@ -1532,6 +1565,18 @@ impl[T] List[T]:
             right -= 1
             self.swap(left, right)
             left += 1
+
+    ## Returns a new list containing elements from `start` up to `end`.
+    ## See [std-collections.list.slice](../../spec/std/collections.md#r-std-collections.list.slice).
+    pub fn slice(&self, start: usize, end: usize) -> List[T]:
+        if start > end || end > self.len():
+            panic_with("index-out-of-bounds", "list slice out of bounds")
+        let mut result: List[T] = []
+        let index = start
+        while index < end:
+            result.push(self[index])
+            index += 1
+        result
 
     # `push` is a language-tier intrinsic method of the checker
     # (spec/lang/10-modules.md#built-in-methods). The other mutators are
@@ -2163,14 +2208,14 @@ impl[T] ListView[T]:
 
 impl[T] Index[usize] for ListView[T]:
     type Out = T
-    fn index(&self, key: usize) -> T:
+    fn index(&self, key: usize) -> &T:
         len := self.end - self.start
         if key >= len:
             panic_with(
                 "index-out-of-bounds",
                 "list view index ${key} out of bounds for length ${len}",
             )
-        self.items[self.start + key]
+        &self.items[self.start + key]
 
 impl[T] Iterable[T] for ListView[T]:
     type IntoIter = ListViewIter[T]
@@ -2228,8 +2273,8 @@ impl[T, 'a] Span[T, 'a]:
         Span { items: self.items, start: self.start + range.start, end: self.start + stop }
 
 impl[T, 'a] Index[usize] for Span[T, 'a]:
-    type Out = &'a T
-    fn index(&self, key: usize) -> &'a T:
+    type Out = T
+    fn index(&self, key: usize) -> &T:
         if key >= self.len():
             panic_with("index-out-of-bounds", "span index out of bounds")
         &self.items[self.start + key]
@@ -2286,14 +2331,18 @@ impl[T, 'a] SpanMut[T, 'a]:
             self.items[self.start + index] = value
             index = index + 1
 
-# A copy of the element, as `items[i]` reads: `index` borrows the span
-# only for the call, so a reference result could outlive a later write.
 impl[T, 'a] Index[usize] for SpanMut[T, 'a]:
     type Out = T
-    fn index(&self, key: usize) -> T:
+    fn index(&self, key: usize) -> &T:
         if key >= self.len():
             panic_with("index-out-of-bounds", "mutable span index out of bounds")
-        self.items[self.start + key]
+        &self.items[self.start + key]
+
+impl[T, 'a] IndexMut[usize] for SpanMut[T, 'a]:
+    fn index_mut(&mut self, key: usize) -> &mut T:
+        if key >= self.len():
+            panic_with("index-out-of-bounds", "mutable span index out of bounds")
+        &mut self.items[self.start + key]
 
 impl[T, 'a] IndexSet[usize, T] for SpanMut[T, 'a]:
     fn index_set(&mut self, key: usize, value: T) -> void:

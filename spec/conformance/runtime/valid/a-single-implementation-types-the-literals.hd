@@ -9,8 +9,8 @@ struct Board:
 
 impl Index[(i32, i32)] for Board:
     type Out = f64
-    fn index(&self, at: (i32, i32)) -> f64:
-        self.cells[usize(at._0 * 2 + at._1)]
+    fn index(&self, at: (i32, i32)) -> &f64:
+        &self.cells[usize(at._0 * 2 + at._1)]
 
 pub fn main() -> void $ Console:
     let b = Board { cells: [1.0, 2.0, 3.0, 4.0] }

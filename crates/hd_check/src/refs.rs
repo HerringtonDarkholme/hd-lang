@@ -67,6 +67,7 @@ pub(crate) enum Root {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PlaceUse {
     Ref,
+    MutRef,
     Write,
 }
 
@@ -466,7 +467,12 @@ impl Ck<'_, '_> {
             .filter(|w| self.dyn_ref_of(*w).is_none())
             .and_then(|w| self.ref_of(w))
             .map(|(i, _)| i);
-        let Some(op) = self.place_of(e, want_inner, PlaceUse::Ref)? else {
+        let use_ = if mutable {
+            PlaceUse::MutRef
+        } else {
+            PlaceUse::Ref
+        };
+        let Some(op) = self.place_of(e, want_inner, use_)? else {
             return Ok(self.ref_poison(n));
         };
         let place = match op {
@@ -681,7 +687,7 @@ impl Ck<'_, '_> {
             // A list element names a slot of the list's buffer, which a
             // reference pins (`ref.elem.place`).
             SyntaxKind::IndexExpr if use_ == PlaceUse::Write => self.slot_operand(e),
-            SyntaxKind::IndexExpr => self.elem_operand(e),
+            SyntaxKind::IndexExpr => self.elem_operand(e, use_ == PlaceUse::MutRef),
             _ => {
                 let (r, t) = self.expr(e, want)?;
                 Ok(Some(Operand::Value(r, t)))
@@ -869,12 +875,18 @@ impl Ck<'_, '_> {
         let [base, key] = kids.as_slice() else {
             return unsupported("an index shape");
         };
+        if self.trait_index_base(*base) {
+            return self.trait_index_place(*base, *key, e, true, None);
+        }
         let (br, bt) = self.expr(*base, None)?;
         if br.0 == NONE && matches!(bt, Ty::NEVER | Ty::POISON) {
             return Ok(Some(Operand::Value(br, bt)));
         }
         let (br, bt) = self.deref_index_base(br, bt, base.index());
         let builtin = self.index_kind(bt);
+        if !matches!(builtin, Some((Indexed::List | Indexed::Map, ..))) {
+            return self.trait_index_place(*base, *key, e, true, Some((br, bt)));
+        }
         let (kr, kt) = self.index_key_value(*key, builtin)?;
         match builtin {
             Some((get @ (Indexed::List | Indexed::Map), bkt, vt))

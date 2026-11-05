@@ -66,7 +66,7 @@ Numbers have explicit widths: `i8` to `i64`, `u8` to `u64`, `usize` for
 lengths and indices, `f32`, and `f64`. A plain integer literal takes its type
 from its uses; with none, it is `usize`, or `i32` when written with a sign,
 as `+5`. Conversions are calls, and none is implicit. Strings interpolate
-`$name` and `${expression}`, are UTF-8 bytes, and slice by byte range
+`$name` and `${expression}`, are UTF-8 bytes, and slice with byte offsets
 ([tour: values and bindings](../tour/02-values-and-bindings.md)).
 
 ```text
@@ -77,7 +77,7 @@ narrow := i16(big)
 mask := 0xFF_00
 initial := 'A'
 summary := "User ${user.name} has ${posts.len()} posts"
-first := summary[0..4]
+first := summary.slice(0, 4)
 pattern := r"\d+ costs $5"
 ```
 

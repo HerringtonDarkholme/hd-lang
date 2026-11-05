@@ -7,16 +7,18 @@ use std.ops.Index
 
 struct Grid:
     size: i32
+    text: string = "usize 0 1"
+    numbers: List[i32] = [for n in 0..25 => i32(n)]
 
 impl Index[(usize, usize)] for Grid:
     type Out = string
-    fn index(&self, at: (usize, usize)) -> string:
-        "usize ${at._0} ${at._1}"
+    fn index(&self, at: (usize, usize)) -> &string:
+        &self.text
 
 impl Index[(i32, i32)] for Grid:
     type Out = i32
-    fn index(&self, at: (i32, i32)) -> i32:
-        at._0 * 10 + at._1
+    fn index(&self, at: (i32, i32)) -> &i32:
+        &self.numbers[usize(at._0 * 10 + at._1)]
 
 pub fn main() -> void $ Console:
     let g = Grid { size: 0 }

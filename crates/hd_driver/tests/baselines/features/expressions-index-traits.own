@@ -11,15 +11,16 @@ struct Names:
 
 impl Index[usize] for Names:
     type Out = string
-    fn index(&self, key: usize) -> string:
-        self.items[key]
+    fn index(&self, key: usize) -> &string:
+        &self.items[key]
 > app/main/impl Index [ usize ] for Names.index
 >   local $0 self: Ref[Names] [param read] value
 >   local $1 key: usize [param read] value
 >   %0 = Read copy [$1] : usize
->   %1 = Read copy [*$0 .items [%0]] : string
->   %2 = Block %1 : string
->   summary kept [$0]
+>   %1 = IsUnique [*$0 .items] : ()
+>   %2 = Ref local [*$0 .items [%0]] : Ref[string]
+>   %3 = Block %2 : Ref[string]
+>   summary kept [] writes
 
 impl IndexSet[usize, string] for Names:
     fn index_set(&mut self, key: usize, value: string) -> void:
@@ -41,22 +42,27 @@ fn read_len(n: Names, i: usize) -> usize:
 > app/main/read_len
 >   local $0 n: Names [param read captured] place
 >   local $1 i: usize [param read] value
->   local $3 self: string [read] value
+>   local $2 self: Counted[Names] [read] value
+>   local $3 key: usize [read] value
 >   %0 = Ref local frame [$0] : Counted[Names]
 >   %1 = Read copy [$1] : usize
->   %2 = Call std/ops/Index.index for Names [usize] via Impl (%0, %1) : string
->   %3 = Drop [%0] : ()
->   %4 = Drop [$0] : ()
->   %5 = Store [$3] %2 : ()
->   %6 = Read borrow [$3] : string
->   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
->   %8 = Break L0 %7 : never
->   %9 = Block - : usize
->   %10 = Scope %9 [] : usize
->   %11 = Drop [$3] : ()
->   %12 = Block %10 : usize
+>   %2 = Store [$2] %0 : ()
+>   %3 = Store [$3] %1 : ()
+>   %4 = Read copy [$3] : usize
+>   %5 = IsUnique [*$2 .items] : ()
+>   %6 = Ref local [*$2 .items [%4]] : Ref[string]
+>   %7 = Break L0 %6 : never
+>   %8 = Block - : Ref[string]
+>   %9 = Scope %8 [] : Ref[string]
+>   %10 = Ref local [*%9] : Ref[string]
+>   %11 = Drop [%9] : ()
+>   %12 = Call std/text/impl string.len[] (%10) : usize
+>   %13 = Drop [%10] : ()
+>   %14 = Drop [$2] : ()
+>   %15 = Drop [$0] : ()
+>   %16 = Block %12 : usize
 >   exit sub 0 drops [$0]
->   summary kept [$0]
+>   summary kept [$0] writes
 
 fn write(n: &mut Names, i: usize, s: string) -> void:
     n[i] = s
@@ -72,15 +78,17 @@ fn write(n: &mut Names, i: usize, s: string) -> void:
 >   exit sub 0 drops [$2]
 >   summary kept [$2] writes
 
-fn first[C < Index[usize]](items: C) -> C::Out:
+fn first[T, C < Index[usize, Out = T]](items: C) -> T:
     items[0]
 > app/main/first
 >   local $0 items: C [param read captured] place
 >   %0 = Ref local frame [$0] : Counted[C]
->   %1 = Call std/ops/Index.index for C [usize] via Bound (%0, 0:usize) : C::Out
->   %2 = Drop [%0] : ()
->   %3 = Drop [$0] : ()
->   %4 = Block %1 : C::Out
+>   %1 = Call std/ops/Index.index for C [usize] via Bound (%0, 0:usize) : Ref[T]
+>   %2 = Read copy [*%1] : T
+>   %3 = Drop [%1] : ()
+>   %4 = Drop [%0] : ()
+>   %5 = Drop [$0] : ()
+>   %6 = Block %2 : T
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes
 
@@ -88,25 +96,40 @@ fn generic_first(xs: List[string]) -> usize:
     first(xs).len()
 > app/main/generic_first
 >   local $0 xs: List[string] [param read] value
+>   local $1 $ref: string [read assigned captured captured-assigned] value
 >   local $2 self: string [read] value
 >   local $3 items: List[string] [read captured] place
+>   local $4 self: Counted[List[string]] [read] value
+>   local $5 key: usize [read] value
 >   %0 = Read move [$0] : List[string]
 >   %1 = Store [$3] %0 : ()
 >   %2 = Ref local frame [$3] : Counted[List[string]]
->   %3 = Call std/ops/Index.index for List[string] [usize] via Impl (%2, 0:usize) : string
->   %4 = Drop [%2] : ()
->   %5 = Break L1 %3 : never
->   %6 = Block - : string
->   %7 = Scope %6 [] : string
->   %8 = Drop [$3] : ()
->   %9 = Store [$2] %7 : ()
->   %10 = Read borrow [$2] : string
->   %11 = Call std/rt.bytes/bytes_len[] (%10) : usize
->   %12 = Break L0 %11 : never
->   %13 = Block - : usize
->   %14 = Scope %13 [] : usize
->   %15 = Drop [$2] : ()
->   %16 = Block %14 : usize
+>   %3 = Store [$4] %2 : ()
+>   %4 = Store [$5] 0:usize : ()
+>   %5 = Read copy [$5] : usize
+>   %6 = IsUnique [*$4] : ()
+>   %7 = Ref local [*$4 [%5]] : Ref[string]
+>   %8 = Break L1 %7 : never
+>   %9 = Block - : Ref[string]
+>   %10 = Scope %9 [] : Ref[string]
+>   %11 = Read copy [*%10] : string
+>   %12 = Drop [%10] : ()
+>   %13 = Drop [$4] : ()
+>   %14 = Break L2 %11 : never
+>   %15 = Drop [$4] : ()
+>   %16 = Block - : string
+>   %17 = Scope %16 [] : string
+>   %18 = Drop [$3] : ()
+>   %19 = Store [$1] %17 : ()
+>   %20 = Read move [$1] : string
+>   %21 = Store [$2] %20 : ()
+>   %22 = Read borrow [$2] : string
+>   %23 = Call std/rt.bytes/bytes_len[] (%22) : usize
+>   %24 = Break L0 %23 : never
+>   %25 = Block - : usize
+>   %26 = Scope %25 [] : usize
+>   %27 = Drop [$2] : ()
+>   %28 = Block %26 : usize
 >   %2 finds [$3] full
 >   exit sub 0 drops [$0]
->   summary kept [$0]
+>   summary kept [$0] writes

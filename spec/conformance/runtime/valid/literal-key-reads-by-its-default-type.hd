@@ -8,16 +8,18 @@ use std.ops.IndexSet
 
 struct Table:
     size: i32
+    text: string = "a"
+    numbers: List[i32] = [+10, 11, 12]
 
 impl Index[usize] for Table:
     type Out = i32
-    fn index(&self, key: usize) -> i32:
-        self.size + i32(key)
+    fn index(&self, key: usize) -> &i32:
+        &self.numbers[key]
 
 impl Index[string] for Table:
     type Out = string
-    fn index(&self, key: string) -> string:
-        key
+    fn index(&self, key: string) -> &string:
+        &self.text
 
 impl IndexSet[usize, i32] for Table:
     fn index_set(&mut self, key: usize, value: i32) -> void:

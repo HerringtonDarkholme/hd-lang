@@ -1,0 +1,114 @@
+# test: user indexing borrows element places and selects mutable access separately from stores
+use std.ops.{Index, IndexMut, IndexSet}
+use std.testing.assert_equal
+
+struct Conn:
+    qty: usize
+
+impl !Copy for Conn
+
+impl Conn:
+    fn bump(&mut self) -> void:
+        self.qty += 1
+    fn quantity(&self) -> usize:
+        self.qty
+
+struct Pool:
+    item: Conn
+    accesses: usize
+    stores: usize
+    reads: *mut usize
+
+impl Index[usize] for Pool:
+    type Out = Conn
+    fn index(&self, key: usize) -> &Conn:
+        *self.reads += 1
+        &self.item
+
+impl IndexMut[usize] for Pool:
+    fn index_mut(&mut self, key: usize) -> &mut Conn:
+        self.accesses += 1
+        &mut self.item
+
+impl IndexSet[usize, Conn] for Pool:
+    fn index_set(&mut self, key: usize, value: Conn) -> void:
+        self.stores += 1
+        self.item = value
+
+fn read(item: &Conn) -> usize:
+    item.qty
+
+fn bump(item: &mut Conn) -> void:
+    item.qty += 1
+
+struct Counter:
+    value: usize
+    accesses: usize
+    stores: usize
+
+impl Index[usize] for Counter:
+    type Out = usize
+    fn index(&self, key: usize) -> &usize:
+        &self.value
+
+impl IndexMut[usize] for Counter:
+    fn index_mut(&mut self, key: usize) -> &mut usize:
+        self.accesses += 1
+        &mut self.value
+
+impl IndexSet[usize, usize] for Counter:
+    fn index_set(&mut self, key: usize, value: usize) -> void:
+        self.stores += 1
+        self.value = value
+
+pub fn main() -> void:
+    let mut pool = Pool { item: Conn { qty: 3 }, accesses: 0, stores: 0, reads: box(0) }
+    assert_equal(read(&pool[0]), 3)
+    bump(&mut pool[0])
+    pool[0].qty = 7
+    pool[0].qty += 2
+    assert_equal(read(&pool[0]), 9)
+    assert_equal(pool.accesses, 3)
+    assert_equal(pool.stores, 0)
+    pool[0] = Conn { qty: 12 }
+    assert_equal(read(&pool[0]), 12)
+    assert_equal(pool.accesses, 3)
+    assert_equal(pool.stores, 1)
+    let mut counter = Counter { value: 4, accesses: 0, stores: 0 }
+    counter[0] += 5
+    assert_equal(counter[0], 9)
+    assert_equal(counter.accesses, 1)
+    assert_equal(counter.stores, 0)
+    key_reads := box(0)
+    before := *pool.reads
+    pool[next_key(key_reads)].bump()
+    assert_equal(*key_reads, 1)
+    assert_equal(*pool.reads, before)
+    assert_equal(pool[next_key(key_reads)].quantity(), 13)
+    assert_equal(*key_reads, 2)
+    assert_equal(*pool.reads, before + 1)
+    element := selected(&mut pool)
+    element.qty = 20
+    element.qty += 1
+    assert_equal(read(&pool[0]), 21)
+    generic := selected_generic(&mut pool)
+    generic.qty += 1
+    assert_equal(read(&pool[0]), 22)
+    before_calls := *key_reads
+    receiver(&mut pool, key_reads)[next_key(key_reads)].bump()
+    assert_equal(*key_reads, before_calls + 2)
+    assert_equal(read(&pool[0]), 23)
+
+fn next_key(calls: *mut usize) -> usize:
+    *calls += 1
+    0
+
+fn selected(pool: &mut Pool) -> &mut Conn:
+    &mut pool[0]
+
+fn selected_generic[C < ?Copy & IndexMut[usize]](container: &mut C) -> &mut C::Out:
+    &mut container[0]
+
+fn receiver(pool: &mut Pool, calls: *mut usize) -> &mut Pool:
+    *calls += 1
+    pool

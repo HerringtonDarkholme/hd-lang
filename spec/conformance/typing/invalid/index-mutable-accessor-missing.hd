@@ -1,0 +1,16 @@
+# test: a shared element accessor cannot be upgraded to a mutable one
+use std.ops.Index
+
+struct Counter:
+    value: usize
+
+impl Index[usize] for Counter:
+    type Out = usize
+    fn index(&self, key: usize) -> &usize:
+        &self.value
+
+fn bump(value: &mut usize) -> void:
+    *value += 1
+
+fn invalid(counter: &mut Counter) -> void:
+    bump(&mut counter[0]) # diagnostic: not-writable

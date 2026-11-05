@@ -1,5 +1,5 @@
-# test: a reference to a slice of a list is references-not-yet-checked
-# Spec 13 Not Yet Checked: ref.check.not-yet-index.
+# test: a range index has no element place to borrow
+# Spec 05 Slicing: expr.index.range.unavailable.
 fn slice(items: List[i32]) -> i32:
-    first := &items[0..1] # diagnostic: references-not-yet-checked
+    first := &items[0..1] # diagnostic: type-mismatch
     0

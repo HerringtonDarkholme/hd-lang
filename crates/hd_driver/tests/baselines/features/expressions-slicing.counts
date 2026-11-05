@@ -3,24 +3,31 @@
 # @build: v8 release
 # Feature: Slicing strings and lists (spec/lang/05-expressions.md, #1364).
 # expected: a string slice is a view that retains its base once; a list
-# slice allocates one list and retains each copied element; `xs[..]`
-# shares the list with one retain; a slice only measured
-# (`str_slice_len`, `list_slice_len`) needs no allocation and no count.
+# slice allocates one list and retains each copied element, including
+# a whole-list selection. String slice length needs no allocation or count.
 fn str_slice(s: string) -> string:
-    s[1..3]
+    s.slice(1, 3)
 
 fn str_slice_len(s: string, n: usize) -> usize:
-    s[0..n].len()
+    s.slice(0, n).len()
 > app/main/str_slice_len
 >   (no span) release string (last use)
 
 fn list_slice(xs: List[string]) -> List[string]:
-    xs[1..]
+    xs.slice(1, xs.len())
+> app/main/list_slice
+>   (no span) release List[string] (last use)
+>   (no span) release List[string] (last use)
 
 fn list_full(xs: List[string]) -> List[string]:
-    xs[..]
+    xs.slice(0, xs.len())
+> app/main/list_full
+>   (no span) release List[string] (last use)
+>   (no span) release List[string] (last use)
 
 fn list_slice_len(xs: List[string]) -> usize:
-    xs[..2].len()
+    xs.slice(0, 2).len()
 > app/main/list_slice_len
+>   (no span) release List[string] (last use)
+>   (no span) release List[string] (last use)
 >   (no span) release List[string] (last use)

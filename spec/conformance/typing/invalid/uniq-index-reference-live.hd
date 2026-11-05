@@ -1,0 +1,11 @@
+# test: growing a unique collection conflicts with a live indexed element reference
+use std.collections.UniqList
+struct Conn:
+    qty: usize
+impl !Copy for Conn
+fn invalid() -> usize:
+    let mut pool = UniqList::[Conn].new()
+    pool.push(Conn { qty: 1 })
+    item := &mut pool[0]
+    pool.push(Conn { qty: 2 }) # diagnostic: conflicting-access
+    item.qty

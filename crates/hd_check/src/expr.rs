@@ -1816,7 +1816,7 @@ impl Ck<'_, '_> {
     /// elements (`expr.index.trait.choice`, `trait.resolve.literal-arg`),
     /// made element by element, so the key's type is known before the
     /// chosen implementation's `Out` is projected
-    /// (`expr.index.trait.read-other`). A single implementation whose key
+    /// (`expr.index.trait.shared-place`). A single implementation whose key
     /// fits gives the literals their types by context. Signed literals,
     /// written as `i32` values, narrow the candidates next. The other
     /// literals take their default type only to break a remaining tie.
@@ -2694,37 +2694,126 @@ impl Ck<'_, '_> {
         (kr, kt): (Ref, Ty),
         (key, n): (NodeRef<'_>, NodeRef<'_>),
     ) -> StageResult<(Ref, Ty)> {
-        let key = &key;
-        // `expr.index.slice.call`: a list or string indexed by a range
-        // type is the call of `Index`; every other built-in index reads
-        // by its key type.
+        // Built-in element reads use their direct operation. A range has
+        // no fitting Index implementation (`expr.index.range.unavailable`).
         if let Some((get, bkt, vt)) = builtin
             && !(get != Indexed::Map && self.is_range_ty(kt))
         {
-            let kr = self.index_key((kr, kt), *key, bkt);
+            let kr = self.index_key((kr, kt), key, bkt);
             return Ok((self.index_read(get, (br, kr), vt, n.index()), vt));
         }
-        let index = self.cx.names.known.index;
-        // `Index::index` takes `&self`, so a reference receiver passes on
-        // (`expr.index.trait.read-ref`).
-        let (br, bt) = self.index_receiver(br, bt, n);
+        let (r, rt) = self.index_reference((br, bt), (kr, kt), (key, n), false)?;
+        Ok(self.emit_deref(r, rt, n.index()))
+    }
+
+    /// The element reference returned by `Index` or `IndexMut`. A normal
+    /// index read dereferences it; a borrow or field write keeps its place.
+    pub(crate) fn index_reference(
+        &mut self,
+        (br, bt): (Ref, Ty),
+        (kr, kt): (Ref, Ty),
+        (key, n): (NodeRef<'_>, NodeRef<'_>),
+        mutable: bool,
+    ) -> StageResult<(Ref, Ty)> {
+        let (index, method) = if mutable {
+            (self.cx.names.known.index_mut, "index_mut")
+        } else {
+            (self.cx.names.known.index, "index")
+        };
+        let (br, bt) = if mutable {
+            (br, bt)
+        } else {
+            self.index_receiver(br, bt, n)
+        };
         self.tuple_key_choice(index, bt, kt)?;
-        // `expr.index.trait.no-read`.
         if !self.op_fits(index, bt, Some(kt))? {
+            let name = if mutable { "IndexMut" } else { "Index" };
             let msg = format!(
-                "{} has no `Index` implementation for this key",
+                "{} has no `{name}` implementation for this key",
                 self.show(bt)
             );
-            self.err(Code::TypeMismatch, n, &msg);
+            self.err(
+                if mutable {
+                    Code::NotWritable
+                } else {
+                    Code::TypeMismatch
+                },
+                n,
+                &msg,
+            );
             return Ok((
                 self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()),
                 Ty::POISON,
             ));
         }
-        if let Some(chosen) = self.literal_arg_choice(index, "index", (br, bt), (&[*key], kt), n)? {
+        if let Some(chosen) = self.literal_arg_choice(index, method, (br, bt), (&[key], kt), n)? {
             return Ok(chosen);
         }
-        self.trait_call_args(index, "index", br, bt, &[(kr, kt, *key)], n)
+        self.trait_call_args(index, method, br, bt, &[(kr, kt, key)], n)
+    }
+
+    /// Whether a known place's indexing needs the trait's returned
+    /// reference, rather than the built-in list/map element place.
+    pub(crate) fn trait_index_base(&mut self, base: NodeRef<'_>) -> bool {
+        let Some(mut t) = self.peek_place_ty(base) else {
+            return false;
+        };
+        while let Some((inner, _)) = self.ref_of(t) {
+            t = inner;
+        }
+        !matches!(self.index_kind(t), Some((Indexed::List | Indexed::Map, ..)))
+    }
+
+    /// A trait-indexed element, borrowing the receiver instead of copying
+    /// it. `evaluated` keeps a non-place base from being evaluated twice.
+    pub(crate) fn trait_index_place(
+        &mut self,
+        base: NodeRef<'_>,
+        key: NodeRef<'_>,
+        n: NodeRef<'_>,
+        mutable: bool,
+        evaluated: Option<(Ref, Ty)>,
+    ) -> StageResult<Option<crate::refs::Operand>> {
+        let receiver = match evaluated {
+            Some((r, t)) if mutable => self.stored_through(r, t, "index_mut", base),
+            Some((r, t)) => Some(self.index_receiver(r, t, base)),
+            None if mutable => self.store_receiver(base, "index_mut")?,
+            None if self
+                .peek_place_ty(base)
+                .is_some_and(|t| self.ref_of(t).is_none()) =>
+            {
+                Some(self.index_place_receiver(base)?)
+            }
+            None => {
+                let (r, t) = self.expr(base, None)?;
+                Some(self.index_receiver(r, t, base))
+            }
+        };
+        let Some((br, bt)) = receiver else {
+            return Ok(None);
+        };
+        if matches!(self.infer.resolve(self.pool(), bt), Ty::POISON | Ty::NEVER) {
+            return Ok(None);
+        }
+        let builtin = self.index_kind(bt);
+        let (kr, kt) = self.index_key_value(key, builtin)?;
+        // A borrowed string byte accepts the same unsigned offsets as a
+        // built-in byte read; its ordinary Index impl takes usize.
+        let (kr, kt) = match builtin {
+            Some((Indexed::Str, expected, _)) if !self.is_range_ty(kt) => {
+                (self.index_key((kr, kt), key, expected), expected)
+            }
+            _ => (kr, kt),
+        };
+        let (r, rt) = self.index_reference((br, bt), (kr, kt), (key, n), mutable)?;
+        let Some((inner, access)) = self.ref_of(rt) else {
+            return Ok(None);
+        };
+        Ok(Some(crate::refs::Operand::Place(crate::refs::Place {
+            root: crate::refs::Root::Deref(r, rt),
+            path: vec![],
+            ty: self.deref_ty(inner, access),
+        })))
     }
 
     /// The reference to the place `base` that an `Index` read passes as
@@ -2764,7 +2853,7 @@ impl Ck<'_, '_> {
     /// An index key, checked with the expected type its built-in receiver
     /// gives it: `usize` for a list or string, or `Range[usize]` for a
     /// range expression, so a range's literal bounds are `usize`
-    /// (`expr.index.expected`, `expr.index.expected.range`).
+    /// (`expr.index.expected`, `expr.range.expected`).
     pub(crate) fn index_key_value(
         &mut self,
         key: NodeRef<'_>,
@@ -5163,7 +5252,7 @@ impl Ck<'_, '_> {
             .direct_token(&self.cx.src.parse.tokens, TokenKind::DotDotEq)
             .is_some();
         // The expected type of the bounds: the element of an expected
-        // range type (`expr.index.expected.range`).
+        // range type (`expr.range.expected`).
         let known = self.cx.names.known;
         let bound_want = want.and_then(|w| {
             let w = self.strip_mut(w);

@@ -77,6 +77,19 @@ fn blocker(cx: (Types<'_>, &Lookup<'_>, &[Ty]), t: Ty, seen: &mut Vec<Ty>) -> Op
         TyData::Union(ms) => any(pool.list_items(ms), seen),
         TyData::Param(_) if relaxed.contains(&t) => Some(t),
         TyData::Param(p) => (!param_copies((pool, lookup), p)).then_some(t),
+        TyData::Assoc { assoc, .. } => {
+            let copies = lookup.item(assoc).is_some_and(|item| match &item.data {
+                ItemData::AssocType { bounds, .. } => bounds.iter().any(|&bound| {
+                    pool.trait_value(bound).is_some_and(|(trait_, _)| {
+                        lookup
+                            .item(trait_)
+                            .is_some_and(hd_resolve::Item::requires_copy)
+                    })
+                }),
+                _ => false,
+            });
+            (!copies).then_some(t)
+        }
         TyData::Adt { def, args } => {
             let members = match lookup.item(def)?.copy_decl() {
                 CopyDecl::Copies => return None,
@@ -323,6 +336,9 @@ impl Ck<'_, '_> {
             }
             TyData::Param(_) => {
                 format!("its type holds `{shown}`, declared `?Copy`, so it is not copied")
+            }
+            TyData::Assoc { .. } => {
+                format!("its associated type `{shown}` has no `Copy` bound, so it is not copied")
             }
             _ => "its type holds a `&mut`, so it is not copied".to_string(),
         }

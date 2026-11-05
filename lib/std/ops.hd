@@ -16,6 +16,7 @@ use std.hash.Hash
 use std.num.{Num, Integer, Float}
 use std.structure.{Structure, Source, Variant, Field, Members, Key, fills_defaults}
 use std.rt.bytes.{panic_with}
+use std.rt.memory.string_bytes
 
 # `Copy` is declared in std.core, which `List` and `Map` name.
 pub use std.core.{Copy}
@@ -137,15 +138,20 @@ pub trait Shr[Rhs = Self]:
 
 # `r[k]` and `r[k] = v` on a type other than `List`, `Map`, and `string`
 # (spec/lang/05-expressions.md#index-traits).
-## The trait of reading `r[k]`: for a receiver that is not a list, map, or string, it is the call `Index::[K]::index(&r, k)`, which borrows `r`. A non-copyable type such as `SpanMut` implements it.
-## See [expr.index.trait.std-ref](../../spec/lang/05-expressions.md#r-expr.index.trait.std-ref).
+## Lends the element place of `r[k]`. Reading copies its value; `&r[k]` borrows it.
+## See [expr.index.trait.std-places](../../spec/lang/05-expressions.md#r-expr.index.trait.std-places).
 pub trait Index[K] < ?Copy:
     type Out
-    fn index(&self, key: K) -> Self::Out
+    fn index(&self, key: K) -> &Self::Out
+
+## Lends a mutable element place for `&mut r[k]`, field writes, and compound assignment.
+## See [expr.index.trait.mutable-place](../../spec/lang/05-expressions.md#r-expr.index.trait.mutable-place).
+pub trait IndexMut[K] < ?Copy & Index[K]:
+    fn index_mut(&mut self, key: K) -> &mut Self::Out
 
 ## The trait of assigning `r[k] = v`: it is the call `IndexSet::[K, V]::index_set(r, k, v)`.
-## See [expr.index.trait.std-ref](../../spec/lang/05-expressions.md#r-expr.index.trait.std-ref).
-pub trait IndexSet[K, V] < ?Copy:
+## See [expr.index.trait.std-places](../../spec/lang/05-expressions.md#r-expr.index.trait.std-places).
+pub trait IndexSet[K, V < ?Copy] < ?Copy:
     fn index_set(&mut self, key: K, value: V) -> void
 
 # `v()` and `v() = x` on a value that is not a function: a callable value
@@ -177,7 +183,6 @@ pub trait Disposable[$ R = $ ()]:
 ## See [flow.using.async-disposable.row](../../spec/lang/06-control-flow.md#r-flow.using.async-disposable.row).
 pub trait AsyncDisposable[$ R = $ ()]:
     fn dispose!(&mut self) -> void $ R
-
 
 # The compiler-known marker for a value returned by an `@auto_closing`
 # function and registered as cleanup at its call statement.
@@ -228,8 +233,12 @@ impl[$ R, 'a, F < FnMut() -> void $ R & 'a] Disposable[$ R] for ScopeGuard[F, $ 
 # (spec/lang/05-expressions.md#r-expr.index.map.read-value).
 impl[T] Index[usize] for List[T]:
     type Out = T
-    fn index(&self, key: usize) -> T:
-        self[key]
+    fn index(&self, key: usize) -> &T:
+        &self[key]
+
+impl[T] IndexMut[usize] for List[T]:
+    fn index_mut(&mut self, key: usize) -> &mut T:
+        &mut self[key]
 
 impl[T] IndexSet[usize, T] for List[T]:
     fn index_set(&mut self, key: usize, value: T) -> void:
@@ -237,8 +246,12 @@ impl[T] IndexSet[usize, T] for List[T]:
 
 impl[K < Eq & Hash, V] Index[K] for Map[K, V]:
     type Out = V
-    fn index(&self, key: K) -> V:
-        self[key]
+    fn index(&self, key: K) -> &V:
+        &self[key]
+
+impl[K < Eq & Hash, V] IndexMut[K] for Map[K, V]:
+    fn index_mut(&mut self, key: K) -> &mut V:
+        &mut self[key]
 
 impl[K < Eq & Hash, V] IndexSet[K, V] for Map[K, V]:
     fn index_set(&mut self, key: K, value: V) -> void:
@@ -246,8 +259,10 @@ impl[K < Eq & Hash, V] IndexSet[K, V] for Map[K, V]:
 
 impl Index[usize] for string:
     type Out = u8
-    fn index(&self, key: usize) -> u8:
-        self[key]
+    fn index(&self, key: usize) -> &u8:
+        if key >= self.len():
+            panic_with("index-out-of-bounds", "string index out of bounds")
+        string_bytes(*self).offset(key).as_ref()
 
 # The range types (spec/lang/05-expressions.md#range-expressions). A range
 # expression builds one of them with no `use`, but they are not prelude
@@ -293,195 +308,6 @@ pub struct RangeTo[T]:
 pub struct RangeFull: pass
 
 # The range types compare field by field (r-std-ops.range.eq.range).
-
-# The exclusive end of a slice, checked against the container length.
-fn slice_stop(size: usize, start: u64, end: u64, inclusive: bool) -> usize:
-    let stop = end
-    if inclusive:
-        if end >= u64(size):
-            panic_with("index-out-of-bounds", "slice out of bounds")
-        stop = end + 1
-    if stop > u64(size) || start > stop:
-        panic_with("index-out-of-bounds", "slice out of bounds")
-    usize(stop)
-
-# A string slice shares its bytes and checks scalar boundaries.
-fn slice_string(text: string, start: u64, end: u64, inclusive: bool) -> string:
-    stop := slice_stop(text.len(), start, end, inclusive)
-    text.slice(usize(start), stop)
-
-# A list slice copies the selected elements.
-fn slice_list[T](items: List[T], start: u64, end: u64, inclusive: bool) -> List[T]:
-    stop := slice_stop(items.len(), start, end, inclusive)
-    let mut copy: List[T] = []
-    let index = usize(start)
-    while index < stop:
-        copy.push(items[index])
-        index = index + 1
-    copy
-
-# Slicing (spec/lang/05-expressions.md#built-in-implementations): one
-# implementation per range type, with unsigned bounds, for
-# `string` and `List`.
-impl Index[RangeFull] for string:
-    type Out = string
-    fn index(&self, key: RangeFull) -> string:
-        *self
-
-impl[T] Index[RangeFull] for List[T]:
-    type Out = List[T]
-    fn index(&self, key: RangeFull) -> List[T]:
-        slice_list(*self, 0, u64(self.len()), false)
-
-impl Index[Range[u8]] for string:
-    type Out = string
-    fn index(&self, key: Range[u8]) -> string:
-        slice_string(*self, u64(key.start), u64(key.end), key.inclusive)
-
-impl[T] Index[Range[u8]] for List[T]:
-    type Out = List[T]
-    fn index(&self, key: Range[u8]) -> List[T]:
-        slice_list(*self, u64(key.start), u64(key.end), key.inclusive)
-
-impl Index[RangeFrom[u8]] for string:
-    type Out = string
-    fn index(&self, key: RangeFrom[u8]) -> string:
-        slice_string(*self, u64(key.start), u64(self.len()), false)
-
-impl[T] Index[RangeFrom[u8]] for List[T]:
-    type Out = List[T]
-    fn index(&self, key: RangeFrom[u8]) -> List[T]:
-        slice_list(*self, u64(key.start), u64(self.len()), false)
-
-impl Index[RangeTo[u8]] for string:
-    type Out = string
-    fn index(&self, key: RangeTo[u8]) -> string:
-        slice_string(*self, 0, u64(key.end), key.inclusive)
-
-impl[T] Index[RangeTo[u8]] for List[T]:
-    type Out = List[T]
-    fn index(&self, key: RangeTo[u8]) -> List[T]:
-        slice_list(*self, 0, u64(key.end), key.inclusive)
-
-impl Index[Range[u16]] for string:
-    type Out = string
-    fn index(&self, key: Range[u16]) -> string:
-        slice_string(*self, u64(key.start), u64(key.end), key.inclusive)
-
-impl[T] Index[Range[u16]] for List[T]:
-    type Out = List[T]
-    fn index(&self, key: Range[u16]) -> List[T]:
-        slice_list(*self, u64(key.start), u64(key.end), key.inclusive)
-
-impl Index[RangeFrom[u16]] for string:
-    type Out = string
-    fn index(&self, key: RangeFrom[u16]) -> string:
-        slice_string(*self, u64(key.start), u64(self.len()), false)
-
-impl[T] Index[RangeFrom[u16]] for List[T]:
-    type Out = List[T]
-    fn index(&self, key: RangeFrom[u16]) -> List[T]:
-        slice_list(*self, u64(key.start), u64(self.len()), false)
-
-impl Index[RangeTo[u16]] for string:
-    type Out = string
-    fn index(&self, key: RangeTo[u16]) -> string:
-        slice_string(*self, 0, u64(key.end), key.inclusive)
-
-impl[T] Index[RangeTo[u16]] for List[T]:
-    type Out = List[T]
-    fn index(&self, key: RangeTo[u16]) -> List[T]:
-        slice_list(*self, 0, u64(key.end), key.inclusive)
-
-impl Index[Range[usize]] for string:
-    type Out = string
-    fn index(&self, key: Range[usize]) -> string:
-        slice_string(*self, u64(key.start), u64(key.end), key.inclusive)
-
-impl[T] Index[Range[usize]] for List[T]:
-    type Out = List[T]
-    fn index(&self, key: Range[usize]) -> List[T]:
-        slice_list(*self, u64(key.start), u64(key.end), key.inclusive)
-
-impl Index[RangeFrom[usize]] for string:
-    type Out = string
-    fn index(&self, key: RangeFrom[usize]) -> string:
-        slice_string(*self, u64(key.start), u64(self.len()), false)
-
-impl[T] Index[RangeFrom[usize]] for List[T]:
-    type Out = List[T]
-    fn index(&self, key: RangeFrom[usize]) -> List[T]:
-        slice_list(*self, u64(key.start), u64(self.len()), false)
-
-impl Index[RangeTo[usize]] for string:
-    type Out = string
-    fn index(&self, key: RangeTo[usize]) -> string:
-        slice_string(*self, 0, u64(key.end), key.inclusive)
-
-impl[T] Index[RangeTo[usize]] for List[T]:
-    type Out = List[T]
-    fn index(&self, key: RangeTo[usize]) -> List[T]:
-        slice_list(*self, 0, u64(key.end), key.inclusive)
-
-impl Index[Range[u32]] for string:
-    type Out = string
-    fn index(&self, key: Range[u32]) -> string:
-        slice_string(*self, u64(key.start), u64(key.end), key.inclusive)
-
-impl[T] Index[Range[u32]] for List[T]:
-    type Out = List[T]
-    fn index(&self, key: Range[u32]) -> List[T]:
-        slice_list(*self, u64(key.start), u64(key.end), key.inclusive)
-
-impl Index[RangeFrom[u32]] for string:
-    type Out = string
-    fn index(&self, key: RangeFrom[u32]) -> string:
-        slice_string(*self, u64(key.start), u64(self.len()), false)
-
-impl[T] Index[RangeFrom[u32]] for List[T]:
-    type Out = List[T]
-    fn index(&self, key: RangeFrom[u32]) -> List[T]:
-        slice_list(*self, u64(key.start), u64(self.len()), false)
-
-impl Index[RangeTo[u32]] for string:
-    type Out = string
-    fn index(&self, key: RangeTo[u32]) -> string:
-        slice_string(*self, 0, u64(key.end), key.inclusive)
-
-impl[T] Index[RangeTo[u32]] for List[T]:
-    type Out = List[T]
-    fn index(&self, key: RangeTo[u32]) -> List[T]:
-        slice_list(*self, 0, u64(key.end), key.inclusive)
-
-impl Index[Range[u64]] for string:
-    type Out = string
-    fn index(&self, key: Range[u64]) -> string:
-        slice_string(*self, u64(key.start), u64(key.end), key.inclusive)
-
-impl[T] Index[Range[u64]] for List[T]:
-    type Out = List[T]
-    fn index(&self, key: Range[u64]) -> List[T]:
-        slice_list(*self, u64(key.start), u64(key.end), key.inclusive)
-
-impl Index[RangeFrom[u64]] for string:
-    type Out = string
-    fn index(&self, key: RangeFrom[u64]) -> string:
-        slice_string(*self, u64(key.start), u64(self.len()), false)
-
-impl[T] Index[RangeFrom[u64]] for List[T]:
-    type Out = List[T]
-    fn index(&self, key: RangeFrom[u64]) -> List[T]:
-        slice_list(*self, u64(key.start), u64(self.len()), false)
-
-impl Index[RangeTo[u64]] for string:
-    type Out = string
-    fn index(&self, key: RangeTo[u64]) -> string:
-        slice_string(*self, 0, u64(key.end), key.inclusive)
-
-impl[T] Index[RangeTo[u64]] for List[T]:
-    type Out = List[T]
-    fn index(&self, key: RangeTo[u64]) -> List[T]:
-        slice_list(*self, 0, u64(key.end), key.inclusive)
 
 # Range iteration (spec/lang/06-control-flow.md#range-iteration): one
 # implementation over every integer type, with a concrete cursor, so a

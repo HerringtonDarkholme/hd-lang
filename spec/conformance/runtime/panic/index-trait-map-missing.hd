@@ -1,8 +1,8 @@
 # test: Map's Index implementation panics on a missing key
-# Spec 05 Built-In Implementations: expr.index.std.intrinsic, expr.index.map.read-value (Strings STR8; SSC Q8, batch 26).
+# Spec 05 Built-In Implementations: expr.index.std.hd-bodies, expr.index.map.read-value (Strings STR8; SSC Q8, batch 26).
 use std.ops.Index
 
-fn lookup[K, C < Index[K]](entries: C, key: K) -> C::Out:
+fn lookup[K, V, C < Index[K, Out = V]](entries: C, key: K) -> V:
     entries[key]
 
 ages := { "ada": 36 }

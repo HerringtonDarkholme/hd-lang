@@ -352,16 +352,20 @@ impl Ck<'_, '_> {
 
     /// The place `&e[k]` names when `e` is a list (`ref.elem.place`), the
     /// slot `k` of the list's buffer, or a map (`ref.elem.map`), the value
-    /// of the key `k`. `None` after an error; any other index is no place
-    /// to refer to.
+    /// of the key `k`. Other types lend their place through `Index` or
+    /// `IndexMut`. `None` after an error.
     pub(crate) fn elem_operand(
         &mut self,
         e: NodeRef<'_>,
+        mutable: bool,
     ) -> StageResult<Option<crate::refs::Operand>> {
         let kids: Vec<NodeRef<'_>> = e.children().collect();
         let [base, key] = kids.as_slice() else {
             return crate::body::unsupported("an index shape");
         };
+        if self.trait_index_base(*base) {
+            return self.trait_index_place(*base, *key, e, mutable, None);
+        }
         let (br, bt) = self.expr(*base, None)?;
         if matches!(self.infer.resolve(self.pool(), bt), Ty::POISON | Ty::NEVER) {
             return Ok(None);
@@ -369,12 +373,11 @@ impl Ck<'_, '_> {
         let (br, bt) = self.deref_index_base(br, bt, base.index());
         let builtin = self.index_kind(bt);
         let Some((get @ (Indexed::List | Indexed::Map), kt, vt)) = builtin else {
-            self.not_yet_index(e);
-            return Ok(None);
+            return self.trait_index_place(*base, *key, e, mutable, Some((br, bt)));
         };
         let (kr, ktt) = self.index_key_value(*key, builtin)?;
         if get == Indexed::List && self.is_range_ty(ktt) {
-            self.not_yet_index(e);
+            self.index_reference((br, bt), (kr, ktt), (*key, e), mutable)?;
             return Ok(None);
         }
         let kr = self.index_key((kr, ktt), *key, kt);
@@ -390,16 +393,6 @@ impl Ck<'_, '_> {
     /// `e` is used as `how`, where an element reference may stand.
     pub(crate) fn elem_may_stand(&mut self, e: NodeRef<'_>, how: ElemUse) {
         self.elem_ok.insert(strip_parens(e).index(), how);
-    }
-
-    /// `ref.check.not-yet-index`: a reference to an index result that is
-    /// no list element, such as a slice or a user `Index` call.
-    fn not_yet_index(&mut self, e: NodeRef<'_>) {
-        self.err(
-            Code::ReferencesNotYetChecked,
-            e,
-            "a reference to this index result is not checked yet; only a list element is a place",
-        );
     }
 
     fn map_ref_loop(

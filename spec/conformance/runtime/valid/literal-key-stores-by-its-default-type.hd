@@ -4,20 +4,26 @@
 # expect-stdout: 8
 # expect-stdout: 1007
 use std.ops.Index
+use std.ops.IndexMut
 use std.ops.IndexSet
 
 struct Table:
     size: i32
+    text: string = "a"
 
 impl Index[usize] for Table:
     type Out = i32
-    fn index(&self, key: usize) -> i32:
-        self.size + i32(key)
+    fn index(&self, key: usize) -> &i32:
+        &self.size
 
 impl Index[string] for Table:
     type Out = string
-    fn index(&self, key: string) -> string:
-        key
+    fn index(&self, key: string) -> &string:
+        &self.text
+
+impl IndexMut[usize] for Table:
+    fn index_mut(&mut self, key: usize) -> &mut i32:
+        &mut self.size
 
 impl IndexSet[usize, i32] for Table:
     fn index_set(&mut self, key: usize, value: i32) -> void:
