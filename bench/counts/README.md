@@ -9,7 +9,7 @@ hide an increase. Counts use decimal strings to preserve u64 precision.
 Build the native tool in dev mode, then check or record the table:
 
 ```sh
-CARGO_BUILD_JOBS=4 cargo build -j4 -p hd_driver --example count_ops
+CARGO_BUILD_JOBS=2 cargo build -j2 -p hd_driver --example count_ops
 HD_CACHE=target/count-ops/cache node bench/counts/run.ts
 HD_CACHE=target/count-ops/cache node bench/counts/run.ts --record --reason "Why the extra ownership work is needed"
 ```
@@ -39,3 +39,36 @@ builds keep their original loads and comparisons.
 The stage case [operation-counter-loop.hd](../../crates/hd_driver/tests/cases/counts/operation-counter-loop.hd)
 and its focused driver test execute both loop variants. The extra owner adds
 1,000 retains and 1,000 releases and fails the same comparator used by CI.
+
+## Conservative emitted sites
+
+CI also compiles only the study and runtime benchmarks and counts static
+emitted sites by reason, including std and generated runtime bodies. This
+counts the places where a module contains ownership work, independently of
+how often a benchmark executes them. The Rust corpus reader's `bench`
+selection reads no conformance, stage, example or guide files.
+
+```sh
+node bench/counts/conservative-sites.ts
+node bench/counts/conservative-sites.ts --record --reason "Why this conservative site is still needed"
+node --test bench/counts/conservative-baseline.test.ts
+```
+
+[conservative-sites.json](conservative-sites.json) limits each conservative
+reason separately. A reduction under one reason cannot hide growth under
+another. An increase or a new reason needs its measured count and a fresh
+explanation, checked against the previous commit's budget. Main refreshes
+lower limits automatically, including zero for reasons that disappear.
+Named reasons remain visible in the report without spending this budget.
+
+The command forces the optimized guest release pipeline and the complete
+benchmark set, using native dev builds with two workers. A skipped, panicked,
+missing or duplicate benchmark fails the gate. It writes `actual.json`,
+`summary.md` and raw corpus TSVs under `target/conservative-sites`; CI puts
+the reason table in its summary and uploads those artifacts.
+
+`--previous FILE` checks increase explanations against the earlier budget;
+`--output DIR` chooses scratch output. `--input DIR` reuses the corpus TSVs
+from a completed run, for review or recording without compiling again. The
+comparator tests sabotage the same CI command with one extra conservative
+site and require it to exit unsuccessfully.

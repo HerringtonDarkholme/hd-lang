@@ -254,7 +254,7 @@ jobs:
         run: bash spec/check.sh
 
   count-operations:
-    name: Dynamic count-operation budget
+    name: Ownership count budgets
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -284,7 +284,7 @@ jobs:
         run: cargo build -p hd_driver --example count_ops
 
       - name: Test count comparator
-        run: node --test bench/counts/baseline.test.ts
+        run: node --test bench/counts/baseline.test.ts bench/counts/conservative-baseline.test.ts
 
       - name: Read previous budget
         shell: bash
@@ -300,6 +300,19 @@ jobs:
           if git cat-file -e "$count_base:bench/counts/baseline.json" 2>/dev/null; then
             git show "$count_base:bench/counts/baseline.json" > target/count-ops/previous.json
           fi
+          if git cat-file -e "$count_base:bench/counts/conservative-sites.json" 2>/dev/null; then
+            git show "$count_base:bench/counts/conservative-sites.json" > target/count-ops/previous-conservative.json
+          fi
+
+      - name: Compile benchmarks and enforce conservative sites by reason
+        shell: bash
+        run: |
+          set -euo pipefail
+          site_flags=()
+          if [ "$GITHUB_REF" = refs/heads/main ]; then
+            site_flags+=(--refresh)
+          fi
+          node bench/counts/conservative-sites.ts --previous target/count-ops/previous-conservative.json "${site_flags[@]}"
 
       - name: Measure and enforce per-program totals
         shell: bash
@@ -320,6 +333,9 @@ jobs:
           if [ -f target/count-ops/summary.md ]; then
             cat target/count-ops/summary.md >> "$GITHUB_STEP_SUMMARY"
           fi
+          if [ -f target/conservative-sites/summary.md ]; then
+            cat target/conservative-sites/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Store measured counts
         if: always()
@@ -329,6 +345,10 @@ jobs:
           path: |
             target/count-ops/actual.json
             target/count-ops/summary.md
+            target/conservative-sites/actual.json
+            target/conservative-sites/summary.md
+            target/conservative-sites/build.log
+            target/conservative-sites/reports/*.tsv
           if-no-files-found: ignore
 
       - name: Refresh main's lower baseline
@@ -336,7 +356,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet -- bench/counts/baseline.json; then
+          if git diff --quiet -- bench/counts/baseline.json bench/counts/conservative-sites.json; then
             exit 0
           fi
           count_source="$(git rev-parse HEAD)"
@@ -347,8 +367,8 @@ jobs:
           fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add bench/counts/baseline.json
-          git commit -m "Refresh dynamic count-operation baseline"
+          git add bench/counts/baseline.json bench/counts/conservative-sites.json
+          git commit -m "Refresh ownership count budgets"
           if ! git push origin HEAD:main; then
             git fetch origin main
             if [ "$(git rev-parse origin/main)" != "$count_source" ]; then
