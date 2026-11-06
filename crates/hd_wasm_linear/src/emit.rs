@@ -507,7 +507,10 @@ fn body_func<'a>(
         em.open(Ctl::Exit);
     }
     em.prepare_own_loans();
-    em.prepare_short_loans();
+    if em.owned && em.input.runtime.is_some() {
+        let short_loans = hd_tir::own::short::mark(b, &em.topo, &em);
+        em.prepare_short_loans(short_loans);
+    }
     let root = b.sub_root[sub as usize];
     em.block_into(root, None)?;
     let tail = em.live_tail(root);
