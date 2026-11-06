@@ -762,6 +762,7 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     let (topo, edits) = (&scratch.topo, &mut scratch.splice);
     borrow::run(b, topo, cx, &mut scratch.borrow, edits);
     moves::run(b, topo, cx, &mut scratch.moves, edits);
+    values::capture_moves(b, topo, cx, &mut scratch.values, edits);
     pairs::write_backs(b, topo, cx, &scratch.moves, &mut scratch.pairs, edits);
     pairs::run(b, topo, cx, &mut scratch.moves, &mut scratch.pairs, edits);
     known::run(b, topo, cx, &mut scratch.known, edits);

@@ -542,6 +542,110 @@ pub fn uses_line(l: u32, uses: &[ValueUse]) -> String {
     out
 }
 
+/// A closure's `Copy` capture of all of a value local the body owns, at the
+/// value's last use, becomes a `Move` when the local's `Drop` is the next
+/// thing to touch it in the closure's block: the environment takes the
+/// local's count, and the drop goes. Not a generic local function's, whose
+/// instantiations share their captures, nor a local that holds a borrow,
+/// which has no count to give.
+pub(crate) fn capture_moves(
+    b: &mut Body,
+    topo: &Topology,
+    cx: &dyn super::OwnCx,
+    t: &mut Tables,
+    edits: &mut splice::Tables,
+) {
+    use crate::ir::{CaptureMode, sub_flags};
+    if !b.cap_mode.contains(&CaptureMode::Copy) {
+        return;
+    }
+    classify(b, &mut t.classes);
+    let mut found = Vec::new();
+    uses(b, cx, topo, &t.classes, &mut found);
+    mark_last(b, topo, &mut found);
+    for u in found {
+        let i = u.at as usize;
+        if !u.last || b.tags[i] != Tag::Closure || topo.blk[i] == NONE {
+            continue;
+        }
+        let [sub, w] = b.data[i];
+        let generic = b
+            .sub_flags
+            .get(sub as usize)
+            .is_some_and(|f| f & sub_flags::GENERIC != 0)
+            || b.is_instantiation(i);
+        let ty = b.local_ty[u.local as usize];
+        let holds_value = cx.counted(ty) && b.exit_drops.iter().any(|e| e.1.raw() == u.local)
+            || !cx.counted(ty) && cx.copies(ty) != super::Tri::Yes;
+        if generic || !holds_value || holds_borrow(b, u.local) {
+            continue;
+        }
+        let [start, len] = b.record(w)[..2] else {
+            continue;
+        };
+        let capture = (start..start + len).find(|&c| {
+            let c = c as usize;
+            b.cap_local[c].raw() == u.local && b.cap_mode[c] == CaptureMode::Copy
+        });
+        let drop = next_touch_in_block(b, topo, u32_of(i), u.local);
+        if let (Some(c), Some(d)) = (capture, drop) {
+            b.cap_mode[c as usize] = CaptureMode::Move;
+            edits.remove(d);
+        }
+    }
+}
+
+/// Whether a borrow is stored into all of local `l`.
+fn holds_borrow(b: &Body, l: u32) -> bool {
+    (0..b.len()).any(|i| {
+        b.tags[i] == Tag::Store && {
+            let p = b.view(b.data[i][0]);
+            p.local() == Some(l) && p.whole() && b.loan_read(b.data[i][1]).is_some()
+        }
+    })
+}
+
+/// The whole `Drop` of local `l` that follows statement `x` in its block,
+/// when nothing between them touches `l` or a value read from it.
+fn next_touch_in_block(b: &Body, topo: &Topology, x: u32, l: u32) -> Option<u32> {
+    let blk = topo.blk[x as usize];
+    let list = b.record(b.data[blk as usize][0]);
+    let from_l = |v: u32| {
+        (v as usize) < b.len()
+            && b.tags[v as usize] == Tag::Read
+            && b.view(b.data[v as usize][0]).local() == Some(l)
+    };
+    let mut ops = Vec::new();
+    for &m in &list[topo.pos[x as usize] as usize + 1..] {
+        for j in topo.first[m as usize]..=m {
+            let k = j as usize;
+            let tag = b.tags[k];
+            let named = matches!(
+                tag,
+                Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique
+            );
+            let p = named.then(|| b.view(b.data[k][0]));
+            if j == m && tag == Tag::Drop && p.is_some_and(|p| p.whole() && p.local() == Some(l)) {
+                return Some(m);
+            }
+            let captures = tag == Tag::Closure && {
+                let rec = b.record(b.data[k][1]);
+                b.cap_local[rec[0] as usize..(rec[0] + rec[1]) as usize]
+                    .iter()
+                    .any(|c| c.raw() == l)
+            };
+            super::operands(b, k, &mut ops);
+            if captures
+                || p.is_some_and(|p| p.local() == Some(l) || p.value().is_some_and(from_l))
+                || ops.iter().any(|o| from_l(o.value))
+            {
+                return None;
+            }
+        }
+    }
+    None
+}
+
 /// The pass's tables, reused across bodies.
 #[derive(Default)]
 pub(crate) struct Tables {
