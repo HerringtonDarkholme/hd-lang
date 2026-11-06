@@ -982,6 +982,9 @@ impl Session {
 #[derive(Default)]
 pub struct Module {
     pub track_origins: bool,
+    /// Collected initializer identities, including fixture roots without an
+    /// entry helper. Only closed-world links use them for constant storage.
+    pub init_insts: Vec<Hash128>,
     /// Initialized session interfaces can receive callers from later modules.
     pub open_world: bool,
     /// Reachable package capabilities and their generated adapter schemas.
@@ -1610,25 +1613,21 @@ impl Module {
         for f in self.funcs.iter_mut().flatten() {
             f.resolve_statics(previous.map(|_| Global::SessionData));
         }
-        crate::opt::constants(&mut self.funcs, &self.symbols);
-        for f in self.funcs.iter_mut().flatten() {
-            crate::opt::fold_constant_branches(f);
-        }
         let mut arity = vec![None; self.symbols.len()];
         for (k, f) in self.funcs.iter().enumerate() {
             if let Some(f) = f {
                 arity[k] = Some((f.params.len(), f.results.len()));
             }
         }
+        let inits = if session || self.open_world {
+            &[][..]
+        } else {
+            &self.init_insts
+        };
+        crate::opt::constants(&mut self.funcs, &self.symbols, inits, &arity);
         for f in self.funcs.iter_mut().flatten() {
+            crate::opt::fold_constant_branches(f);
             crate::opt::locals(f, &arity);
-        }
-        // A helper the folds above emptied leaves calls that do nothing.
-        let quiet = crate::opt::effect_free_calls(&mut self.funcs, &self.symbols);
-        for (f, changed) in self.funcs.iter_mut().zip(quiet) {
-            if let Some(f) = f.as_mut().filter(|_| changed) {
-                crate::opt::locals(f, &arity);
-            }
         }
         // Retained fixture roots are entered by the harness, and a suspending
         // body can resume with frame-loaded arguments that no direct call site
@@ -1666,6 +1665,13 @@ impl Module {
                 }
             }
         }
+        // A helper the folds above emptied leaves calls that do nothing.
+        let quiet = crate::opt::effect_free_calls(&mut self.funcs, &self.symbols);
+        for (f, changed) in self.funcs.iter_mut().zip(quiet) {
+            if let Some(f) = f.as_mut().filter(|_| changed) {
+                crate::opt::locals(f, &arity);
+            }
+        }
         // Checked mode keeps every count a call, so its runtime audits them.
         if self.inline_counts && self.runtime.is_some_and(|r| r.checked.is_none()) {
             let mut inlined = false;
@@ -1684,6 +1690,22 @@ impl Module {
         }
         for f in self.funcs.iter_mut().flatten() {
             crate::opt::coalesce(f);
+            if crate::opt::drops(f) {
+                crate::opt::locals(f, &arity);
+            }
+        }
+        if !session && !self.open_world {
+            for id in 0..self.funcs.len() {
+                let Some(mut f) = self.funcs[id].take() else {
+                    continue;
+                };
+                if crate::tables::lower(&mut f, |bytes, align| self.static_bytes(bytes, align)) {
+                    f.resolve_statics(None);
+                    crate::opt::locals(&mut f, &arity);
+                    crate::opt::coalesce(&mut f);
+                }
+                self.funcs[id] = Some(f);
+            }
         }
         for f in self.funcs.iter_mut().flatten() {
             crate::bulk::lower(f);

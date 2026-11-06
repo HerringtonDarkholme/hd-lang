@@ -300,8 +300,6 @@
   (func $parse (param $text.0 i32) (param $text.1 i32) (result i32 i64) (local $t0 i64)
     block
     ;; 45 |     if text.len() > 3:
-      local.get $text.0
-      drop
       block
         block
           local.get $text.1
@@ -472,8 +470,6 @@
     ;; 50 |     value := parse(text)?
       block
         block
-          local.get $text.0
-          drop
           block
             block
               local.get $text.1

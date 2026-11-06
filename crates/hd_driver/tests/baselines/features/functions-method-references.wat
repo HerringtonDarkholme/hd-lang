@@ -90,8 +90,6 @@
       local.set $env
       block
         block
-          local.get $env
-          drop
           block
             block
               local.get $u.name.1
@@ -171,8 +169,6 @@
   (func $"impl User.name_len" (param $self.name.0 i32) (param $self.name.1 i32) (result i32)
     block
     ;; 13 |         self.name.len()
-      local.get $self.name.0
-      drop
       block
         block
           local.get $self.name.1
@@ -230,8 +226,6 @@
       local.set $env
       block
         block
-          local.get $env
-          drop
           block
             block
               br 0

@@ -10,8 +10,6 @@
   (func $unused (param $s.0 i32) (param $s.1 i32) (result i32)
     block
     ;; 20 |     s.len()
-      local.get $s.0
-      drop
       block
         block
           local.get $s.1
@@ -26,8 +24,6 @@
   (func $save (param $s.0 i32) (param $s.1 i32) (result i32 i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     block
     ;; 11 |     if s.len() > 0: .Ok(s + "!") else: .Err(SaveError.Failed("empty"))
-      local.get $s.0
-      drop
       block
         block
           local.get $s.1

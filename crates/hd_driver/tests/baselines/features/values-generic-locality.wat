@@ -97,8 +97,6 @@
       local.get $u.name.0
       call $rt:release_ref'1
     ;; 34 |     later(kept)().name.len()
-      local.get $u.name.1
-      drop
       block
         block
           local.get $t0

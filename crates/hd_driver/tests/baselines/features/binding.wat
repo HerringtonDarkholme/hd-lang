@@ -44,10 +44,7 @@
   )
   (func $bind (param $s.0 i32) (param $s.1 i32) (result i32)
     block
-    ;; 8 |     t := s
-      local.get $s.0
     ;; 10 |     u.len()
-      drop
       block
         block
           local.get $s.1

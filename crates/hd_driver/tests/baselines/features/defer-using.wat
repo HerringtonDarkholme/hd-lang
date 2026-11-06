@@ -165,8 +165,6 @@
         i32.const 1
         local.set $log
     ;; 20 |     s.len()
-        local.get $s.0
-        drop
         block
           block
             br 0

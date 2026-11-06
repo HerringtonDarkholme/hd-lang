@@ -7,8 +7,6 @@
   (func $save (param $s.0 i32) (param $s.1 i32) (result i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     block
     ;; 7 |     if s.len() > 0:
-      local.get $s.0
-      drop
       block
         block
           local.get $s.1
@@ -59,8 +57,6 @@
     ;; 12 |     match save(s):
       block
         block
-          local.get $s.0
-          drop
           block
             block
               local.get $s.1

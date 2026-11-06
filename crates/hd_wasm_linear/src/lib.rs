@@ -22,6 +22,7 @@ mod opt;
 mod origins;
 mod rt;
 mod scan;
+mod tables;
 mod task;
 pub mod views;
 mod wide;
@@ -684,6 +685,7 @@ fn link(
     let mut m = module::Module::default();
     m.track_origins = track_origins;
     m.open_world = session.is_some() || matches!(input.entry, Entry::Inputs(_));
+    m.init_insts.clone_from(&input.collected.inits);
     let mut canons = CanonMemo::default();
     for calls in &input.collected.calls {
         for target in calls.values() {

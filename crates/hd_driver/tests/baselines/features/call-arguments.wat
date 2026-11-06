@@ -139,8 +139,6 @@
   (func $by_value (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     block
     ;; 10 |     (s.len() + 1) * (s.len() + 2) * (s.len() + 3) * (s.len() + 4) / (s.len() + 5)
-      local.get $s.0
-      drop
       block
         block
           local.get $s.1
@@ -152,8 +150,6 @@
       i32.const 1
       i32.add
       local.set $t0
-      local.get $s.0
-      drop
       block
         block
           local.get $s.1
@@ -167,8 +163,6 @@
       i32.add
       i32.mul
       local.set $t0
-      local.get $s.0
-      drop
       block
         block
           local.get $s.1
@@ -182,8 +176,6 @@
       i32.add
       i32.mul
       local.set $t0
-      local.get $s.0
-      drop
       block
         block
           local.get $s.1
@@ -197,8 +189,6 @@
       i32.add
       i32.mul
       local.set $t0
-      local.get $s.0
-      drop
       block
         block
           local.get $s.1
@@ -405,8 +395,6 @@
   (func $by_ref'2 (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     block
     ;; 13 |     (s.len() + 1) * (s.len() + 2) * (s.len() + 3) * (s.len() + 4) / (s.len() + 5)
-      local.get $s.0
-      drop
       block
         block
           local.get $s.1
@@ -418,8 +406,6 @@
       i32.const 1
       i32.add
       local.set $t0
-      local.get $s.0
-      drop
       block
         block
           local.get $s.1
@@ -433,8 +419,6 @@
       i32.add
       i32.mul
       local.set $t0
-      local.get $s.0
-      drop
       block
         block
           local.get $s.1
@@ -448,8 +432,6 @@
       i32.add
       i32.mul
       local.set $t0
-      local.get $s.0
-      drop
       block
         block
           local.get $s.1
@@ -463,8 +445,6 @@
       i32.add
       i32.mul
       local.set $t0
-      local.get $s.0
-      drop
       block
         block
           local.get $s.1

@@ -30,8 +30,6 @@
     ;; (no span)
       call $rt:release_ref'1
     ;; 12 |     key.len()
-      local.get $key.0
-      drop
       block
         block
           local.get $key.1

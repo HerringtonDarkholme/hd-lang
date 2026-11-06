@@ -62,22 +62,16 @@
             local.get $o.0
             i32.const 1
             i32.eq
-            if
-              br 1
-            else
+            br_if 0
     ;; 9 |         .None => 0
-              local.get $o.0
-              i32.eqz
-              br_if 2
-              unreachable
-    ;; 8 |         .Some(s) => s.len()
-            end
+            local.get $o.0
+            i32.eqz
+            br_if 1
+            unreachable
     ;; 7 |     match o:
             unreachable
           end
     ;; 8 |         .Some(s) => s.len()
-          local.get $o.1
-          drop
           block
             block
               local.get $o.2

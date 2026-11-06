@@ -624,6 +624,54 @@ fn session_base_does_not_assume_future_views_and_cancellation_are_absent() {
     assert_eq!(constants, [0, 1]);
 }
 
+/// Literal shared-data values cross the old value's release through a
+/// temporary. Collected init roots need no entry helper to expose them;
+/// an open session must still read storage that future inputs can change.
+#[test]
+fn collected_init_constants_cross_temporaries_only_in_closed_programs() {
+    for session in [false, true] {
+        let mut m = Module::default();
+        let init = Hash128(1388);
+        let field = crate::module::Global::Storage(Hash128(1389), 0, Val::I32);
+        let length = crate::module::Global::Storage(Hash128(1389), 1, Val::I32);
+        m.init_insts.push(init);
+        let mut f = m.func("init", vec![], vec![]);
+        let value = f.local(Val::I32);
+        f.i32(42);
+        f.set(value);
+        f.global_get(field);
+        f.helper(Helper::ReleaseRef);
+        f.get(value);
+        f.i32(9);
+        f.global_set(length);
+        f.global_set(field);
+        m.define(Sym::Inst(init), f);
+        m.export("init", Sym::Inst(init));
+        let mut f = m.func("read", vec![], vec![Val::I32]);
+        f.global_get(field);
+        m.define(Sym::Inst(Hash128(1390)), f);
+        m.export("read", Sym::Inst(Hash128(1390)));
+        let wasm = if session {
+            m.finish_session(true).expect("session").0.wasm
+        } else {
+            m.finish().expect("closed program")
+        };
+        validate(&wasm);
+        let mut sets = 0;
+        for payload in wasmparser::Parser::new(0).parse_all(&wasm) {
+            if let wasmparser::Payload::CodeSectionEntry(body) = payload.expect("payload") {
+                for op in body.get_operators_reader().expect("operators") {
+                    sets += usize::from(matches!(
+                        op.expect("operator"),
+                        wasmparser::Operator::GlobalSet { .. }
+                    ));
+                }
+            }
+        }
+        assert_eq!(sets, 2 * usize::from(session));
+    }
+}
+
 /// An open-world base gives every allocation an exact descriptor alias before
 /// a later input first constructs a weak value. Extensions reuse that alias
 /// and type id, while the next concrete type appends both identities.

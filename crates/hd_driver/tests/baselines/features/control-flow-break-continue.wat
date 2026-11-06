@@ -54,9 +54,7 @@
             i32.const 65 ;; &"!"
             i32.load8_u $heap
             i32.store8 $heap
-            local.get $t.0
     ;; 11 |         if t.len() < 3:
-            drop
             block
               block
                 local.get $t.1
@@ -75,8 +73,6 @@
     ;; 11 |         if t.len() < 3:
             end
     ;; 13 |         if t.len() > 9:
-            local.get $t.0
-            drop
             block
               block
                 local.get $t.1
@@ -95,8 +91,6 @@
     ;; 13 |         if t.len() > 9:
             end
     ;; 15 |         n += t.len()
-            local.get $t.0
-            drop
             block
               block
                 local.get $t.1

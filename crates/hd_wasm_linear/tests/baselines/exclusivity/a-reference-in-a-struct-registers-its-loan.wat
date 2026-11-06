@@ -51,8 +51,6 @@
         call $rt:panic
         unreachable
       end
-      i32.const 65 ;; &"b"
-      drop
       local.get $alias
       i32.load $heap
       local.get $alias
@@ -202,8 +200,6 @@
         call $rt:panic
         unreachable
       end
-      i32.const 65 ;; &"b"
-      drop
       local.get $alias
       i32.load $heap
       local.get $alias
@@ -414,8 +410,6 @@
         call $rt:panic
         unreachable
       end
-      i32.const 65 ;; &"b"
-      drop
       local.get $alias
       i32.load $heap
       local.get $alias

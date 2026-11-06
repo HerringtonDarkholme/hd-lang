@@ -62,8 +62,6 @@
   (func $measure (param $label.0 i32) (param $label.1 i32) (param $body.0 i32) (param $body.1 i32) (result i32)
     block
     ;; 8 |     label.len() + body().len()
-      local.get $label.0
-      drop
       block
         block
           local.get $label.1

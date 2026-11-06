@@ -84,8 +84,6 @@
       local.set $s.0
       block
         block
-          local.get $s.0
-          drop
           block
             block
               br 0

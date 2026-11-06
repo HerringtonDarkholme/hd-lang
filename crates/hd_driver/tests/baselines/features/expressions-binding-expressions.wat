@@ -7,8 +7,6 @@
   (func $guard (param $s.0 i32) (param $s.1 i32) (result i32)
     block
     ;; 7 |     if (n := s.len()) > 0: n else: 0
-      local.get $s.0
-      drop
       block
         block
           local.get $s.1
@@ -65,8 +63,6 @@
       i32.const 65 ;; &"!"
       i32.load8_u $heap
       i32.store8 $heap
-      local.get $t.0
-      drop
       block
         block
           local.get $t.1
@@ -78,8 +74,6 @@
       i32.const 3
       i32.gt_u
       if
-        local.get $t.0
-        drop
         block
           block
             local.get $t.1

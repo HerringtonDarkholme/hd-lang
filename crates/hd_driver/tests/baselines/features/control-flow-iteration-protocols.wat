@@ -160,8 +160,6 @@
                 unreachable
               end
     ;; 28 |         n += x.len()
-              local.get $x.0
-              drop
               block
                 block
                   local.get $x.1
@@ -246,8 +244,6 @@
                 unreachable
               end
     ;; 30 |         n += x.len()
-              local.get $t1
-              drop
               block
                 block
                   local.get $x.0
@@ -368,8 +364,6 @@
                 unreachable
               end
     ;; 22 |         n += w.len()
-              local.get $words.at
-              drop
               block
                 block
                   local.get $w.1

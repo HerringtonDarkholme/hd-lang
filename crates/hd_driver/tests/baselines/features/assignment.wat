@@ -31,10 +31,7 @@
   )
   (func $assign (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32)
     block
-    ;; 8 |     s = b
-      local.get $b.0
     ;; 9 |     s.len()
-      drop
       block
         block
           local.get $b.1

@@ -119,8 +119,6 @@
                 unreachable
               end
     ;; 12 |         n += x.len()
-              local.get $x.0
-              drop
               block
                 block
                   local.get $x.1
