@@ -165,8 +165,11 @@ fn text_corpus_round_trips_and_verifies() {
     );
 }
 
-/// Tags no valid body holds: a reserved slot (invariant 14), and tier 2's
-/// borrow flags (invariant 23).
+/// Tags no valid body holds: a reserved slot (invariant 14), tier 2's
+/// borrow flags (invariant 23), and `LoanEnd`, which no pass writes yet.
 fn reserved(tag: Tag) -> bool {
-    matches!(tag, Tag::Hole | Tag::FlagSet | Tag::FlagClear)
+    matches!(
+        tag,
+        Tag::Hole | Tag::FlagSet | Tag::FlagClear | Tag::LoanEnd
+    )
 }

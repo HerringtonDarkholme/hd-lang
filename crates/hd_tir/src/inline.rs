@@ -116,6 +116,7 @@ pub fn copyable(c: &Body) -> bool {
                 | Tag::Hole
                 | Tag::Poison
                 | Tag::Drop
+                | Tag::LoanEnd
                 | Tag::IsUnique
                 | Tag::FlagSet
                 | Tag::FlagClear

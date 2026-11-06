@@ -309,7 +309,7 @@ pub(crate) fn suite_touches(
 ) {
     inside(b, roots, stack, |i| {
         match b.tags[i] {
-            Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique => {
+            Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::LoanEnd | Tag::IsUnique => {
                 if let Some(l) = b.view(b.data[i][0]).local() {
                     local(l);
                 }
@@ -403,6 +403,7 @@ pub(crate) fn owned_value(b: &Body, i: usize) -> bool {
         Tag::Block
             | Tag::Store
             | Tag::Drop
+            | Tag::LoanEnd
             | Tag::IsUnique
             | Tag::FlagSet
             | Tag::FlagClear
@@ -1402,7 +1403,7 @@ pub(crate) mod tests {
             let mut line = format!("%{i} {}", tag.name());
             if matches!(
                 tag,
-                Tag::Read | Tag::Drop | Tag::Store | Tag::Ref | Tag::IsUnique
+                Tag::Read | Tag::Drop | Tag::LoanEnd | Tag::Store | Tag::Ref | Tag::IsUnique
             ) && let Some(p) = b.decode_place(b.data[i][0])
             {
                 if tag == Tag::Read

@@ -771,6 +771,7 @@ fn tags_only(body: &Body, root: u32) -> bool {
                     | Tag::Store
                     | Tag::Ref
                     | Tag::Drop
+                    | Tag::LoanEnd
                     | Tag::IsUnique
                     | Tag::FlagSet
                     | Tag::FlagClear
@@ -823,7 +824,10 @@ fn tags_only(body: &Body, root: u32) -> bool {
                     values[i] = true;
                     changed = true;
                 }
-            } else if matches!(tag, Tag::Drop | Tag::FlagSet | Tag::FlagClear) {
+            } else if matches!(
+                tag,
+                Tag::Drop | Tag::LoanEnd | Tag::FlagSet | Tag::FlagClear
+            ) {
                 if used {
                     return false;
                 }

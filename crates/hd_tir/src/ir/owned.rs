@@ -869,7 +869,7 @@ impl<'a> Empties<'a> {
             let empties = match b.tags[i] {
                 Tag::Read => b.data[i][1] == ReadMode::Move as u32 && !ptr,
                 Tag::Ref => b.data[i][1] & super::ref_word::TAKES != 0,
-                Tag::Drop => true,
+                Tag::Drop | Tag::LoanEnd => true,
                 _ => false,
             };
             if empties && cx.places[i].is_some() {
@@ -944,8 +944,10 @@ impl<'a> Empties<'a> {
     /// that a reference or a closure reaches lives in a cell, whose holders
     /// keep it, so only a read of the local itself sees it empty.
     fn empties(&self, e: u32, p: &Place, q: &Place) -> bool {
-        if matches!(self.cx.b.tags[e as usize], Tag::Read | Tag::Drop | Tag::Ref)
-            && matches!(p.root, PlaceRoot::Local(_))
+        if matches!(
+            self.cx.b.tags[e as usize],
+            Tag::Read | Tag::Drop | Tag::LoanEnd | Tag::Ref
+        ) && matches!(p.root, PlaceRoot::Local(_))
             && p.proj.is_empty()
         {
             return p.root == q.root;
@@ -993,7 +995,7 @@ impl Forward for Empties<'_> {
                 self.check(x, st);
                 self.empty(x, st);
             }
-            Tag::Drop => self.empty(x, st),
+            Tag::Drop | Tag::LoanEnd => self.empty(x, st),
             Tag::Store => self.refill(x, st),
             _ => {}
         }
@@ -1648,7 +1650,7 @@ impl<'a> Balance<'a> {
             {
                 self.local_part(x, l, st);
             }
-            Tag::Drop if a & place::BARE_LOCAL != 0 => {
+            Tag::Drop | Tag::LoanEnd if a & place::BARE_LOCAL != 0 => {
                 self.set_full(st, (a & !place::BARE_LOCAL) as usize, false);
             }
             Tag::Read if a & place::BARE_LOCAL != 0 && w == ReadMode::Move as u32 => {

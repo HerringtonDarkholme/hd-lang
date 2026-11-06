@@ -1971,6 +1971,11 @@ impl Em<'_, '_, '_> {
             }
             // The ownership passes' statements, in an owned body
             // (`count.rs`); the checker's TIR has none (invariant 22).
+            Tag::LoanEnd if self.owned => {
+                self.borrow_drop(i);
+                self.end_short_loan(i)?;
+                self.own_loan_end(i)?;
+            }
             Tag::Drop if self.owned => {
                 self.borrow_drop(i);
                 self.end_short_loan(i)?;
@@ -1980,7 +1985,7 @@ impl Em<'_, '_, '_> {
             }
             Tag::IsUnique if self.short_skips.contains(&i) => {}
             Tag::IsUnique => self.own_unique(i)?,
-            Tag::Drop | Tag::FlagSet | Tag::FlagClear => {
+            Tag::Drop | Tag::LoanEnd | Tag::FlagSet | Tag::FlagClear => {
                 return unsupported(format!(
                     "an ownership statement `{}` the backend does not lower here",
                     self.b.tags[i as usize].name()

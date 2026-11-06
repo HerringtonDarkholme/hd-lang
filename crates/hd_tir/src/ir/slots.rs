@@ -97,7 +97,7 @@ fn layout(tag: Tag) -> [Layout; 2] {
     let consume = Word::Value(Role::Consume);
     match tag {
         Tag::Block => [L::Each(Word::Inst), L::One(Word::Value(Role::Tail))],
-        Tag::Drop => [L::Place(Role::Dropped), b],
+        Tag::Drop | Tag::LoanEnd => [L::Place(Role::Dropped), b],
         Tag::Store | Tag::Break => [a, L::One(consume)],
         Tag::Return => [L::One(consume), b],
         Tag::Call | Tag::Await => [a, L::Call],
