@@ -2468,7 +2468,11 @@ fn run_all(cases: &[Case], store: &MemoryStore) -> Vec<Verdict> {
                         let trace = std::env::var("HD_CONFORMANCE_PIPELINE")
                             .is_ok_and(|p| p == "optimized");
                         if trace {
-                            eprintln!("conformance-start\t{}", case.path);
+                            let _ = writeln!(
+                                std::io::stderr().lock(),
+                                "conformance-start\t{}",
+                                case.path
+                            );
                         }
                         let started = timings.then(Instant::now);
                         let verdict =
@@ -2480,7 +2484,11 @@ fn run_all(cases: &[Case], store: &MemoryStore) -> Vec<Verdict> {
                                     Verdict::Crash(message.to_owned())
                                 });
                         if trace {
-                            eprintln!("conformance-end\t{}", case.path);
+                            let _ = writeln!(
+                                std::io::stderr().lock(),
+                                "conformance-end\t{}",
+                                case.path
+                            );
                         }
                         if let Some(started) = started {
                             eprintln!(
