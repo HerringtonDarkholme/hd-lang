@@ -11,6 +11,45 @@ use hd_types::Ty;
 use super::{OwnCx, fill};
 use crate::ir::{Body, NONE, ReadMode, Tag, place, u32_of};
 
+/// An unaddressed owned value whose selected tag-switch block can only
+/// receive in-place variants with no counted fields. Every case sharing
+/// the block must qualify; defaults, unknown layouts and writable aliases do not.
+pub(crate) fn empty_variant(
+    b: &Body,
+    cx: &dyn OwnCx,
+    x: u32,
+    block: u32,
+    parts: &mut Vec<Ty>,
+) -> Option<u32> {
+    if b.tags[x as usize] != Tag::SwitchTag {
+        return None;
+    }
+    let [value, record] = b.data[x as usize];
+    let v = crate::ir::Ref(value).as_inst()?.0 as usize;
+    if v >= b.len() || b.is_borrow(value) || !cx.counted(b.ty[v]) {
+        return None;
+    }
+    let cases = b.record(record);
+    let (&default, cases) = cases.split_last()?;
+    if default == block {
+        return None;
+    }
+    let mut found = false;
+    for case in cases.chunks_exact(2).filter(|case| case[1] == block) {
+        if !cx.parts(b.ty[v], Some(case[0]), parts) || parts.iter().any(|&ty| cx.counted(ty)) {
+            return None;
+        }
+        found = true;
+    }
+    // Scan aliases only for a branch that can actually lose a count.
+    (found
+        && !(0..b.len()).any(|i| {
+            matches!(b.tags[i], Tag::Ref | Tag::Store)
+                && b.view(b.data[i][0]).value() == Some(value)
+        }))
+    .then_some(value)
+}
+
 /// The `move` reads and the `Drop`s that `drop` keeps, by index, with the
 /// place word each takes all or a part of.
 pub(crate) fn takes(b: &Body, drop: impl Fn(usize) -> bool) -> impl Iterator<Item = (usize, u32)> {

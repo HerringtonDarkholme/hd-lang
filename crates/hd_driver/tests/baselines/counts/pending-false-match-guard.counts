@@ -15,7 +15,6 @@ app/main/main
   release string (last use)
   release string (last use)
   release string (overwritten)
-  (no span) release app.main.Message (last use)
   (no span) retain string (conservative: copy read)
   (no span) release string (last use)
   (no span) release string (last use)

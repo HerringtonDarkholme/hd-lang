@@ -231,11 +231,8 @@
     ;; 27 |         .None => ""
               local.get $t
               i32.eqz
-              if
-                br 3
-              else
-                unreachable
-              end
+              br_if 2
+              unreachable
     ;; 26 |         .Some(name) => *name
             end
     ;; 25 |     match held:

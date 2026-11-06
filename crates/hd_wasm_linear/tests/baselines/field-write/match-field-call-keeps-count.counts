@@ -13,6 +13,5 @@ fn value(node: &Node) -> i64:
 > app/main/value
 >   retain &app.main.Node? (second owner)
         .None => 0
->   release &app.main.Node? (last use)
         .Some(left) => read(left)
 >   (no span) release &app.main.Node (last use)

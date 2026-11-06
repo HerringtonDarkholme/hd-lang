@@ -1425,6 +1425,7 @@ struct Balance<'a> {
     /// its parts cover every counted leaf.
     slots: Slots,
     pwords: usize,
+    variant_parts: Vec<hd_types::Ty>,
     /// The exit set of the sub-body being walked, by local, and the locals
     /// the passes own: a counted type's, or one a cell may hold.
     exit: Vec<bool>,
@@ -1483,6 +1484,7 @@ impl<'a> Balance<'a> {
             lwords: b.local_ty.len().div_ceil(64),
             slots,
             pwords,
+            variant_parts: Vec::new(),
             exit: vec![false; b.local_ty.len()],
             owned: held,
             ops: Vec::new(),
@@ -1817,6 +1819,17 @@ impl Forward for Balance<'_> {
             self.used(x, op.value, consumed, s.row_mut(st));
         }
         self.ops = ops;
+    }
+
+    fn case(&mut self, b: &Body, x: u32, blk: u32, s: &mut BitArena, st: usize) {
+        if let Some(v) =
+            crate::own::parts::empty_variant(b, self.cx, x, blk, &mut self.variant_parts)
+        {
+            let k = self.num[v as usize];
+            if k != NONE {
+                self.put(s.row_mut(st), 0, k, false);
+            }
+        }
     }
 
     fn leave(&mut self, _: &Body, x: u32, s: &mut BitArena, st: usize) {
