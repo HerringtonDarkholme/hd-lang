@@ -23,4 +23,7 @@ fn lookup(m: &UniqMap[string, string], k: string) -> usize:
 fn group(m: &mut UniqMap[string, UniqList[string]], k: string, v: string) -> void:
     m.get_or_insert(k, UniqList::new()).push(v)
 > app/main/group
+>   release &std.rt.memory.Buffer[string] (view)
+>   release &std.rt.memory.Buffer[string] (view)
+>   release counted reference (conservative: Store)
 >   (no span) release &mut std.collections.UniqList[string] (view)

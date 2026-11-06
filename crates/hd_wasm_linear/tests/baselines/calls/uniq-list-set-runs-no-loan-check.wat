@@ -2,11 +2,11 @@
 (module
   (import "fixture" "room" (func $room (param i32 i32) (result i32)))
   (import "fixture" "rt:new/class-3" (func $rt:new/class-3 (param i32 i32) (result i32)))
-  (import "fixture" "impl [ T < ? Copy ] UniqList [ T ].push[f64]" (func $"impl [ T < ? Copy ] UniqList [ T ].push[f64]" (param i32 f64)))
+  (import "fixture" "impl [ T < ? Copy ] UniqList [ T ].reserve_for[f64]" (func $"impl [ T < ? Copy ] UniqList [ T ].reserve_for[f64]" (param i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $fill (param $n i32) (result i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 f64)
+  (func $fill (param $n i32) (result i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 f64) (local $t5 i32)
     block
     ;; 7 |     let mut xs = UniqList::[f64].with_capacity(n)
       block
@@ -69,9 +69,65 @@
           i32.add
           local.set $t3
     ;; 9 |         xs.push(0.0)
-          local.get $t0
-          f64.const 0x0p+0
-          call $"impl [ T < ? Copy ] UniqList [ T ].push[f64]"
+          block
+            block
+              local.get $t0
+              local.set $t1
+              block
+                block
+                  local.get $t1
+                  i32.load $heap offset=8
+                  local.set $t1
+                  br 0
+                end
+              end
+              local.get $t0
+              local.set $t2
+              block
+                block
+                  local.get $t2
+                  i32.load $heap offset=4
+                  local.set $t2
+                  br 0
+                end
+              end
+              local.get $t2
+              local.get $t1
+              i32.le_u
+              if
+                local.get $t0
+                local.get $t1
+                i32.const 1
+                i32.add
+                call $"impl [ T < ? Copy ] UniqList [ T ].reserve_for[f64]"
+              end
+              local.get $t0
+              local.set $t2
+              block
+                block
+                  local.get $t2
+                  i32.load $heap
+                  local.get $t1
+                  i32.const 8
+                  i32.mul
+                  i32.add
+                  local.set $t2
+                  br 0
+                end
+              end
+              local.get $t2
+              local.get $t4
+              f64.store $heap
+              local.get $t1
+              i32.const 1
+              i32.add
+              local.set $t1
+              local.get $t0
+              local.get $t1
+              i32.store $heap offset=8
+              br 0
+            end
+          end
     ;; 8 |     for i in 0..n:
           br 0
         end
@@ -79,20 +135,20 @@
     ;; 10 |     for i in 0..n:
       block
         loop
-          local.get $t4
+          local.get $t5
           local.get $n
           i32.lt_u
           i32.eqz
           br_if 1
-          local.get $t4
-          local.get $t4
+          local.get $t5
+          local.get $t5
           i32.const 1
           i32.add
-          local.set $t4
+          local.set $t5
     ;; 11 |         xs[i] = 1.0
           local.set $t1
           f64.const 0x1p+0
-          local.set $t5
+          local.set $t4
           block
             block
               local.get $t0
@@ -137,7 +193,7 @@
                 end
               end
               local.get $t1
-              local.get $t5
+              local.get $t4
               f64.store $heap
               br 0
             end

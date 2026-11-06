@@ -690,6 +690,7 @@ impl[T < ?Copy] UniqList[T]:
 
     ## Moves `value` onto the end of the list.
     ## See [std-collections.uniq-list.push](../../spec/std/collections.md#r-std-collections.uniq-list.push).
+    @inline
     pub fn push(&mut self, value: T) -> void:
         size := self.len()
         if self.buffer.capacity() <= size:

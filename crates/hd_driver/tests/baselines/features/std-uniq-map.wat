@@ -4,12 +4,18 @@
   (import "fixture" "rt:release'1" (func $rt:release'1 (param i32 i32 i32)))
   (import "fixture" "room" (func $room (param i32 i32) (result i32)))
   (import "fixture" "impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].get_or_insert[string, std.collections.UniqList[string]]" (func $"impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].get_or_insert[string, std.collections.UniqList[string]]" (param i32 i32 i32 i32 i32 i32) (result i32)))
-  (import "fixture" "impl [ T < ? Copy ] UniqList [ T ].push[string]" (func $"impl [ T < ? Copy ] UniqList [ T ].push[string]" (param i32 i32 i32)))
   (import "fixture" "rt:ref_is_view" (func $rt:ref_is_view (param i32) (result i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "rt:ref_project'1" (func $rt:ref_project'1 (param i32) (result i32)))
+  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
+  (import "fixture" "impl [ T < ? Copy ] UniqList [ T ].reserve_for[string]" (func $"impl [ T < ? Copy ] UniqList [ T ].reserve_for[string]" (param i32 i32)))
+  (import "fixture" "rt:ref_project'2" (func $rt:ref_project'2 (param i32) (result i32)))
+  (import "fixture" "rt:new" (func $rt:new (param i32 i32) (result i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].get_ref[string, string]" (func $"impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].get_ref[string, string]" (param i32 i32 i32) (result i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "rt:release'2" (func $rt:release'2 (param i32)))
+  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "table0" (table $table0 44 funcref))
   (func $put (param $m i32) (param $k.0 i32) (param $k.1 i32) (param $v.0 i32) (param $v.1 i32)
     block
     ;; 11 |     _ := m.insert(k, v)
@@ -23,7 +29,7 @@
       call $rt:release'1
     end
   )
-  (func $group (param $m i32) (param $k.0 i32) (param $k.1 i32) (param $v.0 i32) (param $v.1 i32) (local $t0 i32)
+  (func $group (param $m i32) (param $k.0 i32) (param $k.1 i32) (param $v.0 i32) (param $v.1 i32) (local $t0 i32) (local $t1 i32)
     block
     ;; 19 |     m.get_or_insert(k, UniqList::new()).push(v)
       block
@@ -52,16 +58,186 @@
       i32.const 0
       i32.const 0
       call $"impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].get_or_insert[string, std.collections.UniqList[string]]"
-      local.tee $m
-      local.get $v.0
-      local.get $v.1
-      call $"impl [ T < ? Copy ] UniqList [ T ].push[string]"
-    ;; (no span)
-      local.get $m
+      local.set $m
+      local.get $t1
       call $rt:ref_is_view
       if
-        local.get $m
-        call $rt:release_ref
+      end
+      local.get $m
+      local.set $t1
+      block
+        block
+          block
+            block
+              local.get $t1
+              local.tee $m
+              call $rt:ref_is_view
+              if (result i32)
+                local.get $m
+                local.get $m
+                i32.load $heap offset=4
+                call_indirect $table0 (param i32) (result i32)
+                local.tee $k.0
+                i32.load $heap offset=8
+                local.get $m
+                local.get $k.0
+                local.get $m
+                i32.load $heap offset=8
+                call_indirect $table0 (param i32 i32)
+              else
+                local.get $m
+                i32.load $heap offset=8
+              end
+              local.set $m
+              br 0
+            end
+          end
+          local.get $t1
+          call $rt:ref_is_view
+          if (result i32)
+            local.get $t1
+            call $rt:ref_project'1
+          else
+            local.get $t1
+          end
+          local.set $k.0
+          block
+            block
+              local.get $k.0
+              call $rt:ref_is_view
+              if (result i32)
+                local.get $k.0
+                local.get $k.0
+                i32.load $heap offset=4
+                call_indirect $table0 (param i32) (result i32)
+                local.tee $k.1
+                i32.load $heap offset=4
+                local.get $k.0
+                local.get $k.1
+                local.get $k.0
+                i32.load $heap offset=8
+                call_indirect $table0 (param i32 i32)
+              else
+                local.get $k.0
+                i32.load $heap offset=4
+              end
+              local.set $k.1
+              br 0
+            end
+          end
+          local.get $k.0
+          call $rt:ref_is_view
+          if
+            local.get $k.0
+            call $rt:release_ref'1
+          end
+          local.get $k.1
+          local.get $m
+          i32.le_u
+          if
+            local.get $t1
+            local.get $m
+            i32.const 1
+            i32.add
+            call $"impl [ T < ? Copy ] UniqList [ T ].reserve_for[string]"
+          end
+          local.get $t1
+          call $rt:ref_is_view
+          if (result i32)
+            local.get $t1
+            call $rt:ref_project'1
+          else
+            local.get $t1
+          end
+          local.set $k.0
+          block
+            block
+              local.get $k.0
+              call $rt:ref_is_view
+              if (result i32)
+                local.get $k.0
+                local.get $k.0
+                i32.load $heap offset=4
+                call_indirect $table0 (param i32) (result i32)
+                local.tee $k.1
+                i32.load $heap
+                local.get $k.0
+                local.get $k.1
+                local.get $k.0
+                i32.load $heap offset=8
+                call_indirect $table0 (param i32 i32)
+              else
+                local.get $k.0
+                i32.load $heap
+              end
+              local.get $m
+              i32.const 8
+              i32.mul
+              i32.add
+              local.set $k.1
+              br 0
+            end
+          end
+          local.get $k.0
+          call $rt:ref_is_view
+          if
+            local.get $k.0
+            call $rt:release_ref'1
+          end
+          local.get $k.1
+          local.get $v.0
+          i32.store $heap
+          local.get $k.1
+          local.get $v.1
+          i32.store $heap offset=4
+          local.get $m
+          i32.const 1
+          i32.add
+          local.set $m
+          local.get $t1
+          call $rt:ref_is_view
+          local.tee $k.0
+          if (result i32)
+            local.get $t1
+            call $rt:ref_project'2
+          else
+            local.get $t1
+            i32.const 8
+            i32.add
+          end
+          local.tee $k.1
+          call $rt:ref_is_view
+          if
+            i32.const 4
+            i32.const 0
+            call $rt:new
+            local.tee $v.0
+            local.get $m
+            i32.store $heap
+            local.get $k.1
+            local.get $v.0
+            local.get $k.1
+            i32.load $heap offset=8
+            call_indirect $table0 (param i32 i32)
+          else
+            local.get $k.1
+            local.get $m
+            i32.store $heap
+          end
+          local.get $k.0
+          if
+            local.get $k.1
+            call $rt:release_ref'2
+          end
+          br 0
+        end
+      end
+    ;; (no span)
+      local.get $t1
+      call $rt:ref_is_view
+      if
+        local.get $t1
+        call $rt:release_ref'1
       end
     end
   )

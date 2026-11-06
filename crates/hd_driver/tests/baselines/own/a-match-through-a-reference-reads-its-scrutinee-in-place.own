@@ -8,37 +8,71 @@ fn append(value: &mut Option[UniqList[string]], item: string) -> usize:
     match value:
 > app/main/append
 >   local $0 value: Ref[mut UniqList[string]?] [param read] value
->     uses $0: entry -> %0 lend, %9 lend last
+>     uses $0: entry -> %0 lend, %37 lend last
 >   local $1 item: string [param read] value
 >     uses $1: entry -> %2 consume last
 >   local $2 items: Ref[mut UniqList[string]] [read assigned] value
->     uses $2: %11 -> %1 lend, %4 consume last
+>     uses $2: %39 -> %1 consume, %32 consume last
+>   local $3 self: Ref[mut UniqList[string]] [read] value
+>     uses $3: %3 -> %5 consume, %9 lend, %14 lend, %20 lend, %28 lend last
+>   local $4 value: string [read] value
+>     uses $4: %4 -> %24 consume last
+>   local $5 size: usize [:= read assigned] value
+>     uses $5: %8 -> %12 lend, %15 lend, %21 lend, %26 lend last
 >   %0 = Read borrow [$0] : Ref[mut UniqList[string]?]
->   %24 = Block - : never
->   %25 = Match %0 [%24 %7 %8] : usize
->   %26 = Drop [$2] : ()
->   %27 = Drop [$1] : ()
->   %28 = Block %25 : usize
+>   %52 = Block - : never
+>   %53 = Match %0 [%52 %35 %36] : usize
+>   %54 = Drop [$2] : ()
+>   %55 = Drop [$1] : ()
+>   %56 = Block %53 : usize
         .Some(items) =>
->   %9 = Read borrow [*$0] : UniqList[string]?
->   %10 = Ref mut local [*%0 as #1 .0] : Ref[mut UniqList[string]]
->   %11 = Store [$2] %10 : ()
->   %14 = Block - : never
->   %21 = Block - : never
->   %22 = SwitchTag %9 [#1 %14 %21] : never
->   %23 = Drop [%9] : ()
+>   %37 = Read borrow [*$0] : UniqList[string]?
+>   %38 = Ref mut local [*%0 as #1 .0] : Ref[mut UniqList[string]]
+>   %39 = Store [$2] %38 : ()
+>   %42 = Block - : never
+>   %49 = Block - : never
+>   %50 = SwitchTag %37 [#1 %42 %49] : never
+>   %51 = Drop [%37] : ()
             items.push(item)
 >   %1 = Read borrow [$2] : Ref[mut UniqList[string]]
 >   %2 = Read move [$1] : string
->   %3 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].push[string] (%1, %2) : ()
->   %7 = Block %6 : usize
+>   %3 = Store [$3] %1 : ()
+>   %4 = Store [$4] %2 : ()
+>   %5 = Read borrow [$3] : Ref[mut UniqList[string]]
+>   %6 = Coerce %5 [Weaken -] : Ref[UniqList[string]]
+>   %7 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].len[string] (%6) : usize
+>   %8 = Store [$5] %7 : ()
+>   %9 = Ref local [*$3 .buffer] : Ref[Buffer[string]]
+>   %10 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].capacity[string] (%9) : usize
+>   %11 = Drop [%9] : ()
+>   %12 = Read copy [$5] : usize
+>   %13 = Prim Le [%10 %12] : bool
+>   %14 = Read borrow [$3] : Ref[mut UniqList[string]]
+>   %15 = Read copy [$5] : usize
+>   %16 = Prim Add [%15 1:usize] : usize
+>   %17 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].reserve_for[string] (%14, %16) : ()
+>   %18 = Block - : ()
+>   %19 = If %13 [%18 -] : ()
+>   %20 = Ref local [*$3 .buffer] : Ref[Buffer[string]]
+>   %21 = Read copy [$5] : usize
+>   %22 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].at[string] (%20, %21) : Ptr[string]
+>   %23 = Drop [%20] : ()
+>   %24 = Read move [$4] : string
+>   %25 = Store [ptr %22] %24 : ()
+>   %26 = Read copy [$5] : usize
+>   %27 = Prim Add [%26 1:usize] : usize
+>   %28 = Store [*$3 .len] %27 : ()
+>   %29 = Break L0 - : never
+>   %30 = Block - : ()
+>   %31 = Scope %30 [] : ()
+>   %35 = Block %34 : usize
             items.len()
->   %4 = Read borrow [$2] : Ref[mut UniqList[string]]
->   %5 = Coerce %4 [Weaken -] : Ref[UniqList[string]]
->   %6 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].len[string] (%5) : usize
+>   %32 = Read borrow [$2] : Ref[mut UniqList[string]]
+>   %33 = Coerce %32 [Weaken -] : Ref[UniqList[string]]
+>   %34 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].len[string] (%33) : usize
         .None => 0
->   %8 = Block 0:usize : usize
->   %17 = Block - : never
->   %19 = Block - : never
->   %20 = SwitchTag %9 [#0 %17 %19] : never
+>   %36 = Block 0:usize : usize
+>   %45 = Block - : never
+>   %47 = Block - : never
+>   %48 = SwitchTag %37 [#0 %45 %47] : never
 >   exit sub 0 drops [$1]
