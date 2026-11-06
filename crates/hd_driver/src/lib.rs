@@ -379,6 +379,7 @@ pub struct Host<'a> {
     /// passes ([`Output::own_text`]); a path ending in `*` renders every
     /// body whose path starts with what precedes it (`app/*`, the stage
     /// fixtures of `hd_testkit::stages`).
+    /// Rendering is available with the default-enabled `fixtures` feature.
     pub render_tir: &'a [&'a str],
     pub sources: &'a dyn SourceSet,
     pub store: &'a dyn CacheStore,
@@ -429,6 +430,7 @@ pub enum Goal {
     /// closures, without an executable entry or host exports. `module` is a
     /// package-relative dotted path (as `main`). Uninstantiated generics are
     /// skipped with notes in [`Output::fixture_notes`].
+    /// Requires the default-enabled `fixtures` crate feature.
     Fixture { module: String },
     /// Every stage over a package; "not implemented" is counted.
     Analyze,
@@ -627,6 +629,7 @@ pub struct Output {
     /// Checked entry rows, including capabilities unused by the linked code.
     pub entry_capabilities: Vec<EntryCapability>,
     pub wasm: Option<Vec<u8>>,
+    /// Generated glue when the default-enabled `host-artifacts` feature is on.
     pub host_artifacts: Option<HostArtifacts>,
     /// Off-band instruction origins, when `Packages::instruction_origins` is enabled.
     pub instruction_origins: Vec<FunctionOrigins>,
@@ -1163,6 +1166,7 @@ fn skim_module(
 /// The roots a program's exports poll.
 enum Roots {
     /// All collected own fixture bodies, independent of executable exports.
+    #[cfg(feature = "fixtures")]
     Fixture(Vec<Hash128>),
     /// `main`, its report and the inits it reaches.
     Main {
@@ -2526,12 +2530,15 @@ fn build_packages_inner(
         .sum();
     counters.sort();
     let report = lock(&run.report).clone();
-    let mut diags = std::mem::take(&mut *lock(&run.diags));
-    let mut wasm = if diags.has_errors() {
+    let diags = std::mem::take(&mut *lock(&run.diags));
+    let wasm = if diags.has_errors() {
         None
     } else {
         run.wasm.get().cloned()
     };
+    #[cfg(feature = "host-artifacts")]
+    let (mut wasm, mut diags) = (wasm, diags);
+    #[cfg(feature = "host-artifacts")]
     let host_artifacts = match wasm.as_deref().map(host_artifacts).transpose() {
         Ok(artifacts) => artifacts.flatten(),
         Err(why) => {
@@ -2547,6 +2554,8 @@ fn build_packages_inner(
             None
         }
     };
+    #[cfg(not(feature = "host-artifacts"))]
+    let host_artifacts = None;
     let session_added = wasm.as_ref().and_then(|_| run.session_added.get().cloned());
     let ifaces = run
         .table
@@ -3234,13 +3243,15 @@ impl Run<'_> {
     /// ([`Host::render_tir`]): a listed path, or one that starts with a
     /// listed prefix ending in `*`.
     fn renders_tir(&self, path: &str) -> bool {
-        self.host
-            .render_tir
-            .iter()
-            .any(|p| match p.strip_suffix('*') {
-                Some(prefix) => path.starts_with(prefix),
-                None => *p == path,
-            })
+        cfg!(feature = "fixtures")
+            && self
+                .host
+                .render_tir
+                .iter()
+                .any(|p| match p.strip_suffix('*') {
+                    Some(prefix) => path.starts_with(prefix),
+                    None => *p == path,
+                })
     }
 
     fn names(&self) -> Names<'_> {
@@ -9298,6 +9309,7 @@ impl Run<'_> {
 
     /// Roots the case's declarations at their declared types. It is not an
     /// executable: no Termination conversion or host providers are installed.
+    #[cfg(feature = "fixtures")]
     fn collect_fixture(&self, sp: &dyn Spawn, p: &ProgramTables, pkey: Hash128, module: &str) {
         let names = self.names();
         let module_node = names.module(module);
@@ -9477,6 +9489,17 @@ impl Run<'_> {
             host_refs: Vec::new(),
         });
         sp.add(TaskKind::Ext(ExtTask::Link), &[]);
+    }
+
+    #[cfg(not(feature = "fixtures"))]
+    fn collect_fixture(&self, _: &dyn Spawn, _: &ProgramTables, _: Hash128, _: &str) {
+        self.stage::<()>(
+            Stage::Collect,
+            Err(NotImplemented::new(
+                Stage::Collect,
+                "fixture emission requires hd_driver's fixtures feature",
+            )),
+        );
     }
 
     /// The `check` role of module `m`: a test run, and `hd check --tests`,
@@ -10121,6 +10144,7 @@ impl Run<'_> {
             {
                 hd_wasm_linear::Entry::Unsupported("a REPL input over earlier modules")
             }
+            #[cfg(feature = "fixtures")]
             Roots::Fixture(roots) => hd_wasm_linear::Entry::Fixture {
                 roots: roots.clone(),
             },
@@ -12859,7 +12883,7 @@ mod host_declaration_tests {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "host-artifacts"))]
 mod package_host_abi_tests {
     use super::*;
 
@@ -13066,7 +13090,7 @@ assert.equal(cancelled.core.st.ops.size, 0);
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "host-artifacts"))]
 mod package_host_inheritance_tests {
     use super::*;
 
@@ -13193,7 +13217,7 @@ try {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "host-artifacts"))]
 fn run_package_host_javascript(out: &Output, body: &str) {
     use std::io::Write as _;
     use std::process::{Command, Stdio};
@@ -13238,7 +13262,7 @@ const sink = {{ out: text => output.push(text), err: text => errors.push(text) }
     );
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "host-artifacts"))]
 mod package_host_reexport_tests {
     use super::*;
 
