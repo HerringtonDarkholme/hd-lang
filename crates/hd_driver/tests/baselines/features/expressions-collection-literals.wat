@@ -3,17 +3,16 @@
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:copy_elems" (func $rt:copy_elems (param i32 i32)))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:map_table" (func $rt:map_table (param i32) (result i32)))
   (import "fixture" "rt:map_hash" (func $rt:map_hash (param i32 i32) (result i32)))
   (import "fixture" "rt:map_find" (func $rt:map_find (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:map_put" (func $rt:map_put (param i32 i32 i32 i32 i32 i32 i32) (result i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $list_spread (param $xs i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     block
-    ;; 11 |     [xs..., s]
+    ;; 12 |     [xs..., s]
       i32.const 1
       local.get $xs
       i32.load $heap offset=4
@@ -54,8 +53,8 @@
       i32.store $heap offset=20
       local.get $xs
     ;; (no span)
-      call $rt:release_ref'1
-    ;; 11 |     [xs..., s]
+      call $rt:release_ref
+    ;; 12 |     [xs..., s]
       local.get $t1
     ;; (no span)
       local.set $xs
@@ -64,7 +63,7 @@
   )
   (func $list_spread_two (param $xs i32) (param $ys i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     block
-    ;; 14 |     [xs..., ys...]
+    ;; 15 |     [xs..., ys...]
       local.get $t0
       local.get $xs
       i32.load $heap offset=4
@@ -121,72 +120,68 @@
       call $rt:copy_elems
     ;; (no span)
       local.get $ys
-      call $rt:release_ref'1
+      call $rt:release_ref
       local.get $xs
-      call $rt:release_ref'1
-    ;; 14 |     [xs..., ys...]
+      call $rt:release_ref
+    ;; 15 |     [xs..., ys...]
       local.get $t1
     ;; (no span)
       local.set $xs
     end
     local.get $xs
   )
-  (func $map_of (param $k.0 i32) (param $k.1 i32) (param $v.0 i32) (param $v.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
+  (func $map_of (param $k.0 i32) (param $k.1 i32) (param $v.0 i32) (param $v.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+    ;; 18 |     { k: v, "fixed": v }
     block
-    ;; 17 |     { k: v, "fixed": v }
+      local.get $k.0
       local.get $v.0
       call $retain
       i32.const 4
       call $rt:map_table
+      local.set $k.0
       local.tee $t0
-      local.get $k.0
       local.get $k.1
       call $rt:map_hash
-      local.tee $t1
+      local.set $t1
       local.get $k.0
+      local.get $t1
+      local.get $t0
       local.get $k.1
       call $rt:map_find
       local.set $t2
       local.get $k.0
-      call $retain
-      local.get $t0
       local.get $t1
       local.get $t2
-      local.get $k.0
+      local.get $t0
       local.get $k.1
-    ;; (no span)
       local.get $v.0
       local.get $v.1
-    ;; 17 |     { k: v, "fixed": v }
       call $rt:map_put
-      local.tee $t0
+      local.tee $k.0
       i32.const 65 ;; &"fixed"
       local.tee $k.1
       i32.const 5
-      local.tee $t1
+      local.tee $t0
       call $rt:map_hash
-      local.tee $t2
+      local.tee $t1
       local.get $k.1
-      local.get $t1
-      call $rt:map_find
-      local.set $t3
       local.get $t0
-      local.get $t2
-      local.get $t3
-      local.get $k.1
+      call $rt:map_find
+      local.set $t2
+      local.get $k.0
       local.get $t1
+      local.get $t2
+      local.get $k.1
+      local.get $t0
       local.get $v.0
       local.get $v.1
       call $rt:map_put
-    ;; (no span)
-      local.get $k.0
-      call $rt:release_ref'2
       local.set $k.0
     end
     local.get $k.0
   )
   (func $list_of (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
-    ;; 8 |     [a, b]
+    ;; 9 |     [a, b]
     block
       i32.const 2
       call $rt:list_buf

@@ -172,9 +172,15 @@ impl Em<'_, '_, '_> {
 
     /// Key `r` in fresh locals, and its bucket hash in one.
     fn map_key(&mut self, r: u32, e: &Entry, ops: &KeyOps) -> StageResult<(Vec<u32>, u32)> {
-        let key = e.key_vals();
         let kl = self.map_key_locals(r, e)?;
-        for l in &kl {
+        let h = self.map_hash(&kl, e, ops);
+        Ok((kl, h))
+    }
+
+    /// The bucket hash of the key in locals `kl`, in a local.
+    fn map_hash(&mut self, kl: &[u32], e: &Entry, ops: &KeyOps) -> u32 {
+        let key = e.key_vals();
+        for l in kl {
             self.f.get(*l);
         }
         self.f.helper(Helper::MapHash {
@@ -183,7 +189,7 @@ impl Em<'_, '_, '_> {
         });
         let h = self.f.local(Val::I32);
         self.f.set(h);
-        Ok((kl, h))
+        h
     }
 
     /// Probes map table `m` for key `kl` with hash `h`, returning the
@@ -216,6 +222,18 @@ impl Em<'_, '_, '_> {
         v: &Src,
     ) -> StageResult<()> {
         self.retain_locals(kl, kt)?;
+        self.map_put_taking_key(m, vt, (e, ops), (kl, h, probe), v)
+    }
+
+    /// [`Em::map_put`] of a key whose count the table takes as it stands.
+    fn map_put_taking_key(
+        &mut self,
+        m: u32,
+        vt: Ty,
+        (e, ops): (&Entry, &KeyOps),
+        (kl, h, probe): (&[u32], u32, u32),
+        v: &Src,
+    ) -> StageResult<()> {
         let s = self.retain_src(v, vt)?;
         self.f.get(m);
         self.f.get(h);
@@ -237,7 +255,9 @@ impl Em<'_, '_, '_> {
     /// `NewMap`: a table with room for the entries, each put in source
     /// order (`expr.map.order`), so a later equal key's value replaces the
     /// earlier one in its place (`expr.map.duplicate.last`). An empty
-    /// literal shares the static empty table.
+    /// literal shares the static empty table. Each key's count moves in as
+    /// a value's does: the operand is consumed, and a repeated key's put
+    /// releases the count it was given.
     pub(super) fn new_map(&mut self, i: u32, items: u32) -> StageResult<()> {
         let items = self.rec(items);
         let (kt, vt, e) = self.entry(self.ty(i))?;
@@ -255,9 +275,15 @@ impl Em<'_, '_, '_> {
         self.f.helper(Helper::MapTable { entry: e.clone() });
         self.f.set(m);
         for pair in items.chunks(2) {
-            let (kl, h) = self.map_key(pair[0], &e, &ops)?;
+            let key = self.consumed(pair[0])?;
+            let kl: Vec<u32> = e.key_vals().iter().map(|v| self.f.local(*v)).collect();
+            for (k, l) in kl.iter().enumerate() {
+                self.src(&key, k)?;
+                self.f.set(*l);
+            }
+            let h = self.map_hash(&kl, &e, &ops);
             let probe = self.map_find(m, h, &kl, &e, &ops);
-            self.map_put(m, (kt, vt), (&e, &ops), (&kl, h, probe), &Src::Ref(pair[1]))?;
+            self.map_put_taking_key(m, vt, (&e, &ops), (&kl, h, probe), &Src::Ref(pair[1]))?;
         }
         self.f.get(m);
         self.store_owned(i)

@@ -1336,6 +1336,7 @@ runtime/valid/loop-list-cache-physical-cow.hd	runtime	accept	lang/04-type-system
 runtime/valid/a-copy-between-two-changes-through-a-reference-shares-nothing.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/a-loop-copy-of-a-list-behind-a-reference-keeps-its-values.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/a-generic-container-loop-keeps-its-copies-apart.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
+runtime/valid/a-map-literal-moves-its-keys.hd	runtime	accept	lang/05-expressions.md#r-expr.map.duplicate.last
 runtime/valid/a-loop-hands-its-reference-to-a-call-that-copies-the-list.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/a-compare-through-a-pointer-keeps-a-loop-from-changing-its-copy.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/a-change-through-a-list-parameter-keeps-its-copies-apart.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value

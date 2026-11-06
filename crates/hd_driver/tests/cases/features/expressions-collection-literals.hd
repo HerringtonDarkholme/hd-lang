@@ -3,7 +3,8 @@
 # Feature: List And Map Expressions: list literals, spreads, map literals (spec/lang/05-expressions.md, #1364).
 # expected: one allocation per literal; each element stored takes one
 # retain (it comes from a borrowed parameter); a spread retains each
-# copied element once; `map_of` retains `v` twice and `k` once.
+# copied element once; `map_of` retains `v` once, for its first use, and
+# moves `k` and its last `v` in.
 fn list_of(a: string, b: string) -> List[string]:
     [a, b]
 

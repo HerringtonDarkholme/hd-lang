@@ -1,0 +1,27 @@
+# test: a map literal takes each key it reads at its last use, and a repeated key's count is released once
+# Spec 05 Map Literals: expr.map.duplicate.last.
+# expect-stdout: 2 4 3 | 2 20 30 | 1 7 | a! | 2 6
+
+fn key_of(s: string) -> string:
+    s + "!"
+
+fn take_keys(k: string, other: string) -> Map[string, i64]:
+    { k: 10, other: 30, k: 20 }
+
+fn both(a: string) -> Map[(string, i64), i64]:
+    b := a
+    { (a, 1): 5, (b, 1): 7 }
+
+fn lists(a: List[i64]) -> Map[string, List[i64]]:
+    { "x": a, "y": [a[0] + 1] }
+
+pub fn main() -> void $ Console:
+    k := key_of("a")
+    m := { k: 1, k: 2, key_of("b"): 3, key_of("a"): 4 }
+    one := key_of("p")
+    two := key_of("q")
+    t := take_keys(one, two)
+    p := both(key_of("z"))
+    kept := key_of("z")
+    l := lists([5])
+    println("${m.len()} ${m[k]} ${m[key_of("b")]} | ${t.len()} ${t[one]} ${t[two]} | ${p.len()} ${p[(kept, 1)]} | $k | ${l.len()} ${l["y"][0]}")
