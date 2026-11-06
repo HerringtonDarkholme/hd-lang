@@ -447,11 +447,21 @@ impl OwnCx for Env<'_> {
             u32::try_from(k).expect("arguments"),
             u32::try_from(n).expect("arguments"),
         );
-        if let Some(&p) = lock(&self.run.own_params).get(&key) {
+        let cached = lock(&self.run.own_params).get(&key).copied();
+        let p = cached.unwrap_or_else(|| {
+            let p = self.declared_pass(def, k, n);
+            lock(&self.run.own_params).insert(key, p);
+            p
+        });
+        // A direct call names its instance: where the declared type is
+        // open, the instance's parameter type decides, as the backend's
+        // `Em::borrowed_arg` reads it (`id(&u.name)` borrows).
+        if p == Pass::Owned
+            && let Callee::Item { def, targs } = *callee
+            && let Some(p) = self.instance_pass(def, targs, k, n)
+        {
             return p;
         }
-        let p = self.declared_pass(def, k, n);
-        lock(&self.run.own_params).insert(key, p);
         p
     }
 
@@ -816,6 +826,32 @@ impl Env<'_> {
         // the callee's generics, which a default body's owner keeps in its
         // body, and the passes read no other body.
         self.value_parameter(self.low(sig.params[k].1))
+    }
+
+    /// [`OwnCx::pass`] of parameter `k` of instance `(def, targs)`, whose
+    /// declared type is open, when the instance closes it: the declared
+    /// type substituted as the backend substitutes a callee's parameters
+    /// (`hd_mono::subst`, which maps a default body's types to its owner's
+    /// generics). `None` while it stays open (the caller's own generics,
+    /// in a generic body that serves several instances), for a suspending
+    /// callee, whose frame keeps its arguments, and for an intrinsic.
+    fn instance_pass(&self, def: DefId, targs: TyList, k: usize, n: usize) -> Option<Pass> {
+        if targs == TyList::EMPTY
+            || self.intrinsic(def).is_some()
+            || ProgramEnv::suspends(self, def)
+        {
+            return None;
+        }
+        let sig = self.sig(def)?;
+        if sig.suspends || sig.params.len() != n {
+            return None;
+        }
+        let declared = self.low(sig.params[k].1);
+        if !self.is_open(declared) {
+            return None;
+        }
+        let t = hd_mono::subst(&self.run.pool, self, def, targs, declared);
+        (t != Ty::POISON && !self.is_open(t)).then(|| self.value_parameter(t))
     }
 
     /// How a parameter of declared type `t` takes its argument: owned when

@@ -1,0 +1,28 @@
+# test: a generic function instantiated at a reference or a pointer borrows its argument, which the caller releases once
+# Spec 13 Values and References: ref.generic.call.
+struct User:
+    name: string
+
+fn id[T](value: T) -> T:
+    value
+
+fn later[T < 'static](value: T) -> fn() -> T:
+    fn() -> T: value
+
+fn name_len(u: &User) -> usize:
+    n := id(&u.name)
+    n.len()
+
+fn boxed_len(round: i32) -> usize:
+    kept := box(User { name: "boxed$round" })
+    later(kept)().name.len()
+
+tests:
+    use std.testing.assert_equal
+
+    it("a reference or pointer argument survives the generic call"):
+        let mut total = 0
+        for round in 0..4:
+            u := User { name: "user$round" }
+            total += name_len(&u) + boxed_len(round) + u.name.len()
+        assert_equal(total, 4 * (5 + 6 + 5), reason="each argument is alive after its call")

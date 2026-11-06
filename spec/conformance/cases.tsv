@@ -5927,6 +5927,10 @@ typing/invalid/index-associated-output-needs-copy.hd	type	reject:move-out-of-pla
 runtime/valid/trait-value-call-lends-an-owned-argument.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.bound.reference-dispatch
 runtime/valid/trait-value-suspending-call-keeps-its-argument.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.bound.reference-dispatch
 runtime/valid/list-literal-spreads-lend-their-lists.hd	runtime	accept	lang/05-expressions.md#r-expr.list.spread.insert
+runtime/valid/trait-value-call-lends-an-owned-argument.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.bound.reference-dispatch
+runtime/valid/trait-value-suspending-call-keeps-its-argument.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.bound.reference-dispatch
+runtime/valid/list-literal-spreads-lend-their-lists.hd	runtime	accept	lang/05-expressions.md#r-expr.list.spread.insert
+runtime/valid/a-generic-call-lends-a-reference-argument.hd	runtime	accept	lang/13-values-and-references.md#r-ref.generic.call
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

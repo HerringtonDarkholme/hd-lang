@@ -72,40 +72,42 @@
       call $"later[&User]"
       local.set $t0
       local.set $u.name.1
-    ;; 33 |     kept := keep(u)
-      local.get $u.name.0
-    ;; 34 |     later(kept)().name.len()
-      call $rt:release_ref'1
       local.get $t0
       i32.const 0
       local.get $u.name.1
       call_indirect $table0 (param i32 i32) (result i32)
-      local.tee $u.name.0
+      local.tee $u.name.1
     ;; (no span)
       local.get $t0
       call $rt:release_ref'1
+    ;; 33 |     kept := keep(u)
+      local.get $u.name.0
+    ;; (no span)
+      call $rt:release_ref'1
     ;; 34 |     later(kept)().name.len()
-      local.tee $u.name.1
+      local.tee $u.name.0
       i32.load $heap
-      local.get $u.name.1
+      local.get $u.name.0
       i32.load $heap offset=4
       local.set $t0
-      local.tee $u.name.1
+      local.tee $u.name.0
       call $retain
     ;; (no span)
-      local.get $u.name.0
+      local.get $u.name.1
       call $rt:release_ref'1
     ;; 34 |     later(kept)().name.len()
       block
         block
           local.get $t0
-          local.set $u.name.0
+          local.set $u.name.1
           br 0
         end
       end
     ;; (no span)
-      local.get $u.name.1
+      local.get $u.name.0
       call $rt:release_ref'2
+      local.get $u.name.1
+      local.set $u.name.0
     end
     local.get $u.name.0
   )
