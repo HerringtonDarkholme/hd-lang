@@ -15,10 +15,7 @@
   (import "fixture" "rt:frame'2" (func $rt:frame'2 (result i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "rt:forbid_check" (func $rt:forbid_check))
-  (import "fixture" "hd:rt/block" (func $hd:rt/block (result i32)))
-  (import "fixture" "rt:wake_mark" (func $rt:wake_mark (param i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
-  (import "fixture" "rewake" (global $rewake (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 17 funcref))
   (func $bound (param $frame i32) (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t39 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t18 i32) (local $t19 i32) (local $t20 i32) (local $t21 i32) (local $t22 i32) (local $t23 i32) (local $t24 i32) (local $t25 i32) (local $t26 i32) (local $t27 i32) (local $t28 i32) (local $pending i32) (local $t29 i32) (local $t30 i32) (local $t31 i32) (local $t32 i32) (local $t33 i32) (local $t34 i32) (local $t35 i32) (local $t36 i32) (local $t37 i32) (local $t38 i32) (local $t0 i32)
@@ -247,7 +244,7 @@
           local.set $t18
         end
         local.get $t9
-        i32.const 356 ;; &vtable[func91]
+        i32.const 356 ;; &vtable[func90]
         local.set $t20
         local.tee $t19
         call $retain
@@ -1552,55 +1549,32 @@
     end
     i32.const 0
   )
-  (func $blocking (param $key.0 i32) (param $key.1 i32) (result i32) (local $v.0 i32) (local $v.1 i32) (local $t0 i32)
+  (func $blocking (param $key.0 i32) (param $key.1 i32) (result i32) (local $t0 i32) (local $v.1 i32) (local $t1 i32)
     block
     ;; 33 |     match block_on(fetch(key)):
-      local.get $key.0
-      local.get $key.1
-      call $fetch'2
-      local.set $key.0
       call $rt:forbid_check
-      block
-        loop
-          local.get $key.0
-          local.get $key.0
-          i32.load $heap
-          call_indirect $table0 (param i32) (result i32 i32 i32)
-          local.set $v.1
-          local.set $key.1
-          br_if 1
-          global.get $rewake
-          if
-            i32.const 0
-            global.set $rewake
-            i32.const 1
-            local.set $v.0
-            br 1
-          end
-          call $hd:rt/block
-          call $rt:wake_mark
-          i32.const 1
-          local.set $v.0
-          br 0
-        end
-      end
-      local.get $v.0
-      global.get $rewake
-      i32.or
-      global.set $rewake
       i32.const 0
-      local.get $key.1
-      local.set $v.0
-      local.set $key.1
-    ;; (no span)
       local.get $key.0
+      local.get $key.1
+      call $fetch'1
+      local.set $t0
+      local.set $key.1
+      local.set $key.0
+      i32.const 0
+      local.get $key.0
+      local.get $key.1
+      local.set $v.1
+      local.set $key.1
+      local.set $key.0
+      local.get $t0
+    ;; (no span)
       call $rt:release_ref'2
     ;; 33 |     match block_on(fetch(key)):
       block
         block
           block
     ;; 34 |         .Completed(v) => v.len()
-            local.get $key.1
+            local.get $key.0
             i32.eqz
             i32.eqz
             br_if 1
@@ -1609,14 +1583,14 @@
             unreachable
           end
     ;; 34 |         .Completed(v) => v.len()
-          local.get $v.0
+          local.get $key.1
           local.get $v.1
-          local.set $key.0
+          local.set $t0
           drop
           block
             block
-              local.get $key.0
-              local.set $t0
+              local.get $t0
+              local.set $t1
               br 0
             end
           end
@@ -1626,11 +1600,11 @@
         br 0
       end
     ;; (no span)
+      local.get $key.0
       local.get $key.1
-      local.get $v.0
       local.get $v.1
       call $rt:release
-      local.get $t0
+      local.get $t1
       local.set $key.0
     end
     local.get $key.0

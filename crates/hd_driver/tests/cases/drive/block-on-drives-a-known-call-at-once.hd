@@ -1,0 +1,27 @@
+# @dump: wat
+# @build: v8 release
+# A known cold call immediately consumed by block_on calls its body.
+# A body with no suspension point needs no constructor or poll loop.
+# Work between construction and driving keeps the original cold call.
+use std.task.block_on
+
+fn fetch!(key: string) -> string:
+    key + "?"
+
+fn direct(key: string) -> usize:
+    match block_on(fetch(key)):
+        .Completed(value) => value.len()
+        _ => 0
+
+fn stored(key: string) -> usize:
+    let pending: mut Suspend[string] = fetch(key)
+    match block_on(pending):
+        .Completed(value) => value.len()
+        _ => 0
+
+fn deferred(key: string, log: &mut List[string]) -> usize:
+    let pending: mut Suspend[string] = fetch(key)
+    log.push("constructed")
+    match block_on(pending):
+        .Completed(value) => value.len()
+        _ => 0
