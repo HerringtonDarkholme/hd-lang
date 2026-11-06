@@ -29,9 +29,7 @@ fn fn_mut(xs: List[string]) -> usize:
     let n: usize = 0
     each(xs, fn(x: string) -> void: n += x.len())
 > app/main/fn_mut
->   (no span) retain counted reference (conservative: entry)
 >   (no span) release string (last use)
->   (no span) release counted reference (last use)
 > app/main/fn_mut
 >   retain counted reference (conservative: Closure)
     n

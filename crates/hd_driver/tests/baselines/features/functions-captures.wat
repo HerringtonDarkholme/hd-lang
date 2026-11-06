@@ -3,12 +3,11 @@
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields'1" (func $rt:retain_fields'1 (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields'2" (func $rt:retain_fields'2 (param i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
@@ -44,7 +43,7 @@
     ;; 26 |     again()
     local.get $env
     i32.load $heap
-    local.tee $ctx
+    local.set $ctx
     local.get $env
     i32.load $heap offset=4
     local.tee $s.0
@@ -52,7 +51,6 @@
     i32.load $heap offset=8
     local.set $env
     call $retain
-    call $rt:retain_known
     block
     ;; 23 |     inc := fn() -> void: n += s.len()
       local.get $ctx
@@ -77,8 +75,6 @@
       i32.add
       i32.store $heap
     ;; 26 |     again()
-      local.get $ctx
-      call $rt:release_ref'2
     end
   )
   (func $through_ptr#1 (param $env i32) (param $ctx i32) (local $s.0 i32) (local $t0 i32) (local $t1 i32)
@@ -292,11 +288,11 @@
     i32.add
     global.set $locals
   )
-  (func $shared_list#1 (param $env i32) (param $ctx i32) (local $s.0 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $shared_list#1 (param $env i32) (param $ctx i32) (local $s.0 i32) (local $t0 i32) (local $t1 i32)
     ;; 16 |     add := fn() -> void: xs.push(s)
     local.get $env
     i32.load $heap
-    local.tee $ctx
+    local.set $ctx
     local.get $env
     i32.load $heap offset=4
     local.tee $s.0
@@ -304,7 +300,6 @@
     i32.load $heap offset=8
     local.set $env
     call $retain
-    call $rt:retain_known
     block
       local.get $ctx
       local.get $ctx
@@ -333,10 +328,10 @@
       i32.const 8
       i32.mul
       i32.add
-      local.tee $t2
+      local.tee $ctx
       local.get $s.0
       i32.store $heap offset=16
-      local.get $t2
+      local.get $ctx
       local.get $env
       i32.store $heap offset=20
       local.get $t0
@@ -344,8 +339,6 @@
       i32.const 1
       i32.add
       i32.store $heap offset=4
-      local.get $ctx
-      call $rt:release_ref'2
     end
   )
   (func $shared_list (param $s.0 i32) (param $s.1 i32) (result i32) (local $xs i32) (local $t0 i32) (local $t1 i32)

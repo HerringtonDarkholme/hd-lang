@@ -1283,6 +1283,29 @@ impl Body {
             .then(|| LocalId::from_raw(word & !place::BARE_LOCAL))
     }
 
+    /// The unaddressed immutable binding of recursive closure `ci`.
+    /// Its value is reconstructed from the code and current environment;
+    /// the checker's shared initialization capture needs no mutable cell.
+    #[must_use]
+    pub fn closure_self(&self, ci: usize) -> Option<LocalId> {
+        if self.tags.get(ci) != Some(&Tag::Closure) || self.syn[ci] == NodeIdx::NONE {
+            return None;
+        }
+        let rec = self.record(self.data[ci][1]);
+        let (start, n) = (rec[0] as usize, rec[1] as usize);
+        self.cap_local[start..start + n].iter().copied().find(|l| {
+            self.local_flags[l.idx()] & local_flags::SHORT != 0
+                && self.local_syn[l.idx()] == self.syn[ci]
+                && !(0..self.len()).any(|i| {
+                    self.tags[i] == Tag::Ref
+                        && self.decode_place(self.data[i][0]).is_some_and(|p| {
+                            p.root == PlaceRoot::Local(*l)
+                                && p.proj.iter().all(|s| matches!(s, Proj::Field(_)))
+                        })
+                })
+        })
+    }
+
     /// The value projection read `i` projects from and its one step: a
     /// `Read` of a value root followed by one field, a dereference and one
     /// field, or a variant and one of its fields. These are the reads of a

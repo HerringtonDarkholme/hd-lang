@@ -2,12 +2,11 @@
 (module
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
-  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:str_append" (func $rt:str_append (param i32 i32 i32 i32) (result i32 i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:new/class-1'1" (func $rt:new/class-1'1 (param i32 i32) (result i32)))
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -85,8 +84,7 @@
     ;; 19 |     add := fn() -> void: t += "x"
     local.get $env
     i32.load $heap
-    local.tee $env
-    call $rt:retain_known
+    local.set $env
     block
       local.get $env
       i32.load $heap
@@ -112,8 +110,6 @@
       local.get $t0
       i32.store $heap offset=4
       call $rt:release_ref'1
-      local.get $env
-      call $rt:release_ref'2
     end
   )
   (func $escape (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t0 i32)

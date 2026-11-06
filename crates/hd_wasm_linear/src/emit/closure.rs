@@ -12,7 +12,7 @@
 use crate::op::Op as I;
 use hd_base::HashSet;
 use hd_base::SliceSort as _;
-use hd_base::{Hash128, HashMap, NodeIdx, StageResult};
+use hd_base::{Hash128, HashMap, StageResult};
 use hd_mono::Target;
 use hd_tir::ir::{Body, CaptureMode, NONE, Tag, Topology, local_flags, ref_word, sub_flags};
 use hd_types::{Ty, TyData};
@@ -171,18 +171,7 @@ pub(super) fn closure_suspends(
 /// and closure share a syntax node; other captures do not. Address-taking
 /// keeps the independently addressable cell and its existing ownership.
 pub(super) fn self_local(b: &Body, ci: usize) -> Option<usize> {
-    if b.syn[ci] == NodeIdx::NONE {
-        return None;
-    }
-    let rec = b.record(b.data[ci][1]);
-    let (start, n) = (rec[0] as usize, rec[1] as usize);
-    b.cap_local[start..start + n].iter().find_map(|l| {
-        let l = l.idx();
-        (b.local_flags[l] & local_flags::SHORT != 0
-            && b.local_syn[l] == b.syn[ci]
-            && !(0..b.len()).any(|i| super::shape::ref_local(b, i) == Some(l)))
-        .then_some(l)
-    })
+    b.closure_self(ci).map(hd_base::LocalId::idx)
 }
 
 /// A nested closure copies an immutable recursive function's value,
@@ -769,6 +758,10 @@ impl Em<'_, '_, '_> {
             self.f.set(ls[0]);
             self.f.get(env);
             self.f.set(ls[1]);
+            if env == 0 {
+                // The caller holds this environment throughout the call.
+                self.borrowed.insert(l);
+            }
         }
         let caps = captures(self.b, ci);
         if caps.is_empty() {
@@ -787,6 +780,12 @@ impl Em<'_, '_, '_> {
                 self.f.get(env);
                 self.f.op(leaf.load(0));
                 self.f.set(*x);
+            }
+            if *shared && env == 0 {
+                // A shared capture holds its cell's address. The
+                // environment owns the cell; writes still replace only
+                // its contents. Escaping references count themselves.
+                self.borrowed.insert(*l);
             }
         }
         // The cells of the creator's own loans. A suspending closure's

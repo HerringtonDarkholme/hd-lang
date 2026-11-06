@@ -46,9 +46,7 @@ fn cell_field(name: string) -> usize:
     let mut pair = Pair { name: name, tag: "t" }
     retag := fn() -> void: pair.tag = "u"
 > std/rt_tests.stage_case/cell_field
->   retain counted reference (conservative: entry)
 >   release string (overwritten)
->   release counted reference (last use)
 > std/rt_tests.stage_case/cell_field
 >   retain counted reference (conservative: Closure)
     retag()

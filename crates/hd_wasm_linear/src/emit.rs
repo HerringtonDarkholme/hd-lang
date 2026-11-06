@@ -453,7 +453,7 @@ fn body_func<'a>(
                 if !crate::layout::holds_drop(em.pool(), em.env(), t) {
                     em.count_locals(ls, t, true)?;
                 }
-            } else if lent_caps.contains(l) {
+            } else if em.borrowed.contains(l) || lent_caps.contains(l) {
                 em.borrowed.insert(*l);
             } else {
                 em.count_local(*l, ls, true)?;

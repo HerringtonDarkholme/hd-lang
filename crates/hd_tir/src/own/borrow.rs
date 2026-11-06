@@ -823,6 +823,12 @@ fn run_once(
 /// The per-value and per-local facts: uses, drops, stores, reads.
 fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     let n = b.len();
+    let mut recursive = vec![false; b.local_ty.len()];
+    for ci in 0..n {
+        if let Some(l) = b.closure_self(ci) {
+            recursive[l.idx()] = true;
+        }
+    }
     let mut ops = std::mem::take(&mut t.ops);
     for i in 0..n {
         let [a, w] = b.data[i];
@@ -885,7 +891,9 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 for c in rec[0] as usize..(rec[0] + rec[1]) as usize {
                     let l = b.cap_local[c].idx();
                     t.captured[l] = true;
-                    if b.cap_mode[c].shares() {
+                    // Immutable recursion uses code plus the current
+                    // environment, not a writable binding cell.
+                    if b.cap_mode[c].shares() && !recursive[l] {
                         t.reached[l] = true;
                         t.escapes[l] = true;
                         t.wide[l] = true;
