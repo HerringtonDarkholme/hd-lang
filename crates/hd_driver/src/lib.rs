@@ -11560,7 +11560,14 @@ impl Env<'_> {
     /// is a driver context, so it suspends where it awaits outside its
     /// closures. No other top level awaits.
     fn init_suspends(&self, def: DefId) -> bool {
-        let Some((b, _)) = self.run.body_of(self.p, def) else {
+        // Declaration queries also run while a recursive component's
+        // ownership is pending. Read checked TIR rather than re-entering
+        // that component through body_of (defaults/facts have no signature).
+        let Some((b, _)) = self
+            .run
+            .lazy_body(self.p, def)
+            .and_then(|b| self.run.decode(b))
+        else {
             return false;
         };
         let awaits = |t: &hd_tir::Tag| {
@@ -11587,7 +11594,13 @@ impl Env<'_> {
     /// (`module.init.script-profile`); other initializers are requirement-free.
     /// Entry capability checks share this discovery with collection/emission.
     fn init_keys(&self, def: DefId) -> Vec<Ty> {
-        let Some((body, _)) = self.run.body_of(self.p, def) else {
+        // Required keys, like suspension, are checked declaration facts;
+        // discovering them must not start ownership of the queried body.
+        let Some((body, _)) = self
+            .run
+            .lazy_body(self.p, def)
+            .and_then(|b| self.run.decode(b))
+        else {
             return Vec::new();
         };
         if body.kind != hd_tir::BodyKind::Init {
