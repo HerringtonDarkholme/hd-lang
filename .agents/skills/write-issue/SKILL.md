@@ -1,6 +1,6 @@
 ---
 name: write-issue
-description: Write a GitHub issue for hd-lang that a fresh agent (Muse, a subagent) can act on without asking - one item, the rule, what happens today, where to look, and a done check - concise, with no history. Use when filing, splitting or rewriting an issue, or before assigning one to Muse.
+description: Write a GitHub issue for hd-lang that a fresh agent (chat, a subagent) can act on without asking - one item, the rule, what happens today, where to look, and a done check - concise, with no history. Use when filing, splitting or rewriting an issue, or before queuing one for chat.
 ---
 
 # Write An Issue
@@ -62,7 +62,7 @@ options already known, and what "decided" looks like.
 - Title: the defect or goal in plain words, under ~70 characters:
   "`pub` on a local function is accepted", not "G2 from coverage audit".
 - Labels: one priority (P1 to P4) and one area (checker, cli, runtime, std,
-  wasmtime, perf, design, documentation); add `muse` only when the item is
+  wasmtime, perf, design, documentation); add `chat` only when the item is
   fully specified (rule, today, done check) and needs no owner decision;
   `owner-decision` when it waits on the owner. Never invent labels.
 

@@ -33,7 +33,6 @@ removed, renamed APIs and anything parked.
 - `git worktree list`. Remove only finished agent worktrees.
 - Never remove:
   - a worktree a live agent uses;
-  - Muse's `/private/tmp/muse-work`;
   - the standing checkouts (`hd-merge`, `hd-size`, `hd-ir-redesign`).
 - Delete local branches whose work is merged, or whose issue is
   concluded.
