@@ -596,8 +596,18 @@ fn run_cases(dir: &Path, views: &Views<'_>, bless: bool) {
     let next = std::sync::atomic::AtomicUsize::new(0);
     let slots: Vec<std::sync::Mutex<Option<CaseResult>>> =
         files.iter().map(|_| std::sync::Mutex::new(None)).collect();
-    let workers = std::thread::available_parallelism()
-        .map_or(4, std::num::NonZero::get)
+    // `HD_TEST_JOBS` caps the pool, as it does for conformance: the machine is
+    // shared, and `RUST_TEST_THREADS` limits only libtest's own threads.
+    let workers = std::env::var("HD_TEST_JOBS")
+        .ok()
+        .and_then(|jobs| jobs.parse::<usize>().ok())
+        .filter(|&jobs| jobs >= 1)
+        .or_else(|| {
+            std::thread::available_parallelism()
+                .ok()
+                .map(std::num::NonZero::get)
+        })
+        .unwrap_or(4)
         .min(files.len());
     std::thread::scope(|scope| {
         for _ in 0..workers {
