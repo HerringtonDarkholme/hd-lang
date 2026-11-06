@@ -592,6 +592,10 @@ impl dyn InlineEnv + '_ {
                         && self.takes_reference(def, targs)
                         && self.only_local_references(def, targs)
                         && self.plain_memory(copy)
+                        && copy
+                            .sub_root
+                            .first()
+                            .is_some_and(|&r| copy.ty[r as usize] == Ty::VOID)
                         && self.fits_size(def, targs, copy, AUTO_INLINE_LIMIT))
             }
             // A by-value parameter of a type still open waits for the instance:

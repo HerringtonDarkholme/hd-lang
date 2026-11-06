@@ -3,7 +3,57 @@
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "heap" (memory $heap 1))
-  (func $"total[i32]" (param $x i32) (param $n i32) (result i32) (local $s i32) (local $t0 i32) (local $t1 i32) (local $t2 i64)
+  (func $"impl Area for i32.area'1" (param $self i32) (result i32) (local $t0 i64)
+    ;; 19 |         (*self + 1) * (*self + 2) * (*self + 3) * (*self + 4) * (*self + 5) / (*self + 6)
+    local.get $self
+    i32.const 1
+    i32.add
+    local.get $self
+    i32.const 2
+    i32.add
+    i32.mul
+    local.get $self
+    i32.const 3
+    i32.add
+    i32.mul
+    local.get $self
+    i32.const 4
+    i32.add
+    i32.mul
+    local.get $self
+    i32.const 5
+    i32.add
+    i32.mul
+    local.get $self
+    i32.const 6
+    i32.add
+    local.set $self
+    i64.extend_i32_s
+    local.get $self
+    i64.extend_i32_s
+    local.tee $t0
+    i64.eqz
+    if
+      call $rt:panic'1
+      unreachable
+    end
+    local.get $t0
+    i64.div_s
+    local.tee $t0
+    i64.const 2147483647
+    i64.gt_s
+    local.get $t0
+    i64.const -2147483648
+    i64.lt_s
+    i32.or
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $t0
+    i32.wrap_i64
+  )
+  (func $"total[i32]" (param $x i32) (param $n i32) (result i32) (local $s i32) (local $t0 i32)
     ;; 25 |     let mut s = +0
     i32.const 0
     local.set $s
@@ -22,61 +72,9 @@
         i32.add
         local.set $t0
     ;; 27 |         s = s + x.area()
-        block
-          block
-            local.get $x
-            i32.const 1
-            i32.add
-            local.get $x
-            i32.const 2
-            i32.add
-            i32.mul
-            local.get $x
-            i32.const 3
-            i32.add
-            i32.mul
-            local.get $x
-            i32.const 4
-            i32.add
-            i32.mul
-            local.get $x
-            i32.const 5
-            i32.add
-            i32.mul
-            local.get $x
-            i32.const 6
-            i32.add
-            local.set $t1
-            i64.extend_i32_s
-            local.get $t1
-            i64.extend_i32_s
-            local.tee $t2
-            i64.eqz
-            if
-              call $rt:panic'1
-              unreachable
-            end
-            local.get $t2
-            i64.div_s
-            local.tee $t2
-            i64.const 2147483647
-            i64.gt_s
-            local.get $t2
-            i64.const -2147483648
-            i64.lt_s
-            i32.or
-            if
-              call $rt:panic'2
-              unreachable
-            end
-            local.get $t2
-            i32.wrap_i64
-            local.set $t1
-            br 0
-          end
-        end
         local.get $s
-        local.get $t1
+        local.get $x
+        call $"impl Area for i32.area'1"
         i32.add
         local.set $s
     ;; 26 |     for _ in 0..n:
@@ -86,7 +84,7 @@
     ;; 28 |     s
     local.get $s
   )
-  (func $"impl Area for i32.area" (param $self i32) (result i32) (local $t0 i64)
+  (func $"impl Area for i32.area'2" (param $self i32) (result i32) (local $t0 i64)
     ;; 19 |         (*self + 1) * (*self + 2) * (*self + 3) * (*self + 4) * (*self + 5) / (*self + 6)
     block
       local.get $self

@@ -2957,8 +2957,9 @@ a small reader may keep shared references to unpromotable referents or
 Drop owners when it only reads through them and has no reachable write
 effect (#1346). A callee that takes `&mut` keeps its call boundary, with
 one exception: at a call in a loop, in release, a callee up to the `@inline`
-budget (`AUTO_INLINE_LIMIT`) whose copy only moves scalars through plain
-memory, calling nothing but what never returns and the compiler's own code.
+budget (`AUTO_INLINE_LIMIT`) that returns nothing and whose copy only moves
+scalars through plain memory, calling nothing but what never returns and the
+compiler's own code.
 Such a copy can reach no alias, so its binding's loan ending at the last use
 and not at the return changes nothing. The fallback
 requires each reference parameter to be read through; an unused receiver
@@ -3014,7 +3015,9 @@ parameters refused or allowed and with leaves required or not:
   copy of `Map.next`, closures +29% and iter-pipeline +12% on V8; a callee
   that touches a collection or counted value, route-search +3,036,300 count
   operations, since the passes' rules for a `&mut` parameter do not cover a
-  copy's local that holds it.
+  copy's local that holds it; a callee that returns a value, such as a byte
+  cursor's `next`, nested-display +12.7% on V8's default tier, where `main`'s
+  loop stays in Liftoff, and dyn_iter -9%.
 - **Reference parameters** (the first tuning). Allowing them in a callee that calls on
   copies `StringBuilder.push` (`&mut self`, calls `bytes_append`) into
   a loop: string_build 92 to 130 ms and map_count 121 to 138 ms on the
