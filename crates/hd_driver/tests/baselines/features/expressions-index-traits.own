@@ -22,6 +22,7 @@ impl Index[usize] for Names:
 >   %1 = IsUnique [*$0 .items] : ()
 >   %2 = Ref local [*$0 .items [%0]] : Ref[string]
 >   %3 = Block %2 : Ref[string]
+>   %1 one owner
 >   summary kept [] writes
 
 impl IndexSet[usize, string] for Names:
@@ -39,6 +40,7 @@ impl IndexSet[usize, string] for Names:
 >   %2 = IsUnique [*$0 .items] : ()
 >   %3 = Store [*$0 .items [%0]] %1 : ()
 >   %4 = Block - : ()
+>   %2 one owner
 >   exit sub 0 drops [$2]
 >   summary kept [$2] writes
 
@@ -69,6 +71,7 @@ fn read_len(n: Names, i: usize) -> usize:
 >   %14 = Drop [$2] : ()
 >   %15 = Drop [$0] : ()
 >   %16 = Block %12 : usize
+>   %5 one owner
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes
 

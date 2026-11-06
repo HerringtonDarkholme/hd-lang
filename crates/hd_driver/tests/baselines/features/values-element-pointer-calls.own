@@ -57,6 +57,7 @@ fn walk(node: &Node, sink: &mut dyn Sink) -> void:
 >   %33 = If %11 [%30 %32] : ()
 >   %34 = Block - : ()
 >   %35 = Loop %34 - : ()
+>   %16 one owner
         walk(*child, sink)
 >   %19 = Read copy [*$4] : Counted[Node]
 >   %20 = Read borrow [$1] : Ref[mut Sink]

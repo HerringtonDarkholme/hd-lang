@@ -510,6 +510,19 @@ impl OwnCx for Env<'_> {
         matches!(pool.get(t), TyData::Ref { counted: false, .. })
     }
 
+    fn single_owner_field(&self, ty: Ty, field: u32) -> bool {
+        let pool = &self.run.pool;
+        let mut t = ty;
+        while let TyData::Mut(inner) = pool.get(t) {
+            t = inner;
+        }
+        self.run
+            .single_owner
+            .get()
+            .and_then(|v| v.get(&(t, field)))
+            .is_some_and(Option::is_none)
+    }
+
     fn trait_value(&self, ty: Ty) -> bool {
         let pool = &self.run.pool;
         let mut t = ty;

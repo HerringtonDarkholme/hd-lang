@@ -63,6 +63,7 @@ impl Shelf:
 >   %2 = Read borrow [*$0 .books] : List[string]
 >   %3 = Intrinsic ListPush [%2 %0] : ()
 >   %4 = Block - : ()
+>   %1 shared: a copy of a value that holds the struct
 >   exit sub 0 drops [$1]
 >   summary kept [$1] writes
 

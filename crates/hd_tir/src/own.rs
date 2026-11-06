@@ -162,6 +162,14 @@ pub trait OwnCx {
         let _ = (item, k, n);
         false
     }
+    /// Whether field `field` of struct `ty` holds a buffer with one owner
+    /// over the whole program (step 15d1): no counted copy of the struct,
+    /// of a value holding it or of the field, and only fresh buffers stored
+    /// there. The default answers no; no pass reads it yet.
+    fn single_owner_field(&self, ty: Ty, field: u32) -> bool {
+        let _ = (ty, field);
+        false
+    }
     /// Whether `ty` is a trait value (`dyn T`, `mut dyn T`): the words of
     /// the counted pointer it is read through, its object held by that
     /// pointer's count. The default answers no.

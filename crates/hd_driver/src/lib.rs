@@ -60,6 +60,7 @@ pub mod bench;
 mod checked_rooms;
 mod dbg;
 pub mod diagnostics;
+mod fields;
 mod own;
 pub use own::copy_report_label;
 mod pipeline;
@@ -1614,6 +1615,9 @@ struct Run<'a> {
     counters: Mutex<Counters>,
     tir_text: Mutex<std::collections::BTreeMap<String, String>>,
     own_text: Mutex<std::collections::BTreeMap<String, OwnText>>,
+    /// Step 15d1's single-owner field verdicts, once `link` computed them
+    /// (`fields::single_owner`; fixtures with an own view only for now).
+    single_owner: OnceLock<fields::Verdicts>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -2421,6 +2425,7 @@ fn build_packages_inner(
         counters: Mutex::new(Counters::default()),
         tir_text: Mutex::new(std::collections::BTreeMap::new()),
         own_text: Mutex::new(std::collections::BTreeMap::new()),
+        single_owner: OnceLock::new(),
         table,
         module_nodes,
     };
@@ -10129,6 +10134,51 @@ impl Run<'_> {
         selectors.into_iter().collect()
     }
 
+    /// Step 15d1: each own view's uniqueness checks of a collection field
+    /// gain a line with the field's single-owner verdict over the whole
+    /// program (`fields::single_owner`), `%i one owner` or `%i shared:
+    /// why`. Release only; facts, nothing reads them yet.
+    fn print_single_owner<'b>(
+        &self,
+        env: &Env<'_>,
+        c: &CollectOut,
+        body: &dyn Fn(hd_base::InstId) -> Option<&'b hd_tir::ir::Body>,
+    ) {
+        let table = &c.collected.table;
+        let erased = |id: hd_base::InstId| matches!(table.sub[id.idx()], hd_mono::Sub::Erased);
+        let all: Vec<_> = c
+            .order
+            .iter()
+            .filter_map(|&id| {
+                Some((
+                    id,
+                    body(id)?,
+                    table.item[id.idx()],
+                    table.args[id.idx()],
+                    erased(id),
+                ))
+            })
+            .collect();
+        let verdicts = self
+            .single_owner
+            .get_or_init(|| fields::single_owner(&self.pool, env, all.iter().copied()));
+        let names = self.names();
+        let mut own_text = lock(&self.own_text);
+        for &(_, b, item, args, _) in &all {
+            let path = names.path(item);
+            let Some(own) = own_text.get_mut(&path) else {
+                continue;
+            };
+            let sub = |t| hd_mono::subst(&self.pool, env, item, args, t);
+            for (i, line) in fields::check_lines(&self.pool, env, b, &sub, verdicts) {
+                let line = format!("%{i} {line}\n");
+                if !own.text.contains(&line) {
+                    own.text.push_str(&line);
+                }
+            }
+        }
+    }
+
     /// `link`: one linear-memory module
     /// from collection's output and every instance's TIR body.
     fn link(&self) {
@@ -10156,6 +10206,9 @@ impl Run<'_> {
                 .or_else(|| c.collected.supplied_body(&self.pool, item, args))
                 .or_else(|| self.body_of(p, item).map(|b| &b.0))
         };
+        if self.summaries.is_some() && !self.host.render_tir.is_empty() {
+            self.print_single_owner(&env, c, &body);
+        }
         let inits = &c.collected.inits;
         let entry = match &c.roots {
             // Legacy whole-history sessions own their memory. Only the

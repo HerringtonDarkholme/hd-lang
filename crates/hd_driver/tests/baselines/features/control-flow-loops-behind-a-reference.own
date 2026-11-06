@@ -37,6 +37,7 @@ impl Parser:
 >   %19 = If %7 [%16 %18] : ()
 >   %20 = Block - : ()
 >   %21 = Loop %20 - : ()
+>   %4 shared: a copy of the field
             self.index.push(self.pending[word])
 >   %8 = Read copy [$3] : usize
 >   %9 = Read copy [*$0 .pending [%8]] : usize
@@ -44,6 +45,7 @@ impl Parser:
 >   %11 = Read borrow [*$0 .index] : List[usize]
 >   %12 = Intrinsic ListPush [%11 %9] : ()
 >   %16 = Block - : ()
+>   %10 shared: a copy of the field
             word = word + 1
 >   %13 = Read copy [$3] : usize
 >   %14 = Prim Add [%13 1:usize] : usize
@@ -91,11 +93,13 @@ impl Parser:
 >   %25 = Block - : ()
 >   %26 = Loop %25 - : ()
 >   %27 = Block - : ()
+>   %8 shared: a copy of the field
             self.index[i] = self.held
 >   %17 = Read copy [$5] : usize
 >   %18 = Read copy [*$0 .held] : usize
 >   %19 = IsUnique covered [*$0 .index] : ()
 >   %20 = Store [*$0 .index [%17]] %18 : ()
+>   %19 shared: a copy of the field
 >   summary kept [] writes
 >   loop %26 keeps [*$0 .index]
 
@@ -148,6 +152,7 @@ impl Parser:
 >   %21 = Read copy [*$0 .held] : usize
 >   %22 = IsUnique [*$0 .index] : ()
 >   %23 = Store [*$0 .index [%20]] %21 : ()
+>   %22 shared: a copy of the field
         last.len()
 >   %30 = Read move [$2] : List[usize]
 >   %31 = Intrinsic ListLen [%30] : usize
@@ -228,6 +233,7 @@ pub fn main() -> void $ Console:
 >   %22 = Intrinsic ListPush [%21 %19] : ()
 >   %20 finds [$0] full
 >   %21 finds [$0] full
+>   %20 one owner
     p.held = 4
 >   %29 = Store [$0 .held] 4:usize : ()
 >   %29 finds [$0] full
