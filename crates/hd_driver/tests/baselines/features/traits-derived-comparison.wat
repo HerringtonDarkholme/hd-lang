@@ -9,7 +9,6 @@
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
   (import "fixture" "rt:map_hash'2" (func $rt:map_hash'2 (param i32 i32 i32) (result i32)))
   (import "fixture" "rt:map_find'2" (func $rt:map_find'2 (param i32 i32 i32 i32 i32) (result i32)))
-  (import "fixture" "impl [ T < ? Copy ] T ?.unwrap_or[i32]" (func $"impl [ T < ? Copy ] T ?.unwrap_or[i32]" (param i32 i32 i32) (result i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -297,7 +296,7 @@
     end
     local.get $m
   )
-  (func $tuple_key (param $m i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $t0 i32)
+  (func $tuple_key (param $m i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
     block
     ;; 26 |     m.get((s, 1)).unwrap_or(0)
       local.get $m
@@ -335,13 +334,37 @@
       local.get $s.0
       call $rt:release_ref
     ;; 26 |     m.get((s, 1)).unwrap_or(0)
-      local.get $t1
-      local.get $t0
-      i32.const 0
-      call $"impl [ T < ? Copy ] T ?.unwrap_or[i32]"
-    ;; (no span)
-      local.set $m
+      block
+        block
+          block
+            block
+              block
+                local.get $t1
+                i32.const 1
+                i32.eq
+                if
+                  local.get $t0
+                  local.set $t2
+                  br 1
+                else
+                  local.get $t1
+                  i32.eqz
+                  br_if 2
+                  unreachable
+                end
+                unreachable
+              end
+              br 1
+            end
+            br 0
+          end
+          local.get $t2
+          local.set $m
+          br 0
+        end
+      end
     end
+    ;; (no span)
     local.get $m
   )
 )

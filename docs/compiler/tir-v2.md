@@ -2945,7 +2945,13 @@ index loop.
 One selection rule covers std, `std.rt` included (2026-11-02, #1228: no
 runtime exception, and no inline hints in `lib/std/rt/`), and user callees
 (2026-10-26, #856): a
-callee of at most 16 instructions (`INLINE_LIMIT`) that is not recursive.
+non-recursive callee fitting the size budget of 16 (`INLINE_LIMIT`). A body
+fits by its raw row count or by a lowering estimate (#1358). The estimate
+charges executable rows, labelled blocks and the inlined root's return
+scope. Plain suite wrappers cost nothing; call arguments and a returned
+value add binding costs. Reads, stores and branches retain their costs.
+The estimate does not newly admit reference-carrying results: those keep
+the existing raw-budget call boundary and its loan-end contract.
 Reference getters and proved argument promotion also qualify. In release,
 a small reader may keep shared references to unpromotable referents or
 Drop owners when it only reads through them and has no reachable write
@@ -2964,9 +2970,10 @@ ownership lowering preserves the reference's lifetime.
 The build profile also selects which ordinary bodies are candidates:
 a dev build copies std callees only, so user code stays as written for
 stepping, stack traces and `dbg`; a release build copies both, like the
-other cross-function work, which is release-only. 16 lets a one-line
-helper such as spectral_norm's `a(i, j)` (15) be no call in a hot loop,
-which V8's baseline tier would run as a call. A function marked
+other cross-function work, which is release-only. The budget was originally
+selected by counting raw rows: 16 let spectral_norm's `a(i, j)` (15 rows)
+be no call in a hot loop. The operation measure keeps that numeric budget
+while admitting small matches without discounting call-boundary work. A function marked
 `@inline(.Never)` or `@cold` is copied nowhere
 ([`annot.inline.never`](../../spec/lang/14-annotations.md#r-annot.inline.never)),
 and each direct call of a `@cold` function goes through the function

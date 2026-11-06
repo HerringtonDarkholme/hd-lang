@@ -18,3 +18,5 @@ fn question(o: string?) -> string?:
 
 fn or_default(o: string?) -> string:
     o.unwrap_or("none")
+> app/main/or_default
+>   retain string (stored)

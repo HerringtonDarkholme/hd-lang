@@ -14,15 +14,13 @@ use hd_tir::inline::Site;
 use hd_tir::ir::{Body, Callee, Ref, Tag, local_flags, place, ref_word};
 use hd_types::{InternPool, RefCells, Ty, TyData, TyList};
 
-/// The most instructions a callee's body may have for a call of it to
-/// inline, in std and outside it alike (`docs/compiler/tir-v2.md`, "The
-/// inliner", tuned at 16 over 8, 12, 16 and 20 in #856: 12 leaves
-/// `spectral_norm`'s `a(i, j)` (15 instructions) a call, which V8's
-/// baseline tier runs twice as slowly, and 20 only grows code); 0 turns
-/// the inliner off.
+/// The default callee size budget, in std and outside it alike.
+/// `hd_tir::inline::inlinable` accepts the raw-row bound or a lowering
+/// estimate that charges labelled blocks and call-boundary bindings.
+/// The numeric budget started as 16 raw rows (#856); 0 disables it.
 pub const INLINE_LIMIT: usize = 16;
 
-/// The most instructions a function marked `@inline` or
+/// The size budget for a function marked `@inline` or
 /// `@inline(.Auto)` may have and still be copied.
 pub const AUTO_INLINE_LIMIT: usize = 64;
 
@@ -512,6 +510,34 @@ impl dyn InlineEnv + '_ {
         Some((copy, hash, fits))
     }
 
+    /// A larger return scope has not proved the call's loan-end
+    /// contract for a reference-carrying result. Keep that boundary;
+    /// existing raw-budget getters and explicit Always copies retain
+    /// their established eligibility.
+    fn fits_size(&self, def: DefId, targs: TyList, copy: &Body, limit: usize) -> bool {
+        if copy.len() > limit {
+            let declared = self.result(def).map(|t| {
+                let t = self.pool().lower_refs(self.ref_cells(), t);
+                hd_mono::subst(self.pool(), self, def, targs, t)
+            });
+            let root = copy
+                .sub_root
+                .first()
+                .and_then(|&r| copy.ty.get(r as usize))
+                .copied();
+            // A body whose every path explicitly returns has a never
+            // root; its instantiated declaration still carries the loan.
+            if declared
+                .into_iter()
+                .chain(root)
+                .any(|t| holds_local(self.pool(), self.ref_cells(), t, 0))
+            {
+                return false;
+            }
+        }
+        hd_tir::inline::inlinable(copy, limit)
+    }
+
     /// Whether `copy`, the body of `def` at `targs`, may inline:
     /// The rule selected by `def`'s [`InlineHint`]: ordinary calls use
     /// [`INLINE_LIMIT`] and accept a getter's reference parameters
@@ -523,12 +549,12 @@ impl dyn InlineEnv + '_ {
     fn fits(&self, def: DefId, targs: TyList, copy: &Body) -> bool {
         match self.inline_hint(def) {
             InlineHint::Default => {
-                hd_tir::inline::inlinable(copy, INLINE_LIMIT)
+                self.fits_size(def, targs, copy, INLINE_LIMIT)
                     && (!self.takes_reference(def, targs)
                         || self.by_value(def, targs, copy).is_some()
                         || (self.memo().is_some() && self.read_only_refs(def, targs, copy)))
             }
-            InlineHint::Auto => hd_tir::inline::inlinable(copy, AUTO_INLINE_LIMIT),
+            InlineHint::Auto => self.fits_size(def, targs, copy, AUTO_INLINE_LIMIT),
             InlineHint::Always => hd_tir::inline::copyable(copy),
             InlineHint::Never => false,
         }

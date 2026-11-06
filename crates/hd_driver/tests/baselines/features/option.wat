@@ -4,7 +4,6 @@
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "impl [ T < ? Copy ] T ?.unwrap_or[string]" (func $"impl [ T < ? Copy ] T ?.unwrap_or[string]" (param i32 i32 i32 i32 i32) (result i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $question (param $o.0 i32) (param $o.1 i32) (param $o.2 i32) (result i32 i32 i32) (local $t0 i32) (local $t1 i32)
     ;; 13 |     .Some(s + "!")
@@ -90,18 +89,50 @@
     ;; (no span)
     local.get $o.0
   )
-  (func $or_default (param $o.0 i32) (param $o.1 i32) (param $o.2 i32) (result i32 i32)
-    ;; 16 |     o.unwrap_or("none")
+  (func $or_default (param $o.0 i32) (param $o.1 i32) (param $o.2 i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
     block
-      local.get $o.0
-      local.get $o.1
-      local.get $o.2
+    ;; 16 |     o.unwrap_or("none")
       i32.const 66 ;; &"none"
       i32.const 4
-      call $"impl [ T < ? Copy ] T ?.unwrap_or[string]"
-      local.set $o.1
-      local.set $o.0
+      local.set $t0
+      local.set $t1
+      block
+        block
+          block
+            block
+              block
+                local.get $o.0
+                i32.const 1
+                i32.eq
+                if
+                  local.get $o.1
+                  call $retain
+                  local.get $o.1
+                  local.get $o.2
+                  local.set $t0
+                  local.set $t1
+                  br 1
+                else
+                  local.get $o.0
+                  i32.eqz
+                  br_if 2
+                  unreachable
+                end
+                unreachable
+              end
+              br 1
+            end
+            br 0
+          end
+          local.get $t1
+          local.get $t0
+          local.set $o.1
+          local.set $o.0
+          br 0
+        end
+      end
     end
+    ;; (no span)
     local.get $o.0
     local.get $o.1
   )
