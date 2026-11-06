@@ -34,10 +34,10 @@
     },
     {
       "program": "bench/runtime/progs/iter-pipeline.hd",
-      "retained": "20002000",
-      "released": "20004016",
+      "retained": "2000",
+      "released": "4016",
       "uniques": "20000",
-      "total": "40026016"
+      "total": "26016"
     },
     {
       "program": "bench/runtime/progs/list-sort.hd",
