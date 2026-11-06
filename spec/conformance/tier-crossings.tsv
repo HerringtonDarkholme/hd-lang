@@ -71,3 +71,4 @@ runtime/valid/unique-list-reference-outlives-its-pointer-local.hd	std.collection
 runtime/valid/display-write-nested.hd	std.text.StringBuilder	the owner decision (#436) gives Display.write a std.text.StringBuilder parameter, so a type that overrides write imports it
 typing/invalid/display-write-readonly-builder.hd	std.text.StringBuilder	the owner decision (#436) gives Display.write a std.text.StringBuilder parameter, so a type that overrides write imports it
 runtime/valid/display-write-expression-order.hd	std.text.StringBuilder	the decided Display.write parameter names StringBuilder, and the override must write through it to test expression/write order
+runtime/valid/trait-value-suspending-call-keeps-its-argument.hd	std.collections.UniqList	the argument must be !Copy and hold a buffer, so a double drop shows as a second drop of one value; only std collections hold one

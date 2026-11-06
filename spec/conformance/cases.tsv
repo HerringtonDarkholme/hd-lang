@@ -5924,6 +5924,9 @@ runtime/valid/uniq-map-index-reference-places.hd	runtime	accept	std/collections.
 runtime/valid/index-reference-places.hd	runtime	accept	lang/05-expressions.md#r-expr.index.trait.mutable-place
 typing/invalid/index-mutable-accessor-missing.hd	type	reject:not-writable	lang/13-values-and-references.md#r-ref.place.writable
 typing/invalid/index-associated-output-needs-copy.hd	type	reject:move-out-of-place	lang/13-values-and-references.md#r-ref.move.out-of-place
+runtime/valid/trait-value-call-lends-an-owned-argument.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.bound.reference-dispatch
+runtime/valid/trait-value-suspending-call-keeps-its-argument.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.bound.reference-dispatch
+runtime/valid/list-literal-spreads-lend-their-lists.hd	runtime	accept	lang/05-expressions.md#r-expr.list.spread.insert
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
@@ -6356,9 +6359,6 @@ typing/invalid/pointer-loan-same-root-dependent-call.hd	type	reject:conflicting-
 typing/invalid/pointer-loan-same-root-dependent-method.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.dep.call.pointer
 typing/invalid/pointer-loan-same-root-observer-notify.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place
 typing/invalid/pointer-loan-same-root-dependent-outlives-root.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.call.pointer
-runtime/valid/trait-value-call-lends-an-owned-argument.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.bound.reference-dispatch
-runtime/valid/trait-value-suspending-call-keeps-its-argument.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.bound.reference-dispatch
-runtime/valid/list-literal-spreads-lend-their-lists.hd	runtime	accept	lang/05-expressions.md#r-expr.list.spread.insert
 runtime/valid/erased-call-matrix-generic-ref-ref-i32.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param
 runtime/valid/erased-call-matrix-generic-ref-ref-string.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param
 runtime/valid/erased-call-matrix-generic-ref-ref-unique.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.type
