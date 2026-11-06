@@ -204,7 +204,14 @@ fn modules() -> Vec<Module> {
             }
         }
     }
-    // Bench programs.
+    out.extend(benchmarks());
+    out
+}
+
+/// The CI budget reads and builds only benchmarks, not the wider corpus.
+fn benchmarks() -> Vec<Module> {
+    let r = root();
+    let mut out = Vec::new();
     for dir in ["bench/study", "bench/runtime/progs"] {
         let mut v = Vec::new();
         let Ok(rd) = std::fs::read_dir(r.join(dir)) else {
@@ -357,7 +364,6 @@ fn count_reasons() {
         .and_then(|v| v.parse().ok())
         .unwrap_or(1)
         .max(1);
-    let all = modules();
     let parts = std::env::var("HD_CORPUS_PARTS").ok();
     let parts: Option<Vec<_>> = parts
         .as_deref()
@@ -371,6 +377,11 @@ fn count_reasons() {
             "HD_CORPUS_PARTS must name corpus parts, such as bench"
         );
     }
+    let all = if parts.as_deref() == Some(&["bench"][..]) {
+        benchmarks()
+    } else {
+        modules()
+    };
     let mut by_part: BTreeMap<&str, usize> = BTreeMap::new();
     let mods: Vec<&Module> = all
         .iter()

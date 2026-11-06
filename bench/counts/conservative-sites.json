@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "pipeline": "optimized-release",
+  "target": "v8",
+  "reasons": [
+    {
+      "reason": "conservative: Await",
+      "sites": 20
+    },
+    {
+      "reason": "conservative: AwaitAll",
+      "sites": 5
+    },
+    {
+      "reason": "conservative: AwaitValue",
+      "sites": 6
+    },
+    {
+      "reason": "conservative: Call",
+      "sites": 29
+    },
+    {
+      "reason": "conservative: CallValue",
+      "sites": 1
+    },
+    {
+      "reason": "conservative: Closure",
+      "sites": 1
+    },
+    {
+      "reason": "conservative: Coerce",
+      "sites": 6
+    },
+    {
+      "reason": "conservative: Intrinsic",
+      "sites": 4
+    },
+    {
+      "reason": "conservative: ProviderGet",
+      "sites": 1
+    },
+    {
+      "reason": "conservative: Ref",
+      "sites": 7
+    },
+    {
+      "reason": "conservative: Store",
+      "sites": 10
+    },
+    {
+      "reason": "conservative: cold constructor",
+      "sites": 7
+    },
+    {
+      "reason": "conservative: copy read",
+      "sites": 17
+    },
+    {
+      "reason": "conservative: entry",
+      "sites": 23
+    },
+    {
+      "reason": "conservative: frame drop",
+      "sites": 68
+    },
+    {
+      "reason": "conservative: return",
+      "sites": 4
+    },
+    {
+      "reason": "conservative: source call",
+      "sites": 480
+    },
+    {
+      "reason": "conservative: unique",
+      "sites": 56
+    },
+    {
+      "reason": "conservative: unowned parameter",
+      "sites": 2
+    }
+  ]
+}
