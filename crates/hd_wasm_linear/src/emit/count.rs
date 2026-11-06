@@ -984,12 +984,33 @@ impl Em<'_, '_, '_> {
     /// (`hd_tir::own::consumers`).
     pub(super) fn own_consumers(&mut self) {
         hd_tir::own::consumers(self.b, &self.topo, self.input.own_cx, &mut self.consumer);
-        if self.m.track_origins {
+        let verify = cfg!(not(target_arch = "wasm32"))
+            && self
+                .input
+                .runtime
+                .and_then(|runtime| runtime.checked)
+                .is_some();
+        if self.m.track_origins || verify {
             hd_tir::own::copy_reasons(
                 self.b,
                 &self.topo,
                 self.input.own_cx,
                 &mut self.copy_reasons,
+            );
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        if verify {
+            let bad = hd_tir::own::check_copy_reasons(
+                self.b,
+                &self.topo,
+                self.input.own_cx,
+                &self.copy_reasons,
+            );
+            assert!(
+                bad.is_empty(),
+                "the reason verifier rejects a body of item {:?}:\n{}",
+                self.b.item,
+                bad.join("\n")
             );
         }
         self.used.clear();

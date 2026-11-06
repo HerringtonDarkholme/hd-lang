@@ -1,13 +1,29 @@
 //! Why each count operation stands (`docs/future-work/OWNERSHIP_ARCHITECTURE.md`,
 //! "The One Place Each Count Is Decided"). A `Drop` carries its reason in
 //! its data word b; an `IsUnique`'s and a copy `Read`'s follow from the
-//! statement ([`reason`]). Nothing checks a reason yet: where today's
-//! passes compute no fact behind a count, it is `Conservative`, naming the
-//! site that placed it.
+//! statement ([`reason`]). Checked native builds independently verify the
+//! named copy-read reasons. Where today's passes compute no fact behind
+//! a count, it is `Conservative`, naming the site that placed it.
 
+#[cfg(any(test, target_arch = "wasm32"))]
+use super::OwnCx;
+#[cfg(any(test, target_arch = "wasm32"))]
 use super::values::{Level, after, statement_chain};
-use super::{OwnCx, Role, consumes, operands};
-use crate::ir::{Body, NONE, Proj, ReadMode, Root, Tag, Topology, ref_word, u32_of, unique_word};
+#[cfg(target_arch = "wasm32")]
+use super::{Role, consumes, operands};
+use crate::ir::{Body, Proj, ReadMode, Root, Tag, ref_word, unique_word};
+
+#[cfg(any(test, target_arch = "wasm32"))]
+use crate::ir::{NONE, Topology, u32_of};
+
+#[cfg(not(target_arch = "wasm32"))]
+mod future;
+#[cfg(not(target_arch = "wasm32"))]
+mod native;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+use native::changes;
+#[cfg(not(target_arch = "wasm32"))]
+pub use native::{check_copy_reasons, copy_reasons};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Reason {
@@ -122,6 +138,7 @@ pub fn reason(b: &Body, i: usize) -> Option<Reason> {
 /// it); otherwise `Conservative("copy
 /// read")`, a copy no fact here explains. Labels only: the emitter's
 /// counts view reads them.
+#[cfg(target_arch = "wasm32")]
 pub fn copy_reasons(b: &Body, topo: &Topology, cx: &dyn OwnCx, out: &mut Vec<Option<Reason>>) {
     let n = b.len();
     out.clear();
@@ -256,6 +273,7 @@ fn source(b: &Body, mut w: u32) -> Source {
 /// read, reference or capture of the same local (or use of the same
 /// value) that may run after `r`, or one in a loop around `r` that holds
 /// no whole store of the local.
+#[cfg(any(test, target_arch = "wasm32"))]
 fn used_again(
     b: &Body,
     topo: &Topology,
@@ -319,6 +337,7 @@ fn used_again(
 /// Whether a write may change the source of copy read `r` while its value
 /// lives, up to its last use `end` ([`copy_reasons`]), over the range of
 /// instructions from the first of the read's statement.
+#[cfg(any(test, target_arch = "wasm32"))]
 fn changed_while(
     b: &Body,
     topo: &Topology,
@@ -363,4 +382,100 @@ fn changed_while(
             _ => false,
         }
     })
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::*;
+    use crate::ir::{BodyKind, Callee, Providers, TirBuilder, TirSink, local_flags};
+    use hd_base::{DefId, NodeIdx, Symbol};
+    use hd_types::{Ty, TyList};
+
+    fn example(takes: bool, writes: bool, binding: bool) -> (Body, usize) {
+        let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        let syn = NodeIdx::from_raw(1);
+        let block = b.open_block();
+        let local = b.local(Ty::STRING, Symbol::from_raw(0), local_flags::PARAM, syn);
+        let read = b.get(local, Ty::STRING, syn);
+        let argument = if binding {
+            let bound = b.local(Ty::STRING, Symbol::from_raw(1), 0, syn);
+            b.set(bound, read, syn);
+            Some(bound)
+        } else {
+            None
+        };
+        if writes {
+            let fresh = b.call(
+                &Callee::Item {
+                    def: DefId::from_raw(7),
+                    targs: TyList::EMPTY,
+                },
+                &[],
+                Providers::None,
+                Ty::STRING,
+                syn,
+            );
+            b.set(local, fresh, syn);
+        }
+        let argument = argument.map_or(read, |local| b.get(local, Ty::STRING, syn));
+        b.call(
+            &Callee::Item {
+                def: DefId::from_raw(if takes { 9 } else { 8 }),
+                targs: TyList::EMPTY,
+            },
+            &[argument],
+            Providers::None,
+            Ty::VOID,
+            syn,
+        );
+        let root = b.close_block(block, None, Ty::VOID, syn);
+        let mut body = b.finish(root, &[]).expect("TIR");
+        for i in 0..body.len() {
+            if body.tags[i] == Tag::Read {
+                body.data[i][1] = ReadMode::Copy as u32;
+            }
+        }
+        (body, read.0 as usize)
+    }
+
+    #[test]
+    fn copy_reasons_need_a_consuming_use_or_a_write_during_the_loan() {
+        for (takes, writes, binding, expected) in [
+            (true, false, false, Reason::Stored),
+            (false, true, false, Reason::SecondOwner),
+            (false, true, true, Reason::SecondOwner),
+            (false, false, false, Reason::Conservative("copy read")),
+        ] {
+            let (body, read) = example(takes, writes, binding);
+            let topo = Topology::new(&body);
+            let mut reasons = Vec::new();
+            copy_reasons(&body, &topo, &crate::own::tests::Cx, &mut reasons);
+            assert_eq!(reasons[read], Some(expected));
+            assert!(check_copy_reasons(&body, &topo, &crate::own::tests::Cx, &reasons).is_empty());
+        }
+    }
+
+    #[test]
+    fn sabotage_a_stored_label_on_a_read_only_copy_is_rejected() {
+        let (body, read) = example(false, false, false);
+        let topo = Topology::new(&body);
+        let mut reasons = vec![None; body.len()];
+        reasons[read] = Some(Reason::Stored);
+        assert_eq!(
+            check_copy_reasons(&body, &topo, &crate::own::tests::Cx, &reasons).len(),
+            1
+        );
+    }
+
+    #[test]
+    fn sabotage_a_second_owner_label_on_a_consumed_copy_is_rejected() {
+        let (body, read) = example(true, false, false);
+        let topo = Topology::new(&body);
+        let mut reasons = vec![None; body.len()];
+        reasons[read] = Some(Reason::SecondOwner);
+        assert_eq!(
+            check_copy_reasons(&body, &topo, &crate::own::tests::Cx, &reasons).len(),
+            1
+        );
+    }
 }
