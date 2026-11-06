@@ -21,8 +21,6 @@
       local.get $g.1
       i32.load $heap offset=4
       call_indirect $table0 (param i32 i32 i32)
-      local.get $n.0
-      call $rt:release_ref
     ;; (no span)
       local.get $g.0
       call $rt:release_ref

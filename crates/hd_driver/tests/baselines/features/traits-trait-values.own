@@ -89,9 +89,9 @@ fn through_mut(g: &mut dyn Greet, n: string) -> usize:
 >   local $0 g: Ref[mut Greet] [param read] value
 >     uses $0: entry -> %0 lend, %4 consume last
 >   local $1 n: string [param read] value
->     uses $1: entry -> %1 consume last
+>     uses $1: entry -> %1 lend last
 >   %0 = Read copy [*$0] : mut Greet
->   %1 = Read move [$1] : string
+>   %1 = Read borrow [$1] : string
 >   %2 = Call app/main/Greet.rename for Greet [] via TraitValue (%0, %1) : ()
 >   %3 = Drop [%0] : ()
 >   %7 = Block %6 : usize
@@ -99,8 +99,7 @@ fn through_mut(g: &mut dyn Greet, n: string) -> usize:
 >   %4 = Read borrow [$0] : Ref[mut Greet]
 >   %5 = Coerce %4 [Weaken -] : Ref[Greet]
 >   %6 = Call app/main/impl dyn Greet.twice[] (%5) : usize
->   exit sub 0 drops [$1]
->   summary kept [$1] writes
+>   summary kept [] borrows [$1] writes
 
 fn local_mut(u: User, n: string) -> usize:
     let mut v = u
@@ -108,7 +107,7 @@ fn local_mut(u: User, n: string) -> usize:
 >   local $0 u: User [param read] value
 >     uses $0: entry -> %0 consume last
 >   local $1 n: string [param read] value
->     uses $1: entry -> %9 consume last
+>     uses $1: entry -> %9 lend last
 >   local $2 v: User [read assigned captured captured-assigned] place
 >   local $3 $ref: Ref[mut User] [read assigned captured] value
 >     uses $3: %3 -> %4 lend last
@@ -123,10 +122,10 @@ fn local_mut(u: User, n: string) -> usize:
 >   %6 = Drop [%4] : ()
 >   %7 = Block %5 : Greet
 >   %8 = RefDyn %7 : Ref[mut Greet]
->   %9 = Read move [$1] : string
+>   %9 = Read borrow [$1] : string
 >   %10 = Call app/main/through_mut[] (%8, %9) : usize
 >   %11 = Drop [%8] : ()
 >   %12 = Drop [$2] : ()
 >   %2 finds [$2] full
->   exit sub 0 drops [$0 $1]
->   summary kept [$0 $1] writes
+>   exit sub 0 drops [$0]
+>   summary kept [$0] borrows [$1] writes

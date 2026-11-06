@@ -26,7 +26,6 @@ fn tick(s: string) -> usize $ Recorder:
 >   retain app.main.Recorder (conservative: ProviderGet)
     rec.note(s)
 >   retain app.main.Recorder (second owner)
->   release string (last use)
     rec.total()
 >   retain app.main.Recorder (second owner)
 >   (no span) release app.main.Recorder (last use)
