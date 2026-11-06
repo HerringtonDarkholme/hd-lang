@@ -2692,10 +2692,18 @@ fn build_packages_inner(
     }
     output.position_inputs = position_inputs.into_iter().map(Arc::new).collect();
     #[cfg(feature = "checked-report")]
-    if let Some(mut wasm) = output.wasm.take() {
-        let positions = output.positions(&mut PositionPool::default());
+    if packages.checked
+        && let Some(mut wasm) = output.wasm.take()
+    {
+        // The CLI enables this Cargo feature, but ordinary run/test builds
+        // do not enable the checked runtime. Even a checked fixture or
+        // session may have no audit anchors: resolve positions only when
+        // the metadata actually asks for a source line.
+        let positions = std::cell::OnceCell::new();
         let label = own::count_report_label();
         hd_wasm_linear::resolve_count_audit(&mut wasm, |item, inst| {
+            let positions =
+                positions.get_or_init(|| output.positions(&mut PositionPool::default()));
             positions
                 .line(item, inst)
                 .or_else(|| positions.entry_line(item))
