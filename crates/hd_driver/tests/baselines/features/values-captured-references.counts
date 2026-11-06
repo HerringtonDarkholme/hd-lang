@@ -30,7 +30,4 @@ fn apply(f: fn() -> usize) -> usize:
 fn local(xs: &List[string]) -> usize:
     apply(fn() -> usize: xs.len())
 > app/main/local
->   copy counted reference (conservative: copy read)
->   release List[string] (last use)
-> app/main/local
 >   (no span) release fn() -> usize (last use)

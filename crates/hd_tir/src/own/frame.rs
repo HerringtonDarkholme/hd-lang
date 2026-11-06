@@ -531,7 +531,9 @@ pub(crate) fn roots(b: &Body, cx: &dyn OwnCx, mut uses: impl FnMut(u32, u32)) {
 /// what a reference or a borrowed read through it points into, which
 /// holds no count of that object. Each use of such a value is a use of
 /// the root, so its drop, or a move of it, follows the reference's last
-/// use, in a suspending body's frame too.
+/// use, in a suspending body's frame too. A captured root follows the
+/// same rule in its closure's sub-body: that entry value must outlive
+/// the reads that borrow from it.
 fn root_uses(b: &Body, cx: &dyn OwnCx, uses: &mut impl FnMut(u32, u32, bool)) {
     let mut locals = Vec::new();
     let mut lent_reads: Vec<u32> = Vec::new();
@@ -559,7 +561,6 @@ fn root_uses(b: &Body, cx: &dyn OwnCx, uses: &mut impl FnMut(u32, u32, bool)) {
         if let Root::Local(l) = root
             && (lent || p.steps(b).any(|s| matches!(s, Proj::Deref | Proj::Elem(_))))
             && cx.counted(b.local_ty[l as usize])
-            && !b.cap_local.iter().any(|c| c.raw() == l)
         {
             locals.push(l);
         }
@@ -853,8 +854,7 @@ fn step_val(
             return changed;
         }
         Tag::Store => return false,
-        // A capture of a reference is a checker error; one that held it
-        // would keep it past the local.
+        // A closure carries the origins of the references it captures.
         Tag::Closure => {
             let rec = b.record(w);
             let (start, len) = (rec[0] as usize, rec[1] as usize);

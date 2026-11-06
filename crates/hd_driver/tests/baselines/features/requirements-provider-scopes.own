@@ -193,10 +193,10 @@ fn lexical(s: string) -> usize:
 >   %38 = Block %36 : usize
         apply(fn() -> usize: tag.name().len())
 >   %18 = Read copy [*$1] : Tag
->   %19 = Drop [$1] : ()
->   %20 = Call app/main/Tag.name for Tag [] via TraitValue (%18) : string
->   %21 = Drop [%18] : ()
->   %22 = Store [$4] %20 : ()
+>   %19 = Call app/main/Tag.name for Tag [] via TraitValue (%18) : string
+>   %20 = Drop [%18] : ()
+>   %21 = Drop [$1] : ()
+>   %22 = Store [$4] %19 : ()
 >   %23 = Read borrow [$4] : string
 >   %24 = Call std/rt.bytes/bytes_len[] (%23) : usize
 >   %25 = Break L1 %24 : never

@@ -1,0 +1,27 @@
+# @dump: own counts wat
+# @build: v8 release
+# Captured references stay alive through the values read from them.
+# Generic and repeated readers borrow the list header. Mutable captures
+# still write in place; a snapshot across an unknown writer still copies.
+fn apply(f: fn() -> usize) -> usize:
+    f()
+
+fn generic[T](xs: &List[T]) -> usize:
+    apply(fn() -> usize: xs.len())
+
+fn twice(f: fn() -> usize) -> usize:
+    f() + f()
+
+fn repeated(xs: &List[string]) -> usize:
+    twice(fn() -> usize: xs.len())
+
+fn mutable(xs: &mut List[string], value: string) -> usize:
+    apply:
+        xs.push(value)
+        xs.len()
+
+fn snapshot(xs: &List[string], edit: fn() -> void) -> usize:
+    apply:
+        saved := *xs
+        edit()
+        saved.len()
