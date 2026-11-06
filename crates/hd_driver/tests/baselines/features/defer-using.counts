@@ -23,7 +23,6 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
     defer(fn() -> void: log.push(s))
 > app/main/with_defer
 >   retain counted reference (conservative: Closure)
->   release std.ops.DeferGuard[fn() -> (), $(), &()] [action.1] (overwritten)
 > app/main/with_defer
 >   retain string (conservative: entry)
 >   unique List[string] (conservative: unique)

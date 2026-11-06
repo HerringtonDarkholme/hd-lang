@@ -13,26 +13,23 @@ fn make(s: string) -> Named:
 
 fn temp_ref(s: string) -> usize:
     n := &make(s)
-> app/main/temp_ref
->   release app.main.Named [name.0] (overwritten)
     n.name.len()
+> app/main/temp_ref
 >   (no span) release app.main.Named [name.0] (last use)
 
 fn new_mut(s: string, t: string) -> usize:
     m := &mut Named { name: s }
-> app/main/new_mut
->   release app.main.Named [name.0] (overwritten)
     m.name = t
+> app/main/new_mut
 >   release counted reference (conservative: Store)
     m.name.len()
 >   (no span) release app.main.Named [name.0] (last use)
 
 fn field_ref(s: string, t: string) -> usize:
     let mut p = Named { name: s }
-> app/main/field_ref
->   release app.main.Named [name.0] (overwritten)
     q := &mut p.name
     *q = t
+> app/main/field_ref
 >   release counted reference (conservative: Store)
     p.name.len()
 >   retain string (conservative: copy read)

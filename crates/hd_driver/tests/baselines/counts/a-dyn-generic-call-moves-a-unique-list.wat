@@ -5,8 +5,8 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:drop_value" (func $rt:drop_value (param i32 i32 i32 i32 i32)))
   (import "fixture" "rt:take_box" (func $rt:take_box (param i32) (result i32)))
-  (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (import "fixture" "impl [ T < ? Copy ] UniqList [ T ].len[string]" (func $"impl [ T < ? Copy ] UniqList [ T ].len[string]" (param i32) (result i32)))
+  (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -59,7 +59,7 @@
     call $rt:drop_value
     local.get $s.0
   )
-  (func $round_trip (param $s.0 i32) (param $s.1 i32) (param $list.buffer.address i32) (param $list.buffer.capacity i32) (param $list.len i32) (result i32) (local $t5 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t4 i32) (local $back i32) (local $t0 i32)
+  (func $round_trip (param $s.0 i32) (param $s.1 i32) (param $list.buffer.address i32) (param $list.buffer.capacity i32) (param $list.len i32) (result i32) (local $t5 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t4 i32) (local $t0 i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
@@ -142,81 +142,63 @@
       local.get $s.0
       call $rt:release_ref
     ;; 29 |     back := s.relay(list)
-      local.get $back
-      if
-        local.get $back
-        call $rt:drop
-        local.get $back
-        i32.const 0
-        i32.store $heap offset=12
-        local.get $back
-        i32.const 0
-        i32.store $heap offset=16
-        local.get $back
-        i32.const 0
-        i32.store $heap offset=20
-        local.get $back
-        i32.const 0
-        i32.store $heap offset=24
-        local.get $back
-        i32.const 0
-        i32.store $heap offset=28
-      end
       local.get $t0
       i64.const 0
       i64.store $heap
       local.get $t0
       i32.const 8
       i32.add
-      local.tee $back
+      local.tee $s.0
       local.get $t3
       i32.store $heap
-      local.get $back
+      local.get $s.0
       local.get $t2
       i32.store $heap offset=4
-      local.get $back
+      local.get $s.0
       local.get $t1
       i32.store $heap offset=8
-      local.get $back
+      local.get $s.0
       i32.const 1
       i32.store $heap offset=12
-      local.get $back
+      local.get $s.0
       i32.const 1
       i32.store $heap offset=16
-      local.get $back
+      local.get $s.0
       i32.const 1
       i32.store $heap offset=20
-      local.get $back
+      local.get $s.0
       i32.const 1
       i32.store $heap offset=24
-      local.get $back
+      local.get $s.0
       i32.const 1
       i32.store $heap offset=28
-      local.get $back
+      local.get $s.0
     ;; 30 |     back.len()
       call $"impl [ T < ? Copy ] UniqList [ T ].len[string]"
-      local.set $s.0
+      local.set $s.1
     ;; (no span)
-      local.get $back
+      local.get $s.0
       if
-        local.get $back
+        local.get $s.0
         call $rt:drop
-        local.get $back
+        local.get $s.0
         i32.const 0
         i32.store $heap offset=12
-        local.get $back
+        local.get $s.0
         i32.const 0
         i32.store $heap offset=16
-        local.get $back
+        local.get $s.0
         i32.const 0
         i32.store $heap offset=20
-        local.get $back
+        local.get $s.0
         i32.const 0
         i32.store $heap offset=24
-        local.get $back
+        local.get $s.0
         i32.const 0
         i32.store $heap offset=28
       end
+      local.get $s.1
+      local.set $s.0
     end
     local.get $list.buffer.address
     local.get $list.buffer.capacity

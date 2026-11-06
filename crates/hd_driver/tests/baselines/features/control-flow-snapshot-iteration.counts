@@ -22,7 +22,6 @@ fn cursor_then_push(values: List[string], s: string) -> usize:
     let mut cursor = items.iter()
 > app/main/cursor_then_push
 >   copy List[string] (stored)
->   release std.iter.ListIter[string] [items] (overwritten)
     items.push(s)
     match cursor.next():
         .Some(first) => first.len() + items.len()

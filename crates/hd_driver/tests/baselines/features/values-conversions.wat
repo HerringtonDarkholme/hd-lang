@@ -5,7 +5,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $local (param $s.0 i32) (param $s.1 i32) (result i32) (local $origin i32) (local $t0 i32)
+  (func $local (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
@@ -38,46 +38,41 @@
     global.set $locals
     block
     ;; 26 |     let mut origin = Point { name: s, n: 0 }
-      local.get $origin
-      if
-        local.get $origin
-        i32.load $heap
-        call $rt:release_ref
-      end
       local.get $t0
       i64.const 0
       i64.store $heap
       local.get $t0
       i32.const 8
       i32.add
-      local.tee $origin
+      local.tee $t1
       local.get $s.0
       i32.store $heap
-      local.get $origin
+      local.get $t1
       local.get $s.1
       i32.store $heap offset=4
-      local.get $origin
+      local.get $t1
       i32.const 0
       i32.store $heap offset=8
-      local.get $origin
+      local.get $t1
+      local.tee $s.0
     ;; 27 |     nudge(&mut origin)
       call $nudge
     ;; 28 |     let r: &mut Point = &mut origin
-      local.get $origin
+      local.get $s.0
     ;; 29 |     bump(r)
       call $bump
     ;; 30 |     view(&origin)
-      local.get $origin
+      local.get $s.0
       i32.load $heap
-      local.get $origin
+      local.get $s.0
       i32.load $heap offset=4
-      local.get $origin
+      local.get $s.0
       i32.const 0
       i32.store $heap
-      local.get $origin
+      local.get $s.0
       i32.const 0
       i32.store $heap offset=4
-      local.get $origin
+      local.get $s.0
       i32.const 0
       i32.store $heap offset=8
       local.set $s.1

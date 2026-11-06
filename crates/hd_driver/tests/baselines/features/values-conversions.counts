@@ -25,12 +25,11 @@ fn lend(h: *mut Point) -> usize:
 
 fn local(s: string) -> usize:
     let mut origin = Point { name: s, n: 0 }
-> app/main/local
->   release app.main.Point [name.0] (overwritten)
     nudge(&mut origin)
     let r: &mut Point = &mut origin
     bump(r)
     view(&origin)
+> app/main/local
 >   (no span) release app.main.Point [name.0] (last use)
 
 fn weaken(h: *mut Point) -> *Point:

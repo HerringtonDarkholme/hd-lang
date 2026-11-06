@@ -37,7 +37,6 @@ fn opt_none(o: string?) -> bool:
 fn opt_some(o: string?, s: string) -> bool:
     o == .Some(s)
 > app/main/opt_some
->   release string? (overwritten)
 >   (no span) release string? (last use)
 >   (no span) release string? (last use)
 >   (no span) release string? (last use)

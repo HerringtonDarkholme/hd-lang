@@ -35,7 +35,6 @@ fn round_trip(s: &dyn Sink, list: UniqList[string]) -> usize:
 > app/main/round_trip
 >   retain app.main.Sink (second owner)
 >   release counted reference (conservative: Call)
->   release counted reference (overwritten)
     back.len()
 >   (no span) release app.main.Sink (last use)
 >   (no span) release counted reference (last use)

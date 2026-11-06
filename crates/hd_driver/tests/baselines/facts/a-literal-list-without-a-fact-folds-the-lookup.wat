@@ -5,7 +5,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $absent (param $value i64) (result i64) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t3 i32)
+  (func $absent (param $value i64) (result i64) (local $t1 i32) (local $t2 i32) (local $t0 i32) (local $t3 i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
@@ -40,22 +40,6 @@
       ;; ...
       call $rt:release_ref
     ;; 13 |     if facts.find::[EnumTagging]().is_some():
-      local.get $t1
-      if
-        local.get $t1
-        i32.load8_u $heap
-        local.get $t1
-        i32.load $heap offset=4
-        local.get $t1
-        i32.load $heap offset=8
-        local.get $t1
-        i32.load $heap offset=12
-        local.get $t1
-        i32.load $heap offset=16
-        local.get $t1
-        i32.load $heap offset=20
-        call $rt:release
-      end
       local.get $t0
       i64.const 0
       i64.store $heap

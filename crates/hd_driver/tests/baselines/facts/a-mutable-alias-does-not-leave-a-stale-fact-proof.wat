@@ -6,7 +6,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $mutated (param $value i64) (result i64) (local $t1 i32) (local $t6 i32) (local $facts i32) (local $t0 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t7 i32) (local $t8 i32)
+  (func $mutated (param $value i64) (result i64) (local $t1 i32) (local $t7 i32) (local $t0 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t8 i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
@@ -40,9 +40,9 @@
     block
       ;; ...
     ;; 17 |     if facts.find::[EnumTagging]().is_some():
-      local.get $facts
+      local.get $t1
       i32.load $heap
-      local.get $facts
+      local.get $t1
       i32.const 0
       i32.store $heap
       local.tee $t1
@@ -51,66 +51,50 @@
       local.set $t3
       local.set $t4
       local.set $t5
-      local.set $facts
       local.set $t6
+      local.set $t7
     ;; (no span)
       local.get $t1
       call $rt:release_ref
     ;; 17 |     if facts.find::[EnumTagging]().is_some():
-      local.get $t7
-      if
-        local.get $t7
-        i32.load8_u $heap
-        local.get $t7
-        i32.load $heap offset=4
-        local.get $t7
-        i32.load $heap offset=8
-        local.get $t7
-        i32.load $heap offset=12
-        local.get $t7
-        i32.load $heap offset=16
-        local.get $t7
-        i32.load $heap offset=20
-        call $rt:release
-      end
       local.get $t0
       i64.const 0
       i64.store $heap offset=16
       local.get $t0
       i32.const 24
       i32.add
-      local.tee $t7
-      local.get $t6
+      local.tee $t1
+      local.get $t7
       i32.store8 $heap
-      local.get $t7
-      local.get $facts
+      local.get $t1
+      local.get $t6
       i32.store $heap offset=4
-      local.get $t7
+      local.get $t1
       local.get $t5
       i32.store $heap offset=8
-      local.get $t7
+      local.get $t1
       local.get $t4
       i32.store $heap offset=12
-      local.get $t7
+      local.get $t1
       local.get $t3
       i32.store $heap offset=16
-      local.get $t7
+      local.get $t1
       local.get $t2
       i32.store $heap offset=20
-      local.get $t7
-      local.set $t1
+      local.get $t1
+      local.set $t7
       block
         block
           block
             block
               block
-                local.get $t1
+                local.get $t7
                 i32.load8_u $heap
-                local.tee $t1
+                local.tee $t7
                 i32.const 1
                 i32.eq
                 br_if 0
-                local.get $t1
+                local.get $t7
                 i32.eqz
                 br_if 1
                 unreachable
@@ -123,29 +107,29 @@
             br 0
           end
           local.get $t8
-          local.set $t1
+          local.set $t7
           br 0
         end
       end
     ;; (no span)
-      local.get $t7
+      local.get $t1
       if
-        local.get $t7
+        local.get $t1
         i32.load8_u $heap
-        local.get $t7
+        local.get $t1
         i32.load $heap offset=4
-        local.get $t7
+        local.get $t1
         i32.load $heap offset=8
-        local.get $t7
+        local.get $t1
         i32.load $heap offset=12
-        local.get $t7
+        local.get $t1
         i32.load $heap offset=16
-        local.get $t7
+        local.get $t1
         i32.load $heap offset=20
         call $rt:release
       end
     ;; 17 |     if facts.find::[EnumTagging]().is_some():
-      local.get $t1
+      local.get $t7
       if (result i64)
     ;; 18 |         value + 1
         local.get $value

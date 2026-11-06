@@ -7,8 +7,8 @@
   (import "fixture" "rt:map_put" (func $rt:map_put (param i32 i32 i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -99,7 +99,7 @@
       i32.store $heap offset=4
     end
   )
-  (func $total (param $t1 i32) (param $b i32) (param $t2 i32) (param $t3 i32) (result i32) (local $t0 i32) (local $a i32) (local $seen i32) (local $by i32)
+  (func $total (param $seen i32) (param $b i32) (param $by i32) (param $t1 i32) (result i32) (local $t0 i32) (local $a i32) (local $t2 i32) (local $t3 i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
@@ -137,7 +137,7 @@
     i32.const 8
     i32.add
     local.tee $a
-    local.get $t1
+    local.get $seen
     i32.store $heap
     local.get $a
     local.get $b
@@ -149,21 +149,13 @@
     i32.const 24
     i32.add
     local.tee $b
-    local.get $t2
+    local.get $by
     i32.store $heap
     local.get $b
-    local.get $t3
+    local.get $t1
     i32.store $heap offset=4
     block
     ;; 17 |     let mut seen: List[&User] = []
-      i32.const 80 ;; &empty-buffer
-      local.set $t1
-      local.get $seen
-      if
-        local.get $seen
-        i32.load $heap
-        call $rt:release_ref'2
-      end
       local.get $t0
       i64.const 0
       i64.store $heap offset=32
@@ -171,7 +163,7 @@
       i32.const 40
       i32.add
       local.tee $seen
-      local.get $t1
+      i32.const 80 ;; &empty-buffer
       i32.store $heap
       local.get $seen
     ;; 18 |     remember(&mut seen, &a)
@@ -182,14 +174,6 @@
       local.get $b
       call $remember
     ;; 20 |     let mut by: Map[string, &User] = {}
-      i32.const 80 ;; &empty-buffer
-      local.set $t1
-      local.get $by
-      if
-        local.get $by
-        i32.load $heap
-        call $rt:release_ref'2
-      end
       local.get $t0
       i64.const 0
       i64.store $heap offset=48
@@ -197,7 +181,7 @@
       i32.const 56
       i32.add
       local.tee $by
-      local.get $t1
+      i32.const 80 ;; &empty-buffer
       i32.store $heap
       local.get $by
     ;; 21 |     index(&mut by, &a)
@@ -281,17 +265,17 @@
       local.get $t2
       local.get $t3
       i32.add
-      local.set $t1
+      local.set $seen
       local.get $by
       i32.load $heap
       local.get $by
       i32.const 0
       i32.store $heap
-      local.tee $t2
+      local.tee $by
       i32.load $heap
-      local.set $t3
+      local.set $t1
     ;; (no span)
-      local.get $t2
+      local.get $by
       call $rt:release_ref'2
       local.get $a
       if
@@ -302,11 +286,11 @@
       i32.const 0
       local.set $a
     ;; 22 |     seen[0].name.len() + seen[1].name.len() + by.len()
+      local.get $seen
       local.get $t1
-      local.get $t3
       i32.add
     ;; (no span)
-      local.set $t1
+      local.set $seen
     end
     local.get $a
     if
@@ -320,7 +304,7 @@
       i32.load $heap
       call $rt:release_ref'1
     end
-    local.get $t1
+    local.get $seen
     local.get $t0
     i32.const 64
     i32.add

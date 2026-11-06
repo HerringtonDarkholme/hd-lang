@@ -34,9 +34,8 @@ fn generic_total[S](h: Handle[S]) -> i64:
 
 fn collect(h: Handle[i32]) -> usize:
     let mut all: List[Handle[i32]] = []
-> app/main/collect
->   release List[app.main.Handle[i32]] (overwritten)
     h.keep(&mut all)
+> app/main/collect
 >   copy app.main.Handle[i32] [names, get.1] (stored)
     h.keep(&mut all)
     all.len()
@@ -51,6 +50,5 @@ pub fn main() -> void $ Console:
     println(generic_total(h))
     println(collect(h))
 > app/main/main
->   release List[app.main.Handle[i32]] (overwritten)
 >   copy app.main.Handle[i32] [names, get.1] (stored)
 >   release List[app.main.Handle[i32]] (last use)

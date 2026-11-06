@@ -40,8 +40,7 @@ fn by_reference(m: Members, i: usize) -> usize:
 
 fn changed_by_argument(items: List[Info]) -> usize:
     let mut m = Members { infos: items }
-> app/main/changed_by_argument
->   release app.main.Members (overwritten)
     m.at(m.pop())
+> app/main/changed_by_argument
 >   copy app.main.Members (stored)
 >   (no span) release app.main.Members (last use)

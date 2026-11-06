@@ -107,7 +107,7 @@
     end
     local.get $self
   )
-  (func $use_methods (param $s i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t1 i32) (local $t i32) (local $t0 i32)
+  (func $use_methods (param $s i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t i32) (local $t0 i32) (local $t1 i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
@@ -142,23 +142,18 @@
     ;; 23 |     let mut t = s
       local.get $s
       call $rt:coll_copy
-      local.set $t1
-      local.get $t
-      if
-        local.get $t
-        i32.load $heap
-        call $rt:release_ref
-      end
+      local.set $t
       local.get $t0
       i64.const 0
       i64.store $heap
       local.get $t0
       i32.const 8
       i32.add
-      local.tee $t
-      local.get $t1
-      i32.store $heap
+      local.tee $t1
       local.get $t
+      i32.store $heap
+      local.get $t1
+      local.tee $t
     ;; 24 |     t.by_mut(b)
       local.get $b.0
       local.get $b.1

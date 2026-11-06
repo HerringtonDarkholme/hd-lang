@@ -13,7 +13,6 @@ fn count_long(xs: List[string]) -> usize:
     let n: usize = 0
     for x in names(&xs):
 > app/main/count_long
->   release std.iter.ListIter[string] [items] (overwritten)
 >   release string? (last use)
 >   release string (last use)
         n += x.len()

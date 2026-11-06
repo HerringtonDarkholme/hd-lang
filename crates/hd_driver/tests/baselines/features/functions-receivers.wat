@@ -47,7 +47,7 @@
     end
     local.get $s.0
   )
-  (func $place_receiver (param $s.0 i32) (param $s.1 i32) (result i64) (local $t1 i64) (local $p i32) (local $t0 i32)
+  (func $place_receiver (param $s.0 i32) (param $s.1 i32) (result i64) (local $t2 i64) (local $t0 i32) (local $t1 i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
@@ -87,44 +87,39 @@
           br 0
         end
       end
-      local.get $p
-      if
-        local.get $p
-        i32.load $heap
-        call $rt:release_ref'1
-      end
       local.get $t0
       i64.const 0
       i64.store $heap
       local.get $t0
       i32.const 8
       i32.add
-      local.tee $p
+      local.tee $t1
       local.get $s.0
       i32.store $heap
-      local.get $p
+      local.get $t1
       local.get $s.1
       i32.store $heap offset=4
-      local.get $p
       local.get $t1
+      local.get $t2
       i64.store $heap offset=8
-      local.get $p
+      local.get $t1
+      local.tee $s.0
     ;; 41 |     p.shift(2)
       i64.const 2
       call $"impl Vec2.shift"
     ;; 42 |     p.x
-      local.get $p
+      local.get $s.0
       i64.load $heap offset=8
-      local.set $t1
+      local.set $t2
     ;; (no span)
-      local.get $p
+      local.get $s.0
       if
-        local.get $p
+        local.get $s.0
         i32.load $heap
         call $rt:release_ref'1
       end
     end
-    local.get $t1
+    local.get $t2
     local.get $t0
     i32.const 24
     i32.add

@@ -47,10 +47,9 @@ fn element_read(xs: List[Vec2], i: usize) -> usize:
 
 fn place_receiver(s: string) -> i64:
     let mut p = make(s)
-> app/main/place_receiver
->   release app.main.Vec2 [name.0] (overwritten)
     p.shift(2)
     p.x
+> app/main/place_receiver
 >   (no span) release app.main.Vec2 [name.0] (last use)
 
 fn mut_self(v: Vec2, n: string) -> usize:

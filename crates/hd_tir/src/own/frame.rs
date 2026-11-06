@@ -48,7 +48,9 @@
 use hd_base::SliceSort as _;
 
 use super::{OwnCx, Role, fill, operands, suite_touches};
-use crate::ir::{Body, NONE, Proj, Ref, Root, Tag, Topology, Word, is_suspension, slots, u32_of};
+use crate::ir::{
+    Body, NONE, PlaceView, Proj, Ref, Root, Tag, Topology, Word, is_suspension, slots, u32_of,
+};
 
 /// Frame locals' dense tables, reused across bodies.
 #[derive(Default)]
@@ -276,6 +278,89 @@ pub(crate) fn run(
     }
     extra_cell_uses(b, cx, t, |_| true, &mut uses);
     root_uses(b, cx, &mut uses);
+}
+
+/// Whether `Store` `i`, after insertion, writes a whole local `l` that
+/// holds no value on any path to it, so the store releases nothing: `i`
+/// is `l`'s only whole store, and either no loop of its sub-body runs it
+/// again, or every path from it back to the loop drops `l`. That holds
+/// when a block around `i`, inside the loop's body, drops `l` after the
+/// statement holding `i`, and each `Break` or `Continue` under that block
+/// that leaves it either comes right after drops that include `l`'s or
+/// is a `Break` that lands outside every loop. A `Return` ends the body,
+/// whose exit set drops `l`; a `ToArm` counts as leaving.
+#[must_use]
+pub fn store_finds_empty(b: &Body, topo: &Topology, i: usize) -> bool {
+    let whole_local = |x: usize, tag: Tag| -> Option<u32> {
+        (b.tags[x] == tag)
+            .then(|| b.view(b.data[x][0]))
+            .filter(|p| p.whole())
+            .and_then(PlaceView::local)
+    };
+    let Some(l) = whole_local(i, Tag::Store) else {
+        return false;
+    };
+    if (0..b.len()).any(|x| x != i && whole_local(x, Tag::Store) == Some(l)) {
+        return false;
+    }
+    let lp = topo.loop_of[i];
+    if lp == NONE || topo.sub[lp as usize] != topo.sub[i] {
+        return true;
+    }
+    // The block that drops `l` after the statement around `i`, inside
+    // the loop's body.
+    let mut chain = Vec::new();
+    super::values::statement_chain(topo, u32_of(i), &mut chain);
+    let dropped_in = chain
+        .iter()
+        .take_while(|&&(_, _, x)| x != lp)
+        .find(|&&(blk, pos, _)| {
+            b.record(b.data[blk as usize][0])[pos as usize + 1..]
+                .iter()
+                .any(|&x| whole_local(x as usize, Tag::Drop) == Some(l))
+        });
+    let Some(&(h, _, _)) = dropped_in else {
+        return false;
+    };
+    let mut chain = Vec::new();
+    let mut under_h = |x: u32| {
+        super::values::statement_chain(topo, x, &mut chain);
+        chain.iter().any(|&(blk, _, _)| blk == h)
+    };
+    for j in 0..b.len() {
+        let target = match b.tags[j] {
+            Tag::Break | Tag::Continue => b
+                .label_inst
+                .get(b.data[j][0] as usize)
+                .copied()
+                .unwrap_or(NONE),
+            Tag::ToArm => NONE,
+            _ => continue,
+        };
+        if topo.sub[j] != topo.sub[i] || !under_h(u32_of(j)) {
+            continue;
+        }
+        if target != NONE && target != h && under_h(target) {
+            continue;
+        }
+        // A `Break` that lands outside every loop never comes back.
+        let outer = topo.loop_of.get(target as usize).copied().unwrap_or(0);
+        if b.tags[j] == Tag::Break
+            && target != NONE
+            && (outer == NONE || topo.sub[outer as usize] != topo.sub[i])
+        {
+            continue;
+        }
+        let jl = b.record(b.data[topo.blk[j] as usize][0]);
+        let mut drops = jl[..topo.pos[j] as usize]
+            .iter()
+            .rev()
+            .take_while(|&&x| b.tags[x as usize] == Tag::Drop);
+        if !drops.any(|&x| whole_local(x as usize, Tag::Drop) == Some(l)) {
+            return false;
+        }
+    }
+    true
 }
 
 /// The place word of value `v` when it is a read of all of a local

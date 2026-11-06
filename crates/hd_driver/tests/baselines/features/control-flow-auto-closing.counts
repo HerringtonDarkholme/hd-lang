@@ -29,7 +29,6 @@ fn guard(log: *mut List[string], label: string) -> Guard:
 fn work(log: *mut List[string], label: string) -> void:
     guard(log, label)
 > app/main/work
->   release app.main.Guard [log, label.0] (overwritten)
 >   unique List[string] (conservative: unique)
     log.push("work")
 >   (no span) release app.main.Guard [log, label.0] (last use)

@@ -51,6 +51,7 @@ pub(crate) mod borrow;
 pub(crate) use borrow::keeps_drops;
 pub mod flow;
 mod frame;
+pub use frame::store_finds_empty;
 pub(crate) mod hoist;
 mod insert;
 mod known;

@@ -29,9 +29,8 @@ fn total(f: Field, times: i64) -> i64:
 
 fn collect(f: Field) -> usize:
     let mut all: List[Field] = []
-> app/main/collect
->   release List[app.main.Field] (overwritten)
     remember(&mut all, f)
+> app/main/collect
 >   retain app.main.Field [name.0] (stored)
     remember(&mut all, f)
     all.len()
@@ -57,7 +56,6 @@ pub fn main() -> void $ Console:
     println(collect(f))
 > app/main/main
 >   retain app.main.Field [name.0] (stored)
->   release List[app.main.Field] (overwritten)
 >   retain app.main.Field [name.0] (stored)
 >   release List[app.main.Field] (last use)
     println(apply(weight, f))

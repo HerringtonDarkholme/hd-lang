@@ -23,7 +23,6 @@ fn user_cursor(words: Words) -> usize:
     let n: usize = 0
     for w in words:
 > app/main/user_cursor
->   release app.main.Words [items] (overwritten)
 >   release string? (last use)
 >   release string (last use)
         n += w.len()
@@ -35,12 +34,10 @@ fn twice(xs: List[string]) -> usize:
     for x in xs.iter():
 > app/main/twice
 >   copy List[string] (stored)
->   release std.iter.ListIter[string] [items] (overwritten)
 >   release string? (last use)
 >   release string (last use)
         n += x.len()
     for x in xs.iter():
->   release std.iter.ListIter[string] [items] (overwritten)
 >   release string? (last use)
 >   release string (last use)
         n += x.len()

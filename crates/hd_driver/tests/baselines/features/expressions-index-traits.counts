@@ -39,7 +39,6 @@ fn first[T, C < Index[usize, Out = T]](items: C) -> T:
 fn generic_first(xs: List[string]) -> usize:
     first(xs).len()
 > app/main/generic_first
->   release List[string] (overwritten)
 >   retain counted reference (stored)
 >   (no span) release List[string] (last use)
 >   (no span) release string (last use)

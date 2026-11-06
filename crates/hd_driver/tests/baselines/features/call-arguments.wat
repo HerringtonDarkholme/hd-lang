@@ -338,12 +338,6 @@
     ;; 22 |     let mut t = s
       local.get $s.0
       call $retain
-      local.get $t
-      if
-        local.get $t
-        i32.load $heap
-        call $rt:release_ref
-      end
       local.get $t0
       i64.const 0
       i64.store $heap

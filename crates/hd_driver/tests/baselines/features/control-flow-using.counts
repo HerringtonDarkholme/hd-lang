@@ -23,10 +23,8 @@ fn two(log: *mut List[string], a: string, b: string) -> usize:
     using first = Res { name: a, log: log }
 > app/main/two
 >   retain &mut List[string] (stored)
->   release app.main.Res [name.0, log] (overwritten)
     using second = Res { name: b, log: log }
 >   retain &mut List[string] (stored)
->   release app.main.Res [name.0, log] (overwritten)
     first.name.len() + second.name.len()
 >   (no span) release app.main.Res [name.0, log] (last use)
 >   (no span) release app.main.Res [name.0, log] (last use)
@@ -40,7 +38,6 @@ fn per_round(log: *mut List[string], xs: List[string]) -> void:
 >   release app.main.Res [name.0, log] (last use)
         using r = Res { name: x, log: log }
 >   retain &mut List[string] (stored)
->   release app.main.Res [name.0, log] (overwritten)
 >   (no span) release app.main.Res [name.0, log] (last use)
         pass
 

@@ -4,7 +4,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $bound (param $k i64) (result i64) (local $t2 i64) (local $r i32) (local $t1 i32) (local $tally i32) (local $t0 i32)
+  (func $bound (param $k i64) (result i64) (local $tally i32) (local $t0 i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
@@ -37,18 +37,6 @@
     global.set $locals
     block
     ;; 17 |     let mut tally = Tally { n: 0, name: "tally" }
-      i64.const 0
-      i32.const 16 ;; &"tally"
-      i32.const 5
-      local.set $t1
-      local.set $r
-      local.set $t2
-      local.get $tally
-      if
-        local.get $tally
-        i32.load $heap offset=8
-        call $rt:release_ref
-      end
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -56,13 +44,13 @@
       i32.const 8
       i32.add
       local.tee $tally
-      local.get $t2
+      i64.const 0
       i64.store $heap
       local.get $tally
-      local.get $r
+      i32.const 16 ;; &"tally"
       i32.store $heap offset=8
       local.get $tally
-      local.get $t1
+      i32.const 5
       i32.store $heap offset=12
       local.get $tally
       ;; ...

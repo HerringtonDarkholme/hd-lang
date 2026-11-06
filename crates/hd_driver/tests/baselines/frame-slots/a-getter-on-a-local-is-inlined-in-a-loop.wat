@@ -4,7 +4,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $total (param $k i64) (result i64) (local $t3 i32) (local $t2 i32) (local $t1 i64) (local $user i32) (local $t0 i32) (local $sum i64) (local $t4 i64)
+  (func $total (param $k i64) (result i64) (local $user i32) (local $t0 i32) (local $sum i64) (local $t1 i64) (local $t2 i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
@@ -37,18 +37,6 @@
     global.set $locals
     block
     ;; 18 |     user := User { name: "ada", age: 36 }
-      i32.const 65 ;; &"ada"
-      i32.const 3
-      i64.const 36
-      local.set $t1
-      local.set $t2
-      local.set $t3
-      local.get $user
-      if
-        local.get $user
-        i32.load $heap
-        call $rt:release_ref
-      end
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -56,38 +44,38 @@
       i32.const 8
       i32.add
       local.tee $user
-      local.get $t3
+      i32.const 65 ;; &"ada"
       i32.store $heap
       local.get $user
-      local.get $t2
+      i32.const 3
       i32.store $heap offset=4
       local.get $user
-      local.get $t1
+      i64.const 36
       i64.store $heap offset=8
     ;; 20 |     for _ in 0..k:
       block
         loop
-          local.get $t4
+          local.get $t1
           local.get $k
           i64.lt_s
           i32.eqz
           br_if 1
-          local.get $t4
+          local.get $t1
           i64.const 1
           i64.add
-          local.set $t4
+          local.set $t1
     ;; 21 |         sum = sum + *user.age()
           block
             block
               local.get $user
               i32.const 8
               i32.add
-              local.set $t3
+              local.set $t2
               br 0
             end
           end
           local.get $sum
-          local.get $t3
+          local.get $t2
           i64.load $heap
           i64.add
           local.set $sum

@@ -183,7 +183,7 @@
       i32.store $heap offset=20
     end
   )
-  (func $generic_first (param $xs i32) (result i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
+  (func $generic_first (param $xs i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
@@ -216,12 +216,6 @@
     global.set $locals
     block
     ;; 30 |     first(xs).len()
-      local.get $t1
-      if
-        local.get $t1
-        i32.load $heap
-        call $rt:release_ref'1
-      end
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -231,46 +225,48 @@
       local.tee $t1
       local.get $xs
       i32.store $heap
+      local.get $t1
+      local.set $xs
       block
         block
           block
             block
-              local.get $t1
-              i32.load $heap
-              local.set $xs
-              i32.const 0
               local.get $xs
+              i32.load $heap
+              local.set $t1
+              i32.const 0
+              local.get $t1
               i32.load $heap offset=4
               i32.ge_u
               if
                 call $rt:panic
                 unreachable
               end
-              local.get $xs
+              local.get $t1
               i32.const 16
               i32.add
-              local.set $xs
+              local.set $t1
               br 0
             end
           end
-          local.get $xs
+          local.get $t1
           i32.load $heap
           local.tee $t2
-          local.get $xs
+          local.get $t1
           i32.load $heap offset=4
-          local.tee $xs
+          local.tee $t1
           call $rt:retain
           local.get $t2
-          local.get $xs
+          local.get $t1
           local.set $t2
-          local.set $xs
+          local.set $t1
           br 0
         end
       end
     ;; (no span)
-      local.get $t1
+      local.get $xs
       if
-        local.get $t1
+        local.get $xs
         i32.load $heap
         call $rt:release_ref'1
       end
@@ -278,15 +274,13 @@
       block
         block
           local.get $t2
-          local.set $t1
+          local.set $xs
           br 0
         end
       end
     ;; (no span)
-      local.get $xs
-      call $rt:release_ref'2
       local.get $t1
-      local.set $xs
+      call $rt:release_ref'2
     end
     local.get $xs
     local.get $t0
