@@ -1,0 +1,40 @@
+# test: a copy between two changes of a list behind a reference keeps its own values
+# Spec 04 Collection Values: types.coll.value.
+# expect-stdout: field 1 9; whole 1 8; stored 5 7; again 2 3
+
+struct Bag:
+    items: List[i32]
+    other: List[i32]
+
+fn copy_field(bag: &mut Bag) -> List[i32]:
+    bag.items.push(1)
+    old := bag.items
+    bag.items[0] = 9
+    old
+
+fn copy_whole(bag: &mut Bag) -> Bag:
+    bag.items[0] = 1
+    old := *bag
+    bag.items[0] = 8
+    old
+
+fn store_shared(bag: &mut Bag) -> void:
+    bag.other[0] = 5
+    bag.items[0] = 6
+    bag.items = bag.other
+    bag.items[0] = 7
+
+fn push_twice(bag: &mut Bag) -> void:
+    bag.other.push(2)
+    bag.other.push(3)
+
+pub fn main() -> void $ Console:
+    let mut bag = Bag { items: [], other: [+0] }
+    a := copy_field(&mut bag)
+    a1 := bag.items[0]
+    b := copy_whole(&mut bag)
+    b1 := bag.items[0]
+    store_shared(&mut bag)
+    let mut fresh = Bag { items: [], other: [] }
+    push_twice(&mut fresh)
+    println("field ${a[0]} $a1; whole ${b.items[0]} $b1; stored ${bag.other[0]} ${bag.items[0]}; again ${fresh.other[0]} ${fresh.other[1]}")

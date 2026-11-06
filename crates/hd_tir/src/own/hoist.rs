@@ -400,7 +400,7 @@ pub(crate) fn run(
         // Not in a loop, whose checks hoisting may move.
         if b.tags[i] == Tag::IsUnique
             && b.data[i][1] == 0
-            && topo.loop_of[i] == NONE
+            && (topo.loop_of[i] == NONE || param_place(b, b.data[i][0], &mut Vec::new()).is_some())
             && repeats(b, topo, i)
         {
             b.data[i][1] = unique_word::REPEAT;
@@ -442,7 +442,7 @@ pub(crate) fn run(
 pub(crate) fn repeats(b: &Body, topo: &Topology, i: usize) -> bool {
     let p = b.view(b.data[i][0]);
     let (Some(l), true) = (p.local(), p.whole()) else {
-        return false;
+        return repeats_through(b, topo, i);
     };
     let blk = topo.blk[i];
     if blk == NONE {
@@ -463,6 +463,118 @@ pub(crate) fn repeats(b: &Body, topo: &Topology, i: usize) -> bool {
         }
     }
     false
+}
+
+/// The steps of a place behind a parameter reference, `[*$p .f .g]`: one
+/// leading dereference of a parameter, then fields. Into `out`; the
+/// parameter. Its target was there before the body ran, so it is none of
+/// the body's own locals.
+pub(crate) fn param_place(b: &Body, word: u32, out: &mut Vec<u32>) -> Option<u32> {
+    let p = b.view(word);
+    let l = p.local()?;
+    if b.local_flags
+        .get(l as usize)
+        .is_none_or(|f| f & local_flags::PARAM == 0)
+    {
+        return None;
+    }
+    out.clear();
+    p.push_steps(b, out);
+    (out.first() == Some(&DEREF) && out[1..].iter().all(|&s| s < VARIANT)).then_some(l)
+}
+
+/// [`repeats`] for a place behind a parameter reference ([`param_place`],
+/// step 15c): an earlier `IsUnique` of the same place in the block, and
+/// between them only operators, constructions, intrinsics other than a std
+/// call's, `IsUnique`s (which only make a buffer unique), drops of values
+/// and of places that do not hold the buffer, `borrow` reads of the place
+/// whose every use is between them and keeps nothing, and reads and stores
+/// that cannot reach its header: under the parameter, of another field or
+/// below the place with no second dereference; of a local's or a
+/// temporary's own storage. A read or store through any other dereference,
+/// a pointer or a global may alias the place, so it stops the search, as
+/// does a call, a block, a copy or move of the place or of what holds it,
+/// and a store over either. No second owner of the buffer the first check
+/// left unique can appear.
+fn repeats_through(b: &Body, topo: &Topology, i: usize) -> bool {
+    let mut ts = Vec::new();
+    let Some(pl) = param_place(b, b.data[i][0], &mut ts) else {
+        return false;
+    };
+    let blk = topo.blk[i];
+    if blk == NONE {
+        return false;
+    }
+    let list = b.record(b.data[blk as usize][0]);
+    let pos = topo.pos[i] as usize;
+    let (mut qs, mut raw, mut lent) = (Vec::new(), Vec::new(), Vec::new());
+    let mut start = None;
+    for k in (0..pos).rev() {
+        let m = list[k] as usize;
+        let tag = b.tags[m];
+        match tag {
+            Tag::Prim | Tag::NewStruct | Tag::NewTuple | Tag::NewVariant | Tag::Coerce => continue,
+            Tag::Intrinsic if IntrinsicOp::from_u32(b.data[m][0]) != Some(IntrinsicOp::Item) => {
+                continue;
+            }
+            Tag::Read | Tag::Store | Tag::Drop | Tag::IsUnique => {}
+            _ => return false,
+        }
+        let (l, temp) = resolve(b, b.data[m][0], &mut qs, &mut raw);
+        let ours = l == pl;
+        let holds = ours && prefix(&qs, &ts);
+        if tag == Tag::IsUnique {
+            if holds && qs.len() == ts.len() {
+                start = Some(k);
+                break;
+            }
+            continue;
+        }
+        if tag == Tag::Drop {
+            if holds && b.view(b.data[m][0]).local().is_some() {
+                return false;
+            }
+            continue;
+        }
+        if tag == Tag::Read && b.data[m][1] == ReadMode::Borrow as u32 {
+            if holds {
+                lent.push(u32_of(m));
+            }
+            continue;
+        }
+        // A copy, a move or a store.
+        let apart = if ours {
+            !holds && !qs[1..].contains(&DEREF)
+        } else if l == NONE {
+            temp || matches!(b.view(b.data[m][0]).root, Root::Const(_))
+        } else {
+            !qs.contains(&DEREF)
+        };
+        if !apart {
+            return false;
+        }
+    }
+    let Some(start) = start else {
+        return false;
+    };
+    if lent.is_empty() {
+        return true;
+    }
+    // Each borrow of the place is used only between the checks, by uses
+    // that keep nothing.
+    let between = &list[start + 1..pos];
+    let mut ops = Vec::new();
+    for x in 0..b.len() {
+        operands(b, x, &mut ops);
+        for op in &ops {
+            if lent.contains(&op.value)
+                && (!between.contains(&u32_of(x)) || keeps(b, u32_of(x), op.role))
+            {
+                return false;
+            }
+        }
+    }
+    true
 }
 
 /// Whether `IsUnique` `i` is of all of a local [`fresh_locals`] marks.

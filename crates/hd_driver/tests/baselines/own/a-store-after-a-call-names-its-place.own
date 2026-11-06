@@ -71,7 +71,7 @@ fn put[T](xs: &mut List[T], k: usize, v: T) -> void:
     xs.push(v)
 >   %5 = Read borrow [$0] : Ref[mut List[T]]
 >   %6 = Read move [$2] : T
->   %7 = IsUnique [*$0] : ()
+>   %7 = IsUnique repeat [*$0] : ()
 >   %8 = Read borrow [*$0] : List[T]
 >   %9 = Intrinsic ListPush [%8 %6] : ()
 >   exit sub 0 drops [$2]

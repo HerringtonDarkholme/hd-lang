@@ -85,13 +85,8 @@
     ;; (no span)
       local.get $counts
       i32.load $heap
-      call $rt:map_unique
-      local.set $other.0
-      local.get $counts
-      local.get $other.0
-      i32.store $heap
-      local.get $other.0
     ;; 23 |     counts[word] = seen + 1
+      local.tee $other.0
       local.get $word.0
       local.get $word.1
       call $rt:map_hash
@@ -102,16 +97,16 @@
       local.set $t0
       local.get $word.0
       call $retain
-      local.get $counts
-    ;; (no span)
       local.get $other.0
-    ;; 23 |     counts[word] = seen + 1
       local.get $other.1
       local.get $t0
       local.get $word.0
       local.get $word.1
       local.get $t2
       call $rt:map_put
+      local.set $other.0
+      local.get $counts
+      local.get $other.0
       i32.store $heap
     end
   )
