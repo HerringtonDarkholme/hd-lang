@@ -16,3 +16,13 @@ tests:
     it("() matches the success"):
         assert_equal(report(true), "saved", reason="the unit pattern matches ()")
         assert_equal(report(false), "not ready", reason="the error arm")
+
+    it("unit and guarded string arms balance dynamic payloads"):
+        for round in 0..16:
+            let result: Result[void, string] = if round % 2 == 0: .Ok(()) else: .Err("error_$round")
+            message := match result:
+                .Ok(()) => "saved"
+                .Err(text) if text.len() > 100 => text
+                .Err(text) => text
+            expected := if round % 2 == 0: "saved" else: "error_$round"
+            assert_equal(message, expected)

@@ -11,7 +11,6 @@ fn value(node: &Node, other: &mut Node) -> i64:
 > app/main/value
 >   retain &app.main.Node? (second owner)
         .None => 0
->   release &app.main.Node? (last use)
         .Some(left) =>
             other.left = .None
 >   release counted reference (conservative: Store)

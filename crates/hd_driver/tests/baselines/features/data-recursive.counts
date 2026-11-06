@@ -24,5 +24,4 @@ fn total(head: *Chain?) -> usize:
                 cur = c.next
 >   retain &app.main.Chain? (stored)
             .None => break
->   release &app.main.Chain? (last use)
     n

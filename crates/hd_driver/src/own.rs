@@ -584,6 +584,18 @@ impl OwnCx for Env<'_> {
             out.clear();
             return false;
         }
+        // An enum's own runtime Drop hook still runs for an empty
+        // variant; its fields alone do not describe its ownership.
+        if variant.is_some()
+            && let TyData::Adt { def, .. } =
+                self.run
+                    .pool
+                    .get(hd_wasm_linear::strip_type(&self.run.pool, self, ty))
+            && self.has_drop(def)
+        {
+            out.clear();
+            return false;
+        }
         hd_wasm_linear::in_place_parts(&self.run.pool, self, ty, variant, out)
     }
 

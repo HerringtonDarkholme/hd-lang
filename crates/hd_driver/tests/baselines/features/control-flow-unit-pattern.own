@@ -37,7 +37,7 @@ fn report(s: string) -> string:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %0 consume last
 >   local $1 message: string [read assigned] value
->     uses $1: %27 -> %21 consume last
+>     uses $1: %26 -> %21 consume last
 >   local $2 s: string [read] value
 >     uses $2: %1 -> %2 consume, %14 lend last
 >   local $3 self: string [read] value
@@ -62,21 +62,20 @@ fn report(s: string) -> string:
 >   %17 = Break L1 %16 : never
 >   %18 = Block - : Result[(), string]
 >   %19 = Scope %18 [] : Result[(), string]
->   %23 = Drop [%19] : ()
->   %35 = Block - : never
->   %36 = Match %19 [%35 %20 %22] : string
->   %37 = Block %36 : string
+>   %34 = Block - : never
+>   %35 = Match %19 [%34 %20 %22] : string
+>   %36 = Block %35 : string
         .Ok(()) => "saved"
 >   %20 = Block "saved" : string
->   %25 = Block - : never
->   %33 = Block - : never
->   %34 = SwitchTag %19 [#0 %25 %33] : never
+>   %24 = Block - : never
+>   %32 = Block - : never
+>   %33 = SwitchTag %19 [#0 %24 %32] : never
         .Err(message) => message
 >   %21 = Read move [$1] : string
 >   %22 = Block %21 : string
->   %26 = Read move [%19 as #1 .0] : string
->   %27 = Store [$1] %26 : ()
->   %29 = Block - : never
->   %31 = Block - : never
->   %32 = SwitchTag %19 [#1 %29 %31] : never
+>   %25 = Read move [%19 as #1 .0] : string
+>   %26 = Store [$1] %25 : ()
+>   %28 = Block - : never
+>   %30 = Block - : never
+>   %31 = SwitchTag %19 [#1 %28 %30] : never
 >   summary kept [] borrows [$0]

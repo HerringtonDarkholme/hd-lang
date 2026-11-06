@@ -113,6 +113,7 @@ pub(crate) struct Tables {
     keep: Vec<bool>,
     stack: Vec<u32>,
     ops: Vec<Operand>,
+    variant_parts: Vec<hd_types::Ty>,
     /// Rule 5: each addressed local's bit, or `NONE`, set where the local
     /// may hold no value, after the parts' bits from `cfirst`; the local
     /// of each.
@@ -642,6 +643,16 @@ impl Forward for Walk<'_> {
             }
         }
         t.ops = ops;
+    }
+
+    fn case(&mut self, b: &Body, x: u32, blk: u32, s: &mut BitArena, st: usize) {
+        if let Some(v) = super::parts::empty_variant(b, self.cx, x, blk, &mut self.t.variant_parts)
+        {
+            let bit = self.t.vbit[v as usize];
+            if bit != NONE {
+                self.t.clear(s, st, bit);
+            }
+        }
     }
 
     fn leave(&mut self, _: &Body, x: u32, s: &mut BitArena, st: usize) {

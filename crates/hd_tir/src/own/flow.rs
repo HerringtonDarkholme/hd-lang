@@ -384,6 +384,8 @@ pub trait Forward {
     fn stmt(&mut self, b: &Body, x: u32, s: &mut BitArena, st: usize);
     /// The operands of `x`, which runs blocks, before it runs them.
     fn enter(&mut self, b: &Body, x: u32, s: &mut BitArena, st: usize);
+    /// A switch's selected block, before any instruction in that block.
+    fn case(&mut self, _: &Body, _x: u32, _blk: u32, _s: &mut BitArena, _st: usize) {}
     /// `x`'s own value, where a path falls out of the blocks it runs.
     fn leave(&mut self, _: &Body, _x: u32, _s: &mut BitArena, _st: usize) {}
     /// Block `blk`'s tail at its end, where the instruction that runs it
@@ -498,7 +500,10 @@ impl<A: Forward> Ahead<'_, A> {
             Tag::Match => self.enter(x, st).decide(x, st),
             Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
                 let blks = cases(b, w).filter(|&c| b.tags.get(c as usize) == Some(&Tag::Block));
-                self.enter(x, st).any(blks, st, Self::valued)
+                self.enter(x, st).any(blks, st, |this, blk, st| {
+                    this.a.case(b, x, blk, &mut this.s.arena, st);
+                    this.valued(blk, st)
+                })
             }
             Tag::Scope => self.enter(x, st).scope(x, st),
             Tag::Guard => {

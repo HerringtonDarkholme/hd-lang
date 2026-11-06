@@ -2,7 +2,6 @@
 (module
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $save (param $s.0 i32) (param $s.1 i32) (result i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     block
@@ -52,7 +51,7 @@
     local.get $s.1
     local.get $t0
   )
-  (func $report (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32)
+  (func $report (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     block
     ;; 12 |     match save(s):
       block
@@ -68,6 +67,10 @@
           i32.const 0
           i32.gt_u
           if
+            i32.const 0
+            i32.const 0
+            local.set $s.1
+            local.set $s.0
             br 1
           end
           local.get $s.1
@@ -75,27 +78,25 @@
           i32.add
           local.tee $t1
           call $rt:str
-          local.tee $t2
           local.tee $t0
+          local.tee $t2
           local.get $s.0
           local.get $s.1
           call $rt:memory_copy/0/0
-          local.get $t0
+          local.get $t2
           local.get $s.1
           i32.add
           i32.const 65 ;; &"?"
           i32.load8_u $heap
           i32.store8 $heap
           i32.const 1
-          local.set $t3
+          local.get $t0
+          local.set $s.1
+          local.set $s.0
           br 0
         end
-        local.get $t3
-        local.get $t2
         local.get $t1
         local.set $t0
-        local.set $s.1
-        local.set $s.0
       end
       block
         block
@@ -103,27 +104,19 @@
     ;; 13 |         .Ok(()) => "saved"
             local.get $s.0
             i32.eqz
+            br_if 0
+    ;; 14 |         .Err(message) => message
+            local.get $s.0
+            i32.const 1
+            i32.eq
             if
-              local.get $s.0
               local.get $s.1
               local.get $t0
-              call $rt:release
-              br 1
+              local.set $s.1
+              local.set $s.0
+              br 2
             else
-    ;; 14 |         .Err(message) => message
-              local.get $s.0
-              i32.const 1
-              i32.eq
-              if
-                local.get $s.1
-                local.get $t0
-                local.set $s.1
-                local.set $s.0
-                br 3
-              else
-                unreachable
-              end
-    ;; 13 |         .Ok(()) => "saved"
+              unreachable
             end
     ;; 12 |     match save(s):
             unreachable
