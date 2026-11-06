@@ -749,6 +749,13 @@ pub mod ref_word {
     /// (`crates/hd_wasm_linear/DESIGN.md` §23.38). Its count is never
     /// taken (`TAKES`). The checker never sets it (invariant 22).
     pub const FRAME: u32 = 16;
+    /// Set by insertion: a `for x in &xs` loop's element reference into
+    /// the list a read made before the loop (`own::insert::pins_once`,
+    /// #1399 9k). The read pins the buffer over the loop, by its count or,
+    /// where it borrows, by its span, so the reference addresses no storage
+    /// of the read's own and the loop runs no `IsUnique`. The checker
+    /// never sets it (invariant 22).
+    pub const PINS: u32 = 32;
 }
 
 /// An `IsUnique`'s data word b (`docs/compiler/tir-v2.md`, "Hoisting"): 0
@@ -1038,6 +1045,19 @@ impl Body {
             && Ref(self.data[v][0])
                 .as_inst()
                 .is_some_and(|g| self.tags.get(g.0 as usize) == Some(&Tag::ProviderGet))
+    }
+
+    /// Whether value `v` is a `for x in &xs` loop's element reference
+    /// into the list a read pins over the loop (`ref_word::PINS`,
+    /// `Ref [%h [%i]]`).
+    #[must_use]
+    pub fn pinned_element_ref(&self, v: usize) -> bool {
+        self.tags.get(v) == Some(&Tag::Ref)
+            && self.data[v][1] & ref_word::PINS != 0
+            && self
+                .view(self.data[v][0])
+                .value()
+                .is_some_and(|h| self.tags[h as usize] == Tag::Read)
     }
 
     /// Whether value `v` is a [`Body::same_value_coercion`] of a `borrow`
@@ -2141,6 +2161,7 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
             }
             Tag::Ref if w & ref_word::LENT != 0 => "a lent `Ref` before the passes".to_owned(),
             Tag::Ref if w & ref_word::FRAME != 0 => "a frame `Ref` before the passes".to_owned(),
+            Tag::Ref if w & ref_word::PINS != 0 => "a pinning `Ref` before the passes".to_owned(),
             _ => continue,
         };
         errs.push(VerifyError {

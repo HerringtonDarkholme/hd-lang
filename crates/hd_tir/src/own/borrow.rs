@@ -418,6 +418,8 @@ impl Tables {
         let (mut derefs, mut elem, mut first_deref) = (0, false, false);
         // A projection between the dereference and the chain's end.
         let (mut seen_deref, mut above) = (false, false);
+        // Behind a `for x in &xs` element reference that pins its list.
+        let mut pinned = false;
         for _ in 0..DEPTH {
             let p = b.view(word);
             let start = u32_of(self.cpath.len());
@@ -481,8 +483,29 @@ impl Tables {
                         key: locals + v,
                         ..link
                     });
+                    // The list read a pinning element reference is made
+                    // from (insertion's `pins_once`) holds the buffer over
+                    // the loop: by its count, so a write copies the buffer
+                    // rather than change it, or, where it borrows, by its
+                    // span's own checks. An element in it stays meanwhile.
+                    if pinned {
+                        chain.ok = true;
+                        chain.heap = derefs > 0;
+                        return chain;
+                    }
                     if b.tags[v as usize] == Tag::Read {
                         word = b.data[v as usize][0];
+                        continue;
+                    }
+                    if own == 0
+                        && below > 0
+                        && self.cpath.get(start as usize) == Some(&DEREF)
+                        && b.pinned_element_ref(v as usize)
+                    {
+                        word = b.data[v as usize][0];
+                        (below_start, below) = (start + 1, below - 1);
+                        derefs -= 1;
+                        pinned = true;
                         continue;
                     }
                     chain.ok = true;
@@ -924,10 +947,13 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                     | Tag::With
                     | Tag::ContextNew => false,
                     // A reference into the value's own storage outlives
-                    // the read; one through it, to a referent, does not.
+                    // the read; one through it, to a referent, does not,
+                    // nor does a loop's element reference into the
+                    // buffer the read pins, which the read's span covers.
                     Tag::Ref => {
                         let p = b.view(a);
-                        matches!(p.root, Root::Const(_)) || p.first(b) != Some(Proj::Deref)
+                        (matches!(p.root, Root::Const(_)) || p.first(b) != Some(Proj::Deref))
+                            && !b.pinned_element_ref(i)
                     }
                     _ => true,
                 },

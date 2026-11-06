@@ -11,14 +11,10 @@ fn total_len(xs: List[string]) -> usize:
     for p in &xs:
         n += p.len()
     n
-> app/main/total_len
->   (no span) release List[string] (last use)
 
 fn through_ref(r: &List[string]) -> usize:
     let n: usize = 0
     for p in &r:
-> app/main/through_ref
->   unique List[string] (conservative: unique)
         n += p.len()
     n
 

@@ -802,6 +802,7 @@ fn uniqueness(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice:
         let a = b.data[i][0];
         let (blk, pos, syn) = (topo.blk[i], topo.pos[i], b.syn[i]);
         match b.tags[i] {
+            Tag::Ref if pins_once(b, topo, i) => b.data[i][1] |= crate::ir::ref_word::PINS,
             Tag::Store | Tag::Ref => {
                 let pin = b.tags[i] == Tag::Ref;
                 let deref = path_lists(b, t, a);
@@ -857,6 +858,72 @@ fn uniqueness(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice:
     for k in 0..t.changes.len() {
         own_place(b, topo, t, edits, t.changes[k]);
     }
+}
+
+/// Whether `Ref` `i` is a `for x in &xs` loop's element reference that
+/// pins the list once (#1399 9k): a `&` of an element of a read made
+/// before the loop, of a place rooted at a local no closure shares, where
+/// nothing in the loop stores or takes a `&mut` through that local. The
+/// read keeps its `copy` (a `Ref` rooted at it never borrows): one count
+/// of the buffer from before the loop to after it, so any write to the
+/// list copies the buffer rather than change it, and the loop needs no
+/// `IsUnique` per round. A store through the loop's own place keeps the
+/// per-round check, so the loop sees what it stores.
+fn pins_once(b: &Body, topo: &Topology, i: usize) -> bool {
+    use crate::ir::ref_word;
+    let inside = |x: usize, l: u32| {
+        let mut m = topo.loop_of[x];
+        while m != NONE {
+            if m == l {
+                return true;
+            }
+            m = topo.loop_of[m as usize];
+        }
+        false
+    };
+    let l = topo.loop_of[i];
+    let a = b.data[i][0];
+    let Some(v) = b.view(a).value() else {
+        return false;
+    };
+    let vi = v as usize;
+    if l == NONE
+        || b.data[i][1] & ref_word::MUT != 0
+        || b.tags[vi] != Tag::Read
+        || topo.blk[vi] == NONE
+        || inside(vi, l)
+        || !has_elem(b, a)
+        || b.view(a).kinds(b).0 != 0
+    {
+        return false;
+    }
+    let Some(root) = root_local(b, b.data[vi][0]) else {
+        return false;
+    };
+    if b.local_flags[root as usize] & (local_flags::CAPTURED | local_flags::CAPTURED_ASSIGNED) != 0
+    {
+        return false;
+    }
+    !(0..b.len()).any(|j| {
+        let writes = match b.tags[j] {
+            Tag::Store => true,
+            Tag::Ref => b.data[j][1] & ref_word::MUT != 0,
+            _ => false,
+        };
+        writes && inside(j, l) && root_local(b, b.data[j][0]) == Some(root)
+    })
+}
+
+/// The local a place word's chain of reads starts at.
+fn root_local(b: &Body, mut word: u32) -> Option<u32> {
+    for _ in 0..64 {
+        match b.view(word).root {
+            Root::Local(l) => return Some(l),
+            Root::Value(v) if b.tags[v as usize] == Tag::Read => word = b.data[v as usize][0],
+            _ => return None,
+        }
+    }
+    None
 }
 
 type Change = (u32, u32, u32, Option<bool>);
@@ -975,7 +1042,7 @@ fn lone_root_read(b: &Body, topo: &Topology, t: &Tables, i: usize) -> Option<u32
 /// read's chain starts at a place ([`read_place`]), and the place has an
 /// element step, which gets an `IsUnique`.
 fn rerooted_read(b: &Body, topo: &Topology, i: usize) -> Option<u32> {
-    if !matches!(b.tags[i], Tag::Store | Tag::Ref) {
+    if !matches!(b.tags[i], Tag::Store | Tag::Ref) || pins_once(b, topo, i) {
         return None;
     }
     let a = b.data[i][0];

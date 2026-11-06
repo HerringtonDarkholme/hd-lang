@@ -1,0 +1,8 @@
+# test: a push through a box alias in the body of a loop over the shared element references of the boxed list panics borrow-conflict
+# Spec 06 Element Reference Loops: flow.for.ref.access; Spec 13 Call-Scoped Access: ref.elem.access.alias.
+tests:
+    it("the loop holds its list"):
+        a := box([+1, 2])
+        b := a
+        for c in &a:
+            b.push(*c) # panic: borrow-conflict

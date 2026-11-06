@@ -1,0 +1,54 @@
+# test: a recursive walk over for child in &node.children passes each element to a call that writes through a sink, and a call that stores the element keeps it past the loop
+# Spec 06 Element Reference Loops: flow.for.ref.access, flow.for.ref.through.
+pub struct Node:
+    pub value: i64
+    pub children: List[*Node]
+
+trait Sink:
+    fn emit(&mut self, value: i64) -> void
+
+struct Total:
+    sum: i64
+    calls: i64
+
+impl Sink for Total:
+    fn emit(&mut self, value: i64) -> void:
+        self.sum += value
+        self.calls += 1
+
+fn walk(node: &Node, sink: &mut dyn Sink) -> void:
+    sink.emit(node.value)
+    for child in &node.children:
+        walk(*child, sink)
+
+struct Keeper:
+    saved: List[*Node]
+
+fn keep(n: *Node, k: &mut Keeper) -> void:
+    k.saved.push(n)
+
+fn save(node: &Node, k: &mut Keeper) -> void:
+    for e in &node.children:
+        keep(*e, k)
+
+fn leaf(value: i64) -> *Node:
+    box(Node { value: value, children: [] })
+
+tests:
+    use std.testing.assert_equal
+
+    it("every node reaches the sink once"):
+        mid := box(Node { value: 10, children: [leaf(1), leaf(2)] })
+        root := box(Node { value: 100, children: [mid, leaf(3), mid] })
+        let mut total = Total { sum: 0, calls: 0 }
+        walk(root, &mut total)
+        assert_equal(total.sum, 100 + 13 + 3 + 13, reason="the shared child is walked twice")
+        assert_equal(total.calls, 8, reason="one emit per visit")
+
+    it("a stored element outlives the loop and its list"):
+        let mut root: *Node = box(Node { value: 1, children: [leaf(5), leaf(6)] })
+        let mut keeper = Keeper { saved: [] }
+        save(root, &mut keeper)
+        root = leaf(0)
+        assert_equal(keeper.saved[0].value + keeper.saved[1].value, 11, reason="each kept child holds its own count")
+        assert_equal(root.value, 0, reason="the old root and its list are gone")

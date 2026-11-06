@@ -103,7 +103,7 @@
       i32.store $heap offset=12
     end
   )
-  (func $all (param $frame i32) (param $keys i32) (result i32 i32) (local $t68 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t18 i32) (local $t19 i32) (local $t20 i32) (local $t21 i32) (local $t22 i32) (local $t23 i32) (local $t24 i32) (local $t25 i32) (local $t26 i32) (local $t27 i32) (local $t28 i32) (local $t29 i32) (local $t30 i32) (local $k.0 i32) (local $k.1 i32) (local $t31 i32) (local $t32 i32) (local $t33 i32) (local $t34 i32) (local $t35 i32) (local $t36 i32) (local $t37 i32) (local $t38 i32) (local $t39 i32) (local $tasks i32) (local $t40 i32) (local $t41 i32) (local $t42 i32) (local $t43 i32) (local $t44 i32) (local $t45 i32) (local $t46 i32) (local $t47 i32) (local $results i32) (local $n i32) (local $t48 i32) (local $t49 i32) (local $t50 i32) (local $t51 i32) (local $t52 i32) (local $t53 i32) (local $t54 i32) (local $t55 i32) (local $t56 i32) (local $t57 i32) (local $t58 i32) (local $t59 i32) (local $t60 i32) (local $t61 i32) (local $t62 i32) (local $r i32) (local $t63 i32) (local $t64 i32) (local $t65 i32) (local $t66 i32) (local $t67 i32) (local $t0 i32)
+  (func $all (param $frame i32) (param $keys i32) (result i32 i32) (local $t67 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t18 i32) (local $t19 i32) (local $t20 i32) (local $t21 i32) (local $t22 i32) (local $t23 i32) (local $t24 i32) (local $t25 i32) (local $t26 i32) (local $t27 i32) (local $t28 i32) (local $t29 i32) (local $t30 i32) (local $k.0 i32) (local $k.1 i32) (local $t31 i32) (local $t32 i32) (local $t33 i32) (local $t34 i32) (local $t35 i32) (local $t36 i32) (local $t37 i32) (local $t38 i32) (local $t39 i32) (local $tasks i32) (local $t40 i32) (local $t41 i32) (local $t42 i32) (local $t43 i32) (local $t44 i32) (local $t45 i32) (local $t46 i32) (local $t47 i32) (local $results i32) (local $n i32) (local $t48 i32) (local $t49 i32) (local $t50 i32) (local $t51 i32) (local $t52 i32) (local $t53 i32) (local $t54 i32) (local $t55 i32) (local $t56 i32) (local $t57 i32) (local $t58 i32) (local $t59 i32) (local $t60 i32) (local $t61 i32) (local $r i32) (local $t62 i32) (local $t63 i32) (local $t64 i32) (local $t65 i32) (local $t66 i32) (local $t0 i32)
     ;; (no span)
     local.get $frame
     if
@@ -324,10 +324,10 @@
       local.set $t61
       local.get $frame
       i32.load $heap offset=292
-      local.set $t62
+      local.set $r
       local.get $frame
       i32.load $heap offset=296
-      local.set $r
+      local.set $t62
       local.get $frame
       i32.load $heap offset=300
       local.set $t63
@@ -341,18 +341,15 @@
       i32.load $heap offset=312
       local.set $t66
       local.get $frame
-      i32.load $heap offset=316
-      local.set $t67
-      local.get $frame
       i32.load $heap offset=8
-      local.set $t68
+      local.set $t67
     else
       local.get $keys
       call $rt:coll_copy
       local.set $keys
     end
     block
-      local.get $t68
+      local.get $t67
       i32.eqz
       if
     ;; 14 |     let tasks: List[mut Suspend[string]] = [for k in keys => fetch(k)]
@@ -506,7 +503,7 @@
       end
       block
         block
-          local.get $t68
+          local.get $t67
           i32.const 1
           i32.eq
           if
@@ -518,7 +515,7 @@
           end
           i32.const 0
           local.set $t42
-          local.get $t68
+          local.get $t67
           i32.const 1
           i32.eq
           if
@@ -773,10 +770,10 @@
             local.get $t61
             i32.store $heap offset=288
             local.get $frame
-            local.get $t62
+            local.get $r
             i32.store $heap offset=292
             local.get $frame
-            local.get $r
+            local.get $t62
             i32.store $heap offset=296
             local.get $frame
             local.get $t63
@@ -790,9 +787,6 @@
             local.get $frame
             local.get $t66
             i32.store $heap offset=312
-            local.get $frame
-            local.get $t67
-            i32.store $heap offset=316
             local.get $frame
             local.get $t44
             i32.store $heap offset=16
@@ -1065,10 +1059,10 @@
           local.get $t61
           i32.store $heap offset=288
           local.get $frame
-          local.get $t62
+          local.get $r
           i32.store $heap offset=292
           local.get $frame
-          local.get $r
+          local.get $t62
           i32.store $heap offset=296
           local.get $frame
           local.get $t63
@@ -1082,9 +1076,6 @@
           local.get $frame
           local.get $t66
           i32.store $heap offset=312
-          local.get $frame
-          local.get $t67
-          i32.store $heap offset=316
           local.get $frame
           local.get $t45
           i32.store $heap offset=16
@@ -1134,6 +1125,7 @@
       i32.const 0
       local.set $n
     ;; 17 |     for r in &results:
+      local.tee $t48
       i32.load $heap offset=4
       local.set $t51
       i32.const 0
@@ -1151,17 +1143,17 @@
           i32.const 1
           i32.add
           local.set $t52
-          local.get $results
+          local.get $t48
           local.get $t56
           i32.const 8
           i32.mul
           i32.add
           i32.const 16
           i32.add
-          local.set $t61
+          local.set $t60
           block
             block
-              local.get $t61
+              local.get $t60
               local.set $r
               br 0
               unreachable
@@ -1169,9 +1161,9 @@
     ;; 18 |         n += r.len()
             local.get $r
             call $"impl string.len"
-            local.set $t65
+            local.set $t64
             local.get $n
-            local.get $t65
+            local.get $t64
             i32.add
             local.set $n
     ;; 17 |     for r in &results:

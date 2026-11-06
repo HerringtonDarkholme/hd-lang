@@ -2,8 +2,10 @@
 # @build: v8 release
 # Feature: a loop over a list behind a reference that passes each element
 # on to a call that may write (spec/lang/06-control-flow.md flow.for.ref; bench plugins walk).
-# expected (parked, #1399 9k): each child copies for the recursive call,
-# which may write; model A's call loan on `node` would make a borrow safe.
+# The `&` loop pins the list once (#1399 9k): one count of the buffer over
+# the loop, no per-round uniqueness test, and `walk(*child, sink)` lends the
+# child with no count. `keep` stores the pointer it takes, so `save`'s call
+# still retains each child: the stored pointer outlives the loop's pin.
 pub struct Node:
     pub value: i64
     pub children: List[*Node]
@@ -23,7 +25,19 @@ impl Sink for Total:
     fn emit(&mut self, value: i64) -> void:
         self.sum += value
 
+pub struct Keeper:
+    pub saved: List[*Node]
+
+fn keep(n: *Node, k: &mut Keeper) -> void:
+    k.saved.push(n)
+
+fn save(node: &Node, k: &mut Keeper) -> void:
+    for e in &node.children:
+        keep(*e, k)
+
 pub fn run(root: *Node) -> i64:
     let mut total = Total { sum: 0 }
     walk(root, &mut total)
-    total.sum
+    let mut keeper = Keeper { saved: [] }
+    save(root, &mut keeper)
+    total.sum + i64(keeper.saved.len())

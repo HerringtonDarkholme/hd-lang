@@ -1,0 +1,12 @@
+# test: a store through the list in the body of a for p in &xs loop is seen by the element references that follow
+# Spec 06 Element Reference Loops: flow.for.ref.access; Spec 13: ref.elem.access.live-length.
+tests:
+    use std.testing.assert_equal
+
+    it("the loop reads the element it just stored"):
+        let mut xs = [+1, 2, 3]
+        let mut seen = +0
+        for x in &xs:
+            xs[2] = 7
+            seen += *x
+        assert_equal(seen, 10, reason="slot 2 holds 7 by the time the loop reads it")

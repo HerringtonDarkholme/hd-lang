@@ -3,8 +3,10 @@
 # @build: v8 release
 # Feature: a loop over a list behind a reference that passes each element
 # on to a call that may write (spec/lang/06-control-flow.md flow.for.ref; bench plugins walk).
-# expected (parked, #1399 9k): each child copies for the recursive call,
-# which may write; model A's call loan on `node` would make a borrow safe.
+# The `&` loop pins the list once (#1399 9k): one count of the buffer over
+# the loop, no per-round uniqueness test, and `walk(*child, sink)` lends the
+# child with no count. `keep` stores the pointer it takes, so `save`'s call
+# still retains each child: the stored pointer outlives the loop's pin.
 pub struct Node:
     pub value: i64
     pub children: List[*Node]
@@ -65,15 +67,63 @@ impl Sink for Total:
 >   %3 = Store [*$0 .sum] %2 : ()
 >   %4 = Block - : ()
 
+pub struct Keeper:
+    pub saved: List[*Node]
+
+fn keep(n: *Node, k: &mut Keeper) -> void:
+    k.saved.push(n)
+> app/main/keep
+>   local $0 n: Counted[Node] [param read]
+>   %0 = Read [*$1 .saved] : List[Counted[Node]]
+>   %1 = Read [$0] : Counted[Node]
+>   %2 = Intrinsic ListPush [%0 %1] : ()
+>   %3 = Block - : ()
+
+fn save(node: &Node, k: &mut Keeper) -> void:
+    for e in &node.children:
+> app/main/save
+>   local $1 k: Ref[mut Keeper] [param read]
+>   local $2 $len: usize [assigned]
+>   local $3 $pos: usize [assigned]
+>   local $4 e: Ref[Counted[Node]] [read assigned]
+>   %0 = Read [*$0 .children] : List[Counted[Node]]
+>   %1 = Intrinsic ListLen [%0] : usize
+>   %2 = Store [$2] %1 : ()
+>   %3 = Store [$3] 0:usize : ()
+>   %4 = Read [$3] : usize
+>   %5 = Read [$2] : usize
+>   %6 = Prim Lt [%4 %5] : bool
+>   %7 = Read [$3] : usize
+>   %8 = Read [$3] : usize
+>   %9 = Prim Add [%8 1:usize] : usize
+>   %10 = Store [$3] %9 : ()
+>   %11 = Ref local [%0 [%7]] : Ref[Counted[Node]]
+>   %15 = Block - : ()
+>   %16 = Store [$4] %11 : ()
+>   %18 = Block - : never
+>   %19 = Match %11 [%18 %15] : ()
+>   %20 = Block - : ()
+>   %21 = Break L0 - : never
+>   %22 = Block - : ()
+>   %23 = If %6 [%20 %22] : ()
+>   %24 = Block - : ()
+>   %25 = Loop %24 - : ()
+>   %26 = Block - : ()
+        keep(*e, k)
+>   %12 = Read [*$4] : Counted[Node]
+>   %13 = Read [$1] : Ref[mut Keeper]
+>   %14 = Call app/main/keep[] (%12, %13) : ()
+
 pub fn run(root: *Node) -> i64:
     let mut total = Total { sum: 0 }
 > app/main/run
 >   local $0 root: Counted[Node] [param read]
 >   local $1 total: Total [read assigned captured captured-assigned]
 >   local $2 $ref: Ref[mut Total] [read assigned captured]
+>   local $3 keeper: Keeper [read assigned captured captured-assigned]
 >   %0 = NewStruct [0:i64] : Total
 >   %1 = Store [$1] %0 : ()
->   %11 = Block %10 : i64
+>   %21 = Block %20 : i64
     walk(root, &mut total)
 >   %2 = Read [$0] : Counted[Node]
 >   %3 = Ref mut local [$1] : Ref[mut Total]
@@ -83,5 +133,17 @@ pub fn run(root: *Node) -> i64:
 >   %7 = Block %6 : Sink
 >   %8 = RefDyn %7 : Ref[mut Sink]
 >   %9 = Call app/main/walk[] (%2, %8) : ()
-    total.sum
->   %10 = Read [$1 .sum] : i64
+    let mut keeper = Keeper { saved: [] }
+>   %10 = NewList - [] : List[Counted[Node]]
+>   %11 = NewStruct [%10] : Keeper
+>   %12 = Store [$3] %11 : ()
+    save(root, &mut keeper)
+>   %13 = Read [$0] : Counted[Node]
+>   %14 = Ref mut local [$3] : Counted[mut Keeper]
+>   %15 = Call app/main/save[] (%13, %14) : ()
+    total.sum + i64(keeper.saved.len())
+>   %16 = Read [$1 .sum] : i64
+>   %17 = Read [$3 .saved] : List[Counted[Node]]
+>   %18 = Intrinsic ListLen [%17] : usize
+>   %19 = Prim Conv [%18] : i64
+>   %20 = Prim Add [%16 %19] : i64

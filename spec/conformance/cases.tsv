@@ -4881,6 +4881,9 @@ runtime/panic/element-reference-clear-panics.hd	runtime	panic:borrow-conflict	la
 runtime/panic/element-reference-extend-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.call-loan
 typing/invalid/for-element-references-through-mut-parameter-push-conflict.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.for.ref.conflict
 runtime/panic/for-element-references-alias-push-panics.hd	runtime	panic:borrow-conflict	lang/06-control-flow.md#r-flow.for.ref.access
+runtime/panic/for-element-references-shared-alias-push-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.elem.access.alias
+runtime/valid/for-element-references-shared-store-seen.hd	runtime	accept	lang/13-values-and-references.md#r-ref.elem.access.live-length
+runtime/valid/for-element-references-recursive-calls.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.ref.access
 runtime/panic/uniq-list-element-alias-push-panics.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-list.type
 runtime/panic/uniq-map-value-alias-insert-panics.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-map.type
 typing/valid/element-reference-shared-any-list.hd	type	accept	lang/13-values-and-references.md#r-ref.elem.writable.shared

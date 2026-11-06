@@ -1407,6 +1407,9 @@ pub(crate) mod tests {
                 if tag == Tag::Ref && b.data[i][1] & crate::ir::ref_word::FRAME != 0 {
                     line.push_str(" frame");
                 }
+                if tag == Tag::Ref && b.data[i][1] & crate::ir::ref_word::PINS != 0 {
+                    line.push_str(" pins");
+                }
                 if tag == Tag::IsUnique && b.data[i][1] == crate::ir::unique_word::HOISTED {
                     line.push_str(" hoisted");
                 }
