@@ -1,0 +1,355 @@
+use std.time.{Clock, monotonic, elapsed}
+use std.host.{Args, args}
+use std.text.Parse
+use std.collections.{UniqList, UniqMap}
+use std.json.{encode, decode}
+use std.serde.{Serialize, Deserialize}
+
+@derive(Serialize, Deserialize)
+struct Record:
+    id: i64
+    name: string
+    email: string
+    score: f64
+    tags: List[string]
+
+fn parse_usize(text: string, default: usize) -> usize:
+    match usize::parse(text):
+        .Ok(v) => v
+        .Err(_) => default
+
+fn parse_i32(text: string, default: i32) -> i32:
+    match i32::parse(text):
+        .Ok(v) => v
+        .Err(_) => default
+
+fn arg_at(av: List[string], index: usize, default: string) -> string:
+    if index < av.len(): av[index] else: default
+
+fn fill_u32_lcg(dst: &mut UniqList[u32], n: usize, seed: u32) -> void:
+    let state = seed
+    for _ in 0..n:
+        state = state * 1664525 + 1013904223
+        dst.push(state)
+
+fn fib(n: i32) -> i64:
+    if n < 2: i64(n) else: fib(n - 1) + fib(n - 2)
+
+fn bench_fib(n: i32) -> (i64, u64):
+    t0 := monotonic()
+    v := fib(n)
+    ms := elapsed(t0).as_milliseconds()
+    (ms * 1000000, u64(v))
+
+fn bench_sieve(limit: usize) -> (i64, u64):
+    t0 := monotonic()
+    let mut prime = UniqList::[bool].with_capacity(limit + 1)
+    for _ in 0..=limit:
+        prime.push(true)
+    if limit >= 0:
+        prime[0] = false
+    if limit >= 1:
+        prime[1] = false
+    let p: usize = 2
+    while p * p <= limit:
+        if prime[p]:
+            let m = p * p
+            while m <= limit:
+                prime[m] = false
+                m = m + p
+        p = p + 1
+    let count: u64 = 0
+    for i in 2..=limit:
+        if prime[i]:
+            count = count + 1
+    ms := elapsed(t0).as_milliseconds()
+    (ms * 1000000, count)
+
+fn bench_sort(n: usize) -> (i64, u64):
+    let mut a: List[u32] = []
+    let state = u32(0xC0FFEE)
+    for _ in 0..n:
+        state = state * 1664525 + 1013904223
+        a.push(state)
+    t0 := monotonic()
+    a.sort()
+    ms := elapsed(t0).as_milliseconds()
+    let sum: u64 = u64(a[0]) + u64(a[n - 1])
+    let i: usize = 0
+    while i < n:
+        sum = sum ^ u64(a[i])
+        i = i + 1024
+    (ms * 1000000, sum)
+
+fn bench_hashmap(n: usize) -> (i64, u64):
+    let mut keys = UniqList::[u32].with_capacity(n)
+    fill_u32_lcg(&mut keys, n, 0xBADC0DE)
+    t0 := monotonic()
+    let mut m = UniqMap::[u32, u32].new()
+    for i in 0..n:
+        _ := m.insert(keys[i], u32(i))
+    let sum: u64 = 0
+    for i in 0..n:
+        sum = sum + u64(m[keys[i]])
+    let misses: u64 = 0
+    for i in 0..n:
+        k := keys[i] ^ 0xFFFFFFFF
+        if !m.contains_key(k):
+            misses = misses + 1
+    ms := elapsed(t0).as_milliseconds()
+    (ms * 1000000, sum + misses)
+
+struct Node:
+    left: *Node?
+    right: *Node?
+    val: i32
+
+fn build_tree(d: i32) -> *Node:
+    if d == 0:
+        return box(Node { left: .None, right: .None, val: 1 })
+    box(Node {
+        left: .Some(build_tree(d - 1)),
+        right: .Some(build_tree(d - 1)),
+        val: d,
+    })
+
+fn walk_tree(n: *Node?) -> i64:
+    match n:
+        .None => 0
+        .Some(node) => i64(node.val) + walk_tree(node.left) + walk_tree(node.right)
+
+fn bench_alloc(depth: i32, rounds: i32) -> (i64, u64):
+    t0 := monotonic()
+    let sum: u64 = 0
+    for _ in 0..rounds:
+        sum = sum + u64(walk_tree(.Some(build_tree(depth))))
+    ms := elapsed(t0).as_milliseconds()
+    (ms * 1000000, sum)
+
+fn bench_matmul(n: usize) -> (i64, u64):
+    let nn = n * n
+    let mut a = UniqList::[f64].with_capacity(nn)
+    let mut b = UniqList::[f64].with_capacity(nn)
+    let mut c = UniqList::[f64].with_capacity(nn)
+    for i in 0..nn:
+        a.push(f64((i * 3 + 1) % 97) / 97.0)
+        b.push(f64((i * 5 + 2) % 89) / 89.0)
+        c.push(0.0)
+    t0 := monotonic()
+    for i in 0..n:
+        for k in 0..n:
+            aik := a[i * n + k]
+            for j in 0..n:
+                idx := i * n + j
+                prev := c[idx]
+                add := aik * b[k * n + j]
+                c[idx] = prev + add
+    ms := elapsed(t0).as_milliseconds()
+    let sum: f64 = 0.0
+    for i in 0..n:
+        sum = sum + c[i * n + i]
+    (ms * 1000000, sum.to_bits())
+
+fn gen_records(n: usize) -> List[Record]:
+    let mut out: List[Record] = []
+    for i in 0..n:
+        out.push(Record {
+            id: i64(i),
+            name: "user_$i",
+            email: "user_$i@example.com",
+            score: f64(i % 1000) + 0.5,
+            tags: ["a", "b", "c"],
+        })
+    out
+
+fn bench_json(n: usize) -> (i64, u64):
+    recs := gen_records(n)
+    t0 := monotonic()
+    raw := encode(recs)
+    decoded := match decode::[List[Record]](raw):
+        .Ok(v) => v
+        .Err(e) => panic("json decode: $e")
+    ms := elapsed(t0).as_milliseconds()
+    let sum: u64 = 0
+    for r in decoded:
+        sum = sum + u64(r.id) + u64(r.name.len()) + u64(r.email.len()) + u64(r.tags.len())
+    sum = sum + u64(raw.len())
+    (ms * 1000000, sum)
+
+
+struct BTNode:
+    left: *BTNode?
+    right: *BTNode?
+
+fn bottom_up_tree(d: i32) -> *BTNode:
+    if d == 0:
+        return box(BTNode { left: .None, right: .None })
+    box(BTNode {
+        left: .Some(bottom_up_tree(d - 1)),
+        right: .Some(bottom_up_tree(d - 1)),
+    })
+
+fn item_check_node(n: *BTNode?) -> i32:
+    match n:
+        .None => 0
+        .Some(node) => 1 + item_check_node(node.left) + item_check_node(node.right)
+
+fn bench_btree(max_depth: i32) -> (i64, u64):
+    t0 := monotonic()
+    let sum: u64 = 0
+    sum = sum + u64(item_check_node(.Some(bottom_up_tree(max_depth + 1))))
+    long_lived := bottom_up_tree(max_depth)
+    let depth: i32 = 4
+    while depth <= max_depth:
+        iterations := usize(1) << usize(max_depth - depth + 4)
+        for _ in 0..iterations:
+            sum = sum + u64(item_check_node(.Some(bottom_up_tree(depth))))
+        depth = depth + 2
+    sum = sum + u64(item_check_node(.Some(long_lived)))
+    ms := elapsed(t0).as_milliseconds()
+    (ms * 1000000, sum)
+
+fn bench_btree_stretch(depth: i32) -> (i64, u64):
+    t0 := monotonic()
+    sum := u64(item_check_node(.Some(bottom_up_tree(depth))))
+    ms := elapsed(t0).as_milliseconds()
+    (ms * 1000000, sum)
+
+fn build_graph(n: usize) -> UniqList[i32]:
+    let mut edges = UniqList::[i32].with_capacity(n * 3)
+    for i in 0..n:
+        edges.push(i32((i * 7 + 1) % n))
+        edges.push(i32((i * 7 + 3) % n))
+        edges.push(i32((i * 11 + 5) % n))
+    edges
+
+fn bench_graph_dfs(n: usize) -> (i64, u64):
+    t0 := monotonic()
+    edges := build_graph(n)
+    let mut seen = UniqList::[bool].with_capacity(n)
+    for _ in 0..n:
+        seen.push(false)
+    let mut stack = UniqList::[usize].new()
+    stack.push(0)
+    seen[0] = true
+    let count: u64 = 0
+    let id_sum: u64 = 0
+    while stack.len() > 0:
+        u := stack.pop().unwrap_or(0)
+        count = count + 1
+        id_sum = id_sum + u64(u)
+        base := u * 3
+        for k in 0..3:
+            v := usize(edges[base + k])
+            if !seen[v]:
+                seen[v] = true
+                stack.push(v)
+    ms := elapsed(t0).as_milliseconds()
+    (ms * 1000000, id_sum + count)
+
+fn bench_graph_bfs(n: usize) -> (i64, u64):
+    t0 := monotonic()
+    edges := build_graph(n)
+    let mut seen = UniqList::[bool].with_capacity(n)
+    let mut dist = UniqList::[i32].with_capacity(n)
+    for _ in 0..n:
+        seen.push(false)
+        dist.push(-1)
+    let mut q = UniqList::[usize].new()
+    q.push(0)
+    seen[0] = true
+    # set dist[0]=0
+    match dist.get_mut(0):
+        .Some(slot) => *slot = 0
+        .None => panic("dist")
+    let count: u64 = 0
+    let id_sum: u64 = 0
+    let dist_sum: u64 = 0
+    let head: usize = 0
+    while head < q.len():
+        u := q[head]
+        head = head + 1
+        count = count + 1
+        id_sum = id_sum + u64(u)
+        dist_sum = dist_sum + u64(dist[u])
+        base := u * 3
+        for k in 0..3:
+            v := usize(edges[base + k])
+            if !seen[v]:
+                seen[v] = true
+                match dist.get_mut(v):
+                    .Some(slot) => *slot = dist[u] + 1
+                    .None => panic("dist set")
+                q.push(v)
+    ms := elapsed(t0).as_milliseconds()
+    (ms * 1000000, dist_sum + id_sum + count)
+
+pub fn main() -> void $ Console + Clock + Args:
+    av := args()
+    if av.len() < 1:
+        println("usage: wasm_bench <workload> [args...]")
+        return
+    workload := av[0]
+    let mut ns: i64 = 0
+    let mut sum: u64 = 0
+    if workload == "fib":
+        n := parse_i32(arg_at(av, 1, "37"), 37)
+        pair := bench_fib(n)
+        ns = pair._0
+        sum = pair._1
+    else if workload == "sieve":
+        n := parse_usize(arg_at(av, 1, "10000000"), 10000000)
+        pair := bench_sieve(n)
+        ns = pair._0
+        sum = pair._1
+    else if workload == "sort":
+        n := parse_usize(arg_at(av, 1, "1000000"), 1000000)
+        pair := bench_sort(n)
+        ns = pair._0
+        sum = pair._1
+    else if workload == "hashmap":
+        n := parse_usize(arg_at(av, 1, "500000"), 500000)
+        pair := bench_hashmap(n)
+        ns = pair._0
+        sum = pair._1
+    else if workload == "alloc":
+        depth := parse_i32(arg_at(av, 1, "16"), 16)
+        rounds := parse_i32(arg_at(av, 2, "20"), 20)
+        pair := bench_alloc(depth, rounds)
+        ns = pair._0
+        sum = pair._1
+    else if workload == "matmul":
+        n := parse_usize(arg_at(av, 1, "256"), 256)
+        pair := bench_matmul(n)
+        ns = pair._0
+        sum = pair._1
+    else if workload == "json":
+        n := parse_usize(arg_at(av, 1, "10000"), 10000)
+        pair := bench_json(n)
+        ns = pair._0
+        sum = pair._1
+    else if workload == "btree":
+        n := parse_i32(arg_at(av, 1, "15"), 15)
+        pair := bench_btree(n)
+        ns = pair._0
+        sum = pair._1
+    else if workload == "btree-stretch":
+        n := parse_i32(arg_at(av, 1, "18"), 18)
+        pair := bench_btree_stretch(n)
+        ns = pair._0
+        sum = pair._1
+    else if workload == "graph-dfs":
+        n := parse_usize(arg_at(av, 1, "200000"), 200000)
+        pair := bench_graph_dfs(n)
+        ns = pair._0
+        sum = pair._1
+    else if workload == "graph-bfs":
+        n := parse_usize(arg_at(av, 1, "200000"), 200000)
+        pair := bench_graph_bfs(n)
+        ns = pair._0
+        sum = pair._1
+    else:
+        println("unknown workload")
+        return
+    println("RESULT lang=hd workload=$workload ns=$ns checksum=$sum")
+
