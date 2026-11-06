@@ -82,10 +82,10 @@
     },
     {
       "program": "bench/runtime/progs/plugins.hd",
-      "retained": "16380001",
-      "released": "16381460",
-      "uniques": "24577500",
-      "total": "57338961"
+      "retained": "5460001",
+      "released": "5461460",
+      "uniques": "8197500",
+      "total": "19118961"
     },
     {
       "program": "bench/runtime/progs/resources.hd",
@@ -117,10 +117,10 @@
     },
     {
       "program": "bench/runtime/progs/task-pipeline.hd",
-      "retained": "10406262",
-      "released": "14512533",
-      "uniques": "3600000",
-      "total": "28518795"
+      "retained": "7706262",
+      "released": "11812533",
+      "uniques": "0",
+      "total": "19518795"
     },
     {
       "program": "bench/runtime/progs/trait-dispatch.hd",
@@ -167,9 +167,9 @@
     {
       "program": "bench/study/json.hd",
       "retained": "2720002",
-      "released": "3740100",
-      "uniques": "12240015",
-      "total": "18700117"
+      "released": "3740092",
+      "uniques": "3570006",
+      "total": "10030100"
     },
     {
       "program": "bench/study/mandelbrot.hd",
