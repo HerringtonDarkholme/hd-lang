@@ -1,0 +1,854 @@
+//! The wasm-race benchmark workloads, at parity with go/main.go and zig/main.zig.
+
+import silk.core.effect { Effect }
+import silk.mem.allocator { Allocator, OutOfMemoryError, SystemAllocator }
+import silk.mem.arena { Arena, ArenaReset }
+import silk.mem.box { Box }
+import silk.collections.bytes { Bytes }
+import silk.collections.list { List }
+import silk.collections.slice { Slice }
+import silk.collections.hash { Hash }
+import silk.collections.hash_map { HashMap }
+import silk.core.option { Option }
+import silk.core.result { Result }
+import silk.system.host_input { HostInput, HostInputError }
+import silk.system.monotonic_clock { MonotonicClock }
+import silk.system.monotonic_clock_native { OsMonotonicClock }
+import silk.system.system_clock { Instant, SystemClock }
+import silk.io.writer { Writer, WriterError }
+import silk.io.writer_native { StdoutWriter, StderrWriter }
+import silk.text.format { Format, ParseError }
+import silk.text.string { String, InvalidUtf8, ScalarStep }
+import silk.text.byte_search
+import silk.text.char
+import silk.json.codec { Serialize, Deserialize, JsonCodec }
+import silk.json.output { JsonOptions }
+import silk.json.reflect { JsonReflect }
+import silk.json.scanner { JsonError, JsonReason, JsonScanner, JsonToken }
+import silk.json.text { JsonText }
+import silk.json.value { Json }
+import silk.num.i32
+import silk.num.i64
+import silk.num.u32
+import silk.num.u64
+import silk.num.usize
+import silk.num.f64
+
+/// One measured run: the elapsed nanoseconds of the timed span and the checksum.
+struct Outcome {
+  ns: u64,
+  sum: u64
+}
+
+fn elapsedNs(start: &Instant, end: &Instant) -> u64 {
+  let ns = (SystemClock.seconds(end) - SystemClock.seconds(start)) * 1000000000
+    + SystemClock.nanoseconds(end)
+    - SystemClock.nanoseconds(start)
+  return i64.toU64(ns)
+}
+
+fn fillU32LCG(dst: &mut [u32], seed: u32) -> () {
+  let mut state = seed
+  let mut i: usize = 0
+  while i < dst.length {
+    state = u32.wrappingAdd(u32.wrappingMultiply(state, 1664525), 1013904223)
+    dst[i] = state
+    i = i + 1
+  }
+  return ()
+}
+
+// ---------------------------------------------------------------- json
+
+/// A `Writer` that collects everything written into owned bytes, like Go's `bytes.Buffer`.
+struct ByteSink {
+  bytes: Bytes,
+  allocator: SystemAllocator
+}
+
+effect fn sinkWriteAll(self: &mut ByteSink, values: &[u8]) -> ()
+  ! WriterError {
+  let appended = run Effect.result(Bytes.append(&mut self.bytes, values))
+    |> Effect.provideMut<Allocator>(&mut self.allocator)
+  return match move appended {
+    Result<(), OutOfMemoryError>.Success { value: _ } => ()
+    Result<(), OutOfMemoryError>.Failure { error: _ } => {
+      fail Writer.failure()
+    }
+  }
+}
+
+effect fn sinkFlush(self: &mut ByteSink) -> ()
+  ! WriterError {
+  return ()
+}
+
+impl Writer for ByteSink {
+  writeAll: sinkWriteAll
+
+  flush: sinkFlush
+}
+
+fn makeSink() -> ByteSink {
+  return ByteSink { bytes: Bytes.make(), allocator: Allocator.systemAllocatorProvider() }
+}
+
+struct Record {
+  pub id: i64,
+  pub name: String,
+  pub email: String,
+  pub score: f64,
+  pub tags: List<String>,
+}
+
+impl Serialize for Record {
+  effect fn serialize(self: &Self, options: &JsonOptions) -> ()
+    ! JsonError | WriterError
+    ? &mut Writer {
+    return run JsonReflect.write<Record>(self, options)
+  }
+}
+
+effect fn token(scanner: &mut JsonScanner) -> JsonToken
+  ! JsonError {
+  return match move JsonScanner.next(&mut scanner.*) {
+    Result<JsonToken, JsonError>.Success { value } => move value
+    Result<JsonToken, JsonError>.Failure { error } => {
+      fail move error
+    }
+  }
+}
+
+effect fn memberKey(scanner: &mut JsonScanner) -> String
+  ! JsonError | OutOfMemoryError
+  ? &mut Allocator {
+  let next = run token(&mut scanner.*)
+  let text = match move next {
+    JsonToken.String { span, escaped } => {
+      let offset = span.offset
+      let raw = JsonScanner.slice(&scanner.*, move span)
+      let decoded = run JsonText.decode(raw, offset, escaped)
+      unsafe String.fromBytesUnchecked(move decoded)
+    }
+    _ => {
+      fail JsonError.at(JsonReason.TypeMismatch, JsonScanner.offset(&scanner.*))
+    }
+  }
+  let colon = run token(&mut scanner.*)
+  match move colon {
+    JsonToken.KeySeparator => {
+      return move text
+    }
+    _ => {
+      fail JsonError.at(JsonReason.UnexpectedByte, JsonScanner.offset(&scanner.*))
+    }
+  }
+}
+
+impl Deserialize for Record {
+  effect fn deserialize(scanner: &mut JsonScanner) -> Self
+    ! JsonError | OutOfMemoryError
+    ? &mut Allocator {
+    let opening = run token(&mut scanner.*)
+    match move opening {
+      JsonToken.ObjectBegin => {}
+      _ => {
+        fail JsonError.at(JsonReason.TypeMismatch, JsonScanner.offset(&scanner.*))
+      }
+    }
+    let mut record = Record {
+      id: 0,
+      name: String.make(),
+      email: String.make(),
+      score: 0.0,
+      tags: List<String>.make(),
+    }
+    while true {
+      let key = run memberKey(&mut scanner.*)
+      let name = String.view(&key)
+      if name == "id" {
+        record.id = run JsonCodec.deserializeOne<i64>(&mut scanner.*)
+      } else if name == "name" {
+        record.name = run JsonCodec.deserializeOne<String>(&mut scanner.*)
+      } else if name == "email" {
+        record.email = run JsonCodec.deserializeOne<String>(&mut scanner.*)
+      } else if name == "score" {
+        record.score = run JsonCodec.deserializeOne<f64>(&mut scanner.*)
+      } else if name == "tags" {
+        record.tags = run JsonCodec.deserializeOne<List<String>>(&mut scanner.*)
+      } else {
+        fail JsonError.at(JsonReason.UnknownField, JsonScanner.offset(&scanner.*))
+      }
+      let separator = run token(&mut scanner.*)
+      match move separator {
+        JsonToken.ObjectEnd => {
+          return move record
+        }
+        JsonToken.ValueSeparator => {}
+        _ => {
+          fail JsonError.at(JsonReason.UnexpectedByte, JsonScanner.offset(&scanner.*))
+        }
+      }
+    }
+    fail JsonError.at(JsonReason.UnexpectedEnd, JsonScanner.offset(&scanner.*))
+  }
+}
+
+effect fn formatted<Args>(static template: string<'static>, args: &Args) -> String
+  ! OutOfMemoryError | WriterError {
+  let mut sink = makeSink()
+  run Format.format(template, args) |> Effect.provideMut<Writer>(&mut sink)
+  return unsafe String.fromBytesUnchecked(move sink.bytes)
+}
+
+effect fn genRecords(n: usize) -> List<Record>
+  ! OutOfMemoryError | WriterError
+  ? &mut Allocator {
+  let mut out = run List<Record>.makeWithCapacity(n)
+  let mut i: usize = 0
+  while i < n {
+    let fields = .{ i: i }
+    let mut tags = List<String>.make()
+    run List<String>.append(&mut tags, run String.copy("a"))
+    run List<String>.append(&mut tags, run String.copy("b"))
+    run List<String>.append(&mut tags, run String.copy("c"))
+    let record = Record {
+      id: usize.toI64(i),
+      name: run formatted("user_{i}", &fields),
+      email: run formatted("user_{i}@example.com", &fields),
+      score: usize.toF64(i % 1000) + 0.5,
+      tags: move tags,
+    }
+    run List<Record>.append(&mut out, move record)
+    i = i + 1
+  }
+  return move out
+}
+
+effect fn benchJson(n: usize) -> Outcome
+  ! OutOfMemoryError | WriterError | JsonError
+  ? &mut Allocator | &mut MonotonicClock {
+  let recs = run genRecords(n)
+  let start = run MonotonicClock.now()
+  let mut sink = makeSink()
+  run Json.serialize<List<Record>>(&recs, &JsonOptions.compact())
+    |> Effect.provideMut<Writer>(&mut sink)
+  let raw = Bytes.asSlice(&sink.bytes)
+  let decoded = run Json.deserialize<List<Record>>(raw)
+  let end = run MonotonicClock.now()
+  let mut sum: u64 = 0
+  let items = List<Record>.asSlice(&decoded)
+  let mut i: usize = 0
+  while i < items.length {
+    let r = &items[i]
+    sum = sum + i64.toU64(r.id) + usize.toU64(String.byteLength(String.view(&r.name)))
+      + usize.toU64(String.byteLength(String.view(&r.email)))
+      + usize.toU64(List<String>.length(&r.tags))
+    i = i + 1
+  }
+  sum = sum + usize.toU64(raw.length)
+  return Outcome { ns: elapsedNs(&start, &end), sum: sum }
+}
+
+// ---------------------------------------------------------------- sieve
+
+effect fn benchSieve(limit: usize) -> Outcome
+  ! OutOfMemoryError
+  ? &mut Allocator | &mut MonotonicClock {
+  let start = run MonotonicClock.now()
+  let mut storage = List<bool>.make()
+  run List<bool>.appendRepeated(&mut storage, true, limit + 1)
+  let prime = List<bool>.asMutSlice(&mut storage)
+  prime[0] = false
+  if limit >= 1 {
+    prime[1] = false
+  }
+  let mut p: usize = 2
+  while p * p <= limit {
+    if prime[p] {
+      let mut m = p * p
+      while m <= limit {
+        prime[m] = false
+        m = m + p
+      }
+    }
+    p = p + 1
+  }
+  let mut count: u64 = 0
+  let mut i: usize = 2
+  while i <= limit {
+    if prime[i] {
+      count = count + 1
+    }
+    i = i + 1
+  }
+  let end = run MonotonicClock.now()
+  return Outcome { ns: elapsedNs(&start, &end), sum: count }
+}
+
+// ---------------------------------------------------------------- sort
+
+effect fn benchSort(n: usize) -> Outcome
+  ! OutOfMemoryError
+  ? &mut Allocator | &mut MonotonicClock {
+  let mut a = List<u32>.make()
+  run List<u32>.appendRepeated(&mut a, 0, n)
+  fillU32LCG(List<u32>.asMutSlice(&mut a), 0xC0FFEE)
+  let start = run MonotonicClock.now()
+  run List<u32>.sort(&mut a)
+  let end = run MonotonicClock.now()
+  let s = List<u32>.asSlice(&a)
+  let mut sum = u32.toU64(s[0]) + u32.toU64(s[n - 1])
+  let mut i: usize = 0
+  while i < n {
+    sum = sum ^ u32.toU64(s[i])
+    i = i + 1024
+  }
+  return Outcome { ns: elapsedNs(&start, &end), sum: sum }
+}
+
+// ---------------------------------------------------------------- hashmap
+
+effect fn benchHashmap(n: usize) -> Outcome
+  ! OutOfMemoryError
+  ? &mut Allocator | &mut MonotonicClock {
+  let mut keyStorage = List<u32>.make()
+  run List<u32>.appendRepeated(&mut keyStorage, 0, n)
+  fillU32LCG(List<u32>.asMutSlice(&mut keyStorage), 0xBADC0DE)
+  let keys = List<u32>.asSlice(&keyStorage)
+  let start = run MonotonicClock.now()
+  let mut m = run HashMap<u32, u32>.makeWithCapacity(Hash.seed(0), n)
+  let mut i: usize = 0
+  while i < n {
+    let _previous = run HashMap<u32, u32>.insert(&mut m, keys[i], usize.toU32(i))
+    i = i + 1
+  }
+  let mut sum: u64 = 0
+  i = 0
+  while i < n {
+    sum = sum + u32.toU64(HashMap<u32, u32>.get(&m, keys[i]) |> Option<u32>.unwrapOr(0))
+    i = i + 1
+  }
+  let mut misses: u64 = 0
+  i = 0
+  while i < n {
+    if !HashMap<u32, u32>.contains(&m, keys[i] ^ 0xFFFFFFFF) {
+      misses = misses + 1
+    }
+    i = i + 1
+  }
+  let end = run MonotonicClock.now()
+  return Outcome { ns: elapsedNs(&start, &end), sum: sum + misses }
+}
+
+// ---------------------------------------------------------------- find
+
+effect fn benchFind(size: usize, stride: usize) -> Outcome
+  ! OutOfMemoryError
+  ? &mut Allocator | &mut MonotonicClock {
+  let needle = b"needle!!"
+  let mut storage = List<u8>.make()
+  run List<u8>.appendRepeated(&mut storage, 0, size)
+  let buf = List<u8>.asMutSlice(&mut storage)
+  let mut i: usize = 0
+  while i < size {
+    buf[i] = usize.wrappingToU8(i)
+    i = i + 1
+  }
+  i = 0
+  while i + needle.length <= size {
+    Slice.copyInto<u8>(&mut buf, i, needle)
+    i = i + stride
+  }
+  drop buf
+  let hay = List<u8>.asSlice(&storage)
+  let start = run MonotonicClock.now()
+  let mut count: u64 = 0
+  let mut pos: usize = 0
+  while pos + needle.length <= hay.length {
+    match byte_search.findSlice(Slice.view<u8>(hay, pos, hay.length - pos), needle) {
+      Option<usize>.Some { value } => {
+        count = count + 1
+        pos = pos + value + 1
+      }
+      Option<usize>.None => {
+        break
+      }
+    }
+  }
+  let end = run MonotonicClock.now()
+  return Outcome { ns: elapsedNs(&start, &end), sum: count }
+}
+
+// ---------------------------------------------------------------- alloc
+
+struct TNode {
+  left: Option<Box<TNode>>,
+  right: Option<Box<TNode>>,
+  val: i32,
+}
+
+effect fn buildTree(d: i32) -> Box<TNode>
+  ! OutOfMemoryError
+  ? &mut Allocator {
+  if d == 0 {
+    return run Box<TNode>.make(
+      TNode { left: Option<Box<TNode>>.none(), right: Option<Box<TNode>>.none(), val: 1 },
+    )
+  }
+  let left = run buildTree(d - 1)
+  let right = run buildTree(d - 1)
+  return run Box<TNode>.make(
+    TNode {
+      left: Option<Box<TNode>>.some(move left),
+      right: Option<Box<TNode>>.some(move right),
+      val: d,
+    },
+  )
+}
+
+fn walkChild(child: &Option<Box<TNode>>) -> i64 {
+  return match &child.* {
+    Option<Box<TNode>>.Some { value } => walkTree(&Box<TNode>.get(&value)[0])
+    Option<Box<TNode>>.None => 0
+  }
+}
+
+fn walkTree(n: &TNode) -> i64 {
+  return i32.toI64(n.val) + walkChild(&n.left) + walkChild(&n.right)
+}
+
+fn walkRoot(root: &Box<TNode>) -> i64 {
+  return walkTree(&Box<TNode>.get(root)[0])
+}
+
+effect fn benchAlloc(depth: i32, rounds: usize) -> Outcome
+  ! OutOfMemoryError
+  ? &mut Allocator | &mut MonotonicClock {
+  let start = run MonotonicClock.now()
+  let mut sum: u64 = 0
+  let mut r: usize = 0
+  while r < rounds {
+    let root = run buildTree(depth)
+    sum = sum + i64.toU64(walkRoot(&root))
+    drop root
+    r = r + 1
+  }
+  let end = run MonotonicClock.now()
+  return Outcome { ns: elapsedNs(&start, &end), sum: sum }
+}
+
+effect fn benchAllocArena(depth: i32, rounds: usize) -> Outcome
+  ! OutOfMemoryError
+  ? &mut Allocator | &mut MonotonicClock {
+  let start = run MonotonicClock.now()
+  let mut sum: u64 = 0
+  let mut r: usize = 0
+  let mut arena = Arena.make(Allocator.systemAllocatorProvider())
+  while r < rounds {
+    let root = run buildTree(depth) |> Effect.provideMut<Allocator>(&mut arena)
+    sum = sum + i64.toU64(walkRoot(&root))
+    drop root
+    arena.reset(ArenaReset.RetainCapacity)
+    r = r + 1
+  }
+  drop arena
+  let end = run MonotonicClock.now()
+  return Outcome { ns: elapsedNs(&start, &end), sum: sum }
+}
+
+// ---------------------------------------------------------------- btree
+
+struct BTNode {
+  left: Option<Box<BTNode>>,
+  right: Option<Box<BTNode>>,
+}
+
+effect fn bottomUpTree(d: i32) -> Box<BTNode>
+  ! OutOfMemoryError
+  ? &mut Allocator {
+  if d == 0 {
+    return run Box<BTNode>.make(
+      BTNode { left: Option<Box<BTNode>>.none(), right: Option<Box<BTNode>>.none() },
+    )
+  }
+  let left = run bottomUpTree(d - 1)
+  let right = run bottomUpTree(d - 1)
+  return run Box<BTNode>.make(
+    BTNode {
+      left: Option<Box<BTNode>>.some(move left),
+      right: Option<Box<BTNode>>.some(move right),
+    },
+  )
+}
+
+fn checkChild(child: &Option<Box<BTNode>>) -> i32 {
+  return match &child.* {
+    Option<Box<BTNode>>.Some { value } => itemCheck(&Box<BTNode>.get(&value)[0])
+    Option<Box<BTNode>>.None => 0
+  }
+}
+
+fn itemCheck(t: &BTNode) -> i32 {
+  if Option<Box<BTNode>>.isNone(&t.left) {
+    return 1
+  }
+  return 1 + checkChild(&t.left) + checkChild(&t.right)
+}
+
+fn checkRoot(root: &Box<BTNode>) -> u64 {
+  return i32.toU64(itemCheck(&Box<BTNode>.get(root)[0]))
+}
+
+effect fn benchBTree(maxDepth: i32) -> Outcome
+  ! OutOfMemoryError
+  ? &mut Allocator | &mut MonotonicClock {
+  let start = run MonotonicClock.now()
+  let mut sum: u64 = 0
+  let stretch = run bottomUpTree(maxDepth + 1)
+  sum = sum + checkRoot(&stretch)
+  drop stretch
+  let longLived = run bottomUpTree(maxDepth)
+  let mut depth: i32 = 4
+  while depth <= maxDepth {
+    let iterations = usize.shiftLeft(1, i32.toUsize(maxDepth - depth + 4))
+    let mut i: usize = 0
+    while i < iterations {
+      let tree = run bottomUpTree(depth)
+      sum = sum + checkRoot(&tree)
+      drop tree
+      i = i + 1
+    }
+    depth = depth + 2
+  }
+  sum = sum + checkRoot(&longLived)
+  drop longLived
+  let end = run MonotonicClock.now()
+  return Outcome { ns: elapsedNs(&start, &end), sum: sum }
+}
+
+effect fn benchBTreeArena(maxDepth: i32) -> Outcome
+  ! OutOfMemoryError
+  ? &mut Allocator | &mut MonotonicClock {
+  let start = run MonotonicClock.now()
+  let mut sum: u64 = 0
+  let mut arena = Arena.make(Allocator.systemAllocatorProvider())
+  let mut longArena = Arena.make(Allocator.systemAllocatorProvider())
+  let stretch = run bottomUpTree(maxDepth + 1) |> Effect.provideMut<Allocator>(&mut arena)
+  sum = sum + checkRoot(&stretch)
+  drop stretch
+  arena.reset(ArenaReset.RetainCapacity)
+  let longLived = run bottomUpTree(maxDepth) |> Effect.provideMut<Allocator>(&mut longArena)
+  let mut depth: i32 = 4
+  while depth <= maxDepth {
+    let iterations = usize.shiftLeft(1, i32.toUsize(maxDepth - depth + 4))
+    let mut i: usize = 0
+    while i < iterations {
+      let tree = run bottomUpTree(depth) |> Effect.provideMut<Allocator>(&mut arena)
+      sum = sum + checkRoot(&tree)
+      drop tree
+      arena.reset(ArenaReset.RetainCapacity)
+      i = i + 1
+    }
+    depth = depth + 2
+  }
+  sum = sum + checkRoot(&longLived)
+  drop longLived
+  drop longArena
+  drop arena
+  let end = run MonotonicClock.now()
+  return Outcome { ns: elapsedNs(&start, &end), sum: sum }
+}
+
+effect fn benchBTreeStretch(depth: i32) -> Outcome
+  ! OutOfMemoryError
+  ? &mut Allocator | &mut MonotonicClock {
+  let start = run MonotonicClock.now()
+  let tree = run bottomUpTree(depth)
+  let sum = checkRoot(&tree)
+  drop tree
+  let end = run MonotonicClock.now()
+  return Outcome { ns: elapsedNs(&start, &end), sum: sum }
+}
+
+// ---------------------------------------------------------------- graphs
+
+effect fn buildGraph(n: usize) -> List<usize>
+  ! OutOfMemoryError
+  ? &mut Allocator {
+  // CSR: deg=3, edges[u*3+k]
+  let mut edges = List<usize>.make()
+  run List<usize>.appendRepeated(&mut edges, 0, n * 3)
+  let e = List<usize>.asMutSlice(&mut edges)
+  let mut i: usize = 0
+  while i < n {
+    e[i * 3 + 0] = (i * 7 + 1) % n
+    e[i * 3 + 1] = (i * 7 + 3) % n
+    e[i * 3 + 2] = (i * 11 + 5) % n
+    i = i + 1
+  }
+  drop e
+  return move edges
+}
+
+effect fn benchGraphDFS(n: usize) -> Outcome
+  ! OutOfMemoryError
+  ? &mut Allocator | &mut MonotonicClock {
+  let start = run MonotonicClock.now()
+  let edgeStorage = run buildGraph(n)
+  let edges = List<usize>.asSlice(&edgeStorage)
+  let mut seenStorage = List<bool>.make()
+  run List<bool>.appendRepeated(&mut seenStorage, false, n)
+  let seen = List<bool>.asMutSlice(&mut seenStorage)
+  let mut stack = run List<usize>.makeWithCapacity(64)
+  run List<usize>.append(&mut stack, 0)
+  seen[0] = true
+  let mut count: u64 = 0
+  let mut idSum: u64 = 0
+  while let Option<usize>.Some { value: u } = List<usize>.pop(&mut stack) {
+    count = count + 1
+    idSum = idSum + usize.toU64(u)
+    let base = u * 3
+    let mut k: usize = 0
+    while k < 3 {
+      let v = edges[base + k]
+      if !seen[v] {
+        seen[v] = true
+        run List<usize>.append(&mut stack, v)
+      }
+      k = k + 1
+    }
+  }
+  let end = run MonotonicClock.now()
+  return Outcome { ns: elapsedNs(&start, &end), sum: idSum + count }
+}
+
+effect fn benchGraphBFS(n: usize) -> Outcome
+  ! OutOfMemoryError
+  ? &mut Allocator | &mut MonotonicClock {
+  let start = run MonotonicClock.now()
+  let edgeStorage = run buildGraph(n)
+  let edges = List<usize>.asSlice(&edgeStorage)
+  let mut seenStorage = List<bool>.make()
+  run List<bool>.appendRepeated(&mut seenStorage, false, n)
+  let seen = List<bool>.asMutSlice(&mut seenStorage)
+  let mut distStorage = List<i32>.make()
+  run List<i32>.appendRepeated(&mut distStorage, -1, n)
+  let dist = List<i32>.asMutSlice(&mut distStorage)
+  let mut q = run List<usize>.makeWithCapacity(n)
+  run List<usize>.append(&mut q, 0)
+  seen[0] = true
+  dist[0] = 0
+  let mut count: u64 = 0
+  let mut idSum: u64 = 0
+  let mut distSum: u64 = 0
+  let mut head: usize = 0
+  while head < List<usize>.length(&q) {
+    let u = List<usize>.get(&q, head)
+    count = count + 1
+    idSum = idSum + usize.toU64(u)
+    distSum = distSum + i32.toU64(dist[u])
+    let base = u * 3
+    let mut k: usize = 0
+    while k < 3 {
+      let v = edges[base + k]
+      if !seen[v] {
+        seen[v] = true
+        dist[v] = dist[u] + 1
+        run List<usize>.append(&mut q, v)
+      }
+      k = k + 1
+    }
+    head = head + 1
+  }
+  let end = run MonotonicClock.now()
+  return Outcome { ns: elapsedNs(&start, &end), sum: distSum + idSum + count }
+}
+
+// ---------------------------------------------------------------- fib
+
+fn fib(n: i32) -> i64 {
+  if n < 2 {
+    return i32.toI64(n)
+  }
+  return fib(n - 1) + fib(n - 2)
+}
+
+effect fn benchFib(n: i32) -> Outcome
+  ? &mut MonotonicClock {
+  let start = run MonotonicClock.now()
+  let v = fib(n)
+  let end = run MonotonicClock.now()
+  return Outcome { ns: elapsedNs(&start, &end), sum: i64.toU64(v) }
+}
+
+// ---------------------------------------------------------------- matmul
+
+effect fn benchMatmul(n: usize) -> Outcome
+  ! OutOfMemoryError
+  ? &mut Allocator | &mut MonotonicClock {
+  let mut aStorage = List<f64>.make()
+  let mut bStorage = List<f64>.make()
+  let mut cStorage = List<f64>.make()
+  run List<f64>.appendRepeated(&mut aStorage, 0.0, n * n)
+  run List<f64>.appendRepeated(&mut bStorage, 0.0, n * n)
+  run List<f64>.appendRepeated(&mut cStorage, 0.0, n * n)
+  let a = List<f64>.asMutSlice(&mut aStorage)
+  let b = List<f64>.asMutSlice(&mut bStorage)
+  let c = List<f64>.asMutSlice(&mut cStorage)
+  let mut i: usize = 0
+  while i < n * n {
+    a[i] = usize.toF64((i * 3 + 1) % 97) / 97.0
+    b[i] = usize.toF64((i * 5 + 2) % 89) / 89.0
+    i = i + 1
+  }
+  let start = run MonotonicClock.now()
+  i = 0
+  while i < n {
+    let mut k: usize = 0
+    while k < n {
+      let aik = a[i * n + k]
+      let mut j: usize = 0
+      while j < n {
+        c[i * n + j] = c[i * n + j] + aik * b[k * n + j]
+        j = j + 1
+      }
+      k = k + 1
+    }
+    i = i + 1
+  }
+  let end = run MonotonicClock.now()
+  let mut sum = 0.0
+  i = 0
+  while i < n {
+    sum = sum + c[i * n + i]
+    i = i + 1
+  }
+  return Outcome { ns: elapsedNs(&start, &end), sum: f64.toBits(sum) }
+}
+
+// ---------------------------------------------------------------- utf8
+
+effect fn benchUtf8(repeats: usize) -> Outcome
+  ! OutOfMemoryError
+  ? &mut Allocator | &mut MonotonicClock {
+  let chunk = "Hello世界🙂MoonBit综合性能ABC"
+  let mut builder = run String.makeWithCapacity(String.byteLength(chunk) * repeats)
+  let mut r: usize = 0
+  while r < repeats {
+    run String.append(&mut builder, chunk)
+    r = r + 1
+  }
+  let s = String.view(&builder)
+  let start = run MonotonicClock.now()
+  let mut sum: u64 = 0
+  let mut cursor = String.scalarCursor()
+  while let Option<ScalarStep>.Some { value: step } = String.nextScalar(s, move cursor) {
+    sum = sum + u32.toU64(char.toU32(String.scalarValue(&step)))
+    cursor = String.nextCursor(move step)
+  }
+  let mut runes: u64 = 0
+  let mut again = String.scalarCursor()
+  while let Option<ScalarStep>.Some { value: step } = String.nextScalar(s, move again) {
+    sum = sum + u32.toU64(char.toU32(String.scalarValue(&step)))
+    runes = runes + 1
+    again = String.nextCursor(move step)
+  }
+  sum = sum + usize.toU64(String.byteLength(s)) + runes
+  let end = run MonotonicClock.now()
+  return Outcome { ns: elapsedNs(&start, &end), sum: sum }
+}
+
+// ---------------------------------------------------------------- main
+
+fn argOr(args: &List<Bytes>, index: usize, fallback: i64) -> i64 {
+  if index >= List<Bytes>.length(args) {
+    return fallback
+  }
+  let items = List<Bytes>.asSlice(args)
+  return match HostInput.text(Bytes.asSlice(&items[index])) {
+    Result<string, InvalidUtf8>.Success { value } => match Format.i64Value(value) {
+      Result<i64, ParseError>.Success { value: parsed } => parsed
+      Result<i64, ParseError>.Failure { error: _ } => 0
+    }
+    Result<string, InvalidUtf8>.Failure { error: _ } => 0
+  }
+}
+
+effect fn dispatch(workload: string, args: &List<Bytes>) -> Option<Outcome>
+  ! OutOfMemoryError | WriterError | JsonError
+  ? &mut Allocator | &mut MonotonicClock {
+  if workload == "json" {
+    return Option<Outcome>.some(run benchJson(i64.toUsize(argOr(args, 2, 10000))))
+  } else if workload == "sieve" {
+    return Option<Outcome>.some(run benchSieve(i64.toUsize(argOr(args, 2, 10000000))))
+  } else if workload == "sort" {
+    return Option<Outcome>.some(run benchSort(i64.toUsize(argOr(args, 2, 1000000))))
+  } else if workload == "hashmap" {
+    return Option<Outcome>.some(run benchHashmap(i64.toUsize(argOr(args, 2, 500000))))
+  } else if workload == "find" {
+    return Option<Outcome>.some(
+      run benchFind(i64.toUsize(argOr(args, 2, 8388608)), i64.toUsize(argOr(args, 3, 1024))),
+    )
+  } else if workload == "alloc" {
+    return Option<Outcome>.some(
+      run benchAlloc(i64.toI32(argOr(args, 2, 16)), i64.toUsize(argOr(args, 3, 20))),
+    )
+  } else if workload == "alloc-arena" {
+    return Option<Outcome>.some(
+      run benchAllocArena(i64.toI32(argOr(args, 2, 16)), i64.toUsize(argOr(args, 3, 20))),
+    )
+  } else if workload == "fib" {
+    return Option<Outcome>.some(run benchFib(i64.toI32(argOr(args, 2, 37))))
+  } else if workload == "matmul" {
+    return Option<Outcome>.some(run benchMatmul(i64.toUsize(argOr(args, 2, 256))))
+  } else if workload == "utf8" {
+    return Option<Outcome>.some(run benchUtf8(i64.toUsize(argOr(args, 2, 100000))))
+  } else if workload == "btree" {
+    return Option<Outcome>.some(run benchBTree(i64.toI32(argOr(args, 2, 15))))
+  } else if workload == "btree-arena" {
+    return Option<Outcome>.some(run benchBTreeArena(i64.toI32(argOr(args, 2, 15))))
+  } else if workload == "btree-stretch" {
+    return Option<Outcome>.some(run benchBTreeStretch(i64.toI32(argOr(args, 2, 18))))
+  } else if workload == "graph-dfs" {
+    return Option<Outcome>.some(run benchGraphDFS(i64.toUsize(argOr(args, 2, 200000))))
+  } else if workload == "graph-bfs" {
+    return Option<Outcome>.some(run benchGraphBFS(i64.toUsize(argOr(args, 2, 200000))))
+  }
+  return Option<Outcome>.none()
+}
+
+pub effect fn main() -> i32
+  ! HostInputError | OutOfMemoryError | WriterError | JsonError
+  ? &mut HostInput {
+  let mut allocator = Allocator.systemAllocatorProvider()
+  let mut clock = OsMonotonicClock.make()
+  let mut out = StdoutWriter.make()
+  let mut err = StderrWriter.make()
+  let args = run HostInput.arguments() |> Effect.provideMut<Allocator>(&mut allocator)
+  if List<Bytes>.length(&args) < 2 {
+    run Writer.writeString("usage: silk-bench <workload> [args...]\n")
+      |> Effect.provideMut<Writer>(&mut err)
+    return 2
+  }
+  let items = List<Bytes>.asSlice(&args)
+  let workload = match HostInput.text(Bytes.asSlice(&items[1])) {
+    Result<string, InvalidUtf8>.Success { value } => value
+    Result<string, InvalidUtf8>.Failure { error: _ } => ""
+  }
+  let outcome = run dispatch(workload, &args)
+    |> Effect.provideMut<Allocator>(&mut allocator)
+    |> Effect.provideMut<MonotonicClock>(&mut clock)
+  return match move outcome {
+    Option<Outcome>.Some { value } => {
+      let report = .{ workload: workload, ns: value.ns, sum: value.sum }
+      run Format.format("RESULT lang=silk workload={workload} ns={ns} checksum={sum}\n", &report)
+        |> Effect.provideMut<Writer>(&mut out)
+      0
+    }
+    Option<Outcome>.None => {
+      run Writer.writeString("unknown workload\n") |> Effect.provideMut<Writer>(&mut err)
+      2
+    }
+  }
+}
