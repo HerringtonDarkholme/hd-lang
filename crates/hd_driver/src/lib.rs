@@ -1989,11 +1989,13 @@ pub struct Packages<'a> {
     /// the default; every other package always does.
     pub body_fuel: Option<u64>,
     /// Enable allocation/count auditing for compiler conformance checks.
+    /// Requires the default-enabled `checked-builds` crate feature.
     pub checked: bool,
     /// Verify the ownership passes' output (`hd_tir::ir::verify_owned`)
     /// in a compiler built without debug assertions too, as debug and
     /// checked builds always do, so a release-built conformance run
-    /// rejects a body a pass leaves broken.
+    /// rejects a body a pass leaves broken. Requires the default-enabled
+    /// `checked-builds` crate feature.
     pub verify_own: bool,
 }
 
@@ -2423,6 +2425,18 @@ fn build_packages_inner(
         module_nodes,
     };
     lock(&run.report).ok(Stage::Discover);
+    // Without the feature a checked request would silently build an
+    // unchecked program.
+    #[cfg(not(feature = "checked-builds"))]
+    if packages.checked || packages.verify_own {
+        run.stage::<()>(
+            Stage::Collect,
+            Err(NotImplemented::new(
+                Stage::Collect,
+                "checked builds require hd_driver's checked-builds feature",
+            )),
+        );
+    }
     for cycle in &folder_cycles {
         let mut diags = lock(&run.diags);
         diags.error(Code::FolderCycle, cycle.span, &cycle.message);
@@ -3236,7 +3250,15 @@ impl Run<'_> {
     /// Whether the build links the linear backend's checked runtime
     /// (the internal allocation/count audit setting).
     fn checked(&self) -> bool {
-        self.checked
+        cfg!(feature = "checked-builds") && self.checked
+    }
+
+    /// Whether the ownership passes' output is verified
+    /// ([`Packages::verify_own`]): always in a debug build, otherwise in a
+    /// checked or verifying build with the `checked-builds` feature.
+    fn verifies_own(&self) -> bool {
+        cfg!(debug_assertions)
+            || (cfg!(feature = "checked-builds") && (self.checked || self.verify_own))
     }
 
     /// Whether the output renders the body with stable path `path`

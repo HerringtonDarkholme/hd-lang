@@ -10,14 +10,18 @@ description = "The one driver: the task graph of one compile run over the caller
 # Lets `Executor::Pool` run the graph on a rayon thread pool. Without it the
 # driver is serial only, which is what the browser build uses.
 threads = ["hd_sched/threads"]
-default = ["threads", "fixtures", "host-artifacts"]
+default = ["threads", "fixtures", "host-artifacts", "checked-builds"]
 # Stage fixtures render TIR, inspect layouts and root non-executable declarations.
 # Browser clients only build programs/tests/REPL inputs and leave this off.
 fixtures = []
 # Native callers consume generated host JS; browser clients execute imports
 # through their own host and do not return generated glue.
 host-artifacts = []
-checked-report = ["hd_wasm_linear/checked-report"]
+# Checked builds (`Packages::checked`, `Packages::verify_own`): the
+# allocation/count-audit runtime and the ownership verifier. Browser clients
+# never request them and leave this off.
+checked-builds = []
+checked-report = ["checked-builds", "hd_wasm_linear/checked-report"]
 # Supplies one optional post-verification analysis walk. The web compiler keeps
 # this feature off, so callback, event, and checked-view code is absent there.
 analysis = ["hd_check/analysis"]

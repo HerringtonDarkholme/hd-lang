@@ -93,3 +93,42 @@ fn an_unavailable_fixture_reports_its_missing_feature() {
         reason.contains("fixture emission requires hd_driver's fixtures feature")
     }));
 }
+
+#[test]
+#[ignore = "run this target alone so other workspace roots do not enable driver defaults"]
+fn an_unavailable_checked_build_reports_its_missing_feature() {
+    let mut files = MemorySources::default();
+    files.insert("src/main.hd", "fn main() -> void:\n    println(\"hi\")\n");
+    let store = MemoryStore::default();
+    let host = Host {
+        sources: &files,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+        render_tir: &[],
+    };
+    for packages in [
+        Packages {
+            checked: true,
+            ..Packages::default()
+        },
+        Packages {
+            verify_own: true,
+            ..Packages::default()
+        },
+    ] {
+        let out = build_packages(
+            &host,
+            "app",
+            &packages,
+            &Goal::Program {
+                entry: "main".into(),
+            },
+        );
+        assert!(out.wasm.is_none());
+        let tally = &out.report.stages[&Stage::Collect];
+        assert!(tally.first_reason.as_ref().is_some_and(|reason| {
+            reason.contains("checked builds require hd_driver's checked-builds feature")
+        }));
+    }
+}

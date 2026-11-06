@@ -899,7 +899,7 @@ impl Env<'_> {
         if !uncopied.is_empty() {
             self.uncopied(&body, &uncopied)?;
         }
-        if cfg!(debug_assertions) || self.run.checked || self.run.verify_own {
+        if self.run.verifies_own() {
             let errs = hd_tir::ir::verify_owned(&body, self);
             if let Some(e) = errs.first() {
                 return Err(NotImplemented::bug(
@@ -1600,7 +1600,7 @@ impl Env<'_> {
         if let (Some(all), Some(mut s)) = (&self.run.summaries, summary) {
             s.writes = lock(&all.writes).get(&node) != Some(&false);
             // The passes add no write the walk before them missed.
-            if !s.writes && (self.run.checked || cfg!(debug_assertions)) {
+            if !s.writes && (self.run.checked() || cfg!(debug_assertions)) {
                 let path = self.run.names().path(body.item);
                 assert!(
                     !hd_tir::own::writes(&body, self),
