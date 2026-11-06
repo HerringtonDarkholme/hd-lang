@@ -56,7 +56,8 @@ use hd_base::SliceSort as _;
 
 use super::{OwnCx, Role, fill, operands, suite_touches};
 use crate::ir::{
-    Body, NONE, PlaceView, Proj, Ref, Root, Tag, Topology, Word, is_suspension, slots, u32_of,
+    Body, Callee, NONE, PlaceView, Proj, Ref, Root, Tag, Topology, Word, is_suspension, slots,
+    u32_of,
 };
 
 /// Frame locals' dense tables, reused across bodies.
@@ -938,6 +939,13 @@ fn step_val(
             let others = ops
                 .iter()
                 .filter(|o| o.value != op.value)
+                .filter(|o| match (tag, op.role, o.role) {
+                    (Tag::Call, Role::Arg(into), Role::Arg(from)) => {
+                        Callee::from_words(b.record(b.data[i][0]))
+                            .is_none_or(|c| cx.stores_arg(&c, into as usize, from as usize))
+                    }
+                    _ => true,
+                })
                 .fold(0, |acc, o| acc | t.of(o.value));
             if others == 0 {
                 continue;

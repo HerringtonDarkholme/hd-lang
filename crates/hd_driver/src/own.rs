@@ -514,6 +514,56 @@ impl OwnCx for Env<'_> {
         true
     }
 
+    fn stores_arg(&self, callee: &Callee, into: usize, from: usize) -> bool {
+        let Callee::Item { def, .. } = *callee else {
+            return true;
+        };
+        let Some(sig) = self.sig(def).filter(|s| !s.suspends) else {
+            return true;
+        };
+        if self.intrinsic(def).is_some() {
+            return true;
+        }
+        let pool = self.run.pool.types();
+        let (Some(&(_, dest)), Some(&(_, source))) = (sig.params.get(into), sig.params.get(from))
+        else {
+            return true;
+        };
+        // Generic slots and hidden captures have dependency variables
+        // beyond the written local-reference slots. Keep their existing
+        // conservative relation until that full map is available here.
+        if [dest, source]
+            .into_iter()
+            .any(|t| pool.has_param(t) || pool.has_fn(t) || pool.has_opaque(t) || pool.has_assoc(t))
+        {
+            return true;
+        }
+        let TyData::Ref {
+            counted: false,
+            mutable: true,
+            ..
+        } = pool.get(dest)
+        else {
+            return true;
+        };
+        let slots = |p: usize| {
+            let start: usize = sig.params[..p]
+                .iter()
+                .map(|&(_, t)| pool.ref_slots(t))
+                .sum();
+            start..start + pool.ref_slots(sig.params[p].1)
+        };
+        // The outer destination reference lends the destination's own
+        // storage; only its referent's slots can keep another argument.
+        // Elided input slots are distinct anonymous lifetimes, not one
+        // shared lifetime numbered zero (ref.dep.slot).
+        slots(into).skip(1).any(|d| {
+            sig.lifetimes.get(d).is_some_and(|&life| {
+                life != 0 && slots(from).any(|s| sig.lifetimes.get(s) == Some(&life))
+            })
+        })
+    }
+
     fn may_write(&self, callee: &Callee) -> bool {
         // Release: the walked body's own answer, unless the compiler
         // supplies the code of the call (an intrinsic).
