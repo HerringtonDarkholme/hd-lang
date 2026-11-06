@@ -6,9 +6,8 @@
   (import "fixture" "rt:str_append" (func $rt:str_append (param i32 i32 i32 i32) (result i32 i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:new/class-1'1" (func $rt:new/class-1'1 (param i32 i32) (result i32)))
-  (import "fixture" "rt:retain_fields'1" (func $rt:retain_fields'1 (param i32)))
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
-  (import "fixture" "rt:retain_fields'2" (func $rt:retain_fields'2 (param i32)))
+  (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 12 funcref))
   (func $capture_call#1 (param $env i32) (param $ctx i32) (result i32)
@@ -129,12 +128,6 @@
       local.get $s.1
       i32.store $heap offset=4
       local.get $t0
-      call $rt:retain_fields'1
-    ;; (no span)
-      local.get $s.0
-      call $rt:release_ref'1
-    ;; 12 |     fn() -> usize: s.len()
-      local.get $t0
     ;; (no span)
       local.set $s.1
       local.set $s.0
@@ -165,7 +158,7 @@
       local.get $s.0
       i32.store $heap
       local.get $s.1
-      call $rt:retain_fields'2
+      call $rt:retain_fields
     ;; 20 |     add()
       drop
       local.get $s.1
@@ -206,12 +199,6 @@
       local.get $t0
       local.get $s.1
       i32.store $heap offset=4
-      local.get $t0
-      call $rt:retain_fields'1
-    ;; (no span)
-      local.get $s.0
-      call $rt:release_ref'1
-    ;; 8 |     f := fn() -> usize: s.len()
       local.get $t0
     ;; 9 |     f() + f()
       i32.const 0

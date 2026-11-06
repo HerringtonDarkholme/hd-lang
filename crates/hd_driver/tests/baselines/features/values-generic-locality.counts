@@ -32,9 +32,7 @@ fn later[T < 'static](value: T) -> fn() -> T:
 > app/main/later
 >   retain &app.main.User (conservative: entry)
 > app/main/later
->   retain counted reference (conservative: Closure)
->   (no span) retain &app.main.User (conservative: entry)
->   (no span) release &app.main.User (last use)
+>   retain &app.main.User (conservative: entry)
 
 fn bounded(u: User) -> usize:
     kept := keep(u)

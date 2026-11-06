@@ -393,9 +393,17 @@ impl Em<'_, '_, '_> {
 
     /// One more count on each counted reference that a new object's
     /// construction copied into its payload: each collection, at the
-    /// leaves `colls`, the copy glue's result stored back.
-    pub(super) fn retain_fields(&mut self, at: u32, m: &Mem, walk: Option<&Walk>, colls: &[u32]) {
-        for &c in colls {
+    /// first `n` leaves of `skip`, the copy glue's result stored back. The
+    /// other leaves of `skip` take no count (a move put them there).
+    pub(super) fn retain_fields(
+        &mut self,
+        at: u32,
+        m: &Mem,
+        walk: Option<&Walk>,
+        skip: &[u32],
+        n: usize,
+    ) {
+        for &c in &skip[..n] {
             let l = m.leaves[c as usize];
             self.f.get(at);
             self.f.get(at);
@@ -403,7 +411,7 @@ impl Em<'_, '_, '_> {
             self.f.helper(Helper::CollCopy);
             self.f.op(I::I32Store(mem(HEAP, u64::from(l.offset), 2)));
         }
-        if let Some(w) = walk.and_then(|w| w.without(colls)) {
+        if let Some(w) = walk.and_then(|w| w.without(skip)) {
             self.f.get(at);
             self.f.helper(Helper::RetainFields {
                 leaves: m.leaves.clone(),
@@ -679,7 +687,7 @@ impl Em<'_, '_, '_> {
                         }
                     }
                     let colls = self.part_colls(&tys, &parts);
-                    self.retain_fields(at, &m, walk.as_ref(), &colls);
+                    self.retain_fields(at, &m, walk.as_ref(), &colls, colls.len());
                     self.f.get(at);
                 }
                 return self.store_owned(i);

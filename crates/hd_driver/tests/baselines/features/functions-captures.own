@@ -55,10 +55,10 @@ fn shared_list(s: string) -> usize:
 >     uses $0: entry -> %2 consume, %8 consume last
 >   local $1 xs: List[string] [read assigned captured] place
 >   local $2 add: fn() -> () [:= read assigned] value
->     uses $2: %10 -> %11 lend, %13 lend last
+>     uses $2: %9 -> %10 lend, %12 lend last
 >   %0 = NewList - [] : List[string]
 >   %1 = Store [$1] %0 : ()
->   %20 = Block %18 : usize
+>   %19 = Block %17 : usize
     add := fn() -> void: xs.push(s)
 >   %2 = Read move [$0] : string
 >   %3 = IsUnique [$1] : ()
@@ -67,22 +67,21 @@ fn shared_list(s: string) -> usize:
 >   %6 = Drop [$1] : ()
 >   %7 = Block - : ()
 >   %8 = Closure #1 [%0 %2] : fn() -> ()
->   %9 = Drop [$0] : ()
->   %10 = Store [$2] %8 : ()
+>   %9 = Store [$2] %8 : ()
 >   %8 finds [$1] full
     add()
->   %11 = Read borrow [$2] : fn() -> ()
->   %12 = CallValue %11 [] : ()
+>   %10 = Read borrow [$2] : fn() -> ()
+>   %11 = CallValue %10 [] : ()
     add()
->   %13 = Read move [$2] : fn() -> ()
->   %14 = CallValue %13 [] : ()
->   %15 = Drop [%13] : ()
+>   %12 = Read move [$2] : fn() -> ()
+>   %13 = CallValue %12 [] : ()
+>   %14 = Drop [%12] : ()
     xs.len()
->   %16 = Read copy [$1] : List[string]
->   %17 = Drop [$1] : ()
->   %18 = Intrinsic ListLen [%16] : usize
->   %19 = Drop [%16] : ()
->   %16 finds [$1] full
+>   %15 = Read copy [$1] : List[string]
+>   %16 = Drop [$1] : ()
+>   %17 = Intrinsic ListLen [%15] : usize
+>   %18 = Drop [%15] : ()
+>   %15 finds [$1] full
 >   exit sub 0 drops [$0 $1]
 >   exit sub 1 drops [$0 $1]
 >   summary kept [$0] writes
@@ -94,13 +93,13 @@ fn copy_shares(s: string) -> usize:
 >     uses $0: entry -> %2 consume, %14 consume last
 >   local $1 n: usize [read assigned captured captured-assigned] place
 >   local $2 inc: fn() -> () [:= read assigned] value
->     uses $2: %16 -> %17 consume, %19 lend last
+>     uses $2: %15 -> %16 consume, %18 lend last
 >   local $3 again: fn() -> () [:= read assigned] value
->     uses $3: %18 -> %21 lend last
+>     uses $3: %17 -> %20 lend last
 >   local $4 self: string [read] value
 >     uses $4: %3 -> %4 lend last
 >   %0 = Store [$1] 0:usize : ()
->   %26 = Block %24 : usize
+>   %25 = Block %23 : usize
     inc := fn() -> void: n += s.len()
 >   %1 = Read copy [$1] : usize
 >   %2 = Read move [$0] : string
@@ -116,23 +115,22 @@ fn copy_shares(s: string) -> usize:
 >   %12 = Drop [$1] : ()
 >   %13 = Block - : ()
 >   %14 = Closure #1 [%0 %2] : fn() -> ()
->   %15 = Drop [$0] : ()
->   %16 = Store [$2] %14 : ()
+>   %15 = Store [$2] %14 : ()
 >   %14 finds [$1] full
     again := inc
->   %17 = Read borrow [$2] : fn() -> ()
->   %18 = Store [$3] %17 : ()
+>   %16 = Read borrow [$2] : fn() -> ()
+>   %17 = Store [$3] %16 : ()
     inc()
->   %19 = Read borrow [$2] : fn() -> ()
->   %20 = CallValue %19 [] : ()
->   %23 = Drop [$2] : ()
+>   %18 = Read borrow [$2] : fn() -> ()
+>   %19 = CallValue %18 [] : ()
+>   %22 = Drop [$2] : ()
     again()
->   %21 = Read borrow [$3] : fn() -> ()
->   %22 = CallValue %21 [] : ()
+>   %20 = Read borrow [$3] : fn() -> ()
+>   %21 = CallValue %20 [] : ()
     n
->   %24 = Read copy [$1] : usize
->   %25 = Drop [$1] : ()
->   %24 finds [$1] full
+>   %23 = Read copy [$1] : usize
+>   %24 = Drop [$1] : ()
+>   %23 finds [$1] full
 >   exit sub 0 drops [$0 $1]
 >   exit sub 1 drops [$0 $1]
 >   summary kept [$0] writes
@@ -151,9 +149,7 @@ fn through_ptr(items: *mut List[string], s: string) -> fn() -> void:
 >   %4 = Drop [$0] : ()
 >   %5 = Block - : ()
 >   %6 = Closure #1 [%0 %2] : fn() -> ()
->   %7 = Drop [$0] : ()
->   %8 = Drop [$1] : ()
->   %9 = Block %6 : fn() -> ()
+>   %7 = Block %6 : fn() -> ()
 >   exit sub 0 drops [$0 $1]
 >   exit sub 1 drops [$0 $1]
 >   summary kept [$0 $1] writes

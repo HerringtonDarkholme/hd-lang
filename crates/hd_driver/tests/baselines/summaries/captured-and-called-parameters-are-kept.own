@@ -22,8 +22,7 @@ fn later(name: string) -> fn() -> usize:
 >   %7 = Drop [$1] : ()
 >   %8 = Block %6 : usize
 >   %9 = Closure #1 [%0 %1] : fn() -> usize
->   %10 = Drop [$0] : ()
->   %11 = Block %9 : fn() -> usize
+>   %10 = Block %9 : fn() -> usize
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0]

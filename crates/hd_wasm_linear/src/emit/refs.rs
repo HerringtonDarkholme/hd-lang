@@ -953,7 +953,7 @@ impl Em<'_, '_, '_> {
                 };
                 self.store_part(obj, &m, all, &src)?;
                 let colls = self.copied(ty);
-                self.retain_fields(obj, &m, w.as_ref(), &colls);
+                self.retain_fields(obj, &m, w.as_ref(), &colls, colls.len());
                 self.f.get(obj);
                 // A local reference owns the copy; a counted carrier's
                 // count of it is the carrier's own.

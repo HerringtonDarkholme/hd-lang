@@ -126,7 +126,7 @@ impl Em<'_, '_, '_> {
         };
         self.store_part(at, &m, part, &src)?;
         let colls = self.copied(from);
-        self.retain_fields(at, &m, w.as_ref(), &colls);
+        self.retain_fields(at, &m, w.as_ref(), &colls, colls.len());
         let vt = self.vtable_of(&table, Some(&m.leaves), from)?;
         self.f.get(at);
         self.f.push(Ins::VTable(vt));

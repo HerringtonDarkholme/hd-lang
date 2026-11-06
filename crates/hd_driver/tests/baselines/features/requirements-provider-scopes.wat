@@ -3,11 +3,10 @@
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
-  (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 10 funcref))
-  (func $lexical (param $s.0 i32) (param $s.1 i32) (result i32) (local $tag.0 i32) (local $t0 i32)
+  (func $lexical (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
     block
     ;; 36 |     $.with(Tag=Named { label: s }):
       local.get $s.0
@@ -19,13 +18,13 @@
           i32.const 8
           i32.const 2
           call $rt:new/class-1
-          local.tee $tag.0
+          local.tee $t0
           local.get $s.0
           i32.store $heap
-          local.get $tag.0
+          local.get $t0
           local.get $s.1
           i32.store $heap offset=4
-          local.get $tag.0
+          local.get $t0
           local.set $s.0
           br 0
         end
@@ -37,33 +36,27 @@
     ;; (no span)
       call $rt:release_ref'1
     ;; 36 |     $.with(Tag=Named { label: s }):
-      i32.const 160 ;; &vtable[func65]
+      i32.const 160 ;; &vtable[func64]
       local.set $s.0
       block
     ;; 37 |         tag := $.use(Tag)
         local.get $s.1
         call $retain
-        local.get $s.1
-        local.set $tag.0
     ;; 38 |         apply(fn() -> usize: tag.name().len())
         i32.const 2
         i32.const 8
         i32.const -2147483646
         call $rt:new/class-1
         local.tee $t0
-        local.get $tag.0
+    ;; 37 |         tag := $.use(Tag)
+        local.get $s.1
+    ;; 38 |         apply(fn() -> usize: tag.name().len())
         i32.store $heap
         local.get $t0
     ;; 37 |         tag := $.use(Tag)
         local.get $s.0
     ;; 38 |         apply(fn() -> usize: tag.name().len())
         i32.store $heap offset=4
-        local.get $t0
-        call $rt:retain_fields
-    ;; 36 |     $.with(Tag=Named { label: s }):
-        local.get $tag.0
-        call $rt:release_ref'1
-    ;; 38 |         apply(fn() -> usize: tag.name().len())
         drop
         block
           block
@@ -184,7 +177,7 @@
     ;; (no span)
       call $rt:release_ref'1
     ;; 23 |     $.with(Tag=Named { label: s }):
-      i32.const 160 ;; &vtable[func65]
+      i32.const 160 ;; &vtable[func64]
       local.set $s.0
       block
     ;; 24 |         read_tag()
@@ -237,7 +230,7 @@
     ;; (no span)
       call $rt:release_ref'1
     ;; 27 |     $.with(Tag=Named { label: a }):
-      i32.const 160 ;; &vtable[func65]
+      i32.const 160 ;; &vtable[func64]
       local.set $a.0
       block
     ;; 28 |         outer := read_tag()
@@ -273,7 +266,7 @@
     ;; 27 |     $.with(Tag=Named { label: a }):
         call $rt:release_ref'1
     ;; 29 |         $.with(Tag=Named { label: b }):
-        i32.const 160 ;; &vtable[func65]
+        i32.const 160 ;; &vtable[func64]
         local.set $b.0
         block
     ;; 30 |             outer + read_tag()

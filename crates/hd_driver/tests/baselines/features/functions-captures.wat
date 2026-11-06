@@ -2,9 +2,9 @@
 (module
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields'1" (func $rt:retain_fields'1 (param i32)))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
+  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:new/class-1'1" (func $rt:new/class-1'1 (param i32 i32) (result i32)))
@@ -31,10 +31,6 @@
       i32.store $heap offset=8
       local.get $t0
       call $rt:retain_fields'1
-    ;; (no span)
-      local.get $s.0
-      call $rt:release_ref'1
-    ;; 30 |     fn() -> void: items.push(s)
       local.get $t0
     ;; (no span)
       local.set $s.0
@@ -234,10 +230,6 @@
       i32.store $heap offset=8
       local.get $inc.1
       call $rt:retain_fields'1
-    ;; (no span)
-      local.get $s.0
-      call $rt:release_ref'1
-    ;; 23 |     inc := fn() -> void: n += s.len()
       local.set $s.0
     ;; 25 |     inc()
       local.get $inc.1
@@ -345,10 +337,6 @@
       i32.store $heap offset=8
       local.get $t0
       call $rt:retain_fields'1
-    ;; (no span)
-      local.get $s.0
-      call $rt:release_ref'1
-    ;; 16 |     add := fn() -> void: xs.push(s)
       local.get $t0
     ;; 17 |     add()
       i32.const 0

@@ -11,28 +11,27 @@ fn local_capture(prefix: string, xs: List[string]) -> usize:
 >   local $0 prefix: string [param read captured] value
 >     uses $0: entry -> %0 consume, %18 consume last
 >   local $1 xs: List[string] [param read] value
->     uses $1: entry -> %22 consume last
+>     uses $1: entry -> %21 consume last
 >   local $2 s: string [param read] value
 >     uses $2: entry -> %8 consume last
 >   local $3 width: fn(string) -> usize [:= read assigned] value
->     uses $3: %20 -> %37 lend
+>     uses $3: %19 -> %36 lend
 >   local $4 total: usize [read assigned mutated] place
 >   local $5 $coll: List[string] [assigned] value
->     uses $5: %23 -> %24 lend, %32 lend
+>     uses $5: %22 -> %23 lend, %31 lend
 >   local $7 $pos: usize [assigned] place
 >   local $8 $end: usize [assigned] value
->     uses $8: %26 -> %29 lend
+>     uses $8: %25 -> %28 lend
 >   local $9 x: string [read assigned] value
->     uses $9: %44 -> %38 consume last
+>     uses $9: %43 -> %37 consume last
 >   local $10 self: string [read] value
 >     uses $10: %9 -> %10 lend last
 >   local $11 self: string [read] value
 >     uses $11: %1 -> %2 lend last
 >   %17 = Block %16 : usize
 >   %18 = Closure #1 [%0 %1] : fn(string) -> usize
->   %19 = Drop [$0] : ()
->   %20 = Store [$3] %18 : ()
->   %56 = Block %55 : usize
+>   %19 = Store [$3] %18 : ()
+>   %55 = Block %54 : usize
         prefix.len() + s.len()
 >   %0 = Read move [$0] : string
 >   %1 = Store [$11] %0 : ()
@@ -52,47 +51,47 @@ fn local_capture(prefix: string, xs: List[string]) -> usize:
 >   %15 = Drop [$10] : ()
 >   %16 = Prim Add [%6 %14] : usize
     let total: usize = 0
->   %21 = Store [$4] 0:usize : ()
+>   %20 = Store [$4] 0:usize : ()
     for x in xs:
->   %22 = Read borrow [$1] : List[string]
->   %23 = Store [$5] %22 : ()
->   %24 = Read borrow [$5] : List[string]
->   %25 = Intrinsic ListLen [%24] : usize
->   %26 = Store [$8] %25 : ()
->   %27 = Store [$7] 0:usize : ()
->   %28 = Read copy [$7] : usize
->   %29 = Read copy [$8] : usize
->   %30 = Prim Lt [%28 %29] : bool
->   %31 = Read copy [$7] : usize
->   %32 = Read copy [$5 [%31]] : string
->   %33 = Read copy [$7] : usize
->   %34 = Prim Add [%33 1:usize] : usize
->   %35 = Store [$7] %34 : ()
->   %42 = Block - : ()
->   %43 = Read move [%32] : string
->   %44 = Store [$9] %43 : ()
->   %46 = Block - : never
->   %47 = Match %32 [%46 %42] : ()
->   %48 = Block - : ()
->   %49 = Break L0 - : never
->   %50 = Block - : ()
->   %51 = If %30 [%48 %50] : ()
->   %52 = Block - : ()
->   %53 = Loop %52 - : ()
->   %54 = Drop [$3] : ()
+>   %21 = Read borrow [$1] : List[string]
+>   %22 = Store [$5] %21 : ()
+>   %23 = Read borrow [$5] : List[string]
+>   %24 = Intrinsic ListLen [%23] : usize
+>   %25 = Store [$8] %24 : ()
+>   %26 = Store [$7] 0:usize : ()
+>   %27 = Read copy [$7] : usize
+>   %28 = Read copy [$8] : usize
+>   %29 = Prim Lt [%27 %28] : bool
+>   %30 = Read copy [$7] : usize
+>   %31 = Read copy [$5 [%30]] : string
+>   %32 = Read copy [$7] : usize
+>   %33 = Prim Add [%32 1:usize] : usize
+>   %34 = Store [$7] %33 : ()
+>   %41 = Block - : ()
+>   %42 = Read move [%31] : string
+>   %43 = Store [$9] %42 : ()
+>   %45 = Block - : never
+>   %46 = Match %31 [%45 %41] : ()
+>   %47 = Block - : ()
+>   %48 = Break L0 - : never
+>   %49 = Block - : ()
+>   %50 = If %29 [%47 %49] : ()
+>   %51 = Block - : ()
+>   %52 = Loop %51 - : ()
+>   %53 = Drop [$3] : ()
         total += width(x)
->   %36 = Read copy [$4] : usize
->   %37 = Read borrow [$3] : fn(string) -> usize
->   %38 = Read move [$9] : string
->   %39 = CallValue %37 [%38] : usize
->   %40 = Prim Add [%36 %39] : usize
->   %41 = Store [$4] %40 : ()
+>   %35 = Read copy [$4] : usize
+>   %36 = Read borrow [$3] : fn(string) -> usize
+>   %37 = Read move [$9] : string
+>   %38 = CallValue %36 [%37] : usize
+>   %39 = Prim Add [%35 %38] : usize
+>   %40 = Store [$4] %39 : ()
     total
->   %55 = Read copy [$4] : usize
+>   %54 = Read copy [$4] : usize
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0 $2]
 >   summary kept [$0] borrows [$1] writes
->   loop %53 keeps [$5]
+>   loop %52 keeps [$5]
 
 fn local_plain(xs: List[string]) -> usize:
     fn first_len(ys: List[string]) -> usize:

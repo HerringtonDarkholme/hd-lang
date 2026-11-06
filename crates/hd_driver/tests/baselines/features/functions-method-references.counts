@@ -25,21 +25,17 @@ fn unbound(u: User) -> usize:
 fn bound(u: User) -> usize:
     f := u::name_len
 > app/main/bound
->   retain counted reference (conservative: Closure)
-> app/main/bound
 >   (no span) retain app.main.User [name.0] (conservative: entry)
 >   (no span) release app.main.User [name.0] (last use)
     f() + f()
->   (no span) release app.main.User [name.0] (last use)
+> app/main/bound
 >   (no span) release fn() -> usize (last use)
 
 fn bound_mut(u: *mut User, n: string) -> void:
     f := u::rename
 > app/main/bound_mut
 >   retain &mut app.main.User (stored)
->   retain counted reference (conservative: Closure)
     f(n)
->   (no span) release &mut app.main.User (last use)
 >   (no span) release fn(string) -> () (last use)
 
 fn adapter(us: List[User]) -> usize:

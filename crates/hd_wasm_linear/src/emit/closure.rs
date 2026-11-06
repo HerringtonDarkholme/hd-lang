@@ -193,6 +193,30 @@ pub(super) fn captures(b: &Body, ci: usize) -> Vec<(usize, bool)> {
         .collect()
 }
 
+/// Whether walk `w` runs drop glue anywhere.
+fn has_glue(w: &Walk) -> bool {
+    match w {
+        Walk::Glue => true,
+        Walk::Seq(ws) => ws.iter().any(has_glue),
+        Walk::Switch(_, arms) => arms.iter().flatten().any(has_glue),
+        Walk::Nullable(w) => has_glue(w),
+        Walk::Ref(_) | Walk::View(_) | Walk::Known(_) => false,
+    }
+}
+
+/// Whether each capture [`captures`] lists for closure `ci` moves into
+/// the environment (`CaptureMode::Move`, the move pass's rule 5): the
+/// environment takes the local's count, so the closure retains nothing.
+fn moved_captures(b: &Body, ci: usize) -> Vec<bool> {
+    let rec = b.record(b.data[ci][1]);
+    let (start, n) = (rec[0] as usize, rec[1] as usize);
+    let own = self_local(b, ci);
+    (start..start + n)
+        .filter(|&c| Some(b.cap_local[c].idx()) != own)
+        .map(|c| b.cap_mode.get(c) == Some(&CaptureMode::Move))
+        .collect()
+}
+
 impl Em<'_, '_, '_> {
     /// Whether TIR local `l` lives in a cell.
     pub(super) fn is_cell(&self, l: usize) -> bool {
@@ -626,6 +650,13 @@ impl Em<'_, '_, '_> {
             return unsupported("a closure without its code instance");
         };
         let caps = captures(self.b, i as usize);
+        // A lent parameter holds no count to move: the environment
+        // counts its own copy.
+        let moved: Vec<bool> = moved_captures(self.b, i as usize)
+            .into_iter()
+            .zip(&caps)
+            .map(|(mv, (l, _))| mv && !self.borrowed.contains(l))
+            .collect();
         self.f.table_slot(Sym::Inst(key));
         if caps.is_empty() {
             self.f.i32(0);
@@ -663,14 +694,42 @@ impl Em<'_, '_, '_> {
         for (s, p) in srcs.iter().zip(&parts) {
             self.store_part(at, &m, *p, s)?;
         }
-        // A shared capture's slot holds its cell.
+        // A shared capture's slot holds its cell; a moved one, the
+        // local's own count.
         let copied: Vec<Ty> = caps
             .iter()
             .zip(&tys)
-            .map(|((_, shared), t)| if *shared { Ty::VOID } else { *t })
+            .zip(&moved)
+            .map(|(((_, shared), t), mv)| if *shared || *mv { Ty::VOID } else { *t })
             .collect();
-        let colls = self.part_colls(&copied, &parts);
-        self.retain_fields(at, &m, walk.as_ref(), &colls);
+        let mut skip = self.part_colls(&copied, &parts);
+        let colls = skip.len();
+        for (p, _) in parts.iter().zip(&moved).filter(|(_, mv)| **mv) {
+            skip.extend((p.first..p.first + p.count).map(|k| u32::try_from(k).expect("leaves")));
+        }
+        // Drop glue releases a value whole: a moved part's local then
+        // releases its count, as the `Drop` the move took would have.
+        let glue = walk.as_ref().is_some_and(has_glue);
+        self.retain_fields(at, &m, walk.as_ref(), &skip, colls);
+        // A moved capture leaves its local empty, as a move read does.
+        for (l, t) in caps
+            .iter()
+            .zip(&tys)
+            .zip(&moved)
+            .filter(|(_, mv)| **mv)
+            .map(|((c, t), _)| (c.0, *t))
+        {
+            if glue {
+                self.release_local(l)?;
+                continue;
+            }
+            self.mark_drop_root(super::drop_flags::Root::Local(l), t, false);
+            if self.needs_drop(t) {
+                for x in self.local(u32::try_from(l).expect("locals"))? {
+                    self.f.zero(x);
+                }
+            }
+        }
         self.f.get(at);
         self.store_owned(i)
     }

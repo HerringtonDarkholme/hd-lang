@@ -52,12 +52,10 @@ fn lexical(s: string) -> usize:
     $.with(Tag=Named { label: s }):
 > app/main/lexical
 >   retain app.main.Tag (conservative: Coerce)
->   release &app.main.Tag (by design)
 >   release fn() -> usize (last use)
         tag := $.use(Tag)
 >   retain app.main.Tag (conservative: ProviderGet)
         apply(fn() -> usize: tag.name().len())
->   retain counted reference (conservative: Closure)
 >   (no span) release &app.main.Tag (by design)
 >   (no span) release app.main.Tag (last use)
 > app/main/lexical

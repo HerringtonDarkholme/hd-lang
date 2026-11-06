@@ -12,7 +12,6 @@
   (import "fixture" "rt:poll_check" (func $rt:poll_check (param i32) (result i32)))
   (import "fixture" "rt:cancel_check" (func $rt:cancel_check (param i32) (result i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
-  (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "rt:frame'2" (func $rt:frame'2 (result i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:frame'3" (func $rt:frame'3 (result i32)))
@@ -801,18 +800,13 @@
         local.get $t3
         local.get $key.1
         i32.store $heap offset=4
-        local.get $t3
-        call $rt:retain_fields
-        local.get $t3
-        local.set $t5
-        local.set $t4
-    ;; (no span)
-        local.get $key.0
-        call $rt:release_ref'2
         i32.const 0
         local.set $key.0
         i32.const 0
         local.set $key.1
+        local.get $t3
+        local.set $t5
+        local.set $t4
       end
     ;; 18 |     run_twice!():
       block

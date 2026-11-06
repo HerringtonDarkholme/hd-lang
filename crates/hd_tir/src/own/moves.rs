@@ -48,6 +48,12 @@
 //!    as in a branch, a second walk counts each use of what may point into
 //!    the slot as a read of it, drops aside (`frame`), and the read moves
 //!    when no such use follows it on any path.
+//! 5. **Captures at last use.** A `Copy` capture of all of a candidate
+//!    local, after which no path reads the local again, becomes a `Move`
+//!    when the local's `Drop` follows the closure in its block: the
+//!    environment takes the local's count, and the drop goes. Not a
+//!    generic local function's, whose instantiations share their captures.
+//!    The backend keeps a lent parameter's copy, which holds no count.
 //!
 //! "No path reads it again" is a backward liveness walk over the
 //! structured control flow of each sub-body, with one bit per candidate
@@ -75,7 +81,7 @@ use super::{
 };
 use crate::ir::{
     Body, CaptureMode, NONE, PlaceView, Proj, ReadMode, Root, Tag, Topology, for_blocks,
-    is_suspension, place, u32_of,
+    is_suspension, place, sub_flags, u32_of,
 };
 
 /// A decision of [`Tables::decide`].
@@ -116,6 +122,9 @@ pub(crate) struct Tables {
     /// Per instruction: [`MOVE`] or [`KEEP`] for a candidate read the walk
     /// reached, from the state after it.
     decide: Vec<u8>,
+    /// Per capture (an index into `Body::cap_local`): the same for a
+    /// `Copy` capture of a candidate local (rule 5).
+    cap_decide: Vec<u8>,
     /// The instructions that touch each candidate (any read, store, drop,
     /// reference or capture of it), in compressed rows by bit, in index
     /// order.
@@ -172,6 +181,7 @@ impl Tables {
         fill(&mut self.owns, locals, false);
         fill(&mut self.decide, n, UNSEEN);
         self.touch.clear();
+        self.cap_decide.clear();
         self.stack.clear();
         self.frame_uses.clear();
         fill(&mut self.frame_read, locals, false);
@@ -884,9 +894,30 @@ impl Backward for Tables {
             }
             Tag::Closure => {
                 let rec = b.record(w);
+                // A generic local function's instantiations share their
+                // captures: those keep their copies.
+                let generic = b
+                    .sub_flags
+                    .get(a as usize)
+                    .is_some_and(|f| f & sub_flags::GENERIC != 0)
+                    || b.is_instantiation(i);
                 for c in rec[0] as usize..(rec[0] + rec[1]) as usize {
                     let l = b.cap_local[c].idx();
                     if self.lnum[l] != NONE {
+                        // Rule 5: a copy of a whole local no path reads
+                        // again moves into the environment.
+                        let whole = self.pstart[l] == self.pstart[l + 1] && !self.addr[l];
+                        if b.cap_mode.get(c) == Some(&CaptureMode::Copy) && whole && !generic {
+                            if self.cap_decide.len() < b.cap_local.len() {
+                                self.cap_decide.resize(b.cap_local.len(), UNSEEN);
+                            }
+                            let last = if s.get(live, self.lnum[l]) {
+                                KEEP
+                            } else {
+                                MOVE
+                            };
+                            self.cap_decide[c] = self.cap_decide[c].max(last);
+                        }
                         s.set(live, self.lnum[l], true);
                         let (lo, hi) = (self.pstart[l], self.pstart[l + 1]);
                         for &(_, _, pb) in &self.pbits[lo as usize..hi as usize] {
@@ -1009,6 +1040,38 @@ fn apply(
     for v in 0..b.len() {
         if t.vnum[v] != NONE {
             sink(b, topo, cx, t, edits, u32_of(v));
+        }
+    }
+    capture_moves(b, topo, t, edits);
+}
+
+/// Rule 5: each `Copy` capture the walk proved last becomes a `Move` when
+/// the local's `Drop` follows the closure in its block, and that drop
+/// goes: the environment takes the local's count.
+fn capture_moves(b: &mut Body, topo: &Topology, t: &Tables, edits: &mut splice::Tables) {
+    if !t.cap_decide.contains(&MOVE) {
+        return;
+    }
+    for i in 0..b.len() {
+        if b.tags[i] != Tag::Closure || topo.blk[i] == NONE {
+            continue;
+        }
+        let rec = b.record(b.data[i][1]);
+        for c in rec[0] as usize..(rec[0] + rec[1]) as usize {
+            if t.cap_decide.get(c) != Some(&MOVE) {
+                continue;
+            }
+            let l = b.cap_local[c].raw();
+            let drop = t.next_touch(t.lnum[l as usize], u32_of(i)).filter(|&d| {
+                let d = d as usize;
+                b.tags[d] == Tag::Drop
+                    && topo.blk[d] == topo.blk[i]
+                    && b.data[d][0] == l | place::BARE_LOCAL
+            });
+            if let Some(d) = drop {
+                b.cap_mode[c] = CaptureMode::Move;
+                edits.remove(d);
+            }
         }
     }
 }

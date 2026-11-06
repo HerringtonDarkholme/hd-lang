@@ -7,7 +7,6 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
-  (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 10 funcref))
@@ -113,11 +112,10 @@
     local.get $u.name.0
   )
   (func $"later[&User]" (param $value i32) (result i32 i32) (local $t0 i32)
-    ;; (no span)
+    ;; 30 |     fn() -> T: value
     local.get $value
     call $rt:retain_known
     block
-    ;; 30 |     fn() -> T: value
       i32.const 2
       i32.const 4
       i32.const -2147483644
@@ -125,11 +123,6 @@
       local.tee $t0
       local.get $value
       i32.store $heap
-      local.get $t0
-      call $rt:retain_fields
-    ;; (no span)
-      local.get $value
-      call $rt:release_ref'1
       local.set $value
     end
     local.get $value

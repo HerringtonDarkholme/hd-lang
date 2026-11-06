@@ -84,7 +84,7 @@ impl Em<'_, '_, '_> {
             store(self, &m, *p, &|em| v(em, h))?;
         }
         let colls = self.part_colls(&tys, &parts);
-        self.retain_fields(env, &m, walk.as_ref(), &colls);
+        self.retain_fields(env, &m, walk.as_ref(), &colls, colls.len());
         self.f.table_slot(Sym::Helper(code));
         self.f.get(env);
         // The new environment arrives with its count.

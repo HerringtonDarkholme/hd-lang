@@ -3,9 +3,8 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
-  (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $local_plain#1 (param $env i32) (param $ys i32) (param $ctx i32) (result i32) (local $t0 i32)
     ;; 16 |     fn first_len(ys: List[string]) -> usize:
@@ -72,12 +71,6 @@
       local.get $width.1
       local.get $prefix.1
       i32.store $heap offset=4
-      local.get $width.1
-      call $rt:retain_fields
-    ;; (no span)
-      local.get $prefix.0
-      call $rt:release_ref'2
-    ;; 8 |     fn width(s: string) -> usize:
       drop
     ;; 11 |     for x in xs:
       local.get $xs

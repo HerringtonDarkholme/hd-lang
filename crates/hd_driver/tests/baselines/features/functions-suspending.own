@@ -78,21 +78,20 @@ fn closure_bang!(key: string) -> usize:
 > app/main/closure_bang
 >   local $0 key: string [param read captured] value
 >     uses $0: entry -> %0 lend, %4 consume last
->   %6 = Await app/main/run_twice[] (%4) : usize
->   %7 = Drop [%4] : ()
->   %8 = Block %6 : usize
+>   %5 = Await app/main/run_twice[] (%4) : usize
+>   %6 = Drop [%4] : ()
+>   %7 = Block %5 : usize
         fetch!(key)
 >   %0 = Read move [$0] : string
 >   %1 = Await app/main/fetch[] (%0) : string
 >   %2 = Drop [%0] : ()
 >   %3 = Block %1 : string
 >   %4 = Closure #1 [%0 %1] : fn!() -> string
->   %5 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary none
 >   unwind %1 drops [%0]
->   unwind %6 drops [%4]
+>   unwind %5 drops [%4]
 
 fn stored!(key: string) -> usize:
     loader := fn!(k: string) -> string: fetch!(k)

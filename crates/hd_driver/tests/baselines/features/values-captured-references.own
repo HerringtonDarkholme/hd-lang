@@ -20,8 +20,7 @@ fn bump(p: *mut Point) -> fn() -> void:
 >   %3 = Drop [$0] : ()
 >   %4 = Block - : ()
 >   %5 = Closure #1 [%0 %1] : fn() -> ()
->   %6 = Drop [$0] : ()
->   %7 = Block %5 : fn() -> ()
+>   %6 = Block %5 : fn() -> ()
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0] writes
@@ -76,22 +75,21 @@ fn local(xs: &List[string]) -> usize:
 >   local $0 xs: Ref[List[string]] [param read captured] value
 >     uses $0: entry -> %0 lend, %5 consume last
 >   local $1 f: fn() -> usize [read] value
->     uses $1: %7 -> %8 lend last
+>     uses $1: %6 -> %7 lend last
 >   %0 = Read copy [*$0] : List[string]
 >   %1 = Drop [$0] : ()
 >   %2 = Intrinsic ListLen [%0] : usize
 >   %3 = Drop [%0] : ()
 >   %4 = Block %2 : usize
 >   %5 = Closure #1 [%0 %1] : fn() -> usize
->   %6 = Drop [$0] : ()
->   %7 = Store [$1] %5 : ()
->   %8 = Read borrow [$1] : fn() -> usize
->   %9 = CallValue %8 [] : usize
->   %10 = Break L0 %9 : never
->   %11 = Block - : usize
->   %12 = Scope %11 [] : usize
->   %13 = Drop [$1] : ()
->   %14 = Block %12 : usize
+>   %6 = Store [$1] %5 : ()
+>   %7 = Read borrow [$1] : fn() -> usize
+>   %8 = CallValue %7 [] : usize
+>   %9 = Break L0 %8 : never
+>   %10 = Block - : usize
+>   %11 = Scope %10 [] : usize
+>   %12 = Drop [$1] : ()
+>   %13 = Block %11 : usize
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0] writes

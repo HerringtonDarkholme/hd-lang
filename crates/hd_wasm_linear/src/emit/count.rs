@@ -1063,13 +1063,13 @@ impl Em<'_, '_, '_> {
                 ))
                 || self.is_cell(l)
                 // A closure copying the parameter into its environment
-                // counts its own copy (`Em::closure`); one that moves it in
-                // takes the parameter's count.
+                // counts its own copy (`Em::closure`), as one moving a lent
+                // parameter in does; a shared one moves it into its cell.
                 || b
                     .cap_local
                     .iter()
                     .zip(&b.cap_mode)
-                    .any(|(c, m)| c.idx() == l && *m != hd_tir::ir::CaptureMode::Copy)
+                    .any(|(c, m)| c.idx() == l && *m == hd_tir::ir::CaptureMode::Shared)
             {
                 continue;
             }

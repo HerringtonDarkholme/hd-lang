@@ -7,22 +7,17 @@
 # plain reference.
 fn capture_call(s: string) -> usize:
     f := fn() -> usize: s.len()
-> app/main/capture_call
->   retain counted reference (conservative: Closure)
     f() + f()
 > app/main/capture_call
 >   retain string (conservative: entry)
 >   release string (last use)
->   (no span) release string (last use)
+> app/main/capture_call
 >   (no span) release fn() -> usize (last use)
 
 fn escape(s: string) -> fn() -> usize:
     fn() -> usize: s.len()
 > app/main/escape
 >   (no span) retain string (conservative: entry)
->   (no span) release string (last use)
-> app/main/escape
->   retain counted reference (conservative: Closure)
 >   (no span) release string (last use)
 
 fn call_value(f: fn(string) -> usize, s: string) -> usize:

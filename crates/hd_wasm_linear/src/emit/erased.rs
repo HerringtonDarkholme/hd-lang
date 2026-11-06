@@ -550,7 +550,7 @@ impl Em<'_, '_, '_> {
                 self.store_part(at, &m, part, &Src::Locals(ls.to_vec()))?;
                 if !owned {
                     let colls = self.copied(ct);
-                    self.retain_fields(at, &m, w.as_ref(), &colls);
+                    self.retain_fields(at, &m, w.as_ref(), &colls, colls.len());
                 }
                 self.f.get(at);
                 self.f.set(out);
