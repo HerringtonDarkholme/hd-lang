@@ -12484,7 +12484,11 @@ impl ProgramEnv for Env<'_> {
         self.owned_generated(body)
     }
     fn lends(&self, item: DefId, args: TyList) -> u64 {
-        self.lent_mask(self.node(item, args))
+        let lent = self.lent_mask(self.node(item, args));
+        if lent == 0 {
+            return 0;
+        }
+        lent & !self.unnamed_kept(item)
     }
     fn debug_trait(&self) -> DefId {
         self.run.known.debug

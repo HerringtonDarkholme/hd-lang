@@ -201,6 +201,41 @@ pub fn own_count(env: &dyn ProgramEnv, def: DefId) -> usize {
     env.bounded(def).map_or(0, |b| b.len())
 }
 
+/// A generic method's slot as its erased bodies see it: each parameter
+/// after the receiver's type when it is open, and the result type. `targs`
+/// starts with the trait's arguments as the caller's instance reads them.
+/// `None` when the method has no type parameters of its own.
+#[must_use]
+pub fn erased_sig(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    trait_: DefId,
+    method: DefId,
+    targs: &[Ty],
+) -> Option<(Vec<Option<Ty>>, Ty)> {
+    let own = own_count(env, method);
+    if own == 0 {
+        return None;
+    }
+    let n = env.trait_arity(trait_).min(targs.len());
+    let mut all = vec![crate::class_ref(pool)];
+    all.extend_from_slice(&targs[..n]);
+    all.extend((0..own).map(|k| open_param(pool, k)));
+    let all = pool.list(&all);
+    let params = env
+        .params(method)
+        .unwrap_or_default()
+        .into_iter()
+        .skip(1)
+        .map(|p| {
+            let t = crate::subst(pool, env, method, all, p);
+            is_open(pool, t).then_some(t)
+        })
+        .collect();
+    let ret = crate::subst(pool, env, method, all, env.ret(method).unwrap_or(Ty::VOID));
+    Some((params, ret))
+}
+
 /// The erased view of an instance's arguments: the owner's as given, the
 /// item's own replaced by open parameters.
 #[must_use]

@@ -10,9 +10,7 @@
 //! count and a `&T` one is never counted.
 //!
 //! What the backend still adds is glue for a lowering or an instance the
-//! generic body cannot see: a consumer that cannot move a count in takes
-//! one of its own and the value is released after it
-//! ([`Em::release_untaken`]), an argument a callee instance owns but the
+//! generic body cannot see: an argument a callee instance owns but the
 //! passes lent takes a count (`push_args`), a parameter the caller lends
 //! takes one on entry when the body owns it (its exit set lists it), one
 //! the passes left unowned that an instance receives owned is released at
@@ -1258,38 +1256,6 @@ impl Em<'_, '_, '_> {
         self.b.stored_local(i as usize).is_some_and(|(l, whole)| {
             whole && !self.is_cell(l.idx()) && self.loan_locals.contains_key(&l.idx())
         })
-    }
-
-    /// After owned instruction `i`: each value it consumes whose count its
-    /// lowering did not move in (it took a count of its own, or lent the
-    /// value to a callee that borrows it) is released and zeroed. Not after
-    /// an instruction that never completes (a `Return`, a `Break`, a call
-    /// that panics), where no code runs: a jump's value moved out with it
-    /// ([`Em::take`] then zeroed it, so a release would only be dead code).
-    pub(super) fn release_untaken(&mut self, i: u32) -> StageResult<()> {
-        if self.ty(i) == Ty::NEVER {
-            return Ok(());
-        }
-        let mut ops = std::mem::take(&mut self.own_ops);
-        hd_tir::own::operands(self.b, i as usize, &mut ops);
-        let mut result = Ok(());
-        for op in &ops {
-            if matches!(
-                op.role,
-                hd_tir::own::Role::Dropped | hd_tir::own::Role::Tail
-            ) {
-                continue;
-            }
-            let v = op.value;
-            if self.consumer.get(v as usize) == Some(&i) && !self.moving.contains(&(i, v)) {
-                result = self.release_value(v);
-                if result.is_err() {
-                    break;
-                }
-            }
-        }
-        self.own_ops = ops;
-        result
     }
 
     /// `Drop [$l]` or `Drop [%v]` `i`: releases the place's value and

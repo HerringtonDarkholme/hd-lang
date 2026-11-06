@@ -1,0 +1,42 @@
+# test: a call that reaches a trait value's slot lends a counted argument, which its caller releases once
+# Spec 09 Trait Values As Bounds: trait.dyn.bound.reference-dispatch; Bound Associated Types: trait.dyn.binding.complete.reference-values.
+trait Channel:
+    fn send(self, message: string) -> usize
+
+struct Email:
+    base: usize
+
+impl Channel for Email:
+    fn send(self, message: string) -> usize:
+        self.base + message.len()
+
+fn notify[C < Channel](channel: C, message: string) -> usize:
+    channel.send(message)
+
+trait Lookup:
+    type Key
+    fn find(self, key: Self::Key) -> usize
+
+struct Book:
+    size: usize
+
+impl Lookup for Book:
+    type Key = string
+    fn find(self, key: string) -> usize:
+        self.size + key.len()
+
+fn find_in(book: &dyn Lookup[Key = string], name: string) -> usize:
+    book.find(name)
+
+tests:
+    use std.testing.assert_equal
+
+    it("a built string outlives each call and is released once"):
+        let email: &dyn Channel = &Email { base: 1 }
+        book := Book { size: 2 }
+        let mut total = 0
+        for round in 0..4:
+            message := "m$round"
+            total += notify(email, "n$round") + notify(email, message) + message.len()
+            total += find_in(&book, "k$round")
+        assert_equal(total, 4 * (3 + 3 + 2 + 4), reason="each built string is read and released")

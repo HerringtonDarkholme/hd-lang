@@ -145,6 +145,12 @@ pub(super) struct Summaries {
     /// ([`Env::summary_lends`]), which stays: a body and its emission read
     /// the same one, and a bit read as kept before the record stays kept.
     read: std::sync::Mutex<HashMap<(Node, u32), bool>>,
+    /// Each trait method and parameter a derive's generated body passes
+    /// with a count at a receiver that stays open: that one body serves
+    /// every instance of the method's own parameters, so its passes cannot
+    /// name the instance it calls. No instance of the method lends that
+    /// parameter ([`Env::unnamed_kept`]).
+    unnamed: std::sync::Mutex<hd_base::HashSet<(DefId, u32)>>,
     /// While a recursive component is owned, each member's borrows, which
     /// [`Env::summary_lends`] answers without recording: assumed while
     /// its fixed point runs ([`Env::component_borrows`]), then the fixed
@@ -404,6 +410,8 @@ impl OwnCx for Env<'_> {
     }
 
     fn pass(&self, callee: &Callee, k: usize, n: usize) -> Pass {
+        let chosen = self.chosen(callee);
+        let callee = &chosen;
         // Release: a parameter the callee's summary lends, unless the
         // compiler supplies the code of the call (an intrinsic), whose
         // declared body is no summary of it.
@@ -414,26 +422,28 @@ impl OwnCx for Env<'_> {
         {
             return Pass::Lent;
         }
-        // A call through a trait value lends its receiver, and every
-        // argument whose declared type names no type parameter, to its
-        // slot, which takes any count its concrete target owns (the
-        // backend's `Em::borrowed_arg`); an open value may arrive with a
-        // count the call takes (`Em::dyn_takes`). Not for a method that
-        // suspends, whose frame keeps its arguments, or an intrinsic one,
-        // whose code the compiler supplies (as `OwnCx::keeps` reads them).
+        // A call through a trait value lends its receiver to its slot, which
+        // takes any count its concrete target owns (the backend's
+        // `Em::borrowed_arg`). It lends an argument too, unless the call takes
+        // it (`Em::push_dyn`): an open value (`Em::dyn_takes`), whose type is
+        // open in a generic method's slot or at the caller's instance, or a
+        // value holding a `Drop` hook, which moves.
+        // Not for a method that suspends, whose frame keeps its arguments, or
+        // an intrinsic one, whose code the compiler supplies (as
+        // `OwnCx::keeps` reads them).
         if let Callee::TraitMethod {
+            trait_,
             method,
+            self_ty,
+            targs,
             choice: (ChoiceKind::TraitValue, _),
-            ..
         } = callee
-            && hd_mono::erased::own_count(self, *method) == 0
             && self.intrinsic(*method).is_none()
             && !ProgramEnv::suspends(self, *method)
-            && self.sig(*method).is_some_and(|sig| {
-                !sig.suspends
-                    && sig.params.len() == n
-                    && (k == 0 || !self.run.pool.has_param(sig.params[k].1))
-            })
+            && self
+                .sig(*method)
+                .is_some_and(|sig| !sig.suspends && sig.params.len() == n)
+            && (k == 0 || self.slot_lends(*trait_, *method, *self_ty, *targs, k))
         {
             return Pass::Lent;
         }
@@ -453,14 +463,18 @@ impl OwnCx for Env<'_> {
             lock(&self.run.own_params).insert(key, p);
             p
         });
-        // A direct call names its instance: where the declared type is
-        // open, the instance's parameter type decides, as the backend's
-        // `Em::borrowed_arg` reads it (`id(&u.name)` borrows).
-        if p == Pass::Owned
-            && let Callee::Item { def, targs } = *callee
-            && let Some(p) = self.instance_pass(def, targs, k, n)
-        {
+        if p != Pass::Owned {
             return p;
+        }
+        // A call names its instance, directly or through the impl chosen:
+        // the instance's parameter type decides, as the backend's
+        // `Em::borrowed_arg` reads it (`id(&u.name)` borrows).
+        let instance = match *callee {
+            Callee::Item { def, targs } => Some((def, targs)),
+            Callee::TraitMethod { .. } => self.impl_target(callee),
+        };
+        if let Some((def, targs)) = instance {
+            return self.instance_pass(def, targs, k, n).unwrap_or(p);
         }
         p
     }
@@ -828,39 +842,110 @@ impl Env<'_> {
         self.value_parameter(self.low(sig.params[k].1))
     }
 
-    /// [`OwnCx::pass`] of parameter `k` of instance `(def, targs)`, whose
-    /// declared type is open, when the instance closes it: the declared
-    /// type substituted as the backend substitutes a callee's parameters
-    /// (`hd_mono::subst`, which maps a default body's types to its owner's
-    /// generics). `None` while it stays open (the caller's own generics,
-    /// in a generic body that serves several instances), for a suspending
-    /// callee, whose frame keeps its arguments, and for an intrinsic.
-    fn instance_pass(&self, def: DefId, targs: TyList, k: usize, n: usize) -> Option<Pass> {
-        if targs == TyList::EMPTY
-            || self.intrinsic(def).is_some()
-            || ProgramEnv::suspends(self, def)
+    /// What a reference cell type `t` holds, or `t` itself.
+    fn ref_target_or(&self, t: Ty) -> Ty {
+        let pool = &self.run.pool;
+        match pool.get(t) {
+            TyData::Adt { def, args } if self.run.known.ref_cells().holds(def) => {
+                pool.list_items(args)[0]
+            }
+            _ => t,
+        }
+    }
+
+    /// `callee` with a bound's call at a closed receiver chosen as the
+    /// backend's collection chooses it: a trait value dispatches through
+    /// its table, and any other receiver runs its impl. A derive's instance
+    /// and a generic instance at a trait value keep such calls.
+    fn chosen(&self, callee: &Callee) -> Callee {
+        let mut out = callee.clone();
+        if let Callee::TraitMethod {
+            trait_,
+            self_ty,
+            targs,
+            choice: choice @ (ChoiceKind::Bound, _),
+            ..
+        } = &mut out
         {
+            if hd_mono::is_trait_value(&self.run.pool, self.ref_target_or(*self_ty)) {
+                *choice = (ChoiceKind::TraitValue, 0);
+            } else if let Some(d) = InlineEnv::select_impl(self, *trait_, *self_ty, *targs) {
+                *choice = (ChoiceKind::Impl, d.raw());
+            }
+        }
+        // A derived newtype impl forwards to its base's, which runs.
+        while let Callee::TraitMethod {
+            trait_,
+            self_ty,
+            targs,
+            choice: choice @ (ChoiceKind::Impl, _),
+            ..
+        } = &mut out
+            && self.is_derived_newtype_impl(DefId::from_raw(choice.1))
+        {
+            let base = hd_mono::layout::strip_newtype(&self.run.pool, self, *self_ty);
+            let Some(d) = (base != *self_ty)
+                .then(|| InlineEnv::select_impl(self, *trait_, base, *targs))
+                .flatten()
+            else {
+                break;
+            };
+            *self_ty = base;
+            *choice = (ChoiceKind::Impl, d.raw());
+        }
+        out
+    }
+
+    /// [`OwnCx::pass`] of parameter `k` of instance `(def, targs)`: its
+    /// declared type substituted as the backend substitutes a callee's
+    /// parameters (`hd_mono::subst`, which maps a default body's types to
+    /// its owner's generics). `None` while it stays open (the caller's own
+    /// generics, in a generic body that serves several instances), for a
+    /// suspending callee, whose frame keeps its arguments, and for an
+    /// intrinsic.
+    fn instance_pass(&self, def: DefId, targs: TyList, k: usize, n: usize) -> Option<Pass> {
+        if self.intrinsic(def).is_some() || ProgramEnv::suspends(self, def) {
             return None;
         }
         let sig = self.sig(def)?;
         if sig.suspends || sig.params.len() != n {
             return None;
         }
-        let declared = self.low(sig.params[k].1);
-        if !self.is_open(declared) {
-            return None;
-        }
-        let t = hd_mono::subst(&self.run.pool, self, def, targs, declared);
+        let t = hd_mono::subst(&self.run.pool, self, def, targs, self.low(sig.params[k].1));
         (t != Ty::POISON && !self.is_open(t)).then(|| self.value_parameter(t))
+    }
+
+    /// Whether a call through a trait value lends argument `k > 0` to the
+    /// slot of `method`: see [`OwnCx::pass`].
+    fn slot_lends(
+        &self,
+        trait_: DefId,
+        method: DefId,
+        self_ty: Ty,
+        targs: TyList,
+        k: usize,
+    ) -> bool {
+        let pool = &self.run.pool;
+        let self_value = self.ref_target_or(self_ty);
+        let items = pool.list_items(targs);
+        if let Some((params, _)) = hd_mono::erased::erased_sig(pool, self, trait_, method, items)
+            && params.get(k - 1).is_none_or(Option::is_some)
+        {
+            return false;
+        }
+        self.sig(method).is_some_and(|sig| {
+            let all = pool.list(&[&[self_value], items].concat());
+            let t = hd_mono::subst(pool, self, method, all, self.low(sig.params[k].1));
+            t != Ty::POISON && !self.is_open(t) && !hd_wasm_linear::holds_drop_type(pool, self, t)
+        })
     }
 
     /// How a parameter of declared type `t` takes its argument: owned when
     /// it is a value, or may be one in an instance (a type parameter, an
     /// associated type, a newtype over a type parameter); lent when it is
-    /// a reference or holds nothing counted. An instance that makes an owned
-    /// parameter a reference borrows the argument, and the backend releases
-    /// the value the call consumed after it (`Em::release_untaken`); one
-    /// that makes it hold nothing counted counts nothing.
+    /// a reference or holds nothing counted. A direct call whose instance
+    /// makes an owned parameter a reference lends it ([`Env::instance_pass`]);
+    /// one that makes it hold nothing counted counts nothing.
     fn value_parameter(&self, t: Ty) -> Pass {
         let pool = &self.run.pool;
         let mut t = t;
@@ -995,6 +1080,9 @@ impl Env<'_> {
                     ),
                 ));
             }
+        }
+        if body.kind == hd_tir::BodyKind::DeriveInstance {
+            self.note_unnamed(&body);
         }
         Ok((body, summary, relies))
     }
@@ -1870,6 +1958,58 @@ impl Env<'_> {
     /// The value parameters, the receiver first, that instance `node`
     /// receives lent ([`Env::summary_lends`]): emission takes no count of
     /// them on either side of a call.
+    /// Records the calls of generated body `body` the passes cannot name
+    /// ([`Summaries::unnamed`]).
+    fn note_unnamed(&self, body: &Body) {
+        let Some(all) = &self.run.summaries else {
+            return;
+        };
+        for i in 0..body.len() {
+            if body.tags[i] != Tag::Call {
+                continue;
+            }
+            let Some(callee) = Callee::from_words(body.record(body.data[i][0])) else {
+                continue;
+            };
+            let chosen = self.chosen(&callee);
+            let Callee::TraitMethod {
+                method,
+                choice: (ChoiceKind::Bound, _),
+                ..
+            } = chosen
+            else {
+                continue;
+            };
+            let n = body.record(body.data[i][1]).len().saturating_sub(3);
+            for k in 0..n {
+                if self.pass(&callee, k, n) == Pass::Owned {
+                    let k = u32::try_from(k).expect("arguments");
+                    lock(&all.unnamed).insert((method, k));
+                }
+            }
+        }
+    }
+
+    /// The parameters of `item`, an impl's method or a trait's default
+    /// body, that a call the passes cannot name passes with a count
+    /// ([`Summaries::unnamed`]). The backend reads this after the passes
+    /// have run over every body: an instance owns such a parameter, and a
+    /// caller that read it as lent gives it a count of its own.
+    pub(super) fn unnamed_kept(&self, item: DefId) -> u64 {
+        let Some(all) = &self.run.summaries else {
+            return 0;
+        };
+        let owner = DefId::from_raw(
+            (self.run.names().paths)
+                .parent(hd_base::PathId::from_raw(item.raw()))
+                .raw(),
+        );
+        lock(&all.unnamed)
+            .iter()
+            .filter(|&&(m, k)| k < 64 && (m == item || self.impl_method(owner, m) == Some(item)))
+            .fold(0, |mask, &(_, k)| mask | (1 << k))
+    }
+
     pub(super) fn lent_mask(&self, node: Node) -> u64 {
         (self.run.summaries.as_ref())
             .and_then(|all| lock(&all.lent).get(&node).copied())

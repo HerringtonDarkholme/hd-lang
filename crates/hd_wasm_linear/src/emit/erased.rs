@@ -41,9 +41,9 @@ use crate::op::Op as I;
 use hd_base::{DefId, Hash128, InstId, StageResult};
 use hd_mono::layout::CanonMemo;
 use hd_mono::{
-    INFO, Target, declared_row_keys, erased_args, has_row_params, is_open, open_param,
-    outlined_change_local, outlined_store_local, own_count, subst, thunk_capture_locals,
-    thunk_operands, witness_args, witness_family,
+    INFO, Target, declared_row_keys, erased_args, has_row_params, is_open, outlined_change_local,
+    outlined_store_local, own_count, subst, thunk_capture_locals, thunk_operands, witness_args,
+    witness_family,
 };
 use hd_tir::ir::{Callee, NONE, Ref, Tag};
 use hd_types::{Ty, TyList};
@@ -806,28 +806,10 @@ impl Em<'_, '_, '_> {
         method: DefId,
         targs: TyList,
     ) -> Option<(Vec<Option<Ty>>, Ty)> {
-        let (pool, env) = (self.input.pool, self.input.env);
-        if own_count(env, method) == 0 {
-            return None;
-        }
-        let targs = pool.list_items(targs);
-        let n = env.trait_arity(trait_).min(targs.len());
-        let mut all = vec![hd_mono::class_ref(pool)];
-        all.extend(targs[..n].iter().map(|t| self.sub(*t)));
-        all.extend((0..own_count(env, method)).map(|k| open_param(pool, k)));
-        let all = pool.list(&all);
-        let params = env
-            .params(method)
-            .unwrap_or_default()
-            .into_iter()
-            .skip(1)
-            .map(|p| {
-                let t = subst(pool, env, method, all, p);
-                is_open(pool, t).then_some(t)
-            })
+        let targs: Vec<Ty> = (self.pool().list_items(targs).iter())
+            .map(|t| self.sub(*t))
             .collect();
-        let ret = subst(pool, env, method, all, env.ret(method).unwrap_or(Ty::VOID));
-        Some((params, ret))
+        hd_mono::erased::erased_sig(self.pool(), self.env(), trait_, method, &targs)
     }
 
     /// Whether this body's shared cells hold their erased view: those of

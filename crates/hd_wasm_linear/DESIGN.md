@@ -629,10 +629,7 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   release as nothing.
 - **Glue for what the generic body cannot see.** Emission still adds
   counts where the lowering or the instance differs from what the passes
-  saw: a consumer whose lowering cannot move a count in takes one and the
-  value is released after it (`release_untaken`), unless the consumer
-  never completes (a `Return`, a `Break`, a call that panics), after which
-  no code runs; a list push and a map store move their value in, as a
+  saw: a list push and a map store move their value in, as a
   `Store` does (the passes count them as consumers); an `@intrinsic` call
   is lowered in place and lends every argument, so the passes pass them
   lent (`OwnCx::pass`); a lent argument a callee instance owns takes a
@@ -708,8 +705,14 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   are left to the instance, where the layout is known.
   - *A type parameter's value parameter* is owned by the passes
     (`OwnCx::pass`): an instance that makes it a value moves the argument
-    in at its last use; one that makes it a reference borrows it, and the
-    value the call consumed is released after it (`release_untaken`).
+    in at its last use; a direct call to one that makes it a reference
+    lends the argument in TIR (`OwnCx::pass` reads the instance's type), so
+    its own `Drop` releases it. A trait call at a closed receiver is read
+    the same way: its impl's instance, the base's for a derived newtype
+    impl, or a trait value's slot. A derive's generated body serves every
+    instance of the method's own parameters, so a call there at an open
+    receiver keeps its count, and no instance of that method lends that
+    parameter (`ProgramEnv::lends`).
     `Em::instance_loans` takes back what that costs where it can: a
     function parameter an instance receives borrowed, which the body never
     stores, addresses or captures, and whose every read of all of it lends

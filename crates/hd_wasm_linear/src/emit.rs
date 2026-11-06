@@ -1209,8 +1209,9 @@ struct Em<'i, 'a, 'm> {
     sub_id: u16,
     /// In an owned body, the instruction or block that consumes each
     /// value, or `NONE`, by the passes' rule (`hd_tir::own::consumers`).
-    /// A consumer that cannot move the count in takes a count of its own,
-    /// and the value is released after it ([`Em::release_untaken`]).
+    /// A consumer moves the count in ([`Em::take_from`]); a value whose
+    /// consumer's lowering takes no count is one the passes lend, and its
+    /// own `Drop` releases it.
     consumer: Vec<u32>,
     /// With origins, in an owned body: each `copy` read's reason
     /// (`hd_tir::own::copy_reasons`), for the counts view.
@@ -1838,17 +1839,14 @@ impl Em<'_, '_, '_> {
         };
         self.emitting.pop();
         self.f.at = outer;
-        // What `i` consumed and did not take, and its value when nothing
-        // uses it, end at their last use (`hd_tir::own::consumers`).
+        // Its value, when nothing uses it, ends here.
         self.f.reason = Some(Reason::LastUse);
-        if r.is_ok() && self.owned {
-            r = self.release_untaken(i);
-            if r.is_ok()
-                && !self.used.get(i as usize).copied().unwrap_or(false)
-                && self.needs_drop(self.ty(i))
-            {
-                r = self.release_value(i);
-            }
+        if r.is_ok()
+            && self.owned
+            && !self.used.get(i as usize).copied().unwrap_or(false)
+            && self.needs_drop(self.ty(i))
+        {
+            r = self.release_value(i);
         }
         self.f.reason = was;
         self.settle(i);
