@@ -1313,9 +1313,18 @@ impl Em<'_, '_, '_> {
         match self.b.data[i as usize][1] {
             // Of a buffer nothing else can hold, or one an earlier check
             // left unique: no check.
+            FRESH | REPEAT => return Ok(()),
             // A single-owner field's (`OWNED`, marked at link): its buffer
-            // never has a second owner.
-            FRESH | REPEAT | OWNED => return Ok(()),
+            // never has a second owner. A checked build asserts it.
+            OWNED => {
+                // Marked in release links only, which the browser
+                // compiler never runs.
+                #[cfg(not(target_arch = "wasm32"))]
+                if self.input.runtime.and_then(|r| r.checked).is_some() {
+                    self.assert_owned(i)?;
+                }
+                return Ok(());
+            }
             // It runs at the loop that follows (`Em::hoisted_uniques`).
             HOISTED => {
                 self.hoisted.push(i);
@@ -1336,6 +1345,39 @@ impl Em<'_, '_, '_> {
         }
         let h = self.unique_at(i)?;
         self.walked = self.read_after(i).map(|r| (r, h));
+        Ok(())
+    }
+
+    /// A checked build's `OWNED` `IsUnique` `i`: the place's buffer must
+    /// have no second holder, so its count is 1, or 0 for the static empty
+    /// buffer (`rt::empty_buffer`), which no change writes in place. A
+    /// count of 2 or more, or other static data, traps.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn assert_owned(&mut self, i: u32) -> StageResult<()> {
+        use crate::module::{HEADER, HEAP, mem};
+        use crate::op::Op;
+        let (h, _, _) = self.place_header(self.b.data[i as usize][0])?;
+        let empty = crate::rt::empty_buffer(self.m);
+        let count = self.f.local(crate::module::Val::I32);
+        self.f.get(h);
+        self.f.u32(HEADER);
+        self.f.op(Op::I32Sub);
+        self.f.op(Op::I32Load(mem(HEAP, 0, 2)));
+        self.f.op(Op::LocalTee(count));
+        self.f.i32(1);
+        self.f.op(Op::I32GtU);
+        // A count of 0 off the empty buffer is static data (a literal of
+        // constants), which a change must copy first.
+        self.f.get(count);
+        self.f.op(Op::I32Eqz);
+        self.f.get(h);
+        self.f.u32(empty);
+        self.f.op(Op::I32Ne);
+        self.f.op(Op::I32And);
+        self.f.op(Op::I32Or);
+        self.f.op(Op::If(wasm_encoder::BlockType::Empty));
+        self.f.op(Op::Unreachable);
+        self.f.op(Op::End);
         Ok(())
     }
 
