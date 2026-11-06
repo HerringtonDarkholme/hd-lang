@@ -8,9 +8,11 @@
   (import "fixture" "rt:str_eq" (func $rt:str_eq (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "derive Eq for Rec.eq" (func $"derive Eq for Rec.eq" (param i32 i32) (result i32)))
   (import "fixture" "rt:release'2" (func $rt:release'2 (param i32 i32 i32)))
+  (import "fixture" "rt:ref_is_view" (func $rt:ref_is_view (param i32) (result i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "table0" (table $table0 23 funcref))
   (func $opt_some (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $o i32) (local $t4 i32)
     ;; (no span)
     global.get $locals
@@ -377,7 +379,7 @@
     global.get $locals
     global.get $locals_base
     i32.sub
-    i32.const 48
+    i32.const 24
     i32.lt_u
     if
       i32.const 1
@@ -399,7 +401,7 @@
       global.set $locals
     end
     global.get $locals
-    i32.const 48
+    i32.const 24
     i32.sub
     local.tee $t0
     global.set $locals
@@ -420,46 +422,44 @@
     i32.store $heap offset=8
     block
     ;; 21 |     o == .None
-      local.get $t4
-      if
-        local.get $t4
-        i32.load8_u $heap
-        local.get $t4
-        i32.load $heap offset=4
-        local.get $t4
-        i32.load $heap offset=8
-        call $rt:release'1
+      block
+        block
+          block
+            local.get $o
+            local.tee $t1
+            call $rt:ref_is_view
+            if
+              local.get $t1
+              local.get $t1
+              i32.load $heap offset=4
+              call_indirect $table0 (param i32) (result i32)
+              local.tee $t3
+              i32.load8_u $heap
+              local.set $t2
+              local.get $t1
+              local.get $t3
+              local.get $t1
+              i32.load $heap offset=8
+              call_indirect $table0 (param i32 i32)
+            else
+              local.get $t1
+              i32.load8_u $heap
+              local.set $t2
+            end
+            local.get $t2
+            i32.eqz
+            i32.eqz
+            br_if 1
+            br 0
+            unreachable
+          end
+          i32.const 1
+          local.set $t4
+          br 1
+        end
+        br 0
       end
-      local.get $t0
-      i64.const 0
-      i64.store $heap offset=24
-      local.get $t0
-      i32.const 32
-      i32.add
-      local.tee $t4
-      i32.const 0
-      i32.store8 $heap
-      local.get $t4
-      i32.const 0
-      i32.store $heap offset=4
-      local.get $t4
-      i32.const 0
-      i32.store $heap offset=8
-      local.get $o
-      local.get $t4
-      call $"impl [ T < ? Copy & Eq ] Eq for T ?.eq[string]"
-      local.set $t1
     ;; (no span)
-      local.get $t4
-      if
-        local.get $t4
-        i32.load8_u $heap
-        local.get $t4
-        i32.load $heap offset=4
-        local.get $t4
-        i32.load $heap offset=8
-        call $rt:release'1
-      end
       local.get $o
       if
         local.get $o
@@ -472,6 +472,8 @@
       end
       i32.const 0
       local.set $o
+      local.get $t4
+      local.set $t1
     end
     local.get $o
     if
@@ -485,7 +487,7 @@
     end
     local.get $t1
     local.get $t0
-    i32.const 48
+    i32.const 24
     i32.add
     global.set $locals
   )

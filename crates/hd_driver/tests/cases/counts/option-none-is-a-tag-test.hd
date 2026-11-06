@@ -1,0 +1,21 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: a None comparison tests only the tag, in either operand order.
+# It never copies a payload or calls Eq for Option.
+fn absent(value: string?) -> bool:
+    value == .None
+
+fn present(value: string?) -> bool:
+    value != .None
+
+fn none_first(value: string?) -> bool:
+    .None == value
+
+fn none_first_ne(value: string?) -> bool:
+    .None != value
+
+fn generic[T < ?Copy & Eq](value: &(T?)) -> bool:
+    value == .None
+
+fn borrowed(value: &(string?)) -> bool:
+    generic(value)

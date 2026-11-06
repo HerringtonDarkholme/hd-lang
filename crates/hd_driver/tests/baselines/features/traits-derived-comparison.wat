@@ -2,7 +2,6 @@
 (module
   (import "fixture" "derive PartialOrd for Key.partial_cmp" (func $"derive PartialOrd for Key.partial_cmp" (param i32 i32) (result i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "impl [ T < ? Copy & Eq ] Eq for T ?.eq[Ordering]" (func $"impl [ T < ? Copy & Eq ] Eq for T ?.eq[Ordering]" (param i32 i32) (result i32)))
   (import "fixture" "derive Eq for Key.eq" (func $"derive Eq for Key.eq" (param i32 i32) (result i32)))
   (import "fixture" "rt:map_hash'1" (func $rt:map_hash'1 (param i32 i32 i32) (result i32)))
   (import "fixture" "rt:map_find'1" (func $rt:map_find'1 (param i32 i32 i32 i32 i32) (result i32)))
@@ -19,7 +18,7 @@
     global.get $locals
     global.get $locals_base
     i32.sub
-    i32.const 80
+    i32.const 48
     i32.lt_u
     if
       i32.const 1
@@ -41,7 +40,7 @@
       global.set $locals
     end
     global.get $locals
-    i32.const 80
+    i32.const 48
     i32.sub
     local.tee $t0
     global.set $locals
@@ -100,33 +99,20 @@
       i32.const 0
       local.set $b
     ;; 18 |     a < b
-      local.get $t0
-      i64.const 0
-      i64.store $heap offset=48
-      local.get $t0
-      i32.const 56
-      i32.add
-      local.tee $t3
       local.get $t1
-      i32.store8 $heap
-      local.get $t3
-      local.get $t2
-      i32.store $heap offset=4
-      local.get $t0
-      i64.const 0
-      i64.store $heap offset=64
-      local.get $t0
-      i32.const 72
-      i32.add
-      local.tee $t1
       i32.const 1
-      i32.store8 $heap
-      local.get $t1
-      i32.const 0
-      i32.store $heap offset=4
-      local.get $t3
-      local.get $t1
-      call $"impl [ T < ? Copy & Eq ] Eq for T ?.eq[Ordering]"
+      i32.eq
+      if (result i32)
+        local.get $t2
+        i32.eqz
+        if (result i32)
+          i32.const 1
+        else
+          i32.const 0
+        end
+      else
+        i32.const 0
+      end
     ;; (no span)
       local.set $t1
     end
@@ -144,7 +130,7 @@
     end
     local.get $t1
     local.get $t0
-    i32.const 80
+    i32.const 48
     i32.add
     global.set $locals
   )

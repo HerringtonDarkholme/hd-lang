@@ -2,7 +2,6 @@
 (module
   (import "fixture" "impl [ T < ? Copy & PartialOrd ] PartialOrd for T ?.partial_cmp[string]" (func $"impl [ T < ? Copy & PartialOrd ] PartialOrd for T ?.partial_cmp[string]" (param i32 i32) (result i32 i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
-  (import "fixture" "impl [ T < ? Copy & Eq ] Eq for T ?.eq[Ordering]" (func $"impl [ T < ? Copy & Eq ] Eq for T ?.eq[Ordering]" (param i32 i32) (result i32)))
   (import "fixture" "string_order" (func $string_order (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "impl [ T < ? Copy & Tuple ] PartialOrd for T by Structure.partial_cmp[(string, i64)]" (func $"impl [ T < ? Copy & Tuple ] PartialOrd for T by Structure.partial_cmp[(string, i64)]" (param i32 i32) (result i32 i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
@@ -16,7 +15,7 @@
     global.get $locals
     global.get $locals_base
     i32.sub
-    i32.const 96
+    i32.const 48
     i32.lt_u
     if
       i32.const 1
@@ -38,7 +37,7 @@
       global.set $locals
     end
     global.get $locals
-    i32.const 96
+    i32.const 48
     i32.sub
     local.tee $t0
     global.set $locals
@@ -105,53 +104,19 @@
       i32.const 0
       local.set $b
     ;; 15 |     a >= b
-      local.get $t0
-      i64.const 0
-      i64.store $heap offset=48
-      local.get $t0
-      i32.const 56
-      i32.add
-      local.tee $t3
       local.get $t1
-      i32.store8 $heap
-      local.get $t3
-      local.get $t2
-      i32.store $heap offset=4
-      local.get $t3
-      local.tee $t1
-      local.get $t0
-      i64.const 0
-      i64.store $heap offset=64
-      local.get $t0
-      i32.const 72
-      i32.add
-      local.tee $t2
       i32.const 1
-      i32.store8 $heap
-      local.get $t2
-      i32.const 2
-      i32.store $heap offset=4
-      local.get $t2
-      call $"impl [ T < ? Copy & Eq ] Eq for T ?.eq[Ordering]"
-      i32.eqz
+      i32.eq
       if (result i32)
-        local.get $t0
-        i64.const 0
-        i64.store $heap offset=80
-        local.get $t0
-        i32.const 88
-        i32.add
-        local.tee $t2
-        i32.const 1
-        i32.store8 $heap
         local.get $t2
-        i32.const 1
-        i32.store $heap offset=4
-        local.get $t1
-        local.get $t2
-        call $"impl [ T < ? Copy & Eq ] Eq for T ?.eq[Ordering]"
+        i32.eqz
+        if (result i32)
+          i32.const 0
+        else
+          i32.const 1
+        end
       else
-        i32.const 1
+        i32.const 0
       end
     ;; (no span)
       local.set $t1
@@ -178,41 +143,11 @@
     end
     local.get $t1
     local.get $t0
-    i32.const 96
+    i32.const 48
     i32.add
     global.set $locals
   )
-  (func $str_lt (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t0 i32)
-    ;; (no span)
-    global.get $locals
-    global.get $locals_base
-    i32.sub
-    i32.const 32
-    i32.lt_u
-    if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
-    end
-    global.get $locals
-    i32.const 32
-    i32.sub
-    local.tee $t0
-    global.set $locals
+  (func $str_lt (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32)
     block
     ;; 6 |     a < b
       block
@@ -228,48 +163,31 @@
           br 0
         end
       end
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $b.0
       local.get $a.0
-      i32.store8 $heap
-      local.get $b.0
-      local.get $a.1
-      i32.store $heap offset=4
-      local.get $t0
-      i64.const 0
-      i64.store $heap offset=16
-      local.get $t0
-      i32.const 24
-      i32.add
-      local.tee $a.0
       i32.const 1
-      i32.store8 $heap
-      local.get $a.0
-      i32.const 0
-      i32.store $heap offset=4
-      local.get $b.0
-      local.get $a.0
-      call $"impl [ T < ? Copy & Eq ] Eq for T ?.eq[Ordering]"
+      i32.eq
+      if (result i32)
+        local.get $a.1
+        i32.eqz
+        if (result i32)
+          i32.const 1
+        else
+          i32.const 0
+        end
+      else
+        i32.const 0
+      end
     ;; (no span)
       local.set $a.0
     end
     local.get $a.0
-    local.get $t0
-    i32.const 32
-    i32.add
-    global.set $locals
   )
   (func $tuple_gt (param $t1 i32) (param $b i32) (param $t2 i64) (param $t3 i32) (param $t4 i32) (param $t5 i64) (result i32) (local $t0 i32) (local $a i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
     i32.sub
-    i32.const 80
+    i32.const 48
     i32.lt_u
     if
       i32.const 1
@@ -291,7 +209,7 @@
       global.set $locals
     end
     global.get $locals
-    i32.const 80
+    i32.const 48
     i32.sub
     local.tee $t0
     global.set $locals
@@ -350,33 +268,21 @@
       i32.const 0
       local.set $b
     ;; 12 |     a > b
-      local.get $t0
-      i64.const 0
-      i64.store $heap offset=48
-      local.get $t0
-      i32.const 56
-      i32.add
-      local.tee $t4
       local.get $t1
-      i32.store8 $heap
-      local.get $t4
-      local.get $t3
-      i32.store $heap offset=4
-      local.get $t0
-      i64.const 0
-      i64.store $heap offset=64
-      local.get $t0
-      i32.const 72
-      i32.add
-      local.tee $t1
       i32.const 1
-      i32.store8 $heap
-      local.get $t1
-      i32.const 2
-      i32.store $heap offset=4
-      local.get $t4
-      local.get $t1
-      call $"impl [ T < ? Copy & Eq ] Eq for T ?.eq[Ordering]"
+      i32.eq
+      if (result i32)
+        local.get $t3
+        i32.const 2
+        i32.eq
+        if (result i32)
+          i32.const 1
+        else
+          i32.const 0
+        end
+      else
+        i32.const 0
+      end
     ;; (no span)
       local.set $t1
     end
@@ -394,16 +300,16 @@
     end
     local.get $t1
     local.get $t0
-    i32.const 80
+    i32.const 48
     i32.add
     global.set $locals
   )
-  (func $list_le (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $a i32) (local $b i32) (local $t3 i32)
+  (func $list_le (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $a i32) (local $b i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
     i32.sub
-    i32.const 80
+    i32.const 32
     i32.lt_u
     if
       i32.const 1
@@ -425,7 +331,7 @@
       global.set $locals
     end
     global.get $locals
-    i32.const 80
+    i32.const 32
     i32.sub
     local.tee $t0
     global.set $locals
@@ -472,53 +378,20 @@
       i32.const 0
       local.set $b
     ;; 9 |     a <= b
-      local.get $t0
-      i64.const 0
-      i64.store $heap offset=32
-      local.get $t0
-      i32.const 40
-      i32.add
-      local.tee $t3
       local.get $t1
-      i32.store8 $heap
-      local.get $t3
-      local.get $t2
-      i32.store $heap offset=4
-      local.get $t3
-      local.tee $t1
-      local.get $t0
-      i64.const 0
-      i64.store $heap offset=48
-      local.get $t0
-      i32.const 56
-      i32.add
-      local.tee $t2
       i32.const 1
-      i32.store8 $heap
-      local.get $t2
-      i32.const 0
-      i32.store $heap offset=4
-      local.get $t2
-      call $"impl [ T < ? Copy & Eq ] Eq for T ?.eq[Ordering]"
-      i32.eqz
+      i32.eq
       if (result i32)
-        local.get $t0
-        i64.const 0
-        i64.store $heap offset=64
-        local.get $t0
-        i32.const 72
-        i32.add
-        local.tee $t2
-        i32.const 1
-        i32.store8 $heap
         local.get $t2
-        i32.const 1
-        i32.store $heap offset=4
-        local.get $t1
-        local.get $t2
-        call $"impl [ T < ? Copy & Eq ] Eq for T ?.eq[Ordering]"
+        i32.const 2
+        i32.eq
+        if (result i32)
+          i32.const 0
+        else
+          i32.const 1
+        end
       else
-        i32.const 1
+        i32.const 0
       end
     ;; (no span)
       local.set $t1
@@ -537,7 +410,7 @@
     end
     local.get $t1
     local.get $t0
-    i32.const 80
+    i32.const 32
     i32.add
     global.set $locals
   )

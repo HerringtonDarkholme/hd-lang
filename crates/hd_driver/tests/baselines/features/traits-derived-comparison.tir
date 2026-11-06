@@ -27,18 +27,16 @@ fn before(a: Key, b: Key) -> bool:
 > app/main/before
 >   local $0 a: Key [param read captured]
 >   local $1 b: Key [param read captured]
->   local $2 $order: Ordering? [read assigned captured]
->   local $3 $ref: Ordering? [read assigned captured captured-assigned]
 >   %0 = Ref local [$0] : Counted[Key]
 >   %1 = Ref local [$1] : Counted[Key]
 >   %2 = Call std/cmp/PartialOrd.partial_cmp for Key [] via Impl (%0, %1) : Ordering?
->   %3 = Store [$2] %2 : ()
->   %4 = Ref local [$2] : Counted[Ordering?]
->   %5 = NewVariant #0 [] : Ordering
->   %6 = Coerce %5 [WrapSome -] : Ordering?
->   %7 = Store [$3] %6 : ()
->   %8 = Ref local [$3] : Counted[Ordering?]
->   %9 = Call std/core/Eq.eq for Ordering? [] via Impl (%4, %8) : bool
+>   %3 = Read [%2 as #1 .0] : Ordering
+>   %4 = Block 1:bool : bool
+>   %5 = Block 0:bool : bool
+>   %6 = SwitchTag %3 [#0 %4 %5] : bool
+>   %7 = Block %6 : bool
+>   %8 = Block 0:bool : bool
+>   %9 = SwitchTag %2 [#1 %7 %8] : bool
 >   %10 = Block %9 : bool
 
 fn lookup(m: Map[Key, string], k: Key) -> usize:

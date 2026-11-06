@@ -1,0 +1,15 @@
+# test: optimizing an optional None comparison preserves its Eq initialization edges
+# Spec lang/10-modules.md: module.init.definite.implicit.
+struct Tag:
+    n: i32
+
+let absent: Tag? = .None
+first := absent == .None # diagnostic: top-level-read-before-initialization
+later := +5
+
+impl Eq for Tag:
+    fn eq(&self, other: &Tag) -> bool:
+        self.n + later == other.n
+
+pub fn main() -> void $ Console:
+    println(first)

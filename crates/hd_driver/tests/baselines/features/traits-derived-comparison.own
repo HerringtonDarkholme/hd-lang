@@ -33,8 +33,6 @@ fn before(a: Key, b: Key) -> bool:
 > app/main/before
 >   local $0 a: Key [param read captured] place
 >   local $1 b: Key [param read captured] place
->   local $2 $order: Ordering? [read assigned captured] place
->   local $3 $ref: Ordering? [read assigned captured captured-assigned] place
 >   %0 = Ref local frame [$0] : Counted[Key]
 >   %1 = Ref local frame [$1] : Counted[Key]
 >   %2 = Call std/cmp/PartialOrd.partial_cmp for Key [] via Impl (%0, %1) : Ordering?
@@ -42,20 +40,14 @@ fn before(a: Key, b: Key) -> bool:
 >   %4 = Drop [%0] : ()
 >   %5 = Drop [$0] : ()
 >   %6 = Drop [$1] : ()
->   %7 = Store [$2] %2 : ()
->   %8 = Ref local frame [$2] : Counted[Ordering?]
->   %9 = NewVariant #0 [] : Ordering
->   %10 = Coerce %9 [WrapSome -] : Ordering?
->   %11 = Store [$3] %10 : ()
->   %12 = Ref local frame [$3] : Counted[Ordering?]
->   %13 = Call std/core/Eq.eq for Ordering? [] via Impl (%8, %12) : bool
->   %14 = Drop [%12] : ()
->   %15 = Drop [$3] : ()
->   %16 = Drop [%8] : ()
->   %17 = Drop [$2] : ()
->   %18 = Block %13 : bool
->   %8 finds [$2] full
->   %12 finds [$3] full
+>   %7 = Read copy [%2 as #1 .0] : Ordering
+>   %8 = Block 1:bool : bool
+>   %9 = Block 0:bool : bool
+>   %10 = SwitchTag %7 [#0 %8 %9] : bool
+>   %11 = Block %10 : bool
+>   %12 = Block 0:bool : bool
+>   %13 = SwitchTag %2 [#1 %11 %12] : bool
+>   %14 = Block %13 : bool
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1] writes
 
