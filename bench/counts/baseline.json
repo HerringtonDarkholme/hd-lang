@@ -99,8 +99,8 @@
       "program": "bench/runtime/progs/route-search.hd",
       "retained": "0",
       "released": "614483",
-      "uniques": "8992790",
-      "total": "9607273"
+      "uniques": "2768400",
+      "total": "3382883"
     },
     {
       "program": "bench/runtime/progs/string-build.hd",
