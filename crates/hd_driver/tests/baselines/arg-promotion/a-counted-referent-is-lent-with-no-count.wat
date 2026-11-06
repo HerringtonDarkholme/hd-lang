@@ -132,8 +132,6 @@
   (func $label'2 (param $w.name.0 i32) (param $w.name.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     block
     ;; 23 |     (w.name.len() + 1) * (w.name.len() + 2) * (w.name.len() + 3) / (w.name.len() + 4)
-      local.get $w.name.0
-      drop
       block
         block
           local.get $w.name.1
@@ -145,8 +143,6 @@
       i32.const 1
       i32.add
       local.set $t0
-      local.get $w.name.0
-      drop
       block
         block
           local.get $w.name.1
@@ -160,8 +156,6 @@
       i32.add
       i32.mul
       local.set $t0
-      local.get $w.name.0
-      drop
       block
         block
           local.get $w.name.1
@@ -175,8 +169,6 @@
       i32.add
       i32.mul
       local.set $t0
-      local.get $w.name.0
-      drop
       block
         block
           local.get $w.name.1

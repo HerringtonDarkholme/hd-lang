@@ -21,8 +21,7 @@
                   local.get $t.1
                   local.get $t.2
                   local.set $t.1
-                  local.tee $n.0
-                  drop
+                  local.set $n.0
                   block
                     block
                       local.get $t.1
@@ -50,8 +49,6 @@
                     local.set $t.1
                     local.set $l.0
                     local.set $t.0
-                    local.get $l.0
-                    drop
                     block
                       block
                         local.get $t.1
@@ -175,8 +172,6 @@
             unreachable
           end
     ;; 20 |         .Some(s) if s.len() > 0 => s.len()
-          local.get $o.1
-          drop
           block
             block
               local.get $o.2

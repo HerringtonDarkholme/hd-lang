@@ -40,8 +40,6 @@
                 unreachable
               end
     ;; 9 |         if x.len() > 3:
-              local.get $x.0
-              drop
               block
                 block
                   local.get $x.1
@@ -159,8 +157,6 @@
       block
         loop
     ;; 26 |         if out.len() > 8:
-          local.get $s.0
-          drop
           block
             block
               local.get $s.1

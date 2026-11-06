@@ -358,8 +358,6 @@
   (func $"impl Wrap.size'1" (param $self.name.0 i32) (param $self.name.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     block
     ;; 21 |         (self.name.len() + 1) * (self.name.len() + 2) * (self.name.len() + 3) / (self.name.len() + 4)
-      local.get $self.name.0
-      drop
       block
         block
           local.get $self.name.1
@@ -371,8 +369,6 @@
       i32.const 1
       i32.add
       local.set $t0
-      local.get $self.name.0
-      drop
       block
         block
           local.get $self.name.1
@@ -386,8 +382,6 @@
       i32.add
       i32.mul
       local.set $t0
-      local.get $self.name.0
-      drop
       block
         block
           local.get $self.name.1
@@ -401,8 +395,6 @@
       i32.add
       i32.mul
       local.set $t0
-      local.get $self.name.0
-      drop
       block
         block
           local.get $self.name.1

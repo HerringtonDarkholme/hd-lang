@@ -85,13 +85,26 @@ use crate::rt::Helper;
 /// stored by an init, as that constant, and drops the store. An init runs
 /// before any code that reads its bindings (`module.init.order`), so every
 /// read sees the constant.
-pub fn constants(funcs: &mut [Option<Func>], symbols: &Symbols) {
-    let mut inits: Vec<Hash128> = Vec::new();
+pub fn constants(funcs: &mut [Option<Func>], symbols: &Symbols, inits: &[Hash128], arity: &Arity) {
+    let mut inits = inits.to_vec();
     for (id, _) in funcs.iter().enumerate().filter(|(_, f)| f.is_some()) {
         match &*symbols.get(SymId(u32::try_from(id).expect("symbols"))) {
             Sym::Helper(Helper::EntryInit { inits: ks }) => inits.extend(ks.iter().map(|k| k.0)),
             Sym::Helper(Helper::EntryPoll { then, .. }) => inits.extend(then.iter().map(|k| k.0)),
             _ => {}
+        }
+    }
+    // A value held across the old storage's release reaches its global
+    // through a temporary. Expose those constants before looking for the
+    // single initializing write, rather than only cleaning locals afterward.
+    for (id, f) in funcs
+        .iter_mut()
+        .enumerate()
+        .filter_map(|(id, f)| Some((id, f.as_mut()?)))
+    {
+        if matches!(&*symbols.get(SymId(u32::try_from(id).expect("symbols"))), Sym::Inst(key) if inits.contains(key))
+        {
+            locals(f, arity);
         }
     }
     let mut sets: BTreeMap<Global, (u32, Option<Write>)> = BTreeMap::new();
@@ -110,9 +123,23 @@ pub fn constants(funcs: &mut [Option<Func>], symbols: &Symbols) {
                 }
                 let e = sets.entry(global).or_insert((0, None));
                 e.0 += 1;
-                e.1 = match (init, k.checked_sub(1).map(|p| &f.body[p])) {
-                    (true, Some(c @ Ins::Op(I::I32Const(_) | I::I64Const(_)))) => Some((id, k, *c)),
-                    _ => None,
+                e.1 = if init {
+                    producer(&f.body, k, 0, arity, symbols).and_then(|(p, result)| {
+                        match f.body[p] {
+                            c @ Ins::Op(
+                                I::I32Const(_) | I::I64Const(_) | I::F32Const(_) | I::F64Const(_),
+                            ) if result == 0
+                                && !f.body[p + 1..k]
+                                    .iter()
+                                    .any(|ins| matches!(ins, Ins::Op(I::LocalTee(_)))) =>
+                            {
+                                Some((id, k, p, c))
+                            }
+                            _ => None,
+                        }
+                    })
+                } else {
+                    None
                 };
             }
         }
@@ -127,29 +154,29 @@ pub fn constants(funcs: &mut [Option<Func>], symbols: &Symbols) {
     for f in funcs.iter_mut().flatten() {
         for i in &mut f.body {
             if let Ins::GlobalGet(g) = i
-                && let Some((_, _, c)) = known.get(&symbols.global(*g))
+                && let Some((_, _, _, c)) = known.get(&symbols.global(*g))
             {
                 *i = *c;
             }
         }
     }
     let mut drops = vec![Vec::new(); funcs.len()];
-    for (id, k, _) in known.into_values() {
-        drops[id.idx()].push(k);
+    for (id, store, producer, _) in known.into_values() {
+        drops[id.idx()].extend([store, producer]);
     }
     for (id, ks) in drops.iter_mut().enumerate() {
         ks.sort_stable();
         if let Some(f) = &mut funcs[id] {
             for &k in ks.iter().rev() {
-                f.drain(k - 1..k + 1);
+                f.remove(k);
             }
         }
     }
 }
 
 /// A binding's one write when an init stores a constant: the function,
-/// the store's index and the constant.
-type Write = (SymId, usize, Ins);
+/// the store and its scalar producer's indices, and the constant.
+type Write = (SymId, usize, usize, Ins);
 
 /// The instructions a rewrite removes, and an instruction it changes.
 type Edit = (Vec<usize>, Option<(usize, Ins)>);
@@ -192,6 +219,13 @@ pub fn static_values(
                 .map_or_else(Vec::new, |f| vec![false; f.results.len()])
         })
         .collect();
+    let joins: Vec<_> = funcs
+        .iter()
+        .map(|f| {
+            f.as_ref()
+                .map_or_else(Vec::new, |f| constant_joins(&f.body))
+        })
+        .collect();
     loop {
         let mut next_params = params.clone();
         let mut called = vec![false; funcs.len()];
@@ -207,7 +241,13 @@ pub fn static_values(
             .enumerate()
             .filter_map(|(id, f)| Some((id, f.as_ref()?)))
         {
-            let fixed = fixed_locals(caller, &params[caller_id], &results, arity);
+            let fixed = fixed_locals(
+                caller,
+                &params[caller_id],
+                &results,
+                arity,
+                &joins[caller_id],
+            );
             for (at, ins) in caller.body.iter().enumerate() {
                 let Ins::Call(id) = ins else { continue };
                 let Some((n, _)) = arity.get(id.idx()).copied().flatten() else {
@@ -257,7 +297,7 @@ pub fn static_values(
             }) {
                 continue;
             }
-            let fixed = fixed_locals(f, &next_params[id], &results, arity);
+            let fixed = fixed_locals(f, &next_params[id], &results, arity, &joins[id]);
             for (k, result_static) in next_results[id].iter_mut().enumerate() {
                 let depth = f.results.len() - 1 - k;
                 let is_static = producer(&f.body, f.body.len(), depth, arity, &f.symbols)
@@ -1591,7 +1631,7 @@ fn fold(f: &mut Func) -> bool {
 
 /// Rule 16: each `drop` takes back what pushed its value while that has
 /// no other effect, so a discarded read leaves no code.
-fn drops(f: &mut Func) -> bool {
+pub(crate) fn drops(f: &mut Func) -> bool {
     let mut origins = Remap::new(f.origins.as_deref());
     let b = std::mem::take(&mut f.body);
     let mut out: Vec<Ins> = Vec::with_capacity(b.len());
@@ -2694,7 +2734,8 @@ pub fn static_counts(f: &mut Func, retain: Hash128, arity: &Arity, static_params
     if !f.body.iter().any(|i| width(i).is_some()) {
         return false;
     }
-    let fixed = fixed_locals(f, static_params, &[], arity);
+    let joins = constant_joins(&f.body);
+    let fixed = fixed_locals(f, static_params, &[], arity, &joins);
     let gone: Vec<(usize, usize)> = f
         .body
         .iter()
@@ -2702,10 +2743,7 @@ pub fn static_counts(f: &mut Func, retain: Hash128, arity: &Arity, static_params
         .filter_map(|(k, ins)| {
             let n = width(ins)?;
             (0..n)
-                .all(|d| {
-                    producer(&f.body, k, d, arity, &f.symbols)
-                        .is_some_and(|(p, result)| constant_at(&f.body[p], result, &fixed, &[]))
-                })
+                .all(|d| constant_before(f, k, d, &fixed, &[], arity, &joins))
                 .then_some((k, n))
         })
         .collect();
@@ -2733,6 +2771,8 @@ pub fn static_counts(f: &mut Func, retain: Hash128, arity: &Arity, static_params
 
 /// The instruction and its result index that produced the value `depth`
 /// places below the stack top before `at`, within one straight-line run.
+const PRODUCER_REACH: usize = 128;
+
 fn producer(
     body: &[Ins],
     at: usize,
@@ -2740,9 +2780,8 @@ fn producer(
     arity: &Arity,
     symbols: &Symbols,
 ) -> Option<(usize, usize)> {
-    const REACH: usize = 128;
     let mut above = depth;
-    for j in (at.saturating_sub(REACH)..at).rev() {
+    for j in (at.saturating_sub(PRODUCER_REACH)..at).rev() {
         let (pops, pushes) = effect(&body[j], arity, symbols)?;
         if above >= pushes {
             above = above - pushes + pops;
@@ -2774,16 +2813,114 @@ fn constant_at(ins: &Ins, result: usize, fixed: &[bool], results: &[Vec<bool>]) 
     }
 }
 
-fn fixed_locals(f: &Func, params: &[bool], results: &[Vec<bool>], arity: &Arity) -> Vec<bool> {
+// A scalar if with an else and no branch/return into or out of its arms
+// yields one of those arms' values. Loops and arbitrary block exits remain
+// unproved. The map records the else instruction at each qualifying end.
+fn constant_joins(body: &[Ins]) -> Vec<Option<usize>> {
+    use wasm_encoder::BlockType;
+    if !body
+        .iter()
+        .any(|i| matches!(i, Ins::Op(I::If(BlockType::Result(_)))))
+    {
+        return Vec::new();
+    }
+    let mut joins = vec![None; body.len()];
+    let mut stack = Vec::new();
+    let mut exits = 0usize;
+    for (at, ins) in body.iter().enumerate() {
+        match ins {
+            Ins::Op(I::If(bt)) => stack.push((matches!(bt, BlockType::Result(_)), None, exits)),
+            Ins::Op(I::Block(_) | I::Loop(_)) => stack.push((false, None, exits)),
+            Ins::Op(I::Else) => {
+                if let Some((_, otherwise, _)) = stack.last_mut() {
+                    *otherwise = Some(at);
+                }
+            }
+            Ins::Op(I::End) => {
+                if let Some((true, Some(otherwise), before)) = stack.pop()
+                    && before == exits
+                {
+                    joins[at] = Some(otherwise);
+                }
+            }
+            Ins::Op(I::Br(_) | I::BrIf(_) | I::BrTable(..) | I::Return | I::Unreachable) => {
+                exits += 1;
+            }
+            _ => {}
+        }
+    }
+    joins
+}
+
+fn constant_before(
+    f: &Func,
+    at: usize,
+    depth: usize,
+    fixed: &[bool],
+    results: &[Vec<bool>],
+    arity: &Arity,
+    joins: &[Option<usize>],
+) -> bool {
+    if let Some((p, result)) = producer(&f.body, at, depth, arity, &f.symbols) {
+        return constant_at(&f.body[p], result, fixed, results);
+    }
+    if joins.is_empty() {
+        return false;
+    }
+    let mut work = vec![(at, depth)];
+    while let Some((at, depth)) = work.pop() {
+        if let Some((p, result)) = producer(&f.body, at, depth, arity, &f.symbols) {
+            if !constant_at(&f.body[p], result, fixed, results) {
+                return false;
+            }
+            continue;
+        }
+        let mut above = depth;
+        let mut joined = false;
+        for p in (at.saturating_sub(PRODUCER_REACH)..at).rev() {
+            if above == 0
+                && let Some(Some(otherwise)) = joins.get(p)
+            {
+                work.extend([(*otherwise, 0), (p, 0)]);
+                joined = true;
+                break;
+            }
+            let Some((pops, pushes)) = effect(&f.body[p], arity, &f.symbols) else {
+                return false;
+            };
+            if above >= pushes {
+                above = above - pushes + pops;
+            } else if matches!(f.body[p], Ins::Op(I::LocalTee(_))) {
+                above = 0;
+            } else {
+                return false;
+            }
+        }
+        if !joined {
+            return false;
+        }
+    }
+    true
+}
+
+type LocalWrite = (usize, usize, Option<(usize, usize)>);
+
+fn fixed_locals(
+    f: &Func,
+    params: &[bool],
+    results: &[Vec<bool>],
+    arity: &Arity,
+    joins: &[Option<usize>],
+) -> Vec<bool> {
     let np = f.params.len();
     let mut fixed = vec![false; np + f.locals.len()];
     fixed[..np].copy_from_slice(&params[..np]);
-    let mut writes: Vec<(usize, Option<(usize, usize)>)> = Vec::new();
+    let mut writes: Vec<LocalWrite> = Vec::new();
     let mut restored = false;
     for (k, ins) in f.body.iter().enumerate() {
         match ins {
             Ins::Op(I::LocalSet(l) | I::LocalTee(l)) => {
-                writes.push((*l as usize, producer(&f.body, k, 0, arity, &f.symbols)));
+                writes.push((*l as usize, k, producer(&f.body, k, 0, arity, &f.symbols)));
             }
             Ins::LoadAll => restored = true,
             _ => {}
@@ -2795,8 +2932,12 @@ fn fixed_locals(f: &Func, params: &[bool], results: &[Vec<bool>], arity: &Arity)
     let mut grew = true;
     while grew {
         let mut open = vec![true; fixed.len()];
-        for &(l, from) in &writes {
-            if !from.is_some_and(|(p, result)| constant_at(&f.body[p], result, &fixed, results)) {
+        for &(l, at, from) in &writes {
+            let constant = from.map_or_else(
+                || constant_before(f, at, 0, &fixed, results, arity, joins),
+                |(p, result)| constant_at(&f.body[p], result, &fixed, results),
+            );
+            if !constant {
                 open[l] = false;
             }
         }
@@ -3634,6 +3775,46 @@ mod origin_tests {
         );
         assert!(matches!(f.body[1], Ins::Op(I::LocalSet(1))));
         assert_eq!(spans(&f), [12, 13, 15]);
+    }
+
+    #[test]
+    fn static_counts_meet_scalar_if_values_and_reject_unknown_arms_or_exits() {
+        for (dynamic, exit) in [(false, false), (true, false), (false, true)] {
+            let symbols = Symbols::default();
+            let retain = Hash128(7);
+            let count = call(&symbols, Sym::Inst(retain));
+            let arity = vec![Some((1, 0)); symbols.len()];
+            let mut body = vec![
+                Ins::Op(I::LocalGet(0)),
+                Ins::Op(I::If(BlockType::Result(wasm_encoder::ValType::I32))),
+                Ins::Op(I::I32Const(56)),
+            ];
+            if exit {
+                body.extend([Ins::Op(I::I32Const(1)), Ins::Op(I::BrIf(0))]);
+            }
+            body.extend([
+                Ins::Op(I::Else),
+                Ins::Op(if dynamic {
+                    I::LocalGet(1)
+                } else {
+                    I::I32Const(72)
+                }),
+                Ins::Op(I::End),
+                Ins::Op(I::LocalSet(2)),
+                Ins::Op(I::LocalGet(2)),
+                count,
+            ]);
+            let f = run(tracked(&symbols, 2, 1, body), |f| {
+                assert_eq!(
+                    static_counts(f, retain, &arity, &[false, false]),
+                    !dynamic && !exit
+                );
+            });
+            assert_eq!(
+                f.body.iter().filter(|i| matches!(i, Ins::Call(_))).count(),
+                usize::from(dynamic || exit)
+            );
+        }
     }
 
     #[test]

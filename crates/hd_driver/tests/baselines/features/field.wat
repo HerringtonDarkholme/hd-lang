@@ -47,8 +47,6 @@
   (func $read_field (param $r.name.0 i32) (param $r.name.1 i32) (param $r.tags i32) (result i32)
     block
     ;; 11 |     r.name.len() + r.tags.len()
-      local.get $r.name.0
-      drop
       block
         block
           local.get $r.name.1

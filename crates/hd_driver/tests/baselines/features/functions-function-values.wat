@@ -60,8 +60,6 @@
         block
           block
             block
-              local.get $s.0
-              drop
               block
                 block
                   local.get $s.1
@@ -106,8 +104,6 @@
   (func $width (param $s.0 i32) (param $s.1 i32) (result i32)
     block
     ;; 14 |     s.len()
-      local.get $s.0
-      drop
       block
         block
           local.get $s.1

@@ -19,8 +19,6 @@
   (func $promoted (param $p.Stamp.by.0 i32) (param $p.Stamp.by.1 i32) (param $p.title.0 i32) (param $p.title.1 i32) (result i32) (local $t0 i32)
     block
     ;; 23 |     p.by.len() + p.by_len() + p.title.len()
-      local.get $p.Stamp.by.0
-      drop
       block
         block
           local.get $p.Stamp.by.1
@@ -30,8 +28,6 @@
       end
       block
         block
-          local.get $p.Stamp.by.0
-          drop
           block
             block
               local.get $p.Stamp.by.1
@@ -46,8 +42,6 @@
       local.get $p.Stamp.by.0
       i32.add
       local.set $p.Stamp.by.0
-      local.get $p.title.0
-      drop
       block
         block
           local.get $p.title.1

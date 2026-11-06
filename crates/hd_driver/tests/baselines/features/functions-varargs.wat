@@ -115,7 +115,7 @@
           local.get $p.0
           i32.load $heap offset=20
           local.set $p.1
-          local.set $p.0
+          drop
           local.get $t1
           i32.const 1
           i32.add
@@ -126,8 +126,6 @@
               unreachable
             end
     ;; 11 |         n += p.len()
-            local.get $p.0
-            drop
             block
               block
                 local.get $p.1

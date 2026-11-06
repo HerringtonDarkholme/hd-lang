@@ -29,8 +29,6 @@
       end
       block
         block
-          local.get $s.0
-          drop
           block
             block
               br 0
@@ -162,8 +160,6 @@
       local.get $b
       call $rt:release_ref'2
     ;; 49 |     b.keep().name.len()
-      local.get $t0
-      drop
       block
         block
           local.get $t1
@@ -278,11 +274,9 @@
       local.get $xs
       i32.load $heap offset=20
       local.set $i
-      local.set $xs
+      drop
       block
         block
-          local.get $xs
-          drop
           block
             block
               local.get $i

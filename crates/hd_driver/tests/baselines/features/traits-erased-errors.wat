@@ -171,8 +171,6 @@
   (func $read_config (param $path.0 i32) (param $path.1 i32) (result i32 i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
     block
     ;; 19 |     if path.len() > 0: .Ok(path + "!") else: .Err(FsError.NotFound(path))
-      local.get $path.0
-      drop
       block
         block
           local.get $path.1

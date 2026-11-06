@@ -92,8 +92,6 @@
       i32.load $heap
       i32.load $heap offset=4
       local.set $self
-      local.get $sep.0
-      drop
       block
         block
           local.get $sep.1

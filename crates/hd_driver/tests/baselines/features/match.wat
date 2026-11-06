@@ -20,7 +20,7 @@
                 local.get $s
                 i32.load $heap offset=8
                 local.set $n.1
-                local.set $s
+                drop
                 br 1
               else
     ;; 26 |         .Pair(a, b) => a.len() + b.len()
@@ -37,9 +37,9 @@
                   local.get $s
                   i32.load $heap offset=16
                   local.set $n.1
-                  local.set $s
+                  drop
                   local.set $a.1
-                  local.set $a.0
+                  drop
                   br 3
                 else
     ;; 27 |         .Empty => 0
@@ -56,8 +56,6 @@
               unreachable
             end
     ;; 25 |         .Named(n) => n.len()
-            local.get $s
-            drop
             block
               block
                 local.get $n.1
@@ -69,8 +67,6 @@
             br 2
           end
     ;; 26 |         .Pair(a, b) => a.len() + b.len()
-          local.get $a.0
-          drop
           block
             block
               local.get $a.1
@@ -78,8 +74,6 @@
               br 0
             end
           end
-          local.get $s
-          drop
           block
             block
               local.get $n.1
@@ -112,32 +106,22 @@
     ;; 13 |         .Named(n) => n.len()
               local.get $s.0
               i32.eqz
-              if
-                br 1
-              else
+              br_if 0
     ;; 14 |         .Pair(a, b) => a.len() + b.len()
-                local.get $s.0
-                i32.const 1
-                i32.eq
-                if
-                  br 3
-                else
+              local.get $s.0
+              i32.const 1
+              i32.eq
+              br_if 1
     ;; 15 |         .Empty => 0
-                  local.get $s.0
-                  i32.const 2
-                  i32.eq
-                  br_if 4
-                  unreachable
-    ;; 14 |         .Pair(a, b) => a.len() + b.len()
-                end
-    ;; 13 |         .Named(n) => n.len()
-              end
+              local.get $s.0
+              i32.const 2
+              i32.eq
+              br_if 2
+              unreachable
     ;; 12 |     match s:
               unreachable
             end
     ;; 13 |         .Named(n) => n.len()
-            local.get $s.1
-            drop
             block
               block
                 local.get $s.2
@@ -149,8 +133,6 @@
             br 2
           end
     ;; 14 |         .Pair(a, b) => a.len() + b.len()
-          local.get $s.1
-          drop
           block
             block
               local.get $s.2
@@ -158,8 +140,6 @@
               br 0
             end
           end
-          local.get $s.3
-          drop
           block
             block
               local.get $s.4

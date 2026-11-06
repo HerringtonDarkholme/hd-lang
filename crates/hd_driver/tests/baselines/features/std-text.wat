@@ -36,7 +36,7 @@
           local.get $f.0
           i32.load $heap offset=20
           local.set $f.1
-          local.set $f.0
+          drop
           local.get $t0
           i32.const 1
           i32.add
@@ -47,8 +47,6 @@
               unreachable
             end
     ;; 19 |         n += f.len()
-            local.get $f.0
-            drop
             block
               block
                 local.get $f.1

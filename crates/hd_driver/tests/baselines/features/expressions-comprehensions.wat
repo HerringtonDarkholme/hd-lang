@@ -7,7 +7,7 @@
   (import "fixture" "rt:map_put" (func $rt:map_put (param i32 i32 i32 i32 i32 i64) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 8 funcref))
-  (func $names (param $users i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $u.name.0 i32) (local $t3 i64) (local $u.name.1 i32) (local $u.active i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
+  (func $names (param $users i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $u.name.0 i32) (local $u.name.1 i32) (local $u.active i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
     block
     ;; 16 |     [for u in users if u.active => u.name]
       i32.const 80 ;; &empty-buffer
@@ -38,7 +38,7 @@
           local.set $u.active
           local.set $u.name.1
           local.set $u.name.0
-          local.set $t3
+          drop
           local.get $t2
           i32.const 1
           i32.add
@@ -47,8 +47,6 @@
             block
               local.get $u.name.0
               call $retain
-              local.get $t3
-              drop
               br 0
               unreachable
             end
@@ -61,32 +59,32 @@
               i32.const 0
               local.set $u.name.0
               local.get $t0
-              local.tee $t4
+              local.tee $t3
               i32.load $heap offset=4
-              local.tee $t5
-              local.get $t4
+              local.tee $t4
+              local.get $t3
               i32.load $heap
               i32.eq
               if
-                local.get $t4
+                local.get $t3
                 i32.const 1
                 call_indirect $table0 (param i32) (result i32)
-                local.tee $t4
+                local.tee $t3
                 local.set $t0
               end
+              local.get $t3
               local.get $t4
-              local.get $t5
               i32.const 8
               i32.mul
               i32.add
-              local.tee $t6
+              local.tee $t5
               local.get $u.name.1
               i32.store $heap offset=16
-              local.get $t6
+              local.get $t5
               local.get $u.active
               i32.store $heap offset=20
+              local.get $t3
               local.get $t4
-              local.get $t5
               i32.const 1
               i32.add
               i32.store $heap offset=4
@@ -177,7 +175,7 @@
     end
     local.get $users
   )
-  (func $sizes (param $users i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $u.name.0 i32) (local $t3 i64) (local $u.name.1 i32) (local $t4 i32)
+  (func $sizes (param $users i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $u.name.0 i32) (local $u.name.1 i32) (local $t3 i32)
     block
     ;; 22 |     [for u in users if (n := u.name.len()) > 0 => n]
       i32.const 80 ;; &empty-buffer
@@ -204,21 +202,17 @@
           local.get $u.name.0
           i32.load $heap offset=28
           local.set $u.name.1
-          local.set $u.name.0
-          local.set $t3
+          drop
+          drop
           local.get $t2
           i32.const 1
           i32.add
           local.set $t2
           block
             block
-              local.get $t3
-              drop
               br 0
               unreachable
             end
-            local.get $u.name.0
-            drop
             block
               block
                 local.get $u.name.1
@@ -233,7 +227,7 @@
               local.get $t0
               local.tee $u.name.1
               i32.load $heap offset=4
-              local.tee $t4
+              local.tee $t3
               local.get $u.name.1
               i32.load $heap
               i32.eq
@@ -245,14 +239,14 @@
                 local.set $t0
               end
               local.get $u.name.1
-              local.get $t4
+              local.get $t3
               i32.const 4
               i32.mul
               i32.add
               local.get $u.name.0
               i32.store $heap offset=16
               local.get $u.name.1
-              local.get $t4
+              local.get $t3
               i32.const 1
               i32.add
               i32.store $heap offset=4
@@ -339,8 +333,6 @@
                     br 0
                     unreachable
                   end
-                  local.get $x.0
-                  drop
                   block
                     block
                       local.get $x.1
@@ -348,8 +340,6 @@
                       br 0
                     end
                   end
-                  local.get $y.0
-                  drop
                   block
                     block
                       local.get $y.1
