@@ -10180,15 +10180,23 @@ impl Run<'_> {
         body: &dyn Fn(hd_base::InstId) -> Option<&'b hd_tir::ir::Body>,
     ) {
         let (all, verdicts) = self.single_owner_facts(env, c, body);
+        let entry = fields::entry_owned_checks(&self.pool, env, &all, verdicts);
         let names = self.names();
         let mut own_text = lock(&self.own_text);
-        for &(_, b, item, args, _) in &all {
+        for &(id, b, item, args, _) in &all {
             let path = names.path(item);
             let Some(own) = own_text.get_mut(&path) else {
                 continue;
             };
             let sub = |t| hd_mono::subst(&self.pool, env, item, args, t);
-            for (i, line) in fields::check_lines(&self.pool, env, b, &sub, verdicts) {
+            let lines = fields::check_lines(&self.pool, env, b, &sub, verdicts);
+            let at_entry = entry.get(&id).into_iter().flatten().map(|&i| {
+                (
+                    i,
+                    "owned: a single-owner field's reference at entry".to_owned(),
+                )
+            });
+            for (i, line) in lines.into_iter().chain(at_entry) {
                 let line = format!("%{i} {line}\n");
                 if !own.text.contains(&line) {
                     own.text.push_str(&line);
@@ -10202,7 +10210,9 @@ impl Run<'_> {
     /// Step 15d2: after collection, over the bodies the link emits, each
     /// uniqueness check of a single-owner field that stands at its change
     /// is marked `unique_word::OWNED` (no check runs), in a copy of its
-    /// instance's body. Release only; the verdicts cover exactly these
+    /// instance's body; so is each check of all of a `&mut` parameter's
+    /// target that every call passes such a field at (step 15d3,
+    /// `fields::entry_owned_checks`). Release only; the verdicts cover exactly these
     /// bodies, so no body the link emits gives such a field a second owner.
     fn mark_single_owner<'b>(
         &self,
@@ -10211,10 +10221,12 @@ impl Run<'_> {
         body: &dyn Fn(hd_base::InstId) -> Option<&'b hd_tir::ir::Body>,
     ) -> HashMap<hd_base::InstId, hd_tir::ir::Body> {
         let (all, verdicts) = self.single_owner_facts(env, c, body);
+        let mut entry = fields::entry_owned_checks(&self.pool, env, &all, verdicts);
         let mut out = HashMap::default();
         for &(id, b, item, args, _) in &all {
             let sub = |t| hd_mono::subst(&self.pool, env, item, args, t);
-            let marks = fields::owned_checks(&self.pool, env, b, &sub, verdicts);
+            let mut marks = fields::owned_checks(&self.pool, env, b, &sub, verdicts);
+            marks.extend(entry.remove(&id).unwrap_or_default());
             if marks.is_empty() {
                 continue;
             }

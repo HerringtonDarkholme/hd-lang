@@ -28,7 +28,9 @@
 use hd_base::{HashMap, HashSet, InstId};
 use hd_mono::ProgramEnv;
 use hd_mono::layout::StdKind;
-use hd_tir::ir::{Body, CaptureMode, Proj, ReadMode, Ref, Role, Root, Tag};
+use hd_tir::ir::{
+    Body, Callee, CaptureMode, Proj, ReadMode, Ref, Role, Root, Tag, local_flags, ref_word,
+};
 use hd_types::{InternPool, Ty, TyData, TyList};
 
 /// An instance body the link emits: its id, body, item, type arguments,
@@ -389,6 +391,117 @@ pub(crate) fn owned_checks(
                 .is_some_and(Option::is_none)
         })
         .collect()
+}
+
+/// Step 15d3: the uniqueness checks of all of a `&mut` parameter's target
+/// (`[*$k]`) in the instances of a function that every call passes a
+/// `&mut` of a one-owner field at that parameter, by instance: those the
+/// link marks `OWNED`. The function must be a free one (no impl or data
+/// member, which a trait value may call) that no function value names, so
+/// its direct calls are all its calls.
+pub(crate) fn entry_owned_checks(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    all: &[Instance<'_>],
+    verdicts: &Verdicts,
+) -> HashMap<InstId, Vec<usize>> {
+    let w = Walk {
+        pool,
+        env,
+        fields: HashSet::default(),
+        bad: HashMap::default(),
+        copied: HashSet::default(),
+        blind: HashSet::default(),
+        open: false,
+    };
+    // Per callee: whether each parameter got a one-owner field's `&mut`
+    // at every call so far; `None` once anything else names it.
+    let mut params: HashMap<hd_base::DefId, Option<Vec<bool>>> = HashMap::default();
+    for &(_, b, item, args, _) in all {
+        let sub = |t: Ty| hd_mono::subst(pool, env, item, args, t);
+        for i in 0..b.len() {
+            match b.tags[i] {
+                Tag::Call => {
+                    let Some(Callee::Item { def, .. }) = Callee::from_words(b.record(b.data[i][0]))
+                    else {
+                        continue;
+                    };
+                    let r = b.record(b.data[i][1]);
+                    let argv = &r[..r.len().saturating_sub(3)];
+                    let good: Vec<bool> = argv
+                        .iter()
+                        .map(|&a| {
+                            Ref(a).as_inst().is_some_and(|v| {
+                                let v = v.0 as usize;
+                                b.tags[v] == Tag::Ref
+                                    && b.data[v][1] & ref_word::MUT != 0
+                                    && w.field(b, &sub, b.data[v][0])
+                                        .and_then(|f| verdicts.get(&f))
+                                        .is_some_and(Option::is_none)
+                            })
+                        })
+                        .collect();
+                    let e = params.entry(def).or_insert_with(|| Some(good.clone()));
+                    if let Some(p) = e {
+                        if p.len() == good.len() {
+                            for (x, g) in p.iter_mut().zip(&good) {
+                                *x &= *g;
+                            }
+                        } else {
+                            *e = None;
+                        }
+                    }
+                }
+                // A function value or a default call names it: calls the
+                // walk can't see may follow.
+                Tag::ItemRef | Tag::DefaultCall => {
+                    let r = b.record(b.data[i][usize::from(b.tags[i] == Tag::ItemRef)]);
+                    for &x in r {
+                        params.insert(hd_base::DefId::from_raw(x), None);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    let mut out = HashMap::default();
+    for &(id, b, item, _, erased) in all {
+        let Some(Some(p)) = params.get(&item) else {
+            continue;
+        };
+        if erased || env.parent(item).is_some() || !p.iter().any(|&g| g) {
+            continue;
+        }
+        // A parameter the body stores over or takes a reference to may
+        // stop naming the field's storage.
+        let mut kept = p.clone();
+        for i in 0..b.len() {
+            if matches!(b.tags[i], Tag::Store | Tag::Ref) {
+                let v = b.view(b.data[i][0]);
+                if let (Some(l), true) = (v.local(), v.whole())
+                    && let Some(k) = kept.get_mut(l as usize)
+                {
+                    *k = false;
+                }
+            }
+        }
+        let p = &kept;
+        let marks: Vec<usize> = (0..b.len())
+            .filter(|&i| b.tags[i] == Tag::IsUnique && b.data[i][1] == 0)
+            .filter(|&i| {
+                let v = b.view(b.data[i][0]);
+                v.local().is_some_and(|l| {
+                    p.get(l as usize).copied().unwrap_or(false)
+                        && b.local_flags[l as usize] & local_flags::PARAM != 0
+                        && matches!(v.steps(b).collect::<Vec<_>>()[..], [Proj::Deref])
+                })
+            })
+            .collect();
+        if !marks.is_empty() {
+            out.insert(id, marks);
+        }
+    }
+    out
 }
 
 /// The own view's line for each uniqueness check of a field in `b`:

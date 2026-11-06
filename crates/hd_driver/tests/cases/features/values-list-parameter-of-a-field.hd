@@ -1,0 +1,33 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: a `&mut List` parameter that every call passes a single-owner
+# field at (#1399).
+# expected: `record_step` checks nothing: every call passes `&mut
+# self.steps` of a `Trail`, whose `steps` nothing copies. `set_first` keeps
+# its check: one call passes a local that a copy shares.
+struct Trail:
+    steps: List[i64]
+    depth: usize
+
+fn record_step(steps: &mut List[i64], slot: usize, step: i64) -> void:
+    if slot < steps.len():
+        steps[slot] = step
+    else:
+        steps.push(step)
+
+fn set_first(xs: &mut List[i64], v: i64) -> void:
+    xs[0] = v
+
+impl Trail:
+    fn enter(&mut self, step: i64) -> void:
+        record_step(&mut self.steps, self.depth, step)
+        self.depth = self.depth + 1
+
+pub fn main() -> void $ Console:
+    let mut trail = Trail { steps: [], depth: 0 }
+    for i in 0..4:
+        trail.enter(i64(i))
+    let mut local: List[i64] = [5, 6]
+    saved := local
+    set_first(&mut local, 9)
+    println("${trail.depth} ${saved[0]} ${local[0]}")

@@ -113,6 +113,7 @@ values-element-references
 values-generic-locality
 values-lifetime-stores
 values-lifetime-structs
+values-list-parameter-of-a-field
 values-moves
 values-new-objects
 values-reading-through
