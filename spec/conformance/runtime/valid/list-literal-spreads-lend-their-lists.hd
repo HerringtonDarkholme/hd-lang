@@ -1,0 +1,21 @@
+# test: a list literal's spreads lend their lists and a map literal's keys are copied, each released once by its owner
+# Spec 05 Expressions: expr.list.spread.insert.
+fn joined(xs: List[string], tail: string) -> List[string]:
+    [xs..., tail, xs...]
+
+fn keyed(k: string, v: string) -> Map[string, string]:
+    { k: v, "fixed": v }
+
+tests:
+    use std.testing.assert_equal
+
+    it("spreads copy their elements and keys stay with the caller"):
+        let mut total = 0
+        for round in 0..4:
+            words := ["a$round", "b$round"]
+            all := joined(words, "end")
+            total += all.len() + words.len()
+            name := "key$round"
+            m := keyed(name, "v$round")
+            total += m.len() + name.len()
+        assert_equal(total, 4 * (5 + 2 + 2 + 4), reason="every list and key survives its literal")

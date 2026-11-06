@@ -147,6 +147,29 @@ pub fn slots(b: &Body, i: usize, mut f: impl FnMut(Loc, u32, Word)) {
                 place_words(b, word, |v, x| f(x, v, Word::Value(r)));
             }
             L::Place(_) => {}
+            // A list literal's spread lends its list: the new buffer
+            // copies its elements, each with a count of its own.
+            L::Each(w) if tag == Tag::NewList && k == 1 && b.data[i][0] != NONE => {
+                let spreads = b.record(b.data[i][0]);
+                for x in 0..n {
+                    let lent = spreads.contains(&x);
+                    put(rec + x, if lent { Word::Value(Role::Lend) } else { w });
+                }
+            }
+            // A map literal's key is hashed and copied into the table it
+            // is new to; only its value moves in.
+            L::Each(w) if tag == Tag::NewMap && k == 1 => {
+                for x in 0..n {
+                    put(
+                        rec + x,
+                        if x % 2 == 0 {
+                            Word::Value(Role::Lend)
+                        } else {
+                            w
+                        },
+                    );
+                }
+            }
             L::Each(w) => (0..n).for_each(|x| put(rec + x, w)),
             L::Pairs(w) => (1..n).step_by(2).for_each(|x| put(rec + x, w)),
             // The odd words, and the last.

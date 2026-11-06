@@ -12,8 +12,8 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $list_spread (param $xs i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    ;; 11 |     [xs..., s]
     block
+    ;; 11 |     [xs..., s]
       i32.const 1
       local.get $xs
       i32.load $heap offset=4
@@ -53,15 +53,18 @@
       local.get $s.1
       i32.store $heap offset=20
       local.get $xs
+    ;; (no span)
       call $rt:release_ref'1
+    ;; 11 |     [xs..., s]
       local.get $t1
+    ;; (no span)
       local.set $xs
     end
     local.get $xs
   )
   (func $list_spread_two (param $xs i32) (param $ys i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    ;; 14 |     [xs..., ys...]
     block
+    ;; 14 |     [xs..., ys...]
       local.get $t0
       local.get $xs
       i32.load $heap offset=4
@@ -116,18 +119,21 @@
       local.get $ys
       i32.load $heap offset=4
       call $rt:copy_elems
-      local.get $xs
-      call $rt:release_ref'1
+    ;; (no span)
       local.get $ys
       call $rt:release_ref'1
+      local.get $xs
+      call $rt:release_ref'1
+    ;; 14 |     [xs..., ys...]
       local.get $t1
+    ;; (no span)
       local.set $xs
     end
     local.get $xs
   )
   (func $map_of (param $k.0 i32) (param $k.1 i32) (param $v.0 i32) (param $v.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
-    ;; 17 |     { k: v, "fixed": v }
     block
+    ;; 17 |     { k: v, "fixed": v }
       local.get $v.0
       call $retain
       i32.const 4
@@ -148,8 +154,10 @@
       local.get $t2
       local.get $k.0
       local.get $k.1
+    ;; (no span)
       local.get $v.0
       local.get $v.1
+    ;; 17 |     { k: v, "fixed": v }
       call $rt:map_put
       local.tee $t0
       i32.const 65 ;; &"fixed"
@@ -170,6 +178,7 @@
       local.get $v.0
       local.get $v.1
       call $rt:map_put
+    ;; (no span)
       local.get $k.0
       call $rt:release_ref'2
       local.set $k.0
