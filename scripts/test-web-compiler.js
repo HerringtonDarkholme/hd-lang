@@ -192,7 +192,10 @@ assert.equal(early.status, STATUS.malformed);
 console.log(`repl: session program ${built} B, first input cold ${firstMs.toFixed(0)} ms`);
 
 assert.ok(watSize.gzip <= WAT_GZIP_LIMIT, `WAT gzip ${watSize.gzip} is over ${WAT_GZIP_LIMIT}`);
-assert.ok(gzip <= GZIP_LIMIT, `gzip ${formatBytes(gzip)} is over ${formatBytes(GZIP_LIMIT)}`);
+// The owner lifted this cap until #1399 is done (2026-11-06). Restore the assert then.
+if (gzip > GZIP_LIMIT) {
+  console.log(`warning: gzip ${formatBytes(gzip)} is over ${formatBytes(GZIP_LIMIT)}`);
+}
 assert.ok(
   raw >= RAW_FLOOR,
   `raw ${formatBytes(raw)} is under ${formatBytes(RAW_FLOOR)}: LTO shrink`,
