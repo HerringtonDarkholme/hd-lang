@@ -145,6 +145,14 @@ pub trait OwnCx {
         let _ = (callee, k, n);
         true
     }
+    /// Whether `callee` may store origins from argument `from` through
+    /// mutable argument `into`. Unlike `keeps`, this includes references
+    /// derived from an argument the call itself lends. Unknown relations
+    /// conservatively answer yes.
+    fn stores_arg(&self, callee: &Callee, into: usize, from: usize) -> bool {
+        let _ = (callee, into, from);
+        true
+    }
     /// Whether a call of `callee` may reach memory outside its arguments:
     /// false only for the few std functions known pure. The borrow pass
     /// and hoisting read it.

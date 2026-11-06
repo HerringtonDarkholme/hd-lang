@@ -1,0 +1,24 @@
+# @dump: own counts
+# @build: v8 release
+# A mutable output can hold references without holding every other argument.
+# A signature that shares a stored lifetime must still keep its source alive.
+use std.annotation.inline
+
+@inline(.Never)
+fn push_len['a](out: &mut List[&'a string], xs: &List[string]) -> usize:
+    out.reserve(xs.len())
+    xs.len()
+
+fn non_storing(xs: List[string]) -> usize:
+    let mut out: List[&string] = []
+    size := push_len(&mut out, &xs)
+    size + out.len()
+
+@inline(.Never)
+fn remember['a](out: &mut List[&'a string], value: &'a string) -> void:
+    out.push(value)
+
+fn storing(xs: List[string]) -> usize:
+    let mut out: List[&string] = []
+    remember(&mut out, &xs[0])
+    out[0].len()
