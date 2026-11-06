@@ -6,16 +6,16 @@
     {
       "program": "bench/runtime/progs/closures.hd",
       "retained": "0",
-      "released": "3",
-      "uniques": "3",
-      "total": "6"
+      "released": "2",
+      "uniques": "1",
+      "total": "3"
     },
     {
       "program": "bench/runtime/progs/expr-eval.hd",
       "retained": "251748",
-      "released": "4154726",
-      "uniques": "6230448",
-      "total": "10636922"
+      "released": "3902726",
+      "uniques": "0",
+      "total": "4154474"
     },
     {
       "program": "bench/runtime/progs/int-loop.hd",
@@ -28,8 +28,8 @@
       "program": "bench/runtime/progs/inventory.hd",
       "retained": "19199744",
       "released": "19200266",
-      "uniques": "12800001",
-      "total": "51200011"
+      "uniques": "6400002",
+      "total": "44800012"
     },
     {
       "program": "bench/runtime/progs/iter-pipeline.hd",
@@ -41,37 +41,37 @@
     {
       "program": "bench/runtime/progs/list-sort.hd",
       "retained": "0",
-      "released": "15",
-      "uniques": "2",
-      "total": "17"
+      "released": "14",
+      "uniques": "1",
+      "total": "15"
     },
     {
       "program": "bench/runtime/progs/list-stdlib-sort.hd",
       "retained": "1",
-      "released": "46",
-      "uniques": "4002",
-      "total": "4049"
+      "released": "44",
+      "uniques": "4000",
+      "total": "4045"
     },
     {
       "program": "bench/runtime/progs/log-stats.hd",
       "retained": "6480161",
-      "released": "8100357",
-      "uniques": "4320047",
-      "total": "18900565"
+      "released": "7380346",
+      "uniques": "9",
+      "total": "13860516"
     },
     {
       "program": "bench/runtime/progs/map-count-long.hd",
       "retained": "0",
-      "released": "14",
-      "uniques": "1",
-      "total": "15"
+      "released": "13",
+      "uniques": "0",
+      "total": "13"
     },
     {
       "program": "bench/runtime/progs/map-count.hd",
       "retained": "0",
-      "released": "14",
-      "uniques": "1",
-      "total": "15"
+      "released": "13",
+      "uniques": "0",
+      "total": "13"
     },
     {
       "program": "bench/runtime/progs/nested-display.hd",
@@ -83,23 +83,23 @@
     {
       "program": "bench/runtime/progs/plugins.hd",
       "retained": "16380001",
-      "released": "16381824",
-      "uniques": "24577864",
-      "total": "57339689"
+      "released": "16381460",
+      "uniques": "24577500",
+      "total": "57338961"
     },
     {
       "program": "bench/runtime/progs/resources.hd",
       "retained": "20000",
-      "released": "40002",
+      "released": "20002",
       "uniques": "0",
-      "total": "60002"
+      "total": "40002"
     },
     {
       "program": "bench/runtime/progs/route-search.hd",
       "retained": "0",
-      "released": "1226823",
-      "uniques": "12029460",
-      "total": "13256283"
+      "released": "614483",
+      "uniques": "8992790",
+      "total": "9607273"
     },
     {
       "program": "bench/runtime/progs/string-build.hd",
@@ -118,9 +118,9 @@
     {
       "program": "bench/runtime/progs/task-pipeline.hd",
       "retained": "10406262",
-      "released": "14512539",
-      "uniques": "3600010",
-      "total": "28518811"
+      "released": "14512533",
+      "uniques": "3600000",
+      "total": "28518795"
     },
     {
       "program": "bench/runtime/progs/trait-dispatch.hd",
@@ -146,9 +146,9 @@
     {
       "program": "bench/study/closures.hd",
       "retained": "50",
-      "released": "103",
-      "uniques": "3",
-      "total": "156"
+      "released": "102",
+      "uniques": "1",
+      "total": "153"
     },
     {
       "program": "bench/study/dyn_iter.hd",
@@ -160,16 +160,16 @@
     {
       "program": "bench/study/fannkuch_redux.hd",
       "retained": "0",
-      "released": "7",
-      "uniques": "12",
-      "total": "19"
+      "released": "4",
+      "uniques": "6",
+      "total": "10"
     },
     {
       "program": "bench/study/json.hd",
       "retained": "2720002",
-      "released": "3910102",
-      "uniques": "14790017",
-      "total": "21420121"
+      "released": "3740100",
+      "uniques": "14280015",
+      "total": "20740117"
     },
     {
       "program": "bench/study/mandelbrot.hd",
@@ -181,37 +181,37 @@
     {
       "program": "bench/study/map_count.hd",
       "retained": "5000000",
-      "released": "7500040",
-      "uniques": "5000000",
-      "total": "17500040"
+      "released": "7500039",
+      "uniques": "2500000",
+      "total": "15000039"
     },
     {
       "program": "bench/study/nbody.hd",
       "retained": "0",
       "released": "2",
-      "uniques": "14000003",
-      "total": "14000005"
+      "uniques": "14000001",
+      "total": "14000003"
     },
     {
       "program": "bench/study/points.hd",
       "retained": "10",
-      "released": "243",
-      "uniques": "75000003",
-      "total": "75000256"
+      "released": "232",
+      "uniques": "1",
+      "total": "243"
     },
     {
       "program": "bench/study/sieve.hd",
       "retained": "0",
-      "released": "3",
-      "uniques": "788",
-      "total": "791"
+      "released": "2",
+      "uniques": "785",
+      "total": "787"
     },
     {
       "program": "bench/study/spectral_norm.hd",
       "retained": "0",
-      "released": "7",
-      "uniques": "49",
-      "total": "56"
+      "released": "4",
+      "uniques": "43",
+      "total": "47"
     },
     {
       "program": "bench/study/string_build.hd",
