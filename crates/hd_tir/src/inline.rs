@@ -13,7 +13,8 @@ use hd_base::{DefId, HashMap, NodeIdx};
 use hd_types::{Ty, TyList};
 
 use crate::ir::{
-    Body, BodyKind, Callee, ChoiceKind, INLINED, NONE, Op, Tag, local_flags, place, u32_of,
+    Body, BodyKind, Callee, ChoiceKind, INLINED, NONE, Op, Role, Tag, Word, local_flags, place,
+    slots, u32_of,
 };
 use crate::own::splice::{permute_columns, renumber_through};
 
@@ -129,10 +130,38 @@ pub fn copyable(c: &Body) -> bool {
         && !(0..n).any(refused)
 }
 
-/// Whether `c` is [`copyable`] and fits the caller's instruction limit.
+/// Whether `c` is [`copyable`] and fits the caller's size budget.
+/// Plain suite wrappers have no instruction of their own. A labelled
+/// block does, as does the root that inlining turns into a return scope.
+/// Calls also need their argument bindings and a returned-value binding.
+/// Keep the existing raw-row bound for bodies it already admits; the
+/// lowering estimate can additionally admit structurally larger bodies.
 #[must_use]
 pub fn inlinable(c: &Body, limit: usize) -> bool {
-    c.len() <= limit && copyable(c)
+    if c.len() <= limit {
+        return copyable(c);
+    }
+    let mut size = 0;
+    for (i, &tag) in c.tags.iter().enumerate() {
+        if tag != Tag::Block || i + 1 == c.len() || c.label_inst.contains(&u32_of(i)) {
+            size += 1;
+        }
+        if matches!(
+            tag,
+            Tag::Call | Tag::CallValue | Tag::CallDyn | Tag::CallHost | Tag::DefaultCall
+        ) {
+            slots(c, i, |_, _, word| {
+                if matches!(word, Word::Value(Role::Arg(_)) | Word::Provider) {
+                    size += 1;
+                }
+            });
+            size += usize::from(!matches!(c.ty[i], Ty::VOID | Ty::NEVER));
+        }
+        if size > limit {
+            return false;
+        }
+    }
+    copyable(c)
 }
 
 /// Whether `c` calls nothing, not even a function value, so that its copy
@@ -722,7 +751,7 @@ mod tests {
     fn a_call_becomes_its_callee_bound_and_breaking_to_its_block() {
         let mut b = caller();
         let c = callee();
-        assert!(inlinable(&c, 9) && !inlinable(&c, 8));
+        assert!(inlinable(&c, 6) && !inlinable(&c, 5));
         assert!(leaf(&c) && !leaf(&b));
         let item = Callee::Item {
             def: DefId::from_raw(3),

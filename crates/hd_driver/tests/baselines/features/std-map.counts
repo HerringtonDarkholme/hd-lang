@@ -31,3 +31,6 @@ fn group(m: &mut Map[string, List[string]], k: string, v: string) -> void:
 
 fn has(m: &Map[string, string], k: string) -> bool:
     m.contains_key(k)
+> app/main/has
+>   retain string (conservative: Intrinsic)
+>   release string? (last use)

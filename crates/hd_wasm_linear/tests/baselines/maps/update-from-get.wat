@@ -11,7 +11,6 @@
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:map_unique'2" (func $rt:map_unique'2 (param i32) (result i32)))
-  (import "fixture" "impl [ T < ? Copy ] T ?.unwrap_or[i64]" (func $"impl [ T < ? Copy ] T ?.unwrap_or[i64]" (param i32 i64 i64) (result i64)))
   (import "fixture" "heap" (memory $heap 1))
   (func $changed_rhs (param $counts i32) (param $word.0 i32) (param $word.1 i32) (param $other.0 i32) (param $other.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64)
     block
@@ -220,7 +219,7 @@
       i32.store $heap offset=12
     end
   )
-  (func $changed_between (param $counts i32) (param $word.0 i32) (param $word.1 i32) (param $other.0 i32) (param $other.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i32)
+  (func $changed_between (param $counts i32) (param $word.0 i32) (param $word.1 i32) (param $other.0 i32) (param $other.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i64) (local $t4 i32)
     block
     ;; 17 |     seen := counts.get(word).unwrap_or(0)
       local.get $counts
@@ -256,9 +255,38 @@
         i64.const 0
         local.set $t2
       end
-      local.get $t2
+      local.set $t0
       i64.const 0
-      call $"impl [ T < ? Copy ] T ?.unwrap_or[i64]"
+      local.set $t3
+      block
+        block
+          block
+            block
+              block
+                local.get $t0
+                i32.const 1
+                i32.eq
+                if
+                  local.get $t2
+                  local.set $t3
+                  br 1
+                else
+                  local.get $t0
+                  i32.eqz
+                  br_if 2
+                  unreachable
+                end
+                unreachable
+              end
+              br 1
+            end
+            br 0
+          end
+          local.get $t3
+          local.set $t2
+          br 0
+        end
+      end
     ;; (no span)
       local.get $counts
       i32.load $heap
@@ -276,7 +304,7 @@
       local.get $other.0
       local.get $other.1
       call $rt:map_find'1
-      local.set $t3
+      local.set $t4
       local.get $other.0
       call $retain
       local.get $counts
@@ -284,12 +312,14 @@
       local.get $t0
     ;; 18 |     counts[other] = 0
       local.get $t1
-      local.get $t3
+      local.get $t4
       local.get $other.0
       local.get $other.1
       i64.const 0
       call $rt:map_put
       i32.store $heap
+    ;; 17 |     seen := counts.get(word).unwrap_or(0)
+      local.get $t2
     ;; 19 |     counts[word] = seen + 1
       i64.const 1
       i64.add
@@ -477,7 +507,7 @@
       i64.store $heap offset=8
     end
   )
-  (func $tally (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64)
+  (func $tally (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64) (local $t4 i64)
     block
     ;; 6 |     counts[word] = counts.get(word).unwrap_or(0) + 1
       local.get $counts
@@ -514,9 +544,39 @@
         i64.const 0
         local.set $t3
       end
-      local.get $t3
+      local.set $t0
       i64.const 0
-      call $"impl [ T < ? Copy ] T ?.unwrap_or[i64]"
+      local.set $t4
+      block
+        block
+          block
+            block
+              block
+                local.get $t0
+                i32.const 1
+                i32.eq
+                if
+                  local.get $t3
+                  local.set $t4
+                  br 1
+                else
+                  local.get $t0
+                  i32.eqz
+                  br_if 2
+                  unreachable
+                end
+                unreachable
+              end
+              br 1
+            end
+            br 0
+          end
+          local.get $t4
+          local.set $t3
+          br 0
+        end
+      end
+      local.get $t3
       i64.const 1
       i64.add
       local.set $t3

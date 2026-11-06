@@ -14,15 +14,13 @@ use hd_tir::inline::Site;
 use hd_tir::ir::{Body, Callee, Ref, Tag, local_flags, place, ref_word};
 use hd_types::{InternPool, RefCells, Ty, TyData, TyList};
 
-/// The most instructions a callee's body may have for a call of it to
-/// inline, in std and outside it alike (`docs/compiler/tir-v2.md`, "The
-/// inliner", tuned at 16 over 8, 12, 16 and 20 in #856: 12 leaves
-/// `spectral_norm`'s `a(i, j)` (15 instructions) a call, which V8's
-/// baseline tier runs twice as slowly, and 20 only grows code); 0 turns
-/// the inliner off.
+/// The default callee size budget, in std and outside it alike.
+/// `hd_tir::inline::inlinable` accepts the raw-row bound or a lowering
+/// estimate that charges labelled blocks and call-boundary bindings.
+/// The numeric budget started as 16 raw rows (#856); 0 disables it.
 pub const INLINE_LIMIT: usize = 16;
 
-/// The most instructions a function marked `@inline` or
+/// The size budget for a function marked `@inline` or
 /// `@inline(.Auto)` may have and still be copied.
 pub const AUTO_INLINE_LIMIT: usize = 64;
 

@@ -94,9 +94,29 @@ fn has(m: &Map[string, string], k: string) -> bool:
 >   local $0 m: Ref[Map[string, string]] [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 k: string [param read] value
->     uses $1: entry -> %1 lend last
+>     uses $1: entry -> %1 consume last
+>   local $3 key: string [read] value
+>     uses $3: %2 -> %4 lend last
 >   %0 = Read borrow [$0] : Ref[Map[string, string]]
 >   %1 = Read borrow [$1] : string
->   %2 = Call std/collections/impl [ K < Eq & Hash , V ] Map [ K , V ].contains_key[string, string] (%0, %1) : bool
->   %3 = Block %2 : bool
+>   %2 = Store [$3] %1 : ()
+>   %3 = Read borrow [*%0] : Map[string, string]
+>   %4 = Read borrow [$3] : string
+>   %5 = Intrinsic MapGet [%3 %4] : string?
+>   %6 = Drop [%3] : ()
+>   %7 = Block 1:bool : bool
+>   %8 = Block 0:bool : bool
+>   %10 = Block - : never
+>   %12 = Block - : never
+>   %14 = Block - : never
+>   %15 = SwitchTag %5 [#0 %12 %14] : never
+>   %16 = Block - : never
+>   %17 = SwitchTag %5 [#1 %10 %16] : never
+>   %18 = Block - : never
+>   %19 = Match %5 [%18 %7 %8] : bool
+>   %20 = Drop [%5] : ()
+>   %21 = Break L0 %19 : never
+>   %22 = Block - : bool
+>   %23 = Scope %22 [] : bool
+>   %24 = Block %23 : bool
 >   summary kept [] borrows [$1]
