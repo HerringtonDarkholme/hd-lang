@@ -26,7 +26,7 @@ fn same(a: Key, b: Key) -> bool:
 >   %6 = Drop [$1] : ()
 >   %7 = Block %2 : bool
 >   exit sub 0 drops [$0 $1]
->   summary kept [$0 $1] writes
+>   summary kept [$0 $1]
 
 fn before(a: Key, b: Key) -> bool:
     a < b

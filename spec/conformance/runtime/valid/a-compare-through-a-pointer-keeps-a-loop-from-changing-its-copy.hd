@@ -1,0 +1,52 @@
+# test: an element's comparison copies the list its loop changes through a pointer, and that copy keeps its values
+# Spec 04 Collection Values: types.coll.value.
+# expect-stdout: saved 5 3 1; list 3 1 1
+
+struct Rows:
+    items: List[Row]
+
+struct Keep:
+    rows: *mut Rows?
+    saved: List[Row]
+
+struct Row:
+    value: i64
+    keep: *mut Keep?
+
+impl Ord for Row:
+    fn cmp(&self, other: &Row) -> Ordering:
+        match self.keep:
+            .Some(keep) =>
+                match keep.rows:
+                    .Some(rows) => keep.saved = rows.items
+                    .None => pass
+            .None => pass
+        self.value.cmp(&other.value)
+
+impl PartialOrd for Row:
+    fn partial_cmp(&self, other: &Row) -> Ordering?:
+        .Some(self.cmp(other))
+
+impl Eq for Row:
+    fn eq(&self, other: &Row) -> bool:
+        self.value == other.value
+
+fn settle(rows: *mut Rows) -> void:
+    let i: usize = 0
+    while i + 1 < rows.items.len():
+        match rows.items[i].cmp(&rows.items[i + 1]):
+            .Less => pass
+            _ => pass
+        rows.items[i] = rows.items[i + 1]
+        i += 1
+
+pub fn main() -> void $ Console:
+    let keep: *mut Keep = box(Keep { rows: .None, saved: [] })
+    let rows: *mut Rows = box(Rows { items: [] })
+    keep.rows = .Some(rows)
+    rows.items = [Row { value: 5, keep: .Some(keep) }, Row { value: 3, keep: .None }, Row { value: 1, keep: .None }]
+    settle(rows)
+    println("saved ${keep.saved[0].value} ${keep.saved[1].value} ${keep.saved[2].value}; list ${rows.items[0].value} ${rows.items[1].value} ${rows.items[2].value}")
+    rows.items = []
+    keep.saved = []
+    keep.rows = .None

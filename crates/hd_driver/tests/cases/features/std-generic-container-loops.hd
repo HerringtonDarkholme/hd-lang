@@ -1,0 +1,49 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: a generic container whose loop compares elements through shared
+# references and writes one each round (std `Heap[T].sift_down`, bench
+# route-search). Two instances, one with counted elements.
+# expected (#1399 15j): the loop's check of `self.items` runs once before it.
+pub struct Queue[T < Ord]:
+    items: List[T]
+
+impl[T < Ord] Queue[T]:
+    pub fn new() -> Queue[T]:
+        Queue::[T] { items: [] }
+
+    pub fn add(&mut self, value: T) -> void:
+        self.items.push(value)
+
+    pub fn settle(&mut self, start: usize, value: T) -> void:
+        size := self.items.len()
+        let parent = start
+        while parent < size / 2:
+            left := 2 * parent + 1
+            let larger = left
+            if left + 1 < size:
+                match self.items[left].cmp(&self.items[left + 1]):
+                    .Less => larger = left + 1
+                    _ => pass
+            match value.cmp(&self.items[larger]):
+                .Less => pass
+                _ => break
+            self.items[parent] = self.items[larger]
+            parent = larger
+        self.items[parent] = value
+
+pub fn numbers(a: i64, b: i64, c: i64) -> i64:
+    let mut q = Queue::[i64].new()
+    q.add(a)
+    q.add(b)
+    q.add(c)
+    saved := q
+    q.settle(0, c)
+    q.items[0] + saved.items[0]
+
+pub fn names(a: string, b: string) -> usize:
+    let mut q = Queue::[string].new()
+    q.add(a)
+    q.add(b)
+    saved := q
+    q.settle(0, "z")
+    q.items[0].len() + saved.items[0].len()

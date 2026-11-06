@@ -20,10 +20,14 @@
 //!    iteration block, and the hoisted check runs unguarded;
 //! 2. the loop never copies `p` or a place holding it, takes no `Ref` of a
 //!    place that overlaps it, writes no place that holds it, pins nothing
-//!    and holds no suspension point. A local `&mut` reference to one
-//!    element of `p` that the loop uses up (`for x in &mut xs`) is an
-//!    address in the buffer, not a second owner of the header, so it is
-//!    allowed;
+//!    and holds no suspension point. A local reference to one element of
+//!    `p` that the loop uses up (`for x in &mut xs`, or a `&xs[i]` passed
+//!    to a comparison) is an address in the buffer, which counts nothing
+//!    and is no second owner of the header, so it is allowed. A shared one
+//!    never makes a loop hoist on its own: its check is rule 1's only when
+//!    a change stands behind it (the backend's short loans drop a check
+//!    that serves a shared reference alone, and a hoisted one would be a
+//!    check the loop did not have);
 //! 3. no call in the loop may write, unless `p`'s root is a local that is
 //!    never addressed or captured, whose every stored value is fresh (a
 //!    call's or a new collection's, or moved out of a local whose own
@@ -181,6 +185,9 @@ struct Cand {
     used: bool,
     /// An `IsUnique` of it stands in the loop.
     unique: bool,
+    /// A shared element reference ([`lent_elem_ref`]) passed rule 2: it
+    /// holds only when a change's check hoists it.
+    lent: bool,
 }
 
 /// The hoisting pass's dense tables, reused across bodies.
@@ -1056,7 +1063,7 @@ fn hoist_loop(
                 None => rooted_place(b, t, word, false),
             };
             if let Some(local) = local {
-                candidate(t, local, true);
+                candidate(t, local, !serves_shared_ref(b, t, blk, k));
             }
         }
     }
@@ -1130,7 +1137,7 @@ fn hoist_loop(
     let at = (topo.blk[l as usize], topo.pos[l as usize]);
     for k in 0..t.cands.len() {
         let c = t.cands[k];
-        if !c.ok {
+        if !c.ok || (c.lent && !c.hoist) {
             continue;
         }
         let deref = t.cand_steps(&c).first() == Some(&DEREF);
@@ -1194,6 +1201,38 @@ fn place_word(b: &mut Body, t: &Tables, c: &Cand) -> u32 {
 fn elem_ref(t: &Tables, x: u32, w: u32, lp: u32) -> bool {
     let local_mut = ref_word::MUT | ref_word::LOCAL;
     x != NONE && w & local_mut == local_mut && t.last_use[x as usize] < lp
+}
+
+/// Whether `Ref` word `w` makes a plain shared local reference: one with
+/// none of the marks that give it a count, a frame slot or a pin of its own.
+pub(crate) fn lent_ref_word(w: u32) -> bool {
+    let marks = ref_word::MUT | ref_word::TAKES | ref_word::LENT | ref_word::FRAME | ref_word::PINS;
+    w & ref_word::LOCAL != 0 && w & marks == 0
+}
+
+/// Whether `Ref` `x` (data word `w`) of an element of a candidate is a
+/// shared local reference that loop `lp` uses up: an element reference
+/// counts nothing, so it leaves the header's holders as they are.
+fn lent_elem_ref(t: &Tables, x: u32, w: u32, lp: u32) -> bool {
+    x != NONE && lent_ref_word(w) && t.last_use[x as usize] < lp
+}
+
+/// Whether the `IsUnique` at position `k` of block `blk` only serves a
+/// shared reference: what insertion put right before it, the checks of the
+/// lists on its path and the read it roots at, ends at a shared `Ref`.
+fn serves_shared_ref(b: &Body, t: &Tables, blk: u32, k: usize) -> bool {
+    for &x in &b.record(b.data[blk as usize][0])[k + 1..] {
+        let i = x as usize;
+        match b.tags[i] {
+            Tag::Block => {}
+            Tag::IsUnique => {}
+            _ if t.pending.dead[i] => {}
+            Tag::Read if b.data[i][1] == ReadMode::Borrow as u32 => {}
+            Tag::Ref => return lent_ref_word(b.data[i][1]),
+            _ => return false,
+        }
+    }
+    false
 }
 
 /// Fills `t.elems` for the loop `lo..l`: the locals stored only inside
@@ -1315,7 +1354,10 @@ fn check(
                     }
                     Tag::Store | Tag::Drop => temp || (!covers && (mine || !c.external || !memory)),
                     Tag::Ref => {
-                        temp || !(covers || below) || (below && next_elem && elem_ref(t, x, w, lp))
+                        let elem = below && next_elem;
+                        let lent = elem && lent_elem_ref(t, x, w, lp);
+                        t.cands[k].lent |= lent && !temp;
+                        temp || !(covers || below) || lent || (elem && elem_ref(t, x, w, lp))
                     }
                     // A removed or covered `IsUnique` an outer loop hoisted
                     // stands for nothing here.

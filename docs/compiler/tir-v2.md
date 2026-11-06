@@ -952,7 +952,11 @@ loop's entry test so an empty loop copies nothing, when:
    loop with no entry test (`while true`) runs its body whenever it is
    entered, so its check runs before it unguarded;
 2. the loop never copies `p` or an overlapping place, takes no `Ref` of
-   it, pins nothing, and holds no suspension point;
+   it, pins nothing, and holds no suspension point. A local reference to
+   one element of `p` that the loop uses up is an address that counts
+   nothing, so it is allowed; a shared one only when a change's own check
+   hoists `p`, since short loans already drop a check that serves a shared
+   reference alone;
 3. no call in the loop may write, unless `p`'s root is a local that is
    never addressed or captured.
 

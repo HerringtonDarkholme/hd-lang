@@ -391,8 +391,16 @@ impl Env<'_> {
                 choice: (ChoiceKind::Impl | ChoiceKind::Builtin, _),
                 ..
             } => {
-                let float = matches!(self.run.pool.get(*self_ty), TyData::Prim(p) if p.is_float());
-                !(float && self.run.names().path(*method).rsplit(['.', '/']).next() == Some("sqrt"))
+                // The compiler's own code for a scalar's comparison and a
+                // float's square root reads its arguments and nothing else.
+                let names = self.run.names();
+                let name = names.path(*method);
+                let name = name.rsplit(['.', '/']).next();
+                let TyData::Prim(p) = self.run.pool.get(*self_ty) else {
+                    return true;
+                };
+                !(matches!(name, Some("eq" | "cmp" | "partial_cmp"))
+                    || (p.is_float() && name == Some("sqrt")))
             }
             Callee::TraitMethod { .. } => true,
         }

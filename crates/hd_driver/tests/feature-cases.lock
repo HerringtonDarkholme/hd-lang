@@ -85,6 +85,7 @@ requirements-reusable-contexts
 requirements-row-polymorphism
 requirements-stored-suspension
 return
+std-generic-container-loops
 std-iterator-chains
 std-map
 std-set-deque-heap

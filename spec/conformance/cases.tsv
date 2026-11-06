@@ -1335,6 +1335,8 @@ runtime/valid/loop-list-cache-erased-view-fallback.hd	runtime	accept	lang/13-val
 runtime/valid/loop-list-cache-physical-cow.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/a-copy-between-two-changes-through-a-reference-shares-nothing.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/a-loop-copy-of-a-list-behind-a-reference-keeps-its-values.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
+runtime/valid/a-generic-container-loop-keeps-its-copies-apart.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
+runtime/valid/a-compare-through-a-pointer-keeps-a-loop-from-changing-its-copy.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/a-change-through-a-list-parameter-keeps-its-copies-apart.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/a-list-literal-in-a-function-builds-a-fresh-list-each-call.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/loop-list-cache-preserves-alias-and-cow-boundaries.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value

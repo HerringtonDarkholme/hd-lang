@@ -537,12 +537,12 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
                 let mine = ol == local;
                 let covers = mine && hoist::prefix(&other, &steps);
                 let below = mine && other.len() > steps.len() && hoist::prefix(&steps, &other);
-                // A local `&mut` reference to one element that the loop
-                // uses up.
+                // A local reference to one element that the loop uses up:
+                // `&mut`, or plain shared.
                 let local_mut = super::ref_word::MUT | super::ref_word::LOCAL;
                 let elem_ref = below
                     && other[steps.len()] == ELEM
-                    && xw & local_mut == local_mut
+                    && (xw & local_mut == local_mut || hoist::lent_ref_word(xw))
                     && last[xi] < l;
                 match tag {
                     Tag::Read if xw == ReadMode::Move as u32 && covers && !temp => Some("moves it"),
