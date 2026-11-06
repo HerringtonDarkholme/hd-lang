@@ -1,0 +1,8 @@
+[package]
+name = "wasm_bench"
+
+[capabilities]
+Console = true
+Clock = true
+Args = true
+
