@@ -115,6 +115,7 @@ values-lifetime-stores
 values-lifetime-structs
 values-list-parameter-loops
 values-list-parameter-of-a-field
+values-literal-fields
 values-moves
 values-new-objects
 values-reading-through

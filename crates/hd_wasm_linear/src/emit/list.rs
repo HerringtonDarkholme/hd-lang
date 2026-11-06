@@ -49,8 +49,10 @@ pub(super) struct ListCache {
 
 impl Em<'_, '_, '_> {
     /// A nonempty list of scalar constants as one static count-zero
-    /// buffer. A change sees its count is not one and copies it through
-    /// the ordinary copy-on-write path.
+    /// buffer, for a top-level binding's initializer only
+    /// ([`hd_tir::ir::Body::top_level_initializer`]). A change sees its
+    /// count is not one and copies it through the ordinary copy-on-write
+    /// path.
     fn static_scalar_list(&self, et: Ty, elem: &Elem, items: &[u32]) -> Option<Vec<u8>> {
         let prim = match self.pool().get(strip(self.pool(), self.env(), et)) {
             TyData::Prim(prim) if prim != Prim::String => prim,
@@ -1111,7 +1113,8 @@ impl Em<'_, '_, '_> {
     /// `NewList`: a buffer sized exactly for the items and the spreads
     /// (`expr.list.spread.insert`), each item stored and each spread's
     /// elements copied in order. An empty literal shares the static empty
-    /// buffer.
+    /// buffer, and a top-level binding's literal of constants is static
+    /// data.
     pub(super) fn new_list(&mut self, i: u32, spreads: u32, items: u32) -> StageResult<()> {
         let (et, e) = self.elem(self.ty(i))?;
         let items = self.rec(items);
@@ -1125,6 +1128,7 @@ impl Em<'_, '_, '_> {
             let at = empty_buffer(self.m);
             self.f.static_addr(at);
         } else if spreads.is_empty()
+            && self.b.top_level_initializer(i as usize)
             && let Some(bytes) = self.static_scalar_list(et, &e, &items)
         {
             let at = self.m.static_bytes(&bytes, 8) + HEADER;

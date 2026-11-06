@@ -1,0 +1,32 @@
+# test: a list literal of constants in a function body builds a new list each time it runs, so a change through one result's field leaves the others unchanged
+# Spec 04 Collection Values: types.coll.value.
+# expect-stdout: 1 2 0; 7 8
+
+struct Counter:
+    slots: List[i64]
+
+fn counter() -> Counter:
+    Counter { slots: [0, 0] }
+
+let START: List[i64] = [7, 8]
+
+struct Shelf:
+    items: List[i64]
+
+impl Counter:
+    fn bump(&mut self, by: i64) -> void:
+        self.slots[0] = self.slots[0] + by
+
+impl Shelf:
+    fn put(&mut self, v: i64) -> void:
+        self.items[0] = v
+
+pub fn main() -> void $ Console:
+    let mut a = counter()
+    a.bump(1)
+    let mut b = counter()
+    b.bump(2)
+    c := counter()
+    let mut s = Shelf { items: START }
+    s.put(9)
+    println("${a.slots[0]} ${b.slots[0]} ${c.slots[0]}; ${START[0]} ${START[1]}")

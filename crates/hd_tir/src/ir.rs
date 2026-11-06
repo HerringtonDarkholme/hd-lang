@@ -1047,6 +1047,42 @@ impl Body {
                 .is_some_and(|g| self.tags.get(g.0 as usize) == Some(&Tag::ProviderGet))
     }
 
+    /// Whether instruction `v` is a top-level binding's initializer: the
+    /// module's init body stores its value, through identity coercions,
+    /// whole into a global. Only such a list literal of constants is
+    /// static data (`TABLE := [1, 2, 3]`); a literal anywhere else builds
+    /// a fresh buffer each time it runs.
+    #[must_use]
+    pub fn top_level_initializer(&self, v: usize) -> bool {
+        if self.kind != BodyKind::Init {
+            return false;
+        }
+        let stored = |s: usize| {
+            let mut r = self.data[s][1];
+            for _ in 0..32 {
+                let Some(i) = Ref(r).as_inst().map(|i| i.0 as usize) else {
+                    return false;
+                };
+                if i == v {
+                    return true;
+                }
+                if self.tags[i] != Tag::Coerce
+                    || self.record(self.data[i][1]).first() != Some(&(Coercion::Identity as u32))
+                {
+                    return false;
+                }
+                r = self.data[i][0];
+            }
+            false
+        };
+        (0..self.len()).any(|s| {
+            self.tags[s] == Tag::Store && {
+                let p = self.view(self.data[s][0]);
+                p.whole() && matches!(p.root, Root::Global(..)) && stored(s)
+            }
+        })
+    }
+
     /// Whether value `v` is a `for x in &xs` loop's element reference
     /// into the list a read pins over the loop (`ref_word::PINS`,
     /// `Ref [%h [%i]]`).

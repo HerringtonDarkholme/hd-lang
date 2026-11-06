@@ -8,8 +8,8 @@
 //!    behind a reference), or `S.f` itself: a `copy` read, or a closure's
 //!    `Copy` capture (moves and borrows are fine);
 //! 2. every construction of an `S` and every store of all of `S.f` puts a
-//!    fresh buffer there: a new collection that is empty or has an element
-//!    that is no constant (a literal of constants is static data the
+//!    fresh buffer there: a new collection that is no top-level binding's
+//!    initializer (only such a literal of constants is static data the
 //!    backend shares), or the move of a local whose every store is one;
 //! 3. no body copies or stores, through a reference it can't place, a
 //!    header of `f`'s type that is not fresh (`*r = xs` with `r: &mut
@@ -161,15 +161,17 @@ impl Walk<'_> {
         }
     }
 
-    /// Whether value `v` is a fresh buffer: a new collection that is empty
-    /// or has an element that is no constant.
+    /// Whether value `v` is a fresh buffer: a new collection that is no
+    /// top-level binding's list literal, which may be static data the
+    /// backend shares (`static_scalar_list`).
     fn fresh_new(b: &Body, v: u32) -> bool {
         let Some(i) = Ref(v).as_inst().map(|r| r.0 as usize) else {
             return false;
         };
-        matches!(b.tags[i], Tag::NewList | Tag::NewMap) && {
-            let items = b.record(b.data[i][1]);
-            items.is_empty() || items.iter().any(|&x| Ref(x).as_inst().is_some())
+        match b.tags[i] {
+            Tag::NewMap => true,
+            Tag::NewList => !b.top_level_initializer(i),
+            _ => false,
         }
     }
 

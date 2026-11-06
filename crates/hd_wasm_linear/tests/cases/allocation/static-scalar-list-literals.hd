@@ -1,6 +1,6 @@
 # @dump: wat
-# expected: both list literals use the same count-zero buffer in static data;
-# neither the top-level initializer nor `local` calls `rt:list_buf`.
+# expected: only the top-level binding's literal is a count-zero buffer in
+# static data; `local` builds its own buffer with `rt:list_buf` each call.
 let top_values = [1.5, 2.5, 3.5]
 
 fn top() -> f64:
