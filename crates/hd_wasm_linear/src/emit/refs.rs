@@ -746,10 +746,10 @@ impl Em<'_, '_, '_> {
     }
 
     /// The rest of `Ref` `i` when `steps` go through a variant's payload
-    /// (`ref.match.borrow`): a view over the reference to the enum at
-    /// `base`, of type `ty`, whose getter and setter pick the field's
-    /// leaves out of the enum's shared slots, since those lie at no one
-    /// offset. `owned_base` is a view the head made, released after.
+    /// (`ref.match.borrow`): the field's address in the enum at `base`, of
+    /// type `ty`, or, where the enum's shared slots hold its leaves at no
+    /// one offset, a view whose getter and setter pick them out. `owned_base`
+    /// is a view the head made, released after.
     fn payload_ref(
         &mut self,
         i: u32,
@@ -810,6 +810,24 @@ impl Em<'_, '_, '_> {
             .first()
             .map_or(0, |&p| parent.leaves[p as usize].offset);
         let at = self.offset_local(a, off);
+        // A field laid out at one offset of the enum, in leaves that follow
+        // each other, is an address there: a narrow one reads from its
+        // slot's low bytes, and an unsigned one writes there too.
+        let mutable = crate::layout::ref_mutable(self.pool(), self.env(), self.ty(i));
+        let first = picks.first().copied().unwrap_or(0);
+        let physical = picks
+            .iter()
+            .zip(&field.leaves)
+            .zip(first..)
+            .all(|((&p, l), k)| {
+                let slot = &parent.leaves[p as usize];
+                p == k
+                    && slot.offset == offset + l.offset
+                    && (slot.bytes == l.bytes || (slot.bytes > l.bytes && !(mutable && l.signed)))
+            });
+        if physical {
+            return self.ref_projection(i, at, parent, &field, first, offset, owned_base, false);
+        }
         self.f.get(at);
         self.f.helper(Helper::RefPayload {
             parent,
@@ -817,6 +835,77 @@ impl Em<'_, '_, '_> {
             picks,
             offset,
         });
+        self.store_owned(i)?;
+        if let Some(view) = owned_base {
+            self.release_open(view);
+        }
+        Ok(())
+    }
+
+    /// The rest of `Ref` `i` of the part at `off` of the value at address
+    /// `at`, the leaves from `first`: a physical place projects by the
+    /// offset, and only a representation view needs a forwarding object and
+    /// its helper call.
+    #[allow(clippy::too_many_arguments)]
+    fn ref_projection(
+        &mut self,
+        i: u32,
+        at: u32,
+        parent: RefLayout,
+        field: &RefLayout,
+        first: u32,
+        off: u32,
+        owned_base: Option<u32>,
+        fat: bool,
+    ) -> StageResult<()> {
+        let loan = self.begin_view_loan(i)?;
+        if let Some(flag) = loan {
+            self.f.get(at);
+            self.f.helper(Helper::RefIsView);
+            self.f.set(flag);
+        }
+        if let Some(flag) = loan {
+            self.f.get(flag);
+        } else {
+            self.f.get(at);
+            self.f.helper(Helper::RefIsView);
+        }
+        self.f
+            .op(I::If(wasm_encoder::BlockType::Result(Val::I32.wasm())));
+        self.f.get(at);
+        self.f.helper(Helper::RefProject {
+            borrowed: loan.is_some(),
+            parent,
+            field: field.clone(),
+            first,
+            offset: off,
+        });
+        self.f.op(I::Else);
+        self.f.get(at);
+        if off != 0 {
+            self.f.u32(off);
+            self.f.op(I::I32Add);
+        }
+        // A plain address counts nothing; a trait value read at it is
+        // released below as the view's projection would be.
+        if loan.is_none()
+            && fat
+            && let Some(runtime) = self.m.runtime
+        {
+            let physical = self.f.local(Val::I32);
+            self.f.set(physical);
+            self.f.get(physical);
+            self.f
+                .count_call(Sym::Inst(runtime.retain), crate::views::CountAction::Retain);
+            self.f.get(physical);
+        }
+        self.f.op(I::End);
+        if fat {
+            let projected = self.f.local(Val::I32);
+            self.f.set(projected);
+            self.load_through(projected, field);
+            self.release_open(projected);
+        }
         self.store_owned(i)?;
         if let Some(view) = owned_base {
             self.release_open(view);
@@ -856,61 +945,8 @@ impl Em<'_, '_, '_> {
         {
             let parent = self.ref_layout(parent_ty)?;
             let field = self.ref_layout(ty)?;
-            let loan = self.begin_view_loan(i)?;
-            if let Some(flag) = loan {
-                self.f.get(*at);
-                self.f.helper(Helper::RefIsView);
-                self.f.set(flag);
-            }
-            // Physical places project by an offset. Only a representation
-            // view needs a forwarding object and its helper call.
-            if let Some(flag) = loan {
-                self.f.get(flag);
-            } else {
-                self.f.get(*at);
-                self.f.helper(Helper::RefIsView);
-            }
-            self.f
-                .op(I::If(wasm_encoder::BlockType::Result(Val::I32.wasm())));
-            self.f.get(*at);
-            self.f.helper(Helper::RefProject {
-                borrowed: loan.is_some(),
-                parent,
-                field: field.clone(),
-                first: u32::try_from(first).expect("field"),
-                offset: off,
-            });
-            self.f.op(I::Else);
-            self.f.get(*at);
-            if off != 0 {
-                self.f.u32(off);
-                self.f.op(I::I32Add);
-            }
-            // A plain address counts nothing; a trait value read at it is
-            // released below as the view's projection would be.
-            if loan.is_none()
-                && fat
-                && let Some(runtime) = self.m.runtime
-            {
-                let physical = self.f.local(Val::I32);
-                self.f.set(physical);
-                self.f.get(physical);
-                self.f
-                    .count_call(Sym::Inst(runtime.retain), crate::views::CountAction::Retain);
-                self.f.get(physical);
-            }
-            self.f.op(I::End);
-            if fat {
-                let projected = self.f.local(Val::I32);
-                self.f.set(projected);
-                self.load_through(projected, &field);
-                self.release_open(projected);
-            }
-            self.store_owned(i)?;
-            if let Some(view) = owned_base {
-                self.release_open(view);
-            }
-            return Ok(());
+            let first = u32::try_from(first).expect("field");
+            return self.ref_projection(i, *at, parent, &field, first, off, owned_base, fat);
         }
         match base {
             At::Mem(at, _) if fat => {

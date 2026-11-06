@@ -1,0 +1,88 @@
+# test: a reference to an enum's payload field reads and writes the enum, whatever the field's layout
+# Spec 13 References: ref.match.borrow.
+struct Mixed:
+    a: f64
+    b: i32
+
+struct Pair:
+    x: u8
+    y: u8
+
+impl !Copy for Mixed
+impl !Copy for Pair
+
+fn set[T < ?Copy](o: &mut (T?), v: T) -> void:
+    match o:
+        .Some(p) => *p = v
+        .None => pass
+
+fn widened(o: i8?) -> i32:
+    match o:
+        .Some(v) => i32(v)
+        .None => +0
+
+fn set_mixed(o: &mut (Mixed?)) -> void:
+    match o:
+        .Some(p) =>
+            p.a = 2.5
+            p.b = +7
+        .None => pass
+
+fn set_pair(o: &mut (Pair?)) -> void:
+    match o:
+        .Some(p) =>
+            p.x = u8(3)
+            p.y = u8(4)
+        .None => pass
+
+tests:
+    use std.testing.assert_equal
+
+    it("a field at one offset"):
+        let mut o: u32? = .Some(u32(1))
+        set(&mut o, u32(9))
+        assert_equal(o, .Some(u32(9)), reason="the enum holds what the reference wrote")
+
+    it("a narrow unsigned field"):
+        let mut o: u8? = .Some(u8(1))
+        set(&mut o, u8(200))
+        assert_equal(o, .Some(u8(200)), reason="the slot reads back the byte")
+
+    it("a narrow signed field"):
+        let mut o: i8? = .Some(i8(-1))
+        assert_equal(o, .Some(i8(-1)), reason="a read through the reference keeps the sign")
+        set(&mut o, i8(5))
+        assert_equal(widened(o), +5, reason="a write replaces the whole slot")
+        set(&mut o, i8(-3))
+        assert_equal(widened(o), -3, reason="a negative write reads back negative")
+
+    it("a counted field releases what it replaces"):
+        let mut o: string? = .Some("a" + "b")
+        set(&mut o, "c" + "d")
+        assert_equal(o, .Some("cd"), reason="the enum holds the new string")
+
+    it("a field whose leaves lie apart in the slots"):
+        let mut o: Mixed? = .Some(Mixed { a: 1.0, b: +1 })
+        set_mixed(&mut o)
+        match o:
+            .Some(m) =>
+                assert_equal(m.a, 2.5, reason="the f64 leaf")
+                assert_equal(m.b, +7, reason="the i32 leaf")
+            .None => assert_equal(+0, +1, reason="still Some")
+
+    it("a narrow struct whose leaves take a slot each"):
+        let mut o: Pair? = .Some(Pair { x: u8(1), y: u8(2) })
+        set_pair(&mut o)
+        match o:
+            .Some(m) =>
+                assert_equal(m.x, u8(3), reason="the first byte")
+                assert_equal(m.y, u8(4), reason="the second byte")
+            .None => assert_equal(+0, +1, reason="still Some")
+
+    it("an enum in a list element and behind a pointer"):
+        let mut xs: List[u32?] = [.Some(u32(1)), .None]
+        set(&mut xs[0], u32(5))
+        assert_equal(xs[0], .Some(u32(5)), reason="the element holds the write")
+        let p: *mut (u32?) = box(.Some(u32(2)))
+        set(p, u32(6))
+        assert_equal(*p, .Some(u32(6)), reason="the box holds the write")

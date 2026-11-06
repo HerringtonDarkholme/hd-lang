@@ -121,9 +121,9 @@ pub enum Helper {
         first: u32,
         offset: u32,
     },
-    /// A reference to an enum's payload field: a view over the reference
-    /// to the enum, always, since the field's leaves lie in the enum's
-    /// shared slots (`picks`, by leaf index) rather than at one offset.
+    /// A reference to an enum's payload field whose leaves lie at no one
+    /// offset of the enum's shared slots (`picks`, by leaf index): a view
+    /// over the reference to the enum, always.
     RefPayload {
         parent: RefLayout,
         field: RefLayout,

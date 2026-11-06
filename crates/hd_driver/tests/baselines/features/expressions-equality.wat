@@ -8,11 +8,9 @@
   (import "fixture" "rt:str_eq" (func $rt:str_eq (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "derive Eq for Rec.eq" (func $"derive Eq for Rec.eq" (param i32 i32) (result i32)))
   (import "fixture" "rt:release'2" (func $rt:release'2 (param i32 i32 i32)))
-  (import "fixture" "rt:ref_is_view" (func $rt:ref_is_view (param i32) (result i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 23 funcref))
   (func $opt_some (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $o i32)
     ;; (no span)
     global.get $locals
@@ -366,27 +364,7 @@
         block
           block
             local.get $o
-            local.tee $t1
-            call $rt:ref_is_view
-            if
-              local.get $t1
-              local.get $t1
-              i32.load $heap offset=4
-              call_indirect $table0 (param i32) (result i32)
-              local.tee $t3
-              i32.load8_u $heap
-              local.set $t2
-              local.get $t1
-              local.get $t3
-              local.get $t1
-              i32.load $heap offset=8
-              call_indirect $table0 (param i32 i32)
-            else
-              local.get $t1
-              i32.load8_u $heap
-              local.set $t2
-            end
-            local.get $t2
+            i32.load8_u $heap
             i32.eqz
             i32.eqz
             br_if 1
