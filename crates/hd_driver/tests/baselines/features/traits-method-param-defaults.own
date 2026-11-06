@@ -11,11 +11,8 @@ struct Joiner:
 impl Joiner:
     fn join(&self, sep: string = ", ") -> usize:
 > app/main/impl Joiner.join.sep
->   local $0 self: Ref[Joiner] [param] value
->     uses $0: none
->   %0 = Drop [$0] : ()
->   %1 = Block ", " : string
->   exit sub 0 drops [$0]
+>   %0 = Block ", " : string
+>   summary kept [] borrows [$0]
         self.parts.len() * sep.len()
 > app/main/impl Joiner.join
 >   local $0 self: Ref[Joiner] [param read] value

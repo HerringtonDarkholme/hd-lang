@@ -7,8 +7,6 @@
 # `with_given` allocates nothing; `use_label`'s `"!"` default is
 # static data with no count.
 fn collect(item: string, into: &mut List[string] = &mut []) -> usize:
-> app/main/collect.into
->   (no span) release string (last use)
     into.push(item)
     into.len()
 > app/main/collect
@@ -17,7 +15,6 @@ fn collect(item: string, into: &mut List[string] = &mut []) -> usize:
 fn with_default(s: string) -> usize:
     collect(s)
 > app/main/with_default
->   retain string (conservative: DefaultCall)
 >   retain string (conservative: Call)
 >   (no span) release counted reference (last use)
 
@@ -30,5 +27,4 @@ fn labeled(name: string, suffix: string = "!") -> string:
 fn use_label(s: string) -> string:
     labeled(s)
 > app/main/use_label
->   retain string (conservative: DefaultCall)
 >   (no span) release string (last use)

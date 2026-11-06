@@ -1846,9 +1846,22 @@ impl Env<'_> {
     /// an open instance reads no summary.
     fn summarized_callees(&self, body: &Body) -> Vec<Node> {
         let (mut out, mut seen) = (Vec::new(), hd_base::HashSet::default());
-        for i in (0..body.len()).filter(|&i| body.tags[i] == hd_tir::ir::Tag::Call) {
-            let node =
-                Callee::from_words(body.record(body.data[i][0])).and_then(|c| self.callee_node(&c));
+        for i in (0..body.len()).filter(|&i| {
+            matches!(
+                body.tags[i],
+                hd_tir::ir::Tag::Call | hd_tir::ir::Tag::DefaultCall
+            )
+        }) {
+            // A default argument's record starts with its function and
+            // the call's type arguments.
+            let node = if body.tags[i] == hd_tir::ir::Tag::DefaultCall {
+                let r = body.record(body.data[i][0]);
+                r.first()
+                    .zip(r.get(1))
+                    .map(|(&d, &l)| self.node(DefId::from_raw(d), TyList(l)))
+            } else {
+                Callee::from_words(body.record(body.data[i][0])).and_then(|c| self.callee_node(&c))
+            };
             if let Some(n) = node
                 && self.intrinsic(n.0).is_none()
                 && self.run.lazy_body(self.p, n.0).is_some()

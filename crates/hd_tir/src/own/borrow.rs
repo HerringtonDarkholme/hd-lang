@@ -1475,7 +1475,10 @@ fn decide(
 /// of a value read from it, and its reads borrow over spans its own drop
 /// no longer ends.
 fn lent_params(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
-    if b.kind != BodyKind::Fn && b.kind != BodyKind::DeriveInstance {
+    if !matches!(
+        b.kind,
+        BodyKind::Fn | BodyKind::DeriveInstance | BodyKind::Default
+    ) {
         return;
     }
     // A closure's parameters are its own sub-body's.
@@ -1491,7 +1494,8 @@ fn lent_params(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     if n == 0 {
         return;
     }
-    let suspends = cx.suspending(b.item);
+    // A default argument never suspends: it is requirement-free.
+    let suspends = b.kind != BodyKind::Default && cx.suspending(b.item);
     let mut k = 0;
     for l in 0..b.local_ty.len() {
         if !param(t, l) {
@@ -1567,7 +1571,15 @@ fn finish_lent_params(b: &Body, t: &mut Tables, edits: &mut splice::Tables) -> b
 /// value parameter whose type may hold a counted leaf.
 /// `None` for a body that is no function's or that suspends.
 pub(crate) fn kept(b: &Body, cx: &dyn OwnCx, t: &Tables) -> Option<(u64, u64)> {
-    if (b.kind != BodyKind::Fn && b.kind != BodyKind::DeriveInstance) || cx.suspending(b.item) {
+    // A default argument's function is called as a function is
+    // (`DefaultCall`): it lends the earlier parameters it does not keep.
+    // It never suspends: a default is requirement-free.
+    let callable = match b.kind {
+        BodyKind::Fn | BodyKind::DeriveInstance => !cx.suspending(b.item),
+        BodyKind::Default => true,
+        _ => false,
+    };
+    if !callable {
         return None;
     }
     let (mut kept, mut borrows) = (0, 0);
