@@ -450,6 +450,23 @@ impl OwnCx for Env<'_> {
         self.value_parameter(params[k])
     }
 
+    fn keeps(&self, callee: &Callee, k: usize, _: usize) -> bool {
+        // Release: a parameter the callee's summary lends, which it never
+        // stores, captures or returns, unless the compiler supplies the
+        // call's code (an intrinsic) or the callee suspends, whose frame
+        // keeps every parameter. Read-only: no summary read is recorded.
+        if self.run.summaries.is_some()
+            && let Some(node) = self.callee_node(callee)
+            && self.intrinsic(node.0).is_none()
+            && !ProgramEnv::suspends(self, node.0)
+            && k < 64
+            && self.lent_mask(node) & (1 << k) != 0
+        {
+            return false;
+        }
+        true
+    }
+
     fn may_write(&self, callee: &Callee) -> bool {
         // Release: the walked body's own answer, unless the compiler
         // supplies the code of the call (an intrinsic).

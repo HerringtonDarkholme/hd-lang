@@ -137,6 +137,14 @@ pub trait OwnCx {
     /// [`OwnCx::pass`] for a `CallValue` of a value of function type
     /// `fn_ty`.
     fn pass_value(&self, fn_ty: Ty, k: usize, n: usize) -> Pass;
+    /// Whether a `Call` of `callee` may keep its argument `k` of `n` past
+    /// the call: stored, captured or returned by the callee. Not
+    /// [`OwnCx::pass`]: a suspending or intrinsic callee is passed its
+    /// arguments `Lent` and may keep them. The default answers yes.
+    fn keeps(&self, callee: &Callee, k: usize, n: usize) -> bool {
+        let _ = (callee, k, n);
+        true
+    }
     /// Whether a call of `callee` may reach memory outside its arguments:
     /// false only for the few std functions known pure. The borrow pass
     /// and hoisting read it.
@@ -444,6 +452,38 @@ pub(crate) fn lent_values(b: &Body, cx: &dyn OwnCx, i: usize, out: &mut Vec<u32>
             && !consumes(b, cx, i, op, NONE)
         {
             out.push(v);
+        }
+    }
+}
+
+/// Each argument a call may keep past it, as (call, argument value): a
+/// `Call` argument [`OwnCx::keeps`] says so of, and every argument of a
+/// `CallValue` or `CallDyn`, whose callee is unknown.
+pub fn kept_args(b: &Body, cx: &dyn OwnCx, out: &mut Vec<(u32, u32)>) {
+    out.clear();
+    let mut ops = Vec::new();
+    for i in 0..b.len() {
+        let tag = b.tags[i];
+        if !matches!(tag, Tag::Call | Tag::CallValue | Tag::CallDyn) {
+            continue;
+        }
+        let [a, w] = b.data[i];
+        let callee = (tag == Tag::Call)
+            .then(|| Callee::from_words(b.record(a)))
+            .flatten();
+        let n = b.extra.get(w as usize).copied().unwrap_or(0) as usize;
+        operands(b, i, &mut ops);
+        for op in &ops {
+            let Role::Arg(k) = op.role else {
+                continue;
+            };
+            let kept = match &callee {
+                Some(c) => cx.keeps(c, k as usize, n.saturating_sub(3)),
+                None => true,
+            };
+            if kept {
+                out.push((u32_of(i), op.value));
+            }
         }
     }
 }

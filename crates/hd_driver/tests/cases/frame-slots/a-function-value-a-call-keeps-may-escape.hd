@@ -1,0 +1,23 @@
+# @dump: own
+# @build: v8 release
+# expected: `each`'s release summary lends `f`, so its call keeps no
+# function value and prints no `keeps` line; `keep` returns `f`, so its
+# call keeps the closure (`%c keeps %v`), as a call through a function
+# value keeps every argument (`g`). Frame planning will read this (#1399 19a).
+use std.annotation.inline
+
+fn each(xs: List[string], f: fn(string) -> void) -> void:
+    for x in xs:
+        f(x)
+
+@inline(.Never)
+fn keep(f: fn() -> void) -> fn() -> void:
+    f
+
+fn run(xs: List[string], g: fn(fn() -> void) -> void) -> usize:
+    let n: usize = 0
+    each(xs, fn(x: string) -> void: n += x.len())
+    later := keep(fn() -> void: n += 1)
+    later()
+    g(fn() -> void: n += 2)
+    n

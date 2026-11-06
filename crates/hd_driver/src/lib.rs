@@ -8706,12 +8706,30 @@ impl Run<'_> {
         hd_tir::own::values::classify(body, &mut classes);
         let mut uses = Vec::new();
         let topo = hd_tir::ir::Topology::new(body);
+        // The function values each call may keep (`hd_tir::own::kept_args`).
+        let mut kept = Vec::new();
         self.with_env(p, |cx| {
             hd_tir::own::values::uses(body, cx, &topo, &classes, &mut uses);
             hd_tir::own::values::mark_last(body, &topo, &mut uses);
+            hd_tir::own::kept_args(body, cx, &mut kept);
         });
+        kept.retain(|&(_, v)| matches!(names.pool.get(body.ty[v as usize]), TyData::Fn { .. }));
         let mut out = String::with_capacity(text.len() + 24 * classes.len());
         for line in text.split_inclusive('\n') {
+            let call = line
+                .trim_start()
+                .strip_prefix('%')
+                .and_then(|r| r.split_once(" = "))
+                .and_then(|(k, _)| k.parse::<u32>().ok());
+            if let Some(c) = call
+                && kept.iter().any(|&(i, _)| i == c)
+            {
+                out.push_str(line);
+                for &(_, v) in kept.iter().filter(|&&(i, _)| i == c) {
+                    let _ = writeln!(out, "  %{c} keeps %{v}");
+                }
+                continue;
+            }
             let local = line
                 .strip_prefix("  local $")
                 .and_then(|r| r.split(' ').next())
