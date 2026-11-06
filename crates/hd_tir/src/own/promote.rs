@@ -215,11 +215,12 @@ pub fn held_args(b: &Body, call: usize) -> u64 {
 /// body with a suspension point.
 #[must_use]
 pub fn promotable_args(b: &Body, call: usize) -> u64 {
-    if b.tags[call] != Tag::Call || b.tags.iter().any(|&t| crate::ir::is_suspension(t)) {
+    if !matches!(b.tags[call], Tag::Call | Tag::DefaultCall)
+        || b.tags.iter().any(|&t| crate::ir::is_suspension(t))
+    {
         return 0;
     }
-    let words = b.record(b.data[call][1]);
-    let args = &words[..words.len().saturating_sub(3)];
+    let args = crate::inline::arguments(b, call);
     (args.iter().enumerate().take(64))
         .filter(|&(_, &v)| {
             Ref(v)

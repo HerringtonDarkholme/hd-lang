@@ -149,9 +149,12 @@ impl dyn InlineEnv + '_ {
             self.direct_item_calls(body);
         }
         for _ in 0..4 {
+            let defaults = body.tags.contains(&Tag::DefaultCall);
             let (h, copied) = self.inline_round(body, hash, stack);
             hash = h;
-            if !(copied && release && self.direct_item_calls(body)) {
+            let direct = copied && release && self.direct_item_calls(body);
+            // Copying a default makes its enclosing call plain too.
+            if !(copied && release && (defaults || direct)) {
                 break;
             }
         }
@@ -250,6 +253,15 @@ impl dyn InlineEnv + '_ {
             else {
                 continue;
             };
+            if body.tags[c] == Tag::DefaultCall
+                && self
+                    .checked_body(def)
+                    .is_some_and(|(body, _)| hd_mono::defaults::constant(body).is_some())
+            {
+                // Collection specializes the callee on scalar defaults.
+                // Keep that marker until it has folded those decisions.
+                continue;
+            }
             if self.inline_hint(def) == InlineHint::Default
                 && hd_tir::inline::plain_call(body, c).is_none()
             {
@@ -548,6 +560,16 @@ impl dyn InlineEnv + '_ {
             return None;
         }
         let (body, hash) = self.checked_body(def)?;
+        // Keep default evaluation's call guard and its owning-reference
+        // return boundary (`&mut []`). An ordinary copy has neither.
+        if body.kind == hd_tir::ir::BodyKind::Default
+            && (hd_mono::default_needs_bracket(body)
+                || self
+                    .result(def)
+                    .is_some_and(|t| holds_local(self.pool(), self.ref_cells(), t, 0)))
+        {
+            return None;
+        }
         let body_fits = match hint {
             InlineHint::Default => hd_tir::inline::inlinable(body, INLINE_LIMIT),
             InlineHint::Auto => hd_tir::inline::inlinable(body, AUTO_INLINE_LIMIT),
@@ -733,8 +755,7 @@ impl dyn InlineEnv + '_ {
         let fits = |got: Option<Ty>, want: Ty| {
             got.is_some_and(|got| got == want || got == Ty::NEVER || want == Ty::NEVER)
         };
-        let r = caller.record(caller.data[c][1]);
-        let args = &r[..r.len().saturating_sub(3)];
+        let args = hd_tir::inline::arguments(caller, c);
         let params: Vec<usize> = (0..copy.local_ty.len())
             .filter(|&l| copy.local_flags[l] & hd_tir::ir::local_flags::PARAM != 0)
             .collect();
@@ -786,8 +807,7 @@ fn push_record(body: &mut Body, words: &[u32]) -> u32 {
 }
 
 fn reference_read_args(body: &Body, call: usize) -> u64 {
-    let words = body.record(body.data[call][1]);
-    words[..words.len().saturating_sub(3)]
+    hd_tir::inline::arguments(body, call)
         .iter()
         .enumerate()
         .take(64)
@@ -820,8 +840,7 @@ fn weakened_read_args(body: &Body, call: usize) -> u64 {
     }) {
         return 0;
     }
-    let words = body.record(body.data[call][1]);
-    words[..words.len().saturating_sub(3)]
+    hd_tir::inline::arguments(body, call)
         .iter()
         .enumerate()
         .take(64)
@@ -851,8 +870,7 @@ fn captured_read_args(body: &Body, call: usize) -> u64 {
     }) {
         return 0;
     }
-    let words = body.record(body.data[call][1]);
-    words[..words.len().saturating_sub(3)]
+    hd_tir::inline::arguments(body, call)
         .iter()
         .enumerate()
         .take(64)

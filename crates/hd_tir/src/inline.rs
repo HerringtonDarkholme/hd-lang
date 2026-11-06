@@ -22,6 +22,15 @@ use crate::own::splice::{permute_columns, renumber_through};
 /// still contain an omitted argument's `DefaultCall`.
 #[must_use]
 pub fn known_call(b: &Body, i: usize) -> Option<Callee> {
+    if b.tags[i] == Tag::DefaultCall {
+        let [def, targs] = b.record(b.data[i][0]) else {
+            return None;
+        };
+        return Some(Callee::Item {
+            def: DefId::from_raw(*def),
+            targs: TyList(*targs),
+        });
+    }
     if b.tags[i] != Tag::Call {
         return None;
     }
@@ -33,13 +42,23 @@ pub fn known_call(b: &Body, i: usize) -> Option<Callee> {
     Callee::from_words(b.record(b.data[i][0]))
 }
 
+/// Arguments of a known call. Default calls have no provider trailer.
+#[must_use]
+pub fn arguments(b: &Body, i: usize) -> &[u32] {
+    let r = b.record(b.data[i][1]);
+    if b.tags[i] == Tag::DefaultCall {
+        r
+    } else {
+        &r[..r.len().saturating_sub(3)]
+    }
+}
+
 /// The callee of call `i` under the ordinary inlining rule: a
 /// [`known_call`] with no omitted argument.
 #[must_use]
 pub fn plain_call(b: &Body, i: usize) -> Option<Callee> {
     let callee = known_call(b, i)?;
-    let r = b.record(b.data[i][1]);
-    let args = &r[..r.len().checked_sub(3)?];
+    let args = arguments(b, i);
     let default = args
         .iter()
         .any(|&a| b.tags.get(a as usize) == Some(&Tag::DefaultCall));
@@ -101,7 +120,7 @@ pub fn copyable(c: &Body) -> bool {
                 | Tag::FlagClear
         ),
     };
-    c.kind == BodyKind::Fn
+    matches!(c.kind, BodyKind::Fn | BodyKind::Default)
         && n >= 1
         && c.sub_root == [u32_of(n - 1)]
         && c.susp.is_empty()
@@ -323,8 +342,7 @@ fn prepare(b: &Body, site: Site, outer: &[u32]) -> Option<Ready> {
         by_ref,
         by_value,
     } = site;
-    let r = b.record(b.data[c][1]);
-    let args = &r[..r.len().saturating_sub(3)];
+    let args = arguments(b, c);
     let mut params = Vec::new();
     let mut refs = Vec::new();
     let mut count = 0;
@@ -1122,5 +1140,39 @@ mod tests {
         assert_eq!(known_call(&body, 1), Some(item(3)));
         assert_eq!(plain_call(&body, 1), None);
         inline_call(&mut body, 1, callee()).expect("decorated call inlines");
+    }
+
+    #[test]
+    fn a_default_copy_binds_all_earlier_arguments_without_a_provider_trailer() {
+        let mut default = TirBuilder::new(DefId::from_raw(3), BodyKind::Default);
+        let block = default.open_block();
+        let mut last = None;
+        for k in 0..4 {
+            last = Some(default.local(Ty::STRING, Symbol::from_raw(k), local_flags::PARAM, N));
+        }
+        let tail = default.get(last.expect("four parameters"), Ty::STRING, N);
+        let root = default.close_block(block, Some(tail), Ty::STRING, N);
+        let copy = default.finish(root, &[]).expect("default verifies");
+        assert!(copyable(&copy));
+
+        let mut caller = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let block = caller.open_block();
+        let text = caller.const_str("earlier");
+        let effect = caller.call(&item(7), &[], Providers::None, Ty::STRING, N);
+        let target = caller.refs_record(&[Ref(3), Ref(TyList::EMPTY.0)]);
+        let earlier = caller.refs_record(&[text, text, text, effect]);
+        let call = caller.emit(Tag::DefaultCall, target, earlier, Ty::STRING, N);
+        let root = caller.close_block(block, Some(call), Ty::STRING, N);
+        let mut body = caller.finish(root, &[]).expect("caller verifies");
+        assert_eq!(known_call(&body, call.0 as usize), Some(item(3)));
+        inline_call(&mut body, call.0 as usize, copy).expect("default inlines");
+        assert!(!body.tags.contains(&Tag::DefaultCall));
+        assert_eq!(
+            body.tags.iter().filter(|&&tag| tag == Tag::Store).count(),
+            4
+        );
+        assert_eq!(body.tags.iter().filter(|&&tag| tag == Tag::Call).count(), 1);
+        body.anchors.clear();
+        assert_eq!(verify(&body), []);
     }
 }

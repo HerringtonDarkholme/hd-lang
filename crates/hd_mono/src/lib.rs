@@ -3691,7 +3691,7 @@ impl Cx<'_> {
                     let targs: Vec<Ty> =
                         pool.list_items(TyList(l)).iter().copied().map(s).collect();
                     let t = self.target(def, pool.list(&targs), id)?;
-                    let bracket = env.body(def).is_some_and(makes_call);
+                    let bracket = env.body(def).is_some_and(default_needs_bracket);
                     let owned = env.body(def).is_some_and(returns_new_object);
                     reps.u8(u8::from(bracket));
                     reps.u8(u8::from(owned));
@@ -4041,7 +4041,9 @@ fn returns_new_object(body: &Body) -> bool {
     false
 }
 
-fn makes_call(body: &Body) -> bool {
+/// Whether evaluating a default needs the runtime guard against `block_on`.
+#[must_use]
+pub fn default_needs_bracket(body: &Body) -> bool {
     (0..body.len()).any(|i| match body.tags[i] {
         Tag::Call
         | Tag::CallValue
