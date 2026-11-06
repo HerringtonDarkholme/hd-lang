@@ -38,8 +38,8 @@ run plancheck python3 scripts/plancheck.py "$logs/plan.md" --show "$step"
 python3 scripts/plancheck.py "$logs/plan.md" --show "$step" | grep -E "^  " >"$logs/evidence.txt"
 echo "evidence: $(wc -l <"$logs/evidence.txt" | tr -d ' ') lines for $step in $logs/evidence.txt"
 run fmt cargo fmt --check
-run clippy cargo clippy -q -p hd_tir -p hd_driver -p hd_wasm_linear --all-targets -- -D warnings
-run hd_tir cargo test -q -p hd_tir
+run clippy cargo clippy -q -p hd_tir -p hd_opt -p hd_driver -p hd_wasm_linear --all-targets -- -D warnings
+run hd_tir cargo test -q -p hd_tir -p hd_opt
 run hd_driver cargo test -q -p hd_driver --lib --test stages
 run wasm_stages cargo test -q -p hd_wasm_linear --test stages
 run conf_dev env HD_CONFORMANCE_ONLY=$cases cargo test -q -p hd_driver --test conformance $conf -- --exact
