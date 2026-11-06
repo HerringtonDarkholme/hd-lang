@@ -4,7 +4,6 @@
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "width#adapter" (func $width#adapter (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -40,19 +39,29 @@
       call $rt:release_ref'2
     end
   )
-  (func $static_bound (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
+  (func $static_bound (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $t0 i32)
     block
     ;; 17 |     invoke(width, s) + invoke(fn(x: string) -> usize: x.len() + 1, s)
-      local.get $s.0
-      call $retain
       block
         block
-          i32.const 0
           local.get $s.0
           local.get $s.1
-          i32.const 0
-          call $width#adapter
           local.set $t0
+          local.set $t1
+          block
+            block
+              local.get $t1
+              drop
+              block
+                block
+                  local.get $t0
+                  local.set $t1
+                  br 0
+                end
+              end
+              br 0
+            end
+          end
           br 0
         end
       end
@@ -69,7 +78,7 @@
           br 0
         end
       end
-      local.get $t0
+      local.get $t1
       local.get $s.0
       i32.add
     ;; (no span)

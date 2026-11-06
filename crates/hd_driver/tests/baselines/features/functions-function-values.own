@@ -51,20 +51,33 @@ fn named_value(s: string) -> usize:
 >     uses $1: %2 -> %4 lend last
 >   local $2 s: string [read] value
 >     uses $2: %3 -> %5 consume last
+>   local $3 s: string [read] value
+>     uses $3: %6 -> %7 consume last
+>   local $4 self: string [read] value
+>     uses $4: %8 -> %9 lend last
 >   %0 = ItemRef #0 [..] : fn(string) -> usize
->   %1 = Read move [$0] : string
+>   %1 = Read borrow [$0] : string
 >   %2 = Store [$1] %0 : ()
 >   %3 = Store [$2] %1 : ()
 >   %4 = Read borrow [$1] : fn(string) -> usize
->   %5 = Read move [$2] : string
->   %6 = CallValue %4 [%5] : usize
->   %7 = Break L0 %6 : never
->   %8 = Block - : usize
->   %9 = Scope %8 [] : usize
->   %10 = Drop [$1] : ()
->   %11 = Block %9 : usize
->   exit sub 0 drops [$0]
->   summary kept [$0] writes
+>   %5 = Read borrow [$2] : string
+>   %6 = Store [$3] %5 : ()
+>   %7 = Read borrow [$3] : string
+>   %8 = Store [$4] %7 : ()
+>   %9 = Read borrow [$4] : string
+>   %10 = Call std/rt.bytes/bytes_len[] (%9) : usize
+>   %11 = Break L1 %10 : never
+>   %12 = Block - : usize
+>   %13 = Scope %12 [] : usize
+>   %14 = Break L2 %13 : never
+>   %15 = Block - : usize
+>   %16 = Scope %15 [] : usize
+>   %17 = Break L0 %16 : never
+>   %18 = Block - : usize
+>   %19 = Scope %18 [] : usize
+>   %20 = Drop [$1] : ()
+>   %21 = Block %19 : usize
+>   summary kept [] borrows [$0]
 
 fn ident[T](x: T) -> T:
     x
@@ -99,20 +112,26 @@ fn generic_value(s: string) -> string:
 >     uses $1: %2 -> %5 consume last
 >   local $2 f: fn(string) -> string [read] value
 >     uses $2: %3 -> %4 lend last
+>   local $3 x: string [read] value
+>     uses $3: %6 -> %7 consume last
 >   %0 = Read move [$0] : string
 >   %1 = ItemRef #0 [..] : fn(string) -> string
 >   %2 = Store [$1] %0 : ()
 >   %3 = Store [$2] %1 : ()
 >   %4 = Read borrow [$2] : fn(string) -> string
 >   %5 = Read move [$1] : string
->   %6 = CallValue %4 [%5] : string
->   %7 = Break L0 %6 : never
->   %8 = Block - : string
->   %9 = Scope %8 [] : string
->   %10 = Drop [$2] : ()
->   %11 = Block %9 : string
+>   %6 = Store [$3] %5 : ()
+>   %7 = Read move [$3] : string
+>   %8 = Break L1 %7 : never
+>   %9 = Block - : string
+>   %10 = Scope %9 [] : string
+>   %11 = Break L0 %10 : never
+>   %12 = Block - : string
+>   %13 = Scope %12 [] : string
+>   %14 = Drop [$2] : ()
+>   %15 = Block %13 : string
 >   exit sub 0 drops [$0]
->   summary kept [$0] writes
+>   summary kept [$0]
 
 fn variant_value(s: string) -> Event:
     map_one(s, Event.Named)

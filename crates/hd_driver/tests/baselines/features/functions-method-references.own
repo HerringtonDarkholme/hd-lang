@@ -44,19 +44,32 @@ fn unbound(u: User) -> usize:
     f := User::name_len
 > app/main/unbound
 >   local $0 u: User [param read] value
->     uses $0: entry -> %3 consume last
+>     uses $0: entry -> %4 consume last
 >   local $1 f: fn(User) -> usize [:= read assigned] value
 >     uses $1: %1 -> %2 lend last
+>   local $2 self: User [read] value
+>     uses $2: %5 -> %6 consume last
+>   local $3 self: string [read] value
+>     uses $3: %7 -> %8 lend last
 >   %0 = ItemRef #0 [..] : fn(User) -> usize
 >   %1 = Store [$1] %0 : ()
->   %6 = Block %4 : usize
+>   %16 = Block %15 : usize
     f(u)
->   %2 = Read move [$1] : fn(User) -> usize
->   %3 = Read move [$0] : User
->   %4 = CallValue %2 [%3] : usize
->   %5 = Drop [%2] : ()
->   exit sub 0 drops [$0]
->   summary kept [$0] writes
+>   %2 = Read borrow [$1] : fn(User) -> usize
+>   %3 = Drop [$1] : ()
+>   %4 = Read borrow [$0] : User
+>   %5 = Store [$2] %4 : ()
+>   %6 = Read borrow [$2 .name] : string
+>   %7 = Store [$3] %6 : ()
+>   %8 = Read borrow [$3] : string
+>   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
+>   %10 = Break L0 %9 : never
+>   %11 = Block - : usize
+>   %12 = Scope %11 [] : usize
+>   %13 = Break L1 %12 : never
+>   %14 = Block - : usize
+>   %15 = Scope %14 [] : usize
+>   summary kept [] borrows [$0]
 
 fn bound(u: User) -> usize:
     f := u::name_len

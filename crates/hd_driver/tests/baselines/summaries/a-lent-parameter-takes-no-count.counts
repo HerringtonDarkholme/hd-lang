@@ -64,3 +64,4 @@ pub fn main() -> void $ Console:
     println(pinned())
 >   unique List[i64] (conservative: unique)
 >   release List[i64] (last use)
+>   (no span) release app.main.Field [name.0] (last use)

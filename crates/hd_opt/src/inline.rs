@@ -141,6 +141,102 @@ impl dyn InlineEnv + '_ {
     /// [`inline_calls`] inside the copies on `stack`, the caller first: a
     /// call of one of them stays a call, so recursion never inlines.
     fn inline_into(&self, body: &mut Body, hash: Hash128, stack: &mut Vec<DefId>) -> Hash128 {
+        let mut hash = hash;
+        // A call through a function reference the body knows is a call
+        // of its item, which may copy in turn; a copy may bring more.
+        let release = self.memo().is_some();
+        if release {
+            self.direct_item_calls(body);
+        }
+        for _ in 0..4 {
+            let (h, copied) = self.inline_round(body, hash, stack);
+            hash = h;
+            if !(copied && release && self.direct_item_calls(body)) {
+                break;
+            }
+        }
+        hash
+    }
+
+    /// Rewrites each `CallValue` whose callee is a function reference to
+    /// an item (`ItemRef`), directly or through a local stored once with
+    /// one, into a `Call` of that item (#1385): the value's code is the
+    /// item's adapter, which only calls it. Not for a trait method's
+    /// reference, an item that suspends or has a requirement row, whose
+    /// calls pass more than the arguments. Whether any changed.
+    fn direct_item_calls(&self, body: &mut Body) -> bool {
+        if !body.tags.contains(&Tag::ItemRef) {
+            return false;
+        }
+        let none = u32::MAX;
+        // Per local: its stores, and the value of the last whole one.
+        let mut sets = vec![(0u32, none); body.local_ty.len()];
+        for i in 0..body.len() {
+            if let Some((l, whole)) = body.stored_local(i) {
+                let s = &mut sets[l.idx()];
+                *s = (s.0 + 1, if whole { body.data[i][1] } else { none });
+            }
+            if body.tags[i] == Tag::Ref
+                && let Some(l) = body.local_in_place(body.data[i][0])
+            {
+                sets[l.idx()].0 = 2;
+            }
+        }
+        for (l, &f) in body.local_flags.iter().enumerate() {
+            if f & local_flags::PARAM != 0 {
+                sets[l].0 = 2;
+            }
+        }
+        let mut changed = false;
+        for i in 0..body.len() {
+            if body.tags[i] != Tag::CallValue {
+                continue;
+            }
+            let v = body.data[i][0];
+            let made = match body.tags.get(v as usize) {
+                Some(Tag::ItemRef) => v,
+                Some(Tag::Read) => match body.view(body.data[v as usize][0]) {
+                    p if p.whole() => match p.local().map(|l| sets[l as usize]) {
+                        Some((1, x)) if body.tags.get(x as usize) == Some(&Tag::ItemRef) => x,
+                        _ => continue,
+                    },
+                    _ => continue,
+                },
+                _ => continue,
+            };
+            let [a, w] = body.data[made as usize];
+            let (Some(&d), Some(&targs)) = (body.record(a).first(), body.record(w).first()) else {
+                continue;
+            };
+            let def = DefId::from_raw(d);
+            let method_of_trait = self
+                .parent(def)
+                .is_some_and(|(owner, _)| self.impl_head(owner).is_none());
+            if method_of_trait
+                || self.suspends(def)
+                || !matches!(self.signature(def), Some((_, false, false)))
+            {
+                continue;
+            }
+            let mut args = body.record(body.data[i][1]).to_vec();
+            args.extend([0, 0, 0]);
+            let callee = push_record(body, &[0, d, targs]);
+            let args = push_record(body, &args);
+            body.tags[i] = Tag::Call;
+            body.data[i] = [callee, args];
+            changed = true;
+        }
+        changed
+    }
+
+    /// One round of [`Self::inline_into`]: the body's hash with each copied
+    /// callee's, and whether it copied any.
+    fn inline_round(
+        &self,
+        body: &mut Body,
+        hash: Hash128,
+        stack: &mut Vec<DefId>,
+    ) -> (Hash128, bool) {
         let pool = self.pool();
         let mut k = StableHasher::new("inline");
         k.hash(hash);
@@ -272,9 +368,9 @@ impl dyn InlineEnv + '_ {
                 )
             };
             hd_tir::ir::map_body_types(body, &ty, &list);
-            k.finish()
+            (k.finish(), true)
         } else {
-            hash
+            (hash, false)
         }
     }
 
@@ -681,6 +777,14 @@ impl dyn InlineEnv + '_ {
 /// A read of an unchanged reference parameter retains a visible origin
 /// after substitution: the ownership walk follows the read back to that
 /// parameter. References held in fields or call results lack this proof.
+/// Appends a record of `words` to `body`'s `extra`; its offset.
+fn push_record(body: &mut Body, words: &[u32]) -> u32 {
+    let at = u32::try_from(body.extra.len()).expect("extra");
+    body.extra.push(u32::try_from(words.len()).expect("record"));
+    body.extra.extend_from_slice(words);
+    at
+}
+
 fn reference_read_args(body: &Body, call: usize) -> u64 {
     let words = body.record(body.data[call][1]);
     words[..words.len().saturating_sub(3)]

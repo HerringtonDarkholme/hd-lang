@@ -7,7 +7,6 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
-  (import "fixture" "impl User.name_len#adapter" (func $"impl User.name_len#adapter" (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $bound (param $u.name.0 i32) (param $u.name.1 i32) (result i32) (local $t0 i32)
     block
@@ -238,14 +237,22 @@
   (func $unbound (param $u.name.0 i32) (param $u.name.1 i32) (result i32)
     block
     ;; 20 |     f(u)
-      i32.const 0
-      local.get $u.name.0
-      local.get $u.name.1
-      i32.const 0
-      call $"impl User.name_len#adapter"
-    ;; (no span)
-      local.set $u.name.0
+      block
+        block
+          local.get $u.name.0
+          drop
+          block
+            block
+              local.get $u.name.1
+              local.set $u.name.0
+              br 0
+            end
+          end
+          br 0
+        end
+      end
     end
+    ;; (no span)
     local.get $u.name.0
   )
 )

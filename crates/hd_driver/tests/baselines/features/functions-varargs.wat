@@ -2,7 +2,6 @@
 (module
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "total#adapter" (func $total#adapter (param i32 i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $spread (param $xs i32) (result i32)
     ;; 18 |     total(xs...)
@@ -79,11 +78,11 @@
       local.get $t1
       local.get $b.1
       i32.store $heap offset=20
-      i32.const 0
       local.get $t0
-      i32.const 0
-      call $total#adapter
+      call $total
+      local.get $t0
     ;; (no span)
+      call $rt:release_ref
       local.set $a.0
     end
     local.get $a.0

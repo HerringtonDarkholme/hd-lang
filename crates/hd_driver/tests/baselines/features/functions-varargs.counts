@@ -26,3 +26,5 @@ fn none() -> usize:
 fn through_value(a: string, b: string) -> usize:
     f := total
     f(a, b)
+> app/main/through_value
+>   (no span) release List[string] (last use)
