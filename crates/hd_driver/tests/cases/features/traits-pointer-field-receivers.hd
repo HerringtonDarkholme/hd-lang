@@ -1,0 +1,44 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Dynamic Trait Values through a counted pointer field (spec/lang/09-traits.md;
+# std.iter's DynIterator).
+# expected: `step` calls through `self.source` with no count when its
+# caller's receiver is a local: the trait value lives on the pointer's
+# count, which the exclusive receiver keeps for the call; `total`
+# allocates nothing and counts only the source it drops.
+use std.annotation.inline
+
+trait Step:
+    fn step(&mut self) -> i64?
+
+struct Counter:
+    at: i64
+    end: i64
+
+impl Step for Counter:
+    fn step(&mut self) -> i64?:
+        if self.at >= self.end:
+            return .None
+        value := self.at
+        self.at = value + 1
+        .Some(value)
+
+struct Erased:
+    source: *mut dyn Step
+
+impl Step for Erased:
+    @inline(.Never)
+    fn step(&mut self) -> i64?:
+        self.source.step()
+
+fn total(items: Erased) -> i64:
+    let mut cursor = items
+    let sum: i64 = 0
+    while true:
+        match cursor.step():
+            .Some(x) => sum = sum + x
+            .None => break
+    sum
+
+pub fn count(n: i64) -> i64:
+    total(Erased { source: box(Counter { at: 0, end: n }) })

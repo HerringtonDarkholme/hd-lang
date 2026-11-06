@@ -162,6 +162,13 @@ pub trait OwnCx {
         let _ = (item, k, n);
         false
     }
+    /// Whether `ty` is a trait value (`dyn T`, `mut dyn T`): the words of
+    /// the counted pointer it is read through, its object held by that
+    /// pointer's count. The default answers no.
+    fn trait_value(&self, ty: Ty) -> bool {
+        let _ = ty;
+        false
+    }
     /// The parts of a value of `ty` that is laid out in place in every
     /// instance, into `out`: the field types of a struct, a tuple or a
     /// newtype (`variant` `None`), or of variant `variant` of an enum that

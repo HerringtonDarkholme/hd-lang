@@ -510,6 +510,15 @@ impl OwnCx for Env<'_> {
         matches!(pool.get(t), TyData::Ref { counted: false, .. })
     }
 
+    fn trait_value(&self, ty: Ty) -> bool {
+        let pool = &self.run.pool;
+        let mut t = ty;
+        while let TyData::Mut(inner) = pool.get(t) {
+            t = inner;
+        }
+        matches!(pool.get(t), TyData::TraitValue { .. })
+    }
+
     fn parts(&self, ty: Ty, variant: Option<u32>, out: &mut Vec<Ty>) -> bool {
         if self.is_open(ty) {
             out.clear();

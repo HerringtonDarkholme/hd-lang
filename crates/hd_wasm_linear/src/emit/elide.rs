@@ -25,7 +25,7 @@
 //! An erased body that accesses an open type through a `*T` counts as
 //! accessing every type.
 
-use hd_base::{HashMap, HashSet, InstId};
+use hd_base::{HashMap, HashSet, InstId, SliceSort as _};
 use hd_mono::{Sub, Target, TargetKind, subst};
 use hd_tir::ir::{Body, PlaceRoot, Tag};
 use hd_types::{Ty, TyData};
@@ -37,6 +37,9 @@ use super::excl::{Bind, binds, call_args, call_info, direct_value};
 use crate::Input;
 use crate::layout::{Kind, kind, ref_mutable};
 use crate::module::Module;
+
+/// A source instruction of an instance ([`decide`]'s per-type counts).
+type Source = (hd_base::DefId, hd_types::TyList, Sub, hd_base::NodeIdx, u32);
 
 /// The key of a kept loan: the instance, the instruction that takes it (a
 /// `Ref`, or the read of a `*T` lent as a reference), and the index of
@@ -214,6 +217,13 @@ pub(crate) fn decide(input: &Input<'_>, m: &mut Module) {
     m.dyn_types = dyn_types(input);
     // Each body's accesses, and the program's per-type counts.
     let mut accs: HashMap<InstId, HashMap<u32, Acc>> = HashMap::default();
+    // An access is counted once per source instruction: the copies of a
+    // body (its exclusive copy, #1118) run the same instruction, which
+    // counts as the loan's own in each of them, as a recursive run of it
+    // does. Its key is the instance's item, type arguments and sub-body,
+    // and the instruction's source node with its rank among the body's
+    // accesses at that node.
+    let mut seen: HashSet<(Ty, bool, Source)> = HashSet::default();
     let mut count_w: HashMap<Ty, u32> = HashMap::default();
     let mut count_r: HashMap<Ty, u32> = HashMap::default();
     let mut every = false;
@@ -226,12 +236,30 @@ pub(crate) fn decide(input: &Input<'_>, m: &mut Module) {
             continue;
         }
         let a = accesses(input, m, *id, b);
-        for acc in a.values() {
+        let mut at: Vec<u32> = a.keys().copied().collect();
+        at.sort_stable();
+        let mut rank: HashMap<hd_base::NodeIdx, u32> = HashMap::default();
+        for j in at {
+            let acc = &a[&j];
+            let node = b.syn[j as usize];
+            let k = rank.entry(node).or_default();
+            let source = (
+                t.item[id.idx()],
+                t.args[id.idx()],
+                t.sub[id.idx()],
+                node,
+                *k,
+            );
+            *k += 1;
             for x in &acc.w {
-                *count_w.entry(*x).or_default() += 1;
+                if seen.insert((*x, true, source)) {
+                    *count_w.entry(*x).or_default() += 1;
+                }
             }
             for x in &acc.r {
-                *count_r.entry(*x).or_default() += 1;
+                if seen.insert((*x, false, source)) {
+                    *count_r.entry(*x).or_default() += 1;
+                }
             }
             // Only an open access is unknown program-wide: a call's
             // callees are counted at their own bodies.
@@ -301,8 +329,7 @@ pub(crate) fn decide(input: &Input<'_>, m: &mut Module) {
     };
     // Whether the program accesses `t` through a `*T` beyond `own`'s.
     let program = |t: Ty, excl: bool, own: Option<&Acc>| -> bool {
-        let less =
-            |list: Option<&Vec<Ty>>| list.map_or(0, |l| l.iter().filter(|x| **x == t).count());
+        let less = |list: Option<&Vec<Ty>>| usize::from(list.is_some_and(|l| l.contains(&t)));
         let w = count_w.get(&t).copied().unwrap_or(0) as usize - less(own.map(|a| &a.w));
         let r = count_r.get(&t).copied().unwrap_or(0) as usize - less(own.map(|a| &a.r));
         every || w > 0 || (excl && r > 0)

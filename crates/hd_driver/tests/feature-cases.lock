@@ -99,6 +99,7 @@ traits-delegation
 traits-derived-comparison
 traits-erased-errors
 traits-method-param-defaults
+traits-pointer-field-receivers
 traits-supertraits
 traits-trait-values
 values-boxes

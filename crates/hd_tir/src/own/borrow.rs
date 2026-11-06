@@ -318,6 +318,9 @@ pub(crate) struct Tables {
     whole_other: Vec<bool>,
     receives: Vec<(u32, u32)>,
     pub(crate) relies: u64,
+    /// The next [`Tables::walk`] is of a trait value read through a
+    /// counted pointer a part holds ([`Tables::walk_read`]).
+    handle: bool,
 }
 
 impl Tables {
@@ -370,6 +373,27 @@ impl Tables {
         self.walk_on(b, word, follow, 0, 0)
     }
 
+    /// [`Tables::walk`] of read `r`'s place. A trait value read through
+    /// the counted pointer a field, element or variant holds
+    /// (`[*$0 .source *]`) is that pointer's own words, its object held by
+    /// the pointer's count: the chain is the pointer's place, which a
+    /// write into the object (behind the pointer) leaves alone.
+    fn walk_read(&mut self, b: &Body, cx: &dyn OwnCx, r: usize, follow: bool) -> Chain {
+        let (mut before, mut last) = (None, None);
+        for step in b.view(b.data[r][0]).steps(b) {
+            (before, last) = (last, Some(step));
+        }
+        self.handle = last == Some(Proj::Deref)
+            && matches!(
+                before,
+                Some(Proj::Field(_) | Proj::Elem(_) | Proj::Variant(_))
+            )
+            && cx.trait_value(b.ty[r]);
+        let chain = self.walk(b, b.data[r][0], follow);
+        self.handle = false;
+        chain
+    }
+
     /// [`Tables::walk`] from the place at `word`, with the codes
     /// `below_start..` (`below` of them) of `self.cpath` below it.
     fn walk_on(
@@ -393,7 +417,10 @@ impl Tables {
             let p = b.view(word);
             let start = u32_of(self.cpath.len());
             let first = p.first(b) == Some(Proj::Deref);
-            let (d, e) = p.push_steps(b, &mut self.cpath);
+            let (mut d, e) = p.push_steps(b, &mut self.cpath);
+            if std::mem::take(&mut self.handle) && self.cpath.pop_if(|c| *c == DEREF).is_some() {
+                d -= 1;
+            }
             let own = u32_of(self.cpath.len()) - start;
             self.cpath
                 .extend_from_within(below_start as usize..(below_start + below) as usize);
@@ -1328,7 +1355,7 @@ fn decide(
     let blocked = if match_read {
         false
     } else {
-        let mut chain = t.walk(b, b.data[r][0], true);
+        let mut chain = t.walk_read(b, cx, r, true);
         // The match subject keeps its reference alive through the selected
         // arm. A call known not to write may therefore run while a payload is
         // lent, even though projections below the dereference ordinarily make
