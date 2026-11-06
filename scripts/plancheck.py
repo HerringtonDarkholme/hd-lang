@@ -159,7 +159,7 @@ def needs_work(case):
     return bool(counts_ops(case)) or re.search(r'value ×[0-9]', view(case, 'own'))
 
 term_re = re.compile(r'^(!?)(tir|own|counts|wat)~(.+)$')
-step_re = re.compile(r'^- \[([ x])\] ([0-9]+[a-z]*)\. (.*)$')
+step_re = re.compile(r'^- \[([ x])\] ([0-9]+[a-z]*[0-9]*)\. (.*)$')
 looks_like_step = re.compile(r'^- \[[ x]\] ')
 covered = set()
 op_covered = set()   # (case, line) pairs a step's counts evidence matches
