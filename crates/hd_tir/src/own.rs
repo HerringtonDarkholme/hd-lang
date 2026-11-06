@@ -64,6 +64,8 @@ mod reason;
 pub(crate) mod splice;
 pub mod values;
 
+#[cfg(not(target_arch = "wasm32"))]
+pub use reason::check_copy_reasons;
 pub use reason::{Reason, copy_reasons, reason};
 
 /// Whether a value of a type may be copied ([`OwnCx::copies`]).
