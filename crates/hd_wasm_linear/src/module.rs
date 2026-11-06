@@ -1252,11 +1252,12 @@ impl Module {
         self.inst_order.retain(|s| seen.contains(*s));
     }
 
-    /// Reuse the existing no-view link fact before cycle selection: a
-    /// physical projection is an address offset plus its owned count.
-    /// Removing its unreachable view helper also prevents that helper's
-    /// allocation descriptor from needlessly linking the collector.
-    fn physical_projections(&mut self) {
+    /// Reuse the existing no-view link fact before cycle selection:
+    /// projections are address offsets plus their owned count, and a
+    /// reference's identity serial is its zero-extended physical address.
+    /// Removing unreachable view helpers also keeps their allocation
+    /// descriptors from needlessly linking the collector.
+    fn physical_references(&mut self) {
         let runtime = self.runtime;
         for f in self.funcs.iter_mut().flatten() {
             let body = std::mem::take(&mut f.body);
@@ -1264,6 +1265,15 @@ impl Module {
             let outer = f.origin_at;
             for (i, ins) in body.into_iter().enumerate() {
                 f.origin_at = origins.as_ref().and_then(|o| o[i]);
+                if matches!(ins, Ins::Call(id)
+                    if matches!(&*self.symbols.get(id), Sym::Helper(crate::rt::Helper::RefAddress)))
+                {
+                    // RefAddress returns i64 to also represent an erased
+                    // word plus its field offset. With no views, its whole
+                    // loop is just the unsigned physical i32 address.
+                    f.op(Instruction::I64ExtendI32U);
+                    continue;
+                }
                 let projection = match ins {
                     Ins::Call(id) => match &*self.symbols.get(id) {
                         Sym::Helper(crate::rt::Helper::RefProject {
@@ -1463,7 +1473,7 @@ impl Module {
                 )
             })
         {
-            self.physical_projections();
+            self.physical_references();
             seen = self.reached();
         }
         // An extension can introduce cyclic objects, reference views, wakers
