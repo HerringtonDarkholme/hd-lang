@@ -1241,12 +1241,23 @@ impl Em<'_, '_, '_> {
             || !self.vals.contains_key(&r)
             || !self.needs_drop(self.ty_of(r))
             || self.moving.contains(&(user, r))
-            || (self.scoped_loans.contains(&r) && !self.loans.contains(&user))
+            || (self.scoped_loans.contains(&r)
+                && !self.loans.contains(&user)
+                && !self.binds_loan(user))
         {
             return false;
         }
         self.moving.push((user, r));
         true
+    }
+
+    /// Whether `Store` `i` binds a whole local that holds only loans
+    /// ([`Em::loan_locals`]): the binding is one of the loan's values, so
+    /// a scoped loan moves into it and ends at the local's `Drop`.
+    fn binds_loan(&self, i: u32) -> bool {
+        self.b.stored_local(i as usize).is_some_and(|(l, whole)| {
+            whole && !self.is_cell(l.idx()) && self.loan_locals.contains_key(&l.idx())
+        })
     }
 
     /// After owned instruction `i`: each value it consumes whose count its
