@@ -24,9 +24,7 @@ fn shared_list(s: string) -> usize:
     add := fn() -> void: xs.push(s)
 > app/main/shared_list
 >   retain string (conservative: entry)
->   retain counted reference (conservative: entry)
 >   unique List[string] (conservative: unique)
->   release counted reference (last use)
 > app/main/shared_list
 >   retain counted reference (conservative: Closure)
     add()
@@ -47,9 +45,7 @@ fn copy_shares(s: string) -> usize:
     again()
 > app/main/copy_shares
 >   retain string (conservative: entry)
->   retain counted reference (conservative: entry)
 >   release string (last use)
->   release counted reference (last use)
     n
 >   (no span) release fn() -> () (last use)
 

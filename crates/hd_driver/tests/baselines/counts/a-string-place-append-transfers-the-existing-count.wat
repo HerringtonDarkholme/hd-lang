@@ -6,10 +6,9 @@
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
-  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
@@ -126,8 +125,7 @@
     ;; 12 |     append("!")
     local.get $env
     i32.load $heap
-    local.tee $env
-    call $rt:retain_known
+    local.set $env
     block
     ;; 11 |     append := fn(suffix: string) -> void: current += suffix
       local.get $env
@@ -159,8 +157,6 @@
       i32.store $heap offset=4
       call $rt:release_ref'1
     ;; 12 |     append("!")
-      local.get $env
-      call $rt:release_ref'2
     end
   )
   (func $through_cell (param $text.0 i32) (param $text.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32)

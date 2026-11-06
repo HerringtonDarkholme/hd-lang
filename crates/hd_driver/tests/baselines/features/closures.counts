@@ -27,9 +27,7 @@ fn shared(s: string) -> string:
     let mut t = s
     add := fn() -> void: t += "x"
 > app/main/shared
->   retain counted reference (conservative: entry)
 >   release string (overwritten)
->   release counted reference (last use)
 > app/main/shared
 >   retain counted reference (conservative: Closure)
     add()
