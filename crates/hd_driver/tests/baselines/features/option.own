@@ -61,8 +61,34 @@ fn or_default(o: string?) -> string:
     o.unwrap_or("none")
 > app/main/or_default
 >   local $0 o: string? [param read] value
->     uses $0: entry -> %0 lend last
+>     uses $0: entry -> %0 consume last
+>   local $1 self: string? [read] value
+>     uses $1: %1 -> %3 lend last
+>   local $2 fallback: string [read] value
+>     uses $2: %2 -> %6 consume last
+>   local $3 value: string [read assigned] value
+>     uses $3: %9 -> %4 consume last
 >   %0 = Read borrow [$0] : string?
->   %1 = Call std/option/impl [ T < ? Copy ] T ?.unwrap_or[string] (%0, "none") : string
->   %2 = Block %1 : string
+>   %1 = Store [$1] %0 : ()
+>   %2 = Store [$2] "none" : ()
+>   %3 = Read borrow [$1] : string?
+>   %4 = Read move [$3] : string
+>   %5 = Block %4 : string
+>   %6 = Read move [$2] : string
+>   %7 = Block %6 : string
+>   %8 = Read copy [%3 as #1 .0] : string
+>   %9 = Store [$3] %8 : ()
+>   %11 = Block - : never
+>   %13 = Block - : never
+>   %15 = Block - : never
+>   %16 = SwitchTag %3 [#0 %13 %15] : never
+>   %17 = Block - : never
+>   %18 = SwitchTag %3 [#1 %11 %17] : never
+>   %19 = Block - : never
+>   %20 = Match %3 [%19 %5 %7] : string
+>   %21 = Break L0 %20 : never
+>   %22 = Block - : string
+>   %23 = Scope %22 [] : string
+>   %24 = Drop [$2] : ()
+>   %25 = Block %23 : string
 >   summary kept [] borrows [$0]

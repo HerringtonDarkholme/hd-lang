@@ -1,0 +1,43 @@
+# @dump: wat
+# @build: v8 release
+# A pure small match fits the size estimate, including its real branches.
+use std.collections.UniqList
+
+fn pick(value: f64?, fallback: f64) -> f64:
+    match value:
+        .Some(v) => v
+        .None => fallback
+
+fn user_sum(xs: &UniqList[f64]) -> f64:
+    let total = 0.0
+    for i in 0..xs.len():
+        total += pick(xs.get(i), 0.0)
+    total
+
+fn std_sum(xs: &UniqList[f64]) -> f64:
+    let total = 0.0
+    for i in 0..xs.len():
+        total += xs.get(i).unwrap_or(0.0)
+    total
+
+# The existing collection-call boundaries remain; their unwrap helper disappears.
+fn copied_sum(xs: &List[f64]) -> f64:
+    let total = 0.0
+    for i in 0..xs.len():
+        total += xs.get(i).unwrap_or(0.0)
+    total
+
+fn map_value(values: &Map[i32, f64], key: i32) -> f64:
+    values.get(key).unwrap_or(0.0)
+
+# A loan-carrying result keeps the existing call boundary and loan ends.
+fn loan_value['a](value: (&'a string)?) -> &'a string:
+    value.expect("value")
+
+fn explicit_loan['a](value: (&'a string)?) -> &'a string:
+    match value:
+        .Some(v) => return v
+        .None => panic("value")
+
+fn loan_explicit_user['a](value: (&'a string)?) -> &'a string:
+    explicit_loan(value)

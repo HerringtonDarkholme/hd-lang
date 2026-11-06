@@ -97,12 +97,37 @@ fn tuple_key(m: Map[(string, i32), i32], s: string) -> i32:
 >     uses $0: entry -> %0 lend last
 >   local $1 s: string [param read] value
 >     uses $1: entry -> %1 consume last
+>   local $2 self: i32? [read] value
+>     uses $2: %5 -> %7 lend last
+>   local $3 fallback: i32 [read] value
+>     uses $3: %6 -> %10 consume last
+>   local $4 value: i32 [read assigned] value
+>     uses $4: %13 -> %8 consume last
 >   %0 = Read borrow [$0] : Map[(string, i32), i32]
 >   %1 = Read move [$1] : string
 >   %2 = NewTuple - [%1 1:i32] : (string, i32)
 >   %3 = Intrinsic MapGet [%0 %2] : i32?
 >   %4 = Drop [%2] : ()
->   %5 = Call std/option/impl [ T < ? Copy ] T ?.unwrap_or[i32] (%3, 0:i32) : i32
->   %6 = Block %5 : i32
+>   %5 = Store [$2] %3 : ()
+>   %6 = Store [$3] 0:i32 : ()
+>   %7 = Read copy [$2] : i32?
+>   %8 = Read copy [$4] : i32
+>   %9 = Block %8 : i32
+>   %10 = Read copy [$3] : i32
+>   %11 = Block %10 : i32
+>   %12 = Read copy [%7 as #1 .0] : i32
+>   %13 = Store [$4] %12 : ()
+>   %15 = Block - : never
+>   %17 = Block - : never
+>   %19 = Block - : never
+>   %20 = SwitchTag %7 [#0 %17 %19] : never
+>   %21 = Block - : never
+>   %22 = SwitchTag %7 [#1 %15 %21] : never
+>   %23 = Block - : never
+>   %24 = Match %7 [%23 %9 %11] : i32
+>   %25 = Break L0 %24 : never
+>   %26 = Block - : i32
+>   %27 = Scope %26 [] : i32
+>   %28 = Block %27 : i32
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0]

@@ -4,13 +4,12 @@
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "impl [ T < ? Copy ] T ?.unwrap_or[string]" (func $"impl [ T < ? Copy ] T ?.unwrap_or[string]" (param i32 i32 i32 i32 i32) (result i32 i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 4 funcref))
-  (func $use_generic (param $s.0 i32) (param $s.1 i32) (param $t1 i32) (result i32) (local $t0 i32) (local $xs i32) (local $t2 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32)
+  (func $use_generic (param $s.0 i32) (param $s.1 i32) (param $t1 i32) (result i32) (local $t0 i32) (local $xs i32) (local $t2 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t6 i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
@@ -130,22 +129,51 @@
       local.get $xs
       call $rt:release_ref'2
     ;; 22 |     ident(s).len() + size(&xs) + first(xs).unwrap_or("").len() + keep(s).len()
-      local.get $t2
-      local.get $t5
-      local.get $t4
       i32.const 16 ;; &"heap-exhausted"
-      i32.const 0
-      call $"impl [ T < ? Copy ] T ?.unwrap_or[string]"
+      local.set $xs
+      block
+        block
+          block
+            block
+              block
+                local.get $t2
+                i32.const 1
+                i32.eq
+                if
+                  local.get $t5
+                  call $retain
+                  local.get $t5
+                  local.get $t4
+                  local.set $t6
+                  local.set $xs
+                  br 1
+                else
+                  local.get $t2
+                  i32.eqz
+                  br_if 2
+                  unreachable
+                end
+                unreachable
+              end
+              br 1
+            end
+            br 0
+          end
+          local.get $t6
+          local.set $t3
+          br 0
+        end
+      end
     ;; (no span)
       local.get $t2
       local.get $t5
       local.get $t4
       call $rt:release
     ;; 22 |     ident(s).len() + size(&xs) + first(xs).unwrap_or("").len() + keep(s).len()
-      local.set $t2
-      local.set $xs
       block
         block
+          local.get $t3
+          local.set $t2
           br 0
         end
       end
