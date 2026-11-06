@@ -1,7 +1,8 @@
 # @dump: wat
 # @build: v8 release
-# `read` captures `tally`, so `tally` keeps its counted cell though
-# `&mut tally` is lent to one call.
+# `read` shares `tally`, but `read` never leaves the frame and `&mut tally`
+# is lent to one call, so `tally` lives in a frame slot, not a counted
+# cell (#1399 19a4).
 struct Tally:
     n: i64
 

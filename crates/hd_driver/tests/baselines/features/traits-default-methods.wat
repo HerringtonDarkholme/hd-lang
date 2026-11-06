@@ -184,8 +184,6 @@
         i32.load $heap
         call $rt:release_ref
       end
-      i32.const 0
-      local.set $l
     ;; 31 |     Describe::headline(&l).len()
       block
         block
@@ -197,12 +195,6 @@
       call $rt:release_ref
       local.get $t2
       local.set $t1
-    end
-    local.get $l
-    if
-      local.get $l
-      i32.load $heap
-      call $rt:release_ref
     end
     local.get $t1
     local.get $t0

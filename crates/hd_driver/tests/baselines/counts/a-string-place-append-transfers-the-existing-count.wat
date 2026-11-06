@@ -8,10 +8,11 @@
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "rt:new/class-1'1" (func $rt:new/class-1'1 (param i32 i32) (result i32)))
-  (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
+  (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
+  (import "fixture" "locals" (global $locals (mut i32)))
+  (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $through_reference (param $text i32) (param $suffix.0 i32) (param $suffix.1 i32)
     block
@@ -162,25 +163,58 @@
       call $rt:release_ref'2
     end
   )
-  (func $through_cell (param $text.0 i32) (param $text.1 i32) (result i32 i32) (local $t0 i32)
+  (func $through_cell (param $text.0 i32) (param $text.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
+    ;; (no span)
+    global.get $locals
+    global.get $locals_base
+    i32.sub
+    i32.const 16
+    i32.lt_u
+    if
+      i32.const 1
+      memory.grow $heap
+      local.tee $t0
+      i32.const -1
+      i32.eq
+      if
+        unreachable
+      end
+      local.get $t0
+      i32.const 16
+      i32.shl
+      local.tee $t0
+      global.set $locals_base
+      local.get $t0
+      i32.const 65536
+      i32.add
+      global.set $locals
+    end
+    global.get $locals
+    i32.const 16
+    i32.sub
+    local.tee $t0
+    global.set $locals
     block
     ;; 10 |     let mut current = text
+      local.get $t0
+      i64.const 0
+      i64.store $heap
+      local.get $t0
       i32.const 8
-      i32.const 2
-      call $rt:new/class-1'1
-      local.tee $t0
+      i32.add
+      local.tee $t1
       local.get $text.0
       i32.store $heap
-      local.get $t0
+      local.get $t1
       local.get $text.1
       i32.store $heap offset=4
-      local.get $t0
+      local.get $t1
       local.set $text.0
     ;; 11 |     append := fn(suffix: string) -> void: current += suffix
-      i32.const 2
+      i32.const 1
       i32.const 4
-      i32.const -2147483644
-      call $rt:new/class-1'2
+      i32.const -2147483645
+      call $rt:new/class-1
       local.tee $text.1
       local.get $text.0
       i32.store $heap
@@ -201,18 +235,26 @@
       i32.load $heap
       local.get $text.0
       i32.load $heap offset=4
-      local.set $t0
+      local.set $t1
       local.tee $text.1
       call $retain
     ;; (no span)
       local.get $text.0
-      call $rt:release_ref'2
+      if
+        local.get $text.0
+        i32.load $heap
+        call $rt:release_ref'1
+      end
       local.get $text.1
-      local.get $t0
+      local.get $t1
       local.set $text.1
       local.set $text.0
     end
     local.get $text.0
     local.get $text.1
+    local.get $t0
+    i32.const 16
+    i32.add
+    global.set $locals
   )
 )

@@ -6,6 +6,8 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
+  (import "fixture" "locals" (global $locals (mut i32)))
+  (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $fn_mut#1 (param $env i32) (param $x.0 i32) (param $x.1 i32) (param $ctx i32)
     ;; (no span)
@@ -176,12 +178,45 @@
     ;; (no span)
     local.get $s.0
   )
-  (func $fn_mut (param $xs i32) (result i32) (local $n i32)
+  (func $fn_mut (param $xs i32) (result i32) (local $n i32) (local $t0 i32)
+    ;; (no span)
+    global.get $locals
+    global.get $locals_base
+    i32.sub
+    i32.const 16
+    i32.lt_u
+    if
+      i32.const 1
+      memory.grow $heap
+      local.tee $t0
+      i32.const -1
+      i32.eq
+      if
+        unreachable
+      end
+      local.get $t0
+      i32.const 16
+      i32.shl
+      local.tee $t0
+      global.set $locals_base
+      local.get $t0
+      i32.const 65536
+      i32.add
+      global.set $locals
+    end
+    global.get $locals
+    i32.const 16
+    i32.sub
+    local.tee $t0
+    global.set $locals
     block
     ;; 24 |     let n: usize = 0
-      i32.const 4
-      i32.const 0
-      call $rt:new/class-1
+      local.get $t0
+      i64.const 0
+      i64.store $heap
+      local.get $t0
+      i32.const 8
+      i32.add
       local.tee $n
       i32.const 0
       i32.store $heap
@@ -205,10 +240,12 @@
       local.get $n
       i32.load $heap
     ;; (no span)
-      local.get $n
-      call $rt:release_ref'2
       local.set $xs
     end
     local.get $xs
+    local.get $t0
+    i32.const 16
+    i32.add
+    global.set $locals
   )
 )

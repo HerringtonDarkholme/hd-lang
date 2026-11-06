@@ -46,7 +46,7 @@
     end
     local.get $a.0
   )
-  (func $use_pup (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $p i32) (local $t3 i32) (local $t5 i32) (local $t4 i32)
+  (func $use_pup (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $p i32) (local $t4 i32) (local $t3 i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
@@ -111,32 +111,30 @@
       local.get $p
       i32.const 0
       i32.store $heap offset=4
-      i32.const 0
       local.set $p
-      local.set $t3
       local.set $t2
       block
         block
           local.get $t2
-          local.get $t3
+          local.get $p
           call $"impl Animal for Pup.name'1"
-          local.set $t4
-          local.tee $t5
-          local.get $t4
+          local.set $t3
+          local.tee $t4
+          local.get $t3
           call $"impl string.len"
-          local.get $t5
+          local.get $t4
           call $rt:release_ref
           local.get $t2
-          local.get $t3
+          local.get $p
           call $"impl Dog for Pup.bark'1"
-          local.set $t5
-          local.tee $t3
-          local.get $t5
+          local.set $t4
+          local.tee $p
+          local.get $t4
           call $"impl string.len"
-          local.get $t3
+          local.get $p
           call $rt:release_ref
           i32.add
-          local.set $t3
+          local.set $p
           br 0
         end
       end
@@ -145,16 +143,10 @@
       call $rt:release_ref
     ;; 35 |     widen(&p) + loud(p)
       local.get $t1
-      local.get $t3
+      local.get $p
       i32.add
     ;; (no span)
       local.set $t1
-    end
-    local.get $p
-    if
-      local.get $p
-      i32.load $heap
-      call $rt:release_ref
     end
     local.get $t1
     local.get $t0

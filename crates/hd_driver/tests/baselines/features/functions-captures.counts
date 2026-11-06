@@ -34,7 +34,7 @@ fn shared_list(s: string) -> usize:
     xs.len()
 >   copy List[string] (conservative: copy read)
 >   (no span) release fn() -> () (last use)
->   (no span) release counted reference (last use)
+>   (no span) release List[string] (last use)
 >   (no span) release List[string] (last use)
 
 fn copy_shares(s: string) -> usize:
@@ -52,7 +52,6 @@ fn copy_shares(s: string) -> usize:
 >   release counted reference (last use)
     n
 >   (no span) release fn() -> () (last use)
->   (no span) release counted reference (last use)
 
 fn through_ptr(items: *mut List[string], s: string) -> fn() -> void:
     fn() -> void: items.push(s)

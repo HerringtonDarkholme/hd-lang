@@ -1,9 +1,9 @@
 # @dump: counts
 # @build: v8 release
-# `read` shares `tally`'s cell, so `tally` lives in a cell, not a frame
-# slot. The local's release follows the reference's last use (cell locals
-# outlive what points into them, #1299), so `&mut tally` takes no count
-# (#1320, `ref.count.local`).
+# `read` shares `tally`, and neither `read` nor `&mut tally` leaves the
+# frame, so `tally` lives in a frame slot (#1399 19a4). The local's
+# release follows the closure's and the reference's last use, so
+# `&mut tally` takes no count (#1320, `ref.count.local`).
 struct Tally:
     n: i64
 

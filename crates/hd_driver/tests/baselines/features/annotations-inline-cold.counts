@@ -28,7 +28,6 @@ fn use_first(xs: List[string]) -> usize:
     first_len(&xs) + checksum(&xs)
 > app/main/use_first
 >   (no span) release List[string] (last use)
->   (no span) release List[string] (last use)
 
 fn check(xs: List[string], at: usize) -> string:
     if at >= xs.len():

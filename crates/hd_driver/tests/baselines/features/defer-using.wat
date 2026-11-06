@@ -244,18 +244,10 @@
         i32.load $heap offset=4
         call $rt:release_ref'1
       end
-      i32.const 0
-      local.set $t1
       local.get $s.0
       call $rt:release_ref'2
       local.get $s.1
       local.set $log
-    end
-    local.get $t1
-    if
-      local.get $t1
-      i32.load $heap offset=4
-      call $rt:release_ref'1
     end
     local.get $log
     local.get $t0

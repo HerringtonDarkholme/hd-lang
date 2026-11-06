@@ -29,7 +29,6 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
     s.len()
 >   (no span) release std.ops.DeferGuard[fn() -> (), $(), &()] [action.1] (last use)
 >   (no span) release string (last use)
->   (no span) release std.ops.DeferGuard[fn() -> (), $(), &()] [action.1] (last use)
 
 fn with_using(log: *mut List[string], s: string) -> usize:
     using r = box(Res { name: s, log: log })

@@ -1962,12 +1962,6 @@
         end
         local.get $t21
         call $rt:release_ref'1
-        local.get $t25
-        if
-          local.get $frame
-          i32.const 0
-          i32.store $heap offset=16
-        end
         local.get $t3
         call $rt:release_ref'1
         local.get $t5

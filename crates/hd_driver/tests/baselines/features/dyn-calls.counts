@@ -29,4 +29,3 @@ fn make_dyn(d: Dog) -> usize:
 >   retain app.main.Named (conservative: Coerce)
 >   (no span) release &app.main.Named (by design)
 >   (no span) release app.main.Dog [n.0] (last use)
->   (no span) release app.main.Dog [n.0] (last use)

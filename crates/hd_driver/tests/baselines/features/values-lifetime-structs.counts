@@ -26,12 +26,9 @@ fn length(text: string) -> usize:
     p.src.len() + p.pos
 > app/main/length
 >   (no span) release string (last use)
->   (no span) release string (last use)
 
 fn token(text: string, other: string) -> usize:
     word(Token.Word(&text), &other).len()
 > app/main/token
->   (no span) release string (last use)
->   (no span) release string (last use)
 >   (no span) release string (last use)
 >   (no span) release string (last use)

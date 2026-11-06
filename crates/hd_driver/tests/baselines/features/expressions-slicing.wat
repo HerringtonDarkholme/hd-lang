@@ -67,14 +67,6 @@
         i32.load $heap
         call $rt:release_ref'1
       end
-      i32.const 0
-      local.set $xs
-    end
-    local.get $xs
-    if
-      local.get $xs
-      i32.load $heap
-      call $rt:release_ref'1
     end
     local.get $t1
     local.get $t0
@@ -136,8 +128,6 @@
         i32.load $heap
         call $rt:release_ref'1
       end
-      i32.const 0
-      local.set $xs
     ;; 20 |     xs.slice(0, 2).len()
       local.get $t1
       i32.load $heap offset=4
@@ -145,12 +135,6 @@
       local.get $t1
       call $rt:release_ref'1
       local.set $t1
-    end
-    local.get $xs
-    if
-      local.get $xs
-      i32.load $heap
-      call $rt:release_ref'1
     end
     local.get $t1
     local.get $t0
@@ -255,14 +239,6 @@
         i32.load $heap
         call $rt:release_ref'1
       end
-      i32.const 0
-      local.set $xs
-    end
-    local.get $xs
-    if
-      local.get $xs
-      i32.load $heap
-      call $rt:release_ref'1
     end
     local.get $t1
     local.get $t0

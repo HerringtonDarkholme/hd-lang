@@ -5,7 +5,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $token (param $t1 i32) (param $other i32) (param $t2 i32) (param $t3 i32) (result i32) (local $t0 i32) (local $text i32)
+  (func $token (param $other i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32) (local $t0 i32) (local $text i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
@@ -43,10 +43,10 @@
     i32.const 8
     i32.add
     local.tee $text
-    local.get $t1
+    local.get $other
     i32.store $heap
     local.get $text
-    local.get $other
+    local.get $t1
     i32.store $heap offset=4
     local.get $t0
     i64.const 0
@@ -75,30 +75,16 @@
         i32.load $heap
         call $rt:release_ref
       end
-      i32.const 0
-      local.set $text
       local.get $other
       if
         local.get $other
         i32.load $heap
         call $rt:release_ref
       end
-      i32.const 0
+      local.get $t1
       local.set $other
     end
-    local.get $text
-    if
-      local.get $text
-      i32.load $heap
-      call $rt:release_ref
-    end
     local.get $other
-    if
-      local.get $other
-      i32.load $heap
-      call $rt:release_ref
-    end
-    local.get $t1
     local.get $t0
     i32.const 32
     i32.add
@@ -210,14 +196,6 @@
         i32.load $heap
         call $rt:release_ref
       end
-      i32.const 0
-      local.set $text
-    end
-    local.get $text
-    if
-      local.get $text
-      i32.load $heap
-      call $rt:release_ref
     end
     local.get $t1
     local.get $t0

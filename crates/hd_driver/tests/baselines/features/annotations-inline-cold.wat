@@ -101,20 +101,12 @@
         i32.load $heap
         call $rt:release_ref
       end
-      i32.const 0
-      local.set $xs
     ;; 27 |     first_len(&xs) + checksum(&xs)
       local.get $t1
       local.get $t2
       i32.add
     ;; (no span)
       local.set $t1
-    end
-    local.get $xs
-    if
-      local.get $xs
-      i32.load $heap
-      call $rt:release_ref
     end
     local.get $t1
     local.get $t0

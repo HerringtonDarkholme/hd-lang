@@ -248,8 +248,6 @@
         i32.load $heap offset=8
         call $rt:release
       end
-      i32.const 0
-      local.set $b.0
       local.get $first
       if
         local.get $first
@@ -260,30 +258,8 @@
         i32.load $heap offset=8
         call $rt:release
       end
-      i32.const 0
-      local.set $first
       local.get $a.1
       local.set $log
-    end
-    local.get $first
-    if
-      local.get $first
-      i32.load $heap
-      local.get $first
-      i32.load $heap offset=4
-      local.get $first
-      i32.load $heap offset=8
-      call $rt:release
-    end
-    local.get $b.0
-    if
-      local.get $b.0
-      i32.load $heap
-      local.get $b.0
-      i32.load $heap offset=4
-      local.get $b.0
-      i32.load $heap offset=8
-      call $rt:release
     end
     local.get $log
     local.get $t0
@@ -475,8 +451,6 @@
               i32.load $heap offset=8
               call $rt:release
             end
-            i32.const 0
-            local.set $x.1
             br 0
           end
           br 0
@@ -484,16 +458,6 @@
       end
     end
     ;; (no span)
-    local.get $x.1
-    if
-      local.get $x.1
-      i32.load $heap
-      local.get $x.1
-      i32.load $heap offset=4
-      local.get $x.1
-      i32.load $heap offset=8
-      call $rt:release
-    end
     local.get $t0
     i32.const 24
     i32.add

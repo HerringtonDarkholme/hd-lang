@@ -17,14 +17,10 @@ fn same(a: Key, b: Key) -> bool:
 > app/main/same
 >   (no span) release app.main.Key [name.0] (last use)
 >   (no span) release app.main.Key [name.0] (last use)
->   (no span) release app.main.Key [name.0] (last use)
->   (no span) release app.main.Key [name.0] (last use)
 
 fn before(a: Key, b: Key) -> bool:
     a < b
 > app/main/before
->   (no span) release app.main.Key [name.0] (last use)
->   (no span) release app.main.Key [name.0] (last use)
 >   (no span) release app.main.Key [name.0] (last use)
 >   (no span) release app.main.Key [name.0] (last use)
 

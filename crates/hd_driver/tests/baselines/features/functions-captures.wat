@@ -7,12 +7,13 @@
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
-  (import "fixture" "rt:new/class-1'1" (func $rt:new/class-1'1 (param i32 i32) (result i32)))
+  (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields'2" (func $rt:retain_fields'2 (param i32)))
-  (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
   (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
+  (import "fixture" "locals" (global $locals (mut i32)))
+  (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 17 funcref))
+  (import "fixture" "table0" (table $table0 16 funcref))
   (func $through_ptr (param $items i32) (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t0 i32)
     block
     ;; 30 |     fn() -> void: items.push(s)
@@ -139,7 +140,7 @@
       i32.const 4
       i32.const 8
       i32.const 6
-      call $rt:new/class-1'1
+      call $rt:new/class-1
       local.tee $t0
       local.get $s.0
       i32.store $heap
@@ -205,12 +206,45 @@
     end
     local.get $env
   )
-  (func $copy_shares (param $s.0 i32) (param $s.1 i32) (result i32) (local $n i32) (local $inc.1 i32)
+  (func $copy_shares (param $s.0 i32) (param $s.1 i32) (result i32) (local $n i32) (local $t0 i32) (local $inc.1 i32)
+    ;; (no span)
+    global.get $locals
+    global.get $locals_base
+    i32.sub
+    i32.const 16
+    i32.lt_u
+    if
+      i32.const 1
+      memory.grow $heap
+      local.tee $t0
+      i32.const -1
+      i32.eq
+      if
+        unreachable
+      end
+      local.get $t0
+      i32.const 16
+      i32.shl
+      local.tee $t0
+      global.set $locals_base
+      local.get $t0
+      i32.const 65536
+      i32.add
+      global.set $locals
+    end
+    global.get $locals
+    i32.const 16
+    i32.sub
+    local.tee $t0
+    global.set $locals
     block
     ;; 22 |     let n: usize = 0
-      i32.const 4
-      i32.const 0
-      call $rt:new/class-1'2
+      local.get $t0
+      i64.const 0
+      i64.store $heap
+      local.get $t0
+      i32.const 8
+      i32.add
       local.tee $n
       i32.const 0
       i32.store $heap
@@ -250,11 +284,13 @@
       local.get $n
       i32.load $heap
     ;; (no span)
-      local.get $n
-      call $rt:release_ref'2
       local.set $s.0
     end
     local.get $s.0
+    local.get $t0
+    i32.const 16
+    i32.add
+    global.set $locals
   )
   (func $shared_list#1 (param $env i32) (param $ctx i32) (local $s.0 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 16 |     add := fn() -> void: xs.push(s)
@@ -312,52 +348,90 @@
       call $rt:release_ref'2
     end
   )
-  (func $shared_list (param $s.0 i32) (param $s.1 i32) (result i32) (local $xs i32) (local $t0 i32)
+  (func $shared_list (param $s.0 i32) (param $s.1 i32) (result i32) (local $xs i32) (local $t0 i32) (local $t1 i32)
+    ;; (no span)
+    global.get $locals
+    global.get $locals_base
+    i32.sub
+    i32.const 16
+    i32.lt_u
+    if
+      i32.const 1
+      memory.grow $heap
+      local.tee $t0
+      i32.const -1
+      i32.eq
+      if
+        unreachable
+      end
+      local.get $t0
+      i32.const 16
+      i32.shl
+      local.tee $t0
+      global.set $locals_base
+      local.get $t0
+      i32.const 65536
+      i32.add
+      global.set $locals
+    end
+    global.get $locals
+    i32.const 16
+    i32.sub
+    local.tee $t0
+    global.set $locals
     block
     ;; 15 |     let mut xs: List[string] = []
-      i32.const 4
+      local.get $t0
+      i64.const 0
+      i64.store $heap
+      local.get $t0
       i32.const 8
-      call $rt:new/class-1'2
+      i32.add
       local.tee $xs
       i32.const 80 ;; &empty-buffer
       i32.store $heap
     ;; 16 |     add := fn() -> void: xs.push(s)
-      i32.const 8
+      i32.const 7
       i32.const 12
       i32.const -2147483646
       call $rt:new/class-2
-      local.tee $t0
+      local.tee $t1
       local.get $xs
       i32.store $heap
-      local.get $t0
+      local.get $t1
       local.get $s.0
       i32.store $heap offset=4
-      local.get $t0
+      local.get $t1
       local.get $s.1
       i32.store $heap offset=8
-      local.get $t0
+      local.get $t1
       call $rt:retain_fields'1
-      local.get $t0
+      local.get $t1
     ;; 17 |     add()
       i32.const 0
       call $shared_list#1
     ;; 18 |     add()
       drop
-      local.get $t0
+      local.get $t1
       i32.const 0
       call $shared_list#1
     ;; (no span)
-      local.get $t0
+      local.get $t1
       call $rt:release_ref'2
     ;; 19 |     xs.len()
       local.get $xs
       i32.load $heap
       call $rt:coll_copy
-      local.tee $s.0
+      local.set $s.0
     ;; (no span)
       local.get $xs
-      call $rt:release_ref'2
+      if
+        local.get $xs
+        i32.load $heap
+        call $rt:release_ref'2
+      end
     ;; 19 |     xs.len()
+      local.get $s.0
       i32.load $heap offset=4
     ;; (no span)
       local.get $s.0
@@ -365,5 +439,9 @@
       local.set $s.0
     end
     local.get $s.0
+    local.get $t0
+    i32.const 16
+    i32.add
+    global.set $locals
   )
 )

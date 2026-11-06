@@ -36,4 +36,3 @@ fn fn_mut(xs: List[string]) -> usize:
 >   retain counted reference (conservative: Closure)
     n
 >   (no span) release fn(string) -> () (last use)
->   (no span) release counted reference (last use)

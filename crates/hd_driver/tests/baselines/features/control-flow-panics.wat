@@ -318,20 +318,8 @@
         i32.load $heap offset=8
         call $rt:release
       end
-      i32.const 0
-      local.set $s.1
       local.get $s.0
       local.set $log
-    end
-    local.get $s.1
-    if
-      local.get $s.1
-      i32.load $heap
-      local.get $s.1
-      i32.load $heap offset=4
-      local.get $s.1
-      i32.load $heap offset=8
-      call $rt:release
     end
     local.get $log
     local.get $t0

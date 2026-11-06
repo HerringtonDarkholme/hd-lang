@@ -90,14 +90,6 @@
         i32.load $heap
         call $rt:release_ref'1
       end
-      i32.const 0
-      local.set $n
-    end
-    local.get $n
-    if
-      local.get $n
-      i32.load $heap
-      call $rt:release_ref'1
     end
     local.get $t1
     local.get $t0

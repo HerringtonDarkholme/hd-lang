@@ -13,7 +13,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $before (param $t1 i32) (param $b i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (param $t5 i32) (result i32) (local $t0 i32) (local $a i32)
+  (func $before (param $b i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (param $t5 i32) (result i32) (local $t0 i32) (local $a i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
@@ -51,10 +51,10 @@
     i32.const 8
     i32.add
     local.tee $a
-    local.get $t1
+    local.get $b
     i32.store $heap
     local.get $a
-    local.get $b
+    local.get $t1
     i32.store $heap offset=4
     local.get $a
     local.get $t2
@@ -88,16 +88,12 @@
         i32.load $heap
         call $rt:release_ref
       end
-      i32.const 0
-      local.set $a
       local.get $b
       if
         local.get $b
         i32.load $heap
         call $rt:release_ref
       end
-      i32.const 0
-      local.set $b
     ;; 18 |     a < b
       local.get $t1
       i32.const 1
@@ -114,27 +110,15 @@
         i32.const 0
       end
     ;; (no span)
-      local.set $t1
-    end
-    local.get $a
-    if
-      local.get $a
-      i32.load $heap
-      call $rt:release_ref
+      local.set $b
     end
     local.get $b
-    if
-      local.get $b
-      i32.load $heap
-      call $rt:release_ref
-    end
-    local.get $t1
     local.get $t0
     i32.const 48
     i32.add
     global.set $locals
   )
-  (func $same (param $t1 i32) (param $b i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (param $t5 i32) (result i32) (local $t0 i32) (local $a i32)
+  (func $same (param $b i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (param $t5 i32) (result i32) (local $t0 i32) (local $a i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
@@ -172,10 +156,10 @@
     i32.const 8
     i32.add
     local.tee $a
-    local.get $t1
+    local.get $b
     i32.store $heap
     local.get $a
-    local.get $b
+    local.get $t1
     i32.store $heap offset=4
     local.get $a
     local.get $t2
@@ -208,30 +192,16 @@
         i32.load $heap
         call $rt:release_ref
       end
-      i32.const 0
-      local.set $a
       local.get $b
       if
         local.get $b
         i32.load $heap
         call $rt:release_ref
       end
-      i32.const 0
+      local.get $t1
       local.set $b
     end
-    local.get $a
-    if
-      local.get $a
-      i32.load $heap
-      call $rt:release_ref
-    end
     local.get $b
-    if
-      local.get $b
-      i32.load $heap
-      call $rt:release_ref
-    end
-    local.get $t1
     local.get $t0
     i32.const 48
     i32.add

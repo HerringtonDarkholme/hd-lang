@@ -99,7 +99,7 @@
       i32.store $heap offset=4
     end
   )
-  (func $total (param $seen i32) (param $b i32) (param $by i32) (param $t1 i32) (result i32) (local $t0 i32) (local $a i32) (local $t2 i32) (local $t3 i32)
+  (func $total (param $b i32) (param $seen i32) (param $by i32) (param $t1 i32) (result i32) (local $t0 i32) (local $a i32) (local $t2 i32) (local $t3 i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
@@ -137,10 +137,10 @@
     i32.const 8
     i32.add
     local.tee $a
-    local.get $seen
+    local.get $b
     i32.store $heap
     local.get $a
-    local.get $b
+    local.get $seen
     i32.store $heap offset=4
     local.get $t0
     i64.const 0
@@ -244,11 +244,11 @@
         i32.load $heap
         call $rt:release_ref'1
       end
-      i32.const 0
-      local.set $b
     ;; 22 |     seen[0].name.len() + seen[1].name.len() + by.len()
       block
         block
+          local.get $t3
+          local.set $b
           br 0
         end
       end
@@ -263,19 +263,19 @@
       end
     ;; 22 |     seen[0].name.len() + seen[1].name.len() + by.len()
       local.get $t2
-      local.get $t3
+      local.get $b
       i32.add
-      local.set $seen
+      local.set $b
       local.get $by
       i32.load $heap
       local.get $by
       i32.const 0
       i32.store $heap
-      local.tee $by
+      local.tee $seen
       i32.load $heap
-      local.set $t1
+      local.set $by
     ;; (no span)
-      local.get $by
+      local.get $seen
       call $rt:release_ref'2
       local.get $a
       if
@@ -283,28 +283,14 @@
         i32.load $heap
         call $rt:release_ref'1
       end
-      i32.const 0
-      local.set $a
     ;; 22 |     seen[0].name.len() + seen[1].name.len() + by.len()
-      local.get $seen
-      local.get $t1
+      local.get $b
+      local.get $by
       i32.add
     ;; (no span)
-      local.set $seen
-    end
-    local.get $a
-    if
-      local.get $a
-      i32.load $heap
-      call $rt:release_ref'1
+      local.set $b
     end
     local.get $b
-    if
-      local.get $b
-      i32.load $heap
-      call $rt:release_ref'1
-    end
-    local.get $seen
     local.get $t0
     i32.const 64
     i32.add

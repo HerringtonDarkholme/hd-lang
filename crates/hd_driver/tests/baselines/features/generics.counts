@@ -29,4 +29,3 @@ fn use_generic(s: string, xs: List[string]) -> usize:
 >   (no span) release string? (last use)
 >   (no span) release string (last use)
 >   (no span) release List[string] (last use)
->   (no span) release List[string] (last use)

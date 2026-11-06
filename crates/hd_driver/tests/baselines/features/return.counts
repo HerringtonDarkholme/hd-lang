@@ -27,4 +27,3 @@ fn use_rets(r: Rec) -> usize:
 >   (no span) release string (last use)
 >   (no span) release string (last use)
 >   (no span) release app.main.Rec [name.0] (last use)
->   (no span) release app.main.Rec [name.0] (last use)

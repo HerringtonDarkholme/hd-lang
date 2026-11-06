@@ -56,4 +56,3 @@ fn use_pup(p: Pup) -> usize:
 >   release string (last use)
 >   (no span) release &app.main.Dog (by design)
 >   (no span) release app.main.Pup [name.0] (last use)
->   (no span) release app.main.Pup [name.0] (last use)

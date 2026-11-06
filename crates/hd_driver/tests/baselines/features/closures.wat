@@ -8,6 +8,8 @@
   (import "fixture" "rt:new/class-1'1" (func $rt:new/class-1'1 (param i32 i32) (result i32)))
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
+  (import "fixture" "locals" (global $locals (mut i32)))
+  (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 12 funcref))
   (func $capture_call#1 (param $env i32) (param $ctx i32) (result i32)
@@ -135,19 +137,52 @@
     local.get $s.0
     local.get $s.1
   )
-  (func $shared (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t0 i32)
+  (func $shared (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
+    ;; (no span)
+    global.get $locals
+    global.get $locals_base
+    i32.sub
+    i32.const 16
+    i32.lt_u
+    if
+      i32.const 1
+      memory.grow $heap
+      local.tee $t0
+      i32.const -1
+      i32.eq
+      if
+        unreachable
+      end
+      local.get $t0
+      i32.const 16
+      i32.shl
+      local.tee $t0
+      global.set $locals_base
+      local.get $t0
+      i32.const 65536
+      i32.add
+      global.set $locals
+    end
+    global.get $locals
+    i32.const 16
+    i32.sub
+    local.tee $t0
+    global.set $locals
     block
     ;; 18 |     let mut t = s
+      local.get $t0
+      i64.const 0
+      i64.store $heap
+      local.get $t0
       i32.const 8
-      i32.const 3
-      call $rt:new/class-1'1
-      local.tee $t0
+      i32.add
+      local.tee $t1
       local.get $s.0
       i32.store $heap
-      local.get $t0
+      local.get $t1
       local.get $s.1
       i32.store $heap offset=4
-      local.get $t0
+      local.get $t1
       local.set $s.0
     ;; 19 |     add := fn() -> void: t += "x"
       i32.const 3
@@ -172,19 +207,27 @@
       i32.load $heap
       local.get $s.0
       i32.load $heap offset=4
-      local.set $t0
+      local.set $t1
       local.tee $s.1
       call $retain
     ;; (no span)
       local.get $s.0
-      call $rt:release_ref'2
+      if
+        local.get $s.0
+        i32.load $heap
+        call $rt:release_ref'1
+      end
       local.get $s.1
-      local.get $t0
+      local.get $t1
       local.set $s.1
       local.set $s.0
     end
     local.get $s.0
     local.get $s.1
+    local.get $t0
+    i32.const 16
+    i32.add
+    global.set $locals
   )
   (func $capture_call (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
     block

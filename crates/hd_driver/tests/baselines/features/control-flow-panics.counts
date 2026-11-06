@@ -35,4 +35,3 @@ fn guarded(log: *mut List[string], s: string, n: i32) -> usize:
         panic("negative")
     r.name.len()
 >   (no span) release app.main.Res [name.0, log] (last use)
->   (no span) release app.main.Res [name.0, log] (last use)

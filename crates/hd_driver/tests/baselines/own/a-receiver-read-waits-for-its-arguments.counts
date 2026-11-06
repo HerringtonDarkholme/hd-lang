@@ -36,7 +36,6 @@ fn by_reference(m: Members, i: usize) -> usize:
     m.peek(m.infos[i].position)
 > app/main/by_reference
 >   (no span) release app.main.Members (last use)
->   (no span) release app.main.Members (last use)
 
 fn changed_by_argument(items: List[Info]) -> usize:
     let mut m = Members { infos: items }

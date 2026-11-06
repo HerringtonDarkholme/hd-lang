@@ -7,12 +7,10 @@ fn absent(value: string?) -> bool:
     value == .None
 > app/main/absent
 >   (no span) release string? (last use)
->   (no span) release string? (last use)
 
 fn present(value: string?) -> bool:
     value != .None
 > app/main/present
->   (no span) release string? (last use)
 >   (no span) release string? (last use)
 
 fn none_first(value: string?) -> bool:

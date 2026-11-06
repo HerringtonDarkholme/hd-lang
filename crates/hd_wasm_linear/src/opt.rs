@@ -37,8 +37,9 @@
 //!     `P; X`;
 //! 11. a local no instruction names is not declared, and the others are
 //!     numbered again in order;
-//! 12. a release of zero and a redundant store of zero go when forward
-//!     local facts prove them zero on every path, including loop backedges;
+//! 12. a release of zero, a redundant store of zero and an `if` with no
+//!     `else` on a local of zero go when forward local facts prove them
+//!     zero on every path, including loop backedges;
 //! 13. a `local.set` or `local.tee` of a local that no path reads before
 //!     its next write goes, a set's value dropped: the zero a move leaves
 //!     in a local stays only where some release still reads it;
@@ -674,6 +675,18 @@ fn decide_block(
                     gone[p] = true;
                 }
             }
+        } else if let Ins::Op(I::If(wasm_encoder::BlockType::Empty)) = ins
+            && let Some(p) = (0..at)
+                .rev()
+                .find(|&p| !matches!(f.body[p], Ins::Anchor(_)))
+            && matches!(f.body[p], Ins::Op(I::LocalGet(_)))
+            && pushes_zero(&f.body[p], known)
+            && let Some(end) = block_end(&f.body, at)
+        {
+            // A guard on a local proved zero never runs its arm: a frame
+            // slot's release where the slot holds nothing.
+            gone[p] = true;
+            gone[at..=end].fill(true);
         } else if let Ins::Op(I::LocalSet(l) | I::LocalTee(l)) = ins
             && zero_local(known, *l)
             && at

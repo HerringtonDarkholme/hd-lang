@@ -32,4 +32,3 @@ fn work(log: *mut List[string], label: string) -> void:
 >   unique List[string] (conservative: unique)
     log.push("work")
 >   (no span) release app.main.Guard [log, label.0] (last use)
->   (no span) release app.main.Guard [log, label.0] (last use)

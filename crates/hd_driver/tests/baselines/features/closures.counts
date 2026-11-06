@@ -36,4 +36,4 @@ fn shared(s: string) -> string:
     t
 >   retain string (conservative: copy read)
 >   (no span) release fn() -> () (last use)
->   (no span) release counted reference (last use)
+>   (no span) release string (last use)

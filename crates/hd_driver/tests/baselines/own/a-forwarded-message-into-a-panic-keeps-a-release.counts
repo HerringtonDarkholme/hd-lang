@@ -21,8 +21,6 @@ fn check_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void:
         panic_with("assertion-failed", message)
 >   (no span) release List[i32] (last use)
 >   (no span) release List[i32] (last use)
->   (no span) release List[i32] (last use)
->   (no span) release List[i32] (last use)
 >   (no span) release string (conservative: unowned parameter)
 
 pub fn run_it() -> void:

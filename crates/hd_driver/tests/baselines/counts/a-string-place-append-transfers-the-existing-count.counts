@@ -23,7 +23,7 @@ fn through_cell(text: string) -> string:
     current
 >   retain string (conservative: copy read)
 >   (no span) release fn(string) -> () (last use)
->   (no span) release counted reference (last use)
+>   (no span) release string (last use)
 
 fn replace(text: &mut string) -> string:
     *text = "replacement"

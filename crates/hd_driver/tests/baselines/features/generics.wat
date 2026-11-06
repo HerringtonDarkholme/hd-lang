@@ -90,27 +90,25 @@
       local.get $xs
       i32.const 0
       i32.store $heap
-      i32.const 0
       local.set $xs
-      local.set $t2
       block
         block
-          local.get $t2
+          local.get $xs
           i32.load $heap offset=4
           i32.const 0
           i32.gt_u
           if
             i32.const 0
-            local.get $t2
+            local.get $xs
             i32.load $heap offset=4
             i32.ge_u
             if
               call $rt:panic
               unreachable
             end
-            local.get $t2
+            local.get $xs
             i32.load $heap offset=16
-            local.get $t2
+            local.get $xs
             i32.load $heap offset=20
             local.set $t3
             local.tee $t4
@@ -119,38 +117,44 @@
             local.set $t5
           else
           end
+          local.get $t5
+          local.get $t4
+          local.get $t3
+          local.set $t4
+          local.set $t5
+          local.set $t2
           br 0
         end
       end
     ;; (no span)
-      local.get $t2
+      local.get $xs
       call $rt:release_ref'2
     ;; 22 |     ident(s).len() + size(&xs) + first(xs).unwrap_or("").len() + keep(s).len()
+      local.get $t2
       local.get $t5
       local.get $t4
-      local.get $t3
       i32.const 16 ;; &"heap-exhausted"
       i32.const 0
       call $"impl [ T < ? Copy ] T ?.unwrap_or[string]"
     ;; (no span)
+      local.get $t2
       local.get $t5
       local.get $t4
-      local.get $t3
       call $rt:release
     ;; 22 |     ident(s).len() + size(&xs) + first(xs).unwrap_or("").len() + keep(s).len()
-      local.set $t5
       local.set $t2
+      local.set $xs
       block
         block
           br 0
         end
       end
     ;; (no span)
-      local.get $t2
+      local.get $xs
       call $rt:release_ref'1
     ;; 22 |     ident(s).len() + size(&xs) + first(xs).unwrap_or("").len() + keep(s).len()
       local.get $t1
-      local.get $t5
+      local.get $t2
       i32.add
       local.set $t1
       local.get $s.0
@@ -158,37 +162,37 @@
       block
         block
           i32.const 80 ;; &empty-buffer
+          local.tee $xs
           local.tee $t2
-          local.tee $t5
           i32.load $heap offset=4
-          local.tee $t4
-          local.get $t5
+          local.tee $t5
+          local.get $t2
           i32.load $heap
           i32.eq
           if
-            local.get $t5
+            local.get $t2
             i32.const 1
             call_indirect $table0 (param i32) (result i32)
-            local.tee $t5
-            local.set $t2
+            local.tee $t2
+            local.set $xs
           end
+          local.get $t2
           local.get $t5
-          local.get $t4
           i32.const 8
           i32.mul
           i32.add
-          local.tee $t3
+          local.tee $t4
           local.get $s.0
           i32.store $heap offset=16
-          local.get $t3
+          local.get $t4
           local.get $s.1
           i32.store $heap offset=20
+          local.get $t2
           local.get $t5
-          local.get $t4
           i32.const 1
           i32.add
           i32.store $heap offset=4
-          local.get $t2
+          local.get $xs
           local.set $s.0
           br 0
         end
@@ -205,12 +209,6 @@
       i32.add
     ;; (no span)
       local.set $s.0
-    end
-    local.get $xs
-    if
-      local.get $xs
-      i32.load $heap
-      call $rt:release_ref'2
     end
     local.get $s.0
     local.get $t0

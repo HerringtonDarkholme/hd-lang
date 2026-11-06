@@ -6,6 +6,8 @@
 //! caller passes, which holds the providers of its type's row (`ctx.rs`). A local that a closure shares (`Shared`, one
 //! that is assigned after it is captured) lives in a cell, a counted
 //! object holding its value, and every holder keeps the cell's address.
+//! A frame cell's local (`CaptureMode::Frame`) keeps it in a frame slot
+//! instead, whose zero count word makes the holders' counts do nothing.
 
 use crate::op::Op as I;
 use hd_base::HashSet;
@@ -91,16 +93,31 @@ pub(super) fn shared_locals(b: &Body) -> hd_base::HashSet<usize> {
 /// every use of a value that may point into it, and no such value
 /// outlives its scope (spec/lang/13-values-and-references.md#local-scope),
 /// so nothing needs the slot after the local's own release. A parameter
-/// moves into its slot at entry ([`Em::param_cell`]); a local a closure
-/// captures keeps its cell.
+/// moves into its slot at entry ([`Em::param_cell`]). A local a closure
+/// captures keeps its cell, unless every capture of it is a frame cell's
+/// (`CaptureMode::Frame`): the passes keep it alive over every use of
+/// the closure, which never leaves the frame, and its references are
+/// local ones of the root, which take no count of a cell.
 pub(super) fn slot_locals(b: &Body, roots: &[usize], topo: &Topology) -> HashSet<usize> {
+    let frame_cell = |l: usize| {
+        let mut caps = (b.cap_local.iter().zip(&b.cap_mode)).filter(|(c, _)| c.idx() == l);
+        let first = caps.next();
+        first.is_some_and(|(_, m)| *m == CaptureMode::Frame)
+            && caps.all(|(_, m)| *m == CaptureMode::Frame)
+    };
+    let mut cells: HashSet<usize> = HashSet::default();
+    for (c, m) in b.cap_local.iter().zip(&b.cap_mode) {
+        if *m == CaptureMode::Frame && frame_cell(c.idx()) {
+            cells.insert(c.idx());
+        }
+    }
     let mut out: HashSet<usize> = roots
         .iter()
         .copied()
         .filter(|&l| !b.cap_local.iter().any(|c| c.idx() == l))
         .collect();
     for i in 0..b.len() {
-        if out.is_empty() {
+        if out.is_empty() && cells.is_empty() {
             break;
         }
         let Some(l) = (b.tags[i] == Tag::Ref)
@@ -114,7 +131,11 @@ pub(super) fn slot_locals(b: &Body, roots: &[usize], topo: &Topology) -> HashSet
         if w & frame != frame || topo.sub[i] != 0 {
             out.remove(&l.idx());
         }
+        if w & ref_word::LOCAL == 0 || topo.sub[i] != 0 {
+            cells.remove(&l.idx());
+        }
     }
+    out.extend(cells);
     out
 }
 

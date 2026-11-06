@@ -19,13 +19,11 @@ fn read(u: User) -> usize:
     name_of(&u).len()
 > app/main/read
 >   (no span) release app.main.User [name.0] (last use)
->   (no span) release app.main.User [name.0] (last use)
 
 fn read_list(us: List[User]) -> usize:
     first_name(&us).len()
 > app/main/read_list
 >   unique List[app.main.User] (conservative: unique)
->   (no span) release List[app.main.User] (last use)
 >   (no span) release List[app.main.User] (last use)
 
 fn through_ptr(u: *User) -> usize:

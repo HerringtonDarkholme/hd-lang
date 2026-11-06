@@ -80,20 +80,8 @@
         i32.load $heap offset=8
         call $rt:release
       end
-      i32.const 0
-      local.set $value
       local.get $t4
       local.set $t1
-    end
-    local.get $value
-    if
-      local.get $value
-      i32.load8_u $heap
-      local.get $value
-      i32.load $heap offset=4
-      local.get $value
-      i32.load $heap offset=8
-      call $rt:release
     end
     local.get $t1
     local.get $t0
@@ -177,20 +165,8 @@
         i32.load $heap offset=8
         call $rt:release
       end
-      i32.const 0
-      local.set $value
       local.get $t4
       local.set $t1
-    end
-    local.get $value
-    if
-      local.get $value
-      i32.load8_u $heap
-      local.get $value
-      i32.load $heap offset=4
-      local.get $value
-      i32.load $heap offset=8
-      call $rt:release
     end
     local.get $t1
     local.get $t0

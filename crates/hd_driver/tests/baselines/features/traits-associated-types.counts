@@ -41,4 +41,3 @@ fn read_const(c: Constant) -> usize:
 >   retain app.main.Supplier[Item = string] (conservative: Coerce)
 >   (no span) release &app.main.Supplier[Item = string] (by design)
 >   (no span) release app.main.Constant [value.0] (last use)
->   (no span) release app.main.Constant [value.0] (last use)

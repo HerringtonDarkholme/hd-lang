@@ -50,4 +50,3 @@ fn qualified(l: Logger) -> usize:
 >   release string (last use)
 >   (no span) release app.main.Logger [name.0] (last use)
 >   (no span) release string (last use)
->   (no span) release app.main.Logger [name.0] (last use)

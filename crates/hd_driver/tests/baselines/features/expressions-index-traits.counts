@@ -28,7 +28,6 @@ fn read_len(n: Names, i: usize) -> usize:
 > app/main/read_len
 >   unique List[string] (conservative: unique)
 >   (no span) release app.main.Names (last use)
->   (no span) release app.main.Names (last use)
 
 fn write(n: &mut Names, i: usize, s: string) -> void:
     n[i] = s
