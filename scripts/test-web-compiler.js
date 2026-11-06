@@ -34,11 +34,12 @@ import { createNodeSession } from "../host/node-session.ts";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const FIXTURE = join(root, "spec", "conformance", "runtime", "valid", "println-console-stdout.hd");
 
-// #852 removes the printer from ordinary compilation. The compiler's gzip
-// cap is the owner's hard 2 MB ceiling (raised from a 1,878,000 tripwire
-// on 2026-11-02, at 1,876,353); the WAT printer's keeps a modest margin
-// above 147,828 gzip bytes.
-const GZIP_LIMIT = 2_000_000;
+// #852 removes the printer from ordinary compilation. Under the owner's
+// permission to raise the compiler limit, #1388 raises it to 2.01 MB:
+// CI measured 2,004,112 gzip bytes (base 2,000,252), adding scalar static
+// joins and dense constant tables. The local build measured 2,004,366.
+// The WAT printer keeps a modest margin above 147,828 gzip bytes.
+const GZIP_LIMIT = 2_010_000;
 const WAT_GZIP_LIMIT = 160_000;
 const RAW_FLOOR = 2e6;
 
