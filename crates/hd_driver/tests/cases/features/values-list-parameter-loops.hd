@@ -1,0 +1,22 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: a `&mut List` parameter written by two loops in turn, called from a
+# caller's loop with its own fresh local (bench nbody advance).
+# expected (#1399 15f, 15g): each loop's hoisted check runs once per call; the
+# second could repeat the first's, and the caller's local could make both go.
+pub struct Body:
+    pub x: f64
+    pub v: f64
+
+fn advance(bodies: &mut List[Body], dt: f64) -> void:
+    n := bodies.len()
+    for i in 0..n:
+        bodies[i].v = bodies[i].v + dt
+    for i in 0..n:
+        bodies[i].x = bodies[i].x + dt * bodies[i].v
+
+pub fn run(steps: i64) -> f64:
+    let mut bodies = [Body { x: 0.0, v: 1.0 }, Body { x: 1.0, v: 0.5 }]
+    for _ in 0..steps:
+        advance(&mut bodies, 0.01)
+    bodies[0].x
