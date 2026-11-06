@@ -4,9 +4,8 @@
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 8 funcref))
+  (import "fixture" "table0" (table $table0 7 funcref))
   (func $tick (param $s.0 i32) (param $s.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t0 i32)
     block
     ;; 23 |     rec := $.use(Recorder)
@@ -68,7 +67,7 @@
     ;; 29 |     $.with(Recorder=tally):
       local.tee $t0
       call $retain
-      i32.const 296 ;; &vtable[func50, func49]
+      i32.const 296 ;; &vtable[func47, func46]
       local.set $t1
       block
     ;; 30 |         _ := tick(a)
@@ -106,13 +105,8 @@
     ;; (no span)
       local.get $self
       i32.load $heap
-      call $rt:list_unique
-      local.set $t0
-      local.get $self
-      local.get $t0
-      i32.store $heap
-      local.get $t0
     ;; 17 |         self.lines.push(s)
+      local.tee $t0
       i32.load $heap offset=4
       local.tee $t1
       local.get $t0

@@ -37,8 +37,6 @@ fn uniq(xs: UniqList[string], s: string) -> UniqList[string]:
 
 fn grow(c: &mut Photo, s: string) -> void:
     c.tags.push(s)
-> app/main/grow
->   (no span) unique List[string] (conservative: unique)
 
 fn reborrow(c: &mut Photo, s: string, t: string) -> void:
     grow(c, s)

@@ -17,14 +17,23 @@
 //!
 //! A pointer alias (`*mut S`) shares the storage, not the buffer, so it
 //! adds no owner. An erased body, whose types are open, makes no field
-//! single-owner. The fact is computed after collection, so the passes do
-//! not read it yet (step 15d2).
+//! single-owner. The fact is computed after collection, over the bodies
+//! the link emits; the link marks each check of a one-owner field that
+//! stands at its change `unique_word::OWNED` (step 15d2), and the backend
+//! runs no check for it.
+
+// The browser compiler runs the dev pipeline only, which never asks.
+#![cfg_attr(target_arch = "wasm32", allow(dead_code))]
 
 use hd_base::{HashMap, HashSet, InstId};
 use hd_mono::ProgramEnv;
 use hd_mono::layout::StdKind;
 use hd_tir::ir::{Body, CaptureMode, Proj, ReadMode, Ref, Role, Root, Tag};
 use hd_types::{InternPool, Ty, TyData, TyList};
+
+/// An instance body the link emits: its id, body, item, type arguments,
+/// and whether it is erased.
+pub(crate) type Instance<'b> = (InstId, &'b Body, hd_base::DefId, TyList, bool);
 
 /// Why a field has a second owner, or none for one owner.
 pub(crate) type Verdicts = HashMap<(Ty, u32), Option<&'static str>>;
@@ -353,6 +362,35 @@ pub(crate) fn single_owner<'b>(
     out
 }
 
+/// The uniqueness checks of `b` that stand at their change (data word 0)
+/// and are of a field with one owner: the checks step 15d2 marks
+/// `unique_word::OWNED`.
+pub(crate) fn owned_checks(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    b: &Body,
+    sub: &dyn Fn(Ty) -> Ty,
+    verdicts: &Verdicts,
+) -> Vec<usize> {
+    let w = Walk {
+        pool,
+        env,
+        fields: HashSet::default(),
+        bad: HashMap::default(),
+        copied: HashSet::default(),
+        blind: HashSet::default(),
+        open: false,
+    };
+    (0..b.len())
+        .filter(|&i| b.tags[i] == Tag::IsUnique && b.data[i][1] == 0)
+        .filter(|&i| {
+            w.field(b, sub, b.data[i][0])
+                .and_then(|f| verdicts.get(&f))
+                .is_some_and(Option::is_none)
+        })
+        .collect()
+}
+
 /// The own view's line for each uniqueness check of a field in `b`:
 /// `one owner`, or `shared: why`.
 pub(crate) fn check_lines(
@@ -375,10 +413,12 @@ pub(crate) fn check_lines(
         .filter(|&i| b.tags[i] == Tag::IsUnique)
         .filter_map(|i| {
             let v = verdicts.get(&w.field(b, sub, b.data[i][0])?)?;
-            Some((
-                i,
-                v.map_or_else(|| "one owner".to_owned(), |why| format!("shared: {why}")),
-            ))
+            let line = match v {
+                None if b.data[i][1] == 0 => "owned: single-owner field".to_owned(),
+                None => "one owner".to_owned(),
+                Some(why) => format!("shared: {why}"),
+            };
+            Some((i, line))
         })
         .collect()
 }

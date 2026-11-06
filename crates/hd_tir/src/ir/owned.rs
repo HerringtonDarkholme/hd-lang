@@ -412,7 +412,7 @@ fn change_places(b: &Body, topo: &Topology, errs: &mut Vec<VerifyError>) {
 /// Hoisting's `IsUnique`s and stable lists (`docs/compiler/tir-v2.md`,
 /// "Hoisting"): what the pass relies on, checked again.
 fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
-    use super::unique_word::{COVERED, FRESH, HOISTED, REPEAT};
+    use super::unique_word::{COVERED, FRESH, HOISTED, OWNED, REPEAT};
     use crate::own::hoist;
     let n = b.len();
     // A fresh buffer's `IsUnique` is of a local that keeps it fresh.
@@ -481,7 +481,7 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
             );
             continue;
         }
-        if w != 0 && w != HOISTED && w != COVERED && w != FRESH && w != REPEAT {
+        if w != 0 && w != HOISTED && w != COVERED && w != FRESH && w != REPEAT && w != OWNED {
             err(
                 errs,
                 u32_of(i),

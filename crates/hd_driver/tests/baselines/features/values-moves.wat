@@ -2,11 +2,10 @@
 (module
   (import "fixture" "impl [ T < ? Copy ] UniqList [ T ].push[string]" (func $"impl [ T < ? Copy ] UniqList [ T ].push[string]" (param i32 i32 i32)))
   (import "fixture" "rt:drop_value" (func $rt:drop_value (param i32 i32 i32 i32 i32)))
-  (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 5 funcref))
+  (import "fixture" "table0" (table $table0 4 funcref))
   (func $reborrow (param $c i32) (param $s.0 i32) (param $s.1 i32) (param $t.0 i32) (param $t.1 i32)
     ;; 39 |     grow(c, s)
     block
@@ -176,13 +175,8 @@
     ;; (no span)
       local.get $c
       i32.load $heap offset=4
-      call $rt:list_unique
-      local.set $t0
-      local.get $c
-      local.get $t0
-      i32.store $heap offset=4
-      local.get $t0
     ;; 36 |     c.tags.push(s)
+      local.tee $t0
       i32.load $heap offset=4
       local.tee $t1
       local.get $t0

@@ -26,7 +26,7 @@ impl Recorder for Log:
 >   %2 = Read borrow [*$0 .lines] : List[string]
 >   %3 = Intrinsic ListPush [%2 %0] : ()
 >   %4 = Block - : ()
->   %1 one owner
+>   %1 owned: single-owner field
 >   exit sub 0 drops [$1]
 >   summary kept [$1] writes
 

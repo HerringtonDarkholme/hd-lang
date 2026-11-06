@@ -233,7 +233,7 @@ pub fn main() -> void $ Console:
 >   %22 = Intrinsic ListPush [%21 %19] : ()
 >   %20 finds [$0] full
 >   %21 finds [$0] full
->   %20 one owner
+>   %20 owned: single-owner field
     p.held = 4
 >   %29 = Store [$0 .held] 4:usize : ()
 >   %29 finds [$0] full

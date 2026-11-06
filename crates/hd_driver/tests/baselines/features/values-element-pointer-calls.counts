@@ -17,7 +17,6 @@ fn walk(node: &Node, sink: &mut dyn Sink) -> void:
 > app/main/walk
 >   retain app.main.Sink (second owner)
     for child in &node.children:
->   unique List[&app.main.Node] (conservative: unique)
 >   release &app.main.Node (last use)
         walk(*child, sink)
 >   retain counted reference (second owner)

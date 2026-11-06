@@ -2,13 +2,12 @@
 (module
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
-  (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 5 funcref))
+  (import "fixture" "table0" (table $table0 3 funcref))
   (func $"impl Sink for Total.emit" (param $self i32) (param $value i64)
     ;; 24 |         self.sum += value
     block
@@ -69,7 +68,7 @@
       call $retain
       local.get $root
       local.get $t1
-      i32.const 256 ;; &vtable[func42]
+      i32.const 160 ;; &vtable[func24]
       call $walk
     ;; (no span)
       local.get $t1
@@ -87,7 +86,7 @@
     i32.add
     global.set $locals
   )
-  (func $walk (param $node i32) (param $sink.0 i32) (param $sink.1 i32) (local $t0 i32) (local $t1 i32) (local $child i32) (local $t2 i32)
+  (func $walk (param $node i32) (param $sink.0 i32) (param $sink.1 i32) (local $t0 i32) (local $t1 i32) (local $child i32)
     block
     ;; 15 |     sink.emit(node.value)
       local.get $sink.0
@@ -121,12 +120,6 @@
           local.set $t1
           local.get $node
           i32.load $heap offset=8
-          call $rt:list_unique
-          local.set $t2
-          local.get $node
-          local.get $t2
-          i32.store $heap offset=8
-          local.get $t2
           local.get $child
           i32.const 4
           i32.mul
