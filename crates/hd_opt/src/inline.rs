@@ -296,7 +296,8 @@ impl dyn InlineEnv + '_ {
                 self.found_cycle(&[def]);
                 continue;
             }
-            if !self.fits_call(body, c, &mut copy) {
+            let mut lent = Vec::new();
+            if !self.fits_call(body, c, &mut copy, &mut lent) {
                 continue;
             }
             // Prefer taking a reader's referent by value when each
@@ -363,6 +364,9 @@ impl dyn InlineEnv + '_ {
                         .unwrap_or(t)
                 };
                 copy = hd_tir::own::promote::promote(&copy, by_value, referent);
+            }
+            for (a, want) in lent {
+                body.ty[Ref(a).as_inst().expect("a `Ref` argument").0 as usize] = want;
             }
             sites.push(Site {
                 call: c,
@@ -544,7 +548,12 @@ impl dyn InlineEnv + '_ {
                         || self.by_value(def, targs, copy).is_some()
                         || (self.memo().is_some() && self.read_only_refs(def, targs, copy)))
             }
-            InlineHint::Auto => hd_tir::inline::inlinable(copy, AUTO_INLINE_LIMIT),
+            // A by-value parameter of a type still open waits for the instance:
+            // an erased body cannot bind one in a local.
+            InlineHint::Auto => {
+                hd_tir::inline::inlinable(copy, AUTO_INLINE_LIMIT)
+                    && self.reference_params(def, targs, true).is_some()
+            }
             InlineHint::Always => hd_tir::inline::copyable(copy),
             InlineHint::Never => false,
         }
@@ -764,8 +773,18 @@ impl dyn InlineEnv + '_ {
     /// changeable copy of its own (a primitive, an enum, a collection) has
     /// type `mut T` while the call passes a `T`, a marker with `T`'s
     /// layout; its local takes the argument's type, as the call binds it.
-    /// Any other difference keeps the call.
-    fn fits_call(&self, caller: &Body, c: usize, copy: &mut Body) -> bool {
+    /// A fresh local `Ref` lent to a local reference parameter takes that
+    /// parameter's type, as a `let` of type `&T` does: `lent` names it. The
+    /// binding then holds the run-time loans of the `Ref`'s place, and a read
+    /// through it checks none when the place crosses no object. Any other
+    /// difference keeps the call.
+    fn fits_call(
+        &self,
+        caller: &Body,
+        c: usize,
+        copy: &mut Body,
+        lent: &mut Vec<(u32, Ty)>,
+    ) -> bool {
         let pool = self.pool();
         let open = |t: Ty| hd_mono::reveal(pool, self, t);
         let fits = |got: Option<Ty>, want: Ty| {
@@ -794,7 +813,9 @@ impl dyn InlineEnv + '_ {
                 return false;
             };
             let want = copy.local_ty[l];
-            if matches!(pool.get(want), TyData::Mut(inner) if inner == arg)
+            if lends_by_kind(pool, self.ref_cells(), arg, want) && local_reference(caller, a) {
+                lent.push((a, want));
+            } else if matches!(pool.get(want), TyData::Mut(inner) if inner == arg)
                 || lends_by_kind(pool, self.ref_cells(), arg, want)
             {
                 copy.local_ty[l] = arg;
@@ -820,6 +841,15 @@ fn push_record(body: &mut Body, words: &[u32]) -> u32 {
     body.extra.push(u32::try_from(words.len()).expect("record"));
     body.extra.extend_from_slice(words);
     at
+}
+
+/// Whether `arg`, a call's argument, is a fresh `Ref` that makes a local
+/// reference (`ref_word::LOCAL`).
+fn local_reference(body: &Body, arg: u32) -> bool {
+    Ref(arg).as_inst().is_some_and(|v| {
+        let i = v.0 as usize;
+        body.tags[i] == Tag::Ref && body.data[i][1] & ref_word::LOCAL != 0
+    })
 }
 
 fn reference_read_args(body: &Body, call: usize) -> u64 {

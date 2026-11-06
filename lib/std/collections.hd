@@ -1322,6 +1322,7 @@ impl[T < ?Copy] IndexMut[usize] for UniqList[T]:
         self.buffer.at(key).as_mut()
 
 impl[T < ?Copy] IndexSet[usize, T] for UniqList[T]:
+    @inline
     fn index_set(&mut self, key: usize, value: T) -> void:
         if key >= self.len():
             panic_with("index-out-of-bounds", "uniq list index out of bounds")

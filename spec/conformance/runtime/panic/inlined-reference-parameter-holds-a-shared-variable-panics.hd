@@ -1,0 +1,18 @@
+# test: an `@inline` function's `&mut` parameter, given a variable a closure shares, holds the loan a call would, so the closure's write while the parameter is live panics
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.shared-variable, ref.excl.alias.conflict.
+use std.annotation.inline
+
+struct Counter:
+    value: i32
+
+@inline
+fn touch(counter: &mut Counter, bump: fn() -> void) -> i32:
+    counter.value = +1
+    bump()
+    counter.value
+
+tests:
+    it("the copy's parameter holds the loan"):
+        let mut held = Counter { value: +0 }
+        bump := fn() -> void: held.value = +10 # panic: borrow-conflict
+        _ := touch(&mut held, bump)

@@ -1,0 +1,27 @@
+# test: an erased generic method pushes to and stores into its own `UniqList` of its open element type
+# expect: test
+# Spec std/collections UniqList: std-collections.uniq-list.type.
+use std.collections.UniqList
+
+trait Sink:
+    fn own[T < ?Copy](&self, x: T, y: T, z: T) -> usize
+
+struct Bin:
+    n: usize
+
+impl Sink for Bin:
+    fn own[T < ?Copy](&self, x: T, y: T, z: T) -> usize:
+        let mut l = UniqList::[T].new()
+        l.push(x)
+        l.push(y)
+        l[1] = z
+        l.len()
+
+tests:
+    use std.testing.assert_equal
+
+    it("changes a list of strings and a list of numbers"):
+        b := Bin { n: 7 }
+        let s: &dyn Sink = &b
+        assert_equal(s.own("x", "y", "z${b.n}"), 2, reason="a list of strings")
+        assert_equal(s.own(+1, +2, +3), 2, reason="a list of numbers")

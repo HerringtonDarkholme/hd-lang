@@ -1,0 +1,18 @@
+# test: an `@inline` function's `&mut` parameter, given a place through a `*mut`, holds the loan a call would, so a write through another alias while the parameter is live panics
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.loan, ref.excl.alias.conflict.
+use std.annotation.inline
+
+struct Counter:
+    value: i32
+
+@inline
+fn touch(counter: &mut Counter, alias: *mut Counter) -> i32:
+    counter.value = +1
+    alias.value = +2 # panic: borrow-conflict
+    counter.value
+
+tests:
+    it("the copy's parameter holds the loan"):
+        let held: *mut Counter = box(Counter { value: +0 })
+        other := held
+        _ := touch(&mut *held, other)

@@ -2970,6 +2970,13 @@ matmul from 25 to 64 ms on wasmtime and from 70 to 180 ms on V8. Outside
 a loop the rounds saved little and cost binary_trees 10% on V8's default
 tier: copies in the allocator's helpers changed what V8 inlines itself.
 
+A copy binds a reference parameter whose argument is a fresh local `Ref`
+at the parameter's local reference type, as `let r: &mut T = &mut x` does.
+The binding holds the loans of the `Ref`'s place, and a read through it runs
+no loan check when that place crosses no object, as in a `&mut` of a frame
+slot. A counted carrier would check the slot's zero count word on each read
+and hold no loan on what the place does cross.
+
 The build profile also selects which ordinary bodies are candidates:
 a dev build copies std callees only, so user code stays as written for
 stepping, stack traces and `dbg`; a release build copies both, like the

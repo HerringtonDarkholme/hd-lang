@@ -1,0 +1,12 @@
+# @dump: wat
+# @build: v8 release
+# expected: no call and no check of the list's descriptor bits in the loop; the copy reads through its local reference
+use std.collections.UniqList
+
+fn fill(n: usize) -> UniqList[f64]:
+    let mut xs = UniqList::[f64].with_capacity(n)
+    for i in 0..n:
+        xs.push(0.0)
+    for i in 0..n:
+        xs[i] = 1.0
+    xs
