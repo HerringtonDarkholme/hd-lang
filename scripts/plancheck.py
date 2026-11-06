@@ -25,15 +25,73 @@ views), so `fn: own~X & tir~Loop` means a function with X that loops.
 Checks:
   1. every evidence term parses, and an open step's evidence matches at
      least one case (a done step, or the --show step, may match none);
-  2. every code path exists, and every ::SYMBOL occurs in its file;
+  2. every code path exists, and every ::SYMBOL is in its file's code
+     (ast-grep): a definition name, optionally after its keyword
+     (`fn counted`), or else an ast-grep pattern
+     (`Reason::Conservative("entry")`); comments never count;
   3. every case with work to do (a non-empty counts baseline, or a
      `value xN` join in own) matches at least one step;
   4. no locked case has disappeared.
 Prints each step's derived cases. Exit status 1 on any failure.
 """
+import json
 import os
 import re
+import subprocess
 import sys
+
+# Rust definition kinds a `code:` anchor may name, keyed by the keyword an
+# anchor may put in front of the name (`fn counted`).
+DEF_KINDS = {
+    'fn': ['function_item', 'function_signature_item'],
+    'struct': ['struct_item'],
+    'enum': ['enum_item'],
+    'trait': ['trait_item'],
+    'const': ['const_item'],
+    'static': ['static_item'],
+    'mod': ['mod_item'],
+    'type': ['type_item'],
+    'macro': ['macro_definition'],
+    'variant': ['enum_variant'],
+}
+ALL_KINDS = [k for ks in DEF_KINDS.values() for k in ks]
+LANGS = {'.rs': 'rust', '.py': 'python', '.ts': 'typescript'}
+ident_re = re.compile(r'^(?:(fn|struct|enum|trait|const|static|mod|type|macro|variant) )?([A-Za-z_][A-Za-z0-9_]*)$')
+
+
+def sg(args):
+    out = subprocess.run(['ast-grep', *args, '--json=compact'], capture_output=True, text=True)
+    if out.returncode not in (0, 1):
+        return None, out.stderr.strip().splitlines()[-1] if out.stderr.strip() else 'ast-grep failed'
+    return json.loads(out.stdout or '[]'), None
+
+
+def check_anchor(full, sym):
+    """None if SYM is in the file at FULL, else the reason it isn't.
+
+    SYM is a definition name, optionally after its keyword (`counted`,
+    `fn counted`), or else an ast-grep pattern (`Conservative("entry")`).
+    Comments and strings never satisfy an anchor."""
+    lang = LANGS.get('.' + full.rsplit('.', 1)[-1])
+    if lang is None:
+        return None if sym in open(full, errors='replace').read() else 'not in the file'
+    m = ident_re.match(sym)
+    if m and lang == 'rust':
+        kinds = DEF_KINDS[m.group(1)] if m.group(1) else ALL_KINDS
+        rule = {
+            'id': 'anchor', 'language': 'rust',
+            'rule': {'any': [{'kind': k} for k in kinds],
+                     'has': {'field': 'name', 'regex': f'^{m.group(2)}$'}},
+        }
+        found, err = sg(['scan', '--inline-rules', json.dumps(rule), full])
+        if err:
+            return err
+        return None if found else f'no definition named {m.group(2)}'
+    found, err = sg(['run', '--lang', lang, '--pattern', sym, full])
+    if err:
+        return f'not a definition name or a {lang} pattern ({err})'
+    return None if found else 'pattern matches no code'
+
 
 here = os.path.dirname(os.path.abspath(__file__))
 repo = os.path.dirname(here)
@@ -176,8 +234,8 @@ for line in open(plan_path):
         full = os.path.join(repo, path)
         if not os.path.exists(full):
             errors.append(f'step {sid}: missing path {path}')
-        elif sym and sym not in open(full, errors='replace').read():
-            errors.append(f'step {sid}: missing symbol {sym} in {path}')
+        elif sym and (why := check_anchor(full, sym.strip())):
+            errors.append(f'step {sid}: code anchor {sym} in {path}: {why}')
     nlines = sum(len(matched[c]) for c in hits)
     report.append(f'{sid} [{"x" if done == "x" else " "}] {len(hits):3d} cases {nlines:4d} lines{" fn" if scoped else ""}: {", ".join(hits)}')
 
