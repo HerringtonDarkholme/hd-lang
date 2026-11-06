@@ -20,8 +20,6 @@ impl Tag for Named:
 fn read_tag() -> usize $ Tag:
     $.use(Tag).name().len()
 > app/main/read_tag
->   retain app.main.Tag (stored)
->   release app.main.Tag (last use)
 >   (no span) release string (last use)
 
 fn by_value(s: string) -> usize:
@@ -59,6 +57,6 @@ fn lexical(s: string) -> usize:
 >   (no span) release &app.main.Tag (by design)
 >   (no span) release app.main.Tag (last use)
 > app/main/lexical
->   retain app.main.Tag (stored)
->   release app.main.Tag (last use)
+>   retain app.main.Tag (second owner)
+>   (no span) release app.main.Tag (last use)
 >   (no span) release string (last use)

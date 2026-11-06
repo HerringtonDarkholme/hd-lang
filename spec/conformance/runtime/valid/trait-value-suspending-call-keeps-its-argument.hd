@@ -1,0 +1,33 @@
+# test: a suspending method called through a trait value keeps its argument in its frame, which drops it once
+# Spec 09 Traits: trait.dyn.bound.reference-dispatch.
+use std.collections.UniqList
+
+struct Bag:
+    words: UniqList[string]
+
+impl !Copy for Bag
+
+trait Relay:
+    fn relay!(&self, bag: Bag) -> Bag
+
+struct Forwarder: pass
+
+impl Relay for Forwarder:
+    fn relay!(&self, bag: Bag) -> Bag:
+        bag
+
+fn fill(round: usize) -> Bag:
+    let mut words = UniqList::[string].new()
+    words.push("word_$round")
+    Bag { words: words }
+
+tests:
+    use std.testing.assert_equal
+
+    it("the suspension owns the argument until it runs"):
+        forwarder := Forwarder {}
+        let relay: &dyn Relay = &forwarder
+        for round in 0..4:
+            let job: mut Suspend[Bag] = relay.relay(fill(round))
+            back := job!()
+            assert_equal(back.words.len(), 1, reason="the moved argument comes back whole")

@@ -37,7 +37,6 @@ fn through_mut(g: &mut dyn Greet, n: string) -> usize:
     g.rename(n)
 > app/main/through_mut
 >   retain app.main.Greet (second owner)
->   release string (last use)
     g.twice()
 >   (no span) release app.main.Greet (last use)
 

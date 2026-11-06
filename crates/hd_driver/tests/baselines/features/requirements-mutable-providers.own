@@ -45,7 +45,7 @@ fn tick(s: string) -> usize $ Recorder:
     rec := $.use(Recorder)
 > app/main/tick
 >   local $0 s: string [param read] value
->     uses $0: entry -> %4 consume last
+>     uses $0: entry -> %4 lend last
 >   local $1 rec: Ref[mut Recorder] [:= read assigned] value
 >     uses $1: %2 -> %3 lend, %7 lend last
 >   %0 = ProviderGet #0 : Recorder
@@ -54,7 +54,7 @@ fn tick(s: string) -> usize $ Recorder:
 >   %11 = Block %8 : usize
     rec.note(s)
 >   %3 = Read copy [*$1] : mut Recorder
->   %4 = Read move [$0] : string
+>   %4 = Read borrow [$0] : string
 >   %5 = Call app/main/Recorder.note for Recorder [] via TraitValue (%3, %4) : ()
 >   %6 = Drop [%3] : ()
     rec.total()
@@ -62,16 +62,15 @@ fn tick(s: string) -> usize $ Recorder:
 >   %8 = Call app/main/Recorder.total for Recorder [] via TraitValue (%7) : usize
 >   %9 = Drop [%7] : ()
 >   %10 = Drop [$1] : ()
->   exit sub 0 drops [$0]
->   summary kept [$0] writes
+>   summary kept [] borrows [$0] writes
 
 fn demo(a: string, b: string) -> usize:
     tally := box(Log { lines: [] })
 > app/main/demo
 >   local $0 a: string [param read] value
->     uses $0: entry -> %14 consume last
+>     uses $0: entry -> %14 lend last
 >   local $1 b: string [param read] value
->     uses $1: entry -> %16 consume last
+>     uses $1: entry -> %16 lend last
 >   local $2 $ref: Log [read assigned captured captured-assigned] place
 >   local $3 tally: Counted[mut Log] [:= read assigned] value
 >     uses $3: %4 -> %5 consume, %21 lend last
@@ -97,16 +96,15 @@ fn demo(a: string, b: string) -> usize:
 >   %19 = With [%5928 %12] %18 : ()
 >   %20 = Drop [%12] : ()
         _ := tick(a)
->   %14 = Read move [$0] : string
+>   %14 = Read borrow [$0] : string
 >   %15 = Call app/main/tick[] (%14) : usize
 >   %18 = Block - : ()
         _ := tick(b)
->   %16 = Read move [$1] : string
+>   %16 = Read borrow [$1] : string
 >   %17 = Call app/main/tick[] (%16) : usize
     tally.lines.len()
 >   %21 = Read borrow [*$3 .lines] : List[string]
 >   %22 = Intrinsic ListLen [%21] : usize
 >   %23 = Drop [%21] : ()
 >   %24 = Drop [$3] : ()
->   exit sub 0 drops [$0 $1]
->   summary kept [$0 $1] writes
+>   summary kept [] borrows [$0 $1] writes

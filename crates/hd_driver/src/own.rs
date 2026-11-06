@@ -414,6 +414,29 @@ impl OwnCx for Env<'_> {
         {
             return Pass::Lent;
         }
+        // A call through a trait value lends its receiver, and every
+        // argument whose declared type names no type parameter, to its
+        // slot, which takes any count its concrete target owns (the
+        // backend's `Em::borrowed_arg`); an open value may arrive with a
+        // count the call takes (`Em::dyn_takes`). Not for a method that
+        // suspends, whose frame keeps its arguments, or an intrinsic one,
+        // whose code the compiler supplies (as `OwnCx::keeps` reads them).
+        if let Callee::TraitMethod {
+            method,
+            choice: (ChoiceKind::TraitValue, _),
+            ..
+        } = callee
+            && hd_mono::erased::own_count(self, *method) == 0
+            && self.intrinsic(*method).is_none()
+            && !ProgramEnv::suspends(self, *method)
+            && self.sig(*method).is_some_and(|sig| {
+                !sig.suspends
+                    && sig.params.len() == n
+                    && (k == 0 || !self.run.pool.has_param(sig.params[k].1))
+            })
+        {
+            return Pass::Lent;
+        }
         // The signature's parameters, the receiver first.
         let def = match callee {
             Callee::Item { def, .. } => *def,

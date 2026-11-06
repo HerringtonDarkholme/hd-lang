@@ -43,20 +43,21 @@ fn tagged!() -> usize $ Tag:
     $.use(Tag).name().len()
 > app/main/tagged
 >   local $1 self: string [read] value
->     uses $1: %5 -> %6 lend last
+>     uses $1: %6 -> %7 lend last
 >   %0 = ProviderGet #0 : Tag
 >   %1 = Coerce %0 [ProviderAsRef -] : Ref[Tag]
->   %2 = Read copy [*%1] : Tag
+>   %2 = Read borrow [*%1] : Tag
 >   %3 = Drop [%1] : ()
 >   %4 = Call app/main/Tag.name for Tag [] via TraitValue (%2) : string
->   %5 = Store [$1] %4 : ()
->   %6 = Read borrow [$1] : string
->   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
->   %8 = Break L0 %7 : never
->   %9 = Block - : usize
->   %10 = Scope %9 [] : usize
->   %11 = Drop [$1] : ()
->   %12 = Block %10 : usize
+>   %5 = Drop [%2] : ()
+>   %6 = Store [$1] %4 : ()
+>   %7 = Read borrow [$1] : string
+>   %8 = Call std/rt.bytes/bytes_len[] (%7) : usize
+>   %9 = Break L0 %8 : never
+>   %10 = Block - : usize
+>   %11 = Scope %10 [] : usize
+>   %12 = Drop [$1] : ()
+>   %13 = Block %11 : usize
 >   summary none
 
 fn later!(key: string) -> usize:

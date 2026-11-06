@@ -19,8 +19,6 @@ impl Tag for Named:
 fn read_tag() -> usize $ Tag:
     $.use(Tag).name().len()
 > app/main/read_tag
->   retain app.main.Tag (stored)
->   release app.main.Tag (last use)
 >   (no span) release string (last use)
 
 fn with_tag[$ R](s: string, callback: fn() -> usize $ R + Tag) -> usize $ R:
@@ -45,6 +43,4 @@ fn run(s: string) -> usize:
 fn closure(s: string) -> usize:
     with_tag(s, fn() -> usize $ Tag: $.use(Tag).name().len())
 > app/main/closure
->   retain app.main.Tag (stored)
->   release app.main.Tag (last use)
 >   (no span) release string (last use)

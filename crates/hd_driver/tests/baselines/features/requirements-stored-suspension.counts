@@ -26,8 +26,6 @@ fn fetch!(key: string) -> string:
 fn tagged!() -> usize $ Tag:
     $.use(Tag).name().len()
 > app/main/tagged
->   retain app.main.Tag (stored)
->   release app.main.Tag (last use)
 >   release string (overwritten)
 >   (no span) release string (last use)
 
