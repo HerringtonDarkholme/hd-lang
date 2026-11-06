@@ -47,7 +47,7 @@ fn is_block_on(calls: &HashMap<u32, Target>, i: u32) -> bool {
     )
 }
 
-/// The `block_on` that drives cold dynamic call `c` at once, if one does:
+/// The `block_on` that drives cold call `c` at once, if one does:
 /// `block_on(x.m(args))`, or `let s = x.m(args)` and then `block_on(s)`
 /// with the local moved in. Between the two only drops of other values,
 /// that store and that read may run, so polling at the call instead of at
@@ -108,6 +108,31 @@ pub fn block_on_of(b: &Body, topo: &Topology, calls: &HashMap<u32, Target>, c: u
         blk = tail;
         pos = 0;
     }
+}
+
+/// A known body's first drive always finishes: its own sub-body has no
+/// suspension point, and a runtime scenario does not hold its polls.
+/// Nested closure bodies do not run merely because their maker runs.
+pub fn completes(input: &Input<'_>, id: InstId) -> bool {
+    if input.collected.table.sub[id.idx()] != Sub::Body(0)
+        || input
+            .entry
+            .held(input.collected.table.item[id.idx()])
+            .is_some()
+    {
+        return false;
+    }
+    let Some(body) = (input.body)(id) else {
+        return false;
+    };
+    let topo = Topology::new(body);
+    !(0..body.len()).any(|i| {
+        topo.sub[i] == 0
+            && matches!(
+                body.tags[i],
+                Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace
+            )
+    })
 }
 
 /// An unresolved function value can name a cold constructor only when its

@@ -27,7 +27,7 @@ use wasm_encoder::BlockType;
 
 use crate::layout::{Pass, num, vals};
 use crate::module::{
-    Func, GLUE, Global, HEAP, Import, Ins, Module, Stored, Sym, Val, WEAK_GLUE, mem,
+    Func, GLUE, Global, HEAP, Import, Ins, Module, Part, Stored, Sym, Val, WEAK_GLUE, mem,
 };
 use crate::rt::Helper;
 use crate::{Input, unsupported};
@@ -1240,9 +1240,15 @@ struct Em<'i, 'a, 'm> {
     /// change left, which the thunk returns for its caller to store
     /// ([`Em::put_back`]); `NONE` until the change leaves one.
     changed: Option<u32>,
-    /// Each `block_on` whose cold dynamic call went through its drive
-    /// slot (§23.39): the locals holding that call's results.
-    driven: HashMap<u32, (Vec<u32>, u32)>,
+    /// Each `block_on` whose cold call has already had its first drive.
+    driven: HashMap<u32, Driven>,
+}
+
+/// Results of a fused first drive, with optional host-leaf shadow storage.
+struct Driven {
+    values: Vec<u32>,
+    buffer: Option<u32>,
+    complete: bool,
 }
 
 impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
@@ -2542,6 +2548,12 @@ impl Em<'_, '_, '_> {
                         self.f.op(Instruction::Unreachable);
                         return self.call_results(i, ct.ret);
                     }
+                    if self.env().suspends(ct.item)
+                        && let Some(on) =
+                            crate::drive::block_on_of(self.b, &self.topo, self.calls, i)
+                    {
+                        return self.call_known_drive(i, &ct, &args, on);
+                    }
                     let params = self.param_tys(ct.key, ct.item, ct.args);
                     let lends = self.env().lends(ct.item, ct.args)
                         | promote::promoted_params(self.input, self.m, ct.key);
@@ -2631,7 +2643,63 @@ impl Em<'_, '_, '_> {
         for l in res.iter().rev() {
             self.f.set(*l);
         }
-        self.driven.insert(on, (res, buffer));
+        self.driven.insert(
+            on,
+            Driven {
+                values: res,
+                buffer: Some(buffer),
+                complete: false,
+            },
+        );
+        self.store_owned(i)
+    }
+
+    /// A known cold call driven immediately starts with the body's fresh
+    /// path, as a bang call does. A frame is made only if that path waits.
+    fn call_known_drive(
+        &mut self,
+        i: u32,
+        target: &hd_mono::CallTarget,
+        args: &[u32],
+        on: u32,
+    ) -> StageResult<()> {
+        let inner = self.susp_inner(self.ty(i))?;
+        let values: Vec<u32> = self.vals(inner)?.iter().map(|v| self.f.local(*v)).collect();
+        let frame = self.f.local(Val::I32);
+        // The check belongs to block_on even when its first drive is
+        // emitted at the earlier construction site.
+        let (at, origin) = (self.f.at, self.f.origin_at);
+        if self.anchored(on) {
+            let (frame, outer) = self.frame_anchor(self.b.anchor(on));
+            self.f.at = Some(frame);
+            self.f.origin_at = Some(outer);
+        }
+        self.f.helper(Helper::ForbidCheck);
+        self.f.at = at;
+        self.f.origin_at = origin;
+        self.f.i32(0);
+        self.push_args(args, None, 0)?;
+        let context = self.push_call_providers(target.item, target.args)?;
+        self.f.call(Sym::Part(target.key, Part::Body));
+        self.f.set(frame);
+        for value in values.iter().rev() {
+            self.f.set(*value);
+        }
+        self.release_ctx(context);
+        let complete = self
+            .m
+            .inst_of
+            .get(&target.key)
+            .is_some_and(|&id| crate::drive::completes(self.input, id));
+        self.driven.insert(
+            on,
+            Driven {
+                values,
+                buffer: None,
+                complete,
+            },
+        );
+        self.f.get(frame);
         self.store_owned(i)
     }
 
@@ -3435,6 +3503,13 @@ impl Em<'_, '_, '_> {
         // forbidden-context check and the first poll, and left its results
         // in locals: `frame` is 0 when it is done.
         let fused = self.driven.remove(&i);
+        if let Some(driven) = &fused
+            && driven.complete
+        {
+            self.slot(i)?;
+            self.new_variant(i, 0, &[value::Src::Locals(driven.values.clone())])?;
+            return self.release_locals(&driven.values, inner);
+        }
         if fused.is_none() {
             self.f.helper(Helper::ForbidCheck);
         }
@@ -3445,7 +3520,7 @@ impl Em<'_, '_, '_> {
             self.f.local(Val::I32),
         );
         let tmp: Vec<u32> = match &fused {
-            Some((ls, _)) => ls.clone(),
+            Some(driven) => driven.values.clone(),
             None => result.iter().map(|v| self.f.local(*v)).collect(),
         };
         self.comp(s, 0)?;
@@ -3556,7 +3631,7 @@ impl Em<'_, '_, '_> {
         self.new_variant(i, 0, &[value::Src::Locals(tmp.clone())])?;
         self.release_locals(&tmp, inner)?;
         self.close();
-        if let Some((_, buffer)) = fused {
+        if let Some(buffer) = fused.and_then(|driven| driven.buffer) {
             self.f.get(frame);
             self.f.get(buffer);
             self.f.op(Instruction::I32Eq);
