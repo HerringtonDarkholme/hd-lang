@@ -4,11 +4,16 @@
 //! digest of each module's plain Wasm for byte-identity checks between two
 //! commits.
 //!
-//! `cargo test -p hd_driver --test count_reasons -- --ignored --nocapture`
+//! `HD_CORPUS_PARTS=bench cargo test -p hd_driver --test count_reasons -- --ignored --nocapture`
 //!
+//! - `HD_CORPUS_PARTS=bench` selects only benchmarks. A comma-separated
+//!   list selects other named parts; an unknown part is rejected.
 //! - `HD_CORPUS_EVERY=N` builds every Nth module of each part (default 1).
-//! - `HD_CORPUS_OUT=DIR` writes `digests.tsv` and `reasons.tsv` there,
-//!   and `counts.tsv`: each module's items with their count operations.
+//! - `HD_CORPUS_OUT=DIR` (relative to the repository root) writes
+//!   `digests.tsv` and `reasons.tsv` there,
+//!   `counts.tsv` (operation totals per item), and `operations.tsv`
+//!   (every operation's function, instance, offset, subject and reason,
+//!   including std and generated runtime bodies).
 //! - `HD_CORPUS_DEV=1` builds in dev (checked profile, dev pipeline)
 //!   instead of release.
 //!
@@ -226,26 +231,6 @@ fn modules() -> Vec<Module> {
     out
 }
 
-/// A count operation's reason, from its debug form (`reason: LastUse`,
-/// `reason: Conservative("entry")`) as `last use`, `conservative: entry`.
-fn reason_of(debug: &str) -> String {
-    let Some(at) = debug.rfind("reason: ") else {
-        return "none".into();
-    };
-    let r = debug[at + 8..].trim_end_matches([' ', '}']);
-    if let Some(site) = r.strip_prefix("Conservative(\"") {
-        return format!("conservative: {}", site.trim_end_matches("\")"));
-    }
-    let mut s = String::new();
-    for (i, c) in r.chars().enumerate() {
-        if c.is_uppercase() && i > 0 {
-            s.push(' ');
-        }
-        s.push(c.to_ascii_lowercase());
-    }
-    s
-}
-
 fn fnv(bytes: &[u8]) -> u64 {
     bytes.iter().fold(0xcbf2_9ce4_8422_2325, |h, b| {
         (h ^ u64::from(*b)).wrapping_mul(0x0100_0000_01b3)
@@ -293,7 +278,12 @@ fn build(store: &MemoryStore, m: &Module, origins: bool) -> hd_driver::Output {
     build_packages(&host, "app", &packages, &goal)
 }
 
-fn run(mods: &[&Module], tally: &mut Tally, digests: &mut Vec<String>) {
+fn run(
+    mods: &[&Module],
+    tally: &mut Tally,
+    digests: &mut Vec<String>,
+    operations: &mut Vec<String>,
+) {
     let store = MemoryStore::default();
     for m in mods {
         let plain =
@@ -314,11 +304,19 @@ fn run(mods: &[&Module], tally: &mut Tally, digests: &mut Vec<String>) {
             .entry((m.part.into(), "-".into(), "built".into(), "-".into()))
             .or_default() += 1;
         let mapped = build(&store, m, true);
+        assert!(
+            !mapped.diags.has_errors(),
+            "{}: {}",
+            m.name,
+            mapped.render()
+        );
         let mut per_item: BTreeMap<&str, usize> = BTreeMap::new();
         for f in &mapped.instruction_origins {
-            let Some(item) = &f.item else { continue };
+            let item = f.item.as_deref().unwrap_or(&f.name);
             *per_item.entry(item).or_default() += f.counts.len();
-            let side = if item.starts_with("std/") {
+            let side = if f.item.is_none() {
+                "runtime"
+            } else if item.starts_with("std/") {
                 "std"
             } else {
                 "app"
@@ -327,10 +325,22 @@ fn run(mods: &[&Module], tally: &mut Tally, digests: &mut Vec<String>) {
                 let key = (
                     m.part.to_owned(),
                     side.to_owned(),
-                    reason_of(&format!("{c:?}")),
+                    c.reason.to_string(),
                     c.action.name().to_owned(),
                 );
                 *tally.entry(key).or_default() += 1;
+                operations.push(format!(
+                    "{}\t{}\t{side}\t{item}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                    m.part,
+                    m.name,
+                    f.name,
+                    f.type_args.join(", "),
+                    c.offset,
+                    c.origin.map_or_else(|| "-".into(), |v| v.to_string()),
+                    c.action.name(),
+                    c.subject,
+                    c.reason,
+                ));
             }
         }
         for (item, n) in per_item.into_iter().filter(|&(_, n)| n > 0) {
@@ -348,9 +358,23 @@ fn count_reasons() {
         .unwrap_or(1)
         .max(1);
     let all = modules();
+    let parts = std::env::var("HD_CORPUS_PARTS").ok();
+    let parts: Option<Vec<_>> = parts
+        .as_deref()
+        .map(|p| p.split(',').map(str::trim).collect());
+    if let Some(parts) = &parts {
+        assert!(
+            parts.iter().all(|p| matches!(
+                *p,
+                "conformance" | "stage" | "examples" | "tour" | "guide" | "bench"
+            )),
+            "HD_CORPUS_PARTS must name corpus parts, such as bench"
+        );
+    }
     let mut by_part: BTreeMap<&str, usize> = BTreeMap::new();
     let mods: Vec<&Module> = all
         .iter()
+        .filter(|m| parts.as_ref().is_none_or(|p| p.contains(&m.part)))
         .filter(|m| {
             let k = by_part.entry(m.part).or_default();
             *k += 1;
@@ -365,34 +389,36 @@ fn count_reasons() {
     let chunks: Vec<Vec<&Module>> = (0..threads)
         .map(|t| mods.iter().skip(t).step_by(threads).copied().collect())
         .collect();
-    let results: Vec<(Tally, Vec<String>)> = std::thread::scope(|s| {
+    let results: Vec<_> = std::thread::scope(|s| {
         let hs: Vec<_> = chunks
             .iter()
             .map(|c| {
                 s.spawn(move || {
-                    let (mut t, mut d) = (Tally::new(), Vec::new());
-                    run(c, &mut t, &mut d);
-                    (t, d)
+                    let (mut t, mut d, mut o) = (Tally::new(), Vec::new(), Vec::new());
+                    run(c, &mut t, &mut d, &mut o);
+                    (t, d, o)
                 })
             })
             .collect();
         hs.into_iter().map(|h| h.join().expect("worker")).collect()
     });
-    let (mut tally, mut digests) = (Tally::new(), Vec::new());
-    for (t, d) in results {
+    let (mut tally, mut digests, mut operations) = (Tally::new(), Vec::new(), Vec::new());
+    for (t, d, o) in results {
         for (k, n) in t {
             *tally.entry(k).or_default() += n;
         }
         digests.extend(d);
+        operations.extend(o);
     }
     digests.sort_stable();
+    operations.sort_stable();
     let mut reasons = String::from("part\tside\treason\taction\tcount\n");
     for ((part, side, reason, action), n) in &tally {
         let _ = writeln!(reasons, "{part}\t{side}\t{reason}\t{action}\t{n}");
     }
     print!("{reasons}");
     if let Ok(dir) = std::env::var("HD_CORPUS_OUT") {
-        let dir = PathBuf::from(dir);
+        let dir = root().join(dir);
         std::fs::create_dir_all(&dir).expect("out dir");
         std::fs::write(dir.join("reasons.tsv"), &reasons).expect("reasons");
         let (counts, digests): (Vec<String>, Vec<String>) =
@@ -400,5 +426,13 @@ fn count_reasons() {
         let counts: Vec<&str> = counts.iter().map(|c| &c[1..]).collect();
         std::fs::write(dir.join("digests.tsv"), digests.join("\n") + "\n").expect("digests");
         std::fs::write(dir.join("counts.tsv"), counts.join("\n") + "\n").expect("counts");
+        std::fs::write(
+            dir.join("operations.tsv"),
+            "part\tprogram\tside\titem\tfunction\targuments\toffset\torigin\taction\tsubject\treason\n"
+                .to_owned()
+                + &operations.join("\n")
+                + "\n",
+        )
+        .expect("operations");
     }
 }
