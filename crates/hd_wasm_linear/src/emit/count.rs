@@ -1069,7 +1069,7 @@ impl Em<'_, '_, '_> {
                     .cap_local
                     .iter()
                     .zip(&b.cap_mode)
-                    .any(|(c, m)| c.idx() == l && *m == hd_tir::ir::CaptureMode::Shared)
+                    .any(|(c, m)| c.idx() == l && m.shares())
             {
                 continue;
             }

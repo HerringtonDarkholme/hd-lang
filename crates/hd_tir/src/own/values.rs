@@ -23,7 +23,7 @@
 //! passes or after them alike.
 
 use super::splice;
-use crate::ir::{Body, CaptureMode, NONE, Proj, Ref, Role, Root, Tag, Topology, inside, u32_of};
+use crate::ir::{Body, NONE, Proj, Ref, Role, Root, Tag, Topology, inside, u32_of};
 use hd_base::SliceSort as _;
 
 /// What one local of a body is ([`classify`]).
@@ -73,7 +73,7 @@ pub fn classify(b: &Body, out: &mut Vec<Local>) {
             Tag::Closure => {
                 let rec = b.record(b.data[i][1]);
                 for c in rec[0]..rec[0] + rec[1] {
-                    if b.cap_mode.get(c as usize) == Some(&CaptureMode::Shared) {
+                    if b.cap_mode.get(c as usize).is_some_and(|m| m.shares()) {
                         place(out, b.cap_local[c as usize].raw());
                     }
                 }
@@ -356,7 +356,7 @@ pub fn uses(
                 let rec = b.record(b.data[r][1]);
                 for c in rec[0]..rec[0] + rec[1] {
                     let l = b.cap_local[c as usize].raw();
-                    if b.cap_mode.get(c as usize) != Some(&CaptureMode::Shared) && value(l) {
+                    if !b.cap_mode.get(c as usize).is_some_and(|m| m.shares()) && value(l) {
                         push(l, r, Use::Consume);
                     }
                 }

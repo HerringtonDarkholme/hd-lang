@@ -458,6 +458,20 @@ pub enum CaptureMode {
     Copy,
     Move,
     Shared,
+    /// A `Shared` capture whose cell may live in a slot of the maker's
+    /// frame (`own::frame_cells`): the closure never outlives the frame,
+    /// and the ownership passes keep the local alive over every use of
+    /// the closure.
+    Frame,
+}
+
+impl CaptureMode {
+    /// Whether the closure shares the local through a cell: `Shared` or
+    /// `Frame`.
+    #[must_use]
+    pub fn shares(self) -> bool {
+        matches!(self, Self::Shared | Self::Frame)
+    }
 }
 
 /// The place encoding (`docs/compiler/tir-v2.md`, "Encoding, wire format
@@ -2676,6 +2690,7 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                         0 => Ok(CaptureMode::Copy),
                         1 => Ok(CaptureMode::Move),
                         2 => Ok(CaptureMode::Shared),
+                        3 => Ok(CaptureMode::Frame),
                         _ => Err(e("bad capture mode".into())),
                     })
                     .collect::<Result<_, _>>()?;

@@ -51,7 +51,7 @@ pub(crate) mod borrow;
 pub(crate) use borrow::keeps_drops;
 pub mod flow;
 mod frame;
-pub use frame::{frame_cells, store_finds_empty};
+pub use frame::store_finds_empty;
 pub(crate) mod hoist;
 mod insert;
 mod known;
@@ -862,7 +862,7 @@ pub fn returned_param(b: &Body) -> Option<u8> {
         }
         at = l;
     }
-    let shared = |c: usize| b.cap_local[c].raw() == at && b.cap_mode[c] == CaptureMode::Shared;
+    let shared = |c: usize| b.cap_local[c].raw() == at && b.cap_mode[c].shares();
     let touched = |i: usize| {
         matches!(b.tags[i], Tag::Store | Tag::Ref | Tag::IsUnique)
             && b.local_in_place(b.data[i][0]).map(hd_base::LocalId::raw) == Some(at)

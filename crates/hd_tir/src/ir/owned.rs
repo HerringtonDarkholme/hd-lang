@@ -706,7 +706,7 @@ fn reference_values(b: &Body) -> Vec<u32> {
         }
     }
     for (l, mode) in b.cap_local.iter().zip(&b.cap_mode) {
-        if *mode == super::CaptureMode::Shared {
+        if mode.shares() {
             values[l.idx()] = NONE;
         }
     }
@@ -1450,7 +1450,7 @@ impl<'a> Balance<'a> {
             }
         }
         for (l, m) in b.cap_local.iter().zip(&b.cap_mode) {
-            if *m == super::CaptureMode::Shared
+            if m.shares()
                 && let Some(x) = held.get_mut(l.idx())
             {
                 *x = true;

@@ -466,7 +466,7 @@ pub fn thunk_capture_locals(b: &Body, i: u32) -> Vec<(u32, bool)> {
         .map(|c| {
             (
                 b.cap_local[c].raw(),
-                b.cap_mode.get(c) == Some(&hd_tir::ir::CaptureMode::Shared),
+                b.cap_mode.get(c).is_some_and(|m| m.shares()),
             )
         })
         .collect()

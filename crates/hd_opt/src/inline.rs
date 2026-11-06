@@ -11,7 +11,7 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 use hd_base::{DefId, Hash128, HashMap, HashSet, StableHasher};
 use hd_mono::ProgramEnv;
 use hd_tir::inline::Site;
-use hd_tir::ir::{Body, Callee, CaptureMode, Ref, Tag, local_flags, place, ref_word};
+use hd_tir::ir::{Body, Callee, Ref, Tag, local_flags, place, ref_word};
 use hd_types::{InternPool, RefCells, Ty, TyData, TyList};
 
 /// The most instructions a callee's body may have for a call of it to
@@ -870,7 +870,7 @@ fn captured_read_args(body: &Body, call: usize) -> u64 {
             let mut captured = false;
             for (&l, &mode) in body.cap_local.iter().zip(&body.cap_mode) {
                 if l.raw() == local {
-                    if mode == CaptureMode::Shared {
+                    if mode.shares() {
                         return false;
                     }
                     captured = true;

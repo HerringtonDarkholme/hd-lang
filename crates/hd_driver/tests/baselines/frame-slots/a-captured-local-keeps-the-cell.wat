@@ -14,10 +14,9 @@
       i64.store $heap
       ;; ...
     ;; (no span)
-      local.get $tally
-      call $rt:release_ref
-      ;; ...
       local.get $t0
+      call $rt:release_ref
+      local.get $tally
       call $rt:release_ref
       local.set $t1
     end

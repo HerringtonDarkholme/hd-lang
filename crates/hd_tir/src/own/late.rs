@@ -246,7 +246,7 @@ fn count_reach(b: &Body, reach: &mut Vec<u32>) {
             Tag::Closure => {
                 let rec = b.record(b.data[x][1]);
                 for c in rec[0]..rec[0] + rec[1] {
-                    if b.cap_mode.get(c as usize) == Some(&CaptureMode::Shared) {
+                    if b.cap_mode.get(c as usize).is_some_and(|m| m.shares()) {
                         reach[b.cap_local[c as usize].raw() as usize] += 1;
                     }
                 }

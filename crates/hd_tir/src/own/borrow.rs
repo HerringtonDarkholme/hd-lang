@@ -634,7 +634,7 @@ pub(crate) fn escaping(b: &Body, cx: &dyn OwnCx) -> Vec<bool> {
         }
     }
     for (l, m) in b.cap_local.iter().zip(&b.cap_mode) {
-        if *m == crate::ir::CaptureMode::Shared {
+        if m.shares() {
             out[l.idx()] = true;
         }
     }
@@ -821,7 +821,7 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 for c in rec[0] as usize..(rec[0] + rec[1]) as usize {
                     let l = b.cap_local[c].idx();
                     t.captured[l] = true;
-                    if b.cap_mode[c] == crate::ir::CaptureMode::Shared {
+                    if b.cap_mode[c].shares() {
                         t.reached[l] = true;
                         t.escapes[l] = true;
                         t.wide[l] = true;

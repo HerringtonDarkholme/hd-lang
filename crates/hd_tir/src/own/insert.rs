@@ -70,8 +70,8 @@ use super::{
     Loc, Operand, OwnCx, OwnScratch, Role, consumes, fill, operands, splice, suite_touches, tracked,
 };
 use crate::ir::{
-    Body, CaptureMode, IntrinsicOp, NONE, PlaceView, ReadMode, Ref, Root, Tag, Topology,
-    local_flags, place, u32_of,
+    Body, IntrinsicOp, NONE, PlaceView, ReadMode, Ref, Root, Tag, Topology, local_flags, place,
+    u32_of,
 };
 
 /// A place a jump may need to drop: a value or a local (bit 31 set),
@@ -568,7 +568,7 @@ fn locals(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables, edits: &mut
                 for c in start..start + len {
                     let l = b.cap_local[c].raw();
                     t.acc.push((topo.sub[i], l, u32_of(i)));
-                    if b.cap_mode.get(c) == Some(&CaptureMode::Shared) {
+                    if b.cap_mode.get(c).is_some_and(|m| m.shares()) {
                         t.celled[l as usize] = true;
                     }
                     if !b.is_instantiation(i) {

@@ -66,8 +66,7 @@ use super::{Loc, Operand, OwnCx, Role, consumes, fill, operands, suite_touches, 
 use hd_base::SliceSort as _;
 
 use crate::ir::{
-    Body, CaptureMode, NONE, ReadMode, Ref, Root, Tag, Topology, is_suspension, local_flags,
-    ref_word, u32_of,
+    Body, NONE, ReadMode, Ref, Root, Tag, Topology, is_suspension, local_flags, ref_word, u32_of,
 };
 
 /// Known-null's dense tables, reused across bodies.
@@ -285,7 +284,7 @@ fn number(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &splice::Tables) -> b
     }
     for (l, m) in b.cap_local.iter().zip(&b.cap_mode) {
         t.entry[l.idx()] = true;
-        if *m == CaptureMode::Shared {
+        if m.shares() {
             t.pin_l[l.idx()] = true;
         }
     }
@@ -326,7 +325,7 @@ fn number(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &splice::Tables) -> b
         }
     }
     for (l, m) in b.cap_local.iter().zip(&b.cap_mode) {
-        if *m == CaptureMode::Shared {
+        if m.shares() {
             t.mark_cell(l.raw());
         }
     }

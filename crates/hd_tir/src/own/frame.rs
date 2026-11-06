@@ -48,8 +48,9 @@
 //!    shares, whose closure never leaves the frame, could live in a frame
 //!    slot: the closure value points into it, and rule 3's escapes apply,
 //!    with a call that may keep its argument, a compiler-supplied call and
-//!    another closure's capture added. The own view prints it; nothing
-//!    reads it yet.
+//!    another closure's capture added. Its captures become
+//!    `CaptureMode::Frame`, and every use of what may point into it is
+//!    its use, so insertion drops it after the closure's last use.
 
 use hd_base::SliceSort as _;
 
@@ -211,6 +212,7 @@ pub(crate) fn run(
         root_uses(b, cx, &mut uses);
         return;
     }
+    cell_uses(b, topo, cx, &mut uses);
     for c in &b.cap_local {
         t.bad[c.idx()] = true;
     }
@@ -293,24 +295,21 @@ pub(crate) fn run(
     root_uses(b, cx, &mut uses);
 }
 
-/// Frame cells: each local of the root a closure shares (a `Shared`
-/// capture) that could live in a frame slot, as `out`. The closure value
-/// points into the cell, and the cell escapes as a frame candidate's
-/// value does (rule 3), and also when a call that may keep an argument
-/// ([`super::keeps_arg`]) is passed it, an `Intrinsic` or host call reads
-/// it, or another closure captures it. A local some closure copies or
-/// moves, one a closure outside the root shares, or one with a `Ref` that
-/// rule 1 rules out, is none. Nothing reads the answer yet.
-pub fn frame_cells(b: &Body, topo: &Topology, cx: &dyn OwnCx, out: &mut Vec<u32>) {
-    out.clear();
+/// Frame cells: plans each local of the root a closure shares (a
+/// `Shared` capture) that may live in a frame slot into `t`, and returns
+/// their bits. The closure value points into the cell, and the cell
+/// escapes as a frame candidate's value does (rule 3), and also when a
+/// call that may keep an argument ([`super::keeps_arg`]) is passed it, an
+/// `Intrinsic` or host call reads it, or another closure captures it. A
+/// local some closure copies or moves, one a closure outside the root
+/// shares, or one with a `Ref` that rule 1 rules out, is none.
+fn plan_cells(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> u64 {
     let (n, locals) = (b.len(), b.local_ty.len());
-    if (0..n).any(|i| is_suspension(b.tags[i]) && topo.sub[i] == 0) {
-        return;
-    }
-    let mut t = Tables {
-        cells: true,
-        ..Tables::default()
-    };
+    t.cells = true;
+    t.cands.clear();
+    t.targets.clear();
+    t.out = 0;
+    t.frame = 0;
     fill(&mut t.bit, locals, 0);
     fill(&mut t.bad, locals, false);
     for i in 0..n {
@@ -324,7 +323,7 @@ pub fn frame_cells(b: &Body, topo: &Topology, cx: &dyn OwnCx, out: &mut Vec<u32>
             }
             Tag::Closure => {
                 for (l, m) in closure_caps(b, i) {
-                    if topo.sub[i] != 0 || *m != crate::ir::CaptureMode::Shared {
+                    if topo.sub[i] != 0 || !m.shares() {
                         t.bad[l.idx()] = true;
                     }
                 }
@@ -341,24 +340,63 @@ pub fn frame_cells(b: &Body, topo: &Topology, cx: &dyn OwnCx, out: &mut Vec<u32>
         }
     }
     if t.cands.is_empty() {
-        return;
+        return 0;
     }
     fill(&mut t.val, n, 0);
     fill(&mut t.held, locals, 0);
     fill(&mut t.dep, n, 0);
     fill(&mut t.ldep, locals, 0);
-    let mut ops = Vec::new();
+    let mut ops = std::mem::take(&mut t.ops);
     let mut changed = true;
     while changed {
         changed = false;
         for i in 0..n {
-            changed |= step(b, cx, &mut t, &mut ops, i);
+            changed |= step(b, cx, t, &mut ops, i);
         }
     }
-    escape_exits(b, false, &mut t, &mut ops);
-    for (k, &l) in t.cands.iter().enumerate() {
-        if t.out & (1 << k) == 0 {
-            out.push(l);
+    escape_exits(b, false, t, &mut ops);
+    t.ops = ops;
+    t.frame = !t.out & (u64::MAX >> (64 - t.cands.len()));
+    t.frame
+}
+
+/// Rule 6 in a body with no suspension point in its root: each frame
+/// cell's captures become `CaptureMode::Frame`, and `uses` gets each
+/// instruction that uses a value or a local that may point into one, as
+/// (instruction, local, true), so its drop follows the closure's last use.
+fn cell_uses(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, uses: &mut impl FnMut(u32, u32, bool)) {
+    if !b.cap_mode.iter().any(|m| m.shares()) {
+        return;
+    }
+    let mut t = Tables::default();
+    let frame = plan_cells(b, topo, cx, &mut t);
+    if frame == 0 {
+        return;
+    }
+    for i in 0..b.len() {
+        let mut m = 0;
+        if matches!(b.tags[i], Tag::Read | Tag::Store | Tag::Ref | Tag::IsUnique)
+            && let Some(l) = b.view(b.data[i][0]).local()
+        {
+            m |= t.held[l as usize] | t.ldep[l as usize];
+        }
+        operands(b, i, &mut t.ops);
+        for op in &t.ops {
+            m |= t.of(op.value) | t.dep.get(op.value as usize).copied().unwrap_or(0);
+        }
+        for k in bits(m & frame) {
+            uses(u32_of(i), t.cands[k], true);
+        }
+        if b.tags[i] == Tag::Closure {
+            let rec = b.record(b.data[i][1]);
+            let (start, len) = (rec[0] as usize, rec[1] as usize);
+            for c in start..start + len {
+                if b.cap_mode[c] == crate::ir::CaptureMode::Shared
+                    && t.bit[b.cap_local[c].idx()] & frame != 0
+                {
+                    b.cap_mode[c] = crate::ir::CaptureMode::Frame;
+                }
+            }
         }
     }
 }
@@ -828,7 +866,7 @@ fn step_val(
                 // closure points into the cells it shares.
                 let mut cells = 0;
                 for (l, mode) in closure_caps(b, i) {
-                    if *mode == crate::ir::CaptureMode::Shared {
+                    if mode.shares() {
                         cells |= t.bit[l.idx()];
                     }
                 }

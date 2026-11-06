@@ -186,7 +186,7 @@ pub(super) fn captures(b: &Body, ci: usize) -> Vec<(usize, bool)> {
         .map(|c| {
             (
                 b.cap_local[c].raw() as usize,
-                b.cap_mode.get(c) == Some(&CaptureMode::Shared)
+                b.cap_mode.get(c).is_some_and(|m| m.shares())
                     && !recursive_binding(b, b.cap_local[c].idx()),
             )
         })

@@ -401,9 +401,14 @@ pub fn read_body(
     b.cap_mode = col(&mut r)
         .into_iter()
         .map(|m| {
-            [CaptureMode::Copy, CaptureMode::Move, CaptureMode::Shared]
-                .get(m as usize)
-                .copied()
+            [
+                CaptureMode::Copy,
+                CaptureMode::Move,
+                CaptureMode::Shared,
+                CaptureMode::Frame,
+            ]
+            .get(m as usize)
+            .copied()
         })
         .collect::<Option<_>>()?;
     for _ in 0..r.count() {

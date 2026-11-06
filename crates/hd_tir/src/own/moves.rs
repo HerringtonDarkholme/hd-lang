@@ -480,7 +480,7 @@ fn candidates(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> bool
         }
     }
     for (l, m) in b.cap_local.iter().zip(&b.cap_mode) {
-        if *m == CaptureMode::Shared {
+        if m.shares() {
             t.keep_l[l.idx()] = true;
         }
     }
