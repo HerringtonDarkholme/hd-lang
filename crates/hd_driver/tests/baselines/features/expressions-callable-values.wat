@@ -26,8 +26,6 @@
   (func $read_cell (param $c.value.0 i32) (param $c.value.1 i32) (result i32)
     block
     ;; 25 |     c().len()
-      local.get $c.value.0
-      local.set $c.value.0
       block
         block
           br 0

@@ -540,17 +540,13 @@
           br 0
         end
       end
-      local.get $n
     ;; 26 |     let a = t.size()
-      local.set $t2
       block
         block
-          local.get $t2
-          local.get $t.s.1
-          local.set $t2
-          drop
           block
             block
+              local.get $t.s.1
+              local.set $t2
               br 0
             end
           end
@@ -562,8 +558,6 @@
         end
       end
     ;; 27 |     a + t.size()
-      local.get $n
-      local.set $n
       block
         block
           block

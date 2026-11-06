@@ -31,10 +31,8 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
 >   local $0 log: Counted[mut List[string]] [param read captured] value
 >     uses $0: entry -> %2 lend, %6 consume last
 >   local $1 s: string [param read captured] value
->     uses $1: entry -> %0 consume, %6 consume, %19 consume last
+>     uses $1: entry -> %0 consume, %6 consume, %19 lend last
 >   local $2 $ref: DeferGuard[fn() -> (), $(), Ref[()]] [:= read assigned captured captured-assigned] place
->   local $3 self: string [read] value
->     uses $3: %20 -> %21 lend last
 >   local $4 action: fn() -> () [read] value
 >     uses $4: %7 -> %8 consume last
 >   %0 = Read move [$1] : string
@@ -56,20 +54,18 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
 >   %16 = Drop [%14] : ()
 >   %17 = Block - : ()
 >   %18 = Defer #17 : ()
->   %26 = Block %25 : usize
->   %27 = Scope %26 [%17] : usize
->   %28 = Drop [$2] : ()
->   %29 = Drop [$0] : ()
->   %30 = Drop [$1] : ()
->   %31 = Block %27 : usize
+>   %24 = Block %23 : usize
+>   %25 = Scope %24 [%17] : usize
+>   %26 = Drop [$2] : ()
+>   %27 = Drop [$0] : ()
+>   %28 = Drop [$1] : ()
+>   %29 = Block %25 : usize
     s.len()
 >   %19 = Read borrow [$1] : string
->   %20 = Store [$3] %19 : ()
->   %21 = Read borrow [$3] : string
->   %22 = Call std/rt.bytes/bytes_len[] (%21) : usize
->   %23 = Break L0 %22 : never
->   %24 = Block - : usize
->   %25 = Scope %24 [] : usize
+>   %20 = Call std/rt.bytes/bytes_len[] (%19) : usize
+>   %21 = Break L0 %20 : never
+>   %22 = Block - : usize
+>   %23 = Scope %22 [] : usize
 >   exit sub 0 drops [$0 $1 $2]
 >   exit sub 1 drops [$0 $1]
 >   summary kept [$0 $1] writes

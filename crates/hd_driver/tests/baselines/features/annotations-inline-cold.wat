@@ -114,7 +114,7 @@
     i32.add
     global.set $locals
   )
-  (func $checksum'1 (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $x.0 i32) (local $x.1 i32)
+  (func $checksum'1 (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $x.1 i32)
     block
     ;; 15 |     let mut n = 0
       i32.const 0
@@ -137,9 +137,9 @@
           i32.const 8
           i32.mul
           i32.add
-          local.tee $x.0
+          local.tee $t2
           i32.load $heap offset=16
-          local.get $x.0
+          local.get $t2
           i32.load $heap offset=20
           local.set $x.1
           drop
@@ -156,12 +156,12 @@
             block
               block
                 local.get $x.1
-                local.set $x.0
+                local.set $t2
                 br 0
               end
             end
             local.get $n
-            local.get $x.0
+            local.get $t2
             i32.add
             local.set $n
     ;; 16 |     for x in xs:
@@ -380,7 +380,7 @@
     local.get $at
     local.get $t0
   )
-  (func $checksum'2 (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $x.0 i32) (local $x.1 i32)
+  (func $checksum'2 (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $x.1 i32)
     block
     ;; 15 |     let mut n = 0
       i32.const 0
@@ -405,9 +405,9 @@
           i32.const 8
           i32.mul
           i32.add
-          local.tee $x.0
+          local.tee $t2
           i32.load $heap offset=16
-          local.get $x.0
+          local.get $t2
           i32.load $heap offset=20
           local.set $x.1
           drop
@@ -424,12 +424,12 @@
             block
               block
                 local.get $x.1
-                local.set $x.0
+                local.set $t2
                 br 0
               end
             end
             local.get $n
-            local.get $x.0
+            local.get $t2
             i32.add
             local.set $n
     ;; 16 |     for x in xs:

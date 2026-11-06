@@ -62,58 +62,51 @@ fn doubled(xs: List[i32]) -> List[i32]:
     [for x in xs => x * 2]
 > app/main/doubled
 >   local $0 xs: List[i32] [param read] value
->     uses $0: entry -> %2 consume last
+>     uses $0: entry -> %2 lend, %16 lend
 >   local $1 $acc: mut List[i32] [assigned] value
->     uses $1: %1 -> %9 lend, %25 lend, %39 consume last
->   local $2 $coll: List[i32] [assigned] value
->     uses $2: %3 -> %4 lend, %18 lend
+>     uses $1: %1 -> %7 lend, %23 lend, %36 consume last
 >   local $3 $len: usize [assigned] value
->     uses $3: %6 -> %7 lend, %11 consume last
+>     uses $3: %4 -> %5 lend, %9 consume last
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
->     uses $5: %12 -> %15 lend
+>     uses $5: %10 -> %13 lend
 >   local $6 x: i32 [read assigned] value
->     uses $6: %28 -> %22 lend last
+>     uses $6: %26 -> %20 lend last
 >   %0 = NewList - [] : mut List[i32]
 >   %1 = Store [$1] %0 : ()
->   %2 = Read move [$0] : List[i32]
->   %3 = Store [$2] %2 : ()
->   %4 = Read borrow [$2] : List[i32]
->   %5 = Intrinsic ListLen [%4] : usize
->   %6 = Store [$3] %5 : ()
->   %7 = Read copy [$3] : usize
->   %8 = IsUnique fresh [$1] : ()
->   %9 = Read borrow [$1] : mut List[i32]
->   %10 = Intrinsic ListReserve [%9 %7] : ()
->   %11 = Read copy [$3] : usize
->   %12 = Store [$5] %11 : ()
->   %13 = Store [$4] 0:usize : ()
->   %14 = Read copy [$4] : usize
->   %15 = Read copy [$5] : usize
->   %16 = Prim Lt [%14 %15] : bool
+>   %2 = Read borrow [$0] : List[i32]
+>   %3 = Intrinsic ListLen [%2] : usize
+>   %4 = Store [$3] %3 : ()
+>   %5 = Read copy [$3] : usize
+>   %6 = IsUnique fresh [$1] : ()
+>   %7 = Read borrow [$1] : mut List[i32]
+>   %8 = Intrinsic ListReserve [%7 %5] : ()
+>   %9 = Read copy [$3] : usize
+>   %10 = Store [$5] %9 : ()
+>   %11 = Store [$4] 0:usize : ()
+>   %12 = Read copy [$4] : usize
+>   %13 = Read copy [$5] : usize
+>   %14 = Prim Lt [%12 %13] : bool
+>   %15 = Read copy [$4] : usize
+>   %16 = Read copy [$0 [%15]] : i32
 >   %17 = Read copy [$4] : usize
->   %18 = Read copy [$2 [%17]] : i32
->   %19 = Read copy [$4] : usize
->   %20 = Prim Add [%19 1:usize] : usize
->   %21 = Store [$4] %20 : ()
->   %22 = Read copy [$6] : i32
->   %23 = Prim Mul [%22 2:i32] : i32
->   %24 = IsUnique fresh [$1] : ()
->   %25 = Read borrow [$1] : mut List[i32]
->   %26 = Intrinsic ListPush [%25 %23] : ()
->   %27 = Block - : ()
->   %28 = Store [$6] %18 : ()
->   %30 = Block - : never
->   %31 = Match %18 [%30 %27] : ()
+>   %18 = Prim Add [%17 1:usize] : usize
+>   %19 = Store [$4] %18 : ()
+>   %20 = Read copy [$6] : i32
+>   %21 = Prim Mul [%20 2:i32] : i32
+>   %22 = IsUnique fresh [$1] : ()
+>   %23 = Read borrow [$1] : mut List[i32]
+>   %24 = Intrinsic ListPush [%23 %21] : ()
+>   %25 = Block - : ()
+>   %26 = Store [$6] %16 : ()
+>   %28 = Block - : never
+>   %29 = Match %16 [%28 %25] : ()
+>   %30 = Block - : ()
+>   %31 = Break L0 - : never
 >   %32 = Block - : ()
->   %33 = Break L0 - : never
+>   %33 = If %14 [%30 %32] : ()
 >   %34 = Block - : ()
->   %35 = If %16 [%32 %34] : ()
->   %36 = Block - : ()
->   %37 = Loop %36 - : ()
->   %38 = Drop [$2] : ()
->   %39 = Read move [$1] : mut List[i32]
->   %40 = Coerce %39 [Weaken -] : List[i32]
->   %41 = Block %40 : List[i32]
->   exit sub 0 drops [$0]
->   loop %37 keeps [$2]
+>   %35 = Loop %34 - : ()
+>   %36 = Read move [$1] : mut List[i32]
+>   %37 = Coerce %36 [Weaken -] : List[i32]
+>   %38 = Block %37 : List[i32]

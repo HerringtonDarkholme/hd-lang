@@ -9,31 +9,27 @@ fn measure(label: string, body: fn() -> string) -> usize:
     label.len() + body().len()
 > app/main/measure
 >   local $0 label: string [param read] value
->     uses $0: entry -> %0 consume last
+>     uses $0: entry -> %0 lend last
 >   local $1 body: fn() -> string [param read] value
->     uses $1: entry -> %7 lend last
->   local $3 self: string [read] value
->     uses $3: %9 -> %10 lend last
->   local $4 self: string [read] value
->     uses $4: %1 -> %2 lend last
+>     uses $1: entry -> %5 lend last
+>   local $2 $ref: string [read assigned captured captured-assigned] value
+>     uses $2: %7 -> %8 lend last
 >   %0 = Read borrow [$0] : string
->   %1 = Store [$4] %0 : ()
->   %2 = Read borrow [$4] : string
->   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
->   %4 = Break L1 %3 : never
->   %5 = Block - : usize
->   %6 = Scope %5 [] : usize
->   %7 = Read borrow [$1] : fn() -> string
->   %8 = CallValue %7 [] : string
->   %9 = Store [$3] %8 : ()
->   %10 = Read borrow [$3] : string
->   %11 = Call std/rt.bytes/bytes_len[] (%10) : usize
->   %12 = Break L0 %11 : never
->   %13 = Block - : usize
->   %14 = Scope %13 [] : usize
->   %15 = Drop [$3] : ()
->   %16 = Prim Add [%6 %14] : usize
->   %17 = Block %16 : usize
+>   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %2 = Break L1 %1 : never
+>   %3 = Block - : usize
+>   %4 = Scope %3 [] : usize
+>   %5 = Read borrow [$1] : fn() -> string
+>   %6 = CallValue %5 [] : string
+>   %7 = Store [$2] %6 : ()
+>   %8 = Read borrow [$2] : string
+>   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
+>   %10 = Break L0 %9 : never
+>   %11 = Block - : usize
+>   %12 = Scope %11 [] : usize
+>   %13 = Drop [$2] : ()
+>   %14 = Prim Add [%4 %12] : usize
+>   %15 = Block %14 : usize
 >   summary kept [] borrows [$0 $1] writes
 
 fn trailing(s: string) -> usize:
@@ -93,33 +89,29 @@ fn no_args(s: string) -> usize:
     twice:
 > app/main/no_args
 >   local $0 s: string [param read captured] value
->     uses $0: entry -> %0 consume, %9 consume last
+>     uses $0: entry -> %0 lend, %7 consume last
 >   local $1 body: fn() -> usize [read] value
->     uses $1: %10 -> %11 lend, %13 lend last
->   local $2 self: string [read] value
->     uses $2: %1 -> %2 lend last
->   %10 = Store [$1] %9 : ()
+>     uses $1: %8 -> %9 lend, %11 lend last
+>   %8 = Store [$1] %7 : ()
+>   %9 = Read borrow [$1] : fn() -> usize
+>   %10 = CallValue %9 [] : usize
 >   %11 = Read borrow [$1] : fn() -> usize
 >   %12 = CallValue %11 [] : usize
->   %13 = Read borrow [$1] : fn() -> usize
->   %14 = CallValue %13 [] : usize
->   %15 = Prim Add [%12 %14] : usize
->   %16 = Break L0 %15 : never
->   %17 = Block - : usize
->   %18 = Scope %17 [] : usize
->   %19 = Drop [$1] : ()
->   %20 = Block %18 : usize
+>   %13 = Prim Add [%10 %12] : usize
+>   %14 = Break L0 %13 : never
+>   %15 = Block - : usize
+>   %16 = Scope %15 [] : usize
+>   %17 = Drop [$1] : ()
+>   %18 = Block %16 : usize
         s.len()
->   %0 = Read move [$0] : string
->   %1 = Store [$2] %0 : ()
->   %2 = Read borrow [$2] : string
->   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
->   %4 = Break L1 %3 : never
->   %5 = Block - : usize
->   %6 = Scope %5 [] : usize
->   %7 = Drop [$2] : ()
->   %8 = Block %6 : usize
->   %9 = Closure #1 [%0 %1] : fn() -> usize
+>   %0 = Read borrow [$0] : string
+>   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %2 = Break L1 %1 : never
+>   %3 = Block - : usize
+>   %4 = Scope %3 [] : usize
+>   %5 = Drop [$0] : ()
+>   %6 = Block %4 : usize
+>   %7 = Closure #1 [%0 %1] : fn() -> usize
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0] writes

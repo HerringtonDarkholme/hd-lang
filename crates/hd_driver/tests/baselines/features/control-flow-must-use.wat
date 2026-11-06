@@ -203,8 +203,6 @@
       local.get $t2
       call $rt:release
     ;; 16 |     s.len()
-      local.get $s.0
-      local.set $s.0
       block
         block
           br 0

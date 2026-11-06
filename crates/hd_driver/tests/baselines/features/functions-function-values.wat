@@ -17,12 +17,8 @@
   (func $generic_value (param $s.0 i32) (param $s.1 i32) (result i32 i32)
     block
     ;; 29 |     map_one(s, ident)
-      local.get $s.0
-      local.set $s.0
       block
         block
-          local.get $s.0
-          local.set $s.0
           block
             block
               br 0
@@ -80,8 +76,6 @@
   (func $variant_value (param $s.0 i32) (param $s.1 i32) (result i32 i32 i32) (local $t0 i32)
     block
     ;; 32 |     map_one(s, Event.Named)
-      local.get $s.0
-      local.set $s.0
       block
         block
           i32.const 0

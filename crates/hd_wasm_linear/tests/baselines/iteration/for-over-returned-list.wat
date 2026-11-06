@@ -3,7 +3,7 @@
   (import "fixture" "impl string.split" (func $"impl string.split" (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $words (param $text.0 i32) (param $text.1 i32) (result i32) (local $count i32) (local $t0 i32) (local $word.0 i32) (local $word.1 i32)
+  (func $words (param $text.0 i32) (param $text.1 i32) (result i32) (local $count i32) (local $t0 i32) (local $t1 i32) (local $word.1 i32)
     block
     ;; 7 |     for word in text.split(" "):
       local.get $text.0
@@ -26,9 +26,9 @@
           i32.const 8
           i32.mul
           i32.add
-          local.tee $word.0
+          local.tee $t1
           i32.load $heap offset=16
-          local.get $word.0
+          local.get $t1
           i32.load $heap offset=20
           local.set $word.1
           drop
@@ -45,12 +45,12 @@
             block
               block
                 local.get $word.1
-                local.set $word.0
+                local.set $t1
                 br 0
               end
             end
             local.get $count
-            local.get $word.0
+            local.get $t1
             i32.add
             local.set $count
     ;; 7 |     for word in text.split(" "):

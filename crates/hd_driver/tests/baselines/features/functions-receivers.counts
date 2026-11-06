@@ -64,6 +64,6 @@ fn mut_self(v: Vec2, n: string) -> usize:
 fn counted(b: *Vec2) -> usize:
     b.keep().name.len()
 > app/main/counted
->   retain string (stored)
+>   retain string (conservative: copy read)
 >   (no span) release &app.main.Vec2 (last use)
 >   (no span) release string (last use)

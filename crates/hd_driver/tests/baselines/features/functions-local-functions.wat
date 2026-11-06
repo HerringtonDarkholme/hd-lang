@@ -83,6 +83,14 @@
           i32.lt_u
           i32.eqz
           br_if 1
+          local.get $t0
+          local.get $xs
+          i32.load $heap offset=4
+          i32.ge_u
+          if
+            call $rt:panic
+            unreachable
+          end
           local.get $xs
           local.get $t0
           i32.const 8
@@ -134,42 +142,26 @@
   (func $local_capture#1 (param $env i32) (param $s.0 i32) (param $s.1 i32) (param $ctx i32) (result i32)
     ;; 11 |     for x in xs:
     local.get $env
-    i32.load $heap
-    local.tee $ctx
-    local.get $env
     i32.load $heap offset=4
     local.set $env
-    call $retain
     block
     ;; 9 |         prefix.len() + s.len()
-      local.get $ctx
-      local.get $env
-      local.set $ctx
-      local.set $env
+      block
+        block
+          br 0
+        end
+      end
       block
         block
           br 0
         end
       end
     ;; 11 |     for x in xs:
-      local.get $env
+      local.get $s.0
       call $rt:release_ref'2
     ;; 9 |         prefix.len() + s.len()
-      local.get $s.0
-      local.set $env
-      block
-        block
-          local.get $s.1
-          local.set $s.0
-          br 0
-        end
-      end
-    ;; 11 |     for x in xs:
       local.get $env
-      call $rt:release_ref'2
-    ;; 9 |         prefix.len() + s.len()
-      local.get $ctx
-      local.get $s.0
+      local.get $s.1
       i32.add
     ;; 11 |     for x in xs:
       local.set $env

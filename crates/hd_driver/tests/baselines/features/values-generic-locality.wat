@@ -49,8 +49,6 @@
   (func $bounded (param $u.name.0 i32) (param $u.name.1 i32) (result i32) (local $t0 i32)
     block
     ;; 33 |     kept := keep(u)
-      local.get $u.name.0
-      local.set $u.name.0
       block
         block
           i32.const 8

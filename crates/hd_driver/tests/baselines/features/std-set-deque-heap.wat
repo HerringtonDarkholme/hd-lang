@@ -45,26 +45,20 @@
             local.get $q
             i32.const 1
             i32.eq
-            if
-              br 1
-            else
+            br_if 0
     ;; 18 |         .None => 0
-              local.get $q
-              i32.eqz
-              br_if 2
-              unreachable
-    ;; 17 |         .Some(x) => x.len()
-            end
+            local.get $q
+            i32.eqz
+            br_if 1
+            unreachable
     ;; 16 |     match q.pop_front():
             unreachable
           end
     ;; 17 |         .Some(x) => x.len()
-          local.get $a.0
-          local.get $a.1
-          local.set $t0
-          drop
           block
             block
+              local.get $a.1
+              local.set $t0
               br 0
             end
           end
@@ -103,26 +97,20 @@
             local.get $h
             i32.const 1
             i32.eq
-            if
-              br 1
-            else
+            br_if 0
     ;; 24 |         .None => 0
-              local.get $h
-              i32.eqz
-              br_if 2
-              unreachable
-    ;; 23 |         .Some(x) => x.len()
-            end
+            local.get $h
+            i32.eqz
+            br_if 1
+            unreachable
     ;; 22 |     match h.pop():
             unreachable
           end
     ;; 23 |         .Some(x) => x.len()
-          local.get $a.0
-          local.get $a.1
-          local.set $t0
-          drop
           block
             block
+              local.get $a.1
+              local.set $t0
               br 0
             end
           end

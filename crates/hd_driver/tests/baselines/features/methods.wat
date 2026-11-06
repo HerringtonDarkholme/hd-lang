@@ -181,8 +181,6 @@
           br 0
         end
       end
-      local.get $s
-      local.set $s
       block
         block
           local.get $s

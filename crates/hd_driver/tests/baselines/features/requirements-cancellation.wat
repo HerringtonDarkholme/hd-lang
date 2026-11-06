@@ -108,8 +108,8 @@
       local.get $key.0
       local.get $key.1
       call $fetch'2
-    ;; 21 |     job.abandon()
       local.set $key.0
+    ;; 21 |     job.abandon()
       block
         block
           local.get $key.0

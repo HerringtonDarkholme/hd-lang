@@ -151,7 +151,7 @@
     local.get $a.text.0
     local.get $a.text.1
   )
-  (func $"sum[string]" (param $items i32) (param $zero.0 i32) (param $zero.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $item.0 i32) (local $item.1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
+  (func $"sum[string]" (param $items i32) (param $zero.0 i32) (param $zero.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $item.0 i32) (local $item.1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
     block
     ;; 29 |     let total = zero
       local.get $zero.0
@@ -212,64 +212,62 @@
                     br 0
                   end
                 end
-                local.get $item.0
-                local.get $item.1
-                local.set $t4
-                local.set $item.1
                 block
                   block
-                    local.get $t4
-                    local.set $t5
+                    local.get $item.1
+                    local.set $t4
                     br 0
                   end
                 end
                 local.get $t3
-                local.get $t5
+                local.get $t4
                 i32.add
-                local.set $t5
+                local.set $t4
                 block
                   block
-                    local.get $t5
+                    local.get $t4
                     i32.const 16
-                    local.set $t6
-                    if
-                      local.get $t5
-                      call $rt:str
-                      local.set $t6
-                    end
-                    local.get $t6
-                    local.get $t5
-                    local.set $t6
                     local.set $t5
+                    if
+                      local.get $t4
+                      call $rt:str
+                      local.set $t5
+                    end
+                    local.get $t5
+                    local.get $t4
+                    local.set $t5
+                    local.set $t4
                     br 0
                   end
                 end
                 block
                   block
-                    local.get $t5
+                    local.get $t4
                     local.get $zero.1
                     local.get $t2
                     call $rt:memory_copy/0/0
                     br 0
                   end
                 end
+                local.get $item.0
+                local.set $zero.1
                 block
                   block
-                    local.get $t5
+                    local.get $t4
                     local.get $t3
                     i32.add
+                    local.get $zero.1
                     local.get $item.1
-                    local.get $t4
                     call $rt:memory_copy/0/0
                     br 0
                   end
                 end
+                local.get $t4
                 local.get $t5
-                local.get $t6
                 local.set $item.1
                 local.set $zero.1
                 br 0
-                local.get $t5
+                local.get $t4
                 call $rt:release_ref
               end
             end

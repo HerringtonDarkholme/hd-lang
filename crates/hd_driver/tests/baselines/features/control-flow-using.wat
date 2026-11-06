@@ -309,7 +309,7 @@
     local.get $r
   )
   (func $per_round (param $log i32) (param $xs i32) (local $t1 i32) (local $t2 i32) (local $x.0 i32) (local $x.1 i32) (local $t0 i32) (local $t3 i32)
-    ;; (no span)
+    ;; 24 |     for x in xs:
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -340,7 +340,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 24 |     for x in xs:
       local.get $xs
       i32.load $heap offset=4
       local.set $t1
@@ -457,7 +456,6 @@
         end
       end
     end
-    ;; (no span)
     local.get $t0
     i32.const 24
     i32.add

@@ -25,52 +25,44 @@ fn read_again(m: Member) -> usize:
     x := m
 > app/main/read_again
 >   local $0 m: Member [param read] value
->     uses $0: entry -> %0 consume, %4 consume last
->   local $1 x: Member [:= read assigned] value
->     uses $1: %1 -> %2 consume last
+>     uses $0: entry -> %0 consume, %2 consume last
 >   local $2 self: string [read] value
->     uses $2: %6 -> %7 lend last
->   %0 = Read borrow [$0] : Member
->   %1 = Store [$1] %0 : ()
->   %14 = Block %13 : usize
+>     uses $2: %4 -> %5 lend last
+>   %12 = Block %11 : usize
     count(x.facts) + m.name.len()
->   %2 = Read copy [$1 .facts] : Facts
->   %3 = Call app/main/count[] (%2) : usize
->   %4 = Read move [$0 .name] : string
->   %5 = Drop [$0] : ()
->   %6 = Store [$2] %4 : ()
->   %7 = Read borrow [$2] : string
->   %8 = Call std/rt.bytes/bytes_len[] (%7) : usize
->   %9 = Break L0 %8 : never
->   %10 = Block - : usize
->   %11 = Scope %10 [] : usize
->   %12 = Drop [$2] : ()
->   %13 = Prim Add [%3 %11] : usize
+>   %0 = Read move [$0 .facts] : Facts
+>   %1 = Call app/main/count[] (%0) : usize
+>   %2 = Read move [$0 .name] : string
+>   %3 = Drop [$0] : ()
+>   %4 = Store [$2] %2 : ()
+>   %5 = Read borrow [$2] : string
+>   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
+>   %7 = Break L0 %6 : never
+>   %8 = Block - : usize
+>   %9 = Scope %8 [] : usize
+>   %10 = Drop [$2] : ()
+>   %11 = Prim Add [%1 %9] : usize
 >   exit sub 0 drops [$0]
 
 fn last_read(m: Member) -> usize:
     x := m
 > app/main/last_read
 >   local $0 m: Member [param read] value
->     uses $0: entry -> %0 consume last
->   local $1 x: Member [:= read assigned] value
->     uses $1: %1 -> %2 consume, %4 consume last
+>     uses $0: entry -> %0 consume, %2 consume last
 >   local $2 self: string [read] value
->     uses $2: %6 -> %7 lend last
->   %0 = Read move [$0] : Member
->   %1 = Store [$1] %0 : ()
->   %14 = Block %13 : usize
+>     uses $2: %4 -> %5 lend last
+>   %12 = Block %11 : usize
     count(x.facts) + x.doc.len()
->   %2 = Read move [$1 .facts] : Facts
->   %3 = Call app/main/count[] (%2) : usize
->   %4 = Read move [$1 .doc] : string
->   %5 = Drop [$1] : ()
->   %6 = Store [$2] %4 : ()
->   %7 = Read borrow [$2] : string
->   %8 = Call std/rt.bytes/bytes_len[] (%7) : usize
->   %9 = Break L0 %8 : never
->   %10 = Block - : usize
->   %11 = Scope %10 [] : usize
->   %12 = Drop [$2] : ()
->   %13 = Prim Add [%3 %11] : usize
+>   %0 = Read move [$0 .facts] : Facts
+>   %1 = Call app/main/count[] (%0) : usize
+>   %2 = Read move [$0 .doc] : string
+>   %3 = Drop [$0] : ()
+>   %4 = Store [$2] %2 : ()
+>   %5 = Read borrow [$2] : string
+>   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
+>   %7 = Break L0 %6 : never
+>   %8 = Block - : usize
+>   %9 = Scope %8 [] : usize
+>   %10 = Drop [$2] : ()
+>   %11 = Prim Add [%1 %9] : usize
 >   exit sub 0 drops [$0]

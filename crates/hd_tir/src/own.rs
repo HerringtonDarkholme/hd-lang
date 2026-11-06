@@ -745,6 +745,13 @@ pub fn uncopied(b: &Body, cx: &dyn OwnCx, out: &mut Vec<Uncopied>) {
 /// report or refuse ([`UNCOPIED_FAILS`]). A body the passes cannot
 /// handle is refused, with what stopped them.
 pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(), String> {
+    values::aliases(
+        b,
+        cx,
+        &mut scratch.topo,
+        &mut scratch.values,
+        &mut scratch.splice,
+    )?;
     values::forward(
         b,
         cx,

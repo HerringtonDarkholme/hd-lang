@@ -7,8 +7,6 @@
   (func $"shown[string]" (param $value.0 i32) (param $value.1 i32) (result i32 i32)
     block
     ;; 31 |     value.show()
-      local.get $value.0
-      local.set $value.0
       block
         block
           br 0

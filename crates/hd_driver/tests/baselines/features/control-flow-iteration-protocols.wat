@@ -105,11 +105,11 @@
     global.set $locals
     block
     ;; 27 |     for x in xs.iter():
-      local.get $xs
-      call $rt:coll_copy
-      local.set $t1
       block
         block
+          local.get $xs
+          call $rt:coll_copy
+          local.set $t1
           br 0
         end
       end
@@ -185,8 +185,6 @@
         call $rt:release_ref'2
       end
     ;; 29 |     for x in xs.iter():
-      local.get $xs
-      local.set $xs
       block
         block
           br 0

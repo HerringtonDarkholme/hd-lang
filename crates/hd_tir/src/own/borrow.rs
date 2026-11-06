@@ -91,13 +91,6 @@
 //! call). Another read of that local borrows only over a span that ends
 //! before the moved drop.
 //!
-//! A binding local that only **forwards** its value, whose one read moves
-//! all of it into another binding local at its last access, stands for
-//! that one: the span is the next local's, and the read into it borrows
-//! too ([`forwards`]). A `&` receiver's temporary that an inlined copy
-//! binds by value is such a local: in `Text(*self).size()` the copy's
-//! `self` takes the temporary, whose own `Drop` would end the span first.
-//!
 //! A binding local holds a borrowed value, so it owns nothing: its `Drop`s
 //! go, it leaves the exit set, and its reads resolve through it to the
 //! read it holds. The backend stores into it with no count
@@ -1343,22 +1336,15 @@ fn decide(
     if alias != NONE && (keeps_drops(b, cx, r) || t.last_drop[alias as usize] == NONE) {
         return;
     }
-    // The span's end: the read's last drop, a binding local's (the next
-    // one's, past a local that only forwards), or the coercion's.
-    let mut via = None;
+    // The span's end: the read's last drop, a binding local's, or the
+    // coercion's.
     let (end, bind) = if alias != NONE {
         (t.last_drop[alias as usize], NONE)
     } else if t.last_drop[r] != NONE && t.stored[r] == NONE {
         (t.last_drop[r], NONE)
     } else if t.last_drop[r] == NONE && store != NONE && t.uses[r] == 1 {
         match binding(b, t, store) {
-            Some(l) => match forwards(b, t, l) {
-                Some((r2, l2)) => {
-                    via = Some((l, r2));
-                    (t.last_ldrop[l2 as usize], l2)
-                }
-                None => (t.last_ldrop[l as usize], l),
-            },
+            Some(l) => (t.last_ldrop[l as usize], l),
             None => return,
         }
     } else {
@@ -1516,25 +1502,6 @@ fn decide(
             t.kept_whole[l as usize] -= u32::from(p.whole());
         }
         t.holds[bind as usize] = x;
-        // A forwarding local holds the borrow too: its read into the next
-        // local borrows, and it owns nothing. Where an instance may make
-        // the value fresh, the next local's kept `Drop`s release it
-        // (`Em::loan_locals` follows the read to the borrow it holds).
-        if let Some((l, r2)) = via {
-            let li = l as usize;
-            t.kept_read[li] -= 1;
-            t.kept_whole[li] -= 1;
-            t.holds[li] = x;
-            t.unowned[li] = true;
-            b.data[r2 as usize][1] = ReadMode::Borrow as u32;
-            for k in t.start[li]..t.start[li + 1] {
-                let d = t.rows[k as usize].at;
-                if is_whole_drop(b, d, Root::Local(l)) {
-                    t.gone[d as usize] = true;
-                    edits.remove(d);
-                }
-            }
-        }
         // A read whose value an instance may make fresh keeps the
         // binding's `Drop`s and its row in the exit set: there the binding
         // holds that value's count, which they release.
@@ -1944,30 +1911,6 @@ fn binding(b: &Body, t: &Tables, s: u32) -> Option<u32> {
         && t.stores[li] == 1
         && t.last_ldrop[li] != NONE)
         .then_some(l)
-}
-
-/// Binding local `l` when it only forwards its value (see the module):
-/// its one read, of all of it, is a `copy` stored into another binding
-/// local, and nothing else reads it. Returns that read and the next local.
-fn forwards(b: &Body, t: &Tables, l: u32) -> Option<(u32, u32)> {
-    let li = l as usize;
-    let r2 = t.first_read[li];
-    if r2 == NONE || t.last_read[li] != r2 || t.kept_read[li] != 1 || t.kept_whole[li] != 1 {
-        return None;
-    }
-    let ri = r2 as usize;
-    let p = b.view(b.data[ri][0]);
-    (b.tags[ri] == Tag::Read
-        && b.data[ri][1] == ReadMode::Copy as u32
-        && p.whole()
-        && p.local() == Some(l)
-        && !t.keeps[ri]
-        && t.uses[ri] == 1
-        && t.last_drop[ri] == NONE
-        && t.stored[ri] != NONE)
-        .then_some(())?;
-    let l2 = binding(b, t, t.stored[ri])?;
-    (l2 != l).then_some((r2, l2))
 }
 
 /// The statement of block `h` that holds instruction `x`, or `None` when

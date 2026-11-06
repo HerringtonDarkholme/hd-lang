@@ -9,19 +9,15 @@ fn bind(s: string) -> usize:
     t := s
 > app/main/bind
 >   local $0 s: string [param read] value
->     uses $0: entry -> %0 consume last
->   local $3 self: string [read] value
->     uses $3: %1 -> %2 lend last
->   %0 = Read borrow [$0] : string
->   %7 = Block %6 : usize
+>     uses $0: entry -> %0 lend last
+>   %5 = Block %4 : usize
     let u = t
     u.len()
->   %1 = Store [$3] %0 : ()
->   %2 = Read borrow [$3] : string
->   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
->   %4 = Break L0 %3 : never
->   %5 = Block - : usize
->   %6 = Scope %5 [] : usize
+>   %0 = Read borrow [$0] : string
+>   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %2 = Break L0 %1 : never
+>   %3 = Block - : usize
+>   %4 = Scope %3 [] : usize
 >   summary kept [] borrows [$0]
 
 fn bind_twice(xs: List[string]) -> usize:
@@ -29,9 +25,9 @@ fn bind_twice(xs: List[string]) -> usize:
 > app/main/bind_twice
 >   local $0 xs: List[string] [param read] value
 >     uses $0: entry -> %0 lend, %2 lend last
->   %0 = Read borrow [$0] : List[string]
 >   %5 = Block %4 : usize
     ys.len() + xs.len()
+>   %0 = Read borrow [$0] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Read borrow [$0] : List[string]
 >   %3 = Intrinsic ListLen [%2] : usize
@@ -45,9 +41,9 @@ fn bind_kept(xs: List[string], all: &mut List[List[string]]) -> void:
 >     uses $0: entry -> %0 consume last
 >   local $1 all: Ref[mut List[List[string]]] [param read] value
 >     uses $1: entry -> %2 lend last
->   %0 = Read move [$0] : List[string]
 >   %4 = Block - : ()
     all.push(ys)
+>   %0 = Read move [$0] : List[string]
 >   %1 = IsUnique [*$1] : ()
 >   %2 = Read borrow [*$1] : List[List[string]]
 >   %3 = Intrinsic ListPush [%2 %0] : ()

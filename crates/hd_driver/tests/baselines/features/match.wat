@@ -2,7 +2,7 @@
 (module
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $ref_match (param $s i32) (result i32) (local $n.1 i32) (local $a.0 i32) (local $a.1 i32)
+  (func $ref_match (param $s i32) (result i32) (local $b.1 i32) (local $a.1 i32)
     block
     ;; 24 |     match s:
       block
@@ -12,19 +12,19 @@
     ;; 25 |         .Named(n) => n.len()
               local.get $s
               i32.load8_u $heap
-              local.tee $n.1
+              local.tee $b.1
               i32.eqz
               if
                 local.get $s
                 i32.load $heap offset=4
                 local.get $s
                 i32.load $heap offset=8
-                local.set $n.1
+                local.set $s
                 drop
                 br 1
               else
     ;; 26 |         .Pair(a, b) => a.len() + b.len()
-                local.get $n.1
+                local.get $b.1
                 i32.const 1
                 i32.eq
                 if
@@ -36,14 +36,14 @@
                   i32.load $heap offset=12
                   local.get $s
                   i32.load $heap offset=16
-                  local.set $n.1
+                  local.set $b.1
                   drop
                   local.set $a.1
                   drop
                   br 3
                 else
     ;; 27 |         .Empty => 0
-                  local.get $n.1
+                  local.get $b.1
                   i32.const 2
                   i32.eq
                   br_if 4
@@ -58,8 +58,6 @@
     ;; 25 |         .Named(n) => n.len()
             block
               block
-                local.get $n.1
-                local.set $s
                 br 0
               end
             end
@@ -70,19 +68,17 @@
           block
             block
               local.get $a.1
-              local.set $a.0
+              local.set $s
               br 0
             end
           end
           block
             block
-              local.get $n.1
-              local.set $s
               br 0
             end
           end
-          local.get $a.0
           local.get $s
+          local.get $b.1
           i32.add
     ;; 24 |     match s:
           local.set $s

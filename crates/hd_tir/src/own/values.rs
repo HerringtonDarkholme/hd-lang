@@ -697,6 +697,149 @@ fn plain(tag: Tag) -> bool {
     )
 }
 
+/// Value locals that only rename another (`b := a`): each read of `b` reads
+/// `a`, and the store and its read go. Both name one value for all of `b`'s
+/// life, since neither is stored again or changed in place, and insertion
+/// then keeps `a` until `b`'s last use. `b` has one whole store, of a whole
+/// read of `a`, and every use of it follows that store in the store's block.
+/// It is no parameter and no closure captures it. A local that holds a
+/// reference keeps its name, as in [`forward`], and a body that suspends
+/// keeps its locals.
+pub(crate) fn aliases(
+    b: &mut Body,
+    cx: &dyn super::OwnCx,
+    topo: &mut Topology,
+    t: &mut Tables,
+    edits: &mut splice::Tables,
+) -> Result<(), String> {
+    let stored_read = |b: &Body, i: usize| {
+        if b.tags[i] != Tag::Store {
+            return None;
+        }
+        let p = b.view(b.data[i][0]);
+        let to = p.local().filter(|_| p.whole())?;
+        let r = Ref(b.data[i][1]).as_inst()?.0 as usize;
+        let q = (b.tags[r] == Tag::Read).then(|| b.view(b.data[r][0]))?;
+        let from = q.local().filter(|_| q.whole())?;
+        Some((to, from, r))
+    };
+    if b.tags.iter().any(|&tag| crate::ir::is_suspension(tag))
+        || cx.suspending(b.item)
+        || !(0..b.len()).any(|i| stored_read(b, i).is_some())
+    {
+        return Ok(());
+    }
+    classify(b, &mut t.classes);
+    topo.build(b);
+    let n = b.local_ty.len();
+    // Locals a change in place reaches, whose copies differ afterwards, and
+    // locals a closure captures.
+    let mut fixed = vec![true; n];
+    let mut unshared = vec![true; n];
+    for c in &b.cap_local {
+        unshared[c.idx()] = false;
+    }
+    for i in 0..b.len() {
+        for (_, v) in super::changed(b, i) {
+            if (v as usize) < b.len()
+                && b.tags[v as usize] == Tag::Read
+                && let Some(l) = b.view(b.data[v as usize][0]).local()
+            {
+                fixed[l as usize] = false;
+            }
+        }
+    }
+    let mut named = vec![0u32; b.len()];
+    for i in 0..b.len() {
+        let member = b.tags[i] == Tag::Block;
+        crate::ir::slots(b, i, |_, value, slot| {
+            let statement = member && matches!(slot, crate::ir::Word::Inst);
+            if !statement && let Some(n) = named.get_mut(value as usize) {
+                *n += 1;
+            }
+        });
+    }
+    let once = |c: &[Local], l: u32| c[l as usize] == Local::Value(1);
+    let mut to: Vec<u32> = vec![NONE; n];
+    let mut stores = Vec::new();
+    for i in 0..b.len() {
+        let Some((x, from, r)) = stored_read(b, i) else {
+            continue;
+        };
+        let (xi, fi) = (x as usize, from as usize);
+        if x != from
+            && named[r] == 1
+            && once(&t.classes, x)
+            && once(&t.classes, from)
+            && b.local_flags[xi] & crate::ir::local_flags::PARAM == 0
+            && unshared[xi]
+            && fixed[xi]
+            && fixed[fi]
+            && b.local_ty[xi] == b.local_ty[fi]
+            && cx.counted(b.local_ty[xi])
+            && !cx.holds_ref(b.local_ty[xi])
+            && uses_follow(b, topo, x, i)
+        {
+            to[xi] = from;
+            stores.push((u32_of(i), u32_of(r)));
+        }
+    }
+    if stores.is_empty() {
+        return Ok(());
+    }
+    let resolve = |mut l: u32| {
+        while to[l as usize] != NONE {
+            l = to[l as usize];
+        }
+        l
+    };
+    for i in 0..b.len() {
+        if !matches!(b.tags[i], Tag::Read | Tag::Store | Tag::Ref) {
+            continue;
+        }
+        let word = b.data[i][0];
+        if let Some(l) = b.view(word).local().filter(|&l| to[l as usize] != NONE) {
+            let new = resolve(l);
+            if word & crate::ir::place::BARE_LOCAL != 0 {
+                b.data[i][0] = new | crate::ir::place::BARE_LOCAL;
+            } else {
+                b.extra[word as usize + 2] = new;
+            }
+        }
+    }
+    edits.clear();
+    for (s, r) in stores {
+        edits.remove(s);
+        edits.remove(r);
+    }
+    splice::apply(b, topo, edits)?;
+    edits.clear();
+    Ok(())
+}
+
+/// Whether every read and every reference or store through local `l` comes
+/// after store `s` in `s`'s block.
+fn uses_follow(b: &Body, topo: &Topology, l: u32, s: usize) -> bool {
+    let home = topo.blk[s];
+    (0..b.len()).all(|i| {
+        if i == s || !matches!(b.tags[i], Tag::Read | Tag::Store | Tag::Ref) {
+            return true;
+        }
+        if b.view(b.data[i][0]).local() != Some(l) {
+            return true;
+        }
+        let mut x = u32_of(i);
+        while x != NONE && topo.blk[x as usize] != home {
+            x = if topo.is_root[x as usize] {
+                NONE
+            } else {
+                topo.blk[x as usize]
+            };
+        }
+        x != NONE && topo.pos[x as usize] > topo.pos[s]
+    })
+}
+
 /// Forwards the values a value local carries from a store to one read
 /// (steps 6 and 7a of the migration). The local is a [`Local::Value`],
 /// not a parameter, whose every naming is a whole `Store [$l]` or a whole

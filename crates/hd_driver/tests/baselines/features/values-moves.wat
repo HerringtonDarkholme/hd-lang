@@ -109,67 +109,60 @@
       i32.const 1
       i32.store $heap offset=28
       local.get $t5
-      local.set $ys
+      local.tee $ys
     ;; 32 |     ys.push(s)
-      local.get $s.0
-      local.set $s.0
+      local.set $t2
       block
         block
-          local.get $ys
-          local.set $t2
           block
             block
               local.get $t2
               i32.load $heap offset=8
-              local.set $t2
-              br 0
-            end
-          end
-          local.get $ys
-          local.set $t1
-          block
-            block
-              local.get $t1
-              i32.load $heap offset=4
               local.set $t1
               br 0
             end
           end
+          block
+            block
+              local.get $t2
+              i32.load $heap offset=4
+              local.set $t5
+              br 0
+            end
+          end
+          local.get $t5
           local.get $t1
-          local.get $t2
           i32.le_u
           if
-            local.get $ys
             local.get $t2
+            local.get $t1
             i32.const 1
             i32.add
             call $"impl [ T < ? Copy ] UniqList [ T ].reserve_for[string]"
           end
-          local.get $ys
-          local.set $t1
           block
             block
-              local.get $t1
-              i32.load $heap
               local.get $t2
+              i32.load $heap
+              local.get $t1
               i32.const 8
               i32.mul
               i32.add
-              local.set $t1
+              local.set $t5
               br 0
             end
           end
-          local.get $t1
+          local.get $t5
           local.get $s.0
           i32.store $heap
-          local.get $t1
+          local.get $t5
           local.get $s.1
           i32.store $heap offset=4
-          local.get $t2
+          local.get $t1
           i32.const 1
           i32.add
           local.set $s.0
-          local.get $ys
+          local.get $t2
           local.get $s.0
           i32.store $heap offset=8
           br 0
@@ -219,8 +212,6 @@
         end
       end
     ;; 25 |     hold(photo)
-      local.get $photo.width
-      local.set $photo.width
       block
         block
           br 0

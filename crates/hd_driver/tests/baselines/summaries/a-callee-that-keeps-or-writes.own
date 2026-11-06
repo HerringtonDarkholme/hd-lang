@@ -126,37 +126,33 @@ fn other(a: string, b: string) -> string:
     if a.len() > 3:
 > app/main/other
 >   local $0 a: string [param read] value
->     uses $0: entry -> %0 consume, %8 consume last
+>     uses $0: entry -> %0 lend, %6 consume last
 >   local $1 b: string [param read] value
->     uses $1: entry -> %13 lend last
+>     uses $1: entry -> %11 lend last
 >   local $2 value: string [read] value
->     uses $2: %15 -> %16 lend last
->   local $3 self: string [read] value
->     uses $3: %1 -> %2 lend last
+>     uses $2: %13 -> %14 lend last
 >   %0 = Read borrow [$0] : string
->   %1 = Store [$3] %0 : ()
->   %2 = Read borrow [$3] : string
->   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
->   %4 = Break L1 %3 : never
->   %5 = Block - : usize
->   %6 = Scope %5 [] : usize
->   %7 = Prim Gt [%6 3:usize] : bool
->   %11 = If %7 [%10 -] : ()
->   %12 = Drop [$0] : ()
->   %21 = Read copy [%13] : string
->   %22 = Block %21 : string
+>   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %2 = Break L1 %1 : never
+>   %3 = Block - : usize
+>   %4 = Scope %3 [] : usize
+>   %5 = Prim Gt [%4 3:usize] : bool
+>   %9 = If %5 [%8 -] : ()
+>   %10 = Drop [$0] : ()
+>   %19 = Read copy [%11] : string
+>   %20 = Block %19 : string
         return a
->   %8 = Read move [$0] : string
->   %9 = Return %8 : never
->   %10 = Block - : never
+>   %6 = Read move [$0] : string
+>   %7 = Return %6 : never
+>   %8 = Block - : never
     "${b}"
->   %13 = Read borrow [$1] : string
->   %14 = Read borrow [%13] : string
->   %15 = Store [$2] %14 : ()
->   %16 = Read borrow [$2] : string
->   %17 = Call std/rt.bytes/bytes_len[] (%16) : usize
->   %18 = Break L0 %17 : never
->   %19 = Block - : usize
->   %20 = Scope %19 [] : usize
+>   %11 = Read borrow [$1] : string
+>   %12 = Read borrow [%11] : string
+>   %13 = Store [$2] %12 : ()
+>   %14 = Read borrow [$2] : string
+>   %15 = Call std/rt.bytes/bytes_len[] (%14) : usize
+>   %16 = Break L0 %15 : never
+>   %17 = Block - : usize
+>   %18 = Scope %17 [] : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0] borrows [$1]

@@ -9,12 +9,8 @@
   (func $first_len (param $c.value.0 i32) (param $c.value.1 i32) (result i32)
     block
     ;; 24 |     first(c).len()
-      local.get $c.value.0
-      local.set $c.value.0
       block
         block
-          local.get $c.value.0
-          local.set $c.value.0
           block
             block
               br 0

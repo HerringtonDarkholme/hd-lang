@@ -8,7 +8,7 @@
   (import "fixture" "impl StringBuilder.push" (func $"impl StringBuilder.push" (param i32 i32 i32)))
   (import "fixture" "impl StringBuilder.build" (func $"impl StringBuilder.build" (param i32) (result i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $fields (param $line.0 i32) (param $line.1 i32) (result i32) (local $n i32) (local $t0 i32) (local $f.0 i32) (local $f.1 i32)
+  (func $fields (param $line.0 i32) (param $line.1 i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $f.1 i32)
     block
     ;; 18 |     for f in line.split(","):
       local.get $line.0
@@ -31,9 +31,9 @@
           i32.const 8
           i32.mul
           i32.add
-          local.tee $f.0
+          local.tee $t1
           i32.load $heap offset=16
-          local.get $f.0
+          local.get $t1
           i32.load $heap offset=20
           local.set $f.1
           drop
@@ -50,12 +50,12 @@
             block
               block
                 local.get $f.1
-                local.set $f.0
+                local.set $t1
                 br 0
               end
             end
             local.get $n
-            local.get $f.0
+            local.get $t1
             i32.add
             local.set $n
     ;; 18 |     for f in line.split(","):

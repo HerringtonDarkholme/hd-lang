@@ -110,12 +110,12 @@
   (func $generic_method (param $j i32) (param $s.0 i32) (param $s.1 i32) (result i32)
     block
     ;; 21 |     j.tagged(s).len()
-      local.get $s.0
-      local.set $j
       block
         block
+          local.get $s.0
           local.get $s.1
           local.set $s.0
+          local.set $j
           br 0
         end
       end

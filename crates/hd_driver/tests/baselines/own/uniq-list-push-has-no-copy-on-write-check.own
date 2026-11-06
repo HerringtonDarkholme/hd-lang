@@ -3,43 +3,39 @@ std/rt_tests.stage_case/add
   local $0 items: Ref[mut UniqList[Ticket]] [param read] value
     uses $0: entry -> %0 consume last
   local $1 ticket: Ticket [param read] value
-    uses $1: entry -> %1 consume last
+    uses $1: entry -> %21 consume last
   local $2 self: Ref[mut UniqList[Ticket]] [read] value
-    uses $2: %2 -> %4 consume, %8 lend, %13 lend, %19 lend, %27 lend last
-  local $3 value: Ticket [read] value
-    uses $3: %3 -> %23 consume last
+    uses $2: %1 -> %2 consume, %6 lend, %11 lend, %17 lend, %25 lend last
   local $4 size: usize [:= read assigned] value
-    uses $4: %7 -> %11 lend, %14 lend, %20 lend, %25 lend last
+    uses $4: %5 -> %9 lend, %12 lend, %18 lend, %23 lend last
   %0 = Read borrow [$0] : Ref[mut UniqList[Ticket]]
-  %1 = Read move [$1] : Ticket
-  %2 = Store [$2] %0 : ()
-  %3 = Store [$3] %1 : ()
-  %4 = Read borrow [$2] : Ref[mut UniqList[Ticket]]
-  %5 = Coerce %4 [Weaken -] : Ref[UniqList[Ticket]]
-  %6 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].len[Ticket] (%5) : usize
-  %7 = Store [$4] %6 : ()
-  %8 = Ref lent local [*$2 .buffer] : Ref[Buffer[Ticket]]
-  %9 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].capacity[Ticket] (%8) : usize
-  %10 = Drop [%8] : ()
-  %11 = Read copy [$4] : usize
-  %12 = Prim Le [%9 %11] : bool
-  %13 = Read borrow [$2] : Ref[mut UniqList[Ticket]]
-  %14 = Read copy [$4] : usize
-  %15 = Prim Add [%14 1:usize] : usize
-  %16 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].reserve_for[Ticket] (%13, %15) : ()
-  %17 = Block - : ()
-  %18 = If %12 [%17 -] : ()
-  %19 = Ref lent local [*$2 .buffer] : Ref[Buffer[Ticket]]
-  %20 = Read copy [$4] : usize
-  %21 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].at[Ticket] (%19, %20) : Ptr[Ticket]
-  %22 = Drop [%19] : ()
-  %23 = Read move [$3] : Ticket
-  %24 = Store [ptr %21] %23 : ()
-  %25 = Read copy [$4] : usize
-  %26 = Prim Add [%25 1:usize] : usize
-  %27 = Store [*$2 .len] %26 : ()
-  %28 = Break L0 - : never
+  %1 = Store [$2] %0 : ()
+  %2 = Read borrow [$2] : Ref[mut UniqList[Ticket]]
+  %3 = Coerce %2 [Weaken -] : Ref[UniqList[Ticket]]
+  %4 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].len[Ticket] (%3) : usize
+  %5 = Store [$4] %4 : ()
+  %6 = Ref lent local [*$2 .buffer] : Ref[Buffer[Ticket]]
+  %7 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].capacity[Ticket] (%6) : usize
+  %8 = Drop [%6] : ()
+  %9 = Read copy [$4] : usize
+  %10 = Prim Le [%7 %9] : bool
+  %11 = Read borrow [$2] : Ref[mut UniqList[Ticket]]
+  %12 = Read copy [$4] : usize
+  %13 = Prim Add [%12 1:usize] : usize
+  %14 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].reserve_for[Ticket] (%11, %13) : ()
+  %15 = Block - : ()
+  %16 = If %10 [%15 -] : ()
+  %17 = Ref lent local [*$2 .buffer] : Ref[Buffer[Ticket]]
+  %18 = Read copy [$4] : usize
+  %19 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].at[Ticket] (%17, %18) : Ptr[Ticket]
+  %20 = Drop [%17] : ()
+  %21 = Read move [$1] : Ticket
+  %22 = Store [ptr %19] %21 : ()
+  %23 = Read copy [$4] : usize
+  %24 = Prim Add [%23 1:usize] : usize
+  %25 = Store [*$2 .len] %24 : ()
+  %26 = Break L0 - : never
+  %27 = Block - : ()
+  %28 = Scope %27 [] : ()
   %29 = Block - : ()
-  %30 = Scope %29 [] : ()
-  %31 = Block - : ()
   exit sub 0 drops [$1]

@@ -26,34 +26,30 @@ fn temp_ref(s: string) -> usize:
 >     uses $0: entry -> %0 consume last
 >   local $1 $ref: Named [read assigned captured captured-assigned] place
 >   local $2 n: Ref[Named] [:= read assigned] value
->     uses $2: %9 -> %10 lend last
+>     uses $2: %7 -> %8 lend last
 >   local $3 self: string [read] value
->     uses $3: %11 -> %12 lend last
->   local $4 s: string [read] value
->     uses $4: %1 -> %2 consume last
+>     uses $3: %9 -> %10 lend last
 >   %0 = Read move [$0] : string
->   %1 = Store [$4] %0 : ()
->   %2 = Read move [$4] : string
->   %3 = NewStruct [%2] : Named
->   %4 = Break L1 %3 : never
->   %5 = Block - : Named
->   %6 = Scope %5 [] : Named
->   %7 = Store [$1] %6 : ()
->   %8 = Ref local frame [$1] : Ref[Named]
->   %9 = Store [$2] %8 : ()
->   %20 = Block %16 : usize
->   %8 finds [$1] full
+>   %1 = NewStruct [%0] : Named
+>   %2 = Break L1 %1 : never
+>   %3 = Block - : Named
+>   %4 = Scope %3 [] : Named
+>   %5 = Store [$1] %4 : ()
+>   %6 = Ref local frame [$1] : Ref[Named]
+>   %7 = Store [$2] %6 : ()
+>   %18 = Block %14 : usize
+>   %6 finds [$1] full
     n.name.len()
->   %10 = Read borrow [*$2 .name] : string
->   %11 = Store [$3] %10 : ()
->   %12 = Read borrow [$3] : string
->   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
->   %14 = Break L0 %13 : never
->   %15 = Block - : usize
->   %16 = Scope %15 [] : usize
->   %17 = Drop [$3] : ()
->   %18 = LoanEnd [$2] : ()
->   %19 = Drop [$1] : ()
+>   %8 = Read borrow [*$2 .name] : string
+>   %9 = Store [$3] %8 : ()
+>   %10 = Read borrow [$3] : string
+>   %11 = Call std/rt.bytes/bytes_len[] (%10) : usize
+>   %12 = Break L0 %11 : never
+>   %13 = Block - : usize
+>   %14 = Scope %13 [] : usize
+>   %15 = Drop [$3] : ()
+>   %16 = LoanEnd [$2] : ()
+>   %17 = Drop [$1] : ()
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 

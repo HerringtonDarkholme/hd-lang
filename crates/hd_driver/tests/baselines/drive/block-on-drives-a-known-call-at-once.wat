@@ -134,13 +134,9 @@
             unreachable
           end
     ;; 13 |         .Completed(value) => value.len()
-          local.get $key.1
-          local.get $value.1
-          local.set $t0
-          drop
           block
             block
-              local.get $t0
+              local.get $value.1
               local.set $t1
               br 0
             end
@@ -260,13 +256,9 @@
             unreachable
           end
     ;; 26 |         .Completed(value) => value.len()
-          local.get $log
-          local.get $value.1
-          local.set $key.0
-          drop
           block
             block
-              local.get $key.0
+              local.get $value.1
               local.set $t1
               br 0
             end
@@ -323,13 +315,9 @@
             unreachable
           end
     ;; 19 |         .Completed(value) => value.len()
-          local.get $key.1
-          local.get $value.1
-          local.set $t0
-          drop
           block
             block
-              local.get $t0
+              local.get $value.1
               local.set $t1
               br 0
             end

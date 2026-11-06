@@ -206,26 +206,20 @@
             local.get $s.0
             i32.const 1
             i32.eq
-            if
-              br 1
-            else
+            br_if 0
     ;; 20 |         .None => items.len()
-              local.get $s.0
-              i32.eqz
-              br_if 2
-              unreachable
-    ;; 19 |         .Some(first) => first.len() + items.len()
-            end
+            local.get $s.0
+            i32.eqz
+            br_if 1
+            unreachable
     ;; 18 |     match cursor.next():
             unreachable
           end
     ;; 19 |         .Some(first) => first.len() + items.len()
-          local.get $s.1
-          local.get $first.1
-          local.set $t1
-          drop
           block
             block
+              local.get $first.1
+              local.set $t1
               br 0
             end
           end

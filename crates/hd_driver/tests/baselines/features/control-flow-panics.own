@@ -32,9 +32,7 @@ fn must(s: string, n: i32) -> usize:
 >   local $1 n: i32 [param read] value
 >     uses $1: entry -> %3 lend last
 >   local $2 t: string [:= read assigned] value
->     uses $2: %2 -> %5 lend, %63 consume last
->   local $3 self: string [read] value
->     uses $3: %64 -> %65 lend last
+>     uses $2: %2 -> %5 lend, %63 lend last
 >   local $4 result: string [read] value
 >     uses $4: %41 -> %45 lend last
 >   local $5 offset: usize [read] value
@@ -54,7 +52,7 @@ fn must(s: string, n: i32) -> usize:
 >   %0 = Read borrow [$0] : string
 >   %1 = Intrinsic StrConcat [%0 "!"] : string
 >   %2 = Store [$2] %1 : ()
->   %71 = Block %69 : usize
+>   %69 = Block %67 : usize
     if n < 0:
 >   %3 = Read copy [$1] : i32
 >   %4 = Prim Lt [%3 0:i32] : bool
@@ -119,13 +117,11 @@ fn must(s: string, n: i32) -> usize:
 >   %61 = Block - : never
     t.len()
 >   %63 = Read borrow [$2] : string
->   %64 = Store [$3] %63 : ()
->   %65 = Read borrow [$3] : string
->   %66 = Call std/rt.bytes/bytes_len[] (%65) : usize
->   %67 = Break L0 %66 : never
->   %68 = Block - : usize
->   %69 = Scope %68 [] : usize
->   %70 = Drop [$2] : ()
+>   %64 = Call std/rt.bytes/bytes_len[] (%63) : usize
+>   %65 = Break L0 %64 : never
+>   %66 = Block - : usize
+>   %67 = Scope %66 [] : usize
+>   %68 = Drop [$2] : ()
 >   summary kept [] borrows [$0] writes
 
 fn guarded(log: *mut List[string], s: string, n: i32) -> usize:

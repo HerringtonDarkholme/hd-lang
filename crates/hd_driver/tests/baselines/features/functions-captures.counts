@@ -15,9 +15,6 @@ fn copied(s: string) -> usize:
     f() + s.len()
 >   (no span) release fn() -> usize (last use)
 >   (no span) release string (last use)
-> app/main/copied
->   retain string (conservative: entry)
->   release string (last use)
 
 fn shared_list(s: string) -> usize:
     let mut xs: List[string] = []
@@ -43,9 +40,6 @@ fn copy_shares(s: string) -> usize:
     again := inc
     inc()
     again()
-> app/main/copy_shares
->   retain string (conservative: entry)
->   release string (last use)
     n
 >   (no span) release fn() -> () (last use)
 

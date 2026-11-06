@@ -111,8 +111,8 @@ fn generic_first(xs: List[string]) -> usize:
 > app/main/generic_first
 >   local $0 xs: List[string] [param read] value
 >     uses $0: entry -> %0 consume last
->   local $2 self: string [read] value
->     uses $2: %19 -> %20 lend last
+>   local $1 $ref: string [read assigned captured captured-assigned] value
+>     uses $1: %19 -> %20 lend last
 >   local $3 items: List[string] [read captured] place
 >   local $4 self: Ref[List[string]] [read] value
 >     uses $4: %3 -> %7 lend last
@@ -137,13 +137,13 @@ fn generic_first(xs: List[string]) -> usize:
 >   %16 = Block - : string
 >   %17 = Scope %16 [] : string
 >   %18 = Drop [$3] : ()
->   %19 = Store [$2] %17 : ()
->   %20 = Read borrow [$2] : string
+>   %19 = Store [$1] %17 : ()
+>   %20 = Read borrow [$1] : string
 >   %21 = Call std/rt.bytes/bytes_len[] (%20) : usize
 >   %22 = Break L0 %21 : never
 >   %23 = Block - : usize
 >   %24 = Scope %23 [] : usize
->   %25 = Drop [$2] : ()
+>   %25 = Drop [$1] : ()
 >   %26 = Block %24 : usize
 >   %2 finds [$3] full
 >   exit sub 0 drops [$0]

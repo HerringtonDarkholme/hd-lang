@@ -101,11 +101,9 @@ fn checksum(xs: &List[string]) -> usize:
 >   local $5 $end: usize [assigned] value
 >     uses $5: %5 -> %8 lend
 >   local $6 x: string [read assigned] value
->     uses $6: %27 -> %16 consume last
->   local $7 self: string [read] value
->     uses $7: %17 -> %18 lend last
+>     uses $6: %25 -> %16 lend last
 >   %0 = Store [$1] 0:usize : ()
->   %39 = Block %38 : usize
+>   %37 = Block %36 : usize
     for x in xs:
 >   %1 = Read borrow [*$0] : List[string]
 >   %2 = Store [$2] %1 : ()
@@ -121,33 +119,31 @@ fn checksum(xs: &List[string]) -> usize:
 >   %12 = Read copy [$4] : usize
 >   %13 = Prim Add [%12 1:usize] : usize
 >   %14 = Store [$4] %13 : ()
->   %25 = Block - : ()
->   %26 = Read borrow [%11] : string
->   %27 = Store [$6] %26 : ()
->   %29 = Block - : never
->   %30 = Match %11 [%29 %25] : ()
+>   %23 = Block - : ()
+>   %24 = Read borrow [%11] : string
+>   %25 = Store [$6] %24 : ()
+>   %27 = Block - : never
+>   %28 = Match %11 [%27 %23] : ()
+>   %29 = Block - : ()
+>   %30 = Break L0 - : never
 >   %31 = Block - : ()
->   %32 = Break L0 - : never
+>   %32 = If %9 [%29 %31] : ()
 >   %33 = Block - : ()
->   %34 = If %9 [%31 %33] : ()
->   %35 = Block - : ()
->   %36 = Loop %35 - : ()
->   %37 = Drop [$2] : ()
+>   %34 = Loop %33 - : ()
+>   %35 = Drop [$2] : ()
         n += x.len()
 >   %15 = Read copy [$1] : usize
 >   %16 = Read borrow [$6] : string
->   %17 = Store [$7] %16 : ()
->   %18 = Read borrow [$7] : string
->   %19 = Call std/rt.bytes/bytes_len[] (%18) : usize
->   %20 = Break L1 %19 : never
->   %21 = Block - : usize
->   %22 = Scope %21 [] : usize
->   %23 = Prim Add [%15 %22] : usize
->   %24 = Store [$1] %23 : ()
+>   %17 = Call std/rt.bytes/bytes_len[] (%16) : usize
+>   %18 = Break L1 %17 : never
+>   %19 = Block - : usize
+>   %20 = Scope %19 [] : usize
+>   %21 = Prim Add [%15 %20] : usize
+>   %22 = Store [$1] %21 : ()
     n
->   %38 = Read copy [$1] : usize
+>   %36 = Read copy [$1] : usize
 >   summary kept []
->   loop %36 keeps [$2]
+>   loop %34 keeps [$2]
 
 @inline
 fn first_len(xs: &List[string]) -> usize:

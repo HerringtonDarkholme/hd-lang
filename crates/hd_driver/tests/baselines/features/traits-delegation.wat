@@ -40,8 +40,6 @@
   (func $delegated (param $s.Logger.name.0 i32) (param $s.Logger.name.1 i32) (param $s.port i32) (result i32)
     block
     ;; 24 |     s.describe().len()
-      local.get $s.Logger.name.0
-      local.set $s.Logger.name.0
       block
         block
           local.get $s.Logger.name.0

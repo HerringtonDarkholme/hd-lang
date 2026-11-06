@@ -4,7 +4,6 @@
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -89,29 +88,17 @@
   (func $no_args#1 (param $env i32) (param $ctx i32) (result i32)
     ;; (no span)
     local.get $env
-    i32.load $heap
-    local.tee $ctx
-    local.get $env
     i32.load $heap offset=4
     local.set $env
-    call $retain
     block
     ;; 19 |         s.len()
-      local.get $ctx
-      local.get $env
-      local.set $ctx
-      local.set $env
       block
         block
           br 0
         end
       end
-    ;; (no span)
-      local.get $env
-      call $rt:release_ref'1
-      local.get $ctx
-      local.set $env
     end
+    ;; (no span)
     local.get $env
   )
   (func $twice (param $body.0 i32) (param $body.1 i32) (result i32)

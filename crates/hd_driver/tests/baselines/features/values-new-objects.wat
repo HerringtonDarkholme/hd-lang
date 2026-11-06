@@ -226,8 +226,6 @@
     global.set $locals
     block
     ;; 14 |     n := &make(s)
-      local.get $s.0
-      local.set $s.0
       block
         block
           br 0

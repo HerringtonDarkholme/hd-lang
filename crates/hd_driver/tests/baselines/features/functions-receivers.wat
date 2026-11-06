@@ -20,8 +20,6 @@
   (func $temp_receiver (param $s.0 i32) (param $s.1 i32) (result i32)
     block
     ;; 31 |     make(s).label_len()
-      local.get $s.0
-      local.set $s.0
       block
         block
           br 0
@@ -78,8 +76,6 @@
     global.set $locals
     block
     ;; 40 |     let mut p = make(s)
-      local.get $s.0
-      local.set $s.0
       block
         block
           br 0
@@ -178,8 +174,6 @@
     ;; 45 |     w := v.renamed(n)
       local.get $v.name.0
       call $retain
-      local.get $n.0
-      local.set $n.0
       block
         block
           local.get $n.0

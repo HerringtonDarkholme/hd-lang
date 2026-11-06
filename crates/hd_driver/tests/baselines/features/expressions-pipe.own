@@ -250,149 +250,133 @@ fn bare(raw: string) -> string:
     raw |> clean
 > app/main/bare
 >   local $0 raw: string [param read] value
->     uses $0: entry -> %0 consume last
->   local $1 raw: string [read] value
->     uses $1: %1 -> %2 lend last
+>     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : string
->   %1 = Store [$1] %0 : ()
->   %2 = Read borrow [$1] : string
->   %3 = Call std/text/impl StringBuilder.text_width[] (%2) : usize
->   %4 = Prim Add [0:usize 1:usize] : usize
->   %5 = Prim Add [%4 %3] : usize
->   %6 = Prim Add [%5 1:usize] : usize
->   %7 = Call std/text/impl StringBuilder.value_new[] (%6) : string
->   %8 = Call std/text/impl StringBuilder.value_text[] (%7, 0:usize, "[") : ()
->   %9 = Call std/text/impl StringBuilder.value_text[] (%7, %4, %2) : ()
->   %10 = Call std/text/impl StringBuilder.value_text[] (%7, %5, "]") : ()
->   %11 = Read move [%7] : string
->   %12 = Break L0 %11 : never
->   %13 = Drop [%7] : ()
->   %14 = Block - : string
->   %15 = Scope %14 [] : string
->   %16 = Block %15 : string
+>   %1 = Call std/text/impl StringBuilder.text_width[] (%0) : usize
+>   %2 = Prim Add [0:usize 1:usize] : usize
+>   %3 = Prim Add [%2 %1] : usize
+>   %4 = Prim Add [%3 1:usize] : usize
+>   %5 = Call std/text/impl StringBuilder.value_new[] (%4) : string
+>   %6 = Call std/text/impl StringBuilder.value_text[] (%5, 0:usize, "[") : ()
+>   %7 = Call std/text/impl StringBuilder.value_text[] (%5, %2, %0) : ()
+>   %8 = Call std/text/impl StringBuilder.value_text[] (%5, %3, "]") : ()
+>   %9 = Read move [%5] : string
+>   %10 = Break L0 %9 : never
+>   %11 = Drop [%5] : ()
+>   %12 = Block - : string
+>   %13 = Scope %12 [] : string
+>   %14 = Block %13 : string
 >   summary kept [] borrows [$0] writes
 
 fn chain(raw: string) -> string:
     raw |> clean |> tag(_, 2)
 > app/main/chain
 >   local $0 raw: string [param read] value
->     uses $0: entry -> %0 consume last
+>     uses $0: entry -> %0 lend last
 >   local $1 label: string [read] value
->     uses $1: %16 -> %18 lend last
+>     uses $1: %14 -> %16 lend last
 >   local $2 level: i64 [read captured] place
->   local $3 raw: string [read] value
->     uses $3: %1 -> %2 lend last
 >   %0 = Read borrow [$0] : string
->   %1 = Store [$3] %0 : ()
->   %2 = Read borrow [$3] : string
->   %3 = Call std/text/impl StringBuilder.text_width[] (%2) : usize
->   %4 = Prim Add [0:usize 1:usize] : usize
->   %5 = Prim Add [%4 %3] : usize
->   %6 = Prim Add [%5 1:usize] : usize
->   %7 = Call std/text/impl StringBuilder.value_new[] (%6) : string
->   %8 = Call std/text/impl StringBuilder.value_text[] (%7, 0:usize, "[") : ()
->   %9 = Call std/text/impl StringBuilder.value_text[] (%7, %4, %2) : ()
->   %10 = Call std/text/impl StringBuilder.value_text[] (%7, %5, "]") : ()
->   %11 = Read move [%7] : string
->   %12 = Break L1 %11 : never
->   %13 = Drop [%7] : ()
->   %14 = Block - : string
->   %15 = Scope %14 [] : string
->   %16 = Store [$1] %15 : ()
->   %17 = Store [$2] 2:i64 : ()
->   %18 = Read borrow [$1] : string
->   %19 = Call std/text/impl StringBuilder.text_width[] (%18) : usize
->   %20 = Ref local frame [$2] : Counted[i64]
->   %21 = Read copy [*%20] : i64
->   %22 = Drop [%20] : ()
->   %23 = Prim Conv [%21] : i64
->   %24 = Call std/text/impl StringBuilder.signed_width[] (%23) : usize
->   %25 = Prim Add [0:usize %19] : usize
->   %26 = Prim Add [%25 1:usize] : usize
->   %27 = Prim Add [%26 %24] : usize
->   %28 = Call std/text/impl StringBuilder.value_new[] (%27) : string
->   %29 = Call std/text/impl StringBuilder.value_text[] (%28, 0:usize, %18) : ()
->   %30 = Call std/text/impl StringBuilder.value_text[] (%28, %25, ":") : ()
->   %31 = Call std/text/impl StringBuilder.value_signed[] (%28, %26, %23, %24) : ()
->   %32 = Read move [%28] : string
->   %33 = Break L0 %32 : never
->   %34 = Drop [%28] : ()
->   %35 = Block - : string
->   %36 = Scope %35 [] : string
->   %37 = Drop [$2] : ()
->   %38 = Drop [$1] : ()
->   %39 = Block %36 : string
->   %20 finds [$2] full
+>   %1 = Call std/text/impl StringBuilder.text_width[] (%0) : usize
+>   %2 = Prim Add [0:usize 1:usize] : usize
+>   %3 = Prim Add [%2 %1] : usize
+>   %4 = Prim Add [%3 1:usize] : usize
+>   %5 = Call std/text/impl StringBuilder.value_new[] (%4) : string
+>   %6 = Call std/text/impl StringBuilder.value_text[] (%5, 0:usize, "[") : ()
+>   %7 = Call std/text/impl StringBuilder.value_text[] (%5, %2, %0) : ()
+>   %8 = Call std/text/impl StringBuilder.value_text[] (%5, %3, "]") : ()
+>   %9 = Read move [%5] : string
+>   %10 = Break L1 %9 : never
+>   %11 = Drop [%5] : ()
+>   %12 = Block - : string
+>   %13 = Scope %12 [] : string
+>   %14 = Store [$1] %13 : ()
+>   %15 = Store [$2] 2:i64 : ()
+>   %16 = Read borrow [$1] : string
+>   %17 = Call std/text/impl StringBuilder.text_width[] (%16) : usize
+>   %18 = Ref local frame [$2] : Counted[i64]
+>   %19 = Read copy [*%18] : i64
+>   %20 = Drop [%18] : ()
+>   %21 = Prim Conv [%19] : i64
+>   %22 = Call std/text/impl StringBuilder.signed_width[] (%21) : usize
+>   %23 = Prim Add [0:usize %17] : usize
+>   %24 = Prim Add [%23 1:usize] : usize
+>   %25 = Prim Add [%24 %22] : usize
+>   %26 = Call std/text/impl StringBuilder.value_new[] (%25) : string
+>   %27 = Call std/text/impl StringBuilder.value_text[] (%26, 0:usize, %16) : ()
+>   %28 = Call std/text/impl StringBuilder.value_text[] (%26, %23, ":") : ()
+>   %29 = Call std/text/impl StringBuilder.value_signed[] (%26, %24, %21, %22) : ()
+>   %30 = Read move [%26] : string
+>   %31 = Break L0 %30 : never
+>   %32 = Drop [%26] : ()
+>   %33 = Block - : string
+>   %34 = Scope %33 [] : string
+>   %35 = Drop [$2] : ()
+>   %36 = Drop [$1] : ()
+>   %37 = Block %34 : string
+>   %18 finds [$2] full
 >   summary kept [] borrows [$0] writes
 
 fn direct(raw: string) -> string:
     tag(clean(raw), 2)
 > app/main/direct
 >   local $0 raw: string [param read] value
->     uses $0: entry -> %0 consume last
+>     uses $0: entry -> %0 lend last
 >   local $1 label: string [read] value
->     uses $1: %16 -> %18 lend last
+>     uses $1: %14 -> %16 lend last
 >   local $2 level: i64 [read captured] place
->   local $3 raw: string [read] value
->     uses $3: %1 -> %2 lend last
 >   %0 = Read borrow [$0] : string
->   %1 = Store [$3] %0 : ()
->   %2 = Read borrow [$3] : string
->   %3 = Call std/text/impl StringBuilder.text_width[] (%2) : usize
->   %4 = Prim Add [0:usize 1:usize] : usize
->   %5 = Prim Add [%4 %3] : usize
->   %6 = Prim Add [%5 1:usize] : usize
->   %7 = Call std/text/impl StringBuilder.value_new[] (%6) : string
->   %8 = Call std/text/impl StringBuilder.value_text[] (%7, 0:usize, "[") : ()
->   %9 = Call std/text/impl StringBuilder.value_text[] (%7, %4, %2) : ()
->   %10 = Call std/text/impl StringBuilder.value_text[] (%7, %5, "]") : ()
->   %11 = Read move [%7] : string
->   %12 = Break L1 %11 : never
->   %13 = Drop [%7] : ()
->   %14 = Block - : string
->   %15 = Scope %14 [] : string
->   %16 = Store [$1] %15 : ()
->   %17 = Store [$2] 2:i64 : ()
->   %18 = Read borrow [$1] : string
->   %19 = Call std/text/impl StringBuilder.text_width[] (%18) : usize
->   %20 = Ref local frame [$2] : Counted[i64]
->   %21 = Read copy [*%20] : i64
->   %22 = Drop [%20] : ()
->   %23 = Prim Conv [%21] : i64
->   %24 = Call std/text/impl StringBuilder.signed_width[] (%23) : usize
->   %25 = Prim Add [0:usize %19] : usize
->   %26 = Prim Add [%25 1:usize] : usize
->   %27 = Prim Add [%26 %24] : usize
->   %28 = Call std/text/impl StringBuilder.value_new[] (%27) : string
->   %29 = Call std/text/impl StringBuilder.value_text[] (%28, 0:usize, %18) : ()
->   %30 = Call std/text/impl StringBuilder.value_text[] (%28, %25, ":") : ()
->   %31 = Call std/text/impl StringBuilder.value_signed[] (%28, %26, %23, %24) : ()
->   %32 = Read move [%28] : string
->   %33 = Break L0 %32 : never
->   %34 = Drop [%28] : ()
->   %35 = Block - : string
->   %36 = Scope %35 [] : string
->   %37 = Drop [$2] : ()
->   %38 = Drop [$1] : ()
->   %39 = Block %36 : string
->   %20 finds [$2] full
+>   %1 = Call std/text/impl StringBuilder.text_width[] (%0) : usize
+>   %2 = Prim Add [0:usize 1:usize] : usize
+>   %3 = Prim Add [%2 %1] : usize
+>   %4 = Prim Add [%3 1:usize] : usize
+>   %5 = Call std/text/impl StringBuilder.value_new[] (%4) : string
+>   %6 = Call std/text/impl StringBuilder.value_text[] (%5, 0:usize, "[") : ()
+>   %7 = Call std/text/impl StringBuilder.value_text[] (%5, %2, %0) : ()
+>   %8 = Call std/text/impl StringBuilder.value_text[] (%5, %3, "]") : ()
+>   %9 = Read move [%5] : string
+>   %10 = Break L1 %9 : never
+>   %11 = Drop [%5] : ()
+>   %12 = Block - : string
+>   %13 = Scope %12 [] : string
+>   %14 = Store [$1] %13 : ()
+>   %15 = Store [$2] 2:i64 : ()
+>   %16 = Read borrow [$1] : string
+>   %17 = Call std/text/impl StringBuilder.text_width[] (%16) : usize
+>   %18 = Ref local frame [$2] : Counted[i64]
+>   %19 = Read copy [*%18] : i64
+>   %20 = Drop [%18] : ()
+>   %21 = Prim Conv [%19] : i64
+>   %22 = Call std/text/impl StringBuilder.signed_width[] (%21) : usize
+>   %23 = Prim Add [0:usize %17] : usize
+>   %24 = Prim Add [%23 1:usize] : usize
+>   %25 = Prim Add [%24 %22] : usize
+>   %26 = Call std/text/impl StringBuilder.value_new[] (%25) : string
+>   %27 = Call std/text/impl StringBuilder.value_text[] (%26, 0:usize, %16) : ()
+>   %28 = Call std/text/impl StringBuilder.value_text[] (%26, %23, ":") : ()
+>   %29 = Call std/text/impl StringBuilder.value_signed[] (%26, %24, %21, %22) : ()
+>   %30 = Read move [%26] : string
+>   %31 = Break L0 %30 : never
+>   %32 = Drop [%26] : ()
+>   %33 = Block - : string
+>   %34 = Scope %33 [] : string
+>   %35 = Drop [$2] : ()
+>   %36 = Drop [$1] : ()
+>   %37 = Block %34 : string
+>   %18 finds [$2] full
 >   summary kept [] borrows [$0] writes
 
 fn method_slot(raw: string) -> usize:
     raw |> _.len()
 > app/main/method_slot
 >   local $0 raw: string [param read] value
->     uses $0: entry -> %0 consume last
->   local $2 self: string [read] value
->     uses $2: %1 -> %2 lend last
+>     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : string
->   %1 = Store [$2] %0 : ()
->   %2 = Read borrow [$2] : string
->   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
->   %4 = Break L0 %3 : never
->   %5 = Block - : usize
->   %6 = Scope %5 [] : usize
->   %7 = Block %6 : usize
+>   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %2 = Break L0 %1 : never
+>   %3 = Block - : usize
+>   %4 = Scope %3 [] : usize
+>   %5 = Block %4 : usize
 >   summary kept [] borrows [$0]
 
 fn literal_slot(raw: string) -> Point:

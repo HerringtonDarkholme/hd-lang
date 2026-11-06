@@ -2,6 +2,7 @@
 (module
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
   (func $spread (param $xs i32) (result i32)
     ;; 18 |     total(xs...)
@@ -87,9 +88,9 @@
     end
     local.get $a.0
   )
-  (func $total (param $parts i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $p.0 i32) (local $p.1 i32)
-    block
+  (func $total (param $parts i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $p.1 i32)
     ;; 9 |     let n: usize = 0
+    block
       i32.const 0
       local.set $n
     ;; 10 |     for p in parts:
@@ -105,14 +106,22 @@
           i32.lt_u
           i32.eqz
           br_if 1
+          local.get $t1
+          local.get $parts
+          i32.load $heap offset=4
+          i32.ge_u
+          if
+            call $rt:panic
+            unreachable
+          end
           local.get $parts
           local.get $t1
           i32.const 8
           i32.mul
           i32.add
-          local.tee $p.0
+          local.tee $t2
           i32.load $heap offset=16
-          local.get $p.0
+          local.get $t2
           i32.load $heap offset=20
           local.set $p.1
           drop
@@ -129,12 +138,12 @@
             block
               block
                 local.get $p.1
-                local.set $p.0
+                local.set $t2
                 br 0
               end
             end
             local.get $n
-            local.get $p.0
+            local.get $t2
             i32.add
             local.set $n
     ;; 10 |     for p in parts:
@@ -145,7 +154,7 @@
       end
     ;; 12 |     n
       local.get $n
-    ;; (no span)
+    ;; 9 |     let n: usize = 0
       local.set $parts
     end
     local.get $parts

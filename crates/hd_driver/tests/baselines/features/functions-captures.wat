@@ -3,10 +3,10 @@
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields'1" (func $rt:retain_fields'1 (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields'2" (func $rt:retain_fields'2 (param i32)))
+  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
@@ -39,42 +39,30 @@
     local.get $items
     local.get $s.0
   )
-  (func $copy_shares#1 (param $env i32) (param $ctx i32) (local $s.0 i32) (local $t0 i32)
-    ;; 26 |     again()
+  (func $copy_shares#1 (param $env i32) (param $ctx i32) (local $t0 i32)
+    ;; 25 |     inc()
     local.get $env
     i32.load $heap
     local.set $ctx
     local.get $env
-    i32.load $heap offset=4
-    local.tee $s.0
-    local.get $env
     i32.load $heap offset=8
     local.set $env
-    call $retain
     block
     ;; 23 |     inc := fn() -> void: n += s.len()
       local.get $ctx
       i32.load $heap
       local.set $t0
-      local.get $s.0
-      local.get $env
-      local.set $s.0
-      local.set $env
       block
         block
           br 0
         end
       end
-    ;; 26 |     again()
-      local.get $env
-      call $rt:release_ref'1
-    ;; 23 |     inc := fn() -> void: n += s.len()
       local.get $ctx
       local.get $t0
-      local.get $s.0
+      local.get $env
       i32.add
       i32.store $heap
-    ;; 26 |     again()
+    ;; 25 |     inc()
     end
   )
   (func $through_ptr#1 (param $env i32) (param $ctx i32) (local $s.0 i32) (local $t0 i32) (local $t1 i32)
@@ -153,10 +141,8 @@
       local.set $t1
     ;; (no span)
       local.get $t0
-      call $rt:release_ref'2
+      call $rt:release_ref'1
     ;; 12 |     f() + s.len()
-      local.get $s.0
-      local.set $s.0
       block
         block
           br 0
@@ -164,7 +150,7 @@
       end
     ;; (no span)
       local.get $s.0
-      call $rt:release_ref'1
+      call $rt:release_ref'2
     ;; 12 |     f() + s.len()
       local.get $t1
       local.get $s.1
@@ -177,28 +163,16 @@
   (func $copied#1 (param $env i32) (param $ctx i32) (result i32)
     ;; 12 |     f() + s.len()
     local.get $env
-    i32.load $heap
-    local.tee $ctx
-    local.get $env
     i32.load $heap offset=4
     local.set $env
-    call $retain
     block
     ;; 11 |     f := fn() -> usize: s.len()
-      local.get $ctx
-      local.get $env
-      local.set $ctx
-      local.set $env
       block
         block
           br 0
         end
       end
     ;; 12 |     f() + s.len()
-      local.get $env
-      call $rt:release_ref'1
-      local.get $ctx
-      local.set $env
     end
     local.get $env
   )
@@ -275,7 +249,7 @@
       call_indirect $table0 (param i32 i32)
     ;; (no span)
       local.get $inc.1
-      call $rt:release_ref'2
+      call $rt:release_ref'1
     ;; 27 |     n
       local.get $n
       i32.load $heap
@@ -410,7 +384,7 @@
       call $shared_list#1
     ;; (no span)
       local.get $t1
-      call $rt:release_ref'2
+      call $rt:release_ref'1
     ;; 19 |     xs.len()
       local.get $xs
       i32.load $heap
@@ -421,14 +395,14 @@
       if
         local.get $xs
         i32.load $heap
-        call $rt:release_ref'2
+        call $rt:release_ref'1
       end
     ;; 19 |     xs.len()
       local.get $s.0
       i32.load $heap offset=4
     ;; (no span)
       local.get $s.0
-      call $rt:release_ref'2
+      call $rt:release_ref'1
       local.set $s.0
     end
     local.get $s.0

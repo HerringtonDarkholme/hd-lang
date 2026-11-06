@@ -134,14 +134,14 @@ fn use_rets(r: Rec) -> usize:
     ret_param(r.name).len() + ret_field(r).len() + ret_ref_field(&r).len()
 > app/main/use_rets
 >   local $0 r: Rec [param read captured] place
+>   local $1 $ref: string [read assigned captured captured-assigned] value
+>     uses $1: %6 -> %7 lend last
+>   local $2 $ref: string [read assigned captured captured-assigned] value
+>     uses $2: %19 -> %20 lend last
 >   local $3 r: Ref[Rec] [read] value
 >     uses $3: %28 -> %29 lend last
->   local $4 self: string [read] value
->     uses $4: %19 -> %20 lend last
 >   local $5 r: Rec [read] value
 >     uses $5: %14 -> %15 consume last
->   local $6 self: string [read] value
->     uses $6: %6 -> %7 lend last
 >   local $7 s: string [read] value
 >     uses $7: %1 -> %2 consume last
 >   %0 = Read copy [$0 .name] : string
@@ -150,26 +150,26 @@ fn use_rets(r: Rec) -> usize:
 >   %3 = Break L4 %2 : never
 >   %4 = Block - : string
 >   %5 = Scope %4 [] : string
->   %6 = Store [$6] %5 : ()
->   %7 = Read borrow [$6] : string
+>   %6 = Store [$1] %5 : ()
+>   %7 = Read borrow [$1] : string
 >   %8 = Call std/rt.bytes/bytes_len[] (%7) : usize
 >   %9 = Break L3 %8 : never
 >   %10 = Block - : usize
 >   %11 = Scope %10 [] : usize
->   %12 = Drop [$6] : ()
+>   %12 = Drop [$1] : ()
 >   %13 = Read copy [$0] : Rec
 >   %14 = Store [$5] %13 : ()
 >   %15 = Read move [$5 .name] : string
 >   %16 = Break L2 %15 : never
 >   %17 = Block - : string
 >   %18 = Scope %17 [] : string
->   %19 = Store [$4] %18 : ()
->   %20 = Read borrow [$4] : string
+>   %19 = Store [$2] %18 : ()
+>   %20 = Read borrow [$2] : string
 >   %21 = Call std/rt.bytes/bytes_len[] (%20) : usize
 >   %22 = Break L1 %21 : never
 >   %23 = Block - : usize
 >   %24 = Scope %23 [] : usize
->   %25 = Drop [$4] : ()
+>   %25 = Drop [$2] : ()
 >   %26 = Prim Add [%11 %24] : usize
 >   %27 = Ref local frame [$0] : Ref[Rec]
 >   %28 = Store [$3] %27 : ()

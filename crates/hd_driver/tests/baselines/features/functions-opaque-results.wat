@@ -58,12 +58,8 @@
     global.set $locals
     block
     ;; 11 |     for x in names(&xs):
-      local.get $xs
-      local.set $xs
       block
         block
-          local.get $xs
-          local.set $xs
           block
             block
               br 0

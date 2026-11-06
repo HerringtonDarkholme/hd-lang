@@ -168,6 +168,7 @@
     local.get $m
   )
   (func $by_value (param $m i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $k i32) (local $v i32)
+    ;; 10 |     n
     block
     ;; 8 |     for (k, v) in m:
       local.get $m
@@ -228,7 +229,6 @@
       end
     ;; 10 |     n
       local.get $n
-    ;; (no span)
       local.set $m
     end
     local.get $m

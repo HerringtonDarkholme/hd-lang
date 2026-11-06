@@ -15,64 +15,52 @@ fn read_match(s: Shape) -> usize:
 >   local $0 s: Shape [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 n: string [read assigned] value
->     uses $1: %27 -> %1 consume last
+>     uses $1: %21 -> %1 lend last
 >   local $2 a: string [read assigned] value
->     uses $2: %32 -> %9 consume last
+>     uses $2: %26 -> %7 lend last
 >   local $3 b: string [read assigned] value
->     uses $3: %33 -> %16 consume last
->   local $4 self: string [read] value
->     uses $4: %17 -> %18 lend last
->   local $5 self: string [read] value
->     uses $5: %10 -> %11 lend last
->   local $6 self: string [read] value
->     uses $6: %2 -> %3 lend last
+>     uses $3: %27 -> %12 lend last
 >   %0 = Read borrow [$0] : Shape
->   %45 = Block - : never
->   %46 = Match %0 [%45 %8 %24 %25] : usize
->   %47 = Block %46 : usize
+>   %39 = Block - : never
+>   %40 = Match %0 [%39 %6 %18 %19] : usize
+>   %41 = Block %40 : usize
         .Named(n) => n.len()
 >   %1 = Read borrow [$1] : string
->   %2 = Store [$6] %1 : ()
->   %3 = Read borrow [$6] : string
->   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
->   %5 = Break L2 %4 : never
->   %6 = Block - : usize
->   %7 = Scope %6 [] : usize
->   %8 = Block %7 : usize
->   %26 = Read borrow [%0 as #0 .0] : string
->   %27 = Store [$1] %26 : ()
->   %29 = Block - : never
->   %43 = Block - : never
->   %44 = SwitchTag %0 [#0 %29 %43] : never
-        .Pair(a, b) => a.len() + b.len()
->   %9 = Read borrow [$2] : string
->   %10 = Store [$5] %9 : ()
->   %11 = Read borrow [$5] : string
->   %12 = Call std/rt.bytes/bytes_len[] (%11) : usize
->   %13 = Break L1 %12 : never
->   %14 = Block - : usize
->   %15 = Scope %14 [] : usize
->   %16 = Read borrow [$3] : string
->   %17 = Store [$4] %16 : ()
->   %18 = Read borrow [$4] : string
->   %19 = Call std/rt.bytes/bytes_len[] (%18) : usize
->   %20 = Break L0 %19 : never
->   %21 = Block - : usize
->   %22 = Scope %21 [] : usize
->   %23 = Prim Add [%15 %22] : usize
->   %24 = Block %23 : usize
->   %30 = Read borrow [%0 as #1 .0] : string
->   %31 = Read borrow [%0 as #1 .1] : string
->   %32 = Store [$2] %30 : ()
->   %33 = Store [$3] %31 : ()
->   %35 = Block - : never
->   %41 = Block - : never
->   %42 = SwitchTag %0 [#1 %35 %41] : never
-        .Empty => 0
->   %25 = Block 0:usize : usize
+>   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
+>   %3 = Break L2 %2 : never
+>   %4 = Block - : usize
+>   %5 = Scope %4 [] : usize
+>   %6 = Block %5 : usize
+>   %20 = Read borrow [%0 as #0 .0] : string
+>   %21 = Store [$1] %20 : ()
+>   %23 = Block - : never
 >   %37 = Block - : never
->   %39 = Block - : never
->   %40 = SwitchTag %0 [#2 %37 %39] : never
+>   %38 = SwitchTag %0 [#0 %23 %37] : never
+        .Pair(a, b) => a.len() + b.len()
+>   %7 = Read borrow [$2] : string
+>   %8 = Call std/rt.bytes/bytes_len[] (%7) : usize
+>   %9 = Break L1 %8 : never
+>   %10 = Block - : usize
+>   %11 = Scope %10 [] : usize
+>   %12 = Read borrow [$3] : string
+>   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
+>   %14 = Break L0 %13 : never
+>   %15 = Block - : usize
+>   %16 = Scope %15 [] : usize
+>   %17 = Prim Add [%11 %16] : usize
+>   %18 = Block %17 : usize
+>   %24 = Read borrow [%0 as #1 .0] : string
+>   %25 = Read borrow [%0 as #1 .1] : string
+>   %26 = Store [$2] %24 : ()
+>   %27 = Store [$3] %25 : ()
+>   %29 = Block - : never
+>   %35 = Block - : never
+>   %36 = SwitchTag %0 [#1 %29 %35] : never
+        .Empty => 0
+>   %19 = Block 0:usize : usize
+>   %31 = Block - : never
+>   %33 = Block - : never
+>   %34 = SwitchTag %0 [#2 %31 %33] : never
 >   summary kept [] borrows [$0]
 
 fn take_match(s: Shape) -> string:
@@ -115,66 +103,54 @@ fn ref_match(s: &Shape) -> usize:
     match s:
 > app/main/ref_match
 >   local $0 s: Ref[Shape] [param read] value
->     uses $0: entry -> %0 lend, %26 lend, %27 lend last, %32 lend, %33 lend last
+>     uses $0: entry -> %0 lend, %20 lend, %21 lend last, %26 lend, %27 lend last
 >   local $1 n: string [read assigned] value
->     uses $1: %28 -> %1 consume last
+>     uses $1: %22 -> %1 lend last
 >   local $2 a: string [read assigned] value
->     uses $2: %34 -> %9 consume last
+>     uses $2: %28 -> %7 lend last
 >   local $3 b: string [read assigned] value
->     uses $3: %35 -> %16 consume last
->   local $4 self: string [read] value
->     uses $4: %17 -> %18 lend last
->   local $5 self: string [read] value
->     uses $5: %10 -> %11 lend last
->   local $6 self: string [read] value
->     uses $6: %2 -> %3 lend last
+>     uses $3: %29 -> %12 lend last
 >   %0 = Read borrow [$0] : Ref[Shape]
->   %50 = Block - : never
->   %51 = Match %0 [%50 %8 %24 %25] : usize
->   %52 = Block %51 : usize
+>   %44 = Block - : never
+>   %45 = Match %0 [%44 %6 %18 %19] : usize
+>   %46 = Block %45 : usize
         .Named(n) => n.len()
 >   %1 = Read borrow [$1] : string
->   %2 = Store [$6] %1 : ()
->   %3 = Read borrow [$6] : string
->   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
->   %5 = Break L2 %4 : never
->   %6 = Block - : usize
->   %7 = Scope %6 [] : usize
->   %8 = Block %7 : usize
->   %26 = Read borrow [*$0] : Shape
->   %27 = Read borrow [*$0 as #0 .0] : string
->   %28 = Store [$1] %27 : ()
->   %31 = Block - : never
->   %47 = Block - : never
->   %48 = SwitchTag %26 [#0 %31 %47] : never
->   %49 = Drop [%26] : ()
-        .Pair(a, b) => a.len() + b.len()
->   %9 = Read borrow [$2] : string
->   %10 = Store [$5] %9 : ()
->   %11 = Read borrow [$5] : string
->   %12 = Call std/rt.bytes/bytes_len[] (%11) : usize
->   %13 = Break L1 %12 : never
->   %14 = Block - : usize
->   %15 = Scope %14 [] : usize
->   %16 = Read borrow [$3] : string
->   %17 = Store [$4] %16 : ()
->   %18 = Read borrow [$4] : string
->   %19 = Call std/rt.bytes/bytes_len[] (%18) : usize
->   %20 = Break L0 %19 : never
->   %21 = Block - : usize
->   %22 = Scope %21 [] : usize
->   %23 = Prim Add [%15 %22] : usize
->   %24 = Block %23 : usize
->   %32 = Read borrow [*$0 as #1 .0] : string
->   %33 = Read borrow [*$0 as #1 .1] : string
->   %34 = Store [$2] %32 : ()
->   %35 = Store [$3] %33 : ()
->   %38 = Block - : never
->   %45 = Block - : never
->   %46 = SwitchTag %26 [#1 %38 %45] : never
-        .Empty => 0
->   %25 = Block 0:usize : usize
+>   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
+>   %3 = Break L2 %2 : never
+>   %4 = Block - : usize
+>   %5 = Scope %4 [] : usize
+>   %6 = Block %5 : usize
+>   %20 = Read borrow [*$0] : Shape
+>   %21 = Read borrow [*$0 as #0 .0] : string
+>   %22 = Store [$1] %21 : ()
+>   %25 = Block - : never
 >   %41 = Block - : never
->   %43 = Block - : never
->   %44 = SwitchTag %26 [#2 %41 %43] : never
+>   %42 = SwitchTag %20 [#0 %25 %41] : never
+>   %43 = Drop [%20] : ()
+        .Pair(a, b) => a.len() + b.len()
+>   %7 = Read borrow [$2] : string
+>   %8 = Call std/rt.bytes/bytes_len[] (%7) : usize
+>   %9 = Break L1 %8 : never
+>   %10 = Block - : usize
+>   %11 = Scope %10 [] : usize
+>   %12 = Read borrow [$3] : string
+>   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
+>   %14 = Break L0 %13 : never
+>   %15 = Block - : usize
+>   %16 = Scope %15 [] : usize
+>   %17 = Prim Add [%11 %16] : usize
+>   %18 = Block %17 : usize
+>   %26 = Read borrow [*$0 as #1 .0] : string
+>   %27 = Read borrow [*$0 as #1 .1] : string
+>   %28 = Store [$2] %26 : ()
+>   %29 = Store [$3] %27 : ()
+>   %32 = Block - : never
+>   %39 = Block - : never
+>   %40 = SwitchTag %20 [#1 %32 %39] : never
+        .Empty => 0
+>   %19 = Block 0:usize : usize
+>   %35 = Block - : never
+>   %37 = Block - : never
+>   %38 = SwitchTag %20 [#2 %35 %37] : never
 >   summary kept []

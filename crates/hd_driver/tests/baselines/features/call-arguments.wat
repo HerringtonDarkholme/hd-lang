@@ -136,59 +136,9 @@
     end
     local.get $s
   )
-  (func $by_value (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $by_value (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
     block
     ;; 10 |     (s.len() + 1) * (s.len() + 2) * (s.len() + 3) * (s.len() + 4) / (s.len() + 5)
-      block
-        block
-          local.get $s.1
-          local.set $t0
-          br 0
-        end
-      end
-      local.get $t0
-      i32.const 1
-      i32.add
-      local.set $t0
-      block
-        block
-          local.get $s.1
-          local.set $t1
-          br 0
-        end
-      end
-      local.get $t0
-      local.get $t1
-      i32.const 2
-      i32.add
-      i32.mul
-      local.set $t0
-      block
-        block
-          local.get $s.1
-          local.set $t1
-          br 0
-        end
-      end
-      local.get $t0
-      local.get $t1
-      i32.const 3
-      i32.add
-      i32.mul
-      local.set $t0
-      block
-        block
-          local.get $s.1
-          local.set $t1
-          br 0
-        end
-      end
-      local.get $t0
-      local.get $t1
-      i32.const 4
-      i32.add
-      i32.mul
-      local.set $t0
       block
         block
           local.get $s.1
@@ -196,8 +146,56 @@
           br 0
         end
       end
-      local.get $t0
       local.get $s.0
+      i32.const 1
+      i32.add
+      local.set $s.0
+      block
+        block
+          local.get $s.1
+          local.set $t0
+          br 0
+        end
+      end
+      local.get $s.0
+      local.get $t0
+      i32.const 2
+      i32.add
+      i32.mul
+      local.set $s.0
+      block
+        block
+          local.get $s.1
+          local.set $t0
+          br 0
+        end
+      end
+      local.get $s.0
+      local.get $t0
+      i32.const 3
+      i32.add
+      i32.mul
+      local.set $s.0
+      block
+        block
+          local.get $s.1
+          local.set $t0
+          br 0
+        end
+      end
+      local.get $s.0
+      local.get $t0
+      i32.const 4
+      i32.add
+      i32.mul
+      local.set $s.0
+      block
+        block
+          br 0
+        end
+      end
+      local.get $s.0
+      local.get $s.1
       i32.const 5
       i32.add
       local.tee $s.0

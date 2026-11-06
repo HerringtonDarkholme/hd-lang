@@ -206,7 +206,7 @@
     i32.add
     global.set $locals
   )
-  (func $lookup (param $m i32) (param $k.name.0 i32) (param $k.name.1 i32) (param $k.n i32) (result i32) (local $t0 i32) (local $v.0 i32) (local $v.1 i32) (local $t1 i32)
+  (func $lookup (param $m i32) (param $k.name.0 i32) (param $k.name.1 i32) (param $k.n i32) (result i32) (local $t1 i32) (local $t0 i32) (local $v.1 i32) (local $t2 i32)
     block
     ;; 21 |     match m.get(k):
       local.get $m
@@ -245,39 +245,31 @@
         local.get $k.name.0
         local.get $m
         local.set $v.1
-        local.set $v.0
         local.set $t0
+        local.set $t1
       else
       end
       block
         block
           block
     ;; 22 |         .Some(v) => v.len()
-            local.get $t0
+            local.get $t1
             i32.const 1
             i32.eq
-            if
-              br 1
-            else
+            br_if 0
     ;; 23 |         .None => 0
-              local.get $t0
-              i32.eqz
-              br_if 2
-              unreachable
-    ;; 22 |         .Some(v) => v.len()
-            end
+            local.get $t1
+            i32.eqz
+            br_if 1
+            unreachable
     ;; 21 |     match m.get(k):
             unreachable
           end
     ;; 22 |         .Some(v) => v.len()
-          local.get $v.0
-          local.get $v.1
-          local.set $m
-          drop
           block
             block
-              local.get $m
-              local.set $t1
+              local.get $v.1
+              local.set $t2
               br 0
             end
           end
@@ -287,11 +279,11 @@
         br 0
       end
     ;; (no span)
+      local.get $t1
       local.get $t0
-      local.get $v.0
       local.get $v.1
       call $rt:release
-      local.get $t1
+      local.get $t2
       local.set $m
     end
     local.get $m

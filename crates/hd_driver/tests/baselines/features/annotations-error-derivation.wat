@@ -152,14 +152,13 @@
           block
             block
               local.get $t1
-              local.get $t2
-              local.get $t3
-              local.set $t7
-              local.set $self
               i32.eqz
               if
                 i32.const 11
-                local.get $self
+                local.get $t2
+                local.get $t3
+                local.set $t7
+                local.tee $self
                 local.get $t7
                 call $"impl StringBuilder.text_width"
                 i32.add

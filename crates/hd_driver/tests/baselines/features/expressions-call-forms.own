@@ -9,30 +9,22 @@ fn join2(first: string, second: string) -> usize:
     first.len() * 3 + second.len()
 > app/main/join2
 >   local $0 first: string [param read] value
->     uses $0: entry -> %0 consume last
+>     uses $0: entry -> %0 lend last
 >   local $1 second: string [param read] value
->     uses $1: entry -> %8 consume last
->   local $2 self: string [read] value
->     uses $2: %9 -> %10 lend last
->   local $3 self: string [read] value
->     uses $3: %1 -> %2 lend last
+>     uses $1: entry -> %6 lend last
 >   %0 = Read borrow [$0] : string
->   %1 = Store [$3] %0 : ()
->   %2 = Read borrow [$3] : string
->   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
->   %4 = Break L1 %3 : never
->   %5 = Block - : usize
->   %6 = Scope %5 [] : usize
->   %7 = Prim Mul [%6 3:usize] : usize
->   %8 = Read borrow [$1] : string
->   %9 = Store [$2] %8 : ()
->   %10 = Read borrow [$2] : string
->   %11 = Call std/rt.bytes/bytes_len[] (%10) : usize
->   %12 = Break L0 %11 : never
->   %13 = Block - : usize
->   %14 = Scope %13 [] : usize
->   %15 = Prim Add [%7 %14] : usize
->   %16 = Block %15 : usize
+>   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %2 = Break L1 %1 : never
+>   %3 = Block - : usize
+>   %4 = Scope %3 [] : usize
+>   %5 = Prim Mul [%4 3:usize] : usize
+>   %6 = Read borrow [$1] : string
+>   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
+>   %8 = Break L0 %7 : never
+>   %9 = Block - : usize
+>   %10 = Scope %9 [] : usize
+>   %11 = Prim Add [%5 %10] : usize
+>   %12 = Block %11 : usize
 >   summary kept [] borrows [$0 $1]
 
 fn count(values...: List[string]) -> usize:
@@ -143,17 +135,13 @@ fn spread_list(xs: List[string]) -> usize:
     count(xs...)
 > app/main/spread_list
 >   local $0 xs: List[string] [param read] value
->     uses $0: entry -> %0 consume last
->   local $1 values: List[string] [read] value
->     uses $1: %1 -> %2 lend last
+>     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : List[string]
->   %1 = Store [$1] %0 : ()
->   %2 = Read borrow [$1] : List[string]
->   %3 = Intrinsic ListLen [%2] : usize
->   %4 = Break L0 %3 : never
->   %5 = Block - : usize
->   %6 = Scope %5 [] : usize
->   %7 = Block %6 : usize
+>   %1 = Intrinsic ListLen [%0] : usize
+>   %2 = Break L0 %1 : never
+>   %3 = Block - : usize
+>   %4 = Scope %3 [] : usize
+>   %5 = Block %4 : usize
 >   summary kept [] borrows [$0]
 
 fn collect(a: string, b: string) -> usize:

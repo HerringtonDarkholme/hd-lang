@@ -15,17 +15,13 @@ fn width(s: string) -> usize:
     s.len()
 > app/main/width
 >   local $0 s: string [param read] value
->     uses $0: entry -> %0 consume last
->   local $1 self: string [read] value
->     uses $1: %1 -> %2 lend last
+>     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : string
->   %1 = Store [$1] %0 : ()
->   %2 = Read borrow [$1] : string
->   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
->   %4 = Break L0 %3 : never
->   %5 = Block - : usize
->   %6 = Scope %5 [] : usize
->   %7 = Block %6 : usize
+>   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %2 = Break L0 %1 : never
+>   %3 = Block - : usize
+>   %4 = Scope %3 [] : usize
+>   %5 = Block %4 : usize
 >   summary kept [] borrows [$0]
 
 fn apply(f: fn(string) -> usize, s: string) -> usize:
@@ -46,37 +42,25 @@ fn named_value(s: string) -> usize:
     apply(width, s)
 > app/main/named_value
 >   local $0 s: string [param read] value
->     uses $0: entry -> %1 consume last
+>     uses $0: entry -> %3 lend last
 >   local $1 f: fn(string) -> usize [read] value
->     uses $1: %2 -> %4 lend last
->   local $2 s: string [read] value
->     uses $2: %3 -> %5 consume last
->   local $3 s: string [read] value
->     uses $3: %6 -> %7 consume last
->   local $4 self: string [read] value
->     uses $4: %8 -> %9 lend last
+>     uses $1: %1 -> %2 lend last
 >   %0 = ItemRef #0 [..] : fn(string) -> usize
->   %1 = Read borrow [$0] : string
->   %2 = Store [$1] %0 : ()
->   %3 = Store [$2] %1 : ()
->   %4 = Read borrow [$1] : fn(string) -> usize
->   %5 = Read borrow [$2] : string
->   %6 = Store [$3] %5 : ()
->   %7 = Read borrow [$3] : string
->   %8 = Store [$4] %7 : ()
->   %9 = Read borrow [$4] : string
->   %10 = Call std/rt.bytes/bytes_len[] (%9) : usize
->   %11 = Break L1 %10 : never
+>   %1 = Store [$1] %0 : ()
+>   %2 = Read borrow [$1] : fn(string) -> usize
+>   %3 = Read borrow [$0] : string
+>   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
+>   %5 = Break L1 %4 : never
+>   %6 = Block - : usize
+>   %7 = Scope %6 [] : usize
+>   %8 = Break L2 %7 : never
+>   %9 = Block - : usize
+>   %10 = Scope %9 [] : usize
+>   %11 = Break L0 %10 : never
 >   %12 = Block - : usize
 >   %13 = Scope %12 [] : usize
->   %14 = Break L2 %13 : never
->   %15 = Block - : usize
->   %16 = Scope %15 [] : usize
->   %17 = Break L0 %16 : never
->   %18 = Block - : usize
->   %19 = Scope %18 [] : usize
->   %20 = Drop [$1] : ()
->   %21 = Block %19 : usize
+>   %14 = Drop [$1] : ()
+>   %15 = Block %13 : usize
 >   summary kept [] borrows [$0]
 
 fn ident[T](x: T) -> T:
@@ -107,29 +91,21 @@ fn generic_value(s: string) -> string:
     map_one(s, ident)
 > app/main/generic_value
 >   local $0 s: string [param read] value
->     uses $0: entry -> %0 consume last
->   local $1 x: string [read] value
->     uses $1: %2 -> %5 consume last
+>     uses $0: entry -> %3 consume last
 >   local $2 f: fn(string) -> string [read] value
->     uses $2: %3 -> %4 lend last
->   local $3 x: string [read] value
->     uses $3: %6 -> %7 consume last
->   %0 = Read move [$0] : string
->   %1 = ItemRef #0 [..] : fn(string) -> string
->   %2 = Store [$1] %0 : ()
->   %3 = Store [$2] %1 : ()
->   %4 = Read borrow [$2] : fn(string) -> string
->   %5 = Read move [$1] : string
->   %6 = Store [$3] %5 : ()
->   %7 = Read move [$3] : string
->   %8 = Break L1 %7 : never
->   %9 = Block - : string
->   %10 = Scope %9 [] : string
->   %11 = Break L0 %10 : never
->   %12 = Block - : string
->   %13 = Scope %12 [] : string
->   %14 = Drop [$2] : ()
->   %15 = Block %13 : string
+>     uses $2: %1 -> %2 lend last
+>   %0 = ItemRef #0 [..] : fn(string) -> string
+>   %1 = Store [$2] %0 : ()
+>   %2 = Read borrow [$2] : fn(string) -> string
+>   %3 = Read move [$0] : string
+>   %4 = Break L1 %3 : never
+>   %5 = Block - : string
+>   %6 = Scope %5 [] : string
+>   %7 = Break L0 %6 : never
+>   %8 = Block - : string
+>   %9 = Scope %8 [] : string
+>   %10 = Drop [$2] : ()
+>   %11 = Block %9 : string
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -137,28 +113,24 @@ fn variant_value(s: string) -> Event:
     map_one(s, Event.Named)
 > app/main/variant_value
 >   local $0 s: string [param read] value
->     uses $0: entry -> %0 consume last
+>     uses $0: entry -> %6 consume last
 >   local $1 $0: string [param] value
->     uses $1: entry -> %1 consume last
->   local $2 x: string [read] value
->     uses $2: %5 -> %8 consume last
+>     uses $1: entry -> %0 consume last
 >   local $3 f: fn(string) -> Event [read] value
->     uses $3: %6 -> %7 lend last
->   %0 = Read move [$0] : string
->   %1 = Read move [$1] : string
->   %2 = NewVariant #0 [%1] : Event
->   %3 = Block %2 : Event
->   %4 = Closure #1 [%0 %0] : fn(string) -> Event
->   %5 = Store [$2] %0 : ()
->   %6 = Store [$3] %4 : ()
->   %7 = Read borrow [$3] : fn(string) -> Event
->   %8 = Read move [$2] : string
->   %9 = CallValue %7 [%8] : Event
->   %10 = Break L0 %9 : never
->   %11 = Block - : Event
->   %12 = Scope %11 [] : Event
->   %13 = Drop [$3] : ()
->   %14 = Block %12 : Event
+>     uses $3: %4 -> %5 lend last
+>   %0 = Read move [$1] : string
+>   %1 = NewVariant #0 [%0] : Event
+>   %2 = Block %1 : Event
+>   %3 = Closure #1 [%0 %0] : fn(string) -> Event
+>   %4 = Store [$3] %3 : ()
+>   %5 = Read borrow [$3] : fn(string) -> Event
+>   %6 = Read move [$0] : string
+>   %7 = CallValue %5 [%6] : Event
+>   %8 = Break L0 %7 : never
+>   %9 = Block - : Event
+>   %10 = Scope %9 [] : Event
+>   %11 = Drop [$3] : ()
+>   %12 = Block %10 : Event
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$1]
 >   summary kept [$0] writes

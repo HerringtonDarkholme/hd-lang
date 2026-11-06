@@ -25,27 +25,19 @@ fn twice(b: Bag) -> usize:
     b.size() + b.size()
 > app/main/twice
 >   local $0 b: Bag [param read] value
->     uses $0: entry -> %0 consume, %7 consume last
->   local $1 self: Bag [read] value
->     uses $1: %8 -> %9 lend last
->   local $2 self: Bag [read] value
->     uses $2: %1 -> %2 lend last
->   %0 = Read borrow [$0] : Bag
->   %1 = Store [$2] %0 : ()
->   %2 = Read borrow [$2 .items] : List[string]
->   %3 = Intrinsic ListLen [%2] : usize
->   %4 = Break L1 %3 : never
->   %5 = Block - : usize
->   %6 = Scope %5 [] : usize
->   %7 = Read borrow [$0] : Bag
->   %8 = Store [$1] %7 : ()
->   %9 = Read borrow [$1 .items] : List[string]
->   %10 = Intrinsic ListLen [%9] : usize
->   %11 = Break L0 %10 : never
->   %12 = Block - : usize
->   %13 = Scope %12 [] : usize
->   %14 = Prim Add [%6 %13] : usize
->   %15 = Block %14 : usize
+>     uses $0: entry -> %0 lend, %5 lend last
+>   %0 = Read borrow [$0 .items] : List[string]
+>   %1 = Intrinsic ListLen [%0] : usize
+>   %2 = Break L1 %1 : never
+>   %3 = Block - : usize
+>   %4 = Scope %3 [] : usize
+>   %5 = Read borrow [$0 .items] : List[string]
+>   %6 = Intrinsic ListLen [%5] : usize
+>   %7 = Break L0 %6 : never
+>   %8 = Block - : usize
+>   %9 = Scope %8 [] : usize
+>   %10 = Prim Add [%4 %9] : usize
+>   %11 = Block %10 : usize
 >   summary kept [] borrows [$0]
 
 fn wrap(items: List[string]) -> Bag:

@@ -11,8 +11,6 @@
   (func $name_len (param $s.0 i32) (param $s.1 i32) (result i32)
     block
     ;; 19 |     Name::from(s).text.len()
-      local.get $s.0
-      local.set $s.0
       block
         block
           br 0
@@ -36,8 +34,6 @@
   (func $convert (param $s.0 i32) (param $s.1 i32) (result i32 i32)
     block
     ;; 16 |     Name::from(s)
-      local.get $s.0
-      local.set $s.0
       block
         block
           br 0

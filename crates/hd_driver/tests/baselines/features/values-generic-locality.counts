@@ -38,7 +38,7 @@ fn bounded(u: User) -> usize:
     kept := keep(u)
     later(kept)().name.len()
 > app/main/bounded
->   retain string (stored)
+>   retain string (conservative: copy read)
 >   (no span) release fn() -> &mut app.main.User (last use)
 >   (no span) release &mut app.main.User (last use)
 >   (no span) release &mut app.main.User (last use)

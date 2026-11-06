@@ -89,59 +89,54 @@ fn per_round(log: *mut List[string], xs: List[string]) -> void:
     for x in xs:
 > app/main/per_round
 >   local $0 log: Counted[mut List[string]] [param read] value
->     uses $0: entry -> %15 consume
+>     uses $0: entry -> %13 consume
 >   local $1 xs: List[string] [param read] value
->     uses $1: entry -> %0 consume last
->   local $2 $coll: List[string] [assigned] value
->     uses $2: %1 -> %2 lend, %10 lend
+>     uses $1: entry -> %0 lend, %8 lend
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
->     uses $5: %4 -> %7 lend
+>     uses $5: %2 -> %5 lend
 >   local $6 x: string [read assigned] value
->     uses $6: %28 -> %14 consume last
+>     uses $6: %26 -> %12 consume last
 >   local $7 r: Res [:= read assigned captured captured-assigned] place
 >   %0 = Read borrow [$1] : List[string]
->   %1 = Store [$2] %0 : ()
->   %2 = Read borrow [$2] : List[string]
->   %3 = Intrinsic ListLen [%2] : usize
->   %4 = Store [$5] %3 : ()
->   %5 = Store [$4] 0:usize : ()
->   %6 = Read copy [$4] : usize
->   %7 = Read copy [$5] : usize
->   %8 = Prim Lt [%6 %7] : bool
+>   %1 = Intrinsic ListLen [%0] : usize
+>   %2 = Store [$5] %1 : ()
+>   %3 = Store [$4] 0:usize : ()
+>   %4 = Read copy [$4] : usize
+>   %5 = Read copy [$5] : usize
+>   %6 = Prim Lt [%4 %5] : bool
+>   %7 = Read copy [$4] : usize
+>   %8 = Read copy [$1 [%7]] : string
 >   %9 = Read copy [$4] : usize
->   %10 = Read copy [$2 [%9]] : string
->   %11 = Read copy [$4] : usize
->   %12 = Prim Add [%11 1:usize] : usize
->   %13 = Store [$4] %12 : ()
->   %26 = Block - : ()
->   %27 = Read move [%10] : string
->   %28 = Store [$6] %27 : ()
->   %30 = Block - : never
->   %31 = Match %10 [%30 %26] : ()
+>   %10 = Prim Add [%9 1:usize] : usize
+>   %11 = Store [$4] %10 : ()
+>   %24 = Block - : ()
+>   %25 = Read move [%8] : string
+>   %26 = Store [$6] %25 : ()
+>   %28 = Block - : never
+>   %29 = Match %8 [%28 %24] : ()
+>   %30 = Block - : ()
+>   %31 = Break L0 - : never
 >   %32 = Block - : ()
->   %33 = Break L0 - : never
+>   %33 = If %6 [%30 %32] : ()
 >   %34 = Block - : ()
->   %35 = If %8 [%32 %34] : ()
+>   %35 = Loop %34 - : ()
 >   %36 = Block - : ()
->   %37 = Loop %36 - : ()
->   %38 = Block - : ()
         using r = Res { name: x, log: log }
->   %14 = Read move [$6] : string
->   %15 = Read copy [$0] : Counted[mut List[string]]
->   %16 = NewStruct [%14 %15] : Res
->   %17 = Store [$7] %16 : ()
->   %18 = Ref mut local frame [$7] : Counted[mut Res]
->   %19 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%18) : ()
->   %20 = Drop [%18] : ()
+>   %12 = Read move [$6] : string
+>   %13 = Read copy [$0] : Counted[mut List[string]]
+>   %14 = NewStruct [%12 %13] : Res
+>   %15 = Store [$7] %14 : ()
+>   %16 = Ref mut local frame [$7] : Counted[mut Res]
+>   %17 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%16) : ()
+>   %18 = Drop [%16] : ()
+>   %19 = Block - : ()
+>   %20 = Defer #19 : ()
 >   %21 = Block - : ()
->   %22 = Defer #21 : ()
->   %23 = Block - : ()
->   %24 = Scope %23 [%21] : ()
->   %25 = Drop [$7] : ()
+>   %22 = Scope %21 [%19] : ()
+>   %23 = Drop [$7] : ()
 >   exit sub 0 drops [$7]
 >   summary kept [$0] borrows [$1] writes
->   loop %37 keeps [$2]
         pass
 
 fn by_ref(r: &mut Res) -> usize:

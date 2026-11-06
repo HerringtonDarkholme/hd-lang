@@ -15,76 +15,64 @@ fn pick(t: Tag) -> string:
 >   local $0 t: Tag [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 n: string [read assigned] value
->     uses $1: %34 -> %1 consume last, %10 consume last
+>     uses $1: %28 -> %1 lend last, %8 consume last
 >   local $2 l: string [read assigned] value
->     uses $2: %43 -> %12 consume last, %28 consume last
+>     uses $2: %37 -> %10 lend last, %22 consume last
 >   local $3 r: string [read assigned] value
->     uses $3: %45 -> %19 consume last
+>     uses $3: %39 -> %15 lend last
 >   local $4 r: string [read assigned] value
->     uses $4: %49 -> %30 consume last
->   local $5 self: string [read] value
->     uses $5: %20 -> %21 lend last
->   local $6 self: string [read] value
->     uses $6: %13 -> %14 lend last
->   local $7 self: string [read] value
->     uses $7: %2 -> %3 lend last
+>     uses $4: %43 -> %24 consume last
 >   %0 = Read borrow [$0] : Tag
->   %59 = Block - : never
->   %60 = Match %0 [%59 %11 %29 %31 %32] : string
->   %61 = Drop [$2] : ()
->   %62 = Drop [$1] : ()
->   %63 = Block %60 : string
+>   %53 = Block - : never
+>   %54 = Match %0 [%53 %9 %23 %25 %26] : string
+>   %55 = Drop [$2] : ()
+>   %56 = Drop [$1] : ()
+>   %57 = Block %54 : string
         .Named(n) if n.len() > 3 => n
 >   %1 = Read borrow [$1] : string
->   %2 = Store [$7] %1 : ()
->   %3 = Read borrow [$7] : string
->   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
->   %5 = Break L2 %4 : never
->   %6 = Block - : usize
->   %7 = Scope %6 [] : usize
->   %8 = Prim Gt [%7 3:usize] : bool
->   %9 = Block %8 : bool
->   %10 = Read move [$1] : string
->   %11 = Block %10 : string
->   %33 = Read copy [%0 as #0 .0] : string
->   %34 = Store [$1] %33 : ()
->   %40 = Block - : never
->   %57 = Block - : never
->   %58 = SwitchTag %0 [#0 %40 %57] : never
+>   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
+>   %3 = Break L2 %2 : never
+>   %4 = Block - : usize
+>   %5 = Scope %4 [] : usize
+>   %6 = Prim Gt [%5 3:usize] : bool
+>   %7 = Block %6 : bool
+>   %8 = Read move [$1] : string
+>   %9 = Block %8 : string
+>   %27 = Read copy [%0 as #0 .0] : string
+>   %28 = Store [$1] %27 : ()
+>   %34 = Block - : never
+>   %51 = Block - : never
+>   %52 = SwitchTag %0 [#0 %34 %51] : never
         .Pair(right = r, left = l) if l.len() > r.len() => l
->   %12 = Read borrow [$2] : string
->   %13 = Store [$6] %12 : ()
->   %14 = Read borrow [$6] : string
->   %15 = Call std/rt.bytes/bytes_len[] (%14) : usize
->   %16 = Break L1 %15 : never
->   %17 = Block - : usize
->   %18 = Scope %17 [] : usize
->   %19 = Read borrow [$3] : string
->   %20 = Store [$5] %19 : ()
->   %21 = Read borrow [$5] : string
->   %22 = Call std/rt.bytes/bytes_len[] (%21) : usize
->   %23 = Break L0 %22 : never
->   %24 = Block - : usize
->   %25 = Scope %24 [] : usize
->   %26 = Prim Gt [%18 %25] : bool
->   %27 = Block %26 : bool
->   %28 = Read move [$2] : string
->   %29 = Block %28 : string
->   %41 = Read copy [%0 as #1 .0] : string
->   %42 = Read borrow [%0 as #1 .1] : string
->   %43 = Store [$2] %41 : ()
->   %44 = Read borrow [%42] : string
->   %45 = Store [$3] %44 : ()
->   %53 = Block - : never
->   %55 = Block - : never
->   %56 = SwitchTag %0 [#1 %53 %55] : never
+>   %10 = Read borrow [$2] : string
+>   %11 = Call std/rt.bytes/bytes_len[] (%10) : usize
+>   %12 = Break L1 %11 : never
+>   %13 = Block - : usize
+>   %14 = Scope %13 [] : usize
+>   %15 = Read borrow [$3] : string
+>   %16 = Call std/rt.bytes/bytes_len[] (%15) : usize
+>   %17 = Break L0 %16 : never
+>   %18 = Block - : usize
+>   %19 = Scope %18 [] : usize
+>   %20 = Prim Gt [%14 %19] : bool
+>   %21 = Block %20 : bool
+>   %22 = Read move [$2] : string
+>   %23 = Block %22 : string
+>   %35 = Read copy [%0 as #1 .0] : string
+>   %36 = Read borrow [%0 as #1 .1] : string
+>   %37 = Store [$2] %35 : ()
+>   %38 = Read borrow [%36] : string
+>   %39 = Store [$3] %38 : ()
+>   %47 = Block - : never
+>   %49 = Block - : never
+>   %50 = SwitchTag %0 [#1 %47 %49] : never
         .Pair(left = _, right = r) => r
->   %30 = Read move [$4] : string
->   %31 = Block %30 : string
->   %48 = Read copy [%42] : string
->   %49 = Store [$4] %48 : ()
+>   %24 = Read move [$4] : string
+>   %25 = Block %24 : string
+>   %42 = Read copy [%36] : string
+>   %43 = Store [$4] %42 : ()
         _ => "short"
->   %32 = Block "short" : string
+>   %26 = Block "short" : string
 >   summary kept [] borrows [$0]
 
 fn whole(o: string?) -> usize:
@@ -93,67 +81,59 @@ fn whole(o: string?) -> usize:
 >   local $0 o: string? [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 s: string [read assigned] value
->     uses $1: %43 -> %1 consume last, %10 consume last
+>     uses $1: %39 -> %1 lend last, %8 lend last
 >   local $2 other: string? [read assigned] place
 >   local $3 self: string? [read] value
->     uses $3: %19 -> %20 lend last
->   local $4 self: string [read] value
->     uses $4: %11 -> %12 lend last
->   local $5 self: string [read] value
->     uses $5: %2 -> %3 lend last
+>     uses $3: %15 -> %16 lend last
 >   %0 = Read borrow [$0] : string?
->   %57 = Block - : never
->   %58 = Match %0 [%57 %17 %41] : usize
->   %59 = Drop [$2] : ()
->   %60 = Block %58 : usize
+>   %53 = Block - : never
+>   %54 = Match %0 [%53 %13 %37] : usize
+>   %55 = Drop [$2] : ()
+>   %56 = Block %54 : usize
         .Some(s) if s.len() > 0 => s.len()
 >   %1 = Read borrow [$1] : string
->   %2 = Store [$5] %1 : ()
->   %3 = Read borrow [$5] : string
->   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
->   %5 = Break L2 %4 : never
->   %6 = Block - : usize
->   %7 = Scope %6 [] : usize
->   %8 = Prim Gt [%7 0:usize] : bool
->   %9 = Block %8 : bool
->   %10 = Read borrow [$1] : string
->   %11 = Store [$4] %10 : ()
->   %12 = Read borrow [$4] : string
->   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
->   %14 = Break L1 %13 : never
->   %15 = Block - : usize
->   %16 = Scope %15 [] : usize
->   %17 = Block %16 : usize
->   %42 = Read borrow [%0 as #1 .0] : string
->   %43 = Store [$1] %42 : ()
+>   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
+>   %3 = Break L2 %2 : never
+>   %4 = Block - : usize
+>   %5 = Scope %4 [] : usize
+>   %6 = Prim Gt [%5 0:usize] : bool
+>   %7 = Block %6 : bool
+>   %8 = Read borrow [$1] : string
+>   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
+>   %10 = Break L1 %9 : never
+>   %11 = Block - : usize
+>   %12 = Scope %11 [] : usize
+>   %13 = Block %12 : usize
+>   %38 = Read borrow [%0 as #1 .0] : string
+>   %39 = Store [$1] %38 : ()
+>   %47 = Block - : never
 >   %51 = Block - : never
->   %55 = Block - : never
->   %56 = SwitchTag %0 [#1 %51 %55] : never
+>   %52 = SwitchTag %0 [#1 %47 %51] : never
         other =>
->   %46 = Read copy [%0] : string?
->   %47 = Store [$2] %46 : ()
->   %52 = Read copy [%0] : string?
->   %53 = Store [$2] %52 : ()
+>   %42 = Read copy [%0] : string?
+>   %43 = Store [$2] %42 : ()
+>   %48 = Read copy [%0] : string?
+>   %49 = Store [$2] %48 : ()
             if other.is_some(): 1 else: 0
->   %18 = Read borrow [$2] : string?
->   %19 = Store [$3] %18 : ()
->   %20 = Read borrow [$3] : string?
->   %21 = Block 1:bool : bool
->   %22 = Block 0:bool : bool
->   %23 = Read borrow [%20] : string?
+>   %14 = Read borrow [$2] : string?
+>   %15 = Store [$3] %14 : ()
+>   %16 = Read borrow [$3] : string?
+>   %17 = Block 1:bool : bool
+>   %18 = Block 0:bool : bool
+>   %19 = Read borrow [%16] : string?
+>   %21 = Block - : never
+>   %23 = Block - : never
 >   %25 = Block - : never
+>   %26 = SwitchTag %19 [#0 %23 %25] : never
 >   %27 = Block - : never
+>   %28 = SwitchTag %19 [#1 %21 %27] : never
 >   %29 = Block - : never
->   %30 = SwitchTag %23 [#0 %27 %29] : never
->   %31 = Block - : never
->   %32 = SwitchTag %23 [#1 %25 %31] : never
->   %33 = Block - : never
->   %34 = Match %20 [%33 %21 %22] : bool
->   %35 = Break L0 %34 : never
->   %36 = Block - : bool
->   %37 = Scope %36 [] : bool
->   %38 = Block 1:usize : usize
->   %39 = Block 0:usize : usize
->   %40 = If %37 [%38 %39] : usize
->   %41 = Block %40 : usize
+>   %30 = Match %16 [%29 %17 %18] : bool
+>   %31 = Break L0 %30 : never
+>   %32 = Block - : bool
+>   %33 = Scope %32 [] : bool
+>   %34 = Block 1:usize : usize
+>   %35 = Block 0:usize : usize
+>   %36 = If %33 [%34 %35] : usize
+>   %37 = Block %36 : usize
 >   summary kept [] borrows [$0]

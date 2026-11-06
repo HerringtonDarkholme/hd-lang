@@ -85,11 +85,9 @@ fn fields(line: string) -> usize:
 >   local $5 $end: usize [assigned] value
 >     uses $5: %6 -> %9 lend
 >   local $6 f: string [read assigned] value
->     uses $6: %28 -> %17 consume last
->   local $7 self: string [read] value
->     uses $7: %18 -> %19 lend last
+>     uses $6: %26 -> %17 lend last
 >   %0 = Store [$1] 0:usize : ()
->   %40 = Block %39 : usize
+>   %38 = Block %37 : usize
     for f in line.split(","):
 >   %1 = Read borrow [$0] : string
 >   %2 = Call std/text/impl string.split[] (%1, ",") : List[string]
@@ -106,30 +104,28 @@ fn fields(line: string) -> usize:
 >   %13 = Read copy [$4] : usize
 >   %14 = Prim Add [%13 1:usize] : usize
 >   %15 = Store [$4] %14 : ()
->   %26 = Block - : ()
->   %27 = Read borrow [%12] : string
->   %28 = Store [$6] %27 : ()
->   %30 = Block - : never
->   %31 = Match %12 [%30 %26] : ()
+>   %24 = Block - : ()
+>   %25 = Read borrow [%12] : string
+>   %26 = Store [$6] %25 : ()
+>   %28 = Block - : never
+>   %29 = Match %12 [%28 %24] : ()
+>   %30 = Block - : ()
+>   %31 = Break L0 - : never
 >   %32 = Block - : ()
->   %33 = Break L0 - : never
+>   %33 = If %10 [%30 %32] : ()
 >   %34 = Block - : ()
->   %35 = If %10 [%32 %34] : ()
->   %36 = Block - : ()
->   %37 = Loop %36 - : ()
->   %38 = Drop [$2] : ()
+>   %35 = Loop %34 - : ()
+>   %36 = Drop [$2] : ()
         n += f.len()
 >   %16 = Read copy [$1] : usize
 >   %17 = Read borrow [$6] : string
->   %18 = Store [$7] %17 : ()
->   %19 = Read borrow [$7] : string
->   %20 = Call std/rt.bytes/bytes_len[] (%19) : usize
->   %21 = Break L1 %20 : never
->   %22 = Block - : usize
->   %23 = Scope %22 [] : usize
->   %24 = Prim Add [%16 %23] : usize
->   %25 = Store [$1] %24 : ()
+>   %18 = Call std/rt.bytes/bytes_len[] (%17) : usize
+>   %19 = Break L1 %18 : never
+>   %20 = Block - : usize
+>   %21 = Scope %20 [] : usize
+>   %22 = Prim Add [%16 %21] : usize
+>   %23 = Store [$1] %22 : ()
     n
->   %39 = Read copy [$1] : usize
+>   %37 = Read copy [$1] : usize
 >   summary kept [] borrows [$0]
->   loop %37 keeps [$2]
+>   loop %35 keeps [$2]

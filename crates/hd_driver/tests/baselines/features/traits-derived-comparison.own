@@ -59,35 +59,31 @@ fn lookup(m: Map[Key, string], k: Key) -> usize:
 >   local $1 k: Key [param read] value
 >     uses $1: entry -> %1 lend last
 >   local $2 v: string [read assigned] value
->     uses $2: %13 -> %3 consume last
->   local $3 self: string [read] value
->     uses $3: %4 -> %5 lend last
+>     uses $2: %11 -> %3 lend last
 >   %0 = Read borrow [$0] : Map[Key, string]
 >   %1 = Read borrow [$1] : Key
 >   %2 = Intrinsic MapGet [%0 %1] : string?
->   %23 = Block - : never
->   %24 = Match %2 [%23 %10 %11] : usize
->   %25 = Drop [%2] : ()
->   %26 = Block %24 : usize
+>   %21 = Block - : never
+>   %22 = Match %2 [%21 %8 %9] : usize
+>   %23 = Drop [%2] : ()
+>   %24 = Block %22 : usize
         .Some(v) => v.len()
 >   %3 = Read borrow [$2] : string
->   %4 = Store [$3] %3 : ()
->   %5 = Read borrow [$3] : string
->   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
->   %7 = Break L0 %6 : never
->   %8 = Block - : usize
->   %9 = Scope %8 [] : usize
->   %10 = Block %9 : usize
->   %12 = Read borrow [%2 as #1 .0] : string
->   %13 = Store [$2] %12 : ()
->   %15 = Block - : never
->   %21 = Block - : never
->   %22 = SwitchTag %2 [#1 %15 %21] : never
-        .None => 0
->   %11 = Block 0:usize : usize
->   %17 = Block - : never
+>   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
+>   %5 = Break L0 %4 : never
+>   %6 = Block - : usize
+>   %7 = Scope %6 [] : usize
+>   %8 = Block %7 : usize
+>   %10 = Read borrow [%2 as #1 .0] : string
+>   %11 = Store [$2] %10 : ()
+>   %13 = Block - : never
 >   %19 = Block - : never
->   %20 = SwitchTag %2 [#0 %17 %19] : never
+>   %20 = SwitchTag %2 [#1 %13 %19] : never
+        .None => 0
+>   %9 = Block 0:usize : usize
+>   %15 = Block - : never
+>   %17 = Block - : never
+>   %18 = SwitchTag %2 [#0 %15 %17] : never
 >   summary kept [] borrows [$0 $1]
 
 fn tuple_key(m: Map[(string, i32), i32], s: string) -> i32:

@@ -51,10 +51,10 @@
     i32.store $heap
     block
     ;; 22 |     ident(s).len() + size(&xs) + first(xs).unwrap_or("").len() + keep(s).len()
-      local.get $s.0
-      call $retain
       block
         block
+          local.get $s.0
+          call $retain
           local.get $s.0
           local.get $s.1
           local.set $t2
@@ -185,8 +185,6 @@
       local.get $t2
       i32.add
       local.set $t1
-      local.get $s.0
-      local.set $s.0
       block
         block
           i32.const 80 ;; &empty-buffer

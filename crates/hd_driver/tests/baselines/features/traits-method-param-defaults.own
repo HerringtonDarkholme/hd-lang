@@ -18,21 +18,17 @@ impl Joiner:
 >   local $0 self: Ref[Joiner] [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 sep: string [param read] value
->     uses $1: entry -> %3 consume last
->   local $2 self: string [read] value
->     uses $2: %4 -> %5 lend last
+>     uses $1: entry -> %3 lend last
 >   %0 = Read borrow [*$0 .parts] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Drop [%0] : ()
 >   %3 = Read borrow [$1] : string
->   %4 = Store [$2] %3 : ()
->   %5 = Read borrow [$2] : string
->   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
->   %7 = Break L0 %6 : never
->   %8 = Block - : usize
->   %9 = Scope %8 [] : usize
->   %10 = Prim Mul [%1 %9] : usize
->   %11 = Block %10 : usize
+>   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
+>   %5 = Break L0 %4 : never
+>   %6 = Block - : usize
+>   %7 = Scope %6 [] : usize
+>   %8 = Prim Mul [%1 %7] : usize
+>   %9 = Block %8 : usize
 >   summary kept [] borrows [$1]
 
     fn tagged[T](&self, value: T) -> T:
@@ -62,31 +58,21 @@ fn joined(j: Joiner) -> usize:
 fn generic_method(j: Joiner, s: string) -> usize:
     j.tagged(s).len()
 > app/main/generic_method
->   local $0 j: Joiner [param read] value
->     uses $0: entry -> %0 consume last
 >   local $1 s: string [param read] value
->     uses $1: entry -> %1 consume last
->   local $3 self: string [read] value
->     uses $3: %8 -> %9 lend last
->   local $4 self: Joiner value
->     uses $4: none
->   local $5 value: string [read] value
->     uses $5: %3 -> %4 consume last
->   %0 = Read borrow [$0] : Joiner
->   %1 = Read move [$1] : string
->   %2 = Store [$4] %0 : ()
->   %3 = Store [$5] %1 : ()
->   %4 = Read move [$5] : string
->   %5 = Break L1 %4 : never
->   %6 = Block - : string
->   %7 = Scope %6 [] : string
->   %8 = Store [$3] %7 : ()
->   %9 = Read borrow [$3] : string
->   %10 = Call std/rt.bytes/bytes_len[] (%9) : usize
->   %11 = Break L0 %10 : never
->   %12 = Block - : usize
->   %13 = Scope %12 [] : usize
->   %14 = Drop [$3] : ()
->   %15 = Block %13 : usize
+>     uses $1: entry -> %0 consume last
+>   local $2 $ref: string [read assigned captured captured-assigned] value
+>     uses $2: %4 -> %5 lend last
+>   %0 = Read move [$1] : string
+>   %1 = Break L1 %0 : never
+>   %2 = Block - : string
+>   %3 = Scope %2 [] : string
+>   %4 = Store [$2] %3 : ()
+>   %5 = Read borrow [$2] : string
+>   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
+>   %7 = Break L0 %6 : never
+>   %8 = Block - : usize
+>   %9 = Scope %8 [] : usize
+>   %10 = Drop [$2] : ()
+>   %11 = Block %9 : usize
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0]

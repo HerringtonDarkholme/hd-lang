@@ -36,38 +36,34 @@ fn queue(q: &mut Deque[string], a: string) -> usize:
 >   local $1 a: string [param read] value
 >     uses $1: entry -> %1 consume last
 >   local $2 x: string [read assigned] value
->     uses $2: %15 -> %5 consume last
->   local $3 self: string [read] value
->     uses $3: %6 -> %7 lend last
+>     uses $2: %13 -> %5 lend last
 >   %0 = Read borrow [$0] : Ref[mut Deque[string]]
 >   %1 = Read move [$1] : string
 >   %2 = Call std/collections/impl [ T ] Deque [ T ].push_back[string] (%0, %1) : ()
->   %28 = Block %26 : usize
+>   %26 = Block %24 : usize
     match q.pop_front():
 >   %3 = Read borrow [$0] : Ref[mut Deque[string]]
 >   %4 = Call std/collections/impl [ T ] Deque [ T ].pop_front[string] (%3) : string?
->   %25 = Block - : never
->   %26 = Match %4 [%25 %12 %13] : usize
->   %27 = Drop [%4] : ()
+>   %23 = Block - : never
+>   %24 = Match %4 [%23 %10 %11] : usize
+>   %25 = Drop [%4] : ()
         .Some(x) => x.len()
 >   %5 = Read borrow [$2] : string
->   %6 = Store [$3] %5 : ()
->   %7 = Read borrow [$3] : string
->   %8 = Call std/rt.bytes/bytes_len[] (%7) : usize
->   %9 = Break L0 %8 : never
->   %10 = Block - : usize
->   %11 = Scope %10 [] : usize
->   %12 = Block %11 : usize
->   %14 = Read borrow [%4 as #1 .0] : string
->   %15 = Store [$2] %14 : ()
->   %17 = Block - : never
->   %23 = Block - : never
->   %24 = SwitchTag %4 [#1 %17 %23] : never
-        .None => 0
->   %13 = Block 0:usize : usize
->   %19 = Block - : never
+>   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
+>   %7 = Break L0 %6 : never
+>   %8 = Block - : usize
+>   %9 = Scope %8 [] : usize
+>   %10 = Block %9 : usize
+>   %12 = Read borrow [%4 as #1 .0] : string
+>   %13 = Store [$2] %12 : ()
+>   %15 = Block - : never
 >   %21 = Block - : never
->   %22 = SwitchTag %4 [#0 %19 %21] : never
+>   %22 = SwitchTag %4 [#1 %15 %21] : never
+        .None => 0
+>   %11 = Block 0:usize : usize
+>   %17 = Block - : never
+>   %19 = Block - : never
+>   %20 = SwitchTag %4 [#0 %17 %19] : never
 >   exit sub 0 drops [$1]
 >   summary kept [$1] writes
 
@@ -79,37 +75,33 @@ fn top(h: &mut Heap[string], a: string) -> usize:
 >   local $1 a: string [param read] value
 >     uses $1: entry -> %1 consume last
 >   local $2 x: string [read assigned] value
->     uses $2: %15 -> %5 consume last
->   local $3 self: string [read] value
->     uses $3: %6 -> %7 lend last
+>     uses $2: %13 -> %5 lend last
 >   %0 = Read borrow [$0] : Ref[mut Heap[string]]
 >   %1 = Read move [$1] : string
 >   %2 = Call std/collections/impl [ T < Ord ] Heap [ T ].push[string] (%0, %1) : ()
->   %28 = Block %26 : usize
+>   %26 = Block %24 : usize
     match h.pop():
 >   %3 = Read borrow [$0] : Ref[mut Heap[string]]
 >   %4 = Call std/collections/impl [ T < Ord ] Heap [ T ].pop[string] (%3) : string?
->   %25 = Block - : never
->   %26 = Match %4 [%25 %12 %13] : usize
->   %27 = Drop [%4] : ()
+>   %23 = Block - : never
+>   %24 = Match %4 [%23 %10 %11] : usize
+>   %25 = Drop [%4] : ()
         .Some(x) => x.len()
 >   %5 = Read borrow [$2] : string
->   %6 = Store [$3] %5 : ()
->   %7 = Read borrow [$3] : string
->   %8 = Call std/rt.bytes/bytes_len[] (%7) : usize
->   %9 = Break L0 %8 : never
->   %10 = Block - : usize
->   %11 = Scope %10 [] : usize
->   %12 = Block %11 : usize
->   %14 = Read borrow [%4 as #1 .0] : string
->   %15 = Store [$2] %14 : ()
->   %17 = Block - : never
->   %23 = Block - : never
->   %24 = SwitchTag %4 [#1 %17 %23] : never
-        .None => 0
->   %13 = Block 0:usize : usize
->   %19 = Block - : never
+>   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
+>   %7 = Break L0 %6 : never
+>   %8 = Block - : usize
+>   %9 = Scope %8 [] : usize
+>   %10 = Block %9 : usize
+>   %12 = Read borrow [%4 as #1 .0] : string
+>   %13 = Store [$2] %12 : ()
+>   %15 = Block - : never
 >   %21 = Block - : never
->   %22 = SwitchTag %4 [#0 %19 %21] : never
+>   %22 = SwitchTag %4 [#1 %15 %21] : never
+        .None => 0
+>   %11 = Block 0:usize : usize
+>   %17 = Block - : never
+>   %19 = Block - : never
+>   %20 = SwitchTag %4 [#0 %17 %19] : never
 >   exit sub 0 drops [$1]
 >   summary kept [$1] writes

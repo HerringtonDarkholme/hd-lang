@@ -48,25 +48,23 @@
                     local.get $t.2
                     local.set $t.1
                     local.set $l.0
-                    local.set $t.0
+                    drop
                     block
                       block
                         local.get $t.1
+                        local.set $t.0
+                        br 0
+                      end
+                    end
+                    block
+                      block
+                        local.get $t.4
                         local.set $t.2
                         br 0
                       end
                     end
                     local.get $t.0
-                    local.get $t.4
-                    local.set $t.0
-                    drop
-                    block
-                      block
-                        br 0
-                      end
-                    end
                     local.get $t.2
-                    local.get $t.0
                     i32.gt_u
                     br_if 3
                     local.get $t.3
@@ -130,12 +128,10 @@
             i32.const 1
             i32.eq
             if
-              local.get $o.1
-              local.get $o.2
-              local.set $t0
-              drop
               block
                 block
+                  local.get $o.2
+                  local.set $t0
                   br 0
                 end
               end

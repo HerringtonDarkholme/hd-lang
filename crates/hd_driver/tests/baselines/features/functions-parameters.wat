@@ -155,8 +155,6 @@
       call $rt:coll_copy
       local.set $t0
       call $retain
-      local.get $s.0
-      local.set $s.0
       block
         block
           local.get $t0

@@ -52,17 +52,17 @@ fn promoted(p: Post) -> usize:
 > app/main/promoted
 >   local $0 p: Post [param read] value
 >     uses $0: entry -> %0 consume, %7 consume, %20 consume last
+>   local $1 $ref: string [read assigned captured captured-assigned] value
+>     uses $1: %1 -> %2 lend last
 >   local $2 self: string [read] value
 >     uses $2: %21 -> %22 lend last
 >   local $3 self: Stamp [read] value
 >     uses $3: %8 -> %9 consume last
 >   local $4 self: string [read] value
 >     uses $4: %10 -> %11 lend last
->   local $5 self: string [read] value
->     uses $5: %1 -> %2 lend last
 >   %0 = Read borrow [$0 .Stamp .by] : string
->   %1 = Store [$5] %0 : ()
->   %2 = Read borrow [$5] : string
+>   %1 = Store [$1] %0 : ()
+>   %2 = Read borrow [$1] : string
 >   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
 >   %4 = Break L3 %3 : never
 >   %5 = Block - : usize

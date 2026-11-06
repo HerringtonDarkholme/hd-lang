@@ -9,8 +9,6 @@
   (func $loud (param $xs i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     block
     ;; 12 |     xs.iter()
-      local.get $xs
-      local.set $xs
       block
         block
           br 0
@@ -70,8 +68,6 @@
   (func $lens (param $xs i32) (result i32) (local $t0 i32) (local $t1 i32)
     block
     ;; 9 |     xs.iter().map(fn(s: string) -> usize: s.len()).collect()
-      local.get $xs
-      local.set $xs
       block
         block
           br 0
@@ -140,24 +136,21 @@
   (func $lens#1 (param $env i32) (param $s.0 i32) (param $s.1 i32) (param $ctx i32) (result i32)
     block
     ;; 9 |     xs.iter().map(fn(s: string) -> usize: s.len()).collect()
-      local.get $s.0
-      local.set $env
       block
         block
           local.get $s.1
-          local.set $s.0
+          local.set $env
           br 0
         end
       end
     ;; (no span)
-      local.get $env
-      call $rt:release_ref
       local.get $s.0
-      local.set $env
+      call $rt:release_ref
     end
     local.get $env
   )
   (func $loud#1 (param $env i32) (param $s i32) (param $ctx i32) (result i32)
+    ;; 12 |     xs.iter()
     block
     ;; 13 |         .filter(fn(s: &string) -> bool: s.len() > 2)
       block
@@ -174,7 +167,7 @@
       local.get $env
       i32.const 2
       i32.gt_u
-    ;; (no span)
+    ;; 12 |     xs.iter()
       local.set $env
     end
     local.get $env

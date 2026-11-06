@@ -24,7 +24,4 @@ fn no_args(s: string) -> usize:
     twice:
         s.len()
 > app/main/no_args
->   (no span) retain string (conservative: entry)
->   (no span) release string (last use)
-> app/main/no_args
 >   (no span) release fn() -> usize (last use)
