@@ -98,9 +98,13 @@
     block
     ;; 29 |     with_tag(s, fn() -> usize $ Tag: $.use(Tag).name().len())
       local.get $ctx
+      call $retain
+      local.get $ctx
       local.get $env
       i32.load $heap
       call_indirect $table0 (param i32) (result i32 i32)
+      local.get $ctx
+      call $rt:release_ref
       local.set $ctx
       local.set $env
       block
@@ -134,9 +138,13 @@
     block
     ;; 19 |     $.use(Tag).name().len()
       local.get $provider0
+      call $retain
+      local.get $provider0
       local.get $provider0.vtable
       i32.load $heap
       call_indirect $table0 (param i32) (result i32 i32)
+      local.get $provider0
+      call $rt:release_ref
       local.set $provider0.vtable
       local.set $provider0
       block

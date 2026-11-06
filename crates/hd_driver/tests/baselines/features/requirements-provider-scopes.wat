@@ -93,10 +93,8 @@
       local.get $env
       i32.load $heap
       call_indirect $table0 (param i32) (result i32 i32)
-    ;; (no span)
       local.get $ctx
       call $rt:release_ref'1
-    ;; 38 |         apply(fn() -> usize: tag.name().len())
       local.set $ctx
       local.set $env
       block
@@ -127,9 +125,13 @@
     block
     ;; 20 |     $.use(Tag).name().len()
       local.get $provider0
+      call $retain
+      local.get $provider0
       local.get $provider0.vtable
       i32.load $heap
       call_indirect $table0 (param i32) (result i32 i32)
+      local.get $provider0
+      call $rt:release_ref'1
       local.set $provider0.vtable
       local.set $provider0
       block

@@ -21,6 +21,8 @@
       local.get $provider0.vtable
       i32.load $heap
       call_indirect $table0 (param i32 i32 i32)
+      local.get $s.0
+      call $rt:release_ref'1
     ;; (no span)
       local.get $t0
       call $rt:release_ref'1

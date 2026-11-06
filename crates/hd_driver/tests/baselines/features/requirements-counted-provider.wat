@@ -48,9 +48,13 @@
     block
     ;; 21 |     $.use(Store).get().len()
       local.get $provider0
+      call $retain
+      local.get $provider0
       local.get $provider0.vtable
       i32.load $heap
       call_indirect $table0 (param i32) (result i32 i32)
+      local.get $provider0
+      call $rt:release_ref
       local.get $t2
       call $rt:release_ref
       local.set $provider0

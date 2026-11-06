@@ -25,5 +25,7 @@ fn holder() -> Holder $ Store:
 fn fetch!() -> usize $ Store:
     $.use(Store).get().len()
 > app/main/fetch
+>   retain app.main.Store (stored)
+>   release app.main.Store (last use)
 >   release string (overwritten)
 >   (no span) release string (last use)
