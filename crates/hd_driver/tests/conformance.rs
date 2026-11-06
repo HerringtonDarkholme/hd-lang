@@ -2465,6 +2465,11 @@ fn run_all(cases: &[Case], store: &MemoryStore) -> Vec<Verdict> {
                 .spawn_scoped(scope, || {
                     while let Some(&serial) = order.get(next.fetch_add(1, Ordering::Relaxed)) {
                         let case = &cases[serial];
+                        let trace = std::env::var("HD_CONFORMANCE_PIPELINE")
+                            .is_ok_and(|p| p == "optimized");
+                        if trace {
+                            eprintln!("conformance-start\t{}", case.path);
+                        }
                         let started = timings.then(Instant::now);
                         let verdict =
                             catch_unwind(AssertUnwindSafe(|| run_case(case, store, serial)))
@@ -2474,6 +2479,9 @@ fn run_all(cases: &[Case], store: &MemoryStore) -> Vec<Verdict> {
                                         .map_or("panic", |message| *message);
                                     Verdict::Crash(message.to_owned())
                                 });
+                        if trace {
+                            eprintln!("conformance-end\t{}", case.path);
+                        }
                         if let Some(started) = started {
                             eprintln!(
                                 "conformance-case\t{}\t{:.6}",
