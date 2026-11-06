@@ -106,6 +106,7 @@ values-boxes
 values-captured-references
 values-conversions
 values-dependent-results
+values-element-pointer-calls
 values-element-references
 values-generic-locality
 values-lifetime-stores

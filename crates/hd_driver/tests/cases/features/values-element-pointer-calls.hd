@@ -1,0 +1,29 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: a loop over a list behind a reference that passes each element
+# on to a call that may write (spec/lang/06-control-flow.md flow.for.ref; bench plugins walk).
+# expected (parked, #1399 9k): each child copies for the recursive call,
+# which may write; model A's call loan on `node` would make a borrow safe.
+pub struct Node:
+    pub value: i64
+    pub children: List[*Node]
+
+trait Sink:
+    fn emit(&mut self, value: i64) -> void
+
+fn walk(node: &Node, sink: &mut dyn Sink) -> void:
+    sink.emit(node.value)
+    for child in &node.children:
+        walk(*child, sink)
+
+struct Total:
+    sum: i64
+
+impl Sink for Total:
+    fn emit(&mut self, value: i64) -> void:
+        self.sum += value
+
+pub fn run(root: *Node) -> i64:
+    let mut total = Total { sum: 0 }
+    walk(root, &mut total)
+    total.sum
