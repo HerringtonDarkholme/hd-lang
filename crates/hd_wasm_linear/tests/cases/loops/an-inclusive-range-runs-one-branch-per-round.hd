@@ -1,0 +1,8 @@
+# @dump: wat
+# @build: v8 release
+# expected: one `br_if` per round, with the step and the flag update computed without a branch
+fn total(n: usize) -> usize:
+    let sum: usize = 0
+    for i in 0..=n:
+        sum = sum + i
+    sum

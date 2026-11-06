@@ -4278,12 +4278,12 @@ impl Ck<'_, '_> {
 
     /// A `for` over a numeric `Range` as a counting loop (lowering-catalog
     /// "for over a range"): no iterator value. Each round tests
-    /// `cur < end || (inclusive && cur == end)`, binds the item, then
+    /// `cur < end | (inclusive & cur == end)`, binds the item, then
     /// advances before the body runs, so `continue` needs no step of its
     /// own. A literal exclusive range uses only the less-than test and
     /// increments directly. Other ranges reuse that test when advancing.
-    /// At the inclusive end it clears `inclusive` instead of adding,
-    /// so `0..=255u8` cannot overflow.
+    /// At the inclusive end it adds nothing and clears `inclusive`, with
+    /// one branch per round.
     fn range_loop(
         &mut self,
         pat: NodeRef<'_>,
@@ -4333,15 +4333,16 @@ impl Ck<'_, '_> {
         let go = if exclusive {
             below
         } else {
-            let ob = self.b.open_block();
+            // One branch per round: the terms are plain comparisons, so
+            // neither needs a jump of its own.
             let incv = self.b.get(inc_l, Ty::BOOL, at);
-            let ab = self.b.open_block();
             let (c, d) = (self.b.get(cur_l, et, at), self.b.get(end_l, et, at));
             let at_end = self.b.prim(PrimOp::Eq as u32, &[c, d], Ty::BOOL, at);
-            let ablk = self.b.close_block(ab, Some(at_end), Ty::BOOL, at);
-            let both = self.b.emit(Tag::And, incv.0, ablk.0, Ty::BOOL, at);
-            let oblk = self.b.close_block(ob, Some(both), Ty::BOOL, at);
-            self.b.emit(Tag::Or, below.0, oblk.0, Ty::BOOL, at)
+            let last = self
+                .b
+                .prim(PrimOp::BitAnd as u32, &[incv, at_end], Ty::BOOL, at);
+            self.b
+                .prim(PrimOp::BitOr as u32, &[below, last], Ty::BOOL, at)
         };
         // The round: bind, advance, then the body.
         let tb = self.b.open_block();
@@ -4353,25 +4354,21 @@ impl Ck<'_, '_> {
         for (_, l) in &binds {
             self.set_local(*l, item, at);
         }
-        if exclusive {
-            let c = self.b.get(cur_l, et, at);
-            let one = self.b.const_value(et, 1);
-            let next = self.b.prim(PrimOp::Add as u32, &[c, one], et, at);
-            self.set_local(cur_l, next, at);
+        let c = self.b.get(cur_l, et, at);
+        // At the inclusive end `below` adds nothing and clears `inclusive`,
+        // so `0..=255u8` cannot overflow.
+        let step = if exclusive {
+            self.b.const_value(et, 1)
         } else {
-            let ib = self.b.open_block();
-            let c = self.b.get(cur_l, et, at);
-            let one = self.b.const_value(et, 1);
-            let next = self.b.prim(PrimOp::Add as u32, &[c, one], et, at);
-            self.set_local(cur_l, next, at);
-            let iblk = self.b.close_block(ib, None, Ty::VOID, at);
-            let fb = self.b.open_block();
-            let no = self.b.const_value(Ty::BOOL, 0);
-            self.set_local(inc_l, no, at);
-            let fblk = self.b.close_block(fb, None, Ty::VOID, at);
-            let rec = self.b.refs_record(&[iblk, fblk]);
-            self.b.emit(Tag::If, below.0, rec, Ty::VOID, at);
-        }
+            let incv = self.b.get(inc_l, Ty::BOOL, at);
+            let more = self
+                .b
+                .prim(PrimOp::BitAnd as u32, &[incv, below], Ty::BOOL, at);
+            self.set_local(inc_l, more, at);
+            self.b.prim(PrimOp::Conv as u32, &[below], et, at)
+        };
+        let next = self.b.prim(PrimOp::Add as u32, &[c, step], et, at);
+        self.set_local(cur_l, next, at);
         body(self)?;
         self.scopes.pop();
         self.loops.pop();

@@ -1,0 +1,39 @@
+# test: a `for` over an inclusive range runs its end once, even at the type's maximum, and one over a range value keeps its kind
+# Spec 6 For Loops: flow.for.range.half-open, flow.for.range.inclusive.
+use std.ops.Range
+
+fn sum_u8(start: u8, end: u8) -> u32:
+    let total: u32 = 0
+    for i in start..=end:
+        total += u32(i)
+    total
+
+fn collect(range: Range[i32]) -> List[i32]:
+    let mut out: List[i32] = []
+    for i in range:
+        out.push(i)
+    out
+
+tests:
+    use std.testing.assert_equal
+
+    it("runs an inclusive end at the type's maximum once"):
+        assert_equal(sum_u8(253, 255), 762, reason="253, 254 and 255")
+        assert_equal(sum_u8(255, 255), 255, reason="only the end")
+        assert_equal(sum_u8(5, 4), 0, reason="an empty range")
+
+    it("keeps the kind of a range value"):
+        assert_equal(collect(+5..+7), [+5, +6], reason="exclusive: no end")
+        assert_equal(collect(+5..=+7), [+5, +6, +7], reason="inclusive: the end")
+        assert_equal(collect(+7..=+7), [+7], reason="a one-element range")
+        assert_equal(collect(+7..+7), [], reason="an empty range")
+
+    it("continues and breaks at the end"):
+        let mut out: List[i32] = []
+        for i in +0..=+3:
+            if i == +1:
+                continue
+            out.push(i)
+            if i == +3:
+                break
+        assert_equal(out, [+0, +2, +3], reason="continue skips, the end still runs")

@@ -5833,6 +5833,7 @@ typing/valid/copied-value-read-while-reference-live.hd	type	accept	lang/13-value
 runtime/valid/a-move-after-the-last-use-of-a-reference-keeps-the-value.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.move
 runtime/valid/a-field-moves-out-while-another-is-read.hd	runtime	accept	lang/13-values-and-references.md#r-ref.move.field
 runtime/valid/erased-nested-trait-reference.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param
+runtime/valid/a-range-loop-ends-where-its-kind-says.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.range.inclusive
 runtime/valid/field-move-after-local-borrow.hd	runtime	accept	lang/13-values-and-references.md#r-ref.move.field
 runtime/valid/a-reader-of-a-non-copyable-value-beside-a-field-move-in-a-loop.hd	runtime	accept	lang/13-values-and-references.md#r-ref.move.field
 runtime/valid/uniq-list-field-move-after-local-borrow.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.type
