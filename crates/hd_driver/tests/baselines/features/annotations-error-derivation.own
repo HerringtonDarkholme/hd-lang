@@ -491,4 +491,4 @@ fn message(e: &LoadError) -> usize:
 >   %7 = Scope %6 [] : usize
 >   %8 = Drop [$2] : ()
 >   %9 = Block %7 : usize
->   summary kept [] writes
+>   summary kept [] writes relies [$0]

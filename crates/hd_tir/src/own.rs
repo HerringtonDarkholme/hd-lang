@@ -631,10 +631,11 @@ impl OwnScratch {
     /// Bit k: exclusive mode borrowed a read through reference parameter k
     /// across a call that may write, in the body the passes ran over last;
     /// in release, for a plain body, that it would have (a probe that
-    /// changes no decision).
+    /// changes no decision). Hoisting reports the same for a check it
+    /// lifts over such a call.
     #[must_use]
     pub fn relies(&self) -> u64 {
-        self.borrow.relies
+        self.borrow.relies | self.hoist.relies
     }
 
     /// The copies of a non-copyable value the copy verifier found in the

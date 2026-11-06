@@ -1,0 +1,25 @@
+# test: a loop through a `&mut` hands the reference to a call that copies the list, and each copy keeps its values
+# Spec 04 Collection Values: types.coll.value.
+# expect-stdout: saved 9 9 3; items 9 9 9
+
+use std.annotation.inline
+
+struct Bag:
+    items: List[i64]
+    saved: List[i64]
+
+@inline(.Never)
+fn snapshot(bag: &mut Bag) -> void:
+    bag.saved = bag.items
+
+fn fill(bag: &mut Bag) -> void:
+    let i: usize = 0
+    while i < 3:
+        snapshot(bag)
+        bag.items[i] = 9
+        i += 1
+
+pub fn main() -> void $ Console:
+    let mut bag = Bag { items: [1, 2, 3], saved: [] }
+    fill(&mut bag)
+    println("saved ${bag.saved[0]} ${bag.saved[1]} ${bag.saved[2]}; items ${bag.items[0]} ${bag.items[1]} ${bag.items[2]}")

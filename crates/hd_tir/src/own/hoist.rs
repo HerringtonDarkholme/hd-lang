@@ -28,7 +28,13 @@
 //!    a change stands behind it (the backend's short loans drop a check
 //!    that serves a shared reference alone, and a hoisted one would be a
 //!    check the loop did not have);
-//! 3. no call in the loop may write, unless `p`'s root is a local that is
+//! 3. no call in the loop may write, unless the body is an exclusive copy
+//!    (`sub_flags::EXCLUSIVE`) and `p` is behind a `&T` or `&mut T`
+//!    parameter the body never stores: its callers leave nothing else able
+//!    to reach `p` during the call (`own::exclusive_call`), and a call that
+//!    received the reference is a read this section already refuses, so a
+//!    call in the loop cannot; a plain body reports the parameter in
+//!    `relies` and keeps its checks. Or `p`'s root is a local that is
 //!    never addressed or captured, whose every stored value is fresh (a
 //!    call's or a new collection's, or moved out of a local whose own
 //!    values are fresh and that nothing else reaches), and `p` is that
@@ -81,8 +87,9 @@ use hd_types::Ty;
 use super::splice;
 use super::{Operand, OwnCx, Role, fill, operands};
 use crate::ir::{
-    Body, Callee, DEREF, ELEM, IntrinsicOp, NONE, PlaceView, Proj, ReadMode, Ref, Root, Tag,
-    Topology, VARIANT, is_suspension, local_flags, place, ref_word, u32_of, unique_word,
+    Body, BodyKind, Callee, DEREF, ELEM, IntrinsicOp, NONE, PlaceView, Proj, ReadMode, Ref, Root,
+    Tag, Topology, VARIANT, is_suspension, local_flags, place, ref_word, sub_flags, u32_of,
+    unique_word,
 };
 
 /// The longest chain of reads a place is resolved through.
@@ -188,6 +195,9 @@ struct Cand {
     /// A shared element reference ([`lent_elem_ref`]) passed rule 2: it
     /// holds only when a change's check hoists it.
     lent: bool,
+    /// A call that may write passed rule 3 only because the place is behind
+    /// an exclusive parameter ([`Tables::excl`]).
+    relied: bool,
 }
 
 /// The hoisting pass's dense tables, reused across bodies.
@@ -208,6 +218,12 @@ pub(crate) struct Tables {
     /// Per local: a read through it keeps a value that holds a reference,
     /// which may reach any place of the local.
     reaches: Vec<bool>,
+    /// Per local: its parameter index when an exclusive copy could rely on
+    /// nothing else reaching what it refers to, else `NONE`.
+    excl: Vec<u32>,
+    /// The parameters a hoist relied on or, in a plain body, would have
+    /// ([`crate::own::OwnScratch::relies`]).
+    pub(crate) relies: u64,
     /// The places of the other such kept reads, each a second owner of
     /// what that place holds: (local, start, len) into `kept_steps`.
     kept_places: Vec<(u32, u32, u32)>,
@@ -417,6 +433,7 @@ pub(crate) fn run(
     edits: &mut splice::Tables,
 ) {
     b.stable_lists.clear();
+    t.relies = 0;
     let n = b.len();
     let fresh = fresh_locals(b);
     let mut marked = Vec::new();
@@ -449,6 +466,7 @@ pub(crate) fn run(
     t.loops
         .sort_stable_by_key(|&(f, l)| (f, std::cmp::Reverse(l)));
     facts(b, cx, t);
+    exclusive_params(b, cx, t);
     fill(&mut t.gone, n, false);
     // A fresh buffer's checks run nowhere: none hoists.
     for i in marked {
@@ -460,6 +478,41 @@ pub(crate) fn run(
     }
     b.stable_lists.sort_stable();
     b.stable_lists.dedup();
+}
+
+/// Whether `b` runs in exclusive mode (`sub_flags::EXCLUSIVE`).
+pub(crate) fn is_exclusive(b: &Body) -> bool {
+    b.sub_flags
+        .first()
+        .is_some_and(|f| f & sub_flags::EXCLUSIVE != 0)
+}
+
+/// Whether the place at parameter `l`, with steps `s`, lies behind a `&T`
+/// or `&mut T` parameter of a body that can have an exclusive copy: an
+/// exclusive call leaves nothing else able to reach it.
+pub(crate) fn exclusive_place(b: &Body, cx: &dyn OwnCx, l: u32, s: &[u32]) -> bool {
+    let params = super::params(b);
+    s.first() == Some(&DEREF)
+        && matches!(b.kind, BodyKind::Fn | BodyKind::DeriveInstance)
+        && !b.tags.iter().any(|&tag| is_suspension(tag))
+        && params
+            .iter()
+            .position(|&p| p == l)
+            .is_some_and(|k| k < 64 && cx.local_ref_param(b.item, k, params.len()))
+}
+
+/// Fills `t.excl` for the body: in release (a probe in a plain body), each
+/// parameter whose reference the body never stores over.
+fn exclusive_params(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
+    fill(&mut t.excl, b.local_ty.len(), NONE);
+    if !is_exclusive(b) && !cx.summarizes() {
+        return;
+    }
+    for (k, &l) in super::params(b).iter().enumerate() {
+        if t.stores[l as usize] == 0 && exclusive_place(b, cx, l, &[DEREF]) {
+            t.excl[l as usize] = u32_of(k);
+        }
+    }
 }
 
 /// Whether `IsUnique` `i`, of all of a local, repeats an earlier one of
@@ -1140,6 +1193,15 @@ fn hoist_loop(
         if !c.ok || (c.lent && !c.hoist) {
             continue;
         }
+        if c.relied {
+            if !c.hoist {
+                continue;
+            }
+            t.relies |= 1 << t.excl[c.local as usize];
+            if !is_exclusive(b) {
+                continue;
+            }
+        }
         let deref = t.cand_steps(&c).first() == Some(&DEREF);
         let stable = c.used && !c.pushes && (c.hoist || !c.unique);
         if !c.hoist && !stable {
@@ -1313,7 +1375,13 @@ fn check(
     }
     if x != NONE && writes(b, cx, x as usize) {
         for c in &mut t.cands {
-            c.ok &= !c.external;
+            if c.external {
+                if t.excl[c.local as usize] != NONE && t.csteps[c.start as usize] == DEREF {
+                    c.relied = true;
+                } else {
+                    c.ok = false;
+                }
+            }
         }
     }
     let mut steps = std::mem::take(&mut t.steps);

@@ -3,7 +3,8 @@
 # @build: v8 release
 # Feature: a generic container whose loop compares elements through shared
 # references and writes one each round (std `Heap[T].sift_down`, bench
-# route-search). Two instances, one with counted elements.
+# route-search). Three instances: counted elements, a scalar compare, and a
+# derived compare, which may write, so only the exclusive copy hoists.
 # expected (#1399 15j): the loop's check of `self.items` runs once before it.
 pub struct Queue[T < Ord]:
     items: List[T]
@@ -179,3 +180,36 @@ pub fn names(a: string, b: string) -> usize:
 >   %14 = Ref local [$3 .items [0:usize]] : Ref[string]
 >   %15 = Call std/text/impl string.len[] (%14) : usize
 >   %16 = Prim Add [%13 %15] : usize
+
+pub fn pairs(a: i64, b: i64) -> i64:
+    let mut q = Queue::[(i64, usize)].new()
+> app/main/pairs
+>   local $0 a: i64 [param read]
+>   local $1 b: i64 [param read]
+>   local $2 q: Queue[(i64, usize)] [read assigned captured captured-assigned]
+>   local $3 saved: Queue[(i64, usize)] [:= read assigned]
+>   %0 = Call app/main/impl [ T < Ord ] Queue [ T ].new[(i64, usize)] () : Queue[(i64, usize)]
+>   %1 = Store [$2] %0 : ()
+>   %19 = Block %18 : i64
+    q.add((a, 0))
+>   %2 = Ref mut local [$2] : Counted[mut Queue[(i64, usize)]]
+>   %3 = Read [$0] : i64
+>   %4 = NewTuple - [%3 0:usize] : (i64, usize)
+>   %5 = Call app/main/impl [ T < Ord ] Queue [ T ].add[(i64, usize)] (%2, %4) : ()
+    q.add((b, 1))
+>   %6 = Ref mut local [$2] : Counted[mut Queue[(i64, usize)]]
+>   %7 = Read [$1] : i64
+>   %8 = NewTuple - [%7 1:usize] : (i64, usize)
+>   %9 = Call app/main/impl [ T < Ord ] Queue [ T ].add[(i64, usize)] (%6, %8) : ()
+    saved := q
+>   %10 = Read [$2] : Queue[(i64, usize)]
+>   %11 = Store [$3] %10 : ()
+    q.settle(0, (a, 2))
+>   %12 = Ref mut local [$2] : Counted[mut Queue[(i64, usize)]]
+>   %13 = Read [$0] : i64
+>   %14 = NewTuple - [%13 2:usize] : (i64, usize)
+>   %15 = Call app/main/impl [ T < Ord ] Queue [ T ].settle[(i64, usize)] (%12, 0:usize, %14) : ()
+    q.items[0]._0 + saved.items[0]._0
+>   %16 = Read [$2 .items [0:usize] .0] : i64
+>   %17 = Read [$3 .items [0:usize] .0] : i64
+>   %18 = Prim Add [%16 %17] : i64

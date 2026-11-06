@@ -958,7 +958,9 @@ loop's entry test so an empty loop copies nothing, when:
    hoists `p`, since short loans already drop a check that serves a shared
    reference alone;
 3. no call in the loop may write, unless `p`'s root is a local that is
-   never addressed or captured.
+   never addressed or captured, or the body is an exclusive copy and `p`
+   is behind a reference parameter the loop hands to nothing: its callers
+   leave nothing else able to reach `p` during the call.
 
 The same proof marks the loop's **stable list places**: a list place
 whose header nothing in the loop replaces. The pass records them in a

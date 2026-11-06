@@ -3,7 +3,8 @@
 # @build: v8 release
 # Feature: a generic container whose loop compares elements through shared
 # references and writes one each round (std `Heap[T].sift_down`, bench
-# route-search). Two instances, one with counted elements.
+# route-search). Three instances: counted elements, a scalar compare, and a
+# derived compare, which may write, so only the exclusive copy hoists.
 # expected (#1399 15j): the loop's check of `self.items` runs once before it.
 pub struct Queue[T < Ord]:
     items: List[T]
@@ -18,6 +19,8 @@ impl[T < Ord] Queue[T]:
 >   (no span) unique List[string] (conservative: unique)
 > app/main/impl [ T < Ord ] Queue [ T ].add
 >   (no span) unique List[i64] (conservative: unique)
+> app/main/impl [ T < Ord ] Queue [ T ].add
+>   (no span) unique List[(i64, usize)] (conservative: unique)
 
     pub fn settle(&mut self, start: usize, value: T) -> void:
         size := self.items.len()
@@ -26,10 +29,17 @@ impl[T < Ord] Queue[T]:
 > app/main/impl [ T < Ord ] Queue [ T ].settle
 >   unique List[i64] (conservative: unique)
 > app/main/impl [ T < Ord ] Queue [ T ].settle
+>   unique List[(i64, usize)] (conservative: unique)
+>   unique List[(i64, usize)] (conservative: unique)
+> app/main/impl [ T < Ord ] Queue [ T ].settle
 >   unique List[string] (conservative: unique)
+> app/main/impl [ T < Ord ] Queue [ T ].settle
+>   unique List[(i64, usize)] (conservative: unique)
             left := 2 * parent + 1
             let larger = left
             if left + 1 < size:
+>   unique List[(i64, usize)] (conservative: unique)
+>   unique List[(i64, usize)] (conservative: unique)
                 match self.items[left].cmp(&self.items[left + 1]):
                     .Less => larger = left + 1
                     _ => pass
@@ -42,8 +52,10 @@ impl[T < Ord] Queue[T]:
             parent = larger
         self.items[parent] = value
 >   (no span) unique List[i64] (conservative: unique)
+>   (no span) unique List[(i64, usize)] (conservative: unique)
 >   release string (overwritten)
 >   (no span) unique List[string] (conservative: unique)
+>   (no span) unique List[(i64, usize)] (conservative: unique)
 
 pub fn numbers(a: i64, b: i64, c: i64) -> i64:
     let mut q = Queue::[i64].new()
@@ -73,3 +85,15 @@ pub fn names(a: string, b: string) -> usize:
 >   (no span) release string (last use)
 >   (no span) release app.main.Queue[string] (last use)
 >   (no span) release string (last use)
+
+pub fn pairs(a: i64, b: i64) -> i64:
+    let mut q = Queue::[(i64, usize)].new()
+    q.add((a, 0))
+    q.add((b, 1))
+    saved := q
+> app/main/pairs
+>   copy app.main.Queue[(i64, usize)] (second owner)
+    q.settle(0, (a, 2))
+    q.items[0]._0 + saved.items[0]._0
+>   (no span) release app.main.Queue[(i64, usize)] (last use)
+>   (no span) release app.main.Queue[(i64, usize)] (last use)

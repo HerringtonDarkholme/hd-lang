@@ -3,7 +3,8 @@
 # @build: v8 release
 # Feature: a generic container whose loop compares elements through shared
 # references and writes one each round (std `Heap[T].sift_down`, bench
-# route-search). Two instances, one with counted elements.
+# route-search). Three instances: counted elements, a scalar compare, and a
+# derived compare, which may write, so only the exclusive copy hoists.
 # expected (#1399 15j): the loop's check of `self.items` runs once before it.
 pub struct Queue[T < Ord]:
     items: List[T]
@@ -97,6 +98,8 @@ impl[T < Ord] Queue[T]:
 >   %42 = Block - : ()
 >   %22 shared: a copy of a value that holds the struct
 >   %26 shared: a copy of a value that holds the struct
+>   %21 shared: a copy of a value that holds the struct
+>   %25 shared: a copy of a value that holds the struct
                     .Less => larger = left + 1
 >   %30 = Read copy [$5] : usize
 >   %31 = Prim Add [%30 1:usize] : usize
@@ -118,6 +121,7 @@ impl[T < Ord] Queue[T]:
 >   %59 = Block - : never
 >   %60 = Match %48 [%59 %51 %53] : ()
 >   %47 shared: a copy of a value that holds the struct
+>   %46 shared: a copy of a value that holds the struct
                 .Less => pass
 >   %51 = Block - : ()
 >   %55 = Block - : never
@@ -133,6 +137,7 @@ impl[T < Ord] Queue[T]:
 >   %64 = IsUnique [*$0 .items] : ()
 >   %65 = Store [*$0 .items [%61]] %63 : ()
 >   %65 shared: a copy of a value that holds the struct
+>   %64 shared: a copy of a value that holds the struct
             parent = larger
 >   %66 = Read copy [$6] : usize
 >   %67 = Store [$4] %66 : ()
@@ -142,8 +147,9 @@ impl[T < Ord] Queue[T]:
 >   %76 = IsUnique [*$0 .items] : ()
 >   %77 = Store [*$0 .items [%74]] %75 : ()
 >   %77 shared: a copy of a value that holds the struct
+>   %76 shared: a copy of a value that holds the struct
 >   exit sub 0 drops [$2]
->   summary kept [$0 $2] writes
+>   summary kept [$0 $2] writes relies [$0]
 
 pub fn numbers(a: i64, b: i64, c: i64) -> i64:
     let mut q = Queue::[i64].new()
@@ -266,3 +272,54 @@ pub fn names(a: string, b: string) -> usize:
 >   %19 finds [$2] full
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1] writes
+
+pub fn pairs(a: i64, b: i64) -> i64:
+    let mut q = Queue::[(i64, usize)].new()
+> app/main/pairs
+>   local $0 a: i64 [param read] value
+>     uses $0: entry -> %7 consume, %19 consume last
+>   local $1 b: i64 [param read] value
+>     uses $1: entry -> %12 consume last
+>   local $2 q: Queue[(i64, usize)] [read assigned captured captured-assigned] place
+>   local $3 saved: Queue[(i64, usize)] [:= read assigned] value
+>     uses $3: %17 -> %25 lend last
+>   %0 = NewList - [] : List[(i64, usize)]
+>   %1 = NewStruct [%0] : Queue[(i64, usize)]
+>   %2 = Break L0 %1 : never
+>   %3 = Block - : Queue[(i64, usize)]
+>   %4 = Scope %3 [] : Queue[(i64, usize)]
+>   %5 = Store [$2] %4 : ()
+>   %28 = Block %27 : i64
+    q.add((a, 0))
+>   %6 = Ref mut local frame [$2] : Counted[mut Queue[(i64, usize)]]
+>   %7 = Read copy [$0] : i64
+>   %8 = NewTuple - [%7 0:usize] : (i64, usize)
+>   %9 = Call app/main/impl [ T < Ord ] Queue [ T ].add[(i64, usize)] (%6, %8) : ()
+>   %10 = Drop [%6] : ()
+>   %6 finds [$2] full
+    q.add((b, 1))
+>   %11 = Ref mut local frame [$2] : Counted[mut Queue[(i64, usize)]]
+>   %12 = Read copy [$1] : i64
+>   %13 = NewTuple - [%12 1:usize] : (i64, usize)
+>   %14 = Call app/main/impl [ T < Ord ] Queue [ T ].add[(i64, usize)] (%11, %13) : ()
+>   %15 = Drop [%11] : ()
+>   %11 finds [$2] full
+    saved := q
+>   %16 = Read copy [$2] : Queue[(i64, usize)]
+>   %17 = Store [$3] %16 : ()
+>   %16 finds [$2] full
+    q.settle(0, (a, 2))
+>   %18 = Ref mut local frame [$2] : Counted[mut Queue[(i64, usize)]]
+>   %19 = Read copy [$0] : i64
+>   %20 = NewTuple - [%19 2:usize] : (i64, usize)
+>   %21 = Call app/main/impl [ T < Ord ] Queue [ T ].settle[(i64, usize)] (%18, 0:usize, %20) : ()
+>   %22 = Drop [%18] : ()
+>   %18 finds [$2] full
+    q.items[0]._0 + saved.items[0]._0
+>   %23 = Read copy [$2 .items [0:usize] .0] : i64
+>   %24 = Drop [$2] : ()
+>   %25 = Read copy [$3 .items [0:usize] .0] : i64
+>   %26 = Drop [$3] : ()
+>   %27 = Prim Add [%23 %25] : i64
+>   %23 finds [$2] full
+>   summary kept [] writes

@@ -2688,6 +2688,10 @@ backend's is below.
   stage 7 then lets nothing else write it during the call. Every other
   call, a trait value's and a function value's included, runs the plain
   body, and no borrow flag is needed.
+  Hoisting relies on it the same way: a loop's check of a place behind
+  such a parameter moves before the loop over a call that may write
+  (`own/hoist.rs`, rule 3), and a caller that hands its own parameter on
+  to a relied-on position gets a copy too (`Env::forwarded_relies`).
 - **Checked by** fixtures covering invalidating alias calls, erased
   getter temporaries, early returns, initial copy-on-write sharing and
   snapshots created by callbacks between writes.

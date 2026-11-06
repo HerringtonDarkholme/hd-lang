@@ -524,13 +524,17 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
             continue;
         }
         let whole = steps.is_empty() && !captured[local as usize];
+        // In an exclusive copy nothing else reaches what a reference
+        // parameter refers to, so a call that does not receive it leaves
+        // the place alone; a call that does is a kept read of it below.
+        let excl = hoist::is_exclusive(b) && hoist::exclusive_place(b, cx, local, &steps);
         for x in first[l as usize]..l {
             let xi = x as usize;
             let tag = b.tags[xi];
             let [a, xw] = b.data[xi];
             let what = if is_suspension(tag) {
                 Some("pins or suspends")
-            } else if !whole && hoist::writes(b, cx, xi) {
+            } else if !whole && !excl && hoist::writes(b, cx, xi) {
                 Some("calls what may write")
             } else if matches!(tag, Tag::Read | Tag::Store | Tag::Drop | Tag::Ref) {
                 let (ol, temp) = hoist::resolve(b, a, &mut other, &mut raw);

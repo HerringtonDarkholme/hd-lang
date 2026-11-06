@@ -1830,6 +1830,54 @@ impl Env<'_> {
         Ok(Some(owned))
     }
 
+    /// The reference parameters `body` hands whole to a call at a position
+    /// the callee's exclusive copy relies on: the caller needs a copy of its
+    /// own to pass that exclusivity on (`hd_tir::own::exclusive_call`).
+    fn forwarded_relies(&self, body: &Body) -> u64 {
+        let Some(all) = &self.run.summaries else {
+            return 0;
+        };
+        if !matches!(
+            body.kind,
+            hd_tir::BodyKind::Fn | hd_tir::BodyKind::DeriveInstance
+        ) {
+            return 0;
+        }
+        let params = hd_tir::own::params(body);
+        let mut out = 0;
+        for i in 0..body.len() {
+            if body.tags[i] != Tag::Call {
+                continue;
+            }
+            let Some(mask) = Callee::from_words(body.record(body.data[i][0]))
+                .and_then(|c| self.callee_node(&c))
+                .and_then(|node| all.exclusive(node))
+                .map(|e| e.0)
+            else {
+                continue;
+            };
+            for (k, &arg) in body.record(body.data[i][1]).iter().enumerate().take(64) {
+                let Some(r) = hd_tir::ir::Ref(arg).as_inst().map(|r| r.0 as usize) else {
+                    continue;
+                };
+                if mask & (1 << k) == 0 || body.tags[r] != Tag::Read {
+                    continue;
+                }
+                let p = body.view(body.data[r][0]);
+                let at = p
+                    .local()
+                    .filter(|_| p.whole())
+                    .and_then(|l| params.iter().position(|&x| x == l));
+                if let Some(q) = at.filter(|&q| q < 64)
+                    && self.local_ref_param(body.item, q, params.len())
+                {
+                    out |= 1 << q;
+                }
+            }
+        }
+        out
+    }
+
     /// Inlined body `body` of instance `(body.item, args)`, with hash
     /// `hash` (`hd_opt::inline::inline_calls`), after the ownership
     /// passes, and its hash, which changes with them; in release, its
@@ -1843,11 +1891,13 @@ impl Env<'_> {
             && (0..n).any(|k| self.local_ref_param(body.item, k, n)))
         .then(|| body.clone());
         let (body, summary, relies) = self.own_passes(body, self.run.summaries.is_some())?;
+        let relies = relies | self.forwarded_relies(&body);
         if let (Some(all), Some(mut plain)) = (&self.run.summaries, plain)
             && relies != 0
         {
             plain.sub_flags[0] |= hd_tir::ir::sub_flags::EXCLUSIVE;
             let (excl, _, relies) = self.own_passes(plain, false)?;
+            let relies = relies | self.forwarded_relies(&excl);
             if relies != 0 {
                 let copy = std::sync::Arc::new(excl);
                 lock(&all.exclusive).insert(node, (relies, copy));

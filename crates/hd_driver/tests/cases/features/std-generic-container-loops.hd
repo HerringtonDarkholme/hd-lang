@@ -2,7 +2,8 @@
 # @build: v8 release
 # Feature: a generic container whose loop compares elements through shared
 # references and writes one each round (std `Heap[T].sift_down`, bench
-# route-search). Two instances, one with counted elements.
+# route-search). Three instances: counted elements, a scalar compare, and a
+# derived compare, which may write, so only the exclusive copy hoists.
 # expected (#1399 15j): the loop's check of `self.items` runs once before it.
 pub struct Queue[T < Ord]:
     items: List[T]
@@ -47,3 +48,11 @@ pub fn names(a: string, b: string) -> usize:
     saved := q
     q.settle(0, "z")
     q.items[0].len() + saved.items[0].len()
+
+pub fn pairs(a: i64, b: i64) -> i64:
+    let mut q = Queue::[(i64, usize)].new()
+    q.add((a, 0))
+    q.add((b, 1))
+    saved := q
+    q.settle(0, (a, 2))
+    q.items[0]._0 + saved.items[0]._0
