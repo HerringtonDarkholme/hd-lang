@@ -3,10 +3,9 @@
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 6 funcref))
   (func $labeled (param $name.0 i32) (param $name.1 i32) (param $suffix.0 i32) (param $suffix.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
@@ -42,17 +41,6 @@
     local.get $name.0
     local.get $name.1
   )
-  (func $labeled.suffix (param $t1 i32) (param $t0 i32) (result i32 i32)
-    ;; 18 | fn labeled(name: string, suffix: string = "!") -> string:
-    block
-      i32.const 65 ;; &"!"
-      i32.const 1
-      local.set $t0
-      local.set $t1
-    end
-    local.get $t1
-    local.get $t0
-  )
   (func $with_default (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
     block
     ;; 13 |     collect(s)
@@ -68,7 +56,7 @@
       call $collect
     ;; (no span)
       local.get $t0
-      call $rt:release_ref'1
+      call $rt:release_ref
       local.set $s.0
     end
     local.get $s.0
@@ -147,25 +135,51 @@
     end
     local.get $item.0
   )
-  (func $use_label (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
+  (func $use_label (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     block
     ;; 22 |     labeled(s)
-      local.get $s.0
-      local.get $s.1
-      call $labeled.suffix
-      local.set $t0
-      local.set $t1
-      local.get $s.0
-      local.get $s.1
-      local.get $t1
-      local.get $t0
-      call $labeled
-    ;; (no span)
-      local.get $t1
-      call $rt:release_ref'2
-      local.set $s.1
-      local.set $s.0
+      block
+        block
+          i32.const 104 ;; &"!"
+          i32.const 1
+          local.set $t0
+          local.set $t1
+          br 0
+        end
+      end
+      block
+        block
+          local.get $s.1
+          local.get $t0
+          i32.add
+          local.tee $t2
+          i32.eqz
+          if (result i32)
+            i32.const 16
+          else
+            local.get $t2
+            call $rt:str
+          end
+          local.tee $t3
+          local.tee $t4
+          local.get $s.0
+          local.get $s.1
+          call $rt:memory_copy/0/0
+          local.get $t4
+          local.get $s.1
+          i32.add
+          local.get $t1
+          local.get $t0
+          call $rt:memory_copy/0/0
+          local.get $t3
+          local.get $t2
+          local.set $s.1
+          local.set $s.0
+          br 0
+        end
+      end
     end
+    ;; (no span)
     local.get $s.0
     local.get $s.1
   )

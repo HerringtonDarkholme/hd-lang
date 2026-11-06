@@ -1111,16 +1111,33 @@ impl InlineEnv for Env<'_> {
     }
 
     fn signature(&self, def: DefId) -> Option<(Vec<Ty>, bool, bool)> {
-        let sig = self.sig(def)?;
-        Some((
-            sig.params.iter().map(|&(_, t)| t).collect(),
-            sig.suspends,
-            sig.row != hd_types::RowId::EMPTY,
-        ))
+        if let Some(sig) = self.sig(def) {
+            return Some((
+                sig.params.iter().map(|&(_, t)| t).collect(),
+                sig.suspends,
+                sig.row != hd_types::RowId::EMPTY,
+            ));
+        }
+        // Defaults have checked parameter locals, but no item signature.
+        // Read their declaration without starting ownership recursively.
+        let (body, _) = self.checked_body(def)?;
+        (body.kind == hd_tir::BodyKind::Default).then(|| {
+            let params = hd_tir::own::params(body)
+                .iter()
+                .map(|&l| body.local_ty[l as usize])
+                .collect();
+            (params, false, false)
+        })
     }
 
     fn result(&self, def: DefId) -> Option<Ty> {
-        self.sig(def).map(|sig| sig.ret)
+        if let Some(sig) = self.sig(def) {
+            return Some(sig.ret);
+        }
+        let (body, _) = self.checked_body(def)?;
+        (body.kind == hd_tir::BodyKind::Default)
+            .then(|| body.sub_root.first().map(|&root| body.ty[root as usize]))
+            .flatten()
     }
 
     fn checked_body(&self, def: DefId) -> Option<&(Body, Hash128)> {

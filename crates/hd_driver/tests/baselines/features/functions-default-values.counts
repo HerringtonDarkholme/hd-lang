@@ -26,5 +26,3 @@ fn labeled(name: string, suffix: string = "!") -> string:
 
 fn use_label(s: string) -> string:
     labeled(s)
-> app/main/use_label
->   (no span) release string (last use)

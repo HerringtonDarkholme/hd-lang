@@ -11,14 +11,7 @@ struct Config:
 >   %0 = Block 3:i32 : i32
 >   summary kept []
     label: string = "default"
-> app/main/Config.label
->   %0 = Block "default" : string
->   summary kept []
     tags: List[string] = []
-> app/main/Config.tags
->   %0 = NewList - [] : List[string]
->   %1 = Block %0 : List[string]
->   summary kept []
     name: string
 
 fn make(name: string) -> Config:
@@ -28,10 +21,15 @@ fn make(name: string) -> Config:
 >     uses $0: entry -> %0 consume last
 >   %0 = Read move [$0] : string
 >   %1 = DefaultCall [%4653 %16] [] : i32
->   %2 = DefaultCall [%4654 %16] [] : string
->   %3 = DefaultCall [%4655 %16] [] : List[string]
->   %4 = NewStruct [%1 %2 %3 %0] : Config
->   %5 = Block %4 : Config
+>   %2 = Break L1 "default" : never
+>   %3 = Block - : string
+>   %4 = Scope %3 [] : string
+>   %5 = NewList - [] : List[string]
+>   %6 = Break L0 %5 : never
+>   %7 = Block - : List[string]
+>   %8 = Scope %7 [] : List[string]
+>   %9 = NewStruct [%1 %4 %8 %0] : Config
+>   %10 = Block %9 : Config
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes
 
@@ -45,8 +43,10 @@ fn shorthand(name: string, tags: List[string]) -> Config:
 >   %0 = Read move [$0] : string
 >   %1 = Read move [$1] : List[string]
 >   %2 = DefaultCall [%4653 %16] [] : i32
->   %3 = DefaultCall [%4654 %16] [] : string
->   %4 = NewStruct [%2 %3 %1 %0] : Config
->   %5 = Block %4 : Config
+>   %3 = Break L0 "default" : never
+>   %4 = Block - : string
+>   %5 = Scope %4 [] : string
+>   %6 = NewStruct [%2 %5 %1 %0] : Config
+>   %7 = Block %6 : Config
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1] writes
