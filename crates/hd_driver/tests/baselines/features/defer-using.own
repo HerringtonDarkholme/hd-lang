@@ -51,7 +51,7 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
 >   %11 = Block - : DeferGuard[fn() -> (), $(), Ref[()]]
 >   %12 = Scope %11 [] : DeferGuard[fn() -> (), $(), Ref[()]]
 >   %13 = Store [$2] %12 : ()
->   %14 = Ref mut [$2] : Counted[mut DeferGuard[fn() -> (), $(), Ref[()]]]
+>   %14 = Ref mut local frame [$2] : Counted[mut DeferGuard[fn() -> (), $(), Ref[()]]]
 >   %15 = Call std/ops/Disposable.dispose for DeferGuard[fn() -> (), $(), Ref[()]] [$()] via Impl (%14) : ()
 >   %16 = Drop [%14] : ()
 >   %17 = Block - : ()

@@ -145,15 +145,15 @@ fn guarded(log: *mut List[string], s: string, n: i32) -> usize:
 >   %2 = Read copy [$0] : Counted[mut List[string]]
 >   %3 = NewStruct [%1 %2] : Res
 >   %4 = Store [$3] %3 : ()
->   %5 = Ref mut [$3] : Counted[mut Res]
+>   %5 = Ref mut local frame [$3] : Counted[mut Res]
 >   %6 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%5) : ()
 >   %7 = Drop [%5] : ()
 >   %8 = Block - : ()
 >   %9 = Defer #8 : ()
->   %23 = Block %21 : usize
->   %24 = Scope %23 [%8] : usize
->   %25 = Drop [$3] : ()
->   %26 = Block %24 : usize
+>   %22 = Block %21 : usize
+>   %23 = Scope %22 [%8] : usize
+>   %24 = Drop [$3] : ()
+>   %25 = Block %23 : usize
     if n < 0:
 >   %10 = Read copy [$2] : i32
 >   %11 = Prim Lt [%10 0:i32] : bool
@@ -162,14 +162,13 @@ fn guarded(log: *mut List[string], s: string, n: i32) -> usize:
 >   %12 = Call std/core/panic[] ("negative") : never
 >   %13 = Block - : never
     r.name.len()
->   %15 = Read copy [$3 .name] : string
+>   %15 = Read borrow [$3 .name] : string
 >   %16 = Store [$4] %15 : ()
 >   %17 = Read borrow [$4] : string
 >   %18 = Call std/rt.bytes/bytes_len[] (%17) : usize
 >   %19 = Break L0 %18 : never
 >   %20 = Block - : usize
 >   %21 = Scope %20 [] : usize
->   %22 = Drop [$4] : ()
 >   %15 finds [$3] full
 >   exit sub 0 drops [$3]
 >   summary kept [$0] borrows [$1] writes

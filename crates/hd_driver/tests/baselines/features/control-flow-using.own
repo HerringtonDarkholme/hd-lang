@@ -37,53 +37,51 @@ fn two(log: *mut List[string], a: string, b: string) -> usize:
 >   local $3 first: Res [:= read assigned captured captured-assigned] place
 >   local $4 second: Res [:= read assigned captured captured-assigned] place
 >   local $5 self: string [read] value
->     uses $5: %27 -> %28 lend last
+>     uses $5: %26 -> %27 lend last
 >   local $6 self: string [read] value
 >     uses $6: %19 -> %20 lend last
 >   %0 = Read move [$1] : string
 >   %1 = Read copy [$0] : Counted[mut List[string]]
 >   %2 = NewStruct [%0 %1] : Res
 >   %3 = Store [$3] %2 : ()
->   %4 = Ref mut [$3] : Counted[mut Res]
+>   %4 = Ref mut local frame [$3] : Counted[mut Res]
 >   %5 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%4) : ()
 >   %6 = Drop [%4] : ()
 >   %7 = Block - : ()
 >   %8 = Defer #7 : ()
->   %35 = Block %34 : usize
->   %36 = Scope %35 [%7 %16] : usize
->   %37 = Drop [$4] : ()
->   %38 = Drop [$3] : ()
->   %39 = Block %36 : usize
+>   %33 = Block %32 : usize
+>   %34 = Scope %33 [%7 %16] : usize
+>   %35 = Drop [$4] : ()
+>   %36 = Drop [$3] : ()
+>   %37 = Block %34 : usize
     using second = Res { name: b, log: log }
 >   %9 = Read move [$2] : string
 >   %10 = Read copy [$0] : Counted[mut List[string]]
 >   %11 = NewStruct [%9 %10] : Res
 >   %12 = Store [$4] %11 : ()
->   %13 = Ref mut [$4] : Counted[mut Res]
+>   %13 = Ref mut local frame [$4] : Counted[mut Res]
 >   %14 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%13) : ()
 >   %15 = Drop [%13] : ()
 >   %16 = Block - : ()
 >   %17 = Defer #16 : ()
     first.name.len() + second.name.len()
->   %18 = Read copy [$3 .name] : string
+>   %18 = Read borrow [$3 .name] : string
 >   %19 = Store [$6] %18 : ()
 >   %20 = Read borrow [$6] : string
 >   %21 = Call std/rt.bytes/bytes_len[] (%20) : usize
 >   %22 = Break L1 %21 : never
 >   %23 = Block - : usize
 >   %24 = Scope %23 [] : usize
->   %25 = Drop [$6] : ()
->   %26 = Read copy [$4 .name] : string
->   %27 = Store [$5] %26 : ()
->   %28 = Read borrow [$5] : string
->   %29 = Call std/rt.bytes/bytes_len[] (%28) : usize
->   %30 = Break L0 %29 : never
->   %31 = Block - : usize
->   %32 = Scope %31 [] : usize
->   %33 = Drop [$5] : ()
->   %34 = Prim Add [%24 %32] : usize
+>   %25 = Read borrow [$4 .name] : string
+>   %26 = Store [$5] %25 : ()
+>   %27 = Read borrow [$5] : string
+>   %28 = Call std/rt.bytes/bytes_len[] (%27) : usize
+>   %29 = Break L0 %28 : never
+>   %30 = Block - : usize
+>   %31 = Scope %30 [] : usize
+>   %32 = Prim Add [%24 %31] : usize
 >   %18 finds [$3] full
->   %26 finds [$4] full
+>   %25 finds [$4] full
 >   exit sub 0 drops [$1 $2 $3 $4]
 >   summary kept [$0 $1 $2] writes
 
@@ -133,7 +131,7 @@ fn per_round(log: *mut List[string], xs: List[string]) -> void:
 >   %15 = Read copy [$0] : Counted[mut List[string]]
 >   %16 = NewStruct [%14 %15] : Res
 >   %17 = Store [$7] %16 : ()
->   %18 = Ref mut [$7] : Counted[mut Res]
+>   %18 = Ref mut local frame [$7] : Counted[mut Res]
 >   %19 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%18) : ()
 >   %20 = Drop [%18] : ()
 >   %21 = Block - : ()

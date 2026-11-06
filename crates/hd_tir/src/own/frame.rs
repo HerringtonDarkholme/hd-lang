@@ -247,7 +247,7 @@ pub(crate) fn run(
             changed |= step(b, cx, t, &mut ops, i);
         }
     }
-    escape_exits(b, t, &mut ops);
+    escape_exits(b, true, t, &mut ops);
     t.ops = ops;
     let tracked = u64::MAX >> (64 - t.cands.len());
     let frame = !t.out & tracked;
@@ -442,7 +442,7 @@ pub(crate) fn part_uses(
             changed |= step(b, cx, t, &mut ops, i);
         }
     }
-    escape_exits(b, t, &mut ops);
+    escape_exits(b, false, t, &mut ops);
     for i in 0..n {
         if b.tags[i] == Tag::Drop {
             continue;
@@ -466,8 +466,14 @@ pub(crate) fn part_uses(
 }
 
 /// Returned values and cleanup suites outlive the ordinary instruction
-/// sequence, in both frame planning and projected-place liveness.
-fn escape_exits(b: &Body, t: &mut Tables, ops: &mut Vec<super::Operand>) {
+/// sequence, in both frame planning and projected-place liveness. In frame
+/// planning (`planning`), a suite's own access of a candidate (a `using`
+/// binding's `Ref` for its `dispose`) is no escape: insertion keeps a
+/// place a suite reads alive for it, dropping it after the scope or in the
+/// exit set, never at a jump that crosses the scope (its rule 4). What a
+/// local the suite reads holds, and what its other values point into,
+/// still escapes: a jump may drop that first.
+fn escape_exits(b: &Body, planning: bool, t: &mut Tables, ops: &mut Vec<super::Operand>) {
     for &r in &b.sub_root {
         t.out |= t.val.get(r as usize).copied().unwrap_or(0);
     }
@@ -478,17 +484,26 @@ fn escape_exits(b: &Body, t: &mut Tables, ops: &mut Vec<super::Operand>) {
             Tag::Defer => std::slice::from_ref(&b.data[i][0]),
             _ => continue,
         };
-        let (out, held, val) = (std::cell::Cell::new(0u64), &t.held, &t.val);
+        let (held_out, val_out, own) = (
+            std::cell::Cell::new(0u64),
+            std::cell::Cell::new(0u64),
+            std::cell::Cell::new(0u64),
+        );
+        let (held, val, bit) = (&t.held, &t.val, &t.bit);
         suite_touches(
             b,
             roots,
             &mut stack,
             ops,
             true,
-            |l| out.set(out.get() | held[l as usize]),
-            |v| out.set(out.get() | val.get(v as usize).copied().unwrap_or(0)),
+            |l| {
+                held_out.set(held_out.get() | held[l as usize]);
+                own.set(own.get() | bit.get(l as usize).copied().unwrap_or(0));
+            },
+            |v| val_out.set(val_out.get() | val.get(v as usize).copied().unwrap_or(0)),
         );
-        t.out |= out.get();
+        let kept = if planning { own.get() } else { 0 };
+        t.out |= held_out.get() | (val_out.get() & !kept);
     }
 }
 

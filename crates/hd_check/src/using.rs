@@ -162,7 +162,13 @@ impl Ck<'_, '_> {
                 mutable: true,
                 counted: true,
             });
-            self.make_ref(&place, true, rty, s)
+            // A `&mut self` receiver's address, which never outlives the
+            // `dispose` call (`ref_word::LOCAL`).
+            let r = self.make_ref(&place, true, rty, s);
+            if let Some(i) = r.as_inst() {
+                self.b.body_mut().data[i.0 as usize][1] |= hd_tir::ir::ref_word::LOCAL;
+            }
+            r
         };
         let none = Args {
             positional: Vec::new(),

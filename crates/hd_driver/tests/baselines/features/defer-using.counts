@@ -23,12 +23,14 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
     defer(fn() -> void: log.push(s))
 > app/main/with_defer
 >   retain counted reference (conservative: Closure)
+>   release std.ops.DeferGuard[fn() -> (), $(), &()] [action.1] (overwritten)
 > app/main/with_defer
 >   retain string (conservative: entry)
 >   unique List[string] (conservative: unique)
     s.len()
->   (no span) release counted reference (last use)
+>   (no span) release std.ops.DeferGuard[fn() -> (), $(), &()] [action.1] (last use)
 >   (no span) release string (last use)
+>   (no span) release std.ops.DeferGuard[fn() -> (), $(), &()] [action.1] (last use)
 
 fn with_using(log: *mut List[string], s: string) -> usize:
     using r = box(Res { name: s, log: log })

@@ -6,12 +6,13 @@
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
-  (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "impl [ $ R , 'a , F < FnMut ( ) -> void $ R & 'a ] Disposable [ $ R ] for DeferGuard [ F , $ R , 'a ].dispose[$(), fn() -> ()]" (func $"impl [ $ R , 'a , F < FnMut ( ) -> void $ R & 'a ] Disposable [ $ R ] for DeferGuard [ F , $ R , 'a ].dispose[$(), fn() -> ()]" (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "forbid" (global $forbid (mut i32)))
+  (import "fixture" "locals" (global $locals (mut i32)))
+  (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 14 funcref))
+  (import "fixture" "table0" (table $table0 13 funcref))
   (func $"impl Disposable for Res.dispose" (param $self i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
     block
     ;; 16 |         self.log.push(self.name)
@@ -126,7 +127,37 @@
     end
     local.get $log
   )
-  (func $with_defer (param $log i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $with_defer (param $log i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t0 i32)
+    ;; (no span)
+    global.get $locals
+    global.get $locals_base
+    i32.sub
+    i32.const 16
+    i32.lt_u
+    if
+      i32.const 1
+      memory.grow $heap
+      local.tee $t0
+      i32.const -1
+      i32.eq
+      if
+        unreachable
+      end
+      local.get $t0
+      i32.const 16
+      i32.shl
+      local.tee $t0
+      global.set $locals_base
+      local.get $t0
+      i32.const 65536
+      i32.add
+      global.set $locals
+    end
+    global.get $locals
+    i32.const 16
+    i32.sub
+    local.tee $t0
+    global.set $locals
     block
     ;; 19 |     defer(fn() -> void: log.push(s))
       block
@@ -134,16 +165,16 @@
         i32.const 12
         i32.const -2147483643
         call $rt:new/class-2
-        local.tee $t0
+        local.tee $t1
         local.get $log
         i32.store $heap
-        local.get $t0
+        local.get $t1
         local.get $s.0
         i32.store $heap offset=4
-        local.get $t0
+        local.get $t1
         local.get $s.1
         i32.store $heap offset=8
-        local.get $t0
+        local.get $t1
         call $rt:retain_fields
         local.set $log
         block
@@ -151,17 +182,24 @@
             br 0
           end
         end
+        local.get $t2
+        if
+          local.get $t2
+          i32.load $heap offset=4
+          call $rt:release_ref'1
+        end
+        local.get $t0
+        i64.const 0
+        i64.store $heap
+        local.get $t0
         i32.const 8
-        i32.const -2147483642
-        call $rt:new/class-1
-        local.tee $t1
+        i32.add
+        local.tee $t2
         local.get $log
         i32.store $heap
+        local.get $t2
         local.get $t1
-        local.get $t0
         i32.store $heap offset=4
-        local.get $t1
-        local.set $t0
         i32.const 1
         local.set $log
     ;; 20 |     s.len()
@@ -180,20 +218,23 @@
         i32.const 1
         i32.add
         global.set $forbid
-        local.get $t0
+        local.get $t2
         i32.eqz
         if
+          local.get $t0
+          i64.const 0
+          i64.store $heap
+          local.get $t0
           i32.const 8
-          i32.const -2147483642
-          call $rt:new/class-1
-          local.tee $t0
+          i32.add
+          local.tee $t2
           i32.const 0
           i32.store $heap
-          local.get $t0
+          local.get $t2
           i32.const 0
           i32.store $heap offset=4
         end
-        local.get $t0
+        local.get $t2
         call $"impl [ $ R , 'a , F < FnMut ( ) -> void $ R & 'a ] Disposable [ $ R ] for DeferGuard [ F , $ R , 'a ].dispose[$(), fn() -> ()]"
         global.get $forbid
         i32.const -1
@@ -201,14 +242,30 @@
         global.set $forbid
       end
     ;; (no span)
-      local.get $t0
-      call $rt:release_ref'1
+      local.get $t2
+      if
+        local.get $t2
+        i32.load $heap offset=4
+        call $rt:release_ref'1
+      end
+      i32.const 0
+      local.set $t2
       local.get $s.0
       call $rt:release_ref'2
       local.get $s.1
       local.set $log
     end
+    local.get $t2
+    if
+      local.get $t2
+      i32.load $heap offset=4
+      call $rt:release_ref'1
+    end
     local.get $log
+    local.get $t0
+    i32.const 16
+    i32.add
+    global.set $locals
   )
   (func $with_defer#1 (param $env i32) (param $ctx i32) (local $s.0 i32) (local $t0 i32) (local $t1 i32)
     ;; 19 |     defer(fn() -> void: log.push(s))

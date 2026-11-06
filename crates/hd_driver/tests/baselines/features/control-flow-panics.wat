@@ -4,13 +4,14 @@
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
-  (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
+  (import "fixture" "locals" (global $locals (mut i32)))
+  (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "forbid" (global $forbid (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 12 funcref))
+  (import "fixture" "table0" (table $table0 6 funcref))
   (func $"impl Disposable for Res.dispose" (param $self i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
     block
     ;; 15 |         self.log.push(self.name)
@@ -160,7 +161,7 @@
         unreachable
     ;; 19 |     if n < 0:
         local.get $s.0
-        call $rt:release_ref'1
+        call $rt:release_ref
       end
     ;; 21 |     t.len()
       local.get $t.0
@@ -174,25 +175,55 @@
       end
     ;; (no span)
       local.get $t.0
-      call $rt:release_ref'1
+      call $rt:release_ref
     end
     local.get $s.0
   )
-  (func $guarded (param $log i32) (param $s.0 i32) (param $s.1 i32) (param $n i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $guarded (param $log i32) (param $s.0 i32) (param $s.1 i32) (param $n i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $r i32) (local $t0 i32)
+    ;; (no span)
+    global.get $locals
+    global.get $locals_base
+    i32.sub
+    i32.const 24
+    i32.lt_u
+    if
+      i32.const 1
+      memory.grow $heap
+      local.tee $t0
+      i32.const -1
+      i32.eq
+      if
+        unreachable
+      end
+      local.get $t0
+      i32.const 16
+      i32.shl
+      local.tee $t0
+      global.set $locals_base
+      local.get $t0
+      i32.const 65536
+      i32.add
+      global.set $locals
+    end
+    global.get $locals
+    i32.const 24
+    i32.sub
+    local.tee $t0
+    global.set $locals
     block
     ;; 24 |     using r = Res { name: s + "?", log: log }
       block
         local.get $s.1
         i32.const 1
         i32.add
-        local.tee $t0
-        call $rt:str
         local.tee $t1
+        call $rt:str
         local.tee $t2
+        local.tee $t3
         local.get $s.0
         local.get $s.1
         call $rt:memory_copy/0/0
-        local.get $t2
+        local.get $t3
         local.get $s.1
         i32.add
         i32.const 76 ;; &"?"
@@ -200,16 +231,29 @@
         i32.store8 $heap
         local.get $log
         call $rt:retain_known
-        i32.const 12
-        i32.const -2147483644
-        call $rt:new/class-2
-        local.tee $s.1
-        local.get $t1
-        i32.store $heap
-        local.get $s.1
+        local.get $r
+        if
+          local.get $r
+          i32.load $heap
+          local.get $r
+          i32.load $heap offset=4
+          local.get $r
+          i32.load $heap offset=8
+          call $rt:release
+        end
         local.get $t0
+        i64.const 0
+        i64.store $heap
+        local.get $t0
+        i32.const 8
+        i32.add
+        local.tee $r
+        local.get $t2
+        i32.store $heap
+        local.get $r
+        local.get $t1
         i32.store $heap offset=4
-        local.get $s.1
+        local.get $r
         local.get $log
         i32.store $heap offset=8
         i32.const 1
@@ -228,23 +272,18 @@
     ;; 25 |     if n < 0:
         end
     ;; 27 |     r.name.len()
-        local.get $s.1
+        local.get $r
         i32.load $heap
-        local.get $s.1
+        local.get $r
         i32.load $heap offset=4
-        local.set $n
-        local.tee $s.0
-        call $retain
+        local.set $s.0
+        drop
         block
           block
             br 0
           end
         end
     ;; 24 |     using r = Res { name: s + "?", log: log }
-        local.get $s.0
-        call $rt:release_ref'1
-        local.get $n
-        local.set $s.0
       end
       local.get $log
       if
@@ -252,23 +291,26 @@
         i32.const 1
         i32.add
         global.set $forbid
-        local.get $s.1
+        local.get $r
         i32.eqz
         if
-          i32.const 12
-          i32.const -2147483644
-          call $rt:new/class-2
-          local.tee $s.1
+          local.get $t0
+          i64.const 0
+          i64.store $heap
+          local.get $t0
+          i32.const 8
+          i32.add
+          local.tee $r
           i32.const 0
           i32.store $heap
-          local.get $s.1
+          local.get $r
           i32.const 0
           i32.store $heap offset=4
-          local.get $s.1
+          local.get $r
           i32.const 0
           i32.store $heap offset=8
         end
-        local.get $s.1
+        local.get $r
         call $"impl Disposable for Res.dispose"
         global.get $forbid
         i32.const -1
@@ -276,11 +318,35 @@
         global.set $forbid
       end
     ;; (no span)
-      local.get $s.1
-      call $rt:release_ref'2
+      local.get $r
+      if
+        local.get $r
+        i32.load $heap
+        local.get $r
+        i32.load $heap offset=4
+        local.get $r
+        i32.load $heap offset=8
+        call $rt:release
+      end
+      i32.const 0
+      local.set $r
       local.get $s.0
       local.set $log
     end
+    local.get $r
+    if
+      local.get $r
+      i32.load $heap
+      local.get $r
+      i32.load $heap offset=4
+      local.get $r
+      i32.load $heap offset=8
+      call $rt:release
+    end
     local.get $log
+    local.get $t0
+    i32.const 24
+    i32.add
+    global.set $locals
   )
 )

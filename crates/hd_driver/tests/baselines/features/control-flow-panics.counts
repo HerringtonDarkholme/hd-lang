@@ -31,9 +31,9 @@ fn guarded(log: *mut List[string], s: string, n: i32) -> usize:
     using r = Res { name: s + "?", log: log }
 > app/main/guarded
 >   retain &mut List[string] (stored)
->   release string (last use)
+>   release app.main.Res [name.0, log] (overwritten)
     if n < 0:
         panic("negative")
     r.name.len()
->   retain string (conservative: copy read)
->   (no span) release counted reference (last use)
+>   (no span) release app.main.Res [name.0, log] (last use)
+>   (no span) release app.main.Res [name.0, log] (last use)
