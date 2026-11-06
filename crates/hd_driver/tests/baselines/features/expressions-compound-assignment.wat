@@ -10,8 +10,6 @@
   (import "fixture" "rt:map_find" (func $rt:map_find (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:map_unique" (func $rt:map_unique (param i32) (result i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "rt:map_put" (func $rt:map_put (param i32 i32 i32 i32 i32 i64) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $field_append (param $t i32) (param $s.0 i32) (param $s.1 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     block
@@ -133,21 +131,19 @@
       i32.store $heap offset=20
     end
   )
-  (func $map_add (param $m i32) (param $k.0 i32) (param $k.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64)
+  (func $map_add (param $m i32) (param $k.0 i32) (param $k.1 i32) (local $t0 i32) (local $t1 i64)
     block
     ;; 11 |     m[k] += 1
       local.get $m
       i32.load $heap
       local.tee $t0
       local.get $k.0
-      local.tee $t1
       local.get $k.1
       call $rt:map_hash
-      local.tee $t2
-      local.get $t1
+      local.get $k.0
       local.get $k.1
       call $rt:map_find
-      local.tee $t1
+      local.tee $k.0
       i32.const 0
       i32.lt_s
       if
@@ -162,36 +158,37 @@
       i32.add
       i32.const 24
       i32.add
-      local.get $t1
+      local.get $k.0
       i32.const 16
       i32.mul
       i32.add
       i64.load $heap offset=8
       i64.const 1
       i64.add
-      local.set $t3
+      local.set $t1
     ;; (no span)
       local.get $m
       i32.load $heap
       call $rt:map_unique
-      local.set $t0
+      local.set $k.1
       local.get $m
-      local.get $t0
-      i32.store $heap
-    ;; 11 |     m[k] += 1
-      local.get $k.0
-      call $retain
-      local.get $m
-    ;; (no span)
-      local.get $t0
-    ;; 11 |     m[k] += 1
-      local.get $t2
-      local.get $t1
-      local.get $k.0
       local.get $k.1
-      local.get $t3
-      call $rt:map_put
       i32.store $heap
+      local.get $k.1
+      local.get $k.1
+    ;; 11 |     m[k] += 1
+      i32.load $heap offset=12
+      i32.const 12
+      i32.mul
+      i32.add
+      i32.const 24
+      i32.add
+      local.get $k.0
+      i32.const 16
+      i32.mul
+      i32.add
+      local.get $t1
+      i64.store $heap offset=8
     end
   )
 )
