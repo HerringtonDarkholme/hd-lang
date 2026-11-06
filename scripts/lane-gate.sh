@@ -17,7 +17,7 @@ cd "$root" || exit 2
 logs="$root/target/lane-gate/$step"
 mkdir -p "$logs"
 export RUST_TEST_THREADS=2 CARGO_BUILD_JOBS=2 HD_TEST_JOBS=4
-cases=binding,assign,field,match,return,for,while,loop,closure,capture,move,borrow,copy,uniq,list,map,string,pointer,box,reference,erased,dyn,suspen,await,provider,using,drop,cell,panic,fact,default,init
+cases=binding,assign,field,match,return,for,while,loop,closure,capture,move,borrow,copy,uniq,list,map,string,pointer,box,reference,erased,dyn,suspen,await,provider,using,drop,cell,panic,fact,default,init,server-sdk
 conf=specification_conformance_passes_except_known_failures
 
 run() {

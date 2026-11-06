@@ -10,7 +10,9 @@
 //!
 //! - a `Ref` of a frame slot or a top-level binding, through fields only.
 //!   A dereference stays out: the reference it reads may be a view, whose
-//!   projection is a new object, and a variant step may make a payload view;
+//!   projection is a new object, and a variant step may make a payload view.
+//!   A parameter and a capture's copy stay out too: a suspending body's
+//!   read-only reference to one is a new object holding a copy;
 //! - a `Ref` of an element, or of fields of one, of a list no type parameter
 //!   opens: an address in the buffer, whatever came before the element;
 //! - a pointer's `as_ref` or `as_mut` (`OwnCx::plain_result`);
@@ -110,8 +112,15 @@ impl Origins<'_> {
                     && if elem {
                         // An open list's slots hold what its thunks make.
                         root.is_some_and(|t| !self.cx.thunk_made(t))
+                    } else if let Root::Local(l) = p.root {
+                        // A reference to a suspending body's parameter, or
+                        // to a closure's copy of a capture, may be a new
+                        // object holding a copy.
+                        w & ref_word::FRAME != 0
+                            && b.local_flags[l as usize] & local_flags::PARAM == 0
+                            && !b.cap_local.iter().any(|c| c.raw() == l)
                     } else {
-                        w & ref_word::FRAME != 0 || matches!(p.root, Root::Global(..))
+                        matches!(p.root, Root::Global(..))
                     }
             }
             Tag::Call => Callee::from_words(b.record(a)).is_some_and(|c| self.cx.plain_result(&c)),

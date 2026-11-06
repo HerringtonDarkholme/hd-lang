@@ -205,7 +205,7 @@ fn use_first(xs: List[string]) -> usize:
 >   %17 = Break L1 %15 : never
 >   %18 = Block - : usize
 >   %19 = Scope %18 [] : usize
->   %20 = LoanEnd [$1] : ()
+>   %20 = Drop [$1] : ()
 >   %21 = Ref local frame [$0] : Counted[List[string]]
 >   %22 = Call app/main/checksum[] (%21) : usize
 >   %23 = Drop [%21] : ()

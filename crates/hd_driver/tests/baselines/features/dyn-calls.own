@@ -50,7 +50,7 @@ fn make_dyn(d: Dog) -> usize:
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read move [$1] : Ref[Dog]
 >   %3 = Coerce %2 [RefToTraitValue -] : Named
->   %4 = LoanEnd [%2] : ()
+>   %4 = Drop [%2] : ()
 >   %5 = Block %3 : Named
 >   %6 = RefDyn %5 : Ref[Named]
 >   %7 = Call app/main/call_dyn[] (%6) : usize

@@ -27,7 +27,7 @@ fn split(p: Pair) -> usize:
 >   %1 = Call app/main/eat[] (%0) : usize
 >   %2 = Ref local frame [$0 .b] : Ref[UniqList[string]]
 >   %3 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].len[string] (%2) : usize
->   %4 = LoanEnd [%2] : ()
+>   %4 = Drop [%2] : ()
 >   %5 = Drop [$0] : ()
 >   %6 = Prim Add [%1 %3] : usize
 >   %7 = Block %6 : usize
