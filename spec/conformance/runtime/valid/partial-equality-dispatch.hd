@@ -12,6 +12,27 @@ fn same[T < Eq](left: T, right: T) -> bool:
 fn same_list[T < Eq](left: List[T], right: List[T]) -> bool:
     left == right
 
+struct CountedEq:
+    value: usize
+
+let equality_calls: usize = 0
+
+impl Eq for CountedEq:
+    fn eq(&self, other: &Self) -> bool:
+        equality_calls = equality_calls + 1
+        self.value == other.value
+
+struct OrderedAnswer:
+    answer: Ordering?
+
+impl Eq for OrderedAnswer:
+    fn eq(&self, other: &Self) -> bool:
+        self.answer == other.answer
+
+impl PartialOrd for OrderedAnswer:
+    fn partial_cmp(&self, other: &Self) -> Ordering?:
+        self.answer
+
 tests:
     use std.testing.{assert, assert_equal}
 
@@ -47,3 +68,31 @@ tests:
         let right_result: Result[User, string] = .Ok(same_ada)
         assert_equal(left, right, reason="optional payload equality dispatch")
         assert_equal(left_result, right_result, reason="Result payload equality dispatch")
+
+    it("None comparisons inspect no payload in either operand order"):
+        equality_calls = 0
+        let present: CountedEq? = .Some(CountedEq { value: 7 })
+        let absent: CountedEq? = .None
+        assert(present != .None, reason="present right None")
+        assert(.None != present, reason="present left None")
+        assert(!(present == .None), reason="present equality right None")
+        assert(!( .None == present), reason="present equality left None")
+        assert(absent == .None, reason="absent right None")
+        assert(.None == absent, reason="absent left None")
+        assert(!( .None != absent), reason="absent inequality")
+        assert_equal(equality_calls, 0, reason="None never calls payload Eq")
+        assert(present == .Some(CountedEq { value: 7 }), reason="Some calls payload Eq")
+        assert_equal(equality_calls, 1, reason="Some payload equality is preserved")
+
+    it("relational operators test all partial_cmp answers"):
+        right := OrderedAnswer { answer: .None }
+        for answer in [Ordering.Less, Ordering.Equal, Ordering.Greater]:
+            left := OrderedAnswer { answer: .Some(answer) }
+            assert_equal(left < right, answer == .Less, reason="less")
+            assert_equal(left <= right, answer != .Greater, reason="less or equal")
+            assert_equal(left > right, answer == .Greater, reason="greater")
+            assert_equal(left >= right, answer != .Less, reason="greater or equal")
+        assert(!(right < right), reason="unordered less")
+        assert(!(right <= right), reason="unordered less or equal")
+        assert(!(right > right), reason="unordered greater")
+        assert(!(right >= right), reason="unordered greater or equal")

@@ -1183,6 +1183,7 @@ typing/invalid/initialization-implicit-a-trait-value-reaches-every-impl-01.hd	ty
 typing/invalid/initialization-implicit-a-unary-operator-reaches-neg-01.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.definite.implicit
 typing/invalid/initialization-implicit-an-arithmetic-operator-reaches-add-01.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.definite.implicit
 typing/invalid/initialization-implicit-an-equality-operator-reaches-eq-01.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.definite.implicit
+typing/invalid/optional-none-comparison-still-checks-eq-initialization.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.definite.implicit
 typing/invalid/initialization-implicit-an-index-assignment-reaches-index-set-01.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.definite.implicit
 typing/invalid/initialization-implicit-an-index-read-reaches-index-01.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.definite.implicit
 typing/invalid/initialization-implicit-an-interpolation-reaches-the-display-impl-01.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.definite.implicit

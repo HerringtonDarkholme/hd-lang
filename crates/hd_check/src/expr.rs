@@ -2025,15 +2025,52 @@ impl Ck<'_, '_> {
             self.err(Code::TypeMismatch, n, &msg);
             return Ok(self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()));
         }
+        // Resolve a contextual None on the left from the right operand
+        // before choosing the tag-only path, just as Eq's ordinary call
+        // resolves it while coercing that argument.
+        let (c, ct) = if tr == k.eq && !lc {
+            (
+                self.coerce(c, ct, at, rn, "operand", ExpectPosition::Operand),
+                at,
+            )
+        } else {
+            (c, ct)
+        };
+        let operand = self.infer.resolve(pool, self.strip_mut(at));
+        // Option's standard Eq implementation only tests the tag when
+        // either operand is None. Keep the ordinary trait/bound check
+        // above, including the payload's Eq obligation. Newtypes and
+        // user enum Eq implementations still follow their selected body.
+        if tr == k.eq
+            && matches!(pool.get(operand), TyData::Option(_))
+            && operand == self.infer.resolve(pool, self.strip_mut(ct))
+        {
+            let none = |r: Ref, held: bool| {
+                !held
+                    && r.as_inst().is_some_and(|i| {
+                        self.b.body().tags[i.0 as usize] == Tag::NewVariant
+                            && self.b.body().data[i.0 as usize][0] == 0
+                    })
+            };
+            let target = if none(c, lc) {
+                Some((a, at, la))
+            } else if none(a, la) {
+                Some((c, ct, lc))
+            } else {
+                None
+            };
+            if let Some(target) = target {
+                // Keep Eq's evidence and implicit initialization edges even
+                // though its standard Option body becomes a tag test.
+                let goal = self.op_tref(tr, at, None);
+                self.require_ref_noting(goal, n, Code::UnsatisfiedTraitBound)?;
+                return Ok(self.option_none_test(target, prim == PrimOp::Eq, n));
+            }
+        }
         let (v, t) = if tr == k.eq {
             // `expr.eq.trait.ref`: `Eq.eq` takes both operands by reference.
             let a = self.eq_operand_ref((a, at, la), n);
-            let c = if lc {
-                c
-            } else {
-                let c = self.coerce(c, ct, at, rn, "operand", ExpectPosition::Operand);
-                self.eq_operand_ref((c, at, false), rn)
-            };
+            let c = self.eq_operand_ref((c, ct, lc), rn);
             let crt = self.b.ty_of(c);
             self.trait_call_args(tr, method, a, at, &[(c, crt, rn)], n)?
         } else {
@@ -2325,51 +2362,81 @@ impl Ck<'_, '_> {
         };
         let crt = self.b.ty_of(c);
         let (v, vt) = self.trait_call_args(tr, "partial_cmp", a, at, &[(c, crt, rn)], n)?;
-        let ord = self.cx.names.known.ordering;
-        let ord_ty = pool.intern_ty(&TyData::Adt {
-            def: ord,
-            args: hd_types::TyList::EMPTY,
-        });
-        // A compiler local, in scope for its whole statement
-        // (`ref.dep.scope.temporary`), as the references below need.
-        let sym = self.cx.names.syms.intern("$order");
-        let l = self.b.local(vt, sym, local_flags::ASSIGNED, n.index());
-        self.set_local(l, v, n.index());
-        let eq = self.cx.names.known.eq;
-        // Ordering's variants: Less, Equal, Greater.
-        let (first, second) = match prim {
-            PrimOp::Lt => (0, None),
-            PrimOp::Le => (0, Some(1)),
-            PrimOp::Gt => (2, None),
-            _ => (2, Some(1)),
+        let TyData::Option(ord_ty) = pool.get(vt) else {
+            return unsupported("partial_cmp without an optional Ordering result");
         };
-        // `Eq.eq` takes the answer and the case it is tested for by
-        // reference (`expr.eq.trait.ref`).
-        let place = crate::refs::Place {
-            root: crate::refs::Root::Local(l, self.scopes.len() - 1),
-            path: vec![],
-            ty: vt,
+        // None is unordered, so every relational operator returns false.
+        // In Some, <= excludes Greater and >= excludes Less. Ordinary
+        // variant tests preserve the representation selected by the backend.
+        let some = self.b.open_block();
+        let ord = self.b.payload(v, 1, 0, ord_ty, n.index());
+        let (variant, equal) = match prim {
+            PrimOp::Lt => (0, true),
+            PrimOp::Le => (2, false),
+            PrimOp::Gt => (2, true),
+            _ => (0, false),
         };
-        let is = |me: &mut Self, k: u32| -> StageResult<Ref> {
-            let rt = me.ref_ty(vt, false, false);
-            let cur = me.make_ref(&place, false, rt, n);
-            let empty = me.b_empty_rec();
-            let o = me.b.emit(Tag::NewVariant, k, empty, ord_ty, n.index());
-            let some =
-                me.b.coerce(hd_tir::ir::Coercion::WrapSome, NONE, o, vt, n.index());
-            let some = me.eq_operand_ref((some, vt, false), rn);
-            Ok(me
-                .trait_call_args(eq, "eq", cur, vt, &[(some, rt, rn)], n)?
-                .0)
+        let test = self.variant_bool(ord, variant, equal, n);
+        let some = self.b.close_block(some, Some(test), Ty::BOOL, n.index());
+        let none = self.bool_block(false, n);
+        let cases = self.b.refs_record(&[Ref(1), some, none]);
+        Ok(self.b.emit(Tag::SwitchTag, v.0, cases, Ty::BOOL, n.index()))
+    }
+
+    fn bool_block(&mut self, value: bool, n: NodeRef<'_>) -> Ref {
+        let block = self.b.open_block();
+        let value = self.b.const_value(Ty::BOOL, u64::from(value));
+        self.b.close_block(block, Some(value), Ty::BOOL, n.index())
+    }
+
+    fn variant_bool(&mut self, value: Ref, variant: u32, equal: bool, n: NodeRef<'_>) -> Ref {
+        let yes = self.bool_block(equal, n);
+        let no = self.bool_block(!equal, n);
+        let cases = self.b.refs_record(&[Ref(variant), yes, no]);
+        self.b
+            .emit(Tag::SwitchTag, value.0, cases, Ty::BOOL, n.index())
+    }
+
+    /// An Option tag read through an operand's place belongs to an ordinary
+    /// match decision, so ownership lends the scrutinee rather than copying
+    /// a counted or non-Copy payload just to inspect its tag.
+    fn option_none_test(
+        &mut self,
+        (value, ty, held): (Ref, Ty, bool),
+        equal: bool,
+        n: NodeRef<'_>,
+    ) -> Ref {
+        let decision = self.b.open_block();
+        let read = if held {
+            let place = self.b.place(&hd_tir::ir::Place {
+                root: hd_tir::ir::PlaceRoot::Value(value),
+                proj: vec![hd_tir::ir::Proj::Deref],
+            });
+            self.b.emit(
+                Tag::Read,
+                place,
+                hd_tir::ir::ReadMode::Use as u32,
+                ty,
+                n.index(),
+            )
+        } else {
+            value
         };
-        let x = is(self, first)?;
-        let Some(k) = second else {
-            return Ok(x);
-        };
-        let m = self.b.open_block();
-        let y = is(self, k)?;
-        let blk = self.b.close_block(m, Some(y), Ty::BOOL, n.index());
-        Ok(self.b.emit(Tag::Or, x.0, blk.0, Ty::BOOL, n.index()))
+        let mut arms = Vec::new();
+        for arm in 0..2 {
+            let block = self.b.open_block();
+            self.b.emit(Tag::ToArm, arm, NONE, Ty::NEVER, n.index());
+            arms.push(self.b.close_block(block, None, Ty::NEVER, n.index()));
+        }
+        let cases = self.b.refs_record(&[Ref(0), arms[0], arms[1]]);
+        self.b
+            .emit(Tag::SwitchTag, read.0, cases, Ty::NEVER, n.index());
+        let decision = self.b.close_block(decision, None, Ty::NEVER, n.index());
+        let yes = self.bool_block(equal, n);
+        let no = self.bool_block(!equal, n);
+        let blocks = self.b.refs_record(&[decision, yes, no]);
+        self.b
+            .emit(Tag::Match, value.0, blocks, Ty::BOOL, n.index())
     }
 
     /// Whether a type's values have identity: the solver's `AnyRef` row

@@ -54,26 +54,18 @@ fn order_refs(a: &string, b: &string) -> bool:
 >     uses $0: entry -> %0 lend last
 >   local $1 b: Ref[string] [param read] value
 >     uses $1: entry -> %1 lend last
->   local $2 $order: Ordering? [read assigned captured] place
->   local $3 $ref: Ordering? [read assigned captured captured-assigned] place
 >   %0 = Read borrow [$0] : Ref[string]
 >   %1 = Read borrow [$1] : Ref[string]
 >   %2 = Call std/cmp/PartialOrd.partial_cmp for string [] via Impl (%0, %1) : Ordering?
->   %3 = Store [$2] %2 : ()
->   %4 = Ref local frame [$2] : Counted[Ordering?]
->   %5 = NewVariant #0 [] : Ordering
->   %6 = Coerce %5 [WrapSome -] : Ordering?
->   %7 = Store [$3] %6 : ()
->   %8 = Ref local frame [$3] : Counted[Ordering?]
->   %9 = Call std/core/Eq.eq for Ordering? [] via Impl (%4, %8) : bool
->   %10 = Drop [%8] : ()
->   %11 = Drop [$3] : ()
->   %12 = Drop [%4] : ()
->   %13 = Drop [$2] : ()
->   %14 = Block %9 : bool
->   %4 finds [$2] full
->   %8 finds [$3] full
->   summary kept [] writes
+>   %3 = Read copy [%2 as #1 .0] : Ordering
+>   %4 = Block 1:bool : bool
+>   %5 = Block 0:bool : bool
+>   %6 = SwitchTag %3 [#0 %4 %5] : bool
+>   %7 = Block %6 : bool
+>   %8 = Block 0:bool : bool
+>   %9 = SwitchTag %2 [#1 %7 %8] : bool
+>   %10 = Block %9 : bool
+>   summary kept []
 
 fn list_eq(a: &List[string], b: &List[string]) -> bool:
     a == b

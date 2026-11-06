@@ -31,8 +31,6 @@ fn rec_eq(a: Rec, b: Rec) -> bool:
 fn opt_none(o: string?) -> bool:
     o == .None
 > app/main/opt_none
->   release string? (overwritten)
->   (no span) release string? (last use)
 >   (no span) release string? (last use)
 >   (no span) release string? (last use)
 
