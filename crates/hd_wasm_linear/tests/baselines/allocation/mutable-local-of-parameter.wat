@@ -37,7 +37,7 @@
     local.get $self
     local.get $value
   )
-  (func $total (param $counter.at i64) (param $counter.end i64) (result i64) (local $cursor i32) (local $t0 i32) (local $t1 i32)
+  (func $total (param $counter.at i64) (param $counter.end i64) (result i64) (local $cursor i32) (local $t0 i32) (local $t1 i32) (local $t2 i64)
     ;; (no span)
     global.get $locals
     global.get $locals_base
@@ -89,10 +89,34 @@
       block
         loop
     ;; 23 |         match cursor.next():
-          local.get $cursor
-          call $"impl Counter.next"
-          local.set $counter.end
-          local.set $t1
+          block
+            block
+              local.get $cursor
+              i64.load $heap
+              local.get $cursor
+              i64.load $heap offset=8
+              i64.ge_s
+              if
+                i32.const 0
+                i64.const 0
+                local.set $counter.end
+                local.set $t1
+                br 1
+              end
+              local.get $cursor
+              i64.load $heap
+              local.tee $counter.end
+              i64.const 1
+              i64.add
+              local.set $t2
+              local.get $cursor
+              local.get $t2
+              i64.store $heap
+              i32.const 1
+              local.set $t1
+              br 0
+            end
+          end
           block
             block
               block

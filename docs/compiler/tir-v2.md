@@ -2955,8 +2955,12 @@ the existing raw-budget call boundary and its loan-end contract.
 Reference getters and proved argument promotion also qualify. In release,
 a small reader may keep shared references to unpromotable referents or
 Drop owners when it only reads through them and has no reachable write
-effect (#1346). Mutable-reference parameters keep their call boundary,
-including its loan contract, even when the body only reads. The fallback
+effect (#1346). A callee that takes `&mut` keeps its call boundary, with
+one exception: at a call in a loop, in release, a callee up to the `@inline`
+budget (`AUTO_INLINE_LIMIT`) whose copy only moves scalars through plain
+memory, calling nothing but what never returns and the compiler's own code.
+Such a copy can reach no alias, so its binding's loan ending at the last use
+and not at the return changes nothing. The fallback
 requires each reference parameter to be read through; an unused receiver
 keeps its argument loan and view cleanup contract. Other
 promotable referents keep their existing call-site checks. The outer
@@ -3002,7 +3006,16 @@ bench/runtime/progs against JavaScript, on three V8 tiers (default,
 compile time. Limits of 8, 12, 16 and 20, each with reference
 parameters refused or allowed and with leaves required or not:
 
-- **Reference parameters.** Allowing them in a callee that calls on
+- **Reference parameters** (2026-11-06, #1399 28c, on all 32 programs and
+  the #1291 workloads, V8 and wasmtime). The rule above took setter-shaped
+  matmul from 41 to 28 ms and sieve from 73 to 51 ms on wasmtime, for 0.5%
+  more Wasm. Each limit costs something when dropped: everywhere rather than
+  in loops, 13 KB and no time; a callee that goes on calling, `Filter.next`'s
+  copy of `Map.next`, closures +29% and iter-pipeline +12% on V8; a callee
+  that touches a collection or counted value, route-search +3,036,300 count
+  operations, since the passes' rules for a `&mut` parameter do not cover a
+  copy's local that holds it.
+- **Reference parameters** (the first tuning). Allowing them in a callee that calls on
   copies `StringBuilder.push` (`&mut self`, calls `bytes_append`) into
   a loop: string_build 92 to 130 ms and map_count 121 to 138 ms on the
   default tier, the same on the other two. Refusing them costs json

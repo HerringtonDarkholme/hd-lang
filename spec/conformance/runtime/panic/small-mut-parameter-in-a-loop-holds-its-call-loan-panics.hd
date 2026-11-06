@@ -1,0 +1,16 @@
+# test: a small function called in a loop with a `&mut` of a place through a `*mut` keeps its call loan until it returns, so a write through another alias after the parameter's last use panics
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.call-loan, ref.excl.alias.conflict.
+struct Counter:
+    value: i32
+
+let shared: *mut Counter = box(Counter { value: +0 })
+
+fn touch(counter: &mut Counter) -> void:
+    counter.value = +1
+    shared.value = +2 # panic: borrow-conflict
+
+tests:
+    it("the call holds the loan until it returns"):
+        held := shared
+        for _ in 0..3:
+            touch(&mut *held)

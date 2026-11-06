@@ -11,7 +11,7 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 use hd_base::{DefId, Hash128, HashMap, HashSet, StableHasher};
 use hd_mono::ProgramEnv;
 use hd_tir::inline::Site;
-use hd_tir::ir::{Body, Callee, Ref, Tag, local_flags, place, ref_word};
+use hd_tir::ir::{Body, Callee, Proj, Ref, Tag, local_flags, place, ref_word};
 use hd_types::{InternPool, RefCells, Ty, TyData, TyList};
 
 /// The default callee size budget, in std and outside it alike.
@@ -255,9 +255,10 @@ impl dyn InlineEnv + '_ {
         let mut k = StableHasher::new("inline");
         k.hash(hash);
         let (mut sites, mut hashes) = (Vec::new(), Vec::new());
-        let loops = loops_only.then(|| hd_tir::ir::Topology::new(body).loop_of);
+        let loops = hd_tir::ir::Topology::new(body).loop_of;
         for c in (0..body.len()).rev() {
-            if loops.as_ref().is_some_and(|l| l[c] == hd_tir::ir::NONE) {
+            let in_loop = loops[c] != hd_tir::ir::NONE;
+            if loops_only && !in_loop {
                 continue;
             }
             let Some((def, targs)) =
@@ -299,6 +300,14 @@ impl dyn InlineEnv + '_ {
             if !self.fits_call(body, c, &mut copy, &mut lent) {
                 continue;
             }
+            // Over the ordinary budget only by `fits`'s allowance for a callee
+            // that takes local references and runs no call of its own.
+            if self.inline_hint(def) == InlineHint::Default
+                && !self.fits_size(def, targs, &copy, INLINE_LIMIT)
+                && !in_loop
+            {
+                continue;
+            }
             // Prefer taking a reader's referent by value when each
             // argument names a place the copy may read once. A small
             // release reader can otherwise keep the reference itself.
@@ -330,14 +339,18 @@ impl dyn InlineEnv + '_ {
                         (0, 0)
                     };
                 if promote.is_none() {
-                    if self.memo().is_none() || !self.read_only_refs(def, targs, &copy) {
+                    if self.memo().is_none() {
                         continue;
                     }
-                    by_ref = self
-                        .reference_params(def, targs, true)
-                        .unwrap_or_default()
-                        .iter()
-                        .fold(0, |mask, (k, _)| mask | 1 << k);
+                    if self.read_only_refs(def, targs, &copy) {
+                        by_ref = self
+                            .reference_params(def, targs, true)
+                            .unwrap_or_default()
+                            .iter()
+                            .fold(0, |mask, (k, _)| mask | 1 << k);
+                    } else if !in_loop {
+                        continue;
+                    }
                     0
                 } else if args & mask != mask || kept != 0 {
                     // A Drop owner keeps its address; other promotable
@@ -570,10 +583,16 @@ impl dyn InlineEnv + '_ {
     fn fits(&self, def: DefId, targs: TyList, copy: &Body) -> bool {
         match self.inline_hint(def) {
             InlineHint::Default => {
-                self.fits_size(def, targs, copy, INLINE_LIMIT)
+                let release = self.memo().is_some();
+                (self.fits_size(def, targs, copy, INLINE_LIMIT)
                     && (!self.takes_reference(def, targs)
                         || self.by_value(def, targs, copy).is_some()
-                        || (self.memo().is_some() && self.read_only_refs(def, targs, copy)))
+                        || (release && self.read_only_refs(def, targs, copy))))
+                    || (release
+                        && self.takes_reference(def, targs)
+                        && self.only_local_references(def, targs)
+                        && self.plain_memory(copy)
+                        && self.fits_size(def, targs, copy, AUTO_INLINE_LIMIT))
             }
             // A by-value parameter of a type still open waits for the instance:
             // an erased body cannot bind one in a local.
@@ -623,7 +642,12 @@ impl dyn InlineEnv + '_ {
             return None;
         }
         let body_fits = match hint {
-            InlineHint::Default => hd_tir::inline::inlinable(body, INLINE_LIMIT),
+            InlineHint::Default => {
+                hd_tir::inline::inlinable(body, INLINE_LIMIT)
+                    || (release
+                        && self.declares_local_reference(def)
+                        && hd_tir::inline::inlinable(body, AUTO_INLINE_LIMIT))
+            }
             InlineHint::Auto => hd_tir::inline::inlinable(body, AUTO_INLINE_LIMIT),
             InlineHint::Always => hd_tir::inline::copyable(body),
             InlineHint::Never => false,
@@ -755,6 +779,68 @@ impl dyn InlineEnv + '_ {
         mask != 0
             && read & mask == mask
             && hd_tir::own::promote::read_only_params(copy, mask) == mask
+    }
+
+    /// Whether each reference parameter of `def` at `targs` is a declared
+    /// local reference, `&T` or `&mut T`, whatever the body does through it.
+    fn only_local_references(&self, def: DefId, targs: TyList) -> bool {
+        self.reference_params(def, targs, true)
+            .is_some_and(|refs| refs.iter().all(|&(_, t)| self.local_reference_type(t)))
+    }
+
+    /// Whether `t` is a local reference type, as the backend reads it.
+    fn local_reference_type(&self, t: Ty) -> bool {
+        match self.pool().get(t) {
+            TyData::Ref { counted, .. } => !counted,
+            TyData::Adt { def, .. } => def == self.ref_cells().local,
+            _ => false,
+        }
+    }
+
+    /// Whether a declared parameter of `def` is a local reference.
+    fn declares_local_reference(&self, def: DefId) -> bool {
+        self.signature(def).is_some_and(|(params, _, _)| {
+            let lowered = |&t: &Ty| self.pool().lower_refs(self.ref_cells(), t);
+            params
+                .iter()
+                .map(lowered)
+                .any(|t| self.local_reference_type(t))
+        })
+    }
+
+    /// Whether `copy` only moves scalars through plain memory: every call it
+    /// makes never returns, like a panic, or is the compiler's own code, and
+    /// it touches no collection or counted value. Its copy leaves no call on
+    /// a path that goes on and no count for the passes to place, whose rules
+    /// for a `&mut` parameter do not cover a copy's local holding it. It can
+    /// reach no alias either, so a binding's loan ending at its last use and
+    /// not at the return changes nothing (`ref.excl.alias.call-loan`).
+    fn plain_memory(&self, copy: &Body) -> bool {
+        let scalar = |t: Ty| {
+            !self.is_open(t)
+                && (self.local_reference_type(t) || t == Ty::NEVER || !self.reference(t))
+        };
+        copy.ty.iter().chain(&copy.local_ty).all(|&t| scalar(t))
+            && (0..copy.len()).all(|i| {
+                let (oa, ob) = copy.tags[i].operands();
+                let elem = [oa, ob].into_iter().enumerate().any(|(x, op)| {
+                    op == hd_tir::ir::Op::Place
+                        && (copy.view(copy.data[i][x]).steps(copy))
+                            .any(|s| matches!(s, Proj::Elem(_)))
+                });
+                let call = matches!(
+                    copy.tags[i],
+                    Tag::Call | Tag::CallValue | Tag::CallDyn | Tag::CallHost | Tag::DefaultCall
+                );
+                !elem
+                    && copy.tags[i] != Tag::Intrinsic
+                    && (!call
+                        || copy.ty[i] == Ty::NEVER
+                        || matches!(
+                            hd_tir::inline::known_call(copy, i),
+                            Some(Callee::Item { def, .. }) if self.intrinsic(def).is_some()
+                        ))
+            })
     }
 
     /// Each parameter of `def` at `targs` that is, or may be in an

@@ -39,6 +39,7 @@ enum LoadError:
         error: FsError,
     )
     @error("bad config")
+>   release app.main.FsError (last use)
     Yaml(
         @from
         error: YamlError,
