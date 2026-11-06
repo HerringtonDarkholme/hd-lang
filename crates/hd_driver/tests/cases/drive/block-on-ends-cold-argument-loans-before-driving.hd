@@ -1,0 +1,15 @@
+# @dump: wat
+# @build: v8 release
+# Cold construction's call-scoped loans end before the first drive.
+# The alias may write after construction, as it can with an unfused poll.
+use std.task.block_on
+
+fn append!(items: &mut List[string], alias: *mut List[string]) -> usize:
+    alias.push("x")
+    items.len()
+
+fn drive(log: *mut List[string]) -> usize:
+    # subject
+    match block_on(append(log, log)):
+        .Completed(value) => value
+        _ => 0

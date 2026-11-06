@@ -5,7 +5,7 @@
 # Suspension Values, Discarding A Suspension, Construction-Time
 # Requirement Binding (spec/lang/11-requirements-and-suspension.md, #1364).
 # expected: `later` builds one frame holding `key` (moved, no retain)
-# and drives it; `blocking` the same through `block_on`; `discard`
+# and drives it; `blocking` drives the body without a cold frame; `discard`
 # frees the cold frame and `key` with no poll; `bound` captures the
 # provider at construction (one count, #1355).
 use std.task.{BlockOn, block_on}

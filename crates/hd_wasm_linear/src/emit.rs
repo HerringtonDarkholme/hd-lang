@@ -2666,6 +2666,10 @@ impl Em<'_, '_, '_> {
         let inner = self.susp_inner(self.ty(i))?;
         let values: Vec<u32> = self.vals(inner)?.iter().map(|v| self.f.local(*v)).collect();
         let frame = self.f.local(Val::I32);
+        // Cold construction's argument loans end before block_on polls.
+        // Keep that boundary when the first poll is fused here; otherwise
+        // aliases used by tasks inside the drive see a spurious live loan.
+        self.borrow_call_end(i);
         // The check belongs to block_on even when its first drive is
         // emitted at the earlier construction site.
         let (at, origin) = (self.f.at, self.f.origin_at);
