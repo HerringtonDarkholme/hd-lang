@@ -83,14 +83,6 @@
           i32.lt_u
           i32.eqz
           br_if 1
-          local.get $t0
-          local.get $xs
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
           local.get $xs
           local.get $t0
           i32.const 8

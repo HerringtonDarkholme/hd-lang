@@ -681,14 +681,15 @@ impl Em<'_, '_, '_> {
     }
 
     /// This body's proof never consults a callee. Unescaped locals may
-    /// cross unrelated calls; parameters and escaped headers also reject
-    /// unknown calls that could reach them through an external alias.
+    /// cross unrelated calls, a by-value parameter too: a caller lends one
+    /// only where no call may change its source, and else copies it.
+    /// References and escaped headers reject unknown calls that could
+    /// reach them through an external alias.
     fn list_loop_safe(&self, root: ListRoot, body: &[u32], aliases: &[bool]) -> bool {
         if self.is_cell(root.local as usize) {
             return false;
         }
         let external = root.indirect
-            || self.b.local_flags[root.local as usize] & hd_tir::ir::local_flags::PARAM != 0
             || (0..self.b.len()).any(|i| {
                 aliases[i]
                     && matches!(

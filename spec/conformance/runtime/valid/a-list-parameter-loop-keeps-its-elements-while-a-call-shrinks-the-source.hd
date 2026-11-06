@@ -1,0 +1,65 @@
+# test: a loop over a list parameter reads every element although a call shrinks the list the caller passed
+# Spec 06 Control Flow: flow.for.snapshot.
+
+struct Bag:
+    items: List[i32]
+
+let mut shared: List[i32] = [+1, 2, 3]
+
+fn shrink() -> void:
+    shared[0] = +100
+    _ := shared.pop()
+
+fn over_top_level(xs: List[i32]) -> i32:
+    let mut sum = +0
+    for i in 0..xs.len():
+        shrink()
+        sum += xs[i]
+    sum
+
+fn by_value_loop(xs: List[i32], f: fn() -> void) -> i32:
+    let mut sum = +0
+    for x in xs:
+        f()
+        sum += x
+    sum
+
+fn beside_its_owner(xs: List[i32], bag: &mut Bag) -> i32:
+    let mut sum = +0
+    for i in 0..xs.len():
+        bag.items[0] = +100
+        _ := bag.items.pop()
+        sum += xs[i]
+    sum
+
+fn through_a_pointer(xs: List[i32], p: *mut List[i32]) -> i32:
+    let mut sum = +0
+    for i in 0..xs.len():
+        p[0] = +100
+        _ := p.pop()
+        sum += xs[i]
+    sum
+
+tests:
+    use std.testing.assert_equal
+
+    it("a top-level list"):
+        assert_equal(over_top_level(shared), 6, reason="the parameter keeps three elements")
+
+    it("a list a closure shrinks"):
+        let mut ys = [+1, 2, 3]
+        total := by_value_loop(ys, fn() -> void:
+            _ := ys.pop()
+        )
+        assert_equal(total, 6, reason="the loop keeps three elements")
+        assert_equal(ys.len(), 0, reason="the closure emptied the list")
+
+    it("a field beside a reference to its struct"):
+        let mut bag = Bag { items: [+1, 2, 3] }
+        total := beside_its_owner(bag.items, &mut bag)
+        assert_equal(total, 6, reason="the parameter keeps three elements")
+
+    it("a list behind a pointer"):
+        p := box([+1, 2, 3])
+        total := through_a_pointer(*p, p)
+        assert_equal(total, 6, reason="the parameter keeps three elements")
