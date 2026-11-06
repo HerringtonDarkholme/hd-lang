@@ -20,8 +20,6 @@ impl Namer for Fixed:
 fn ask() -> usize $ Namer:
     $.use(Namer).name().len()
 > app/main/ask
->   retain app.main.Namer (second owner)
->   (no span) release app.main.Namer (last use)
 >   (no span) release string (last use)
 
 fn install(s: string) -> usize:

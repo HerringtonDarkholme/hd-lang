@@ -1,0 +1,33 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: Retrieving a provider and calling it through `$.use`
+# (spec/lang/11-requirements-and-suspension.md; bench task-pipeline).
+# expected: `$.use(Meter).record(v)` lends the provider to its call with
+# no count: the body's caller holds the provider for the whole body, and
+# a callee can only shadow it in its own scope.
+trait Meter:
+    fn record(&mut self, value: i64) -> void
+
+struct Counters:
+    calls: usize
+    total: i64
+
+impl Meter for Counters:
+    fn record(&mut self, value: i64) -> void:
+        self.calls += 1
+        self.total += value
+
+fn count(n: i64) -> void $ Meter:
+    for i in 0..n:
+        $.use(Meter).record(i)
+
+fn count_later!(n: i64, wait: mut Suspend[void]) -> void $ Meter:
+    for i in 0..n:
+        $.use(Meter).record(i)
+        wait!()
+
+pub fn run(n: i64) -> i64:
+    counters := box(Counters { calls: 0, total: 0 })
+    $.with(Meter=counters):
+        count(n)
+    counters.total

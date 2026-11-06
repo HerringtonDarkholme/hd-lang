@@ -79,6 +79,7 @@ requirements-cancellation
 requirements-counted-provider
 requirements-join-list
 requirements-mutable-providers
+requirements-provider-receivers
 requirements-provider-scopes
 requirements-reusable-contexts
 requirements-row-polymorphism

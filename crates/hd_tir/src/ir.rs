@@ -1022,6 +1022,20 @@ impl Body {
                 })
     }
 
+    /// Whether instruction `v` is a `ProviderAsRef` coercion of a
+    /// `ProviderGet` (`$.use(K)`): a reference to a provider the body
+    /// received, which its caller's scope holds for the whole body. It
+    /// counts nothing, so its `Drop` ends no borrow through it.
+    #[must_use]
+    pub fn provider_ref(&self, v: usize) -> bool {
+        self.tags.get(v) == Some(&Tag::Coerce)
+            && self.extra.get(self.data[v][1] as usize + 1)
+                == Some(&(Coercion::ProviderAsRef as u32))
+            && Ref(self.data[v][0])
+                .as_inst()
+                .is_some_and(|g| self.tags.get(g.0 as usize) == Some(&Tag::ProviderGet))
+    }
+
     /// Whether value `v` is a [`Body::same_value_coercion`] of a `borrow`
     /// read: a borrow too, which holds no count.
     #[must_use]

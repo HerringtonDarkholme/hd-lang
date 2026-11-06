@@ -219,6 +219,10 @@ struct Chain {
     /// frame holds the parameter's count across a suspension point, so
     /// one in the span leaves the read alone (rule 4).
     frame: bool,
+    /// The read is all of the trait value a provider reference names
+    /// ([`Body::provider_ref`]): that reference's value, else `NONE`.
+    /// Calls leave it alone, and so does the reference's own `Drop`.
+    provider: u32,
 }
 
 /// The borrow pass's dense tables, reused across bodies.
@@ -407,6 +411,7 @@ impl Tables {
         let locals = u32_of(b.local_ty.len());
         let mut chain = Chain {
             shut: NONE,
+            provider: NONE,
             ..Chain::default()
         };
         let (mut word, mut below_start, mut below) = (word, below_start, below);
@@ -481,7 +486,15 @@ impl Tables {
                         continue;
                     }
                     chain.ok = true;
-                    chain.heap = derefs > 0 || elem;
+                    // The trait value a provider reference names, all of it
+                    // (`$.use(K)`): the provider the body received, which
+                    // its caller's scope holds for the whole body and no
+                    // callee can replace, only shadow in its own scope.
+                    chain.heap = (derefs > 0 || elem)
+                        && !(self.cpath[..] == [DEREF] && b.provider_ref(v as usize));
+                    if self.cpath[..] == [DEREF] && b.provider_ref(v as usize) {
+                        chain.provider = v;
+                    }
                     return chain;
                 }
                 Root::Global(..) => {
@@ -524,6 +537,7 @@ impl Tables {
             excl: None,
             shut: NONE,
             frame: false,
+            provider: NONE,
         }
     }
 
@@ -1375,10 +1389,27 @@ fn decide(
                     || b.data[value as usize][1] != ReadMode::Borrow as u32
             });
         }
+        // A provider reference's `Drop` releases nothing and ends no
+        // borrow of the provider it names.
+        let mut ref_drops = Vec::new();
+        if chain.provider != NONE {
+            for w in t.row(locals_of(b) + chain.provider, lo, end) {
+                let d = w.at as usize;
+                if b.tags[d] == Tag::Drop && !t.gone[d] {
+                    ref_drops.push(d);
+                }
+            }
+            for &d in &ref_drops {
+                t.gone[d] = true;
+            }
+        }
         let mut relied = 0;
         let blocked = !chain.ok
             || (chain.shut != NONE && window_open(t, chain.shut, lo, end))
             || conflicts(t, chain, x, lo, end, &mut relied);
+        for &d in &ref_drops {
+            t.gone[d] = false;
+        }
         t.relies |= relied;
         blocked
     };
@@ -2034,4 +2065,9 @@ fn conflicts_at(t: &Tables, chain: Chain, r: u32, lo: u32, end: u32, relied: &mu
         }
     }
     !chain.frame && any_in(&t.susp, lo, end)
+}
+
+/// The key offset of instruction values in the links ([`Link::key`]).
+fn locals_of(b: &Body) -> u32 {
+    u32_of(b.local_ty.len())
 }

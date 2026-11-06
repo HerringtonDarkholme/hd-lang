@@ -1301,7 +1301,13 @@ impl Backward for Live<'_> {
             s.set(live, self.bit[i], false);
         }
         let writes = match b.tags[i] {
-            Tag::Store | Tag::Drop | Tag::IsUnique => true,
+            // A provider reference's `Drop` releases nothing: the provider
+            // outlives the body (`Body::provider_ref`).
+            Tag::Drop => {
+                !matches!(&self.cx.places[i], Some(Place { root: PlaceRoot::Value(v), proj })
+                if proj.is_empty() && b.provider_ref(v.0 as usize))
+            }
+            Tag::Store | Tag::IsUnique => true,
             Tag::Read => w == ReadMode::Move as u32,
             Tag::Ref => w & super::ref_word::MUT != 0,
             _ => false,

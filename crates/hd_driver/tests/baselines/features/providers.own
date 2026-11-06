@@ -28,7 +28,7 @@ fn ask() -> usize $ Namer:
 >     uses $1: %6 -> %7 lend last
 >   %0 = ProviderGet #0 : Namer
 >   %1 = Coerce %0 [ProviderAsRef -] : Ref[Namer]
->   %2 = Read copy [*%1] : Namer
+>   %2 = Read borrow [*%1] : Namer
 >   %3 = Drop [%1] : ()
 >   %4 = Call app/main/Namer.name for Namer [] via TraitValue (%2) : string
 >   %5 = Drop [%2] : ()
