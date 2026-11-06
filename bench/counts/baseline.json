@@ -26,10 +26,11 @@
     },
     {
       "program": "bench/runtime/progs/inventory.hd",
-      "retained": "19199744",
-      "released": "19200266",
+      "retained": "19200512",
+      "released": "19201034",
       "uniques": "6400002",
-      "total": "44800012"
+      "total": "44801548",
+      "reason": "15f (#1399): a constant list literal is static data only as a top-level binding; inventory's 256 per-item batches: [0, 0, 0, 0] buffers are now real buffers whose first copy and release are counted (owner decision 2026-11-06)"
     },
     {
       "program": "bench/runtime/progs/iter-pipeline.hd",
@@ -168,8 +169,8 @@
       "program": "bench/study/json.hd",
       "retained": "2720002",
       "released": "3740092",
-      "uniques": "3570006",
-      "total": "10030100"
+      "uniques": "2210005",
+      "total": "8670099"
     },
     {
       "program": "bench/study/mandelbrot.hd",
@@ -223,9 +224,10 @@
     {
       "program": "bench/study/structure_walk.hd",
       "retained": "3150044",
-      "released": "3500063",
+      "released": "3500064",
       "uniques": "0",
-      "total": "6650107"
+      "total": "6650108",
+      "reason": "15f (#1399): a constant list literal is static data only as a top-level binding; main's local `controls != [0, 5, 3, 1]` literal is now a real buffer whose release is counted (owner decision 2026-11-06)"
     }
   ]
 }
