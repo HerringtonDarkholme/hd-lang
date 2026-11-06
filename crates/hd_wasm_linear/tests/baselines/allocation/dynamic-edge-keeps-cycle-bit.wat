@@ -18,7 +18,7 @@
       i32.const 0
       i32.store $heap offset=8
       local.get $t0
-      i32.const 160 ;; &vtable[func55]
+      i32.const 160 ;; &vtable[func54]
     ;; (no span)
       local.set $t1
       local.set $t0

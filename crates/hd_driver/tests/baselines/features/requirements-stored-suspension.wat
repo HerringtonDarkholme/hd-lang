@@ -247,7 +247,7 @@
           local.set $t18
         end
         local.get $t9
-        i32.const 356 ;; &vtable[func92]
+        i32.const 356 ;; &vtable[func91]
         local.set $t20
         local.tee $t19
         call $retain

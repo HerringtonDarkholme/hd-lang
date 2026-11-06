@@ -121,7 +121,7 @@
       local.get $u.name.1
       i32.store $heap offset=4
       local.get $t0
-      i32.const 160 ;; &vtable[func64, func65]
+      i32.const 160 ;; &vtable[func63, func64]
     ;; (no span)
       local.set $u.name.1
       local.set $u.name.0
@@ -180,7 +180,7 @@
       local.tee $u.name.1
       call $retain
       local.get $u.name.1
-      i32.const 160 ;; &vtable[func64, func65]
+      i32.const 160 ;; &vtable[func63, func64]
       local.get $n.0
       local.get $n.1
       call $through_mut

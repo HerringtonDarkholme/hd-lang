@@ -1,0 +1,37 @@
+# test: a small reader of a non-copyable value in a loop, before a live borrow of one field and a move of another, keeps its reference, so nothing copies the value
+struct Parcel:
+    name: string
+
+impl !Copy for Parcel
+
+struct Pair:
+    left: Parcel
+    right: Parcel
+
+impl !Copy for Pair
+
+fn pair(prefix: string) -> Pair:
+    Pair { left: Parcel { name: "${prefix}-left" }, right: Parcel { name: "${prefix}-right" } }
+
+fn observe(value: &Pair) -> usize:
+    value.left.name.len() + value.right.name.len()
+
+fn disjoint(value: Pair) -> string:
+    _ := observe(&value)
+    other := &value.right
+    first := value.left
+    name := other.name
+    first.name + "," + name
+
+pub fn main() -> void:
+    for i in 0..40:
+        if disjoint(pair("loop-$i")) != "loop-${i}-left,loop-${i}-right":
+            panic("a disjoint borrow lost its field")
+    for i in 0..40:
+        value := pair("loop-$i")
+        _ := observe(&value)
+        other := &value.right
+        first := value.left
+        name := other.name
+        if first.name + name == "":
+            panic("empty")

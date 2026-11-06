@@ -26,6 +26,10 @@ pub const INLINE_LIMIT: usize = 16;
 /// `@inline(.Auto)` may have and still be copied.
 pub const AUTO_INLINE_LIMIT: usize = 64;
 
+/// The most times one body's calls are copied in a release build: what a
+/// round's copies call is copied in the next.
+const MAX_ROUNDS: usize = 4;
+
 /// A declaration's inlining choice, decoded by the driver.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum InlineHint {
@@ -143,20 +147,27 @@ impl dyn InlineEnv + '_ {
     fn inline_into(&self, body: &mut Body, hash: Hash128, stack: &mut Vec<DefId>) -> Hash128 {
         let mut hash = hash;
         // A call through a function reference the body knows is a call
-        // of its item, which may copy in turn; a copy may bring more.
+        // of its item, which may copy in turn. A copy may bring more: a
+        // default's enclosing call turns plain, and a copy taken as written
+        // (`callee_copy`) keeps calls of its own. Those in a loop are judged
+        // as the caller's in the next round. Outside a loop one saves little,
+        // and a larger function may lose V8's own inlining of it
+        // (binary_trees' allocator, 290 to 317 ms).
         let release = self.memo().is_some();
         if release {
             self.direct_item_calls(body);
         }
-        for _ in 0..4 {
+        let mut loops_only = false;
+        for _ in 0..MAX_ROUNDS {
             let defaults = body.tags.contains(&Tag::DefaultCall);
-            let (h, copied) = self.inline_round(body, hash, stack);
+            let (h, copied) = self.inline_round(body, hash, stack, loops_only);
             hash = h;
-            let direct = copied && release && self.direct_item_calls(body);
-            // Copying a default makes its enclosing call plain too.
-            if !(copied && release && (defaults || direct)) {
+            if !(copied && release) {
                 break;
             }
+            let direct = self.direct_item_calls(body);
+            // Copying a default makes its enclosing call plain too.
+            loops_only = !(defaults || direct);
         }
         hash
     }
@@ -239,12 +250,17 @@ impl dyn InlineEnv + '_ {
         body: &mut Body,
         hash: Hash128,
         stack: &mut Vec<DefId>,
+        loops_only: bool,
     ) -> (Hash128, bool) {
         let pool = self.pool();
         let mut k = StableHasher::new("inline");
         k.hash(hash);
         let (mut sites, mut hashes) = (Vec::new(), Vec::new());
+        let loops = loops_only.then(|| hd_tir::ir::Topology::new(body).loop_of);
         for c in (0..body.len()).rev() {
+            if loops.as_ref().is_some_and(|l| l[c] == hd_tir::ir::NONE) {
+                continue;
+            }
             let Some((def, targs)) =
                 hd_tir::inline::known_call(body, c).and_then(|callee| match callee {
                     Callee::Item { def, targs } => Some((def, targs)),

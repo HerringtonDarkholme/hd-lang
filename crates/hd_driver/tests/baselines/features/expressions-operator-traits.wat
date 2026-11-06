@@ -4,9 +4,6 @@
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "impl StringBuilder.text_width" (func $"impl StringBuilder.text_width" (param i32 i32) (result i32)))
-  (import "fixture" "impl StringBuilder.value_new" (func $"impl StringBuilder.value_new" (param i32) (result i32 i32)))
-  (import "fixture" "impl StringBuilder.value_text" (func $"impl StringBuilder.value_text" (param i32 i32 i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $"impl Neg for Tag.neg" (param $self.text.0 i32) (param $self.text.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
@@ -207,39 +204,72 @@
                 local.get $zero.0
                 local.get $zero.1
                 local.set $t2
-                local.tee $zero.1
-                local.get $t2
-                call $"impl StringBuilder.text_width"
+                local.set $zero.1
+                block
+                  block
+                    local.get $t2
+                    local.set $t3
+                    br 0
+                  end
+                end
                 local.get $item.0
                 local.get $item.1
-                local.set $t3
-                local.tee $item.1
-                local.get $t3
-                call $"impl StringBuilder.text_width"
                 local.set $t4
-                local.tee $t5
-                local.get $t4
-                i32.add
-                call $"impl StringBuilder.value_new"
-                local.set $t6
-                local.tee $t4
-                local.get $t6
-                i32.const 0
-                local.get $zero.1
-                local.get $t2
-                call $"impl StringBuilder.value_text"
-                local.get $t4
-                local.get $t6
-                local.get $t5
-                local.get $item.1
+                local.set $item.1
+                block
+                  block
+                    local.get $t4
+                    local.set $t5
+                    br 0
+                  end
+                end
                 local.get $t3
-                call $"impl StringBuilder.value_text"
-                local.get $t4
+                local.get $t5
+                i32.add
+                local.set $t5
+                block
+                  block
+                    local.get $t5
+                    i32.const 16
+                    local.set $t6
+                    if
+                      local.get $t5
+                      call $rt:str
+                      local.set $t6
+                    end
+                    local.get $t6
+                    local.get $t5
+                    local.set $t6
+                    local.set $t5
+                    br 0
+                  end
+                end
+                block
+                  block
+                    local.get $t5
+                    local.get $zero.1
+                    local.get $t2
+                    call $rt:memory_copy/0/0
+                    br 0
+                  end
+                end
+                block
+                  block
+                    local.get $t5
+                    local.get $t3
+                    i32.add
+                    local.get $item.1
+                    local.get $t4
+                    call $rt:memory_copy/0/0
+                    br 0
+                  end
+                end
+                local.get $t5
                 local.get $t6
                 local.set $item.1
                 local.set $zero.1
                 br 0
-                local.get $t4
+                local.get $t5
                 call $rt:release_ref
               end
             end

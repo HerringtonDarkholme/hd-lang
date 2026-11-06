@@ -1322,10 +1322,17 @@ impl InlineEnv for Env<'_> {
 
     fn lent_referent(&self, t: Ty) -> Option<Ty> {
         hd_wasm_linear::lent_referent(&self.run.pool, self, t)
+            .filter(|&r| self.copies(r) != Tri::No)
     }
 
+    /// A value no copy may take: one that holds a `std.rt.Drop`, or a type
+    /// that is not `Copy`, whose by-value binding the passes could only
+    /// keep by borrowing, which a later copy in the same body may refuse.
     fn rooted_referent(&self, t: Ty) -> Option<Ty> {
-        hd_wasm_linear::rooted_referent(&self.run.pool, self, t)
+        hd_wasm_linear::rooted_referent(&self.run.pool, self, t).or_else(|| {
+            hd_wasm_linear::lent_referent(&self.run.pool, self, t)
+                .filter(|&r| self.copies(r) == Tri::No)
+        })
     }
 
     fn counted_referent(&self, t: Ty) -> bool {

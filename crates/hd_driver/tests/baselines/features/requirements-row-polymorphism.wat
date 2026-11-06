@@ -52,7 +52,7 @@
     ;; (no span)
       call $rt:release_ref
     ;; 22 |     $.with(Tag=Named { label: s }):
-      i32.const 204 ;; &vtable[func70]
+      i32.const 204 ;; &vtable[func69]
       local.set $s.0
       block
     ;; 23 |         callback()
@@ -182,7 +182,7 @@
     ;; (no span)
       call $rt:release_ref
     ;; 22 |     $.with(Tag=Named { label: s }):
-      i32.const 204 ;; &vtable[func70]
+      i32.const 204 ;; &vtable[func69]
       local.set $s.0
       block
     ;; 23 |         callback()

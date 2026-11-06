@@ -36,7 +36,7 @@
     ;; (no span)
       call $rt:release_ref'1
     ;; 36 |     $.with(Tag=Named { label: s }):
-      i32.const 160 ;; &vtable[func64]
+      i32.const 160 ;; &vtable[func63]
       local.set $s.0
       block
     ;; 37 |         tag := $.use(Tag)
@@ -175,7 +175,7 @@
     ;; (no span)
       call $rt:release_ref'1
     ;; 23 |     $.with(Tag=Named { label: s }):
-      i32.const 160 ;; &vtable[func64]
+      i32.const 160 ;; &vtable[func63]
       local.set $s.0
       block
     ;; 24 |         read_tag()
@@ -228,7 +228,7 @@
     ;; (no span)
       call $rt:release_ref'1
     ;; 27 |     $.with(Tag=Named { label: a }):
-      i32.const 160 ;; &vtable[func64]
+      i32.const 160 ;; &vtable[func63]
       local.set $a.0
       block
     ;; 28 |         outer := read_tag()
@@ -264,7 +264,7 @@
     ;; 27 |     $.with(Tag=Named { label: a }):
         call $rt:release_ref'1
     ;; 29 |         $.with(Tag=Named { label: b }):
-        i32.const 160 ;; &vtable[func64]
+        i32.const 160 ;; &vtable[func63]
         local.set $b.0
         block
     ;; 30 |             outer + read_tag()

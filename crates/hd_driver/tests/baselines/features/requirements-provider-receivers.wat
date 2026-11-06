@@ -26,7 +26,7 @@
     ;; 31 |     $.with(Meter=counters):
       local.tee $t0
       call $retain
-      i32.const 292 ;; &vtable[func70]
+      i32.const 292 ;; &vtable[func69]
       local.set $t1
       block
     ;; 32 |         count(n)

@@ -2961,6 +2961,15 @@ intermediate reference local or an owner copy. Those read-through uses
 also keep the existing non-escaping proof of the original call. Normal
 ownership lowering preserves the reference's lifetime.
 
+The limit applies to a callee with its own calls copied, and a callee
+over it with them is copied as written. In a release build the caller
+then judges each call that copy brought and that stands in a loop as its
+own, for up to four rounds, so `xs[i]` on a `UniqList` in a loop copies
+`index`, then its `len` and `Buffer.at`. Those two calls per element took
+matmul from 25 to 64 ms on wasmtime and from 70 to 180 ms on V8. Outside
+a loop the rounds saved little and cost binary_trees 10% on V8's default
+tier: copies in the allocator's helpers changed what V8 inlines itself.
+
 The build profile also selects which ordinary bodies are candidates:
 a dev build copies std callees only, so user code stays as written for
 stepping, stack traces and `dbg`; a release build copies both, like the

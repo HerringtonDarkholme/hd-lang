@@ -1,0 +1,10 @@
+# @dump: wat
+# @build: v8 release
+# expected: no call of `len` or `Buffer.at` in the loop; `index` is copied and so are the calls it brought
+use std.collections.UniqList
+
+fn sum(xs: &UniqList[f64], n: usize) -> f64:
+    let total: f64 = 0.0
+    for i in 0..n:
+        total = total + xs[i]
+    total
