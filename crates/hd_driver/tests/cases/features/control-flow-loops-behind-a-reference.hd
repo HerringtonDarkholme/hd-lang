@@ -1,0 +1,39 @@
+# @dump: tir own counts wat
+# @build: v8 release
+# Feature: a loop that changes a list behind a `&mut` parameter (#1399).
+# expected: `drain_into` and `refill` check `self.index` once, before
+# the loop: the `usize` copied out of `self` shares nothing. `snapshot`
+# copies `self.index` each round, so its check stays in the loop.
+struct Parser:
+    index: List[usize]
+    pending: List[usize]
+    held: usize
+
+impl Parser:
+    fn drain_into(&mut self, mark: usize) -> void:
+        held := self.held
+        let word = mark
+        while word < held:
+            self.index.push(self.pending[word])
+            word = word + 1
+        self.held = mark
+
+    fn refill(&mut self, n: usize) -> void:
+        for i in 0..n:
+            self.index[i] = self.held
+
+    fn snapshot(&mut self, n: usize) -> usize:
+        let mut last: List[usize] = []
+        for i in 0..n:
+            last = self.index
+            self.index[i] = self.held
+        last.len()
+
+pub fn main() -> void $ Console:
+    let mut p = Parser { index: [], pending: [], held: 0 }
+    for i in 0..4:
+        p.pending.push(i)
+    p.held = 4
+    p.drain_into(0)
+    p.refill(2)
+    println("${p.index.len()} ${p.snapshot(2)}")

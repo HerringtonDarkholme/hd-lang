@@ -14,6 +14,7 @@ control-flow-element-reference-loops
 control-flow-iteration-protocols
 control-flow-let-patterns
 control-flow-loop-values
+control-flow-loops-behind-a-reference
 control-flow-must-use
 control-flow-nested-patterns
 control-flow-panics

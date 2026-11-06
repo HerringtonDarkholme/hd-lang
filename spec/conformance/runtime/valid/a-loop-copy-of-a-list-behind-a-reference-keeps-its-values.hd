@@ -1,0 +1,47 @@
+# test: a copy taken each round of a list behind a reference keeps that round's values
+# Spec 04 Collection Values: types.coll.value.
+# expect-stdout: rounds 0 5; 1 3 6; old 0; items 1 2 3 9 9 9
+
+struct Bag:
+    items: List[i32]
+    base: i32
+
+fn snapshots(bag: &mut Bag, n: usize) -> List[List[i32]]:
+    base := bag.base
+    let mut seen: List[List[i32]] = []
+    for i in 0..n:
+        bag.items.push(i32(i) + base)
+        seen.push(bag.items)
+    seen
+
+fn rounds(bag: &mut Bag, n: usize) -> i32:
+    base := bag.base
+    let mut prev: List[i32] = []
+    let sum: i32 = 0
+    for i in 0..n:
+        prev = bag.items
+        bag.items[i] = base + 4
+        sum += prev[i]
+    sum
+
+fn overwrite(bag: &mut Bag, n: usize) -> List[i32]:
+    base := bag.base
+    old := bag.items
+    for i in 0..n:
+        bag.items[i + n] = base + 8
+    old
+
+fn total(xs: &List[i32]) -> i32:
+    let sum: i32 = 0
+    for x in xs:
+        sum += x
+    sum
+
+pub fn main() -> void $ Console:
+    let mut bag = Bag { items: [], base: +1 }
+    seen := snapshots(&mut bag, 3)
+    let mut wide = Bag { items: [+0, +0, +0, +0, +0, +0], base: +1 }
+    old := overwrite(&mut wide, 3)
+    let mut zeros = Bag { items: [+0, +0, +0], base: +1 }
+    r := rounds(&mut zeros, 3)
+    println("rounds $r ${zeros.items[2]}; ${total(&seen[0])} ${total(&seen[1])} ${total(&seen[2])}; old ${total(&old)}; items ${bag.items[0]} ${bag.items[1]} ${bag.items[2]} ${wide.items[3]} ${wide.items[4]} ${wide.items[5]}")

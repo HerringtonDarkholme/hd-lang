@@ -190,13 +190,21 @@ pub(crate) struct Tables {
     /// The loops, outermost first.
     loops: Vec<(u32, u32)>,
     /// Per local: a `Ref` roots at it; a closure captures it; a parameter;
-    /// every value stored into all of it is fresh; a read of it keeps its
-    /// value (rule 2's copies, anywhere in the body).
+    /// every value stored into all of it is fresh; a read of it keeps a
+    /// value that may share a buffer or reach a place (rule 2's copies,
+    /// anywhere in the body).
     addressed: Vec<bool>,
     captured: Vec<bool>,
     param: Vec<bool>,
     fresh: Vec<bool>,
     escapes: Vec<bool>,
+    /// Per local: a read through it keeps a value that holds a reference,
+    /// which may reach any place of the local.
+    reaches: Vec<bool>,
+    /// The places of the other such kept reads, each a second owner of
+    /// what that place holds: (local, start, len) into `kept_steps`.
+    kept_places: Vec<(u32, u32, u32)>,
+    kept_steps: Vec<u32>,
     /// The stores of a whole local moved from another local: (to, from).
     moves: Vec<(u32, u32)>,
     /// Per local: its stores of all of it.
@@ -223,6 +231,21 @@ pub(crate) struct Tables {
     steps: Vec<u32>,
     raw: Vec<u32>,
     ops: Vec<Operand>,
+}
+
+impl Tables {
+    /// Whether a kept read may hold the buffer of the place in `steps` at
+    /// local `l`, or reach it: one of a value holding a reference read
+    /// through `l`, or of a place that holds that place (a prefix of
+    /// `steps`) or lies in it. A kept copy of a part beside it (a `usize`
+    /// or a string field) is a second owner of that part only.
+    fn kept_through(&self, l: u32) -> bool {
+        self.reaches[l as usize]
+            || self.kept_places.iter().any(|&(k, start, len)| {
+                let e = &self.kept_steps[start as usize..(start + len) as usize];
+                k == l && (prefix(e, &self.steps) || prefix(&self.steps, e))
+            })
+    }
 }
 
 /// Resolves the place at `word` through the reads its value roots come
@@ -418,7 +441,7 @@ pub(crate) fn run(
     // Outermost first: an outer loop starts no later and ends later.
     t.loops
         .sort_stable_by_key(|&(f, l)| (f, std::cmp::Reverse(l)));
-    facts(b, t);
+    facts(b, cx, t);
     fill(&mut t.gone, n, false);
     // A fresh buffer's checks run nowhere: none hoists.
     for i in marked {
@@ -718,8 +741,14 @@ pub(crate) fn fresh_locals(b: &Body) -> Vec<bool> {
     ok
 }
 
+/// Whether a kept value of `ty` may share a buffer or reach a place: it
+/// is counted, holds a list or a map, or holds a reference.
+fn shares(cx: &dyn OwnCx, ty: Ty) -> bool {
+    cx.counted(ty) || cx.holds_coll(ty) || cx.holds_ref(ty)
+}
+
 /// The per-local facts and the uses of every value.
-fn facts(b: &Body, t: &mut Tables) {
+fn facts(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     let n = b.len();
     let locals = b.local_ty.len();
     fill(&mut t.addressed, locals, false);
@@ -727,6 +756,9 @@ fn facts(b: &Body, t: &mut Tables) {
     fill(&mut t.param, locals, false);
     fill(&mut t.fresh, locals, true);
     fill(&mut t.escapes, locals, false);
+    fill(&mut t.reaches, locals, false);
+    t.kept_places.clear();
+    t.kept_steps.clear();
     fill(&mut t.stores, locals, 0);
     t.moves.clear();
     for (l, flags) in b.local_flags.iter().enumerate() {
@@ -842,8 +874,22 @@ fn facts(b: &Body, t: &mut Tables) {
                 if l == NONE || steps.contains(&ELEM) {
                     continue;
                 }
-                if t.uses(u32_of(i)).iter().any(|&(u, role)| keeps(b, u, role)) {
+                // A kept value with no count, collection or reference
+                // (a `usize` field) neither shares a buffer nor reaches
+                // the local's storage: it lets nothing escape.
+                if t.uses(u32_of(i)).iter().any(|&(u, role)| keeps(b, u, role))
+                    && shares(cx, b.ty[i])
+                {
                     t.escapes[l as usize] = true;
+                    // Past a second dereference the place may be any
+                    // place of the local again.
+                    if cx.holds_ref(b.ty[i]) || steps.iter().skip(1).any(|&s| s == DEREF) {
+                        t.reaches[l as usize] = true;
+                    } else {
+                        let start = u32_of(t.kept_steps.len());
+                        t.kept_steps.extend_from_slice(&steps);
+                        t.kept_places.push((l, start, u32_of(steps.len())));
+                    }
                 }
                 if w == ReadMode::Borrow as u32 {
                     t.borrows.push((l, u32_of(i)));
@@ -917,7 +963,7 @@ fn header_place(b: &Body, cx: &dyn OwnCx, t: &mut Tables, header: u32) -> Option
         return None;
     }
     let li = l as usize;
-    if t.addressed[li] || t.captured[li] || t.escapes[li] {
+    if t.addressed[li] || t.captured[li] || t.kept_through(l) {
         return None;
     }
     Some(l)
@@ -945,7 +991,7 @@ fn rooted_place(b: &Body, t: &mut Tables, word: u32, elem: bool) -> Option<u32> 
         return None;
     }
     let li = l as usize;
-    if t.addressed[li] || t.captured[li] || t.escapes[li] {
+    if t.addressed[li] || t.captured[li] || t.kept_through(l) {
         return None;
     }
     Some(l)
