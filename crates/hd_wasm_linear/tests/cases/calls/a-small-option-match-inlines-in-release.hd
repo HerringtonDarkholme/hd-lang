@@ -41,3 +41,19 @@ fn explicit_loan['a](value: (&'a string)?) -> &'a string:
 
 fn loan_explicit_user['a](value: (&'a string)?) -> &'a string:
     explicit_loan(value)
+
+# A small scalar layout does not permit copying a non-Copy referent.
+enum Slot:
+    Deleted
+    Occupied(usize, i32)
+
+impl !Copy for Slot
+
+fn scalar_value(slot: &Slot) -> i32:
+    match slot:
+        .Deleted => +0
+        .Occupied(_, v) => v
+
+fn repeated_scalar_read() -> i32:
+    slot := Slot.Occupied(1, +3)
+    scalar_value(&slot) + scalar_value(&slot)

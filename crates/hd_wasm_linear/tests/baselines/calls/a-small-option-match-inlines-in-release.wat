@@ -4,8 +4,188 @@
   (import "fixture" "rt:map_hash" (func $rt:map_hash (param i32) (result i32)))
   (import "fixture" "rt:map_find" (func $rt:map_find (param i32 i32 i32) (result i32)))
   (import "fixture" "impl [ T < ? Copy ] T ?.expect[&string]" (func $"impl [ T < ? Copy ] T ?.expect[&string]" (param i32 i32 i32) (result i32)))
+  (import "fixture" "locals" (global $locals (mut i32)))
+  (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
+  (func $scalar_value (param $slot i32) (result i32) (local $t0 i32)
+    ;; 53 |     match slot:
+    block
+      block
+        block
+          block
+    ;; 54 |         .Deleted => +0
+            local.get $slot
+            i32.load8_u $heap
+            local.get $slot
+            i32.load $heap offset=4
+            local.get $slot
+            i32.load $heap offset=8
+            local.set $t0
+            drop
+            local.tee $slot
+            i32.eqz
+            br_if 0
+    ;; 55 |         .Occupied(_, v) => v
+            local.get $slot
+            i32.const 1
+            i32.eq
+            if
+              local.get $t0
+              local.set $slot
+              br 2
+            else
+              unreachable
+            end
+    ;; 53 |     match slot:
+            unreachable
+          end
+          i32.const 0
+          local.set $slot
+          br 1
+        end
+        br 0
+      end
+    end
+    local.get $slot
+  )
+  (func $repeated_scalar_read (result i32) (local $slot i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+    ;; (no span)
+    global.get $locals
+    global.get $locals_base
+    i32.sub
+    i32.const 24
+    i32.lt_u
+    if
+      i32.const 1
+      memory.grow $heap
+      local.tee $t0
+      i32.const -1
+      i32.eq
+      if
+        unreachable
+      end
+      local.get $t0
+      i32.const 16
+      i32.shl
+      local.tee $t0
+      global.set $locals_base
+      local.get $t0
+      i32.const 65536
+      i32.add
+      global.set $locals
+    end
+    global.get $locals
+    i32.const 24
+    i32.sub
+    local.tee $t0
+    global.set $locals
+    block
+    ;; 58 |     slot := Slot.Occupied(1, +3)
+      local.get $t0
+      i64.const 0
+      i64.store $heap
+      local.get $t0
+      i32.const 8
+      i32.add
+      local.tee $slot
+      i32.const 1
+      i32.store8 $heap
+      local.get $slot
+      i32.const 1
+      i32.store $heap offset=4
+      local.get $slot
+      i32.const 3
+      i32.store $heap offset=8
+      local.get $slot
+    ;; 59 |     scalar_value(&slot) + scalar_value(&slot)
+      local.set $t1
+      block
+        block
+          block
+            block
+              block
+                local.get $t1
+                i32.load8_u $heap
+                local.get $t1
+                i32.load $heap offset=4
+                local.get $t1
+                i32.load $heap offset=8
+                local.set $t2
+                drop
+                local.tee $t1
+                i32.eqz
+                br_if 0
+                local.get $t1
+                i32.const 1
+                i32.eq
+                if
+                  local.get $t2
+                  local.set $t1
+                  br 2
+                else
+                  unreachable
+                end
+                unreachable
+              end
+              i32.const 0
+              local.set $t1
+              br 1
+            end
+            br 0
+          end
+          br 0
+        end
+      end
+      block
+        block
+          block
+            block
+              block
+                local.get $slot
+                i32.load8_u $heap
+                local.get $slot
+                i32.load $heap offset=4
+                local.get $slot
+                i32.load $heap offset=8
+                local.set $t2
+                drop
+                local.tee $slot
+                i32.eqz
+                br_if 0
+                local.get $slot
+                i32.const 1
+                i32.eq
+                if
+                  local.get $t2
+                  local.set $slot
+                  br 2
+                else
+                  unreachable
+                end
+                unreachable
+              end
+              i32.const 0
+              local.set $slot
+              br 1
+            end
+            br 0
+          end
+          br 0
+        end
+      end
+      local.get $t1
+      local.get $slot
+      i32.add
+    ;; (no span)
+      local.set $slot
+    end
+    local.get $slot
+    local.get $t0
+    i32.const 24
+    i32.add
+    global.set $locals
+  )
   (func $copied_sum (param $xs i32) (result f64) (local $total f64) (local $t0 i32) (local $t1 i32) (local $i i32) (local $t2 f64) (local $t3 f64)
     block
     ;; 25 |     let total = 0.0

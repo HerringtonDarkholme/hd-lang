@@ -1321,8 +1321,12 @@ impl InlineEnv for Env<'_> {
     }
 
     fn lent_referent(&self, t: Ty) -> Option<Ty> {
+        // A layout that fits in locals is not necessarily Copy. A promoted
+        // argument reads that value out of the caller's place, and another
+        // use of the place can make the ownership passes keep that read as
+        // a copy. Keep such a reader's reference instead.
         hd_wasm_linear::lent_referent(&self.run.pool, self, t)
-            .filter(|&r| self.copies(r) != Tri::No)
+            .filter(|&referent| self.copies(referent) == Tri::Yes)
     }
 
     /// A value no copy may take: one that holds a `std.rt.Drop`, or a type

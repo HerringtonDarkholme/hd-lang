@@ -78,8 +78,9 @@ pub trait InlineEnv: ProgramEnv {
     fn select_impl(&self, trait_: DefId, self_ty: Ty, targs: TyList) -> Option<DefId>;
     /// The referent of a reference of type `t` that an inlined copy may
     /// take by value (`hd_wasm_linear::lent_referent`, counted parts
-    /// allowed), in every build (#1151, #1167); `None` when the
-    /// environment binds no copy by value.
+    /// allowed), in every build (#1151, #1167). The environment also
+    /// proves that the referent may be copied: its small layout alone
+    /// does not prove that. `None` keeps a reader's reference instead.
     fn lent_referent(&self, _t: Ty) -> Option<Ty> {
         None
     }
