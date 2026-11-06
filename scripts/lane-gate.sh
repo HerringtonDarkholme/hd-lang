@@ -47,4 +47,7 @@ run conf_checked env HD_CONFORMANCE_CHECKED=1 HD_CONFORMANCE_ONLY=$cases cargo t
 # Release-only ownership work (summaries, interprocedural facts) runs only in the
 # optimized pipeline; #1405's overflow passed the two runs above. Node engine, no wasmtime.
 run conf_opt env HD_CONFORMANCE_PIPELINE=optimized HD_CONFORMANCE_ONLY=$cases cargo test -q -p hd_driver --test conformance $conf -- --exact
+# std's own hd tests on the linear backend: ownership steps can break them
+# (23b1 double-dropped a suspending dyn method's argument; only this caught it).
+run std_rt cargo test -q -p hd_driver --test conformance -- --exact std_runtime_modules_pass_their_hd_tests_on_the_linear_backend
 echo PASS
