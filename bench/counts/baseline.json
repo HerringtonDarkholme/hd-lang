@@ -168,8 +168,8 @@
       "program": "bench/study/json.hd",
       "retained": "2720002",
       "released": "3740100",
-      "uniques": "13090014",
-      "total": "19550116"
+      "uniques": "12240015",
+      "total": "18700117"
     },
     {
       "program": "bench/study/mandelbrot.hd",
