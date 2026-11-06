@@ -13,11 +13,17 @@ fn tally_match(counts: &mut Map[string, i64], word: string) -> void:
 fn increment_existing(counts: &mut Map[string, i64], word: string) -> void:
     counts[word] += 1
 
-fn changed_between(
-    counts: &mut Map[string, i64],
-    word: string,
-    other: string,
-) -> void:
+fn changed_between(counts: &mut Map[string, i64], word: string, other: string) -> void:
     seen := counts.get(word).unwrap_or(0)
     counts[other] = 0
     counts[word] = seen + 1
+
+fn append_existing(words: &mut Map[string, string], key: string, suffix: string) -> void:
+    words[key] += suffix
+
+fn change(counts: &mut Map[string, i64], key: string) -> i64:
+    counts[key] = 10
+    2
+
+fn changed_rhs(counts: &mut Map[string, i64], word: string, other: string) -> void:
+    counts[word] += change(counts, other)

@@ -6,6 +6,12 @@ fn count(words: List[string]) -> Map[string, i32]:
         counts[word] += 1
     counts
 
+fn grow(counts: &mut Map[string, i64]) -> i64:
+    for i in 0..16:
+        counts["new_$i"] = i64(i)
+    counts["target"] = 100
+    2
+
 tests:
     use std.testing.assert_equal
 
@@ -13,3 +19,19 @@ tests:
         counts := count(["a", "b", "a"])
         assert_equal(counts["a"], 2, reason="two a")
         assert_equal(counts["b"], 1, reason="one b")
+
+    it("replaces a counted value and preserves a shared map"):
+        for round in 0..3:
+            key := "key_$round"
+            let mut words = { key: "old_$round" }
+            before := words
+            words[key] += "_new"
+            assert_equal(words[key], "old_${round}_new")
+            assert_equal(before[key], "old_$round")
+            assert_equal(words.len(), 1)
+
+    it("looks up again after the right side grows the map"):
+        let mut counts = { "target": 3i64 }
+        counts["target"] += grow(&mut counts)
+        assert_equal(counts["target"], 5i64)
+        assert_equal(counts.len(), 17)

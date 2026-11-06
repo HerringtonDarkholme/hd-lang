@@ -11,7 +11,6 @@ struct Tally:
 fn map_add(m: &mut Map[string, i64], k: string) -> void:
     m[k] += 1
 > app/main/map_add
->   retain string (conservative: Intrinsic)
 >   (no span) unique Map[string, i64] (conservative: unique)
 
 fn list_append(xs: &mut List[string], i: usize) -> void:

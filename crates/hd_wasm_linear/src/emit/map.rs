@@ -13,7 +13,7 @@ use hd_tir::ir::{Callee, IntrinsicOp, NONE, Place, PlaceRoot, Proj, Tag};
 use hd_types::{Ty, TyData};
 use wasm_encoder::BlockType;
 
-use super::value::Src;
+use super::value::{Dst, Src};
 use super::{Ctl, Em, MapProbe};
 use crate::layout::{coll_kind, coll_leaves, payload_mem, strip};
 use crate::map::{Entry, KeyOps, LIVE, USED, entry_address, hash_address};
@@ -519,9 +519,24 @@ impl Em<'_, '_, '_> {
         let ops = self.key_ops(i, kt, &e.key_vals())?;
         let m = self.buffer(args[0])?;
         if op == IntrinsicOp::MapSet {
-            let cached = self
-                .map_probe_source(i, args[0], args[1])
-                .and_then(|source| self.map_probes.get(&source).copied());
+            let source = self.map_probe_source(i, args[0], args[1]);
+            let cached = source.and_then(|source| self.map_probes.get(&source).copied());
+            if let Some(probe) = cached
+                && source.is_some_and(|source| {
+                    self.b.tags[source as usize] == Tag::Intrinsic
+                        && IntrinsicOp::from_u32(self.b.data[source as usize][0])
+                            == Some(IntrinsicOp::MapEntry)
+                })
+            {
+                // MapEntry already rejected a missing key, and the probe
+                // proof excludes intervening changes. A uniqueness copy
+                // preserves its entry number. Replace only the value:
+                // map_put would retain and then discard the same key.
+                let at = self.f.local(Val::I32);
+                entry_address(&mut self.f, m, probe.entry, e.size);
+                self.f.set(at);
+                return self.replace(Dst::Mem(at, 0, &e.leaves[e.keys..]), vt, args[2]);
+            }
             let (kl, h, probe) = if let Some(probe) = cached {
                 (self.map_key_locals(args[1], &e)?, probe.hash, probe.entry)
             } else {
