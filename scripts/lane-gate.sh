@@ -17,7 +17,7 @@ cd "$root" || exit 2
 logs="$root/target/lane-gate/$step"
 mkdir -p "$logs"
 export RUST_TEST_THREADS=2 CARGO_BUILD_JOBS=2
-cases=binding,assign,field,match,return,for,while,loop,closure,capture,move,borrow,copy,uniq,list,map,string,pointer,box,reference,erased,dyn,suspen,await,provider,using,drop,cell
+cases=binding,assign,field,match,return,for,while,loop,closure,capture,move,borrow,copy,uniq,list,map,string,pointer,box,reference,erased,dyn,suspen,await,provider,using,drop,cell,panic,fact,default,init
 conf=specification_conformance_passes_except_known_failures
 
 run() {
@@ -44,4 +44,7 @@ run hd_driver cargo test -q -p hd_driver --lib --test stages
 run wasm_stages cargo test -q -p hd_wasm_linear --test stages
 run conf_dev env HD_CONFORMANCE_ONLY=$cases cargo test -q -p hd_driver --test conformance $conf -- --exact
 run conf_checked env HD_CONFORMANCE_CHECKED=1 HD_CONFORMANCE_ONLY=$cases cargo test -q -p hd_driver --test conformance $conf -- --exact
+# Release-only ownership work (summaries, interprocedural facts) runs only in the
+# optimized pipeline; #1405's overflow passed the two runs above. Node engine, no wasmtime.
+run conf_opt env HD_CONFORMANCE_PIPELINE=optimized HD_CONFORMANCE_ONLY=$cases cargo test -q -p hd_driver --test conformance $conf -- --exact
 echo PASS
