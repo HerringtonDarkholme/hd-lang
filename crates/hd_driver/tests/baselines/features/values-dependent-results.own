@@ -40,7 +40,7 @@ fn read(u: User) -> usize:
 >   %5 = Scope %4 [] : Ref[string]
 >   %6 = Call std/text/impl string.len[] (%5) : usize
 >   %7 = Drop [%5] : ()
->   %8 = Drop [$1] : ()
+>   %8 = LoanEnd [$1] : ()
 >   %9 = Drop [$0] : ()
 >   %10 = Block %6 : usize
 >   exit sub 0 drops [$0]
@@ -60,8 +60,8 @@ fn read_list(us: List[User]) -> usize:
 >   %5 = Block - : Ref[string]
 >   %6 = Scope %5 [] : Ref[string]
 >   %7 = Call std/text/impl string.len[] (%6) : usize
->   %8 = Drop [%6] : ()
->   %9 = Drop [$1] : ()
+>   %8 = LoanEnd [%6] : ()
+>   %9 = LoanEnd [$1] : ()
 >   %10 = Drop [$0] : ()
 >   %11 = Block %7 : usize
 >   exit sub 0 drops [$0]

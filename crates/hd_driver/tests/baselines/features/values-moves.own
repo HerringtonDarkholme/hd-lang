@@ -131,7 +131,7 @@ fn uniq(xs: UniqList[string], s: string) -> UniqList[string]:
 >   %43 = Break L3 - : never
 >   %44 = Block - : ()
 >   %45 = Scope %44 [] : ()
->   %46 = Drop [$3] : ()
+>   %46 = LoanEnd [$3] : ()
 >   %2 finds [$2] full
     ys
 >   %47 = Read move [$2] : UniqList[string]

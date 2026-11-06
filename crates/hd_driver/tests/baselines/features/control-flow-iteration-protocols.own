@@ -71,7 +71,7 @@ fn user_cursor(words: Words) -> usize:
 >   %30 = Drop [$4] : ()
 >   %31 = Block - : ()
 >   %32 = Loop %31 - : ()
->   %33 = Drop [$3] : ()
+>   %33 = LoanEnd [$3] : ()
 >   %34 = Drop [$2] : ()
 >   %3 finds [$2] full
 >   %32 finds [$2] full
@@ -141,7 +141,7 @@ fn twice(xs: List[string]) -> usize:
 >   %36 = Drop [$4] : ()
 >   %37 = Block - : ()
 >   %38 = Loop %37 - : ()
->   %39 = Drop [$3] : ()
+>   %39 = LoanEnd [$3] : ()
 >   %40 = Drop [$2] : ()
 >   %9 finds [$2] full
 >   %38 finds [$2] full
@@ -180,7 +180,7 @@ fn twice(xs: List[string]) -> usize:
 >   %76 = Drop [$7] : ()
 >   %77 = Block - : ()
 >   %78 = Loop %77 - : ()
->   %79 = Drop [$6] : ()
+>   %79 = LoanEnd [$6] : ()
 >   %80 = Drop [$5] : ()
 >   %49 finds [$5] full
 >   %78 finds [$5] full

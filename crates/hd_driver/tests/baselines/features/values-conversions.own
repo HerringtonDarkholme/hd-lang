@@ -98,7 +98,7 @@ fn local(s: string) -> usize:
     bump(r)
 >   %8 = Read move [$2] : Ref[mut Point]
 >   %9 = Call app/main/bump[] (%8) : ()
->   %10 = Drop [%8] : ()
+>   %10 = LoanEnd [%8] : ()
     view(&origin)
 >   %11 = Read move [$1] : Point
 >   %12 = Store [$3] %11 : ()

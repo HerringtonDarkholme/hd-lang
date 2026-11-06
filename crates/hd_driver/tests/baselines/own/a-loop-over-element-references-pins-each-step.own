@@ -33,7 +33,7 @@ app/main/bump_all
   %22 = Store [$4] %21 : ()
   %24 = Block - : never
   %25 = Match %16 [%24 %20] : ()
-  %26 = Drop [%16] : ()
+  %26 = LoanEnd [%16] : ()
   %27 = Block - : ()
   %28 = Break L0 - : never
   %29 = Block - : ()

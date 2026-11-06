@@ -154,7 +154,7 @@ impl Em<'_, '_, '_> {
                     _ => true,
                 })
             || statements[b + 1..c].iter().any(|&s| {
-                self.b.tags[s as usize] != Tag::Drop
+                !matches!(self.b.tags[s as usize], Tag::Drop | Tag::LoanEnd)
                     || self
                         .b
                         .decode_place(self.b.data[s as usize][0])

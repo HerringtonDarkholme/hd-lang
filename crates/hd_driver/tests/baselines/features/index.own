@@ -160,7 +160,7 @@ fn uniq_read(xs: &UniqList[string], i: usize) -> usize:
 >   %26 = Scope %25 [] : Ref[string]?
 >   %42 = Block - : never
 >   %43 = Match %26 [%42 %29 %30] : usize
->   %44 = Drop [%26] : ()
+>   %44 = LoanEnd [%26] : ()
 >   %45 = Block %43 : usize
         .Some(s) => s.len()
 >   %27 = Read borrow [$2] : Ref[string]
@@ -224,7 +224,7 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
 >   %26 = Scope %25 [] : Ref[mut string]?
 >   %43 = Block - : never
 >   %44 = Match %26 [%43 %29 %31] : ()
->   %45 = Drop [%26] : ()
+>   %45 = LoanEnd [%26] : ()
 >   %46 = Drop [$2] : ()
 >   %47 = Block - : ()
         .Some(r) => *r = s

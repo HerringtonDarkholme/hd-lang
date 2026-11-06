@@ -69,7 +69,7 @@ fn count_long(xs: List[string]) -> usize:
 >   %41 = Drop [$4] : ()
 >   %42 = Block - : ()
 >   %43 = Loop %42 - : ()
->   %44 = Drop [$3] : ()
+>   %44 = LoanEnd [$3] : ()
 >   %45 = Drop [$2] : ()
 >   %14 finds [$2] full
 >   %43 finds [$2] full

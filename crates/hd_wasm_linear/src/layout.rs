@@ -586,6 +586,18 @@ pub enum Walk {
 }
 
 impl Walk {
+    /// Whether the walk counts nothing but thin local references.
+    #[must_use]
+    pub fn only_views(&self) -> bool {
+        match self {
+            Walk::View(_) => true,
+            Walk::Ref(_) | Walk::Known(_) | Walk::Glue => false,
+            Walk::Seq(ws) => ws.iter().all(Walk::only_views),
+            Walk::Switch(_, arms) => arms.iter().flatten().all(Walk::only_views),
+            Walk::Nullable(w) => w.only_views(),
+        }
+    }
+
     /// The walk with each value index `k` replaced by `to(k)`.
     #[must_use]
     pub fn remap(&self, to: &dyn Fn(u32) -> u32) -> Walk {

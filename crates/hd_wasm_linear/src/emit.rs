@@ -1474,7 +1474,7 @@ impl Em<'_, '_, '_> {
         let reads = (tail != NONE && tail != items[k])
             || items[k + 1..]
                 .iter()
-                .any(|&i| self.b.tags[i as usize] != Tag::Drop);
+                .any(|&i| !matches!(self.b.tags[i as usize], Tag::Drop | Tag::LoanEnd));
         reads.then_some(k)
     }
 
@@ -1974,7 +1974,7 @@ impl Em<'_, '_, '_> {
             Tag::LoanEnd if self.owned => {
                 self.borrow_drop(i);
                 self.end_short_loan(i)?;
-                self.own_loan_end(i)?;
+                self.own_loan_end(i);
             }
             Tag::Drop if self.owned => {
                 self.borrow_drop(i);

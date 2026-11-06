@@ -244,7 +244,7 @@ impl Em<'_, '_, '_> {
             }
             if matches!(
                 self.b.tags[j],
-                Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique
+                Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::LoanEnd | Tag::IsUnique
             ) && let Some(l) = self.b.view(self.b.data[j][0]).local()
             {
                 u.of_local[l as usize].push(x);
@@ -282,7 +282,7 @@ impl Em<'_, '_, '_> {
             let dropped = self.b.is_borrow(v)
                 || u.of_value[v as usize]
                     .iter()
-                    .any(|&j| self.b.tags[j as usize] == Tag::Drop);
+                    .any(|&j| matches!(self.b.tags[j as usize], Tag::Drop | Tag::LoanEnd));
             for &j in &u.of_value[v as usize] {
                 let next = self.holder_use(v, j, mutable, dropped, &mut ends, &mut own)?;
                 match next {
@@ -379,7 +379,7 @@ impl Em<'_, '_, '_> {
                 .iter()
                 .any(|&s| (self.topo.first[s as usize]..=s).contains(&j))
         };
-        let dropped = |j: u32| self.b.tags[j as usize] == Tag::Drop;
+        let dropped = |j: u32| matches!(self.b.tags[j as usize], Tag::Drop | Tag::LoanEnd);
         // Every use of a holder but a `Drop` is the match, before it or
         // in its decision.
         let uses = found
@@ -443,7 +443,7 @@ impl Em<'_, '_, '_> {
         let k = j as usize;
         let p = self.b.view(self.b.data[k][0]);
         let next = match self.b.tags[k] {
-            Tag::Drop if p.root == Root::Value(v) && p.whole() => {
+            Tag::Drop | Tag::LoanEnd if p.root == Root::Value(v) && p.whole() => {
                 ends.push(j);
                 Next::Lends
             }
@@ -540,7 +540,7 @@ impl Em<'_, '_, '_> {
             let p = self.b.view(self.b.data[k][0]);
             match self.b.tags[k] {
                 Tag::Store if p.whole() => {}
-                Tag::Drop if p.whole() => ends.push(j),
+                Tag::Drop | Tag::LoanEnd if p.whole() => ends.push(j),
                 Tag::Read | Tag::Store => match self.through_holder(j, mutable, own)? {
                     Next::Value(w) => work.push(w),
                     Next::Local(_) | Next::Lends => {}
@@ -660,6 +660,7 @@ impl Em<'_, '_, '_> {
                     && p.steps(self.b)
                         .all(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)))
             }
+            Tag::LoanEnd => true,
             Tag::Drop => {
                 !on_path(p.root) || self.drops_only_a_ref(p.root) || self.drops_nothing(p.root)
             }

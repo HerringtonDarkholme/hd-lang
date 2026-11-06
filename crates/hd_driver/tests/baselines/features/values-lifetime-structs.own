@@ -73,7 +73,7 @@ fn length(text: string) -> usize:
 >   %8 = Read borrow [$1 .src] : Ref[string]
 >   %9 = Call std/text/impl string.len[] (%8) : usize
 >   %10 = Read copy [$1 .pos] : usize
->   %11 = Drop [$1] : ()
+>   %11 = LoanEnd [$1] : ()
 >   %12 = Prim Add [%9 %10] : usize
 >   %13 = Drop [$0] : ()
 >   exit sub 0 drops [$0]

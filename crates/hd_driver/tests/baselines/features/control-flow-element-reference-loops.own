@@ -36,7 +36,7 @@ fn total_len(xs: List[string]) -> usize:
 >   %20 = Store [$4] %19 : ()
 >   %22 = Block - : never
 >   %23 = Match %12 [%22 %18] : ()
->   %24 = Drop [%12] : ()
+>   %24 = LoanEnd [%12] : ()
 >   %25 = Block - : ()
 >   %26 = Break L0 - : never
 >   %27 = Block - : ()
@@ -84,7 +84,7 @@ fn through_ref(r: &List[string]) -> usize:
 >   %20 = Store [$4] %19 : ()
 >   %22 = Block - : never
 >   %23 = Match %12 [%22 %18] : ()
->   %24 = Drop [%12] : ()
+>   %24 = LoanEnd [%12] : ()
 >   %25 = Block - : ()
 >   %26 = Break L0 - : never
 >   %27 = Block - : ()
@@ -136,7 +136,7 @@ fn shouted(prices: List[string]) -> List[string]:
 >   %22 = Store [$4] %21 : ()
 >   %24 = Block - : never
 >   %25 = Match %15 [%24 %20] : ()
->   %26 = Drop [%15] : ()
+>   %26 = LoanEnd [%15] : ()
 >   %27 = Block - : ()
 >   %28 = Break L0 - : never
 >   %29 = Block - : ()

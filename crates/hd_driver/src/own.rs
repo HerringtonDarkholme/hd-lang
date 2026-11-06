@@ -417,6 +417,17 @@ impl OwnCx for Env<'_> {
         self.is_open(ty)
     }
 
+    fn plain_reference(&self, ty: Ty) -> bool {
+        !self.is_open(ty) && hd_wasm_linear::plain_reference_type(&self.run.pool, self, ty)
+    }
+
+    fn plain_result(&self, callee: &Callee) -> bool {
+        let Callee::Item { def, .. } = callee else {
+            return false;
+        };
+        matches!(self.intrinsic(*def).as_deref(), Some("ptr_ref" | "ptr_mut"))
+    }
+
     fn pass(&self, callee: &Callee, k: usize, n: usize) -> Pass {
         let chosen = self.chosen(callee);
         let callee = &chosen;

@@ -23,7 +23,7 @@ fn bump(mut xs: List[i32], i: usize) -> void:
 >   %1 = IsUnique [$0] : ()
 >   %2 = Ref mut local [$0 [%0]] : Ref[mut i32]
 >   %3 = Call app/main/add_one[] (%2) : ()
->   %4 = Drop [%2] : ()
+>   %4 = LoanEnd [%2] : ()
 >   %5 = Drop [$0] : ()
 >   %6 = Block - : ()
 >   exit sub 0 drops [$0]

@@ -59,6 +59,14 @@ pub fn counted_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
     layout::holds_drop(pool, env, ty) || layout::walk(pool, env, ty).is_some()
 }
 
+/// Whether every count of `ty` is a thin local reference's, which counts
+/// only if it is a representation view, with no `std.rt.Drop` to run.
+#[must_use]
+pub fn plain_reference_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
+    !layout::holds_drop(pool, env, ty)
+        && layout::count_walk(pool, env, ty).is_some_and(|w| w.only_views())
+}
+
 /// Whether ownership must transfer an inline runtime Drop value rather
 /// than lending it to a cold constructor that can only retain references.
 #[must_use]

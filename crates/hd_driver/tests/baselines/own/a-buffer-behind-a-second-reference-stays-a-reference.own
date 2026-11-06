@@ -69,11 +69,11 @@ impl['a] Cursor['a]:
 >   %19 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].as_ref[Slot] (%17) : Ref[Slot]
 >   %41 = Block - : never
 >   %42 = Match %19 [%41 %24 %25] : ()
->   %43 = Drop [%19] : ()
+>   %43 = LoanEnd [%19] : ()
                 .Occupied(found, _) => return .Some(found)
 >   %20 = Read copy [$2] : usize
 >   %21 = NewVariant #1 [%20] : usize?
->   %22 = Drop [%19] : ()
+>   %22 = LoanEnd [%19] : ()
 >   %23 = Return %21 : never
 >   %24 = Block - : never
 >   %26 = Read borrow [*%19] : Slot

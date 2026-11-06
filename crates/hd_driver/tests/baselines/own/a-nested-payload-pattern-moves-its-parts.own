@@ -58,7 +58,7 @@ fn drain(parcels: UniqMap[string, Parcel]) -> usize:
 >   %48 = Drop [$4] : ()
 >   %49 = Block - : ()
 >   %50 = Loop %49 - : ()
->   %51 = Drop [$3] : ()
+>   %51 = LoanEnd [$3] : ()
 >   %52 = Drop [$2] : ()
 >   %9 finds [$2] full
 >   %50 finds [$2] full

@@ -42,7 +42,7 @@ fn rewarded(players: List[Player], best: usize, s: string) -> List[Player]:
 >   %3 = IsUnique [$3] : ()
 >   %4 = Ref mut local [$3 [%2]] : Ref[mut Player]
 >   %5 = Call app/main/reward[] (%4, 10:i32) : ()
->   %6 = Drop [%4] : ()
+>   %6 = LoanEnd [%4] : ()
     out[best].score += 1
 >   %7 = Read copy [$1] : usize
 >   %8 = Read copy [$3 [%7] .score] : i32
@@ -78,7 +78,7 @@ fn by_key(m: Map[string, Player], k: string) -> Map[string, Player]:
 >   %5 = IsUnique [$2] : ()
 >   %6 = Ref mut local [$2 [%4]] : Ref[mut Player]
 >   %7 = Call app/main/reward[] (%6, 10:i32) : ()
->   %8 = Drop [%6] : ()
+>   %8 = LoanEnd [%6] : ()
     out
 >   %9 = Read move [$2] : Map[string, Player]
 >   exit sub 0 drops [$0]

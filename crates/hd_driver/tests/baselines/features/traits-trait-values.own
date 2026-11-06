@@ -119,7 +119,7 @@ fn local_mut(u: User, n: string) -> usize:
 >   %3 = Store [$3] %2 : ()
 >   %4 = Read move [$3] : Ref[mut User]
 >   %5 = Coerce %4 [RefToTraitValue -] : Greet
->   %6 = Drop [%4] : ()
+>   %6 = LoanEnd [%4] : ()
 >   %7 = Block %5 : Greet
 >   %8 = RefDyn %7 : Ref[mut Greet]
 >   %9 = Read borrow [$1] : string

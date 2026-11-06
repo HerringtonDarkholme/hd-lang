@@ -11,7 +11,7 @@ app/main/last_read
   %5 = Prim Add [%4 1:i64] : i64
   %6 = Store [*$1 .n] %5 : ()
   %7 = Read copy [*$1 .n] : i64
-  %8 = Drop [$1] : ()
+  %8 = LoanEnd [$1] : ()
   %9 = Drop [$0] : ()
   %10 = Block %7 : i64
   %2 finds [$0] full

@@ -419,6 +419,7 @@ impl Em<'_, '_, '_> {
             | Tag::RefIdentity
             | Tag::Read
             | Tag::Drop
+            | Tag::LoanEnd
             | Tag::IsUnique => true,
             Tag::Call => Callee::from_words(self.b.record(self.b.data[k][0]))
                 .is_some_and(|callee| !self.input.own_cx.may_write(&callee)),

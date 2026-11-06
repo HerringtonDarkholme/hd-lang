@@ -187,7 +187,7 @@ pub fn main() -> void $ Console:
     println("${trail.depth} ${saved[0]} ${local[0]}")
 >   %36 = Ref local frame [$0 .depth] : Ref[usize]
 >   %37 = Read copy [*%36] : usize
->   %38 = Drop [%36] : ()
+>   %38 = LoanEnd [%36] : ()
 >   %39 = Prim Conv [%37] : u64
 >   %40 = Drop [$0] : ()
 >   %41 = Store [$30] %39 : ()

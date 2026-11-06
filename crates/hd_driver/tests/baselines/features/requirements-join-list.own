@@ -113,7 +113,7 @@ fn all!(keys: List[string]) -> usize:
 >   %67 = Store [$12] %66 : ()
 >   %69 = Block - : never
 >   %70 = Match %59 [%69 %65] : ()
->   %71 = Drop [%59] : ()
+>   %71 = LoanEnd [%59] : ()
 >   %72 = Block - : ()
 >   %73 = Break L1 - : never
 >   %74 = Block - : ()

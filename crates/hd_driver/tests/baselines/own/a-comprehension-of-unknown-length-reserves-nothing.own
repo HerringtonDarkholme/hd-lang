@@ -88,7 +88,7 @@ fn counted(n: usize) -> List[usize]:
 >   %25 = Match %9 [%24 %14 %16] : ()
 >   %26 = Block - : ()
 >   %27 = Loop %26 - : ()
->   %28 = Drop [$3] : ()
+>   %28 = LoanEnd [$3] : ()
 >   %29 = Drop [$2] : ()
 >   %30 = Read move [$1] : mut List[usize]
 >   %31 = Coerce %30 [Weaken -] : List[usize]

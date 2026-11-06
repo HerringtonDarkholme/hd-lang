@@ -155,7 +155,7 @@ fn over_mut(xs: &mut List[string]) -> void:
 >   %22 = Store [$3] %21 : ()
 >   %24 = Block - : never
 >   %25 = Match %15 [%24 %20] : ()
->   %26 = Drop [%15] : ()
+>   %26 = LoanEnd [%15] : ()
 >   %27 = Block - : ()
 >   %28 = Break L0 - : never
 >   %29 = Block - : ()

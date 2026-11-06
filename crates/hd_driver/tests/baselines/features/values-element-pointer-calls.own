@@ -49,7 +49,7 @@ fn walk(node: &Node, sink: &mut dyn Sink) -> void:
 >   %22 = Store [$4] %21 : ()
 >   %24 = Block - : never
 >   %25 = Match %15 [%24 %20] : ()
->   %26 = Drop [%15] : ()
+>   %26 = LoanEnd [%15] : ()
 >   %27 = Block - : ()
 >   %28 = Break L0 - : never
 >   %29 = Block - : ()
@@ -129,7 +129,7 @@ fn save(node: &Node, k: &mut Keeper) -> void:
 >   %18 = Store [$4] %17 : ()
 >   %20 = Block - : never
 >   %21 = Match %11 [%20 %16] : ()
->   %22 = Drop [%11] : ()
+>   %22 = LoanEnd [%11] : ()
 >   %23 = Block - : ()
 >   %24 = Break L0 - : never
 >   %25 = Block - : ()
@@ -163,7 +163,7 @@ pub fn run(root: *Node) -> i64:
 >   %4 = Store [$2] %3 : ()
 >   %5 = Read move [$2] : Ref[mut Total]
 >   %6 = Coerce %5 [RefToTraitValue -] : Sink
->   %7 = Drop [%5] : ()
+>   %7 = LoanEnd [%5] : ()
 >   %8 = Block %6 : Sink
 >   %9 = RefDyn %8 : Ref[mut Sink]
 >   %10 = Call app/main/walk[] (%2, %9) : ()

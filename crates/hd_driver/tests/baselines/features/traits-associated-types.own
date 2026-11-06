@@ -99,7 +99,7 @@ fn read_const(c: Constant) -> usize:
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read move [$1] : Ref[Constant]
 >   %3 = Coerce %2 [RefToTraitValue -] : Supplier
->   %4 = Drop [%2] : ()
+>   %4 = LoanEnd [%2] : ()
 >   %5 = Block %3 : Supplier
 >   %6 = RefDyn %5 : Ref[Supplier]
 >   %7 = Call app/main/read[] (%6) : usize

@@ -1067,7 +1067,7 @@ fn captured_read_args(body: &Body, call: usize) -> u64 {
                 let n = ops.iter().filter(|o| o.value == arg).count();
                 if j == call {
                     seen += n;
-                } else if n != 0 && body.tags[j] != Tag::Drop {
+                } else if n != 0 && !matches!(body.tags[j], Tag::Drop | Tag::LoanEnd) {
                     return false;
                 }
             }

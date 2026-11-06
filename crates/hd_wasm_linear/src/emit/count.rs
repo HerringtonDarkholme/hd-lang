@@ -1286,32 +1286,22 @@ impl Em<'_, '_, '_> {
     /// `LoanEnd` `i`: the holder's reference counts nothing, so only its
     /// locals go, as they do at a `Drop`, and no stale address is left for
     /// a later round or an unwind to test.
-    pub(super) fn own_loan_end(&mut self, i: u32) -> StageResult<()> {
-        let word = self.b.data[i as usize][0];
-        let locals = if word & hd_tir::ir::place::BARE_LOCAL != 0 {
-            let l = (word & !hd_tir::ir::place::BARE_LOCAL) as usize;
-            if self.borrowed.contains(&l) || !self.needs_drop(self.sub(self.b.local_ty[l])) {
-                return Ok(());
-            }
-            self.locals.get(&l).cloned()
-        } else {
-            match self.b.decode_place(word) {
-                Some(hd_tir::ir::Place {
-                    root: hd_tir::ir::PlaceRoot::Value(r),
-                    proj,
-                }) if proj.is_empty() && r.as_inst().is_some() => {
-                    if !self.needs_drop(self.ty(r.0)) {
-                        return Ok(());
-                    }
-                    self.vals.get(&r.0).cloned()
-                }
-                _ => return crate::unsupported("a `LoanEnd` of a part of a value"),
-            }
+    pub(super) fn own_loan_end(&mut self, i: u32) {
+        let p = self.b.view(self.b.data[i as usize][0]);
+        let (t, ls) = match p.root {
+            hd_tir::ir::Root::Local(l) if !self.borrowed.contains(&(l as usize)) => (
+                self.sub(self.b.local_ty[l as usize]),
+                self.locals.get(&(l as usize)),
+            ),
+            hd_tir::ir::Root::Value(v) => (self.ty(v), self.vals.get(&v)),
+            _ => return,
         };
-        for l in locals.unwrap_or_default() {
+        if !self.needs_drop(t) {
+            return;
+        }
+        for l in ls.cloned().unwrap_or_default() {
             self.f.zero(l);
         }
-        Ok(())
     }
 
     /// `IsUnique` `i`: the list's or map's buffer made the place's own

@@ -59,6 +59,7 @@ mod late;
 pub(crate) mod moves;
 mod pairs;
 pub(crate) mod parts;
+mod plain;
 pub mod promote;
 mod reason;
 pub(crate) mod splice;
@@ -126,6 +127,19 @@ pub trait OwnCx {
     /// instance. The default answers no.
     fn thunk_made(&self, ty: Ty) -> bool {
         let _ = ty;
+        false
+    }
+    /// Whether every count `ty` holds is a thin local reference's, which
+    /// counts only if it is a representation view (`own/plain.rs`). The
+    /// default answers no.
+    fn plain_reference(&self, ty: Ty) -> bool {
+        let _ = ty;
+        false
+    }
+    /// Whether `callee`'s reference result is a plain address, no view: a
+    /// pointer's `as_ref` or `as_mut`. The default answers no.
+    fn plain_result(&self, callee: &Callee) -> bool {
+        let _ = callee;
         false
     }
     /// How argument `k` of `n` of a `Call` or `Await` of `callee` is
@@ -754,6 +768,7 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     hoist::run(b, topo, cx, &mut scratch.hoist, edits);
     splice::apply(b, topo, edits)?;
     uncopied(b, cx, &mut scratch.uncopied);
+    plain::loan_ends(b, cx);
     Ok(())
 }
 

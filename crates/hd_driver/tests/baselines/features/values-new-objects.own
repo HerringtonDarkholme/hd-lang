@@ -52,7 +52,7 @@ fn temp_ref(s: string) -> usize:
 >   %15 = Block - : usize
 >   %16 = Scope %15 [] : usize
 >   %17 = Drop [$3] : ()
->   %18 = Drop [$2] : ()
+>   %18 = LoanEnd [$2] : ()
 >   %19 = Drop [$1] : ()
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
@@ -88,7 +88,7 @@ fn new_mut(s: string, t: string) -> usize:
 >   %12 = Block - : usize
 >   %13 = Scope %12 [] : usize
 >   %14 = Drop [$4] : ()
->   %15 = Drop [$3] : ()
+>   %15 = LoanEnd [$3] : ()
 >   %16 = Drop [$2] : ()
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1] writes
@@ -116,7 +116,7 @@ fn field_ref(s: string, t: string) -> usize:
     *q = t
 >   %5 = Read move [$1] : string
 >   %6 = Store [*$3] %5 : ()
->   %7 = Drop [$3] : ()
+>   %7 = LoanEnd [$3] : ()
     p.name.len()
 >   %8 = Read copy [$2 .name] : string
 >   %9 = Drop [$2] : ()

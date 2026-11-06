@@ -124,7 +124,7 @@ fn element_receiver(xs: &mut List[Vec2], i: usize) -> void:
 >   %1 = IsUnique [*$0] : ()
 >   %2 = Ref mut local [*$0 [%0]] : Ref[mut Vec2]
 >   %3 = Call app/main/impl Vec2.shift[] (%2, 1:i64) : ()
->   %4 = Drop [%2] : ()
+>   %4 = LoanEnd [%2] : ()
 >   %5 = Block - : ()
 >   summary kept [] writes
 

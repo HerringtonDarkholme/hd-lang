@@ -166,7 +166,8 @@ fn text_corpus_round_trips_and_verifies() {
 }
 
 /// Tags no valid body holds: a reserved slot (invariant 14), tier 2's
-/// borrow flags (invariant 23), and `LoanEnd`, which no pass writes yet.
+/// borrow flags (invariant 23), and `LoanEnd`, which only the last ownership
+/// pass writes.
 fn reserved(tag: Tag) -> bool {
     matches!(
         tag,

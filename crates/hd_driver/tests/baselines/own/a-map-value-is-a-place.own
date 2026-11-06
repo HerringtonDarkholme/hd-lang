@@ -32,7 +32,7 @@ fn restock(mut shelves: Map[string, Stock], name: string) -> Map[string, Stock]:
 >   %3 = IsUnique [$0] : ()
 >   %4 = Ref mut local [$0 [%2]] : Ref[mut Stock]
 >   %5 = Call app/main/add[] (%4, 1:i32) : ()
->   %6 = Drop [%4] : ()
+>   %6 = LoanEnd [%4] : ()
 >   %13 = Block %12 : Map[string, Stock]
     shelves[name].count = 5
 >   %7 = Read borrow [$0] : Map[string, Stock]

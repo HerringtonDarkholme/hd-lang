@@ -78,7 +78,7 @@ fn storing(xs: List[string]) -> usize:
 >   %3 = IsUnique [$0] : ()
 >   %4 = Ref local [$0 [0:usize]] : Ref[string]
 >   %5 = Call app/main/remember[] (%2, %4) : ()
->   %6 = Drop [%4] : ()
+>   %6 = LoanEnd [%4] : ()
 >   %7 = Drop [%2] : ()
 >   %2 finds [$1] full
     out[0].len()

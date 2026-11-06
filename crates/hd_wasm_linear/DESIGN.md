@@ -1096,7 +1096,9 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   test folds to nothing in a module that makes no view. The ownership
   passes still track a reference as counted, so its `Drop`s stay, and keep
   what it points into alive until its last use (`hd_tir/src/own/frame.rs`,
-  rules 4 and 5). A `&dyn` reference's data address keeps its page-table
+  rules 4 and 5). Its end is a `Drop` where the reference may be a view, and
+  a `LoanEnd`, which only ends its loans, where its origin rules a view out
+  (`hd_tir/src/own/plain.rs`). A `&dyn` reference's data address keeps its page-table
   count. The paragraphs below, from #1320, describe which references
   took a count before this; their loans remain.
 - **References count what they cross** (issue #1320,

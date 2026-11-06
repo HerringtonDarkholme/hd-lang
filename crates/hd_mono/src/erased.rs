@@ -323,7 +323,7 @@ pub fn open_insts(
             Tag::RefDyn | Tag::RefIdentity => continue,
             // A `Drop` stays: an open value's view is one counted address,
             // which the backend releases as it is.
-            Tag::Drop => continue,
+            Tag::Drop | Tag::LoanEnd => continue,
             // A copy of a value (`Read [%v]`, an ownership pass's) stays:
             // an open value's copy counts its view once more.
             Tag::Read if b.value_read(i).is_some() => continue,
