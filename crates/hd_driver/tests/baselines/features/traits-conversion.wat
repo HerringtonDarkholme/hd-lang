@@ -19,8 +19,7 @@
         end
       end
       local.get $s.0
-      local.tee $s.0
-      drop
+      local.set $s.0
       block
         block
           br 0

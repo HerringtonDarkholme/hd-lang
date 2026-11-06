@@ -7,8 +7,6 @@
     ;; 16 |     match u:
       local.get $u.name.0
       local.get $u.name.1
-      local.get $u.tags
-      drop
       local.set $u.name.1
       local.set $u.name.0
       block
@@ -46,8 +44,6 @@
           unreachable
         end
     ;; 13 |         User { name, tags } => name.len() + tags.len()
-        local.get $u.name.0
-        drop
         block
           block
             local.get $u.name.1

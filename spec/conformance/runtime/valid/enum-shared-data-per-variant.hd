@@ -5,6 +5,7 @@
 enum HttpStatus(code: i32, phrase: string):
     Ok -> HttpStatus(200, phrase="OK")
     Moved(target: string) -> HttpStatus(301, phrase="Moved")
+    Busy -> HttpStatus(503, phrase="Busy")
 
 tests:
     use std.testing.assert_equal
@@ -15,3 +16,14 @@ tests:
         assert_equal(first.code, second.code, reason="per-variant code")
         assert_equal(first.phrase, "Moved", reason="per-variant phrase")
         assert_equal(HttpStatus.Ok.code, 200, reason="a payload-free variant reads its data")
+
+    it("constant shared data preserves every column for every tag"):
+        cases := [
+            (HttpStatus.Ok, +200, "OK"),
+            (HttpStatus.Moved(target="/next"), +301, "Moved"),
+            (HttpStatus.Busy, +503, "Busy"),
+        ]
+        for (status, code, phrase) in cases:
+            assert_equal(status.code, code, reason="integer column follows the tag")
+            assert_equal(status.phrase, phrase, reason="string words keep their order")
+            assert_equal(status.phrase.len(), phrase.len(), reason="length column follows the tag")

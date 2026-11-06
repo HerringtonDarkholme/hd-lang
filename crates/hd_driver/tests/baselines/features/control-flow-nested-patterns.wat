@@ -7,8 +7,6 @@
       local.get $s.0
       local.get $s.1
       local.get $s.2
-      local.get $s.3
-      drop
       local.set $s.2
       local.set $s.1
       local.set $s.0
@@ -68,29 +66,22 @@
               if
                 local.get $s.3
                 i32.eqz
-                if
-                  br 2
-                else
-                  br 3
-                end
+                i32.eqz
+                br_if 2
+                br 1
               else
     ;; 18 |         .Line(start = User { name: a }, end = User { name: b }) => a.len() + b.len()
                 local.get $s.0
                 i32.const 1
                 i32.eq
-                if
-                  br 4
-                else
-                  unreachable
-                end
+                br_if 3
+                unreachable
     ;; 16 |         .Dot(User { name, age: 0 }) => name.len()
               end
     ;; 15 |     match s:
               unreachable
             end
     ;; 16 |         .Dot(User { name, age: 0 }) => name.len()
-            local.get $s.1
-            drop
             block
               block
                 local.get $s.2
@@ -102,8 +93,6 @@
             br 2
           end
     ;; 17 |         .Dot(User { name: n }) => n.len() + 1
-          local.get $s.1
-          drop
           block
             block
               local.get $s.2
@@ -119,8 +108,6 @@
           br 1
         end
     ;; 18 |         .Line(start = User { name: a }, end = User { name: b }) => a.len() + b.len()
-        local.get $s.1
-        drop
         block
           block
             local.get $s.2
@@ -128,8 +115,6 @@
             br 0
           end
         end
-        local.get $s.4
-        drop
         block
           block
             local.get $s.5

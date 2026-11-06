@@ -92,8 +92,6 @@
       i32.lt_s
       if
     ;; 20 |         panic("negative: $t")
-        local.get $t.0
-        drop
         block
           block
             local.get $t.1
@@ -164,8 +162,6 @@
         call $rt:release_ref
       end
     ;; 21 |     t.len()
-      local.get $t.0
-      drop
       block
         block
           local.get $t.1

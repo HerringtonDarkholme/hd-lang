@@ -8,8 +8,6 @@
   (func $join2 (param $first.0 i32) (param $first.1 i32) (param $second.0 i32) (param $second.1 i32) (result i32)
     block
     ;; 8 |     first.len() * 3 + second.len()
-      local.get $first.0
-      drop
       block
         block
           local.get $first.1
@@ -21,8 +19,6 @@
       i32.const 3
       i32.mul
       local.set $first.0
-      local.get $second.0
-      drop
       block
         block
           local.get $second.1

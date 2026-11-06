@@ -5,10 +5,6 @@
   (func $describe (param $t.0.0 i32) (param $t.0.1 i32) (param $t.1 i32) (result i32)
     ;; 12 |     match t:
     block
-      local.get $t.0.0
-      local.get $t.0.1
-      drop
-      drop
       block
         block
           br 0
@@ -27,10 +23,6 @@
   (func $rest (param $t.0.0 i32) (param $t.0.1 i32) (param $t.1 i32) (result i32)
     ;; 16 |     let (_, xs...) = t
     block
-      local.get $t.0.0
-      local.get $t.0.1
-      drop
-      drop
       block
         block
           local.get $t.1
@@ -55,8 +47,6 @@
         br 0
       end
     ;; 9 |     a.len() + xs.len()
-      local.get $t.0.0
-      drop
       block
         block
           local.get $t.0.1

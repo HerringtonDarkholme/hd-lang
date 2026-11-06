@@ -122,8 +122,6 @@
     i64.store $heap
     block
     ;; 7 |     "${a}:${n}"
-      local.get $a.0
-      drop
       block
         block
           local.get $a.1

@@ -112,8 +112,6 @@
       end
       block
         block
-          local.get $n
-          drop
           block
             block
               br 0
@@ -287,8 +285,6 @@
       local.set $t1
       block
         block
-          local.get $t1
-          drop
           block
             block
               br 0
@@ -450,8 +446,6 @@
     ;; 30 |     t.size()
       block
         block
-          local.get $t.s.0
-          drop
           block
             block
               local.get $t.s.1
@@ -572,8 +566,6 @@
       local.set $n
       block
         block
-          local.get $n
-          drop
           block
             block
               br 0

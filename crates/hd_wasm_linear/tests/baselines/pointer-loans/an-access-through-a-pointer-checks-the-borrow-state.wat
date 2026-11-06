@@ -137,8 +137,6 @@
   (func $plain (param $p i32)
     ;; 47 |     p.name = "b"
     block
-      i32.const 18 ;; &"b"
-      drop
       local.get $p
       i32.load $heap
       local.get $p
@@ -296,8 +294,6 @@
         call $rt:panic'2
         unreachable
       end
-      i32.const 18 ;; &"b"
-      drop
       local.get $other
       i32.load $heap
       local.get $other

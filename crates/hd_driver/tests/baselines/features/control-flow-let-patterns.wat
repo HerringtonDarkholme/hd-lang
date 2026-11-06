@@ -25,8 +25,6 @@
         br 0
       end
     ;; 26 |     s.len()
-      local.get $o.1
-      drop
       block
         block
           local.get $o.2
@@ -49,8 +47,6 @@
         br 0
       end
     ;; 13 |     name.len() + tags.len()
-      local.get $u.name.0
-      drop
       block
         block
           local.get $u.name.1
@@ -78,8 +74,6 @@
         br 0
       end
     ;; 21 |     a.len() + b.len()
-      local.get $p.0.0
-      drop
       block
         block
           local.get $p.0.1
@@ -87,8 +81,6 @@
           br 0
         end
       end
-      local.get $p.1.0
-      drop
       block
         block
           local.get $p.1.1

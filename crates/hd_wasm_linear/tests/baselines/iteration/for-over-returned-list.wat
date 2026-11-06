@@ -31,7 +31,7 @@
           local.get $word.0
           i32.load $heap offset=20
           local.set $word.1
-          local.set $word.0
+          drop
           local.get $t0
           i32.const 1
           i32.add
@@ -42,8 +42,6 @@
               unreachable
             end
     ;; 8 |         count = count + word.len()
-            local.get $word.0
-            drop
             block
               block
                 local.get $word.1

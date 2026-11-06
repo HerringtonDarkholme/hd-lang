@@ -6,8 +6,6 @@
   (func $select (param $t.0.0 i32) (param $t.0.1 i32) (param $t.1 i32) (result i32)
     block
     ;; 9 |     t._0.len() + t._1.len()
-      local.get $t.0.0
-      drop
       block
         block
           local.get $t.0.1
@@ -80,8 +78,6 @@
   (func $nested (param $t.0.0.0 i32) (param $t.0.0.1 i32) (param $t.0.1.0 i32) (param $t.0.1.1 i32) (param $t.1.0 i32) (param $t.1.1 i32) (result i32)
     block
     ;; 12 |     t._0._1.len()
-      local.get $t.0.1.0
-      drop
       block
         block
           local.get $t.0.1.1

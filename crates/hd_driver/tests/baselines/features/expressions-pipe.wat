@@ -64,8 +64,6 @@
     i64.store $heap
     block
     ;; 15 |     "${label}:${level}"
-      local.get $label.0
-      drop
       block
         block
           local.get $label.1
@@ -319,8 +317,6 @@
   (func $method_slot (param $raw.0 i32) (param $raw.1 i32) (result i32)
     block
     ;; 27 |     raw |> _.len()
-      local.get $raw.0
-      drop
       block
         block
           local.get $raw.1
@@ -476,8 +472,6 @@
   (func $clean (param $raw.0 i32) (param $raw.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     block
     ;; 12 |     "[${raw}]"
-      local.get $raw.0
-      drop
       block
         block
           local.get $raw.1
