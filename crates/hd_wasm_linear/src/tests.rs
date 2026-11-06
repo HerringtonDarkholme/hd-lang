@@ -624,6 +624,61 @@ fn session_base_does_not_assume_future_views_and_cancellation_are_absent() {
     assert_eq!(constants, [0, 1]);
 }
 
+/// A closed program can compare physical addresses directly. A session
+/// must keep canonicalization because a later input can create views.
+#[test]
+fn reference_identity_keeps_view_canonicalization_for_sessions_only() {
+    for session in [false, true] {
+        let mut m = Module::default();
+        let key = Sym::Inst(Hash128(1378));
+        let mut f = m.func("same", vec![Val::I32, Val::I32], vec![Val::I32]);
+        f.get(0);
+        f.helper(Helper::RefAddress);
+        f.get(1);
+        f.helper(Helper::RefAddress);
+        f.op(crate::op::Op::I64Eq);
+        m.define(key.clone(), f);
+        m.export("same", key);
+        let wasm = if session {
+            m.finish_session(true).expect("session").0.wasm
+        } else {
+            m.finish().expect("closed program")
+        };
+        validate(&wasm);
+        let mut index = None;
+        let mut calls = 0;
+        let mut extends = 0;
+        let mut function = 0;
+        for payload in wasmparser::Parser::new(0).parse_all(&wasm) {
+            match payload.expect("payload") {
+                wasmparser::Payload::ExportSection(exports) => {
+                    for export in exports {
+                        let export = export.expect("export");
+                        if export.name == "same" {
+                            index = Some(export.index);
+                        }
+                    }
+                }
+                wasmparser::Payload::CodeSectionEntry(body) => {
+                    if Some(function) == index {
+                        for op in body.get_operators_reader().expect("operators") {
+                            match op.expect("operator") {
+                                wasmparser::Operator::Call { .. } => calls += 1,
+                                wasmparser::Operator::I64ExtendI32U => extends += 1,
+                                _ => {}
+                            }
+                        }
+                    }
+                    function += 1;
+                }
+                _ => {}
+            }
+        }
+        assert_eq!(calls, if session { 2 } else { 0 });
+        assert_eq!(extends, if session { 0 } else { 2 });
+    }
+}
+
 /// An open-world base gives every allocation an exact descriptor alias before
 /// a later input first constructs a weak value. Extensions reuse that alias
 /// and type id, while the next concrete type appends both identities.
