@@ -1,6 +1,6 @@
 # Standard Library For References
 
-Status: accepted 2026-11-01; domain: std and the `for` loop; slices 1-6 built (in-place `retain`/`sort_by`, copying accessors, operators through `&`, borrowing loops, map loops #1348, read traits #1349); slice 7 movers parked (#1350); slice 8 in progress (#1351); slice 9 dropped (#1352: generics stay copyable). It builds on [Non-Copyable Types](NON_COPYABLE.md), ch. 13's
+Status: accepted 2026-11-01; domain: std and the `for` loop; slices 1-6 built (in-place `retain`/`sort_by`, copying accessors, operators through `&`, borrowing loops, map loops #1348, read traits #1349); slice 7 movers parked (#1350); slice 8 built (#1351); slice 9 dropped (#1352: generics stay copyable). It builds on [Non-Copyable Types](NON_COPYABLE.md), ch. 13's
 [Local References](../../spec/lang/13-values-and-references.md#local-references)
 and [Element References](../../spec/lang/13-values-and-references.md#element-references),
 and argument promotion (#1151). Signatures and examples:
