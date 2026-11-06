@@ -51,7 +51,7 @@ pub(crate) mod borrow;
 pub(crate) use borrow::keeps_drops;
 pub mod flow;
 mod frame;
-pub use frame::store_finds_empty;
+pub use frame::{frame_cells, store_finds_empty};
 pub(crate) mod hoist;
 mod insert;
 mod known;
@@ -463,29 +463,29 @@ pub fn kept_args(b: &Body, cx: &dyn OwnCx, out: &mut Vec<(u32, u32)>) {
     out.clear();
     let mut ops = Vec::new();
     for i in 0..b.len() {
-        let tag = b.tags[i];
-        if !matches!(tag, Tag::Call | Tag::CallValue | Tag::CallDyn) {
+        if !matches!(b.tags[i], Tag::Call | Tag::CallValue | Tag::CallDyn) {
             continue;
         }
-        let [a, w] = b.data[i];
-        let callee = (tag == Tag::Call)
-            .then(|| Callee::from_words(b.record(a)))
-            .flatten();
-        let n = b.extra.get(w as usize).copied().unwrap_or(0) as usize;
         operands(b, i, &mut ops);
         for op in &ops {
-            let Role::Arg(k) = op.role else {
-                continue;
-            };
-            let kept = match &callee {
-                Some(c) => cx.keeps(c, k as usize, n.saturating_sub(3)),
-                None => true,
-            };
-            if kept {
+            if let Role::Arg(k) = op.role
+                && keeps_arg(b, cx, i, k)
+            {
                 out.push((u32_of(i), op.value));
             }
         }
     }
+}
+
+/// Whether call `i` (a `Call`, `CallValue` or `CallDyn`) may keep its
+/// argument `k` past it, as [`kept_args`] lists it.
+pub(crate) fn keeps_arg(b: &Body, cx: &dyn OwnCx, i: usize, k: u32) -> bool {
+    let [a, w] = b.data[i];
+    if b.tags[i] != Tag::Call {
+        return true;
+    }
+    let n = b.extra.get(w as usize).copied().unwrap_or(0) as usize;
+    Callee::from_words(b.record(a)).is_none_or(|c| cx.keeps(&c, k as usize, n.saturating_sub(3)))
 }
 
 pub(crate) fn consumes(b: &Body, cx: &dyn OwnCx, i: usize, op: &Operand, owner: u32) -> bool {

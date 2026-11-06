@@ -1,0 +1,39 @@
+# @dump: own
+# @build: v8 release
+# expected: a local a closure shares prints `frame cell` when the closure
+# never leaves the frame: `lent` passes it to `each`, whose release summary
+# lends it, and `listed` keeps it in a local list it calls it from.
+# `returned` returns it, `pushed` stores it through a reference and
+# `captured` copies it into another closure, so their `n` keeps its heap
+# cell (#1399 19a2). Nothing reads the line yet.
+fn each(xs: List[string], f: fn(string) -> void) -> void:
+    for x in xs:
+        f(x)
+
+fn lent(xs: List[string]) -> usize:
+    let n: usize = 0
+    each(xs, fn(x: string) -> void: n += x.len())
+    n
+
+fn returned() -> fn() -> void:
+    let n: usize = 0
+    fn() -> void: n += 1
+
+fn listed() -> usize:
+    let n: usize = 0
+    fs := [fn() -> void: n += 1]
+    fs[0]()
+    n
+
+fn pushed(fs: &mut List[fn() -> void]) -> void:
+    let n: usize = 0
+    fs.push(fn() -> void: n += 1)
+
+fn captured() -> usize:
+    let n: usize = 0
+    inc := fn() -> void: n += 1
+    twice := fn() -> void:
+        inc()
+        inc()
+    twice()
+    n

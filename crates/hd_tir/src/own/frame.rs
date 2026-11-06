@@ -44,6 +44,12 @@
 //!    move pass reads them through [`roots`]). A value such a coercion
 //!    lends stays undropped until the reference's last use (insertion,
 //!    rule 2).
+//! 6. **Frame cells** ([`frame_cells`]). A local a closure of the root
+//!    shares, whose closure never leaves the frame, could live in a frame
+//!    slot: the closure value points into it, and rule 3's escapes apply,
+//!    with a call that may keep its argument, a compiler-supplied call and
+//!    another closure's capture added. The own view prints it; nothing
+//!    reads it yet.
 
 use hd_base::SliceSort as _;
 
@@ -83,6 +89,10 @@ pub(crate) struct Tables {
     /// read through the root still does: an address may become a `Ptr`
     /// and then a reference.
     roots: bool,
+    /// Frame cells ([`frame_cells`]): a closure points into the locals it
+    /// shares, and a call that may keep an argument, an instruction the
+    /// compiler supplies, or another closure's capture lets it escape.
+    cells: bool,
 }
 
 impl Tables {
@@ -144,6 +154,9 @@ impl Tables {
                 Proj::Deref | Proj::Elem(_) if !self.targets.is_empty() => {
                     return Some((lies, held));
                 }
+                // A frame cell's closure may sit in an element: what the
+                // place holds is what it held.
+                Proj::Deref | Proj::Elem(_) if self.cells => return Some((0, held)),
                 Proj::Deref | Proj::Elem(_) => return None,
                 _ => {}
             }
@@ -278,6 +291,88 @@ pub(crate) fn run(
     }
     extra_cell_uses(b, cx, t, |_| true, &mut uses);
     root_uses(b, cx, &mut uses);
+}
+
+/// Frame cells: each local of the root a closure shares (a `Shared`
+/// capture) that could live in a frame slot, as `out`. The closure value
+/// points into the cell, and the cell escapes as a frame candidate's
+/// value does (rule 3), and also when a call that may keep an argument
+/// ([`super::keeps_arg`]) is passed it, an `Intrinsic` or host call reads
+/// it, or another closure captures it. A local some closure copies or
+/// moves, one a closure outside the root shares, or one with a `Ref` that
+/// rule 1 rules out, is none. Nothing reads the answer yet.
+pub fn frame_cells(b: &Body, topo: &Topology, cx: &dyn OwnCx, out: &mut Vec<u32>) {
+    out.clear();
+    let (n, locals) = (b.len(), b.local_ty.len());
+    if (0..n).any(|i| is_suspension(b.tags[i]) && topo.sub[i] == 0) {
+        return;
+    }
+    let mut t = Tables {
+        cells: true,
+        ..Tables::default()
+    };
+    fill(&mut t.bit, locals, 0);
+    fill(&mut t.bad, locals, false);
+    for i in 0..n {
+        match b.tags[i] {
+            Tag::Ref => {
+                if let Some(l) = b.local_in_place(b.data[i][0])
+                    && (b.data[i][1] & crate::ir::ref_word::LOCAL == 0 || topo.sub[i] != 0)
+                {
+                    t.bad[l.idx()] = true;
+                }
+            }
+            Tag::Closure => {
+                for (l, m) in closure_caps(b, i) {
+                    if topo.sub[i] != 0 || *m != crate::ir::CaptureMode::Shared {
+                        t.bad[l.idx()] = true;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    for i in (0..n).filter(|&i| b.tags[i] == Tag::Closure && topo.sub[i] == 0) {
+        for (l, _) in closure_caps(b, i) {
+            if !t.bad[l.idx()] && t.bit[l.idx()] == 0 && t.cands.len() < 64 {
+                t.bit[l.idx()] = 1 << t.cands.len();
+                t.cands.push(l.raw());
+            }
+        }
+    }
+    if t.cands.is_empty() {
+        return;
+    }
+    fill(&mut t.val, n, 0);
+    fill(&mut t.held, locals, 0);
+    fill(&mut t.dep, n, 0);
+    fill(&mut t.ldep, locals, 0);
+    let mut ops = Vec::new();
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for i in 0..n {
+            changed |= step(b, cx, &mut t, &mut ops, i);
+        }
+    }
+    escape_exits(b, false, &mut t, &mut ops);
+    for (k, &l) in t.cands.iter().enumerate() {
+        if t.out & (1 << k) == 0 {
+            out.push(l);
+        }
+    }
+}
+
+/// Closure `i`'s captures: each local and how it is captured.
+fn closure_caps(
+    b: &Body,
+    i: usize,
+) -> impl Iterator<Item = (&hd_base::LocalId, &crate::ir::CaptureMode)> {
+    let rec = b.record(b.data[i][1]);
+    let (start, len) = (rec[0] as usize, rec[1] as usize);
+    b.cap_local[start..start + len]
+        .iter()
+        .zip(&b.cap_mode[start..start + len])
 }
 
 /// Whether `Store` `i`, after insertion, writes a whole local `l` that
@@ -680,7 +775,10 @@ fn step_val(
     let tag = b.tags[i];
     match tag {
         Tag::Ref => {
-            let m = t.place(b, a).map_or(0, |(lies, _)| lies);
+            // A frame cell's reference to an element takes what is there.
+            let m = t
+                .place(b, a)
+                .map_or(0, |(lies, held)| lies | if t.cells { held } else { 0 });
             return grow(&mut t.val[i], m);
         }
         Tag::Coerce if super::lending_coercion(b, cx, i) => {
@@ -725,6 +823,17 @@ fn step_val(
             for c in &b.cap_local[start..start + len] {
                 m |= t.held[c.idx()];
             }
+            if t.cells {
+                // A frame cell's closure captured by another escapes; the
+                // closure points into the cells it shares.
+                let mut cells = 0;
+                for (l, mode) in closure_caps(b, i) {
+                    if *mode == crate::ir::CaptureMode::Shared {
+                        cells |= t.bit[l.idx()];
+                    }
+                }
+                return grow(&mut t.out, m) | grow(&mut t.val[i], cells);
+            }
             // The closure points where the references it captured do; a
             // use that lets it escape lets them escape.
             return grow(&mut t.val[i], m);
@@ -758,11 +867,27 @@ fn step_val(
     if tag == Tag::Return || is_suspension(tag) {
         return grow(&mut t.out, m);
     }
+    let mut changed = false;
+    if t.cells {
+        // What a frame cell's closure is passed to may keep it.
+        for op in ops.iter() {
+            let kept = match (tag, op.role) {
+                (Tag::Intrinsic | Tag::CallHost, _) => true,
+                (Tag::Call | Tag::CallValue | Tag::CallDyn, Role::Arg(k)) => {
+                    super::keeps_arg(b, cx, i, k)
+                }
+                _ => false,
+            };
+            if kept {
+                let m = t.of(op.value);
+                changed |= grow(&mut t.out, m);
+            }
+        }
+    }
     // A call may store what its other arguments point into through a
     // `&mut` of a local whose type holds a reference (`ref.generic.store`,
     // `ref.lifetime.store.call`), so that local holds them: a candidate
     // the reference points into, or the local its place lies in.
-    let mut changed = false;
     if matches!(tag, Tag::Call | Tag::CallValue | Tag::CallDyn) {
         for op in ops.iter() {
             let v = op.value as usize;

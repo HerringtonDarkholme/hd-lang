@@ -51,8 +51,10 @@ pub(super) fn view(p: &super::Program, at: super::Build) -> String {
                 let _ = writeln!(out, "  local {local}");
                 // A value local's reads, each consuming or lending.
                 let uses = format!("uses {id}:");
+                // A shared local that could live in a frame slot.
+                let cell = format!("frame cell [{id}]");
                 for l in own.text.lines().map(str::trim) {
-                    if l.starts_with(&uses) {
+                    if l.starts_with(&uses) || l == cell {
                         let _ = writeln!(out, "    {l}");
                     }
                 }

@@ -79,6 +79,7 @@ fn shared(s: string) -> string:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %0 consume last
 >   local $1 t: string [read assigned captured captured-assigned] place
+>     frame cell [$1]
 >   local $2 add: fn() -> () [:= read assigned] value
 >     uses $2: %9 -> %10 lend last
 >   %0 = Read move [$0] : string

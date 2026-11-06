@@ -8708,10 +8708,13 @@ impl Run<'_> {
         let topo = hd_tir::ir::Topology::new(body);
         // The function values each call may keep (`hd_tir::own::kept_args`).
         let mut kept = Vec::new();
+        // The shared locals that could live in frame slots (`frame_cells`).
+        let mut cells = Vec::new();
         self.with_env(p, |cx| {
             hd_tir::own::values::uses(body, cx, &topo, &classes, &mut uses);
             hd_tir::own::values::mark_last(body, &topo, &mut uses);
             hd_tir::own::kept_args(body, cx, &mut kept);
+            hd_tir::own::frame_cells(body, &topo, cx, &mut cells);
         });
         kept.retain(|&(_, v)| matches!(names.pool.get(body.ty[v as usize]), TyData::Fn { .. }));
         let mut out = String::with_capacity(text.len() + 24 * classes.len());
@@ -8740,6 +8743,9 @@ impl Run<'_> {
                     out.push(' ');
                     out.push_str(&hd_tir::own::values::label(c));
                     out.push('\n');
+                    if cells.contains(&k) {
+                        let _ = writeln!(out, "  frame cell [${k}]");
+                    }
                     if matches!(c, hd_tir::own::values::Local::Value(_)) {
                         out.push_str("  ");
                         out.push_str(&hd_tir::own::values::uses_line(k, &uses));

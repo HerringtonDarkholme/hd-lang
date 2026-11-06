@@ -54,6 +54,7 @@ fn shared_list(s: string) -> usize:
 >   local $0 s: string [param read captured] value
 >     uses $0: entry -> %2 consume, %8 consume last
 >   local $1 xs: List[string] [read assigned captured] place
+>     frame cell [$1]
 >   local $2 add: fn() -> () [:= read assigned] value
 >     uses $2: %9 -> %10 lend, %12 lend last
 >   %0 = NewList - [] : List[string]
@@ -92,6 +93,7 @@ fn copy_shares(s: string) -> usize:
 >   local $0 s: string [param read captured] value
 >     uses $0: entry -> %2 consume, %14 consume last
 >   local $1 n: usize [read assigned captured captured-assigned] place
+>     frame cell [$1]
 >   local $2 inc: fn() -> () [:= read assigned] value
 >     uses $2: %15 -> %16 consume, %18 lend last
 >   local $3 again: fn() -> () [:= read assigned] value

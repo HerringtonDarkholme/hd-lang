@@ -161,6 +161,7 @@ fn fn_mut(xs: List[string]) -> usize:
 >   local $0 xs: List[string] [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 n: usize [read assigned captured captured-assigned] place
+>     frame cell [$1]
 >   local $2 x: string [param read] value
 >     uses $2: entry -> %3 consume last
 >   local $3 self: string [read] value
