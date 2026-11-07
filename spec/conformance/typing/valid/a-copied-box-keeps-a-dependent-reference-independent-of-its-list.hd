@@ -1,0 +1,14 @@
+# test: copying the pointer to a local gives the dependent result its own root
+struct P:
+    name: string
+
+fn name_of(p: &P) -> &string:
+    &p.name
+
+pub fn main() -> void $ Console:
+    let mut ps = [box(P { name: "a${1}" })]
+    p := ps[0]
+    d := name_of(p)
+    ps[0] = box(P { name: "b${2}" })
+    junk := "cccccc${3}"
+    println("${*d} $junk")

@@ -1,0 +1,16 @@
+# test: a dependent local loan protects the pointer slot that keeps its pointee alive
+struct P:
+    name: string
+
+fn name_of(p: &P) -> &string:
+    &p.name
+
+struct H:
+    p: *P
+
+pub fn main() -> void $ Console:
+    let mut h = H { p: box(P { name: "a${1}" }) }
+    d := &h.p.name
+    h = H { p: box(P { name: "b${2}" }) } # diagnostic: conflicting-access
+    junk := "cccccc${3}"
+    println("${*d} $junk")
