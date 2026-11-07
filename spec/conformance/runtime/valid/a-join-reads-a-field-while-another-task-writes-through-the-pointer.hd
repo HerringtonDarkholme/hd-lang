@@ -1,0 +1,21 @@
+# test: a task holds its own copy of a pointer's field while another task writes through the pointer
+# Spec 11 Requirements and Suspension: req.suspend.cold.
+# expect-stdout: n4 m5
+use std.task.join
+use std.time.{Clock, ms, sleep}
+
+struct Note:
+    text: string
+
+fn change!(n: *mut Note) -> string:
+    n.text = "m${5}"
+    "changed"
+
+fn read!(s: string) -> string $ Clock:
+    sleep!(ms(2))
+    s
+
+pub fn main!() -> void $ Console + Clock:
+    n := box::[Note](Note { text: "n${4}" })
+    let (held, _) = join!(read(n.text), change(n))
+    println("$held ${n.text}")

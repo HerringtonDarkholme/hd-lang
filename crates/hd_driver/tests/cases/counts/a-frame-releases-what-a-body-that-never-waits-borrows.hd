@@ -1,0 +1,19 @@
+# @dump: own counts wat
+# @build: std
+# expected: `change` has no suspension point, so its body borrows `n` from the frame and releases nothing. `change.drop` releases `n` outside its test of the exited flag; the cold constructor's `rt:retain_known` is the count it releases.
+use std.task.join
+
+struct Note:
+    text: string
+
+fn change!(n: *mut Note) -> usize:
+    n.text = "m"
+    n.text.len()
+
+fn other!() -> usize:
+    1
+
+pub fn main!() -> void $ Console:
+    n := box::[Note](Note { text: "n" })
+    let (a, _) = join!(change(n), other())
+    println("$a")

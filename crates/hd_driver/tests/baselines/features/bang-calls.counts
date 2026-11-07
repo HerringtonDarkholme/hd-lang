@@ -11,7 +11,7 @@ fn label!(s: string) -> string:
 > app/main/label
 >   release string (cancelled)
 > app/main/label
->   release string (cancelled)
+>   release string (by design)
 >   release counted reference (conservative: frame drop)
 > app/main/label
 >   retain string (stored)

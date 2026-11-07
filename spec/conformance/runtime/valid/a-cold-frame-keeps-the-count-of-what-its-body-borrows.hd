@@ -1,0 +1,43 @@
+# test: a frame holds a count of each argument, which it releases itself when its body never waits and only borrows the argument
+# Spec 11 Requirements and Suspension: req.suspend.cold.
+# expect-stdout: 2
+# expect-stdout: 2 2 2 2 m5
+use std.task.join
+
+struct Note:
+    text: string
+
+struct Pair:
+    n: *mut Note
+    m: i32
+
+fn by_pointer!(n: *mut Note) -> usize:
+    n.text = "m${5}"
+    n.text.len()
+
+fn by_read!(n: *Note) -> usize:
+    n.text.len()
+
+fn by_struct!(p: Pair) -> usize:
+    p.n.text.len()
+
+fn by_ref!(n: &Note) -> usize:
+    n.text.len()
+
+fn by_text!(s: string) -> usize:
+    s.len()
+
+fn other!() -> usize:
+    1
+
+pub fn main!() -> void $ Console:
+    n := box::[Note](Note { text: "n${4}" })
+    let (a, _) = join!(by_pointer(n), other())
+    let (b, _) = join!(by_read(n), other())
+    let (c, _) = join!(by_struct(Pair { n: n, m: 1 }), other())
+    x := Note { text: "x${1}" }
+    let (d, _) = join!(by_ref(&x), other())
+    _ := by_pointer(n)
+    let (e, _) = join!(by_text("t${1}"), other())
+    println("$e")
+    println("$a $b $c $d ${n.text}")

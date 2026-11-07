@@ -10,7 +10,7 @@ fn fetch!(key: string) -> string:
 > app/main/fetch
 >   release string (cancelled)
 > app/main/fetch
->   release string (cancelled)
+>   release string (by design)
 >   release counted reference (conservative: frame drop)
 > app/main/fetch
 >   retain string (stored)

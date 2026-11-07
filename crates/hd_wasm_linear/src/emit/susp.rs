@@ -1294,6 +1294,7 @@ pub(super) fn finish(
         owned.dedup();
         for l in owned {
             if !em.loan_locals.contains_key(&l)
+                && !em.borrowed.contains(&l)
                 && let Some(ls) = em.locals.get(&l)
             {
                 places.push((None, Some(l), ls.clone()));
@@ -1384,6 +1385,25 @@ pub(super) fn finish(
             }
         }
         em.f.op(I::End);
+        // A parameter a body with no suspension point borrows from its
+        // frame (`Em::instance_loans`): the frame's count outlives the body.
+        for &l in plocals {
+            if em.borrowed.contains(&l)
+                && let Some(ls) = em.locals.get(&l).cloned()
+                && let Some(slots) = ls.iter().map(|x| at_of(*x)).collect::<Option<Vec<_>>>()
+            {
+                let mut loaded = Vec::new();
+                for (at, v) in slots {
+                    let x = em.f.local(v);
+                    em.f.get(FRAME);
+                    em.f.op(load_op(v, at));
+                    em.f.set(x);
+                    loaded.push(x);
+                }
+                let t = em.sub(em.b.local_ty[l]);
+                em.because(Reason::ByDesign, |em| em.release_locals(&loaded, t))?;
+            }
+        }
         for d in em
             .susp
             .as_ref()
