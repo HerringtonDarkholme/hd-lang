@@ -1,7 +1,7 @@
 //! Counts made explicit after a result copies borrowed bits.
 //! The result is an owned value; its existing drops still end that owner.
 
-use super::{OwnCx, splice};
+use super::{OwnCx, ref_copy, splice};
 use crate::ir::count::{At, Info, Part};
 use crate::ir::{Body, Callee, Coercion, NONE, Ref, Tag, Topology, u32_of};
 use hd_types::Ty;
@@ -12,8 +12,9 @@ pub(super) fn run(
     topo: &Topology,
     edits: &mut splice::Tables,
 ) -> Result<(), String> {
-    for i in 0..b.len() {
-        if !result(b, cx, i) {
+    let results = results(b, cx, topo);
+    for (i, &retained) in results.iter().enumerate() {
+        if !retained {
             continue;
         }
         let block = topo.blk[i];
@@ -50,7 +51,15 @@ pub(super) fn run(
     Ok(())
 }
 
-pub(crate) fn result(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
+pub(crate) fn results(b: &Body, cx: &dyn OwnCx, topo: &Topology) -> Vec<bool> {
+    let mut out = ref_copy::results(b, cx, topo);
+    for (i, retained) in out.iter_mut().enumerate() {
+        *retained |= result(b, cx, i);
+    }
+    out
+}
+
+fn result(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
     match b.tags.get(i) {
         Some(Tag::Call) => {
             b.ty[i] == Ty::STRING

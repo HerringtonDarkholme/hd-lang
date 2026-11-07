@@ -170,31 +170,32 @@ fn gone!() -> usize $ Clock:
 > app/main/gone
 >   local $0 $ref: string [read assigned captured captured-assigned] place
 >   local $1 n: usize [:= read assigned] value
->     uses $1: %10 -> %19 consume last
+>     uses $1: %11 -> %20 consume last
 >   local $2 count: i64 [read] value
->     uses $2: %11 -> %12 lend last
->   %0 = Retain %20 Cold row #0 : ()
->   %1 = Retain %20 Materialize row #0 : ()
->   %2 = Release %20 FrameDrop row #2 : ()
->   %3 = Release %20 FrameDrop child #2 : ()
+>     uses $2: %12 -> %13 lend last
+>   %0 = Retain %21 Cold row #0 : ()
+>   %1 = Retain %21 Materialize row #0 : ()
+>   %2 = Release %21 FrameDrop row #2 : ()
+>   %3 = Release %21 FrameDrop child #2 : ()
 >   %4 = Call app/main/text[] (1:i32) : string
 >   %5 = Store [$0] %4 : ()
 >   %6 = Ref local [$0] : Counted[string]
->   %7 = Call std/text/impl string.len[] (%6) : usize
->   %8 = Drop [%6] : ()
->   %9 = Drop [$0] : ()
->   %10 = Store [$1] %7 : ()
->   %20 = Block %19 : usize
+>   %7 = Retain %6 Value #0 : ()
+>   %8 = Call std/text/impl string.len[] (%6) : usize
+>   %9 = Drop [%6] : ()
+>   %10 = Drop [$0] : ()
+>   %11 = Store [$1] %8 : ()
+>   %21 = Block %20 : usize
 >   %6 finds [$0] full
     sleep!(ms(1))
->   %11 = Store [$2] 1:i64 : ()
->   %12 = Read copy [$2] : i64
->   %13 = Call std/time/impl Duration.milliseconds[] (%12) : Duration
->   %14 = Break L0 %13 : never
->   %15 = Block - : Duration
->   %16 = Scope %15 [] : Duration
->   %17 = Await std/time/sleep[] (%16) : ()
->   %18 = Release %17 Operation child #2 : ()
+>   %12 = Store [$2] 1:i64 : ()
+>   %13 = Read copy [$2] : i64
+>   %14 = Call std/time/impl Duration.milliseconds[] (%13) : Duration
+>   %15 = Break L0 %14 : never
+>   %16 = Block - : Duration
+>   %17 = Scope %16 [] : Duration
+>   %18 = Await std/time/sleep[] (%17) : ()
+>   %19 = Release %18 Operation child #2 : ()
     n
->   %19 = Read copy [$1] : usize
+>   %20 = Read copy [$1] : usize
 >   summary none

@@ -40,13 +40,13 @@ fn construct(key: string) -> usize:
 fn run_twice!(body: fn!() -> string) -> usize:
 > app/main/run_twice
 >   local $0 body: fn!() -> string [param read] value
->     uses $0: entry -> %3 lend, %14 lend last
+>     uses $0: entry -> %3 lend, %15 lend last
 >   local $1 $ref: string [read assigned captured captured-assigned] place
 >   local $2 $ref: string [read assigned captured captured-assigned] place
->   %0 = Retain %27 Cold local $0 #0 : ()
->   %1 = Retain %27 Entry local $0 #0 : ()
+>   %0 = Retain %29 Cold local $0 #0 : ()
+>   %1 = Retain %29 Entry local $0 #0 : ()
     body!().len() + body!().len()
->   %2 = Release %27 FrameDrop child #2 : ()
+>   %2 = Release %29 FrameDrop child #2 : ()
 >   %3 = Read borrow [$0] : fn!() -> string
 >   %4 = CallValue %3 [] : mut Suspend[string]
 >   %5 = AwaitValue %4 : string
@@ -55,29 +55,31 @@ fn run_twice!(body: fn!() -> string) -> usize:
 >   %8 = Drop [%4] : ()
 >   %9 = Store [$1] %5 : ()
 >   %10 = Ref local [$1] : Counted[string]
->   %11 = Call std/text/impl string.len[] (%10) : usize
->   %12 = Drop [%10] : ()
->   %13 = Drop [$1] : ()
->   %14 = Read move [$0] : fn!() -> string
->   %15 = CallValue %14 [] : mut Suspend[string]
->   %16 = AwaitValue %15 : string
->   %17 = Release %16 Operation child #2 : ()
->   %18 = Retain %16 Operation child #0 : ()
->   %19 = Drop [%15] : ()
->   %20 = Drop [%14] : ()
->   %21 = Store [$2] %16 : ()
->   %22 = Ref local [$2] : Counted[string]
->   %23 = Call std/text/impl string.len[] (%22) : usize
->   %24 = Drop [%22] : ()
->   %25 = Drop [$2] : ()
->   %26 = Prim Add [%11 %23] : usize
->   %27 = Block %26 : usize
+>   %11 = Retain %10 Value #0 : ()
+>   %12 = Call std/text/impl string.len[] (%10) : usize
+>   %13 = Drop [%10] : ()
+>   %14 = Drop [$1] : ()
+>   %15 = Read move [$0] : fn!() -> string
+>   %16 = CallValue %15 [] : mut Suspend[string]
+>   %17 = AwaitValue %16 : string
+>   %18 = Release %17 Operation child #2 : ()
+>   %19 = Retain %17 Operation child #0 : ()
+>   %20 = Drop [%16] : ()
+>   %21 = Drop [%15] : ()
+>   %22 = Store [$2] %17 : ()
+>   %23 = Ref local [$2] : Counted[string]
+>   %24 = Retain %23 Value #0 : ()
+>   %25 = Call std/text/impl string.len[] (%23) : usize
+>   %26 = Drop [%23] : ()
+>   %27 = Drop [$2] : ()
+>   %28 = Prim Add [%12 %25] : usize
+>   %29 = Block %28 : usize
 >   %10 finds [$1] full
->   %22 finds [$2] full
+>   %23 finds [$2] full
 >   exit sub 0 drops [$0]
 >   summary none
 >   unwind %5 drops [%4]
->   unwind %16 drops [%14 %15]
+>   unwind %17 drops [%15 %16]
 
 fn closure_bang!(key: string) -> usize:
 > app/main/closure_bang
@@ -118,15 +120,15 @@ fn stored!(key: string) -> usize:
 >   local $2 loader: fn!(string) -> string [:= read assigned] value
 >     uses $2: %15 -> %16 lend last
 >   local $3 $ref: string [read assigned captured captured-assigned] place
->   %0 = Retain %30 Cold local $0 #0 : ()
->   %1 = Retain %30 Entry local $0 #0 : ()
+>   %0 = Retain %31 Cold local $0 #0 : ()
+>   %1 = Retain %31 Entry local $0 #0 : ()
     loader := fn!(k: string) -> string: fetch!(k)
 >   %2 = Retain %13 Cold local $1 #0 : ()
 >   %3 = Retain %13 Entry local $1 #0 : ()
 >   %4 = Retain %13 Cold row #0 : ()
 >   %5 = Retain %13 Materialize row #0 : ()
 >   %6 = Release %13 FrameDrop row #2 : ()
->   %7 = Release %30 FrameDrop child #2 : ()
+>   %7 = Release %31 FrameDrop child #2 : ()
 >   %8 = Release %13 FrameDrop child #2 : ()
 >   %9 = Read move [$1] : string
 >   %10 = Await app/main/fetch[] (%9) : string
@@ -135,7 +137,7 @@ fn stored!(key: string) -> usize:
 >   %13 = Block %10 : string
 >   %14 = Closure #1 [%0 %0] : fn!(string) -> string
 >   %15 = Store [$2] %14 : ()
->   %30 = Block %27 : usize
+>   %31 = Block %28 : usize
     loader!(key).len()
 >   %16 = Read move [$2] : fn!(string) -> string
 >   %17 = Read move [$0] : string
@@ -148,9 +150,10 @@ fn stored!(key: string) -> usize:
 >   %24 = Drop [%16] : ()
 >   %25 = Store [$3] %19 : ()
 >   %26 = Ref local [$3] : Counted[string]
->   %27 = Call std/text/impl string.len[] (%26) : usize
->   %28 = Drop [%26] : ()
->   %29 = Drop [$3] : ()
+>   %27 = Retain %26 Value #0 : ()
+>   %28 = Call std/text/impl string.len[] (%26) : usize
+>   %29 = Drop [%26] : ()
+>   %30 = Drop [$3] : ()
 >   %26 finds [$3] full
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$1]

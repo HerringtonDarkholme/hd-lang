@@ -1,0 +1,46 @@
+# test: suspending references copy cells but copied captures keep fresh objects
+# expect-stdout: 1
+# expect-stdout: 1
+# expect-stdout: 0
+# expect-stdout: 9
+# expect-stdout: 2
+struct Tally:
+    n: i64
+
+fn bump!(t: &mut Tally) -> void:
+    t.n += 1
+
+fn read!(t: &Tally) -> i64:
+    t.n
+
+fn local!() -> i64:
+    run := fn!() -> i64:
+        let mut tally = Tally { n: 0 }
+        bump!(&mut tally)
+        tally.n
+    run!()
+
+fn shared!() -> i64:
+    let mut tally = Tally { n: 0 }
+    run := fn!() -> void: bump!(&mut tally)
+    run!()
+    tally.n
+
+fn copied!() -> i64:
+    tally := Tally { n: 0 }
+    run := fn!() -> i64: read!(&tally)
+    run!()
+
+fn copy![T](value: &T) -> T:
+    *value
+
+fn generic![T](value: T) -> T:
+    copy!(&value)
+
+pub fn main!() -> void $ Console:
+    println(local!())
+    println(shared!())
+    println(copied!())
+    println(generic!(+9))
+    value := generic!(Tally { n: 2 })
+    println(value.n)

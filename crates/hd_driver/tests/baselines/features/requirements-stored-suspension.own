@@ -72,15 +72,15 @@ fn later!(key: string) -> usize:
 >   local $1 pending: mut Suspend[string] [read assigned] value
 >     uses $1: %6 -> %7 lend last
 >   local $2 $ref: string [read assigned captured captured-assigned] place
->   %0 = Retain %17 Cold local $0 #0 : ()
->   %1 = Retain %17 Entry local $0 #0 : ()
+>   %0 = Retain %18 Cold local $0 #0 : ()
+>   %1 = Retain %18 Entry local $0 #0 : ()
     let mut pending = fetch(key)
->   %2 = Release %17 FrameDrop child #2 : ()
+>   %2 = Release %18 FrameDrop child #2 : ()
 >   %3 = Read move [$0] : string
 >   %4 = Call app/main/fetch[] (%3) : mut Suspend[string]
 >   %5 = Drop [%3] : ()
 >   %6 = Store [$1] %4 : ()
->   %17 = Block %14 : usize
+>   %18 = Block %15 : usize
     pending!().len()
 >   %7 = Read move [$1] : mut Suspend[string]
 >   %8 = AwaitValue %7 : string
@@ -89,9 +89,10 @@ fn later!(key: string) -> usize:
 >   %11 = Drop [%7] : ()
 >   %12 = Store [$2] %8 : ()
 >   %13 = Ref local [$2] : Counted[string]
->   %14 = Call std/text/impl string.len[] (%13) : usize
->   %15 = Drop [%13] : ()
->   %16 = Drop [$2] : ()
+>   %14 = Retain %13 Value #0 : ()
+>   %15 = Call std/text/impl string.len[] (%13) : usize
+>   %16 = Drop [%13] : ()
+>   %17 = Drop [$2] : ()
 >   %13 finds [$2] full
 >   exit sub 0 drops [$0]
 >   summary none
@@ -147,46 +148,47 @@ fn bound!(s: string) -> usize:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %3 consume last
 >   local $1 pending: mut Suspend[usize] [read assigned] value
->     uses $1: %25 -> %26 lend last
+>     uses $1: %26 -> %27 lend last
 >   local $2 provider: Named [read] value
 >     uses $2: %5 -> %6 consume last
 >   local $3 $ref: Named [read assigned captured captured-assigned] place
->   %0 = Retain %31 Cold local $0 #0 : ()
->   %1 = Retain %31 Entry local $0 #0 : ()
+>   %0 = Retain %32 Cold local $0 #0 : ()
+>   %1 = Retain %32 Entry local $0 #0 : ()
     let mut pending: mut Suspend[usize] = $.with(Tag=Named { label: s }):
->   %2 = Release %31 FrameDrop child #2 : ()
+>   %2 = Release %32 FrameDrop child #2 : ()
 >   %3 = Read move [$0] : string
 >   %4 = NewStruct [%3] : Named
 >   %5 = Store [$2] %4 : ()
 >   %6 = Read move [$2] : Named
 >   %7 = Store [$3] %6 : ()
 >   %8 = Ref mut [$3] : Counted[mut Named]
->   %9 = Break L0 %8 : never
->   %10 = Block - : Counted[mut Named]
->   %11 = Scope %10 [] : Counted[mut Named]
->   %12 = Coerce %11 [RefToTraitValue -] : Tag
->   %13 = Retain %12 Value #0 : ()
->   %14 = Block %12 : Tag
->   %15 = RefDyn %14 : Counted[Tag]
->   %16 = Drop [%11] : ()
->   %17 = Coerce %15 [RefAsProvider -] : Tag
->   %18 = Retain %17 Value #0 : ()
->   %19 = Drop [%15] : ()
->   %22 = With [Tag %17] %21 : mut Suspend[usize]
->   %23 = Drop [%17] : ()
->   %24 = Drop [$3] : ()
->   %25 = Store [$1] %22 : ()
->   %31 = Block %27 : usize
+>   %9 = Retain %8 Value #0 : ()
+>   %10 = Break L0 %8 : never
+>   %11 = Block - : Counted[mut Named]
+>   %12 = Scope %11 [] : Counted[mut Named]
+>   %13 = Coerce %12 [RefToTraitValue -] : Tag
+>   %14 = Retain %13 Value #0 : ()
+>   %15 = Block %13 : Tag
+>   %16 = RefDyn %15 : Counted[Tag]
+>   %17 = Drop [%12] : ()
+>   %18 = Coerce %16 [RefAsProvider -] : Tag
+>   %19 = Retain %18 Value #0 : ()
+>   %20 = Drop [%16] : ()
+>   %23 = With [Tag %18] %22 : mut Suspend[usize]
+>   %24 = Drop [%18] : ()
+>   %25 = Drop [$3] : ()
+>   %26 = Store [$1] %23 : ()
+>   %32 = Block %28 : usize
 >   %8 finds [$3] full
         tagged()
->   %20 = Call app/main/tagged[] () : mut Suspend[usize]
->   %21 = Block %20 : mut Suspend[usize]
+>   %21 = Call app/main/tagged[] () : mut Suspend[usize]
+>   %22 = Block %21 : mut Suspend[usize]
     pending!()
->   %26 = Read move [$1] : mut Suspend[usize]
->   %27 = AwaitValue %26 : usize
->   %28 = Release %27 Operation child #2 : ()
->   %29 = Retain %27 Operation child #0 : ()
->   %30 = Drop [%26] : ()
+>   %27 = Read move [$1] : mut Suspend[usize]
+>   %28 = AwaitValue %27 : usize
+>   %29 = Release %28 Operation child #2 : ()
+>   %30 = Retain %28 Operation child #0 : ()
+>   %31 = Drop [%27] : ()
 >   exit sub 0 drops [$0]
 >   summary none
->   unwind %27 drops [%26]
+>   unwind %28 drops [%27]

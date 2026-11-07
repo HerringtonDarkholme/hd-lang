@@ -10,15 +10,15 @@ fn make() -> (fn!(string) -> usize $ Clock):
 >   local $0 text: string [param read captured] place
 >   local $1 count: i64 [read] value
 >     uses $1: %6 -> %7 lend last
->   %0 = Retain %18 Cold local $0 #0 : ()
->   %1 = Retain %18 Entry local $0 #0 : ()
->   %2 = Retain %18 Cold row #0 : ()
->   %3 = Retain %18 Materialize row #0 : ()
->   %4 = Release %18 FrameDrop row #2 : ()
->   %5 = Release %18 FrameDrop child #2 : ()
->   %18 = Block %15 : usize
->   %19 = Closure #1 [%0 %0] : fn!(string) -> usize
->   %20 = Block %19 : fn!(string) -> usize
+>   %0 = Retain %19 Cold local $0 #0 : ()
+>   %1 = Retain %19 Entry local $0 #0 : ()
+>   %2 = Retain %19 Cold row #0 : ()
+>   %3 = Retain %19 Materialize row #0 : ()
+>   %4 = Release %19 FrameDrop row #2 : ()
+>   %5 = Release %19 FrameDrop child #2 : ()
+>   %19 = Block %16 : usize
+>   %20 = Closure #1 [%0 %0] : fn!(string) -> usize
+>   %21 = Block %20 : fn!(string) -> usize
         sleep!(ms(1))
 >   %6 = Store [$1] 1:i64 : ()
 >   %7 = Read copy [$1] : i64
@@ -30,8 +30,9 @@ fn make() -> (fn!(string) -> usize $ Clock):
 >   %13 = Release %12 Operation child #2 : ()
         text.len()
 >   %14 = Ref local [$0] : Counted[string]
->   %15 = Call std/text/impl string.len[] (%14) : usize
->   %16 = Drop [%14] : ()
->   %17 = Drop [$0] : ()
+>   %15 = Retain %14 Value #0 : ()
+>   %16 = Call std/text/impl string.len[] (%14) : usize
+>   %17 = Drop [%14] : ()
+>   %18 = Drop [$0] : ()
 >   exit sub 1 drops [$0]
 >   summary kept [] writes

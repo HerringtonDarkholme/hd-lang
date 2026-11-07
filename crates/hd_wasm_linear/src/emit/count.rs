@@ -686,7 +686,14 @@ impl Em<'_, '_, '_> {
             self.f.set(*l);
         }
         let t = self.ty(i);
-        if !owned && self.counted(t).is_some() && !self.loans.contains(&i) {
+        let stated = self.b.tags[i as usize] == Tag::Ref && self.has_stated_retain(i);
+        let copied = !owned && self.counted(t).is_some() && !self.loans.contains(&i);
+        if stated {
+            assert!(
+                copied,
+                "a stated reference copy disagrees with its result ownership"
+            );
+        } else if copied {
             self.retain_locals(&ls, t)?;
         }
         self.mark_drop_root(super::drop_flags::Root::Value(i), t, true);

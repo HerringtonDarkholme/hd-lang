@@ -23,7 +23,7 @@ fn sized!(u: UniqList[i32]) -> usize $ Clock:
 > std/rt_tests.stage_case/sized
 >   retain counted reference (stored)
     u.len()
->   retain &std.collections.UniqList[i32] (conservative: Ref)
+>   retain &std.collections.UniqList[i32] (stored)
 
 pub fn main!() -> void $ Console + Clock:
     let mut u = UniqList::[i32].new()
@@ -49,4 +49,4 @@ pub fn main!() -> void $ Console + Clock:
 >   retain counted reference (stored)
 >   release counted reference (last use)
     println("$a")
->   retain &usize (conservative: Ref)
+>   retain &usize (stored)

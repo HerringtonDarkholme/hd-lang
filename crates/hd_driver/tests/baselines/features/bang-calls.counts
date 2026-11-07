@@ -23,7 +23,7 @@ fn one!(s: string) -> usize:
 >   release counted reference (last use)
 >   release string (cancelled)
 >   release string (last use)
->   retain &string (conservative: Ref)
+>   retain &string (stored)
 >   release &string (last use)
 >   release counted reference (last use)
 >   release string (last use)
@@ -71,8 +71,8 @@ fn both!(a: string, b: string) -> usize:
 >   retain string (stored)
 >   retain string (stored)
     x.len() + y.len()
->   retain &string (conservative: Ref)
->   retain &string (conservative: Ref)
+>   retain &string (stored)
+>   retain &string (stored)
 
 fn either!(a: string, b: string) -> usize:
     race!(label(a), label(b)).len()
@@ -85,7 +85,7 @@ fn either!(a: string, b: string) -> usize:
 >   release counted reference (last use)
 >   release List[mut Suspend[string]] (cancelled)
 >   release List[mut Suspend[string]] (last use)
->   retain &string (conservative: Ref)
+>   retain &string (stored)
 >   release &string (last use)
 >   release counted reference (last use)
 >   release string (last use)
