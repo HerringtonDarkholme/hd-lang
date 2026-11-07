@@ -544,7 +544,7 @@ impl Tables {
 /// the call returns, and every other use is a `Drop`. Only that call and
 /// the `Ref` reach the local through it, and [`index_writes`] records a
 /// mutable one as a write at both.
-fn lends_once(b: &Body, cx: &dyn OwnCx, counts: &[u32], last: &[u32], i: usize) -> bool {
+pub(super) fn lends_once(b: &Body, cx: &dyn OwnCx, counts: &[u32], last: &[u32], i: usize) -> bool {
     if b.data[i][1] & crate::ir::ref_word::LOCAL == 0 {
         return false;
     }
@@ -1139,7 +1139,7 @@ fn match_reference_read(b: &Body, topo: &Topology, r: usize, nested: bool) -> bo
 /// read (`[%decision as .variant .field]`). That decision read may keep a
 /// `Drop` for an erased instance that makes its value fresh; the payload loan
 /// instead lives on the referenced scrutinee, which the match keeps alive.
-fn flatten_match_reference_reads(b: &mut Body, topo: &Topology) {
+pub(super) fn flatten_match_reference_reads(b: &mut Body, topo: &Topology) {
     let mut changed = Vec::new();
     for r in 0..b.len() {
         if b.tags[r] != Tag::Read

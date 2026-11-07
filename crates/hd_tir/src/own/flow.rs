@@ -192,10 +192,22 @@ pub(crate) trait Backward {
 /// Walks each sub-body of `b` backward, from nothing live at its end, with
 /// the states in `s`.
 pub(crate) fn backward<A: Backward>(b: &Body, topo: &Topology, s: &mut Flow, a: &mut A) {
+    backward_blocks(b, topo, s, a, &b.sub_root);
+}
+
+/// Walks each block of `roots` backward, from nothing live at its end, with
+/// the states in `s`.
+pub(crate) fn backward_blocks<A: Backward>(
+    b: &Body,
+    topo: &Topology,
+    s: &mut Flow,
+    a: &mut A,
+    roots: &[u32],
+) {
     s.reset(b);
     s.arena.free(0);
     let mut walk = Walk { b, topo, s, a };
-    for &root in b.sub_root.iter().filter(|&&r| (r as usize) < b.len()) {
+    for &root in roots.iter().filter(|&&r| (r as usize) < b.len()) {
         let live = walk.s.arena.alloc(None);
         walk.block(root, live);
         walk.s.arena.free(live);
