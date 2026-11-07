@@ -1044,17 +1044,24 @@ fn run_case(
     // Only compiled, content-addressed objects are shared. Fixture files,
     // fetched dependencies and execution state remain private to the case.
     // Cache commands and raw engine comparisons retain fresh object stores.
-    #[cfg(unix)]
     if observations.is_none()
         && !steps
             .iter()
             .any(|step| step.words.first().is_some_and(|word| word == "cache"))
     {
         let objects = root.join("shared-objects");
-        let setup = std::fs::create_dir_all(&objects)
-            .and_then(|()| std::fs::create_dir_all(&cache))
-            .and_then(|()| std::os::unix::fs::symlink(&objects, cache.join("obj")));
+        let setup =
+            std::fs::create_dir_all(&objects).and_then(|()| std::fs::create_dir_all(&cache));
         if let Err(error) = setup {
+            return Verdict::Fail(format!("shared object store: {error}"));
+        }
+        #[cfg(unix)]
+        let linked = std::os::unix::fs::symlink(&objects, cache.join("obj"));
+        // A Windows account without the right to make links keeps a store per case.
+        #[cfg(windows)]
+        let _ = std::os::windows::fs::symlink_dir(&objects, cache.join("obj"));
+        #[cfg(unix)]
+        if let Err(error) = linked {
             return Verdict::Fail(format!("shared object store: {error}"));
         }
     }

@@ -32,20 +32,21 @@ fn normalize_std_lines(text: &str) -> String {
 /// so std is prepared once instead of once per test. A test that reads the store
 /// calls `own_objects` first. A cache that cannot hold the link keeps its own store.
 fn shared_objects<P: AsRef<std::path::Path>>(cache: P) -> P {
-    #[cfg(unix)]
-    {
-        static OBJECTS: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
-        let objects = OBJECTS.get_or_init(|| {
-            let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("hd-shared-objects");
-            let _ = std::fs::remove_dir_all(&dir);
-            std::fs::create_dir_all(&dir).expect("shared object store");
-            dir
-        });
-        let obj = cache.as_ref().join("obj");
-        if std::fs::symlink_metadata(&obj).is_err() {
-            let _ = std::fs::create_dir_all(cache.as_ref());
-            let _ = std::os::unix::fs::symlink(objects, obj);
-        }
+    static OBJECTS: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+    let objects = OBJECTS.get_or_init(|| {
+        let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("hd-shared-objects");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("shared object store");
+        dir
+    });
+    let obj = cache.as_ref().join("obj");
+    if std::fs::symlink_metadata(&obj).is_err() {
+        let _ = std::fs::create_dir_all(cache.as_ref());
+        #[cfg(unix)]
+        let _ = std::os::unix::fs::symlink(objects, obj);
+        // A Windows account without the right to make links keeps its own store.
+        #[cfg(windows)]
+        let _ = std::os::windows::fs::symlink_dir(objects, obj);
     }
     cache
 }
