@@ -88,6 +88,7 @@ fn awaited!(callback: fn() -> i32 $ Tag) -> i32 $ Tag:
 >   exit sub 0 drops [$0]
 >   summary none
 >   unwind %7 drops [%6]
+>   live %7 [%6 $0]
 
 fn empty(callback: fn() -> i32) -> i32:
 > app/main/empty

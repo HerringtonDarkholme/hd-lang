@@ -37,3 +37,4 @@ fn make() -> (fn!(string) -> usize $ Clock):
 >   storage sub 0: $0 cell
 >   storage sub 1: $0 cell
 >   summary kept [] writes
+>   live %12 [%11 $0]

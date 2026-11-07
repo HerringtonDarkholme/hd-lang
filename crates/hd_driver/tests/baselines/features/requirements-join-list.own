@@ -140,4 +140,5 @@ fn all!(keys: List[string]) -> usize:
 >   exit sub 0 drops [$0]
 >   summary none
 >   unwind %48 drops [%47]
+>   live %48 [%47 $0]
 >   loop %42 keeps [$2]

@@ -5,7 +5,7 @@ use std::fmt::Write as _;
 /// (`docs/compiler/tir-v2.md`, "Where and when the passes run"): the
 /// instructions whose source lies inside the subject, by each
 /// instruction's own syntax node, the locals they name, the body's exit
-/// set and where its locals live, the unwind sets of the suspension points shown and the stable
+/// set and where its locals live, the unwind sets and frame rows of the suspension points shown and the stable
 /// list places of the loops shown, after the body's path; then the
 /// build's diagnostics.
 pub(super) fn view(p: &super::Program, at: super::Build) -> String {
@@ -85,10 +85,11 @@ pub(super) fn view(p: &super::Program, at: super::Build) -> String {
         for summary in own.text.lines().filter(|l| l.starts_with("summary ")) {
             let _ = writeln!(out, "  {summary}");
         }
-        // The unwind sets of the suspension points shown.
+        // The unwind sets and frame rows of the suspension points shown.
         for unwind in own.text.lines().map(str::trim) {
             let Some(point) = unwind
                 .strip_prefix("unwind ")
+                .or_else(|| unwind.strip_prefix("live "))
                 .and_then(|r| r.split(' ').next())
             else {
                 continue;

@@ -49,3 +49,4 @@ fn run!(go: bool) -> void:
 >   %8 finds [$1] full
 >   exit sub 0 drops [$1]
 >   storage sub 0: $1 cell
+>   live %4 [%3 $1]

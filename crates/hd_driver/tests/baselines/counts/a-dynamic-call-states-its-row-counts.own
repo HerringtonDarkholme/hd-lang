@@ -53,3 +53,4 @@ fn awaited!(work: &dyn Work) -> i32 $ Tag:
 >   %12 = Block %7 : i32
 >   exit sub 0 drops [$0]
 >   summary none
+>   live %7 [%6 $0]

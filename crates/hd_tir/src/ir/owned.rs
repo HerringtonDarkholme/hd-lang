@@ -646,6 +646,27 @@ fn decided(b: &Body, errs: &mut Vec<VerifyError>) {
             err(errs, at, format!("unwind drop row {k} is out of order"));
         }
     }
+    for (k, (at, words)) in b.live.iter().enumerate() {
+        let point = b.tags.get(*at as usize).is_some_and(|&t| is_suspension(t));
+        let named = words.iter().all(|&w| {
+            let l = w & !crate::ir::place::BARE_LOCAL;
+            if w == l {
+                (w as usize) < b.len()
+            } else {
+                (l as usize) < b.local_ty.len()
+            }
+        });
+        if !point || !named || !words.is_sorted() {
+            err(
+                errs,
+                *at,
+                format!("live row {k} at %{at} is no point's sorted locals and values"),
+            );
+        }
+        if k > 0 && b.live[k - 1].0 >= *at {
+            err(errs, *at, format!("live row {k} is out of order"));
+        }
+    }
     for (k, &(s, l, _)) in b.storage.iter().enumerate() {
         if s.idx() >= b.sub_root.len() || l.idx() >= b.local_ty.len() {
             err(

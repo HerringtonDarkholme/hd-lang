@@ -62,3 +62,4 @@ fn run!(n: i32) -> void:
 >   %18 finds [$1] full
 >   exit sub 0 drops [$1]
 >   storage sub 0: $1 cell
+>   live %7 [%6 $0 $1 $2]

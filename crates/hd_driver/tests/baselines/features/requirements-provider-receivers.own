@@ -136,6 +136,7 @@ fn count_later!(n: i64, wait: mut Suspend[void]) -> void $ Meter:
 >   exit sub 0 drops [$1]
 >   summary none
 >   unwind %29 drops [%28]
+>   live %29 [%16 %28 $1 $2 $3]
 
 pub fn run(n: i64) -> i64:
     counters := box(Counters { calls: 0, total: 0 })

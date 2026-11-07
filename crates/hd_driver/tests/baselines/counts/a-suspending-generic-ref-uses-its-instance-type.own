@@ -13,3 +13,4 @@ app/main/generic
   storage sub 0: $0 cell
   summary none
   unwind %8 drops [%7]
+  live %8 [%7 $0]

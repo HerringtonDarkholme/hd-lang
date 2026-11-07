@@ -96,6 +96,7 @@ fn later!(key: string) -> usize:
 >   storage sub 0: $2 cell
 >   summary none
 >   unwind %8 drops [%7]
+>   live %8 [%7 $0]
 
 fn blocking(key: string) -> usize:
 > app/main/blocking
@@ -191,3 +192,4 @@ fn bound!(s: string) -> usize:
 >   storage sub 0: $3 cell
 >   summary none
 >   unwind %27 drops [%26]
+>   live %27 [%26 $0]

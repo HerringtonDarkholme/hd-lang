@@ -54,6 +54,7 @@ fn run!() -> void:
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 cell
 >   unwind %4 drops [%3]
+>   live %4 [%3 $0]
 
 fn fresh() -> void:
     let mut c = Counter { hits: +0, name: "a" }

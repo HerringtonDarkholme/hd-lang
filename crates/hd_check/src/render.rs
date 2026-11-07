@@ -502,6 +502,17 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
         }
         let _ = writeln!(o, "  unwind %{at} drops [{}]", values.join(" "));
     }
+    // What the frame holds at each suspension point (`Body::live`).
+    for (at, words) in &b.live {
+        let held: Vec<String> = words
+            .iter()
+            .map(|&w| match w & !hd_tir::ir::place::BARE_LOCAL {
+                l if l != w => format!("${l}"),
+                v => format!("%{v}"),
+            })
+            .collect();
+        let _ = writeln!(o, "  live %{at} [{}]", held.join(" "));
+    }
     // Known-null's cells made before use (`Body::full_cells`), per
     // instruction.
     let mut rows = b.full_cells.iter().peekable();

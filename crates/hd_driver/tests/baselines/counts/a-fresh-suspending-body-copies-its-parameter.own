@@ -33,3 +33,4 @@ fn after!(text: string) -> usize $ Clock:
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 cell
 >   summary none
+>   live %12 [%11 $0]

@@ -45,3 +45,4 @@ fn direct!() -> i64:
 >   storage sub 0: $0 cell
 >   summary none
 >   unwind %4 drops [%3]
+>   live %4 [%3 $0]

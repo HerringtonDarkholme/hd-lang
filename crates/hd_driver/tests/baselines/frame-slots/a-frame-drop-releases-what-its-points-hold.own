@@ -148,6 +148,7 @@ fn pause!() -> string $ Clock:
 >   %11 = Release %10 Operation child #2 : ()
 >   %12 = Block "x" : string
 >   summary none
+>   live %10 [%9]
     "x"
 
 fn holds!() -> usize $ Clock:
@@ -166,6 +167,7 @@ fn holds!() -> usize $ Clock:
 >   %10 = Block %7 : usize
 >   summary none
 >   unwind %5 drops [%4]
+>   live %5 [%4]
 
 fn gone!() -> usize $ Clock:
     n := text(1).len()
@@ -201,3 +203,4 @@ fn gone!() -> usize $ Clock:
 >   %19 = Read copy [$1] : usize
 >   storage sub 0: $0 cell
 >   summary none
+>   live %17 [%16 $1]

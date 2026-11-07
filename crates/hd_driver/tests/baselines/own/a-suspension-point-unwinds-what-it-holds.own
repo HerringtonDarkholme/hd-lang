@@ -23,3 +23,4 @@ app/main/run
   exit sub 0 drops [$0 $1 $3 $5]
   storage sub 0: $3 cell, $5 cell
   unwind %21 drops [%20]
+  live %21 [%20 $0 $1 $3 $4 $5]

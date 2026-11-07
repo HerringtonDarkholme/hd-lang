@@ -25,3 +25,4 @@ fn both!(a: mut Suspend[i32], b: mut Suspend[i32]) -> (i32, i32):
 >   exit sub 0 drops [$0 $1]
 >   summary none
 >   unwind %6 drops [%4 %5]
+>   live %6 [%4 %5 $0 $1]

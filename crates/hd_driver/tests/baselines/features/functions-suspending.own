@@ -79,6 +79,8 @@ fn run_twice!(body: fn!() -> string) -> usize:
 >   summary none
 >   unwind %5 drops [%4]
 >   unwind %16 drops [%14 %15]
+>   live %5 [%4 %14 %15 $0]
+>   live %16 [%4 %11 %14 %15 $0]
 
 fn closure_bang!(key: string) -> usize:
 > app/main/closure_bang
@@ -110,6 +112,8 @@ fn closure_bang!(key: string) -> usize:
 >   summary none
 >   unwind %9 drops [%8]
 >   unwind %15 drops [%13]
+>   live %9 [%8 $0]
+>   live %15 [%13 $0]
 
 fn stored!(key: string) -> usize:
 > app/main/stored
@@ -161,3 +165,5 @@ fn stored!(key: string) -> usize:
 >   summary none
 >   unwind %10 drops [%9]
 >   unwind %19 drops [%16 %17 %18]
+>   live %10 [%9 $1]
+>   live %19 [%16 %17 %18 $0]

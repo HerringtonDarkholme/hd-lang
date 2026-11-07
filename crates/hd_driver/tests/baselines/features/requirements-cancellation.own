@@ -61,6 +61,7 @@ fn stop!(key: string) -> bool:
 >   exit sub 0 drops [$0]
 >   summary none
 >   unwind %8 drops [%7]
+>   live %8 [%7 $0]
 
 fn drop_now(key: string) -> void:
 > app/main/drop_now

@@ -30,3 +30,4 @@ app/main/run
   storage sub 0: $0 cell
   summary none
   unwind %10 drops [%8]
+  live %10 [%8 $0]

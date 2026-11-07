@@ -23,6 +23,7 @@ fn read!() -> i32 $ Clock:
 >   %11 = Release %10 Operation child #2 : ()
 >   %12 = Block 7:i32 : i32
 >   summary none
+>   live %10 [%9]
     7
 
 fn stored!() -> i32 $ Clock:
@@ -45,3 +46,4 @@ fn stored!() -> i32 $ Clock:
 >   %10 = Drop [%6] : ()
 >   summary none
 >   unwind %7 drops [%6]
+>   live %7 [%6]

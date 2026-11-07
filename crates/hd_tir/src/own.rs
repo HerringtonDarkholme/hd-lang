@@ -83,6 +83,7 @@ mod ref_copy;
 pub(crate) mod referent;
 pub(crate) mod retains;
 pub use retains::took_source;
+mod live;
 mod self_store;
 pub mod short;
 pub(crate) mod splice;
@@ -757,6 +758,7 @@ pub struct OwnScratch {
     pub(crate) insert: insert::Tables,
     pub(crate) known: known::Tables,
     pub(crate) late: late::Tables,
+    pub(crate) live: flow::Flow,
     pub(crate) moves: moves::Tables,
     pub(crate) splice: splice::Tables,
     pub(crate) values: values::Tables,
@@ -911,6 +913,8 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     scratch.splice.clear();
     counts::run(b, cx, &scratch.topo, &mut scratch.splice)?;
     overwrites::anchor(b);
+    scratch.topo.build(b);
+    live::run(b, &scratch.topo, &mut scratch.live);
     uncopied(b, cx, &mut scratch.uncopied);
     Ok(())
 }

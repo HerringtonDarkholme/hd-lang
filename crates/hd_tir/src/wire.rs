@@ -276,6 +276,7 @@ pub fn write_body(
     if !b.exit_drops.is_empty()
         || !b.storage.is_empty()
         || !b.unwind_drops.is_empty()
+        || !b.live.is_empty()
         || !b.full_cells.is_empty()
         || !b.stable_lists.is_empty()
         || !b.regions.is_empty()
