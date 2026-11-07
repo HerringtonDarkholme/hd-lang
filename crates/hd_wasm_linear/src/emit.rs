@@ -394,6 +394,11 @@ fn body_func<'a>(
     } else {
         hd_base::HashSet::default()
     };
+    let source_entry = em.counting
+        && !by_type
+        && closure.is_none()
+        && input.env.suspends(item)
+        && em.source_parameters(plocals.len());
     if em.counting {
         for (l, ls) in &held {
             // A parameter still holds its value until it moves into its
@@ -440,7 +445,18 @@ fn body_func<'a>(
                     continue;
                 }
                 if !crate::layout::holds_drop(em.pool(), em.env(), t) {
-                    em.count_locals(ls, t, true)?;
+                    let copy = if source_entry {
+                        em.stated_count(
+                            Tag::Retain,
+                            CountAt::Entry,
+                            CountPart::Local(u32::try_from(*l).expect("local")),
+                        )
+                    } else {
+                        Some(Reason::Conservative("entry"))
+                    };
+                    if let Some(reason) = copy {
+                        em.because(reason, |em| em.count_locals(ls, t, true))?;
+                    }
                 }
             } else if em.borrowed.contains(l) || lent_caps.contains(l) {
                 em.borrowed.insert(*l);

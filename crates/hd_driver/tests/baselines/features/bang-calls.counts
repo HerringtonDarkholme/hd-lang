@@ -19,7 +19,7 @@ fn label!(s: string) -> string:
 fn one!(s: string) -> usize:
     label!(s).len()
 > app/main/one
->   retain string (conservative: entry)
+>   retain string (stored)
 >   release counted reference (conservative: Await)
 >   release counted reference (conservative: Await)
 >   release string (cancelled)
@@ -38,8 +38,8 @@ fn one!(s: string) -> usize:
 fn both!(a: string, b: string) -> usize:
     let (x, y) = join!(label(a), label(b))
 > app/main/both
->   retain string (conservative: entry)
->   retain string (conservative: entry)
+>   retain string (stored)
+>   retain string (stored)
 >   release counted reference (conservative: AwaitAll)
 >   release string (conservative: AwaitAll)
 >   release string (conservative: AwaitAll)
@@ -79,8 +79,8 @@ fn both!(a: string, b: string) -> usize:
 fn either!(a: string, b: string) -> usize:
     race!(label(a), label(b)).len()
 > app/main/either
->   retain string (conservative: entry)
->   retain string (conservative: entry)
+>   retain string (stored)
+>   retain string (stored)
 >   release string (last use)
 >   release string (last use)
 >   release counted reference (conservative: Await)

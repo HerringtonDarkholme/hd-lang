@@ -43,7 +43,7 @@ fn tagged!() -> usize $ Tag:
 fn later!(key: string) -> usize:
     let mut pending = fetch(key)
 > app/main/later
->   retain string (conservative: entry)
+>   retain string (stored)
 >   release string (last use)
 >   release Suspend[string] (last use)
 >   release &string (last use)
@@ -79,7 +79,7 @@ fn discard(key: string) -> usize:
 fn bound!(s: string) -> usize:
     let mut pending: mut Suspend[usize] = $.with(Tag=Named { label: s }):
 > app/main/bound
->   retain string (conservative: entry)
+>   retain string (stored)
 >   retain &mut app.main.Named (conservative: Ref)
 >   retain app.main.Tag (stored)
 >   release &mut app.main.Named (last use)

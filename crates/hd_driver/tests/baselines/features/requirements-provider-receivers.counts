@@ -25,7 +25,7 @@ fn count(n: i64) -> void $ Meter:
 fn count_later!(n: i64, wait: mut Suspend[void]) -> void $ Meter:
     for i in 0..n:
 > app/main/count_later
->   retain Suspend[()] (conservative: entry)
+>   retain Suspend[()] (stored)
 >   release Suspend[()] (last use)
 >   release Suspend[()] (last use)
 >   release Suspend[()] (last use)

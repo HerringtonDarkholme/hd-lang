@@ -1397,17 +1397,7 @@ pub(super) fn finish(
     // keeps it.
     // A declared source ABI states argument and requirement-row copies.
     // Lifted closures and other generated ABIs remain separate kinds.
-    let source = em.counting
-        && closure.is_none()
-        && em.sub_id == 0
-        && matches!(
-            em.b.kind,
-            hd_tir::ir::BodyKind::Fn | hd_tir::ir::BodyKind::DeriveInstance
-        )
-        && em
-            .env()
-            .params(em.item)
-            .is_some_and(|p| p.len() == plocals.len());
+    let source = em.counting && closure.is_none() && em.source_parameters(plocals.len());
     if em.counting {
         for &l in plocals {
             let ls: Vec<u32> = em.locals[&l].iter().map(|x| x - 1).collect();

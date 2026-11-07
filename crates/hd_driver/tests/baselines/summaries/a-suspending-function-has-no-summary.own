@@ -11,10 +11,11 @@ fn save!(m: Member) -> void:
 > app/main/save
 >   local $0 m: Member [param] value
 >     uses $0: none
->   %0 = Retain %2 Cold local $0 #0 : ()
+>   %0 = Retain %3 Cold local $0 #0 : ()
+>   %1 = Retain %3 Entry local $0 #0 : ()
     pass
->   %1 = Drop [$0] : ()
->   %2 = Block - : ()
+>   %2 = Drop [$0] : ()
+>   %3 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
 
