@@ -19,7 +19,7 @@ fn through_reference(bag: &Bag) -> usize:
 > std/rt_tests.stage_case/through_reference
 >   local $0 bag: Ref[Bag] [param read] value
 >     uses $0: entry -> %0 lend last
->   %0 = Ref lent local [*$0 .buffer] : Ref[Buffer[i32]]
+>   %0 = Ref local [*$0 .buffer] : Ref[Buffer[i32]]
 >   %1 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].capacity[i32] (%0) : usize
 >   %2 = Drop [%0] : ()
 >   %3 = Block %1 : usize

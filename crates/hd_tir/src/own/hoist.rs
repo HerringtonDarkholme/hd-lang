@@ -1265,7 +1265,7 @@ fn elem_ref(t: &Tables, x: u32, w: u32, lp: u32) -> bool {
 /// Whether `Ref` word `w` makes a plain shared local reference: one with
 /// none of the marks that give it a count, a frame slot or a pin of its own.
 pub(crate) fn lent_ref_word(w: u32) -> bool {
-    let marks = ref_word::MUT | ref_word::TAKES | ref_word::LENT | ref_word::FRAME | ref_word::PINS;
+    let marks = ref_word::MUT | ref_word::TAKES | ref_word::FRAME | ref_word::PINS;
     w & ref_word::LOCAL != 0 && w & marks == 0
 }
 

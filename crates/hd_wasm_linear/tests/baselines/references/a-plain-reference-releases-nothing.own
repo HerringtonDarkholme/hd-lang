@@ -31,7 +31,7 @@ fn set(xs: &mut UniqList[i32], i: usize, v: i32) -> void:
 >   %6 = Prim Ge [%4 %5] : bool
 >   %7 = NewVariant #0 [] : Ref[mut i32]?
 >   %8 = Block %7 : Ref[mut i32]?
->   %9 = Ref lent local [*$4 .buffer] : Ref[Buffer[i32]]
+>   %9 = Ref local [*$4 .buffer] : Ref[Buffer[i32]]
 >   %10 = Read copy [$5] : usize
 >   %11 = Store [$7] %10 : ()
 >   %12 = Read copy [*%9 .address] : usize

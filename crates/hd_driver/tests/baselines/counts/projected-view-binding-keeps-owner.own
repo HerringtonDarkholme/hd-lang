@@ -6,7 +6,7 @@ app/main/project
     uses $1: entry -> %2 lend last
   local $2 value: Ref[usize] [read] value
     uses $2: %1 -> %3 lend last
-  %0 = Ref lent local [*$0 .id] : Ref[usize]
+  %0 = Ref local [*$0 .id] : Ref[usize]
   %1 = Store [$2] %0 : ()
   %2 = Read borrow [$1] : fn(Ref[usize]) -> usize
   %3 = Read borrow [$2] : Ref[usize]

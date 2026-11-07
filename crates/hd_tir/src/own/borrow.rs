@@ -94,13 +94,6 @@
 //! count is then released once at the exit (§23.31's parameter loans), not
 //! after its last read, and a read of it is not cut short by its own drop.
 //!
-//! A **lent reference** (`ref_word::LENT`) is a `Ref` of a field of what
-//! such a parameter refers to (`[*$p .f]`, or through a borrowed read of
-//! all of `$p` or a binding local that holds one) whose every use lends:
-//! it points into the block the caller's reference keeps alive for the
-//! call, so it takes no count; its `Drop`s stay for an instance whose
-//! reference view makes the referent fresh.
-//!
 //! The decisions run forward first, for source forms whose inner binding
 //! precedes the outer one (a match arm), then backward, for bottom-up
 //! inlined copies whose outer binding precedes the inner one. A decided
@@ -715,7 +708,6 @@ fn run_once(
         return false;
     }
     flatten_match_reference_reads(b, topo);
-    lent_refs(b, cx, t);
     if t.unowned.iter().any(|&u| u) {
         let unowned = &t.unowned;
         b.exit_drops.retain(|(_, l)| !unowned[l.idx()]);
@@ -1498,85 +1490,6 @@ pub(crate) fn kept(b: &Body, cx: &dyn OwnCx, t: &Tables) -> Option<(u64, u64)> {
         }
     }
     Some((kept, borrows))
-}
-
-/// The `Ref`s of a field of what a lent parameter refers to, which take no
-/// count (`ref_word::LENT`): `[*$p .f ...]`, or `[*%v .f ...]` with `%v`
-/// a borrowed read of all of `$p`, where `$p` is a parameter the body owns
-/// none of ([`lent_params`]) and never stores, with only field steps after
-/// the dereference, so the reference points into the block the caller's
-/// reference keeps alive for the whole call; and every use of the
-/// reference lends. A stored reference also needs a binding local whose
-/// reads only lend, and a local-reference parameter: a by-value parent
-/// may transfer its count before the binding's last use. Its `Drop`s stay:
-/// where an instance's reference view makes the referent fresh, the
-/// reference holds that value's count, and the drop releases it (the
-/// backend's flag, `Em::view_loans`).
-fn lent_refs(b: &mut Body, cx: &dyn OwnCx, t: &Tables) {
-    let params = b
-        .local_flags
-        .iter()
-        .filter(|&&f| f & local_flags::PARAM != 0)
-        .count();
-    for r in 0..b.len() {
-        let [a, w] = b.data[r];
-        if b.tags[r] != Tag::Ref || w & crate::ir::ref_word::TAKES != 0 || t.keeps[r] {
-            continue;
-        }
-        if t.stored[r] != NONE {
-            let Some(local) = binding(b, t, t.stored[r]) else {
-                continue;
-            };
-            // Inlining binds a callee's reference parameter to the field
-            // loan. A local used only through its referent owns no part
-            // of the caller's block, just as the direct argument does.
-            if t.kept_read[local as usize] != 0 {
-                continue;
-            }
-        }
-        let p = b.view(a);
-        let mut steps = p.steps(b);
-        if steps.next() != Some(Proj::Deref) {
-            continue;
-        }
-        let fields = steps.all(|s| matches!(s, Proj::Field(_)));
-        let mut param = match p.root {
-            Root::Local(l) => Some(l),
-            Root::Value(v) if b.is_borrow(v) => b.local_read(v as usize).map(hd_base::LocalId::raw),
-            _ => None,
-        };
-        // A binding local holds the parameter's reference it borrows (an
-        // inlined `&self` copy's receiver).
-        for _ in 0..DEPTH {
-            let Some(l) = param.map(|l| l as usize) else {
-                break;
-            };
-            if t.holds[l] == NONE || t.stores[l] != 1 {
-                break;
-            }
-            param = b.local_read(t.holds[l] as usize).map(hd_base::LocalId::raw);
-        }
-        if fields
-            && let Some(p) = param
-            && t.unowned[p as usize]
-            && t.stores[p as usize] == 0
-            && b.local_flags[p as usize] & local_flags::PARAM != 0
-        {
-            if t.stored[r] != NONE {
-                let index = b.local_flags[..p as usize]
-                    .iter()
-                    .filter(|&&f| f & local_flags::PARAM != 0)
-                    .count();
-                // A local reference's caller keeps its parent alive for
-                // the whole call. A by-value counted parameter may hand
-                // its last count to a nested call before this loan ends.
-                if !cx.local_ref_param(b.item, index, params) {
-                    continue;
-                }
-            }
-            b.data[r][1] |= crate::ir::ref_word::LENT;
-        }
-    }
 }
 
 /// Exclusive mode: the calls that receive a parameter's reference (a

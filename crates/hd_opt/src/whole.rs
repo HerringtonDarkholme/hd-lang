@@ -92,7 +92,7 @@ impl Scan<'_> {
         }
         for (i, (&tag, &[place, word])) in b.tags.iter().zip(&b.data).enumerate() {
             if tag != Tag::Ref
-                || word & (ref_word::LOCAL | ref_word::LENT) != 0
+                || word & ref_word::LOCAL != 0
                 || self
                     .layout
                     .mutable_counted_ref_target(self.sub(b.ty[i]))

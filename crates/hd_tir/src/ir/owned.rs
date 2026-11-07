@@ -100,7 +100,6 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     };
     decided(b, &mut errs);
     takes_outside_suspension(b, &topo, &mut errs);
-    lent_refs(b, &mut errs);
     change_places(b, &topo, &mut errs);
     hoisted(b, &topo, own, &mut errs);
     // A store into a field path that is all of its local refills it.
@@ -214,89 +213,6 @@ fn takes_outside_suspension(b: &Body, topo: &Topology, errs: &mut Vec<VerifyErro
                 errs,
                 u32_of(i),
                 "a `Ref` takes a cell's count in a sub-body with a suspension point".into(),
-            );
-        }
-    }
-}
-
-/// A lent `Ref` (`ref_word::LENT`) points into what a parameter the body
-/// owns none of refers to: its place is a dereference of such a parameter
-/// (`[*$p ...]`, of a borrowed read of all of `$p`, or of a binding local
-/// stored once with such a read, in turn) followed by fields
-/// only, and the body never stores into `$p` itself. The caller keeps that
-/// referent's block alive for the whole call, so the reference needs no
-/// count of its own.
-fn lent_refs(b: &Body, errs: &mut Vec<VerifyError>) {
-    let lent = |i: usize| b.tags[i] == Tag::Ref && b.data[i][1] & super::ref_word::LENT != 0;
-    if !(0..b.len()).any(lent) {
-        return;
-    }
-    let mut stored = vec![false; b.local_ty.len()];
-    for i in 0..b.len() {
-        if matches!(b.tags[i], Tag::Store | Tag::Ref)
-            && let Some(l) = b.local_in_place(b.data[i][0])
-            && let Some(x) = stored.get_mut(l.idx())
-        {
-            *x = true;
-        }
-    }
-    // A binding local, stored once with a borrow, and the read it holds.
-    let mut fills = vec![0u32; b.local_ty.len()];
-    let mut held = vec![NONE; b.local_ty.len()];
-    for i in (0..b.len()).filter(|&i| b.tags[i] == Tag::Store) {
-        if let Some(l) = b.local_in_place(b.data[i][0]) {
-            fills[l.idx()] += 1;
-            if b.view(b.data[i][0]).whole()
-                && let Some(r) = b.loan_read(b.data[i][1])
-            {
-                held[l.idx()] = r;
-            }
-        }
-    }
-    let param = |l: usize| {
-        l < b.local_ty.len()
-            && b.local_flags[l] & super::local_flags::PARAM != 0
-            && !stored[l]
-            && !b.exit_drops.iter().any(|&(_, x)| x.idx() == l)
-    };
-    // Such a parameter, or a binding local that holds a borrow of all of
-    // one (an inlined `&self` copy's receiver).
-    let unowned = |mut l: usize| {
-        for _ in 0..8 {
-            if param(l) {
-                return true;
-            }
-            match held.get(l).copied() {
-                Some(r) if r != NONE && fills[l] == 1 => match b.local_read(r as usize) {
-                    Some(m) => l = m.idx(),
-                    None => return false,
-                },
-                _ => return false,
-            }
-        }
-        false
-    };
-    for i in (0..b.len()).filter(|&i| lent(i)) {
-        let ok = b.decode_place(b.data[i][0]).is_some_and(|p| {
-            let fields = match p.proj.split_first() {
-                Some((Proj::Deref, rest)) => rest.iter().all(|s| matches!(s, Proj::Field(_))),
-                _ => false,
-            };
-            let param = match p.root {
-                PlaceRoot::Local(l) => unowned(l.idx()),
-                PlaceRoot::Value(v) if b.is_borrow(v.0) => {
-                    let w = b.data[v.0 as usize][0];
-                    w & place::BARE_LOCAL != 0 && unowned((w & !place::BARE_LOCAL) as usize)
-                }
-                _ => false,
-            };
-            fields && param
-        });
-        if !ok {
-            err(
-                errs,
-                u32_of(i),
-                "a lent `Ref` that is no field of what a lent parameter refers to".into(),
             );
         }
     }

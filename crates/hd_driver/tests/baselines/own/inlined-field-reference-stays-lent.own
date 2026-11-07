@@ -27,7 +27,7 @@ fn forward(point: &mut Point) -> void:
 >     uses $0: entry -> %0 lend last
 >   local $1 target: Ref[mut i32] [read] value
 >     uses $1: %1 -> %2 lend, %4 lend last
->   %0 = Ref lent mut local [*$0 .x] : Ref[mut i32]
+>   %0 = Ref mut local [*$0 .x] : Ref[mut i32]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read copy [*$1] : i32
 >   %3 = Prim Add [%2 1:i32] : i32
@@ -51,7 +51,7 @@ fn exercise(point: &mut Point) -> void:
 >     uses $2: %3 -> %4 lend, %6 lend last
 >   %0 = Read borrow [$0] : Ref[mut Point]
 >   %1 = Store [$1] %0 : ()
->   %2 = Ref lent mut local [*$1 .x] : Ref[mut i32]
+>   %2 = Ref mut local [*$1 .x] : Ref[mut i32]
 >   %3 = Store [$2] %2 : ()
 >   %4 = Read copy [*$2] : i32
 >   %5 = Prim Add [%4 1:i32] : i32
@@ -144,7 +144,7 @@ fn recursive_borrowed(point: &Owner, depth: usize) -> usize:
 >     uses $2: %1 -> %14 lend last
 >   local $3 below: usize [:= read assigned] value
 >     uses $3: %13 -> %17 lend last
->   %0 = Ref lent local [*$0 .value] : Ref[string]
+>   %0 = Ref local [*$0 .value] : Ref[string]
 >   %1 = Store [$2] %0 : ()
 >   %19 = Block %18 : usize
     below := if depth == 0: 0 else: recursive_borrowed(point, depth - 1)

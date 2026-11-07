@@ -136,7 +136,7 @@ fn uniq_read(xs: &UniqList[string], i: usize) -> usize:
 >   %6 = Prim Ge [%4 %5] : bool
 >   %7 = NewVariant #0 [] : Ref[string]?
 >   %8 = Block %7 : Ref[string]?
->   %9 = Ref lent local [*$3 .buffer] : Ref[Buffer[string]]
+>   %9 = Ref local [*$3 .buffer] : Ref[Buffer[string]]
 >   %10 = Read copy [$4] : usize
 >   %11 = Store [$6] %10 : ()
 >   %12 = Read copy [*%9 .address] : usize
@@ -200,7 +200,7 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
 >   %6 = Prim Ge [%4 %5] : bool
 >   %7 = NewVariant #0 [] : Ref[mut string]?
 >   %8 = Block %7 : Ref[mut string]?
->   %9 = Ref lent local [*$4 .buffer] : Ref[Buffer[string]]
+>   %9 = Ref local [*$4 .buffer] : Ref[Buffer[string]]
 >   %10 = Read copy [$5] : usize
 >   %11 = Store [$7] %10 : ()
 >   %12 = Read copy [*%9 .address] : usize

@@ -1,7 +1,7 @@
 # @dump: own counts wat
 # @build: v8 release
 # A reader too large to promote keeps its reference. The stored field
-# loan remains lent when the copy uses its evaluated argument (#1346).
+# loan takes no count when the copy uses its evaluated argument (#1346).
 use std.annotation.inline
 use std.collections.UniqList
 

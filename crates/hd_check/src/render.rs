@@ -332,7 +332,6 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
                 Tag::Ref => {
                     let words = [
                         (hd_tir::ir::ref_word::TAKES, "take"),
-                        (hd_tir::ir::ref_word::LENT, "lent"),
                         (hd_tir::ir::ref_word::MUT, "mut"),
                         (hd_tir::ir::ref_word::LOCAL, "local"),
                         (hd_tir::ir::ref_word::FRAME, "frame"),

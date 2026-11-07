@@ -37,7 +37,7 @@ impl Display for YamlError:
 >     uses $9: %4 -> %5 consume last
 >   local $10 value: i64 [read] value
 >     uses $10: %6 -> %7 lend, %10 lend last
->   %0 = Ref lent local [*$0 .line] : Ref[i64]
+>   %0 = Ref local [*$0 .line] : Ref[i64]
 >   %1 = Read copy [*%0] : i64
 >   %2 = Drop [%0] : ()
 >   %3 = Prim Conv [%1] : i64

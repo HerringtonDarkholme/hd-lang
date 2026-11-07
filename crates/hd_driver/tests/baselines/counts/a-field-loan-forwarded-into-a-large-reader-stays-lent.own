@@ -2,7 +2,7 @@
 # @dump: own counts wat
 # @build: v8 release
 # A reader too large to promote keeps its reference. The stored field
-# loan remains lent when the copy uses its evaluated argument (#1346).
+# loan takes no count when the copy uses its evaluated argument (#1346).
 use std.annotation.inline
 use std.collections.UniqList
 
@@ -51,7 +51,7 @@ fn total(owner: &Owner, depth: usize) -> usize:
 >     uses $3: %13 -> %28 lend last
 >   local $5 self: string [read] value
 >     uses $5: %16 -> %17 lend last
->   %0 = Ref lent local [*$0 .room] : Ref[Room]
+>   %0 = Ref local [*$0 .room] : Ref[Room]
 >   %1 = Store [$2] %0 : ()
 >   %30 = Block %29 : usize
     below := if depth == 0: 0 else: total(owner, depth - 1)

@@ -108,7 +108,7 @@ impl Origins<'_> {
                     _ => None,
                 };
                 fields
-                    && w & (ref_word::TAKES | ref_word::LENT) == 0
+                    && w & ref_word::TAKES == 0
                     && if elem {
                         root.is_some()
                     } else if let Root::Local(l) = p.root {

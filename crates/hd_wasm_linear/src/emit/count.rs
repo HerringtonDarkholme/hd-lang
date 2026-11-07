@@ -50,18 +50,6 @@ impl Em<'_, '_, '_> {
                 Tag::Read if self.b.is_borrow(x) => {
                     self.loans.insert(x);
                 }
-                // A reference into what a lent parameter refers to
-                // (`ref_word::LENT`) takes no count where the referent is
-                // physical; a view's projection makes one, which the flag
-                // marks for the reference's `Drop`, as for a read.
-                Tag::Ref
-                    if w & hd_tir::ir::ref_word::LENT != 0
-                        && self.ref_target(self.ty(x)).is_some_and(|(_, fat)| !fat) =>
-                {
-                    self.loans.insert(x);
-                    let flag = self.f.local(crate::module::Val::I32);
-                    self.view_loans.insert(x, flag);
-                }
                 // The last read moves a binding's reference, including
                 // its conditional ownership of a projected view. A move
                 // of a physical loan must not turn it into an owner.

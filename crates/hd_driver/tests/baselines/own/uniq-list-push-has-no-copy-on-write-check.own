@@ -14,7 +14,7 @@ std/rt_tests.stage_case/add
   %3 = Coerce %2 [Weaken -] : Ref[UniqList[Ticket]]
   %4 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].len[Ticket] (%3) : usize
   %5 = Store [$4] %4 : ()
-  %6 = Ref lent local [*$2 .buffer] : Ref[Buffer[Ticket]]
+  %6 = Ref local [*$2 .buffer] : Ref[Buffer[Ticket]]
   %7 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].capacity[Ticket] (%6) : usize
   %8 = Drop [%6] : ()
   %9 = Read copy [$4] : usize
@@ -25,7 +25,7 @@ std/rt_tests.stage_case/add
   %14 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].reserve_for[Ticket] (%11, %13) : ()
   %15 = Block - : ()
   %16 = If %10 [%15 -] : ()
-  %17 = Ref lent local [*$2 .buffer] : Ref[Buffer[Ticket]]
+  %17 = Ref local [*$2 .buffer] : Ref[Buffer[Ticket]]
   %18 = Read copy [$4] : usize
   %19 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].at[Ticket] (%17, %18) : Ptr[Ticket]
   %20 = Drop [%17] : ()

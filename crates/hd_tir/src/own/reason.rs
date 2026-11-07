@@ -11,7 +11,7 @@ use super::OwnCx;
 use super::values::{Level, after, statement_chain};
 #[cfg(target_arch = "wasm32")]
 use super::{Role, consumes, operands};
-use crate::ir::{Body, Proj, ReadMode, Root, Tag, ref_word, unique_word};
+use crate::ir::{Body, Proj, ReadMode, Root, Tag, unique_word};
 
 #[cfg(any(test, target_arch = "wasm32"))]
 use crate::ir::{NONE, Topology, u32_of};
@@ -96,25 +96,14 @@ impl std::fmt::Display for Reason {
     }
 }
 
-/// The reason of count statement `i`: a `Drop`'s word; a `Drop` of a lent
-/// `Ref` stays only for an instance whose view makes the referent fresh
-/// (`ref_word::LENT`). Insertion puts an `IsUnique` before every change
+/// The reason of count statement `i`: a `Drop`'s word. Insertion puts an `IsUnique` before every change
 /// and a copy before every read, proving neither; hoisting keeps a
 /// covered `IsUnique` only for a view. `None` for any other instruction.
 #[must_use]
 pub fn reason(b: &Body, i: usize) -> Option<Reason> {
-    let [a, w] = b.data[i];
+    let [_, w] = b.data[i];
     Some(match b.tags[i] {
-        Tag::Drop => {
-            let lent = b.view(a).value().is_some_and(|v| {
-                b.tags[v as usize] == Tag::Ref && b.data[v as usize][1] & ref_word::LENT != 0
-            });
-            if lent {
-                Reason::View
-            } else {
-                Reason::from_word(w)
-            }
-        }
+        Tag::Drop => Reason::from_word(w),
         Tag::IsUnique if w == unique_word::COVERED => Reason::View,
         Tag::IsUnique => Reason::Conservative("unique"),
         Tag::Read if w == ReadMode::Copy as u32 => Reason::Conservative("copy read"),
@@ -372,7 +361,7 @@ fn changed_while(
                             .steps(b)
                             .any(|s| matches!(s, Proj::Deref | Proj::Elem(_))))
             }
-            Tag::Ref => b.data[i][1] & ref_word::MUT != 0 && names_local(i),
+            Tag::Ref => b.data[i][1] & crate::ir::ref_word::MUT != 0 && names_local(i),
             Tag::Call => {
                 src.behind
                     && crate::ir::Callee::from_words(b.record(b.data[i][0]))

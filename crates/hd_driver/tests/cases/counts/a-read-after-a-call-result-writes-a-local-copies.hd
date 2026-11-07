@@ -1,0 +1,25 @@
+# @dump: own counts wat
+# @build: std
+# expected: `b.item_mut(0).qty = +7` holds a reference to `b` in a call's
+# result for that one statement. Every later read of `b` copies today:
+# `kept := b.label` retains and releases the string (`conservative: copy
+# read`), where it should take no count: the result's last use ends before the
+# read. The new place-local facts have to bring the borrow back (#1399, step
+# 12c).
+struct Item:
+    qty: i32
+
+struct Bag:
+    label: string
+    items: List[Item]
+
+impl Bag:
+    fn item_mut(&mut self, i: usize) -> &mut Item:
+        &mut self.items[i]
+
+fn change_then_read(name: string) -> usize:
+    let mut b = Bag { label: name, items: [Item { qty: +1 }] }
+    b.item_mut(0).qty = +7
+    # subject
+    kept := b.label
+    kept.len() + b.items.len()

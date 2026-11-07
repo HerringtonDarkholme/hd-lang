@@ -63,7 +63,7 @@ impl Trail:
 >     uses $0: entry -> %0 lend, %1 lend, %5 lend, %7 lend last
 >   local $1 step: i64 [param read] value
 >     uses $1: entry -> %2 lend last
->   %0 = Ref lent mut local [*$0 .steps] : Ref[mut List[i64]]
+>   %0 = Ref mut local [*$0 .steps] : Ref[mut List[i64]]
 >   %1 = Read copy [*$0 .depth] : usize
 >   %2 = Read copy [$1] : i64
 >   %3 = Call app/main/record_step[] (%0, %1, %2) : ()
