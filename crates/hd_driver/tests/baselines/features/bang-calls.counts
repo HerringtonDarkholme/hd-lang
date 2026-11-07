@@ -27,6 +27,7 @@ fn one!(s: string) -> usize:
 >   release string (last use)
 > app/main/one
 >   release string (cancelled)
+>   release string (cancelled)
 >   release counted reference (last use)
 > app/main/one
 >   retain string (stored)
@@ -54,6 +55,10 @@ fn both!(a: string, b: string) -> usize:
 >   release string (last use)
 > app/main/both
 >   release string (cancelled)
+>   release Suspend[string] (cancelled)
+>   release string (cancelled)
+>   release Suspend[string] (cancelled)
+>   release string (cancelled)
 >   release string (cancelled)
 >   release counted reference (last use)
 >   release string (last use)
@@ -78,6 +83,7 @@ fn either!(a: string, b: string) -> usize:
 >   release string (last use)
 >   release string (last use)
 > app/main/either
+>   release List[mut Suspend[string]] (cancelled)
 >   release string (cancelled)
 >   release string (cancelled)
 >   release counted reference (last use)

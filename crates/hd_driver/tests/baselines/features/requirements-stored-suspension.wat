@@ -179,18 +179,20 @@
       if
         local.get $s.0
         local.get $s.1
-        local.set $t4
-        local.tee $t3
         i32.const 0
         local.set $s.0
         i32.const 0
         local.set $s.1
-        local.get $t4
-        local.set $t6
-        local.tee $t5
-        local.get $t6
+        i32.const 0
+        local.set $t3
+        i32.const 0
+        local.set $t4
         local.set $t8
         local.set $t7
+        i32.const 0
+        local.set $t5
+        i32.const 0
+        local.set $t6
         block
           block
             local.get $t7
@@ -212,6 +214,10 @@
             i32.store $heap offset=4
             local.get $t13
             local.tee $t12
+            i32.const 0
+            local.set $t10
+            i32.const 0
+            local.set $t11
             i32.eqz
             if
               i32.const 8
@@ -227,7 +233,6 @@
               local.set $t12
             end
             local.get $t12
-            local.tee $t17
             local.tee $t40
             if
               local.get $t40
@@ -239,12 +244,16 @@
                 call $rt:retain_known
               end
             end
-            local.get $t17
+            local.get $t12
             local.set $t18
+            i32.const 0
+            local.set $t17
             br 0
           end
           local.get $t18
           local.set $t9
+          i32.const 0
+          local.set $t18
         end
         local.get $t9
         i32.const 356 ;; &vtable[func90]
@@ -255,6 +264,12 @@
           local.get $t40
           call $retain
         end
+        local.get $t19
+        local.get $t20
+        i32.const 0
+        local.set $t19
+        i32.const 0
+        local.set $t20
         local.get $t9
         local.tee $t40
         if
@@ -271,7 +286,7 @@
         end
         i32.const 0
         local.set $t9
-        local.get $t19
+        local.set $t24
         local.set $t23
         i32.const 0
         local.set $t21
@@ -279,16 +294,17 @@
         local.set $t22
         local.get $t23
         local.set $t25
-        local.get $t20
+        local.get $t24
         local.set $t26
         block
     ;; 43 |         tagged()
           local.get $t25
           local.get $t26
           call $tagged'1
-          local.tee $t28
     ;; 42 |     let mut pending: mut Suspend[usize] = $.with(Tag=Named { label: s }):
           local.set $t27
+          i32.const 0
+          local.set $t28
         end
         local.get $t23
         local.tee $t40
@@ -317,6 +333,8 @@
         i32.const 0
         local.set $t12
         local.get $t27
+        i32.const 0
+        local.set $t27
     ;; 44 |     pending!()
         local.set $t29
         i32.const 0
@@ -934,6 +952,21 @@
     i32.eqz
     if
       local.get $t0
+      i32.load $heap offset=148
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'1
+        end
+      end
+      local.get $t0
       i32.load $heap offset=24
       local.tee $t1
       if
@@ -1299,7 +1332,6 @@
         local.set $key.1
         local.get $t4
         call $fetch'2
-        local.tee $t5
         local.get $t3
         local.tee $t26
         if
@@ -1310,6 +1342,8 @@
         local.set $t3
         i32.const 0
         local.set $t4
+        i32.const 0
+        local.set $t5
     ;; 30 |     pending!().len()
         local.set $t6
         i32.const 0
@@ -1887,6 +1921,21 @@
     i32.and
     i32.eqz
     if
+      local.get $t0
+      i32.load $heap offset=56
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'1
+        end
+      end
       local.get $t0
       i32.load $heap offset=24
       local.tee $t1

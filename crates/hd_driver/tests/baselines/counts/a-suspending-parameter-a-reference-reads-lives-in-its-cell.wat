@@ -642,67 +642,62 @@
                     local.tee $t15
                     local.get $t10
                     local.tee $t16
-                    local.set $t18
-                    local.tee $t17
-                    i32.const 1
-                    local.set $t19
-                    i32.const 1
-                    local.set $t20
-                    i32.const 1
-                    local.set $t21
-                    local.get $t18
+                    local.tee $t18
                     local.set $t23
                     local.set $t22
-                    i32.const 1
-                    local.set $t24
-                    i32.const 1
-                    local.set $t25
-                    i32.const 1
-                    local.set $t26
+                    i32.const 0
+                    local.set $t17
+                    i32.const 0
+                    local.set $t19
+                    i32.const 0
+                    local.set $t20
+                    i32.const 0
+                    local.set $t21
                     br 0
                   end
                   local.get $t22
                   local.get $t23
                   local.set $t12
                   local.set $t11
-                  i32.const 1
-                  local.set $t27
-                  i32.const 1
-                  local.set $t28
-                  i32.const 1
-                  local.set $t29
+                  i32.const 0
+                  local.set $t22
+                  i32.const 0
+                  local.set $t24
+                  i32.const 0
+                  local.set $t25
+                  i32.const 0
+                  local.set $t26
                 end
                 local.get $t11
-                local.get $t12
                 i32.const 0
                 local.set $t32
-                local.set $t31
-                local.tee $t30
-                i32.const 1
-                local.set $t33
-                i32.const 1
-                local.set $t34
-                i32.const 1
-                local.set $t35
-                i32.const 1
-                local.set $t36
-                i32.const 1
-                local.set $t37
-                local.get $t31
+                i32.const 0
+                local.set $t11
+                i32.const 0
+                local.set $t27
+                i32.const 0
+                local.set $t28
+                i32.const 0
+                local.set $t29
+                local.get $t12
                 local.get $t32
                 local.set $t40
                 local.set $t39
                 local.set $t38
-                i32.const 1
-                local.set $t41
-                i32.const 1
-                local.set $t42
-                i32.const 1
-                local.set $t43
-                i32.const 1
-                local.set $t44
-                i32.const 1
-                local.set $t45
+                i32.const 0
+                local.set $t30
+                i32.const 0
+                local.set $t31
+                i32.const 0
+                local.set $t33
+                i32.const 0
+                local.set $t34
+                i32.const 0
+                local.set $t35
+                i32.const 0
+                local.set $t36
+                i32.const 0
+                local.set $t37
                 br 0
               end
               local.get $t38
@@ -711,16 +706,20 @@
               local.set $t8
               local.set $t7
               local.set $t6
-              i32.const 1
-              local.set $t46
-              i32.const 1
-              local.set $t47
-              i32.const 1
-              local.set $t48
-              i32.const 1
-              local.set $t49
-              i32.const 1
-              local.set $t50
+              i32.const 0
+              local.set $t38
+              i32.const 0
+              local.set $t39
+              i32.const 0
+              local.set $t41
+              i32.const 0
+              local.set $t42
+              i32.const 0
+              local.set $t43
+              i32.const 0
+              local.set $t44
+              i32.const 0
+              local.set $t45
             end
             local.get $t6
             local.get $t7
@@ -728,16 +727,20 @@
             local.set $t53
             local.set $t52
             local.set $t51
-            i32.const 1
-            local.set $t54
-            i32.const 1
-            local.set $t55
-            i32.const 1
-            local.set $t56
-            i32.const 1
-            local.set $t57
-            i32.const 1
-            local.set $t58
+            i32.const 0
+            local.set $t6
+            i32.const 0
+            local.set $t7
+            i32.const 0
+            local.set $t46
+            i32.const 0
+            local.set $t47
+            i32.const 0
+            local.set $t48
+            i32.const 0
+            local.set $t49
+            i32.const 0
+            local.set $t50
             br 0
           end
           local.get $t51
@@ -746,16 +749,20 @@
           local.set $t4
           local.set $t3
           local.set $t2
-          i32.const 1
-          local.set $t59
-          i32.const 1
-          local.set $t60
-          i32.const 1
-          local.set $t61
-          i32.const 1
-          local.set $t62
-          i32.const 1
-          local.set $t63
+          i32.const 0
+          local.set $t51
+          i32.const 0
+          local.set $t52
+          i32.const 0
+          local.set $t54
+          i32.const 0
+          local.set $t55
+          i32.const 0
+          local.set $t56
+          i32.const 0
+          local.set $t57
+          i32.const 0
+          local.set $t58
         end
         i32.const 32
         i32.const 2
@@ -796,6 +803,20 @@
         i32.store $heap offset=28
         local.get $t64
         local.tee $u
+        i32.const 0
+        local.set $t2
+        i32.const 0
+        local.set $t3
+        i32.const 0
+        local.set $t59
+        i32.const 0
+        local.set $t60
+        i32.const 0
+        local.set $t61
+        i32.const 0
+        local.set $t62
+        i32.const 0
+        local.set $t63
     ;; 13 |     u.push(1)
         i32.eqz
         if
@@ -840,8 +861,9 @@
           local.set $u
         end
         local.get $u
-        local.tee $t79
         local.set $t80
+        i32.const 0
+        local.set $t79
         i32.const 1
         local.set $t81
         block
@@ -2829,6 +2851,8 @@
           end
           local.get $t12
           local.set $t9
+          i64.const 0
+          local.set $t12
         end
       end
       block

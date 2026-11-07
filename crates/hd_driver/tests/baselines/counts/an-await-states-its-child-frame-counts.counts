@@ -24,6 +24,7 @@ fn stored!() -> i32 $ Clock:
 > app/main/stored
 >   release Suspend[i32] (last use)
 > app/main/stored
+>   release Suspend[i32] (cancelled)
 >   release counted reference (last use)
 >   release counted reference (last use)
 > app/main/stored

@@ -12,6 +12,7 @@ app/main/run
   release counted reference (last use)
   release counted reference (last use)
 app/main/run
+  release app.main.Wait (cancelled)
   release counted reference (cancelled)
   release counted reference (last use)
   release counted reference (last use)

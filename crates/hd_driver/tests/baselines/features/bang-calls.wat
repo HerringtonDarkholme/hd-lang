@@ -636,6 +636,13 @@
     i32.eqz
     if
       local.get $t0
+      i32.load $heap offset=40
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref'1
+      end
+      local.get $t0
       i32.load $heap offset=24
       local.tee $t1
       if
@@ -869,6 +876,10 @@
         local.set $t11
         local.get $t10
         local.set $t12
+        i32.const 0
+        local.set $t5
+        i32.const 0
+        local.set $t8
       end
       block
         block
@@ -1458,6 +1469,21 @@
     i32.and
     i32.eqz
     if
+      local.get $t0
+      i32.load $heap offset=84
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'2
+        end
+      end
       local.get $t0
       i32.load $heap offset=24
       local.tee $t1
@@ -2673,6 +2699,50 @@
     i32.and
     i32.eqz
     if
+      local.get $t0
+      i32.load $heap offset=48
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref'1
+      end
+      local.get $t0
+      i32.load $heap offset=56
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'2
+        end
+      end
+      local.get $t0
+      i32.load $heap offset=60
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref'1
+      end
+      local.get $t0
+      i32.load $heap offset=68
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'2
+        end
+      end
       local.get $t0
       i32.load $heap offset=24
       local.tee $t1

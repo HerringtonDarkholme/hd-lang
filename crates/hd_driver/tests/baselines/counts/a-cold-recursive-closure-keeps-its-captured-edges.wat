@@ -220,9 +220,10 @@
             i32.const 113 ;; &"kept"
             i32.const 4
             call $make
+            i32.const 0
+            local.set $t2
+            i32.const 0
             local.set $t3
-            local.tee $t2
-            local.get $t3
     ;; 14 |     println(read!(3))
             local.set $t5
             local.set $t4
@@ -856,22 +857,27 @@
           local.get $provider0
           local.get $provider0.vtable
           call $"println[string]"
+          i32.const 0
+          local.set $t7
+          i32.const 0
+          local.set $t8
     ;; 15 |     text := generic("text")
           i32.const 117 ;; &"text"
           i32.const 4
           call $"generic[string]"
+          i32.const 0
+          local.set $t18
+          i32.const 0
           local.set $t19
-          local.tee $t18
     ;; 16 |     number := generic(+7)
           i32.const 7
           call $"generic[i32]"
-          local.set $t21
-          local.tee $t20
-          local.get $t21
           local.set $number.1
           local.set $number.0
-    ;; 15 |     text := generic("text")
-          local.get $t19
+          i32.const 0
+          local.set $t20
+          i32.const 0
+          local.set $t21
     ;; 17 |     println(text!())
           local.set $t23
           local.set $t22
@@ -1504,6 +1510,10 @@
         local.get $provider0
         local.get $provider0.vtable
         call $"println[string]"
+        i32.const 0
+        local.set $t25
+        i32.const 0
+        local.set $t26
     ;; 18 |     println(number!())
         local.get $number.0
         local.get $number.1
@@ -2258,6 +2268,96 @@
     i32.and
     i32.eqz
     if
+      local.get $t0
+      i32.load $heap offset=56
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'2
+        end
+      end
+      local.get $t0
+      i32.load $heap offset=60
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'2
+        end
+      end
+      local.get $t0
+      i32.load $heap offset=144
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'2
+        end
+      end
+      local.get $t0
+      i32.load $heap offset=148
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'2
+        end
+      end
+      local.get $t0
+      i32.load $heap offset=200
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'2
+        end
+      end
+      local.get $t0
+      i32.load $heap offset=204
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'2
+        end
+      end
       local.get $t0
       i32.load $heap offset=136
       local.tee $t1
@@ -3636,6 +3736,21 @@
     i32.and
     i32.eqz
     if
+      local.get $t0
+      i32.load $heap offset=104
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'2
+        end
+      end
       local.get $t0
       i32.load $heap offset=48
       local.tee $t1

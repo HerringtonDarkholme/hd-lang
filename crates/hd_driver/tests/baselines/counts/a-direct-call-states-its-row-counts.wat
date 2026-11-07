@@ -866,6 +866,21 @@
     i32.eqz
     if
       local.get $t0
+      i32.load $heap offset=52
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'2
+        end
+      end
+      local.get $t0
       i32.load $heap offset=28
       local.tee $t1
       if

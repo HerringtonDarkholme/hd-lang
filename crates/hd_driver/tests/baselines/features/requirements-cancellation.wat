@@ -375,7 +375,6 @@
         local.set $key.1
         local.get $t4
         call $fetch'2
-        local.tee $t5
         local.get $t3
         local.tee $t17
         if
@@ -386,6 +385,8 @@
         local.set $t3
         i32.const 0
         local.set $t4
+        i32.const 0
+        local.set $t5
     ;; 14 |     end := job.cancel!()
         local.set $t6
         i32.const 0
@@ -880,6 +881,21 @@
     i32.and
     i32.eqz
     if
+      local.get $t0
+      i32.load $heap offset=56
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'2
+        end
+      end
       local.get $t0
       i32.load $heap offset=24
       local.tee $t1

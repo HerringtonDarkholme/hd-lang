@@ -121,10 +121,11 @@
           if
     ;; 10 |         $.use(Wait).wait!()
             local.get $provider0
-            local.get $provider0.vtable
+            i32.const 0
+            local.set $t2
+            i32.const 0
             local.set $t3
-            local.tee $t2
-            local.get $t3
+            local.get $provider0.vtable
             local.set $t7
             local.tee $t6
             local.tee $t17
@@ -626,6 +627,13 @@
     i32.and
     i32.eqz
     if
+      local.get $t0
+      i32.load $heap offset=56
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref'1
+      end
       local.get $t0
       i32.load $heap offset=36
       local.tee $t1

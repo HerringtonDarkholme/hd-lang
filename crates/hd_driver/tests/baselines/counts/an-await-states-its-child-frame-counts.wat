@@ -92,7 +92,8 @@
         local.get $provider0
         local.get $provider0.vtable
         call $read'1
-        local.tee $t3
+        i32.const 0
+        local.set $t3
     ;; 12 |     pending!()
         local.set $t4
         i32.const 0
@@ -566,6 +567,28 @@
   (func $stored.drop (param $t0 i32) (local $t1 i32)
     ;; 11 |     let pending: mut Suspend[i32] = read()
     local.get $t0
+    i32.load $heap offset=12
+    i32.const 64
+    i32.and
+    i32.eqz
+    if
+      local.get $t0
+      i32.load $heap offset=48
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'2
+        end
+      end
+    end
+    local.get $t0
     i32.load $heap offset=24
     local.tee $t1
     if
@@ -678,6 +701,8 @@
         end
         local.get $t6
         local.set $t3
+        i64.const 0
+        local.set $t6
       end
     end
     block

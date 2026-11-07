@@ -38,6 +38,8 @@ fn local!() -> i64:
 >   release Suspend[i64] (last use)
 >   release fn!() -> i64 (last use)
 > app/main/local
+>   release fn!() -> i64 (cancelled)
+>   release Suspend[i64] (cancelled)
 >   release counted reference (last use)
         let mut tally = Tally { n: 0 }
         bump!(&mut tally)
@@ -62,6 +64,8 @@ fn shared!() -> i64:
 >   release counted reference (last use)
 >   release counted reference (last use)
 > app/main/shared
+>   release fn!() -> () (cancelled)
+>   release Suspend[()] (cancelled)
 >   release counted reference (cancelled)
 >   release counted reference (last use)
     run := fn!() -> void: bump!(&mut tally)
@@ -98,6 +102,8 @@ fn copied!() -> i64:
 >   release fn!() -> i64 (last use)
 >   release counted reference (last use)
 > app/main/copied
+>   release fn!() -> i64 (cancelled)
+>   release Suspend[i64] (cancelled)
 >   release counted reference (cancelled)
 >   release counted reference (last use)
     run := fn!() -> i64: read!(&tally)

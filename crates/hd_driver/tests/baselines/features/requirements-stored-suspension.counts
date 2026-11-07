@@ -47,6 +47,7 @@ fn later!(key: string) -> usize:
 >   release counted reference (last use)
 >   release string (last use)
 > app/main/later
+>   release Suspend[string] (cancelled)
 >   release string (cancelled)
 >   release counted reference (last use)
 > app/main/later
@@ -85,6 +86,7 @@ fn bound!(s: string) -> usize:
 >   release Suspend[usize] (last use)
 >   release string (last use)
 > app/main/bound
+>   release Suspend[usize] (cancelled)
 >   release string (cancelled)
 >   release counted reference (last use)
 > app/main/bound

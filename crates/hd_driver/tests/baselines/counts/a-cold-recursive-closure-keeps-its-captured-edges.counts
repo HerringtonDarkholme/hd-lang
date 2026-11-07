@@ -16,6 +16,7 @@ fn make(value: string) -> fn!(usize) -> string:
 > app/main/make
 >   release string (cancelled)
 > app/main/make
+>   release Suspend[string] (cancelled)
 >   release string (cancelled)
 >   release fn!(usize) -> string (cancelled)
 >   release counted reference (last use)
@@ -64,6 +65,12 @@ pub fn main!() -> void $ Console:
 >   release fn!() -> i32 (last use)
 >   release fn!() -> i32 (last use)
 > app/main/main
+>   release fn!(usize) -> string (cancelled)
+>   release Suspend[string] (cancelled)
+>   release fn!() -> string (cancelled)
+>   release Suspend[string] (cancelled)
+>   release fn!() -> i32 (cancelled)
+>   release Suspend[i32] (cancelled)
 >   release fn!() -> i32 (cancelled)
 >   release counted reference (last use)
 >   release counted reference (last use)

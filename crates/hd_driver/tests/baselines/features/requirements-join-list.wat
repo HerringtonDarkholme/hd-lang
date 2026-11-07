@@ -475,13 +475,15 @@
       i32.eqz
       if
         i32.const 80 ;; &empty-buffer
-        local.tee $t3
         local.set $t4
+        i32.const 0
+        local.set $t3
         local.get $keys
-        local.tee $t5
         i32.const 0
         local.set $keys
         local.tee $t6
+        i32.const 0
+        local.set $t5
         local.tee $t7
         local.tee $t8
         i32.load $heap offset=4
@@ -589,6 +591,8 @@
               i32.const 1
               i32.add
               i32.store $heap offset=4
+              i32.const 0
+              local.set $t33
               br 0
             end
             br 0
@@ -610,10 +614,12 @@
         i32.const 0
         local.set $t6
         local.get $t4
-        local.tee $t38
         i32.const 0
         local.set $t4
-        local.tee $t39
+        i32.const 0
+        local.set $t38
+        i32.const 0
+        local.set $t39
     ;; 15 |     results := join!(tasks...)
         local.set $t40
         i32.const 0
@@ -1480,6 +1486,21 @@
     i32.and
     i32.eqz
     if
+      local.get $t0
+      i32.load $heap offset=196
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'2
+        end
+      end
       local.get $t0
       i32.load $heap offset=24
       local.tee $t1

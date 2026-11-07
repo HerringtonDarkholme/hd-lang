@@ -85,9 +85,9 @@
       i32.eqz
       if
         local.get $value
-        local.set $t3
-        local.get $t3
         local.set $t4
+        i32.const 0
+        local.set $t3
       end
       block
         block
@@ -609,9 +609,9 @@
       i32.eqz
       if
         local.get $value
-        local.set $t3
-        local.get $t3
         local.set $t4
+        i32.const 0
+        local.set $t3
       end
       block
         block

@@ -17,6 +17,7 @@ use hd_tir::ir::{Body, NONE, Tag};
 use hd_tir::own::Reason;
 use wasm_encoder::BlockType;
 
+use super::drop_flags::Root as DropRoot;
 use super::scope::Exit;
 use super::{Ctl, Em};
 use crate::module::{Global, HEAP, Ins, Part, Sym, Val, mem};
@@ -1303,7 +1304,7 @@ pub(super) fn finish(
         em.f.op(I::I32Eqz);
         em.f.op(I::If(BlockType::Empty));
         // Pins #1430: a started frame is only ever traced, never freed or
-        // collected as garbage, so this glue releases no value row.
+        // collected as garbage. Once this has held, #1430 removes its value rows.
         if let Some(rt) = em.input.runtime.filter(|r| r.checked.is_some()) {
             em.f.get(FRAME);
             em.f.op(I::I32Load(mem(HEAP, crate::task::F_STATE, 2)));
@@ -1316,8 +1317,25 @@ pub(super) fn finish(
             em.f.op(I::End);
         }
         em.reload_drop_flags(&area);
-        // The locals of the exit set, which a cold frame's parameters are in.
-        let mut places: Vec<(usize, Vec<u32>)> = Vec::new();
+        let mut places: Vec<(DropRoot, Vec<u32>)> = Vec::new();
+        // What the body says a suspension point may hold, as a cancelled
+        // point's way out reads it (`release_unwound`): its values' unwind
+        // rows, and the locals of the exit set.
+        let mut held: Vec<u32> =
+            em.b.unwind_drops
+                .iter()
+                .filter(|&&(at, _)| em.topo.sub[at as usize] == u32::from(em.sub_id))
+                .map(|&(_, v)| v)
+                .collect();
+        held.sort_stable();
+        held.dedup();
+        for i in held {
+            if !em.loans.contains(&i)
+                && let Some(ls) = em.vals.get(&i)
+            {
+                places.push((DropRoot::Value(i), ls.clone()));
+            }
+        }
         let mut owned: Vec<usize> =
             em.b.exit_drops
                 .iter()
@@ -1331,7 +1349,7 @@ pub(super) fn finish(
                 && !em.borrowed.contains(&l)
                 && let Some(ls) = em.locals.get(&l)
             {
-                places.push((l, ls.clone()));
+                places.push((DropRoot::Local(l), ls.clone()));
             }
         }
         // The pointer loans the waiting body holds end with it.
@@ -1348,18 +1366,29 @@ pub(super) fn finish(
             }
             Some(loaded)
         };
-        for (l, ls) in places {
+        for (place, ls) in places {
             let Some(loaded) = load(&mut em, &ls) else {
                 continue;
             };
-            em.borrow_release(l);
-            em.because(Reason::Cancelled, |em| {
-                if em.is_cell(l) {
-                    em.count_local(l, &loaded, false)
-                } else {
-                    em.release_drop_place(&loaded, em.sub(em.b.local_ty[l]), &Em::local_place(l))
+            match place {
+                DropRoot::Value(i) => em.because(Reason::Cancelled, |em| {
+                    em.release_drop_place(&loaded, em.ty(i), &Em::value_place(i))
+                })?,
+                DropRoot::Local(l) => {
+                    em.borrow_release(l);
+                    em.because(Reason::Cancelled, |em| {
+                        if em.is_cell(l) {
+                            em.count_local(l, &loaded, false)
+                        } else {
+                            em.release_drop_place(
+                                &loaded,
+                                em.sub(em.b.local_ty[l]),
+                                &Em::local_place(l),
+                            )
+                        }
+                    })?;
                 }
-            })?;
+            }
         }
         // Reference parameter slots precede all body-allocated waker nodes.
         // These typed identities replace opaque temporary ownership inference.
