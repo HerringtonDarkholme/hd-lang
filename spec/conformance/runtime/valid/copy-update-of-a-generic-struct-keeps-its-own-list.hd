@@ -1,0 +1,15 @@
+# expect-stdout: old 1 new 2
+# test: a copy-update inside a generic function gives the new struct its own copy of a kept list, so a push to it leaves the base unchanged
+# Spec 13 Copy: a copy of a collection is a value of its own.
+struct Record[T]:
+    kept: T
+    name: string
+
+fn update[T](base: Record[T], name: string) -> Record[T]:
+    Record::[T] { ...base, name }
+
+pub fn main() -> void $ Console:
+    base := Record::[List[string]] { kept: ["a"], name: "old" }
+    let mut copied = update(base, "new")
+    copied.kept.push("b")
+    println("${base.name} ${base.kept.len()} ${copied.name} ${copied.kept.len()}")

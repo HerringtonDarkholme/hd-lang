@@ -1,0 +1,16 @@
+# expect-stdout: 1 2
+# test: a copy-update that replaces a list field with a list still held elsewhere shares it, so a push to the field leaves the other holder unchanged
+# Spec 13 Copy: a copy of a collection is a value of its own.
+struct Bag:
+    items: List[i32]
+    name: string
+
+fn replace(base: Bag, items: List[i32]) -> Bag:
+    Bag { ...base, items }
+
+pub fn main() -> void $ Console:
+    base := Bag { items: [], name: "old" }
+    let other: List[i32] = [1]
+    let mut copied = replace(base, other)
+    copied.items.push(2)
+    println("${other.len()} ${copied.items.len()}")

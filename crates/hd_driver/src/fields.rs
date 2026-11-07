@@ -6,10 +6,12 @@
 //! 1. no statement copies with a count a value of `S`, of a type that holds
 //!    an `S` in place (a tuple, struct, option or collection of it, not
 //!    behind a reference), or `S.f` itself: a `copy` read, or a closure's
-//!    `Copy` capture (moves and borrows are fine). A read of a local bound to
-//!    a borrow reads what that borrow names;
-//! 2. every construction of an `S` and every store of all of `S.f` puts a
-//!    fresh buffer there: a new collection that is no top-level binding's
+//!    `Copy` capture, or a borrow a use takes a count of (other moves and
+//!    borrows are fine). A read of a local bound to a borrow reads what that
+//!    borrow names, and a copy-update copies each field it keeps;
+//! 2. every construction of an `S`, including a copy-update's replacements,
+//!    and every store of all of `S.f` puts a fresh buffer there: a new
+//!    collection that is no top-level binding's
 //!    initializer (only such a literal of constants is static data the
 //!    backend shares), or the move of a local whose every store is one;
 //! 3. no body copies or stores, through a reference it can't place, a
@@ -294,6 +296,39 @@ impl<'a> Walk<'a> {
                         _ => {}
                     }
                 }
+                // Every field a copy-update keeps takes a count from its base
+                // (`copy_data`); each replacement is a store of that field.
+                Tag::CopyStruct => {
+                    let s = self.strip(sub(b.ty[i]));
+                    let Some(fs) = self.fields_of(s) else {
+                        continue;
+                    };
+                    let shared = Ref(b.data[i][0]).as_inst().is_some_and(|v| {
+                        let v = v.0 as usize;
+                        b.tags[v] == Tag::Read && b.data[v][1] != ReadMode::Move as u32
+                    });
+                    let pairs = b.record(b.data[i][1]);
+                    for (k, &ft) in fs.iter().enumerate() {
+                        let f = (s, u32::try_from(k).unwrap_or(u32::MAX));
+                        let value = pairs.chunks(2).find(|w| w[0] as usize == k).map(|w| w[1]);
+                        match value {
+                            Some(v) if self.coll(ft) => {
+                                self.fields.insert(f);
+                                if !fresh(v) {
+                                    self.bad.entry(f).or_insert("a store of a shared header");
+                                }
+                            }
+                            None if shared => {
+                                self.copied.insert(self.strip(ft));
+                                if self.coll(ft) {
+                                    self.fields.insert(f);
+                                    self.bad.entry(f).or_insert("a copy-update keeps the field");
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
                 Tag::NewStruct => {
                     let s = self.strip(sub(b.ty[i]));
                     let Some(fs) = self.fields_of(s) else {
@@ -315,7 +350,22 @@ impl<'a> Walk<'a> {
             }
         }
         for v in shared_borrows(b) {
-            self.copied.insert(self.strip(sub(b.ty[v])));
+            let t = sub(b.ty[v]);
+            self.copied.insert(self.strip(t));
+            if self.coll(t) {
+                let place = through(b.data[v][0]);
+                match self.field(b, sub, place) {
+                    Some(f) => {
+                        self.bad
+                            .entry(f)
+                            .or_insert("a consumed borrow of the field");
+                    }
+                    None if self.blind(b, sub, place) => {
+                        self.blind.insert(self.strip(t));
+                    }
+                    None => {}
+                }
+            }
         }
         for (l, m) in b.cap_local.iter().zip(&b.cap_mode) {
             if *m == CaptureMode::Copy {

@@ -1,0 +1,17 @@
+# expect-stdout: 1
+# test: a cold suspending call given a struct's list field holds its own copy, so a push to the field before the call runs leaves that copy unchanged
+# Spec 13 Copy: a copy of a collection is a value of its own.
+struct Bag:
+    items: List[i32]
+
+fn size!(items: List[i32]) -> usize:
+    items.len()
+
+fn run!(bag: &mut Bag) -> usize:
+    let job: mut Suspend[usize] = size(bag.items)
+    bag.items.push(9)
+    job!()
+
+pub fn main!() -> void $ Console:
+    let mut bag = Bag { items: [1] }
+    println(run!(&mut bag))

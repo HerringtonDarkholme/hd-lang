@@ -1387,6 +1387,11 @@ runtime/valid/list-local-shared-before-a-change-keeps-its-copy.hd	runtime	accept
 runtime/valid/struct-field-shared-by-a-struct-copy-keeps-its-copy.hd	runtime	accept	lang/13-values-and-references.md#copy
 runtime/valid/struct-field-shared-through-a-binding-keeps-its-copy.hd	runtime	accept	lang/13-values-and-references.md#copy
 runtime/valid/struct-field-shared-through-a-reference-binding-keeps-its-copy.hd	runtime	accept	lang/13-values-and-references.md#copy
+runtime/valid/copy-update-of-a-generic-struct-keeps-its-own-list.hd	runtime	accept	lang/13-values-and-references.md#copy
+runtime/valid/copy-update-through-a-reference-keeps-its-own-list.hd	runtime	accept	lang/13-values-and-references.md#copy
+runtime/valid/copy-update-keeps-a-nested-struct-with-its-own-list.hd	runtime	accept	lang/13-values-and-references.md#copy
+runtime/valid/copy-update-replacing-a-list-shares-the-replacement.hd	runtime	accept	lang/13-values-and-references.md#copy
+runtime/valid/suspending-call-argument-keeps-a-field-list-unchanged.hd	runtime	accept	lang/13-values-and-references.md#copy
 runtime/valid/copy-update-evaluation-order.hd	runtime	accept	lang/08-data-and-enums.md#copy-update-literals
 typing/invalid/copy-update-source-type-mismatch.hd	type	reject:type-mismatch	lang/08-data-and-enums.md#copy-update-literals
 runtime/valid/copy-update-skips-defaults.hd	runtime	accept	lang/08-data-and-enums.md#copy-update-literals

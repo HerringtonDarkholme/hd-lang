@@ -1,0 +1,18 @@
+# expect-stdout: 1 2
+# test: a copy-update that keeps a nested struct gives the new struct its own copy of that struct's list, so a push to it leaves the original unchanged
+# Spec 13 Copy: a copy of a collection is a value of its own.
+struct Inner:
+    kept: List[string]
+
+struct Outer:
+    inner: Inner
+    tag: string
+
+fn update(outer: Outer, tag: string) -> Outer:
+    Outer { ...outer, tag }
+
+pub fn main() -> void $ Console:
+    outer := Outer { inner: Inner { kept: ["a"] }, tag: "t" }
+    let mut copied = update(outer, "u")
+    copied.inner.kept.push("b")
+    println("${outer.inner.kept.len()} ${copied.inner.kept.len()}")

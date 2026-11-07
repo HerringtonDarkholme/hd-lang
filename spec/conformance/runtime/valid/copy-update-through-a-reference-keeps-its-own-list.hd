@@ -1,0 +1,15 @@
+# expect-stdout: 1 2
+# test: a copy-update of a struct behind a reference gives the new struct its own copy of a kept list, so a push to it leaves the original unchanged
+# Spec 13 Copy: a copy of a collection is a value of its own.
+struct Plain:
+    kept: List[string]
+    name: string
+
+fn update(base: &Plain, name: string) -> Plain:
+    Plain { ...*base, name }
+
+pub fn main() -> void $ Console:
+    base := Plain { kept: ["a"], name: "old" }
+    let mut copied = update(&base, "new")
+    copied.kept.push("b")
+    println("${base.kept.len()} ${copied.kept.len()}")
