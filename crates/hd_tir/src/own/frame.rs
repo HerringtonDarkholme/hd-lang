@@ -13,7 +13,9 @@
 //!    as the checker solves them (`hd_check/src/dep_results.rs`) but over
 //!    this body, where the inliner binds parameters to locals: a `Ref`
 //!    points where its place lies, a read of a reference holds what its
-//!    place holds, a `Store` adds to what its place's locals hold, a
+//!    place holds, a `Store` adds to what its place's locals hold (an
+//!    element's is whatever holds its list, as for a `ListPush` or
+//!    `MapSet`), a
 //!    `Break` to its target, and any other value that may hold a reference
 //!    ([`OwnCx::holds_ref`]) takes its operands' and its blocks'. A read
 //!    through a reference may become a borrow, which lives on what it
@@ -23,7 +25,7 @@
 //!    argument's body returns its value), awaited,
 //!    captured, read by a cleanup suite (which runs after a jump dropped
 //!    what it leaves), or consumed by an instruction other than a call
-//!    whose value holds no reference (a list push).
+//!    whose value holds no reference.
 //!
 //! Their `Ref`s get `ref_word::FRAME`, and move never takes their count.
 //!
@@ -47,8 +49,10 @@
 //! 6. **Frame cells** ([`frame_cells`]). A local a closure of the root
 //!    shares, whose closure never leaves the frame, could live in a frame
 //!    slot: the closure value points into it, and rule 3's escapes apply,
-//!    with a call that may keep its argument, a compiler-supplied call and
-//!    another closure's capture added. Its captures become
+//!    with a call that may keep its argument, a compiler-supplied call,
+//!    another closure's capture, a slot of a collection, and a local
+//!    declared outside the loop round that declares the cell (each round
+//!    reuses the slot) added. Its captures become
 //!    `CaptureMode::Frame`, and every use of what may point into it is
 //!    its use, so insertion drops it after the closure's last use.
 
@@ -56,8 +60,8 @@ use hd_base::SliceSort as _;
 
 use super::{OwnCx, Role, fill, operands, suite_touches};
 use crate::ir::{
-    Body, Callee, NONE, PlaceView, Proj, Ref, Root, Tag, Topology, Word, is_suspension, slots,
-    u32_of,
+    Body, Callee, IntrinsicOp, NONE, PlaceView, Proj, Ref, Root, Tag, Topology, Word,
+    is_suspension, local_flags, slots, u32_of,
 };
 
 /// Frame locals' dense tables, reused across bodies.
@@ -95,6 +99,14 @@ pub(crate) struct Tables {
     /// shares, and a call that may keep an argument, an instruction the
     /// compiler supplies, or another closure's capture lets it escape.
     cells: bool,
+    /// Frame cells only, per local: the first instruction of the innermost
+    /// loop of the sub-body around its first store, and the loop's, or `NONE`.
+    /// Each round reuses a slot, so a closure over it must not be stored in
+    /// a local that outlives the round.
+    round: Vec<(u32, u32)>,
+    /// Frame cells only, per local: its first store, or `NONE` for a
+    /// parameter, which holds a value from before any loop.
+    decl: Vec<u32>,
 }
 
 impl Tables {
@@ -113,7 +125,7 @@ impl Tables {
 
     /// The candidates the place at `word` lies in and those the value there
     /// may point into; `None` for a place no local of the body holds (a
-    /// parameter's referent, a top-level binding, a buffer's element).
+    /// parameter's referent, a top-level binding).
     fn place(&self, b: &Body, word: u32) -> Option<(u64, u64)> {
         let p = b.view(word);
         let (mut lies, mut held) = match p.root {
@@ -156,14 +168,85 @@ impl Tables {
                 Proj::Deref | Proj::Elem(_) if !self.targets.is_empty() => {
                     return Some((lies, held));
                 }
-                // A frame cell's closure may sit in an element: what the
-                // place holds is what it held.
-                Proj::Deref | Proj::Elem(_) if self.cells => return Some((0, held)),
-                Proj::Deref | Proj::Elem(_) => return None,
+                // An element lies in the buffer, and what it holds is what
+                // the list holds: its local's reference or closure.
+                Proj::Deref | Proj::Elem(_) => lies = 0,
                 _ => {}
             }
         }
         Some((lies, held))
+    }
+
+    /// The locals whose values hold the slot at `word`, as a store into it
+    /// reaches them: the root local when no reference lies on the way, and
+    /// the candidates a reference on the way points into. An element is
+    /// held by whatever holds its list. A frame cell's closure in an element
+    /// has no such holder: it escapes ([`Self::stored`]).
+    fn slot_holders(&self, b: &Body, word: u32) -> (Option<u32>, u64) {
+        let p = b.view(word);
+        if self.cells && p.kinds(b).1 {
+            return (None, 0);
+        }
+        let (mut direct, mut lies, mut held) = match p.root {
+            Root::Local(l) => (Some(l), self.bit[l as usize], self.held[l as usize]),
+            Root::Value(v) => (
+                whole_local_read(b, v).and_then(|w| b.view(w).local()),
+                whole_local_read(b, v)
+                    .and_then(|w| self.place(b, w))
+                    .map_or(0, |(lies, _)| lies),
+                self.of(v),
+            ),
+            _ => return (None, 0),
+        };
+        for s in p.steps(b) {
+            if s == Proj::Deref {
+                direct = None;
+                (lies, held) = (held, self.holdings(held));
+            }
+        }
+        (direct, lies)
+    }
+
+    /// A slot of the collection value `v` (`ListPush`, `MapSet`): who holds
+    /// it, as [`Self::slot_holders`].
+    fn collection_holders(&self, b: &Body, v: u32) -> (Option<u32>, u64) {
+        match Ref(v).as_inst() {
+            Some(x) if b.tags[x.0 as usize] == Tag::Read => {
+                self.slot_holders(b, b.data[x.0 as usize][0])
+            }
+            _ => (None, 0),
+        }
+    }
+
+    /// A slot `holders` hold now holds what `m` points into: if no local
+    /// of the body holds it, that escapes. Whether any set grew.
+    fn stored(&mut self, (direct, holders): (Option<u32>, u64), m: u64) -> bool {
+        let mut changed = false;
+        if let Some(l) = direct {
+            changed |= self.hold(l, m);
+        }
+        for k in bits(holders) {
+            changed |= self.hold(self.cands[k], m);
+        }
+        if direct.is_none() && holders == 0 {
+            changed |= grow(&mut self.out, m);
+        }
+        changed
+    }
+
+    /// Local `l` holds what `m` points into. What it outlives the round of
+    /// escapes (a local reference cannot: `ref.dep.scope.loop`).
+    fn hold(&mut self, l: u32, m: u64) -> bool {
+        let mut out = 0;
+        if !self.round.is_empty() {
+            for k in bits(m) {
+                let (first, end) = self.round[self.cands[k] as usize];
+                if first != NONE && !(first..=end).contains(&self.decl[l as usize]) {
+                    out |= 1 << k;
+                }
+            }
+        }
+        grow(&mut self.held[l as usize], m) | grow(&mut self.out, out)
     }
 
     /// What the candidates `m` hold.
@@ -296,6 +379,31 @@ pub(crate) fn run(
     root_uses(b, cx, &mut uses);
 }
 
+/// Each local's first store and the loop round around it ([`Tables::round`]).
+fn rounds(b: &Body, topo: &Topology, t: &mut Tables) {
+    let locals = b.local_ty.len();
+    fill(&mut t.round, locals, (NONE, NONE));
+    fill(&mut t.decl, locals, NONE);
+    for i in (0..b.len()).rev() {
+        if b.tags[i] != Tag::Store {
+            continue;
+        }
+        let Some(l) = b.view(b.data[i][0]).local().map(|l| l as usize) else {
+            continue;
+        };
+        if b.local_flags[l] & local_flags::PARAM != 0 {
+            continue;
+        }
+        t.decl[l] = u32_of(i);
+        let lp = topo.loop_of[i];
+        t.round[l] = if lp != NONE && topo.sub[lp as usize] == topo.sub[i] {
+            (topo.first[lp as usize], lp)
+        } else {
+            (NONE, NONE)
+        };
+    }
+}
+
 /// Frame cells: plans each local of the root a closure shares (a
 /// `Shared` capture) that may live in a frame slot into `t`, and returns
 /// their bits. The closure value points into the cell, and the cell
@@ -313,6 +421,7 @@ fn plan_cells(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> u64 
     t.frame = 0;
     fill(&mut t.bit, locals, 0);
     fill(&mut t.bad, locals, false);
+    rounds(b, topo, t);
     for i in 0..n {
         match b.tags[i] {
             Tag::Ref => {
@@ -834,22 +943,8 @@ fn step_val(
         }
         Tag::Store if t.of(w) != 0 => {
             let m = t.of(w);
-            let p = b.view(a);
-            if let Root::Local(l) = p.root
-                && p.in_place(b)
-            {
-                return grow(&mut t.held[l as usize], m);
-            }
-            let mut changed = false;
-            match t.place(b, a) {
-                Some((lies, _)) if lies != 0 => {
-                    for k in bits(lies) {
-                        changed |= grow(&mut t.held[t.cands[k] as usize], m);
-                    }
-                }
-                _ => changed = grow(&mut t.out, m),
-            }
-            return changed;
+            let holders = t.slot_holders(b, a);
+            return t.stored(holders, m);
         }
         Tag::Store => return false,
         // A capture of a reference is a checker error; one that held it
@@ -888,6 +983,24 @@ fn step_val(
         _ => {}
     }
     operands(b, i, ops);
+    // A list push or map store is a store into a slot of its collection.
+    if tag == Tag::Intrinsic
+        && matches!(
+            IntrinsicOp::from_u32(a),
+            Some(IntrinsicOp::ListPush | IntrinsicOp::MapSet)
+        )
+    {
+        let m = ops.iter().skip(1).fold(0, |m, op| m | t.of(op.value));
+        if m == 0 {
+            return false;
+        }
+        let holders = if t.cells {
+            (None, 0)
+        } else {
+            t.collection_holders(b, ops[0].value)
+        };
+        return t.stored(holders, m);
+    }
     let mut m = 0;
     let mut consumed = 0;
     for op in ops.iter() {

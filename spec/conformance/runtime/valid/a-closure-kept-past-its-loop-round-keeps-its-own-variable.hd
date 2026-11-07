@@ -1,0 +1,83 @@
+# test: a closure kept past the round that made it keeps that round's shared variable, whichever local outside the loop holds it: the local, its field, a new list in it, or a slot of its list
+# Spec 07 Copied And Shared Captures: fn.capture.cell.fresh.
+# expect-stdout: 201 102 103
+# expect-stdout: 201 102 103
+# expect-stdout: 201 102 103
+# expect-stdout: 201 102 103
+# expect-stdout: 201 102 103
+
+struct Holder:
+    f: fn() -> i32
+
+fn in_a_local() -> void $ Console:
+    let mut kept = fn() -> i32: +0
+    let mut seen = +0
+    for i in +1..3:
+        let total = i * 100
+        step := fn() -> i32:
+            total = total + 1
+            total
+        if i == 1:
+            kept = step
+        seen = step()
+    println("$seen ${kept()} ${kept()}")
+
+fn in_a_copy_of_a_local() -> void $ Console:
+    let mut kept = fn() -> i32: +0
+    let mut seen = +0
+    for i in +1..3:
+        let total = i * 100
+        step := fn() -> i32:
+            total = total + 1
+            total
+        again := step
+        if i == 1:
+            kept = again
+        seen = step()
+    println("$seen ${kept()} ${kept()}")
+
+fn in_a_field() -> void $ Console:
+    let mut kept = Holder { f: fn() -> i32: +0 }
+    let mut seen = +0
+    for i in +1..3:
+        let total = i * 100
+        step := fn() -> i32:
+            total = total + 1
+            total
+        if i == 1:
+            kept.f = step
+        seen = step()
+    println("$seen ${(kept.f)()} ${(kept.f)()}")
+
+fn in_a_new_list() -> void $ Console:
+    let mut kept: List[fn() -> i32] = []
+    let mut seen = +0
+    for i in +1..3:
+        let total = i * 100
+        step := fn() -> i32:
+            total = total + 1
+            total
+        if i == 1:
+            kept = [step]
+        seen = step()
+    println("$seen ${kept[0]()} ${kept[0]()}")
+
+fn in_a_list_slot() -> void $ Console:
+    let mut kept: List[fn() -> i32] = [fn() -> i32: +0]
+    let mut seen = +0
+    for i in +1..3:
+        let total = i * 100
+        step := fn() -> i32:
+            total = total + 1
+            total
+        if i == 1:
+            kept[0] = step
+        seen = step()
+    println("$seen ${kept[0]()} ${kept[0]()}")
+
+pub fn main() -> void $ Console:
+    in_a_local()
+    in_a_copy_of_a_local()
+    in_a_field()
+    in_a_new_list()
+    in_a_list_slot()

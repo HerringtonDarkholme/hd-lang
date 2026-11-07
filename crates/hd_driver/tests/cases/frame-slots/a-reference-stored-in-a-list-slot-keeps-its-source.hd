@@ -1,0 +1,20 @@
+# @dump: own wat
+# `ps[0] = &q` stores a local reference in a slot of `ps`, so every use of
+# `ps` is a use of `q`: `q` lives in a slot of the frame, and its `Drop`
+# follows the last read of `ps[0]`. `d` read `p` through the old slot, so `p`
+# lives until `d`'s last use. The slot takes no count, and neither does `&q`.
+struct P:
+    name: string
+
+fn make(n: i32) -> P:
+    P { name: "n${n}" }
+
+# subject
+fn replaced(k: i32) -> usize:
+    p := make(k)
+    q := make(k + 1)
+    let mut ps = [&p]
+    d := &ps[0].name
+    ps[0] = &q
+    junk := "j${k}"
+    d.len() + ps[0].name.len() + junk.len()

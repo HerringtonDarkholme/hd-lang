@@ -1,0 +1,26 @@
+# @dump: own wat
+# @build: v8 release
+# Each round reuses a frame slot, so `total` lives in a heap cell when `kept`,
+# declared outside the loop, holds the closure past the round: one
+# `rt:new` per round. `fresh`'s `total` stays in a slot: its closure ends with
+# the round.
+fn kept(n: i32) -> i32:
+    let mut f = fn() -> i32: +0
+    for i in +0..n:
+        let total = i
+        step := fn() -> i32:
+            total = total + 1
+            total
+        if i == 0:
+            f = step
+    f()
+
+fn fresh(n: i32) -> i32:
+    let mut out = +0
+    for i in +0..n:
+        let total = i
+        step := fn() -> i32:
+            total = total + 1
+            total
+        out += step()
+    out

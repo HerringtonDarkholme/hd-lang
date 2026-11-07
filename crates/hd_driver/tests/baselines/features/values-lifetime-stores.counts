@@ -24,8 +24,8 @@ fn index['a](by: &mut Map[string, &'a User], u: &'a User) -> void:
 fn total(a: User, b: User) -> usize:
     let mut seen: List[&User] = []
 > app/main/total
->   release app.main.User [name.0] (last use)
 >   release List[&app.main.User] (last use)
+>   release app.main.User [name.0] (last use)
 >   release Map[string, &app.main.User] (last use)
 >   release app.main.User [name.0] (last use)
     remember(&mut seen, &a)

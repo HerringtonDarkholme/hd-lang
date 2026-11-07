@@ -1,0 +1,18 @@
+# test: a reference through a pointer field of a list slot's source keeps that source alive when the slot is replaced
+# Spec 13 Values and References: ref.dep.scope.
+# expect-stdout: a1 b2 cccccc3
+
+struct P:
+    name: string
+
+struct H:
+    p: *P
+
+pub fn main() -> void $ Console:
+    p := H { p: box(P { name: "a${1}" }) }
+    q := H { p: box(P { name: "b${2}" }) }
+    let mut ps = [&p]
+    d := &ps[0].p.name
+    ps[0] = &q
+    junk := "cccccc${3}"
+    println("${*d} ${ps[0].p.name} $junk")
