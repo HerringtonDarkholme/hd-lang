@@ -29,10 +29,10 @@
     },
     {
       "program": "bench/runtime/progs/inventory.hd",
-      "retained": "6400000",
-      "released": "6400521",
-      "uniques": "6400000",
-      "total": "19200521",
+      "retained": "0",
+      "released": "521",
+      "uniques": "0",
+      "total": "521",
       "noOpsAndSkipped": "6401029"
     },
     {
