@@ -45,7 +45,7 @@
     },
     {
       "reason": "conservative: Store",
-      "sites": 10
+      "sites": 0
     },
     {
       "reason": "conservative: cold constructor",
