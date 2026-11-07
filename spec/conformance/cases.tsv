@@ -1386,6 +1386,11 @@ runtime/valid/dyn-reference-source-replaced-during-its-call.hd	runtime	accept	la
 runtime/valid/list-local-shared-before-a-change-keeps-its-copy.hd	runtime	accept	lang/13-values-and-references.md#copy
 runtime/valid/struct-field-shared-by-a-struct-copy-keeps-its-copy.hd	runtime	accept	lang/13-values-and-references.md#copy
 runtime/valid/entry-status-releases-a-counted-result.hd	runtime	accept	lang/10-modules.md#exit-status
+runtime/valid/provider-local-reassigned-keeps-its-counts.hd	runtime	accept	lang/13-values-and-references.md#copy
+runtime/valid/provider-local-replaced-through-a-reference-keeps-its-counts.hd	runtime	accept	lang/13-values-and-references.md#copy
+runtime/valid/provider-local-passed-whole-keeps-its-counts.hd	runtime	accept	lang/13-values-and-references.md#copy
+runtime/valid/provider-local-across-a-cancelled-wait-keeps-its-provider.hd	runtime	accept	std/task.md#r-std-task.channel.cancel-recv
+runtime/valid/provider-local-in-a-suspending-closure-keeps-its-provider.hd	runtime	accept	std/task.md#r-std-task.channel.cancel-recv
 runtime/valid/struct-field-shared-through-a-binding-keeps-its-copy.hd	runtime	accept	lang/13-values-and-references.md#copy
 runtime/valid/struct-field-shared-through-a-reference-binding-keeps-its-copy.hd	runtime	accept	lang/13-values-and-references.md#copy
 runtime/valid/copy-update-of-a-generic-struct-keeps-its-own-list.hd	runtime	accept	lang/13-values-and-references.md#copy

@@ -102,6 +102,9 @@ pub(crate) fn handed(b: &Body, cx: &dyn OwnCx, topo: &Topology, i: usize, end: T
         if ends(x, coercion) {
             return Some(x);
         }
+        if b.tags[x as usize] == Tag::Store && b.data[x as usize][1] == coercion {
+            return read_through_end(b, x as usize, end);
+        }
         if b.tags[x as usize] != Tag::Read
             || b.view(b.data[x as usize][0]).root != Root::Value(coercion)
         {
@@ -109,6 +112,39 @@ pub(crate) fn handed(b: &Body, cx: &dyn OwnCx, topo: &Topology, i: usize, end: T
         }
     }
     None
+}
+
+/// The one end of the local that `store` fills, when nothing else stores it,
+/// references it, captures it or reads all of it, and no suspension point can
+/// hold it: every read is through it, so nothing takes a count it doesn't hold.
+fn read_through_end(b: &Body, store: usize, end: Tag) -> Option<u32> {
+    let p = b.view(b.data[store][0]);
+    let l = p.local().filter(|_| p.whole())?;
+    // A frame's way out at a suspension point releases the locals it holds.
+    if b.cap_local.iter().any(|c| c.idx() == l as usize)
+        || b.tags.iter().any(|&tag| crate::ir::is_suspension(tag))
+    {
+        return None;
+    }
+    let mut found = None;
+    for i in 0..b.len() {
+        if !matches!(
+            b.tags[i],
+            Tag::Store | Tag::Ref | Tag::Read | Tag::Drop | Tag::LoanEnd
+        ) {
+            continue;
+        }
+        let v = b.view(b.data[i][0]);
+        if v.local() != Some(l) || i == store {
+            continue;
+        }
+        match b.tags[i] {
+            Tag::Read if v.steps(b).next() == Some(Proj::Deref) => {}
+            t if t == end && v.whole() && found.is_none() => found = Some(u32_of(i)),
+            _ => return None,
+        }
+    }
+    found
 }
 
 /// Whether value `v` certainly holds a count of its own, whatever the backend

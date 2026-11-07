@@ -1,0 +1,26 @@
+# expect-stdout: 2
+# test: a local bound to a provider and replaced through a reference to it still writes to the provider, which stays alive
+# Rules: ref.type.group, ref.type.local-uncounted.
+trait Sink:
+    fn put(&mut self, text: string) -> void
+
+struct Count:
+    n: usize
+
+impl Sink for Count:
+    fn put(&mut self, text: string) -> void:
+        self.n = self.n + text.len()
+
+fn replace(target: &mut (&mut dyn Sink)) -> void $ Sink:
+    *target = $.use(Sink)
+
+fn line(text: string) -> void $ Sink:
+    let mut sink: &mut dyn Sink = $.use(Sink)
+    replace(&mut sink)
+    sink.put(text)
+
+pub fn main() -> void $ Console:
+    first := box(Count { n: 0 })
+    $.with(Sink = first):
+        line("ab")
+    println(first.n)

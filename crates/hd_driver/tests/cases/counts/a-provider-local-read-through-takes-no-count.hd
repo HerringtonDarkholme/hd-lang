@@ -1,0 +1,33 @@
+# @dump: own wat counts
+# @build: v8 release
+# `sink` binds the row's provider and is read only through, and the caller holds
+# the provider for the whole body, so `line` takes no count: `LoanEnd [$1]` and no
+# retain or release. `swapped` assigns its local, so it keeps the pair.
+trait Sink:
+    fn put(&mut self, text: string) -> void
+
+struct Count:
+    n: usize
+
+impl Sink for Count:
+    fn put(&mut self, text: string) -> void:
+        self.n = self.n + text.len()
+
+fn line(text: string) -> void $ Sink:
+    let sink: &mut dyn Sink = $.use(Sink)
+    sink.put(text)
+    sink.put("!")
+
+fn swapped(text: string, other: &mut dyn Sink) -> void $ Sink:
+    let mut sink: &mut dyn Sink = $.use(Sink)
+    sink.put(text)
+    sink = other
+    sink.put("!")
+
+pub fn go() -> usize:
+    first := box(Count { n: 0 })
+    second := box(Count { n: 0 })
+    $.with(Sink = first):
+        line("ab")
+        swapped("c", second)
+    first.n + second.n

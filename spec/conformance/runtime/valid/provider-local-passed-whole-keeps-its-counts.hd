@@ -1,0 +1,28 @@
+# expect-stdout: 2
+# test: a local bound to a provider and passed whole to a function that returns it still writes to the provider, which stays alive
+# Rules: req.ref.host.reference-values, ref.type.local-uncounted.
+use std.annotation.inline
+trait Sink:
+    fn put(&mut self, text: string) -> void
+
+struct Count:
+    n: usize
+
+impl Sink for Count:
+    fn put(&mut self, text: string) -> void:
+        self.n = self.n + text.len()
+
+@inline(.Never)
+fn hold(sink: &mut dyn Sink) -> &mut dyn Sink:
+    sink
+
+fn line(text: string) -> void $ Sink:
+    let sink: &mut dyn Sink = $.use(Sink)
+    let kept = hold(sink)
+    kept.put(text)
+
+pub fn main() -> void $ Console:
+    first := box(Count { n: 0 })
+    $.with(Sink = first):
+        line("ab")
+    println(first.n)

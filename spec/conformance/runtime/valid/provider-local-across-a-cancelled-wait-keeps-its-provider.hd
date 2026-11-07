@@ -1,0 +1,33 @@
+# expect-stdout: quick
+# expect-stdout: 1
+# test: a suspending function that holds a local bound to a provider across a wait, and loses a race, leaves the provider alive and counted
+# Spec std/task: a race cancels its loser. Rules: req.ref.host.reference-values.
+use std.task.{channel, race, Receiver}
+trait Sink:
+    fn put(&mut self, text: string) -> void
+
+struct Count:
+    n: usize
+
+impl Sink for Count:
+    fn put(&mut self, text: string) -> void:
+        self.n = self.n + text.len()
+
+fn line!(waits: Receiver[string]) -> string $ Sink:
+    let sink: &mut dyn Sink = $.use(Sink)
+    sink.put("a")
+    let got = waits.recv!()
+    sink.put("b")
+    "done"
+
+fn quick!() -> string:
+    "quick"
+
+pub fn main!() -> void $ Console:
+    let (keep, waits) = channel::[string](1)
+    first := box(Count { n: 0 })
+    $.with(Sink = first):
+        let winner = race!(line(waits), quick())
+        println(winner)
+    _ := keep
+    println(first.n)

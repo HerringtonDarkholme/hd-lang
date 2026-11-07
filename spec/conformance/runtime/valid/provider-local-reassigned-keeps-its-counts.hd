@@ -1,0 +1,25 @@
+# expect-stdout: 2 1
+# test: a local bound to a provider and then assigned another reference writes to each in turn, and both stay alive
+# Rules: req.ref.host.reference-values, ref.type.local-uncounted.
+trait Sink:
+    fn put(&mut self, text: string) -> void
+
+struct Count:
+    n: usize
+
+impl Sink for Count:
+    fn put(&mut self, text: string) -> void:
+        self.n = self.n + text.len()
+
+fn line(text: string, other: &mut dyn Sink) -> void $ Sink:
+    let mut sink: &mut dyn Sink = $.use(Sink)
+    sink.put(text)
+    sink = other
+    sink.put("!")
+
+pub fn main() -> void $ Console:
+    first := box(Count { n: 0 })
+    second := box(Count { n: 0 })
+    $.with(Sink = first):
+        line("ab", second)
+    println("${first.n} ${second.n}")
