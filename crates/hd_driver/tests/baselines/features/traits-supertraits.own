@@ -56,32 +56,33 @@ fn widen(d: &dyn Dog) -> usize:
     name_of(d) + d.bark().len()
 > app/main/widen
 >   local $0 d: Ref[Dog] [param read] value
->     uses $0: entry -> %0 consume, %9 lend last
+>     uses $0: entry -> %0 consume, %10 lend last
 >   local $1 $ref: Ref[Dog] [read assigned captured] value
 >     uses $1: %1 -> %2 lend last
 >   local $2 $ref: string [read assigned captured captured-assigned] value
->     uses $2: %12 -> %13 lend last
+>     uses $2: %13 -> %14 lend last
 >   %0 = Read borrow [$0] : Ref[Dog]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read copy [*$1] : Dog
 >   %3 = Coerce %2 [Supertrait -] : Animal
->   %4 = Drop [%2] : ()
->   %5 = Block %3 : Animal
->   %6 = RefDyn %5 : Ref[Animal]
->   %7 = Call app/main/name_of[] (%6) : usize
->   %8 = Drop [%6] : ()
->   %9 = Read copy [*$0] : Dog
->   %10 = Call app/main/Dog.bark for Dog [] via TraitValue (%9) : string
->   %11 = Drop [%9] : ()
->   %12 = Store [$2] %10 : ()
->   %13 = Read borrow [$2] : string
->   %14 = Call std/rt.bytes/bytes_len[] (%13) : usize
->   %15 = Break L0 %14 : never
->   %16 = Block - : usize
->   %17 = Scope %16 [] : usize
->   %18 = Drop [$2] : ()
->   %19 = Prim Add [%7 %17] : usize
->   %20 = Block %19 : usize
+>   %4 = Retain %3 #0 : ()
+>   %5 = Drop [%2] : ()
+>   %6 = Block %3 : Animal
+>   %7 = RefDyn %6 : Ref[Animal]
+>   %8 = Call app/main/name_of[] (%7) : usize
+>   %9 = Drop [%7] : ()
+>   %10 = Read copy [*$0] : Dog
+>   %11 = Call app/main/Dog.bark for Dog [] via TraitValue (%10) : string
+>   %12 = Drop [%10] : ()
+>   %13 = Store [$2] %11 : ()
+>   %14 = Read borrow [$2] : string
+>   %15 = Call std/rt.bytes/bytes_len[] (%14) : usize
+>   %16 = Break L0 %15 : never
+>   %17 = Block - : usize
+>   %18 = Scope %17 [] : usize
+>   %19 = Drop [$2] : ()
+>   %20 = Prim Add [%8 %18] : usize
+>   %21 = Block %20 : usize
 >   summary kept [] writes
 
 fn loud[T < Dog](d: T) -> usize:

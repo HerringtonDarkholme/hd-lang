@@ -38,7 +38,7 @@ fn widen(d: &dyn Dog) -> usize:
     name_of(d) + d.bark().len()
 > app/main/widen
 >   retain app.main.Dog (conservative: copy read)
->   retain app.main.Animal (conservative: Coerce)
+>   retain app.main.Animal (stored)
 >   release app.main.Dog (last use)
 >   retain app.main.Dog (second owner)
 >   (no span) release &app.main.Animal (by design)
