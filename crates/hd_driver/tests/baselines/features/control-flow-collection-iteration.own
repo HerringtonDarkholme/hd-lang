@@ -18,7 +18,7 @@ fn by_value(m: Map[string, string]) -> usize:
 >     uses $6: %34 -> %24 lend last
 >   local $7 v: Ref[string] [read assigned] value
 >     uses $7: %36 -> %26 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %49 Exit local $0 #2 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
 >   %49 = Block %48 : usize
@@ -48,9 +48,9 @@ fn by_value(m: Map[string, string]) -> usize:
 >   %32 = Read borrow [%19 .0] : Ref[string]
 >   %33 = Read borrow [%19 .1] : Ref[string]
 >   %34 = Store [$6] %32 : ()
->   %35 = Release %34 #0 : ()
+>   %35 = Release %34 Operation #3 : ()
 >   %36 = Store [$7] %33 : ()
->   %37 = Release %36 #0 : ()
+>   %37 = Release %36 Operation #3 : ()
 >   %39 = Block - : never
 >   %40 = Match %19 [%39 %31] : ()
 >   %41 = Drop [%19] : ()
@@ -117,7 +117,7 @@ fn by_ref(m: &Map[string, string]) -> usize:
 >   %29 = Block - : ()
 >   %30 = Read borrow [%20 .1] : Ref[string]
 >   %31 = Store [$6] %30 : ()
->   %32 = Release %31 #0 : ()
+>   %32 = Release %31 Operation #3 : ()
 >   %34 = Block - : never
 >   %35 = Match %20 [%34 %29] : ()
 >   %36 = Drop [%20] : ()
@@ -150,7 +150,7 @@ fn keys(m: Map[string, string]) -> List[string]:
 >     uses $5: %8 -> %12 lend, %16 lend
 >   local $6 k: Ref[string] [read assigned] value
 >     uses $6: %30 -> %24 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %44 Exit local $0 #2 : ()
     let mut out: List[string] = []
 >   %1 = NewList - [] : List[string]
 >   %2 = Store [$1] %1 : ()
@@ -180,7 +180,7 @@ fn keys(m: Map[string, string]) -> List[string]:
 >   %28 = Block - : ()
 >   %29 = Read move [%20 .0] : Ref[string]
 >   %30 = Store [$6] %29 : ()
->   %31 = Release %30 #0 : ()
+>   %31 = Release %30 Operation #3 : ()
 >   %32 = Drop [%20 .1] : ()
 >   %34 = Block - : never
 >   %35 = Match %20 [%34 %28] : ()

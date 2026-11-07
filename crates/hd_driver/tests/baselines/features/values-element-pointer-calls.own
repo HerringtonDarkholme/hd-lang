@@ -47,7 +47,7 @@ fn walk(node: &Node, sink: &mut dyn Sink) -> void:
 >   %19 = Block - : ()
 >   %20 = Read borrow [%15] : Ref[Counted[Node]]
 >   %21 = Store [$4] %20 : ()
->   %22 = Release %21 #0 : ()
+>   %22 = Release %21 Operation #3 : ()
 >   %24 = Block - : never
 >   %25 = Match %15 [%24 %19] : ()
 >   %26 = LoanEnd [%15] : ()
@@ -127,7 +127,7 @@ fn save(node: &Node, k: &mut Keeper) -> void:
 >   %15 = Block - : ()
 >   %16 = Read borrow [%11] : Ref[Counted[Node]]
 >   %17 = Store [$4] %16 : ()
->   %18 = Release %17 #0 : ()
+>   %18 = Release %17 Operation #3 : ()
 >   %20 = Block - : never
 >   %21 = Match %11 [%20 %15] : ()
 >   %22 = LoanEnd [%11] : ()
@@ -163,7 +163,7 @@ pub fn run(root: *Node) -> i64:
 >   %4 = Store [$2] %3 : ()
 >   %5 = Read move [$2] : Ref[mut Total]
 >   %6 = Coerce %5 [RefToTraitValue -] : Sink
->   %7 = Retain %6 #0 : ()
+>   %7 = Retain %6 Value #0 : ()
 >   %8 = LoanEnd [%5] : ()
 >   %9 = Block %6 : Sink
 >   %10 = RefDyn %9 : Ref[mut Sink]

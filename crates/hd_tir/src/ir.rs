@@ -93,6 +93,8 @@ macro_rules! tags {
 pub enum Op {
     None,
     Value,
+    /// An instruction identity, not an evaluated value or a block to run.
+    Inst,
     Block,
     Label,
     Meta,
@@ -177,37 +179,12 @@ tags! {
     // counts nothing; a is the holder's place word. Append ownership tags
     // so that existing tags keep their numeric encodings.
     LoanEnd: Place, None;
-    // An explicit count for an owned result that borrows its buffer.
-    // a is the result value; b is its ownership reason.
-    Retain: Value, Meta;
-    // Declares cleanup of an ABI-owned parameter at the common exit,
-    // not at this statement's lexical position. a is its local place;
-    // b is the ownership reason. A borrowed ABI argument takes no count.
-    ExitDrop: Place, Meta;
-    // Declares a Fact/Handle cache payload copy, lowered at cache lookup
-    // or publication, not at this statement's lexical position.
-    // a is cache_copy's phase; b is the ownership reason.
-    CacheCopy: Meta, Meta;
-    // Declares a source parameter's copy into its cold suspension frame.
-    // a is the parameter's local place; b is its ownership reason.
-    // A concrete Drop ABI transfers its argument instead and copies nothing.
-    ColdCopy: Place, Meta;
-    // The release of what a `Store` replaces, lowered in the store's one
-    // walk of its place. a is the store; b is its ownership reason.
-    Release: Value, Meta;
-    // Copies the frame-owned portion of this function's requirement row
-    // into its cold frame. Layout supplies provider data and context;
-    // an empty/noncounting layout emits no count. a is reserved, b reason.
-    ColdRowCopy: Meta, Meta;
+    // Counts: target instruction identity plus one shared descriptor.
+    Retain: Inst, Record;
+    Release: Inst, Record;
 }
 
-/// The two owned copies of a counted Fact/Handle result cache.
-pub mod cache_copy {
-    /// A cache hit returns a copy while the cache retains its own value.
-    pub const READ: u32 = 0;
-    /// A freshly computed result is copied into the persistent cache.
-    pub const WRITE: u32 = 1;
-}
+pub mod count;
 
 /// `Prim` operators (the `Meta` word of a `Prim` instruction).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -2241,11 +2218,7 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
             Tag::Drop
             | Tag::LoanEnd
             | Tag::Retain
-            | Tag::ExitDrop
-            | Tag::CacheCopy
-            | Tag::ColdCopy
             | Tag::Release
-            | Tag::ColdRowCopy
             | Tag::IsUnique
             | Tag::FlagSet
             | Tag::FlagClear => {
@@ -2306,6 +2279,9 @@ pub(crate) fn verify_structure(b: &Body, topo: &Topology) -> Vec<VerifyError> {
         }
         for (word, op) in [(a, tag.operands().0), (w, tag.operands().1)] {
             match op {
+                Op::Inst if word >= n => {
+                    errs.push(err(1, "count target instruction out of range".into()));
+                }
                 Op::Value if word != NONE && word & Ref::CONST_BIT == 0 && word >= i => {
                     errs.push(err(1, format!("value %{word} used before it is defined")));
                 }
@@ -3910,7 +3886,7 @@ mod tests {
         let root = b.close_block(blk, Some(one), Ty::I32, NodeIdx::NONE);
         let body = b.finish(root, &[]).expect("ok");
         assert_eq!(body.len(), 1);
-        assert_eq!(Tag::ALL.len(), 62);
+        assert_eq!(Tag::ALL.len(), 58);
         assert!(
             Tag::ALL
                 .iter()

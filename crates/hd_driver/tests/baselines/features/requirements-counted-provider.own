@@ -16,7 +16,7 @@ fn keep() -> *dyn Store $ Store:
     $.use(Store)
 > app/main/keep
 >   %0 = ProviderGet #0 : Store
->   %1 = Retain %0 #0 : ()
+>   %1 = Retain %0 Value #0 : ()
 >   %2 = Coerce %0 [ProviderAsRef -] : Counted[Store]
 >   %3 = Block %2 : Counted[Store]
 >   summary kept [] writes
@@ -25,7 +25,7 @@ fn holder() -> Holder $ Store:
     Holder { store: $.use(Store) }
 > app/main/holder
 >   %0 = ProviderGet #0 : Store
->   %1 = Retain %0 #0 : ()
+>   %1 = Retain %0 Value #0 : ()
 >   %2 = Coerce %0 [ProviderAsRef -] : Counted[Store]
 >   %3 = NewStruct [%2] : Holder
 >   %4 = Block %3 : Holder
@@ -36,9 +36,9 @@ fn fetch!() -> usize $ Store:
 > app/main/fetch
 >   local $1 self: string [read] value
 >     uses $1: %7 -> %8 lend last
->   %0 = ColdRowCopy #0 #0 : ()
+>   %0 = Retain %14 Cold row #0 : ()
 >   %1 = ProviderGet #0 : Store
->   %2 = Retain %1 #0 : ()
+>   %2 = Retain %1 Value #0 : ()
 >   %3 = Coerce %1 [ProviderAsRef -] : Ref[Store]
 >   %4 = Read borrow [*%3] : Store
 >   %5 = Drop [%3] : ()

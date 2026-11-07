@@ -13,7 +13,7 @@ fn bump!(c: &mut Counter) -> void:
 > app/main/bump
 >   local $0 c: Ref[mut Counter] [param read] value
 >     uses $0: entry -> %1 lend, %3 lend last
->   %0 = ColdCopy [$0] #0 : ()
+>   %0 = Retain %5 Cold local $0 #0 : ()
     c.hits = c.hits + 1
 >   %1 = Read copy [*$0 .hits] : i32
 >   %2 = Prim Add [%1 1:i32] : i32

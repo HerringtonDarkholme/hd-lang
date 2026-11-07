@@ -74,7 +74,7 @@ fn new_mut(s: string, t: string) -> usize:
     m.name = t
 >   %5 = Read move [$1] : string
 >   %6 = Store [*$3 .name] %5 : ()
->   %7 = Release %6 #0 : ()
+>   %7 = Release %6 Operation #3 : ()
     m.name.len()
 >   %8 = Read borrow [*$3 .name] : string
 >   %9 = Store [$4] %8 : ()
@@ -111,7 +111,7 @@ fn field_ref(s: string, t: string) -> usize:
     *q = t
 >   %5 = Read move [$1] : string
 >   %6 = Store [*$3] %5 : ()
->   %7 = Release %6 #0 : ()
+>   %7 = Release %6 Operation #3 : ()
 >   %8 = LoanEnd [$3] : ()
     p.name.len()
 >   %9 = Read move [$2 .name] : string

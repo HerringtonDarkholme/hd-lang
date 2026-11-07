@@ -14,7 +14,7 @@ fn read_field(r: Rec) -> usize:
 >     uses $0: entry -> %1 consume, %8 lend last
 >   local $1 self: string [read] value
 >     uses $1: %2 -> %3 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %11 Exit local $0 #2 : ()
     r.name.len() + r.tags.len()
 >   %1 = Read borrow [$0 .name] : string
 >   %2 = Store [$1] %1 : ()
@@ -55,7 +55,7 @@ fn write_field(r: Rec, n: string) -> Rec:
     s.name = n
 >   %2 = Read move [$1] : string
 >   %3 = Store [$2 .name] %2 : ()
->   %4 = Release %3 #0 : ()
+>   %4 = Release %3 Operation #3 : ()
     s
 >   %5 = Read move [$2] : Rec
 >   exit sub 0 drops [$0 $1]
@@ -70,7 +70,7 @@ fn write_through(r: &mut Rec, n: string) -> void:
 >     uses $1: entry -> %0 consume last
 >   %0 = Read move [$1] : string
 >   %1 = Store [*$0 .name] %0 : ()
->   %2 = Release %1 #0 : ()
+>   %2 = Release %1 Operation #3 : ()
 >   %3 = Block - : ()
 >   exit sub 0 drops [$1]
 >   summary kept [$1] writes

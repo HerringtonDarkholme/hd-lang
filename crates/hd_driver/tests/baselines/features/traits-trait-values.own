@@ -55,7 +55,7 @@ impl Greet for User:
 >     uses $1: entry -> %0 consume last
 >   %0 = Read move [$1] : string
 >   %1 = Store [*$0 .name] %0 : ()
->   %2 = Release %1 #0 : ()
+>   %2 = Release %1 Operation #3 : ()
 >   %3 = Block - : ()
 >   exit sub 0 drops [$1]
 >   summary kept [$1] writes
@@ -75,7 +75,7 @@ fn boxed(u: User) -> *dyn Greet:
 >   %4 = Store [$2] %3 : ()
 >   %5 = Read move [$2] : Counted[User]
 >   %6 = Coerce %5 [RefToTraitValue -] : Greet
->   %7 = Retain %6 #0 : ()
+>   %7 = Retain %6 Value #0 : ()
 >   %8 = Drop [%5] : ()
 >   %9 = Block %6 : Greet
 >   %10 = RefDyn %9 : Counted[Greet]
@@ -90,7 +90,7 @@ fn through_mut(g: &mut dyn Greet, n: string) -> usize:
 >     uses $0: entry -> %1 lend, %5 consume last
 >   local $1 n: string [param read] value
 >     uses $1: entry -> %2 lend last
->   %0 = ExitDrop [$1] #2 : ()
+>   %0 = Release %8 Exit local $1 #2 : ()
     g.rename(n)
 >   %1 = Read copy [*$0] : mut Greet
 >   %2 = Read borrow [$1] : string
@@ -112,7 +112,7 @@ fn local_mut(u: User, n: string) -> usize:
 >   local $2 v: User [read assigned captured captured-assigned] place
 >   local $3 $ref: Ref[mut User] [read assigned captured] value
 >     uses $3: %4 -> %5 lend last
->   %0 = ExitDrop [$1] #2 : ()
+>   %0 = Release %15 Exit local $1 #2 : ()
     let mut v = u
 >   %1 = Read move [$0] : User
 >   %2 = Store [$2] %1 : ()
@@ -122,7 +122,7 @@ fn local_mut(u: User, n: string) -> usize:
 >   %4 = Store [$3] %3 : ()
 >   %5 = Read move [$3] : Ref[mut User]
 >   %6 = Coerce %5 [RefToTraitValue -] : Greet
->   %7 = Retain %6 #0 : ()
+>   %7 = Retain %6 Value #0 : ()
 >   %8 = LoanEnd [%5] : ()
 >   %9 = Block %6 : Greet
 >   %10 = RefDyn %9 : Ref[mut Greet]

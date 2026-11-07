@@ -28,7 +28,7 @@ fn shift[T](items: List[T], i: usize) -> List[T]:
 >   %5 = Read copy [$2 [%4]] : T
 >   %6 = IsUnique [$2] : ()
 >   %7 = Store [$2 [%2]] %5 : ()
->   %8 = Release %7 #0 : ()
+>   %8 = Release %7 Operation #3 : ()
     xs
 >   %9 = Read move [$2] : List[T]
 >   exit sub 0 drops [$0]

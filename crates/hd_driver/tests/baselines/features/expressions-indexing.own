@@ -12,8 +12,8 @@ fn map_index(m: Map[string, string], k: string) -> usize:
 >     uses $1: entry -> %3 lend last
 >   local $2 self: string [read] value
 >     uses $2: %6 -> %7 lend last
->   %0 = ExitDrop [$0] #2 : ()
->   %1 = ExitDrop [$1] #2 : ()
+>   %0 = Release %12 Exit local $0 #2 : ()
+>   %1 = Release %12 Exit local $1 #2 : ()
     m[k].len()
 >   %2 = Read borrow [$0] : Map[string, string]
 >   %3 = Read borrow [$1] : string
@@ -34,7 +34,7 @@ fn map_index_take(m: Map[string, string], k: string) -> string:
 >     uses $0: entry -> %1 lend, %4 lend last
 >   local $1 k: string [param read] value
 >     uses $1: entry -> %2 lend last
->   %0 = ExitDrop [$1] #2 : ()
+>   %0 = Release %6 Exit local $1 #2 : ()
     m[k]
 >   %1 = Read borrow [$0] : Map[string, string]
 >   %2 = Read borrow [$1] : string
@@ -51,7 +51,7 @@ fn string_byte(s: string, i: usize) -> u8:
 >     uses $0: entry -> %1 lend last
 >   local $1 i: usize [param read] value
 >     uses $1: entry -> %2 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %4 Exit local $0 #2 : ()
     s[i]
 >   %1 = Read borrow [$0] : string
 >   %2 = Read copy [$1] : usize

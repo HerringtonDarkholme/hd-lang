@@ -86,6 +86,7 @@ enum Layout {
 /// tag's role or record says more.
 fn layout(tag: Tag) -> [Layout; 2] {
     let plain = |op| match op {
+        Op::Inst => L::One(Word::Inst),
         Op::Value => L::One(Word::Value(Role::Lend)),
         Op::Block => L::One(Word::Block),
         Op::Place => L::Place(Role::Lend),
@@ -97,10 +98,7 @@ fn layout(tag: Tag) -> [Layout; 2] {
     let consume = Word::Value(Role::Consume);
     match tag {
         Tag::Block => [L::Each(Word::Inst), L::One(Word::Value(Role::Tail))],
-        Tag::Drop | Tag::LoanEnd | Tag::ExitDrop => [L::Place(Role::Dropped), b],
-        // Ownership bookkeeping observes the constructed value, without
-        // adding a program use that would disable its single consumer.
-        Tag::Retain | Tag::Release => [L::One(Word::Inst), b],
+        Tag::Drop | Tag::LoanEnd => [L::Place(Role::Dropped), b],
         Tag::Store | Tag::Break => [a, L::One(consume)],
         Tag::Return => [L::One(consume), b],
         Tag::Call | Tag::Await => [a, L::Call],

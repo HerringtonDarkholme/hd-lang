@@ -18,8 +18,8 @@ fn each(xs: List[string], f: fn(string) -> void) -> void:
 >     uses $5: %4 -> %7 lend
 >   local $6 x: string [read assigned] value
 >     uses $6: %19 -> %15 consume last
->   %0 = ExitDrop [$0] #2 : ()
->   %1 = ExitDrop [$1] #2 : ()
+>   %0 = Release %30 Exit local $0 #2 : ()
+>   %1 = Release %30 Exit local $1 #2 : ()
     for x in xs:
 >   %2 = Read borrow [$0] : List[string]
 >   %3 = Intrinsic ListLen [%2] : usize
@@ -36,7 +36,7 @@ fn each(xs: List[string], f: fn(string) -> void) -> void:
 >   %17 = Block - : ()
 >   %18 = Read borrow [%10] : string
 >   %19 = Store [$6] %18 : ()
->   %20 = Release %19 #0 : ()
+>   %20 = Release %19 Operation #3 : ()
 >   %22 = Block - : never
 >   %23 = Match %10 [%22 %17] : ()
 >   %24 = Block - : ()
@@ -74,8 +74,8 @@ fn run(xs: List[string], g: fn(fn() -> void) -> void) -> usize:
 >     uses $3: entry -> %5 lend last
 >   local $4 later: fn() -> () [:= read assigned] value
 >     uses $4: %27 -> %28 lend last
->   %0 = ExitDrop [$0] #2 : ()
->   %1 = ExitDrop [$1] #2 : ()
+>   %0 = Release %42 Exit local $0 #2 : ()
+>   %1 = Release %42 Exit local $1 #2 : ()
     let n: usize = 0
 >   %2 = Store [$2] 0:usize : ()
 >   %42 = Block %40 : usize
@@ -90,7 +90,7 @@ fn run(xs: List[string], g: fn(fn() -> void) -> void) -> usize:
 >   %10 = Drop [$3] : ()
 >   %11 = Prim Add [%4 %9] : usize
 >   %12 = Store [$2] %11 : ()
->   %13 = Release %12 #0 : ()
+>   %13 = Release %12 Operation #3 : ()
 >   %14 = Drop [$2] : ()
 >   %15 = Block - : ()
 >   %16 = Closure #1 [%0 %1] : fn(string) -> ()
@@ -101,7 +101,7 @@ fn run(xs: List[string], g: fn(fn() -> void) -> void) -> usize:
 >   %19 = Read copy [$2] : usize
 >   %20 = Prim Add [%19 1:usize] : usize
 >   %21 = Store [$2] %20 : ()
->   %22 = Release %21 #0 : ()
+>   %22 = Release %21 Operation #3 : ()
 >   %23 = Drop [$2] : ()
 >   %24 = Block - : ()
 >   %25 = Closure #2 [%1 %1] : fn() -> ()
@@ -118,7 +118,7 @@ fn run(xs: List[string], g: fn(fn() -> void) -> void) -> usize:
 >   %32 = Read copy [$2] : usize
 >   %33 = Prim Add [%32 2:usize] : usize
 >   %34 = Store [$2] %33 : ()
->   %35 = Release %34 #0 : ()
+>   %35 = Release %34 Operation #3 : ()
 >   %36 = Drop [$2] : ()
 >   %37 = Block - : ()
 >   %38 = Closure #3 [%2 %1] : fn() -> ()

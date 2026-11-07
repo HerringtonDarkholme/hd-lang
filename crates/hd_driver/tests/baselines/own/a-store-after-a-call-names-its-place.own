@@ -65,7 +65,7 @@ fn put[T](xs: &mut List[T], k: usize, v: T) -> void:
 >   %1 = Read copy [$2] : T
 >   %2 = IsUnique [*$0] : ()
 >   %3 = Store [*$0 [%0]] %1 : ()
->   %4 = Release %3 #0 : ()
+>   %4 = Release %3 Operation #3 : ()
 >   %9 = Block - : ()
     xs.push(v)
 >   %5 = Read move [$2] : T

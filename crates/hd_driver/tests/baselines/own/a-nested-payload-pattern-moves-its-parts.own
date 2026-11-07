@@ -44,9 +44,9 @@ fn drain(parcels: UniqMap[string, Parcel]) -> usize:
 >   %32 = Read move [%31 .0] : string
 >   %33 = Read move [%31 .1] : Parcel
 >   %34 = Store [$4] %32 : ()
->   %35 = Release %34 #0 : ()
+>   %35 = Release %34 Operation #3 : ()
 >   %36 = Store [$5] %33 : ()
->   %37 = Release %36 #0 : ()
+>   %37 = Release %36 Operation #3 : ()
 >   %40 = Drop [%10] : ()
 >   %44 = Block - : never
 >   %45 = Match %10 [%44 %28 %30] : ()
@@ -67,7 +67,7 @@ fn drain(parcels: UniqMap[string, Parcel]) -> usize:
 >   %16 = Scope %15 [] : usize
 >   %17 = Read borrow [$5 .label] : string
 >   %18 = Store [$6] %17 : ()
->   %19 = Release %18 #0 : ()
+>   %19 = Release %18 Operation #3 : ()
 >   %20 = Read borrow [$6] : string
 >   %21 = Call std/rt.bytes/bytes_len[] (%20) : usize
 >   %22 = Break L1 %21 : never

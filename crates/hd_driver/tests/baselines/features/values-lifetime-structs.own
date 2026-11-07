@@ -31,7 +31,7 @@ fn word['a](t: Token[string, 'a], fallback: &'a string) -> &'a string:
 >     uses $1: entry -> %4 consume last
 >   local $2 w: Ref[string] [read assigned] value
 >     uses $2: %7 -> %2 consume last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %19 Exit local $0 #2 : ()
     match t:
 >   %1 = Read borrow [$0] : Token[string, Ref[()]]
 >   %17 = Block - : never

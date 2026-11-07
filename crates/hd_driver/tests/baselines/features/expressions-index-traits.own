@@ -39,7 +39,7 @@ impl IndexSet[usize, string] for Names:
 >   %1 = Read move [$2] : string
 >   %2 = IsUnique [*$0 .items] : ()
 >   %3 = Store [*$0 .items [%0]] %1 : ()
->   %4 = Release %3 #0 : ()
+>   %4 = Release %3 Operation #3 : ()
 >   %5 = Block - : ()
 >   %2 owned: single-owner field
 >   exit sub 0 drops [$2]

@@ -15,7 +15,7 @@ fn width(s: string) -> usize:
 > app/main/width
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %1 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %6 Exit local $0 #2 : ()
     s.len()
 >   %1 = Read borrow [$0] : string
 >   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
@@ -31,7 +31,7 @@ fn apply(f: fn(string) -> usize, s: string) -> usize:
 >     uses $0: entry -> %1 lend last
 >   local $1 s: string [param read] value
 >     uses $1: entry -> %2 consume last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %4 Exit local $0 #2 : ()
     f(s)
 >   %1 = Read borrow [$0] : fn(string) -> usize
 >   %2 = Read move [$1] : string
@@ -46,7 +46,7 @@ fn named_value(s: string) -> usize:
 >     uses $0: entry -> %4 lend last
 >   local $1 f: fn(string) -> usize [read] value
 >     uses $1: %2 -> %3 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %16 Exit local $0 #2 : ()
     apply(width, s)
 >   %1 = ItemRef #0 [..] : fn(string) -> usize
 >   %2 = Store [$1] %1 : ()
@@ -82,7 +82,7 @@ fn map_one[A, B](x: A, f: fn(A) -> B) -> B:
 >     uses $0: entry -> %2 consume last
 >   local $1 f: fn(A) -> B [param read] value
 >     uses $1: entry -> %1 lend last
->   %0 = ExitDrop [$1] #2 : ()
+>   %0 = Release %4 Exit local $1 #2 : ()
     f(x)
 >   %1 = Read borrow [$1] : fn(A) -> B
 >   %2 = Read move [$0] : A

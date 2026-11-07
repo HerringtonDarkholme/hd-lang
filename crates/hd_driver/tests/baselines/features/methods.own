@@ -12,7 +12,7 @@ impl Shelf:
 > app/main/impl Shelf.by_self
 >   local $0 self: Shelf [param read] value
 >     uses $0: entry -> %1 lend, %4 lend, %8 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %13 Exit local $0 #2 : ()
         (self.books.len() + 1) * (self.books.len() + 2) * (self.books.len() + 3) / 7
 >   %1 = Read borrow [$0 .books] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize

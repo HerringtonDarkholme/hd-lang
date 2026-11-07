@@ -19,7 +19,7 @@ fn read_match(s: Shape) -> usize:
 >     uses $2: %27 -> %8 lend last
 >   local $3 b: string [read assigned] value
 >     uses $3: %28 -> %13 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %42 Exit local $0 #2 : ()
     match s:
 >   %1 = Read borrow [$0] : Shape
 >   %40 = Block - : never
@@ -72,7 +72,7 @@ fn take_match(s: Shape) -> string:
 >     uses $1: %8 -> %2 consume last
 >   local $2 a: string [read assigned] value
 >     uses $2: %12 -> %4 consume last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %26 Exit local $0 #2 : ()
     match s:
 >   %1 = Read borrow [$0] : Shape
 >   %24 = Block - : never

@@ -67,7 +67,7 @@ fn by_key(m: Map[string, Player], k: string) -> Map[string, Player]:
 >   local $1 k: string [param read] value
 >     uses $1: entry -> %4 lend last
 >   local $2 out: Map[string, Player] [read assigned] place
->   %0 = ExitDrop [$1] #2 : ()
+>   %0 = Release %11 Exit local $1 #2 : ()
     let mut out = m
 >   %1 = Read move [$0] : Map[string, Player]
 >   %2 = Store [$2] %1 : ()

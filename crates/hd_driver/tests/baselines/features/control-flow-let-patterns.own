@@ -17,7 +17,7 @@ fn read_user(u: User) -> usize:
 >     uses $1: %5 -> %10 lend last
 >   local $2 tags: List[string] [read assigned] value
 >     uses $2: %6 -> %15 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %18 Exit local $0 #2 : ()
     let User { name, tags } = u
 >   %1 = Read borrow [$0] : User
 >   %2 = Block - : ()
@@ -45,7 +45,7 @@ fn take_name(u: User) -> string:
 >     uses $0: entry -> %1 lend last
 >   local $1 name: string [read assigned] value
 >     uses $1: %4 -> %8 consume last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %9 Exit local $0 #2 : ()
     let User { name } = u
 >   %1 = Read borrow [$0] : User
 >   %2 = Block - : ()
@@ -66,7 +66,7 @@ fn pair(p: (string, string)) -> usize:
 >     uses $1: %5 -> %10 lend last
 >   local $2 b: string [read assigned] value
 >     uses $2: %6 -> %15 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %21 Exit local $0 #2 : ()
     let (a, b) = p
 >   %1 = Read borrow [$0] : (string, string)
 >   %2 = Block - : ()
@@ -97,7 +97,7 @@ fn present(o: string?) -> usize:
 >     uses $0: entry -> %1 lend last
 >   local $1 s: string [read assigned] value
 >     uses $1: %6 -> %14 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %19 Exit local $0 #2 : ()
     let .Some(s) = o else:
 >   %1 = Read borrow [$0] : string?
 >   %2 = Block - : ()

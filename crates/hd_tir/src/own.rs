@@ -52,6 +52,7 @@ pub(crate) mod abi;
 pub(crate) mod cache;
 pub(crate) mod cold;
 pub(crate) mod cold_row;
+pub(crate) mod counts;
 pub(crate) mod derive;
 pub mod flow;
 pub(crate) mod frame;
@@ -462,11 +463,7 @@ pub(crate) fn owned_value(b: &Body, i: usize) -> bool {
             | Tag::Drop
             | Tag::LoanEnd
             | Tag::Retain
-            | Tag::ExitDrop
-            | Tag::CacheCopy
-            | Tag::ColdCopy
             | Tag::Release
-            | Tag::ColdRowCopy
             | Tag::IsUnique
             | Tag::FlagSet
             | Tag::FlagClear
@@ -829,16 +826,7 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     retains::run(b, cx, &scratch.topo, &mut scratch.splice)?;
     scratch.topo.build(b);
     scratch.splice.clear();
-    abi::run(b, cx, &scratch.topo, &mut scratch.splice)?;
-    scratch.topo.build(b);
-    scratch.splice.clear();
-    cache::run(b, cx, &scratch.topo, &mut scratch.splice)?;
-    scratch.topo.build(b);
-    scratch.splice.clear();
-    cold::run(b, cx, &scratch.topo, &mut scratch.splice)?;
-    scratch.topo.build(b);
-    scratch.splice.clear();
-    cold_row::run(b, cx, &scratch.topo, &mut scratch.splice)?;
+    counts::run(b, cx, &scratch.topo, &mut scratch.splice)?;
     overwrites::anchor(b);
     uncopied(b, cx, &mut scratch.uncopied);
     Ok(())

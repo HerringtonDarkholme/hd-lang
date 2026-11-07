@@ -31,7 +31,7 @@ app/main/bump_all
   %20 = Block - : ()
   %21 = Read borrow [%16] : Ref[mut i64]
   %22 = Store [$4] %21 : ()
-  %23 = Release %22 #0 : ()
+  %23 = Release %22 Operation #3 : ()
   %25 = Block - : never
   %26 = Match %16 [%25 %20] : ()
   %27 = LoanEnd [%16] : ()

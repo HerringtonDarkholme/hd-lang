@@ -12,7 +12,7 @@ fn select(t: (string, List[string])) -> usize:
 >     uses $0: entry -> %1 consume, %8 lend last
 >   local $1 self: string [read] value
 >     uses $1: %2 -> %3 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %11 Exit local $0 #2 : ()
     t._0.len() + t._1.len()
 >   %1 = Read borrow [$0 .0] : string
 >   %2 = Store [$1] %1 : ()
@@ -33,7 +33,7 @@ fn nested(t: ((string, string), string)) -> usize:
 >     uses $0: entry -> %1 consume last
 >   local $1 self: string [read] value
 >     uses $1: %2 -> %3 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %8 Exit local $0 #2 : ()
     t._0._1.len()
 >   %1 = Read borrow [$0 .0 .1] : string
 >   %2 = Store [$1] %1 : ()

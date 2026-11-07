@@ -31,7 +31,7 @@ app/main/total_len
   %22 = Block - : ()
   %23 = Read borrow [%10] : string
   %24 = Store [$6] %23 : ()
-  %25 = Release %24 #0 : ()
+  %25 = Release %24 Operation #3 : ()
   %27 = Block - : never
   %28 = Match %10 [%27 %22] : ()
   %29 = Block - : ()

@@ -48,7 +48,7 @@ fn must(s: string, n: i32) -> usize:
 >     uses $10: %16 -> %17 lend last
 >   local $11 value: string [read] value
 >     uses $11: %8 -> %9 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %70 Exit local $0 #2 : ()
     t := s + "!"
 >   %1 = Read borrow [$0] : string
 >   %2 = Intrinsic StrConcat [%1 "!"] : string
@@ -136,7 +136,7 @@ fn guarded(log: *mut List[string], s: string, n: i32) -> usize:
 >   local $3 r: Res [:= read assigned captured captured-assigned] place
 >   local $4 self: string [read] value
 >     uses $4: %17 -> %18 lend last
->   %0 = ExitDrop [$1] #2 : ()
+>   %0 = Release %26 Exit local $1 #2 : ()
     using r = Res { name: s + "?", log: log }
 >   %1 = Read borrow [$1] : string
 >   %2 = Intrinsic StrConcat [%1 "?"] : string

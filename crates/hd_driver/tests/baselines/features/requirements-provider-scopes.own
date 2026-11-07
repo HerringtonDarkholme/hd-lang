@@ -30,7 +30,7 @@ fn read_tag() -> usize $ Tag:
 >   local $0 $ref: string [read assigned captured captured-assigned] value
 >     uses $0: %6 -> %7 lend last
 >   %0 = ProviderGet #0 : Tag
->   %1 = Retain %0 #0 : ()
+>   %1 = Retain %0 Value #0 : ()
 >   %2 = Coerce %0 [ProviderAsRef -] : Ref[Tag]
 >   %3 = Read borrow [*%2] : Tag
 >   %4 = Drop [%2] : ()
@@ -63,12 +63,12 @@ fn by_value(s: string) -> usize:
 >   %7 = Block - : Counted[mut Named]
 >   %8 = Scope %7 [] : Counted[mut Named]
 >   %9 = Coerce %8 [RefToTraitValue -] : Tag
->   %10 = Retain %9 #0 : ()
+>   %10 = Retain %9 Value #0 : ()
 >   %11 = Block %9 : Tag
 >   %12 = RefDyn %11 : Counted[Tag]
 >   %13 = Drop [%8] : ()
 >   %14 = Coerce %12 [RefAsProvider -] : Tag
->   %15 = Retain %14 #0 : ()
+>   %15 = Retain %14 Value #0 : ()
 >   %16 = Drop [%12] : ()
 >   %19 = With [Tag %14] %18 : usize
 >   %20 = Drop [%14] : ()
@@ -105,12 +105,12 @@ fn nested(a: string, b: string) -> usize:
 >   %7 = Block - : Counted[mut Named]
 >   %8 = Scope %7 [] : Counted[mut Named]
 >   %9 = Coerce %8 [RefToTraitValue -] : Tag
->   %10 = Retain %9 #0 : ()
+>   %10 = Retain %9 Value #0 : ()
 >   %11 = Block %9 : Tag
 >   %12 = RefDyn %11 : Counted[Tag]
 >   %13 = Drop [%8] : ()
 >   %14 = Coerce %12 [RefAsProvider -] : Tag
->   %15 = Retain %14 #0 : ()
+>   %15 = Retain %14 Value #0 : ()
 >   %16 = Drop [%12] : ()
 >   %43 = With [Tag %14] %42 : usize
 >   %44 = Drop [%14] : ()
@@ -131,12 +131,12 @@ fn nested(a: string, b: string) -> usize:
 >   %26 = Block - : Counted[mut Named]
 >   %27 = Scope %26 [] : Counted[mut Named]
 >   %28 = Coerce %27 [RefToTraitValue -] : Tag
->   %29 = Retain %28 #0 : ()
+>   %29 = Retain %28 Value #0 : ()
 >   %30 = Block %28 : Tag
 >   %31 = RefDyn %30 : Counted[Tag]
 >   %32 = Drop [%27] : ()
 >   %33 = Coerce %31 [RefAsProvider -] : Tag
->   %34 = Retain %33 #0 : ()
+>   %34 = Retain %33 Value #0 : ()
 >   %35 = Drop [%31] : ()
 >   %40 = With [Tag %33] %39 : usize
 >   %41 = Drop [%33] : ()
@@ -153,7 +153,7 @@ fn apply(f: fn() -> usize) -> usize:
 > app/main/apply
 >   local $0 f: fn() -> usize [param read] value
 >     uses $0: entry -> %1 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %3 Exit local $0 #2 : ()
     f()
 >   %1 = Read borrow [$0] : fn() -> usize
 >   %2 = CallValue %1 [] : usize
@@ -184,12 +184,12 @@ fn lexical(s: string) -> usize:
 >   %7 = Block - : Counted[mut Named]
 >   %8 = Scope %7 [] : Counted[mut Named]
 >   %9 = Coerce %8 [RefToTraitValue -] : Tag
->   %10 = Retain %9 #0 : ()
+>   %10 = Retain %9 Value #0 : ()
 >   %11 = Block %9 : Tag
 >   %12 = RefDyn %11 : Counted[Tag]
 >   %13 = Drop [%8] : ()
 >   %14 = Coerce %12 [RefAsProvider -] : Tag
->   %15 = Retain %14 #0 : ()
+>   %15 = Retain %14 Value #0 : ()
 >   %16 = Drop [%12] : ()
 >   %42 = With [Tag %14] %41 : usize
 >   %43 = Drop [%14] : ()
@@ -197,7 +197,7 @@ fn lexical(s: string) -> usize:
 >   %5 finds [$6] full
         tag := $.use(Tag)
 >   %17 = ProviderGet #19 : Tag
->   %18 = Retain %17 #0 : ()
+>   %18 = Retain %17 Value #0 : ()
 >   %19 = Coerce %17 [ProviderAsRef -] : Ref[Tag]
 >   %20 = Store [$1] %19 : ()
 >   %41 = Block %39 : usize

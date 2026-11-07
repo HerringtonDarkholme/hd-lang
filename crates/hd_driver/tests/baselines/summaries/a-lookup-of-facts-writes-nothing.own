@@ -18,7 +18,7 @@ fn has_style(facts: Facts) -> bool:
 >     uses $0: entry -> %1 lend last
 >   local $2 self: RenameAll? [read] value
 >     uses $2: %3 -> %4 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %22 Exit local $0 #2 : ()
     facts.find::[RenameAll]().is_some()
 >   %1 = Read borrow [$0] : Facts
 >   %2 = Call std/structure/impl Facts.find[RenameAll] (%1) : RenameAll?

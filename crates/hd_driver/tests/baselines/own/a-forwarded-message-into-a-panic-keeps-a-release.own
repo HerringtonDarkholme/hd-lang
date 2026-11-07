@@ -71,7 +71,7 @@ fn check_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void:
 >     uses $30: %19 -> %20 lend last
 >   local $31 value: string [read] value
 >     uses $31: %10 -> %11 lend last
->   %0 = ExitDrop [$2] #2 : ()
+>   %0 = Release %212 Exit local $2 #2 : ()
     if actual != expected:
 >   %1 = Ref local frame [$0] : Counted[T]
 >   %2 = Ref local frame [$1] : Counted[T]

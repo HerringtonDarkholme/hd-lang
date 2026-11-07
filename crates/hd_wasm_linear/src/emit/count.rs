@@ -21,6 +21,7 @@
 
 use hd_base::SliceSort as _;
 use hd_base::StageResult;
+use hd_tir::ir::count::{At, Info, Part};
 use hd_tir::ir::{IntrinsicOp, NONE, Ref, Tag};
 use hd_tir::own::Reason;
 use hd_types::Ty;
@@ -32,41 +33,10 @@ use crate::module::Val;
 use crate::rt::Helper;
 
 impl Em<'_, '_, '_> {
-    /// The source constructor's explicit capture of its requirement row.
-    pub(super) fn cold_row_copy(&self) -> Option<Reason> {
-        let root = self.b.sub_root[0];
-        self.b
-            .record(self.b.data[root as usize][0])
-            .iter()
-            .find_map(|&i| {
-                (self.b.tags[i as usize] == Tag::ColdRowCopy)
-                    .then(|| Reason::from_word(self.b.data[i as usize][1]))
-            })
-    }
-
-    /// The source parameter's explicitly declared cold-frame argument copy.
-    pub(super) fn cold_copy(&self, local: usize) -> Option<Reason> {
-        let word = u32::try_from(local).expect("local") | hd_tir::ir::place::BARE_LOCAL;
-        let root = self.b.sub_root[0];
-        self.b
-            .record(self.b.data[root as usize][0])
-            .iter()
-            .find_map(|&i| {
-                (self.b.tags[i as usize] == Tag::ColdCopy && self.b.data[i as usize][0] == word)
-                    .then(|| Reason::from_word(self.b.data[i as usize][1]))
-            })
-    }
-
-    /// The explicit payload copy at this body's persistent cache boundary.
-    pub(super) fn cache_copy(&self, phase: u32) -> Option<Reason> {
-        let root = self.b.sub_root[0];
-        self.b
-            .record(self.b.data[root as usize][0])
-            .iter()
-            .find_map(|&i| {
-                (self.b.tags[i as usize] == Tag::CacheCopy && self.b.data[i as usize][0] == phase)
-                    .then(|| Reason::from_word(self.b.data[i as usize][1]))
-            })
+    /// Reads the shared count descriptor for the current function boundary.
+    pub(super) fn stated_count(&self, tag: Tag, at: At, part: Part) -> Option<Reason> {
+        hd_tir::ir::count::find(self.b, tag, self.b.sub_root[self.sub_id as usize], at, part)
+            .map(|c| Reason::from_word(c.reason))
     }
 
     /// A TIR-stated count of an already constructed borrowed result.
@@ -92,16 +62,6 @@ impl Em<'_, '_, '_> {
                     self.b.tags[next as usize] == Tag::Retain
                         && self.b.data[next as usize][0] == value
                 })
-    }
-
-    /// The body's explicit common-exit declaration for this parameter.
-    pub(super) fn has_exit_drop(&self, local: usize) -> bool {
-        let word = u32::try_from(local).expect("local") | hd_tir::ir::place::BARE_LOCAL;
-        self.b.tags.iter().enumerate().any(|(i, &tag)| {
-            tag == Tag::ExitDrop
-                && self.b.data[i][0] == word
-                && self.topo.sub[i] == u32::from(self.sub_id)
-        })
     }
 
     /// Whether `Store` `i` releases what its place holds: the `Release`
@@ -898,7 +858,7 @@ impl Em<'_, '_, '_> {
                 self.borrow_release(l);
             }
         }
-        // ExitDrop is a declaration at a source position, lowered here
+        // Exit release descriptors are lowered here
         // on every return. Receiving the argument owned is an ABI fact;
         // the statement, not the emitter, requests its cleanup.
         let mut exits: Vec<(usize, Reason)> = self
@@ -907,14 +867,17 @@ impl Em<'_, '_, '_> {
             .iter()
             .enumerate()
             .filter_map(|(i, &tag)| {
-                if tag != Tag::ExitDrop || self.topo.sub[i] != u32::from(self.sub_id) {
+                if tag != Tag::Release {
                     return None;
                 }
-                let [word, reason] = self.b.data[i];
-                let local = (word & !hd_tir::ir::place::BARE_LOCAL) as usize;
-                self.abi_owned_params
-                    .contains(&local)
-                    .then_some((local, Reason::from_word(reason)))
+                let c = Info::read(self.b, i)?;
+                let Part::Local(local) = c.part else {
+                    return None;
+                };
+                (c.at == At::Exit
+                    && self.topo.sub[i] == u32::from(self.sub_id)
+                    && self.abi_owned_params.contains(&(local as usize)))
+                .then_some((local as usize, Reason::from_word(c.reason)))
             })
             .collect();
         // Closure and other non-source ABIs keep their separate legacy
@@ -999,7 +962,9 @@ impl Em<'_, '_, '_> {
         self.value_uses.resize(self.b.len(), 0);
         let mut ops = std::mem::take(&mut self.own_ops);
         for i in 0..self.b.len() {
-            if self.b.tags[i] == Tag::Retain {
+            if self.b.tags[i] == Tag::Retain
+                && Info::read(self.b, i).is_some_and(|c| c.at == At::Value)
+            {
                 self.used[self.b.data[i][0] as usize] = true;
             }
             hd_tir::own::operands(self.b, i, &mut ops);

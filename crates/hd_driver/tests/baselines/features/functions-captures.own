@@ -100,7 +100,7 @@ fn copy_shares(s: string) -> usize:
 >   %7 = Drop [$0] : ()
 >   %8 = Prim Add [%1 %6] : usize
 >   %9 = Store [$1] %8 : ()
->   %10 = Release %9 #0 : ()
+>   %10 = Release %9 Operation #3 : ()
 >   %11 = Drop [$1] : ()
 >   %12 = Block - : ()
 >   %13 = Closure #1 [%0 %2] : fn() -> ()

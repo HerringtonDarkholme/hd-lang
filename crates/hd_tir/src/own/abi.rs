@@ -1,13 +1,12 @@
 //! ABI-owned parameter cleanup stated after ownership has decided the body.
 //!
-//! An `ExitDrop` declares a release at the common function exit, after its
+//! A release descriptor declares cleanup at the common function exit, after its
 //! ordinary exit drops and loan cleanup. Its lexical position emits nothing.
 //! It releases only when the resolved ABI supplies an owned argument; an
 //! instance receiving it borrowed has no count to release.
 
-use super::{OwnCx, Pass, params, reason::LAST_USE, splice};
-use crate::ir::{Body, BodyKind, Tag, Topology, place};
-use hd_types::Ty;
+use super::{OwnCx, Pass, params};
+use crate::ir::{Body, BodyKind};
 
 /// The root parameters whose declarations may supply a count the body
 /// itself does not own. Closure and suspension ABIs are separate kinds.
@@ -38,39 +37,15 @@ pub(crate) fn parameters(b: &Body, cx: &dyn OwnCx) -> Vec<u32> {
         .collect()
 }
 
-pub(super) fn run(
-    b: &mut Body,
-    cx: &dyn OwnCx,
-    topo: &Topology,
-    edits: &mut splice::Tables,
-) -> Result<(), String> {
-    let root = b.sub_root[0];
-    for l in parameters(b, cx) {
-        let word = l | place::BARE_LOCAL;
-        if b.tags
-            .iter()
-            .zip(&b.data)
-            .any(|(&tag, &[a, _])| tag == Tag::ExitDrop && a == word)
-        {
-            continue;
-        }
-        edits.insert(
-            root,
-            0,
-            Tag::ExitDrop,
-            [word, LAST_USE],
-            Ty::VOID,
-            b.local_syn[l as usize],
-        );
-    }
-    splice::apply(b, topo, edits)
-}
-
 #[cfg(test)]
 mod tests {
+    use super::super::reason::LAST_USE;
+    use super::super::{counts::run, splice};
     use super::*;
     use crate::ir::{Callee, Providers, TirBuilder, TirSink, local_flags, verify_owned};
+    use crate::ir::{Tag, Topology};
     use hd_base::{DefId, NodeIdx, Symbol};
+    use hd_types::Ty;
     use hd_types::TyList;
 
     struct Facts;
@@ -139,26 +114,46 @@ mod tests {
     fn the_abi_cleanup_is_stated_once_without_reowning_the_body_parameter() {
         let mut b = body();
         assert!(b.exit_drops.is_empty());
-        assert_eq!(b.tags.iter().filter(|&&t| t == Tag::ExitDrop).count(), 1);
+        assert_eq!(b.tags.iter().filter(|&&t| t == Tag::Release).count(), 1);
         assert!(verify_owned(&b, &Facts).is_empty());
         let topo = Topology::new(&b);
         run(&mut b, &Facts, &topo, &mut splice::Tables::default()).unwrap();
-        assert_eq!(b.tags.iter().filter(|&&t| t == Tag::ExitDrop).count(), 1);
+        assert_eq!(b.tags.iter().filter(|&&t| t == Tag::Release).count(), 1);
         let text = crate::ir::print(&b);
         assert_eq!(crate::ir::print(&crate::ir::parse(&text).unwrap()), text);
     }
 
     #[test]
-    fn an_absent_or_mislabeled_abi_cleanup_fails_verification() {
+    fn malformed_records_and_a_release_at_a_value_are_rejected() {
         let mut b = body();
-        let exit = b.tags.iter().position(|&t| t == Tag::ExitDrop).unwrap();
-        b.data[exit][1] = 0;
+        let exit = b.tags.iter().position(|&t| t == Tag::Release).unwrap();
+        let record = b.data[exit][1] as usize;
+        b.extra[record] = 3;
         assert!(
             verify_owned(&b, &Facts)
                 .iter()
-                .any(|e| e.what.contains("ABI-parameter proof"))
+                .any(|e| e.what.contains("malformed count record"))
         );
-        b.data[exit][1] = LAST_USE;
+        b.extra[record] = 4;
+        b.extra[record + 1] = crate::ir::count::At::Value as u32;
+        assert!(
+            verify_owned(&b, &Facts)
+                .iter()
+                .any(|e| e.what.contains("operation fact"))
+        );
+    }
+
+    #[test]
+    fn an_absent_or_mislabeled_abi_cleanup_fails_verification() {
+        let mut b = body();
+        let exit = b.tags.iter().position(|&t| t == Tag::Release).unwrap();
+        b.extra[b.data[exit][1] as usize + 4] = 0;
+        assert!(
+            verify_owned(&b, &Facts)
+                .iter()
+                .any(|e| e.what.contains("count fact"))
+        );
+        b.extra[b.data[exit][1] as usize + 4] = LAST_USE;
         let root = b.sub_root[0] as usize;
         let kept: Vec<u32> = b
             .record(b.data[root][0])
@@ -173,7 +168,7 @@ mod tests {
         assert!(
             verify_owned(&b, &Facts)
                 .iter()
-                .any(|e| e.what.contains("lacks its one exit drop"))
+                .any(|e| e.what.contains("boundary count"))
         );
     }
 }

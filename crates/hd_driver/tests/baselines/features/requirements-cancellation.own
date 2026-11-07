@@ -11,7 +11,7 @@ fn fetch!(key: string) -> string:
 > app/main/fetch
 >   local $0 key: string [param read] value
 >     uses $0: entry -> %1 lend last
->   %0 = ColdCopy [$0] #0 : ()
+>   %0 = Retain %4 Cold local $0 #0 : ()
     key + "?"
 >   %1 = Read move [$0] : string
 >   %2 = Intrinsic StrConcat [%1 "?"] : string
@@ -28,7 +28,7 @@ fn stop!(key: string) -> bool:
 >     uses $1: %4 -> %5 lend last
 >   local $2 end: CleanupEnd [:= read assigned] value
 >     uses $2: %8 -> %9 lend last
->   %0 = ColdCopy [$0] #0 : ()
+>   %0 = Retain %23 Cold local $0 #0 : ()
     let mut job = fetch(key)
 >   %1 = Read move [$0] : string
 >   %2 = Call app/main/fetch[] (%1) : mut Suspend[string]
@@ -64,7 +64,7 @@ fn drop_now(key: string) -> void:
 >     uses $0: entry -> %1 lend last
 >   local $1 job: mut Suspend[string] [read assigned] value
 >     uses $1: %3 -> %4 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %10 Exit local $0 #2 : ()
     let mut job = fetch(key)
 >   %1 = Read borrow [$0] : string
 >   %2 = Call app/main/fetch[] (%1) : mut Suspend[string]

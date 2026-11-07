@@ -127,7 +127,7 @@ fn sql(t: Template[i64]) -> Query:
 > app/main/tag
 >   local $0 t: Template[string] [param read] value
 >     uses $0: entry -> %1 lend, %3 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %6 Exit local $0 #2 : ()
 fn tag(t: Template[string]) -> usize:
     t.raw_parts.len() + t.values.len()
 >   %1 = Read borrow [$0 .raw_parts] : List[string]

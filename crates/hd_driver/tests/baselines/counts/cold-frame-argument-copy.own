@@ -8,7 +8,7 @@ fn length!(text: string) -> usize:
 >     uses $0: entry -> %1 consume last
 >   local $1 self: string [read] value
 >     uses $1: %2 -> %3 lend last
->   %0 = ColdCopy [$0] #0 : ()
+>   %0 = Retain %9 Cold local $0 #0 : ()
     text.len()
 >   %1 = Read move [$0] : string
 >   %2 = Store [$1] %1 : ()

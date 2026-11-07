@@ -6,10 +6,10 @@ sub 4 0 1 - 0
 labels
 caps
 modes
-extra 4 0 1 2 3
+extra 4 0 1 2 3 4 1 0 0 3
 exitdrop 0 1
 %0 = Read 2147483648 1 : 78 @-
 %1 = Store 2147483649 0 : 18 @-
-%2 = Release 1 0 : 18 @-
+%2 = Release 1 5 : 18 @-
 %3 = Drop 2147483649 - : 18 @-
 %4 = Block 0 - : 18 @-

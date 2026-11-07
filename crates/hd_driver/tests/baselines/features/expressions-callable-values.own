@@ -32,7 +32,7 @@ impl Update[string] for Cell:
 >     uses $1: entry -> %0 consume last
 >   %0 = Read move [$1] : string
 >   %1 = Store [*$0 .value] %0 : ()
->   %2 = Release %1 #0 : ()
+>   %2 = Release %1 Operation #3 : ()
 >   %3 = Block - : ()
 >   exit sub 0 drops [$1]
 >   summary kept [$1] writes
@@ -102,7 +102,7 @@ fn stored_fn(h: Handler, s: string) -> usize:
 >     uses $0: entry -> %1 lend last
 >   local $1 s: string [param read] value
 >     uses $1: entry -> %2 consume last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %4 Exit local $0 #2 : ()
     (h.callback)(s)
 >   %1 = Read borrow [$0 .callback] : fn(string) -> usize
 >   %2 = Read move [$1] : string

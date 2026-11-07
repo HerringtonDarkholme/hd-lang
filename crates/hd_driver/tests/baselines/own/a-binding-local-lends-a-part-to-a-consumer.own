@@ -16,7 +16,7 @@ fn count(facts: Facts) -> usize:
 > app/main/count
 >   local $0 facts: Facts [param read] value
 >     uses $0: entry -> %1 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %3 Exit local $0 #2 : ()
     facts.items.len()
 >   %1 = Read borrow [$0 .items] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize

@@ -50,7 +50,7 @@ fn build(parts: &List[string]) -> string:
 >   %27 = Block - : ()
 >   %28 = Read borrow [%18] : string
 >   %29 = Store [$6] %28 : ()
->   %30 = Release %29 #0 : ()
+>   %30 = Release %29 Operation #3 : ()
 >   %32 = Block - : never
 >   %33 = Match %18 [%32 %27] : ()
 >   %34 = Block - : ()
@@ -86,7 +86,7 @@ fn fields(line: string) -> usize:
 >     uses $5: %7 -> %10 lend
 >   local $6 f: string [read assigned] value
 >     uses $6: %27 -> %18 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %40 Exit local $0 #2 : ()
     let mut n = 0
 >   %1 = Store [$1] 0:usize : ()
 >   %40 = Block %39 : usize
@@ -109,7 +109,7 @@ fn fields(line: string) -> usize:
 >   %25 = Block - : ()
 >   %26 = Read borrow [%13] : string
 >   %27 = Store [$6] %26 : ()
->   %28 = Release %27 #0 : ()
+>   %28 = Release %27 Operation #3 : ()
 >   %30 = Block - : never
 >   %31 = Match %13 [%30 %25] : ()
 >   %32 = Block - : ()

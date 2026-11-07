@@ -14,8 +14,8 @@ fn assign(a: string, b: string) -> usize:
 >     uses $2: none
 >   local $3 self: string [read] value
 >     uses $3: %5 -> %6 lend last
->   %0 = ExitDrop [$0] #2 : ()
->   %1 = ExitDrop [$1] #2 : ()
+>   %0 = Release %11 Exit local $0 #2 : ()
+>   %1 = Release %11 Exit local $1 #2 : ()
     let s = a
 >   %2 = Read borrow [$0] : string
 >   %3 = Store [$2] %2 : ()
@@ -45,7 +45,7 @@ fn compound(a: string) -> string:
 >   %2 = Read borrow [$1] : string
 >   %3 = Intrinsic StrConcat [%2 "x"] : string
 >   %4 = Store [$1] %3 : ()
->   %5 = Release %4 #0 : ()
+>   %5 = Release %4 Operation #3 : ()
     s
 >   %6 = Read move [$1] : string
 >   exit sub 0 drops [$0]
@@ -59,8 +59,8 @@ fn assign_list(xs: List[string], ys: List[string]) -> usize:
 >     uses $1: entry -> %4 lend last
 >   local $2 zs: List[string] [read assigned mutated] value
 >     uses $2: none
->   %0 = ExitDrop [$0] #2 : ()
->   %1 = ExitDrop [$1] #2 : ()
+>   %0 = Release %6 Exit local $0 #2 : ()
+>   %1 = Release %6 Exit local $1 #2 : ()
     let zs = xs
 >   %2 = Read borrow [$0] : List[string]
 >   %3 = Store [$2] %2 : ()

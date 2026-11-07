@@ -24,7 +24,7 @@ app/main/collect
   %15 = Intrinsic StrConcat [%7 %14] : string
   %16 = Drop [%14] : ()
   %17 = Store [$3] %15 : ()
-  %18 = Release %17 #0 : ()
+  %18 = Release %17 Operation #3 : ()
   %19 = Read move [$3] : string
   %20 = IsUnique fresh [$2] : ()
   %21 = Read borrow [$2] : List[string]

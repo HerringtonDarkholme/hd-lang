@@ -35,7 +35,7 @@ fn clean(raw: string) -> string:
 >     uses $10: %12 -> %13 lend last
 >   local $11 value: string [read] value
 >     uses $11: %3 -> %4 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %76 Exit local $0 #2 : ()
     "[${raw}]"
 >   %1 = Read borrow [$0] : string
 >   %2 = Read borrow [%1] : string
@@ -148,7 +148,7 @@ fn tag(label: string, level: i64) -> string:
 >     uses $14: %16 -> %17 lend, %20 lend last
 >   local $15 value: string [read] value
 >     uses $15: %3 -> %4 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %95 Exit local $0 #2 : ()
     "${label}:${level}"
 >   %1 = Read borrow [$0] : string
 >   %2 = Read borrow [%1] : string
@@ -252,7 +252,7 @@ fn bare(raw: string) -> string:
 > app/main/bare
 >   local $0 raw: string [param read] value
 >     uses $0: entry -> %1 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %15 Exit local $0 #2 : ()
     raw |> clean
 >   %1 = Read borrow [$0] : string
 >   %2 = Call std/text/impl StringBuilder.text_width[] (%1) : usize
@@ -278,7 +278,7 @@ fn chain(raw: string) -> string:
 >   local $1 label: string [read] value
 >     uses $1: %15 -> %17 lend last
 >   local $2 level: i64 [read captured] place
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %38 Exit local $0 #2 : ()
     raw |> clean |> tag(_, 2)
 >   %1 = Read borrow [$0] : string
 >   %2 = Call std/text/impl StringBuilder.text_width[] (%1) : usize
@@ -328,7 +328,7 @@ fn direct(raw: string) -> string:
 >   local $1 label: string [read] value
 >     uses $1: %15 -> %17 lend last
 >   local $2 level: i64 [read captured] place
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %38 Exit local $0 #2 : ()
     tag(clean(raw), 2)
 >   %1 = Read borrow [$0] : string
 >   %2 = Call std/text/impl StringBuilder.text_width[] (%1) : usize
@@ -375,7 +375,7 @@ fn method_slot(raw: string) -> usize:
 > app/main/method_slot
 >   local $0 raw: string [param read] value
 >     uses $0: entry -> %1 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %6 Exit local $0 #2 : ()
     raw |> _.len()
 >   %1 = Read borrow [$0] : string
 >   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize

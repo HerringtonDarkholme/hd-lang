@@ -58,7 +58,7 @@ fn next(k: &mut string) -> i64:
 >   local $0 k: Ref[mut string] [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Store [*$0] "b" : ()
->   %1 = Release %0 #0 : ()
+>   %1 = Release %0 Operation #3 : ()
 >   %2 = Block 1:i64 : i64
     1
 

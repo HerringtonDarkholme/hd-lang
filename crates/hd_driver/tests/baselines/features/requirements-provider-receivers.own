@@ -69,7 +69,7 @@ fn count(n: i64) -> void $ Meter:
 >   %29 = Block - : ()
         $.use(Meter).record(i)
 >   %16 = ProviderGet #22 : Meter
->   %17 = Retain %16 #0 : ()
+>   %17 = Retain %16 Value #0 : ()
 >   %18 = Coerce %16 [ProviderAsRef -] : Ref[mut Meter]
 >   %19 = Read borrow [*%18] : mut Meter
 >   %20 = Drop [%18] : ()
@@ -90,9 +90,9 @@ fn count_later!(n: i64, wait: mut Suspend[void]) -> void $ Meter:
 >     uses $4: none
 >   local $5 i: i64 [read assigned] value
 >     uses $5: %14 -> %23 lend last
->   %1 = ColdCopy [$1] #0 : ()
+>   %0 = Retain %35 Cold local $1 #0 : ()
     for i in 0..n:
->   %0 = ColdRowCopy #0 #0 : ()
+>   %1 = Retain %35 Cold row #0 : ()
 >   %2 = Read copy [$0] : i64
 >   %3 = NewStruct [0:i64 %2 0:bool] : Range[i64]
 >   %4 = Read copy [%3 .start] : i64
@@ -119,7 +119,7 @@ fn count_later!(n: i64, wait: mut Suspend[void]) -> void $ Meter:
 >   %35 = Block - : ()
         $.use(Meter).record(i)
 >   %18 = ProviderGet #22 : Meter
->   %19 = Retain %18 #0 : ()
+>   %19 = Retain %18 Value #0 : ()
 >   %20 = Coerce %18 [ProviderAsRef -] : Ref[mut Meter]
 >   %21 = Read borrow [*%20] : mut Meter
 >   %22 = Drop [%20] : ()
@@ -154,12 +154,12 @@ pub fn run(n: i64) -> i64:
 >   %5 = Store [$3] %4 : ()
 >   %6 = Read copy [$3] : Counted[mut Counters]
 >   %7 = Coerce %6 [RefToTraitValue -] : Meter
->   %8 = Retain %7 #0 : ()
+>   %8 = Retain %7 Value #0 : ()
 >   %9 = Drop [%6] : ()
 >   %10 = Block %7 : Meter
 >   %11 = RefDyn %10 : Counted[mut Meter]
 >   %12 = Coerce %11 [RefAsProvider -] : Meter
->   %13 = Retain %12 #0 : ()
+>   %13 = Retain %12 Value #0 : ()
 >   %14 = Drop [%11] : ()
 >   %18 = With [Meter %12] %17 : ()
 >   %19 = Drop [%12] : ()

@@ -7,7 +7,7 @@ fn length(parts: List[string], early: bool) -> usize:
 >     uses $0: entry -> %2 lend last, %7 lend last
 >   local $1 early: bool [param read] value
 >     uses $1: entry -> %1 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %9 Exit local $0 #2 : ()
     if early:
 >   %1 = Read copy [$1] : bool
 >   %6 = If %1 [%5 -] : ()

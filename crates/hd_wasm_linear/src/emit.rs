@@ -18,6 +18,7 @@ use crate::op::Op as I;
 use hd_base::{DefId, Hash128, HashMap, InstId, StageResult};
 use hd_mono::layout::{CanonMemo, canon};
 use hd_mono::{ProgramEnv, Sub, Target, TargetKind, subst};
+use hd_tir::ir::count::{At as CountAt, Info as CountInfo, Part as CountPart};
 use hd_tir::ir::{
     Body, BodyKind, Callee, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, local_flags,
 };
@@ -411,7 +412,14 @@ fn body_func<'a>(
                     let k = plocals.iter().position(|p| p == l).expect("parameter");
                     match em.pass_at(em.lends, k, t) {
                         Pass::Owned(_) if unowned => {
-                            if !em.has_exit_drop(*l) {
+                            if em
+                                .stated_count(
+                                    Tag::Release,
+                                    CountAt::Exit,
+                                    CountPart::Local(u32::try_from(*l).expect("local")),
+                                )
+                                .is_none()
+                            {
                                 em.unowned_params.push(*l);
                             }
                             continue;
@@ -631,7 +639,7 @@ impl OnceCell<'_> {
         }
         let held = self.load_cached(&mut em.f);
         // The global keeps its count; every caller receives a fresh one.
-        if let Some(reason) = em.cache_copy(hd_tir::ir::cache_copy::READ) {
+        if let Some(reason) = em.stated_count(Tag::Retain, CountAt::CacheRead, CountPart::Result) {
             em.because(reason, |em| em.retain_locals(&held, ret))?;
         }
         Self::return_cached(&mut em.f, &held);
@@ -660,7 +668,7 @@ impl OnceCell<'_> {
         }
         // The result already owns its caller's count; the global takes a
         // copy.
-        let kept = match em.cache_copy(hd_tir::ir::cache_copy::WRITE) {
+        let kept = match em.stated_count(Tag::Retain, CountAt::CacheWrite, CountPart::Result) {
             Some(reason) => em.because(reason, |em| em.copy_locals(&held, ret))?,
             None => held.clone(),
         };
@@ -1132,7 +1140,7 @@ struct Em<'i, 'a, 'm> {
     /// this instance takes owned (`count.rs`): its exit releases them.
     unowned_params: Vec<usize>,
     /// Raw ABI fact: parameters arriving with an owned argument count.
-    /// `ExitDrop` statements read it to lower their conditional cleanup.
+    /// Exit release statements read it to lower their conditional cleanup.
     abi_owned_params: hd_base::HashSet<usize>,
     /// The stable lists' loop caches ([`Em::own_list_caches`]), dropped at
     /// the loop's exit.
@@ -1471,15 +1479,8 @@ impl Em<'_, '_, '_> {
         self.rec(list)
             .into_iter()
             .filter(|i| {
-                !matches!(
-                    self.b.tags[*i as usize],
-                    Tag::Block
-                        | Tag::ExitDrop
-                        | Tag::CacheCopy
-                        | Tag::ColdCopy
-                        | Tag::Release
-                        | Tag::ColdRowCopy
-                )
+                !matches!(self.b.tags[*i as usize], Tag::Block | Tag::Release)
+                    && !hd_tir::ir::count::boundary(self.b, *i as usize)
             })
             .collect()
     }
@@ -1938,9 +1939,12 @@ impl Em<'_, '_, '_> {
                 self.store(i)?;
             }
             // The ownership passes' statements (`count.rs`).
-            Tag::Retain => self.own_retain(a)?,
+            Tag::Retain => {
+                if CountInfo::read(self.b, i as usize).is_some_and(|c| c.at == CountAt::Value) {
+                    self.own_retain(a)?;
+                }
+            }
             // Boundary declarations lower at their named entry or exit.
-            Tag::ExitDrop | Tag::CacheCopy | Tag::ColdCopy | Tag::ColdRowCopy => {}
             // Lowered in its store's walk of the place.
             Tag::Release => {}
             Tag::LoanEnd => {

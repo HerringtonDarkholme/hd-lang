@@ -21,7 +21,7 @@ fn local_capture(prefix: string, xs: List[string]) -> usize:
 >     uses $8: %20 -> %23 lend
 >   local $9 x: string [read assigned] value
 >     uses $9: %38 -> %32 consume last
->   %0 = ExitDrop [$1] #2 : ()
+>   %0 = Release %51 Exit local $1 #2 : ()
     fn width(s: string) -> usize:
 >   %14 = Block %13 : usize
 >   %15 = Closure #1 [%0 %1] : fn(string) -> usize
@@ -59,7 +59,7 @@ fn local_capture(prefix: string, xs: List[string]) -> usize:
 >   %36 = Block - : ()
 >   %37 = Read borrow [%26] : string
 >   %38 = Store [$9] %37 : ()
->   %39 = Release %38 #0 : ()
+>   %39 = Release %38 Operation #3 : ()
 >   %41 = Block - : never
 >   %42 = Match %26 [%41 %36] : ()
 >   %43 = Block - : ()

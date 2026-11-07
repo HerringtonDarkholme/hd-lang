@@ -13,7 +13,7 @@ fn pick[T](x: T, m: Member) -> T:
 >     uses $0: entry -> %3 consume last, %7 consume last
 >   local $1 m: Member [param read] value
 >     uses $1: entry -> %1 lend last
->   %0 = ExitDrop [$1] #2 : ()
+>   %0 = Release %8 Exit local $1 #2 : ()
     if m.name == "":
 >   %1 = Read borrow [$1 .name] : string
 >   %2 = Intrinsic StrEq [%1 ""] : bool

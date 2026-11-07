@@ -135,7 +135,7 @@ impl[T < Ord] Queue[T]:
 >   %62 = Read copy [*$0 .items [%61]] : T
 >   %63 = IsUnique [*$0 .items] : ()
 >   %64 = Store [*$0 .items [%60]] %62 : ()
->   %65 = Release %64 #0 : ()
+>   %65 = Release %64 Operation #3 : ()
 >   %64 shared: a copy of a value that holds the struct
 >   %63 shared: a copy of a value that holds the struct
             parent = larger
@@ -146,7 +146,7 @@ impl[T < Ord] Queue[T]:
 >   %75 = Read move [$2] : T
 >   %76 = IsUnique [*$0 .items] : ()
 >   %77 = Store [*$0 .items [%74]] %75 : ()
->   %78 = Release %77 #0 : ()
+>   %78 = Release %77 Operation #3 : ()
 >   %76 shared: a copy of a value that holds the struct
 >   %75 shared: a copy of a value that holds the struct
 >   %77 shared: a copy of a value that holds the struct

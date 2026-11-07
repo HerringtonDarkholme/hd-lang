@@ -14,7 +14,7 @@ fn first_long(xs: List[string]) -> string:
 >     uses $4: %3 -> %6 lend
 >   local $5 x: string [read assigned] value
 >     uses $5: %25 -> %13 lend, %19 consume last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %36 Exit local $0 #2 : ()
     for x in xs:
 >   %1 = Read borrow [$0] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize
@@ -31,7 +31,7 @@ fn first_long(xs: List[string]) -> string:
 >   %23 = Block - : ()
 >   %24 = Read borrow [%9] : string
 >   %25 = Store [$5] %24 : ()
->   %26 = Release %25 #0 : ()
+>   %26 = Release %25 Operation #3 : ()
 >   %28 = Block - : never
 >   %29 = Match %9 [%28 %23] : ()
 >   %30 = Block - : ()
@@ -65,7 +65,7 @@ fn first_index(xs: List[string]) -> usize:
 >   local $1 i: usize [read assigned mutated] place
 >   local $2 self: string [read] value
 >     uses $2: %8 -> %10 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %31 Exit local $0 #2 : ()
     let i: usize = 0
 >   %1 = Store [$1] 0:usize : ()
 >   %31 = Block %30 : usize
@@ -83,7 +83,7 @@ fn first_index(xs: List[string]) -> usize:
 >   %6 = Read copy [$1] : usize
 >   %7 = Read borrow [$0 [%6]] : string
 >   %8 = Store [$2] %7 : ()
->   %9 = Release %8 #0 : ()
+>   %9 = Release %8 Operation #3 : ()
 >   %10 = Read borrow [$2] : string
 >   %11 = Call std/rt.bytes/bytes_len[] (%10) : usize
 >   %12 = Break L1 %11 : never
@@ -128,7 +128,7 @@ fn forever(s: string) -> string:
         if out.len() > 8:
 >   %2 = Read borrow [$1] : string
 >   %3 = Store [$2] %2 : ()
->   %4 = Release %3 #0 : ()
+>   %4 = Release %3 Operation #3 : ()
 >   %5 = Read borrow [$2] : string
 >   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
 >   %7 = Break L1 %6 : never
@@ -145,6 +145,6 @@ fn forever(s: string) -> string:
 >   %15 = Read borrow [$1] : string
 >   %16 = Intrinsic StrConcat [%15 "!"] : string
 >   %17 = Store [$1] %16 : ()
->   %18 = Release %17 #0 : ()
+>   %18 = Release %17 Operation #3 : ()
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

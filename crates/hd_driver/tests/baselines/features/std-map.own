@@ -15,7 +15,7 @@ fn lookup(m: &Map[string, string], k: string) -> usize:
 >     uses $1: entry -> %2 lend last
 >   local $2 v: string [read assigned] value
 >     uses $2: %12 -> %4 lend last
->   %0 = ExitDrop [$1] #2 : ()
+>   %0 = Release %25 Exit local $1 #2 : ()
     match m.get(k):
 >   %1 = Read borrow [*$0] : Map[string, string]
 >   %2 = Read borrow [$1] : string
@@ -51,7 +51,7 @@ fn put(m: &mut Map[string, string], k: string, v: string) -> void:
 >     uses $1: entry -> %1 lend last
 >   local $2 v: string [param read] value
 >     uses $2: entry -> %2 consume last
->   %0 = ExitDrop [$1] #2 : ()
+>   %0 = Release %6 Exit local $1 #2 : ()
     m[k] = v
 >   %1 = Read borrow [$1] : string
 >   %2 = Read move [$2] : string
@@ -70,7 +70,7 @@ fn group(m: &mut Map[string, List[string]], k: string, v: string) -> void:
 >     uses $1: entry -> %2 lend last
 >   local $2 v: string [param read] value
 >     uses $2: entry -> %6 consume last
->   %0 = ExitDrop [$1] #2 : ()
+>   %0 = Release %11 Exit local $1 #2 : ()
     m.get_or_insert(k, []).push(v)
 >   %1 = Read borrow [$0] : Ref[mut Map[string, List[string]]]
 >   %2 = Read borrow [$1] : string
@@ -92,7 +92,7 @@ fn has(m: &Map[string, string], k: string) -> bool:
 >     uses $0: entry -> %1 lend last
 >   local $1 k: string [param read] value
 >     uses $1: entry -> %3 lend last
->   %0 = ExitDrop [$1] #2 : ()
+>   %0 = Release %22 Exit local $1 #2 : ()
     m.contains_key(k)
 >   %1 = Read borrow [$0] : Ref[Map[string, string]]
 >   %2 = Read borrow [*%1] : Map[string, string]

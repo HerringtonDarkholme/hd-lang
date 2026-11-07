@@ -10,7 +10,7 @@ fn unwrap(o: string?) -> usize:
 >     uses $0: entry -> %1 lend last
 >   local $1 s: string [read assigned] value
 >     uses $1: %10 -> %2 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %22 Exit local $0 #2 : ()
     match o:
 >   %1 = Read borrow [$0] : string?
 >   %20 = Block - : never
@@ -64,7 +64,7 @@ fn or_default(o: string?) -> string:
 >     uses $2: %1 -> %5 consume last
 >   local $3 value: string [read assigned] value
 >     uses $3: %8 -> %3 consume last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %24 Exit local $0 #2 : ()
     o.unwrap_or("none")
 >   %1 = Store [$2] "none" : ()
 >   %2 = Read borrow [$0] : string?

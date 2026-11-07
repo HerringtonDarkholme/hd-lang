@@ -9,7 +9,7 @@ fn bind(s: string) -> usize:
 > app/main/bind
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %1 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %6 Exit local $0 #2 : ()
     t := s
 >   %6 = Block %5 : usize
     let u = t
@@ -25,7 +25,7 @@ fn bind_twice(xs: List[string]) -> usize:
 > app/main/bind_twice
 >   local $0 xs: List[string] [param read] value
 >     uses $0: entry -> %1 lend, %3 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %6 Exit local $0 #2 : ()
     ys := xs
 >   %6 = Block %5 : usize
     ys.len() + xs.len()

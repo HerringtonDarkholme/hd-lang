@@ -28,8 +28,8 @@ fn pairs(xs: List[string], ys: List[string]) -> List[(string, string)]:
 >     uses $11: %18 -> %21 lend
 >   local $12 y: string [read assigned] value
 >     uses $12: %49 -> %33 lend, %40 consume last
->   %0 = ExitDrop [$0] #2 : ()
->   %1 = ExitDrop [$1] #2 : ()
+>   %0 = Release %75 Exit local $0 #2 : ()
+>   %1 = Release %75 Exit local $1 #2 : ()
     [for x in xs for y in ys if x.len() == y.len() => (x, y)]
 >   %2 = NewList - [] : mut List[(string, string)]
 >   %3 = Store [$2] %2 : ()
@@ -79,7 +79,7 @@ fn pairs(xs: List[string], ys: List[string]) -> List[(string, string)]:
 >   %47 = Block - : ()
 >   %48 = Read borrow [%24] : string
 >   %49 = Store [$12] %48 : ()
->   %50 = Release %49 #0 : ()
+>   %50 = Release %49 Operation #3 : ()
 >   %52 = Block - : never
 >   %53 = Match %24 [%52 %47] : ()
 >   %54 = Block - : ()
@@ -91,7 +91,7 @@ fn pairs(xs: List[string], ys: List[string]) -> List[(string, string)]:
 >   %60 = Block - : ()
 >   %61 = Read borrow [%12] : string
 >   %62 = Store [$7] %61 : ()
->   %63 = Release %62 #0 : ()
+>   %63 = Release %62 Operation #3 : ()
 >   %65 = Block - : never
 >   %66 = Match %12 [%65 %60] : ()
 >   %67 = Block - : ()
@@ -116,7 +116,7 @@ fn names(users: List[User]) -> List[string]:
 >     uses $5: %5 -> %8 lend
 >   local $6 u: User [read assigned] value
 >     uses $6: %24 -> %15 lend, %16 consume last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %37 Exit local $0 #2 : ()
     [for u in users if u.active => u.name]
 >   %1 = NewList - [] : mut List[string]
 >   %2 = Store [$1] %1 : ()
@@ -142,7 +142,7 @@ fn names(users: List[User]) -> List[string]:
 >   %22 = Block - : ()
 >   %23 = Read borrow [%11] : User
 >   %24 = Store [$6] %23 : ()
->   %25 = Release %24 #0 : ()
+>   %25 = Release %24 Operation #3 : ()
 >   %27 = Block - : never
 >   %28 = Match %11 [%27 %22] : ()
 >   %29 = Block - : ()
@@ -167,7 +167,7 @@ fn by_name(users: List[User]) -> Map[string, i64]:
 >     uses $5: %5 -> %8 lend
 >   local $6 u: User [read assigned] value
 >     uses $6: %25 -> %15 lend, %16 lend, %17 consume last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %38 Exit local $0 #2 : ()
     {for u in users if u.active => u.name: u.id}
 >   %1 = NewMap [] : mut Map[string, i64]
 >   %2 = Store [$1] %1 : ()
@@ -194,7 +194,7 @@ fn by_name(users: List[User]) -> Map[string, i64]:
 >   %23 = Block - : ()
 >   %24 = Read borrow [%11] : User
 >   %25 = Store [$6] %24 : ()
->   %26 = Release %25 #0 : ()
+>   %26 = Release %25 Operation #3 : ()
 >   %28 = Block - : never
 >   %29 = Match %11 [%28 %23] : ()
 >   %30 = Block - : ()
@@ -223,7 +223,7 @@ fn sizes(users: List[User]) -> List[usize]:
 >     uses $7: %23 -> %24 lend, %26 consume last
 >   local $8 self: string [read] value
 >     uses $8: %16 -> %18 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %47 Exit local $0 #2 : ()
     [for u in users if (n := u.name.len()) > 0 => n]
 >   %1 = NewList - [] : mut List[usize]
 >   %2 = Store [$1] %1 : ()
@@ -241,7 +241,7 @@ fn sizes(users: List[User]) -> List[usize]:
 >   %14 = Store [$4] %13 : ()
 >   %15 = Read borrow [$6 .name] : string
 >   %16 = Store [$8] %15 : ()
->   %17 = Release %16 #0 : ()
+>   %17 = Release %16 Operation #3 : ()
 >   %18 = Read borrow [$8] : string
 >   %19 = Call std/rt.bytes/bytes_len[] (%18) : usize
 >   %20 = Break L1 %19 : never
@@ -259,7 +259,7 @@ fn sizes(users: List[User]) -> List[usize]:
 >   %32 = Block - : ()
 >   %33 = Read borrow [%11] : User
 >   %34 = Store [$6] %33 : ()
->   %35 = Release %34 #0 : ()
+>   %35 = Release %34 Operation #3 : ()
 >   %37 = Block - : never
 >   %38 = Match %11 [%37 %32] : ()
 >   %39 = Block - : ()

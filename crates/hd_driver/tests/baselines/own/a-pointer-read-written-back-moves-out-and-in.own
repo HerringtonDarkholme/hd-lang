@@ -26,6 +26,6 @@ fn size(p: Ptr[List[i32]]) -> usize:
 >   %6 = Read copy [$0] : Ptr[List[i32]]
 >   %7 = Read move [$1] : List[i32]
 >   %8 = Store [ptr %6] %7 : ()
->   %9 = Release %8 #0 : ()
+>   %9 = Release %8 Operation #3 : ()
     n
 >   %10 = Read copy [$2] : usize

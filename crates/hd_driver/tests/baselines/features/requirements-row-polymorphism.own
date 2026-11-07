@@ -29,7 +29,7 @@ fn read_tag() -> usize $ Tag:
 >   local $0 $ref: string [read assigned captured captured-assigned] value
 >     uses $0: %6 -> %7 lend last
 >   %0 = ProviderGet #0 : Tag
->   %1 = Retain %0 #0 : ()
+>   %1 = Retain %0 Value #0 : ()
 >   %2 = Coerce %0 [ProviderAsRef -] : Ref[Tag]
 >   %3 = Read borrow [*%2] : Tag
 >   %4 = Drop [%2] : ()
@@ -53,7 +53,7 @@ fn with_tag[$ R](s: string, callback: fn() -> usize $ R + Tag) -> usize $ R:
 >   local $2 provider: Named [read] value
 >     uses $2: %3 -> %4 consume last
 >   local $3 $ref: Named [read assigned captured captured-assigned] place
->   %0 = ExitDrop [$1] #2 : ()
+>   %0 = Release %23 Exit local $1 #2 : ()
     $.with(Tag=Named { label: s }):
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [%1] : Named
@@ -65,12 +65,12 @@ fn with_tag[$ R](s: string, callback: fn() -> usize $ R + Tag) -> usize $ R:
 >   %8 = Block - : Counted[mut Named]
 >   %9 = Scope %8 [] : Counted[mut Named]
 >   %10 = Coerce %9 [RefToTraitValue -] : Tag
->   %11 = Retain %10 #0 : ()
+>   %11 = Retain %10 Value #0 : ()
 >   %12 = Block %10 : Tag
 >   %13 = RefDyn %12 : Counted[Tag]
 >   %14 = Drop [%9] : ()
 >   %15 = Coerce %13 [RefAsProvider -] : Tag
->   %16 = Retain %15 #0 : ()
+>   %16 = Retain %15 Value #0 : ()
 >   %17 = Drop [%13] : ()
 >   %21 = With [Tag %15] %20 : usize
 >   %22 = Drop [%15] : ()
@@ -105,7 +105,7 @@ fn closure(s: string) -> usize:
 >     uses $1: %7 -> %8 lend last
 >   %0 = Read move [$0] : string
 >   %1 = ProviderGet #1 : Tag
->   %2 = Retain %1 #0 : ()
+>   %2 = Retain %1 Value #0 : ()
 >   %3 = Coerce %1 [ProviderAsRef -] : Ref[Tag]
 >   %4 = Read borrow [*%3] : Tag
 >   %5 = Drop [%3] : ()

@@ -18,8 +18,8 @@ impl Add for Tag:
 >     uses $0: entry -> %2 lend last
 >   local $1 rhs: Tag [param read] value
 >     uses $1: entry -> %3 lend last
->   %0 = ExitDrop [$0] #2 : ()
->   %1 = ExitDrop [$1] #2 : ()
+>   %0 = Release %6 Exit local $0 #2 : ()
+>   %1 = Release %6 Exit local $1 #2 : ()
         Tag { text: self.text + rhs.text }
 >   %2 = Read borrow [$0 .text] : string
 >   %3 = Read borrow [$1 .text] : string
@@ -34,7 +34,7 @@ impl Neg for Tag:
 > app/main/impl Neg for Tag.neg
 >   local $0 self: Tag [param read] value
 >     uses $0: entry -> %1 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %4 Exit local $0 #2 : ()
         Tag { text: "-" + self.text }
 >   %1 = Read borrow [$0 .text] : string
 >   %2 = Intrinsic StrConcat ["-" %1] : string
@@ -48,8 +48,8 @@ fn add_tags(a: Tag, b: Tag) -> Tag:
 >     uses $0: entry -> %2 lend last
 >   local $1 b: Tag [param read] value
 >     uses $1: entry -> %3 lend last
->   %0 = ExitDrop [$0] #2 : ()
->   %1 = ExitDrop [$1] #2 : ()
+>   %0 = Release %9 Exit local $0 #2 : ()
+>   %1 = Release %9 Exit local $1 #2 : ()
     a + b
 >   %2 = Read borrow [$0 .text] : string
 >   %3 = Read borrow [$1 .text] : string
@@ -65,7 +65,7 @@ fn neg_tag(a: Tag) -> Tag:
 > app/main/neg_tag
 >   local $0 a: Tag [param read] value
 >     uses $0: entry -> %1 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %7 Exit local $0 #2 : ()
     -a
 >   %1 = Read borrow [$0 .text] : string
 >   %2 = Intrinsic StrConcat ["-" %1] : string
@@ -88,7 +88,7 @@ fn sum[T < Add[Out = T]](items: List[T], zero: T) -> T:
 >     uses $6: %5 -> %8 lend
 >   local $7 item: T [read assigned] value
 >     uses $7: %22 -> %16 consume last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %34 Exit local $0 #2 : ()
     let total = zero
 >   %1 = Read move [$1] : T
 >   %2 = Store [$2] %1 : ()
@@ -109,7 +109,7 @@ fn sum[T < Add[Out = T]](items: List[T], zero: T) -> T:
 >   %20 = Block - : ()
 >   %21 = Read borrow [%11] : T
 >   %22 = Store [$7] %21 : ()
->   %23 = Release %22 #0 : ()
+>   %23 = Release %22 Operation #3 : ()
 >   %25 = Block - : never
 >   %26 = Match %11 [%25 %20] : ()
 >   %27 = Block - : ()
@@ -123,7 +123,7 @@ fn sum[T < Add[Out = T]](items: List[T], zero: T) -> T:
 >   %16 = Read copy [$7] : T
 >   %17 = Call std/ops/Add.add for T [T] via Bound (%15, %16) : T
 >   %18 = Store [$2] %17 : ()
->   %19 = Release %18 #0 : ()
+>   %19 = Release %18 Operation #3 : ()
     total
 >   %33 = Read move [$2] : T
 >   exit sub 0 drops [$1]
@@ -133,7 +133,7 @@ fn sum_strings(xs: List[string]) -> string:
 > app/main/sum_strings
 >   local $0 xs: List[string] [param read] value
 >     uses $0: entry -> %1 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %3 Exit local $0 #2 : ()
     sum(xs, "")
 >   %1 = Read borrow [$0] : List[string]
 >   %2 = Call app/main/sum[string] (%1, "") : string

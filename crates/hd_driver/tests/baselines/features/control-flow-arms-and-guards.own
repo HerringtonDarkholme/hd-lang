@@ -21,7 +21,7 @@ fn pick(t: Tag) -> string:
 >     uses $3: %40 -> %16 lend last
 >   local $4 r: string [read assigned] value
 >     uses $4: %44 -> %25 consume last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %56 Exit local $0 #2 : ()
     match t:
 >   %1 = Read borrow [$0] : Tag
 >   %54 = Block - : never
@@ -114,7 +114,7 @@ fn whole(o: string?) -> usize:
 >   %43 = Store [$2] %42 : ()
 >   %48 = Read copy [%0] : string?
 >   %49 = Store [$2] %48 : ()
->   %50 = Release %49 #0 : ()
+>   %50 = Release %49 Operation #3 : ()
             if other.is_some(): 1 else: 0
 >   %14 = Read borrow [$2] : string?
 >   %15 = Store [$3] %14 : ()

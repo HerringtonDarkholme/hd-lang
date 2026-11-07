@@ -10,7 +10,7 @@ fn guard(s: string) -> usize:
 >     uses $0: entry -> %1 lend last
 >   local $1 n: usize [:= read assigned] value
 >     uses $1: %6 -> %7 lend, %9 consume last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %13 Exit local $0 #2 : ()
     if (n := s.len()) > 0: n else: 0
 >   %1 = Read borrow [$0] : string
 >   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
@@ -33,7 +33,7 @@ fn bind_counted(s: string) -> usize:
 >     uses $0: entry -> %1 lend last
 >   local $1 t: string [:= read assigned] value
 >     uses $1: %3 -> %4 lend, %10 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %19 Exit local $0 #2 : ()
     if (t := s + "!").len() > 3: t.len() else: 0
 >   %1 = Read borrow [$0] : string
 >   %2 = Intrinsic StrConcat [%1 "!"] : string
@@ -60,7 +60,7 @@ fn bind_param(xs: List[string]) -> usize:
 > app/main/bind_param
 >   local $0 xs: List[string] [param read] value
 >     uses $0: entry -> %1 lend, %4 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %9 Exit local $0 #2 : ()
     if (ys := xs).len() > 0: ys.len() else: 0
 >   %1 = Read borrow [$0] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize

@@ -331,7 +331,7 @@ enum LoadError:
 >   %5 = Store [$3] %4 : ()
 >   %6 = Read move [$3] : Counted[FsError]
 >   %7 = Coerce %6 [RefToTraitValue -] : Error
->   %8 = Retain %7 #0 : ()
+>   %8 = Retain %7 Value #0 : ()
 >   %9 = Drop [%6] : ()
 >   %10 = Block %7 : Error
 >   %11 = RefDyn %10 : Counted[Error]
@@ -357,7 +357,7 @@ enum LoadError:
 >   %18 = Store [$5] %17 : ()
 >   %19 = Read move [$5] : Counted[YamlError]
 >   %20 = Coerce %19 [RefToTraitValue -] : Error
->   %21 = Retain %20 #0 : ()
+>   %21 = Retain %20 Value #0 : ()
 >   %22 = Drop [%19] : ()
 >   %23 = Block %20 : Error
 >   %24 = RefDyn %23 : Counted[Error]
@@ -402,7 +402,7 @@ fn parse(text: string) -> Result[i64, YamlError]:
 > app/main/parse
 >   local $0 text: string [param read] value
 >     uses $0: entry -> %1 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %13 Exit local $0 #2 : ()
     if text.len() > 3:
 >   %1 = Read borrow [$0] : string
 >   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
@@ -427,7 +427,7 @@ fn load(text: string) -> Result[i64, LoadError]:
 >     uses $0: entry -> %1 lend last
 >   local $2 value: YamlError value
 >     uses $2: %19 -> %20 consume last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %30 Exit local $0 #2 : ()
     value := parse(text)?
 >   %1 = Read borrow [$0] : string
 >   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
