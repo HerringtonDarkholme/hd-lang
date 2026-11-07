@@ -63,6 +63,7 @@ pub(crate) mod counts;
 pub(crate) mod derive;
 pub mod flow;
 pub(crate) mod frame;
+pub(crate) mod join_results;
 pub(crate) mod waker;
 pub use frame::store_finds_empty;
 pub(crate) mod hoist;

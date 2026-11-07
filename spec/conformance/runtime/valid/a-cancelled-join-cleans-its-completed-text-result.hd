@@ -1,0 +1,32 @@
+# test: a cancelled join cleans its completed text result while another child is pending
+# fixture-runtime-profile: pending-gate
+# expect-empty-stdout: true
+use std.annotation.cold
+use std.task.{join, race}
+use std.testing.assert_equal
+
+pub trait Gate:
+    fn wait!(self) -> void
+
+@cold
+fn payload(value: i32) -> string:
+    "held${value}"
+
+fn ready!(value: string) -> string:
+    value
+
+fn pending!() -> string $ Gate:
+    $.use(Gate).wait!()
+    "unreachable"
+
+fn partial!(value: string) -> string $ Gate:
+    let (a, b) = join!(ready(value), pending())
+    a + b
+
+pub fn main!() -> void $ Gate:
+    value := race!(partial(payload(7)), ready("winner"))
+    assert_equal(
+        value,
+        "winner",
+        reason="the parent join was cancelled after its first child completed",
+    )

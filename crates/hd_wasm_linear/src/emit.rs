@@ -1210,7 +1210,6 @@ fn glue_site(t: Tag) -> Option<Reason> {
     matches!(
         t,
         Tag::Await
-            | Tag::AwaitAll
             | Tag::Call
             | Tag::Coerce
             | Tag::CopyStruct

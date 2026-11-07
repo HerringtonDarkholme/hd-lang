@@ -526,7 +526,7 @@ impl Em<'_, '_, '_> {
                 self.f.i32(1 << j);
                 self.f.op(I::I32And);
                 self.f.op(I::If(BlockType::Empty));
-                self.release_locals(ls, *t)?;
+                self.release_join_result(i, ls, *t)?;
                 self.f.op(I::End);
             }
             self.f.i32(0);
@@ -859,6 +859,17 @@ impl Em<'_, '_, '_> {
             self.f.get(*l);
         }
         self.store_owned(i)
+    }
+
+    /// Ends one completed child result using its point's cleanup packet.
+    fn release_join_result(&mut self, i: u32, ls: &[u32], ty: hd_types::Ty) -> StageResult<()> {
+        if let Some(reason) = self.operation_count(i, Tag::Release, CountPart::Results) {
+            self.because(reason, |em| em.release_locals(ls, ty))
+        } else if self.counted(ty).is_some() {
+            unsupported("a join without its stated completed-result cleanup")
+        } else {
+            self.release_locals(ls, ty)
+        }
     }
 
     /// `join!(a, b, ...)` (§14.5): the first poll polls every child;
@@ -1410,7 +1421,7 @@ pub(super) fn finish(
             .map(|s| s.alls.iter().map(|(k, v)| (*k, v.clone())).collect())
             .unwrap_or_default();
         alls.sort_stable_by_key(|x| x.0);
-        for (_, all) in alls {
+        for (i, all) in alls {
             let Some((dat, dv)) = at_of(all.done) else {
                 continue;
             };
@@ -1437,7 +1448,7 @@ pub(super) fn finish(
                     em.f.set(x);
                     loaded.push(x);
                 }
-                em.release_locals(&loaded, *t)?;
+                em.release_join_result(i, &loaded, *t)?;
                 em.f.op(I::End);
             }
         }

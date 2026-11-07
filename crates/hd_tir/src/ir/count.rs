@@ -30,6 +30,8 @@ pub enum Part {
     Captures,
     /// Owned ABI parameters copied from a call's flattened arguments.
     Arguments,
+    /// Completed child results still held by a fixed-arity join point.
+    Results,
 }
 
 /// The record in a retain/release's second word. Its first word names
@@ -77,6 +79,7 @@ impl Info {
             (6, l) if (l as usize) < b.local_ty.len() => Part::Referent(l),
             (7, 0) => Part::Captures,
             (8, 0) => Part::Arguments,
+            (9, 0) => Part::Results,
             _ => return None,
         };
         (reason < 9).then_some(Self { at, part, reason })
@@ -93,6 +96,7 @@ impl Info {
             Part::Referent(l) => (6, l),
             Part::Captures => (7, 0),
             Part::Arguments => (8, 0),
+            Part::Results => (9, 0),
         };
         let record = u32::try_from(b.extra.len()).expect("count record");
         b.extra

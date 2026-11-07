@@ -1,0 +1,20 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: counted or open joins state result cleanup separately from the waker; WAT guards completed-result releases by each point's done mask in cancellation and frame teardown, while scalar-only joins have no result cleanup.
+use std.task.join
+
+fn ready![T < 'static](value: T) -> T:
+    value
+
+fn generic![T < 'static](a: T, b: T) -> (T, T):
+    join!(ready(a), ready(b))
+
+fn text!(a: string, b: string) -> (string, string):
+    generic!(a, b)
+
+fn scalar!(a: i32, b: i32) -> (i32, i32):
+    join!(ready(a), ready(b))
+
+fn sequential!(a: string, b: string) -> (string, string):
+    pair := join!(ready(a), ready(b))
+    join!(ready(pair._0), ready(pair._1))
