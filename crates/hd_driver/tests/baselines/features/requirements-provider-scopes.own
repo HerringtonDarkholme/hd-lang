@@ -170,7 +170,7 @@ fn lexical(s: string) -> usize:
 >   local $2 $ref: string [read assigned captured captured-assigned] value
 >     uses $2: %25 -> %26 lend last
 >   local $3 f: fn() -> usize [read] value
->     uses $3: %34 -> %35 lend last
+>     uses $3: %35 -> %36 lend last
 >   local $5 provider: Named [read] value
 >     uses $5: %2 -> %3 consume last
 >   local $6 $ref: Named [read assigned captured captured-assigned] place
@@ -191,16 +191,16 @@ fn lexical(s: string) -> usize:
 >   %14 = Coerce %12 [RefAsProvider -] : Tag
 >   %15 = Retain %14 Value #0 : ()
 >   %16 = Drop [%12] : ()
->   %42 = With [Tag %14] %41 : usize
->   %43 = Drop [%14] : ()
->   %44 = Block %42 : usize
+>   %43 = With [Tag %14] %42 : usize
+>   %44 = Drop [%14] : ()
+>   %45 = Block %43 : usize
 >   %5 finds [$6] full
         tag := $.use(Tag)
 >   %17 = ProviderGet #19 : Tag
 >   %18 = Retain %17 Value #0 : ()
 >   %19 = Coerce %17 [ProviderAsRef -] : Ref[Tag]
 >   %20 = Store [$1] %19 : ()
->   %41 = Block %39 : usize
+>   %42 = Block %40 : usize
         apply(fn() -> usize: tag.name().len())
 >   %21 = Read copy [*$1] : Tag
 >   %22 = Drop [$1] : ()
@@ -215,13 +215,14 @@ fn lexical(s: string) -> usize:
 >   %31 = Drop [$2] : ()
 >   %32 = Block %30 : usize
 >   %33 = Closure #1 [%0 %1] : fn() -> usize
->   %34 = Store [$3] %33 : ()
->   %35 = Read borrow [$3] : fn() -> usize
->   %36 = CallValue %35 [] : usize
->   %37 = Break L0 %36 : never
->   %38 = Block - : usize
->   %39 = Scope %38 [] : usize
->   %40 = Drop [$3] : ()
+>   %34 = Retain %33 Operation captures #0 : ()
+>   %35 = Store [$3] %33 : ()
+>   %36 = Read borrow [$3] : fn() -> usize
+>   %37 = CallValue %36 [] : usize
+>   %38 = Break L0 %37 : never
+>   %39 = Block - : usize
+>   %40 = Scope %39 [] : usize
+>   %41 = Drop [$3] : ()
 >   exit sub 0 drops [$0 $1]
 >   exit sub 1 drops [$1]
 >   summary kept [$0] writes

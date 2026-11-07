@@ -12,7 +12,7 @@ struct Point:
 fn bump(p: *mut Point) -> fn() -> void:
     fn() -> void: p.x = p.x + 1
 > app/main/bump
->   retain counted reference (conservative: Closure)
+>   retain counted reference (stored)
 
 fn demo(s: string) -> i32:
     origin := box(Point { name: s, x: 0 })

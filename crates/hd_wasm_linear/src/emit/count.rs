@@ -39,6 +39,13 @@ impl Em<'_, '_, '_> {
             .map(|c| Reason::from_word(c.reason))
     }
 
+    /// Reads a statement in the target's adjacent operation-count bundle.
+    pub(super) fn operation_count(&self, target: u32, tag: Tag, part: Part) -> Option<Reason> {
+        hd_tir::ir::count::following(self.b, &self.topo, target, tag)
+            .filter(|c| c.at == At::Operation && c.part == part)
+            .map(|c| Reason::from_word(c.reason))
+    }
+
     /// A TIR-stated count of an already constructed borrowed result.
     pub(super) fn own_retain(&mut self, value: u32) -> StageResult<()> {
         if self.retained_before_result.remove(&value) {

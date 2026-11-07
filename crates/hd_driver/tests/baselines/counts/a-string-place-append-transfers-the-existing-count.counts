@@ -18,7 +18,7 @@ fn through_cell(text: string) -> string:
 > app/main/through_cell
 >   release string (last use)
 >   release string (overwritten)
->   retain counted reference (conservative: Closure)
+>   retain counted reference (stored)
     append("!")
     current
 >   retain string (conservative: copy read)

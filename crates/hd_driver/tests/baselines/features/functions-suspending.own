@@ -83,14 +83,14 @@ fn closure_bang!(key: string) -> usize:
 > app/main/closure_bang
 >   local $0 key: string [param read captured] value
 >     uses $0: entry -> %7 lend, %12 consume last
->   %0 = Retain %16 Cold local $0 #0 : ()
->   %1 = Retain %16 Entry local $0 #0 : ()
+>   %0 = Retain %17 Cold local $0 #0 : ()
+>   %1 = Retain %17 Entry local $0 #0 : ()
     run_twice!():
->   %5 = Release %16 FrameDrop child #2 : ()
->   %13 = Await app/main/run_twice[] (%12) : usize
->   %14 = Release %13 Operation child #2 : ()
->   %15 = Drop [%12] : ()
->   %16 = Block %13 : usize
+>   %5 = Release %17 FrameDrop child #2 : ()
+>   %14 = Await app/main/run_twice[] (%12) : usize
+>   %15 = Release %14 Operation child #2 : ()
+>   %16 = Drop [%12] : ()
+>   %17 = Block %14 : usize
         fetch!(key)
 >   %2 = Retain %11 Cold row #0 : ()
 >   %3 = Retain %11 Materialize row #0 : ()
@@ -102,11 +102,12 @@ fn closure_bang!(key: string) -> usize:
 >   %10 = Drop [%7] : ()
 >   %11 = Block %8 : string
 >   %12 = Closure #1 [%0 %1] : fn!() -> string
+>   %13 = Retain %12 Operation captures #0 : ()
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary none
 >   unwind %8 drops [%7]
->   unwind %13 drops [%12]
+>   unwind %14 drops [%12]
 
 fn stored!(key: string) -> usize:
 > app/main/stored

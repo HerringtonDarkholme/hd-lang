@@ -25,6 +25,8 @@ pub enum Part {
     Child,
     Waker,
     Referent(u32),
+    /// Copied fields of a newly constructed closure environment.
+    Captures,
 }
 
 /// The record in a retain/release's second word. Its first word names
@@ -70,6 +72,7 @@ impl Info {
             (4, 0) => Part::Child,
             (5, 0) => Part::Waker,
             (6, l) if (l as usize) < b.local_ty.len() => Part::Referent(l),
+            (7, 0) => Part::Captures,
             _ => return None,
         };
         (reason < 9).then_some(Self { at, part, reason })
@@ -84,6 +87,7 @@ impl Info {
             Part::Child => (4, 0),
             Part::Waker => (5, 0),
             Part::Referent(l) => (6, l),
+            Part::Captures => (7, 0),
         };
         let record = u32::try_from(b.extra.len()).expect("count record");
         b.extra
