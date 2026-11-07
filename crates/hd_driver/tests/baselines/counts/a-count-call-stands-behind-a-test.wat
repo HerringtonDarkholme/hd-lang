@@ -9,7 +9,7 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $known (param $xs i32) (result i32 i32) (local $t0 i32)
-    ;; 10 |     (xs, xs)
+    ;; 11 |     (xs, xs)
     block
       local.get $xs
       local.get $xs
@@ -21,7 +21,7 @@
     local.get $t0
   )
   (func $ring (param $r i32) (result i32) (local $t1 i32) (local $t0 i32)
-    ;; 24 |     let mut held = r
+    ;; 25 |     let mut held = r
     block
       local.get $r
       local.tee $t0
@@ -36,7 +36,7 @@
         end
       end
       local.get $r
-    ;; 25 |     held = box(Ring { next: .Some(r) })
+    ;; 26 |     held = box(Ring { next: .Some(r) })
       local.get $r
       local.tee $t0
       if
@@ -69,13 +69,13 @@
         end
       end
       local.get $t1
-    ;; 24 |     let mut held = r
+    ;; 25 |     let mut held = r
       local.set $r
     end
     local.get $r
   )
   (func $dropped (param $xs i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $ys.1 i32) (local $t1 i32) (local $t0 i32)
-    ;; 16 |     ys := known(xs)
+    ;; 17 |     ys := known(xs)
     block
       block
         block
@@ -87,7 +87,7 @@
           br 0
         end
       end
-    ;; 17 |     t := other(s)
+    ;; 18 |     t := other(s)
       block
         block
           local.get $s.0
@@ -101,9 +101,9 @@
           br 0
         end
       end
-    ;; 18 |     ys._0.len() + t._0.len()
+    ;; 19 |     ys._0.len() + t._0.len()
       local.get $xs
-    ;; 16 |     ys := known(xs)
+    ;; 17 |     ys := known(xs)
       local.get $ys.1
       local.tee $t0
       if
@@ -118,11 +118,11 @@
           call $rt:release_ref'1
         end
       end
-    ;; 18 |     ys._0.len() + t._0.len()
+    ;; 19 |     ys._0.len() + t._0.len()
       i32.load $heap offset=4
       local.set $ys.1
       local.get $xs
-    ;; 16 |     ys := known(xs)
+    ;; 17 |     ys := known(xs)
       local.tee $t0
       if
         local.get $t0
@@ -136,16 +136,16 @@
           call $rt:release_ref'1
         end
       end
-    ;; 17 |     t := other(s)
+    ;; 18 |     t := other(s)
       local.get $s.0
       local.get $t1
-    ;; 16 |     ys := known(xs)
+    ;; 17 |     ys := known(xs)
       local.tee $t0
       if
         local.get $t0
         call $rt:release_ref'2
       end
-    ;; 18 |     ys._0.len() + t._0.len()
+    ;; 19 |     ys._0.len() + t._0.len()
       local.set $xs
       block
         block
@@ -154,24 +154,24 @@
           br 0
         end
       end
-    ;; 16 |     ys := known(xs)
+    ;; 17 |     ys := known(xs)
       local.get $xs
       local.tee $t0
       if
         local.get $t0
         call $rt:release_ref'2
       end
-    ;; 18 |     ys._0.len() + t._0.len()
+    ;; 19 |     ys._0.len() + t._0.len()
       local.get $ys.1
       local.get $s.0
       i32.add
-    ;; 16 |     ys := known(xs)
+    ;; 17 |     ys := known(xs)
       local.set $xs
     end
     local.get $xs
   )
   (func $other (param $s.0 i32) (param $s.1 i32) (result i32 i32 i32 i32) (local $t0 i32) (local $t1 i32)
-    ;; 13 |     (s, s)
+    ;; 14 |     (s, s)
     block
       local.get $s.0
       local.tee $t0

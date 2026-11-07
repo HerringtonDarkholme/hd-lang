@@ -1,0 +1,56 @@
+# test: a temporary holding a unique list ends once, in a body and in a cancelled frame
+# expect-stdout: 1
+# expect-stdout: 2
+# expect-stdout: 2
+# Spec std/collections UniqList: std-collections.uniq-list.drop; Spec lang/11 Abandoning.
+use std.collections.UniqList
+use std.task.race
+use std.time.{Clock, ms, sleep}
+
+struct Pair:
+    a: UniqList[string]
+    b: UniqList[string]
+
+impl !Copy for Pair
+
+fn words(tag: string) -> UniqList[string]:
+    let mut out = UniqList::[string].new()
+    out.push("word_$tag")
+    out
+
+fn pair() -> Pair:
+    Pair { a: words("a"), b: words("b") }
+
+fn first_len(p: UniqList[string]) -> usize:
+    p.len()
+
+fn take_two(list: UniqList[string], n: usize) -> usize:
+    list.len() + n
+
+fn tick!() -> usize $ Clock:
+    sleep!(ms(1))
+    +1
+
+# The list waits in the frame, moves into the call, and the next wait is cancelled.
+fn consumed_then_cancelled!() -> usize $ Clock:
+    n := take_two(words("consumed"), tick!())
+    sleep!(ms(60000))
+    n
+
+# The list waits in the frame when the wait is cancelled.
+fn held_when_cancelled!() -> usize $ Clock:
+    n := take_two(words("held"), slow!())
+    n
+
+fn slow!() -> usize $ Clock:
+    sleep!(ms(60000))
+    +1
+
+fn quick!() -> usize $ Clock:
+    sleep!(ms(5))
+    +2
+
+pub fn main!() -> void $ Console + Clock:
+    println(first_len(pair().a))
+    println(race!(consumed_then_cancelled(), quick()))
+    println(race!(held_when_cancelled(), quick()))

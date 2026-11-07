@@ -5812,6 +5812,8 @@ runtime/valid/uniq-list-element-reference-outlives-capturing-closure.hd	runtime	
 runtime/valid/uniq-consuming-cursors-release-their-rest.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.into-iter.release-rest
 runtime/valid/uniq-list-consuming-cursor-linear.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.into-iter.linear
 runtime/valid/uniq-storage-drops-once.hd	runtime	accept	std/collections.md#r-std-collections.uniq-map.insert
+runtime/valid/uniq-temporaries-end-once-in-a-frame.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.drop
+runtime/valid/uniq-parameters-end-once-on-every-path.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.drop
 runtime/valid/uniq-list-loop-local-moves-each-round.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.type
 runtime/valid/match-mut-reference-noncopyable-payload.hd	runtime	accept	lang/13-values-and-references.md#r-ref.match.borrow
 typing/invalid/move-while-reference-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.move

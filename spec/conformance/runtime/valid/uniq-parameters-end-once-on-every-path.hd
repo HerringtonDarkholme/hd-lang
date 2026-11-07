@@ -1,0 +1,66 @@
+# test: a unique list parameter ends once whether a path moves it, a part of it, or neither
+# expect: test
+# Spec std/collections UniqList: std-collections.uniq-list.drop.
+use std.collections.UniqList
+
+struct Parcel:
+    label: string
+
+impl !Copy for Parcel
+
+struct Pair:
+    a: UniqList[Parcel]
+    b: UniqList[Parcel]
+
+impl !Copy for Pair
+
+fn parcels(n: usize) -> UniqList[Parcel]:
+    let mut out = UniqList::[Parcel].new()
+    let i: usize = 0
+    while i < n:
+        out.push(Parcel { label: "p$i" })
+        i += 1
+    out
+
+fn consume(list: UniqList[Parcel]) -> usize:
+    list.len()
+
+fn maybe(list: UniqList[Parcel], take: bool) -> usize:
+    if take:
+        return consume(list)
+    +0
+
+fn left_part(pair: Pair) -> usize:
+    consume(pair.a)
+
+fn restored_part(pair: Pair) -> usize:
+    let mut p = pair
+    first := consume(p.a)
+    p.a = parcels(2)
+    first + p.a.len() + p.b.len()
+
+fn work!(list: UniqList[Parcel], take: bool) -> usize:
+    if take:
+        return consume(list)
+    +0
+
+tests:
+    use std.testing.assert_equal
+
+    it("a path that moves it and a path that doesn't"):
+        assert_equal(maybe(parcels(3), true), 3, reason="moved")
+        assert_equal(maybe(parcels(3), false), 0, reason="kept")
+
+    it("the part a move leaves ends"):
+        assert_equal(left_part(Pair { a: parcels(2), b: parcels(4) }), 2, reason="moved part")
+
+    it("a part stored back ends with the rest"):
+        assert_equal(restored_part(Pair { a: parcels(1), b: parcels(3) }), 6, reason="all parts")
+
+    it("a frame that never ran ends its arguments"):
+        let mut pending: mut Suspend[usize] = work(parcels(5), true)
+        _ := pending.cancel!()
+
+    it("a frame that ran moved them"):
+        assert_equal(work!(parcels(5), true), 5, reason="moved")
+        assert_equal(work!(parcels(5), false), 0, reason="kept")
