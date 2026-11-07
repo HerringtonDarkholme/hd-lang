@@ -30,18 +30,24 @@ impl VerifyCx for CorpusFacts {
     }
 }
 
-/// The passes' facts the owned cases assume: no type holds a counted
-/// leaf, so the one-consumer clause has nothing to balance there; the
-/// unit tests of `hd_tir::own` and `verify_owned` exercise it. Item 7
+/// The owned cases' facts: type 78 has a counted leaf, and item 8 has
+/// one non-suspending owned ABI parameter. Other types have no counted
+/// leaf; ownership balance is exercised in the unit tests. Item 7
 /// constructs a borrowed-buffer string result with an explicit count.
-struct NoCounts;
+struct OwnershipFacts;
 
-impl hd_tir::own::OwnCx for NoCounts {
+impl hd_tir::own::OwnCx for OwnershipFacts {
     fn retains_result(&self, callee: &Callee) -> bool {
         matches!(callee, Callee::Item { def, .. } if *def == DefId::from_raw(7))
     }
-    fn counted(&self, _: Ty) -> bool {
-        false
+    fn parameter_count(&self, item: DefId) -> Option<usize> {
+        (item == DefId::from_raw(8)).then_some(1)
+    }
+    fn suspending(&self, item: DefId) -> bool {
+        item != DefId::from_raw(8)
+    }
+    fn counted(&self, ty: Ty) -> bool {
+        ty == Ty(78)
     }
     fn pass(&self, _: &Callee, _: usize, _: usize) -> hd_tir::own::Pass {
         hd_tir::own::Pass::Lent
@@ -128,7 +134,7 @@ fn text_corpus_round_trips_and_verifies() {
                 valid_tags.extend(body.tags.iter().copied());
             }
             Expect::Owned => {
-                let errors = verify_owned(&body, &NoCounts);
+                let errors = verify_owned(&body, &OwnershipFacts);
                 assert!(errors.is_empty(), "{}: {errors:?}", path.display());
                 valid_tags.extend(body.tags.iter().copied());
             }
@@ -136,7 +142,7 @@ fn text_corpus_round_trips_and_verifies() {
                 // A rejection case may need the checker's facts; invariant
                 // 23 holds after the ownership passes.
                 let errors = if invariant == 23 {
-                    verify_owned(&body, &NoCounts)
+                    verify_owned(&body, &OwnershipFacts)
                 } else {
                     verify_in(&body, &CorpusFacts)
                 };

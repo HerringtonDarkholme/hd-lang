@@ -41,71 +41,74 @@ impl Recorder for Log:
 >   summary kept []
 
 fn tick(s: string) -> usize $ Recorder:
-    rec := $.use(Recorder)
 > app/main/tick
 >   local $0 s: string [param read] value
->     uses $0: entry -> %5 lend last
+>     uses $0: entry -> %6 lend last
 >   local $1 rec: Ref[mut Recorder] [:= read assigned] value
->     uses $1: %3 -> %4 lend, %8 lend last
->   %0 = ProviderGet #0 : Recorder
->   %1 = Retain %0 #0 : ()
->   %2 = Coerce %0 [ProviderAsRef -] : Ref[mut Recorder]
->   %3 = Store [$1] %2 : ()
->   %12 = Block %9 : usize
+>     uses $1: %4 -> %5 lend, %9 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    rec := $.use(Recorder)
+>   %1 = ProviderGet #0 : Recorder
+>   %2 = Retain %1 #0 : ()
+>   %3 = Coerce %1 [ProviderAsRef -] : Ref[mut Recorder]
+>   %4 = Store [$1] %3 : ()
+>   %13 = Block %10 : usize
     rec.note(s)
->   %4 = Read copy [*$1] : mut Recorder
->   %5 = Read borrow [$0] : string
->   %6 = Call app/main/Recorder.note for Recorder [] via TraitValue (%4, %5) : ()
->   %7 = Drop [%4] : ()
+>   %5 = Read copy [*$1] : mut Recorder
+>   %6 = Read borrow [$0] : string
+>   %7 = Call app/main/Recorder.note for Recorder [] via TraitValue (%5, %6) : ()
+>   %8 = Drop [%5] : ()
     rec.total()
->   %8 = Read copy [*$1] : mut Recorder
->   %9 = Call app/main/Recorder.total for Recorder [] via TraitValue (%8) : usize
->   %10 = Drop [%8] : ()
->   %11 = Drop [$1] : ()
+>   %9 = Read copy [*$1] : mut Recorder
+>   %10 = Call app/main/Recorder.total for Recorder [] via TraitValue (%9) : usize
+>   %11 = Drop [%9] : ()
+>   %12 = Drop [$1] : ()
 >   summary kept [] borrows [$0] writes
 
 fn demo(a: string, b: string) -> usize:
-    tally := box(Log { lines: [] })
 > app/main/demo
 >   local $0 a: string [param read] value
->     uses $0: entry -> %16 lend last
+>     uses $0: entry -> %18 lend last
 >   local $1 b: string [param read] value
->     uses $1: entry -> %18 lend last
+>     uses $1: entry -> %20 lend last
 >   local $2 $ref: Log [read assigned captured captured-assigned] place
 >   local $3 tally: Counted[mut Log] [:= read assigned] value
->     uses $3: %4 -> %5 consume, %23 lend last
+>     uses $3: %6 -> %7 consume, %25 lend last
 >   local $4 $ref: Counted[mut Log] [read assigned captured] value
->     uses $4: %6 -> %7 lend last
->   %0 = NewList - [] : List[string]
->   %1 = NewStruct [%0] : Log
->   %2 = Store [$2] %1 : ()
->   %3 = Ref take mut [$2] : Counted[mut Log]
->   %4 = Store [$3] %3 : ()
->   %26 = Block %24 : usize
->   %3 finds [$2] full
+>     uses $4: %8 -> %9 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+>   %1 = ExitDrop [$1] #2 : ()
+    tally := box(Log { lines: [] })
+>   %2 = NewList - [] : List[string]
+>   %3 = NewStruct [%2] : Log
+>   %4 = Store [$2] %3 : ()
+>   %5 = Ref take mut [$2] : Counted[mut Log]
+>   %6 = Store [$3] %5 : ()
+>   %28 = Block %26 : usize
+>   %5 finds [$2] full
     $.with(Recorder=tally):
->   %5 = Read borrow [$3] : Counted[mut Log]
->   %6 = Store [$4] %5 : ()
->   %7 = Read copy [$4] : Counted[mut Log]
->   %8 = Coerce %7 [RefToTraitValue -] : Recorder
->   %9 = Retain %8 #0 : ()
->   %10 = Drop [%7] : ()
->   %11 = Block %8 : Recorder
->   %12 = RefDyn %11 : Counted[mut Recorder]
->   %13 = Coerce %12 [RefAsProvider -] : Recorder
->   %14 = Retain %13 #0 : ()
->   %15 = Drop [%12] : ()
->   %21 = With [Recorder %13] %20 : ()
->   %22 = Drop [%13] : ()
+>   %7 = Read borrow [$3] : Counted[mut Log]
+>   %8 = Store [$4] %7 : ()
+>   %9 = Read copy [$4] : Counted[mut Log]
+>   %10 = Coerce %9 [RefToTraitValue -] : Recorder
+>   %11 = Retain %10 #0 : ()
+>   %12 = Drop [%9] : ()
+>   %13 = Block %10 : Recorder
+>   %14 = RefDyn %13 : Counted[mut Recorder]
+>   %15 = Coerce %14 [RefAsProvider -] : Recorder
+>   %16 = Retain %15 #0 : ()
+>   %17 = Drop [%14] : ()
+>   %23 = With [Recorder %15] %22 : ()
+>   %24 = Drop [%15] : ()
         _ := tick(a)
->   %16 = Read borrow [$0] : string
->   %17 = Call app/main/tick[] (%16) : usize
->   %20 = Block - : ()
-        _ := tick(b)
->   %18 = Read borrow [$1] : string
+>   %18 = Read borrow [$0] : string
 >   %19 = Call app/main/tick[] (%18) : usize
+>   %22 = Block - : ()
+        _ := tick(b)
+>   %20 = Read borrow [$1] : string
+>   %21 = Call app/main/tick[] (%20) : usize
     tally.lines.len()
->   %23 = Read borrow [*$3 .lines] : List[string]
->   %24 = Intrinsic ListLen [%23] : usize
->   %25 = Drop [$3] : ()
+>   %25 = Read borrow [*$3 .lines] : List[string]
+>   %26 = Intrinsic ListLen [%25] : usize
+>   %27 = Drop [$3] : ()
 >   summary kept [] borrows [$0 $1] writes

@@ -6,35 +6,38 @@
 # pass borrowed values with no count; `collect` allocates one vararg list holding `a`
 # and `b` (one retain each) and frees it after the call.
 fn join2(first: string, second: string) -> usize:
-    first.len() * 3 + second.len()
 > app/main/join2
 >   local $0 first: string [param read] value
->     uses $0: entry -> %0 lend last
+>     uses $0: entry -> %2 lend last
 >   local $1 second: string [param read] value
->     uses $1: entry -> %6 lend last
->   %0 = Read borrow [$0] : string
->   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
->   %2 = Break L1 %1 : never
->   %3 = Block - : usize
->   %4 = Scope %3 [] : usize
->   %5 = Prim Mul [%4 3:usize] : usize
->   %6 = Read borrow [$1] : string
->   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
->   %8 = Break L0 %7 : never
->   %9 = Block - : usize
->   %10 = Scope %9 [] : usize
->   %11 = Prim Add [%5 %10] : usize
->   %12 = Block %11 : usize
+>     uses $1: entry -> %8 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+>   %1 = ExitDrop [$1] #2 : ()
+    first.len() * 3 + second.len()
+>   %2 = Read borrow [$0] : string
+>   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
+>   %4 = Break L1 %3 : never
+>   %5 = Block - : usize
+>   %6 = Scope %5 [] : usize
+>   %7 = Prim Mul [%6 3:usize] : usize
+>   %8 = Read borrow [$1] : string
+>   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
+>   %10 = Break L0 %9 : never
+>   %11 = Block - : usize
+>   %12 = Scope %11 [] : usize
+>   %13 = Prim Add [%7 %12] : usize
+>   %14 = Block %13 : usize
 >   summary kept [] borrows [$0 $1]
 
 fn count(values...: List[string]) -> usize:
-    values.len()
 > app/main/count
 >   local $0 values: List[string] [param read] value
->     uses $0: entry -> %0 lend last
->   %0 = Read borrow [$0] : List[string]
->   %1 = Intrinsic ListLen [%0] : usize
->   %2 = Block %1 : usize
+>     uses $0: entry -> %1 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    values.len()
+>   %1 = Read borrow [$0] : List[string]
+>   %2 = Intrinsic ListLen [%1] : usize
+>   %3 = Block %2 : usize
 >   summary kept [] borrows [$0]
 
 fn named(a: string, b: string) -> usize:
@@ -132,16 +135,17 @@ fn spread_tuple(pair: (string, string)) -> usize:
 >   summary kept [$0]
 
 fn spread_list(xs: List[string]) -> usize:
-    count(xs...)
 > app/main/spread_list
 >   local $0 xs: List[string] [param read] value
->     uses $0: entry -> %0 lend last
->   %0 = Read borrow [$0] : List[string]
->   %1 = Intrinsic ListLen [%0] : usize
->   %2 = Break L0 %1 : never
->   %3 = Block - : usize
->   %4 = Scope %3 [] : usize
->   %5 = Block %4 : usize
+>     uses $0: entry -> %1 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    count(xs...)
+>   %1 = Read borrow [$0] : List[string]
+>   %2 = Intrinsic ListLen [%1] : usize
+>   %3 = Break L0 %2 : never
+>   %4 = Block - : usize
+>   %5 = Scope %4 [] : usize
+>   %6 = Block %5 : usize
 >   summary kept [] borrows [$0]
 
 fn collect(a: string, b: string) -> usize:

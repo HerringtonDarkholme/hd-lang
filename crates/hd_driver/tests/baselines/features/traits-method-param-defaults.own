@@ -10,24 +10,25 @@ struct Joiner:
 
 impl Joiner:
     fn join(&self, sep: string = ", ") -> usize:
+> app/main/impl Joiner.join
+>   local $0 self: Ref[Joiner] [param read] value
+>     uses $0: entry -> %1 lend last
+>   local $1 sep: string [param read] value
+>     uses $1: entry -> %3 lend last
+>   %0 = ExitDrop [$1] #2 : ()
 > app/main/impl Joiner.join.sep
 >   %0 = Block ", " : string
 >   summary kept [] borrows [$0]
         self.parts.len() * sep.len()
-> app/main/impl Joiner.join
->   local $0 self: Ref[Joiner] [param read] value
->     uses $0: entry -> %0 lend last
->   local $1 sep: string [param read] value
->     uses $1: entry -> %2 lend last
->   %0 = Read borrow [*$0 .parts] : List[string]
->   %1 = Intrinsic ListLen [%0] : usize
->   %2 = Read borrow [$1] : string
->   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
->   %4 = Break L0 %3 : never
->   %5 = Block - : usize
->   %6 = Scope %5 [] : usize
->   %7 = Prim Mul [%1 %6] : usize
->   %8 = Block %7 : usize
+>   %1 = Read borrow [*$0 .parts] : List[string]
+>   %2 = Intrinsic ListLen [%1] : usize
+>   %3 = Read borrow [$1] : string
+>   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
+>   %5 = Break L0 %4 : never
+>   %6 = Block - : usize
+>   %7 = Scope %6 [] : usize
+>   %8 = Prim Mul [%2 %7] : usize
+>   %9 = Block %8 : usize
 >   summary kept [] borrows [$1]
 
     fn tagged[T](&self, value: T) -> T:
@@ -55,23 +56,26 @@ fn joined(j: Joiner) -> usize:
 >   summary kept [$0] writes
 
 fn generic_method(j: Joiner, s: string) -> usize:
-    j.tagged(s).len()
 > app/main/generic_method
+>   local $0 j: Joiner [param read] value
+>     uses $0: none
 >   local $1 s: string [param read] value
->     uses $1: entry -> %0 consume last
+>     uses $1: entry -> %1 consume last
 >   local $2 $ref: string [read assigned captured captured-assigned] value
->     uses $2: %4 -> %5 lend last
->   %0 = Read move [$1] : string
->   %1 = Break L1 %0 : never
->   %2 = Block - : string
->   %3 = Scope %2 [] : string
->   %4 = Store [$2] %3 : ()
->   %5 = Read borrow [$2] : string
->   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
->   %7 = Break L0 %6 : never
->   %8 = Block - : usize
->   %9 = Scope %8 [] : usize
->   %10 = Drop [$2] : ()
->   %11 = Block %9 : usize
+>     uses $2: %5 -> %6 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    j.tagged(s).len()
+>   %1 = Read move [$1] : string
+>   %2 = Break L1 %1 : never
+>   %3 = Block - : string
+>   %4 = Scope %3 [] : string
+>   %5 = Store [$2] %4 : ()
+>   %6 = Read borrow [$2] : string
+>   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
+>   %8 = Break L0 %7 : never
+>   %9 = Block - : usize
+>   %10 = Scope %9 [] : usize
+>   %11 = Drop [$2] : ()
+>   %12 = Block %10 : usize
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0]

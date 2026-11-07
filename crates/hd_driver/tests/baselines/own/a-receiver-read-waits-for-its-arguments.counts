@@ -17,7 +17,7 @@ impl Members:
     fn at(self, position: usize) -> usize:
         self.infos.len() + position
 > app/main/impl Members.at
->   release app.main.Members (conservative: unowned parameter)
+>   release app.main.Members (last use)
 
     fn peek(&self, position: usize) -> usize:
         self.infos.len() + position

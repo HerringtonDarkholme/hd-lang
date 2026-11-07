@@ -74,58 +74,59 @@ fn build(parts: &List[string]) -> string:
 >   loop %38 keeps [$2]
 
 fn fields(line: string) -> usize:
-    let mut n = 0
 > app/main/fields
 >   local $0 line: string [param read] value
->     uses $0: entry -> %1 lend last
+>     uses $0: entry -> %2 lend last
 >   local $1 n: usize [read assigned mutated] place
 >   local $2 $coll: List[string] [assigned] value
->     uses $2: %3 -> %4 lend, %12 lend
+>     uses $2: %4 -> %5 lend, %13 lend
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
->     uses $5: %6 -> %9 lend
+>     uses $5: %7 -> %10 lend
 >   local $6 f: string [read assigned] value
->     uses $6: %26 -> %17 lend last
->   %0 = Store [$1] 0:usize : ()
->   %38 = Block %37 : usize
+>     uses $6: %27 -> %18 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    let mut n = 0
+>   %1 = Store [$1] 0:usize : ()
+>   %39 = Block %38 : usize
     for f in line.split(","):
->   %1 = Read borrow [$0] : string
->   %2 = Call std/text/impl string.split[] (%1, ",") : List[string]
->   %3 = Store [$2] %2 : ()
->   %4 = Read borrow [$2] : List[string]
->   %5 = Intrinsic ListLen [%4] : usize
->   %6 = Store [$5] %5 : ()
->   %7 = Store [$4] 0:usize : ()
->   %8 = Read copy [$4] : usize
->   %9 = Read copy [$5] : usize
->   %10 = Prim Lt [%8 %9] : bool
->   %11 = Read copy [$4] : usize
->   %12 = Read borrow [$2 [%11]] : string
->   %13 = Read copy [$4] : usize
->   %14 = Prim Add [%13 1:usize] : usize
->   %15 = Store [$4] %14 : ()
->   %24 = Block - : ()
->   %25 = Read borrow [%12] : string
->   %26 = Store [$6] %25 : ()
->   %28 = Block - : never
->   %29 = Match %12 [%28 %24] : ()
->   %30 = Block - : ()
->   %31 = Break L0 - : never
->   %32 = Block - : ()
->   %33 = If %10 [%30 %32] : ()
->   %34 = Block - : ()
->   %35 = Loop %34 - : ()
->   %36 = Drop [$2] : ()
+>   %2 = Read borrow [$0] : string
+>   %3 = Call std/text/impl string.split[] (%2, ",") : List[string]
+>   %4 = Store [$2] %3 : ()
+>   %5 = Read borrow [$2] : List[string]
+>   %6 = Intrinsic ListLen [%5] : usize
+>   %7 = Store [$5] %6 : ()
+>   %8 = Store [$4] 0:usize : ()
+>   %9 = Read copy [$4] : usize
+>   %10 = Read copy [$5] : usize
+>   %11 = Prim Lt [%9 %10] : bool
+>   %12 = Read copy [$4] : usize
+>   %13 = Read borrow [$2 [%12]] : string
+>   %14 = Read copy [$4] : usize
+>   %15 = Prim Add [%14 1:usize] : usize
+>   %16 = Store [$4] %15 : ()
+>   %25 = Block - : ()
+>   %26 = Read borrow [%13] : string
+>   %27 = Store [$6] %26 : ()
+>   %29 = Block - : never
+>   %30 = Match %13 [%29 %25] : ()
+>   %31 = Block - : ()
+>   %32 = Break L0 - : never
+>   %33 = Block - : ()
+>   %34 = If %11 [%31 %33] : ()
+>   %35 = Block - : ()
+>   %36 = Loop %35 - : ()
+>   %37 = Drop [$2] : ()
         n += f.len()
->   %16 = Read copy [$1] : usize
->   %17 = Read borrow [$6] : string
->   %18 = Call std/rt.bytes/bytes_len[] (%17) : usize
->   %19 = Break L1 %18 : never
->   %20 = Block - : usize
->   %21 = Scope %20 [] : usize
->   %22 = Prim Add [%16 %21] : usize
->   %23 = Store [$1] %22 : ()
+>   %17 = Read copy [$1] : usize
+>   %18 = Read borrow [$6] : string
+>   %19 = Call std/rt.bytes/bytes_len[] (%18) : usize
+>   %20 = Break L1 %19 : never
+>   %21 = Block - : usize
+>   %22 = Scope %21 [] : usize
+>   %23 = Prim Add [%17 %22] : usize
+>   %24 = Store [$1] %23 : ()
     n
->   %37 = Read copy [$1] : usize
+>   %38 = Read copy [$1] : usize
 >   summary kept [] borrows [$0]
->   loop %35 keeps [$2]
+>   loop %36 keeps [$2]

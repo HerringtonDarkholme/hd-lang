@@ -5,33 +5,34 @@
 # expected: no count in `unwrap` or `question`: the payload is only read
 # or consumed by `+`; `or_default` moves the payload out.
 fn unwrap(o: string?) -> usize:
-    match o:
 > app/main/unwrap
 >   local $0 o: string? [param read] value
->     uses $0: entry -> %0 lend last
+>     uses $0: entry -> %1 lend last
 >   local $1 s: string [read assigned] value
->     uses $1: %9 -> %1 lend last
->   %0 = Read borrow [$0] : string?
->   %19 = Block - : never
->   %20 = Match %0 [%19 %6 %7] : usize
->   %21 = Block %20 : usize
+>     uses $1: %10 -> %2 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    match o:
+>   %1 = Read borrow [$0] : string?
+>   %20 = Block - : never
+>   %21 = Match %1 [%20 %7 %8] : usize
+>   %22 = Block %21 : usize
         .Some(s) => s.len()
->   %1 = Read borrow [$1] : string
->   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
->   %3 = Break L0 %2 : never
->   %4 = Block - : usize
->   %5 = Scope %4 [] : usize
->   %6 = Block %5 : usize
->   %8 = Read borrow [%0 as #1 .0] : string
->   %9 = Store [$1] %8 : ()
->   %11 = Block - : never
->   %17 = Block - : never
->   %18 = SwitchTag %0 [#1 %11 %17] : never
+>   %2 = Read borrow [$1] : string
+>   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
+>   %4 = Break L0 %3 : never
+>   %5 = Block - : usize
+>   %6 = Scope %5 [] : usize
+>   %7 = Block %6 : usize
+>   %9 = Read borrow [%1 as #1 .0] : string
+>   %10 = Store [$1] %9 : ()
+>   %12 = Block - : never
+>   %18 = Block - : never
+>   %19 = SwitchTag %1 [#1 %12 %18] : never
         .None => 0
->   %7 = Block 0:usize : usize
->   %13 = Block - : never
->   %15 = Block - : never
->   %16 = SwitchTag %0 [#0 %13 %15] : never
+>   %8 = Block 0:usize : usize
+>   %14 = Block - : never
+>   %16 = Block - : never
+>   %17 = SwitchTag %1 [#0 %14 %16] : never
 >   summary kept [] borrows [$0]
 
 fn question(o: string?) -> string?:
@@ -56,33 +57,34 @@ fn question(o: string?) -> string?:
 >   summary kept [$0]
 
 fn or_default(o: string?) -> string:
-    o.unwrap_or("none")
 > app/main/or_default
 >   local $0 o: string? [param read] value
->     uses $0: entry -> %1 lend last
+>     uses $0: entry -> %2 lend last
 >   local $2 fallback: string [read] value
->     uses $2: %0 -> %4 consume last
+>     uses $2: %1 -> %5 consume last
 >   local $3 value: string [read assigned] value
->     uses $3: %7 -> %2 consume last
->   %0 = Store [$2] "none" : ()
->   %1 = Read borrow [$0] : string?
->   %2 = Read copy [$3] : string
->   %3 = Block %2 : string
->   %4 = Read move [$2] : string
->   %5 = Block %4 : string
->   %6 = Read borrow [%1 as #1 .0] : string
->   %7 = Store [$3] %6 : ()
->   %9 = Block - : never
->   %11 = Block - : never
->   %13 = Block - : never
->   %14 = SwitchTag %1 [#0 %11 %13] : never
->   %15 = Block - : never
->   %16 = SwitchTag %1 [#1 %9 %15] : never
->   %17 = Block - : never
->   %18 = Match %1 [%17 %3 %5] : string
->   %19 = Break L0 %18 : never
->   %20 = Block - : string
->   %21 = Scope %20 [] : string
->   %22 = Drop [$2] : ()
->   %23 = Block %21 : string
+>     uses $3: %8 -> %3 consume last
+>   %0 = ExitDrop [$0] #2 : ()
+    o.unwrap_or("none")
+>   %1 = Store [$2] "none" : ()
+>   %2 = Read borrow [$0] : string?
+>   %3 = Read copy [$3] : string
+>   %4 = Block %3 : string
+>   %5 = Read move [$2] : string
+>   %6 = Block %5 : string
+>   %7 = Read borrow [%2 as #1 .0] : string
+>   %8 = Store [$3] %7 : ()
+>   %10 = Block - : never
+>   %12 = Block - : never
+>   %14 = Block - : never
+>   %15 = SwitchTag %2 [#0 %12 %14] : never
+>   %16 = Block - : never
+>   %17 = SwitchTag %2 [#1 %10 %16] : never
+>   %18 = Block - : never
+>   %19 = Match %2 [%18 %4 %6] : string
+>   %20 = Break L0 %19 : never
+>   %21 = Block - : string
+>   %22 = Scope %21 [] : string
+>   %23 = Drop [$2] : ()
+>   %24 = Block %22 : string
 >   summary kept [] borrows [$0]

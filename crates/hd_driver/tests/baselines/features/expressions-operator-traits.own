@@ -13,119 +13,127 @@ struct Tag:
 impl Add for Tag:
     type Out = Tag
     fn add(self, rhs: Tag) -> Tag:
-        Tag { text: self.text + rhs.text }
 > app/main/impl Add for Tag.add
 >   local $0 self: Tag [param read] value
->     uses $0: entry -> %0 lend last
+>     uses $0: entry -> %2 lend last
 >   local $1 rhs: Tag [param read] value
->     uses $1: entry -> %1 lend last
->   %0 = Read borrow [$0 .text] : string
->   %1 = Read borrow [$1 .text] : string
->   %2 = Intrinsic StrConcat [%0 %1] : string
->   %3 = NewStruct [%2] : Tag
->   %4 = Block %3 : Tag
+>     uses $1: entry -> %3 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+>   %1 = ExitDrop [$1] #2 : ()
+        Tag { text: self.text + rhs.text }
+>   %2 = Read borrow [$0 .text] : string
+>   %3 = Read borrow [$1 .text] : string
+>   %4 = Intrinsic StrConcat [%2 %3] : string
+>   %5 = NewStruct [%4] : Tag
+>   %6 = Block %5 : Tag
 >   summary kept [] borrows [$0 $1]
 
 impl Neg for Tag:
     type Out = Tag
     fn neg(self) -> Tag:
-        Tag { text: "-" + self.text }
 > app/main/impl Neg for Tag.neg
 >   local $0 self: Tag [param read] value
->     uses $0: entry -> %0 lend last
->   %0 = Read borrow [$0 .text] : string
->   %1 = Intrinsic StrConcat ["-" %0] : string
->   %2 = NewStruct [%1] : Tag
->   %3 = Block %2 : Tag
+>     uses $0: entry -> %1 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+        Tag { text: "-" + self.text }
+>   %1 = Read borrow [$0 .text] : string
+>   %2 = Intrinsic StrConcat ["-" %1] : string
+>   %3 = NewStruct [%2] : Tag
+>   %4 = Block %3 : Tag
 >   summary kept [] borrows [$0]
 
 fn add_tags(a: Tag, b: Tag) -> Tag:
-    a + b
 > app/main/add_tags
 >   local $0 a: Tag [param read] value
->     uses $0: entry -> %0 lend last
+>     uses $0: entry -> %2 lend last
 >   local $1 b: Tag [param read] value
->     uses $1: entry -> %1 lend last
->   %0 = Read borrow [$0 .text] : string
->   %1 = Read borrow [$1 .text] : string
->   %2 = Intrinsic StrConcat [%0 %1] : string
+>     uses $1: entry -> %3 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+>   %1 = ExitDrop [$1] #2 : ()
+    a + b
+>   %2 = Read borrow [$0 .text] : string
+>   %3 = Read borrow [$1 .text] : string
+>   %4 = Intrinsic StrConcat [%2 %3] : string
+>   %5 = NewStruct [%4] : Tag
+>   %6 = Break L0 %5 : never
+>   %7 = Block - : Tag
+>   %8 = Scope %7 [] : Tag
+>   %9 = Block %8 : Tag
+>   summary kept [] borrows [$0 $1]
+
+fn neg_tag(a: Tag) -> Tag:
+> app/main/neg_tag
+>   local $0 a: Tag [param read] value
+>     uses $0: entry -> %1 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    -a
+>   %1 = Read borrow [$0 .text] : string
+>   %2 = Intrinsic StrConcat ["-" %1] : string
 >   %3 = NewStruct [%2] : Tag
 >   %4 = Break L0 %3 : never
 >   %5 = Block - : Tag
 >   %6 = Scope %5 [] : Tag
 >   %7 = Block %6 : Tag
->   summary kept [] borrows [$0 $1]
-
-fn neg_tag(a: Tag) -> Tag:
-    -a
-> app/main/neg_tag
->   local $0 a: Tag [param read] value
->     uses $0: entry -> %0 lend last
->   %0 = Read borrow [$0 .text] : string
->   %1 = Intrinsic StrConcat ["-" %0] : string
->   %2 = NewStruct [%1] : Tag
->   %3 = Break L0 %2 : never
->   %4 = Block - : Tag
->   %5 = Scope %4 [] : Tag
->   %6 = Block %5 : Tag
 >   summary kept [] borrows [$0]
 
 fn sum[T < Add[Out = T]](items: List[T], zero: T) -> T:
-    let total = zero
 > app/main/sum
 >   local $0 items: List[T] [param read] value
->     uses $0: entry -> %2 lend, %10 lend
+>     uses $0: entry -> %3 lend, %11 lend
 >   local $1 zero: T [param read] value
->     uses $1: entry -> %0 consume last
+>     uses $1: entry -> %1 consume last
 >   local $2 total: T [read assigned mutated] place
 >   local $5 $pos: usize [assigned] place
 >   local $6 $end: usize [assigned] value
->     uses $6: %4 -> %7 lend
+>     uses $6: %5 -> %8 lend
 >   local $7 item: T [read assigned] value
->     uses $7: %20 -> %15 consume last
->   %0 = Read move [$1] : T
->   %1 = Store [$2] %0 : ()
->   %31 = Block %30 : T
+>     uses $7: %21 -> %16 consume last
+>   %0 = ExitDrop [$0] #2 : ()
+    let total = zero
+>   %1 = Read move [$1] : T
+>   %2 = Store [$2] %1 : ()
+>   %32 = Block %31 : T
     for item in items:
->   %2 = Read borrow [$0] : List[T]
->   %3 = Intrinsic ListLen [%2] : usize
->   %4 = Store [$6] %3 : ()
->   %5 = Store [$5] 0:usize : ()
->   %6 = Read copy [$5] : usize
->   %7 = Read copy [$6] : usize
->   %8 = Prim Lt [%6 %7] : bool
->   %9 = Read copy [$5] : usize
->   %10 = Read borrow [$0 [%9]] : T
->   %11 = Read copy [$5] : usize
->   %12 = Prim Add [%11 1:usize] : usize
->   %13 = Store [$5] %12 : ()
->   %18 = Block - : ()
->   %19 = Read borrow [%10] : T
->   %20 = Store [$7] %19 : ()
->   %22 = Block - : never
->   %23 = Match %10 [%22 %18] : ()
->   %24 = Block - : ()
->   %25 = Break L0 - : never
->   %26 = Block - : ()
->   %27 = If %8 [%24 %26] : ()
->   %28 = Block - : ()
->   %29 = Loop %28 - : ()
+>   %3 = Read borrow [$0] : List[T]
+>   %4 = Intrinsic ListLen [%3] : usize
+>   %5 = Store [$6] %4 : ()
+>   %6 = Store [$5] 0:usize : ()
+>   %7 = Read copy [$5] : usize
+>   %8 = Read copy [$6] : usize
+>   %9 = Prim Lt [%7 %8] : bool
+>   %10 = Read copy [$5] : usize
+>   %11 = Read borrow [$0 [%10]] : T
+>   %12 = Read copy [$5] : usize
+>   %13 = Prim Add [%12 1:usize] : usize
+>   %14 = Store [$5] %13 : ()
+>   %19 = Block - : ()
+>   %20 = Read borrow [%11] : T
+>   %21 = Store [$7] %20 : ()
+>   %23 = Block - : never
+>   %24 = Match %11 [%23 %19] : ()
+>   %25 = Block - : ()
+>   %26 = Break L0 - : never
+>   %27 = Block - : ()
+>   %28 = If %9 [%25 %27] : ()
+>   %29 = Block - : ()
+>   %30 = Loop %29 - : ()
         total = total + item
->   %14 = Read move [$2] : T
->   %15 = Read copy [$7] : T
->   %16 = Call std/ops/Add.add for T [T] via Bound (%14, %15) : T
->   %17 = Store [$2] %16 : ()
+>   %15 = Read move [$2] : T
+>   %16 = Read copy [$7] : T
+>   %17 = Call std/ops/Add.add for T [T] via Bound (%15, %16) : T
+>   %18 = Store [$2] %17 : ()
     total
->   %30 = Read move [$2] : T
+>   %31 = Read move [$2] : T
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0] writes
 
 fn sum_strings(xs: List[string]) -> string:
-    sum(xs, "")
 > app/main/sum_strings
 >   local $0 xs: List[string] [param read] value
->     uses $0: entry -> %0 lend last
->   %0 = Read borrow [$0] : List[string]
->   %1 = Call app/main/sum[string] (%0, "") : string
->   %2 = Block %1 : string
+>     uses $0: entry -> %1 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    sum(xs, "")
+>   %1 = Read borrow [$0] : List[string]
+>   %2 = Call app/main/sum[string] (%1, "") : string
+>   %3 = Block %2 : string
 >   summary kept [] borrows [$0] writes

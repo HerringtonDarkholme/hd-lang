@@ -10,108 +10,112 @@ struct User:
     tags: List[string]
 
 fn read_user(u: User) -> usize:
-    let User { name, tags } = u
 > app/main/read_user
 >   local $0 u: User [param read] value
->     uses $0: entry -> %0 lend last
+>     uses $0: entry -> %1 lend last
 >   local $1 name: string [read assigned] value
->     uses $1: %4 -> %9 lend last
+>     uses $1: %5 -> %10 lend last
 >   local $2 tags: List[string] [read assigned] value
->     uses $2: %5 -> %14 lend last
->   %0 = Read borrow [$0] : User
->   %1 = Block - : ()
->   %2 = Read borrow [%0 .name] : string
->   %3 = Read borrow [%0 .tags] : List[string]
->   %4 = Store [$1] %2 : ()
->   %5 = Store [$2] %3 : ()
->   %7 = Block - : never
->   %8 = Match %0 [%7 %1] : ()
->   %17 = Block %16 : usize
+>     uses $2: %6 -> %15 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    let User { name, tags } = u
+>   %1 = Read borrow [$0] : User
+>   %2 = Block - : ()
+>   %3 = Read borrow [%1 .name] : string
+>   %4 = Read borrow [%1 .tags] : List[string]
+>   %5 = Store [$1] %3 : ()
+>   %6 = Store [$2] %4 : ()
+>   %8 = Block - : never
+>   %9 = Match %1 [%8 %2] : ()
+>   %18 = Block %17 : usize
     name.len() + tags.len()
->   %9 = Read borrow [$1] : string
->   %10 = Call std/rt.bytes/bytes_len[] (%9) : usize
->   %11 = Break L0 %10 : never
->   %12 = Block - : usize
->   %13 = Scope %12 [] : usize
->   %14 = Read borrow [$2] : List[string]
->   %15 = Intrinsic ListLen [%14] : usize
->   %16 = Prim Add [%13 %15] : usize
+>   %10 = Read borrow [$1] : string
+>   %11 = Call std/rt.bytes/bytes_len[] (%10) : usize
+>   %12 = Break L0 %11 : never
+>   %13 = Block - : usize
+>   %14 = Scope %13 [] : usize
+>   %15 = Read borrow [$2] : List[string]
+>   %16 = Intrinsic ListLen [%15] : usize
+>   %17 = Prim Add [%14 %16] : usize
 >   summary kept [] borrows [$0]
 
 fn take_name(u: User) -> string:
-    let User { name } = u
 > app/main/take_name
 >   local $0 u: User [param read] value
->     uses $0: entry -> %0 lend last
+>     uses $0: entry -> %1 lend last
 >   local $1 name: string [read assigned] value
->     uses $1: %3 -> %7 consume last
->   %0 = Read borrow [$0] : User
->   %1 = Block - : ()
->   %2 = Read borrow [%0 .name] : string
->   %3 = Store [$1] %2 : ()
->   %5 = Block - : never
->   %6 = Match %0 [%5 %1] : ()
->   %8 = Block %7 : string
+>     uses $1: %4 -> %8 consume last
+>   %0 = ExitDrop [$0] #2 : ()
+    let User { name } = u
+>   %1 = Read borrow [$0] : User
+>   %2 = Block - : ()
+>   %3 = Read borrow [%1 .name] : string
+>   %4 = Store [$1] %3 : ()
+>   %6 = Block - : never
+>   %7 = Match %1 [%6 %2] : ()
+>   %9 = Block %8 : string
     name
->   %7 = Read copy [$1] : string
+>   %8 = Read copy [$1] : string
 >   summary kept [] borrows [$0]
 
 fn pair(p: (string, string)) -> usize:
-    let (a, b) = p
 > app/main/pair
 >   local $0 p: (string, string) [param read] value
->     uses $0: entry -> %0 lend last
+>     uses $0: entry -> %1 lend last
 >   local $1 a: string [read assigned] value
->     uses $1: %4 -> %9 lend last
+>     uses $1: %5 -> %10 lend last
 >   local $2 b: string [read assigned] value
->     uses $2: %5 -> %14 lend last
->   %0 = Read borrow [$0] : (string, string)
->   %1 = Block - : ()
->   %2 = Read borrow [%0 .0] : string
->   %3 = Read borrow [%0 .1] : string
->   %4 = Store [$1] %2 : ()
->   %5 = Store [$2] %3 : ()
->   %7 = Block - : never
->   %8 = Match %0 [%7 %1] : ()
->   %20 = Block %19 : usize
+>     uses $2: %6 -> %15 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    let (a, b) = p
+>   %1 = Read borrow [$0] : (string, string)
+>   %2 = Block - : ()
+>   %3 = Read borrow [%1 .0] : string
+>   %4 = Read borrow [%1 .1] : string
+>   %5 = Store [$1] %3 : ()
+>   %6 = Store [$2] %4 : ()
+>   %8 = Block - : never
+>   %9 = Match %1 [%8 %2] : ()
+>   %21 = Block %20 : usize
     a.len() + b.len()
->   %9 = Read borrow [$1] : string
->   %10 = Call std/rt.bytes/bytes_len[] (%9) : usize
->   %11 = Break L1 %10 : never
->   %12 = Block - : usize
->   %13 = Scope %12 [] : usize
->   %14 = Read borrow [$2] : string
+>   %10 = Read borrow [$1] : string
+>   %11 = Call std/rt.bytes/bytes_len[] (%10) : usize
+>   %12 = Break L1 %11 : never
+>   %13 = Block - : usize
+>   %14 = Scope %13 [] : usize
+>   %15 = Read borrow [$2] : string
+>   %16 = Call std/rt.bytes/bytes_len[] (%15) : usize
+>   %17 = Break L0 %16 : never
+>   %18 = Block - : usize
+>   %19 = Scope %18 [] : usize
+>   %20 = Prim Add [%14 %19] : usize
+>   summary kept [] borrows [$0]
+
+fn present(o: string?) -> usize:
+> app/main/present
+>   local $0 o: string? [param read] value
+>     uses $0: entry -> %1 lend last
+>   local $1 s: string [read assigned] value
+>     uses $1: %6 -> %14 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    let .Some(s) = o else:
+>   %1 = Read borrow [$0] : string?
+>   %2 = Block - : ()
+>   %4 = Block - : never
+>   %5 = Read borrow [%1 as #1 .0] : string
+>   %6 = Store [$1] %5 : ()
+>   %8 = Block - : never
+>   %10 = Block - : never
+>   %11 = SwitchTag %1 [#1 %8 %10] : never
+>   %12 = Block - : never
+>   %13 = Match %1 [%12 %2 %4] : ()
+>   %19 = Block %18 : usize
+        return 0
+>   %3 = Return 0:usize : never
+    s.len()
+>   %14 = Read borrow [$1] : string
 >   %15 = Call std/rt.bytes/bytes_len[] (%14) : usize
 >   %16 = Break L0 %15 : never
 >   %17 = Block - : usize
 >   %18 = Scope %17 [] : usize
->   %19 = Prim Add [%13 %18] : usize
->   summary kept [] borrows [$0]
-
-fn present(o: string?) -> usize:
-    let .Some(s) = o else:
-> app/main/present
->   local $0 o: string? [param read] value
->     uses $0: entry -> %0 lend last
->   local $1 s: string [read assigned] value
->     uses $1: %5 -> %13 lend last
->   %0 = Read borrow [$0] : string?
->   %1 = Block - : ()
->   %3 = Block - : never
->   %4 = Read borrow [%0 as #1 .0] : string
->   %5 = Store [$1] %4 : ()
->   %7 = Block - : never
->   %9 = Block - : never
->   %10 = SwitchTag %0 [#1 %7 %9] : never
->   %11 = Block - : never
->   %12 = Match %0 [%11 %1 %3] : ()
->   %18 = Block %17 : usize
-        return 0
->   %2 = Return 0:usize : never
-    s.len()
->   %13 = Read borrow [$1] : string
->   %14 = Call std/rt.bytes/bytes_len[] (%13) : usize
->   %15 = Break L0 %14 : never
->   %16 = Block - : usize
->   %17 = Scope %16 [] : usize
 >   summary kept [] borrows [$0]
