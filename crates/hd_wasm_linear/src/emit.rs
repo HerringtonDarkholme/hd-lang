@@ -130,7 +130,7 @@ fn body_func<'a>(
         && own.cold.is_none()
         && input.runtime.is_some();
     let promoted = promote::promoted_refs(input, m, b, (item, args), targets, pick)?;
-    let roots = ref_roots(input, b, item, args, suspending, &promoted);
+    let roots = ref_roots(input, b, item, args, &promoted);
     let cells = closure::cell_locals(b, &roots);
     let direct_json = input.direct_json_encoders.contains(&own.key);
     let inst = (m.inst_of.get(&own.key).copied()).unwrap_or(InstId::from_raw(u32::MAX));
@@ -471,7 +471,9 @@ fn body_func<'a>(
     for (l, ls) in &held {
         if plocals.contains(l) && em.is_cell(*l) {
             em.param_cell(*l, ls)?;
-            if !suspending {
+            // Only a store can follow what empties a parameter's cell, and
+            // that store finds no cell (`Em::cell_of`).
+            if !(0..b.len()).any(|i| shape::local_store(b, i).is_some_and(|(s, _)| s == *l)) {
                 em.entry_cells.insert(*l);
             }
         }
@@ -772,7 +774,6 @@ fn ref_roots(
     b: &Body,
     item: DefId,
     args: TyList,
-    suspending: bool,
     promoted: &hd_base::HashSet<u32>,
 ) -> Vec<usize> {
     let (pool, env) = (input.pool, input.env);
@@ -789,13 +790,6 @@ fn ref_roots(
                 crate::layout::Kind::Ref { fat: false, .. }
             );
             if !addr {
-                return None;
-            }
-            // A suspending body's parameter has no cell yet
-            // (`susp::finish`), so a read-only reference to it is to a
-            // copy; a `&mut` one keeps the cell, which `finish` refuses.
-            let param = b.local_flags[l] & local_flags::PARAM != 0;
-            if suspending && param && !crate::layout::ref_mutable(pool, env, t) {
                 return None;
             }
             Some(l)
@@ -1192,10 +1186,14 @@ struct Em<'i, 'a, 'm> {
     /// The locals that closures share, each in a cell, with the store
     /// that declares it (`closure.rs`).
     cells: HashMap<usize, u32>,
-    /// The cell locals whose cell the prologue made or received: a
-    /// parameter moved into its cell, a closure's or a thunk's shared
-    /// capture (`closure.rs`, [`Em::cell_made`]).
+    /// The cell locals whose cell the prologue made or received, and that
+    /// nothing stores into again: a parameter moved into its cell, a
+    /// closure's or a thunk's shared capture (`closure.rs`, [`Em::cell_made`]).
     entry_cells: hd_base::HashSet<usize>,
+    /// The Wasm locals a parameter arrived in, for each one that moved
+    /// into its cell: a suspending body's cold constructor makes the cell
+    /// from them (`susp::finish`).
+    param_vals: HashMap<usize, Vec<u32>>,
     /// The cell locals that live in a slot of the function's frame on the
     /// local stack, not in a counted cell (§23.38), each with its slot's
     /// offset in the frame ([`closure::slot_locals`]).
@@ -1348,6 +1346,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             temps: Vec::new(),
             cells: shared,
             entry_cells: hd_base::HashSet::default(),
+            param_vals: HashMap::default(),
             slots: HashMap::default(),
             promoted: hd_base::HashSet::default(),
             static_cells: None,

@@ -1,0 +1,15 @@
+# test: a let mut local of a non-copyable type moves into a suspending call
+# Spec 11 Requirements and Suspension: req.suspend.cold.
+# expect-stdout: 1
+use std.collections.UniqList
+use std.time.{Clock, ms, sleep}
+
+fn sized!(u: UniqList[i32]) -> usize $ Clock:
+    sleep!(ms(1))
+    u.len()
+
+pub fn main!() -> void $ Console + Clock:
+    let mut u = UniqList::[i32].new()
+    u.push(1)
+    a := sized!(u)
+    println("$a")

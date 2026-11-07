@@ -1219,11 +1219,6 @@ pub(super) fn finish(
     held: Option<bool>,
 ) -> StageResult<crate::module::Func> {
     let pc = em.susp.as_ref().map_or(0, |s| s.pc);
-    for &l in plocals {
-        if em.is_cell(l) {
-            return unsupported("a mutably captured parameter of a suspending function");
-        }
-    }
     let mut vals_all: Vec<Val> = em.f.params.clone();
     vals_all.extend(em.f.locals.iter().copied());
     let local_frame = em.frame.filter(|(base, _)| *base != NONE);
@@ -1231,6 +1226,17 @@ pub(super) fn finish(
     if let Some((base, _)) = local_frame {
         skipped.push(base);
     }
+    // A parameter in a cell: once the cell holds it, its arrival locals are
+    // never read again.
+    let arrived = |em: &Em<'_, '_, '_>, l: usize| -> Vec<u32> {
+        em.param_vals
+            .get(&l)
+            .unwrap_or(&em.locals[&l])
+            .iter()
+            .map(|x| x - 1)
+            .collect()
+    };
+    skipped.extend(em.param_vals.values().flatten().copied());
     let (area, size) = save_area(&vals_all, &skipped);
     expand(&mut em.f, &area);
     em.m.frames.insert(key, size);
@@ -1416,7 +1422,7 @@ pub(super) fn finish(
     let source = em.counting && em.susp.as_ref().is_some_and(|s| s.source);
     if em.counting {
         for &l in plocals {
-            let ls: Vec<u32> = em.locals[&l].iter().map(|x| x - 1).collect();
+            let ls = arrived(&em, l);
             let t = em.sub(em.b.local_ty[l]);
             let copy = if source {
                 em.stated_count(
@@ -1442,19 +1448,33 @@ pub(super) fn finish(
             em.f.op(store_op(v, at));
         }
     }
+    // A parameter a reference refers to or a closure shares is in its cell
+    // from the start, so the release glue of a frame that never ran finds
+    // it where it does later.
+    for &l in plocals {
+        if em.param_vals.contains_key(&l) {
+            let ls = arrived(&em, l);
+            let cell = em.new_cell(l, &super::value::Src::Locals(ls))?;
+            if let Some((at, v)) = at_of(em.locals[&l][0]) {
+                em.f.get(fr);
+                em.f.get(cell);
+                em.f.op(store_op(v, at));
+            }
+        }
+    }
     // The frame's count of each reference parameter's object, in the
     // temporary its exit or release glue releases.
     if let Some(r) = em.input.runtime.filter(|_| em.counting) {
         for (l, held) in em.frame_refs.clone() {
-            let (Some(&x), Some((at, v))) = (em.locals[&l].first(), at_of(held)) else {
+            let (Some(x), Some((at, v))) = (arrived(&em, l).first().copied(), at_of(held)) else {
                 continue;
             };
-            em.f.get(x - 1);
+            em.f.get(x);
             em.because(Reason::ByDesign, |em| {
                 em.f.count_call(Sym::Inst(r.retain), crate::views::CountAction::Retain);
             });
             em.f.get(fr);
-            em.f.get(x - 1);
+            em.f.get(x);
             em.f.op(store_op(v, at));
         }
     }

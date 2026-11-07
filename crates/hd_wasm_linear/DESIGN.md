@@ -1071,10 +1071,11 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   address and the vtable, as Rust's `&dyn Tr` is: `RefDyn`'s other block
   makes it, `&mut held` of a trait value is the trait value in `held`,
   and a provider installed behind a reference is that trait value
-  (`RefAsProvider`). A local copy that a closure captured and a
-  suspending body's parameter, whose cell the frame cannot hold yet, are
-  no places in memory: a read-only reference to one is to a new object
-  holding a copy, and `&mut` to one stays refused.
+  (`RefAsProvider`). A local copy that a closure captured is no place in
+  memory: a read-only reference to one is to a new object holding a copy,
+  and `&mut` to one stays refused. A suspending body's parameter a reference
+  refers to has its cell from the start: the cold constructor makes it when
+  a frame holds the arguments, the prologue when the body starts with none.
   hello (`println(42)`) went from 6,007 to 5,040 bytes in the dev
   profile and in release; 16 of them are the count of blocks
   `std.rt.alloc.allocated` reports, which `ref_tests.hd` reads to see
@@ -1581,10 +1582,11 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   address and the vtable, as Rust's `&dyn Tr` is: `RefDyn`'s other block
   makes it, `&mut held` of a trait value is the trait value in `held`,
   and a provider installed behind a reference is that trait value
-  (`RefAsProvider`). A local copy that a closure captured and a
-  suspending body's parameter, whose cell the frame cannot hold yet, are
-  no places in memory: a read-only reference to one is to a new object
-  holding a copy, and `&mut` to one stays refused.
+  (`RefAsProvider`). A local copy that a closure captured is no place in
+  memory: a read-only reference to one is to a new object holding a copy,
+  and `&mut` to one stays refused. A suspending body's parameter a reference
+  refers to has its cell from the start: the cold constructor makes it when
+  a frame holds the arguments, the prologue when the body starts with none.
   hello (`println(42)`) went from 6,007 to 5,040 bytes in the dev
   profile and in release; 16 of them are the count of blocks
   `std.rt.alloc.allocated` reports, which `ref_tests.hd` reads to see

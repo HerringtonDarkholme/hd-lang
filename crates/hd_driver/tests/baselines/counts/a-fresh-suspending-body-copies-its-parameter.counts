@@ -14,14 +14,14 @@ fn after!(text: string) -> usize $ Clock:
 >   retain counted reference (stored)
 >   release counted reference (conservative: Await)
 >   release &string (last use)
->   release string (last use)
->   release string (last use)
+>   release counted reference (last use)
+>   release counted reference (last use)
 > app/main/after
->   release string (cancelled)
+>   release counted reference (cancelled)
 >   release counted reference (conservative: frame drop)
 >   release counted reference (conservative: frame drop)
 > app/main/after
 >   retain string (stored)
 >   retain counted reference (stored)
     text.len()
->   retain counted reference (conservative: Ref)
+>   retain &string (conservative: Ref)

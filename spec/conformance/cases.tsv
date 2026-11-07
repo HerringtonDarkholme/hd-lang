@@ -1342,6 +1342,9 @@ runtime/valid/a-compare-through-a-pointer-keeps-a-loop-from-changing-its-copy.hd
 runtime/valid/a-change-through-a-list-parameter-keeps-its-copies-apart.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/a-list-literal-in-a-function-builds-a-fresh-list-each-call.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/a-suspending-call-keeps-its-arguments-past-a-change-of-their-source.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.suspend.cold
+runtime/valid/a-unique-list-a-suspending-function-reads-is-freed-once.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.suspend.cold
+runtime/valid/a-let-mut-unique-list-moves-into-a-suspending-call.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.suspend.cold
+runtime/valid/a-moved-parameter-can-be-stored-again.hd	runtime	accept	lang/13-values-and-references.md#r-ref.move.sites
 runtime/valid/a-closure-kept-past-its-loop-round-keeps-its-own-variable.hd	runtime	accept	lang/07-functions.md#r-fn.capture.cell.fresh
 runtime/valid/a-local-reference-stored-in-a-list-slot-keeps-its-source.hd	runtime	accept	lang/13-values-and-references.md#r-ref.dep.scope
 runtime/valid/a-local-reference-stored-in-a-list-slot-keeps-its-source-through-a-pointer.hd	runtime	accept	lang/13-values-and-references.md#r-ref.dep.scope

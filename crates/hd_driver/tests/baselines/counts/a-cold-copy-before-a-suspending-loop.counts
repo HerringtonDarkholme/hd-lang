@@ -9,13 +9,13 @@ app/main/run
   release counted reference (conservative: Await)
   release app.main.Wait (cancelled)
   release app.main.Wait (last use)
-  retain counted reference (conservative: Ref)
+  retain &string (conservative: Ref)
   release &string (last use)
-  release string (last use)
-  release string (last use)
+  release counted reference (last use)
+  release counted reference (last use)
 app/main/run
   release app.main.Wait (cancelled)
-  release string (cancelled)
+  release counted reference (cancelled)
   release counted reference (conservative: frame drop)
   release counted reference (conservative: frame drop)
 app/main/run

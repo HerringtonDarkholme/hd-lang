@@ -1,0 +1,73 @@
+# test: a unique list passed by value to a suspending function has one owner at each point, so it is freed once, by each route and way out
+# Spec 11 Requirements and Suspension: req.suspend.cold.
+# expect-stdout: 2
+# expect-stdout: 3
+# expect-stdout: 2
+# expect-stdout: 2
+# expect-stdout: 2
+# expect-stdout: 8
+# expect-stdout: not started
+# expect-stdout: 7
+use std.collections.UniqList
+use std.task.race
+use std.time.{Clock, ms, sleep}
+
+fn numbers() -> UniqList[i32]:
+    let mut u = UniqList::[i32].new()
+    u.push(1)
+    u.push(2)
+    u
+
+fn sized!(u: UniqList[i32]) -> usize $ Clock:
+    sleep!(ms(1))
+    u.len()
+
+fn grown!(mut u: UniqList[i32]) -> usize $ Clock:
+    u.push(3)
+    sleep!(ms(1))
+    u.len()
+
+trait Sizer:
+    fn sized!(&self, u: UniqList[i32]) -> usize $ Clock
+
+struct Plain:
+    x: i32
+
+impl Sizer for Plain:
+    fn sized!(&self, u: UniqList[i32]) -> usize $ Clock:
+        sleep!(ms(1))
+        u.len()
+
+struct Bag:
+    items: UniqList[i32]
+    name: string
+
+fn weighed!(b: Bag) -> usize $ Clock:
+    sleep!(ms(1))
+    n := b.items.len() + b.name.len()
+    sleep!(ms(1))
+    n + b.items.len() + b.name.len()
+
+fn slow!(u: UniqList[i32], s: string) -> usize $ Clock:
+    sleep!(ms(50))
+    u.len() + s.len()
+
+fn quick!() -> usize $ Clock:
+    sleep!(ms(1))
+    7
+
+pub fn main!() -> void $ Console + Clock:
+    println("${sized!(numbers())}")
+    println("${grown!(numbers())}")
+    p := Plain { x: 1 }
+    let d: &dyn Sizer = &p
+    println("${p.sized!(numbers())}")
+    println("${d.sized!(numbers())}")
+    f := fn!(w: UniqList[i32]) -> usize $ Clock:
+        sleep!(ms(1))
+        w.len()
+    println("${f!(numbers())}")
+    println("${weighed!(Bag { items: numbers(), name: "n${1}" })}")
+    _ := sized(numbers())
+    println("not started")
+    println("${race!(slow(numbers(), "s${1}"), quick())}")

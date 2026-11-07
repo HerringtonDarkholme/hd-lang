@@ -1,0 +1,103 @@
+# test: a parameter whose cell a move or drop emptied gets a new cell when it is stored again, in a plain body and in a suspending one
+# Spec 13 Values And References: ref.move.sites.
+# expect-stdout: 6
+# expect-stdout: 6
+# expect-stdout: 4 12
+# expect-stdout: 4 12
+# expect-stdout: 6 4
+# expect-stdout: 6 4
+# expect-stdout: 12
+# expect-stdout: 3
+use std.collections.UniqList
+use std.time.{Clock, ms, sleep}
+
+fn numbers(n: i32) -> UniqList[i32]:
+    let mut u = UniqList::[i32].new()
+    u.push(n)
+    u.push(n)
+    u
+
+fn eat(u: UniqList[i32]) -> usize:
+    u.len()
+
+fn again(mut u: UniqList[i32]) -> usize:
+    u.push(1)
+    a := eat(u)
+    u = numbers(2)
+    u.push(3)
+    a + u.len()
+
+fn again_waiting!(mut u: UniqList[i32]) -> usize $ Clock:
+    u.push(1)
+    sleep!(ms(1))
+    a := eat(u)
+    sleep!(ms(1))
+    u = numbers(2)
+    u.push(3)
+    sleep!(ms(1))
+    a + u.len()
+
+fn on_a_path(mut u: UniqList[i32], c: bool) -> usize:
+    let mut a: usize = 0
+    if c:
+        a = eat(u)
+    else:
+        a = 10
+    u = numbers(2)
+    a + u.len()
+
+fn on_a_path_waiting!(mut u: UniqList[i32], c: bool) -> usize $ Clock:
+    let mut a: usize = 0
+    if c:
+        a = eat(u)
+    else:
+        a = 10
+    sleep!(ms(1))
+    u = numbers(2)
+    a + u.len()
+
+fn text(mut s: string, c: bool) -> usize:
+    r := &s
+    let mut a = r.len()
+    if c:
+        keep := s
+        a += keep.len()
+    s = "b${1}"
+    a + s.len()
+
+fn text_waiting!(mut s: string, c: bool) -> usize $ Clock:
+    r := &s
+    let mut a = r.len()
+    if c:
+        sleep!(ms(1))
+        keep := s
+        a += keep.len()
+    s = "b${1}"
+    sleep!(ms(1))
+    a + s.len()
+
+fn each_round!(mut s: string) -> usize $ Clock:
+    let mut n: usize = 0
+    for i in 0..3:
+        r := &s
+        n += r.len()
+        sleep!(ms(1))
+        s = "$s-$i"
+    n
+
+fn shared!(mut n: i32) -> i32 $ Clock:
+    bump := fn() -> void: n += 1
+    bump()
+    sleep!(ms(1))
+    bump()
+    n
+
+pub fn main!() -> void $ Console + Clock:
+    println("${again(numbers(1))}")
+    println("${again_waiting!(numbers(1))}")
+    println("${on_a_path(numbers(1), true)} ${on_a_path(numbers(1), false)}")
+    println("${on_a_path_waiting!(numbers(1), true)} ${on_a_path_waiting!(numbers(1), false)}")
+    println("${text("a${1}", true)} ${text("a${1}", false)}")
+    println("${text_waiting!("a${1}", true)} ${text_waiting!("a${1}", false)}")
+    println("${each_round!("a${1}")}")
+    println("${shared!(+1)}")

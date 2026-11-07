@@ -269,7 +269,7 @@ impl Em<'_, '_, '_> {
     /// A new cell for local `l`, holding the values `src` pushes, which
     /// the cell's count of them already covers: a local holding its
     /// address.
-    fn new_cell(&mut self, l: usize, src: &Src) -> StageResult<u32> {
+    pub(super) fn new_cell(&mut self, l: usize, src: &Src) -> StageResult<u32> {
         self.raw_cell(l, src, true)
     }
 
@@ -304,23 +304,23 @@ impl Em<'_, '_, '_> {
     /// emitted, so its local holds a nonzero address:
     ///
     /// - the prologue made or received it ([`Em::entry_cells`]): a
-    ///   parameter moved into its cell, or a shared capture, whose holder
-    ///   made the cell before passing it; or
+    ///   parameter moved into its cell that nothing stores into again, or
+    ///   a shared capture, whose holder made the cell before passing it; or
     /// - known-null found the local holding its value there on every path
     ///   (`Body::full_cells`, rule 5 of `docs/compiler/tir-v2.md`,
     ///   "Known-null"): a store into it ran since its last `Drop`, move or
     ///   taking `Ref`, and every store makes the cell (its declaration, or
     ///   [`Em::cell_of`] for any other).
     ///
-    /// Anything else keeps the test, and so does every use in a suspending
-    /// body, whose resume reloads its locals from the frame and enters
-    /// blocks in the middle (`susp.rs`).
+    /// A use in a suspending body, whose resume reloads its locals from the
+    /// frame and enters blocks in the middle (`susp.rs`), takes only the
+    /// first. Anything else keeps the test.
     fn cell_made(&self, l: usize) -> bool {
-        if self.susp.is_some() {
-            return false;
-        }
         if self.entry_cells.contains(&l) {
             return true;
+        }
+        if self.susp.is_some() {
+            return false;
         }
         let (Some(&j), Ok(l)) = (self.emitting.last(), u32::try_from(l)) else {
             return false;
@@ -534,8 +534,8 @@ impl Em<'_, '_, '_> {
     /// Moves local `l`'s value out of its cell into instruction `i`,
     /// leaving no payload for the cell's release and no cell for a later
     /// exit drop. A frame slot is emptied in place; an ordinary cell is
-    /// released. Move proves this is the local's last access; suspending
-    /// cells and shared captures are not candidates.
+    /// released. Move proves this is the local's last access; shared
+    /// captures are not candidates.
     pub(super) fn cell_take(&mut self, i: u32, l: usize) -> StageResult<()> {
         let slot = self.slots.contains_key(&l);
         let (m, walk) = self.cell_mem(l)?;
@@ -630,6 +630,7 @@ impl Em<'_, '_, '_> {
     pub(super) fn param_cell(&mut self, l: usize, ls: &[u32]) -> StageResult<()> {
         let at = self.new_cell(l, &Src::Locals(ls.to_vec()))?;
         self.locals.insert(l, vec![at]);
+        self.param_vals.insert(l, ls.to_vec());
         Ok(())
     }
 
