@@ -34,6 +34,7 @@ use crate::{Input, unsupported};
 
 mod borrow;
 mod elide;
+mod loan_facts;
 pub(crate) use borrow::global_root;
 pub(crate) use elide::LoanSite;
 mod closure;
