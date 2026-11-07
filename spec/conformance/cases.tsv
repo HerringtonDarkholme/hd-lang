@@ -1385,6 +1385,7 @@ runtime/valid/copy-update-a-field-that-changes-the-base-keeps-what-it-read.hd	ru
 runtime/valid/dyn-reference-source-replaced-during-its-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.shared-variable
 runtime/valid/list-local-shared-before-a-change-keeps-its-copy.hd	runtime	accept	lang/13-values-and-references.md#copy
 runtime/valid/struct-field-shared-by-a-struct-copy-keeps-its-copy.hd	runtime	accept	lang/13-values-and-references.md#copy
+runtime/valid/entry-status-releases-a-counted-result.hd	runtime	accept	lang/10-modules.md#exit-status
 runtime/valid/struct-field-shared-through-a-binding-keeps-its-copy.hd	runtime	accept	lang/13-values-and-references.md#copy
 runtime/valid/struct-field-shared-through-a-reference-binding-keeps-its-copy.hd	runtime	accept	lang/13-values-and-references.md#copy
 runtime/valid/copy-update-of-a-generic-struct-keeps-its-own-list.hd	runtime	accept	lang/13-values-and-references.md#copy

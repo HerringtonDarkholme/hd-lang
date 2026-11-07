@@ -2136,11 +2136,11 @@ impl Env<'_> {
         })
     }
 
-    /// Whether emitted glue calls `item` with owned arguments: an item of
-    /// the runtime or one a host boundary codec calls, which lends
-    /// nothing.
+    /// Whether emitted glue calls `item` with owned arguments, so it lends
+    /// nothing: a runtime function emitted code calls, an entry's status
+    /// function, or one a host boundary codec calls.
     fn called_by_glue(&self, item: DefId) -> bool {
-        self.run.item_module_text(item).starts_with("std.rt")
+        self.run.glue_items().contains(&item)
             || self.json_items().is_some_and(|j| {
                 [
                     j.package_encode,

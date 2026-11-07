@@ -1,0 +1,22 @@
+# expect-stdout: 3
+# test: an entry that returns a counted value hands it to its status function, which releases it, so a checked build's audit finds no leak
+# Spec 10 Modules: module.entry.exit-report.
+use std.process.{ExitCode, Termination}
+
+pub struct Report:
+    rows: List[i32]
+
+impl Termination for Report:
+    fn report(self) -> ExitCode:
+        if self.rows.len() == 3:
+            ExitCode(0)
+        else:
+            ExitCode(1)
+
+pub fn main() -> Report $ Console:
+    let mut rows: List[i32] = []
+    rows.push(1)
+    rows.push(2)
+    rows.push(3)
+    println(rows.len())
+    Report { rows }

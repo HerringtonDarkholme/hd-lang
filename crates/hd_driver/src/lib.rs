@@ -74,6 +74,9 @@ include!(concat!(env!("OUT_DIR"), "/std_files.rs"));
 
 /// The module of the entry and test-case result glue ([`RT_SOURCE`]).
 pub const ENTRY_MODULE: &str = "std.rt.entry";
+/// The [`ENTRY_MODULE`] functions an entry's glue hands a root's result to,
+/// plain, `Error` and `dyn Error` (`report_fn`).
+const ENTRY_STATUS_FNS: [&str; 3] = ["entry_status", "entry_status_error", "entry_status_dyn_ref"];
 
 /// The virtual file of [`ENTRY_MODULE`]: a folder of its own under `rt/`,
 /// so the runtime folder `rt/` uses none of the std modules it uses.
@@ -1814,6 +1817,8 @@ struct Run<'a> {
     /// Step 15d1's single-owner field verdicts, once `link` computed them
     /// (`fields::single_owner`; fixtures with an own view only for now).
     single_owner: OnceLock<fields::Verdicts>,
+    /// The items emitted glue calls by name ([`Run::glue_items`]).
+    glue_items: OnceLock<hd_base::HashSet<DefId>>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -2647,6 +2652,7 @@ fn build_packages_inner(
         tir_text: Mutex::new(std::collections::BTreeMap::new()),
         own_text: Mutex::new(std::collections::BTreeMap::new()),
         single_owner: OnceLock::new(),
+        glue_items: OnceLock::new(),
         table,
         module_nodes,
     };
@@ -3648,6 +3654,19 @@ impl Run<'_> {
     fn item_folder(&self, item: DefId) -> Option<FolderId> {
         self.item_module(item)
             .map(|m| self.table.modules[m.idx()].folder)
+    }
+
+    /// The runtime functions emitted code calls, from the table the emitter
+    /// reads its calls from, and an entry's status functions.
+    fn glue_items(&self) -> &hd_base::HashSet<DefId> {
+        self.glue_items.get_or_init(|| {
+            let names = self.names();
+            hd_wasm_linear::runtime_items(self.checked())
+                .into_iter()
+                .chain(ENTRY_STATUS_FNS.map(|name| (ENTRY_MODULE, name)))
+                .map(|(module, name)| names.item(module, name))
+                .collect()
+        })
     }
 
     fn item_module_text(&self, item: DefId) -> std::borrow::Cow<'_, str> {
@@ -10032,12 +10051,13 @@ impl Run<'_> {
             return None;
         }
         let rt = |n: &str| names.item(ENTRY_MODULE, n);
+        let [status, status_error, status_dyn_ref] = ENTRY_STATUS_FNS;
         let known = &self.known;
         let TyData::Adt { def, args } = pool.get(ret) else {
-            return Some((rt("entry_status"), pool.list(&[ret])));
+            return Some((rt(status), pool.list(&[ret])));
         };
         if def != known.result {
-            return Some((rt("entry_status"), pool.list(&[ret])));
+            return Some((rt(status), pool.list(&[ret])));
         }
         let a = pool.list_items(args);
         let (ok, err) = (a[0], a[1]);
@@ -10056,9 +10076,9 @@ impl Run<'_> {
         if reference.is_some_and(
             |inner| matches!(pool.get(inner), TyData::TraitValue { def, .. } if def == error),
         ) {
-            Some((rt("entry_status_dyn_ref"), pool.list(&[ok])))
+            Some((rt(status_dyn_ref), pool.list(&[ok])))
         } else {
-            Some((rt("entry_status_error"), args))
+            Some((rt(status_error), args))
         }
     }
 
