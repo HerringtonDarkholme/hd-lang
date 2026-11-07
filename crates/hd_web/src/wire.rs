@@ -11,7 +11,6 @@
 //! | 0 | run | the playground's files; the file Run builds | none |
 //! | 1 | check | the same | none |
 //! | 2 | test | the same | none |
-//! | 3 | legacy run alias | the same | none |
 //! | 4 | repl start | the files the session acts in (its package); entry empty | none |
 //! | 5 | repl input | none; entry empty | the input's text (a string), then optionally its number |
 //! | 6 | repl outcome | none; entry empty | the module's number, then one outcome byte |
@@ -83,7 +82,7 @@ pub struct Request {
 /// What a request asks for, by its goal byte.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Action {
-    /// Goal bytes 0 to 3; byte 3 remains an alias for Run.
+    /// Goal bytes 0 to 2.
     Compile { goal: Goal },
     /// Goal byte 4: start a REPL session over the request's files.
     ReplStart,
@@ -153,7 +152,7 @@ fn refused(reason: &str) -> Response {
     }
 }
 
-/// Compiles goal bytes 0 to 3.
+/// Compiles goal bytes 0 to 2.
 fn compile(
     session: &mut Session,
     files: Vec<(String, String)>,
@@ -208,7 +207,7 @@ pub fn decode_request(bytes: &[u8]) -> Result<Request, WireError> {
     let entry = r.string()?;
     let byte = r.byte()?;
     let action = match byte {
-        0 | 3 => Action::Compile { goal: Goal::Run },
+        0 => Action::Compile { goal: Goal::Run },
         1 => Action::Compile { goal: Goal::Check },
         2 => Action::Compile { goal: Goal::Test },
         4 => Action::ReplStart,
@@ -497,30 +496,6 @@ mod tests {
             (STATUS_OK, "{\"diagnostics\":[]}")
         );
         assert_eq!(&r.wasm[..4], b"\0asm");
-    }
-
-    #[test]
-    fn the_legacy_wat_goal_builds_the_same_program() {
-        let mut session = Session::new();
-        let files = [(
-            "src/main.hd",
-            "pub fn main() -> void $ Console:\n    println(42)\n",
-        )];
-        let r = respond(&mut session, &request(&files, "src/main.hd", 3));
-        assert_eq!(
-            (r.status, r.json.as_str()),
-            (STATUS_OK, "{\"diagnostics\":[]}")
-        );
-        assert_eq!(&r.wasm[..4], b"\0asm");
-        let run = respond(&mut session, &request(&files, "src/main.hd", 0));
-        assert_eq!(r.wasm, run.wasm);
-        // A broken file has no program to print.
-        let bad = respond(
-            &mut session,
-            &request(&[("main.hd", "x := \"a\\b\" + 1\n")], "main.hd", 3),
-        );
-        assert_eq!(bad.status, STATUS_ERRORS);
-        assert!(bad.wasm.is_empty());
     }
 
     #[test]
