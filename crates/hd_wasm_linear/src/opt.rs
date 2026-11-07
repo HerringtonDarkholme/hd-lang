@@ -3,8 +3,8 @@
 //! pass through a `local.set` and a `local.get` that follow each other.
 //! Each rule below keeps what every path through the function computes:
 //!
-//! 1. `local.set t; local.get t`, where that set is `t`'s only write and
-//!    that get its only read, is the value left on the stack;
+//! 1. `local.set t; local.get t`, where that get is `t`'s only read, is the
+//!    value left on the stack;
 //! 2. another `local.set t; local.get t` is `local.tee t`;
 //! 3. a `local.set t` of a local no instruction reads is a `drop`, and a
 //!    constant or `local.get` it drops goes too;
@@ -317,7 +317,7 @@ pub fn static_values(
 pub fn locals(f: &mut Func, arity: &Arity) {
     let np = u32::try_from(f.params.len()).expect("params");
     loop {
-        let (reads, writes) = counts(f);
+        let (reads, _) = counts(f);
         let mut out: Vec<Ins> = Vec::with_capacity(f.body.len());
         let mut origins = Remap::new(f.origins.as_deref());
         let mut changed = false;
@@ -327,14 +327,27 @@ pub fn locals(f: &mut Func, arity: &Arity) {
             match (&f.body[k], next) {
                 (Ins::Op(I::LocalSet(t)), Some(Ins::Op(I::LocalGet(u)))) if t == u => {
                     let t = *t as usize;
-                    if *u >= np && reads[t] == 1 && writes[t] == 1 {
-                        changed = true;
+                    changed = true;
+                    k += 2;
+                    // The value stays on the stack when this get is `t`'s
+                    // only read, whatever else writes `t`. Removing a pair
+                    // can expose another (`set b; set a; get a; get b`), so
+                    // a nest of them unwinds here, not one pass per layer.
+                    if *u >= np && reads[t] == 1 {
+                        while let (Some(Ins::Op(I::LocalSet(a))), Some(Ins::Op(I::LocalGet(b)))) =
+                            (out.last(), f.body.get(k))
+                        {
+                            if a != b || *b < np || reads[*a as usize] != 1 {
+                                break;
+                            }
+                            out.pop();
+                            origins.pop();
+                            k += 1;
+                        }
                     } else {
                         out.push(Ins::Op(I::LocalTee(*u)));
-                        origins.merged(k..k + 2, 1);
-                        changed = true;
+                        origins.merged(k - 2..k, 1);
                     }
-                    k += 2;
                 }
                 (Ins::Op(I::LocalSet(t)), _) if reads[*t as usize] == 0 => {
                     changed = true;
@@ -822,13 +835,6 @@ impl LiveSet {
             self.at[l as usize] = u32::MAX;
         }
     }
-
-    /// Its members, in ascending order.
-    fn sorted(&self) -> Vec<u32> {
-        let mut v = self.members.clone();
-        v.sort_stable();
-        v
-    }
 }
 
 /// The locals live into each basic block of a body, by a backward pass
@@ -866,13 +872,16 @@ impl Live {
                 for ins in f.body[me.starts[p]..me.end(p, f.body.len())].iter().rev() {
                     me.step(ins, &mut live);
                 }
-                let row = live.sorted();
-                if me.into[p] != row {
-                    me.into[p] = row;
+                // Sets only grow from empty here, so a new size is a change.
+                if me.into[p].len() != live.members.len() {
+                    me.into[p].clone_from(&live.members);
                     changed = true;
                 }
             }
             if !changed {
+                for row in &mut me.into {
+                    row.sort_stable();
+                }
                 return Some(me);
             }
         }
@@ -1412,10 +1421,10 @@ fn pure_push(i: &Ins) -> bool {
 fn forward(f: &mut Func, np: u32) -> bool {
     let (reads, writes) = counts(f);
     let mut changed = false;
-    let mut k = 0;
-    while k + 1 < f.body.len() {
+    // Last to first: a moved copy can be what let an earlier one reach its
+    // read, so this order clears a chain in one walk, not one walk per copy.
+    for k in (0..f.body.len().saturating_sub(1)).rev() {
         let Ins::Op(I::LocalSet(t)) = f.body[k + 1] else {
-            k += 1;
             continue;
         };
         let p = f.body[k];
@@ -1430,7 +1439,6 @@ fn forward(f: &mut Func, np: u32) -> bool {
         #[cfg(feature = "checked-report")]
         let pure = pure || matches!(p, Ins::Descriptor(..));
         if !pure || t < np || reads[t as usize] != 1 || writes[t as usize] != 1 {
-            k += 1;
             continue;
         }
         let mut found = None;
@@ -1460,7 +1468,6 @@ fn forward(f: &mut Func, np: u32) -> bool {
                     Some(Ins::Op(I::MemoryCopy { .. } | I::MemoryFill(_)))
                 )
             {
-                k += 1;
                 continue;
             }
             f.body[j] = p;
@@ -1469,8 +1476,6 @@ fn forward(f: &mut Func, np: u32) -> bool {
             }
             f.drain(k..k + 2);
             changed = true;
-        } else {
-            k += 1;
         }
     }
     changed
