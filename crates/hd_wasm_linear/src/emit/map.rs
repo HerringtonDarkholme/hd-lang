@@ -618,13 +618,11 @@ impl Em<'_, '_, '_> {
         self.f.op(I::If(BlockType::Empty));
         self.ctl.push(Ctl::Plain);
         let (at, vl) = read(self, e.keys, n);
-        let copy = (op == IntrinsicOp::MapGet)
-            .then(|| self.operation_count(i, Tag::Retain, Part::Operand(0)))
-            .flatten();
+        let copy = self.operation_count(i, Tag::Retain, Part::Operand(0));
         if let Some(copy) = copy {
             self.because(copy, |em| em.new_variant(i, 1, &[Src::Locals(vl.clone())]))?;
-        } else if op == IntrinsicOp::MapGet && self.counted(self.ty(i)).is_some() {
-            return unsupported("a map lookup without its stated hit payload copy");
+        } else if self.counted(self.ty(i)).is_some() {
+            return unsupported("a map result without its stated hit payload copy");
         } else {
             self.new_variant(i, 1, &[Src::Locals(vl.clone())])?;
         }
@@ -633,7 +631,7 @@ impl Em<'_, '_, '_> {
             // iteration skips it, so the survivors keep their order. The
             // table's counts of it go: the value's after the result took
             // its own, and the key's.
-            self.release_locals(&vl, vt)?;
+            self.release_map_part(i, Part::Operand(0), &vl, vt)?;
             let kl: Vec<u32> = e.leaves[..e.keys]
                 .iter()
                 .map(|l| {
@@ -644,7 +642,7 @@ impl Em<'_, '_, '_> {
                     x
                 })
                 .collect();
-            self.release_locals(&kl, kt)?;
+            self.release_map_part(i, Part::Operand(1), &kl, kt)?;
             hash_address(&mut self.f, m, ent);
             self.f.i32(-1);
             self.f.op(I::I32Store(mem(HEAP, 0, 2)));
@@ -659,6 +657,17 @@ impl Em<'_, '_, '_> {
         self.new_variant(i, 0, &[])?;
         self.close();
         Ok(())
+    }
+
+    /// A hit ends this table-owned part after its last use by the result.
+    fn release_map_part(&mut self, i: u32, part: Part, ls: &[u32], ty: Ty) -> StageResult<()> {
+        if let Some(reason) = self.operation_count(i, Tag::Release, part) {
+            self.because(reason, |em| em.release_locals(ls, ty))
+        } else if self.counted(ty).is_some() {
+            unsupported("a map removal without its stated table-part release")
+        } else {
+            self.release_locals(ls, ty)
+        }
     }
 
     /// Makes the table in `m` unique before returning a mutable value

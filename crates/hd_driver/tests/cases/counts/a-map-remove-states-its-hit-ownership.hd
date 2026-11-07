@@ -1,0 +1,20 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: a remove hit copies its result and ends the table's key/value counts; scalar parts need none, and constant keys still clean up the stored key.
+fn remove_value[V](values: &mut Map[string, V], key: string) -> V?:
+    values.remove(key)
+
+fn text(values: &mut Map[string, string], key: string) -> string?:
+    remove_value(values, key)
+
+fn lists(values: &mut Map[string, List[string]], key: string) -> List[string]?:
+    remove_value(values, key)
+
+fn scalar(values: &mut Map[usize, i32], key: usize) -> i32?:
+    values.remove(key)
+
+fn constant_key(values: &mut Map[string, List[string]]) -> List[string]?:
+    values.remove("fixed")
+
+fn unused(values: &mut Map[string, string], key: string) -> void:
+    _ := values.remove(key)
