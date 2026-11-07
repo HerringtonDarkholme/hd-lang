@@ -8211,6 +8211,7 @@ impl Run<'_> {
             let Some(sections) = split_sections(&checked.entry) else {
                 continue;
             };
+            let mut wanted: HashSet<Hash128> = HashSet::default();
             if let Some(decoded) = sections
                 .get(2)
                 .and_then(|bytes| hd_resolve::decode_items(&self.names(), bytes))
@@ -8226,18 +8227,31 @@ impl Run<'_> {
                         (self.build_profile == BuildProfile::Release).then_some(item.def),
                     );
                 }
-                items.extend(
-                    decoded
-                        .0
-                        .into_iter()
-                        .filter(|item| item.inline == hd_resolve::iface::INLINE_ALWAYS)
-                        .map(|item| (item.def, item)),
-                );
+                for item in decoded
+                    .0
+                    .into_iter()
+                    .filter(|item| item.inline == hd_resolve::iface::INLINE_ALWAYS)
+                {
+                    let canonical = self.names().path_hash(item.def);
+                    wanted.insert(canonical);
+                    if item.configured {
+                        wanted.insert(cfg_body_key(canonical, BuildProfile::Checked));
+                        wanted.insert(cfg_body_key(canonical, BuildProfile::Release));
+                    }
+                    items.insert(item.def, item);
+                }
+            }
+            if wanted.is_empty() {
+                continue;
             }
             let Some(index) = body_index(&checked.entry) else {
                 continue;
             };
             for (key, at) in index {
+                // Only the always-inline functions' bodies are read below.
+                if !wanted.contains(&key) {
+                    continue;
+                }
                 let selected = match configured.get(&key) {
                     Some(Some(def)) => Some(*def),
                     Some(None) => continue,
