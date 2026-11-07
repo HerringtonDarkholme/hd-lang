@@ -4,6 +4,7 @@ import { createCoreHost, pendingOperation, HostContract } from "./core.ts";
 import { Enc, Ok } from "./wire.ts";
 import { readFileSync } from "node:fs";
 import { setTimeout as delay } from "node:timers/promises";
+import { PROGRAM_TIME_LIMIT, reportIn } from "./run-support.ts";
 
 type Dynamic = ReturnType<typeof JSON.parse>;
 
@@ -38,6 +39,68 @@ function instance(callbacks: Dynamic, resultType = 0x7f): Dynamic {
   );
   return new WebAssembly.Instance(module, { test: { init() {}, wake() {}, ...callbacks } });
 }
+
+for (const delegated of [false, true]) {
+  for (const fact of [null, "deadline_fact"]) {
+    test(`a program deadline ${delegated ? "delegates" : "writes"} its report (fact ${fact})`, async () => {
+      const errors: string[] = [],
+        reports: string[] = [];
+      const host = createCoreHost(
+        {
+          out() {},
+          err: (text) => errors.push(text),
+          ...(delegated ? { programTimeLimit: (text: string) => reports.push(text) } : {}),
+        },
+        { deadline: performance.timeOrigin + performance.now() - 1 },
+      );
+      try {
+        const guest = instance({
+          poll() {
+            if (fact !== null) {
+              host.core.st.facts.push(fact);
+            }
+            return 0;
+          },
+        });
+        const result = await host.run(guest, "hd.init", "hd.poll");
+        assert.equal(result.status, 3);
+        const expected = [reportIn(fact, PROGRAM_TIME_LIMIT)];
+        assert.deepEqual(errors, delegated ? [] : expected);
+        assert.deepEqual(reports, delegated ? expected : []);
+      } finally {
+        host.close();
+      }
+    });
+  }
+}
+
+test("a case deadline stays with its case reporter", async () => {
+  const errors: string[] = [];
+  const host = createCoreHost(
+    {
+      out() {},
+      err: (text) => errors.push(text),
+      programTimeLimit() {
+        assert.fail("a case timeout is not a program timeout");
+      },
+    },
+    { deadline: performance.timeOrigin + performance.now() - 1 },
+  );
+  try {
+    const guest = instance({
+      poll() {
+        host.core.st.timeoutMs = 7;
+        return 0;
+      },
+    });
+    assert.equal((await host.run(guest, "hd.init", "hd.poll")).status, 3);
+    assert.deepEqual(errors, [
+      "panic: time-limit: the test case ran longer than its timeout of 7ms\n",
+    ]);
+  } finally {
+    host.close();
+  }
+});
 
 test("a step initializes once, publishes wakes, and retains its terminal status", () => {
   const host = createCoreHost({ out() {}, err() {} });

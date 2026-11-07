@@ -13,9 +13,10 @@
 // thread. The host cuts its own waits at the deadline and reports the
 // `time-limit` panic after flushing the program's output. A Wasm loop, or
 // a read the host cannot cut, never returns to the host, so this main
-// thread stops a worker still running a little past the deadline and
-// reports the panic for it. The worker sends its output here, in order,
-// so the two never both report. A worker blocked in a system call, such
+// thread stops a worker still running a little past the deadline. Only
+// this thread writes the timeout diagnostic: a worker that reaches its own
+// deadline sends a typed report instead of writing it. A worker blocked
+// in a system call, such
 // as a read of a FIFO with no writer, does not stop, and Node cannot exit
 // while it runs, so once the run has ended this thread kills the process
 // if the worker has not exited soon after (node.ts `exitPast`). Standard
@@ -266,27 +267,26 @@ function supervise({
     });
     let status: number | null = null;
     let ended = false;
-    // Whether the host already reported the panic.
+    // Whether this thread has written the timeout diagnostic.
     let reported = false;
     // The deadline's timer, once the worker has started the program.
     let timer: ReturnType<typeof setTimeout> | undefined;
     // The label of the facts body the worker runs, or null: a time limit
     // that stops it names its facts (annot.fact.eval.panic-runtime).
     let fact: string | null = null;
-    // A message is output (`fd`, `text`), the facts body (`fact`),
-    // or the program's status.
+    // A message is a timeout report, the facts body, or the program's status.
     const take = (message: Dynamic): void => {
       if (message.started !== undefined) {
         arm(message.started);
       } else if (message.fact !== undefined) {
         fact = message.fact;
-      } else if (message.fd === undefined) {
-        status = message.status;
-      } else {
-        // The guest already queued these bytes through its writer connection.
-        if (message.fd === 2 && message.text === reportIn(fact, PROGRAM_TIME_LIMIT)) {
+      } else if (message.timeLimit !== undefined) {
+        if (!reported) {
           reported = true;
+          output.err(message.timeLimit);
         }
+      } else {
+        status = message.status;
       }
     };
     const end = (value: number): void => {
@@ -438,10 +438,8 @@ if (isMainThread) {
     sink: {
       out: output.out,
       write: output.write,
-      err: (text: string) => {
-        output.err(text);
-        port.postMessage({ fd: 2, text });
-      },
+      err: output.err,
+      programTimeLimit: (text: string) => port.postMessage({ timeLimit: text }),
       fact: (label: string | null) => port.postMessage({ fact: label }),
     },
     deadline,
