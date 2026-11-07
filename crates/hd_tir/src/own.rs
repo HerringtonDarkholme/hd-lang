@@ -763,7 +763,6 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     borrow::run(b, topo, cx, &mut scratch.borrow, edits);
     moves::run(b, topo, cx, &mut scratch.moves, edits);
     values::capture_moves(b, topo, cx, &mut scratch.values, edits);
-    moves::write_backs(b, topo, cx, &mut scratch.moves, edits);
     known::run(b, topo, cx, &mut scratch.known, edits);
     hoist::run(b, topo, cx, &mut scratch.hoist, edits);
     splice::apply(b, topo, edits)?;

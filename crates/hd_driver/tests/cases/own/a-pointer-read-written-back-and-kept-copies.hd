@@ -1,0 +1,11 @@
+# @dump: own
+# @build: std
+# A read through a pointer takes the heap's count, and a write of the value
+# back needs a count of its own while the value is read on: the store's
+# copy is the one count the result needs (spec 10, module.rt.ptr.read).
+use std.rt.memory.Ptr
+
+fn get(p: Ptr[string]) -> string:
+    text := p.read()
+    p.write(text)
+    text

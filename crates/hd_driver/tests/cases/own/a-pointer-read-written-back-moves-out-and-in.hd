@@ -1,0 +1,11 @@
+# @dump: own
+# @build: std
+# A read through a pointer takes the heap's count, and a write of the same
+# value back returns it: `xs` moves out and in, with no count of its own.
+use std.rt.memory.Ptr
+
+fn size(p: Ptr[List[i32]]) -> usize:
+    xs := p.read()
+    n := xs.len()
+    p.write(xs)
+    n
