@@ -1,4 +1,4 @@
-//! The ABI row captured by a suspension frame: a function, closure or awaited input.
+//! The ABI row captured by a suspension frame.
 //!
 //! Cold construction and fresh materialization each copy the frame-owned
 //! portion of that ABI row at their separate allocation boundaries.
@@ -6,17 +6,13 @@
 //! a layout that owns no counts lowers no copy.
 
 use super::OwnCx;
-use crate::ir::{Body, BodyKind, Tag};
+use crate::ir::{Body, Tag};
 
 pub(crate) fn needed(b: &Body, cx: &dyn OwnCx) -> bool {
-    matches!(
-        b.kind,
-        BodyKind::Fn | BodyKind::DeriveInstance | BodyKind::Init
-    ) && cx.suspending(b.item)
-        && cx.has_requirement_row(b.item)
+    cx.suspending(b.item) && cx.has_requirement_row(b.item)
 }
 
-/// Source functions pass their declared row. A closure always passes one
+/// A root passes its declared or inferred ABI row. A closure always passes one
 /// caller context, even if its source row has no keys. Multiple generic
 /// instantiations of the same sub-body share its declaration.
 pub(crate) fn roots(b: &Body, cx: &dyn OwnCx) -> Vec<u32> {
@@ -45,7 +41,7 @@ mod tests {
     use super::super::Pass;
     use super::super::{counts::run, splice};
     use super::*;
-    use crate::ir::{Callee, TirBuilder, TirSink, verify_owned};
+    use crate::ir::{BodyKind, Callee, TirBuilder, TirSink, verify_owned};
     use crate::ir::{Tag, Topology};
     use hd_base::DefId;
     use hd_types::Ty;
@@ -212,14 +208,15 @@ mod tests {
     }
 
     #[test]
-    fn source_rows_are_declared_once_per_allocation_boundary_and_other_abis_are_separate() {
+    fn row_copies_follow_the_abi_instead_of_a_body_kind_whitelist() {
         for (kind, row, suspends, declared, count) in [
             (BodyKind::Fn, true, true, true, 2),
             (BodyKind::DeriveInstance, true, true, true, 2),
             (BodyKind::Fn, false, true, true, 0),
             (BodyKind::Fn, true, false, true, 0),
             (BodyKind::Fn, true, true, false, 2),
-            (BodyKind::Default, true, true, true, 0),
+            (BodyKind::Default, true, true, true, 2),
+            (BodyKind::TestCase, true, true, true, 2),
             // The checked input's ABI survives even when optimization erased its point.
             (BodyKind::Init, true, true, false, 2),
             (BodyKind::Init, true, false, false, 0),
