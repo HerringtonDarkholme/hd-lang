@@ -1,0 +1,16 @@
+# test: copying the counted pointer out of a borrowing loop creates an independent owner
+# expect-stdout: a1 cccccc3
+struct P:
+    name: string
+
+fn name_of(p: &P) -> &string:
+    &p.name
+
+pub fn main() -> void $ Console:
+    let mut ps = [box(P { name: "a${1}" })]
+    for p in &ps:
+        owner := *p
+        d := name_of(owner)
+        ps[0] = box(P { name: "b${2}" })
+        junk := "cccccc${3}"
+        println("${*d} $junk")

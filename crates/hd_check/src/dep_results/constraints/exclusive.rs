@@ -52,6 +52,50 @@ pub(super) fn path_of(b: &Body, word: u32) -> Option<Path> {
     }
 }
 
+/// Follow a local reference's single structural source. A loop binding
+/// refers to its element slot; it is not an independently counted copy of
+/// that slot's pointer. Keep following only local references, never `*T`.
+fn source_path(s: &Inputs<'_>, mut path: Path) -> Path {
+    let b = s.b;
+    for _ in 0..b.local_ty.len() {
+        let (l, steps) = &path;
+        if steps.first() != Some(&Proj::Deref)
+            || b.local_flags[*l as usize] & local_flags::PARAM != 0
+            || super::local_ref(s.pool, b.local_ty[*l as usize]).is_none_or(|(counted, _)| counted)
+        {
+            break;
+        }
+        let mut stores = (0..b.tags.len()).filter(|&i| {
+            b.stored_local(i)
+                .is_some_and(|(local, whole)| whole && local.raw() == *l)
+        });
+        let Some(store) = stores.next() else { break };
+        if stores.next().is_some() {
+            break;
+        }
+        let Some(mut v) = Ref(b.data[store][1]).as_inst().map(|v| v.0 as usize) else {
+            break;
+        };
+        while b.same_value_coercion(v) {
+            v = b.data[v][0] as usize;
+        }
+        let Some(tag) = b.tags.get(v) else { break };
+        let skip = match tag {
+            Tag::Ref => 1,
+            Tag::Read if super::local_ref(s.pool, b.ty[v]).is_some_and(|(counted, _)| !counted) => {
+                0
+            }
+            _ => break,
+        };
+        let Some((root, mut source)) = path_of(b, b.data[v][0]) else {
+            break;
+        };
+        source.extend_from_slice(&steps[skip..]);
+        path = (root, source);
+    }
+    path
+}
+
 /// What a site loan excludes (`ref.excl.shared`, `ref.excl.mut`,
 /// `ref.elem.access.length`, `ref.elem.access.mut`).
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -146,16 +190,11 @@ fn counted_after_element(s: &Inputs<'_>, root: u32, path: &[Proj], element: usiz
     false
 }
 
-/// The place loan `i` covers and its kind: a `Ref`'s place, or what a
-/// `&mut` binding refers to where a call reads it as `&` or as `&mut`
-/// (`ref.excl.call`), or a `&` binding where a call's `&mut` result holds
-/// it. An element reference covers the collection its last element step
-/// indexes, when only fields follow that step; any other path with an
-/// element through a counted pointer still borrows the slot that holds it.
-fn loan_path(s: &Inputs<'_>, i: u32) -> Option<(Path, Kind)> {
+/// The path before resolving a borrowed slot's local reference source.
+fn raw_loan_path(s: &Inputs<'_>, i: u32) -> Option<Path> {
     let (b, i) = (s.b, i as usize);
     let excl = is_mut(s.pool, b.ty[i]);
-    let (l, mut path) = match b.tags[i] {
+    match b.tags[i] {
         Tag::Ref => path_of(b, b.data[i][0]),
         Tag::Read
             if excl
@@ -182,14 +221,40 @@ fn loan_path(s: &Inputs<'_>, i: u32) -> Option<(Path, Kind)> {
             })
         }
         _ => None,
-    }?;
+    }
+}
+
+/// The place loan `i` covers and its kind: a `Ref`'s place, or what a
+/// `&mut` binding refers to where a call reads it as `&` or as `&mut`
+/// (`ref.excl.call`), or a `&` binding where a call's `&mut` result holds
+/// it. An element reference covers the collection its last element step
+/// indexes, when only fields follow that step; any other path with an
+/// element through a counted pointer still borrows the slot that holds it.
+fn loan_path(s: &Inputs<'_>, i: u32) -> Option<(Path, Kind)> {
+    let b = s.b;
+    let excl = is_mut(s.pool, b.ty[i as usize]);
+    let original = raw_loan_path(s, i)?;
+    let resolved = source_path(s, original.clone());
+    // An element access alone permits slot stores. Its dependent read
+    // through a counted pointer is a separate loan protecting that slot.
+    let (l, mut path) = if resolved
+        .1
+        .iter()
+        .rposition(|p| matches!(p, Proj::Elem(_)))
+        .is_some_and(|k| counted_after_element(s, resolved.0, &resolved.1, k))
+    {
+        resolved
+    } else {
+        original
+    };
     let Some(k) = path.iter().rposition(|s| matches!(s, Proj::Elem(_))) else {
         return Some(((l, path), if excl { Kind::Excl } else { Kind::Shared }));
     };
     if counted_after_element(s, l, &path, k) {
         return Some(((l, path), if excl { Kind::Excl } else { Kind::Shared }));
     }
-    if b.tags[i] != Tag::Ref || !path[k + 1..].iter().all(|s| matches!(s, Proj::Field(_))) {
+    if b.tags[i as usize] != Tag::Ref || !path[k + 1..].iter().all(|s| matches!(s, Proj::Field(_)))
+    {
         return None;
     }
     path.truncate(k);
@@ -558,11 +623,17 @@ impl Gen<'_, '_> {
         // Each site: its `Ref`, its place, and the bindings that hold it,
         // each with its stores of a value that does not.
         let mut sites = Vec::new();
+        let mut rooted = Vec::new();
         for (loan, o) in self.loans.iter().enumerate() {
             let Origin::Site(i) = *o else { continue };
             let Some((mut place, mut kind)) = loan_path(self.s, i) else {
                 continue;
             };
+            if !matches!(kind, Kind::Elem(_))
+                && raw_loan_path(self.s, i).is_some_and(|original| original != place)
+            {
+                rooted.push(i);
+            }
             if let Some((_, p)) = held_path(self.s, i, &place, kind) {
                 place = p;
             }
@@ -614,14 +685,21 @@ impl Gen<'_, '_> {
         // One error for a node, or a node inside or around it.
         let range = |n: NodeIdx| super::super::range(self.s.cx.src.parse.tree.node(n));
         let nests = |(a, b): (u32, u32), (c, d): (u32, u32)| a <= c && d <= b || c <= a && b <= d;
-        for (wi, (root, path), at, access) in moves.chain(writes).chain(touches) {
+        for (wi, place, at, access) in moves.chain(writes).chain(touches) {
+            let resolved = (!rooted.is_empty()).then(|| source_path(self.s, place.clone()));
             let node = b.syn[wi as usize];
             if node == NodeIdx::NONE || out.iter().any(|x| nests(range(x.0), range(node))) {
                 continue;
             }
             'site: for (i, from, (r, sp), kind, holders) in &sites {
+                let (root, path) = if rooted.contains(i) {
+                    resolved.as_ref().expect("resolved loan source")
+                } else {
+                    &place
+                };
+                let root = *root;
                 if *r != root
-                    || !overlap(sp, &path)
+                    || !overlap(sp, path)
                     || *i == wi
                     || access == Access::Use && !matches!(kind, Kind::Excl | Kind::Elem(true))
                 {
