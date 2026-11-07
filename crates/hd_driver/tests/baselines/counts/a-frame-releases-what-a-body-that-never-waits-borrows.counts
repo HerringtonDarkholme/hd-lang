@@ -23,7 +23,7 @@ fn other!() -> usize:
 pub fn main!() -> void $ Console:
     n := box::[Note](Note { text: "n" })
 > std/rt_tests.stage_case/main
->   retain &mut std.rt_tests.stage_case.Note (conservative: Ref)
+>   retain &mut std.rt_tests.stage_case.Note (stored)
 >   release counted reference (last use)
 >   release Suspend[usize] (last use)
 >   release Suspend[usize] (last use)
@@ -48,4 +48,4 @@ pub fn main!() -> void $ Console:
 >   release Suspend[usize] (cancelled)
 >   release Suspend[usize] (cancelled)
     println("$a")
->   retain &usize (conservative: Ref)
+>   retain &usize (stored)

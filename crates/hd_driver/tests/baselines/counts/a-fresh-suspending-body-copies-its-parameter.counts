@@ -24,4 +24,4 @@ fn after!(text: string) -> usize $ Clock:
 >   retain string (stored)
 >   retain counted reference (stored)
     text.len()
->   retain &string (conservative: Ref)
+>   retain &string (stored)

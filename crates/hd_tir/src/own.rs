@@ -60,6 +60,7 @@ pub mod flow;
 pub(crate) mod frame;
 pub(crate) mod waker;
 pub use frame::store_finds_empty;
+pub use ref_copy::entry_borrowed_results;
 pub(crate) mod hoist;
 mod insert;
 mod known;
@@ -72,6 +73,7 @@ mod plain;
 pub mod pointer;
 pub mod promote;
 mod reason;
+mod ref_copy;
 pub(crate) mod referent;
 pub(crate) mod retains;
 pub use retains::took_source;
@@ -180,6 +182,12 @@ pub trait OwnCx {
     /// Whether the concrete value is exactly one counted address, with
     /// no other representation words. The default supplies no such fact.
     fn single_counted_address(&self, ty: Ty) -> bool {
+        let _ = ty;
+        false
+    }
+    /// Whether this concrete type is a thin Counted reference carrier.
+    /// This is a type fact, independent of a reference's storage or uses.
+    fn thin_counted_reference(&self, ty: Ty) -> bool {
         let _ = ty;
         false
     }

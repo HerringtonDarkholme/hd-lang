@@ -25,4 +25,4 @@ fn make() -> (fn!(string) -> usize $ Clock):
 >   retain counted reference (stored)
 >   release counted reference (last use)
         text.len()
->   retain &string (conservative: Ref)
+>   retain &string (stored)

@@ -9,7 +9,7 @@ app/main/run
   release counted reference (last use)
   release app.main.Wait (cancelled)
   release app.main.Wait (last use)
-  retain &string (conservative: Ref)
+  retain &string (stored)
   release &string (last use)
   release counted reference (last use)
   release counted reference (last use)

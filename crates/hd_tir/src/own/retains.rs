@@ -2,7 +2,7 @@
 //! The result is an owned value; its existing drops still end that owner.
 //! A count that would only cancel is never written ([`handed`]).
 
-use super::{OwnCx, splice};
+use super::{OwnCx, ref_copy, splice};
 use crate::ir::count::{At, Info, Part};
 use crate::ir::{
     Body, Callee, Coercion, NONE, Proj, ReadMode, Ref, Root, Tag, Topology, local_flags, ref_word,
@@ -16,8 +16,9 @@ pub(super) fn run(
     topo: &Topology,
     edits: &mut splice::Tables,
 ) -> Result<(), String> {
-    for i in 0..b.len() {
-        if !result(b, cx, i) {
+    let results = results(b, cx, topo);
+    for (i, &retained) in results.iter().enumerate() {
+        if !retained {
             continue;
         }
         let block = topo.blk[i];
@@ -207,6 +208,14 @@ fn member_list<'a>(b: &'a Body, topo: &Topology, i: usize) -> Option<&'a [u32]> 
 fn whole_value(b: &Body, x: u32, v: u32) -> bool {
     let p = b.view(b.data[x as usize][0]);
     p.whole() && p.root == Root::Value(v)
+}
+
+pub(crate) fn results(b: &Body, cx: &dyn OwnCx, topo: &Topology) -> Vec<bool> {
+    let mut out = ref_copy::results(b, cx, topo);
+    for (i, retained) in out.iter_mut().enumerate() {
+        *retained |= result(b, cx, i);
+    }
+    out
 }
 
 pub(crate) fn result(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {

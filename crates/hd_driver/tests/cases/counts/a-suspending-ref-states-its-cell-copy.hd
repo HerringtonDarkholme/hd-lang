@@ -1,0 +1,13 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: the whole-local reference takes one count of tally's existing cell before bump awaits it.
+struct Tally:
+    n: i64
+
+fn bump!(t: &mut Tally) -> void:
+    t.n += 1
+
+fn direct!() -> i64:
+    let mut tally = Tally { n: 0 }
+    bump!(&mut tally)
+    tally.n

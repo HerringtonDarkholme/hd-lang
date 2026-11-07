@@ -1,0 +1,21 @@
+# test: a no-await entry borrows its automatic receiver while an ordinary helper keeps a frame
+# expect-stdout: kept
+use std.ops.Update
+
+struct Sink:
+    text: string
+
+impl Update[string] for Sink:
+    fn update(&mut self, value: string) -> void:
+        self.text = value
+
+fn helper!() -> string:
+    let mut sink = Sink { text: "" }
+    sink() = "helper"
+    sink.text
+
+pub fn main!() -> void $ Console:
+    let mut sink = Sink { text: "" }
+    sink() = "kept"
+    println(sink.text)
+    _ := helper()

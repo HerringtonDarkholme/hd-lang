@@ -116,8 +116,9 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
 /// Every owned borrowed result takes its count exactly once,
 /// immediately after construction and before a source owner can be dropped.
 fn retained_results(b: &Body, cx: &dyn OwnCx, topo: &Topology, errs: &mut Vec<VerifyError>) {
+    let results = crate::own::retains::results(b, cx, topo);
     for i in 0..b.len() {
-        if crate::own::retains::result(b, cx, i) {
+        if results[i] {
             let block = topo.blk[i];
             let next = (block != NONE)
                 .then(|| {
@@ -156,7 +157,7 @@ fn retained_results(b: &Body, cx: &dyn OwnCx, topo: &Topology, errs: &mut Vec<Ve
         let valid = Ref(value).as_inst().is_some_and(|v| {
             let source = v.0 as usize;
             source < i
-                && crate::own::retains::result(b, cx, source)
+                && results[source]
                 && topo.blk[source] != NONE
                 && topo.blk[source] == topo.blk[i]
                 && topo.pos[source] + 1 == topo.pos[i]

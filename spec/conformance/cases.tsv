@@ -1655,6 +1655,8 @@ runtime/valid/f32-display-width-through-generics.hd	runtime	accept	lang/04-type-
 runtime/valid/i32-minimum-through-generic-optional.hd	runtime	accept	lang/04-type-system.md#optional-types
 typing/invalid/string-identity.hd	type	reject:identity-requires-references	lang/05-expressions.md#unary-and-binary-operators
 runtime/valid/closure-mutable-capture-runtime.hd	runtime	accept	lang/07-functions.md#captures
+runtime/valid/a-suspending-reference-copies-its-cell-and-not-a-fresh-capture.hd	runtime	accept	lang/07-functions.md#captures
+runtime/valid/a-plain-entry-borrows-its-cell-reference.hd	runtime	accept	lang/13-values-and-references.md#local-references
 runtime/valid/for-map-snapshot-insert.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot.change
 runtime/valid/for-map-snapshot-remove.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot.change
 runtime/valid/for-map-snapshot-rebuild.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot.change

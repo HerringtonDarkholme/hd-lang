@@ -40,79 +40,81 @@ pub fn main!() -> void $ Console:
 > std/rt_tests.stage_case/main
 >   local $0 $ref: Note [read assigned captured captured-assigned] place
 >   local $1 n: Counted[mut Note] [:= read assigned] value
->     uses $1: %6 -> %7 lend last
+>     uses $1: %7 -> %8 lend last
 >   local $2 a: usize [read assigned captured] place
 >   local $3 result: string [read] value
->     uses $3: %41 -> %46 lend last
+>     uses $3: %43 -> %48 lend last
 >   local $4 offset: usize [read] value
->     uses $4: %42 -> %48 lend last
+>     uses $4: %44 -> %50 lend last
 >   local $5 value: u64 [read] value
->     uses $5: %43 -> %45 lend last
+>     uses $5: %45 -> %47 lend last
 >   local $6 width: usize [read] value
->     uses $6: %44 -> %50 lend last
+>     uses $6: %46 -> %52 lend last
 >   local $7 size: usize [read] value
->     uses $7: %34 -> %35 lend last
+>     uses $7: %36 -> %37 lend last
 >   local $8 value: u64 [read] value
->     uses $8: %27 -> %28 lend last
->   %0 = Retain %57 Cold row #0 : ()
->   %1 = Retain %57 Materialize row #0 : ()
->   %2 = Release %57 FrameDrop row #2 : ()
+>     uses $8: %29 -> %30 lend last
+>   %0 = Retain %59 Cold row #0 : ()
+>   %1 = Retain %59 Materialize row #0 : ()
+>   %2 = Release %59 FrameDrop row #2 : ()
 >   %3 = NewStruct ["n"] : Note
 >   %4 = Store [$0] %3 : ()
 >   %5 = Ref mut [$0] : Counted[mut Note]
->   %6 = Store [$1] %5 : ()
->   %57 = Block - : ()
+>   %6 = Retain %5 Value #0 : ()
+>   %7 = Store [$1] %5 : ()
+>   %59 = Block - : ()
 >   %5 finds [$0] full
     let (a, _) = join!(change(n), other())
->   %7 = Read move [$1] : Counted[mut Note]
->   %8 = Call std/rt_tests.stage_case/change[] (%7) : mut Suspend[usize]
->   %9 = Drop [$0] : ()
->   %10 = Call std/rt_tests.stage_case/other[] () : mut Suspend[usize]
->   %11 = AwaitAll [%8 %10] : (usize, usize)
->   %12 = Release %11 Operation waker #2 : ()
->   %13 = Drop [%10] : ()
->   %14 = Drop [%8] : ()
->   %15 = Drop [%7] : ()
->   %16 = Block - : ()
->   %17 = Read copy [%11 .0] : usize
->   %18 = Store [$2] %17 : ()
->   %20 = Block - : never
->   %21 = Match %11 [%20 %16] : ()
+>   %8 = Read move [$1] : Counted[mut Note]
+>   %9 = Call std/rt_tests.stage_case/change[] (%8) : mut Suspend[usize]
+>   %10 = Drop [$0] : ()
+>   %11 = Call std/rt_tests.stage_case/other[] () : mut Suspend[usize]
+>   %12 = AwaitAll [%9 %11] : (usize, usize)
+>   %13 = Release %12 Operation waker #2 : ()
+>   %14 = Drop [%11] : ()
+>   %15 = Drop [%9] : ()
+>   %16 = Drop [%8] : ()
+>   %17 = Block - : ()
+>   %18 = Read copy [%12 .0] : usize
+>   %19 = Store [$2] %18 : ()
+>   %21 = Block - : never
+>   %22 = Match %12 [%21 %17] : ()
     println("$a")
->   %22 = Ref local [$2] : Counted[usize]
->   %23 = Read copy [*%22] : usize
->   %24 = Drop [%22] : ()
->   %25 = Prim Conv [%23] : u64
->   %26 = Drop [$2] : ()
->   %27 = Store [$8] %25 : ()
->   %28 = Read copy [$8] : u64
->   %29 = Call std/rt.bytes/unsigned_width[] (%28) : usize
->   %30 = Break L2 %29 : never
->   %31 = Block - : usize
->   %32 = Scope %31 [] : usize
->   %33 = Prim Add [0:usize %32] : usize
->   %34 = Store [$7] %33 : ()
->   %35 = Read copy [$7] : usize
->   %36 = Call std/rt.memory/new_string[] (%35) : string
->   %37 = Break L1 %36 : never
->   %38 = Block - : string
->   %39 = Scope %38 [] : string
->   %40 = Read borrow [%39] : string
->   %41 = Store [$3] %40 : ()
->   %42 = Store [$4] 0:usize : ()
->   %43 = Store [$5] %25 : ()
->   %44 = Store [$6] %32 : ()
->   %45 = Read copy [$5] : u64
->   %46 = Read borrow [$3] : string
->   %47 = Call std/rt.memory/string_bytes[] (%46) : Ptr[u8]
->   %48 = Read copy [$4] : usize
->   %49 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[u8] (%47, %48) : Ptr[u8]
->   %50 = Read copy [$6] : usize
->   %51 = Call std/rt.bytes/write_unsigned_sized[] (%45, %49, %50) : ()
->   %52 = Break L0 - : never
->   %53 = Block - : ()
->   %54 = Scope %53 [] : ()
->   %55 = Read move [%39] : string
->   %56 = Call std/console/println[string] (%55) : ()
->   %22 finds [$2] full
->   unwind %11 drops [%7 %8 %10]
+>   %23 = Ref local [$2] : Counted[usize]
+>   %24 = Retain %23 Value #0 : ()
+>   %25 = Read copy [*%23] : usize
+>   %26 = Drop [%23] : ()
+>   %27 = Prim Conv [%25] : u64
+>   %28 = Drop [$2] : ()
+>   %29 = Store [$8] %27 : ()
+>   %30 = Read copy [$8] : u64
+>   %31 = Call std/rt.bytes/unsigned_width[] (%30) : usize
+>   %32 = Break L2 %31 : never
+>   %33 = Block - : usize
+>   %34 = Scope %33 [] : usize
+>   %35 = Prim Add [0:usize %34] : usize
+>   %36 = Store [$7] %35 : ()
+>   %37 = Read copy [$7] : usize
+>   %38 = Call std/rt.memory/new_string[] (%37) : string
+>   %39 = Break L1 %38 : never
+>   %40 = Block - : string
+>   %41 = Scope %40 [] : string
+>   %42 = Read borrow [%41] : string
+>   %43 = Store [$3] %42 : ()
+>   %44 = Store [$4] 0:usize : ()
+>   %45 = Store [$5] %27 : ()
+>   %46 = Store [$6] %34 : ()
+>   %47 = Read copy [$5] : u64
+>   %48 = Read borrow [$3] : string
+>   %49 = Call std/rt.memory/string_bytes[] (%48) : Ptr[u8]
+>   %50 = Read copy [$4] : usize
+>   %51 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[u8] (%49, %50) : Ptr[u8]
+>   %52 = Read copy [$6] : usize
+>   %53 = Call std/rt.bytes/write_unsigned_sized[] (%47, %51, %52) : ()
+>   %54 = Break L0 - : never
+>   %55 = Block - : ()
+>   %56 = Scope %55 [] : ()
+>   %57 = Read move [%41] : string
+>   %58 = Call std/console/println[string] (%57) : ()
+>   %23 finds [$2] full
+>   unwind %12 drops [%8 %9 %11]

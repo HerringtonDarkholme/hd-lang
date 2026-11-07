@@ -1,0 +1,22 @@
+# @dump: own counts wat
+# @build: v8 program
+# expected: main's automatic receiver reference borrows at link; the ordinary framed helper keeps its copied reference count.
+use std.ops.Update
+
+struct Sink:
+    text: string
+
+impl Update[string] for Sink:
+    fn update(&mut self, value: string) -> void:
+        self.text = value
+
+fn helper!() -> string:
+    let mut sink = Sink { text: "" }
+    sink() = "helper"
+    sink.text
+
+pub fn main!() -> void $ Console:
+    let mut sink = Sink { text: "" }
+    sink() = "kept"
+    println(sink.text)
+    _ := helper()

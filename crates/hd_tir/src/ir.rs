@@ -23,7 +23,7 @@ pub use owned::verify_owned;
 pub use root::{RootTables, root_places};
 pub use slots::{Loc, Role, Word, slot_words, slots};
 pub use topo::Topology;
-pub(crate) use topo::inside;
+pub(crate) use topo::{for_blocks, inside};
 pub use view::{DEREF, ELEM, PlaceView, Root, Steps, VARIANT};
 
 pub const NONE: u32 = u32::MAX;

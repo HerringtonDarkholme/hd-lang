@@ -1,0 +1,29 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: a closure's own local and shared capture copy existing cell counts; a copied capture's reference owns a fresh object instead.
+struct Tally:
+    n: i64
+
+fn bump!(t: &mut Tally) -> void:
+    t.n += 1
+
+fn read!(t: &Tally) -> i64:
+    t.n
+
+fn local!() -> i64:
+    run := fn!() -> i64:
+        let mut tally = Tally { n: 0 }
+        bump!(&mut tally)
+        tally.n
+    run!()
+
+fn shared!() -> i64:
+    let mut tally = Tally { n: 0 }
+    run := fn!() -> void: bump!(&mut tally)
+    run!()
+    tally.n
+
+fn copied!() -> i64:
+    tally := Tally { n: 0 }
+    run := fn!() -> i64: read!(&tally)
+    run!()
