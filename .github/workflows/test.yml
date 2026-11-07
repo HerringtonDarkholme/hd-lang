@@ -416,6 +416,12 @@ jobs:
           - mode: optimized
             engine: wasmtime
             pipeline: optimized
+          # The optimized pipeline with the checked runtime. An optimization that
+          # removes a uniqueness check trips an assert here, even when the program's
+          # output happens to stay right in plain optimized.
+          - mode: checked optimized
+            engine: ""
+            pipeline: optimized
     steps:
       - name: Check out
         uses: actions/checkout@v5
@@ -434,7 +440,7 @@ jobs:
       # runtime modules, the harness's own) run once, in the Rust tests job.
       # Each run fails the job by itself, and the first failing doesn't skip the second.
       - name: Conformance
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.mode != 'checked optimized' }}
         env:
           HD_CONFORMANCE_ENGINE: ${{ matrix.engine }}
           HD_CONFORMANCE_PIPELINE: ${{ matrix.pipeline }}
@@ -444,4 +450,19 @@ jobs:
         if: ${{ !cancelled() && matrix.mode == 'default and checked' }}
         env:
           HD_CONFORMANCE_CHECKED: "1"
+        run: cargo test --release --workspace --all-features --test conformance -- --exact specification_conformance_passes_except_known_failures
+
+      # Runs std's runtime modules with the checked runtime's asserts too; the
+      # Rust tests job runs them plain.
+      - name: Std runtime modules (checked)
+        if: ${{ !cancelled() && matrix.mode == 'default and checked' }}
+        env:
+          HD_CONFORMANCE_CHECKED: "1"
+        run: cargo test --release --workspace --all-features --test conformance -- --exact std_runtime_modules_pass_their_hd_tests_on_the_linear_backend
+
+      - name: Conformance (checked optimized)
+        if: ${{ !cancelled() && matrix.mode == 'checked optimized' }}
+        env:
+          HD_CONFORMANCE_CHECKED: "1"
+          HD_CONFORMANCE_PIPELINE: ${{ matrix.pipeline }}
         run: cargo test --release --workspace --all-features --test conformance -- --exact specification_conformance_passes_except_known_failures
