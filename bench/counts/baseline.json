@@ -143,8 +143,7 @@
       "released": "4612528",
       "uniques": "3600000",
       "total": "12318785",
-      "noOpsAndSkipped": "3937518",
-      "reason": "The one-owner field rule is deleted (owner decision 2026-11-07, #1399): it caused five silent wrong answers in release builds (#1439, #1440 and three found with them), because it treated as unshared any field whose sharing it did not recognise. Every collection field and &mut entry now keeps its uniqueness test. Measured with the rule off: +2,486 B across 11 of 32 modules; V8 default tier task-pipeline +2.2%, json +1.9%, route-search -6.6%."
+      "noOpsAndSkipped": "3937516"
     },
     {
       "program": "bench/runtime/progs/trait-dispatch.hd",
