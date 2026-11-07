@@ -13,13 +13,13 @@ struct Tagged:
 fn bumped(mut t: Tagged, s: string) -> Tagged:
     t.tags.push(s)
 > app/main/bumped
->   unique List[string] (conservative: unique)
+>   unique List[string] (may be shared)
     t
 
 fn bump_only(mut t: Tagged, s: string) -> usize:
     t.tags.push(s)
 > app/main/bump_only
->   unique List[string] (conservative: unique)
+>   unique List[string] (may be shared)
 >   release string (last use)
 >   release List[string] (last use)
     t.tags.len()
@@ -27,13 +27,13 @@ fn bump_only(mut t: Tagged, s: string) -> usize:
 fn last_use(t: Tagged, s: string) -> Tagged:
     bumped(t, s)
 > app/main/last_use
->   unique List[string] (conservative: unique)
+>   unique List[string] (may be shared)
 
 fn kept_after(t: Tagged, s: string) -> usize:
     u := bumped(t, s)
 > app/main/kept_after
 >   copy app.main.Tagged [name.0, tags] (stored)
->   unique List[string] (conservative: unique)
+>   unique List[string] (may be shared)
 >   release string (last use)
 >   release List[string] (last use)
 >   release string (last use)

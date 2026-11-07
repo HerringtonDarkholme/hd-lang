@@ -20,7 +20,7 @@ fn over_ref(xs: &List[string]) -> usize:
 fn over_mut(xs: &mut List[string]) -> void:
     for x in &mut *xs:
 > app/main/over_mut
->   unique List[string] (conservative: unique)
+>   unique List[string] (may be shared)
         *x += "!"
 >   release counted reference (overwritten)
 

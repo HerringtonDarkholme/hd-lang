@@ -17,7 +17,7 @@ impl Disposable for Res:
         self.log.push(self.name)
 > app/main/impl Disposable for Res.dispose
 >   retain string (stored)
->   unique List[string] (conservative: unique)
+>   unique List[string] (may be shared)
 
 fn with_defer(log: *mut List[string], s: string) -> usize:
     defer(fn() -> void: log.push(s))
@@ -27,7 +27,7 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
 >   release string (last use)
 > app/main/with_defer
 >   retain string (conservative: entry)
->   unique List[string] (conservative: unique)
+>   unique List[string] (may be shared)
     s.len()
 
 fn with_using(log: *mut List[string], s: string) -> usize:

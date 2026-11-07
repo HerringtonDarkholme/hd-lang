@@ -16,7 +16,7 @@ impl Parser:
         let word = mark
         while word < held:
 > app/main/impl Parser.drain_into
->   unique List[usize] (conservative: unique)
+>   unique List[usize] (may be shared)
             self.index.push(self.pending[word])
             word = word + 1
         self.held = mark
@@ -24,7 +24,7 @@ impl Parser:
     fn refill(&mut self, n: usize) -> void:
         for i in 0..n:
 > app/main/impl Parser.refill
->   unique List[usize] (conservative: unique)
+>   unique List[usize] (may be shared)
             self.index[i] = self.held
 
     fn snapshot(&mut self, n: usize) -> usize:
@@ -32,7 +32,7 @@ impl Parser:
 > app/main/impl Parser.snapshot
 >   release List[usize] (last use)
         for i in 0..n:
->   unique List[usize] (conservative: unique)
+>   unique List[usize] (may be shared)
             last = self.index
 >   copy List[usize] (stored)
 >   release List[usize] (overwritten)

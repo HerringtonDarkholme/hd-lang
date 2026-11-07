@@ -19,7 +19,7 @@ fn record_step(steps: &mut List[i64], slot: usize, step: i64) -> void:
 fn set_first(xs: &mut List[i64], v: i64) -> void:
     xs[0] = v
 > app/main/set_first
->   unique List[i64] (conservative: unique)
+>   unique List[i64] (may be shared)
 
 impl Trail:
     fn enter(&mut self, step: i64) -> void:

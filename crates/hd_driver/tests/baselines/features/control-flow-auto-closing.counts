@@ -15,7 +15,7 @@ impl Disposable for Guard:
         self.log.push(self.label)
 > app/main/impl Disposable for Guard.dispose
 >   retain string (stored)
->   unique List[string] (conservative: unique)
+>   unique List[string] (may be shared)
 
 impl AutoClosing for Guard:
     pass
@@ -29,6 +29,6 @@ fn guard(log: *mut List[string], label: string) -> Guard:
 fn work(log: *mut List[string], label: string) -> void:
     guard(log, label)
 > app/main/work
->   unique List[string] (conservative: unique)
+>   unique List[string] (may be shared)
 >   release app.main.Guard [log, label.0] (last use)
     log.push("work")

@@ -14,4 +14,4 @@ fn keep(all: &mut List[Field[Point, i32]], h: Field[Point, i32]) -> void:
     all.push(h)
 > app/main/keep
 >   retain &std.structure.FieldRecord[app.main.Point, i32] (stored)
->   unique List[&std.structure.FieldRecord[app.main.Point, i32]] (conservative: unique)
+>   unique List[&std.structure.FieldRecord[app.main.Point, i32]] (may be shared)

@@ -32,7 +32,7 @@ fn local_over(k: i32) -> usize:
 fn element_over(xs: &mut List[string], i: usize, k: i32) -> void:
     xs[i] = make(k)
 > app/main/element_over
->   unique List[string] (conservative: unique)
+>   unique List[string] (may be shared)
 >   release string (overwritten)
 
 fn field_over(r: &mut P, k: i32) -> void:

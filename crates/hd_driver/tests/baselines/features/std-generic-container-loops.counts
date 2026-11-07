@@ -16,34 +16,34 @@ impl[T < Ord] Queue[T]:
     pub fn add(&mut self, value: T) -> void:
         self.items.push(value)
 > app/main/impl [ T < Ord ] Queue [ T ].add
->   unique List[string] (conservative: unique)
+>   unique List[string] (may be shared)
 > app/main/impl [ T < Ord ] Queue [ T ].add
->   unique List[i64] (conservative: unique)
+>   unique List[i64] (may be shared)
 > app/main/impl [ T < Ord ] Queue [ T ].add
->   unique List[(i64, usize)] (conservative: unique)
+>   unique List[(i64, usize)] (may be shared)
 
     pub fn settle(&mut self, start: usize, value: T) -> void:
         size := self.items.len()
 > app/main/impl [ T < Ord ] Queue [ T ].settle
->   unique List[i64] (conservative: unique)
+>   unique List[i64] (may be shared)
 > app/main/impl [ T < Ord ] Queue [ T ].settle
->   unique List[(i64, usize)] (conservative: unique)
+>   unique List[(i64, usize)] (may be shared)
 > app/main/impl [ T < Ord ] Queue [ T ].settle
->   unique List[string] (conservative: unique)
+>   unique List[string] (may be shared)
 > app/main/impl [ T < Ord ] Queue [ T ].settle
->   unique List[(i64, usize)] (conservative: unique)
+>   unique List[(i64, usize)] (may be shared)
         let parent = start
         while parent < size / 2:
->   unique List[i64] (conservative: unique)
->   unique List[(i64, usize)] (conservative: unique)
->   unique List[(i64, usize)] (conservative: unique)
->   unique List[string] (conservative: unique)
->   unique List[(i64, usize)] (conservative: unique)
+>   unique List[i64] (may be shared)
+>   unique List[(i64, usize)] (may be shared)
+>   unique List[(i64, usize)] (may be shared)
+>   unique List[string] (may be shared)
+>   unique List[(i64, usize)] (may be shared)
             left := 2 * parent + 1
             let larger = left
             if left + 1 < size:
->   unique List[(i64, usize)] (conservative: unique)
->   unique List[(i64, usize)] (conservative: unique)
+>   unique List[(i64, usize)] (may be shared)
+>   unique List[(i64, usize)] (may be shared)
                 match self.items[left].cmp(&self.items[left + 1]):
                     .Less => larger = left + 1
                     _ => pass

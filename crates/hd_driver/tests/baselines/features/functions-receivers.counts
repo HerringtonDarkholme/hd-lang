@@ -40,7 +40,7 @@ fn temp_receiver(s: string) -> usize:
 fn element_receiver(xs: &mut List[Vec2], i: usize) -> void:
     xs[i].shift(1)
 > app/main/element_receiver
->   unique List[app.main.Vec2] (conservative: unique)
+>   unique List[app.main.Vec2] (may be shared)
 
 fn element_read(xs: List[Vec2], i: usize) -> usize:
     xs[i].label_len()

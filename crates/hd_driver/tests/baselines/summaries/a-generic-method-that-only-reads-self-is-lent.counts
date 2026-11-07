@@ -19,7 +19,7 @@ impl[S] Handle[S]:
     fn keep(self, all: &mut List[Handle[S]]) -> void:
         if (self.n + 1) * (self.n + 2) * (self.n + 3) * (self.n + 4) > 0:
 > app/main/impl [ S ] Handle [ S ].keep
->   unique List[app.main.Handle[i32]] (conservative: unique)
+>   unique List[app.main.Handle[i32]] (may be shared)
 >   release app.main.Handle[i32] [names, get.1] (last use)
             all.push(self)
 

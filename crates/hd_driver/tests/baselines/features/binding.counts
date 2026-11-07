@@ -17,5 +17,5 @@ fn bind_twice(xs: List[string]) -> usize:
 fn bind_kept(xs: List[string], all: &mut List[List[string]]) -> void:
     ys := xs
 > app/main/bind_kept
->   unique List[List[string]] (conservative: unique)
+>   unique List[List[string]] (may be shared)
     all.push(ys)

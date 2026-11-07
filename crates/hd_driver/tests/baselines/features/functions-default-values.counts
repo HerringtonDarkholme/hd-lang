@@ -9,7 +9,7 @@
 fn collect(item: string, into: &mut List[string] = &mut []) -> usize:
     into.push(item)
 > app/main/collect
->   unique List[string] (conservative: unique)
+>   unique List[string] (may be shared)
     into.len()
 
 fn with_default(s: string) -> usize:

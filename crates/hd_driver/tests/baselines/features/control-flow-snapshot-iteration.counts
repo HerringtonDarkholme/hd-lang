@@ -12,7 +12,7 @@ fn doubled(values: List[string]) -> List[string]:
 >   release List[string] (last use)
     for v in out:
 >   copy List[string] (second owner)
->   unique List[string] (conservative: unique)
+>   unique List[string] (may be shared)
         out.push(v)
 >   retain string (stored)
     out
@@ -20,7 +20,7 @@ fn doubled(values: List[string]) -> List[string]:
 fn cursor_then_push(values: List[string], s: string) -> usize:
     let mut items = values
 > app/main/cursor_then_push
->   unique List[string] (conservative: unique)
+>   unique List[string] (may be shared)
 >   release std.iter.ListIter[string] [items] (last use)
 >   release string? (last use)
 >   release List[string] (last use)

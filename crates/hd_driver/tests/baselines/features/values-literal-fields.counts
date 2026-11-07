@@ -31,7 +31,7 @@ impl Shelf:
     fn put(&mut self, v: i64) -> void:
         self.items[0] = v
 > app/main/impl Shelf.put
->   unique List[i64] (conservative: unique)
+>   unique List[i64] (may be shared)
 
 pub fn main() -> void $ Console:
     let mut h = histogram()

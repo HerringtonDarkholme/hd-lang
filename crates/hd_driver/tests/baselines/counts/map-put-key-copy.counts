@@ -5,10 +5,10 @@
 fn put(items: &mut Map[string, i32], key: string, value: i32) -> void:
     items[key] = value
 > app/main/put
->   unique Map[string, i32] (conservative: unique)
+>   unique Map[string, i32] (may be shared)
 >   retain string (stored)
 
 fn bump(items: &mut Map[string, i32], key: string) -> void:
     items[key] += 1
 > app/main/bump
->   unique Map[string, i32] (conservative: unique)
+>   unique Map[string, i32] (may be shared)

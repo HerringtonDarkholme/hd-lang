@@ -65,6 +65,6 @@ fn behind_pointer(h: *mut Holder, alias: *mut Holder) -> usize:
 fn pinned(xs: &mut List[i64]) -> void:
     r := &mut xs[0]
 > std/rt_tests.stage_case/pinned
->   unique List[i64] (conservative: unique)
+>   unique List[i64] (may be shared)
     bump(r)
     bump(r)

@@ -22,7 +22,7 @@ fn shouted(prices: List[string]) -> List[string]:
     let mut out = prices
     for p in &mut out:
 > app/main/shouted
->   unique List[string] (conservative: unique)
+>   unique List[string] (may be shared)
         *p = *p + "!"
 >   release counted reference (overwritten)
     out

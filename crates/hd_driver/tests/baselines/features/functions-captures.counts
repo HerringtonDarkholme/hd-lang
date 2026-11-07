@@ -25,7 +25,7 @@ fn shared_list(s: string) -> usize:
     add := fn() -> void: xs.push(s)
 > app/main/shared_list
 >   retain string (conservative: entry)
->   unique List[string] (conservative: unique)
+>   unique List[string] (may be shared)
 >   retain counted reference (conservative: Closure)
     add()
     add()
@@ -49,4 +49,4 @@ fn through_ptr(items: *mut List[string], s: string) -> fn() -> void:
 >   retain counted reference (conservative: Closure)
 > app/main/through_ptr
 >   retain string (conservative: entry)
->   unique List[string] (conservative: unique)
+>   unique List[string] (may be shared)

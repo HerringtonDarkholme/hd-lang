@@ -396,18 +396,27 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
     use super::unique_word::{COVERED, FRESH, HOISTED, OWNED, REPEAT};
     use crate::own::hoist;
     let n = b.len();
-    // A fresh buffer's `IsUnique` is of a local that keeps it fresh.
-    if (0..n).any(|i| b.tags[i] == Tag::IsUnique && b.data[i][1] == FRESH) {
+    // A fresh buffer's `IsUnique` is of a local that keeps it fresh, and one
+    // that runs, which says its buffer may be shared, isn't of such a local.
+    if b.tags.contains(&Tag::IsUnique) {
         let fresh = hoist::fresh_locals(b);
         for i in 0..n {
-            if b.tags[i] == Tag::IsUnique
-                && b.data[i][1] == FRESH
-                && !hoist::fresh_unique(b, &fresh, i)
-            {
+            if b.tags[i] != Tag::IsUnique {
+                continue;
+            }
+            let w = b.data[i][1];
+            let is_fresh = hoist::fresh_unique(b, &fresh, i);
+            if w == FRESH && !is_fresh {
                 err(
                     errs,
                     u32_of(i),
                     "a fresh `IsUnique` of a place that may share its buffer".into(),
+                );
+            } else if (w == 0 || w == HOISTED) && is_fresh {
+                err(
+                    errs,
+                    u32_of(i),
+                    "an `IsUnique` that may be shared, of a fresh buffer".into(),
                 );
             }
         }

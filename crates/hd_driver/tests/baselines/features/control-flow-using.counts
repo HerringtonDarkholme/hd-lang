@@ -17,7 +17,7 @@ impl Disposable for Res:
         self.log.push(self.name)
 > app/main/impl Disposable for Res.dispose
 >   retain string (stored)
->   unique List[string] (conservative: unique)
+>   unique List[string] (may be shared)
 
 fn two(log: *mut List[string], a: string, b: string) -> usize:
     using first = Res { name: a, log: log }

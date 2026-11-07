@@ -18,7 +18,7 @@ fn lookup(m: &Map[string, string], k: string) -> usize:
 fn put(m: &mut Map[string, string], k: string, v: string) -> void:
     m[k] = v
 > app/main/put
->   unique Map[string, string] (conservative: unique)
+>   unique Map[string, string] (may be shared)
 >   retain string (stored)
 
 fn group(m: &mut Map[string, List[string]], k: string, v: string) -> void:
@@ -27,7 +27,7 @@ fn group(m: &mut Map[string, List[string]], k: string, v: string) -> void:
 >   unique counted reference (conservative: Call)
 >   retain string (conservative: Call)
 >   copy List[string] (conservative: Call)
->   unique List[string] (conservative: unique)
+>   unique List[string] (may be shared)
 
 fn has(m: &Map[string, string], k: string) -> bool:
     m.contains_key(k)

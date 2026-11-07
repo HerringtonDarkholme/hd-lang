@@ -25,7 +25,7 @@ impl Pair:
     fn add(&mut self, v: i64) -> void:
         self.items.push(v)
 > app/main/impl Pair.add
->   unique List[i64] (conservative: unique)
+>   unique List[i64] (may be shared)
 
 pub fn stack(n: i64) -> usize:
     let mut s = Stack { items: [] }

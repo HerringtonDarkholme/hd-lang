@@ -30,7 +30,7 @@ pub fn owned(rounds: usize, first: i64) -> i64:
 pub fn copied(first: i64) -> i64:
     let mut xs = [first, 2, 3]
 > app/main/copied
->   unique List[i64] (conservative: unique)
+>   unique List[i64] (may be shared)
 >   release List[i64] (last use)
 >   release List[i64] (last use)
     ys := xs

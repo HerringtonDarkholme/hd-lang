@@ -11,12 +11,12 @@ struct Tally:
 fn map_add(m: &mut Map[string, i64], k: string) -> void:
     m[k] += 1
 > app/main/map_add
->   unique Map[string, i64] (conservative: unique)
+>   unique Map[string, i64] (may be shared)
 
 fn list_append(xs: &mut List[string], i: usize) -> void:
     xs[i] += "!"
 > app/main/list_append
->   unique List[string] (conservative: unique)
+>   unique List[string] (may be shared)
 >   release string (overwritten)
 
 fn field_append(t: &mut Tally, s: string) -> void:
