@@ -416,11 +416,7 @@ impl Env<'_> {
             Callee::Item { def, .. } => {
                 // Whether it has a body, from the body table: decoding
                 // one would read another body.
-                let bodyless = !self
-                    .p
-                    .bodies
-                    .all
-                    .contains_key(&self.run.paths.hash(hd_base::PathId::from_raw(def.raw())));
+                let bodyless = self.run.lazy_body(self.p, *def).is_none();
                 let method = bodyless
                     && self.run.names().path(*def).rsplit(['.', '/']).next() == Some("sqrt")
                     && self
@@ -2337,9 +2333,7 @@ impl Env<'_> {
 impl Run<'_> {
     /// The body table's entry for `def`.
     pub(super) fn lazy_body<'p>(&self, p: &'p ProgramTables, def: DefId) -> Option<&'p LazyBody> {
-        p.bodies
-            .all
-            .get(&self.paths.hash(hd_base::PathId::from_raw(def.raw())))
+        p.body_entry(self.paths.hash(hd_base::PathId::from_raw(def.raw())), def)
     }
 
     /// Runs `f` with the passes' view of the program.

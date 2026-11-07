@@ -1685,8 +1685,8 @@ pub fn encode_items(names: &Names<'_>, items: &[Item], exports: &[Export]) -> St
 }
 
 /// An item's index tag: its impl kind's position in `ImplKind::ALL`, with
-/// `INHERENT` set for an inherent block; `TRAIT` for a trait; `ENUM` for an
-/// enum; else `NOT_IMPL`.
+/// `INHERENT` set for an inherent block; `TRAIT` for a trait; else
+/// `NOT_IMPL`.
 fn impl_tag(item: &Item) -> u8 {
     match &item.data {
         ItemData::Impl { kind, trait_, .. } => {
@@ -1694,14 +1694,12 @@ fn impl_tag(item: &Item) -> u8 {
             u8::try_from(at).unwrap_or(0) | if *trait_ == DefId::NONE { INHERENT } else { 0 }
         }
         ItemData::Trait(_) => TRAIT,
-        ItemData::Enum { .. } => ENUM,
         _ => NOT_IMPL,
     }
 }
 
 const NOT_IMPL: u8 = 0xff;
 const TRAIT: u8 = 0xfe;
-const ENUM: u8 = 0xfd;
 const INHERENT: u8 = 0x80;
 /// In an item's index flags: the item is `configured`, read without its record.
 const CONFIGURED: u8 = 2;
@@ -1936,7 +1934,7 @@ impl Items {
     #[must_use]
     pub fn impl_kind(&self, i: usize) -> Option<(ImplKind, bool)> {
         let tag = *self.tags.get(i)?;
-        if tag == NOT_IMPL || tag == TRAIT || tag == ENUM {
+        if tag == NOT_IMPL || tag == TRAIT {
             return None;
         }
         let kind = *ImplKind::ALL.get(usize::from(tag & !INHERENT))?;
@@ -1948,12 +1946,6 @@ impl Items {
         (0..self.len())
             .filter(|&i| self.impl_kind(i).is_some())
             .filter_map(|i| self.get(i))
-    }
-
-    /// Whether item `i` is an enum, read from the index.
-    #[must_use]
-    pub fn is_enum(&self, i: usize) -> bool {
-        self.tags.get(i) == Some(&ENUM)
     }
 
     /// The `configured` items, in order, decoding only their records.
@@ -1976,7 +1968,7 @@ impl Items {
             return 0;
         }
         (0..self.len())
-            .filter(|&i| matches!(self.tags.get(i), Some(&NOT_IMPL | &ENUM)))
+            .filter(|&i| self.tags.get(i) == Some(&NOT_IMPL))
             .filter(|&i| self.slots.get(i).is_some_and(|s| s.get().is_some()))
             .count()
     }

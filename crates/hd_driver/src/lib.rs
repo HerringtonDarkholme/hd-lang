@@ -917,6 +917,8 @@ struct CheckOut {
     has_errors: bool,
     generic_edges: Vec<hd_check::inst_cycles::Edge>,
     has_opaque: bool,
+    /// The module has an init body, known without reading the entry's bodies.
+    has_init: bool,
 }
 
 /// The program as `Collect` decoded it.
@@ -943,7 +945,7 @@ struct ProgramTables {
     test_impls: hd_types::solver::ImplTable,
     /// The program's self-recursive enums (`hd_mono::layout::recursive_enums`),
     /// found once on the first layout that asks.
-    recursive_enums: OnceLock<hd_base::HashSet<DefId>>,
+    recursive_enums: Mutex<HashMap<DefId, bool>>,
     /// The declarations with a `std.rt.Drop` implementation, found once
     /// on the first layout that asks.
     drop_defs: OnceLock<hd_base::HashSet<DefId>>,
@@ -957,6 +959,143 @@ struct ProgramItems {
     sources: Vec<ItemSource>,
     /// By declaration: its source and its position there.
     slots: Vec<Option<(u32, u32)>>,
+    /// std's modules, whose entries are read on first use.
+    std: StdModules,
+}
+
+/// What reading a module's `check` entry needs of its run.
+struct EntryCx {
+    pool: Arc<InternPool>,
+    paths: Arc<PathTable>,
+    syms: Arc<ShardedInterner>,
+    known: Arc<hd_resolve::KnownItems>,
+    build_profile: BuildProfile,
+}
+
+/// std's modules in this program. A program reaches a small part of std, so a module's
+/// items and bodies are indexed when something first asks for one of them. Every item
+/// and body of a std module has a path under that module, and its impls are in the
+/// folder interface (`Run::check_std_paths`), so a lookup needs only its own module.
+#[derive(Default)]
+struct StdModules {
+    cx: Option<EntryCx>,
+    /// By the module's path node: its position in `modules`.
+    by_node: HashMap<PathId, u32>,
+    modules: Vec<StdModule>,
+    /// By declaration, for the paths known when the tables were built: 0 for not
+    /// looked up yet, 1 for no std module, else 2 plus its position in `modules`.
+    /// Lookups are frequent, and most ask again for a declaration they asked for.
+    known: Vec<std::sync::atomic::AtomicU32>,
+}
+
+struct StdModule {
+    m: usize,
+    entry: Arc<[u8]>,
+    read: OnceLock<Option<StdEntry>>,
+}
+
+struct StdEntry {
+    items: hd_resolve::Items,
+    positions: HashMap<DefId, u32>,
+    bodies: HashMap<Hash128, LazyBody>,
+}
+
+impl StdModules {
+    /// The entry of the std module that declares `def`, or `None` when no std module
+    /// does. A module whose entry does not decode reads as empty, and `Collect`
+    /// fails when a body it needs is missing.
+    fn entry_of(&self, def: DefId) -> Option<&StdEntry> {
+        use std::sync::atomic::Ordering::Relaxed;
+        let cx = self.cx.as_ref()?;
+        let known = self.known.get(def.raw() as usize);
+        let at = match known.map_or(0, |k| k.load(Relaxed)) {
+            0 => {
+                if def.raw() >= cx.paths.len() {
+                    return None;
+                }
+                let node = cx.paths.def_module(PathId::from_raw(def.raw()));
+                let at = self.by_node.get(&node).copied();
+                if let Some(k) = known {
+                    k.store(at.map_or(1, |at| at + 2), Relaxed);
+                }
+                at?
+            }
+            1 => return None,
+            at => at - 2,
+        };
+        let module = &self.modules[at as usize];
+        module
+            .read
+            .get_or_init(|| StdEntry::read(cx, module.m, &module.entry))
+            .as_ref()
+    }
+
+    /// The entries read so far.
+    fn read_entries(&self) -> impl Iterator<Item = &StdEntry> {
+        self.modules.iter().filter_map(|m| m.read.get()?.as_ref())
+    }
+}
+
+impl StdEntry {
+    fn read(cx: &EntryCx, m: usize, entry: &Arc<[u8]>) -> Option<StdEntry> {
+        let names = Names {
+            pool: &cx.pool,
+            paths: &cx.paths,
+            syms: &cx.syms,
+            known: &cx.known,
+        };
+        let range = item_section(entry)?;
+        let items = hd_resolve::decode_lazy_in(&names, entry.clone(), range)?.0;
+        let configured = configured_bodies(&names, &items, cx.build_profile);
+        let mut bodies = HashMap::default();
+        for (mut item, at) in body_index(entry)? {
+            if let Some(selected) = configured.get(&item) {
+                let Some(canonical) = selected else { continue };
+                item = *canonical;
+            }
+            let lazy = LazyBody {
+                wire: Some((m, entry.clone(), at)),
+                forms: OnceLock::new(),
+            };
+            bodies.insert(item, lazy);
+        }
+        let positions = items
+            .defs()
+            .iter()
+            .enumerate()
+            .map(|(i, def)| (*def, u32_of(i)))
+            .collect();
+        Some(StdEntry {
+            items,
+            positions,
+            bodies,
+        })
+    }
+}
+
+/// A module's configured bodies: each profile's key, and the canonical key when this
+/// build selects that profile (`annot.cfg.selection`).
+fn configured_bodies(
+    names: &Names<'_>,
+    items: &hd_resolve::Items,
+    profile: BuildProfile,
+) -> HashMap<Hash128, Option<Hash128>> {
+    let mut configured = HashMap::default();
+    for it in items.configured() {
+        for canonical in configured_body_keys(names, it) {
+            let debug = cfg_body_key(canonical, BuildProfile::Checked);
+            let release = cfg_body_key(canonical, BuildProfile::Release);
+            configured.insert(
+                debug,
+                (profile == BuildProfile::Checked).then_some(canonical),
+            );
+            configured.insert(
+                release,
+                (profile == BuildProfile::Release).then_some(canonical),
+            );
+        }
+    }
+    configured
 }
 
 /// Where a program's items come from.
@@ -976,6 +1115,11 @@ impl ItemSource {
 
 impl ProgramItems {
     fn get(&self, def: DefId) -> Option<&Item> {
+        if let Some(entry) = self.std.entry_of(def)
+            && let Some(at) = entry.positions.get(&def)
+        {
+            return entry.items.get(*at as usize);
+        }
         let (source, at) = (*self.slots.get(def.raw() as usize)?)?;
         self.sources[source as usize].items().get(at as usize)
     }
@@ -994,17 +1138,6 @@ impl ProgramItems {
                     (held && want(kind, inherent)).then(|| items.get(i))?
                 })
             })
-    }
-
-    /// The enums this program holds, by declaration, without reading a record.
-    fn enums(&self) -> impl Iterator<Item = DefId> + '_ {
-        self.slots.iter().enumerate().filter_map(|(def, slot)| {
-            let (source, at) = (*slot)?;
-            let items = self.sources[source as usize].items();
-            items
-                .is_enum(at as usize)
-                .then(|| DefId::from_raw(u32_of(def)))
-        })
     }
 
     /// Every declaration this program holds, without reading a record.
@@ -1535,11 +1668,11 @@ struct Run<'a> {
     /// `PathId` and `ModuleId`: the tables have unrelated insertion orders.
     module_nodes: HashMap<PathId, ModuleId>,
     texts: Vec<Arc<str>>,
-    pool: InternPool,
-    paths: PathTable,
+    pool: Arc<InternPool>,
+    paths: Arc<PathTable>,
     /// The compiler-known std items, resolved once for the run.
-    known: hd_resolve::KnownItems,
-    syms: ShardedInterner,
+    known: Arc<hd_resolve::KnownItems>,
+    syms: Arc<ShardedInterner>,
     universes: ImplUniverses,
     memo: GlobalMemo,
     /// Which folder declares what (`crates/hd_check/DESIGN.md` (trait solver) §3.2), built on first use.
@@ -2412,10 +2545,10 @@ fn build_packages_inner(
         single_file: packages.single_file,
         goal: goal.clone(),
         texts,
-        pool: InternPool::new(),
-        paths,
-        known,
-        syms: ShardedInterner::default(),
+        pool: Arc::new(InternPool::new()),
+        paths: Arc::new(paths),
+        known: Arc::new(known),
+        syms: Arc::new(ShardedInterner::default()),
         universes: ImplUniverses::default(),
         memo: GlobalMemo::default(),
         owners: OnceLock::new(),
@@ -2712,7 +2845,8 @@ fn build_packages_inner(
         }
     }
     if let Some(program) = run.program.get() {
-        for (&hash, lazy) in &program.bodies.all {
+        let std = program.items.std.read_entries().flat_map(|e| &e.bodies);
+        for (&hash, lazy) in program.bodies.all.iter().chain(std) {
             let decoded = lazy.forms.get().and_then(|forms| forms.body.get());
             let (Some((m, entry, _)), Some(Some((body, _)))) = (&lazy.wire, decoded) else {
                 continue;
@@ -7981,6 +8115,12 @@ impl Run<'_> {
                     .iter()
                     .any(|b| b.ty.iter().any(|&t| self.pool.has_opaque(t))),
         ));
+        let init = hd_check::default_body_def(
+            &names,
+            names.item(&self.table.modules[m].path, "init"),
+            "init",
+        );
+        meta.u8(u8::from(keep.iter().any(|b| b.item == init)));
         let Some(key) = self.check_key(m) else { return };
         // The references to `dbg`, whichever the profile: a release build
         // reads them (`module.dbg.release`), so they stay out of the TIR
@@ -8028,6 +8168,17 @@ impl Run<'_> {
                 }
             };
             sections.push(&input_iface);
+        }
+        if let Some(strayed) = self.std_entry_stray(m, &all_items, bodies) {
+            self.stage::<()>(
+                Stage::ModuleFinish,
+                Err(NotImplemented::bug(
+                    Stage::ModuleFinish,
+                    format!("a std module's entry holds {strayed}, which a lookup would not find"),
+                )),
+            );
+            let _ = self.check[m].set(None);
+            return;
         }
         self.put(EntryKind::Check, key, &sections);
         #[cfg(feature = "analysis")]
@@ -8254,12 +8405,14 @@ impl Run<'_> {
         let mut meta_reader = Reader::new(meta.as_ref());
         let content = meta_reader.hash();
         let has_opaque = !meta_reader.at_end() && meta_reader.u8() != 0;
+        let has_init = !meta_reader.at_end() && meta_reader.u8() != 0;
         let _ = self.check[m].set(Some(CheckOut {
             entry,
             content,
             has_errors,
             generic_edges,
             has_opaque,
+            has_init,
         }));
     }
 
@@ -8626,6 +8779,13 @@ impl Run<'_> {
         }
         let names = self.names();
         let mut items = ProgramItems::default();
+        items.std.cx = Some(EntryCx {
+            pool: Arc::clone(&self.pool),
+            paths: Arc::clone(&self.paths),
+            syms: Arc::clone(&self.syms),
+            known: Arc::clone(&self.known),
+            build_profile: self.build_profile,
+        });
         let mut bodies: HashMap<Hash128, LazyBody> = HashMap::default();
         let mut test_role_impls = Vec::new();
         for m in 0..self.table.modules.len() {
@@ -8638,24 +8798,20 @@ impl Run<'_> {
             if c.has_errors {
                 return None;
             }
+            if self.reads_on_first_use(m) {
+                let at = u32_of(items.std.modules.len());
+                items.std.by_node.insert(self.module_node(m), at);
+                items.std.modules.push(StdModule {
+                    m,
+                    entry: c.entry.clone(),
+                    read: OnceLock::new(),
+                });
+                continue;
+            }
             let range = item_section(&c.entry)?;
             let test_role = self.role(m) == "test";
             let decoded = hd_resolve::decode_lazy_in(&names, c.entry.clone(), range)?.0;
-            let mut configured: HashMap<Hash128, Option<Hash128>> = HashMap::default();
-            for it in decoded.configured() {
-                for canonical in configured_body_keys(&names, it) {
-                    let debug = cfg_body_key(canonical, BuildProfile::Checked);
-                    let release = cfg_body_key(canonical, BuildProfile::Release);
-                    configured.insert(
-                        debug,
-                        (self.build_profile == BuildProfile::Checked).then_some(canonical),
-                    );
-                    configured.insert(
-                        release,
-                        (self.build_profile == BuildProfile::Release).then_some(canonical),
-                    );
-                }
-            }
+            let configured = configured_bodies(&names, &decoded, self.build_profile);
             if test_role {
                 for (i, def) in decoded.defs().iter().enumerate() {
                     if decoded.impl_kind(i).is_some() {
@@ -8749,6 +8905,9 @@ impl Run<'_> {
                 }
             }
         }
+        items.std.known = (0..self.paths.len())
+            .map(|_| std::sync::atomic::AtomicU32::new(0))
+            .collect();
         let (universe, extra) = self.universes.intern(&members);
         let _ = self.program.set(ProgramTables {
             items,
@@ -8763,19 +8922,88 @@ impl Run<'_> {
             universe,
             extra,
             test_impls,
-            recursive_enums: OnceLock::new(),
+            recursive_enums: Mutex::new(HashMap::default()),
             drop_defs: OnceLock::new(),
         });
         self.program.get()
     }
 
+    /// Whether module `module`'s `check` entry says it has an init body; a module with
+    /// no entry may still have one in this run.
+    fn entry_has_init(&self, module: &str) -> bool {
+        let checked = self
+            .table
+            .module(module)
+            .and_then(|m| self.check[m.idx()].get());
+        checked.and_then(Option::as_ref).is_none_or(|c| c.has_init)
+    }
+
+    /// The path node of module `m`.
+    fn module_node(&self, m: usize) -> PathId {
+        let mut segments = self.table.modules[m].path.split('.');
+        let package = segments.next().unwrap_or("");
+        let mut node = self
+            .paths
+            .intern(PathId::NONE, hd_intern::PathKind::Package, package);
+        for segment in segments {
+            node = self
+                .paths
+                .intern(node, hd_intern::PathKind::Module, segment);
+        }
+        node
+    }
+
+    /// What keeps [`StdModules`] from finding everything in std module `m`'s entry: an
+    /// item or body with a path under another module, or an impl outside the folder
+    /// interface. A build reports this when it checks the module.
+    fn std_entry_stray(&self, m: usize, items: &[Item], bodies: &[Body]) -> Option<String> {
+        if !self.reads_on_first_use(m) {
+            return None;
+        }
+        let node = self.module_node(m);
+        let names = self.names();
+        let defs = items
+            .iter()
+            .map(|i| i.def)
+            .chain(bodies.iter().map(|b| b.item));
+        for def in defs {
+            if names.module_node(def) != node {
+                return Some(format!("`{}`", names.path(def)));
+            }
+        }
+        let iface = self.iface_of(self.table.modules[m].folder)?;
+        for item in items
+            .iter()
+            .filter(|i| matches!(i.data, ItemData::Impl { .. }))
+        {
+            if !iface.items.defs().contains(&item.def) {
+                return Some(format!("the impl `{}`", names.path(item.def)));
+            }
+        }
+        None
+    }
+
+    /// Whether module `m`'s entry waits until something asks for it. A root module
+    /// has diagnostics and tests to serve, and a session and a module-cycle init read
+    /// bodies while the tables are built, so those are read at once.
+    fn reads_on_first_use(&self, m: usize) -> bool {
+        let module = &self.table.modules[m];
+        usize::from(module.package) + 1 == self.table.packages.len()
+            && module.package != 0
+            && self.session.is_none()
+            && self
+                .init_runs
+                .iter()
+                .filter_map(OnceLock::get)
+                .flatten()
+                .flatten()
+                .all(|r| r.module != module.path)
+    }
+
     /// The TIR body of `def`, and its content hash, decoded on first use
     /// ([`Bodies`]).
     fn body_of<'p>(&self, p: &'p ProgramTables, def: DefId) -> Option<&'p (Body, Hash128)> {
-        let b = p
-            .bodies
-            .all
-            .get(&self.paths.hash(hd_base::PathId::from_raw(def.raw())))?;
+        let b = self.lazy_body(p, def)?;
         let mut out = self.decode(b);
         if out.is_none() {
             p.bodies
@@ -9182,7 +9410,9 @@ impl Run<'_> {
         // would leave it out (`Session::inits_run`), so it is left out
         // here, before its bodies are decoded.
         let kept_module = |m: &str| self.table.module(m).is_some_and(|k| self.is_kept(k.idx()));
-        let has_init = |m: &str| !kept_module(m) && self.body_of(p, init_of(m)).is_some();
+        let has_init = |m: &str| {
+            !kept_module(m) && self.entry_has_init(m) && self.body_of(p, init_of(m)).is_some()
+        };
         // The init groups each root module reaches, in order, and their union.
         let mut root_modules: Vec<String> = Vec::new();
         for (_, m) in &roots {
@@ -9544,7 +9774,7 @@ impl Run<'_> {
             }
         }
         let init_of = |m: &str| hd_check::default_body_def(&names, names.item(m, "init"), "init");
-        let has_init = |m: &str| self.body_of(p, init_of(m)).is_some();
+        let has_init = |m: &str| self.entry_has_init(m) && self.body_of(p, init_of(m)).is_some();
         let mut inits = Vec::new();
         for m in [hd_wasm_linear::runtime_module(self.checked()), module] {
             let Some(order) =
@@ -11583,6 +11813,16 @@ struct Env<'r> {
 }
 
 impl ProgramTables {
+    /// The body table's entry for `def`, whose path hash is `hash`.
+    fn body_entry(&self, hash: Hash128, def: DefId) -> Option<&LazyBody> {
+        if let Some(entry) = self.items.std.entry_of(def)
+            && let Some(body) = entry.bodies.get(&hash)
+        {
+            return Some(body);
+        }
+        self.bodies.all.get(&hash)
+    }
+
     /// A trait's number of arguments, for owner lookup.
     fn arity(&self) -> impl Fn(DefId) -> usize + '_ {
         |d| self.items.get(d).map_or(0, |i| i.generics.len())
@@ -11662,13 +11902,12 @@ impl LayoutEnv for Env<'_> {
         }
     }
     fn recursive_enum(&self, def: DefId) -> bool {
-        self.p
-            .recursive_enums
-            .get_or_init(|| {
-                let enums: Vec<DefId> = self.p.items.enums().collect();
-                hd_mono::layout::recursive_enums(&self.run.pool, self, &enums)
-            })
-            .contains(&def)
+        if let Some(known) = lock(&self.p.recursive_enums).get(&def) {
+            return *known;
+        }
+        let recursive = hd_mono::layout::is_recursive_enum(&self.run.pool, self, def);
+        lock(&self.p.recursive_enums).insert(def, recursive);
+        recursive
     }
     fn newtype_base(&self, def: DefId) -> Option<Ty> {
         match &self.p.items.get(def)?.data {
@@ -12172,11 +12411,7 @@ impl ProgramEnv for Env<'_> {
         owner: DefId,
         site: u32,
     ) -> Option<hd_mono::opaque::HiddenResult> {
-        let lazy = self
-            .p
-            .bodies
-            .all
-            .get(&self.run.paths.hash(hd_base::PathId::from_raw(owner.raw())))?;
+        let lazy = self.run.lazy_body(self.p, owner)?;
         let (body, _) = self.run.decode(lazy)?;
         let fact = hd_mono::opaque::facts(pool, body, self.sig(owner).map(|s| s.ret))
             .into_iter()

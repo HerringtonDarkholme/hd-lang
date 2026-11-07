@@ -467,6 +467,36 @@ pub fn recursive_enums(pool: &InternPool, env: &dyn LayoutEnv, enums: &[DefId]) 
     out
 }
 
+/// Whether `def` is self-recursive, as [`recursive_enums`] finds over every enum. Only
+/// the enums `def` can hold decide it: their declarations are all this reads.
+#[must_use]
+pub fn is_recursive_enum(pool: &InternPool, env: &dyn LayoutEnv, def: DefId) -> bool {
+    let mut enums = vec![def];
+    let mut seen: HashSet<DefId> = enums.iter().copied().collect();
+    let mut at = 0;
+    while let Some(&e) = enums.get(at) {
+        at += 1;
+        let mut todo: Vec<Ty> = env.enum_declared(e).unwrap_or_default().concat();
+        while let Some(t) = todo.pop() {
+            match pool.get(t) {
+                TyData::Adt { def, args } => {
+                    todo.extend_from_slice(pool.list_items(args));
+                    if env.enum_declared(def).is_some() && seen.insert(def) {
+                        enums.push(def);
+                    }
+                }
+                TyData::Tuple { elems, rest } => {
+                    todo.extend_from_slice(pool.list_items(elems));
+                    todo.extend(rest);
+                }
+                TyData::Option(i) | TyData::Mut(i) => todo.push(i),
+                _ => {}
+            }
+        }
+    }
+    recursive_enums(pool, env, &enums).contains(&def)
+}
+
 /// The enum graph of `recursive_enums`.
 #[derive(Default)]
 struct ValueGraph {
@@ -1201,6 +1231,10 @@ mod tests {
         let mut got: Vec<u32> = rec.iter().map(|x| x.raw()).collect();
         got.sort_stable();
         assert_eq!(got, [1, 2, 4]);
+        // One enum's answer needs only the enums it can hold.
+        for e in &all {
+            assert_eq!(super::is_recursive_enum(&p, &decls, *e), rec.contains(e));
+        }
     }
 
     #[test]
