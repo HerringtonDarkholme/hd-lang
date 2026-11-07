@@ -1559,6 +1559,7 @@ pub(super) fn finish(
     // A closure's code reads its captures from its environment, its first
     // parameter, into the frame, with a count of each.
     if let Some(ci) = closure {
+        let copy = em.stated_count(Tag::Retain, CountAt::Cold, CountPart::Captures);
         if let Some(l) = super::closure::self_local(em.b, ci) {
             // The executing closure's value is not an environment field.
             // Save it directly in the fresh frame, with the same ownership
@@ -1576,7 +1577,10 @@ pub(super) fn finish(
                 }
             }
             if em.counting {
-                em.ref_retain(0);
+                let Some(reason) = copy else {
+                    return unsupported("a cold closure without its stated self copy");
+                };
+                em.because(reason, |em| em.ref_retain(0));
             }
         }
         let caps = super::closure::captures(em.b, ci);
@@ -1595,7 +1599,11 @@ pub(super) fn finish(
                     loaded.push(y);
                 }
                 if em.counting {
-                    em.count_local(*l, &loaded, true)?;
+                    if let Some(reason) = copy {
+                        em.because(reason, |em| em.count_local(*l, &loaded, true))?;
+                    } else if em.is_cell(*l) || em.counted(em.sub(em.b.local_ty[*l])).is_some() {
+                        return unsupported("a cold closure without its stated capture copy");
+                    }
                 }
                 for (x, y) in ls.iter().zip(&loaded) {
                     if let Some((at, v)) = at_of(*x) {
@@ -1613,8 +1621,13 @@ pub(super) fn finish(
                 em.f.get(0);
                 em.f.op(m.leaves[p.first].load(0));
                 em.f.set(y);
-                em.f.get(y);
-                em.f.helper(Helper::RetainKnown);
+                let Some(reason) = copy else {
+                    return unsupported("a cold closure without its stated creator loan copy");
+                };
+                em.because(reason, |em| {
+                    em.f.get(y);
+                    em.f.helper(Helper::RetainKnown);
+                });
                 for (x, cell) in em.own_frame_locals(l) {
                     if let Some((at, v)) = at_of(x) {
                         em.f.get(fr);

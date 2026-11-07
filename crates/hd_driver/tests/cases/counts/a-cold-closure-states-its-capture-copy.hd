@@ -1,0 +1,8 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: the cold frame states its copied string capture; a scalar-only capture has no count.
+fn text(value: string) -> fn!() -> string:
+    fn!() -> string: value
+
+fn number(value: usize) -> fn!() -> usize:
+    fn!() -> usize: value

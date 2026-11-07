@@ -1,0 +1,19 @@
+# test: a cold closure keeps recursive self and generic captured values
+# expect-stdout: kept
+# expect-stdout: text
+# expect-stdout: 7
+fn make(value: string) -> fn!(usize) -> string:
+    read := fn!(n: usize) -> string:
+        if n == 0: value else: read!(n - 1)
+    read
+
+fn generic[T < 'static](value: T) -> fn!() -> T:
+    fn!() -> T: value
+
+pub fn main!() -> void $ Console:
+    read := make("kept")
+    println(read!(3))
+    text := generic("text")
+    number := generic(+7)
+    println(text!())
+    println(number!())

@@ -53,6 +53,7 @@ pub(crate) mod cache;
 pub(crate) mod captures;
 pub(crate) mod child;
 pub(crate) mod cold;
+pub(crate) mod cold_captures;
 pub(crate) mod cold_row;
 pub(crate) mod counts;
 pub(crate) mod derive;

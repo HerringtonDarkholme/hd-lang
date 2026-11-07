@@ -87,7 +87,7 @@ fn closure_bang!(key: string) -> usize:
 >   release counted reference (last use)
 > app/main/closure_bang
 >   retain counted reference (stored)
->   retain string (conservative: cold constructor)
+>   retain string (stored)
 
 fn stored!(key: string) -> usize:
     loader := fn!(k: string) -> string: fetch!(k)

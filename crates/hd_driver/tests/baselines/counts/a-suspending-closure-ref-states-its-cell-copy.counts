@@ -92,7 +92,7 @@ fn shared!() -> i64:
 >   release counted reference (last use)
 > app/main/shared
 >   retain counted reference (stored)
->   retain counted reference (conservative: cold constructor)
+>   retain counted reference (stored)
 >   retain counted reference (stored)
     run!()
 >   retain counted reference (stored)

@@ -1,6 +1,9 @@
 //! Shared writing and verification of operation and function-boundary count statements.
 
-use super::{OwnCx, abi, cache, captures, child, cold, cold_row, map_key, referent, splice, waker};
+use super::{
+    OwnCx, abi, cache, captures, child, cold, cold_captures, cold_row, map_key, referent, splice,
+    waker,
+};
 use crate::ir::{
     Body, Tag, Topology,
     count::{At, Info, Part},
@@ -39,6 +42,7 @@ fn expected(b: &Body, cx: &dyn OwnCx, topo: &Topology) -> Vec<(Tag, u32, Info)> 
     }
     out.extend(referent::counts(b, cx));
     out.extend(captures::counts(b, cx));
+    out.extend(cold_captures::counts(b, cx));
     out.extend(child::counts(b, cx, topo));
     out.extend(waker::counts(b));
     out.extend(

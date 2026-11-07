@@ -84,32 +84,33 @@ fn run_twice!(body: fn!() -> string) -> usize:
 fn closure_bang!(key: string) -> usize:
 > app/main/closure_bang
 >   local $0 key: string [param read captured] value
->     uses $0: entry -> %7 lend, %12 consume last
->   %0 = Retain %17 Cold local $0 #0 : ()
->   %1 = Retain %17 Entry local $0 #0 : ()
+>     uses $0: entry -> %8 lend, %13 consume last
+>   %0 = Retain %18 Cold local $0 #0 : ()
+>   %1 = Retain %18 Entry local $0 #0 : ()
     run_twice!():
->   %5 = Release %17 FrameDrop child #2 : ()
->   %14 = Await app/main/run_twice[] (%12) : usize
->   %15 = Release %14 Operation child #2 : ()
->   %16 = Drop [%12] : ()
->   %17 = Block %14 : usize
+>   %6 = Release %18 FrameDrop child #2 : ()
+>   %15 = Await app/main/run_twice[] (%13) : usize
+>   %16 = Release %15 Operation child #2 : ()
+>   %17 = Drop [%13] : ()
+>   %18 = Block %15 : usize
         fetch!(key)
->   %2 = Retain %11 Cold row #0 : ()
->   %3 = Retain %11 Materialize row #0 : ()
->   %4 = Release %11 FrameDrop row #2 : ()
->   %6 = Release %11 FrameDrop child #2 : ()
->   %7 = Read move [$0] : string
->   %8 = Await app/main/fetch[] (%7) : string
->   %9 = Release %8 Operation child #2 : ()
->   %10 = Drop [%7] : ()
->   %11 = Block %8 : string
->   %12 = Closure #1 [%0 %1] : fn!() -> string
->   %13 = Retain %12 Operation captures #0 : ()
+>   %2 = Retain %12 Cold row #0 : ()
+>   %3 = Retain %12 Materialize row #0 : ()
+>   %4 = Release %12 FrameDrop row #2 : ()
+>   %5 = Retain %12 Cold captures #0 : ()
+>   %7 = Release %12 FrameDrop child #2 : ()
+>   %8 = Read move [$0] : string
+>   %9 = Await app/main/fetch[] (%8) : string
+>   %10 = Release %9 Operation child #2 : ()
+>   %11 = Drop [%8] : ()
+>   %12 = Block %9 : string
+>   %13 = Closure #1 [%0 %1] : fn!() -> string
+>   %14 = Retain %13 Operation captures #0 : ()
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary none
->   unwind %8 drops [%7]
->   unwind %14 drops [%12]
+>   unwind %9 drops [%8]
+>   unwind %15 drops [%13]
 
 fn stored!(key: string) -> usize:
 > app/main/stored
