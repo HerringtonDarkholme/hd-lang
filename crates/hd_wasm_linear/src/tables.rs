@@ -133,6 +133,17 @@ fn choice(body: &[Ins], spans: &[Option<(usize, usize)>], start: usize) -> Optio
     if rows.len() < 3 {
         return None;
     }
+    // A result the next instruction drops needs no column.
+    let mut end = end;
+    if result.is_some()
+        && matches!(body.get(end + 1), Some(Ins::Op(I::Drop)))
+        && rows[0].values.len() > 1
+    {
+        for r in &mut rows {
+            r.values.retain(|v| v.1.is_some());
+        }
+        end += 1;
+    }
     let columns = &rows[0].values;
     if rows.iter().any(|r| {
         r.values.len() != columns.len()
