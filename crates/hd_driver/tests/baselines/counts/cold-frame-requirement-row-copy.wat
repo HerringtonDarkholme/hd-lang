@@ -163,25 +163,14 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $read.drop (param $t0 i32) (local $t1 i32)
+  (func $read.drop (param $t0 i32)
     ;; 8 |     $.use(Value).value()
     local.get $t0
     i32.load $heap offset=24
-    local.tee $t1
-    if
-      local.get $t1
-      call $rt:release_ref
-    end
-    local.get $t0
-    i32.load $heap offset=16
+    local.tee $t0
     if
       local.get $t0
-      i32.load $heap offset=16
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref
-      end
+      call $rt:release_ref
     end
   )
   (func $read'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)

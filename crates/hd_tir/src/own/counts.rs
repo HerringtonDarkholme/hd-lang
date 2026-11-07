@@ -13,7 +13,7 @@ fn key(tag: Tag, target: u32, info: Info) -> (u32, u32, Info) {
     (target, tag as u32, info)
 }
 
-fn expected(b: &Body, cx: &dyn OwnCx) -> Vec<(Tag, u32, Info)> {
+fn expected(b: &Body, cx: &dyn OwnCx, topo: &Topology) -> Vec<(Tag, u32, Info)> {
     let root = b.sub_root[0];
     let mut out = Vec::new();
     out.extend(
@@ -37,7 +37,7 @@ fn expected(b: &Body, cx: &dyn OwnCx) -> Vec<(Tag, u32, Info)> {
             out.push((Tag::Retain, root, Info::new(at, Part::Result, 0)));
         }
     }
-    out.extend(child::counts(b));
+    out.extend(child::counts(b, cx, topo));
     out.extend(waker::counts(b));
     out.extend(
         (0..b.len())
@@ -59,7 +59,7 @@ pub(super) fn run(
     topo: &Topology,
     edits: &mut splice::Tables,
 ) -> Result<(), String> {
-    let wanted = expected(b, cx);
+    let wanted = expected(b, cx, topo);
     // Index the existing declarations once, not once per closure. On the
     // first run this is empty; value counts have a separate producer.
     let mut existing = Vec::new();
@@ -101,7 +101,7 @@ pub(super) fn run(
 }
 
 pub(crate) fn verify(b: &Body, cx: &dyn OwnCx, topo: &Topology, mut err: impl FnMut(u32, String)) {
-    let expected = expected(b, cx);
+    let expected = expected(b, cx, topo);
     let mut index: Vec<_> = expected
         .iter()
         .enumerate()

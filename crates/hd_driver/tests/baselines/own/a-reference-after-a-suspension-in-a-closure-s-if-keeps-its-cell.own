@@ -29,11 +29,11 @@ fn start() -> fn!(bool) -> void:
 > app/main/start
 >   local $0 d: Counter [read assigned captured captured-assigned] place
 >   local $1 go: bool [param read] value
->     uses $1: entry -> %11 lend last
+>     uses $1: entry -> %12 lend last
 >   local $2 c: Counter [read assigned captured captured-assigned] place
 >   %0 = NewStruct [0:i32 "d"] : Counter
 >   %1 = Store [$0] %0 : ()
->   %22 = Block %21 : fn!(bool) -> ()
+>   %23 = Block %22 : fn!(bool) -> ()
     tick(&mut d)
 >   %2 = Ref mut local frame [$0] : Counted[mut Counter]
 >   %3 = Call app/main/tick[] (%2) : ()
@@ -41,25 +41,26 @@ fn start() -> fn!(bool) -> void:
 >   %5 = Drop [$0] : ()
 >   %2 finds [$0] full
     fn!(go: bool) -> void:
->   %6 = Retain %20 Cold row #0 : ()
->   %7 = Retain %20 Materialize row #0 : ()
->   %8 = Release %20 FrameDrop row #2 : ()
->   %20 = Block - : ()
->   %21 = Closure #1 [%0 %0] : fn!(bool) -> ()
+>   %6 = Retain %21 Cold row #0 : ()
+>   %7 = Retain %21 Materialize row #0 : ()
+>   %8 = Release %21 FrameDrop row #2 : ()
+>   %9 = Release %21 FrameDrop child #2 : ()
+>   %21 = Block - : ()
+>   %22 = Closure #1 [%0 %0] : fn!(bool) -> ()
         let mut c = Counter { hits: +0, name: "a" }
->   %9 = NewStruct [0:i32 "a"] : Counter
->   %10 = Store [$2] %9 : ()
+>   %10 = NewStruct [0:i32 "a"] : Counter
+>   %11 = Store [$2] %10 : ()
         if go:
->   %11 = Read copy [$1] : bool
->   %15 = If %11 [%14 -] : ()
+>   %12 = Read copy [$1] : bool
+>   %16 = If %12 [%15 -] : ()
             pause!()
->   %12 = Await app/main/pause[] () : ()
->   %13 = Release %12 Operation child #2 : ()
->   %14 = Block - : ()
+>   %13 = Await app/main/pause[] () : ()
+>   %14 = Release %13 Operation child #2 : ()
+>   %15 = Block - : ()
         tick(&mut c)
->   %16 = Ref mut local [$2] : Counted[mut Counter]
->   %17 = Call app/main/tick[] (%16) : ()
->   %18 = Drop [%16] : ()
->   %19 = Drop [$2] : ()
->   %16 finds [$2] full
+>   %17 = Ref mut local [$2] : Counted[mut Counter]
+>   %18 = Call app/main/tick[] (%17) : ()
+>   %19 = Drop [%17] : ()
+>   %20 = Drop [$2] : ()
+>   %17 finds [$2] full
 >   exit sub 1 drops [$2]

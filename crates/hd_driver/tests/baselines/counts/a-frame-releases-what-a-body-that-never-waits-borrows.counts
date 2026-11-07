@@ -13,15 +13,12 @@ fn change!(n: *mut Note) -> usize:
 >   release counted reference (overwritten)
 > std/rt_tests.stage_case/change
 >   release &mut std.rt_tests.stage_case.Note (by design)
->   release counted reference (conservative: frame drop)
 > std/rt_tests.stage_case/change
 >   retain &mut std.rt_tests.stage_case.Note (stored)
     n.text.len()
 
 fn other!() -> usize:
     1
-> std/rt_tests.stage_case/other
->   release counted reference (conservative: frame drop)
 
 pub fn main!() -> void $ Console:
     n := box::[Note](Note { text: "n" })
@@ -39,7 +36,6 @@ pub fn main!() -> void $ Console:
 >   release Suspend[usize] (cancelled)
 >   release counted reference (last use)
 >   release counted reference (last use)
->   release counted reference (conservative: frame drop)
 > std/rt_tests.stage_case/main
 >   retain counted reference (stored)
     let (a, _) = join!(change(n), other())

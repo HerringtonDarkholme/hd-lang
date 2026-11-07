@@ -1196,25 +1196,14 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $fetch.drop (param $t0 i32) (local $t1 i32)
+  (func $fetch.drop (param $t0 i32)
     ;; 23 |     key + "?"
     local.get $t0
     i32.load $heap offset=24
-    local.tee $t1
-    if
-      local.get $t1
-      call $rt:release_ref'2
-    end
-    local.get $t0
-    i32.load $heap offset=16
+    local.tee $t0
     if
       local.get $t0
-      i32.load $heap offset=16
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'2
-      end
+      call $rt:release_ref'2
     end
   )
   (func $fetch'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
@@ -2191,25 +2180,14 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $tagged.drop (param $t0 i32) (local $t1 i32)
+  (func $tagged.drop (param $t0 i32)
     ;; 26 |     $.use(Tag).name().len()
     local.get $t0
     i32.load $heap offset=24
-    local.tee $t1
-    if
-      local.get $t1
-      call $rt:release_ref'2
-    end
-    local.get $t0
-    i32.load $heap offset=16
+    local.tee $t0
     if
       local.get $t0
-      i32.load $heap offset=16
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'2
-      end
+      call $rt:release_ref'2
     end
   )
   (func $tagged'1 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)

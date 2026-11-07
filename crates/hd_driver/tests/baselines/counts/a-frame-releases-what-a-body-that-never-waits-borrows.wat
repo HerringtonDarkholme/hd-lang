@@ -1505,17 +1505,6 @@
       local.get $t1
       call $rt:release_ref'2
     end
-    local.get $t0
-    i32.load $heap offset=16
-    if
-      local.get $t0
-      i32.load $heap offset=16
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'2
-      end
-    end
   )
   (func $main'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
     ;; 17 |     n := box::[Note](Note { text: "n" })
@@ -1711,32 +1700,21 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $change.drop (param $t0 i32) (local $t1 i32)
+  (func $change.drop (param $t0 i32)
     ;; 10 |     n.text = "m"
     local.get $t0
     i32.load $heap offset=24
-    local.tee $t1
+    local.tee $t0
     if
-      local.get $t1
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t1
+        local.get $t0
         call $rt:release_ref'1
-      end
-    end
-    local.get $t0
-    i32.load $heap offset=16
-    if
-      local.get $t0
-      i32.load $heap offset=16
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'2
       end
     end
   )
@@ -1895,20 +1873,6 @@
     local.get $t1
     local.get $t0
     call $rt:cancel_leave
-  )
-  (func $other.drop (param $t0 i32)
-    ;; 14 |     1
-    local.get $t0
-    i32.load $heap offset=16
-    if
-      local.get $t0
-      i32.load $heap offset=16
-      local.tee $t0
-      if
-        local.get $t0
-        call $rt:release_ref'2
-      end
-    end
   )
   (func $other'1 (result i32)
     ;; 14 |     1

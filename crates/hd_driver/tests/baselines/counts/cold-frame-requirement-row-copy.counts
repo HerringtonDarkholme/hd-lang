@@ -9,6 +9,5 @@ fn read!() -> i32 $ Value:
     $.use(Value).value()
 > app/main/read
 >   release counted reference (last use)
->   release counted reference (conservative: frame drop)
 > app/main/read
 >   retain counted reference (stored)

@@ -28,7 +28,7 @@ fn pause!() -> string $ Clock:
 >   release string (cancelled)
 > app/main/pause
 >   release counted reference (last use)
->   release counted reference (conservative: frame drop)
+>   release counted reference (last use)
 > app/main/pause
 >   retain counted reference (stored)
     "x"
@@ -47,7 +47,7 @@ fn holds!() -> usize $ Clock:
 > app/main/holds
 >   release string (cancelled)
 >   release counted reference (last use)
->   release counted reference (conservative: frame drop)
+>   release counted reference (last use)
 > app/main/holds
 >   retain counted reference (stored)
 
@@ -59,7 +59,7 @@ fn gone!() -> usize $ Clock:
 >   release counted reference (last use)
 > app/main/gone
 >   release counted reference (last use)
->   release counted reference (conservative: frame drop)
+>   release counted reference (last use)
 > app/main/gone
 >   retain counted reference (stored)
     sleep!(ms(1))

@@ -174,7 +174,7 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $length.drop (param $t0 i32) (local $t1 i32)
+  (func $length.drop (param $t0 i32)
     ;; 5 |     text.len()
     local.get $t0
     i32.load $heap offset=12
@@ -184,20 +184,9 @@
     if
       local.get $t0
       i32.load $heap offset=24
-      local.tee $t1
+      local.tee $t0
       if
-        local.get $t1
-        call $rt:release_ref
-      end
-    end
-    local.get $t0
-    i32.load $heap offset=16
-    if
-      local.get $t0
-      i32.load $heap offset=16
-      local.tee $t1
-      if
-        local.get $t1
+        local.get $t0
         call $rt:release_ref
       end
     end

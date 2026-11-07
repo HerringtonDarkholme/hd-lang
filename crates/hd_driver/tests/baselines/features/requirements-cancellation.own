@@ -24,42 +24,43 @@ fn fetch!(key: string) -> string:
 fn stop!(key: string) -> bool:
 > app/main/stop
 >   local $0 key: string [param read] value
->     uses $0: entry -> %2 lend last
+>     uses $0: entry -> %3 lend last
 >   local $1 job: mut Suspend[string] [read assigned] value
->     uses $1: %5 -> %6 lend last
+>     uses $1: %6 -> %7 lend last
 >   local $2 end: CleanupEnd [:= read assigned] value
->     uses $2: %10 -> %11 lend last
->   %0 = Retain %25 Cold local $0 #0 : ()
->   %1 = Retain %25 Entry local $0 #0 : ()
+>     uses $2: %11 -> %12 lend last
+>   %0 = Retain %26 Cold local $0 #0 : ()
+>   %1 = Retain %26 Entry local $0 #0 : ()
     let mut job = fetch(key)
->   %2 = Read move [$0] : string
->   %3 = Call app/main/fetch[] (%2) : mut Suspend[string]
->   %4 = Drop [%2] : ()
->   %5 = Store [$1] %3 : ()
->   %25 = Block %24 : bool
+>   %2 = Release %26 FrameDrop child #2 : ()
+>   %3 = Read move [$0] : string
+>   %4 = Call app/main/fetch[] (%3) : mut Suspend[string]
+>   %5 = Drop [%3] : ()
+>   %6 = Store [$1] %4 : ()
+>   %26 = Block %25 : bool
     end := job.cancel!()
->   %6 = Read move [$1] : mut Suspend[string]
->   %7 = Await std/task/impl [ T ] Suspend [ T ].cancel[string] (%6) : CleanupEnd
->   %8 = Release %7 Operation child #2 : ()
->   %9 = Drop [%6] : ()
->   %10 = Store [$2] %7 : ()
+>   %7 = Read move [$1] : mut Suspend[string]
+>   %8 = Await std/task/impl [ T ] Suspend [ T ].cancel[string] (%7) : CleanupEnd
+>   %9 = Release %8 Operation child #2 : ()
+>   %10 = Drop [%7] : ()
+>   %11 = Store [$2] %8 : ()
     match end:
->   %11 = Read copy [$2] : CleanupEnd
->   %23 = Block - : never
->   %24 = Match %11 [%23 %12 %13] : bool
+>   %12 = Read copy [$2] : CleanupEnd
+>   %24 = Block - : never
+>   %25 = Match %12 [%24 %13 %14] : bool
         .Finished => true
->   %12 = Block 1:bool : bool
->   %15 = Block - : never
->   %21 = Block - : never
->   %22 = SwitchTag %11 [#0 %15 %21] : never
+>   %13 = Block 1:bool : bool
+>   %16 = Block - : never
+>   %22 = Block - : never
+>   %23 = SwitchTag %12 [#0 %16 %22] : never
         .Abandoned => false
->   %13 = Block 0:bool : bool
->   %17 = Block - : never
->   %19 = Block - : never
->   %20 = SwitchTag %11 [#1 %17 %19] : never
+>   %14 = Block 0:bool : bool
+>   %18 = Block - : never
+>   %20 = Block - : never
+>   %21 = SwitchTag %12 [#1 %18 %20] : never
 >   exit sub 0 drops [$0]
 >   summary none
->   unwind %7 drops [%6]
+>   unwind %8 drops [%7]
 
 fn drop_now(key: string) -> void:
 > app/main/drop_now

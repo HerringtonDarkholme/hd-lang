@@ -131,67 +131,70 @@ fn pause!() -> string $ Clock:
     sleep!(ms(1))
 > app/main/pause
 >   local $0 count: i64 [read] value
->     uses $0: %3 -> %4 lend last
->   %0 = Retain %11 Cold row #0 : ()
->   %1 = Retain %11 Materialize row #0 : ()
->   %2 = Release %11 FrameDrop row #2 : ()
->   %3 = Store [$0] 1:i64 : ()
->   %4 = Read copy [$0] : i64
->   %5 = Call std/time/impl Duration.milliseconds[] (%4) : Duration
->   %6 = Break L0 %5 : never
->   %7 = Block - : Duration
->   %8 = Scope %7 [] : Duration
->   %9 = Await std/time/sleep[] (%8) : ()
->   %10 = Release %9 Operation child #2 : ()
->   %11 = Block "x" : string
+>     uses $0: %4 -> %5 lend last
+>   %0 = Retain %12 Cold row #0 : ()
+>   %1 = Retain %12 Materialize row #0 : ()
+>   %2 = Release %12 FrameDrop row #2 : ()
+>   %3 = Release %12 FrameDrop child #2 : ()
+>   %4 = Store [$0] 1:i64 : ()
+>   %5 = Read copy [$0] : i64
+>   %6 = Call std/time/impl Duration.milliseconds[] (%5) : Duration
+>   %7 = Break L0 %6 : never
+>   %8 = Block - : Duration
+>   %9 = Scope %8 [] : Duration
+>   %10 = Await std/time/sleep[] (%9) : ()
+>   %11 = Release %10 Operation child #2 : ()
+>   %12 = Block "x" : string
 >   summary none
     "x"
 
 fn holds!() -> usize $ Clock:
     total(text(1), pause!())
 > app/main/holds
->   %0 = Retain %9 Cold row #0 : ()
->   %1 = Retain %9 Materialize row #0 : ()
->   %2 = Release %9 FrameDrop row #2 : ()
->   %3 = Call app/main/text[] (1:i32) : string
->   %4 = Await app/main/pause[] () : string
->   %5 = Release %4 Operation child #2 : ()
->   %6 = Call app/main/total[] (%3, %4) : usize
->   %7 = Drop [%4] : ()
->   %8 = Drop [%3] : ()
->   %9 = Block %6 : usize
+>   %0 = Retain %10 Cold row #0 : ()
+>   %1 = Retain %10 Materialize row #0 : ()
+>   %2 = Release %10 FrameDrop row #2 : ()
+>   %3 = Release %10 FrameDrop child #2 : ()
+>   %4 = Call app/main/text[] (1:i32) : string
+>   %5 = Await app/main/pause[] () : string
+>   %6 = Release %5 Operation child #2 : ()
+>   %7 = Call app/main/total[] (%4, %5) : usize
+>   %8 = Drop [%5] : ()
+>   %9 = Drop [%4] : ()
+>   %10 = Block %7 : usize
 >   summary none
->   unwind %4 drops [%3]
+>   unwind %5 drops [%4]
 
 fn gone!() -> usize $ Clock:
     n := text(1).len()
 > app/main/gone
 >   local $0 $ref: string [read assigned captured captured-assigned] place
 >   local $1 n: usize [:= read assigned] value
->     uses $1: %9 -> %18 consume last
+>     uses $1: %10 -> %19 consume last
 >   local $2 count: i64 [read] value
->     uses $2: %10 -> %11 lend last
->   %0 = Retain %19 Cold row #0 : ()
->   %1 = Retain %19 Materialize row #0 : ()
->   %2 = Release %19 FrameDrop row #2 : ()
->   %3 = Call app/main/text[] (1:i32) : string
->   %4 = Store [$0] %3 : ()
->   %5 = Ref local [$0] : Counted[string]
->   %6 = Call std/text/impl string.len[] (%5) : usize
->   %7 = Drop [%5] : ()
->   %8 = Drop [$0] : ()
->   %9 = Store [$1] %6 : ()
->   %19 = Block %18 : usize
->   %5 finds [$0] full
+>     uses $2: %11 -> %12 lend last
+>   %0 = Retain %20 Cold row #0 : ()
+>   %1 = Retain %20 Materialize row #0 : ()
+>   %2 = Release %20 FrameDrop row #2 : ()
+>   %3 = Release %20 FrameDrop child #2 : ()
+>   %4 = Call app/main/text[] (1:i32) : string
+>   %5 = Store [$0] %4 : ()
+>   %6 = Ref local [$0] : Counted[string]
+>   %7 = Call std/text/impl string.len[] (%6) : usize
+>   %8 = Drop [%6] : ()
+>   %9 = Drop [$0] : ()
+>   %10 = Store [$1] %7 : ()
+>   %20 = Block %19 : usize
+>   %6 finds [$0] full
     sleep!(ms(1))
->   %10 = Store [$2] 1:i64 : ()
->   %11 = Read copy [$2] : i64
->   %12 = Call std/time/impl Duration.milliseconds[] (%11) : Duration
->   %13 = Break L0 %12 : never
->   %14 = Block - : Duration
->   %15 = Scope %14 [] : Duration
->   %16 = Await std/time/sleep[] (%15) : ()
->   %17 = Release %16 Operation child #2 : ()
+>   %11 = Store [$2] 1:i64 : ()
+>   %12 = Read copy [$2] : i64
+>   %13 = Call std/time/impl Duration.milliseconds[] (%12) : Duration
+>   %14 = Break L0 %13 : never
+>   %15 = Block - : Duration
+>   %16 = Scope %15 [] : Duration
+>   %17 = Await std/time/sleep[] (%16) : ()
+>   %18 = Release %17 Operation child #2 : ()
     n
->   %18 = Read copy [$1] : usize
+>   %19 = Read copy [$1] : usize
 >   summary none

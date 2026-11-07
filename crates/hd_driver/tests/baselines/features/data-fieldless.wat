@@ -12,8 +12,4 @@
     local.get $name.0
     local.get $name.1
   )
-  (func $make
-    ;; 13 |     Unit {}
-    ?
-  )
 )
