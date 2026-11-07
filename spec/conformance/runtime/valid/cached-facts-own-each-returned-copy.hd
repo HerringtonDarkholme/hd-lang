@@ -1,0 +1,42 @@
+# test: fresh and cached facts calls each return an independently owned copy
+# expect-stdout: true true
+use std.annotation.annotate
+use std.structure.{Field, Structure, Variant, Walker}
+
+@annotate::[string](.Field)
+struct Mark:
+    label: string
+
+struct Reader[S]:
+    found: bool
+
+impl[S] Walker[S] for Reader[S]:
+    type Error = never
+    fn variant(&mut self, variant: Variant[S]) -> Result[void, never]:
+        .Ok(())
+    fn member[F](&mut self, handle: Field[S, F], value: &F) -> Result[void, never]:
+        self.found = !handle.info.facts.items.is_empty()
+        .Ok(())
+
+trait HasFacts:
+    fn has_facts(self) -> bool
+
+impl[T] HasFacts for T by Structure:
+    fn has_facts(self) -> bool:
+        let mut reader = Reader::[T] { found: false }
+        _ := Structure::walk(&self, &mut reader)
+        reader.found
+
+struct Record:
+    name: string
+
+impl HasFacts for Record by Structure:
+    name = [Mark { label: "mark" }]
+
+fn inspect_field() -> bool:
+    Record { name: "name" }.has_facts()
+
+pub fn main() -> void $ Console:
+    first := inspect_field()
+    second := inspect_field()
+    println("$first $second")

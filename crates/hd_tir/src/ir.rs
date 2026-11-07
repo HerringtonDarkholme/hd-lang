@@ -184,6 +184,18 @@ tags! {
     // not at this statement's lexical position. a is its local place;
     // b is the ownership reason. A borrowed ABI argument takes no count.
     ExitDrop: Place, Meta;
+    // Declares a Fact/Handle cache payload copy, lowered at cache lookup
+    // or publication, not at this statement's lexical position.
+    // a is cache_copy's phase; b is the ownership reason.
+    CacheCopy: Meta, Meta;
+}
+
+/// The two owned copies of a counted Fact/Handle result cache.
+pub mod cache_copy {
+    /// A cache hit returns a copy while the cache retains its own value.
+    pub const READ: u32 = 0;
+    /// A freshly computed result is copied into the persistent cache.
+    pub const WRITE: u32 = 1;
 }
 
 /// `Prim` operators (the `Meta` word of a `Prim` instruction).
@@ -2219,6 +2231,7 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
             | Tag::LoanEnd
             | Tag::Retain
             | Tag::ExitDrop
+            | Tag::CacheCopy
             | Tag::IsUnique
             | Tag::FlagSet
             | Tag::FlagClear => {
@@ -3883,7 +3896,7 @@ mod tests {
         let root = b.close_block(blk, Some(one), Ty::I32, NodeIdx::NONE);
         let body = b.finish(root, &[]).expect("ok");
         assert_eq!(body.len(), 1);
-        assert_eq!(Tag::ALL.len(), 58);
+        assert_eq!(Tag::ALL.len(), 59);
         assert!(
             Tag::ALL
                 .iter()

@@ -101,6 +101,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     decided(b, &mut errs);
     retained_results(b, own, &topo, &mut errs);
     exit_parameters(b, own, &topo, &mut errs);
+    cache_copies(b, own, &topo, &mut errs);
     takes_outside_suspension(b, &topo, &mut errs);
     change_places(b, &topo, &mut errs);
     hoisted(b, &topo, own, &mut errs);
@@ -114,6 +115,45 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     Balance::new(b, &topo, own).walk(&mut errs);
     copies(b, &mut errs);
     errs
+}
+
+/// A counted persistent cache owns a copy and returns a copy on each hit.
+fn cache_copies(b: &Body, cx: &dyn OwnCx, topo: &Topology, errs: &mut Vec<VerifyError>) {
+    let wanted = crate::own::cache::counted(b, cx);
+    let root = b.sub_root[0];
+    if wanted {
+        for phase in [super::cache_copy::READ, super::cache_copy::WRITE] {
+            let n = b
+                .record(b.data[root as usize][0])
+                .iter()
+                .filter(|&&i| {
+                    b.tags[i as usize] == Tag::CacheCopy && b.data[i as usize][0] == phase
+                })
+                .count();
+            if n != 1 {
+                err(
+                    errs,
+                    root,
+                    "a counted cache lacks its one cache copy per phase".into(),
+                );
+            }
+        }
+    }
+    for i in 0..b.len() {
+        if b.tags[i] == Tag::CacheCopy
+            && (!wanted
+                || topo.blk[i] != root
+                || ![super::cache_copy::READ, super::cache_copy::WRITE].contains(&b.data[i][0])
+                || b.data[i][1] != 0
+                || b.ty[i] != hd_types::Ty::VOID)
+        {
+            err(
+                errs,
+                u32_of(i),
+                "a cache copy without a counted-cache-copy proof".into(),
+            );
+        }
+    }
 }
 
 /// The ABI's count is released once at the common exit, independently of

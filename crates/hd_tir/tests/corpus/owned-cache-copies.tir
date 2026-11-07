@@ -1,0 +1,12 @@
+# expect: owned
+body 8 Handle
+local 78 0 - 32
+sub 3 0 0 - 0
+labels
+caps
+modes
+extra 3 0 1 2
+%0 = CacheCopy 0 0 : 18 @-
+%1 = CacheCopy 1 0 : 18 @-
+%2 = Read 2147483648 3 : 78 @-
+%3 = Block 0 2 : 78 @-

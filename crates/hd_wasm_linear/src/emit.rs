@@ -631,7 +631,9 @@ impl OnceCell<'_> {
         }
         let held = self.load_cached(&mut em.f);
         // The global keeps its count; every caller receives a fresh one.
-        em.retain_locals(&held, ret)?;
+        if let Some(reason) = em.cache_copy(hd_tir::ir::cache_copy::READ) {
+            em.because(reason, |em| em.retain_locals(&held, ret))?;
+        }
         Self::return_cached(&mut em.f, &held);
         let flag = self.global(self.results.len());
         if let Some(label) = self.fact {
@@ -658,7 +660,10 @@ impl OnceCell<'_> {
         }
         // The result already owns its caller's count; the global takes a
         // copy.
-        let kept = em.copy_locals(&held, ret)?;
+        let kept = match em.cache_copy(hd_tir::ir::cache_copy::WRITE) {
+            Some(reason) => em.because(reason, |em| em.copy_locals(&held, ret))?,
+            None => held.clone(),
+        };
         self.publish(&mut em.f, &kept);
         if self.fact.is_some() {
             em.f.i32(-1);
@@ -1920,7 +1925,7 @@ impl Em<'_, '_, '_> {
             // The ownership passes' statements (`count.rs`).
             Tag::Retain => self.own_retain(a)?,
             // A declaration lowered at the common exit, including returns.
-            Tag::ExitDrop => {}
+            Tag::ExitDrop | Tag::CacheCopy => {}
             Tag::LoanEnd => {
                 self.borrow_drop(i);
                 self.end_short_loan(i)?;
