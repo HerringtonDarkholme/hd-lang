@@ -1,0 +1,19 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: a spread's argument-copy packet and row packet are independent; scalar helpers fold away, and matching arity needs no spread packet.
+use std.function.{Fn, Tuple}
+
+trait Tag:
+    fn value(self) -> usize
+
+fn call[Args < Tuple, O, $ R](f: Fn[Args, O, $ R], args: Args) -> O $ R:
+    f(args...)
+
+fn spread(f: fn(string, List[i32]) -> usize $ Tag, values: (string, List[i32])) -> usize $ Tag:
+    call(f, values)
+
+fn scalars(f: fn(i32, usize) -> i32, values: (i32, usize)) -> i32:
+    call(f, values)
+
+fn one(f: fn((string, List[i32])) -> usize, value: (string, List[i32])) -> usize:
+    f(value)

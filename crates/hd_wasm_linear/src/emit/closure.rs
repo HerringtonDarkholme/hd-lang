@@ -828,7 +828,8 @@ impl Em<'_, '_, '_> {
         }
         self.comp(callee, 1)?;
         // A suspending value's code counts each argument into its frame.
-        self.push_args(args, (!suspends).then_some(&tys[..]), 0)?;
+        let copy = self.operation_count(i, Tag::Retain, hd_tir::ir::count::Part::Arguments);
+        self.push_args(args, (!suspends).then_some(&tys[..]), 0, copy)?;
         let c = self.push_fn_ctx(i, ft)?;
         ps.push(Val::I32);
         let results = self.vals(self.ty(i))?;

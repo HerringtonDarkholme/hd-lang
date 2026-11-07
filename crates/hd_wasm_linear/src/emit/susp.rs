@@ -607,7 +607,7 @@ impl Em<'_, '_, '_> {
             self.shield_enter(k, ch, &tmp, nc);
         }
         self.f.get(ch);
-        self.push_args(args, None, 0)?;
+        self.push_args(args, None, 0, self.f.reason)?;
         let c = self.push_call_providers(i, item, targs)?;
         self.f.call(Sym::Part(key, Part::Body));
         self.f.set(nc);

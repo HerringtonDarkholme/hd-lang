@@ -1633,6 +1633,7 @@ runtime/valid/a-parenthesized-chain-is-a-value.hd	runtime	accept	lang/02-grammar
 runtime/valid/a-push-through-a-map-value-with-a-computed-key-keeps-every-element.hd	runtime	accept	lang/04-type-system.md#r-types.coll.map-value.place
 runtime/valid/a-read-of-a-binding-during-its-mut-self-call-sees-the-unchanged-value.hd	runtime	accept	lang/07-functions.md#r-fn.method.receiver.mut-self
 runtime/valid/a-spread-through-a-value-passes-each-element.hd	runtime	accept	lang/07-functions.md#function-types-and-values
+runtime/valid/a-function-value-spread-keeps-its-arguments-and-row.hd	runtime	accept	lang/07-functions.md#function-types-and-values
 runtime/valid/a-three-link-chain-binds-every-name.hd	runtime	accept	lang/02-grammar.md#r-grammar.stmt.chain
 runtime/valid/a-top-level-chain-declares-every-name-once.hd	runtime	accept	lang/02-grammar.md#r-grammar.stmt.chain
 runtime/valid/abandon-carries-to-parent.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.abandon.carry

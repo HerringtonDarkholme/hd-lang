@@ -49,6 +49,7 @@ use crate::ir::{
 pub use hoist::{EntryTest, entry_test, loop_statements, loop_test};
 
 pub(crate) mod abi;
+pub(crate) mod arguments;
 pub(crate) mod cache;
 pub(crate) mod call_row;
 pub(crate) mod captures;
@@ -151,6 +152,13 @@ pub trait OwnCx {
     /// fact, including for a closure whose item is its creator's item.
     fn function_suspends(&self, ty: Ty) -> bool {
         let _ = ty;
+        false
+    }
+    /// Whether a plain function's input shape may flatten `args` operand
+    /// values into a different number of ABI parameters. An unresolved
+    /// Tuple-bounded input tuple is decided by its concrete instance.
+    fn function_spreads_arguments(&self, ty: Ty, args: usize) -> bool {
+        let _ = (ty, args);
         false
     }
     /// Whether a function type's row names keys or row parameters. A call

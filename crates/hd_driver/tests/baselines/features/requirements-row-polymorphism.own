@@ -90,10 +90,8 @@ fn run(s: string) -> usize:
 >   %0 = Read move [$0] : string
 >   %1 = ItemRef #0 [..] : fn() -> usize
 >   %2 = Call app/main/with_tag[$()] (%0, %1) : usize
->   %3 = Retain %2 Operation row #0 : ()
->   %4 = Release %2 Operation row #2 : ()
->   %5 = Drop [%1] : ()
->   %6 = Block %2 : usize
+>   %3 = Drop [%1] : ()
+>   %4 = Block %2 : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes
 
@@ -120,9 +118,7 @@ fn closure(s: string) -> usize:
 >   %13 = Block %11 : usize
 >   %14 = Closure #1 [%0 %0] : fn() -> usize
 >   %15 = Call app/main/with_tag[$()] (%0, %14) : usize
->   %16 = Retain %15 Operation row #0 : ()
->   %17 = Release %15 Operation row #2 : ()
->   %18 = Drop [%14] : ()
->   %19 = Block %15 : usize
+>   %16 = Drop [%14] : ()
+>   %17 = Block %15 : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes

@@ -1,0 +1,27 @@
+# test: a function-value spread keeps its arguments and row
+# expect-stdout: hello Ada 2
+# expect-stdout: 3
+use std.function.{Fn, Tuple}
+
+pub trait Label:
+    fn prefix(self) -> string
+
+struct Prefix:
+    text: string
+
+impl Label for Prefix:
+    fn prefix(self) -> string:
+        self.text
+
+fn call[Args < Tuple, O, $ R](f: Fn[Args, O, $ R], args: Args) -> O $ R:
+    f(args...)
+
+fn greet(name: string, items: List[i32]) -> string $ Label:
+    $.use(Label).prefix() + name + " ${items.len()}"
+
+pub fn main() -> void $ Console:
+    let mut items: List[i32] = [+1, 2]
+    $.with(Label=Prefix { text: "hello " }):
+        println(call(greet, ("Ada", items)))
+    items.push(3)
+    println(items.len())

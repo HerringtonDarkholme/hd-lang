@@ -1264,7 +1264,6 @@ fn glue_site(t: Tag) -> Option<Reason> {
         Tag::Await
             | Tag::AwaitAll
             | Tag::Call
-            | Tag::CallValue
             | Tag::Coerce
             | Tag::CopyStruct
             | Tag::DefaultCall
@@ -2471,6 +2470,7 @@ impl Em<'_, '_, '_> {
         args: &[u32],
         params: Option<&[Ty]>,
         lends: u64,
+        copy: Option<Reason>,
     ) -> StageResult<()> {
         let Some(params) = params else {
             for r in args {
@@ -2511,9 +2511,14 @@ impl Em<'_, '_, '_> {
                 for &(r, k) in part {
                     self.comp(r, k)?;
                 }
-                self.f.helper(Helper::Retain {
-                    vals: vs.clone(),
-                    walk,
+                let Some(copy) = copy else {
+                    return unsupported("spread arguments without their stated parameter copies");
+                };
+                self.because(copy, |em| {
+                    em.f.helper(Helper::Retain {
+                        vals: vs.clone(),
+                        walk,
+                    });
                 });
             }
             at += vs.len();
@@ -2574,7 +2579,7 @@ impl Em<'_, '_, '_> {
                     let params = self.param_tys(ct.key, ct.item, ct.args);
                     let lends = self.env().lends(ct.item, ct.args)
                         | promote::promoted_params(self.input, self.m, ct.key);
-                    self.push_args(&args, params.as_deref(), lends)?;
+                    self.push_args(&args, params.as_deref(), lends, self.f.reason)?;
                     let c = self.push_call_providers(i, ct.item, ct.args)?;
                     self.f.call(Sym::Inst(ct.key));
                     // A suspending callee called cold returns its frame.
@@ -2699,7 +2704,7 @@ impl Em<'_, '_, '_> {
         self.f.at = at;
         self.f.origin_at = origin;
         self.f.i32(0);
-        self.push_args(args, None, 0)?;
+        self.push_args(args, None, 0, self.f.reason)?;
         let context = self.push_call_providers(i, target.item, target.args)?;
         self.f.call(Sym::Part(target.key, Part::Body));
         self.f.set(frame);
@@ -2882,7 +2887,7 @@ impl Em<'_, '_, '_> {
                 let args = self.rec(bw);
                 let params = self.param_tys(call.key, call.item, call.args);
                 let lends = self.env().lends(call.item, call.args);
-                self.push_args(&args, params.as_deref(), lends)?;
+                self.push_args(&args, params.as_deref(), lends, self.f.reason)?;
                 let c = self.push_call_providers(i, call.item, call.args)?;
                 if bracket {
                     self.forbid_by(1);

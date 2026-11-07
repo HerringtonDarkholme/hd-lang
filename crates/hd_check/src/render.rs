@@ -364,6 +364,7 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
                 Part::Local(l) => ops.push(format!("local ${l}")),
                 Part::Referent(l) => ops.push(format!("referent ${l}")),
                 Part::Captures => ops.push("captures".into()),
+                Part::Arguments => ops.push("arguments".into()),
                 Part::Row => ops.push("row".into()),
                 Part::Child => ops.push("child".into()),
                 Part::Waker => ops.push("waker".into()),

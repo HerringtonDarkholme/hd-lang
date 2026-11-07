@@ -426,6 +426,14 @@ impl OwnCx for Env<'_> {
         matches!(self.run.pool.get(ty), TyData::Fn { suspends: true, .. })
     }
 
+    fn function_spreads_arguments(&self, mut ty: Ty, args: usize) -> bool {
+        while let TyData::Mut(inner) = self.run.pool.get(ty) {
+            ty = inner;
+        }
+        matches!(self.run.pool.get(ty), TyData::Fn { params, inputs, suspends: false, .. }
+            if inputs == hd_types::Inputs::Tuple || self.run.pool.list_items(params).len() != args)
+    }
+
     fn function_has_requirement_row(&self, mut ty: Ty) -> bool {
         while let TyData::Mut(inner) = self.run.pool.get(ty) {
             ty = inner;
@@ -439,8 +447,31 @@ impl OwnCx for Env<'_> {
 
     fn call_has_requirement_context(&self, callee: &Callee) -> bool {
         let chosen = self.chosen(callee);
-        if let Some((def, _)) = self.callee_node(&chosen) {
-            return self.intrinsic(def).is_none() && hd_mono::has_row_params(self, def);
+        let instance = match chosen {
+            Callee::Item { def, targs } => Some((def, targs)),
+            Callee::TraitMethod { .. } => self.impl_target(&chosen),
+        };
+        if let Some((def, args)) = instance {
+            if self.intrinsic(def).is_some() {
+                return false;
+            }
+            // Read the call's row arguments before node() makes them open.
+            // An unresolved argument may acquire keys in its instance.
+            let parent = self.parent(self.generics_owner(def)).map_or(0, |p| p.1);
+            let args = self.run.pool.list_items(args);
+            return self
+                .generic_rows(def)
+                .into_iter()
+                .enumerate()
+                .any(|(j, row)| {
+                    row && args.get(parent + j).is_none_or(|&t| {
+                        let TyData::Row(r) = self.run.pool.get(t) else {
+                            return true;
+                        };
+                        let r = self.run.pool.row_data(r);
+                        !r.keys.is_empty() || !r.params.is_empty()
+                    })
+                });
         }
         // A dynamic slot packages its declared keys too. An unresolved
         // bound keeps the same conditional contract until its instance
