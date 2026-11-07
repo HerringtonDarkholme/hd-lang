@@ -1261,7 +1261,10 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   A place rooted at a read through a `*T`, as a loop over `&mut list`
   makes, crosses that read's dereferences too (`borrow::READ`), and a
   binding a `match` makes from a call's result holds the result's loans.
-  **Elision** (`emit/elide.rs`, in every build): each instance's
+  **Elision** (`hd_tir::own::pointer`, in every build): a whole-program
+  pass at link time returns the kept/lent/result-inner/trait-payload
+  tables that emission reads. These are not explicit loan begin/end
+  statements in the bodies yet. Each instance's
   accesses through a `*T`, by object type, with its callees', make a
   summary; a call of a function or trait value and a suspension access
   everything. A loan is kept only when its

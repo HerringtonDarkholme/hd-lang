@@ -705,29 +705,14 @@ pub(super) fn binds(
     out
 }
 
-/// The program's pointer-loan decisions (`elide.rs`).
+/// Install the TIR link pass's pointer-loan tables for emission.
 pub(crate) fn collect_loans(input: &Input<'_>, m: &mut Module) {
     if input.runtime.is_none() {
         return;
     }
-    super::elide::decide(input, m);
-    if input.runtime.and_then(|runtime| runtime.checked).is_some() {
-        let decisions = super::loan_facts::decide(input, m);
-        assert_eq!(
-            decisions.kept, m.kept,
-            "TIR pointer-loan kept sites disagree"
-        );
-        assert_eq!(
-            decisions.lent, m.lent,
-            "TIR pointer-loan lent types disagree"
-        );
-        assert_eq!(
-            decisions.result_inner, m.result_inner,
-            "TIR pointer-loan result objects disagree"
-        );
-        assert_eq!(
-            decisions.dyn_types, m.dyn_types,
-            "TIR pointer-loan trait payloads disagree"
-        );
-    }
+    let decisions = super::loan_facts::decide(input, m);
+    m.kept = decisions.kept;
+    m.lent = decisions.lent;
+    m.result_inner = decisions.result_inner;
+    m.dyn_types = decisions.dyn_types;
 }
