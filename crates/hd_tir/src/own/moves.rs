@@ -946,10 +946,6 @@ fn apply(
             continue;
         }
         b.data[i][1] = ReadMode::Move as u32;
-        if let Some(d) = part_drop(b, topo, t, i, bit) {
-            edits.remove(d);
-            continue;
-        }
         // A local in memory keeps its whole `Drop`, which releases the
         // rest, the moved part being zero (the backend's move of a part
         // out of a cell).
@@ -982,22 +978,6 @@ fn apply(
             sink(b, topo, cx, t, edits, u32_of(v));
         }
     }
-}
-
-/// The `Drop` of just the part read `i` moved, in its block after it: it has
-/// nothing left to release.
-fn part_drop(b: &Body, topo: &Topology, t: &Tables, i: usize, bit: u32) -> Option<u32> {
-    let word = b.data[i][0];
-    let row = &t.touch[t.start[bit as usize] as usize..t.start[bit as usize + 1] as usize];
-    let k = row.partition_point(|&x| x <= u32_of(i));
-    row[k..].iter().copied().find(|&d| {
-        let d_ = d as usize;
-        b.tags[d_] == Tag::Drop
-            && topo.blk[d_] == topo.blk[i]
-            && b.view(b.data[d_][0]).root == b.view(word).root
-            && covers(b, word, b.data[d_][0])
-            && covers(b, b.data[d_][0], word)
-    })
 }
 
 /// Whether instruction `d` is a `Drop` of all of value `v`.
