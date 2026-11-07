@@ -65,7 +65,18 @@ struct Walk<'a> {
     blind: HashSet<Ty>,
 }
 
-impl Walk<'_> {
+impl<'a> Walk<'a> {
+    fn new(pool: &'a InternPool, env: &'a dyn ProgramEnv) -> Self {
+        Walk {
+            pool,
+            env,
+            fields: HashSet::default(),
+            bad: HashMap::default(),
+            copied: HashSet::default(),
+            blind: HashSet::default(),
+        }
+    }
+
     fn strip(&self, mut t: Ty) -> Ty {
         while let TyData::Mut(inner) = self.pool.get(t) {
             t = inner;
@@ -275,22 +286,8 @@ impl Walk<'_> {
                 _ => {}
             }
         }
-        // A borrowed read that a use consumes, or an argument the callee
-        // may own, takes a count in the backend's glue (`stored`,
-        // `conservative: Intrinsic`, `Call`, `CopyStruct`): a copy too.
-        let mut ops = Vec::new();
-        for i in 0..n {
-            hd_tir::own::operands(b, i, &mut ops);
-            for op in &ops {
-                let v = op.value as usize;
-                if v < n
-                    && b.tags[v] == Tag::Read
-                    && b.data[v][1] == ReadMode::Borrow as u32
-                    && matches!(op.role, Role::Consume | Role::Arg(_) | Role::Tail)
-                {
-                    self.copied.insert(self.strip(sub(b.ty[v])));
-                }
-            }
+        for v in shared_borrows(b) {
+            self.copied.insert(self.strip(sub(b.ty[v])));
         }
         for (l, m) in b.cap_local.iter().zip(&b.cap_mode) {
             if *m == CaptureMode::Copy {
@@ -336,6 +333,60 @@ impl Walk<'_> {
     }
 }
 
+/// Whether statement `i` is a binding: a local's one whole store. Of a borrow,
+/// it holds no count; its own reads answer for it.
+fn binds(b: &Body, stores: &[u32], i: usize) -> bool {
+    let p = b.view(b.data[i][0]);
+    b.tags[i] == Tag::Store && p.whole() && p.local().is_some_and(|l| stores[l as usize] == 1)
+}
+
+/// How many whole stores each local has.
+fn whole_stores(b: &Body) -> Vec<u32> {
+    let mut stores = vec![0; b.local_ty.len()];
+    for i in 0..b.len() {
+        let p = b.view(b.data[i][0]);
+        if b.tags[i] == Tag::Store
+            && p.whole()
+            && let Some(l) = p.local()
+        {
+            stores[l as usize] += 1;
+        }
+    }
+    stores
+}
+
+/// The borrowed reads that a use consumes, or pass as an argument the callee
+/// may own. Each takes a count in the backend's glue (`stored`, `conservative:
+/// Intrinsic`, `Call`, `CopyStruct`), so it is a copy too. A binding's is not.
+fn shared_borrows(b: &Body) -> Vec<usize> {
+    let stores = whole_stores(b);
+    let mut ops = Vec::new();
+    let mut out = Vec::new();
+    for i in 0..b.len() {
+        if binds(b, &stores, i) {
+            continue;
+        }
+        hd_tir::own::operands(b, i, &mut ops);
+        for op in &ops {
+            let v = op.value as usize;
+            if v < b.len()
+                && b.tags[v] == Tag::Read
+                && b.data[v][1] == ReadMode::Borrow as u32
+                && (b.tags[i] == Tag::Retain
+                    || matches!(op.role, Role::Consume | Role::Arg(_) | Role::Tail))
+            {
+                out.push(v);
+            }
+        }
+    }
+    out
+}
+
+/// Whether `IsUnique` word `w` runs at or before its change.
+const fn check_runs(w: u32) -> bool {
+    matches!(w, 0 | hd_tir::ir::unique_word::HOISTED)
+}
+
 /// The single-owner verdict of every collection field a check, store or
 /// construction names, over `bodies` (each with its item and arguments).
 pub(crate) fn single_owner<'b>(
@@ -343,14 +394,7 @@ pub(crate) fn single_owner<'b>(
     env: &dyn ProgramEnv,
     bodies: impl Iterator<Item = (InstId, &'b Body, hd_base::DefId, TyList)>,
 ) -> Verdicts {
-    let mut w = Walk {
-        pool,
-        env,
-        fields: HashSet::default(),
-        bad: HashMap::default(),
-        copied: HashSet::default(),
-        blind: HashSet::default(),
-    };
+    let mut w = Walk::new(pool, env);
     for (_, b, item, args) in bodies {
         let sub = |t: Ty| hd_mono::subst(pool, env, item, args, t);
         w.body(b, &sub);
@@ -383,14 +427,7 @@ pub(crate) fn owned_checks(
     sub: &dyn Fn(Ty) -> Ty,
     verdicts: &Verdicts,
 ) -> Vec<usize> {
-    let w = Walk {
-        pool,
-        env,
-        fields: HashSet::default(),
-        bad: HashMap::default(),
-        copied: HashSet::default(),
-        blind: HashSet::default(),
-    };
+    let w = Walk::new(pool, env);
     (0..b.len())
         .filter(|&i| b.tags[i] == Tag::IsUnique && b.data[i][1] == 0)
         .filter(|&i| {
@@ -413,14 +450,7 @@ pub(crate) fn owned_locals(
     sub: &dyn Fn(Ty) -> Ty,
     verdicts: &Verdicts,
 ) -> Vec<bool> {
-    let w = Walk {
-        pool,
-        env,
-        fields: HashSet::default(),
-        bad: HashMap::default(),
-        copied: HashSet::default(),
-        blind: HashSet::default(),
-    };
+    let w = Walk::new(pool, env);
     let n = b.len();
     let mut good: Vec<bool> = (0..b.local_ty.len())
         .map(|l| {
@@ -443,39 +473,31 @@ pub(crate) fn owned_locals(
             None
         }
     };
-    // A binding holds a borrow with no count of its own: what shares it
-    // shares the local it borrows.
+    // What shares a binding of a borrow shares the local it borrows.
+    let stores = whole_stores(b);
     let mut lent: Vec<usize> = (0..b.local_ty.len()).collect();
-    let mut stores = vec![0u32; b.local_ty.len()];
     for i in 0..n {
-        if b.tags[i] == Tag::Store
-            && let Some(l) = named(b.data[i][0])
-        {
-            stores[l] += 1;
-        }
-    }
-    let binding = |i: usize| {
-        if b.tags[i] != Tag::Store || named(b.data[i][0]).is_none_or(|m| stores[m] != 1) {
-            return None;
-        }
-        let v = Ref(b.data[i][1]).as_inst()?.0 as usize;
-        (b.tags[v] == Tag::Read && b.data[v][1] == ReadMode::Borrow as u32).then_some(v)
-    };
-    for i in 0..n {
-        if let Some(v) = binding(i)
+        if binds(b, &stores, i)
+            && let Some(v) = Ref(b.data[i][1]).as_inst().map(|v| v.0 as usize)
+            && b.tags[v] == Tag::Read
+            && b.data[v][1] == ReadMode::Borrow as u32
             && let (Some(m), Some(l)) = (named(b.data[i][0]), named(b.data[v][0]))
         {
             lent[m] = lent[l];
         }
     }
     let whole = |word: u32| named(word).map(|l| lent[l]);
-    let (mut shares, mut checks) = (Vec::new(), Vec::new());
-    let mut ops = Vec::new();
+    let mut shares: Vec<(usize, usize)> = shared_borrows(b)
+        .into_iter()
+        .filter_map(|v| Some((whole(b.data[v][0])?, v)))
+        .collect();
+    let mut checks = Vec::new();
     for i in 0..n {
         match b.tags[i] {
             Tag::Store => {
-                if let Some(l) = b.view(b.data[i][0]).local()
-                    && b.view(b.data[i][0]).whole()
+                let p = b.view(b.data[i][0]);
+                if p.whole()
+                    && let Some(l) = p.local()
                     && !Walk::fresh_new(b, b.data[i][1])
                 {
                     good[l as usize] = false;
@@ -486,7 +508,7 @@ pub(crate) fn owned_locals(
                     shares.push((l, i));
                 }
             }
-            Tag::IsUnique if matches!(b.data[i][1], 0 | hd_tir::ir::unique_word::HOISTED) => {
+            Tag::IsUnique if check_runs(b.data[i][1]) => {
                 if let Some(l) = whole(b.data[i][0]) {
                     checks.push((l, i));
                 }
@@ -506,20 +528,6 @@ pub(crate) fn owned_locals(
                 }
             }
             _ => {}
-        }
-        hd_tir::own::operands(b, i, &mut ops);
-        for op in &ops {
-            let v = op.value as usize;
-            if v < n
-                && b.tags[v] == Tag::Read
-                && b.data[v][1] == ReadMode::Borrow as u32
-                && (b.tags[i] == Tag::Retain
-                    || matches!(op.role, Role::Consume | Role::Arg(_) | Role::Tail))
-                && binding(i) != Some(v)
-                && let Some(l) = whole(b.data[v][0])
-            {
-                shares.push((l, v));
-            }
         }
     }
     let topo = hd_tir::ir::Topology::new(b);
@@ -549,10 +557,7 @@ pub(crate) fn owned_local_checks(
     }
     let good = owned_locals(pool, env, b, sub, verdicts);
     (0..b.len())
-        .filter(|&i| {
-            b.tags[i] == Tag::IsUnique
-                && matches!(b.data[i][1], 0 | hd_tir::ir::unique_word::HOISTED)
-        })
+        .filter(|&i| b.tags[i] == Tag::IsUnique && check_runs(b.data[i][1]))
         .filter(|&i| {
             let p = b.view(b.data[i][0]);
             p.whole() && p.local().is_some_and(|l| good[l as usize])
@@ -572,14 +577,7 @@ pub(crate) fn entry_owned_checks(
     all: &[Instance<'_>],
     verdicts: &Verdicts,
 ) -> HashMap<InstId, Vec<usize>> {
-    let w = Walk {
-        pool,
-        env,
-        fields: HashSet::default(),
-        bad: HashMap::default(),
-        copied: HashSet::default(),
-        blind: HashSet::default(),
-    };
+    let w = Walk::new(pool, env);
     // Per callee: whether each parameter got a one-owner field's `&mut`
     // at every call so far; `None` once anything else names it.
     let mut params: HashMap<hd_base::DefId, Option<Vec<bool>>> = HashMap::default();
@@ -664,10 +662,7 @@ pub(crate) fn entry_owned_checks(
         }
         let p = &kept;
         let marks: Vec<usize> = (0..b.len())
-            .filter(|&i| {
-                b.tags[i] == Tag::IsUnique
-                    && matches!(b.data[i][1], 0 | hd_tir::ir::unique_word::HOISTED)
-            })
+            .filter(|&i| b.tags[i] == Tag::IsUnique && check_runs(b.data[i][1]))
             .filter(|&i| {
                 let v = b.view(b.data[i][0]);
                 v.local().is_some_and(|l| {
@@ -693,14 +688,7 @@ pub(crate) fn check_lines(
     sub: &dyn Fn(Ty) -> Ty,
     verdicts: &Verdicts,
 ) -> Vec<(usize, String)> {
-    let w = Walk {
-        pool,
-        env,
-        fields: HashSet::default(),
-        bad: HashMap::default(),
-        copied: HashSet::default(),
-        blind: HashSet::default(),
-    };
+    let w = Walk::new(pool, env);
     (0..b.len())
         .filter(|&i| b.tags[i] == Tag::IsUnique)
         .filter_map(|i| {

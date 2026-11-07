@@ -1,0 +1,37 @@
+# expect-stdout: 3 1
+# expect-stdout: 2 1
+# test: a struct bound by a borrow for an inlined method stays one owner, and a copy of it, by value or after that binding, leaves the copy's list unchanged by a later write
+# Spec 13 Copy: a copy of a collection is a value of its own.
+use std.annotation.inline
+
+struct Holder:
+    items: List[i64]
+
+impl Holder:
+    fn size(&self) -> usize:
+        self.items.len()
+
+    @inline(.Never)
+    fn set(&mut self, v: i64) -> void:
+        self.items[0] = v
+
+@inline(.Never)
+fn hold_struct(h: Holder) -> Holder:
+    h
+
+fn passed_by_value() -> void $ Console:
+    let mut a = Holder { items: [1, 2] }
+    b := hold_struct(a)
+    a.set(3)
+    println("${a.items[0]} ${b.items[0]}")
+
+fn copied_after_a_binding() -> void $ Console:
+    let mut a = Holder { items: [1, 2] }
+    n := a.size()
+    b := a
+    a.set(i64(n))
+    println("${a.items[0]} ${b.items[0]}")
+
+pub fn main() -> void $ Console:
+    passed_by_value()
+    copied_after_a_binding()

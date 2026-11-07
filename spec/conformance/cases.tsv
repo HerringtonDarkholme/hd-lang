@@ -1384,6 +1384,7 @@ typing/invalid/data-field-default-type-mismatch.hd	type	reject:type-mismatch	lan
 runtime/valid/copy-update-a-field-that-changes-the-base-keeps-what-it-read.hd	runtime	accept	lang/08-data-and-enums.md#copy-update-literals
 runtime/valid/dyn-reference-source-replaced-during-its-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.shared-variable
 runtime/valid/list-local-shared-before-a-change-keeps-its-copy.hd	runtime	accept	lang/13-values-and-references.md#copy
+runtime/valid/struct-field-shared-by-a-struct-copy-keeps-its-copy.hd	runtime	accept	lang/13-values-and-references.md#copy
 runtime/valid/copy-update-evaluation-order.hd	runtime	accept	lang/08-data-and-enums.md#copy-update-literals
 typing/invalid/copy-update-source-type-mismatch.hd	type	reject:type-mismatch	lang/08-data-and-enums.md#copy-update-literals
 runtime/valid/copy-update-skips-defaults.hd	runtime	accept	lang/08-data-and-enums.md#copy-update-literals

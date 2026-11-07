@@ -1,0 +1,36 @@
+# @dump: own wat counts
+# @build: v8 release
+# `size` is inlined, so `self` binds a borrow of the local for the call. That
+# binding takes no count, so `Stack.items` keeps one owner and `push` asks
+# nothing. `Pair.items` has a copy of its struct, so its `push` keeps the check.
+use std.annotation.inline
+
+struct Stack:
+    items: List[i64]
+
+impl Stack:
+    fn size(&self) -> usize:
+        self.items.len()
+
+    @inline(.Never)
+    fn add(&mut self, v: i64) -> void:
+        self.items.push(v)
+
+struct Pair:
+    items: List[i64]
+
+impl Pair:
+    @inline(.Never)
+    fn add(&mut self, v: i64) -> void:
+        self.items.push(v)
+
+pub fn stack(n: i64) -> usize:
+    let mut s = Stack { items: [] }
+    s.add(n)
+    s.size()
+
+pub fn pair(n: i64) -> usize:
+    let mut p = Pair { items: [] }
+    q := p
+    p.add(n)
+    p.items.len() + q.items.len()

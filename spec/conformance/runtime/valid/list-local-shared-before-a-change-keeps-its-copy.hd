@@ -14,7 +14,7 @@ fn grow(xs: &mut List[i64]) -> void:
     xs.push(9)
 
 @inline(.Never)
-fn keep_copy(xs: &List[i64]) -> List[i64]:
+fn keep_copy(xs: &List[u8]) -> List[u8]:
     *xs
 
 @inline(.Never)
@@ -42,7 +42,7 @@ fn round_shares_the_next() -> void $ Console:
     println("${xs.len()} ${seen[1].len()} ${seen[2].len()}")
 
 fn copy_behind_a_reference() -> void $ Console:
-    let mut xs: List[i64] = [1, 2]
+    let mut xs: List[u8] = [1, 2]
     ys := keep_copy(&xs)
     xs.push(3)
     println("${xs.len()} ${ys.len()}")
