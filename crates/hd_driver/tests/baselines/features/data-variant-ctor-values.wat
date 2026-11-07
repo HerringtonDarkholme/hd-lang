@@ -46,13 +46,13 @@
           local.set $t2
           block
             block
-              local.get $e.0
-              local.get $e.1
-              local.get $e.2
-              call $rt:retain
               br 0
               unreachable
             end
+            local.get $e.0
+            local.get $e.1
+            local.get $e.2
+            call $rt:retain
             i32.const 0
             local.get $e.0
             local.get $e.1
@@ -146,21 +146,20 @@
           i32.load $heap offset=24
           local.set $e.2
           local.set $e.1
-          local.tee $e.0
-          local.get $e.1
-          local.get $e.2
-          call $rt:retain
+          local.set $e.0
           local.get $t1
           i32.const 1
           i32.add
           local.set $t1
           block
             block
-              local.get $e.0
-              local.set $e.0
               br 0
               unreachable
             end
+            local.get $e.0
+            local.get $e.1
+            local.get $e.2
+            call $rt:retain
             local.get $wrap.1
             local.get $e.0
             local.get $e.1
@@ -257,21 +256,20 @@
           i32.load $heap offset=24
           local.set $e.2
           local.set $e.1
-          local.tee $e.0
-          local.get $e.1
-          local.get $e.2
-          call $rt:retain
+          local.set $e.0
           local.get $t2
           i32.const 1
           i32.add
           local.set $t2
           block
             block
-              local.get $e.0
-              local.set $e.0
               br 0
               unreachable
             end
+            local.get $e.0
+            local.get $e.1
+            local.get $e.2
+            call $rt:retain
             local.get $wrap.1
             local.get $e.0
             local.get $e.1

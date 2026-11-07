@@ -29,11 +29,7 @@ fn total(a: User, b: User) -> usize:
     index(&mut by, &a)
     seen[0].name.len() + seen[1].name.len() + by.len()
 > app/main/total
->   retain string (conservative: copy read)
->   retain string (conservative: copy read)
->   (no span) release string (last use)
 >   (no span) release app.main.User [name.0] (last use)
->   (no span) release string (last use)
 >   (no span) release List[&app.main.User] (last use)
 >   (no span) release Map[string, &app.main.User] (last use)
 >   (no span) release app.main.User [name.0] (last use)

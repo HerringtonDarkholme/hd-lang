@@ -141,8 +141,6 @@
                 i32.eq
                 if
                   local.get $t5
-                  call $retain
-                  local.get $t5
                   local.get $t4
                   local.set $t6
                   local.set $xs
@@ -155,6 +153,8 @@
                 end
                 unreachable
               end
+              local.get $xs
+              call $retain
               br 1
             end
             br 0

@@ -79,6 +79,8 @@
       local.get $xs
       i32.load $heap offset=4
       local.set $f.0
+      i32.const 0
+      local.set $t0
       block
         loop
           local.get $t0
@@ -96,20 +98,19 @@
           local.get $x.0
           i32.load $heap offset=20
           local.set $x.1
-          local.tee $x.0
-          call $retain
+          local.set $x.0
           local.get $t0
           i32.const 1
           i32.add
           local.set $t0
           block
             block
-              local.get $x.0
-              local.set $x.0
               br 0
               unreachable
             end
     ;; 21 |         f(x)
+            local.get $x.0
+            call $retain
             local.get $f.1
             local.get $x.0
             local.get $x.1

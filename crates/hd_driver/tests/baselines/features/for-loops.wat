@@ -106,11 +106,13 @@
           local.set $t1
           block
             block
-              local.get $x.0
-              call $retain
               br 0
               unreachable
             end
+    ;; 26 |         out.push(x)
+            local.get $x.0
+            call $retain
+    ;; 25 |     for x in xs:
             local.get $out
     ;; 26 |         out.push(x)
             local.tee $t2

@@ -25,14 +25,16 @@
     block
       block
         block
-          local.get $t.1
-          call $rt:coll_copy
-          local.set $t.0.0
           br 0
           unreachable
         end
         br 0
       end
+    ;; 17 |     xs
+      local.get $t.1
+      call $rt:coll_copy
+    ;; 16 |     let (_, xs...) = t
+      local.set $t.0.0
     end
     local.get $t.0.0
   )

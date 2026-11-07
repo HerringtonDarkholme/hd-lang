@@ -15,6 +15,6 @@ fn describe(t: (string, List[string]...)) -> usize:
 
 fn rest(t: (string, List[string]...)) -> List[string]:
     let (_, xs...) = t
+    xs
 > app/main/rest
 >   copy List[string] (stored)
-    xs

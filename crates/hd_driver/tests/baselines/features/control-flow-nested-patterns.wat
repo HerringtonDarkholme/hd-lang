@@ -18,8 +18,6 @@
             i32.eqz
             if
               local.get $s.1
-              call $retain
-              local.get $s.1
               local.get $s.2
               local.set $s.1
               local.set $s.0
@@ -30,8 +28,6 @@
               i32.const 1
               i32.eq
               if
-                local.get $s.4
-                call $retain
                 local.get $s.4
                 local.get $s.5
                 local.set $s.1
@@ -45,8 +41,16 @@
     ;; 21 |     match s:
             unreachable
           end
+    ;; 22 |         .Dot(User { name }) => name
+          local.get $s.0
+          call $retain
+    ;; 21 |     match s:
           br 1
         end
+    ;; 23 |         .Line(start = _, end = User { name }) => name
+        local.get $s.0
+        call $retain
+    ;; 21 |     match s:
         br 0
       end
     end

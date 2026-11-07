@@ -30,7 +30,6 @@ impl Describe for Logger:
 fn direct(l: Logger) -> usize:
     l.headline().len()
 > app/main/direct
->   retain string (stored)
 >   release string (last use)
 >   (no span) release string (last use)
 

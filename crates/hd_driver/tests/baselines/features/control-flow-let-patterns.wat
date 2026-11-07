@@ -101,13 +101,15 @@
     block
       block
         block
-          local.get $u.name.0
-          call $retain
           br 0
           unreachable
         end
         br 0
       end
+    ;; 17 |     name
+      local.get $u.name.0
+      call $retain
+    ;; 16 |     let User { name } = u
     end
     local.get $u.name.0
     local.get $u.name.1

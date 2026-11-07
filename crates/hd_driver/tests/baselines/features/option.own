@@ -39,19 +39,21 @@ fn question(o: string?) -> string?:
 > app/main/question
 >   local $0 o: string? [param read] value
 >     uses $0: entry -> %0 lend last
->   %0 = Read borrow [$0] : string?
->   %1 = Read copy [%0 as #1 .0] : string
+>   %0 = Read move [$0] : string?
+>   %1 = Read move [%0 as #1 .0] : string
 >   %2 = Block %1 : string
 >   %3 = NewVariant #0 [] : string?
->   %4 = Return %3 : never
->   %5 = Block - : never
->   %6 = SwitchTag %0 [#1 %2 %5] : string
->   %10 = Block %9 : string?
+>   %4 = Drop [%0] : ()
+>   %5 = Return %3 : never
+>   %6 = Block - : never
+>   %7 = SwitchTag %0 [#1 %2 %6] : string
+>   %11 = Block %10 : string?
     .Some(s + "!")
->   %7 = Intrinsic StrConcat [%6 "!"] : string
->   %8 = Drop [%6] : ()
->   %9 = NewVariant #1 [%7] : string?
->   summary kept [] borrows [$0]
+>   %8 = Intrinsic StrConcat [%7 "!"] : string
+>   %9 = Drop [%7] : ()
+>   %10 = NewVariant #1 [%8] : string?
+>   exit sub 0 drops [$0]
+>   summary kept [$0]
 
 fn or_default(o: string?) -> string:
     o.unwrap_or("none")
@@ -64,11 +66,11 @@ fn or_default(o: string?) -> string:
 >     uses $3: %7 -> %2 consume last
 >   %0 = Store [$2] "none" : ()
 >   %1 = Read borrow [$0] : string?
->   %2 = Read move [$3] : string
+>   %2 = Read copy [$3] : string
 >   %3 = Block %2 : string
 >   %4 = Read move [$2] : string
 >   %5 = Block %4 : string
->   %6 = Read copy [%1 as #1 .0] : string
+>   %6 = Read borrow [%1 as #1 .0] : string
 >   %7 = Store [$3] %6 : ()
 >   %9 = Block - : never
 >   %11 = Block - : never

@@ -3,8 +3,7 @@
   (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
   (import "fixture" "impl [ T ] Iterator [ T ] for ListIter [ T ].next[string]" (func $"impl [ T ] Iterator [ T ] for ListIter [ T ].next[string]" (param i32) (result i32 i32 i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -13,10 +12,12 @@
     ;; 7 |     xs.iter()
       local.get $xs
       i32.load $heap
-      call $rt:coll_copy
       local.set $xs
       block
         block
+          local.get $xs
+          call $rt:coll_copy
+          local.set $xs
           br 0
         end
       end
@@ -25,7 +26,7 @@
     local.get $xs
     i32.const 0
   )
-  (func $count_long (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $x.0 i32) (local $t2 i32) (local $x.1 i32)
+  (func $count_long (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32) (local $x.1 i32) (local $t4 i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
@@ -89,46 +90,44 @@
           call $"impl [ T ] Iterator [ T ] for ListIter [ T ].next[string]"
           local.set $x.1
           local.set $t2
-          local.set $x.0
+          local.set $t3
           block
             block
               block
-                local.get $x.0
+                local.get $t3
                 i32.const 1
                 i32.eq
-                if
-                  local.get $t2
-                  local.set $x.0
-                  br 1
-                else
-                  local.get $x.0
-                  local.get $t2
-                  local.get $x.1
-                  call $rt:release
-                  br 2
-                end
+                i32.eqz
+                br_if 1
+                br 0
                 unreachable
               end
     ;; 12 |         n += x.len()
               block
                 block
                   local.get $x.1
-                  local.set $t2
+                  local.set $t4
                   br 0
                 end
               end
               local.get $n
-              local.get $t2
+              local.get $t4
               i32.add
               local.set $n
     ;; 11 |     for x in names(&xs):
               br 1
             end
+            local.get $t3
+            local.get $t2
+            local.get $x.1
+            call $rt:release
             br 2
             br 0
           end
-          local.get $x.0
-          call $rt:release_ref'1
+          local.get $t3
+          local.get $t2
+          local.get $x.1
+          call $rt:release
           br 0
         end
       end
@@ -137,7 +136,7 @@
       if
         local.get $xs
         i32.load $heap
-        call $rt:release_ref'2
+        call $rt:release_ref
       end
     ;; 13 |     n
       local.get $n

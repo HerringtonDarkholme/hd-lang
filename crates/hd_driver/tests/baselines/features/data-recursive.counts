@@ -16,12 +16,13 @@ fn total(head: *Chain?) -> usize:
     let n: usize = 0
     let cur = head
     while true:
-> app/main/total
->   release &app.main.Chain (last use)
         match cur:
             .Some(c) =>
                 n += c.name.len()
                 cur = c.next
+> app/main/total
 >   retain &app.main.Chain? (stored)
+>   release &app.main.Chain? (overwritten)
             .None => break
     n
+>   (no span) release &app.main.Chain? (last use)

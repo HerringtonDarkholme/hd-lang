@@ -23,7 +23,7 @@ struct Service:
 
 impl Describe for Service by Logger
 > app/main/impl Describe for Service by Logger.describe
->   retain app.main.Logger [name.0] (stored)
+>   retain string (stored)
 
 fn delegated(s: Service) -> usize:
     s.describe().len()

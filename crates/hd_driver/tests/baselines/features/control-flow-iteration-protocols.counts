@@ -24,7 +24,7 @@ fn user_cursor(words: Words) -> usize:
     for w in words:
 > app/main/user_cursor
 >   release string? (last use)
->   release string (last use)
+>   release string? (last use)
         n += w.len()
     n
 >   (no span) release app.main.Words [items] (last use)
@@ -35,11 +35,11 @@ fn twice(xs: List[string]) -> usize:
 > app/main/twice
 >   copy List[string] (stored)
 >   release string? (last use)
->   release string (last use)
+>   release string? (last use)
         n += x.len()
     for x in xs.iter():
 >   release string? (last use)
->   release string (last use)
+>   release string? (last use)
         n += x.len()
     n
 >   (no span) release std.iter.ListIter[string] [items] (last use)

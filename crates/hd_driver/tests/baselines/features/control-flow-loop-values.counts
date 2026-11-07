@@ -7,11 +7,10 @@
 # no count; `forever` returns its built string with no extra count.
 fn first_long(xs: List[string]) -> string:
     for x in xs:
-> app/main/first_long
->   retain string (stored)
->   release string (last use)
         if x.len() > 3:
             break x
+> app/main/first_long
+>   retain string (stored)
     else:
         "none"
 

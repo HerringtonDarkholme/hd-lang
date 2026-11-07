@@ -176,16 +176,13 @@
           local.get $item.0
           i32.load $heap offset=20
           local.set $item.1
-          local.tee $item.0
-          call $retain
+          local.set $item.0
           local.get $t1
           i32.const 1
           i32.add
           local.set $t1
           block
             block
-              local.get $item.0
-              local.set $item.0
               br 0
               unreachable
             end
@@ -203,6 +200,8 @@
                     br 0
                   end
                 end
+                local.get $item.0
+                call $retain
                 block
                   block
                     local.get $item.1
@@ -254,8 +253,10 @@
                   end
                 end
                 local.get $t4
+                local.get $zero.1
+                call $rt:release_ref
                 local.get $t5
-                local.set $item.1
+                local.set $item.0
                 local.set $zero.1
                 br 0
                 local.get $t4
@@ -265,14 +266,12 @@
             local.get $zero.0
             call $rt:release_ref
             local.get $zero.1
-            local.get $item.1
+            local.get $item.0
             local.set $zero.1
             local.set $zero.0
     ;; 30 |     for item in items:
             br 0
           end
-          local.get $item.0
-          call $rt:release_ref
           br 0
         end
       end

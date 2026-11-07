@@ -368,25 +368,22 @@
           local.get $x.0
           i32.load $heap offset=20
           local.set $x.1
-          local.tee $x.0
-          call $retain
+          local.set $x.0
           local.get $t2
           i32.const 1
           i32.add
           local.set $t2
           block
             block
-              local.get $x.0
-              local.set $x.0
               br 0
               unreachable
             end
     ;; 25 |         using r = Res { name: x, log: log }
             block
               local.get $x.0
+              call $retain
               local.get $log
               call $rt:retain_known
-              local.set $x.0
               local.get $t0
               i64.const 0
               i64.store $heap

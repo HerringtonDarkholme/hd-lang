@@ -13,8 +13,8 @@
 //! the walk, from everything borrowing down to what really holds, so no
 //! decision depends on the order the reads are met in.
 //!
-//! For now this decides only under `HD_OWN_NEW`. [`agreement`] compares it
-//! with the passes it will replace (`HD_OWN_AGREE`).
+//! It decides in every build unless `HD_OWN_OLD` asks for the borrow pass.
+//! [`agreement`] compares it with the passes it will replace (`HD_OWN_AGREE`).
 
 use hd_base::SliceSort as _;
 
@@ -1371,6 +1371,7 @@ pub(crate) fn kept(b: &Body, cx: &dyn OwnCx, t: &Tables) -> Option<(u64, u64)> {
 }
 
 /// One read the derivation and the old passes answer differently.
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Clone, Debug)]
 pub struct Disagreement {
     pub inst: u32,
@@ -1381,6 +1382,7 @@ pub struct Disagreement {
     pub place: String,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn mode_name(mode: u32) -> &'static str {
     match mode {
         m if m == ReadMode::Copy as u32 => "copy",
@@ -1393,6 +1395,7 @@ fn mode_name(mode: u32) -> &'static str {
 /// Compares the body `old` the old passes left with the body `new` the
 /// derivation and the move walk left, into `out`: how many counted reads
 /// were compared.
+#[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn agreement(
     old: &Body,
     new: &Body,

@@ -15,15 +15,11 @@ fn pairs(xs: List[string], ys: List[string]) -> List[(string, string)]:
 > app/main/pairs
 >   retain string (stored)
 >   retain string (stored)
->   retain string (stored)
->   release string (last use)
->   release string (last use)
 
 fn names(users: List[User]) -> List[string]:
     [for u in users if u.active => u.name]
 > app/main/names
->   retain app.main.User [name.0] (stored)
->   release app.main.User [name.0] (last use)
+>   retain string (stored)
 
 fn by_name(users: List[User]) -> Map[string, i64]:
     {for u in users if u.active => u.name: u.id}

@@ -16,7 +16,7 @@ app/main/count
   %6 = Read copy [$5] : usize
   %7 = Prim Lt [%5 %6] : bool
   %8 = Read copy [$4] : usize
-  %9 = Read copy [$0 [%8]] : string
+  %9 = Read borrow [$0 [%8]] : string
   %10 = Read copy [$4] : usize
   %11 = Prim Add [%10 1:usize] : usize
   %12 = Store [$4] %11 : ()
@@ -35,7 +35,7 @@ app/main/count
   %27 = Block - : never
   %28 = Match %15 [%27 %19 %20] : ()
   %29 = Block - : ()
-  %30 = Read move [%9] : string
+  %30 = Read copy [%9] : string
   %31 = Store [$6] %30 : ()
   %33 = Block - : never
   %34 = Match %9 [%33 %29] : ()

@@ -139,20 +139,21 @@ fn other(a: string, b: string) -> string:
 >   %5 = Prim Gt [%4 3:usize] : bool
 >   %9 = If %5 [%8 -] : ()
 >   %10 = Drop [$0] : ()
->   %19 = Read copy [%11] : string
->   %20 = Block %19 : string
+>   %19 = Read move [%11] : string
+>   %21 = Block %19 : string
         return a
 >   %6 = Read move [$0] : string
 >   %7 = Return %6 : never
 >   %8 = Block - : never
     "${b}"
->   %11 = Read borrow [$1] : string
->   %12 = Read borrow [%11] : string
+>   %11 = Read move [$1] : string
+>   %12 = Read copy [%11] : string
 >   %13 = Store [$2] %12 : ()
 >   %14 = Read borrow [$2] : string
 >   %15 = Call std/rt.bytes/bytes_len[] (%14) : usize
 >   %16 = Break L0 %15 : never
 >   %17 = Block - : usize
 >   %18 = Scope %17 [] : usize
->   exit sub 0 drops [$0]
->   summary kept [$0] borrows [$1]
+>   %20 = Drop [$2] : ()
+>   exit sub 0 drops [$0 $1]
+>   summary kept [$0 $1]

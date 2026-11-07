@@ -16,18 +16,17 @@ fn pick(t: Tag) -> string:
 >   retain string (stored)
         .Pair(right = r, left = l) if l.len() > r.len() => l
 >   retain string (stored)
->   retain string (stored)
         .Pair(left = _, right = r) => r
->   (no span) release string (last use)
->   (no span) release string (last use)
+>   retain string (stored)
         _ => "short"
 
 fn whole(o: string?) -> usize:
     match o:
         .Some(s) if s.len() > 0 => s.len()
 > app/main/whole
->   retain string? (stored)
->   retain string? (stored)
+>   retain string? (conservative: copy read)
+>   retain string? (conservative: copy read)
         other =>
             if other.is_some(): 1 else: 0
+>   (no span) release string? (last use)
 >   (no span) release string? (last use)

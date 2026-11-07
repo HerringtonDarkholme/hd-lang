@@ -44,7 +44,7 @@ fn adapter(us: List[User]) -> usize:
     for u in us:
 > app/main/adapter
 >   release app.main.User [name.0] (last use)
+        n += g(u)
 > app/main/adapter
 >   retain app.main.User [name.0] (stored)
-        n += g(u)
     n

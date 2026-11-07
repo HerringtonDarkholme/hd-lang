@@ -131,8 +131,8 @@
     end
   )
   (func $lend (param $h i32) (result i32)
-    block
     ;; 21 |     nudge(h)
+    block
       local.get $h
       call $nudge
     ;; 22 |     bump(h)
@@ -141,7 +141,7 @@
     ;; 23 |     view(h)
       local.get $h
       call $view
-    ;; (no span)
+    ;; 21 |     nudge(h)
       local.set $h
     end
     local.get $h

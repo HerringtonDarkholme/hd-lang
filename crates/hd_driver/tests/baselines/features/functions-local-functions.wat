@@ -93,20 +93,19 @@
           local.get $prefix.1
           i32.load $heap offset=20
           local.set $x.1
-          local.tee $prefix.1
-          call $retain
+          local.set $prefix.1
           local.get $t0
           i32.const 1
           i32.add
           local.set $t0
           block
             block
-              local.get $prefix.1
-              local.set $prefix.1
               br 0
               unreachable
             end
     ;; 12 |         total += width(x)
+            local.get $prefix.1
+            call $retain
             local.get $total
             local.get $width.1
             local.get $prefix.1

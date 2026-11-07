@@ -25,10 +25,11 @@
       local.get $self
       i32.load $heap offset=4
       local.set $t0
-      local.tee $self
-      call $retain
+      local.set $self
       block
         block
+          local.get $self
+          call $retain
           br 0
         end
       end
