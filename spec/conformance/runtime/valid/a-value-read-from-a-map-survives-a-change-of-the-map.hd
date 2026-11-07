@@ -1,0 +1,15 @@
+# test: a value read out of a map keeps its text after that entry is replaced or removed, in checked builds too, where a freed block is poisoned
+# Spec lang/04-type-system.md: types.coll.value, types.coll.copy-on-write.
+# expect-stdout: first1 second2 cccccc3
+# expect-stdout: held4 dddddddd5 0
+pub fn main() -> void $ Console:
+    let mut m: Map[string, string] = { "a": "first${1}" }
+    v := m["a"]
+    m["a"] = "second${2}"
+    junk := "cccccc${3}"
+    println("$v ${m["a"]} $junk")
+    let mut n = { "k": "held${4}" }
+    w := n["k"]
+    _ := n.remove("k")
+    junk2 := "dddddddd${5}"
+    println("$w $junk2 ${n.len()}")

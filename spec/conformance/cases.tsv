@@ -34,6 +34,8 @@ runtime/panic/json-internal-tagged-non-object-payload.hd	runtime	panic:explicit-
 runtime/panic/println-newline-error.hd	runtime	panic:explicit-panic	lang/10-modules.md#r-module.console.println-write-error.either
 runtime/panic/slicing-a-string-slice-inside-a-scalar-panics.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#slicing
 runtime/panic/slicing-an-inclusive-end-at-the-length-panics.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#slicing
+runtime/valid/a-list-mapped-through-a-reference-keeps-its-elements-across-the-function.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
+runtime/valid/a-value-read-from-a-map-survives-a-change-of-the-map.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/associated-output-function-row-783.hd	runtime	accept	lang/09-traits.md#r-trait.binding.inference
 runtime/valid/cli-command-facts.hd	runtime	accept	std/cli.md#r-std-cli.typed-commands.no-field-facts
 runtime/valid/cli-derived-records.hd	runtime	accept	std/cli.md#typed-records

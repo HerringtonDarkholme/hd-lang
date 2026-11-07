@@ -1,0 +1,15 @@
+# test: `map` reads each element behind `&self` while the function it calls writes through a reference, and each element read keeps its text
+# Spec lang/04-type-system.md: types.coll.value, types.coll.copy-on-write.
+# expect-stdout: first1! second2!
+# expect-stdout: first1 second2
+# expect-stdout: 2
+pub fn main() -> void $ Console:
+    xs := ["first${1}", "second${2}"]
+    let mut seen = 0
+    ys := xs.map(fn(s: &string) -> string:
+        seen += 1
+        "$s!"
+    )
+    println("${ys[0]} ${ys[1]}")
+    println("${xs[0]} ${xs[1]}")
+    println(seen)
