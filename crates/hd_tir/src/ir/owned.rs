@@ -1191,9 +1191,20 @@ fn borrow_spans(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
     // point into one may write it, there and nowhere else.
     let mut frame_uses = Vec::new();
     crate::own::frame_reference_uses(b, cx.topo, own, &mut frame_uses);
+    // A reference into what a binding holds holds no count of it, so each use
+    // of what may point there is a use of the borrow the binding holds.
+    let mut root_uses = Vec::new();
+    crate::own::frame::roots(b, own, |i, l| {
+        if holds[l as usize] != NONE && !matches!(b.tags[i as usize], Tag::Drop | Tag::LoanEnd) {
+            root_uses.push((i, l));
+        }
+    });
+    root_uses.sort_stable();
+    root_uses.dedup();
     let mut walk = Live {
         cx,
         frame_uses,
+        root_uses,
         may,
         excl,
         frame,
@@ -1216,6 +1227,9 @@ struct Live<'a> {
     /// Each use of what may point into a frame local, as (instruction,
     /// local), by instruction.
     frame_uses: Vec<(u32, u32)>,
+    /// Each use of what may point into what a binding local holds, as
+    /// (instruction, local), by instruction.
+    root_uses: Vec<(u32, u32)>,
     /// Per instruction: a call that may write. Per local: a parameter
     /// whose referent exclusive mode lets a borrow live across such calls.
     may: Vec<bool>,
@@ -1363,6 +1377,14 @@ impl Backward for Live<'_> {
             && self.holds[l.idx()] != NONE
         {
             self.uses(b, self.holds[l.idx()], s, live);
+        }
+        let k = self.root_uses.partition_point(|u| u.0 < x);
+        for u in k..self.root_uses.len() {
+            let (at, l) = self.root_uses[u];
+            if at != x {
+                break;
+            }
+            self.uses(b, self.holds[l as usize], s, live);
         }
         if is_suspension(b.tags[i]) {
             let frame = std::mem::take(&mut self.frame);
