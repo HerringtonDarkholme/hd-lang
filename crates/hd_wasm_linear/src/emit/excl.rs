@@ -41,6 +41,9 @@ pub(super) enum Bind {
     Begin(u32),
     /// A new loan of what a call's argument `.0` refers to.
     Call(u32),
+    /// An inlined call's containing pointer slots, in addition to the
+    /// returned reference's own loans.
+    CallParent(u32),
     /// A copy of holder `.0`: one more count of its entry.
     Share(Held),
     /// A move from holder `.0`: the entry passes over.
@@ -473,6 +476,25 @@ fn value_binds_at(
         if out.is_empty() {
             return held();
         }
+        // Inlining materializes a counted argument as an owned local. Its
+        // returned reference still depends on the original pointer slot,
+        // even though the callee's Ref now starts at that new local.
+        for (slot, bind, loan) in held() {
+            if let Bind::Call(a) = bind
+                && let Some(v) = direct_value(b, a)
+                && b.tags[v] == Tag::Read
+                && matches!(
+                    kind(pool, env, sub(b.ty[v])),
+                    Kind::Ref {
+                        whole: true,
+                        fat: false,
+                        ..
+                    }
+                )
+            {
+                out.push((slot, Bind::CallParent(a), loan));
+            }
+        }
         return out;
     }
     let direct = held();
@@ -695,7 +717,13 @@ pub(super) fn binds(
             }
             for (slot, bind, loan) in value_binds(pool, env, b, sub, &out, v, every_ref) {
                 let held = Held { local: l, slot };
-                if slots.contains(&slot) && !out.iter().any(|x| x.0 == i && x.1 == held) {
+                if slots.contains(&slot)
+                    && !out.iter().any(|x| {
+                        x.0 == i
+                            && x.1 == held
+                            && (!matches!(bind, Bind::CallParent(_)) || x.2 == bind)
+                    })
+                {
                     out.push((i, held, bind, loan));
                     grew = true;
                 }
