@@ -31,7 +31,8 @@ impl VerifyCx for CorpusFacts {
 }
 
 /// The owned cases' facts: type 78 has a counted leaf, and item 8 has
-/// one non-suspending owned ABI parameter; item 9 has a cold parameter. Other types have no counted
+/// one non-suspending owned ABI parameter; item 9 has a cold parameter,
+/// and item 10 a cold requirement row. Other types have no counted
 /// leaf; ownership balance is exercised in the unit tests. Item 7
 /// constructs a borrowed-buffer string result with an explicit count.
 struct OwnershipFacts;
@@ -41,7 +42,14 @@ impl hd_tir::own::OwnCx for OwnershipFacts {
         matches!(callee, Callee::Item { def, .. } if *def == DefId::from_raw(7))
     }
     fn parameter_count(&self, item: DefId) -> Option<usize> {
-        matches!(item.raw(), 8 | 9).then_some(1)
+        match item.raw() {
+            8 | 9 => Some(1),
+            10 => Some(0),
+            _ => None,
+        }
+    }
+    fn has_requirement_row(&self, item: DefId) -> bool {
+        item == DefId::from_raw(10)
     }
     fn suspending(&self, item: DefId) -> bool {
         item != DefId::from_raw(8)

@@ -23,4 +23,4 @@ app/main/run
   release counted reference (conservative: frame drop)
 app/main/run
   retain string (stored)
-  retain counted reference (conservative: cold constructor)
+  retain counted reference (stored)

@@ -49,7 +49,7 @@
     },
     {
       "reason": "conservative: cold constructor",
-      "sites": 3
+      "sites": 0
     },
     {
       "reason": "conservative: copy read",

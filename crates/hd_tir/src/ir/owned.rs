@@ -103,6 +103,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     exit_parameters(b, own, &topo, &mut errs);
     cache_copies(b, own, &topo, &mut errs);
     cold_parameters(b, own, &topo, &mut errs);
+    cold_row(b, own, &topo, &mut errs);
     takes_outside_suspension(b, &topo, &mut errs);
     change_places(b, &topo, &mut errs);
     hoisted(b, &topo, own, &mut errs);
@@ -116,6 +117,38 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     Balance::new(b, &topo, own).walk(&mut errs);
     copies(b, &mut errs);
     errs
+}
+
+/// The cold frame's captured requirement row has one copy declaration.
+fn cold_row(b: &Body, cx: &dyn OwnCx, topo: &Topology, errs: &mut Vec<VerifyError>) {
+    let wanted = crate::own::cold_row::needed(b, cx);
+    let root = b.sub_root[0];
+    let n = b
+        .record(b.data[root as usize][0])
+        .iter()
+        .filter(|&&i| b.tags[i as usize] == Tag::ColdRowCopy)
+        .count();
+    if wanted && n != 1 {
+        err(
+            errs,
+            root,
+            "a cold requirement row lacks its one copy".into(),
+        );
+    }
+    for i in 0..b.len() {
+        if b.tags[i] == Tag::ColdRowCopy
+            && (!wanted
+                || topo.blk[i] != root
+                || b.data[i] != [0, 0]
+                || b.ty[i] != hd_types::Ty::VOID)
+        {
+            err(
+                errs,
+                u32_of(i),
+                "a cold row copy without a source-requirement proof".into(),
+            );
+        }
+    }
 }
 
 /// Each copied source argument declares its count in the cold frame.
