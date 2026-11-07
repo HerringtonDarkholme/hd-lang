@@ -118,9 +118,9 @@
     {
       "program": "bench/runtime/progs/task-pipeline.hd",
       "retained": "7706262",
-      "released": "11812533",
+      "released": "8212533",
       "uniques": "0",
-      "total": "19518795"
+      "total": "15918795"
     },
     {
       "program": "bench/runtime/progs/trait-dispatch.hd",
