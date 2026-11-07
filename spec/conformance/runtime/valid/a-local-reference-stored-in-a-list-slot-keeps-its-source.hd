@@ -1,0 +1,15 @@
+# test: a local reference stored in a slot of a local list keeps its source alive until the last use of the list, and a reference read through the old slot keeps the old source
+# Spec 13 Values and References: ref.dep.scope.
+# expect-stdout: a1 b2 cccccc3
+
+struct P:
+    name: string
+
+pub fn main() -> void $ Console:
+    p := P { name: "a${1}" }
+    q := P { name: "b${2}" }
+    let mut ps = [&p]
+    d := &ps[0].name
+    ps[0] = &q
+    junk := "cccccc${3}"
+    println("${*d} ${ps[0].name} $junk")

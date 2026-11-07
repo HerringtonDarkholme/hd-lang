@@ -1341,6 +1341,9 @@ runtime/valid/a-loop-hands-its-reference-to-a-call-that-copies-the-list.hd	runti
 runtime/valid/a-compare-through-a-pointer-keeps-a-loop-from-changing-its-copy.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/a-change-through-a-list-parameter-keeps-its-copies-apart.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/a-list-literal-in-a-function-builds-a-fresh-list-each-call.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
+runtime/valid/a-local-reference-stored-in-a-list-slot-keeps-its-source.hd	runtime	accept	lang/13-values-and-references.md#r-ref.dep.scope
+runtime/valid/a-local-reference-stored-in-a-list-slot-keeps-its-source-through-a-pointer.hd	runtime	accept	lang/13-values-and-references.md#r-ref.dep.scope
+runtime/valid/a-local-reference-stored-in-a-list-slot-keeps-its-source-in-every-form.hd	runtime	accept	lang/13-values-and-references.md#r-ref.dep.scope
 runtime/valid/loop-list-cache-preserves-alias-and-cow-boundaries.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/list-push-with-room-keeps-values.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/loop-break-join-rows.hd	runtime	accept	lang/06-control-flow.md#r-flow.loop.else.type

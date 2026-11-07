@@ -13,7 +13,9 @@
 //!    as the checker solves them (`hd_check/src/dep_results.rs`) but over
 //!    this body, where the inliner binds parameters to locals: a `Ref`
 //!    points where its place lies, a read of a reference holds what its
-//!    place holds, a `Store` adds to what its place's locals hold, a
+//!    place holds, a `Store` adds to what its place's locals hold (an
+//!    element's is whatever holds its list, as for a `ListPush` or
+//!    `MapSet`), a
 //!    `Break` to its target, and any other value that may hold a reference
 //!    ([`OwnCx::holds_ref`]) takes its operands' and its blocks'. A read
 //!    through a reference may become a borrow, which lives on what it
@@ -23,7 +25,7 @@
 //!    argument's body returns its value), awaited,
 //!    captured, read by a cleanup suite (which runs after a jump dropped
 //!    what it leaves), or consumed by an instruction other than a call
-//!    whose value holds no reference (a list push).
+//!    whose value holds no reference.
 //!
 //! Their `Ref`s get `ref_word::FRAME`, and move never takes their count.
 //!
@@ -56,8 +58,8 @@ use hd_base::SliceSort as _;
 
 use super::{OwnCx, Role, fill, operands, suite_touches};
 use crate::ir::{
-    Body, Callee, NONE, PlaceView, Proj, Ref, Root, Tag, Topology, Word, is_suspension, slots,
-    u32_of,
+    Body, Callee, IntrinsicOp, NONE, PlaceView, Proj, Ref, Root, Tag, Topology, Word,
+    is_suspension, slots, u32_of,
 };
 
 /// Frame locals' dense tables, reused across bodies.
@@ -113,7 +115,7 @@ impl Tables {
 
     /// The candidates the place at `word` lies in and those the value there
     /// may point into; `None` for a place no local of the body holds (a
-    /// parameter's referent, a top-level binding, a buffer's element).
+    /// parameter's referent, a top-level binding).
     fn place(&self, b: &Body, word: u32) -> Option<(u64, u64)> {
         let p = b.view(word);
         let (mut lies, mut held) = match p.root {
@@ -156,14 +158,66 @@ impl Tables {
                 Proj::Deref | Proj::Elem(_) if !self.targets.is_empty() => {
                     return Some((lies, held));
                 }
-                // A frame cell's closure may sit in an element: what the
-                // place holds is what it held.
-                Proj::Deref | Proj::Elem(_) if self.cells => return Some((0, held)),
-                Proj::Deref | Proj::Elem(_) => return None,
+                // An element lies in the buffer, and what it holds is what
+                // the list holds: its local's reference or closure.
+                Proj::Deref | Proj::Elem(_) => lies = 0,
                 _ => {}
             }
         }
         Some((lies, held))
+    }
+
+    /// The locals whose values hold the slot at `word`, as a store into it
+    /// reaches them: the root local when no reference lies on the way, and
+    /// the candidates a reference on the way points into. An element is
+    /// held by whatever holds its list.
+    fn slot_holders(&self, b: &Body, word: u32) -> (Option<u32>, u64) {
+        let p = b.view(word);
+        let (mut direct, mut lies, mut held) = match p.root {
+            Root::Local(l) => (Some(l), self.bit[l as usize], self.held[l as usize]),
+            Root::Value(v) => (
+                whole_local_read(b, v).and_then(|w| b.view(w).local()),
+                whole_local_read(b, v)
+                    .and_then(|w| self.place(b, w))
+                    .map_or(0, |(lies, _)| lies),
+                self.of(v),
+            ),
+            _ => return (None, 0),
+        };
+        for s in p.steps(b) {
+            if s == Proj::Deref {
+                direct = None;
+                (lies, held) = (held, self.holdings(held));
+            }
+        }
+        (direct, lies)
+    }
+
+    /// A slot of the collection value `v` (`ListPush`, `MapSet`): who holds
+    /// it, as [`Self::slot_holders`].
+    fn collection_holders(&self, b: &Body, v: u32) -> (Option<u32>, u64) {
+        match Ref(v).as_inst() {
+            Some(x) if b.tags[x.0 as usize] == Tag::Read => {
+                self.slot_holders(b, b.data[x.0 as usize][0])
+            }
+            _ => (None, 0),
+        }
+    }
+
+    /// A slot `holders` hold now holds what `m` points into: if no local
+    /// of the body holds it, that escapes. Whether any set grew.
+    fn stored(&mut self, (direct, holders): (Option<u32>, u64), m: u64) -> bool {
+        let mut changed = false;
+        if let Some(l) = direct {
+            changed |= grow(&mut self.held[l as usize], m);
+        }
+        for k in bits(holders) {
+            changed |= grow(&mut self.held[self.cands[k] as usize], m);
+        }
+        if direct.is_none() && holders == 0 {
+            changed |= grow(&mut self.out, m);
+        }
+        changed
     }
 
     /// What the candidates `m` hold.
@@ -834,22 +888,8 @@ fn step_val(
         }
         Tag::Store if t.of(w) != 0 => {
             let m = t.of(w);
-            let p = b.view(a);
-            if let Root::Local(l) = p.root
-                && p.in_place(b)
-            {
-                return grow(&mut t.held[l as usize], m);
-            }
-            let mut changed = false;
-            match t.place(b, a) {
-                Some((lies, _)) if lies != 0 => {
-                    for k in bits(lies) {
-                        changed |= grow(&mut t.held[t.cands[k] as usize], m);
-                    }
-                }
-                _ => changed = grow(&mut t.out, m),
-            }
-            return changed;
+            let holders = t.slot_holders(b, a);
+            return t.stored(holders, m);
         }
         Tag::Store => return false,
         // A capture of a reference is a checker error; one that held it
@@ -888,6 +928,20 @@ fn step_val(
         _ => {}
     }
     operands(b, i, ops);
+    // A list push or map store is a store into a slot of its collection.
+    if tag == Tag::Intrinsic
+        && matches!(
+            IntrinsicOp::from_u32(a),
+            Some(IntrinsicOp::ListPush | IntrinsicOp::MapSet)
+        )
+    {
+        let m = ops.iter().skip(1).fold(0, |m, op| m | t.of(op.value));
+        if m == 0 {
+            return false;
+        }
+        let holders = t.collection_holders(b, ops[0].value);
+        return t.stored(holders, m);
+    }
     let mut m = 0;
     let mut consumed = 0;
     for op in ops.iter() {

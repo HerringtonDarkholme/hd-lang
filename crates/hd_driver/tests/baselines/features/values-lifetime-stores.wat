@@ -99,7 +99,7 @@
       i32.store $heap offset=4
     end
   )
-  (func $total (param $b i32) (param $seen i32) (param $by i32) (param $t1 i32) (result i32) (local $t0 i32) (local $a i32) (local $t2 i32) (local $t3 i32)
+  (func $total (param $b i32) (param $seen i32) (param $by i32) (param $t1 i32) (result i32) (local $t0 i32) (local $a i32) (local $t2 i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
@@ -229,20 +229,10 @@
       i32.load $heap
       local.get $t2
       i32.load $heap offset=4
-      local.set $t3
+      local.set $t2
       drop
-    ;; (no span)
-      local.get $b
-      if
-        local.get $b
-        i32.load $heap
-        call $rt:release_ref'1
-      end
-    ;; 22 |     seen[0].name.len() + seen[1].name.len() + by.len()
       block
         block
-          local.get $t3
-          local.set $b
           br 0
         end
       end
@@ -253,9 +243,15 @@
         i32.load $heap
         call $rt:release_ref'2
       end
+      local.get $b
+      if
+        local.get $b
+        i32.load $heap
+        call $rt:release_ref'1
+      end
     ;; 22 |     seen[0].name.len() + seen[1].name.len() + by.len()
       local.get $t1
-      local.get $b
+      local.get $t2
       i32.add
       local.set $b
       local.get $by
