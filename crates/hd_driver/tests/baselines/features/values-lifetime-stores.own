@@ -46,7 +46,7 @@ fn total(a: User, b: User) -> usize:
 >   local $2 seen: List[Ref[User]] [read assigned captured captured-assigned] place
 >   local $3 by: Map[string, Ref[User]] [read assigned captured captured-assigned] place
 >   local $4 self: string [read] value
->     uses $4: %27 -> %28 lend last
+>     uses $4: %28 -> %29 lend last
 >   local $5 self: string [read] value
 >     uses $5: %20 -> %21 lend last
 >   %0 = NewList - [] : List[Ref[User]]
@@ -85,15 +85,15 @@ fn total(a: User, b: User) -> usize:
 >   %24 = Block - : usize
 >   %25 = Scope %24 [] : usize
 >   %26 = Read borrow [$2 [1:usize] * .name] : string
->   %27 = Store [$4] %26 : ()
->   %28 = Read borrow [$4] : string
->   %29 = Call std/rt.bytes/bytes_len[] (%28) : usize
->   %30 = Break L0 %29 : never
->   %31 = Block - : usize
->   %32 = Scope %31 [] : usize
->   %33 = Drop [$2] : ()
->   %34 = Drop [$1] : ()
->   %35 = Prim Add [%25 %32] : usize
+>   %27 = Drop [$1] : ()
+>   %28 = Store [$4] %26 : ()
+>   %29 = Read borrow [$4] : string
+>   %30 = Call std/rt.bytes/bytes_len[] (%29) : usize
+>   %31 = Break L0 %30 : never
+>   %32 = Block - : usize
+>   %33 = Scope %32 [] : usize
+>   %34 = Drop [$2] : ()
+>   %35 = Prim Add [%25 %33] : usize
 >   %36 = Read move [$3] : Map[string, Ref[User]]
 >   %37 = Intrinsic MapLen [%36] : usize
 >   %38 = Drop [%36] : ()
