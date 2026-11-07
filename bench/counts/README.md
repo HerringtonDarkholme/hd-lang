@@ -28,6 +28,13 @@ scratch modules, `actual.json` and the Markdown summary; `--compiler FILE`
 selects a prebuilt `count_ops` example. Each child program has a 60-second
 limit and compilation has a ten-minute limit.
 
+A local run executes only the modules it has not seen. Each program's counts are
+stored under `target/count-ops/results`, named by the digest of the module, the
+program path, the Node version and options, `host/` and the measuring scripts.
+`--no-cache`, `--record` and `--refresh` execute every program; CI always does.
+A stored result would hide a count that changes between runs of identical bytes,
+and only those full runs can catch that.
+
 Uniqueness counts cover the executed sole-owner decision in list/map changes,
 list reservation, list-to-string conversion, string growth and erased-box
 extraction. A release's last-owner branch belongs to that release rather than

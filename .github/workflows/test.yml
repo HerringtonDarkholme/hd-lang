@@ -151,7 +151,7 @@ jobs:
           HD_CACHE: target/count-ops/cache
         run: |
           set -euo pipefail
-          count_flags=()
+          count_flags=(--no-cache)
           if [ "$GITHUB_REF" = refs/heads/main ]; then
             count_flags+=(--refresh)
           fi

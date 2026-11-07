@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { compareCounts, countEntry, countTable, readBaseline, recordCounts } from "./baseline.ts";
+import { readResult, resultKey, writeResult } from "./results.ts";
 
 test("each program blocks on its own total, with exact full-width counters", () => {
   const base = countEntry("hot-loop", [1n << 60n, 4n, 2n]);
@@ -55,5 +59,30 @@ test("malformed and duplicate baselines cannot waive a regression", () => {
   const base = recordCounts([row]);
   for (const programs of [[row, row], [{ ...row, total: "1" }], [{ ...row, retained: "-1" }]]) {
     assert.throws(() => readBaseline(JSON.stringify({ ...base, programs })));
+  }
+});
+test("a stored result answers only for the same bytes, program and runner", () => {
+  const bytes = new Uint8Array([0, 97, 115, 109]);
+  const key = resultKey("runner", "loop", bytes);
+  assert.notEqual(key, resultKey("runner", "loop", new Uint8Array([0, 97, 115, 110])));
+  assert.notEqual(key, resultKey("runner", "other", bytes));
+  assert.notEqual(key, resultKey("other", "loop", bytes));
+  const directory = mkdtempSync(join(tmpdir(), "count-results-"));
+  try {
+    assert.equal(readResult(directory, key, "loop"), undefined);
+    const row = { ...countEntry("loop", [1n << 60n, 4n, 2n]), noOps: "7" };
+    writeResult(directory, key, row);
+    assert.deepEqual(readResult(directory, key, "loop"), row);
+    assert.equal(readResult(directory, key, "other"), undefined);
+    for (const bad of [
+      "{",
+      JSON.stringify({ ...row, total: "1" }),
+      JSON.stringify({ ...row, noOps: undefined }),
+    ]) {
+      writeFileSync(join(directory, `${key}.json`), bad);
+      assert.equal(readResult(directory, key, "loop"), undefined);
+    }
+  } finally {
+    rmSync(directory, { recursive: true });
   }
 });

@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { compareCounts, countTable, readBaseline, recordCounts } from "./baseline.ts";
 import type { Entry } from "./baseline.ts";
+import { readResult, resultKey, runnerDigest, writeResult } from "./results.ts";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const options = new Map<string, string>();
@@ -12,7 +13,7 @@ const flags = new Set<string>();
 const arguments_ = process.argv.slice(2);
 for (let index = 0; index < arguments_.length; index++) {
   const argument = arguments_[index];
-  if (["--record", "--refresh"].includes(argument)) {
+  if (["--record", "--refresh", "--no-cache"].includes(argument)) {
     flags.add(argument);
   } else if (
     ["--compiler", "--baseline", "--previous", "--output", "--only", "--reason"].includes(
@@ -64,10 +65,21 @@ const manifest = execFileSync(tool, [`${output}/modules`, ...programs], {
   timeout: 600_000,
   env: { ...process.env, HD_CACHE: `${output}/cache` },
 });
+const reuse = !["--no-cache", "--record", "--refresh"].some((flag) => flags.has(flag));
+const results = `${root}/target/count-ops/results`;
+const runner = runnerDigest(root);
 const actual: Entry[] = [];
+let executed = 0;
 for (const line of manifest.trim().split("\n")) {
   const [program, path] = line.split("\t");
+  const key = resultKey(runner, program, readFileSync(path));
+  const stored = reuse ? readResult(results, key, program) : undefined;
+  if (stored) {
+    actual.push(stored);
+    continue;
+  }
   process.stderr.write(`count operations: ${program}\n`);
+  executed++;
   const text = execFileSync(process.execPath, [`${root}/bench/counts/measure.ts`, program, path], {
     cwd: root,
     encoding: "utf8",
@@ -75,8 +87,11 @@ for (const line of manifest.trim().split("\n")) {
     maxBuffer: 16 * 1024 * 1024,
     env: { ...process.env, HD_CACHE: `${output}/cache` },
   });
-  actual.push(JSON.parse(text) as Entry);
+  const row = JSON.parse(text) as Entry;
+  writeResult(results, key, row);
+  actual.push(row);
 }
+process.stderr.write(`count operations: ran ${executed} of ${actual.length} programs\n`);
 const measured = recordCounts(actual);
 writeFileSync(`${output}/actual.json`, JSON.stringify(measured, null, 2) + "\n");
 const limits =
