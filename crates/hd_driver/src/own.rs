@@ -681,6 +681,16 @@ impl OwnCx for Env<'_> {
             .is_some_and(|v| v.one_owner((t, field)))
     }
 
+    fn in_place_struct(&self, ty: Ty) -> bool {
+        let pool = &self.run.pool;
+        let mut t = ty;
+        while let TyData::Mut(inner) = pool.get(t) {
+            t = inner;
+        }
+        matches!(pool.get(t), TyData::Adt { def, .. }
+            if self.std_kind(def) == hd_mono::layout::StdKind::Other && self.is_struct(def))
+    }
+
     fn trait_value(&self, ty: Ty) -> bool {
         let pool = &self.run.pool;
         let mut t = ty;

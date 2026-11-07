@@ -1,14 +1,14 @@
 # @dump: own wat counts
 # @build: v8 release
-# Spreading a list element into its own slot needs one new count per kept
-# field and one release per overwritten field. The spread's base is only
+# Spreading a list element into another list's slot needs one new count per
+# kept field and one release per overwritten field. The spread's base is only
 # read: it takes no count of its own, and no release when the update ends.
 struct Item:
     sku: i32
     batches: List[i64]
     revision: usize
 
-fn touch(items: &mut List[Item], index: usize) -> void:
+fn touch(items: &List[Item], out: &mut List[Item], index: usize) -> void:
     previous := items[index]
     # subject
-    items[index] = Item { ...previous, revision: previous.revision + 1 }
+    out[index] = Item { ...previous, revision: previous.revision + 1 }

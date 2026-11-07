@@ -72,6 +72,7 @@ pub mod pointer;
 pub mod promote;
 mod reason;
 pub(crate) mod retains;
+mod self_store;
 pub mod short;
 pub(crate) mod splice;
 pub mod values;
@@ -238,6 +239,13 @@ pub trait OwnCx {
     /// there. The default answers no; no pass reads it yet.
     fn single_owner_field(&self, ty: Ty, field: u32) -> bool {
         let _ = (ty, field);
+        false
+    }
+    /// Whether `ty` is a `struct`, whose value lies in the place that holds
+    /// it, so a field of the place is a field of the value. The default
+    /// answers no.
+    fn in_place_struct(&self, ty: Ty) -> bool {
+        let _ = ty;
         false
     }
     /// Whether `ty` is a trait value (`dyn T`, `mut dyn T`): the words of
@@ -829,6 +837,12 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     known::run(b, topo, cx, &mut scratch.known, edits);
     hoist::run(b, topo, cx, &mut scratch.hoist, edits);
     splice::apply(b, topo, edits)?;
+    if self_store::applies(b) {
+        scratch.topo.build(b);
+        scratch.splice.clear();
+        self_store::run(b, cx, &scratch.topo, &mut scratch.splice);
+        splice::apply(b, &scratch.topo, &mut scratch.splice)?;
+    }
     plain::loan_ends(b, cx);
     scratch.topo.build(b);
     scratch.splice.clear();

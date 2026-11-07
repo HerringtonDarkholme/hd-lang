@@ -1,0 +1,87 @@
+# test: a store that keeps fields of the place it replaces leaves other owners their values
+# Spec 05 Copy-Update: expr.update.copy-fields.
+# expect-stdout: after-store 1 0
+# expect-stdout: after-store-place 1 1
+# expect-stdout: after-store-copy 1
+# expect-stdout: after-store-write 8
+# expect-stdout: shared-xs 8 5
+# expect-stdout: shared-ys 1 0
+# expect-stdout: shared-one-store 5 0
+# expect-stdout: replaced 11 1 1
+# expect-stdout: two-replaced 11 12 2
+# expect-stdout: forms 1 1 1 t
+struct Item:
+    batches: List[i64]
+    depots: Map[string, i64]
+    r: usize
+
+struct Outer:
+    item: Item
+    tag: string
+
+struct Two:
+    a: List[i64]
+    b: List[i64]
+    n: i64
+
+fn make(seed: i64) -> Item:
+    Item { batches: [seed], depots: { "a": seed }, r: 0 }
+
+fn show(label: string, it: &Item) -> void $ Console:
+    println("$label ${it.batches[0]} ${it.r}")
+
+# The old value is used after the store, so it can't be the place itself.
+fn old_value_after(items: &mut List[Item]) -> void $ Console:
+    previous := items[0]
+    items[0] = Item { ...previous, r: 1 }
+    show("after-store", &previous)
+    show("after-store-place", &items[0])
+    items[0].batches[0] = 8
+    println("after-store-copy ${previous.batches[0]}")
+    println("after-store-write ${items[0].batches[0]}")
+
+fn touch(xs: &mut List[Item]) -> void:
+    xs[0] = Item { ...xs[0], r: 5 }
+
+fn replaced_counted(p: &mut Item) -> void:
+    *p = Item { ...*p, batches: [11] }
+
+fn two_replaced(p: &mut Two) -> void:
+    *p = Two { ...*p, a: [11], b: [12] }
+
+fn all_forms(items: &mut List[Item], o: &mut Outer, p: &mut Item) -> void:
+    items[0] = Item { ...items[0], r: items[0].r + 1 }
+    *p = Item { ...*p, r: p.r + 1 }
+    o.item = Item { ...o.item, r: o.item.r + 1 }
+
+pub fn main() -> void $ Console:
+    let mut first = [make(1)]
+    old_value_after(&mut first)
+
+    # A shared buffer: the check runs first, so the other list keeps its elements.
+    let mut xs = [make(1)]
+    ys := xs
+    xs[0] = Item { ...xs[0], r: 5 }
+    xs[0].batches[0] = 8
+    show("shared-xs", &xs[0])
+    show("shared-ys", &ys[0])
+
+    let mut once = [make(1)]
+    twin := once
+    touch(&mut once)
+    println("shared-one-store ${once[0].r} ${twin[0].r}")
+
+    # Replaced counted fields: each old value ends once, another holder keeps it.
+    let mut one = make(1)
+    held := one.batches
+    replaced_counted(&mut one)
+    println("replaced ${one.batches[0]} ${held[0]} ${one.depots.len()}")
+    let mut two = Two { a: [1], b: [2], n: 2 }
+    two_replaced(&mut two)
+    println("two-replaced ${two.a[0]} ${two.b[0]} ${two.n}")
+
+    let mut o = Outer { item: make(1), tag: "t" }
+    let mut p = make(1)
+    let mut items = [make(1)]
+    all_forms(&mut items, &mut o, &mut p)
+    println("forms ${items[0].r} ${p.r} ${o.item.r} ${o.tag}")

@@ -1,0 +1,119 @@
+# test: a store that keeps fields of the place it replaces holds what the spread read
+# Spec 05 Copy-Update: expr.update.spread-first, expr.update.copy-time.
+# expect-stdout: store-between 1 0 2
+# expect-stdout: call 1 0 7
+# expect-stdout: written-out-call 9 0 7
+# expect-stdout: closure 1 0 7
+# expect-stdout: written-out-closure 9 0 7
+# expect-stdout: pointer 1 0 7
+# expect-stdout: written-out-pointer 9 0 7
+# expect-stdout: suspension 1 0 7
+# expect-stdout: other-index 2 1 3
+# expect-stdout: index-changes 1 0 4
+use std.time.{Clock, ms, sleep}
+
+struct Item:
+    batches: List[i64]
+    depots: Map[string, i64]
+    r: usize
+
+fn make(seed: i64) -> Item:
+    Item { batches: [seed], depots: { "a": seed - 1 }, r: 0 }
+
+fn show(label: string, it: &Item) -> void $ Console:
+    println("$label ${it.batches[0]} ${it.depots.get("a").unwrap_or(-1)} ${it.r}")
+
+fn store_between(items: &mut List[Item]) -> void:
+    previous := items[0]
+    items[0].batches = [5]
+    items[0] = Item { ...previous, r: 2 }
+
+fn grow(items: &mut List[Item]) -> usize:
+    items[0].batches = [9]
+    +7
+
+fn call_between(items: &mut List[Item]) -> void:
+    items[0] = Item { ...items[0], r: grow(items) }
+
+fn grow_one(p: &mut Item) -> usize:
+    p.batches = [9]
+    +7
+
+# Written out, each field is read where it stands, so the call comes after
+# `batches`, and the store has the old buffer. The spec's order applies.
+fn written_out_call(p: &mut Item) -> void:
+    *p = Item { batches: p.batches, depots: p.depots, r: grow_one(p) }
+
+fn closure_between() -> void $ Console:
+    h := box(make(1))
+    change := fn() -> usize:
+        h.batches = [9]
+        +7
+    *h = Item { ...*h, r: change() }
+    show("closure", h)
+
+fn written_out_closure() -> void $ Console:
+    h := box(make(1))
+    change := fn() -> usize:
+        h.batches = [9]
+        +7
+    *h = Item { depots: h.depots, batches: h.batches, r: change() }
+    h.batches = [h.batches[0] + 8]
+    show("written-out-closure", h)
+
+fn write_through(q: *mut Item) -> usize:
+    q.batches = [9]
+    +7
+
+fn pointer_between() -> void $ Console:
+    h := box(make(1))
+    *h = Item { ...*h, r: write_through(h) }
+    show("pointer", h)
+
+fn written_out_pointer() -> void $ Console:
+    h := box(make(1))
+    *h = Item { batches: h.batches, depots: h.depots, r: write_through(h) }
+    h.batches = [h.batches[0] + 8]
+    show("written-out-pointer", h)
+
+fn write_later!(q: *mut Item) -> usize $ Clock:
+    sleep!(ms(1))
+    q.batches = [9]
+    +7
+
+fn suspension_between!() -> void $ Console + Clock:
+    h := box(make(1))
+    *h = Item { ...*h, r: write_later!(h) }
+    show("suspension", h)
+
+fn other_index(items: &mut List[Item], i: usize, j: usize) -> void:
+    items[i] = Item { ...items[j], r: 3 }
+
+fn index_changes(items: &mut List[Item]) -> void:
+    let mut i: usize = 0
+    previous := items[i]
+    i = 1
+    items[i] = Item { ...previous, r: 4 }
+
+pub fn main!() -> void $ Console + Clock:
+    let mut items = [make(1), make(2)]
+    store_between(&mut items)
+    show("store-between", &items[0])
+    items = [make(1), make(2)]
+    call_between(&mut items)
+    show("call", &items[0])
+    let mut single = make(1)
+    written_out_call(&mut single)
+    single.batches = [single.batches[0] + 8]
+    show("written-out-call", &single)
+    closure_between()
+    written_out_closure()
+    pointer_between()
+    written_out_pointer()
+    suspension_between!()
+    items = [make(1), make(2)]
+    other_index(&mut items, 0, 1)
+    show("other-index", &items[0])
+    items = [make(1), make(2)]
+    index_changes(&mut items)
+    show("index-changes", &items[1])

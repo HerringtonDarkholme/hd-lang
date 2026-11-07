@@ -1666,6 +1666,8 @@ runtime/valid/defaults-reference-earlier-parameters.hd	runtime	accept	lang/07-fu
 typing/invalid/default-later-parameter-earlier-twin.hd	type	reject:binding-not-yet-visible	lang/07-functions.md#default-values
 runtime/valid/copy-update-source-order-observed.hd	runtime	accept	lang/05-expressions.md#data-expressions
 runtime/valid/copy-update-reads-source-at-spread.hd	runtime	accept	lang/05-expressions.md#r-expr.update.copy-time
+runtime/valid/a-store-keeping-its-own-fields-sees-every-write-before-it.hd	runtime	accept	lang/05-expressions.md#r-expr.update.copy-time
+runtime/valid/a-store-keeping-its-own-fields-leaves-other-owners-alone.hd	runtime	accept	lang/05-expressions.md#r-expr.update.copy-fields
 runtime/valid/copy-update-shallow.hd	runtime	accept	lang/08-data-and-enums.md#construction-and-access
 runtime/valid/empty-string-operations.hd	runtime	accept	std/text.md#string-methods
 runtime/valid/split-empty-input-nonempty-separator.hd	runtime	accept	std/text.md#r-std-text.string.split.absent
