@@ -35,81 +35,83 @@ impl Display for FsError:
 impl Error for FsError
 
 fn read_config(path: string) -> Result[string, FsError]:
-    if path.len() > 0: .Ok(path + "!") else: .Err(FsError.NotFound(path))
 > app/main/read_config
 >   local $0 path: string [param read] value
->     uses $0: entry -> %0 lend, %6 lend last, %10 consume last
->   %0 = Read borrow [$0] : string
->   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
->   %2 = Break L0 %1 : never
->   %3 = Block - : usize
->   %4 = Scope %3 [] : usize
->   %5 = Prim Gt [%4 0:usize] : bool
->   %6 = Read borrow [$0] : string
->   %7 = Intrinsic StrConcat [%6 "!"] : string
->   %8 = NewVariant #0 [%7] : Result[string, FsError]
->   %9 = Block %8 : Result[string, FsError]
->   %10 = Read move [$0] : string
->   %11 = NewVariant #0 [%10] : FsError
->   %12 = NewVariant #1 [%11] : Result[string, FsError]
->   %13 = Block %12 : Result[string, FsError]
->   %14 = If %5 [%9 %13] : Result[string, FsError]
->   %15 = Drop [$0] : ()
->   %16 = Block %14 : Result[string, FsError]
+>     uses $0: entry -> %1 lend, %7 lend last, %11 consume last
+>   %0 = Retain %17 Entry local $0 #0 : ()
+    if path.len() > 0: .Ok(path + "!") else: .Err(FsError.NotFound(path))
+>   %1 = Read borrow [$0] : string
+>   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
+>   %3 = Break L0 %2 : never
+>   %4 = Block - : usize
+>   %5 = Scope %4 [] : usize
+>   %6 = Prim Gt [%5 0:usize] : bool
+>   %7 = Read borrow [$0] : string
+>   %8 = Intrinsic StrConcat [%7 "!"] : string
+>   %9 = NewVariant #0 [%8] : Result[string, FsError]
+>   %10 = Block %9 : Result[string, FsError]
+>   %11 = Read move [$0] : string
+>   %12 = NewVariant #0 [%11] : FsError
+>   %13 = NewVariant #1 [%12] : Result[string, FsError]
+>   %14 = Block %13 : Result[string, FsError]
+>   %15 = If %6 [%10 %14] : Result[string, FsError]
+>   %16 = Drop [$0] : ()
+>   %17 = Block %15 : Result[string, FsError]
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
 fn load(path: string) -> Result[string, *dyn Error]:
-    text := read_config(path)?
 > app/main/load
 >   local $0 path: string [param read] value
->     uses $0: entry -> %0 consume last
+>     uses $0: entry -> %1 consume last
 >   local $1 $ref: FsError [read assigned captured captured-assigned] place
 >   local $2 $ref: Counted[FsError] [read assigned captured] value
->     uses $2: %25 -> %26 lend last
+>     uses $2: %26 -> %27 lend last
 >   local $4 path: string [read captured] place
->   %0 = Read move [$0] : string
->   %1 = Store [$4] %0 : ()
->   %2 = Ref local frame [$4] : Ref[string]
->   %3 = Call std/text/impl string.len[] (%2) : usize
->   %4 = LoanEnd [%2] : ()
->   %5 = Prim Gt [%3 0:usize] : bool
->   %6 = Read borrow [$4] : string
->   %7 = Intrinsic StrConcat [%6 "!"] : string
->   %8 = NewVariant #0 [%7] : Result[string, FsError]
->   %9 = Block %8 : Result[string, FsError]
->   %10 = Read move [$4] : string
->   %11 = Release %10 Operation local $4 #2 : ()
->   %12 = NewVariant #0 [%10] : FsError
->   %13 = NewVariant #1 [%12] : Result[string, FsError]
->   %14 = Block %13 : Result[string, FsError]
->   %15 = If %5 [%9 %14] : Result[string, FsError]
->   %16 = Break L0 %15 : never
->   %17 = Block - : Result[string, FsError]
->   %18 = Scope %17 [] : Result[string, FsError]
->   %19 = Drop [$4] : ()
->   %20 = Read move [%18 as #0 .0] : string
->   %21 = Block %20 : string
->   %22 = Read move [%18 as #1 .0] : FsError
->   %23 = Store [$1] %22 : ()
->   %24 = Ref take [$1] : Counted[FsError]
->   %25 = Store [$2] %24 : ()
->   %26 = Read move [$2] : Counted[FsError]
->   %27 = Coerce %26 [RefToTraitValue -] : Error
->   %28 = LoanEnd [%26] : ()
->   %29 = Block %27 : Error
->   %30 = RefDyn %29 : Counted[Error]
->   %31 = NewVariant #1 [%30] : Result[string, Counted[Error]]
->   %32 = Return %31 : never
->   %33 = Block - : never
->   %34 = SwitchTag %18 [#0 %21 %33] : string
->   %36 = Block %35 : Result[string, Counted[Error]]
->   %2 finds [$4] full
->   %6 finds [$4] full
->   %10 finds [$4] full
->   %24 finds [$1] full
+>   %0 = Retain %37 Entry local $0 #0 : ()
+    text := read_config(path)?
+>   %1 = Read move [$0] : string
+>   %2 = Store [$4] %1 : ()
+>   %3 = Ref local frame [$4] : Ref[string]
+>   %4 = Call std/text/impl string.len[] (%3) : usize
+>   %5 = LoanEnd [%3] : ()
+>   %6 = Prim Gt [%4 0:usize] : bool
+>   %7 = Read borrow [$4] : string
+>   %8 = Intrinsic StrConcat [%7 "!"] : string
+>   %9 = NewVariant #0 [%8] : Result[string, FsError]
+>   %10 = Block %9 : Result[string, FsError]
+>   %11 = Read move [$4] : string
+>   %12 = Release %11 Operation local $4 #2 : ()
+>   %13 = NewVariant #0 [%11] : FsError
+>   %14 = NewVariant #1 [%13] : Result[string, FsError]
+>   %15 = Block %14 : Result[string, FsError]
+>   %16 = If %6 [%10 %15] : Result[string, FsError]
+>   %17 = Break L0 %16 : never
+>   %18 = Block - : Result[string, FsError]
+>   %19 = Scope %18 [] : Result[string, FsError]
+>   %20 = Drop [$4] : ()
+>   %21 = Read move [%19 as #0 .0] : string
+>   %22 = Block %21 : string
+>   %23 = Read move [%19 as #1 .0] : FsError
+>   %24 = Store [$1] %23 : ()
+>   %25 = Ref take [$1] : Counted[FsError]
+>   %26 = Store [$2] %25 : ()
+>   %27 = Read move [$2] : Counted[FsError]
+>   %28 = Coerce %27 [RefToTraitValue -] : Error
+>   %29 = LoanEnd [%27] : ()
+>   %30 = Block %28 : Error
+>   %31 = RefDyn %30 : Counted[Error]
+>   %32 = NewVariant #1 [%31] : Result[string, Counted[Error]]
+>   %33 = Return %32 : never
+>   %34 = Block - : never
+>   %35 = SwitchTag %19 [#0 %22 %34] : string
+>   %37 = Block %36 : Result[string, Counted[Error]]
+>   %3 finds [$4] full
+>   %7 finds [$4] full
+>   %11 finds [$4] full
+>   %25 finds [$1] full
     .Ok(text)
->   %35 = NewVariant #0 [%34] : Result[string, Counted[Error]]
+>   %36 = NewVariant #0 [%35] : Result[string, Counted[Error]]
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell, $4 slot
 >   summary kept [$0]

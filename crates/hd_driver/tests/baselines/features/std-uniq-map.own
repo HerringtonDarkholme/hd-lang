@@ -9,139 +9,144 @@
 use std.collections.{UniqList, UniqMap}
 
 fn put(m: &mut UniqMap[string, string], k: string, v: string) -> void:
-    _ := m.insert(k, v)
 > app/main/put
 >   local $0 m: Ref[mut UniqMap[string, string]] [param read] value
->     uses $0: entry -> %0 lend last
+>     uses $0: entry -> %2 lend last
 >   local $1 k: string [param read] value
->     uses $1: entry -> %1 consume last
+>     uses $1: entry -> %3 consume last
 >   local $2 v: string [param read] value
->     uses $2: entry -> %2 consume last
->   %0 = Read borrow [$0] : Ref[mut UniqMap[string, string]]
->   %1 = Read move [$1] : string
->   %2 = Read move [$2] : string
->   %3 = Call std/collections/impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].insert[string, string] (%0, %1, %2) : string?
->   %4 = Drop [%3] : ()
->   %5 = Block - : ()
+>     uses $2: entry -> %4 consume last
+>   %0 = Retain %7 Entry local $1 #0 : ()
+>   %1 = Retain %7 Entry local $2 #0 : ()
+    _ := m.insert(k, v)
+>   %2 = Read borrow [$0] : Ref[mut UniqMap[string, string]]
+>   %3 = Read move [$1] : string
+>   %4 = Read move [$2] : string
+>   %5 = Call std/collections/impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].insert[string, string] (%2, %3, %4) : string?
+>   %6 = Drop [%5] : ()
+>   %7 = Block - : ()
 >   exit sub 0 drops [$1 $2]
 >   summary kept [$1 $2] writes
 
 fn lookup(m: &UniqMap[string, string], k: string) -> usize:
-    match m.get_ref(k):
 > app/main/lookup
 >   local $0 m: Ref[UniqMap[string, string]] [param read] value
->     uses $0: entry -> %0 lend last
+>     uses $0: entry -> %1 lend last
 >   local $1 k: string [param read] value
->     uses $1: entry -> %1 consume last
+>     uses $1: entry -> %2 consume last
 >   local $2 v: Ref[string] [read assigned] value
->     uses $2: %8 -> %3 lend last
->   %0 = Read borrow [$0] : Ref[UniqMap[string, string]]
->   %1 = Read move [$1] : string
->   %2 = Call std/collections/impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].get_ref[string, string] (%0, %1) : Ref[string]?
->   %18 = Block - : never
->   %19 = Match %2 [%18 %5 %6] : usize
->   %20 = Drop [%2] : ()
->   %21 = Block %19 : usize
+>     uses $2: %9 -> %4 lend last
+>   %0 = Retain %22 Entry local $1 #0 : ()
+    match m.get_ref(k):
+>   %1 = Read borrow [$0] : Ref[UniqMap[string, string]]
+>   %2 = Read move [$1] : string
+>   %3 = Call std/collections/impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].get_ref[string, string] (%1, %2) : Ref[string]?
+>   %19 = Block - : never
+>   %20 = Match %3 [%19 %6 %7] : usize
+>   %21 = Drop [%3] : ()
+>   %22 = Block %20 : usize
         .Some(v) => v.len()
->   %3 = Read borrow [$2] : Ref[string]
->   %4 = Call std/text/impl string.len[] (%3) : usize
->   %5 = Block %4 : usize
->   %7 = Read borrow [%2 as #1 .0] : Ref[string]
->   %8 = Store [$2] %7 : ()
->   %10 = Block - : never
->   %16 = Block - : never
->   %17 = SwitchTag %2 [#1 %10 %16] : never
+>   %4 = Read borrow [$2] : Ref[string]
+>   %5 = Call std/text/impl string.len[] (%4) : usize
+>   %6 = Block %5 : usize
+>   %8 = Read borrow [%3 as #1 .0] : Ref[string]
+>   %9 = Store [$2] %8 : ()
+>   %11 = Block - : never
+>   %17 = Block - : never
+>   %18 = SwitchTag %3 [#1 %11 %17] : never
         .None => 0
->   %6 = Block 0:usize : usize
->   %12 = Block - : never
->   %14 = Block - : never
->   %15 = SwitchTag %2 [#0 %12 %14] : never
+>   %7 = Block 0:usize : usize
+>   %13 = Block - : never
+>   %15 = Block - : never
+>   %16 = SwitchTag %3 [#0 %13 %15] : never
 >   exit sub 0 drops [$1]
 >   summary kept [$1] writes
 
 fn group(m: &mut UniqMap[string, UniqList[string]], k: string, v: string) -> void:
-    m.get_or_insert(k, UniqList::new()).push(v)
 > app/main/group
 >   local $0 m: Ref[mut UniqMap[string, UniqList[string]]] [param read] value
->     uses $0: entry -> %0 lend last
+>     uses $0: entry -> %2 lend last
 >   local $1 k: string [param read] value
->     uses $1: entry -> %1 consume last
+>     uses $1: entry -> %3 consume last
 >   local $2 v: string [param read] value
->     uses $2: entry -> %54 consume last
+>     uses $2: entry -> %56 consume last
 >   local $3 self: Ref[mut UniqList[string]] [read] value
->     uses $3: %21 -> %22 consume, %29 lend, %37 lend, %43 lend, %59 lend last
+>     uses $3: %23 -> %24 consume, %31 lend, %39 lend, %45 lend, %61 lend last
 >   local $5 size: usize [:= read assigned] value
->     uses $5: %28 -> %35 lend, %38 lend, %44 consume, %57 lend last
+>     uses $5: %30 -> %37 lend, %40 lend, %46 consume, %59 lend last
 >   local $7 index: usize [read] value
->     uses $7: %45 -> %48 lend last
+>     uses $7: %47 -> %50 lend last
 >   local $10 capacity: usize [read] value
->     uses $10: %2 -> %3 consume last
+>     uses $10: %4 -> %5 consume last
 >   local $11 capacity: usize [read] value
->     uses $11: %4 -> %5 lend, %8 consume last
->   %0 = Read borrow [$0] : Ref[mut UniqMap[string, UniqList[string]]]
->   %1 = Read move [$1] : string
->   %2 = Store [$10] 0:usize : ()
->   %3 = Read copy [$10] : usize
->   %4 = Store [$11] %3 : ()
->   %5 = Read copy [$11] : usize
->   %6 = Call std/rt.memory/size_of[string] () : usize
->   %7 = Call std/rt.memory/room[] (%5, %6) : usize
->   %8 = Read copy [$11] : usize
->   %9 = NewStruct [%7 %8] : Buffer[string]
->   %10 = Break L4 %9 : never
->   %11 = Block - : Buffer[string]
->   %12 = Scope %11 [] : Buffer[string]
->   %13 = NewStruct [%12 0:usize] : UniqList[string]
->   %14 = Break L5 %13 : never
->   %15 = Block - : UniqList[string]
->   %16 = Scope %15 [] : UniqList[string]
->   %17 = Break L6 %16 : never
->   %18 = Block - : UniqList[string]
->   %19 = Scope %18 [] : UniqList[string]
->   %20 = Call std/collections/impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].get_or_insert[string, UniqList[string]] (%0, %1, %19) : Ref[mut UniqList[string]]
->   %21 = Store [$3] %20 : ()
->   %22 = Read borrow [$3] : Ref[mut UniqList[string]]
->   %23 = Coerce %22 [Weaken -] : Ref[UniqList[string]]
->   %24 = Read copy [*%23 .len] : usize
->   %25 = Break L2 %24 : never
->   %26 = Block - : usize
->   %27 = Scope %26 [] : usize
->   %28 = Store [$5] %27 : ()
->   %29 = Ref local [*$3 .buffer] : Ref[Buffer[string]]
->   %30 = Read copy [*%29 .capacity] : usize
->   %31 = Break L1 %30 : never
->   %32 = Block - : usize
->   %33 = Scope %32 [] : usize
->   %34 = Drop [%29] : ()
->   %35 = Read copy [$5] : usize
->   %36 = Prim Le [%33 %35] : bool
->   %37 = Read borrow [$3] : Ref[mut UniqList[string]]
->   %38 = Read copy [$5] : usize
->   %39 = Prim Add [%38 1:usize] : usize
->   %40 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].reserve_for[string] (%37, %39) : ()
->   %41 = Block - : ()
->   %42 = If %36 [%41 -] : ()
->   %43 = Ref local [*$3 .buffer] : Ref[Buffer[string]]
->   %44 = Read copy [$5] : usize
->   %45 = Store [$7] %44 : ()
->   %46 = Read copy [*%43 .address] : usize
->   %47 = NewStruct [%46] : Ptr[string]
->   %48 = Read copy [$7] : usize
->   %49 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[string] (%47, %48) : Ptr[string]
->   %50 = Break L0 %49 : never
->   %51 = Block - : Ptr[string]
->   %52 = Scope %51 [] : Ptr[string]
->   %53 = Drop [%43] : ()
->   %54 = Read move [$2] : string
->   %55 = Store [ptr %52] %54 : ()
->   %56 = Release %55 Operation #3 : ()
->   %57 = Read copy [$5] : usize
->   %58 = Prim Add [%57 1:usize] : usize
->   %59 = Store [*$3 .len] %58 : ()
->   %60 = Break L3 - : never
->   %61 = Block - : ()
->   %62 = Scope %61 [] : ()
->   %63 = Drop [$3] : ()
->   %64 = Block - : ()
+>     uses $11: %6 -> %7 lend, %10 consume last
+>   %0 = Retain %66 Entry local $1 #0 : ()
+>   %1 = Retain %66 Entry local $2 #0 : ()
+    m.get_or_insert(k, UniqList::new()).push(v)
+>   %2 = Read borrow [$0] : Ref[mut UniqMap[string, UniqList[string]]]
+>   %3 = Read move [$1] : string
+>   %4 = Store [$10] 0:usize : ()
+>   %5 = Read copy [$10] : usize
+>   %6 = Store [$11] %5 : ()
+>   %7 = Read copy [$11] : usize
+>   %8 = Call std/rt.memory/size_of[string] () : usize
+>   %9 = Call std/rt.memory/room[] (%7, %8) : usize
+>   %10 = Read copy [$11] : usize
+>   %11 = NewStruct [%9 %10] : Buffer[string]
+>   %12 = Break L4 %11 : never
+>   %13 = Block - : Buffer[string]
+>   %14 = Scope %13 [] : Buffer[string]
+>   %15 = NewStruct [%14 0:usize] : UniqList[string]
+>   %16 = Break L5 %15 : never
+>   %17 = Block - : UniqList[string]
+>   %18 = Scope %17 [] : UniqList[string]
+>   %19 = Break L6 %18 : never
+>   %20 = Block - : UniqList[string]
+>   %21 = Scope %20 [] : UniqList[string]
+>   %22 = Call std/collections/impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].get_or_insert[string, UniqList[string]] (%2, %3, %21) : Ref[mut UniqList[string]]
+>   %23 = Store [$3] %22 : ()
+>   %24 = Read borrow [$3] : Ref[mut UniqList[string]]
+>   %25 = Coerce %24 [Weaken -] : Ref[UniqList[string]]
+>   %26 = Read copy [*%25 .len] : usize
+>   %27 = Break L2 %26 : never
+>   %28 = Block - : usize
+>   %29 = Scope %28 [] : usize
+>   %30 = Store [$5] %29 : ()
+>   %31 = Ref local [*$3 .buffer] : Ref[Buffer[string]]
+>   %32 = Read copy [*%31 .capacity] : usize
+>   %33 = Break L1 %32 : never
+>   %34 = Block - : usize
+>   %35 = Scope %34 [] : usize
+>   %36 = Drop [%31] : ()
+>   %37 = Read copy [$5] : usize
+>   %38 = Prim Le [%35 %37] : bool
+>   %39 = Read borrow [$3] : Ref[mut UniqList[string]]
+>   %40 = Read copy [$5] : usize
+>   %41 = Prim Add [%40 1:usize] : usize
+>   %42 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].reserve_for[string] (%39, %41) : ()
+>   %43 = Block - : ()
+>   %44 = If %38 [%43 -] : ()
+>   %45 = Ref local [*$3 .buffer] : Ref[Buffer[string]]
+>   %46 = Read copy [$5] : usize
+>   %47 = Store [$7] %46 : ()
+>   %48 = Read copy [*%45 .address] : usize
+>   %49 = NewStruct [%48] : Ptr[string]
+>   %50 = Read copy [$7] : usize
+>   %51 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[string] (%49, %50) : Ptr[string]
+>   %52 = Break L0 %51 : never
+>   %53 = Block - : Ptr[string]
+>   %54 = Scope %53 [] : Ptr[string]
+>   %55 = Drop [%45] : ()
+>   %56 = Read move [$2] : string
+>   %57 = Store [ptr %54] %56 : ()
+>   %58 = Release %57 Operation #3 : ()
+>   %59 = Read copy [$5] : usize
+>   %60 = Prim Add [%59 1:usize] : usize
+>   %61 = Store [*$3 .len] %60 : ()
+>   %62 = Break L3 - : never
+>   %63 = Block - : ()
+>   %64 = Scope %63 [] : ()
+>   %65 = Drop [$3] : ()
+>   %66 = Block - : ()
 >   exit sub 0 drops [$1 $2]
 >   summary kept [$1 $2] writes

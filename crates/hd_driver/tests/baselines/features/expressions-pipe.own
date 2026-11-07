@@ -399,12 +399,13 @@ fn method_slot(raw: string) -> usize:
 >   summary kept [] borrows [$0]
 
 fn literal_slot(raw: string) -> Point:
-    raw |> Point { name: _, x: 0 }
 > app/main/literal_slot
 >   local $0 raw: string [param read] value
->     uses $0: entry -> %0 consume last
->   %0 = Read move [$0] : string
->   %1 = NewStruct [%0 0:usize] : Point
->   %2 = Block %1 : Point
+>     uses $0: entry -> %1 consume last
+>   %0 = Retain %3 Entry local $0 #0 : ()
+    raw |> Point { name: _, x: 0 }
+>   %1 = Read move [$0] : string
+>   %2 = NewStruct [%1 0:usize] : Point
+>   %3 = Block %2 : Point
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

@@ -11,50 +11,53 @@ struct Name:
 
 impl From[string] for Name:
     fn from(value: string) -> Name:
-        Name { text: value }
 > app/main/impl From [ string ] for Name.from
 >   local $0 value: string [param read] value
->     uses $0: entry -> %0 consume last
->   %0 = Read move [$0] : string
->   %1 = NewStruct [%0] : Name
->   %2 = Block %1 : Name
+>     uses $0: entry -> %1 consume last
+>   %0 = Retain %3 Entry local $0 #0 : ()
+        Name { text: value }
+>   %1 = Read move [$0] : string
+>   %2 = NewStruct [%1] : Name
+>   %3 = Block %2 : Name
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
 fn convert(s: string) -> Name:
-    Name::from(s)
 > app/main/convert
 >   local $0 s: string [param read] value
->     uses $0: entry -> %0 consume last
->   %0 = Read move [$0] : string
->   %1 = NewStruct [%0] : Name
->   %2 = Break L0 %1 : never
->   %3 = Block - : Name
->   %4 = Scope %3 [] : Name
->   %5 = Block %4 : Name
+>     uses $0: entry -> %1 consume last
+>   %0 = Retain %6 Entry local $0 #0 : ()
+    Name::from(s)
+>   %1 = Read move [$0] : string
+>   %2 = NewStruct [%1] : Name
+>   %3 = Break L0 %2 : never
+>   %4 = Block - : Name
+>   %5 = Scope %4 [] : Name
+>   %6 = Block %5 : Name
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
 fn name_len(s: string) -> usize:
-    Name::from(s).text.len()
 > app/main/name_len
 >   local $0 s: string [param read] value
->     uses $0: entry -> %0 consume last
+>     uses $0: entry -> %1 consume last
 >   local $1 $ref: string [read assigned captured captured-assigned] value
->     uses $1: %6 -> %7 lend last
->   %0 = Read move [$0] : string
->   %1 = NewStruct [%0] : Name
->   %2 = Break L1 %1 : never
->   %3 = Block - : Name
->   %4 = Scope %3 [] : Name
->   %5 = Read move [%4 .text] : string
->   %6 = Store [$1] %5 : ()
->   %7 = Read borrow [$1] : string
->   %8 = Call std/rt.bytes/bytes_len[] (%7) : usize
->   %9 = Break L0 %8 : never
->   %10 = Block - : usize
->   %11 = Scope %10 [] : usize
->   %12 = Drop [$1] : ()
->   %13 = Block %11 : usize
+>     uses $1: %7 -> %8 lend last
+>   %0 = Retain %14 Entry local $0 #0 : ()
+    Name::from(s).text.len()
+>   %1 = Read move [$0] : string
+>   %2 = NewStruct [%1] : Name
+>   %3 = Break L1 %2 : never
+>   %4 = Block - : Name
+>   %5 = Scope %4 [] : Name
+>   %6 = Read move [%5 .text] : string
+>   %7 = Store [$1] %6 : ()
+>   %8 = Read borrow [$1] : string
+>   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
+>   %10 = Break L0 %9 : never
+>   %11 = Block - : usize
+>   %12 = Scope %11 [] : usize
+>   %13 = Drop [$1] : ()
+>   %14 = Block %12 : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

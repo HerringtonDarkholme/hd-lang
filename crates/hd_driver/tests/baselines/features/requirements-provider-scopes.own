@@ -15,12 +15,13 @@ struct Named:
 
 impl Tag for Named:
     fn name(self) -> string:
-        self.label
 > app/main/impl Tag for Named.name
 >   local $0 self: Named [param read] value
->     uses $0: entry -> %0 consume last
->   %0 = Read move [$0 .label] : string
->   %1 = Block %0 : string
+>     uses $0: entry -> %1 consume last
+>   %0 = Retain %2 Entry local $0 #0 : ()
+        self.label
+>   %1 = Read move [$0 .label] : string
+>   %2 = Block %1 : string
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -45,101 +46,104 @@ fn read_tag() -> usize $ Tag:
 >   summary kept [] writes
 
 fn by_value(s: string) -> usize:
-    $.with(Tag=Named { label: s }):
 > app/main/by_value
 >   local $0 s: string [param read] value
->     uses $0: entry -> %0 consume last
+>     uses $0: entry -> %1 consume last
 >   local $1 provider: Named [read] value
->     uses $1: %2 -> %3 consume last
+>     uses $1: %3 -> %4 consume last
 >   local $2 $ref: Named [read assigned captured captured-assigned] place
->   %0 = Read move [$0] : string
->   %1 = NewStruct [%0] : Named
->   %2 = Store [$1] %1 : ()
->   %3 = Read move [$1] : Named
->   %4 = Store [$2] %3 : ()
->   %5 = Ref take mut [$2] : Counted[mut Named]
->   %6 = Break L0 %5 : never
->   %7 = Block - : Counted[mut Named]
->   %8 = Scope %7 [] : Counted[mut Named]
->   %9 = Coerce %8 [RefToTraitValue -] : Tag
->   %10 = Block %9 : Tag
->   %11 = RefDyn %10 : Counted[Tag]
->   %12 = LoanEnd [%8] : ()
->   %13 = Coerce %11 [RefAsProvider -] : Tag
->   %14 = LoanEnd [%11] : ()
->   %17 = With [Tag %13] %16 : usize
->   %18 = Drop [%13] : ()
->   %19 = Block %17 : usize
->   %5 finds [$2] full
+>   %0 = Retain %20 Entry local $0 #0 : ()
+    $.with(Tag=Named { label: s }):
+>   %1 = Read move [$0] : string
+>   %2 = NewStruct [%1] : Named
+>   %3 = Store [$1] %2 : ()
+>   %4 = Read move [$1] : Named
+>   %5 = Store [$2] %4 : ()
+>   %6 = Ref take mut [$2] : Counted[mut Named]
+>   %7 = Break L0 %6 : never
+>   %8 = Block - : Counted[mut Named]
+>   %9 = Scope %8 [] : Counted[mut Named]
+>   %10 = Coerce %9 [RefToTraitValue -] : Tag
+>   %11 = Block %10 : Tag
+>   %12 = RefDyn %11 : Counted[Tag]
+>   %13 = LoanEnd [%9] : ()
+>   %14 = Coerce %12 [RefAsProvider -] : Tag
+>   %15 = LoanEnd [%12] : ()
+>   %18 = With [Tag %14] %17 : usize
+>   %19 = Drop [%14] : ()
+>   %20 = Block %18 : usize
+>   %6 finds [$2] full
         read_tag()
->   %15 = Call app/main/read_tag[] () : usize
->   %16 = Block %15 : usize
+>   %16 = Call app/main/read_tag[] () : usize
+>   %17 = Block %16 : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $2 cell
 >   summary kept [$0] writes
 
 fn nested(a: string, b: string) -> usize:
-    $.with(Tag=Named { label: a }):
 > app/main/nested
 >   local $0 a: string [param read] value
->     uses $0: entry -> %0 consume last
+>     uses $0: entry -> %2 consume last
 >   local $1 b: string [param read] value
->     uses $1: entry -> %17 consume last
+>     uses $1: entry -> %19 consume last
 >   local $2 outer: usize [:= read assigned] value
->     uses $2: %16 -> %32 lend last
+>     uses $2: %18 -> %34 lend last
 >   local $3 provider: Named [read] value
->     uses $3: %19 -> %20 consume last
+>     uses $3: %21 -> %22 consume last
 >   local $4 $ref: Named [read assigned captured captured-assigned] place
 >   local $5 provider: Named [read] value
->     uses $5: %2 -> %3 consume last
+>     uses $5: %4 -> %5 consume last
 >   local $6 $ref: Named [read assigned captured captured-assigned] place
->   %0 = Read move [$0] : string
->   %1 = NewStruct [%0] : Named
->   %2 = Store [$5] %1 : ()
->   %3 = Read move [$5] : Named
->   %4 = Store [$6] %3 : ()
->   %5 = Ref take mut [$6] : Counted[mut Named]
->   %6 = Break L1 %5 : never
->   %7 = Block - : Counted[mut Named]
->   %8 = Scope %7 [] : Counted[mut Named]
->   %9 = Coerce %8 [RefToTraitValue -] : Tag
->   %10 = Block %9 : Tag
->   %11 = RefDyn %10 : Counted[Tag]
->   %12 = LoanEnd [%8] : ()
->   %13 = Coerce %11 [RefAsProvider -] : Tag
->   %14 = LoanEnd [%11] : ()
->   %39 = With [Tag %13] %38 : usize
->   %40 = Drop [%13] : ()
->   %41 = Block %39 : usize
->   %5 finds [$6] full
+>   %0 = Retain %43 Entry local $0 #0 : ()
+>   %1 = Retain %43 Entry local $1 #0 : ()
+    $.with(Tag=Named { label: a }):
+>   %2 = Read move [$0] : string
+>   %3 = NewStruct [%2] : Named
+>   %4 = Store [$5] %3 : ()
+>   %5 = Read move [$5] : Named
+>   %6 = Store [$6] %5 : ()
+>   %7 = Ref take mut [$6] : Counted[mut Named]
+>   %8 = Break L1 %7 : never
+>   %9 = Block - : Counted[mut Named]
+>   %10 = Scope %9 [] : Counted[mut Named]
+>   %11 = Coerce %10 [RefToTraitValue -] : Tag
+>   %12 = Block %11 : Tag
+>   %13 = RefDyn %12 : Counted[Tag]
+>   %14 = LoanEnd [%10] : ()
+>   %15 = Coerce %13 [RefAsProvider -] : Tag
+>   %16 = LoanEnd [%13] : ()
+>   %41 = With [Tag %15] %40 : usize
+>   %42 = Drop [%15] : ()
+>   %43 = Block %41 : usize
+>   %7 finds [$6] full
         outer := read_tag()
->   %15 = Call app/main/read_tag[] () : usize
->   %16 = Store [$2] %15 : ()
->   %38 = Block %36 : usize
+>   %17 = Call app/main/read_tag[] () : usize
+>   %18 = Store [$2] %17 : ()
+>   %40 = Block %38 : usize
         $.with(Tag=Named { label: b }):
->   %17 = Read move [$1] : string
->   %18 = NewStruct [%17] : Named
->   %19 = Store [$3] %18 : ()
->   %20 = Read move [$3] : Named
->   %21 = Store [$4] %20 : ()
->   %22 = Ref take mut [$4] : Counted[mut Named]
->   %23 = Break L0 %22 : never
->   %24 = Block - : Counted[mut Named]
->   %25 = Scope %24 [] : Counted[mut Named]
->   %26 = Coerce %25 [RefToTraitValue -] : Tag
->   %27 = Block %26 : Tag
->   %28 = RefDyn %27 : Counted[Tag]
->   %29 = LoanEnd [%25] : ()
->   %30 = Coerce %28 [RefAsProvider -] : Tag
->   %31 = LoanEnd [%28] : ()
->   %36 = With [Tag %30] %35 : usize
->   %37 = Drop [%30] : ()
->   %22 finds [$4] full
+>   %19 = Read move [$1] : string
+>   %20 = NewStruct [%19] : Named
+>   %21 = Store [$3] %20 : ()
+>   %22 = Read move [$3] : Named
+>   %23 = Store [$4] %22 : ()
+>   %24 = Ref take mut [$4] : Counted[mut Named]
+>   %25 = Break L0 %24 : never
+>   %26 = Block - : Counted[mut Named]
+>   %27 = Scope %26 [] : Counted[mut Named]
+>   %28 = Coerce %27 [RefToTraitValue -] : Tag
+>   %29 = Block %28 : Tag
+>   %30 = RefDyn %29 : Counted[Tag]
+>   %31 = LoanEnd [%27] : ()
+>   %32 = Coerce %30 [RefAsProvider -] : Tag
+>   %33 = LoanEnd [%30] : ()
+>   %38 = With [Tag %32] %37 : usize
+>   %39 = Drop [%32] : ()
+>   %24 finds [$4] full
             outer + read_tag()
->   %32 = Read copy [$2] : usize
->   %33 = Call app/main/read_tag[] () : usize
->   %34 = Prim Add [%32 %33] : usize
->   %35 = Block %34 : usize
+>   %34 = Read copy [$2] : usize
+>   %35 = Call app/main/read_tag[] () : usize
+>   %36 = Prim Add [%34 %35] : usize
+>   %37 = Block %36 : usize
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $4 cell, $6 cell
 >   summary kept [$0 $1] writes
@@ -156,66 +160,67 @@ fn apply(f: fn() -> usize) -> usize:
 >   summary kept [] borrows [$0] writes
 
 fn lexical(s: string) -> usize:
-    $.with(Tag=Named { label: s }):
 > app/main/lexical
 >   local $0 s: string [param read] value
->     uses $0: entry -> %0 consume last
+>     uses $0: entry -> %1 consume last
 >   local $1 tag: Ref[Tag] [:= read assigned captured] value
->     uses $1: %18 -> %19 lend, %31 consume last
+>     uses $1: %19 -> %20 lend, %32 consume last
 >   local $2 $ref: string [read assigned captured captured-assigned] value
->     uses $2: %23 -> %24 lend last
+>     uses $2: %24 -> %25 lend last
 >   local $3 f: fn() -> usize [read] value
->     uses $3: %33 -> %34 lend last
+>     uses $3: %34 -> %35 lend last
 >   local $5 provider: Named [read] value
->     uses $5: %2 -> %3 consume last
+>     uses $5: %3 -> %4 consume last
 >   local $6 $ref: Named [read assigned captured captured-assigned] place
->   %0 = Read move [$0] : string
->   %1 = NewStruct [%0] : Named
->   %2 = Store [$5] %1 : ()
->   %3 = Read move [$5] : Named
->   %4 = Store [$6] %3 : ()
->   %5 = Ref take mut [$6] : Counted[mut Named]
->   %6 = Break L2 %5 : never
->   %7 = Block - : Counted[mut Named]
->   %8 = Scope %7 [] : Counted[mut Named]
->   %9 = Coerce %8 [RefToTraitValue -] : Tag
->   %10 = Block %9 : Tag
->   %11 = RefDyn %10 : Counted[Tag]
->   %12 = LoanEnd [%8] : ()
->   %13 = Coerce %11 [RefAsProvider -] : Tag
->   %14 = LoanEnd [%11] : ()
->   %41 = With [Tag %13] %40 : usize
->   %42 = Drop [%13] : ()
->   %43 = Block %41 : usize
->   %5 finds [$6] full
+>   %0 = Retain %44 Entry local $0 #0 : ()
+    $.with(Tag=Named { label: s }):
+>   %1 = Read move [$0] : string
+>   %2 = NewStruct [%1] : Named
+>   %3 = Store [$5] %2 : ()
+>   %4 = Read move [$5] : Named
+>   %5 = Store [$6] %4 : ()
+>   %6 = Ref take mut [$6] : Counted[mut Named]
+>   %7 = Break L2 %6 : never
+>   %8 = Block - : Counted[mut Named]
+>   %9 = Scope %8 [] : Counted[mut Named]
+>   %10 = Coerce %9 [RefToTraitValue -] : Tag
+>   %11 = Block %10 : Tag
+>   %12 = RefDyn %11 : Counted[Tag]
+>   %13 = LoanEnd [%9] : ()
+>   %14 = Coerce %12 [RefAsProvider -] : Tag
+>   %15 = LoanEnd [%12] : ()
+>   %42 = With [Tag %14] %41 : usize
+>   %43 = Drop [%14] : ()
+>   %44 = Block %42 : usize
+>   %6 finds [$6] full
         tag := $.use(Tag)
->   %15 = ProviderGet #19 : Tag
->   %16 = Retain %15 Value #0 : ()
->   %17 = Coerce %15 [ProviderAsRef -] : Ref[Tag]
->   %18 = Store [$1] %17 : ()
->   %40 = Block %38 : usize
+>   %16 = ProviderGet #19 : Tag
+>   %17 = Retain %16 Value #0 : ()
+>   %18 = Coerce %16 [ProviderAsRef -] : Ref[Tag]
+>   %19 = Store [$1] %18 : ()
+>   %41 = Block %39 : usize
         apply(fn() -> usize: tag.name().len())
->   %19 = Read copy [*$1] : Tag
->   %20 = Drop [$1] : ()
->   %21 = Call app/main/Tag.name for Tag [] via TraitValue (%19) : string
->   %22 = Drop [%19] : ()
->   %23 = Store [$2] %21 : ()
->   %24 = Read borrow [$2] : string
->   %25 = Call std/rt.bytes/bytes_len[] (%24) : usize
->   %26 = Break L1 %25 : never
->   %27 = Block - : usize
->   %28 = Scope %27 [] : usize
->   %29 = Drop [$2] : ()
->   %30 = Block %28 : usize
->   %31 = Closure #1 [%0 %1] : fn() -> usize
->   %32 = Retain %31 Operation captures #0 : ()
->   %33 = Store [$3] %31 : ()
->   %34 = Read borrow [$3] : fn() -> usize
->   %35 = CallValue %34 [] : usize
->   %36 = Break L0 %35 : never
->   %37 = Block - : usize
->   %38 = Scope %37 [] : usize
->   %39 = Drop [$3] : ()
+>   %20 = Read copy [*$1] : Tag
+>   %21 = Drop [$1] : ()
+>   %22 = Call app/main/Tag.name for Tag [] via TraitValue (%20) : string
+>   %23 = Drop [%20] : ()
+>   %24 = Store [$2] %22 : ()
+>   %25 = Read borrow [$2] : string
+>   %26 = Call std/rt.bytes/bytes_len[] (%25) : usize
+>   %27 = Break L1 %26 : never
+>   %28 = Block - : usize
+>   %29 = Scope %28 [] : usize
+>   %30 = Drop [$2] : ()
+>   %31 = Block %29 : usize
+>   %32 = Closure #1 [%0 %1] : fn() -> usize
+>   %33 = Retain %32 Operation captures #0 : ()
+>   %34 = Store [$3] %32 : ()
+>   %35 = Read borrow [$3] : fn() -> usize
+>   %36 = CallValue %35 [] : usize
+>   %37 = Break L0 %36 : never
+>   %38 = Block - : usize
+>   %39 = Scope %38 [] : usize
+>   %40 = Drop [$3] : ()
 >   exit sub 0 drops [$0 $1]
 >   exit sub 1 drops [$1]
 >   storage sub 0: $6 cell

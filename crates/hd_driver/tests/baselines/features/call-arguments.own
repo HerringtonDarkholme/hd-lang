@@ -161,38 +161,39 @@ fn by_ptr(n: *Node) -> usize:
 >   summary kept []
 
 fn calls(s: string, n: *Node) -> usize:
-    let mut t = s
 > app/main/calls
 >   local $0 s: string [param read captured] place
 >   local $1 n: Counted[Node] [param read] value
->     uses $1: entry -> %18 lend last
+>     uses $1: entry -> %19 lend last
 >   local $2 t: string [read assigned captured captured-assigned] place
->   %0 = Read copy [$0] : string
->   %1 = Store [$2] %0 : ()
->   %14 = Release %13 Operation local $2 #2 : ()
->   %21 = Block %20 : usize
+>   %0 = Retain %22 Entry local $0 #0 : ()
+    let mut t = s
+>   %1 = Read copy [$0] : string
+>   %2 = Store [$2] %1 : ()
+>   %15 = Release %14 Operation local $2 #2 : ()
+>   %22 = Block %21 : usize
     by_mut(&mut t)
->   %2 = Ref mut local frame [$2] : Ref[mut string]
->   %3 = Call app/main/by_mut[] (%2) : ()
->   %4 = LoanEnd [%2] : ()
->   %2 finds [$2] full
+>   %3 = Ref mut local frame [$2] : Ref[mut string]
+>   %4 = Call app/main/by_mut[] (%3) : ()
+>   %5 = LoanEnd [%3] : ()
+>   %3 finds [$2] full
     by_value(s) + by_ref(&s) + by_value(t) + by_ptr(n)
->   %5 = Read borrow [$0] : string
->   %6 = Call app/main/by_value[] (%5) : usize
->   %7 = Retain %6 Operation operand 0 #0 : ()
->   %8 = Ref local frame [$0] : Ref[string]
->   %9 = Call app/main/by_ref[] (%8) : usize
->   %10 = LoanEnd [%8] : ()
->   %11 = Drop [$0] : ()
->   %12 = Prim Add [%6 %9] : usize
->   %13 = Read move [$2] : string
->   %15 = Call app/main/by_value[] (%13) : usize
->   %16 = Drop [%13] : ()
->   %17 = Prim Add [%12 %15] : usize
->   %18 = Read borrow [$1] : Counted[Node]
->   %19 = Call app/main/by_ptr[] (%18) : usize
->   %20 = Prim Add [%17 %19] : usize
->   %13 finds [$2] full
+>   %6 = Read borrow [$0] : string
+>   %7 = Call app/main/by_value[] (%6) : usize
+>   %8 = Retain %7 Operation operand 0 #0 : ()
+>   %9 = Ref local frame [$0] : Ref[string]
+>   %10 = Call app/main/by_ref[] (%9) : usize
+>   %11 = LoanEnd [%9] : ()
+>   %12 = Drop [$0] : ()
+>   %13 = Prim Add [%7 %10] : usize
+>   %14 = Read move [$2] : string
+>   %16 = Call app/main/by_value[] (%14) : usize
+>   %17 = Drop [%14] : ()
+>   %18 = Prim Add [%13 %16] : usize
+>   %19 = Read borrow [$1] : Counted[Node]
+>   %20 = Call app/main/by_ptr[] (%19) : usize
+>   %21 = Prim Add [%18 %20] : usize
+>   %14 finds [$2] full
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot, $2 slot
 >   summary kept [$0] writes

@@ -26,62 +26,64 @@ impl Disposable for Res:
 >   summary kept [$0] writes
 
 fn two(log: *mut List[string], a: string, b: string) -> usize:
-    using first = Res { name: a, log: log }
 > app/main/two
 >   local $0 log: Counted[mut List[string]] [param read] value
->     uses $0: entry -> %1 consume, %10 consume last
+>     uses $0: entry -> %3 consume, %12 consume last
 >   local $1 a: string [param read] value
->     uses $1: entry -> %0 consume last
+>     uses $1: entry -> %2 consume last
 >   local $2 b: string [param read] value
->     uses $2: entry -> %9 consume last
+>     uses $2: entry -> %11 consume last
 >   local $3 first: Res [:= read assigned captured captured-assigned] place
 >   local $4 second: Res [:= read assigned captured captured-assigned] place
 >   local $5 self: string [read] value
->     uses $5: %26 -> %27 lend last
+>     uses $5: %28 -> %29 lend last
 >   local $6 self: string [read] value
->     uses $6: %19 -> %20 lend last
->   %0 = Read move [$1] : string
->   %1 = Read copy [$0] : Counted[mut List[string]]
->   %2 = NewStruct [%0 %1] : Res
->   %3 = Store [$3] %2 : ()
->   %4 = Ref mut local frame [$3] : Ref[mut Res]
->   %5 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%4) : ()
->   %6 = LoanEnd [%4] : ()
->   %7 = Block - : ()
->   %8 = Defer #7 : ()
->   %33 = Block %32 : usize
->   %34 = Scope %33 [%7 %16] : usize
->   %35 = Drop [$4] : ()
->   %36 = Drop [$3] : ()
->   %37 = Block %34 : usize
+>     uses $6: %21 -> %22 lend last
+>   %0 = Retain %39 Entry local $1 #0 : ()
+>   %1 = Retain %39 Entry local $2 #0 : ()
+    using first = Res { name: a, log: log }
+>   %2 = Read move [$1] : string
+>   %3 = Read copy [$0] : Counted[mut List[string]]
+>   %4 = NewStruct [%2 %3] : Res
+>   %5 = Store [$3] %4 : ()
+>   %6 = Ref mut local frame [$3] : Ref[mut Res]
+>   %7 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%6) : ()
+>   %8 = LoanEnd [%6] : ()
+>   %9 = Block - : ()
+>   %10 = Defer #9 : ()
+>   %35 = Block %34 : usize
+>   %36 = Scope %35 [%9 %18] : usize
+>   %37 = Drop [$4] : ()
+>   %38 = Drop [$3] : ()
+>   %39 = Block %36 : usize
     using second = Res { name: b, log: log }
->   %9 = Read move [$2] : string
->   %10 = Read copy [$0] : Counted[mut List[string]]
->   %11 = NewStruct [%9 %10] : Res
->   %12 = Store [$4] %11 : ()
->   %13 = Ref mut local frame [$4] : Ref[mut Res]
->   %14 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%13) : ()
->   %15 = LoanEnd [%13] : ()
->   %16 = Block - : ()
->   %17 = Defer #16 : ()
+>   %11 = Read move [$2] : string
+>   %12 = Read copy [$0] : Counted[mut List[string]]
+>   %13 = NewStruct [%11 %12] : Res
+>   %14 = Store [$4] %13 : ()
+>   %15 = Ref mut local frame [$4] : Ref[mut Res]
+>   %16 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%15) : ()
+>   %17 = LoanEnd [%15] : ()
+>   %18 = Block - : ()
+>   %19 = Defer #18 : ()
     first.name.len() + second.name.len()
->   %18 = Read borrow [$3 .name] : string
->   %19 = Store [$6] %18 : ()
->   %20 = Read borrow [$6] : string
->   %21 = Call std/rt.bytes/bytes_len[] (%20) : usize
->   %22 = Break L1 %21 : never
->   %23 = Block - : usize
->   %24 = Scope %23 [] : usize
->   %25 = Read borrow [$4 .name] : string
->   %26 = Store [$5] %25 : ()
->   %27 = Read borrow [$5] : string
->   %28 = Call std/rt.bytes/bytes_len[] (%27) : usize
->   %29 = Break L0 %28 : never
->   %30 = Block - : usize
->   %31 = Scope %30 [] : usize
->   %32 = Prim Add [%24 %31] : usize
->   %18 finds [$3] full
->   %25 finds [$4] full
+>   %20 = Read borrow [$3 .name] : string
+>   %21 = Store [$6] %20 : ()
+>   %22 = Read borrow [$6] : string
+>   %23 = Call std/rt.bytes/bytes_len[] (%22) : usize
+>   %24 = Break L1 %23 : never
+>   %25 = Block - : usize
+>   %26 = Scope %25 [] : usize
+>   %27 = Read borrow [$4 .name] : string
+>   %28 = Store [$5] %27 : ()
+>   %29 = Read borrow [$5] : string
+>   %30 = Call std/rt.bytes/bytes_len[] (%29) : usize
+>   %31 = Break L0 %30 : never
+>   %32 = Block - : usize
+>   %33 = Scope %32 [] : usize
+>   %34 = Prim Add [%26 %33] : usize
+>   %20 finds [$3] full
+>   %27 finds [$4] full
 >   exit sub 0 drops [$1 $2 $3 $4]
 >   storage sub 0: $3 slot, $4 slot
 >   summary kept [$0 $1 $2] writes

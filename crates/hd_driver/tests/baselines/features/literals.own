@@ -14,72 +14,79 @@ enum Shape:
     Empty
 
 fn make_struct(n: string, t: List[string]) -> Rec:
-    Rec { name: n, tags: t }
 > app/main/make_struct
 >   local $0 n: string [param read] value
->     uses $0: entry -> %0 consume last
+>     uses $0: entry -> %2 consume last
 >   local $1 t: List[string] [param read] value
->     uses $1: entry -> %1 consume last
->   %0 = Read move [$0] : string
->   %1 = Read move [$1] : List[string]
->   %2 = NewStruct [%0 %1] : Rec
->   %3 = Block %2 : Rec
+>     uses $1: entry -> %3 consume last
+>   %0 = Retain %5 Entry local $0 #0 : ()
+>   %1 = Retain %5 Entry local $1 #0 : ()
+    Rec { name: n, tags: t }
+>   %2 = Read move [$0] : string
+>   %3 = Read move [$1] : List[string]
+>   %4 = NewStruct [%2 %3] : Rec
+>   %5 = Block %4 : Rec
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1]
 
 fn make_tuple(n: string, t: List[string]) -> (string, List[string]):
-    (n, t)
 > app/main/make_tuple
 >   local $0 n: string [param read] value
->     uses $0: entry -> %0 consume last
+>     uses $0: entry -> %2 consume last
 >   local $1 t: List[string] [param read] value
->     uses $1: entry -> %1 consume last
->   %0 = Read move [$0] : string
->   %1 = Read move [$1] : List[string]
->   %2 = NewTuple - [%0 %1] : (string, List[string])
->   %3 = Block %2 : (string, List[string])
+>     uses $1: entry -> %3 consume last
+>   %0 = Retain %5 Entry local $0 #0 : ()
+>   %1 = Retain %5 Entry local $1 #0 : ()
+    (n, t)
+>   %2 = Read move [$0] : string
+>   %3 = Read move [$1] : List[string]
+>   %4 = NewTuple - [%2 %3] : (string, List[string])
+>   %5 = Block %4 : (string, List[string])
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1]
 
 fn make_enum(n: string) -> Shape:
-    Shape.Named(n)
 > app/main/make_enum
 >   local $0 n: string [param read] value
->     uses $0: entry -> %0 consume last
->   %0 = Read move [$0] : string
->   %1 = NewVariant #0 [%0] : Shape
->   %2 = Block %1 : Shape
+>     uses $0: entry -> %1 consume last
+>   %0 = Retain %3 Entry local $0 #0 : ()
+    Shape.Named(n)
+>   %1 = Read move [$0] : string
+>   %2 = NewVariant #0 [%1] : Shape
+>   %3 = Block %2 : Shape
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
 fn update(r: Rec, n: string) -> Rec:
 > app/main/update
 >   local $0 r: Rec [param read] value
->     uses $0: entry -> %1 lend last
+>     uses $0: entry -> %2 lend last
 >   local $1 n: string [param read] value
->     uses $1: entry -> %2 consume last
->   %0 = Release %5 Exit local $0 #2 : ()
+>     uses $1: entry -> %3 consume last
+>   %0 = Release %6 Exit local $0 #2 : ()
+>   %1 = Retain %6 Entry local $1 #0 : ()
     Rec { ...r, name: n }
->   %1 = Read borrow [$0] : Rec
->   %2 = Read move [$1] : string
->   %3 = CopyStruct %1 [.name = %2] : Rec
->   %4 = Retain %3 Operation operand 0 #0 : ()
->   %5 = Block %3 : Rec
+>   %2 = Read borrow [$0] : Rec
+>   %3 = Read move [$1] : string
+>   %4 = CopyStruct %2 [.name = %3] : Rec
+>   %5 = Retain %4 Operation operand 0 #0 : ()
+>   %6 = Block %4 : Rec
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0]
 
 fn reuse(n: string) -> (Rec, Rec):
-    (Rec { name: n, tags: [] }, Rec { name: n, tags: [] })
 > app/main/reuse
 >   local $0 n: string [param read] value
->     uses $0: entry -> %0 consume, %3 consume last
->   %0 = Read copy [$0] : string
->   %1 = NewList - [] : List[string]
->   %2 = NewStruct [%0 %1] : Rec
->   %3 = Read move [$0] : string
->   %4 = NewList - [] : List[string]
->   %5 = NewStruct [%3 %4] : Rec
->   %6 = NewTuple - [%2 %5] : (Rec, Rec)
->   %7 = Block %6 : (Rec, Rec)
+>     uses $0: entry -> %1 consume, %4 consume last
+>   %0 = Retain %8 Entry local $0 #0 : ()
+    (Rec { name: n, tags: [] }, Rec { name: n, tags: [] })
+>   %1 = Read copy [$0] : string
+>   %2 = NewList - [] : List[string]
+>   %3 = NewStruct [%1 %2] : Rec
+>   %4 = Read move [$0] : string
+>   %5 = NewList - [] : List[string]
+>   %6 = NewStruct [%4 %5] : Rec
+>   %7 = NewTuple - [%3 %6] : (Rec, Rec)
+>   %8 = Block %7 : (Rec, Rec)
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

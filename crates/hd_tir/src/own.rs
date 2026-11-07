@@ -77,6 +77,7 @@ pub(crate) mod map_key;
 pub(crate) mod map_value;
 mod moves;
 pub(crate) mod overwrites;
+pub(crate) mod parameter_copy;
 pub(crate) mod parts;
 mod plain;
 pub mod pointer;
@@ -3013,7 +3014,10 @@ pub(crate) mod tests {
             let mut scratch = OwnScratch::default();
             run(&mut body, &Summarizing, &mut scratch).expect("passes");
             assert!(scratch.uncopied().is_empty(), "{}", show(&body));
-            assert_eq!(body.data[0][1], mode as u32, "{}", show(&body));
+            let read = (0..body.len())
+                .find(|&i| body.local_read(i) == Some(parameter))
+                .expect("parameter read");
+            assert_eq!(body.data[read][1], mode as u32, "{}", show(&body));
             let errors = verify_owned(&body, &Summarizing);
             assert!(errors.is_empty(), "{errors:?}\n{}", show(&body));
         }

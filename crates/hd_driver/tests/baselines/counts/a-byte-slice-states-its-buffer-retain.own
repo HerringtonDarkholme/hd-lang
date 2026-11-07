@@ -34,18 +34,19 @@ fn discard_empty(text: string) -> void:
 >   %4 = Block - : ()
 
 fn through_function(text: string) -> string:
-    slice_fn := bytes_slice
 > std/rt_tests.stage_case/through_function
 >   local $0 text: string [param read] value
->     uses $0: entry -> %3 consume last
+>     uses $0: entry -> %4 consume last
 >   local $1 slice_fn: fn(string, usize, usize) -> string [:= read assigned] value
->     uses $1: %1 -> %2 lend last
->   %0 = ItemRef #0 [..] : fn(string, usize, usize) -> string
->   %1 = Store [$1] %0 : ()
->   %6 = Block %4 : string
+>     uses $1: %2 -> %3 lend last
+>   %0 = Retain %7 Entry local $0 #0 : ()
+    slice_fn := bytes_slice
+>   %1 = ItemRef #0 [..] : fn(string, usize, usize) -> string
+>   %2 = Store [$1] %1 : ()
+>   %7 = Block %5 : string
     slice_fn(text, 0, 1)
->   %2 = Read move [$1] : fn(string, usize, usize) -> string
->   %3 = Read move [$0] : string
->   %4 = CallValue %2 [%3 0:usize 1:usize] : string
->   %5 = Drop [%2] : ()
+>   %3 = Read move [$1] : fn(string, usize, usize) -> string
+>   %4 = Read move [$0] : string
+>   %5 = CallValue %3 [%4 0:usize 1:usize] : string
+>   %6 = Drop [%3] : ()
 >   exit sub 0 drops [$0]

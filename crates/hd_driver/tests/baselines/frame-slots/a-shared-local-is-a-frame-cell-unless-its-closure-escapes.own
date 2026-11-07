@@ -59,35 +59,36 @@ fn lent(xs: List[string]) -> usize:
 >   local $1 n: usize [read assigned captured captured-assigned] place
 >     frame cell [$1]
 >   local $2 x: string [param read] value
->     uses $2: entry -> %4 lend last
->   %0 = Release %22 Exit local $0 #2 : ()
+>     uses $2: entry -> %5 lend last
+>   %0 = Release %23 Exit local $0 #2 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
->   %22 = Block %20 : usize
+>   %23 = Block %21 : usize
     each(xs, fn(x: string) -> void: n += x.len())
 >   %2 = Read borrow [$0] : List[string]
->   %3 = Read copy [$1] : usize
->   %4 = Read borrow [$2] : string
->   %5 = Call std/rt.bytes/bytes_len[] (%4) : usize
->   %6 = Break L0 %5 : never
->   %7 = Block - : usize
->   %8 = Scope %7 [] : usize
->   %9 = Drop [$2] : ()
->   %10 = Prim Add [%3 %8] : usize
->   %11 = Store [$1] %10 : ()
->   %12 = Release %11 Operation #3 : ()
->   %13 = Drop [$1] : ()
->   %14 = Block - : ()
->   %15 = Closure #1 [%0 %1] : fn(string) -> ()
->   %16 = Retain %15 Operation captures #0 : ()
->   %17 = Call app/main/each[] (%2, %15) : ()
->   %18 = Retain %17 Operation operand 0 #0 : ()
->   %19 = Drop [%15] : ()
->   %15 finds [$1] full
+>   %3 = Retain %15 Entry local $2 #0 : ()
+>   %4 = Read copy [$1] : usize
+>   %5 = Read borrow [$2] : string
+>   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
+>   %7 = Break L0 %6 : never
+>   %8 = Block - : usize
+>   %9 = Scope %8 [] : usize
+>   %10 = Drop [$2] : ()
+>   %11 = Prim Add [%4 %9] : usize
+>   %12 = Store [$1] %11 : ()
+>   %13 = Release %12 Operation #3 : ()
+>   %14 = Drop [$1] : ()
+>   %15 = Block - : ()
+>   %16 = Closure #1 [%0 %1] : fn(string) -> ()
+>   %17 = Retain %16 Operation captures #0 : ()
+>   %18 = Call app/main/each[] (%2, %16) : ()
+>   %19 = Retain %18 Operation operand 0 #0 : ()
+>   %20 = Drop [%16] : ()
+>   %16 finds [$1] full
     n
->   %20 = Read copy [$1] : usize
->   %21 = Drop [$1] : ()
->   %20 finds [$1] full
+>   %21 = Read copy [$1] : usize
+>   %22 = Drop [$1] : ()
+>   %21 finds [$1] full
 >   exit sub 0 drops [$1]
 >   exit sub 1 drops [$1 $2]
 >   storage sub 0: $1 slot

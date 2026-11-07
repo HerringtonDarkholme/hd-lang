@@ -426,17 +426,15 @@ fn body_func<'a>(
                     continue;
                 }
                 if !crate::layout::holds_drop(em.pool(), em.env(), t) {
-                    let copy = if by_type {
-                        Some(Reason::Conservative("entry"))
-                    } else {
-                        em.stated_count(
-                            Tag::Retain,
-                            CountAt::Entry,
-                            CountPart::Local(u32::try_from(*l).expect("local")),
-                        )
-                    };
+                    let copy = em.stated_count(
+                        Tag::Retain,
+                        CountAt::Entry,
+                        CountPart::Local(u32::try_from(*l).expect("local")),
+                    );
                     if let Some(reason) = copy {
                         em.because(reason, |em| em.count_locals(ls, t, true))?;
+                    } else if em.counted(t).is_some() {
+                        return unsupported("an owned parameter without its stated entry copy");
                     }
                 }
             } else if em.borrowed.contains(l) || lent_caps.contains(l) {

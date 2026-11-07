@@ -7,124 +7,127 @@
 # `cursor_then_push` retains the list once for the cursor and copies it
 # once at the push.
 fn doubled(values: List[string]) -> List[string]:
-    let mut out = values
 > app/main/doubled
 >   local $0 values: List[string] [param read] value
->     uses $0: entry -> %0 consume last
+>     uses $0: entry -> %1 consume last
 >   local $1 out: List[string] [read assigned] value
->     uses $1: %1 -> %2 consume, %18 lend, %34 consume last
+>     uses $1: %2 -> %3 consume, %19 lend, %35 consume last
 >   local $2 $coll: List[string] [assigned] value
->     uses $2: %3 -> %4 lend, %12 lend
+>     uses $2: %4 -> %5 lend, %13 lend
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
->     uses $5: %6 -> %9 lend
+>     uses $5: %7 -> %10 lend
 >   local $6 v: string [read assigned] value
->     uses $6: %22 -> %16 consume last
->   %0 = Read move [$0] : List[string]
->   %1 = Store [$1] %0 : ()
->   %35 = Block %34 : List[string]
+>     uses $6: %23 -> %17 consume last
+>   %0 = Retain %36 Entry local $0 #0 : ()
+    let mut out = values
+>   %1 = Read move [$0] : List[string]
+>   %2 = Store [$1] %1 : ()
+>   %36 = Block %35 : List[string]
     for v in out:
->   %2 = Read copy [$1] : List[string]
->   %3 = Store [$2] %2 : ()
->   %4 = Read borrow [$2] : List[string]
->   %5 = Intrinsic ListLen [%4] : usize
->   %6 = Store [$5] %5 : ()
->   %7 = Store [$4] 0:usize : ()
->   %8 = Read copy [$4] : usize
->   %9 = Read copy [$5] : usize
->   %10 = Prim Lt [%8 %9] : bool
->   %11 = Read copy [$4] : usize
->   %12 = Read borrow [$2 [%11]] : string
->   %13 = Read copy [$4] : usize
->   %14 = Prim Add [%13 1:usize] : usize
->   %15 = Store [$4] %14 : ()
->   %20 = Block - : ()
->   %21 = Read borrow [%12] : string
->   %22 = Store [$6] %21 : ()
->   %23 = Release %22 Operation #3 : ()
->   %25 = Block - : never
->   %26 = Match %12 [%25 %20] : ()
->   %27 = Block - : ()
->   %28 = Break L0 - : never
->   %29 = Block - : ()
->   %30 = If %10 [%27 %29] : ()
->   %31 = Block - : ()
->   %32 = Loop %31 - : ()
->   %33 = Drop [$2] : ()
+>   %3 = Read copy [$1] : List[string]
+>   %4 = Store [$2] %3 : ()
+>   %5 = Read borrow [$2] : List[string]
+>   %6 = Intrinsic ListLen [%5] : usize
+>   %7 = Store [$5] %6 : ()
+>   %8 = Store [$4] 0:usize : ()
+>   %9 = Read copy [$4] : usize
+>   %10 = Read copy [$5] : usize
+>   %11 = Prim Lt [%9 %10] : bool
+>   %12 = Read copy [$4] : usize
+>   %13 = Read borrow [$2 [%12]] : string
+>   %14 = Read copy [$4] : usize
+>   %15 = Prim Add [%14 1:usize] : usize
+>   %16 = Store [$4] %15 : ()
+>   %21 = Block - : ()
+>   %22 = Read borrow [%13] : string
+>   %23 = Store [$6] %22 : ()
+>   %24 = Release %23 Operation #3 : ()
+>   %26 = Block - : never
+>   %27 = Match %13 [%26 %21] : ()
+>   %28 = Block - : ()
+>   %29 = Break L0 - : never
+>   %30 = Block - : ()
+>   %31 = If %11 [%28 %30] : ()
+>   %32 = Block - : ()
+>   %33 = Loop %32 - : ()
+>   %34 = Drop [$2] : ()
         out.push(v)
->   %16 = Read copy [$6] : string
->   %17 = IsUnique [$1] : ()
->   %18 = Read borrow [$1] : List[string]
->   %19 = Intrinsic ListPush [%18 %16] : ()
+>   %17 = Read copy [$6] : string
+>   %18 = IsUnique [$1] : ()
+>   %19 = Read borrow [$1] : List[string]
+>   %20 = Intrinsic ListPush [%19 %17] : ()
     out
->   %34 = Read move [$1] : List[string]
+>   %35 = Read move [$1] : List[string]
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
->   loop %32 keeps [$2]
+>   loop %33 keeps [$2]
 
 fn cursor_then_push(values: List[string], s: string) -> usize:
-    let mut items = values
 > app/main/cursor_then_push
 >   local $0 values: List[string] [param read] value
->     uses $0: entry -> %0 consume last
+>     uses $0: entry -> %2 consume last
 >   local $1 s: string [param read] value
->     uses $1: entry -> %10 consume last
+>     uses $1: entry -> %12 consume last
 >   local $2 items: List[string] [read assigned] value
->     uses $2: %1 -> %2 consume, %12 lend, %23 lend last, %27 lend last
+>     uses $2: %3 -> %4 consume, %14 lend, %25 lend last, %29 lend last
 >   local $3 cursor: ListIter[string] [read assigned captured captured-assigned] place
 >   local $4 first: string [read assigned] value
->     uses $4: %31 -> %18 lend last
+>     uses $4: %33 -> %20 lend last
 >   local $6 self: List[string] [read] value
->     uses $6: %3 -> %4 consume last
->   %0 = Read move [$0] : List[string]
->   %1 = Store [$2] %0 : ()
->   %45 = Block %42 : usize
+>     uses $6: %5 -> %6 consume last
+>   %0 = Retain %47 Entry local $0 #0 : ()
+>   %1 = Retain %47 Entry local $1 #0 : ()
+    let mut items = values
+>   %2 = Read move [$0] : List[string]
+>   %3 = Store [$2] %2 : ()
+>   %47 = Block %44 : usize
     let mut cursor = items.iter()
->   %2 = Read copy [$2] : List[string]
->   %3 = Store [$6] %2 : ()
->   %4 = Read move [$6] : List[string]
->   %5 = NewStruct [%4 0:usize] : ListIter[string]
->   %6 = Break L1 %5 : never
->   %7 = Block - : ListIter[string]
->   %8 = Scope %7 [] : ListIter[string]
->   %9 = Store [$3] %8 : ()
+>   %4 = Read copy [$2] : List[string]
+>   %5 = Store [$6] %4 : ()
+>   %6 = Read move [$6] : List[string]
+>   %7 = NewStruct [%6 0:usize] : ListIter[string]
+>   %8 = Break L1 %7 : never
+>   %9 = Block - : ListIter[string]
+>   %10 = Scope %9 [] : ListIter[string]
+>   %11 = Store [$3] %10 : ()
     items.push(s)
->   %10 = Read move [$1] : string
->   %11 = IsUnique [$2] : ()
->   %12 = Read borrow [$2] : List[string]
->   %13 = Intrinsic ListPush [%12 %10] : ()
+>   %12 = Read move [$1] : string
+>   %13 = IsUnique [$2] : ()
+>   %14 = Read borrow [$2] : List[string]
+>   %15 = Intrinsic ListPush [%14 %12] : ()
     match cursor.next():
->   %14 = Ref mut local frame [$3] : Ref[mut ListIter[string]]
->   %15 = Call std/iter/Iterator.next for ListIter[string] [string] via Impl (%14) : string?
->   %16 = LoanEnd [%14] : ()
->   %17 = Drop [$3] : ()
->   %41 = Block - : never
->   %42 = Match %15 [%41 %26 %29] : usize
->   %43 = Drop [%15] : ()
->   %44 = Drop [$2] : ()
->   %14 finds [$3] full
+>   %16 = Ref mut local frame [$3] : Ref[mut ListIter[string]]
+>   %17 = Call std/iter/Iterator.next for ListIter[string] [string] via Impl (%16) : string?
+>   %18 = LoanEnd [%16] : ()
+>   %19 = Drop [$3] : ()
+>   %43 = Block - : never
+>   %44 = Match %17 [%43 %28 %31] : usize
+>   %45 = Drop [%17] : ()
+>   %46 = Drop [$2] : ()
+>   %16 finds [$3] full
         .Some(first) => first.len() + items.len()
->   %18 = Read borrow [$4] : string
->   %19 = Call std/rt.bytes/bytes_len[] (%18) : usize
->   %20 = Break L0 %19 : never
->   %21 = Block - : usize
->   %22 = Scope %21 [] : usize
->   %23 = Read borrow [$2] : List[string]
->   %24 = Intrinsic ListLen [%23] : usize
->   %25 = Prim Add [%22 %24] : usize
->   %26 = Block %25 : usize
->   %30 = Read borrow [%15 as #1 .0] : string
->   %31 = Store [$4] %30 : ()
->   %33 = Block - : never
->   %39 = Block - : never
->   %40 = SwitchTag %15 [#1 %33 %39] : never
-        .None => items.len()
->   %27 = Read borrow [$2] : List[string]
->   %28 = Intrinsic ListLen [%27] : usize
->   %29 = Block %28 : usize
+>   %20 = Read borrow [$4] : string
+>   %21 = Call std/rt.bytes/bytes_len[] (%20) : usize
+>   %22 = Break L0 %21 : never
+>   %23 = Block - : usize
+>   %24 = Scope %23 [] : usize
+>   %25 = Read borrow [$2] : List[string]
+>   %26 = Intrinsic ListLen [%25] : usize
+>   %27 = Prim Add [%24 %26] : usize
+>   %28 = Block %27 : usize
+>   %32 = Read borrow [%17 as #1 .0] : string
+>   %33 = Store [$4] %32 : ()
 >   %35 = Block - : never
+>   %41 = Block - : never
+>   %42 = SwitchTag %17 [#1 %35 %41] : never
+        .None => items.len()
+>   %29 = Read borrow [$2] : List[string]
+>   %30 = Intrinsic ListLen [%29] : usize
+>   %31 = Block %30 : usize
 >   %37 = Block - : never
->   %38 = SwitchTag %15 [#0 %35 %37] : never
+>   %39 = Block - : never
+>   %40 = SwitchTag %17 [#0 %37 %39] : never
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $3 slot
 >   summary kept [$0 $1] writes

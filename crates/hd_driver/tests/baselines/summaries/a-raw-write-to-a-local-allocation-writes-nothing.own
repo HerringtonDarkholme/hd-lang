@@ -53,26 +53,27 @@ fn local_pointer_write() -> string:
 >   summary kept []
 
 fn taken_then_write(mut strings: List[string]) -> void:
-    result := new_string(1)
 > std/rt_tests.stage_case/taken_then_write
 >   local $0 strings: List[string] [param read] value
->     uses $0: entry -> %4 lend last
+>     uses $0: entry -> %5 lend last
 >   local $1 result: string [:= read assigned] value
->     uses $1: %1 -> %2 consume, %7 lend last
->   %0 = Call std/rt.memory/new_string[] (1:usize) : string
->   %1 = Store [$1] %0 : ()
->   %11 = Block - : ()
+>     uses $1: %2 -> %3 consume, %8 lend last
+>   %0 = Retain %12 Entry local $0 #0 : ()
+    result := new_string(1)
+>   %1 = Call std/rt.memory/new_string[] (1:usize) : string
+>   %2 = Store [$1] %1 : ()
+>   %12 = Block - : ()
     strings.push(result)
->   %2 = Read copy [$1] : string
->   %3 = IsUnique [$0] : ()
->   %4 = Read borrow [$0] : List[string]
->   %5 = Intrinsic ListPush [%4 %2] : ()
->   %6 = Drop [$0] : ()
+>   %3 = Read copy [$1] : string
+>   %4 = IsUnique [$0] : ()
+>   %5 = Read borrow [$0] : List[string]
+>   %6 = Intrinsic ListPush [%5 %3] : ()
+>   %7 = Drop [$0] : ()
     string_bytes(result).write(65)
->   %7 = Read move [$1] : string
->   %8 = Call std/rt.memory/string_bytes[] (%7) : Ptr[u8]
->   %9 = Drop [%7] : ()
->   %10 = Store [ptr %8] 65:u8 : ()
+>   %8 = Read move [$1] : string
+>   %9 = Call std/rt.memory/string_bytes[] (%8) : Ptr[u8]
+>   %10 = Drop [%8] : ()
+>   %11 = Store [ptr %9] 65:u8 : ()
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes
 

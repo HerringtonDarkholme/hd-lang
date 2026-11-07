@@ -75,67 +75,68 @@ fn pick(t: Tag) -> string:
 >   summary kept [] borrows [$0]
 
 fn whole(o: string?) -> usize:
-    match o:
 > app/main/whole
 >   local $0 o: string? [param read] value
->     uses $0: entry -> %0 lend last
+>     uses $0: entry -> %1 lend last
 >   local $1 s: string [read assigned] value
->     uses $1: %39 -> %1 lend last, %8 lend last
+>     uses $1: %40 -> %2 lend last, %9 lend last
 >   local $2 other: string? [read assigned] place
 >   local $3 self: string? [read] value
->     uses $3: %15 -> %16 lend last
->   %0 = Read move [$0] : string?
->   %54 = Block - : never
->   %55 = Match %0 [%54 %13 %37] : usize
->   %56 = Drop [$2] : ()
->   %57 = Drop [%0] : ()
->   %58 = Block %55 : usize
+>     uses $3: %16 -> %17 lend last
+>   %0 = Retain %59 Entry local $0 #0 : ()
+    match o:
+>   %1 = Read move [$0] : string?
+>   %55 = Block - : never
+>   %56 = Match %1 [%55 %14 %38] : usize
+>   %57 = Drop [$2] : ()
+>   %58 = Drop [%1] : ()
+>   %59 = Block %56 : usize
         .Some(s) if s.len() > 0 => s.len()
->   %1 = Read borrow [$1] : string
->   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
->   %3 = Break L2 %2 : never
->   %4 = Block - : usize
->   %5 = Scope %4 [] : usize
->   %6 = Prim Gt [%5 0:usize] : bool
->   %7 = Block %6 : bool
->   %8 = Read borrow [$1] : string
->   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
->   %10 = Break L1 %9 : never
->   %11 = Block - : usize
->   %12 = Scope %11 [] : usize
->   %13 = Block %12 : usize
->   %38 = Read borrow [%0 as #1 .0] : string
->   %39 = Store [$1] %38 : ()
->   %47 = Block - : never
->   %52 = Block - : never
->   %53 = SwitchTag %0 [#1 %47 %52] : never
+>   %2 = Read borrow [$1] : string
+>   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
+>   %4 = Break L2 %3 : never
+>   %5 = Block - : usize
+>   %6 = Scope %5 [] : usize
+>   %7 = Prim Gt [%6 0:usize] : bool
+>   %8 = Block %7 : bool
+>   %9 = Read borrow [$1] : string
+>   %10 = Call std/rt.bytes/bytes_len[] (%9) : usize
+>   %11 = Break L1 %10 : never
+>   %12 = Block - : usize
+>   %13 = Scope %12 [] : usize
+>   %14 = Block %13 : usize
+>   %39 = Read borrow [%1 as #1 .0] : string
+>   %40 = Store [$1] %39 : ()
+>   %48 = Block - : never
+>   %53 = Block - : never
+>   %54 = SwitchTag %1 [#1 %48 %53] : never
         other =>
->   %42 = Read copy [%0] : string?
->   %43 = Store [$2] %42 : ()
->   %48 = Read copy [%0] : string?
->   %49 = Store [$2] %48 : ()
->   %50 = Release %49 Operation #3 : ()
+>   %43 = Read copy [%1] : string?
+>   %44 = Store [$2] %43 : ()
+>   %49 = Read copy [%1] : string?
+>   %50 = Store [$2] %49 : ()
+>   %51 = Release %50 Operation #3 : ()
             if other.is_some(): 1 else: 0
->   %14 = Read borrow [$2] : string?
->   %15 = Store [$3] %14 : ()
->   %16 = Read borrow [$3] : string?
->   %17 = Block 1:bool : bool
->   %18 = Block 0:bool : bool
->   %19 = Read borrow [%16] : string?
->   %21 = Block - : never
->   %23 = Block - : never
->   %25 = Block - : never
->   %26 = SwitchTag %19 [#0 %23 %25] : never
->   %27 = Block - : never
->   %28 = SwitchTag %19 [#1 %21 %27] : never
->   %29 = Block - : never
->   %30 = Match %16 [%29 %17 %18] : bool
->   %31 = Break L0 %30 : never
->   %32 = Block - : bool
->   %33 = Scope %32 [] : bool
->   %34 = Block 1:usize : usize
->   %35 = Block 0:usize : usize
->   %36 = If %33 [%34 %35] : usize
->   %37 = Block %36 : usize
+>   %15 = Read borrow [$2] : string?
+>   %16 = Store [$3] %15 : ()
+>   %17 = Read borrow [$3] : string?
+>   %18 = Block 1:bool : bool
+>   %19 = Block 0:bool : bool
+>   %20 = Read borrow [%17] : string?
+>   %22 = Block - : never
+>   %24 = Block - : never
+>   %26 = Block - : never
+>   %27 = SwitchTag %20 [#0 %24 %26] : never
+>   %28 = Block - : never
+>   %29 = SwitchTag %20 [#1 %22 %28] : never
+>   %30 = Block - : never
+>   %31 = Match %17 [%30 %18 %19] : bool
+>   %32 = Break L0 %31 : never
+>   %33 = Block - : bool
+>   %34 = Scope %33 [] : bool
+>   %35 = Block 1:usize : usize
+>   %36 = Block 0:usize : usize
+>   %37 = If %34 [%35 %36] : usize
+>   %38 = Block %37 : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

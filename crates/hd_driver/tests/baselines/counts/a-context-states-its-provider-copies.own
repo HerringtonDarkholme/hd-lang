@@ -10,43 +10,45 @@ struct Named:
 
 impl Tag for Named:
     fn name(self) -> string:
-        self.label
 > app/main/impl Tag for Named.name
 >   local $0 self: Named [param read] value
->     uses $0: entry -> %0 consume last
->   %0 = Read move [$0 .label] : string
->   %1 = Block %0 : string
+>     uses $0: entry -> %1 consume last
+>   %0 = Retain %2 Entry local $0 #0 : ()
+        self.label
+>   %1 = Read move [$0 .label] : string
+>   %2 = Block %1 : string
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
 fn make(label: string) -> $.Context[$ Tag]:
-    $.context(Tag=Named { label: label })
 > app/main/make
 >   local $0 label: string [param read] value
->     uses $0: entry -> %0 consume last
+>     uses $0: entry -> %1 consume last
 >   local $1 provider: Named [read] value
->     uses $1: %2 -> %3 consume last
+>     uses $1: %3 -> %4 consume last
 >   local $2 $ref: Named [read assigned captured captured-assigned] place
->   %0 = Read move [$0] : string
->   %1 = NewStruct [%0] : Named
->   %2 = Store [$1] %1 : ()
->   %3 = Read move [$1] : Named
->   %4 = Store [$2] %3 : ()
->   %5 = Ref take mut [$2] : Counted[mut Named]
->   %6 = Break L0 %5 : never
->   %7 = Block - : Counted[mut Named]
->   %8 = Scope %7 [] : Counted[mut Named]
->   %9 = Coerce %8 [RefToTraitValue -] : Tag
->   %10 = Block %9 : Tag
->   %11 = RefDyn %10 : Counted[Tag]
->   %12 = LoanEnd [%8] : ()
->   %13 = Coerce %11 [RefAsProvider -] : Tag
->   %14 = LoanEnd [%11] : ()
->   %15 = ContextNew [Tag %13] : $.Context[$ Tag]
->   %16 = Retain %15 Operation row #0 : ()
->   %17 = Drop [%13] : ()
->   %18 = Block %15 : $.Context[$ Tag]
->   %5 finds [$2] full
+>   %0 = Retain %19 Entry local $0 #0 : ()
+    $.context(Tag=Named { label: label })
+>   %1 = Read move [$0] : string
+>   %2 = NewStruct [%1] : Named
+>   %3 = Store [$1] %2 : ()
+>   %4 = Read move [$1] : Named
+>   %5 = Store [$2] %4 : ()
+>   %6 = Ref take mut [$2] : Counted[mut Named]
+>   %7 = Break L0 %6 : never
+>   %8 = Block - : Counted[mut Named]
+>   %9 = Scope %8 [] : Counted[mut Named]
+>   %10 = Coerce %9 [RefToTraitValue -] : Tag
+>   %11 = Block %10 : Tag
+>   %12 = RefDyn %11 : Counted[Tag]
+>   %13 = LoanEnd [%9] : ()
+>   %14 = Coerce %12 [RefAsProvider -] : Tag
+>   %15 = LoanEnd [%12] : ()
+>   %16 = ContextNew [Tag %14] : $.Context[$ Tag]
+>   %17 = Retain %16 Operation row #0 : ()
+>   %18 = Drop [%14] : ()
+>   %19 = Block %16 : $.Context[$ Tag]
+>   %6 finds [$2] full
 >   exit sub 0 drops [$0]
 >   storage sub 0: $2 cell
 >   summary kept [$0] writes
@@ -66,35 +68,36 @@ fn spread(ctx: $.Context[$ Tag]) -> $.Context[$ Tag]:
 fn shadow(ctx: $.Context[$ Tag], label: string) -> $.Context[$ Tag]:
 > app/main/shadow
 >   local $0 ctx: $.Context[$ Tag] [param read] value
->     uses $0: entry -> %1 lend last
+>     uses $0: entry -> %2 lend last
 >   local $1 label: string [param read] value
->     uses $1: entry -> %2 consume last
+>     uses $1: entry -> %3 consume last
 >   local $2 provider: Named [read] value
->     uses $2: %4 -> %5 consume last
+>     uses $2: %5 -> %6 consume last
 >   local $3 $ref: Named [read assigned captured captured-assigned] place
->   %0 = Release %20 Exit local $0 #2 : ()
+>   %0 = Release %21 Exit local $0 #2 : ()
+>   %1 = Retain %21 Entry local $1 #0 : ()
     $.context(ctx..., Tag=Named { label: label })
->   %1 = Read borrow [$0] : $.Context[$ Tag]
->   %2 = Read move [$1] : string
->   %3 = NewStruct [%2] : Named
->   %4 = Store [$2] %3 : ()
->   %5 = Read move [$2] : Named
->   %6 = Store [$3] %5 : ()
->   %7 = Ref take mut [$3] : Counted[mut Named]
->   %8 = Break L0 %7 : never
->   %9 = Block - : Counted[mut Named]
->   %10 = Scope %9 [] : Counted[mut Named]
->   %11 = Coerce %10 [RefToTraitValue -] : Tag
->   %12 = Block %11 : Tag
->   %13 = RefDyn %12 : Counted[Tag]
->   %14 = LoanEnd [%10] : ()
->   %15 = Coerce %13 [RefAsProvider -] : Tag
->   %16 = LoanEnd [%13] : ()
->   %17 = ContextNew [$.Context[$ Tag] %1 Tag %15] : $.Context[$ Tag]
->   %18 = Retain %17 Operation row #0 : ()
->   %19 = Drop [%15] : ()
->   %20 = Block %17 : $.Context[$ Tag]
->   %7 finds [$3] full
+>   %2 = Read borrow [$0] : $.Context[$ Tag]
+>   %3 = Read move [$1] : string
+>   %4 = NewStruct [%3] : Named
+>   %5 = Store [$2] %4 : ()
+>   %6 = Read move [$2] : Named
+>   %7 = Store [$3] %6 : ()
+>   %8 = Ref take mut [$3] : Counted[mut Named]
+>   %9 = Break L0 %8 : never
+>   %10 = Block - : Counted[mut Named]
+>   %11 = Scope %10 [] : Counted[mut Named]
+>   %12 = Coerce %11 [RefToTraitValue -] : Tag
+>   %13 = Block %12 : Tag
+>   %14 = RefDyn %13 : Counted[Tag]
+>   %15 = LoanEnd [%11] : ()
+>   %16 = Coerce %14 [RefAsProvider -] : Tag
+>   %17 = LoanEnd [%14] : ()
+>   %18 = ContextNew [$.Context[$ Tag] %2 Tag %16] : $.Context[$ Tag]
+>   %19 = Retain %18 Operation row #0 : ()
+>   %20 = Drop [%16] : ()
+>   %21 = Block %18 : $.Context[$ Tag]
+>   %8 finds [$3] full
 >   exit sub 0 drops [$1]
 >   storage sub 0: $3 cell
 >   summary kept [$1] borrows [$0] writes

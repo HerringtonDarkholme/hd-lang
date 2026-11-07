@@ -28,15 +28,16 @@ fn width(s: string) -> usize:
 fn apply(f: fn(string) -> usize, s: string) -> usize:
 > app/main/apply
 >   local $0 f: fn(string) -> usize [param read] value
->     uses $0: entry -> %1 lend last
+>     uses $0: entry -> %2 lend last
 >   local $1 s: string [param read] value
->     uses $1: entry -> %2 consume last
->   %0 = Release %4 Exit local $0 #2 : ()
+>     uses $1: entry -> %3 consume last
+>   %0 = Release %5 Exit local $0 #2 : ()
+>   %1 = Retain %5 Entry local $1 #0 : ()
     f(s)
->   %1 = Read borrow [$0] : fn(string) -> usize
->   %2 = Read move [$1] : string
->   %3 = CallValue %1 [%2] : usize
->   %4 = Block %3 : usize
+>   %2 = Read borrow [$0] : fn(string) -> usize
+>   %3 = Read move [$1] : string
+>   %4 = CallValue %2 [%3] : usize
+>   %5 = Block %4 : usize
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0] writes
 
@@ -67,74 +68,79 @@ fn named_value(s: string) -> usize:
 >   summary kept [] borrows [$0]
 
 fn ident[T](x: T) -> T:
-    x
 > app/main/ident
 >   local $0 x: T [param read] value
->     uses $0: entry -> %0 consume last
->   %0 = Read move [$0] : T
->   %1 = Block %0 : T
+>     uses $0: entry -> %1 consume last
+>   %0 = Retain %2 Entry local $0 #0 : ()
+    x
+>   %1 = Read move [$0] : T
+>   %2 = Block %1 : T
 >   exit sub 0 drops [$0]
 >   summary kept [$0] returns $0
 
 fn map_one[A, B](x: A, f: fn(A) -> B) -> B:
 > app/main/map_one
 >   local $0 x: A [param read] value
->     uses $0: entry -> %2 consume last
+>     uses $0: entry -> %3 consume last
 >   local $1 f: fn(A) -> B [param read] value
->     uses $1: entry -> %1 lend last
->   %0 = Release %4 Exit local $1 #2 : ()
+>     uses $1: entry -> %2 lend last
+>   %0 = Release %5 Exit local $1 #2 : ()
+>   %1 = Retain %5 Entry local $0 #0 : ()
     f(x)
->   %1 = Read borrow [$1] : fn(A) -> B
->   %2 = Read move [$0] : A
->   %3 = CallValue %1 [%2] : B
->   %4 = Block %3 : B
+>   %2 = Read borrow [$1] : fn(A) -> B
+>   %3 = Read move [$0] : A
+>   %4 = CallValue %2 [%3] : B
+>   %5 = Block %4 : B
 >   exit sub 0 drops [$0]
 >   summary kept [$0] borrows [$1] writes
 
 fn generic_value(s: string) -> string:
-    map_one(s, ident)
 > app/main/generic_value
 >   local $0 s: string [param read] value
->     uses $0: entry -> %3 consume last
+>     uses $0: entry -> %4 consume last
 >   local $2 f: fn(string) -> string [read] value
->     uses $2: %1 -> %2 lend last
->   %0 = ItemRef #0 [..] : fn(string) -> string
->   %1 = Store [$2] %0 : ()
->   %2 = Read borrow [$2] : fn(string) -> string
->   %3 = Read move [$0] : string
->   %4 = Break L1 %3 : never
->   %5 = Block - : string
->   %6 = Scope %5 [] : string
->   %7 = Break L0 %6 : never
->   %8 = Block - : string
->   %9 = Scope %8 [] : string
->   %10 = Drop [$2] : ()
->   %11 = Block %9 : string
+>     uses $2: %2 -> %3 lend last
+>   %0 = Retain %12 Entry local $0 #0 : ()
+    map_one(s, ident)
+>   %1 = ItemRef #0 [..] : fn(string) -> string
+>   %2 = Store [$2] %1 : ()
+>   %3 = Read borrow [$2] : fn(string) -> string
+>   %4 = Read move [$0] : string
+>   %5 = Break L1 %4 : never
+>   %6 = Block - : string
+>   %7 = Scope %6 [] : string
+>   %8 = Break L0 %7 : never
+>   %9 = Block - : string
+>   %10 = Scope %9 [] : string
+>   %11 = Drop [$2] : ()
+>   %12 = Block %10 : string
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
 fn variant_value(s: string) -> Event:
-    map_one(s, Event.Named)
 > app/main/variant_value
 >   local $0 s: string [param read] value
->     uses $0: entry -> %6 consume last
+>     uses $0: entry -> %8 consume last
 >   local $1 $0: string [param] value
->     uses $1: entry -> %0 consume last
+>     uses $1: entry -> %2 consume last
 >   local $3 f: fn(string) -> Event [read] value
->     uses $3: %4 -> %5 lend last
->   %0 = Read move [$1] : string
->   %1 = NewVariant #0 [%0] : Event
->   %2 = Block %1 : Event
->   %3 = Closure #1 [%0 %0] : fn(string) -> Event
->   %4 = Store [$3] %3 : ()
->   %5 = Read borrow [$3] : fn(string) -> Event
->   %6 = Read move [$0] : string
->   %7 = CallValue %5 [%6] : Event
->   %8 = Break L0 %7 : never
->   %9 = Block - : Event
->   %10 = Scope %9 [] : Event
->   %11 = Drop [$3] : ()
->   %12 = Block %10 : Event
+>     uses $3: %6 -> %7 lend last
+>   %0 = Retain %14 Entry local $0 #0 : ()
+    map_one(s, Event.Named)
+>   %1 = Retain %4 Entry local $1 #0 : ()
+>   %2 = Read move [$1] : string
+>   %3 = NewVariant #0 [%2] : Event
+>   %4 = Block %3 : Event
+>   %5 = Closure #1 [%0 %0] : fn(string) -> Event
+>   %6 = Store [$3] %5 : ()
+>   %7 = Read borrow [$3] : fn(string) -> Event
+>   %8 = Read move [$0] : string
+>   %9 = CallValue %7 [%8] : Event
+>   %10 = Break L0 %9 : never
+>   %11 = Block - : Event
+>   %12 = Scope %11 [] : Event
+>   %13 = Drop [$3] : ()
+>   %14 = Block %12 : Event
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$1]
 >   summary kept [$0] writes

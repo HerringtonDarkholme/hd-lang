@@ -13,27 +13,29 @@ struct Cell:
 impl Apply for Cell:
     type Out = string
     fn apply(self) -> string:
-        self.value
 > app/main/impl Apply for Cell.apply
 >   local $0 self: Cell [param read] value
->     uses $0: entry -> %0 consume last
->   %0 = Read move [$0 .value] : string
->   %1 = Block %0 : string
+>     uses $0: entry -> %1 consume last
+>   %0 = Retain %2 Entry local $0 #0 : ()
+        self.value
+>   %1 = Read move [$0 .value] : string
+>   %2 = Block %1 : string
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
 impl Update[string] for Cell:
     fn update(&mut self, value: string) -> void:
-        self.value = value
 > app/main/impl Update [ string ] for Cell.update
 >   local $0 self: Ref[mut Cell] [param read] value
->     uses $0: entry -> %1 lend last
+>     uses $0: entry -> %2 lend last
 >   local $1 value: string [param read] value
->     uses $1: entry -> %0 consume last
->   %0 = Read move [$1] : string
->   %1 = Store [*$0 .value] %0 : ()
->   %2 = Release %1 Operation #3 : ()
->   %3 = Block - : ()
+>     uses $1: entry -> %1 consume last
+>   %0 = Retain %4 Entry local $1 #0 : ()
+        self.value = value
+>   %1 = Read move [$1] : string
+>   %2 = Store [*$0 .value] %1 : ()
+>   %3 = Release %2 Operation #3 : ()
+>   %4 = Block - : ()
 >   exit sub 0 drops [$1]
 >   summary kept [$1] writes
 
@@ -41,38 +43,40 @@ struct Handler:
     callback: fn(string) -> usize
 
 fn read_cell(c: Cell) -> usize:
-    c().len()
 > app/main/read_cell
 >   local $0 c: Cell [param read] value
->     uses $0: entry -> %0 consume last
+>     uses $0: entry -> %1 consume last
 >   local $1 $ref: string [read assigned captured captured-assigned] value
->     uses $1: %4 -> %5 lend last
->   %0 = Read move [$0 .value] : string
->   %1 = Break L1 %0 : never
->   %2 = Block - : string
->   %3 = Scope %2 [] : string
->   %4 = Store [$1] %3 : ()
->   %5 = Read borrow [$1] : string
->   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
->   %7 = Break L0 %6 : never
->   %8 = Block - : usize
->   %9 = Scope %8 [] : usize
->   %10 = Drop [$1] : ()
->   %11 = Block %9 : usize
+>     uses $1: %5 -> %6 lend last
+>   %0 = Retain %12 Entry local $0 #0 : ()
+    c().len()
+>   %1 = Read move [$0 .value] : string
+>   %2 = Break L1 %1 : never
+>   %3 = Block - : string
+>   %4 = Scope %3 [] : string
+>   %5 = Store [$1] %4 : ()
+>   %6 = Read borrow [$1] : string
+>   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
+>   %8 = Break L0 %7 : never
+>   %9 = Block - : usize
+>   %10 = Scope %9 [] : usize
+>   %11 = Drop [$1] : ()
+>   %12 = Block %10 : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
 fn store_cell(c: &mut Cell, s: string) -> void:
-    c() = s
 > app/main/store_cell
 >   local $0 c: Ref[mut Cell] [param read] value
->     uses $0: entry -> %0 lend last
+>     uses $0: entry -> %1 lend last
 >   local $1 s: string [param read] value
->     uses $1: entry -> %1 consume last
->   %0 = Read borrow [$0] : Ref[mut Cell]
->   %1 = Read move [$1] : string
->   %2 = Call std/ops/Update.update for Cell [string] via Impl (%0, %1) : ()
->   %3 = Block - : ()
+>     uses $1: entry -> %2 consume last
+>   %0 = Retain %4 Entry local $1 #0 : ()
+    c() = s
+>   %1 = Read borrow [$0] : Ref[mut Cell]
+>   %2 = Read move [$1] : string
+>   %3 = Call std/ops/Update.update for Cell [string] via Impl (%1, %2) : ()
+>   %4 = Block - : ()
 >   exit sub 0 drops [$1]
 >   summary kept [$1] writes
 
@@ -99,14 +103,15 @@ fn append_cell(c: &mut Cell) -> void:
 fn stored_fn(h: Handler, s: string) -> usize:
 > app/main/stored_fn
 >   local $0 h: Handler [param read] value
->     uses $0: entry -> %1 lend last
+>     uses $0: entry -> %2 lend last
 >   local $1 s: string [param read] value
->     uses $1: entry -> %2 consume last
->   %0 = Release %4 Exit local $0 #2 : ()
+>     uses $1: entry -> %3 consume last
+>   %0 = Release %5 Exit local $0 #2 : ()
+>   %1 = Retain %5 Entry local $1 #0 : ()
     (h.callback)(s)
->   %1 = Read borrow [$0 .callback] : fn(string) -> usize
->   %2 = Read move [$1] : string
->   %3 = CallValue %1 [%2] : usize
->   %4 = Block %3 : usize
+>   %2 = Read borrow [$0 .callback] : fn(string) -> usize
+>   %3 = Read move [$1] : string
+>   %4 = CallValue %2 [%3] : usize
+>   %5 = Block %4 : usize
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0] writes

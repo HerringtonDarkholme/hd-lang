@@ -18,16 +18,17 @@ fn make() -> Unit:
 >   summary kept []
 
 fn wrap(name: string) -> Tagged:
-    Tagged { unit: make(), name: name }
 > app/main/wrap
 >   local $0 name: string [param read] value
->     uses $0: entry -> %4 consume last
->   %0 = NewStruct [] : Unit
->   %1 = Break L0 %0 : never
->   %2 = Block - : Unit
->   %3 = Scope %2 [] : Unit
->   %4 = Read move [$0] : string
->   %5 = NewStruct [%3 %4] : Tagged
->   %6 = Block %5 : Tagged
+>     uses $0: entry -> %5 consume last
+>   %0 = Retain %7 Entry local $0 #0 : ()
+    Tagged { unit: make(), name: name }
+>   %1 = NewStruct [] : Unit
+>   %2 = Break L0 %1 : never
+>   %3 = Block - : Unit
+>   %4 = Scope %3 [] : Unit
+>   %5 = Read move [$0] : string
+>   %6 = NewStruct [%4 %5] : Tagged
+>   %7 = Block %6 : Tagged
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

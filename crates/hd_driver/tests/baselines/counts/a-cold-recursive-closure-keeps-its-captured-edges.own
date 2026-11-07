@@ -3,68 +3,70 @@
 # @build: v8 release program
 # expected: each cold closure states one capture packet, including recursive self; concrete generic scalar fields need no count.
 fn make(value: string) -> fn!(usize) -> string:
-    read := fn!(n: usize) -> string:
 > app/main/make
 >   local $0 value: string [param read captured] value
->     uses $0: entry -> %7 consume, %23 consume last
+>     uses $0: entry -> %8 consume, %24 consume last
 >   local $1 n: usize [param read] value
->     uses $1: entry -> %5 lend, %10 lend last
+>     uses $1: entry -> %6 lend, %11 lend last
 >   local $2 read: fn!(usize) -> string [:= read assigned captured captured-assigned] place
->   %0 = Retain %21 Cold row #0 : ()
->   %1 = Retain %21 Materialize row #0 : ()
->   %2 = Release %21 FrameDrop row #2 : ()
->   %3 = Retain %21 Cold captures #0 : ()
->   %4 = Release %21 FrameDrop child #2 : ()
->   %21 = Block %18 : string
->   %22 = Store [$2] - : ()
->   %23 = Closure #1 [%0 %2] : fn!(usize) -> string
->   %24 = Retain %23 Operation captures #0 : ()
->   %25 = Store [$2] %23 : ()
->   %26 = Release %25 Operation #3 : ()
->   %29 = Block %27 : fn!(usize) -> string
->   %23 finds [$2] full
->   %25 finds [$2] full
+>   %4 = Retain %30 Entry local $0 #0 : ()
+    read := fn!(n: usize) -> string:
+>   %0 = Retain %22 Cold row #0 : ()
+>   %1 = Retain %22 Materialize row #0 : ()
+>   %2 = Release %22 FrameDrop row #2 : ()
+>   %3 = Retain %22 Cold captures #0 : ()
+>   %5 = Release %22 FrameDrop child #2 : ()
+>   %22 = Block %19 : string
+>   %23 = Store [$2] - : ()
+>   %24 = Closure #1 [%0 %2] : fn!(usize) -> string
+>   %25 = Retain %24 Operation captures #0 : ()
+>   %26 = Store [$2] %24 : ()
+>   %27 = Release %26 Operation #3 : ()
+>   %30 = Block %28 : fn!(usize) -> string
+>   %24 finds [$2] full
+>   %26 finds [$2] full
         if n == 0: value else: read!(n - 1)
->   %5 = Read copy [$1] : usize
->   %6 = Prim Eq [%5 0:usize] : bool
->   %7 = Read move [$0] : string
->   %8 = Block %7 : string
->   %9 = Read borrow [$2] : fn!(usize) -> string
->   %10 = Read copy [$1] : usize
->   %11 = Prim Sub [%10 1:usize] : usize
->   %12 = CallValue %9 [%11] : mut Suspend[string]
->   %13 = AwaitValue %12 : string
->   %14 = Release %13 Operation child #2 : ()
->   %15 = Retain %13 Operation child #0 : ()
->   %16 = Drop [%12] : ()
->   %17 = Block %13 : string
->   %18 = If %6 [%8 %17] : string
->   %19 = Drop [$0] : ()
->   %20 = Drop [$2] : ()
+>   %6 = Read copy [$1] : usize
+>   %7 = Prim Eq [%6 0:usize] : bool
+>   %8 = Read move [$0] : string
+>   %9 = Block %8 : string
+>   %10 = Read borrow [$2] : fn!(usize) -> string
+>   %11 = Read copy [$1] : usize
+>   %12 = Prim Sub [%11 1:usize] : usize
+>   %13 = CallValue %10 [%12] : mut Suspend[string]
+>   %14 = AwaitValue %13 : string
+>   %15 = Release %14 Operation child #2 : ()
+>   %16 = Retain %14 Operation child #0 : ()
+>   %17 = Drop [%13] : ()
+>   %18 = Block %14 : string
+>   %19 = If %7 [%9 %18] : string
+>   %20 = Drop [$0] : ()
+>   %21 = Drop [$2] : ()
     read
->   %27 = Read copy [$2] : fn!(usize) -> string
->   %28 = Drop [$2] : ()
->   %27 finds [$2] full
+>   %28 = Read copy [$2] : fn!(usize) -> string
+>   %29 = Drop [$2] : ()
+>   %28 finds [$2] full
 >   exit sub 0 drops [$0 $2]
 >   exit sub 1 drops [$0 $2]
 >   summary kept [$0] writes
->   unwind %13 drops [%12]
->   live %13 [%6 %12 $0 $2]
+>   unwind %14 drops [%13]
+>   live %14 [%7 %13 $0 $2]
 
 fn generic[T < 'static](value: T) -> fn!() -> T:
-    fn!() -> T: value
 > app/main/generic
 >   local $0 value: T [param read captured] value
->     uses $0: entry -> %4 consume, %6 consume last
->   %0 = Retain %5 Cold row #0 : ()
->   %1 = Retain %5 Materialize row #0 : ()
->   %2 = Release %5 FrameDrop row #2 : ()
->   %3 = Retain %5 Cold captures #0 : ()
->   %4 = Read move [$0] : T
->   %5 = Block %4 : T
->   %6 = Closure #1 [%0 %1] : fn!() -> T
->   %7 = Retain %6 Operation captures #0 : ()
->   %8 = Block %6 : fn!() -> T
+>     uses $0: entry -> %5 consume, %7 consume last
+>   %4 = Retain %9 Entry local $0 #0 : ()
+    fn!() -> T: value
+>   %0 = Retain %6 Cold row #0 : ()
+>   %1 = Retain %6 Materialize row #0 : ()
+>   %2 = Release %6 FrameDrop row #2 : ()
+>   %3 = Retain %6 Cold captures #0 : ()
+>   %5 = Read move [$0] : T
+>   %6 = Block %5 : T
+>   %7 = Closure #1 [%0 %1] : fn!() -> T
+>   %8 = Retain %7 Operation captures #0 : ()
+>   %9 = Block %7 : fn!() -> T
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0]

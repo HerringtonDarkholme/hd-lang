@@ -1,0 +1,50 @@
+# @dump: own counts wat
+# @build: v8 release program
+# expected: an owned explicit parameter states its conditional entry copy; a borrowed counted-pointer ABI copies, while owned ABI strings, scalars, lending references and Drop parameters add no copy. Capture loading is separate.
+use std.annotation.cold
+use std.collections.UniqList
+
+struct Named:
+    text: string
+
+@cold
+fn word(i: i32) -> string:
+    "held$i"
+
+@cold
+fn same[T](value: T) -> T:
+    value
+
+@cold
+fn keep[T < 'static](value: T) -> fn() -> T:
+    fn() -> T: value
+
+@cold
+fn make() -> fn(string) -> string:
+    fn(value: string) -> string: value
+
+@cold
+fn read(value: &string) -> usize:
+    value.len()
+
+@cold
+fn unique(value: UniqList[i32]) -> UniqList[i32]:
+    value
+
+pub fn main() -> void $ Console:
+    original := word(7)
+    println(same(original))
+    println(same(+7))
+    println(keep(original)())
+    call := make()
+    println(call(original))
+    println(read(&original))
+    shared := box(Named { text: original })
+    println(same(shared).text)
+    println(keep(shared)().text)
+    println(keep(+7)())
+    println(shared.text)
+    let mut items = UniqList::[i32].new()
+    items.push(7)
+    println(unique(items).len())
+    println(original)

@@ -5,81 +5,82 @@
 # (`IsUnique hoisted` before `while k != 0`), since nothing in the outer
 # loop shares it. Both loops keep the list stable.
 fn flips(perm: List[usize]) -> i64:
-    let mut perm = perm
 > app/main/flips
 >   local $0 perm: List[usize] [param read] value
->     uses $0: entry -> %0 consume last
+>     uses $0: entry -> %1 consume last
 >   local $1 perm: List[usize] [read assigned] place
 >   local $2 flips: i64 [read assigned mutated] place
 >   local $3 k: usize [read assigned mutated] place
 >   local $4 i: usize [read assigned mutated] place
 >   local $5 j: usize [read assigned mutated] place
 >   local $6 t: usize [:= read assigned] value
->     uses $6: %16 -> %22 consume last
->   %0 = Read move [$0] : List[usize]
->   %1 = Store [$1] %0 : ()
->   %49 = Block %48 : i64
+>     uses $6: %17 -> %23 consume last
+>   %0 = Retain %50 Entry local $0 #0 : ()
+    let mut perm = perm
+>   %1 = Read move [$0] : List[usize]
+>   %2 = Store [$1] %1 : ()
+>   %50 = Block %49 : i64
     let flips: i64 = 0
->   %2 = Store [$2] 0:i64 : ()
+>   %3 = Store [$2] 0:i64 : ()
     let k = perm[0]
->   %3 = Read copy [$1 [0:usize]] : usize
->   %4 = Store [$3] %3 : ()
+>   %4 = Read copy [$1 [0:usize]] : usize
+>   %5 = Store [$3] %4 : ()
     while k != 0:
->   %5 = IsUnique hoisted [$1] : ()
->   %6 = Read copy [$3] : usize
->   %7 = Prim Ne [%6 0:usize] : bool
->   %42 = Break L0 - : never
->   %43 = Block - : ()
->   %44 = If %7 [%41 %43] : ()
->   %45 = Block - : ()
->   %46 = Loop %45 - : ()
->   %47 = Drop [$1] : ()
+>   %6 = IsUnique hoisted [$1] : ()
+>   %7 = Read copy [$3] : usize
+>   %8 = Prim Ne [%7 0:usize] : bool
+>   %43 = Break L0 - : never
+>   %44 = Block - : ()
+>   %45 = If %8 [%42 %44] : ()
+>   %46 = Block - : ()
+>   %47 = Loop %46 - : ()
+>   %48 = Drop [$1] : ()
         let i: usize = 0
->   %8 = Store [$4] 0:usize : ()
->   %41 = Block - : ()
+>   %9 = Store [$4] 0:usize : ()
+>   %42 = Block - : ()
         let j = k
->   %9 = Read copy [$3] : usize
->   %10 = Store [$5] %9 : ()
+>   %10 = Read copy [$3] : usize
+>   %11 = Store [$5] %10 : ()
         while i < j:
->   %11 = Read copy [$4] : usize
->   %12 = Read copy [$5] : usize
->   %13 = Prim Lt [%11 %12] : bool
->   %31 = Break L1 - : never
->   %32 = Block - : ()
->   %33 = If %13 [%30 %32] : ()
->   %34 = Block - : ()
->   %35 = Loop %34 - : ()
+>   %12 = Read copy [$4] : usize
+>   %13 = Read copy [$5] : usize
+>   %14 = Prim Lt [%12 %13] : bool
+>   %32 = Break L1 - : never
+>   %33 = Block - : ()
+>   %34 = If %14 [%31 %33] : ()
+>   %35 = Block - : ()
+>   %36 = Loop %35 - : ()
             t := perm[i]
->   %14 = Read copy [$4] : usize
->   %15 = Read copy [$1 [%14]] : usize
->   %16 = Store [$6] %15 : ()
->   %30 = Block - : ()
+>   %15 = Read copy [$4] : usize
+>   %16 = Read copy [$1 [%15]] : usize
+>   %17 = Store [$6] %16 : ()
+>   %31 = Block - : ()
             perm[i] = perm[j]
->   %17 = Read copy [$4] : usize
->   %18 = Read copy [$5] : usize
->   %19 = Read copy [$1 [%18]] : usize
->   %20 = Store [$1 [%17]] %19 : ()
+>   %18 = Read copy [$4] : usize
+>   %19 = Read copy [$5] : usize
+>   %20 = Read copy [$1 [%19]] : usize
+>   %21 = Store [$1 [%18]] %20 : ()
             perm[j] = t
->   %21 = Read copy [$5] : usize
->   %22 = Read copy [$6] : usize
->   %23 = Store [$1 [%21]] %22 : ()
+>   %22 = Read copy [$5] : usize
+>   %23 = Read copy [$6] : usize
+>   %24 = Store [$1 [%22]] %23 : ()
             i = i + 1
->   %24 = Read copy [$4] : usize
->   %25 = Prim Add [%24 1:usize] : usize
->   %26 = Store [$4] %25 : ()
+>   %25 = Read copy [$4] : usize
+>   %26 = Prim Add [%25 1:usize] : usize
+>   %27 = Store [$4] %26 : ()
             j = j - 1
->   %27 = Read copy [$5] : usize
->   %28 = Prim Sub [%27 1:usize] : usize
->   %29 = Store [$5] %28 : ()
+>   %28 = Read copy [$5] : usize
+>   %29 = Prim Sub [%28 1:usize] : usize
+>   %30 = Store [$5] %29 : ()
         flips = flips + 1
->   %36 = Read copy [$2] : i64
->   %37 = Prim Add [%36 1:i64] : i64
->   %38 = Store [$2] %37 : ()
+>   %37 = Read copy [$2] : i64
+>   %38 = Prim Add [%37 1:i64] : i64
+>   %39 = Store [$2] %38 : ()
         k = perm[0]
->   %39 = Read copy [$1 [0:usize]] : usize
->   %40 = Store [$3] %39 : ()
+>   %40 = Read copy [$1 [0:usize]] : usize
+>   %41 = Store [$3] %40 : ()
     flips
->   %48 = Read copy [$2] : i64
+>   %49 = Read copy [$2] : i64
 >   exit sub 0 drops [$0]
->   loop %35 keeps [$1]
->   loop %46 keeps [$1]
+>   loop %36 keeps [$1]
+>   loop %47 keeps [$1]

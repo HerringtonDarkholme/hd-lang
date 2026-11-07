@@ -36,21 +36,22 @@ fn demo(a: &User) -> usize:
     apply(name_of, a) + apply(fn(u): &u.name, a)
 > app/main/demo
 >   local $0 a: Ref[User] [param read] value
->     uses $0: entry -> %1 lend, %8 lend last
+>     uses $0: entry -> %1 lend, %9 lend last
 >   local $1 u: Ref[User] [param read] value
->     uses $1: entry -> %4 lend last
+>     uses $1: entry -> %5 lend last
 >   %0 = ItemRef #0 [..] : fn(Ref[User]) -> Ref[string]
 >   %1 = Read borrow [$0] : Ref[User]
 >   %2 = Call app/main/apply[] (%0, %1) : usize
 >   %3 = Drop [%0] : ()
->   %4 = Ref local [*$1 .name] : Ref[string]
->   %5 = Drop [$1] : ()
->   %6 = Block %4 : Ref[string]
->   %7 = Closure #1 [%0 %0] : fn(Ref[User]) -> Ref[string]
->   %8 = Read borrow [$0] : Ref[User]
->   %9 = Call app/main/apply[] (%7, %8) : usize
->   %10 = Drop [%7] : ()
->   %11 = Prim Add [%2 %9] : usize
->   %12 = Block %11 : usize
+>   %4 = Retain %7 Entry local $1 #0 : ()
+>   %5 = Ref local [*$1 .name] : Ref[string]
+>   %6 = Drop [$1] : ()
+>   %7 = Block %5 : Ref[string]
+>   %8 = Closure #1 [%0 %0] : fn(Ref[User]) -> Ref[string]
+>   %9 = Read borrow [$0] : Ref[User]
+>   %10 = Call app/main/apply[] (%8, %9) : usize
+>   %11 = Drop [%8] : ()
+>   %12 = Prim Add [%2 %10] : usize
+>   %13 = Block %12 : usize
 >   exit sub 1 drops [$1]
 >   summary kept [] writes

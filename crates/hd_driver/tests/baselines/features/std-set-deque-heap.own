@@ -33,79 +33,81 @@ fn seen(s: &mut Set[string], a: string, b: string) -> bool:
 >   summary kept [] borrows [$1 $2] writes
 
 fn queue(q: &mut Deque[string], a: string) -> usize:
-    q.push_back(a)
 > app/main/queue
 >   local $0 q: Ref[mut Deque[string]] [param read] value
->     uses $0: entry -> %0 lend, %3 lend last
+>     uses $0: entry -> %1 lend, %4 lend last
 >   local $1 a: string [param read] value
->     uses $1: entry -> %1 consume last
+>     uses $1: entry -> %2 consume last
 >   local $2 x: string [read assigned] value
->     uses $2: %13 -> %5 lend last
->   %0 = Read borrow [$0] : Ref[mut Deque[string]]
->   %1 = Read move [$1] : string
->   %2 = Call std/collections/impl [ T ] Deque [ T ].push_back[string] (%0, %1) : ()
->   %26 = Block %24 : usize
+>     uses $2: %14 -> %6 lend last
+>   %0 = Retain %27 Entry local $1 #0 : ()
+    q.push_back(a)
+>   %1 = Read borrow [$0] : Ref[mut Deque[string]]
+>   %2 = Read move [$1] : string
+>   %3 = Call std/collections/impl [ T ] Deque [ T ].push_back[string] (%1, %2) : ()
+>   %27 = Block %25 : usize
     match q.pop_front():
->   %3 = Read borrow [$0] : Ref[mut Deque[string]]
->   %4 = Call std/collections/impl [ T ] Deque [ T ].pop_front[string] (%3) : string?
->   %23 = Block - : never
->   %24 = Match %4 [%23 %10 %11] : usize
->   %25 = Drop [%4] : ()
+>   %4 = Read borrow [$0] : Ref[mut Deque[string]]
+>   %5 = Call std/collections/impl [ T ] Deque [ T ].pop_front[string] (%4) : string?
+>   %24 = Block - : never
+>   %25 = Match %5 [%24 %11 %12] : usize
+>   %26 = Drop [%5] : ()
         .Some(x) => x.len()
->   %5 = Read borrow [$2] : string
->   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
->   %7 = Break L0 %6 : never
->   %8 = Block - : usize
->   %9 = Scope %8 [] : usize
->   %10 = Block %9 : usize
->   %12 = Read borrow [%4 as #1 .0] : string
->   %13 = Store [$2] %12 : ()
->   %15 = Block - : never
->   %21 = Block - : never
->   %22 = SwitchTag %4 [#1 %15 %21] : never
+>   %6 = Read borrow [$2] : string
+>   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
+>   %8 = Break L0 %7 : never
+>   %9 = Block - : usize
+>   %10 = Scope %9 [] : usize
+>   %11 = Block %10 : usize
+>   %13 = Read borrow [%5 as #1 .0] : string
+>   %14 = Store [$2] %13 : ()
+>   %16 = Block - : never
+>   %22 = Block - : never
+>   %23 = SwitchTag %5 [#1 %16 %22] : never
         .None => 0
->   %11 = Block 0:usize : usize
->   %17 = Block - : never
->   %19 = Block - : never
->   %20 = SwitchTag %4 [#0 %17 %19] : never
+>   %12 = Block 0:usize : usize
+>   %18 = Block - : never
+>   %20 = Block - : never
+>   %21 = SwitchTag %5 [#0 %18 %20] : never
 >   exit sub 0 drops [$1]
 >   summary kept [$1] writes
 
 fn top(h: &mut Heap[string], a: string) -> usize:
-    h.push(a)
 > app/main/top
 >   local $0 h: Ref[mut Heap[string]] [param read] value
->     uses $0: entry -> %0 lend, %3 lend last
+>     uses $0: entry -> %1 lend, %4 lend last
 >   local $1 a: string [param read] value
->     uses $1: entry -> %1 consume last
+>     uses $1: entry -> %2 consume last
 >   local $2 x: string [read assigned] value
->     uses $2: %13 -> %5 lend last
->   %0 = Read borrow [$0] : Ref[mut Heap[string]]
->   %1 = Read move [$1] : string
->   %2 = Call std/collections/impl [ T < Ord ] Heap [ T ].push[string] (%0, %1) : ()
->   %26 = Block %24 : usize
+>     uses $2: %14 -> %6 lend last
+>   %0 = Retain %27 Entry local $1 #0 : ()
+    h.push(a)
+>   %1 = Read borrow [$0] : Ref[mut Heap[string]]
+>   %2 = Read move [$1] : string
+>   %3 = Call std/collections/impl [ T < Ord ] Heap [ T ].push[string] (%1, %2) : ()
+>   %27 = Block %25 : usize
     match h.pop():
->   %3 = Read borrow [$0] : Ref[mut Heap[string]]
->   %4 = Call std/collections/impl [ T < Ord ] Heap [ T ].pop[string] (%3) : string?
->   %23 = Block - : never
->   %24 = Match %4 [%23 %10 %11] : usize
->   %25 = Drop [%4] : ()
+>   %4 = Read borrow [$0] : Ref[mut Heap[string]]
+>   %5 = Call std/collections/impl [ T < Ord ] Heap [ T ].pop[string] (%4) : string?
+>   %24 = Block - : never
+>   %25 = Match %5 [%24 %11 %12] : usize
+>   %26 = Drop [%5] : ()
         .Some(x) => x.len()
->   %5 = Read borrow [$2] : string
->   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
->   %7 = Break L0 %6 : never
->   %8 = Block - : usize
->   %9 = Scope %8 [] : usize
->   %10 = Block %9 : usize
->   %12 = Read borrow [%4 as #1 .0] : string
->   %13 = Store [$2] %12 : ()
->   %15 = Block - : never
->   %21 = Block - : never
->   %22 = SwitchTag %4 [#1 %15 %21] : never
+>   %6 = Read borrow [$2] : string
+>   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
+>   %8 = Break L0 %7 : never
+>   %9 = Block - : usize
+>   %10 = Scope %9 [] : usize
+>   %11 = Block %10 : usize
+>   %13 = Read borrow [%5 as #1 .0] : string
+>   %14 = Store [$2] %13 : ()
+>   %16 = Block - : never
+>   %22 = Block - : never
+>   %23 = SwitchTag %5 [#1 %16 %22] : never
         .None => 0
->   %11 = Block 0:usize : usize
->   %17 = Block - : never
->   %19 = Block - : never
->   %20 = SwitchTag %4 [#0 %17 %19] : never
+>   %12 = Block 0:usize : usize
+>   %18 = Block - : never
+>   %20 = Block - : never
+>   %21 = SwitchTag %5 [#0 %18 %20] : never
 >   exit sub 0 drops [$1]
 >   summary kept [$1] writes

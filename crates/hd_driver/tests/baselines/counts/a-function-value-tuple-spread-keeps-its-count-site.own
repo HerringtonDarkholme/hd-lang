@@ -7,43 +7,46 @@ use std.function.{Fn, Tuple}
 fn call[Args < Tuple, O](f: Fn[Args, O, $ ()], args: Args) -> O:
 > app/main/call
 >   local $0 f: Fn[Args, O, $()] [param read] value
->     uses $0: entry -> %1 lend last
+>     uses $0: entry -> %2 lend last
 >   local $1 args: Args [param read] value
->     uses $1: entry -> %2 consume last
->   %0 = Release %5 Exit local $0 #2 : ()
+>     uses $1: entry -> %3 consume last
+>   %0 = Release %6 Exit local $0 #2 : ()
+>   %1 = Retain %6 Entry local $1 #0 : ()
     f(args...)
->   %1 = Read borrow [$0] : Fn[Args, O, $()]
->   %2 = Read move [$1] : Args
->   %3 = CallValue %1 [%2] : O
->   %4 = Retain %3 Operation arguments #0 : ()
->   %5 = Block %3 : O
+>   %2 = Read borrow [$0] : Fn[Args, O, $()]
+>   %3 = Read move [$1] : Args
+>   %4 = CallValue %2 [%3] : O
+>   %5 = Retain %4 Operation arguments #0 : ()
+>   %6 = Block %4 : O
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0] writes
 
 fn through(f: fn(string, List[i32]) -> usize, text: string, values: List[i32]) -> usize:
 > app/main/through
 >   local $0 f: fn(string, List[i32]) -> usize [param read] value
->     uses $0: entry -> %5 lend last
+>     uses $0: entry -> %7 lend last
 >   local $1 text: string [param read] value
->     uses $1: entry -> %1 consume last
+>     uses $1: entry -> %3 consume last
 >   local $2 values: List[i32] [param read] value
->     uses $2: entry -> %2 consume last
+>     uses $2: entry -> %4 consume last
 >   local $4 args: (string, List[i32]) [read] value
->     uses $4: %4 -> %6 lend last
->   %0 = Release %13 Exit local $0 #2 : ()
+>     uses $4: %6 -> %8 lend last
+>   %0 = Release %15 Exit local $0 #2 : ()
+>   %1 = Retain %15 Entry local $1 #0 : ()
+>   %2 = Retain %15 Entry local $2 #0 : ()
     call(f, (text, values))
->   %1 = Read move [$1] : string
->   %2 = Read move [$2] : List[i32]
->   %3 = NewTuple - [%1 %2] : (string, List[i32])
->   %4 = Store [$4] %3 : ()
->   %5 = Read borrow [$0] : fn(string, List[i32]) -> usize
->   %6 = Read borrow [$4] : (string, List[i32])
->   %7 = CallValue %5 [%6] : usize
->   %8 = Retain %7 Operation arguments #0 : ()
->   %9 = Break L0 %7 : never
->   %10 = Block - : usize
->   %11 = Scope %10 [] : usize
->   %12 = Drop [$4] : ()
->   %13 = Block %11 : usize
+>   %3 = Read move [$1] : string
+>   %4 = Read move [$2] : List[i32]
+>   %5 = NewTuple - [%3 %4] : (string, List[i32])
+>   %6 = Store [$4] %5 : ()
+>   %7 = Read borrow [$0] : fn(string, List[i32]) -> usize
+>   %8 = Read borrow [$4] : (string, List[i32])
+>   %9 = CallValue %7 [%8] : usize
+>   %10 = Retain %9 Operation arguments #0 : ()
+>   %11 = Break L0 %9 : never
+>   %12 = Block - : usize
+>   %13 = Scope %12 [] : usize
+>   %14 = Drop [$4] : ()
+>   %15 = Block %13 : usize
 >   exit sub 0 drops [$1 $2]
 >   summary kept [$1 $2] borrows [$0] writes

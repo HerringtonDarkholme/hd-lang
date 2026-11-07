@@ -3,19 +3,20 @@
 # @build: v8 release
 # expected: the cold frame states its copied string capture; a scalar-only capture has no count.
 fn text(value: string) -> fn!() -> string:
-    fn!() -> string: value
 > app/main/text
 >   local $0 value: string [param read captured] value
->     uses $0: entry -> %4 consume, %6 consume last
->   %0 = Retain %5 Cold row #0 : ()
->   %1 = Retain %5 Materialize row #0 : ()
->   %2 = Release %5 FrameDrop row #2 : ()
->   %3 = Retain %5 Cold captures #0 : ()
->   %4 = Read move [$0] : string
->   %5 = Block %4 : string
->   %6 = Closure #1 [%0 %1] : fn!() -> string
->   %7 = Retain %6 Operation captures #0 : ()
->   %8 = Block %6 : fn!() -> string
+>     uses $0: entry -> %5 consume, %7 consume last
+>   %4 = Retain %9 Entry local $0 #0 : ()
+    fn!() -> string: value
+>   %0 = Retain %6 Cold row #0 : ()
+>   %1 = Retain %6 Materialize row #0 : ()
+>   %2 = Release %6 FrameDrop row #2 : ()
+>   %3 = Retain %6 Cold captures #0 : ()
+>   %5 = Read move [$0] : string
+>   %6 = Block %5 : string
+>   %7 = Closure #1 [%0 %1] : fn!() -> string
+>   %8 = Retain %7 Operation captures #0 : ()
+>   %9 = Block %7 : fn!() -> string
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0]

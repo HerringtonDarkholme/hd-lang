@@ -49,51 +49,53 @@ trait HasFacts:
 
 impl[T] HasFacts for T by Structure:
     fn has_facts(self) -> bool:
-        let mut reader = Reader::[T] { found: false }
 > app/main/impl HasFacts for Record by Structure.has_facts
 >   local $0 self: Record [param read captured] place
 >   local $1 reader: Reader[Record] [read assigned captured captured-assigned] place
 >   local $2 self: Ref[Record] value
->     uses $2: %4 -> %6 lend last
+>     uses $2: %5 -> %7 lend last
 >   local $3 p: Ref[mut Reader[Record]] value
->     uses $3: %5 -> %8 consume, %31 consume last
->   %0 = NewStruct [0:bool] : Reader[Record]
->   %1 = Store [$1] %0 : ()
->   %71 = Block %69 : bool
+>     uses $3: %6 -> %9 consume, %32 consume last
+>   %0 = Retain %72 Entry local $0 #0 : ()
 > app/main/impl [ T ] HasFacts for T by Structure.has_facts
 >   local $0 self: T [param read captured] place
 >   local $1 reader: Reader[T] [read assigned captured captured-assigned] place
->   %0 = NewStruct [0:bool] : Reader[T]
->   %1 = Store [$1] %0 : ()
->   %10 = Block %8 : bool
+>   %0 = Retain %11 Entry local $0 #0 : ()
+        let mut reader = Reader::[T] { found: false }
+>   %1 = NewStruct [0:bool] : Reader[Record]
+>   %2 = Store [$1] %1 : ()
+>   %72 = Block %70 : bool
+>   %1 = NewStruct [0:bool] : Reader[T]
+>   %2 = Store [$1] %1 : ()
+>   %11 = Block %9 : bool
         _ := Structure::walk(&self, &mut reader)
->   %2 = Ref local frame [$0] : Ref[Record]
->   %3 = Ref mut local frame [$1] : Ref[mut Reader[Record]]
->   %4 = Store [$2] %2 : ()
->   %5 = Store [$3] %3 : ()
->   %63 = Break L4 %62 : never
->   %65 = Scope %64 [] : Result[(), never]
->   %66 = LoanEnd [$3] : ()
->   %67 = LoanEnd [$2] : ()
->   %68 = Drop [$0] : ()
->   %3 finds [$1] full
->   %2 = Ref local frame [$0] : Ref[T]
->   %3 = Ref mut local frame [$1] : Ref[mut Reader[T]]
->   %4 = Call std/structure/Structure.walk for T [Reader[T]] via Bound (%2, %3) : Result[(), never]
->   %5 = Drop [%3] : ()
->   %6 = Drop [%2] : ()
->   %7 = Drop [$0] : ()
->   %3 finds [$1] full
+>   %3 = Ref local frame [$0] : Ref[Record]
+>   %4 = Ref mut local frame [$1] : Ref[mut Reader[Record]]
+>   %5 = Store [$2] %3 : ()
+>   %6 = Store [$3] %4 : ()
+>   %64 = Break L4 %63 : never
+>   %66 = Scope %65 [] : Result[(), never]
+>   %67 = LoanEnd [$3] : ()
+>   %68 = LoanEnd [$2] : ()
+>   %69 = Drop [$0] : ()
+>   %4 finds [$1] full
+>   %3 = Ref local frame [$0] : Ref[T]
+>   %4 = Ref mut local frame [$1] : Ref[mut Reader[T]]
+>   %5 = Call std/structure/Structure.walk for T [Reader[T]] via Bound (%3, %4) : Result[(), never]
+>   %6 = Drop [%4] : ()
+>   %7 = Drop [%3] : ()
+>   %8 = Drop [$0] : ()
+>   %4 finds [$1] full
         reader.found
->   %69 = Read copy [$1 .found] : bool
->   %70 = Drop [$1] : ()
->   %69 finds [$1] full
+>   %70 = Read copy [$1 .found] : bool
+>   %71 = Drop [$1] : ()
+>   %70 finds [$1] full
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot, $1 slot
 >   summary kept [$0] writes
->   %8 = Read copy [$1 .found] : bool
->   %9 = Drop [$1] : ()
->   %8 finds [$1] full
+>   %9 = Read copy [$1 .found] : bool
+>   %10 = Drop [$1] : ()
+>   %9 finds [$1] full
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot, $1 slot
 >   summary kept [$0] writes

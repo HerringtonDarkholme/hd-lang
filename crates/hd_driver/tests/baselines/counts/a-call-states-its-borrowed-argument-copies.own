@@ -5,6 +5,12 @@
 use std.annotation.cold
 
 @cold
+> app/main/store
+>   local $0 value: T [param read] value
+>     uses $0: entry -> %1 consume last
+>   local $1 into: Ref[mut List[T]] [param read] value
+>     uses $1: entry -> %3 lend, %5 lend last
+>   %0 = Retain %7 Entry local $0 #0 : ()
 fn store[T](value: T, into: &mut List[T] = &mut []) -> usize:
 > app/main/store.into
 >   local $2 $ref: List[T] [read assigned captured captured-assigned] place
@@ -16,23 +22,27 @@ fn store[T](value: T, into: &mut List[T] = &mut []) -> usize:
 >   storage sub 0: $2 cell
 >   summary kept [] borrows [$0]
     into.push(value)
-> app/main/store
->   local $0 value: T [param read] value
->     uses $0: entry -> %0 consume last
->   local $1 into: Ref[mut List[T]] [param read] value
->     uses $1: entry -> %2 lend, %4 lend last
->   %0 = Read move [$0] : T
->   %1 = IsUnique [*$1] : ()
->   %2 = Read borrow [*$1] : List[T]
->   %3 = Intrinsic ListPush [%2 %0] : ()
->   %6 = Block %5 : usize
+>   %1 = Read move [$0] : T
+>   %2 = IsUnique [*$1] : ()
+>   %3 = Read borrow [*$1] : List[T]
+>   %4 = Intrinsic ListPush [%3 %1] : ()
+>   %7 = Block %6 : usize
     into.len()
->   %4 = Read borrow [*$1] : List[T]
->   %5 = Intrinsic ListLen [%4] : usize
+>   %5 = Read borrow [*$1] : List[T]
+>   %6 = Intrinsic ListLen [%5] : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes
 
 @cold
+> app/main/store_pair
+>   local $0 first: string [param read] value
+>     uses $0: entry -> %2 consume last
+>   local $1 second: string [param read] value
+>     uses $1: entry -> %6 consume last
+>   local $2 into: Ref[mut List[string]] [param read] value
+>     uses $2: entry -> %4 lend, %8 lend, %10 lend last
+>   %0 = Retain %12 Entry local $0 #0 : ()
+>   %1 = Retain %12 Entry local $1 #0 : ()
 fn store_pair(first: string, second: string, into: &mut List[string] = &mut []) -> usize:
 > app/main/store_pair.into
 >   local $3 $ref: List[string] [read assigned captured captured-assigned] place
@@ -44,26 +54,19 @@ fn store_pair(first: string, second: string, into: &mut List[string] = &mut []) 
 >   storage sub 0: $3 cell
 >   summary kept [] borrows [$0 $1]
     into.push(first)
-> app/main/store_pair
->   local $0 first: string [param read] value
->     uses $0: entry -> %0 consume last
->   local $1 second: string [param read] value
->     uses $1: entry -> %4 consume last
->   local $2 into: Ref[mut List[string]] [param read] value
->     uses $2: entry -> %2 lend, %6 lend, %8 lend last
->   %0 = Read move [$0] : string
->   %1 = IsUnique [*$2] : ()
->   %2 = Read borrow [*$2] : List[string]
->   %3 = Intrinsic ListPush [%2 %0] : ()
->   %10 = Block %9 : usize
+>   %2 = Read move [$0] : string
+>   %3 = IsUnique [*$2] : ()
+>   %4 = Read borrow [*$2] : List[string]
+>   %5 = Intrinsic ListPush [%4 %2] : ()
+>   %12 = Block %11 : usize
     into.push(second)
->   %4 = Read move [$1] : string
->   %5 = IsUnique repeat [*$2] : ()
->   %6 = Read borrow [*$2] : List[string]
->   %7 = Intrinsic ListPush [%6 %4] : ()
-    into.len()
+>   %6 = Read move [$1] : string
+>   %7 = IsUnique repeat [*$2] : ()
 >   %8 = Read borrow [*$2] : List[string]
->   %9 = Intrinsic ListLen [%8] : usize
+>   %9 = Intrinsic ListPush [%8 %6] : ()
+    into.len()
+>   %10 = Read borrow [*$2] : List[string]
+>   %11 = Intrinsic ListLen [%10] : usize
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1] writes
 

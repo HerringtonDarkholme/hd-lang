@@ -10,20 +10,21 @@ struct Member:
 fn pick[T](x: T, m: Member) -> T:
 > app/main/pick
 >   local $0 x: T [param read] value
->     uses $0: entry -> %3 consume last, %7 consume last
+>     uses $0: entry -> %4 consume last, %8 consume last
 >   local $1 m: Member [param read] value
->     uses $1: entry -> %1 lend last
->   %0 = Release %8 Exit local $1 #2 : ()
+>     uses $1: entry -> %2 lend last
+>   %0 = Release %9 Exit local $1 #2 : ()
+>   %1 = Retain %9 Entry local $0 #0 : ()
     if m.name == "":
->   %1 = Read borrow [$1 .name] : string
->   %2 = Intrinsic StrEq [%1 ""] : bool
->   %6 = If %2 [%5 -] : ()
->   %8 = Block %7 : T
+>   %2 = Read borrow [$1 .name] : string
+>   %3 = Intrinsic StrEq [%2 ""] : bool
+>   %7 = If %3 [%6 -] : ()
+>   %9 = Block %8 : T
         return x
->   %3 = Read move [$0] : T
->   %4 = Return %3 : never
->   %5 = Block - : never
+>   %4 = Read move [$0] : T
+>   %5 = Return %4 : never
+>   %6 = Block - : never
     x
->   %7 = Read move [$0] : T
+>   %8 = Read move [$0] : T
 >   exit sub 0 drops [$0]
 >   summary kept [$0] borrows [$1] returns $0

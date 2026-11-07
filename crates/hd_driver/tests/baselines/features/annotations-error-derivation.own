@@ -250,10 +250,11 @@ enum FsError:
 >   summary kept []
 > app/main/error From 2.0 for LoadError.from
 >   local $0 value: FsError [param] value
->     uses $0: entry -> %0 consume last
->   %0 = Read move [$0] : FsError
->   %1 = NewVariant #2 [%0] : LoadError
->   %2 = Block %1 : LoadError
+>     uses $0: entry -> %1 consume last
+>   %0 = Retain %3 Entry local $0 #0 : ()
+>   %1 = Read move [$0] : FsError
+>   %2 = NewVariant #2 [%1] : LoadError
+>   %3 = Block %2 : LoadError
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 enum LoadError:

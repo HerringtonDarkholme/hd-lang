@@ -70,53 +70,56 @@ impl Members:
 >   %14 = SwitchTag %1 [#0 %11 %13] : never
 
 fn by_value(m: Members, i: usize) -> usize:
-    m.at(m.infos[i].position)
 > app/main/by_value
 >   local $0 m: Members [param read] value
->     uses $0: entry -> %1 lend, %2 consume last
+>     uses $0: entry -> %2 lend, %3 consume last
 >   local $1 i: usize [param read] value
->     uses $1: entry -> %0 lend last
->   %0 = Read copy [$1] : usize
->   %1 = Read copy [$0 .infos [%0] .position] : usize
->   %2 = Read move [$0] : Members
->   %3 = Call app/main/impl Members.at[] (%2, %1) : usize
->   %4 = Block %3 : usize
+>     uses $1: entry -> %1 lend last
+>   %0 = Retain %5 Entry local $0 #0 : ()
+    m.at(m.infos[i].position)
+>   %1 = Read copy [$1] : usize
+>   %2 = Read copy [$0 .infos [%1] .position] : usize
+>   %3 = Read move [$0] : Members
+>   %4 = Call app/main/impl Members.at[] (%3, %2) : usize
+>   %5 = Block %4 : usize
 >   exit sub 0 drops [$0]
 
 fn by_reference(m: Members, i: usize) -> usize:
-    m.peek(m.infos[i].position)
 > app/main/by_reference
 >   local $0 m: Members [param read captured] place
 >   local $1 i: usize [param read] value
->     uses $1: entry -> %0 lend last
->   %0 = Read copy [$1] : usize
->   %1 = Read copy [$0 .infos [%0] .position] : usize
->   %2 = Ref local frame [$0] : Ref[Members]
->   %3 = Call app/main/impl Members.peek[] (%2, %1) : usize
->   %4 = LoanEnd [%2] : ()
->   %5 = Drop [$0] : ()
->   %6 = Block %3 : usize
+>     uses $1: entry -> %1 lend last
+>   %0 = Retain %7 Entry local $0 #0 : ()
+    m.peek(m.infos[i].position)
+>   %1 = Read copy [$1] : usize
+>   %2 = Read copy [$0 .infos [%1] .position] : usize
+>   %3 = Ref local frame [$0] : Ref[Members]
+>   %4 = Call app/main/impl Members.peek[] (%3, %2) : usize
+>   %5 = LoanEnd [%3] : ()
+>   %6 = Drop [$0] : ()
+>   %7 = Block %4 : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 
 fn changed_by_argument(items: List[Info]) -> usize:
-    let mut m = Members { infos: items }
 > app/main/changed_by_argument
 >   local $0 items: List[Info] [param read] value
->     uses $0: entry -> %0 consume last
+>     uses $0: entry -> %1 consume last
 >   local $1 m: Members [read assigned captured captured-assigned] place
->   %0 = Read move [$0] : List[Info]
->   %1 = NewStruct [%0] : Members
->   %2 = Store [$1] %1 : ()
->   %9 = Block %8 : usize
+>   %0 = Retain %10 Entry local $0 #0 : ()
+    let mut m = Members { infos: items }
+>   %1 = Read move [$0] : List[Info]
+>   %2 = NewStruct [%1] : Members
+>   %3 = Store [$1] %2 : ()
+>   %10 = Block %9 : usize
     m.at(m.pop())
->   %3 = Read copy [$1] : Members
->   %4 = Ref mut local frame [$1] : Ref[mut Members]
->   %5 = Call app/main/impl Members.pop[] (%4) : usize
->   %6 = LoanEnd [%4] : ()
->   %7 = Drop [$1] : ()
->   %8 = Call app/main/impl Members.at[] (%3, %5) : usize
->   %3 finds [$1] full
+>   %4 = Read copy [$1] : Members
+>   %5 = Ref mut local frame [$1] : Ref[mut Members]
+>   %6 = Call app/main/impl Members.pop[] (%5) : usize
+>   %7 = LoanEnd [%5] : ()
+>   %8 = Drop [$1] : ()
+>   %9 = Call app/main/impl Members.at[] (%4, %6) : usize
 >   %4 finds [$1] full
+>   %5 finds [$1] full
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 slot

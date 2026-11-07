@@ -3,42 +3,44 @@
 # @build: v8 release
 # expected: a single-use copied left read states its conditional append cleanup; cell appends retire that copy before transferring the place, borrowed reads count nothing, and a RHS call that writes the place prevents transfer.
 fn captured(text: string, suffix: string) -> string:
-    let current = text
 > app/main/captured
 >   local $0 text: string [param read] value
->     uses $0: entry -> %0 consume last
+>     uses $0: entry -> %2 consume last
 >   local $1 suffix: string [param read captured] value
->     uses $1: entry -> %3 lend, %12 consume last
+>     uses $1: entry -> %5 lend, %14 consume last
 >   local $2 current: string [read assigned captured captured-assigned] place
 >     frame cell [$2]
 >   local $3 append: fn() -> () [:= read assigned] value
->     uses $3: %14 -> %15 lend last
->   %0 = Read move [$0] : string
->   %1 = Store [$2] %0 : ()
->   %20 = Block %18 : string
+>     uses $3: %16 -> %17 lend last
+>   %0 = Retain %22 Entry local $0 #0 : ()
+>   %1 = Retain %22 Entry local $1 #0 : ()
+    let current = text
+>   %2 = Read move [$0] : string
+>   %3 = Store [$2] %2 : ()
+>   %22 = Block %20 : string
     append := fn() -> void: current += suffix
->   %2 = Read copy [$2] : string
->   %3 = Read move [$1] : string
->   %4 = Intrinsic StrConcat [%2 %3] : string
->   %5 = Release %4 Operation operand 0 #2 : ()
->   %6 = Drop [%3] : ()
->   %7 = Drop [%2] : ()
->   %8 = Store [$2] %4 : ()
->   %9 = Release %8 Operation #3 : ()
->   %10 = Drop [$2] : ()
->   %11 = Block - : ()
->   %12 = Closure #1 [%0 %2] : fn() -> ()
->   %13 = Retain %12 Operation captures #0 : ()
->   %14 = Store [$3] %12 : ()
->   %12 finds [$2] full
+>   %4 = Read copy [$2] : string
+>   %5 = Read move [$1] : string
+>   %6 = Intrinsic StrConcat [%4 %5] : string
+>   %7 = Release %6 Operation operand 0 #2 : ()
+>   %8 = Drop [%5] : ()
+>   %9 = Drop [%4] : ()
+>   %10 = Store [$2] %6 : ()
+>   %11 = Release %10 Operation #3 : ()
+>   %12 = Drop [$2] : ()
+>   %13 = Block - : ()
+>   %14 = Closure #1 [%0 %2] : fn() -> ()
+>   %15 = Retain %14 Operation captures #0 : ()
+>   %16 = Store [$3] %14 : ()
+>   %14 finds [$2] full
     append()
->   %15 = Read move [$3] : fn() -> ()
->   %16 = CallValue %15 [] : ()
->   %17 = Drop [%15] : ()
+>   %17 = Read move [$3] : fn() -> ()
+>   %18 = CallValue %17 [] : ()
+>   %19 = Drop [%17] : ()
     current
->   %18 = Read copy [$2] : string
->   %19 = Drop [$2] : ()
->   %18 finds [$2] full
+>   %20 = Read copy [$2] : string
+>   %21 = Drop [$2] : ()
+>   %20 finds [$2] full
 >   exit sub 0 drops [$0 $1 $2]
 >   exit sub 1 drops [$1 $2]
 >   storage sub 0: $2 slot
@@ -46,45 +48,48 @@ fn captured(text: string, suffix: string) -> string:
 >   summary kept [$0 $1] writes
 
 fn dynamic(text: string, suffix: string) -> string:
-    let current = text
 > app/main/dynamic
 >   local $0 text: string [param read] value
->     uses $0: entry -> %0 consume last
+>     uses $0: entry -> %2 consume last
 >   local $1 suffix: string [param read] value
->     uses $1: entry -> %16 consume last
+>     uses $1: entry -> %19 consume last
 >   local $2 current: string [read assigned captured captured-assigned] place
 >     frame cell [$2]
 >   local $3 suffix: string [param read] value
->     uses $3: entry -> %3 lend last
+>     uses $3: entry -> %6 lend last
 >   local $4 append: fn(string) -> () [:= read assigned] value
->     uses $4: %14 -> %15 lend last
->   %0 = Read move [$0] : string
->   %1 = Store [$2] %0 : ()
->   %21 = Block %19 : string
+>     uses $4: %17 -> %18 lend last
+>   %0 = Retain %24 Entry local $0 #0 : ()
+>   %1 = Retain %24 Entry local $1 #0 : ()
+    let current = text
+>   %2 = Read move [$0] : string
+>   %3 = Store [$2] %2 : ()
+>   %24 = Block %22 : string
     append := fn(suffix: string) -> void: current += suffix
->   %2 = Read copy [$2] : string
->   %3 = Read move [$3] : string
->   %4 = Intrinsic StrConcat [%2 %3] : string
->   %5 = Release %4 Operation operand 0 #2 : ()
->   %6 = Drop [%3] : ()
->   %7 = Drop [%2] : ()
->   %8 = Store [$2] %4 : ()
->   %9 = Release %8 Operation #3 : ()
->   %10 = Drop [$2] : ()
->   %11 = Block - : ()
->   %12 = Closure #1 [%0 %1] : fn(string) -> ()
->   %13 = Retain %12 Operation captures #0 : ()
->   %14 = Store [$4] %12 : ()
->   %12 finds [$2] full
+>   %4 = Retain %14 Entry local $3 #0 : ()
+>   %5 = Read copy [$2] : string
+>   %6 = Read move [$3] : string
+>   %7 = Intrinsic StrConcat [%5 %6] : string
+>   %8 = Release %7 Operation operand 0 #2 : ()
+>   %9 = Drop [%6] : ()
+>   %10 = Drop [%5] : ()
+>   %11 = Store [$2] %7 : ()
+>   %12 = Release %11 Operation #3 : ()
+>   %13 = Drop [$2] : ()
+>   %14 = Block - : ()
+>   %15 = Closure #1 [%0 %1] : fn(string) -> ()
+>   %16 = Retain %15 Operation captures #0 : ()
+>   %17 = Store [$4] %15 : ()
+>   %15 finds [$2] full
     append(suffix)
->   %15 = Read move [$4] : fn(string) -> ()
->   %16 = Read move [$1] : string
->   %17 = CallValue %15 [%16] : ()
->   %18 = Drop [%15] : ()
+>   %18 = Read move [$4] : fn(string) -> ()
+>   %19 = Read move [$1] : string
+>   %20 = CallValue %18 [%19] : ()
+>   %21 = Drop [%18] : ()
     current
->   %19 = Read copy [$2] : string
->   %20 = Drop [$2] : ()
->   %19 finds [$2] full
+>   %22 = Read copy [$2] : string
+>   %23 = Drop [$2] : ()
+>   %22 finds [$2] full
 >   exit sub 0 drops [$0 $1 $2]
 >   exit sub 1 drops [$2 $3]
 >   storage sub 0: $2 slot

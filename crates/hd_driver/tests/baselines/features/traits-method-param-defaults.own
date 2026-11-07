@@ -32,26 +32,28 @@ impl Joiner:
 >   summary kept [] borrows [$1]
 
     fn tagged[T](&self, value: T) -> T:
-        value
 > app/main/impl Joiner.tagged
 >   local $1 value: T [param read] value
->     uses $1: entry -> %0 consume last
->   %0 = Read move [$1] : T
->   %1 = Block %0 : T
+>     uses $1: entry -> %1 consume last
+>   %0 = Retain %2 Entry local $1 #0 : ()
+        value
+>   %1 = Read move [$1] : T
+>   %2 = Block %1 : T
 >   exit sub 0 drops [$1]
 >   summary kept [$1] returns $1
 
 fn joined(j: Joiner) -> usize:
-    j.join()
 > app/main/joined
 >   local $0 j: Joiner [param read captured] place
->   %0 = Ref local frame [$0] : Ref[Joiner]
->   %1 = DefaultCall [app/main/impl Joiner.join.sep []] [%0] : string
->   %2 = Call app/main/impl Joiner.join[] (%0, %1) : usize
->   %3 = Drop [%1] : ()
->   %4 = LoanEnd [%0] : ()
->   %5 = Drop [$0] : ()
->   %6 = Block %2 : usize
+>   %0 = Retain %7 Entry local $0 #0 : ()
+    j.join()
+>   %1 = Ref local frame [$0] : Ref[Joiner]
+>   %2 = DefaultCall [app/main/impl Joiner.join.sep []] [%1] : string
+>   %3 = Call app/main/impl Joiner.join[] (%1, %2) : usize
+>   %4 = Drop [%2] : ()
+>   %5 = LoanEnd [%1] : ()
+>   %6 = Drop [$0] : ()
+>   %7 = Block %3 : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 >   summary kept [$0] writes
@@ -61,22 +63,23 @@ fn generic_method(j: Joiner, s: string) -> usize:
 >   local $0 j: Joiner [param read] value
 >     uses $0: none
 >   local $1 s: string [param read] value
->     uses $1: entry -> %1 consume last
+>     uses $1: entry -> %2 consume last
 >   local $2 $ref: string [read assigned captured captured-assigned] value
->     uses $2: %5 -> %6 lend last
->   %0 = Release %12 Exit local $0 #2 : ()
+>     uses $2: %6 -> %7 lend last
+>   %0 = Release %13 Exit local $0 #2 : ()
+>   %1 = Retain %13 Entry local $1 #0 : ()
     j.tagged(s).len()
->   %1 = Read move [$1] : string
->   %2 = Break L1 %1 : never
->   %3 = Block - : string
->   %4 = Scope %3 [] : string
->   %5 = Store [$2] %4 : ()
->   %6 = Read borrow [$2] : string
->   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
->   %8 = Break L0 %7 : never
->   %9 = Block - : usize
->   %10 = Scope %9 [] : usize
->   %11 = Drop [$2] : ()
->   %12 = Block %10 : usize
+>   %2 = Read move [$1] : string
+>   %3 = Break L1 %2 : never
+>   %4 = Block - : string
+>   %5 = Scope %4 [] : string
+>   %6 = Store [$2] %5 : ()
+>   %7 = Read borrow [$2] : string
+>   %8 = Call std/rt.bytes/bytes_len[] (%7) : usize
+>   %9 = Break L0 %8 : never
+>   %10 = Block - : usize
+>   %11 = Scope %10 [] : usize
+>   %12 = Drop [$2] : ()
+>   %13 = Block %11 : usize
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0]

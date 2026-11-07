@@ -24,23 +24,24 @@ fn restock(mut shelves: Map[string, Stock], name: string) -> Map[string, Stock]:
 > app/main/restock
 >   local $0 shelves: Map[string, Stock] [param read] place
 >   local $1 name: string [param read] value
->     uses $1: entry -> %2 lend, %9 lend last
->   %0 = Release %14 Exit local $1 #2 : ()
+>     uses $1: entry -> %3 lend, %10 lend last
+>   %0 = Release %15 Exit local $1 #2 : ()
+>   %1 = Retain %15 Entry local $0 #0 : ()
     add(&mut shelves[name], 1)
->   %1 = Read borrow [$0] : Map[string, Stock]
->   %2 = Read borrow [$1] : string
->   %3 = Intrinsic MapEntry [%1 %2] : usize
->   %4 = IsUnique [$0] : ()
->   %5 = Ref mut local [$0 [%3]] : Ref[mut Stock]
->   %6 = Call app/main/add[] (%5, 1:i32) : ()
->   %7 = LoanEnd [%5] : ()
->   %14 = Block %13 : Map[string, Stock]
+>   %2 = Read borrow [$0] : Map[string, Stock]
+>   %3 = Read borrow [$1] : string
+>   %4 = Intrinsic MapEntry [%2 %3] : usize
+>   %5 = IsUnique [$0] : ()
+>   %6 = Ref mut local [$0 [%4]] : Ref[mut Stock]
+>   %7 = Call app/main/add[] (%6, 1:i32) : ()
+>   %8 = LoanEnd [%6] : ()
+>   %15 = Block %14 : Map[string, Stock]
     shelves[name].count = 5
->   %8 = Read borrow [$0] : Map[string, Stock]
->   %9 = Read borrow [$1] : string
->   %10 = Intrinsic MapEntry [%8 %9] : usize
->   %11 = IsUnique [$0] : ()
->   %12 = Store [$0 [%10] .0] 5:i32 : ()
+>   %9 = Read borrow [$0] : Map[string, Stock]
+>   %10 = Read borrow [$1] : string
+>   %11 = Intrinsic MapEntry [%9 %10] : usize
+>   %12 = IsUnique [$0] : ()
+>   %13 = Store [$0 [%11] .0] 5:i32 : ()
     shelves
->   %13 = Read move [$0] : Map[string, Stock]
+>   %14 = Read move [$0] : Map[string, Stock]
 >   exit sub 0 drops [$0]

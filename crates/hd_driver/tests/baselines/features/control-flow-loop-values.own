@@ -108,43 +108,44 @@ fn first_index(xs: List[string]) -> usize:
 >   loop %30 keeps [$0]
 
 fn forever(s: string) -> string:
-    let out = s
 > app/main/forever
 >   local $0 s: string [param read] value
->     uses $0: entry -> %0 consume last
+>     uses $0: entry -> %1 consume last
 >   local $1 out: string [read assigned mutated] place
 >   local $2 self: string [read] value
->     uses $2: %3 -> %5 lend last
->   %0 = Read move [$0] : string
->   %1 = Store [$1] %0 : ()
->   %26 = Block - : string
+>     uses $2: %4 -> %6 lend last
+>   %0 = Retain %27 Entry local $0 #0 : ()
+    let out = s
+>   %1 = Read move [$0] : string
+>   %2 = Store [$1] %1 : ()
+>   %27 = Block - : string
     while true:
->   %20 = Break L0 - : never
->   %21 = Block - : ()
->   %22 = If 1:bool [%19 %21] : ()
->   %23 = Block - : ()
->   %24 = Loop %23 - : never
->   %25 = Drop [$1] : ()
+>   %21 = Break L0 - : never
+>   %22 = Block - : ()
+>   %23 = If 1:bool [%20 %22] : ()
+>   %24 = Block - : ()
+>   %25 = Loop %24 - : never
+>   %26 = Drop [$1] : ()
         if out.len() > 8:
->   %2 = Read borrow [$1] : string
->   %3 = Store [$2] %2 : ()
->   %4 = Release %3 Operation #3 : ()
->   %5 = Read borrow [$2] : string
->   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
->   %7 = Break L1 %6 : never
->   %8 = Block - : usize
->   %9 = Scope %8 [] : usize
->   %10 = Prim Gt [%9 8:usize] : bool
->   %14 = If %10 [%13 -] : ()
->   %19 = Block - : ()
+>   %3 = Read borrow [$1] : string
+>   %4 = Store [$2] %3 : ()
+>   %5 = Release %4 Operation #3 : ()
+>   %6 = Read borrow [$2] : string
+>   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
+>   %8 = Break L1 %7 : never
+>   %9 = Block - : usize
+>   %10 = Scope %9 [] : usize
+>   %11 = Prim Gt [%10 8:usize] : bool
+>   %15 = If %11 [%14 -] : ()
+>   %20 = Block - : ()
             return out
->   %11 = Read move [$1] : string
->   %12 = Return %11 : never
->   %13 = Block - : never
+>   %12 = Read move [$1] : string
+>   %13 = Return %12 : never
+>   %14 = Block - : never
         out += "!"
->   %15 = Read borrow [$1] : string
->   %16 = Intrinsic StrConcat [%15 "!"] : string
->   %17 = Store [$1] %16 : ()
->   %18 = Release %17 Operation #3 : ()
+>   %16 = Read borrow [$1] : string
+>   %17 = Intrinsic StrConcat [%16 "!"] : string
+>   %18 = Store [$1] %17 : ()
+>   %19 = Release %18 Operation #3 : ()
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

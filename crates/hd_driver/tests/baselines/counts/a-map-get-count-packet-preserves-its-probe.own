@@ -5,29 +5,30 @@
 fn replace(values: &mut Map[string, string], key: string, value: string) -> string?:
 > app/main/replace
 >   local $0 values: Ref[mut Map[string, string]] [param read] value
->     uses $0: entry -> %1 lend, %9 lend last
+>     uses $0: entry -> %2 lend, %10 lend last
 >   local $1 key: string [param read] value
->     uses $1: entry -> %2 lend, %6 lend last
+>     uses $1: entry -> %3 lend, %7 lend last
 >   local $2 value: string [param read] value
->     uses $2: entry -> %7 consume last
+>     uses $2: entry -> %8 consume last
 >   local $3 previous: string? [:= read assigned] value
->     uses $3: %5 -> %12 consume last
->   %0 = Release %13 Exit local $1 #2 : ()
+>     uses $3: %6 -> %13 consume last
+>   %0 = Release %14 Exit local $1 #2 : ()
+>   %1 = Retain %14 Entry local $2 #0 : ()
     previous := values.get(key)
->   %1 = Read borrow [*$0] : Map[string, string]
->   %2 = Read borrow [$1] : string
->   %3 = Intrinsic MapGet [%1 %2] : string?
->   %4 = Retain %3 Operation operand 0 #0 : ()
->   %5 = Store [$3] %3 : ()
->   %13 = Block %12 : string?
+>   %2 = Read borrow [*$0] : Map[string, string]
+>   %3 = Read borrow [$1] : string
+>   %4 = Intrinsic MapGet [%2 %3] : string?
+>   %5 = Retain %4 Operation operand 0 #0 : ()
+>   %6 = Store [$3] %4 : ()
+>   %14 = Block %13 : string?
     values[key] = value
->   %6 = Read borrow [$1] : string
->   %7 = Read move [$2] : string
->   %8 = IsUnique [*$0] : ()
->   %9 = Read borrow [*$0] : Map[string, string]
->   %10 = Intrinsic MapSet [%9 %6 %7] : ()
->   %11 = Retain %10 Operation operand 1 #0 : ()
+>   %7 = Read borrow [$1] : string
+>   %8 = Read move [$2] : string
+>   %9 = IsUnique [*$0] : ()
+>   %10 = Read borrow [*$0] : Map[string, string]
+>   %11 = Intrinsic MapSet [%10 %7 %8] : ()
+>   %12 = Retain %11 Operation operand 1 #0 : ()
     previous
->   %12 = Read move [$3] : string?
+>   %13 = Read move [$3] : string?
 >   exit sub 0 drops [$2]
 >   summary kept [$2] borrows [$1] writes

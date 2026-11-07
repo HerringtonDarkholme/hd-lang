@@ -47,45 +47,47 @@ fn lookup(m: &Map[string, string], k: string) -> usize:
 fn put(m: &mut Map[string, string], k: string, v: string) -> void:
 > app/main/put
 >   local $0 m: Ref[mut Map[string, string]] [param read] value
->     uses $0: entry -> %4 lend last
+>     uses $0: entry -> %5 lend last
 >   local $1 k: string [param read] value
->     uses $1: entry -> %1 lend last
+>     uses $1: entry -> %2 lend last
 >   local $2 v: string [param read] value
->     uses $2: entry -> %2 consume last
->   %0 = Release %7 Exit local $1 #2 : ()
+>     uses $2: entry -> %3 consume last
+>   %0 = Release %8 Exit local $1 #2 : ()
+>   %1 = Retain %8 Entry local $2 #0 : ()
     m[k] = v
->   %1 = Read borrow [$1] : string
->   %2 = Read move [$2] : string
->   %3 = IsUnique [*$0] : ()
->   %4 = Read borrow [*$0] : Map[string, string]
->   %5 = Intrinsic MapSet [%4 %1 %2] : ()
->   %6 = Retain %5 Operation operand 1 #0 : ()
->   %7 = Block - : ()
+>   %2 = Read borrow [$1] : string
+>   %3 = Read move [$2] : string
+>   %4 = IsUnique [*$0] : ()
+>   %5 = Read borrow [*$0] : Map[string, string]
+>   %6 = Intrinsic MapSet [%5 %2 %3] : ()
+>   %7 = Retain %6 Operation operand 1 #0 : ()
+>   %8 = Block - : ()
 >   exit sub 0 drops [$2]
 >   summary kept [$2] borrows [$1] writes
 
 fn group(m: &mut Map[string, List[string]], k: string, v: string) -> void:
 > app/main/group
 >   local $0 m: Ref[mut Map[string, List[string]]] [param read] value
->     uses $0: entry -> %1 lend last
+>     uses $0: entry -> %2 lend last
 >   local $1 k: string [param read] value
->     uses $1: entry -> %2 lend last
+>     uses $1: entry -> %3 lend last
 >   local $2 v: string [param read] value
->     uses $2: entry -> %7 consume last
->   %0 = Release %12 Exit local $1 #2 : ()
+>     uses $2: entry -> %8 consume last
+>   %0 = Release %13 Exit local $1 #2 : ()
+>   %1 = Retain %13 Entry local $2 #0 : ()
     m.get_or_insert(k, []).push(v)
->   %1 = Read borrow [$0] : Ref[mut Map[string, List[string]]]
->   %2 = Read borrow [$1] : string
->   %3 = NewList - [] : List[string]
->   %4 = Call std/collections/impl [ K < Eq & Hash , V ] Map [ K , V ].get_or_insert[string, List[string]] (%1, %2, %3) : Ref[mut List[string]]
->   %5 = Retain %4 Operation operand 1 #0 : ()
->   %6 = Drop [%3] : ()
->   %7 = Read move [$2] : string
->   %8 = IsUnique [*%4] : ()
->   %9 = Read borrow [*%4] : List[string]
->   %10 = Intrinsic ListPush [%9 %7] : ()
->   %11 = Drop [%4] : ()
->   %12 = Block - : ()
+>   %2 = Read borrow [$0] : Ref[mut Map[string, List[string]]]
+>   %3 = Read borrow [$1] : string
+>   %4 = NewList - [] : List[string]
+>   %5 = Call std/collections/impl [ K < Eq & Hash , V ] Map [ K , V ].get_or_insert[string, List[string]] (%2, %3, %4) : Ref[mut List[string]]
+>   %6 = Retain %5 Operation operand 1 #0 : ()
+>   %7 = Drop [%4] : ()
+>   %8 = Read move [$2] : string
+>   %9 = IsUnique [*%5] : ()
+>   %10 = Read borrow [*%5] : List[string]
+>   %11 = Intrinsic ListPush [%10 %8] : ()
+>   %12 = Drop [%5] : ()
+>   %13 = Block - : ()
 >   exit sub 0 drops [$2]
 >   summary kept [$2] borrows [$1] writes
 
