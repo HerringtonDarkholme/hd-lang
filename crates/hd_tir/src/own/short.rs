@@ -668,6 +668,7 @@ impl Pass<'_> {
                         .all(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)))
             }
             Tag::LoanEnd => true,
+            Tag::Retain => self.b.ty[self.b.data[k][0] as usize] == Ty::STRING,
             Tag::Drop => {
                 !on_path(p.root) || self.drops_only_a_ref(p.root) || self.drops_nothing(p.root)
             }

@@ -32,6 +32,14 @@ use crate::module::Val;
 use crate::rt::Helper;
 
 impl Em<'_, '_, '_> {
+    /// A TIR-stated count of an already constructed borrowed-buffer result.
+    pub(super) fn own_retain(&mut self, value: u32) -> StageResult<()> {
+        let Some(locals) = self.vals.get(&value).cloned() else {
+            return crate::unsupported("a retain before its value is constructed");
+        };
+        self.retain_locals(&locals, self.ty_of(value))
+    }
+
     /// An owned body's `borrow` reads and binding locals
     /// (`docs/compiler/tir-v2.md`, "Borrow"): a borrow takes no count, so
     /// it joins [`Em::loans`], and its read lowers
@@ -878,6 +886,9 @@ impl Em<'_, '_, '_> {
         self.value_uses.resize(self.b.len(), 0);
         let mut ops = std::mem::take(&mut self.own_ops);
         for i in 0..self.b.len() {
+            if self.b.tags[i] == Tag::Retain {
+                self.used[self.b.data[i][0] as usize] = true;
+            }
             hd_tir::own::operands(self.b, i, &mut ops);
             for op in &ops {
                 self.used[op.value as usize] = true;

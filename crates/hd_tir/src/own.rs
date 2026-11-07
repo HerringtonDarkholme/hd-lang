@@ -63,6 +63,7 @@ mod plain;
 pub mod pointer;
 pub mod promote;
 mod reason;
+pub(crate) mod retains;
 pub mod short;
 pub(crate) mod splice;
 pub mod values;
@@ -121,6 +122,12 @@ pub enum CallMemory {
 /// "What the passes read"): layout and signature facts, never another
 /// body's.
 pub trait OwnCx {
+    /// Whether this intrinsic constructs an owned result from borrowed
+    /// buffer bits, whose count is stated separately after the call.
+    fn retains_result(&self, callee: &Callee) -> bool {
+        let _ = callee;
+        false
+    }
     /// Whether a value of `ty` holds a counted leaf. The passes run over
     /// instances, whose types are concrete, and over a generic item's own
     /// body past the instance limit, where a type parameter's value counts.
@@ -420,6 +427,7 @@ pub(crate) fn owned_value(b: &Body, i: usize) -> bool {
             | Tag::Store
             | Tag::Drop
             | Tag::LoanEnd
+            | Tag::Retain
             | Tag::IsUnique
             | Tag::FlagSet
             | Tag::FlagClear
@@ -841,6 +849,9 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     splice::apply(b, topo, edits)?;
     uncopied(b, cx, &mut scratch.uncopied);
     plain::loan_ends(b, cx);
+    scratch.topo.build(b);
+    scratch.splice.clear();
+    retains::run(b, cx, &scratch.topo, &mut scratch.splice)?;
     Ok(())
 }
 

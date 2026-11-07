@@ -1904,6 +1904,7 @@ impl Em<'_, '_, '_> {
                 self.store(i)?;
             }
             // The ownership passes' statements (`count.rs`).
+            Tag::Retain => self.own_retain(a)?,
             Tag::LoanEnd => {
                 self.borrow_drop(i);
                 self.end_short_loan(i)?;

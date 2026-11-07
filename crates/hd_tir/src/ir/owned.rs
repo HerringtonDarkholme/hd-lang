@@ -99,6 +99,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
         reference_values: &reference_values,
     };
     decided(b, &mut errs);
+    retained_results(b, own, &topo, &mut errs);
     takes_outside_suspension(b, &topo, &mut errs);
     change_places(b, &topo, &mut errs);
     hoisted(b, &topo, own, &mut errs);
@@ -112,6 +113,51 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     Balance::new(b, &topo, own).walk(&mut errs);
     copies(b, &mut errs);
     errs
+}
+
+/// Every intrinsic-produced owned buffer view takes its count exactly once,
+/// immediately after construction and before a source owner can be dropped.
+fn retained_results(b: &Body, cx: &dyn OwnCx, topo: &Topology, errs: &mut Vec<VerifyError>) {
+    for i in 0..b.len() {
+        if crate::own::retains::result(b, cx, i) {
+            let block = topo.blk[i];
+            let next = (block != NONE)
+                .then(|| {
+                    b.record(b.data[block as usize][0])
+                        .get(topo.pos[i] as usize + 1)
+                })
+                .flatten()
+                .copied();
+            if !next.is_some_and(|next| {
+                b.tags[next as usize] == Tag::Retain && b.data[next as usize] == [u32_of(i), 0]
+            }) {
+                err(
+                    errs,
+                    u32_of(i),
+                    "an owned borrowed-buffer result lacks its stored retain".into(),
+                );
+            }
+        }
+        if b.tags[i] != Tag::Retain {
+            continue;
+        }
+        let [value, reason] = b.data[i];
+        let valid = Ref(value).as_inst().is_some_and(|v| {
+            let source = v.0 as usize;
+            source < i
+                && crate::own::retains::result(b, cx, source)
+                && topo.blk[source] != NONE
+                && topo.blk[source] == topo.blk[i]
+                && topo.pos[source] + 1 == topo.pos[i]
+        });
+        if !valid || reason != 0 || b.ty[i] != hd_types::Ty::VOID {
+            err(
+                errs,
+                u32_of(i),
+                "a retain without an adjacent owned buffer-result proof".into(),
+            );
+        }
+    }
 }
 
 /// What the inliner's copies promise (`crate::inline`). Each anchor with

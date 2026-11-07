@@ -1,0 +1,15 @@
+# @dump: own counts wat
+# @build: std checked
+# expected: the byte-slice call is followed by an explicit stored Retain;
+# its existing drop releases the owned view, including an unused empty slice.
+use std.rt.bytes.bytes_slice
+
+fn slice(text: string, start: usize, end: usize) -> string:
+    bytes_slice(text, start, end)
+
+fn discard_empty(text: string) -> void:
+    _ := bytes_slice(text, 0, 0)
+
+fn through_function(text: string) -> string:
+    slice_fn := bytes_slice
+    slice_fn(text, 0, 1)

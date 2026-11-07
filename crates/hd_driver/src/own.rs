@@ -453,6 +453,10 @@ impl Env<'_> {
 }
 
 impl OwnCx for Env<'_> {
+    fn retains_result(&self, callee: &Callee) -> bool {
+        matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("bytes_slice"))
+    }
+
     fn counted(&self, ty: Ty) -> bool {
         // A generic body's open type may count in an instance.
         self.is_open(ty) || self.layout_facts(ty).0

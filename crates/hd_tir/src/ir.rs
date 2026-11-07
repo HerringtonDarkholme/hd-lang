@@ -174,9 +174,12 @@ tags! {
     Guard: Block, Blocks;
     ToArm: Meta, None;
     // ownership: a pointer loan's end, at the last use of a reference that
-    // counts nothing; a is the holder's place word. Last, so that no other
-    // tag's number moves.
+    // counts nothing; a is the holder's place word. Append ownership tags
+    // so that existing tags keep their numeric encodings.
     LoanEnd: Place, None;
+    // An explicit count for an owned result that borrows its buffer.
+    // a is the result value; b is its ownership reason.
+    Retain: Value, Meta;
 }
 
 /// `Prim` operators (the `Meta` word of a `Prim` instruction).
@@ -2208,7 +2211,12 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
                 Some(m) => format!("a `Read` of mode {m:?} before the ownership passes"),
                 None => format!("a `Read` of unknown mode {w}"),
             },
-            Tag::Drop | Tag::LoanEnd | Tag::IsUnique | Tag::FlagSet | Tag::FlagClear => {
+            Tag::Drop
+            | Tag::LoanEnd
+            | Tag::Retain
+            | Tag::IsUnique
+            | Tag::FlagSet
+            | Tag::FlagClear => {
                 format!("an ownership statement `{}` before the passes", tag.name())
             }
             Tag::Ref if w & ref_word::TAKES != 0 => {
@@ -3870,7 +3878,7 @@ mod tests {
         let root = b.close_block(blk, Some(one), Ty::I32, NodeIdx::NONE);
         let body = b.finish(root, &[]).expect("ok");
         assert_eq!(body.len(), 1);
-        assert_eq!(Tag::ALL.len(), 56);
+        assert_eq!(Tag::ALL.len(), 57);
         assert!(
             Tag::ALL
                 .iter()
