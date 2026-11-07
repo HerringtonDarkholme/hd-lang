@@ -494,9 +494,10 @@ pub enum Ins {
     CallIndirect(SigId),
     /// `i32.const` of a static vtable's address ([`Module::vtable`]).
     VTable(usize),
-    /// A suspending body's store of every local into its frame, which
-    /// the body's emission expands once its locals are known.
-    SaveAll,
+    /// A suspending body's store, at its state `k`, of the locals its
+    /// frame holds there, which the body's emission expands once its
+    /// locals are known.
+    Save(u32),
     /// The loads of every local from the frame.
     LoadAll,
     /// The TIR instruction that anchors the calls after it: a row of the
@@ -2403,7 +2404,7 @@ impl Module {
                             ))
                         }
                     }
-                    Ins::SaveAll | Ins::LoadAll => {
+                    Ins::Save(_) | Ins::LoadAll => {
                         return Err(NotImplemented::bug(
                             Stage::Link,
                             "a frame save or load that its body did not expand",

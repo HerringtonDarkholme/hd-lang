@@ -292,7 +292,7 @@ pub fn static_values(
                             | I::BrTable(..)
                             | I::Return
                             | I::Unreachable
-                    ) | Ins::SaveAll
+                    ) | Ins::Save(_)
                         | Ins::LoadAll
                 )
             }) {
@@ -847,7 +847,7 @@ impl LiveSet {
 
 /// The locals live into each basic block of a body, by a backward pass
 /// to a fixed point (loop backedges included), each block's set sorted.
-/// `SaveAll` reads every local, and `LoadAll` writes none for this
+/// `Save` reads every local, and `LoadAll` writes none for this
 /// purpose.
 struct Live {
     edges: Vec<ZeroEdges>,
@@ -963,7 +963,7 @@ impl Live {
         match ins {
             Ins::Op(I::LocalGet(l)) => live.insert(*l),
             Ins::Op(I::LocalSet(l) | I::LocalTee(l)) => live.remove(*l),
-            Ins::SaveAll => {
+            Ins::Save(_) => {
                 for l in 0..u32::try_from(self.locals).expect("locals") {
                     live.insert(l);
                 }
@@ -1040,7 +1040,7 @@ pub fn coalesce(f: &mut Func) {
     if f.raw.is_some()
         || f.body
             .iter()
-            .any(|i| matches!(i, Ins::SaveAll | Ins::LoadAll))
+            .any(|i| matches!(i, Ins::Save(_) | Ins::LoadAll))
     {
         return;
     }
@@ -1232,7 +1232,7 @@ fn same_local_copies(body: &[Ins]) -> Vec<bool> {
 }
 
 /// Rules 13 and 14, from one backward liveness pass over the basic blocks
-/// (loop backedges to a fixed point; `SaveAll` reads every local, and
+/// (loop backedges to a fixed point; `Save` reads every local, and
 /// `LoadAll` writes none for this purpose).
 ///
 /// Rule 13 deletes a `local.set` or `local.tee` of a local that no path
@@ -2518,7 +2518,7 @@ fn ends_run(i: &Ins) -> bool {
                 | I::BrTable(..)
                 | I::Return
                 | I::Unreachable
-        ) | Ins::SaveAll
+        ) | Ins::Save(_)
             | Ins::LoadAll
     )
 }
@@ -3936,7 +3936,7 @@ mod origin_tests {
                 &symbols,
                 1,
                 1,
-                vec![op(I::I32Const(0)), op(I::LocalSet(1)), Ins::SaveAll],
+                vec![op(I::I32Const(0)), op(I::LocalSet(1)), Ins::Save(1)],
             ),
             |f| {
                 assert!(!live_rules(f, &Arity::new()));

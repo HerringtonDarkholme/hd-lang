@@ -15,7 +15,7 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 12 funcref))
-  (func $both'1 (param $frame i32) (param $a i32) (param $b i32) (result i32 i32 i32) (local $t21 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t18 i32) (local $t19 i32) (local $t20 i32) (local $t0 i32) (local $t22 i32)
+  (func $both'1 (param $frame i32) (param $a i32) (param $b i32) (result i32 i32 i32) (local $t19 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t18 i32) (local $t0 i32) (local $t20 i32)
     ;; 7 |     join!(a, b)
     local.get $frame
     if
@@ -55,81 +55,75 @@
       i32.load $heap offset=48
       local.set $t5
       local.get $frame
-      i32.load $heap offset=52
+      i32.load $heap offset=60
       local.set $t6
       local.get $frame
-      i32.load $heap offset=56
+      i32.load $heap offset=64
       local.set $t7
       local.get $frame
-      i32.load $heap offset=60
+      i32.load $heap offset=68
       local.set $t8
       local.get $frame
-      i32.load $heap offset=64
+      i32.load $heap offset=72
       local.set $t9
       local.get $frame
-      i32.load $heap offset=68
+      i32.load $heap offset=76
       local.set $t10
       local.get $frame
-      i32.load $heap offset=72
+      i32.load $heap offset=80
       local.set $t11
       local.get $frame
-      i32.load $heap offset=76
+      i32.load $heap offset=84
       local.set $t12
       local.get $frame
-      i32.load $heap offset=80
+      i32.load $heap offset=88
       local.set $t13
       local.get $frame
-      i32.load $heap offset=84
+      i32.load $heap offset=92
       local.set $t14
       local.get $frame
-      i32.load $heap offset=88
+      i32.load $heap offset=96
       local.set $t15
       local.get $frame
-      i32.load $heap offset=92
+      i32.load $heap offset=100
       local.set $t16
       local.get $frame
-      i32.load $heap offset=96
+      i32.load $heap offset=104
       local.set $t17
       local.get $frame
-      i32.load $heap offset=100
+      i32.load $heap offset=108
       local.set $t18
       local.get $frame
-      i32.load $heap offset=104
-      local.set $t19
-      local.get $frame
-      i32.load $heap offset=108
-      local.set $t20
-      local.get $frame
       i32.load $heap offset=8
-      local.set $t21
+      local.set $t19
     else
       local.get $a
-      local.tee $t22
+      local.tee $t20
       if
-        local.get $t22
+        local.get $t20
         i32.const 8
         i32.sub
         i32.load $heap
         if
-          local.get $t22
+          local.get $t20
           call $rt:retain_known
         end
       end
       local.get $b
-      local.tee $t22
+      local.tee $t20
       if
-        local.get $t22
+        local.get $t20
         i32.const 8
         i32.sub
         i32.load $heap
         if
-          local.get $t22
+          local.get $t20
           call $rt:retain_known
         end
       end
     end
     block
-      local.get $t21
+      local.get $t19
       i32.eqz
       if
         local.get $a
@@ -143,7 +137,7 @@
       end
       block
         block
-          local.get $t21
+          local.get $t19
           i32.const 1
           i32.eq
           if
@@ -153,28 +147,28 @@
             i32.and
             br_if 1
           end
-          local.get $t21
+          local.get $t19
           i32.eqz
           if
             i32.const 0
-            local.set $t8
+            local.set $t6
             i32.const 3
             call $rt:waker_new
-            local.set $t14
+            local.set $t12
           end
-          local.get $t14
+          local.get $t12
           call $rt:waker_parent
           global.get $waker
-          local.set $t15
+          local.set $t13
           global.get $wake_bit
-          local.set $t16
+          local.set $t14
           i32.const 0
-          local.set $t9
-          local.get $t8
+          local.set $t7
+          local.get $t6
           i32.const 1
           i32.and
           i32.eqz
-          local.get $t14
+          local.get $t12
           i32.load $heap offset=8
           i32.const 1
           i32.and
@@ -182,47 +176,47 @@
           i32.ne
           i32.and
           if
-            local.get $t14
-            local.get $t14
+            local.get $t12
+            local.get $t12
             i32.load $heap offset=8
             i32.const -2
             i32.and
             i32.store $heap offset=8
-            local.get $t14
+            local.get $t12
             global.set $waker
             i32.const 1
             global.set $wake_bit
             local.get $t4
-            local.tee $t11
-            local.get $t11
+            local.tee $t9
+            local.get $t9
             i32.load $heap
             call_indirect $table0 (param i32) (result i32 i32)
-            local.set $t12
-            local.tee $t10
-            local.get $t15
+            local.set $t10
+            local.tee $t8
+            local.get $t13
             global.set $waker
-            local.get $t16
+            local.get $t14
             global.set $wake_bit
             if
-              local.get $t8
+              local.get $t6
               i32.const 1
               i32.or
-              local.set $t8
+              local.set $t6
             else
+              local.get $t7
               local.get $t9
-              local.get $t11
               i32.load $heap offset=12
               i32.const 8
               i32.and
               i32.or
-              local.set $t9
+              local.set $t7
             end
           end
-          local.get $t8
+          local.get $t6
           i32.const 2
           i32.and
           i32.eqz
-          local.get $t14
+          local.get $t12
           i32.load $heap offset=8
           i32.const 2
           i32.and
@@ -230,47 +224,47 @@
           i32.ne
           i32.and
           if
-            local.get $t14
-            local.get $t14
+            local.get $t12
+            local.get $t12
             i32.load $heap offset=8
             i32.const -3
             i32.and
             i32.store $heap offset=8
-            local.get $t14
+            local.get $t12
             global.set $waker
             i32.const 2
             global.set $wake_bit
             local.get $t5
-            local.tee $t11
-            local.get $t11
+            local.tee $t9
+            local.get $t9
             i32.load $heap
             call_indirect $table0 (param i32) (result i32 i32)
-            local.set $t13
-            local.tee $t10
-            local.get $t15
+            local.set $t11
+            local.tee $t8
+            local.get $t13
             global.set $waker
-            local.get $t16
+            local.get $t14
             global.set $wake_bit
             if
-              local.get $t8
+              local.get $t6
               i32.const 2
               i32.or
-              local.set $t8
+              local.set $t6
             else
+              local.get $t7
               local.get $t9
-              local.get $t11
               i32.load $heap offset=12
               i32.const 8
               i32.and
               i32.or
-              local.set $t9
+              local.set $t7
             end
           end
-          local.get $t8
+          local.get $t6
           i32.const 3
           i32.ne
           if
-            local.get $t9
+            local.get $t7
             if
               local.get $frame
               i32.eqz
@@ -325,51 +319,45 @@
             i32.store $heap offset=48
             local.get $frame
             local.get $t6
-            i32.store $heap offset=52
-            local.get $frame
-            local.get $t7
-            i32.store $heap offset=56
-            local.get $frame
-            local.get $t8
             i32.store $heap offset=60
             local.get $frame
-            local.get $t9
+            local.get $t7
             i32.store $heap offset=64
             local.get $frame
-            local.get $t10
+            local.get $t8
             i32.store $heap offset=68
             local.get $frame
-            local.get $t11
+            local.get $t9
             i32.store $heap offset=72
             local.get $frame
-            local.get $t12
+            local.get $t10
             i32.store $heap offset=76
             local.get $frame
-            local.get $t13
+            local.get $t11
             i32.store $heap offset=80
             local.get $frame
-            local.get $t14
+            local.get $t12
             i32.store $heap offset=84
             local.get $frame
-            local.get $t15
+            local.get $t13
             i32.store $heap offset=88
             local.get $frame
-            local.get $t16
+            local.get $t14
             i32.store $heap offset=92
             local.get $frame
-            local.get $t17
+            local.get $t15
             i32.store $heap offset=96
             local.get $frame
-            local.get $t18
+            local.get $t16
             i32.store $heap offset=100
             local.get $frame
-            local.get $t19
+            local.get $t17
             i32.store $heap offset=104
             local.get $frame
-            local.get $t20
+            local.get $t18
             i32.store $heap offset=108
             local.get $frame
-            local.get $t17
+            local.get $t15
             i32.store $heap offset=16
             local.get $frame
             i32.const 1
@@ -390,72 +378,72 @@
             end
             return
           end
-          local.get $t14
-          local.tee $t22
+          local.get $t12
+          local.tee $t20
           if
-            local.get $t22
+            local.get $t20
             call $rt:release_ref'1
           end
-          local.get $t12
-          local.get $t13
-          local.set $t7
-          local.set $t6
+          local.get $t10
+          local.get $t11
+          local.set $t3
+          local.set $t2
           br 1
         end
         i32.const 0
-        local.set $t19
+        local.set $t17
         call $rt:cancel_enter
-        local.set $t20
-        local.get $t8
+        local.set $t18
+        local.get $t6
         i32.const 1
         i32.and
         i32.eqz
         if
           local.get $t4
-          local.tee $t18
+          local.tee $t16
           if
-            local.get $t18
-            local.get $t18
+            local.get $t16
+            local.get $t16
             i32.load $heap offset=4
             call_indirect $table0 (param i32)
-            local.get $t18
+            local.get $t16
             i32.load $heap offset=12
             i32.const 16
             i32.and
             if
               i32.const 1
-              local.set $t19
+              local.set $t17
             end
           end
         end
-        local.get $t8
+        local.get $t6
         i32.const 2
         i32.and
         i32.eqz
         if
           local.get $t5
-          local.tee $t18
+          local.tee $t16
           if
-            local.get $t18
-            local.get $t18
+            local.get $t16
+            local.get $t16
             i32.load $heap offset=4
             call_indirect $table0 (param i32)
-            local.get $t18
+            local.get $t16
             i32.load $heap offset=12
             i32.const 16
             i32.and
             if
               i32.const 1
-              local.set $t19
+              local.set $t17
             end
           end
         end
         i32.const 0
-        local.set $t18
+        local.set $t16
         local.get $frame
-        local.get $t20
+        local.get $t18
         call $rt:cancel_leave
-        local.get $t19
+        local.get $t17
         if
           local.get $frame
           i32.eqz
@@ -491,51 +479,45 @@
           i32.store $heap offset=48
           local.get $frame
           local.get $t6
-          i32.store $heap offset=52
-          local.get $frame
-          local.get $t7
-          i32.store $heap offset=56
-          local.get $frame
-          local.get $t8
           i32.store $heap offset=60
           local.get $frame
-          local.get $t9
+          local.get $t7
           i32.store $heap offset=64
           local.get $frame
-          local.get $t10
+          local.get $t8
           i32.store $heap offset=68
           local.get $frame
-          local.get $t11
+          local.get $t9
           i32.store $heap offset=72
           local.get $frame
-          local.get $t12
+          local.get $t10
           i32.store $heap offset=76
           local.get $frame
-          local.get $t13
+          local.get $t11
           i32.store $heap offset=80
           local.get $frame
-          local.get $t14
+          local.get $t12
           i32.store $heap offset=84
           local.get $frame
-          local.get $t15
+          local.get $t13
           i32.store $heap offset=88
           local.get $frame
-          local.get $t16
+          local.get $t14
           i32.store $heap offset=92
           local.get $frame
-          local.get $t17
+          local.get $t15
           i32.store $heap offset=96
           local.get $frame
-          local.get $t18
+          local.get $t16
           i32.store $heap offset=100
           local.get $frame
-          local.get $t19
+          local.get $t17
           i32.store $heap offset=104
           local.get $frame
-          local.get $t20
+          local.get $t18
           i32.store $heap offset=108
           local.get $frame
-          local.get $t18
+          local.get $t16
           i32.store $heap offset=16
           local.get $frame
           i32.const 1
@@ -556,37 +538,37 @@
           end
           return
         end
-        local.get $t14
-        local.tee $t22
+        local.get $t12
+        local.tee $t20
         if
-          local.get $t22
+          local.get $t20
           call $rt:release_ref'1
         end
         local.get $t4
-        local.tee $t22
+        local.tee $t20
         if
-          local.get $t22
+          local.get $t20
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $t22
+            local.get $t20
             call $rt:release_ref'2
           end
         end
         local.get $t5
-        local.tee $t22
+        local.tee $t20
         if
-          local.get $t22
+          local.get $t20
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $t22
+            local.get $t20
             call $rt:release_ref'2
           end
         end
@@ -599,63 +581,59 @@
         br 1
       end
       local.get $t5
-      local.tee $t22
+      local.tee $t20
       if
-        local.get $t22
+        local.get $t20
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t22
+          local.get $t20
           call $rt:release_ref'2
         end
       end
       local.get $t4
-      local.tee $t22
+      local.tee $t20
       if
-        local.get $t22
+        local.get $t20
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t22
+          local.get $t20
           call $rt:release_ref'2
         end
       end
-      local.get $t6
-      local.get $t7
-      local.set $t3
-      local.set $t2
     end
     local.get $a
-    local.tee $t22
+    local.tee $t20
     if
-      local.get $t22
+      local.get $t20
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t22
+        local.get $t20
         call $rt:release_ref'2
       end
     end
     local.get $b
-    local.tee $t22
+    local.tee $t20
     if
-      local.get $t22
+      local.get $t20
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t22
+        local.get $t20
         call $rt:release_ref'2
       end
     end
