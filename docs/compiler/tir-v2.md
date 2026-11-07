@@ -4700,7 +4700,7 @@ are compiled:
 | two `Place` and `Root` types in the checker (`refs.rs`, `value.rs`), five `place_root` kinds, the `std.core.Ref[T]` object with `get`, `set`, base, serial and key | one `Place`, built by one `place_of` |
 | the checker's collection-copy rules (`coll_copy`, `return_copy`, `loop_binding_copy`, `is_fresh`, `reads_fixed_local`) | none: the checker emits plain reads |
 | the checker's pin release: statement-granular last use, pin flags, a `defer` per pin, call pins | none: insertion's drop at last use ends the pin |
-| the emitter's count state: `Moves` (eight sets), `Drops`, `Tree`, `skip`, `moving`, `borrowed`, `view_loans`, `unique_once`, `list_caches`, and the three loan kinds with their separate soundness arguments (§23.25, §23.31, §23.36) | four read modes, three statements, six passes with one rule each, and the count glue per layout |
+| the emitter's count state: `Moves` (eight sets), `Drops`, `Tree`, `skip`, `moving`, `borrowed`, `unique_once`, `list_caches`, and the three loan kinds with their separate soundness arguments (§23.25, §23.31, §23.36) | four read modes, three statements, six passes with one rule each, and the count glue per layout |
 | why a field write through a reference differs from one through a local, and why element field writes have their own intrinsic | one `Store` of a place |
 
 ## The known-bad cases

@@ -1106,10 +1106,6 @@ struct Em<'i, 'a, 'm> {
     /// reads and references, [`Em::prepare_own_loans`],
     /// [`Em::instance_loans`]): their places are no place's to release.
     loans: hd_base::HashSet<u32>,
-    /// The loans that point into no static page, a cell's
-    /// ([`Em::frame_loans`]): a consumer that is no loan takes a count of
-    /// its own for one.
-    scoped_loans: hd_base::HashSet<u32>,
     /// The locals the passes store a borrow into, with the stored value
     /// ([`Em::prepare_own_loans`]): they hold no count.
     loan_locals: HashMap<usize, u32>,
@@ -1128,8 +1124,6 @@ struct Em<'i, 'a, 'm> {
     /// What each projection read reads, by its base value's type
     /// ([`Em::projected`]).
     projs: Vec<shape::Projected>,
-    /// A loan owns a temporary only when its source is an erased view.
-    view_loans: HashMap<u32, u32>,
     /// Each capture a closure's code copied out of its environment, by
     /// local: the Wasm local holding the environment's address and the
     /// capture's offset there, where a reference to it points
@@ -1352,14 +1346,12 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             scopes: HashMap::default(),
             defer_flags: HashMap::default(),
             loans: hd_base::HashSet::default(),
-            scoped_loans: hd_base::HashSet::default(),
             loan_locals: HashMap::default(),
             borrows: borrow::Borrows::default(),
             inst: InstId::from_raw(u32::MAX),
             flats: std::cell::RefCell::default(),
             variant_tys: std::cell::RefCell::default(),
             projs: Vec::new(),
-            view_loans: HashMap::default(),
             env_caps: HashMap::default(),
             owned_refs: hd_base::HashSet::default(),
             retained_before_result: hd_base::HashSet::default(),

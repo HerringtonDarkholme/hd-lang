@@ -721,10 +721,8 @@ count glue, with release glue in `rt.rs`, and decides none itself.
     it is one call of the whole value's glue, the taken parts being zero.
     An open value's parts were read as copies, so its whole release runs.
   - *A lent reference* (`ref_word::LENT`, `[*$p .f]` into what a lent
-    parameter refers to) joins `Em::loans` with a view flag
-    (`Em::view_loans`), as §23.31's projection loans: it takes no count
-    where the referent is physical, and a view's projection makes one that
-    its kept `Drop` releases under the flag.
+    parameter refers to) joins `Em::loans`: it takes no count where the
+    referent is physical.
 - **Places rooted at the local** (docs/compiler/tir-v2.md, stage 2 commit
   12a). The checker names a place from its local through every step
   (`Read [*$0 [%5] .x]`, `Store [$0 [%1]] v`, `Read [*$0 .grid [%1] [%2]]`),
@@ -1101,30 +1099,23 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   else; the place decides it, never the named type:
   | The place crosses | The reference takes |
   | --- | --- |
-  | no dereference of a counted reference, no list or map element: a local's frame slot or cell, a field path in it, or such a reference's referent | no count (`Em::frame_loans`) |
+  | no dereference of a counted reference, no list or map element: a local's frame slot or cell, a field path in it, or such a reference's referent | no count: a local reference is `Ref[T]`, which counts only a view |
   | a `*T` or `*mut T` dereference, fields after it | a count of that object, through the page table at its address: an alias may replace it |
   | a `List` or `Map` element | the pin, a count of the buffer (below) |
   | a `UniqList` or `UniqMap` element (`Ptr.as_ref`, `as_mut`) | a count of the room, unless a short loan holds it; an alias that could grow it meets the reference's pointer loan instead (`ref.excl.alias.loan`) |
   A reference into a slot needs none because a slot is static (§23.38); one
   into a cell because the passes keep a cell local alive over every use of
-  what may point into it (`hd_tir/src/own/frame.rs`, the origin rule), in
-  an owned body with no suspension point. Such a **loan** flows into a
-  `Ref` through it to a part of its referent, a read of all or a part of
-  it, a same-value coercion, a variant, struct or tuple whose counted parts
-  are all loans (`Option[&T]`, a cursor of references), a block's, scope's
-  or `break`'s value, and a local every store of which stores one and which
-  no `&mut` reaches. None of these counts or releases. A loan into a cell
-  is **scoped** (`Em::scoped_loans`): a consumer that is no loan, as a
-  return or a store into a counted place, does not take it (`Em::take_from`)
-  but counts a copy of its own, so every count that leaves the body is a
-  real one. A slot's loan may move anywhere, as a count of a slot's address
-  does nothing. A reference through a parameter's referent keeps the lent
+  what may point into it (`hd_tir/src/own/frame.rs`, the origin rule, and
+  in a suspending body the frame holding the cell). Such a reference is a
+  local reference (`Ref[T]`, `whole_object_refs`), whose count walk counts
+  only a view; a count of a slot's address does nothing, as its count word
+  is zero. A reference through a parameter's referent keeps the lent
   rule (`ref_word::LENT`): the caller keeps that referent alive for the
   call, and a result that holds one is counted where it is returned.
-  **View owners.** A `Ref` to a field of a loan may be a projection of a
+  **View owners.** A `Ref` to a field may be a projection of a
   representation view (`rt:ref_project`) where the base is a payload
-  view: the loan's flag (`Em::view_loans`) marks that fresh object, and
-  the loan's `Drop` releases it, so the loan owns it. A payload field
+  view: that fresh object is the reference's, and its `Drop` releases it.
+  A payload field
   reference (`rt:ref_payload`) and a copy of a local no cell holds
   (`ref.expr.allocate`) are new objects whose one count the reference
   holds; they take no other count, and their `Drop` frees them.
@@ -1610,30 +1601,23 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   else; the place decides it, never the named type:
   | The place crosses | The reference takes |
   | --- | --- |
-  | no dereference of a counted reference, no list or map element: a local's frame slot or cell, a field path in it, or such a reference's referent | no count (`Em::frame_loans`) |
+  | no dereference of a counted reference, no list or map element: a local's frame slot or cell, a field path in it, or such a reference's referent | no count: a local reference is `Ref[T]`, which counts only a view |
   | a `*T` or `*mut T` dereference, fields after it | a count of that object, through the page table at its address: an alias may replace it |
   | a `List` or `Map` element | the pin, a count of the buffer (below) |
   | a `UniqList` or `UniqMap` element (`Ptr.as_ref`, `as_mut`) | a count of the room, unless a short loan holds it; an alias that could grow it meets the reference's pointer loan instead (`ref.excl.alias.loan`) |
   A reference into a slot needs none because a slot is static (§23.38); one
   into a cell because the passes keep a cell local alive over every use of
-  what may point into it (`hd_tir/src/own/frame.rs`, the origin rule), in
-  an owned body with no suspension point. Such a **loan** flows into a
-  `Ref` through it to a part of its referent, a read of all or a part of
-  it, a same-value coercion, a variant, struct or tuple whose counted parts
-  are all loans (`Option[&T]`, a cursor of references), a block's, scope's
-  or `break`'s value, and a local every store of which stores one and which
-  no `&mut` reaches. None of these counts or releases. A loan into a cell
-  is **scoped** (`Em::scoped_loans`): a consumer that is no loan, as a
-  return or a store into a counted place, does not take it (`Em::take_from`)
-  but counts a copy of its own, so every count that leaves the body is a
-  real one. A slot's loan may move anywhere, as a count of a slot's address
-  does nothing. A reference through a parameter's referent keeps the lent
+  what may point into it (`hd_tir/src/own/frame.rs`, the origin rule, and
+  in a suspending body the frame holding the cell). Such a reference is a
+  local reference (`Ref[T]`, `whole_object_refs`), whose count walk counts
+  only a view; a count of a slot's address does nothing, as its count word
+  is zero. A reference through a parameter's referent keeps the lent
   rule (`ref_word::LENT`): the caller keeps that referent alive for the
   call, and a result that holds one is counted where it is returned.
-  **View owners.** A `Ref` to a field of a loan may be a projection of a
+  **View owners.** A `Ref` to a field may be a projection of a
   representation view (`rt:ref_project`) where the base is a payload
-  view: the loan's flag (`Em::view_loans`) marks that fresh object, and
-  the loan's `Drop` releases it, so the loan owns it. A payload field
+  view: that fresh object is the reference's, and its `Drop` releases it.
+  A payload field
   reference (`rt:ref_payload`) and a copy of a local no cell holds
   (`ref.expr.allocate`) are new objects whose one count the reference
   holds; they take no other count, and their `Drop` frees them.
@@ -2536,9 +2520,7 @@ changed list's uniqueness check out of its loop. What stays the
 backend's is below.
 
 - **Views keep temporaries.** A projected view owns its newly allocated
-  forwarding reference, which a flag marks (`Em::view_loans`, set up by
-  `Em::prepare_own_loans`): the read's drop, the exit and the next
-  iteration release it only when the flag is set.
+  forwarding reference, which the reference's drop releases.
 - **Read the selected field.** A place reads only its field:
   `Read [*$0 .x]` and `Read [*$0 [%i] .x]` load that field's leaves
   (`Em::read_part`). A boxed view loads the field from the getter's box,
@@ -2850,8 +2832,8 @@ frame on the **local stack** instead.
   not the slot. A reference into a slot takes no count, and neither does
   one made through it to a part of its referent, a read of all of one, a
   block's value that only such references reach, or a local every store
-  of which stores one (`Em::frame_loans`). A count of a slot's address
-  would do nothing.
+  of which stores one: each is a local reference. A count of a slot's
+  address would do nothing.
 - **Getters.** The inliner copies a reference getter, a callee whose
   result holds a local reference and whose one reference parameter is
   its source (`hd_opt/src/inline.rs`, `takes_reference`). Its `self`

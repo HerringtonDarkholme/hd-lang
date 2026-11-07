@@ -4,7 +4,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $total (param $k i64) (result i64) (local $user i32) (local $t0 i32) (local $sum i64) (local $t1 i64) (local $t2 i32)
+  (func $total (param $k i64) (result i64) (local $user i32) (local $t0 i32) (local $sum i64) (local $t1 i64) (local $t2 i32) (local $t3 i64)
     ;; 18 |     user := User { name: "ada", age: 36 }
     global.get $locals
     global.get $locals_base
@@ -73,9 +73,11 @@
               br 0
             end
           end
-          local.get $sum
           local.get $t2
           i64.load $heap
+          local.set $t3
+          local.get $sum
+          local.get $t3
           i64.add
           local.set $sum
     ;; 20 |     for _ in 0..k:

@@ -99,40 +99,12 @@ impl Em<'_, '_, '_> {
                 Tag::Read if self.b.is_borrow(x) => {
                     self.loans.insert(x);
                 }
-                // The last read moves a binding's reference, including
-                // its conditional ownership of a projected view. A move
-                // of a physical loan must not turn it into an owner.
-                Tag::Read
-                    if w == hd_tir::ir::ReadMode::Move as u32
-                        && let Some(l) = self.b.local_read(i)
-                        && let Some(origin) = self.loan_locals.get(&l.idx())
-                        && let Some(&flag) = self.view_loans.get(origin) =>
-                {
-                    self.loans.insert(x);
-                    self.view_loans.insert(x, flag);
-                }
                 // A coercion of a borrow keeps its value, with no count.
                 Tag::Coerce if self.b.is_borrowed_coercion(x) => {
                     self.loans.insert(x);
                 }
-                // So does one of a lent reference: the reference's `Drop`s
-                // become the coercion's, so it takes the reference's flag
-                // for a view's fresh value.
-                Tag::Coerce
-                    if self.b.same_value_coercion(i)
-                        && self.loans.contains(&a)
-                        && let Some(&flag) = self.view_loans.get(&a) =>
-                {
-                    self.loans.insert(x);
-                    self.view_loans.insert(x, flag);
-                }
-                // A borrowed read or lent field reference stores its loan,
-                // including the flag for a view that makes fresh storage.
-                Tag::Store
-                    if let Some(w) = self.b.loan_read(w).or_else(|| {
-                        (self.loans.contains(&w) && self.view_loans.contains_key(&w)).then_some(w)
-                    }) =>
-                {
+                // A borrowed read or lent field reference stores its loan.
+                Tag::Store if let Some(w) = self.b.loan_read(w) => {
                     let l = if a & place::BARE_LOCAL != 0 {
                         Some(a & !place::BARE_LOCAL)
                     } else {
@@ -178,7 +150,6 @@ impl Em<'_, '_, '_> {
                 self.loans.insert(call);
             }
         }
-        self.frame_loans();
     }
 
     /// Build the direct `string.slice` call to string-equality map once
@@ -198,234 +169,6 @@ impl Em<'_, '_, '_> {
                 }
             }
         }
-    }
-
-    /// The references that take no count because their place crosses no
-    /// counted object (§23.20, "References count what they cross"): what
-    /// keeps their target alive outlives them in this body. Seeds: a `Ref`
-    /// of a frame slot's or a cell's storage, a field path after it. They
-    /// flow through a
-    /// `Ref` through one of them, or through a local that holds only them,
-    /// to a part of its referent; a read of all or of a part of one; a
-    /// coercion that keeps its value; a variant, struct or tuple whose
-    /// counted parts are all such references; and a block's, a scope's or
-    /// a `break`'s value. A local every store of which stores one, and
-    /// which no `&mut` reaches, holds no count ([`Em::loan_locals`]).
-    ///
-    /// A slot's address is in a static page, where a count does nothing,
-    /// so such a reference may move into any value. A cell's is
-    /// **scoped** ([`Em::scoped_loans`]): a consumer that is not one of
-    /// these values, as a return or a store into a counted place, takes a
-    /// count of its own ([`Em::take_from`]). A `Ref` to a part may be a
-    /// view's projection, so its flag marks a fresh one for its `Drop`,
-    /// as a lent reference's does: the loan owns that view.
-    fn frame_loans(&mut self) {
-        use hd_tir::ir::{Proj, Root};
-        let b = self.b;
-        let n = b.len();
-        // Cells take part only in an owned body with no suspension point,
-        // where the passes keep a cell local alive over every use of what
-        // may point into it.
-        let cells = self.susp.is_none() && self.input.runtime.is_some();
-        let seed = |em: &Self, l: usize| em.slots.contains_key(&l) || (cells && em.is_cell(l));
-        if !(0..b.local_ty.len()).any(|l| seed(self, l)) {
-            return;
-        }
-        let thin = |em: &Self, t: Ty| em.ref_target(t).is_some_and(|(_, fat)| !fat);
-        // A value whose every counted leaf is a reference such a loan may
-        // be: a thin reference, or a struct, tuple or enum of them.
-        let refs_only = |em: &Self, t: Ty| {
-            thin(em, t)
-                || (cells
-                    && em.drop_calls(t).is_empty()
-                    && em.counted(t).is_some()
-                    && crate::layout::value_parts(em.pool(), em.env(), t)
-                        .into_iter()
-                        .all(|p| em.counted(p).is_none() || thin(em, p)))
-        };
-        // A local that may hold only such references: stored whole, that
-        // no capture, cell or `&mut` reaches.
-        let mut holder: Vec<bool> = (0..b.local_ty.len())
-            .map(|l| {
-                !self.is_cell(l)
-                    && b.local_flags[l] & hd_tir::ir::local_flags::PARAM == 0
-                    && !b.cap_local.iter().any(|c| c.idx() == l)
-                    && !self.loan_locals.contains_key(&l)
-                    && refs_only(self, self.sub(b.local_ty[l]))
-            })
-            .collect();
-        for i in 0..n {
-            let x = u32::try_from(i).expect("insts");
-            if let Some((l, false)) = b.stored_local(i) {
-                holder[l.idx()] = false;
-            }
-            if b.tags[i] == Tag::Store
-                && let Some(l) = b.local_in_place(b.data[i][0])
-                && !b.view(b.data[i][0]).whole()
-            {
-                holder[l.idx()] = false;
-            }
-            if b.tags[i] == Tag::Ref
-                && let Some(l) = b.local_in_place(b.data[i][0])
-                && (b.data[i][1] & hd_tir::ir::ref_word::MUT != 0
-                    || crate::layout::ref_mutable(self.pool(), self.env(), self.ty(x)))
-            {
-                holder[l.idx()] = false;
-            }
-        }
-        let mut scoped_holder = vec![false; b.local_ty.len()];
-        let (mut loan, mut broke) = (vec![false; n], vec![false; n]);
-        let mut scoped = vec![false; n];
-        let mut ops = Vec::new();
-        let mut changed = true;
-        while changed {
-            broke.fill(false);
-            for i in 0..n {
-                let [a, v] = b.data[i];
-                let is = |loan: &[bool], v: u32| Ref(v).as_inst().is_some() && loan[v as usize];
-                let sc = |scoped: &[bool], v: u32| Ref(v).as_inst().is_some() && scoped[v as usize];
-                let x = u32::try_from(i).expect("insts");
-                let tag = b.tags[i];
-                let p = b.view(a);
-                let place = matches!(tag, Tag::Ref | Tag::Read);
-                let (first, fields, parts) = if place {
-                    let mut steps = p.steps(b);
-                    let first = steps.next();
-                    let rest: Vec<Proj> = steps.collect();
-                    let fields = rest.iter().all(|s| matches!(s, Proj::Field(_)));
-                    let parts = first
-                        .is_none_or(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)))
-                        && rest
-                            .iter()
-                            .all(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)));
-                    (first, fields, parts)
-                } else {
-                    (None, false, false)
-                };
-                let w = b.data[i][1];
-                let takes = tag == Tag::Ref && w & hd_tir::ir::ref_word::TAKES != 0;
-                // A block's value comes from its tail and the breaks to it,
-                // which come before it; a cleanup scope's is its body's.
-                let (ok, s) = match (tag, p.root, first) {
-                    (Tag::Ref, Root::Local(l), None | Some(Proj::Field(_))) => {
-                        let l = l as usize;
-                        let ok = fields && !takes && !self.promoted.contains(&x) && seed(self, l);
-                        (ok, !self.slots.contains_key(&l))
-                    }
-                    (Tag::Ref, Root::Local(l), Some(Proj::Deref)) => {
-                        (fields && holder[l as usize], scoped_holder[l as usize])
-                    }
-                    (Tag::Ref, Root::Value(r), Some(Proj::Deref)) => {
-                        (fields && loan[r as usize], scoped[r as usize])
-                    }
-                    (Tag::Read, Root::Local(l), _) => {
-                        (parts && holder[l as usize], scoped_holder[l as usize])
-                    }
-                    (Tag::Read, Root::Value(r), _) => {
-                        (parts && loan[r as usize], scoped[r as usize])
-                    }
-                    (Tag::NewVariant | Tag::NewStruct | Tag::NewTuple, ..) => {
-                        hd_tir::own::operands(b, i, &mut ops);
-                        let counted: Vec<u32> = ops
-                            .iter()
-                            .map(|o| o.value)
-                            .filter(|&o| self.counted(self.ty_of(o)).is_some())
-                            .collect();
-                        let ok = refs_only(self, self.ty(x))
-                            && !counted.is_empty()
-                            && counted
-                                .iter()
-                                .all(|&o| is(&loan, o) && !self.view_loans.contains_key(&o));
-                        (ok, counted.iter().any(|&o| sc(&scoped, o)))
-                    }
-                    (Tag::Coerce, ..) => (b.same_value_coercion(i) && is(&loan, a), sc(&scoped, a)),
-                    (Tag::Block, ..) => (
-                        (v == NONE || is(&loan, v)) && !broke[i],
-                        scoped[i] || sc(&scoped, v),
-                    ),
-                    (Tag::Scope, ..) => (is(&loan, a) && !broke[i], scoped[i] || sc(&scoped, a)),
-                    (Tag::Break, ..) => {
-                        if let Some(&t) = b.label_inst.get(a as usize)
-                            && (t as usize) < n
-                        {
-                            if !is(&loan, v) {
-                                broke[t as usize] = true;
-                            } else if scoped[v as usize] && !scoped[t as usize] {
-                                scoped[t as usize] = true;
-                            }
-                        }
-                        (false, false)
-                    }
-                    _ => (false, false),
-                };
-                let ok = ok
-                    && (thin(self, self.ty(x)) || (tag != Tag::Ref && refs_only(self, self.ty(x))));
-                loan[i] = ok;
-                scoped[i] = ok && (s || scoped[i]);
-            }
-            changed = false;
-            for i in 0..n {
-                let v = b.data[i][1];
-                if let Some((l, true)) = b.stored_local(i)
-                    && holder[l.idx()]
-                    && v != NONE
-                {
-                    if !(Ref(v).as_inst().is_some() && loan[v as usize]) {
-                        holder[l.idx()] = false;
-                        changed = true;
-                    } else if scoped[v as usize] && !scoped_holder[l.idx()] {
-                        scoped_holder[l.idx()] = true;
-                        changed = true;
-                    }
-                }
-            }
-        }
-        for i in (0..n).filter(|&i| loan[i]) {
-            let x = u32::try_from(i).expect("insts");
-            self.loans.insert(x);
-            if scoped[i] {
-                self.scoped_loans.insert(x);
-            }
-            let p = b.view(b.data[i][0]);
-            let part = b.tags[i] == Tag::Ref && p.steps(b).any(|s| matches!(s, Proj::Field(_)));
-            if part && !self.view_loans.contains_key(&x) {
-                let flag = self.f.local(crate::module::Val::I32);
-                self.view_loans.insert(x, flag);
-            }
-        }
-        for i in 0..n {
-            if let Some((l, true)) = b.stored_local(i)
-                && holder[l.idx()]
-                && b.data[i][1] != NONE
-            {
-                self.loan_locals.entry(l.idx()).or_insert(b.data[i][1]);
-            }
-        }
-    }
-
-    /// Release the owned fallback of a view-backed loan, leaving a physical
-    /// loan uncounted. The flag is cleared so loop and exit drops agree.
-    fn release_view_loan(&mut self, i: u32, ls: &[u32]) -> StageResult<()> {
-        let flag = self.view_loans[&i];
-        self.f.get(flag);
-        self.f.op(crate::op::Op::If(wasm_encoder::BlockType::Empty));
-        self.because(Reason::View, |em| em.release_locals(ls, em.ty(i)))?;
-        self.f.op(crate::op::Op::End);
-        self.f.zero(flag);
-        Ok(())
-    }
-
-    /// An instruction may run again in a loop. Its previous view temporary
-    /// is independent of the caller-owned parameter backing the new read.
-    pub(super) fn begin_view_loan(&mut self, i: u32) -> StageResult<Option<u32>> {
-        let Some(&flag) = self.view_loans.get(&i) else {
-            return Ok(None);
-        };
-        if self.loops > 0 {
-            let ls = self.slot(i)?;
-            self.release_view_loan(i, &ls)?;
-        }
-        Ok(Some(flag))
     }
 
     /// The counted references of a `t` value, when the program counts.
@@ -527,7 +270,7 @@ impl Em<'_, '_, '_> {
                 self.ref_target(t).is_some_and(|(_, fat)| fat) || self.susp.is_some()
             }
             Some(Reason::View) => {
-                matches!(self.counted(t), Some(Walk::View(_))) || !self.view_loans.is_empty()
+                matches!(self.counted(t), Some(Walk::View(_)))
             }
             _ => true,
         };
@@ -834,8 +577,6 @@ impl Em<'_, '_, '_> {
         if self.owned_refs.contains(&x) {
             self.f.get(ls[0]);
             self.f.helper(Helper::ReleaseKnown);
-        } else if self.view_loans.contains_key(&x) {
-            self.release_view_loan(x, &ls)?;
         } else if !self.loans.contains(&x) {
             self.release_drop_place(&ls, t, &Self::value_place(x))?;
         }
@@ -883,7 +624,6 @@ impl Em<'_, '_, '_> {
                 self.release_drop_place(ls, self.sub(self.b.local_ty[l]), &Self::local_place(l))
             }
             None => self.count_local(l, ls, false),
-            Some(w) if self.view_loans.contains_key(w) => self.release_view_loan(*w, ls),
             Some(_) => Ok(()),
         }
     }
@@ -1291,23 +1031,11 @@ impl Em<'_, '_, '_> {
             || !self.vals.contains_key(&r)
             || !self.needs_drop(self.ty_of(r))
             || self.moving.contains(&(user, r))
-            || (self.scoped_loans.contains(&r)
-                && !self.loans.contains(&user)
-                && !self.binds_loan(user))
         {
             return false;
         }
         self.moving.push((user, r));
         true
-    }
-
-    /// Whether `Store` `i` binds a whole local that holds only loans
-    /// ([`Em::loan_locals`]): the binding is one of the loan's values, so
-    /// a scoped loan moves into it and ends at the local's `Drop`.
-    fn binds_loan(&self, i: u32) -> bool {
-        self.b.stored_local(i as usize).is_some_and(|(l, whole)| {
-            whole && !self.is_cell(l.idx()) && self.loan_locals.contains_key(&l.idx())
-        })
     }
 
     /// `Drop [$l]` or `Drop [%v]` `i`: releases the place's value and
@@ -1501,7 +1229,6 @@ impl Em<'_, '_, '_> {
     /// `Read` `i` of the place whose buffer the `IsUnique` right before it
     /// left in local `h`: one walk for both. A view's loan holds nothing.
     pub(super) fn read_walked(&mut self, i: u32, h: u32) -> StageResult<()> {
-        self.begin_view_loan(i)?;
         self.f.get(h);
         self.store(i)
     }

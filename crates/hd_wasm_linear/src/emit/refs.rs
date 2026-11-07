@@ -828,23 +828,13 @@ impl Em<'_, '_, '_> {
         off: u32,
         fat: bool,
     ) -> StageResult<()> {
-        let loan = self.begin_view_loan(i)?;
-        if let Some(flag) = loan {
-            self.f.get(at);
-            self.f.helper(Helper::RefIsView);
-            self.f.set(flag);
-        }
-        if let Some(flag) = loan {
-            self.f.get(flag);
-        } else {
-            self.f.get(at);
-            self.f.helper(Helper::RefIsView);
-        }
+        self.f.get(at);
+        self.f.helper(Helper::RefIsView);
         self.f
             .op(I::If(wasm_encoder::BlockType::Result(Val::I32.wasm())));
         self.f.get(at);
         self.f.helper(Helper::RefProject {
-            borrowed: loan.is_some(),
+            borrowed: false,
             parent,
             field: field.clone(),
             first,
@@ -858,10 +848,7 @@ impl Em<'_, '_, '_> {
         }
         // A plain address counts nothing; a trait value read at it is
         // released below as the view's projection would be.
-        if loan.is_none()
-            && fat
-            && let Some(runtime) = self.m.runtime
-        {
+        if fat && let Some(runtime) = self.m.runtime {
             let physical = self.f.local(Val::I32);
             self.f.set(physical);
             self.f.get(physical);
@@ -998,11 +985,7 @@ impl Em<'_, '_, '_> {
             if fields.as_ref().is_some_and(Vec::is_empty) {
                 // A loan is the leaves its place holds, through a view
                 // too.
-                if let Some(flag) = self.begin_view_loan(i)? {
-                    for l in rt::ref_load_borrowed(&mut self.f, r, &value, flag) {
-                        self.f.get(l);
-                    }
-                } else if self.loans.contains(&i) {
+                if self.loans.contains(&i) {
                     for l in rt::ref_lend(&mut self.f, r, &value) {
                         self.f.get(l);
                     }
