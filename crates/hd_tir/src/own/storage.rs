@@ -44,7 +44,7 @@ fn recursive_binding(b: &Body, l: usize) -> bool {
 
 /// The captures of closure `ci`: each local, and whether it is shared
 /// through a cell.
-fn captures(b: &Body, ci: usize) -> impl Iterator<Item = (usize, bool)> + '_ {
+pub fn captures(b: &Body, ci: usize) -> impl Iterator<Item = (usize, bool)> + '_ {
     let rec = b.record(b.data[ci][1]);
     let (start, n) = (rec[0] as usize, rec[1] as usize);
     let own = b.closure_self(ci).map(LocalId::idx);

@@ -153,33 +153,10 @@ pub(super) fn self_local(b: &Body, ci: usize) -> Option<usize> {
     b.closure_self(ci).map(hd_base::LocalId::idx)
 }
 
-/// A nested closure copies an immutable recursive function's value,
-/// rather than sharing the cell required by the checker's initialization.
-fn recursive_binding(b: &Body, l: usize) -> bool {
-    if b.local_flags[l] & local_flags::SHORT == 0 {
-        return false;
-    }
-    (0..b.len()).any(|ci| {
-        b.tags[ci] == Tag::Closure && b.syn[ci] == b.local_syn[l] && self_local(b, ci) == Some(l)
-    })
-}
-
 /// The captures of closure instruction `ci`: each local, and whether it
-/// is shared through a cell.
+/// is shared through a cell (`hd_tir::own::closure_captures`).
 pub(super) fn captures(b: &Body, ci: usize) -> Vec<(usize, bool)> {
-    let rec = b.record(b.data[ci][1]);
-    let (start, n) = (rec[0] as usize, rec[1] as usize);
-    let own = self_local(b, ci);
-    (start..start + n)
-        .filter(|&c| Some(b.cap_local[c].idx()) != own)
-        .map(|c| {
-            (
-                b.cap_local[c].raw() as usize,
-                b.cap_mode.get(c).is_some_and(|m| m.shares())
-                    && !recursive_binding(b, b.cap_local[c].idx()),
-            )
-        })
-        .collect()
+    hd_tir::own::closure_captures(b, ci).collect()
 }
 
 /// Whether walk `w` runs drop glue anywhere.
