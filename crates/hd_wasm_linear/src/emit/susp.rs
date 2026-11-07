@@ -1292,6 +1292,19 @@ pub(super) fn finish(
         em.f.op(I::I32And);
         em.f.op(I::I32Eqz);
         em.f.op(I::If(BlockType::Empty));
+        // Pins #1430: a started frame is only ever traced, never freed or
+        // collected as garbage. Once this has held, #1430 removes its value rows.
+        if let Some(rt) = em.input.runtime.filter(|r| r.checked.is_some()) {
+            em.f.get(FRAME);
+            em.f.op(I::I32Load(mem(HEAP, crate::task::F_STATE, 2)));
+            em.f.op(I::If(BlockType::Empty));
+            em.f.call(crate::module::Sym::Inst(rt.cycle.marking));
+            em.f.op(I::I32Eqz);
+            em.f.op(I::If(BlockType::Empty));
+            em.f.op(I::Unreachable);
+            em.f.op(I::End);
+            em.f.op(I::End);
+        }
         em.reload_drop_flags(&area);
         let mut places: Vec<(DropRoot, Vec<u32>)> = Vec::new();
         // What the body says a suspension point may hold, as a cancelled
