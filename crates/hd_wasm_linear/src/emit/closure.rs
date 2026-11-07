@@ -516,7 +516,14 @@ impl Em<'_, '_, '_> {
         if !slot {
             self.init_cell_drop(c, self.sub(self.b.local_ty[l]), false);
             self.f.get(c);
-            self.release_cell();
+            let Some(reason) = self.operation_count(
+                i,
+                Tag::Release,
+                super::CountPart::Local(u32::try_from(l).expect("local")),
+            ) else {
+                return crate::unsupported("a moved cell without its stated storage cleanup");
+            };
+            self.because(reason, Self::release_cell);
         }
         self.f.zero(c);
         for x in held {

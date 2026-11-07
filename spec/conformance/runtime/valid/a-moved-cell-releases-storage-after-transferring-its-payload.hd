@@ -1,0 +1,29 @@
+use std.annotation.cold
+use std.testing.assert_equal
+use std.time.{Clock, ms, sleep}
+
+@cold
+fn payload(value: i32) -> string:
+    "held$value"
+
+@cold
+fn same[T](a: &T, b: &T) -> bool:
+    a is b
+
+fn take![T < 'static](value: T) -> T $ Clock:
+    _ := same(&value, &value)
+    sleep!(ms(1))
+    value
+
+@cold
+fn stack[T](value: T) -> T:
+    _ := same(&value, &value)
+    value
+
+pub fn main!() -> void $ Clock:
+    original := payload(7)
+    assert_equal(take!(original), "held7")
+    assert_equal(original, "held7")
+    assert_equal(take!(+7), 7)
+    assert_equal(stack(original), "held7")
+    assert_equal(original, "held7")

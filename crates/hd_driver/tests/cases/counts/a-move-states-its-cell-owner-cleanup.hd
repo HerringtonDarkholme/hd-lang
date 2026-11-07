@@ -1,0 +1,29 @@
+# @dump: own counts wat
+# @build: std
+# expected: moving a placed local states cleanup of its cell owner independently of the payload; generic string and scalar heap cells release once, while actual stack slots and unplaced locals add no cell release.
+use std.annotation.cold
+use std.time.{Clock, ms, sleep}
+
+@cold
+fn same[T](a: &T, b: &T) -> bool:
+    a is b
+
+fn take![T < 'static](value: T) -> T $ Clock:
+    _ := same(&value, &value)
+    sleep!(ms(1))
+    value
+
+@cold
+fn stack[T](value: T) -> T:
+    _ := same(&value, &value)
+    value
+
+@cold
+fn direct[T](value: T) -> T:
+    value
+
+pub fn main!() -> void $ Console + Clock:
+    println(take!("text"))
+    println(take!(+7))
+    println(stack("stack"))
+    println(direct("direct"))

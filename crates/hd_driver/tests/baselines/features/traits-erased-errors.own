@@ -66,7 +66,7 @@ fn load(path: string) -> Result[string, *dyn Error]:
 >     uses $0: entry -> %0 consume last
 >   local $1 $ref: FsError [read assigned captured captured-assigned] place
 >   local $2 $ref: Counted[FsError] [read assigned captured] value
->     uses $2: %24 -> %25 lend last
+>     uses $2: %25 -> %26 lend last
 >   local $4 path: string [read captured] place
 >   %0 = Read move [$0] : string
 >   %1 = Store [$4] %0 : ()
@@ -79,36 +79,37 @@ fn load(path: string) -> Result[string, *dyn Error]:
 >   %8 = NewVariant #0 [%7] : Result[string, FsError]
 >   %9 = Block %8 : Result[string, FsError]
 >   %10 = Read move [$4] : string
->   %11 = NewVariant #0 [%10] : FsError
->   %12 = NewVariant #1 [%11] : Result[string, FsError]
->   %13 = Block %12 : Result[string, FsError]
->   %14 = If %5 [%9 %13] : Result[string, FsError]
->   %15 = Break L0 %14 : never
->   %16 = Block - : Result[string, FsError]
->   %17 = Scope %16 [] : Result[string, FsError]
->   %18 = Drop [$4] : ()
->   %19 = Read move [%17 as #0 .0] : string
->   %20 = Block %19 : string
->   %21 = Read move [%17 as #1 .0] : FsError
->   %22 = Store [$1] %21 : ()
->   %23 = Ref take [$1] : Counted[FsError]
->   %24 = Store [$2] %23 : ()
->   %25 = Read move [$2] : Counted[FsError]
->   %26 = Coerce %25 [RefToTraitValue -] : Error
->   %27 = LoanEnd [%25] : ()
->   %28 = Block %26 : Error
->   %29 = RefDyn %28 : Counted[Error]
->   %30 = NewVariant #1 [%29] : Result[string, Counted[Error]]
->   %31 = Return %30 : never
->   %32 = Block - : never
->   %33 = SwitchTag %17 [#0 %20 %32] : string
->   %35 = Block %34 : Result[string, Counted[Error]]
+>   %11 = Release %10 Operation local $4 #2 : ()
+>   %12 = NewVariant #0 [%10] : FsError
+>   %13 = NewVariant #1 [%12] : Result[string, FsError]
+>   %14 = Block %13 : Result[string, FsError]
+>   %15 = If %5 [%9 %14] : Result[string, FsError]
+>   %16 = Break L0 %15 : never
+>   %17 = Block - : Result[string, FsError]
+>   %18 = Scope %17 [] : Result[string, FsError]
+>   %19 = Drop [$4] : ()
+>   %20 = Read move [%18 as #0 .0] : string
+>   %21 = Block %20 : string
+>   %22 = Read move [%18 as #1 .0] : FsError
+>   %23 = Store [$1] %22 : ()
+>   %24 = Ref take [$1] : Counted[FsError]
+>   %25 = Store [$2] %24 : ()
+>   %26 = Read move [$2] : Counted[FsError]
+>   %27 = Coerce %26 [RefToTraitValue -] : Error
+>   %28 = LoanEnd [%26] : ()
+>   %29 = Block %27 : Error
+>   %30 = RefDyn %29 : Counted[Error]
+>   %31 = NewVariant #1 [%30] : Result[string, Counted[Error]]
+>   %32 = Return %31 : never
+>   %33 = Block - : never
+>   %34 = SwitchTag %18 [#0 %21 %33] : string
+>   %36 = Block %35 : Result[string, Counted[Error]]
 >   %2 finds [$4] full
 >   %6 finds [$4] full
 >   %10 finds [$4] full
->   %23 finds [$1] full
+>   %24 finds [$1] full
     .Ok(text)
->   %34 = NewVariant #0 [%33] : Result[string, Counted[Error]]
+>   %35 = NewVariant #0 [%34] : Result[string, Counted[Error]]
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell, $4 slot
 >   summary kept [$0]

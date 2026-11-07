@@ -36,7 +36,7 @@ pub fn main!() -> void $ Console + Clock:
 >   retain counted reference (stored)
     u.push(1)
     a := sized!(u)
->   release counted reference (conservative: Read)
+>   release counted reference (last use)
 >   retain counted reference (stored)
 >   retain counted reference (stored)
 >   retain counted reference (stored)

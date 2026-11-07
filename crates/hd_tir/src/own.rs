@@ -55,6 +55,7 @@ pub(crate) mod cache;
 pub(crate) mod call_args;
 pub(crate) mod call_row;
 pub(crate) mod captures;
+pub(crate) mod cell_move;
 pub(crate) mod child;
 pub(crate) mod cold;
 pub(crate) mod cold_captures;

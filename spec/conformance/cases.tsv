@@ -128,6 +128,7 @@ runtime/valid/suspending-closures-a-closure-that-only-creates-another-still-capt
 runtime/valid/suspending-closures-a-defer-in-a-closure-runs-when-its-body-completes.hd	runtime	accept	std/time.md#r-std-time.clock.sleep
 runtime/valid/suspending-closures-a-shared-capture-is-written-on-both-sides-of-a-wait.hd	runtime	accept	std/time.md#r-std-time.clock.sleep
 runtime/valid/suspending-closures-a-trailing-block-for-a-suspending-parameter-waits.hd	runtime	accept	std/time.md#r-std-time.clock.sleep
+runtime/valid/a-moved-cell-releases-storage-after-transferring-its-payload.hd	runtime	accept	std/time.md#r-std-time.clock.sleep
 runtime/valid/suspending-closures-closures-from-a-list-are-each-awaited-twice.hd	runtime	accept	std/time.md#r-std-time.clock.sleep
 runtime/valid/suspending-fn-weaken-a-weakened-value-constructs-and-drives-its-suspension.hd	runtime	accept	std/time.md#r-std-time.clock.sleep
 runtime/valid/try-hint-a-result-hint-picks-the-collect-target.hd	runtime	accept	std/iter.md#r-std-iter.collect.result

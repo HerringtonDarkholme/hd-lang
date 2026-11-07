@@ -111,7 +111,8 @@ fn collect(f: Field) -> usize:
 >   local $1 all: List[Field] [read assigned captured captured-assigned] place
 >   %0 = NewList - [] : List[Field]
 >   %1 = Store [$1] %0 : ()
->   %13 = Block %11 : usize
+>   %11 = Release %10 Operation local $1 #2 : ()
+>   %14 = Block %12 : usize
     remember(&mut all, f)
 >   %2 = Ref mut local frame [$1] : Ref[mut List[Field]]
 >   %3 = Read copy [$0] : Field
@@ -126,8 +127,8 @@ fn collect(f: Field) -> usize:
 >   %6 finds [$1] full
     all.len()
 >   %10 = Read move [$1] : List[Field]
->   %11 = Intrinsic ListLen [%10] : usize
->   %12 = Drop [%10] : ()
+>   %12 = Intrinsic ListLen [%10] : usize
+>   %13 = Drop [%10] : ()
 >   %10 finds [$1] full
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 slot
@@ -186,10 +187,10 @@ pub fn main() -> void $ Console:
     f := Field { name: "abc${1}", n: 2 }
 > app/main/main
 >   local $0 f: Field [:= read assigned] value
->     uses $0: %60 -> %61 lend, %68 consume, %72 consume, %85 lend last
+>     uses $0: %60 -> %61 lend, %68 consume, %72 consume, %86 lend last
 >   local $1 xs: List[i64] [read assigned] place
 >   local $2 g: fn(Field) -> i64 [read] value
->     uses $2: %83 -> %84 lend last
+>     uses $2: %84 -> %85 lend last
 >   local $5 all: List[Field] [read assigned captured captured-assigned] place
 >   local $6 result: string [read] value
 >     uses $6: %39 -> %42 lend last
@@ -264,7 +265,7 @@ pub fn main() -> void $ Console:
 >   %58 = Read move [%37] : string
 >   %59 = NewStruct [%58 2:i64] : Field
 >   %60 = Store [$0] %59 : ()
->   %109 = Block - : ()
+>   %110 = Block - : ()
     println(total(f, 3))
 >   %61 = Read borrow [$0] : Field
 >   %62 = Call app/main/total[] (%61, 3:i64) : i64
@@ -282,43 +283,44 @@ pub fn main() -> void $ Console:
 >   %73 = Call app/main/remember[] (%71, %72) : ()
 >   %74 = LoanEnd [%71] : ()
 >   %75 = Read move [$5] : List[Field]
->   %76 = Intrinsic ListLen [%75] : usize
->   %77 = Drop [%75] : ()
->   %78 = Break L2 %76 : never
->   %79 = Block - : usize
->   %80 = Scope %79 [] : usize
->   %81 = Call std/console/println[usize] (%80) : ()
+>   %76 = Release %75 Operation local $5 #2 : ()
+>   %77 = Intrinsic ListLen [%75] : usize
+>   %78 = Drop [%75] : ()
+>   %79 = Break L2 %77 : never
+>   %80 = Block - : usize
+>   %81 = Scope %80 [] : usize
+>   %82 = Call std/console/println[usize] (%81) : ()
 >   %67 finds [$5] full
 >   %71 finds [$5] full
 >   %75 finds [$5] full
     println(apply(weight, f))
->   %82 = ItemRef #87 [..] : fn(Field) -> i64
->   %83 = Store [$2] %82 : ()
->   %84 = Read borrow [$2] : fn(Field) -> i64
->   %85 = Read borrow [$0] : Field
->   %86 = Call app/main/weight[] (%85) : i64
->   %87 = Retain %86 Operation operand 0 #0 : ()
->   %88 = Break L1 %86 : never
->   %89 = Block - : i64
->   %90 = Scope %89 [] : i64
->   %91 = Drop [$2] : ()
->   %92 = Drop [$0] : ()
->   %93 = Call std/console/println[i64] (%90) : ()
+>   %83 = ItemRef #87 [..] : fn(Field) -> i64
+>   %84 = Store [$2] %83 : ()
+>   %85 = Read borrow [$2] : fn(Field) -> i64
+>   %86 = Read borrow [$0] : Field
+>   %87 = Call app/main/weight[] (%86) : i64
+>   %88 = Retain %87 Operation operand 0 #0 : ()
+>   %89 = Break L1 %87 : never
+>   %90 = Block - : i64
+>   %91 = Scope %90 [] : i64
+>   %92 = Drop [$2] : ()
+>   %93 = Drop [$0] : ()
+>   %94 = Call std/console/println[i64] (%91) : ()
     println(pinned())
->   %94 = NewList - [1:i64 2:i64] : List[i64]
->   %95 = Store [$1] %94 : ()
->   %96 = IsUnique [$1] : ()
->   %97 = Store [$1 [1:usize]] 3:i64 : ()
->   %98 = IsUnique repeat [$1] : ()
->   %99 = Ref local [$1 [0:usize]] : Ref[i64]
->   %100 = Read borrow [$1] : List[i64]
->   %101 = Call app/main/set_first[] (%99, %100) : i64
->   %102 = Retain %101 Operation operand 1 #0 : ()
->   %103 = LoanEnd [%99] : ()
->   %104 = Drop [$1] : ()
->   %105 = Break L0 %101 : never
->   %106 = Block - : i64
->   %107 = Scope %106 [] : i64
->   %108 = Call std/console/println[i64] (%107) : ()
+>   %95 = NewList - [1:i64 2:i64] : List[i64]
+>   %96 = Store [$1] %95 : ()
+>   %97 = IsUnique [$1] : ()
+>   %98 = Store [$1 [1:usize]] 3:i64 : ()
+>   %99 = IsUnique repeat [$1] : ()
+>   %100 = Ref local [$1 [0:usize]] : Ref[i64]
+>   %101 = Read borrow [$1] : List[i64]
+>   %102 = Call app/main/set_first[] (%100, %101) : i64
+>   %103 = Retain %102 Operation operand 1 #0 : ()
+>   %104 = LoanEnd [%100] : ()
+>   %105 = Drop [$1] : ()
+>   %106 = Break L0 %102 : never
+>   %107 = Block - : i64
+>   %108 = Scope %107 [] : i64
+>   %109 = Call std/console/println[i64] (%108) : ()
 >   storage sub 0: $5 slot
 >   summary kept [] writes

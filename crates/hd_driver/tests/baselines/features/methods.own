@@ -83,10 +83,11 @@ fn use_methods(s: Shelf, b: string) -> usize:
 >     uses $1: entry -> %3 consume last
 >   local $2 t: Shelf [read assigned captured captured-assigned] place
 >   local $3 self: Shelf [read] value
->     uses $3: %39 -> %40 consume last
+>     uses $3: %40 -> %41 consume last
 >   %0 = Read copy [$0] : Shelf
 >   %1 = Store [$2] %0 : ()
->   %47 = Block %46 : usize
+>   %39 = Release %38 Operation local $2 #2 : ()
+>   %48 = Block %47 : usize
     t.by_mut(b)
 >   %2 = Ref mut local frame [$2] : Ref[mut Shelf]
 >   %3 = Read move [$1] : string
@@ -127,14 +128,14 @@ fn use_methods(s: Shelf, b: string) -> usize:
 >   %36 = Drop [$0] : ()
 >   %37 = Prim Add [%20 %35] : usize
 >   %38 = Read move [$2] : Shelf
->   %39 = Store [$3] %38 : ()
->   %40 = Read move [$3 .books] : List[string]
->   %41 = Break L0 %40 : never
->   %42 = Block - : List[string]
->   %43 = Scope %42 [] : List[string]
->   %44 = Intrinsic ListLen [%43] : usize
->   %45 = Drop [%43] : ()
->   %46 = Prim Add [%37 %44] : usize
+>   %40 = Store [$3] %38 : ()
+>   %41 = Read move [$3 .books] : List[string]
+>   %42 = Break L0 %41 : never
+>   %43 = Block - : List[string]
+>   %44 = Scope %43 [] : List[string]
+>   %45 = Intrinsic ListLen [%44] : usize
+>   %46 = Drop [%44] : ()
+>   %47 = Prim Add [%37 %45] : usize
 >   %38 finds [$2] full
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 slot

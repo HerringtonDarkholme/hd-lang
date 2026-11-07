@@ -56,7 +56,7 @@ fn result_try(path: string) -> Result[usize, ReadError]:
 >   local $0 path: string [param read] value
 >     uses $0: entry -> %0 consume last
 >   local $1 text: string [:= read assigned] value
->     uses $1: %26 -> %27 lend last
+>     uses $1: %27 -> %28 lend last
 >   local $3 path: string [read captured] place
 >   %0 = Read move [$0] : string
 >   %1 = Store [$3] %0 : ()
@@ -69,34 +69,35 @@ fn result_try(path: string) -> Result[usize, ReadError]:
 >   %8 = NewVariant #0 [%7] : Result[string, ReadError]
 >   %9 = Block %8 : Result[string, ReadError]
 >   %10 = Read move [$3] : string
->   %11 = NewVariant #0 [%10] : ReadError
->   %12 = NewVariant #1 [%11] : Result[string, ReadError]
->   %13 = Block %12 : Result[string, ReadError]
->   %14 = If %5 [%9 %13] : Result[string, ReadError]
->   %15 = Break L1 %14 : never
->   %16 = Block - : Result[string, ReadError]
->   %17 = Scope %16 [] : Result[string, ReadError]
->   %18 = Drop [$3] : ()
->   %19 = Read move [%17 as #0 .0] : string
->   %20 = Block %19 : string
->   %21 = Read move [%17 as #1 .0] : ReadError
->   %22 = NewVariant #1 [%21] : Result[usize, ReadError]
->   %23 = Return %22 : never
->   %24 = Block - : never
->   %25 = SwitchTag %17 [#0 %20 %24] : string
->   %26 = Store [$1] %25 : ()
->   %34 = Block %33 : Result[usize, ReadError]
+>   %11 = Release %10 Operation local $3 #2 : ()
+>   %12 = NewVariant #0 [%10] : ReadError
+>   %13 = NewVariant #1 [%12] : Result[string, ReadError]
+>   %14 = Block %13 : Result[string, ReadError]
+>   %15 = If %5 [%9 %14] : Result[string, ReadError]
+>   %16 = Break L1 %15 : never
+>   %17 = Block - : Result[string, ReadError]
+>   %18 = Scope %17 [] : Result[string, ReadError]
+>   %19 = Drop [$3] : ()
+>   %20 = Read move [%18 as #0 .0] : string
+>   %21 = Block %20 : string
+>   %22 = Read move [%18 as #1 .0] : ReadError
+>   %23 = NewVariant #1 [%22] : Result[usize, ReadError]
+>   %24 = Return %23 : never
+>   %25 = Block - : never
+>   %26 = SwitchTag %18 [#0 %21 %25] : string
+>   %27 = Store [$1] %26 : ()
+>   %35 = Block %34 : Result[usize, ReadError]
 >   %2 finds [$3] full
 >   %6 finds [$3] full
 >   %10 finds [$3] full
     .Ok(text.len())
->   %27 = Read borrow [$1] : string
->   %28 = Call std/rt.bytes/bytes_len[] (%27) : usize
->   %29 = Break L0 %28 : never
->   %30 = Block - : usize
->   %31 = Scope %30 [] : usize
->   %32 = Drop [$1] : ()
->   %33 = NewVariant #0 [%31] : Result[usize, ReadError]
+>   %28 = Read borrow [$1] : string
+>   %29 = Call std/rt.bytes/bytes_len[] (%28) : usize
+>   %30 = Break L0 %29 : never
+>   %31 = Block - : usize
+>   %32 = Scope %31 [] : usize
+>   %33 = Drop [$1] : ()
+>   %34 = NewVariant #0 [%32] : Result[usize, ReadError]
 >   exit sub 0 drops [$0]
 >   storage sub 0: $3 slot
 >   summary kept [$0]
@@ -107,9 +108,9 @@ fn converted(path: string) -> Result[usize, AppError]:
 >   local $0 path: string [param read] value
 >     uses $0: entry -> %0 consume last
 >   local $1 text: string [:= read assigned] value
->     uses $1: %32 -> %33 lend last
+>     uses $1: %33 -> %34 lend last
 >   local $3 value: ReadError [read] value
->     uses $3: %22 -> %23 consume last
+>     uses $3: %23 -> %24 consume last
 >   local $4 path: string [read captured] place
 >   %0 = Read move [$0] : string
 >   %1 = Store [$4] %0 : ()
@@ -122,40 +123,41 @@ fn converted(path: string) -> Result[usize, AppError]:
 >   %8 = NewVariant #0 [%7] : Result[string, ReadError]
 >   %9 = Block %8 : Result[string, ReadError]
 >   %10 = Read move [$4] : string
->   %11 = NewVariant #0 [%10] : ReadError
->   %12 = NewVariant #1 [%11] : Result[string, ReadError]
->   %13 = Block %12 : Result[string, ReadError]
->   %14 = If %5 [%9 %13] : Result[string, ReadError]
->   %15 = Break L2 %14 : never
->   %16 = Block - : Result[string, ReadError]
->   %17 = Scope %16 [] : Result[string, ReadError]
->   %18 = Drop [$4] : ()
->   %19 = Read move [%17 as #0 .0] : string
->   %20 = Block %19 : string
->   %21 = Read move [%17 as #1 .0] : ReadError
->   %22 = Store [$3] %21 : ()
->   %23 = Read move [$3] : ReadError
->   %24 = NewVariant #0 [%23] : AppError
->   %25 = Break L1 %24 : never
->   %26 = Block - : AppError
->   %27 = Scope %26 [] : AppError
->   %28 = NewVariant #1 [%27] : Result[usize, AppError]
->   %29 = Return %28 : never
->   %30 = Block - : never
->   %31 = SwitchTag %17 [#0 %20 %30] : string
->   %32 = Store [$1] %31 : ()
->   %40 = Block %39 : Result[usize, AppError]
+>   %11 = Release %10 Operation local $4 #2 : ()
+>   %12 = NewVariant #0 [%10] : ReadError
+>   %13 = NewVariant #1 [%12] : Result[string, ReadError]
+>   %14 = Block %13 : Result[string, ReadError]
+>   %15 = If %5 [%9 %14] : Result[string, ReadError]
+>   %16 = Break L2 %15 : never
+>   %17 = Block - : Result[string, ReadError]
+>   %18 = Scope %17 [] : Result[string, ReadError]
+>   %19 = Drop [$4] : ()
+>   %20 = Read move [%18 as #0 .0] : string
+>   %21 = Block %20 : string
+>   %22 = Read move [%18 as #1 .0] : ReadError
+>   %23 = Store [$3] %22 : ()
+>   %24 = Read move [$3] : ReadError
+>   %25 = NewVariant #0 [%24] : AppError
+>   %26 = Break L1 %25 : never
+>   %27 = Block - : AppError
+>   %28 = Scope %27 [] : AppError
+>   %29 = NewVariant #1 [%28] : Result[usize, AppError]
+>   %30 = Return %29 : never
+>   %31 = Block - : never
+>   %32 = SwitchTag %18 [#0 %21 %31] : string
+>   %33 = Store [$1] %32 : ()
+>   %41 = Block %40 : Result[usize, AppError]
 >   %2 finds [$4] full
 >   %6 finds [$4] full
 >   %10 finds [$4] full
     .Ok(text.len())
->   %33 = Read borrow [$1] : string
->   %34 = Call std/rt.bytes/bytes_len[] (%33) : usize
->   %35 = Break L0 %34 : never
->   %36 = Block - : usize
->   %37 = Scope %36 [] : usize
->   %38 = Drop [$1] : ()
->   %39 = NewVariant #0 [%37] : Result[usize, AppError]
+>   %34 = Read borrow [$1] : string
+>   %35 = Call std/rt.bytes/bytes_len[] (%34) : usize
+>   %36 = Break L0 %35 : never
+>   %37 = Block - : usize
+>   %38 = Scope %37 [] : usize
+>   %39 = Drop [$1] : ()
+>   %40 = NewVariant #0 [%38] : Result[usize, AppError]
 >   exit sub 0 drops [$0]
 >   storage sub 0: $4 slot
 >   summary kept [$0]

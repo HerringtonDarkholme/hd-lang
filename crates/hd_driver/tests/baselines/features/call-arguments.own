@@ -165,11 +165,12 @@ fn calls(s: string, n: *Node) -> usize:
 > app/main/calls
 >   local $0 s: string [param read captured] place
 >   local $1 n: Counted[Node] [param read] value
->     uses $1: entry -> %17 lend last
+>     uses $1: entry -> %18 lend last
 >   local $2 t: string [read assigned captured captured-assigned] place
 >   %0 = Read copy [$0] : string
 >   %1 = Store [$2] %0 : ()
->   %20 = Block %19 : usize
+>   %14 = Release %13 Operation local $2 #2 : ()
+>   %21 = Block %20 : usize
     by_mut(&mut t)
 >   %2 = Ref mut local frame [$2] : Ref[mut string]
 >   %3 = Call app/main/by_mut[] (%2) : ()
@@ -185,12 +186,12 @@ fn calls(s: string, n: *Node) -> usize:
 >   %11 = Drop [$0] : ()
 >   %12 = Prim Add [%6 %9] : usize
 >   %13 = Read move [$2] : string
->   %14 = Call app/main/by_value[] (%13) : usize
->   %15 = Drop [%13] : ()
->   %16 = Prim Add [%12 %14] : usize
->   %17 = Read borrow [$1] : Counted[Node]
->   %18 = Call app/main/by_ptr[] (%17) : usize
->   %19 = Prim Add [%16 %18] : usize
+>   %15 = Call app/main/by_value[] (%13) : usize
+>   %16 = Drop [%13] : ()
+>   %17 = Prim Add [%12 %15] : usize
+>   %18 = Read borrow [$1] : Counted[Node]
+>   %19 = Call app/main/by_ptr[] (%18) : usize
+>   %20 = Prim Add [%17 %19] : usize
 >   %13 finds [$2] full
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot, $2 slot

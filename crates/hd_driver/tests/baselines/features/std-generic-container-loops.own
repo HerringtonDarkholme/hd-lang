@@ -34,10 +34,9 @@ impl[T < Ord] Queue[T]:
 >   summary kept [$1] writes
 
     pub fn settle(&mut self, start: usize, value: T) -> void:
-        size := self.items.len()
 > app/main/impl [ T < Ord ] Queue [ T ].settle
 >   local $0 self: Ref[mut Queue[T]] [param read] value
->     uses $0: entry -> %0 lend, %21 lend, %25 lend, %46 lend, %62 lend, %64 lend, %77 lend last
+>     uses $0: entry -> %0 lend, %21 lend, %25 lend, %46 lend, %62 lend, %64 lend, %78 lend last
 >   local $1 start: usize [param read] value
 >     uses $1: entry -> %3 consume last
 >   local $2 value: T [param read captured] place
@@ -47,10 +46,12 @@ impl[T < Ord] Queue[T]:
 >   local $5 left: usize [:= read assigned] value
 >     uses $5: %12 -> %13 consume, %15 lend, %19 lend, %22 lend, %29 lend last
 >   local $6 larger: usize [read assigned mutated] place
+>   %76 = Release %75 Operation local $2 #2 : ()
+        size := self.items.len()
 >   %0 = Read borrow [*$0 .items] : List[T]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Store [$3] %1 : ()
->   %79 = Block - : ()
+>   %80 = Block - : ()
         let parent = start
 >   %3 = Read copy [$1] : usize
 >   %4 = Store [$4] %3 : ()
@@ -134,9 +135,9 @@ impl[T < Ord] Queue[T]:
         self.items[parent] = value
 >   %74 = Read copy [$4] : usize
 >   %75 = Read move [$2] : T
->   %76 = IsUnique [*$0 .items] : ()
->   %77 = Store [*$0 .items [%74]] %75 : ()
->   %78 = Release %77 Operation #3 : ()
+>   %77 = IsUnique [*$0 .items] : ()
+>   %78 = Store [*$0 .items [%74]] %75 : ()
+>   %79 = Release %78 Operation #3 : ()
 >   exit sub 0 drops [$2]
 >   storage sub 0: $2 slot
 >   summary kept [$0 $2] writes relies [$0]

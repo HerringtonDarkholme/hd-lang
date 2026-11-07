@@ -95,7 +95,8 @@ fn slot() -> i32:
 >   local $1 r: Ref[mut i32] [:= read assigned] value
 >     uses $1: %2 -> %4 lend last
 >   %0 = Store [$0] 1:i32 : ()
->   %7 = Block %6 : i32
+>   %7 = Release %6 Operation local $0 #2 : ()
+>   %8 = Block %6 : i32
     r := &mut n
 >   %1 = Ref mut local frame [$0] : Ref[mut i32]
 >   %2 = Store [$1] %1 : ()

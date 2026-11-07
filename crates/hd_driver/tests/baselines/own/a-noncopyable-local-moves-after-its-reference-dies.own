@@ -2,6 +2,6 @@
 app/main/in_arm
   local $0 xs: UniqList[string] [param read captured] place
   %22 = Read move [$0] : UniqList[string]
-  %23 = Call app/main/eat[] (%22) : usize
+  %24 = Call app/main/eat[] (%22) : usize
   exit sub 0 drops [$0]
   storage sub 0: $0 slot

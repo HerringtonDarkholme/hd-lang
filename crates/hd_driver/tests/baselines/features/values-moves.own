@@ -82,7 +82,8 @@ fn uniq(xs: UniqList[string], s: string) -> UniqList[string]:
 >     uses $7: %27 -> %30 lend last
 >   %0 = Read move [$0] : UniqList[string]
 >   %1 = Store [$2] %0 : ()
->   %47 = Block %46 : UniqList[string]
+>   %47 = Release %46 Operation local $2 #2 : ()
+>   %48 = Block %46 : UniqList[string]
     ys.push(s)
 >   %2 = Ref mut local frame [$2] : Ref[mut UniqList[string]]
 >   %3 = Store [$3] %2 : ()
