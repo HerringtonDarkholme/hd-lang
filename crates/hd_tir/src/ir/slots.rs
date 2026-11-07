@@ -1,7 +1,7 @@
 //! The operand-slot schema: what each word of an instruction's operands
 //! names, read from the tag table ([`Tag::operands`]) and the layout of
 //! each record. The passes' uses ([`crate::own::operands`]), the splice's
-//! renumbering, the blocks an instruction runs ([`super::for_blocks`]),
+//! renumbering, the blocks an instruction runs (`topo::for_blocks`),
 //! [`Body::value_operands`], the verifier's constant rows and the
 //! emitter's alias check all read operands through [`slots`].
 

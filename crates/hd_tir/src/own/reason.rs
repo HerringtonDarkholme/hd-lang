@@ -74,8 +74,7 @@ impl Reason {
     }
 }
 
-/// The data word b of a `Drop` the passes place after a last use, or of
-/// one that splits or sinks such a drop.
+/// The data word b of a `Drop` the passes place after a last use.
 pub(crate) const LAST_USE: u32 = 2;
 const _: () = assert!(matches!(NAMED[LAST_USE as usize], Reason::LastUse));
 

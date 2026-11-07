@@ -25,10 +25,7 @@
 //!    temporary or a local (`[%v as .Ok .0]`, `[$l .a]`) at the last use
 //!    of the base moves, when the part holds a counted leaf (a scalar part
 //!    copies for free). The base's `Drop` stays whole and releases what the
-//!    move left, the moved part being zero. A temporary whose last uses are
-//!    in the `If`, switch or match right before its `Drop` has that drop
-//!    sunk into the statement's paths ([`sink`]): each path drops what is
-//!    left, and a whole copy at a path's end moves.
+//!    move left, the moved part being zero.
 //! 4. **References at last access.** A `Ref` of a whole local that lives
 //!    in a cell, after which no path reaches the local, takes the local's
 //!    count of the cell (`ref_word::TAKES`); the local's `Drop` right after
@@ -61,16 +58,13 @@
 //! path reaches, straight after the move.
 
 use hd_base::SliceSort as _;
-use hd_types::Ty;
 
 use super::flow::{Backward, BitArena, Flow, backward};
-use super::reason::LAST_USE;
 use super::{
     Operand, OwnCx, Role, Tri, fill, operands, owned_value, splice, suite_touches, tracked,
 };
 use crate::ir::{
-    Body, NONE, PlaceView, Proj, ReadMode, Root, Tag, Topology, for_blocks, is_suspension, place,
-    u32_of,
+    Body, NONE, PlaceView, Proj, ReadMode, Root, Tag, Topology, is_suspension, place, u32_of,
 };
 
 /// A decision of [`Tables::decide`].
@@ -119,11 +113,6 @@ pub(crate) struct Tables {
     touch: Vec<u32>,
     ops: Vec<Operand>,
     stack: Vec<u32>,
-    /// A sunk drop's pending edits: drops to insert as (block, position,
-    /// place), statements to delete, reads that become moves.
-    sink_ins: Vec<(u32, u32, u32)>,
-    sink_rm: Vec<u32>,
-    sink_mv: Vec<u32>,
     /// The uses of a frame local through a value or a local that may
     /// point into it, but its drops: (instruction, candidate bit), by
     /// instruction. Empty unless a frame local's last whole read has no
@@ -251,14 +240,6 @@ impl Tables {
             _ => NONE,
         };
         (x != NONE).then_some(x)
-    }
-
-    /// Whether an instruction in `lo..=hi` touches candidate `bit`.
-    fn touched(&self, bit: u32, lo: u32, hi: u32) -> bool {
-        let row =
-            &self.touch[self.start[bit as usize] as usize..self.start[bit as usize + 1] as usize];
-        let k = row.partition_point(|&t| t < lo);
-        row.get(k).is_some_and(|&t| t <= hi)
     }
 
     /// The first instruction after `x` that touches candidate `bit`.
@@ -900,223 +881,12 @@ fn apply(
         }
         b.data[i][1] = ReadMode::Move as u32;
     }
-    for v in 0..b.len() {
-        if t.vnum[v] != NONE {
-            sink(b, topo, t, edits, u32_of(v));
-        }
-    }
 }
 
 /// Whether instruction `d` is a `Drop` of all of value `v`.
 fn drops_whole(b: &Body, d: u32, v: u32) -> bool {
     let p = b.view(b.data[d as usize][0]);
     b.tags[d as usize] == Tag::Drop && p.whole() && p.root == Root::Value(v)
-}
-
-/// Rule 3 across branches: temporary `v`'s `Drop` right after the `If`,
-/// switch or match that holds its last uses goes into that statement's
-/// paths, where move's reads took parts of it: at the end of each branch
-/// that completes, and before each `ToArm` of a match's decision tree, a
-/// drop of all of `v`, the moved parts being zero. A whole copy at the
-/// path's end then moves instead. A match's arms touch no part of
-/// `v` but its drops before their jumps, which go. Done only when it adds
-/// no more drops than it deletes, and never through a `Guard`, a loop or
-/// a nested match, whose paths leave the decision tree's shape.
-fn sink(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice::Tables, v: u32) {
-    let bit = t.vnum[v as usize];
-    let (lo, hi) = (
-        t.start[bit as usize] as usize,
-        t.start[bit as usize + 1] as usize,
-    );
-    if hi - lo < 2 {
-        return;
-    }
-    let d = t.touch[hi - 1];
-    if !drops_whole(b, d, v) || topo.blk[d as usize] == NONE {
-        return;
-    }
-    // The statement before the drop, past other statements' drops.
-    let (h, pd) = (topo.blk[d as usize], topo.pos[d as usize]);
-    let members = b.record(b.data[h as usize][0]);
-    let Some(&x) = members[..pd as usize]
-        .iter()
-        .rev()
-        .find(|&&m| b.tags[m as usize] != Tag::Drop)
-    else {
-        return;
-    };
-    let prev = t.touch[hi - 2];
-    if prev < topo.first[x as usize] || prev > x || b.ty[x as usize] == Ty::NEVER {
-        return;
-    }
-    t.sink_ins.clear();
-    t.sink_rm.clear();
-    t.sink_mv.clear();
-    let [_, w] = b.data[x as usize];
-    let ok = match b.tags[x as usize] {
-        Tag::If => {
-            let r = b.record(w);
-            r.len() == 2 && {
-                let (then, els) = (r[0], r[1]);
-                sink_block(b, topo, t, v, then) && sink_block(b, topo, t, v, els)
-            }
-        }
-        Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
-            let r = b.record(w).to_vec();
-            let (cases, default) = r.split_at(r.len().saturating_sub(1));
-            cases
-                .iter()
-                .skip(1)
-                .step_by(2)
-                .chain(default)
-                .all(|&blk| sink_block(b, topo, t, v, blk))
-        }
-        Tag::Match => {
-            let r = b.record(w).to_vec();
-            let Some((&decision, arms)) = r.split_first() else {
-                return;
-            };
-            sink_block(b, topo, t, v, decision)
-                && arms.iter().all(|&arm| {
-                    let (a0, a1) = (topo.first[arm as usize] as usize, arm as usize);
-                    t.touch[lo..hi]
-                        .iter()
-                        .filter(|&&u| (a0..=a1).contains(&(u as usize)))
-                        .all(|&u| {
-                            let whole = drops_whole(b, u, v);
-                            if whole {
-                                t.sink_rm.push(u);
-                            }
-                            whole
-                        })
-                })
-        }
-        _ => false,
-    };
-    if !ok || t.sink_ins.len() > 1 + t.sink_rm.len() {
-        return;
-    }
-    edits.remove(d);
-    for &u in &t.sink_rm {
-        edits.remove(u);
-    }
-    for &(blk, pos, at) in &t.sink_ins {
-        edits.insert(
-            blk,
-            pos,
-            Tag::Drop,
-            [at, LAST_USE],
-            Ty::VOID,
-            b.syn[d as usize],
-        );
-    }
-    for &m in &t.sink_mv {
-        b.data[m as usize][1] = ReadMode::Move as u32;
-    }
-}
-
-/// The drops of temporary `v` at the end of block `blk`'s paths, into
-/// `t.sink_*`: false when the block's shape is not one [`sink`] handles.
-fn sink_block(b: &mut Body, topo: &Topology, t: &mut Tables, v: u32, blk: u32) -> bool {
-    if b.tags.get(blk as usize) != Some(&Tag::Block) || b.data[blk as usize][1] == v {
-        return false;
-    }
-    let bit = t.vnum[v as usize];
-    let rec = b.data[blk as usize][0] as usize;
-    let len = b.extra[rec];
-    let mut end = len;
-    // The block's last statement but drops: a jump, whose path has its own
-    // drops before it; a match decision's `ToArm`, before which the path's
-    // drops go; or a statement that runs blocks and never completes (a
-    // decision tree's switch or guard), whose paths the drops must go into.
-    let mut never = None;
-    if let Some(p) = (0..len)
-        .rev()
-        .find(|&p| b.tags[b.extra[rec + 1 + p as usize] as usize] != Tag::Drop)
-    {
-        let m = b.extra[rec + 1 + p as usize];
-        match b.tags[m as usize] {
-            Tag::Return | Tag::Break | Tag::Continue | Tag::Unreachable => return true,
-            Tag::ToArm => end = p,
-            _ if b.ty[m as usize] == Ty::NEVER => {
-                let mut runs = false;
-                for_blocks(b, m as usize, |_| runs = true);
-                if runs {
-                    never = Some(m);
-                }
-            }
-            _ => {}
-        }
-    }
-    let whole = |b: &mut Body, t: &mut Tables| {
-        let at = u32_of(b.extra.len());
-        b.extra.extend([2, place::ROOT_VALUE, v]);
-        t.sink_ins.push((blk, end, at));
-    };
-    for p in (0..end).rev() {
-        let m = b.extra[rec + 1 + p as usize];
-        if !t.touched(bit, topo.first[m as usize], m) {
-            continue;
-        }
-        // The block's end is never reached: only the statement that ends
-        // every path can hold the drops.
-        if never.is_some_and(|n| n != m) {
-            return false;
-        }
-        let [a, w] = b.data[m as usize];
-        match b.tags[m as usize] {
-            Tag::Read if b.view(a).root == Root::Value(v) => {
-                // A whole copy at the path's end moves, as a copy with its
-                // drop right after it does.
-                if b.view(a).whole() && t.decide[m as usize] == MOVE {
-                    t.sink_mv.push(m);
-                } else {
-                    whole(b, t);
-                }
-                return true;
-            }
-            Tag::If => {
-                let r = b.record(w).to_vec();
-                if r.len() != 2 {
-                    whole(b, t);
-                    return true;
-                }
-                return sink_block(b, topo, t, v, r[0]) && sink_block(b, topo, t, v, r[1]);
-            }
-            Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
-                let r = b.record(w).to_vec();
-                let (cases, default) = r.split_at(r.len().saturating_sub(1));
-                return cases
-                    .iter()
-                    .skip(1)
-                    .step_by(2)
-                    .chain(default)
-                    .all(|&c| sink_block(b, topo, t, v, c));
-            }
-            Tag::Guard
-            | Tag::Match
-            | Tag::Loop
-            | Tag::Scope
-            | Tag::With
-            | Tag::And
-            | Tag::Or
-            | Tag::RefDyn
-            | Tag::Drop
-            | Tag::Break
-            | Tag::Continue
-            | Tag::Return
-            | Tag::ToArm => return false,
-            _ => {
-                whole(b, t);
-                return true;
-            }
-        }
-    }
-    if never.is_some() {
-        return false;
-    }
-    whole(b, t);
-    true
 }
 
 /// Rule 4: `Ref` `i` of a whole local at its last access takes the

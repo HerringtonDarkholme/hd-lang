@@ -1773,14 +1773,7 @@ is worth deciding only if they are hot.
      are the same, and `own::consumers` keeps its one-use rule.
    - **Partial moves** (rule 3): a `copy` of a field or payload field of a
      local or a temporary at the base's last use moves, and the base's
-     drop stays whole. A temporary whose last uses are inside
-     the `If`, switch or match right before its drop has the drop sunk
-     into that statement's paths (`moves::sink`): at the end of each path
-     that completes, and before each `ToArm` of a decision tree, a drop of
-     the whole temporary; a whole copy at a path's end moves, and a match's
-     drops of the temporary before jumps in its arms go. Sinking is done
-     only where it adds no drop, and never through a guard, a loop or a
-     nested match.
+     drop stays whole.
    - **References** (rule 4): a `Ref` of a whole celled local at its last
      access takes the local's count of the cell (`ref_word::TAKES`, a bit
      of `Ref`'s word, which invariant 22 refuses before the passes), and
