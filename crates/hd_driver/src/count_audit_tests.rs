@@ -31,6 +31,31 @@ fn pending_counts_stop_at_observation_boundaries() {
     run_detector(&wasm, "");
 }
 
+/// A build that depends on std skips std's always-inline functions, so std's
+/// own build has to be the one that checks them.
+#[test]
+fn std_own_build_checks_its_always_inline_promises() {
+    let mut sources = std_sources();
+    sources.insert(
+        "zz_inline/mod.hd",
+        "use std.annotation.inline\n\n@inline(.Always)\npub fn bad!() -> void: pass\n",
+    );
+    let store = hd_cache::MemoryStore::default();
+    let host = Host {
+        render_tir: &[],
+        sources: &sources,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(hd_sched::SerialOrder::Priority),
+    };
+    let out = build(&host, "std", &Goal::Analyze);
+    assert!(
+        out.render().contains("cannot copy this function because it suspends"),
+        "{}",
+        out.render()
+    );
+}
+
 #[cfg(feature = "checked-report")]
 #[test]
 fn emitted_pairs_have_source_lines_and_observation_barriers() {

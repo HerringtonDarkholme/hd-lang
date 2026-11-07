@@ -8201,7 +8201,13 @@ impl Run<'_> {
         let mut items: HashMap<DefId, Item> = HashMap::default();
         let mut bodies: HashMap<DefId, Body> = HashMap::default();
         let mut configured: HashMap<Hash128, Option<DefId>> = HashMap::default();
-        for checked in &self.check {
+        for (m, checked) in self.check.iter().enumerate() {
+            // std as a dependency: its own build checked these promises, and
+            // nothing in std calls out of std, so no cycle passes through it.
+            let package = self.table.modules[m].package;
+            if package != 0 && self.table.identities[usize::from(package)] == "std" {
+                continue;
+            }
             let Some(Some(checked)) = checked.get() else {
                 continue;
             };

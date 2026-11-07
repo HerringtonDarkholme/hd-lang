@@ -845,26 +845,16 @@ struct Live {
     edges: Vec<ZeroEdges>,
     point_at: Vec<usize>,
     starts: Vec<usize>,
+    /// Every edge leads to a later block, so one backward pass settles.
+    forward: bool,
     locals: usize,
     into: Vec<Vec<u32>>,
 }
 
 impl Live {
     fn new(f: &Func) -> Option<Self> {
-        let n = f.params.len() + f.locals.len();
-        if n == 0 || f.body.is_empty() {
-            return None;
-        }
-        let edges = zero_edges(&f.body, &f.labels)?;
-        let (point_at, starts) = basic_blocks(&edges, f.body.len());
-        let mut me = Self {
-            into: vec![Vec::new(); starts.len()],
-            edges,
-            point_at,
-            starts,
-            locals: n,
-        };
-        let mut live = LiveSet::new(n);
+        let mut me = Self::blocks(f)?;
+        let mut live = LiveSet::new(me.locals);
         loop {
             let mut changed = false;
             for p in (0..me.starts.len()).rev() {
@@ -878,13 +868,59 @@ impl Live {
                     changed = true;
                 }
             }
-            if !changed {
+            if me.forward || !changed {
                 for row in &mut me.into {
                     row.sort_stable();
                 }
                 return Some(me);
             }
         }
+    }
+
+    /// A body's basic blocks, with nothing live into any of them yet.
+    fn blocks(f: &Func) -> Option<Self> {
+        let locals = f.params.len() + f.locals.len();
+        if locals == 0 || f.body.is_empty() {
+            return None;
+        }
+        let edges = zero_edges(&f.body, &f.labels)?;
+        let (point_at, starts) = basic_blocks(&edges, f.body.len());
+        Some(Self {
+            into: vec![Vec::new(); starts.len()],
+            forward: forward_only(&edges, &point_at, &starts, f.body.len()),
+            edges,
+            point_at,
+            starts,
+            locals,
+        })
+    }
+
+    /// For each instruction of a body: a write that no read follows, or a
+    /// read after which its local is dead. A body that only branches forward
+    /// gets this in the one pass that settles its blocks.
+    fn dead_accesses(f: &Func) -> Option<Vec<bool>> {
+        let body = &f.body;
+        let mut dead = vec![false; body.len()];
+        let mut mark = |at: usize, after: &LiveSet| {
+            if let Ins::Op(I::LocalSet(l) | I::LocalTee(l) | I::LocalGet(l)) = &body[at] {
+                dead[at] = !after.contains(*l);
+            }
+        };
+        let mut me = Self::blocks(f)?;
+        if me.forward {
+            let mut live = LiveSet::new(me.locals);
+            for p in (0..me.starts.len()).rev() {
+                me.out(p, body.len(), &mut live);
+                for at in (me.starts[p]..me.end(p, body.len())).rev() {
+                    mark(at, &live);
+                    me.step(&body[at], &mut live);
+                }
+                me.into[p].clone_from(&live.members);
+            }
+        } else {
+            Self::new(f)?.walk_back(body, mark);
+        }
+        Some(dead)
     }
 
     fn end(&self, p: usize, len: usize) -> usize {
@@ -1218,18 +1254,10 @@ fn live_rules(f: &mut Func, arity: &Arity) -> bool {
 const NONE: u32 = u32::MAX;
 
 fn live_once(f: &mut Func, arity: &Arity) -> bool {
-    let Some(live) = Live::new(f) else {
+    let Some(dead) = Live::dead_accesses(f) else {
         return false;
     };
     let body = &f.body;
-    // `dead[at]`: a write that no read follows, or a read after which
-    // its local is dead.
-    let mut dead = vec![false; body.len()];
-    live.walk_back(body, |at, after| {
-        if let Ins::Op(I::LocalSet(l) | I::LocalTee(l) | I::LocalGet(l)) = &body[at] {
-            dead[at] = !after.contains(*l);
-        }
-    });
     let mut origins = Remap::new(f.origins.as_deref());
     let mut out = Vec::with_capacity(body.len());
     let dead_write =
