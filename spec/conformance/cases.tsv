@@ -5957,6 +5957,7 @@ runtime/valid/cold-frame-keeps-its-argument-copy.hd	runtime	accept	lang/11-requi
 runtime/valid/cold-frame-keeps-its-requirement-row.hd	runtime	accept	lang/11-requirements-and-suspension.md#suspending-functions
 runtime/valid/map-put-keeps-its-key-copy.hd	runtime	accept	lang/05-expressions.md#r-expr.index.map.assign
 runtime/valid/a-direct-suspension-keeps-its-parameter-count.hd	runtime	accept	std/time.md#r-std-time.clock.sleep
+runtime/valid/a-materialized-frame-keeps-its-requirement-row.hd	runtime	accept	std/time.md#r-std-time.clock.sleep
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

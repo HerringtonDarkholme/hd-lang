@@ -8,10 +8,10 @@ fn after!(text: string) -> usize $ Clock:
     sleep!(ms(1))
 > app/main/after
 >   retain string (stored)
->   retain counted reference (conservative: Await)
->   retain counted reference (conservative: Await)
+>   retain counted reference (stored)
+>   retain counted reference (stored)
 >   release counted reference (conservative: Await)
->   retain counted reference (conservative: Await)
+>   retain counted reference (stored)
 >   release counted reference (conservative: Await)
 >   release &string (last use)
 >   release string (last use)

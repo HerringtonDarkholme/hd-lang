@@ -5,11 +5,11 @@
   "reasons": [
     {
       "reason": "conservative: Await",
-      "sites": 20
+      "sites": 8
     },
     {
       "reason": "conservative: AwaitAll",
-      "sites": 5
+      "sites": 2
     },
     {
       "reason": "conservative: AwaitValue",

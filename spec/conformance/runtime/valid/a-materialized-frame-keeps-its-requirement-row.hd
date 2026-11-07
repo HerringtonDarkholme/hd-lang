@@ -1,0 +1,22 @@
+# test: a direct suspension keeps its provider row while pending and reads it after resuming
+# expect-stdout: keep1
+use std.time.{Clock, ms, sleep}
+
+trait Tag:
+    fn name(self) -> string
+
+struct Named:
+    label: string
+
+impl Tag for Named:
+    fn name(self) -> string:
+        self.label
+
+fn read!() -> string $ Tag + Clock:
+    sleep!(ms(1))
+    $.use(Tag).name()
+
+pub fn main!() -> void $ Clock + Console:
+    value := $.with(Tag=Named { label: "keep${1}" }):
+        read!()
+    println(value)

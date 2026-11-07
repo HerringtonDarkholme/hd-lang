@@ -1,0 +1,7 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: Cold and Materialize each declare their provider-row copy; only a new frame takes it.
+use std.time.{Clock, ms, sleep}
+
+fn pause!() -> void $ Clock:
+    sleep!(ms(1))

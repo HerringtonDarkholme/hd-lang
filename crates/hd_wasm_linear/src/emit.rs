@@ -317,6 +317,7 @@ fn body_func<'a>(
         // context, which holds the closure's own.
         let provs = em.providers.iter().map(|p| p.1[0]).chain(ctx).collect();
         em.susp = Some(susp::Susp {
+            source: closure.is_none() && em.source_parameters(plocals.len()),
             key,
             pc,
             states: plan.0,

@@ -35,20 +35,21 @@ fn fetch!() -> usize $ Store:
     $.use(Store).get().len()
 > app/main/fetch
 >   local $1 self: string [read] value
->     uses $1: %7 -> %8 lend last
->   %0 = Retain %14 Cold row #0 : ()
->   %1 = ProviderGet #0 : Store
->   %2 = Retain %1 Value #0 : ()
->   %3 = Coerce %1 [ProviderAsRef -] : Ref[Store]
->   %4 = Read borrow [*%3] : Store
->   %5 = Drop [%3] : ()
->   %6 = Call app/main/Store.get for Store [] via TraitValue (%4) : string
->   %7 = Store [$1] %6 : ()
->   %8 = Read borrow [$1] : string
->   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
->   %10 = Break L0 %9 : never
->   %11 = Block - : usize
->   %12 = Scope %11 [] : usize
->   %13 = Drop [$1] : ()
->   %14 = Block %12 : usize
+>     uses $1: %8 -> %9 lend last
+>   %0 = Retain %15 Cold row #0 : ()
+>   %1 = Retain %15 Materialize row #0 : ()
+>   %2 = ProviderGet #0 : Store
+>   %3 = Retain %2 Value #0 : ()
+>   %4 = Coerce %2 [ProviderAsRef -] : Ref[Store]
+>   %5 = Read borrow [*%4] : Store
+>   %6 = Drop [%4] : ()
+>   %7 = Call app/main/Store.get for Store [] via TraitValue (%5) : string
+>   %8 = Store [$1] %7 : ()
+>   %9 = Read borrow [$1] : string
+>   %10 = Call std/rt.bytes/bytes_len[] (%9) : usize
+>   %11 = Break L0 %10 : never
+>   %12 = Block - : usize
+>   %13 = Scope %12 [] : usize
+>   %14 = Drop [$1] : ()
+>   %15 = Block %13 : usize
 >   summary none

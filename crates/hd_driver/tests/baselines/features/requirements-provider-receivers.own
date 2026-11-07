@@ -80,59 +80,60 @@ fn count(n: i64) -> void $ Meter:
 fn count_later!(n: i64, wait: mut Suspend[void]) -> void $ Meter:
 > app/main/count_later
 >   local $0 n: i64 [param read] value
->     uses $0: entry -> %3 consume last
+>     uses $0: entry -> %4 consume last
 >   local $1 wait: mut Suspend[()] [param read] value
->     uses $1: entry -> %26 lend
+>     uses $1: entry -> %27 lend
 >   local $2 $cur: i64 [assigned] place
 >   local $3 $end: i64 [assigned] value
->     uses $3: %8 -> %12 lend
+>     uses $3: %9 -> %13 lend
 >   local $4 $incl: bool [assigned] value
 >     uses $4: none
 >   local $5 i: i64 [read assigned] value
->     uses $5: %15 -> %24 lend last
->   %0 = Retain %36 Cold local $1 #0 : ()
->   %1 = Retain %36 Entry local $1 #0 : ()
+>     uses $5: %16 -> %25 lend last
+>   %0 = Retain %37 Cold local $1 #0 : ()
+>   %1 = Retain %37 Entry local $1 #0 : ()
     for i in 0..n:
->   %2 = Retain %36 Cold row #0 : ()
->   %3 = Read copy [$0] : i64
->   %4 = NewStruct [0:i64 %3 0:bool] : Range[i64]
->   %5 = Read copy [%4 .start] : i64
->   %6 = Store [$2] %5 : ()
->   %7 = Read copy [%4 .end] : i64
->   %8 = Store [$3] %7 : ()
->   %9 = Read copy [%4 .inclusive] : bool
->   %10 = Store [$4] %9 : ()
->   %11 = Read copy [$2] : i64
->   %12 = Read copy [$3] : i64
->   %13 = Prim Lt [%11 %12] : bool
->   %14 = Read copy [$2] : i64
->   %15 = Store [$5] %14 : ()
->   %16 = Read copy [$2] : i64
->   %17 = Prim Add [%16 1:i64] : i64
->   %18 = Store [$2] %17 : ()
->   %29 = Block - : ()
->   %30 = Break L0 - : never
->   %31 = Block - : ()
->   %32 = If %13 [%29 %31] : ()
->   %33 = Block - : ()
->   %34 = Loop %33 - : ()
->   %35 = Drop [$1] : ()
->   %36 = Block - : ()
+>   %2 = Retain %37 Cold row #0 : ()
+>   %3 = Retain %37 Materialize row #0 : ()
+>   %4 = Read copy [$0] : i64
+>   %5 = NewStruct [0:i64 %4 0:bool] : Range[i64]
+>   %6 = Read copy [%5 .start] : i64
+>   %7 = Store [$2] %6 : ()
+>   %8 = Read copy [%5 .end] : i64
+>   %9 = Store [$3] %8 : ()
+>   %10 = Read copy [%5 .inclusive] : bool
+>   %11 = Store [$4] %10 : ()
+>   %12 = Read copy [$2] : i64
+>   %13 = Read copy [$3] : i64
+>   %14 = Prim Lt [%12 %13] : bool
+>   %15 = Read copy [$2] : i64
+>   %16 = Store [$5] %15 : ()
+>   %17 = Read copy [$2] : i64
+>   %18 = Prim Add [%17 1:i64] : i64
+>   %19 = Store [$2] %18 : ()
+>   %30 = Block - : ()
+>   %31 = Break L0 - : never
+>   %32 = Block - : ()
+>   %33 = If %14 [%30 %32] : ()
+>   %34 = Block - : ()
+>   %35 = Loop %34 - : ()
+>   %36 = Drop [$1] : ()
+>   %37 = Block - : ()
         $.use(Meter).record(i)
->   %19 = ProviderGet #22 : Meter
->   %20 = Retain %19 Value #0 : ()
->   %21 = Coerce %19 [ProviderAsRef -] : Ref[mut Meter]
->   %22 = Read borrow [*%21] : mut Meter
->   %23 = Drop [%21] : ()
->   %24 = Read copy [$5] : i64
->   %25 = Call app/main/Meter.record for Meter [] via TraitValue (%22, %24) : ()
+>   %20 = ProviderGet #22 : Meter
+>   %21 = Retain %20 Value #0 : ()
+>   %22 = Coerce %20 [ProviderAsRef -] : Ref[mut Meter]
+>   %23 = Read borrow [*%22] : mut Meter
+>   %24 = Drop [%22] : ()
+>   %25 = Read copy [$5] : i64
+>   %26 = Call app/main/Meter.record for Meter [] via TraitValue (%23, %25) : ()
         wait!()
->   %26 = Read copy [$1] : mut Suspend[()]
->   %27 = AwaitValue %26 : ()
->   %28 = Drop [%26] : ()
+>   %27 = Read copy [$1] : mut Suspend[()]
+>   %28 = AwaitValue %27 : ()
+>   %29 = Drop [%27] : ()
 >   exit sub 0 drops [$1]
 >   summary none
->   unwind %27 drops [%26]
+>   unwind %28 drops [%27]
 
 pub fn run(n: i64) -> i64:
     counters := box(Counters { calls: 0, total: 0 })
