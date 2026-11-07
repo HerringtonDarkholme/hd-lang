@@ -854,25 +854,34 @@ struct Live {
 impl Live {
     fn new(f: &Func) -> Option<Self> {
         let mut me = Self::blocks(f)?;
-        let mut live = LiveSet::new(me.locals);
+        me.settle(f);
+        for row in &mut me.into {
+            row.sort_stable();
+        }
+        Some(me)
+    }
+
+    /// Runs the backward pass to its fixed point, each block's set in any order.
+    fn settle(&mut self, f: &Func) {
+        let mut live = LiveSet::new(self.locals);
         loop {
             let mut changed = false;
-            for p in (0..me.starts.len()).rev() {
-                me.out(p, f.body.len(), &mut live);
-                for ins in f.body[me.starts[p]..me.end(p, f.body.len())].iter().rev() {
-                    me.step(ins, &mut live);
+            for p in (0..self.starts.len()).rev() {
+                self.out(p, f.body.len(), &mut live);
+                for ins in f.body[self.starts[p]..self.end(p, f.body.len())]
+                    .iter()
+                    .rev()
+                {
+                    self.step(ins, &mut live);
                 }
                 // Sets only grow from empty here, so a new size is a change.
-                if me.into[p].len() != live.members.len() {
-                    me.into[p].clone_from(&live.members);
+                if self.into[p].len() != live.members.len() {
+                    self.into[p].clone_from(&live.members);
                     changed = true;
                 }
             }
-            if me.forward || !changed {
-                for row in &mut me.into {
-                    row.sort_stable();
-                }
-                return Some(me);
+            if self.forward || !changed {
+                return;
             }
         }
     }
@@ -918,7 +927,9 @@ impl Live {
                 me.into[p].clone_from(&live.members);
             }
         } else {
-            Self::new(f)?.walk_back(body, mark);
+            // Only membership matters here, so the sets need no sorting.
+            me.settle(f);
+            me.walk_back(body, mark);
         }
         Some(dead)
     }
