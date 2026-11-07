@@ -3,6 +3,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
+  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 7 funcref))
@@ -48,7 +49,7 @@
     end
     local.get $self
   )
-  (func $demo (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $tally i32) (local $t0 i32) (local $t1 i32)
+  (func $demo (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $tally i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 28 |     tally := box(Log { lines: [] })
     block
       i32.const 4
@@ -63,23 +64,49 @@
       local.tee $t1
       if
         local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t1
+          call $rt:retain_known
+        end
+      end
+      local.get $t0
+      local.tee $t1
+      if
+        local.get $t1
         call $retain
       end
-      i32.const 296 ;; &vtable[func47, func46]
+      local.get $t0
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t1
+          call $rt:release_ref'2
+        end
+      end
+      local.get $t0
       local.set $t1
+      i32.const 296 ;; &vtable[func49, func48]
+      local.set $t2
       block
     ;; 30 |         _ := tick(a)
         local.get $a.0
         local.get $a.1
-        local.get $t0
         local.get $t1
+        local.get $t2
         call $tick
         drop
     ;; 31 |         _ := tick(b)
         local.get $b.0
         local.get $b.1
-        local.get $t0
         local.get $t1
+        local.get $t2
         call $tick
         drop
     ;; 29 |     $.with(Recorder=tally):

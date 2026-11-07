@@ -74,6 +74,7 @@ pub mod promote;
 mod reason;
 pub(crate) mod referent;
 pub(crate) mod retains;
+pub use retains::took_source;
 mod self_store;
 pub mod short;
 pub(crate) mod splice;

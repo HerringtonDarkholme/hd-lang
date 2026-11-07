@@ -95,20 +95,19 @@ fn load(path: string) -> Result[string, *dyn Error]:
 >   %24 = Store [$2] %23 : ()
 >   %25 = Read move [$2] : Counted[FsError]
 >   %26 = Coerce %25 [RefToTraitValue -] : Error
->   %27 = Retain %26 Value #0 : ()
->   %28 = Drop [%25] : ()
->   %29 = Block %26 : Error
->   %30 = RefDyn %29 : Counted[Error]
->   %31 = NewVariant #1 [%30] : Result[string, Counted[Error]]
->   %32 = Return %31 : never
->   %33 = Block - : never
->   %34 = SwitchTag %17 [#0 %20 %33] : string
->   %36 = Block %35 : Result[string, Counted[Error]]
+>   %27 = LoanEnd [%25] : ()
+>   %28 = Block %26 : Error
+>   %29 = RefDyn %28 : Counted[Error]
+>   %30 = NewVariant #1 [%29] : Result[string, Counted[Error]]
+>   %31 = Return %30 : never
+>   %32 = Block - : never
+>   %33 = SwitchTag %17 [#0 %20 %32] : string
+>   %35 = Block %34 : Result[string, Counted[Error]]
 >   %2 finds [$4] full
 >   %6 finds [$4] full
 >   %10 finds [$4] full
 >   %23 finds [$1] full
     .Ok(text)
->   %35 = NewVariant #0 [%34] : Result[string, Counted[Error]]
+>   %34 = NewVariant #0 [%33] : Result[string, Counted[Error]]
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

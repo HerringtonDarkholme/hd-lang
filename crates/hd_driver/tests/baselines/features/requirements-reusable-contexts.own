@@ -26,21 +26,20 @@ fn read_tag() -> usize $ Tag:
     $.use(Tag).name().len()
 > app/main/read_tag
 >   local $0 $ref: string [read assigned captured captured-assigned] value
->     uses $0: %6 -> %7 lend last
+>     uses $0: %5 -> %6 lend last
 >   %0 = ProviderGet #0 : Tag
->   %1 = Retain %0 Value #0 : ()
->   %2 = Coerce %0 [ProviderAsRef -] : Ref[Tag]
->   %3 = Read borrow [*%2] : Tag
->   %4 = Drop [%2] : ()
->   %5 = Call app/main/Tag.name for Tag [] via TraitValue (%3) : string
->   %6 = Store [$0] %5 : ()
->   %7 = Read borrow [$0] : string
->   %8 = Call std/rt.bytes/bytes_len[] (%7) : usize
->   %9 = Break L0 %8 : never
->   %10 = Block - : usize
->   %11 = Scope %10 [] : usize
->   %12 = Drop [$0] : ()
->   %13 = Block %11 : usize
+>   %1 = Coerce %0 [ProviderAsRef -] : Ref[Tag]
+>   %2 = Read borrow [*%1] : Tag
+>   %3 = LoanEnd [%1] : ()
+>   %4 = Call app/main/Tag.name for Tag [] via TraitValue (%2) : string
+>   %5 = Store [$0] %4 : ()
+>   %6 = Read borrow [$0] : string
+>   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
+>   %8 = Break L0 %7 : never
+>   %9 = Block - : usize
+>   %10 = Scope %9 [] : usize
+>   %11 = Drop [$0] : ()
+>   %12 = Block %10 : usize
 >   summary kept [] writes
 
 fn make(s: string) -> $.Context[$ Tag]:
@@ -61,16 +60,14 @@ fn make(s: string) -> $.Context[$ Tag]:
 >   %7 = Block - : Counted[mut Named]
 >   %8 = Scope %7 [] : Counted[mut Named]
 >   %9 = Coerce %8 [RefToTraitValue -] : Tag
->   %10 = Retain %9 Value #0 : ()
->   %11 = Block %9 : Tag
->   %12 = RefDyn %11 : Counted[Tag]
->   %13 = Drop [%8] : ()
->   %14 = Coerce %12 [RefAsProvider -] : Tag
->   %15 = Retain %14 Value #0 : ()
->   %16 = Drop [%12] : ()
->   %17 = ContextNew [Tag %14] : $.Context[$ Tag]
->   %18 = Drop [%14] : ()
->   %19 = Block %17 : $.Context[$ Tag]
+>   %10 = Block %9 : Tag
+>   %11 = RefDyn %10 : Counted[Tag]
+>   %12 = LoanEnd [%8] : ()
+>   %13 = Coerce %11 [RefAsProvider -] : Tag
+>   %14 = LoanEnd [%11] : ()
+>   %15 = ContextNew [Tag %13] : $.Context[$ Tag]
+>   %16 = Drop [%13] : ()
+>   %17 = Block %15 : $.Context[$ Tag]
 >   %5 finds [$2] full
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes

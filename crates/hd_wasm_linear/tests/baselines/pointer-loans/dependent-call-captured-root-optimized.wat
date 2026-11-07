@@ -5,9 +5,10 @@
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
+  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "rt:panic'3" (func $rt:panic'3))
@@ -111,7 +112,34 @@
       end
       local.get $t2
       i32.load $heap offset=16
-      local.set $t2
+      local.tee $t2
+      local.tee $t3
+      if
+        local.get $t3
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t3
+          call $rt:retain_known
+        end
+      end
+    ;; 11 |     let mut ps = [box(P { name: "a" })]
+      local.get $t2
+      local.tee $t3
+      if
+        local.get $t3
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t3
+          call $rt:release_ref
+        end
+      end
+    ;; 14 |     d := name_of(ps[0])
       block
         block
           br 0
@@ -152,15 +180,16 @@
       call $borrow_then_change#1
     ;; 11 |     let mut ps = [box(P { name: "a" })]
       local.get $change.1
+      local.tee $t3
       if
-        local.get $change.1
+        local.get $t3
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $change.1
+          local.get $t3
           call $rt:release_ref
         end
       end
@@ -168,16 +197,16 @@
       if
         local.get $ps
         i32.load $heap
-        local.tee $change.1
+        local.tee $t3
         if
-          local.get $change.1
+          local.get $t3
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $change.1
+            local.get $t3
             call $rt:release_ref
           end
         end

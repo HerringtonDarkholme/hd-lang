@@ -3,8 +3,10 @@
   (import "fixture" "rt:forbid_check" (func $rt:forbid_check))
   (import "fixture" "hd:rt/block" (func $hd:rt/block (result i32)))
   (import "fixture" "rt:wake_mark" (func $rt:wake_mark (param i32)))
+  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32 i32 i32)))
+  (import "fixture" "rt:release'1" (func $rt:release'1 (param i32 i32 i32 i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32 i32 i32)))
+  (import "fixture" "rt:release'2" (func $rt:release'2 (param i32 i32 i32 i32 i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
@@ -44,12 +46,12 @@
     local.tee $t0
     global.set $locals
     block
-      local.get $provider0
       call $rt:forbid_check
       local.get $t0
       i32.const 8
       i32.add
       local.set $t1
+      local.get $provider0
       local.get $path.0
       local.get $path.1
       local.get $t1
@@ -95,16 +97,18 @@
       global.get $rewake
       i32.or
       global.set $rewake
-      i32.const 0
       local.get $path.1
       local.get $provider0
       local.get $provider0.vtable
       local.get $t2
+      call $rt:retain
+      i32.const 0
       local.set $t5
-      local.set $t2
-      local.set $provider0.vtable
-      local.set $provider0
-      local.set $path.1
+      local.get $path.1
+      local.get $provider0
+      local.get $provider0.vtable
+      local.get $t2
+      call $rt:release'1
       local.get $t4
       local.get $t1
       i32.eq
@@ -142,11 +146,11 @@
         block
           block
     ;; 11 |         .Completed(.Ok(_)) => true
-            local.get $path.1
+            local.get $t5
             i32.eqz
             i32.eqz
             br_if 1
-            local.get $provider0
+            local.get $path.1
             i32.eqz
             i32.eqz
             br_if 1
@@ -161,12 +165,12 @@
         br 0
       end
     ;; 9 |     let call: mut Suspend[Result[string, FsError]] = $.use(FsRead).read_text(path)
+      local.get $t5
       local.get $path.1
       local.get $provider0
       local.get $provider0.vtable
       local.get $t2
-      local.get $t5
-      call $rt:release
+      call $rt:release'2
       local.get $t7
       local.set $path.1
     end

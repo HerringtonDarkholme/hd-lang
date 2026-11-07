@@ -2,8 +2,8 @@
 (module
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:ctx_new" (func $rt:ctx_new (param i32 i32) (result i32)))
+  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 10 funcref))
   (func $run (param $ctx i32) (result i32) (local $t0 i32)
@@ -75,18 +75,6 @@
           local.set $s.0
           br 0
         end
-      end
-      local.get $s.0
-      local.tee $t0
-      if
-        local.get $t0
-        call $retain
-      end
-      local.get $s.0
-      local.tee $t0
-      if
-        local.get $t0
-        call $rt:release_ref
       end
       i32.const 1
       i32.const 0

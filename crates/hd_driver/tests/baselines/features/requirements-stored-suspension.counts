@@ -63,6 +63,8 @@ fn later!(key: string) -> usize:
 fn blocking(key: string) -> usize:
     match block_on(fetch(key)):
 > app/main/blocking
+>   retain string (conservative: Call)
+>   release string (conservative: Call)
 >   release Suspend[string] (last use)
 >   release std.task.BlockOn[string] (last use)
         .Completed(v) => v.len()
@@ -81,8 +83,6 @@ fn bound!(s: string) -> usize:
 >   retain &mut app.main.Named (conservative: Ref)
 >   retain app.main.Tag (stored)
 >   release &mut app.main.Named (last use)
->   retain app.main.Tag (stored)
->   release &app.main.Tag (by design)
 >   release app.main.Tag (last use)
 >   release counted reference (last use)
 >   release Suspend[usize] (last use)

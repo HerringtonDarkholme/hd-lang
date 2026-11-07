@@ -6,10 +6,10 @@
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
+  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
@@ -127,12 +127,26 @@
     local.get $text
     local.get $t0
   )
-  (func $through_cell#1 (param $env i32) (param $suffix.0 i32) (param $suffix.1 i32) (param $ctx i32)
+  (func $through_cell#1 (param $env i32) (param $suffix.0 i32) (param $suffix.1 i32) (param $ctx i32) (local $t0 i32)
     ;; 11 |     append := fn(suffix: string) -> void: current += suffix
     local.get $env
     i32.load $heap
     local.set $env
     block
+      local.get $env
+      i32.load $heap
+      local.tee $ctx
+      local.tee $t0
+      if
+        local.get $t0
+        call $retain
+      end
+      local.get $ctx
+      local.tee $t0
+      if
+        local.get $t0
+        call $rt:release_ref'1
+      end
       local.get $env
       i32.load $heap
       local.get $env
@@ -149,8 +163,9 @@
       local.set $ctx
       local.set $suffix.1
       local.get $suffix.0
+      local.tee $t0
       if
-        local.get $suffix.0
+        local.get $t0
         call $rt:release_ref'1
       end
       local.get $env
@@ -161,9 +176,9 @@
       local.get $env
       local.get $ctx
       i32.store $heap offset=4
-      local.tee $suffix.0
+      local.tee $t0
       if
-        local.get $suffix.0
+        local.get $t0
         call $rt:release_ref'1
       end
     end

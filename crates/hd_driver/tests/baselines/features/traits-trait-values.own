@@ -74,11 +74,10 @@ fn boxed(u: User) -> *dyn Greet:
 >   %4 = Store [$2] %3 : ()
 >   %5 = Read move [$2] : Counted[User]
 >   %6 = Coerce %5 [RefToTraitValue -] : Greet
->   %7 = Retain %6 Value #0 : ()
->   %8 = Drop [%5] : ()
->   %9 = Block %6 : Greet
->   %10 = RefDyn %9 : Counted[Greet]
->   %11 = Block %10 : Counted[Greet]
+>   %7 = LoanEnd [%5] : ()
+>   %8 = Block %6 : Greet
+>   %9 = RefDyn %8 : Counted[Greet]
+>   %10 = Block %9 : Counted[Greet]
 >   %2 finds [$1] full
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

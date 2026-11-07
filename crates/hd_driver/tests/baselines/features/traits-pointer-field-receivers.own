@@ -128,12 +128,11 @@ pub fn count(n: i64) -> i64:
 >   %4 = Store [$2] %3 : ()
 >   %5 = Read move [$2] : Counted[mut Counter]
 >   %6 = Coerce %5 [RefToTraitValue -] : Step
->   %7 = Retain %6 Value #0 : ()
->   %8 = Drop [%5] : ()
->   %9 = Block %6 : Step
->   %10 = RefDyn %9 : Counted[mut Step]
->   %11 = NewStruct [%10] : Erased
->   %12 = Call app/main/total[] (%11) : i64
->   %13 = Block %12 : i64
+>   %7 = LoanEnd [%5] : ()
+>   %8 = Block %6 : Step
+>   %9 = RefDyn %8 : Counted[mut Step]
+>   %10 = NewStruct [%9] : Erased
+>   %11 = Call app/main/total[] (%10) : i64
+>   %12 = Block %11 : i64
 >   %3 finds [$1] full
 >   summary kept [] writes

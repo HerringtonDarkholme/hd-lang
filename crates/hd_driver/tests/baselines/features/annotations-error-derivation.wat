@@ -375,6 +375,20 @@
         local.get $self
         local.get $t1
         i32.store $heap offset=8
+        local.get $self
+        local.tee $t3
+        if
+          local.get $t3
+          call $retain
+        end
+    ;; 27 |     @error("cannot read $path")
+        local.get $self
+        local.tee $t3
+        if
+          local.get $t3
+          call $rt:release_ref
+        end
+    ;; 30 |         @source
         i32.const 1
         local.get $self
         i32.const 468 ;; &vtable[func71]
@@ -394,6 +408,20 @@
           local.tee $self
           local.get $t0
           i64.store $heap
+          local.get $self
+          local.tee $t3
+          if
+            local.get $t3
+            call $retain
+          end
+    ;; 33 |     @error("bad config")
+          local.get $self
+          local.tee $t3
+          if
+            local.get $t3
+            call $rt:release_ref
+          end
+    ;; 35 |         @from
           i32.const 1
           local.get $self
           i32.const 492 ;; &vtable[func69]

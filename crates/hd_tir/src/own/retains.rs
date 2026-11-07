@@ -1,9 +1,13 @@
 //! Counts made explicit after a result copies borrowed bits.
 //! The result is an owned value; its existing drops still end that owner.
+//! A count that would only cancel is never written ([`handed`]).
 
 use super::{OwnCx, splice};
 use crate::ir::count::{At, Info, Part};
-use crate::ir::{Body, Callee, Coercion, NONE, Ref, Tag, Topology, u32_of};
+use crate::ir::{
+    Body, Callee, Coercion, NONE, Proj, ReadMode, Ref, Root, Tag, Topology, local_flags, ref_word,
+    u32_of,
+};
 use hd_types::Ty;
 
 pub(super) fn run(
@@ -19,6 +23,10 @@ pub(super) fn run(
         let block = topo.blk[i];
         if block == NONE {
             return Err("a retained borrowed result outside a block".into());
+        }
+        if let Some(drop) = handed(b, cx, topo, i, Tag::Drop) {
+            b.tags[drop as usize] = Tag::LoanEnd;
+            continue;
         }
         let position = topo.pos[i] + 1;
         let members = b.record(b.data[block as usize][0]);
@@ -48,6 +56,157 @@ pub(super) fn run(
         }
     }
     Ok(())
+}
+
+/// The statement of tag `end` (`Drop`, or `LoanEnd` once [`run`] has made it
+/// one) that ends the one count result `i` would take, so neither runs: the
+/// source's right after a coercion that keeps the source's address, whose
+/// count becomes the result's; or, for a provider, its reference's, read only
+/// through, since the body's caller holds the provider for the whole body.
+pub(crate) fn handed(b: &Body, cx: &dyn OwnCx, topo: &Topology, i: usize, end: Tag) -> Option<u32> {
+    let members = member_list(b, topo, i)?;
+    let ends = |x: u32, v: u32| b.tags[x as usize] == end && whole_value(b, x, v);
+    if b.tags[i] == Tag::Coerce {
+        let next = next_after(b, topo, i)?;
+        let source = Ref(b.data[i][0]).as_inst()?;
+        let mut target = b.ty[source.0 as usize];
+        // Through references to a trait value, the result's data is loaded:
+        // another object's count than the source's. A provider reference
+        // keeps the reference's own words.
+        let keeps = b.record(b.data[i][1]).first() == Some(&(Coercion::RefAsProvider as u32));
+        while !keeps && !cx.trait_value(target) {
+            let Some(inner) = cx.reference_target(target) else {
+                break;
+            };
+            if cx.trait_value(inner) {
+                return None;
+            }
+            target = inner;
+        }
+        return (ends(next, source.0) && owns_its_count(b, cx, source.0, 8)).then_some(next);
+    }
+    // A borrowed result dropped at once: nothing wanted the count.
+    if b.tags[i] == Tag::Call {
+        let next = *members.first()?;
+        return ends(next, u32_of(i)).then_some(next);
+    }
+    if b.tags[i] != Tag::ProviderGet {
+        return None;
+    }
+    let (&coercion, rest) = members.split_first()?;
+    if !b.provider_ref(coercion as usize) || b.data[coercion as usize][0] != u32_of(i) {
+        return None;
+    }
+    for &x in rest {
+        if ends(x, coercion) {
+            return Some(x);
+        }
+        if b.tags[x as usize] != Tag::Read
+            || b.view(b.data[x as usize][0]).root != Root::Value(coercion)
+        {
+            return None;
+        }
+    }
+    None
+}
+
+/// Whether value `v` certainly holds a count of its own, whatever the backend
+/// keeps uncounted (its loans start at a local's storage or a borrow, never at
+/// these): a `Ref` that takes its local's count, a call's result, a read through
+/// a reference, a coercion that takes a count or keeps such a value, a `&dyn` or
+/// a block whose every value is one, and a read of a local whose one store is one. A call that lends its
+/// result counts too: a trait-value coercion is no use a short loan allows.
+fn owns_its_count(b: &Body, cx: &dyn OwnCx, v: u32, depth: u32) -> bool {
+    let i = v as usize;
+    if depth == 0 || Ref(v).as_inst().is_none() {
+        return false;
+    }
+    match b.tags[i] {
+        Tag::Ref => b.data[i][1] & ref_word::TAKES != 0,
+        Tag::Call | Tag::CallValue | Tag::CallDyn => true,
+        // A result that takes a count, stated or its source's.
+        Tag::Coerce if result(b, cx, i) => true,
+        Tag::Coerce => b.same_value_coercion(i) && owns_its_count(b, cx, b.data[i][0], depth - 1),
+        Tag::RefDyn => owns_its_count(b, cx, b.data[i][0], depth - 1),
+        // Its tail and each `break` to it.
+        Tag::Block | Tag::Scope => {
+            let tail = if b.tags[i] == Tag::Scope {
+                b.data[i][0]
+            } else {
+                b.data[i][1]
+            };
+            let breaks: Vec<u32> = (0..b.len())
+                .filter(|&x| {
+                    b.tags[x] == Tag::Break && b.label_inst.get(b.data[x][0] as usize) == Some(&v)
+                })
+                .map(|x| b.data[x][1])
+                .collect();
+            (tail != NONE || !breaks.is_empty())
+                && (tail == NONE || owns_its_count(b, cx, tail, depth - 1))
+                && breaks.iter().all(|&x| owns_its_count(b, cx, x, depth - 1))
+        }
+        Tag::Read if b.is_borrow(v) => false,
+        Tag::Read => {
+            let p = b.view(b.data[i][0]);
+            if p.steps(b).next() == Some(Proj::Deref) {
+                return true;
+            }
+            let Some(l) = b.local_read(i) else {
+                return false;
+            };
+            if b.data[i][1] != ReadMode::Move as u32 {
+                return false;
+            }
+            if b.local_flags[l.idx()] & local_flags::PARAM != 0
+                || b.cap_local.iter().any(|c| c.idx() == l.idx())
+            {
+                return false;
+            }
+            let mut stores =
+                (0..b.len()).filter(|&x| b.stored_local(x).is_some_and(|(y, _)| y == l));
+            match (stores.next(), stores.next()) {
+                (Some(x), None) if b.stored_local(x).is_some_and(|(_, whole)| whole) => {
+                    owns_its_count(b, cx, b.data[x][1], depth - 1)
+                }
+                _ => false,
+            }
+        }
+        _ => false,
+    }
+}
+
+/// Whether coercion `i` took its source's count: the next statement ends the
+/// source's loan where a stated retain would stand.
+#[must_use]
+pub fn took_source(b: &Body, topo: &Topology, i: usize) -> bool {
+    next_after(b, topo, i)
+        .is_some_and(|x| b.tags[x as usize] == Tag::LoanEnd && whole_value(b, x, b.data[i][0]))
+}
+
+/// The statement that runs next after `i`: the next in its block; or, past a
+/// `&dyn` built from the block `i` ends, the one after that.
+fn next_after(b: &Body, topo: &Topology, i: usize) -> Option<u32> {
+    if let Some(&x) = member_list(b, topo, i)?.first() {
+        return Some(x);
+    }
+    let block = topo.blk[i] as usize;
+    let owner = *topo.owner.get(block)?;
+    if b.data[block][1] != u32_of(i) || owner == NONE || b.tags[owner as usize] != Tag::RefDyn {
+        return None;
+    }
+    member_list(b, topo, owner as usize)?.first().copied()
+}
+
+/// The statements after `i` in its block.
+fn member_list<'a>(b: &'a Body, topo: &Topology, i: usize) -> Option<&'a [u32]> {
+    let block = topo.blk[i];
+    (block != NONE).then(|| &b.record(b.data[block as usize][0])[topo.pos[i] as usize + 1..])
+}
+
+/// Whether statement `x`'s place is all of value `v`.
+fn whole_value(b: &Body, x: u32, v: u32) -> bool {
+    let p = b.view(b.data[x as usize][0]);
+    p.whole() && p.root == Root::Value(v)
 }
 
 pub(crate) fn result(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {

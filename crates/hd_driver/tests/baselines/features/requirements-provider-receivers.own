@@ -43,7 +43,7 @@ fn count(n: i64) -> void $ Meter:
 >   local $3 $incl: bool [assigned] value
 >     uses $3: none
 >   local $4 i: i64 [read assigned] value
->     uses $4: %12 -> %21 lend last
+>     uses $4: %12 -> %20 lend last
 >   %0 = Read copy [$0] : i64
 >   %1 = NewStruct [0:i64 %0 0:bool] : Range[i64]
 >   %2 = Read copy [%1 .start] : i64
@@ -60,21 +60,20 @@ fn count(n: i64) -> void $ Meter:
 >   %13 = Read copy [$1] : i64
 >   %14 = Prim Add [%13 1:i64] : i64
 >   %15 = Store [$1] %14 : ()
->   %23 = Block - : ()
->   %24 = Break L0 - : never
->   %25 = Block - : ()
->   %26 = If %10 [%23 %25] : ()
->   %27 = Block - : ()
->   %28 = Loop %27 - : ()
->   %29 = Block - : ()
+>   %22 = Block - : ()
+>   %23 = Break L0 - : never
+>   %24 = Block - : ()
+>   %25 = If %10 [%22 %24] : ()
+>   %26 = Block - : ()
+>   %27 = Loop %26 - : ()
+>   %28 = Block - : ()
         $.use(Meter).record(i)
 >   %16 = ProviderGet #22 : Meter
->   %17 = Retain %16 Value #0 : ()
->   %18 = Coerce %16 [ProviderAsRef -] : Ref[mut Meter]
->   %19 = Read borrow [*%18] : mut Meter
->   %20 = Drop [%18] : ()
->   %21 = Read copy [$4] : i64
->   %22 = Call app/main/Meter.record for Meter [] via TraitValue (%19, %21) : ()
+>   %17 = Coerce %16 [ProviderAsRef -] : Ref[mut Meter]
+>   %18 = Read borrow [*%17] : mut Meter
+>   %19 = LoanEnd [%17] : ()
+>   %20 = Read copy [$4] : i64
+>   %21 = Call app/main/Meter.record for Meter [] via TraitValue (%18, %20) : ()
 >   summary kept [] writes
 
 fn count_later!(n: i64, wait: mut Suspend[void]) -> void $ Meter:
@@ -82,21 +81,21 @@ fn count_later!(n: i64, wait: mut Suspend[void]) -> void $ Meter:
 >   local $0 n: i64 [param read] value
 >     uses $0: entry -> %6 consume last
 >   local $1 wait: mut Suspend[()] [param read] value
->     uses $1: entry -> %29 lend
+>     uses $1: entry -> %28 lend
 >   local $2 $cur: i64 [assigned] place
 >   local $3 $end: i64 [assigned] value
 >     uses $3: %11 -> %15 lend
 >   local $4 $incl: bool [assigned] value
 >     uses $4: none
 >   local $5 i: i64 [read assigned] value
->     uses $5: %18 -> %27 lend last
->   %0 = Retain %41 Cold local $1 #0 : ()
->   %1 = Retain %41 Entry local $1 #0 : ()
+>     uses $5: %18 -> %26 lend last
+>   %0 = Retain %40 Cold local $1 #0 : ()
+>   %1 = Retain %40 Entry local $1 #0 : ()
     for i in 0..n:
->   %2 = Retain %41 Cold row #0 : ()
->   %3 = Retain %41 Materialize row #0 : ()
->   %4 = Release %41 FrameDrop row #2 : ()
->   %5 = Release %41 FrameDrop child #2 : ()
+>   %2 = Retain %40 Cold row #0 : ()
+>   %3 = Retain %40 Materialize row #0 : ()
+>   %4 = Release %40 FrameDrop row #2 : ()
+>   %5 = Release %40 FrameDrop child #2 : ()
 >   %6 = Read copy [$0] : i64
 >   %7 = NewStruct [0:i64 %6 0:bool] : Range[i64]
 >   %8 = Read copy [%7 .start] : i64
@@ -113,47 +112,46 @@ fn count_later!(n: i64, wait: mut Suspend[void]) -> void $ Meter:
 >   %19 = Read copy [$2] : i64
 >   %20 = Prim Add [%19 1:i64] : i64
 >   %21 = Store [$2] %20 : ()
->   %34 = Block - : ()
->   %35 = Break L0 - : never
->   %36 = Block - : ()
->   %37 = If %16 [%34 %36] : ()
->   %38 = Block - : ()
->   %39 = Loop %38 - : ()
->   %40 = Drop [$1] : ()
->   %41 = Block - : ()
+>   %33 = Block - : ()
+>   %34 = Break L0 - : never
+>   %35 = Block - : ()
+>   %36 = If %16 [%33 %35] : ()
+>   %37 = Block - : ()
+>   %38 = Loop %37 - : ()
+>   %39 = Drop [$1] : ()
+>   %40 = Block - : ()
         $.use(Meter).record(i)
 >   %22 = ProviderGet #22 : Meter
->   %23 = Retain %22 Value #0 : ()
->   %24 = Coerce %22 [ProviderAsRef -] : Ref[mut Meter]
->   %25 = Read borrow [*%24] : mut Meter
->   %26 = Drop [%24] : ()
->   %27 = Read copy [$5] : i64
->   %28 = Call app/main/Meter.record for Meter [] via TraitValue (%25, %27) : ()
+>   %23 = Coerce %22 [ProviderAsRef -] : Ref[mut Meter]
+>   %24 = Read borrow [*%23] : mut Meter
+>   %25 = LoanEnd [%23] : ()
+>   %26 = Read copy [$5] : i64
+>   %27 = Call app/main/Meter.record for Meter [] via TraitValue (%24, %26) : ()
         wait!()
->   %29 = Read copy [$1] : mut Suspend[()]
->   %30 = AwaitValue %29 : ()
->   %31 = Release %30 Operation child #2 : ()
->   %32 = Retain %30 Operation child #0 : ()
->   %33 = Drop [%29] : ()
+>   %28 = Read copy [$1] : mut Suspend[()]
+>   %29 = AwaitValue %28 : ()
+>   %30 = Release %29 Operation child #2 : ()
+>   %31 = Retain %29 Operation child #0 : ()
+>   %32 = Drop [%28] : ()
 >   exit sub 0 drops [$1]
 >   summary none
->   unwind %30 drops [%29]
+>   unwind %29 drops [%28]
 
 pub fn run(n: i64) -> i64:
     counters := box(Counters { calls: 0, total: 0 })
 > app/main/run
 >   local $0 n: i64 [param read] value
->     uses $0: entry -> %15 lend last
+>     uses $0: entry -> %14 lend last
 >   local $1 $ref: Counters [read assigned captured captured-assigned] place
 >   local $2 counters: Counted[mut Counters] [:= read assigned] value
->     uses $2: %3 -> %4 consume, %20 lend last
+>     uses $2: %3 -> %4 consume, %19 lend last
 >   local $3 $ref: Counted[mut Counters] [read assigned captured] value
 >     uses $3: %5 -> %6 lend last
 >   %0 = NewStruct [0:usize 0:i64] : Counters
 >   %1 = Store [$1] %0 : ()
 >   %2 = Ref take mut [$1] : Counted[mut Counters]
 >   %3 = Store [$2] %2 : ()
->   %22 = Block %20 : i64
+>   %21 = Block %19 : i64
 >   %2 finds [$1] full
     $.with(Meter=counters):
 >   %4 = Read copy [$2] : Counted[mut Counters]
@@ -165,15 +163,14 @@ pub fn run(n: i64) -> i64:
 >   %10 = Block %7 : Meter
 >   %11 = RefDyn %10 : Counted[mut Meter]
 >   %12 = Coerce %11 [RefAsProvider -] : Meter
->   %13 = Retain %12 Value #0 : ()
->   %14 = Drop [%11] : ()
->   %18 = With [Meter %12] %17 : ()
->   %19 = Drop [%12] : ()
+>   %13 = LoanEnd [%11] : ()
+>   %17 = With [Meter %12] %16 : ()
+>   %18 = Drop [%12] : ()
         count(n)
->   %15 = Read copy [$0] : i64
->   %16 = Call app/main/count[] (%15) : ()
->   %17 = Block - : ()
+>   %14 = Read copy [$0] : i64
+>   %15 = Call app/main/count[] (%14) : ()
+>   %16 = Block - : ()
     counters.total
->   %20 = Read copy [*$2 .total] : i64
->   %21 = Drop [$2] : ()
+>   %19 = Read copy [*$2 .total] : i64
+>   %20 = Drop [$2] : ()
 >   summary kept [] writes

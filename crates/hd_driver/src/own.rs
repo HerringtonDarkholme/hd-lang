@@ -301,6 +301,7 @@ thread_local! {
 const PURE_INTRINSICS: &[&str] = &[
     "sqrt",
     "ptr_offset",
+    "mem_string_bytes",
     "ptr_size_of",
     "ptr_ref",
     "ptr_mut",

@@ -34,7 +34,7 @@ match patterns, and later layers patch what they missed.
 
 The result is six layers that each decide some counts: the inliner, the
 TIR passes, the release summaries, the emitter glue, the Wasm cleanup's
-count rules (`opt.rs`: `static_values`, `static_counts`, `count_pairs`) and
+count rules (`opt.rs`: `static_values`, `static_counts`) and
 a link-time fold of `rt:ref_is_view`. Insertion makes every read a copy.
 Five passes then weaken it, each under its own syntactic rule. The audit's
 classes are the shapes no rule matched, and nothing tells us when the

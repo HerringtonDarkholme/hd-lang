@@ -16,6 +16,8 @@ fn through_cell(text: string) -> string:
 >   release string (last use)
     append := fn(suffix: string) -> void: current += suffix
 > app/main/through_cell
+>   retain string (conservative: copy read)
+>   release string (conservative: Intrinsic)
 >   release string (last use)
 >   release string (overwritten)
 >   retain counted reference (stored)

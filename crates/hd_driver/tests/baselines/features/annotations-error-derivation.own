@@ -229,18 +229,18 @@ enum FsError:
 >   local $0 self: Ref[LoadError] [param] value
 >     uses $0: entry -> %0 lend last
 >   local $1 $self: LoadError [assigned] value
->     uses $1: %1 -> %2 consume last, %15 consume last, %28 consume last, %35 lend, %38 lend
+>     uses $1: %1 -> %2 consume last, %14 consume last, %26 consume last, %33 lend, %36 lend
 >   local $2 $ref: FsError [read assigned captured captured-assigned] place
 >   local $3 $ref: Counted[FsError] [read assigned captured] value
 >     uses $3: %5 -> %6 lend last
 >   local $4 $ref: YamlError [read assigned captured captured-assigned] place
 >   local $5 $ref: Counted[YamlError] [read assigned captured] value
->     uses $5: %18 -> %19 lend last
+>     uses $5: %17 -> %18 lend last
 >   local $6 $ref: FsError [read assigned captured captured-assigned] value
 >     uses $6: none
 >   %0 = Read borrow [*$0] : LoadError
 >   %1 = Store [$1] %0 : ()
->   %40 = Block %39 : Counted[Error]?
+>   %38 = Block %37 : Counted[Error]?
 > app/main/error From 1.0 for LoadError.from
 >   local $0 value: YamlError [param] value
 >     uses $0: entry -> %0 consume last
@@ -317,10 +317,10 @@ enum LoadError:
 >   %81 = Block %80 : string
 >   %82 = Read borrow [$1] : LoadError
 >   %83 = SwitchTag %82 [#0 %58 %81] : string
->   %14 = Block %12 : Counted[Error]?
->   %37 = Block %36 : Counted[Error]?
->   %38 = Read borrow [$1] : LoadError
->   %39 = SwitchTag %38 [#0 %14 %37] : Counted[Error]?
+>   %13 = Block %11 : Counted[Error]?
+>   %35 = Block %34 : Counted[Error]?
+>   %36 = Read borrow [$1] : LoadError
+>   %37 = SwitchTag %36 [#0 %13 %35] : Counted[Error]?
     Read(
         path: string,
 >   %2 = Read copy [$1 as #0 .0] : string
@@ -331,12 +331,11 @@ enum LoadError:
 >   %5 = Store [$3] %4 : ()
 >   %6 = Read move [$3] : Counted[FsError]
 >   %7 = Coerce %6 [RefToTraitValue -] : Error
->   %8 = Retain %7 Value #0 : ()
->   %9 = Drop [%6] : ()
->   %10 = Block %7 : Error
->   %11 = RefDyn %10 : Counted[Error]
->   %12 = Coerce %11 [WrapSome -] : Counted[Error]?
->   %13 = Drop [%11] : ()
+>   %8 = LoanEnd [%6] : ()
+>   %9 = Block %7 : Error
+>   %10 = RefDyn %9 : Counted[Error]
+>   %11 = Coerce %10 [WrapSome -] : Counted[Error]?
+>   %12 = Drop [%10] : ()
 >   %4 finds [$2] full
         error: FsError,
     )
@@ -345,25 +344,24 @@ enum LoadError:
 >   %78 = Block %77 : string
 >   %79 = Read borrow [$1] : LoadError
 >   %80 = SwitchTag %79 [#1 %59 %78] : string
->   %27 = Block %25 : Counted[Error]?
->   %34 = Block %33 : Counted[Error]?
->   %35 = Read borrow [$1] : LoadError
->   %36 = SwitchTag %35 [#1 %27 %34] : Counted[Error]?
+>   %25 = Block %23 : Counted[Error]?
+>   %32 = Block %31 : Counted[Error]?
+>   %33 = Read borrow [$1] : LoadError
+>   %34 = SwitchTag %33 [#1 %25 %32] : Counted[Error]?
     Yaml(
         @from
->   %15 = Read copy [$1 as #1 .0] : YamlError
->   %16 = Store [$4] %15 : ()
->   %17 = Ref take [$4] : Counted[YamlError]
->   %18 = Store [$5] %17 : ()
->   %19 = Read move [$5] : Counted[YamlError]
->   %20 = Coerce %19 [RefToTraitValue -] : Error
->   %21 = Retain %20 Value #0 : ()
->   %22 = Drop [%19] : ()
->   %23 = Block %20 : Error
->   %24 = RefDyn %23 : Counted[Error]
->   %25 = Coerce %24 [WrapSome -] : Counted[Error]?
->   %26 = Drop [%24] : ()
->   %17 finds [$4] full
+>   %14 = Read copy [$1 as #1 .0] : YamlError
+>   %15 = Store [$4] %14 : ()
+>   %16 = Ref take [$4] : Counted[YamlError]
+>   %17 = Store [$5] %16 : ()
+>   %18 = Read move [$5] : Counted[YamlError]
+>   %19 = Coerce %18 [RefToTraitValue -] : Error
+>   %20 = LoanEnd [%18] : ()
+>   %21 = Block %19 : Error
+>   %22 = RefDyn %21 : Counted[Error]
+>   %23 = Coerce %22 [WrapSome -] : Counted[Error]?
+>   %24 = Drop [%22] : ()
+>   %16 finds [$4] full
         error: YamlError,
     )
     @error(transparent)
@@ -388,12 +386,12 @@ enum LoadError:
 >   %76 = Block - : string
 >   %77 = Scope %76 [] : string
 >   summary kept [] writes relies [$0]
->   %28 = Read borrow [$1 as #2 .0] : FsError
->   %29 = Store [$6] %28 : ()
->   %30 = NewVariant #0 [] : Counted[Error]?
->   %31 = Break L0 %30 : never
->   %32 = Block - : Counted[Error]?
->   %33 = Scope %32 [] : Counted[Error]?
+>   %26 = Read borrow [$1 as #2 .0] : FsError
+>   %27 = Store [$6] %26 : ()
+>   %28 = NewVariant #0 [] : Counted[Error]?
+>   %29 = Break L0 %28 : never
+>   %30 = Block - : Counted[Error]?
+>   %31 = Scope %30 [] : Counted[Error]?
 >   summary kept []
         error: FsError,
     )

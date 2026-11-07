@@ -57,10 +57,12 @@ impl Em<'_, '_, '_> {
         self.retain_locals(&locals, self.ty_of(value))
     }
 
-    /// Read the explicit result count, without deciding one from its layout.
+    /// Read the explicit result count, without deciding one from its layout:
+    /// a stated retain, or the source's count taken over.
     pub(super) fn has_stated_retain(&self, value: u32) -> bool {
         hd_tir::ir::count::following(self.b, &self.topo, value, Tag::Retain)
             == Some(Info::new(At::Value, Part::Result, 0))
+            || hd_tir::own::took_source(self.b, &self.topo, value as usize)
     }
 
     /// Whether `Store` `i` releases what its place holds.

@@ -7,7 +7,7 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 10 funcref))
-  (func $lexical (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
+  (func $lexical (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 36 |     $.with(Tag=Named { label: s }):
     block
       block
@@ -27,25 +27,15 @@
         end
       end
       local.get $s.0
-      local.tee $t0
-      if
-        local.get $t0
-        call $retain
-      end
-      local.get $s.0
-      local.tee $t0
-      if
-        local.get $t0
-        call $rt:release_ref'1
-      end
-      i32.const 160 ;; &vtable[func63]
       local.set $s.1
+      i32.const 160 ;; &vtable[func63]
+      local.set $t0
       block
     ;; 37 |         tag := $.use(Tag)
-        local.get $s.0
-        local.tee $t0
+        local.get $s.1
+        local.tee $t1
         if
-          local.get $t0
+          local.get $t1
           call $retain
         end
     ;; 38 |         apply(fn() -> usize: tag.name().len())
@@ -53,20 +43,20 @@
         i32.const 8
         i32.const -2147483646
         call $rt:new/class-1
-        local.tee $t0
-    ;; 37 |         tag := $.use(Tag)
-        local.get $s.0
-    ;; 38 |         apply(fn() -> usize: tag.name().len())
-        i32.store $heap
-        local.get $t0
+        local.tee $t1
     ;; 37 |         tag := $.use(Tag)
         local.get $s.1
+    ;; 38 |         apply(fn() -> usize: tag.name().len())
+        i32.store $heap
+        local.get $t1
+    ;; 37 |         tag := $.use(Tag)
+        local.get $t0
     ;; 38 |         apply(fn() -> usize: tag.name().len())
         i32.store $heap offset=4
         drop
         block
           block
-            local.get $t0
+            local.get $t1
             i32.const 0
             call $lexical#1
             local.set $s.1
@@ -74,26 +64,26 @@
           end
         end
     ;; 36 |     $.with(Tag=Named { label: s }):
-        local.get $t0
-        local.tee $t0
+        local.get $t1
+        local.tee $t1
         if
-          local.get $t0
+          local.get $t1
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $t0
-            call $rt:release_ref'2
+            local.get $t1
+            call $rt:release_ref'1
           end
         end
       end
       local.get $s.0
-      local.tee $t0
+      local.tee $t1
       if
-        local.get $t0
-        call $rt:release_ref'1
+        local.get $t1
+        call $rt:release_ref'2
       end
       local.get $s.1
       local.set $s.0
@@ -123,7 +113,7 @@
       local.tee $t0
       if
         local.get $t0
-        call $rt:release_ref'1
+        call $rt:release_ref'2
       end
       local.set $ctx
       local.set $env
@@ -136,7 +126,7 @@
       local.tee $t0
       if
         local.get $t0
-        call $rt:release_ref'1
+        call $rt:release_ref'2
       end
       local.get $ctx
       local.set $env
@@ -171,7 +161,7 @@
       local.get $provider0
       if
         local.get $provider0
-        call $rt:release_ref'1
+        call $rt:release_ref'2
       end
       local.get $provider0.vtable
       local.set $provider0
@@ -198,32 +188,21 @@
         end
       end
       local.get $s.0
-      local.tee $t0
-      if
-        local.get $t0
-        call $retain
-      end
-      local.get $s.0
-      local.tee $t0
-      if
-        local.get $t0
-        call $rt:release_ref'1
-      end
-      i32.const 160 ;; &vtable[func63]
       local.set $s.1
+      i32.const 160 ;; &vtable[func63]
+      local.set $t0
       block
     ;; 24 |         read_tag()
-        local.get $s.0
         local.get $s.1
+        local.get $t0
         call $read_tag
     ;; 23 |     $.with(Tag=Named { label: s }):
         local.set $s.1
       end
       local.get $s.0
-      local.tee $t0
       if
-        local.get $t0
-        call $rt:release_ref'1
+        local.get $s.0
+        call $rt:release_ref'2
       end
       local.get $s.1
       local.set $s.0
@@ -257,23 +236,13 @@
         end
       end
       local.get $a.0
-      local.tee $t0
-      if
-        local.get $t0
-        call $retain
-      end
-      local.get $a.0
-      local.tee $t0
-      if
-        local.get $t0
-        call $rt:release_ref'1
-      end
-      i32.const 160 ;; &vtable[func63]
       local.set $a.1
+      i32.const 160 ;; &vtable[func63]
+      local.set $t0
       block
     ;; 28 |         outer := read_tag()
-        local.get $a.0
         local.get $a.1
+        local.get $t0
         call $read_tag
         local.set $a.1
     ;; 29 |         $.with(Tag=Named { label: b }):
@@ -294,45 +263,32 @@
           end
         end
         local.get $b.0
-        local.tee $b.1
-        local.tee $t0
-        if
-          local.get $t0
-          call $retain
-        end
-        local.get $b.0
-    ;; 27 |     $.with(Tag=Named { label: a }):
-        local.tee $t0
-        if
-          local.get $t0
-          call $rt:release_ref'1
-        end
-    ;; 29 |         $.with(Tag=Named { label: b }):
+        local.set $b.1
         i32.const 160 ;; &vtable[func63]
-        local.set $b.0
+        local.set $t0
         block
     ;; 30 |             outer + read_tag()
           local.get $a.1
           local.get $b.1
-          local.get $b.0
+          local.get $t0
           call $read_tag
           i32.add
     ;; 29 |         $.with(Tag=Named { label: b }):
           local.set $a.1
         end
     ;; 27 |     $.with(Tag=Named { label: a }):
-        local.get $b.1
-        local.tee $t0
+        local.get $b.0
+        local.tee $b.0
         if
-          local.get $t0
-          call $rt:release_ref'1
+          local.get $b.0
+          call $rt:release_ref'2
         end
       end
       local.get $a.0
-      local.tee $t0
+      local.tee $b.0
       if
-        local.get $t0
-        call $rt:release_ref'1
+        local.get $b.0
+        call $rt:release_ref'2
       end
       local.get $a.1
       local.set $a.0

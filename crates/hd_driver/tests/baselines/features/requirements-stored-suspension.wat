@@ -266,8 +266,6 @@
         end
         local.get $t19
         local.get $t20
-        local.set $t22
-        local.tee $t21
         i32.const 0
         local.set $t19
         i32.const 0
@@ -288,20 +286,8 @@
         end
         i32.const 0
         local.set $t9
-        local.get $t22
         local.set $t24
-        local.tee $t23
-        local.tee $t40
-        if
-          local.get $t40
-          call $retain
-        end
-        local.get $t21
-        local.tee $t40
-        if
-          local.get $t40
-          call $rt:release_ref'2
-        end
+        local.set $t23
         i32.const 0
         local.set $t21
         i32.const 0
@@ -2235,7 +2221,7 @@
     end
     i32.const 0
   )
-  (func $blocking (param $key.0 i32) (param $key.1 i32) (result i32) (local $t0 i32) (local $v.1 i32) (local $t1 i32)
+  (func $blocking (param $key.0 i32) (param $key.1 i32) (result i32) (local $t0 i32) (local $v.1 i32) (local $t2 i32) (local $t1 i32)
     ;; 33 |     match block_on(fetch(key)):
     block
       call $rt:forbid_check
@@ -2245,23 +2231,33 @@
       call $fetch'1
       local.set $t0
       local.set $key.1
-      local.set $key.0
+      local.tee $key.0
+      local.tee $t1
+      if
+        local.get $t1
+        call $retain
+      end
       i32.const 0
-      local.get $key.0
       local.get $key.1
       local.set $v.1
       local.set $key.1
-      local.set $key.0
-      local.get $t0
+      local.get $key.0
+      local.tee $t1
       if
-        local.get $t0
+        local.get $t1
+        call $rt:release_ref'2
+      end
+      local.get $t0
+      local.tee $t1
+      if
+        local.get $t1
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t0
+          local.get $t1
           call $rt:release_ref'1
         end
       end
@@ -2269,7 +2265,7 @@
         block
           block
     ;; 34 |         .Completed(v) => v.len()
-            local.get $key.0
+            local.get $key.1
             i32.eqz
             i32.eqz
             br_if 1
@@ -2281,7 +2277,7 @@
           block
             block
               local.get $v.1
-              local.set $t1
+              local.set $t2
               br 0
             end
           end
@@ -2290,11 +2286,11 @@
         end
         br 0
       end
-      local.get $key.0
       local.get $key.1
+      local.get $key.0
       local.get $v.1
       call $rt:release
-      local.get $t1
+      local.get $t2
       local.set $key.0
     end
     local.get $key.0

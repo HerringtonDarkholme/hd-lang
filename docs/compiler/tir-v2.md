@@ -1251,7 +1251,7 @@ audit on the commits that touch the emitter).
    instead of the first field's whole value; one function,
    `std.regex.literal_near`, gains a retain and release of the string
    `vm.filter.literal`, because the count now sits inside the
-   physical branch's `block`, where `opt::count_pairs` stops, where
+   physical branch's `block`, where the Wasm pair rule of the time stopped, where
    before a borrowed `filter` let a `Field` outside the block count
    the string next to its release. Other differences are suspending
    bodies whose releases move with instruction numbering, since

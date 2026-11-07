@@ -1671,9 +1671,8 @@ impl Module {
             .filter_map(|(id, f)| Some((id, f.as_mut()?)))
         {
             if let Some(r) = self.runtime {
-                // Not short-circuited: both rules run.
                 let constant = crate::opt::static_counts(f, r.retain, &arity, &static_params[id]);
-                if crate::opt::count_pairs(f, r.retain) | constant {
+                if constant {
                     crate::opt::locals(f, &arity);
                 }
             }

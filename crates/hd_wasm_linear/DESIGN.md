@@ -2500,7 +2500,7 @@ references, and open values.
   on a release `Tracing` too, since a gray object's count can reach 0 in a
   mark; any other address, null. The runtime's own helpers keep plain calls:
   their fields mostly hold real counts, and the test there made binary_trees
-  10% slower. It runs after `static_counts`, `count_pairs` and
+  10% slower. It runs after `static_counts` and
   `effect_free_calls`, which see the plain calls, and before `coalesce`. A
   checked build reports what it skips (`hd.skipped`).
 - **Inline fast paths** (issue #644, `opt::inline_counts`), for the
