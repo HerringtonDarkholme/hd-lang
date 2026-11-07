@@ -364,6 +364,7 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
                 Part::Local(l) => ops.push(format!("local ${l}")),
                 Part::Row => ops.push("row".into()),
                 Part::Child => ops.push("child".into()),
+                Part::Waker => ops.push("waker".into()),
                 Part::Operand(n) => ops.push(format!("operand {n}")),
             }
             ops.push(format!("#{}", info.reason));

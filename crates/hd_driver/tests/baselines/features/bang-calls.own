@@ -51,40 +51,41 @@ fn both!(a: string, b: string) -> usize:
 >     uses $1: entry -> %6 lend last
 >   local $2 x: string [read assigned captured] place
 >   local $3 y: string [read assigned captured] place
->   %0 = Retain %30 Cold local $0 #0 : ()
->   %1 = Retain %30 Entry local $0 #0 : ()
->   %2 = Retain %30 Cold local $1 #0 : ()
->   %3 = Retain %30 Entry local $1 #0 : ()
+>   %0 = Retain %31 Cold local $0 #0 : ()
+>   %1 = Retain %31 Entry local $0 #0 : ()
+>   %2 = Retain %31 Cold local $1 #0 : ()
+>   %3 = Retain %31 Entry local $1 #0 : ()
     let (x, y) = join!(label(a), label(b))
 >   %4 = Read move [$0] : string
 >   %5 = Call app/main/label[] (%4) : mut Suspend[string]
 >   %6 = Read move [$1] : string
 >   %7 = Call app/main/label[] (%6) : mut Suspend[string]
 >   %8 = AwaitAll [%5 %7] : (string, string)
->   %9 = Drop [%7] : ()
->   %10 = Drop [%6] : ()
->   %11 = Drop [%5] : ()
->   %12 = Drop [%4] : ()
->   %13 = Block - : ()
->   %14 = Read move [%8 .0] : string
->   %15 = Read move [%8 .1] : string
->   %16 = Store [$2] %14 : ()
->   %17 = Store [$3] %15 : ()
->   %19 = Block - : never
->   %20 = Match %8 [%19 %13] : ()
->   %30 = Block %29 : usize
+>   %9 = Release %8 Operation waker #2 : ()
+>   %10 = Drop [%7] : ()
+>   %11 = Drop [%6] : ()
+>   %12 = Drop [%5] : ()
+>   %13 = Drop [%4] : ()
+>   %14 = Block - : ()
+>   %15 = Read move [%8 .0] : string
+>   %16 = Read move [%8 .1] : string
+>   %17 = Store [$2] %15 : ()
+>   %18 = Store [$3] %16 : ()
+>   %20 = Block - : never
+>   %21 = Match %8 [%20 %14] : ()
+>   %31 = Block %30 : usize
     x.len() + y.len()
->   %21 = Ref local [$2] : Counted[string]
->   %22 = Call std/text/impl string.len[] (%21) : usize
->   %23 = Drop [%21] : ()
->   %24 = Drop [$2] : ()
->   %25 = Ref local [$3] : Counted[string]
->   %26 = Call std/text/impl string.len[] (%25) : usize
->   %27 = Drop [%25] : ()
->   %28 = Drop [$3] : ()
->   %29 = Prim Add [%22 %26] : usize
->   %21 finds [$2] full
->   %25 finds [$3] full
+>   %22 = Ref local [$2] : Counted[string]
+>   %23 = Call std/text/impl string.len[] (%22) : usize
+>   %24 = Drop [%22] : ()
+>   %25 = Drop [$2] : ()
+>   %26 = Ref local [$3] : Counted[string]
+>   %27 = Call std/text/impl string.len[] (%26) : usize
+>   %28 = Drop [%26] : ()
+>   %29 = Drop [$3] : ()
+>   %30 = Prim Add [%23 %27] : usize
+>   %22 finds [$2] full
+>   %26 finds [$3] full
 >   exit sub 0 drops [$0 $1]
 >   summary none
 >   unwind %8 drops [%4 %5 %6 %7]

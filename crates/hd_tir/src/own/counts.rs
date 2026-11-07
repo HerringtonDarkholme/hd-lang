@@ -1,6 +1,6 @@
 //! Shared writing and verification of operation and function-boundary count statements.
 
-use super::{OwnCx, abi, cache, child, cold, cold_row, map_key, splice};
+use super::{OwnCx, abi, cache, child, cold, cold_row, map_key, splice, waker};
 use crate::ir::{
     Body, Tag, Topology,
     count::{At, Info, Part},
@@ -37,6 +37,7 @@ fn expected(b: &Body, cx: &dyn OwnCx) -> Vec<(Tag, u32, Info)> {
         }
     }
     out.extend(child::counts(b));
+    out.extend(waker::counts(b));
     out.extend(
         (0..b.len())
             .filter(|&i| map_key::needed(b, cx, i))
