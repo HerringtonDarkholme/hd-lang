@@ -32,6 +32,18 @@ use crate::module::Val;
 use crate::rt::Helper;
 
 impl Em<'_, '_, '_> {
+    /// The source constructor's explicit capture of its requirement row.
+    pub(super) fn cold_row_copy(&self) -> Option<Reason> {
+        let root = self.b.sub_root[0];
+        self.b
+            .record(self.b.data[root as usize][0])
+            .iter()
+            .find_map(|&i| {
+                (self.b.tags[i as usize] == Tag::ColdRowCopy)
+                    .then(|| Reason::from_word(self.b.data[i as usize][1]))
+            })
+    }
+
     /// The source parameter's explicitly declared cold-frame argument copy.
     pub(super) fn cold_copy(&self, local: usize) -> Option<Reason> {
         let word = u32::try_from(local).expect("local") | hd_tir::ir::place::BARE_LOCAL;

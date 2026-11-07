@@ -1,0 +1,8 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: the cold frame declares its provider-row copy; the existing capture and release order stays.
+trait Value:
+    fn value(&self) -> i32
+
+fn read!() -> i32 $ Value:
+    $.use(Value).value()
