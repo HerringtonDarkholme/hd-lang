@@ -30,8 +30,15 @@ match_same_arms = "allow"
 # Light optimization in dev keeps debug assertions and overflow checks on
 # while tests run about as fast as release (local gate ~81 s against
 # ~178 s at opt-level 0; owner, 2026-10-11, task #299).
+#
+# A one-line hd_tir edit rebuilds the gate's binaries in 353 G instructions, not
+# 1,040 G. Local ThinLTO was most of that, and full debuginfo most of the rest.
+# Tests run 8% more instructions for it. Backtraces keep their files and lines;
+# a debugger loses local variables.
 [profile.dev]
 opt-level = 1
+lto = "off"
+debug = "line-tables-only"
 
 # The playground's compiler wasm (scripts/build-web-compiler.js, which
 # also compresses the linker's relocations). Only that build selects it
