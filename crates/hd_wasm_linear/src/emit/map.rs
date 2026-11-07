@@ -9,7 +9,7 @@ use crate::op::Op as I;
 use hd_base::StageResult;
 use hd_mono::layout::{StdKind, inline_map_key, strip_newtype};
 use hd_mono::{CallTarget, Target, TargetKind, subst};
-use hd_tir::ir::count::{At, Info, Part};
+use hd_tir::ir::count::Part;
 use hd_tir::ir::{Callee, IntrinsicOp, NONE, Place, PlaceRoot, Proj, Tag};
 use hd_types::{Ty, TyData};
 use wasm_encoder::BlockType;
@@ -210,23 +210,8 @@ impl Em<'_, '_, '_> {
         probe
     }
 
-    /// Puts the key in locals `kl` (hash `h`) with value `v` into the map
-    /// table in local `m`, which then holds the table, moved when it grew:
-    /// the table takes a count of each, a collection's through its copy
-    /// glue (`types.coll.value`).
-    fn map_put(
-        &mut self,
-        m: u32,
-        (kt, vt): (Ty, Ty),
-        (e, ops): (&Entry, &KeyOps),
-        (kl, h, probe): (&[u32], u32, u32),
-        v: &Src,
-    ) -> StageResult<()> {
-        self.retain_locals(kl, kt)?;
-        self.map_put_taking_key(m, vt, (e, ops), (kl, h, probe), v)
-    }
-
-    /// [`Em::map_put`] of a key whose count the table takes as it stands.
+    /// Puts a key whose count the table takes as it stands, and a value
+    /// whose copy or transfer follows its TIR consumer, into the table.
     fn map_put_taking_key(
         &mut self,
         m: u32,
@@ -573,12 +558,8 @@ impl Em<'_, '_, '_> {
                 let probe = self.map_find(m, h, &kl, &e, &ops);
                 (kl, h, probe)
             };
-            if let Some(info) = hd_tir::ir::count::following(self.b, &self.topo, i, Tag::Retain)
-                && info == Info::new(At::Operation, Part::Operand(1), 0)
-            {
-                self.because(hd_tir::own::Reason::from_word(info.reason), |s| {
-                    s.retain_locals(&kl, kt)
-                })?;
+            if let Some(reason) = self.operation_count(i, Tag::Retain, Part::Operand(1)) {
+                self.because(reason, |s| s.retain_locals(&kl, kt))?;
             }
             self.map_put_taking_key(m, vt, (&e, &ops), (&kl, h, probe), &Src::Ref(args[2]))?;
             return self.put_back(args[0], m);
@@ -794,9 +775,14 @@ impl Em<'_, '_, '_> {
         self.f.op(I::Else);
         if let Some(default) = default {
             let inserted = self.f.local(Val::I32);
-            self.map_put(
+            if let Some(reason) = self.operation_count(i, Tag::Retain, Part::Operand(1)) {
+                self.because(reason, |s| s.retain_locals(&kl, kt))?;
+            } else if self.counted(kt).is_some() {
+                return unsupported("an inserting map probe without its stated key copy");
+            }
+            self.map_put_taking_key(
                 m,
-                (kt, vt),
+                vt,
                 (&entry, &ops),
                 (&kl, hash, found),
                 &Src::Ref(default),
