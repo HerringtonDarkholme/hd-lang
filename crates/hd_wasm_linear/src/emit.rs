@@ -130,11 +130,8 @@ fn body_func<'a>(
         && own.cold.is_none()
         && input.runtime.is_some();
     let promoted = promote::promoted_refs(input, m, b, (item, args), targets, pick)?;
-    // Where each local lives (`Body::storage`): a frame slot only in a
-    // plain function's root, at a runtime that counts (§23.38).
-    let slots_here = sub == 0 && !suspending && own.cold.is_none() && input.runtime.is_some();
-    let (stored, slots) =
-        closure::stored_locals(input, b, (item, args), sub, &promoted, slots_here);
+    // Where each local lives (`Body::storage`).
+    let (stored, slots) = closure::stored_locals(input, b, (item, args), sub, &promoted);
     let cells = closure::cell_locals(b, &stored);
     let direct_json = input.direct_json_encoders.contains(&own.key);
     let inst = (m.inst_of.get(&own.key).copied()).unwrap_or(InstId::from_raw(u32::MAX));

@@ -73,18 +73,16 @@ pub(super) fn shared_locals(b: &Body) -> hd_base::HashSet<usize> {
 }
 
 /// The locals of sub-body `sub` that the passes put in a cell or a frame
-/// slot (`Body::storage`), and those of them in a slot, once the inputs
-/// that arrive after the passes apply. A promoted argument reads its
-/// local's value (§23.40), so a local that only promoted references reach
-/// and no closure shares stays in Wasm locals; and a body with no slots
-/// (`slots_here` false) keeps a slot's local in a cell.
+/// slot (`Body::storage`), and those of them in a slot, once promoted
+/// arguments apply: one reads its local's value (§23.40), so a local that
+/// only promoted references reach and no closure shares stays in Wasm
+/// locals.
 pub(super) fn stored_locals(
     input: &crate::Input<'_>,
     b: &Body,
     (item, args): (hd_base::DefId, hd_types::TyList),
     sub: u16,
     promoted: &HashSet<u32>,
-    slots_here: bool,
 ) -> (Vec<usize>, Vec<usize>) {
     let (pool, env) = (input.pool, input.env);
     let shared = if promoted.is_empty() {
@@ -112,7 +110,7 @@ pub(super) fn stored_locals(
     for &(s, l, k) in &b.storage {
         if s.idx() == usize::from(sub) && reached(l.idx()) {
             cells.push(l.idx());
-            if k == hd_tir::ir::Storage::Slot && slots_here {
+            if k == hd_tir::ir::Storage::Slot {
                 slots.push(l.idx());
             }
         }
