@@ -33,10 +33,9 @@ use crate::rt::Helper;
 use crate::{Input, unsupported};
 
 mod borrow;
-mod elide;
 mod loan_facts;
 pub(crate) use borrow::global_root;
-pub(crate) use elide::LoanSite;
+pub(crate) use hd_tir::own::pointer::LoanSite;
 mod closure;
 mod count;
 mod ctx;

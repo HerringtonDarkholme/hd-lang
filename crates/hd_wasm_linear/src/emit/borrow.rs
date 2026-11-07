@@ -108,7 +108,7 @@ pub(super) struct Borrows {
     binds: HashMap<u32, Vec<(Held, Bind)>>,
     /// The `Ref`s whose loans a holder takes, and the objects each one
     /// crossed, once emitted: the header address, the pointer's key, and
-    /// whether elision keeps that loan (`elide.rs`).
+    /// whether elision keeps that loan (`hd_tir::own::pointer`).
     refs: HashMap<u32, Vec<(u32, Option<usize>, bool)>>,
     /// Each holder's loans, the last crossing first: the local of the
     /// object's header address (0 while the holder holds none), and the
@@ -1500,8 +1500,8 @@ impl Em<'_, '_, '_> {
     /// argument `a`: the result's loans, until the holder's release. They
     /// are the argument's objects, as its evaluation found them, and the
     /// object the result points into, which the page table finds, where
-    /// the callee's reference reaches one more object (`elide.rs`). The
-    /// last of them takes the result's kind; the others are shared.
+    /// the callee's reference reaches one more object (`hd_tir::own::pointer`).
+    /// The last of them takes the result's kind; the others are shared.
     fn borrow_result(&mut self, i: u32, held: Held, a: u32) {
         let Some(v) = direct_value(self.b, a) else {
             return;

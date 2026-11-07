@@ -1072,15 +1072,15 @@ pub struct Module {
     /// `emit/borrow.rs`), true where the loan may be exclusive; empty, no
     /// access through a `*T` checks a borrow state.
     pub lent: hd_base::HashMap<hd_types::Ty, bool>,
-    /// The pointer loans elision keeps (`emit/elide.rs`): by instance, the
-    /// instruction that takes the loan, and the dereference it lies at.
+    /// The pointer loans elision keeps (`hd_tir::own::pointer`): by instance,
+    /// the instruction that takes the loan, and the dereference it lies at.
     pub kept: hd_base::HashSet<crate::emit::LoanSite>,
     /// The stores of a call's result whose callee's reference reaches one
     /// more object than its argument, which the page table finds.
     pub result_inner: hd_base::HashSet<(hd_base::InstId, u32)>,
     /// The types of the objects a trait value of each trait may hold:
     /// those the program converts to it or to a trait below it
-    /// (`emit/elide.rs`), so a loan on a `*mut dyn` receiver's object
+    /// (`hd_tir::own::pointer`), so a loan on a `*mut dyn` receiver's object
     /// holds one of them.
     pub dyn_types: hd_base::HashMap<hd_base::DefId, Vec<hd_types::Ty>>,
     /// Reachable program operations or exported entry hooks can cancel.
