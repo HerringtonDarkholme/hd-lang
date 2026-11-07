@@ -69,11 +69,11 @@
     },
     {
       "reason": "conservative: source call",
-      "sites": 460
+      "sites": 453
     },
     {
       "reason": "conservative: unique",
-      "sites": 55
+      "sites": 39
     },
     {
       "reason": "conservative: unowned parameter",

@@ -27,16 +27,16 @@
     {
       "program": "bench/runtime/progs/inventory.hd",
       "retained": "6400000",
-      "released": "6400522",
-      "uniques": "6400002",
-      "total": "19200524"
+      "released": "6400521",
+      "uniques": "6400000",
+      "total": "19200521"
     },
     {
       "program": "bench/runtime/progs/iter-pipeline.hd",
       "retained": "2000",
-      "released": "4016",
-      "uniques": "20000",
-      "total": "26016"
+      "released": "4015",
+      "uniques": "0",
+      "total": "6015"
     },
     {
       "program": "bench/runtime/progs/list-sort.hd",
@@ -48,16 +48,16 @@
     {
       "program": "bench/runtime/progs/list-stdlib-sort.hd",
       "retained": "1",
-      "released": "44",
-      "uniques": "4000",
-      "total": "4045"
+      "released": "42",
+      "uniques": "1998",
+      "total": "2041"
     },
     {
       "program": "bench/runtime/progs/log-stats.hd",
       "retained": "5760129",
-      "released": "6660314",
-      "uniques": "9",
-      "total": "12420452"
+      "released": "6660312",
+      "uniques": "3",
+      "total": "12420444"
     },
     {
       "program": "bench/runtime/progs/map-count-long.hd",
@@ -132,9 +132,9 @@
     {
       "program": "bench/runtime/progs/uniq-list-sort.hd",
       "retained": "0",
-      "released": "7",
-      "uniques": "4000",
-      "total": "4007"
+      "released": "5",
+      "uniques": "1998",
+      "total": "2003"
     },
     {
       "program": "bench/study/binary_trees.hd",
@@ -181,16 +181,16 @@
     {
       "program": "bench/study/map_count.hd",
       "retained": "5000000",
-      "released": "7500039",
-      "uniques": "2500000",
-      "total": "15000039"
+      "released": "7500038",
+      "uniques": "0",
+      "total": "12500038"
     },
     {
       "program": "bench/study/nbody.hd",
       "retained": "0",
       "released": "2",
-      "uniques": "14000001",
-      "total": "14000003"
+      "uniques": "0",
+      "total": "2"
     },
     {
       "program": "bench/study/points.hd",
