@@ -165,7 +165,9 @@ pub(crate) struct Tables {
     exposed: Vec<u64>,
     unframed: Vec<u64>,
     mask: Vec<u64>,
-    crossed: Vec<(u32, Dropped)>,
+    /// (bit, what a `Drop` it crossed empties): a value, or the local count
+    /// past the values plus a local.
+    crossed: Vec<(u32, u32)>,
     excl_reads: Vec<(u32, u32, u32)>,
     receives: Vec<(u32, u32)>,
     // The links of each bit's source by key, in rows.
@@ -482,7 +484,14 @@ impl Tables {
                 if hit && w.dropped == Dropped::Nothing {
                     put(&mut self.changed, bit);
                 } else if hit {
-                    self.crossed.push((bit, w.dropped));
+                    self.crossed.push((
+                        bit,
+                        match w.dropped {
+                            Dropped::Value(v) => v,
+                            Dropped::Local(l) => u32_of(self.v.len()) + l,
+                            Dropped::Nothing => unreachable!("a `Drop` of a whole place"),
+                        },
+                    ));
                 }
             }
         }
@@ -905,14 +914,21 @@ fn sources(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
             }
         }
     }
-    t.key_rows.sort_stable_by_key(|&(bit, l)| (l.key, bit));
+    // Rows by key, keeping each key's bits in order.
     let keys = locals as usize + b.len();
     fill(&mut t.key_start, keys + 2, 0);
     for &(_, l) in &t.key_rows {
-        t.key_start[l.key as usize + 1] += 1;
+        t.key_start[l.key as usize + 2] += 1;
     }
-    for k in 0..=keys {
-        t.key_start[k + 1] += t.key_start[k];
+    for k in 2..keys + 2 {
+        t.key_start[k] += t.key_start[k - 1];
+    }
+    let rows = std::mem::take(&mut t.key_rows);
+    t.key_rows.clone_from(&rows);
+    for &row in &rows {
+        let at = &mut t.key_start[row.1.key as usize + 1];
+        t.key_rows[*at as usize] = row;
+        *at += 1;
     }
 }
 
@@ -1086,14 +1102,13 @@ fn crossed_ok(b: &Body, t: &Tables, bit: u32) -> bool {
     t.crossed[lo..]
         .iter()
         .take_while(|c| c.0 == bit)
-        .all(|&(_, d)| match d {
-            Dropped::Nothing => true,
-            Dropped::Value(v) => {
-                let f = t.v[v as usize];
-                b.provider_ref(v as usize)
+        .all(|&(_, d)| match d.checked_sub(u32_of(b.len())) {
+            None => {
+                let f = t.v[d as usize];
+                b.provider_ref(d as usize)
                     || (f.bit != NONE && t.v[t.bits[f.bit as usize].read as usize].borrows)
             }
-            Dropped::Local(l) => t.l[l as usize].unowned,
+            Some(l) => t.l[l as usize].unowned,
         })
 }
 
@@ -1116,14 +1131,7 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
         BodyKind::Fn | BodyKind::DeriveInstance | BodyKind::Default
     );
     let mut taken = vec![false; b.len()];
-    t.crossed.sort_stable_by_key(|&(bit, d)| {
-        let code = match d {
-            Dropped::Nothing => 0,
-            Dropped::Value(v) => v + 1,
-            Dropped::Local(l) => l + 1 + u32_of(b.len()),
-        };
-        (bit, code)
-    });
+    t.crossed.sort_stable();
     t.crossed.dedup();
     // Bindings settle first: a read through one depends on how it ended.
     let mut settled = false;
