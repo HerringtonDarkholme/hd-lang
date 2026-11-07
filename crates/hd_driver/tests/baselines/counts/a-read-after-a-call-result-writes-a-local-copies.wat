@@ -71,16 +71,14 @@
     local.tee $t0
     global.set $locals
     block
-      local.get $name.0
       i32.const 1
       call $rt:list_buf
-      local.tee $name.0
+      local.tee $t1
       i32.const 1
       i32.store $heap offset=4
-      local.get $name.0
+      local.get $t1
       i32.const 1
       i32.store $heap offset=16
-      local.set $t1
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -88,13 +86,13 @@
       i32.const 8
       i32.add
       local.tee $t2
-      local.get $t1
+      local.get $name.0
       i32.store $heap
       local.get $t2
       local.get $name.1
       i32.store $heap offset=4
       local.get $t2
-      local.get $name.0
+      local.get $t1
       i32.store $heap offset=8
       local.get $t2
       local.tee $name.0

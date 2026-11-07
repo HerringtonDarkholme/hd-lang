@@ -41,12 +41,11 @@
         end
       end
       local.get $s.0
-      local.tee $s.1
       call $retain
       local.get $s.0
       call $rt:release_ref
       i32.const 204 ;; &vtable[func69]
-      local.set $s.0
+      local.set $s.1
       block
     ;; 23 |         callback()
         local.get $callback.1
@@ -57,22 +56,24 @@
         i64.const -8941934570327064298
         i64.store $heap offset=16
         local.get $callback.0
-        local.get $s.1
+        local.get $s.0
         i32.store $heap offset=24
         local.get $callback.0
-        local.get $s.0
-        i32.store $heap offset=28
         local.get $s.1
+        i32.store $heap offset=28
+        local.get $s.0
         call $retain
         local.get $callback.0
         call $read_tag#adapter
         local.get $callback.0
         call $rt:release_ref
     ;; 22 |     $.with(Tag=Named { label: s }):
-        local.set $s.0
+        local.set $s.1
       end
-      local.get $s.1
+      local.get $s.0
       call $rt:release_ref
+      local.get $s.1
+      local.set $s.0
     end
     local.get $s.0
   )
@@ -160,12 +161,11 @@
         end
       end
       local.get $s.0
-      local.tee $s.1
       call $retain
       local.get $s.0
       call $rt:release_ref
       i32.const 204 ;; &vtable[func69]
-      local.set $s.0
+      local.set $s.1
       block
     ;; 23 |         callback()
         local.get $callback.1
@@ -176,22 +176,24 @@
         i64.const -8941934570327064298
         i64.store $heap offset=16
         local.get $callback.0
-        local.get $s.1
+        local.get $s.0
         i32.store $heap offset=24
         local.get $callback.0
-        local.get $s.0
-        i32.store $heap offset=28
         local.get $s.1
+        i32.store $heap offset=28
+        local.get $s.0
         call $retain
         local.get $callback.0
         call $closure#1
         local.get $callback.0
         call $rt:release_ref
     ;; 22 |     $.with(Tag=Named { label: s }):
-        local.set $s.0
+        local.set $s.1
       end
-      local.get $s.1
+      local.get $s.0
       call $rt:release_ref
+      local.get $s.1
+      local.set $s.0
     end
     local.get $s.0
   )

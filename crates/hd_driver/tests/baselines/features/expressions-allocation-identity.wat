@@ -17,17 +17,17 @@
     local.get $self
     local.get $t0
   )
-  (func $same_dyn (param $user i32) (result i32) (local $t0 i32)
+  (func $same_dyn (param $user i32) (result i32)
     ;; 17 |     let first: &mut dyn Named = user
     block
       local.get $user
       call $retain
-      local.get $user
     ;; 18 |     let second: &mut dyn Named = user
       local.get $user
       call $retain
+    ;; 17 |     let first: &mut dyn Named = user
+      local.get $user
     ;; 19 |     first is second
-      local.tee $t0
       i64.extend_i32_u
       local.get $user
       i64.extend_i32_u
@@ -35,7 +35,7 @@
     ;; 17 |     let first: &mut dyn Named = user
       local.get $user
       call $rt:release_ref
-      local.get $t0
+      local.get $user
       call $rt:release_ref
       local.set $user
     end

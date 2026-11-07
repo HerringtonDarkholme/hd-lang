@@ -76,7 +76,7 @@
     end
     local.get $f.0
   )
-  (func $demo (param $s.0 i32) (param $s.1 i32) (result i32) (local $origin i32)
+  (func $demo (param $s.0 i32) (param $s.1 i32) (result i32) (local $origin i32) (local $t0 i32)
     ;; 15 |     origin := box(Point { name: s, x: 0 })
     block
       i32.const 12
@@ -95,11 +95,12 @@
     ;; 16 |     step := bump(origin)
       call $bump
       local.set $s.1
-      local.set $s.0
+      local.tee $s.0
     ;; 17 |     step()
+      local.set $t0
       local.get $s.1
       i32.const 0
-      local.get $s.0
+      local.get $t0
       call_indirect $table0 (param i32 i32)
     ;; 18 |     step()
       local.get $s.1

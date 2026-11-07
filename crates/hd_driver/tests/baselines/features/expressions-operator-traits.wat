@@ -246,9 +246,9 @@
                     br 0
                   end
                 end
-                local.get $t4
                 local.get $item.0
                 call $rt:release_ref
+                local.get $t4
                 local.get $t5
                 local.set $item.0
                 local.set $zero.1

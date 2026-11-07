@@ -764,10 +764,15 @@ impl Em<'_, '_, '_> {
     }
 
     fn zero_locals_of(&mut self, r: u32) {
-        for l in self.vals.get(&r).cloned().unwrap_or_default() {
-            self.f.zero(l);
+        // Only a frame's glue reads a moved value's locals again: its zero
+        // says the slot holds nothing. A value is never dropped after its
+        // move, so outside a frame nothing else tests it.
+        if self.susp.is_some() {
+            for l in self.vals.get(&r).cloned().unwrap_or_default() {
+                self.f.zero(l);
+            }
+            self.mark_drop_root(super::drop_flags::Root::Value(r), self.ty_of(r), false);
         }
-        self.mark_drop_root(super::drop_flags::Root::Value(r), self.ty_of(r), false);
     }
 
     /// Releases value `x`'s count, when it holds a counted value, and

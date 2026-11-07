@@ -82,7 +82,7 @@
       i32.store $heap
     end
   )
-  (func $uniq_read (param $xs i32) (param $i i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $uniq_read (param $xs i32) (param $i i32) (result i32) (local $t0 i32)
     ;; 28 |     match xs.get_ref(i):
     block
       block
@@ -91,7 +91,8 @@
           local.get $xs
           i32.load $heap offset=8
           i32.ge_u
-          if
+          if (result i32)
+            i32.const 0
           else
             block
               block
@@ -101,12 +102,12 @@
                 i32.const 8
                 i32.mul
                 i32.add
-                local.set $t0
+                local.set $xs
                 br 0
               end
             end
+            local.get $xs
           end
-          local.get $t0
           local.set $xs
           br 0
         end
@@ -133,12 +134,12 @@
           local.get $xs
           call $"impl string.len"
     ;; 28 |     match xs.get_ref(i):
-          local.set $t1
+          local.set $t0
           br 1
         end
         br 0
       end
-      local.get $t1
+      local.get $t0
       local.set $xs
     end
     local.get $xs
@@ -222,7 +223,7 @@
     end
     local.get $m
   )
-  (func $uniq_write (param $xs i32) (param $i i32) (param $s.0 i32) (param $s.1 i32) (local $t0 i32)
+  (func $uniq_write (param $xs i32) (param $i i32) (param $s.0 i32) (param $s.1 i32)
     ;; 33 |     match xs.get_mut(i):
     block
       block
@@ -231,7 +232,8 @@
           local.get $xs
           i32.load $heap offset=8
           i32.ge_u
-          if
+          if (result i32)
+            i32.const 0
           else
             block
               block
@@ -241,12 +243,12 @@
                 i32.const 8
                 i32.mul
                 i32.add
-                local.set $t0
+                local.set $xs
                 br 0
               end
             end
+            local.get $xs
           end
-          local.get $t0
           local.set $xs
           br 0
         end

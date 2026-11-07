@@ -26,15 +26,14 @@
         end
       end
       local.get $s.0
-      local.tee $s.1
       call $retain
       local.get $s.0
       call $rt:release_ref'1
       i32.const 160 ;; &vtable[func63]
-      local.set $s.0
+      local.set $s.1
       block
     ;; 37 |         tag := $.use(Tag)
-        local.get $s.1
+        local.get $s.0
         call $retain
     ;; 38 |         apply(fn() -> usize: tag.name().len())
         i32.const 2
@@ -43,12 +42,12 @@
         call $rt:new/class-1
         local.tee $t0
     ;; 37 |         tag := $.use(Tag)
-        local.get $s.1
+        local.get $s.0
     ;; 38 |         apply(fn() -> usize: tag.name().len())
         i32.store $heap
         local.get $t0
     ;; 37 |         tag := $.use(Tag)
-        local.get $s.0
+        local.get $s.1
     ;; 38 |         apply(fn() -> usize: tag.name().len())
         i32.store $heap offset=4
         drop
@@ -57,7 +56,7 @@
             local.get $t0
             i32.const 0
             call $lexical#1
-            local.set $s.0
+            local.set $s.1
             br 0
           end
         end
@@ -65,8 +64,10 @@
         local.get $t0
         call $rt:release_ref'2
       end
-      local.get $s.1
+      local.get $s.0
       call $rt:release_ref'1
+      local.get $s.1
+      local.set $s.0
     end
     local.get $s.0
   )
@@ -153,22 +154,23 @@
         end
       end
       local.get $s.0
-      local.tee $s.1
       call $retain
       local.get $s.0
       call $rt:release_ref'1
       i32.const 160 ;; &vtable[func63]
-      local.set $s.0
+      local.set $s.1
       block
     ;; 24 |         read_tag()
-        local.get $s.1
         local.get $s.0
+        local.get $s.1
         call $read_tag
     ;; 23 |     $.with(Tag=Named { label: s }):
-        local.set $s.0
+        local.set $s.1
       end
-      local.get $s.1
+      local.get $s.0
       call $rt:release_ref'1
+      local.get $s.1
+      local.set $s.0
     end
     local.get $s.0
   )
@@ -199,18 +201,17 @@
         end
       end
       local.get $a.0
-      local.tee $a.1
       call $retain
       local.get $a.0
       call $rt:release_ref'1
       i32.const 160 ;; &vtable[func63]
-      local.set $a.0
+      local.set $a.1
       block
     ;; 28 |         outer := read_tag()
-        local.get $a.1
         local.get $a.0
+        local.get $a.1
         call $read_tag
-        local.set $a.0
+        local.set $a.1
     ;; 29 |         $.with(Tag=Named { label: b }):
         block
           block
@@ -239,20 +240,22 @@
         local.set $b.0
         block
     ;; 30 |             outer + read_tag()
-          local.get $a.0
+          local.get $a.1
           local.get $b.1
           local.get $b.0
           call $read_tag
           i32.add
     ;; 29 |         $.with(Tag=Named { label: b }):
-          local.set $a.0
+          local.set $a.1
         end
     ;; 27 |     $.with(Tag=Named { label: a }):
         local.get $b.1
         call $rt:release_ref'1
       end
-      local.get $a.1
+      local.get $a.0
       call $rt:release_ref'1
+      local.get $a.1
+      local.set $a.0
     end
     local.get $a.0
   )

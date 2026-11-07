@@ -74,26 +74,27 @@
         end
       end
       local.get $s.0
-      local.tee $s.1
       call $retain
       local.get $s.0
       call $rt:release_ref
       i32.const 1
       i32.const 0
       call $rt:ctx_new
-      local.tee $s.0
+      local.tee $s.1
       i64.const -8941934570327064298
       i64.store $heap offset=16
-      local.get $s.0
       local.get $s.1
-      i32.store $heap offset=24
       local.get $s.0
+      i32.store $heap offset=24
+      local.get $s.1
       i32.const 204 ;; &vtable[func64]
       i32.store $heap offset=28
-      local.get $s.1
+      local.get $s.0
       call $retain
-      local.get $s.1
+      local.get $s.0
       call $rt:release_ref
+      local.get $s.1
+      local.set $s.0
     end
     local.get $s.0
   )

@@ -96,10 +96,8 @@
     global.set $locals
     block
       block
-        local.get $a.0
         local.get $log
         call $rt:retain_known
-        local.set $a.0
         local.get $t0
         i64.const 0
         i64.store $heap
@@ -119,25 +117,25 @@
         i32.const 1
         local.set $a.0
     ;; 20 |     using second = Res { name: b, log: log }
-        local.get $b.0
         local.get $log
         call $rt:retain_known
-        local.set $a.1
         local.get $t0
         i64.const 0
         i64.store $heap offset=24
         local.get $t0
         i32.const 32
         i32.add
-        local.tee $b.0
-        local.get $a.1
-        i32.store $heap
+        local.tee $a.1
         local.get $b.0
+        i32.store $heap
+        local.get $a.1
         local.get $b.1
         i32.store $heap offset=4
-        local.get $b.0
+        local.get $a.1
         local.get $log
         i32.store $heap offset=8
+        local.get $a.1
+        local.set $b.0
         i32.const 1
         local.set $log
     ;; 21 |     first.name.len() + second.name.len()

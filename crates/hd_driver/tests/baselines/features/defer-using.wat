@@ -70,10 +70,8 @@
     ;; 23 |     using r = box(Res { name: s, log: log })
     block
       block
-        local.get $s.0
         local.get $log
         call $rt:retain_known
-        local.set $s.0
         i32.const 12
         i32.const -2147483645
         call $rt:new/class-2

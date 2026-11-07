@@ -48,22 +48,16 @@
     ;; 24 |     Rec { ...r, name: n }
     block
       local.get $r.name.0
-      local.get $n.0
       local.get $r.tags
       call $rt:coll_copy
       local.set $r.name.0
-      local.set $n.0
       local.get $r.name.1
       local.get $r.tags
       call $rt:release
-      local.get $n.0
-      local.get $r.name.0
-      local.set $r.name.1
-      local.set $r.name.0
     end
-    local.get $r.name.0
+    local.get $n.0
     local.get $n.1
-    local.get $r.name.1
+    local.get $r.name.0
   )
   (func $make_enum (param $n.0 i32) (param $n.1 i32) (result i32 i32 i32) (local $t0 i32)
     ;; 21 |     Shape.Named(n)

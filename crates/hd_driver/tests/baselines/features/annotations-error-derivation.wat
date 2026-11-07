@@ -116,9 +116,9 @@
             br 0
           end
         end
-        local.get $self
         local.get $t2
         call $rt:release_ref
+        local.get $self
         local.get $t3
         local.set $t2
       else
@@ -159,9 +159,9 @@
                 local.get $t1
                 local.get $t0
                 call $"impl StringBuilder.value_text"
-                local.get $self
                 local.get $t1
                 call $rt:release_ref
+                local.get $self
               else
                 i32.const 49 ;; &"Busy"
                 i32.const 4
@@ -312,7 +312,7 @@
     end
     local.get $e
   )
-  (func $"error Error for LoadError.source" (param $self i32) (result i32 i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i64) (local $t6 i32) (local $t5 i32) (local $t4 i32)
+  (func $"error Error for LoadError.source" (param $self i32) (result i32 i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i64) (local $t5 i32) (local $t4 i32)
     ;; 25 | @error
     block
       local.get $self
@@ -367,7 +367,7 @@
         local.get $self
         i32.const 1
         i32.eq
-        if
+        if (result i32)
     ;; 35 |         @from
           i32.const 8
           i32.const 0
@@ -381,7 +381,6 @@
     ;; 33 |     @error("bad config")
           local.set $t4
           local.set $t5
-          local.set $t6
         else
     ;; 40 |         @from
           block
@@ -390,9 +389,9 @@
             end
           end
     ;; 33 |     @error("bad config")
+          i32.const 0
         end
     ;; 27 |     @error("cannot read $path")
-        local.get $t6
         local.get $t5
         local.get $t4
         local.set $t2
@@ -597,9 +596,9 @@
             br 0
           end
         end
-        local.get $t1
         local.get $self
         call $rt:release_ref
+        local.get $t1
         local.get $t3
         local.set $t0
       else

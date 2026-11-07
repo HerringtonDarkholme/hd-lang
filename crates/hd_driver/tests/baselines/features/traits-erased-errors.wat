@@ -106,9 +106,9 @@
             local.set $path.1
           else
             local.get $path.0
+            local.set $t0
             i32.const 0
             local.set $path.0
-            local.set $t0
             i32.const 1
             i32.const 0
             local.get $path.1
@@ -195,9 +195,9 @@
         local.set $path.1
       else
         local.get $path.0
+        local.set $t1
         i32.const 0
         local.set $path.0
-        local.set $t1
         i32.const 1
         i32.const 0
         local.get $path.1

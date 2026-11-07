@@ -16,16 +16,15 @@
     end
     local.get $value
   )
-  (func $left_or_right (param $pair i32) (param $left i32) (result i32) (local $t0 i32)
+  (func $left_or_right (param $pair i32) (param $left i32) (result i32)
     ;; 19 |     let o: (&User)? = if left: .Some(&pair.left) else: .None
     block
       local.get $left
-      if
+      if (result i32)
         local.get $pair
-        local.set $t0
       else
+        i32.const 0
       end
-      local.get $t0
     ;; 20 |     o.unwrap_or(&pair.right)
       local.get $pair
       i32.const 8

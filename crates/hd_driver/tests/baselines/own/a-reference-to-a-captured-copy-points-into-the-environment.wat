@@ -251,9 +251,9 @@
           br 0
         end
       end
-      local.get $p.name.0
       local.get $env
       call $rt:release_ref'2
+      local.get $p.name.0
       local.get $t3
       local.set $ctx
       local.set $env

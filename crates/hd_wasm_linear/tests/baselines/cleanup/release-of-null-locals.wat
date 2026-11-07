@@ -26,20 +26,20 @@
         i32.const 1
         i32.sub
         call $make
+        local.set $t0
         local.get $depth
         i32.const 1
         i32.sub
         call $make
-        local.set $t0
         local.set $depth
         i32.const 8
         i32.const -2147483646
         call $rt:new/class-1
         local.tee $t1
-        local.get $depth
+        local.get $t0
         i32.store $heap
         local.get $t1
-        local.get $t0
+        local.get $depth
         i32.store $heap offset=4
         local.get $t1
     ;; 12 |     if depth == 0:

@@ -75,6 +75,10 @@
       i32.load $heap offset=4
       local.tee $p
       call $rt:retain
+      local.get $t1
+      local.get $p
+      local.set $t1
+      local.set $p
     ;; 11 |     r := &mut p.value
       local.get $t0
       if
@@ -108,8 +112,6 @@
         i32.const 0
         local.set $t0
       end
-    ;; 13 |     seen := *r
-      local.get $t1
     ;; 14 |     alias.other = "c"
       local.get $alias
       i32.const 4
@@ -139,10 +141,9 @@
       i32.store $heap offset=4
       call $rt:release
     ;; 13 |     seen := *r
-      local.get $p
+      local.get $t1
     ;; 11 |     r := &mut p.value
       local.set $alias
-      local.set $p
     end
     local.get $t0
     if
