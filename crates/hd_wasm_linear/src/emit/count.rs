@@ -489,6 +489,7 @@ impl Em<'_, '_, '_> {
             self.f.reason
         };
         let was = std::mem::replace(&mut self.f.reason, reason);
+        self.assert_reason_fact(t);
         let result = self.count_locals_inner(ls, t, retain);
         self.f.reason = was;
         if result.is_ok() && self.f.origins.is_some() {
@@ -506,6 +507,63 @@ impl Em<'_, '_, '_> {
             );
         }
         result
+    }
+
+    /// A checked build's test of the named reason on the count of a `t`
+    /// value, from a fact of the code writing it: what `Overwritten`
+    /// replaces has its store's `Release`, `Cancelled` and a frame's
+    /// `ByDesign` only run where a suspending body ends, `ByDesign` otherwise
+    /// counts a `&dyn`'s data, and `View` a view.
+    fn assert_reason_fact(&self, t: Ty) {
+        if cfg!(target_arch = "wasm32") || !self.f.names_counts {
+            return;
+        }
+        let at = self.emitting.last().copied();
+        let holds = match self.f.reason {
+            Some(Reason::Overwritten) => {
+                at.is_some_and(|i| self.b.tags[i as usize] != Tag::Store || self.store_releases(i))
+            }
+            Some(Reason::Cancelled) => self.susp.is_some(),
+            Some(Reason::ByDesign) => {
+                self.ref_target(t).is_some_and(|(_, fat)| fat) || self.susp.is_some()
+            }
+            Some(Reason::View) => {
+                matches!(self.counted(t), Some(Walk::View(_))) || !self.view_loans.is_empty()
+            }
+            _ => true,
+        };
+        assert!(
+            holds,
+            "{}: a count named {} has no such fact at this site",
+            self.f.name,
+            self.f.reason.expect("a named reason"),
+        );
+    }
+
+    /// A checked build's test that what a cancellation releases is what the
+    /// body says a suspension point may hold: a value in the unwind set, a
+    /// local in the exit set of this sub-body.
+    pub(super) fn assert_cancelled(&self, root: &super::drop_flags::Root) {
+        use super::drop_flags::Root;
+        if cfg!(target_arch = "wasm32")
+            || !self.f.names_counts
+            || self.f.reason != Some(Reason::Cancelled)
+        {
+            return;
+        }
+        let holds = match *root {
+            Root::Value(v) => self.b.unwind_drops.iter().any(|r| r.1 == v),
+            Root::Local(l) => self
+                .b
+                .exit_drops
+                .iter()
+                .any(|&(s, x)| s.raw() == u32::from(self.sub_id) && x.idx() == l),
+        };
+        assert!(
+            holds,
+            "{}: a cancelled release of what no suspension point holds",
+            self.f.name
+        );
     }
 
     /// Runs `f` with `reason` as the reason of the count code it writes
@@ -614,6 +672,7 @@ impl Em<'_, '_, '_> {
     /// cell's, when it lives in one.
     pub(super) fn count_local(&mut self, l: usize, ls: &[u32], retain: bool) -> StageResult<()> {
         if self.is_cell(l) {
+            self.assert_cancelled(&super::drop_flags::Root::Local(l));
             // A slot has one holder, its local (`closure::slot_locals`).
             if self.slots.contains_key(&l) {
                 if retain {

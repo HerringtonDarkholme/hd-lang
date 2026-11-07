@@ -766,7 +766,8 @@ impl Func {
             assert_eq!(origins.len(), self.body.len());
             origins.push(self.origin_at);
         }
-        if self.names_counts
+        if cfg!(not(target_arch = "wasm32"))
+            && self.names_counts
             && let Ins::Call(s) = &ins
             && crate::views::count_action(&self.symbols.get(*s), None).is_some()
         {
@@ -829,7 +830,7 @@ impl Func {
     /// A call of runtime count function `s`, labeled as [`Func::push`]
     /// labels a count helper's.
     pub fn count_call(&mut self, s: Sym, action: crate::views::CountAction) {
-        if self.names_counts {
+        if cfg!(not(target_arch = "wasm32")) && self.names_counts {
             self.assert_named();
         }
         let start = self.body.len();

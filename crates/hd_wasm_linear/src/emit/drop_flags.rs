@@ -129,9 +129,11 @@ impl Em<'_, '_, '_> {
     }
 
     pub(super) fn release_drop_place(&mut self, ls: &[u32], ty: Ty, p: &Place) -> StageResult<()> {
-        let state = self
-            .drop_root(p)
-            .and_then(|(root, ty)| self.drop_state(root, ty));
+        let root = self.drop_root(p);
+        if let Some((root, _)) = &root {
+            self.assert_cancelled(root);
+        }
+        let state = root.and_then(|(root, ty)| self.drop_state(root, ty));
         let flags: Vec<_> = self
             .drop_paths(ty)
             .iter()
