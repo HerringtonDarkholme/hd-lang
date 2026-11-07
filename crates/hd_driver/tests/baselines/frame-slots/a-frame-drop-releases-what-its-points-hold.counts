@@ -21,9 +21,9 @@ fn pause!() -> string $ Clock:
 > app/main/pause
 >   retain counted reference (stored)
 >   retain counted reference (stored)
->   release counted reference (conservative: Await)
+>   release counted reference (last use)
 >   retain counted reference (stored)
->   release counted reference (conservative: Await)
+>   release counted reference (last use)
 > app/main/pause
 >   release string (cancelled)
 > app/main/pause
@@ -38,9 +38,9 @@ fn holds!() -> usize $ Clock:
 > app/main/holds
 >   retain counted reference (stored)
 >   retain counted reference (stored)
->   release counted reference (conservative: Await)
+>   release counted reference (last use)
 >   retain counted reference (stored)
->   release counted reference (conservative: Await)
+>   release counted reference (last use)
 >   release string (cancelled)
 >   release string (last use)
 >   release string (last use)
@@ -65,7 +65,7 @@ fn gone!() -> usize $ Clock:
     sleep!(ms(1))
 >   retain counted reference (stored)
 >   retain counted reference (stored)
->   release counted reference (conservative: Await)
+>   release counted reference (last use)
 >   retain counted reference (stored)
->   release counted reference (conservative: Await)
+>   release counted reference (last use)
     n

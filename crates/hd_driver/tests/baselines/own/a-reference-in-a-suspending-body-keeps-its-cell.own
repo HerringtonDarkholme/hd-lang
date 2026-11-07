@@ -39,12 +39,13 @@ fn run!() -> void:
 >   local $0 c: Counter [read assigned captured captured-assigned] place
 >   %0 = NewStruct [0:i32 "a"] : Counter
 >   %1 = Store [$0] %0 : ()
->   %6 = Block - : ()
+>   %7 = Block - : ()
     bump!(&mut c)
 >   %2 = Ref mut local [$0] : Counted[mut Counter]
 >   %3 = Await app/main/bump[] (%2) : ()
->   %4 = Drop [%2] : ()
->   %5 = Drop [$0] : ()
+>   %4 = Release %3 Operation child #2 : ()
+>   %5 = Drop [%2] : ()
+>   %6 = Drop [$0] : ()
 >   %2 finds [$0] full
 >   exit sub 0 drops [$0]
 >   unwind %3 drops [%2]

@@ -9,9 +9,9 @@ fn pause!() -> void $ Clock:
 > app/main/pause
 >   retain counted reference (stored)
 >   retain counted reference (stored)
->   release counted reference (conservative: Await)
+>   release counted reference (last use)
 >   retain counted reference (stored)
->   release counted reference (conservative: Await)
+>   release counted reference (last use)
 > app/main/pause
 >   release counted reference (conservative: frame drop)
 >   release counted reference (conservative: frame drop)

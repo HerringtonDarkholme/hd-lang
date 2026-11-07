@@ -21,6 +21,7 @@ pub enum Part {
     Local(u32),
     Row,
     Operand(u32),
+    Child,
 }
 
 /// The record in a retain/release's second word. Its first word names
@@ -62,6 +63,7 @@ impl Info {
             (1, l) if (l as usize) < b.local_ty.len() => Part::Local(l),
             (2, 0) => Part::Row,
             (3, n) => Part::Operand(n),
+            (4, 0) => Part::Child,
             _ => return None,
         };
         (reason < 9).then_some(Self { at, part, reason })
@@ -73,6 +75,7 @@ impl Info {
             Part::Local(l) => (1, l),
             Part::Row => (2, 0),
             Part::Operand(n) => (3, n),
+            Part::Child => (4, 0),
         };
         let record = u32::try_from(b.extra.len()).expect("count record");
         b.extra
@@ -97,17 +100,45 @@ pub fn find(b: &Body, tag: Tag, target: u32, at: At, part: Part) -> Option<Info>
     })
 }
 
-/// Reads a count immediately after its target without scanning the body.
+/// A record in the adjacent operation bundle for `target`. Checking the
+/// preceding record suffices: the verifier also checks that record's link.
+#[must_use]
+pub fn adjacent(b: &Body, topo: &Topology, target: u32, statement: u32) -> bool {
+    let t = target as usize;
+    let i = statement as usize;
+    if t >= b.len()
+        || i >= b.len()
+        || topo.blk[t] == NONE
+        || topo.blk[t] != topo.blk[i]
+        || topo.pos[t] >= topo.pos[i]
+    {
+        return false;
+    }
+    let previous = b.record(b.data[topo.blk[i] as usize][0])[(topo.pos[i] - 1) as usize];
+    previous == target
+        || (b.data[previous as usize][0] == target
+            && Info::read(b, previous as usize).is_some_and(|c| c.at == At::Operation))
+}
+
+/// Reads one action from the adjacent count bundle, without scanning a body.
 #[must_use]
 pub fn following(b: &Body, topo: &Topology, target: u32, tag: Tag) -> Option<Info> {
     let block = *topo.blk.get(target as usize)?;
     if block == NONE {
         return None;
     }
-    let next = *b
-        .record(b.data[block as usize][0])
-        .get(topo.pos[target as usize] as usize + 1)? as usize;
-    (b.tags[next] == tag && b.data[next][0] == target)
-        .then(|| Info::read(b, next))
-        .flatten()
+    for &next in &b.record(b.data[block as usize][0])[topo.pos[target as usize] as usize + 1..] {
+        let i = next as usize;
+        let info = Info::read(b, i)?;
+        if b.data[i][0] != target {
+            return None;
+        }
+        if b.tags[i] == tag {
+            return Some(info);
+        }
+        if info.at != At::Operation {
+            return None;
+        }
+    }
+    None
 }

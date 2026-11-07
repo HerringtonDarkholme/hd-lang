@@ -137,7 +137,10 @@ pub(crate) fn verify(b: &Body, cx: &dyn OwnCx, topo: &Topology, mut err: impl Fn
                     err(u32_of(i), "a store that overwrites has no Release".into());
                 }
             }
-            Tag::Release if Info::read(b, i).is_none_or(|c| c.at == At::Operation) => {
+            Tag::Release
+                if Info::read(b, i)
+                    .is_none_or(|c| c.at == At::Operation && c.part == Part::Result) =>
+            {
                 let store = b.data[i][0] as usize;
                 if store >= i
                     || b.tags[store] != Tag::Store

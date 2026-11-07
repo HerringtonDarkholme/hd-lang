@@ -147,7 +147,7 @@ mod tests {
         assert!(
             verify_owned(&b, &Facts)
                 .iter()
-                .any(|e| e.what.contains("key-copy fact"))
+                .any(|e| e.what.contains("absent or repeated"))
         );
         let topo = Topology::new(&b);
         edits.clear();
@@ -160,7 +160,7 @@ mod tests {
         assert!(
             verify_owned(&b, &Facts)
                 .iter()
-                .any(|e| e.what.contains("lacks its stored key retain"))
+                .any(|e| e.what.contains("absent or repeated"))
         );
     }
 

@@ -509,10 +509,11 @@ impl Em<'_, '_, '_> {
         // The results of the children that completed are let go.
         if let Some(all) = all {
             self.release_done(&all)?;
+        } else {
+            // A ladder that waits keeps its own child in the frame's slot.
+            // A join's local c is zero: its children live in the argument list.
+            self.release_child(i, c)?;
         }
-        // The cancelled child is done with: a ladder that waits keeps
-        // its own child in the frame's child slot.
-        self.release_child(c);
         // The ladders run as fresh code.
         self.f.i32(0);
         self.f.set(pc);
@@ -590,7 +591,7 @@ impl Em<'_, '_, '_> {
         }
         self.release_ctx(c);
         if shielded {
-            self.shield_leave(nc, Some(ch));
+            self.shield_leave(i, nc, Some(ch))?;
         }
         self.f.get(nc);
         self.f.op(I::If(BlockType::Empty));
@@ -607,7 +608,7 @@ impl Em<'_, '_, '_> {
         self.suspend(k, nc)?;
         self.close();
         // Ready: a resumed child's frame is done with.
-        self.release_child(ch);
+        self.release_child(i, ch)?;
         self.f.i32(0);
         self.f.set(pc);
         for l in &tmp {
@@ -618,17 +619,37 @@ impl Em<'_, '_, '_> {
 
     /// One count less on the child frame in local `c`, which the frame
     /// held, and none held any more.
-    fn release_child(&mut self, c: u32) {
+    fn release_child(&mut self, i: u32, c: u32) -> StageResult<()> {
         self.f.get(c);
         self.f.op(I::If(BlockType::Empty));
         self.f.get(FRAME);
         self.f.i32(0);
         self.f.op(I::I32Store(mem(HEAP, F_CHILD, 2)));
-        if self.input.runtime.is_some() {
-            self.f.get(c);
-            self.f.helper(Helper::ReleaseRef);
-        }
+        self.count_child(i, c, false)?;
         self.f.op(I::End);
+        Ok(())
+    }
+
+    /// Lowers the stated owner of a point's child, never its result.
+    fn count_child(&mut self, i: u32, c: u32, retain: bool) -> StageResult<()> {
+        if self.input.runtime.is_none() {
+            return Ok(());
+        }
+        let tag = if retain { Tag::Retain } else { Tag::Release };
+        let Some(info) = hd_tir::ir::count::following(self.b, &self.topo, i, tag)
+            .filter(|c| c.at == CountAt::Operation && c.part == CountPart::Child)
+        else {
+            return unsupported("an awaited child without its stated count");
+        };
+        self.because(Reason::from_word(info.reason), |em| {
+            if retain {
+                em.ref_retain(c);
+            } else {
+                em.f.get(c);
+                em.f.helper(Helper::ReleaseRef);
+            }
+        });
+        Ok(())
     }
 
     /// A stored suspension (`s!()`, a trait-value bang call): polled
@@ -688,7 +709,7 @@ impl Em<'_, '_, '_> {
             self.f.get(s);
             self.f.set(gone);
             self.f.op(I::End);
-            self.shield_leave(gone, None);
+            self.shield_leave(i, gone, None)?;
             self.f.get(gone);
             self.f.op(I::I32Eqz);
             self.f.set(ready);
@@ -703,7 +724,7 @@ impl Em<'_, '_, '_> {
             self.f.get(held);
             self.f.op(I::I32Eqz);
             self.f.op(I::If(BlockType::Empty));
-            self.ref_retain(s);
+            self.count_child(i, s, true)?;
             self.f.op(I::End);
         }
         if self.susp.as_ref().is_some_and(|x| x.cancel_to.is_some()) {
@@ -717,11 +738,10 @@ impl Em<'_, '_, '_> {
         self.close();
         self.f.get(held);
         self.f.op(I::If(BlockType::Empty));
-        self.release_child(s);
+        self.release_child(i, s)?;
         if owned && self.input.runtime.is_some() {
             self.f.op(I::Else);
-            self.f.get(s);
-            self.f.helper(Helper::ReleaseRef);
+            self.count_child(i, s, false)?;
         }
         self.f.op(I::End);
         self.f.i32(0);
@@ -797,7 +817,7 @@ impl Em<'_, '_, '_> {
         self.close();
         self.f.get(held);
         self.f.op(I::If(BlockType::Empty));
-        self.release_child(s);
+        self.release_child(i, s)?;
         self.f.op(I::End);
         self.f.i32(0);
         self.f.set(pc);
@@ -1011,7 +1031,7 @@ impl Em<'_, '_, '_> {
     /// `out` cleared, so the suite goes on; this frame's cleanup is then
     /// `ABANDONED`. A child that a fresh step made (`fresh` 0) loses the
     /// count it came with.
-    fn shield_leave(&mut self, out: u32, fresh: Option<u32>) {
+    fn shield_leave(&mut self, i: u32, out: u32, fresh: Option<u32>) -> StageResult<()> {
         let wait = self.f.local(Val::I32);
         self.f.get(out);
         self.f.op(I::If(BlockType::Empty));
@@ -1032,14 +1052,14 @@ impl Em<'_, '_, '_> {
             self.f.get(h);
             self.f.op(I::I32Eqz);
             self.f.op(I::If(BlockType::Empty));
-            self.f.get(out);
-            self.f.helper(Helper::ReleaseRef);
+            self.count_child(i, out, false)?;
             self.f.op(I::End);
         }
         self.f.zero(out);
         self.f.op(I::End);
         self.f.op(I::End);
         self.close();
+        Ok(())
     }
 
     /// One more count on the address in local `x`.

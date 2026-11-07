@@ -42,12 +42,12 @@ fn all!(keys: List[string]) -> usize:
 >   local $8 results: List[string] [:= read assigned] place
 >   local $9 n: usize [read assigned mutated] place
 >   local $10 $len: usize [assigned] value
->     uses $10: %53 -> %56 lend
+>     uses $10: %54 -> %57 lend
 >   local $11 $pos: usize [assigned] place
 >   local $12 r: Ref[string] [read assigned] value
->     uses $12: %70 -> %64 lend last
->   %0 = Retain %84 Cold local $0 #0 : ()
->   %1 = Retain %84 Entry local $0 #0 : ()
+>     uses $12: %71 -> %65 lend last
+>   %0 = Retain %85 Cold local $0 #0 : ()
+>   %1 = Retain %85 Entry local $0 #0 : ()
     let tasks: List[mut Suspend[string]] = [for k in keys => fetch(k)]
 >   %2 = NewList - [] : mut List[mut Suspend[string]]
 >   %3 = Store [$1] %2 : ()
@@ -92,49 +92,50 @@ fn all!(keys: List[string]) -> usize:
 >   %43 = Read move [$1] : mut List[mut Suspend[string]]
 >   %44 = Coerce %43 [Weaken -] : List[mut Suspend[string]]
 >   %45 = Store [$7] %44 : ()
->   %84 = Block %83 : usize
+>   %85 = Block %84 : usize
     results := join!(tasks...)
 >   %46 = Read move [$7] : List[mut Suspend[string]]
 >   %47 = Await std/task/all_list[string] (%46) : List[string]
->   %48 = Drop [%46] : ()
->   %49 = Store [$8] %47 : ()
+>   %48 = Release %47 Operation child #2 : ()
+>   %49 = Drop [%46] : ()
+>   %50 = Store [$8] %47 : ()
     let mut n = 0
->   %50 = Store [$9] 0:usize : ()
+>   %51 = Store [$9] 0:usize : ()
     for r in &results:
->   %51 = Read borrow [$8] : List[string]
->   %52 = Intrinsic ListLen [%51] : usize
->   %53 = Store [$10] %52 : ()
->   %54 = Store [$11] 0:usize : ()
->   %55 = Read copy [$11] : usize
->   %56 = Read copy [$10] : usize
->   %57 = Prim Lt [%55 %56] : bool
->   %58 = Read copy [$11] : usize
+>   %52 = Read borrow [$8] : List[string]
+>   %53 = Intrinsic ListLen [%52] : usize
+>   %54 = Store [$10] %53 : ()
+>   %55 = Store [$11] 0:usize : ()
+>   %56 = Read copy [$11] : usize
+>   %57 = Read copy [$10] : usize
+>   %58 = Prim Lt [%56 %57] : bool
 >   %59 = Read copy [$11] : usize
->   %60 = Prim Add [%59 1:usize] : usize
->   %61 = Store [$11] %60 : ()
->   %62 = Ref local pins [%51 [%58]] : Ref[string]
->   %68 = Block - : ()
->   %69 = Read borrow [%62] : Ref[string]
->   %70 = Store [$12] %69 : ()
->   %71 = Release %70 Operation #3 : ()
->   %73 = Block - : never
->   %74 = Match %62 [%73 %68] : ()
->   %75 = LoanEnd [%62] : ()
->   %76 = Block - : ()
->   %77 = Break L1 - : never
->   %78 = Block - : ()
->   %79 = If %57 [%76 %78] : ()
->   %80 = Block - : ()
->   %81 = Loop %80 - : ()
->   %82 = Drop [$8] : ()
+>   %60 = Read copy [$11] : usize
+>   %61 = Prim Add [%60 1:usize] : usize
+>   %62 = Store [$11] %61 : ()
+>   %63 = Ref local pins [%52 [%59]] : Ref[string]
+>   %69 = Block - : ()
+>   %70 = Read borrow [%63] : Ref[string]
+>   %71 = Store [$12] %70 : ()
+>   %72 = Release %71 Operation #3 : ()
+>   %74 = Block - : never
+>   %75 = Match %63 [%74 %69] : ()
+>   %76 = LoanEnd [%63] : ()
+>   %77 = Block - : ()
+>   %78 = Break L1 - : never
+>   %79 = Block - : ()
+>   %80 = If %58 [%77 %79] : ()
+>   %81 = Block - : ()
+>   %82 = Loop %81 - : ()
+>   %83 = Drop [$8] : ()
         n += r.len()
->   %63 = Read copy [$9] : usize
->   %64 = Read borrow [$12] : Ref[string]
->   %65 = Call std/text/impl string.len[] (%64) : usize
->   %66 = Prim Add [%63 %65] : usize
->   %67 = Store [$9] %66 : ()
+>   %64 = Read copy [$9] : usize
+>   %65 = Read borrow [$12] : Ref[string]
+>   %66 = Call std/text/impl string.len[] (%65) : usize
+>   %67 = Prim Add [%64 %66] : usize
+>   %68 = Store [$9] %67 : ()
     n
->   %83 = Read copy [$9] : usize
+>   %84 = Read copy [$9] : usize
 >   exit sub 0 drops [$0]
 >   summary none
 >   unwind %47 drops [%46]
