@@ -26,10 +26,10 @@
     },
     {
       "program": "bench/runtime/progs/inventory.hd",
-      "retained": "12800000",
-      "released": "12800522",
+      "retained": "6400000",
+      "released": "6400522",
       "uniques": "6400002",
-      "total": "32000524"
+      "total": "19200524"
     },
     {
       "program": "bench/runtime/progs/iter-pipeline.hd",

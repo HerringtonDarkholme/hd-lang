@@ -53,7 +53,7 @@
     },
     {
       "reason": "conservative: copy read",
-      "sites": 4
+      "sites": 3
     },
     {
       "reason": "conservative: entry",
