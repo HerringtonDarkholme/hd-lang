@@ -36,7 +36,7 @@ fn with_default(s: string) -> usize:
 > app/main/with_default
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %1 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %5 Exit local $0 #2 : ()
     collect(s)
 >   %1 = Read borrow [$0] : string
 >   %2 = DefaultCall [app/main/collect.into []] [%1] : Ref[mut List[string]]
@@ -65,8 +65,8 @@ fn labeled(name: string, suffix: string = "!") -> string:
 >     uses $0: entry -> %2 lend last
 >   local $1 suffix: string [param read] value
 >     uses $1: entry -> %3 lend last
->   %0 = ExitDrop [$0] #2 : ()
->   %1 = ExitDrop [$1] #2 : ()
+>   %0 = Release %5 Exit local $0 #2 : ()
+>   %1 = Release %5 Exit local $1 #2 : ()
     name + suffix
 >   %2 = Read borrow [$0] : string
 >   %3 = Read borrow [$1] : string
@@ -84,7 +84,7 @@ fn use_label(s: string) -> string:
 >     uses $3: %8 -> %10 lend last
 >   local $4 suffix: string [read] value
 >     uses $4: %9 -> %11 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %17 Exit local $0 #2 : ()
     labeled(s)
 >   %1 = Read borrow [$0] : string
 >   %2 = Read borrow [%1] : string

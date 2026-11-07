@@ -65,7 +65,7 @@ fn widen(d: &dyn Dog) -> usize:
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read copy [*$1] : Dog
 >   %3 = Coerce %2 [Supertrait -] : Animal
->   %4 = Retain %3 #0 : ()
+>   %4 = Retain %3 Value #0 : ()
 >   %5 = Drop [%2] : ()
 >   %6 = Block %3 : Animal
 >   %7 = RefDyn %6 : Ref[Animal]
@@ -132,7 +132,7 @@ fn use_pup(p: Pup) -> usize:
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read move [$1] : Ref[Pup]
 >   %3 = Coerce %2 [RefToTraitValue -] : Dog
->   %4 = Retain %3 #0 : ()
+>   %4 = Retain %3 Value #0 : ()
 >   %5 = Drop [%2] : ()
 >   %6 = Block %3 : Dog
 >   %7 = RefDyn %6 : Ref[Dog]

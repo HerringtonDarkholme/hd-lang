@@ -15,7 +15,7 @@ fn walk(c: Config, n: i64) -> i64:
 >     uses $0: entry -> %3 consume last, %7 lend last
 >   local $1 n: i64 [param read] value
 >     uses $1: entry -> %1 lend, %8 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %12 Exit local $0 #2 : ()
     if n == 0:
 >   %1 = Read copy [$1] : i64
 >   %2 = Prim Eq [%1 0:i64] : bool
@@ -39,7 +39,7 @@ fn ping(c: Config, n: i64) -> i64:
 >     uses $0: entry -> %3 consume last, %10 lend last
 >   local $1 n: i64 [param read] value
 >     uses $1: entry -> %1 lend, %11 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %14 Exit local $0 #2 : ()
     if n == 0:
 >   %1 = Read copy [$1] : i64
 >   %2 = Prim Eq [%1 0:i64] : bool
@@ -65,7 +65,7 @@ fn pong(c: Config, n: i64) -> i64:
 >     uses $0: entry -> %1 lend last
 >   local $1 n: i64 [param read] value
 >     uses $1: entry -> %2 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %4 Exit local $0 #2 : ()
     ping(c, n)
 >   %1 = Read borrow [$0] : Config
 >   %2 = Read copy [$1] : i64
@@ -77,7 +77,7 @@ fn depth(c: Config) -> i64:
 > app/main/depth
 >   local $0 c: Config [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %2 Exit local $0 #2 : ()
     c.depth
 >   %1 = Read copy [$0 .depth] : i64
 >   %2 = Block %1 : i64

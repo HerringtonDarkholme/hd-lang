@@ -14,7 +14,7 @@ fn put(mut m: Map[string, List[i64]], k: string, n: i64) -> Map[string, List[i64
 >     uses $1: entry -> %1 lend, %6 lend, %12 lend last
 >   local $2 n: i64 [param read] value
 >     uses $2: entry -> %7 consume last
->   %0 = ExitDrop [$1] #2 : ()
+>   %0 = Release %18 Exit local $1 #2 : ()
     m[k] = []
 >   %1 = Read borrow [$1] : string
 >   %2 = NewList - [] : List[i64]
@@ -45,7 +45,7 @@ fn tally(mut counts: Map[string, i64], k: string) -> Map[string, i64]:
 >     uses $0: entry -> %1 lend, %8 lend, %10 consume last
 >   local $1 k: string [param read] value
 >     uses $1: entry -> %2 lend last
->   %0 = ExitDrop [$1] #2 : ()
+>   %0 = Release %11 Exit local $1 #2 : ()
     counts[k] += 1
 >   %1 = Read borrow [$0] : Map[string, i64]
 >   %2 = Read borrow [$1] : string

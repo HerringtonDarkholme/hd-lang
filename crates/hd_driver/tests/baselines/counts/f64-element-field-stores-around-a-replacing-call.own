@@ -37,11 +37,11 @@ app/main/advance
   %21 = Store [*$0 [%15] .x] %19 : ()
   %22 = Read borrow [$0] : Ref[mut List[Body]]
   %23 = Store [$6] %22 : ()
-  %24 = Release %23 #0 : ()
+  %24 = Release %23 Operation #3 : ()
   %25 = NewStruct [0.0:f64 0.0:f64] : Body
   %26 = NewList - [%25] : List[Body]
   %27 = Store [*$6] %26 : ()
-  %28 = Release %27 #0 : ()
+  %28 = Release %27 Operation #3 : ()
   %29 = Break L1 - : never
   %30 = Block - : ()
   %31 = Scope %30 [] : ()

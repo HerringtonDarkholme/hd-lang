@@ -59,7 +59,7 @@ fn set(xs: &mut UniqList[i32], i: usize, v: i32) -> void:
 >   %29 = Block - : ()
 >   %32 = Read borrow [%26 as #1 .0] : Ref[mut i32]
 >   %33 = Store [$3] %32 : ()
->   %34 = Release %33 #0 : ()
+>   %34 = Release %33 Operation #3 : ()
 >   %36 = Block - : never
 >   %42 = Block - : never
 >   %43 = SwitchTag %26 [#1 %36 %42] : never

@@ -11,7 +11,7 @@ app/main/total
   %45 = Read copy [$10] : usize
   %46 = Read borrow [$1 [%45]] : string
   %47 = Store [$11] %46 : ()
-  %48 = Release %47 #0 : ()
+  %48 = Release %47 Operation #3 : ()
   %49 = Read borrow [$11] : string
   %50 = Call std/rt.bytes/bytes_len[] (%49) : usize
   %51 = Break L2 %50 : never

@@ -59,7 +59,7 @@ fn total(head: *Chain?) -> usize:
             .Some(c) =>
 >   %21 = Read borrow [%3 as #1 .0] : Counted[Chain]
 >   %22 = Store [$3] %21 : ()
->   %23 = Release %22 #0 : ()
+>   %23 = Release %22 Operation #3 : ()
 >   %25 = Block - : never
 >   %31 = Block - : never
 >   %32 = SwitchTag %3 [#1 %25 %31] : never
@@ -67,7 +67,7 @@ fn total(head: *Chain?) -> usize:
 >   %4 = Read copy [$1] : usize
 >   %5 = Read borrow [*$3 .name] : string
 >   %6 = Store [$4] %5 : ()
->   %7 = Release %6 #0 : ()
+>   %7 = Release %6 Operation #3 : ()
 >   %8 = Read borrow [$4] : string
 >   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
 >   %10 = Break L1 %9 : never
@@ -79,7 +79,7 @@ fn total(head: *Chain?) -> usize:
                 cur = c.next
 >   %15 = Read copy [*$3 .next] : Counted[Chain]?
 >   %16 = Store [$2] %15 : ()
->   %17 = Release %16 #0 : ()
+>   %17 = Release %16 Operation #3 : ()
             .None => break
 >   %19 = Break L0 - : never
 >   %20 = Block - : never

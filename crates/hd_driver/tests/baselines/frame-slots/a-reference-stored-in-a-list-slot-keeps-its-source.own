@@ -48,7 +48,7 @@ app/main/replaced
   %15 = Ref local frame [$2] : Ref[P]
   %16 = IsUnique [$3] : ()
   %17 = Store [$3 [0:usize]] %15 : ()
-  %18 = Release %17 #0 : ()
+  %18 = Release %17 Operation #3 : ()
   %19 = Ref local frame [$0] : Counted[i32]
   %20 = Read copy [*%19] : i32
   %21 = Drop [%19] : ()

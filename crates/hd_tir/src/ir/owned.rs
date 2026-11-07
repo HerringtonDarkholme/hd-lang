@@ -100,11 +100,8 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     };
     decided(b, &mut errs);
     retained_results(b, own, &topo, &mut errs);
-    exit_parameters(b, own, &topo, &mut errs);
-    cache_copies(b, own, &topo, &mut errs);
-    cold_parameters(b, own, &topo, &mut errs);
+    crate::own::counts::verify(b, own, &topo, |at, message| err(&mut errs, at, message));
     crate::own::overwrites::verify(b, own, &topo, |at, message| err(&mut errs, at, message));
-    cold_row(b, own, &topo, &mut errs);
     takes_outside_suspension(b, &topo, &mut errs);
     change_places(b, &topo, &mut errs);
     hoisted(b, &topo, own, &mut errs);
@@ -118,158 +115,6 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     Balance::new(b, &topo, own).walk(&mut errs);
     copies(b, &mut errs);
     errs
-}
-
-/// The cold frame's captured requirement row has one copy declaration.
-fn cold_row(b: &Body, cx: &dyn OwnCx, topo: &Topology, errs: &mut Vec<VerifyError>) {
-    let wanted = crate::own::cold_row::needed(b, cx);
-    let root = b.sub_root[0];
-    let n = b
-        .record(b.data[root as usize][0])
-        .iter()
-        .filter(|&&i| b.tags[i as usize] == Tag::ColdRowCopy)
-        .count();
-    if wanted && n != 1 {
-        err(
-            errs,
-            root,
-            "a cold requirement row lacks its one copy".into(),
-        );
-    }
-    for i in 0..b.len() {
-        if b.tags[i] == Tag::ColdRowCopy
-            && (!wanted
-                || topo.blk[i] != root
-                || b.data[i] != [0, 0]
-                || b.ty[i] != hd_types::Ty::VOID)
-        {
-            err(
-                errs,
-                u32_of(i),
-                "a cold row copy without a source-requirement proof".into(),
-            );
-        }
-    }
-}
-
-/// Each copied source argument declares its count in the cold frame.
-fn cold_parameters(b: &Body, cx: &dyn OwnCx, topo: &Topology, errs: &mut Vec<VerifyError>) {
-    let wanted = crate::own::cold::parameters(b, cx);
-    let root = b.sub_root[0];
-    for &l in &wanted {
-        let word = l | super::place::BARE_LOCAL;
-        let n = b
-            .record(b.data[root as usize][0])
-            .iter()
-            .filter(|&&i| b.tags[i as usize] == Tag::ColdCopy && b.data[i as usize][0] == word)
-            .count();
-        if n != 1 {
-            err(
-                errs,
-                root,
-                "a cold parameter lacks its one frame copy".into(),
-            );
-        }
-    }
-    for i in 0..b.len() {
-        if b.tags[i] != Tag::ColdCopy {
-            continue;
-        }
-        let [word, reason] = b.data[i];
-        if word & super::place::BARE_LOCAL == 0
-            || !wanted.contains(&(word & !super::place::BARE_LOCAL))
-            || topo.blk[i] != root
-            || reason != 0
-            || b.ty[i] != hd_types::Ty::VOID
-        {
-            err(
-                errs,
-                u32_of(i),
-                "a cold copy without a source-parameter proof".into(),
-            );
-        }
-    }
-}
-
-/// A counted persistent cache owns a copy and returns a copy on each hit.
-fn cache_copies(b: &Body, cx: &dyn OwnCx, topo: &Topology, errs: &mut Vec<VerifyError>) {
-    let wanted = crate::own::cache::counted(b, cx);
-    let root = b.sub_root[0];
-    if wanted {
-        for phase in [super::cache_copy::READ, super::cache_copy::WRITE] {
-            let n = b
-                .record(b.data[root as usize][0])
-                .iter()
-                .filter(|&&i| {
-                    b.tags[i as usize] == Tag::CacheCopy && b.data[i as usize][0] == phase
-                })
-                .count();
-            if n != 1 {
-                err(
-                    errs,
-                    root,
-                    "a counted cache lacks its one cache copy per phase".into(),
-                );
-            }
-        }
-    }
-    for i in 0..b.len() {
-        if b.tags[i] == Tag::CacheCopy
-            && (!wanted
-                || topo.blk[i] != root
-                || ![super::cache_copy::READ, super::cache_copy::WRITE].contains(&b.data[i][0])
-                || b.data[i][1] != 0
-                || b.ty[i] != hd_types::Ty::VOID)
-        {
-            err(
-                errs,
-                u32_of(i),
-                "a cache copy without a counted-cache-copy proof".into(),
-            );
-        }
-    }
-}
-
-/// The ABI's count is released once at the common exit, independently of
-/// the body's ordinary ownership balance and of which return it takes.
-fn exit_parameters(b: &Body, cx: &dyn OwnCx, topo: &Topology, errs: &mut Vec<VerifyError>) {
-    let wanted = crate::own::abi::parameters(b, cx);
-    for &l in &wanted {
-        let word = l | super::place::BARE_LOCAL;
-        let n = (0..b.len())
-            .filter(|&i| {
-                b.tags[i] == Tag::ExitDrop && b.data[i][0] == word && topo.blk[i] == b.sub_root[0]
-            })
-            .count();
-        if n != 1 {
-            err(
-                errs,
-                b.sub_root[0],
-                "an unowned ABI parameter lacks its one exit drop".into(),
-            );
-        }
-    }
-    for i in 0..b.len() {
-        if b.tags[i] != Tag::ExitDrop {
-            continue;
-        }
-        let [word, reason] = b.data[i];
-        let valid = word & super::place::BARE_LOCAL != 0
-            && wanted.contains(&(word & !super::place::BARE_LOCAL))
-            && topo.blk[i] == b.sub_root[0]
-            && matches!(
-                crate::own::Reason::from_word(reason),
-                crate::own::Reason::LastUse
-            )
-            && b.ty[i] == hd_types::Ty::VOID;
-        if !valid {
-            err(
-                errs,
-                u32_of(i),
-                "an exit drop without an unowned ABI-parameter proof".into(),
-            );
-        }
-    }
 }
 
 /// Every owned borrowed result takes its count exactly once,
@@ -286,7 +131,14 @@ fn retained_results(b: &Body, cx: &dyn OwnCx, topo: &Topology, errs: &mut Vec<Ve
                 .flatten()
                 .copied();
             if !next.is_some_and(|next| {
-                b.tags[next as usize] == Tag::Retain && b.data[next as usize] == [u32_of(i), 0]
+                b.tags[next as usize] == Tag::Retain
+                    && b.data[next as usize][0] == u32_of(i)
+                    && super::count::Info::read(b, next as usize)
+                        == Some(super::count::Info::new(
+                            super::count::At::Value,
+                            super::count::Part::Result,
+                            0,
+                        ))
             }) {
                 err(
                     errs,
@@ -295,10 +147,12 @@ fn retained_results(b: &Body, cx: &dyn OwnCx, topo: &Topology, errs: &mut Vec<Ve
                 );
             }
         }
-        if b.tags[i] != Tag::Retain {
+        if b.tags[i] != Tag::Retain
+            || super::count::Info::read(b, i).is_some_and(|c| c.at != super::count::At::Value)
+        {
             continue;
         }
-        let [value, reason] = b.data[i];
+        let [value, _] = b.data[i];
         let valid = Ref(value).as_inst().is_some_and(|v| {
             let source = v.0 as usize;
             source < i
@@ -307,7 +161,15 @@ fn retained_results(b: &Body, cx: &dyn OwnCx, topo: &Topology, errs: &mut Vec<Ve
                 && topo.blk[source] == topo.blk[i]
                 && topo.pos[source] + 1 == topo.pos[i]
         });
-        if !valid || reason != 0 || b.ty[i] != hd_types::Ty::VOID {
+        if !valid
+            || super::count::Info::read(b, i)
+                != Some(super::count::Info::new(
+                    super::count::At::Value,
+                    super::count::Part::Result,
+                    0,
+                ))
+            || b.ty[i] != hd_types::Ty::VOID
+        {
             err(
                 errs,
                 u32_of(i),

@@ -24,7 +24,7 @@ fn read_nested(s: Shape) -> usize:
 >     uses $3: %45 -> %15 lend last
 >   local $4 b: string [read assigned] value
 >     uses $4: %46 -> %20 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %56 Exit local $0 #2 : ()
     match s:
 >   %1 = Read borrow [$0] : Shape
 >   %54 = Block - : never
@@ -91,7 +91,7 @@ fn owner(s: Shape) -> string:
 >     uses $1: %8 -> %2 consume last
 >   local $2 name: string [read assigned] value
 >     uses $2: %13 -> %4 consume last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %23 Exit local $0 #2 : ()
     match s:
 >   %1 = Read borrow [$0] : Shape
 >   %21 = Block - : never

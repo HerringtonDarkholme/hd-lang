@@ -91,7 +91,7 @@ fn read_const(c: Constant) -> usize:
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read move [$1] : Ref[Constant]
 >   %3 = Coerce %2 [RefToTraitValue -] : Supplier
->   %4 = Retain %3 #0 : ()
+>   %4 = Retain %3 Value #0 : ()
 >   %5 = Drop [%2] : ()
 >   %6 = Block %3 : Supplier
 >   %7 = RefDyn %6 : Ref[Supplier]

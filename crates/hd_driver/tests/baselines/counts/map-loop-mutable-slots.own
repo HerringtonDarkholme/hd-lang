@@ -50,9 +50,9 @@ std/rt_tests.stage_case/sum
   %34 = Read borrow [%21 .0] : Ref[usize]
   %35 = Read borrow [%21 .1] : Ref[mut usize]
   %36 = Store [$6] %34 : ()
-  %37 = Release %36 #0 : ()
+  %37 = Release %36 Operation #3 : ()
   %38 = Store [$7] %35 : ()
-  %39 = Release %38 #0 : ()
+  %39 = Release %38 Operation #3 : ()
   %41 = Block - : never
   %42 = Match %21 [%41 %33] : ()
   %43 = Drop [%21] : ()

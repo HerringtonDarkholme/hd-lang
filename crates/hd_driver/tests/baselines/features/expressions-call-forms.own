@@ -11,8 +11,8 @@ fn join2(first: string, second: string) -> usize:
 >     uses $0: entry -> %2 lend last
 >   local $1 second: string [param read] value
 >     uses $1: entry -> %8 lend last
->   %0 = ExitDrop [$0] #2 : ()
->   %1 = ExitDrop [$1] #2 : ()
+>   %0 = Release %14 Exit local $0 #2 : ()
+>   %1 = Release %14 Exit local $1 #2 : ()
     first.len() * 3 + second.len()
 >   %2 = Read borrow [$0] : string
 >   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
@@ -33,7 +33,7 @@ fn count(values...: List[string]) -> usize:
 > app/main/count
 >   local $0 values: List[string] [param read] value
 >     uses $0: entry -> %1 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %3 Exit local $0 #2 : ()
     values.len()
 >   %1 = Read borrow [$0] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize
@@ -138,7 +138,7 @@ fn spread_list(xs: List[string]) -> usize:
 > app/main/spread_list
 >   local $0 xs: List[string] [param read] value
 >     uses $0: entry -> %1 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %6 Exit local $0 #2 : ()
     count(xs...)
 >   %1 = Read borrow [$0] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize

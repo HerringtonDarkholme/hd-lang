@@ -54,7 +54,7 @@ fn count_long(xs: List[string]) -> usize:
 >   %25 = Block - : ()
 >   %26 = Read borrow [%13 as #1 .0] : string
 >   %27 = Store [$4] %26 : ()
->   %28 = Release %27 #0 : ()
+>   %28 = Release %27 Operation #3 : ()
 >   %34 = Block - : never
 >   %35 = Match %13 [%34 %22 %25] : ()
 >   %36 = Drop [%13] : ()

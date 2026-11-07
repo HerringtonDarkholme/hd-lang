@@ -58,7 +58,7 @@ fn promoted(p: Post) -> usize:
 >     uses $3: %9 -> %10 consume last
 >   local $4 self: string [read] value
 >     uses $4: %11 -> %12 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %29 Exit local $0 #2 : ()
     p.by.len() + p.by_len() + p.title.len()
 >   %1 = Read borrow [$0 .Stamp .by] : string
 >   %2 = Store [$1] %1 : ()

@@ -8,7 +8,7 @@ fn save(s: string) -> Result[void, string]:
 > app/main/save
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %1 lend, %11 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %14 Exit local $0 #2 : ()
     if s.len() > 0:
 >   %1 = Read borrow [$0] : string
 >   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
@@ -34,7 +34,7 @@ fn report(s: string) -> string:
 >     uses $0: entry -> %1 lend, %11 lend last
 >   local $1 message: string [read assigned] value
 >     uses $1: %23 -> %18 consume last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %33 Exit local $0 #2 : ()
     match save(s):
 >   %1 = Read borrow [$0] : string
 >   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize

@@ -41,7 +41,7 @@ fn replace(h: *mut H, alias: *mut H, next: *P) -> string:
     alias.p = next
 >   %7 = Read copy [$2] : Counted[P]
 >   %8 = Store [*$1 .p] %7 : ()
->   %9 = Release %8 #0 : ()
+>   %9 = Release %8 Operation #3 : ()
     *d
 >   %10 = Read copy [*$3] : string
 >   %11 = Drop [$3] : ()
@@ -84,7 +84,7 @@ fn replace_mut(h: *mut M, alias: *mut M, next: *mut P) -> string:
     alias.p = next
 >   %7 = Read copy [$2] : Counted[mut P]
 >   %8 = Store [*$1 .p] %7 : ()
->   %9 = Release %8 #0 : ()
+>   %9 = Release %8 Operation #3 : ()
     *d
 >   %10 = Read copy [*$3] : string
 >   %11 = Drop [$3] : ()

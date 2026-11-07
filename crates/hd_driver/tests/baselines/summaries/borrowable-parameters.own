@@ -15,7 +15,7 @@ impl Bag:
 > app/main/impl Bag.size
 >   local $0 self: Bag [param read] value
 >     uses $0: entry -> %1 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %3 Exit local $0 #2 : ()
         self.items.len()
 >   %1 = Read borrow [$0 .items] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize
@@ -26,7 +26,7 @@ fn twice(b: Bag) -> usize:
 > app/main/twice
 >   local $0 b: Bag [param read] value
 >     uses $0: entry -> %1 lend, %6 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %12 Exit local $0 #2 : ()
     b.size() + b.size()
 >   %1 = Read borrow [$0 .items] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize

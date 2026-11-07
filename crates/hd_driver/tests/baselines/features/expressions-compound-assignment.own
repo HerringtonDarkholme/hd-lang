@@ -14,7 +14,7 @@ fn map_add(m: &mut Map[string, i64], k: string) -> void:
 >     uses $0: entry -> %1 lend, %8 lend last
 >   local $1 k: string [param read] value
 >     uses $1: entry -> %2 lend last
->   %0 = ExitDrop [$1] #2 : ()
+>   %0 = Release %10 Exit local $1 #2 : ()
     m[k] += 1
 >   %1 = Read borrow [*$0] : Map[string, i64]
 >   %2 = Read borrow [$1] : string
@@ -40,7 +40,7 @@ fn list_append(xs: &mut List[string], i: usize) -> void:
 >   %2 = Intrinsic StrConcat [%1 "!"] : string
 >   %3 = IsUnique [*$0] : ()
 >   %4 = Store [*$0 [%0]] %2 : ()
->   %5 = Release %4 #0 : ()
+>   %5 = Release %4 Operation #3 : ()
 >   %6 = Block - : ()
 >   summary kept [] writes
 
@@ -50,12 +50,12 @@ fn field_append(t: &mut Tally, s: string) -> void:
 >     uses $0: entry -> %1 lend, %4 lend last
 >   local $1 s: string [param read] value
 >     uses $1: entry -> %2 lend last
->   %0 = ExitDrop [$1] #2 : ()
+>   %0 = Release %6 Exit local $1 #2 : ()
     t.log += s
 >   %1 = Read borrow [*$0 .log] : string
 >   %2 = Read borrow [$1] : string
 >   %3 = Intrinsic StrConcat [%1 %2] : string
 >   %4 = Store [*$0 .log] %3 : ()
->   %5 = Release %4 #0 : ()
+>   %5 = Release %4 Operation #3 : ()
 >   %6 = Block - : ()
 >   summary kept [] borrows [$1] writes

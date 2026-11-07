@@ -4,50 +4,23 @@
 //! its result already and copies it into the cache before returning.
 //! Declarations execute at those cache boundaries, not lexically.
 
-use super::{OwnCx, splice};
-use crate::ir::{Body, BodyKind, Tag, Topology, cache_copy};
-use hd_types::Ty;
+use super::OwnCx;
+use crate::ir::{Body, BodyKind};
 
 /// The kind and result type determine whether the cache owns counted bits.
 pub(crate) fn counted(b: &Body, cx: &dyn OwnCx) -> bool {
     matches!(b.kind, BodyKind::Fact | BodyKind::Handle) && cx.counted(b.ty[b.sub_root[0] as usize])
 }
 
-pub(super) fn run(
-    b: &mut Body,
-    cx: &dyn OwnCx,
-    topo: &Topology,
-    edits: &mut splice::Tables,
-) -> Result<(), String> {
-    if !counted(b, cx) {
-        return Ok(());
-    }
-    let root = b.sub_root[0];
-    for phase in [cache_copy::READ, cache_copy::WRITE] {
-        if b.record(b.data[root as usize][0])
-            .iter()
-            .any(|&i| b.tags[i as usize] == Tag::CacheCopy && b.data[i as usize][0] == phase)
-        {
-            continue;
-        }
-        edits.insert(
-            root,
-            0,
-            Tag::CacheCopy,
-            [phase, 0],
-            Ty::VOID,
-            b.syn[root as usize],
-        );
-    }
-    splice::apply(b, topo, edits)
-}
-
 #[cfg(test)]
 mod tests {
     use super::super::Pass;
+    use super::super::{counts::run, splice};
     use super::*;
     use crate::ir::{Callee, ReadMode, TirBuilder, TirSink, local_flags, verify_owned};
+    use crate::ir::{Tag, Topology};
     use hd_base::{DefId, NodeIdx, Symbol};
+    use hd_types::Ty;
 
     struct Facts;
     impl OwnCx for Facts {
@@ -100,10 +73,7 @@ mod tests {
             for _ in 0..2 {
                 let topo = Topology::new(&b);
                 run(&mut b, &Facts, &topo, &mut splice::Tables::default()).unwrap();
-                assert_eq!(
-                    b.tags.iter().filter(|&&t| t == Tag::CacheCopy).count(),
-                    count
-                );
+                assert_eq!(b.tags.iter().filter(|&&t| t == Tag::Retain).count(), count);
                 let errors = verify_owned(&b, &Facts);
                 assert!(errors.is_empty(), "{errors:?}");
             }
@@ -118,23 +88,23 @@ mod tests {
         assert!(
             verify_owned(&b, &Facts)
                 .iter()
-                .any(|e| e.what.contains("cache copy"))
+                .any(|e| e.what.contains("boundary count"))
         );
         let topo = Topology::new(&b);
         run(&mut b, &Facts, &topo, &mut splice::Tables::default()).unwrap();
-        let copy = b.tags.iter().position(|&t| t == Tag::CacheCopy).unwrap();
-        b.data[copy][1] = 2;
+        let copy = b.tags.iter().position(|&t| t == Tag::Retain).unwrap();
+        b.extra[b.data[copy][1] as usize + 4] = 2;
         assert!(
             verify_owned(&b, &Facts)
                 .iter()
-                .any(|e| e.what.contains("cache-copy proof"))
+                .any(|e| e.what.contains("count fact"))
         );
-        b.data[copy][1] = 0;
+        b.extra[b.data[copy][1] as usize + 4] = 0;
         b.kind = BodyKind::Fn;
         assert!(
             verify_owned(&b, &Facts)
                 .iter()
-                .any(|e| e.what.contains("cache-copy proof"))
+                .any(|e| e.what.contains("count fact"))
         );
     }
 }

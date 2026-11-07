@@ -20,7 +20,7 @@ impl Members:
 >     uses $0: entry -> %1 lend last
 >   local $1 position: usize [param read] value
 >     uses $1: entry -> %3 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %5 Exit local $0 #2 : ()
         self.infos.len() + position
 >   %1 = Read borrow [$0 .infos] : List[Info]
 >   %2 = Intrinsic ListLen [%1] : usize

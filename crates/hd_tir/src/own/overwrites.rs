@@ -7,6 +7,7 @@
 //! find its place empty ([`Stores::finds_empty`]).
 
 use super::{OwnCx, splice};
+use crate::ir::count::{At, Info, Part};
 use crate::ir::{Body, NONE, Ref, Tag, Topology, local_flags, u32_of};
 use hd_types::Ty;
 
@@ -86,18 +87,19 @@ impl Stores {
 
 /// Plans a `Release` right after each store that releases what its place
 /// holds. The caller applies the edits.
-pub(super) fn plan(b: &Body, cx: &dyn OwnCx, topo: &Topology, edits: &mut splice::Tables) {
+pub(super) fn plan(b: &mut Body, cx: &dyn OwnCx, topo: &Topology, edits: &mut splice::Tables) {
     if !b.tags.contains(&Tag::Store) {
         return;
     }
     let stores = Stores::of(b);
     for i in 0..b.len() {
         if b.tags[i] == Tag::Store && stores.releases(b, cx, topo, i) {
+            let record = Info::new(At::Operation, Part::Result, 3).write(b);
             edits.insert(
                 topo.blk[i],
                 topo.pos[i] + 1,
                 Tag::Release,
-                [u32_of(i), 0],
+                [u32_of(i), record],
                 Ty::VOID,
                 b.syn[i],
             );
@@ -135,7 +137,7 @@ pub(crate) fn verify(b: &Body, cx: &dyn OwnCx, topo: &Topology, mut err: impl Fn
                     err(u32_of(i), "a store that overwrites has no Release".into());
                 }
             }
-            Tag::Release => {
+            Tag::Release if Info::read(b, i).is_none_or(|c| c.at == At::Operation) => {
                 let store = b.data[i][0] as usize;
                 if store >= i
                     || b.tags[store] != Tag::Store

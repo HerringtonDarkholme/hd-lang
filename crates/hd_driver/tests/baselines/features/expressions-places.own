@@ -27,7 +27,7 @@ fn tuple_slot(a: string, b: string, s: string) -> (string, string):
     p._0 = s
 >   %4 = Read move [$2] : string
 >   %5 = Store [$3 .0] %4 : ()
->   %6 = Release %5 #0 : ()
+>   %6 = Release %5 Operation #3 : ()
     p
 >   %7 = Read move [$3] : (string, string)
 >   exit sub 0 drops [$0 $1 $2]
@@ -69,7 +69,7 @@ fn call_receiver(xs: List[*mut Node], s: string) -> void:
 >   %8 = Drop [$2] : ()
 >   %9 = Read move [$1] : string
 >   %10 = Store [*%7 .name] %9 : ()
->   %11 = Release %10 #0 : ()
+>   %11 = Release %10 Operation #3 : ()
 >   %12 = Drop [%7] : ()
 >   %13 = Block - : ()
 >   exit sub 0 drops [$0 $1]
@@ -84,7 +84,7 @@ fn deref_store(r: &mut string, s: string) -> void:
 >     uses $1: entry -> %0 consume last
 >   %0 = Read move [$1] : string
 >   %1 = Store [*$0] %0 : ()
->   %2 = Release %1 #0 : ()
+>   %2 = Release %1 Operation #3 : ()
 >   %3 = Block - : ()
 >   exit sub 0 drops [$1]
 >   summary kept [$1] writes

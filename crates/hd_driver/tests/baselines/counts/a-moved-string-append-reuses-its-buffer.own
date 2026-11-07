@@ -4,4 +4,4 @@ app/main/build
   %5 = Read borrow [$1] : string
   %6 = Intrinsic StrConcat [%5 "abcdefgh"] : string
   %7 = Store [$1] %6 : ()
-  %8 = Release %7 #0 : ()
+  %8 = Release %7 Operation #3 : ()

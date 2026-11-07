@@ -17,7 +17,7 @@ fn sizes(u: User) -> usize:
 >     uses $1: %13 -> %2 lend last
 >   local $2 tags: List[string] [read assigned] value
 >     uses $2: %14 -> %7 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %18 Exit local $0 #2 : ()
     match u:
 >   %1 = Read borrow [$0] : User
 >   %16 = Block - : never
@@ -45,7 +45,7 @@ fn pick(u: User) -> string:
 >     uses $0: entry -> %1 lend last
 >   local $1 name: string [read assigned] value
 >     uses $1: %11 -> %3 consume last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %17 Exit local $0 #2 : ()
     match u:
 >   %1 = Read borrow [$0] : User
 >   %15 = Block - : never

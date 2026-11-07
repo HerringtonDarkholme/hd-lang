@@ -72,7 +72,7 @@ greeting := "hello ${1}"
 >   %43 = Call std/text/impl StringBuilder.value_integer[usize] (%23, %16, 1:usize, %15) : ()
 >   %44 = Read move [%23] : string
 >   %45 = Store [@app/main/greeting] %44 : ()
->   %46 = Release %45 #0 : ()
+>   %46 = Release %45 Operation #3 : ()
 
 names := ["a${1}", "b"]
 >   %47 = Store [$4] 1:usize : ()
@@ -123,7 +123,7 @@ names := ["a${1}", "b"]
 >   %92 = Coerce %91 [Identity -] : string
 >   %93 = NewList - [%92 "b"] : List[string]
 >   %94 = Store [@app/main/names] %93 : ()
->   %95 = Release %94 #0 : ()
+>   %95 = Release %94 Operation #3 : ()
 
 fn read_top() -> usize:
     greeting.len() + names.len()

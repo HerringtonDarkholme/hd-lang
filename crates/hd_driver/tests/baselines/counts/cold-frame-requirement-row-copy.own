@@ -8,9 +8,9 @@ trait Value:
 fn read!() -> i32 $ Value:
     $.use(Value).value()
 > app/main/read
->   %0 = ColdRowCopy #0 #0 : ()
+>   %0 = Retain %7 Cold row #0 : ()
 >   %1 = ProviderGet #0 : Value
->   %2 = Retain %1 #0 : ()
+>   %2 = Retain %1 Value #0 : ()
 >   %3 = Coerce %1 [ProviderAsRef -] : Ref[Value]
 >   %4 = Read borrow [*%3] : Value
 >   %5 = Drop [%3] : ()

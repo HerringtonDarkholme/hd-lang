@@ -15,7 +15,7 @@ impl Joiner:
 >     uses $0: entry -> %1 lend last
 >   local $1 sep: string [param read] value
 >     uses $1: entry -> %3 lend last
->   %0 = ExitDrop [$1] #2 : ()
+>   %0 = Release %9 Exit local $1 #2 : ()
 > app/main/impl Joiner.join.sep
 >   %0 = Block ", " : string
 >   summary kept [] borrows [$0]
@@ -63,7 +63,7 @@ fn generic_method(j: Joiner, s: string) -> usize:
 >     uses $1: entry -> %1 consume last
 >   local $2 $ref: string [read assigned captured captured-assigned] value
 >     uses $2: %5 -> %6 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %12 Exit local $0 #2 : ()
     j.tagged(s).len()
 >   %1 = Read move [$1] : string
 >   %2 = Break L1 %1 : never

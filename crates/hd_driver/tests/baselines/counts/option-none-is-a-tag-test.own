@@ -53,7 +53,7 @@ fn none_first(value: string?) -> bool:
 > app/main/none_first
 >   local $0 value: string? [param read] value
 >     uses $0: entry -> %3 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %13 Exit local $0 #2 : ()
     .None == value
 >   %1 = NewVariant #0 [] : string?
 >   %2 = Drop [%1] : ()
@@ -74,7 +74,7 @@ fn none_first_ne(value: string?) -> bool:
 > app/main/none_first_ne
 >   local $0 value: string? [param read] value
 >     uses $0: entry -> %3 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %13 Exit local $0 #2 : ()
     .None != value
 >   %1 = NewVariant #0 [] : string?
 >   %2 = Drop [%1] : ()

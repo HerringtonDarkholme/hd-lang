@@ -71,7 +71,7 @@ fn doubled(xs: List[i32]) -> List[i32]:
 >     uses $5: %11 -> %14 lend
 >   local $6 x: i32 [read assigned] value
 >     uses $6: %27 -> %21 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %39 Exit local $0 #2 : ()
     [for x in xs => x * 2]
 >   %1 = NewList - [] : mut List[i32]
 >   %2 = Store [$1] %1 : ()

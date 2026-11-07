@@ -206,7 +206,7 @@ fn call(items: &mut List[usize], n: usize, f: fn() -> void) -> void:
 >     uses $9: none
 >   local $10 i: usize [read assigned] value
 >     uses $10: %33 -> %37 lend last
->   %0 = ExitDrop [$2] #2 : ()
+>   %0 = Release %53 Exit local $2 #2 : ()
     for r in 0..n:
 >   %1 = Read copy [$1] : usize
 >   %2 = NewStruct [0:usize %1 0:bool] : Range[usize]

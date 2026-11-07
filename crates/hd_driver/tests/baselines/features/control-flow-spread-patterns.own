@@ -13,7 +13,7 @@ fn total(t: (string, List[string]...)) -> usize:
 >     uses $1: %5 -> %10 lend last
 >   local $2 xs: List[string] [read assigned] value
 >     uses $2: %6 -> %15 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %18 Exit local $0 #2 : ()
     let (a, xs...) = t
 >   %1 = Read borrow [$0] : (string, List[string]...)
 >   %2 = Block - : ()
@@ -41,7 +41,7 @@ fn describe(t: (string, List[string]...)) -> usize:
 >     uses $0: entry -> %1 lend last
 >   local $1 xs: List[string] [read assigned] value
 >     uses $1: %6 -> %2 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %10 Exit local $0 #2 : ()
     match t:
 >   %1 = Read borrow [$0] : (string, List[string]...)
 >   %8 = Block - : never
@@ -61,7 +61,7 @@ fn rest(t: (string, List[string]...)) -> List[string]:
 >     uses $0: entry -> %1 lend last
 >   local $1 xs: List[string] [read assigned] value
 >     uses $1: %4 -> %8 consume last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %9 Exit local $0 #2 : ()
     let (_, xs...) = t
 >   %1 = Read borrow [$0] : (string, List[string]...)
 >   %2 = Block - : ()

@@ -52,7 +52,7 @@ impl Vec2:
 >     uses $1: entry -> %0 consume last
 >   %0 = Read move [$1] : string
 >   %1 = Store [$0 .name] %0 : ()
->   %2 = Release %1 #0 : ()
+>   %2 = Release %1 Operation #3 : ()
 >   %4 = Block %3 : Vec2
         self
 >   %3 = Read move [$0] : Vec2
@@ -134,7 +134,7 @@ fn element_read(xs: List[Vec2], i: usize) -> usize:
 >     uses $2: %3 -> %4 consume last
 >   local $3 self: string [read] value
 >     uses $3: %5 -> %6 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %14 Exit local $0 #2 : ()
     xs[i].label_len()
 >   %1 = Read copy [$1] : usize
 >   %2 = Read borrow [$0 [%1]] : Vec2
@@ -195,7 +195,7 @@ fn mut_self(v: Vec2, n: string) -> usize:
 >   %1 = Store [$5] %0 : ()
 >   %2 = Read move [$1] : string
 >   %3 = Store [$5 .name] %2 : ()
->   %4 = Release %3 #0 : ()
+>   %4 = Release %3 Operation #3 : ()
 >   %5 = Read move [$5] : Vec2
 >   %6 = Break L2 %5 : never
 >   %7 = Block - : Vec2

@@ -4,9 +4,8 @@
 //! Its instance layout supplies provider data and any open-row context;
 //! a layout that owns no counts lowers no copy.
 
-use super::{OwnCx, params, splice};
-use crate::ir::{Body, BodyKind, Tag, Topology};
-use hd_types::Ty;
+use super::{OwnCx, params};
+use crate::ir::{Body, BodyKind};
 
 pub(crate) fn needed(b: &Body, cx: &dyn OwnCx) -> bool {
     matches!(b.kind, BodyKind::Fn | BodyKind::DeriveInstance)
@@ -15,39 +14,15 @@ pub(crate) fn needed(b: &Body, cx: &dyn OwnCx) -> bool {
         && cx.parameter_count(b.item) == Some(params(b).len())
 }
 
-pub(super) fn run(
-    b: &mut Body,
-    cx: &dyn OwnCx,
-    topo: &Topology,
-    edits: &mut splice::Tables,
-) -> Result<(), String> {
-    if !needed(b, cx) {
-        return Ok(());
-    }
-    let root = b.sub_root[0];
-    if !b
-        .record(b.data[root as usize][0])
-        .iter()
-        .any(|&i| b.tags[i as usize] == Tag::ColdRowCopy)
-    {
-        edits.insert(
-            root,
-            0,
-            Tag::ColdRowCopy,
-            [0, 0],
-            Ty::VOID,
-            b.syn[root as usize],
-        );
-    }
-    splice::apply(b, topo, edits)
-}
-
 #[cfg(test)]
 mod tests {
     use super::super::Pass;
+    use super::super::{counts::run, splice};
     use super::*;
     use crate::ir::{Callee, TirBuilder, TirSink, verify_owned};
+    use crate::ir::{Tag, Topology};
     use hd_base::DefId;
+    use hd_types::Ty;
 
     struct Facts {
         row: bool,
@@ -113,10 +88,7 @@ mod tests {
             for _ in 0..2 {
                 let topo = Topology::new(&b);
                 run(&mut b, &facts, &topo, &mut splice::Tables::default()).unwrap();
-                assert_eq!(
-                    b.tags.iter().filter(|&&t| t == Tag::ColdRowCopy).count(),
-                    count
-                );
+                assert_eq!(b.tags.iter().filter(|&&t| t == Tag::Retain).count(), count);
                 let errors = verify_owned(&b, &facts);
                 assert!(errors.is_empty(), "{errors:?}");
             }
@@ -136,18 +108,18 @@ mod tests {
         assert!(
             verify_owned(&b, &facts)
                 .iter()
-                .any(|e| e.what.contains("row lacks its one copy"))
+                .any(|e| e.what.contains("boundary count"))
         );
         let topo = Topology::new(&b);
         run(&mut b, &facts, &topo, &mut splice::Tables::default()).unwrap();
-        let copy = b.tags.iter().position(|&t| t == Tag::ColdRowCopy).unwrap();
-        b.data[copy][1] = 2;
+        let copy = b.tags.iter().position(|&t| t == Tag::Retain).unwrap();
+        b.extra[b.data[copy][1] as usize + 4] = 2;
         assert!(
             verify_owned(&b, &facts)
                 .iter()
-                .any(|e| e.what.contains("source-requirement proof"))
+                .any(|e| e.what.contains("count fact"))
         );
-        b.data[copy][1] = 0;
+        b.extra[b.data[copy][1] as usize + 4] = 0;
         let empty = Facts {
             row: false,
             ..facts
@@ -155,7 +127,7 @@ mod tests {
         assert!(
             verify_owned(&b, &empty)
                 .iter()
-                .any(|e| e.what.contains("source-requirement proof"))
+                .any(|e| e.what.contains("count fact"))
         );
     }
 }

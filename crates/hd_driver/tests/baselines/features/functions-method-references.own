@@ -16,7 +16,7 @@ impl User:
 >     uses $0: entry -> %1 consume last
 >   local $1 self: string [read] value
 >     uses $1: %2 -> %3 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %8 Exit local $0 #2 : ()
         self.name.len()
 >   %1 = Read borrow [$0 .name] : string
 >   %2 = Store [$1] %1 : ()
@@ -37,7 +37,7 @@ impl User:
 >     uses $1: entry -> %0 consume last
 >   %0 = Read move [$1] : string
 >   %1 = Store [*$0 .name] %0 : ()
->   %2 = Release %1 #0 : ()
+>   %2 = Release %1 Operation #3 : ()
 >   %3 = Block - : ()
 >   exit sub 0 drops [$1]
 >   summary kept [$1] writes
@@ -50,7 +50,7 @@ fn unbound(u: User) -> usize:
 >     uses $1: %2 -> %3 lend last
 >   local $3 self: string [read] value
 >     uses $3: %6 -> %7 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %15 Exit local $0 #2 : ()
     f := User::name_len
 >   %1 = ItemRef #0 [..] : fn(User) -> usize
 >   %2 = Store [$1] %1 : ()
@@ -157,7 +157,7 @@ fn adapter(us: List[User]) -> usize:
 >     uses $8: %36 -> %30 consume last
 >   local $10 self: string [read] value
 >     uses $10: %2 -> %3 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %49 Exit local $0 #2 : ()
     g := fn(u: User) -> usize: u.name_len()
 >   %1 = Read borrow [$1 .name] : string
 >   %2 = Store [$10] %1 : ()
@@ -192,7 +192,7 @@ fn adapter(us: List[User]) -> usize:
 >   %34 = Block - : ()
 >   %35 = Read borrow [%24] : User
 >   %36 = Store [$8] %35 : ()
->   %37 = Release %36 #0 : ()
+>   %37 = Release %36 Operation #3 : ()
 >   %39 = Block - : never
 >   %40 = Match %24 [%39 %34] : ()
 >   %41 = Block - : ()

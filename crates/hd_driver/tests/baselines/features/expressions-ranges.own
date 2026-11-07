@@ -41,7 +41,7 @@ fn lens(xs: List[string]) -> usize:
 >     uses $5: %15 -> %20 lend last
 >   local $6 self: string [read] value
 >     uses $6: %22 -> %24 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %38 Exit local $0 #2 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
 >   %38 = Block %37 : usize
@@ -74,7 +74,7 @@ fn lens(xs: List[string]) -> usize:
 >   %20 = Read copy [$5] : usize
 >   %21 = Read borrow [$0 [%20]] : string
 >   %22 = Store [$6] %21 : ()
->   %23 = Release %22 #0 : ()
+>   %23 = Release %22 Operation #3 : ()
 >   %24 = Read borrow [$6] : string
 >   %25 = Call std/rt.bytes/bytes_len[] (%24) : usize
 >   %26 = Break L1 %25 : never

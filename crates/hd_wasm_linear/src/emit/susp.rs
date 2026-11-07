@@ -12,6 +12,7 @@ use crate::op::Op as I;
 use hd_base::SliceSort as _;
 use hd_base::{Hash128, HashMap, StageResult};
 use hd_mono::{Target, TargetKind};
+use hd_tir::ir::count::{At as CountAt, Part as CountPart};
 use hd_tir::ir::{Body, NONE, Tag};
 use hd_tir::own::Reason;
 use wasm_encoder::BlockType;
@@ -1412,7 +1413,11 @@ pub(super) fn finish(
             let ls: Vec<u32> = em.locals[&l].iter().map(|x| x - 1).collect();
             let t = em.sub(em.b.local_ty[l]);
             let copy = if source {
-                em.cold_copy(l)
+                em.stated_count(
+                    Tag::Retain,
+                    CountAt::Cold,
+                    CountPart::Local(u32::try_from(l).expect("local")),
+                )
             } else {
                 Some(Reason::Conservative("cold constructor"))
             };
@@ -1450,7 +1455,7 @@ pub(super) fn finish(
     em.save_initial_drop_flags(plocals, fr, &area);
     if em.counting {
         let copy = if source {
-            em.cold_row_copy()
+            em.stated_count(Tag::Retain, CountAt::Cold, CountPart::Row)
         } else {
             Some(Reason::Conservative("cold constructor"))
         };

@@ -3,9 +3,8 @@
 //! A concrete `Drop` argument arrives owned instead; its physical ABI
 //! transfers that count and the declaration lowers no copy.
 
-use super::{OwnCx, Tri, params, splice};
-use crate::ir::{Body, BodyKind, Tag, Topology, place};
-use hd_types::Ty;
+use super::{OwnCx, Tri, params};
+use crate::ir::{Body, BodyKind};
 
 pub(crate) fn parameters(b: &Body, cx: &dyn OwnCx) -> Vec<u32> {
     if !matches!(b.kind, BodyKind::Fn | BodyKind::DeriveInstance) || !cx.suspending(b.item) {
@@ -24,39 +23,15 @@ pub(crate) fn parameters(b: &Body, cx: &dyn OwnCx) -> Vec<u32> {
         .collect()
 }
 
-pub(super) fn run(
-    b: &mut Body,
-    cx: &dyn OwnCx,
-    topo: &Topology,
-    edits: &mut splice::Tables,
-) -> Result<(), String> {
-    let root = b.sub_root[0];
-    for l in parameters(b, cx) {
-        let word = l | place::BARE_LOCAL;
-        if b.record(b.data[root as usize][0])
-            .iter()
-            .any(|&i| b.tags[i as usize] == Tag::ColdCopy && b.data[i as usize][0] == word)
-        {
-            continue;
-        }
-        edits.insert(
-            root,
-            0,
-            Tag::ColdCopy,
-            [word, 0],
-            Ty::VOID,
-            b.local_syn[l as usize],
-        );
-    }
-    splice::apply(b, topo, edits)
-}
-
 #[cfg(test)]
 mod tests {
     use super::super::Pass;
+    use super::super::{counts::run, splice};
     use super::*;
     use crate::ir::{Callee, TirBuilder, TirSink, local_flags, verify_owned};
+    use crate::ir::{Tag, Topology};
     use hd_base::{DefId, NodeIdx, Symbol};
+    use hd_types::Ty;
 
     struct Facts {
         suspends: bool,
@@ -124,14 +99,12 @@ mod tests {
             };
             let mut b = body(ty);
             let topo = Topology::new(&b);
-            super::super::abi::run(&mut b, &facts, &topo, &mut splice::Tables::default()).unwrap();
+            super::super::counts::run(&mut b, &facts, &topo, &mut splice::Tables::default())
+                .unwrap();
             for _ in 0..2 {
                 let topo = Topology::new(&b);
                 run(&mut b, &facts, &topo, &mut splice::Tables::default()).unwrap();
-                assert_eq!(
-                    b.tags.iter().filter(|&&t| t == Tag::ColdCopy).count(),
-                    count
-                );
+                assert_eq!(b.tags.iter().filter(|&&t| t == Tag::Retain).count(), count);
                 let errors = verify_owned(&b, &facts);
                 assert!(errors.is_empty(), "{errors:?}");
             }
@@ -151,18 +124,18 @@ mod tests {
         assert!(
             verify_owned(&b, &facts)
                 .iter()
-                .any(|e| e.what.contains("one frame copy"))
+                .any(|e| e.what.contains("boundary count"))
         );
         let topo = Topology::new(&b);
         run(&mut b, &facts, &topo, &mut splice::Tables::default()).unwrap();
-        let copy = b.tags.iter().position(|&t| t == Tag::ColdCopy).unwrap();
-        b.data[copy][1] = 2;
+        let copy = b.tags.iter().position(|&t| t == Tag::Retain).unwrap();
+        b.extra[b.data[copy][1] as usize + 4] = 2;
         assert!(
             verify_owned(&b, &facts)
                 .iter()
-                .any(|e| e.what.contains("source-parameter proof"))
+                .any(|e| e.what.contains("count fact"))
         );
-        b.data[copy][1] = 0;
+        b.extra[b.data[copy][1] as usize + 4] = 0;
         let moved = Facts {
             drop: Tri::Yes,
             ..facts
@@ -170,7 +143,7 @@ mod tests {
         assert!(
             verify_owned(&b, &moved)
                 .iter()
-                .any(|e| e.what.contains("source-parameter proof"))
+                .any(|e| e.what.contains("count fact"))
         );
     }
 }

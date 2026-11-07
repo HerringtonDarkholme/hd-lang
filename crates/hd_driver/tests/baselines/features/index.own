@@ -16,7 +16,7 @@ fn list_read(xs: List[string], i: usize) -> usize:
 >     uses $1: entry -> %1 lend last
 >   local $2 self: string [read] value
 >     uses $2: %3 -> %4 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %9 Exit local $0 #2 : ()
     xs[i].len()
 >   %1 = Read copy [$1] : usize
 >   %2 = Read borrow [$0 [%1]] : string
@@ -56,7 +56,7 @@ fn list_write(xs: &mut List[string], i: usize, s: string) -> void:
 >   %1 = Read move [$2] : string
 >   %2 = IsUnique [*$0] : ()
 >   %3 = Store [*$0 [%0]] %1 : ()
->   %4 = Release %3 #0 : ()
+>   %4 = Release %3 Operation #3 : ()
 >   %5 = Block - : ()
 >   exit sub 0 drops [$2]
 >   summary kept [$2] writes
@@ -69,8 +69,8 @@ fn map_read(m: Map[string, string], k: string) -> usize:
 >     uses $1: entry -> %3 lend last
 >   local $2 v: string [read assigned] value
 >     uses $2: %13 -> %5 lend last
->   %0 = ExitDrop [$0] #2 : ()
->   %1 = ExitDrop [$1] #2 : ()
+>   %0 = Release %26 Exit local $0 #2 : ()
+>   %1 = Release %26 Exit local $1 #2 : ()
     match m.get(k):
 >   %2 = Read borrow [$0] : Map[string, string]
 >   %3 = Read borrow [$1] : string
@@ -106,7 +106,7 @@ fn map_write(m: &mut Map[string, string], k: string, v: string) -> void:
 >     uses $1: entry -> %1 lend last
 >   local $2 v: string [param read] value
 >     uses $2: entry -> %2 consume last
->   %0 = ExitDrop [$1] #2 : ()
+>   %0 = Release %6 Exit local $1 #2 : ()
     m[k] = v
 >   %1 = Read borrow [$1] : string
 >   %2 = Read move [$2] : string
@@ -231,11 +231,11 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
         .Some(r) => *r = s
 >   %27 = Read move [$2] : string
 >   %28 = Store [*$3] %27 : ()
->   %29 = Release %28 #0 : ()
+>   %29 = Release %28 Operation #3 : ()
 >   %30 = Block - : ()
 >   %33 = Read borrow [%26 as #1 .0] : Ref[mut string]
 >   %34 = Store [$3] %33 : ()
->   %35 = Release %34 #0 : ()
+>   %35 = Release %34 Operation #3 : ()
 >   %37 = Block - : never
 >   %43 = Block - : never
 >   %44 = SwitchTag %26 [#1 %37 %43] : never

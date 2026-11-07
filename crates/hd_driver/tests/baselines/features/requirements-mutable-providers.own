@@ -46,10 +46,10 @@ fn tick(s: string) -> usize $ Recorder:
 >     uses $0: entry -> %6 lend last
 >   local $1 rec: Ref[mut Recorder] [:= read assigned] value
 >     uses $1: %4 -> %5 lend, %9 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %13 Exit local $0 #2 : ()
     rec := $.use(Recorder)
 >   %1 = ProviderGet #0 : Recorder
->   %2 = Retain %1 #0 : ()
+>   %2 = Retain %1 Value #0 : ()
 >   %3 = Coerce %1 [ProviderAsRef -] : Ref[mut Recorder]
 >   %4 = Store [$1] %3 : ()
 >   %13 = Block %10 : usize
@@ -76,8 +76,8 @@ fn demo(a: string, b: string) -> usize:
 >     uses $3: %6 -> %7 consume, %25 lend last
 >   local $4 $ref: Counted[mut Log] [read assigned captured] value
 >     uses $4: %8 -> %9 lend last
->   %0 = ExitDrop [$0] #2 : ()
->   %1 = ExitDrop [$1] #2 : ()
+>   %0 = Release %28 Exit local $0 #2 : ()
+>   %1 = Release %28 Exit local $1 #2 : ()
     tally := box(Log { lines: [] })
 >   %2 = NewList - [] : List[string]
 >   %3 = NewStruct [%2] : Log
@@ -91,12 +91,12 @@ fn demo(a: string, b: string) -> usize:
 >   %8 = Store [$4] %7 : ()
 >   %9 = Read copy [$4] : Counted[mut Log]
 >   %10 = Coerce %9 [RefToTraitValue -] : Recorder
->   %11 = Retain %10 #0 : ()
+>   %11 = Retain %10 Value #0 : ()
 >   %12 = Drop [%9] : ()
 >   %13 = Block %10 : Recorder
 >   %14 = RefDyn %13 : Counted[mut Recorder]
 >   %15 = Coerce %14 [RefAsProvider -] : Recorder
->   %16 = Retain %15 #0 : ()
+>   %16 = Retain %15 Value #0 : ()
 >   %17 = Drop [%14] : ()
 >   %23 = With [Recorder %15] %22 : ()
 >   %24 = Drop [%15] : ()

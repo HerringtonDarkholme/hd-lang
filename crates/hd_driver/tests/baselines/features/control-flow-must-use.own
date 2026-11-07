@@ -12,7 +12,7 @@ fn save(s: string) -> Result[string, SaveError]:
 > app/main/save
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %1 lend, %7 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %15 Exit local $0 #2 : ()
     if s.len() > 0: .Ok(s + "!") else: .Err(SaveError.Failed("empty"))
 >   %1 = Read borrow [$0] : string
 >   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
@@ -99,7 +99,7 @@ fn unused(s: string) -> usize:
 > app/main/unused
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %1 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %6 Exit local $0 #2 : ()
     _kept := s
 >   %6 = Block %5 : usize
     s.len()

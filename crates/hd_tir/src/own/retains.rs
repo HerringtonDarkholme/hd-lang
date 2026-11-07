@@ -2,6 +2,7 @@
 //! The result is an owned value; its existing drops still end that owner.
 
 use super::{OwnCx, splice};
+use crate::ir::count::{At, Info, Part};
 use crate::ir::{Body, Callee, Coercion, NONE, Ref, Tag, Topology, u32_of};
 use hd_types::Ty;
 
@@ -28,11 +29,12 @@ pub(super) fn run(
         }
         // Stored: the result keeps a reference to the borrowed source.
         // A string slice's empty form points at static storage.
+        let record = Info::new(At::Value, Part::Result, 0).write(b);
         edits.insert(
             block,
             position,
             Tag::Retain,
-            [u32_of(i), 0],
+            [u32_of(i), record],
             Ty::VOID,
             b.syn[i],
         );
@@ -228,13 +230,13 @@ mod tests {
         let mut b = body();
         crate::own::run(&mut b, &Facts, &mut OwnScratch::default()).unwrap();
         let retain = b.tags.iter().position(|&t| t == Tag::Retain).unwrap();
-        b.data[retain][1] = 2;
+        b.extra[b.data[retain][1] as usize + 4] = 2;
         assert!(
             verify_owned(&b, &Facts)
                 .iter()
                 .any(|e| e.what.contains("borrowed-result proof"))
         );
-        b.data[retain][1] = 0;
+        b.extra[b.data[retain][1] as usize + 4] = 0;
         let root = b.sub_root[0] as usize;
         let list = b.data[root][0] as usize;
         assert_eq!(b.extra[list + b.extra[list] as usize], u32_of(retain));

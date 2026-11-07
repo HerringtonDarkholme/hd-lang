@@ -31,7 +31,7 @@ std/rt_tests.stage_case/add
   %20 = Drop [%17] : ()
   %21 = Read move [$1] : Ticket
   %22 = Store [ptr %19] %21 : ()
-  %23 = Release %22 #0 : ()
+  %23 = Release %22 Operation #3 : ()
   %24 = Read copy [$4] : usize
   %25 = Prim Add [%24 1:usize] : usize
   %26 = Store [*$2 .len] %25 : ()

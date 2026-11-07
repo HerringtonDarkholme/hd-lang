@@ -24,7 +24,7 @@ impl Sink for Count:
 >     uses $0: entry -> %3 lend, %5 lend last
 >   local $1 m: Member [param read] value
 >     uses $1: entry -> %1 lend last
->   %0 = ExitDrop [$1] #2 : ()
+>   %0 = Release %8 Exit local $1 #2 : ()
         if m.name == "":
 >   %1 = Read borrow [$1 .name] : string
 >   %2 = Intrinsic StrEq [%1 ""] : bool
@@ -60,7 +60,7 @@ fn emit(s: &mut dyn Sink, m: Member) -> void:
 >     uses $0: entry -> %1 lend last
 >   local $1 m: Member [param read] value
 >     uses $1: entry -> %2 lend last
->   %0 = ExitDrop [$1] #2 : ()
+>   %0 = Release %5 Exit local $1 #2 : ()
     s.put(m)
 >   %1 = Read copy [*$0] : mut Sink
 >   %2 = Read borrow [$1] : Member

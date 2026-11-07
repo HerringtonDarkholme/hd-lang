@@ -13,7 +13,7 @@ use std.annotation.inline
 >     uses $1: entry -> %2 lend last
 >   local $2 right: Ref[i32] [param read] value
 >     uses $2: entry -> %3 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %5 Exit local $0 #2 : ()
 fn apply(by: fn(&i32, &i32) -> i32, left: &i32, right: &i32) -> i32:
     by(left, right)
 >   %1 = Read borrow [$0] : fn(Ref[i32], Ref[i32]) -> i32

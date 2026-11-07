@@ -5,6 +5,6 @@ sub 1 0 0 - 0
 labels
 caps
 modes
-extra 1 0
-%0 = ColdCopy 2147483648 0 : 18 @-
+extra 1 0 4 4 1 0 0
+%0 = Retain 1 2 : 18 @-
 %1 = Block 0 - : 18 @-

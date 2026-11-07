@@ -40,7 +40,7 @@ fn copy_box(s: string, t: string) -> usize:
     p.name = t
 >   %7 = Read move [$1] : string
 >   %8 = Store [$2 .name] %7 : ()
->   %9 = Release %8 #0 : ()
+>   %9 = Release %8 Operation #3 : ()
     copy.name.len() + p.name.len()
 >   %10 = Read borrow [*$4 .name] : string
 >   %11 = Store [$6] %10 : ()
@@ -106,7 +106,7 @@ fn shared(s: string, t: string) -> usize:
     b.name = t
 >   %8 = Read move [$1] : string
 >   %9 = Store [*$3 .name] %8 : ()
->   %10 = Release %9 #0 : ()
+>   %10 = Release %9 Operation #3 : ()
 >   %11 = Drop [$3] : ()
     h.point.name.len()
 >   %12 = Read borrow [$4 .point * .name] : string

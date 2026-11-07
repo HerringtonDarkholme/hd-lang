@@ -30,7 +30,7 @@ fn widened(dog: *dyn Dog) -> *dyn Animal:
 >   %6 = Store [$3] %5 : ()
 >   %7 = Read move [$3] : Counted[Counted[Dog]]
 >   %8 = Coerce %7 [RefToTraitValue -] : Animal
->   %9 = Retain %8 #0 : ()
+>   %9 = Retain %8 Value #0 : ()
 >   %10 = Drop [%7] : ()
 >   %11 = Block %8 : Animal
 >   %12 = RefDyn %11 : Counted[Animal]

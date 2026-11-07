@@ -17,7 +17,7 @@ fn weight(f: Field) -> i64:
 > app/main/weight
 >   local $0 f: Field [param read] value
 >     uses $0: entry -> %1 lend, %3 lend, %6 lend, %9 lend, %12 lend, %15 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %18 Exit local $0 #2 : ()
     (f.n + 1) * (f.n + 2) * (f.n + 3) * (f.n + 4) * (f.n + 5) / (f.n + 6)
 >   %1 = Read copy [$0 .n] : i64
 >   %2 = Prim Add [%1 1:i64] : i64
@@ -66,7 +66,7 @@ fn total(f: Field, times: i64) -> i64:
 >     uses $4: %7 -> %11 lend
 >   local $5 $incl: bool [assigned] value
 >     uses $5: none
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %29 Exit local $0 #2 : ()
     let sum: i64 = 0
 >   %1 = Store [$2] 0:i64 : ()
 >   %29 = Block %28 : i64
@@ -137,7 +137,7 @@ fn apply(g: fn(Field) -> i64, f: Field) -> i64:
 >     uses $0: entry -> %1 lend last
 >   local $1 f: Field [param read] value
 >     uses $1: entry -> %2 consume last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %4 Exit local $0 #2 : ()
     g(f)
 >   %1 = Read borrow [$0] : fn(Field) -> i64
 >   %2 = Read move [$1] : Field
@@ -152,7 +152,7 @@ fn set_first(target: &i64, xs: List[i64]) -> i64:
 >     uses $0: entry -> %1 lend last
 >   local $1 xs: List[i64] [param read] value
 >     uses $1: entry -> %2 lend last
->   %0 = ExitDrop [$1] #2 : ()
+>   %0 = Release %4 Exit local $1 #2 : ()
     *target + xs[0]
 >   %1 = Read copy [*$0] : i64
 >   %2 = Read copy [$1 [0:usize]] : i64

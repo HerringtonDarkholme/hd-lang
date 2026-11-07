@@ -22,7 +22,7 @@ fn apply(f: fn(&User) -> &string, u: &User) -> usize:
 >     uses $0: entry -> %1 lend last
 >   local $1 u: Ref[User] [param read] value
 >     uses $1: entry -> %2 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %6 Exit local $0 #2 : ()
     f(u).len()
 >   %1 = Read borrow [$0] : fn(Ref[User]) -> Ref[string]
 >   %2 = Read borrow [$1] : Ref[User]

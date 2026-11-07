@@ -48,7 +48,7 @@ fn rename(target: &mut Member, m: Member) -> void:
 >     uses $8: %11 -> %12 lend last
 >   local $9 value: string [read] value
 >     uses $9: %3 -> %4 lend last
->   %0 = ExitDrop [$1] #2 : ()
+>   %0 = Release %58 Exit local $1 #2 : ()
     target.name = "${m.name}!"
 >   %1 = Read borrow [$1 .name] : string
 >   %2 = Read borrow [%1] : string
@@ -106,7 +106,7 @@ fn rename(target: &mut Member, m: Member) -> void:
 >   %54 = Read move [%16] : string
 >   %55 = Drop [$4] : ()
 >   %56 = Store [*$0 .name] %54 : ()
->   %57 = Release %56 #0 : ()
+>   %57 = Release %56 Operation #3 : ()
 >   %58 = Block - : ()
 >   summary kept [] borrows [$1] writes
 

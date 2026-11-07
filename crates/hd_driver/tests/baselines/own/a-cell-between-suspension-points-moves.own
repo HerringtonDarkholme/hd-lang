@@ -17,7 +17,7 @@ app/main/reset
   %18 = Block - : UniqList[string]
   %19 = Scope %18 [] : UniqList[string]
   %20 = Store [*$0 .items] %19 : ()
-  %21 = Release %20 #0 : ()
+  %21 = Release %20 Operation #3 : ()
   %22 = Drop [$0] : ()
   %12 finds [$2] full
   %16 finds [$2] full

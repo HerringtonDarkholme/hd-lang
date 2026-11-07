@@ -41,7 +41,7 @@ fn doubled(values: List[string]) -> List[string]:
 >   %20 = Block - : ()
 >   %21 = Read borrow [%12] : string
 >   %22 = Store [$6] %21 : ()
->   %23 = Release %22 #0 : ()
+>   %23 = Release %22 Operation #3 : ()
 >   %25 = Block - : never
 >   %26 = Match %12 [%25 %20] : ()
 >   %27 = Block - : ()

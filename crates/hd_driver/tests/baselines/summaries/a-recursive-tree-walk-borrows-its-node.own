@@ -17,7 +17,7 @@ fn walk(n: *Node?) -> i64:
 >     uses $0: entry -> %1 lend last
 >   local $1 node: Counted[Node] [read assigned] value
 >     uses $1: %15 -> %3 lend, %5 lend, %8 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %25 Exit local $0 #2 : ()
     match n:
 >   %1 = Read borrow [$0] : Counted[Node]?
 >   %23 = Block - : never
@@ -53,7 +53,7 @@ fn leftmost(n: *Node?, last: *Node) -> *Node:
 >     uses $1: entry -> %2 consume last
 >   local $2 node: Counted[Node] [read assigned] value
 >     uses $2: %11 -> %4 lend, %5 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %21 Exit local $0 #2 : ()
     match n:
 >   %1 = Read borrow [$0] : Counted[Node]?
 >   %19 = Block - : never

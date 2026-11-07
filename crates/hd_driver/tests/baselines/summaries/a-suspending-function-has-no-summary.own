@@ -11,7 +11,7 @@ fn save!(m: Member) -> void:
 > app/main/save
 >   local $0 m: Member [param] value
 >     uses $0: none
->   %0 = ColdCopy [$0] #0 : ()
+>   %0 = Retain %2 Cold local $0 #0 : ()
     pass
 >   %1 = Drop [$0] : ()
 >   %2 = Block - : ()
@@ -22,7 +22,7 @@ fn unnamed(m: Member) -> bool:
 > app/main/unnamed
 >   local $0 m: Member [param read] value
 >     uses $0: entry -> %1 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %3 Exit local $0 #2 : ()
     m.name == ""
 >   %1 = Read borrow [$0 .name] : string
 >   %2 = Intrinsic StrEq [%1 ""] : bool

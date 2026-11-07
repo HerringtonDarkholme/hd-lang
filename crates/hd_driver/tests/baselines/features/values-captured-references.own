@@ -63,7 +63,7 @@ fn apply(f: fn() -> usize) -> usize:
 > app/main/apply
 >   local $0 f: fn() -> usize [param read] value
 >     uses $0: entry -> %1 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %3 Exit local $0 #2 : ()
     f()
 >   %1 = Read borrow [$0] : fn() -> usize
 >   %2 = CallValue %1 [] : usize

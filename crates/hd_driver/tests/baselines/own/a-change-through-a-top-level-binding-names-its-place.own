@@ -13,11 +13,11 @@ let mut saved: List[i64] = []
 > app/main/init.init
 >   %0 = NewList - [] : List[i64]
 >   %1 = Store [@app/main/saved] %0 : ()
->   %2 = Release %1 #0 : ()
+>   %2 = Release %1 Operation #3 : ()
 let mut bags: List[Bag] = []
 >   %3 = NewList - [] : List[Bag]
 >   %4 = Store [@app/main/bags] %3 : ()
->   %5 = Release %4 #0 : ()
+>   %5 = Release %4 Operation #3 : ()
 
 fn twice(n: i64) -> i64:
     n * 2

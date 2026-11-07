@@ -101,8 +101,8 @@ struct Record:
 >   local $0 $ref: Mark [read assigned captured captured-assigned] place
 >   local $1 $ref: Counted[Mark] [read assigned captured] value
 >     uses $1: %5 -> %6 lend last
->   %0 = CacheCopy #0 #0 : ()
->   %1 = CacheCopy #1 #0 : ()
+>   %0 = Retain %14 CacheRead #0 : ()
+>   %1 = Retain %14 CacheWrite #0 : ()
 >   %12 = NewList - [%11] : List[Counted[Inspectable]]
 >   %13 = NewStruct [%12] : Facts
 >   %14 = Block %13 : Facts
@@ -116,7 +116,7 @@ impl HasFacts for Record by Structure:
 >   %5 = Store [$1] %4 : ()
 >   %6 = Read move [$1] : Counted[Mark]
 >   %7 = Coerce %6 [RefToTraitValue -] : Inspectable
->   %8 = Retain %7 #0 : ()
+>   %8 = Retain %7 Value #0 : ()
 >   %9 = Drop [%6] : ()
 >   %10 = Block %7 : Inspectable
 >   %11 = RefDyn %10 : Counted[Inspectable]

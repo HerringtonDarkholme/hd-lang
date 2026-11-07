@@ -249,10 +249,12 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
         let [a, w] = b.data[i];
         for (word, op) in [(a, b.tags[i].operands().0), (w, b.tags[i].operands().1)] {
             let words: Vec<u32> = match op {
-                Op::Value | Op::Block => vec![word],
+                Op::Value | Op::Inst | Op::Block => vec![word],
                 // A `defer`'s suite and a `Hook`'s observed instruction
                 // sit in meta words.
                 Op::Meta if matches!(b.tags[i], Tag::Defer | Tag::Hook) => vec![word],
+                // Count descriptors contain phases and indices, not values.
+                Op::Record if matches!(b.tags[i], Tag::Retain | Tag::Release) => Vec::new(),
                 Op::Values | Op::Blocks | Op::Record if word != NONE => b.record(word).to_vec(),
                 Op::Place => b.place_values(word),
                 _ => Vec::new(),
@@ -351,6 +353,19 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
             };
             ops.extend(mode);
             ops.push(place(names, b, a, fields));
+        } else if matches!(tag, Tag::Retain | Tag::Release)
+            && let Some(info) = hd_tir::ir::count::Info::read(b, i)
+        {
+            use hd_tir::ir::count::Part;
+            ops.push(value(names, b, a));
+            ops.push(format!("{:?}", info.at));
+            match info.part {
+                Part::Result => {}
+                Part::Local(l) => ops.push(format!("local ${l}")),
+                Part::Row => ops.push("row".into()),
+                Part::Operand(n) => ops.push(format!("operand {n}")),
+            }
+            ops.push(format!("#{}", info.reason));
         } else if tag == Tag::Block {
             // A block's result; its instructions are the lines above.
             ops.push(value(names, b, w));
@@ -361,7 +376,7 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
             {
                 match op {
                     Op::None => {}
-                    Op::Value | Op::Block => ops.push(value(names, b, word)),
+                    Op::Value | Op::Inst | Op::Block => ops.push(value(names, b, word)),
                     Op::Label => ops.push(format!("L{word}")),
                     Op::Place => ops.push(place(names, b, word, fields)),
                     // A `Prim`'s or an `Intrinsic`'s operation by name.

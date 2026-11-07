@@ -19,7 +19,7 @@ fn keep[T](x: T) -> void:
 > app/main/keep
 >   local $0 x: T [param] value
 >     uses $0: none
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %1 Exit local $0 #2 : ()
     pass
 >   %1 = Block - : ()
 >   summary kept [] borrows [$0]
@@ -120,7 +120,7 @@ fn uniq(xs: UniqList[string], s: string) -> UniqList[string]:
 >   %35 = Drop [%25] : ()
 >   %36 = Read move [$1] : string
 >   %37 = Store [ptr %34] %36 : ()
->   %38 = Release %37 #0 : ()
+>   %38 = Release %37 Operation #3 : ()
 >   %39 = Read copy [$5] : usize
 >   %40 = Prim Add [%39 1:usize] : usize
 >   %41 = Store [*$3 .len] %40 : ()

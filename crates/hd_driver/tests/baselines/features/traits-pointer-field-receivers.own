@@ -128,7 +128,7 @@ pub fn count(n: i64) -> i64:
 >   %4 = Store [$2] %3 : ()
 >   %5 = Read move [$2] : Counted[mut Counter]
 >   %6 = Coerce %5 [RefToTraitValue -] : Step
->   %7 = Retain %6 #0 : ()
+>   %7 = Retain %6 Value #0 : ()
 >   %8 = Drop [%5] : ()
 >   %9 = Block %6 : Step
 >   %10 = RefDyn %9 : Counted[mut Step]

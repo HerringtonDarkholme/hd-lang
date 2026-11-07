@@ -54,7 +54,7 @@ fn append(value: &mut Option[UniqList[string]], item: string) -> usize:
 >   %21 = Drop [%18] : ()
 >   %22 = Read move [$1] : string
 >   %23 = Store [ptr %20] %22 : ()
->   %24 = Release %23 #0 : ()
+>   %24 = Release %23 Operation #3 : ()
 >   %25 = Read copy [$5] : usize
 >   %26 = Prim Add [%25 1:usize] : usize
 >   %27 = Store [*$3 .len] %26 : ()

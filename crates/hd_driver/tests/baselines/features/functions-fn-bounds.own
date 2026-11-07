@@ -12,7 +12,7 @@ fn width(s: string) -> usize:
 > app/main/width
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %1 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %6 Exit local $0 #2 : ()
     s.len()
 >   %1 = Read borrow [$0] : string
 >   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
@@ -28,8 +28,8 @@ fn invoke[F < Fn(string) -> usize](f: F, s: string) -> usize:
 >     uses $0: entry -> %2 lend last
 >   local $1 s: string [param read] value
 >     uses $1: entry -> %3 lend last
->   %0 = ExitDrop [$0] #2 : ()
->   %1 = ExitDrop [$1] #2 : ()
+>   %0 = Release %5 Exit local $0 #2 : ()
+>   %1 = Release %5 Exit local $1 #2 : ()
     f(s)
 >   %2 = Read borrow [$0] : F
 >   %3 = Read borrow [$1] : string
@@ -97,8 +97,8 @@ fn each[F < FnMut(string) -> void](xs: List[string], mut f: F) -> void:
 >     uses $5: %4 -> %7 lend
 >   local $6 x: string [read assigned] value
 >     uses $6: %20 -> %15 lend last
->   %0 = ExitDrop [$0] #2 : ()
->   %1 = ExitDrop [$1] #2 : ()
+>   %0 = Release %31 Exit local $0 #2 : ()
+>   %1 = Release %31 Exit local $1 #2 : ()
     for x in xs:
 >   %2 = Read borrow [$0] : List[string]
 >   %3 = Intrinsic ListLen [%2] : usize
@@ -115,7 +115,7 @@ fn each[F < FnMut(string) -> void](xs: List[string], mut f: F) -> void:
 >   %18 = Block - : ()
 >   %19 = Read borrow [%10] : string
 >   %20 = Store [$6] %19 : ()
->   %21 = Release %20 #0 : ()
+>   %21 = Release %20 Operation #3 : ()
 >   %23 = Block - : never
 >   %24 = Match %10 [%23 %18] : ()
 >   %25 = Block - : ()
@@ -140,7 +140,7 @@ fn fn_mut(xs: List[string]) -> usize:
 >     frame cell [$1]
 >   local $2 x: string [param read] value
 >     uses $2: entry -> %4 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %20 Exit local $0 #2 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
 >   %20 = Block %18 : usize
@@ -155,7 +155,7 @@ fn fn_mut(xs: List[string]) -> usize:
 >   %9 = Drop [$2] : ()
 >   %10 = Prim Add [%3 %8] : usize
 >   %11 = Store [$1] %10 : ()
->   %12 = Release %11 #0 : ()
+>   %12 = Release %11 Operation #3 : ()
 >   %13 = Drop [$1] : ()
 >   %14 = Block - : ()
 >   %15 = Closure #1 [%0 %1] : fn(string) -> ()

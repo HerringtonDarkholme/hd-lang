@@ -18,8 +18,8 @@ fn each(xs: List[string], f: fn(string) -> void) -> void:
 >     uses $5: %4 -> %7 lend
 >   local $6 x: string [read assigned] value
 >     uses $6: %19 -> %15 consume last
->   %0 = ExitDrop [$0] #2 : ()
->   %1 = ExitDrop [$1] #2 : ()
+>   %0 = Release %30 Exit local $0 #2 : ()
+>   %1 = Release %30 Exit local $1 #2 : ()
     for x in xs:
 >   %2 = Read borrow [$0] : List[string]
 >   %3 = Intrinsic ListLen [%2] : usize
@@ -36,7 +36,7 @@ fn each(xs: List[string], f: fn(string) -> void) -> void:
 >   %17 = Block - : ()
 >   %18 = Read borrow [%10] : string
 >   %19 = Store [$6] %18 : ()
->   %20 = Release %19 #0 : ()
+>   %20 = Release %19 Operation #3 : ()
 >   %22 = Block - : never
 >   %23 = Match %10 [%22 %17] : ()
 >   %24 = Block - : ()
@@ -60,7 +60,7 @@ fn lent(xs: List[string]) -> usize:
 >     frame cell [$1]
 >   local $2 x: string [param read] value
 >     uses $2: entry -> %4 lend last
->   %0 = ExitDrop [$0] #2 : ()
+>   %0 = Release %20 Exit local $0 #2 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
 >   %20 = Block %18 : usize
@@ -75,7 +75,7 @@ fn lent(xs: List[string]) -> usize:
 >   %9 = Drop [$2] : ()
 >   %10 = Prim Add [%3 %8] : usize
 >   %11 = Store [$1] %10 : ()
->   %12 = Release %11 #0 : ()
+>   %12 = Release %11 Operation #3 : ()
 >   %13 = Drop [$1] : ()
 >   %14 = Block - : ()
 >   %15 = Closure #1 [%0 %1] : fn(string) -> ()
@@ -100,7 +100,7 @@ fn returned() -> fn() -> void:
 >   %1 = Read copy [$0] : usize
 >   %2 = Prim Add [%1 1:usize] : usize
 >   %3 = Store [$0] %2 : ()
->   %4 = Release %3 #0 : ()
+>   %4 = Release %3 Operation #3 : ()
 >   %5 = Drop [$0] : ()
 >   %6 = Block - : ()
 >   %7 = Closure #1 [%0 %1] : fn() -> ()
@@ -123,7 +123,7 @@ fn listed() -> usize:
 >   %1 = Read copy [$0] : usize
 >   %2 = Prim Add [%1 1:usize] : usize
 >   %3 = Store [$0] %2 : ()
->   %4 = Release %3 #0 : ()
+>   %4 = Release %3 Operation #3 : ()
 >   %5 = Drop [$0] : ()
 >   %6 = Block - : ()
 >   %7 = Closure #1 [%0 %1] : fn() -> ()
@@ -156,7 +156,7 @@ fn pushed(fs: &mut List[fn() -> void]) -> void:
 >   %1 = Read copy [$1] : usize
 >   %2 = Prim Add [%1 1:usize] : usize
 >   %3 = Store [$1] %2 : ()
->   %4 = Release %3 #0 : ()
+>   %4 = Release %3 Operation #3 : ()
 >   %5 = Drop [$1] : ()
 >   %6 = Block - : ()
 >   %7 = Closure #1 [%0 %1] : fn() -> ()
@@ -183,7 +183,7 @@ fn captured() -> usize:
 >   %1 = Read copy [$0] : usize
 >   %2 = Prim Add [%1 1:usize] : usize
 >   %3 = Store [$0] %2 : ()
->   %4 = Release %3 #0 : ()
+>   %4 = Release %3 Operation #3 : ()
 >   %5 = Drop [$0] : ()
 >   %6 = Block - : ()
 >   %7 = Closure #1 [%0 %1] : fn() -> ()

@@ -147,7 +147,7 @@ impl Parser:
             last = self.index
 >   %18 = Read copy [*$0 .index] : List[usize]
 >   %19 = Store [$2] %18 : ()
->   %20 = Release %19 #0 : ()
+>   %20 = Release %19 Operation #3 : ()
             self.index[i] = self.held
 >   %21 = Read copy [$6] : usize
 >   %22 = Read copy [*$0 .held] : usize

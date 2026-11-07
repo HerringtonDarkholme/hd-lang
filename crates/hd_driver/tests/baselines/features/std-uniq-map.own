@@ -134,7 +134,7 @@ fn group(m: &mut UniqMap[string, UniqList[string]], k: string, v: string) -> voi
 >   %53 = Drop [%43] : ()
 >   %54 = Read move [$2] : string
 >   %55 = Store [ptr %52] %54 : ()
->   %56 = Release %55 #0 : ()
+>   %56 = Release %55 Operation #3 : ()
 >   %57 = Read copy [$5] : usize
 >   %58 = Prim Add [%57 1:usize] : usize
 >   %59 = Store [*$3 .len] %58 : ()

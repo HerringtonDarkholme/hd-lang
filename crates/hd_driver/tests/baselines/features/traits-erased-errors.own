@@ -95,7 +95,7 @@ fn load(path: string) -> Result[string, *dyn Error]:
 >   %24 = Store [$2] %23 : ()
 >   %25 = Read move [$2] : Counted[FsError]
 >   %26 = Coerce %25 [RefToTraitValue -] : Error
->   %27 = Retain %26 #0 : ()
+>   %27 = Retain %26 Value #0 : ()
 >   %28 = Drop [%25] : ()
 >   %29 = Block %26 : Error
 >   %30 = RefDyn %29 : Counted[Error]
