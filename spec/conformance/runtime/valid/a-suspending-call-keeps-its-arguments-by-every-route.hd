@@ -1,0 +1,146 @@
+# test: a suspension holds its own count of each argument at the call, by every route a call reaches it, so the source may change before it runs
+# Spec 11 Requirements and Suspension: req.suspend.cold.
+# expect-stdout: f1 f2
+# expect-stdout: fn1 fn2
+# expect-stdout: d1 t d2
+# expect-stdout: m1 t m2
+# expect-stdout: b1 t b2
+# expect-stdout: g1 t g2
+# expect-stdout: h1 h2
+# expect-stdout: p1 p2
+# expect-stdout: s1 s2
+# expect-stdout: j1 j2
+# expect-stdout: e1 e2
+use std.task.join
+use std.time.{Clock, ms, sleep}
+
+struct Note:
+    text: string
+
+trait Show:
+    fn show!(&self, s: string) -> string $ Clock
+
+struct Tag:
+    tag: string
+
+impl Show for Tag:
+    fn show!(&self, s: string) -> string $ Clock:
+        sleep!(ms(1))
+        "$s ${self.tag}"
+
+fn kept!(s: string) -> string $ Clock:
+    sleep!(ms(1))
+    s
+
+fn through_closure!() -> void $ Console + Clock:
+    f := fn!(s: string) -> string $ Clock:
+        sleep!(ms(1))
+        s
+    let mut s = "f${1}"
+    let job: mut Suspend[string] = f(s)
+    s = "f${2}"
+    out := job!()
+    println("$out $s")
+
+fn through_function_reference!() -> void $ Console + Clock:
+    f := kept
+    let mut s = "fn${1}"
+    let job: mut Suspend[string] = f(s)
+    s = "fn${2}"
+    out := job!()
+    println("$out $s")
+
+fn through_trait_value!() -> void $ Console + Clock:
+    t := Tag { tag: "t" }
+    let d: &dyn Show = &t
+    let mut s = "d${1}"
+    let job: mut Suspend[string] = d.show(s)
+    s = "d${2}"
+    out := job!()
+    println("$out $s")
+
+fn through_method!() -> void $ Console + Clock:
+    t := Tag { tag: "t" }
+    let mut s = "m${1}"
+    let job: mut Suspend[string] = t.show(s)
+    s = "m${2}"
+    out := job!()
+    println("$out $s")
+
+fn generic_show[T < Show](t: &T, s: string) -> mut Suspend[string] $ Clock:
+    t.show(s)
+
+fn through_bound!() -> void $ Console + Clock:
+    t := Tag { tag: "t" }
+    let mut s = "b${1}"
+    let job: mut Suspend[string] = generic_show(&t, s)
+    s = "b${2}"
+    out := job!()
+    println("$out $s")
+
+fn through_generic_trait_value!() -> void $ Console + Clock:
+    t := Tag { tag: "t" }
+    let d: &dyn Show = &t
+    let mut s = "g${1}"
+    let job: mut Suspend[string] = generic_show(&d, s)
+    s = "g${2}"
+    out := job!()
+    println("$out $s")
+
+fn set_then_read!(s: string, n: *mut Note) -> string $ Clock:
+    n.text = "h${2}"
+    sleep!(ms(1))
+    s
+
+fn at_a_hot_start!() -> void $ Console + Clock:
+    n := box::[Note](Note { text: "h${1}" })
+    out := set_then_read!(n.text, n)
+    println("$out ${n.text}")
+
+fn set_with_no_wait!(s: string, n: *mut Note) -> string:
+    n.text = "p${2}"
+    s
+
+fn at_a_start_with_no_wait!() -> void $ Console + Clock:
+    n := box::[Note](Note { text: "p${1}" })
+    out := set_with_no_wait!(n.text, n)
+    println("$out ${n.text}")
+
+fn call_then_read!(s: string, change: fn() -> void) -> string $ Clock:
+    change()
+    sleep!(ms(1))
+    s
+
+fn with_a_shared_source!() -> void $ Console + Clock:
+    let s = "s${1}"
+    out := call_then_read!(s, fn() -> void: s = "s${2}")
+    println("$out $s")
+
+fn set!(n: *mut Note) -> string:
+    n.text = "j${2}"
+    "set"
+
+fn in_a_join!() -> void $ Console + Clock:
+    n := box::[Note](Note { text: "j${1}" })
+    let (out, _) = join!(kept(n.text), set(n))
+    println("$out ${n.text}")
+
+fn elem!() -> void $ Console + Clock:
+    let mut xs = ["e${1}"]
+    let job: mut Suspend[string] = kept(xs[0])
+    xs[0] = "e${2}"
+    out := job!()
+    println("$out ${xs[0]}")
+
+pub fn main!() -> void $ Console + Clock:
+    through_closure!()
+    through_function_reference!()
+    through_trait_value!()
+    through_method!()
+    through_bound!()
+    through_generic_trait_value!()
+    at_a_hot_start!()
+    at_a_start_with_no_wait!()
+    with_a_shared_source!()
+    in_a_join!()
+    elem!()
