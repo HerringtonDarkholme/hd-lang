@@ -230,6 +230,12 @@ pub trait OwnCx {
         let _ = ty;
         true
     }
+    /// Whether `ty` is a function value's type. Its value stays one value
+    /// whichever local names it. The default answers no.
+    fn function_value(&self, ty: Ty) -> bool {
+        let _ = ty;
+        false
+    }
     /// Whether a same-value coercion from `from` to `to` lends a counted
     /// reference as a local one (`ref.convert.lend`): the result points
     /// where the counted one does and holds none of its count, so the

@@ -3,21 +3,17 @@ app/main/project
   local $0 pair: Ref[Pair] [param read] value
     uses $0: entry -> %0 lend last
   local $1 visit: fn(Ref[usize]) -> usize [param read] value
-    uses $1: entry -> %1 consume last
+    uses $1: entry -> %2 lend last
   local $2 value: Ref[usize] [read] value
-    uses $2: %2 -> %5 lend last
-  local $3 visit: fn(Ref[usize]) -> usize [read] value
-    uses $3: %3 -> %4 lend last
+    uses $2: %1 -> %3 lend last
   %0 = Ref lent local [*$0 .id] : Ref[usize]
-  %1 = Read borrow [$1] : fn(Ref[usize]) -> usize
-  %2 = Store [$2] %0 : ()
-  %3 = Store [$3] %1 : ()
-  %4 = Read borrow [$3] : fn(Ref[usize]) -> usize
-  %5 = Read borrow [$2] : Ref[usize]
-  %6 = CallValue %4 [%5] : usize
-  %7 = Break L0 %6 : never
-  %8 = Block - : usize
-  %9 = Scope %8 [] : usize
-  %10 = Drop [$2] : ()
-  %11 = Block %9 : usize
+  %1 = Store [$2] %0 : ()
+  %2 = Read borrow [$1] : fn(Ref[usize]) -> usize
+  %3 = Read borrow [$2] : Ref[usize]
+  %4 = CallValue %2 [%3] : usize
+  %5 = Break L0 %4 : never
+  %6 = Block - : usize
+  %7 = Scope %6 [] : usize
+  %8 = Drop [$2] : ()
+  %9 = Block %7 : usize
   summary kept [] borrows [$1] writes

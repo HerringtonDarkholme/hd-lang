@@ -87,11 +87,9 @@ fn copy_shares(s: string) -> usize:
 >   local $1 n: usize [read assigned captured captured-assigned] place
 >     frame cell [$1]
 >   local $2 inc: fn() -> () [:= read assigned] value
->     uses $2: %13 -> %14 consume, %16 lend last
->   local $3 again: fn() -> () [:= read assigned] value
->     uses $3: %15 -> %18 lend last
+>     uses $2: %13 -> %14 lend, %16 lend last
 >   %0 = Store [$1] 0:usize : ()
->   %23 = Block %21 : usize
+>   %21 = Block %19 : usize
     inc := fn() -> void: n += s.len()
 >   %1 = Read copy [$1] : usize
 >   %2 = Read borrow [$0] : string
@@ -108,19 +106,17 @@ fn copy_shares(s: string) -> usize:
 >   %13 = Store [$2] %12 : ()
 >   %12 finds [$1] full
     again := inc
->   %14 = Read borrow [$2] : fn() -> ()
->   %15 = Store [$3] %14 : ()
     inc()
->   %16 = Read borrow [$2] : fn() -> ()
->   %17 = CallValue %16 [] : ()
->   %20 = Drop [$2] : ()
+>   %14 = Read borrow [$2] : fn() -> ()
+>   %15 = CallValue %14 [] : ()
     again()
->   %18 = Read borrow [$3] : fn() -> ()
->   %19 = CallValue %18 [] : ()
+>   %16 = Read move [$2] : fn() -> ()
+>   %17 = CallValue %16 [] : ()
+>   %18 = Drop [%16] : ()
     n
->   %21 = Read copy [$1] : usize
->   %22 = Drop [$1] : ()
->   %21 finds [$1] full
+>   %19 = Read copy [$1] : usize
+>   %20 = Drop [$1] : ()
+>   %19 finds [$1] full
 >   exit sub 0 drops [$0 $1]
 >   exit sub 1 drops [$0 $1]
 >   summary kept [$0] writes

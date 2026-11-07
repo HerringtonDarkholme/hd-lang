@@ -176,7 +176,7 @@
     end
     local.get $env
   )
-  (func $copy_shares (param $s.0 i32) (param $s.1 i32) (result i32) (local $n i32) (local $t0 i32) (local $inc.1 i32)
+  (func $copy_shares (param $s.0 i32) (param $s.1 i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
@@ -223,32 +223,28 @@
       i32.const 12
       i32.const -2147483646
       call $rt:new/class-2
-      local.tee $inc.1
+      local.tee $t1
       local.get $n
       i32.store $heap
-      local.get $inc.1
+      local.get $t1
       local.get $s.0
       i32.store $heap offset=4
-      local.get $inc.1
+      local.get $t1
       local.get $s.1
       i32.store $heap offset=8
-      local.get $inc.1
+      local.get $t1
       call $rt:retain_fields'1
-      local.set $s.0
+      local.get $t1
     ;; 25 |     inc()
-      local.get $inc.1
       i32.const 0
       call $copy_shares#1
-    ;; 24 |     again := inc
-      local.get $inc.1
     ;; 26 |     again()
+      drop
+      local.get $t1
       i32.const 0
-    ;; 24 |     again := inc
-      local.get $s.0
-    ;; 26 |     again()
-      call_indirect $table0 (param i32 i32)
+      call $copy_shares#1
     ;; (no span)
-      local.get $inc.1
+      local.get $t1
       call $rt:release_ref'1
     ;; 27 |     n
       local.get $n

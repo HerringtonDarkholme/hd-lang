@@ -678,6 +678,10 @@ impl OwnCx for Env<'_> {
         holds_ref(&self.run.pool, self.ref_cells(), self.run.known.ptr, ty, 0)
     }
 
+    fn function_value(&self, ty: Ty) -> bool {
+        matches!(self.run.pool.get(ty), TyData::Fn { .. })
+    }
+
     fn lends(&self, from: Ty, to: Ty) -> bool {
         !self.is_open(from)
             && !self.is_open(to)

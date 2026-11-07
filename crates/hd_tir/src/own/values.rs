@@ -703,8 +703,8 @@ fn plain(tag: Tag) -> bool {
 /// then keeps `a` until `b`'s last use. `b` has one whole store, of a whole
 /// read of `a`, and every use of it follows that store in the store's block.
 /// It is no parameter and no closure captures it. A local that holds a
-/// reference keeps its name, as in [`forward`], and a body that suspends
-/// keeps its locals.
+/// reference, but a function value's, keeps its name, as in [`forward`], and
+/// a body that suspends keeps its locals.
 pub(crate) fn aliases(
     b: &mut Body,
     cx: &dyn super::OwnCx,
@@ -777,7 +777,7 @@ pub(crate) fn aliases(
             && fixed[fi]
             && b.local_ty[xi] == b.local_ty[fi]
             && cx.counted(b.local_ty[xi])
-            && !cx.holds_ref(b.local_ty[xi])
+            && (!cx.holds_ref(b.local_ty[xi]) || cx.function_value(b.local_ty[xi]))
             && uses_follow(b, topo, x, i)
         {
             to[xi] = from;
