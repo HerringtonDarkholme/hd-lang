@@ -315,30 +315,31 @@ impl Em<'_, '_, '_> {
         self.f.helper(Helper::Frame(key));
         self.f.set(FRAME);
         self.flags_or(FRAME, RUNNING);
-        if self.susp.as_ref().is_some_and(|s| s.source) {
-            if let Some(reason) =
-                self.stated_count(Tag::Retain, CountAt::Materialize, CountPart::Row)
-            {
-                self.because(reason, |em| em.retain_row(0));
-            }
-        } else {
-            self.retain_row(0);
-        }
+        self.retain_row(CountAt::Materialize, 0)?;
         self.f.op(I::End);
         Ok(())
     }
 
     /// Copies provider data and the open context in this physical row ABI.
     /// A cold constructor omits the body's frame parameter (shift 1).
-    fn retain_row(&mut self, shift: u32) {
-        for d in self
+    fn retain_row(&mut self, at: CountAt, shift: u32) -> StageResult<()> {
+        let row = self
             .susp
             .as_ref()
             .map(|s| s.provs.clone())
-            .unwrap_or_default()
-        {
-            self.ref_retain(d - shift);
+            .unwrap_or_default();
+        if row.is_empty() {
+            return Ok(());
         }
+        let Some(reason) = self.stated_count(Tag::Retain, at, CountPart::Row) else {
+            return unsupported("a suspension row without its stated copy");
+        };
+        self.because(reason, |em| {
+            for d in row {
+                em.ref_retain(d - shift);
+            }
+        });
+        Ok(())
     }
 
     fn susp_key(&self) -> StageResult<Hash128> {
@@ -1460,14 +1461,7 @@ pub(super) fn finish(
     }
     em.save_initial_drop_flags(plocals, fr, &area);
     if em.counting {
-        let copy = if source {
-            em.stated_count(Tag::Retain, CountAt::Cold, CountPart::Row)
-        } else {
-            Some(Reason::Conservative("cold constructor"))
-        };
-        if let Some(reason) = copy {
-            em.because(reason, |em| em.retain_row(1));
-        }
+        em.retain_row(CountAt::Cold, 1)?;
     }
     // A closure's code reads its captures from its environment, its first
     // parameter, into the frame, with a count of each.

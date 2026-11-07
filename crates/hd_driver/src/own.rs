@@ -418,10 +418,21 @@ impl OwnCx for Env<'_> {
         }
     }
 
+    fn function_suspends(&self, mut ty: Ty) -> bool {
+        while let TyData::Mut(inner) = self.run.pool.get(ty) {
+            ty = inner;
+        }
+        matches!(self.run.pool.get(ty), TyData::Fn { suspends: true, .. })
+    }
+
     fn has_requirement_row(&self, item: DefId) -> bool {
-        self.sig(item).is_some_and(|sig| {
-            !self.run.pool.row_data(sig.row).keys.is_empty() || hd_mono::has_row_params(self, item)
-        })
+        self.sig(item).map_or_else(
+            || !self.init_keys(item).is_empty(),
+            |sig| {
+                !self.run.pool.row_data(sig.row).keys.is_empty()
+                    || hd_mono::has_row_params(self, item)
+            },
+        )
     }
 
     fn retains_result(&self, callee: &Callee) -> bool {

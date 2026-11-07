@@ -71,10 +71,10 @@ fn closure_bang!(key: string) -> usize:
         fetch!(key)
 > app/main/closure_bang
 >   retain string (conservative: entry)
->   retain counted reference (conservative: Await)
->   retain counted reference (conservative: Await)
+>   retain counted reference (stored)
+>   retain counted reference (stored)
 >   release counted reference (conservative: Await)
->   retain counted reference (conservative: Await)
+>   retain counted reference (stored)
 >   release counted reference (conservative: Await)
 >   release string (cancelled)
 >   release string (last use)
@@ -87,7 +87,7 @@ fn closure_bang!(key: string) -> usize:
 >   release counted reference (conservative: frame drop)
 >   release counted reference (conservative: frame drop)
 > app/main/closure_bang
->   retain counted reference (conservative: cold constructor)
+>   retain counted reference (stored)
 >   retain string (conservative: cold constructor)
 
 fn stored!(key: string) -> usize:
@@ -110,10 +110,10 @@ fn stored!(key: string) -> usize:
 >   retain string (stored)
 > app/main/stored
 >   retain string (conservative: entry)
->   retain counted reference (conservative: Await)
->   retain counted reference (conservative: Await)
+>   retain counted reference (stored)
+>   retain counted reference (stored)
 >   release counted reference (conservative: Await)
->   retain counted reference (conservative: Await)
+>   retain counted reference (stored)
 >   release counted reference (conservative: Await)
 >   release string (cancelled)
 >   release string (last use)
@@ -127,7 +127,7 @@ fn stored!(key: string) -> usize:
 >   release counted reference (conservative: frame drop)
 > app/main/stored
 >   retain string (conservative: cold constructor)
->   retain counted reference (conservative: cold constructor)
+>   retain counted reference (stored)
     loader!(key).len()
 >   retain counted reference (conservative: AwaitValue)
 >   release counted reference (conservative: AwaitValue)

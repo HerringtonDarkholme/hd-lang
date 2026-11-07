@@ -136,7 +136,14 @@ pub trait OwnCx {
         let _ = ty;
         Tri::Maybe
     }
-    /// Whether the signature has requirement keys or its own row parameters.
+    /// Whether a function type declares a suspending body. This is a type
+    /// fact, including for a closure whose item is its creator's item.
+    fn function_suspends(&self, ty: Ty) -> bool {
+        let _ = ty;
+        false
+    }
+    /// Whether the body's ABI has requirement keys or its own row parameters.
+    /// An input without a signature infers these keys from its checked declaration.
     fn has_requirement_row(&self, item: hd_base::DefId) -> bool {
         let _ = item;
         false
