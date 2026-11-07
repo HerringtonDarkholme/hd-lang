@@ -21,7 +21,7 @@ fn expected(b: &Body, cx: &dyn OwnCx) -> Vec<(Tag, u32, Info)> {
             .into_iter()
             .map(|l| (Tag::Release, root, Info::new(At::Exit, Part::Local(l), 2))),
     );
-    for l in cold::parameters(b, cx) {
+    for (root, l) in cold::parameters(b, cx) {
         for at in [At::Cold, At::Entry] {
             out.push((Tag::Retain, root, Info::new(at, Part::Local(l), 0)));
         }

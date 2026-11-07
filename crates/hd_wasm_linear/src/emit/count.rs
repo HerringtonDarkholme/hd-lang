@@ -22,7 +22,7 @@
 use hd_base::SliceSort as _;
 use hd_base::StageResult;
 use hd_tir::ir::count::{At, Info, Part};
-use hd_tir::ir::{BodyKind, IntrinsicOp, NONE, Ref, Tag};
+use hd_tir::ir::{IntrinsicOp, NONE, Ref, Tag};
 use hd_tir::own::Reason;
 use hd_types::Ty;
 
@@ -33,16 +33,6 @@ use crate::module::Val;
 use crate::rt::Helper;
 
 impl Em<'_, '_, '_> {
-    /// Whether this root body has the declared source parameter ABI.
-    pub(super) fn source_parameters(&self, arity: usize) -> bool {
-        self.sub_id == 0
-            && matches!(self.b.kind, BodyKind::Fn | BodyKind::DeriveInstance)
-            && self
-                .env()
-                .params(self.item)
-                .is_some_and(|p| p.len() == arity)
-    }
-
     /// Reads the shared count descriptor for the current function boundary.
     pub(super) fn stated_count(&self, tag: Tag, at: At, part: Part) -> Option<Reason> {
         hd_tir::ir::count::find(self.b, tag, self.b.sub_root[self.sub_id as usize], at, part)

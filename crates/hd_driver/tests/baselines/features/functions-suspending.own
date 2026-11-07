@@ -101,40 +101,42 @@ fn closure_bang!(key: string) -> usize:
 fn stored!(key: string) -> usize:
 > app/main/stored
 >   local $0 key: string [param read] value
->     uses $0: entry -> %11 lend last
+>     uses $0: entry -> %13 lend last
 >   local $1 k: string [param read] value
->     uses $1: entry -> %4 lend last
+>     uses $1: entry -> %6 lend last
 >   local $2 loader: fn!(string) -> string [:= read assigned] value
->     uses $2: %9 -> %10 lend last
+>     uses $2: %11 -> %12 lend last
 >   local $3 $ref: string [read assigned captured captured-assigned] place
->   %0 = Retain %22 Cold local $0 #0 : ()
->   %1 = Retain %22 Entry local $0 #0 : ()
+>   %0 = Retain %24 Cold local $0 #0 : ()
+>   %1 = Retain %24 Entry local $0 #0 : ()
     loader := fn!(k: string) -> string: fetch!(k)
->   %2 = Retain %7 Cold row #0 : ()
->   %3 = Retain %7 Materialize row #0 : ()
->   %4 = Read move [$1] : string
->   %5 = Await app/main/fetch[] (%4) : string
->   %6 = Drop [%4] : ()
->   %7 = Block %5 : string
->   %8 = Closure #1 [%0 %0] : fn!(string) -> string
->   %9 = Store [$2] %8 : ()
->   %22 = Block %19 : usize
+>   %2 = Retain %9 Cold local $1 #0 : ()
+>   %3 = Retain %9 Entry local $1 #0 : ()
+>   %4 = Retain %9 Cold row #0 : ()
+>   %5 = Retain %9 Materialize row #0 : ()
+>   %6 = Read move [$1] : string
+>   %7 = Await app/main/fetch[] (%6) : string
+>   %8 = Drop [%6] : ()
+>   %9 = Block %7 : string
+>   %10 = Closure #1 [%0 %0] : fn!(string) -> string
+>   %11 = Store [$2] %10 : ()
+>   %24 = Block %21 : usize
     loader!(key).len()
->   %10 = Read move [$2] : fn!(string) -> string
->   %11 = Read move [$0] : string
->   %12 = CallValue %10 [%11] : mut Suspend[string]
->   %13 = AwaitValue %12 : string
->   %14 = Drop [%12] : ()
->   %15 = Drop [%11] : ()
->   %16 = Drop [%10] : ()
->   %17 = Store [$3] %13 : ()
->   %18 = Ref local [$3] : Counted[string]
->   %19 = Call std/text/impl string.len[] (%18) : usize
->   %20 = Drop [%18] : ()
->   %21 = Drop [$3] : ()
->   %18 finds [$3] full
+>   %12 = Read move [$2] : fn!(string) -> string
+>   %13 = Read move [$0] : string
+>   %14 = CallValue %12 [%13] : mut Suspend[string]
+>   %15 = AwaitValue %14 : string
+>   %16 = Drop [%14] : ()
+>   %17 = Drop [%13] : ()
+>   %18 = Drop [%12] : ()
+>   %19 = Store [$3] %15 : ()
+>   %20 = Ref local [$3] : Counted[string]
+>   %21 = Call std/text/impl string.len[] (%20) : usize
+>   %22 = Drop [%20] : ()
+>   %23 = Drop [$3] : ()
+>   %20 finds [$3] full
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$1]
 >   summary none
->   unwind %5 drops [%4]
->   unwind %13 drops [%10 %11 %12]
+>   unwind %7 drops [%6]
+>   unwind %15 drops [%12 %13 %14]

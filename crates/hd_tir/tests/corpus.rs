@@ -52,7 +52,7 @@ impl hd_tir::own::OwnCx for OwnershipFacts {
         item == DefId::from_raw(10)
     }
     fn suspending(&self, item: DefId) -> bool {
-        item != DefId::from_raw(8)
+        matches!(item.raw(), 9 | 10)
     }
     fn counted(&self, ty: Ty) -> bool {
         ty == Ty(78)

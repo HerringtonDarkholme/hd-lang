@@ -24,6 +24,9 @@ mod tests {
 
     struct Facts;
     impl OwnCx for Facts {
+        fn suspending(&self, _: DefId) -> bool {
+            false
+        }
         fn counted(&self, ty: Ty) -> bool {
             ty == Ty::STRING
         }

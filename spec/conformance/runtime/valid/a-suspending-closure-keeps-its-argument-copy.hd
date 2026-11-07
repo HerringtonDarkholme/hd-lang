@@ -1,0 +1,15 @@
+# test: a suspending closure owns its argument before polling and across a wait
+# expect-stdout: keepkeep newnew
+# expect-stdout: againagain
+use std.time.{Clock, ms, sleep}
+
+pub fn main!() -> void $ Console + Clock:
+    later := fn!(value: string) -> string $ Clock:
+        sleep!(ms(i64(value.len())))
+        value
+    let mut text = "keep" + "keep"
+    let pending: mut Suspend[string] = later(text)
+    text = "new" + "new"
+    println("${pending!()} $text")
+    _ := later("drop" + "drop")
+    println(later!("again" + "again"))

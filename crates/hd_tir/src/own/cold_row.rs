@@ -5,34 +5,17 @@
 //! Its instance layout supplies provider data and any open-row context;
 //! a layout that owns no counts lowers no copy.
 
-use super::OwnCx;
-use crate::ir::{Body, Tag};
-
-pub(crate) fn needed(b: &Body, cx: &dyn OwnCx) -> bool {
-    cx.suspending(b.item) && cx.has_requirement_row(b.item)
-}
+use super::{OwnCx, cold};
+use crate::ir::Body;
 
 /// A root passes its declared or inferred ABI row. A closure always passes one
 /// caller context, even if its source row has no keys. Multiple generic
 /// instantiations of the same sub-body share its declaration.
 pub(crate) fn roots(b: &Body, cx: &dyn OwnCx) -> Vec<u32> {
-    let mut seen = vec![false; b.sub_root.len()];
-    seen[0] = needed(b, cx);
-    for (i, &tag) in b.tags.iter().enumerate() {
-        if tag == Tag::Closure
-            && cx.function_suspends(b.ty[i])
-            && let Some(seen) = seen
-                .get_mut(b.data[i][0] as usize)
-                .filter(|_| b.data[i][0] != 0)
-        {
-            *seen = true;
-        }
-    }
-    b.sub_root
-        .iter()
-        .copied()
-        .zip(seen)
-        .filter_map(|(root, yes)| yes.then_some(root))
+    cold::sub_bodies(b, cx)
+        .into_iter()
+        .filter(|&sub| sub != 0 || cx.has_requirement_row(b.item))
+        .map(|sub| b.sub_root[sub as usize])
         .collect()
 }
 

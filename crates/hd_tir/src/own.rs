@@ -1656,11 +1656,13 @@ pub(crate) mod tests {
             },
             Ty::VOID,
         );
+        // Cx conservatively declares a suspending ABI: its parameter's
+        // Cold/Entry contracts precede the unchanged read/move graph.
         assert_eq!(
             text,
-            "%0 Call\n%1 Store [$1] %0\n%2 Read copy [$1]\n%3 Call %2\n\
-             %4 Read move [$1]\n%5 Read move [$0]\n%6 Call %4 %5\n%7 Drop [%5]\n\
-             %8 Drop [%4]\n%9 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8]\nexit 0 $0\n"
+            "%0 Retain\n%1 Retain\n%2 Call\n%3 Store [$1] %2\n%4 Read copy [$1]\n%5 Call %4\n\
+             %6 Read move [$1]\n%7 Read move [$0]\n%8 Call %6 %7\n%9 Drop [%7]\n\
+             %10 Drop [%6]\n%11 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8 %9 %10]\nexit 0 $0\n"
         );
     }
 

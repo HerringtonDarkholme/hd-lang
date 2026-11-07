@@ -109,7 +109,7 @@ fn stored!(key: string) -> usize:
 > app/main/stored
 >   retain string (stored)
 > app/main/stored
->   retain string (conservative: entry)
+>   retain string (stored)
 >   retain counted reference (stored)
 >   retain counted reference (stored)
 >   release counted reference (conservative: Await)
@@ -126,7 +126,7 @@ fn stored!(key: string) -> usize:
 >   release counted reference (conservative: frame drop)
 >   release counted reference (conservative: frame drop)
 > app/main/stored
->   retain string (conservative: cold constructor)
+>   retain string (stored)
 >   retain counted reference (stored)
     loader!(key).len()
 >   retain counted reference (conservative: AwaitValue)

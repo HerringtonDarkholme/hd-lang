@@ -317,7 +317,6 @@ fn body_func<'a>(
         // context, which holds the closure's own.
         let provs = em.providers.iter().map(|p| p.1[0]).chain(ctx).collect();
         em.susp = Some(susp::Susp {
-            source: closure.is_none() && em.source_parameters(plocals.len()),
             key,
             pc,
             states: plan.0,
@@ -395,11 +394,6 @@ fn body_func<'a>(
     } else {
         hd_base::HashSet::default()
     };
-    let source_entry = em.counting
-        && !by_type
-        && closure.is_none()
-        && input.env.suspends(item)
-        && em.source_parameters(plocals.len());
     if em.counting {
         for (l, ls) in &held {
             // A parameter still holds its value until it moves into its
@@ -446,14 +440,14 @@ fn body_func<'a>(
                     continue;
                 }
                 if !crate::layout::holds_drop(em.pool(), em.env(), t) {
-                    let copy = if source_entry {
+                    let copy = if by_type {
+                        Some(Reason::Conservative("entry"))
+                    } else {
                         em.stated_count(
                             Tag::Retain,
                             CountAt::Entry,
                             CountPart::Local(u32::try_from(*l).expect("local")),
                         )
-                    } else {
-                        Some(Reason::Conservative("entry"))
                     };
                     if let Some(reason) = copy {
                         em.because(reason, |em| em.count_locals(ls, t, true))?;
