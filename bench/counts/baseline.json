@@ -133,10 +133,10 @@
     },
     {
       "program": "bench/runtime/progs/task-pipeline.hd",
-      "retained": "7706262",
-      "released": "8212533",
+      "retained": "7706261",
+      "released": "8212532",
       "uniques": "0",
-      "total": "15918795",
+      "total": "15918793",
       "noOpsAndSkipped": "3937520"
     },
     {
