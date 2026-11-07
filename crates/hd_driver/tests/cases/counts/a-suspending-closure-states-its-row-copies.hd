@@ -1,0 +1,7 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: the closure states its own Cold/Materialize row copies, independently of its creator.
+use std.time.{Clock, ms, sleep}
+
+fn make() -> (fn!() -> void $ Clock):
+    fn!() -> void $ Clock: sleep!(ms(1))
