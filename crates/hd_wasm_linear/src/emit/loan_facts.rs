@@ -22,14 +22,18 @@ struct Facts<'a, 'b> {
     input: &'a Input<'b>,
     module: &'a Module,
     roots: HashMap<InstId, LocalRoots>,
+    /// Each instance's body, by instance number, which every fact reads.
+    bodies: Vec<Option<&'a Body>>,
 }
 
 pub(super) fn decide(input: &Input<'_>, module: &Module) -> pointer::Decisions {
     let mut roots = HashMap::default();
+    let mut bodies = vec![None; input.collected.table.item.len()];
     for &id in input.order {
         let Some(b) = (input.body)(id) else {
             continue;
         };
+        bodies[id.idx()] = Some(b);
         if !matches!(input.collected.table.sub[id.idx()], Sub::Body(_)) {
             continue;
         }
@@ -55,6 +59,7 @@ pub(super) fn decide(input: &Input<'_>, module: &Module) -> pointer::Decisions {
         input,
         module,
         roots,
+        bodies,
     })
 }
 
@@ -70,7 +75,7 @@ impl Context for Facts<'_, '_> {
     }
 
     fn body(&self, id: InstId) -> Option<&Body> {
-        (self.input.body)(id)
+        self.bodies[id.idx()].or_else(|| (self.input.body)(id))
     }
 
     fn source(&self, id: InstId) -> Option<(DefId, TyList, u16)> {

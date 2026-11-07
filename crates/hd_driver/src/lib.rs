@@ -1253,6 +1253,8 @@ struct BodyForms {
     /// (`ProgramEnv::shape_body`), and its hash; in dev, each of its
     /// instances substitutes it (`own::Env::inlined_instance`).
     inlined: OnceLock<Option<Box<(Body, Hash128)>>>,
+    /// Set once a rendering build has offered the body to its view.
+    rendered: OnceLock<()>,
 }
 
 impl std::ops::Deref for LazyBody {
@@ -9025,6 +9027,7 @@ impl Run<'_> {
         }
         if !self.host.render_tir.is_empty()
             && let Some((body, _)) = out
+            && b.rendered.set(()).is_ok()
         {
             self.render_own(p, def, body);
         }
