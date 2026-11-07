@@ -93,7 +93,7 @@ fn by_reference(m: Members, i: usize) -> usize:
 >   %1 = Read copy [$0 .infos [%0] .position] : usize
 >   %2 = Ref local frame [$0] : Ref[Members]
 >   %3 = Call app/main/impl Members.peek[] (%2, %1) : usize
->   %4 = Drop [%2] : ()
+>   %4 = LoanEnd [%2] : ()
 >   %5 = Drop [$0] : ()
 >   %6 = Block %3 : usize
 >   exit sub 0 drops [$0]

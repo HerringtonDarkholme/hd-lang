@@ -32,7 +32,7 @@ fn unexpected(at: usize) -> string:
 >     uses $9: %5 -> %6 lend last
 >   %0 = Ref local frame [$0] : Ref[usize]
 >   %1 = Read copy [*%0] : usize
->   %2 = Drop [%0] : ()
+>   %2 = LoanEnd [%0] : ()
 >   %3 = Prim Conv [%1] : u64
 >   %4 = Drop [$0] : ()
 >   %5 = Store [$9] %3 : ()
@@ -198,10 +198,10 @@ fn use_first(xs: List[string]) -> usize:
 >   %15 = Break L1 %14 : never
 >   %16 = Block - : usize
 >   %17 = Scope %16 [] : usize
->   %18 = Drop [$1] : ()
+>   %18 = LoanEnd [$1] : ()
 >   %19 = Ref local frame [$0] : Ref[List[string]]
 >   %20 = Call app/main/checksum[] (%19) : usize
->   %21 = Drop [%19] : ()
+>   %21 = LoanEnd [%19] : ()
 >   %22 = Drop [$0] : ()
 >   %23 = Prim Add [%17 %20] : usize
 >   %24 = Block %23 : usize

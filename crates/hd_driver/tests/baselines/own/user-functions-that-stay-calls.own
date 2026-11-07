@@ -20,7 +20,7 @@ app/main/calls
   %8 = Prim Add [%6 %7] : i64
   %9 = Ref local frame [$0] : Ref[List[i64]]
   %10 = Call app/main/first[] (%9) : i64
-  %11 = Drop [%9] : ()
+  %11 = LoanEnd [%9] : ()
   %12 = Drop [$0] : ()
   %13 = Prim Add [%8 %10] : i64
   %14 = ItemRef #33 [..] : fn(i64) -> i64

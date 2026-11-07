@@ -3,7 +3,7 @@ app/main/split
   local $0 value: Pair [param read captured] place
   %0 = Ref local frame [$0] : Ref[Pair]
   %1 = Call app/main/observe[] (%0) : usize
-  %2 = Drop [%0] : ()
+  %2 = LoanEnd [%0] : ()
   %3 = Read move [$0 .left] : Parcel
   %4 = Read move [$0 .right] : Parcel
   %5 = NewTuple - [%3 %4] : (Parcel, Parcel)

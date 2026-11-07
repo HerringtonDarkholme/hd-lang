@@ -105,7 +105,7 @@ fn use_generic(s: string, xs: List[string]) -> usize:
 >   %16 = Break L4 %15 : never
 >   %17 = Block - : usize
 >   %18 = Scope %17 [] : usize
->   %19 = Drop [$11] : ()
+>   %19 = LoanEnd [$11] : ()
 >   %20 = Prim Add [%9 %18] : usize
 >   %21 = Read move [$1] : List[string]
 >   %22 = Store [$10] %21 : ()

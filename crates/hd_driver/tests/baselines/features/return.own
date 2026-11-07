@@ -53,7 +53,7 @@ fn ret_new(n: i64) -> string:
 >     uses $10: %7 -> %8 lend, %11 lend last
 >   %0 = Ref local frame [$0] : Ref[i64]
 >   %1 = Read copy [*%0] : i64
->   %2 = Drop [%0] : ()
+>   %2 = LoanEnd [%0] : ()
 >   %3 = Prim Conv [%1] : i64
 >   %4 = Drop [$0] : ()
 >   %5 = Store [$9] %3 : ()
@@ -180,7 +180,7 @@ fn use_rets(r: Rec) -> usize:
 >   %32 = Scope %31 [] : Ref[string]
 >   %33 = Call std/text/impl string.len[] (%32) : usize
 >   %34 = Drop [%32] : ()
->   %35 = Drop [$3] : ()
+>   %35 = LoanEnd [$3] : ()
 >   %36 = Drop [$0] : ()
 >   %37 = Prim Add [%26 %33] : usize
 >   %38 = Block %37 : usize

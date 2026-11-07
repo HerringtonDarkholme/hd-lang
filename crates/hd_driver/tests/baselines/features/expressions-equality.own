@@ -32,8 +32,8 @@ fn list_ne(a: List[string], b: List[string]) -> bool:
 >   %0 = Ref local frame [$0] : Ref[List[string]]
 >   %1 = Ref local frame [$1] : Ref[List[string]]
 >   %2 = Call std/core/Eq.eq for List[string] [] via Impl (%0, %1) : bool
->   %3 = Drop [%1] : ()
->   %4 = Drop [%0] : ()
+>   %3 = LoanEnd [%1] : ()
+>   %4 = LoanEnd [%0] : ()
 >   %5 = Drop [$0] : ()
 >   %6 = Drop [$1] : ()
 >   %7 = Prim Not [%2] : bool
@@ -50,8 +50,8 @@ fn rec_eq(a: Rec, b: Rec) -> bool:
 >   %0 = Ref local frame [$0] : Ref[Rec]
 >   %1 = Ref local frame [$1] : Ref[Rec]
 >   %2 = Call std/core/Eq.eq for Rec [] via Impl (%0, %1) : bool
->   %3 = Drop [%1] : ()
->   %4 = Drop [%0] : ()
+>   %3 = LoanEnd [%1] : ()
+>   %4 = LoanEnd [%0] : ()
 >   %5 = Drop [$0] : ()
 >   %6 = Drop [$1] : ()
 >   %7 = Block %2 : bool
@@ -76,7 +76,7 @@ fn opt_none(o: string?) -> bool:
 >   %10 = Block 1:bool : bool
 >   %11 = Block 0:bool : bool
 >   %12 = Match %0 [%9 %10 %11] : bool
->   %13 = Drop [%0] : ()
+>   %13 = LoanEnd [%0] : ()
 >   %14 = Drop [$0] : ()
 >   %15 = Block %12 : bool
 >   exit sub 0 drops [$0]
@@ -98,7 +98,7 @@ fn opt_some(o: string?, s: string) -> bool:
 >   %5 = Call std/core/Eq.eq for string? [] via Impl (%0, %4) : bool
 >   %6 = LoanEnd [%4] : ()
 >   %7 = Drop [$2] : ()
->   %8 = Drop [%0] : ()
+>   %8 = LoanEnd [%0] : ()
 >   %9 = Drop [$0] : ()
 >   %10 = Block %5 : bool
 >   %4 finds [$2] full
@@ -114,8 +114,8 @@ fn map_eq(a: Map[string, string], b: Map[string, string]) -> bool:
 >   %0 = Ref local frame [$0] : Ref[Map[string, string]]
 >   %1 = Ref local frame [$1] : Ref[Map[string, string]]
 >   %2 = Call std/core/Eq.eq for Map[string, string] [] via Impl (%0, %1) : bool
->   %3 = Drop [%1] : ()
->   %4 = Drop [%0] : ()
+>   %3 = LoanEnd [%1] : ()
+>   %4 = LoanEnd [%0] : ()
 >   %5 = Drop [$0] : ()
 >   %6 = Drop [$1] : ()
 >   %7 = Block %2 : bool

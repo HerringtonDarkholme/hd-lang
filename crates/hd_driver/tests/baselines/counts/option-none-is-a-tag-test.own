@@ -20,7 +20,7 @@ fn absent(value: string?) -> bool:
 >   %10 = Block 1:bool : bool
 >   %11 = Block 0:bool : bool
 >   %12 = Match %0 [%9 %10 %11] : bool
->   %13 = Drop [%0] : ()
+>   %13 = LoanEnd [%0] : ()
 >   %14 = Drop [$0] : ()
 >   %15 = Block %12 : bool
 >   exit sub 0 drops [$0]
@@ -44,7 +44,7 @@ fn present(value: string?) -> bool:
 >   %10 = Block 0:bool : bool
 >   %11 = Block 1:bool : bool
 >   %12 = Match %0 [%9 %10 %11] : bool
->   %13 = Drop [%0] : ()
+>   %13 = LoanEnd [%0] : ()
 >   %14 = Drop [$0] : ()
 >   %15 = Block %12 : bool
 >   exit sub 0 drops [$0]

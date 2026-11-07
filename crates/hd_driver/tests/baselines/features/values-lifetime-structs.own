@@ -74,7 +74,7 @@ fn length(text: string) -> usize:
 >   %8 = Read borrow [$1 .src] : Ref[string]
 >   %9 = Call std/text/impl string.len[] (%8) : usize
 >   %10 = Read copy [$1 .pos] : usize
->   %11 = Drop [$1] : ()
+>   %11 = LoanEnd [$1] : ()
 >   %12 = Prim Add [%9 %10] : usize
 >   %13 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
@@ -90,8 +90,8 @@ fn token(text: string, other: string) -> usize:
 >   %1 = NewVariant #0 [%0] : Token[string, Ref[()]]
 >   %2 = Ref local frame [$1] : Ref[string]
 >   %3 = Call app/main/word[] (%1, %2) : Ref[string]
->   %4 = Drop [%2] : ()
->   %5 = Drop [%1] : ()
+>   %4 = LoanEnd [%2] : ()
+>   %5 = LoanEnd [%1] : ()
 >   %6 = Call std/text/impl string.len[] (%3) : usize
 >   %7 = Drop [%3] : ()
 >   %8 = Drop [$0] : ()

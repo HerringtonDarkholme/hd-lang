@@ -37,8 +37,8 @@ fn list_le(a: List[string], b: List[string]) -> bool:
 >   %0 = Ref local frame [$0] : Ref[List[string]]
 >   %1 = Ref local frame [$1] : Ref[List[string]]
 >   %2 = Call std/cmp/PartialOrd.partial_cmp for List[string] [] via Impl (%0, %1) : Ordering?
->   %3 = Drop [%1] : ()
->   %4 = Drop [%0] : ()
+>   %3 = LoanEnd [%1] : ()
+>   %4 = LoanEnd [%0] : ()
 >   %5 = Drop [$0] : ()
 >   %6 = Drop [$1] : ()
 >   %7 = Read copy [%2 as #1 .0] : Ordering
@@ -61,8 +61,8 @@ fn tuple_gt(a: (string, i64), b: (string, i64)) -> bool:
 >   %0 = Ref local frame [$0] : Ref[(string, i64)]
 >   %1 = Ref local frame [$1] : Ref[(string, i64)]
 >   %2 = Call std/cmp/PartialOrd.partial_cmp for (string, i64) [] via Impl (%0, %1) : Ordering?
->   %3 = Drop [%1] : ()
->   %4 = Drop [%0] : ()
+>   %3 = LoanEnd [%1] : ()
+>   %4 = LoanEnd [%0] : ()
 >   %5 = Drop [$0] : ()
 >   %6 = Drop [$1] : ()
 >   %7 = Read copy [%2 as #1 .0] : Ordering
@@ -85,8 +85,8 @@ fn opt_ge(a: string?, b: string?) -> bool:
 >   %0 = Ref local frame [$0] : Ref[string?]
 >   %1 = Ref local frame [$1] : Ref[string?]
 >   %2 = Call std/cmp/PartialOrd.partial_cmp for string? [] via Impl (%0, %1) : Ordering?
->   %3 = Drop [%1] : ()
->   %4 = Drop [%0] : ()
+>   %3 = LoanEnd [%1] : ()
+>   %4 = LoanEnd [%0] : ()
 >   %5 = Drop [$0] : ()
 >   %6 = Drop [$1] : ()
 >   %7 = Read copy [%2 as #1 .0] : Ordering

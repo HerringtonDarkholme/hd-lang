@@ -74,7 +74,7 @@ fn add_at(mut m: Map[string, List[i64]], mut k: string) -> Map[string, List[i64]
 >   %3 = Read borrow [$0 [%2]] : List[i64]
 >   %4 = Ref mut local frame [$1] : Ref[mut string]
 >   %5 = Call app/main/next[] (%4) : i64
->   %6 = Drop [%4] : ()
+>   %6 = LoanEnd [%4] : ()
 >   %7 = Drop [$1] : ()
 >   %8 = IsUnique [$0] : ()
 >   %9 = Read borrow [$0] : Map[string, List[i64]]

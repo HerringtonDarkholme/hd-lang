@@ -50,7 +50,7 @@ app/main/replaced
   %17 = Release %16 Operation #3 : ()
   %18 = Ref local frame [$0] : Ref[i32]
   %19 = Read copy [*%18] : i32
-  %20 = Drop [%18] : ()
+  %20 = LoanEnd [%18] : ()
   %21 = Prim Conv [%19] : i64
   %22 = Drop [$0] : ()
   %23 = Store [$16] %21 : ()

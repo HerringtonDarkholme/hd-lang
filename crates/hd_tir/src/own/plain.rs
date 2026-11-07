@@ -11,9 +11,8 @@
 //! - a `Ref` of a frame slot or a top-level binding, through fields only.
 //!   A dereference stays out: the reference it reads may be a view, whose
 //!   projection is a new object, and a variant step may make a payload view.
-//!   A parameter and a capture's copy stay out too: a suspending body's
-//!   reference to a parameter counts its cell, and a closure's to a copy
-//!   is a new object holding it;
+//!   A capture's copy stays out too: a closure's reference to it is a new
+//!   object holding it;
 //! - a `Ref` of an element, or of fields of one, of a list no type parameter
 //!   opens: an address in the buffer, whatever came before the element;
 //! - a pointer's `as_ref` or `as_mut` (`OwnCx::plain_result`);
@@ -113,12 +112,9 @@ impl Origins<'_> {
                     && if elem {
                         root.is_some()
                     } else if let Root::Local(l) = p.root {
-                        // A reference to a suspending body's parameter
-                        // counts its cell; one to a closure's copy of a
-                        // capture is a new object holding it.
-                        w & ref_word::FRAME != 0
-                            && b.local_flags[l as usize] & local_flags::PARAM == 0
-                            && !b.cap_local.iter().any(|c| c.raw() == l)
+                        // One to a closure's copy of a capture is a new
+                        // object holding it.
+                        w & ref_word::FRAME != 0 && !b.cap_local.iter().any(|c| c.raw() == l)
                     } else {
                         matches!(p.root, Root::Global(..))
                     }

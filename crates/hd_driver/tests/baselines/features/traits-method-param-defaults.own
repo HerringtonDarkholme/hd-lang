@@ -49,7 +49,7 @@ fn joined(j: Joiner) -> usize:
 >   %1 = DefaultCall [app/main/impl Joiner.join.sep []] [%0] : string
 >   %2 = Call app/main/impl Joiner.join[] (%0, %1) : usize
 >   %3 = Drop [%1] : ()
->   %4 = Drop [%0] : ()
+>   %4 = LoanEnd [%0] : ()
 >   %5 = Drop [$0] : ()
 >   %6 = Block %2 : usize
 >   exit sub 0 drops [$0]

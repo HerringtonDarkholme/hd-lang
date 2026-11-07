@@ -128,13 +128,13 @@ fn qualified(l: Logger) -> usize:
 >   %5 = Break L1 %4 : never
 >   %6 = Block - : string
 >   %7 = Scope %6 [] : string
->   %8 = Drop [%3] : ()
+>   %8 = LoanEnd [%3] : ()
 >   %9 = Intrinsic StrConcat ["* " %7] : string
 >   %10 = Drop [%7] : ()
 >   %11 = Break L2 %9 : never
 >   %12 = Block - : string
 >   %13 = Scope %12 [] : string
->   %14 = Drop [$3] : ()
+>   %14 = LoanEnd [$3] : ()
 >   %15 = Drop [$0] : ()
 >   %16 = Store [$1] %13 : ()
 >   %17 = Read borrow [$1] : string

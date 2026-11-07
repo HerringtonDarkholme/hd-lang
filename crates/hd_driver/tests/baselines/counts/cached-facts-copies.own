@@ -74,7 +74,7 @@ impl[T] HasFacts for T by Structure:
 >   %63 = Break L4 %62 : never
 >   %65 = Scope %64 [] : Result[(), never]
 >   %66 = LoanEnd [$3] : ()
->   %67 = Drop [$2] : ()
+>   %67 = LoanEnd [$2] : ()
 >   %68 = Drop [$0] : ()
 >   %3 finds [$1] full
 >   %2 = Ref local frame [$0] : Ref[T]

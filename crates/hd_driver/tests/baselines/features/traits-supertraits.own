@@ -131,7 +131,7 @@ fn use_pup(p: Pup) -> usize:
 >   %2 = Read move [$1] : Ref[Pup]
 >   %3 = Coerce %2 [RefToTraitValue -] : Dog
 >   %4 = Retain %3 Value #0 : ()
->   %5 = Drop [%2] : ()
+>   %5 = LoanEnd [%2] : ()
 >   %6 = Block %3 : Dog
 >   %7 = RefDyn %6 : Ref[Dog]
 >   %8 = Call app/main/widen[] (%7) : usize
