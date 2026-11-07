@@ -131,55 +131,58 @@ fn pause!() -> string $ Clock:
     sleep!(ms(1))
 > app/main/pause
 >   local $0 count: i64 [read] value
->     uses $0: %0 -> %1 lend last
->   %0 = Store [$0] 1:i64 : ()
->   %1 = Read copy [$0] : i64
->   %2 = Call std/time/impl Duration.milliseconds[] (%1) : Duration
->   %3 = Break L0 %2 : never
->   %4 = Block - : Duration
->   %5 = Scope %4 [] : Duration
->   %6 = Await std/time/sleep[] (%5) : ()
->   %7 = Block "x" : string
+>     uses $0: %1 -> %2 lend last
+>   %0 = ColdRowCopy #0 #0 : ()
+>   %1 = Store [$0] 1:i64 : ()
+>   %2 = Read copy [$0] : i64
+>   %3 = Call std/time/impl Duration.milliseconds[] (%2) : Duration
+>   %4 = Break L0 %3 : never
+>   %5 = Block - : Duration
+>   %6 = Scope %5 [] : Duration
+>   %7 = Await std/time/sleep[] (%6) : ()
+>   %8 = Block "x" : string
 >   summary none
     "x"
 
 fn holds!() -> usize $ Clock:
     total(text(1), pause!())
 > app/main/holds
->   %0 = Call app/main/text[] (1:i32) : string
->   %1 = Await app/main/pause[] () : string
->   %2 = Call app/main/total[] (%0, %1) : usize
->   %3 = Drop [%1] : ()
->   %4 = Drop [%0] : ()
->   %5 = Block %2 : usize
+>   %0 = ColdRowCopy #0 #0 : ()
+>   %1 = Call app/main/text[] (1:i32) : string
+>   %2 = Await app/main/pause[] () : string
+>   %3 = Call app/main/total[] (%1, %2) : usize
+>   %4 = Drop [%2] : ()
+>   %5 = Drop [%1] : ()
+>   %6 = Block %3 : usize
 >   summary none
->   unwind %1 drops [%0]
+>   unwind %2 drops [%1]
 
 fn gone!() -> usize $ Clock:
     n := text(1).len()
 > app/main/gone
 >   local $0 $ref: string [read assigned captured captured-assigned] place
 >   local $1 n: usize [:= read assigned] value
->     uses $1: %6 -> %14 consume last
+>     uses $1: %7 -> %15 consume last
 >   local $2 count: i64 [read] value
->     uses $2: %7 -> %8 lend last
->   %0 = Call app/main/text[] (1:i32) : string
->   %1 = Store [$0] %0 : ()
->   %2 = Ref local [$0] : Counted[string]
->   %3 = Call std/text/impl string.len[] (%2) : usize
->   %4 = Drop [%2] : ()
->   %5 = Drop [$0] : ()
->   %6 = Store [$1] %3 : ()
->   %15 = Block %14 : usize
->   %2 finds [$0] full
+>     uses $2: %8 -> %9 lend last
+>   %0 = ColdRowCopy #0 #0 : ()
+>   %1 = Call app/main/text[] (1:i32) : string
+>   %2 = Store [$0] %1 : ()
+>   %3 = Ref local [$0] : Counted[string]
+>   %4 = Call std/text/impl string.len[] (%3) : usize
+>   %5 = Drop [%3] : ()
+>   %6 = Drop [$0] : ()
+>   %7 = Store [$1] %4 : ()
+>   %16 = Block %15 : usize
+>   %3 finds [$0] full
     sleep!(ms(1))
->   %7 = Store [$2] 1:i64 : ()
->   %8 = Read copy [$2] : i64
->   %9 = Call std/time/impl Duration.milliseconds[] (%8) : Duration
->   %10 = Break L0 %9 : never
->   %11 = Block - : Duration
->   %12 = Scope %11 [] : Duration
->   %13 = Await std/time/sleep[] (%12) : ()
+>   %8 = Store [$2] 1:i64 : ()
+>   %9 = Read copy [$2] : i64
+>   %10 = Call std/time/impl Duration.milliseconds[] (%9) : Duration
+>   %11 = Break L0 %10 : never
+>   %12 = Block - : Duration
+>   %13 = Scope %12 [] : Duration
+>   %14 = Await std/time/sleep[] (%13) : ()
     n
->   %14 = Read copy [$1] : usize
+>   %15 = Read copy [$1] : usize
 >   summary none

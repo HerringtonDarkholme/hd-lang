@@ -418,6 +418,12 @@ impl OwnCx for Env<'_> {
         }
     }
 
+    fn has_requirement_row(&self, item: DefId) -> bool {
+        self.sig(item).is_some_and(|sig| {
+            !self.run.pool.row_data(sig.row).keys.is_empty() || hd_mono::has_row_params(self, item)
+        })
+    }
+
     fn retains_result(&self, callee: &Callee) -> bool {
         matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("bytes_slice"))
     }

@@ -1,0 +1,9 @@
+# expect: owned
+body 10 Fn
+sub 1 0 0 - 0
+labels
+caps
+modes
+extra 1 0
+%0 = ColdRowCopy 0 0 : 18 @-
+%1 = Block 0 - : 18 @-

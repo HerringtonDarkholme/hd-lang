@@ -5954,6 +5954,7 @@ runtime/valid/indirect-trait-widening-keeps-its-loaded-payload.hd	runtime	accept
 runtime/valid/unowned-parameter-cleanup-survives-every-return.hd	runtime	accept	lang/07-functions.md#r-fn.param.value-copy
 runtime/valid/cached-facts-own-each-returned-copy.hd	runtime	accept	lang/14-annotations.md#r-annot.fact.eval.lazy
 runtime/valid/cold-frame-keeps-its-argument-copy.hd	runtime	accept	lang/11-requirements-and-suspension.md#suspending-functions
+runtime/valid/cold-frame-keeps-its-requirement-row.hd	runtime	accept	lang/11-requirements-and-suspension.md#suspending-functions
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

@@ -38,7 +38,7 @@ fn tagged!() -> usize $ Tag:
 >   release counted reference (conservative: frame drop)
 >   release counted reference (conservative: frame drop)
 > app/main/tagged
->   retain counted reference (conservative: cold constructor)
+>   retain counted reference (stored)
 
 fn later!(key: string) -> usize:
     let mut pending = fetch(key)

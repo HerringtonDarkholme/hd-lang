@@ -1473,7 +1473,12 @@ impl Em<'_, '_, '_> {
             .filter(|i| {
                 !matches!(
                     self.b.tags[*i as usize],
-                    Tag::Block | Tag::ExitDrop | Tag::CacheCopy | Tag::ColdCopy | Tag::Release
+                    Tag::Block
+                        | Tag::ExitDrop
+                        | Tag::CacheCopy
+                        | Tag::ColdCopy
+                        | Tag::Release
+                        | Tag::ColdRowCopy
                 )
             })
             .collect()
@@ -1935,7 +1940,7 @@ impl Em<'_, '_, '_> {
             // The ownership passes' statements (`count.rs`).
             Tag::Retain => self.own_retain(a)?,
             // Boundary declarations lower at their named entry or exit.
-            Tag::ExitDrop | Tag::CacheCopy | Tag::ColdCopy => {}
+            Tag::ExitDrop | Tag::CacheCopy | Tag::ColdCopy | Tag::ColdRowCopy => {}
             // Lowered in its store's walk of the place.
             Tag::Release => {}
             Tag::LoanEnd => {

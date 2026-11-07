@@ -1,0 +1,30 @@
+# test: a cold frame owns providers after their construction scopes end, including unpolled frames
+# expect-stdout: keep1
+use std.task.block_on
+
+trait Tag:
+    fn name(self) -> string
+
+struct Named:
+    label: string
+
+impl Tag for Named:
+    fn name(self) -> string:
+        self.label
+
+fn read!() -> string $ Tag:
+    $.use(Tag).name()
+
+fn forward![$ R](callback: fn!() -> string $ R) -> string $ R:
+    callback!()
+
+pub fn main() -> void $ Console:
+    let pending: mut Suspend[string] = $.with(Tag=Named { label: "keep${1}" }):
+        forward(read)
+    let discarded: mut Suspend[string] = $.with(Tag=Named { label: "drop${2}" }):
+        forward(read)
+    match block_on(pending):
+        .Completed(value) => println(value)
+        .Cancelled => println("cancelled")
+        .Abandoned => println("abandoned")
+    _ := discarded
