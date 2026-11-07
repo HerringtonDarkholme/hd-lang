@@ -50,7 +50,8 @@ fn std_own_build_checks_its_always_inline_promises() {
     };
     let out = build(&host, "std", &Goal::Analyze);
     assert!(
-        out.render().contains("cannot copy this function because it suspends"),
+        out.render()
+            .contains("cannot copy this function because it suspends"),
         "{}",
         out.render()
     );
