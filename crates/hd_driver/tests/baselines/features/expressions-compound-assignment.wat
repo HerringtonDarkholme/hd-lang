@@ -12,8 +12,8 @@
   (import "fixture" "rt:map_unique" (func $rt:map_unique (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $field_append (param $t i32) (param $s.0 i32) (param $s.1 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
-    block
     ;; 17 |     t.log += s
+    block
       local.get $t
       i32.load $heap
       local.get $t

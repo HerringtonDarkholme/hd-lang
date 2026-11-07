@@ -65,7 +65,7 @@ fn sum[T < Add[Out = T]](items: List[T], zero: T) -> T:
 >   local $7 item: T [read assigned]
 >   %0 = Read [$1] : T
 >   %1 = Store [$2] %0 : ()
->   %35 = Block %34 : T
+>   %34 = Block %33 : T
     for item in items:
 >   %2 = Read [$0] : List[T]
 >   %3 = Store [$3] %2 : ()
@@ -78,29 +78,28 @@ fn sum[T < Add[Out = T]](items: List[T], zero: T) -> T:
 >   %10 = Read [$5] : usize
 >   %11 = Read [$6] : usize
 >   %12 = Prim Lt [%10 %11] : bool
->   %13 = Read [$3] : List[T]
->   %14 = Read [$5] : usize
->   %15 = Read [%13 [%14]] : T
->   %16 = Read [$5] : usize
->   %17 = Prim Add [%16 1:usize] : usize
->   %18 = Store [$5] %17 : ()
->   %23 = Block - : ()
->   %24 = Store [$7] %15 : ()
->   %26 = Block - : never
->   %27 = Match %15 [%26 %23] : ()
->   %28 = Block - : ()
->   %29 = Break L0 - : never
->   %30 = Block - : ()
->   %31 = If %12 [%28 %30] : ()
->   %32 = Block - : ()
->   %33 = Loop %32 - : ()
+>   %13 = Read [$5] : usize
+>   %14 = Read [$3 [%13]] : T
+>   %15 = Read [$5] : usize
+>   %16 = Prim Add [%15 1:usize] : usize
+>   %17 = Store [$5] %16 : ()
+>   %22 = Block - : ()
+>   %23 = Store [$7] %14 : ()
+>   %25 = Block - : never
+>   %26 = Match %14 [%25 %22] : ()
+>   %27 = Block - : ()
+>   %28 = Break L0 - : never
+>   %29 = Block - : ()
+>   %30 = If %12 [%27 %29] : ()
+>   %31 = Block - : ()
+>   %32 = Loop %31 - : ()
         total = total + item
->   %19 = Read [$2] : T
->   %20 = Read [$7] : T
->   %21 = Call std/ops/Add.add for T [T] via Bound (%19, %20) : T
->   %22 = Store [$2] %21 : ()
+>   %18 = Read [$2] : T
+>   %19 = Read [$7] : T
+>   %20 = Call std/ops/Add.add for T [T] via Bound (%18, %19) : T
+>   %21 = Store [$2] %20 : ()
     total
->   %34 = Read [$2] : T
+>   %33 = Read [$2] : T
 
 fn sum_strings(xs: List[string]) -> string:
     sum(xs, "")

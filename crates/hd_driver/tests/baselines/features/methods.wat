@@ -75,8 +75,8 @@
     end
   )
   (func $"impl Shelf.by_ref" (param $self i32) (result i32)
-    block
     ;; 14 |         (self.books.len() + 1) * (self.books.len() + 2) * (self.books.len() + 3) / 7
+    block
       local.get $self
       i32.load $heap
       i32.load $heap offset=4
@@ -96,7 +96,6 @@
       i32.mul
       i32.const 7
       i32.div_u
-    ;; (no span)
       local.set $self
     end
     local.get $self

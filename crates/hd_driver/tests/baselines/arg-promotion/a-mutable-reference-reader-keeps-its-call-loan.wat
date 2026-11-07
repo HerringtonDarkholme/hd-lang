@@ -3,12 +3,11 @@
   (import "fixture" "impl [ T ] List [ T ].pop[i32]" (func $"impl [ T ] List [ T ].pop[i32]" (param i32) (result i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $size (param $items i32) (param $removed.0 i32) (param $removed.1 i32) (result i32)
-    block
     ;; 6 |     items.len()
+    block
       local.get $items
       i32.load $heap
       i32.load $heap offset=4
-    ;; (no span)
       local.set $items
     end
     local.get $items

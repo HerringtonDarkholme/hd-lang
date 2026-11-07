@@ -19,8 +19,7 @@ impl Node:
 >   %0 = Read borrow [*$0 .left] : Counted[Node]?
 >   %19 = Block - : never
 >   %20 = Match %0 [%19 %1 %7] : usize
->   %21 = Drop [%0] : ()
->   %22 = Block %20 : usize
+>   %21 = Block %20 : usize
             .None => 0
 >   %1 = Block 0:usize : usize
 >   %9 = Block - : never
@@ -50,8 +49,7 @@ fn depth(node: &Node) -> usize:
 >   %0 = Read borrow [*$0 .left] : Counted[Node]?
 >   %17 = Block - : never
 >   %18 = Match %0 [%17 %1 %5] : usize
->   %19 = Drop [%0] : ()
->   %20 = Block %18 : usize
+>   %19 = Block %18 : usize
         .None => 1
 >   %1 = Block 1:usize : usize
 >   %7 = Block - : never
@@ -75,31 +73,29 @@ fn check(node: &Node) -> i64:
 >   local $0 node: Ref[Node] [param read] value
 >     uses $0: entry -> %0 lend, %2 lend last
 >   local $1 left: Counted[Node] [read assigned] value
->     uses $1: %32 -> %3 lend last, %7 lend last
+>     uses $1: %31 -> %3 lend last, %7 lend last
 >   local $2 right: Counted[Node] [read assigned] value
 >     uses $2: %17 -> %10 lend last
 >   %0 = Read borrow [*$0 .left] : Counted[Node]?
->   %40 = Block - : never
->   %41 = Match %0 [%40 %1 %28] : i64
->   %42 = Drop [%0] : ()
->   %43 = Block %41 : i64
+>   %39 = Block - : never
+>   %40 = Match %0 [%39 %1 %27] : i64
+>   %41 = Block %40 : i64
         .None => 1
 >   %1 = Block 1:i64 : i64
->   %30 = Block - : never
->   %38 = Block - : never
->   %39 = SwitchTag %0 [#0 %30 %38] : never
+>   %29 = Block - : never
+>   %37 = Block - : never
+>   %38 = SwitchTag %0 [#0 %29 %37] : never
         .Some(left) =>
->   %31 = Read borrow [%0 as #1 .0] : Counted[Node]
->   %32 = Store [$1] %31 : ()
->   %34 = Block - : never
->   %36 = Block - : never
->   %37 = SwitchTag %0 [#1 %34 %36] : never
+>   %30 = Read borrow [%0 as #1 .0] : Counted[Node]
+>   %31 = Store [$1] %30 : ()
+>   %33 = Block - : never
+>   %35 = Block - : never
+>   %36 = SwitchTag %0 [#1 %33 %35] : never
             match node.right:
 >   %2 = Read borrow [*$0 .right] : Counted[Node]?
 >   %25 = Block - : never
 >   %26 = Match %2 [%25 %6 %13] : i64
->   %27 = Drop [%2] : ()
->   %28 = Block %26 : i64
+>   %27 = Block %26 : i64
                 .None => 1 + check(left)
 >   %3 = Read borrow [$1] : Counted[Node]
 >   %4 = Call app/main/check[] (%3) : i64

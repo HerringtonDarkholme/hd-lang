@@ -14,9 +14,7 @@ fn eq_refs(a: &string, b: &mut string) -> bool:
 >   %0 = Read borrow [*$0] : string
 >   %1 = Read borrow [*$1] : string
 >   %2 = Intrinsic StrEq [%0 %1] : bool
->   %3 = Drop [%1] : ()
->   %4 = Drop [%0] : ()
->   %5 = Block %2 : bool
+>   %3 = Block %2 : bool
 >   summary kept []
 
 fn eq_lit(name: &string) -> bool:
@@ -26,8 +24,7 @@ fn eq_lit(name: &string) -> bool:
 >     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [*$0] : string
 >   %1 = Intrinsic StrEq [%0 "ada"] : bool
->   %2 = Drop [%0] : ()
->   %3 = Block %1 : bool
+>   %2 = Block %1 : bool
 >   summary kept []
 
 fn arith(x: &i64, y: &i64) -> i64:

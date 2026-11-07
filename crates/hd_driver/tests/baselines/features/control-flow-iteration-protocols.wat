@@ -11,8 +11,8 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $"impl Iterator [ string ] for Words.next" (param $self i32) (result i32 i32 i32) (local $t0 i32) (local $t1 i32)
-    block
     ;; 14 |         if self.at >= self.items.len():
+    block
       local.get $self
       i32.load $heap offset=4
       local.get $self
@@ -65,7 +65,7 @@
       local.tee $t0
       call $retain
       i32.const 1
-    ;; (no span)
+    ;; 14 |         if self.at >= self.items.len():
       local.set $self
     end
     local.get $self

@@ -1165,10 +1165,8 @@ impl Em<'_, '_, '_> {
             return unsupported("a cancellation outside a suspending body");
         };
         if self.counting {
-            // An owned body's exit releases only its exit set.
-            if self.owned {
-                self.release_unwound(self.cancel_from)?;
-            }
+            // The exit releases only its exit set.
+            self.release_unwound(self.cancel_from)?;
             for l in self.ret.clone() {
                 self.f.zero(l);
             }

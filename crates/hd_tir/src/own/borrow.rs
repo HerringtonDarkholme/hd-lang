@@ -94,9 +94,7 @@
 //! A binding local holds a borrowed value, so it owns nothing: its `Drop`s
 //! go, it leaves the exit set, and its reads resolve through it to the
 //! read it holds. The backend stores into it with no count
-//! (`Moves::loan_locals`). One whose read keeps its `Drop`s (below) keeps
-//! its own `Drop`s and its row in the exit set: they release the value
-//! only where an instance made it fresh.
+//! (`Moves::loan_locals`).
 //!
 //! A **lent parameter** ([`OwnCx::received`]) that the body never stores,
 //! addresses, captures or changes in place (an `IsUnique` gives up a count
@@ -116,12 +114,6 @@
 //! call, so it takes no count; its `Drop`s stay for an instance whose
 //! reference view makes the referent fresh.
 //!
-//! A read whose value an instance may have to make (one through a
-//! dereference, which a view's getter makes fresh; one that names a type
-//! parameter, which an erased body's thunk makes) keeps its `Drop`s: in
-//! such an instance the read holds that fresh value's count, and the drop
-//! releases it; where the read borrows, the drop releases nothing.
-//!
 //! The decisions run forward first, for source forms whose inner binding
 //! precedes the outer one (a match arm), then backward, for bottom-up
 //! inlined copies whose outer binding precedes the inner one. A decided
@@ -136,7 +128,7 @@
 use super::{Loc, OwnCx, Pass, Role, Tri, consumes, fill, operands, splice};
 use crate::ir::{
     Body, BodyKind, Callee, DEREF, ELEM, IntrinsicOp, NONE, PlaceRoot, Proj, ReadMode, Ref, Root,
-    Tag, Topology, is_suspension, local_flags, place, sub_flags, u32_of,
+    Tag, Topology, is_suspension, local_flags, sub_flags, u32_of,
 };
 use hd_base::SliceSort as _;
 use hd_types::Ty;
@@ -1328,12 +1320,11 @@ fn decide(
     let x = u32_of(r);
     // A read that a coercion keeping its values consumes lives on as the
     // coercion's value: the span ends at that value's last drop, and the
-    // coercion is a borrow too. One whose instance may make it fresh
-    // keeps its count.
+    // coercion is a borrow too.
     // One that the coercion carries into a binding local is that local's.
     let store = store_of(t, r);
     let alias = if store == NONE { t.alias[r] } else { NONE };
-    if alias != NONE && (keeps_drops(b, cx, r) || t.last_drop[alias as usize] == NONE) {
+    if alias != NONE && t.last_drop[alias as usize] == NONE {
         return;
     }
     // The span's end: the read's last drop, a binding local's, or the
@@ -1350,7 +1341,6 @@ fn decide(
     } else {
         return;
     };
-    let keep = keeps_drops(b, cx, r);
     // A binding read for a consumer would copy there: the read copies (or
     // moves) into the binding instead. One of a part of the binding copies
     // only that part, less than a copy of all of it, unless the read into
@@ -1483,13 +1473,11 @@ fn decide(
             }
         }
     } else if bind == NONE {
-        if !keep {
-            for k in t.start[(locals + x) as usize]..t.start[(locals + x) as usize + 1] {
-                let d = t.rows[k as usize].at;
-                if is_whole_drop(b, d, Root::Value(x)) {
-                    t.gone[d as usize] = true;
-                    edits.remove(d);
-                }
+        for k in t.start[(locals + x) as usize]..t.start[(locals + x) as usize + 1] {
+            let d = t.rows[k as usize].at;
+            if is_whole_drop(b, d, Root::Value(x)) {
+                t.gone[d as usize] = true;
+                edits.remove(d);
             }
         }
     } else {
@@ -1502,12 +1490,6 @@ fn decide(
             t.kept_whole[l as usize] -= u32::from(p.whole());
         }
         t.holds[bind as usize] = x;
-        // A read whose value an instance may make fresh keeps the
-        // binding's `Drop`s and its row in the exit set: there the binding
-        // holds that value's count, which they release.
-        if keep {
-            return;
-        }
         t.unowned[bind as usize] = true;
         for k in t.start[bind as usize]..t.start[bind as usize + 1] {
             let d = t.rows[k as usize].at;
@@ -1934,25 +1916,6 @@ fn statement(b: &Body, topo: &Topology, mut x: u32, h: u32) -> Option<u32> {
         x = p;
     }
     None
-}
-
-/// Whether read `r` keeps its `Drop`s when it borrows: an instance may
-/// make its value fresh (see the module). A read of a bare local never
-/// does.
-pub(crate) fn keeps_drops(b: &Body, cx: &dyn OwnCx, r: usize) -> bool {
-    let word = b.data[r][0];
-    if word & place::BARE_LOCAL != 0 {
-        return false;
-    }
-    let p = b.view(word);
-    let root_ty = match p.root {
-        Root::Local(l) => b.local_ty[l as usize],
-        Root::Value(v) => b.ty[v as usize],
-        Root::Global(_, t) => t,
-        _ => return true,
-    };
-    let (derefs, _) = p.kinds(b);
-    derefs > 0 || cx.thunk_made(root_ty) || cx.thunk_made(b.ty[r])
 }
 
 /// Whether anything in read `r`'s span, the instructions `lo..=end`, may

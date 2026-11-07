@@ -11,21 +11,18 @@ fn absent(value: string?) -> bool:
 >   %1 = NewVariant #0 [] : string?
 >   %2 = Drop [%1] : ()
 >   %3 = Read borrow [*%0] : string?
->   %4 = Drop [%3] : ()
->   %5 = ToArm #0 : never
->   %6 = Block - : never
->   %7 = Drop [%3] : ()
->   %8 = ToArm #1 : never
+>   %4 = ToArm #0 : never
+>   %5 = Block - : never
+>   %6 = ToArm #1 : never
+>   %7 = Block - : never
+>   %8 = SwitchTag %3 [#0 %5 %7] : never
 >   %9 = Block - : never
->   %10 = SwitchTag %3 [#0 %6 %9] : never
->   %11 = Drop [%3] : ()
->   %12 = Block - : never
->   %13 = Block 1:bool : bool
->   %14 = Block 0:bool : bool
->   %15 = Match %0 [%12 %13 %14] : bool
->   %16 = Drop [%0] : ()
->   %17 = Drop [$0] : ()
->   %18 = Block %15 : bool
+>   %10 = Block 1:bool : bool
+>   %11 = Block 0:bool : bool
+>   %12 = Match %0 [%9 %10 %11] : bool
+>   %13 = Drop [%0] : ()
+>   %14 = Drop [$0] : ()
+>   %15 = Block %12 : bool
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -37,21 +34,18 @@ fn present(value: string?) -> bool:
 >   %1 = NewVariant #0 [] : string?
 >   %2 = Drop [%1] : ()
 >   %3 = Read borrow [*%0] : string?
->   %4 = Drop [%3] : ()
->   %5 = ToArm #0 : never
->   %6 = Block - : never
->   %7 = Drop [%3] : ()
->   %8 = ToArm #1 : never
+>   %4 = ToArm #0 : never
+>   %5 = Block - : never
+>   %6 = ToArm #1 : never
+>   %7 = Block - : never
+>   %8 = SwitchTag %3 [#0 %5 %7] : never
 >   %9 = Block - : never
->   %10 = SwitchTag %3 [#0 %6 %9] : never
->   %11 = Drop [%3] : ()
->   %12 = Block - : never
->   %13 = Block 0:bool : bool
->   %14 = Block 1:bool : bool
->   %15 = Match %0 [%12 %13 %14] : bool
->   %16 = Drop [%0] : ()
->   %17 = Drop [$0] : ()
->   %18 = Block %15 : bool
+>   %10 = Block 0:bool : bool
+>   %11 = Block 1:bool : bool
+>   %12 = Match %0 [%9 %10 %11] : bool
+>   %13 = Drop [%0] : ()
+>   %14 = Drop [$0] : ()
+>   %15 = Block %12 : bool
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -104,19 +98,16 @@ fn generic[T < ?Copy & Eq](value: &(T?)) -> bool:
 >   %1 = NewVariant #0 [] : T?
 >   %2 = Drop [%1] : ()
 >   %3 = Read borrow [*$0] : T?
->   %4 = Drop [%3] : ()
->   %5 = ToArm #0 : never
->   %6 = Block - : never
->   %7 = Drop [%3] : ()
->   %8 = ToArm #1 : never
+>   %4 = ToArm #0 : never
+>   %5 = Block - : never
+>   %6 = ToArm #1 : never
+>   %7 = Block - : never
+>   %8 = SwitchTag %3 [#0 %5 %7] : never
 >   %9 = Block - : never
->   %10 = SwitchTag %3 [#0 %6 %9] : never
->   %11 = Drop [%3] : ()
->   %12 = Block - : never
->   %13 = Block 1:bool : bool
->   %14 = Block 0:bool : bool
->   %15 = Match %0 [%12 %13 %14] : bool
->   %16 = Block %15 : bool
+>   %10 = Block 1:bool : bool
+>   %11 = Block 0:bool : bool
+>   %12 = Match %0 [%9 %10 %11] : bool
+>   %13 = Block %12 : bool
 >   summary kept []
 
 fn borrowed(value: &(string?)) -> bool:

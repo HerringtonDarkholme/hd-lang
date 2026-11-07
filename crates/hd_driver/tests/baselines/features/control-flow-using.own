@@ -153,9 +153,9 @@ fn by_ref(r: &mut Res) -> usize:
 >   %3 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%2) : ()
 >   %4 = Block - : ()
 >   %5 = Defer #4 : ()
->   %14 = Block %12 : usize
->   %15 = Scope %14 [%4] : usize
->   %16 = Block %15 : usize
+>   %13 = Block %12 : usize
+>   %14 = Scope %13 [%4] : usize
+>   %15 = Block %14 : usize
     held.name.len()
 >   %6 = Read borrow [*$1 .name] : string
 >   %7 = Store [$2] %6 : ()
@@ -164,5 +164,4 @@ fn by_ref(r: &mut Res) -> usize:
 >   %10 = Break L0 %9 : never
 >   %11 = Block - : usize
 >   %12 = Scope %11 [] : usize
->   %13 = Drop [$2] : ()
 >   summary kept [] writes

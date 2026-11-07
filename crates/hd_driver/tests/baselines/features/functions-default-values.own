@@ -25,11 +25,10 @@ fn collect(item: string, into: &mut List[string] = &mut []) -> usize:
 >   %1 = IsUnique [*$1] : ()
 >   %2 = Read borrow [*$1] : List[string]
 >   %3 = Intrinsic ListPush [%2 %0] : ()
->   %7 = Block %5 : usize
+>   %6 = Block %5 : usize
     into.len()
 >   %4 = Read borrow [*$1] : List[string]
 >   %5 = Intrinsic ListLen [%4] : usize
->   %6 = Drop [%4] : ()
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes
 

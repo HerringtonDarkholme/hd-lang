@@ -40,8 +40,7 @@ fn read_ptr(p: *Node) -> usize:
 >   %4 = Break L0 %3 : never
 >   %5 = Block - : usize
 >   %6 = Scope %5 [] : usize
->   %7 = Drop [$1] : ()
->   %8 = Block %6 : usize
+>   %7 = Block %6 : usize
 >   summary kept []
 
 fn write_ptr(p: *mut Node, n: string) -> void:

@@ -15,32 +15,31 @@ fn lookup(m: &Map[string, string], k: string) -> usize:
 >   local $1 k: string [param read] value
 >     uses $1: entry -> %1 lend last
 >   local $2 v: string [read assigned] value
->     uses $2: %12 -> %4 lend last
+>     uses $2: %11 -> %3 lend last
 >   %0 = Read borrow [*$0] : Map[string, string]
 >   %1 = Read borrow [$1] : string
 >   %2 = Intrinsic MapGet [%0 %1] : string?
->   %3 = Drop [%0] : ()
->   %22 = Block - : never
->   %23 = Match %2 [%22 %9 %10] : usize
->   %24 = Drop [%2] : ()
->   %25 = Block %23 : usize
+>   %21 = Block - : never
+>   %22 = Match %2 [%21 %8 %9] : usize
+>   %23 = Drop [%2] : ()
+>   %24 = Block %22 : usize
         .Some(v) => v.len()
->   %4 = Read borrow [$2] : string
->   %5 = Call std/rt.bytes/bytes_len[] (%4) : usize
->   %6 = Break L0 %5 : never
->   %7 = Block - : usize
->   %8 = Scope %7 [] : usize
->   %9 = Block %8 : usize
->   %11 = Read borrow [%2 as #1 .0] : string
->   %12 = Store [$2] %11 : ()
->   %14 = Block - : never
->   %20 = Block - : never
->   %21 = SwitchTag %2 [#1 %14 %20] : never
+>   %3 = Read borrow [$2] : string
+>   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
+>   %5 = Break L0 %4 : never
+>   %6 = Block - : usize
+>   %7 = Scope %6 [] : usize
+>   %8 = Block %7 : usize
+>   %10 = Read borrow [%2 as #1 .0] : string
+>   %11 = Store [$2] %10 : ()
+>   %13 = Block - : never
+>   %19 = Block - : never
+>   %20 = SwitchTag %2 [#1 %13 %19] : never
         .None => 0
->   %10 = Block 0:usize : usize
->   %16 = Block - : never
->   %18 = Block - : never
->   %19 = SwitchTag %2 [#0 %16 %18] : never
+>   %9 = Block 0:usize : usize
+>   %15 = Block - : never
+>   %17 = Block - : never
+>   %18 = SwitchTag %2 [#0 %15 %17] : never
 >   summary kept [] borrows [$1]
 
 fn put(m: &mut Map[string, string], k: string, v: string) -> void:
@@ -95,20 +94,19 @@ fn has(m: &Map[string, string], k: string) -> bool:
 >   %1 = Read borrow [*%0] : Map[string, string]
 >   %2 = Read borrow [$1] : string
 >   %3 = Intrinsic MapGet [%1 %2] : string?
->   %4 = Drop [%1] : ()
->   %5 = Block 1:bool : bool
->   %6 = Block 0:bool : bool
->   %8 = Block - : never
->   %10 = Block - : never
->   %12 = Block - : never
->   %13 = SwitchTag %3 [#0 %10 %12] : never
->   %14 = Block - : never
->   %15 = SwitchTag %3 [#1 %8 %14] : never
->   %16 = Block - : never
->   %17 = Match %3 [%16 %5 %6] : bool
->   %18 = Drop [%3] : ()
->   %19 = Break L0 %17 : never
->   %20 = Block - : bool
->   %21 = Scope %20 [] : bool
->   %22 = Block %21 : bool
+>   %4 = Block 1:bool : bool
+>   %5 = Block 0:bool : bool
+>   %7 = Block - : never
+>   %9 = Block - : never
+>   %11 = Block - : never
+>   %12 = SwitchTag %3 [#0 %9 %11] : never
+>   %13 = Block - : never
+>   %14 = SwitchTag %3 [#1 %7 %13] : never
+>   %15 = Block - : never
+>   %16 = Match %3 [%15 %4 %5] : bool
+>   %17 = Drop [%3] : ()
+>   %18 = Break L0 %16 : never
+>   %19 = Block - : bool
+>   %20 = Scope %19 [] : bool
+>   %21 = Block %20 : bool
 >   summary kept [] borrows [$1]

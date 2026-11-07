@@ -38,116 +38,115 @@ impl[T < Ord] Queue[T]:
         size := self.items.len()
 > app/main/impl [ T < Ord ] Queue [ T ].settle
 >   local $0 self: Ref[mut Queue[T]] [param read] value
->     uses $0: entry -> %0 lend, %22 lend, %26 lend, %47 lend, %63 lend, %65 lend, %77 lend last
+>     uses $0: entry -> %0 lend, %21 lend, %25 lend, %46 lend, %62 lend, %64 lend, %76 lend last
 >   local $1 start: usize [param read] value
->     uses $1: entry -> %4 consume last
+>     uses $1: entry -> %3 consume last
 >   local $2 value: T [param read captured] place
 >   local $3 size: usize [:= read assigned] value
->     uses $3: %3 -> %7 lend, %18 lend
+>     uses $3: %2 -> %6 lend, %17 lend
 >   local $4 parent: usize [read assigned mutated] place
 >   local $5 left: usize [:= read assigned] value
->     uses $5: %13 -> %14 consume, %16 lend, %20 lend, %23 lend, %30 lend last
+>     uses $5: %12 -> %13 consume, %15 lend, %19 lend, %22 lend, %29 lend last
 >   local $6 larger: usize [read assigned mutated] place
 >   %0 = Read borrow [*$0 .items] : List[T]
 >   %1 = Intrinsic ListLen [%0] : usize
->   %2 = Drop [%0] : ()
->   %3 = Store [$3] %1 : ()
->   %78 = Block - : ()
+>   %2 = Store [$3] %1 : ()
+>   %77 = Block - : ()
         let parent = start
->   %4 = Read copy [$1] : usize
->   %5 = Store [$4] %4 : ()
+>   %3 = Read copy [$1] : usize
+>   %4 = Store [$4] %3 : ()
         while parent < size / 2:
->   %6 = Read copy [$4] : usize
->   %7 = Read copy [$3] : usize
->   %8 = Prim Div [%7 2:usize] : usize
->   %9 = Prim Lt [%6 %8] : bool
->   %69 = Break L0 - : never
->   %70 = Block - : ()
->   %71 = If %9 [%68 %70] : ()
->   %72 = Block - : ()
->   %73 = Loop %72 - : ()
->   %6 shared: a copy of a value that holds the struct
+>   %5 = Read copy [$4] : usize
+>   %6 = Read copy [$3] : usize
+>   %7 = Prim Div [%6 2:usize] : usize
+>   %8 = Prim Lt [%5 %7] : bool
+>   %68 = Break L0 - : never
+>   %69 = Block - : ()
+>   %70 = If %8 [%67 %69] : ()
+>   %71 = Block - : ()
+>   %72 = Loop %71 - : ()
+>   %5 shared: a copy of a value that holds the struct
             left := 2 * parent + 1
->   %10 = Read copy [$4] : usize
->   %11 = Prim Mul [2:usize %10] : usize
->   %12 = Prim Add [%11 1:usize] : usize
->   %13 = Store [$5] %12 : ()
->   %68 = Block - : ()
+>   %9 = Read copy [$4] : usize
+>   %10 = Prim Mul [2:usize %9] : usize
+>   %11 = Prim Add [%10 1:usize] : usize
+>   %12 = Store [$5] %11 : ()
+>   %67 = Block - : ()
             let larger = left
->   %14 = Read copy [$5] : usize
->   %15 = Store [$6] %14 : ()
+>   %13 = Read copy [$5] : usize
+>   %14 = Store [$6] %13 : ()
             if left + 1 < size:
->   %16 = Read copy [$5] : usize
->   %17 = Prim Add [%16 1:usize] : usize
->   %18 = Read copy [$3] : usize
->   %19 = Prim Lt [%17 %18] : bool
->   %43 = If %19 [%42 -] : ()
+>   %15 = Read copy [$5] : usize
+>   %16 = Prim Add [%15 1:usize] : usize
+>   %17 = Read copy [$3] : usize
+>   %18 = Prim Lt [%16 %17] : bool
+>   %42 = If %18 [%41 -] : ()
                 match self.items[left].cmp(&self.items[left + 1]):
->   %20 = Read copy [$5] : usize
->   %21 = IsUnique [*$0 .items] : ()
->   %22 = Ref local [*$0 .items [%20]] : Ref[T]
->   %23 = Read copy [$5] : usize
->   %24 = Prim Add [%23 1:usize] : usize
->   %25 = IsUnique [*$0 .items] : ()
->   %26 = Ref local [*$0 .items [%24]] : Ref[T]
->   %27 = Call std/cmp/Ord.cmp for T [] via Bound (%22, %26) : Ordering
->   %28 = Drop [%26] : ()
->   %29 = Drop [%22] : ()
->   %40 = Block - : never
->   %41 = Match %27 [%40 %33 %34] : ()
->   %42 = Block - : ()
->   %22 shared: a copy of a value that holds the struct
->   %26 shared: a copy of a value that holds the struct
+>   %19 = Read copy [$5] : usize
+>   %20 = IsUnique [*$0 .items] : ()
+>   %21 = Ref local [*$0 .items [%19]] : Ref[T]
+>   %22 = Read copy [$5] : usize
+>   %23 = Prim Add [%22 1:usize] : usize
+>   %24 = IsUnique [*$0 .items] : ()
+>   %25 = Ref local [*$0 .items [%23]] : Ref[T]
+>   %26 = Call std/cmp/Ord.cmp for T [] via Bound (%21, %25) : Ordering
+>   %27 = Drop [%25] : ()
+>   %28 = Drop [%21] : ()
+>   %39 = Block - : never
+>   %40 = Match %26 [%39 %32 %33] : ()
+>   %41 = Block - : ()
 >   %21 shared: a copy of a value that holds the struct
 >   %25 shared: a copy of a value that holds the struct
+>   %20 shared: a copy of a value that holds the struct
+>   %24 shared: a copy of a value that holds the struct
                     .Less => larger = left + 1
->   %30 = Read copy [$5] : usize
->   %31 = Prim Add [%30 1:usize] : usize
->   %32 = Store [$6] %31 : ()
->   %33 = Block - : ()
->   %36 = Block - : never
->   %38 = Block - : never
->   %39 = SwitchTag %27 [#0 %36 %38] : never
+>   %29 = Read copy [$5] : usize
+>   %30 = Prim Add [%29 1:usize] : usize
+>   %31 = Store [$6] %30 : ()
+>   %32 = Block - : ()
+>   %35 = Block - : never
+>   %37 = Block - : never
+>   %38 = SwitchTag %26 [#0 %35 %37] : never
                     _ => pass
->   %34 = Block - : ()
+>   %33 = Block - : ()
             match value.cmp(&self.items[larger]):
->   %44 = Ref local frame [$2] : Counted[T]
->   %45 = Read copy [$6] : usize
->   %46 = IsUnique [*$0 .items] : ()
->   %47 = Ref local [*$0 .items [%45]] : Ref[T]
->   %48 = Call std/cmp/Ord.cmp for T [] via Bound (%44, %47) : Ordering
->   %49 = Drop [%47] : ()
->   %50 = Drop [%44] : ()
->   %59 = Block - : never
->   %60 = Match %48 [%59 %51 %53] : ()
->   %47 shared: a copy of a value that holds the struct
+>   %43 = Ref local frame [$2] : Counted[T]
+>   %44 = Read copy [$6] : usize
+>   %45 = IsUnique [*$0 .items] : ()
+>   %46 = Ref local [*$0 .items [%44]] : Ref[T]
+>   %47 = Call std/cmp/Ord.cmp for T [] via Bound (%43, %46) : Ordering
+>   %48 = Drop [%46] : ()
+>   %49 = Drop [%43] : ()
+>   %58 = Block - : never
+>   %59 = Match %47 [%58 %50 %52] : ()
 >   %46 shared: a copy of a value that holds the struct
+>   %45 shared: a copy of a value that holds the struct
                 .Less => pass
->   %51 = Block - : ()
->   %55 = Block - : never
->   %57 = Block - : never
->   %58 = SwitchTag %48 [#0 %55 %57] : never
+>   %50 = Block - : ()
+>   %54 = Block - : never
+>   %56 = Block - : never
+>   %57 = SwitchTag %47 [#0 %54 %56] : never
                 _ => break
->   %52 = Break L0 - : never
->   %53 = Block - : never
+>   %51 = Break L0 - : never
+>   %52 = Block - : never
             self.items[parent] = self.items[larger]
->   %61 = Read copy [$4] : usize
->   %62 = Read copy [$6] : usize
->   %63 = Read copy [*$0 .items [%62]] : T
->   %64 = IsUnique [*$0 .items] : ()
->   %65 = Store [*$0 .items [%61]] %63 : ()
->   %65 shared: a copy of a value that holds the struct
+>   %60 = Read copy [$4] : usize
+>   %61 = Read copy [$6] : usize
+>   %62 = Read copy [*$0 .items [%61]] : T
+>   %63 = IsUnique [*$0 .items] : ()
+>   %64 = Store [*$0 .items [%60]] %62 : ()
 >   %64 shared: a copy of a value that holds the struct
+>   %63 shared: a copy of a value that holds the struct
             parent = larger
->   %66 = Read copy [$6] : usize
->   %67 = Store [$4] %66 : ()
+>   %65 = Read copy [$6] : usize
+>   %66 = Store [$4] %65 : ()
         self.items[parent] = value
->   %74 = Read copy [$4] : usize
->   %75 = Read move [$2] : T
->   %76 = IsUnique [*$0 .items] : ()
->   %77 = Store [*$0 .items [%74]] %75 : ()
->   %77 shared: a copy of a value that holds the struct
+>   %73 = Read copy [$4] : usize
+>   %74 = Read move [$2] : T
+>   %75 = IsUnique [*$0 .items] : ()
+>   %76 = Store [*$0 .items [%73]] %74 : ()
 >   %76 shared: a copy of a value that holds the struct
+>   %75 shared: a copy of a value that holds the struct
 >   exit sub 0 drops [$2]
 >   summary kept [$0 $2] writes relies [$0]
 

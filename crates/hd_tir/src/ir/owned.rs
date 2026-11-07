@@ -1014,18 +1014,13 @@ impl Forward for Empties<'_> {
 /// "Borrow"). A binding local: a `Store` of a `borrow` read goes into all
 /// of it, so it holds borrowed values only: every store into it stores
 /// one, nothing moves out of it or addresses it, and nothing drops it nor
-/// is it in an exit set unless a borrow stored into it keeps its `Drop`s
-/// (one through a dereference, which a view's getter may make fresh: the
-/// local then holds that count, `crate::own::keeps_drops`). A lent parameter: a counted parameter outside the exit set,
+/// is it in an exit set. A lent parameter: a counted parameter outside the exit set,
 /// which nothing stores into, drops, moves out of or addresses either,
 /// and nothing changes in place: an `IsUnique` or a `Pin` of it would give
 /// up or keep a count that is its caller's.
 fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
     let b = cx.b;
     let mut binding = vec![false; b.local_ty.len()];
-    let mut dropped = vec![false; b.local_ty.len()];
-    // Per binding local: a borrow stored into it keeps its `Drop`s.
-    let mut keeps = vec![false; b.local_ty.len()];
     let mut lent = vec![false; b.local_ty.len()];
     let mut any = false;
     if !b.sub_root.is_empty() {
@@ -1043,28 +1038,15 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
         }
     }
     for i in 0..b.len() {
-        let Some(w) = (b.tags[i] == Tag::Store)
-            .then(|| b.loan_read(b.data[i][1]))
-            .flatten()
-        else {
+        if b.tags[i] != Tag::Store || b.loan_read(b.data[i][1]).is_none() {
             continue;
-        };
+        }
         match &cx.places[i] {
             Some(Place {
                 root: PlaceRoot::Local(l),
                 proj,
             }) if proj.is_empty() => {
                 binding[l.idx()] = true;
-                let w = w as usize;
-                // A borrow of all of another binding local holds that
-                // one's borrow (`crate::own::borrow`'s forwarding locals).
-                let from = b.data[w][0];
-                let held = b.tags[w] == Tag::Read
-                    && from & place::BARE_LOCAL != 0
-                    && keeps.get((from & !place::BARE_LOCAL) as usize) == Some(&true);
-                let k = held || (b.tags[w] == Tag::Read && crate::own::keeps_drops(b, own, w));
-                keeps[l.idx()] |= k;
-                dropped[l.idx()] |= k;
                 any = true;
             }
             _ => err(
@@ -1093,7 +1075,7 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
         let what = match b.tags[i] {
             Tag::Store if lent[l.idx()] => "a store into",
             Tag::Store if b.loan_read(b.data[i][1]).is_none() => "an owned value stored into",
-            Tag::Drop if !dropped[l.idx()] => "a `Drop` of",
+            Tag::Drop => "a `Drop` of",
             Tag::Read if b.data[i][1] == ReadMode::Move as u32 => "a `move` out of",
             Tag::Ref => "a reference to",
             Tag::IsUnique => "a change in place of",
@@ -1106,7 +1088,7 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
         );
     }
     for &(_, l) in &b.exit_drops {
-        if binding.get(l.idx()).copied().unwrap_or(false) && !dropped[l.idx()] {
+        if binding.get(l.idx()).copied().unwrap_or(false) {
             err(
                 errs,
                 NONE,

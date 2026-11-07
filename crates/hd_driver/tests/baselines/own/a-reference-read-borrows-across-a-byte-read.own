@@ -5,5 +5,4 @@ std/rt_tests.stage_case/impl Scan.peek
   %0 = Read borrow [*$0 .text] : string
   %1 = Read copy [*$0 .at] : usize
   %2 = Call std/rt_tests.stage_case/bytes_at[] (%0, %1) : u8
-  %3 = Drop [%0] : ()
-  %4 = Block %2 : u8
+  %3 = Block %2 : u8

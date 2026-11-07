@@ -50,6 +50,5 @@ fn name_of(m: &Member, frames: &List[Frame]) -> string:
 >   %0 = Read borrow [$0] : Ref[Member]
 >   %1 = Read borrow [*$1 [0:usize] .facts] : Facts
 >   %2 = Call std/serde/member_name[] (%0, %1) : string
->   %3 = Drop [%1] : ()
->   %4 = Block %2 : string
+>   %3 = Block %2 : string
 >   summary kept []

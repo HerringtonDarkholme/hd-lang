@@ -156,11 +156,8 @@
       block
         block
           local.get $s
-          i32.load $heap
-          local.get $s
           i32.load $heap offset=4
           local.set $env
-          drop
           br 0
         end
       end

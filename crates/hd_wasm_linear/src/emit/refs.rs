@@ -584,7 +584,7 @@ impl Em<'_, '_, '_> {
         // A promoted argument is its place's value (§23.40), moved out of
         // its local when the reference takes the local's count.
         if self.promoted.contains(&i) {
-            if self.owned && self.b.data[i as usize][1] & hd_tir::ir::ref_word::TAKES != 0 {
+            if self.b.data[i as usize][1] & hd_tir::ir::ref_word::TAKES != 0 {
                 return self.promoted_take(i);
             }
             return self.place_read(i);
@@ -596,7 +596,7 @@ impl Em<'_, '_, '_> {
         // takes a count of its own and the local's count
         // is released here, as the `Drop` the pass deleted did. A frame
         // local's count is never taken (`ref_word::FRAME`).
-        if self.owned && self.b.data[i as usize][1] & hd_tir::ir::ref_word::TAKES != 0 {
+        if self.b.data[i as usize][1] & hd_tir::ir::ref_word::TAKES != 0 {
             let p = self.place(self.b.data[i as usize][0])?;
             let (PlaceRoot::Local(l), true) = (p.root, p.proj.is_empty()) else {
                 return unsupported("a reference that takes the count of no whole local");
@@ -1042,8 +1042,7 @@ impl Em<'_, '_, '_> {
         let Some(path) = fields(&p.proj) else {
             return Ok(false);
         };
-        if !self.owned
-            || self.b.data[i as usize][1] != hd_tir::ir::ReadMode::Move as u32
+        if self.b.data[i as usize][1] != hd_tir::ir::ReadMode::Move as u32
             || path.is_empty()
             || !self.is_cell(l)
         {
@@ -1163,9 +1162,6 @@ impl Em<'_, '_, '_> {
             self.owned_locals.insert(*l);
         }
         match &local {
-            _ if rooted && !self.owned => {
-                return unsupported("a store into a place that is not writable");
-            }
             Some((l, _)) if self.is_cell(*l) && (v == NONE || !self.diverges(v)) => {
                 return self.cell_set(i, *l, v);
             }
@@ -1406,18 +1402,16 @@ impl Em<'_, '_, '_> {
     /// walk from its root's value: rooted at a local, with an element or
     /// a variant among its steps, or a dereference after its first step;
     /// or rooted at a top-level binding, read through any step or reached
-    /// through one that is no field. Any other place, and every place of
-    /// starts where stage 1 lowered it ([`Em::place_start`]).
+    /// through one that is no field. Any other place starts where stage 1
+    /// lowered it ([`Em::place_start`]).
     pub(super) fn rooted_at(&self, i: u32) -> bool {
         let read = self.b.tags[i as usize] == Tag::Read;
-        self.owned
-            && self
-                .b
-                .decode_place(self.b.data[i as usize][0])
-                .is_some_and(|p| {
-                    Self::rooted(&p)
-                        || read && matches!(p.root, PlaceRoot::Global(..)) && !p.proj.is_empty()
-                })
+        self.b
+            .decode_place(self.b.data[i as usize][0])
+            .is_some_and(|p| {
+                Self::rooted(&p)
+                    || read && matches!(p.root, PlaceRoot::Global(..)) && !p.proj.is_empty()
+            })
     }
 
     /// Whether place `p` takes the walk ([`Em::rooted_at`]).

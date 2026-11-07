@@ -28,14 +28,13 @@
     local.get $self
   )
   (func $"impl Mapper.apply'2" (param $self.transform.0 i32) (param $self.transform.1 i32) (param $x i32) (result i32)
-    block
     ;; 18 |         (self.transform)(x)
+    block
       local.get $self.transform.1
       local.get $x
       i32.const 0
       local.get $self.transform.0
       call_indirect $table0 (param i32 i32 i32) (result i32)
-    ;; (no span)
       local.set $self.transform.0
     end
     local.get $self.transform.0

@@ -26,21 +26,20 @@ fn read_tag() -> usize $ Tag:
     $.use(Tag).name().len()
 > app/main/read_tag
 >   local $0 $ref: string [read assigned captured captured-assigned] value
->     uses $0: %6 -> %7 lend last
+>     uses $0: %5 -> %6 lend last
 >   %0 = ProviderGet #0 : Tag
 >   %1 = Coerce %0 [ProviderAsRef -] : Ref[Tag]
 >   %2 = Read borrow [*%1] : Tag
 >   %3 = Drop [%1] : ()
 >   %4 = Call app/main/Tag.name for Tag [] via TraitValue (%2) : string
->   %5 = Drop [%2] : ()
->   %6 = Store [$0] %4 : ()
->   %7 = Read borrow [$0] : string
->   %8 = Call std/rt.bytes/bytes_len[] (%7) : usize
->   %9 = Break L0 %8 : never
->   %10 = Block - : usize
->   %11 = Scope %10 [] : usize
->   %12 = Drop [$0] : ()
->   %13 = Block %11 : usize
+>   %5 = Store [$0] %4 : ()
+>   %6 = Read borrow [$0] : string
+>   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
+>   %8 = Break L0 %7 : never
+>   %9 = Block - : usize
+>   %10 = Scope %9 [] : usize
+>   %11 = Drop [$0] : ()
+>   %12 = Block %10 : usize
 >   summary kept [] writes
 
 fn make(s: string) -> $.Context[$ Tag]:

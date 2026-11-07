@@ -20,8 +20,7 @@ impl Display for FsError:
 >   %0 = Read borrow [*$0] : FsError
 >   %11 = Block - : never
 >   %12 = Match %0 [%11 %3] : string
->   %13 = Drop [%0] : ()
->   %14 = Block %12 : string
+>   %13 = Block %12 : string
             FsError.NotFound(path) => "not found: " + path
 >   %1 = Read borrow [$1] : string
 >   %2 = Intrinsic StrConcat ["not found: " %1] : string

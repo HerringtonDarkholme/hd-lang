@@ -60,13 +60,13 @@ fn count(n: i64) -> void $ Meter:
 >   %13 = Read copy [$1] : i64
 >   %14 = Prim Add [%13 1:i64] : i64
 >   %15 = Store [$1] %14 : ()
->   %23 = Block - : ()
->   %24 = Break L0 - : never
->   %25 = Block - : ()
->   %26 = If %10 [%23 %25] : ()
->   %27 = Block - : ()
->   %28 = Loop %27 - : ()
->   %29 = Block - : ()
+>   %22 = Block - : ()
+>   %23 = Break L0 - : never
+>   %24 = Block - : ()
+>   %25 = If %10 [%22 %24] : ()
+>   %26 = Block - : ()
+>   %27 = Loop %26 - : ()
+>   %28 = Block - : ()
         $.use(Meter).record(i)
 >   %16 = ProviderGet #22 : Meter
 >   %17 = Coerce %16 [ProviderAsRef -] : Ref[mut Meter]
@@ -74,7 +74,6 @@ fn count(n: i64) -> void $ Meter:
 >   %19 = Drop [%17] : ()
 >   %20 = Read copy [$4] : i64
 >   %21 = Call app/main/Meter.record for Meter [] via TraitValue (%18, %20) : ()
->   %22 = Drop [%18] : ()
 >   summary kept [] writes
 
 fn count_later!(n: i64, wait: mut Suspend[void]) -> void $ Meter:
@@ -83,7 +82,7 @@ fn count_later!(n: i64, wait: mut Suspend[void]) -> void $ Meter:
 >   local $0 n: i64 [param read] value
 >     uses $0: entry -> %0 consume last
 >   local $1 wait: mut Suspend[()] [param read] value
->     uses $1: entry -> %23 lend
+>     uses $1: entry -> %22 lend
 >   local $2 $cur: i64 [assigned] place
 >   local $3 $end: i64 [assigned] value
 >     uses $3: %5 -> %9 lend
@@ -107,14 +106,14 @@ fn count_later!(n: i64, wait: mut Suspend[void]) -> void $ Meter:
 >   %13 = Read copy [$2] : i64
 >   %14 = Prim Add [%13 1:i64] : i64
 >   %15 = Store [$2] %14 : ()
->   %26 = Block - : ()
->   %27 = Break L0 - : never
->   %28 = Block - : ()
->   %29 = If %10 [%26 %28] : ()
->   %30 = Block - : ()
->   %31 = Loop %30 - : ()
->   %32 = Drop [$1] : ()
->   %33 = Block - : ()
+>   %25 = Block - : ()
+>   %26 = Break L0 - : never
+>   %27 = Block - : ()
+>   %28 = If %10 [%25 %27] : ()
+>   %29 = Block - : ()
+>   %30 = Loop %29 - : ()
+>   %31 = Drop [$1] : ()
+>   %32 = Block - : ()
         $.use(Meter).record(i)
 >   %16 = ProviderGet #22 : Meter
 >   %17 = Coerce %16 [ProviderAsRef -] : Ref[mut Meter]
@@ -122,14 +121,13 @@ fn count_later!(n: i64, wait: mut Suspend[void]) -> void $ Meter:
 >   %19 = Drop [%17] : ()
 >   %20 = Read copy [$5] : i64
 >   %21 = Call app/main/Meter.record for Meter [] via TraitValue (%18, %20) : ()
->   %22 = Drop [%18] : ()
         wait!()
->   %23 = Read copy [$1] : mut Suspend[()]
->   %24 = AwaitValue %23 : ()
->   %25 = Drop [%23] : ()
+>   %22 = Read copy [$1] : mut Suspend[()]
+>   %23 = AwaitValue %22 : ()
+>   %24 = Drop [%22] : ()
 >   exit sub 0 drops [$1]
 >   summary none
->   unwind %24 drops [%23]
+>   unwind %23 drops [%22]
 
 pub fn run(n: i64) -> i64:
     counters := box(Counters { calls: 0, total: 0 })

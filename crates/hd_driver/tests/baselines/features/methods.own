@@ -32,23 +32,20 @@ impl Shelf:
         (self.books.len() + 1) * (self.books.len() + 2) * (self.books.len() + 3) / 7
 > app/main/impl Shelf.by_ref
 >   local $0 self: Ref[Shelf] [param read] value
->     uses $0: entry -> %0 lend, %4 lend, %9 lend last
+>     uses $0: entry -> %0 lend, %3 lend, %7 lend last
 >   %0 = Read borrow [*$0 .books] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
->   %2 = Drop [%0] : ()
->   %3 = Prim Add [%1 1:usize] : usize
->   %4 = Read borrow [*$0 .books] : List[string]
->   %5 = Intrinsic ListLen [%4] : usize
->   %6 = Drop [%4] : ()
->   %7 = Prim Add [%5 2:usize] : usize
->   %8 = Prim Mul [%3 %7] : usize
->   %9 = Read borrow [*$0 .books] : List[string]
->   %10 = Intrinsic ListLen [%9] : usize
->   %11 = Drop [%9] : ()
->   %12 = Prim Add [%10 3:usize] : usize
->   %13 = Prim Mul [%8 %12] : usize
->   %14 = Prim Div [%13 7:usize] : usize
->   %15 = Block %14 : usize
+>   %2 = Prim Add [%1 1:usize] : usize
+>   %3 = Read borrow [*$0 .books] : List[string]
+>   %4 = Intrinsic ListLen [%3] : usize
+>   %5 = Prim Add [%4 2:usize] : usize
+>   %6 = Prim Mul [%2 %5] : usize
+>   %7 = Read borrow [*$0 .books] : List[string]
+>   %8 = Intrinsic ListLen [%7] : usize
+>   %9 = Prim Add [%8 3:usize] : usize
+>   %10 = Prim Mul [%6 %9] : usize
+>   %11 = Prim Div [%10 7:usize] : usize
+>   %12 = Block %11 : usize
 >   summary kept []
 
     fn by_mut(&mut self, b: string) -> void:

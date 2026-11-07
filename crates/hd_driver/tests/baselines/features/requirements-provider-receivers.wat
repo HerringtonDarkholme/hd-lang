@@ -297,6 +297,9 @@
             local.set $t18
             i32.const 0
             local.set $t19
+            local.get $provider0.vtable
+            local.set $t23
+            local.tee $t22
     ;; 25 |     for i in 0..n:
             i32.const 0
             local.set $t20
@@ -305,14 +308,9 @@
     ;; 26 |         $.use(Meter).record(i)
             local.get $i
             local.tee $t24
-            local.get $provider0.vtable
+            local.get $t23
             i32.load $heap
             call_indirect $table0 (param i32 i64)
-    ;; 25 |     for i in 0..n:
-            i32.const 0
-            local.set $t22
-            i32.const 0
-            local.set $t23
     ;; 27 |         wait!()
             local.get $wait
             local.tee $t25

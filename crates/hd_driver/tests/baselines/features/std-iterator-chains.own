@@ -59,63 +59,62 @@ fn loud(xs: List[string]) -> List[string]:
 >   local $1 s: Ref[string] [param read] value
 >     uses $1: entry -> %5 lend last
 >   local $2 s: string [param read] value
->     uses $2: entry -> %24 lend last
+>     uses $2: entry -> %23 lend last
 >   local $3 self: MapIter[Filter[ListIter[string], string, fn(Ref[string]) -> bool], string, string, fn(string) -> string] [read] value
->     uses $3: %37 -> %38 consume last
+>     uses $3: %36 -> %37 consume last
 >   local $4 self: Filter[ListIter[string], string, fn(Ref[string]) -> bool] [read] value
->     uses $4: %29 -> %31 consume last
+>     uses $4: %28 -> %30 consume last
 >   local $5 transform: fn(string) -> string [read] value
->     uses $5: %30 -> %32 consume last
+>     uses $5: %29 -> %31 consume last
 >   local $6 self: ListIter[string] [read] value
->     uses $6: %16 -> %18 consume last
+>     uses $6: %15 -> %17 consume last
 >   local $7 keep: fn(Ref[string]) -> bool [read] value
->     uses $7: %17 -> %19 consume last
+>     uses $7: %16 -> %18 consume last
 >   %0 = Read move [$0] : List[string]
 >   %1 = NewStruct [%0 0:usize] : ListIter[string]
 >   %2 = Break L4 %1 : never
 >   %3 = Block - : ListIter[string]
 >   %4 = Scope %3 [] : ListIter[string]
->   %16 = Store [$6] %4 : ()
->   %17 = Store [$7] %15 : ()
->   %18 = Read move [$6] : ListIter[string]
->   %19 = Read move [$7] : fn(Ref[string]) -> bool
->   %20 = NewStruct [%18 %19] : Filter[ListIter[string], string, fn(Ref[string]) -> bool]
->   %21 = Break L2 %20 : never
->   %22 = Block - : Filter[ListIter[string], string, fn(Ref[string]) -> bool]
->   %23 = Scope %22 [] : Filter[ListIter[string], string, fn(Ref[string]) -> bool]
->   %29 = Store [$4] %23 : ()
->   %30 = Store [$5] %28 : ()
->   %31 = Read move [$4] : Filter[ListIter[string], string, fn(Ref[string]) -> bool]
->   %32 = Read move [$5] : fn(string) -> string
->   %33 = NewStruct [%31 %32] : MapIter[Filter[ListIter[string], string, fn(Ref[string]) -> bool], string, string, fn(string) -> string]
->   %34 = Break L1 %33 : never
->   %35 = Block - : MapIter[Filter[ListIter[string], string, fn(Ref[string]) -> bool], string, string, fn(string) -> string]
->   %36 = Scope %35 [] : MapIter[Filter[ListIter[string], string, fn(Ref[string]) -> bool], string, string, fn(string) -> string]
->   %37 = Store [$3] %36 : ()
->   %38 = Read move [$3] : MapIter[Filter[ListIter[string], string, fn(Ref[string]) -> bool], string, string, fn(string) -> string]
->   %39 = Call std/iter/FromIterator.from_iter for List[string] [string, MapIter[Filter[ListIter[string], string, fn(Ref[string]) -> bool], string, string, fn(string) -> string]] via Impl (%38) : List[string]
->   %40 = Break L0 %39 : never
->   %41 = Block - : List[string]
->   %42 = Scope %41 [] : List[string]
->   %43 = Block %42 : List[string]
+>   %15 = Store [$6] %4 : ()
+>   %16 = Store [$7] %14 : ()
+>   %17 = Read move [$6] : ListIter[string]
+>   %18 = Read move [$7] : fn(Ref[string]) -> bool
+>   %19 = NewStruct [%17 %18] : Filter[ListIter[string], string, fn(Ref[string]) -> bool]
+>   %20 = Break L2 %19 : never
+>   %21 = Block - : Filter[ListIter[string], string, fn(Ref[string]) -> bool]
+>   %22 = Scope %21 [] : Filter[ListIter[string], string, fn(Ref[string]) -> bool]
+>   %28 = Store [$4] %22 : ()
+>   %29 = Store [$5] %27 : ()
+>   %30 = Read move [$4] : Filter[ListIter[string], string, fn(Ref[string]) -> bool]
+>   %31 = Read move [$5] : fn(string) -> string
+>   %32 = NewStruct [%30 %31] : MapIter[Filter[ListIter[string], string, fn(Ref[string]) -> bool], string, string, fn(string) -> string]
+>   %33 = Break L1 %32 : never
+>   %34 = Block - : MapIter[Filter[ListIter[string], string, fn(Ref[string]) -> bool], string, string, fn(string) -> string]
+>   %35 = Scope %34 [] : MapIter[Filter[ListIter[string], string, fn(Ref[string]) -> bool], string, string, fn(string) -> string]
+>   %36 = Store [$3] %35 : ()
+>   %37 = Read move [$3] : MapIter[Filter[ListIter[string], string, fn(Ref[string]) -> bool], string, string, fn(string) -> string]
+>   %38 = Call std/iter/FromIterator.from_iter for List[string] [string, MapIter[Filter[ListIter[string], string, fn(Ref[string]) -> bool], string, string, fn(string) -> string]] via Impl (%37) : List[string]
+>   %39 = Break L0 %38 : never
+>   %40 = Block - : List[string]
+>   %41 = Scope %40 [] : List[string]
+>   %42 = Block %41 : List[string]
         .filter(fn(s: &string) -> bool: s.len() > 2)
 >   %5 = Read borrow [$1] : Ref[string]
 >   %6 = Read borrow [*%5] : string
 >   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
->   %8 = Drop [%6] : ()
->   %9 = Break L3 %7 : never
->   %10 = Block - : usize
->   %11 = Scope %10 [] : usize
->   %12 = Drop [$1] : ()
->   %13 = Prim Gt [%11 2:usize] : bool
->   %14 = Block %13 : bool
->   %15 = Closure #1 [%0 %0] : fn(Ref[string]) -> bool
+>   %8 = Break L3 %7 : never
+>   %9 = Block - : usize
+>   %10 = Scope %9 [] : usize
+>   %11 = Drop [$1] : ()
+>   %12 = Prim Gt [%10 2:usize] : bool
+>   %13 = Block %12 : bool
+>   %14 = Closure #1 [%0 %0] : fn(Ref[string]) -> bool
         .map(fn(s: string) -> string: s + "!")
->   %24 = Read move [$2] : string
->   %25 = Intrinsic StrConcat [%24 "!"] : string
->   %26 = Drop [%24] : ()
->   %27 = Block %25 : string
->   %28 = Closure #2 [%0 %0] : fn(string) -> string
+>   %23 = Read move [$2] : string
+>   %24 = Intrinsic StrConcat [%23 "!"] : string
+>   %25 = Drop [%23] : ()
+>   %26 = Block %24 : string
+>   %27 = Closure #2 [%0 %0] : fn(string) -> string
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$1]
 >   exit sub 2 drops [$2]

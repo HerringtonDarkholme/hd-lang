@@ -9,8 +9,8 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $by_mut (param $s i32) (local $t1 i32) (local $t0 i32)
-    block
     ;; 16 |     *s += "x"
+    block
       local.get $s
       i32.load $heap
       local.get $s
@@ -45,11 +45,8 @@
       block
         block
           local.get $s
-          i32.load $heap
-          local.get $s
           i32.load $heap offset=4
           local.set $t0
-          drop
           br 0
         end
       end
@@ -60,11 +57,8 @@
       block
         block
           local.get $s
-          i32.load $heap
-          local.get $s
           i32.load $heap offset=4
           local.set $t1
-          drop
           br 0
         end
       end
@@ -77,11 +71,8 @@
       block
         block
           local.get $s
-          i32.load $heap
-          local.get $s
           i32.load $heap offset=4
           local.set $t1
-          drop
           br 0
         end
       end
@@ -94,11 +85,8 @@
       block
         block
           local.get $s
-          i32.load $heap
-          local.get $s
           i32.load $heap offset=4
           local.set $t1
-          drop
           br 0
         end
       end
@@ -111,11 +99,8 @@
       block
         block
           local.get $s
-          i32.load $heap
-          local.get $s
           i32.load $heap offset=4
           local.set $s
-          drop
           br 0
         end
       end

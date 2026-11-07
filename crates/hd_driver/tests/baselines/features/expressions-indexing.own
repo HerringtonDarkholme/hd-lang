@@ -72,6 +72,5 @@ fn ref_list_index(xs: &List[string], i: usize) -> usize:
 >   %5 = Break L0 %4 : never
 >   %6 = Block - : usize
 >   %7 = Scope %6 [] : usize
->   %8 = Drop [$2] : ()
->   %9 = Block %7 : usize
+>   %8 = Block %7 : usize
 >   summary kept []

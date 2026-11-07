@@ -15,6 +15,5 @@ app/main/empty_at
   %6 = Break L0 %5 : never
   %7 = Block - : bool
   %8 = Scope %7 [] : bool
-  %9 = Drop [$2] : ()
-  %10 = Block %8 : bool
+  %9 = Block %8 : bool
   summary kept []

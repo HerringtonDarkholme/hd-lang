@@ -41,12 +41,11 @@
     local.get $s.0
   )
   (func $"impl Recorder for Log.total" (param $self i32) (result i32)
-    block
     ;; 20 |         self.lines.len()
+    block
       local.get $self
       i32.load $heap
       i32.load $heap offset=4
-    ;; (no span)
       local.set $self
     end
     local.get $self

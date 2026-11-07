@@ -30,13 +30,6 @@
 //!    names the local and nothing can reach it: no reference to it and no
 //!    closure capture (`m["k$n"].push(v)`, whose key calls a formatter
 //!    between the map's read and its `MapEntry`);
-//! 3. the local's type names no type parameter of the body's own item
-//!    and no opaque type ([`erasable`]): the erased body of a generic
-//!    method called through a trait value outlines a read of such an open
-//!    type by its values (`crates/hd_mono/DESIGN.md` §13.5.1), and a
-//!    local is none. Its impl's or trait's parameters are concrete there,
-//!    and every other instance is monomorphized, so `self.infos[i].x` in
-//!    `impl[T] Members[T]` folds as it does in plain code.
 //!
 //! The checker's rooting lets no call stand between a read through
 //! memory and its uses. The driver roots each body again before the
@@ -59,9 +52,6 @@
 //! `Read [%e .x]` become `Read [*$0 [%i] .x]`. A read that does not fold
 //! keeps its place, which the passes resolve through its value as before.
 
-use hd_base::DefId;
-use hd_types::{Ty, Types};
-
 use super::{Body, Callee, IntrinsicOp, NONE, PlaceView, Root, Tag, Topology, place, u32_of};
 use crate::own::{Loc, operands};
 
@@ -81,15 +71,6 @@ pub struct RootTables {
     ops: Vec<crate::own::Operand>,
     words: Vec<u32>,
     edits: crate::own::splice::Tables,
-}
-
-/// Whether a local of type `t` in the body of `item` may be open in an
-/// erased body (the module docs' rule 3): `t` names a parameter `item`
-/// declares itself, or an opaque type. An erased body takes its impl's and
-/// its trait's parameters at concrete types, so those never make it open.
-#[must_use]
-pub fn erasable(types: Types<'_>, item: DefId, t: Ty) -> bool {
-    types.has_opaque(t) || types.names_param_of(t, item)
 }
 
 /// Whether place `p` goes into memory: an element or a dereference.
@@ -164,18 +145,12 @@ fn unreached(b: &Body, l: u32, v: usize, last: usize, mark: &[u32]) -> bool {
 }
 
 /// Folds every base read of a local's place into the places rooted at its
-/// value (the module docs' rules), and deletes the reads it folds. `open`
-/// says whether a type names a type parameter or an associated type.
+/// value (the module docs' rules), and deletes the reads it folds.
 /// With `pure`, which says whether a call of a callee writes nothing the
 /// body can reach, it folds only the reads with no element step that such
 /// a call (and the shared references it takes) kept from folding: the
 /// driver's second rooting of a body the checker rooted.
-pub fn root_places(
-    b: &mut Body,
-    open: &dyn Fn(Ty) -> bool,
-    pure: Option<&dyn Fn(&Callee) -> bool>,
-    t: &mut RootTables,
-) {
+pub fn root_places(b: &mut Body, pure: Option<&dyn Fn(&Callee) -> bool>, t: &mut RootTables) {
     let n = b.len();
     t.topo.build(b);
     t.gone.clear();
@@ -231,8 +206,7 @@ pub fn root_places(
             _ => continue,
         };
         let (lo, hi) = (t.start[v] as usize, t.start[v + 1] as usize);
-        // A top-level binding's type is never open.
-        if lo == hi || matches!(p.root, Root::Local(l) if open(b.local_ty[l as usize])) {
+        if lo == hi {
             continue;
         }
         let blk = t.topo.blk[v];

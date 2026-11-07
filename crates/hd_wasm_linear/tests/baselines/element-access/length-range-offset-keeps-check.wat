@@ -3,8 +3,8 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
   (func $total (param $xs i32) (result i32) (local $sum i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
-    block
     ;; 5 |     let sum = +0
+    block
       i32.const 0
       local.set $sum
     ;; 6 |     for i in 0..xs.len():
@@ -56,7 +56,7 @@
       end
     ;; 8 |     sum
       local.get $sum
-    ;; (no span)
+    ;; 5 |     let sum = +0
       local.set $xs
     end
     local.get $xs

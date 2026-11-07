@@ -413,10 +413,6 @@ impl OwnCx for Env<'_> {
         self.is_open(ty) || self.layout_facts(ty).0
     }
 
-    fn thunk_made(&self, ty: Ty) -> bool {
-        self.is_open(ty)
-    }
-
     fn plain_reference(&self, ty: Ty) -> bool {
         !self.is_open(ty) && hd_wasm_linear::plain_reference_type(&self.run.pool, self, ty)
     }
@@ -1214,16 +1210,14 @@ impl Env<'_> {
                 && Callee::from_words(body.record(body.data[i][0])).is_some_and(|c| pure(&c))
         });
         if any {
-            self.root(body, Some(&pure));
+            Self::root(body, Some(&pure));
         }
     }
 
     /// Roots `body`'s places at their locals (`hd_tir::ir::root_places`).
-    fn root(&self, body: &mut Body, pure: Option<&dyn Fn(&Callee) -> bool>) {
+    fn root(body: &mut Body, pure: Option<&dyn Fn(&Callee) -> bool>) {
         ROOTS.with(|r| {
-            let (types, item) = (self.run.pool.types(), body.item);
-            let open = |t| hd_tir::ir::erasable(types, item, t);
-            hd_tir::ir::root_places(body, &open, pure, &mut r.borrow_mut());
+            hd_tir::ir::root_places(body, pure, &mut r.borrow_mut());
         });
     }
 
@@ -1231,7 +1225,7 @@ impl Env<'_> {
     /// after the ownership passes. Its places are rooted at their locals
     /// first, as the checker roots its bodies' (`hd_tir::ir::root_places`).
     pub(super) fn owned_generated(&self, mut body: Body) -> StageResult<Body> {
-        self.root(&mut body, None);
+        Self::root(&mut body, None);
         Ok(self.own_passes(body, false)?.0)
     }
 }

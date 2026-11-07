@@ -371,10 +371,7 @@ fn pure(b: &Body, cx: &dyn OwnCx, x: u32, budget: &mut usize) -> bool {
     let [a, w] = b.data[i];
     let scalar = !cx.counted(b.ty[i]);
     match b.tags[i] {
-        Tag::Read => {
-            (w == ReadMode::Copy as u32 && scalar)
-                || (w == ReadMode::Borrow as u32 && !cx.thunk_made(b.ty[i]))
-        }
+        Tag::Read => (w == ReadMode::Copy as u32 && scalar) || w == ReadMode::Borrow as u32,
         // A borrow's kept drop, which releases what an instance's view
         // made fresh.
         Tag::Drop => unique_header(b, a).is_some_and(|v| b.is_borrow(v)),
@@ -1015,7 +1012,7 @@ fn header_place(b: &Body, cx: &dyn OwnCx, t: &mut Tables, header: u32) -> Option
         }
         _ => return None,
     };
-    if !cx.counted(ty) || cx.thunk_made(ty) || b.data[header as usize][1] == ReadMode::Move as u32 {
+    if !cx.counted(ty) || b.data[header as usize][1] == ReadMode::Move as u32 {
         return None;
     }
     let (l, _) = resolve(b, word, &mut t.steps, &mut t.raw);

@@ -65,15 +65,14 @@
     local.get $value
   )
   (func $"impl Step for Erased.step'2" (param $self i32) (result i32 i64) (local $t0 i64)
-    block
     ;; 32 |         self.source.step()
+    block
       local.get $self
       i32.load $heap
       local.get $self
       i32.load $heap offset=4
       i32.load $heap
       call_indirect $table0 (param i32) (result i32 i64)
-    ;; (no span)
       local.set $t0
       local.set $self
     end

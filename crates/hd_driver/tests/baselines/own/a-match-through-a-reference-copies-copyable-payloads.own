@@ -14,25 +14,24 @@ fn eval(expr: &Expr) -> i64:
 >   local $1 value: i64 [read assigned] value
 >     uses $1: %11 -> %1 consume last
 >   local $2 left: Counted[Expr] [read assigned] value
->     uses $2: %17 -> %3 lend last
+>     uses $2: %16 -> %3 lend last
 >   local $3 right: Counted[Expr] [read assigned] value
->     uses $3: %18 -> %5 lend last
+>     uses $3: %17 -> %5 lend last
 >   %0 = Read borrow [$0] : Ref[Expr]
->   %28 = Block - : never
->   %29 = Match %0 [%28 %2 %8] : i64
->   %30 = Drop [$3] : ()
->   %31 = Drop [$2] : ()
->   %32 = Block %29 : i64
+>   %25 = Block - : never
+>   %26 = Match %0 [%25 %2 %8] : i64
+>   %27 = Drop [$3] : ()
+>   %28 = Drop [$2] : ()
+>   %29 = Block %26 : i64
         .Num(value) => value
 >   %1 = Read copy [$1] : i64
 >   %2 = Block %1 : i64
 >   %9 = Read borrow [*$0] : Expr
 >   %10 = Read copy [%9 as #0 .0] : i64
 >   %11 = Store [$1] %10 : ()
->   %14 = Block - : never
->   %25 = Block - : never
->   %26 = SwitchTag %9 [#0 %14 %25] : never
->   %27 = Drop [%9] : ()
+>   %13 = Block - : never
+>   %23 = Block - : never
+>   %24 = SwitchTag %9 [#0 %13 %23] : never
         .Add(left, right) => eval(left) + eval(right)
 >   %3 = Read borrow [$2] : Counted[Expr]
 >   %4 = Call app/main/eval[] (%3) : i64
@@ -40,10 +39,10 @@ fn eval(expr: &Expr) -> i64:
 >   %6 = Call app/main/eval[] (%5) : i64
 >   %7 = Prim Add [%4 %6] : i64
 >   %8 = Block %7 : i64
->   %15 = Read copy [%9 as #1 .0] : Counted[Expr]
->   %16 = Read copy [%9 as #1 .1] : Counted[Expr]
->   %17 = Store [$2] %15 : ()
->   %18 = Store [$3] %16 : ()
+>   %14 = Read copy [%9 as #1 .0] : Counted[Expr]
+>   %15 = Read copy [%9 as #1 .1] : Counted[Expr]
+>   %16 = Store [$2] %14 : ()
+>   %17 = Store [$3] %15 : ()
+>   %19 = Block - : never
 >   %21 = Block - : never
->   %23 = Block - : never
->   %24 = SwitchTag %9 [#1 %21 %23] : never
+>   %22 = SwitchTag %9 [#1 %19 %21] : never

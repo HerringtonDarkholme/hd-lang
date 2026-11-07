@@ -5,8 +5,8 @@
   (import "fixture" "impl PartialOrd for string.partial_cmp" (func $"impl PartialOrd for string.partial_cmp" (param i32 i32) (result i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $eq_lit (param $name i32) (result i32)
-    block
     ;; 10 |     name == "ada"
+    block
       local.get $name
       i32.load $heap
       local.get $name
@@ -14,7 +14,6 @@
       i32.const 16 ;; &"ada"
       i32.const 3
       call $rt:str_eq
-    ;; (no span)
       local.set $name
     end
     local.get $name
@@ -54,8 +53,8 @@
     local.get $a
   )
   (func $eq_refs (param $a i32) (param $b i32) (result i32)
-    block
     ;; 7 |     a == b
+    block
       local.get $a
       i32.load $heap
       local.get $a
@@ -65,7 +64,6 @@
       local.get $b
       i32.load $heap offset=4
       call $rt:str_eq
-    ;; (no span)
       local.set $a
     end
     local.get $a

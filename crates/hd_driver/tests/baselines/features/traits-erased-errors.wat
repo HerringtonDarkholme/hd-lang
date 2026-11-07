@@ -7,8 +7,8 @@
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $"impl Display for FsError.to_string" (param $self i32) (result i32 i32) (local $path.0 i32) (local $path.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i64) (local $t5 i32)
-    block
     ;; 13 |         match *self:
+    block
       local.get $self
       i32.load8_u $heap
       local.get $self
@@ -71,7 +71,6 @@
         br 0
       end
     end
-    ;; (no span)
     local.get $self
     local.get $path.0
   )

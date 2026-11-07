@@ -14,8 +14,8 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $through_reference (param $text i32) (param $suffix.0 i32) (param $suffix.1 i32)
-    block
     ;; 7 |     *text += suffix
+    block
       local.get $text
       i32.load $heap
       local.get $text

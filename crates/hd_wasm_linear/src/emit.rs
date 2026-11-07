@@ -151,7 +151,6 @@ fn body_func<'a>(
     {
         return unsupported("a body the ownership passes did not run on");
     }
-    em.owned = true;
     em.sub_id = sub;
     if sub == 0 {
         em.lends = own.lends;
@@ -480,7 +479,7 @@ fn body_func<'a>(
         em.open(Ctl::Exit);
     }
     em.prepare_own_loans();
-    if em.owned && em.input.runtime.is_some() {
+    if em.input.runtime.is_some() {
         let short_loans = hd_tir::own::short::mark(b, &em.topo, &em);
         em.prepare_short_loans(short_loans);
     }
@@ -1170,11 +1169,6 @@ struct Em<'i, 'a, 'm> {
     frame: Option<(u32, u32)>,
     /// One reusable caller-local host leaf, after ordinary addressable locals.
     drive_buffer: Option<(u32, u32)>,
-    /// Whether the body is the ownership passes' output ([`Own::owned`]):
-    /// emission then lowers their read modes, `Drop`s and exit set, and
-    /// decides no count of its own. The sub-body it emits, whose exit set
-    /// its exit drops.
-    owned: bool,
     sub_id: u16,
     /// In an owned body, the instruction or block that consumes each
     /// value, or `NONE`, by the passes' rule (`hd_tir::own::consumers`).
@@ -1315,7 +1309,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             static_cells: None,
             frame: None,
             drive_buffer: None,
-            owned: false,
             sub_id: 0,
             consumer: Vec::new(),
             copy_reasons: Vec::new(),
@@ -1705,7 +1698,6 @@ impl Em<'_, '_, '_> {
         {
             self.tail_into(tail, d, blk)?;
         } else if tail != NONE
-            && self.owned
             && self.consumer.get(tail as usize) == Some(&blk)
             && !self.topo.is_root[blk as usize]
         {
@@ -1723,12 +1715,8 @@ impl Em<'_, '_, '_> {
                     for l in &ls {
                         self.f.get(*l);
                     }
-                    if self.owned {
-                        self.store_owned(d)?;
-                        self.settle_value(blk);
-                    } else {
-                        self.store(d)?;
-                    }
+                    self.store_owned(d)?;
+                    self.settle_value(blk);
                 }
             }
         }
@@ -1749,9 +1737,8 @@ impl Em<'_, '_, '_> {
             return Ok(());
         }
         // A break's value moves at its only use; a block's tail, used
-        // only as the block's value, moves into it. In an owned body, the
-        // passes said which.
-        let moved = self.owned && self.take_from(r, user);
+        // only as the block's value, moves into it: the passes said which.
+        let moved = self.take_from(r, user);
         self.push(r)?;
         if moved {
             self.store_owned(dest)?;
@@ -1810,7 +1797,6 @@ impl Em<'_, '_, '_> {
         // Its value, when nothing uses it, ends here.
         self.f.reason = Some(Reason::LastUse);
         if r.is_ok()
-            && self.owned
             && !self.used.get(i as usize).copied().unwrap_or(false)
             && self.needs_drop(self.ty(i))
         {
@@ -1888,8 +1874,7 @@ impl Em<'_, '_, '_> {
             // A move of a whole value, `Read move [%v]`: its count, and
             // zeros left in its locals.
             Tag::Read
-                if self.owned
-                    && bw == hd_tir::ir::ReadMode::Move as u32
+                if bw == hd_tir::ir::ReadMode::Move as u32
                     && let Some(r) = self.b.value_read(i as usize) =>
             {
                 self.push(r)?;
@@ -1901,10 +1886,7 @@ impl Em<'_, '_, '_> {
             // A move of a part of a local or a value laid out in its
             // locals; any other part is read as a copy below, and the
             // root's drop releases the rest.
-            Tag::Read
-                if self.owned
-                    && bw == hd_tir::ir::ReadMode::Move as u32
-                    && self.own_move_part(i)? => {}
+            Tag::Read if bw == hd_tir::ir::ReadMode::Move as u32 && self.own_move_part(i)? => {}
             // A plain read of a top-level binding, `Read [@g]`.
             Tag::Read if let Some(def) = self.b.global_read(i as usize) => {
                 self.global_read(i, def)?;
@@ -1921,14 +1903,13 @@ impl Em<'_, '_, '_> {
                 self.push(r)?;
                 self.store(i)?;
             }
-            // The ownership passes' statements, in an owned body
-            // (`count.rs`); the checker's TIR has none (invariant 22).
-            Tag::LoanEnd if self.owned => {
+            // The ownership passes' statements (`count.rs`).
+            Tag::LoanEnd => {
                 self.borrow_drop(i);
                 self.end_short_loan(i)?;
                 self.own_loan_end(i);
             }
-            Tag::Drop if self.owned => {
+            Tag::Drop => {
                 self.borrow_drop(i);
                 self.end_short_loan(i)?;
                 if !self.drop_map_probe_ref(i) {
@@ -1937,7 +1918,7 @@ impl Em<'_, '_, '_> {
             }
             Tag::IsUnique if self.short_skips.contains(&i) => {}
             Tag::IsUnique => self.own_unique(i)?,
-            Tag::Drop | Tag::LoanEnd | Tag::FlagSet | Tag::FlagClear => {
+            Tag::FlagSet | Tag::FlagClear => {
                 return unsupported(format!(
                     "an ownership statement `{}` the backend does not lower here",
                     self.b.tags[i as usize].name()
@@ -2272,16 +2253,7 @@ impl Em<'_, '_, '_> {
     /// `Read [$l]` `i`: local `l`'s values, from its cell or its Wasm
     /// locals, as the read's mode says ([`Em::own_local_read`]).
     fn local_read(&mut self, i: u32, l: usize) -> StageResult<()> {
-        if self.owned {
-            return self.own_local_read(i, l);
-        }
-        if self.is_cell(l) {
-            return self.cell_get(i, l);
-        }
-        for x in self.local(u32::try_from(l).expect("locals"))? {
-            self.f.get(x);
-        }
-        self.store(i)
+        self.own_local_read(i, l)
     }
 
     /// Projection read `i` of `base` ([`shape::Projected`]): a struct's,

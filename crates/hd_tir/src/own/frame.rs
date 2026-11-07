@@ -742,7 +742,6 @@ fn step(b: &Body, cx: &dyn OwnCx, t: &mut Tables, ops: &mut Vec<super::Operand>,
         && (cx.counted_refs_only(b.ty[i])
             || matches!(b.tags[i], Tag::Call | Tag::CallValue | Tag::CallDyn)
                 && cx.counted(b.ty[i])
-                && !cx.thunk_made(b.ty[i])
                 && !cx.holds_ref(b.ty[i]))
     {
         return false;

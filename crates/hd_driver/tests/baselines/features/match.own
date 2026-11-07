@@ -103,17 +103,17 @@ fn ref_match(s: &Shape) -> usize:
     match s:
 > app/main/ref_match
 >   local $0 s: Ref[Shape] [param read] value
->     uses $0: entry -> %0 lend, %20 lend, %21 lend last, %26 lend, %27 lend last
+>     uses $0: entry -> %0 lend, %20 lend, %21 lend last, %25 lend, %26 lend last
 >   local $1 n: string [read assigned] value
 >     uses $1: %22 -> %1 lend last
 >   local $2 a: string [read assigned] value
->     uses $2: %28 -> %7 lend last
+>     uses $2: %27 -> %7 lend last
 >   local $3 b: string [read assigned] value
->     uses $3: %29 -> %12 lend last
+>     uses $3: %28 -> %12 lend last
 >   %0 = Read borrow [$0] : Ref[Shape]
->   %44 = Block - : never
->   %45 = Match %0 [%44 %6 %18 %19] : usize
->   %46 = Block %45 : usize
+>   %40 = Block - : never
+>   %41 = Match %0 [%40 %6 %18 %19] : usize
+>   %42 = Block %41 : usize
         .Named(n) => n.len()
 >   %1 = Read borrow [$1] : string
 >   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
@@ -124,10 +124,9 @@ fn ref_match(s: &Shape) -> usize:
 >   %20 = Read borrow [*$0] : Shape
 >   %21 = Read borrow [*$0 as #0 .0] : string
 >   %22 = Store [$1] %21 : ()
->   %25 = Block - : never
->   %41 = Block - : never
->   %42 = SwitchTag %20 [#0 %25 %41] : never
->   %43 = Drop [%20] : ()
+>   %24 = Block - : never
+>   %38 = Block - : never
+>   %39 = SwitchTag %20 [#0 %24 %38] : never
         .Pair(a, b) => a.len() + b.len()
 >   %7 = Read borrow [$2] : string
 >   %8 = Call std/rt.bytes/bytes_len[] (%7) : usize
@@ -141,16 +140,16 @@ fn ref_match(s: &Shape) -> usize:
 >   %16 = Scope %15 [] : usize
 >   %17 = Prim Add [%11 %16] : usize
 >   %18 = Block %17 : usize
->   %26 = Read borrow [*$0 as #1 .0] : string
->   %27 = Read borrow [*$0 as #1 .1] : string
->   %28 = Store [$2] %26 : ()
->   %29 = Store [$3] %27 : ()
->   %32 = Block - : never
->   %39 = Block - : never
->   %40 = SwitchTag %20 [#1 %32 %39] : never
+>   %25 = Read borrow [*$0 as #1 .0] : string
+>   %26 = Read borrow [*$0 as #1 .1] : string
+>   %27 = Store [$2] %25 : ()
+>   %28 = Store [$3] %26 : ()
+>   %30 = Block - : never
+>   %36 = Block - : never
+>   %37 = SwitchTag %20 [#1 %30 %36] : never
         .Empty => 0
 >   %19 = Block 0:usize : usize
->   %35 = Block - : never
->   %37 = Block - : never
->   %38 = SwitchTag %20 [#2 %35 %37] : never
+>   %32 = Block - : never
+>   %34 = Block - : never
+>   %35 = SwitchTag %20 [#2 %32 %34] : never
 >   summary kept []

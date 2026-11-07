@@ -110,8 +110,7 @@ impl Origins<'_> {
                 fields
                     && w & (ref_word::TAKES | ref_word::LENT) == 0
                     && if elem {
-                        // An open list's slots hold what its thunks make.
-                        root.is_some_and(|t| !self.cx.thunk_made(t))
+                        root.is_some()
                     } else if let Root::Local(l) = p.root {
                         // A reference to a suspending body's parameter, or
                         // to a closure's copy of a capture, may be a new

@@ -189,7 +189,7 @@ impl Em<'_, '_, '_> {
         // Cells take part only in an owned body with no suspension point,
         // where the passes keep a cell local alive over every use of what
         // may point into it.
-        let cells = self.owned && self.susp.is_none() && self.input.runtime.is_some();
+        let cells = self.susp.is_none() && self.input.runtime.is_some();
         let seed = |em: &Self, l: usize| em.slots.contains_key(&l) || (cells && em.is_cell(l));
         if !(0..b.local_ty.len()).any(|l| seed(self, l)) {
             return;
@@ -670,9 +670,6 @@ impl Em<'_, '_, '_> {
     /// taken for the consumer, and `r`'s locals are zeroed once the
     /// instruction has read them ([`Em::settle`]).
     pub(super) fn take(&mut self, r: u32) -> bool {
-        if !self.owned {
-            return false;
-        }
         let Some(&u) = self.emitting.last() else {
             return false;
         };
@@ -786,11 +783,6 @@ impl Em<'_, '_, '_> {
 
     /// Releases what the function owns at its one exit: its sub-body's
     /// exit set.
-    ///
-    /// For development tools, each place's release comes from where the
-    /// place began (`exit_origins`), so a statement's excerpt shows
-    /// the releases at the function's exit of what it bound; the rest of
-    /// the exit comes from the function's root.
     pub(super) fn release_all(&mut self) -> StageResult<()> {
         let outer = self.f.origin_at;
         self.f.origin_at = self.f.origin_root;
@@ -801,87 +793,32 @@ impl Em<'_, '_, '_> {
         result
     }
 
-    /// The origin of each TIR local's exit release, when origins are
-    /// tracked: the first `Store` into the whole local with a source
-    /// position that binds it. A parameter has none, and its release
-    /// stays at the root.
-    fn exit_origins(&self) -> hd_base::HashMap<usize, u32> {
-        let mut out = hd_base::HashMap::default();
-        if !self.m.track_origins {
-            return out;
-        }
-        for i in 0..self.b.len() {
-            let x = u32::try_from(i).expect("insts");
-            if let Some((l, true)) = self.b.stored_local(i)
-                && self.anchored(x)
-            {
-                out.entry(l.idx()).or_insert(x);
-            }
-        }
-        out
-    }
-
     fn release_all_inner(&mut self) -> StageResult<()> {
-        let root = self.f.origin_root;
-        if self.owned {
-            // The exit set: the locals that may still hold a value here.
-            self.f.reason = Some(Reason::LastUse);
-            let b = self.b;
-            let mut released = hd_base::HashSet::default();
-            for &(s, l) in &b.exit_drops {
-                if s.raw() != u32::from(self.sub_id) || self.borrowed.contains(&l.idx()) {
-                    continue;
-                }
-                if let Some(ls) = self.locals.get(&l.idx()).cloned() {
-                    self.release_owned_local(l.idx(), &ls)?;
-                    released.insert(l.idx());
-                }
+        // The exit set: the locals that may still hold a value here.
+        self.f.reason = Some(Reason::LastUse);
+        let b = self.b;
+        let mut released = hd_base::HashSet::default();
+        for &(s, l) in &b.exit_drops {
+            if s.raw() != u32::from(self.sub_id) || self.borrowed.contains(&l.idx()) {
+                continue;
             }
-            // A value made only of references needs no ownership drop, so
-            // the move pass may omit it from `exit_drops`. Its contained
-            // run-time loans still end when the value is released here.
-            self.borrow_exit();
-            for l in self.borrow_locals() {
-                if !released.contains(&l) {
-                    self.borrow_release(l);
-                }
-            }
-            self.f.reason = Some(Reason::Conservative("unowned parameter"));
-            for l in self.unowned_params.clone() {
-                if let Some(ls) = self.locals.get(&l).cloned() {
-                    if self.is_cell(l) {
-                        self.count_local(l, &ls, false)?;
-                    } else {
-                        self.release_drop_place(
-                            &ls,
-                            self.sub(self.b.local_ty[l]),
-                            &Self::local_place(l),
-                        )?;
-                    }
-                }
-            }
-            self.release_temps();
-            return Ok(());
-        }
-        self.f.reason = Some(Reason::Conservative("thunk exit"));
-        let mut vals: Vec<(u32, Vec<u32>)> =
-            self.vals.iter().map(|(k, v)| (*k, v.clone())).collect();
-        vals.sort_stable();
-        for (i, ls) in vals {
-            self.f.origin_at = if self.anchored(i) { Some(i) } else { root };
-            if self.view_loans.contains_key(&i) {
-                self.release_view_loan(i, &ls)?;
-            } else if !self.loans.contains(&i) {
-                self.release_drop_place(&ls, self.ty(i), &Self::value_place(i))?;
+            if let Some(ls) = self.locals.get(&l.idx()).cloned() {
+                self.release_owned_local(l.idx(), &ls)?;
+                released.insert(l.idx());
             }
         }
-        let mut locals: Vec<(usize, Vec<u32>)> =
-            self.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
-        locals.sort_stable();
-        let bound = self.exit_origins();
-        for (l, ls) in locals {
-            self.f.origin_at = bound.get(&l).copied().or(root);
-            if !self.borrowed.contains(&l) && !self.loan_locals.contains_key(&l) {
+        // A value made only of references needs no ownership drop, so
+        // the move pass may omit it from `exit_drops`. Its contained
+        // run-time loans still end when the value is released here.
+        self.borrow_exit();
+        for l in self.borrow_locals() {
+            if !released.contains(&l) {
+                self.borrow_release(l);
+            }
+        }
+        self.f.reason = Some(Reason::Conservative("unowned parameter"));
+        for l in self.unowned_params.clone() {
+            if let Some(ls) = self.locals.get(&l).cloned() {
                 if self.is_cell(l) {
                     self.count_local(l, &ls, false)?;
                 } else {
@@ -893,7 +830,6 @@ impl Em<'_, '_, '_> {
                 }
             }
         }
-        self.f.origin_at = root;
         self.release_temps();
         Ok(())
     }

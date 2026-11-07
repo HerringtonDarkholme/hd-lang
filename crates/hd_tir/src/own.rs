@@ -48,7 +48,6 @@ use crate::ir::{
 pub use hoist::{EntryTest, entry_test, loop_statements, loop_test};
 
 pub(crate) mod borrow;
-pub(crate) use borrow::keeps_drops;
 pub mod flow;
 mod frame;
 pub use frame::store_finds_empty;
@@ -120,18 +119,8 @@ pub enum CallMemory {
 pub trait OwnCx {
     /// Whether a value of `ty` holds a counted leaf. The passes run over
     /// instances, whose types are concrete, and over a generic item's own
-    /// body only where an erased body and its thunks still run it: there a
-    /// type parameter's value is one counted address
-    /// (`crates/hd_wasm_linear/src/emit/erased.rs`), so it counts.
+    /// body past the instance limit, where a type parameter's value counts.
     fn counted(&self, ty: Ty) -> bool;
-    /// Whether `ty` names a type parameter an erased body leaves open,
-    /// whose values its thunks make fresh: a read of one keeps its `Drop`s
-    /// where it borrows, and only a type that does not is counted in every
-    /// instance. The default answers no.
-    fn thunk_made(&self, ty: Ty) -> bool {
-        let _ = ty;
-        false
-    }
     /// Whether every count `ty` holds is a thin local reference's, which
     /// counts only if it is a representation view (`own/plain.rs`). The
     /// default answers no.

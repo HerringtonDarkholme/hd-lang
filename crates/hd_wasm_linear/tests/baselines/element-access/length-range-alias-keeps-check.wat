@@ -4,8 +4,8 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
   (func $total (param $xs i32) (param $other i32) (result i32) (local $sum i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
-    block
     ;; 5 |     n := xs.len()
+    block
       local.get $xs
       i32.load $heap
       i32.load $heap offset=4
@@ -60,7 +60,7 @@
       end
     ;; 10 |     sum
       local.get $sum
-    ;; (no span)
+    ;; 5 |     n := xs.len()
       local.set $xs
     end
     local.get $xs

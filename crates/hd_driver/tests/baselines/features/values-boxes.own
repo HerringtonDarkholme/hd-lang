@@ -19,18 +19,18 @@ fn copy_box(s: string, t: string) -> usize:
 >   local $1 t: string [param read] value
 >     uses $1: entry -> %7 consume last
 >   local $2 p: Point [read assigned mutated] value ×2
->     uses $2: %2 -> %3 consume last; %8 -> %18 consume last
+>     uses $2: %2 -> %3 consume last; %8 -> %17 consume last
 >   local $3 $ref: Point [read assigned captured captured-assigned] place
 >   local $4 copy: Counted[mut Point] [:= read assigned] value
 >     uses $4: %6 -> %9 lend last
 >   local $5 self: string [read] value
->     uses $5: %19 -> %20 lend last
+>     uses $5: %18 -> %19 lend last
 >   local $6 self: string [read] value
 >     uses $6: %10 -> %11 lend last
 >   %0 = Read move [$0] : string
 >   %1 = NewStruct [%0] : Point
 >   %2 = Store [$2] %1 : ()
->   %27 = Block %26 : usize
+>   %26 = Block %25 : usize
     copy := box(p)
 >   %3 = Read move [$2] : Point
 >   %4 = Store [$3] %3 : ()
@@ -48,17 +48,16 @@ fn copy_box(s: string, t: string) -> usize:
 >   %13 = Break L1 %12 : never
 >   %14 = Block - : usize
 >   %15 = Scope %14 [] : usize
->   %16 = Drop [$6] : ()
->   %17 = Drop [$4] : ()
->   %18 = Read move [$2 .name] : string
->   %19 = Store [$5] %18 : ()
->   %20 = Read borrow [$5] : string
->   %21 = Call std/rt.bytes/bytes_len[] (%20) : usize
->   %22 = Break L0 %21 : never
->   %23 = Block - : usize
->   %24 = Scope %23 [] : usize
->   %25 = Drop [$5] : ()
->   %26 = Prim Add [%15 %24] : usize
+>   %16 = Drop [$4] : ()
+>   %17 = Read move [$2 .name] : string
+>   %18 = Store [$5] %17 : ()
+>   %19 = Read borrow [$5] : string
+>   %20 = Call std/rt.bytes/bytes_len[] (%19) : usize
+>   %21 = Break L0 %20 : never
+>   %22 = Block - : usize
+>   %23 = Scope %22 [] : usize
+>   %24 = Drop [$5] : ()
+>   %25 = Prim Add [%15 %23] : usize
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1]
 

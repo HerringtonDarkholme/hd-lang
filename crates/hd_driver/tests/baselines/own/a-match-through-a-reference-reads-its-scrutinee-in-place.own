@@ -18,19 +18,18 @@ fn append(value: &mut Option[UniqList[string]], item: string) -> usize:
 >   local $5 size: usize [:= read assigned] value
 >     uses $5: %6 -> %10 lend, %13 lend, %19 lend, %24 lend last
 >   %0 = Read borrow [$0] : Ref[mut UniqList[string]?]
->   %50 = Block - : never
->   %51 = Match %0 [%50 %33 %34] : usize
->   %52 = Drop [$2] : ()
->   %53 = Drop [$1] : ()
->   %54 = Block %51 : usize
+>   %47 = Block - : never
+>   %48 = Match %0 [%47 %33 %34] : usize
+>   %49 = Drop [$2] : ()
+>   %50 = Drop [$1] : ()
+>   %51 = Block %48 : usize
         .Some(items) =>
 >   %35 = Read borrow [*$0] : UniqList[string]?
 >   %36 = Ref mut local [*%0 as #1 .0] : Ref[mut UniqList[string]]
 >   %37 = Store [$2] %36 : ()
->   %40 = Block - : never
->   %47 = Block - : never
->   %48 = SwitchTag %35 [#1 %40 %47] : never
->   %49 = Drop [%35] : ()
+>   %39 = Block - : never
+>   %45 = Block - : never
+>   %46 = SwitchTag %35 [#1 %39 %45] : never
             items.push(item)
 >   %1 = Read borrow [$2] : Ref[mut UniqList[string]]
 >   %2 = Store [$3] %1 : ()
@@ -68,7 +67,7 @@ fn append(value: &mut Option[UniqList[string]], item: string) -> usize:
 >   %32 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].len[string] (%31) : usize
         .None => 0
 >   %34 = Block 0:usize : usize
+>   %41 = Block - : never
 >   %43 = Block - : never
->   %45 = Block - : never
->   %46 = SwitchTag %35 [#0 %43 %45] : never
+>   %44 = SwitchTag %35 [#0 %41 %43] : never
 >   exit sub 0 drops [$1]

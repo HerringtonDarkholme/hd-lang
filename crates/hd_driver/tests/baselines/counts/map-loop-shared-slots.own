@@ -57,5 +57,4 @@ std/rt_tests.stage_case/sum
   %42 = If %17 [%39 %41] : ()
   %43 = Block - : ()
   %44 = Loop %43 - : ()
-  %45 = Drop [$2] : ()
   summary kept []

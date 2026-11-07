@@ -510,26 +510,24 @@
     global.set $locals
   )
   (func $"impl Nums.count'1" (param $self i32) (result i32)
-    block
     ;; 39 |         self.xs.len() + 1
+    block
       local.get $self
       i32.load $heap offset=4
       i32.const 1
       i32.add
-    ;; (no span)
       local.set $self
     end
     local.get $self
   )
   (func $"impl Nums.count'2" (param $self i32) (result i32)
-    block
     ;; 39 |         self.xs.len() + 1
+    block
       local.get $self
       i32.load $heap
       i32.load $heap offset=4
       i32.const 1
       i32.add
-    ;; (no span)
       local.set $self
     end
     local.get $self

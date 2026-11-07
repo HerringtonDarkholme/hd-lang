@@ -33,13 +33,12 @@ impl Members:
 >   local $0 self: Ref[Members] [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 position: usize [param read] value
->     uses $1: entry -> %3 lend last
+>     uses $1: entry -> %2 lend last
 >   %0 = Read borrow [*$0 .infos] : List[Info]
 >   %1 = Intrinsic ListLen [%0] : usize
->   %2 = Drop [%0] : ()
->   %3 = Read copy [$1] : usize
->   %4 = Prim Add [%1 %3] : usize
->   %5 = Block %4 : usize
+>   %2 = Read copy [$1] : usize
+>   %3 = Prim Add [%1 %2] : usize
+>   %4 = Block %3 : usize
 
     fn pop(&mut self) -> usize:
         match self.infos.pop():

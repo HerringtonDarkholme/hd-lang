@@ -86,7 +86,7 @@ fn by_ref(m: &Map[string, string]) -> usize:
 >   local $6 v: Ref[string] [read assigned] value
 >     uses $6: %31 -> %25 lend last
 >   %0 = Store [$1] 0:usize : ()
->   %44 = Block %43 : usize
+>   %43 = Block %42 : usize
     for (_, v) in m:
 >   %1 = Read borrow [*$0] : Map[string, string]
 >   %2 = Store [$2] %1 : ()
@@ -123,7 +123,6 @@ fn by_ref(m: &Map[string, string]) -> usize:
 >   %39 = If %17 [%36 %38] : ()
 >   %40 = Block - : ()
 >   %41 = Loop %40 - : ()
->   %42 = Drop [$2] : ()
         n += v.len()
 >   %24 = Read copy [$1] : usize
 >   %25 = Read borrow [$6] : Ref[string]
@@ -131,7 +130,7 @@ fn by_ref(m: &Map[string, string]) -> usize:
 >   %27 = Prim Add [%24 %26] : usize
 >   %28 = Store [$1] %27 : ()
     n
->   %43 = Read copy [$1] : usize
+>   %42 = Read copy [$1] : usize
 >   summary kept []
 
 fn keys(m: Map[string, string]) -> List[string]:

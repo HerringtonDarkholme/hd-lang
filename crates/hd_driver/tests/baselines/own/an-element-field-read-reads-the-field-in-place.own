@@ -95,15 +95,12 @@ fn n_at[T](xs: List[Wrap[T]], i: usize) -> usize:
     xs[i].n
 > app/main/n_at
 >   local $0 xs: List[Wrap[T]] [param read] value
->     uses $0: entry -> %0 lend last
+>     uses $0: entry -> %1 lend last
 >   local $1 i: usize [param read] value
->     uses $1: entry -> %1 lend last
->   %0 = Read borrow [$0] : List[Wrap[T]]
->   %1 = Read copy [$1] : usize
->   %2 = Read borrow [%0 [%1]] : Wrap[T]
->   %3 = Read copy [%2 .n] : usize
->   %4 = Drop [%2] : ()
->   %5 = Block %3 : usize
+>     uses $1: entry -> %0 lend last
+>   %0 = Read copy [$1] : usize
+>   %1 = Read copy [$0 [%0] .n] : usize
+>   %2 = Block %1 : usize
 
 fn use_generic(m: Members[i32], xs: List[Wrap[string]], i: usize) -> i64:
     name := m.name_at(i)

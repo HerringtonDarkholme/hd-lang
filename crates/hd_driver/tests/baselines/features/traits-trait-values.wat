@@ -34,8 +34,8 @@
     local.get $g.0
   )
   (func $"impl Greet for User.greet" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
-    block
     ;; 21 |         "hi " + self.name
+    block
       local.get $self
       i32.load $heap
       local.get $self
@@ -69,7 +69,6 @@
       call $rt:memory_copy/0/0
       local.get $t2
       local.get $t1
-    ;; (no span)
       local.set $t0
       local.set $self
     end
