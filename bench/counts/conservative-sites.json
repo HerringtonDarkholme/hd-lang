@@ -61,7 +61,7 @@
     },
     {
       "reason": "conservative: frame drop",
-      "sites": 12
+      "sites": 8
     },
     {
       "reason": "conservative: return",

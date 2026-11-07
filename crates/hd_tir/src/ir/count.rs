@@ -13,6 +13,7 @@ pub enum At {
     CacheRead,
     CacheWrite,
     Materialize,
+    FrameDrop,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -57,6 +58,7 @@ impl Info {
             5 => At::CacheRead,
             6 => At::CacheWrite,
             7 => At::Materialize,
+            8 => At::FrameDrop,
             _ => return None,
         };
         let part = match (part, index) {

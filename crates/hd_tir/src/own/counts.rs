@@ -30,6 +30,7 @@ fn expected(b: &Body, cx: &dyn OwnCx) -> Vec<(Tag, u32, Info)> {
         for at in [At::Cold, At::Materialize] {
             out.push((Tag::Retain, root, Info::new(at, Part::Row, 0)));
         }
+        out.push((Tag::Release, root, Info::new(At::FrameDrop, Part::Row, 2)));
     }
     if cache::counted(b, cx) {
         for at in [At::CacheRead, At::CacheWrite] {

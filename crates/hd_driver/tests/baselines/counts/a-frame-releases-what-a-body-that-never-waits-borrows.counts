@@ -38,7 +38,7 @@ pub fn main!() -> void $ Console:
 >   release Suspend[usize] (cancelled)
 >   release Suspend[usize] (cancelled)
 >   release counted reference (last use)
->   release counted reference (conservative: frame drop)
+>   release counted reference (last use)
 >   release counted reference (conservative: frame drop)
 > std/rt_tests.stage_case/main
 >   retain counted reference (stored)

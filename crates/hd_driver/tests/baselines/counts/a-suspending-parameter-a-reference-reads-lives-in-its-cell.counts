@@ -18,7 +18,7 @@ fn sized!(u: UniqList[i32]) -> usize $ Clock:
 >   release counted reference (last use)
 > std/rt_tests.stage_case/sized
 >   release counted reference (cancelled)
->   release counted reference (conservative: frame drop)
+>   release counted reference (last use)
 >   release counted reference (conservative: frame drop)
 > std/rt_tests.stage_case/sized
 >   retain counted reference (stored)
@@ -31,8 +31,8 @@ pub fn main!() -> void $ Console + Clock:
 >   release &usize (last use)
 >   release counted reference (last use)
 > std/rt_tests.stage_case/main
->   release counted reference (conservative: frame drop)
->   release counted reference (conservative: frame drop)
+>   release counted reference (last use)
+>   release counted reference (last use)
 >   release counted reference (conservative: frame drop)
 > std/rt_tests.stage_case/main
 >   retain counted reference (stored)

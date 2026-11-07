@@ -81,71 +81,73 @@ fn run_twice!(body: fn!() -> string) -> usize:
 fn closure_bang!(key: string) -> usize:
 > app/main/closure_bang
 >   local $0 key: string [param read captured] value
->     uses $0: entry -> %4 lend, %9 consume last
->   %0 = Retain %13 Cold local $0 #0 : ()
->   %1 = Retain %13 Entry local $0 #0 : ()
+>     uses $0: entry -> %5 lend, %10 consume last
+>   %0 = Retain %14 Cold local $0 #0 : ()
+>   %1 = Retain %14 Entry local $0 #0 : ()
     run_twice!():
->   %10 = Await app/main/run_twice[] (%9) : usize
->   %11 = Release %10 Operation child #2 : ()
->   %12 = Drop [%9] : ()
->   %13 = Block %10 : usize
+>   %11 = Await app/main/run_twice[] (%10) : usize
+>   %12 = Release %11 Operation child #2 : ()
+>   %13 = Drop [%10] : ()
+>   %14 = Block %11 : usize
         fetch!(key)
->   %2 = Retain %8 Cold row #0 : ()
->   %3 = Retain %8 Materialize row #0 : ()
->   %4 = Read move [$0] : string
->   %5 = Await app/main/fetch[] (%4) : string
->   %6 = Release %5 Operation child #2 : ()
->   %7 = Drop [%4] : ()
->   %8 = Block %5 : string
->   %9 = Closure #1 [%0 %1] : fn!() -> string
+>   %2 = Retain %9 Cold row #0 : ()
+>   %3 = Retain %9 Materialize row #0 : ()
+>   %4 = Release %9 FrameDrop row #2 : ()
+>   %5 = Read move [$0] : string
+>   %6 = Await app/main/fetch[] (%5) : string
+>   %7 = Release %6 Operation child #2 : ()
+>   %8 = Drop [%5] : ()
+>   %9 = Block %6 : string
+>   %10 = Closure #1 [%0 %1] : fn!() -> string
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary none
->   unwind %5 drops [%4]
->   unwind %10 drops [%9]
+>   unwind %6 drops [%5]
+>   unwind %11 drops [%10]
 
 fn stored!(key: string) -> usize:
 > app/main/stored
 >   local $0 key: string [param read] value
->     uses $0: entry -> %14 lend last
+>     uses $0: entry -> %15 lend last
 >   local $1 k: string [param read] value
->     uses $1: entry -> %6 lend last
+>     uses $1: entry -> %7 lend last
 >   local $2 loader: fn!(string) -> string [:= read assigned] value
->     uses $2: %12 -> %13 lend last
+>     uses $2: %13 -> %14 lend last
 >   local $3 $ref: string [read assigned captured captured-assigned] place
->   %0 = Retain %27 Cold local $0 #0 : ()
->   %1 = Retain %27 Entry local $0 #0 : ()
+>   %0 = Retain %28 Cold local $0 #0 : ()
+>   %1 = Retain %28 Entry local $0 #0 : ()
     loader := fn!(k: string) -> string: fetch!(k)
->   %2 = Retain %10 Cold local $1 #0 : ()
->   %3 = Retain %10 Entry local $1 #0 : ()
->   %4 = Retain %10 Cold row #0 : ()
->   %5 = Retain %10 Materialize row #0 : ()
->   %6 = Read move [$1] : string
->   %7 = Await app/main/fetch[] (%6) : string
->   %8 = Release %7 Operation child #2 : ()
->   %9 = Drop [%6] : ()
->   %10 = Block %7 : string
->   %11 = Closure #1 [%0 %0] : fn!(string) -> string
->   %12 = Store [$2] %11 : ()
->   %27 = Block %24 : usize
+>   %2 = Retain %11 Cold local $1 #0 : ()
+>   %3 = Retain %11 Entry local $1 #0 : ()
+>   %4 = Retain %11 Cold row #0 : ()
+>   %5 = Retain %11 Materialize row #0 : ()
+>   %6 = Release %11 FrameDrop row #2 : ()
+>   %7 = Read move [$1] : string
+>   %8 = Await app/main/fetch[] (%7) : string
+>   %9 = Release %8 Operation child #2 : ()
+>   %10 = Drop [%7] : ()
+>   %11 = Block %8 : string
+>   %12 = Closure #1 [%0 %0] : fn!(string) -> string
+>   %13 = Store [$2] %12 : ()
+>   %28 = Block %25 : usize
     loader!(key).len()
->   %13 = Read move [$2] : fn!(string) -> string
->   %14 = Read move [$0] : string
->   %15 = CallValue %13 [%14] : mut Suspend[string]
->   %16 = AwaitValue %15 : string
->   %17 = Release %16 Operation child #2 : ()
->   %18 = Retain %16 Operation child #0 : ()
->   %19 = Drop [%15] : ()
->   %20 = Drop [%14] : ()
->   %21 = Drop [%13] : ()
->   %22 = Store [$3] %16 : ()
->   %23 = Ref local [$3] : Counted[string]
->   %24 = Call std/text/impl string.len[] (%23) : usize
->   %25 = Drop [%23] : ()
->   %26 = Drop [$3] : ()
->   %23 finds [$3] full
+>   %14 = Read move [$2] : fn!(string) -> string
+>   %15 = Read move [$0] : string
+>   %16 = CallValue %14 [%15] : mut Suspend[string]
+>   %17 = AwaitValue %16 : string
+>   %18 = Release %17 Operation child #2 : ()
+>   %19 = Retain %17 Operation child #0 : ()
+>   %20 = Drop [%16] : ()
+>   %21 = Drop [%15] : ()
+>   %22 = Drop [%14] : ()
+>   %23 = Store [$3] %17 : ()
+>   %24 = Ref local [$3] : Counted[string]
+>   %25 = Call std/text/impl string.len[] (%24) : usize
+>   %26 = Drop [%24] : ()
+>   %27 = Drop [$3] : ()
+>   %24 finds [$3] full
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$1]
 >   summary none
->   unwind %7 drops [%6]
->   unwind %16 drops [%13 %14 %15]
+>   unwind %8 drops [%7]
+>   unwind %17 drops [%14 %15 %16]

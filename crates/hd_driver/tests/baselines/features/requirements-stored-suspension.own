@@ -45,23 +45,24 @@ fn tagged!() -> usize $ Tag:
     $.use(Tag).name().len()
 > app/main/tagged
 >   local $1 self: string [read] value
->     uses $1: %8 -> %9 lend last
->   %0 = Retain %15 Cold row #0 : ()
->   %1 = Retain %15 Materialize row #0 : ()
->   %2 = ProviderGet #0 : Tag
->   %3 = Retain %2 Value #0 : ()
->   %4 = Coerce %2 [ProviderAsRef -] : Ref[Tag]
->   %5 = Read borrow [*%4] : Tag
->   %6 = Drop [%4] : ()
->   %7 = Call app/main/Tag.name for Tag [] via TraitValue (%5) : string
->   %8 = Store [$1] %7 : ()
->   %9 = Read borrow [$1] : string
->   %10 = Call std/rt.bytes/bytes_len[] (%9) : usize
->   %11 = Break L0 %10 : never
->   %12 = Block - : usize
->   %13 = Scope %12 [] : usize
->   %14 = Drop [$1] : ()
->   %15 = Block %13 : usize
+>     uses $1: %9 -> %10 lend last
+>   %0 = Retain %16 Cold row #0 : ()
+>   %1 = Retain %16 Materialize row #0 : ()
+>   %2 = Release %16 FrameDrop row #2 : ()
+>   %3 = ProviderGet #0 : Tag
+>   %4 = Retain %3 Value #0 : ()
+>   %5 = Coerce %3 [ProviderAsRef -] : Ref[Tag]
+>   %6 = Read borrow [*%5] : Tag
+>   %7 = Drop [%5] : ()
+>   %8 = Call app/main/Tag.name for Tag [] via TraitValue (%6) : string
+>   %9 = Store [$1] %8 : ()
+>   %10 = Read borrow [$1] : string
+>   %11 = Call std/rt.bytes/bytes_len[] (%10) : usize
+>   %12 = Break L0 %11 : never
+>   %13 = Block - : usize
+>   %14 = Scope %13 [] : usize
+>   %15 = Drop [$1] : ()
+>   %16 = Block %14 : usize
 >   summary none
 
 fn later!(key: string) -> usize:
