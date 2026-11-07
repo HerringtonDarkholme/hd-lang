@@ -178,11 +178,7 @@
           br 0
         end
       end
-      local.get $n.0
-      local.get $n.1
     ;; 46 |     w.name.len() + v.name.len()
-      local.set $n.1
-      local.set $n.0
       block
         block
           br 0
@@ -192,8 +188,6 @@
       local.get $n.0
       call $rt:release_ref'1
     ;; 46 |     w.name.len() + v.name.len()
-      local.get $v.name.0
-      local.set $v.name.0
       block
         block
           br 0

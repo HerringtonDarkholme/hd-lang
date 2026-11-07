@@ -25,16 +25,15 @@ fn view(p: &Point) -> usize:
 >   local $0 p: Ref[Point] [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 self: string [read] value
->     uses $1: %1 -> %3 lend last
+>     uses $1: %1 -> %2 lend last
 >   %0 = Read borrow [*$0 .name] : string
 >   %1 = Store [$1] %0 : ()
->   %2 = Release %1 #0 : ()
->   %3 = Read borrow [$1] : string
->   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
->   %5 = Break L0 %4 : never
->   %6 = Block - : usize
->   %7 = Scope %6 [] : usize
->   %8 = Block %7 : usize
+>   %2 = Read borrow [$1] : string
+>   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
+>   %4 = Break L0 %3 : never
+>   %5 = Block - : usize
+>   %6 = Scope %5 [] : usize
+>   %7 = Block %6 : usize
 >   summary kept []
 
 fn bump(p: &mut Point) -> void:
@@ -43,14 +42,13 @@ fn bump(p: &mut Point) -> void:
 >   local $0 p: Ref[mut Point] [param read] value
 >     uses $0: entry -> %0 consume last
 >   local $1 q: Ref[mut Point] [:= read assigned] value
->     uses $1: %1 -> %3 lend last
+>     uses $1: %1 -> %2 lend last
 >   %0 = Read borrow [$0] : Ref[mut Point]
 >   %1 = Store [$1] %0 : ()
->   %2 = Release %1 #0 : ()
->   %5 = Block - : ()
+>   %4 = Block - : ()
     nudge(q)
->   %3 = Read borrow [$1] : Ref[mut Point]
->   %4 = Call app/main/nudge[] (%3) : ()
+>   %2 = Read borrow [$1] : Ref[mut Point]
+>   %3 = Call app/main/nudge[] (%2) : ()
 >   summary kept [] writes
 
 fn lend(h: *mut Point) -> usize:
@@ -77,47 +75,43 @@ fn local(s: string) -> usize:
 >     uses $0: entry -> %0 consume last
 >   local $1 origin: Point [read assigned captured captured-assigned] place
 >   local $2 r: Ref[mut Point] [read assigned] value
->     uses $2: %8 -> %10 lend last
+>     uses $2: %7 -> %8 lend last
 >   local $3 p: Point [read] value
->     uses $3: %14 -> %16 consume last
+>     uses $3: %12 -> %13 consume last
 >   local $4 self: string [read] value
->     uses $4: %17 -> %19 lend last
+>     uses $4: %14 -> %15 lend last
 >   %0 = Read move [$0] : string
 >   %1 = NewStruct [%0 0:i32] : Point
 >   %2 = Store [$1] %1 : ()
->   %3 = Release %2 #0 : ()
->   %28 = Block %26 : usize
+>   %24 = Block %22 : usize
     nudge(&mut origin)
->   %4 = Ref mut local frame [$1] : Counted[mut Point]
->   %5 = Call app/main/nudge[] (%4) : ()
->   %6 = Drop [%4] : ()
->   %4 finds [$1] full
+>   %3 = Ref mut local frame [$1] : Counted[mut Point]
+>   %4 = Call app/main/nudge[] (%3) : ()
+>   %5 = Drop [%3] : ()
+>   %3 finds [$1] full
     let r: &mut Point = &mut origin
->   %7 = Ref mut local frame [$1] : Ref[mut Point]
->   %8 = Store [$2] %7 : ()
->   %9 = Release %8 #0 : ()
->   %7 finds [$1] full
+>   %6 = Ref mut local frame [$1] : Ref[mut Point]
+>   %7 = Store [$2] %6 : ()
+>   %6 finds [$1] full
     bump(r)
->   %10 = Read move [$2] : Ref[mut Point]
->   %11 = Call app/main/bump[] (%10) : ()
->   %12 = LoanEnd [%10] : ()
+>   %8 = Read move [$2] : Ref[mut Point]
+>   %9 = Call app/main/bump[] (%8) : ()
+>   %10 = LoanEnd [%8] : ()
     view(&origin)
->   %13 = Read move [$1] : Point
->   %14 = Store [$3] %13 : ()
->   %15 = Release %14 #0 : ()
->   %16 = Read borrow [$3 .name] : string
->   %17 = Store [$4] %16 : ()
->   %18 = Release %17 #0 : ()
->   %19 = Read borrow [$4] : string
->   %20 = Call std/rt.bytes/bytes_len[] (%19) : usize
->   %21 = Break L0 %20 : never
->   %22 = Block - : usize
->   %23 = Scope %22 [] : usize
->   %24 = Break L1 %23 : never
->   %25 = Block - : usize
->   %26 = Scope %25 [] : usize
->   %27 = Drop [$3] : ()
->   %13 finds [$1] full
+>   %11 = Read move [$1] : Point
+>   %12 = Store [$3] %11 : ()
+>   %13 = Read borrow [$3 .name] : string
+>   %14 = Store [$4] %13 : ()
+>   %15 = Read borrow [$4] : string
+>   %16 = Call std/rt.bytes/bytes_len[] (%15) : usize
+>   %17 = Break L0 %16 : never
+>   %18 = Block - : usize
+>   %19 = Scope %18 [] : usize
+>   %20 = Break L1 %19 : never
+>   %21 = Block - : usize
+>   %22 = Scope %21 [] : usize
+>   %23 = Drop [$3] : ()
+>   %11 finds [$1] full
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes
 

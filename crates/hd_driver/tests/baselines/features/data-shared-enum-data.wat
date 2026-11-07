@@ -33,9 +33,9 @@
       i32.const 2
       i32.lt_u
       select
-      i32.const 4
+      i32.const 8
       i32.mul
-      i32.load $heap offset=196
+      i32.load $heap offset=172
       local.set $s
       block
         block

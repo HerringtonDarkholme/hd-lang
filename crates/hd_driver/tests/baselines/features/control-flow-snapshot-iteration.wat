@@ -14,7 +14,6 @@
     ;; 9 |     let mut out = values
     block
       local.get $values
-      local.tee $values
     ;; 10 |     for v in out:
       call $rt:coll_copy
       local.tee $t0
@@ -129,7 +128,6 @@
     global.set $locals
     block
       local.get $values
-      local.tee $values
     ;; 16 |     let mut cursor = items.iter()
       local.set $t1
       block

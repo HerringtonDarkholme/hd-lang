@@ -77,8 +77,6 @@
   (func $load (param $path.0 i32) (param $path.1 i32) (result i32 i32 i32) (local $t0 i32) (local $t3 i32) (local $t1 i32) (local $t2 i32)
     ;; 22 |     text := read_config(path)?
     block
-      local.get $path.0
-      local.set $path.0
       block
         block
           local.get $path.0
@@ -149,8 +147,6 @@
         local.get $path.0
         local.get $t1
         i32.store $heap offset=8
-        local.get $path.0
-        local.set $path.0
         i32.const 1
         local.get $path.0
         i32.const 328 ;; &vtable[func50]

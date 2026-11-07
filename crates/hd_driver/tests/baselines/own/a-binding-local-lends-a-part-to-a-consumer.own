@@ -28,22 +28,21 @@ fn read_again(m: Member) -> usize:
 >   local $0 m: Member [param read] value
 >     uses $0: entry -> %0 consume, %2 consume last
 >   local $2 self: string [read] value
->     uses $2: %4 -> %6 lend last
->   %13 = Block %12 : usize
+>     uses $2: %4 -> %5 lend last
+>   %12 = Block %11 : usize
     count(x.facts) + m.name.len()
 >   %0 = Read move [$0 .facts] : Facts
 >   %1 = Call app/main/count[] (%0) : usize
 >   %2 = Read move [$0 .name] : string
 >   %3 = Drop [$0] : ()
 >   %4 = Store [$2] %2 : ()
->   %5 = Release %4 #0 : ()
->   %6 = Read borrow [$2] : string
->   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
->   %8 = Break L0 %7 : never
->   %9 = Block - : usize
->   %10 = Scope %9 [] : usize
->   %11 = Drop [$2] : ()
->   %12 = Prim Add [%1 %10] : usize
+>   %5 = Read borrow [$2] : string
+>   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
+>   %7 = Break L0 %6 : never
+>   %8 = Block - : usize
+>   %9 = Scope %8 [] : usize
+>   %10 = Drop [$2] : ()
+>   %11 = Prim Add [%1 %9] : usize
 >   exit sub 0 drops [$0]
 
 fn last_read(m: Member) -> usize:
@@ -52,20 +51,19 @@ fn last_read(m: Member) -> usize:
 >   local $0 m: Member [param read] value
 >     uses $0: entry -> %0 consume, %2 consume last
 >   local $2 self: string [read] value
->     uses $2: %4 -> %6 lend last
->   %13 = Block %12 : usize
+>     uses $2: %4 -> %5 lend last
+>   %12 = Block %11 : usize
     count(x.facts) + x.doc.len()
 >   %0 = Read move [$0 .facts] : Facts
 >   %1 = Call app/main/count[] (%0) : usize
 >   %2 = Read move [$0 .doc] : string
 >   %3 = Drop [$0] : ()
 >   %4 = Store [$2] %2 : ()
->   %5 = Release %4 #0 : ()
->   %6 = Read borrow [$2] : string
->   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
->   %8 = Break L0 %7 : never
->   %9 = Block - : usize
->   %10 = Scope %9 [] : usize
->   %11 = Drop [$2] : ()
->   %12 = Prim Add [%1 %10] : usize
+>   %5 = Read borrow [$2] : string
+>   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
+>   %7 = Break L0 %6 : never
+>   %8 = Block - : usize
+>   %9 = Scope %8 [] : usize
+>   %10 = Drop [$2] : ()
+>   %11 = Prim Add [%1 %9] : usize
 >   exit sub 0 drops [$0]

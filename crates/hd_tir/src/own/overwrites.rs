@@ -3,14 +3,17 @@
 //! value is followed by `Release %store`, which the backend lowers inside the
 //! store's one walk of the place. A `Store` with none only writes.
 //!
-//! No statement follows a store of nothing that counts.
+//! No statement follows a store of nothing that counts or a store known to
+//! find its place empty ([`Stores::finds_empty`]).
 
 use super::{OwnCx, splice};
-use crate::ir::{Body, NONE, Ref, Tag, Topology, u32_of};
+use crate::ir::{Body, NONE, Ref, Tag, Topology, local_flags, u32_of};
 use hd_types::Ty;
 
 /// Where a body's stores stand, per local.
 struct Stores {
+    /// The first instruction that stores into the local, whole or in part.
+    first: Vec<u32>,
     /// Whether a `Ref` or a capture reaches the local: it lives in a slot or
     /// a cell, which has a count or a value to end whatever its type.
     placed: Vec<bool>,
@@ -20,13 +23,23 @@ impl Stores {
     fn of(b: &Body) -> Self {
         let locals = b.local_ty.len();
         let mut s = Stores {
+            first: vec![NONE; locals],
             placed: vec![false; locals],
         };
         for i in 0..b.len() {
-            if b.tags[i] == Tag::Ref
-                && let Some(l) = b.local_in_place(b.data[i][0])
-            {
-                s.placed[l.idx()] = true;
+            match b.tags[i] {
+                Tag::Store => {
+                    if let Some(l) = b.view(b.data[i][0]).local() {
+                        let first = &mut s.first[l as usize];
+                        *first = (*first).min(u32_of(i));
+                    }
+                }
+                Tag::Ref => {
+                    if let Some(l) = b.local_in_place(b.data[i][0]) {
+                        s.placed[l.idx()] = true;
+                    }
+                }
+                _ => {}
             }
         }
         for l in &b.cap_local {
@@ -36,12 +49,12 @@ impl Stores {
     }
 
     /// Whether `Store` `i` releases what its place holds: its place's type
-    /// has something to end.
-    fn releases(&self, b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
+    /// has something to end, and the store is not known to find it empty.
+    fn releases(&self, b: &Body, cx: &dyn OwnCx, topo: &Topology, i: usize) -> bool {
         let [word, value] = b.data[i];
         let p = b.view(word);
         let whole = p.whole().then(|| p.local()).flatten();
-        match whole {
+        let counts = match whole {
             Some(l) => self.placed[l as usize] || cx.counted(b.local_ty[l as usize]),
             None => match Ref(value).as_inst() {
                 Some(v) => value != NONE && cx.counted(b.ty[v.0 as usize]),
@@ -50,7 +63,24 @@ impl Stores {
                     .get((value & !Ref::CONST_BIT) as usize)
                     .is_some_and(|c| cx.counted(c.0)),
             },
+        };
+        counts && !whole.is_some_and(|l| self.finds_empty(b, topo, i, l))
+    }
+
+    /// Whether `Store` `i`, of all of local `l`, finds it holding nothing:
+    /// the local is no parameter, no store comes before this one (a local is
+    /// always initialized where it is declared, so a closure's store comes
+    /// after), and no loop of the sub-body runs it again with a value left in
+    /// it ([`super::frame::store_finds_empty`]).
+    fn finds_empty(&self, b: &Body, topo: &Topology, i: usize, l: u32) -> bool {
+        let l = l as usize;
+        if b.local_flags[l] & local_flags::PARAM != 0 || self.first[l] != u32_of(i) {
+            return false;
         }
+        let lp = topo.loop_of[i];
+        lp == NONE
+            || topo.sub[lp as usize] != topo.sub[i]
+            || super::frame::store_finds_empty(b, topo, i)
     }
 }
 
@@ -62,7 +92,7 @@ pub(super) fn plan(b: &Body, cx: &dyn OwnCx, topo: &Topology, edits: &mut splice
     }
     let stores = Stores::of(b);
     for i in 0..b.len() {
-        if b.tags[i] == Tag::Store && stores.releases(b, cx, i) {
+        if b.tags[i] == Tag::Store && stores.releases(b, cx, topo, i) {
             edits.insert(
                 topo.blk[i],
                 topo.pos[i] + 1,
@@ -98,7 +128,7 @@ pub(crate) fn verify(b: &Body, cx: &dyn OwnCx, topo: &Topology, mut err: impl Fn
                 .copied()
         };
         match b.tags[i] {
-            Tag::Store if topo.blk[i] != NONE && stores.releases(b, cx, i) => {
+            Tag::Store if topo.blk[i] != NONE && stores.releases(b, cx, topo, i) => {
                 if !next().is_some_and(|x| {
                     b.tags[x as usize] == Tag::Release && b.data[x as usize][0] == u32_of(i)
                 }) {

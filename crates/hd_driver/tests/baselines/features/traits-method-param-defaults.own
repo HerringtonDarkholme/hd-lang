@@ -62,7 +62,7 @@ fn generic_method(j: Joiner, s: string) -> usize:
 >   local $1 s: string [param read] value
 >     uses $1: entry -> %1 consume last
 >   local $2 $ref: string [read assigned captured captured-assigned] value
->     uses $2: %5 -> %7 lend last
+>     uses $2: %5 -> %6 lend last
 >   %0 = ExitDrop [$0] #2 : ()
     j.tagged(s).len()
 >   %1 = Read move [$1] : string
@@ -70,13 +70,12 @@ fn generic_method(j: Joiner, s: string) -> usize:
 >   %3 = Block - : string
 >   %4 = Scope %3 [] : string
 >   %5 = Store [$2] %4 : ()
->   %6 = Release %5 #0 : ()
->   %7 = Read borrow [$2] : string
->   %8 = Call std/rt.bytes/bytes_len[] (%7) : usize
->   %9 = Break L0 %8 : never
->   %10 = Block - : usize
->   %11 = Scope %10 [] : usize
->   %12 = Drop [$2] : ()
->   %13 = Block %11 : usize
+>   %6 = Read borrow [$2] : string
+>   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
+>   %8 = Break L0 %7 : never
+>   %9 = Block - : usize
+>   %10 = Scope %9 [] : usize
+>   %11 = Drop [$2] : ()
+>   %12 = Block %10 : usize
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0]

@@ -272,28 +272,24 @@
           br 0
         end
       end
-      local.get $t4
-      local.get $t5
-      local.set $n
-      local.set $t1
       block
         block
           block
             block
+              local.get $t5
+              local.set $t1
               br 0
             end
           end
-          local.get $n
+          local.get $t1
           i32.const 1
           i32.add
-          local.set $n
+          local.set $t1
           br 0
         end
       end
-      local.get $t1
+      local.get $t4
       call $rt:release_ref
-      local.get $n
-      local.set $t1
     end
     local.get $t1
     local.get $t0

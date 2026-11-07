@@ -37,31 +37,27 @@
     ;; 14 |     join2(second=a, first=b)
     block
       local.get $a.0
-      local.get $b.0
       local.set $a.0
-      local.get $a.1
-      local.set $b.0
-      local.set $a.1
       block
         block
-          local.get $a.0
+          local.get $b.0
           local.get $b.1
           call $"impl string.len"
           i32.const 3
           i32.mul
+          local.get $a.0
           local.get $a.1
-          local.get $b.0
           call $"impl string.len"
           i32.add
-          local.set $b.0
+          local.set $a.1
           br 0
         end
       end
-      local.get $a.1
-      call $rt:release_ref'1
       local.get $a.0
       call $rt:release_ref'1
       local.get $b.0
+      call $rt:release_ref'1
+      local.get $a.1
       local.set $a.0
     end
     local.get $a.0
@@ -129,8 +125,6 @@
   (func $spread_tuple (param $pair.0.0 i32) (param $pair.0.1 i32) (param $pair.1.0 i32) (param $pair.1.1 i32) (result i32)
     ;; 20 |     join2(pair...)
     block
-      local.get $pair.0.0
-      local.set $pair.0.0
       block
         block
           local.get $pair.0.0
@@ -158,8 +152,6 @@
   (func $positional (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32)
     ;; 17 |     join2(b, a)
     block
-      local.get $b.0
-      local.set $b.0
       block
         block
           local.get $b.0

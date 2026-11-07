@@ -372,8 +372,6 @@
         local.set $t3
         i32.const 0
         local.set $t4
-        local.get $job
-        call $rt:release_ref'2
         i32.const 0
         local.set $t5
     ;; 14 |     end := job.cancel!()

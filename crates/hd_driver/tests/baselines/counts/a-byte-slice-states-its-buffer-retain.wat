@@ -4,19 +4,19 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $through_function (param $text.0 i32) (param $text.1 i32) (result i32 i32) (local $t0 i32)
+  (func $through_function (param $text.0 i32) (param $text.1 i32) (result i32 i32)
     ;; 14 |     slice_fn := bytes_slice
     block
-      i32.const 0
     ;; 15 |     slice_fn(text, 0, 1)
-      local.set $t0
       i32.const 0
       local.get $text.0
       local.get $text.1
       i32.const 0
       i32.const 1
       i32.const 0
-      local.get $t0
+    ;; 14 |     slice_fn := bytes_slice
+      i32.const 0
+    ;; 15 |     slice_fn(text, 0, 1)
       call_indirect $table0 (param i32 i32 i32 i32 i32 i32) (result i32 i32)
     ;; 14 |     slice_fn := bytes_slice
       local.set $text.1

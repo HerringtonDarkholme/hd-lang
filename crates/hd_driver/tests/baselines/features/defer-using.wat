@@ -66,7 +66,7 @@
       i32.store $heap offset=4
     end
   )
-  (func $with_using (param $log i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
+  (func $with_using (param $log i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $r i32)
     ;; 23 |     using r = box(Res { name: s, log: log })
     block
       block
@@ -77,17 +77,16 @@
         i32.const 12
         i32.const -2147483645
         call $rt:new/class-2
-        local.tee $t0
+        local.tee $r
         local.get $s.0
         i32.store $heap
-        local.get $t0
+        local.get $r
         local.get $s.1
         i32.store $heap offset=4
-        local.get $t0
+        local.get $r
         local.get $log
         i32.store $heap offset=8
-        local.get $t0
-        local.tee $s.1
+        local.get $r
         i32.const 1
         local.set $log
     ;; 24 |     r.name.len()
@@ -110,14 +109,14 @@
         i32.const 1
         i32.add
         global.set $forbid
-        local.get $s.1
+        local.get $r
         call $"impl Disposable for Res.dispose"
         global.get $forbid
         i32.const -1
         i32.add
         global.set $forbid
       end
-      local.get $s.1
+      local.get $r
       call $rt:release_ref'1
       local.get $s.0
       local.set $log

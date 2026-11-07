@@ -34,7 +34,6 @@ fn fetch!(key: string) -> string:
 fn tagged!() -> usize $ Tag:
     $.use(Tag).name().len()
 > app/main/tagged
->   release string (overwritten)
 >   release string (last use)
 > app/main/tagged
 >   release app.main.Tag (conservative: frame drop)
@@ -51,7 +50,6 @@ fn later!(key: string) -> usize:
 > app/main/later
 >   retain string (conservative: entry)
 >   release string (last use)
->   release Suspend[string] (overwritten)
 >   release Suspend[string] (last use)
 >   release &string (last use)
 >   release counted reference (last use)
@@ -73,7 +71,6 @@ fn later!(key: string) -> usize:
 >   release counted reference (conservative: AwaitValue)
 >   release counted reference (conservative: AwaitValue)
 >   release Suspend[string] (cancelled)
->   release counted reference (overwritten)
 >   retain &string (conservative: Ref)
 
 fn blocking(key: string) -> usize:
@@ -94,8 +91,6 @@ fn bound!(s: string) -> usize:
     let mut pending: mut Suspend[usize] = $.with(Tag=Named { label: s }):
 > app/main/bound
 >   retain string (conservative: entry)
->   release app.main.Named [label.0] (overwritten)
->   release counted reference (overwritten)
 >   retain &mut app.main.Named (conservative: Ref)
 >   retain app.main.Tag (stored)
 >   release &mut app.main.Named (last use)
@@ -103,7 +98,6 @@ fn bound!(s: string) -> usize:
 >   release &app.main.Tag (by design)
 >   release app.main.Tag (last use)
 >   release counted reference (last use)
->   release Suspend[usize] (overwritten)
 >   release Suspend[usize] (last use)
 >   release string (last use)
 > app/main/bound

@@ -3,8 +3,11 @@
 # @build: v8 release
 # expected: each store that may find a value is followed by `Release %store`,
 # lowered in the store's one walk of its place: one bounds check for `xs[i]`,
-# and the old value released through the address that walk found.
+# and the old value released through the address that walk found. A store
+# known to find its place empty has none: `s`'s first store, and `u`'s, whose
+# only `rt:drop` calls are at its last uses.
 use std.annotation.inline
+use std.collections.UniqList
 
 struct P:
     name: string
@@ -36,3 +39,16 @@ fn field_over(r: &mut P, k: i32) -> void:
     r.name = make(k)
 > app/main/field_over
 >   release counted reference (overwritten)
+
+@inline(.Never)
+fn fresh() -> UniqList[i32]:
+    UniqList::[i32].new()
+
+fn declared(c: bool) -> usize:
+    u := fresh()
+> app/main/declared
+>   release counted reference (last use)
+>   release counted reference (last use)
+    if c:
+        return u.len()
+    0

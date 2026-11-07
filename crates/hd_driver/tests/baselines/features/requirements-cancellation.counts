@@ -23,7 +23,6 @@ fn stop!(key: string) -> bool:
 > app/main/stop
 >   retain string (conservative: entry)
 >   release string (last use)
->   release Suspend[string] (overwritten)
 >   release Suspend[string] (last use)
 >   release string (last use)
 > app/main/stop

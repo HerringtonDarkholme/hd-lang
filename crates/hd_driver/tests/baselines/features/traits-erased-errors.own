@@ -18,19 +18,18 @@ impl Display for FsError:
 >   local $1 path: string [read assigned] value
 >     uses $1: %5 -> %1 lend last
 >   %0 = Read borrow [*$0] : FsError
->   %12 = Block - : never
->   %13 = Match %0 [%12 %3] : string
->   %14 = Block %13 : string
+>   %11 = Block - : never
+>   %12 = Match %0 [%11 %3] : string
+>   %13 = Block %12 : string
             FsError.NotFound(path) => "not found: " + path
 >   %1 = Read borrow [$1] : string
 >   %2 = Intrinsic StrConcat ["not found: " %1] : string
 >   %3 = Block %2 : string
 >   %4 = Read borrow [%0 as #0 .0] : string
 >   %5 = Store [$1] %4 : ()
->   %6 = Release %5 #0 : ()
->   %8 = Block - : never
->   %10 = Block - : never
->   %11 = SwitchTag %0 [#0 %8 %10] : never
+>   %7 = Block - : never
+>   %9 = Block - : never
+>   %10 = SwitchTag %0 [#0 %7 %9] : never
 >   summary kept []
 
 impl Error for FsError
@@ -67,52 +66,49 @@ fn load(path: string) -> Result[string, *dyn Error]:
 >     uses $0: entry -> %0 consume last
 >   local $1 $ref: FsError [read assigned captured captured-assigned] place
 >   local $2 $ref: Counted[FsError] [read assigned captured] value
->     uses $2: %26 -> %28 lend last
+>     uses $2: %24 -> %25 lend last
 >   local $4 path: string [read captured] place
 >   %0 = Read move [$0] : string
 >   %1 = Store [$4] %0 : ()
->   %2 = Release %1 #0 : ()
->   %3 = Ref local frame [$4] : Counted[string]
->   %4 = Call std/text/impl string.len[] (%3) : usize
->   %5 = Drop [%3] : ()
->   %6 = Prim Gt [%4 0:usize] : bool
->   %7 = Read borrow [$4] : string
->   %8 = Intrinsic StrConcat [%7 "!"] : string
->   %9 = NewVariant #0 [%8] : Result[string, FsError]
->   %10 = Block %9 : Result[string, FsError]
->   %11 = Read move [$4] : string
->   %12 = NewVariant #0 [%11] : FsError
->   %13 = NewVariant #1 [%12] : Result[string, FsError]
->   %14 = Block %13 : Result[string, FsError]
->   %15 = If %6 [%10 %14] : Result[string, FsError]
->   %16 = Break L0 %15 : never
->   %17 = Block - : Result[string, FsError]
->   %18 = Scope %17 [] : Result[string, FsError]
->   %19 = Drop [$4] : ()
->   %20 = Read move [%18 as #0 .0] : string
->   %21 = Block %20 : string
->   %22 = Read move [%18 as #1 .0] : FsError
->   %23 = Store [$1] %22 : ()
->   %24 = Release %23 #0 : ()
->   %25 = Ref take [$1] : Counted[FsError]
->   %26 = Store [$2] %25 : ()
->   %27 = Release %26 #0 : ()
->   %28 = Read move [$2] : Counted[FsError]
->   %29 = Coerce %28 [RefToTraitValue -] : Error
->   %30 = Retain %29 #0 : ()
->   %31 = Drop [%28] : ()
->   %32 = Block %29 : Error
->   %33 = RefDyn %32 : Counted[Error]
->   %34 = NewVariant #1 [%33] : Result[string, Counted[Error]]
->   %35 = Return %34 : never
->   %36 = Block - : never
->   %37 = SwitchTag %18 [#0 %21 %36] : string
->   %39 = Block %38 : Result[string, Counted[Error]]
->   %3 finds [$4] full
->   %7 finds [$4] full
->   %11 finds [$4] full
->   %25 finds [$1] full
+>   %2 = Ref local frame [$4] : Counted[string]
+>   %3 = Call std/text/impl string.len[] (%2) : usize
+>   %4 = Drop [%2] : ()
+>   %5 = Prim Gt [%3 0:usize] : bool
+>   %6 = Read borrow [$4] : string
+>   %7 = Intrinsic StrConcat [%6 "!"] : string
+>   %8 = NewVariant #0 [%7] : Result[string, FsError]
+>   %9 = Block %8 : Result[string, FsError]
+>   %10 = Read move [$4] : string
+>   %11 = NewVariant #0 [%10] : FsError
+>   %12 = NewVariant #1 [%11] : Result[string, FsError]
+>   %13 = Block %12 : Result[string, FsError]
+>   %14 = If %5 [%9 %13] : Result[string, FsError]
+>   %15 = Break L0 %14 : never
+>   %16 = Block - : Result[string, FsError]
+>   %17 = Scope %16 [] : Result[string, FsError]
+>   %18 = Drop [$4] : ()
+>   %19 = Read move [%17 as #0 .0] : string
+>   %20 = Block %19 : string
+>   %21 = Read move [%17 as #1 .0] : FsError
+>   %22 = Store [$1] %21 : ()
+>   %23 = Ref take [$1] : Counted[FsError]
+>   %24 = Store [$2] %23 : ()
+>   %25 = Read move [$2] : Counted[FsError]
+>   %26 = Coerce %25 [RefToTraitValue -] : Error
+>   %27 = Retain %26 #0 : ()
+>   %28 = Drop [%25] : ()
+>   %29 = Block %26 : Error
+>   %30 = RefDyn %29 : Counted[Error]
+>   %31 = NewVariant #1 [%30] : Result[string, Counted[Error]]
+>   %32 = Return %31 : never
+>   %33 = Block - : never
+>   %34 = SwitchTag %17 [#0 %20 %33] : string
+>   %36 = Block %35 : Result[string, Counted[Error]]
+>   %2 finds [$4] full
+>   %6 finds [$4] full
+>   %10 finds [$4] full
+>   %23 finds [$1] full
     .Ok(text)
->   %38 = NewVariant #0 [%37] : Result[string, Counted[Error]]
+>   %35 = NewVariant #0 [%34] : Result[string, Counted[Error]]
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

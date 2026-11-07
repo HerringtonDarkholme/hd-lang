@@ -17,15 +17,15 @@ fn drain(parcels: UniqMap[string, Parcel]) -> usize:
 >   local $1 n: usize [read assigned mutated] place
 >   local $2 $ref: UniqMapIntoIter[string, Parcel] [read assigned captured captured-assigned] place
 >   local $3 $iter: Ref[mut UniqMapIntoIter[string, Parcel]] [assigned] value
->     uses $3: %9 -> %11 lend
+>     uses $3: %8 -> %9 lend
 >   local $4 key: string [read assigned] value
->     uses $4: %36 -> %14 lend last
+>     uses $4: %34 -> %12 lend last
 >   local $5 parcel: Parcel [read assigned] value
->     uses $5: %38 -> %19 consume last
+>     uses $5: %36 -> %17 consume last
 >   local $6 self: string [read] value
->     uses $6: %20 -> %22 lend last
+>     uses $6: %18 -> %20 lend last
 >   %0 = Store [$1] 0:usize : ()
->   %55 = Block %54 : usize
+>   %53 = Block %52 : usize
     for (key, parcel) in parcels:
 >   %1 = Read move [$0] : UniqMap[string, Parcel]
 >   %2 = NewStruct [%1 0:usize] : UniqMapIntoIter[string, Parcel]
@@ -33,51 +33,49 @@ fn drain(parcels: UniqMap[string, Parcel]) -> usize:
 >   %4 = Block - : UniqMapIntoIter[string, Parcel]
 >   %5 = Scope %4 [] : UniqMapIntoIter[string, Parcel]
 >   %6 = Store [$2] %5 : ()
->   %7 = Release %6 #0 : ()
->   %8 = Ref mut local frame [$2] : Ref[mut UniqMapIntoIter[string, Parcel]]
->   %9 = Store [$3] %8 : ()
->   %10 = Release %9 #0 : ()
->   %11 = Read borrow [$3] : Ref[mut UniqMapIntoIter[string, Parcel]]
->   %12 = Call std/iter/Iterator.next for UniqMapIntoIter[string, Parcel] [(string, Parcel)] via Impl (%11) : (string, Parcel)?
+>   %7 = Ref mut local frame [$2] : Ref[mut UniqMapIntoIter[string, Parcel]]
+>   %8 = Store [$3] %7 : ()
+>   %9 = Read borrow [$3] : Ref[mut UniqMapIntoIter[string, Parcel]]
+>   %10 = Call std/iter/Iterator.next for UniqMapIntoIter[string, Parcel] [(string, Parcel)] via Impl (%9) : (string, Parcel)?
+>   %28 = Block - : ()
+>   %29 = Break L0 - : never
 >   %30 = Block - : ()
->   %31 = Break L0 - : never
->   %32 = Block - : ()
->   %33 = Read move [%12 as #1 .0] : (string, Parcel)
->   %34 = Read move [%33 .0] : string
->   %35 = Read move [%33 .1] : Parcel
->   %36 = Store [$4] %34 : ()
+>   %31 = Read move [%10 as #1 .0] : (string, Parcel)
+>   %32 = Read move [%31 .0] : string
+>   %33 = Read move [%31 .1] : Parcel
+>   %34 = Store [$4] %32 : ()
+>   %35 = Release %34 #0 : ()
+>   %36 = Store [$5] %33 : ()
 >   %37 = Release %36 #0 : ()
->   %38 = Store [$5] %35 : ()
->   %39 = Release %38 #0 : ()
->   %42 = Drop [%12] : ()
->   %46 = Block - : never
->   %47 = Match %12 [%46 %30 %32] : ()
->   %48 = Drop [$5] : ()
->   %49 = Drop [$4] : ()
->   %50 = Block - : ()
->   %51 = Loop %50 - : ()
->   %52 = LoanEnd [$3] : ()
->   %53 = Drop [$2] : ()
->   %8 finds [$2] full
->   %51 finds [$2] full
+>   %40 = Drop [%10] : ()
+>   %44 = Block - : never
+>   %45 = Match %10 [%44 %28 %30] : ()
+>   %46 = Drop [$5] : ()
+>   %47 = Drop [$4] : ()
+>   %48 = Block - : ()
+>   %49 = Loop %48 - : ()
+>   %50 = LoanEnd [$3] : ()
+>   %51 = Drop [$2] : ()
+>   %7 finds [$2] full
+>   %49 finds [$2] full
         n += key.len() + parcel.label.len()
->   %13 = Read copy [$1] : usize
->   %14 = Read borrow [$4] : string
->   %15 = Call std/rt.bytes/bytes_len[] (%14) : usize
->   %16 = Break L2 %15 : never
->   %17 = Block - : usize
->   %18 = Scope %17 [] : usize
->   %19 = Read borrow [$5 .label] : string
->   %20 = Store [$6] %19 : ()
->   %21 = Release %20 #0 : ()
->   %22 = Read borrow [$6] : string
->   %23 = Call std/rt.bytes/bytes_len[] (%22) : usize
->   %24 = Break L1 %23 : never
->   %25 = Block - : usize
->   %26 = Scope %25 [] : usize
->   %27 = Prim Add [%18 %26] : usize
->   %28 = Prim Add [%13 %27] : usize
->   %29 = Store [$1] %28 : ()
+>   %11 = Read copy [$1] : usize
+>   %12 = Read borrow [$4] : string
+>   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
+>   %14 = Break L2 %13 : never
+>   %15 = Block - : usize
+>   %16 = Scope %15 [] : usize
+>   %17 = Read borrow [$5 .label] : string
+>   %18 = Store [$6] %17 : ()
+>   %19 = Release %18 #0 : ()
+>   %20 = Read borrow [$6] : string
+>   %21 = Call std/rt.bytes/bytes_len[] (%20) : usize
+>   %22 = Break L1 %21 : never
+>   %23 = Block - : usize
+>   %24 = Scope %23 [] : usize
+>   %25 = Prim Add [%16 %24] : usize
+>   %26 = Prim Add [%11 %25] : usize
+>   %27 = Store [$1] %26 : ()
     n
->   %54 = Read copy [$1] : usize
+>   %52 = Read copy [$1] : usize
 >   exit sub 0 drops [$0]

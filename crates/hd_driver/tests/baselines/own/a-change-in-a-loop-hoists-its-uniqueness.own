@@ -13,36 +13,35 @@ fn fill(n: usize) -> List[i32]:
     let mut items: List[i32] = []
 > app/main/fill
 >   local $0 n: usize [param read] value
->     uses $0: entry -> %5 lend
+>     uses $0: entry -> %4 lend
 >   local $1 items: List[i32] [read assigned] value
->     uses $1: %1 -> %8 lend, %19 consume last
+>     uses $1: %1 -> %7 lend, %18 consume last
 >   local $2 i: usize [read assigned mutated] place
 >   %0 = NewList - [] : List[i32]
 >   %1 = Store [$1] %0 : ()
->   %2 = Release %1 #0 : ()
->   %20 = Block %19 : List[i32]
+>   %19 = Block %18 : List[i32]
     let i: usize = 0
->   %3 = Store [$2] 0:usize : ()
+>   %2 = Store [$2] 0:usize : ()
     while i < n:
->   %4 = Read copy [$2] : usize
->   %5 = Read copy [$0] : usize
->   %6 = Prim Lt [%4 %5] : bool
->   %14 = Break L0 - : never
->   %15 = Block - : ()
->   %16 = If %6 [%13 %15] : ()
->   %17 = Block - : ()
->   %18 = Loop %17 - : ()
+>   %3 = Read copy [$2] : usize
+>   %4 = Read copy [$0] : usize
+>   %5 = Prim Lt [%3 %4] : bool
+>   %13 = Break L0 - : never
+>   %14 = Block - : ()
+>   %15 = If %5 [%12 %14] : ()
+>   %16 = Block - : ()
+>   %17 = Loop %16 - : ()
         items.push(+1)
->   %7 = IsUnique fresh [$1] : ()
->   %8 = Read borrow [$1] : List[i32]
->   %9 = Intrinsic ListPush [%8 1:i32] : ()
->   %13 = Block - : ()
+>   %6 = IsUnique fresh [$1] : ()
+>   %7 = Read borrow [$1] : List[i32]
+>   %8 = Intrinsic ListPush [%7 1:i32] : ()
+>   %12 = Block - : ()
         i = i + 1
->   %10 = Read copy [$2] : usize
->   %11 = Prim Add [%10 1:usize] : usize
->   %12 = Store [$2] %11 : ()
+>   %9 = Read copy [$2] : usize
+>   %10 = Prim Add [%9 1:usize] : usize
+>   %11 = Store [$2] %10 : ()
     items
->   %19 = Read move [$1] : List[i32]
+>   %18 = Read move [$1] : List[i32]
 
 fn shift(items: &mut List[i32]) -> void:
     let i: usize = 1

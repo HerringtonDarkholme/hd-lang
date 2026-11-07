@@ -42,8 +42,6 @@
     block
       block
         block
-          local.get $s.Logger.name.0
-          local.set $s.Logger.name.0
           block
             block
               br 0
@@ -67,8 +65,6 @@
   (func $explicit (param $s.Logger.name.0 i32) (param $s.Logger.name.1 i32) (param $s.port i32) (result i32)
     ;; 27 |     s.Logger.describe().len()
     block
-      local.get $s.Logger.name.0
-      local.set $s.Logger.name.0
       block
         block
           br 0

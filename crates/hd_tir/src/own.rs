@@ -1652,9 +1652,9 @@ pub(crate) mod tests {
         );
         assert_eq!(
             text,
-            "%0 Call\n%1 Store [$1] %0\n%2 Release\n%3 Read copy [$1]\n%4 Call %3\n\
-             %5 Read move [$1]\n%6 Read move [$0]\n%7 Call %5 %6\n%8 Drop [%6]\n\
-             %9 Drop [%5]\n%10 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8 %9]\nexit 0 $0\n"
+            "%0 Call\n%1 Store [$1] %0\n%2 Read copy [$1]\n%3 Call %2\n\
+             %4 Read move [$1]\n%5 Read move [$0]\n%6 Call %4 %5\n%7 Drop [%5]\n\
+             %8 Drop [%4]\n%9 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8]\nexit 0 $0\n"
         );
     }
 
@@ -1693,12 +1693,12 @@ pub(crate) mod tests {
         assert_eq!(
             found,
             [
-                ("%3 Read copy [$0]".to_owned(), Tri::No),
-                ("%10 Read copy [$1]".to_owned(), Tri::Maybe)
+                ("%2 Read copy [$0]".to_owned(), Tri::No),
+                ("%8 Read copy [$1]".to_owned(), Tri::Maybe)
             ],
             "{text}"
         );
-        assert!(text.contains("%5 Read move [$0]"), "{text}");
+        assert!(text.contains("%4 Read move [$0]"), "{text}");
     }
 
     /// A value made before a loop and consumed inside it: the consumer
@@ -1940,10 +1940,10 @@ pub(crate) mod tests {
         );
         assert_eq!(
             text,
-            "%0 Call\n%1 Store [$0] %0\n%2 Release\n%3 Read borrow [$0]\n\
-             %4 Call %3\n%5 Read move [$0]\n%6 Call\n%7 Store [$0] %6\n%8 Release\n\
-             %9 Call %5\n%10 Drop [%5]\n%11 Read move [$0]\n%12 Call %11\n\
-             %13 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8 %9 %10 %11 %12]\n"
+            "%0 Call\n%1 Store [$0] %0\n%2 Read borrow [$0]\n%3 Call %2\n\
+             %4 Read move [$0]\n%5 Call\n%6 Store [$0] %5\n%7 Release\n%8 Call %4\n\
+             %9 Drop [%4]\n%10 Read move [$0]\n%11 Call %10\n\
+             %12 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8 %9 %10 %11]\n"
         );
     }
 
@@ -2376,11 +2376,11 @@ pub(crate) mod tests {
         );
         assert_eq!(
             text,
-            "%0 Call\n%1 Store [$0] %0\n%2 Release\n%3 Call\n%4 Store [$1] %3\n\
-             %5 Release\n%6 Call\n%7 Read move [$0]\n%8 Call %7\n\
-             %9 Read move [$1]\n%10 Call %9\n%11 Block [%7 %8 %9 %10]\n\
-             %12 Read move [$0]\n%13 Call %12\n%14 Block [%12 %13]\n%15 If %6\n\
-             %16 Drop [$1]\n%17 Block [%0 %1 %2 %3 %4 %5 %6 %11 %14 %15 %16]\n"
+            "%0 Call\n%1 Store [$0] %0\n%2 Call\n%3 Store [$1] %2\n%4 Call\n\
+             %5 Read move [$0]\n%6 Call %5\n%7 Read move [$1]\n%8 Call %7\n\
+             %9 Block [%5 %6 %7 %8]\n%10 Read move [$0]\n%11 Call %10\n\
+             %12 Block [%10 %11]\n%13 If %4\n%14 Drop [$1]\n\
+             %15 Block [%0 %1 %2 %3 %4 %9 %12 %13 %14]\n"
         );
     }
 
@@ -2448,7 +2448,7 @@ pub(crate) mod tests {
         );
         assert!(text.contains("exit 0 $1\n"), "{text}");
         assert!(!text.contains("exit 0 $0"), "{text}");
-        assert!(text.contains("unwind %10 %8\nunwind %10 %9\n"), "{text}");
+        assert!(text.contains("unwind %8 %6\nunwind %8 %7\n"), "{text}");
     }
 
     /// Move's rule 4: a `Ref` of a celled local at its last access takes

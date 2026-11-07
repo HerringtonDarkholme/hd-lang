@@ -4,7 +4,7 @@
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
-  (func $wrap_all (param $errors i32) (result i32) (local $t0 i32) (local $t1 i32) (local $e.0 i32) (local $t2 i32) (local $e.1 i32) (local $e.2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
+  (func $wrap_all (param $errors i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $e.0 i32) (local $e.1 i32) (local $e.2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
     ;; 15 |     [for e in errors => SyncError.Fs(e)]
     block
       i32.const 24 ;; &empty-buffer
@@ -12,13 +12,15 @@
       local.get $errors
       i32.load $heap offset=4
       local.tee $t1
-      local.tee $e.0
+      local.tee $t2
       if
         local.get $t0
-        local.get $e.0
+        local.get $t2
         call $rt:list_reserve
         local.set $t0
       end
+      i32.const 0
+      local.set $t2
       block
         loop
           local.get $t2
@@ -110,7 +112,7 @@
     end
     local.get $errors
   )
-  (func $wrap_with'1 (param $errors i32) (param $wrap.0 i32) (param $wrap.1 i32) (result i32) (local $t0 i32) (local $e.0 i32) (local $t1 i32) (local $e.1 i32) (local $e.2 i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
+  (func $wrap_with'1 (param $errors i32) (param $wrap.0 i32) (param $wrap.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $e.0 i32) (local $e.1 i32) (local $e.2 i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
     ;; 18 |     [for e in errors => wrap(e)]
     block
       i32.const 24 ;; &empty-buffer
@@ -118,13 +120,15 @@
       local.get $errors
       i32.load $heap offset=4
       local.tee $t0
-      local.tee $e.0
+      local.tee $t1
       if
         local.get $wrap.0
-        local.get $e.0
+        local.get $t1
         call $rt:list_reserve
         local.set $wrap.0
       end
+      i32.const 0
+      local.set $t1
       block
         loop
           local.get $t1
@@ -219,7 +223,7 @@
     end
     local.get $errors
   )
-  (func $wrap_with'2 (param $errors i32) (param $wrap.0 i32) (param $wrap.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $e.0 i32) (local $t2 i32) (local $e.1 i32) (local $e.2 i32) (local $t4 i32) (local $t3 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32)
+  (func $wrap_with'2 (param $errors i32) (param $wrap.0 i32) (param $wrap.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $e.0 i32) (local $e.1 i32) (local $e.2 i32) (local $t4 i32) (local $t3 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32)
     ;; 18 |     [for e in errors => wrap(e)]
     block
       i32.const 24 ;; &empty-buffer
@@ -227,13 +231,15 @@
       local.get $errors
       i32.load $heap offset=4
       local.tee $t1
-      local.tee $e.0
+      local.tee $t2
       if
         local.get $t0
-        local.get $e.0
+        local.get $t2
         call $rt:list_reserve
         local.set $t0
       end
+      i32.const 0
+      local.set $t2
       block
         loop
           local.get $t2

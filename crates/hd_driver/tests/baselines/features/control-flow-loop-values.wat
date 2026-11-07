@@ -150,8 +150,6 @@
   (func $forever (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t0 i32)
     ;; 24 |     let out = s
     block
-      local.get $s.0
-      local.set $s.0
     ;; 25 |     while true:
       block
         loop

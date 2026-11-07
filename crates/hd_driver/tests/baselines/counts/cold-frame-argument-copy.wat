@@ -8,7 +8,7 @@
   (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
   (import "fixture" "rt:frame" (func $rt:frame (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $length'1 (param $frame i32) (param $text.0 i32) (param $text.1 i32) (result i32 i32) (local $t1 i32) (local $t2 i32) (local $t0 i32)
+  (func $length'1 (param $frame i32) (param $text.0 i32) (param $text.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
     ;; 5 |     text.len()
     local.get $frame
     if
@@ -35,27 +35,20 @@
       local.get $frame
       i32.load $heap offset=32
       local.set $t1
-      local.get $frame
-      i32.load $heap offset=48
-      local.set $t2
     else
       local.get $text.0
       call $retain
     end
     block
-      local.get $text.0
-      local.get $t2
-      call $rt:release_ref
-      local.set $t2
       block
         block
-          local.get $text.1
-          local.set $text.0
           br 0
         end
       end
-      local.get $t2
+      local.get $text.0
       call $rt:release_ref
+      local.get $text.1
+      local.set $text.0
     end
     local.get $text.0
     local.get $frame

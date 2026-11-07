@@ -12,7 +12,6 @@
     ;; 23 |     let mut out = m
     block
       local.get $m
-      local.tee $m
     ;; 24 |     reward(&mut out[k], 10)
       local.get $k.0
       local.get $k.1

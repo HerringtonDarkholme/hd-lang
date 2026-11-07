@@ -60,7 +60,6 @@
       i32.const 80 ;; &empty-buffer
       i32.store $heap
       local.get $tally
-      local.tee $tally
     ;; 29 |     $.with(Recorder=tally):
       local.tee $t0
       call $retain

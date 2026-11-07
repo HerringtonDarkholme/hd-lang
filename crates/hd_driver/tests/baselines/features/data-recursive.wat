@@ -7,9 +7,6 @@
   (func $total (param $head i32) (result i32) (local $n i32) (local $c i32) (local $t0 i32)
     ;; 15 |     let n: usize = 0
     block
-    ;; 16 |     let cur = head
-      local.get $head
-      local.set $head
     ;; 17 |     while true:
       block
         loop

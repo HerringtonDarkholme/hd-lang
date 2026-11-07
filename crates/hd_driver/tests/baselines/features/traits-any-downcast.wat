@@ -53,8 +53,6 @@
     ;; 14 |         .Some(user) => user.name
             local.get $value.0
             if
-              local.get $value.0
-              local.set $value.0
               br 1
             else
     ;; 15 |         .None => "not a user"

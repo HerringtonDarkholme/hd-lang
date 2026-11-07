@@ -52,28 +52,27 @@ fn read_len(n: Names, i: usize) -> usize:
 >   local $1 i: usize [param read] value
 >     uses $1: entry -> %1 consume last
 >   local $2 self: Ref[Names] [read] value
->     uses $2: %2 -> %7 lend last
+>     uses $2: %2 -> %6 lend last
 >   local $3 key: usize [read] value
->     uses $3: %4 -> %5 lend last
+>     uses $3: %3 -> %4 lend last
 >   %0 = Ref local frame [$0] : Ref[Names]
 >   %1 = Read copy [$1] : usize
 >   %2 = Store [$2] %0 : ()
->   %3 = Release %2 #0 : ()
->   %4 = Store [$3] %1 : ()
->   %5 = Read copy [$3] : usize
->   %6 = IsUnique [*$2 .items] : ()
->   %7 = Ref local [*$2 .items [%5]] : Ref[string]
->   %8 = Break L0 %7 : never
->   %9 = Block - : Ref[string]
->   %10 = Scope %9 [] : Ref[string]
->   %11 = Ref local [*%10] : Ref[string]
->   %12 = LoanEnd [%10] : ()
->   %13 = Call std/text/impl string.len[] (%11) : usize
->   %14 = Drop [%11] : ()
->   %15 = Drop [$2] : ()
->   %16 = Drop [$0] : ()
->   %17 = Block %13 : usize
->   %6 owned: single-owner field
+>   %3 = Store [$3] %1 : ()
+>   %4 = Read copy [$3] : usize
+>   %5 = IsUnique [*$2 .items] : ()
+>   %6 = Ref local [*$2 .items [%4]] : Ref[string]
+>   %7 = Break L0 %6 : never
+>   %8 = Block - : Ref[string]
+>   %9 = Scope %8 [] : Ref[string]
+>   %10 = Ref local [*%9] : Ref[string]
+>   %11 = LoanEnd [%9] : ()
+>   %12 = Call std/text/impl string.len[] (%10) : usize
+>   %13 = Drop [%10] : ()
+>   %14 = Drop [$2] : ()
+>   %15 = Drop [$0] : ()
+>   %16 = Block %12 : usize
+>   %5 owned: single-owner field
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes
 
@@ -114,42 +113,39 @@ fn generic_first(xs: List[string]) -> usize:
 >   local $0 xs: List[string] [param read] value
 >     uses $0: entry -> %0 consume last
 >   local $1 $ref: string [read assigned captured captured-assigned] value
->     uses $1: %21 -> %23 lend last
+>     uses $1: %19 -> %20 lend last
 >   local $3 items: List[string] [read captured] place
 >   local $4 self: Ref[List[string]] [read] value
->     uses $4: %4 -> %9 lend last
+>     uses $4: %3 -> %7 lend last
 >   local $5 key: usize [read] value
->     uses $5: %6 -> %7 lend last
+>     uses $5: %4 -> %5 lend last
 >   %0 = Read move [$0] : List[string]
 >   %1 = Store [$3] %0 : ()
->   %2 = Release %1 #0 : ()
->   %3 = Ref local frame [$3] : Ref[List[string]]
->   %4 = Store [$4] %3 : ()
->   %5 = Release %4 #0 : ()
->   %6 = Store [$5] 0:usize : ()
->   %7 = Read copy [$5] : usize
->   %8 = IsUnique [*$4] : ()
->   %9 = Ref local [*$4 [%7]] : Ref[string]
->   %10 = Break L1 %9 : never
->   %11 = Block - : Ref[string]
->   %12 = Scope %11 [] : Ref[string]
->   %13 = Read copy [*%12] : string
->   %14 = LoanEnd [%12] : ()
+>   %2 = Ref local frame [$3] : Ref[List[string]]
+>   %3 = Store [$4] %2 : ()
+>   %4 = Store [$5] 0:usize : ()
+>   %5 = Read copy [$5] : usize
+>   %6 = IsUnique [*$4] : ()
+>   %7 = Ref local [*$4 [%5]] : Ref[string]
+>   %8 = Break L1 %7 : never
+>   %9 = Block - : Ref[string]
+>   %10 = Scope %9 [] : Ref[string]
+>   %11 = Read copy [*%10] : string
+>   %12 = LoanEnd [%10] : ()
+>   %13 = LoanEnd [$4] : ()
+>   %14 = Break L2 %11 : never
 >   %15 = LoanEnd [$4] : ()
->   %16 = Break L2 %13 : never
->   %17 = LoanEnd [$4] : ()
->   %18 = Block - : string
->   %19 = Scope %18 [] : string
->   %20 = Drop [$3] : ()
->   %21 = Store [$1] %19 : ()
->   %22 = Release %21 #0 : ()
->   %23 = Read borrow [$1] : string
->   %24 = Call std/rt.bytes/bytes_len[] (%23) : usize
->   %25 = Break L0 %24 : never
->   %26 = Block - : usize
->   %27 = Scope %26 [] : usize
->   %28 = Drop [$1] : ()
->   %29 = Block %27 : usize
->   %3 finds [$3] full
+>   %16 = Block - : string
+>   %17 = Scope %16 [] : string
+>   %18 = Drop [$3] : ()
+>   %19 = Store [$1] %17 : ()
+>   %20 = Read borrow [$1] : string
+>   %21 = Call std/rt.bytes/bytes_len[] (%20) : usize
+>   %22 = Break L0 %21 : never
+>   %23 = Block - : usize
+>   %24 = Scope %23 [] : usize
+>   %25 = Drop [$1] : ()
+>   %26 = Block %24 : usize
+>   %2 finds [$3] full
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes

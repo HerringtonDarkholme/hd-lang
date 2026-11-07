@@ -10,6 +10,4 @@ app/main/main
   release string (cancelled)
   release string (last use)
   release string (last use)
-  release string (overwritten)
   release string (last use)
-  release string (overwritten)

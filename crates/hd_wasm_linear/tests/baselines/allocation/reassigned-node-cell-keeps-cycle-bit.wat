@@ -4,39 +4,43 @@
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $make_cycle (result i32) (local $parent i32) (local $t0 i32) (local $t1 i32)
+  (func $make_cycle (result i32) (local $t0 i32) (local $t1 i32)
     ;; 9 |     let node = box(Node { next: .None })
     block
       i32.const 4
       i32.const -2147483646
       call $rt:new/class-1
-      local.tee $parent
+      local.tee $t0
       i32.const 0
       i32.store $heap
     ;; 10 |     parent := box(Node { next: .Some(node) })
       i32.const 4
       i32.const -2147483646
       call $rt:new/class-1
-      local.tee $t0
+      local.tee $t1
     ;; 9 |     let node = box(Node { next: .None })
-      local.get $parent
+      local.get $t0
     ;; 10 |     parent := box(Node { next: .Some(node) })
       i32.store $heap
-      local.get $t0
-      local.tee $parent
+      local.get $t1
     ;; 11 |     node = box(Node { next: .Some(parent) })
-      local.tee $t0
       call $rt:retain_known
       i32.const 4
       i32.const -2147483646
       call $rt:new/class-1
-      local.tee $t1
-      local.get $t0
-      i32.store $heap
+      local.tee $t0
+    ;; 10 |     parent := box(Node { next: .Some(node) })
       local.get $t1
+    ;; 11 |     node = box(Node { next: .Some(parent) })
+      i32.store $heap
+      local.get $t0
     ;; 9 |     let node = box(Node { next: .None })
       call $rt:release_ref
+    ;; 10 |     parent := box(Node { next: .Some(node) })
+      local.get $t1
+    ;; 9 |     let node = box(Node { next: .None })
+      local.set $t0
     end
-    local.get $parent
+    local.get $t0
   )
 )

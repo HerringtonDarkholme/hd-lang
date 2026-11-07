@@ -109,8 +109,6 @@
             br 0
           end
         end
-        local.get $t2
-        local.set $t2
         block
           block
             local.get $self
@@ -368,8 +366,6 @@
         local.get $self
         local.get $t1
         i32.store $heap offset=8
-        local.get $self
-        local.set $self
         i32.const 1
         local.get $self
         i32.const 468 ;; &vtable[func71]
@@ -602,8 +598,6 @@
             br 0
           end
         end
-        local.get $self
-        local.set $self
         block
           block
             local.get $t1

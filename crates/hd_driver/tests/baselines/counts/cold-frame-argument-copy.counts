@@ -6,7 +6,6 @@ fn length!(text: string) -> usize:
     text.len()
 > app/main/length
 >   retain string (conservative: entry)
->   release string (overwritten)
 >   release string (last use)
 > app/main/length
 >   release string (conservative: frame drop)

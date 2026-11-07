@@ -19,14 +19,11 @@
     ;; 12 |     by := if reverse: fn(a: &i32, b: &i32): *b - *a else: fn(a: &i32, b: &i32): *a - *b
     block
       local.get $reverse
-      if
+      if (result i32)
         i32.const 0
-        local.set $reverse
       else
         i32.const 1
-        local.set $reverse
       end
-      local.get $reverse
     ;; 13 |     apply(by, left, right)
       i32.const 0
       local.get $left

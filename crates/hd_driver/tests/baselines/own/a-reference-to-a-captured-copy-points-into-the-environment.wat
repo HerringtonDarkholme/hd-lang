@@ -229,8 +229,6 @@
           br 0
         end
       end
-      local.get $env
-      local.set $env
       block
         block
           local.get $p.name.0

@@ -46,65 +46,61 @@ fn total(a: User, b: User) -> usize:
 >   local $2 seen: List[Ref[User]] [read assigned captured captured-assigned] place
 >   local $3 by: Map[string, Ref[User]] [read assigned captured captured-assigned] place
 >   local $4 self: string [read] value
->     uses $4: %30 -> %32 lend last
+>     uses $4: %27 -> %28 lend last
 >   local $5 self: string [read] value
->     uses $5: %22 -> %24 lend last
+>     uses $5: %20 -> %21 lend last
 >   %0 = NewList - [] : List[Ref[User]]
 >   %1 = Store [$2] %0 : ()
->   %2 = Release %1 #0 : ()
->   %45 = Block %44 : usize
+>   %41 = Block %40 : usize
     remember(&mut seen, &a)
->   %3 = Ref mut local frame [$2] : Counted[mut List[Ref[User]]]
->   %4 = Ref local frame [$0] : Counted[User]
->   %5 = Call app/main/remember[] (%3, %4) : ()
->   %6 = Drop [%4] : ()
->   %7 = Drop [%3] : ()
->   %3 finds [$2] full
+>   %2 = Ref mut local frame [$2] : Counted[mut List[Ref[User]]]
+>   %3 = Ref local frame [$0] : Counted[User]
+>   %4 = Call app/main/remember[] (%2, %3) : ()
+>   %5 = Drop [%3] : ()
+>   %6 = Drop [%2] : ()
+>   %2 finds [$2] full
     remember(&mut seen, &b)
->   %8 = Ref mut local frame [$2] : Counted[mut List[Ref[User]]]
->   %9 = Ref local frame [$1] : Counted[User]
->   %10 = Call app/main/remember[] (%8, %9) : ()
->   %11 = Drop [%9] : ()
->   %12 = Drop [%8] : ()
->   %8 finds [$2] full
+>   %7 = Ref mut local frame [$2] : Counted[mut List[Ref[User]]]
+>   %8 = Ref local frame [$1] : Counted[User]
+>   %9 = Call app/main/remember[] (%7, %8) : ()
+>   %10 = Drop [%8] : ()
+>   %11 = Drop [%7] : ()
+>   %7 finds [$2] full
     let mut by: Map[string, &User] = {}
->   %13 = NewMap [] : Map[string, Ref[User]]
->   %14 = Store [$3] %13 : ()
->   %15 = Release %14 #0 : ()
+>   %12 = NewMap [] : Map[string, Ref[User]]
+>   %13 = Store [$3] %12 : ()
     index(&mut by, &a)
->   %16 = Ref mut local frame [$3] : Counted[mut Map[string, Ref[User]]]
->   %17 = Ref local frame [$0] : Counted[User]
->   %18 = Call app/main/index[] (%16, %17) : ()
->   %19 = Drop [%17] : ()
->   %20 = Drop [%16] : ()
->   %16 finds [$3] full
+>   %14 = Ref mut local frame [$3] : Counted[mut Map[string, Ref[User]]]
+>   %15 = Ref local frame [$0] : Counted[User]
+>   %16 = Call app/main/index[] (%14, %15) : ()
+>   %17 = Drop [%15] : ()
+>   %18 = Drop [%14] : ()
+>   %14 finds [$3] full
     seen[0].name.len() + seen[1].name.len() + by.len()
->   %21 = Read borrow [$2 [0:usize] * .name] : string
->   %22 = Store [$5] %21 : ()
->   %23 = Release %22 #0 : ()
->   %24 = Read borrow [$5] : string
->   %25 = Call std/rt.bytes/bytes_len[] (%24) : usize
->   %26 = Break L1 %25 : never
->   %27 = Block - : usize
->   %28 = Scope %27 [] : usize
->   %29 = Read borrow [$2 [1:usize] * .name] : string
->   %30 = Store [$4] %29 : ()
->   %31 = Release %30 #0 : ()
->   %32 = Read borrow [$4] : string
->   %33 = Call std/rt.bytes/bytes_len[] (%32) : usize
->   %34 = Break L0 %33 : never
->   %35 = Block - : usize
->   %36 = Scope %35 [] : usize
->   %37 = Drop [$2] : ()
->   %38 = Drop [$1] : ()
->   %39 = Prim Add [%28 %36] : usize
->   %40 = Read move [$3] : Map[string, Ref[User]]
->   %41 = Intrinsic MapLen [%40] : usize
->   %42 = Drop [%40] : ()
->   %43 = Drop [$0] : ()
->   %44 = Prim Add [%39 %41] : usize
->   %21 finds [$2] full
->   %29 finds [$2] full
->   %40 finds [$3] full
+>   %19 = Read borrow [$2 [0:usize] * .name] : string
+>   %20 = Store [$5] %19 : ()
+>   %21 = Read borrow [$5] : string
+>   %22 = Call std/rt.bytes/bytes_len[] (%21) : usize
+>   %23 = Break L1 %22 : never
+>   %24 = Block - : usize
+>   %25 = Scope %24 [] : usize
+>   %26 = Read borrow [$2 [1:usize] * .name] : string
+>   %27 = Store [$4] %26 : ()
+>   %28 = Read borrow [$4] : string
+>   %29 = Call std/rt.bytes/bytes_len[] (%28) : usize
+>   %30 = Break L0 %29 : never
+>   %31 = Block - : usize
+>   %32 = Scope %31 [] : usize
+>   %33 = Drop [$2] : ()
+>   %34 = Drop [$1] : ()
+>   %35 = Prim Add [%25 %32] : usize
+>   %36 = Read move [$3] : Map[string, Ref[User]]
+>   %37 = Intrinsic MapLen [%36] : usize
+>   %38 = Drop [%36] : ()
+>   %39 = Drop [$0] : ()
+>   %40 = Prim Add [%35 %37] : usize
+>   %19 finds [$2] full
+>   %26 finds [$2] full
+>   %36 finds [$3] full
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1] writes

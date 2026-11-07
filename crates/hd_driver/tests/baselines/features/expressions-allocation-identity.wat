@@ -26,8 +26,6 @@
     ;; 18 |     let second: &mut dyn Named = user
       local.get $user
       call $retain
-      local.get $user
-      local.set $user
     ;; 19 |     first is second
       local.tee $t0
       i64.extend_i32_u

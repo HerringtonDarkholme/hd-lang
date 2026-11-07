@@ -76,45 +76,44 @@
     end
     local.get $f.0
   )
-  (func $demo (param $s.0 i32) (param $s.1 i32) (result i32) (local $step.1 i32)
+  (func $demo (param $s.0 i32) (param $s.1 i32) (result i32) (local $origin i32)
     ;; 15 |     origin := box(Point { name: s, x: 0 })
     block
       i32.const 12
       i32.const 4
       call $rt:new/class-2
-      local.tee $step.1
+      local.tee $origin
       local.get $s.0
       i32.store $heap
-      local.get $step.1
+      local.get $origin
       local.get $s.1
       i32.store $heap offset=4
-      local.get $step.1
+      local.get $origin
       i32.const 0
       i32.store $heap offset=8
-      local.get $step.1
-      local.tee $s.0
+      local.get $origin
     ;; 16 |     step := bump(origin)
       call $bump
-      local.set $step.1
       local.set $s.1
+      local.set $s.0
     ;; 17 |     step()
-      local.get $step.1
-      i32.const 0
       local.get $s.1
+      i32.const 0
+      local.get $s.0
       call_indirect $table0 (param i32 i32)
     ;; 18 |     step()
-      local.get $step.1
-      i32.const 0
       local.get $s.1
+      i32.const 0
+      local.get $s.0
       call_indirect $table0 (param i32 i32)
-      local.get $step.1
+      local.get $s.1
     ;; 15 |     origin := box(Point { name: s, x: 0 })
       call $rt:release_ref
     ;; 19 |     origin.x
-      local.get $s.0
+      local.get $origin
       i32.load $heap offset=8
     ;; 15 |     origin := box(Point { name: s, x: 0 })
-      local.get $s.0
+      local.get $origin
       call $rt:release_ref
       local.set $s.0
     end

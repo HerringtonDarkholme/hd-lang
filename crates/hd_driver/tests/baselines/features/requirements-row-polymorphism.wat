@@ -24,10 +24,6 @@
   (func $"with_tag[^241]'2" (param $s.0 i32) (param $s.1 i32) (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32)
     ;; 22 |     $.with(Tag=Named { label: s }):
     block
-      local.get $s.0
-      local.get $s.1
-      local.set $s.1
-      local.set $s.0
       block
         block
           i32.const 8
@@ -147,10 +143,6 @@
   (func $"with_tag[^241]'1" (param $s.0 i32) (param $s.1 i32) (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32)
     ;; 22 |     $.with(Tag=Named { label: s }):
     block
-      local.get $s.0
-      local.get $s.1
-      local.set $s.1
-      local.set $s.0
       block
         block
           i32.const 8

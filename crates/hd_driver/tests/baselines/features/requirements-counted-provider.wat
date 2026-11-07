@@ -18,7 +18,7 @@
     local.get $provider0
     local.get $provider0.vtable
   )
-  (func $fetch'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t1 i32) (local $t2 i32) (local $t0 i32)
+  (func $fetch'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
     ;; 21 |     $.use(Store).get().len()
     local.get $frame
     if
@@ -45,9 +45,6 @@
       local.get $frame
       i32.load $heap offset=32
       local.set $t1
-      local.get $frame
-      i32.load $heap offset=72
-      local.set $t2
     else
     end
     block
@@ -55,17 +52,17 @@
       local.get $provider0.vtable
       i32.load $heap
       call_indirect $table0 (param i32) (result i32 i32)
-      local.get $t2
-      call $rt:release_ref
+      local.set $provider0.vtable
       local.set $provider0
-      local.set $t2
       block
         block
           br 0
         end
       end
-      local.get $t2
+      local.get $provider0
       call $rt:release_ref
+      local.get $provider0.vtable
+      local.set $provider0
     end
     local.get $provider0
     local.get $frame

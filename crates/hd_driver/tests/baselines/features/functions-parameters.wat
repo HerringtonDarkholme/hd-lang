@@ -99,8 +99,6 @@
   (func $last_use (param $t.name.0 i32) (param $t.name.1 i32) (param $t.tags i32) (param $s.0 i32) (param $s.1 i32) (result i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 21 |     bumped(t, s)
     block
-      local.get $t.name.0
-      local.set $t.name.0
       block
         block
           local.get $t.tags

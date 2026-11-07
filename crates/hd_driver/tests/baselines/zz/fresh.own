@@ -4,110 +4,106 @@ fn digits(value: u64) -> List[u8]:
     let mut buf: List[u8] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 > app/main/digits
 >   local $0 value: u64 [param read] value
->     uses $0: entry -> %4 consume last
+>     uses $0: entry -> %3 consume last
 >   local $1 buf: List[u8] [read assigned] place
 >   local $2 i: usize [read assigned mutated] place
 >   local $3 v: u64 [read assigned mutated] place
 >   %0 = NewList - [0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8 0:u8] : List[u8]
 >   %1 = Store [$1] %0 : ()
->   %2 = Release %1 #0 : ()
->   %24 = Block %23 : List[u8]
+>   %23 = Block %22 : List[u8]
     let i: usize = 21
->   %3 = Store [$2] 21:usize : ()
+>   %2 = Store [$2] 21:usize : ()
     let v = value
->   %4 = Read copy [$0] : u64
->   %5 = Store [$3] %4 : ()
+>   %3 = Read copy [$0] : u64
+>   %4 = Store [$3] %3 : ()
     while v > 0:
->   %6 = IsUnique hoisted [$1] : ()
->   %7 = Read copy [$3] : u64
->   %8 = Prim Gt [%7 0:u64] : bool
->   %18 = Break L0 - : never
->   %19 = Block - : ()
->   %20 = If %8 [%17 %19] : ()
->   %21 = Block - : ()
->   %22 = Loop %21 - : ()
+>   %5 = IsUnique hoisted [$1] : ()
+>   %6 = Read copy [$3] : u64
+>   %7 = Prim Gt [%6 0:u64] : bool
+>   %17 = Break L0 - : never
+>   %18 = Block - : ()
+>   %19 = If %7 [%16 %18] : ()
+>   %20 = Block - : ()
+>   %21 = Loop %20 - : ()
         i = i - 1
->   %9 = Read copy [$2] : usize
->   %10 = Prim Sub [%9 1:usize] : usize
->   %11 = Store [$2] %10 : ()
->   %17 = Block - : ()
+>   %8 = Read copy [$2] : usize
+>   %9 = Prim Sub [%8 1:usize] : usize
+>   %10 = Store [$2] %9 : ()
+>   %16 = Block - : ()
         buf[i] = 49
->   %12 = Read copy [$2] : usize
->   %13 = Store [$1 [%12]] 49:u8 : ()
+>   %11 = Read copy [$2] : usize
+>   %12 = Store [$1 [%11]] 49:u8 : ()
         v = v / 10
->   %14 = Read copy [$3] : u64
->   %15 = Prim Div [%14 10:u64] : u64
->   %16 = Store [$3] %15 : ()
+>   %13 = Read copy [$3] : u64
+>   %14 = Prim Div [%13 10:u64] : u64
+>   %15 = Store [$3] %14 : ()
     buf
->   %23 = Read move [$1] : List[u8]
->   loop %22 keeps [$1]
+>   %22 = Read move [$1] : List[u8]
+>   loop %21 keeps [$1]
 
 fn pushes(n: usize) -> List[i32]:
     let mut items: List[i32] = []
 > app/main/pushes
 >   local $0 n: usize [param read] value
->     uses $0: entry -> %6 lend last
+>     uses $0: entry -> %5 lend last
 >   local $1 items: List[i32] [read assigned captured captured-assigned] place
 >   local $2 p: i32? [assigned] value
 >     uses $2: none
 >   %0 = NewList - [] : List[i32]
 >   %1 = Store [$1] %0 : ()
->   %2 = Release %1 #0 : ()
->   %20 = Block %19 : List[i32]
+>   %19 = Block %18 : List[i32]
     items.push(+1)
->   %3 = IsUnique [$1] : ()
->   %4 = Read borrow [$1] : List[i32]
->   %5 = Intrinsic ListPush [%4 1:i32] : ()
+>   %2 = IsUnique [$1] : ()
+>   %3 = Read borrow [$1] : List[i32]
+>   %4 = Intrinsic ListPush [%3 1:i32] : ()
+>   %2 finds [$1] full
 >   %3 finds [$1] full
->   %4 finds [$1] full
     if n > 2:
->   %6 = Read copy [$0] : usize
->   %7 = Prim Gt [%6 2:usize] : bool
->   %12 = If %7 [%11 -] : ()
+>   %5 = Read copy [$0] : usize
+>   %6 = Prim Gt [%5 2:usize] : bool
+>   %11 = If %6 [%10 -] : ()
         items.push(+2)
->   %8 = IsUnique [$1] : ()
->   %9 = Read borrow [$1] : List[i32]
->   %10 = Intrinsic ListPush [%9 2:i32] : ()
->   %11 = Block - : ()
+>   %7 = IsUnique [$1] : ()
+>   %8 = Read borrow [$1] : List[i32]
+>   %9 = Intrinsic ListPush [%8 2:i32] : ()
+>   %10 = Block - : ()
+>   %7 finds [$1] full
 >   %8 finds [$1] full
->   %9 finds [$1] full
     items[0] = +3
->   %13 = IsUnique [$1] : ()
->   %14 = Store [$1 [0:usize]] 3:i32 : ()
+>   %12 = IsUnique [$1] : ()
+>   %13 = Store [$1 [0:usize]] 3:i32 : ()
+>   %12 finds [$1] full
 >   %13 finds [$1] full
->   %14 finds [$1] full
     let p = items.pop()
->   %15 = Ref mut local frame [$1] : Counted[mut List[i32]]
->   %16 = Call std/collections/impl [ T ] List [ T ].pop[i32] (%15) : i32?
->   %17 = Drop [%15] : ()
->   %18 = Store [$2] %16 : ()
->   %15 finds [$1] full
+>   %14 = Ref mut local frame [$1] : Counted[mut List[i32]]
+>   %15 = Call std/collections/impl [ T ] List [ T ].pop[i32] (%14) : i32?
+>   %16 = Drop [%14] : ()
+>   %17 = Store [$2] %15 : ()
+>   %14 finds [$1] full
     items
->   %19 = Read move [$1] : List[i32]
->   %19 finds [$1] full
+>   %18 = Read move [$1] : List[i32]
+>   %18 finds [$1] full
 
 fn copied(n: usize) -> List[i32]:
     let mut items: List[i32] = [+1]
 > app/main/copied
 >   local $1 items: List[i32] [read assigned] place
 >   local $2 other: List[i32] [:= read assigned] value
->     uses $2: %4 -> %9 lend last
+>     uses $2: %3 -> %7 lend last
 >   %0 = NewList - [1:i32] : List[i32]
 >   %1 = Store [$1] %0 : ()
->   %2 = Release %1 #0 : ()
->   %14 = Block %13 : List[i32]
+>   %12 = Block %11 : List[i32]
     other := items
->   %3 = Read copy [$1] : List[i32]
->   %4 = Store [$2] %3 : ()
->   %5 = Release %4 #0 : ()
+>   %2 = Read copy [$1] : List[i32]
+>   %3 = Store [$2] %2 : ()
     items.push(+2)
->   %6 = IsUnique [$1] : ()
->   %7 = Read borrow [$1] : List[i32]
->   %8 = Intrinsic ListPush [%7 2:i32] : ()
+>   %4 = IsUnique [$1] : ()
+>   %5 = Read borrow [$1] : List[i32]
+>   %6 = Intrinsic ListPush [%5 2:i32] : ()
     items[0] = other[0]
->   %9 = Read copy [$2 [0:usize]] : i32
->   %10 = Drop [$2] : ()
->   %11 = IsUnique [$1] : ()
->   %12 = Store [$1 [0:usize]] %9 : ()
+>   %7 = Read copy [$2 [0:usize]] : i32
+>   %8 = Drop [$2] : ()
+>   %9 = IsUnique [$1] : ()
+>   %10 = Store [$1 [0:usize]] %7 : ()
     items
->   %13 = Read move [$1] : List[i32]
+>   %11 = Read move [$1] : List[i32]

@@ -2,13 +2,13 @@
 app/main/calls
   local $0 xs: List[i64] [param read captured] place
   local $1 g: fn(i64) -> i64 [read] value
-    uses $1: %15 -> %18 lend last
+    uses $1: %15 -> %17 lend last
   local $2 x: i64 [read] value
-    uses $2: %17 -> %19 consume last
+    uses $2: %16 -> %18 consume last
   local $3 x: i64 [read] value
     uses $3: %0 -> %1 lend last
   local $4 x: i64 [read] value
-    uses $4: %20 -> %21 lend last
+    uses $4: %19 -> %20 lend last
   %0 = Store [$3] 1:i64 : ()
   %1 = Read copy [$3] : i64
   %2 = Call app/main/long[] (%1) : i64
@@ -25,29 +25,28 @@ app/main/calls
   %13 = Prim Add [%8 %10] : i64
   %14 = ItemRef #33 [..] : fn(i64) -> i64
   %15 = Store [$1] %14 : ()
-  %16 = Release %15 #0 : ()
-  %17 = Store [$2] 3:i64 : ()
-  %18 = Read borrow [$1] : fn(i64) -> i64
-  %19 = Read copy [$2] : i64
-  %20 = Store [$4] %19 : ()
-  %21 = Read copy [$4] : i64
-  %22 = Prim Div [%21 2:i64] : i64
-  %23 = Break L2 %22 : never
-  %24 = Block - : i64
-  %25 = Scope %24 [] : i64
-  %26 = Break L0 %25 : never
-  %27 = Block - : i64
-  %28 = Scope %27 [] : i64
-  %29 = Drop [$1] : ()
-  %30 = Prim Add [%13 %28] : i64
-  %31 = Call app/main/make[] (4:i64) : fn(i64) -> i64
-  %32 = CallValue %31 [5:i64] : i64
-  %33 = Drop [%31] : ()
-  %34 = Prim Add [%30 %32] : i64
-  %35 = Call app/main/down[] (7:i64) : i64
-  %36 = Prim Add [%34 %35] : i64
-  %37 = Call app/main/need[] (6:i64) : i64
-  %38 = Prim Add [%36 %37] : i64
-  %39 = Block %38 : i64
+  %16 = Store [$2] 3:i64 : ()
+  %17 = Read borrow [$1] : fn(i64) -> i64
+  %18 = Read copy [$2] : i64
+  %19 = Store [$4] %18 : ()
+  %20 = Read copy [$4] : i64
+  %21 = Prim Div [%20 2:i64] : i64
+  %22 = Break L2 %21 : never
+  %23 = Block - : i64
+  %24 = Scope %23 [] : i64
+  %25 = Break L0 %24 : never
+  %26 = Block - : i64
+  %27 = Scope %26 [] : i64
+  %28 = Drop [$1] : ()
+  %29 = Prim Add [%13 %27] : i64
+  %30 = Call app/main/make[] (4:i64) : fn(i64) -> i64
+  %31 = CallValue %30 [5:i64] : i64
+  %32 = Drop [%30] : ()
+  %33 = Prim Add [%29 %31] : i64
+  %34 = Call app/main/down[] (7:i64) : i64
+  %35 = Prim Add [%33 %34] : i64
+  %36 = Call app/main/need[] (6:i64) : i64
+  %37 = Prim Add [%35 %36] : i64
+  %38 = Block %37 : i64
   exit sub 0 drops [$0]
   summary kept [$0] writes

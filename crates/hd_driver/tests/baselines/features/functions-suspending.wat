@@ -2025,8 +2025,6 @@
         local.get $t18
         local.get $t7
         i32.store $heap offset=4
-        local.get $t17
-        call $rt:release_ref'1
         local.get $t18
         local.tee $t17
         i32.const 0
@@ -2564,8 +2562,6 @@
       local.get $t39
       local.get $t28
       i32.store $heap offset=4
-      local.get $t38
-      call $rt:release_ref'1
       local.get $t39
       local.tee $t38
       i32.eqz
@@ -2901,10 +2897,7 @@
       if
         i32.const 3
         i32.const 0
-        local.set $t4
-        local.get $loader.1
-        call $rt:release_ref'1
-        local.get $t4
+        local.tee $t4
         local.set $loader.1
         i32.const 0
         local.set $t3
@@ -3330,8 +3323,6 @@
       local.get $t22
       local.get $t11
       i32.store $heap offset=4
-      local.get $t21
-      call $rt:release_ref'1
       local.get $t22
       local.tee $t21
       i32.eqz

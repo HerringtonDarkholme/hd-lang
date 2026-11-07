@@ -55,22 +55,21 @@ fn last_use(t: Tagged, s: string) -> Tagged:
 >   local $0 t: Tagged [param read] value
 >     uses $0: entry -> %0 consume last
 >   local $1 s: string [param read] value
->     uses $1: entry -> %3 consume last
+>     uses $1: entry -> %2 consume last
 >   local $2 t: Tagged [read] value
->     uses $2: %1 -> %5 lend, %7 consume last
+>     uses $2: %1 -> %4 lend, %6 consume last
 >   %0 = Read move [$0] : Tagged
 >   %1 = Store [$2] %0 : ()
->   %2 = Release %1 #0 : ()
->   %3 = Read move [$1] : string
->   %4 = IsUnique [$2 .tags] : ()
->   %5 = Read borrow [$2 .tags] : List[string]
->   %6 = Intrinsic ListPush [%5 %3] : ()
->   %7 = Read move [$2] : Tagged
->   %8 = Break L0 %7 : never
->   %9 = Block - : Tagged
->   %10 = Scope %9 [] : Tagged
->   %11 = Block %10 : Tagged
->   %4 shared: a copy of a value that holds the struct
+>   %2 = Read move [$1] : string
+>   %3 = IsUnique [$2 .tags] : ()
+>   %4 = Read borrow [$2 .tags] : List[string]
+>   %5 = Intrinsic ListPush [%4 %2] : ()
+>   %6 = Read move [$2] : Tagged
+>   %7 = Break L0 %6 : never
+>   %8 = Block - : Tagged
+>   %9 = Scope %8 [] : Tagged
+>   %10 = Block %9 : Tagged
+>   %3 shared: a copy of a value that holds the struct
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1]
 
@@ -78,37 +77,35 @@ fn kept_after(t: Tagged, s: string) -> usize:
     u := bumped(t, s)
 > app/main/kept_after
 >   local $0 t: Tagged [param read] value
->     uses $0: entry -> %0 consume, %17 lend last
+>     uses $0: entry -> %0 consume, %15 lend last
 >   local $1 s: string [param read] value
->     uses $1: entry -> %3 consume last
+>     uses $1: entry -> %2 consume last
 >   local $2 u: Tagged [:= read assigned] value
->     uses $2: %11 -> %13 lend last
+>     uses $2: %10 -> %11 lend last
 >   local $3 t: Tagged [read] value
->     uses $3: %1 -> %5 lend, %7 consume last
+>     uses $3: %1 -> %4 lend, %6 consume last
 >   %0 = Read copy [$0] : Tagged
 >   %1 = Store [$3] %0 : ()
->   %2 = Release %1 #0 : ()
->   %3 = Read move [$1] : string
->   %4 = IsUnique [$3 .tags] : ()
->   %5 = Read borrow [$3 .tags] : List[string]
->   %6 = Intrinsic ListPush [%5 %3] : ()
->   %7 = Read move [$3] : Tagged
->   %8 = Break L0 %7 : never
->   %9 = Block - : Tagged
->   %10 = Scope %9 [] : Tagged
->   %11 = Store [$2] %10 : ()
->   %12 = Release %11 #0 : ()
->   %22 = Block %21 : usize
->   %4 shared: a copy of a value that holds the struct
+>   %2 = Read move [$1] : string
+>   %3 = IsUnique [$3 .tags] : ()
+>   %4 = Read borrow [$3 .tags] : List[string]
+>   %5 = Intrinsic ListPush [%4 %2] : ()
+>   %6 = Read move [$3] : Tagged
+>   %7 = Break L0 %6 : never
+>   %8 = Block - : Tagged
+>   %9 = Scope %8 [] : Tagged
+>   %10 = Store [$2] %9 : ()
+>   %20 = Block %19 : usize
+>   %3 shared: a copy of a value that holds the struct
     u.tags.len() + t.tags.len()
->   %13 = Read move [$2 .tags] : List[string]
->   %14 = Drop [$2 .name] : ()
->   %15 = Intrinsic ListLen [%13] : usize
->   %16 = Drop [%13] : ()
->   %17 = Read move [$0 .tags] : List[string]
->   %18 = Drop [$0 .name] : ()
->   %19 = Intrinsic ListLen [%17] : usize
->   %20 = Drop [%17] : ()
->   %21 = Prim Add [%15 %19] : usize
+>   %11 = Read move [$2 .tags] : List[string]
+>   %12 = Drop [$2 .name] : ()
+>   %13 = Intrinsic ListLen [%11] : usize
+>   %14 = Drop [%11] : ()
+>   %15 = Read move [$0 .tags] : List[string]
+>   %16 = Drop [$0 .name] : ()
+>   %17 = Intrinsic ListLen [%15] : usize
+>   %18 = Drop [%15] : ()
+>   %19 = Prim Add [%13 %17] : usize
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1]

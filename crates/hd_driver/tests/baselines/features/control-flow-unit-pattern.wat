@@ -69,6 +69,8 @@
           if
             i32.const 0
             i32.const 0
+            i32.const 0
+            local.set $t0
             local.set $s.1
             local.set $s.0
             br 1
@@ -76,9 +78,9 @@
           local.get $s.1
           i32.const 1
           i32.add
-          local.tee $t1
-          call $rt:str
           local.tee $t0
+          call $rt:str
+          local.tee $t1
           local.tee $t2
           local.get $s.0
           local.get $s.1
@@ -90,13 +92,11 @@
           i32.load8_u $heap
           i32.store8 $heap
           i32.const 1
-          local.get $t0
+          local.get $t1
           local.set $s.1
           local.set $s.0
           br 0
         end
-        local.get $t1
-        local.set $t0
       end
       block
         block

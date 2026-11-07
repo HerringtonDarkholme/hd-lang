@@ -9,10 +9,6 @@
   (func $lexical (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
     ;; 36 |     $.with(Tag=Named { label: s }):
     block
-      local.get $s.0
-      local.get $s.1
-      local.set $s.1
-      local.set $s.0
       block
         block
           i32.const 8
@@ -140,10 +136,6 @@
   (func $by_value (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
     ;; 23 |     $.with(Tag=Named { label: s }):
     block
-      local.get $s.0
-      local.get $s.1
-      local.set $s.1
-      local.set $s.0
       block
         block
           i32.const 8
@@ -190,10 +182,6 @@
   (func $nested (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t0 i32)
     ;; 27 |     $.with(Tag=Named { label: a }):
     block
-      local.get $a.0
-      local.get $a.1
-      local.set $a.1
-      local.set $a.0
       block
         block
           i32.const 8
@@ -224,10 +212,6 @@
         call $read_tag
         local.set $a.0
     ;; 29 |         $.with(Tag=Named { label: b }):
-        local.get $b.0
-        local.get $b.1
-        local.set $b.1
-        local.set $b.0
         block
           block
             i32.const 8

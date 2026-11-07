@@ -20,17 +20,16 @@
       i32.store $heap offset=4
       local.get $t0
     ;; 12 |     nested
-      local.tee $dog.0
       i32.load $heap
-      local.tee $dog.1
-      local.get $dog.0
-      i32.load $heap offset=4
-      local.set $t0
-      call $retain
-      local.get $dog.1
+      local.tee $dog.0
       local.get $t0
       i32.load $heap offset=4
+      local.set $dog.1
+      call $retain
       local.get $dog.0
+      local.get $dog.1
+      i32.load $heap offset=4
+      local.get $t0
       call $rt:release_ref
     ;; 11 |     nested := box(dog)
       local.set $dog.1

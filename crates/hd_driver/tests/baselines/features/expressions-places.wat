@@ -9,8 +9,6 @@
   (func $call_receiver (param $xs i32) (param $s.0 i32) (param $s.1 i32) (local $t0 i32)
     ;; 19 |     pick(xs, 0).name = s
     block
-      local.get $xs
-      local.set $xs
       block
         block
           i32.const 0

@@ -6,9 +6,9 @@
   (import "fixture" "rt:cancel_enter" (func $rt:cancel_enter (result i32)))
   (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:poll_check" (func $rt:poll_check (param i32) (result i32)))
   (import "fixture" "rt:cancel_check" (func $rt:cancel_check (param i32) (result i32)))
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
@@ -450,8 +450,6 @@
       local.get $t15
       local.get $t6
       i32.store $heap offset=4
-      local.get $t14
-      call $rt:release_ref'2
       local.get $t15
       local.tee $t14
       i32.eqz
@@ -1211,8 +1209,6 @@
       local.get $t23
       local.get $t14
       i32.store $heap offset=4
-      local.get $t22
-      call $rt:release_ref'2
       local.get $t23
       local.tee $t22
       i32.eqz
@@ -2270,8 +2266,6 @@
           local.get $t32
           local.get $t10
           i32.store $heap offset=4
-          local.get $x
-          call $rt:release_ref'2
           local.get $t32
           local.set $x
           i32.const 8
@@ -2283,8 +2277,6 @@
           local.get $t33
           local.get $t12
           i32.store $heap offset=4
-          local.get $y
-          call $rt:release_ref'2
           local.get $t33
           local.set $y
           br 0

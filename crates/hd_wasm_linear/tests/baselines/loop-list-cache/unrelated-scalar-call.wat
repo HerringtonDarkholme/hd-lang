@@ -4,11 +4,12 @@
   (import "fixture" "ten" (func $ten (param i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
-  (func $write (param $n i32) (result i32) (local $xs i32) (local $t1 i32) (local $t0 i32) (local $i i32) (local $t2 i32)
+  (func $write (param $n i32) (result i32) (local $xs i32) (local $t0 i32) (local $t1 i32) (local $i i32) (local $t2 i32)
     block
       ;; ...
     ;; 14 |     for i in 0..n:
-      local.get $t0
+      i32.const 0
+      local.tee $t0
       local.get $n
       i32.lt_u
       if

@@ -111,42 +111,41 @@ fn use_generic(m: Members[i32], xs: List[Wrap[string]], i: usize) -> i64:
     name := m.name_at(i)
 > app/main/use_generic
 >   local $0 m: Members[i32] [param read] value
->     uses $0: entry -> %0 consume, %5 consume, %20 consume last
+>     uses $0: entry -> %0 consume, %4 consume, %19 consume last
 >   local $1 xs: List[Wrap[string]] [param read] value
->     uses $1: entry -> %8 consume last
+>     uses $1: entry -> %7 consume last
 >   local $2 i: usize [param read] value
->     uses $2: entry -> %1 lend, %6 lend, %9 lend, %21 lend last
+>     uses $2: entry -> %1 lend, %5 lend, %8 lend, %20 lend last
 >   local $3 name: string [:= read assigned] value
->     uses $3: %3 -> %12 lend last
+>     uses $3: %3 -> %11 lend last
 >   %0 = Read copy [$0] : Members[i32]
 >   %1 = Read copy [$2] : usize
 >   %2 = Call app/main/impl [ T ] Members [ T ].name_at[i32] (%0, %1) : string
 >   %3 = Store [$3] %2 : ()
->   %4 = Release %3 #0 : ()
->   %27 = Block 0:i64 : i64
+>   %26 = Block 0:i64 : i64
     if m.position_at(i) + n_at(xs, i) + name.len() > 0:
->   %5 = Read copy [$0] : Members[i32]
->   %6 = Read copy [$2] : usize
->   %7 = Call app/main/impl [ T ] Members [ T ].position_at[i32] (%5, %6) : usize
->   %8 = Read move [$1] : List[Wrap[string]]
->   %9 = Read copy [$2] : usize
->   %10 = Call app/main/n_at[string] (%8, %9) : usize
->   %11 = Prim Add [%7 %10] : usize
->   %12 = Read borrow [$3] : string
->   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
->   %14 = Break L0 %13 : never
->   %15 = Block - : usize
->   %16 = Scope %15 [] : usize
->   %17 = Drop [$3] : ()
->   %18 = Prim Add [%11 %16] : usize
->   %19 = Prim Gt [%18 0:usize] : bool
->   %25 = If %19 [%24 -] : ()
->   %26 = Drop [$0] : ()
+>   %4 = Read copy [$0] : Members[i32]
+>   %5 = Read copy [$2] : usize
+>   %6 = Call app/main/impl [ T ] Members [ T ].position_at[i32] (%4, %5) : usize
+>   %7 = Read move [$1] : List[Wrap[string]]
+>   %8 = Read copy [$2] : usize
+>   %9 = Call app/main/n_at[string] (%7, %8) : usize
+>   %10 = Prim Add [%6 %9] : usize
+>   %11 = Read borrow [$3] : string
+>   %12 = Call std/rt.bytes/bytes_len[] (%11) : usize
+>   %13 = Break L0 %12 : never
+>   %14 = Block - : usize
+>   %15 = Scope %14 [] : usize
+>   %16 = Drop [$3] : ()
+>   %17 = Prim Add [%10 %15] : usize
+>   %18 = Prim Gt [%17 0:usize] : bool
+>   %24 = If %18 [%23 -] : ()
+>   %25 = Drop [$0] : ()
         return m.y_at(i)
->   %20 = Read move [$0] : Members[i32]
->   %21 = Read copy [$2] : usize
->   %22 = Call app/main/impl [ T ] Members [ T ].y_at[i32] (%20, %21) : i64
->   %23 = Return %22 : never
->   %24 = Block - : never
+>   %19 = Read move [$0] : Members[i32]
+>   %20 = Read copy [$2] : usize
+>   %21 = Call app/main/impl [ T ] Members [ T ].y_at[i32] (%19, %20) : i64
+>   %22 = Return %21 : never
+>   %23 = Block - : never
 >   exit sub 0 drops [$0 $1]
     0

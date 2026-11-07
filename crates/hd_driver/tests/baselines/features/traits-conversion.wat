@@ -16,8 +16,6 @@
           br 0
         end
       end
-      local.get $s.0
-      local.set $s.0
       block
         block
           br 0

@@ -18,16 +18,15 @@ app/main/kept
   %11 = Block 0:usize : usize
   %12 = Read borrow [%1 as #1 .0] : List[i64]
   %13 = Store [$1] %12 : ()
-  %14 = Release %13 #0 : ()
-  %16 = Block - : never
-  %18 = Block - : never
-  %20 = Block - : never
-  %21 = SwitchTag %1 [#0 %18 %20] : never
-  %22 = Block - : never
-  %23 = SwitchTag %1 [#1 %16 %22] : never
-  %24 = Block - : never
-  %25 = Match %1 [%24 %10 %11] : usize
-  %26 = Drop [%1] : ()
-  %27 = Drop [$0] : ()
-  %28 = Block %25 : usize
+  %15 = Block - : never
+  %17 = Block - : never
+  %19 = Block - : never
+  %20 = SwitchTag %1 [#0 %17 %19] : never
+  %21 = Block - : never
+  %22 = SwitchTag %1 [#1 %15 %21] : never
+  %23 = Block - : never
+  %24 = Match %1 [%23 %10 %11] : usize
+  %25 = Drop [%1] : ()
+  %26 = Drop [$0] : ()
+  %27 = Block %24 : usize
   exit sub 0 drops [$0]

@@ -20,10 +20,10 @@ fn lookup(m: &Map[string, string], k: string) -> usize:
 >   %1 = Read borrow [*$0] : Map[string, string]
 >   %2 = Read borrow [$1] : string
 >   %3 = Intrinsic MapGet [%1 %2] : string?
->   %23 = Block - : never
->   %24 = Match %3 [%23 %9 %10] : usize
->   %25 = Drop [%3] : ()
->   %26 = Block %24 : usize
+>   %22 = Block - : never
+>   %23 = Match %3 [%22 %9 %10] : usize
+>   %24 = Drop [%3] : ()
+>   %25 = Block %23 : usize
         .Some(v) => v.len()
 >   %4 = Read borrow [$2] : string
 >   %5 = Call std/rt.bytes/bytes_len[] (%4) : usize
@@ -33,15 +33,14 @@ fn lookup(m: &Map[string, string], k: string) -> usize:
 >   %9 = Block %8 : usize
 >   %11 = Read borrow [%3 as #1 .0] : string
 >   %12 = Store [$2] %11 : ()
->   %13 = Release %12 #0 : ()
->   %15 = Block - : never
->   %21 = Block - : never
->   %22 = SwitchTag %3 [#1 %15 %21] : never
+>   %14 = Block - : never
+>   %20 = Block - : never
+>   %21 = SwitchTag %3 [#1 %14 %20] : never
         .None => 0
 >   %10 = Block 0:usize : usize
->   %17 = Block - : never
->   %19 = Block - : never
->   %20 = SwitchTag %3 [#0 %17 %19] : never
+>   %16 = Block - : never
+>   %18 = Block - : never
+>   %19 = SwitchTag %3 [#0 %16 %18] : never
 >   summary kept [] borrows [$1]
 
 fn put(m: &mut Map[string, string], k: string, v: string) -> void:

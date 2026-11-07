@@ -148,24 +148,20 @@
       local.get $t1
       local.get $s.1
       i32.store $heap offset=20
-      local.get $t0
-      local.set $s.0
       block
         block
-          local.get $s.0
+          local.get $t0
           i32.load $heap offset=4
           local.get $t1
           i32.load $heap offset=4
           i32.add
-          local.set $s.1
+          local.set $s.0
           br 0
         end
       end
-      local.get $s.0
+      local.get $t0
       local.get $t1
       call $rt:release
-      local.get $s.1
-      local.set $s.0
     end
     local.get $s.0
   )
@@ -201,8 +197,6 @@
       local.get $t1
       local.get $id
       i64.store $heap offset=16
-      local.get $t0
-      local.set $t0
       block
         block
           br 0

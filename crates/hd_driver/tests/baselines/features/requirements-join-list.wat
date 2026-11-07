@@ -10,9 +10,9 @@
   (import "fixture" "rt:frame'1" (func $rt:frame'1 (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:list_reserve" (func $rt:list_reserve (param i32 i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "all_list[string]" (func $"all_list[string]" (param i32 i32) (result i32 i32)))
   (import "fixture" "rt:frame'2" (func $rt:frame'2 (result i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
@@ -480,8 +480,6 @@
       local.get $t67
       i32.eqz
       if
-        local.get $t4
-        call $rt:release_ref'2
         i32.const 80 ;; &empty-buffer
         local.set $t4
         i32.const 0
@@ -489,8 +487,6 @@
         local.get $keys
         i32.const 0
         local.set $keys
-        local.get $t6
-        call $rt:release_ref'2
         local.tee $t6
         i32.const 0
         local.set $t5
@@ -617,8 +613,6 @@
         local.set $t4
         i32.const 0
         local.set $t38
-        local.get $tasks
-        call $rt:release_ref'2
         i32.const 0
         local.set $t39
     ;; 15 |     results := join!(tasks...)
@@ -1244,8 +1238,6 @@
       local.get $t40
       call $rt:release_ref'2
     ;; 15 |     results := join!(tasks...)
-      local.get $results
-      call $rt:release_ref'2
       local.get $t41
       local.tee $results
     ;; 16 |     let mut n = 0

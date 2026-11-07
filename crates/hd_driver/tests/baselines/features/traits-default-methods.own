@@ -40,7 +40,7 @@ fn direct(l: Logger) -> usize:
 >   local $0 l: Logger [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 $ref: string [read assigned captured captured-assigned] value
->     uses $1: %10 -> %12 lend last
+>     uses $1: %10 -> %11 lend last
 >   %0 = Read move [$0] : Logger
 >   %1 = Read move [%0 .name] : string
 >   %2 = Break L1 %1 : never
@@ -52,14 +52,13 @@ fn direct(l: Logger) -> usize:
 >   %8 = Block - : string
 >   %9 = Scope %8 [] : string
 >   %10 = Store [$1] %9 : ()
->   %11 = Release %10 #0 : ()
->   %12 = Read borrow [$1] : string
->   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
->   %14 = Break L0 %13 : never
->   %15 = Block - : usize
->   %16 = Scope %15 [] : usize
->   %17 = Drop [$1] : ()
->   %18 = Block %16 : usize
+>   %11 = Read borrow [$1] : string
+>   %12 = Call std/rt.bytes/bytes_len[] (%11) : usize
+>   %13 = Break L0 %12 : never
+>   %14 = Block - : usize
+>   %15 = Scope %14 [] : usize
+>   %16 = Drop [$1] : ()
+>   %17 = Block %15 : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -68,20 +67,19 @@ fn generic[T < Describe](x: T) -> usize:
 > app/main/generic
 >   local $0 x: T [param read captured] place
 >   local $1 $ref: string [read assigned captured captured-assigned] value
->     uses $1: %4 -> %6 lend last
+>     uses $1: %4 -> %5 lend last
 >   %0 = Ref local frame [$0] : Counted[T]
 >   %1 = Call app/main/Describe.headline for T [] via Bound (%0) : string
 >   %2 = Drop [%0] : ()
 >   %3 = Drop [$0] : ()
 >   %4 = Store [$1] %1 : ()
->   %5 = Release %4 #0 : ()
->   %6 = Read borrow [$1] : string
->   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
->   %8 = Break L0 %7 : never
->   %9 = Block - : usize
->   %10 = Scope %9 [] : usize
->   %11 = Drop [$1] : ()
->   %12 = Block %10 : usize
+>   %5 = Read borrow [$1] : string
+>   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
+>   %7 = Break L0 %6 : never
+>   %8 = Block - : usize
+>   %9 = Scope %8 [] : usize
+>   %10 = Drop [$1] : ()
+>   %11 = Block %9 : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes
 
@@ -94,23 +92,21 @@ fn use_generic(l: Logger) -> usize:
 >   local $2 $ref: string [read assigned captured captured-assigned] place
 >   %0 = Read move [$0] : Logger
 >   %1 = Store [$1] %0 : ()
->   %2 = Release %1 #0 : ()
->   %3 = Ref local frame [$1] : Counted[Logger]
->   %4 = Call app/main/Describe.headline for Logger [] via Impl (%3) : string
->   %5 = Drop [%3] : ()
->   %6 = Store [$2] %4 : ()
->   %7 = Release %6 #0 : ()
->   %8 = Ref local frame [$2] : Counted[string]
->   %9 = Call std/text/impl string.len[] (%8) : usize
->   %10 = Drop [%8] : ()
->   %11 = Drop [$2] : ()
->   %12 = Break L0 %9 : never
->   %13 = Block - : usize
->   %14 = Scope %13 [] : usize
->   %15 = Drop [$1] : ()
->   %16 = Block %14 : usize
->   %3 finds [$1] full
->   %8 finds [$2] full
+>   %2 = Ref local frame [$1] : Counted[Logger]
+>   %3 = Call app/main/Describe.headline for Logger [] via Impl (%2) : string
+>   %4 = Drop [%2] : ()
+>   %5 = Store [$2] %3 : ()
+>   %6 = Ref local frame [$2] : Counted[string]
+>   %7 = Call std/text/impl string.len[] (%6) : usize
+>   %8 = Drop [%6] : ()
+>   %9 = Drop [$2] : ()
+>   %10 = Break L0 %7 : never
+>   %11 = Block - : usize
+>   %12 = Scope %11 [] : usize
+>   %13 = Drop [$1] : ()
+>   %14 = Block %12 : usize
+>   %2 finds [$1] full
+>   %6 finds [$2] full
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -119,34 +115,32 @@ fn qualified(l: Logger) -> usize:
 > app/main/qualified
 >   local $0 l: Logger [param read captured] place
 >   local $1 $ref: string [read assigned captured captured-assigned] value
->     uses $1: %17 -> %19 lend last
+>     uses $1: %16 -> %17 lend last
 >   local $3 self: Ref[Logger] [read] value
->     uses $3: %2 -> %5 lend last
+>     uses $3: %2 -> %4 lend last
 >   %0 = Ref local frame [$0] : Counted[Logger]
 >   %1 = Coerce %0 [Weaken -] : Ref[Logger]
 >   %2 = Store [$3] %1 : ()
->   %3 = Release %2 #0 : ()
->   %4 = Drop [%0] : ()
->   %5 = Read borrow [$3] : Ref[Logger]
->   %6 = Read copy [*%5 .name] : string
->   %7 = Break L1 %6 : never
->   %8 = Block - : string
->   %9 = Scope %8 [] : string
->   %10 = Intrinsic StrConcat ["* " %9] : string
->   %11 = Drop [%9] : ()
->   %12 = Break L2 %10 : never
->   %13 = Block - : string
->   %14 = Scope %13 [] : string
->   %15 = Drop [$3] : ()
->   %16 = Drop [$0] : ()
->   %17 = Store [$1] %14 : ()
->   %18 = Release %17 #0 : ()
->   %19 = Read borrow [$1] : string
->   %20 = Call std/rt.bytes/bytes_len[] (%19) : usize
->   %21 = Break L0 %20 : never
->   %22 = Block - : usize
->   %23 = Scope %22 [] : usize
->   %24 = Drop [$1] : ()
->   %25 = Block %23 : usize
+>   %3 = Drop [%0] : ()
+>   %4 = Read borrow [$3] : Ref[Logger]
+>   %5 = Read copy [*%4 .name] : string
+>   %6 = Break L1 %5 : never
+>   %7 = Block - : string
+>   %8 = Scope %7 [] : string
+>   %9 = Intrinsic StrConcat ["* " %8] : string
+>   %10 = Drop [%8] : ()
+>   %11 = Break L2 %9 : never
+>   %12 = Block - : string
+>   %13 = Scope %12 [] : string
+>   %14 = Drop [$3] : ()
+>   %15 = Drop [$0] : ()
+>   %16 = Store [$1] %13 : ()
+>   %17 = Read borrow [$1] : string
+>   %18 = Call std/rt.bytes/bytes_len[] (%17) : usize
+>   %19 = Break L0 %18 : never
+>   %20 = Block - : usize
+>   %21 = Scope %20 [] : usize
+>   %22 = Drop [$1] : ()
+>   %23 = Block %21 : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

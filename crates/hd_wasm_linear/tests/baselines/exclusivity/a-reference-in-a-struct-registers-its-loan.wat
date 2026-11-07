@@ -221,8 +221,6 @@
     ;; 26 |         .Some(name) => *name
             local.get $t
             if
-              local.get $t
-              local.set $t
               local.get $t0
               local.set $t3
               local.get $t1

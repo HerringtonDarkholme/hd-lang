@@ -35,11 +35,10 @@ fn read(items: List[Item]) -> string?:
 >   %2 = Read copy [%1 [0:usize]] : Item
 >   %3 = Drop [%1] : ()
 >   %4 = Store [$1] %2 : ()
->   %5 = Release %4 #0 : ()
->   %6 = Ref local frame [$1] : Counted[Item]
->   %7 = Call app/main/impl Item.label[] (%6) : string?
->   %8 = Drop [%6] : ()
->   %9 = Drop [$1] : ()
->   %10 = Block %7 : string?
->   %6 finds [$1] full
+>   %5 = Ref local frame [$1] : Counted[Item]
+>   %6 = Call app/main/impl Item.label[] (%5) : string?
+>   %7 = Drop [%5] : ()
+>   %8 = Drop [$1] : ()
+>   %9 = Block %6 : string?
+>   %5 finds [$1] full
 >   exit sub 0 drops [$0]

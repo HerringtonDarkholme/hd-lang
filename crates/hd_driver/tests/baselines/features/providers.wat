@@ -38,24 +38,20 @@
       local.get $t0
       local.get $s.1
       i32.store $heap offset=4
-      local.get $t0
     ;; 22 |     $.with(Namer=f):
-      local.set $s.0
       i32.const 160 ;; &vtable[func37]
-      local.set $s.1
+      local.set $s.0
       block
     ;; 23 |         ask()
+        local.get $t0
         local.get $s.0
-        local.get $s.1
         call $ask
     ;; 22 |     $.with(Namer=f):
-        local.set $s.1
+        local.set $s.0
       end
     ;; 21 |     f := box(Fixed { n: s })
-      local.get $s.0
+      local.get $t0
       call $rt:release_ref
-      local.get $s.1
-      local.set $s.0
     end
     local.get $s.0
   )

@@ -807,11 +807,11 @@ mod tests {
         assert_eq!(verify_owned(&b, &Cx), []);
         assert_eq!(
             show(&b),
-            "%0 Call\n%1 Store [$0] %0\n%2 Release\n%3 Read move [$0]\n\
-             %4 Break %3\n%5 Block [%3 %4] -> %4\n%6 Block []\n%7 If\n%8 Break\n\
-             %9 Block [%5 %6 %7 %8]\n%10 Loop\n%11 Break\n%12 Block [%9 %10 %11]\n\
-             %13 Scope\n%14 Drop [$0]\n%15 Call %13\n\
-             %16 Block [%0 %1 %2 %12 %13 %14 %15]\n"
+            "%0 Call\n%1 Store [$0] %0\n%2 Read move [$0]\n%3 Break %2\n\
+             %4 Block [%2 %3] -> %3\n%5 Block []\n%6 If\n%7 Break\n\
+             %8 Block [%4 %5 %6 %7]\n%9 Loop\n%10 Break\n%11 Block [%8 %9 %10]\n\
+             %12 Scope\n%13 Drop [$0]\n%14 Call %12\n\
+             %15 Block [%0 %1 %11 %12 %13 %14]\n"
         );
     }
 

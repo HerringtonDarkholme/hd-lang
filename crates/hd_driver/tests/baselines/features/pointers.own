@@ -19,11 +19,10 @@ fn make(n: string) -> *Node:
 >   %1 = NewVariant #0 [] : Counted[Node]?
 >   %2 = NewStruct [%0 %1] : Node
 >   %3 = Store [$1] %2 : ()
->   %4 = Release %3 #0 : ()
->   %5 = Ref take mut [$1] : Counted[mut Node]
->   %6 = Coerce %5 [Weaken -] : Counted[Node]
->   %7 = Block %6 : Counted[Node]
->   %5 finds [$1] full
+>   %4 = Ref take mut [$1] : Counted[mut Node]
+>   %5 = Coerce %4 [Weaken -] : Counted[Node]
+>   %6 = Block %5 : Counted[Node]
+>   %4 finds [$1] full
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -33,16 +32,15 @@ fn read_ptr(p: *Node) -> usize:
 >   local $0 p: Counted[Node] [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 self: string [read] value
->     uses $1: %1 -> %3 lend last
+>     uses $1: %1 -> %2 lend last
 >   %0 = Read borrow [*$0 .name] : string
 >   %1 = Store [$1] %0 : ()
->   %2 = Release %1 #0 : ()
->   %3 = Read borrow [$1] : string
->   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
->   %5 = Break L0 %4 : never
->   %6 = Block - : usize
->   %7 = Scope %6 [] : usize
->   %8 = Block %7 : usize
+>   %2 = Read borrow [$1] : string
+>   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
+>   %4 = Break L0 %3 : never
+>   %5 = Block - : usize
+>   %6 = Scope %5 [] : usize
+>   %7 = Block %6 : usize
 >   summary kept []
 
 fn write_ptr(p: *mut Node, n: string) -> void:

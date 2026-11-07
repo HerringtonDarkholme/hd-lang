@@ -57,10 +57,6 @@
   (func $make (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
     ;; 21 |     $.context(Tag=Named { label: s })
     block
-      local.get $s.0
-      local.get $s.1
-      local.set $s.1
-      local.set $s.0
       block
         block
           i32.const 8

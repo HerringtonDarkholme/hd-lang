@@ -91,15 +91,14 @@ fn opt_some(o: string?, s: string) -> bool:
 >   %1 = Read move [$1] : string
 >   %2 = NewVariant #1 [%1] : string?
 >   %3 = Store [$2] %2 : ()
->   %4 = Release %3 #0 : ()
->   %5 = Ref local frame [$2] : Counted[string?]
->   %6 = Call std/core/Eq.eq for string? [] via Impl (%0, %5) : bool
->   %7 = Drop [%5] : ()
->   %8 = Drop [$2] : ()
->   %9 = Drop [%0] : ()
->   %10 = Drop [$0] : ()
->   %11 = Block %6 : bool
->   %5 finds [$2] full
+>   %4 = Ref local frame [$2] : Counted[string?]
+>   %5 = Call std/core/Eq.eq for string? [] via Impl (%0, %4) : bool
+>   %6 = Drop [%4] : ()
+>   %7 = Drop [$2] : ()
+>   %8 = Drop [%0] : ()
+>   %9 = Drop [$0] : ()
+>   %10 = Block %5 : bool
+>   %4 finds [$2] full
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1]
 

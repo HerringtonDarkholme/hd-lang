@@ -107,58 +107,57 @@ impl Parser:
         let mut last: List[usize] = []
 > app/main/impl Parser.snapshot
 >   local $0 self: Ref[mut Parser] [param read] value
->     uses $0: entry -> %19 lend, %23 lend, %25 lend
+>     uses $0: entry -> %18 lend, %22 lend, %24 lend
 >   local $1 n: usize [param read] value
->     uses $1: entry -> %3 consume last
+>     uses $1: entry -> %2 consume last
 >   local $2 last: List[usize] [read assigned mutated] place
 >   local $3 $cur: usize [assigned] place
 >   local $4 $end: usize [assigned] value
->     uses $4: %8 -> %12 lend
+>     uses $4: %7 -> %11 lend
 >   local $5 $incl: bool [assigned] value
 >     uses $5: none
 >   local $6 i: usize [read assigned] value
->     uses $6: %15 -> %22 lend last
+>     uses $6: %14 -> %21 lend last
 >   %0 = NewList - [] : List[usize]
 >   %1 = Store [$2] %0 : ()
->   %2 = Release %1 #0 : ()
->   %35 = Block %33 : usize
+>   %34 = Block %32 : usize
         for i in 0..n:
->   %3 = Read copy [$1] : usize
->   %4 = NewStruct [0:usize %3 0:bool] : Range[usize]
->   %5 = Read copy [%4 .start] : usize
->   %6 = Store [$3] %5 : ()
->   %7 = Read copy [%4 .end] : usize
->   %8 = Store [$4] %7 : ()
->   %9 = Read copy [%4 .inclusive] : bool
->   %10 = Store [$5] %9 : ()
->   %11 = Read copy [$3] : usize
->   %12 = Read copy [$4] : usize
->   %13 = Prim Lt [%11 %12] : bool
->   %14 = Read copy [$3] : usize
->   %15 = Store [$6] %14 : ()
->   %16 = Read copy [$3] : usize
->   %17 = Prim Add [%16 1:usize] : usize
->   %18 = Store [$3] %17 : ()
->   %26 = Block - : ()
->   %27 = Break L0 - : never
->   %28 = Block - : ()
->   %29 = If %13 [%26 %28] : ()
->   %30 = Block - : ()
->   %31 = Loop %30 - : ()
+>   %2 = Read copy [$1] : usize
+>   %3 = NewStruct [0:usize %2 0:bool] : Range[usize]
+>   %4 = Read copy [%3 .start] : usize
+>   %5 = Store [$3] %4 : ()
+>   %6 = Read copy [%3 .end] : usize
+>   %7 = Store [$4] %6 : ()
+>   %8 = Read copy [%3 .inclusive] : bool
+>   %9 = Store [$5] %8 : ()
+>   %10 = Read copy [$3] : usize
+>   %11 = Read copy [$4] : usize
+>   %12 = Prim Lt [%10 %11] : bool
+>   %13 = Read copy [$3] : usize
+>   %14 = Store [$6] %13 : ()
+>   %15 = Read copy [$3] : usize
+>   %16 = Prim Add [%15 1:usize] : usize
+>   %17 = Store [$3] %16 : ()
+>   %25 = Block - : ()
+>   %26 = Break L0 - : never
+>   %27 = Block - : ()
+>   %28 = If %12 [%25 %27] : ()
+>   %29 = Block - : ()
+>   %30 = Loop %29 - : ()
             last = self.index
->   %19 = Read copy [*$0 .index] : List[usize]
->   %20 = Store [$2] %19 : ()
->   %21 = Release %20 #0 : ()
+>   %18 = Read copy [*$0 .index] : List[usize]
+>   %19 = Store [$2] %18 : ()
+>   %20 = Release %19 #0 : ()
             self.index[i] = self.held
->   %22 = Read copy [$6] : usize
->   %23 = Read copy [*$0 .held] : usize
->   %24 = IsUnique [*$0 .index] : ()
->   %25 = Store [*$0 .index [%22]] %23 : ()
->   %24 shared: a copy of the field
+>   %21 = Read copy [$6] : usize
+>   %22 = Read copy [*$0 .held] : usize
+>   %23 = IsUnique [*$0 .index] : ()
+>   %24 = Store [*$0 .index [%21]] %22 : ()
+>   %23 shared: a copy of the field
         last.len()
->   %32 = Read move [$2] : List[usize]
->   %33 = Intrinsic ListLen [%32] : usize
->   %34 = Drop [%32] : ()
+>   %31 = Read move [$2] : List[usize]
+>   %32 = Intrinsic ListLen [%31] : usize
+>   %33 = Drop [%31] : ()
 >   summary kept [$0] writes
 
 pub fn main() -> void $ Console:
@@ -167,174 +166,169 @@ pub fn main() -> void $ Console:
 >   local $0 p: Parser [read assigned mutated captured captured-assigned] place
 >   local $1 $cur: usize [assigned] place
 >   local $2 $end: usize [assigned] value
->     uses $2: %9 -> %13 lend
+>     uses $2: %8 -> %12 lend
 >   local $3 $incl: bool [assigned] value
 >     uses $3: none
 >   local $4 i: usize [read assigned] value
->     uses $4: %16 -> %20 consume last
+>     uses $4: %15 -> %19 consume last
 >   local $5 result: string [read] value
->     uses $5: %104 -> %110 lend last
+>     uses $5: %100 -> %105 lend last
 >   local $6 offset: usize [read] value
->     uses $6: %106 -> %112 lend last
+>     uses $6: %101 -> %107 lend last
 >   local $7 value: u64 [read] value
->     uses $7: %107 -> %109 lend last
+>     uses $7: %102 -> %104 lend last
 >   local $8 width: usize [read] value
->     uses $8: %108 -> %114 lend last
+>     uses $8: %103 -> %109 lend last
 >   local $9 result: string [read] value
->     uses $9: %83 -> %88 lend last
+>     uses $9: %81 -> %84 lend last
 >   local $10 offset: usize [read] value
->     uses $10: %85 -> %91 lend last
+>     uses $10: %82 -> %87 lend last
 >   local $11 text: string [read] value
->     uses $11: %86 -> %93 lend, %96 lend last
+>     uses $11: %83 -> %89 lend, %92 lend last
 >   local $12 result: string [read] value
->     uses $12: %67 -> %73 lend last
+>     uses $12: %66 -> %71 lend last
 >   local $13 offset: usize [read] value
->     uses $13: %69 -> %75 lend last
+>     uses $13: %67 -> %73 lend last
 >   local $14 value: u64 [read] value
->     uses $14: %70 -> %72 lend last
+>     uses $14: %68 -> %70 lend last
 >   local $15 width: usize [read] value
->     uses $15: %71 -> %77 lend last
+>     uses $15: %69 -> %75 lend last
 >   local $16 size: usize [read] value
->     uses $16: %60 -> %61 lend last
+>     uses $16: %59 -> %60 lend last
 >   local $17 value: u64 [read] value
->     uses $17: %51 -> %52 lend last
+>     uses $17: %50 -> %51 lend last
 >   local $18 value: u64 [read] value
->     uses $18: %40 -> %41 lend last
+>     uses $18: %39 -> %40 lend last
 >   %0 = NewList - [] : List[usize]
 >   %1 = NewList - [] : List[usize]
 >   %2 = NewStruct [%0 %1 0:usize] : Parser
 >   %3 = Store [$0] %2 : ()
->   %4 = Release %3 #0 : ()
->   %121 = Block - : ()
+>   %116 = Block - : ()
     for i in 0..4:
->   %5 = NewStruct [0:usize 4:usize 0:bool] : Range[usize]
->   %6 = Read copy [%5 .start] : usize
->   %7 = Store [$1] %6 : ()
->   %8 = Read copy [%5 .end] : usize
->   %9 = Store [$2] %8 : ()
->   %10 = Read copy [%5 .inclusive] : bool
->   %11 = Store [$3] %10 : ()
->   %12 = Read copy [$1] : usize
->   %13 = Read copy [$2] : usize
->   %14 = Prim Lt [%12 %13] : bool
->   %15 = Read copy [$1] : usize
->   %16 = Store [$4] %15 : ()
->   %17 = Read copy [$1] : usize
->   %18 = Prim Add [%17 1:usize] : usize
->   %19 = Store [$1] %18 : ()
->   %24 = Block - : ()
->   %25 = Break L0 - : never
->   %26 = Block - : ()
->   %27 = If %14 [%24 %26] : ()
->   %28 = Block - : ()
->   %29 = Loop %28 - : ()
->   %29 finds [$0] full
+>   %4 = NewStruct [0:usize 4:usize 0:bool] : Range[usize]
+>   %5 = Read copy [%4 .start] : usize
+>   %6 = Store [$1] %5 : ()
+>   %7 = Read copy [%4 .end] : usize
+>   %8 = Store [$2] %7 : ()
+>   %9 = Read copy [%4 .inclusive] : bool
+>   %10 = Store [$3] %9 : ()
+>   %11 = Read copy [$1] : usize
+>   %12 = Read copy [$2] : usize
+>   %13 = Prim Lt [%11 %12] : bool
+>   %14 = Read copy [$1] : usize
+>   %15 = Store [$4] %14 : ()
+>   %16 = Read copy [$1] : usize
+>   %17 = Prim Add [%16 1:usize] : usize
+>   %18 = Store [$1] %17 : ()
+>   %23 = Block - : ()
+>   %24 = Break L0 - : never
+>   %25 = Block - : ()
+>   %26 = If %13 [%23 %25] : ()
+>   %27 = Block - : ()
+>   %28 = Loop %27 - : ()
+>   %28 finds [$0] full
         p.pending.push(i)
->   %20 = Read copy [$4] : usize
->   %21 = IsUnique [$0 .pending] : ()
->   %22 = Read borrow [$0 .pending] : List[usize]
->   %23 = Intrinsic ListPush [%22 %20] : ()
+>   %19 = Read copy [$4] : usize
+>   %20 = IsUnique [$0 .pending] : ()
+>   %21 = Read borrow [$0 .pending] : List[usize]
+>   %22 = Intrinsic ListPush [%21 %19] : ()
+>   %20 finds [$0] full
 >   %21 finds [$0] full
->   %22 finds [$0] full
->   %21 owned: single-owner field
+>   %20 owned: single-owner field
     p.held = 4
->   %30 = Store [$0 .held] 4:usize : ()
->   %30 finds [$0] full
+>   %29 = Store [$0 .held] 4:usize : ()
+>   %29 finds [$0] full
     p.drain_into(0)
->   %31 = Ref mut local frame [$0] : Counted[mut Parser]
->   %32 = Call app/main/impl Parser.drain_into[] (%31, 0:usize) : ()
->   %33 = Drop [%31] : ()
->   %31 finds [$0] full
+>   %30 = Ref mut local frame [$0] : Counted[mut Parser]
+>   %31 = Call app/main/impl Parser.drain_into[] (%30, 0:usize) : ()
+>   %32 = Drop [%30] : ()
+>   %30 finds [$0] full
     p.refill(2)
->   %34 = Ref mut local frame [$0] : Counted[mut Parser]
->   %35 = Call app/main/impl Parser.refill[] (%34, 2:usize) : ()
->   %36 = Drop [%34] : ()
->   %34 finds [$0] full
+>   %33 = Ref mut local frame [$0] : Counted[mut Parser]
+>   %34 = Call app/main/impl Parser.refill[] (%33, 2:usize) : ()
+>   %35 = Drop [%33] : ()
+>   %33 finds [$0] full
     println("${p.index.len()} ${p.snapshot(2)}")
->   %37 = Read borrow [$0 .index] : List[usize]
->   %38 = Intrinsic ListLen [%37] : usize
->   %39 = Prim Conv [%38] : u64
->   %40 = Store [$18] %39 : ()
->   %41 = Read copy [$18] : u64
->   %42 = Call std/rt.bytes/unsigned_width[] (%41) : usize
->   %43 = Break L6 %42 : never
->   %44 = Block - : usize
->   %45 = Scope %44 [] : usize
->   %46 = Ref mut local frame [$0] : Counted[mut Parser]
->   %47 = Call app/main/impl Parser.snapshot[] (%46, 2:usize) : usize
->   %48 = Drop [%46] : ()
->   %49 = Drop [$0] : ()
->   %50 = Prim Conv [%47] : u64
->   %51 = Store [$17] %50 : ()
->   %52 = Read copy [$17] : u64
->   %53 = Call std/rt.bytes/unsigned_width[] (%52) : usize
->   %54 = Break L5 %53 : never
->   %55 = Block - : usize
->   %56 = Scope %55 [] : usize
->   %57 = Prim Add [0:usize %45] : usize
->   %58 = Prim Add [%57 1:usize] : usize
->   %59 = Prim Add [%58 %56] : usize
->   %60 = Store [$16] %59 : ()
->   %61 = Read copy [$16] : usize
->   %62 = Call std/rt.memory/new_string[] (%61) : string
->   %63 = Break L4 %62 : never
->   %64 = Block - : string
->   %65 = Scope %64 [] : string
->   %66 = Read borrow [%65] : string
->   %67 = Store [$12] %66 : ()
->   %68 = Release %67 #0 : ()
->   %69 = Store [$13] 0:usize : ()
->   %70 = Store [$14] %39 : ()
->   %71 = Store [$15] %45 : ()
->   %72 = Read copy [$14] : u64
->   %73 = Read borrow [$12] : string
->   %74 = Call std/rt.memory/string_bytes[] (%73) : Ptr[u8]
->   %75 = Read copy [$13] : usize
->   %76 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[u8] (%74, %75) : Ptr[u8]
->   %77 = Read copy [$15] : usize
->   %78 = Call std/rt.bytes/write_unsigned_sized[] (%72, %76, %77) : ()
->   %79 = Break L3 - : never
->   %80 = Block - : ()
->   %81 = Scope %80 [] : ()
->   %82 = Read borrow [%65] : string
->   %83 = Store [$9] %82 : ()
->   %84 = Release %83 #0 : ()
->   %85 = Store [$10] %57 : ()
->   %86 = Store [$11] " " : ()
->   %87 = Release %86 #0 : ()
->   %88 = Read borrow [$9] : string
->   %89 = Call std/rt.memory/string_bytes[] (%88) : Ptr[u8]
->   %90 = Read copy [%89 .address] : usize
->   %91 = Read copy [$10] : usize
->   %92 = Prim Add [%90 %91] : usize
->   %93 = Read borrow [$11] : string
->   %94 = Call std/rt.memory/string_bytes[] (%93) : Ptr[u8]
->   %95 = Read copy [%94 .address] : usize
->   %96 = Read borrow [$11] : string
->   %97 = Call std/rt.bytes/bytes_len[] (%96) : usize
->   %98 = Call std/rt.memory/copy[] (%92, %95, %97) : ()
->   %99 = Break L2 - : never
->   %100 = Block - : ()
->   %101 = Scope %100 [] : ()
->   %102 = Read borrow [%65] : string
->   %103 = Drop [$11] : ()
->   %104 = Store [$5] %102 : ()
->   %105 = Release %104 #0 : ()
->   %106 = Store [$6] %58 : ()
->   %107 = Store [$7] %50 : ()
->   %108 = Store [$8] %56 : ()
->   %109 = Read copy [$7] : u64
->   %110 = Read borrow [$5] : string
->   %111 = Call std/rt.memory/string_bytes[] (%110) : Ptr[u8]
->   %112 = Read copy [$6] : usize
->   %113 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[u8] (%111, %112) : Ptr[u8]
->   %114 = Read copy [$8] : usize
->   %115 = Call std/rt.bytes/write_unsigned_sized[] (%109, %113, %114) : ()
->   %116 = Break L1 - : never
->   %117 = Block - : ()
->   %118 = Scope %117 [] : ()
->   %119 = Read move [%65] : string
->   %120 = Call std/console/println[string] (%119) : ()
->   %37 finds [$0] full
->   %46 finds [$0] full
+>   %36 = Read borrow [$0 .index] : List[usize]
+>   %37 = Intrinsic ListLen [%36] : usize
+>   %38 = Prim Conv [%37] : u64
+>   %39 = Store [$18] %38 : ()
+>   %40 = Read copy [$18] : u64
+>   %41 = Call std/rt.bytes/unsigned_width[] (%40) : usize
+>   %42 = Break L6 %41 : never
+>   %43 = Block - : usize
+>   %44 = Scope %43 [] : usize
+>   %45 = Ref mut local frame [$0] : Counted[mut Parser]
+>   %46 = Call app/main/impl Parser.snapshot[] (%45, 2:usize) : usize
+>   %47 = Drop [%45] : ()
+>   %48 = Drop [$0] : ()
+>   %49 = Prim Conv [%46] : u64
+>   %50 = Store [$17] %49 : ()
+>   %51 = Read copy [$17] : u64
+>   %52 = Call std/rt.bytes/unsigned_width[] (%51) : usize
+>   %53 = Break L5 %52 : never
+>   %54 = Block - : usize
+>   %55 = Scope %54 [] : usize
+>   %56 = Prim Add [0:usize %44] : usize
+>   %57 = Prim Add [%56 1:usize] : usize
+>   %58 = Prim Add [%57 %55] : usize
+>   %59 = Store [$16] %58 : ()
+>   %60 = Read copy [$16] : usize
+>   %61 = Call std/rt.memory/new_string[] (%60) : string
+>   %62 = Break L4 %61 : never
+>   %63 = Block - : string
+>   %64 = Scope %63 [] : string
+>   %65 = Read borrow [%64] : string
+>   %66 = Store [$12] %65 : ()
+>   %67 = Store [$13] 0:usize : ()
+>   %68 = Store [$14] %38 : ()
+>   %69 = Store [$15] %44 : ()
+>   %70 = Read copy [$14] : u64
+>   %71 = Read borrow [$12] : string
+>   %72 = Call std/rt.memory/string_bytes[] (%71) : Ptr[u8]
+>   %73 = Read copy [$13] : usize
+>   %74 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[u8] (%72, %73) : Ptr[u8]
+>   %75 = Read copy [$15] : usize
+>   %76 = Call std/rt.bytes/write_unsigned_sized[] (%70, %74, %75) : ()
+>   %77 = Break L3 - : never
+>   %78 = Block - : ()
+>   %79 = Scope %78 [] : ()
+>   %80 = Read borrow [%64] : string
+>   %81 = Store [$9] %80 : ()
+>   %82 = Store [$10] %56 : ()
+>   %83 = Store [$11] " " : ()
+>   %84 = Read borrow [$9] : string
+>   %85 = Call std/rt.memory/string_bytes[] (%84) : Ptr[u8]
+>   %86 = Read copy [%85 .address] : usize
+>   %87 = Read copy [$10] : usize
+>   %88 = Prim Add [%86 %87] : usize
+>   %89 = Read borrow [$11] : string
+>   %90 = Call std/rt.memory/string_bytes[] (%89) : Ptr[u8]
+>   %91 = Read copy [%90 .address] : usize
+>   %92 = Read borrow [$11] : string
+>   %93 = Call std/rt.bytes/bytes_len[] (%92) : usize
+>   %94 = Call std/rt.memory/copy[] (%88, %91, %93) : ()
+>   %95 = Break L2 - : never
+>   %96 = Block - : ()
+>   %97 = Scope %96 [] : ()
+>   %98 = Read borrow [%64] : string
+>   %99 = Drop [$11] : ()
+>   %100 = Store [$5] %98 : ()
+>   %101 = Store [$6] %57 : ()
+>   %102 = Store [$7] %49 : ()
+>   %103 = Store [$8] %55 : ()
+>   %104 = Read copy [$7] : u64
+>   %105 = Read borrow [$5] : string
+>   %106 = Call std/rt.memory/string_bytes[] (%105) : Ptr[u8]
+>   %107 = Read copy [$6] : usize
+>   %108 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[u8] (%106, %107) : Ptr[u8]
+>   %109 = Read copy [$8] : usize
+>   %110 = Call std/rt.bytes/write_unsigned_sized[] (%104, %108, %109) : ()
+>   %111 = Break L1 - : never
+>   %112 = Block - : ()
+>   %113 = Scope %112 [] : ()
+>   %114 = Read move [%64] : string
+>   %115 = Call std/console/println[string] (%114) : ()
+>   %36 finds [$0] full
+>   %45 finds [$0] full
 >   summary kept [] writes

@@ -193,10 +193,7 @@
     block
       local.get $name.0
       local.get $name.1
-      local.set $name.1
-      local.tee $name.0
     ;; 27 |     label(&w)
-      local.get $name.1
       call $label'2
     ;; 26 |     let w = Wrap { name: name }
       local.get $name.0

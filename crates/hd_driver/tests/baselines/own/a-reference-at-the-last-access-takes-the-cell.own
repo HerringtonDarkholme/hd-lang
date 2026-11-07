@@ -22,11 +22,10 @@ fn fresh() -> void:
 >   local $0 c: Counter [read assigned captured captured-assigned] place
 >   %0 = NewStruct [0:i32 "a"] : Counter
 >   %1 = Store [$0] %0 : ()
->   %2 = Release %1 #0 : ()
->   %7 = Block - : ()
+>   %6 = Block - : ()
     bump(&mut c)
->   %3 = Ref mut local frame [$0] : Counted[mut Counter]
->   %4 = Call app/main/bump[] (%3) : ()
->   %5 = Drop [%3] : ()
->   %6 = Drop [$0] : ()
->   %3 finds [$0] full
+>   %2 = Ref mut local frame [$0] : Counted[mut Counter]
+>   %3 = Call app/main/bump[] (%2) : ()
+>   %4 = Drop [%2] : ()
+>   %5 = Drop [$0] : ()
+>   %2 finds [$0] full

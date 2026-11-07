@@ -151,8 +151,6 @@
   (func $"sum[string]" (param $items i32) (param $zero.0 i32) (param $zero.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $item.0 i32) (local $item.1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
     ;; 29 |     let total = zero
     block
-      local.get $zero.0
-      local.set $zero.0
     ;; 30 |     for item in items:
       local.get $items
       i32.load $heap offset=4
@@ -237,21 +235,19 @@
                     br 0
                   end
                 end
-                local.get $item.0
-                local.set $zero.1
                 block
                   block
                     local.get $t4
                     local.get $t3
                     i32.add
-                    local.get $zero.1
+                    local.get $item.0
                     local.get $item.1
                     call $rt:memory_copy/0/0
                     br 0
                   end
                 end
                 local.get $t4
-                local.get $zero.1
+                local.get $item.0
                 call $rt:release_ref
                 local.get $t5
                 local.set $item.0

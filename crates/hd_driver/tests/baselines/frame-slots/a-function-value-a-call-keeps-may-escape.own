@@ -66,71 +66,69 @@ fn keep(f: fn() -> void) -> fn() -> void:
 fn run(xs: List[string], g: fn(fn() -> void) -> void) -> usize:
 > app/main/run
 >   local $0 xs: List[string] [param read] value
->     uses $0: entry -> %4 lend last
+>     uses $0: entry -> %3 lend last
 >   local $1 g: fn(fn() -> ()) -> () [param read] value
->     uses $1: entry -> %33 lend last
+>     uses $1: entry -> %31 lend last
 >   local $2 n: usize [read assigned captured captured-assigned] place
 >   local $3 x: string [param read] value
->     uses $3: entry -> %6 lend last
+>     uses $3: entry -> %5 lend last
 >   local $4 later: fn() -> () [:= read assigned] value
->     uses $4: %28 -> %30 lend last
+>     uses $4: %27 -> %28 lend last
 >   %0 = ExitDrop [$0] #2 : ()
 >   %1 = ExitDrop [$1] #2 : ()
     let n: usize = 0
 >   %2 = Store [$2] 0:usize : ()
->   %3 = Release %2 #0 : ()
->   %44 = Block %42 : usize
+>   %42 = Block %40 : usize
     each(xs, fn(x: string) -> void: n += x.len())
->   %4 = Read borrow [$0] : List[string]
->   %5 = Read copy [$2] : usize
->   %6 = Read borrow [$3] : string
->   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
->   %8 = Break L0 %7 : never
->   %9 = Block - : usize
->   %10 = Scope %9 [] : usize
->   %11 = Drop [$3] : ()
->   %12 = Prim Add [%5 %10] : usize
->   %13 = Store [$2] %12 : ()
->   %14 = Release %13 #0 : ()
->   %15 = Drop [$2] : ()
->   %16 = Block - : ()
->   %17 = Closure #1 [%0 %1] : fn(string) -> ()
->   %18 = Call app/main/each[] (%4, %17) : ()
->   %19 = Drop [%17] : ()
->   %17 finds [$2] full
+>   %3 = Read borrow [$0] : List[string]
+>   %4 = Read copy [$2] : usize
+>   %5 = Read borrow [$3] : string
+>   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
+>   %7 = Break L0 %6 : never
+>   %8 = Block - : usize
+>   %9 = Scope %8 [] : usize
+>   %10 = Drop [$3] : ()
+>   %11 = Prim Add [%4 %9] : usize
+>   %12 = Store [$2] %11 : ()
+>   %13 = Release %12 #0 : ()
+>   %14 = Drop [$2] : ()
+>   %15 = Block - : ()
+>   %16 = Closure #1 [%0 %1] : fn(string) -> ()
+>   %17 = Call app/main/each[] (%3, %16) : ()
+>   %18 = Drop [%16] : ()
+>   %16 finds [$2] full
     later := keep(fn() -> void: n += 1)
->   %20 = Read copy [$2] : usize
->   %21 = Prim Add [%20 1:usize] : usize
->   %22 = Store [$2] %21 : ()
->   %23 = Release %22 #0 : ()
->   %24 = Drop [$2] : ()
->   %25 = Block - : ()
->   %26 = Closure #2 [%1 %1] : fn() -> ()
->   %27 = Call app/main/keep[] (%26) : fn() -> ()
->   %27 keeps %26
->   %28 = Store [$4] %27 : ()
->   %29 = Release %28 #0 : ()
->   %26 finds [$2] full
+>   %19 = Read copy [$2] : usize
+>   %20 = Prim Add [%19 1:usize] : usize
+>   %21 = Store [$2] %20 : ()
+>   %22 = Release %21 #0 : ()
+>   %23 = Drop [$2] : ()
+>   %24 = Block - : ()
+>   %25 = Closure #2 [%1 %1] : fn() -> ()
+>   %26 = Call app/main/keep[] (%25) : fn() -> ()
+>   %26 keeps %25
+>   %27 = Store [$4] %26 : ()
+>   %25 finds [$2] full
     later()
->   %30 = Read move [$4] : fn() -> ()
->   %31 = CallValue %30 [] : ()
->   %32 = Drop [%30] : ()
+>   %28 = Read move [$4] : fn() -> ()
+>   %29 = CallValue %28 [] : ()
+>   %30 = Drop [%28] : ()
     g(fn() -> void: n += 2)
->   %33 = Read borrow [$1] : fn(fn() -> ()) -> ()
->   %34 = Read copy [$2] : usize
->   %35 = Prim Add [%34 2:usize] : usize
->   %36 = Store [$2] %35 : ()
->   %37 = Release %36 #0 : ()
->   %38 = Drop [$2] : ()
->   %39 = Block - : ()
->   %40 = Closure #3 [%2 %1] : fn() -> ()
->   %41 = CallValue %33 [%40] : ()
->   %41 keeps %40
->   %40 finds [$2] full
+>   %31 = Read borrow [$1] : fn(fn() -> ()) -> ()
+>   %32 = Read copy [$2] : usize
+>   %33 = Prim Add [%32 2:usize] : usize
+>   %34 = Store [$2] %33 : ()
+>   %35 = Release %34 #0 : ()
+>   %36 = Drop [$2] : ()
+>   %37 = Block - : ()
+>   %38 = Closure #3 [%2 %1] : fn() -> ()
+>   %39 = CallValue %31 [%38] : ()
+>   %39 keeps %38
+>   %38 finds [$2] full
     n
->   %42 = Read copy [$2] : usize
->   %43 = Drop [$2] : ()
->   %42 finds [$2] full
+>   %40 = Read copy [$2] : usize
+>   %41 = Drop [$2] : ()
+>   %40 finds [$2] full
 >   exit sub 0 drops [$2]
 >   exit sub 1 drops [$2 $3]
 >   exit sub 2 drops [$2]

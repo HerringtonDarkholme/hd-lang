@@ -111,11 +111,11 @@ pub fn run(steps: i64) -> f64:
     let mut bodies = [Body { x: 0.0, v: 1.0 }, Body { x: 1.0, v: 0.5 }]
 > app/main/run
 >   local $0 steps: i64 [param read] value
->     uses $0: entry -> %6 consume last
+>     uses $0: entry -> %5 consume last
 >   local $1 bodies: List[Body] [read assigned captured captured-assigned] place
 >   local $2 $cur: i64 [assigned] place
 >   local $3 $end: i64 [assigned] value
->     uses $3: %11 -> %15 lend
+>     uses $3: %10 -> %14 lend
 >   local $4 $incl: bool [assigned] value
 >     uses $4: none
 >   %0 = NewStruct [0.0:f64 1.0:f64] : Body
@@ -123,38 +123,37 @@ pub fn run(steps: i64) -> f64:
 >   %2 = NewStruct [1.0:f64 0.5:f64] : Body
 >   %3 = NewList - [%1 %2] : List[Body]
 >   %4 = Store [$1] %3 : ()
->   %5 = Release %4 #0 : ()
->   %32 = Block %30 : f64
+>   %31 = Block %29 : f64
     for _ in 0..steps:
->   %6 = Read copy [$0] : i64
->   %7 = NewStruct [0:i64 %6 0:bool] : Range[i64]
->   %8 = Read copy [%7 .start] : i64
->   %9 = Store [$2] %8 : ()
->   %10 = Read copy [%7 .end] : i64
->   %11 = Store [$3] %10 : ()
->   %12 = Read copy [%7 .inclusive] : bool
->   %13 = Store [$4] %12 : ()
->   %14 = Read copy [$2] : i64
->   %15 = Read copy [$3] : i64
->   %16 = Prim Lt [%14 %15] : bool
+>   %5 = Read copy [$0] : i64
+>   %6 = NewStruct [0:i64 %5 0:bool] : Range[i64]
+>   %7 = Read copy [%6 .start] : i64
+>   %8 = Store [$2] %7 : ()
+>   %9 = Read copy [%6 .end] : i64
+>   %10 = Store [$3] %9 : ()
+>   %11 = Read copy [%6 .inclusive] : bool
+>   %12 = Store [$4] %11 : ()
+>   %13 = Read copy [$2] : i64
+>   %14 = Read copy [$3] : i64
+>   %15 = Prim Lt [%13 %14] : bool
+>   %16 = Read copy [$2] : i64
 >   %17 = Read copy [$2] : i64
->   %18 = Read copy [$2] : i64
->   %19 = Prim Add [%18 1:i64] : i64
->   %20 = Store [$2] %19 : ()
->   %24 = Block - : ()
->   %25 = Break L0 - : never
->   %26 = Block - : ()
->   %27 = If %16 [%24 %26] : ()
->   %28 = Block - : ()
->   %29 = Loop %28 - : ()
->   %29 finds [$1] full
+>   %18 = Prim Add [%17 1:i64] : i64
+>   %19 = Store [$2] %18 : ()
+>   %23 = Block - : ()
+>   %24 = Break L0 - : never
+>   %25 = Block - : ()
+>   %26 = If %15 [%23 %25] : ()
+>   %27 = Block - : ()
+>   %28 = Loop %27 - : ()
+>   %28 finds [$1] full
         advance(&mut bodies, 0.01)
->   %21 = Ref mut local frame [$1] : Counted[mut List[Body]]
->   %22 = Call app/main/advance[] (%21, 0.01:f64) : ()
->   %23 = Drop [%21] : ()
->   %21 finds [$1] full
+>   %20 = Ref mut local frame [$1] : Counted[mut List[Body]]
+>   %21 = Call app/main/advance[] (%20, 0.01:f64) : ()
+>   %22 = Drop [%20] : ()
+>   %20 finds [$1] full
     bodies[0].x
->   %30 = Read copy [$1 [0:usize] .x] : f64
->   %31 = Drop [$1] : ()
->   %30 finds [$1] full
+>   %29 = Read copy [$1 [0:usize] .x] : f64
+>   %30 = Drop [$1] : ()
+>   %29 finds [$1] full
 >   summary kept [] writes

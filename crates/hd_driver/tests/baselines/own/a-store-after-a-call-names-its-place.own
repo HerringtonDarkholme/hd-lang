@@ -19,26 +19,25 @@ fn fill(n: usize) -> List[usize]:
     let mut xs: List[usize] = [0, 0]
 > app/main/fill
 >   local $0 n: usize [param read] value
->     uses $0: entry -> %3 lend, %7 lend last
+>     uses $0: entry -> %2 lend, %6 lend last
 >   local $1 xs: List[usize] [read assigned] place
 >   %0 = NewList - [0:usize 0:usize] : List[usize]
 >   %1 = Store [$1] %0 : ()
->   %2 = Release %1 #0 : ()
->   %14 = Block %13 : List[usize]
+>   %13 = Block %12 : List[usize]
     xs[1] = n * 2
->   %3 = Read copy [$0] : usize
->   %4 = Prim Mul [%3 2:usize] : usize
->   %5 = IsUnique [$1] : ()
->   %6 = Store [$1 [1:usize]] %4 : ()
+>   %2 = Read copy [$0] : usize
+>   %3 = Prim Mul [%2 2:usize] : usize
+>   %4 = IsUnique [$1] : ()
+>   %5 = Store [$1 [1:usize]] %3 : ()
     xs[0] = n + usize(twice(1))
->   %7 = Read copy [$0] : usize
->   %8 = Call app/main/twice[] (1:i32) : i32
->   %9 = Prim Conv [%8] : usize
->   %10 = Prim Add [%7 %9] : usize
->   %11 = IsUnique [$1] : ()
->   %12 = Store [$1 [0:usize]] %10 : ()
+>   %6 = Read copy [$0] : usize
+>   %7 = Call app/main/twice[] (1:i32) : i32
+>   %8 = Prim Conv [%7] : usize
+>   %9 = Prim Add [%6 %8] : usize
+>   %10 = IsUnique [$1] : ()
+>   %11 = Store [$1 [0:usize]] %9 : ()
     xs
->   %13 = Read move [$1] : List[usize]
+>   %12 = Read move [$1] : List[usize]
 
 fn bump(counts: &mut List[i32]) -> void:
     counts[1] += twice(5)

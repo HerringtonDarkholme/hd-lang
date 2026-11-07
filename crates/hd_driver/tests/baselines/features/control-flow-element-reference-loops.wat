@@ -68,7 +68,6 @@
       local.get $t0
     ;; 21 |     let mut out = prices
       local.get $prices
-      local.tee $prices
     ;; 22 |     for p in &mut out:
       i32.load $heap offset=4
       local.tee $t0

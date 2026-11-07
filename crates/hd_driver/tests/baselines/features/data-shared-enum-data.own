@@ -17,27 +17,25 @@ enum HttpStatus(code: i32, phrase: string, retryable: bool = false):
 >     uses $3: none
 >   %0 = Store [$0] 200:i32 : ()
 >   %1 = Store [$1] "OK" : ()
->   %2 = Release %1 #0 : ()
->   %3 = Drop [$1] : ()
->   %8 = Store [$2] 404:i32 : ()
->   %9 = Store [$3] "Not Found" : ()
->   %10 = Release %9 #0 : ()
->   %11 = Drop [$3] : ()
+>   %2 = Drop [$1] : ()
+>   %7 = Store [$2] 404:i32 : ()
+>   %8 = Store [$3] "Not Found" : ()
+>   %9 = Drop [$3] : ()
     Ok -> HttpStatus(200, phrase="OK")
->   %4 = Store [@app/main/HttpStatus.Ok.code] 200:i32 : ()
->   %5 = Store [@app/main/HttpStatus.Ok.phrase] "OK" : ()
->   %6 = Release %5 #0 : ()
->   %7 = Store [@app/main/HttpStatus.Ok.retryable] 0:bool : ()
+>   %3 = Store [@app/main/HttpStatus.Ok.code] 200:i32 : ()
+>   %4 = Store [@app/main/HttpStatus.Ok.phrase] "OK" : ()
+>   %5 = Release %4 #0 : ()
+>   %6 = Store [@app/main/HttpStatus.Ok.retryable] 0:bool : ()
     NotFound -> HttpStatus(404, phrase="Not Found")
->   %12 = Store [@app/main/HttpStatus.NotFound.code] 404:i32 : ()
->   %13 = Store [@app/main/HttpStatus.NotFound.phrase] "Not Found" : ()
->   %14 = Release %13 #0 : ()
->   %15 = Store [@app/main/HttpStatus.NotFound.retryable] 0:bool : ()
+>   %10 = Store [@app/main/HttpStatus.NotFound.code] 404:i32 : ()
+>   %11 = Store [@app/main/HttpStatus.NotFound.phrase] "Not Found" : ()
+>   %12 = Release %11 #0 : ()
+>   %13 = Store [@app/main/HttpStatus.NotFound.retryable] 0:bool : ()
     Busy -> HttpStatus(503, phrase="Busy", retryable=true)
->   %16 = Store [@app/main/HttpStatus.Busy.code] 503:i32 : ()
->   %17 = Store [@app/main/HttpStatus.Busy.phrase] "Busy" : ()
->   %18 = Release %17 #0 : ()
->   %19 = Store [@app/main/HttpStatus.Busy.retryable] 1:bool : ()
+>   %14 = Store [@app/main/HttpStatus.Busy.code] 503:i32 : ()
+>   %15 = Store [@app/main/HttpStatus.Busy.phrase] "Busy" : ()
+>   %16 = Release %15 #0 : ()
+>   %17 = Store [@app/main/HttpStatus.Busy.retryable] 1:bool : ()
 
 fn phrase_len(s: HttpStatus) -> usize:
     s.phrase.len()
@@ -45,7 +43,7 @@ fn phrase_len(s: HttpStatus) -> usize:
 >   local $0 s: HttpStatus [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 $ref: string [read assigned captured captured-assigned] value
->     uses $1: %10 -> %12 lend last
+>     uses $1: %10 -> %11 lend last
 >   %0 = Read copy [$0] : HttpStatus
 >   %1 = Read copy [@app/main/HttpStatus.Ok.phrase] : string
 >   %2 = Block %1 : string
@@ -57,14 +55,13 @@ fn phrase_len(s: HttpStatus) -> usize:
 >   %8 = Block %7 : string
 >   %9 = SwitchTag %0 [#0 %2 %8] : string
 >   %10 = Store [$1] %9 : ()
->   %11 = Release %10 #0 : ()
->   %12 = Read borrow [$1] : string
->   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
->   %14 = Break L0 %13 : never
->   %15 = Block - : usize
->   %16 = Scope %15 [] : usize
->   %17 = Drop [$1] : ()
->   %18 = Block %16 : usize
+>   %11 = Read borrow [$1] : string
+>   %12 = Call std/rt.bytes/bytes_len[] (%11) : usize
+>   %13 = Break L0 %12 : never
+>   %14 = Block - : usize
+>   %15 = Scope %14 [] : usize
+>   %16 = Drop [$1] : ()
+>   %17 = Block %15 : usize
 >   summary kept []
 
 fn phrase_of(s: HttpStatus) -> string:

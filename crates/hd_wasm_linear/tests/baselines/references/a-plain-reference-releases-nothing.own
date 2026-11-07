@@ -13,63 +13,62 @@ fn set(xs: &mut UniqList[i32], i: usize, v: i32) -> void:
 >   local $1 i: usize [param read] value
 >     uses $1: entry -> %1 consume last
 >   local $2 v: i32 [param read] value
->     uses $2: entry -> %28 consume last
+>     uses $2: entry -> %27 consume last
 >   local $3 r: Ref[mut i32] [read assigned] value
->     uses $3: %34 -> %29 lend last
+>     uses $3: %33 -> %28 lend last
 >   local $4 self: Ref[mut UniqList[i32]] [read] value
->     uses $4: %2 -> %6 lend, %10 lend last
+>     uses $4: %2 -> %5 lend, %9 lend last
 >   local $5 index: usize [read] value
->     uses $5: %4 -> %5 lend, %11 consume last
+>     uses $5: %3 -> %4 lend, %10 consume last
 >   local $7 index: usize [read] value
->     uses $7: %12 -> %15 lend last
+>     uses $7: %11 -> %14 lend last
 >   %0 = Read borrow [$0] : Ref[mut UniqList[i32]]
 >   %1 = Read copy [$1] : usize
 >   %2 = Store [$4] %0 : ()
->   %3 = Release %2 #0 : ()
->   %4 = Store [$5] %1 : ()
->   %5 = Read copy [$5] : usize
->   %6 = Read copy [*$4 .len] : usize
->   %7 = Prim Ge [%5 %6] : bool
->   %8 = NewVariant #0 [] : Ref[mut i32]?
->   %9 = Block %8 : Ref[mut i32]?
->   %10 = Ref local [*$4 .buffer] : Ref[Buffer[i32]]
->   %11 = Read copy [$5] : usize
->   %12 = Store [$7] %11 : ()
->   %13 = Read copy [*%10 .address] : usize
->   %14 = NewStruct [%13] : Ptr[i32]
->   %15 = Read copy [$7] : usize
->   %16 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[i32] (%14, %15) : Ptr[i32]
->   %17 = Break L0 %16 : never
->   %18 = Block - : Ptr[i32]
->   %19 = Scope %18 [] : Ptr[i32]
->   %20 = Drop [%10] : ()
->   %21 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].as_mut[i32] (%19) : Ref[mut i32]
->   %22 = NewVariant #1 [%21] : Ref[mut i32]?
->   %23 = Block %22 : Ref[mut i32]?
->   %24 = If %7 [%9 %23] : Ref[mut i32]?
->   %25 = Break L1 %24 : never
->   %26 = Block - : Ref[mut i32]?
->   %27 = Scope %26 [] : Ref[mut i32]?
->   %45 = Block - : never
->   %46 = Match %27 [%45 %30 %32] : ()
->   %47 = LoanEnd [%27] : ()
->   %48 = Block - : ()
+>   %3 = Store [$5] %1 : ()
+>   %4 = Read copy [$5] : usize
+>   %5 = Read copy [*$4 .len] : usize
+>   %6 = Prim Ge [%4 %5] : bool
+>   %7 = NewVariant #0 [] : Ref[mut i32]?
+>   %8 = Block %7 : Ref[mut i32]?
+>   %9 = Ref local [*$4 .buffer] : Ref[Buffer[i32]]
+>   %10 = Read copy [$5] : usize
+>   %11 = Store [$7] %10 : ()
+>   %12 = Read copy [*%9 .address] : usize
+>   %13 = NewStruct [%12] : Ptr[i32]
+>   %14 = Read copy [$7] : usize
+>   %15 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[i32] (%13, %14) : Ptr[i32]
+>   %16 = Break L0 %15 : never
+>   %17 = Block - : Ptr[i32]
+>   %18 = Scope %17 [] : Ptr[i32]
+>   %19 = Drop [%9] : ()
+>   %20 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].as_mut[i32] (%18) : Ref[mut i32]
+>   %21 = NewVariant #1 [%20] : Ref[mut i32]?
+>   %22 = Block %21 : Ref[mut i32]?
+>   %23 = If %6 [%8 %22] : Ref[mut i32]?
+>   %24 = Break L1 %23 : never
+>   %25 = Block - : Ref[mut i32]?
+>   %26 = Scope %25 [] : Ref[mut i32]?
+>   %44 = Block - : never
+>   %45 = Match %26 [%44 %29 %31] : ()
+>   %46 = LoanEnd [%26] : ()
+>   %47 = Block - : ()
         .Some(r) => *r = v
->   %28 = Read copy [$2] : i32
->   %29 = Store [*$3] %28 : ()
->   %30 = Block - : ()
->   %33 = Read borrow [%27 as #1 .0] : Ref[mut i32]
->   %34 = Store [$3] %33 : ()
->   %35 = Release %34 #0 : ()
->   %37 = Block - : never
->   %43 = Block - : never
->   %44 = SwitchTag %27 [#1 %37 %43] : never
+>   %27 = Read copy [$2] : i32
+>   %28 = Store [*$3] %27 : ()
+>   %29 = Block - : ()
+>   %32 = Read borrow [%26 as #1 .0] : Ref[mut i32]
+>   %33 = Store [$3] %32 : ()
+>   %34 = Release %33 #0 : ()
+>   %36 = Block - : never
+>   %42 = Block - : never
+>   %43 = SwitchTag %26 [#1 %36 %42] : never
         .None => panic("index")
->   %31 = Call std/core/panic[] ("index") : never
->   %32 = Block - : never
->   %39 = Block - : never
->   %41 = Block - : never
->   %42 = SwitchTag %27 [#0 %39 %41] : never
+>   %30 = Call std/core/panic[] ("index") : never
+>   %31 = Block - : never
+>   %38 = Block - : never
+>   %40 = Block - : never
+>   %41 = SwitchTag %26 [#0 %38 %40] : never
 >   summary kept [] writes
 
 fn first(xs: &List[string]) -> usize:
@@ -78,16 +77,15 @@ fn first(xs: &List[string]) -> usize:
 >   local $0 xs: Ref[List[string]] [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 a: Ref[string] [:= read assigned] value
->     uses $1: %2 -> %4 lend last
+>     uses $1: %2 -> %3 lend last
 >   %0 = IsUnique [*$0] : ()
 >   %1 = Ref local [*$0 [0:usize]] : Ref[string]
 >   %2 = Store [$1] %1 : ()
->   %3 = Release %2 #0 : ()
->   %7 = Block %5 : usize
+>   %6 = Block %4 : usize
     a.len()
->   %4 = Read move [$1] : Ref[string]
->   %5 = Call std/text/impl string.len[] (%4) : usize
->   %6 = LoanEnd [%4] : ()
+>   %3 = Read move [$1] : Ref[string]
+>   %4 = Call std/text/impl string.len[] (%3) : usize
+>   %5 = LoanEnd [%3] : ()
 >   summary kept [] writes
 
 fn slot() -> i32:
@@ -95,20 +93,18 @@ fn slot() -> i32:
 > app/main/slot
 >   local $0 n: i32 [read assigned captured captured-assigned] place
 >   local $1 r: Ref[mut i32] [:= read assigned] value
->     uses $1: %3 -> %6 lend last
+>     uses $1: %2 -> %4 lend last
 >   %0 = Store [$0] 1:i32 : ()
->   %1 = Release %0 #0 : ()
->   %9 = Block %8 : i32
+>   %7 = Block %6 : i32
     r := &mut n
->   %2 = Ref mut local frame [$0] : Ref[mut i32]
->   %3 = Store [$1] %2 : ()
->   %4 = Release %3 #0 : ()
->   %2 finds [$0] full
+>   %1 = Ref mut local frame [$0] : Ref[mut i32]
+>   %2 = Store [$1] %1 : ()
+>   %1 finds [$0] full
     *r = +2
->   %5 = Coerce 2:i32 [Weaken -] : i32
->   %6 = Store [*$1] %5 : ()
->   %7 = LoanEnd [$1] : ()
+>   %3 = Coerce 2:i32 [Weaken -] : i32
+>   %4 = Store [*$1] %3 : ()
+>   %5 = LoanEnd [$1] : ()
     n
->   %8 = Read move [$0] : i32
->   %8 finds [$0] full
+>   %6 = Read move [$0] : i32
+>   %6 finds [$0] full
 >   summary kept [] writes

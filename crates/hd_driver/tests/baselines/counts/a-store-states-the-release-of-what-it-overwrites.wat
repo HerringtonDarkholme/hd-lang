@@ -4,15 +4,17 @@
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
+  (import "fixture" "room" (func $room (param i32 i32) (result i32)))
   (import "fixture" "signed_magnitude" (func $signed_magnitude (param i64) (result i64)))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
+  (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $eat (param $s.0 i32) (param $s.1 i32) (result i32)
-    ;; 17 |     s.len()
+    ;; 20 |     s.len()
     block
       block
         block
@@ -25,18 +27,18 @@
     local.get $s.0
   )
   (func $local_over (param $k i32) (result i32) (local $s.0 i32) (local $s.1 i32)
-    ;; 20 |     let mut s = make(k)
+    ;; 23 |     let mut s = make(k)
     block
       local.get $k
       call $make
       local.set $s.1
       local.set $s.0
-    ;; 21 |     if k > 0:
+    ;; 24 |     if k > 0:
       local.get $k
       i32.const 0
       i32.gt_s
       if
-    ;; 22 |         s = make(k + 1)
+    ;; 25 |         s = make(k + 1)
         local.get $k
         i32.const 1
         i32.add
@@ -45,21 +47,21 @@
         call $rt:release_ref
         local.set $s.1
         local.set $s.0
-    ;; 21 |     if k > 0:
+    ;; 24 |     if k > 0:
       end
-    ;; 23 |     eat(s)
+    ;; 26 |     eat(s)
       local.get $s.0
       local.get $s.1
       call $eat
       local.get $s.0
-    ;; 20 |     let mut s = make(k)
+    ;; 23 |     let mut s = make(k)
       call $rt:release_ref
       local.set $k
     end
     local.get $k
   )
   (func $element_over (param $xs i32) (param $i i32) (param $k i32) (local $t0 i32)
-    ;; 26 |     xs[i] = make(k)
+    ;; 29 |     xs[i] = make(k)
     block
       local.get $k
       call $make
@@ -98,7 +100,7 @@
     end
   )
   (func $field_over (param $r i32) (param $k i32) (local $t0 i32)
-    ;; 29 |     r.name = make(k)
+    ;; 32 |     r.name = make(k)
     block
       local.get $k
       call $make
@@ -117,8 +119,35 @@
       call $rt:release
     end
   )
+  (func $fresh (result i32 i32 i32) (local $t0 i32)
+    ;; 36 |     UniqList::[i32].new()
+    block
+      block
+        block
+          block
+            block
+              block
+                block
+                  i32.const 0
+                  i32.const 4
+                  call $room
+                  local.set $t0
+                  br 0
+                end
+              end
+              br 0
+            end
+          end
+          br 0
+        end
+      end
+    end
+    local.get $t0
+    i32.const 0
+    i32.const 0
+  )
   (func $make (param $t1 i32) (result i32 i32) (local $n i32) (local $t0 i32) (local $t2 i64) (local $t3 i64) (local $t4 i32) (local $t5 i32) (local $t6 i32)
-    ;; 13 |     "s$n"
+    ;; 16 |     "s$n"
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -244,6 +273,141 @@
     local.get $n
     local.get $t0
     i32.const 16
+    i32.add
+    global.set $locals
+  )
+  (func $declared (param $c i32) (result i32) (local $u i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t3 i32)
+    ;; 39 |     u := fresh()
+    global.get $locals
+    global.get $locals_base
+    i32.sub
+    i32.const 40
+    i32.lt_u
+    if
+      i32.const 1
+      memory.grow $heap
+      local.tee $t0
+      i32.const -1
+      i32.eq
+      if
+        unreachable
+      end
+      local.get $t0
+      i32.const 16
+      i32.shl
+      local.tee $t0
+      global.set $locals_base
+      local.get $t0
+      i32.const 65536
+      i32.add
+      global.set $locals
+    end
+    global.get $locals
+    i32.const 40
+    i32.sub
+    local.tee $t0
+    global.set $locals
+    block
+      call $fresh
+      local.set $t1
+      local.set $t2
+      local.set $u
+      local.get $t0
+      i64.const 0
+      i64.store $heap
+      local.get $t0
+      i32.const 8
+      i32.add
+      local.tee $t3
+      local.get $u
+      i32.store $heap
+      local.get $t3
+      local.get $t2
+      i32.store $heap offset=4
+      local.get $t3
+      local.get $t1
+      i32.store $heap offset=8
+      local.get $t3
+      i32.const 1
+      i32.store $heap offset=12
+      local.get $t3
+      i32.const 1
+      i32.store $heap offset=16
+      local.get $t3
+      i32.const 1
+      i32.store $heap offset=20
+      local.get $t3
+      i32.const 1
+      i32.store $heap offset=24
+      local.get $t3
+      i32.const 1
+      i32.store $heap offset=28
+      local.get $t3
+      local.set $u
+    ;; 40 |     if c:
+      local.get $c
+      if
+    ;; 41 |         return u.len()
+        block
+          block
+            local.get $u
+            i32.load $heap offset=8
+            local.set $c
+            br 0
+          end
+        end
+        br 1
+    ;; 40 |     if c:
+      end
+    ;; 39 |     u := fresh()
+      local.get $u
+      if
+        local.get $u
+        call $rt:drop
+        local.get $u
+        i32.const 0
+        i32.store $heap offset=12
+        local.get $u
+        i32.const 0
+        i32.store $heap offset=16
+        local.get $u
+        i32.const 0
+        i32.store $heap offset=20
+        local.get $u
+        i32.const 0
+        i32.store $heap offset=24
+        local.get $u
+        i32.const 0
+        i32.store $heap offset=28
+      end
+      i32.const 0
+      local.set $u
+      i32.const 0
+      local.set $c
+    end
+    local.get $u
+    if
+      local.get $u
+      call $rt:drop
+      local.get $u
+      i32.const 0
+      i32.store $heap offset=12
+      local.get $u
+      i32.const 0
+      i32.store $heap offset=16
+      local.get $u
+      i32.const 0
+      i32.store $heap offset=20
+      local.get $u
+      i32.const 0
+      i32.store $heap offset=24
+      local.get $u
+      i32.const 0
+      i32.store $heap offset=28
+    end
+    local.get $c
+    local.get $t0
+    i32.const 40
     i32.add
     global.set $locals
   )

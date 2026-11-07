@@ -13,266 +13,262 @@ struct User:
 fn pairs(xs: List[string], ys: List[string]) -> List[(string, string)]:
 > app/main/pairs
 >   local $0 xs: List[string] [param read] value
->     uses $0: entry -> %5 lend, %13 lend
+>     uses $0: entry -> %4 lend, %12 lend
 >   local $1 ys: List[string] [param read] value
->     uses $1: entry -> %17 lend, %25 lend
+>     uses $1: entry -> %16 lend, %24 lend
 >   local $2 $acc: mut List[(string, string)] [assigned] value
->     uses $2: %3 -> %44 lend, %74 consume last
+>     uses $2: %3 -> %43 lend, %73 consume last
 >   local $5 $pos: usize [assigned] place
 >   local $6 $end: usize [assigned] value
->     uses $6: %7 -> %10 lend
+>     uses $6: %6 -> %9 lend
 >   local $7 x: string [read assigned] value
->     uses $7: %63 -> %29 lend, %40 consume
+>     uses $7: %62 -> %28 lend, %39 consume
 >   local $10 $pos: usize [assigned] place
 >   local $11 $end: usize [assigned] value
->     uses $11: %19 -> %22 lend
+>     uses $11: %18 -> %21 lend
 >   local $12 y: string [read assigned] value
->     uses $12: %50 -> %34 lend, %41 consume last
+>     uses $12: %49 -> %33 lend, %40 consume last
 >   %0 = ExitDrop [$0] #2 : ()
 >   %1 = ExitDrop [$1] #2 : ()
     [for x in xs for y in ys if x.len() == y.len() => (x, y)]
 >   %2 = NewList - [] : mut List[(string, string)]
 >   %3 = Store [$2] %2 : ()
->   %4 = Release %3 #0 : ()
->   %5 = Read borrow [$0] : List[string]
->   %6 = Intrinsic ListLen [%5] : usize
->   %7 = Store [$6] %6 : ()
->   %8 = Store [$5] 0:usize : ()
->   %9 = Read copy [$5] : usize
->   %10 = Read copy [$6] : usize
->   %11 = Prim Lt [%9 %10] : bool
->   %12 = Read copy [$5] : usize
->   %13 = Read borrow [$0 [%12]] : string
->   %14 = Read copy [$5] : usize
->   %15 = Prim Add [%14 1:usize] : usize
->   %16 = Store [$5] %15 : ()
->   %17 = Read borrow [$1] : List[string]
->   %18 = Intrinsic ListLen [%17] : usize
->   %19 = Store [$11] %18 : ()
->   %20 = Store [$10] 0:usize : ()
->   %21 = Read copy [$10] : usize
->   %22 = Read copy [$11] : usize
->   %23 = Prim Lt [%21 %22] : bool
->   %24 = Read copy [$10] : usize
->   %25 = Read borrow [$1 [%24]] : string
->   %26 = Read copy [$10] : usize
->   %27 = Prim Add [%26 1:usize] : usize
->   %28 = Store [$10] %27 : ()
->   %29 = Read borrow [$7] : string
->   %30 = Call std/rt.bytes/bytes_len[] (%29) : usize
->   %31 = Break L3 %30 : never
->   %32 = Block - : usize
->   %33 = Scope %32 [] : usize
->   %34 = Read borrow [$12] : string
->   %35 = Call std/rt.bytes/bytes_len[] (%34) : usize
->   %36 = Break L2 %35 : never
->   %37 = Block - : usize
->   %38 = Scope %37 [] : usize
->   %39 = Prim Eq [%33 %38] : bool
->   %40 = Read copy [$7] : string
->   %41 = Read copy [$12] : string
->   %42 = NewTuple - [%40 %41] : (string, string)
->   %43 = IsUnique fresh [$2] : ()
->   %44 = Read borrow [$2] : mut List[(string, string)]
->   %45 = Intrinsic ListPush [%44 %42] : ()
->   %46 = Block - : ()
->   %47 = If %39 [%46 -] : ()
->   %48 = Block - : ()
->   %49 = Read borrow [%25] : string
->   %50 = Store [$12] %49 : ()
->   %51 = Release %50 #0 : ()
->   %53 = Block - : never
->   %54 = Match %25 [%53 %48] : ()
->   %55 = Block - : ()
->   %56 = Break L1 - : never
->   %57 = Block - : ()
->   %58 = If %23 [%55 %57] : ()
->   %59 = Block - : ()
->   %60 = Loop %59 - : ()
->   %61 = Block - : ()
->   %62 = Read borrow [%13] : string
->   %63 = Store [$7] %62 : ()
->   %64 = Release %63 #0 : ()
->   %66 = Block - : never
->   %67 = Match %13 [%66 %61] : ()
->   %68 = Block - : ()
->   %69 = Break L0 - : never
->   %70 = Block - : ()
->   %71 = If %11 [%68 %70] : ()
->   %72 = Block - : ()
->   %73 = Loop %72 - : ()
->   %74 = Read move [$2] : mut List[(string, string)]
->   %75 = Coerce %74 [Weaken -] : List[(string, string)]
->   %76 = Block %75 : List[(string, string)]
+>   %4 = Read borrow [$0] : List[string]
+>   %5 = Intrinsic ListLen [%4] : usize
+>   %6 = Store [$6] %5 : ()
+>   %7 = Store [$5] 0:usize : ()
+>   %8 = Read copy [$5] : usize
+>   %9 = Read copy [$6] : usize
+>   %10 = Prim Lt [%8 %9] : bool
+>   %11 = Read copy [$5] : usize
+>   %12 = Read borrow [$0 [%11]] : string
+>   %13 = Read copy [$5] : usize
+>   %14 = Prim Add [%13 1:usize] : usize
+>   %15 = Store [$5] %14 : ()
+>   %16 = Read borrow [$1] : List[string]
+>   %17 = Intrinsic ListLen [%16] : usize
+>   %18 = Store [$11] %17 : ()
+>   %19 = Store [$10] 0:usize : ()
+>   %20 = Read copy [$10] : usize
+>   %21 = Read copy [$11] : usize
+>   %22 = Prim Lt [%20 %21] : bool
+>   %23 = Read copy [$10] : usize
+>   %24 = Read borrow [$1 [%23]] : string
+>   %25 = Read copy [$10] : usize
+>   %26 = Prim Add [%25 1:usize] : usize
+>   %27 = Store [$10] %26 : ()
+>   %28 = Read borrow [$7] : string
+>   %29 = Call std/rt.bytes/bytes_len[] (%28) : usize
+>   %30 = Break L3 %29 : never
+>   %31 = Block - : usize
+>   %32 = Scope %31 [] : usize
+>   %33 = Read borrow [$12] : string
+>   %34 = Call std/rt.bytes/bytes_len[] (%33) : usize
+>   %35 = Break L2 %34 : never
+>   %36 = Block - : usize
+>   %37 = Scope %36 [] : usize
+>   %38 = Prim Eq [%32 %37] : bool
+>   %39 = Read copy [$7] : string
+>   %40 = Read copy [$12] : string
+>   %41 = NewTuple - [%39 %40] : (string, string)
+>   %42 = IsUnique fresh [$2] : ()
+>   %43 = Read borrow [$2] : mut List[(string, string)]
+>   %44 = Intrinsic ListPush [%43 %41] : ()
+>   %45 = Block - : ()
+>   %46 = If %38 [%45 -] : ()
+>   %47 = Block - : ()
+>   %48 = Read borrow [%24] : string
+>   %49 = Store [$12] %48 : ()
+>   %50 = Release %49 #0 : ()
+>   %52 = Block - : never
+>   %53 = Match %24 [%52 %47] : ()
+>   %54 = Block - : ()
+>   %55 = Break L1 - : never
+>   %56 = Block - : ()
+>   %57 = If %22 [%54 %56] : ()
+>   %58 = Block - : ()
+>   %59 = Loop %58 - : ()
+>   %60 = Block - : ()
+>   %61 = Read borrow [%12] : string
+>   %62 = Store [$7] %61 : ()
+>   %63 = Release %62 #0 : ()
+>   %65 = Block - : never
+>   %66 = Match %12 [%65 %60] : ()
+>   %67 = Block - : ()
+>   %68 = Break L0 - : never
+>   %69 = Block - : ()
+>   %70 = If %10 [%67 %69] : ()
+>   %71 = Block - : ()
+>   %72 = Loop %71 - : ()
+>   %73 = Read move [$2] : mut List[(string, string)]
+>   %74 = Coerce %73 [Weaken -] : List[(string, string)]
+>   %75 = Block %74 : List[(string, string)]
 >   summary kept [] borrows [$0 $1]
 
 fn names(users: List[User]) -> List[string]:
 > app/main/names
 >   local $0 users: List[User] [param read] value
->     uses $0: entry -> %4 lend, %12 lend
+>     uses $0: entry -> %3 lend, %11 lend
 >   local $1 $acc: mut List[string] [assigned] value
->     uses $1: %2 -> %19 lend, %36 consume last
+>     uses $1: %2 -> %18 lend, %35 consume last
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
->     uses $5: %6 -> %9 lend
+>     uses $5: %5 -> %8 lend
 >   local $6 u: User [read assigned] value
->     uses $6: %25 -> %16 lend, %17 consume last
+>     uses $6: %24 -> %15 lend, %16 consume last
 >   %0 = ExitDrop [$0] #2 : ()
     [for u in users if u.active => u.name]
 >   %1 = NewList - [] : mut List[string]
 >   %2 = Store [$1] %1 : ()
->   %3 = Release %2 #0 : ()
->   %4 = Read borrow [$0] : List[User]
->   %5 = Intrinsic ListLen [%4] : usize
->   %6 = Store [$5] %5 : ()
->   %7 = Store [$4] 0:usize : ()
->   %8 = Read copy [$4] : usize
->   %9 = Read copy [$5] : usize
->   %10 = Prim Lt [%8 %9] : bool
->   %11 = Read copy [$4] : usize
->   %12 = Read borrow [$0 [%11]] : User
->   %13 = Read copy [$4] : usize
->   %14 = Prim Add [%13 1:usize] : usize
->   %15 = Store [$4] %14 : ()
->   %16 = Read copy [$6 .active] : bool
->   %17 = Read copy [$6 .name] : string
->   %18 = IsUnique fresh [$1] : ()
->   %19 = Read borrow [$1] : mut List[string]
->   %20 = Intrinsic ListPush [%19 %17] : ()
->   %21 = Block - : ()
->   %22 = If %16 [%21 -] : ()
->   %23 = Block - : ()
->   %24 = Read borrow [%12] : User
->   %25 = Store [$6] %24 : ()
->   %26 = Release %25 #0 : ()
->   %28 = Block - : never
->   %29 = Match %12 [%28 %23] : ()
->   %30 = Block - : ()
->   %31 = Break L0 - : never
->   %32 = Block - : ()
->   %33 = If %10 [%30 %32] : ()
->   %34 = Block - : ()
->   %35 = Loop %34 - : ()
->   %36 = Read move [$1] : mut List[string]
->   %37 = Coerce %36 [Weaken -] : List[string]
->   %38 = Block %37 : List[string]
+>   %3 = Read borrow [$0] : List[User]
+>   %4 = Intrinsic ListLen [%3] : usize
+>   %5 = Store [$5] %4 : ()
+>   %6 = Store [$4] 0:usize : ()
+>   %7 = Read copy [$4] : usize
+>   %8 = Read copy [$5] : usize
+>   %9 = Prim Lt [%7 %8] : bool
+>   %10 = Read copy [$4] : usize
+>   %11 = Read borrow [$0 [%10]] : User
+>   %12 = Read copy [$4] : usize
+>   %13 = Prim Add [%12 1:usize] : usize
+>   %14 = Store [$4] %13 : ()
+>   %15 = Read copy [$6 .active] : bool
+>   %16 = Read copy [$6 .name] : string
+>   %17 = IsUnique fresh [$1] : ()
+>   %18 = Read borrow [$1] : mut List[string]
+>   %19 = Intrinsic ListPush [%18 %16] : ()
+>   %20 = Block - : ()
+>   %21 = If %15 [%20 -] : ()
+>   %22 = Block - : ()
+>   %23 = Read borrow [%11] : User
+>   %24 = Store [$6] %23 : ()
+>   %25 = Release %24 #0 : ()
+>   %27 = Block - : never
+>   %28 = Match %11 [%27 %22] : ()
+>   %29 = Block - : ()
+>   %30 = Break L0 - : never
+>   %31 = Block - : ()
+>   %32 = If %9 [%29 %31] : ()
+>   %33 = Block - : ()
+>   %34 = Loop %33 - : ()
+>   %35 = Read move [$1] : mut List[string]
+>   %36 = Coerce %35 [Weaken -] : List[string]
+>   %37 = Block %36 : List[string]
 >   summary kept [] borrows [$0]
 
 fn by_name(users: List[User]) -> Map[string, i64]:
 > app/main/by_name
 >   local $0 users: List[User] [param read] value
->     uses $0: entry -> %4 lend, %12 lend
+>     uses $0: entry -> %3 lend, %11 lend
 >   local $1 $acc: mut Map[string, i64] [assigned] value
->     uses $1: %2 -> %20 lend, %37 consume last
+>     uses $1: %2 -> %19 lend, %36 consume last
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
->     uses $5: %6 -> %9 lend
+>     uses $5: %5 -> %8 lend
 >   local $6 u: User [read assigned] value
->     uses $6: %26 -> %16 lend, %17 lend, %18 consume last
+>     uses $6: %25 -> %15 lend, %16 lend, %17 consume last
 >   %0 = ExitDrop [$0] #2 : ()
     {for u in users if u.active => u.name: u.id}
 >   %1 = NewMap [] : mut Map[string, i64]
 >   %2 = Store [$1] %1 : ()
->   %3 = Release %2 #0 : ()
->   %4 = Read borrow [$0] : List[User]
->   %5 = Intrinsic ListLen [%4] : usize
->   %6 = Store [$5] %5 : ()
->   %7 = Store [$4] 0:usize : ()
->   %8 = Read copy [$4] : usize
->   %9 = Read copy [$5] : usize
->   %10 = Prim Lt [%8 %9] : bool
->   %11 = Read copy [$4] : usize
->   %12 = Read borrow [$0 [%11]] : User
->   %13 = Read copy [$4] : usize
->   %14 = Prim Add [%13 1:usize] : usize
->   %15 = Store [$4] %14 : ()
->   %16 = Read copy [$6 .active] : bool
->   %17 = Read borrow [$6 .name] : string
->   %18 = Read copy [$6 .id] : i64
->   %19 = IsUnique fresh [$1] : ()
->   %20 = Read borrow [$1] : mut Map[string, i64]
->   %21 = Intrinsic MapSet [%20 %17 %18] : ()
->   %22 = Block - : ()
->   %23 = If %16 [%22 -] : ()
->   %24 = Block - : ()
->   %25 = Read borrow [%12] : User
->   %26 = Store [$6] %25 : ()
->   %27 = Release %26 #0 : ()
->   %29 = Block - : never
->   %30 = Match %12 [%29 %24] : ()
->   %31 = Block - : ()
->   %32 = Break L0 - : never
->   %33 = Block - : ()
->   %34 = If %10 [%31 %33] : ()
->   %35 = Block - : ()
->   %36 = Loop %35 - : ()
->   %37 = Read move [$1] : mut Map[string, i64]
->   %38 = Coerce %37 [Weaken -] : Map[string, i64]
->   %39 = Block %38 : Map[string, i64]
+>   %3 = Read borrow [$0] : List[User]
+>   %4 = Intrinsic ListLen [%3] : usize
+>   %5 = Store [$5] %4 : ()
+>   %6 = Store [$4] 0:usize : ()
+>   %7 = Read copy [$4] : usize
+>   %8 = Read copy [$5] : usize
+>   %9 = Prim Lt [%7 %8] : bool
+>   %10 = Read copy [$4] : usize
+>   %11 = Read borrow [$0 [%10]] : User
+>   %12 = Read copy [$4] : usize
+>   %13 = Prim Add [%12 1:usize] : usize
+>   %14 = Store [$4] %13 : ()
+>   %15 = Read copy [$6 .active] : bool
+>   %16 = Read borrow [$6 .name] : string
+>   %17 = Read copy [$6 .id] : i64
+>   %18 = IsUnique fresh [$1] : ()
+>   %19 = Read borrow [$1] : mut Map[string, i64]
+>   %20 = Intrinsic MapSet [%19 %16 %17] : ()
+>   %21 = Block - : ()
+>   %22 = If %15 [%21 -] : ()
+>   %23 = Block - : ()
+>   %24 = Read borrow [%11] : User
+>   %25 = Store [$6] %24 : ()
+>   %26 = Release %25 #0 : ()
+>   %28 = Block - : never
+>   %29 = Match %11 [%28 %23] : ()
+>   %30 = Block - : ()
+>   %31 = Break L0 - : never
+>   %32 = Block - : ()
+>   %33 = If %9 [%30 %32] : ()
+>   %34 = Block - : ()
+>   %35 = Loop %34 - : ()
+>   %36 = Read move [$1] : mut Map[string, i64]
+>   %37 = Coerce %36 [Weaken -] : Map[string, i64]
+>   %38 = Block %37 : Map[string, i64]
 >   summary kept [] borrows [$0]
 
 fn sizes(users: List[User]) -> List[usize]:
 > app/main/sizes
 >   local $0 users: List[User] [param read] value
->     uses $0: entry -> %4 lend, %12 lend
+>     uses $0: entry -> %3 lend, %11 lend
 >   local $1 $acc: mut List[usize] [assigned] value
->     uses $1: %2 -> %29 lend, %46 consume last
+>     uses $1: %2 -> %28 lend, %45 consume last
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
->     uses $5: %6 -> %9 lend
+>     uses $5: %5 -> %8 lend
 >   local $6 u: User [read assigned] value
->     uses $6: %35 -> %16 consume last
+>     uses $6: %34 -> %15 consume last
 >   local $7 n: usize [:= read assigned] value
->     uses $7: %24 -> %25 lend, %27 consume last
+>     uses $7: %23 -> %24 lend, %26 consume last
 >   local $8 self: string [read] value
->     uses $8: %17 -> %19 lend last
+>     uses $8: %16 -> %18 lend last
 >   %0 = ExitDrop [$0] #2 : ()
     [for u in users if (n := u.name.len()) > 0 => n]
 >   %1 = NewList - [] : mut List[usize]
 >   %2 = Store [$1] %1 : ()
->   %3 = Release %2 #0 : ()
->   %4 = Read borrow [$0] : List[User]
->   %5 = Intrinsic ListLen [%4] : usize
->   %6 = Store [$5] %5 : ()
->   %7 = Store [$4] 0:usize : ()
->   %8 = Read copy [$4] : usize
->   %9 = Read copy [$5] : usize
->   %10 = Prim Lt [%8 %9] : bool
->   %11 = Read copy [$4] : usize
->   %12 = Read borrow [$0 [%11]] : User
->   %13 = Read copy [$4] : usize
->   %14 = Prim Add [%13 1:usize] : usize
->   %15 = Store [$4] %14 : ()
->   %16 = Read borrow [$6 .name] : string
->   %17 = Store [$8] %16 : ()
->   %18 = Release %17 #0 : ()
->   %19 = Read borrow [$8] : string
->   %20 = Call std/rt.bytes/bytes_len[] (%19) : usize
->   %21 = Break L1 %20 : never
->   %22 = Block - : usize
->   %23 = Scope %22 [] : usize
->   %24 = Store [$7] %23 : ()
->   %25 = Read copy [$7] : usize
->   %26 = Prim Gt [%25 0:usize] : bool
->   %27 = Read copy [$7] : usize
->   %28 = IsUnique fresh [$1] : ()
->   %29 = Read borrow [$1] : mut List[usize]
->   %30 = Intrinsic ListPush [%29 %27] : ()
->   %31 = Block - : ()
->   %32 = If %26 [%31 -] : ()
->   %33 = Block - : ()
->   %34 = Read borrow [%12] : User
->   %35 = Store [$6] %34 : ()
->   %36 = Release %35 #0 : ()
->   %38 = Block - : never
->   %39 = Match %12 [%38 %33] : ()
->   %40 = Block - : ()
->   %41 = Break L0 - : never
->   %42 = Block - : ()
->   %43 = If %10 [%40 %42] : ()
->   %44 = Block - : ()
->   %45 = Loop %44 - : ()
->   %46 = Read move [$1] : mut List[usize]
->   %47 = Coerce %46 [Weaken -] : List[usize]
->   %48 = Block %47 : List[usize]
+>   %3 = Read borrow [$0] : List[User]
+>   %4 = Intrinsic ListLen [%3] : usize
+>   %5 = Store [$5] %4 : ()
+>   %6 = Store [$4] 0:usize : ()
+>   %7 = Read copy [$4] : usize
+>   %8 = Read copy [$5] : usize
+>   %9 = Prim Lt [%7 %8] : bool
+>   %10 = Read copy [$4] : usize
+>   %11 = Read borrow [$0 [%10]] : User
+>   %12 = Read copy [$4] : usize
+>   %13 = Prim Add [%12 1:usize] : usize
+>   %14 = Store [$4] %13 : ()
+>   %15 = Read borrow [$6 .name] : string
+>   %16 = Store [$8] %15 : ()
+>   %17 = Release %16 #0 : ()
+>   %18 = Read borrow [$8] : string
+>   %19 = Call std/rt.bytes/bytes_len[] (%18) : usize
+>   %20 = Break L1 %19 : never
+>   %21 = Block - : usize
+>   %22 = Scope %21 [] : usize
+>   %23 = Store [$7] %22 : ()
+>   %24 = Read copy [$7] : usize
+>   %25 = Prim Gt [%24 0:usize] : bool
+>   %26 = Read copy [$7] : usize
+>   %27 = IsUnique fresh [$1] : ()
+>   %28 = Read borrow [$1] : mut List[usize]
+>   %29 = Intrinsic ListPush [%28 %26] : ()
+>   %30 = Block - : ()
+>   %31 = If %25 [%30 -] : ()
+>   %32 = Block - : ()
+>   %33 = Read borrow [%11] : User
+>   %34 = Store [$6] %33 : ()
+>   %35 = Release %34 #0 : ()
+>   %37 = Block - : never
+>   %38 = Match %11 [%37 %32] : ()
+>   %39 = Block - : ()
+>   %40 = Break L0 - : never
+>   %41 = Block - : ()
+>   %42 = If %9 [%39 %41] : ()
+>   %43 = Block - : ()
+>   %44 = Loop %43 - : ()
+>   %45 = Read move [$1] : mut List[usize]
+>   %46 = Coerce %45 [Weaken -] : List[usize]
+>   %47 = Block %46 : List[usize]
 >   summary kept [] borrows [$0]

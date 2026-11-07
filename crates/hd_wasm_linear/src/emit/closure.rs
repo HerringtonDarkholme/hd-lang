@@ -586,17 +586,14 @@ impl Em<'_, '_, '_> {
             // The last value or cell (an earlier round's) is overwritten.
             let was = self.f.reason.replace(hd_tir::own::Reason::Overwritten);
             // A slot is the same memory each time, so the last value in
-            // it ends before the new one is stored, unless no path brings
-            // one here (`store_finds_empty`).
+            // it ends before the new one is stored.
             let slot = self.slots.contains_key(&l);
-            if slot
-                && self.counting
-                && !hd_tir::own::store_finds_empty(self.b, &self.topo, i as usize)
-            {
+            let releases = self.counting && self.store_releases(i);
+            if slot && releases {
                 self.release_slot(l, c)?;
             }
             let at = self.raw_cell(l, &src, v != NONE)?;
-            if self.counting && !slot {
+            if releases && !slot {
                 self.f.get(c);
                 self.release_cell();
             }

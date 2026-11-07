@@ -14,13 +14,13 @@ fn until_long(xs: List[string]) -> usize:
 >   local $5 $end: usize [assigned] value
 >     uses $5: %4 -> %7 lend
 >   local $6 x: string [read assigned] value
->     uses $6: %49 -> %14 lend last
+>     uses $6: %48 -> %14 lend last
 >   local $7 t: string [:= read assigned] value
->     uses $7: %16 -> %18 lend, %28 lend, %39 lend last
+>     uses $7: %16 -> %17 lend, %27 lend, %38 lend last
 >   %0 = ExitDrop [$0] #2 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
->   %61 = Block %60 : usize
+>   %60 = Block %59 : usize
     for x in xs:
 >   %2 = Read borrow [$0] : List[string]
 >   %3 = Intrinsic ListLen [%2] : usize
@@ -34,58 +34,57 @@ fn until_long(xs: List[string]) -> usize:
 >   %11 = Read copy [$4] : usize
 >   %12 = Prim Add [%11 1:usize] : usize
 >   %13 = Store [$4] %12 : ()
->   %47 = Block - : ()
->   %48 = Read borrow [%10] : string
->   %49 = Store [$6] %48 : ()
->   %50 = Release %49 #0 : ()
->   %52 = Block - : never
->   %53 = Match %10 [%52 %47] : ()
->   %54 = Block - : ()
->   %55 = Break L0 - : never
->   %56 = Block - : ()
->   %57 = If %8 [%54 %56] : ()
->   %58 = Block - : ()
->   %59 = Loop %58 - : ()
+>   %46 = Block - : ()
+>   %47 = Read borrow [%10] : string
+>   %48 = Store [$6] %47 : ()
+>   %49 = Release %48 #0 : ()
+>   %51 = Block - : never
+>   %52 = Match %10 [%51 %46] : ()
+>   %53 = Block - : ()
+>   %54 = Break L0 - : never
+>   %55 = Block - : ()
+>   %56 = If %8 [%53 %55] : ()
+>   %57 = Block - : ()
+>   %58 = Loop %57 - : ()
         t := x + "!"
 >   %14 = Read borrow [$6] : string
 >   %15 = Intrinsic StrConcat [%14 "!"] : string
 >   %16 = Store [$7] %15 : ()
->   %17 = Release %16 #0 : ()
         if t.len() < 3:
->   %18 = Read borrow [$7] : string
->   %19 = Call std/rt.bytes/bytes_len[] (%18) : usize
->   %20 = Break L3 %19 : never
->   %21 = Block - : usize
->   %22 = Scope %21 [] : usize
->   %23 = Prim Lt [%22 3:usize] : bool
->   %27 = If %23 [%26 -] : ()
+>   %17 = Read borrow [$7] : string
+>   %18 = Call std/rt.bytes/bytes_len[] (%17) : usize
+>   %19 = Break L3 %18 : never
+>   %20 = Block - : usize
+>   %21 = Scope %20 [] : usize
+>   %22 = Prim Lt [%21 3:usize] : bool
+>   %26 = If %22 [%25 -] : ()
             continue
->   %24 = Drop [$7] : ()
->   %25 = Continue L0 : never
->   %26 = Block - : never
+>   %23 = Drop [$7] : ()
+>   %24 = Continue L0 : never
+>   %25 = Block - : never
         if t.len() > 9:
->   %28 = Read borrow [$7] : string
->   %29 = Call std/rt.bytes/bytes_len[] (%28) : usize
->   %30 = Break L2 %29 : never
->   %31 = Block - : usize
->   %32 = Scope %31 [] : usize
->   %33 = Prim Gt [%32 9:usize] : bool
->   %37 = If %33 [%36 -] : ()
+>   %27 = Read borrow [$7] : string
+>   %28 = Call std/rt.bytes/bytes_len[] (%27) : usize
+>   %29 = Break L2 %28 : never
+>   %30 = Block - : usize
+>   %31 = Scope %30 [] : usize
+>   %32 = Prim Gt [%31 9:usize] : bool
+>   %36 = If %32 [%35 -] : ()
             break
->   %34 = Drop [$7] : ()
->   %35 = Break L0 - : never
->   %36 = Block - : never
+>   %33 = Drop [$7] : ()
+>   %34 = Break L0 - : never
+>   %35 = Block - : never
         n += t.len()
->   %38 = Read copy [$1] : usize
->   %39 = Read borrow [$7] : string
->   %40 = Call std/rt.bytes/bytes_len[] (%39) : usize
->   %41 = Break L1 %40 : never
->   %42 = Block - : usize
->   %43 = Scope %42 [] : usize
->   %44 = Drop [$7] : ()
->   %45 = Prim Add [%38 %43] : usize
->   %46 = Store [$1] %45 : ()
+>   %37 = Read copy [$1] : usize
+>   %38 = Read borrow [$7] : string
+>   %39 = Call std/rt.bytes/bytes_len[] (%38) : usize
+>   %40 = Break L1 %39 : never
+>   %41 = Block - : usize
+>   %42 = Scope %41 [] : usize
+>   %43 = Drop [$7] : ()
+>   %44 = Prim Add [%37 %42] : usize
+>   %45 = Store [$1] %44 : ()
     n
->   %60 = Read copy [$1] : usize
+>   %59 = Read copy [$1] : usize
 >   summary kept [] borrows [$0]
->   loop %59 keeps [$0]
+>   loop %58 keeps [$0]

@@ -269,14 +269,10 @@
           br 0
         end
       end
-    ;; 14 |     p := make(k)
-      local.get $t4
-    ;; 19 |     junk := "j${k}"
-      local.set $k
     ;; 20 |     d.len() + ps[0].name.len() + junk.len()
       local.get $d
       call $"impl string.len"
-      local.set $d
+      local.set $k
       i32.const 0
       local.get $ps
       i32.load $heap offset=4
@@ -287,11 +283,11 @@
       end
       local.get $ps
       i32.load $heap offset=16
-      local.tee $t3
+      local.tee $d
       i32.load $heap
-      local.get $t3
+      local.get $d
       i32.load $heap offset=4
-      local.set $t3
+      local.set $d
       drop
       block
         block
@@ -314,9 +310,9 @@
         call $rt:release_ref'2
       end
     ;; 20 |     d.len() + ps[0].name.len() + junk.len()
-      local.get $d
+      local.get $k
       i64.extend_i32_u
-      local.get $t3
+      local.get $d
       i64.extend_i32_u
       i64.add
       local.tee $t1
@@ -332,17 +328,17 @@
       block
         block
           local.get $junk.1
-          local.set $q
+          local.set $k
           br 0
         end
       end
     ;; 14 |     p := make(k)
-      local.get $k
+      local.get $t4
       call $rt:release_ref'2
     ;; 20 |     d.len() + ps[0].name.len() + junk.len()
       local.get $p
       i64.extend_i32_u
-      local.get $q
+      local.get $k
       i64.extend_i32_u
       i64.add
       local.tee $t1

@@ -224,6 +224,7 @@ These arrive in stage 2. The checker never writes them.
 | `IsUnique` | a: place of a list or map | makes the collection's buffer the place's own: copies it when another holder shares it. Precedes every in-place change |
 | `Pin` | a: place of a list | after an `IsUnique` of the same place, marks the header as its buffer's one owner, so element references keep the buffer in place. The pin lasts while element references hold counts of the buffer; their drops end it, so there is no `Unpin` |
 | `LoanEnd` | a: place | ends the pointer loans a whole value or local holds, with no release: the `Drop` of a value that holds only references that can own nothing (`own/plain.rs`) |
+| `Release` | a: a `Store` | follows the store it names and releases what the store replaces, in the store's one walk of its place; a store with none only writes |
 | `FlagSet`, `FlagClear` | a: place | tier 2 only (reserved): set and clear a borrow flag next to a pin |
 
 **The exit set.** A body has one exit (`Return` branches to it, as

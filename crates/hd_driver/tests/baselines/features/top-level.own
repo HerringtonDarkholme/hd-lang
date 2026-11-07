@@ -7,21 +7,21 @@
 greeting := "hello ${1}"
 > app/main/init.init
 >   local $0 result: string [read] value
->     uses $0: %74 -> %79 lend last
+>     uses $0: %72 -> %75 lend last
 >   local $1 offset: usize [read] value
->     uses $1: %76 -> %82 lend last
+>     uses $1: %73 -> %78 lend last
 >   local $2 text: string [read] value
->     uses $2: %77 -> %84 lend, %87 lend last
+>     uses $2: %74 -> %80 lend, %83 lend last
 >   local $3 size: usize [read] value
->     uses $3: %67 -> %68 lend last
+>     uses $3: %65 -> %66 lend last
 >   local $4 value: usize [read] value
->     uses $4: %49 -> %50 lend, %53 lend last, %57 lend last
+>     uses $4: %47 -> %48 lend, %51 lend last, %55 lend last
 >   local $5 result: string [read] value
->     uses $5: %25 -> %30 lend last
+>     uses $5: %25 -> %28 lend last
 >   local $6 offset: usize [read] value
->     uses $6: %27 -> %33 lend last
+>     uses $6: %26 -> %31 lend last
 >   local $7 text: string [read] value
->     uses $7: %28 -> %35 lend, %38 lend last
+>     uses $7: %27 -> %33 lend, %36 lend last
 >   local $8 size: usize [read] value
 >     uses $8: %18 -> %19 lend last
 >   local $9 value: usize [read] value
@@ -52,82 +52,78 @@ greeting := "hello ${1}"
 >   %23 = Scope %22 [] : string
 >   %24 = Read borrow [%23] : string
 >   %25 = Store [$5] %24 : ()
->   %26 = Release %25 #0 : ()
->   %27 = Store [$6] 0:usize : ()
->   %28 = Store [$7] "hello " : ()
->   %29 = Release %28 #0 : ()
->   %30 = Read borrow [$5] : string
->   %31 = Call std/rt.memory/string_bytes[] (%30) : Ptr[u8]
->   %32 = Read copy [%31 .address] : usize
->   %33 = Read copy [$6] : usize
->   %34 = Prim Add [%32 %33] : usize
->   %35 = Read borrow [$7] : string
->   %36 = Call std/rt.memory/string_bytes[] (%35) : Ptr[u8]
->   %37 = Read copy [%36 .address] : usize
->   %38 = Read borrow [$7] : string
->   %39 = Call std/rt.bytes/bytes_len[] (%38) : usize
->   %40 = Call std/rt.memory/copy[] (%34, %37, %39) : ()
->   %41 = Break L3 - : never
->   %42 = Block - : ()
->   %43 = Scope %42 [] : ()
->   %44 = Drop [$7] : ()
->   %45 = Call std/text/impl StringBuilder.value_integer[usize] (%23, %16, 1:usize, %15) : ()
->   %46 = Read move [%23] : string
->   %47 = Store [@app/main/greeting] %46 : ()
->   %48 = Release %47 #0 : ()
+>   %26 = Store [$6] 0:usize : ()
+>   %27 = Store [$7] "hello " : ()
+>   %28 = Read borrow [$5] : string
+>   %29 = Call std/rt.memory/string_bytes[] (%28) : Ptr[u8]
+>   %30 = Read copy [%29 .address] : usize
+>   %31 = Read copy [$6] : usize
+>   %32 = Prim Add [%30 %31] : usize
+>   %33 = Read borrow [$7] : string
+>   %34 = Call std/rt.memory/string_bytes[] (%33) : Ptr[u8]
+>   %35 = Read copy [%34 .address] : usize
+>   %36 = Read borrow [$7] : string
+>   %37 = Call std/rt.bytes/bytes_len[] (%36) : usize
+>   %38 = Call std/rt.memory/copy[] (%32, %35, %37) : ()
+>   %39 = Break L3 - : never
+>   %40 = Block - : ()
+>   %41 = Scope %40 [] : ()
+>   %42 = Drop [$7] : ()
+>   %43 = Call std/text/impl StringBuilder.value_integer[usize] (%23, %16, 1:usize, %15) : ()
+>   %44 = Read move [%23] : string
+>   %45 = Store [@app/main/greeting] %44 : ()
+>   %46 = Release %45 #0 : ()
 
 names := ["a${1}", "b"]
->   %49 = Store [$4] 1:usize : ()
->   %50 = Read copy [$4] : usize
->   %51 = Call std/num/Num.zero for usize [] via Impl () : usize
->   %52 = Prim Lt [%50 %51] : bool
->   %53 = Read copy [$4] : usize
->   %54 = Prim Conv [%53] : i64
->   %55 = Call std/rt.bytes/signed_width[] (%54) : usize
->   %56 = Block %55 : usize
->   %57 = Read copy [$4] : usize
->   %58 = Prim Conv [%57] : u64
->   %59 = Call std/rt.bytes/unsigned_width[] (%58) : usize
->   %60 = Block %59 : usize
->   %61 = If %52 [%56 %60] : usize
->   %62 = Break L2 %61 : never
->   %63 = Block - : usize
->   %64 = Scope %63 [] : usize
->   %65 = Prim Add [0:usize 1:usize] : usize
->   %66 = Prim Add [%65 %64] : usize
->   %67 = Store [$3] %66 : ()
->   %68 = Read copy [$3] : usize
->   %69 = Call std/rt.memory/new_string[] (%68) : string
->   %70 = Break L1 %69 : never
->   %71 = Block - : string
->   %72 = Scope %71 [] : string
->   %73 = Read borrow [%72] : string
->   %74 = Store [$0] %73 : ()
->   %75 = Release %74 #0 : ()
->   %76 = Store [$1] 0:usize : ()
->   %77 = Store [$2] "a" : ()
->   %78 = Release %77 #0 : ()
->   %79 = Read borrow [$0] : string
->   %80 = Call std/rt.memory/string_bytes[] (%79) : Ptr[u8]
->   %81 = Read copy [%80 .address] : usize
->   %82 = Read copy [$1] : usize
->   %83 = Prim Add [%81 %82] : usize
->   %84 = Read borrow [$2] : string
->   %85 = Call std/rt.memory/string_bytes[] (%84) : Ptr[u8]
->   %86 = Read copy [%85 .address] : usize
->   %87 = Read borrow [$2] : string
->   %88 = Call std/rt.bytes/bytes_len[] (%87) : usize
->   %89 = Call std/rt.memory/copy[] (%83, %86, %88) : ()
->   %90 = Break L0 - : never
->   %91 = Block - : ()
->   %92 = Scope %91 [] : ()
->   %93 = Drop [$2] : ()
->   %94 = Call std/text/impl StringBuilder.value_integer[usize] (%72, %65, 1:usize, %64) : ()
->   %95 = Read move [%72] : string
->   %96 = Coerce %95 [Identity -] : string
->   %97 = NewList - [%96 "b"] : List[string]
->   %98 = Store [@app/main/names] %97 : ()
->   %99 = Release %98 #0 : ()
+>   %47 = Store [$4] 1:usize : ()
+>   %48 = Read copy [$4] : usize
+>   %49 = Call std/num/Num.zero for usize [] via Impl () : usize
+>   %50 = Prim Lt [%48 %49] : bool
+>   %51 = Read copy [$4] : usize
+>   %52 = Prim Conv [%51] : i64
+>   %53 = Call std/rt.bytes/signed_width[] (%52) : usize
+>   %54 = Block %53 : usize
+>   %55 = Read copy [$4] : usize
+>   %56 = Prim Conv [%55] : u64
+>   %57 = Call std/rt.bytes/unsigned_width[] (%56) : usize
+>   %58 = Block %57 : usize
+>   %59 = If %50 [%54 %58] : usize
+>   %60 = Break L2 %59 : never
+>   %61 = Block - : usize
+>   %62 = Scope %61 [] : usize
+>   %63 = Prim Add [0:usize 1:usize] : usize
+>   %64 = Prim Add [%63 %62] : usize
+>   %65 = Store [$3] %64 : ()
+>   %66 = Read copy [$3] : usize
+>   %67 = Call std/rt.memory/new_string[] (%66) : string
+>   %68 = Break L1 %67 : never
+>   %69 = Block - : string
+>   %70 = Scope %69 [] : string
+>   %71 = Read borrow [%70] : string
+>   %72 = Store [$0] %71 : ()
+>   %73 = Store [$1] 0:usize : ()
+>   %74 = Store [$2] "a" : ()
+>   %75 = Read borrow [$0] : string
+>   %76 = Call std/rt.memory/string_bytes[] (%75) : Ptr[u8]
+>   %77 = Read copy [%76 .address] : usize
+>   %78 = Read copy [$1] : usize
+>   %79 = Prim Add [%77 %78] : usize
+>   %80 = Read borrow [$2] : string
+>   %81 = Call std/rt.memory/string_bytes[] (%80) : Ptr[u8]
+>   %82 = Read copy [%81 .address] : usize
+>   %83 = Read borrow [$2] : string
+>   %84 = Call std/rt.bytes/bytes_len[] (%83) : usize
+>   %85 = Call std/rt.memory/copy[] (%79, %82, %84) : ()
+>   %86 = Break L0 - : never
+>   %87 = Block - : ()
+>   %88 = Scope %87 [] : ()
+>   %89 = Drop [$2] : ()
+>   %90 = Call std/text/impl StringBuilder.value_integer[usize] (%70, %63, 1:usize, %62) : ()
+>   %91 = Read move [%70] : string
+>   %92 = Coerce %91 [Identity -] : string
+>   %93 = NewList - [%92 "b"] : List[string]
+>   %94 = Store [@app/main/names] %93 : ()
+>   %95 = Release %94 #0 : ()
 
 fn read_top() -> usize:
     greeting.len() + names.len()

@@ -45,7 +45,7 @@ fn work(log: *mut List[string], label: string) -> void:
     guard(log, label)
 > app/main/work
 >   local $0 log: Counted[mut List[string]] [param read] value
->     uses $0: entry -> %0 lend, %11 lend last
+>     uses $0: entry -> %0 lend, %10 lend last
 >   local $1 label: string [param read] value
 >     uses $1: entry -> %1 consume last
 >   local $2 $ref: Guard [:= read assigned captured captured-assigned] place
@@ -53,19 +53,18 @@ fn work(log: *mut List[string], label: string) -> void:
 >   %1 = Read move [$1] : string
 >   %2 = Call app/main/guard[] (%0, %1) : Guard
 >   %3 = Store [$2] %2 : ()
->   %4 = Release %3 #0 : ()
->   %5 = Ref mut local frame [$2] : Counted[mut Guard]
->   %6 = Call std/ops/Disposable.dispose for Guard [$()] via Impl (%5) : ()
->   %7 = Drop [%5] : ()
->   %8 = Block - : ()
->   %9 = Defer #8 : ()
->   %13 = Block - : ()
->   %14 = Scope %13 [%8] : ()
->   %15 = Drop [$2] : ()
->   %16 = Block - : ()
+>   %4 = Ref mut local frame [$2] : Counted[mut Guard]
+>   %5 = Call std/ops/Disposable.dispose for Guard [$()] via Impl (%4) : ()
+>   %6 = Drop [%4] : ()
+>   %7 = Block - : ()
+>   %8 = Defer #7 : ()
+>   %12 = Block - : ()
+>   %13 = Scope %12 [%7] : ()
+>   %14 = Drop [$2] : ()
+>   %15 = Block - : ()
     log.push("work")
->   %10 = IsUnique [*$0] : ()
->   %11 = Read borrow [*$0] : List[string]
->   %12 = Intrinsic ListPush [%11 "work"] : ()
+>   %9 = IsUnique [*$0] : ()
+>   %10 = Read borrow [*$0] : List[string]
+>   %11 = Intrinsic ListPush [%10 "work"] : ()
 >   exit sub 0 drops [$1 $2]
 >   summary kept [$1] writes

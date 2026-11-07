@@ -47,8 +47,6 @@
       local.get $t0
       i32.const 4
       i32.store $heap offset=4
-      local.get $t0
-      local.set $t0
     ;; 31 | struct Record:
       i32.const 1
       call $rt:list_buf

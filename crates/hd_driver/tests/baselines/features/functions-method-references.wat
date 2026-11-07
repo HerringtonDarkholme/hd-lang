@@ -11,8 +11,6 @@
   (func $bound (param $u.name.0 i32) (param $u.name.1 i32) (result i32) (local $t0 i32)
     ;; 23 |     f := u::name_len
     block
-      local.get $u.name.0
-      local.set $u.name.0
       i32.const 0
       i32.const 8
       i32.const 2
