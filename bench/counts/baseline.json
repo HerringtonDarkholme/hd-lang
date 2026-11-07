@@ -26,11 +26,10 @@
     },
     {
       "program": "bench/runtime/progs/inventory.hd",
-      "retained": "19200512",
-      "released": "19201034",
+      "retained": "12800000",
+      "released": "12800522",
       "uniques": "6400002",
-      "total": "44801548",
-      "reason": "15f (#1399): a constant list literal is static data only as a top-level binding; inventory's 256 per-item batches: [0, 0, 0, 0] buffers are now real buffers whose first copy and release are counted (owner decision 2026-11-06)"
+      "total": "32000524"
     },
     {
       "program": "bench/runtime/progs/iter-pipeline.hd",
@@ -55,10 +54,10 @@
     },
     {
       "program": "bench/runtime/progs/log-stats.hd",
-      "retained": "6480161",
-      "released": "7380346",
+      "retained": "5760129",
+      "released": "6660314",
       "uniques": "9",
-      "total": "13860516"
+      "total": "12420452"
     },
     {
       "program": "bench/runtime/progs/map-count-long.hd",
@@ -167,10 +166,10 @@
     },
     {
       "program": "bench/study/json.hd",
-      "retained": "2720002",
-      "released": "3740092",
+      "retained": "2380002",
+      "released": "3400092",
       "uniques": "2210005",
-      "total": "8670099"
+      "total": "7990099"
     },
     {
       "program": "bench/study/mandelbrot.hd",
