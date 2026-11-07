@@ -10,7 +10,7 @@ use hd_tir::ir::{NONE, PlaceRoot, Proj, ReadMode, Ref, Tag};
 use hd_types::{Ty, TyData};
 use wasm_encoder::BlockType;
 
-use super::Em;
+use super::{CountPart, Em};
 use crate::module::{EMPTY, HEAP, Val, mem};
 use crate::rt::{Helper, PrimArg};
 use crate::unsupported;
@@ -142,6 +142,7 @@ impl Em<'_, '_, '_> {
             || b >= c
             || statements[a + 1..b]
                 .iter()
+                .filter(|&&s| !hd_tir::ir::count::boundary(self.b, s as usize))
                 .any(|&s| match self.b.tags[s as usize] {
                     Tag::Read if self.b.data[s as usize][1] == ReadMode::Move as u32 => {
                         // A move changes its source place too. A distinct
@@ -154,6 +155,9 @@ impl Em<'_, '_, '_> {
                     _ => true,
                 })
             || statements[b + 1..c].iter().any(|&s| {
+                if hd_tir::ir::count::boundary(self.b, s as usize) {
+                    return false;
+                }
                 !matches!(
                     self.b.tags[s as usize],
                     Tag::Drop | Tag::LoanEnd | Tag::Release
@@ -192,9 +196,15 @@ impl Em<'_, '_, '_> {
             self.f.set(local);
             suffix.push(local);
         }
-        // A cell read can own a copied count. Retire that copy before
-        // moving the place's count; borrowed reads release nothing.
-        self.release_value(left)?;
+        // Retire the stated copy before moving the place's count. A
+        // borrowed read owns nothing; keep its existing slot zeroing.
+        if let Some(reason) = self.operation_count(i, Tag::Release, CountPart::Operand(0)) {
+            self.because(reason, |em| em.release_value(left))?;
+        } else if self.b.is_borrow(left) {
+            self.release_value(left)?;
+        } else {
+            return unsupported("a place append without its stated copied-left cleanup");
+        }
         let value = self.ref_layout(Ty::STRING)?;
         let mut args = crate::rt::ref_take(&mut self.f, reference, &value);
         args.extend(suffix);

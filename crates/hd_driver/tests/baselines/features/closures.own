@@ -76,30 +76,31 @@ fn shared(s: string) -> string:
 >   local $1 t: string [read assigned captured captured-assigned] place
 >     frame cell [$1]
 >   local $2 add: fn() -> () [:= read assigned] value
->     uses $2: %11 -> %12 lend last
+>     uses $2: %12 -> %13 lend last
 >   %0 = Read move [$0] : string
 >   %1 = Store [$1] %0 : ()
->   %17 = Block %15 : string
+>   %18 = Block %16 : string
     add := fn() -> void: t += "x"
 >   %2 = Read copy [$1] : string
 >   %3 = Intrinsic StrConcat [%2 "x"] : string
->   %4 = Drop [%2] : ()
->   %5 = Store [$1] %3 : ()
->   %6 = Release %5 Operation #3 : ()
->   %7 = Drop [$1] : ()
->   %8 = Block - : ()
->   %9 = Closure #1 [%0 %1] : fn() -> ()
->   %10 = Retain %9 Operation captures #0 : ()
->   %11 = Store [$2] %9 : ()
->   %9 finds [$1] full
+>   %4 = Release %3 Operation operand 0 #2 : ()
+>   %5 = Drop [%2] : ()
+>   %6 = Store [$1] %3 : ()
+>   %7 = Release %6 Operation #3 : ()
+>   %8 = Drop [$1] : ()
+>   %9 = Block - : ()
+>   %10 = Closure #1 [%0 %1] : fn() -> ()
+>   %11 = Retain %10 Operation captures #0 : ()
+>   %12 = Store [$2] %10 : ()
+>   %10 finds [$1] full
     add()
->   %12 = Read move [$2] : fn() -> ()
->   %13 = CallValue %12 [] : ()
->   %14 = Drop [%12] : ()
+>   %13 = Read move [$2] : fn() -> ()
+>   %14 = CallValue %13 [] : ()
+>   %15 = Drop [%13] : ()
     t
->   %15 = Read copy [$1] : string
->   %16 = Drop [$1] : ()
->   %15 finds [$1] full
+>   %16 = Read copy [$1] : string
+>   %17 = Drop [$1] : ()
+>   %16 finds [$1] full
 >   exit sub 0 drops [$0 $1]
 >   exit sub 1 drops [$1]
 >   storage sub 0: $1 slot

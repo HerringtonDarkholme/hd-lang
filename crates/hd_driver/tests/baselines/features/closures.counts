@@ -25,7 +25,7 @@ fn shared(s: string) -> string:
     add := fn() -> void: t += "x"
 > app/main/shared
 >   retain string (conservative: copy read)
->   release string (conservative: Intrinsic)
+>   release string (last use)
 >   release string (overwritten)
 >   retain counted reference (stored)
     add()

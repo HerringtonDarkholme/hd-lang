@@ -49,6 +49,7 @@ use crate::ir::{
 pub use hoist::{EntryTest, entry_test, loop_statements, loop_test};
 
 pub(crate) mod abi;
+pub(crate) mod append_copy;
 pub(crate) mod arguments;
 pub(crate) mod cache;
 pub(crate) mod call_args;

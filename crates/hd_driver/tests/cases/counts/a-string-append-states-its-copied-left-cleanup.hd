@@ -1,0 +1,27 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: a single-use copied left read states its conditional append cleanup; cell appends retire that copy before transferring the place, borrowed reads count nothing, and a RHS call that writes the place prevents transfer.
+fn captured(text: string, suffix: string) -> string:
+    let current = text
+    append := fn() -> void: current += suffix
+    append()
+    current
+
+fn dynamic(text: string, suffix: string) -> string:
+    let current = text
+    append := fn(suffix: string) -> void: current += suffix
+    append(suffix)
+    current
+
+fn borrowed(text: &mut string, suffix: string) -> void:
+    *text += suffix
+
+fn replace(text: &mut string) -> string:
+    *text = "replacement"
+    "!"
+
+fn changed_rhs(text: &mut string) -> void:
+    *text += replace(text)
+
+fn joined(left: string, right: string) -> string:
+    left + right

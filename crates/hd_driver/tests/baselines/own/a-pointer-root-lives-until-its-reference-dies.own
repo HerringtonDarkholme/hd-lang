@@ -27,7 +27,7 @@ fn probe(items: UniqList[string]) -> string:
 >   %2 = Store [$1] %1 : ()
 >   %3 = Ref take mut [$1] : Counted[mut Outer]
 >   %4 = Store [$2] %3 : ()
->   %34 = Block %30 : string
+>   %35 = Block %30 : string
 >   %3 finds [$1] full
     r := p.items.get_ref(0).expect("slot")
 >   %5 = Ref local [*$2 .items] : Ref[UniqList[string]]
@@ -58,8 +58,9 @@ fn probe(items: UniqList[string]) -> string:
 >   %28 = Read copy [*$3] : string
 >   %29 = Drop [$3] : ()
 >   %30 = Intrinsic StrConcat [%28 %27] : string
->   %31 = Drop [%28] : ()
->   %32 = Drop [%27] : ()
->   %33 = Drop [$2] : ()
+>   %31 = Release %30 Operation operand 0 #2 : ()
+>   %32 = Drop [%28] : ()
+>   %33 = Drop [%27] : ()
+>   %34 = Drop [$2] : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell

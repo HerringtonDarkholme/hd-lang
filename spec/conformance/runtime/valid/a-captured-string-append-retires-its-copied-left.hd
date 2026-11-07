@@ -1,0 +1,20 @@
+use std.annotation.cold
+use std.testing.assert_equal
+
+@cold
+fn payload(value: i32) -> string:
+    "held$value"
+
+@cold
+fn twice(text: string, suffix: string) -> string:
+    let current = text
+    append := fn(suffix: string) -> void: current += suffix
+    append(suffix)
+    append(suffix)
+    current
+
+pub fn main() -> void:
+    original := payload(7)
+    result := twice(original, original)
+    assert_equal(result, "held7held7held7")
+    assert_equal(original, "held7")
