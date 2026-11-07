@@ -56,7 +56,7 @@ fn run_twice!(body: fn!() -> string) -> usize:
 >   %9 = Store [$1] %5 : ()
 >   %10 = Ref local [$1] : Ref[string]
 >   %11 = Call std/text/impl string.len[] (%10) : usize
->   %12 = Drop [%10] : ()
+>   %12 = LoanEnd [%10] : ()
 >   %13 = Drop [$1] : ()
 >   %14 = Read move [$0] : fn!() -> string
 >   %15 = CallValue %14 [] : mut Suspend[string]
@@ -68,7 +68,7 @@ fn run_twice!(body: fn!() -> string) -> usize:
 >   %21 = Store [$2] %16 : ()
 >   %22 = Ref local [$2] : Ref[string]
 >   %23 = Call std/text/impl string.len[] (%22) : usize
->   %24 = Drop [%22] : ()
+>   %24 = LoanEnd [%22] : ()
 >   %25 = Drop [$2] : ()
 >   %26 = Prim Add [%11 %23] : usize
 >   %27 = Block %26 : usize
@@ -155,7 +155,7 @@ fn stored!(key: string) -> usize:
 >   %25 = Store [$3] %19 : ()
 >   %26 = Ref local [$3] : Ref[string]
 >   %27 = Call std/text/impl string.len[] (%26) : usize
->   %28 = Drop [%26] : ()
+>   %28 = LoanEnd [%26] : ()
 >   %29 = Drop [$3] : ()
 >   %26 finds [$3] full
 >   exit sub 0 drops [$0]

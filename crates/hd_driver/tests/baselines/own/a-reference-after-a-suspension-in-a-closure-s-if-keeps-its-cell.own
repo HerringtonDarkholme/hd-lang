@@ -60,7 +60,7 @@ fn start() -> fn!(bool) -> void:
         tick(&mut c)
 >   %17 = Ref mut local [$2] : Ref[mut Counter]
 >   %18 = Call app/main/tick[] (%17) : ()
->   %19 = Drop [%17] : ()
+>   %19 = LoanEnd [%17] : ()
 >   %20 = Drop [$2] : ()
 >   %17 finds [$2] full
 >   exit sub 1 drops [$2]

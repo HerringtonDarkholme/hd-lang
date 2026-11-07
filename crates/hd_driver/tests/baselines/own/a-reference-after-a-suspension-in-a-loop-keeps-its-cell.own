@@ -57,7 +57,7 @@ fn run!(n: i32) -> void:
     tick(&mut c)
 >   %18 = Ref mut local [$1] : Ref[mut Counter]
 >   %19 = Call app/main/tick[] (%18) : ()
->   %20 = Drop [%18] : ()
+>   %20 = LoanEnd [%18] : ()
 >   %21 = Drop [$1] : ()
 >   %18 finds [$1] full
 >   exit sub 0 drops [$1]

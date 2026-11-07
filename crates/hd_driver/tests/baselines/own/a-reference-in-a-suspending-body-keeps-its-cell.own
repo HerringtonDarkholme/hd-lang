@@ -48,7 +48,7 @@ fn run!() -> void:
 >   %3 = Ref mut local [$0] : Ref[mut Counter]
 >   %4 = Await app/main/bump[] (%3) : ()
 >   %5 = Release %4 Operation child #2 : ()
->   %6 = Drop [%3] : ()
+>   %6 = LoanEnd [%3] : ()
 >   %7 = Drop [$0] : ()
 >   %3 finds [$0] full
 >   exit sub 0 drops [$0]

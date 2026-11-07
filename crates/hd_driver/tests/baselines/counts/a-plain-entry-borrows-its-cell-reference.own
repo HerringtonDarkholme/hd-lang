@@ -31,7 +31,7 @@ fn helper!() -> string:
     sink() = "helper"
 >   %2 = Ref mut local [$0] : Ref[mut Sink]
 >   %3 = Call std/ops/Update.update for Sink [string] via Impl (%2, "helper") : ()
->   %4 = Drop [%2] : ()
+>   %4 = LoanEnd [%2] : ()
 >   %2 finds [$0] full
     sink.text
 >   %5 = Read copy [$0 .text] : string
@@ -52,7 +52,7 @@ pub fn main!() -> void $ Console:
     sink() = "kept"
 >   %5 = Ref mut local [$0] : Ref[mut Sink]
 >   %6 = Call std/ops/Update.update for Sink [string] via Impl (%5, "kept") : ()
->   %7 = Drop [%5] : ()
+>   %7 = LoanEnd [%5] : ()
 >   %5 finds [$0] full
     println(sink.text)
 >   %8 = Read copy [$0 .text] : string

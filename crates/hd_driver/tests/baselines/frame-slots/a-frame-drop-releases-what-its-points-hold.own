@@ -185,7 +185,7 @@ fn gone!() -> usize $ Clock:
 >   %5 = Store [$0] %4 : ()
 >   %6 = Ref local [$0] : Ref[string]
 >   %7 = Call std/text/impl string.len[] (%6) : usize
->   %8 = Drop [%6] : ()
+>   %8 = LoanEnd [%6] : ()
 >   %9 = Drop [$0] : ()
 >   %10 = Store [$1] %7 : ()
 >   %20 = Block %19 : usize

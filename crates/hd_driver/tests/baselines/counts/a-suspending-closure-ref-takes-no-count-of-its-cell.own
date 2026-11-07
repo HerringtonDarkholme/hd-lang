@@ -61,7 +61,7 @@ fn local!() -> i64:
 >   %7 = Ref mut local [$1] : Ref[mut Tally]
 >   %8 = Await app/main/bump[] (%7) : ()
 >   %9 = Release %8 Operation child #2 : ()
->   %10 = Drop [%7] : ()
+>   %10 = LoanEnd [%7] : ()
 >   %7 finds [$1] full
         tally.n
 >   %11 = Read copy [$1 .n] : i64

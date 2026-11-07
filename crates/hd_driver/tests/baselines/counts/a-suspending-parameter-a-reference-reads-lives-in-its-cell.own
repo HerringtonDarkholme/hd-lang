@@ -27,7 +27,7 @@ fn sized!(u: UniqList[i32]) -> usize $ Clock:
     u.len()
 >   %12 = Ref local [$0] : Ref[UniqList[i32]]
 >   %13 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].len[i32] (%12) : usize
->   %14 = Drop [%12] : ()
+>   %14 = LoanEnd [%12] : ()
 >   %15 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 cell
@@ -115,7 +115,7 @@ pub fn main!() -> void $ Console + Clock:
 >   %50 = Break L3 - : never
 >   %51 = Block - : ()
 >   %52 = Scope %51 [] : ()
->   %53 = Drop [$8] : ()
+>   %53 = LoanEnd [$8] : ()
 >   %23 finds [$0] full
     a := sized!(u)
 >   %54 = Read move [$0] : UniqList[i32]
@@ -126,7 +126,7 @@ pub fn main!() -> void $ Console + Clock:
     println("$a")
 >   %58 = Ref local [$1] : Ref[usize]
 >   %59 = Read copy [*%58] : usize
->   %60 = Drop [%58] : ()
+>   %60 = LoanEnd [%58] : ()
 >   %61 = Prim Conv [%59] : u64
 >   %62 = Drop [$1] : ()
 >   %63 = Store [$7] %61 : ()

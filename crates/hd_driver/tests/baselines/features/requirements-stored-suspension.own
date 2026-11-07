@@ -89,7 +89,7 @@ fn later!(key: string) -> usize:
 >   %12 = Store [$2] %8 : ()
 >   %13 = Ref local [$2] : Ref[string]
 >   %14 = Call std/text/impl string.len[] (%13) : usize
->   %15 = Drop [%13] : ()
+>   %15 = LoanEnd [%13] : ()
 >   %16 = Drop [$2] : ()
 >   %13 finds [$2] full
 >   exit sub 0 drops [$0]

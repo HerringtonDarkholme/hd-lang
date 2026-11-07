@@ -6,7 +6,7 @@ app/main/absent
   %0 = Read move [$0] : Result[Envelope, string]
   %1 = Ref local [$1 .filter] : Ref[Payload?]
   %2 = Call std/option/impl [ T < ? Copy ] T ?.is_none[Payload] (%1) : bool
-  %3 = Drop [%1] : ()
+  %3 = LoanEnd [%1] : ()
   %4 = Drop [$1] : ()
   %5 = Coerce %2 [Identity -] : bool
   %6 = Block %5 : bool

@@ -82,7 +82,7 @@ pub fn main!() -> void $ Console:
     println("$a")
 >   %23 = Ref local [$2] : Ref[usize]
 >   %24 = Read copy [*%23] : usize
->   %25 = Drop [%23] : ()
+>   %25 = LoanEnd [%23] : ()
 >   %26 = Prim Conv [%24] : u64
 >   %27 = Drop [$2] : ()
 >   %28 = Store [$8] %26 : ()

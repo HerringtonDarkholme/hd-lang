@@ -11,7 +11,7 @@ app/main/reset
   %17 = Ref mut local [$2] : Ref[mut UniqList[string]]
   %18 = Read move [$1] : string
   %19 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].push[string] (%17, %18) : ()
-  %20 = Drop [%17] : ()
+  %20 = LoanEnd [%17] : ()
   %21 = Read move [$2] : UniqList[string]
   %22 = Break L0 %21 : never
   %23 = Block - : UniqList[string]

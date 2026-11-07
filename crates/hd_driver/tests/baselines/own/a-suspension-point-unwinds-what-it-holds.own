@@ -16,7 +16,7 @@ app/main/run
   %20 = Ref local [$5] : Ref[string]
   %21 = Await app/main/greet[] (%20) : usize
   %22 = Release %21 Operation child #2 : ()
-  %23 = Drop [%20] : ()
+  %23 = LoanEnd [%20] : ()
   %24 = Drop [$5] : ()
   %25 = Store [$6] %21 : ()
   %20 finds [$5] full

@@ -8,8 +8,9 @@
 //! A value qualifies by where its reference comes from, since the type
 //! cannot say (`OwnCx::plain_reference` only rules out the rest):
 //!
-//! - a `Ref` of a frame slot or a top-level binding, through fields only.
-//!   A dereference stays out: the reference it reads may be a view, whose
+//! - a `Ref` of a local or a top-level binding, through fields only: an
+//!   address in a slot, a cell or a frame, none of which it counts. A
+//!   dereference stays out: the reference it reads may be a view, whose
 //!   projection is a new object, and a variant step may make a payload view.
 //!   A capture's copy stays out too: a closure's reference to it is a new
 //!   object holding it;
@@ -109,14 +110,10 @@ impl Origins<'_> {
                 };
                 fields
                     && w & ref_word::TAKES == 0
-                    && if elem {
-                        root.is_some()
-                    } else if let Root::Local(l) = p.root {
-                        // One to a closure's copy of a capture is a new
-                        // object holding it.
-                        w & ref_word::FRAME != 0 && !b.cap_local.iter().any(|c| c.raw() == l)
-                    } else {
-                        matches!(p.root, Root::Global(..))
+                    && match p.root {
+                        _ if elem => root.is_some(),
+                        Root::Local(l) => !b.cap_local.iter().any(|c| c.raw() == l),
+                        r => matches!(r, Root::Global(..)),
                     }
             }
             Tag::Call => Callee::from_words(b.record(a)).is_some_and(|c| self.cx.plain_result(&c)),

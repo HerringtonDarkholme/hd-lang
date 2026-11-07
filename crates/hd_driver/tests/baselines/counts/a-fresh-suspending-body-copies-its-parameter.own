@@ -28,7 +28,7 @@ fn after!(text: string) -> usize $ Clock:
     text.len()
 >   %14 = Ref local [$0] : Ref[string]
 >   %15 = Call std/text/impl string.len[] (%14) : usize
->   %16 = Drop [%14] : ()
+>   %16 = LoanEnd [%14] : ()
 >   %17 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 cell

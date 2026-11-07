@@ -36,7 +36,7 @@ fn one!(s: string) -> usize:
 >   %7 = Store [$1] %4 : ()
 >   %8 = Ref local [$1] : Ref[string]
 >   %9 = Call std/text/impl string.len[] (%8) : usize
->   %10 = Drop [%8] : ()
+>   %10 = LoanEnd [%8] : ()
 >   %11 = Drop [$1] : ()
 >   %12 = Block %9 : usize
 >   %8 finds [$1] full
@@ -81,11 +81,11 @@ fn both!(a: string, b: string) -> usize:
     x.len() + y.len()
 >   %23 = Ref local [$2] : Ref[string]
 >   %24 = Call std/text/impl string.len[] (%23) : usize
->   %25 = Drop [%23] : ()
+>   %25 = LoanEnd [%23] : ()
 >   %26 = Drop [$2] : ()
 >   %27 = Ref local [$3] : Ref[string]
 >   %28 = Call std/text/impl string.len[] (%27) : usize
->   %29 = Drop [%27] : ()
+>   %29 = LoanEnd [%27] : ()
 >   %30 = Drop [$3] : ()
 >   %31 = Prim Add [%24 %28] : usize
 >   %23 finds [$2] full
@@ -122,7 +122,7 @@ fn either!(a: string, b: string) -> usize:
 >   %15 = Store [$2] %12 : ()
 >   %16 = Ref local [$2] : Ref[string]
 >   %17 = Call std/text/impl string.len[] (%16) : usize
->   %18 = Drop [%16] : ()
+>   %18 = LoanEnd [%16] : ()
 >   %19 = Drop [$2] : ()
 >   %20 = Block %17 : usize
 >   %16 finds [$2] full

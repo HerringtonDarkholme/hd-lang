@@ -44,7 +44,7 @@ fn run!(go: bool) -> void:
     tick(&mut c)
 >   %8 = Ref mut local [$1] : Ref[mut Counter]
 >   %9 = Call app/main/tick[] (%8) : ()
->   %10 = Drop [%8] : ()
+>   %10 = LoanEnd [%8] : ()
 >   %11 = Drop [$1] : ()
 >   %8 finds [$1] full
 >   exit sub 0 drops [$1]
