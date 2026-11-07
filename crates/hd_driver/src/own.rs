@@ -408,6 +408,16 @@ impl OwnCx for Env<'_> {
         self.sig(item).map(|sig| sig.params.len())
     }
 
+    fn holds_drop(&self, ty: Ty) -> Tri {
+        if self.is_open(ty) {
+            Tri::Maybe
+        } else if hd_wasm_linear::holds_drop_type(&self.run.pool, self, ty) {
+            Tri::Yes
+        } else {
+            Tri::No
+        }
+    }
+
     fn retains_result(&self, callee: &Callee) -> bool {
         matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("bytes_slice"))
     }

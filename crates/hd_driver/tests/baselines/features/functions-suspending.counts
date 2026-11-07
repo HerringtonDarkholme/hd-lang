@@ -14,7 +14,7 @@ fn fetch!(key: string) -> string:
 >   release string (conservative: frame drop)
 >   release counted reference (conservative: frame drop)
 > app/main/fetch
->   retain string (conservative: cold constructor)
+>   retain string (stored)
 
 fn construct(key: string) -> usize:
     _ := fetch(key)
@@ -60,7 +60,7 @@ fn run_twice!(body: fn!() -> string) -> usize:
 >   release counted reference (conservative: frame drop)
 >   release counted reference (conservative: frame drop)
 > app/main/run_twice
->   retain fn!() -> string (conservative: cold constructor)
+>   retain fn!() -> string (stored)
 
 fn closure_bang!(key: string) -> usize:
     run_twice!():
@@ -76,7 +76,7 @@ fn closure_bang!(key: string) -> usize:
 >   release string (conservative: frame drop)
 >   release counted reference (conservative: frame drop)
 > app/main/closure_bang
->   retain string (conservative: cold constructor)
+>   retain string (stored)
         fetch!(key)
 > app/main/closure_bang
 >   retain string (conservative: entry)
@@ -123,7 +123,7 @@ fn stored!(key: string) -> usize:
 >   release counted reference (conservative: frame drop)
 >   release counted reference (conservative: frame drop)
 > app/main/stored
->   retain string (conservative: cold constructor)
+>   retain string (stored)
 > app/main/stored
 >   retain string (conservative: entry)
 >   retain counted reference (conservative: Await)

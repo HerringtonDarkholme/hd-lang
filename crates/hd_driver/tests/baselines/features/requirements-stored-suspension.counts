@@ -29,7 +29,7 @@ fn fetch!(key: string) -> string:
 >   release string (conservative: frame drop)
 >   release counted reference (conservative: frame drop)
 > app/main/fetch
->   retain string (conservative: cold constructor)
+>   retain string (stored)
 
 fn tagged!() -> usize $ Tag:
     $.use(Tag).name().len()
@@ -67,7 +67,7 @@ fn later!(key: string) -> usize:
 >   release counted reference (conservative: frame drop)
 >   release counted reference (conservative: frame drop)
 > app/main/later
->   retain string (conservative: cold constructor)
+>   retain string (stored)
     pending!().len()
 >   retain counted reference (conservative: AwaitValue)
 >   release counted reference (conservative: AwaitValue)
@@ -125,7 +125,7 @@ fn bound!(s: string) -> usize:
 >   release counted reference (conservative: frame drop)
 >   release counted reference (conservative: frame drop)
 > app/main/bound
->   retain string (conservative: cold constructor)
+>   retain string (stored)
         tagged()
     pending!()
 >   retain counted reference (conservative: AwaitValue)

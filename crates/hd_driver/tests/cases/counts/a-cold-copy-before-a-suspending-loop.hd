@@ -1,0 +1,12 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: a cold-copy declaration creates no empty fresh-only branch before the loop.
+trait Wait:
+    fn wait!(&mut self) -> void
+
+# subject
+fn run!(text: string) -> void $ Wait:
+    while true:
+        $.use(Wait).wait!()
+        _ := text.len()
+        break

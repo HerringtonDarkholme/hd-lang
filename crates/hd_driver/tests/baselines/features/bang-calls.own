@@ -7,103 +7,109 @@
 use std.task.{join, race}
 
 fn label!(s: string) -> string:
-    s + "!"
 > app/main/label
 >   local $0 s: string [param read] value
->     uses $0: entry -> %0 lend last
->   %0 = Read move [$0] : string
->   %1 = Intrinsic StrConcat [%0 "!"] : string
->   %2 = Drop [%0] : ()
->   %3 = Block %1 : string
+>     uses $0: entry -> %1 lend last
+>   %0 = ColdCopy [$0] #0 : ()
+    s + "!"
+>   %1 = Read move [$0] : string
+>   %2 = Intrinsic StrConcat [%1 "!"] : string
+>   %3 = Drop [%1] : ()
+>   %4 = Block %2 : string
 >   exit sub 0 drops [$0]
 >   summary none
 
 fn one!(s: string) -> usize:
-    label!(s).len()
 > app/main/one
 >   local $0 s: string [param read] value
->     uses $0: entry -> %0 lend last
+>     uses $0: entry -> %1 lend last
 >   local $1 $ref: string [read assigned captured captured-assigned] place
->   %0 = Read move [$0] : string
->   %1 = Await app/main/label[] (%0) : string
->   %2 = Drop [%0] : ()
->   %3 = Store [$1] %1 : ()
->   %4 = Ref local [$1] : Counted[string]
->   %5 = Call std/text/impl string.len[] (%4) : usize
->   %6 = Drop [%4] : ()
->   %7 = Drop [$1] : ()
->   %8 = Block %5 : usize
->   %4 finds [$1] full
+>   %0 = ColdCopy [$0] #0 : ()
+    label!(s).len()
+>   %1 = Read move [$0] : string
+>   %2 = Await app/main/label[] (%1) : string
+>   %3 = Drop [%1] : ()
+>   %4 = Store [$1] %2 : ()
+>   %5 = Ref local [$1] : Counted[string]
+>   %6 = Call std/text/impl string.len[] (%5) : usize
+>   %7 = Drop [%5] : ()
+>   %8 = Drop [$1] : ()
+>   %9 = Block %6 : usize
+>   %5 finds [$1] full
 >   exit sub 0 drops [$0]
 >   summary none
->   unwind %1 drops [%0]
+>   unwind %2 drops [%1]
 
 fn both!(a: string, b: string) -> usize:
-    let (x, y) = join!(label(a), label(b))
 > app/main/both
 >   local $0 a: string [param read] value
->     uses $0: entry -> %0 lend last
+>     uses $0: entry -> %2 lend last
 >   local $1 b: string [param read] value
->     uses $1: entry -> %2 lend last
+>     uses $1: entry -> %4 lend last
 >   local $2 x: string [read assigned captured] place
 >   local $3 y: string [read assigned captured] place
->   %0 = Read move [$0] : string
->   %1 = Call app/main/label[] (%0) : mut Suspend[string]
->   %2 = Read move [$1] : string
+>   %0 = ColdCopy [$0] #0 : ()
+>   %1 = ColdCopy [$1] #0 : ()
+    let (x, y) = join!(label(a), label(b))
+>   %2 = Read move [$0] : string
 >   %3 = Call app/main/label[] (%2) : mut Suspend[string]
->   %4 = AwaitAll [%1 %3] : (string, string)
->   %5 = Drop [%3] : ()
->   %6 = Drop [%2] : ()
->   %7 = Drop [%1] : ()
->   %8 = Drop [%0] : ()
->   %9 = Block - : ()
->   %10 = Read move [%4 .0] : string
->   %11 = Read move [%4 .1] : string
->   %12 = Store [$2] %10 : ()
->   %13 = Store [$3] %11 : ()
->   %15 = Block - : never
->   %16 = Match %4 [%15 %9] : ()
->   %26 = Block %25 : usize
+>   %4 = Read move [$1] : string
+>   %5 = Call app/main/label[] (%4) : mut Suspend[string]
+>   %6 = AwaitAll [%3 %5] : (string, string)
+>   %7 = Drop [%5] : ()
+>   %8 = Drop [%4] : ()
+>   %9 = Drop [%3] : ()
+>   %10 = Drop [%2] : ()
+>   %11 = Block - : ()
+>   %12 = Read move [%6 .0] : string
+>   %13 = Read move [%6 .1] : string
+>   %14 = Store [$2] %12 : ()
+>   %15 = Store [$3] %13 : ()
+>   %17 = Block - : never
+>   %18 = Match %6 [%17 %11] : ()
+>   %28 = Block %27 : usize
     x.len() + y.len()
->   %17 = Ref local [$2] : Counted[string]
->   %18 = Call std/text/impl string.len[] (%17) : usize
->   %19 = Drop [%17] : ()
->   %20 = Drop [$2] : ()
->   %21 = Ref local [$3] : Counted[string]
->   %22 = Call std/text/impl string.len[] (%21) : usize
->   %23 = Drop [%21] : ()
->   %24 = Drop [$3] : ()
->   %25 = Prim Add [%18 %22] : usize
->   %17 finds [$2] full
->   %21 finds [$3] full
+>   %19 = Ref local [$2] : Counted[string]
+>   %20 = Call std/text/impl string.len[] (%19) : usize
+>   %21 = Drop [%19] : ()
+>   %22 = Drop [$2] : ()
+>   %23 = Ref local [$3] : Counted[string]
+>   %24 = Call std/text/impl string.len[] (%23) : usize
+>   %25 = Drop [%23] : ()
+>   %26 = Drop [$3] : ()
+>   %27 = Prim Add [%20 %24] : usize
+>   %19 finds [$2] full
+>   %23 finds [$3] full
 >   exit sub 0 drops [$0 $1]
 >   summary none
->   unwind %4 drops [%0 %1 %2 %3]
+>   unwind %6 drops [%2 %3 %4 %5]
 
 fn either!(a: string, b: string) -> usize:
-    race!(label(a), label(b)).len()
 > app/main/either
 >   local $0 a: string [param read] value
->     uses $0: entry -> %0 lend last
+>     uses $0: entry -> %2 lend last
 >   local $1 b: string [param read] value
->     uses $1: entry -> %3 lend last
+>     uses $1: entry -> %5 lend last
 >   local $2 $ref: string [read assigned captured captured-assigned] place
->   %0 = Read move [$0] : string
->   %1 = Call app/main/label[] (%0) : mut Suspend[string]
->   %2 = Drop [%0] : ()
->   %3 = Read move [$1] : string
->   %4 = Call app/main/label[] (%3) : mut Suspend[string]
->   %5 = Drop [%3] : ()
->   %6 = NewList - [%1 %4] : List[mut Suspend[string]]
->   %7 = Await std/task/race[string] (%6) : string
->   %8 = Drop [%6] : ()
->   %9 = Store [$2] %7 : ()
->   %10 = Ref local [$2] : Counted[string]
->   %11 = Call std/text/impl string.len[] (%10) : usize
->   %12 = Drop [%10] : ()
->   %13 = Drop [$2] : ()
->   %14 = Block %11 : usize
->   %10 finds [$2] full
+>   %0 = ColdCopy [$0] #0 : ()
+>   %1 = ColdCopy [$1] #0 : ()
+    race!(label(a), label(b)).len()
+>   %2 = Read move [$0] : string
+>   %3 = Call app/main/label[] (%2) : mut Suspend[string]
+>   %4 = Drop [%2] : ()
+>   %5 = Read move [$1] : string
+>   %6 = Call app/main/label[] (%5) : mut Suspend[string]
+>   %7 = Drop [%5] : ()
+>   %8 = NewList - [%3 %6] : List[mut Suspend[string]]
+>   %9 = Await std/task/race[string] (%8) : string
+>   %10 = Drop [%8] : ()
+>   %11 = Store [$2] %9 : ()
+>   %12 = Ref local [$2] : Counted[string]
+>   %13 = Call std/text/impl string.len[] (%12) : usize
+>   %14 = Drop [%12] : ()
+>   %15 = Drop [$2] : ()
+>   %16 = Block %13 : usize
+>   %12 finds [$2] full
 >   exit sub 0 drops [$0 $1]
 >   summary none
->   unwind %7 drops [%6]
+>   unwind %9 drops [%8]
