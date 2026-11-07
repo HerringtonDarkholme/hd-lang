@@ -10,10 +10,10 @@ examples="$spec_dir/conformance/examples.tsv"
 # (conformance/README.md): HD_TEST_COMMAND, else the Rust hd, built when
 # missing (scripts/hd-conformance.sh).
 compiler=${HD_TEST_COMMAND:-"\"$repo_dir/scripts/hd-conformance.sh\""}
-# The default command builds its binaries on first use; build them now, so
-# the timed conformance runs below never include a build.
+# The default command builds its binaries on first use. This script only parses,
+# so build the parser now, and the timed runs below never include a build.
 if [ -z "${HD_TEST_COMMAND:-}" ]; then
-    "$repo_dir/scripts/hd-conformance.sh" --build
+    "$repo_dir/scripts/hd-conformance.sh" --build-parser
 fi
 
 fail() {

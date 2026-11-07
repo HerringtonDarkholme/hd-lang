@@ -28,10 +28,11 @@ contract() {
 }
 
 # `--build` builds both binaries and exits, so callers that time each run
-# (spec/check.sh, run-conformance.ts) never count a build against a case.
-if [ "${1-}" = --build ]; then
+# (run-conformance.ts) never count a build against a case. `--build-parser`
+# builds only the parser, for spec/check.sh, which runs nothing else.
+if [ "${1-}" = --build ] || [ "${1-}" = --build-parser ]; then
     cargo build -q --manifest-path "$root/Cargo.toml" -p hd_syntax --example parse_check >&2
-    cargo build -q --manifest-path "$root/Cargo.toml" -p hd_cli >&2
+    [ "$1" = --build-parser ] || cargo build -q --manifest-path "$root/Cargo.toml" -p hd_cli >&2
     exit 0
 fi
 if [ "${1-}" = parse ]; then
