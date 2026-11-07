@@ -78,6 +78,7 @@ impl<T> Default for AppendVec<T> {
 }
 
 /// Chunk and offset of item `i`: chunk k covers `[2^(k+10) - 2^10, 2^(k+11) - 2^10)`.
+#[inline]
 fn locate(i: u32) -> (usize, usize) {
     let biased = u64::from(i) + (1 << BASE_BITS);
     let k = biased.ilog2() - BASE_BITS;
@@ -125,6 +126,7 @@ impl<T> AppendVec<T> {
     }
 
     #[must_use]
+    #[inline]
     pub fn get(&self, i: u32) -> Option<&T> {
         if i >= self.len.load(Ordering::Acquire) {
             return None;
@@ -270,6 +272,7 @@ impl<T> Drop for AppendVec<T> {
 
 impl<T> core::ops::Index<u32> for AppendVec<T> {
     type Output = T;
+    #[inline]
     fn index(&self, i: u32) -> &T {
         self.get(i).expect("AppendVec index out of range")
     }
