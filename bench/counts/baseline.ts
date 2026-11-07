@@ -172,7 +172,8 @@ export function recordCounts(actual: Entry[], previous?: Baseline, reason?: stri
     const same =
       old?.total === next.total &&
       (old.noOpsAndSkipped ?? next.noOpsAndSkipped) === next.noOpsAndSkipped;
-    const note = increased ? reason : same ? old?.reason : undefined;
+    const kept = same ? old?.reason : undefined;
+    const note = increased ? reason : kept;
     return { ...next, ...(note ? { reason: note } : {}) };
   });
   return { version: 1, pipeline: "optimized-release-checked", engine: "node-default", programs };
