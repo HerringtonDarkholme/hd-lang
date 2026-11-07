@@ -33,6 +33,8 @@ pub struct Call {
 pub enum Binding {
     Reference(u32),
     CallArgument(u32),
+    /// The containing objects of an argument whose call was inlined.
+    CallParent(u32),
     Other,
 }
 
@@ -332,8 +334,10 @@ pub fn decide(cx: &impl Context) -> Decisions {
         }
         // A call's result's loans: its whole function (phase 5).
         for (i, held, bind) in cx.bindings(*id) {
-            let Binding::CallArgument(a) = bind else {
-                continue;
+            let (a, parents) = match bind {
+                Binding::CallArgument(a) => (a, false),
+                Binding::CallParent(a) => (a, true),
+                _ => continue,
             };
             let iu = u32::try_from(i).expect("insts");
             let call = b.held_args.iter().find(|x| x.1 == a).map(|x| x.0 as usize);
@@ -372,7 +376,19 @@ pub fn decide(cx: &impl Context) -> Decisions {
                         ..
                     }) = cx.reference(sub(b.ty[v]))
                     {
-                        heads.push((u32::MAX, target));
+                        // The result also depends on every object that keeps
+                        // the counted pointer slot alive. A local-reference
+                        // read instead keeps its independent source.
+                        if let Some(p) = b.decode_place(b.data[v][0])
+                            && let Some(crossed) = cx.place_crossings(*id, &p)
+                        {
+                            for (k, t) in crossed {
+                                heads.push((u32::try_from(k).expect("steps"), t));
+                            }
+                        }
+                        if !parents {
+                            heads.push((u32::MAX, target));
+                        }
                     }
                 }
                 _ => {}
@@ -382,14 +398,14 @@ pub fn decide(cx: &impl Context) -> Decisions {
             }
             let k_arg = call_args(b, c).iter().position(|&x| x == a);
             let inner = match (k_arg, accs[id].get(&cu).map(|x| &x.callees[..])) {
-                (Some(k), Some([callee])) => returned_inner(cx, *callee, k),
+                (Some(k), Some([callee])) if !parents => returned_inner(cx, *callee, k),
                 _ => Vec::new(),
             };
             // The call and its argument make the loan; neither is in its range.
             let e = range(*id, 0, n, &[vu, cu]);
             let last = heads.len() - 1;
             for (j, (k, t)) in heads.iter().enumerate() {
-                let x = excl && inner.is_empty() && j == last;
+                let x = !parents && excl && inner.is_empty() && j == last;
                 if program(*t, x, accs[id].get(&vu)) && e.meets(*t, x) {
                     kept.push(((*id, iu, *k), *t, x));
                 }

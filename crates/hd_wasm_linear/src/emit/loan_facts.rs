@@ -211,6 +211,7 @@ impl Context for Facts<'_, '_> {
                 match bind {
                     Bind::Begin(a) => Binding::Reference(a),
                     Bind::Call(a) => Binding::CallArgument(a),
+                    Bind::CallParent(a) => Binding::CallParent(a),
                     Bind::Share(_) | Bind::Move(_) => Binding::Other,
                 },
             )
