@@ -1,0 +1,21 @@
+# @dump: own wat counts
+# @build: v8 release
+# A `&dyn` parameter is its own words: reading its trait value for a call
+# reads the parameter, which nothing can store over. The caller's count holds
+# the object for the whole call, so neither dyn call takes one.
+trait Score:
+    fn value(&self, n: i64) -> i64
+
+trait Sink:
+    fn emit(&mut self, n: i64) -> void
+
+struct Node:
+    value: i64
+    next: *Node?
+
+fn walk(node: &Node, score: &dyn Score, sink: &mut dyn Sink) -> void:
+    # subject
+    sink.emit(score.value(node.value))
+    match node.next:
+        .Some(next) => walk(next, score, sink)
+        .None => pass

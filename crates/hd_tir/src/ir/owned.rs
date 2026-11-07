@@ -1220,8 +1220,16 @@ fn borrow_spans(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
     });
     root_uses.sort_stable();
     root_uses.dedup();
+    let words = (0..n)
+        .map(|r| {
+            b.tags[r] == Tag::Read
+                && own.trait_value(b.ty[r])
+                && matches!(&cx.places[r], Some(p) if p.proj == [Proj::Deref])
+        })
+        .collect();
     let mut walk = Live {
         cx,
+        words,
         frame_uses,
         root_uses,
         may,
@@ -1243,6 +1251,10 @@ fn borrow_spans(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
 /// The borrow walk's state ([`borrow_spans`]).
 struct Live<'a> {
     cx: &'a Cx<'a>,
+    /// Per borrow: a trait value read through a reference, which is that
+    /// reference's own words. Its object is held by the reference's count,
+    /// so no call can change it.
+    words: Vec<bool>,
     /// Each use of what may point into a frame local, as (instruction,
     /// local), by instruction.
     frame_uses: Vec<(u32, u32)>,
@@ -1338,9 +1350,20 @@ impl Backward for Live<'_> {
         // header names, or the referent its reference names) keeps that
         // value as it is.
         if writes && let Some(q) = &self.cx.places[i] {
+            let words = std::mem::take(&mut self.words);
             self.check(x, s, live, |r, p| {
-                q.root != PlaceRoot::Value(Ref(r)) && self.cx.overlap(p, q)
+                q.root != PlaceRoot::Value(Ref(r))
+                    && if words[r as usize] {
+                        let held = Place {
+                            root: p.root,
+                            proj: Vec::new(),
+                        };
+                        self.cx.overlap(&held, q)
+                    } else {
+                        self.cx.overlap(p, q)
+                    }
             });
+            self.words = words;
         }
         let k = self.frame_uses.partition_point(|u| u.0 < x);
         for u in k..self.frame_uses.len() {
@@ -1369,10 +1392,14 @@ impl Backward for Live<'_> {
                 })
                 .collect();
             let (cx, excl) = (self.cx, std::mem::take(&mut self.excl));
-            self.check(x, s, live, |_, p| {
-                behind_param(cx, p).is_some_and(|l| !excl[l as usize] || received.contains(&l))
+            let words = std::mem::take(&mut self.words);
+            self.check(x, s, live, |r, p| {
+                !words[r as usize]
+                    && behind_param(cx, p)
+                        .is_some_and(|l| !excl[l as usize] || received.contains(&l))
             });
             self.excl = excl;
+            self.words = words;
         }
     }
 
@@ -1407,11 +1434,13 @@ impl Backward for Live<'_> {
         }
         if is_suspension(b.tags[i]) {
             let frame = std::mem::take(&mut self.frame);
-            self.check(x, s, live, |_, p| {
+            let words = std::mem::take(&mut self.words);
+            self.check(x, s, live, |r, p| {
                 !matches!(p.root, PlaceRoot::Local(l) if frame[l.idx()])
-                    || !p.proj.iter().all(|s| matches!(s, Proj::Field(_)))
+                    || !(words[r as usize] || p.proj.iter().all(|s| matches!(s, Proj::Field(_))))
             });
             self.frame = frame;
+            self.words = words;
         }
     }
 

@@ -14,8 +14,6 @@ impl dyn Greet:
     fn twice(&self) -> usize:
         self.greet().len() * 2
 > app/main/impl dyn Greet.twice
->   retain app.main.Greet (second owner)
->   release app.main.Greet (last use)
 >   release string (last use)
 
 struct User:
@@ -35,9 +33,6 @@ fn boxed(u: User) -> *dyn Greet:
 
 fn through_mut(g: &mut dyn Greet, n: string) -> usize:
     g.rename(n)
-> app/main/through_mut
->   retain app.main.Greet (second owner)
->   release app.main.Greet (last use)
     g.twice()
 
 fn local_mut(u: User, n: string) -> usize:

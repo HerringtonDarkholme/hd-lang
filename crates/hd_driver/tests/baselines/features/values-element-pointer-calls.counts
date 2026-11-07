@@ -17,8 +17,6 @@ trait Sink:
 fn walk(node: &Node, sink: &mut dyn Sink) -> void:
     sink.emit(node.value)
 > app/main/walk
->   retain app.main.Sink (second owner)
->   release app.main.Sink (last use)
 >   release List[&app.main.Node] (last use)
     for child in &node.children:
 >   copy List[&app.main.Node] (conservative: copy read)

@@ -30,8 +30,6 @@ impl Dog for Pup:
 fn name_of(a: &dyn Animal) -> usize:
     a.name().len()
 > app/main/name_of
->   retain app.main.Animal (second owner)
->   release app.main.Animal (last use)
 >   release string (last use)
 
 fn widen(d: &dyn Dog) -> usize:
@@ -41,8 +39,6 @@ fn widen(d: &dyn Dog) -> usize:
 >   retain app.main.Animal (stored)
 >   release app.main.Dog (last use)
 >   release &app.main.Animal (by design)
->   retain app.main.Dog (second owner)
->   release app.main.Dog (last use)
 >   release string (last use)
 
 fn loud[T < Dog](d: T) -> usize:

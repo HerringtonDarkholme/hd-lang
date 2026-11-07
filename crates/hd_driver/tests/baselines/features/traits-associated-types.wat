@@ -35,13 +35,9 @@
     ;; 27 |     source.get().len()
     block
       local.get $source.0
-      call $retain
-      local.get $source.0
       local.get $source.1
       i32.load $heap
       call_indirect $table0 (param i32) (result i32 i32)
-      local.get $source.0
-      call $rt:release_ref
       local.set $source.1
       local.set $source.0
       block

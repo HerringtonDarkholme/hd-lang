@@ -6,34 +6,24 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 7 funcref))
-  (func $tick (param $s.0 i32) (param $s.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t0 i32)
+  (func $tick (param $s.0 i32) (param $s.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32)
     ;; 23 |     rec := $.use(Recorder)
     block
       local.get $provider0
       call $retain
       local.get $provider0
     ;; 24 |     rec.note(s)
-      local.tee $t0
-      call $retain
-      local.get $t0
       local.get $s.0
       local.get $s.1
       local.get $provider0.vtable
       i32.load $heap
       call_indirect $table0 (param i32 i32 i32)
-    ;; 23 |     rec := $.use(Recorder)
-      local.get $t0
-      call $rt:release_ref'1
     ;; 25 |     rec.total()
-      local.get $provider0
-      call $retain
       local.get $provider0
       local.get $provider0.vtable
       i32.load $heap offset=4
       call_indirect $table0 (param i32) (result i32)
     ;; 23 |     rec := $.use(Recorder)
-      local.get $provider0
-      call $rt:release_ref'1
       local.get $provider0
       call $rt:release_ref'1
       local.set $s.0

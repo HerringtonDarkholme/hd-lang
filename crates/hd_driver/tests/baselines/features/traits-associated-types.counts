@@ -31,8 +31,6 @@ fn first_len(c: Constant) -> usize:
 fn read(source: &dyn Supplier[Item = string]) -> usize:
     source.get().len()
 > app/main/read
->   retain app.main.Supplier[Item = string] (second owner)
->   release app.main.Supplier[Item = string] (last use)
 >   release string (last use)
 
 fn read_const(c: Constant) -> usize:

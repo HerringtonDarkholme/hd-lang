@@ -24,13 +24,9 @@ fn tick(s: string) -> usize $ Recorder:
     rec := $.use(Recorder)
 > app/main/tick
 >   retain app.main.Recorder (stored)
->   release app.main.Recorder (last use)
->   release app.main.Recorder (last use)
 >   release &mut app.main.Recorder (by design)
     rec.note(s)
->   retain app.main.Recorder (second owner)
     rec.total()
->   retain app.main.Recorder (second owner)
 
 fn demo(a: string, b: string) -> usize:
     tally := box(Log { lines: [] })

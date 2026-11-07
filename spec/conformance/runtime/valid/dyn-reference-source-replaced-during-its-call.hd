@@ -1,0 +1,36 @@
+# expect-stdout: first first
+# expect-stdout: second second
+# test: a trait value's object stays alive for a call made through it, when the call replaces the pointer it came from, whether the receiver is the pointer or a reference to it
+# Spec 13 Values and References: ref.excl.alias.shared-variable, ref.excl.alias.conflict.
+trait Note:
+    fn text(&self, step: fn() -> void) -> string
+
+struct Held:
+    name: string
+
+impl Note for Held:
+    fn text(&self, step: fn() -> void) -> string:
+        step()
+        self.name
+
+fn make(name: string) -> *dyn Note:
+    box(Held { name: "${name}" })
+
+fn through(note: &dyn Note, step: fn() -> void) -> string:
+    note.text(step)
+
+fn replaced_receiver() -> string:
+    let mut p = make("first")
+    replace := fn() -> void:
+        p = make("other")
+    p.text(replace)
+
+fn replaced_behind_reference() -> string:
+    let mut p = make("second")
+    replace := fn() -> void:
+        p = make("other")
+    through(p, replace)
+
+pub fn main() -> void $ Console:
+    println("${replaced_receiver()} first")
+    println("${replaced_behind_reference()} second")

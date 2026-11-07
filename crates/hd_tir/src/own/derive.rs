@@ -863,12 +863,13 @@ fn sources(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
         for step in b.view(b.data[r][0]).steps(b) {
             (before, last) = (last, Some(step));
         }
-        // A trait value read through the counted pointer a part holds is
-        // that pointer's words: its object is held by the pointer's count.
+        // A trait value read through a reference or a counted pointer is
+        // that reference's words, in a local or a part: its object is held
+        // by the reference's count.
         let handle = last == Some(Proj::Deref)
             && matches!(
                 before,
-                Some(Proj::Field(_) | Proj::Elem(_) | Proj::Variant(_))
+                None | Some(Proj::Field(_) | Proj::Elem(_) | Proj::Variant(_))
             )
             && cx.trait_value(b.ty[r]);
         // This bit's place in its read's list says how many bindings it

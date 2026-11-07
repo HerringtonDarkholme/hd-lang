@@ -170,15 +170,11 @@
     ;; 17 |     sink.emit(node.value)
     block
       local.get $sink.0
-      call $retain
-      local.get $sink.0
       local.get $node
       i64.load $heap
       local.get $sink.1
       i32.load $heap
       call_indirect $table0 (param i32 i64)
-      local.get $sink.0
-      call $rt:release_ref'2
     ;; 18 |     for child in &node.children:
       local.get $node
       i32.load $heap offset=8

@@ -19,8 +19,6 @@ impl Named for Dog:
 fn call_dyn(x: &dyn Named) -> usize:
     x.name().len()
 > app/main/call_dyn
->   retain app.main.Named (second owner)
->   release app.main.Named (last use)
 >   release string (last use)
 
 fn make_dyn(d: Dog) -> usize:
