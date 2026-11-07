@@ -1,0 +1,35 @@
+# expect-stdout: first first 7 changed
+# expect-stdout: second 1 third 0
+# expect-stdout: fourth 5 fifth
+# test: a copy-update reads its base before its fields run; a field that writes the base, or a store over the element it came from, leaves what was read intact
+# Spec 05 Copy-Update: expr.update.copy-fields.
+struct Item:
+    name: string
+    tags: List[string]
+    revision: usize
+
+fn rename(p: &mut Item) -> usize:
+    p.name = "${"changed"}"
+    p.tags = []
+    7
+
+fn make(name: string) -> Item:
+    Item { name: "${name}", tags: ["${name}"], revision: 0 }
+
+fn overwrite(items: &mut List[Item]) -> usize:
+    items[0] = make("third")
+    5
+
+pub fn main() -> void $ Console:
+    let mut p = make("first")
+    q := Item { ...p, revision: rename(&mut p) }
+    println("${q.name} ${q.tags[0]} ${q.revision} ${p.name}")
+
+    let mut items = [make("second")]
+    previous := items[0]
+    items[0] = Item { ...previous, revision: previous.revision + 1 }
+    println("${previous.name} ${items[0].revision} ${make("third").name} ${previous.revision}")
+
+    let mut more = [make("fourth")]
+    r := Item { ...more[0], revision: overwrite(&mut more) }
+    println("${r.name} ${r.revision} ${make("fifth").name}")

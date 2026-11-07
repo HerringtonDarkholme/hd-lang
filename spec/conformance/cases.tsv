@@ -1381,6 +1381,7 @@ runtime/valid/data-field-defaults.hd	runtime	accept	lang/08-data-and-enums.md#fi
 typing/invalid/suspending-data-field-default.hd	type	reject:suspension-forbidden-context	lang/08-data-and-enums.md#field-defaults
 typing/valid/generic-optional-field-default.hd	type	accept	lang/08-data-and-enums.md#field-defaults
 typing/invalid/data-field-default-type-mismatch.hd	type	reject:type-mismatch	lang/08-data-and-enums.md#field-defaults
+runtime/valid/copy-update-a-field-that-changes-the-base-keeps-what-it-read.hd	runtime	accept	lang/08-data-and-enums.md#copy-update-literals
 runtime/valid/copy-update-evaluation-order.hd	runtime	accept	lang/08-data-and-enums.md#copy-update-literals
 typing/invalid/copy-update-source-type-mismatch.hd	type	reject:type-mismatch	lang/08-data-and-enums.md#copy-update-literals
 runtime/valid/copy-update-skips-defaults.hd	runtime	accept	lang/08-data-and-enums.md#copy-update-literals

@@ -2,8 +2,9 @@
 # @dump: tir own counts wat
 # @build: v8 release
 # Feature: struct, tuple and enum literals and the copy-update spread (#1364).
-# expected: literals move their parts with no count; the spread moves
-# `r.tags` out of a dead `r`; `reuse` retains `n` once for its second use.
+# expected: literals move their parts with no count; the spread lends `r`
+# and copies `r.tags`, though `r` is dead there and could give it up;
+# `reuse` retains `n` once for its second use.
 struct Rec:
     name: string
     tags: List[string]

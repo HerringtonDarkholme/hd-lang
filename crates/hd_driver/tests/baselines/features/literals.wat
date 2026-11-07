@@ -2,9 +2,8 @@
 (module
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
   (func $reuse (param $n.0 i32) (param $n.1 i32) (result i32 i32 i32 i32 i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
-    ;; 27 |     (Rec { name: n, tags: [] }, Rec { name: n, tags: [] })
+    ;; 28 |     (Rec { name: n, tags: [] }, Rec { name: n, tags: [] })
     block
       local.get $n.0
       call $retain
@@ -29,7 +28,7 @@
     local.get $t0
   )
   (func $make_tuple (param $n.0 i32) (param $n.1 i32) (param $t i32) (result i32 i32 i32)
-    ;; 18 |     (n, t)
+    ;; 19 |     (n, t)
     block
     end
     local.get $n.0
@@ -37,7 +36,7 @@
     local.get $t
   )
   (func $make_struct (param $n.0 i32) (param $n.1 i32) (param $t i32) (result i32 i32 i32)
-    ;; 15 |     Rec { name: n, tags: t }
+    ;; 16 |     Rec { name: n, tags: t }
     block
     end
     local.get $n.0
@@ -45,22 +44,22 @@
     local.get $t
   )
   (func $update (param $r.name.0 i32) (param $r.name.1 i32) (param $r.tags i32) (param $n.0 i32) (param $n.1 i32) (result i32 i32 i32)
-    ;; 24 |     Rec { ...r, name: n }
+    ;; 25 |     Rec { ...r, name: n }
     block
-      local.get $r.name.0
+      local.get $n.0
+      local.get $n.1
       local.get $r.tags
       call $rt:coll_copy
+      local.set $r.tags
+      local.set $r.name.1
       local.set $r.name.0
-      local.get $r.name.1
-      local.get $r.tags
-      call $rt:release
     end
-    local.get $n.0
-    local.get $n.1
     local.get $r.name.0
+    local.get $r.name.1
+    local.get $r.tags
   )
   (func $make_enum (param $n.0 i32) (param $n.1 i32) (result i32 i32 i32) (local $t0 i32)
-    ;; 21 |     Shape.Named(n)
+    ;; 22 |     Shape.Named(n)
     block
       i32.const 0
       local.get $n.0

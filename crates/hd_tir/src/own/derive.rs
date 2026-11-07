@@ -618,6 +618,7 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                         | Tag::Is
                         | Tag::With
                         | Tag::ContextNew
+                        | Tag::CopyStruct
                 ),
             };
             t.v[v].keeps |= keeps;
