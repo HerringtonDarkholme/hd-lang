@@ -31,15 +31,23 @@ jobs:
   # slowest one. Each restores third-party build output only (the
   # workspace's own crates and test binaries are not cached; they were
   # most of a 7 GB cache).
-  lint:
-    name: Rust format and lint
+  #
+  # Format, lint, the web build, the specification and the count budgets share
+  # one setup. Each check runs whatever an earlier one did, so one failure hides
+  # no other, and any failure fails the job.
+  checks:
+    name: Checks
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
+    outputs:
+      budgets: ${{ steps.budgets.outcome }}
     steps:
+      # The budget steps read the budgets of an earlier commit.
       - name: Check out
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
-      # The web compiler smoke test runs on Node.
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
 
@@ -52,37 +60,191 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Lint and format JS/TS
-        run: |
-          pnpm exec oxlint .
-          pnpm run -s format:check
-
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2.9.2
 
       - name: Install browser target
         run: rustup target add wasm32-unknown-unknown
 
+      - name: Lint and format JS/TS
+        if: ${{ !cancelled() }}
+        run: |
+          pnpm exec oxlint .
+          pnpm run -s format:check
+
       - name: Check formatting
+        if: ${{ !cancelled() }}
         run: cargo fmt --all -- --check
 
       - name: Lint
+        if: ${{ !cancelled() }}
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
       - name: Build browser-safe crates
+        if: ${{ !cancelled() }}
         run: cargo build -p hd_syntax -p hd_web --target wasm32-unknown-unknown
 
       # LTO build, then compile and run a fixture through
       # the exports, with the size gate (crates/hd_web/DESIGN.md §7, W3).
       - name: Web compiler smoke test and size gate
+        if: ${{ !cancelled() }}
         run: pnpm run -s test:web-compiler
+
+      # The specification's own check. It parses through scripts/hd-conformance.sh,
+      # in the dev profile. It runs before the budget steps, which rewrite files on main.
+      - name: Spec check
+        if: ${{ !cancelled() }}
+        run: bash spec/check.sh
+
+      - name: Build count compiler
+        if: ${{ !cancelled() }}
+        run: cargo build -p hd_driver --example count_ops
+
+      - name: Test count comparator
+        id: comparator
+        if: ${{ !cancelled() }}
+        run: node --test bench/counts/baseline.test.ts bench/counts/conservative-baseline.test.ts
+
+      - name: Read previous budget
+        id: previous
+        if: ${{ !cancelled() }}
+        shell: bash
+        env:
+          COUNT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          mkdir -p target/count-ops
+          count_base="$COUNT_BASE"
+          if [ -z "$count_base" ] || [[ "$count_base" =~ ^0+$ ]]; then
+            count_base="$(git merge-base HEAD origin/main)"
+          fi
+          if git cat-file -e "$count_base:bench/counts/baseline.json" 2>/dev/null; then
+            git show "$count_base:bench/counts/baseline.json" > target/count-ops/previous.json
+          fi
+          if git cat-file -e "$count_base:bench/counts/conservative-sites.json" 2>/dev/null; then
+            git show "$count_base:bench/counts/conservative-sites.json" > target/count-ops/previous-conservative.json
+          fi
+
+      - name: Compile benchmarks and enforce conservative sites by reason
+        id: sites
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          site_flags=()
+          if [ "$GITHUB_REF" = refs/heads/main ]; then
+            site_flags+=(--refresh)
+          fi
+          node bench/counts/conservative-sites.ts --previous target/count-ops/previous-conservative.json "${site_flags[@]}"
+
+      - name: Measure and enforce per-program totals
+        id: totals
+        if: ${{ !cancelled() }}
+        shell: bash
+        env:
+          HD_CACHE: target/count-ops/cache
+        run: |
+          set -euo pipefail
+          count_flags=()
+          if [ "$GITHUB_REF" = refs/heads/main ]; then
+            count_flags+=(--refresh)
+          fi
+          node bench/counts/run.ts --previous target/count-ops/previous.json "${count_flags[@]}"
+
+      - name: Show measured counts
+        if: always()
+        shell: bash
+        run: |
+          if [ -f target/count-ops/summary.md ]; then
+            cat target/count-ops/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f target/conservative-sites/summary.md ]; then
+            cat target/conservative-sites/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Store measured counts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: count-operations
+          path: |
+            target/count-ops/actual.json
+            target/count-ops/summary.md
+            target/conservative-sites/actual.json
+            target/conservative-sites/summary.md
+            target/conservative-sites/build.log
+            target/conservative-sites/reports/*.tsv
+          if-no-files-found: ignore
+
+      # The budgets this run refreshed, for the job that commits them. A failure
+      # in a check that isn't about budgets doesn't hold them back.
+      - name: Store refreshed budgets
+        id: budgets
+        if: >-
+          ${{ !cancelled() && github.ref == 'refs/heads/main' && github.event_name == 'push'
+          && steps.comparator.outcome == 'success' && steps.previous.outcome == 'success'
+          && steps.sites.outcome == 'success' && steps.totals.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: refreshed-budgets
+          path: |
+            bench/counts/baseline.json
+            bench/counts/conservative-sites.json
+          if-no-files-found: error
+
+  # Only this job holds a write token, and it runs nothing from the repository.
+  refresh-budgets:
+    name: Refresh ownership count budgets
+    needs: checks
+    if: ${{ !cancelled() && needs.checks.outputs.budgets == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Fetch refreshed budgets
+        uses: actions/download-artifact@v4
+        with:
+          name: refreshed-budgets
+          path: bench/counts
+
+      - name: Refresh main's lower baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- bench/counts/baseline.json bench/counts/conservative-sites.json; then
+            exit 0
+          fi
+          count_source="$(git rev-parse HEAD)"
+          git fetch origin main
+          if [ "$(git rev-parse origin/main)" != "$count_source" ]; then
+            echo "Newer main owns the next baseline refresh."
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add bench/counts/baseline.json bench/counts/conservative-sites.json
+          git commit -m "Refresh ownership count budgets"
+          if ! git push origin HEAD:main; then
+            git fetch origin main
+            if [ "$(git rev-parse origin/main)" != "$count_source" ]; then
+              echo "Main advanced during refresh; the newer run will update it."
+              exit 0
+            fi
+            exit 1
+          fi
 
   # CI tests in release for speed (owner, 2026-10-11: dev took 26 min,
   # release 6). Local gates stay in the dev profile, where debug
   # assertions and overflow checks are on.
   #
   # cargo test runs test binaries one after another, so the suite is split
-  # into two shards that run side by side: hd_cli, and every other crate.
+  # into two shards that run side by side: hd_cli, and every other crate. The cli
+  # shard's cargo test builds the release `hd` its tests run. On Linux nothing
+  # in the other shard runs it.
   test:
     name: Rust tests (${{ matrix.shard }})
     runs-on: ubuntu-latest
@@ -107,9 +269,6 @@ jobs:
 
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2.9.2
-
-      - name: Build release compiler
-        run: cargo build --release --workspace --all-features --bin hd
 
       - name: Test
         run: cargo test --release --all-features ${{ matrix.args }} -- --skip specification_conformance_passes_except_known_failures
@@ -171,8 +330,9 @@ jobs:
         if: matrix.shard != 'cli conformance'
         run: cargo test --release --no-fail-fast --features hd_cli/wasmtime -p hd_cli --bins --test all
 
-  # Split from the tests so the longest suite overlaps with the rest, and
-  # into one job per mode so the three suites run side by side.
+  # Split from the tests so the longest suite overlaps with the rest. Default and
+  # checked runs share a binary, so they share a job; a mode that builds or runs on
+  # something else has its own.
   conformance:
     name: Driver conformance (${{ matrix.mode }})
     runs-on: ubuntu-latest
@@ -181,7 +341,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - mode: default
+          # The checked run is the count audit, leak report and buffer traps, so
+          # an ownership bug fails CI instead of a local run.
+          - mode: default and checked
             engine: ""
             pipeline: ""
           # Every engine: each runs a build tuned for its own target and the
@@ -196,12 +358,6 @@ jobs:
           - mode: optimized
             engine: wasmtime
             pipeline: optimized
-          # Checked builds: the count audit, leak report and buffer traps, so
-          # an ownership bug fails CI instead of a local run.
-          - mode: checked
-            engine: ""
-            pipeline: ""
-            checked: "1"
     steps:
       - name: Check out
         uses: actions/checkout@v5
@@ -218,162 +374,16 @@ jobs:
       # Only the suite that depends on the engine and the pipeline: the
       # binary's other tests (the formatter pass over every fixture, the std
       # runtime modules, the harness's own) run once, in the Rust tests job.
+      # Each run fails the job by itself, and the first failing doesn't skip the second.
       - name: Conformance
+        if: ${{ !cancelled() }}
         env:
           HD_CONFORMANCE_ENGINE: ${{ matrix.engine }}
-          HD_CONFORMANCE_CHECKED: ${{ matrix.checked }}
           HD_CONFORMANCE_PIPELINE: ${{ matrix.pipeline }}
         run: cargo test --release --workspace --all-features --test conformance -- --exact specification_conformance_passes_except_known_failures
 
-  # The specification's own check. It drives the Rust hd through
-  # scripts/hd-conformance.sh, which builds it in the dev profile.
-  spec:
-    name: Specification check
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Check out
-        uses: actions/checkout@v5
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v5
-        with:
-          node-version-file: package.json
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Cache Rust build
-        uses: Swatinem/rust-cache@v2.9.2
-
-      - name: Spec check
-        run: bash spec/check.sh
-
-  count-operations:
-    name: Ownership count budgets
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      contents: write
-    steps:
-      - name: Check out
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v5
-        with:
-          node-version-file: package.json
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Cache Rust build
-        uses: Swatinem/rust-cache@v2.9.2
-
-      - name: Build count compiler
-        run: cargo build -p hd_driver --example count_ops
-
-      - name: Test count comparator
-        run: node --test bench/counts/baseline.test.ts bench/counts/conservative-baseline.test.ts
-
-      - name: Read previous budget
-        shell: bash
+      - name: Conformance (checked)
+        if: ${{ !cancelled() && matrix.mode == 'default and checked' }}
         env:
-          COUNT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
-        run: |
-          set -euo pipefail
-          mkdir -p target/count-ops
-          count_base="$COUNT_BASE"
-          if [ -z "$count_base" ] || [[ "$count_base" =~ ^0+$ ]]; then
-            count_base="$(git merge-base HEAD origin/main)"
-          fi
-          if git cat-file -e "$count_base:bench/counts/baseline.json" 2>/dev/null; then
-            git show "$count_base:bench/counts/baseline.json" > target/count-ops/previous.json
-          fi
-          if git cat-file -e "$count_base:bench/counts/conservative-sites.json" 2>/dev/null; then
-            git show "$count_base:bench/counts/conservative-sites.json" > target/count-ops/previous-conservative.json
-          fi
-
-      - name: Compile benchmarks and enforce conservative sites by reason
-        shell: bash
-        run: |
-          set -euo pipefail
-          site_flags=()
-          if [ "$GITHUB_REF" = refs/heads/main ]; then
-            site_flags+=(--refresh)
-          fi
-          node bench/counts/conservative-sites.ts --previous target/count-ops/previous-conservative.json "${site_flags[@]}"
-
-      - name: Measure and enforce per-program totals
-        shell: bash
-        env:
-          HD_CACHE: target/count-ops/cache
-        run: |
-          set -euo pipefail
-          count_flags=()
-          if [ "$GITHUB_REF" = refs/heads/main ]; then
-            count_flags+=(--refresh)
-          fi
-          node bench/counts/run.ts --previous target/count-ops/previous.json "${count_flags[@]}"
-
-      - name: Show measured counts
-        if: always()
-        shell: bash
-        run: |
-          if [ -f target/count-ops/summary.md ]; then
-            cat target/count-ops/summary.md >> "$GITHUB_STEP_SUMMARY"
-          fi
-          if [ -f target/conservative-sites/summary.md ]; then
-            cat target/conservative-sites/summary.md >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      - name: Store measured counts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: count-operations
-          path: |
-            target/count-ops/actual.json
-            target/count-ops/summary.md
-            target/conservative-sites/actual.json
-            target/conservative-sites/summary.md
-            target/conservative-sites/build.log
-            target/conservative-sites/reports/*.tsv
-          if-no-files-found: ignore
-
-      - name: Refresh main's lower baseline
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        shell: bash
-        run: |
-          set -euo pipefail
-          if git diff --quiet -- bench/counts/baseline.json bench/counts/conservative-sites.json; then
-            exit 0
-          fi
-          count_source="$(git rev-parse HEAD)"
-          git fetch origin main
-          if [ "$(git rev-parse origin/main)" != "$count_source" ]; then
-            echo "Newer main owns the next baseline refresh."
-            exit 0
-          fi
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add bench/counts/baseline.json bench/counts/conservative-sites.json
-          git commit -m "Refresh ownership count budgets"
-          if ! git push origin HEAD:main; then
-            git fetch origin main
-            if [ "$(git rev-parse origin/main)" != "$count_source" ]; then
-              echo "Main advanced during refresh; the newer run will update it."
-              exit 0
-            fi
-            exit 1
-          fi
+          HD_CONFORMANCE_CHECKED: "1"
+        run: cargo test --release --workspace --all-features --test conformance -- --exact specification_conformance_passes_except_known_failures
