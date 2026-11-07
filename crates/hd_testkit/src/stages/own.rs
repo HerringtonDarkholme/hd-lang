@@ -148,6 +148,7 @@ fn build(p: &super::Program, at: super::Build) -> Output {
                 hd_driver::BuildProfile::Checked
             },
             checked: at.checked,
+            std_leaf: at.std.then_some(STD_CASE),
             ..Packages::default()
         },
         &Goal::Fixture {

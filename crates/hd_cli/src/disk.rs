@@ -300,6 +300,7 @@ impl Program {
                 .collect(),
             entry_capabilities: true,
             instruction_origins: false,
+            std_leaf: None,
             checked: false,
             verify_own: false,
             requires: self.requires.clone(),

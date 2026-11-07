@@ -31,6 +31,7 @@ pub(super) fn build(p: &super::Program, origins: bool, at: super::Build) -> Outp
                 hd_driver::BuildProfile::Checked
             },
             checked: at.checked,
+            std_leaf: at.std.then_some(super::own::STD_CASE),
             ..Packages::default()
         },
         &at.goal(),

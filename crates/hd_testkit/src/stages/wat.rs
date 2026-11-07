@@ -89,6 +89,7 @@ pub fn wat_for(p: &Program, at: Build) -> String {
             BuildProfile::Checked
         },
         checked: at.checked,
+        std_leaf: at.std.then_some(super::own::STD_CASE),
         ..Packages::default()
     };
     let built = build_packages(&host, package, &packages, &at.goal());

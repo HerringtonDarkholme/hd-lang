@@ -113,7 +113,7 @@ fn embedded_std() -> &'static EmbeddedStd {
                 (e.path, text)
             })
             .collect();
-        let hash = sources_hash(&sources);
+        let hash = sources_hash(&sources, None);
         EmbeddedStd {
             sources,
             texts,
@@ -317,9 +317,12 @@ fn with_entry(sources: &dyn SourceSet) -> MemorySources {
 
 /// The hash of a source set's paths and texts (the std part of the
 /// toolchain key, `crates/hd_cache/DESIGN.md` §5.3).
-fn sources_hash(sources: &dyn SourceSet) -> Hash128 {
+fn sources_hash(sources: &dyn SourceSet, leaf: Option<&str>) -> Hash128 {
     let mut h = hd_base::StableHasher::new("std-sources");
     for e in sources.list() {
+        if leaf == Some(e.path.as_str()) {
+            continue;
+        }
         h.str(&e.path);
         if let Some(b) = sources.read(&e.path) {
             h.bytes(&b);
@@ -1924,6 +1927,10 @@ pub struct Packages<'a> {
     /// Development tooling: emit instruction origins without changing module bytes.
     /// Mapped builds bypass the linked-byte cache; checked bodies may still be cached.
     pub instruction_origins: bool,
+    /// Development tooling: a file of a root std that no other module uses. It
+    /// stays out of the toolchain key, so builds that differ only in this file
+    /// share what they check of the rest of std. Its own entries key on its text.
+    pub std_leaf: Option<&'a str>,
     /// The root's requirements: each dependency name, as source writes it
     /// after `dep.`, and its package index: 0 is the root, `i + 1` is
     /// `deps[i]`.
@@ -2223,7 +2230,7 @@ fn build_packages_inner(
         });
         Arc::clone(found)
     };
-    let std_hash = embedded.map_or_else(|| sources_hash(std), |e| e.hash);
+    let std_hash = embedded.map_or_else(|| sources_hash(std, packages.std_leaf), |e| e.hash);
     let toolchain = toolchain_key(
         COMPILER,
         TARGET,
