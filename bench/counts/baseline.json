@@ -30,18 +30,20 @@
     {
       "program": "bench/runtime/progs/inventory.hd",
       "retained": "0",
-      "released": "521",
-      "uniques": "0",
-      "total": "521",
-      "noOpsAndSkipped": "6401029"
+      "released": "522",
+      "uniques": "6400002",
+      "total": "6400524",
+      "noOpsAndSkipped": "6401029",
+      "reason": "The one-owner field rule is deleted (owner decision 2026-11-07, #1399): it caused five silent wrong answers in release builds (#1439, #1440 and three found with them), because it treated as unshared any field whose sharing it did not recognise. Every collection field and &mut entry now keeps its uniqueness test. Measured with the rule off: +2,486 B across 11 of 32 modules; V8 default tier task-pipeline +2.2%, json +1.9%, route-search -6.6%."
     },
     {
       "program": "bench/runtime/progs/iter-pipeline.hd",
       "retained": "2000",
-      "released": "4015",
-      "uniques": "0",
-      "total": "6015",
-      "noOpsAndSkipped": "1"
+      "released": "4016",
+      "uniques": "20000",
+      "total": "26016",
+      "noOpsAndSkipped": "1",
+      "reason": "The one-owner field rule is deleted (owner decision 2026-11-07, #1399): it caused five silent wrong answers in release builds (#1439, #1440 and three found with them), because it treated as unshared any field whose sharing it did not recognise. Every collection field and &mut entry now keeps its uniqueness test. Measured with the rule off: +2,486 B across 11 of 32 modules; V8 default tier task-pipeline +2.2%, json +1.9%, route-search -6.6%."
     },
     {
       "program": "bench/runtime/progs/list-sort.hd",
@@ -54,18 +56,20 @@
     {
       "program": "bench/runtime/progs/list-stdlib-sort.hd",
       "retained": "1",
-      "released": "42",
-      "uniques": "1998",
-      "total": "2041",
-      "noOpsAndSkipped": "4"
+      "released": "44",
+      "uniques": "4000",
+      "total": "4045",
+      "noOpsAndSkipped": "4",
+      "reason": "The one-owner field rule is deleted (owner decision 2026-11-07, #1399): it caused five silent wrong answers in release builds (#1439, #1440 and three found with them), because it treated as unshared any field whose sharing it did not recognise. Every collection field and &mut entry now keeps its uniqueness test. Measured with the rule off: +2,486 B across 11 of 32 modules; V8 default tier task-pipeline +2.2%, json +1.9%, route-search -6.6%."
     },
     {
       "program": "bench/runtime/progs/log-stats.hd",
       "retained": "5760129",
-      "released": "6660312",
-      "uniques": "3",
-      "total": "12420444",
-      "noOpsAndSkipped": "1440026"
+      "released": "6660314",
+      "uniques": "9",
+      "total": "12420452",
+      "noOpsAndSkipped": "1440026",
+      "reason": "The one-owner field rule is deleted (owner decision 2026-11-07, #1399): it caused five silent wrong answers in release builds (#1439, #1440 and three found with them), because it treated as unshared any field whose sharing it did not recognise. Every collection field and &mut entry now keeps its uniqueness test. Measured with the rule off: +2,486 B across 11 of 32 modules; V8 default tier task-pipeline +2.2%, json +1.9%, route-search -6.6%."
     },
     {
       "program": "bench/runtime/progs/map-count-long.hd",
@@ -95,9 +99,10 @@
       "program": "bench/runtime/progs/plugins.hd",
       "retained": "5460000",
       "released": "5461459",
-      "uniques": "0",
-      "total": "10921459",
-      "noOpsAndSkipped": "21931093"
+      "uniques": "8197500",
+      "total": "19118959",
+      "noOpsAndSkipped": "21931093",
+      "reason": "The one-owner field rule is deleted (owner decision 2026-11-07, #1399): it caused five silent wrong answers in release builds (#1439, #1440 and three found with them), because it treated as unshared any field whose sharing it did not recognise. Every collection field and &mut entry now keeps its uniqueness test. Measured with the rule off: +2,486 B across 11 of 32 modules; V8 default tier task-pipeline +2.2%, json +1.9%, route-search -6.6%."
     },
     {
       "program": "bench/runtime/progs/resources.hd",
@@ -110,10 +115,11 @@
     {
       "program": "bench/runtime/progs/route-search.hd",
       "retained": "0",
-      "released": "614393",
-      "uniques": "918110",
-      "total": "1532503",
-      "noOpsAndSkipped": "37995616"
+      "released": "614483",
+      "uniques": "2768400",
+      "total": "3382883",
+      "noOpsAndSkipped": "37995616",
+      "reason": "The one-owner field rule is deleted (owner decision 2026-11-07, #1399): it caused five silent wrong answers in release builds (#1439, #1440 and three found with them), because it treated as unshared any field whose sharing it did not recognise. Every collection field and &mut entry now keeps its uniqueness test. Measured with the rule off: +2,486 B across 11 of 32 modules; V8 default tier task-pipeline +2.2%, json +1.9%, route-search -6.6%."
     },
     {
       "program": "bench/runtime/progs/string-build.hd",
@@ -135,9 +141,10 @@
       "program": "bench/runtime/progs/task-pipeline.hd",
       "retained": "4106257",
       "released": "4612528",
-      "uniques": "0",
-      "total": "8718785",
-      "noOpsAndSkipped": "3937518"
+      "uniques": "3600000",
+      "total": "12318785",
+      "noOpsAndSkipped": "3937518",
+      "reason": "The one-owner field rule is deleted (owner decision 2026-11-07, #1399): it caused five silent wrong answers in release builds (#1439, #1440 and three found with them), because it treated as unshared any field whose sharing it did not recognise. Every collection field and &mut entry now keeps its uniqueness test. Measured with the rule off: +2,486 B across 11 of 32 modules; V8 default tier task-pipeline +2.2%, json +1.9%, route-search -6.6%."
     },
     {
       "program": "bench/runtime/progs/trait-dispatch.hd",
@@ -150,10 +157,11 @@
     {
       "program": "bench/runtime/progs/uniq-list-sort.hd",
       "retained": "0",
-      "released": "5",
-      "uniques": "1998",
-      "total": "2003",
-      "noOpsAndSkipped": "2"
+      "released": "7",
+      "uniques": "4000",
+      "total": "4007",
+      "noOpsAndSkipped": "2",
+      "reason": "The one-owner field rule is deleted (owner decision 2026-11-07, #1399): it caused five silent wrong answers in release builds (#1439, #1440 and three found with them), because it treated as unshared any field whose sharing it did not recognise. Every collection field and &mut entry now keeps its uniqueness test. Measured with the rule off: +2,486 B across 11 of 32 modules; V8 default tier task-pipeline +2.2%, json +1.9%, route-search -6.6%."
     },
     {
       "program": "bench/study/binary_trees.hd",
@@ -190,11 +198,11 @@
     {
       "program": "bench/study/json.hd",
       "retained": "2380002",
-      "released": "3400092",
-      "uniques": "2210005",
-      "total": "7990099",
+      "released": "3400100",
+      "uniques": "12240015",
+      "total": "18020117",
       "noOpsAndSkipped": "22610150",
-      "reason": "12d (#1399): moves.rs rest goes; json's one drop past a partial move is the whole value's glue on both paths, a call with zeros on the moved one"
+      "reason": "The one-owner field rule is deleted (owner decision 2026-11-07, #1399): it caused five silent wrong answers in release builds (#1439, #1440 and three found with them), because it treated as unshared any field whose sharing it did not recognise. Every collection field and &mut entry now keeps its uniqueness test. Measured with the rule off: +2,486 B across 11 of 32 modules; V8 default tier task-pipeline +2.2%, json +1.9%, route-search -6.6%."
     },
     {
       "program": "bench/study/mandelbrot.hd",
@@ -207,18 +215,20 @@
     {
       "program": "bench/study/map_count.hd",
       "retained": "5000000",
-      "released": "7500038",
-      "uniques": "0",
-      "total": "12500038",
-      "noOpsAndSkipped": "3"
+      "released": "7500039",
+      "uniques": "2500000",
+      "total": "15000039",
+      "noOpsAndSkipped": "3",
+      "reason": "The one-owner field rule is deleted (owner decision 2026-11-07, #1399): it caused five silent wrong answers in release builds (#1439, #1440 and three found with them), because it treated as unshared any field whose sharing it did not recognise. Every collection field and &mut entry now keeps its uniqueness test. Measured with the rule off: +2,486 B across 11 of 32 modules; V8 default tier task-pipeline +2.2%, json +1.9%, route-search -6.6%."
     },
     {
       "program": "bench/study/nbody.hd",
       "retained": "0",
       "released": "2",
-      "uniques": "0",
-      "total": "2",
-      "noOpsAndSkipped": "0"
+      "uniques": "14000001",
+      "total": "14000003",
+      "noOpsAndSkipped": "0",
+      "reason": "The one-owner field rule is deleted (owner decision 2026-11-07, #1399): it caused five silent wrong answers in release builds (#1439, #1440 and three found with them), because it treated as unshared any field whose sharing it did not recognise. Every collection field and &mut entry now keeps its uniqueness test. Measured with the rule off: +2,486 B across 11 of 32 modules; V8 default tier task-pipeline +2.2%, json +1.9%, route-search -6.6%."
     },
     {
       "program": "bench/study/points.hd",
