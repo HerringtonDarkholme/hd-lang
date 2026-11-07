@@ -18,8 +18,6 @@ fn weight(f: Field) -> i64:
 
 fn remember(all: &mut List[Field], f: Field) -> void:
     all.push(f)
-> app/main/remember
->   unique List[app.main.Field] (conservative: unique)
 
 fn total(f: Field, times: i64) -> i64:
     let sum: i64 = 0
@@ -45,7 +43,6 @@ fn set_first(target: &i64, xs: List[i64]) -> i64:
 fn pinned() -> i64:
     let mut xs: List[i64] = [1, 2]
 > app/main/pinned
->   unique List[i64] (conservative: unique)
 >   release List[i64] (last use)
     xs[1] = 3
     set_first(&xs[0], xs)
@@ -61,5 +58,4 @@ pub fn main() -> void $ Console:
 >   release List[app.main.Field] (last use)
     println(apply(weight, f))
     println(pinned())
->   unique List[i64] (conservative: unique)
 >   release List[i64] (last use)

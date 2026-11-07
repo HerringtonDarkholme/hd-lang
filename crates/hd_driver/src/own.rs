@@ -678,8 +678,7 @@ impl OwnCx for Env<'_> {
         self.run
             .single_owner
             .get()
-            .and_then(|v| v.get(&(t, field)))
-            .is_some_and(Option::is_none)
+            .is_some_and(|v| v.one_owner((t, field)))
     }
 
     fn trait_value(&self, ty: Ty) -> bool {

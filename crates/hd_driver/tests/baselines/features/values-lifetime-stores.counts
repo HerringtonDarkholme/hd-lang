@@ -10,14 +10,11 @@ struct User:
 
 fn remember['a](seen: &mut List[&'a User], u: &'a User) -> void:
     seen.push(u)
-> app/main/remember
->   unique List[&app.main.User] (conservative: unique)
 
 fn index['a](by: &mut Map[string, &'a User], u: &'a User) -> void:
     by[u.name] = u
 > app/main/index
 >   retain string (second owner)
->   unique Map[string, &app.main.User] (conservative: unique)
 >   retain string (stored)
 >   release string (last use)
 

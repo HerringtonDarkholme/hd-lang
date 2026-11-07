@@ -10528,13 +10528,16 @@ impl Run<'_> {
             };
             let sub = |t| hd_mono::subst(&self.pool, env, item, args, t);
             let lines = fields::check_lines(&self.pool, env, b, &sub, verdicts);
-            let at_entry = entry.get(&id).into_iter().flatten().map(|&i| {
-                (
-                    i,
-                    "owned: a single-owner field's reference at entry".to_owned(),
-                )
-            });
-            for (i, line) in lines.into_iter().chain(at_entry) {
+            let locals = fields::owned_local_checks(&self.pool, env, b, &sub, verdicts);
+            let locals = locals
+                .into_iter()
+                .map(|i| (i, "owned: a one-owner local".to_owned()));
+            let at_entry = entry
+                .get(&id)
+                .into_iter()
+                .flatten()
+                .map(|&i| (i, "owned: every call passes a one-owner buffer".to_owned()));
+            for (i, line) in lines.into_iter().chain(at_entry).chain(locals) {
                 let line = format!("%{i} {line}\n");
                 if !own.text.contains(&line) {
                     own.text.push_str(&line);
@@ -10565,6 +10568,9 @@ impl Run<'_> {
             let sub = |t| hd_mono::subst(&self.pool, env, item, args, t);
             let mut marks = fields::owned_checks(&self.pool, env, b, &sub, verdicts);
             marks.extend(entry.remove(&id).unwrap_or_default());
+            marks.extend(fields::owned_local_checks(
+                &self.pool, env, b, &sub, verdicts,
+            ));
             if marks.is_empty() {
                 continue;
             }

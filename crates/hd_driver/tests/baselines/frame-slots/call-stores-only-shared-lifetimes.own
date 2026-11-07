@@ -61,6 +61,7 @@ fn remember['a](out: &mut List[&'a string], value: &'a string) -> void:
 >   %2 = Read borrow [*$0] : List[Ref[string]]
 >   %3 = Intrinsic ListPush [%2 %0] : ()
 >   %4 = Block - : ()
+>   %1 owned: every call passes a one-owner buffer
 >   summary kept [$1] writes
 
 fn storing(xs: List[string]) -> usize:

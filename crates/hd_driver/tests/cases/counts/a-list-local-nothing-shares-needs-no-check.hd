@@ -1,0 +1,31 @@
+# @dump: own wat counts
+# @build: v8 release
+# A list local with one owner: built fresh, lent to a reader, changed through
+# `&mut` in a loop. Neither its own push nor the callee's two hoisted loop
+# checks ask whether the buffer is shared. `copied` shares its list first, so
+# its push keeps the check.
+fn scale(xs: &mut List[i64], by: i64) -> void:
+    n := xs.len()
+    for i in 0..n:
+        xs[i] = xs[i] * by
+    for i in 0..n:
+        xs[i] = xs[i] + by
+
+fn sum(xs: &List[i64]) -> i64:
+    let total: i64 = 0
+    for x in xs:
+        total += x
+    total
+
+pub fn owned(rounds: usize, first: i64) -> i64:
+    let mut xs = [first, 2, 3]
+    xs.push(4)
+    for r in 0..rounds:
+        scale(&mut xs, 2)
+    sum(&xs)
+
+pub fn copied(first: i64) -> i64:
+    let mut xs = [first, 2, 3]
+    ys := xs
+    xs.push(4)
+    sum(&xs) + sum(&ys)

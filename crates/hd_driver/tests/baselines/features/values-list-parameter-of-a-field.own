@@ -31,7 +31,7 @@ fn record_step(steps: &mut List[i64], slot: usize, step: i64) -> void:
 >   %6 = IsUnique [*$0] : ()
 >   %7 = Store [*$0 [%4]] %5 : ()
 >   %8 = Block - : ()
->   %6 owned: a single-owner field's reference at entry
+>   %6 owned: every call passes a one-owner buffer
     else:
 >   %13 = Block - : ()
         steps.push(step)
@@ -39,7 +39,7 @@ fn record_step(steps: &mut List[i64], slot: usize, step: i64) -> void:
 >   %10 = IsUnique [*$0] : ()
 >   %11 = Read borrow [*$0] : List[i64]
 >   %12 = Intrinsic ListPush [%11 %9] : ()
->   %10 owned: a single-owner field's reference at entry
+>   %10 owned: every call passes a one-owner buffer
 >   summary kept [] writes
 
 fn set_first(xs: &mut List[i64], v: i64) -> void:

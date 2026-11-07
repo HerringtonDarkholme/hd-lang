@@ -20,6 +20,10 @@
 //! the link emits; the link marks each check of a one-owner field that
 //! stands at its change `unique_word::OWNED` (step 15d2), and the backend
 //! runs no check for it.
+//!
+//! A collection local has one owner by the same rules, per instance
+//! ([`owned_locals`]), and only until something shares it: a share after its
+//! last check can't reach one.
 
 // The browser compiler runs the dev pipeline only, which never asks.
 #![cfg_attr(target_arch = "wasm32", allow(dead_code))]
@@ -35,8 +39,19 @@ use hd_types::{InternPool, Ty, TyData, TyList};
 /// An instance body the link emits: its id, body, item, type arguments.
 pub(crate) type Instance<'b> = (InstId, &'b Body, hd_base::DefId, TyList);
 
-/// Why a field has a second owner, or none for one owner.
-pub(crate) type Verdicts = HashMap<(Ty, u32), Option<&'static str>>;
+/// Why each field has a second owner, or none for one owner, and the
+/// collection types that rule 3 may share behind any reference.
+#[derive(Default)]
+pub(crate) struct Verdicts {
+    fields: HashMap<(Ty, u32), Option<&'static str>>,
+    blind: HashSet<Ty>,
+}
+
+impl Verdicts {
+    pub(crate) fn one_owner(&self, field: (Ty, u32)) -> bool {
+        self.fields.get(&field).is_some_and(Option::is_none)
+    }
+}
 
 struct Walk<'a> {
     pool: &'a InternPool,
@@ -352,8 +367,9 @@ pub(crate) fn single_owner<'b>(
         } else {
             None
         };
-        out.insert((s, k), why);
+        out.fields.insert((s, k), why);
     }
+    out.blind = w.blind;
     out
 }
 
@@ -379,8 +395,167 @@ pub(crate) fn owned_checks(
         .filter(|&i| b.tags[i] == Tag::IsUnique && b.data[i][1] == 0)
         .filter(|&i| {
             w.field(b, sub, b.data[i][0])
-                .and_then(|f| verdicts.get(&f))
-                .is_some_and(Option::is_none)
+                .is_some_and(|f| verdicts.one_owner(f))
+        })
+        .collect()
+}
+
+/// Per local of `b`: a collection whose buffer has one owner at each of its
+/// checks. Every whole store is a fresh collection, no closure captures it,
+/// rule 3 shares no value of its type, and no check may run after a statement
+/// that shares it: a copy, or a borrow that a use consumes. A check is an
+/// `IsUnique` that runs (word 0, or `HOISTED`) of all of it, or a call taking
+/// `&mut` of all of it.
+pub(crate) fn owned_locals(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    b: &Body,
+    sub: &dyn Fn(Ty) -> Ty,
+    verdicts: &Verdicts,
+) -> Vec<bool> {
+    let w = Walk {
+        pool,
+        env,
+        fields: HashSet::default(),
+        bad: HashMap::default(),
+        copied: HashSet::default(),
+        blind: HashSet::default(),
+    };
+    let n = b.len();
+    let mut good: Vec<bool> = (0..b.local_ty.len())
+        .map(|l| {
+            let t = sub(b.local_ty[l]);
+            w.coll(t)
+                && !verdicts.blind.contains(&w.strip(t))
+                && b.local_flags[l] & local_flags::PARAM == 0
+                && !b.cap_local.iter().any(|c| c.idx() == l)
+        })
+        .collect();
+    if !good.iter().any(|&g| g) {
+        return good;
+    }
+    // The local all of which a place names, past reads of a read's value.
+    let named = |word: u32| {
+        let p = b.view(Walk::resolve(b, word));
+        if p.whole() {
+            p.local().map(|l| l as usize)
+        } else {
+            None
+        }
+    };
+    // A binding holds a borrow with no count of its own: what shares it
+    // shares the local it borrows.
+    let mut lent: Vec<usize> = (0..b.local_ty.len()).collect();
+    let mut stores = vec![0u32; b.local_ty.len()];
+    for i in 0..n {
+        if b.tags[i] == Tag::Store
+            && let Some(l) = named(b.data[i][0])
+        {
+            stores[l] += 1;
+        }
+    }
+    let binding = |i: usize| {
+        if b.tags[i] != Tag::Store || named(b.data[i][0]).is_none_or(|m| stores[m] != 1) {
+            return None;
+        }
+        let v = Ref(b.data[i][1]).as_inst()?.0 as usize;
+        (b.tags[v] == Tag::Read && b.data[v][1] == ReadMode::Borrow as u32).then_some(v)
+    };
+    for i in 0..n {
+        if let Some(v) = binding(i)
+            && let (Some(m), Some(l)) = (named(b.data[i][0]), named(b.data[v][0]))
+        {
+            lent[m] = lent[l];
+        }
+    }
+    let whole = |word: u32| named(word).map(|l| lent[l]);
+    let (mut shares, mut checks) = (Vec::new(), Vec::new());
+    let mut ops = Vec::new();
+    for i in 0..n {
+        match b.tags[i] {
+            Tag::Store => {
+                if let Some(l) = b.view(b.data[i][0]).local()
+                    && b.view(b.data[i][0]).whole()
+                    && !Walk::fresh_new(b, b.data[i][1])
+                {
+                    good[l as usize] = false;
+                }
+            }
+            Tag::Read if b.data[i][1] == ReadMode::Copy as u32 => {
+                if let Some(l) = whole(b.data[i][0]) {
+                    shares.push((l, i));
+                }
+            }
+            Tag::IsUnique if matches!(b.data[i][1], 0 | hd_tir::ir::unique_word::HOISTED) => {
+                if let Some(l) = whole(b.data[i][0]) {
+                    checks.push((l, i));
+                }
+            }
+            Tag::Call => {
+                let r = b.record(b.data[i][1]);
+                for &a in &r[..r.len().saturating_sub(3)] {
+                    let Some(v) = Ref(a).as_inst().map(|v| v.0 as usize) else {
+                        continue;
+                    };
+                    if b.tags[v] == Tag::Ref
+                        && b.data[v][1] & ref_word::MUT != 0
+                        && let Some(l) = whole(b.data[v][0])
+                    {
+                        checks.push((l, i));
+                    }
+                }
+            }
+            _ => {}
+        }
+        hd_tir::own::operands(b, i, &mut ops);
+        for op in &ops {
+            let v = op.value as usize;
+            if v < n
+                && b.tags[v] == Tag::Read
+                && b.data[v][1] == ReadMode::Borrow as u32
+                && (b.tags[i] == Tag::Retain
+                    || matches!(op.role, Role::Consume | Role::Arg(_) | Role::Tail))
+                && binding(i) != Some(v)
+                && let Some(l) = whole(b.data[v][0])
+            {
+                shares.push((l, v));
+            }
+        }
+    }
+    let topo = hd_tir::ir::Topology::new(b);
+    for &(l, s) in &shares {
+        if good[l]
+            && checks
+                .iter()
+                .any(|&(m, c)| m == l && hd_tir::own::values::may_follow(b, &topo, s, c))
+        {
+            good[l] = false;
+        }
+    }
+    good
+}
+
+/// The uniqueness checks of all of a one-owner local of `b`
+/// ([`owned_locals`]): those the link marks `OWNED`.
+pub(crate) fn owned_local_checks(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    b: &Body,
+    sub: &dyn Fn(Ty) -> Ty,
+    verdicts: &Verdicts,
+) -> Vec<usize> {
+    if !(0..b.len()).any(|i| b.tags[i] == Tag::IsUnique) {
+        return Vec::new();
+    }
+    let good = owned_locals(pool, env, b, sub, verdicts);
+    (0..b.len())
+        .filter(|&i| {
+            b.tags[i] == Tag::IsUnique
+                && matches!(b.data[i][1], 0 | hd_tir::ir::unique_word::HOISTED)
+        })
+        .filter(|&i| {
+            let p = b.view(b.data[i][0]);
+            p.whole() && p.local().is_some_and(|l| good[l as usize])
         })
         .collect()
 }
@@ -410,6 +585,12 @@ pub(crate) fn entry_owned_checks(
     let mut params: HashMap<hd_base::DefId, Option<Vec<bool>>> = HashMap::default();
     for &(_, b, item, args) in all {
         let sub = |t: Ty| hd_mono::subst(pool, env, item, args, t);
+        let locals =
+            if (0..b.len()).any(|i| b.tags[i] == Tag::Ref && b.data[i][1] & ref_word::MUT != 0) {
+                owned_locals(pool, env, b, &sub, verdicts)
+            } else {
+                Vec::new()
+            };
         for i in 0..b.len() {
             match b.tags[i] {
                 Tag::Call => {
@@ -424,11 +605,16 @@ pub(crate) fn entry_owned_checks(
                         .map(|&a| {
                             Ref(a).as_inst().is_some_and(|v| {
                                 let v = v.0 as usize;
+                                let p = b.view(b.data[v][0]);
                                 b.tags[v] == Tag::Ref
                                     && b.data[v][1] & ref_word::MUT != 0
-                                    && w.field(b, &sub, b.data[v][0])
-                                        .and_then(|f| verdicts.get(&f))
-                                        .is_some_and(Option::is_none)
+                                    && (w
+                                        .field(b, &sub, b.data[v][0])
+                                        .is_some_and(|f| verdicts.one_owner(f))
+                                        || (p.whole()
+                                            && p.local().is_some_and(|l| {
+                                                locals.get(l as usize).copied().unwrap_or(false)
+                                            })))
                             })
                         })
                         .collect();
@@ -478,7 +664,10 @@ pub(crate) fn entry_owned_checks(
         }
         let p = &kept;
         let marks: Vec<usize> = (0..b.len())
-            .filter(|&i| b.tags[i] == Tag::IsUnique && b.data[i][1] == 0)
+            .filter(|&i| {
+                b.tags[i] == Tag::IsUnique
+                    && matches!(b.data[i][1], 0 | hd_tir::ir::unique_word::HOISTED)
+            })
             .filter(|&i| {
                 let v = b.view(b.data[i][0]);
                 v.local().is_some_and(|l| {
@@ -515,7 +704,7 @@ pub(crate) fn check_lines(
     (0..b.len())
         .filter(|&i| b.tags[i] == Tag::IsUnique)
         .filter_map(|i| {
-            let v = verdicts.get(&w.field(b, sub, b.data[i][0])?)?;
+            let v = verdicts.fields.get(&w.field(b, sub, b.data[i][0])?)?;
             let line = match v {
                 None if b.data[i][1] == 0 => "owned: single-owner field".to_owned(),
                 None => "one owner".to_owned(),

@@ -21,8 +21,6 @@ fn non_storing(xs: List[string]) -> usize:
 @inline(.Never)
 fn remember['a](out: &mut List[&'a string], value: &'a string) -> void:
     out.push(value)
-> app/main/remember
->   unique List[&string] (conservative: unique)
 
 fn storing(xs: List[string]) -> usize:
     let mut out: List[&string] = []

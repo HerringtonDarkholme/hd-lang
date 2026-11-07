@@ -3,7 +3,6 @@
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -123,30 +122,12 @@
   (func $advance (param $bodies i32) (param $dt f64) (local $n i32) (local $t3 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $i i32) (local $t4 f64) (local $t5 i32)
     ;; 12 |     n := bodies.len()
     block
-    ;; 13 |     for i in 0..n:
-      local.get $n
-    ;; 12 |     n := bodies.len()
       local.get $bodies
       i32.load $heap
       i32.load $heap offset=4
       local.tee $n
     ;; 13 |     for i in 0..n:
-      local.tee $t0
-      i32.lt_u
-      if
-        local.get $bodies
-        i32.load $heap
-        local.tee $t1
-        call $rt:list_unique
-        local.tee $t2
-        local.get $t1
-        i32.ne
-        if
-          local.get $bodies
-          local.get $t2
-          i32.store $heap
-        end
-      end
+      local.set $t0
       local.get $bodies
       i32.load $heap
       local.tee $t1
@@ -194,23 +175,6 @@
         end
       end
     ;; 15 |     for i in 0..n:
-      local.get $t5
-      local.get $n
-      i32.lt_u
-      if
-        local.get $bodies
-        i32.load $heap
-        local.tee $t3
-        call $rt:list_unique
-        local.tee $t0
-        local.get $t3
-        i32.ne
-        if
-          local.get $bodies
-          local.get $t0
-          i32.store $heap
-        end
-      end
       local.get $bodies
       i32.load $heap
       local.tee $bodies

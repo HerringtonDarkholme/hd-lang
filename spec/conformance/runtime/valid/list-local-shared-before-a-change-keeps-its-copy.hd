@@ -1,0 +1,77 @@
+# expect-stdout: 3 2
+# expect-stdout: 3 2
+# expect-stdout: 3 2 3
+# expect-stdout: 3 2
+# expect-stdout: 3 2
+# expect-stdout: 3 2
+# expect-stdout: 2 1
+# test: a local list or map shared by a copy, a loop's earlier round, a reference, a closure or a moved call argument is copied by the change that follows, whatever form the change takes
+# Spec 13 Copy: a copy of a collection is a value of its own.
+use std.annotation.inline
+
+@inline(.Never)
+fn grow(xs: &mut List[i64]) -> void:
+    xs.push(9)
+
+@inline(.Never)
+fn keep_copy(xs: &List[i64]) -> List[i64]:
+    *xs
+
+@inline(.Never)
+fn hold(xs: List[i64]) -> List[i64]:
+    xs
+
+fn copy_then_push() -> void $ Console:
+    let mut xs: List[i64] = [1, 2]
+    ys := xs
+    xs.push(3)
+    println("${xs.len()} ${ys.len()}")
+
+fn copy_then_callee() -> void $ Console:
+    let mut xs: List[i64] = [1, 2]
+    ys := xs
+    grow(&mut xs)
+    println("${xs.len()} ${ys.len()}")
+
+fn round_shares_the_next() -> void $ Console:
+    let mut xs: List[i64] = [1]
+    let mut seen: List[List[i64]] = [[0]]
+    for r in 0..2:
+        xs.push(i64(r))
+        seen.push(xs)
+    println("${xs.len()} ${seen[1].len()} ${seen[2].len()}")
+
+fn copy_behind_a_reference() -> void $ Console:
+    let mut xs: List[i64] = [1, 2]
+    ys := keep_copy(&xs)
+    xs.push(3)
+    println("${xs.len()} ${ys.len()}")
+
+fn closure_holds_it() -> void $ Console:
+    let mut xs: List[i64] = [1, 2]
+    len := fn() -> usize: xs.len()
+    ys := xs
+    grow(&mut xs)
+    println("${len()} ${ys.len()}")
+
+fn passed_by_value() -> void $ Console:
+    let mut xs: List[i64] = [1, 2]
+    ys := hold(xs)
+    xs.push(3)
+    println("${xs.len()} ${ys.len()}")
+
+fn map_copy() -> void $ Console:
+    let mut m: Map[string, i64] = {}
+    m["a"] = 1
+    n := m
+    m["b"] = 2
+    println("${m.len()} ${n.len()}")
+
+pub fn main() -> void $ Console:
+    copy_then_push()
+    copy_then_callee()
+    round_shares_the_next()
+    copy_behind_a_reference()
+    closure_holds_it()
+    passed_by_value()
+    map_copy()

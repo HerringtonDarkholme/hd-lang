@@ -20,6 +20,7 @@ fn remember['a](seen: &mut List[&'a User], u: &'a User) -> void:
 >   %2 = Read borrow [*$0] : List[Ref[User]]
 >   %3 = Intrinsic ListPush [%2 %0] : ()
 >   %4 = Block - : ()
+>   %1 owned: every call passes a one-owner buffer
 >   summary kept [$1] writes
 
 fn index['a](by: &mut Map[string, &'a User], u: &'a User) -> void:
@@ -37,6 +38,7 @@ fn index['a](by: &mut Map[string, &'a User], u: &'a User) -> void:
 >   %5 = Retain %4 Operation operand 1 #0 : ()
 >   %6 = Drop [%0] : ()
 >   %7 = Block - : ()
+>   %2 owned: every call passes a one-owner buffer
 >   summary kept [$1] writes
 
 fn total(a: User, b: User) -> usize:
