@@ -391,6 +391,10 @@ impl Em<'_, '_, '_> {
     /// conservatively.
     fn preserves_map_probe(&self, i: u32, map: u32) -> bool {
         let k = i as usize;
+        // Boundary counts lower at their target, not at this metadata row.
+        if hd_tir::ir::count::boundary(self.b, k) {
+            return true;
+        }
         match self.b.tags[k] {
             Tag::ItemRef
             | Tag::Prim

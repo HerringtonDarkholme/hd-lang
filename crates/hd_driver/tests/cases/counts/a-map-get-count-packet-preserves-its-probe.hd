@@ -1,0 +1,7 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: the count packet is nonexecuting metadata; the following put reuses the get's hash and probe while the old value keeps its count.
+fn replace(values: &mut Map[string, string], key: string, value: string) -> string?:
+    previous := values.get(key)
+    values[key] = value
+    previous
