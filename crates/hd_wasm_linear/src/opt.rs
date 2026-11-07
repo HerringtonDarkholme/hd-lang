@@ -292,8 +292,7 @@ pub fn static_values(
                             | I::BrTable(..)
                             | I::Return
                             | I::Unreachable
-                    ) | Ins::Save(_)
-                        | Ins::LoadAll
+                    )
                 )
             }) {
                 continue;
@@ -513,16 +512,12 @@ fn pushes_zero(ins: &Ins, known: &[u64]) -> bool {
 /// Updates local facts after one original instruction. A store's source
 /// is its physical predecessor, including at a control-flow target.
 fn zero_after(body: &[Ins], at: usize, known: &mut [u64]) {
-    match &body[at] {
-        Ins::Op(I::LocalSet(l) | I::LocalTee(l)) => {
-            let zero = at.checked_sub(1).is_some_and(|p| {
-                pushes_zero(&body[p], known)
-                    || matches!(body[p], Ins::Op(I::LocalTee(t)) if zero_local(known, t))
-            });
-            set_zero(known, *l, zero);
-        }
-        Ins::LoadAll => known.fill(0), // A suspended frame may contain any values.
-        _ => {}
+    if let Ins::Op(I::LocalSet(l) | I::LocalTee(l)) = &body[at] {
+        let zero = at.checked_sub(1).is_some_and(|p| {
+            pushes_zero(&body[p], known)
+                || matches!(body[p], Ins::Op(I::LocalTee(t)) if zero_local(known, t))
+        });
+        set_zero(known, *l, zero);
     }
 }
 
@@ -847,8 +842,6 @@ impl LiveSet {
 
 /// The locals live into each basic block of a body, by a backward pass
 /// to a fixed point (loop backedges included), each block's set sorted.
-/// `Save` reads every local, and `LoadAll` writes none for this
-/// purpose.
 struct Live {
     edges: Vec<ZeroEdges>,
     point_at: Vec<usize>,
@@ -880,7 +873,7 @@ impl Live {
                     .iter()
                     .rev()
                 {
-                    self.step(ins, &mut live);
+                    Self::step(ins, &mut live);
                 }
                 // Sets only grow from empty here, so a new size is a change.
                 if self.into[p].len() != live.members.len() {
@@ -930,7 +923,7 @@ impl Live {
                 me.out(p, body.len(), &mut live);
                 for at in (me.starts[p]..me.end(p, body.len())).rev() {
                     mark(at, &live);
-                    me.step(&body[at], &mut live);
+                    Live::step(&body[at], &mut live);
                 }
                 me.into[p].clone_from(&live.members);
             }
@@ -959,15 +952,10 @@ impl Live {
         });
     }
 
-    fn step(&self, ins: &Ins, live: &mut LiveSet) {
+    fn step(ins: &Ins, live: &mut LiveSet) {
         match ins {
             Ins::Op(I::LocalGet(l)) => live.insert(*l),
             Ins::Op(I::LocalSet(l) | I::LocalTee(l)) => live.remove(*l),
-            Ins::Save(_) => {
-                for l in 0..u32::try_from(self.locals).expect("locals") {
-                    live.insert(l);
-                }
-            }
             _ => {}
         }
     }
@@ -980,7 +968,7 @@ impl Live {
             self.out(p, body.len(), &mut live);
             for at in (self.starts[p]..self.end(p, body.len())).rev() {
                 visit(at, &live);
-                self.step(&body[at], &mut live);
+                Self::step(&body[at], &mut live);
             }
         }
     }
@@ -1037,11 +1025,7 @@ impl Conflicts {
 /// first. A copy between two locals of one class then goes, a pair of a
 /// multi-value copy too ([`same_local_copies`]).
 pub fn coalesce(f: &mut Func) {
-    if f.raw.is_some()
-        || f.body
-            .iter()
-            .any(|i| matches!(i, Ins::Save(_) | Ins::LoadAll))
-    {
+    if f.raw.is_some() {
         return;
     }
     let Some(live) = Live::new(f) else {
@@ -1232,8 +1216,7 @@ fn same_local_copies(body: &[Ins]) -> Vec<bool> {
 }
 
 /// Rules 13 and 14, from one backward liveness pass over the basic blocks
-/// (loop backedges to a fixed point; `Save` reads every local, and
-/// `LoadAll` writes none for this purpose).
+/// (loop backedges to a fixed point).
 ///
 /// Rule 13 deletes a `local.set` or `local.tee` of a local that no path
 /// reads before its next write, dropping a set's value, or the pure push
@@ -2518,8 +2501,7 @@ fn ends_run(i: &Ins) -> bool {
                 | I::BrTable(..)
                 | I::Return
                 | I::Unreachable
-        ) | Ins::Save(_)
-            | Ins::LoadAll
+        )
     )
 }
 
@@ -2798,18 +2780,10 @@ fn fixed_locals(
     let mut fixed = vec![false; np + f.locals.len()];
     fixed[..np].copy_from_slice(&params[..np]);
     let mut writes: Vec<LocalWrite> = Vec::new();
-    let mut restored = false;
     for (k, ins) in f.body.iter().enumerate() {
-        match ins {
-            Ins::Op(I::LocalSet(l) | I::LocalTee(l)) => {
-                writes.push((*l as usize, k, producer(&f.body, k, 0, arity, &f.symbols)));
-            }
-            Ins::LoadAll => restored = true,
-            _ => {}
+        if let Ins::Op(I::LocalSet(l) | I::LocalTee(l)) = ins {
+            writes.push((*l as usize, k, producer(&f.body, k, 0, arity, &f.symbols)));
         }
-    }
-    if restored {
-        return vec![false; fixed.len()];
     }
     let mut grew = true;
     while grew {
@@ -3929,20 +3903,7 @@ mod origin_tests {
             });
             assert_eq!(zeros(&f), kept, "{:?}", f.body);
         }
-        // A suspension saves every local, so a store before it stays; a
-        // dead set of a call's result keeps the call and drops its value.
-        let f = run(
-            tracked(
-                &symbols,
-                1,
-                1,
-                vec![op(I::I32Const(0)), op(I::LocalSet(1)), Ins::Save(1)],
-            ),
-            |f| {
-                assert!(!live_rules(f, &Arity::new()));
-            },
-        );
-        assert_eq!(zeros(&f), 1);
+        // A dead set of a call's result keeps the call and drops its value.
         let f = run(
             tracked(
                 &symbols,
@@ -4265,24 +4226,8 @@ mod origin_tests {
     }
 
     #[test]
-    fn zero_facts_respect_frame_loads_and_preserve_source_origins() {
+    fn zero_facts_preserve_source_origins() {
         let symbols = Symbols::default();
-        let loaded = tracked(
-            &symbols,
-            0,
-            1,
-            vec![
-                Ins::LoadAll,
-                Ins::Op(I::LocalGet(0)),
-                call(&symbols, Sym::Helper(Helper::ReleaseRef)),
-            ],
-        );
-        assert_eq!(
-            releases(&run(loaded, |f| {
-                zero_releases(f);
-            })),
-            1
-        );
         let f = tracked(
             &symbols,
             1,
