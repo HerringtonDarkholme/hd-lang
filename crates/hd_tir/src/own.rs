@@ -892,6 +892,10 @@ pub(crate) fn frame_reference_uses(
     out: &mut Vec<(u32, u32)>,
 ) {
     let n = b.len();
+    let frame_mut = crate::ir::ref_word::MUT | crate::ir::ref_word::FRAME;
+    if !(0..n).any(|i| b.tags[i] == Tag::Ref && b.data[i][1] & frame_mut == frame_mut) {
+        return;
+    }
     let (mut counts, mut last) = (vec![0; n], vec![NONE; n]);
     let mut ops = Vec::new();
     for i in 0..n {
