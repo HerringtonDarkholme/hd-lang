@@ -295,7 +295,7 @@ when a reason holds:
 | `Release v` | cancelled | a suspension point is cancelled while `v` is live across it |
 | `IsUnique b` | may be shared | `b` is not fresh, and since its last check a retain, a consuming use or a keeping call may have shared it |
 | `LoanBegin`, `LoanEnd` | pointer loan | a reference through a `*T` outlives its expression, and elision found a possible conflicting access |
-| any | view | `v` may be a representation view (an erased call's result, a payload reference) |
+| any | view | `v` may be a representation view (a reference to a payload field its enum's slots scatter) |
 | any | by design | the `&dyn` data count (#1354), a suspension's counted reference (#1355) |
 | any | conservative | a fact was not computed (a size cap); reported, and its budget may only fall |
 
@@ -326,8 +326,8 @@ convention moved it. Dev is not a performance target.
 3. **Minimal relative to named facts.** Every remaining count traces to
    one fact. The facts are imprecise in three known places: a call not
    inlined and not summarized (dev) may write or keep its arguments; a
-   write through a `*T` may reach any object of its type; an erased
-   body's reference may be a view. The `own` view prints the fact behind
+   write through a `*T` may reach any object of its type; a reference
+   to a scattered payload field may be a view (#1422). The `own` view prints the fact behind
    each count, not the pattern that missed.
 4. **Two backstops.** A CI report lists every count by reason over the
    bench programs and std, and "conservative" has a budget that may only
@@ -353,8 +353,8 @@ for a baseline; the verifier makes them checked.
   conflicts stay compile errors in the checker.
 - **Views.** A representation view is the one reference that owns an
   object (`crates/hd_wasm_linear/DESIGN.md` §23.20). Being a view becomes a
-  per-value fact: only results of erased calls and payload or projection
-  references may be views. Only those take a release with the reason
+  per-value fact: only references to a payload field its enum's slots
+  scatter may be views (#1421 removed erased calls; #1422 removes the rest). Only those take a release with the reason
   "view". The module-wide `views_absent` and the link fold go.
 - **`Drop`, `Disposable` and `using`.** `std.rt.Drop` runs inside release
   glue ([Runtime Drop Hook](../../spec/lang/10-modules.md#runtime-drop-hook));

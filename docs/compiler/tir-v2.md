@@ -6,7 +6,9 @@ stopped: the map stays in Rust, #180 closed). The costs this design left
 open were measured as misses and closed on 2026-10-28: #857, #858 and #859;
 #860's size lever moved to #941. The concluded string
 experiments #861 and #862 remain in #426's history.
-As-built notes are under [Commits](#commits). The owner chose Direction 3 of
+Later removals, which this history still mentions: generic method calls
+through `dyn` and their erased bodies and thunks (#1421), and `own/pairs.rs`
+(#1399). As-built notes are under [Commits](#commits). The owner chose Direction 3 of
 [tir-v2-directions.md](tir-v2-directions.md), which stays as the record
 of the alternatives. This document is the full design of that direction:
 the IR, what the checker emits, the ownership passes, the emitter, a

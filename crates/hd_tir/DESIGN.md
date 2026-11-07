@@ -786,9 +786,7 @@ the uses are statements of `%v`'s block with only inert statements
 between (reads, primitives, constructions, coercions, lengths; with an
 element step in `P`, only reads that check nothing), and the local's
 type names no type parameter of the body's own item and no opaque type
-(`ir::erasable`: the erased body of a generic method called through a
-trait value outlines an open read by its values; its impl's and trait's
-parameters are concrete there; a binding's type is never open). The folded read goes, and the body
+(a binding's type is never open). The folded read goes, and the body
 is rebuilt once (`own::splice`). A base used as a value too (a match's
 scrutinee, an intrinsic's operand) keeps its read. A place rooted at a
 local lies in the local itself only when every step is a field or a
@@ -1254,10 +1252,10 @@ body built elsewhere, such as a generated structure method, gets
   `copy` that no path reads after into a `move` (a `Ref` of a whole
   celled local into a taking one), deletes the `Drop` that follows it
   in its block, and splits a base's drop into its other parts' when a
-  part moves; a use of a borrow keeps what it lives on live; then pair
-  cancellation (`own/pairs.rs`): a `copy` of a part whose base's `Drop`
-  follows in a straight line moves and the drop goes or splits; then
-  known-null (`own/known.rs`): a forward walk of which owned locals and
+  part moves; a use of a borrow keeps what it lives on live, and a counted part
+  of a local or a temporary has its own liveness bit, so its read moves
+  where no path touches that part again and a `Drop` of just that part
+  goes; then known-null (`own/known.rs`): a forward walk of which owned locals and
   values may hold a count deletes the `Drop`s no path reaches with one,
   removes the exit rows of locals empty at every way out (a `Return`,
   the root's end, a suspension point; never a parameter's or a

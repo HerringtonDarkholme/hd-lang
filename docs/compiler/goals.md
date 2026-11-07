@@ -27,12 +27,8 @@ checking.
   So the cache has a storage interface without a file system, checking
   works on one thread, and the host interface has a JS implementation
   (`host/`). A threaded browser build: not built yet; see #189.
-- Generics are fully monomorphized. The one erased path is a generic
-  method called through a `dyn` value: one erased body per impl, which
-  accepts any type argument and receives a type witness per method type
-  parameter (bare `T` and `T?` boxed, containers of `T` read and written
-  in place through the witness, function types adapted by caller-built
-  thunks). The owner accepted a slower `dyn`.
+- Generics are fully monomorphized. A method with its own type or row
+  parameter has no `dyn` slot, so nothing is erased (#1421).
 - Polymorphic recursion is a build error at the instantiation depth limit
   (`instantiation-too-deep`); there is no boxed fallback.
 - Merging byte-identical functions after monomorphization: not built yet;

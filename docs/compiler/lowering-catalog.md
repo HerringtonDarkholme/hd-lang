@@ -191,7 +191,7 @@ containing function-table slots and supertrait vtable addresses. See
 and [§23.19](../../crates/hd_wasm_linear/DESIGN.md#2319-closure-and-trait-values)
 for allocation, dispatch, widening and downcasts.
 
-### Generic Methods Through `dyn`: Witnesses And Thunks
+### Generic Methods Through `dyn`
 
 A method with its own type or row parameter has no dispatch table slot
 (`trait.dyn.type-param.no-slot`).

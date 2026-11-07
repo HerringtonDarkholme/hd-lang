@@ -2830,7 +2830,7 @@ frame on the **local stack** instead.
   taken (`ref_word::TAKES`). Its `Ref`s carry `ref_word::FRAME`, and a
   local all of whose `Ref`s do lives in a slot (`closure::slot_locals`).
   Every other local keeps its cell: a closure's capture, a
-  local of a closure's body or a suspending one, an erased body's, one a
+  local of a closure's body or a suspending one, one a
   counted `*T` refers to, and one an escaping value may point into.
 - **The slot** is the cell's layout with a zero count word before it, as
   a static object has, so `retain_known` and `release_known` do
