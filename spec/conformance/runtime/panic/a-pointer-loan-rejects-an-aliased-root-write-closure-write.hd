@@ -1,0 +1,15 @@
+# test: an accepted access through an alias must panic before replacing a live loan path
+struct P:
+    name: string
+
+fn name_of(p: &P) -> &string:
+    &p.name
+
+pub fn main() -> void $ Console:
+    let mut ps = [box(P { name: "a${1}" })]
+    change := fn() -> void:
+        ps[0] = box(P { name: "b${2}" })
+    d := name_of(ps[0])
+    change() # panic: borrow-conflict
+    junk := "cccccc${3}"
+    println("${*d} $junk")
