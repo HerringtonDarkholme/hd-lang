@@ -50,6 +50,7 @@ pub use hoist::{EntryTest, entry_test, loop_statements, loop_test};
 
 pub(crate) mod abi;
 pub(crate) mod cache;
+pub(crate) mod call_row;
 pub(crate) mod captures;
 pub(crate) mod child;
 pub(crate) mod cold;
@@ -149,6 +150,13 @@ pub trait OwnCx {
     /// Whether a function type declares a suspending body. This is a type
     /// fact, including for a closure whose item is its creator's item.
     fn function_suspends(&self, ty: Ty) -> bool {
+        let _ = ty;
+        false
+    }
+    /// Whether a function type's row names keys or row parameters. A call
+    /// may construct a temporary context for its concrete row; an empty
+    /// instance or a forwarded open context lowers no copy or release.
+    fn function_has_requirement_row(&self, ty: Ty) -> bool {
         let _ = ty;
         false
     }

@@ -1264,7 +1264,6 @@ fn glue_site(t: Tag) -> Option<Reason> {
         Tag::Await
             | Tag::AwaitAll
             | Tag::Call
-            | Tag::CallValue
             | Tag::Coerce
             | Tag::CopyStruct
             | Tag::DefaultCall

@@ -28,10 +28,10 @@ fn with_tag[$ R](s: string, callback: fn() -> usize $ R + Tag) -> usize $ R:
 > app/main/with_tag
 >   release app.main.Tag (last use)
         callback()
->   retain counted reference (conservative: CallValue)
->   release counted reference (conservative: CallValue)
->   retain counted reference (conservative: CallValue)
->   release counted reference (conservative: CallValue)
+>   retain counted reference (stored)
+>   release counted reference (last use)
+>   retain counted reference (stored)
+>   release counted reference (last use)
 
 fn run(s: string) -> usize:
     with_tag(s, read_tag)

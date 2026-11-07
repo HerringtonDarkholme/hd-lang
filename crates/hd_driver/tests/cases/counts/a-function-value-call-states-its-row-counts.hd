@@ -1,0 +1,23 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: a call's temporary row context states its provider copies and release; a function with no row needs neither.
+trait Tag:
+    fn value(self) -> i32
+
+fn ordinary(callback: fn() -> i32 $ Tag) -> i32 $ Tag:
+    callback()
+
+fn cold(callback: fn!() -> i32 $ Tag) -> mut Suspend[i32] $ Tag:
+    callback()
+
+fn plain(callback: fn() -> i32) -> i32:
+    callback()
+
+fn forward[$ R](callback: fn() -> i32 $ R) -> i32 $ R:
+    callback()
+
+fn through_row(callback: fn() -> i32 $ Tag) -> i32 $ Tag:
+    forward(callback)
+
+fn through_empty(callback: fn() -> i32) -> i32:
+    forward(callback)

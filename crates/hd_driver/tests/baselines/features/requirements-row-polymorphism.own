@@ -52,7 +52,7 @@ fn with_tag[$ R](s: string, callback: fn() -> usize $ R + Tag) -> usize $ R:
 >   local $2 provider: Named [read] value
 >     uses $2: %3 -> %4 consume last
 >   local $3 $ref: Named [read assigned captured captured-assigned] place
->   %0 = Release %21 Exit local $1 #2 : ()
+>   %0 = Release %23 Exit local $1 #2 : ()
     $.with(Tag=Named { label: s }):
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [%1] : Named
@@ -69,14 +69,16 @@ fn with_tag[$ R](s: string, callback: fn() -> usize $ R + Tag) -> usize $ R:
 >   %13 = LoanEnd [%9] : ()
 >   %14 = Coerce %12 [RefAsProvider -] : Tag
 >   %15 = LoanEnd [%12] : ()
->   %19 = With [Tag %14] %18 : usize
->   %20 = Drop [%14] : ()
->   %21 = Block %19 : usize
+>   %21 = With [Tag %14] %20 : usize
+>   %22 = Drop [%14] : ()
+>   %23 = Block %21 : usize
 >   %6 finds [$3] full
         callback()
 >   %16 = Read borrow [$1] : fn() -> usize
 >   %17 = CallValue %16 [] : usize
->   %18 = Block %17 : usize
+>   %18 = Retain %17 Operation row #0 : ()
+>   %19 = Release %17 Operation row #2 : ()
+>   %20 = Block %17 : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0] borrows [$1] writes
 

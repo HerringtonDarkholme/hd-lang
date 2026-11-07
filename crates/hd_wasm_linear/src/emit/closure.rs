@@ -829,7 +829,7 @@ impl Em<'_, '_, '_> {
         self.comp(callee, 1)?;
         // A suspending value's code counts each argument into its frame.
         self.push_args(args, (!suspends).then_some(&tys[..]), 0)?;
-        let c = self.push_fn_ctx(ft)?;
+        let c = self.push_fn_ctx(i, ft)?;
         ps.push(Val::I32);
         let results = self.vals(self.ty(i))?;
         if let Some(&Target::KnownClosure(key)) = self.calls.get(&i) {
@@ -843,7 +843,6 @@ impl Em<'_, '_, '_> {
             _ => self.ty(i),
         };
         self.call_results(i, ty)?;
-        self.release_ctx(c);
-        Ok(())
+        self.release_fn_ctx(i, c)
     }
 }

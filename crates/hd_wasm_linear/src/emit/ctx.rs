@@ -13,6 +13,7 @@ use crate::op::Op as I;
 use hd_base::StageResult;
 use hd_mono::layout::{CanonMemo, canon};
 use hd_tir::ir::{Tag, count::Part};
+use hd_tir::own::Reason;
 use hd_types::{Ty, TyData};
 
 use super::Em;
@@ -138,7 +139,12 @@ impl Em<'_, '_, '_> {
     /// when no key goes in front, 0 when there is neither. Returns the
     /// local of a context it built, which the caller releases once the
     /// call has returned; a callee that keeps it takes a count of its own.
-    pub(super) fn push_ctx_of(&mut self, keys: &[Ty], open: bool) -> StageResult<Option<u32>> {
+    fn push_ctx_of(
+        &mut self,
+        keys: &[Ty],
+        open: bool,
+        copy: Option<Reason>,
+    ) -> StageResult<Option<u32>> {
         let base = if open { self.open_ctx } else { None };
         if keys.is_empty() {
             match base {
@@ -150,6 +156,9 @@ impl Em<'_, '_, '_> {
         if self.input.runtime.is_none() {
             return unsupported("a context without std's allocator");
         }
+        let Some(copy) = copy else {
+            return unsupported("a call context without its stated provider copies");
+        };
         let mut provs = Vec::new();
         for k in keys {
             provs.push(self.provider(*k)?);
@@ -164,7 +173,7 @@ impl Em<'_, '_, '_> {
         self.f.set(c);
         for (j, (k, [d, v])) in keys.iter().zip(provs).enumerate() {
             let id = key_id(self.input, *k);
-            self.fill_entry(c, j, id, d, v);
+            self.because(copy, |em| em.fill_entry(c, j, id, d, v));
         }
         self.f.get(c);
         Ok(Some(c))
@@ -203,12 +212,25 @@ impl Em<'_, '_, '_> {
     /// Pushes the context a call of a function value of type `ft` passes:
     /// the providers of its row's keys, in front of the open context when
     /// the row lists the open row (§12.4, one callable ABI).
-    pub(super) fn push_fn_ctx(&mut self, ft: Ty) -> StageResult<Option<u32>> {
+    pub(super) fn push_fn_ctx(&mut self, i: u32, ft: Ty) -> StageResult<Option<u32>> {
         let (mut keys, open) = self.fn_row(ft)?;
         if open {
             self.scope_keys(&mut keys);
         }
-        self.push_ctx_of(&keys, open)
+        let copy = self.operation_count(i, Tag::Retain, Part::Row);
+        self.push_ctx_of(&keys, open, copy)
+    }
+
+    /// End only the temporary context this function-value call constructed.
+    /// A forwarded caller context remains borrowed and emits no release.
+    pub(super) fn release_fn_ctx(&mut self, i: u32, c: Option<u32>) -> StageResult<()> {
+        if c.is_some() {
+            let Some(end) = self.operation_count(i, Tag::Release, Part::Row) else {
+                return unsupported("a call context without its stated release");
+            };
+            self.because(end, |em| em.release_ctx(c));
+        }
+        Ok(())
     }
 
     /// Pushes the providers a call of `item` at `args` passes: one per key
@@ -235,7 +257,7 @@ impl Em<'_, '_, '_> {
         if open {
             self.scope_keys(&mut keys);
         }
-        self.push_ctx_of(&keys, open)
+        self.push_ctx_of(&keys, open, self.f.reason)
     }
 
     /// Pushes the context a dynamic call of trait method `method` at
@@ -265,7 +287,7 @@ impl Em<'_, '_, '_> {
         if open {
             self.scope_keys(&mut keys);
         }
-        self.push_ctx_of(&keys, open)
+        self.push_ctx_of(&keys, open, self.f.reason)
     }
 
     /// `$.context(...)` (`req.context.order`): a new context with one

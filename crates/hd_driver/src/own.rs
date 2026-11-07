@@ -426,6 +426,17 @@ impl OwnCx for Env<'_> {
         matches!(self.run.pool.get(ty), TyData::Fn { suspends: true, .. })
     }
 
+    fn function_has_requirement_row(&self, mut ty: Ty) -> bool {
+        while let TyData::Mut(inner) = self.run.pool.get(ty) {
+            ty = inner;
+        }
+        let TyData::Fn { row, .. } = self.run.pool.get(ty) else {
+            return false;
+        };
+        let row = self.run.pool.row_data(row);
+        !row.keys.is_empty() || !row.params.is_empty()
+    }
+
     fn has_requirement_row(&self, item: DefId) -> bool {
         self.sig(item).map_or_else(
             || !self.init_keys(item).is_empty(),
