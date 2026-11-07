@@ -5079,6 +5079,7 @@ typing/invalid/source-without-fills-defaults-bounds-defaulted-member.hd	type	rej
 runtime/valid/walker-skips-fact.hd	runtime	accept	lang/14-annotations.md#r-annot.impl-fact.skips
 typing/invalid/source-skips-member-without-default.hd	type	reject:omitted-member-without-default	lang/14-annotations.md#r-annot.impl-fact.skips.no-default
 runtime/valid/build-reads-each-member-from-a-source.hd	runtime	accept	lang/14-annotations.md#typed-derivation
+runtime/valid/a-method-named-like-a-source-member-releases-its-owned-string.hd	runtime	accept	lang/14-annotations.md#typed-derivation
 runtime/valid/downcast-ref-unboxes-a-scalar.hd	runtime	accept	lang/09-traits.md#runtime-type-identity
 runtime/valid/downcast-mut-and-bound-receivers.hd	runtime	accept	lang/09-traits.md#runtime-type-identity
 runtime/valid/runtime-type-names-the-recorded-type.hd	runtime	accept	lang/09-traits.md#runtime-type-identity

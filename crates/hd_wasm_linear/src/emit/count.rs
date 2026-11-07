@@ -28,7 +28,7 @@ use hd_types::Ty;
 
 use super::Em;
 use super::value::Src;
-use crate::layout::{Walk, coll_kind, coll_leaves};
+use crate::layout::{Pass, Walk, coll_kind, coll_leaves};
 use crate::module::Val;
 use crate::rt::Helper;
 
@@ -675,9 +675,10 @@ impl Em<'_, '_, '_> {
                 self.borrow_release(l);
             }
         }
-        // Exit release descriptors are lowered here
-        // on every return. Receiving the argument owned is an ABI fact;
-        // the statement, not the emitter, requests its cleanup.
+        // Exit release descriptors are lowered here on every return, but
+        // for a parameter this instance receives lent: the whole-program
+        // pass lends it, or its type here is no owned one.
+        let params = super::param_locals(self.b);
         let mut exits: Vec<(usize, Reason)> = self
             .b
             .tags
@@ -693,7 +694,10 @@ impl Em<'_, '_, '_> {
                 };
                 (c.at == At::Exit
                     && self.topo.sub[i] == u32::from(self.sub_id)
-                    && self.abi_owned_params.contains(&(local as usize)))
+                    && (params.iter().position(|&p| p == local as usize)).is_some_and(|k| {
+                        let ty = self.sub(self.b.local_ty[local as usize]);
+                        matches!(self.pass_at(self.lends, k, ty), Pass::Owned(_))
+                    }))
                 .then_some((local as usize, Reason::from_word(c.reason)))
             })
             .collect();

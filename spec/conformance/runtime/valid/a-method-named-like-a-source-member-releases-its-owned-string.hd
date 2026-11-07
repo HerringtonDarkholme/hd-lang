@@ -1,0 +1,84 @@
+use std.function.Tuple
+use std.structure.{Structure, Field, Variant, Members, Key, Describer, Source}
+use std.testing.assert_equal
+
+trait Sample:
+    fn seed(start: usize) -> Self
+    fn layout() -> string
+
+impl Sample for i32:
+    fn seed(start: usize) -> i32:
+        i32(start)
+    fn layout() -> string:
+        "i32"
+
+impl Sample for string:
+    fn seed(start: usize) -> string:
+        "s$start" + "!"
+    fn layout() -> string:
+        "string"
+
+struct Seeds:
+    start: usize
+    at: usize
+
+impl[S] Source[S] for Seeds:
+    type Error = never
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], never]:
+        .Ok(choices[0])
+    fn next(&mut self, members: Members[S]) -> Result[Key[S]?, never]:
+        key := members.at(self.at / 2)
+        self.at += 1
+        .Ok(key)
+    fn member[F < Sample](&mut self, h: Field[S, F], previous: F?) -> Result[F, never]:
+        .Ok(F::seed(self.start + h.info.position))
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, never]:
+        panic("the source provides every member")
+
+struct Layout:
+    parts: List[string]
+
+impl[S] Describer[S] for Layout:
+    type Error = never
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+    fn member[F < Sample](&mut self, h: Field[S, F]) -> Result[void, never]:
+        let mut s = Seeds { start: 5, at: 0 }
+        match s.member(h, .Some(F::seed(7))):
+            .Ok(v) => self.parts.push(F::layout())
+            .Err(_) => panic("never")
+        .Ok(())
+
+impl[T < Tuple] Sample for T by Structure:
+    fn seed(start: usize) -> T:
+        let mut source = Seeds { start: start, at: 0 }
+        match T::build(&mut source):
+            .Ok(value) => value
+            .Err(_) => panic("the source never fails")
+    fn layout() -> string:
+        let mut describer = Layout { parts: [] }
+        _ := T::describe(&mut describer)
+        "(${describer.parts.join(",")})"
+
+fn shape[T < Sample]() -> string:
+    T::layout()
+
+fn make[T < Sample](start: usize) -> T:
+    T::seed(start)
+
+struct Box:
+    n: i32
+
+# Not inlined: it calls itself. Its string parameter shares a name with
+# the source's `member`, whose derive call passes that parameter owned.
+impl Box:
+    fn member(self, a: i32, s: string) -> i32:
+        if a > 0:
+            return self.member(a - 1, "z") + 1
+        self.n
+
+pub fn main() -> void:
+    bx := Box { n: 1 }
+    assert_equal(bx.member(2, "x${bx.n}" + "y"), 3)
+    assert_equal(shape::[(string, i32)](), "(string,i32)")
+    assert_equal(make::[(string, i32)](10)._0, "s10!")

@@ -192,11 +192,8 @@ fn body_func<'a>(
     // `layout::Pass` (§23.25); a suspending one's cold constructor counts
     // each argument into its frame, so the callee takes a count of each.
     let by_type = !suspending && (sub != 0 || !input.env.suspends(item));
-    for (k, &l) in plocals.iter().enumerate() {
+    for &l in &plocals {
         let ty = em.sub(b.local_ty[l]);
-        if by_type && matches!(em.pass_at(em.lends, k, ty), Pass::Owned(_)) {
-            em.abi_owned_params.insert(l);
-        }
         let vs = em.vals(ty)?;
         let at = u32::try_from(params.len()).expect("params");
         em.locals.insert(
@@ -1102,9 +1099,6 @@ struct Em<'i, 'a, 'm> {
     /// In an owned body: the lent parameters the passes left unowned that
     /// this instance takes owned (`count.rs`): its exit releases them.
     unowned_params: Vec<usize>,
-    /// Raw ABI fact: parameters arriving with an owned argument count.
-    /// Exit release statements read it to lower their conditional cleanup.
-    abi_owned_params: hd_base::HashSet<usize>,
     /// The stable lists' loop caches ([`Em::own_list_caches`]), dropped at
     /// the loop's exit.
     list_caches: Vec<(list::ListRoot, list::ListCache)>,
@@ -1309,7 +1303,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             frame_refs: Vec::new(),
             init_key: None,
             unowned_params: Vec::new(),
-            abi_owned_params: hd_base::HashSet::default(),
             list_caches: Vec::new(),
             cached_buffers: Vec::new(),
             proven_list_indices: Vec::new(),

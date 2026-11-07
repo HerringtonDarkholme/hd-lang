@@ -10716,14 +10716,14 @@ impl Run<'_> {
         let package_host = |d| self.package_host_identity(d);
         let package_trait = |d| package_trait(d).map(|(_, identity)| identity);
         let package_selectors = |d| self.package_host_selectors(d);
-        let mutation_targets = || {
-            let instances = hd_opt::whole::Instances {
-                table: &c.collected.table,
-                order: &c.order,
-                body: &body,
-            };
-            hd_opt::whole::mutation_targets(&self.pool, &env, &env, &instances)
+        let instances = hd_opt::whole::Instances {
+            table: &c.collected.table,
+            order: &c.order,
+            body: &body,
         };
+        env.own_program(&instances);
+        let mutation_targets =
+            || hd_opt::whole::mutation_targets(&self.pool, &env, &env, &instances);
         let input = hd_wasm_linear::Input {
             pool: &self.pool,
             env: &env,
@@ -12735,11 +12735,7 @@ impl ProgramEnv for Env<'_> {
         self.owned_generated(body)
     }
     fn lends(&self, item: DefId, args: TyList) -> u64 {
-        let lent = self.lent_mask(self.node(item, args));
-        if lent == 0 {
-            return 0;
-        }
-        lent & !self.unnamed_kept(item)
+        self.lent_mask(self.node(item, args))
     }
     fn debug_trait(&self) -> DefId {
         self.run.known.debug

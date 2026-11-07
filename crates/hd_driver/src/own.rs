@@ -28,6 +28,8 @@ use hd_types::{Ty, TyData, TyList};
 
 use super::{Env, LazyBody, ProgramTables, Run, lock};
 
+mod program;
+
 thread_local! {
     /// What [`copy_report`] names the program being built by: a test
     /// harness sets it before each build ([`copy_report_label`]).
@@ -139,18 +141,13 @@ pub(super) struct Summaries {
     writes: std::sync::Mutex<HashMap<Node, bool>>,
     /// Per summarized instance, the value parameters its summary lends
     /// ([`Env::lent_mask`]), once recorded; a recursive component's
-    /// member's are its fixed point.
+    /// member's are its fixed point. After collection, what each receives
+    /// lent ([`Env::own_program`]).
     lent: std::sync::Mutex<HashMap<Node, u64>>,
     /// Per instance and parameter, the answer the passes first read
     /// ([`Env::summary_lends`]), which stays: a body and its emission read
     /// the same one, and a bit read as kept before the record stays kept.
     read: std::sync::Mutex<HashMap<(Node, u32), bool>>,
-    /// Each trait method and parameter a derive's generated body passes
-    /// with a count at a receiver that stays open: that one body serves
-    /// every instance of the method's own parameters, so its passes cannot
-    /// name the instance it calls. No instance of the method lends that
-    /// parameter ([`Env::unnamed_kept`]).
-    unnamed: std::sync::Mutex<hd_base::HashSet<(DefId, u32)>>,
     /// While a recursive component is owned, each member's borrows, which
     /// [`Env::summary_lends`] answers without recording: assumed while
     /// its fixed point runs ([`Env::component_borrows`]), then the fixed
@@ -1316,9 +1313,6 @@ impl Env<'_> {
                 ));
             }
         }
-        if body.kind == hd_tir::BodyKind::DeriveInstance {
-            self.note_unnamed(&body);
-        }
         Ok((body, summary, relies))
     }
 
@@ -2247,61 +2241,6 @@ impl Env<'_> {
         });
         SCRATCH.with(|s| *s.borrow_mut() = scratch);
         kept
-    }
-
-    /// The value parameters, the receiver first, that instance `node`
-    /// receives lent ([`Env::summary_lends`]): emission takes no count of
-    /// them on either side of a call.
-    /// Records the calls of generated body `body` the passes cannot name
-    /// ([`Summaries::unnamed`]).
-    fn note_unnamed(&self, body: &Body) {
-        let Some(all) = &self.run.summaries else {
-            return;
-        };
-        for i in 0..body.len() {
-            if body.tags[i] != Tag::Call {
-                continue;
-            }
-            let Some(callee) = Callee::from_words(body.record(body.data[i][0])) else {
-                continue;
-            };
-            let chosen = self.chosen(&callee);
-            let Callee::TraitMethod {
-                method,
-                choice: (ChoiceKind::Bound, _),
-                ..
-            } = chosen
-            else {
-                continue;
-            };
-            let n = body.record(body.data[i][1]).len().saturating_sub(3);
-            for k in 0..n {
-                if self.pass(&callee, k, n) == Pass::Owned {
-                    let k = u32::try_from(k).expect("arguments");
-                    lock(&all.unnamed).insert((method, k));
-                }
-            }
-        }
-    }
-
-    /// The parameters of `item`, an impl's method or a trait's default
-    /// body, that a call the passes cannot name passes with a count
-    /// ([`Summaries::unnamed`]). The backend reads this after the passes
-    /// have run over every body: an instance owns such a parameter, and a
-    /// caller that read it as lent gives it a count of its own.
-    pub(super) fn unnamed_kept(&self, item: DefId) -> u64 {
-        let Some(all) = &self.run.summaries else {
-            return 0;
-        };
-        let owner = DefId::from_raw(
-            (self.run.names().paths)
-                .parent(hd_base::PathId::from_raw(item.raw()))
-                .raw(),
-        );
-        lock(&all.unnamed)
-            .iter()
-            .filter(|&&(m, k)| k < 64 && (m == item || self.impl_method(owner, m) == Some(item)))
-            .fold(0, |mask, &(_, k)| mask | (1 << k))
     }
 
     pub(super) fn lent_mask(&self, node: Node) -> u64 {
