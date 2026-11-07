@@ -27,36 +27,37 @@ fn run!(n: i32) -> void:
     let mut c = Counter { hits: +0, name: "a" }
 > app/main/run
 >   local $0 n: i32 [param read] value
->     uses $0: entry -> %4 lend
+>     uses $0: entry -> %5 lend
 >   local $1 c: Counter [read assigned captured captured-assigned] place
 >   local $2 i: i32 [read assigned mutated] place
->   %0 = NewStruct [0:i32 "a"] : Counter
->   %1 = Store [$1] %0 : ()
->   %21 = Block - : ()
+>   %0 = Release %22 FrameDrop child #2 : ()
+>   %1 = NewStruct [0:i32 "a"] : Counter
+>   %2 = Store [$1] %1 : ()
+>   %22 = Block - : ()
     let i = +0
->   %2 = Store [$2] 0:i32 : ()
+>   %3 = Store [$2] 0:i32 : ()
     while i < n:
->   %3 = Read copy [$2] : i32
->   %4 = Read copy [$0] : i32
->   %5 = Prim Lt [%3 %4] : bool
->   %12 = Break L0 - : never
->   %13 = Block - : ()
->   %14 = If %5 [%11 %13] : ()
->   %15 = Block - : ()
->   %16 = Loop %15 - : ()
->   %16 finds [$1] full
-        pause!()
->   %6 = Await app/main/pause[] () : ()
->   %7 = Release %6 Operation child #2 : ()
->   %11 = Block - : ()
-        i = i + 1
->   %8 = Read copy [$2] : i32
->   %9 = Prim Add [%8 1:i32] : i32
->   %10 = Store [$2] %9 : ()
-    tick(&mut c)
->   %17 = Ref mut local [$1] : Counted[mut Counter]
->   %18 = Call app/main/tick[] (%17) : ()
->   %19 = Drop [%17] : ()
->   %20 = Drop [$1] : ()
+>   %4 = Read copy [$2] : i32
+>   %5 = Read copy [$0] : i32
+>   %6 = Prim Lt [%4 %5] : bool
+>   %13 = Break L0 - : never
+>   %14 = Block - : ()
+>   %15 = If %6 [%12 %14] : ()
+>   %16 = Block - : ()
+>   %17 = Loop %16 - : ()
 >   %17 finds [$1] full
+        pause!()
+>   %7 = Await app/main/pause[] () : ()
+>   %8 = Release %7 Operation child #2 : ()
+>   %12 = Block - : ()
+        i = i + 1
+>   %9 = Read copy [$2] : i32
+>   %10 = Prim Add [%9 1:i32] : i32
+>   %11 = Store [$2] %10 : ()
+    tick(&mut c)
+>   %18 = Ref mut local [$1] : Counted[mut Counter]
+>   %19 = Call app/main/tick[] (%18) : ()
+>   %20 = Drop [%18] : ()
+>   %21 = Drop [$1] : ()
+>   %18 finds [$1] full
 >   exit sub 0 drops [$1]

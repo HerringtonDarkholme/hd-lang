@@ -33,7 +33,7 @@ fn count_later!(n: i64, wait: mut Suspend[void]) -> void $ Meter:
 >   release Suspend[()] (cancelled)
 >   release Suspend[()] (cancelled)
 >   release counted reference (last use)
->   release counted reference (conservative: frame drop)
+>   release counted reference (last use)
 > app/main/count_later
 >   retain Suspend[()] (stored)
 >   retain counted reference (stored)

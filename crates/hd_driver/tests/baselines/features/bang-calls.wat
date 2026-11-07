@@ -2900,17 +2900,6 @@
         end
       end
     end
-    local.get $t0
-    i32.load $heap offset=16
-    if
-      local.get $t0
-      i32.load $heap offset=16
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'1
-      end
-    end
   )
   (func $both'2 (param $t1 i32) (param $t4 i32) (param $t3 i32) (param $t5 i32) (result i32) (local $t0 i32) (local $t2 i32)
     ;; 15 |     let (x, y) = join!(label(a), label(b))
@@ -3121,25 +3110,14 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $label.drop (param $t0 i32) (local $t1 i32)
+  (func $label.drop (param $t0 i32)
     ;; 9 |     s + "!"
     local.get $t0
     i32.load $heap offset=24
-    local.tee $t1
-    if
-      local.get $t1
-      call $rt:release_ref'1
-    end
-    local.get $t0
-    i32.load $heap offset=16
+    local.tee $t0
     if
       local.get $t0
-      i32.load $heap offset=16
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'1
-      end
+      call $rt:release_ref'1
     end
   )
   (func $label'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)

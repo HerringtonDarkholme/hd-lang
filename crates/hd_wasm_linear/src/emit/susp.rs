@@ -1456,13 +1456,17 @@ pub(super) fn finish(
                 }
             });
         }
-        em.f.get(FRAME);
-        em.f.op(I::I32Load(mem(HEAP, F_CHILD, 2)));
-        em.f.op(I::If(BlockType::Empty));
-        em.f.get(FRAME);
-        em.f.op(I::I32Load(mem(HEAP, F_CHILD, 2)));
-        em.f.helper(Helper::ReleaseRef);
-        em.f.op(I::End);
+        if let Some(reason) = em.stated_count(Tag::Release, CountAt::FrameDrop, CountPart::Child) {
+            em.because(reason, |em| {
+                em.f.get(FRAME);
+                em.f.op(I::I32Load(mem(HEAP, F_CHILD, 2)));
+                em.f.op(I::If(BlockType::Empty));
+                em.f.get(FRAME);
+                em.f.op(I::I32Load(mem(HEAP, F_CHILD, 2)));
+                em.f.helper(Helper::ReleaseRef);
+                em.f.op(I::End);
+            });
+        }
     }
     let drop = std::mem::take(&mut em.f);
     em.drop_states = body_drop_states;

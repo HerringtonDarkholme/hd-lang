@@ -13,7 +13,6 @@ fn fetch!(key: string) -> string:
 >   release string (cancelled)
 > app/main/fetch
 >   release string (by design)
->   release counted reference (conservative: frame drop)
 > app/main/fetch
 >   retain string (stored)
 
@@ -27,7 +26,7 @@ fn stop!(key: string) -> bool:
 > app/main/stop
 >   release Suspend[string] (cancelled)
 >   release string (cancelled)
->   release counted reference (conservative: frame drop)
+>   release counted reference (last use)
 > app/main/stop
 >   retain string (stored)
     end := job.cancel!()

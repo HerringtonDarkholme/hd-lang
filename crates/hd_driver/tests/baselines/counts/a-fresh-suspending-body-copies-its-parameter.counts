@@ -19,7 +19,7 @@ fn after!(text: string) -> usize $ Clock:
 > app/main/after
 >   release counted reference (cancelled)
 >   release counted reference (last use)
->   release counted reference (conservative: frame drop)
+>   release counted reference (last use)
 > app/main/after
 >   retain string (stored)
 >   retain counted reference (stored)
