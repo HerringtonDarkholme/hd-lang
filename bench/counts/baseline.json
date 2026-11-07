@@ -8,217 +8,248 @@
       "retained": "0",
       "released": "2",
       "uniques": "1",
-      "total": "3"
+      "total": "3",
+      "noOpsAndSkipped": "3"
     },
     {
       "program": "bench/runtime/progs/expr-eval.hd",
       "retained": "251748",
       "released": "3902726",
       "uniques": "0",
-      "total": "4154474"
+      "total": "4154474",
+      "noOpsAndSkipped": "5166006"
     },
     {
       "program": "bench/runtime/progs/int-loop.hd",
       "retained": "0",
       "released": "1",
       "uniques": "0",
-      "total": "1"
+      "total": "1",
+      "noOpsAndSkipped": "0"
     },
     {
       "program": "bench/runtime/progs/inventory.hd",
       "retained": "6400000",
       "released": "6400521",
       "uniques": "6400000",
-      "total": "19200521"
+      "total": "19200521",
+      "noOpsAndSkipped": "6401029"
     },
     {
       "program": "bench/runtime/progs/iter-pipeline.hd",
       "retained": "2000",
       "released": "4015",
       "uniques": "0",
-      "total": "6015"
+      "total": "6015",
+      "noOpsAndSkipped": "1"
     },
     {
       "program": "bench/runtime/progs/list-sort.hd",
       "retained": "0",
       "released": "14",
       "uniques": "1",
-      "total": "15"
+      "total": "15",
+      "noOpsAndSkipped": "1"
     },
     {
       "program": "bench/runtime/progs/list-stdlib-sort.hd",
       "retained": "1",
       "released": "42",
       "uniques": "1998",
-      "total": "2041"
+      "total": "2041",
+      "noOpsAndSkipped": "4"
     },
     {
       "program": "bench/runtime/progs/log-stats.hd",
       "retained": "5760129",
       "released": "6660312",
       "uniques": "3",
-      "total": "12420444"
+      "total": "12420444",
+      "noOpsAndSkipped": "1440026"
     },
     {
       "program": "bench/runtime/progs/map-count-long.hd",
       "retained": "0",
       "released": "13",
       "uniques": "0",
-      "total": "13"
+      "total": "13",
+      "noOpsAndSkipped": "1"
     },
     {
       "program": "bench/runtime/progs/map-count.hd",
       "retained": "0",
       "released": "13",
       "uniques": "0",
-      "total": "13"
+      "total": "13",
+      "noOpsAndSkipped": "1"
     },
     {
       "program": "bench/runtime/progs/nested-display.hd",
       "retained": "0",
       "released": "330001",
       "uniques": "0",
-      "total": "330001"
+      "total": "330001",
+      "noOpsAndSkipped": "0"
     },
     {
       "program": "bench/runtime/progs/plugins.hd",
       "retained": "5460000",
       "released": "5461459",
       "uniques": "0",
-      "total": "10921459"
+      "total": "10921459",
+      "noOpsAndSkipped": "21931093"
     },
     {
       "program": "bench/runtime/progs/resources.hd",
       "retained": "20000",
       "released": "20002",
       "uniques": "0",
-      "total": "40002"
+      "total": "40002",
+      "noOpsAndSkipped": "0"
     },
     {
       "program": "bench/runtime/progs/route-search.hd",
       "retained": "0",
       "released": "614393",
       "uniques": "918110",
-      "total": "1532503"
+      "total": "1532503",
+      "noOpsAndSkipped": "37995616"
     },
     {
       "program": "bench/runtime/progs/string-build.hd",
       "retained": "0",
       "released": "14",
       "uniques": "65999",
-      "total": "66013"
+      "total": "66013",
+      "noOpsAndSkipped": "1"
     },
     {
       "program": "bench/runtime/progs/string-builder.hd",
       "retained": "0",
       "released": "3",
       "uniques": "0",
-      "total": "3"
+      "total": "3",
+      "noOpsAndSkipped": "0"
     },
     {
       "program": "bench/runtime/progs/task-pipeline.hd",
       "retained": "7706262",
       "released": "8212533",
       "uniques": "0",
-      "total": "15918795"
+      "total": "15918795",
+      "noOpsAndSkipped": "3937520"
     },
     {
       "program": "bench/runtime/progs/trait-dispatch.hd",
       "retained": "0",
       "released": "1",
       "uniques": "0",
-      "total": "1"
+      "total": "1",
+      "noOpsAndSkipped": "0"
     },
     {
       "program": "bench/runtime/progs/uniq-list-sort.hd",
       "retained": "0",
       "released": "5",
       "uniques": "1998",
-      "total": "2003"
+      "total": "2003",
+      "noOpsAndSkipped": "2"
     },
     {
       "program": "bench/study/binary_trees.hd",
       "retained": "0",
       "released": "29971815",
       "uniques": "0",
-      "total": "29971815"
+      "total": "29971815",
+      "noOpsAndSkipped": "0"
     },
     {
       "program": "bench/study/closures.hd",
       "retained": "50",
       "released": "102",
       "uniques": "1",
-      "total": "153"
+      "total": "153",
+      "noOpsAndSkipped": "51"
     },
     {
       "program": "bench/study/dyn_iter.hd",
       "retained": "300003",
       "released": "600030",
       "uniques": "0",
-      "total": "900033"
+      "total": "900033",
+      "noOpsAndSkipped": "200800014"
     },
     {
       "program": "bench/study/fannkuch_redux.hd",
       "retained": "0",
       "released": "4",
       "uniques": "6",
-      "total": "10"
+      "total": "10",
+      "noOpsAndSkipped": "3"
     },
     {
       "program": "bench/study/json.hd",
       "retained": "2380002",
       "released": "3400092",
       "uniques": "2210005",
-      "total": "7990099"
+      "total": "7990099",
+      "noOpsAndSkipped": "22270150"
     },
     {
       "program": "bench/study/mandelbrot.hd",
       "retained": "0",
       "released": "1",
       "uniques": "0",
-      "total": "1"
+      "total": "1",
+      "noOpsAndSkipped": "0"
     },
     {
       "program": "bench/study/map_count.hd",
       "retained": "5000000",
       "released": "7500038",
       "uniques": "0",
-      "total": "12500038"
+      "total": "12500038",
+      "noOpsAndSkipped": "3"
     },
     {
       "program": "bench/study/nbody.hd",
       "retained": "0",
       "released": "2",
       "uniques": "0",
-      "total": "2"
+      "total": "2",
+      "noOpsAndSkipped": "0"
     },
     {
       "program": "bench/study/points.hd",
       "retained": "10",
       "released": "232",
       "uniques": "1",
-      "total": "243"
+      "total": "243",
+      "noOpsAndSkipped": "11"
     },
     {
       "program": "bench/study/sieve.hd",
       "retained": "0",
       "released": "2",
       "uniques": "785",
-      "total": "787"
+      "total": "787",
+      "noOpsAndSkipped": "1"
     },
     {
       "program": "bench/study/spectral_norm.hd",
       "retained": "0",
       "released": "4",
       "uniques": "43",
-      "total": "47"
+      "total": "47",
+      "noOpsAndSkipped": "3"
     },
     {
       "program": "bench/study/string_build.hd",
       "retained": "0",
       "released": "3",
       "uniques": "0",
-      "total": "3"
+      "total": "3",
+      "noOpsAndSkipped": "0"
     },
     {
       "program": "bench/study/structure_walk.hd",
@@ -226,6 +257,7 @@
       "released": "3500064",
       "uniques": "0",
       "total": "6650108",
+      "noOpsAndSkipped": "13125189",
       "reason": "15f (#1399): a constant list literal is static data only as a top-level binding; main's local `controls != [0, 5, 3, 1]` literal is now a real buffer whose release is counted (owner decision 2026-11-06)"
     }
   ]

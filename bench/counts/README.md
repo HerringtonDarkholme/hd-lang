@@ -47,7 +47,11 @@ Those no-ops still cost something. `No-op calls` counts the retains and
 releases that reached the runtime and found no count: static data or a frame
 slot behind an address only the page table can place. `Skipped by a test` counts
 those a test at the call site turned away (`count_tests.rs`), which cost the
-test, not the call. Both are outside `total` and outside the gate.
+test, not the call. Both are outside `total`. Their sum is limited per program in
+`noOpsAndSkipped`, with the rules `total` has: a rise fails the check unless it is
+recorded with its measured value and a fresh `reason`, and main refreshes lower
+limits. Calls that keep a program's `total` flat still cost time, so a cut in one
+can't pay for a rise in the other.
 
 The stage case [operation-counter-loop.hd](../../crates/hd_driver/tests/cases/counts/operation-counter-loop.hd)
 and its focused driver test execute both loop variants. The extra owner adds

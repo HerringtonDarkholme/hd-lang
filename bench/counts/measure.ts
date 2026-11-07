@@ -37,13 +37,7 @@ try {
   if (typeof noOps !== "function" || typeof skipped !== "function") {
     throw new Error(`${program}: missing hd.no_ops or hd.skipped`);
   }
-  console.log(
-    JSON.stringify({
-      ...countEntry(program, values),
-      noOps: String(noOps()),
-      skipped: String(skipped()),
-    }),
-  );
+  console.log(JSON.stringify(countEntry(program, values, noOps(), skipped())));
 } finally {
   host.close();
 }

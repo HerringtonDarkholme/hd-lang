@@ -41,7 +41,10 @@ export function readResult(directory: string, key: string, program: string): Ent
   try {
     const row = JSON.parse(readFileSync(path, "utf8")) as Entry;
     const whole = countEntry(program, [row.retained, row.released, row.uniques].map(BigInt));
-    return row.program === program && row.total === whole.total && /^\d+$/.test(row.noOps ?? "")
+    return row.program === program &&
+      row.total === whole.total &&
+      /^\d+$/.test(row.noOps ?? "") &&
+      /^\d+$/.test(row.skipped ?? "")
       ? row
       : undefined;
   } catch {
