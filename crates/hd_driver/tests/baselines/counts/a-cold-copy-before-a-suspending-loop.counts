@@ -17,7 +17,7 @@ app/main/run
   release app.main.Wait (cancelled)
   release counted reference (cancelled)
   release counted reference (last use)
-  release counted reference (conservative: frame drop)
+  release counted reference (last use)
 app/main/run
   retain string (stored)
   retain counted reference (stored)

@@ -110,7 +110,7 @@ pub fn wat_for(p: &Program, at: Build) -> String {
             let Some(item) = f.item.as_deref().filter(|i| i.starts_with(prefix)) else {
                 continue;
             };
-            let start = module.bodies[&f.index];
+            let (start, end) = module.bodies[&f.index];
             let instructions: Vec<_> = f
                 .instructions
                 .iter()
@@ -123,7 +123,16 @@ pub fn wat_for(p: &Program, at: Build) -> String {
                     let at = start + u64::from(ins.offset);
                     (
                         source,
-                        tokens(lines.get(&at).map_or("?", String::as_str), f, &module),
+                        tokens(
+                            lines.get(&at).map_or_else(
+                                // An empty function prints on its header line,
+                                // with no separate line for its implicit end.
+                                || if at + 1 == end { "end" } else { "?" },
+                                String::as_str,
+                            ),
+                            f,
+                            &module,
+                        ),
                     )
                 })
                 .collect();
@@ -741,8 +750,8 @@ impl<'a> Locals<'a> {
 
 /// What the view reads from the module itself.
 struct Module {
-    /// Each defined function's body start, by function index.
-    bodies: BTreeMap<u32, u64>,
+    /// Each defined function's body bounds, by function index.
+    bodies: BTreeMap<u32, (u64, u64)>,
     /// Each function's name, from the `name` section, by index.
     names: BTreeMap<u32, String>,
     /// Each function type's signature, by type index.
@@ -816,7 +825,8 @@ impl Module {
                 }
                 wasmparser::Payload::CodeSectionEntry(body) => {
                     let index = imported + defined;
-                    module.bodies.insert(index, body.range().start);
+                    let range = body.range();
+                    module.bodies.insert(index, (range.start, range.end));
                     let mut locals = module.types[module.function_types[index as usize] as usize]
                         .params()
                         .to_vec();

@@ -14,7 +14,7 @@ fn make() -> (fn!(string) -> usize $ Clock):
 > app/main/make
 >   release counted reference (cancelled)
 >   release counted reference (last use)
->   release counted reference (conservative: frame drop)
+>   release counted reference (last use)
 > app/main/make
 >   retain string (stored)
 >   retain counted reference (stored)

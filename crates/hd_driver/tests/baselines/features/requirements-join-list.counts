@@ -14,7 +14,6 @@ fn fetch!(key: string) -> string:
 >   release string (cancelled)
 > app/main/fetch
 >   release string (by design)
->   release counted reference (conservative: frame drop)
 > app/main/fetch
 >   retain string (stored)
 
@@ -29,7 +28,7 @@ fn all!(keys: List[string]) -> usize:
 > app/main/all
 >   release List[mut Suspend[string]] (cancelled)
 >   release List[string] (cancelled)
->   release counted reference (conservative: frame drop)
+>   release counted reference (last use)
 > app/main/all
 >   copy List[string] (stored)
     results := join!(tasks...)

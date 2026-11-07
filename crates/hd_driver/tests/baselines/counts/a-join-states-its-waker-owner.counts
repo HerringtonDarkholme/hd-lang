@@ -23,7 +23,6 @@ fn both!(a: mut Suspend[i32], b: mut Suspend[i32]) -> (i32, i32):
 >   release Suspend[i32] (cancelled)
 >   release Suspend[i32] (cancelled)
 >   release counted reference (last use)
->   release counted reference (conservative: frame drop)
 > app/main/both
 >   retain Suspend[i32] (stored)
 >   retain Suspend[i32] (stored)

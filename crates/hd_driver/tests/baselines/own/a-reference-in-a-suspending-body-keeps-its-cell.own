@@ -37,18 +37,19 @@ fn run!() -> void:
     let mut c = Counter { hits: +0, name: "a" }
 > app/main/run
 >   local $0 c: Counter [read assigned captured captured-assigned] place
->   %0 = NewStruct [0:i32 "a"] : Counter
->   %1 = Store [$0] %0 : ()
->   %7 = Block - : ()
+>   %0 = Release %8 FrameDrop child #2 : ()
+>   %1 = NewStruct [0:i32 "a"] : Counter
+>   %2 = Store [$0] %1 : ()
+>   %8 = Block - : ()
     bump!(&mut c)
->   %2 = Ref mut local [$0] : Counted[mut Counter]
->   %3 = Await app/main/bump[] (%2) : ()
->   %4 = Release %3 Operation child #2 : ()
->   %5 = Drop [%2] : ()
->   %6 = Drop [$0] : ()
->   %2 finds [$0] full
+>   %3 = Ref mut local [$0] : Counted[mut Counter]
+>   %4 = Await app/main/bump[] (%3) : ()
+>   %5 = Release %4 Operation child #2 : ()
+>   %6 = Drop [%3] : ()
+>   %7 = Drop [$0] : ()
+>   %3 finds [$0] full
 >   exit sub 0 drops [$0]
->   unwind %3 drops [%2]
+>   unwind %4 drops [%3]
 
 fn fresh() -> void:
     let mut c = Counter { hits: +0, name: "a" }

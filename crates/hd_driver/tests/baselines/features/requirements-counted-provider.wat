@@ -187,13 +187,6 @@
     local.get $t0
     i32.load $heap offset=24
     call $rt:release_ref
-    local.get $t0
-    i32.load $heap offset=16
-    if
-      local.get $t0
-      i32.load $heap offset=16
-      call $rt:release_ref
-    end
   )
   (func $fetch'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
     ;; 21 |     $.use(Store).get().len()

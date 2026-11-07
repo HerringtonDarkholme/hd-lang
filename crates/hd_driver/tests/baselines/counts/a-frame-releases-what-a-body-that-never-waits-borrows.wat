@@ -1312,13 +1312,6 @@
     local.get $t0
     i32.load $heap offset=24
     call $rt:release_ref'2
-    local.get $t0
-    i32.load $heap offset=16
-    if
-      local.get $t0
-      i32.load $heap offset=16
-      call $rt:release_ref'2
-    end
   )
   (func $main'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
     ;; 17 |     n := box::[Note](Note { text: "n" })
@@ -1516,13 +1509,6 @@
     local.get $t0
     i32.load $heap offset=24
     call $rt:release_ref'1
-    local.get $t0
-    i32.load $heap offset=16
-    if
-      local.get $t0
-      i32.load $heap offset=16
-      call $rt:release_ref'2
-    end
   )
   (func $change'1 (param $t1 i32) (result i32) (local $t0 i32)
     ;; 10 |     n.text = "m"
@@ -1670,16 +1656,6 @@
     local.get $t1
     local.get $t0
     call $rt:cancel_leave
-  )
-  (func $other.drop (param $t0 i32)
-    ;; 14 |     1
-    local.get $t0
-    i32.load $heap offset=16
-    if
-      local.get $t0
-      i32.load $heap offset=16
-      call $rt:release_ref'2
-    end
   )
   (func $other'1 (result i32)
     ;; 14 |     1

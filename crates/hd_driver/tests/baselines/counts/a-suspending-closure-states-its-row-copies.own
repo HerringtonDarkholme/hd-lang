@@ -8,19 +8,20 @@ fn make() -> (fn!() -> void $ Clock):
     fn!() -> void $ Clock: sleep!(ms(1))
 > app/main/make
 >   local $0 count: i64 [read] value
->     uses $0: %3 -> %4 lend last
->   %0 = Retain %11 Cold row #0 : ()
->   %1 = Retain %11 Materialize row #0 : ()
->   %2 = Release %11 FrameDrop row #2 : ()
->   %3 = Store [$0] 1:i64 : ()
->   %4 = Read copy [$0] : i64
->   %5 = Call std/time/impl Duration.milliseconds[] (%4) : Duration
->   %6 = Break L0 %5 : never
->   %7 = Block - : Duration
->   %8 = Scope %7 [] : Duration
->   %9 = Await std/time/sleep[] (%8) : ()
->   %10 = Release %9 Operation child #2 : ()
->   %11 = Block - : ()
->   %12 = Closure #1 [%0 %0] : fn!() -> ()
->   %13 = Block %12 : fn!() -> ()
+>     uses $0: %4 -> %5 lend last
+>   %0 = Retain %12 Cold row #0 : ()
+>   %1 = Retain %12 Materialize row #0 : ()
+>   %2 = Release %12 FrameDrop row #2 : ()
+>   %3 = Release %12 FrameDrop child #2 : ()
+>   %4 = Store [$0] 1:i64 : ()
+>   %5 = Read copy [$0] : i64
+>   %6 = Call std/time/impl Duration.milliseconds[] (%5) : Duration
+>   %7 = Break L0 %6 : never
+>   %8 = Block - : Duration
+>   %9 = Scope %8 [] : Duration
+>   %10 = Await std/time/sleep[] (%9) : ()
+>   %11 = Release %10 Operation child #2 : ()
+>   %12 = Block - : ()
+>   %13 = Closure #1 [%0 %0] : fn!() -> ()
+>   %14 = Block %13 : fn!() -> ()
 >   summary kept [] writes

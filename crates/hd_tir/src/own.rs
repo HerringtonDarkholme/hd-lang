@@ -2458,7 +2458,7 @@ pub(crate) mod tests {
         );
         assert!(text.contains("exit 0 $1\n"), "{text}");
         assert!(!text.contains("exit 0 $0"), "{text}");
-        assert!(text.contains("unwind %8 %6\nunwind %8 %7\n"), "{text}");
+        assert!(text.contains("unwind %9 %7\nunwind %9 %8\n"), "{text}");
     }
 
     /// Move's rule 4: a `Ref` of a celled local at its last access takes

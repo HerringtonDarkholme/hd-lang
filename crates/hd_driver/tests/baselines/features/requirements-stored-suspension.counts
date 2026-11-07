@@ -26,7 +26,6 @@ fn fetch!(key: string) -> string:
 >   release string (cancelled)
 > app/main/fetch
 >   release string (by design)
->   release counted reference (conservative: frame drop)
 > app/main/fetch
 >   retain string (stored)
 
@@ -36,7 +35,6 @@ fn tagged!() -> usize $ Tag:
 >   release string (last use)
 > app/main/tagged
 >   release counted reference (last use)
->   release counted reference (conservative: frame drop)
 > app/main/tagged
 >   retain counted reference (stored)
 
@@ -52,7 +50,7 @@ fn later!(key: string) -> usize:
 > app/main/later
 >   release Suspend[string] (cancelled)
 >   release string (cancelled)
->   release counted reference (conservative: frame drop)
+>   release counted reference (last use)
 > app/main/later
 >   retain string (stored)
     pending!().len()
@@ -92,7 +90,7 @@ fn bound!(s: string) -> usize:
 > app/main/bound
 >   release Suspend[usize] (cancelled)
 >   release string (cancelled)
->   release counted reference (conservative: frame drop)
+>   release counted reference (last use)
 > app/main/bound
 >   retain string (stored)
         tagged()

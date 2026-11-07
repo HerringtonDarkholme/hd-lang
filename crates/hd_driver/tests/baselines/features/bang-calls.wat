@@ -2488,13 +2488,6 @@
         call $rt:release_ref'1
       end
     end
-    local.get $t0
-    i32.load $heap offset=16
-    if
-      local.get $t0
-      i32.load $heap offset=16
-      call $rt:release_ref'1
-    end
   )
   (func $both'2 (param $t1 i32) (param $t3 i32) (param $t2 i32) (param $t4 i32) (result i32) (local $t0 i32)
     ;; 15 |     let (x, y) = join!(label(a), label(b))
@@ -2699,13 +2692,6 @@
     local.get $t0
     i32.load $heap offset=24
     call $rt:release_ref'1
-    local.get $t0
-    i32.load $heap offset=16
-    if
-      local.get $t0
-      i32.load $heap offset=16
-      call $rt:release_ref'1
-    end
   )
   (func $label'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
     ;; 9 |     s + "!"
