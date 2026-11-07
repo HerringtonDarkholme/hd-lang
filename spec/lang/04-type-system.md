@@ -2044,11 +2044,8 @@ gives the rule.
 1. r[types.trait.dyn.any-trait] Every trait may be used as a `dyn` type. There is no per-trait safety check.
 2. r[types.trait.dyn.member] A member that cannot work through a `dyn` value is unavailable on it, and calling it there is an error at the call. [Dynamic Safety](09-traits.md#dynamic-safety) lists those members. Error: `dyn-member-unavailable`.
 3. r[types.trait.safe.assoc-bound.reference-values] The trait value type must bind each associated type of the trait and its supertraits, as in `&dyn Supplier[Item = i32]`.
-4. r[types.trait.safe.method-type-param] A method with a method-level type parameter is available on a `dyn` value whatever the parameter's bounds, as in `T < Display` or an unbounded `T`.
-5. r[types.trait.safe.method-type-arg] A call through a trait value may pass any type argument for such a parameter, including an `AnyVal` type such as `i32` or an enum.
-6. r[types.trait.safe.method-type-arg.any-use] The method's signature and body may use the parameter in any way, including inside a container or a function type.
-7. r[types.trait.safe.method-type-arg.box] An implementation may box a value-typed argument at that call. The box has no identity, so the boxing is not observable.
-8. r[types.trait.safe.trait-generic] Trait declaration generic parameters are permitted.
+4. r[types.trait.safe.method-type-param] A method with a method-level type or row parameter is unavailable on a `dyn` value, whatever the parameter's bounds. A generic bound on the caller reaches it.
+5. r[types.trait.safe.trait-generic] Trait declaration generic parameters are permitted.
 
 ```text
 trait Versioned:

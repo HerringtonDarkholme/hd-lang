@@ -44,13 +44,6 @@ fn nested_assign(value: &mut Nested, other: &mut Nested) -> void:
 fn assign_items(value: &mut Nested, items: List[string]) -> void:
     value.items = items
 
-trait Factory:
-    fn make[T < 'static](self, value: T) -> *mut T:
-        box(value)
-
-struct Maker: pass
-impl Factory for Maker
-
 tests:
     use std.testing.assert_equal
 
@@ -61,9 +54,8 @@ tests:
         assert_equal(pair.a, +42, reason="the original referenced place receives the result")
         assert_equal(pair.b, +9, reason="the RHS alias write survives")
 
-    it("a nested field store forwards through an erased view"):
-        let factory: &dyn Factory = &Maker {}
-        value := factory.make(Nested { pair: Pair { a: +1, b: +2 }, text: "kept", items: ["old"] })
+    it("a nested field store through a pointer"):
+        value := box(Nested { pair: Pair { a: +1, b: +2 }, text: "kept", items: ["old"] })
         nested_assign(value, value)
         assert_equal(value.pair.a, +42, reason="the projected field view forwards its store")
         assert_equal(value.pair.b, +9, reason="the view keeps the RHS alias write")

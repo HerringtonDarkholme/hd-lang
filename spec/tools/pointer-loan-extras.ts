@@ -688,45 +688,6 @@ pub fn main() -> void $ Console:
 @@TAIL@@`,
   },
   {
-    name: "elide-erased-generic-panics",
-    panic: true,
-    what: "an erased generic method writes the object through an open `*mut T`",
-    source: `trait Bump:
-    fn bump(&mut self) -> void
-
-trait Visitor:
-    fn visit[T < Bump](&self, target: *mut T) -> void
-
-struct Cell:
-    value: string
-
-impl Bump for Cell:
-    fn bump(&mut self) -> void:
-        self.value = fresh()
-
-struct Bumper:
-    times: i32
-
-impl Visitor for Bumper:
-    fn visit[T < Bump](&self, target: *mut T) -> void:
-        target.bump() # panic: borrow-conflict
-
-@@HELPERS@@
-fn probe(p: *mut Cell, alias: *mut Cell, v: &dyn Visitor) -> string:
-    r := &p.value
-    v.visit(alias)
-    junk := churn()
-    seen := *r
-    _ := junk.len()
-    seen
-
-pub fn main() -> void $ Console:
-    p := box(Cell { value: orig() })
-    bumper := Bumper { times: +1 }
-    seen := probe(p, p, &bumper)
-@@TAIL@@`,
-  },
-  {
     name: "elide-read-then-print",
     panic: false,
     what: "a reference read and printed with no write in its live range",
@@ -1029,7 +990,6 @@ export const extraColumns: Record<string, [string, string]> = {
   "elide-closure-captured-pointer-panics": ["loan needed", "runs, sees the write"],
   "elide-other-task-panics": ["loan needed", "panics collection-pinned"],
   "elide-recursive-call-panics": ["loan needed", "runs, sees the write"],
-  "elide-erased-generic-panics": ["loan needed", "runs, sees the write"],
   "elide-read-then-print": ["elided", "runs"],
   "elide-getter-in-loop": ["elided", "runs"],
   "elide-read-only-visitor": ["elided", "runs"],

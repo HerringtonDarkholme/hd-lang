@@ -4649,6 +4649,13 @@ impl Ck<'_, '_> {
                     ));
                     return Ok((Ref(NONE), Ty::NEVER));
                 }
+                if choice.0 == ChoiceKind::TraitValue && sig.has_own_params() {
+                    for e in &args.positional {
+                        self.expr(*e, Some(Ty::POISON))?;
+                    }
+                    self.err(Code::DynMemberUnavailable, n, &dyn_type_param_message(name));
+                    return Ok((Ref(NONE), Ty::NEVER));
+                }
                 if let Some(&(s, st)) = sig.params.first()
                     && self.cx.names.text(s) == "self"
                 {
@@ -4848,6 +4855,18 @@ impl Ck<'_, '_> {
                 self.err(Code::DynMemberUnavailable, n, &format!(
                     "`{method_name}` returns `impl Trait`, which is unavailable on a trait value; use a generic bound instead"
                 ));
+                return Ok((Ref(NONE), Ty::NEVER));
+            }
+        }
+        if sig.has_own_params() {
+            let self_ty = self.strip_mut(self.infer.resolve(pool, self_ty));
+            let inner = self.ref_of(self_ty).map_or(self_ty, |(t, _)| t);
+            if matches!(pool.get(inner), TyData::TraitValue { .. }) {
+                self.err(
+                    Code::DynMemberUnavailable,
+                    n,
+                    &dyn_type_param_message(&method_name),
+                );
                 return Ok((Ref(NONE), Ty::NEVER));
             }
         }
@@ -5725,4 +5744,12 @@ pub(crate) fn subst_owner(pool: hd_types::Types<'_>, owner: DefId, args: &[Ty], 
             .then(|| args.get(p.index as usize).copied())
             .flatten()
     })
+}
+
+/// The error at a call of a method with its own type parameter through a
+/// trait value (`trait.dyn.type-param.hint`).
+pub(crate) fn dyn_type_param_message(name: &str) -> String {
+    format!(
+        "`{name}` has a type or row parameter of its own, which is unavailable on a trait value; use a generic bound on the caller, or give the method a parameter typed `&dyn Trait` or `*dyn Trait`"
+    )
 }

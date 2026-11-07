@@ -1,8 +1,7 @@
 # Spec 04 Trait Values And Sealed Markers: types.trait.explicit,
 # types.trait.static, types.trait.value.reference-values, types.trait.value.contents.reference-values,
 # types.trait.value.bound.reference-values, types.trait.value.bound.available.reference-values,
-# types.trait.safe.method-type-arg.any-use,
-# types.trait.safe.method-type-arg.box, types.any,
+# types.any,
 # types.any.erase.reference-values, types.any.one-way, types.sealed.decl,
 # types.sealed.markers, types.sealed.anyref-members.counted,
 # types.sealed.type-parameter, types.sealed.bounds.
@@ -30,22 +29,22 @@ impl Labeler for Tagger:
     fn label[T < AnyRef & Display](self, value: T) -> string:
         self.tag + value.to_string()
 
-fn through_visitor(visitor: &dyn Visitor, user: &User) -> string:
+fn through_visitor[V < Visitor](visitor: &V, user: &User) -> string:
     visitor.visit(user)
 
-fn through_labeler(labeler: &dyn Labeler, user: &User) -> string:
+fn through_labeler[L < Labeler](labeler: &L, user: &User) -> string:
     labeler.label(user)
 
 tests:
     use std.testing.assert_equal
 
-    it("an AnyRef-bounded method generic is callable through a trait value"):
+    it("an AnyRef-bounded method generic is callable through a bound"):
         tagger := Tagger { tag: "tag:" }
         user := User { name: "Ada" }
         assert_equal(
             through_visitor(&tagger, &user),
             "tag:",
-            reason="the Visitor value dispatches to the Tagger method",
+            reason="the bound reaches the Tagger method",
         )
 
     it("further bounds on an AnyRef-bounded method generic are supplied per call"):
@@ -54,5 +53,5 @@ tests:
         assert_equal(
             through_labeler(&tagger, &user),
             "tag:Ada",
-            reason="the Display bound reaches the dynamic call",
+            reason="the Display bound reaches the call",
         )

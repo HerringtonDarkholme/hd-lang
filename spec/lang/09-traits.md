@@ -1813,36 +1813,35 @@ Each kind of member is available or unavailable on a `dyn` value:
 | r[trait.dyn.member.self] `Self` | a method that names `Self` anywhere other than its receiver | unavailable |
 | r[trait.dyn.member.opaque-result] Opaque results | a method whose return annotation contains `impl Trait` | unavailable |
 | r[trait.dyn.safe.assoc-type.reference-values] Associated types | a method whose signature names an associated type | available; the `dyn` type binds every associated type, as `&dyn Supplier[Item = i32]` does |
-| r[trait.dyn.safe.method-type-param] Method type parameters | a method-level type parameter, whatever its bounds, as in `T < Display` or `T < Error` | available; a call through the trait value may pass any type argument, a value type included |
+| r[trait.dyn.member.type-param] Method type parameters | a method-level type parameter, whatever its bounds, as in `T < Display` or `T < Error` | unavailable |
+| r[trait.dyn.member.row-parameter] Row parameters | a method-level row parameter | unavailable |
 | r[trait.dyn.safe.suspending] Suspending methods | a suspending method, such as `fn fetch!(&self) -> string` | available |
-| r[trait.dyn.safe.row-parameter] Row parameters | a method-level row parameter | available |
 
 4. r[trait.dyn.member.other-with-opaque] Every method outside the unavailable categories above is available.
-5. r[trait.dyn.member.type-param-use] A method type parameter may be used in any way in the method's signature and body, including inside a container or a function type.
-6. r[trait.dyn.generic-trait] Generic parameters of the trait itself are allowed when the value type names one complete instantiation.
-7. r[trait.dyn.generic-trait.self-default] A trait value type that omits a parameter whose default names `Self` is an error, since no `Self` is known there. Error: `partial-generic-arguments`.
-8. r[trait.dyn.opaque-result.no-slot] An opaque-result method has no dynamic dispatch table slot.
-9. r[trait.dyn.opaque-result.hint] A diagnostic for calling an opaque-result method through a trait value reference suggests using a generic bound.
+5. r[trait.dyn.generic-trait] Generic parameters of the trait itself are allowed when the value type names one complete instantiation.
+6. r[trait.dyn.generic-trait.self-default] A trait value type that omits a parameter whose default names `Self` is an error, since no `Self` is known there. Error: `partial-generic-arguments`.
+7. r[trait.dyn.opaque-result.no-slot] An opaque-result method has no dynamic dispatch table slot.
+8. r[trait.dyn.opaque-result.hint] A diagnostic for calling an opaque-result method through a trait value reference suggests using a generic bound.
+9. r[trait.dyn.type-param.no-slot] A method with a method-level type or row parameter has no dynamic dispatch table slot.
+10. r[trait.dyn.type-param.hint] A diagnostic for calling such a method through a trait value names the two ways to write it: a generic bound on the caller, or a parameter typed `&dyn Tr` or `*dyn Tr`, which passes the value explicitly.
+
+A method with a type parameter of its own is unavailable, while the rest of
+the trait works, and a generic bound still reaches it:
 
 ```text
-trait Runner:
-    fn run[$R](self, job: fn() -> void $ R) -> void $ R
+trait Ops:
+    fn name(&self) -> string
+    fn take[T](&self, a: T) -> T
 
-fn valid(runner: &dyn Runner) -> void:
-    pass
-```
+fn generic[S < Ops](s: &S) -> i32:
+    s.take(+1)
 
-A method type parameter bounded by `Error`, whose argument may be an enum,
-keeps the method available:
+fn dynamic(s: &dyn Ops) -> void:
+    s.name()
+    s.take(+1)  # error: dyn-member-unavailable
 
-```text
-use std.error.Error
-
-trait Registry:
-    fn lookup[T < Error](self, name: string) -> T?
-
-fn valid(registry: &dyn Registry) -> void:
-    pass
+trait Sink:
+    fn put(&self, v: &dyn Display) -> void
 ```
 
 A method that takes `Self` is unavailable, while the rest of the trait
@@ -1868,8 +1867,9 @@ fn unavailable(source: &dyn Source) -> void:
 > **Why.** A member is judged where it is called, as in Swift 5.7, so one
 > unusual member never blocks a whole trait. An associated function has no
 > receiver to dispatch on. A `Self` parameter needs the concrete type,
-> which the `dyn` value has erased. A bound associated type makes every
-> signature that uses it concrete.
+> which the `dyn` value has erased. A method's own type parameter needs one
+> copy of the method per argument, which no dispatch table can name. A bound
+> associated type makes every signature that uses it concrete.
 
 See also: [Trait Values And `Any`](04-type-system.md#trait-values-and-any).
 
@@ -1979,7 +1979,7 @@ fn describe(named: &dyn Named, shown: &dyn Display) -> string:
     tag(named) + show(named) + show(shown)
 ```
 
-1. r[trait.dyn.bound.reference] A trait value reference satisfies bounds on its trait and supertraits when every required member is available through that reference.
+1. r[trait.dyn.bound.reference] A trait value reference satisfies bounds on its trait and supertraits when every required member is available through that reference. A method with a type or row parameter of its own and a default body is not required: its default runs at the reference type. One with no default is, so such a trait is no bound a trait value reference meets. Error: `unsatisfied-trait-bound`.
 2. r[trait.dyn.bound.reference-shared] A shared reference provides `self` and `&self` members; a `&mut self` member requires a mutable trait value reference.
 3. r[trait.dyn.bound.reference-projection] Projections through such a bound use the associated types bound by the referenced trait value.
 4. r[trait.dyn.bound.reference-binding] A bound's associated-type bindings and trait arguments must match the referenced trait value's bindings and arguments. Error: `unsatisfied-trait-bound`.

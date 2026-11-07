@@ -1,7 +1,7 @@
 # test: the available members of a trait with self members run
 # Rules: trait.dyn.member.self, trait.dyn.member.unavailable.error, trait.dyn.member.other-with-opaque.
-# expect-stdout: 9,5,2
-# expect-stdout: 5
+# expect-stdout: 9
+# expect-stdout: 4
 trait Shape:
     fn area(self) -> i32
     fn same_as(self, other: Self) -> bool
@@ -31,10 +31,10 @@ impl Shape for Sq:
         xs
 
 fn show(s: &dyn Shape) -> string:
-    s.area().to_string() + "," + s.pick(5).to_string() + "," + s.many([1, 2]).len().to_string()
+    s.area().to_string()
 
 fn keyed() -> i32 $ Shape:
-    $.use(Shape).area() + $.use(Shape).pick(1)
+    $.use(Shape).area()
 
 pub fn main() -> void $ Console:
     println(show(&Sq { n: 3 }))

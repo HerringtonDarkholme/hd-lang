@@ -1,0 +1,14 @@
+# Spec 09 Dynamic Safety: trait.dyn.member.type-param, trait.dyn.type-param.hint. A call through a trait value of a method with its own type parameter.
+trait Ops:
+    fn name(&self) -> string
+    fn take[T](&self, a: T) -> T
+
+fn generic[S < Ops](s: &S) -> i32:
+    s.take(+1)
+
+fn dynamic(s: &dyn Ops) -> void:
+    _ := s.name()
+    _ := s.take(+1) # diagnostic: dyn-member-unavailable
+
+trait Sink:
+    fn put(&self, v: &dyn Display) -> void

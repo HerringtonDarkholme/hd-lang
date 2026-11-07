@@ -12,7 +12,6 @@ let log = ""
 let box_drops: usize = 0
 let enum_drops: usize = 0
 let list_drops: usize = 0
-let erased_drops: usize = 0
 let cycle_drops: usize = 0
 let empty_drops: usize = 0
 let cursor_cycle_drops: usize = 0
@@ -45,20 +44,10 @@ impl Drop for Token:
         match self.kind:
             0 => box_drops = box_drops + 1
             1 => enum_drops = enum_drops + 1
-            2 => list_drops = list_drops + 1
-            _ => erased_drops = erased_drops + 1
+            _ => list_drops = list_drops + 1
 
 enum Payload:
     Token(Token)
-
-trait ErasedRelease:
-    fn release[T < ?Copy](&self, value: T) -> void
-
-struct Releaser: pass
-
-impl ErasedRelease for Releaser:
-    fn release[T < ?Copy](&self, value: T) -> void:
-        pass
 
 fn release_box() -> void:
     _ := box(Token { kind: 0 })
@@ -121,11 +110,6 @@ fn scalars(n: i32) -> usize:
     for i in 0..n:
         items.push(i)
     items.len()
-
-fn release_erased() -> void:
-    releaser := Releaser {}
-    let erased: &dyn ErasedRelease = &releaser
-    erased.release(Token { kind: 3 })
 
 struct EmptyToken: pass
 
@@ -242,11 +226,6 @@ tests:
         assert(total == 800000, "each list holds eight: $total")
         if released() == 0:
             assert(pages() <= start + 1, "each room is freed")
-
-    it("an erased generic value calls Drop exactly once"):
-        erased_drops = 0
-        release_erased()
-        assert(erased_drops == 1, "an erased generic value drops once: $erased_drops")
 
     it("a collector-freed cycle calls Drop exactly once"):
         cycle_drops = 0

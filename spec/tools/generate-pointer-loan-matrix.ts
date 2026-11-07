@@ -633,8 +633,6 @@ const matrix = (line: string) =>
     line.startsWith(`${dir}/${stem}`),
   );
 const index = old.split("\n").filter((line) => line && !matrix(line));
-// Before the erased-call matrix, whose generator keeps its rows last.
-const erased = index.findIndex((line) => line.startsWith("runtime/valid/erased-call-matrix-"));
-index.splice(erased === -1 ? index.length : erased, 0, ...rows);
+index.push(...rows);
 output(indexPath, `${index.join("\n")}\n`);
 console.log(`${check ? "checked" : "generated"} ${rows.length} pointer-loan cases`);

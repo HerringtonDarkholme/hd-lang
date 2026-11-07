@@ -396,6 +396,14 @@ pub struct ResultPath {
 }
 
 impl FnSig {
+    /// Whether the function has a type or row parameter of its own. A
+    /// method with one is unavailable on a `dyn` value
+    /// (`trait.dyn.member.type-param`, `trait.dyn.member.row-parameter`).
+    #[must_use]
+    pub fn has_own_params(&self) -> bool {
+        self.generics.iter().any(|g| !g.lifetime)
+    }
+
     #[must_use]
     pub fn simple(generics: Vec<Generic>, params: Vec<(Symbol, Ty)>, ret: Ty) -> Self {
         let n = params.len();
@@ -1007,7 +1015,10 @@ impl Declarations for LookupDecls<'_> {
         };
         t.methods.iter().any(|(_, method)| {
             self.lookup.item(*method).and_then(Item::sig).is_some_and(|sig| {
-                self.pool.has_opaque(sig.ret) || sig.params.first().is_none_or(|&(name, ty)| {
+                let required = self.lookup.item(*method).is_some_and(|i| {
+                    matches!(i.data, ItemData::Method { has_body: false, .. })
+                });
+                self.pool.has_opaque(sig.ret) || (required && sig.has_own_params()) || sig.params.first().is_none_or(|&(name, ty)| {
                     self.syms.resolve(name) != "self"
                         || matches!(self.pool.get(ty), TyData::Ref { mutable: true, .. } if !mutable)
                 })

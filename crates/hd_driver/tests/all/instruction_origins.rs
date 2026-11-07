@@ -197,12 +197,6 @@ fn instruction_origins_cover_wide_erased_and_suspending_bodies() {
             true,
         ),
         (
-            include_str!(
-                "../../../../spec/conformance/runtime/valid/parameter-reference-loan-erased-views.hd"
-            ),
-            false,
-        ),
-        (
             include_str!("../../../../spec/conformance/runtime/valid/nested-closure-captures.hd"),
             false,
         ),

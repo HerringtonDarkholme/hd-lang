@@ -302,16 +302,6 @@ fn repeated_ref(value: &Wide, stop: bool) -> usize:
             return sum
     sum
 
-struct Holder[T]:
-    item: *mut T
-
-trait Factory:
-    fn hold[T < 'static](self, value: T) -> Holder[T]:
-        Holder { item: box(value) }
-
-struct Maker: pass
-impl Factory for Maker
-
 tests:
     it("all wide fields read by value and reference instantiate"):
         value := make("word${+7}")
@@ -319,10 +309,9 @@ tests:
         assert_equal(sum_ref(&value), 4125, reason="the reference reads the same fields")
         assert_equal(recurse(value, 2), 225, reason="recursive frames restore the caller storage")
 
-    it("wide fields through erased reference views"):
-        let factory: &dyn Factory = &Maker {}
-        value := factory.hold(make("word${+7}")).item
-        assert_equal(sum_ref(value), 4125, reason="erased getter retains the selected field")
+    it("wide fields through a pointer"):
+        value := box(make("word${+7}"))
+        assert_equal(sum_ref(value), 4125, reason="a read retains the selected field")
         assert_equal(repeated_ref(value, false), 225, reason="each loop getter releases its box")
         assert_equal(
             repeated_ref(value, true),

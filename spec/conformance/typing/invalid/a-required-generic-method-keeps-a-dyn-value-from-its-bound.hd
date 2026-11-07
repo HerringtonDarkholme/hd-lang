@@ -1,0 +1,9 @@
+# Spec 09 Trait Value Bounds: trait.dyn.bound.reference. A trait value reference meets no bound on a trait with a required method that has its own type parameter.
+trait Ops:
+    fn take[T](&self, a: T) -> T
+
+fn generic[S < Ops](s: S) -> i32:
+    s.take(+1)
+
+fn call(s: &dyn Ops) -> i32:
+    generic(s) # diagnostic: unsatisfied-trait-bound

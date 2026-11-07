@@ -1,4 +1,4 @@
-# test: through a trait value, a body's local provider is nearer than the caller's for a key of the row parameter
+# test: through a row-polymorphic method, a body's local provider is nearer than the caller's for a key of the row parameter
 # Spec 11 Provider Scopes: req.with.nearest.row-parameter, req.with.nearest.forced.
 
 trait Tag:
@@ -39,8 +39,8 @@ fn read_tag() -> string $ Tag:
 fn read_tag_later!() -> string $ Tag:
     $.use(Tag).name()
 
-fn runner() -> *dyn Runner:
-    box(Plain {})
+fn runner() -> Plain:
+    Plain {}
 
 fn later!() -> string $ Tag:
     runner().twice_later!(read_tag_later)

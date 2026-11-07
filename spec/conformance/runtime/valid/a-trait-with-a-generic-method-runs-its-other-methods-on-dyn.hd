@@ -1,0 +1,56 @@
+# test: a trait with a method of its own type parameter stays usable as dyn, and a bound reaches the method
+# Spec 09 Dynamic Safety: trait.dyn.member.type-param, trait.dyn.type-param.no-slot, trait.dyn.bound.reference.
+trait Ops:
+    fn name(&self) -> string
+    fn take[T](&self, a: T) -> T
+    fn twice[T](&self, a: T, f: fn(T) -> T) -> T:
+        f(f(a))
+
+struct Tag:
+    label: string
+
+impl Ops for Tag:
+    fn name(&self) -> string:
+        self.label
+
+    fn take[T](&self, a: T) -> T:
+        a
+
+trait Source < ?Copy:
+    fn next_value(&mut self) -> i32
+    fn doubled[$R](&mut self, then: fn(i32) -> i32 $ R) -> i32 $ R:
+        then(self.next_value()) * 2
+
+struct Count:
+    at: i32
+
+impl Source for Count:
+    fn next_value(&mut self) -> i32:
+        self.at += 1
+        self.at
+
+fn by_value(s: &dyn Ops) -> string:
+    s.name()
+
+fn by_bound[S < Ops](s: &S) -> i32:
+    s.twice(s.take(+1), fn(x: i32) -> i32: x + 1)
+
+fn default_through_dyn[S < ?Copy & Source](s: S) -> i32:
+    let mut s = s
+    s.doubled(fn(x: i32) -> i32: x + 1)
+
+tests:
+    use std.testing.assert_equal
+
+    it("the other methods run through the trait value"):
+        tag := Tag { label: "t" }
+        assert_equal(by_value(&tag), "t", reason="name has a slot")
+
+    it("a generic bound reaches the generic methods"):
+        tag := Tag { label: "t" }
+        assert_equal(by_bound(&tag), 3, reason="one instance per S")
+
+    it("a trait value meets the bound when the generic method has a default"):
+        let mut count = Count { at: +0 }
+        let s: &mut dyn Source = &mut count
+        assert_equal(default_through_dyn(s), 4, reason="the default runs at the reference type and dispatches next_value")

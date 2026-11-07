@@ -175,14 +175,11 @@ fn named_suspension!() -> usize:
 
 trait Relay:
     fn relay!(&self, value: Token) -> Token
-    fn generic![T < ?Copy](&self, value: T) -> T
 
 struct Forwarder: pass
 
 impl Relay for Forwarder:
     fn relay!(&self, value: Token) -> Token:
-        value
-    fn generic![T < ?Copy](&self, value: T) -> T:
         value
 
 tests:
@@ -293,20 +290,3 @@ tests:
         _ := identity(value)
         assert_equal(drops, before + 1)
 
-    it("an erased suspension preserves a Drop value's fields"):
-        before := drops
-        forwarder := Forwarder {}
-        let relay: &dyn Relay = &forwarder
-        let job: mut Suspend[Named] = relay.generic(
-            Named { token: Token { id: 3 }, name: "name-${drops}" },
-        )
-        assert_equal(consume_named(job!()), 3)
-        assert_equal(drops, before + 1)
-
-    it("an erased zero-sized value keeps its Drop ownership"):
-        before := empty_drops
-        forwarder := Forwarder {}
-        let relay: &dyn Relay = &forwarder
-        let job: mut Suspend[Empty] = relay.generic(Empty {})
-        _ := identity(job!())
-        assert_equal(empty_drops, before + 1)

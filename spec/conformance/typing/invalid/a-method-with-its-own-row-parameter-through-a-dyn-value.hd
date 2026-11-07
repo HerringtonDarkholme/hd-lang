@@ -1,0 +1,6 @@
+# Spec 09 Dynamic Safety: trait.dyn.member.row-parameter. A call through a trait value of a method with its own row parameter.
+trait Runner:
+    fn run[$R](&self, job: fn() -> void $ R) -> void $ R
+
+fn call(r: &dyn Runner) -> void:
+    r.run(fn() -> void: pass) # diagnostic: dyn-member-unavailable

@@ -31,7 +31,6 @@ mod duplicate_facts;
 mod dyn_ref_value_fix;
 mod enclosing_bounds;
 mod entry_point;
-mod erased_thunk_calls;
 mod exit;
 mod extra_trait_members;
 mod fact_eval_run;

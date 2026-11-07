@@ -989,6 +989,16 @@ impl Ck<'_, '_> {
             ));
             return Ok(self.poison_value(n));
         }
+        if m.sig.has_own_params() {
+            let name = self
+                .cx
+                .lookup
+                .item(m.def)
+                .map_or("method", |item| self.cx.names.text(item.name));
+            let message = super::call::dyn_type_param_message(name);
+            self.err(Code::DynMemberUnavailable, n, &message);
+            return Ok(self.poison_value(n));
+        }
         let changes = m.sig.params.first().is_some_and(|(_, t)| {
             matches!(
                 pool.get(*t),

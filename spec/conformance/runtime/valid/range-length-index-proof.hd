@@ -39,16 +39,6 @@ fn constant_bound(xs: &List[i32]) -> i32:
         _ := xs[99]
     sum
 
-struct Holder[T]:
-    item: *mut T
-
-trait Factory:
-    fn hold[T < 'static](self, item: T) -> Holder[T]:
-        Holder { item: box(item) }
-
-struct Maker: pass
-impl Factory for Maker
-
 tests:
     use std.testing.assert_equal
 
@@ -90,9 +80,8 @@ tests:
             count += 100
         assert_equal(count, 1, reason="exclusive endpoints are never incremented in the body")
 
-    it("a typed view uses checked projections of its current list"):
-        let maker: &dyn Factory = &Maker {}
-        list := maker.hold([+1, 2, 3]).item
+    it("a pointer uses checked projections of its current list"):
+        list := box([+1, 2, 3])
         assert_equal(total(list), 6, reason="view-backed exact indices read the current list")
         *list = [+4, 5]
         assert_equal(
