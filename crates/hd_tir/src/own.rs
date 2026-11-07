@@ -34,6 +34,9 @@
 //! passes": dense tables indexed by instruction and local in one
 //! [`OwnScratch`] reused across bodies, no hash maps, and every edit
 //! recorded in a side table and spliced in once ([`splice`]).
+//!
+//! The late [`pointer`] analysis is separate from this per-body pipeline:
+//! it reads resolved whole-program facts at link time and returns loan tables.
 
 use hd_types::Ty;
 
@@ -55,6 +58,7 @@ mod late;
 pub(crate) mod moves;
 pub(crate) mod parts;
 mod plain;
+pub mod pointer;
 pub mod promote;
 mod reason;
 pub mod short;
