@@ -719,6 +719,7 @@ fn run_case(
             }
         }
     }
+    inspection::forget();
     CaseResult {
         baselines,
         failures,
@@ -827,7 +828,7 @@ mod tests {
     #[test]
     fn virtual_modules_reach_every_compiler_view_without_leaking_their_spans() {
         let case = parse("# @dump: tir own wat counts layout\n# @file: main.hd\nuse pkg.other.answer\n\nfn result() -> i32: answer()\n\n# @file: other.hd\npub fn answer() -> i32: +42\n").unwrap();
-        let built = super::inspection::build(&case.program, true, case.build);
+        let built = super::inspection::build(&case.program, case.build);
         assert!(!built.diags.has_errors(), "{}", built.render());
         for view in ["tir", "own", "wat", "counts", "layout"] {
             let out = super::view(view, case.build, &case.program).unwrap();

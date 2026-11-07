@@ -2,7 +2,7 @@ use std::fmt::Write as _;
 
 /// Exact memory layouts of the concrete declarations inside the subject.
 pub(super) fn view(p: &super::Program, at: super::Build) -> String {
-    let built = super::inspection::build(p, false, at);
+    let built = super::inspection::build(p, at);
     let mut out = super::Dump::new(p);
     for ty in &built.fixture_layouts {
         if ty.file != "main.hd" || !p.inside(ty.lo as usize, ty.hi as usize) {

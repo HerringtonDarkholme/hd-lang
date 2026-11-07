@@ -1,8 +1,5 @@
 use std::fmt::Write as _;
 
-use hd_driver::{Executor, Goal, Host, NoClock, Output, Packages, build_packages};
-use hd_sched::SerialOrder;
-
 /// The ownership view: each body of the program's own package that the
 /// build reads, as the ownership passes leave it
 /// (`docs/compiler/tir-v2.md`, "Where and when the passes run"): the
@@ -12,7 +9,14 @@ use hd_sched::SerialOrder;
 /// list places of the loops shown, after the body's path; then the
 /// build's diagnostics.
 pub(super) fn view(p: &super::Program, at: super::Build) -> String {
-    let built = build(p, at);
+    // Whatever the case links, this view reads the fixture build's bodies.
+    let built = super::inspection::build(
+        p,
+        super::Build {
+            program: false,
+            ..at
+        },
+    );
     let mut pool = hd_driver::PositionPool::default();
     let positions = built.positions(&mut pool);
     let mut out = super::Dump::new(p);
@@ -113,51 +117,3 @@ pub(super) fn view(p: &super::Program, at: super::Build) -> String {
 /// Where a `std` build puts the case: a std module of its own folder, which
 /// may use the runtime modules and the root std modules alike.
 pub(super) const STD_CASE: &str = "rt_tests/stage_case.hd";
-
-/// The case module's functions, built as a fixture through the ownership
-/// passes (the default path), with their bodies rendered after them.
-fn build(p: &super::Program, at: super::Build) -> Output {
-    let mut sources = p.sources();
-    let (package, items) = if at.std {
-        sources = hd_driver::std_sources();
-        sources.insert(STD_CASE, &p.text);
-        ("std", "std/rt_tests.stage_case/*")
-    } else {
-        ("app", "app/*")
-    };
-    let host = Host {
-        sources: &sources,
-        store: super::shared_store(),
-        render_tir: &[items],
-        clock: &NoClock,
-        executor: Executor::Serial(SerialOrder::Priority),
-    };
-    build_packages(
-        &host,
-        package,
-        &Packages {
-            target: at.target,
-            level: if at.release {
-                hd_driver::OptLevel::Optimized
-            } else {
-                hd_driver::OptLevel::Dev
-            },
-            build_profile: if at.release {
-                hd_driver::BuildProfile::Release
-            } else {
-                hd_driver::BuildProfile::Checked
-            },
-            checked: at.checked,
-            std_leaf: at.std.then_some(STD_CASE),
-            ..Packages::default()
-        },
-        &Goal::Fixture {
-            module: if at.std {
-                "rt_tests.stage_case"
-            } else {
-                "main"
-            }
-            .to_owned(),
-        },
-    )
-}

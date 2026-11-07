@@ -6,7 +6,7 @@ use std::fmt::Write as _;
 /// The backend supplies semantic labels and real source origins; this view
 /// never searches WAT text or guesses values from numbered locals.
 pub(super) fn view(p: &super::Program, at: super::Build) -> String {
-    let built = super::inspection::build(p, true, at);
+    let built = super::inspection::build(p, at);
     let mut pool = hd_driver::PositionPool::default();
     let positions = built.positions(&mut pool);
     let mut out = super::Dump::new(p);

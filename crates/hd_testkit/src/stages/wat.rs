@@ -34,11 +34,7 @@ use hd_base::SliceSort as _;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
-use hd_driver::{
-    BuildProfile, Executor, FunctionOrigins, Host, NoClock, OptLevel, Packages, PositionPool,
-    StaticData, build_packages,
-};
-use hd_sched::SerialOrder;
+use hd_driver::{FunctionOrigins, PositionPool, StaticData};
 
 use super::{Build, Program};
 
@@ -53,46 +49,12 @@ pub fn wat(p: &Program) -> String {
 /// [`wat`], for the target and level `at` names.
 #[must_use]
 pub fn wat_for(p: &Program, at: Build) -> String {
-    let mut src = p.sources();
-    if at.std {
-        src = hd_driver::std_sources();
-        src.insert(super::own::STD_CASE, &p.text);
-    }
-    let (package, prefix, case, render_tir): (_, _, _, &[&str]) = if at.std {
-        (
-            "std",
-            "std/rt_tests.stage_case/",
-            super::own::STD_CASE,
-            &["std/rt_tests.stage_case/*"],
-        )
+    let (prefix, case) = if at.std {
+        ("std/rt_tests.stage_case/", super::own::STD_CASE)
     } else {
-        ("app", "app/", "main.hd", &["app/*"])
+        ("app/", "main.hd")
     };
-    let host = Host {
-        render_tir,
-        sources: &src,
-        store: super::shared_store(),
-        clock: &NoClock,
-        executor: Executor::Serial(SerialOrder::Priority),
-    };
-    let packages = Packages {
-        instruction_origins: true,
-        target: at.target,
-        level: if at.release {
-            OptLevel::Optimized
-        } else {
-            OptLevel::Dev
-        },
-        build_profile: if at.release {
-            BuildProfile::Release
-        } else {
-            BuildProfile::Checked
-        },
-        checked: at.checked,
-        std_leaf: at.std.then_some(super::own::STD_CASE),
-        ..Packages::default()
-    };
-    let built = build_packages(&host, package, &packages, &at.goal());
+    let built = super::inspection::build(p, at);
     let mut out = String::from("(module\n");
     if let Some(wasm) = &built.wasm {
         let module = Module::read(wasm);
