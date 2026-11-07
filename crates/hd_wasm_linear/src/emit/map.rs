@@ -614,7 +614,16 @@ impl Em<'_, '_, '_> {
         self.f.op(I::If(BlockType::Empty));
         self.ctl.push(Ctl::Plain);
         let (at, vl) = read(self, e.keys, n);
-        self.new_variant(i, 1, &[Src::Locals(vl.clone())])?;
+        let copy = (op == IntrinsicOp::MapGet)
+            .then(|| self.operation_count(i, Tag::Retain, Part::Operand(0)))
+            .flatten();
+        if let Some(copy) = copy {
+            self.because(copy, |em| em.new_variant(i, 1, &[Src::Locals(vl.clone())]))?;
+        } else if op == IntrinsicOp::MapGet && self.counted(self.ty(i)).is_some() {
+            return unsupported("a map lookup without its stated hit payload copy");
+        } else {
+            self.new_variant(i, 1, &[Src::Locals(vl.clone())])?;
+        }
         if op == IntrinsicOp::MapRemove {
             // The entry stays in place, marked removed: probes pass it and
             // iteration skips it, so the survivors keep their order. The

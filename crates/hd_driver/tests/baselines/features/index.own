@@ -68,34 +68,35 @@ fn map_read(m: Map[string, string], k: string) -> usize:
 >   local $1 k: string [param read] value
 >     uses $1: entry -> %3 lend last
 >   local $2 v: string [read assigned] value
->     uses $2: %13 -> %5 lend last
->   %0 = Release %26 Exit local $0 #2 : ()
->   %1 = Release %26 Exit local $1 #2 : ()
+>     uses $2: %14 -> %6 lend last
+>   %0 = Release %27 Exit local $0 #2 : ()
+>   %1 = Release %27 Exit local $1 #2 : ()
     match m.get(k):
 >   %2 = Read borrow [$0] : Map[string, string]
 >   %3 = Read borrow [$1] : string
 >   %4 = Intrinsic MapGet [%2 %3] : string?
->   %23 = Block - : never
->   %24 = Match %4 [%23 %10 %11] : usize
->   %25 = Drop [%4] : ()
->   %26 = Block %24 : usize
+>   %5 = Retain %4 Operation operand 0 #0 : ()
+>   %24 = Block - : never
+>   %25 = Match %4 [%24 %11 %12] : usize
+>   %26 = Drop [%4] : ()
+>   %27 = Block %25 : usize
         .Some(v) => v.len()
->   %5 = Read borrow [$2] : string
->   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
->   %7 = Break L0 %6 : never
->   %8 = Block - : usize
->   %9 = Scope %8 [] : usize
->   %10 = Block %9 : usize
->   %12 = Read borrow [%4 as #1 .0] : string
->   %13 = Store [$2] %12 : ()
->   %15 = Block - : never
->   %21 = Block - : never
->   %22 = SwitchTag %4 [#1 %15 %21] : never
+>   %6 = Read borrow [$2] : string
+>   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
+>   %8 = Break L0 %7 : never
+>   %9 = Block - : usize
+>   %10 = Scope %9 [] : usize
+>   %11 = Block %10 : usize
+>   %13 = Read borrow [%4 as #1 .0] : string
+>   %14 = Store [$2] %13 : ()
+>   %16 = Block - : never
+>   %22 = Block - : never
+>   %23 = SwitchTag %4 [#1 %16 %22] : never
         .None => 0
->   %11 = Block 0:usize : usize
->   %17 = Block - : never
->   %19 = Block - : never
->   %20 = SwitchTag %4 [#0 %17 %19] : never
+>   %12 = Block 0:usize : usize
+>   %18 = Block - : never
+>   %20 = Block - : never
+>   %21 = SwitchTag %4 [#0 %18 %20] : never
 >   summary kept [] borrows [$0 $1]
 
 fn map_write(m: &mut Map[string, string], k: string, v: string) -> void:

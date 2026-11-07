@@ -26,7 +26,7 @@ fn list_write(xs: &mut List[string], i: usize, s: string) -> void:
 fn map_read(m: Map[string, string], k: string) -> usize:
     match m.get(k):
 > app/main/map_read
->   retain string (conservative: Intrinsic)
+>   retain string (stored)
 >   release string? (last use)
         .Some(v) => v.len()
         .None => 0

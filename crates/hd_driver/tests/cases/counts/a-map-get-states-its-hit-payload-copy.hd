@@ -1,0 +1,17 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: MapGet states its hit payload's copy for counted or open values; scalar results need none, and an unused result keeps its existing cleanup.
+fn lookup[T](values: Map[string, T], key: string) -> T?:
+    values.get(key)
+
+fn text(values: Map[string, string], key: string) -> string?:
+    lookup(values, key)
+
+fn lists(values: Map[string, List[string]], key: string) -> List[string]?:
+    lookup(values, key)
+
+fn scalar(values: Map[string, i32], key: string) -> i32?:
+    lookup(values, key)
+
+fn unused(values: Map[string, string], key: string) -> void:
+    _ := values.get(key)

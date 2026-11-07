@@ -71,6 +71,7 @@ mod insert;
 mod known;
 mod late;
 pub(crate) mod map_key;
+pub(crate) mod map_value;
 mod moves;
 pub(crate) mod overwrites;
 pub(crate) mod parts;

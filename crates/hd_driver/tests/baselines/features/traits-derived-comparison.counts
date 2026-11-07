@@ -27,7 +27,7 @@ fn before(a: Key, b: Key) -> bool:
 fn lookup(m: Map[Key, string], k: Key) -> usize:
     match m.get(k):
 > app/main/lookup
->   retain string (conservative: Intrinsic)
+>   retain string (stored)
 >   release string? (last use)
         .Some(v) => v.len()
         .None => 0

@@ -10,7 +10,7 @@
 fn lookup(m: &Map[string, string], k: string) -> usize:
     match m.get(k):
 > app/main/lookup
->   retain string (conservative: Intrinsic)
+>   retain string (stored)
 >   release string? (last use)
         .Some(v) => v.len()
         .None => 0
@@ -32,5 +32,5 @@ fn group(m: &mut Map[string, List[string]], k: string, v: string) -> void:
 fn has(m: &Map[string, string], k: string) -> bool:
     m.contains_key(k)
 > app/main/has
->   retain string (conservative: Intrinsic)
+>   retain string (stored)
 >   release string? (last use)
