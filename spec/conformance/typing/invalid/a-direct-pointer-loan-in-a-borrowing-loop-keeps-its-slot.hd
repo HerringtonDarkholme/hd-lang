@@ -1,0 +1,14 @@
+# test: a dependent reference through a borrowed element keeps the counted pointer slot alive
+struct P:
+    name: string
+
+fn name_of(p: &P) -> &string:
+    &p.name
+
+pub fn main() -> void $ Console:
+    let mut ps = [box(P { name: "a${1}" })]
+    for p in &ps:
+        d := &p.name
+        ps[0] = box(P { name: "b${2}" }) # diagnostic: conflicting-access
+        junk := "cccccc${3}"
+        println("${*d} $junk")
