@@ -3,8 +3,8 @@
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
@@ -41,7 +41,7 @@
     end
     local.get $self
   )
-  (func $change_then_read (param $name.0 i32) (param $name.1 i32) (result i32) (local $kept.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64)
+  (func $change_then_read (param $name.0 i32) (param $name.1 i32) (result i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i64)
     ;; (no span)
     global.get $locals
     global.get $locals_base
@@ -83,23 +83,23 @@
       local.get $name.0
       i32.const 1
       i32.store $heap offset=16
-      local.set $kept.1
+      local.set $t1
       local.get $t0
       i64.const 0
       i64.store $heap
       local.get $t0
       i32.const 8
       i32.add
-      local.tee $t1
-      local.get $kept.1
-      i32.store $heap
+      local.tee $t2
       local.get $t1
+      i32.store $heap
+      local.get $t2
       local.get $name.1
       i32.store $heap offset=4
-      local.get $t1
+      local.get $t2
       local.get $name.0
       i32.store $heap offset=8
-      local.get $t1
+      local.get $t2
       local.tee $name.0
     ;; 21 |     b.item_mut(0).qty = +7
       local.set $name.1
@@ -136,68 +136,52 @@
       i32.load $heap
       local.get $name.0
       i32.load $heap offset=4
-      local.get $name.0
-      i32.const 0
-      i32.store $heap
-      local.get $name.0
-      i32.const 0
-      i32.store $heap offset=4
-      local.set $kept.1
       local.set $name.1
+      drop
     ;; 23 |     kept.len() + b.items.len()
       block
         block
           br 0
         end
       end
-    ;; (no span)
-      local.get $name.1
-      call $rt:release_ref'1
-    ;; 23 |     kept.len() + b.items.len()
-      local.get $name.0
-      i32.eqz
-      if
-        local.get $t0
-        i64.const 0
-        i64.store $heap
-        local.get $t0
-        i32.const 8
-        i32.add
-        local.tee $name.0
-        i32.const 0
-        i32.store $heap
-        local.get $name.0
-        i32.const 0
-        i32.store $heap offset=4
-        local.get $name.0
-        i32.const 0
-        i32.store $heap offset=8
-      end
       local.get $name.0
       i32.load $heap offset=8
-      local.tee $name.1
+      local.set $t1
       local.get $name.0
       i32.const 0
       i32.store $heap offset=8
+    ;; (no span)
+      local.get $name.0
+      if
+        local.get $name.0
+        i32.load $heap
+        local.get $name.0
+        i32.load $heap offset=4
+        local.get $name.0
+        i32.load $heap offset=8
+        call $rt:release
+      end
+    ;; 23 |     kept.len() + b.items.len()
+      local.get $t1
       i32.load $heap offset=4
       local.set $name.0
     ;; (no span)
-      local.get $name.1
-      call $rt:release_ref'2
+      local.get $t1
+      call $rt:release_ref
     ;; 23 |     kept.len() + b.items.len()
-      local.get $kept.1
+      local.get $name.1
       i64.extend_i32_u
       local.get $name.0
       i64.extend_i32_u
       i64.add
-      local.tee $t2
+      local.tee $t3
       i64.const 4294967295
       i64.gt_u
       if
         call $rt:panic'2
         unreachable
       end
-      local.get $t2
+      local.get $t3
       i32.wrap_i64
     ;; (no span)
       local.set $name.0

@@ -18,24 +18,25 @@ impl Display for YamlError:
 impl Error for YamlError
 
 @error
-> app/main/error Display for FsError.to_string
->   retain counted reference (second owner)
 enum FsError:
     @error("not found: $path")
+> app/main/error Display for FsError.to_string
+>   release string (last use)
     NotFound(path: string)
->   (no span) release app.main.FsError (last use)
+>   retain string (second owner)
     Busy
 
 @error
-> app/main/error Display for LoadError.to_string
->   retain counted reference (stored)
-> app/main/error Error for LoadError.source
->   retain counted reference (stored)
 enum LoadError:
     @error("cannot read $path")
+> app/main/error Display for LoadError.to_string
+>   release string (last use)
     Read(
         path: string,
+>   retain string (second owner)
         @source
+> app/main/error Error for LoadError.source
+>   retain app.main.FsError (stored)
         error: FsError,
     )
     @error("bad config")
@@ -46,8 +47,8 @@ enum LoadError:
     @error(transparent)
     Fs(
         @from
->   (no span) release app.main.LoadError (last use)
->   (no span) release app.main.LoadError (last use)
+>   retain string (second owner)
+>   release string (last use)
         error: FsError,
     )
 

@@ -27,12 +27,12 @@ fn each(xs: List[string], f: fn(string) -> void) -> void:
 >   %5 = Read copy [$5] : usize
 >   %6 = Prim Lt [%4 %5] : bool
 >   %7 = Read copy [$4] : usize
->   %8 = Read copy [$0 [%7]] : string
+>   %8 = Read borrow [$0 [%7]] : string
 >   %9 = Read copy [$4] : usize
 >   %10 = Prim Add [%9 1:usize] : usize
 >   %11 = Store [$4] %10 : ()
 >   %15 = Block - : ()
->   %16 = Read move [%8] : string
+>   %16 = Read borrow [%8] : string
 >   %17 = Store [$6] %16 : ()
 >   %19 = Block - : never
 >   %20 = Match %8 [%19 %15] : ()
@@ -45,7 +45,7 @@ fn each(xs: List[string], f: fn(string) -> void) -> void:
 >   %27 = Block - : ()
         f(x)
 >   %12 = Read borrow [$1] : fn(string) -> ()
->   %13 = Read move [$6] : string
+>   %13 = Read copy [$6] : string
 >   %14 = CallValue %12 [%13] : ()
 >   summary kept [] borrows [$0 $1] writes
 

@@ -119,7 +119,7 @@ impl Em<'_, '_, '_> {
                     };
                     // A borrow of all of another such local holds that
                     // one's read, whose fresh value its kept `Drop`s
-                    // release (`hd_tir::own::borrow`'s forwarding locals).
+                    // release (`hd_tir::own::derive`'s bindings).
                     if let Some(l) = l
                         && self.loans.contains(&w)
                     {

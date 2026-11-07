@@ -2,8 +2,8 @@
 # @build: v8 release
 # Feature: Arms And Guards, Catch-All And Variant Patterns, Payload Patterns (spec/lang/06-control-flow.md, #1364).
 # expected: a guard reads the payload with no count; `pick` retains only
-# the payload it returns; a catch-all binding of the whole `string?`
-# takes no count when it is only read.
+# the payload it returns; a catch-all binding of the whole `string?` copies it,
+# since the two decision paths each store it and a binding has one store.
 enum Tag:
     Named(name: string)
     Pair(left: string, right: string)

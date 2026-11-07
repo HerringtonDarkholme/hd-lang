@@ -1836,101 +1836,14 @@ is worth deciding only if they are hot.
    stage 2 commit plans. That drop releases only what the move left, so
    what it costs is the release glue's tests, not a count.
 8. Borrow.
-   As built: `own/borrow.rs`, between insertion and move. One walk in
-   instruction order decides each `copy` read of a counted type. It
-   borrows when every use lends (no consumer, no coercion other than one
-   that keeps the value's values and whose own uses lend, no `Ref` into
-   the value itself) and nothing in its span writes what it reads, may
-   reach it from outside the body, or suspends. The span is the
-   statements of its `Drop`'s block from the one that holds the read to
-   the drop. A statement's blocks are not always in order in the columns
-   (a match's arms precede its decision tree, a guard's condition can
-   precede the bindings before it), so the span is checked as the range
-   of instructions from the first of any of its statements.
-   - **Chains.** The read's place is resolved through the reads its root
-     comes from (`%h = Read [$xs]` makes `[%h [%i]]` an element of `$xs`)
-     and through binding locals, into a chain of roots, each with the
-     place below it as step codes. Every write is indexed once under each
-     root of its own chain, in rows sorted by instruction, and a span's
-     check is a binary search per row. A write into a list's buffer or
-     behind a reference keeps the header or the reference before that
-     step, so it conflicts only with a read that goes past it; a write
-     through the read's own value (an element store through a borrowed
-     header) keeps that value. Each read in the chain also refuses what
-     the verifier's overlap counts against its own place.
-   - **Rule 3.** A chain ending at an unshared local whose references
-     each die with the one call that takes them, or with the last use of
-     that call's result when the body only reads and writes through it
-     (the span then lies outside that window), is
-     changed only by the body, calls included; so is its list's buffer
-     when every value stored into the local is fresh (a call's result, a
-     copy or snapshot, a literal), which shares its header with no other
-     place. Anything else is the heap: no heap write and no call may
-     stand in the span, but a call that may not write
-     (`OwnCx::may_write`) for the one dereference of a parameter's
-     reference read whole.
-   - **Binding locals** (not in the plan): a local stored once with a
-     read that borrows, no parameter, unaddressed, uncaptured, whose reads
-     lie in the span (which then ends at the local's last `Drop`), holds
-     a borrowed value and owns nothing: its drops go and it leaves the
-     exit set. One whose read keeps its drops (below) keeps its own
-     drops and its exit row too, and holds the count only where an
-     instance made the value fresh: so an inlined `is_empty` on a list
-     read through a reference borrows, as `len` does (#898). The loop's
-     element binding is one, so with the element
-     read of the private snapshot it is §23.25's loop-element loan, and
-     `count_tests.hd`'s "immutable loop elements add no per-element
-     counts" holds its 2,000-retain bound on the new path.
-   - **Lent parameters** (not in the plan; `OwnCx::received`, a signature
-     fact): a counted parameter of a function that does not suspend,
-     which its caller lends (`OwnCx::pass`'s `Lent`) and the body never
-     stores, addresses or captures, is the caller's for the call: its
-     drops go, it leaves the exit set, and nothing in the body limits a
-     borrow of it. The backend takes no count of it on entry and releases
-     at the exit one an instance receives owned (a type parameter's).
-     This is §23.31's parameter loans: without it a field read through
-     `&self` copies, since the parameter's own drop follows its last
-     read.
-   - **Kept drops.** A borrow whose value an instance may make fresh
-     keeps its drops: one through a dereference (a view's getter; the
-     backend's flag, `Em::view_loans`, says whether the drop releases),
-     and one naming a type parameter at its root or result (an erased
-     body's thunk). Elsewhere the drop of a borrow releases nothing.
-   - **Move** keeps every place a live borrow lives on live (a use of a
-     borrow uses its root, and through a binding local what that holds),
-     and moves no local outside the exit set.
-   - **`verify_owned`**: the borrow clause is a backward liveness walk,
-     one bit per borrow, loops to a fixed point, where a use of a value is
-     a use of every borrow it lives on and a control instruction reads its
-     operands before its blocks. A range of instructions, the old check,
-     held a match's scrutinee live in its arms, where move may take the
-     matched place. Binding locals and unowned parameters are checked to
-     hold no count. Its use list is now `own::operands`; the old one read
-     an `Await`'s provider words as values.
-   - **The backend** lowers a `borrow` of every place form
-     (`Em::prepare_own_loans`): it joins `Moves::loans`, and a store into
-     a binding local counts nothing (`Moves::loan_locals`).
-   - **Splicing**: borrow records its deletions in the edits move adds
-     to, so the body is still rebuilt twice (insertion, then borrow and
-     move), not three times.
-   Old path: every conformance module byte-identical to main, dev and
-   optimized pipelines. New path: all conformance cases pass, dev and
-   optimized pipelines, checked and not, with no known failure left. Static count sites over
-   the 769 runtime conformance programs with a `main`: 40,984 retains and
-   79,072 releases before borrow, 27,489 and 59,420 after, against the old
-   path's 26,839 and 56,174 (module bytes 20.52 MB, 19.97 MB, 19.88 MB);
-   over the bench/study programs 2,140 and 3,304, then 955 and 1,883,
-   against 918 and 1,579. Borrow costs 0.08 us per instruction (insertion
-   0.22, move with the rebuild 0.11) and allocates only per body.
-   **Left for later commits.** Releases stay above the old path's: a
-   kept drop through a reference is a flag-tested release site, and the
-   copies a later pass can cancel stay (commit 9). An element read of a
-   list a parameter holds counts as the heap, since the caller's header
-   may be shared, so a call in its span keeps the copy. A closure's
-   parameters stay owned: `received` answers for a function's own
-   signature only. Known-null (commit 10) must keep every owned
-   parameter's exit row, since the backend reads a parameter outside the
-   exit set as unowned.
+   As built: `own/derive.rs`, between insertion and move. It decides each
+   `copy` read of a counted type from four facts of its value: its source is
+   owned or lent, each use consumes or lends, its last use on each path, and
+   whether its source may change while it lives. One backward walk finds what
+   each live value crosses; a solve then settles what depends on another
+   decision: a `Drop` it crossed goes if that place owns nothing, a binding
+   holds only while no read takes a count from it for nothing, and a parameter
+   stays lent only while nothing keeps it.
 9. Pair cancellation.
    As built: `own/pairs.rs`, after move, its edits joining borrow's and
    move's for the pipeline's second and last rebuild. It takes the case
@@ -3346,7 +3259,7 @@ new address must reach the place the list was read from.
   made at once (`ref.elem.copy`) by the one copy glue, which reads the
   owner word from the buffer. `copies.rs` then goes but for about 10
   lines elsewhere: a parameter changed in place is owned, not lent
-  (`borrow::lent_params` counts its `IsUnique` as the store that rule 5's
+  (`derive::solve` counts its `IsUnique` as the store that rule 5's
   entry copy is today), and the borrow pass already refuses a borrow
   across an `IsUnique` of its source's root. What that costs is the copy
   glue at every count a copy of a collection takes ([commit
@@ -3738,7 +3651,7 @@ calibration below.
 | 3g | count glue: a retain of a value's collection leaves runs the copy glue and replaces the leaf (`count_locals`, the `Retain` glue) | | 30 |
 | 3g | heap copies: `RetainFields`, and a value stored into an element, field or payload slot | | 25 |
 | 3g | task frames and boundary arguments that take counts (`own_arg`) | | 10 |
-| 3g | a parameter changed in place is owned (`borrow::lent_params`) | | 10 |
+| 3g | a parameter changed in place is owned (`derive::solve`) | | 10 |
 | 3g | verifier and fixture plumbing | | 15 |
 | 3h | `rt:list_grow`, `rt:list_unique`, `rt:list_truncate`, their variants and dispatch | 176 | |
 | 3h | the lowered push, `IsUnique` and `list_truncate` call std's slow paths by name with the element's glue; the driver roots them | | 30 |
@@ -4377,7 +4290,7 @@ value's data at its coercion), and an erased value never holds a
 collection, since a type argument that holds one keeps its instance exact.
 
 A parameter that an `IsUnique` or a `Pin` names stays owned
-(`borrow::lent_params`, `Tables::changed`), since the change gives up the
+(`derive::solve`, `Tables::changed`), since the change gives up the
 count of the buffer it replaces, and such a local is never a binding local
 either (`let mut ys = xs` followed by `ys.push(..)` borrowed `xs` without
 the copy). The verifier's `binding_locals` rejects an `IsUnique` or a `Pin`
@@ -4401,7 +4314,7 @@ the stop line of 175, which it passes: count glue 53 (`emit/count.rs` +49,
 +15, `emit/closure.rs` +9, `emit/erased.rs` +7, `emit/scope.rs` +6, the rest
 +6; planned 25), most of it the source the copy returns threaded through
 each store; task frames 15 (`emit/susp.rs` +15/−11; planned 10); owned
-changed parameters 14 (`own/borrow.rs`; planned 10); the verifier 6 (planned
+changed parameters 14 (`own/derive.rs`; planned 10); the verifier 6 (planned
 15); and, unpriced, hoisting's copy rule with `OwnCx::holds_coll` 21, the
 move pass's pin rule 5, the dead load 5, the splice without late edits 7,
 and 13 lines insertion and the checker rewrote where rule 7 went. The deletes by row: `copies.rs` 860 (planned 887), `header_copies` 118

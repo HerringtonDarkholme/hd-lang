@@ -96,19 +96,19 @@ fn owner(s: Shape) -> string:
 >   %21 = Match %0 [%20 %2 %4] : string
 >   %22 = Block %21 : string
         .Dot(User { name }) => name
->   %1 = Read move [$1] : string
+>   %1 = Read copy [$1] : string
 >   %2 = Block %1 : string
 >   %5 = Read borrow [%0 as #0 .0] : User
->   %6 = Read copy [%5 .name] : string
+>   %6 = Read borrow [%5 .name] : string
 >   %7 = Store [$1] %6 : ()
 >   %9 = Block - : never
 >   %18 = Block - : never
 >   %19 = SwitchTag %0 [#0 %9 %18] : never
         .Line(start = _, end = User { name }) => name
->   %3 = Read move [$2] : string
+>   %3 = Read copy [$2] : string
 >   %4 = Block %3 : string
 >   %10 = Read borrow [%0 as #1 .1] : User
->   %11 = Read copy [%10 .name] : string
+>   %11 = Read borrow [%10 .name] : string
 >   %12 = Store [$2] %11 : ()
 >   %14 = Block - : never
 >   %16 = Block - : never

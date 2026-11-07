@@ -57,9 +57,9 @@ fn pick(u: User) -> string:
 >   %12 = Block - : never
 >   %13 = If %6 [%8 %12] : never
         User { name } => name
->   %2 = Read move [$1] : string
+>   %2 = Read copy [$1] : string
 >   %3 = Block %2 : string
 >   %5 = Read borrow [%0 .name] : string
->   %9 = Read copy [%5] : string
+>   %9 = Read borrow [%5] : string
 >   %10 = Store [$1] %9 : ()
 >   summary kept [] borrows [$0]

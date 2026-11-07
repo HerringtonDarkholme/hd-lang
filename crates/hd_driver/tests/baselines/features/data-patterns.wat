@@ -16,8 +16,6 @@
             local.get $u.age
             i32.eqz
             br_if 0
-            local.get $u.name.0
-            call $retain
             br 1
     ;; 16 |     match u:
             unreachable
@@ -28,6 +26,10 @@
           local.set $u.name.0
           br 1
         end
+    ;; 18 |         User { name } => name
+        local.get $u.name.0
+        call $retain
+    ;; 16 |     match u:
         br 0
       end
     end

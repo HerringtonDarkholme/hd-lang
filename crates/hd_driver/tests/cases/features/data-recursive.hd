@@ -2,8 +2,8 @@
 # @build: v8 release
 # Feature: Recursive Data Types (spec/lang/08-data-and-enums.md, #1364).
 # expected: `push_front` allocates one `Chain` and moves `head` into
-# it; `total` walks the chain with no count per step (each `*Chain`
-# is only read).
+# it; `total` walks the chain borrowing each `*Chain`, with one retain and one
+# release per step, for the `cur = c.next` that stores the next one.
 struct Chain:
     name: string
     next: *Chain?

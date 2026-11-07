@@ -37,9 +37,9 @@ fn word['a](t: Token[string, 'a], fallback: &'a string) -> &'a string:
 >   %17 = Match %0 [%16 %2 %4] : Ref[string]
 >   %18 = Block %17 : Ref[string]
         Token.Word(w) => w
->   %1 = Read move [$2] : Ref[string]
+>   %1 = Read copy [$2] : Ref[string]
 >   %2 = Block %1 : Ref[string]
->   %5 = Read copy [%0 as #0 .0] : Ref[string]
+>   %5 = Read borrow [%0 as #0 .0] : Ref[string]
 >   %6 = Store [$2] %5 : ()
 >   %8 = Block - : never
 >   %14 = Block - : never

@@ -16,6 +16,6 @@ fn sizes(u: User) -> usize:
 fn pick(u: User) -> string:
     match u:
         User { age: 0 } => "none"
+        User { name } => name
 > app/main/pick
 >   retain string (stored)
-        User { name } => name

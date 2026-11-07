@@ -181,12 +181,12 @@ fn adapter(us: List[User]) -> usize:
 >   %20 = Read copy [$7] : usize
 >   %21 = Prim Lt [%19 %20] : bool
 >   %22 = Read copy [$6] : usize
->   %23 = Read copy [$0 [%22]] : User
+>   %23 = Read borrow [$0 [%22]] : User
 >   %24 = Read copy [$6] : usize
 >   %25 = Prim Add [%24 1:usize] : usize
 >   %26 = Store [$6] %25 : ()
 >   %33 = Block - : ()
->   %34 = Read move [%23] : User
+>   %34 = Read borrow [%23] : User
 >   %35 = Store [$8] %34 : ()
 >   %37 = Block - : never
 >   %38 = Match %23 [%37 %33] : ()
@@ -200,7 +200,7 @@ fn adapter(us: List[User]) -> usize:
         n += g(u)
 >   %27 = Read copy [$3] : usize
 >   %28 = Read borrow [$2] : fn(User) -> usize
->   %29 = Read move [$8] : User
+>   %29 = Read copy [$8] : User
 >   %30 = CallValue %28 [%29] : usize
 >   %31 = Prim Add [%27 %30] : usize
 >   %32 = Store [$3] %31 : ()

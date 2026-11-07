@@ -44,11 +44,13 @@
           local.set $t2
           block
             block
-              local.get $v.0
-              call $retain
               br 0
               unreachable
             end
+    ;; 11 |         out.push(v)
+            local.get $v.0
+            call $retain
+    ;; 10 |     for v in out:
             local.get $values
             call $rt:list_unique
             local.tee $values
@@ -130,10 +132,12 @@
       local.get $values
       local.tee $values
     ;; 16 |     let mut cursor = items.iter()
-      call $rt:coll_copy
       local.set $t1
       block
         block
+          local.get $t1
+          call $rt:coll_copy
+          local.set $t1
           br 0
         end
       end

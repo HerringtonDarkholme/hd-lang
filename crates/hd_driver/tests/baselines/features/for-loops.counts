@@ -27,9 +27,9 @@ fn over_mut(xs: &mut List[string]) -> void:
 fn keep_each(xs: List[string]) -> List[string]:
     let mut out: List[string] = []
     for x in xs:
+        out.push(x)
 > app/main/keep_each
 >   retain string (stored)
-        out.push(x)
     out
 
 fn comprehension(xs: List[string]) -> List[usize]:

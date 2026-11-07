@@ -58,7 +58,7 @@ fn lend(h: *mut Point) -> usize:
 >     uses $0: entry -> %0 lend, %2 lend, %4 lend last
 >   %0 = Read borrow [$0] : Counted[mut Point]
 >   %1 = Call app/main/nudge[] (%0) : ()
->   %8 = Block %6 : usize
+>   %7 = Block %6 : usize
     bump(h)
 >   %2 = Read borrow [$0] : Counted[mut Point]
 >   %3 = Call app/main/bump[] (%2) : ()
@@ -66,7 +66,6 @@ fn lend(h: *mut Point) -> usize:
 >   %4 = Read borrow [$0] : Counted[mut Point]
 >   %5 = Coerce %4 [Weaken -] : Ref[Point]
 >   %6 = Call app/main/view[] (%5) : usize
->   %7 = Drop [%4] : ()
 >   summary kept [] writes
 
 fn local(s: string) -> usize:

@@ -51,12 +51,12 @@ fn local_capture(prefix: string, xs: List[string]) -> usize:
 >   %22 = Read copy [$8] : usize
 >   %23 = Prim Lt [%21 %22] : bool
 >   %24 = Read copy [$7] : usize
->   %25 = Read copy [$1 [%24]] : string
+>   %25 = Read borrow [$1 [%24]] : string
 >   %26 = Read copy [$7] : usize
 >   %27 = Prim Add [%26 1:usize] : usize
 >   %28 = Store [$7] %27 : ()
 >   %35 = Block - : ()
->   %36 = Read move [%25] : string
+>   %36 = Read borrow [%25] : string
 >   %37 = Store [$9] %36 : ()
 >   %39 = Block - : never
 >   %40 = Match %25 [%39 %35] : ()
@@ -70,7 +70,7 @@ fn local_capture(prefix: string, xs: List[string]) -> usize:
         total += width(x)
 >   %29 = Read copy [$4] : usize
 >   %30 = Read borrow [$3] : fn(string) -> usize
->   %31 = Read move [$9] : string
+>   %31 = Read copy [$9] : string
 >   %32 = CallValue %30 [%31] : usize
 >   %33 = Prim Add [%29 %32] : usize
 >   %34 = Store [$4] %33 : ()

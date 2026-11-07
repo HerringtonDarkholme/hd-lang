@@ -118,20 +118,19 @@
           local.get $u.name.0
           i32.load $heap offset=20
           local.set $u.name.1
-          local.tee $u.name.0
-          call $retain
+          local.set $u.name.0
           local.get $t1
           i32.const 1
           i32.add
           local.set $t1
           block
             block
-              local.get $u.name.0
-              local.set $u.name.0
               br 0
               unreachable
             end
     ;; 34 |         n += g(u)
+            local.get $u.name.0
+            call $retain
             local.get $n
             i32.const 0
             local.get $u.name.0

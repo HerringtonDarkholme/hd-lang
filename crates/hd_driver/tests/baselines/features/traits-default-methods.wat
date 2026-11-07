@@ -209,8 +209,6 @@
         block
           block
             block
-              local.get $l.name.0
-              call $retain
               br 0
             end
           end

@@ -32,7 +32,5 @@ fn shared(s: string, t: string) -> usize:
     b.name = t
 >   release counted reference (conservative: Store)
     h.point.name.len()
->   retain string (conservative: copy read)
 >   (no span) release &mut app.main.Point (last use)
->   (no span) release string (last use)
 >   (no span) release app.main.Holder (last use)

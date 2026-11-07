@@ -126,11 +126,11 @@ fn use_generic(s: string, xs: List[string]) -> usize:
 >   %37 = Store [$7] %35 : ()
 >   %38 = Store [$8] "" : ()
 >   %39 = Read borrow [$7] : string?
->   %40 = Read move [$9] : string
+>   %40 = Read copy [$9] : string
 >   %41 = Block %40 : string
 >   %42 = Read move [$8] : string
 >   %43 = Block %42 : string
->   %44 = Read copy [%39 as #1 .0] : string
+>   %44 = Read borrow [%39 as #1 .0] : string
 >   %45 = Store [$9] %44 : ()
 >   %47 = Block - : never
 >   %49 = Block - : never

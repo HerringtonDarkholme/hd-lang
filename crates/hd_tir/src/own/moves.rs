@@ -339,7 +339,6 @@ pub(crate) fn last_uses(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, t: &mut T
 }
 
 /// Whether read `i` is the last use of its place, by [`last_uses`].
-#[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn last_use(t: &Tables, i: usize) -> bool {
     t.decide[i] == MOVE
 }

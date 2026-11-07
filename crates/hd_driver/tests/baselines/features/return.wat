@@ -211,10 +211,11 @@
       local.get $r
       i32.load $heap offset=4
       local.set $t2
-      local.tee $t1
-      call $retain
+      local.set $t1
       block
         block
+          local.get $t1
+          call $retain
           br 0
         end
       end
@@ -232,10 +233,11 @@
       local.get $r
       i32.load $heap offset=4
       local.set $t3
-      local.tee $t1
-      call $retain
+      local.set $t1
       block
         block
+          local.get $t1
+          call $retain
           br 0
         end
       end

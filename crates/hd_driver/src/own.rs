@@ -47,55 +47,6 @@ pub(super) fn count_report_label() -> String {
     COPY_LABEL.with(|l| l.borrow().clone())
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-/// The file `HD_OWN_AGREE` names, read once per process: each read the
-/// ownership derivation and the old passes answer differently goes there
-/// (`hd_tir::own::derive`). A report tool for #1399; no build reads it.
-fn agree_file() -> Option<&'static str> {
-    static FILE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
-    FILE.get_or_init(|| std::env::var("HD_OWN_AGREE").ok().filter(|f| !f.is_empty()))
-        .as_deref()
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-/// Appends one body's disagreements to `file`: a `#reads` row with how many
-/// counted reads it compared, then one tab-separated row each: old mode, new mode, the read's shape and what stopped the derivation,
-/// the body's path, the instruction, the place.
-fn agree_report(file: &str, path: &str, reads: u32, rows: &[hd_tir::own::Disagreement]) {
-    use std::fmt::Write as _;
-    use std::io::Write as _;
-    let mut text = format!("#reads\t{reads}\n");
-    for r in rows {
-        let _ = writeln!(
-            text,
-            "{}\t{}\t{}\t{path}\t%{}\t{}",
-            r.old, r.new, r.why, r.inst, r.place
-        );
-    }
-    if let Ok(mut f) = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(file)
-    {
-        let _ = f.write_all(text.as_bytes());
-    }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-/// Appends one body as the old passes left it to `file`.bodies, where the
-/// report's instructions can be read (`HD_OWN_AGREE_BODY` names which).
-fn agree_bodies(file: &str, path: &str, text: &str) {
-    use std::io::Write as _;
-    let name = format!("{file}.bodies");
-    if let Ok(mut f) = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(name)
-    {
-        let _ = writeln!(f, "== {path}\n{text}");
-    }
-}
-
 /// The file `HD_COPY_REPORT` names, read once per process.
 fn copy_report_file() -> Option<&'static str> {
     static FILE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
@@ -1168,10 +1119,6 @@ impl Env<'_> {
         // A body's passes never run another's; the tables are taken out
         // anyway, so a nested run would only start from empty ones.
         let mut scratch = SCRATCH.with(RefCell::take);
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            scratch.agree = agree_file().is_some();
-        }
         // Each instruction names itself until the passes renumber the
         // body, the inliner's copies their call: the line table's anchors
         // stay the `check` entry's.
@@ -1192,17 +1139,6 @@ impl Env<'_> {
         });
         let relies = scratch.relies();
         let uncopied = scratch.uncopied().to_vec();
-        #[cfg(not(target_arch = "wasm32"))]
-        if let Some(file) = agree_file() {
-            let path = self.run.names().path(body.item);
-            agree_report(file, &path, scratch.compared_reads, scratch.disagreements());
-            if let Some(old) = &scratch.compared
-                && std::env::var("HD_OWN_AGREE_BODY").is_ok_and(|want| path.contains(&want))
-            {
-                let text = self.run.render_owned(self.p, old);
-                agree_bodies(file, &path, &text);
-            }
-        }
         SCRATCH.with(|s| *s.borrow_mut() = scratch);
         let path = || self.run.names().path(body.item);
         if let Err(what) = refused {
@@ -1213,11 +1149,6 @@ impl Env<'_> {
         }
         if !uncopied.is_empty() {
             self.uncopied(&body, &uncopied)?;
-        }
-        #[cfg(not(target_arch = "wasm32"))]
-        if let Ok(file) = std::env::var("HD_OWN_DUMP") {
-            let text = self.run.render_owned(self.p, &body);
-            agree_bodies(&file, &path(), &format!("{summary:?}\n{text}"));
         }
         if self.run.verifies_own() {
             let errs = hd_tir::ir::verify_owned(&body, self);

@@ -3,8 +3,8 @@
 # @build: v8 release
 # Feature: Recursive Data Types (spec/lang/08-data-and-enums.md, #1364).
 # expected: `push_front` allocates one `Chain` and moves `head` into
-# it; `total` walks the chain with no count per step (each `*Chain`
-# is only read).
+# it; `total` walks the chain borrowing each `*Chain`, with one retain and one
+# release per step, for the `cur = c.next` that stores the next one.
 struct Chain:
     name: string
     next: *Chain?
@@ -40,25 +40,24 @@ fn total(head: *Chain?) -> usize:
 >   local $4 self: string [read] value
 >     uses $4: %6 -> %7 lend last
 >   %0 = Store [$1] 0:usize : ()
->   %41 = Block %40 : usize
+>   %40 = Block %39 : usize
     let cur = head
 >   %1 = Read move [$0] : Counted[Chain]?
 >   %2 = Store [$2] %1 : ()
     while true:
->   %34 = Break L0 - : never
->   %35 = Block - : ()
->   %36 = If 1:bool [%33 %35] : ()
->   %37 = Block - : ()
->   %38 = Loop %37 - : ()
->   %39 = Drop [$2] : ()
+>   %33 = Break L0 - : never
+>   %34 = Block - : ()
+>   %35 = If 1:bool [%32 %34] : ()
+>   %36 = Block - : ()
+>   %37 = Loop %36 - : ()
+>   %38 = Drop [$2] : ()
         match cur:
->   %3 = Read move [$2] : Counted[Chain]?
+>   %3 = Read borrow [$2] : Counted[Chain]?
 >   %30 = Block - : never
 >   %31 = Match %3 [%30 %16 %18] : ()
->   %32 = Drop [$3] : ()
->   %33 = Block - : ()
+>   %32 = Block - : ()
             .Some(c) =>
->   %19 = Read move [%3 as #1 .0] : Counted[Chain]
+>   %19 = Read borrow [%3 as #1 .0] : Counted[Chain]
 >   %20 = Store [$3] %19 : ()
 >   %22 = Block - : never
 >   %28 = Block - : never
@@ -85,6 +84,6 @@ fn total(head: *Chain?) -> usize:
 >   %26 = Block - : never
 >   %27 = SwitchTag %3 [#0 %24 %26] : never
     n
->   %40 = Read copy [$1] : usize
+>   %39 = Read copy [$1] : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

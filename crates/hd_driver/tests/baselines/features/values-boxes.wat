@@ -5,7 +5,6 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $copy_box (param $s.0 i32) (param $s.1 i32) (param $t.0 i32) (param $t.1 i32) (result i32) (local $t0 i32)
     block
@@ -125,21 +124,16 @@
       i32.load $heap
       local.get $s.1
       i32.load $heap offset=4
-      local.set $t.0
-      local.tee $s.0
-      call $retain
+      local.set $s.0
+      drop
       block
         block
           br 0
         end
       end
     ;; (no span)
-      local.get $s.0
-      call $rt:release_ref'2
       local.get $s.1
       call $rt:release_ref'1
-      local.get $t.0
-      local.set $s.0
     end
     local.get $s.0
   )

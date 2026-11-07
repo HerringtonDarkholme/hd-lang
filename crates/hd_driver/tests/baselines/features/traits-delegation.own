@@ -31,14 +31,14 @@ impl Describe for Service by Logger
 >     uses $0: entry -> %0 lend last
 >   local $1 self: Logger [read] value
 >     uses $1: %1 -> %2 consume last
->   %0 = Read copy [*$0 .Logger] : Logger
+>   %0 = Read borrow [*$0 .Logger] : Logger
 >   %1 = Store [$1] %0 : ()
->   %2 = Read move [$1 .name] : string
+>   %2 = Read copy [$1 .name] : string
 >   %3 = Break L0 %2 : never
 >   %4 = Block - : string
 >   %5 = Scope %4 [] : string
 >   %6 = Block %5 : string
->   summary kept [$0]
+>   summary kept []
 
 fn delegated(s: Service) -> usize:
     s.describe().len()

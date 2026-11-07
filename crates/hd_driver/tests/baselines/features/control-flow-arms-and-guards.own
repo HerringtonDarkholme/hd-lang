@@ -3,8 +3,8 @@
 # @build: v8 release
 # Feature: Arms And Guards, Catch-All And Variant Patterns, Payload Patterns (spec/lang/06-control-flow.md, #1364).
 # expected: a guard reads the payload with no count; `pick` retains only
-# the payload it returns; a catch-all binding of the whole `string?`
-# takes no count when it is only read.
+# the payload it returns; a catch-all binding of the whole `string?` copies it,
+# since the two decision paths each store it and a binding has one store.
 enum Tag:
     Named(name: string)
     Pair(left: string, right: string)
@@ -25,9 +25,7 @@ fn pick(t: Tag) -> string:
 >   %0 = Read borrow [$0] : Tag
 >   %53 = Block - : never
 >   %54 = Match %0 [%53 %9 %23 %25 %26] : string
->   %55 = Drop [$2] : ()
->   %56 = Drop [$1] : ()
->   %57 = Block %54 : string
+>   %55 = Block %54 : string
         .Named(n) if n.len() > 3 => n
 >   %1 = Read borrow [$1] : string
 >   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
@@ -36,9 +34,9 @@ fn pick(t: Tag) -> string:
 >   %5 = Scope %4 [] : usize
 >   %6 = Prim Gt [%5 3:usize] : bool
 >   %7 = Block %6 : bool
->   %8 = Read move [$1] : string
+>   %8 = Read copy [$1] : string
 >   %9 = Block %8 : string
->   %27 = Read copy [%0 as #0 .0] : string
+>   %27 = Read borrow [%0 as #0 .0] : string
 >   %28 = Store [$1] %27 : ()
 >   %34 = Block - : never
 >   %51 = Block - : never
@@ -56,9 +54,9 @@ fn pick(t: Tag) -> string:
 >   %19 = Scope %18 [] : usize
 >   %20 = Prim Gt [%14 %19] : bool
 >   %21 = Block %20 : bool
->   %22 = Read move [$2] : string
+>   %22 = Read copy [$2] : string
 >   %23 = Block %22 : string
->   %35 = Read copy [%0 as #1 .0] : string
+>   %35 = Read borrow [%0 as #1 .0] : string
 >   %36 = Read borrow [%0 as #1 .1] : string
 >   %37 = Store [$2] %35 : ()
 >   %38 = Read borrow [%36] : string
@@ -67,9 +65,9 @@ fn pick(t: Tag) -> string:
 >   %49 = Block - : never
 >   %50 = SwitchTag %0 [#1 %47 %49] : never
         .Pair(left = _, right = r) => r
->   %24 = Read move [$4] : string
+>   %24 = Read copy [$4] : string
 >   %25 = Block %24 : string
->   %42 = Read copy [%36] : string
+>   %42 = Read borrow [%36] : string
 >   %43 = Store [$4] %42 : ()
         _ => "short"
 >   %26 = Block "short" : string
@@ -85,11 +83,12 @@ fn whole(o: string?) -> usize:
 >   local $2 other: string? [read assigned] place
 >   local $3 self: string? [read] value
 >     uses $3: %15 -> %16 lend last
->   %0 = Read borrow [$0] : string?
+>   %0 = Read move [$0] : string?
 >   %53 = Block - : never
 >   %54 = Match %0 [%53 %13 %37] : usize
 >   %55 = Drop [$2] : ()
->   %56 = Block %54 : usize
+>   %56 = Drop [%0] : ()
+>   %57 = Block %54 : usize
         .Some(s) if s.len() > 0 => s.len()
 >   %1 = Read borrow [$1] : string
 >   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
@@ -136,4 +135,5 @@ fn whole(o: string?) -> usize:
 >   %35 = Block 0:usize : usize
 >   %36 = If %33 [%34 %35] : usize
 >   %37 = Block %36 : usize
->   summary kept [] borrows [$0]
+>   exit sub 0 drops [$0]
+>   summary kept [$0]

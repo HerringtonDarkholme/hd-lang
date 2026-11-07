@@ -28,18 +28,17 @@ fn first_long(xs: List[string]) -> string:
 >   %10 = Prim Add [%9 1:usize] : usize
 >   %11 = Store [$3] %10 : ()
 >   %22 = Block - : ()
->   %23 = Read copy [%8] : string
+>   %23 = Read borrow [%8] : string
 >   %24 = Store [$5] %23 : ()
 >   %26 = Block - : never
 >   %27 = Match %8 [%26 %22] : ()
->   %28 = Drop [$5] : ()
->   %29 = Block - : ()
->   %30 = Break L0 "none" : never
->   %31 = Block - : ()
->   %32 = If %6 [%29 %31] : ()
->   %33 = Block - : ()
->   %34 = Loop %33 - : string
->   %35 = Block %34 : string
+>   %28 = Block - : ()
+>   %29 = Break L0 "none" : never
+>   %30 = Block - : ()
+>   %31 = If %6 [%28 %30] : ()
+>   %32 = Block - : ()
+>   %33 = Loop %32 - : string
+>   %34 = Block %33 : string
         if x.len() > 3:
 >   %12 = Read borrow [$5] : string
 >   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
@@ -49,11 +48,11 @@ fn first_long(xs: List[string]) -> string:
 >   %17 = Prim Gt [%16 3:usize] : bool
 >   %21 = If %17 [%20 -] : ()
             break x
->   %18 = Read move [$5] : string
+>   %18 = Read copy [$5] : string
 >   %19 = Break L0 %18 : never
 >   %20 = Block - : never
 >   summary kept [] borrows [$0]
->   loop %34 keeps [$0]
+>   loop %33 keeps [$0]
     else:
         "none"
 

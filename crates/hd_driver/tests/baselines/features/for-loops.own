@@ -184,7 +184,7 @@ fn keep_each(xs: List[string]) -> List[string]:
 >   %12 = Prim Add [%11 1:usize] : usize
 >   %13 = Store [$4] %12 : ()
 >   %18 = Block - : ()
->   %19 = Read copy [%10] : string
+>   %19 = Read borrow [%10] : string
 >   %20 = Store [$6] %19 : ()
 >   %22 = Block - : never
 >   %23 = Match %10 [%22 %18] : ()
@@ -195,7 +195,7 @@ fn keep_each(xs: List[string]) -> List[string]:
 >   %28 = Block - : ()
 >   %29 = Loop %28 - : ()
         out.push(x)
->   %14 = Read move [$6] : string
+>   %14 = Read copy [$6] : string
 >   %15 = IsUnique fresh [$1] : ()
 >   %16 = Read borrow [$1] : List[string]
 >   %17 = Intrinsic ListPush [%16 %14] : ()

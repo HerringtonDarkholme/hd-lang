@@ -46,12 +46,12 @@ fn total(a: User, b: User) -> usize:
 >   local $2 seen: List[Ref[User]] [read assigned captured captured-assigned] place
 >   local $3 by: Map[string, Ref[User]] [read assigned captured captured-assigned] place
 >   local $4 self: string [read] value
->     uses $4: %29 -> %30 lend last
+>     uses $4: %28 -> %29 lend last
 >   local $5 self: string [read] value
 >     uses $5: %20 -> %21 lend last
 >   %0 = NewList - [] : List[Ref[User]]
 >   %1 = Store [$2] %0 : ()
->   %43 = Block %42 : usize
+>   %41 = Block %40 : usize
     remember(&mut seen, &a)
 >   %2 = Ref mut local frame [$2] : Counted[mut List[Ref[User]]]
 >   %3 = Ref local frame [$0] : Counted[User]
@@ -77,32 +77,30 @@ fn total(a: User, b: User) -> usize:
 >   %18 = Drop [%14] : ()
 >   %14 finds [$3] full
     seen[0].name.len() + seen[1].name.len() + by.len()
->   %19 = Read copy [$2 [0:usize] * .name] : string
+>   %19 = Read borrow [$2 [0:usize] * .name] : string
 >   %20 = Store [$5] %19 : ()
 >   %21 = Read borrow [$5] : string
 >   %22 = Call std/rt.bytes/bytes_len[] (%21) : usize
 >   %23 = Break L1 %22 : never
 >   %24 = Block - : usize
 >   %25 = Scope %24 [] : usize
->   %26 = Drop [$5] : ()
->   %27 = Read copy [$2 [1:usize] * .name] : string
->   %28 = Drop [$1] : ()
->   %29 = Store [$4] %27 : ()
->   %30 = Read borrow [$4] : string
->   %31 = Call std/rt.bytes/bytes_len[] (%30) : usize
->   %32 = Break L0 %31 : never
->   %33 = Block - : usize
->   %34 = Scope %33 [] : usize
->   %35 = Drop [$4] : ()
->   %36 = Drop [$2] : ()
->   %37 = Prim Add [%25 %34] : usize
->   %38 = Read move [$3] : Map[string, Ref[User]]
->   %39 = Intrinsic MapLen [%38] : usize
->   %40 = Drop [%38] : ()
->   %41 = Drop [$0] : ()
->   %42 = Prim Add [%37 %39] : usize
+>   %26 = Read borrow [$2 [1:usize] * .name] : string
+>   %27 = Drop [$1] : ()
+>   %28 = Store [$4] %26 : ()
+>   %29 = Read borrow [$4] : string
+>   %30 = Call std/rt.bytes/bytes_len[] (%29) : usize
+>   %31 = Break L0 %30 : never
+>   %32 = Block - : usize
+>   %33 = Scope %32 [] : usize
+>   %34 = Drop [$2] : ()
+>   %35 = Prim Add [%25 %33] : usize
+>   %36 = Read move [$3] : Map[string, Ref[User]]
+>   %37 = Intrinsic MapLen [%36] : usize
+>   %38 = Drop [%36] : ()
+>   %39 = Drop [$0] : ()
+>   %40 = Prim Add [%35 %37] : usize
 >   %19 finds [$2] full
->   %27 finds [$2] full
->   %38 finds [$3] full
+>   %26 finds [$2] full
+>   %36 finds [$3] full
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1] writes

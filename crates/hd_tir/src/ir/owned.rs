@@ -88,7 +88,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
             _ => None,
         })
         .collect();
-    let addressed = crate::own::borrow::escaping(b, cx);
+    let addressed = crate::own::derive::escaping(b, cx);
     let reference_values = reference_values(b);
     let own = cx;
     let cx = Cx {

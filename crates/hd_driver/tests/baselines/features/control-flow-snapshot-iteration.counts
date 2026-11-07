@@ -11,9 +11,9 @@ fn doubled(values: List[string]) -> List[string]:
     for v in out:
 > app/main/doubled
 >   copy List[string] (second owner)
->   retain string (stored)
 >   unique List[string] (conservative: unique)
         out.push(v)
+>   retain string (stored)
 >   (no span) release List[string] (last use)
     out
 

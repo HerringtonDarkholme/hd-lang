@@ -106,12 +106,12 @@ fn per_round(log: *mut List[string], xs: List[string]) -> void:
 >   %5 = Read copy [$5] : usize
 >   %6 = Prim Lt [%4 %5] : bool
 >   %7 = Read copy [$4] : usize
->   %8 = Read copy [$1 [%7]] : string
+>   %8 = Read borrow [$1 [%7]] : string
 >   %9 = Read copy [$4] : usize
 >   %10 = Prim Add [%9 1:usize] : usize
 >   %11 = Store [$4] %10 : ()
 >   %24 = Block - : ()
->   %25 = Read move [%8] : string
+>   %25 = Read borrow [%8] : string
 >   %26 = Store [$6] %25 : ()
 >   %28 = Block - : never
 >   %29 = Match %8 [%28 %24] : ()
@@ -123,7 +123,7 @@ fn per_round(log: *mut List[string], xs: List[string]) -> void:
 >   %35 = Loop %34 - : ()
 >   %36 = Block - : ()
         using r = Res { name: x, log: log }
->   %12 = Read move [$6] : string
+>   %12 = Read copy [$6] : string
 >   %13 = Read copy [$0] : Counted[mut List[string]]
 >   %14 = NewStruct [%12 %13] : Res
 >   %15 = Store [$7] %14 : ()

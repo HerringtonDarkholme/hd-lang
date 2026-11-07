@@ -158,7 +158,7 @@
     ;; (no span)
     local.get $s.0
   )
-  (func $take_match (param $s.0 i32) (param $s.1 i32) (param $s.2 i32) (param $s.3 i32) (param $s.4 i32) (result i32 i32) (local $n.1 i32)
+  (func $take_match (param $s.0 i32) (param $s.1 i32) (param $s.2 i32) (param $s.3 i32) (param $s.4 i32) (result i32 i32)
     ;; 18 |     match s:
     block
       block
@@ -170,10 +170,8 @@
               i32.eqz
               if
                 local.get $s.1
-                call $retain
-                local.get $s.1
                 local.get $s.2
-                local.set $n.1
+                local.set $s.1
                 local.set $s.0
                 br 1
               else
@@ -183,10 +181,8 @@
                 i32.eq
                 if
                   local.get $s.1
-                  call $retain
-                  local.get $s.1
                   local.get $s.2
-                  local.set $n.1
+                  local.set $s.1
                   local.set $s.0
                   br 3
                 else
@@ -203,16 +199,24 @@
     ;; 18 |     match s:
               unreachable
             end
+    ;; 19 |         .Named(n) => n
+            local.get $s.0
+            call $retain
+    ;; 18 |     match s:
             br 2
           end
+    ;; 20 |         .Pair(a, _) => a
+          local.get $s.0
+          call $retain
+    ;; 18 |     match s:
           br 1
         end
         i32.const 16 ;; &"heap-exhausted"
+        i32.const 0
+        local.set $s.1
         local.set $s.0
         br 0
       end
-      local.get $n.1
-      local.set $s.1
     end
     local.get $s.0
     local.get $s.1

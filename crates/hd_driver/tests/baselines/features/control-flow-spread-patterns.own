@@ -62,11 +62,11 @@ fn rest(t: (string, List[string]...)) -> List[string]:
 >     uses $1: %3 -> %7 consume last
 >   %0 = Read borrow [$0] : (string, List[string]...)
 >   %1 = Block - : ()
->   %2 = Read copy [%0 .1] : List[string]
+>   %2 = Read borrow [%0 .1] : List[string]
 >   %3 = Store [$1] %2 : ()
 >   %5 = Block - : never
 >   %6 = Match %0 [%5 %1] : ()
 >   %8 = Block %7 : List[string]
     xs
->   %7 = Read move [$1] : List[string]
+>   %7 = Read copy [$1] : List[string]
 >   summary kept [] borrows [$0]

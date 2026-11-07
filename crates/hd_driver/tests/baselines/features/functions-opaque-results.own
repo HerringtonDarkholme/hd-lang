@@ -11,15 +11,15 @@ fn names(xs: &List[string]) -> impl Iterator[string]:
 >     uses $0: entry -> %0 lend last
 >   local $1 self: List[string] [read] value
 >     uses $1: %1 -> %2 consume last
->   %0 = Read copy [*$0] : List[string]
+>   %0 = Read borrow [*$0] : List[string]
 >   %1 = Store [$1] %0 : ()
->   %2 = Read move [$1] : List[string]
+>   %2 = Read copy [$1] : List[string]
 >   %3 = NewStruct [%2 0:usize] : ListIter[string]
 >   %4 = Break L0 %3 : never
 >   %5 = Block - : ListIter[string]
 >   %6 = Scope %5 [] : ListIter[string]
 >   %7 = Block %6 : ListIter[string]
->   summary kept [$0]
+>   summary kept []
 
 fn count_long(xs: List[string]) -> usize:
     let n: usize = 0
@@ -31,7 +31,7 @@ fn count_long(xs: List[string]) -> usize:
 >   local $3 $iter: Ref[mut ListIter[string]] [assigned] value
 >     uses $3: %11 -> %12 lend
 >   local $4 x: string [read assigned] value
->     uses $4: %26 -> %15 lend last
+>     uses $4: %27 -> %15 lend last
 >   %0 = Store [$1] 0:usize : ()
 >   %41 = Block %40 : usize
     for x in names(&xs):
@@ -49,14 +49,14 @@ fn count_long(xs: List[string]) -> usize:
 >   %12 = Read borrow [$3] : Ref[mut ListIter[string]]
 >   %13 = Call std/iter/Iterator.next for ListIter[string] [string] via Bound (%12) : string?
 >   %22 = Block - : ()
->   %23 = Break L0 - : never
->   %24 = Block - : ()
->   %25 = Read move [%13 as #1 .0] : string
->   %26 = Store [$4] %25 : ()
->   %29 = Drop [%13] : ()
+>   %23 = Drop [%13] : ()
+>   %24 = Break L0 - : never
+>   %25 = Block - : ()
+>   %26 = Read borrow [%13 as #1 .0] : string
+>   %27 = Store [$4] %26 : ()
 >   %33 = Block - : never
->   %34 = Match %13 [%33 %22 %24] : ()
->   %35 = Drop [$4] : ()
+>   %34 = Match %13 [%33 %22 %25] : ()
+>   %35 = Drop [%13] : ()
 >   %36 = Block - : ()
 >   %37 = Loop %36 - : ()
 >   %38 = LoanEnd [$3] : ()

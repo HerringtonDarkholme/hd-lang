@@ -94,7 +94,7 @@ fn each[F < FnMut(string) -> void](xs: List[string], mut f: F) -> void:
 >   local $5 $end: usize [assigned] value
 >     uses $5: %2 -> %5 lend
 >   local $6 x: string [read assigned] value
->     uses $6: %17 -> %13 lend last
+>     uses $6: %18 -> %13 lend last
 >   %0 = Read borrow [$0] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Store [$5] %1 : ()
@@ -103,16 +103,15 @@ fn each[F < FnMut(string) -> void](xs: List[string], mut f: F) -> void:
 >   %5 = Read copy [$5] : usize
 >   %6 = Prim Lt [%4 %5] : bool
 >   %7 = Read copy [$4] : usize
->   %8 = Read copy [$0 [%7]] : string
+>   %8 = Read borrow [$0 [%7]] : string
 >   %9 = Read copy [$4] : usize
 >   %10 = Prim Add [%9 1:usize] : usize
 >   %11 = Store [$4] %10 : ()
->   %15 = Block - : ()
->   %16 = Read move [%8] : string
->   %17 = Store [$6] %16 : ()
->   %19 = Block - : never
->   %20 = Match %8 [%19 %15] : ()
->   %21 = Drop [$6] : ()
+>   %16 = Block - : ()
+>   %17 = Read borrow [%8] : string
+>   %18 = Store [$6] %17 : ()
+>   %20 = Block - : never
+>   %21 = Match %8 [%20 %16] : ()
 >   %22 = Block - : ()
 >   %23 = Break L0 - : never
 >   %24 = Block - : ()
@@ -122,8 +121,9 @@ fn each[F < FnMut(string) -> void](xs: List[string], mut f: F) -> void:
 >   %28 = Block - : ()
         f(x)
 >   %12 = Read borrow [$1] : F
->   %13 = Read borrow [$6] : string
+>   %13 = Read copy [$6] : string
 >   %14 = CallValue %12 [%13] : ()
+>   %15 = Drop [%13] : ()
 >   summary kept [] borrows [$0 $1] writes
 
 fn fn_mut(xs: List[string]) -> usize:

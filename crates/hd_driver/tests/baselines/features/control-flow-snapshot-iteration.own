@@ -39,7 +39,7 @@ fn doubled(values: List[string]) -> List[string]:
 >   %14 = Prim Add [%13 1:usize] : usize
 >   %15 = Store [$4] %14 : ()
 >   %20 = Block - : ()
->   %21 = Read copy [%12] : string
+>   %21 = Read borrow [%12] : string
 >   %22 = Store [$6] %21 : ()
 >   %24 = Block - : never
 >   %25 = Match %12 [%24 %20] : ()
@@ -51,7 +51,7 @@ fn doubled(values: List[string]) -> List[string]:
 >   %31 = Loop %30 - : ()
 >   %32 = Drop [$2] : ()
         out.push(v)
->   %16 = Read move [$6] : string
+>   %16 = Read copy [$6] : string
 >   %17 = IsUnique [$1] : ()
 >   %18 = Read borrow [$1] : List[string]
 >   %19 = Intrinsic ListPush [%18 %16] : ()
@@ -79,9 +79,9 @@ fn cursor_then_push(values: List[string], s: string) -> usize:
 >   %1 = Store [$2] %0 : ()
 >   %45 = Block %42 : usize
     let mut cursor = items.iter()
->   %2 = Read copy [$2] : List[string]
+>   %2 = Read borrow [$2] : List[string]
 >   %3 = Store [$6] %2 : ()
->   %4 = Read move [$6] : List[string]
+>   %4 = Read copy [$6] : List[string]
 >   %5 = NewStruct [%4 0:usize] : ListIter[string]
 >   %6 = Break L1 %5 : never
 >   %7 = Block - : ListIter[string]

@@ -3,9 +3,9 @@
 # @build: std
 # expected: `b.item_mut(0).qty = +7` holds a reference to `b` in a call's
 # result for that one statement. Neither later read of `b` takes a count: that
-# reference's last use ends before the first read, no reference reads either
-# part afterwards, and each read is its part's last use, so it moves out of the
-# frame slot, which stores a zero there.
+# reference's last use ends before them. `kept := b.label` borrows, since nothing
+# writes `b` while it lives; `b.items` stands right before `b`'s `Drop`, so it
+# moves out of the frame slot, which stores a zero there.
 struct Item:
     qty: i32
 
@@ -60,7 +60,7 @@ fn change_then_read(name: string) -> usize:
 >   %17 = LoanEnd [$4] : ()
 >   %5 finds [$1] full
     kept := b.label
->   %18 = Read move [$1 .label] : string
+>   %18 = Read borrow [$1 .label] : string
 >   %19 = Store [$2] %18 : ()
 >   %18 finds [$1] full
     kept.len() + b.items.len()
@@ -69,9 +69,10 @@ fn change_then_read(name: string) -> usize:
 >   %22 = Break L0 %21 : never
 >   %23 = Block - : usize
 >   %24 = Scope %23 [] : usize
->   %25 = Drop [$2] : ()
->   %26 = Read move [$1 .items] : List[Item]
->   %27 = Intrinsic ListLen [%26] : usize
->   %28 = Drop [%26] : ()
+>   %25 = Read move [$1 .items] : List[Item]
+>   %26 = Drop [$1] : ()
+>   %27 = Intrinsic ListLen [%25] : usize
+>   %28 = Drop [%25] : ()
 >   %29 = Prim Add [%24 %27] : usize
+>   %25 finds [$1] full
 >   exit sub 0 drops [$0]

@@ -13,9 +13,10 @@
 //! on this path (`crate::ir::root_places`), the naive,
 //! correct ownership of `crates/hd_wasm_linear/DESIGN.md` §23.16 with
 //! releases at last use (§23.20), made explicit, with an `IsUnique` before each change of a
-//! collection place and the pins of element references; then **borrow**
-//! (`borrow`), which turns a `copy` whose value can live on its place's
-//! count into a `borrow` and deletes its `Drop`s; then **move** (`moves`),
+//! collection place and the pins of element references; then the
+//! **derivation** (`derive`), which turns a `copy` whose value only lends and
+//! whose source does not change while it lives into a `borrow` and deletes its
+//! `Drop`s; then **move** (`moves`),
 //! which turns a `copy` that no path reads after into a `move` and deletes
 //! the `Drop` it leaves with nothing to release; then **known-null** (`known`),
 //! which deletes the `Drop`s no path reaches with a count, drops the exit
@@ -47,8 +48,6 @@ use crate::ir::{
 
 pub use hoist::{EntryTest, entry_test, loop_statements, loop_test};
 
-pub(crate) mod borrow;
-#[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod derive;
 pub mod flow;
 pub(crate) mod frame;
@@ -68,8 +67,6 @@ pub mod short;
 pub(crate) mod splice;
 pub mod values;
 
-#[cfg(not(target_arch = "wasm32"))]
-pub use derive::Disagreement;
 #[cfg(not(target_arch = "wasm32"))]
 pub use reason::check_copy_reasons;
 pub use reason::{Reason, copy_reasons, reason};
@@ -655,8 +652,6 @@ pub struct OwnScratch {
     /// The block structure of the body the passes run over: before
     /// insertion's edits, then after them for the passes that follow.
     pub(crate) topo: Topology,
-    pub(crate) borrow: borrow::Tables,
-    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) derive: derive::Tables,
     pub(crate) frame: frame::Tables,
     pub(crate) hoist: hoist::Tables,
@@ -666,19 +661,6 @@ pub struct OwnScratch {
     pub(crate) moves: moves::Tables,
     pub(crate) splice: splice::Tables,
     pub(crate) values: values::Tables,
-    /// Whether the derivation runs beside the old passes (`HD_OWN_AGREE`),
-    /// and what it found in the body the passes ran over last.
-    #[cfg(not(target_arch = "wasm32"))]
-    pub agree: bool,
-    #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) disagreements: Vec<derive::Disagreement>,
-    /// The body as the old passes left it, with instructions as the
-    /// disagreements name them, when there are any.
-    #[cfg(not(target_arch = "wasm32"))]
-    pub compared: Option<Body>,
-    /// How many counted reads the last comparison covered.
-    #[cfg(not(target_arch = "wasm32"))]
-    pub compared_reads: u32,
     /// The copy verifier's findings in the body the passes ran over last.
     pub(crate) uncopied: Vec<Uncopied>,
 }
@@ -691,19 +673,7 @@ impl OwnScratch {
     /// lifts over such a call.
     #[must_use]
     pub fn relies(&self) -> u64 {
-        #[cfg(not(target_arch = "wasm32"))]
-        let derived = self.derive.relies;
-        #[cfg(target_arch = "wasm32")]
-        let derived = 0;
-        self.borrow.relies | self.hoist.relies | derived
-    }
-
-    /// Where the derivation and the old passes disagreed in the body the
-    /// passes ran over last, with `agree` set.
-    #[cfg(not(target_arch = "wasm32"))]
-    #[must_use]
-    pub fn disagreements(&self) -> &[Disagreement] {
-        &self.disagreements
+        self.derive.relies | self.hoist.relies
     }
 
     /// The copies of a non-copyable value the copy verifier found in the
@@ -789,7 +759,7 @@ pub fn uncopied(b: &Body, cx: &dyn OwnCx, out: &mut Vec<Uncopied>) {
 }
 
 /// Runs the ownership passes over every sub-body of `b`, in order: late
-/// operand reads, insertion, borrow, move, known-null, then hoisting. The
+/// operand reads, insertion, derivation, move, known-null, then hoisting. The
 /// last four record their deletions and insertions in
 /// one set of edits, applied once at the end. Then the copy verifier
 /// ([`uncopied`]) leaves its findings in `scratch`, for the driver to
@@ -819,47 +789,10 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     )?;
     insert::run(b, cx, scratch)?;
     scratch.topo.build(b);
-    #[cfg(not(target_arch = "wasm32"))]
-    let derived = scratch.agree.then(|| shadow(b, &scratch.topo, cx));
     let (topo, edits) = (&scratch.topo, &mut scratch.splice);
-    #[cfg(not(target_arch = "wasm32"))]
-    let new = derive_decides();
-    #[cfg(target_arch = "wasm32")]
-    let new = false;
-    if new {
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            derive::run(b, topo, cx, &mut scratch.derive, &mut scratch.moves);
-            derive::apply(b, topo, &scratch.derive, edits);
-        }
-    } else {
-        borrow::run(b, topo, cx, &mut scratch.borrow, edits);
-    }
+    derive::run(b, topo, cx, &mut scratch.derive, &mut scratch.moves);
+    derive::apply(b, topo, &scratch.derive, edits);
     moves::run(b, topo, cx, &mut scratch.moves, edits);
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        scratch.disagreements.clear();
-        scratch.compared = None;
-        if let Some((new, t)) = &derived {
-            scratch.compared_reads = derive::agreement(b, new, cx, t, &mut scratch.disagreements);
-            let (old, now) = (
-                borrow::kept(b, cx, &scratch.borrow),
-                derive::kept(new, cx, t),
-            );
-            if old != now {
-                scratch.disagreements.push(derive::Disagreement {
-                    inst: 0,
-                    old: "summary",
-                    new: "summary",
-                    why: "kept".into(),
-                    place: format!("{old:?} -> {now:?}"),
-                });
-            }
-            if !scratch.disagreements.is_empty() {
-                scratch.compared = Some(b.clone());
-            }
-        }
-    }
     values::capture_moves(b, topo, cx, &mut scratch.values, edits);
     known::run(b, topo, cx, &mut scratch.known, edits);
     hoist::run(b, topo, cx, &mut scratch.hoist, edits);
@@ -870,15 +803,6 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     scratch.splice.clear();
     retains::run(b, cx, &scratch.topo, &mut scratch.splice)?;
     Ok(())
-}
-
-/// Whether the derivation decides in place of the borrow pass
-/// (`HD_OWN_NEW`), to test its answers through the verifier and checked
-/// builds. Read once per process.
-#[cfg(not(target_arch = "wasm32"))]
-pub(crate) fn derive_decides() -> bool {
-    static NEW: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *NEW.get_or_init(|| std::env::var_os("HD_OWN_NEW").is_some())
 }
 
 /// Each use of what may point into a frame local that a mutable reference
@@ -913,7 +837,7 @@ pub(crate) fn frame_reference_uses(
             && b.data[i][1] & crate::ir::ref_word::MUT != 0
             && b.data[i][1] & crate::ir::ref_word::FRAME != 0
             && let Some(l) = b.local_in_place(b.data[i][0])
-            && !borrow::lends_once(b, cx, &counts, &last, i)
+            && !derive::lends_once(b, cx, &counts, &last, i)
         {
             wanted[l.idx()] = true;
         }
@@ -932,25 +856,6 @@ pub(crate) fn frame_reference_uses(
     });
     hd_base::SliceSort::sort_stable(&mut out[..]);
     out.dedup();
-}
-
-/// The derivation and the move walk over a copy of `b`, as insertion left
-/// it: what the old passes will be compared with.
-#[cfg(not(target_arch = "wasm32"))]
-fn shadow(b: &Body, topo: &Topology, cx: &dyn OwnCx) -> (Body, derive::Tables) {
-    let mut t = derive::Tables::default();
-    let mut new = b.clone();
-    derive::run(&mut new, topo, cx, &mut t, &mut moves::Tables::default());
-    let mut edits = splice::Tables::default();
-    derive::apply(&mut new, topo, &t, &mut edits);
-    moves::run(
-        &mut new,
-        topo,
-        cx,
-        &mut moves::Tables::default(),
-        &mut edits,
-    );
-    (new, t)
 }
 
 /// What the optimized pipeline reads of one body
@@ -1486,14 +1391,7 @@ pub fn summary(
     scratch: &OwnScratch,
     returns: Option<u8>,
 ) -> Option<Summary> {
-    #[cfg(not(target_arch = "wasm32"))]
-    let (kept, borrows) = if derive_decides() {
-        derive::kept(b, cx, &scratch.derive)?
-    } else {
-        borrow::kept(b, cx, &scratch.borrow)?
-    };
-    #[cfg(target_arch = "wasm32")]
-    let (kept, borrows) = borrow::kept(b, cx, &scratch.borrow)?;
+    let (kept, borrows) = derive::kept(b, cx, &scratch.derive)?;
     Some(Summary {
         kept,
         borrows,

@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
+  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -50,17 +50,14 @@
       local.get $c
       local.tee $t0
       i32.load $heap
-      local.tee $t1
       local.get $t0
       i32.load $heap offset=4
-      local.tee $t0
-      call $rt:retain
+      local.set $t1
+      local.set $t0
       block
         block
-          local.get $t1
           local.get $t0
-          local.set $t1
-          local.set $t0
+          call $retain
           br 0
         end
       end

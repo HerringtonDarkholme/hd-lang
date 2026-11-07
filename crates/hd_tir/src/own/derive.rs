@@ -13,16 +13,23 @@
 //! the walk, from everything borrowing down to what really holds, so no
 //! decision depends on the order the reads are met in.
 //!
-//! For now this decides only under `HD_OWN_NEW`. [`agreement`] compares it
-//! with the passes it will replace (`HD_OWN_AGREE`).
+//! A **binding** is a local whose one `Store` is of a read that borrows: it
+//! owns nothing, so its `Drop`s go and it leaves the exit set, and its reads
+//! lead on to what it holds. A read through a binding that owns its value has
+//! the binding as its source. A parameter its caller keeps stays unowned while
+//! no read of it keeps a count. A read whose reader needs a count, and that
+//! could move, moves rather than borrow: the count then costs nothing.
+//!
+//! Nothing is spliced here: the `Drop`s that go are edits for the pipeline's one
+//! rebuild, and the move pass after this reads the body with them still in place.
 
 use hd_base::SliceSort as _;
 
 use super::flow::{Backward, BitArena, Flow, backward, backward_blocks};
 use super::{Loc, OwnCx, Pass, Role, Tri, consumes, fill, moves, operands, splice};
 use crate::ir::{
-    Body, BodyKind, Callee, DEREF, ELEM, IntrinsicOp, NONE, Proj, ReadMode, Ref, Root, Tag,
-    Topology, inside, is_suspension, local_flags, ref_word, sub_flags, u32_of,
+    Body, BodyKind, Callee, DEREF, ELEM, IntrinsicOp, NONE, PlaceRoot, Proj, ReadMode, Ref, Root,
+    Tag, Topology, inside, is_suspension, local_flags, ref_word, sub_flags, u32_of,
 };
 
 /// The longest chain of roots a read's source is followed through.
@@ -622,7 +629,7 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
         if b.tags[i] == Tag::Ref
             && let Some(l) = b.local_in_place(b.data[i][0])
             && b.data[i][1] & ref_word::FRAME == 0
-            && !super::borrow::lends_once(b, cx, &counts, &last, i)
+            && !lends_once(b, cx, &counts, &last, i)
         {
             t.l[l.idx()].escapes = true;
         }
@@ -1219,7 +1226,7 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
             && !t.v[r].keeps
             && !cx.counted(b.ty[r])
             && cx.copies(b.ty[r]) != Tri::Yes
-            && super::borrow::match_reference_read(b, topo, r, false)
+            && match_reference_read(b, topo, r, false)
         {
             t.v[r].borrows = true;
         }
@@ -1336,7 +1343,7 @@ pub(crate) fn apply(b: &mut Body, topo: &Topology, t: &Tables, edits: &mut splic
             b.data[r][1] = ReadMode::Borrow as u32;
         }
     }
-    super::borrow::flatten_match_reference_reads(b, topo);
+    flatten_match_reference_reads(b, topo);
     let l = &t.l;
     b.exit_drops.retain(|(_, x)| !l[x.idx()].unowned);
 }
@@ -1370,112 +1377,158 @@ pub(crate) fn kept(b: &Body, cx: &dyn OwnCx, t: &Tables) -> Option<(u64, u64)> {
     Some((kept, borrows))
 }
 
-/// One read the derivation and the old passes answer differently.
-#[derive(Clone, Debug)]
-pub struct Disagreement {
-    pub inst: u32,
-    pub old: &'static str,
-    pub new: &'static str,
-    /// The shape of the read and what stopped the derivation, for the table.
-    pub why: String,
-    pub place: String,
-}
-
-fn mode_name(mode: u32) -> &'static str {
-    match mode {
-        m if m == ReadMode::Copy as u32 => "copy",
-        m if m == ReadMode::Move as u32 => "move",
-        m if m == ReadMode::Borrow as u32 => "borrow",
-        _ => "use",
+/// Whether `Ref` `i` of a part of a local is a local reference
+/// (`ref_word::LOCAL`) that one call takes, through coercions that keep
+/// its value, and that the call's result does not hold: it is dead once
+/// the call returns, and every other use is a `Drop`. Only that call and
+/// the `Ref` reach the local through it, and [`index_writes`] records a
+/// mutable one as a write at both.
+pub(super) fn lends_once(b: &Body, cx: &dyn OwnCx, counts: &[u32], last: &[u32], i: usize) -> bool {
+    if b.data[i][1] & crate::ir::ref_word::LOCAL == 0 {
+        return false;
     }
+    let mut v = i;
+    for _ in 0..DEPTH {
+        if counts[v] != 1 {
+            return false;
+        }
+        let u = last[v] as usize;
+        if b.same_value_coercion(u) && b.data[u][0] as usize == v {
+            v = u;
+            continue;
+        }
+        return b.tags[u] == Tag::Call && !cx.holds_ref(b.ty[u]);
+    }
+    false
 }
 
-/// Compares the body `old` the old passes left with the body `new` the
-/// derivation and the move walk left, into `out`: how many counted reads
-/// were compared.
-pub(crate) fn agreement(
-    old: &Body,
-    new: &Body,
-    cx: &dyn OwnCx,
-    t: &Tables,
-    out: &mut Vec<Disagreement>,
-) -> u32 {
-    out.clear();
-    let mut row = |inst, old, new, why: String, place: String| {
-        out.push(Disagreement {
-            inst,
-            old,
-            new,
-            why,
-            place,
-        });
+/// Per local: whether a reference to it outlives the one call it lends to,
+/// or a closure shares it ([`lends_once`]). A reference used only for
+/// read-through projections does not escape either; an inlined reader
+/// has those uses instead of its original call.
+pub(crate) fn escaping(b: &Body, cx: &dyn OwnCx) -> Vec<bool> {
+    let n = b.len();
+    let (mut counts, mut last) = (vec![0; n], vec![NONE; n]);
+    let mut read_through = vec![true; n];
+    let mut ops = Vec::new();
+    for i in 0..n {
+        operands(b, i, &mut ops);
+        for op in &ops {
+            let value = op.value as usize;
+            read_through[value] &= super::promote::read_through_use(b, i, op.value);
+            if op.role != Role::Dropped {
+                counts[value] += 1;
+                last[value] = u32_of(i);
+            }
+        }
+    }
+    let mut out = vec![false; b.local_ty.len()];
+    for (i, &read_through) in read_through.iter().enumerate() {
+        if b.tags[i] == Tag::Ref
+            && b.data[i][1] & crate::ir::ref_word::FRAME == 0
+            && let Some(l) = b.local_in_place(b.data[i][0])
+            && !lends_once(b, cx, &counts, &last, i)
+            && !read_through
+        {
+            out[l.idx()] = true;
+        }
+    }
+    for (l, m) in b.cap_local.iter().zip(&b.cap_mode) {
+        if m.shares() {
+            out[l.idx()] = true;
+        }
+    }
+    out
+}
+
+/// Whether read `r` is in a match's decision block and reads through that
+/// match's reference scrutinee. With `nested`, follows borrowed decision reads
+/// to recognize their payload reads too.
+pub(super) fn match_reference_read(b: &Body, topo: &Topology, r: usize, nested: bool) -> bool {
+    let Some(&first) = topo.blk.get(r).filter(|&&block| block != NONE) else {
+        return false;
     };
-    let mut reads = 0;
-    for i in 0..old.len() {
-        let (o, m) = (old.data[i][1], new.data[i][1]);
-        reads += u32::from(old.tags[i] == Tag::Read && cx.counted(old.ty[i]));
-        if old.tags[i] == Tag::Read && o != m {
-            let p = new.view(new.data[i][0]);
-            let root = match p.root {
-                Root::Local(l) if new.local_flags[l as usize] & local_flags::PARAM != 0 => "param",
-                Root::Local(_) => "local",
-                Root::Value(_) => "value",
-                Root::Global(..) => "global",
-                _ => "other",
-            };
-            let bit = t.v[i].bit;
-            let stop = match bit {
-                NONE if t.v[i].keeps => "kept",
-                NONE => "shape",
-                _ if !t.bits[bit as usize].seen => "unseen",
-                _ if get(&t.changed, bit) => "changed",
-                _ if t.v[i].borrows => "free",
-                _ => "solved",
-            };
-            let place = new.decode_place(new.data[i][0]).map(|p| p.to_string());
-            row(
-                u32_of(i),
-                mode_name(o),
-                mode_name(m),
-                format!("{root} {stop}"),
-                place.unwrap_or_default(),
-            );
-        } else if old.tags[i] == Tag::Ref && (o ^ m) & ref_word::TAKES != 0 {
-            let name = |w: u32| {
-                if w & ref_word::TAKES != 0 {
-                    "take"
-                } else {
-                    "keep"
-                }
-            };
-            row(
-                u32_of(i),
-                name(o),
-                name(m),
-                "ref-take".into(),
-                String::new(),
-            );
+    let mut block = first;
+    let mut subject = NONE;
+    for _ in 0..b.len() {
+        let owner = topo.owner[block as usize];
+        if owner != NONE && b.tags.get(owner as usize) == Some(&Tag::Match) {
+            let [candidate, blocks] = b.data[owner as usize];
+            if b.record(blocks).first() == Some(&block) {
+                subject = candidate;
+                break;
+            }
+        }
+        let Some((parent, _)) = topo.up(block) else {
+            return false;
+        };
+        block = parent;
+    }
+    if subject == NONE {
+        return false;
+    }
+    let mut word = b.data[r][0];
+    let mut behind = false;
+    for _ in 0..DEPTH {
+        let place = b.view(word);
+        behind |= place.kinds(b).0 > 0;
+        match place.root {
+            Root::Value(value) if value == subject => return behind,
+            Root::Value(value)
+                if nested
+                    && b.tags.get(value as usize) == Some(&Tag::Read)
+                    && b.data[value as usize][1] == ReadMode::Borrow as u32 =>
+            {
+                word = b.data[value as usize][0];
+            }
+            _ => return false,
         }
     }
-    for l in 0..old.local_ty.len() {
-        let has = |x: &Body| x.exit_drops.iter().any(|e| e.1.idx() == l);
-        match (has(old), has(new)) {
-            (true, false) => row(
-                u32_of(l),
-                "owned",
-                "unowned",
-                "exit-row".into(),
-                String::new(),
-            ),
-            (false, true) => row(
-                u32_of(l),
-                "unowned",
-                "owned",
-                "exit-row".into(),
-                String::new(),
-            ),
-            _ => {}
+    false
+}
+
+/// Re-roots borrowed match payload reads at the place the borrowed scrutinee
+/// reads. The lowering initially spells a payload as a part of the decision
+/// read (`[%decision as .variant .field]`). That decision read may keep a
+/// `Drop` for an erased instance that makes its value fresh; the payload loan
+/// instead lives on the referenced scrutinee, which the match keeps alive.
+pub(super) fn flatten_match_reference_reads(b: &mut Body, topo: &Topology) {
+    let mut changed = Vec::new();
+    for r in 0..b.len() {
+        if b.tags[r] != Tag::Read
+            || b.data[r][1] != ReadMode::Borrow as u32
+            || !match_reference_read(b, topo, r, true)
+        {
+            continue;
+        }
+        let Some(mut p) = b.decode_place(b.data[r][0]) else {
+            continue;
+        };
+        let mut flattened = false;
+        for _ in 0..DEPTH {
+            let PlaceRoot::Value(base) = p.root else {
+                break;
+            };
+            let i = base.0 as usize;
+            if b.tags.get(i) != Some(&Tag::Read) || b.data[i][1] != ReadMode::Borrow as u32 {
+                break;
+            }
+            let Some(mut outer) = b.decode_place(b.data[i][0]) else {
+                break;
+            };
+            outer.proj.extend(p.proj);
+            p = outer;
+            flattened = true;
+        }
+        if flattened {
+            changed.push((r, p));
         }
     }
-    reads
+    for (r, p) in changed {
+        let words = p.words().expect("a non-bare match place");
+        let at = u32_of(b.extra.len());
+        b.extra.push(u32_of(words.len()));
+        b.extra.extend_from_slice(&words);
+        b.data[r][0] = at;
+    }
 }

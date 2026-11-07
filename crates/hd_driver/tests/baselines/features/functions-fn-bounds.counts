@@ -21,9 +21,9 @@ fn static_bound(s: string) -> usize:
 
 fn each[F < FnMut(string) -> void](xs: List[string], mut f: F) -> void:
     for x in xs:
+        f(x)
 > app/main/each
 >   retain string (stored)
-        f(x)
 
 fn fn_mut(xs: List[string]) -> usize:
     let n: usize = 0
