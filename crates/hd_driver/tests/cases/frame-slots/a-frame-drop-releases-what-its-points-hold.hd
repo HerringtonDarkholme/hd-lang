@@ -1,0 +1,28 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: an abandoned frame's `.drop` releases the values the suspension
+# points' unwind rows name and the locals of the exit set, with reason
+# `cancelled`. `holds`'s temporary has a row, so its `.drop` releases it;
+# `gone`'s temporary ends before the point, so its `.drop` does not.
+use std.annotation.inline
+use std.time.{Clock, ms, sleep}
+
+@inline(.Never)
+fn text(n: i32) -> string:
+    "t${n}"
+
+@inline(.Never)
+fn total(a: string, b: string) -> usize:
+    a.len() + b.len()
+
+fn pause!() -> string $ Clock:
+    sleep!(ms(1))
+    "x"
+
+fn holds!() -> usize $ Clock:
+    total(text(1), pause!())
+
+fn gone!() -> usize $ Clock:
+    n := text(1).len()
+    sleep!(ms(1))
+    n

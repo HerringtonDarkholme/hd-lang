@@ -1243,19 +1243,37 @@ pub(super) fn finish(
         em.f.op(I::If(BlockType::Empty));
         em.reload_drop_flags(&area);
         let mut places: Vec<(Option<u32>, Option<usize>, Vec<u32>)> = Vec::new();
-        let mut vals: Vec<(u32, Vec<u32>)> = em.vals.iter().map(|(k, v)| (*k, v.clone())).collect();
-        vals.sort_stable();
-        for (i, ls) in vals {
-            if !em.loans.contains(&i) {
-                places.push((Some(i), None, ls));
+        // What the body says a suspension point may hold, as a cancelled
+        // point's way out reads it (`release_unwound`): its values' unwind
+        // rows, and the locals of the exit set.
+        let mut held: Vec<u32> =
+            em.b.unwind_drops
+                .iter()
+                .filter(|&&(at, _)| em.topo.sub[at as usize] == u32::from(em.sub_id))
+                .map(|&(_, v)| v)
+                .collect();
+        held.sort_stable();
+        held.dedup();
+        for i in held {
+            if !em.loans.contains(&i)
+                && let Some(ls) = em.vals.get(&i)
+            {
+                places.push((Some(i), None, ls.clone()));
             }
         }
-        let mut locals: Vec<(usize, Vec<u32>)> =
-            em.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
-        locals.sort_stable();
-        for (l, ls) in locals {
-            if !em.loan_locals.contains_key(&l) {
-                places.push((None, Some(l), ls));
+        let mut owned: Vec<usize> =
+            em.b.exit_drops
+                .iter()
+                .filter(|&&(sub, _)| sub.raw() == u32::from(em.sub_id))
+                .map(|&(_, l)| l.idx())
+                .collect();
+        owned.sort_stable();
+        owned.dedup();
+        for l in owned {
+            if !em.loan_locals.contains_key(&l)
+                && let Some(ls) = em.locals.get(&l)
+            {
+                places.push((None, Some(l), ls.clone()));
             }
         }
         for t in em.temps.clone() {
@@ -1281,18 +1299,22 @@ pub(super) fn finish(
                 continue;
             }
             match (inst, local) {
-                (Some(i), _) => em.release_drop_place(&loaded, em.ty(i), &Em::value_place(i))?,
+                (Some(i), _) => em.because(Reason::Cancelled, |em| {
+                    em.release_drop_place(&loaded, em.ty(i), &Em::value_place(i))
+                })?,
                 (None, Some(l)) => {
                     em.borrow_release(l);
-                    if em.is_cell(l) {
-                        em.count_local(l, &loaded, false)?;
-                    } else {
-                        em.release_drop_place(
-                            &loaded,
-                            em.sub(em.b.local_ty[l]),
-                            &Em::local_place(l),
-                        )?;
-                    }
+                    em.because(Reason::Cancelled, |em| {
+                        if em.is_cell(l) {
+                            em.count_local(l, &loaded, false)
+                        } else {
+                            em.release_drop_place(
+                                &loaded,
+                                em.sub(em.b.local_ty[l]),
+                                &Em::local_place(l),
+                            )
+                        }
+                    })?;
                 }
                 (None, None) => {
                     em.f.get(loaded[0]);

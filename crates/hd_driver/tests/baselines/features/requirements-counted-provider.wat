@@ -190,18 +190,6 @@
     i32.and
     i32.eqz
     if
-      local.get $t0
-      i32.load $heap offset=40
-      call $rt:release_ref
-      local.get $t0
-      i32.load $heap offset=48
-      call $rt:release_ref
-      local.get $t0
-      i32.load $heap offset=64
-      call $rt:release_ref
-      local.get $t0
-      i32.load $heap offset=72
-      call $rt:release_ref
     end
     local.get $t0
     i32.load $heap offset=24

@@ -25,8 +25,7 @@ fn fetch!(key: string) -> string:
 > app/main/fetch
 >   release string (cancelled)
 > app/main/fetch
->   release string (conservative: frame drop)
->   release string (conservative: frame drop)
+>   release string (cancelled)
 >   release counted reference (conservative: frame drop)
 > app/main/fetch
 >   retain string (stored)
@@ -36,10 +35,6 @@ fn tagged!() -> usize $ Tag:
 > app/main/tagged
 >   release string (last use)
 > app/main/tagged
->   release app.main.Tag (conservative: frame drop)
->   release &app.main.Tag (by design)
->   release string (conservative: frame drop)
->   release string (conservative: frame drop)
 >   release counted reference (conservative: frame drop)
 >   release counted reference (conservative: frame drop)
 > app/main/tagged
@@ -55,14 +50,8 @@ fn later!(key: string) -> usize:
 >   release counted reference (last use)
 >   release string (last use)
 > app/main/later
->   release string (conservative: frame drop)
->   release Suspend[string] (conservative: frame drop)
->   release Suspend[string] (conservative: frame drop)
->   release string (conservative: frame drop)
->   release &string (conservative: frame drop)
->   release string (conservative: frame drop)
->   release Suspend[string] (conservative: frame drop)
->   release counted reference (conservative: frame drop)
+>   release Suspend[string] (cancelled)
+>   release string (cancelled)
 >   release counted reference (conservative: frame drop)
 > app/main/later
 >   retain string (stored)
@@ -101,22 +90,8 @@ fn bound!(s: string) -> usize:
 >   release Suspend[usize] (last use)
 >   release string (last use)
 > app/main/bound
->   release string (conservative: frame drop)
->   release app.main.Named [label.0] (conservative: frame drop)
->   release app.main.Named [label.0] (conservative: frame drop)
->   release &mut app.main.Named (conservative: frame drop)
->   release &mut app.main.Named (conservative: frame drop)
->   release &mut app.main.Named (conservative: frame drop)
->   release app.main.Tag (conservative: frame drop)
->   release &app.main.Tag (by design)
->   release app.main.Tag (conservative: frame drop)
->   release Suspend[usize] (conservative: frame drop)
->   release Suspend[usize] (conservative: frame drop)
->   release Suspend[usize] (conservative: frame drop)
->   release string (conservative: frame drop)
->   release Suspend[usize] (conservative: frame drop)
->   release app.main.Named [label.0] (conservative: frame drop)
->   release counted reference (conservative: frame drop)
+>   release Suspend[usize] (cancelled)
+>   release string (cancelled)
 >   release counted reference (conservative: frame drop)
 > app/main/bound
 >   retain string (stored)

@@ -17,7 +17,6 @@
   (import "fixture" "rt:waker_new" (func $rt:waker_new (param i32) (result i32)))
   (import "fixture" "rt:waker_parent" (func $rt:waker_parent (param i32)))
   (import "fixture" "rt:frame'3" (func $rt:frame'3 (result i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32 i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:frame'4" (func $rt:frame'4 (result i32)))
@@ -609,17 +608,8 @@
       i32.load $heap offset=40
       call $rt:release_ref'1
       local.get $t0
-      i32.load $heap offset=48
-      call $rt:release_ref'1
-      local.get $t0
-      i32.load $heap offset=104
-      call $rt:release_ref'2
-      local.get $t0
       i32.load $heap offset=24
       call $rt:release_ref'1
-      local.get $t0
-      i32.load $heap offset=84
-      call $rt:release_ref'2
     end
     local.get $t0
     i32.load $heap offset=16
@@ -1371,25 +1361,7 @@
     i32.eqz
     if
       local.get $t0
-      i32.load $heap offset=48
-      call $rt:release_ref'1
-      local.get $t0
-      i32.load $heap offset=56
-      call $rt:release_ref'2
-      local.get $t0
-      i32.load $heap offset=60
-      call $rt:release_ref'1
-      local.get $t0
-      i32.load $heap offset=68
-      call $rt:release_ref'2
-      local.get $t0
       i32.load $heap offset=84
-      call $rt:release_ref'2
-      local.get $t0
-      i32.load $heap offset=88
-      call $rt:release_ref'1
-      local.get $t0
-      i32.load $heap offset=144
       call $rt:release_ref'2
       local.get $t0
       i32.load $heap offset=24
@@ -1397,9 +1369,6 @@
       local.get $t0
       i32.load $heap offset=32
       call $rt:release_ref'1
-      local.get $t0
-      i32.load $heap offset=124
-      call $rt:release_ref'2
     end
     local.get $t0
     i32.load $heap offset=16
@@ -2492,38 +2461,11 @@
       i32.load $heap offset=68
       call $rt:release_ref'2
       local.get $t0
-      i32.load $heap offset=72
-      local.get $t0
-      i32.load $heap offset=76
-      local.get $t0
-      i32.load $heap offset=80
-      local.get $t0
-      i32.load $heap offset=84
-      call $rt:release
-      local.get $t0
-      i32.load $heap offset=148
-      call $rt:release_ref'1
-      local.get $t0
-      i32.load $heap offset=156
-      call $rt:release_ref'1
-      local.get $t0
-      i32.load $heap offset=192
-      call $rt:release_ref'2
-      local.get $t0
-      i32.load $heap offset=212
-      call $rt:release_ref'2
-      local.get $t0
       i32.load $heap offset=24
       call $rt:release_ref'1
       local.get $t0
       i32.load $heap offset=32
       call $rt:release_ref'1
-      local.get $t0
-      i32.load $heap offset=164
-      call $rt:release_ref'2
-      local.get $t0
-      i32.load $heap offset=172
-      call $rt:release_ref'2
       local.get $t0
       i32.load $heap offset=120
       call $rt:release_ref'1
@@ -2760,9 +2702,6 @@
     i32.and
     i32.eqz
     if
-      local.get $t0
-      i32.load $heap offset=64
-      call $rt:release_ref'1
       local.get $t0
       i32.load $heap offset=24
       call $rt:release_ref'1

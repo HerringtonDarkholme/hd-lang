@@ -14,11 +14,8 @@ app/main/run
   release string (last use)
   release string (last use)
 app/main/run
-  release app.main.Wait (conservative: frame drop)
-  release &mut app.main.Wait (by design)
-  release app.main.Wait (conservative: frame drop)
-  release &string (conservative: frame drop)
-  release string (conservative: frame drop)
+  release app.main.Wait (cancelled)
+  release string (cancelled)
   release counted reference (conservative: frame drop)
   release counted reference (conservative: frame drop)
 app/main/run

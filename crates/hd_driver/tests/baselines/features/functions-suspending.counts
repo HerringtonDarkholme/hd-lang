@@ -10,8 +10,7 @@ fn fetch!(key: string) -> string:
 > app/main/fetch
 >   release string (cancelled)
 > app/main/fetch
->   release string (conservative: frame drop)
->   release string (conservative: frame drop)
+>   release string (cancelled)
 >   release counted reference (conservative: frame drop)
 > app/main/fetch
 >   retain string (stored)
@@ -46,16 +45,10 @@ fn run_twice!(body: fn!() -> string) -> usize:
 >   release counted reference (last use)
 >   release fn!() -> string (last use)
 > app/main/run_twice
->   release Suspend[string] (conservative: frame drop)
->   release string (conservative: frame drop)
->   release &string (conservative: frame drop)
->   release fn!() -> string (conservative: frame drop)
->   release Suspend[string] (conservative: frame drop)
->   release string (conservative: frame drop)
->   release &string (conservative: frame drop)
->   release fn!() -> string (conservative: frame drop)
->   release counted reference (conservative: frame drop)
->   release counted reference (conservative: frame drop)
+>   release Suspend[string] (cancelled)
+>   release fn!() -> string (cancelled)
+>   release Suspend[string] (cancelled)
+>   release fn!() -> string (cancelled)
 >   release counted reference (conservative: frame drop)
 > app/main/run_twice
 >   retain fn!() -> string (stored)
@@ -70,8 +63,8 @@ fn closure_bang!(key: string) -> usize:
 >   release fn!() -> string (last use)
 >   release string (last use)
 > app/main/closure_bang
->   release fn!() -> string (conservative: frame drop)
->   release string (conservative: frame drop)
+>   release fn!() -> string (cancelled)
+>   release string (cancelled)
 >   release counted reference (conservative: frame drop)
 > app/main/closure_bang
 >   retain string (stored)
@@ -89,9 +82,8 @@ fn closure_bang!(key: string) -> usize:
 > app/main/closure_bang
 >   release string (cancelled)
 > app/main/closure_bang
->   release string (conservative: frame drop)
->   release string (conservative: frame drop)
->   release string (conservative: frame drop)
+>   release string (cancelled)
+>   release string (cancelled)
 >   release counted reference (conservative: frame drop)
 >   release counted reference (conservative: frame drop)
 > app/main/closure_bang
@@ -109,15 +101,10 @@ fn stored!(key: string) -> usize:
 >   release counted reference (last use)
 >   release string (last use)
 > app/main/stored
->   release fn!(string) -> string (conservative: frame drop)
->   release fn!(string) -> string (conservative: frame drop)
->   release string (conservative: frame drop)
->   release Suspend[string] (conservative: frame drop)
->   release string (conservative: frame drop)
->   release &string (conservative: frame drop)
->   release string (conservative: frame drop)
->   release fn!(string) -> string (conservative: frame drop)
->   release counted reference (conservative: frame drop)
+>   release fn!(string) -> string (cancelled)
+>   release string (cancelled)
+>   release Suspend[string] (cancelled)
+>   release string (cancelled)
 >   release counted reference (conservative: frame drop)
 > app/main/stored
 >   retain string (stored)
@@ -134,9 +121,8 @@ fn stored!(key: string) -> usize:
 > app/main/stored
 >   release string (cancelled)
 > app/main/stored
->   release string (conservative: frame drop)
->   release string (conservative: frame drop)
->   release string (conservative: frame drop)
+>   release string (cancelled)
+>   release string (cancelled)
 >   release counted reference (conservative: frame drop)
 >   release counted reference (conservative: frame drop)
 > app/main/stored

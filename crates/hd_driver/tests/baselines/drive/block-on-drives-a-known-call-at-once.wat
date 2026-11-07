@@ -204,9 +204,6 @@
     i32.eqz
     if
       local.get $t0
-      i32.load $heap offset=64
-      call $rt:release_ref'1
-      local.get $t0
       i32.load $heap offset=24
       call $rt:release_ref'1
     end

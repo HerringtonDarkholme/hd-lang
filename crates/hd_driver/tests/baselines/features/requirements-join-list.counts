@@ -13,8 +13,7 @@ fn fetch!(key: string) -> string:
 > app/main/fetch
 >   release string (cancelled)
 > app/main/fetch
->   release string (conservative: frame drop)
->   release string (conservative: frame drop)
+>   release string (cancelled)
 >   release counted reference (conservative: frame drop)
 > app/main/fetch
 >   retain string (stored)
@@ -28,18 +27,8 @@ fn all!(keys: List[string]) -> usize:
 >   release List[string] (last use)
 >   release List[string] (last use)
 > app/main/all
->   release List[mut Suspend[string]] (conservative: frame drop)
->   release List[string] (conservative: frame drop)
->   release Suspend[string] (conservative: frame drop)
->   release List[mut Suspend[string]] (conservative: frame drop)
->   release List[mut Suspend[string]] (conservative: frame drop)
->   release List[mut Suspend[string]] (conservative: frame drop)
->   release List[string] (conservative: frame drop)
->   release List[string] (conservative: frame drop)
->   release List[mut Suspend[string]] (conservative: frame drop)
->   release List[string] (conservative: frame drop)
->   release List[mut Suspend[string]] (conservative: frame drop)
->   release List[string] (conservative: frame drop)
+>   release List[mut Suspend[string]] (cancelled)
+>   release List[string] (cancelled)
 >   release counted reference (conservative: frame drop)
 > app/main/all
 >   copy List[string] (stored)

@@ -204,9 +204,6 @@
     i32.eqz
     if
       local.get $t0
-      i32.load $heap offset=64
-      call $rt:release_ref'1
-      local.get $t0
       i32.load $heap offset=24
       call $rt:release_ref'1
     end
@@ -1426,40 +1423,10 @@
     i32.eqz
     if
       local.get $t0
-      i32.load $heap offset=36
-      call $rt:release_ref'2
-      local.get $t0
-      i32.load $heap offset=44
-      call $rt:release_ref'2
-      local.get $t0
-      i32.load $heap offset=164
-      call $rt:release_ref'2
-      local.get $t0
-      i32.load $heap offset=184
-      call $rt:release_ref'2
-      local.get $t0
-      i32.load $heap offset=188
-      call $rt:release_ref'2
-      local.get $t0
       i32.load $heap offset=196
       call $rt:release_ref'2
       local.get $t0
-      i32.load $heap offset=200
-      call $rt:release_ref'2
-      local.get $t0
       i32.load $heap offset=24
-      call $rt:release_ref'2
-      local.get $t0
-      i32.load $heap offset=40
-      call $rt:release_ref'2
-      local.get $t0
-      i32.load $heap offset=48
-      call $rt:release_ref'2
-      local.get $t0
-      i32.load $heap offset=192
-      call $rt:release_ref'2
-      local.get $t0
-      i32.load $heap offset=228
       call $rt:release_ref'2
     end
     local.get $t0

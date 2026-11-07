@@ -8,9 +8,7 @@ fn length!(text: string) -> usize:
 >   retain string (conservative: entry)
 >   release string (last use)
 > app/main/length
->   release string (conservative: frame drop)
->   release string (conservative: frame drop)
->   release string (conservative: frame drop)
+>   release string (cancelled)
 >   release counted reference (conservative: frame drop)
 > app/main/length
 >   retain string (stored)

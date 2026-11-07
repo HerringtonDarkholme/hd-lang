@@ -867,12 +867,6 @@
     i32.eqz
     if
       local.get $t0
-      i32.load $heap offset=176
-      call $rt:release_ref'1
-      local.get $t0
-      i32.load $heap offset=184
-      call $rt:release_ref'1
-      local.get $t0
       i32.load $heap offset=208
       call $rt:release_ref'2
       local.get $t0

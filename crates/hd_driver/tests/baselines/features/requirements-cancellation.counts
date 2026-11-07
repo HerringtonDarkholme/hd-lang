@@ -12,8 +12,7 @@ fn fetch!(key: string) -> string:
 > app/main/fetch
 >   release string (cancelled)
 > app/main/fetch
->   release string (conservative: frame drop)
->   release string (conservative: frame drop)
+>   release string (cancelled)
 >   release counted reference (conservative: frame drop)
 > app/main/fetch
 >   retain string (stored)
@@ -26,11 +25,8 @@ fn stop!(key: string) -> bool:
 >   release Suspend[string] (last use)
 >   release string (last use)
 > app/main/stop
->   release string (conservative: frame drop)
->   release Suspend[string] (conservative: frame drop)
->   release Suspend[string] (conservative: frame drop)
->   release string (conservative: frame drop)
->   release Suspend[string] (conservative: frame drop)
+>   release Suspend[string] (cancelled)
+>   release string (cancelled)
 >   release counted reference (conservative: frame drop)
 > app/main/stop
 >   retain string (stored)

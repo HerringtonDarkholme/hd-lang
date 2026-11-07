@@ -27,10 +27,6 @@ fn fetch!() -> usize $ Store:
 > app/main/fetch
 >   release string (last use)
 > app/main/fetch
->   release app.main.Store (conservative: frame drop)
->   release &app.main.Store (by design)
->   release string (conservative: frame drop)
->   release string (conservative: frame drop)
 >   release counted reference (conservative: frame drop)
 >   release counted reference (conservative: frame drop)
 > app/main/fetch
