@@ -196,8 +196,6 @@ pub(crate) struct Tables {
     root_uses: Vec<(u32, u32)>,
     // The counted reads that may keep a count.
     takers: Vec<u32>,
-    // Values a use of another value keeps live ([`super::lent_values`]).
-    carries: Vec<(u32, u32)>,
     back: Flow,
     ops: Vec<super::Operand>,
     stack: Vec<u32>,
@@ -275,7 +273,6 @@ impl Tables {
         self.suite_roots.clear();
         self.suite_bits.clear();
         self.held.clear();
-        self.carries.clear();
         self.frame_uses.clear();
         self.root_uses.clear();
         self.relies = 0;
@@ -452,10 +449,6 @@ impl Tables {
         };
         if f.bit != NONE {
             self.set(f.bit, s, live, true);
-        }
-        let k = self.carries.partition_point(|c| c.0 < v);
-        for &(_, u) in self.carries[k..].iter().take_while(|c| c.0 == v) {
-            self.use_value(u, s, live);
         }
     }
 
@@ -996,33 +989,6 @@ fn index_writes(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     t.write_start[n] = u32_of(t.writes.len());
 }
 
-/// Each use of a value that keeps another live: the values it lends that it
-/// may point through, and the arguments of a suspending call, whose frame
-/// holds them until it is awaited.
-fn carries(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
-    let mut through = Vec::new();
-    let mut ops = std::mem::take(&mut t.ops);
-    for i in 0..b.len() {
-        super::lent_values(b, cx, i, &mut through);
-        for &v in &through {
-            if Ref(v).as_inst().is_some() && (v as usize) < b.len() {
-                t.carries.push((u32_of(i), v));
-            }
-        }
-        let user = t.v[i].user;
-        if matches!(b.tags[i], Tag::Call | Tag::CallValue | Tag::CallDyn)
-            && user != NONE
-            && is_suspension(b.tags[user as usize])
-        {
-            operands(b, i, &mut ops);
-            for op in &ops {
-                t.carries.push((u32_of(i), op.value));
-            }
-        }
-    }
-    t.ops = ops;
-}
-
 fn overlap(a: &[u32], c: &[u32]) -> bool {
     a.iter().zip(c).all(|(x, y)| x == y)
 }
@@ -1292,7 +1258,6 @@ pub(crate) fn run(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables)
     }
     sources(b, cx, t);
     index_writes(b, cx, t);
-    carries(b, cx, t);
     let mut back = std::mem::take(&mut t.back);
     backward(b, topo, &mut back, t);
     let roots = std::mem::take(&mut t.suite_roots);

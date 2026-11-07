@@ -1,0 +1,38 @@
+# test: a cold suspension holds its own copy of each argument, or takes a non-copyable one, so the source may change or end while it waits or runs
+# Spec 11 Requirements and Suspension: req.suspend.cold.
+# expect-stdout: a1 t b2 t3
+# expect-stdout: 1
+# expect-stdout: q7
+use std.collections.UniqList
+use std.time.{Clock, ms, sleep}
+
+fn show!(s: string, r: string) -> string $ Clock:
+    sleep!(ms(1))
+    "${s} ${r}"
+
+fn eaten!(u: UniqList[i32]) -> usize $ Clock:
+    sleep!(ms(1))
+    1
+
+fn numbers() -> UniqList[i32]:
+    let mut u = UniqList::[i32].new()
+    u.push(1)
+    u
+
+fn kept!(s: string) -> string $ Clock:
+    sleep!(ms(2))
+    s
+
+pub fn main!() -> void $ Console + Clock:
+    let mut s = "a${1}"
+    let job: mut Suspend[string] = show(s, "t")
+    s = "b${2}"
+    t := "t${3}"
+    out := job!()
+    println("$out $s $t")
+    u := numbers()
+    println("${eaten!(u)}")
+    let mut q = "q${7}"
+    r := kept!(q)
+    q = "z${8}"
+    println(r)
