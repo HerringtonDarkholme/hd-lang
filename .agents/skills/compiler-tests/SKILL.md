@@ -132,6 +132,10 @@ be 0. Use `nice` and `-j 4`, with the dev profile.
 - No workspace-wide `cargo test`, no `--all-features`, no optimized or
   checked conformance modes, no `hd_cli`/web/UI runs unless the change
   touches those paths.
+- A bless is a review. Read every changed line against the case's source and
+  its `expected:` note, explain it from the code that caused it, and check the
+  new output is right; "the code changed" is not a reason. Check every removed
+  drop or bounds check and every added call, and fix a note that no longer holds.
 - Bless a baseline only for an intended change, and list each blessed
   file in the report.
 

@@ -1,7 +1,7 @@
 # @dump: own counts wat
 # @build: v8 release program
-# expected: a projected runtime view moves into the inlined binding;
-# its conditional release follows the callback's last use.
+# expected: a field reference passes into the inlined binding with no
+# count, and the program's only callback is a direct call.
 use std.annotation.inline
 
 struct Pair:
