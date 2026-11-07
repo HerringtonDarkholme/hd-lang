@@ -155,7 +155,7 @@ pub fn run(n: i64) -> i64:
 >   %10 = RefDyn %9 : Counted[mut Meter]
 >   %11 = Coerce %10 [RefAsProvider -] : Meter
 >   %12 = Drop [%10] : ()
->   %16 = With [%5927 %11] %15 : ()
+>   %16 = With [Meter %11] %15 : ()
 >   %17 = Drop [%11] : ()
         count(n)
 >   %13 = Read copy [$0] : i64

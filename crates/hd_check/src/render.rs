@@ -391,6 +391,30 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
                             ops.push("[..]".into());
                         } else if tag == Tag::Coerce {
                             ops.push(coercion(names, b, word));
+                        } else if tag == Tag::DefaultCall && side == 0 {
+                            // The default's body and the callee's type arguments.
+                            let r = b.record(word);
+                            let args: Vec<String> = names
+                                .pool
+                                .list_items(TyList(r[1]))
+                                .iter()
+                                .map(|t| ty(names, *t))
+                                .collect();
+                            ops.push(format!(
+                                "[{} [{}]]",
+                                names.path(hd_base::DefId::from_raw(r[0])),
+                                args.join(" ")
+                            ));
+                        } else if matches!(tag, Tag::With | Tag::ContextNew) && side == 0 {
+                            // Each provider's trait, then its value.
+                            let r = b.record(word);
+                            let pairs: Vec<String> = r
+                                .chunks(2)
+                                .map(|p| {
+                                    format!("{} {}", ty(names, Ty(p[0])), value(names, b, p[1]))
+                                })
+                                .collect();
+                            ops.push(format!("[{}]", pairs.join(" ")));
                         } else if tag == Tag::SwitchTag {
                             // Variant numbers stay numbers.
                             let r = b.record(word);

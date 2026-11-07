@@ -125,10 +125,9 @@ fn build(p: &super::Program, at: super::Build) -> Output {
     } else {
         ("app", "app/*")
     };
-    let store = hd_cache::MemoryStore::default();
     let host = Host {
         sources: &sources,
-        store: &store,
+        store: super::shared_store(),
         render_tir: &[items],
         clock: &NoClock,
         executor: Executor::Serial(SerialOrder::Priority),

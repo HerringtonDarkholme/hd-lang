@@ -45,7 +45,7 @@ fn joined(j: Joiner) -> usize:
 > app/main/joined
 >   local $0 j: Joiner [param read captured] place
 >   %0 = Ref local frame [$0] : Counted[Joiner]
->   %1 = DefaultCall [%4656 %16] [%0] : string
+>   %1 = DefaultCall [app/main/impl Joiner.join.sep []] [%0] : string
 >   %2 = Call app/main/impl Joiner.join[] (%0, %1) : usize
 >   %3 = Drop [%1] : ()
 >   %4 = Drop [%0] : ()

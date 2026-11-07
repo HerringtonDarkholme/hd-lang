@@ -68,11 +68,10 @@ pub fn wat_for(p: &Program, at: Build) -> String {
     } else {
         ("app", "app/", "main.hd", &["app/*"])
     };
-    let store = hd_cache::MemoryStore::default();
     let host = Host {
         render_tir,
         sources: &src,
-        store: &store,
+        store: super::shared_store(),
         clock: &NoClock,
         executor: Executor::Serial(SerialOrder::Priority),
     };

@@ -365,17 +365,23 @@ pub fn tree(p: &Program) -> String {
     out.finish()
 }
 
+/// The store every view of a test run shares, so that std is prepared once per
+/// build setting instead of once per view.
+fn shared_store() -> &'static hd_cache::MemoryStore {
+    static STORE: std::sync::OnceLock<hd_cache::MemoryStore> = std::sync::OnceLock::new();
+    STORE.get_or_init(hd_cache::MemoryStore::default)
+}
+
 /// The TIR view: the checked TIR of each body of the program's own
 /// package, keeping the instructions whose source lies inside the
 /// subject, after the body's path; then the build's diagnostics.
 #[must_use]
 pub fn tir(p: &Program) -> String {
     let src = p.sources();
-    let store = hd_cache::MemoryStore::default();
     let host = Host {
         render_tir: &["app/*"],
         sources: &src,
-        store: &store,
+        store: shared_store(),
         clock: &NoClock,
         executor: Executor::Serial(SerialOrder::Priority),
     };

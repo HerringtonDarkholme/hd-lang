@@ -128,7 +128,7 @@ pub fn run(n: i64) -> i64:
 >   %8 = Block %7 : Meter
 >   %9 = RefDyn %8 : Counted[mut Meter]
 >   %10 = Coerce %9 [RefAsProvider -] : Meter
->   %14 = With [%5927 %10] %13 : ()
+>   %14 = With [Meter %10] %13 : ()
         count(n)
 >   %11 = Read [$0] : i64
 >   %12 = Call app/main/count[] (%11) : ()

@@ -20,7 +20,7 @@ fn make(name: string) -> Config:
 >   local $0 name: string [param read] value
 >     uses $0: entry -> %0 consume last
 >   %0 = Read move [$0] : string
->   %1 = DefaultCall [%4653 %16] [] : i32
+>   %1 = DefaultCall [app/main/Config.retries []] [] : i32
 >   %2 = Break L1 "default" : never
 >   %3 = Block - : string
 >   %4 = Scope %3 [] : string
@@ -42,7 +42,7 @@ fn shorthand(name: string, tags: List[string]) -> Config:
 >     uses $1: entry -> %1 consume last
 >   %0 = Read move [$0] : string
 >   %1 = Read move [$1] : List[string]
->   %2 = DefaultCall [%4653 %16] [] : i32
+>   %2 = DefaultCall [app/main/Config.retries []] [] : i32
 >   %3 = Break L0 "default" : never
 >   %4 = Block - : string
 >   %5 = Scope %4 [] : string

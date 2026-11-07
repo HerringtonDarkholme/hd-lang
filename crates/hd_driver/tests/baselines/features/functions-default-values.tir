@@ -23,7 +23,7 @@ fn with_default(s: string) -> usize:
 > app/main/with_default
 >   local $0 s: string [param read]
 >   %0 = Read [$0] : string
->   %1 = DefaultCall [%4655 %16] [%0] : Ref[mut List[string]]
+>   %1 = DefaultCall [app/main/collect.into []] [%0] : Ref[mut List[string]]
 >   %2 = Call app/main/collect[] (%0, %1) : usize
 >   %3 = Block %2 : usize
 
@@ -52,6 +52,6 @@ fn use_label(s: string) -> string:
 > app/main/use_label
 >   local $0 s: string [param read]
 >   %0 = Read [$0] : string
->   %1 = DefaultCall [%4656 %16] [%0] : string
+>   %1 = DefaultCall [app/main/labeled.suffix []] [%0] : string
 >   %2 = Call app/main/labeled[] (%0, %1) : string
 >   %3 = Block %2 : string

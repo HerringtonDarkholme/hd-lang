@@ -3281,6 +3281,19 @@ impl Run<'_> {
                 })
     }
 
+    /// Whether the output renders a body of module `m`. An item's path is its
+    /// module's, with `/` after the package, then `/` and the item.
+    fn renders_module(&self, m: usize) -> bool {
+        if !cfg!(feature = "fixtures") || self.host.render_tir.is_empty() {
+            return false;
+        }
+        let dir = format!("{}/", self.table.modules[m].path.replacen('.', "/", 1));
+        self.host.render_tir.iter().any(|p| {
+            let p = p.strip_suffix('*').unwrap_or(p);
+            dir.starts_with(p) || p.starts_with(&dir)
+        })
+    }
+
     fn names(&self) -> Names<'_> {
         Names {
             pool: &self.pool,
@@ -5848,7 +5861,8 @@ impl Run<'_> {
         let analysis_missing = analyze && cached_analysis.is_none();
         #[cfg(not(feature = "analysis"))]
         let analysis_missing = false;
-        let cached = if analysis_missing {
+        // Only a fresh check makes a rendered body's text.
+        let cached = if analysis_missing || self.renders_module(mi) {
             None
         } else {
             self.lookup(EntryKind::Check, key)

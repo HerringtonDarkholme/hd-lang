@@ -7,10 +7,9 @@ pub(super) fn build(p: &super::Program, origins: bool, at: super::Build) -> Outp
         sources = hd_driver::std_sources();
         sources.insert(super::own::STD_CASE, &p.text);
     }
-    let store = hd_cache::MemoryStore::default();
     let host = Host {
         sources: &sources,
-        store: &store,
+        store: super::shared_store(),
         render_tir: &[],
         clock: &NoClock,
         executor: Executor::Serial(SerialOrder::Priority),
