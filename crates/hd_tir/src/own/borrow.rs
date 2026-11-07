@@ -43,11 +43,7 @@
 //! 3. **Nothing reaches it behind the body's back.** A chain ending at a
 //!    local needs the local unshared with a closure, and each reference to
 //!    it a local one that one call takes and that call's result does not
-//!    hold, so it dies when the call returns (`xs.push(x)`), or one whose
-//!    call's result the body only reads and writes through and drops, which
-//!    reaches the local until that result's last use, its window: the span
-//!    must then lie outside every window (`b.item_mut(0).qty = 7` before a
-//!    read of `b`). Then only the
+//!    hold, so it dies when the call returns (`xs.push(x)`). Then only the
 //!    body's own instructions change it, calls included (a call that takes
 //!    a `&mut` of it writes it there, as its `Ref` does), and so
 //!    the buffer of a list it holds, when every value stored into it is a
@@ -121,7 +117,6 @@ use crate::ir::{
     Body, BodyKind, Callee, DEREF, ELEM, IntrinsicOp, NONE, PlaceRoot, Proj, ReadMode, Ref, Root,
     Tag, Topology, is_suspension, local_flags, sub_flags, u32_of,
 };
-use hd_base::SliceSort as _;
 use hd_types::Ty;
 
 /// The longest chain of roots a read is resolved through.
@@ -186,10 +181,6 @@ struct Chain {
     /// `&T` or `&mut T`: its local and k. A call that may write leaves the
     /// place alone unless it receives the reference itself.
     excl: Option<(u32, u32)>,
-    /// A local whose only references that outlive their call are held
-    /// by that call's result ([`lends_window`]): the span must lie outside
-    /// each one's window. `NONE` otherwise.
-    shut: u32,
     /// The place is all or a field path of a parameter the body never
     /// stores, with no dereference or element on the way: the body's
     /// frame holds the parameter's count across a suspension point, so
@@ -209,9 +200,6 @@ pub(crate) struct Tables {
     /// of all of it.
     uses: Vec<u32>,
     user: Vec<u32>,
-    /// Per value: every use other than a `Drop` reads or writes through
-    /// it (`[*%v ...]`) and yields no reference ([`lends_window`]).
-    through: Vec<bool>,
     keeps: Vec<bool>,
     stored: Vec<u32>,
     last_drop: Vec<u32>,
@@ -226,11 +214,6 @@ pub(crate) struct Tables {
     stores: Vec<u32>,
     reached: Vec<bool>,
     escapes: Vec<bool>,
-    /// Per local: a reference escapes other than through a call's result
-    /// that only windows hold; and those windows, `(local, from, to)`
-    /// sorted.
-    wide: Vec<bool>,
-    windows: Vec<(u32, u32, u32)>,
     changed: Vec<bool>,
     captured: Vec<bool>,
     fresh: Vec<bool>,
@@ -301,7 +284,6 @@ impl Tables {
         self.lent_params.clear();
         fill(&mut self.uses, n, 0);
         fill(&mut self.user, n, NONE);
-        fill(&mut self.through, n, true);
         fill(&mut self.keeps, n, false);
         fill(&mut self.stored, n, NONE);
         fill(&mut self.last_drop, n, NONE);
@@ -309,8 +291,6 @@ impl Tables {
         fill(&mut self.stores, locals, 0);
         fill(&mut self.reached, locals, false);
         fill(&mut self.escapes, locals, false);
-        fill(&mut self.wide, locals, false);
-        self.windows.clear();
         fill(&mut self.changed, locals, false);
         fill(&mut self.captured, locals, false);
         fill(&mut self.fresh, locals, true);
@@ -378,7 +358,6 @@ impl Tables {
     ) -> Chain {
         let locals = u32_of(b.local_ty.len());
         let mut chain = Chain {
-            shut: NONE,
             provider: NONE,
             ..Chain::default()
         };
@@ -427,10 +406,7 @@ impl Tables {
                     }
                     let li = l as usize;
                     let param = b.local_flags[li] & local_flags::PARAM != 0;
-                    chain.ok = !self.wide[li];
-                    if self.escapes[li] {
-                        chain.shut = l;
-                    }
+                    chain.ok = !self.escapes[li];
                     // A list a reference reaches may hold a value a
                     // callee stored there, which shares its buffer.
                     chain.heap =
@@ -526,7 +502,6 @@ impl Tables {
             heap: true,
             param: false,
             excl: None,
-            shut: NONE,
             frame: false,
             provider: NONE,
         }
@@ -593,46 +568,6 @@ fn lends_once(b: &Body, cx: &dyn OwnCx, counts: &[u32], last: &[u32], i: usize) 
         return b.tags[u] == Tag::Call && !cx.holds_ref(b.ty[u]);
     }
     false
-}
-
-/// Whether `Ref` `i` of a part of a local is a local reference that one
-/// call takes, through coercions that keep its value, whose result holds
-/// a reference that the body only reads and writes through and drops
-/// (`b.item_ref(0).qty`): the local is reached from the `Ref` to that
-/// result's last use, its window, which this returns.
-fn lends_window(b: &Body, t: &Tables, i: usize) -> Option<u32> {
-    if b.data[i][1] & crate::ir::ref_word::LOCAL == 0 {
-        return None;
-    }
-    let mut v = i;
-    for _ in 0..DEPTH {
-        if t.uses[v] != 1 {
-            return None;
-        }
-        let u = t.user[v] as usize;
-        if b.same_value_coercion(u) && b.data[u][0] as usize == v {
-            v = u;
-            continue;
-        }
-        if b.tags[u] != Tag::Call || !t.through[u] {
-            return None;
-        }
-        let last = [t.user[u], t.last_drop[u]]
-            .into_iter()
-            .filter(|&x| x != NONE)
-            .max();
-        return Some(last.unwrap_or(u32_of(u)));
-    }
-    None
-}
-
-/// Whether one of local `l`'s windows ([`lends_window`]) meets `lo..=hi`.
-fn window_open(t: &Tables, l: u32, lo: u32, hi: u32) -> bool {
-    let k = t.windows.partition_point(|&(m, _, _)| m < l);
-    t.windows[k..]
-        .iter()
-        .take_while(|&&(m, _, _)| m == l)
-        .any(|&(_, from, to)| from <= hi && to >= lo)
 }
 
 /// Per local: whether a reference to it outlives the one call it lends to,
@@ -864,7 +799,6 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                     if b.cap_mode[c].shares() && !recursive[l] {
                         t.reached[l] = true;
                         t.escapes[l] = true;
-                        t.wide[l] = true;
                     }
                 }
             }
@@ -878,13 +812,6 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
             }
             t.uses[v] += 1;
             t.user[v] = u32_of(i);
-            // A use through a reference: a read or a store into a place
-            // that dereferences it, which yields no reference.
-            t.through[v] &= matches!(tag, Tag::Read | Tag::Store)
-                && op.at != Loc::Data(1)
-                && b.view(a).root == Root::Value(u32_of(v))
-                && b.view(a).first(b) == Some(Proj::Deref)
-                && !(tag == Tag::Read && cx.holds_ref(b.ty[i]));
             let keeps = match op.role {
                 // Decided once the coercion's own uses are known.
                 Role::Consume if b.same_value_coercion(i) && t.alias[v] == NONE => {
@@ -946,13 +873,8 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
             && !lends_once(b, cx, &t.uses, &t.user, i)
         {
             t.escapes[l.idx()] = true;
-            match lends_window(b, t, i) {
-                Some(to) => t.windows.push((l.raw(), u32_of(i), to)),
-                None => t.wide[l.idx()] = true,
-            }
         }
     }
-    t.windows.sort_stable();
     // A value a coercion consumes is kept where the coercion's value is
     // (by a use, a store, another coercion) or where it has another use.
     // Coercions follow their operands in the columns, so a chain resolves
@@ -1388,9 +1310,7 @@ fn decide(
             }
         }
         let mut relied = 0;
-        let blocked = !chain.ok
-            || (chain.shut != NONE && window_open(t, chain.shut, lo, end))
-            || conflicts(t, chain, x, lo, end, &mut relied);
+        let blocked = !chain.ok || conflicts(t, chain, x, lo, end, &mut relied);
         for &d in &ref_drops {
             t.gone[d] = false;
         }
