@@ -55,6 +55,7 @@ pub(crate) mod child;
 pub(crate) mod cold;
 pub(crate) mod cold_captures;
 pub(crate) mod cold_row;
+pub(crate) mod context;
 pub(crate) mod counts;
 pub(crate) mod derive;
 pub mod flow;

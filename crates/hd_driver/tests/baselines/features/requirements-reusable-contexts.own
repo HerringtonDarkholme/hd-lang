@@ -66,8 +66,9 @@ fn make(s: string) -> $.Context[$ Tag]:
 >   %13 = Coerce %11 [RefAsProvider -] : Tag
 >   %14 = LoanEnd [%11] : ()
 >   %15 = ContextNew [Tag %13] : $.Context[$ Tag]
->   %16 = Drop [%13] : ()
->   %17 = Block %15 : $.Context[$ Tag]
+>   %16 = Retain %15 Operation row #0 : ()
+>   %17 = Drop [%13] : ()
+>   %18 = Block %15 : $.Context[$ Tag]
 >   %5 finds [$2] full
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes

@@ -20,6 +20,7 @@ pub enum At {
 pub enum Part {
     Result,
     Local(u32),
+    /// Provider data kept by an ABI row or a constructed context's row.
     Row,
     Operand(u32),
     Child,

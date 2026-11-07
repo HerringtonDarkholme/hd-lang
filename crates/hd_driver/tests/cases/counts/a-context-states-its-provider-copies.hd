@@ -1,0 +1,24 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: a new context states one provider packet, copying only each key's final provider; an empty context has no count.
+trait Tag:
+    fn name(self) -> string
+
+struct Named:
+    label: string
+
+impl Tag for Named:
+    fn name(self) -> string:
+        self.label
+
+fn make(label: string) -> $.Context[$ Tag]:
+    $.context(Tag=Named { label: label })
+
+fn spread(ctx: $.Context[$ Tag]) -> $.Context[$ Tag]:
+    $.context(ctx...)
+
+fn shadow(ctx: $.Context[$ Tag], label: string) -> $.Context[$ Tag]:
+    $.context(ctx..., Tag=Named { label: label })
+
+fn empty() -> $.Context[$ ()]:
+    $.context()

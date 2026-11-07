@@ -12,6 +12,7 @@
 use crate::op::Op as I;
 use hd_base::StageResult;
 use hd_mono::layout::{CanonMemo, canon};
+use hd_tir::ir::{Tag, count::Part};
 use hd_types::{Ty, TyData};
 
 use super::Em;
@@ -317,9 +318,13 @@ impl Em<'_, '_, '_> {
         self.f.i32(0);
         self.f.helper(Helper::CtxNew);
         self.f.set(c);
+        let copy = self.operation_count(i, Tag::Retain, Part::Row);
         for (j, (k, [d, v])) in keys.iter().zip(provs).enumerate() {
             let id = key_id(self.input, *k);
-            self.fill_entry(c, j, id, d, v);
+            let Some(reason) = copy else {
+                return unsupported("a context without its stated provider copies");
+            };
+            self.because(reason, |em| em.fill_entry(c, j, id, d, v));
         }
         self.f.get(c);
         self.store_owned(i)

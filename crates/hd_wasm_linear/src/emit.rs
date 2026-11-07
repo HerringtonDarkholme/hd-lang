@@ -1266,7 +1266,6 @@ fn glue_site(t: Tag) -> Option<Reason> {
             | Tag::Call
             | Tag::CallValue
             | Tag::Coerce
-            | Tag::ContextNew
             | Tag::CopyStruct
             | Tag::DefaultCall
             | Tag::Intrinsic
