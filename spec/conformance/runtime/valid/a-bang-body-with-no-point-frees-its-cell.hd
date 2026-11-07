@@ -1,0 +1,17 @@
+# expect-stdout: helper
+# test: a suspending function with no suspension point keeps a referenced local in a cell, and moving the local's only field out still frees that cell
+# Spec lang/13 ref.move.field: moving a field out leaves the binding partly moved, and its cell is still freed.
+struct Sink:
+    text: string
+
+impl Sink:
+    fn set(&mut self, value: string) -> void:
+        self.text = value
+
+fn helper!() -> string:
+    let mut sink = Sink { text: "" }
+    sink.set("helper")
+    sink.text
+
+pub fn main!() -> void $ Console:
+    println(helper!())

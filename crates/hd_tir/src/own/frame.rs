@@ -60,7 +60,7 @@ use hd_base::SliceSort as _;
 
 use super::{OwnCx, Role, fill, operands, suite_touches};
 use crate::ir::{
-    Body, Callee, IntrinsicOp, NONE, PlaceView, Proj, Ref, Root, Tag, Topology, Word,
+    Body, BodyKind, Callee, IntrinsicOp, NONE, PlaceView, Proj, Ref, Root, Tag, Topology, Word,
     is_suspension, local_flags, slots, u32_of,
 };
 
@@ -291,7 +291,7 @@ pub(crate) fn run(
     // A suspending root keeps its locals in its frame object, so none is
     // a frame slot, but a reference into one of its cells, or one its
     // synchronous closures lend, holds no count of the cell.
-    if (0..n).any(|i| is_suspension(b.tags[i]) && topo.sub[i] == 0) {
+    if runs_framed(b, topo, cx) {
         extra_cell_uses(b, cx, t, |_| true, &mut uses);
         root_uses(b, cx, &mut uses);
         return;
@@ -377,6 +377,14 @@ pub(crate) fn run(
     }
     extra_cell_uses(b, cx, t, |_| true, &mut uses);
     root_uses(b, cx, &mut uses);
+}
+
+/// Whether the root of `b` runs over a frame object: it has a suspension
+/// point, or its item suspends and it isn't an entry root, which would
+/// end on its first poll.
+fn runs_framed(b: &Body, topo: &Topology, cx: &dyn OwnCx) -> bool {
+    let point = (0..b.len()).any(|i| is_suspension(b.tags[i]) && topo.sub[i] == 0);
+    point || b.kind != BodyKind::Default && cx.suspending(b.item) && !cx.entry_root(b.item)
 }
 
 /// Each local's first store and the loop round around it ([`Tables::round`]).

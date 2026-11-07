@@ -1723,6 +1723,9 @@ struct Run<'a> {
     /// that records its summary (`own::Run::owned_bottom_up`), in dev on
     /// first use; `None` where the passes refused it.
     instances: Mutex<HashMap<own::Node, Option<Arc<Body>>>>,
+    /// The roots only the entry calls (`OwnCx::entry_root`): `main`, or the
+    /// test cases. Collection sets them before it asks for a body.
+    entry_roots: OnceLock<Vec<DefId>>,
     /// The root package's per-body fuel, when a test sets it
     /// ([`Packages::body_fuel`]).
     body_fuel: Option<u64>,
@@ -2587,6 +2590,7 @@ fn build_packages_inner(
             .contains(&"summaries")
             .then(own::Summaries::default),
         instances: Mutex::new(HashMap::default()),
+        entry_roots: OnceLock::new(),
         promote_args: hd_opt::passes::pipeline(packages.target, packages.level)
             .tir
             .contains(&"arg_promote"),
@@ -9359,6 +9363,12 @@ impl Run<'_> {
         if matches!(self.goal, Goal::Fixture { .. }) {
             self.collect_fixture(sp, p, pkey, &entry_key);
             return;
+        }
+        if matches!(
+            self.goal,
+            Goal::Program { .. } | Goal::Scenario { .. } | Goal::Tests { .. }
+        ) {
+            let _ = (self.entry_roots).set(roots.iter().map(|(def, _)| *def).collect());
         }
         let init_of = |m: &str| hd_check::default_body_def(&names, names.item(m, "init"), "init");
         // A script has no `main`: its top-level statements are its module

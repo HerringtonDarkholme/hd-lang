@@ -1,0 +1,17 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: `helper!` runs over a frame though it has no suspension point, so
+# `sink` lies in a heap cell. Its reference is no frame slot's, and moving
+# `sink.text` out still releases the cell.
+struct Sink:
+    text: string
+
+impl Sink:
+    fn set(&mut self, value: string) -> void:
+        self.text = value
+
+# subject
+fn helper!() -> string:
+    let mut sink = Sink { text: "" }
+    sink.set("helper")
+    sink.text

@@ -724,6 +724,13 @@ impl OwnCx for Env<'_> {
         ProgramEnv::suspends(self, item)
     }
 
+    fn entry_root(&self, item: DefId) -> bool {
+        self.run
+            .entry_roots
+            .get()
+            .is_some_and(|roots| roots.contains(&item))
+    }
+
     fn local_ref_param(&self, item: DefId, k: usize, n: usize) -> bool {
         let Some(sig) = self.sig(item).filter(|s| s.params.len() == n) else {
             return false;

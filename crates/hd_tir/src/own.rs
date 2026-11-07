@@ -339,6 +339,13 @@ pub trait OwnCx {
         let _ = item;
         true
     }
+    /// Whether `item` is a root of the entry that only the entry calls:
+    /// `main`, or a test case. Such a root with no suspension point runs
+    /// as a plain function, on its first poll.
+    fn entry_root(&self, item: hd_base::DefId) -> bool {
+        let _ = item;
+        false
+    }
     /// Whether a value of `ty` may hold a list or a map in place, which a
     /// count of it copies: a list, a map, a struct holding one in a field
     /// at any depth, or a type the instance decides. Hoisting reads it.
@@ -1536,6 +1543,11 @@ pub(crate) mod tests {
     pub(crate) struct Cx;
 
     impl super::OwnCx for Cx {
+        // The default answers that a body suspends: these bodies have no
+        // point, and run plain only as an entry root.
+        fn entry_root(&self, _: DefId) -> bool {
+            true
+        }
         fn counted(&self, ty: Ty) -> bool {
             ty == Ty::STRING || ty == LIST || ty == UNIQ || ty == OPEN
         }
