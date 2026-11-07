@@ -2,7 +2,7 @@
 
 use super::{Body, NONE, Tag, Topology};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u32)]
 pub enum At {
     Value,
@@ -15,7 +15,7 @@ pub enum At {
     Materialize,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Part {
     Result,
     Local(u32),
@@ -25,7 +25,7 @@ pub enum Part {
 
 /// The record in a retain/release's second word. Its first word names
 /// the instruction whose value, operation or function boundary it counts.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Info {
     pub at: At,
     pub part: Part,

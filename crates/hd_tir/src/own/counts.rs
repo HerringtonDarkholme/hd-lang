@@ -6,28 +6,34 @@ use crate::ir::{
     count::{At, Info, Part},
     u32_of,
 };
+use hd_base::SliceSort as _;
 use hd_types::Ty;
 
-fn expected(b: &Body, cx: &dyn OwnCx) -> Vec<(Tag, Info)> {
+fn key(tag: Tag, target: u32, info: Info) -> (u32, u32, Info) {
+    (target, tag as u32, info)
+}
+
+fn expected(b: &Body, cx: &dyn OwnCx) -> Vec<(Tag, u32, Info)> {
+    let root = b.sub_root[0];
     let mut out = Vec::new();
     out.extend(
         abi::parameters(b, cx)
             .into_iter()
-            .map(|l| (Tag::Release, Info::new(At::Exit, Part::Local(l), 2))),
+            .map(|l| (Tag::Release, root, Info::new(At::Exit, Part::Local(l), 2))),
     );
     for l in cold::parameters(b, cx) {
         for at in [At::Cold, At::Entry] {
-            out.push((Tag::Retain, Info::new(at, Part::Local(l), 0)));
+            out.push((Tag::Retain, root, Info::new(at, Part::Local(l), 0)));
         }
     }
-    if cold_row::needed(b, cx) {
+    for root in cold_row::roots(b, cx) {
         for at in [At::Cold, At::Materialize] {
-            out.push((Tag::Retain, Info::new(at, Part::Row, 0)));
+            out.push((Tag::Retain, root, Info::new(at, Part::Row, 0)));
         }
     }
     if cache::counted(b, cx) {
         for at in [At::CacheRead, At::CacheWrite] {
-            out.push((Tag::Retain, Info::new(at, Part::Result, 0)));
+            out.push((Tag::Retain, root, Info::new(at, Part::Result, 0)));
         }
     }
     out
@@ -39,11 +45,20 @@ pub(super) fn run(
     topo: &Topology,
     edits: &mut splice::Tables,
 ) -> Result<(), String> {
-    let root = b.sub_root[0];
-    let mut wanted: Vec<_> = expected(b, cx)
-        .into_iter()
-        .map(|(tag, info)| (tag, root, info))
-        .collect();
+    let mut wanted = expected(b, cx);
+    // Index the existing declarations once, not once per closure. On the
+    // first run this is empty; operation/value counts are separate.
+    let mut existing = Vec::new();
+    if !wanted.is_empty() {
+        for i in 0..b.len() {
+            if let Some(info) = Info::read(b, i)
+                && !matches!(info.at, At::Value | At::Operation)
+            {
+                existing.push(key(b.tags[i], b.data[i][0], info));
+            }
+        }
+        existing.sort_stable();
+    }
     wanted.extend(
         (0..b.len())
             .filter(|&i| map_key::needed(b, cx, i))
@@ -64,9 +79,9 @@ pub(super) fn run(
             )
         } else {
             (
-                root,
+                target,
                 0,
-                crate::ir::count::find(b, tag, target, info.at, info.part).is_some(),
+                existing.binary_search(&key(tag, target, info)).is_ok(),
             )
         };
         if present {
@@ -91,8 +106,13 @@ pub(super) fn run(
 }
 
 pub(crate) fn verify(b: &Body, cx: &dyn OwnCx, topo: &Topology, mut err: impl FnMut(u32, String)) {
-    let root = b.sub_root[0];
     let expected = expected(b, cx);
+    let mut index: Vec<_> = expected
+        .iter()
+        .enumerate()
+        .map(|(i, &(tag, target, info))| (key(tag, target, info), i))
+        .collect();
+    index.sort_stable_by_key(|&(key, _)| key);
     let mut seen = vec![0; expected.len()];
     for i in 0..b.len() {
         if !matches!(b.tags[i], Tag::Retain | Tag::Release) {
@@ -130,10 +150,11 @@ pub(crate) fn verify(b: &Body, cx: &dyn OwnCx, topo: &Topology, mut err: impl Fn
             }
             continue;
         }
-        let found = expected
-            .iter()
-            .position(|&(t, c)| t == b.tags[i] && c == info);
-        if let Some(k) = found.filter(|_| b.data[i][0] == root && topo.blk[i] == root) {
+        let found = index
+            .binary_search_by_key(&key(b.tags[i], b.data[i][0], info), |&(key, _)| key)
+            .ok()
+            .map(|k| index[k].1);
+        if let Some(k) = found.filter(|&k| topo.blk[i] == expected[k].1) {
             seen[k] += 1;
         } else {
             err(u32_of(i), "a boundary count without its count fact".into());
@@ -147,10 +168,10 @@ pub(crate) fn verify(b: &Body, cx: &dyn OwnCx, topo: &Topology, mut err: impl Fn
             err(u32_of(i), "a map put lacks its stored key retain".into());
         }
     }
-    for n in seen {
+    for (k, n) in seen.into_iter().enumerate() {
         if n != 1 {
             err(
-                root,
+                expected[k].1,
                 "a required boundary count is absent or repeated".into(),
             );
         }

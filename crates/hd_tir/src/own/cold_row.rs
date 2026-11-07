@@ -1,18 +1,43 @@
-//! The requirement row captured by a source function's frame.
+//! The ABI row captured by a suspension frame: a function, closure or awaited input.
 //!
 //! Cold construction and fresh materialization each copy the frame-owned
 //! portion of that ABI row at their separate allocation boundaries.
 //! Its instance layout supplies provider data and any open-row context;
 //! a layout that owns no counts lowers no copy.
 
-use super::{OwnCx, params};
-use crate::ir::{Body, BodyKind};
+use super::OwnCx;
+use crate::ir::{Body, BodyKind, Tag};
 
 pub(crate) fn needed(b: &Body, cx: &dyn OwnCx) -> bool {
-    matches!(b.kind, BodyKind::Fn | BodyKind::DeriveInstance)
-        && cx.suspending(b.item)
+    matches!(
+        b.kind,
+        BodyKind::Fn | BodyKind::DeriveInstance | BodyKind::Init
+    ) && cx.suspending(b.item)
         && cx.has_requirement_row(b.item)
-        && cx.parameter_count(b.item) == Some(params(b).len())
+}
+
+/// Source functions pass their declared row. A closure always passes one
+/// caller context, even if its source row has no keys. Multiple generic
+/// instantiations of the same sub-body share its declaration.
+pub(crate) fn roots(b: &Body, cx: &dyn OwnCx) -> Vec<u32> {
+    let mut seen = vec![false; b.sub_root.len()];
+    seen[0] = needed(b, cx);
+    for (i, &tag) in b.tags.iter().enumerate() {
+        if tag == Tag::Closure
+            && cx.function_suspends(b.ty[i])
+            && let Some(seen) = seen
+                .get_mut(b.data[i][0] as usize)
+                .filter(|_| b.data[i][0] != 0)
+        {
+            *seen = true;
+        }
+    }
+    b.sub_root
+        .iter()
+        .copied()
+        .zip(seen)
+        .filter_map(|(root, yes)| yes.then_some(root))
+        .collect()
 }
 
 #[cfg(test)]
@@ -36,6 +61,9 @@ mod tests {
         }
         fn suspending(&self, _: DefId) -> bool {
             self.suspends
+        }
+        fn function_suspends(&self, ty: Ty) -> bool {
+            ty == Ty(43)
         }
         fn has_requirement_row(&self, _: DefId) -> bool {
             self.row
@@ -70,6 +98,119 @@ mod tests {
         b.finish(root, &[]).unwrap()
     }
 
+    fn closures(types: &[Ty], repeat: bool) -> Body {
+        let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        let outer = b.open_block();
+        for &ty in types {
+            let sub = b.open_sub(&[]);
+            let inner = b.open_block();
+            let root = b.close_block(inner, None, Ty::VOID, hd_base::NodeIdx::NONE);
+            b.close_sub(sub, root, ty, hd_base::NodeIdx::NONE);
+            if repeat {
+                b.close_sub(sub, root, ty, hd_base::NodeIdx::NONE);
+            }
+        }
+        let root = b.close_block(outer, None, Ty::VOID, hd_base::NodeIdx::NONE);
+        b.finish(root, &[]).unwrap()
+    }
+
+    #[test]
+    fn suspending_closures_state_rows_at_their_own_roots_without_duplicate_contracts() {
+        let facts = Facts {
+            row: false,
+            suspends: false,
+            declared: true,
+        };
+        let mut b = closures(&[Ty(43), Ty(43), Ty(44)], true);
+        for _ in 0..2 {
+            let topo = Topology::new(&b);
+            run(&mut b, &facts, &topo, &mut splice::Tables::default()).unwrap();
+            let topo = Topology::new(&b);
+            assert_eq!(b.tags.iter().filter(|&&t| t == Tag::Retain).count(), 4);
+            for (i, &tag) in b.tags.iter().enumerate() {
+                if tag == Tag::Retain {
+                    assert!(b.sub_root[1..3].contains(&b.data[i][0]));
+                    assert_eq!(topo.blk[i], b.data[i][0]);
+                }
+            }
+            let errors = verify_owned(&b, &facts);
+            assert!(errors.is_empty(), "{errors:?}");
+        }
+        let text = crate::ir::print(&b);
+        assert_eq!(crate::ir::print(&crate::ir::parse(&text).unwrap()), text);
+    }
+
+    #[test]
+    fn a_siblings_or_creators_row_contract_cannot_satisfy_the_closure() {
+        let facts = Facts {
+            row: false,
+            suspends: false,
+            declared: true,
+        };
+        for target in [0, 2] {
+            let mut b = closures(&[Ty(43), Ty(43)], false);
+            let topo = Topology::new(&b);
+            run(&mut b, &facts, &topo, &mut splice::Tables::default()).unwrap();
+            let retain = (0..b.len())
+                .find(|&i| b.tags[i] == Tag::Retain && b.data[i][0] == b.sub_root[1])
+                .unwrap();
+            b.data[retain][0] = b.sub_root[target];
+            let errors = verify_owned(&b, &facts);
+            assert!(
+                errors
+                    .iter()
+                    .any(|e| e.what.contains("without its count fact"))
+            );
+            assert!(errors.iter().any(|e| e.what.contains("absent or repeated")));
+        }
+    }
+
+    #[test]
+    fn an_awaited_input_states_its_inferred_row_but_a_closures_await_is_not_its_own() {
+        use crate::ir::Providers;
+        use hd_types::TyList;
+        for inside in [false, true] {
+            let facts = Facts {
+                row: true,
+                suspends: !inside,
+                declared: false,
+            };
+            let mut builder = TirBuilder::new(DefId::from_raw(1), BodyKind::Init);
+            let outer = builder.open_block();
+            let sub = inside.then(|| builder.open_sub(&[]));
+            let block = builder.open_block();
+            builder.call(
+                &Callee::Item {
+                    def: DefId::from_raw(7),
+                    targs: TyList::EMPTY,
+                },
+                &[],
+                Providers::None,
+                Ty::VOID,
+                hd_base::NodeIdx::NONE,
+            );
+            let block = builder.close_block(block, None, Ty::VOID, hd_base::NodeIdx::NONE);
+            if let Some(sub) = sub {
+                builder.close_sub(sub, block, Ty(43), hd_base::NodeIdx::NONE);
+            }
+            let root = builder.close_block(outer, None, Ty::VOID, hd_base::NodeIdx::NONE);
+            let mut b = builder.finish(root, &[]).unwrap();
+            let call = b.tags.iter().position(|&t| t == Tag::Call).unwrap();
+            b.tags[call] = Tag::Await;
+            let topo = Topology::new(&b);
+            run(&mut b, &facts, &topo, &mut splice::Tables::default()).unwrap();
+            let expected = b.sub_root[usize::from(inside)];
+            assert_eq!(b.tags.iter().filter(|&&t| t == Tag::Retain).count(), 2);
+            for (i, &tag) in b.tags.iter().enumerate() {
+                if tag == Tag::Retain {
+                    assert_eq!(b.data[i][0], expected);
+                }
+            }
+            let errors = verify_owned(&b, &facts);
+            assert!(errors.is_empty(), "{errors:?}");
+        }
+    }
+
     #[test]
     fn source_rows_are_declared_once_per_allocation_boundary_and_other_abis_are_separate() {
         for (kind, row, suspends, declared, count) in [
@@ -77,8 +218,12 @@ mod tests {
             (BodyKind::DeriveInstance, true, true, true, 2),
             (BodyKind::Fn, false, true, true, 0),
             (BodyKind::Fn, true, false, true, 0),
-            (BodyKind::Fn, true, true, false, 0),
+            (BodyKind::Fn, true, true, false, 2),
             (BodyKind::Default, true, true, true, 0),
+            // The checked input's ABI survives even when optimization erased its point.
+            (BodyKind::Init, true, true, false, 2),
+            (BodyKind::Init, true, false, false, 0),
+            (BodyKind::Init, false, true, false, 0),
         ] {
             let mut b = body(kind);
             let facts = Facts {
