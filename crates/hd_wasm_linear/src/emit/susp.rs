@@ -360,7 +360,7 @@ impl Em<'_, '_, '_> {
     /// count the frame takes: saves every local and returns the frame.
     fn suspend(&mut self, k: u32, child: u32) -> StageResult<()> {
         self.materialize()?;
-        self.f.push(Ins::SaveAll);
+        self.f.push(Ins::Save(k));
         self.f.get(FRAME);
         self.f.get(child);
         self.f.op(I::I32Store(mem(HEAP, F_CHILD, 2)));
@@ -1152,17 +1152,22 @@ pub(super) fn load_op(v: Val, at: u32) -> I {
     }
 }
 
-/// Replaces a body's [`Ins::SaveAll`] and [`Ins::LoadAll`] by the stores
-/// and loads of its save area `area`.
-pub(super) fn expand(f: &mut crate::module::Func, area: &[(u32, u32, Val)]) {
+/// Replaces a body's [`Ins::Save`]s and [`Ins::LoadAll`] by the stores
+/// and loads of its save area `area`: a save at state `k` stores
+/// `held[k]` when there is one, else all of it.
+pub(super) fn expand(
+    f: &mut crate::module::Func,
+    area: &[(u32, u32, Val)],
+    held: &HashMap<u32, Vec<(u32, u32, Val)>>,
+) {
     let body = std::mem::take(&mut f.body);
     let origins = f.origins.as_mut().map(std::mem::take);
     let outer = f.origin_at;
     for (position, ins) in body.into_iter().enumerate() {
         f.origin_at = origins.as_ref().and_then(|o| o[position]);
         match ins {
-            Ins::SaveAll => {
-                for &(l, at, v) in area {
+            Ins::Save(k) => {
+                for &(l, at, v) in held.get(&k).map_or(area, Vec::as_slice) {
                     store_local(f, l, at, v);
                 }
             }
@@ -1177,6 +1182,46 @@ pub(super) fn expand(f: &mut crate::module::Func, area: &[(u32, u32, Val)]) {
         }
     }
     f.origin_at = outer;
+}
+
+/// What the frame holds at each state of the body `em` emits, from the
+/// TIR's live rows (`Body::live`): of save area `area`, each Wasm local
+/// of a local or value live there, and every Wasm local that holds none,
+/// which is the emitter's own. A point with no row holds all of it.
+fn held_at(em: &Em<'_, '_, '_>, area: &[(u32, u32, Val)]) -> HashMap<u32, Vec<(u32, u32, Val)>> {
+    let mut owners: HashMap<u32, Vec<u32>> = HashMap::default();
+    for (&l, ws) in &em.locals {
+        let word = hd_tir::ir::place::BARE_LOCAL | u32::try_from(l).expect("local");
+        for w in ws {
+            owners.entry(*w).or_default().push(word);
+        }
+    }
+    for (&i, ws) in &em.vals {
+        for w in ws {
+            owners.entry(*w).or_default().push(i);
+        }
+    }
+    let mut out = HashMap::default();
+    let Some(s) = em.susp.as_ref() else {
+        return out;
+    };
+    for (&p, &k) in &s.states {
+        let Ok(r) = em.b.live.binary_search_by_key(&p, |r| r.0) else {
+            continue;
+        };
+        let live = &em.b.live[r].1;
+        let kept = area
+            .iter()
+            .filter(|(w, _, _)| {
+                owners
+                    .get(w)
+                    .is_none_or(|os| os.iter().any(|o| live.binary_search(o).is_ok()))
+            })
+            .copied()
+            .collect();
+        out.insert(k, kept);
+    }
+    out
 }
 
 impl Em<'_, '_, '_> {
@@ -1276,7 +1321,8 @@ pub(super) fn finish(
     };
     skipped.extend(em.param_vals.values().flatten().copied());
     let (area, size) = save_area(&vals_all, &skipped);
-    expand(&mut em.f, &area);
+    let saved = held_at(&em, &area);
+    expand(&mut em.f, &area, &saved);
     em.m.frames.insert(key, size);
     let at_of = |l: u32| area.iter().find(|x| x.0 == l).map(|x| (x.1, x.2));
     let results = em.results.clone();
@@ -1798,9 +1844,9 @@ mod origin_tests {
         let m = crate::module::Module::default();
         let mut f = m.func("frame", vec![Val::I32], vec![]);
         f.locals.push(Val::I32);
-        f.body = vec![Ins::SaveAll, Ins::LoadAll];
+        f.body = vec![Ins::Save(1), Ins::LoadAll];
         f.origins = Some(vec![Some(10), Some(20)]);
-        expand(&mut f, &[(1, 32, Val::I32)]);
+        expand(&mut f, &[(1, 32, Val::I32)], &HashMap::default());
         assert_eq!(
             f.origins.unwrap(),
             [Some(10), Some(10), Some(10), Some(20), Some(20), Some(20)]
