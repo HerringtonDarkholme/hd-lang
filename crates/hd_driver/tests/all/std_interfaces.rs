@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use hd_base::Stage;
 use hd_cache::MemoryStore;
-use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
+use hd_driver::{Executor, Goal, Host, NoClock, Output, Packages, build, build_packages};
 use hd_intern::{PathTable, ShardedInterner};
 use hd_project::MemorySources;
 use hd_resolve::{ItemData, Names, decode_items, encode_items};
@@ -248,6 +248,49 @@ fn a_type_reached_only_through_a_signature_changes_the_dependents_key() {
     );
     assert!(b.counters.ifaces_built.contains(&"app.service".to_owned()));
     assert!(!b.counters.ifaces_built.contains(&"std".to_owned()));
+}
+
+#[test]
+fn every_program_shares_stds_check_entries_under_one_profile() {
+    let run = |package: &str, profile: Option<Vec<String>>| {
+        let mut sources = MemorySources::default();
+        sources.insert(
+            "main.hd",
+            "pub fn main() -> void $ Console:\n    println(1)\n",
+        );
+        let store = MemoryStore::default();
+        let host = Host {
+            render_tir: &[],
+            sources: &sources,
+            store: &store,
+            clock: &NoClock,
+            executor: Executor::Serial(SerialOrder::Priority),
+        };
+        let packages = Packages {
+            profile,
+            ..Packages::default()
+        };
+        let goal = Goal::Program {
+            entry: "main".to_owned(),
+        };
+        build_packages(&host, package, &packages, &goal)
+    };
+    let std_keys = |o: &Output| -> Vec<_> {
+        let keys = o.counters.check_keys.iter();
+        keys.filter(|(m, _)| m.starts_with("std"))
+            .map(|(m, k)| (m.clone(), *k))
+            .collect()
+    };
+    let a = run("app", None);
+    let b = run("shop", None);
+    let console = run("app", Some(vec!["std.console.Console".to_owned()]));
+    assert!(!std_keys(&a).is_empty());
+    assert_eq!(std_keys(&a), std_keys(&b));
+    assert_ne!(
+        a.counters.check_keys["app.main"],
+        b.counters.check_keys["shop.main"]
+    );
+    assert_ne!(std_keys(&a), std_keys(&console));
 }
 
 const STATS: &str = "\

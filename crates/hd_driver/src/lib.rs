@@ -1495,6 +1495,7 @@ struct Run<'a> {
     folder_impls: Vec<OnceLock<Option<Arc<FolderImpls>>>>,
     toolchain: Hash128,
     package_key: Hash128,
+    root_settings: Hash128,
     pipeline: Hash128,
     /// The pipeline's body-unit passes, which collection applies.
     planner: hd_opt::planner::PipelinePlanner,
@@ -2123,6 +2124,24 @@ fn root_package_key(package: &str, profile: Option<&[String]>) -> Hash128 {
     k.finish()
 }
 
+/// What a root decides of its dependencies' check entries: the traits of a
+/// runtime profile other than the default one, and its host contract. Its name
+/// decides nothing, so every program shares std's entries.
+fn root_settings_key(profile: Option<&[String]>, hosts: Option<Hash128>) -> Hash128 {
+    let mut k = hd_base::StableHasher::new("root-settings");
+    if let Some(traits) = profile {
+        k.u64(1);
+        for t in traits {
+            k.str(t);
+        }
+    }
+    if let Some(hosts) = hosts {
+        k.u64(2);
+        k.hash(hosts);
+    }
+    k.finish()
+}
+
 /// One run with the caller's sources, store, executor and clock.
 #[must_use]
 pub fn build(host: &Host<'_>, package: &str, goal: &Goal) -> Output {
@@ -2319,6 +2338,7 @@ fn build_packages_inner(
         }
     }
     let host_contract_key = has_hosts.then(|| host_key.finish());
+    let root_settings = root_settings_key(packages.profile.as_deref(), host_contract_key);
     let mut package_key = root_package_key(package, packages.profile.as_deref());
     if let Some(hosts) = host_contract_key {
         let mut key = hd_base::StableHasher::new("package-host-profile-v1");
@@ -2348,6 +2368,7 @@ fn build_packages_inner(
         folder_impls: (0..nf).map(|_| OnceLock::new()).collect(),
         toolchain,
         package_key,
+        root_settings,
         profile,
         host_packages: packages.host_packages.clone(),
         host_contract_key,
@@ -5673,13 +5694,13 @@ impl Run<'_> {
         for &(_, k) in self.earlier_inputs(m) {
             closure.push(("$input", self.skim_of(k).file.token_hash));
         }
-        // A dependency's module is checked against the root's profile, so
-        // its key holds both packages.
+        // A dependency's module is checked against the root's profile, so its
+        // key holds that and its own package.
         let package = if module.package == 0 {
             self.package_key
         } else {
             let mut k = hd_base::StableHasher::new("pkg-dep");
-            k.hash(self.package_key);
+            k.hash(self.root_settings);
             k.hash(self.package_key_of(module.package));
             k.finish()
         };
