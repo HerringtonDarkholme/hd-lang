@@ -157,8 +157,7 @@ pub fn kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Kind {
             .list_items(args)
             .first()
             .map_or(Ty::VOID, |a| strip(pool, env, *a));
-        // A reference to a trait value is the value itself, including
-        // when its open representation is one box (`emit/erased.rs`).
+        // A reference to a trait value is the value itself.
         let fat = matches!(pool.get(target), TyData::TraitValue { .. });
         let whole = def == env.ref_cells().counted;
         return Kind::Ref { target, fat, whole };
@@ -240,8 +239,7 @@ fn union_variants(pool: &InternPool, members: TyList) -> Vec<Vec<Ty>> {
 /// field, at any depth of structs. A legacy `mut` view shares its list
 /// and holds none.
 pub fn coll_leaves(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<u32> {
-    // An open value's copies are made by the thunks that know its type.
-    if hd_mono::is_open(pool, t) || !hd_mono::holds_coll(pool, env, t) {
+    if !hd_mono::holds_coll(pool, env, t) {
         return Vec::new();
     }
     let s = strip_newtype(pool, env, t);
@@ -335,9 +333,6 @@ pub fn value_paths(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<String
 /// tuple's members, an optional's inner type, a value enum's payload
 /// fields, a struct's fields. Every other type is one leaf or address.
 pub fn value_parts(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<Ty> {
-    if hd_mono::is_open(pool, t) {
-        return Vec::new();
-    }
     match pool.get(t) {
         TyData::Tuple { .. } => tuple_members(pool, t),
         TyData::Option(inner) => vec![inner],
@@ -487,11 +482,6 @@ fn mem_one(
     part: &dyn Fn(Ty) -> StageResult<Mem>,
 ) -> StageResult<Mem> {
     let t = strip(pool, env, t);
-    // A value of an open type in an erased body is one counted address,
-    // whatever the caller's type (`emit/erased.rs`).
-    if hd_mono::is_open(pool, t) {
-        return Ok(Mem::address());
-    }
     Ok(match pool.get(t) {
         TyData::Prim(p) => match p {
             Prim::I8 => Mem::one(Val::I32, 1, true),
@@ -648,9 +638,8 @@ impl Walk {
     }
 
     /// Whether the walk is value 0 alone, as a plain count takes it: a
-    /// value that is one such address can stand for itself where an open
-    /// value or a reference view holds one counted address
-    /// (`emit/erased.rs`).
+    /// value that is one such address can stand for itself where a reference
+    /// view holds one counted address.
     #[must_use]
     pub fn plain_single(&self) -> bool {
         matches!(self, Walk::Ref(0) | Walk::Known(0))
@@ -715,9 +704,6 @@ fn walk_one(
     views: bool,
 ) -> Option<Walk> {
     let t = strip(pool, env, t);
-    if hd_mono::is_open(pool, t) {
-        return Some(Walk::Ref(0));
-    }
     match pool.get(t) {
         TyData::Prim(Prim::String) => Some(Walk::Ref(0)),
         TyData::Fn { .. } => Some(Walk::Known(1)),
@@ -759,9 +745,6 @@ fn walk_one(
 /// reference is one when it is counted and thin (§23.30).
 pub fn block_start(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     let t = strip(pool, env, t);
-    if hd_mono::is_open(pool, t) {
-        return false;
-    }
     match pool.get(t) {
         TyData::Fn { .. } | TyData::Context(_) => true,
         TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => true,

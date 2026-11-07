@@ -509,7 +509,7 @@ impl Em<'_, '_, '_> {
     /// The await of point `i` at state `k`.
     fn await_point(&mut self, i: u32, k: u32, a: u32, bw: u32) -> StageResult<()> {
         match self.b.tags[i as usize] {
-            Tag::AwaitValue => self.await_stored(i, k, false, None, &|em| em.comp(a, 0)),
+            Tag::AwaitValue => self.await_stored(i, k, false, &|em| em.comp(a, 0)),
             Tag::Await => {
                 let rec = self.rec(bw);
                 let args = rec[..rec.len().saturating_sub(3)].to_vec();
@@ -521,13 +521,10 @@ impl Em<'_, '_, '_> {
                         self.await_direct(i, k, t.key, t.item, t.args, &args)
                     }
                     Some(Target::Dyn) => {
-                        // A generic method's erased body finishes with an
-                        // open value (`erased.rs`).
-                        let open = self.dyn_open_ret(a)?;
-                        if open.is_none() && self.shield == 0 && self.drives(a) {
+                        if self.shield == 0 && self.drives(a) {
                             return self.await_driven(i, k, a, &args);
                         }
-                        self.await_stored(i, k, true, open, &|em| em.push_dyn(a, &args, None, None))
+                        self.await_stored(i, k, true, &|em| em.push_dyn(a, &args, None, None))
                     }
                     _ => unsupported("a bang call that collection did not resolve"),
                 }
@@ -622,14 +619,12 @@ impl Em<'_, '_, '_> {
     /// through its poll slot. `fresh` pushes it on the fresh path: a new
     /// cold frame when `owned`, whose count the frame takes when it waits
     /// and which is let go once it is Ready; else a borrowed suspension,
-    /// of which the frame takes a count of its own when it waits. With
-    /// `open`, the result is an open value of that erased type.
+    /// of which the frame takes a count of its own when it waits.
     fn await_stored(
         &mut self,
         i: u32,
         k: u32,
         owned: bool,
-        open: Option<hd_types::Ty>,
         fresh: &dyn Fn(&mut Self) -> StageResult<()>,
     ) -> StageResult<()> {
         let pc = self.pc();
@@ -650,10 +645,7 @@ impl Em<'_, '_, '_> {
         self.f.i32(0);
         self.f.set(held);
         self.close();
-        let res = match open {
-            Some(_) => vec![Val::I32],
-            None => self.vals(self.ty(i))?,
-        };
+        let res = self.vals(self.ty(i))?;
         let tmp: Vec<u32> = res.iter().map(|v| self.f.local(*v)).collect();
         let ready = self.f.local(Val::I32);
         // `gone` is the child a shielded point is left to wait on.
@@ -718,10 +710,6 @@ impl Em<'_, '_, '_> {
         self.f.op(I::End);
         self.f.i32(0);
         self.f.set(pc);
-        let tmp = match open {
-            Some(et) => self.unerase(tmp[0], et, self.ty(i), true)?,
-            None => tmp,
-        };
         for l in &tmp {
             self.f.get(*l);
         }

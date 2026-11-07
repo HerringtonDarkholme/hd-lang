@@ -8,8 +8,7 @@
 //! the object they reach: the types it writes (a store, an `IsUnique`, a
 //! `&mut`, a `*T` lent as `&mut`) and reads (a read, a `&`, a `*T` lent as
 //! `&`, and every `*T` crossed on the way to another), with its callees'.
-//! A call of a function value or a trait value, an erased body's open
-//! call, a suspension point and an instance with no body of its own count
+//! A call of a function value or a trait value, a suspension point and an instance with no body of its own count
 //! as accessing everything.
 //!
 //! **Per reference.** A shared loan on an object of type `T` is kept when
@@ -22,8 +21,6 @@
 //! **Per type.** A loan on a type that no instruction of the program
 //! writes through a `*T` (for an exclusive one, reads or writes), the
 //! loan's own instruction aside, is never kept, whatever its range calls.
-//! An erased body that accesses an open type through a `*T` counts as
-//! accessing every type.
 
 use hd_base::{HashMap, HashSet, InstId, SliceSort as _};
 use hd_mono::{Sub, Target, TargetKind, subst};
@@ -95,14 +92,14 @@ fn callees(m: &Module, t: &Target) -> Option<Vec<hd_base::Hash128>> {
             Some(out)
         }
         Target::KnownClosure(k) => Some(vec![*k]),
-        Target::Dyn | Target::Open(_) => None,
+        Target::Dyn => None,
         _ => Some(Vec::new()),
     }
 }
 
-/// Whether type `t` names a type parameter: an erased body's open type.
+/// Whether type `t` names a type parameter.
 fn open(pool: &hd_types::InternPool, t: Ty) -> bool {
-    matches!(pool.get(t), TyData::Param(..)) || hd_mono::is_open(pool, t)
+    matches!(pool.get(t), TyData::Param(..))
 }
 
 /// The accesses of each instruction of instance `id`'s body `b`.
@@ -231,8 +228,7 @@ pub(crate) fn decide(input: &Input<'_>, m: &mut Module) {
         let Some(b) = (input.body)(*id) else {
             continue;
         };
-        let erased = matches!(t.sub[id.idx()], Sub::Erased);
-        if !matches!(t.sub[id.idx()], Sub::Body(_)) && !erased {
+        if !matches!(t.sub[id.idx()], Sub::Body(_)) {
             continue;
         }
         let a = accesses(input, m, *id, b);
@@ -263,11 +259,9 @@ pub(crate) fn decide(input: &Input<'_>, m: &mut Module) {
             }
             // Only an open access is unknown program-wide: a call's
             // callees are counted at their own bodies.
-            every |= acc.open || erased && acc.any && (!acc.w.is_empty() || !acc.r.is_empty());
+            every |= acc.open;
         }
-        if !erased {
-            accs.insert(*id, a);
-        }
+        accs.insert(*id, a);
     }
     // Each instance's summary, with its callees', to a fixed point.
     let mut sums: HashMap<InstId, Eff> = HashMap::default();

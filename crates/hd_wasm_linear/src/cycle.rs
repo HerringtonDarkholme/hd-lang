@@ -84,9 +84,6 @@ pub fn recursive_object(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool 
         if t == root {
             return true;
         }
-        if hd_mono::is_open(pool, t) {
-            continue;
-        }
         let children = match pool.get(t) {
             TyData::Prim(_) | TyData::Never => Vec::new(),
             TyData::Tuple { .. } => tuple_members(pool, t),
@@ -166,9 +163,6 @@ fn reaches(pool: &InternPool, env: &dyn ProgramEnv, start: &[Ty]) -> bool {
     let mut work: Vec<(Ty, Vec<Ty>)> = start.iter().map(|t| (*t, Vec::new())).collect();
     while let Some((t, path)) = work.pop() {
         let t = strip(pool, env, t);
-        if hd_mono::is_open(pool, t) {
-            return true;
-        }
         let children = match pool.get(t) {
             TyData::Prim(_) | TyData::Never => Vec::new(),
             TyData::Tuple { .. } => tuple_members(pool, t),

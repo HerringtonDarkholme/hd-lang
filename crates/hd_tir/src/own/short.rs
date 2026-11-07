@@ -44,7 +44,6 @@ use hd_types::Ty;
 pub enum CallKind {
     MapProbe,
     PointerRef,
-    Open,
     Other,
 }
 
@@ -167,11 +166,7 @@ impl Pass<'_> {
         let i = x as usize;
         let w = self.b.data[i][1];
         let marks = ref_word::MUT | ref_word::TAKES | ref_word::LENT | ref_word::FRAME;
-        if w & marks != 0
-            || self.cx.promoted(x)
-            || self.cx.mutable_ref(self.cx.value_type(x))
-            || self.cx.call_kind(x) == CallKind::Open
-        {
+        if w & marks != 0 || self.cx.promoted(x) || self.cx.mutable_ref(self.cx.value_type(x)) {
             return None;
         }
         let p = self.b.view(self.b.data[i][0]);

@@ -913,34 +913,9 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    /// The object a `*T` of type `t` at local `o` refers to: an erased
-    /// body's pointer of an open type may be a representation view, which
-    /// holds its source at offset 0 (`rt:ref_view`).
-    fn view_source(&mut self, o: u32, t: Ty) -> u32 {
-        if !hd_mono::is_open(self.pool(), t) {
-            return o;
-        }
-        let x = self.f.local(Val::I32);
-        self.f.get(o);
-        self.f.helper(Helper::RefIsView);
-        self.f.op(I::If(BlockType::Result(Val::I32.wasm())));
-        self.f.get(o);
-        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-        self.f.op(I::Else);
-        self.f.get(o);
-        self.f.op(I::End);
-        self.f.set(x);
-        x
-    }
-
-    /// Whether a loan may hold an object of type `t`, and an exclusive
-    /// one: an erased body's open type may be any type a loan holds.
+    /// Whether a loan may hold an object of type `t`, and an exclusive one.
     fn lent_of(&self, t: Ty) -> Option<bool> {
-        if hd_mono::is_open(self.pool(), t) {
-            (!self.m.lent.is_empty()).then(|| self.m.lent.values().any(|&x| x))
-        } else {
-            self.m.lent.get(&t).copied()
-        }
+        self.m.lent.get(&t).copied()
     }
 
     /// Whether a loan may hold the object at a trait value of trait
@@ -1183,21 +1158,14 @@ impl Em<'_, '_, '_> {
                     let Some((r, q)) = &read else {
                         return crate::unsupported("a read crossing with no read");
                     };
-                    let mut fresh = Vec::new();
-                    let (at, _) = self.walk_place(*r, q, k - READ, None, &mut fresh)?;
-                    let o = self.at_i32(&at)?;
-                    self.release_fresh(&fresh)?;
-                    o
+                    let (at, _) = self.walk_place(*r, q, k - READ, None)?;
+                    self.at_i32(&at)?
                 }
                 _ => {
-                    let mut fresh = Vec::new();
-                    let (at, _) = self.walk_place(i, &p, k, None, &mut fresh)?;
-                    let o = self.at_i32(&at)?;
-                    self.release_fresh(&fresh)?;
-                    o
+                    let (at, _) = self.walk_place(i, &p, k, None)?;
+                    self.at_i32(&at)?
                 }
             };
-            let o = self.view_source(o, object);
             let header = self.f.local(Val::I32);
             self.f.get(o);
             self.f.u32(crate::module::HEADER - 4);
@@ -1224,10 +1192,8 @@ impl Em<'_, '_, '_> {
         {
             let key = matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..))
                 .then(|| self.borrow_key((p.root, p.proj.clone(), ANY_FRAME)));
-            let mut fresh = Vec::new();
-            let (at, _) = self.walk_place(i, &p, p.proj.len(), None, &mut fresh)?;
+            let (at, _) = self.walk_place(i, &p, p.proj.len(), None)?;
             let o = self.at_i32(&at)?;
-            self.release_fresh(&fresh)?;
             let header = self.f.local(Val::I32);
             self.f.get(o);
             self.f.u32(crate::module::HEADER - 4);
@@ -1300,14 +1266,10 @@ impl Em<'_, '_, '_> {
         }
         self.f.op(I::If(BlockType::Empty));
         let access = if writes { "written" } else { "read" };
-        let what = if hd_mono::is_open(self.pool(), object) {
-            "an object".to_owned()
-        } else {
-            format!(
-                "a `{}`",
-                hd_mono::printed_type_name(self.pool(), self.env(), object)
-            )
-        };
+        let what = format!(
+            "a `{}`",
+            hd_mono::printed_type_name(self.pool(), self.env(), object)
+        );
         self.f.helper(Helper::Panic(format!(
             "borrow-conflict: {what} a live reference borrows was {access} through another `*T`"
         )));
@@ -1822,14 +1784,12 @@ impl Em<'_, '_, '_> {
         let pointer = p.proj.len() - usize::from(dyn_recv.is_some());
         let key = matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..))
             .then(|| self.borrow_key((p.root, p.proj[..pointer].to_vec(), ANY_FRAME)));
-        let mut fresh = Vec::new();
-        let (at, _) = self.walk_place(i, &p, pointer, None, &mut fresh)?;
+        let (at, _) = self.walk_place(i, &p, pointer, None)?;
         let o = if dyn_recv.is_some() {
             self.data_address(&at)?
         } else {
             self.at_i32(&at)?
         };
-        self.release_fresh(&fresh)?;
         let header = self.f.local(Val::I32);
         if dyn_recv.is_some() {
             // No object behind a data address of 0: header 0, no loan.
@@ -1844,7 +1804,6 @@ impl Em<'_, '_, '_> {
             self.f.get(header);
             self.f.op(I::If(BlockType::Empty));
         } else {
-            let o = self.view_source(o, target);
             self.f.get(o);
             self.f.u32(crate::module::HEADER - 4);
             self.f.op(I::I32Sub);

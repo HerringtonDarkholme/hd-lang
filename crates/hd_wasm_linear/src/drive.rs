@@ -23,7 +23,7 @@ pub fn drivable(env: &dyn ProgramEnv, trait_: DefId, method: DefId) -> bool {
     env.suspends(method)
         && env.trait_arity(trait_) == 0
         && env.decls().supertraits(trait_).is_empty()
-        && hd_mono::own_count(env, method) == 0
+        && env.bounded(method).is_none_or(|b| b.is_empty())
 }
 
 /// The trait and method of the callee record at word `a`.
@@ -206,8 +206,6 @@ pub fn collect(input: &Input<'_>, m: &mut Module) {
             unknown |= b.tags.iter().enumerate().any(|(i, tag)| {
                 let emitted = match sub {
                     Sub::Body(k) => topology.sub[i] == u32::from(k),
-                    Sub::Thunk(k) => i == usize::from(k),
-                    Sub::Erased => topology.sub[i] == 0,
                     Sub::Adapter => false, // its explicit target is checked below
                 };
                 emitted

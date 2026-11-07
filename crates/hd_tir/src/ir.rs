@@ -1178,8 +1178,7 @@ impl Body {
     }
 
     /// The value operands of instruction `i` that compute one result from
-    /// values and own no block, label or local (an erased body outlines
-    /// such an instruction, `crates/hd_mono/DESIGN.md` §13.5.1), in the order emission
+    /// values and own no block, label or local, in the order emission
     /// reads them ([`slots`]); constants included. `None` for any other
     /// instruction. A call's providers are not listed, nor a place's local
     /// or global root.

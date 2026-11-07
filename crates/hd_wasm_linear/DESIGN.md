@@ -652,7 +652,7 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   after a plain `IsUnique` in its block, which is how a change reads its
   operand, takes the header the check found, so the place is walked
   once (`Em::read_walked`). Since the passes put an `IsUnique` before every change of a collection
-  place, a body's intrinsics and its thunks'
+  place, a body's intrinsics
   check no uniqueness themselves: an element store, `MapSet` and
   `MapRemove` skip it, and `ListPush` only moves a full
   buffer (`rt:list_grow`). One check stays: std's `list_truncate` (`pop`,
@@ -689,17 +689,9 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   an open cell's view) it counts as any reference and the local is
   released after it. A `borrow` read of any place takes no count
   (`Em::prepare_own_loans`: it joins `Em::loans`) and lowers as a copy's
-  read would; one an erased body's thunk makes is that thunk's owned
-  value, which the read's kept `Drop` releases, and one through a thin
-  reference has a flag (`Em::view_loans`) that a view's getter sets for
-  the fresh value it makes and that the read's kept `Drop` tests. A local
+  read would. A local
   a borrow is stored into (a binding local) holds no count
   (`Em::loan_locals`): its stores count and release nothing.
-- **Thunks.** An erased body's thunk (§23.27) runs one instruction of an
-  owned body outside the passes' view, as glue of its own (`Em::owned`
-  is false there): each operand and capture arrives with a count, the
-  instruction's reads copy, its result leaves with a count, and its exit
-  releases every place it holds (`Em::release_all`).
 - **What an instance decides** (docs/compiler/tir-v2.md,
   stage 2 commit 13b). The passes decide per generic body; three choices
   are left to the instance, where the layout is known.
@@ -1129,7 +1121,7 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   rule (`ref_word::LENT`): the caller keeps that referent alive for the
   call, and a result that holds one is counted where it is returned.
   **View owners.** A `Ref` to a field of a loan may be a projection of a
-  representation view (`rt:ref_project`) where the base is an erased
+  representation view (`rt:ref_project`) where the base is a payload
   view: the loan's flag (`Em::view_loans`) marks that fresh object, and
   the loan's `Drop` releases it, so the loan owns it. A payload field
   reference (`rt:ref_payload`) and a copy of a local no cell holds
@@ -1138,7 +1130,7 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
 - **Cells made before use** (issue #678). A use of a cell reads its local
   directly when the cell certainly exists there (`Em::cell_made`): the
   prologue made or received it (a parameter moved into its cell, a
-  closure's or a thunk's shared capture), or known-null found the local
+  closure's shared capture), or known-null found the local
   holding its value there (`Body::full_cells`, rule 5 of
   docs/compiler/tir-v2.md, "Known-null"). The pass gives each local a
   `Ref` of its own storage or a shared capture puts in a cell a bit that
@@ -1271,8 +1263,8 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   binding a `match` makes from a call's result holds the result's loans.
   **Elision** (`emit/elide.rs`, in every build): each instance's
   accesses through a `*T`, by object type, with its callees', make a
-  summary; a call of a function or trait value, an erased body's open
-  call and a suspension access everything. A loan is kept only when its
+  summary; a call of a function or trait value and a suspension access
+  everything. A loan is kept only when its
   live range (a holder's whole function, a call loan's instructions up to
   its call and the callee) may write its type through a `*T`, or for an
   exclusive one read it, and something in the program does; the loan's own
@@ -1634,7 +1626,7 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   rule (`ref_word::LENT`): the caller keeps that referent alive for the
   call, and a result that holds one is counted where it is returned.
   **View owners.** A `Ref` to a field of a loan may be a projection of a
-  representation view (`rt:ref_project`) where the base is an erased
+  representation view (`rt:ref_project`) where the base is a payload
   view: the loan's flag (`Em::view_loans`) marks that fresh object, and
   the loan's `Drop` releases it, so the loan owns it. A payload field
   reference (`rt:ref_payload`) and a copy of a local no cell holds
@@ -1643,7 +1635,7 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
 - **Cells made before use** (issue #678). A use of a cell reads its local
   directly when the cell certainly exists there (`Em::cell_made`): the
   prologue made or received it (a parameter moved into its cell, a
-  closure's or a thunk's shared capture), or known-null found the local
+  closure's shared capture), or known-null found the local
   holding its value there (`Body::full_cells`, rule 5 of
   docs/compiler/tir-v2.md, "Known-null"). The pass gives each local a
   `Ref` of its own storage or a shared capture puts in a cell a bit that
@@ -1732,9 +1724,7 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   `&mut`, else with the exclusive bit, and every earlier one, which is only
   read to reach the next, with the exclusive bit. A set bit panics
   `borrow-conflict`. Only a type some loan may hold is tested
-  (`Module::lent`, the types elision keeps a loan on, in every build; an
-  erased body's open type counts as any of them, and its pointer may be
-  a representation view, whose source the check reads); a place that
+  (`Module::lent`, the types elision keeps a loan on, in every build); a place that
   crosses no `*T` emits nothing, and a pointer argument is no access.
   A closure checks an access through a `*T` it captured against its
   creator's own loans through it (E.2): its environment holds the
@@ -2175,128 +2165,8 @@ whose row changes and `$.Context` values on the linear backend
   that has row parameters, takes one context last: the caller cannot know
   the implementation's row, which may list fewer keys. The slot looks up
   the implementation's own keys and passes the context on when the
-  target has row parameters. A method with row parameters of its own
-  has an erased body like any generic method (§23.27): a call at its open
-  row is an open instruction.
-
-### 23.27 Erased Generic Methods
-
-Issue #615 lowers generic methods called through a trait value on the
-linear backend (`emit/erased.rs`), with the erased ABI
-(crates/hd_mono/DESIGN.md §13.5.1): one erased body per implementation,
-a witness per call's type arguments, and one thunk per open instruction
-at the caller's types. Collection builds the
-same erased bodies, thunks and witness fields.
-
-- **Open values.** In an erased body, a value of an open type (one that
-  mentions a method type parameter) is one `i32`, a counted address that
-  owns one count, as a trait value's data is (§23.19): the caller's value
-  itself when its layout is one counted address (a list, a map, a data
-  value, a reference), 0 when it has no Wasm values, and otherwise a new
-  counted box of its layout, whose descriptor releases its fields. So the
-  erased body lays out, moves, stores and counts every open value alike,
-  and its locals, cells and suspension frames need nothing new. A copy of
-  an open collection is no `ListCopy` in the erased body; the thunks that
-  know the type copy it.
-- **The slot.** A generic method's vtable slot takes the receiver, the
-  arguments with open ones as open values, the witness address, then the
-  context when the method has a row (§23.26). The call owns each open
-  value argument, and each native inline Drop value of a synchronous
-  call: the caller moves its value into the argument when
-  the call consumes it, as a by-value argument of a `!Copy` type always
-  is, and otherwise gives it a copy (#1279). The slot hands that count
-  to a body that owns the parameter and releases it after one
-  that borrows it (a lent summary, or a suspending method's cold
-  constructor, which counts what it keeps). An open reference argument
-  crosses as a view the caller releases once the call has returned. The
-  caller passes the witness of the call's type arguments and unboxes an
-  open result, which arrives with its count. An awaited suspending
-  method's poll returns the open value, which the await unboxes once it
-  is Ready.
-- **Leaving a box.** An owned open value is unboxed by moving its value
-  out (`Helper::TakeBox`): a box with one holder is freed without its
-  glue, and only a shared box leaves a copy, which takes counts of its
-  own. A caller's result, a thunk's operands and a kept suspension's
-  result unbox this way.
-- **Witnesses** are static data, as vtables are (§23.8): one word per
-  erased body of the method's family, in link's field order, holding the
-  address of that body's thunk table, one function-table slot per open
-  instruction. The erased body reads its own table from its field once on
-  entry, after a resumed body has reloaded its locals, since the witness
-  is a parameter and stays in the frame.
-- **Open instructions.** Instruction `k` loads slot `k` of the table and
-  makes one `call_indirect`: its operands and captures, each with a count
-  the thunk owns (a shared capture as its cell, counted once more), the
-  providers of the keys the body's row lists, and, with row parameters, a
-  context of every other key in scope in front of the open one. A tag
-  switch outlines only its tag read. The thunk is the instruction emitted
-  at the caller's types: it unboxes its open operands, emits the
-  instruction, which moves in each operand it consumes, moves its
-  result into the open value it returns and releases what it still
-  holds at its exit.
-- **Cells.** A local that closures share in a generic method of a trait
-  or an implementation keeps its erased view in every instance:
-  the erased body's thunks build the closures, and they are the
-  concrete instances' own. So a concrete instance's cell holds an open
-  value: a read unboxes it, a write boxes the new value.
-- **References.** A reference whose target is open is the address of an
-  open value. When the concrete target is one counted address, its place
-  holds the same word, so the reference crosses as it is. Any other
-  reference crosses as a counted view of its original place (issue
-  #619), still one word, so a reference keeps one ABI on both sides. A
-  view is a 20-byte object whose descriptor is `rt:ref_view_drop`: the
-  source reference it retains (an address, or another view), a getter
-  slot, a setter slot, a field offset, and whether the source is an
-  erased word. The getter moves the value out of the source's place into
-  an erased box and leaves zeros there. The setter moves a box's value
-  into the place, as an owned open value leaves its box, and releases
-  what the place held. A view never copies its value, so a `!Copy` value,
-  such as a `UniqList`, keeps one holder (#1281). A
-  field reference into a view (`&mut alias.text`) is a view whose getter
-  takes the parent out through the parent view, moves the field out and
-  puts the rest back, and whose setter puts a new field in the same way;
-  a payload reference does so with the enum's slots. Every concrete read
-  and write through a reference is emitted inline: when std's `block_of`
-  finds the address is the payload of a block whose descriptor is the
-  view's, a read calls the getter, reads the leaves from the box and
-  hands the same box to the setter, and a write boxes the new value for
-  the setter. Otherwise it loads or stores the leaves at the address as
-  before. Either way a loan reads the place's own leaves with no count,
-  and a copy takes counts of its own. Only an erased body's loan of an
-  open value through a view is a copy, which the read's `Drop` releases,
-  since the box a getter makes over a concrete place goes once the
-  setter takes the value back. Inline, a value of any width stays in
-  locals and never crosses a function's parameters or results. Since a view forwards each access, aliases see later writes
-  from either side, after the call has returned and from a cold call.
-  Identity (`is`) follows views to their source: an address plus the
-  field offset, or for an erased word the pair of the word and the
-  offset, since a concrete offset added to a one-word cell could name an
-  unrelated object. A synchronous call releases the views it made for
-  its arguments when it returns; a result, a capture, a field or a cold
-  call's argument keeps its view counted like any other value.
-- **Kept suspensions.** A plain call of a suspending generic method
-  through a trait value keeps the erased frame, whose poll answers an
-  open value, as a `Suspend[T]` that is polled where only `T` is known:
-  by `!`, `race!`, `block_on` or a callee. So unless a `T` value is its
-  open value, the caller wraps it in a frame of its own
-  (`Helper::OpenFrame`, issue #617): `cancel!`'s cleanup frame with a
-  poll that polls the child and, once it is Ready, unboxes its result
-  with counts of its own and releases the box; a reference result
-  becomes a view of the open word instead. Its cancel cancels the
-  child and unwinds while the child does, as the cleanup frame's does,
-  and its glue releases the child.
-- **Rows.** A method's own row parameters are open too, so a method with
-  only row parameters is erased the same way, and a call at its open row
-  is a thunk at the caller's row. A dynamic call reads the keys of its
-  rows from its arguments as the instance has them, so a thunk's row,
-  which is the caller's own, lists its keys.
-- **Checked by** the five conformance cases of the issue, in normal and
-  checked mode, whose count audit covers every box and cell, and by
-  `erased-method-boxed-reference-argument` and
-  `dyn-generic-suspension-kept` (issue #617), the seven
-  `erased-reference-*` cases (issue #619), and
-  `erased-reference-noncopyable-local`, in checked mode with the buffer
-  retain trap (#1281).
+  target has row parameters. A method with row parameters of its own has
+  no slot.
 
 ### 23.28 The Cycle Collector
 
@@ -2448,7 +2318,7 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   part when the walk meets a reference (`&T` or `&mut T`: it may be a view
   into any object with a place of its target's type, so the type graph
   cannot say what it reaches), an open value (a function value, a trait
-  value, a context, a suspension, an erased body's open type, or a type
+  value, a context, a suspension, or a type
   the walk does not know). A path through values alone is acyclic, even
   when it revisits its own type. Construction holds older values; a write
   first copies a shared collection buffer or value cell. That copy keeps
@@ -2516,7 +2386,7 @@ signatures before encoding, as clang's and Rust's wasm32 `byval` and
   stack pointer.
 - **Uniform.** The pass rewrites every function, `call` and
   `call_indirect` of a wide signature by the signature alone, so
-  instances, closures, adapters, vtable slots, erased thunks, suspension
+  instances, closures, adapters, vtable slots, suspension
   parts and runtime helpers that take a whole value (retain and release
   glue, codecs, copies) agree without knowing of it. A wide import or
   export is a compiler bug: the host calls those by their Wasm signature.
@@ -2552,7 +2422,7 @@ signatures before encoding, as clang's and Rust's wasm32 `byval` and
 Issue #643 avoids finding an object's block when its representation
 already supplies the payload start, eight bytes after its header.
 Interior pointers keep the page-table path: string slices, local
-references, and open or erased values.
+references, and open values.
 
 - **Known counts.** The runtime's `retain_known` and `release_known`
   entries use `address - 8`. Null and static zero-count objects stay
@@ -2608,8 +2478,8 @@ references, and open or erased values.
   `RefView` constructor cannot contain a representation view. Its
   `ref_is_view` calls become false, removing their page-table queries.
   Field projection cannot originate a view without a parent view. A
-  module that can construct erased representation views keeps the full
-  discriminator; the #619 erased-reference fixtures audit that path.
+  module with a payload field its enum's slots scatter (`Helper::RefPayload`)
+  keeps the full discriminator.
 - **Counts on constants** (issue #910, `opt::static_counts`). A count
   whose every operand is a constant goes at link, in every pipeline. A
   constant address is null or static data, which no runtime counts:
@@ -2652,13 +2522,10 @@ call, so a read with no call that may write in its span takes no count
 changed list's uniqueness check out of its loop. What stays the
 backend's is below.
 
-- **Views keep temporaries.** A borrowed read through a reference takes
-  no count on a physical place. An erased view's getter makes a fresh
-  owned value instead, so that branch sets an ownership flag
-  (`Em::view_loans`, set up by `Em::prepare_own_loans`). The read's
-  drop, the exit and the next iteration release the temporary only when
-  the flag is set. A projected view still owns its newly allocated
-  forwarding reference. Open thunks keep their ordinary counts.
+- **Views keep temporaries.** A projected view owns its newly allocated
+  forwarding reference, which a flag marks (`Em::view_loans`, set up by
+  `Em::prepare_own_loans`): the read's drop, the exit and the next
+  iteration release it only when the flag is set.
 - **Read the selected field.** A place reads only its field:
   `Read [*$0 .x]` and `Read [*$0 [%i] .x]` load that field's leaves
   (`Em::read_part`). A boxed view loads the field from the getter's box,
@@ -2778,7 +2645,7 @@ anchors and panic reporting keep their behavior.
   by its TIR local (`$N`; `$N.PATH` for each value of a local of several,
   where `layout::value_paths` gives a struct field by name, `$N.pos.x`,
   and any other value by its index, `$N.1`), by the role of a parameter that is no TIR local (`frame`,
-  `env`, `ctx`, `witness`, `providerN`, `providerN.vtable`, and `args`
+  `env`, `ctx`, `providerN`, `providerN.vtable`, and `args`
   for a wide signature's frame address), or not at all for a temporary.
   Local renumbering (rule 11 of `opt.rs`) and wide-signature lowering
   carry the names to the final indices. Each static data address a body
@@ -3093,7 +2960,7 @@ dev builds keep the address at a call; the inliner's by-value binding
   dereference (`promote::promote`), so the copy's
   Wasm parameters are the referent's values (`callee_params` reads them
   from the copy). A trait value's call, a function value's adapter and
-  every piece of glue (vtable slots, erased thunks, map key operations,
+  every piece of glue (vtable slots, map key operations,
   host codecs) call the plain instance, which keeps the address; the link
   drops it when nothing calls it.
 - **The caller.** `promoted_refs` finds each such argument: a `Ref`

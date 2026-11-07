@@ -18,10 +18,6 @@
 //! passes' unwind set lists for it, before the exit releases the exit set
 //! ([`Em::release_unwound`]). A `borrow` read takes no count, and a local
 //! a borrow is stored into holds none ([`Em::prepare_own_loans`]).
-//!
-//! An erased body's thunk runs one instruction of such a body as glue of
-//! its own (`Em::owned` is false there): its operands and captures arrive
-//! with counts, its reads copy, and its exit releases every place it holds.
 
 use hd_base::SliceSort as _;
 use hd_base::StageResult;
@@ -39,19 +35,11 @@ impl Em<'_, '_, '_> {
     /// An owned body's `borrow` reads and binding locals
     /// (`docs/compiler/tir-v2.md`, "Borrow"): a borrow takes no count, so
     /// it joins [`Em::loans`], and its read lowers
-    /// as a copy's would with no count. One that an erased body's thunk
-    /// makes is that thunk's fresh value, with its count, which the
-    /// read's `Drop` (the pass keeps it) releases. One through a reference
-    /// takes no count, through a view too, which lends its place's own
-    /// value ([`crate::rt::ref_lend`]). Only an erased body's loan of an
-    /// open value through a view is a copy, since the box a view's getter
-    /// makes may go when its setter takes the value back: a flag
-    /// ([`Em::view_loans`]) marks it for the read's `Drop`. A local the
-    /// passes store a borrow into holds no count
-    /// ([`Em::loan_locals`]): its stores count nothing, and its `Drop`s,
-    /// which the passes keep for a borrow an instance may make fresh,
-    /// release only a view's value. One that a thunk's value is stored
-    /// into owns it.
+    /// as a copy's would with no count. One through a reference takes no
+    /// count, through a view too, which lends its place's own value
+    /// ([`crate::rt::ref_lend`]). A local the passes store a borrow into
+    /// holds no count ([`Em::loan_locals`]): its stores count nothing, and
+    /// its `Drop`s release only a view's value.
     pub(super) fn prepare_own_loans(&mut self) {
         use hd_tir::ir::place;
         self.prepare_string_slice_comparisons();
@@ -60,48 +48,7 @@ impl Em<'_, '_, '_> {
             let x = u32::try_from(i).expect("insts");
             match self.b.tags[i] {
                 Tag::Read if self.b.is_borrow(x) => {
-                    if matches!(self.calls.get(&x), Some(hd_mono::Target::Open(_))) {
-                        continue;
-                    }
                     self.loans.insert(x);
-                    if a & place::BARE_LOCAL != 0 {
-                        continue;
-                    }
-                    // A place rooted at a local that reads its referent
-                    // through a reference after other steps
-                    // (`[$l .r *]`, `Em::place_read`).
-                    if let Some(p) = self.b.decode_place(a)
-                        && Self::rooted(&p)
-                    {
-                        if let Ok(Some((_, Some((target, false))))) = self.last_through(&p)
-                            && hd_mono::is_open(self.pool(), target)
-                        {
-                            let flag = self.f.local(crate::module::Val::I32);
-                            self.view_loans.insert(x, flag);
-                        }
-                        continue;
-                    }
-                    // `[*%r ...]` through a reference that may be a view.
-                    let start = match self.b.extra.get(a as usize + 1..a as usize + 4) {
-                        Some(&[place::ROOT_VALUE, r, step])
-                            if step & place::PROJ_KIND == place::PROJ_DEREF =>
-                        {
-                            Some(self.ty_of(r))
-                        }
-                        Some(&[place::ROOT_LOCAL, l, step])
-                            if step & place::PROJ_KIND == place::PROJ_DEREF =>
-                        {
-                            Some(self.sub(self.b.local_ty[l as usize]))
-                        }
-                        _ => None,
-                    };
-                    if start
-                        .and_then(|t| self.ref_target(t))
-                        .is_some_and(|(target, fat)| !fat && hd_mono::is_open(self.pool(), target))
-                    {
-                        let flag = self.f.local(crate::module::Val::I32);
-                        self.view_loans.insert(x, flag);
-                    }
                 }
                 // A reference into what a lent parameter refers to
                 // (`ref_word::LENT`) takes no count where the referent is
@@ -109,8 +56,6 @@ impl Em<'_, '_, '_> {
                 // marks for the reference's `Drop`, as for a read.
                 Tag::Ref
                     if w & hd_tir::ir::ref_word::LENT != 0
-                        && !hd_mono::is_open(self.pool(), self.ty(x))
-                        && !matches!(self.calls.get(&x), Some(hd_mono::Target::Open(_)))
                         && self.ref_target(self.ty(x)).is_some_and(|(_, fat)| !fat) =>
                 {
                     self.loans.insert(x);
@@ -159,8 +104,6 @@ impl Em<'_, '_, '_> {
                             _ => None,
                         }
                     };
-                    // A thunk's fresh value is the local's own, with its
-                    // count, which the local's kept `Drop`s release.
                     // A borrow of all of another such local holds that
                     // one's read, whose fresh value its kept `Drop`s
                     // release (`hd_tir::own::borrow`'s forwarding locals).
@@ -247,22 +190,17 @@ impl Em<'_, '_, '_> {
         // where the passes keep a cell local alive over every use of what
         // may point into it.
         let cells = self.owned && self.susp.is_none() && self.input.runtime.is_some();
-        let seed = |em: &Self, l: usize| {
-            em.slots.contains_key(&l) || (cells && em.is_cell(l) && !em.cell_converts(l))
-        };
+        let seed = |em: &Self, l: usize| em.slots.contains_key(&l) || (cells && em.is_cell(l));
         if !(0..b.local_ty.len()).any(|l| seed(self, l)) {
             return;
         }
-        let thin = |em: &Self, t: Ty| {
-            !hd_mono::is_open(em.pool(), t) && em.ref_target(t).is_some_and(|(_, fat)| !fat)
-        };
+        let thin = |em: &Self, t: Ty| em.ref_target(t).is_some_and(|(_, fat)| !fat);
         // A value whose every counted leaf is a reference such a loan may
         // be: a thin reference, or a struct, tuple or enum of them.
         let refs_only = |em: &Self, t: Ty| {
             thin(em, t)
                 || (cells
                     && em.drop_calls(t).is_empty()
-                    && !hd_mono::is_open(em.pool(), t)
                     && em.counted(t).is_some()
                     && crate::layout::value_parts(em.pool(), em.env(), t)
                         .into_iter()
@@ -384,8 +322,7 @@ impl Em<'_, '_, '_> {
                     _ => (false, false),
                 };
                 let ok = ok
-                    && (thin(self, self.ty(x)) || (tag != Tag::Ref && refs_only(self, self.ty(x))))
-                    && !matches!(self.calls.get(&x), Some(hd_mono::Target::Open(_)));
+                    && (thin(self, self.ty(x)) || (tag != Tag::Ref && refs_only(self, self.ty(x))));
                 loan[i] = ok;
                 scoped[i] = ok && (s || scoped[i]);
             }
@@ -709,7 +646,7 @@ impl Em<'_, '_, '_> {
     /// Stores the values on the stack as instruction `i`'s. Unless `owned`
     /// (a call's result, a new object), the value is a copy and its place
     /// takes a count of its own. The value is consumed or dropped, and
-    /// zeroed, before its instruction runs again (a thunk runs no loop).
+    /// zeroed, before its instruction runs again.
     pub(super) fn store_as(&mut self, i: u32, owned: bool) -> StageResult<()> {
         let ls = self.slot(i)?;
         for l in ls.iter().rev() {
@@ -731,10 +668,9 @@ impl Em<'_, '_, '_> {
     /// Whether operand `r` moves its count into the instruction being
     /// emitted, which consumes it ([`Em::take_from`]): then no count is
     /// taken for the consumer, and `r`'s locals are zeroed once the
-    /// instruction has read them ([`Em::settle`]). A thunk's instruction
-    /// moves in the operands it consumes, which arrive with counts.
+    /// instruction has read them ([`Em::settle`]).
     pub(super) fn take(&mut self, r: u32) -> bool {
-        if !self.owned && !self.thunk_takes {
+        if !self.owned {
             return false;
         }
         let Some(&u) = self.emitting.last() else {
@@ -849,8 +785,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// Releases what the function owns at its one exit: its sub-body's
-    /// exit set, or in a thunk every counted instruction value and TIR
-    /// local, a capture's too.
+    /// exit set.
     ///
     /// For development tools, each place's release comes from where the
     /// place began (`exit_origins`), so a statement's excerpt shows
@@ -1222,12 +1157,10 @@ impl Em<'_, '_, '_> {
         let mut args = self.rec(self.b.data[c as usize][1]);
         args.truncate(args.len().saturating_sub(3));
         if matches!(self.calls.get(&c), Some(hd_mono::Target::Dyn)) {
-            // A dynamic call lends every argument to its slot but an open
-            // value, whose count it takes (`erased.rs`). The slot takes
-            // any count its concrete target owns, and a blocking drive
-            // keeps the caller live until it returns.
-            return args.iter().filter(|&&a| a == r).count() == 1
-                && !self.dyn_takes(self.b.data[c as usize][0], &args, r);
+            // A dynamic call lends every argument to its slot. The slot
+            // takes any count its concrete target owns, and a blocking
+            // drive keeps the caller live until it returns.
+            return args.iter().filter(|&&a| a == r).count() == 1;
         }
         let Some(hd_mono::Target::Call(ct)) = self.calls.get(&c) else {
             return false;
@@ -1448,8 +1381,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// The `copy` or `borrow` read of `IsUnique` `i`'s place, through a
-    /// step, that stands right after it in its block, outside an erased
-    /// body's thunk: the change's operand, which takes the buffer the
+    /// step, that stands right after it in its block: the change's operand, which takes the buffer the
     /// check left ([`Em::read_walked`]).
     fn read_after(&self, i: u32) -> Option<u32> {
         use hd_tir::ir::ReadMode::{Borrow, Copy};
@@ -1459,9 +1391,8 @@ impl Em<'_, '_, '_> {
             .rec(self.b.data[blk as usize][0])
             .get(pos as usize + 1)?;
         let [a, mode] = self.b.data[r as usize];
-        let read = self.b.tags[r as usize] == Tag::Read
-            && [Copy as u32, Borrow as u32].contains(&mode)
-            && !matches!(self.calls.get(&r), Some(hd_mono::Target::Open(_)));
+        let read =
+            self.b.tags[r as usize] == Tag::Read && [Copy as u32, Borrow as u32].contains(&mode);
         let place = self
             .b
             .decode_place(a)

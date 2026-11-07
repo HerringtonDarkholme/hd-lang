@@ -58,7 +58,7 @@ impl Em<'_, '_, '_> {
             return None;
         }
         let ty = match root {
-            Root::Local(l) if self.is_cell(l) => self.cell_ty(l),
+            Root::Local(l) if self.is_cell(l) => self.sub(self.b.local_ty[l]),
             _ => ty,
         };
         let paths = self.drop_node_paths(ty);

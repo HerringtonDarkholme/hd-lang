@@ -193,9 +193,8 @@ for allocation, dispatch, widening and downcasts.
 
 ### Generic Methods Through `dyn`: Witnesses And Thunks
 
-Erased methods use witnesses and instruction thunks over the linear-memory
-ABI. See [§23.27](../../crates/hd_wasm_linear/DESIGN.md#2327-erased-generic-methods)
-and [the erased method ABI](../../crates/hd_mono/DESIGN.md#1351-the-erased-method-abi).
+A method with its own type or row parameter has no dispatch table slot
+(`trait.dyn.type-param.no-slot`).
 
 ### Closures And Mutably Captured Variables
 

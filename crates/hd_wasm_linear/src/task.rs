@@ -334,20 +334,6 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             4 => all_node_poll(m, elem),
             _ => all_init(m),
         },
-        Helper::OpenFrame {
-            part: 0,
-            reference,
-            leaves,
-            walk,
-            counts,
-        } => open_cold(m, leaves, walk.as_ref(), *counts, reference.as_ref()),
-        Helper::OpenFrame {
-            reference,
-            leaves,
-            walk,
-            counts,
-            ..
-        } => open_poll(m, leaves, walk.as_ref(), *counts, reference.as_ref()),
         other => unreachable!("not a task helper: {other:?}"),
     };
     if matches!(
@@ -361,7 +347,6 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             | Helper::WaitPoll
             | Helper::Race { part: 1 | 2, .. }
             | Helper::All { part: 1 | 2, .. }
-            | Helper::OpenFrame { part: 1, .. }
     ) {
         guard_frame(&mut f);
     }
@@ -373,8 +358,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         | Helper::CleanupCold
         | Helper::All { part: 0, .. }
         | Helper::PendingCold { .. }
-        | Helper::WaitCold
-        | Helper::OpenFrame { part: 0, .. } => crate::rt::checked_kind(&mut f, m, 3),
+        | Helper::WaitCold => crate::rt::checked_kind(&mut f, m, 3),
         Helper::WaitCell => crate::rt::checked_kind(&mut f, m, 4),
         _ => {}
     }
@@ -3090,141 +3074,6 @@ fn race_drop(m: &Module, results: &[Val], walk: Option<&Walk>) -> Func {
     f
 }
 
-/// [`Helper::OpenFrame`] part 0: `(child) -> frame`, the frame of a kept
-/// suspension of a generic method called through a trait value over the
-/// erased frame `child`, whose count it takes. It is `cancel!`'s cleanup
-/// frame but for its poll: its cancel cancels the child and unwinds while
-/// the child does, and its glue releases the child.
-fn open_cold(
-    m: &Module,
-    leaves: &[Leaf],
-    walk: Option<&Walk>,
-    counts: bool,
-    reference: Option<&crate::rt::RefLayout>,
-) -> Func {
-    let mut f = m.func("rt:open_cold", vec![Val::I32], vec![Val::I32]);
-    let fr = new_zeroed(&mut f, F_SAVED, Some(Sym::Helper(Helper::ChildDrop)), true);
-    f.get(fr);
-    f.table_slot(Sym::Helper(Helper::OpenFrame {
-        part: 1,
-        reference: reference.cloned(),
-        leaves: leaves.to_vec(),
-        walk: walk.cloned(),
-        counts,
-    }));
-    f.op(Instruction::I32Store(mem(HEAP, F_POLL, 2)));
-    cancel_slot(&mut f, m, fr, Sym::Helper(Helper::CleanupCancel));
-    f.get(fr);
-    f.get(0);
-    f.op(Instruction::I32Store(mem(HEAP, F_CHILD, 2)));
-    f.get(fr);
-    f
-}
-
-/// [`Helper::OpenFrame`] part 1, the poll: polls the child, and once it
-/// is Ready answers the value its open result holds, with counts of its
-/// own, and releases the open result.
-fn open_poll(
-    m: &Module,
-    leaves: &[Leaf],
-    walk: Option<&Walk>,
-    counts: bool,
-    reference: Option<&crate::rt::RefLayout>,
-) -> Func {
-    let vals: Vec<Val> = leaves.iter().map(|l| l.val).collect();
-    let mut res = vec![Val::I32];
-    res.extend(vals.iter().copied());
-    let mut f = m.func("rt:open_poll", vec![Val::I32], res);
-    let (c, ready, o) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
-    let xs: Vec<u32> = vals.iter().map(|v| f.local(*v)).collect();
-    let pending = |f: &mut Func| {
-        f.i32(0);
-        for v in &vals {
-            zero(f, *v);
-        }
-        f.op(Instruction::Return);
-    };
-    f.get(0);
-    f.helper(Helper::PollCheck);
-    f.op(Instruction::If(BlockType::Empty));
-    pending(&mut f);
-    f.op(Instruction::End);
-    f.get(0);
-    f.op(Instruction::I32Load(mem(HEAP, F_CHILD, 2)));
-    f.set(c);
-    f.get(c);
-    f.get(c);
-    f.op(Instruction::I32Load(mem(HEAP, F_POLL, 2)));
-    f.call_indirect(vec![Val::I32], vec![Val::I32, Val::I32]);
-    f.set(o);
-    f.set(ready);
-    f.get(ready);
-    f.op(Instruction::I32Eqz);
-    f.op(Instruction::If(BlockType::Empty));
-    pending(&mut f);
-    f.op(Instruction::End);
-    flags_or(&mut f, 0, DONE);
-    if let Some(source) = reference {
-        f.get(o);
-        f.helper(Helper::RefView {
-            source: source.clone(),
-        });
-        f.set(xs[0]);
-    } else {
-        for (leaf, x) in leaves.iter().zip(&xs) {
-            f.get(o);
-            f.op(leaf.load(0));
-            f.set(*x);
-        }
-        // The value moves out of a box with one holder; only a shared
-        // box leaves a copy, which takes counts of its own.
-        let empty = counts && leaves.is_empty();
-        if empty {
-            f.get(o);
-            f.op(Instruction::If(BlockType::Empty));
-        }
-        if counts {
-            f.get(o);
-            f.helper(Helper::TakeBox);
-            match walk {
-                Some(w) => {
-                    f.op(Instruction::I32Eqz);
-                    f.op(Instruction::If(BlockType::Empty));
-                    for x in &xs {
-                        f.get(*x);
-                    }
-                    f.helper(Helper::Retain {
-                        vals: vals.clone(),
-                        walk: w.clone(),
-                    });
-                    f.op(Instruction::End);
-                }
-                None => f.op(Instruction::Drop),
-            }
-        } else if let Some(w) = walk {
-            for x in &xs {
-                f.get(*x);
-            }
-            f.helper(Helper::Retain {
-                vals: vals.clone(),
-                walk: w.clone(),
-            });
-        }
-        if empty {
-            f.op(Instruction::End);
-        }
-    }
-    if counts && !leaves.is_empty() && reference.is_some() {
-        f.get(o);
-        f.helper(Helper::ReleaseRef);
-    }
-    f.i32(1);
-    for x in &xs {
-        f.get(*x);
-    }
-    f
-}
-
 #[cfg(test)]
 mod origin_tests {
     use super::*;
@@ -3526,21 +3375,17 @@ assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
     }
 
     #[test]
-    fn generic_and_pending_frames_link_cancel_slots_only_when_needed() {
+    fn pending_frames_link_cancel_slots_only_when_needed() {
         let mut m = crate::module::Module::default();
         for enabled in [false, true] {
             m.cancellable = enabled;
-            for f in [
-                super::open_cold(&m, &[], None, false, None),
-                super::pending_cold(&m, &[]),
-            ] {
-                let linked = f.body.iter().any(|ins| {
-                    matches!(ins, crate::module::Ins::TableSlot(id)
-                        if matches!(&*f.symbols.get(*id), crate::module::Sym::Helper(
-                            crate::rt::Helper::CleanupCancel | crate::rt::Helper::PendingCancel)))
-                });
-                assert_eq!(linked, enabled, "{}", f.name);
-            }
+            let f = super::pending_cold(&m, &[]);
+            let linked = f.body.iter().any(|ins| {
+                matches!(ins, crate::module::Ins::TableSlot(id)
+                    if matches!(&*f.symbols.get(*id), crate::module::Sym::Helper(
+                        crate::rt::Helper::CleanupCancel | crate::rt::Helper::PendingCancel)))
+            });
+            assert_eq!(linked, enabled, "{}", f.name);
         }
     }
 

@@ -17,7 +17,7 @@
 //! The caller reserves the frame below the stack pointer, writes the
 //! arguments, calls, reads the results and gives the frame back. Every
 //! function, `call` and `call_indirect` of a wide signature changes the
-//! same way, so instances, closures, adapters, vtable slots, thunks and
+//! same way, so instances, closures, adapters, vtable slots and
 //! runtime helpers agree without knowing of it; a function under the bound
 //! never touches the stack pointer. The moves copy bits only: an
 //! argument's or result's counts move through the frame as through Wasm

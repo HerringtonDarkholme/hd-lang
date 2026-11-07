@@ -123,13 +123,12 @@ pub fn main() -> void $ Console:
 
 /// A member reference at a `dyn` receiver calls the method in the
 /// receiver's vtable (`trait.dyn.bound.reference-dispatch`): a plain method, a `mut
-/// self` method, a default method, a method of a supertrait, a generic
-/// method through its erased body, and a bound reference.
+/// self` method, a default method, a method of a supertrait, and a bound
+/// reference.
 #[test]
 fn references_at_a_dyn_receiver_dispatch_through_the_vtable() {
     let main = "trait Named:
     fn label(&self) -> string
-    fn pick[V](self, value: V) -> V
     fn rename(&mut self, to: i32) -> void
     fn greet(self, other: string) -> string:
         \"hi \" + other + \" from \" + self.label()
@@ -143,9 +142,6 @@ struct Item:
 impl Named for Item:
     fn label(&self) -> string:
         \"item\" + self.n.to_string()
-
-    fn pick[V](self, value: V) -> V:
-        value
 
     fn rename(&mut self, to: i32) -> void:
         self.n = to
@@ -174,13 +170,9 @@ pub fn main() -> void $ Console:
     let shared: *dyn Named = box(Item { n: 9 })
     let bound = shared::label
     println(bound())
-    let pick: fn(&dyn Named, i32) -> i32 = Named::pick
-    println(pick(&Item { n: 1 }, 5))
-    let word: fn(&dyn Named, string) -> string = Named::pick
-    println(word(&Item { n: 1 }, \"w\"))
 ";
     assert_eq!(
         run("dyn", main),
-        "item1\nitem1\nhi bob from item2\nt\nitem3\nitem9\nitem9\n5\nw\n"
+        "item1\nitem1\nhi bob from item2\nt\nitem3\nitem9\nitem9\n"
     );
 }

@@ -193,8 +193,7 @@ impl Em<'_, '_, '_> {
                 let vs = self.vals(pt)?;
                 let n = u32::try_from(vs.len()).expect("values");
                 if matches!(self.pass(pt), crate::layout::Pass::Owned(_))
-                    && (hd_mono::is_open(self.pool(), pt)
-                        || crate::layout::holds_drop(self.pool(), env, pt))
+                    && crate::layout::holds_drop(self.pool(), env, pt)
                 {
                     if w.is_none() {
                         given.push((u32::try_from(k).expect("params"), self.ref_layout(pt)?));
@@ -204,13 +203,6 @@ impl Em<'_, '_, '_> {
                     own.push((n, w));
                 }
                 params.extend(vs);
-            }
-            // A generic method's erased body takes the caller's witness
-            // after its parameters (`erased.rs`), passed on unchanged.
-            let generic = hd_mono::own_count(env, *m) > 0;
-            if generic {
-                params.push(Val::I32);
-                own.push((1, None));
             }
             // A method with a row takes its caller's context last
             // (`ctx.rs`), in which the slot looks up its target's keys.

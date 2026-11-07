@@ -58,10 +58,7 @@ fn small_referent(pool: &hd_types::InternPool, env: &dyn hd_mono::ProgramEnv, t:
     else {
         return None;
     };
-    if crate::layout::ref_mutable(pool, env, t)
-        || hd_mono::is_open(pool, target)
-        || !matches!(kind(pool, env, target), Kind::Value)
-    {
+    if crate::layout::ref_mutable(pool, env, t) || !matches!(kind(pool, env, target), Kind::Value) {
         return None;
     }
     let n = crate::layout::vals(pool, env, target).ok()?.len();

@@ -16,8 +16,7 @@
 //!    List[T]`, or `xs := *r`): such a place may be any field of that type.
 //!
 //! A pointer alias (`*mut S`) shares the storage, not the buffer, so it
-//! adds no owner. An erased body, whose types are open, makes no field
-//! single-owner. The fact is computed after collection, over the bodies
+//! adds no owner. The fact is computed after collection, over the bodies
 //! the link emits; the link marks each check of a one-owner field that
 //! stands at its change `unique_word::OWNED` (step 15d2), and the backend
 //! runs no check for it.
@@ -33,9 +32,8 @@ use hd_tir::ir::{
 };
 use hd_types::{InternPool, Ty, TyData, TyList};
 
-/// An instance body the link emits: its id, body, item, type arguments,
-/// and whether it is erased.
-pub(crate) type Instance<'b> = (InstId, &'b Body, hd_base::DefId, TyList, bool);
+/// An instance body the link emits: its id, body, item, type arguments.
+pub(crate) type Instance<'b> = (InstId, &'b Body, hd_base::DefId, TyList);
 
 /// Why a field has a second owner, or none for one owner.
 pub(crate) type Verdicts = HashMap<(Ty, u32), Option<&'static str>>;
@@ -50,7 +48,6 @@ struct Walk<'a> {
     /// unfresh through a place the walk can't name a field of.
     copied: HashSet<Ty>,
     blind: HashSet<Ty>,
-    open: bool,
 }
 
 impl Walk<'_> {
@@ -175,7 +172,7 @@ impl Walk<'_> {
         }
     }
 
-    fn body(&mut self, b: &Body, sub: &dyn Fn(Ty) -> Ty, erased: bool) {
+    fn body(&mut self, b: &Body, sub: &dyn Fn(Ty) -> Ty) {
         let n = b.len();
         // Locals every whole store of which is a fresh new collection.
         let mut fresh_local = vec![true; b.local_ty.len()];
@@ -208,9 +205,6 @@ impl Walk<'_> {
                 }
                 Tag::Read if b.data[i][1] == ReadMode::Copy as u32 => {
                     let t = sub(b.ty[i]);
-                    if erased && matches!(self.pool.get(self.strip(t)), TyData::Param(..)) {
-                        self.open = true;
-                    }
                     self.copied.insert(self.strip(t));
                     if self.coll(t) {
                         match self.field(b, sub, b.data[i][0]) {
@@ -332,7 +326,7 @@ impl Walk<'_> {
 pub(crate) fn single_owner<'b>(
     pool: &InternPool,
     env: &dyn ProgramEnv,
-    bodies: impl Iterator<Item = (InstId, &'b Body, hd_base::DefId, TyList, bool)>,
+    bodies: impl Iterator<Item = (InstId, &'b Body, hd_base::DefId, TyList)>,
 ) -> Verdicts {
     let mut w = Walk {
         pool,
@@ -341,18 +335,15 @@ pub(crate) fn single_owner<'b>(
         bad: HashMap::default(),
         copied: HashSet::default(),
         blind: HashSet::default(),
-        open: false,
     };
-    for (_, b, item, args, erased) in bodies {
+    for (_, b, item, args) in bodies {
         let sub = |t: Ty| hd_mono::subst(pool, env, item, args, t);
-        w.body(b, &sub, erased);
+        w.body(b, &sub);
     }
     let mut out = Verdicts::default();
     for &(s, k) in &w.fields {
         let ft = w.fields_of(s).and_then(|fs| fs.get(k as usize).copied());
-        let why = if w.open {
-            Some("an erased body")
-        } else if let Some(r) = w.bad.get(&(s, k)) {
+        let why = if let Some(r) = w.bad.get(&(s, k)) {
             Some(*r)
         } else if w.copied.iter().any(|&t| w.holds(t, s, 0)) {
             Some("a copy of a value that holds the struct")
@@ -383,7 +374,6 @@ pub(crate) fn owned_checks(
         bad: HashMap::default(),
         copied: HashSet::default(),
         blind: HashSet::default(),
-        open: false,
     };
     (0..b.len())
         .filter(|&i| b.tags[i] == Tag::IsUnique && b.data[i][1] == 0)
@@ -414,12 +404,11 @@ pub(crate) fn entry_owned_checks(
         bad: HashMap::default(),
         copied: HashSet::default(),
         blind: HashSet::default(),
-        open: false,
     };
     // Per callee: whether each parameter got a one-owner field's `&mut`
     // at every call so far; `None` once anything else names it.
     let mut params: HashMap<hd_base::DefId, Option<Vec<bool>>> = HashMap::default();
-    for &(_, b, item, args, _) in all {
+    for &(_, b, item, args) in all {
         let sub = |t: Ty| hd_mono::subst(pool, env, item, args, t);
         for i in 0..b.len() {
             match b.tags[i] {
@@ -467,11 +456,11 @@ pub(crate) fn entry_owned_checks(
         }
     }
     let mut out = HashMap::default();
-    for &(id, b, item, _, erased) in all {
+    for &(id, b, item, _) in all {
         let Some(Some(p)) = params.get(&item) else {
             continue;
         };
-        if erased || env.parent(item).is_some() || !p.iter().any(|&g| g) {
+        if env.parent(item).is_some() || !p.iter().any(|&g| g) {
             continue;
         }
         // A parameter the body stores over or takes a reference to may
@@ -522,7 +511,6 @@ pub(crate) fn check_lines(
         bad: HashMap::default(),
         copied: HashSet::default(),
         blind: HashSet::default(),
-        open: false,
     };
     (0..b.len())
         .filter(|&i| b.tags[i] == Tag::IsUnique)

@@ -1221,6 +1221,7 @@ impl Module {
 
     /// The number of a static vtable whose slots are `slots`' table
     /// indices, one `i32` each; [`Ins::VTable`] names its address.
+    #[cfg(test)]
     pub fn vtable(&mut self, slots: Vec<Sym>) -> usize {
         self.vtable_with(slots, Vec::new())
     }
@@ -1228,6 +1229,7 @@ impl Module {
     /// The number of a static vtable whose slots are `slots`' table
     /// indices, then the addresses of the vtables `parents`, one `i32`
     /// each.
+    #[cfg(test)]
     pub fn vtable_with(&mut self, slots: Vec<Sym>, parents: Vec<usize>) -> usize {
         self.vtable_full(slots, parents, Vec::new())
     }
@@ -1472,9 +1474,7 @@ impl Module {
             && !seen.iter().any(|s| {
                 matches!(
                     &*self.symbols.get(s),
-                    Sym::Helper(
-                        crate::rt::Helper::RefView { .. } | crate::rt::Helper::RefPayload { .. }
-                    )
+                    Sym::Helper(crate::rt::Helper::RefPayload { .. })
                 )
             })
         {
@@ -1578,10 +1578,7 @@ impl Module {
                 f.is_some()
                     && matches!(
                         &*self.symbols.get(SymId(u32::try_from(k).expect("symbols"))),
-                        Sym::Helper(
-                            crate::rt::Helper::RefView { .. }
-                                | crate::rt::Helper::RefPayload { .. }
-                        )
+                        Sym::Helper(crate::rt::Helper::RefPayload { .. })
                     )
             });
         for f in self.funcs.iter_mut().flatten() {

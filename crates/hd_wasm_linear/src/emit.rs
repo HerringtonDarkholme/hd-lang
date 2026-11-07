@@ -39,11 +39,10 @@ pub(crate) use elide::LoanSite;
 mod closure;
 mod count;
 mod ctx;
-mod drop_flags;
 pub(crate) use ctx::ctx_lookup;
+mod drop_flags;
 pub(crate) use ctx::slot_ctx;
 mod dyn_value;
-mod erased;
 mod excl;
 pub(crate) use excl::collect_loans;
 mod iter;
@@ -64,17 +63,9 @@ pub fn instance(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Fu
     let t = &input.collected.table;
     let item = t.item[id.idx()];
     let args = t.args[id.idx()];
-    // An erased body takes the witness of its caller's type arguments
-    // after its parameters (`erased.rs`).
-    let mut erased = None;
     let sub = match t.sub[id.idx()] {
         Sub::Body(sub) => sub,
         Sub::Adapter => return adapter(input, m, id),
-        Sub::Erased => {
-            erased = Some(erased::family(input, id)?);
-            0
-        }
-        Sub::Thunk(_) => return erased::thunk(input, m, id),
     };
     let Some(b) = (input.body)(id) else {
         return unsupported("an instance without TIR");
@@ -84,7 +75,6 @@ pub fn instance(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Fu
         args,
         sub: t.sub[id.idx()],
         key: t.key[id.idx()],
-        erased,
         cold: None,
         // A promoted copy borrows what it takes by value (§23.40).
         lends: input.env.lends(item, args)
@@ -94,7 +84,7 @@ pub fn instance(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Fu
 }
 
 /// What [`body_func`] emits: item `item`'s instance at `args`, its sub-body
-/// `sub` and key, and for an erased body its family. `cold` is the result
+/// `sub` and key. `cold` is the result
 /// type of a plain function of a suspending item, which only makes the
 /// item's cold call ([`call_func`]); it never suspends.
 struct Own {
@@ -102,7 +92,6 @@ struct Own {
     args: TyList,
     sub: Sub,
     key: Hash128,
-    erased: Option<Hash128>,
     cold: Option<Ty>,
     /// The parameters the item's release summary lends
     /// (`ProgramEnv::lends`): none for a body that only calls the item.
@@ -119,7 +108,7 @@ fn body_func<'a>(
     targets: &HashMap<u32, Target>,
     b: &'a Body,
 ) -> StageResult<Func> {
-    let (item, args, erased) = (own.item, own.args, own.erased);
+    let (item, args) = (own.item, own.args);
     // A suspending body is a state machine over a frame (`susp.rs`), but
     // a root that only the entry calls and that never suspends runs as a
     // plain function: it ends on its first poll.
@@ -137,7 +126,6 @@ fn body_func<'a>(
     let pick = input.promote_args
         && sub == 0
         && !suspending
-        && erased.is_none()
         && own.cold.is_none()
         && input.runtime.is_some();
     let promoted = promote::promoted_refs(input, m, b, (item, args), targets, pick)?;
@@ -150,8 +138,7 @@ fn body_func<'a>(
     em.type_promoted(promoted)?;
     // A local only local references lend lives in the frame (§23.38): a
     // plain function's own, at a runtime that counts.
-    if sub == 0 && !suspending && erased.is_none() && own.cold.is_none() && input.runtime.is_some()
-    {
+    if sub == 0 && !suspending && own.cold.is_none() && input.runtime.is_some() {
         em.plan_slots(&roots)?;
     }
     em.origin_root = b.sub_root[sub as usize];
@@ -170,8 +157,6 @@ fn body_func<'a>(
         em.lends = own.lends;
     }
     em.own_consumers();
-    // An erased body takes no loan of its own (elision keeps none there),
-    // but checks what it accesses and lends through a `*T`.
     if own.cold.is_none() {
         em.find_borrows();
     }
@@ -228,11 +213,6 @@ fn body_func<'a>(
         );
         params.extend(vs);
     }
-    let witness = erased.map(|_| {
-        let at = u32::try_from(params.len()).expect("params");
-        params.push(Val::I32);
-        at
-    });
     for key in keys {
         let at = u32::try_from(params.len()).expect("params");
         em.providers.push((key, [at, at + 1]));
@@ -293,9 +273,6 @@ fn body_func<'a>(
         }
         if closure.is_some() {
             em.f.name_local(at, "env");
-        }
-        if let Some(w) = witness {
-            em.f.name_local(w, "witness");
         }
         for (n, (_, [data, vtable])) in em.providers.clone().into_iter().enumerate() {
             em.f.name_local(data, format!("provider{n}"));
@@ -394,7 +371,6 @@ fn body_func<'a>(
     // which holds a count of each parameter, lives: it borrows the
     // parameters its reads only lend, as a plain body borrows a lent one.
     let unsuspended = suspending
-        && erased.is_none()
         && closure.is_none()
         && !b.tags.iter().any(|&t| {
             matches!(
@@ -499,9 +475,6 @@ fn body_func<'a>(
             em.providers.push((k, ls));
         }
         em.open_base = em.providers.len();
-    }
-    if let (Some(family), Some(w)) = (erased, witness) {
-        em.read_ops(family, key, w)?;
     }
     if em.counting {
         em.open(Ctl::Exit);
@@ -873,7 +846,6 @@ fn call_func(
         args,
         sub: Sub::Body(0),
         key: k.finish(),
-        erased: None,
         cold,
         lends: 0,
     };
@@ -1198,17 +1170,11 @@ struct Em<'i, 'a, 'm> {
     frame: Option<(u32, u32)>,
     /// One reusable caller-local host leaf, after ordinary addressable locals.
     drive_buffer: Option<(u32, u32)>,
-    /// In an erased body, the local holding the address of its thunks'
-    /// table, read from the witness (`erased.rs`).
-    ops: Option<u32>,
     /// Whether the body is the ownership passes' output ([`Own::owned`]):
     /// emission then lowers their read modes, `Drop`s and exit set, and
     /// decides no count of its own. The sub-body it emits, whose exit set
     /// its exit drops.
     owned: bool,
-    /// In a thunk (`erased.rs`): its instruction moves in each operand it
-    /// consumes, whose count the thunk received ([`Em::take`]).
-    thunk_takes: bool,
     sub_id: u16,
     /// In an owned body, the instruction or block that consumes each
     /// value, or `NONE`, by the passes' rule (`hd_tir::own::consumers`).
@@ -1239,10 +1205,6 @@ struct Em<'i, 'a, 'm> {
     /// The `Read` right after a plain `IsUnique` of its place, and the
     /// local holding the buffer the check left ([`Em::own_unique`]).
     walked: Option<(u32, u32)>,
-    /// In an outlined change's thunk: the local holding the buffer the
-    /// change left, which the thunk returns for its caller to store
-    /// ([`Em::put_back`]); `NONE` until the change leaves one.
-    changed: Option<u32>,
     /// Each `block_on` whose cold call has already had its first drive.
     driven: HashMap<u32, Driven>,
 }
@@ -1353,9 +1315,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             static_cells: None,
             frame: None,
             drive_buffer: None,
-            ops: None,
             owned: false,
-            thunk_takes: false,
             sub_id: 0,
             consumer: Vec::new(),
             copy_reasons: Vec::new(),
@@ -1366,7 +1326,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             hoisted: Vec::new(),
             deref_physical: false,
             walked: None,
-            changed: None,
             driven: HashMap::default(),
         };
         em.projs = (0..b.len()).map(|i| em.projected(i)).collect();
@@ -1893,16 +1852,6 @@ impl Em<'_, '_, '_> {
 
     fn inst_body(&mut self, i: u32) -> StageResult<()> {
         let [a, bw] = self.b.data[i as usize];
-        // An erased body's open instruction calls its thunk (`erased.rs`);
-        // a tag switch outlines only its tag read.
-        if let Some(&Target::Open(k)) = self.calls.get(&i)
-            && self.b.tags[i as usize] != Tag::SwitchTag
-        {
-            self.borrow_call_begin(i);
-            self.open_inst(i, k)?;
-            self.borrow_call_end(i);
-            return Ok(());
-        }
         self.borrow_access(i)?;
         if self.calls.contains_key(&i)
             || matches!(self.b.tags[i as usize], Tag::CallValue | Tag::DefaultCall)
@@ -2170,12 +2119,7 @@ impl Em<'_, '_, '_> {
                 {
                     return unsupported("a switch on a 64-bit integer");
                 }
-                if let Some(&Target::Open(k)) = self.calls.get(&i) {
-                    self.open_call(i, k)?;
-                    self.f.u32(case);
-                    self.f.op(Instruction::I32Eq);
-                } else if self.b.tags[i as usize] == Tag::SwitchTag && self.nullable(self.ty_of(a))
-                {
+                if self.b.tags[i as usize] == Tag::SwitchTag && self.nullable(self.ty_of(a)) {
                     // Variant 1 is a non-null address.
                     self.comp(a, 0)?;
                     if case == 0 {
@@ -2326,8 +2270,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// `Read [$l]` `i`: local `l`'s values, from its cell or its Wasm
-    /// locals, as the read's mode says ([`Em::own_local_read`]); a thunk's
-    /// read is a copy with its own count.
+    /// locals, as the read's mode says ([`Em::own_local_read`]).
     fn local_read(&mut self, i: u32, l: usize) -> StageResult<()> {
         if self.owned {
             return self.own_local_read(i, l);
@@ -2742,10 +2685,7 @@ impl Em<'_, '_, '_> {
 
     /// Pushes a dynamic call's results, of type `result`, or its cold frame
     /// when `result` is `None`: callee record `a` dispatched through its
-    /// receiver's vtable with `args`, the receiver first. A generic
-    /// method's slot takes its open arguments as open values and the
-    /// witness of the call's type arguments, and an open result comes
-    /// back as an open value (`erased.rs`).
+    /// receiver's vtable with `args`, the receiver first.
     fn push_dyn(
         &mut self,
         a: u32,
@@ -2762,9 +2702,7 @@ impl Em<'_, '_, '_> {
         else {
             return unsupported("a dynamic call without a trait method");
         };
-        let Some(slot) = self
-            .env()
-            .trait_methods(trait_)
+        let Some(slot) = hd_mono::slot_methods(self.env(), trait_)
             .iter()
             .position(|m| *m == method)
         else {
@@ -2774,19 +2712,11 @@ impl Em<'_, '_, '_> {
         if !takes_ctx && !self.env().row_keys(method, targs).is_empty() {
             return unsupported("a dynamic call of a method whose row is a trait's row parameter");
         }
-        let open = self.dyn_open(trait_, method, targs)?;
-        if drive.is_some() && open.is_some() {
-            return unsupported("a drive slot of a generic method");
-        }
-        // A suspension kept as a value is polled where its result type is
-        // concrete: a frame over the erased one unboxes its open result.
-        let kept = result.is_some() && self.env().suspends(method);
-        let results = match (result, &open, drive) {
+        let results = match (result, drive) {
             // The drive slot (§23.39): the frame or 0, then the results.
-            (_, _, Some((t, _))) => [vec![Val::I32], self.vals(t)?].concat(),
-            (Some(_), Some(o), _) if o.ret => vec![Val::I32],
-            (Some(t), _, _) => self.vals(t)?,
-            (None, _, _) => vec![Val::I32],
+            (_, Some((t, _))) => [vec![Val::I32], self.vals(t)?].concat(),
+            (Some(t), _) => self.vals(t)?,
+            (None, _) => vec![Val::I32],
         };
         let slot = match drive {
             Some((_, buffer)) => {
@@ -2811,39 +2741,7 @@ impl Em<'_, '_, '_> {
         } else {
             self.comp(recv, 0)?;
         }
-        // An open value argument crosses as an open value whose count the
-        // call takes: the caller's own when this call consumes it, else a
-        // copy's. An open reference crosses as a view the caller releases
-        // once the call has returned, after writing a copied one back.
-        let mut boxed = Vec::new();
-        let mut backs = Vec::new();
-        for (j, r) in rest.iter().enumerate() {
-            if let Some(et) = open
-                .as_ref()
-                .and_then(|o| o.params.get(j).copied().flatten())
-            {
-                if matches!(self.pass(et), Pass::Owned(_)) {
-                    let moved = self.take(*r);
-                    let ls = self.local_value_of(*r)?;
-                    let o = self.erase(&ls, et, self.ty_of(*r), moved)?;
-                    self.f.get(o);
-                    params.push(Val::I32);
-                    continue;
-                }
-                let ls = self.local_value_of(*r)?;
-                let returns = !self.env().suspends(method);
-                let bk = returns.then_some(&mut backs);
-                if let Some(w) = self.erase_arg(&ls, et, self.ty_of(*r), bk)? {
-                    self.f.get(w);
-                    params.push(Val::I32);
-                    continue;
-                }
-                let o = self.erase(&ls, et, self.ty_of(*r), false)?;
-                self.f.get(o);
-                params.push(Val::I32);
-                boxed.push(o);
-                continue;
-            }
+        for r in rest {
             params.extend(self.vals(self.ty_of(*r))?);
             if crate::layout::holds_drop(self.pool(), self.env(), self.ty_of(*r)) {
                 let value = self.consumed(*r)?;
@@ -2851,10 +2749,6 @@ impl Em<'_, '_, '_> {
             } else {
                 self.push(*r)?;
             }
-        }
-        if let Some(o) = &open {
-            self.f.push(Ins::VTable(o.witness));
-            params.push(Val::I32);
         }
         let c = if takes_ctx {
             params.push(Val::I32);
@@ -2881,30 +2775,12 @@ impl Em<'_, '_, '_> {
             2,
         )));
         self.f.call_indirect(params, results.clone());
-        if let (Some(t), Some(o)) = (result, &open)
-            && o.ret
-            && kept
-        {
-            self.keep_open(o.ret_ty, t)?;
-        } else if let (Some(t), Some(o)) = (result, &open)
-            && o.ret
-        {
-            let x = self.f.local(Val::I32);
-            self.f.set(x);
-            for l in self.unerase(x, o.ret_ty, t, true)? {
-                self.f.get(l);
-            }
-        }
         if let Some(value) = payload
             && owned
             && self.input.runtime.is_some()
         {
             self.f.get(value[0]);
             self.f.helper(Helper::ReleaseRef);
-        }
-        self.write_back(backs)?;
-        for o in boxed {
-            self.release_open(o);
         }
         self.release_ctx(c);
         Ok(())

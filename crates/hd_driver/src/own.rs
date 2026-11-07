@@ -171,7 +171,7 @@ pub(super) struct Summaries {
 
 /// The most parts by value an instance's type arguments may hold for the
 /// instance to get a body of its own ([`Env::inlined_instance`]); past it
-/// the item's generic body serves, as it does an erased body. The passes'
+/// the item's generic body serves. The passes'
 /// layout queries walk every part of a concrete type, and a type that
 /// doubles at each level (`Pair[Pair[A, A], Pair[A, A]]`) has
 /// exponentially many: owning its instances would not end before
@@ -409,7 +409,7 @@ impl Env<'_> {
 
 impl OwnCx for Env<'_> {
     fn counted(&self, ty: Ty) -> bool {
-        // An erased body's open value is a counted address.
+        // A generic body's open type may count in an instance.
         self.is_open(ty) || self.layout_facts(ty).0
     }
 
@@ -451,18 +451,18 @@ impl OwnCx for Env<'_> {
         // an intrinsic one, whose code the compiler supplies (as
         // `OwnCx::keeps` reads them).
         if let Callee::TraitMethod {
-            trait_,
             method,
             self_ty,
             targs,
             choice: (ChoiceKind::TraitValue, _),
+            ..
         } = callee
             && self.intrinsic(*method).is_none()
             && !ProgramEnv::suspends(self, *method)
             && self
                 .sig(*method)
                 .is_some_and(|sig| !sig.suspends && sig.params.len() == n)
-            && (k == 0 || self.slot_lends(*trait_, *method, *self_ty, *targs, k))
+            && (k == 0 || self.slot_lends(*method, *self_ty, *targs, k))
         {
             return Pass::Lent;
         }
@@ -998,22 +998,10 @@ impl Env<'_> {
 
     /// Whether a call through a trait value lends argument `k > 0` to the
     /// slot of `method`: see [`OwnCx::pass`].
-    fn slot_lends(
-        &self,
-        trait_: DefId,
-        method: DefId,
-        self_ty: Ty,
-        targs: TyList,
-        k: usize,
-    ) -> bool {
+    fn slot_lends(&self, method: DefId, self_ty: Ty, targs: TyList, k: usize) -> bool {
         let pool = &self.run.pool;
         let self_value = self.ref_target_or(self_ty);
         let items = pool.list_items(targs);
-        if let Some((params, _)) = hd_mono::erased::erased_sig(pool, self, trait_, method, items)
-            && params.get(k - 1).is_none_or(Option::is_some)
-        {
-            return false;
-        }
         self.sig(method).is_some_and(|sig| {
             let all = pool.list(&[&[self_value], items].concat());
             let t = hd_mono::subst(pool, self, method, all, self.low(sig.params[k].1));

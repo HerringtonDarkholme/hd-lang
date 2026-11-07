@@ -10137,7 +10137,7 @@ impl Run<'_> {
     // The browser compiler runs the dev pipeline only: no summaries.
     #[cfg(not(target_arch = "wasm32"))]
     /// The instance bodies collection reads, each with its item, type
-    /// arguments and whether it is erased, and the single-owner field
+    /// arguments, and the single-owner field
     /// verdicts over them (`fields::single_owner`), computed once.
     fn single_owner_facts<'b>(
         &self,
@@ -10146,19 +10146,10 @@ impl Run<'_> {
         body: &dyn Fn(hd_base::InstId) -> Option<&'b hd_tir::ir::Body>,
     ) -> (Vec<fields::Instance<'b>>, &fields::Verdicts) {
         let table = &c.collected.table;
-        let erased = |id: hd_base::InstId| matches!(table.sub[id.idx()], hd_mono::Sub::Erased);
         let all: Vec<_> = c
             .order
             .iter()
-            .filter_map(|&id| {
-                Some((
-                    id,
-                    body(id)?,
-                    table.item[id.idx()],
-                    table.args[id.idx()],
-                    erased(id),
-                ))
-            })
+            .filter_map(|&id| Some((id, body(id)?, table.item[id.idx()], table.args[id.idx()])))
             .collect();
         let verdicts = self
             .single_owner
@@ -10183,7 +10174,7 @@ impl Run<'_> {
         let entry = fields::entry_owned_checks(&self.pool, env, &all, verdicts);
         let names = self.names();
         let mut own_text = lock(&self.own_text);
-        for &(id, b, item, args, _) in &all {
+        for &(id, b, item, args) in &all {
             let path = names.path(item);
             let Some(own) = own_text.get_mut(&path) else {
                 continue;
@@ -10223,7 +10214,7 @@ impl Run<'_> {
         let (all, verdicts) = self.single_owner_facts(env, c, body);
         let mut entry = fields::entry_owned_checks(&self.pool, env, &all, verdicts);
         let mut out = HashMap::default();
-        for &(id, b, item, args, _) in &all {
+        for &(id, b, item, args) in &all {
             let sub = |t| hd_mono::subst(&self.pool, env, item, args, t);
             let mut marks = fields::owned_checks(&self.pool, env, b, &sub, verdicts);
             marks.extend(entry.remove(&id).unwrap_or_default());
@@ -11965,10 +11956,8 @@ fn push_json_targets(target: &hd_mono::Target, out: &mut Vec<Hash128>) -> bool {
             push_json_call(eq, out);
         }
         hd_mono::Target::MapInline(target) => push_json_call(target, out),
-        hd_mono::Target::Dyn | hd_mono::Target::Open(_) => return false,
-        hd_mono::Target::ConstDefault(_)
-        | hd_mono::Target::Erased { .. }
-        | hd_mono::Target::Thunk { .. } => {}
+        hd_mono::Target::Dyn => return false,
+        hd_mono::Target::ConstDefault(_) => {}
     }
     true
 }

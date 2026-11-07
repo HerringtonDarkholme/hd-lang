@@ -27,7 +27,7 @@ pub struct FunctionOrigins {
     pub instructions: Vec<InstructionOrigin>,
     /// Each Wasm local's name, by index, parameters first: TIR local `N`
     /// as `$N` (`$N.K` for its `K`th value when it has several), a role
-    /// (`frame`, `env`, `ctx`, `witness`, `providerN`, `providerN.vtable`,
+    /// (`frame`, `env`, `ctx`, `providerN`, `providerN.vtable`,
     /// `args`), or `None` for a temporary.
     pub locals: Vec<Option<String>>,
     /// Each static data address the body pushes, with what it holds.

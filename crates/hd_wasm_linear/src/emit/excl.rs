@@ -237,9 +237,9 @@ pub(super) fn call_info(
     let env = input.env;
     match target? {
         Target::Call(call) => Some(env.local_ref_receiver(call.item)),
-        // A trait method on a trait value, or on an erased body's open
-        // type: its declaration says how it takes `self`.
-        Target::Dyn | Target::Open(_) => {
+        // A trait method on a trait value: its declaration says how it
+        // takes `self`.
+        Target::Dyn => {
             let Callee::TraitMethod { method, .. } = Callee::from_words(b.record(b.data[i][0]))?
             else {
                 return None;

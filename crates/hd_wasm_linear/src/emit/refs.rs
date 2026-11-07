@@ -16,7 +16,7 @@
 use crate::op::Op as I;
 use hd_base::{DefId, StageResult};
 use hd_mono::layout::{CanonMemo, canon};
-use hd_tir::ir::{NONE, Place, PlaceRoot, Proj, Tag};
+use hd_tir::ir::{NONE, Place, PlaceRoot, Proj, Ref, Tag};
 use hd_types::{Ty, TyData};
 
 use super::Em;
@@ -43,17 +43,6 @@ pub(super) enum At {
 /// The type a reference refers to, and whether the reference is fat (a
 /// trait value's).
 type Referent = (Ty, bool);
-
-/// An open value a walk read through a view as a copy
-/// ([`Em::walk_place`]), with counts of its own, in `vals` when `flag` is
-/// set. What the walk found lives in that copy, so the instruction
-/// releases it ([`Em::release_fresh`]) once it is done.
-#[derive(Clone)]
-pub(super) struct Fresh {
-    flag: u32,
-    vals: Vec<u32>,
-    ty: Ty,
-}
 
 impl Em<'_, '_, '_> {
     pub(super) fn ref_layout(&self, ty: Ty) -> StageResult<RefLayout> {
@@ -83,14 +72,30 @@ impl Em<'_, '_, '_> {
         })
     }
 
-    /// An owned representation view over a borrowed source address.
-    pub(super) fn ref_view(&mut self, at: u32, source: Ty) -> StageResult<u32> {
-        let layout = self.ref_layout(source)?;
-        let view = self.f.local(Val::I32);
-        self.f.get(at);
-        self.f.helper(Helper::RefView { source: layout });
-        self.f.set(view);
-        Ok(view)
+    /// One count less on the counted address in local `o`.
+    pub(super) fn release_open(&mut self, o: u32) {
+        if self.input.runtime.is_some() {
+            self.f.get(o);
+            self.f.helper(Helper::ReleaseRef);
+        }
+    }
+
+    /// Locals holding value `r`: its instruction's, or a constant's,
+    /// pushed into fresh ones.
+    pub(super) fn local_value_of(&mut self, r: u32) -> StageResult<Vec<u32>> {
+        if r != NONE && Ref(r).as_inst().is_some() {
+            return match self.vals.get(&r) {
+                Some(ls) => Ok(ls.clone()),
+                None => unsupported("a value its instruction did not compute"),
+            };
+        }
+        let vs = self.vals(self.ty_of(r))?;
+        let ls: Vec<u32> = vs.into_iter().map(|v| self.f.local(v)).collect();
+        self.push(r)?;
+        for l in ls.iter().rev() {
+            self.f.set(*l);
+        }
+        Ok(ls)
     }
 
     /// The type reference type `t` refers to, and whether the reference
@@ -208,8 +213,7 @@ impl Em<'_, '_, '_> {
         while k < proj.len() {
             // A newtype's one field is all of it, whatever it holds.
             let whole = self.newtype(ty) && proj[k] == Proj::Field(0);
-            if hd_mono::is_open(self.pool(), ty) || !(whole || matches!(self.kind(ty), Kind::Value))
-            {
+            if !(whole || matches!(self.kind(ty), Kind::Value)) {
                 return Ok(None);
             }
             match proj[k] {
@@ -413,8 +417,7 @@ impl Em<'_, '_, '_> {
         if d + 1 != p.proj.len() || !self.is_map(target) {
             return Ok(None);
         }
-        let mut fresh = Vec::new();
-        let (at, _) = self.walk_place(i, &p, d, None, &mut fresh)?;
+        let (at, _) = self.walk_place(i, &p, d, None)?;
         let reference = self.at_i32(&at)?;
         let value = self.ref_layout(target)?;
         let helper = Helper::MapUnique {
@@ -454,7 +457,6 @@ impl Em<'_, '_, '_> {
         self.f.get(header);
         self.f.op(I::I32Store(mem(HEAP, 0, 2)));
         self.f.op(I::End);
-        self.release_fresh(&fresh)?;
         Ok(Some(header))
     }
 
@@ -466,10 +468,8 @@ impl Em<'_, '_, '_> {
     /// walk found it in memory, where the place keeps it ([`Em::put_at`]).
     pub(super) fn place_header(&mut self, word: u32) -> StageResult<(u32, Ty, Option<At>)> {
         let p = self.place(word)?;
-        let mut fresh = Vec::new();
-        let (at, ty) = self.walk_place(NONE, &p, p.proj.len(), None, &mut fresh)?;
+        let (at, ty) = self.walk_place(NONE, &p, p.proj.len(), None)?;
         let h = self.at_i32(&at)?;
-        self.release_fresh(&fresh)?;
         Ok((h, ty, (!matches!(at, At::Vals(_))).then_some(at)))
     }
 
@@ -498,10 +498,6 @@ impl Em<'_, '_, '_> {
     /// left, where `r` came from: into the place a `borrow` read `r` names
     /// right after its `IsUnique`, else into `r`'s own value.
     pub(super) fn put_back(&mut self, r: u32, b: u32) -> StageResult<()> {
-        if let Some(x) = self.changed.as_mut() {
-            *x = b;
-            return Ok(());
-        }
         if self.b.is_borrow(r) {
             return self.put_buffer(self.b.data[r as usize][0], b);
         }
@@ -519,10 +515,9 @@ impl Em<'_, '_, '_> {
     /// locals, a top-level binding's static slot or Wasm globals.
     pub(super) fn put_buffer(&mut self, word: u32, b: u32) -> StageResult<()> {
         let p = self.place(word)?;
-        let mut fresh = Vec::new();
         let (at, ty, from) = match self.last_through(&p)? {
             Some((d, Some((target, false)))) => {
-                let (at, _) = self.walk_place(NONE, &p, d, None, &mut fresh)?;
+                let (at, _) = self.walk_place(NONE, &p, d, None)?;
                 let r = self.at_i32(&at)?;
                 // A view's referent has no address of its own to store at.
                 self.f.get(r);
@@ -540,7 +535,7 @@ impl Em<'_, '_, '_> {
                     self.f.get(b);
                     self.f.op(I::I32Store(mem(HEAP, 0, 2)));
                     self.f.op(I::End);
-                    return self.release_fresh(&fresh);
+                    return Ok(());
                 }
                 self.f.helper(Helper::Panic(
                     "internal: a collection changed through a reference view".into(),
@@ -549,19 +544,12 @@ impl Em<'_, '_, '_> {
                 (At::Mem(r, 0), target, d + 1)
             }
             Some(_) => {
-                let (at, ty) = self.walk_place(NONE, &p, p.proj.len(), None, &mut fresh)?;
+                let (at, ty) = self.walk_place(NONE, &p, p.proj.len(), None)?;
                 (at, ty, p.proj.len())
             }
             None => match p.root {
                 PlaceRoot::Local(l) if self.is_cell(l.idx()) => {
-                    // An erased cell holds a list or a map as the same
-                    // one address; any other value it boxes.
                     let t = self.at_root_ty(p.root);
-                    if self.cell_converts(l.idx())
-                        && (!p.proj.is_empty() || self.vals(t)? != [Val::I32])
-                    {
-                        return unsupported("a collection changed in an erased cell");
-                    }
                     // The change read the place, so the cell exists.
                     (At::Mem(self.local(l.raw())?[0], 0), t, 0)
                 }
@@ -575,7 +563,7 @@ impl Em<'_, '_, '_> {
             (At::Vals(ls), PlaceRoot::Global(def, _)) => Some((self.def_hash(def), ls.clone())),
             _ => None,
         };
-        let (at, _) = self.walk_steps(at, ty, &p.proj[from..], &mut fresh)?;
+        let (at, _) = self.walk_steps(at, ty, &p.proj[from..])?;
         self.put_at(&at, b)?;
         // A binding in Wasm globals takes its changed value back.
         if let (Some((h, ls)), At::Vals(x)) = (globals, &at) {
@@ -587,7 +575,7 @@ impl Em<'_, '_, '_> {
                 Val::I32,
             ));
         }
-        self.release_fresh(&fresh)
+        Ok(())
     }
 
     /// `Ref` `i`: the place's address, or the trait value
@@ -604,8 +592,8 @@ impl Em<'_, '_, '_> {
         // A reference the move pass marked to take its local's count of
         // the cell (`docs/compiler/tir-v2.md`, "Move" rule 4): the cell's
         // address, owned, and the local left empty. Where the reference
-        // is no cell's address at this instance (a trait value's, an open
-        // cell's view), it takes a count of its own and the local's count
+        // is no cell's address at this instance (a trait value's), it
+        // takes a count of its own and the local's count
         // is released here, as the `Drop` the pass deleted did. A frame
         // local's count is never taken (`ref_word::FRAME`).
         if self.owned && self.b.data[i as usize][1] & hd_tir::ir::ref_word::TAKES != 0 {
@@ -618,10 +606,7 @@ impl Em<'_, '_, '_> {
                 return unsupported("a reference that takes a frame slot's local");
             }
             let fat = self.ref_target(self.ty(i)).is_some_and(|(_, f)| f);
-            let cell = self.is_cell(x);
-            let view =
-                cell && self.cell_converts(x) && self.ref_layout(self.at_root_ty(p.root))?.boxed;
-            if cell && !fat && !view {
+            if self.is_cell(x) && !fat {
                 let at = self.cell_of(x)?;
                 self.f.get(at);
                 self.store_owned(i)?;
@@ -673,16 +658,14 @@ impl Em<'_, '_, '_> {
             return unsupported("a reference whose type is no reference");
         };
         let last = self.last_through(&p)?;
-        let mut view = None;
-        let start = self.place_start(i, &p, last, &mut view)?;
+        let start = self.place_start(i, &p, last)?;
         // A data object's field is the head with its dereference.
         let (upto, head) = match last {
             Some((d, None)) if p.proj[d] == Proj::Deref => ((d + 2).min(p.proj.len()), None),
             Some((d, through)) => (d, Some(through)),
             None => (0, None),
         };
-        let mut fresh = Vec::new();
-        let (mut at, mut ty) = self.walk_place(i, &p, upto, start, &mut fresh)?;
+        let (mut at, mut ty) = self.walk_place(i, &p, upto, start)?;
         // A capture's copy lies in the closure's environment too, which
         // outlives the code's call: a local reference points there. (A
         // receiver's counted carrier points at a whole object: a copy.)
@@ -731,32 +714,24 @@ impl Em<'_, '_, '_> {
                 (_, None) => return unsupported("a dereference of a value that is no reference"),
             };
         }
-        let owned_base = view.map(|(_, v)| v[0]);
         let Some(path) = fields(&p.proj[from..]) else {
-            self.payload_ref(i, &at, ty, &p.proj[from..], owned_base, fat)?;
-            return self.release_fresh(&fresh);
-        };
-        self.ref_from(i, at, ty, &path, owned_base, fat)?;
-        // A short loan keeps what the walk made fresh until it ends.
-        if let Some(loan) = self.short_loans.get_mut(&i) {
-            loan.fresh.extend(fresh);
+            self.payload_ref(i, &at, ty, &p.proj[from..], fat)?;
             return Ok(());
-        }
-        self.release_fresh(&fresh)
+        };
+        self.ref_from(i, at, ty, &path, fat)?;
+        Ok(())
     }
 
     /// The rest of `Ref` `i` when `steps` go through a variant's payload
     /// (`ref.match.borrow`): the field's address in the enum at `base`, of
     /// type `ty`, or, where the enum's shared slots hold its leaves at no
-    /// one offset, a view whose getter and setter pick them out. `owned_base`
-    /// is a view the head made, released after.
+    /// one offset, a view whose getter and setter pick them out.
     fn payload_ref(
         &mut self,
         i: u32,
         base: &At,
         parent_ty: Ty,
         steps: &[Proj],
-        owned_base: Option<u32>,
         fat: bool,
     ) -> StageResult<()> {
         if fat {
@@ -826,7 +801,7 @@ impl Em<'_, '_, '_> {
                     && (slot.bytes == l.bytes || (slot.bytes > l.bytes && !(mutable && l.signed)))
             });
         if physical {
-            return self.ref_projection(i, at, parent, &field, first, offset, owned_base, false);
+            return self.ref_projection(i, at, parent, &field, first, offset, false);
         }
         self.f.get(at);
         self.f.helper(Helper::RefPayload {
@@ -836,9 +811,6 @@ impl Em<'_, '_, '_> {
             offset,
         });
         self.store_owned(i)?;
-        if let Some(view) = owned_base {
-            self.release_open(view);
-        }
         Ok(())
     }
 
@@ -855,7 +827,6 @@ impl Em<'_, '_, '_> {
         field: &RefLayout,
         first: u32,
         off: u32,
-        owned_base: Option<u32>,
         fat: bool,
     ) -> StageResult<()> {
         let loan = self.begin_view_loan(i)?;
@@ -907,23 +878,18 @@ impl Em<'_, '_, '_> {
             self.release_open(projected);
         }
         self.store_owned(i)?;
-        if let Some(view) = owned_base {
-            self.release_open(view);
-        }
         Ok(())
     }
 
     /// The rest of `Ref` `i` from where its place's head lies (`base`, of
     /// type `ty`, in memory or in locals): the address of the struct field
-    /// `path` reaches there, with a count of its own. `owned_base` is a
-    /// view the head made, released after.
+    /// `path` reaches there, with a count of its own.
     fn ref_from(
         &mut self,
         i: u32,
         base: At,
         mut ty: Ty,
         path: &[u32],
-        owned_base: Option<u32>,
         fat: bool,
     ) -> StageResult<()> {
         let base = match base {
@@ -946,16 +912,13 @@ impl Em<'_, '_, '_> {
             let parent = self.ref_layout(parent_ty)?;
             let field = self.ref_layout(ty)?;
             let first = u32::try_from(first).expect("field");
-            return self.ref_projection(i, *at, parent, &field, first, off, owned_base, fat);
+            return self.ref_projection(i, *at, parent, &field, first, off, fat);
         }
         match base {
             At::Mem(at, _) if fat => {
                 let value = self.ref_layout(ty)?;
                 self.load_through(at, &value);
                 self.store_owned(i)?;
-                if let Some(view) = owned_base {
-                    self.release_open(view);
-                }
                 return Ok(());
             }
             At::Mem(at, _) => {
@@ -1002,9 +965,6 @@ impl Em<'_, '_, '_> {
                 return unsupported("a reference to a place in no memory");
             }
         }
-        if owned_base.is_some() {
-            return self.store_owned(i);
-        }
         self.store(i)
     }
 
@@ -1021,10 +981,9 @@ impl Em<'_, '_, '_> {
     pub(super) fn place_read(&mut self, i: u32) -> StageResult<()> {
         let p = self.place(self.b.data[i as usize][0])?;
         let last = self.last_through(&p)?;
-        let start = self.place_start(i, &p, last, &mut None)?;
-        let mut fresh = Vec::new();
+        let start = self.place_start(i, &p, last)?;
         if let Some((d, Some((target, fat)))) = last {
-            let (at, ref_ty) = self.walk_place(i, &p, d, start, &mut fresh)?;
+            let (at, ref_ty) = self.walk_place(i, &p, d, start)?;
             let steps = &p.proj[d + 1..];
             let fields = fields(steps);
             if fat {
@@ -1033,15 +992,13 @@ impl Em<'_, '_, '_> {
                 }
                 self.push_at(&at, ref_ty)?;
                 self.store(i)?;
-                return self.release_fresh(&fresh);
+                return Ok(());
             }
             let r = self.at_i32(&at)?;
             let value = self.ref_layout(target)?;
             if fields.as_ref().is_some_and(Vec::is_empty) {
                 // A loan is the leaves its place holds, through a view
-                // too. An erased body's loan of an open value is a copy
-                // through a view, whose box over a concrete place goes
-                // once the view has its value back.
+                // too.
                 if let Some(flag) = self.begin_view_loan(i)? {
                     for l in rt::ref_load_borrowed(&mut self.f, r, &value, flag) {
                         self.f.get(l);
@@ -1062,23 +1019,21 @@ impl Em<'_, '_, '_> {
                 let declared = self.declared_referent(&p, d)?;
                 self.read_path(i, r, declared, steps)?;
             }
-            return self.release_fresh(&fresh);
+            return Ok(());
         }
         if self.cell_part_move(i, &p)? {
             return Ok(());
         }
-        let (at, ty) = self.walk_place(i, &p, p.proj.len(), start, &mut fresh)?;
+        let (at, ty) = self.walk_place(i, &p, p.proj.len(), start)?;
         self.push_at(&at, ty)?;
         self.store(i)?;
-        self.release_fresh(&fresh)
+        Ok(())
     }
 
     /// `Read move` `i` of a field path of a local whose value lives in
     /// memory (a cell or a frame slot, `[$l .a]`): the part's count, and
     /// zeros left in its place, which the local's `Drop` then releases as
-    /// nothing. False, emitting nothing, for any other read, and for a cell
-    /// that converts to an erased view, which is read as a copy, and the
-    /// local's `Drop` releases the whole.
+    /// nothing. False, emitting nothing, for any other read.
     fn cell_part_move(&mut self, i: u32, p: &Place) -> StageResult<bool> {
         let PlaceRoot::Local(l) = p.root else {
             return Ok(false);
@@ -1091,12 +1046,11 @@ impl Em<'_, '_, '_> {
             || self.b.data[i as usize][1] != hd_tir::ir::ReadMode::Move as u32
             || path.is_empty()
             || !self.is_cell(l)
-            || self.cell_converts(l)
         {
             return Ok(false);
         }
         let (m, _) = self.cell_mem(l)?;
-        let (pt, part) = self.fold_path(self.cell_ty(l), &path)?;
+        let (pt, part) = self.fold_path(self.sub(self.b.local_ty[l]), &path)?;
         let leaves = m.leaves[part.first..part.first + part.count].to_vec();
         let c = self.cell_of(l)?;
         for leaf in &leaves {
@@ -1154,11 +1108,11 @@ impl Em<'_, '_, '_> {
         self.f.helper(Helper::RefIsView);
         self.f.op(I::If(wasm_encoder::BlockType::Empty));
         let parent = rt::view_lend(&mut self.f, at, &value);
-        let (view, view_ty) = self.walk_steps(At::Vals(parent), ty, steps, &mut Vec::new())?;
+        let (view, view_ty) = self.walk_steps(At::Vals(parent), ty, steps)?;
         self.push_at(&view, view_ty)?;
         self.store(dest)?;
         self.f.op(I::Else);
-        let (place, place_ty) = self.walk_steps(At::Mem(at, 0), ty, steps, &mut Vec::new())?;
+        let (place, place_ty) = self.walk_steps(At::Mem(at, 0), ty, steps)?;
         self.push_at(&place, place_ty)?;
         self.store(dest)?;
         self.f.op(I::End);
@@ -1209,7 +1163,6 @@ impl Em<'_, '_, '_> {
             self.owned_locals.insert(*l);
         }
         match &local {
-            // A thunk lowers only the places stage 1 lowers.
             _ if rooted && !self.owned => {
                 return unsupported("a store into a place that is not writable");
             }
@@ -1234,23 +1187,21 @@ impl Em<'_, '_, '_> {
             _ => {}
         }
         let last = self.last_through(&p)?;
-        let mut cell = None;
-        let start = self.place_start(i, &p, last, &mut cell)?;
-        let mut fresh = Vec::new();
+        let start = self.place_start(i, &p, last)?;
         if let Some((d, Some((target, fat)))) = last {
             if fat {
                 return unsupported("a write through a trait value reference");
             }
-            let (at, _) = self.walk_place(i, &p, d, start, &mut fresh)?;
+            let (at, _) = self.walk_place(i, &p, d, start)?;
             let r = self.at_i32(&at)?;
             match fields(&p.proj[d + 1..]) {
                 Some(fs) if fs.is_empty() => self.deref_write_at(r, target, v)?,
                 Some(fs) => self.deref_field_write_at(r, target, &fs, v)?,
                 None => return unsupported("a payload write through a reference"),
             }
-            return self.release_fresh(&fresh);
+            return Ok(());
         }
-        let (at, ty) = self.walk_place(i, &p, p.proj.len(), start, &mut fresh)?;
+        let (at, ty) = self.walk_place(i, &p, p.proj.len(), start)?;
         let leaves;
         let d = match &at {
             At::Vals(ls) if !rooted => Dst::Locals(ls),
@@ -1271,11 +1222,7 @@ impl Em<'_, '_, '_> {
         } else {
             self.replace(d, ty, v)?;
         }
-        if let Some((l, ls)) = cell {
-            let src = self.cell_src(l, Src::Locals(ls))?;
-            self.cell_put(l, &src)?;
-        }
-        self.release_fresh(&fresh)
+        Ok(())
     }
 
     /// Where the walk of place `p` of `Read`, `Store` or `Ref` `i`, whose
@@ -1289,11 +1236,7 @@ impl Em<'_, '_, '_> {
     ///   a read loads through: from the address, copied into a local;
     /// - with no element or dereference, written or addressed: in its
     ///   root, a local's Wasm locals or cell, or a top-level binding's
-    ///   static slot or Wasm globals (a store's only). An erased cell
-    ///   holds a view: a store reads its value out and counts it, a
-    ///   reference to a boxed value makes a view of it, and `cell` names
-    ///   the cell and those locals, which the store puts back
-    ///   ([`Em::cell_put`]) and the reference releases.
+    ///   static slot or Wasm globals (a store's only).
     ///
     /// Any other read or reference starts at its root's value; any other
     /// store is into a place that is not writable.
@@ -1302,7 +1245,6 @@ impl Em<'_, '_, '_> {
         i: u32,
         p: &Place,
         last: Option<(usize, Option<Referent>)>,
-        cell: &mut Option<(usize, Vec<u32>)>,
     ) -> StageResult<Option<(At, Ty)>> {
         let tag = self.b.tags[i as usize];
         let t = self.at_root_ty(p.root);
@@ -1334,20 +1276,6 @@ impl Em<'_, '_, '_> {
             (_, Some(_)) if tag != Tag::Store => return Ok(None),
             (_, None) if tag == Tag::Read => return Ok(None),
             (PlaceRoot::Local(l), None) if !self.is_cell(l.idx()) => At::Vals(self.local(l.raw())?),
-            (PlaceRoot::Local(l), None) if self.cell_converts(l.idx()) && tag == Tag::Store => {
-                let ls = self.cell_read(l.idx())?;
-                self.retain_locals(&ls, t)?;
-                *cell = Some((l.idx(), ls.clone()));
-                At::Vals(ls)
-            }
-            (PlaceRoot::Local(l), None)
-                if self.cell_converts(l.idx()) && self.ref_layout(t)?.boxed =>
-            {
-                let at = self.cell_of(l.idx())?;
-                let view = self.ref_view(at, self.cell_ty(l.idx()))?;
-                *cell = Some((l.idx(), vec![view]));
-                At::Mem(view, 0)
-            }
             (PlaceRoot::Local(l), None) => At::Mem(self.cell_of(l.idx())?, 0),
             (PlaceRoot::Global(def, _), None) if tag == Tag::Store => {
                 let h = self.def_hash(def);
@@ -1366,35 +1294,6 @@ impl Em<'_, '_, '_> {
             _ => return unsupported("a store into a place that is not writable"),
         };
         Ok(Some((at, t)))
-    }
-
-    /// Outlined `Store` `i` into a struct field of TIR local `l` in an
-    /// erased body (`hd_mono::outlined_store_local`): its thunk `k`
-    /// returns the local's new value, with a count of its own, which
-    /// replaces the old one whole.
-    pub(super) fn open_local_store(&mut self, i: u32, k: u32, l: u32) -> StageResult<()> {
-        self.open_call(i, k)?;
-        let t = self.sub(self.b.local_ty[l as usize]);
-        let new: Vec<u32> = self.vals(t)?.into_iter().map(|x| self.f.local(x)).collect();
-        for x in new.iter().rev() {
-            self.f.set(*x);
-        }
-        if self.is_cell(l as usize) {
-            let src = self.cell_src(l as usize, Src::Locals(new))?;
-            return self.cell_put(l as usize, &src);
-        }
-        let ls = self.local(l)?;
-        // An outlined `IsUnique` or `Pin` took the local's count with it.
-        if self.needs_drop(t) && hd_mono::outlined_change_local(self.b, i).is_none() {
-            self.because(hd_tir::own::Reason::Overwritten, |em| {
-                em.release_locals(&ls, t)
-            })?;
-        }
-        for (x, n) in ls.iter().zip(&new) {
-            self.f.get(*n);
-            self.f.set(*x);
-        }
-        Ok(())
     }
 
     /// A write of `v` through the reference in local `at` to a `target`.
@@ -1508,7 +1407,7 @@ impl Em<'_, '_, '_> {
     /// a variant among its steps, or a dereference after its first step;
     /// or rooted at a top-level binding, read through any step or reached
     /// through one that is no field. Any other place, and every place of
-    /// a thunk, starts where stage 1 lowered it ([`Em::place_start`]).
+    /// starts where stage 1 lowered it ([`Em::place_start`]).
     pub(super) fn rooted_at(&self, i: u32) -> bool {
         let read = self.b.tags[i as usize] == Tag::Read;
         self.owned
@@ -1687,8 +1586,7 @@ impl Em<'_, '_, '_> {
     /// loop's cached buffer where the list is a stable list of a local).
     /// A dereference of a reference goes to its referent's address; where
     /// a reference view may be reached, the walk reads on in the value the
-    /// view lends to the next step's address, and an erased body in a copy
-    /// of an open value, which joins `fresh`. So every dereference before
+    /// view lends to the next step's address. So every dereference before
     /// `upto` is followed, by `upto`, by another element or dereference, or
     /// by fields and variants down to one 32-bit value.
     pub(super) fn walk_place(
@@ -1697,7 +1595,6 @@ impl Em<'_, '_, '_> {
         p: &Place,
         upto: usize,
         start: Option<(At, Ty)>,
-        fresh: &mut Vec<Fresh>,
     ) -> StageResult<(At, Ty)> {
         let steps = &p.proj[..upto];
         let local = match p.root {
@@ -1734,7 +1631,7 @@ impl Em<'_, '_, '_> {
             self.f.get(cache.buffer);
             self.f.op(I::Else);
             let (a, t) = self.at_root(p.root)?;
-            let (a, _) = self.walk_steps(a, t, &steps[..elem], fresh)?;
+            let (a, _) = self.walk_steps(a, t, &steps[..elem])?;
             let x = self.at_i32(&a)?;
             self.f.get(x);
             self.f.op(I::End);
@@ -1755,7 +1652,7 @@ impl Em<'_, '_, '_> {
                     .iter()
                     .position(|s| matches!(s, Proj::Elem(_)))
                     .map_or(steps.len(), |x| k + 1 + x);
-                (at, ty) = self.walk_steps(at, ty, &steps[k..next], fresh)?;
+                (at, ty) = self.walk_steps(at, ty, &steps[k..next])?;
                 k = next;
                 continue;
             };
@@ -1845,13 +1742,7 @@ impl Em<'_, '_, '_> {
 
     /// Walks `steps`, which hold no element, from `at` of type `ty`
     /// ([`Em::walk_place`]).
-    fn walk_steps(
-        &mut self,
-        mut at: At,
-        mut ty: Ty,
-        steps: &[Proj],
-        fresh: &mut Vec<Fresh>,
-    ) -> StageResult<(At, Ty)> {
+    fn walk_steps(&mut self, mut at: At, mut ty: Ty, steps: &[Proj]) -> StageResult<(At, Ty)> {
         let mut k = 0;
         while k < steps.len() {
             match steps[k] {
@@ -1901,54 +1792,29 @@ impl Em<'_, '_, '_> {
                         // in locals both ways: through a view, from the
                         // leaves it lends ([`rt::ref_lend`]); an open value
                         // there may be a box that goes once the view has it
-                        // back, so an erased body walks a copy it releases
-                        // after ([`Fresh`]). Else loaded from the referent's
+                        // back. Else loaded from the referent's
                         // address.
                         let t = self.walk_ty(target, &steps[k + 1..next])?;
                         let xs: Vec<u32> =
                             self.vals(t)?.into_iter().map(|v| self.f.local(v)).collect();
                         let value = self.ref_layout(target)?;
-                        let flag = hd_mono::is_open(self.pool(), target).then(|| {
-                            let flag = self.f.local(Val::I32);
-                            self.f.zero(flag);
-                            flag
-                        });
                         self.f.get(r);
                         self.f.helper(Helper::RefIsView);
                         self.f.op(I::If(wasm_encoder::BlockType::Empty));
-                        let vals = if let Some(flag) = flag {
-                            let vals = rt::ref_load(&mut self.f, r, &value);
-                            self.f.i32(1);
-                            self.f.set(flag);
-                            vals
-                        } else {
-                            rt::view_lend(&mut self.f, r, &value)
-                        };
-                        let (a, _) = self.walk_steps(
-                            At::Vals(vals.clone()),
-                            target,
-                            &steps[k + 1..next],
-                            fresh,
-                        )?;
+                        let vals = rt::view_lend(&mut self.f, r, &value);
+                        let (a, _) =
+                            self.walk_steps(At::Vals(vals.clone()), target, &steps[k + 1..next])?;
                         self.push_at(&a, t)?;
                         for x in xs.iter().rev() {
                             self.f.set(*x);
                         }
                         self.f.op(I::Else);
-                        let (a, _) =
-                            self.walk_steps(At::Mem(r, 0), target, &steps[k + 1..next], fresh)?;
+                        let (a, _) = self.walk_steps(At::Mem(r, 0), target, &steps[k + 1..next])?;
                         self.push_at(&a, t)?;
                         for x in xs.iter().rev() {
                             self.f.set(*x);
                         }
                         self.f.op(I::End);
-                        if let Some(flag) = flag {
-                            fresh.push(Fresh {
-                                flag,
-                                vals,
-                                ty: target,
-                            });
-                        }
                         at = At::Vals(xs);
                         ty = t;
                         k = next;
@@ -1962,21 +1828,6 @@ impl Em<'_, '_, '_> {
             }
         }
         Ok((at, ty))
-    }
-
-    /// Releases the views' fresh values a walk read through, each where it
-    /// was made, and clears their flags.
-    pub(super) fn release_fresh(&mut self, fresh: &[Fresh]) -> StageResult<()> {
-        for x in fresh {
-            self.f.get(x.flag);
-            self.f.op(I::If(wasm_encoder::BlockType::Empty));
-            self.because(hd_tir::own::Reason::View, |em| {
-                em.release_locals(&x.vals, x.ty)
-            })?;
-            self.f.zero(x.flag);
-            self.f.op(I::End);
-        }
-        Ok(())
     }
 
     /// The index of the last step of `p` that goes into memory (an element

@@ -171,9 +171,7 @@ impl Em<'_, '_, '_> {
             return Ok(None);
         }
         let reference = match (p.root, p.proj.as_slice()) {
-            (PlaceRoot::Local(l), []) if self.is_cell(l.idx()) && !self.cell_converts(l.idx()) => {
-                self.cell_of(l.idx())?
-            }
+            (PlaceRoot::Local(l), []) if self.is_cell(l.idx()) => self.cell_of(l.idx())?,
             (PlaceRoot::Local(l), [Proj::Deref]) => self.local_value(l.raw())?[0],
             (PlaceRoot::Value(r), [Proj::Deref]) => {
                 let at = self.f.local(Val::I32);

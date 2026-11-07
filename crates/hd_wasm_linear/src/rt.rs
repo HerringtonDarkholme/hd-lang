@@ -152,18 +152,6 @@ pub enum Helper {
     RefViewDrop,
     /// The canonical identity serial, following views and field projections.
     RefAddress,
-    /// A counted view of a reference with this source representation.
-    RefView {
-        source: RefLayout,
-    },
-    /// A view's getter, which moves its value out of the source's place
-    /// into an erased box, and its setter, which moves a box's value in.
-    RefGet {
-        source: RefLayout,
-    },
-    RefSet {
-        source: RefLayout,
-    },
     /// `hd.init`: the inits in order; a flagged one belongs to a module
     /// other than the entry's and runs as a forbidden context
     /// (`req.drive.block-on.forbidden-contexts.v2`).
@@ -297,7 +285,7 @@ pub enum Helper {
     /// payload start `box`, whose fields the caller has loaded. A box
     /// with one holder is freed without its glue, so its fields move out
     /// (1); a shared one loses a count, and the caller counts its copy
-    /// (0). An open value leaves its box this way (`emit/erased.rs`).
+    /// (0).
     TakeBox,
     /// `(payload)`: the release glue of an object whose payload is laid
     /// out as `leaves`: its `std.rt.Drop` hooks, then one count less on
@@ -714,21 +702,6 @@ pub enum Helper {
     All {
         part: u8,
         elem: Elem,
-    },
-    /// A kept suspension of a generic method called through a trait
-    /// value, over the erased frame whose poll answers an open value
-    /// (`emit/erased.rs`): part 0 `(child) -> frame`, 1 its poll, which
-    /// answers the value laid out as `leaves` that the open value holds, a
-    /// box of it or 0 when it has no leaves. `walk` finds its counted
-    /// references, and `counts` says whether the program counts. Its
-    /// cancel is [`Helper::CleanupCancel`] and its glue
-    /// [`Helper::ChildDrop`].
-    OpenFrame {
-        part: u8,
-        reference: Option<RefLayout>,
-        leaves: Vec<Leaf>,
-        walk: Option<Walk>,
-        counts: bool,
     },
 }
 
@@ -1449,12 +1422,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::RefPayload { .. } | Helper::RefPayloadGet { .. } | Helper::RefPayloadSet { .. } => {
             ref_payload_helper(h, m)
         }
-        Helper::RefIsView
-        | Helper::RefViewDrop
-        | Helper::RefAddress
-        | Helper::RefView { .. }
-        | Helper::RefGet { .. }
-        | Helper::RefSet { .. } => ref_helper(h, m),
+        Helper::RefIsView | Helper::RefViewDrop | Helper::RefAddress => ref_helper(h, m),
         Helper::Frame(_)
         | Helper::PollCheck
         | Helper::CancelCheck
@@ -1493,8 +1461,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         | Helper::WaitSignal
         | Helper::Race { .. }
         | Helper::RaceDrop { .. }
-        | Helper::All { .. }
-        | Helper::OpenFrame { .. } => crate::task::helper(h, m),
+        | Helper::All { .. } => crate::task::helper(h, m),
         Helper::HandleSlot {
             inner,
             params,
@@ -3577,8 +3544,7 @@ fn list_copy(elem: &Elem, m: &Module) -> Func {
 
 /// [`Helper::ListGrow`]: a full buffer moves to
 /// one of twice its length plus 4, and the old one, its elements moved and its length 0, loses
-/// the count the list held: an outlined change's thunk holds one more
-/// until it returns (`emit/erased.rs`).
+/// the count the list held.
 fn list_grow(elem: &Elem, m: &Module) -> Func {
     let mut f = m.func("rt:list_grow", vec![Val::I32], vec![Val::I32]);
     let (b, n, nb) = (0, f.local(Val::I32), f.local(Val::I32));
@@ -4499,66 +4465,6 @@ fn ref_helper(h: &Helper, m: &Module) -> Func {
             f.get(offset);
             f.op(Instruction::I32Add);
             f.op(Instruction::I64ExtendI32U);
-            f
-        }
-        Helper::RefView { source } => {
-            let mut f = m.func("rt:ref_view", vec![Val::I32], vec![Val::I32]);
-            // A view already carries both representations and can cross back.
-            f.get(0);
-            f.helper(Helper::RefIsView);
-            f.op(Instruction::If(BlockType::Empty));
-            if let Some(r) = m.runtime {
-                f.get(0);
-                f.call(Sym::Inst(r.retain));
-            }
-            f.get(0);
-            f.op(Instruction::Return);
-            f.op(Instruction::End);
-            let at = f.local(Val::I32);
-            f.i32(20);
-            // A view holds its source, whose type is not known here, so
-            // it takes part in cycle collection.
-            push_desc(&mut f, Some(Sym::Helper(Helper::RefViewDrop)), true);
-            f.helper(Helper::New);
-            f.set(at);
-            if let Some(r) = m.runtime {
-                f.get(0);
-                f.call(Sym::Inst(r.retain));
-            }
-            f.get(at);
-            f.get(0);
-            f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
-            f.get(at);
-            f.table_slot(Sym::Helper(Helper::RefGet {
-                source: source.clone(),
-            }));
-            f.op(Instruction::I32Store(mem(HEAP, 4, 2)));
-            f.get(at);
-            f.table_slot(Sym::Helper(Helper::RefSet {
-                source: source.clone(),
-            }));
-            f.op(Instruction::I32Store(mem(HEAP, 8, 2)));
-            f.get(at);
-            f.i32(0);
-            f.op(Instruction::I32Store(mem(HEAP, 12, 2)));
-            f.get(at);
-            f.i32(i32::from(!source.boxed));
-            f.op(Instruction::I32Store(mem(HEAP, 16, 2)));
-            f.get(at);
-            f
-        }
-        Helper::RefGet { source } => {
-            let mut f = m.func("rt:ref_get", vec![Val::I32], vec![Val::I32]);
-            let src = view_source(&mut f);
-            let ls = ref_take(&mut f, src, source);
-            ref_box(&mut f, &ls, source);
-            f
-        }
-        Helper::RefSet { source } => {
-            let mut f = m.func("rt:ref_set", vec![Val::I32; 2], vec![]);
-            let ls = ref_unbox(&mut f, 1, source);
-            let src = view_source(&mut f);
-            ref_store(&mut f, src, &ls, source, true);
             f
         }
         _ => unreachable!("a reference helper"),

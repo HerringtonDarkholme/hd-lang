@@ -136,7 +136,7 @@ TIR lives in `hd_tir`; there is no MIR crate.
 
 | Crate | Holds |
 | --- | --- |
-| `hd_mono` | collection, substitution, instance keys (`layout`), the depth limit, the erased method ABI (`erased`), the plan types (`plan`) |
+| `hd_mono` | collection, substitution, instance keys (`layout`), the depth limit, row parameters (`rows`), the plan types (`plan`) |
 | `hd_opt` | the pass manager and the body passes (crates/hd_opt/DESIGN.md) |
 | `hd_host_abi` | the host ABI description: traits, methods, codecs, wait flags, intrinsic keys |
 | `hd_wasm` | Wasm layouts, emission with `wasm-encoder`, the code entry format, runtime helpers, the linker |
@@ -205,7 +205,7 @@ instance.
 | `Call` with an `Item` callee | `call`, relocated to the callee instance |
 | `Call` with a `TraitMethod` callee | an `Impl` choice: a direct `call` of that impl's method. A `Bound` choice: the impl that `select` picks at the instance's types (§13.2); a direct `call`. A `TraitValue` choice: as `CallDyn`. A `Builtin` choice: the generated body (§13.6) |
 | `Prim` | one `prim_value` lowering, shared with the intrinsic std operator and comparison methods (`add`..`rem`, `neg`, bitwise, `not`, `shl`, `shr`, `eq` map to their `PrimOp`): overflow checks, division rules and panics have one source. `cmp` and `partial_cmp` build the `Ordering` tag as 1 + (a > b) − (a < b); float `partial_cmp` answers `.None` on NaN. A shift count keeps its own width and is extended or wrapped to the value's width |
-| `CallDyn` | `struct.get` of the vtable slot, then `call_ref`; a generic method also gets its witness global (§13.5.1). When the vtable is a known constant global after inlining, a direct `call` of the slot's function, which the inliner may then inline (§12.6) |
+| `CallDyn` | `struct.get` of the vtable slot, then `call_ref`. When the vtable is a known constant global after inlining, a direct `call` of the slot's function, which the inliner may then inline (§12.6) |
 | `CallValue` | `struct.get` of the closure's code, then `call_ref` with the closure as the first argument |
 | `MapIter` | §13.12's iterator: a `Closure` struct `{code, map, pos}`, built like `ListIter`'s `{code, list, index}` |
 | `MapRemove` | §13.12's removal: probe to the entry, write the tombstone, return the old value as an `Option` |
@@ -601,7 +601,6 @@ are built (crates/hd_opt/DESIGN.md §8); the rest wait for their passes.
 | A1, erased reference storage | a cast per element read lost | negative: one instance per class | always, unless E1 rejects it |
 | parallel arrays for value-layout elements | an allocation per element | about 25 bytes per slot per list method | up to the bound (E2) |
 | literal pool | none | negative above about 5 bytes per literal | always above the `array.new_fixed` threshold (E10) |
-| erased-ABI thunks | the owner accepted a slow `dyn` | about 25 bytes each | warn past 200 per method |
 
 E8 keeps these budgets unless the next level up buys 5 percent speed on
 the runtime suite for under 10 percent size on the `dead-code` packages;
@@ -613,13 +612,9 @@ time.
 **Size guards.**
 
 - The inliner's budgets above, including the caller cap.
-- A thunk count per `dyn` generic method, with a warning past 200 for one
-  method. If the guard fires in std or the examples, outlining a whole
-  basic block of open instructions per thunk (§13.5.1, "Later") is the
-  first fix.
 - Planned, not built: **`hd build --size-report`**, printing bytes per
   section, the largest functions with their instance counts, folded
-  bytes, thunk counts per method, and code bytes per source module, read
+  bytes, and code bytes per source module, read
   from the linked module, so it costs nothing in a normal build.
 
 **What the policy buys** in a pipeline that runs every pass (estimates):
@@ -637,8 +632,7 @@ time.
 Code per concrete type, then merge byte-identical functions, in both
 pipelines.
  Dictionaries exist only for
-trait values and for the type witnesses of a generic method called
-through `dyn` (§13.5).
+trait values (§13.5).
 
 ### 13.1 Roots
 
@@ -660,7 +654,7 @@ binary, and the import list holds only reachable host methods
 `hd_mono::collect` returns `Collected`: the instance table
 (`layout::InstanceTable`: per instance its key, item, sub-body and type
 arguments, with `content_order` sorting by key), each instance's call
-targets, vtables, witnesses, compiler-supplied bodies and callee
+targets, vtables, compiler-supplied bodies and callee
 representation hashes.
 
 A worklist walk, as rustc's collector does:
@@ -689,9 +683,7 @@ A worklist walk, as rustc's collector does:
    pushes nothing; a `Builtin` choice pushes its generated body (§13.6).
 5. For each coercion to a trait value, select the impl as in step 4,
    record the vtable `(type, trait)` and push every method of the trait
-   at that type, supertraits' vtables included. A method with its own type parameters is pushed as its
-   erased instance, and paired with every type-argument tuple that a
-   `CallDyn` of that method reaches, to push its thunks (§13.5.1).
+   at that type, supertraits' vtables included. A method with its own type or row parameters has no slot.
 6. For each `DefaultCall`, push the default body with the call's type
    arguments.
 7. For each `Closure`, push the closure body with the parent's
@@ -900,197 +892,9 @@ growing type) has no finite instance set.
   that does not implement `Tr` gets no forwarders; the header reports
   `invalid-delegation`.
 
-- **Generic methods called through a `dyn` value** use the type-witness
-  ABI below.
-
-#### 13.5.1 The Erased Method ABI
-
-A generic method called through a `dyn` value has one erased body per
-impl, accepts any type argument, and gets a type witness per call.
-Everything else is monomorphized. Examples are a user trait's `fn visit[T](self, f:
-fn(T) -> T, out: &mut List[T])`, and `Inspectable.downcast[T]`, whose
-builtin body has one open instruction, the type-id read. The
-inherent `dyn Error` methods `find`, `root_cause` and `chain` are
-ordinary generic functions over `T` with a `dyn` receiver, so they are
-monomorphized per `T` and need no witness.
-
-**Open types and open values.** In the erased body of `m` at impl `I`,
-a type is **open** when it mentions a method type parameter of `m`,
-including a projection such as `T::Item`. The impl's own parameters
-are concrete, since the erased body is instantiated at the impl's
-concrete self type. A value of an open type is always **the caller's
-concrete representation, viewed as `eqref`**:
-
-| Concrete layout of the value | As an open value |
-| --- | --- |
-| one reference, nullable or not (a struct, `List`, `Map`, closure, `T?` of a reference, a value layout over the bound, which is already a box) | the same reference, upcast; no allocation. Under A1 a reference `T` reaches a class instance such as `List[REF].push` directly, with no thunk |
-| a scalar | §15.2's erased form: `i31ref` for 16-bit-or-smaller scalars and for any integer whose value fits in 31 signed bits, else `$Box_i32` or `$Box_i64`; floats in `$Box_f32` or `$Box_f64` |
-| a `multi` layout (a string view, a scalar's `T?`, `Result`, a value enum, a tuple, a trait value) | one immutable struct of its Wasm values |
-| `void` | `ref.null eq` |
-
-Every boxed layout is identity-free (S1c), so boxing is not observable.
-A list or map header is a reference, so it is never boxed: the erased
-body holds the caller's own `$List_i32`.
-
-**What the erased body emits.** Control stays in the erased body:
-blocks, loops, `if`, returns, locals and `defer` work on open values as
-plain `eqref` locals. Every other instruction whose operand or result
-type is open is an **open instruction**, and it is **outlined**:
-
-1. Emission numbers the body's open instructions in TIR order: `0, 1,
-   2, ...`. The numbering reads only this body's TIR, so it is the same
-   in every program.
-2. Open instruction `k` becomes `struct.get $Ops_I.m k`, then
-   `call_ref`. Its open operands and results cross as open values; the
-   others keep their layouts.
-3. A `Match` on an open enum outlines one tag read, and one payload read
-   per bound payload; the switch itself stays in the erased body.
-4. Its **thunk** is the same TIR instruction emitted at the caller's
-   concrete types, wrapped in `ref.cast` or unboxing on the way in and
-   upcast or boxing on the way out. The thunk is an ordinary instance
-   with instance key `H("thunk", I.m stable path, k, [canon(arg)...])`;
-   its code key is §13.8's, with `tir_hash(I.m)` as the item hash.
-
-Outlining is complete by construction: any instruction that emission
-can emit at concrete types can be a thunk, so the erased body has no
-list of supported operations. In particular:
-
-| Operation in the erased body | Its thunk at `T = i32` |
-| --- | --- |
-| `Buffer[T] { items: ..., len: 0 }` for a user `struct Buffer[T]` | `struct.new $Buffer_i32` of the unboxed fields; returns the reference |
-| `out.push(x)` through a caller's `&mut List[T]` | unbox `x`, `call List[i32].push` on the place the reference names; in place |
-| `x.show()` with `T < Display` | the impl that `select` picks at `i32` (§13.2), called directly |
-| `TypeId::of::[T]()`, `a.downcast_ref::[T]()` | the concrete type id, the concrete cast |
-| a closure `fn(T) -> T` built in the body | a concrete `$Fn_i32_i32` closure whose code unboxes, calls the erased closure body, and boxes |
-| `f(x)` where `f: fn(T) -> T` came from the caller | `ref.cast` to the caller's closure type, unbox, `call_ref`, box |
-| a call of a generic item, `helper[T](x)` or `helper[List[T]](xs)` | a direct call of the monomorphized `helper[i32]` or `helper[List[i32]]` |
-| a `dyn` call of another generic method at `T` or `C[T]` | the same `CallDyn` at `i32` or `C[i32]`, with that witness constant |
-
-So **erasure is one level deep.** Only `I.m`'s own body is erased, with
-its closures, which are sub-bodies of it and capture `$Ops_I.m` like a
-local. Every callee is a monomorphized instance. There are no erased
-callee instances and no witness chains.
-
-**The witness.** A witness is a constant global per `(method m, concrete
-method type arguments)`:
-
-```text
-$Ops_I.m = (struct (field (ref $Thunk_0)) (field (ref $Thunk_1)) ...)   ;; one per open instruction of I.m
-$W_m     = (struct (field (ref null $Ops_I1.m)) (field (ref null $Ops_I2.m)) ...)
-                                                ;; one field per impl of m in the program
-```
-
-- **What it carries:** for each impl's erased body, the thunks of its
-  open instructions at the caller's types. That covers boxing and
-  unboxing (inside the thunks), construction of composites such as
-  `Buffer[T]`, container reads and writes in place, bound evidence,
-  type ids, and function adapters. It carries no size or layout class,
-  because no erased code ever lays out an open type.
-- **How it is built:** at link time, not at the caller. Collection
-  records each `(m, type arguments)` that a `CallDyn` reaches, and each
-  impl of `m`'s trait whose vtable is in the program (§13.2 step 5).
-  For each pair it pushes the thunks of that impl's erased body at those
-  type arguments. Link writes `$W_m(args)` as a constant expression of
-  `struct.new` and `ref.func`. A thunk that is itself a `CallDyn` adds
-  its `(m2, args2)` pair, so collection runs to a fixed point. A pair
-  whose type grows is polymorphic recursion, and the instantiation depth
-  limit reports it (§13.4).
-- **How it is passed:** the slot's signature is `(receiver, the
-  arguments with open ones as eqref, (ref $W_m), providers...)`. The
-  caller passes `global.get $W_m(args)`, upcasts or boxes its open
-  arguments, and unboxes or casts an open result, which cannot fail. The
-  erased body's prologue reads its own field, `struct.get $W_m f_I`,
-  and narrows it with `ref.as_non_null`. Link fills every field of
-  every witness, since any impl's value can reach any call site.
-- **Lifetime.** Witnesses are immutable globals. A closure or a stored
-  value that captured one can outlive the call, and nothing is freed.
-- **Relocations.** The field index `f_I` is assigned at link, so the
-  erased body records it as a `Field { at, sym: (m, I) }` relocation
-  (§13.8). Witness types and globals are `Type` and `Global` symbols
-  named by `(m, canon(args))`. So cached erased bodies and thunks do not
-  depend on which other impls the program has.
-- **No bound evidence.** Codegen reads neither `CallDyn`'s evidence
-  operands nor the vtable shape's `dyn_bounds`. A bound call in the
-  erased body is a thunk, chosen by `select` at the concrete type. So
-  the slot signature has no vtable parameter per bound, and collection
-  builds no vtable for a bound. Dropping the operand and the field is a
-  frontend cleanup.
-
-**Cost.**
-
-| What | Cost |
-| --- | --- |
-| a `dyn` generic call | one `global.get` for the witness, plus boxing of open value-layout arguments and unboxing of an open result |
-| erased body entry | one `struct.get` and one null check |
-| an open instruction | one `struct.get` and one `call_ref`, plus boxing of open value-layout results. Reference-layout values cross free; a wide scalar or a `multi` value allocates a 16 to 32 byte box per crossing |
-| code size | one erased body per `(impl, method)`; one thunk per `(impl, method, type arguments, open instruction)`; one witness per `(method, type arguments)`. Thunks are a few instructions and fold (§13.7) when layouts match |
-| compile time | collection's pair fixed point, linear in the pairs; emitting a thunk is emitting one instruction |
-
-The thunk count is the product of a method's impls, its distinct type
-arguments and its open instructions. A trait with 20 impls, 5 type
-arguments and 10 open instructions per body gives 1,000 thunks of about
-20 bytes each, before folding. Only user generic trait methods called
-through `dyn` pay it in full. `downcast` pays one thunk per type
-argument, and `find` pays nothing.
-
-**Later, if measured.** Outlining a whole basic block of consecutive
-open instructions as one thunk cuts crossings and boxes. Full
-monomorphization per `(impl, type arguments)`, with a type-id switch in
-the slot, would remove the erased path altogether, at a whole body per
-pair; it was not chosen.
-
-**Rejected alternatives.** A uniform erased layout for every generic
-type that may reach erased code (`Buffer[T]` with boxed fields everywhere)
-would slow every monomorphized use of that type.
-
-**As built.**
-
-- A slot takes its method row's providers after the arguments and the
-  witness (`Lay::slot_keys`), so a suspending method with a row works
-  through `dyn`; the slot adapter passes the impl method's keys on.
-- Open parameter `k` is the placeholder `Canon(0xE0 + k)` (`open_param`),
-  laid out as `eqref`. The erased body is the instance `Sub::Erased` of
-  the impl's method, or of the trait's default, at the impl's arguments
-  and open parameters; thunk `k` is `Sub::Thunk(k)` at the caller's
-  type arguments (`hd_mono::erased`).
-- A family is the trait method with its trait's arguments. Its witness
-  is an immutable `(array (mut eqref))` holding one struct of thunk
-  references per erased body. The body reads its field at the index in
-  an `i32` constant global (`GSym::WitnessField`) that link assigns, in
-  place of a `Field` relocation and a per-family struct type, so its code
-  does not depend on the program's other impls. This is simpler than the
-  per-family struct and keeps the same independence.
-- A non-reference value crosses in a `box_of` struct of its values, as a
-  trait value's payload does, except an `i32` that fits in 31 signed
-  bits, which crosses as an `i31ref` (crates/hd_wasm_linear/DESIGN.md §15.2).
-- A tag switch over an open value outlines its tag read; `Match` does
-  not read its scrutinee and stays.
-- A method's own row parameter (`fn run[$R]`) is open too: the erased
-  body takes `Canon(0xE0 + k)` for `R`, so a row that lists `R` lists
-  that placeholder as a key. Its keys cross as one context in the
-  function-value form of §12.4 (`ctx_keys: array i64`, `ctx_provs:
-  array eqref`), after the slot's providers. The slot's providers stay
-  those of the keys the method's row lists itself
-  (`declared_row_keys`). The caller puts in the context the keys of
-  each row parameter's argument that the row has (`row_param_keys`).
-  Every row-polymorphic instance uses the same ABI (§12.4, "As built").
-- In the erased body, a function value whose row lists `R` gets the
-  context unchanged when no `$.with` scope is open and the row has no
-  other key, so forwarding is free. Otherwise its other keys and the
-  open `$.with` keys go in front of a copy, so the nearer provider wins
-  (`req.with.nearest.row-parameter`).
-- A call whose type arguments include a row that lists `R` is an open
-  instruction, as for an open type: its thunk, at the caller's row,
-  calls the callee's one instance with that row's keys in the context.
-  A thunk of a method with row
-  parameters takes, after the body's providers, a context of the other
-  keys in scope in front of the open one; a key no provider covers is
-  looked up there.
-- Planned, not built, each an `unsupported` stop: a closure in a body with
-  open instructions (the escaping `fn(T) -> T` of the first test), a
-  suspending generic method, a loop or a non-tag switch over an open
-  value, and a function reference to a generic method at a trait-value
-  `Self`.
+- **A method with its own type or row parameters** has no slot and no
+  call through a `dyn` value (`trait.dyn.member.type-param`). Under a bound
+  at a trait value, its default body runs at the reference type.
 
 ### 13.6 Tuples, Arity And `join!`
 
@@ -1243,8 +1047,7 @@ pub enum Reloc {
 An anchor is the item, known from the function's name, and a TIR
 instruction index: no byte offset, no line. There is no site record: a
 panic's site is its stub caller's `lines` row (crates/hd_wasm_linear/DESIGN.md
-§15.9). A witness field index is an `i32` constant global
-(`GSym::WitnessField`), not a `Field` relocation (§13.5.1).
+§15.9).
 
 **Recursive descriptors.** A type naming a recursion group
 ([crates/hd_wasm_linear/DESIGN.md §15.3](../hd_wasm_linear/DESIGN.md#153-the-type-section)) is
@@ -1262,7 +1065,7 @@ program-wide dense number that changes when something is added
 elsewhere, apart from function indices in `call`, which wasmtime's
 per-function cache abstracts, and the measured exceptions of
 [docs/compiler/lowering-catalog.md](../../docs/compiler/lowering-catalog.md#numbering) (type immediates,
-direct constant globals, `ref.func`, witness fields). So there is no
+direct constant globals, `ref.func`). So there is no
 `Site` relocation: a site is the code offset of its stub call
 (crates/hd_wasm_linear/DESIGN.md §15.5). There is no `Data` relocation in a
 body: only the literal getters name the data segment, and a literal use
@@ -1438,7 +1241,7 @@ numbering, packs and filtered test programs are the largest for latency.
 4. **Globals.** First the fixed globals: the runtime's globals. Then
    one literal table per module that has pooled literals, by module path.
    Then the immutable constants (vtables, closures without
-   captures, payloadless variant singletons, member handles, witnesses,
+   captures, payloadless variant singletons, member handles,
    `TypeId` values, literals of at most 4 bytes), by kind and content
    key. Then module storage, by module path and binding index. Then fact
    storage, which only getters name (§15.4).
@@ -1755,9 +1558,7 @@ A child vtable holds its own methods' slots plus one vtable field
 per direct supertrait (the `Supertrait` coercion already reads "the
 parent's vtable field from the child's vtable"). A supertrait method
 call through a `dyn Sub` value is two loads — parent vtable, then
-slot — and one `call_ref`, reusing the `CallDyn` shape; generic
-supertrait methods use the witness ABI (§13.5.1) unchanged, since the
-witness travels per call, not per vtable. No flattening: parent
+slot — and one `call_ref`, reusing the `CallDyn` shape. No flattening: parent
 method code is referenced once per (type, declaring trait), not once
 per child trait.
 

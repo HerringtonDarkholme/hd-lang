@@ -247,8 +247,7 @@ impl Em<'_, '_, '_> {
     ) -> StageResult<Option<u32>> {
         // A trait method call's arguments leave `Self` out: a trait
         // value's is unknown, and no key names it.
-        // Its arguments as this instance has them: a thunk's row argument
-        // is its caller's row, whose keys the row lists (`erased.rs`).
+        // Its arguments as this instance has them.
         let mut all = vec![hd_mono::class_ref(self.pool())];
         all.extend(self.pool().list_items(targs).iter().map(|t| self.sub(*t)));
         let all = self.pool().list(&all);

@@ -2825,7 +2825,7 @@ Resolution computes, per trait member at interface time, from headers:
 | --- | --- |
 | an associated function | unavailable |
 | a method with `Self` outside the receiver | unavailable |
-| a method with method-level type parameters, whatever their bounds | available, through the erased slot (section 9.2; [`trait.dyn.safe.method-type-param`](../../spec/lang/09-traits.md#r-trait.dyn.safe.method-type-param)) |
+| a method with method-level type or row parameters, whatever their bounds | unavailable ([`trait.dyn.member.type-param`](../../spec/lang/09-traits.md#r-trait.dyn.member.type-param)) |
 | a method whose signature mentions an associated type | available when the `dyn` type binds that type |
 
 The trait record stores, per member, an "unavailable" flag. The checker
@@ -2856,17 +2856,8 @@ pub struct VtableShape {
   `Error < Display & Inspectable` shares one vtable per supertrait.
   Widening to a supertrait value reads one pointer
   ([`trait.dyn.widen`](../../spec/lang/09-traits.md#r-trait.dyn.widen)).
-- **Method-level type parameters.** A method available on `dyn` may have
-  a parameter `T < Display`, called with any type argument
-  ([`types.trait.safe.method-type-arg`](../../spec/lang/04-type-system.md#r-types.trait.safe.method-type-arg)).
-  The checker proves each such bound at the call's type argument, as an
-  ordinary `Implements` goal, and records nothing more: `CallDyn` has no
-  evidence operands. The slot's body is the impl method compiled once,
-  erased, and it receives one type witness per method type parameter,
-  carrying the layout operations and the bound methods at the caller's
-  concrete type. That ABI is codegen's
-  ([crates/hd_mono/DESIGN.md §13.5](../hd_mono/DESIGN.md#135-dictionaries-trait-values-and-gadt-evidence)).
-- **Row parameters** pass their providers as one bundle and need no slot.
+- **Method-level type and row parameters.** A method with one has no slot
+  and is unavailable on `dyn`; only a generic bound reaches it.
 
 Implementation differs: no `VtableShape` is stored in the trait record;
 `hd_mono` lays out vtables itself; not judged.

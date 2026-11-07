@@ -8,10 +8,10 @@
 //! syntax. Bodies of every package (std included) are collected alike.
 
 pub mod defaults;
-pub mod erased;
 pub mod layout;
 pub mod opaque;
 pub mod plan;
+pub mod rows;
 
 use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
@@ -389,22 +389,7 @@ pub enum Target {
     /// `std.hash.string_bucket_hash` or `std.hash.int_bucket_hash`
     /// (`crates/hd_mono/DESIGN.md` §13.12); equality stays inline.
     MapInline(CallTarget),
-    /// An open instruction of an erased body (`crates/hd_mono/DESIGN.md` §13.5.1): it
-    /// calls thunk `k` of the witness the body was passed.
-    Open(u32),
-    /// At [`INFO`] of an erased body: its witness family.
-    Erased {
-        family: Hash128,
-    },
-    /// At [`INFO`] of a thunk: the instruction it emits.
-    Thunk {
-        at: u32,
-    },
 }
-
-/// The `calls` entry of an instance that describes the instance itself
-/// (an erased body's family, a thunk's instruction), not an instruction.
-pub const INFO: u32 = u32::MAX;
 
 /// The targets of one vtable at a concrete type (`crates/hd_mono/DESIGN.md` §13.5,
 /// §13.16): the trait, one target per method slot, and per direct
@@ -560,9 +545,6 @@ pub struct Collected {
     pub supplied: HashMap<(DefId, Ty), Arc<Body>>,
     /// Bodies whose constant defaults were folded before collection.
     pub instance_bodies: HashMap<InstId, Arc<Body>>,
-    /// The witnesses of generic methods called through trait values
-    /// (`crates/hd_mono/DESIGN.md` §13.5.1), which link writes.
-    pub witnesses: Witnesses,
     /// The JSON codecs of the private-field types in the entry rows'
     /// provider signatures, by stripped type, which the host boundary
     /// calls instead of reading private fields directly.
@@ -593,12 +575,11 @@ impl Collected {
     }
 }
 
-pub use erased::{
-    Witnesses, declared_row_keys, erased_args, has_row_params, is_open, open_insts, open_param,
-    open_row, outlined_change_local, outlined_store_local, own_count, row_args_open, row_is_open,
-    row_param_keys, rowless, thunk_capture_locals, thunk_operands, witness_args, witness_family,
-};
 pub use layout::InstanceTable;
+pub use rows::{
+    declared_row_keys, has_row_params, open_row, row_args_open, row_is_open, row_param_keys,
+    rowless, slot_methods,
+};
 
 /// A `DefId` ordered by its stable path hash, never by run ID.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -1407,8 +1388,6 @@ struct Cx<'a> {
     too_deep: Option<TooDeep>,
     out: Collected,
     work: Vec<InstId>,
-    /// Erased bodies, `dyn` call pairs and their thunks (§13.5.1).
-    witness: erased::WitnessCx,
     /// Whether the program joins REPL inputs ([`collect`]).
     joined_inputs: bool,
     /// The pipeline's body-unit passes (`plan`).
@@ -1713,11 +1692,7 @@ impl Cx<'_> {
         t: &CallTarget,
         caller: InstId,
     ) -> StageResult<Option<CallTarget>> {
-        // A thunk's call takes its operands as the thunk's parameters, not
-        // as references to its locals, so it runs the plain copy.
-        if t.kind != TargetKind::Instance
-            || matches!(self.out.table.sub[caller.idx()], Sub::Thunk(_))
-        {
+        if t.kind != TargetKind::Instance {
             return Ok(None);
         }
         let table = &self.out.table;
@@ -2814,8 +2789,7 @@ impl Cx<'_> {
     /// concrete type implementing `std.rt.Drop`. Absence of an impl is the
     /// common case, just as it is for the optional `Debug` specialization.
     fn note_drop(&mut self, ty: Ty, parent: InstId) -> StageResult<()> {
-        // An open value is a box, which its concrete type's glue releases.
-        if is_open(self.pool, ty) || !self.drop_checked.insert(ty) {
+        if !self.drop_checked.insert(ty) {
             return Ok(());
         }
         if let TyData::Adt { .. } = self.pool.get(ty)
@@ -2986,15 +2960,10 @@ impl Cx<'_> {
         }
         let mut slots = Vec::new();
         let mut recv = Vec::new();
-        for m in env.trait_methods(trait_) {
+        for m in slot_methods(env, trait_) {
             let (t, r) = match inner {
                 Some(s) => {
-                    // A generic method's slot holds its erased body (§13.5.1).
-                    let t = if erased::own_count(env, m) > 0 {
-                        self.erased_target(trait_, m, s, targs, parent)?
-                    } else {
-                        self.method_target(trait_, m, s, targs, None, parent)?
-                    };
+                    let t = self.method_target(trait_, m, s, targs, None, parent)?;
                     // The slot ABI follows the trait declaration. An impl
                     // for a reference can lower a value receiver to that
                     // reference type without making the slot a reference
@@ -3016,10 +2985,6 @@ impl Cx<'_> {
                     }
                     (t, SlotRecv::Payload)
                 }
-                None if erased::own_count(env, m) > 0 => (
-                    self.erased_target(trait_, m, from, targs, parent)?,
-                    SlotRecv::Payload,
-                ),
                 None => (
                     self.method_target(trait_, m, from, targs, None, parent)?,
                     SlotRecv::Payload,
@@ -3266,7 +3231,6 @@ impl Cx<'_> {
                 };
                 if is_trait_value(pool, value_ty) {
                     reps.hash(env.path_hash(item));
-                    self.record_pair(trait_, item, targs)?;
                     self.out.dyn_methods.insert(item);
                     Target::Dyn
                 } else {
@@ -3376,7 +3340,7 @@ impl Cx<'_> {
         );
         match sub {
             Sub::Adapter => return self.scan_adapter(id),
-            Sub::Body(_) | Sub::Erased | Sub::Thunk(_) => {}
+            Sub::Body(_) => {}
         }
         let pool = self.pool;
         let env = self.env;
@@ -3387,9 +3351,7 @@ impl Cx<'_> {
             .first()
             .and_then(|&t| Some((t, self.out.supplied.get(&(item, t))?.clone())));
         // An item's root instance asks for its body; each closure's code
-        // instance shares its parent's, which made its environment. An
-        // erased body and its thunks keep the generic body: its open
-        // instructions are numbered on that body (`open_insts`).
+        // instance shares its parent's, which made its environment.
         if supplied.is_none()
             && sub == Sub::Body(0)
             && !self.out.instance_bodies.contains_key(&id)
@@ -3414,55 +3376,11 @@ impl Cx<'_> {
         for ty in signature {
             self.note_drop(s(ty), id)?;
         }
-        // An erased body outlines its open instructions, and a thunk is
-        // one of them at concrete arguments (`crates/hd_mono/DESIGN.md` §13.5.1).
-        let mut open: HashMap<u32, u32> = HashMap::default();
-        let mut only = None;
-        match sub {
-            Sub::Erased => {
-                for (k, ix) in open_insts(pool, env, body, item, args)?
-                    .into_iter()
-                    .enumerate()
-                {
-                    open.insert(ix, u32::try_from(k).expect("open instructions"));
-                }
-                let key = self.out.table.key[id.idx()];
-                let Some(&family) = self.witness.family_of.get(&key) else {
-                    return err("an erased body outside every witness family");
-                };
-                reps.hash(family);
-                calls.insert(INFO, Target::Erased { family });
-            }
-            Sub::Thunk(k) => {
-                let erased = erased_args(pool, env, item, args);
-                let opens = open_insts(pool, env, body, item, erased)?;
-                let Some(&ix) = opens.get(usize::from(k)) else {
-                    return err("a thunk past its erased body's open instructions");
-                };
-                only = Some(ix as usize);
-                reps.u32(ix);
-                // Its signature is the erased body's view of its operands
-                // and result: open ones cross as `eqref`.
-                for w in thunk_operands(body, ix).into_iter().chain([ix]) {
-                    let t = value_ty(body, w);
-                    reps.u8(u8::from(is_open(pool, subst(pool, env, item, erased, t))));
-                }
-                for (local, _) in thunk_capture_locals(body, ix) {
-                    let t = body.local_ty[local as usize];
-                    reps.u8(u8::from(is_open(pool, subst(pool, env, item, erased, t))));
-                }
-                calls.insert(INFO, Target::Thunk { at: ix });
-            }
-            Sub::Body(_) | Sub::Adapter => {}
-        }
         let hidden = hidden_insts(body, sub);
-        // A thunk emits one instruction and takes no plan.
         let plan = if instance_body.is_some() {
             self.planner.plan(item, body, env)
-        } else if only.is_none() {
-            self.plan(item, supplied.as_ref().map(|s| s.0), body)
         } else {
-            None
+            self.plan(item, supplied.as_ref().map(|s| s.0), body)
         };
         let known = self.out.table.known[id.idx()].clone();
         // Each instruction's sub-body, where rules 2 and 3 ask whether an
@@ -3474,11 +3392,6 @@ impl Cx<'_> {
         // instance of its own, requested by its `Closure`.
         let own_sub = match sub {
             Sub::Body(k) if k != 0 => Some(u32::from(k)),
-            // Closure construction is outlined by open_insts, and its
-            // thunk collects the closure body at the caller's concrete
-            // types. The erased root must not also collect that body's
-            // calls against open placeholders with no trait witnesses.
-            Sub::Erased => Some(0),
             _ => None,
         };
         let subs = (own_sub.is_some()
@@ -3492,8 +3405,7 @@ impl Cx<'_> {
                 .clone()
         });
         for i in 0..body.len() {
-            if only.is_some_and(|o| o != i)
-                || hidden.as_ref().is_some_and(|h| h[i])
+            if hidden.as_ref().is_some_and(|h| h[i])
                 || own_sub.is_some_and(|k| subs.as_ref().is_some_and(|s| s[i] != k))
             {
                 continue;
@@ -3517,10 +3429,6 @@ impl Cx<'_> {
                 .filter(|n| supplied.is_none() && **n != NodeIdx::NONE)
                 .map(|&n| (item, n));
             let ix = u32::try_from(i).expect("insts");
-            if let Some(&k) = open.get(&ix) {
-                calls.insert(ix, Target::Open(k));
-                continue;
-            }
             let [a, b] = body.data[i];
             match body.tags[i] {
                 Tag::CallHost => {
@@ -3549,7 +3457,7 @@ impl Cx<'_> {
                                         sources,
                                         own: match sub {
                                             Sub::Body(k) => u32::from(k) == subs[i],
-                                            _ => true,
+                                            Sub::Adapter => true,
                                         },
                                         known: &known,
                                         calls: &calls,
@@ -3601,8 +3509,17 @@ impl Cx<'_> {
                                 _ => self_ty,
                             };
                             if is_trait_value(pool, value_ty) {
+                                // A method with no slot, under a bound at
+                                // a trait value: its default body at the
+                                // reference type (trait.dyn.bound.reference).
+                                if !slot_methods(env, trait_).contains(&method) {
+                                    let all = pool.list(&[&[self_ty], &targs[..]].concat());
+                                    let t = self.target(method, all, id)?;
+                                    self.hash_target(&t, &mut reps);
+                                    calls.insert(ix, Target::Call(t));
+                                    continue;
+                                }
                                 reps.hash(env.path_hash(method));
-                                self.record_pair(trait_, method, &targs)?;
                                 self.out.dyn_methods.insert(method);
                                 calls.insert(ix, Target::Dyn);
                                 continue;
@@ -3916,7 +3833,7 @@ fn hidden_insts(body: &Body, sub: Sub) -> Option<Vec<bool>> {
     }
     let k = match sub {
         Sub::Body(k) => usize::from(k).min(n - 1),
-        _ => 0,
+        Sub::Adapter => 0,
     };
     let mut visible = vec![false; n];
     let mut c = k;
@@ -4241,7 +4158,6 @@ fn collect_roots(
         too_deep: None,
         out: Collected::default(),
         work: Vec::new(),
-        witness: erased::WitnessCx::default(),
         joined_inputs,
         planner,
         plans: HashMap::default(),
@@ -4257,7 +4173,6 @@ fn collect_roots(
         };
     }
     let mut out = cx.out;
-    out.witnesses = cx.witness.finish();
     out.calls.resize_with(out.table.len(), HashMap::default);
     out.callee_reps.resize(out.table.len(), Hash128(0));
     Ok(Ok(out))

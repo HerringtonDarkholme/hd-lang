@@ -39,11 +39,7 @@ pub(crate) fn instrument(
     let length = f.local(Val::I32);
     let view = matches!(
         symbol,
-        Sym::Helper(
-            crate::Helper::RefGet { .. }
-                | crate::Helper::RefFieldGet { .. }
-                | crate::Helper::RefPayloadGet { .. }
-        )
+        Sym::Helper(crate::Helper::RefFieldGet { .. } | crate::Helper::RefPayloadGet { .. })
     );
     if view {
         f.get(0);

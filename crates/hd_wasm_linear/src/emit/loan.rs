@@ -4,7 +4,6 @@
 //! installs its marks and releases representation temporaries at their ends.
 
 use super::Em;
-use super::refs::Fresh;
 use hd_mono::Target;
 use hd_tir::ir::Callee;
 use hd_types::Ty;
@@ -15,7 +14,6 @@ pub(super) struct ShortLoan {
     /// The values made while emitting the origin that the loan must keep
     /// until its end: copies of open values read through views, each
     /// behind its flag.
-    pub(super) fresh: Vec<Fresh>,
     /// A map probe's `owned` flag and table, and the map's type: when the
     /// map's reference is a view, the probe read a copy of the table, which
     /// the end releases.
@@ -51,9 +49,7 @@ impl Em<'_, '_, '_> {
             return Ok(());
         };
         // Each path runs one of the loan's ends.
-        let fresh = loan.fresh.clone();
         let table = loan.table;
-        self.release_fresh(&fresh)?;
         if let Some((owned, m, t)) = table {
             self.f.get(owned);
             self.f.op(crate::op::Op::If(wasm_encoder::BlockType::Empty));
@@ -70,7 +66,6 @@ impl hd_tir::own::short::Context for Em<'_, '_, '_> {
         use hd_tir::own::short::CallKind;
         match self.calls.get(&instruction) {
             Some(Target::MapKey { .. } | Target::MapInline(_)) => CallKind::MapProbe,
-            Some(Target::Open(_)) => CallKind::Open,
             Some(Target::Call(call)) if matches!(&call.kind, hd_mono::TargetKind::Intrinsic(key) if key == "ptr_ref") => {
                 CallKind::PointerRef
             }

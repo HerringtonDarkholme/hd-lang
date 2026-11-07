@@ -234,9 +234,9 @@ impl Em<'_, '_, '_> {
     }
 
     /// The layout of the value in local `l`'s cell, and its counted
-    /// references: its erased view's in a generic method (`erased.rs`).
+    /// references.
     pub(super) fn cell_mem(&self, l: usize) -> StageResult<(Mem, Option<Walk>)> {
-        let t = self.cell_ty(l);
+        let t = self.sub(self.b.local_ty[l]);
         let mut m = mem_of(self.pool(), self.env(), t)?;
         let flags = self.drop_node_paths(t).len();
         if flags != 0 {
@@ -269,9 +269,8 @@ impl Em<'_, '_, '_> {
     /// A new cell for local `l`, holding the values `src` pushes, which
     /// the cell's count of them already covers: a local holding its
     /// address.
-    fn new_cell(&mut self, l: usize, src: Src) -> StageResult<u32> {
-        let src = self.cell_src(l, src)?;
-        self.raw_cell(l, &src, true)
+    fn new_cell(&mut self, l: usize, src: &Src) -> StageResult<u32> {
+        self.raw_cell(l, src, true)
     }
 
     /// Pushes the zero of each value of local `l`'s type, for a cell that
@@ -367,7 +366,7 @@ impl Em<'_, '_, '_> {
     /// holds, or 0 when it holds none: the slot's end, as the last count
     /// of a cell is the cell's.
     fn release_slot(&mut self, l: usize, c: u32) -> StageResult<()> {
-        let t = self.cell_ty(l);
+        let t = self.sub(self.b.local_ty[l]);
         if !self.needs_drop(t) {
             return Ok(());
         }
@@ -434,7 +433,7 @@ impl Em<'_, '_, '_> {
                 offset: 0,
             };
             self.store_part(at, &m, part, src)?;
-            self.init_cell_drop(at, self.cell_ty(l), live);
+            self.init_cell_drop(at, self.sub(self.b.local_ty[l]), live);
             return Ok(at);
         }
         // A local a top-level binding's initializer takes a local
@@ -455,11 +454,11 @@ impl Em<'_, '_, '_> {
         });
         if let Some(key) = key {
             let at = self.static_cell(key, l, src)?;
-            self.init_cell_drop(at, self.cell_ty(l), live);
+            self.init_cell_drop(at, self.sub(self.b.local_ty[l]), live);
             return Ok(at);
         }
         let (m, walk) = self.cell_mem(l)?;
-        let ty = self.cell_ty(l);
+        let ty = self.sub(self.b.local_ty[l]);
         let cyclic = self.cyclic_holding(&[ty]);
         let recursive = self.recursive_object(ty);
         let drops = self.cell_drop_calls(ty);
@@ -492,7 +491,7 @@ impl Em<'_, '_, '_> {
         let addr = base + header;
         let mut bytes = key.0.to_le_bytes().to_vec();
         bytes.extend_from_slice(&u32::try_from(l).expect("locals").to_le_bytes());
-        let t = self.cell_ty(l);
+        let t = self.sub(self.b.local_ty[l]);
         self.note_stored(
             hd_base::hash128(&bytes),
             t,
@@ -520,10 +519,6 @@ impl Em<'_, '_, '_> {
             self.f.get(c);
             self.f.op(leaf.load(0));
             self.f.set(*x);
-        }
-        if self.cell_converts(l) {
-            let t = self.sub(self.b.local_ty[l]);
-            return self.unerase(ls[0], self.cell_ty(l), t, false);
         }
         Ok(ls)
     }
@@ -563,17 +558,12 @@ impl Em<'_, '_, '_> {
             self.store_part(c, &m, all, &zero)?;
         }
         if !slot {
-            self.init_cell_drop(c, self.cell_ty(l), false);
+            self.init_cell_drop(c, self.sub(self.b.local_ty[l]), false);
             self.f.get(c);
             self.release_cell();
         }
         self.f.zero(c);
-        let values = if self.cell_converts(l) {
-            self.unerase(held[0], self.cell_ty(l), self.sub(self.b.local_ty[l]), true)?
-        } else {
-            held
-        };
-        for x in values {
+        for x in held {
             self.f.get(x);
         }
         self.store_owned(i)
@@ -589,8 +579,7 @@ impl Em<'_, '_, '_> {
         let src = if v == NONE {
             self.zero_src(l)?
         } else {
-            let s = self.consumed(v)?;
-            self.cell_src(l, s)?
+            self.consumed(v)?
         };
         if self.cells.get(&l) == Some(&i) {
             let c = self.local(u32::try_from(l).expect("locals"))?[0];
@@ -627,7 +616,7 @@ impl Em<'_, '_, '_> {
         let (m, _) = self.cell_mem(l)?;
         let d = Dst::Mem(at, 0, &m.leaves);
         let old = self.old_locals(d);
-        self.replace_late(d, self.cell_ty(l), src, &old)
+        self.replace_late(d, self.sub(self.b.local_ty[l]), src, &old)
     }
 
     /// One count less on the cell address on the stack.
@@ -642,7 +631,7 @@ impl Em<'_, '_, '_> {
     /// Moves parameter `l`, whose values are in `ls`, into a new cell, or
     /// its slot (`slot_locals`): the local's locals become its address.
     pub(super) fn param_cell(&mut self, l: usize, ls: &[u32]) -> StageResult<()> {
-        let at = self.new_cell(l, Src::Locals(ls.to_vec()))?;
+        let at = self.new_cell(l, &Src::Locals(ls.to_vec()))?;
         self.locals.insert(l, vec![at]);
         Ok(())
     }
