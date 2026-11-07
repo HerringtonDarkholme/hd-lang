@@ -159,6 +159,12 @@ pub trait OwnCx {
         let _ = callee;
         false
     }
+    /// Whether this callee is the map-probe intrinsic. Its three-argument
+    /// form inserts on a miss; the two-argument form never copies a key.
+    fn is_map_probe(&self, callee: &Callee) -> bool {
+        let _ = callee;
+        false
+    }
     /// Whether a value of `ty` holds a counted leaf. The passes run over
     /// instances, whose types are concrete, and over a generic item's own
     /// body past the instance limit, where a type parameter's value counts.

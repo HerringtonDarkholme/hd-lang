@@ -439,6 +439,10 @@ impl OwnCx for Env<'_> {
         matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("bytes_slice"))
     }
 
+    fn is_map_probe(&self, callee: &Callee) -> bool {
+        matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("map_probe"))
+    }
+
     fn counted(&self, ty: Ty) -> bool {
         // A generic body's open type may count in an instance.
         self.is_open(ty) || self.layout_facts(ty).0

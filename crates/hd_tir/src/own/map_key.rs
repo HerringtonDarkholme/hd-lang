@@ -1,17 +1,25 @@
-//! The count a table takes of a `MapSet` key, after its hash and probe.
+//! The count a table takes of a key, after its hash and probe.
+//! `MapSet` puts and an inserting probe's miss pass a copied key to the table.
 
 use super::OwnCx;
-use crate::ir::{Body, IntrinsicOp, Ref, Tag};
+use crate::ir::{Body, Callee, IntrinsicOp, Ref, Tag};
 
 pub(super) fn needed(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
-    if b.tags.get(i) != Some(&Tag::Intrinsic)
-        || IntrinsicOp::from_u32(b.data[i][0]) != Some(IntrinsicOp::MapSet)
-    {
-        return false;
-    }
-    let [_, key, _] = *b.record(b.data[i][1]) else {
-        return false;
+    let args = match b.tags.get(i) {
+        Some(Tag::Intrinsic)
+            if IntrinsicOp::from_u32(b.data[i][0]) == Some(IntrinsicOp::MapSet) =>
+        {
+            b.record(b.data[i][1])
+        }
+        Some(Tag::Call)
+            if Callee::from_words(b.record(b.data[i][0])).is_some_and(|c| cx.is_map_probe(&c)) =>
+        {
+            let record = b.record(b.data[i][1]);
+            &record[..record.len().saturating_sub(3)]
+        }
+        _ => return false,
     };
+    let [_, key, _] = *args else { return false };
     let key = Ref(key);
     let ty = match key.as_inst() {
         Some(v) => b.ty.get(v.0 as usize).copied(),
@@ -37,6 +45,9 @@ mod tests {
 
     struct Facts;
     impl OwnCx for Facts {
+        fn is_map_probe(&self, callee: &Callee) -> bool {
+            matches!(callee, Callee::Item { def, .. } if *def == DefId::from_raw(7))
+        }
         fn counted(&self, ty: Ty) -> bool {
             ty == Ty::STRING
         }
@@ -185,6 +196,124 @@ mod tests {
             assert!(
                 !hoist::repeats(&b, &Topology::new(&b), check),
                 "through={through}"
+            );
+        }
+    }
+    fn probe_body(ty: Ty, arity: usize, intrinsic: bool) -> Body {
+        use crate::ir::Providers;
+        use hd_types::TyList;
+        let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        let root = b.open_block();
+        let map = b.const_value(Ty(42), 0);
+        let key = if ty == Ty::STRING {
+            b.const_str("key")
+        } else {
+            b.const_value(ty, 0)
+        };
+        let default = b.const_value(Ty::I32, 0);
+        let mut args = vec![map, key];
+        args.resize(arity, default);
+        b.call(
+            &Callee::Item {
+                def: DefId::from_raw(if intrinsic { 7 } else { 8 }),
+                targs: TyList::EMPTY,
+            },
+            &args,
+            Providers::None,
+            Ty::VOID,
+            NodeIdx::NONE,
+        );
+        let root = b.close_block(root, None, Ty::VOID, NodeIdx::NONE);
+        b.finish(root, &[]).unwrap()
+    }
+
+    #[test]
+    fn only_an_inserting_probe_states_its_counted_key_copy() {
+        for (ty, arity, intrinsic, n) in [
+            (Ty::STRING, 3, true, 1),
+            (Ty::I32, 3, true, 0),
+            (Ty::STRING, 2, true, 0),
+            (Ty::STRING, 4, true, 0),
+            (Ty::STRING, 3, false, 0),
+        ] {
+            let mut b = probe_body(ty, arity, intrinsic);
+            b.anchors = vec![78; b.len()];
+            for _ in 0..2 {
+                run(&mut b);
+                let copies: Vec<_> = (0..b.len())
+                    .filter(|&i| {
+                        Info::read(&b, i) == Some(Info::new(At::Operation, Part::Operand(1), 0))
+                    })
+                    .collect();
+                assert_eq!(copies.len(), n);
+                for &i in &copies {
+                    assert_eq!(b.tags[i], Tag::Retain);
+                    let call = b.data[i][0];
+                    assert_eq!(b.tags[call as usize], Tag::Call);
+                    let topo = Topology::new(&b);
+                    assert!(crate::ir::count::adjacent(&b, &topo, call, u32_of(i)));
+                    assert_eq!(b.anchors[i], b.anchors[call as usize]);
+                }
+                let errors = verify_owned(&b, &Facts);
+                assert!(errors.is_empty(), "{errors:?}");
+            }
+            let text = crate::ir::print(&b);
+            assert_eq!(crate::ir::print(&crate::ir::parse(&text).unwrap()), text);
+        }
+    }
+
+    #[test]
+    fn a_probe_count_requires_the_insertion_fact_and_key_operand() {
+        let mut b = probe_body(Ty::STRING, 3, true);
+        run(&mut b);
+        let copy = b.tags.iter().position(|&t| t == Tag::Retain).unwrap();
+        let point = b.data[copy][0] as usize;
+        for info in [
+            Info::new(At::Value, Part::Operand(1), 0),
+            Info::new(At::Operation, Part::Operand(2), 0),
+            Info::new(At::Operation, Part::Operand(1), 2),
+        ] {
+            let mut wrong = b.clone();
+            wrong.data[copy][1] = info.write(&mut wrong);
+            assert!(!verify_owned(&wrong, &Facts).is_empty());
+        }
+        let mut wrong = b.clone();
+        let callee = wrong.data[point][0] as usize;
+        let c = Callee::from_words(wrong.record(wrong.data[point][0])).unwrap();
+        assert!(Facts.is_map_probe(&c));
+        // Item callees encode their def immediately after the record tag.
+        let words = Callee::Item {
+            def: DefId::from_raw(8),
+            targs: hd_types::TyList::EMPTY,
+        }
+        .words();
+        wrong.extra[callee + 1..callee + 1 + words.len()].copy_from_slice(&words);
+        assert!(
+            verify_owned(&wrong, &Facts)
+                .iter()
+                .any(|e| e.what.contains("without its count fact"))
+        );
+        for duplicate in [false, true] {
+            let mut wrong = b.clone();
+            let topo = Topology::new(&wrong);
+            let mut edits = splice::Tables::default();
+            if duplicate {
+                edits.insert(
+                    topo.blk[point],
+                    topo.pos[point] + 1,
+                    Tag::Retain,
+                    wrong.data[copy],
+                    Ty::VOID,
+                    NodeIdx::NONE,
+                );
+            } else {
+                edits.remove(u32_of(copy));
+            }
+            splice::apply(&mut wrong, &topo, &mut edits).unwrap();
+            assert!(
+                verify_owned(&wrong, &Facts)
+                    .iter()
+                    .any(|e| e.what.contains("absent or repeated"))
             );
         }
     }

@@ -70,20 +70,21 @@ fn group(m: &mut Map[string, List[string]], k: string, v: string) -> void:
 >   local $1 k: string [param read] value
 >     uses $1: entry -> %2 lend last
 >   local $2 v: string [param read] value
->     uses $2: entry -> %6 consume last
->   %0 = Release %11 Exit local $1 #2 : ()
+>     uses $2: entry -> %7 consume last
+>   %0 = Release %12 Exit local $1 #2 : ()
     m.get_or_insert(k, []).push(v)
 >   %1 = Read borrow [$0] : Ref[mut Map[string, List[string]]]
 >   %2 = Read borrow [$1] : string
 >   %3 = NewList - [] : List[string]
 >   %4 = Call std/collections/impl [ K < Eq & Hash , V ] Map [ K , V ].get_or_insert[string, List[string]] (%1, %2, %3) : Ref[mut List[string]]
->   %5 = Drop [%3] : ()
->   %6 = Read move [$2] : string
->   %7 = IsUnique [*%4] : ()
->   %8 = Read borrow [*%4] : List[string]
->   %9 = Intrinsic ListPush [%8 %6] : ()
->   %10 = Drop [%4] : ()
->   %11 = Block - : ()
+>   %5 = Retain %4 Operation operand 1 #0 : ()
+>   %6 = Drop [%3] : ()
+>   %7 = Read move [$2] : string
+>   %8 = IsUnique [*%4] : ()
+>   %9 = Read borrow [*%4] : List[string]
+>   %10 = Intrinsic ListPush [%9 %7] : ()
+>   %11 = Drop [%4] : ()
+>   %12 = Block - : ()
 >   exit sub 0 drops [$2]
 >   summary kept [$2] borrows [$1] writes
 
