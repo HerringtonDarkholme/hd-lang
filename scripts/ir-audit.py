@@ -48,6 +48,7 @@ DESCRIBE = {
     "ir-store-then-read": "a Store to a local straight before a Read of it",
     "ir-unused-read": "a counted Read that nothing uses",
     "ir-conservative": "a count the compiler could not name a reason for",
+    "ir-exit-unlowered": "a stated parameter exit release with no release in the function's counts, usually the emitter's ABI check",
 }
 INFO_ONLY = {"set-then-get", "br-to-end", "empty-block", "empty-else", "ir-store-then-read"}
 
@@ -360,8 +361,48 @@ def audit_counts(text, emit):
             emit("ir-conservative", func, m.group(1))
 
 
+def by_function(text):
+    """The `>` lines of a dump under each function name; one name can head several blocks."""
+    out = collections.defaultdict(list)
+    func = None
+    for raw in text.splitlines():
+        if not raw.startswith(">"):
+            continue
+        s = raw[1:].strip()
+        if re.match(r"^(app|std)/", s):
+            func = s
+        elif func:
+            out[func].append(s)
+    return out
+
+
+def audit_exit(own, counts, emit):
+    """TIR states a parameter's exit release; the emitter keeps it only when the linked ABI owns it."""
+    released = by_function(counts)
+    for func, lines in by_function(own).items():
+        stated = sum(1 for s in lines if re.search(r"= Release %\d+ Exit local ", s))
+        lowered = sum(1 for s in released.get(func, []) if s.startswith("release "))
+        for _ in range(stated - lowered):
+            emit("ir-exit-unlowered", func)
+
+
 def self_test():
     """Each WAT finding fires on its smallest input and not on its near miss."""
+    exit_cases = [
+        ("> app/f\n>   %0 = Release %1 Exit local $0 #2 : ()", "> app/f\n>   retain string (stored)", 1),
+        ("> app/f\n>   %0 = Release %1 Exit local $0 #2 : ()", "> app/f\n>   release string (last use)", 0),
+        ("> app/f\n>   %0 = Release %1 Operation #2 : ()", "> app/f", 0),
+        ("> app/f\n>   %0 = Release %1 Exit local $0 #2 : ()", "> app/g\n>   release string (last use)", 1),
+    ]
+    exit_bad = 0
+    for own, counts, want in exit_cases:
+        found = []
+        audit_exit(own, counts, lambda k, f, d="": found.append(k))
+        if len(found) != want:
+            exit_bad += 1
+            print(f"FAIL ir-exit-unlowered want {want} got {len(found)}\n{own}\n{counts}")
+    if exit_bad:
+        return 1
     head = '  (import "f" "rt:panic" (func $rt:panic))\n  (import "f" "rt:new" (func $rt:new (param i32) (result i32)))\n  (import "f" "retain" (func $retain (param i32)))\n  (import "f" "rt:release_ref" (func $rt:release_ref (param i32)))\n  (import "f" "g" (func $g))\n'
     cases = [
         ("load-dropped", "local.get $p\ni32.load $heap\ndrop", True),
@@ -435,6 +476,9 @@ def main():
                     audit_function(name, params, body, sigs, emit)
             elif ext == ".own":
                 audit_own(text, emit)
+                counts = path[: -len(".own")] + ".counts"
+                if os.path.exists(counts):
+                    audit_exit(text, open(counts, errors="replace").read(), emit)
             else:
                 audit_counts(text, emit)
 
