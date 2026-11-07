@@ -5,6 +5,11 @@
     scripts/ir-audit.py --list NAME [DIR]    every site of one finding
     scripts/ir-audit.py --json [DIR ...]     machine-readable counts
 
+The verdict on any change is runtime and module size. A finding here is a lead:
+a static site, not a measured cost, and V8 may already remove it. Vet this script
+against measurements (scripts/ir-audit-verify.py checks it finds what it claims,
+not that what it finds matters).
+
 With no DIR it reads the stage baselines of hd_driver and hd_wasm_linear. It
 simulates the Wasm stack inside each basic block, so a finding is a fact about
 that block. Elided code (`;; ...`) ends a block, and a function with elided code
@@ -50,6 +55,8 @@ COUNT_HELPERS = re.compile(r"^(retain|rt:retain|rt:release|rt:coll_copy|rt:drop)
 RETAINS = re.compile(r"^(retain|rt:retain|rt:coll_copy)")
 RELEASES = re.compile(r"^(rt:release|rt:drop)")
 PANIC = re.compile(r"^rt:panic")
+# An allocation changes no existing object's count or length.
+ALLOCATES = re.compile(r"^rt:(new|list_buf|str\\b)")
 BIN = re.compile(r"^[if](32|64)\.(add|sub|mul|div_[su]|div|rem_[su]|and|or|xor|shl|shr_[su]|rotl|rotr|eq|ne|lt_[su]|gt_[su]|le_[su]|ge_[su]|lt|gt|le|ge|min|max|copysign)$")
 UN = re.compile(r"^([if](32|64)\.(eqz|clz|ctz|popcnt|abs|neg|sqrt|ceil|floor|trunc|nearest|extend8_s|extend16_s|extend32_s|wrap_i64|extend_i32_[su]|trunc_[fi].*|convert_.*|promote_.*|demote_.*|reinterpret_.*))$")
 
@@ -63,7 +70,7 @@ class Value:
 
 def signatures(text):
     sigs = {}
-    for m in re.finditer(r'\(func \$("[^"]+"|\S+)((?: \(param [^)]*\))*)((?: \(result [^)]*\))*)', text):
+    for m in re.finditer(r'\(func \$("[^"]+"|[^\s()]+)((?: \(param [^)]*\))*)((?: \(result [^)]*\))*)', text):
         params = sum(len(re.sub(r"\$\S+", "", p).split()) - 1 for p in re.findall(r"\(param [^)]*\)", m.group(2)))
         results = sum(len(r.split()) - 1 for r in re.findall(r"\(result [^)]*\)", m.group(3)))
         sigs[m.group(1).strip('"')] = (params, results)
@@ -75,7 +82,7 @@ def functions(text):
     name, params, body = None, set(), []
     for raw in text.splitlines():
         line = raw.strip()
-        m = re.match(r'\(func \$("[^"]+"|\S+)', line)
+        m = re.match(r'\(func \$("[^"]+"|[^\s()]+)', line)
         if raw.startswith("  (func ") and m:
             name = m.group(1).strip('"')
             params = set(re.findall(r"\(param \$(\S+) ", line))
@@ -89,6 +96,33 @@ def functions(text):
         yield name, params, body
 
 
+def unwrap_count_tests(code):
+    out, i = [], 0
+    ops = [c for c, _ in code]
+    while i < len(code):
+        m = re.match(r"local\.tee \$(\S+)$", ops[i])
+        if m and ops[i + 1 : i + 2] == ["if"]:
+            t = f"local.get ${m.group(1)}"
+            known = [t, "i32.const 8", "i32.sub", "i32.load $heap"]
+            j = i + 2
+            nested = ops[j : j + 4] == known
+            if nested:
+                j += 4
+                if ops[j : j + 2] == ["global.get $tracing", "i32.or"]:
+                    j += 2
+                nested = ops[j : j + 1] == ["if"]
+                j += 1
+            if ops[j : j + 1] == [t] and ops[j + 1 : j + 2] and ops[j + 1].startswith("call "):
+                closes = ["end", "end"] if nested else ["end"]
+                if ops[j + 2 : j + 2 + len(closes)] == closes:
+                    out.append((ops[j + 1], False))
+                    i = j + 2 + len(closes)
+                    continue
+        out.append(code[i])
+        i += 1
+    return out
+
+
 def audit_function(name, params, body, sigs, emit):
     def hit(kind, detail=""):
         emit(kind, name, detail)
@@ -96,6 +130,9 @@ def audit_function(name, params, body, sigs, emit):
     code = [(l.split(";;")[0].strip(), l.strip() == ";; ...") for l in body]
     code = [(c, e) for c, e in code if c or e]
     elided = any(e for _, e in code)
+    # A count call behind its call-site test (`count_tests.rs`) is still one call:
+    # without this, the test's `if` would end the block and hide every pair.
+    code = unwrap_count_tests(code)
 
     ops = [c for c, e in code if not e]
     for a, b in zip(ops, ops[1:]):
@@ -228,7 +265,7 @@ def audit_function(name, params, body, sigs, emit):
                 reset()
                 continue
             args = [pop() for _ in range(n)]
-            if PANIC.match(callee):
+            if PANIC.match(callee) or ALLOCATES.match(callee):
                 pass
             elif RETAINS.match(callee) and args:
                 retained[args[0].expr] = True
@@ -325,7 +362,7 @@ def audit_counts(text, emit):
 
 def self_test():
     """Each WAT finding fires on its smallest input and not on its near miss."""
-    head = '  (import "f" "rt:panic" (func $rt:panic))\n  (import "f" "retain" (func $retain (param i32)))\n  (import "f" "rt:release_ref" (func $rt:release_ref (param i32)))\n  (import "f" "g" (func $g))\n'
+    head = '  (import "f" "rt:panic" (func $rt:panic))\n  (import "f" "rt:new" (func $rt:new (param i32) (result i32)))\n  (import "f" "retain" (func $retain (param i32)))\n  (import "f" "rt:release_ref" (func $rt:release_ref (param i32)))\n  (import "f" "g" (func $g))\n'
     cases = [
         ("load-dropped", "local.get $p\ni32.load $heap\ndrop", True),
         ("load-dropped", "local.get $p\ni32.load $heap\nlocal.set $q\nlocal.get $q", False),
@@ -339,6 +376,8 @@ def self_test():
         ("repeat-bounds", "local.get $i\nlocal.get $p\ni32.load $heap offset=4\ni32.ge_u\nif\ncall $rt:panic\nunreachable\nend\ncall $g\nlocal.get $i\nlocal.get $p\ni32.load $heap offset=4\ni32.ge_u\nif\ncall $rt:panic\nunreachable\nend", False),
         ("count-pair", "local.get $p\ncall $retain\nlocal.get $p\ncall $rt:release_ref", True),
         ("count-pair", "local.get $p\ncall $retain\ncall $g\nlocal.get $p\ncall $rt:release_ref", False),
+        ("count-pair", "local.get $p\ncall $retain\ni32.const 4\ncall $rt:new\ndrop\nlocal.get $p\ncall $rt:release_ref", True),
+        ("count-pair", "local.get $p\nlocal.tee $t\nif\nlocal.get $t\ni32.const 8\ni32.sub\ni32.load $heap\nif\nlocal.get $t\ncall $retain\nend\nend\nlocal.get $p\nlocal.tee $t\nif\nlocal.get $t\ncall $rt:release_ref\nend", True),
         ("zero-init", "i32.const 0\nlocal.set $q\nlocal.get $q\ndrop", True),
         ("zero-init", "i32.const 1\nlocal.set $q\ni32.const 0\nlocal.set $q\nlocal.get $q\ndrop", False),
         ("zero-init", "loop\ni32.const 0\nlocal.set $q\nend\nlocal.get $q\ndrop", False),
