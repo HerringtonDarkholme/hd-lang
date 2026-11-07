@@ -180,6 +180,12 @@ pub(crate) struct Tables {
     suite_roots: Vec<u32>,
     suite_bits: Vec<(u32, u32)>,
     held: Vec<u32>,
+    // Each use of what may point into a frame local a mutable reference can
+    // write, as (instruction, local): only there can it change that local.
+    frame_uses: Vec<(u32, u32)>,
+    // Each use of what may point into what a binding holds, as (instruction,
+    // bit): a reference into it holds no count, so that use keeps it live.
+    root_uses: Vec<(u32, u32)>,
     // Values a use of another value keeps live ([`super::lent_values`]).
     carries: Vec<(u32, u32)>,
     back: Flow,
@@ -261,6 +267,8 @@ impl Tables {
         self.suite_bits.clear();
         self.held.clear();
         self.carries.clear();
+        self.frame_uses.clear();
+        self.root_uses.clear();
         self.relies = 0;
     }
 
@@ -611,6 +619,7 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     for i in 0..n {
         if b.tags[i] == Tag::Ref
             && let Some(l) = b.local_in_place(b.data[i][0])
+            && b.data[i][1] & ref_word::FRAME == 0
             && !super::borrow::lends_once(b, cx, &counts, &last, i)
         {
             t.l[l.idx()].escapes = true;
@@ -904,6 +913,21 @@ fn index_writes(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     fill(&mut t.write_start, n + 1, 0);
     for i in 0..n {
         t.write_start[i] = u32_of(t.writes.len());
+        let k = t.frame_uses.partition_point(|u| (u.0 as usize) < i);
+        for u in k..t.frame_uses.len() {
+            let (at, key) = t.frame_uses[u];
+            if at as usize != i {
+                break;
+            }
+            t.writes.push(Write {
+                key,
+                start: 0,
+                len: 0,
+                cut: NONE,
+                direct: true,
+                dropped: Dropped::Nothing,
+            });
+        }
         let [a, w] = b.data[i];
         let tag = b.tags[i];
         let mutable_ref = tag == Tag::Ref && w & ref_word::MUT != 0;
@@ -1038,6 +1062,10 @@ impl Backward for Tables {
             if self.held[k] != NONE {
                 self.set(self.held[k], s, live, true);
             }
+        }
+        let k = self.root_uses.partition_point(|u| u.0 < x);
+        for &(_, bit) in self.root_uses[k..].iter().take_while(|u| u.0 == x) {
+            self.set(bit, s, live, true);
         }
         self.change_at(x, tag, s, live);
     }
@@ -1215,6 +1243,7 @@ pub(crate) fn run(
         }
     }
     let b = &*b;
+    super::frame_reference_uses(b, topo, cx, &mut t.frame_uses);
     suites(b, t);
     scan(b, cx, t);
     let flagged = b
@@ -1229,6 +1258,16 @@ pub(crate) fn run(
         receivers(b, cx, t);
     }
     candidates(b, cx, t);
+    let mut roots = std::mem::take(&mut t.root_uses);
+    super::frame::roots(b, cx, |i, l| {
+        let bit = t.l[l as usize].bit;
+        if bit != NONE && b.tags[i as usize] != Tag::Drop {
+            roots.push((i, bit));
+        }
+    });
+    roots.sort_stable();
+    roots.dedup();
+    t.root_uses = roots;
     sources(b, cx, t);
     index_writes(b, cx, t);
     carries(b, cx, t);
