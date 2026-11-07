@@ -113,6 +113,10 @@ dead branch), add a case for it under a topic such as `counts/` or
 fix it. The fix then shows up as a reviewed baseline diff. Do not fix it by
 special-casing the pattern in the emitter; fix the cause.
 
+## Auditing The Output
+
+`scripts/ir-audit.py` reads the stage baselines and reports what the output wastes: loads and pure values dropped, repeated loads and bounds checks, retain and release pairs, empty structure, and counts with no named reason. `--list NAME` prints every site. `scripts/ir-audit-verify.py` tests the audit from outside. A finding is a lead: the verdict on a change is V8 default-tier time and module size. An audit site isn't a measured cost.
+
 ## Gates For A Compiler Change
 
 Tiered checks only, for the paths the change touches. **Never run the

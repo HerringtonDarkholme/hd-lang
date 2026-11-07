@@ -425,6 +425,8 @@ to its estimate. **Stop rule:** a step whose measured gzip, time or
 memory exceeds 1.5 times its upper estimate stops and reports before
 merging, and so does any step that would leave under 5 KB of headroom.
 
+Status (2026-11-07): the old-pass names in this table are estimates from the design. Measured since: `known.rs` and `late.rs` stay, as every rule still changes output (#1399 12f). Drop flags as TIR locals (step 24) came out larger, so that patch isn't merged. Step 17's storage marks would move about 700 lines rather than remove them, and that's an open question for the owner.
+
 Estimates: gzip at 11-14 B per Rust line; time in ms on the json release
 edit build (160 ms measured); memory as peak RSS. "−" deletes nothing.
 
