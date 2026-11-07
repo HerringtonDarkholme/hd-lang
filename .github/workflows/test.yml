@@ -10,6 +10,11 @@ on:
     paths-ignore:
       - "docs/audit/**"
   pull_request:
+  # Windows and macOS twice a day, and on any commit that touches host code
+  # (the host-scope job). Offset from the metrics run on the hour.
+  schedule:
+    - cron: "23 2,14 * * *"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -37,6 +42,7 @@ jobs:
   # no other, and any failure fails the job.
   checks:
     name: Checks
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
@@ -247,6 +253,7 @@ jobs:
   # in the other shard runs it.
   test:
     name: Rust tests (${{ matrix.shard }})
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -273,11 +280,57 @@ jobs:
       - name: Test
         run: cargo test --release --all-features ${{ matrix.args }} -- --skip specification_conformance_passes_except_known_failures
 
+  # Whether this commit runs the Windows and macOS jobs. They run on host code here,
+  # and on everything twice a day, so a compiler or std change that breaks only on
+  # those systems (paths, line endings) shows up within about 12 hours (owner 2026-11-07).
+  host-scope:
+    name: Host scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Decide
+        id: scope
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" != push ] && [ "$EVENT" != pull_request ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$EVENT" = pull_request ]; then
+            base="$PR_BASE"
+          elif [ "$REF" = refs/heads/main ] && [[ ! "$BEFORE" =~ ^0+$ ]] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            base="$BEFORE"
+          else
+            base="$(git merge-base HEAD origin/main)"
+          fi
+          changed="$(git diff --name-only "$base" HEAD)"
+          echo "$changed"
+          if echo "$changed" | grep -qE '^(crates/hd_run_wasmtime/|crates/hd_run/|crates/hd_cli/|host/|\.github/|Cargo\.lock$|Cargo\.toml$|rust-toolchain)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
   # The wasmtime host has code per operating system (process groups, Job
   # objects, pipes), so its crates are also checked and tested on Windows
   # and macOS. Linux is covered by the jobs above.
   hosts:
     name: Host crates on ${{ matrix.os }} (${{ matrix.shard }})
+    needs: host-scope
+    if: needs.host-scope.outputs.run == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -339,6 +392,7 @@ jobs:
   # something else has its own.
   conformance:
     name: Driver conformance (${{ matrix.mode }})
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
