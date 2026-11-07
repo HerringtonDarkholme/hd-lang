@@ -508,7 +508,22 @@ impl Em<'_, '_, '_> {
         self.close();
         // The results of the children that completed are let go.
         if let Some(all) = all {
-            self.release_done(&all)?;
+            for (j, (_, ls, t)) in all.parts.iter().enumerate() {
+                if !self.needs_drop(*t) {
+                    continue;
+                }
+                self.f.get(all.done);
+                self.f.i32(1 << j);
+                self.f.op(I::I32And);
+                self.f.op(I::If(BlockType::Empty));
+                self.release_locals(ls, *t)?;
+                self.f.op(I::End);
+            }
+            self.f.i32(0);
+            self.f.set(all.done);
+            self.count_point_ref(i, CountPart::Waker, all.node, false)?;
+            self.f.i32(0);
+            self.f.set(all.node);
         } else {
             // A ladder that waits keeps its own child in the frame's slot.
             // A join's local c is zero: its children live in the argument list.
@@ -635,11 +650,22 @@ impl Em<'_, '_, '_> {
         if self.input.runtime.is_none() {
             return Ok(());
         }
+        self.count_point_ref(i, CountPart::Child, c, retain)
+    }
+
+    /// A physical reference count stated at a suspension point.
+    fn count_point_ref(
+        &mut self,
+        i: u32,
+        part: CountPart,
+        c: u32,
+        retain: bool,
+    ) -> StageResult<()> {
         let tag = if retain { Tag::Retain } else { Tag::Release };
         let Some(info) = hd_tir::ir::count::following(self.b, &self.topo, i, tag)
-            .filter(|c| c.at == CountAt::Operation && c.part == CountPart::Child)
+            .filter(|c| c.at == CountAt::Operation && c.part == part)
         else {
-            return unsupported("an awaited child without its stated count");
+            return unsupported("a suspension point without its stated reference count");
         };
         self.because(Reason::from_word(info.reason), |em| {
             if retain {
@@ -957,8 +983,7 @@ impl Em<'_, '_, '_> {
         let no_child = self.f.local(Val::I32);
         self.suspend(k, no_child)?;
         self.close();
-        self.f.get(node);
-        self.f.helper(Helper::ReleaseRef);
+        self.count_point_ref(i, CountPart::Waker, node, false)?;
         self.f.i32(0);
         self.f.set(node);
         // The results move into the tuple; a stale mask must not name
@@ -973,29 +998,6 @@ impl Em<'_, '_, '_> {
             }
         }
         self.store_owned(i)
-    }
-
-    /// Lets go of the results that `join!` point `all` kept for the
-    /// children its mask marks done, and clears the mask.
-    fn release_done(&mut self, all: &AllPoint) -> StageResult<()> {
-        for (j, (_, ls, t)) in all.parts.iter().enumerate() {
-            if !self.needs_drop(*t) {
-                continue;
-            }
-            self.f.get(all.done);
-            self.f.i32(1 << j);
-            self.f.op(I::I32And);
-            self.f.op(I::If(BlockType::Empty));
-            self.release_locals(ls, *t)?;
-            self.f.op(I::End);
-        }
-        self.f.i32(0);
-        self.f.set(all.done);
-        self.f.get(all.node);
-        self.f.helper(Helper::ReleaseRef);
-        self.f.i32(0);
-        self.f.set(all.node);
-        Ok(())
     }
 
     /// Opens a shielded point's block (`crates/hd_wasm_linear/DESIGN.md` §14.6,
@@ -1322,6 +1324,13 @@ pub(super) fn finish(
         for t in em.temps.clone() {
             places.push((None, None, vec![t]));
         }
+        // A node is a saved temporary, but its owner is the stated join's.
+        // Index that physical identity once, preserving temporary cleanup order.
+        let wakers: HashMap<u32, u32> = em
+            .susp
+            .as_ref()
+            .map(|s| s.alls.iter().map(|(&i, all)| (all.node, i)).collect())
+            .unwrap_or_default();
         // The pointer loans the waiting body holds end with it.
         em.borrow_abandon(&at_of);
         for (inst, local, ls) in places {
@@ -1360,8 +1369,12 @@ pub(super) fn finish(
                     })?;
                 }
                 (None, None) => {
-                    em.f.get(loaded[0]);
-                    em.f.helper(Helper::ReleaseRef);
+                    if let Some(&i) = wakers.get(&ls[0]) {
+                        em.count_point_ref(i, CountPart::Waker, loaded[0], false)?;
+                    } else {
+                        em.f.get(loaded[0]);
+                        em.f.helper(Helper::ReleaseRef);
+                    }
                 }
             }
         }

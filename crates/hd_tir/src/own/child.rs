@@ -75,10 +75,8 @@ mod tests {
             let topo = Topology::new(&b);
             counts::run(&mut b, &Cx, &topo, &mut splice::Tables::default()).unwrap();
             let topo = Topology::new(&b);
-            let actual = b
-                .tags
-                .iter()
-                .filter(|&&t| matches!(t, Tag::Retain | Tag::Release))
+            let actual = (0..b.len())
+                .filter(|&i| Info::read(&b, i).is_some_and(|c| c.part == Part::Child))
                 .count();
             assert_eq!(actual, 3);
             for (i, &tag) in b.tags.iter().enumerate() {
@@ -88,8 +86,10 @@ mod tests {
                 ) {
                     continue;
                 }
-                let release = crate::ir::count::following(&b, &topo, u32_of(i), Tag::Release);
-                let retain = crate::ir::count::following(&b, &topo, u32_of(i), Tag::Retain);
+                let release = crate::ir::count::following(&b, &topo, u32_of(i), Tag::Release)
+                    .filter(|c| c.part == Part::Child);
+                let retain = crate::ir::count::following(&b, &topo, u32_of(i), Tag::Retain)
+                    .filter(|c| c.part == Part::Child);
                 assert_eq!(
                     release,
                     matches!(tag, Tag::Await | Tag::AwaitValue).then_some(Info::new(

@@ -22,6 +22,7 @@ pub enum Part {
     Row,
     Operand(u32),
     Child,
+    Waker,
 }
 
 /// The record in a retain/release's second word. Its first word names
@@ -64,6 +65,7 @@ impl Info {
             (2, 0) => Part::Row,
             (3, n) => Part::Operand(n),
             (4, 0) => Part::Child,
+            (5, 0) => Part::Waker,
             _ => return None,
         };
         (reason < 9).then_some(Self { at, part, reason })
@@ -76,6 +78,7 @@ impl Info {
             Part::Row => (2, 0),
             Part::Operand(n) => (3, n),
             Part::Child => (4, 0),
+            Part::Waker => (5, 0),
         };
         let record = u32::try_from(b.extra.len()).expect("count record");
         b.extra

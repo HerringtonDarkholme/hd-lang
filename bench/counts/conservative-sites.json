@@ -9,7 +9,7 @@
     },
     {
       "reason": "conservative: AwaitAll",
-      "sites": 2
+      "sites": 0
     },
     {
       "reason": "conservative: AwaitValue",
@@ -61,7 +61,7 @@
     },
     {
       "reason": "conservative: frame drop",
-      "sites": 13
+      "sites": 12
     },
     {
       "reason": "conservative: return",
