@@ -141,8 +141,6 @@
           end
           local.get $t7
           local.set $t4
-          i64.const 0
-          local.set $t7
         end
     ;; 7 |     fn!(text: string) -> usize $ Clock:
       end

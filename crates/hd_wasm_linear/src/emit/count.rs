@@ -522,8 +522,8 @@ impl Em<'_, '_, '_> {
 
     /// Whether operand `r` moves its count into the instruction being
     /// emitted, which consumes it ([`Em::take_from`]): then no count is
-    /// taken for the consumer, and `r`'s locals are zeroed once the
-    /// instruction has read them ([`Em::settle`]).
+    /// taken for the consumer, and the move ends once the instruction has
+    /// read them ([`Em::settle`]).
     pub(super) fn take(&mut self, r: u32) -> bool {
         let Some(&u) = self.emitting.last() else {
             return false;
@@ -531,33 +531,18 @@ impl Em<'_, '_, '_> {
         self.take_from(r, u)
     }
 
-    /// Zeroes the locals of the operands whose counts moved into
-    /// instruction `u` ([`Em::take`]).
+    /// Ends the moves of the operands whose counts moved into instruction
+    /// `u` ([`Em::take`]). A value is never dropped after its move, and a
+    /// frame's glue reads no value of a started frame (#1430), so its locals
+    /// keep their bits.
     pub(super) fn settle(&mut self, u: u32) {
-        let (done, rest): (Vec<_>, Vec<_>) = self.moving.drain(..).partition(|m| m.0 == u);
-        self.moving = rest;
-        for (_, r) in done {
-            self.zero_locals_of(r);
-        }
+        self.moving.retain(|m| m.0 != u);
     }
 
-    /// Zeroes moved value `r`'s locals now, before a branch leaves the
+    /// Ends moved value `r`'s move now, before a branch leaves the
     /// instruction that took it.
     pub(super) fn settle_value(&mut self, r: u32) {
         self.moving.retain(|m| m.1 != r);
-        self.zero_locals_of(r);
-    }
-
-    fn zero_locals_of(&mut self, r: u32) {
-        // Only a frame's glue reads a moved value's locals again: its zero
-        // says the slot holds nothing. A value is never dropped after its
-        // move, so outside a frame nothing else tests it.
-        if self.susp.is_some() {
-            for l in self.vals.get(&r).cloned().unwrap_or_default() {
-                self.f.zero(l);
-            }
-            self.mark_drop_root(super::drop_flags::Root::Value(r), self.ty_of(r), false);
-        }
     }
 
     /// Releases value `x`'s count, when it holds a counted value, and

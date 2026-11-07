@@ -109,8 +109,6 @@
           end
           local.get $t6
           local.set $t3
-          i64.const 0
-          local.set $t6
         end
       end
       block

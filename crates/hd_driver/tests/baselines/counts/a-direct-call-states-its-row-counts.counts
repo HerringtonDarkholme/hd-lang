@@ -45,7 +45,6 @@ fn awaited!(callback: fn() -> i32 $ Tag) -> i32 $ Tag:
 >   release fn() -> i32 $ app.main.Tag (last use)
 > app/main/awaited
 >   release fn() -> i32 $ app.main.Tag (cancelled)
->   release fn() -> i32 $ app.main.Tag (cancelled)
 >   release counted reference (last use)
 >   release counted reference (last use)
 > app/main/awaited

@@ -272,21 +272,21 @@
       local.get $t70
       i32.eqz
       if
+        i32.const 64 ;; &"n"
+        i32.const 1
+        local.set $t3
+        local.set $t2
         i32.const 8
         i32.const 2
         call $rt:new/class-1'1
         local.tee $t5
-        i32.const 64 ;; &"n"
+        local.get $t2
         i32.store $heap
         local.get $t5
-        i32.const 1
+        local.get $t3
         i32.store $heap offset=4
         local.get $t5
         local.tee $t4
-        i32.const 0
-        local.set $t2
-        i32.const 0
-        local.set $t3
         i32.eqz
         if
           i32.const 8
@@ -302,6 +302,7 @@
           local.set $t4
         end
         local.get $t4
+        local.tee $t9
         local.tee $t71
         if
           local.get $t71
@@ -313,9 +314,7 @@
             call $rt:retain_known
           end
         end
-        local.get $t4
-        i32.const 0
-        local.set $t9
+        local.get $t9
     ;; 18 |     let (a, _) = join!(change(n), other())
         local.tee $t10
         i32.const 0
@@ -1416,51 +1415,6 @@
     i32.and
     i32.eqz
     if
-      local.get $t0
-      i32.load $heap offset=72
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t1
-          call $rt:release_ref'1
-        end
-      end
-      local.get $t0
-      i32.load $heap offset=76
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t1
-          call $rt:release_ref'1
-        end
-      end
-      local.get $t0
-      i32.load $heap offset=80
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t1
-          call $rt:release_ref'1
-        end
-      end
       local.get $t0
       i32.load $heap offset=116
       local.tee $t1

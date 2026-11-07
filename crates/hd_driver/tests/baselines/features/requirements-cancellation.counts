@@ -24,7 +24,6 @@ fn stop!(key: string) -> bool:
 >   release Suspend[string] (last use)
 >   release string (last use)
 > app/main/stop
->   release Suspend[string] (cancelled)
 >   release string (cancelled)
 >   release counted reference (last use)
 > app/main/stop
