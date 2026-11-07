@@ -56,28 +56,28 @@ fn total(a: User, b: User) -> usize:
 >   %1 = Store [$2] %0 : ()
 >   %41 = Block %40 : usize
     remember(&mut seen, &a)
->   %2 = Ref mut local frame [$2] : Counted[mut List[Ref[User]]]
->   %3 = Ref local frame [$0] : Counted[User]
+>   %2 = Ref mut local frame [$2] : Ref[mut List[Ref[User]]]
+>   %3 = Ref local frame [$0] : Ref[User]
 >   %4 = Call app/main/remember[] (%2, %3) : ()
 >   %5 = Drop [%3] : ()
->   %6 = Drop [%2] : ()
+>   %6 = LoanEnd [%2] : ()
 >   %2 finds [$2] full
     remember(&mut seen, &b)
->   %7 = Ref mut local frame [$2] : Counted[mut List[Ref[User]]]
->   %8 = Ref local frame [$1] : Counted[User]
+>   %7 = Ref mut local frame [$2] : Ref[mut List[Ref[User]]]
+>   %8 = Ref local frame [$1] : Ref[User]
 >   %9 = Call app/main/remember[] (%7, %8) : ()
 >   %10 = Drop [%8] : ()
->   %11 = Drop [%7] : ()
+>   %11 = LoanEnd [%7] : ()
 >   %7 finds [$2] full
     let mut by: Map[string, &User] = {}
 >   %12 = NewMap [] : Map[string, Ref[User]]
 >   %13 = Store [$3] %12 : ()
     index(&mut by, &a)
->   %14 = Ref mut local frame [$3] : Counted[mut Map[string, Ref[User]]]
->   %15 = Ref local frame [$0] : Counted[User]
+>   %14 = Ref mut local frame [$3] : Ref[mut Map[string, Ref[User]]]
+>   %15 = Ref local frame [$0] : Ref[User]
 >   %16 = Call app/main/index[] (%14, %15) : ()
 >   %17 = Drop [%15] : ()
->   %18 = Drop [%14] : ()
+>   %18 = LoanEnd [%14] : ()
 >   %14 finds [$3] full
     seen[0].name.len() + seen[1].name.len() + by.len()
 >   %19 = Read borrow [$2 [0:usize] * .name] : string

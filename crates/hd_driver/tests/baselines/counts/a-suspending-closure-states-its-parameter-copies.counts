@@ -8,7 +8,6 @@ fn make() -> (fn!(string) -> usize $ Clock):
     fn!(text: string) -> usize $ Clock:
 > app/main/make
 >   retain string (stored)
->   release &string (last use)
 >   release counted reference (last use)
 >   release counted reference (last use)
 > app/main/make
@@ -25,4 +24,3 @@ fn make() -> (fn!(string) -> usize $ Clock):
 >   retain counted reference (stored)
 >   release counted reference (last use)
         text.len()
->   retain &string (stored)

@@ -25,7 +25,7 @@ fn ret_new(n: i64) -> string:
     "n=${n}"
 > app/main/ret_new
 >   local $0 n: i64 [param read captured]
->   %0 = Ref local [$0] : Counted[i64]
+>   %0 = Ref local [$0] : Ref[i64]
 >   %1 = Read [*%0] : i64
 >   %2 = Prim Conv [%1] : i64
 >   %3 = Call std/text/impl StringBuilder.signed_width[] (%2) : usize
@@ -51,15 +51,15 @@ fn use_rets(r: Rec) -> usize:
 >   %0 = Read [$0 .name] : string
 >   %1 = Call app/main/ret_param[] (%0) : string
 >   %2 = Store [$1] %1 : ()
->   %3 = Ref local [$1] : Counted[string]
+>   %3 = Ref local [$1] : Ref[string]
 >   %4 = Call std/text/impl string.len[] (%3) : usize
 >   %5 = Read [$0] : Rec
 >   %6 = Call app/main/ret_field[] (%5) : string
 >   %7 = Store [$2] %6 : ()
->   %8 = Ref local [$2] : Counted[string]
+>   %8 = Ref local [$2] : Ref[string]
 >   %9 = Call std/text/impl string.len[] (%8) : usize
 >   %10 = Prim Add [%4 %9] : usize
->   %11 = Ref local [$0] : Counted[Rec]
+>   %11 = Ref local [$0] : Ref[Rec]
 >   %12 = Call app/main/ret_ref_field[] (%11) : Ref[string]
 >   %13 = Call std/text/impl string.len[] (%12) : usize
 >   %14 = Prim Add [%10 %13] : usize

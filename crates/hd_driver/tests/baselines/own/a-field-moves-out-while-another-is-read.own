@@ -12,7 +12,7 @@ fn eat(xs: UniqList[string]) -> usize:
     xs.len()
 > app/main/eat
 >   local $0 xs: UniqList[string] [param read captured] place
->   %0 = Ref local frame [$0] : Counted[UniqList[string]]
+>   %0 = Ref local frame [$0] : Ref[UniqList[string]]
 >   %1 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].len[string] (%0) : usize
 >   %2 = Drop [%0] : ()
 >   %3 = Drop [$0] : ()

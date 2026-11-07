@@ -2221,35 +2221,8 @@
           local.set $t17
         end
         local.get $t17
-        local.tee $t22
-        local.tee $t47
-        if
-          local.get $t47
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          if
-            local.get $t47
-            call $rt:retain_known
-          end
-        end
-        local.get $t22
         call $"impl string.len"
         local.set $t23
-        local.get $t22
-        local.tee $t47
-        if
-          local.get $t47
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          global.get $tracing
-          i32.or
-          if
-            local.get $t47
-            call $rt:release_ref'1
-          end
-        end
         i32.const 0
         local.set $t22
         local.get $t17
@@ -2848,35 +2821,8 @@
         local.set $t38
       end
       local.get $t38
-      local.tee $t43
-      local.tee $t47
-      if
-        local.get $t47
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t47
-          call $rt:retain_known
-        end
-      end
-      local.get $t43
       call $"impl string.len"
       local.set $t44
-      local.get $t43
-      local.tee $t47
-      if
-        local.get $t47
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t47
-          call $rt:release_ref'1
-        end
-      end
       local.get $t38
       local.tee $t47
       if
@@ -3770,35 +3716,8 @@
         local.set $t21
       end
       local.get $t21
-      local.tee $t26
-      local.tee $t29
-      if
-        local.get $t29
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t29
-          call $rt:retain_known
-        end
-      end
-      local.get $t26
       call $"impl string.len"
     ;; 22 |     loader := fn!(k: string) -> string: fetch!(k)
-      local.get $t26
-      local.tee $t29
-      if
-        local.get $t29
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t29
-          call $rt:release_ref'1
-        end
-      end
       local.get $t21
       local.tee $t29
       if

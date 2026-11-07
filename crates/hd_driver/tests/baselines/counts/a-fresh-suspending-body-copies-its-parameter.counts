@@ -13,7 +13,6 @@ fn after!(text: string) -> usize $ Clock:
 >   release counted reference (last use)
 >   retain counted reference (stored)
 >   release counted reference (last use)
->   release &string (last use)
 >   release counted reference (last use)
 >   release counted reference (last use)
 > app/main/after
@@ -24,4 +23,3 @@ fn after!(text: string) -> usize $ Clock:
 >   retain string (stored)
 >   retain counted reference (stored)
     text.len()
->   retain &string (stored)

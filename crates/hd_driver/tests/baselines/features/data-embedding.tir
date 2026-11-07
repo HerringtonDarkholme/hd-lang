@@ -39,7 +39,7 @@ fn promoted(p: Post) -> usize:
 >   local $1 $ref: string [read assigned captured captured-assigned]
 >   %0 = Read [$0 .Stamp .by] : string
 >   %1 = Store [$1] %0 : ()
->   %2 = Ref local [$1] : Counted[string]
+>   %2 = Ref local [$1] : Ref[string]
 >   %3 = Call std/text/impl string.len[] (%2) : usize
 >   %4 = Ref local [$0 .Stamp] : Ref[Stamp]
 >   %5 = Call app/main/impl Stamp.by_len[] (%4) : usize

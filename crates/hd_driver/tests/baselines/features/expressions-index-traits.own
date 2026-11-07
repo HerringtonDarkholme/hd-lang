@@ -97,13 +97,13 @@ fn first[T, C < Index[usize, Out = T]](items: C) -> T:
     items[0]
 > app/main/first
 >   local $0 items: C [param read captured] place
->   %0 = Ref local frame [$0] : Counted[C]
+>   %0 = Ref local frame [$0] : Ref[C]
 >   %1 = Call std/ops/Index.index for C [usize] via Bound (%0, 0:usize) : Ref[T]
->   %2 = Read copy [*%1] : T
->   %3 = Drop [%1] : ()
->   %4 = Drop [%0] : ()
+>   %2 = Drop [%0] : ()
+>   %3 = Read copy [*%1] : T
+>   %4 = Drop [%1] : ()
 >   %5 = Drop [$0] : ()
->   %6 = Block %2 : T
+>   %6 = Block %3 : T
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes
 

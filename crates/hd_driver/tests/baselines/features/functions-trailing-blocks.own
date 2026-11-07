@@ -45,15 +45,15 @@ fn trailing(s: string) -> usize:
 >   local $3 $ref: string [read assigned captured captured-assigned] place
 >   %6 = Store [$1] "t" : ()
 >   %7 = Store [$2] %4 : ()
->   %8 = Ref local frame [$1] : Counted[string]
+>   %8 = Ref local frame [$1] : Ref[string]
 >   %9 = Call std/text/impl string.len[] (%8) : usize
->   %10 = Drop [%8] : ()
+>   %10 = LoanEnd [%8] : ()
 >   %11 = Read borrow [$2] : fn() -> string
 >   %12 = CallValue %11 [] : string
 >   %13 = Store [$3] %12 : ()
->   %14 = Ref local frame [$3] : Counted[string]
+>   %14 = Ref local frame [$3] : Ref[string]
 >   %15 = Call std/text/impl string.len[] (%14) : usize
->   %16 = Drop [%14] : ()
+>   %16 = LoanEnd [%14] : ()
 >   %17 = Drop [$3] : ()
 >   %18 = Prim Add [%9 %15] : usize
 >   %19 = Break L0 %18 : never

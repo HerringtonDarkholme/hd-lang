@@ -73,8 +73,8 @@ fn check_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void:
 >     uses $31: %10 -> %11 lend last
 >   %0 = Release %212 Exit local $2 #2 : ()
     if actual != expected:
->   %1 = Ref local frame [$0] : Counted[T]
->   %2 = Ref local frame [$1] : Counted[T]
+>   %1 = Ref local frame [$0] : Ref[T]
+>   %2 = Ref local frame [$1] : Ref[T]
 >   %3 = Call std/core/Eq.eq for T [] via Bound (%1, %2) : bool
 >   %4 = Drop [%2] : ()
 >   %5 = Drop [%1] : ()

@@ -85,16 +85,16 @@ fn token(text: string, other: string) -> usize:
 > app/main/token
 >   local $0 text: string [param read captured] place
 >   local $1 other: string [param read captured] place
->   %0 = Ref local frame [$0] : Counted[string]
+>   %0 = Ref local frame [$0] : Ref[string]
 >   %1 = NewVariant #0 [%0] : Token[string, Ref[()]]
->   %2 = Ref local frame [$1] : Counted[string]
+>   %2 = Ref local frame [$1] : Ref[string]
 >   %3 = Call app/main/word[] (%1, %2) : Ref[string]
->   %4 = Drop [%1] : ()
->   %5 = Call std/text/impl string.len[] (%3) : usize
->   %6 = Drop [%3] : ()
->   %7 = Drop [%2] : ()
+>   %4 = Drop [%2] : ()
+>   %5 = Drop [%1] : ()
+>   %6 = Call std/text/impl string.len[] (%3) : usize
+>   %7 = Drop [%3] : ()
 >   %8 = Drop [$0] : ()
 >   %9 = Drop [$1] : ()
->   %10 = Block %5 : usize
+>   %10 = Block %6 : usize
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1]

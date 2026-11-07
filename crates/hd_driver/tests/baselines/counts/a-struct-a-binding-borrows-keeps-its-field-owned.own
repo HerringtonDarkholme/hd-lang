@@ -69,10 +69,10 @@ pub fn stack(n: i64) -> usize:
 >   %2 = Store [$1] %1 : ()
 >   %15 = Block %13 : usize
     s.add(n)
->   %3 = Ref mut local frame [$1] : Counted[mut Stack]
+>   %3 = Ref mut local frame [$1] : Ref[mut Stack]
 >   %4 = Read copy [$0] : i64
 >   %5 = Call app/main/impl Stack.add[] (%3, %4) : ()
->   %6 = Drop [%3] : ()
+>   %6 = LoanEnd [%3] : ()
 >   %3 finds [$1] full
     s.size()
 >   %7 = Read move [$1] : Stack
@@ -103,10 +103,10 @@ pub fn pair(n: i64) -> usize:
 >   %4 = Store [$2] %3 : ()
 >   %3 finds [$1] full
     p.add(n)
->   %5 = Ref mut local frame [$1] : Counted[mut Pair]
+>   %5 = Ref mut local frame [$1] : Ref[mut Pair]
 >   %6 = Read copy [$0] : i64
 >   %7 = Call app/main/impl Pair.add[] (%5, %6) : ()
->   %8 = Drop [%5] : ()
+>   %8 = LoanEnd [%5] : ()
 >   %5 finds [$1] full
     p.items.len() + q.items.len()
 >   %9 = Read move [$1 .items] : List[i64]

@@ -6,7 +6,6 @@
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:cancel_enter" (func $rt:cancel_enter (result i32)))
   (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
-  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:poll_check" (func $rt:poll_check (param i32) (result i32)))
@@ -469,36 +468,8 @@
           end
     ;; 11 |         _ := text.len()
           local.get $text
-          local.tee $t14
-          local.tee $t17
-          if
-            local.get $t17
-            i32.const 8
-            i32.sub
-            i32.load $heap
-            if
-              local.get $t17
-              call $rt:retain_known
-            end
-          end
-          local.get $t14
           call $"impl string.len"
           drop
-    ;; 9 |     while true:
-          local.get $t14
-          local.tee $t17
-          if
-            local.get $t17
-            i32.const 8
-            i32.sub
-            i32.load $heap
-            global.get $tracing
-            i32.or
-            if
-              local.get $t17
-              call $rt:release_ref'2
-            end
-          end
     ;; 12 |         break
           br 1
     ;; 9 |     while true:

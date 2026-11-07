@@ -33,7 +33,7 @@ fn two(log: *mut List[string], a: string, b: string) -> usize:
 >   %1 = Read [$0] : Counted[mut List[string]]
 >   %2 = NewStruct [%0 %1] : Res
 >   %3 = Store [$3] %2 : ()
->   %4 = Ref mut local [$3] : Counted[mut Res]
+>   %4 = Ref mut local [$3] : Ref[mut Res]
 >   %5 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%4) : ()
 >   %6 = Block - : ()
 >   %7 = Defer #6 : ()
@@ -45,7 +45,7 @@ fn two(log: *mut List[string], a: string, b: string) -> usize:
 >   %9 = Read [$0] : Counted[mut List[string]]
 >   %10 = NewStruct [%8 %9] : Res
 >   %11 = Store [$4] %10 : ()
->   %12 = Ref mut local [$4] : Counted[mut Res]
+>   %12 = Ref mut local [$4] : Ref[mut Res]
 >   %13 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%12) : ()
 >   %14 = Block - : ()
 >   %15 = Defer #14 : ()
@@ -99,7 +99,7 @@ fn per_round(log: *mut List[string], xs: List[string]) -> void:
 >   %17 = Read [$0] : Counted[mut List[string]]
 >   %18 = NewStruct [%16 %17] : Res
 >   %19 = Store [$7] %18 : ()
->   %20 = Ref mut local [$7] : Counted[mut Res]
+>   %20 = Ref mut local [$7] : Ref[mut Res]
 >   %21 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%20) : ()
 >   %22 = Block - : ()
 >   %23 = Defer #22 : ()

@@ -1,6 +1,6 @@
 # @dump: own counts wat
 # @build: v8 release
-# expected: concrete scalar and record instances state the existing-cell copy; an open target stays unknown.
+# expected: scalar and record instances take no count of the existing cell; the reference is local at every instance.
 struct Tally:
     n: i64
 

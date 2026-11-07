@@ -93,7 +93,7 @@ pub fn main() -> void $ Console:
 >   %26 = Block - : ()
 >   %27 = Loop %26 - : ()
         trail.enter(i64(i))
->   %18 = Ref mut local [$0] : Counted[mut Trail]
+>   %18 = Ref mut local [$0] : Ref[mut Trail]
 >   %19 = Read [$4] : usize
 >   %20 = Prim Conv [%19] : i64
 >   %21 = Call app/main/impl Trail.enter[] (%18, %20) : ()
@@ -104,7 +104,7 @@ pub fn main() -> void $ Console:
 >   %30 = Read [$5] : List[i64]
 >   %31 = Store [$6] %30 : ()
     set_first(&mut local, 9)
->   %32 = Ref mut local [$5] : Counted[mut List[i64]]
+>   %32 = Ref mut local [$5] : Ref[mut List[i64]]
 >   %33 = Call app/main/set_first[] (%32, 9:i64) : ()
     println("${trail.depth} ${saved[0]} ${local[0]}")
 >   %34 = Ref local [$0 .depth] : Ref[usize]

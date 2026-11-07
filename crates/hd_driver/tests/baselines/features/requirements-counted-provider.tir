@@ -36,6 +36,6 @@ fn fetch!() -> usize $ Store:
 >   %2 = Read [*%1] : Store
 >   %3 = Call app/main/Store.get for Store [] via TraitValue (%2) : string
 >   %4 = Store [$0] %3 : ()
->   %5 = Ref local [$0] : Counted[string]
+>   %5 = Ref local [$0] : Ref[string]
 >   %6 = Call std/text/impl string.len[] (%5) : usize
 >   %7 = Block %6 : usize

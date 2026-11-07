@@ -14,7 +14,6 @@
   (import "fixture" "rt:cancel_enter" (func $rt:cancel_enter (result i32)))
   (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
-  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_unsigned_sized" (func $write_unsigned_sized (param i64 i32 i32)))
@@ -2452,36 +2451,7 @@
         local.set $a
       end
       local.get $a
-      local.tee $t147
-      local.tee $t186
-      if
-        local.get $t186
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t186
-          call $rt:retain_known
-        end
-      end
-      local.get $t147
       i32.load $heap
-    ;; 12 |     let mut u = UniqList::[i32].new()
-      local.get $t147
-      local.tee $t186
-      if
-        local.get $t186
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t186
-          call $rt:release_ref'1
-        end
-      end
-    ;; 15 |     println("$a")
       i64.extend_i32_u
       local.set $t152
     ;; 12 |     let mut u = UniqList::[i32].new()
@@ -3212,35 +3182,8 @@
       end
     ;; 9 |     u.len()
       local.get $u
-      local.tee $t18
-      local.tee $provider0
-      if
-        local.get $provider0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $provider0
-          call $rt:retain_known
-        end
-      end
-      local.get $t18
       call $"impl [ T < ? Copy ] UniqList [ T ].len[i32]"
     ;; 8 |     sleep!(ms(1))
-      local.get $t18
-      local.tee $provider0
-      if
-        local.get $provider0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $provider0
-          call $rt:release_ref'1
-        end
-      end
       local.get $u
       local.tee $provider0
       if

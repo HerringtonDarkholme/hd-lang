@@ -71,15 +71,15 @@ fn later!(key: string) -> usize:
 >   local $1 pending: mut Suspend[string] [read assigned] value
 >     uses $1: %6 -> %7 lend last
 >   local $2 $ref: string [read assigned captured captured-assigned] place
->   %0 = Retain %18 Cold local $0 #0 : ()
->   %1 = Retain %18 Entry local $0 #0 : ()
+>   %0 = Retain %17 Cold local $0 #0 : ()
+>   %1 = Retain %17 Entry local $0 #0 : ()
     let mut pending = fetch(key)
->   %2 = Release %18 FrameDrop child #2 : ()
+>   %2 = Release %17 FrameDrop child #2 : ()
 >   %3 = Read move [$0] : string
 >   %4 = Call app/main/fetch[] (%3) : mut Suspend[string]
 >   %5 = Drop [%3] : ()
 >   %6 = Store [$1] %4 : ()
->   %18 = Block %15 : usize
+>   %17 = Block %14 : usize
     pending!().len()
 >   %7 = Read move [$1] : mut Suspend[string]
 >   %8 = AwaitValue %7 : string
@@ -87,11 +87,10 @@ fn later!(key: string) -> usize:
 >   %10 = Retain %8 Operation child #0 : ()
 >   %11 = Drop [%7] : ()
 >   %12 = Store [$2] %8 : ()
->   %13 = Ref local [$2] : Counted[string]
->   %14 = Retain %13 Value #0 : ()
->   %15 = Call std/text/impl string.len[] (%13) : usize
->   %16 = Drop [%13] : ()
->   %17 = Drop [$2] : ()
+>   %13 = Ref local [$2] : Ref[string]
+>   %14 = Call std/text/impl string.len[] (%13) : usize
+>   %15 = Drop [%13] : ()
+>   %16 = Drop [$2] : ()
 >   %13 finds [$2] full
 >   exit sub 0 drops [$0]
 >   summary none

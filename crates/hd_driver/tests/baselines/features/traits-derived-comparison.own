@@ -17,8 +17,8 @@ fn same(a: Key, b: Key) -> bool:
 > app/main/same
 >   local $0 a: Key [param read captured] place
 >   local $1 b: Key [param read captured] place
->   %0 = Ref local frame [$0] : Counted[Key]
->   %1 = Ref local frame [$1] : Counted[Key]
+>   %0 = Ref local frame [$0] : Ref[Key]
+>   %1 = Ref local frame [$1] : Ref[Key]
 >   %2 = Call std/core/Eq.eq for Key [] via Impl (%0, %1) : bool
 >   %3 = Drop [%1] : ()
 >   %4 = Drop [%0] : ()
@@ -33,8 +33,8 @@ fn before(a: Key, b: Key) -> bool:
 > app/main/before
 >   local $0 a: Key [param read captured] place
 >   local $1 b: Key [param read captured] place
->   %0 = Ref local frame [$0] : Counted[Key]
->   %1 = Ref local frame [$1] : Counted[Key]
+>   %0 = Ref local frame [$0] : Ref[Key]
+>   %1 = Ref local frame [$1] : Ref[Key]
 >   %2 = Call std/cmp/PartialOrd.partial_cmp for Key [] via Impl (%0, %1) : Ordering?
 >   %3 = Drop [%1] : ()
 >   %4 = Drop [%0] : ()

@@ -1,6 +1,6 @@
 # @dump: own counts wat
 # @build: v8 program
-# expected: main's automatic receiver reference borrows at link; the ordinary framed helper keeps its copied reference count.
+# expected: main is an entry root with no suspension point, so `sink` lies in a frame slot; the framed helper keeps `sink` in a cell, and neither reference takes a count.
 use std.ops.Update
 
 struct Sink:

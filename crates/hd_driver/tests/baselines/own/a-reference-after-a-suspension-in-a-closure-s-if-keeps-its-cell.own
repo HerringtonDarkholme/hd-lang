@@ -33,20 +33,20 @@ fn start() -> fn!(bool) -> void:
 >   local $2 c: Counter [read assigned captured captured-assigned] place
 >   %0 = NewStruct [0:i32 "d"] : Counter
 >   %1 = Store [$0] %0 : ()
->   %24 = Block %23 : fn!(bool) -> ()
+>   %23 = Block %22 : fn!(bool) -> ()
     tick(&mut d)
->   %2 = Ref mut local frame [$0] : Counted[mut Counter]
+>   %2 = Ref mut local frame [$0] : Ref[mut Counter]
 >   %3 = Call app/main/tick[] (%2) : ()
->   %4 = Drop [%2] : ()
+>   %4 = LoanEnd [%2] : ()
 >   %5 = Drop [$0] : ()
 >   %2 finds [$0] full
     fn!(go: bool) -> void:
->   %6 = Retain %22 Cold row #0 : ()
->   %7 = Retain %22 Materialize row #0 : ()
->   %8 = Release %22 FrameDrop row #2 : ()
->   %9 = Release %22 FrameDrop child #2 : ()
->   %22 = Block - : ()
->   %23 = Closure #1 [%0 %0] : fn!(bool) -> ()
+>   %6 = Retain %21 Cold row #0 : ()
+>   %7 = Retain %21 Materialize row #0 : ()
+>   %8 = Release %21 FrameDrop row #2 : ()
+>   %9 = Release %21 FrameDrop child #2 : ()
+>   %21 = Block - : ()
+>   %22 = Closure #1 [%0 %0] : fn!(bool) -> ()
         let mut c = Counter { hits: +0, name: "a" }
 >   %10 = NewStruct [0:i32 "a"] : Counter
 >   %11 = Store [$2] %10 : ()
@@ -58,10 +58,9 @@ fn start() -> fn!(bool) -> void:
 >   %14 = Release %13 Operation child #2 : ()
 >   %15 = Block - : ()
         tick(&mut c)
->   %17 = Ref mut local [$2] : Counted[mut Counter]
->   %18 = Retain %17 Value #0 : ()
->   %19 = Call app/main/tick[] (%17) : ()
->   %20 = Drop [%17] : ()
->   %21 = Drop [$2] : ()
+>   %17 = Ref mut local [$2] : Ref[mut Counter]
+>   %18 = Call app/main/tick[] (%17) : ()
+>   %19 = Drop [%17] : ()
+>   %20 = Drop [$2] : ()
 >   %17 finds [$2] full
 >   exit sub 1 drops [$2]

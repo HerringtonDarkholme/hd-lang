@@ -165,11 +165,11 @@ pub fn main() -> void $ Console:
 >   %28 = Loop %27 - : ()
 >   %28 finds [$0] full
         trail.enter(i64(i))
->   %18 = Ref mut local frame [$0] : Counted[mut Trail]
+>   %18 = Ref mut local frame [$0] : Ref[mut Trail]
 >   %19 = Read copy [$4] : usize
 >   %20 = Prim Conv [%19] : i64
 >   %21 = Call app/main/impl Trail.enter[] (%18, %20) : ()
->   %22 = Drop [%18] : ()
+>   %22 = LoanEnd [%18] : ()
 >   %18 finds [$0] full
     let mut local: List[i64] = [5, 6]
 >   %29 = NewList - [5:i64 6:i64] : List[i64]
@@ -179,9 +179,9 @@ pub fn main() -> void $ Console:
 >   %32 = Store [$6] %31 : ()
 >   %31 finds [$5] full
     set_first(&mut local, 9)
->   %33 = Ref mut local frame [$5] : Counted[mut List[i64]]
+>   %33 = Ref mut local frame [$5] : Ref[mut List[i64]]
 >   %34 = Call app/main/set_first[] (%33, 9:i64) : ()
->   %35 = Drop [%33] : ()
+>   %35 = LoanEnd [%33] : ()
 >   %33 finds [$5] full
     println("${trail.depth} ${saved[0]} ${local[0]}")
 >   %36 = Ref local frame [$0 .depth] : Ref[usize]

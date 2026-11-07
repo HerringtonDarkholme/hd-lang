@@ -66,11 +66,11 @@ enum SaveError[E]:
     Wrap(@source inner: E)
 >   %3 = Read [$1 as #1 .0] : error Display for SaveError#0
 >   %4 = Store [$2] %3 : ()
->   %5 = Ref local [$2] : Counted[error Display for SaveError#0]
+>   %5 = Ref local [$2] : Ref[error Display for SaveError#0]
 >   %6 = Call std/format/Display.to_string for error Display for SaveError#0 [] via Bound (%5) : string
 >   %12 = Read [$1 as #1 .0] : error Error for SaveError#0
 >   %13 = Store [$4] %12 : ()
->   %14 = Ref local [$4] : Counted[error Error for SaveError#0]
+>   %14 = Ref local [$4] : Ref[error Error for SaveError#0]
 >   %15 = Call std/error/Error.source for error Error for SaveError#0 [] via Bound (%14) : Counted[Error]?
     @error("two")
 >   %8 = Block "two" : string

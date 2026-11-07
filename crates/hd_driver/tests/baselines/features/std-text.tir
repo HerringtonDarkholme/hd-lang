@@ -99,7 +99,7 @@ fn fields(line: string) -> usize:
 >   %33 = Loop %32 - : ()
         n += f.len()
 >   %18 = Read [$1] : usize
->   %19 = Ref local [$6] : Counted[string]
+>   %19 = Ref local [$6] : Ref[string]
 >   %20 = Call std/text/impl string.len[] (%19) : usize
 >   %21 = Prim Add [%18 %20] : usize
 >   %22 = Store [$1] %21 : ()

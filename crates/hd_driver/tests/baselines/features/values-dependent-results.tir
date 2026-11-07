@@ -23,7 +23,7 @@ fn read(u: User) -> usize:
     name_of(&u).len()
 > app/main/read
 >   local $0 u: User [param read captured]
->   %0 = Ref local [$0] : Counted[User]
+>   %0 = Ref local [$0] : Ref[User]
 >   %1 = Call app/main/name_of[] (%0) : Ref[string]
 >   %2 = Call std/text/impl string.len[] (%1) : usize
 >   %3 = Block %2 : usize
@@ -32,7 +32,7 @@ fn read_list(us: List[User]) -> usize:
     first_name(&us).len()
 > app/main/read_list
 >   local $0 us: List[User] [param read captured]
->   %0 = Ref local [$0] : Counted[List[User]]
+>   %0 = Ref local [$0] : Ref[List[User]]
 >   %1 = Call app/main/first_name[] (%0) : Ref[string]
 >   %2 = Call std/text/impl string.len[] (%1) : usize
 >   %3 = Block %2 : usize

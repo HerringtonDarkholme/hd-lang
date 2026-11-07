@@ -89,10 +89,10 @@ fn use_methods(s: Shelf, b: string) -> usize:
 >   %1 = Store [$2] %0 : ()
 >   %47 = Block %46 : usize
     t.by_mut(b)
->   %2 = Ref mut local frame [$2] : Counted[mut Shelf]
+>   %2 = Ref mut local frame [$2] : Ref[mut Shelf]
 >   %3 = Read move [$1] : string
 >   %4 = Call app/main/impl Shelf.by_mut[] (%2, %3) : ()
->   %5 = Drop [%2] : ()
+>   %5 = LoanEnd [%2] : ()
 >   %2 finds [$2] full
     s.by_self() + s.by_ref() + t.consume().len()
 >   %6 = Read borrow [$0 .books] : List[string]

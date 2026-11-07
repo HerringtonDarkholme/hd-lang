@@ -239,14 +239,14 @@ pub fn main() -> void $ Console:
 >   %29 = Store [$0 .held] 4:usize : ()
 >   %29 finds [$0] full
     p.drain_into(0)
->   %30 = Ref mut local frame [$0] : Counted[mut Parser]
+>   %30 = Ref mut local frame [$0] : Ref[mut Parser]
 >   %31 = Call app/main/impl Parser.drain_into[] (%30, 0:usize) : ()
->   %32 = Drop [%30] : ()
+>   %32 = LoanEnd [%30] : ()
 >   %30 finds [$0] full
     p.refill(2)
->   %33 = Ref mut local frame [$0] : Counted[mut Parser]
+>   %33 = Ref mut local frame [$0] : Ref[mut Parser]
 >   %34 = Call app/main/impl Parser.refill[] (%33, 2:usize) : ()
->   %35 = Drop [%33] : ()
+>   %35 = LoanEnd [%33] : ()
 >   %33 finds [$0] full
     println("${p.index.len()} ${p.snapshot(2)}")
 >   %36 = Read borrow [$0 .index] : List[usize]
@@ -258,9 +258,9 @@ pub fn main() -> void $ Console:
 >   %42 = Break L6 %41 : never
 >   %43 = Block - : usize
 >   %44 = Scope %43 [] : usize
->   %45 = Ref mut local frame [$0] : Counted[mut Parser]
+>   %45 = Ref mut local frame [$0] : Ref[mut Parser]
 >   %46 = Call app/main/impl Parser.snapshot[] (%45, 2:usize) : usize
->   %47 = Drop [%45] : ()
+>   %47 = LoanEnd [%45] : ()
 >   %48 = Drop [$0] : ()
 >   %49 = Prim Conv [%46] : u64
 >   %50 = Store [$17] %49 : ()

@@ -349,6 +349,7 @@ impl Ck<'_, '_> {
             .is_some_and(|t| self.ref_of(t).is_none())
         {
             let (r, t) = self.address_of_place(base, name, true, Vec::new())?;
+            let r = self.local_receiver(r);
             return Ok((t != Ty::POISON).then_some((r, t)));
         }
         let (r, t) = self.expr(base, None)?;

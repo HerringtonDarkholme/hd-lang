@@ -28,7 +28,7 @@ fn first[T < Supplier](source: T) -> T::Item:
     source.get()
 > app/main/first
 >   local $0 source: T [param read captured] place
->   %0 = Ref local frame [$0] : Counted[T]
+>   %0 = Ref local frame [$0] : Ref[T]
 >   %1 = Call app/main/Supplier.get for T [] via Bound (%0) : T::Item
 >   %2 = Drop [%0] : ()
 >   %3 = Drop [$0] : ()

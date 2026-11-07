@@ -17,8 +17,8 @@ fn same(a: Key, b: Key) -> bool:
 > app/main/same
 >   local $0 a: Key [param read captured]
 >   local $1 b: Key [param read captured]
->   %0 = Ref local [$0] : Counted[Key]
->   %1 = Ref local [$1] : Counted[Key]
+>   %0 = Ref local [$0] : Ref[Key]
+>   %1 = Ref local [$1] : Ref[Key]
 >   %2 = Call std/core/Eq.eq for Key [] via Impl (%0, %1) : bool
 >   %3 = Block %2 : bool
 
@@ -27,8 +27,8 @@ fn before(a: Key, b: Key) -> bool:
 > app/main/before
 >   local $0 a: Key [param read captured]
 >   local $1 b: Key [param read captured]
->   %0 = Ref local [$0] : Counted[Key]
->   %1 = Ref local [$1] : Counted[Key]
+>   %0 = Ref local [$0] : Ref[Key]
+>   %1 = Ref local [$1] : Ref[Key]
 >   %2 = Call std/cmp/PartialOrd.partial_cmp for Key [] via Impl (%0, %1) : Ordering?
 >   %3 = Read [%2 as #1 .0] : Ordering
 >   %4 = Block 1:bool : bool
@@ -52,7 +52,7 @@ fn lookup(m: Map[Key, string], k: Key) -> usize:
 >   %19 = Match %2 [%18 %5 %6] : usize
 >   %20 = Block %19 : usize
         .Some(v) => v.len()
->   %3 = Ref local [$2] : Counted[string]
+>   %3 = Ref local [$2] : Ref[string]
 >   %4 = Call std/text/impl string.len[] (%3) : usize
 >   %5 = Block %4 : usize
 >   %7 = Read [%2 as #1 .0] : string

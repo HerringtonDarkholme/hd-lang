@@ -11,11 +11,11 @@ app/main/first
   %2 = Read copy [$0] : i32
   %3 = Call app/main/make[] (%2) : User
   %4 = Store [$2] %3 : ()
-  %5 = Ref mut local frame [$1] : Counted[mut List[Ref[User]]]
-  %6 = Ref local frame [$2] : Counted[User]
+  %5 = Ref mut local frame [$1] : Ref[mut List[Ref[User]]]
+  %6 = Ref local frame [$2] : Ref[User]
   %7 = Call app/main/remember[User] (%5, %6) : ()
-  %8 = Drop [%6] : ()
-  %9 = Drop [%5] : ()
+  %8 = LoanEnd [%6] : ()
+  %9 = LoanEnd [%5] : ()
   %10 = Read copy [$0] : i32
   %11 = Prim Add [%10 50:i32] : i32
   %12 = Call app/main/make[] (%11) : User

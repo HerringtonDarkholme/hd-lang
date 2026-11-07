@@ -139,7 +139,7 @@ pub fn run(root: *Node) -> i64:
 >   %12 = Store [$3] %11 : ()
     save(root, &mut keeper)
 >   %13 = Read [$0] : Counted[Node]
->   %14 = Ref mut local [$3] : Counted[mut Keeper]
+>   %14 = Ref mut local [$3] : Ref[mut Keeper]
 >   %15 = Call app/main/save[] (%13, %14) : ()
     total.sum + i64(keeper.saved.len())
 >   %16 = Read [$1 .sum] : i64

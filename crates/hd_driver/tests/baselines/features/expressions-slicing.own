@@ -45,7 +45,7 @@ fn list_slice(xs: List[string]) -> List[string]:
 >   local $0 xs: List[string] [param read captured] place
 >   %0 = Read borrow [$0] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
->   %2 = Ref local frame [$0] : Counted[List[string]]
+>   %2 = Ref local frame [$0] : Ref[List[string]]
 >   %3 = Call std/collections/impl [ T ] List [ T ].slice[string] (%2, 1:usize, %1) : List[string]
 >   %4 = Drop [%2] : ()
 >   %5 = Drop [$0] : ()
@@ -59,7 +59,7 @@ fn list_full(xs: List[string]) -> List[string]:
 >   local $0 xs: List[string] [param read captured] place
 >   %0 = Read borrow [$0] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
->   %2 = Ref local frame [$0] : Counted[List[string]]
+>   %2 = Ref local frame [$0] : Ref[List[string]]
 >   %3 = Call std/collections/impl [ T ] List [ T ].slice[string] (%2, 0:usize, %1) : List[string]
 >   %4 = Drop [%2] : ()
 >   %5 = Drop [$0] : ()
@@ -71,7 +71,7 @@ fn list_slice_len(xs: List[string]) -> usize:
     xs.slice(0, 2).len()
 > app/main/list_slice_len
 >   local $0 xs: List[string] [param read captured] place
->   %0 = Ref local frame [$0] : Counted[List[string]]
+>   %0 = Ref local frame [$0] : Ref[List[string]]
 >   %1 = Call std/collections/impl [ T ] List [ T ].slice[string] (%0, 0:usize, 2:usize) : List[string]
 >   %2 = Drop [%0] : ()
 >   %3 = Drop [$0] : ()

@@ -143,9 +143,9 @@ fn guarded(log: *mut List[string], s: string, n: i32) -> usize:
 >   %3 = Read copy [$0] : Counted[mut List[string]]
 >   %4 = NewStruct [%2 %3] : Res
 >   %5 = Store [$3] %4 : ()
->   %6 = Ref mut local frame [$3] : Counted[mut Res]
+>   %6 = Ref mut local frame [$3] : Ref[mut Res]
 >   %7 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%6) : ()
->   %8 = Drop [%6] : ()
+>   %8 = LoanEnd [%6] : ()
 >   %9 = Block - : ()
 >   %10 = Defer #9 : ()
 >   %23 = Block %22 : usize

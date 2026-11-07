@@ -158,9 +158,9 @@ pub fn main() -> void $ Console:
 >   %7 = Store [$1] %6 : ()
 >   %6 finds [$0] full
     element(&mut items, 0)
->   %8 = Ref mut local frame [$0] : Counted[mut List[Item]]
+>   %8 = Ref mut local frame [$0] : Ref[mut List[Item]]
 >   %9 = Call app/main/element[] (%8, 0:usize) : ()
->   %10 = Drop [%8] : ()
+>   %10 = LoanEnd [%8] : ()
 >   %8 finds [$0] full
     through_reference(&mut items[0])
 >   %11 = IsUnique [$0] : ()
@@ -176,9 +176,9 @@ pub fn main() -> void $ Console:
 >   %18 = NewStruct [%17 "t"] : Outer
 >   %19 = Store [$2] %18 : ()
     field(&mut o)
->   %20 = Ref mut local frame [$2] : Counted[mut Outer]
+>   %20 = Ref mut local frame [$2] : Ref[mut Outer]
 >   %21 = Call app/main/field[] (%20) : ()
->   %22 = Drop [%20] : ()
+>   %22 = LoanEnd [%20] : ()
 >   %20 finds [$2] full
     replaced(&mut items[0])
 >   %23 = IsUnique [$0] : ()
@@ -188,14 +188,14 @@ pub fn main() -> void $ Console:
 >   %23 finds [$0] full
 >   %24 finds [$0] full
     call_between(&mut items, 0)
->   %27 = Ref mut local frame [$0] : Counted[mut List[Item]]
+>   %27 = Ref mut local frame [$0] : Ref[mut List[Item]]
 >   %28 = Call app/main/call_between[] (%27, 0:usize) : ()
->   %29 = Drop [%27] : ()
+>   %29 = LoanEnd [%27] : ()
 >   %27 finds [$0] full
     println(used_after(&mut items, 0) + o.item.r + shared[0].r)
->   %30 = Ref mut local frame [$0] : Counted[mut List[Item]]
+>   %30 = Ref mut local frame [$0] : Ref[mut List[Item]]
 >   %31 = Call app/main/used_after[] (%30, 0:usize) : usize
->   %32 = Drop [%30] : ()
+>   %32 = LoanEnd [%30] : ()
 >   %33 = Drop [$0] : ()
 >   %34 = Read copy [$2 .item .r] : usize
 >   %35 = Drop [$2] : ()

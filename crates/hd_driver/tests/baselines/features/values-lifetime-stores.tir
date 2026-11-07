@@ -38,19 +38,19 @@ fn total(a: User, b: User) -> usize:
 >   %1 = Store [$2] %0 : ()
 >   %21 = Block %20 : usize
     remember(&mut seen, &a)
->   %2 = Ref mut local [$2] : Counted[mut List[Ref[User]]]
->   %3 = Ref local [$0] : Counted[User]
+>   %2 = Ref mut local [$2] : Ref[mut List[Ref[User]]]
+>   %3 = Ref local [$0] : Ref[User]
 >   %4 = Call app/main/remember[] (%2, %3) : ()
     remember(&mut seen, &b)
->   %5 = Ref mut local [$2] : Counted[mut List[Ref[User]]]
->   %6 = Ref local [$1] : Counted[User]
+>   %5 = Ref mut local [$2] : Ref[mut List[Ref[User]]]
+>   %6 = Ref local [$1] : Ref[User]
 >   %7 = Call app/main/remember[] (%5, %6) : ()
     let mut by: Map[string, &User] = {}
 >   %8 = NewMap [] : Map[string, Ref[User]]
 >   %9 = Store [$3] %8 : ()
     index(&mut by, &a)
->   %10 = Ref mut local [$3] : Counted[mut Map[string, Ref[User]]]
->   %11 = Ref local [$0] : Counted[User]
+>   %10 = Ref mut local [$3] : Ref[mut Map[string, Ref[User]]]
+>   %11 = Ref local [$0] : Ref[User]
 >   %12 = Call app/main/index[] (%10, %11) : ()
     seen[0].name.len() + seen[1].name.len() + by.len()
 >   %13 = Ref local [$2 [0:usize] * .name] : Ref[string]

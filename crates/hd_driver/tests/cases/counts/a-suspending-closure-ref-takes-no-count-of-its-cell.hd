@@ -1,6 +1,6 @@
 # @dump: own counts wat
 # @build: v8 release
-# expected: a closure's own local and shared capture copy existing cell counts; a copied capture's reference owns a fresh object instead.
+# expected: a reference to a closure's own local or to a shared capture takes no count of the cell; a copied capture's reference points into the environment, with no new object.
 struct Tally:
     n: i64
 

@@ -25,21 +25,20 @@ fn one!(s: string) -> usize:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %3 lend last
 >   local $1 $ref: string [read assigned captured captured-assigned] place
->   %0 = Retain %13 Cold local $0 #0 : ()
->   %1 = Retain %13 Entry local $0 #0 : ()
+>   %0 = Retain %12 Cold local $0 #0 : ()
+>   %1 = Retain %12 Entry local $0 #0 : ()
     label!(s).len()
->   %2 = Release %13 FrameDrop child #2 : ()
+>   %2 = Release %12 FrameDrop child #2 : ()
 >   %3 = Read move [$0] : string
 >   %4 = Await app/main/label[] (%3) : string
 >   %5 = Release %4 Operation child #2 : ()
 >   %6 = Drop [%3] : ()
 >   %7 = Store [$1] %4 : ()
->   %8 = Ref local [$1] : Counted[string]
->   %9 = Retain %8 Value #0 : ()
->   %10 = Call std/text/impl string.len[] (%8) : usize
->   %11 = Drop [%8] : ()
->   %12 = Drop [$1] : ()
->   %13 = Block %10 : usize
+>   %8 = Ref local [$1] : Ref[string]
+>   %9 = Call std/text/impl string.len[] (%8) : usize
+>   %10 = Drop [%8] : ()
+>   %11 = Drop [$1] : ()
+>   %12 = Block %9 : usize
 >   %8 finds [$1] full
 >   exit sub 0 drops [$0]
 >   summary none
@@ -53,10 +52,10 @@ fn both!(a: string, b: string) -> usize:
 >     uses $1: entry -> %6 lend last
 >   local $2 x: string [read assigned captured] place
 >   local $3 y: string [read assigned captured] place
->   %0 = Retain %33 Cold local $0 #0 : ()
->   %1 = Retain %33 Entry local $0 #0 : ()
->   %2 = Retain %33 Cold local $1 #0 : ()
->   %3 = Retain %33 Entry local $1 #0 : ()
+>   %0 = Retain %31 Cold local $0 #0 : ()
+>   %1 = Retain %31 Entry local $0 #0 : ()
+>   %2 = Retain %31 Cold local $1 #0 : ()
+>   %3 = Retain %31 Entry local $1 #0 : ()
     let (x, y) = join!(label(a), label(b))
 >   %4 = Read move [$0] : string
 >   %5 = Call app/main/label[] (%4) : mut Suspend[string]
@@ -75,21 +74,19 @@ fn both!(a: string, b: string) -> usize:
 >   %18 = Store [$3] %16 : ()
 >   %20 = Block - : never
 >   %21 = Match %8 [%20 %14] : ()
->   %33 = Block %32 : usize
+>   %31 = Block %30 : usize
     x.len() + y.len()
->   %22 = Ref local [$2] : Counted[string]
->   %23 = Retain %22 Value #0 : ()
->   %24 = Call std/text/impl string.len[] (%22) : usize
->   %25 = Drop [%22] : ()
->   %26 = Drop [$2] : ()
->   %27 = Ref local [$3] : Counted[string]
->   %28 = Retain %27 Value #0 : ()
->   %29 = Call std/text/impl string.len[] (%27) : usize
->   %30 = Drop [%27] : ()
->   %31 = Drop [$3] : ()
->   %32 = Prim Add [%24 %29] : usize
+>   %22 = Ref local [$2] : Ref[string]
+>   %23 = Call std/text/impl string.len[] (%22) : usize
+>   %24 = Drop [%22] : ()
+>   %25 = Drop [$2] : ()
+>   %26 = Ref local [$3] : Ref[string]
+>   %27 = Call std/text/impl string.len[] (%26) : usize
+>   %28 = Drop [%26] : ()
+>   %29 = Drop [$3] : ()
+>   %30 = Prim Add [%23 %27] : usize
 >   %22 finds [$2] full
->   %27 finds [$3] full
+>   %26 finds [$3] full
 >   exit sub 0 drops [$0 $1]
 >   summary none
 >   unwind %8 drops [%4 %5 %6 %7]
@@ -101,12 +98,12 @@ fn either!(a: string, b: string) -> usize:
 >   local $1 b: string [param read] value
 >     uses $1: entry -> %8 lend last
 >   local $2 $ref: string [read assigned captured captured-assigned] place
->   %0 = Retain %21 Cold local $0 #0 : ()
->   %1 = Retain %21 Entry local $0 #0 : ()
->   %2 = Retain %21 Cold local $1 #0 : ()
->   %3 = Retain %21 Entry local $1 #0 : ()
+>   %0 = Retain %20 Cold local $0 #0 : ()
+>   %1 = Retain %20 Entry local $0 #0 : ()
+>   %2 = Retain %20 Cold local $1 #0 : ()
+>   %3 = Retain %20 Entry local $1 #0 : ()
     race!(label(a), label(b)).len()
->   %4 = Release %21 FrameDrop child #2 : ()
+>   %4 = Release %20 FrameDrop child #2 : ()
 >   %5 = Read move [$0] : string
 >   %6 = Call app/main/label[] (%5) : mut Suspend[string]
 >   %7 = Drop [%5] : ()
@@ -118,12 +115,11 @@ fn either!(a: string, b: string) -> usize:
 >   %13 = Release %12 Operation child #2 : ()
 >   %14 = Drop [%11] : ()
 >   %15 = Store [$2] %12 : ()
->   %16 = Ref local [$2] : Counted[string]
->   %17 = Retain %16 Value #0 : ()
->   %18 = Call std/text/impl string.len[] (%16) : usize
->   %19 = Drop [%16] : ()
->   %20 = Drop [$2] : ()
->   %21 = Block %18 : usize
+>   %16 = Ref local [$2] : Ref[string]
+>   %17 = Call std/text/impl string.len[] (%16) : usize
+>   %18 = Drop [%16] : ()
+>   %19 = Drop [$2] : ()
+>   %20 = Block %17 : usize
 >   %16 finds [$2] full
 >   exit sub 0 drops [$0 $1]
 >   summary none

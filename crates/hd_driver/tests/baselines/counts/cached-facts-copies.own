@@ -53,9 +53,9 @@ impl[T] HasFacts for T by Structure:
 > app/main/impl HasFacts for Record by Structure.has_facts
 >   local $0 self: Record [param read captured] place
 >   local $1 reader: Reader[Record] [read assigned captured captured-assigned] place
->   local $2 self: Counted[Record] value
+>   local $2 self: Ref[Record] value
 >     uses $2: %4 -> %6 lend last
->   local $3 p: Counted[mut Reader[Record]] value
+>   local $3 p: Ref[mut Reader[Record]] value
 >     uses $3: %5 -> %8 consume, %31 consume last
 >   %0 = NewStruct [0:bool] : Reader[Record]
 >   %1 = Store [$1] %0 : ()
@@ -67,18 +67,18 @@ impl[T] HasFacts for T by Structure:
 >   %1 = Store [$1] %0 : ()
 >   %10 = Block %8 : bool
         _ := Structure::walk(&self, &mut reader)
->   %2 = Ref local frame [$0] : Counted[Record]
->   %3 = Ref mut local frame [$1] : Counted[mut Reader[Record]]
+>   %2 = Ref local frame [$0] : Ref[Record]
+>   %3 = Ref mut local frame [$1] : Ref[mut Reader[Record]]
 >   %4 = Store [$2] %2 : ()
 >   %5 = Store [$3] %3 : ()
 >   %63 = Break L4 %62 : never
 >   %65 = Scope %64 [] : Result[(), never]
->   %66 = Drop [$3] : ()
+>   %66 = LoanEnd [$3] : ()
 >   %67 = Drop [$2] : ()
 >   %68 = Drop [$0] : ()
 >   %3 finds [$1] full
->   %2 = Ref local frame [$0] : Counted[T]
->   %3 = Ref mut local frame [$1] : Counted[mut Reader[T]]
+>   %2 = Ref local frame [$0] : Ref[T]
+>   %3 = Ref mut local frame [$1] : Ref[mut Reader[T]]
 >   %4 = Call std/structure/Structure.walk for T [Reader[T]] via Bound (%2, %3) : Result[(), never]
 >   %5 = Drop [%3] : ()
 >   %6 = Drop [%2] : ()

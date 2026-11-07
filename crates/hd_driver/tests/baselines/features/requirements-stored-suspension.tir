@@ -41,7 +41,7 @@ fn tagged!() -> usize $ Tag:
 >   %2 = Read [*%1] : Tag
 >   %3 = Call app/main/Tag.name for Tag [] via TraitValue (%2) : string
 >   %4 = Store [$0] %3 : ()
->   %5 = Ref local [$0] : Counted[string]
+>   %5 = Ref local [$0] : Ref[string]
 >   %6 = Call std/text/impl string.len[] (%5) : usize
 >   %7 = Block %6 : usize
 
@@ -59,7 +59,7 @@ fn later!(key: string) -> usize:
 >   %3 = Read [$1] : mut Suspend[string]
 >   %4 = AwaitValue %3 : string
 >   %5 = Store [$2] %4 : ()
->   %6 = Ref local [$2] : Counted[string]
+>   %6 = Ref local [$2] : Ref[string]
 >   %7 = Call std/text/impl string.len[] (%6) : usize
 
 fn blocking(key: string) -> usize:
@@ -74,7 +74,7 @@ fn blocking(key: string) -> usize:
 >   %15 = Match %2 [%14 %5 %6] : usize
 >   %16 = Block %15 : usize
         .Completed(v) => v.len()
->   %3 = Ref local [$1] : Counted[string]
+>   %3 = Ref local [$1] : Ref[string]
 >   %4 = Call std/text/impl string.len[] (%3) : usize
 >   %5 = Block %4 : usize
 >   %7 = Read [%2 as #0 .0] : string

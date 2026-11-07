@@ -2,7 +2,7 @@
 app/main/generic
   local $0 value: T [param read captured] place
   %5 = Release %12 FrameDrop child #2 : ()
-  %6 = Ref local [$0] : Counted[T]
+  %6 = Ref local [$0] : Ref[T]
   %7 = Coerce %6 [Weaken -] : Ref[T]
   %8 = Await app/main/copy[T] (%7) : T
   %9 = Release %8 Operation child #2 : ()

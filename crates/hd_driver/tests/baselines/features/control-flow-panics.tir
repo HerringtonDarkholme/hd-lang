@@ -45,7 +45,7 @@ fn must(s: string, n: i32) -> usize:
 >   %12 = Call std/core/panic[] (%9) : never
 >   %13 = Block - : never
     t.len()
->   %15 = Ref local [$2] : Counted[string]
+>   %15 = Ref local [$2] : Ref[string]
 >   %16 = Call std/text/impl string.len[] (%15) : usize
 
 fn guarded(log: *mut List[string], s: string, n: i32) -> usize:
@@ -60,7 +60,7 @@ fn guarded(log: *mut List[string], s: string, n: i32) -> usize:
 >   %2 = Read [$0] : Counted[mut List[string]]
 >   %3 = NewStruct [%1 %2] : Res
 >   %4 = Store [$3] %3 : ()
->   %5 = Ref mut local [$3] : Counted[mut Res]
+>   %5 = Ref mut local [$3] : Ref[mut Res]
 >   %6 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%5) : ()
 >   %7 = Block - : ()
 >   %8 = Defer #7 : ()

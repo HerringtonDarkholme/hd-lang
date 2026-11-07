@@ -22,7 +22,7 @@ fn count_long(xs: List[string]) -> usize:
 >   %0 = Store [$1] 0:usize : ()
 >   %28 = Block %27 : usize
     for x in names(&xs):
->   %1 = Ref local [$0] : Counted[List[string]]
+>   %1 = Ref local [$0] : Ref[List[string]]
 >   %2 = Call app/main/names[] (%1) : impl Iterator[string]
 >   %3 = Store [$2] %2 : ()
 >   %4 = Ref mut local [$2] : Ref[mut impl Iterator[string]]
@@ -40,7 +40,7 @@ fn count_long(xs: List[string]) -> usize:
 >   %26 = Loop %25 - : ()
         n += x.len()
 >   %8 = Read [$1] : usize
->   %9 = Ref local [$4] : Counted[string]
+>   %9 = Ref local [$4] : Ref[string]
 >   %10 = Call std/text/impl string.len[] (%9) : usize
 >   %11 = Prim Add [%8 %10] : usize
 >   %12 = Store [$1] %11 : ()

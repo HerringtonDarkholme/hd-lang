@@ -14,7 +14,7 @@ fn unwrap(o: string?) -> usize:
 >   %17 = Match %0 [%16 %3 %4] : usize
 >   %18 = Block %17 : usize
         .Some(s) => s.len()
->   %1 = Ref local [$1] : Counted[string]
+>   %1 = Ref local [$1] : Ref[string]
 >   %2 = Call std/text/impl string.len[] (%1) : usize
 >   %3 = Block %2 : usize
 >   %5 = Read [%0 as #1 .0] : string

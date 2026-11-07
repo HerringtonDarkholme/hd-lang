@@ -12,7 +12,7 @@ fn width(s: string) -> usize:
     s.len()
 > app/main/width
 >   local $0 s: string [param read captured]
->   %0 = Ref local [$0] : Counted[string]
+>   %0 = Ref local [$0] : Ref[string]
 >   %1 = Call std/text/impl string.len[] (%0) : usize
 >   %2 = Block %1 : usize
 
@@ -34,7 +34,7 @@ fn static_bound(s: string) -> usize:
 >   %0 = ItemRef #0 [..] : fn(string) -> usize
 >   %1 = Read [$0] : string
 >   %2 = Call app/main/invoke[fn(string) -> usize] (%0, %1) : usize
->   %3 = Ref local [$1] : Counted[string]
+>   %3 = Ref local [$1] : Ref[string]
 >   %4 = Call std/text/impl string.len[] (%3) : usize
 >   %5 = Prim Add [%4 1:usize] : usize
 >   %6 = Block %5 : usize
@@ -97,7 +97,7 @@ fn fn_mut(xs: List[string]) -> usize:
     each(xs, fn(x: string) -> void: n += x.len())
 >   %1 = Read [$0] : List[string]
 >   %2 = Read [$1] : usize
->   %3 = Ref local [$2] : Counted[string]
+>   %3 = Ref local [$2] : Ref[string]
 >   %4 = Call std/text/impl string.len[] (%3) : usize
 >   %5 = Prim Add [%2 %4] : usize
 >   %6 = Store [$1] %5 : ()

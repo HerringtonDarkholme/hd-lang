@@ -43,9 +43,9 @@ fn is_user(value: &dyn Inspectable) -> bool:
 >   %1 = Call std/inspect/Inspectable.runtime_type for Inspectable [] via TraitValue (%0) : TypeId
 >   %2 = Call std/inspect/impl TypeId.of[User] () : TypeId
 >   %3 = Store [$1] %1 : ()
->   %4 = Ref local [$1] : Counted[TypeId]
+>   %4 = Ref local [$1] : Ref[TypeId]
 >   %5 = Store [$2] %2 : ()
->   %6 = Ref local [$2] : Counted[TypeId]
+>   %6 = Ref local [$2] : Ref[TypeId]
 >   %7 = Call std/core/Eq.eq for TypeId [] via Impl (%4, %6) : bool
 >   %8 = Block %7 : bool
 

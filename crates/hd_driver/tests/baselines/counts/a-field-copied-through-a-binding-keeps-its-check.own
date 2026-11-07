@@ -62,9 +62,9 @@ pub fn go() -> usize:
 >   %4 finds [$0] full
 >   %3 shared: a copy of the field
     snapshot(&mut bag).len()
->   %6 = Ref mut local frame [$0] : Counted[mut Bag]
+>   %6 = Ref mut local frame [$0] : Ref[mut Bag]
 >   %7 = Call app/main/snapshot[] (%6) : List[i32]
->   %8 = Drop [%6] : ()
+>   %8 = LoanEnd [%6] : ()
 >   %9 = Drop [$0] : ()
 >   %10 = Intrinsic ListLen [%7] : usize
 >   %11 = Drop [%7] : ()

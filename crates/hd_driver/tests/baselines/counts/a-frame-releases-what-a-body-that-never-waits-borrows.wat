@@ -1211,36 +1211,7 @@
         local.set $a
       end
       local.get $a
-      local.tee $t32
-      local.tee $t71
-      if
-        local.get $t71
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t71
-          call $rt:retain_known
-        end
-      end
-      local.get $t32
       i32.load $heap
-    ;; 17 |     n := box::[Note](Note { text: "n" })
-      local.get $t32
-      local.tee $t71
-      if
-        local.get $t71
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t71
-          call $rt:release_ref'1
-        end
-      end
-    ;; 19 |     println("$a")
       i64.extend_i32_u
       local.set $t37
     ;; 17 |     n := box::[Note](Note { text: "n" })

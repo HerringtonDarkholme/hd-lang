@@ -206,14 +206,14 @@ pub fn owned(rounds: usize, first: i64) -> i64:
 >   %33 = Loop %32 - : ()
 >   %33 finds [$2] full
         scale(&mut xs, 2)
->   %25 = Ref mut local frame [$2] : Counted[mut List[i64]]
+>   %25 = Ref mut local frame [$2] : Ref[mut List[i64]]
 >   %26 = Call app/main/scale[] (%25, 2:i64) : ()
->   %27 = Drop [%25] : ()
+>   %27 = LoanEnd [%25] : ()
 >   %25 finds [$2] full
     sum(&xs)
->   %34 = Ref local frame [$2] : Counted[List[i64]]
+>   %34 = Ref local frame [$2] : Ref[List[i64]]
 >   %35 = Call app/main/sum[] (%34) : i64
->   %36 = Drop [%34] : ()
+>   %36 = LoanEnd [%34] : ()
 >   %37 = Drop [$2] : ()
 >   %34 finds [$2] full
 >   summary kept [] writes
@@ -243,13 +243,13 @@ pub fn copied(first: i64) -> i64:
 >   %8 finds [$1] full
 >   %9 finds [$1] full
     sum(&xs) + sum(&ys)
->   %11 = Ref local frame [$1] : Counted[List[i64]]
+>   %11 = Ref local frame [$1] : Ref[List[i64]]
 >   %12 = Call app/main/sum[] (%11) : i64
->   %13 = Drop [%11] : ()
+>   %13 = LoanEnd [%11] : ()
 >   %14 = Drop [$1] : ()
->   %15 = Ref local frame [$2] : Counted[List[i64]]
+>   %15 = Ref local frame [$2] : Ref[List[i64]]
 >   %16 = Call app/main/sum[] (%15) : i64
->   %17 = Drop [%15] : ()
+>   %17 = LoanEnd [%15] : ()
 >   %18 = Drop [$2] : ()
 >   %19 = Prim Add [%12 %16] : i64
 >   %11 finds [$1] full

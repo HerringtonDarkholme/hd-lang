@@ -1394,6 +1394,7 @@ runtime/valid/copy-update-replacing-a-list-shares-the-replacement.hd	runtime	acc
 runtime/valid/suspending-call-argument-keeps-a-field-list-unchanged.hd	runtime	accept	lang/13-values-and-references.md#copy
 runtime/valid/struct-field-stored-from-a-parameter-keeps-its-copy.hd	runtime	accept	lang/13-values-and-references.md#copy
 runtime/valid/a-bang-body-with-no-point-frees-its-cell.hd	runtime	accept	lang/13-values-and-references.md#r-ref.move.field
+runtime/valid/a-reference-to-a-captured-copy-outlives-the-closure-that-suspended.hd	runtime	accept	std/time.md#r-std-time.clock.sleep
 runtime/valid/copy-update-evaluation-order.hd	runtime	accept	lang/08-data-and-enums.md#copy-update-literals
 typing/invalid/copy-update-source-type-mismatch.hd	type	reject:type-mismatch	lang/08-data-and-enums.md#copy-update-literals
 runtime/valid/copy-update-skips-defaults.hd	runtime	accept	lang/08-data-and-enums.md#copy-update-literals

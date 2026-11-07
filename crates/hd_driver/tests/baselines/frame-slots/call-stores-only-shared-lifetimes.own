@@ -32,11 +32,11 @@ fn non_storing(xs: List[string]) -> usize:
 >   %1 = Store [$1] %0 : ()
 >   %12 = Block %11 : usize
     size := push_len(&mut out, &xs)
->   %2 = Ref mut local frame [$1] : Counted[mut List[Ref[string]]]
->   %3 = Ref local frame [$0] : Counted[List[string]]
+>   %2 = Ref mut local frame [$1] : Ref[mut List[Ref[string]]]
+>   %3 = Ref local frame [$0] : Ref[List[string]]
 >   %4 = Call app/main/push_len[] (%2, %3) : usize
 >   %5 = Drop [%3] : ()
->   %6 = Drop [%2] : ()
+>   %6 = LoanEnd [%2] : ()
 >   %7 = Drop [$0] : ()
 >   %2 finds [$1] full
     size + out.len()
@@ -73,12 +73,12 @@ fn storing(xs: List[string]) -> usize:
 >   %1 = Store [$1] %0 : ()
 >   %13 = Block %10 : usize
     remember(&mut out, &xs[0])
->   %2 = Ref mut local frame [$1] : Counted[mut List[Ref[string]]]
+>   %2 = Ref mut local frame [$1] : Ref[mut List[Ref[string]]]
 >   %3 = IsUnique [$0] : ()
 >   %4 = Ref local [$0 [0:usize]] : Ref[string]
 >   %5 = Call app/main/remember[] (%2, %4) : ()
 >   %6 = LoanEnd [%4] : ()
->   %7 = Drop [%2] : ()
+>   %7 = LoanEnd [%2] : ()
 >   %2 finds [$1] full
     out[0].len()
 >   %8 = Read copy [$1 [0:usize]] : Ref[string]

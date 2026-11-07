@@ -61,7 +61,7 @@ fn local(s: string) -> usize:
 >   %2 = Store [$1] %1 : ()
 >   %11 = Block %10 : usize
     nudge(&mut origin)
->   %3 = Ref mut local [$1] : Counted[mut Point]
+>   %3 = Ref mut local [$1] : Ref[mut Point]
 >   %4 = Call app/main/nudge[] (%3) : ()
     let r: &mut Point = &mut origin
 >   %5 = Ref mut local [$1] : Ref[mut Point]
@@ -70,7 +70,7 @@ fn local(s: string) -> usize:
 >   %7 = Read [$2] : Ref[mut Point]
 >   %8 = Call app/main/bump[] (%7) : ()
     view(&origin)
->   %9 = Ref local [$1] : Counted[Point]
+>   %9 = Ref local [$1] : Ref[Point]
 >   %10 = Call app/main/view[] (%9) : usize
 
 fn weaken(h: *mut Point) -> *Point:

@@ -51,7 +51,7 @@ fn length(text: string) -> usize:
 > app/main/length
 >   local $0 text: string [param read captured]
 >   local $1 p: Parser[string, Ref[()]] [:= read assigned]
->   %0 = Ref local [$0] : Counted[string]
+>   %0 = Ref local [$0] : Ref[string]
 >   %1 = Call app/main/parser[] (%0) : Parser[string, Ref[()]]
 >   %2 = Store [$1] %1 : ()
 >   %7 = Block %6 : usize
@@ -66,9 +66,9 @@ fn token(text: string, other: string) -> usize:
 > app/main/token
 >   local $0 text: string [param read captured]
 >   local $1 other: string [param read captured]
->   %0 = Ref local [$0] : Counted[string]
+>   %0 = Ref local [$0] : Ref[string]
 >   %1 = NewVariant #0 [%0] : Token[string, Ref[()]]
->   %2 = Ref local [$1] : Counted[string]
+>   %2 = Ref local [$1] : Ref[string]
 >   %3 = Call app/main/word[] (%1, %2) : Ref[string]
 >   %4 = Call std/text/impl string.len[] (%3) : usize
 >   %5 = Block %4 : usize

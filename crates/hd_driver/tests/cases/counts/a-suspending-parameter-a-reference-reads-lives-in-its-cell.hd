@@ -1,6 +1,6 @@
 # @dump: own counts wat
 # @build: std
-# expected: `sized`'s cold constructor makes the cell from the arguments, once, and `u.len()` takes a count of the cell, not a new object; the exit drop releases the cell, whose release runs the list's hook once. `main!`'s `let mut u` moves out of its cell at the await.
+# expected: `sized`'s cold constructor makes the cell from the arguments, once, and `u.len()` takes no count of the cell and no new object; the exit drop releases the cell, whose release runs the list's hook once. `main!`'s `let mut u` moves out of its cell at the await.
 use std.collections.UniqList
 use std.time.{Clock, ms, sleep}
 

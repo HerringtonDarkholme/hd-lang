@@ -11,22 +11,22 @@ fn by_value(s: string) -> usize:
     (s.len() + 1) * (s.len() + 2) * (s.len() + 3) * (s.len() + 4) / (s.len() + 5)
 > app/main/by_value
 >   local $0 s: string [param read captured]
->   %0 = Ref local [$0] : Counted[string]
+>   %0 = Ref local [$0] : Ref[string]
 >   %1 = Call std/text/impl string.len[] (%0) : usize
 >   %2 = Prim Add [%1 1:usize] : usize
->   %3 = Ref local [$0] : Counted[string]
+>   %3 = Ref local [$0] : Ref[string]
 >   %4 = Call std/text/impl string.len[] (%3) : usize
 >   %5 = Prim Add [%4 2:usize] : usize
 >   %6 = Prim Mul [%2 %5] : usize
->   %7 = Ref local [$0] : Counted[string]
+>   %7 = Ref local [$0] : Ref[string]
 >   %8 = Call std/text/impl string.len[] (%7) : usize
 >   %9 = Prim Add [%8 3:usize] : usize
 >   %10 = Prim Mul [%6 %9] : usize
->   %11 = Ref local [$0] : Counted[string]
+>   %11 = Ref local [$0] : Ref[string]
 >   %12 = Call std/text/impl string.len[] (%11) : usize
 >   %13 = Prim Add [%12 4:usize] : usize
 >   %14 = Prim Mul [%10 %13] : usize
->   %15 = Ref local [$0] : Counted[string]
+>   %15 = Ref local [$0] : Ref[string]
 >   %16 = Call std/text/impl string.len[] (%15) : usize
 >   %17 = Prim Add [%16 5:usize] : usize
 >   %18 = Prim Div [%14 %17] : usize
@@ -95,12 +95,12 @@ fn calls(s: string, n: *Node) -> usize:
 >   %1 = Store [$2] %0 : ()
 >   %15 = Block %14 : usize
     by_mut(&mut t)
->   %2 = Ref mut local [$2] : Counted[mut string]
+>   %2 = Ref mut local [$2] : Ref[mut string]
 >   %3 = Call app/main/by_mut[] (%2) : ()
     by_value(s) + by_ref(&s) + by_value(t) + by_ptr(n)
 >   %4 = Read [$0] : string
 >   %5 = Call app/main/by_value[] (%4) : usize
->   %6 = Ref local [$0] : Counted[string]
+>   %6 = Ref local [$0] : Ref[string]
 >   %7 = Call app/main/by_ref[] (%6) : usize
 >   %8 = Prim Add [%5 %7] : usize
 >   %9 = Read [$2] : string

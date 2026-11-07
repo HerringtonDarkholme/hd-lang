@@ -71,50 +71,19 @@
     local.get $t0
     local.get $t1
   )
-  (func $make#1 (param $env i32) (param $ctx i32) (result i32 i32) (local $p.name.0 i32) (local $p.name.1 i32) (local $t0 i32) (local $t1 i64) (local $t2 i64) (local $t3 i32) (local $t4 i32) (local $t5 i32)
+  (func $make#1 (param $env i32) (param $ctx i32) (result i32 i32) (local $t1 i64) (local $t2 i64) (local $t3 i32) (local $t4 i32) (local $t0 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32)
     ;; 18 |     fn() -> string: "${peek(&p)} ${first(&p.name)}"
     local.get $env
-    i32.load $heap
-    local.set $ctx
-    local.get $env
     i32.load $heap offset=4
-    local.tee $p.name.0
-    local.get $env
-    i32.load $heap offset=8
-    local.set $p.name.1
+    local.tee $ctx
     local.tee $t0
     if
       local.get $t0
       call $retain
     end
     block
-      i32.const 12
-      i32.const 2
-      call $rt:new/class-2
-      local.tee $t0
-      local.get $ctx
-      i32.store $heap
-      local.get $t0
-      local.get $p.name.0
-      i32.store $heap offset=4
-      local.get $t0
-      local.get $p.name.1
-      i32.store $heap offset=8
-      local.get $t0
-      call $rt:retain_fields
-      local.get $t0
+      local.get $env
       call $peek
-      local.get $t0
-      if
-        local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t0
-          call $rt:release_ref'1
-        end
-      end
       i64.extend_i32_s
       local.tee $t1
       local.set $t2
@@ -125,18 +94,18 @@
               local.get $t2
               call $signed_magnitude
               call $unsigned_width
-              local.set $ctx
+              local.set $t3
               local.get $t2
               i64.const 0
               i64.lt_s
               if
                 i32.const 1
-                local.set $t3
+                local.set $t4
               else
               end
-              local.get $ctx
-              i64.extend_i32_u
               local.get $t3
+              i64.extend_i32_u
+              local.get $t4
               i64.extend_i32_u
               i64.add
               local.tee $t2
@@ -148,7 +117,7 @@
               end
               local.get $t2
               i32.wrap_i64
-              local.set $ctx
+              local.set $t3
               br 0
             end
           end
@@ -159,9 +128,9 @@
       i32.const 4
       i32.add
       call $first
-      local.set $p.name.1
+      local.set $t4
       local.tee $env
-      local.get $p.name.0
+      local.get $ctx
       local.tee $t0
       if
         local.get $t0
@@ -170,12 +139,12 @@
       drop
       block
         block
-          local.get $p.name.1
-          local.set $p.name.0
+          local.get $t4
+          local.set $ctx
           br 0
         end
       end
-      local.get $ctx
+      local.get $t3
       local.tee $t0
       i32.const -2
       i32.gt_u
@@ -188,7 +157,7 @@
       i32.add
       local.tee $t0
       i64.extend_i32_u
-      local.get $p.name.0
+      local.get $ctx
       i64.extend_i32_u
       i64.add
       local.tee $t2
@@ -200,44 +169,44 @@
       end
       local.get $t2
       i32.wrap_i64
-      local.set $p.name.0
+      local.set $ctx
       block
         block
-          local.get $p.name.0
+          local.get $ctx
           i32.const 16
-          local.set $t3
+          local.set $t5
           if
-            local.get $p.name.0
+            local.get $ctx
             call $rt:str
-            local.set $t3
+            local.set $t5
           end
-          local.get $t3
-          local.get $p.name.0
-          local.set $t3
-          local.set $p.name.0
+          local.get $t5
+          local.get $ctx
+          local.set $t5
+          local.set $ctx
           br 0
         end
       end
-      local.get $ctx
-      local.set $t4
+      local.get $t3
+      local.set $t6
       block
         block
           local.get $t1
-          local.get $p.name.0
-          local.get $t4
+          local.get $ctx
+          local.get $t6
           call $write_signed_sized
           br 0
         end
       end
       i32.const 66 ;; &" "
       i32.const 1
-      local.set $t5
-      local.set $t4
+      local.set $t7
+      local.set $t6
       block
         block
-          local.get $p.name.0
-          i64.extend_i32_u
           local.get $ctx
+          i64.extend_i32_u
+          local.get $t3
           i64.extend_i32_u
           i64.add
           local.tee $t1
@@ -249,15 +218,15 @@
           end
           local.get $t1
           i32.wrap_i64
-          local.get $t4
-          local.get $t5
+          local.get $t6
+          local.get $t7
           call $rt:memory_copy/0/0
           br 0
         end
       end
       block
         block
-          local.get $p.name.0
+          local.get $ctx
           i64.extend_i32_u
           local.get $t0
           i64.extend_i32_u
@@ -272,7 +241,7 @@
           local.get $t1
           i32.wrap_i64
           local.get $env
-          local.get $p.name.1
+          local.get $t4
           call $rt:memory_copy/0/0
           br 0
         end
@@ -283,8 +252,8 @@
         local.get $t0
         call $rt:release_ref'2
       end
-      local.get $p.name.0
-      local.get $t3
+      local.get $ctx
+      local.get $t5
       local.set $ctx
       local.set $env
     end

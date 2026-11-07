@@ -13,7 +13,7 @@ fn lens(xs: List[string]) -> List[usize]:
 >   local $1 s: string [param read captured]
 >   %0 = Read [$0] : List[string]
 >   %1 = Call std/iter/Iterable.iter for List[string] [string] via Impl (%0) : ListIter[string]
->   %2 = Ref local [$1] : Counted[string]
+>   %2 = Ref local [$1] : Ref[string]
 >   %3 = Call std/text/impl string.len[] (%2) : usize
 >   %4 = Block %3 : usize
 >   %5 = Closure #1 [%0 %0] : fn(string) -> usize

@@ -62,7 +62,7 @@ fn user_cursor(words: Words) -> usize:
 >   %25 = Loop %24 - : ()
         n += w.len()
 >   %7 = Read [$1] : usize
->   %8 = Ref local [$4] : Counted[string]
+>   %8 = Ref local [$4] : Ref[string]
 >   %9 = Call std/text/impl string.len[] (%8) : usize
 >   %10 = Prim Add [%7 %9] : usize
 >   %11 = Store [$1] %10 : ()
@@ -101,7 +101,7 @@ fn twice(xs: List[string]) -> usize:
 >   %26 = Loop %25 - : ()
         n += x.len()
 >   %8 = Read [$1] : usize
->   %9 = Ref local [$4] : Counted[string]
+>   %9 = Ref local [$4] : Ref[string]
 >   %10 = Call std/text/impl string.len[] (%9) : usize
 >   %11 = Prim Add [%8 %10] : usize
 >   %12 = Store [$1] %11 : ()
@@ -124,7 +124,7 @@ fn twice(xs: List[string]) -> usize:
 >   %52 = Loop %51 - : ()
         n += x.len()
 >   %34 = Read [$1] : usize
->   %35 = Ref local [$7] : Counted[string]
+>   %35 = Ref local [$7] : Ref[string]
 >   %36 = Call std/text/impl string.len[] (%35) : usize
 >   %37 = Prim Add [%34 %36] : usize
 >   %38 = Store [$1] %37 : ()

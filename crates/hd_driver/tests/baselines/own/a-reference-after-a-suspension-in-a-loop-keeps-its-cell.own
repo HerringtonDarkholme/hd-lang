@@ -30,10 +30,10 @@ fn run!(n: i32) -> void:
 >     uses $0: entry -> %5 lend
 >   local $1 c: Counter [read assigned captured captured-assigned] place
 >   local $2 i: i32 [read assigned mutated] place
->   %0 = Release %23 FrameDrop child #2 : ()
+>   %0 = Release %22 FrameDrop child #2 : ()
 >   %1 = NewStruct [0:i32 "a"] : Counter
 >   %2 = Store [$1] %1 : ()
->   %23 = Block - : ()
+>   %22 = Block - : ()
     let i = +0
 >   %3 = Store [$2] 0:i32 : ()
     while i < n:
@@ -55,10 +55,9 @@ fn run!(n: i32) -> void:
 >   %10 = Prim Add [%9 1:i32] : i32
 >   %11 = Store [$2] %10 : ()
     tick(&mut c)
->   %18 = Ref mut local [$1] : Counted[mut Counter]
->   %19 = Retain %18 Value #0 : ()
->   %20 = Call app/main/tick[] (%18) : ()
->   %21 = Drop [%18] : ()
->   %22 = Drop [$1] : ()
+>   %18 = Ref mut local [$1] : Ref[mut Counter]
+>   %19 = Call app/main/tick[] (%18) : ()
+>   %20 = Drop [%18] : ()
+>   %21 = Drop [$1] : ()
 >   %18 finds [$1] full
 >   exit sub 0 drops [$1]

@@ -175,9 +175,9 @@ pub fn run(root: *Node) -> i64:
 >   %15 = Store [$3] %14 : ()
     save(root, &mut keeper)
 >   %16 = Read borrow [$0] : Counted[Node]
->   %17 = Ref mut local frame [$3] : Counted[mut Keeper]
+>   %17 = Ref mut local frame [$3] : Ref[mut Keeper]
 >   %18 = Call app/main/save[] (%16, %17) : ()
->   %19 = Drop [%17] : ()
+>   %19 = LoanEnd [%17] : ()
 >   %17 finds [$3] full
     total.sum + i64(keeper.saved.len())
 >   %20 = Read copy [$1 .sum] : i64

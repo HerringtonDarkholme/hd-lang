@@ -54,8 +54,6 @@ fn holds!() -> usize $ Clock:
 fn gone!() -> usize $ Clock:
     n := text(1).len()
 > app/main/gone
->   retain &string (stored)
->   release &string (last use)
 >   release counted reference (last use)
 > app/main/gone
 >   release counted reference (last use)

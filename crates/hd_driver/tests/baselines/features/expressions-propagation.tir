@@ -26,7 +26,7 @@ fn read(path: string) -> Result[string, ReadError]:
     if path.len() > 0: .Ok(path + "/") else: .Err(ReadError.Missing(path))
 > app/main/read
 >   local $0 path: string [param read captured]
->   %0 = Ref local [$0] : Counted[string]
+>   %0 = Ref local [$0] : Ref[string]
 >   %1 = Call std/text/impl string.len[] (%0) : usize
 >   %2 = Prim Gt [%1 0:usize] : bool
 >   %3 = Read [$0] : string
@@ -57,7 +57,7 @@ fn result_try(path: string) -> Result[usize, ReadError]:
 >   %9 = Store [$1] %8 : ()
 >   %13 = Block %12 : Result[usize, ReadError]
     .Ok(text.len())
->   %10 = Ref local [$1] : Counted[string]
+>   %10 = Ref local [$1] : Ref[string]
 >   %11 = Call std/text/impl string.len[] (%10) : usize
 >   %12 = NewVariant #0 [%11] : Result[usize, ReadError]
 
@@ -79,6 +79,6 @@ fn converted(path: string) -> Result[usize, AppError]:
 >   %10 = Store [$1] %9 : ()
 >   %14 = Block %13 : Result[usize, AppError]
     .Ok(text.len())
->   %11 = Ref local [$1] : Counted[string]
+>   %11 = Ref local [$1] : Ref[string]
 >   %12 = Call std/text/impl string.len[] (%11) : usize
 >   %13 = NewVariant #0 [%12] : Result[usize, AppError]

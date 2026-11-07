@@ -161,11 +161,11 @@ pub fn main() -> void $ Console:
 >   %31 = Loop %30 - : ()
 >   %31 finds [$0] full
         h.add(i % 4)
->   %21 = Ref mut local frame [$0] : Counted[mut Histogram]
+>   %21 = Ref mut local frame [$0] : Ref[mut Histogram]
 >   %22 = Read copy [$4] : usize
 >   %23 = Prim Rem [%22 4:usize] : usize
 >   %24 = Call app/main/impl Histogram.add[] (%21, %23) : ()
->   %25 = Drop [%21] : ()
+>   %25 = LoanEnd [%21] : ()
 >   %21 finds [$0] full
     let mut s = shelf()
 >   %32 = Read copy [@app/main/START] : List[i64]
@@ -175,9 +175,9 @@ pub fn main() -> void $ Console:
 >   %36 = Scope %35 [] : Shelf
 >   %37 = Store [$5] %36 : ()
     s.put(9)
->   %38 = Ref mut local frame [$5] : Counted[mut Shelf]
+>   %38 = Ref mut local frame [$5] : Ref[mut Shelf]
 >   %39 = Call app/main/impl Shelf.put[] (%38, 9:i64) : ()
->   %40 = Drop [%38] : ()
+>   %40 = LoanEnd [%38] : ()
 >   %38 finds [$5] full
     println("${h.buckets[1]} ${s.items[0]} ${START[0]}")
 >   %41 = Read copy [$0 .buckets [1:usize]] : i64

@@ -40,7 +40,7 @@ fn queue(q: &mut Deque[string], a: string) -> usize:
 >   %20 = Block - : never
 >   %21 = Match %4 [%20 %7 %8] : usize
         .Some(x) => x.len()
->   %5 = Ref local [$2] : Counted[string]
+>   %5 = Ref local [$2] : Ref[string]
 >   %6 = Call std/text/impl string.len[] (%5) : usize
 >   %7 = Block %6 : usize
 >   %9 = Read [%4 as #1 .0] : string
@@ -70,7 +70,7 @@ fn top(h: &mut Heap[string], a: string) -> usize:
 >   %20 = Block - : never
 >   %21 = Match %4 [%20 %7 %8] : usize
         .Some(x) => x.len()
->   %5 = Ref local [$2] : Counted[string]
+>   %5 = Ref local [$2] : Ref[string]
 >   %6 = Call std/text/impl string.len[] (%5) : usize
 >   %7 = Block %6 : usize
 >   %9 = Read [%4 as #1 .0] : string

@@ -113,16 +113,16 @@ fn collect(f: Field) -> usize:
 >   %1 = Store [$1] %0 : ()
 >   %13 = Block %11 : usize
     remember(&mut all, f)
->   %2 = Ref mut local frame [$1] : Counted[mut List[Field]]
+>   %2 = Ref mut local frame [$1] : Ref[mut List[Field]]
 >   %3 = Read copy [$0] : Field
 >   %4 = Call app/main/remember[] (%2, %3) : ()
->   %5 = Drop [%2] : ()
+>   %5 = LoanEnd [%2] : ()
 >   %2 finds [$1] full
     remember(&mut all, f)
->   %6 = Ref mut local frame [$1] : Counted[mut List[Field]]
+>   %6 = Ref mut local frame [$1] : Ref[mut List[Field]]
 >   %7 = Read move [$0] : Field
 >   %8 = Call app/main/remember[] (%6, %7) : ()
->   %9 = Drop [%6] : ()
+>   %9 = LoanEnd [%6] : ()
 >   %6 finds [$1] full
     all.len()
 >   %10 = Read move [$1] : List[Field]
@@ -271,14 +271,14 @@ pub fn main() -> void $ Console:
     println(collect(f))
 >   %64 = NewList - [] : List[Field]
 >   %65 = Store [$5] %64 : ()
->   %66 = Ref mut local frame [$5] : Counted[mut List[Field]]
+>   %66 = Ref mut local frame [$5] : Ref[mut List[Field]]
 >   %67 = Read copy [$0] : Field
 >   %68 = Call app/main/remember[] (%66, %67) : ()
->   %69 = Drop [%66] : ()
->   %70 = Ref mut local frame [$5] : Counted[mut List[Field]]
+>   %69 = LoanEnd [%66] : ()
+>   %70 = Ref mut local frame [$5] : Ref[mut List[Field]]
 >   %71 = Read copy [$0] : Field
 >   %72 = Call app/main/remember[] (%70, %71) : ()
->   %73 = Drop [%70] : ()
+>   %73 = LoanEnd [%70] : ()
 >   %74 = Read move [$5] : List[Field]
 >   %75 = Intrinsic ListLen [%74] : usize
 >   %76 = Drop [%74] : ()

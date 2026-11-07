@@ -35,7 +35,7 @@ fn pick_len(c: bool, a: string, b: string) -> usize:
 >   %7 = Store [$3] %6 : ()
 >   %10 = Block %9 : usize
     s.len()
->   %8 = Ref local [$3] : Counted[string]
+>   %8 = Ref local [$3] : Ref[string]
 >   %9 = Call std/text/impl string.len[] (%8) : usize
 
 fn pick_match(k: i64, a: string, b: string) -> string:

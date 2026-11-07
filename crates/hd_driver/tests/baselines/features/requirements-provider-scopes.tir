@@ -30,7 +30,7 @@ fn read_tag() -> usize $ Tag:
 >   %2 = Read [*%1] : Tag
 >   %3 = Call app/main/Tag.name for Tag [] via TraitValue (%2) : string
 >   %4 = Store [$0] %3 : ()
->   %5 = Ref local [$0] : Counted[string]
+>   %5 = Ref local [$0] : Ref[string]
 >   %6 = Call std/text/impl string.len[] (%5) : usize
 >   %7 = Block %6 : usize
 
@@ -117,7 +117,7 @@ fn lexical(s: string) -> usize:
 >   %10 = Read [*$1] : Tag
 >   %11 = Call app/main/Tag.name for Tag [] via TraitValue (%10) : string
 >   %12 = Store [$2] %11 : ()
->   %13 = Ref local [$2] : Counted[string]
+>   %13 = Ref local [$2] : Ref[string]
 >   %14 = Call std/text/impl string.len[] (%13) : usize
 >   %15 = Block %14 : usize
 >   %16 = Closure #1 [%0 %1] : fn() -> usize

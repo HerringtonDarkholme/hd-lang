@@ -150,9 +150,9 @@ pub fn run(steps: i64) -> f64:
 >   %28 = Loop %27 - : ()
 >   %28 finds [$1] full
         advance(&mut bodies, 0.01)
->   %20 = Ref mut local frame [$1] : Counted[mut List[Body]]
+>   %20 = Ref mut local frame [$1] : Ref[mut List[Body]]
 >   %21 = Call app/main/advance[] (%20, 0.01:f64) : ()
->   %22 = Drop [%20] : ()
+>   %22 = LoanEnd [%20] : ()
 >   %20 finds [$1] full
     bodies[0].x
 >   %29 = Read copy [$1 [0:usize] .x] : f64

@@ -44,7 +44,6 @@ fn later!(key: string) -> usize:
 >   retain string (stored)
 >   release string (last use)
 >   release Suspend[string] (last use)
->   release &string (last use)
 >   release counted reference (last use)
 >   release string (last use)
 > app/main/later
@@ -58,7 +57,6 @@ fn later!(key: string) -> usize:
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release Suspend[string] (cancelled)
->   retain &string (stored)
 
 fn blocking(key: string) -> usize:
     match block_on(fetch(key)):

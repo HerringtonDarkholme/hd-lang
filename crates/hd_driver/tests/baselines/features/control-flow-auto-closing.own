@@ -53,9 +53,9 @@ fn work(log: *mut List[string], label: string) -> void:
 >   %1 = Read move [$1] : string
 >   %2 = Call app/main/guard[] (%0, %1) : Guard
 >   %3 = Store [$2] %2 : ()
->   %4 = Ref mut local frame [$2] : Counted[mut Guard]
+>   %4 = Ref mut local frame [$2] : Ref[mut Guard]
 >   %5 = Call std/ops/Disposable.dispose for Guard [$()] via Impl (%4) : ()
->   %6 = Drop [%4] : ()
+>   %6 = LoanEnd [%4] : ()
 >   %7 = Block - : ()
 >   %8 = Defer #7 : ()
 >   %12 = Block - : ()

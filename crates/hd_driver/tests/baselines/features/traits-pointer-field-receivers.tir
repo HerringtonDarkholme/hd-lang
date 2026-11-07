@@ -72,7 +72,7 @@ fn total(items: Erased) -> i64:
 >   %29 = Block - : ()
 >   %30 = Loop %29 - : ()
         match cursor.step():
->   %3 = Ref mut local [$1] : Counted[mut Erased]
+>   %3 = Ref mut local [$1] : Ref[mut Erased]
 >   %4 = Call app/main/Step.step for Erased [] via Impl (%3) : i64?
 >   %23 = Block - : never
 >   %24 = Match %4 [%23 %9 %11] : ()

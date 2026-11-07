@@ -1,0 +1,24 @@
+# expect-stdout: 5 hello
+# test: a suspending closure's reference to its captured copy stays valid after the closure value is gone, because the suspension keeps its environment
+# Spec std/time std-time.clock.sleep: the body waits, and lang/07 fn.capture.locals: a suspension holds what its closure captures until it ends.
+use std.time.{Clock, ms, sleep}
+
+struct Tally:
+    n: i64
+    name: string
+
+fn read!(t: &Tally) -> string $ Clock:
+    sleep!(ms(1))
+    "${t.n} ${t.name}"
+
+fn start() -> mut Suspend[string] $ Clock:
+    t := Tally { n: 5, name: "hel" + "lo" }
+    run := fn!() -> string $ Clock: read!(&t)
+    run()
+
+pub fn main!() -> void $ Console + Clock:
+    let mut pending = start()
+    other := "x" + "yz"
+    sleep!(ms(1))
+    println(pending!())
+    _ := other.len()

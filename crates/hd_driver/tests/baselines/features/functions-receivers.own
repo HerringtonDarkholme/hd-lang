@@ -166,9 +166,9 @@ fn place_receiver(s: string) -> i64:
 >   %5 = Store [$1] %4 : ()
 >   %11 = Block %9 : i64
     p.shift(2)
->   %6 = Ref mut local frame [$1] : Counted[mut Vec2]
+>   %6 = Ref mut local frame [$1] : Ref[mut Vec2]
 >   %7 = Call app/main/impl Vec2.shift[] (%6, 2:i64) : ()
->   %8 = Drop [%6] : ()
+>   %8 = LoanEnd [%6] : ()
 >   %6 finds [$1] full
     p.x
 >   %9 = Read copy [$1 .x] : i64

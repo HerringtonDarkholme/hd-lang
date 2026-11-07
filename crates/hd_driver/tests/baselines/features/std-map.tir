@@ -19,7 +19,7 @@ fn lookup(m: &Map[string, string], k: string) -> usize:
 >   %19 = Match %2 [%18 %5 %6] : usize
 >   %20 = Block %19 : usize
         .Some(v) => v.len()
->   %3 = Ref local [$2] : Counted[string]
+>   %3 = Ref local [$2] : Ref[string]
 >   %4 = Call std/text/impl string.len[] (%3) : usize
 >   %5 = Block %4 : usize
 >   %7 = Read [%2 as #1 .0] : string

@@ -8,8 +8,8 @@ app/main/holds
   %1 = Coerce %0 [Weaken -] : Ref[Table[K, V]]
   %2 = Call app/main/slot_of[K, V] (%1) : Ref[Slot[K, V]]
   %3 = Block 0:bool : bool
-  %4 = Ref local frame [$2] : Counted[K]
-  %5 = Ref local frame [$1] : Counted[K]
+  %4 = Ref local frame [$2] : Ref[K]
+  %5 = Ref local frame [$1] : Ref[K]
   %6 = Call std/core/Eq.eq for K [] via Bound (%4, %5) : bool
   %7 = Drop [%5] : ()
   %8 = Drop [%4] : ()

@@ -60,9 +60,9 @@ fn pairs(xs: List[string], ys: List[string]) -> List[(string, string)]:
 >   %31 = Read [$10] : usize
 >   %32 = Prim Add [%31 1:usize] : usize
 >   %33 = Store [$10] %32 : ()
->   %34 = Ref local [$7] : Counted[string]
+>   %34 = Ref local [$7] : Ref[string]
 >   %35 = Call std/text/impl string.len[] (%34) : usize
->   %36 = Ref local [$12] : Counted[string]
+>   %36 = Ref local [$12] : Ref[string]
 >   %37 = Call std/text/impl string.len[] (%36) : usize
 >   %38 = Prim Eq [%35 %37] : bool
 >   %39 = Read [$2] : mut List[(string, string)]

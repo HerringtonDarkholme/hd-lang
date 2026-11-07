@@ -46,7 +46,7 @@ fn over_value(xs: List[string]) -> usize:
 >   %32 = Loop %31 - : ()
         n += x.len()
 >   %17 = Read [$1] : usize
->   %18 = Ref local [$6] : Counted[string]
+>   %18 = Ref local [$6] : Ref[string]
 >   %19 = Call std/text/impl string.len[] (%18) : usize
 >   %20 = Prim Add [%17 %19] : usize
 >   %21 = Store [$1] %20 : ()
@@ -93,7 +93,7 @@ fn over_ref(xs: &List[string]) -> usize:
 >   %32 = Loop %31 - : ()
         n += x.len()
 >   %17 = Read [$1] : usize
->   %18 = Ref local [$6] : Counted[string]
+>   %18 = Ref local [$6] : Ref[string]
 >   %19 = Call std/text/impl string.len[] (%18) : usize
 >   %20 = Prim Add [%17 %19] : usize
 >   %21 = Store [$1] %20 : ()
@@ -213,7 +213,7 @@ fn comprehension(xs: List[string]) -> List[usize]:
 >   %19 = Prim Add [%18 1:usize] : usize
 >   %20 = Store [$4] %19 : ()
 >   %21 = Read [$1] : mut List[usize]
->   %22 = Ref local [$6] : Counted[string]
+>   %22 = Ref local [$6] : Ref[string]
 >   %23 = Call std/text/impl string.len[] (%22) : usize
 >   %24 = Intrinsic ListPush [%21 %23] : ()
 >   %25 = Block - : ()

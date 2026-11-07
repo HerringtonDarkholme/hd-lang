@@ -3,14 +3,14 @@ app/main/sizes
   local $1 parcels: UniqMap[string, i32] [read assigned captured captured-assigned] place
   local $2 total: usize [:= read assigned] value
     uses $2: %20 -> %25 consume last
-  %9 = Ref local frame [$1] : Counted[UniqMap[string, i32]]
+  %9 = Ref local frame [$1] : Ref[UniqMap[string, i32]]
   %10 = Call std/collections/impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].is_empty[string, i32] (%9) : bool
-  %11 = Drop [%9] : ()
+  %11 = LoanEnd [%9] : ()
   %12 = Coerce 0:usize [Identity -] : usize
   %13 = Block %12 : usize
-  %14 = Ref local frame [$1] : Counted[UniqMap[string, i32]]
+  %14 = Ref local frame [$1] : Ref[UniqMap[string, i32]]
   %15 = Call std/collections/impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].len[string, i32] (%14) : usize
-  %16 = Drop [%14] : ()
+  %16 = LoanEnd [%14] : ()
   %17 = Coerce %15 [Identity -] : usize
   %18 = Block %17 : usize
   %19 = If %10 [%13 %18] : usize

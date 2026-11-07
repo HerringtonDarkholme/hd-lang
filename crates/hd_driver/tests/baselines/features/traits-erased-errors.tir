@@ -34,7 +34,7 @@ fn read_config(path: string) -> Result[string, FsError]:
     if path.len() > 0: .Ok(path + "!") else: .Err(FsError.NotFound(path))
 > app/main/read_config
 >   local $0 path: string [param read captured]
->   %0 = Ref local [$0] : Counted[string]
+>   %0 = Ref local [$0] : Ref[string]
 >   %1 = Call std/text/impl string.len[] (%0) : usize
 >   %2 = Prim Gt [%1 0:usize] : bool
 >   %3 = Read [$0] : string

@@ -72,7 +72,7 @@ fn add_at(mut m: Map[string, List[i64]], mut k: string) -> Map[string, List[i64]
 >   %1 = Read copy [$1] : string
 >   %2 = Intrinsic MapEntry [%0 %1] : usize
 >   %3 = Read borrow [$0 [%2]] : List[i64]
->   %4 = Ref mut local frame [$1] : Counted[mut string]
+>   %4 = Ref mut local frame [$1] : Ref[mut string]
 >   %5 = Call app/main/next[] (%4) : i64
 >   %6 = Drop [%4] : ()
 >   %7 = Drop [$1] : ()

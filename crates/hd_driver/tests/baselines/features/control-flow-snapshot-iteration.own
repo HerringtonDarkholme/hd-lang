@@ -94,9 +94,9 @@ fn cursor_then_push(values: List[string], s: string) -> usize:
 >   %12 = Read borrow [$2] : List[string]
 >   %13 = Intrinsic ListPush [%12 %10] : ()
     match cursor.next():
->   %14 = Ref mut local frame [$3] : Counted[mut ListIter[string]]
+>   %14 = Ref mut local frame [$3] : Ref[mut ListIter[string]]
 >   %15 = Call std/iter/Iterator.next for ListIter[string] [string] via Impl (%14) : string?
->   %16 = Drop [%14] : ()
+>   %16 = LoanEnd [%14] : ()
 >   %17 = Drop [$3] : ()
 >   %41 = Block - : never
 >   %42 = Match %15 [%41 %26 %29] : usize

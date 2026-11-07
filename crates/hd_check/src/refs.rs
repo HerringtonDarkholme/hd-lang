@@ -1479,7 +1479,8 @@ impl Ck<'_, '_> {
 /// `crates/hd_wasm_linear/DESIGN.md` §23.30): counted for a whole object,
 /// a local's or a value's own storage (a cell, or a frame slot with a zero
 /// count word, §23.38) or what a counted reference refers to; local for a
-/// place inside an object, such as a call receiver's field. Only the
+/// place inside an object, such as a call receiver's field, and for a
+/// local reference (`ref_word::LOCAL`) wherever its address lies. Only the
 /// `Ref`'s own value changes type: a counted one lends itself where a
 /// local one is expected.
 fn whole_object_refs(pool: hd_types::Types<'_>, b: &mut hd_tir::ir::Body) {
@@ -1513,7 +1514,8 @@ fn whole_object_refs(pool: hd_types::Types<'_>, b: &mut hd_tir::ir::Body) {
                     v.as_inst().is_some_and(|v| counted(b.ty[v.0 as usize]))
                 }
                 _ => false,
-            });
+            })
+            && b.data[i][1] & hd_tir::ir::ref_word::LOCAL == 0;
         if whole != was {
             b.ty[i] = pool.intern_ty(&TyData::Ref {
                 inner,

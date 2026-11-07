@@ -1,8 +1,7 @@
 # @dump: counts
 # @build: v8 release
-# A suspending body's frame saves `tally`'s cell, so `&mut tally` takes a
-# count of its own even at the local's last access. That retain and the
-# local's release right after it are one pair, which the link cancels.
+# expected: a suspending body's frame saves `tally`'s cell, so `&mut tally`
+# takes no count, even at the local's last access.
 use std.time.{Clock, ms, sleep}
 
 struct Tally:

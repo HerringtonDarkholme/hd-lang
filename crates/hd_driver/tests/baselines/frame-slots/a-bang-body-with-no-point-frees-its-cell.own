@@ -3,13 +3,12 @@ app/main/helper
   local $0 sink: Sink [read assigned captured captured-assigned] place
   %0 = NewStruct [""] : Sink
   %1 = Store [$0] %0 : ()
-  %2 = Ref mut local [$0] : Counted[mut Sink]
-  %3 = Retain %2 Value #0 : ()
-  %4 = Call app/main/impl Sink.set[] (%2, "helper") : ()
-  %5 = Drop [%2] : ()
-  %6 = Read copy [$0 .text] : string
-  %7 = Drop [$0] : ()
-  %8 = Block %6 : string
+  %2 = Ref mut local [$0] : Ref[mut Sink]
+  %3 = Call app/main/impl Sink.set[] (%2, "helper") : ()
+  %4 = Drop [%2] : ()
+  %5 = Read copy [$0 .text] : string
+  %6 = Drop [$0] : ()
+  %7 = Block %5 : string
   %2 finds [$0] full
-  %6 finds [$0] full
+  %5 finds [$0] full
   summary none

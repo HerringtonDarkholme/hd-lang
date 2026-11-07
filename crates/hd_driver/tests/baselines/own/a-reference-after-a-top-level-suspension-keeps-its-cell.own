@@ -28,18 +28,17 @@ fn run!(go: bool) -> void:
     let mut c = Counter { hits: +0, name: "a" }
 > app/main/run
 >   local $1 c: Counter [read assigned captured captured-assigned] place
->   %0 = Release %10 FrameDrop child #2 : ()
+>   %0 = Release %9 FrameDrop child #2 : ()
 >   %1 = NewStruct [0:i32 "a"] : Counter
 >   %2 = Store [$1] %1 : ()
->   %10 = Block - : ()
+>   %9 = Block - : ()
     pause!()
 >   %3 = Await app/main/pause[] () : ()
 >   %4 = Release %3 Operation child #2 : ()
     tick(&mut c)
->   %5 = Ref mut local [$1] : Counted[mut Counter]
->   %6 = Retain %5 Value #0 : ()
->   %7 = Call app/main/tick[] (%5) : ()
->   %8 = Drop [%5] : ()
->   %9 = Drop [$1] : ()
+>   %5 = Ref mut local [$1] : Ref[mut Counter]
+>   %6 = Call app/main/tick[] (%5) : ()
+>   %7 = Drop [%5] : ()
+>   %8 = Drop [$1] : ()
 >   %5 finds [$1] full
 >   exit sub 0 drops [$1]

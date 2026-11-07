@@ -1,6 +1,6 @@
 # @dump: own counts wat
 # @build: v8 release
-# expected: the whole-local reference takes one count of tally's existing cell before bump awaits it.
+# expected: the whole-local reference is a local reference, so it takes no count of tally's cell, which the frame holds while bump waits.
 struct Tally:
     n: i64
 

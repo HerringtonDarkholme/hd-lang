@@ -35,7 +35,7 @@ fn read_len(n: Names, i: usize) -> usize:
 > app/main/read_len
 >   local $0 n: Names [param read captured]
 >   local $1 i: usize [param read]
->   %0 = Ref local [$0] : Counted[Names]
+>   %0 = Ref local [$0] : Ref[Names]
 >   %1 = Read [$1] : usize
 >   %2 = Call std/ops/Index.index for Names [usize] via Impl (%0, %1) : Ref[string]
 >   %3 = Ref local [*%2] : Ref[string]
@@ -58,7 +58,7 @@ fn first[T, C < Index[usize, Out = T]](items: C) -> T:
     items[0]
 > app/main/first
 >   local $0 items: C [param read captured]
->   %0 = Ref local [$0] : Counted[C]
+>   %0 = Ref local [$0] : Ref[C]
 >   %1 = Call std/ops/Index.index for C [usize] via Bound (%0, 0:usize) : Ref[T]
 >   %2 = Read [*%1] : T
 >   %3 = Block %2 : T
@@ -71,6 +71,6 @@ fn generic_first(xs: List[string]) -> usize:
 >   %0 = Read [$0] : List[string]
 >   %1 = Call app/main/first[string, List[string]] (%0) : string
 >   %2 = Store [$1] %1 : ()
->   %3 = Ref local [$1] : Counted[string]
+>   %3 = Ref local [$1] : Ref[string]
 >   %4 = Call std/text/impl string.len[] (%3) : usize
 >   %5 = Block %4 : usize

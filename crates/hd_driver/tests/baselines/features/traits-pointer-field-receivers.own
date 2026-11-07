@@ -84,9 +84,9 @@ fn total(items: Erased) -> i64:
 >   %32 = Drop [$1] : ()
 >   %31 finds [$1] full
         match cursor.step():
->   %3 = Ref mut local frame [$1] : Counted[mut Erased]
+>   %3 = Ref mut local frame [$1] : Ref[mut Erased]
 >   %4 = Call app/main/Step.step for Erased [] via Impl (%3) : i64?
->   %5 = Drop [%3] : ()
+>   %5 = LoanEnd [%3] : ()
 >   %24 = Block - : never
 >   %25 = Match %4 [%24 %10 %12] : ()
 >   %26 = Block - : ()

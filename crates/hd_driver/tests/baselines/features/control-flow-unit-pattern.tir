@@ -8,7 +8,7 @@ fn save(s: string) -> Result[void, string]:
     if s.len() > 0:
 > app/main/save
 >   local $0 s: string [param read captured]
->   %0 = Ref local [$0] : Counted[string]
+>   %0 = Ref local [$0] : Ref[string]
 >   %1 = Call std/text/impl string.len[] (%0) : usize
 >   %2 = Prim Gt [%1 0:usize] : bool
 >   %6 = If %2 [%5 -] : ()

@@ -44,7 +44,7 @@ pub fn read_only_params(b: &Body, candidates: u64) -> u64 {
         let tag = b.tags[i];
         if !matches!(
             tag,
-            Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique
+            Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::LoanEnd | Tag::IsUnique
         ) {
             continue;
         }
@@ -62,7 +62,7 @@ pub fn read_only_params(b: &Body, candidates: u64) -> u64 {
                 steps.next() == Some(Proj::Deref)
                     && steps.all(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)))
             }
-            Tag::Drop => p.whole(),
+            Tag::Drop | Tag::LoanEnd => p.whole(),
             _ => false,
         };
         if !ok {
@@ -93,7 +93,7 @@ pub(super) fn read_through_use(b: &Body, at: usize, value: u32) -> bool {
     let tag = b.tags[at];
     if matches!(
         tag,
-        Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique
+        Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::LoanEnd | Tag::IsUnique
     ) {
         let place = b.view(b.data[at][0]);
         if place.root == Root::Value(value) {
@@ -103,7 +103,7 @@ pub(super) fn read_through_use(b: &Body, at: usize, value: u32) -> bool {
                     steps.next() == Some(Proj::Deref)
                         && steps.all(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)))
                 }
-                Tag::Drop => place.whole(),
+                Tag::Drop | Tag::LoanEnd => place.whole(),
                 _ => false,
             };
         }
@@ -293,7 +293,7 @@ fn lent_ref(b: &Body, i: usize, user: usize) -> Option<Steps> {
         }
         if j == user {
             seen += n;
-        } else if b.tags[j] != Tag::Drop {
+        } else if !matches!(b.tags[j], Tag::Drop | Tag::LoanEnd) {
             return None;
         }
     }

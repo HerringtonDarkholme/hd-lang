@@ -1771,35 +1771,8 @@
         local.set $t18
       end
       local.get $t18
-      local.tee $t23
-      local.tee $t26
-      if
-        local.get $t26
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t26
-          call $rt:retain_known
-        end
-      end
-      local.get $t23
       call $"impl string.len"
     ;; 29 |     let mut pending = fetch(key)
-      local.get $t23
-      local.tee $t26
-      if
-        local.get $t26
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t26
-          call $rt:release_ref'1
-        end
-      end
       local.get $t18
       local.tee $t26
       if
