@@ -115,7 +115,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     errs
 }
 
-/// Every intrinsic-produced owned buffer view takes its count exactly once,
+/// Every owned borrowed result takes its count exactly once,
 /// immediately after construction and before a source owner can be dropped.
 fn retained_results(b: &Body, cx: &dyn OwnCx, topo: &Topology, errs: &mut Vec<VerifyError>) {
     for i in 0..b.len() {
@@ -134,7 +134,7 @@ fn retained_results(b: &Body, cx: &dyn OwnCx, topo: &Topology, errs: &mut Vec<Ve
                 err(
                     errs,
                     u32_of(i),
-                    "an owned borrowed-buffer result lacks its stored retain".into(),
+                    "an owned borrowed result lacks its stored retain".into(),
                 );
             }
         }
@@ -154,7 +154,7 @@ fn retained_results(b: &Body, cx: &dyn OwnCx, topo: &Topology, errs: &mut Vec<Ve
             err(
                 errs,
                 u32_of(i),
-                "a retain without an adjacent owned buffer-result proof".into(),
+                "a retain without an adjacent owned borrowed-result proof".into(),
             );
         }
     }

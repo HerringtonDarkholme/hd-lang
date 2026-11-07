@@ -37,7 +37,7 @@
     },
     {
       "reason": "conservative: ProviderGet",
-      "sites": 1
+      "sites": 0
     },
     {
       "reason": "conservative: Ref",

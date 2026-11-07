@@ -52,7 +52,7 @@ fn lexical(s: string) -> usize:
 >   retain app.main.Tag (conservative: Coerce)
 >   release fn() -> usize (last use)
         tag := $.use(Tag)
->   retain app.main.Tag (conservative: ProviderGet)
+>   retain app.main.Tag (stored)
         apply(fn() -> usize: tag.name().len())
 >   (no span) release &app.main.Tag (by design)
 >   (no span) release app.main.Tag (last use)

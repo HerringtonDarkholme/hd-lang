@@ -28,20 +28,21 @@ fn read_tag() -> usize $ Tag:
     $.use(Tag).name().len()
 > app/main/read_tag
 >   local $0 $ref: string [read assigned captured captured-assigned] value
->     uses $0: %5 -> %6 lend last
+>     uses $0: %6 -> %7 lend last
 >   %0 = ProviderGet #0 : Tag
->   %1 = Coerce %0 [ProviderAsRef -] : Ref[Tag]
->   %2 = Read borrow [*%1] : Tag
->   %3 = Drop [%1] : ()
->   %4 = Call app/main/Tag.name for Tag [] via TraitValue (%2) : string
->   %5 = Store [$0] %4 : ()
->   %6 = Read borrow [$0] : string
->   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
->   %8 = Break L0 %7 : never
->   %9 = Block - : usize
->   %10 = Scope %9 [] : usize
->   %11 = Drop [$0] : ()
->   %12 = Block %10 : usize
+>   %1 = Retain %0 #0 : ()
+>   %2 = Coerce %0 [ProviderAsRef -] : Ref[Tag]
+>   %3 = Read borrow [*%2] : Tag
+>   %4 = Drop [%2] : ()
+>   %5 = Call app/main/Tag.name for Tag [] via TraitValue (%3) : string
+>   %6 = Store [$0] %5 : ()
+>   %7 = Read borrow [$0] : string
+>   %8 = Call std/rt.bytes/bytes_len[] (%7) : usize
+>   %9 = Break L0 %8 : never
+>   %10 = Block - : usize
+>   %11 = Scope %10 [] : usize
+>   %12 = Drop [$0] : ()
+>   %13 = Block %11 : usize
 >   summary kept [] writes
 
 fn by_value(s: string) -> usize:
@@ -158,11 +159,11 @@ fn lexical(s: string) -> usize:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %0 consume last
 >   local $1 tag: Ref[Tag] [:= read assigned captured] value
->     uses $1: %17 -> %18 lend, %30 consume last
+>     uses $1: %18 -> %19 lend, %31 consume last
 >   local $2 $ref: string [read assigned captured captured-assigned] value
->     uses $2: %22 -> %23 lend last
+>     uses $2: %23 -> %24 lend last
 >   local $3 f: fn() -> usize [read] value
->     uses $3: %31 -> %32 lend last
+>     uses $3: %32 -> %33 lend last
 >   local $5 provider: Named [read] value
 >     uses $5: %2 -> %3 consume last
 >   local $6 $ref: Named [read assigned captured captured-assigned] place
@@ -181,36 +182,37 @@ fn lexical(s: string) -> usize:
 >   %12 = Drop [%8] : ()
 >   %13 = Coerce %11 [RefAsProvider -] : Tag
 >   %14 = Drop [%11] : ()
->   %39 = With [Tag %13] %38 : usize
->   %40 = Drop [%13] : ()
->   %41 = Block %39 : usize
+>   %40 = With [Tag %13] %39 : usize
+>   %41 = Drop [%13] : ()
+>   %42 = Block %40 : usize
 >   %5 finds [$6] full
         tag := $.use(Tag)
 >   %15 = ProviderGet #19 : Tag
->   %16 = Coerce %15 [ProviderAsRef -] : Ref[Tag]
->   %17 = Store [$1] %16 : ()
->   %38 = Block %36 : usize
+>   %16 = Retain %15 #0 : ()
+>   %17 = Coerce %15 [ProviderAsRef -] : Ref[Tag]
+>   %18 = Store [$1] %17 : ()
+>   %39 = Block %37 : usize
         apply(fn() -> usize: tag.name().len())
->   %18 = Read copy [*$1] : Tag
->   %19 = Drop [$1] : ()
->   %20 = Call app/main/Tag.name for Tag [] via TraitValue (%18) : string
->   %21 = Drop [%18] : ()
->   %22 = Store [$2] %20 : ()
->   %23 = Read borrow [$2] : string
->   %24 = Call std/rt.bytes/bytes_len[] (%23) : usize
->   %25 = Break L1 %24 : never
->   %26 = Block - : usize
->   %27 = Scope %26 [] : usize
->   %28 = Drop [$2] : ()
->   %29 = Block %27 : usize
->   %30 = Closure #1 [%0 %1] : fn() -> usize
->   %31 = Store [$3] %30 : ()
->   %32 = Read borrow [$3] : fn() -> usize
->   %33 = CallValue %32 [] : usize
->   %34 = Break L0 %33 : never
->   %35 = Block - : usize
->   %36 = Scope %35 [] : usize
->   %37 = Drop [$3] : ()
+>   %19 = Read copy [*$1] : Tag
+>   %20 = Drop [$1] : ()
+>   %21 = Call app/main/Tag.name for Tag [] via TraitValue (%19) : string
+>   %22 = Drop [%19] : ()
+>   %23 = Store [$2] %21 : ()
+>   %24 = Read borrow [$2] : string
+>   %25 = Call std/rt.bytes/bytes_len[] (%24) : usize
+>   %26 = Break L1 %25 : never
+>   %27 = Block - : usize
+>   %28 = Scope %27 [] : usize
+>   %29 = Drop [$2] : ()
+>   %30 = Block %28 : usize
+>   %31 = Closure #1 [%0 %1] : fn() -> usize
+>   %32 = Store [$3] %31 : ()
+>   %33 = Read borrow [$3] : fn() -> usize
+>   %34 = CallValue %33 [] : usize
+>   %35 = Break L0 %34 : never
+>   %36 = Block - : usize
+>   %37 = Scope %36 [] : usize
+>   %38 = Drop [$3] : ()
 >   exit sub 0 drops [$0 $1]
 >   exit sub 1 drops [$1]
 >   summary kept [$0] writes
