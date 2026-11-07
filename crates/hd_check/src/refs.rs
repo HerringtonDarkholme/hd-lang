@@ -28,8 +28,7 @@ use hd_base::{DefId, LocalId, NodeIdx, StageResult, Symbol};
 use hd_diag::{Code, FixSafety};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{
-    Coercion, IntrinsicOp, NONE, Place as TirPlace, PlaceRoot, Proj, ReadMode, Ref, Tag, TirSink,
-    local_flags,
+    Coercion, NONE, Place as TirPlace, PlaceRoot, Proj, ReadMode, Ref, Tag, TirSink, local_flags,
 };
 use hd_types::{Ty, TyData};
 
@@ -1413,36 +1412,7 @@ impl Ck<'_, '_> {
                 b.data[i][1] |= hd_tir::ir::ref_word::LOCAL;
             }
         }
-        // A value stored in a slot keeps the carrier it was checked with:
-        // whole-object addressing may count its `Ref`, but the element,
-        // field or map entry still holds a local reference.
-        let slotted: Vec<(u32, Ty)> = (0..b.tags.len())
-            .filter_map(|i| {
-                let v = match (b.tags[i], IntrinsicOp::from_u32(b.data[i][0])) {
-                    (Tag::Store, _) if b.data[i][0] & hd_tir::ir::place::BARE_LOCAL == 0 => {
-                        b.data[i][1]
-                    }
-                    (Tag::Intrinsic, Some(IntrinsicOp::ListPush)) => {
-                        *b.record(b.data[i][1]).get(1)?
-                    }
-                    (Tag::Intrinsic, Some(IntrinsicOp::MapSet)) => {
-                        *b.record(b.data[i][1]).get(2)?
-                    }
-                    _ => return None,
-                };
-                let v = Ref(v).as_inst()?.0;
-                let ty = *b.ty.get(v as usize)?;
-                matches!(pool.get(ty), hd_types::TyData::Ref { counted: false, .. })
-                    .then_some((v, ty))
-            })
-            .collect();
         whole_object_refs(pool, b);
-        for (v, want) in slotted {
-            let got = b.ty[v as usize];
-            if got != want && crate::local_refs::lends(pool, got, want, 1, 0) {
-                b.ty[v as usize] = want;
-            }
-        }
         // A counted value stored in a local reference's local, or a
         // block's value, lends itself with no conversion
         // (`ref.convert.lend`): it takes the local reference's type, so

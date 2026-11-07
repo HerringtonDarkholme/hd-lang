@@ -153,8 +153,6 @@ fn body_func<'a>(
         return unsupported("a body the ownership passes did not run on");
     }
     em.sub_id = sub;
-    em.entry_ref_loans =
-        hd_tir::own::entry_borrowed_results(b, &em.topo, input.entry.root(item), sub);
     if sub == 0 {
         em.lends = own.lends;
     }
@@ -1137,9 +1135,6 @@ struct Em<'i, 'a, 'm> {
     /// Adjacent TIR Retains lowered during construction, before the result's
     /// vtable loads. Their statement must not emit the same count again.
     retained_before_result: hd_base::HashSet<u32>,
-    /// Link-time TIR facts: these stated reference results borrow at a
-    /// plain entry root instead of taking their conditional frame count.
-    entry_ref_loans: hd_base::HashSet<u32>,
     /// The locals such a value moves into, whose release releases it.
     owned_locals: hd_base::HashSet<usize>,
     /// A suspending body's reference parameters, each with the temporary
@@ -1355,7 +1350,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             env_caps: HashMap::default(),
             owned_refs: hd_base::HashSet::default(),
             retained_before_result: hd_base::HashSet::default(),
-            entry_ref_loans: hd_base::HashSet::default(),
             owned_locals: hd_base::HashSet::default(),
             frame_refs: Vec::new(),
             init_key: None,

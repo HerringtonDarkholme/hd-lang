@@ -65,7 +65,6 @@ pub mod flow;
 pub(crate) mod frame;
 pub(crate) mod waker;
 pub use frame::store_finds_empty;
-pub use ref_copy::entry_borrowed_results;
 pub(crate) mod hoist;
 mod insert;
 mod known;
