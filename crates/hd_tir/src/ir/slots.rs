@@ -100,7 +100,7 @@ fn layout(tag: Tag) -> [Layout; 2] {
         Tag::Drop | Tag::LoanEnd | Tag::ExitDrop => [L::Place(Role::Dropped), b],
         // Ownership bookkeeping observes the constructed value, without
         // adding a program use that would disable its single consumer.
-        Tag::Retain => [L::One(Word::Inst), b],
+        Tag::Retain | Tag::MapKeyCopy => [L::One(Word::Inst), b],
         Tag::Store | Tag::Break => [a, L::One(consume)],
         Tag::Return => [L::One(consume), b],
         Tag::Call | Tag::Await => [a, L::Call],

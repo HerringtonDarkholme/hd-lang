@@ -18,7 +18,7 @@ fn index['a](by: &mut Map[string, &'a User], u: &'a User) -> void:
 > app/main/index
 >   retain string (second owner)
 >   unique Map[string, &app.main.User] (conservative: unique)
->   retain string (conservative: Intrinsic)
+>   retain string (stored)
 >   release string (last use)
 
 fn total(a: User, b: User) -> usize:

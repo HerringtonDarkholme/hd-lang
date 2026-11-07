@@ -571,7 +571,10 @@ impl Em<'_, '_, '_> {
                 let probe = self.map_find(m, h, &kl, &e, &ops);
                 (kl, h, probe)
             };
-            self.map_put(m, (kt, vt), (&e, &ops), (&kl, h, probe), &Src::Ref(args[2]))?;
+            if let Some(reason) = self.map_key_copy(i) {
+                self.because(reason, |em| em.retain_locals(&kl, kt))?;
+            }
+            self.map_put_taking_key(m, vt, (&e, &ops), (&kl, h, probe), &Src::Ref(args[2]))?;
             return self.put_back(args[0], m);
         }
         let (kl, h) = self.map_key(args[1], &e, &ops)?;

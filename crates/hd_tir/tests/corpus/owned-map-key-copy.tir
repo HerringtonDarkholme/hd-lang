@@ -1,0 +1,13 @@
+# expect: owned
+body 1 Fn
+sub 2 0 0 - 0
+labels
+caps
+modes
+const 6 0
+const 78 0
+const 6 1
+extra 3 2147483648 2147483649 2147483650 2 0 1
+%0 = MapKeyCopy 1 0 : 18 @-
+%1 = Intrinsic 5 0 : 18 @-
+%2 = Block 4 - : 18 @-

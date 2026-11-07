@@ -35,7 +35,7 @@ fn map_write(m: &mut Map[string, string], k: string, v: string) -> void:
     m[k] = v
 > app/main/map_write
 >   unique Map[string, string] (conservative: unique)
->   retain string (conservative: Intrinsic)
+>   retain string (stored)
 
 fn uniq_read(xs: &UniqList[string], i: usize) -> usize:
     match xs.get_ref(i):

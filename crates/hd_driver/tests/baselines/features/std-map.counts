@@ -19,7 +19,7 @@ fn put(m: &mut Map[string, string], k: string, v: string) -> void:
     m[k] = v
 > app/main/put
 >   unique Map[string, string] (conservative: unique)
->   retain string (conservative: Intrinsic)
+>   retain string (stored)
 
 fn group(m: &mut Map[string, List[string]], k: string, v: string) -> void:
     m.get_or_insert(k, []).push(v)

@@ -196,6 +196,10 @@ tags! {
     // into its cold frame. Layout supplies provider data and context;
     // an empty/noncounting layout emits no count. a is reserved, b reason.
     ColdRowCopy: Meta, Meta;
+    // The table-owned key copy at a MapSet's put boundary, after hashing
+    // and probing. A value-only replacement enters no such boundary.
+    // a names the MapSet instruction, not a second program value use.
+    MapKeyCopy: Meta, Meta;
 }
 
 /// The two owned copies of a counted Fact/Handle result cache.
@@ -2242,6 +2246,7 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
             | Tag::CacheCopy
             | Tag::ColdCopy
             | Tag::ColdRowCopy
+            | Tag::MapKeyCopy
             | Tag::IsUnique
             | Tag::FlagSet
             | Tag::FlagClear => {
@@ -3906,7 +3911,7 @@ mod tests {
         let root = b.close_block(blk, Some(one), Ty::I32, NodeIdx::NONE);
         let body = b.finish(root, &[]).expect("ok");
         assert_eq!(body.len(), 1);
-        assert_eq!(Tag::ALL.len(), 61);
+        assert_eq!(Tag::ALL.len(), 62);
         assert!(
             Tag::ALL
                 .iter()

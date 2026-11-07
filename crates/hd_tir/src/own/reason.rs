@@ -108,7 +108,8 @@ pub fn reason(b: &Body, i: usize) -> Option<Reason> {
         | Tag::ExitDrop
         | Tag::CacheCopy
         | Tag::ColdCopy
-        | Tag::ColdRowCopy => Reason::from_word(w),
+        | Tag::ColdRowCopy
+        | Tag::MapKeyCopy => Reason::from_word(w),
         Tag::IsUnique if w == unique_word::COVERED => Reason::View,
         Tag::IsUnique => Reason::Conservative("unique"),
         Tag::Read if w == ReadMode::Copy as u32 => Reason::Conservative("copy read"),

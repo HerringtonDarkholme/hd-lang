@@ -55,6 +55,7 @@ pub(crate) mod cold_row;
 pub(crate) mod derive;
 pub mod flow;
 pub(crate) mod frame;
+pub(crate) mod map_key;
 pub use frame::store_finds_empty;
 pub(crate) mod hoist;
 mod insert;
@@ -465,6 +466,7 @@ pub(crate) fn owned_value(b: &Body, i: usize) -> bool {
             | Tag::CacheCopy
             | Tag::ColdCopy
             | Tag::ColdRowCopy
+            | Tag::MapKeyCopy
             | Tag::IsUnique
             | Tag::FlagSet
             | Tag::FlagClear
@@ -837,6 +839,9 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     scratch.topo.build(b);
     scratch.splice.clear();
     cold_row::run(b, cx, &scratch.topo, &mut scratch.splice)?;
+    scratch.topo.build(b);
+    scratch.splice.clear();
+    map_key::run(b, cx, &scratch.topo, &mut scratch.splice)?;
     Ok(())
 }
 

@@ -46,19 +46,20 @@ fn lookup(m: &Map[string, string], k: string) -> usize:
 fn put(m: &mut Map[string, string], k: string, v: string) -> void:
 > app/main/put
 >   local $0 m: Ref[mut Map[string, string]] [param read] value
->     uses $0: entry -> %4 lend last
+>     uses $0: entry -> %5 lend last
 >   local $1 k: string [param read] value
->     uses $1: entry -> %1 lend last
+>     uses $1: entry -> %2 lend last
 >   local $2 v: string [param read] value
->     uses $2: entry -> %2 consume last
->   %0 = ExitDrop [$1] #2 : ()
+>     uses $2: entry -> %3 consume last
+>   %1 = ExitDrop [$1] #2 : ()
     m[k] = v
->   %1 = Read borrow [$1] : string
->   %2 = Read move [$2] : string
->   %3 = IsUnique [*$0] : ()
->   %4 = Read borrow [*$0] : Map[string, string]
->   %5 = Intrinsic MapSet [%4 %1 %2] : ()
->   %6 = Block - : ()
+>   %0 = MapKeyCopy #6 #0 : ()
+>   %2 = Read borrow [$1] : string
+>   %3 = Read move [$2] : string
+>   %4 = IsUnique [*$0] : ()
+>   %5 = Read borrow [*$0] : Map[string, string]
+>   %6 = Intrinsic MapSet [%5 %2 %3] : ()
+>   %7 = Block - : ()
 >   exit sub 0 drops [$2]
 >   summary kept [$2] borrows [$1] writes
 

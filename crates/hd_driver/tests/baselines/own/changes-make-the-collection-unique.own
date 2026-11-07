@@ -13,41 +13,42 @@ fn change(mut rows: List[List[i32]], mut bags: List[Bag], mut m: Map[string, Lis
     rows[i].push(1)
 > app/main/change
 >   local $0 rows: List[List[i32]] [param read] value
->     uses $0: entry -> %3 lend last
+>     uses $0: entry -> %4 lend last
 >   local $1 bags: List[Bag] [param read] place
 >   local $2 m: Map[string, List[i32]] [param read] value
->     uses $2: entry -> %17 lend, %19 lend, %23 lend last
+>     uses $2: entry -> %18 lend, %20 lend, %24 lend last
 >   local $3 i: usize [param read] value
->     uses $3: entry -> %0 lend, %6 lend, %9 lend last
->   %0 = Read copy [$3] : usize
->   %1 = IsUnique [$0] : ()
->   %2 = IsUnique [$0 [%0]] : ()
->   %3 = Read borrow [$0 [%0]] : List[i32]
->   %4 = Intrinsic ListPush [%3 1:i32] : ()
->   %5 = Drop [$0] : ()
->   %26 = Block - : ()
+>     uses $3: entry -> %1 lend, %7 lend, %10 lend last
+>   %1 = Read copy [$3] : usize
+>   %2 = IsUnique [$0] : ()
+>   %3 = IsUnique [$0 [%1]] : ()
+>   %4 = Read borrow [$0 [%1]] : List[i32]
+>   %5 = Intrinsic ListPush [%4 1:i32] : ()
+>   %6 = Drop [$0] : ()
+>   %27 = Block - : ()
     bags[i].count = 2
->   %6 = Read copy [$3] : usize
->   %7 = IsUnique [$1] : ()
->   %8 = Store [$1 [%6] .count] 2:i32 : ()
+>   %7 = Read copy [$3] : usize
+>   %8 = IsUnique [$1] : ()
+>   %9 = Store [$1 [%7] .count] 2:i32 : ()
     bags[i].items.push(3)
->   %9 = Read copy [$3] : usize
->   %10 = IsUnique repeat [$1] : ()
->   %11 = IsUnique [$1 [%9] .items] : ()
->   %12 = Read borrow [$1 [%9] .items] : List[i32]
->   %13 = Intrinsic ListPush [%12 3:i32] : ()
->   %14 = Drop [$1] : ()
+>   %10 = Read copy [$3] : usize
+>   %11 = IsUnique repeat [$1] : ()
+>   %12 = IsUnique [$1 [%10] .items] : ()
+>   %13 = Read borrow [$1 [%10] .items] : List[i32]
+>   %14 = Intrinsic ListPush [%13 3:i32] : ()
+>   %15 = Drop [$1] : ()
     m["a"] = []
->   %15 = NewList - [] : List[i32]
->   %16 = IsUnique [$2] : ()
->   %17 = Read borrow [$2] : Map[string, List[i32]]
->   %18 = Intrinsic MapSet [%17 "a" %15] : ()
+>   %0 = MapKeyCopy #19 #0 : ()
+>   %16 = NewList - [] : List[i32]
+>   %17 = IsUnique [$2] : ()
+>   %18 = Read borrow [$2] : Map[string, List[i32]]
+>   %19 = Intrinsic MapSet [%18 "a" %16] : ()
     m["a"].push(4)
->   %19 = Read borrow [$2] : Map[string, List[i32]]
->   %20 = Intrinsic MapEntry [%19 "a"] : usize
->   %21 = IsUnique [$2] : ()
->   %22 = IsUnique [$2 [%20]] : ()
->   %23 = Read borrow [$2 [%20]] : List[i32]
->   %24 = Intrinsic ListPush [%23 4:i32] : ()
->   %25 = Drop [$2] : ()
+>   %20 = Read borrow [$2] : Map[string, List[i32]]
+>   %21 = Intrinsic MapEntry [%20 "a"] : usize
+>   %22 = IsUnique [$2] : ()
+>   %23 = IsUnique [$2 [%21]] : ()
+>   %24 = Read borrow [$2 [%21]] : List[i32]
+>   %25 = Intrinsic ListPush [%24 4:i32] : ()
+>   %26 = Drop [$2] : ()
 >   exit sub 0 drops [$0 $1 $2]

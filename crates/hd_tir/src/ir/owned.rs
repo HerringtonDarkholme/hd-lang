@@ -104,6 +104,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     cache_copies(b, own, &topo, &mut errs);
     cold_parameters(b, own, &topo, &mut errs);
     cold_row(b, own, &topo, &mut errs);
+    map_key_copies(b, own, &topo, &mut errs);
     takes_outside_suspension(b, &topo, &mut errs);
     change_places(b, &topo, &mut errs);
     hoisted(b, &topo, own, &mut errs);
@@ -117,6 +118,41 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     Balance::new(b, &topo, own).walk(&mut errs);
     copies(b, &mut errs);
     errs
+}
+
+/// A put's borrowed key declares the count taken at its key-taking boundary.
+fn map_key_copies(b: &Body, cx: &dyn OwnCx, topo: &Topology, errs: &mut Vec<VerifyError>) {
+    let mut counts = vec![0; b.len()];
+    for i in 0..b.len() {
+        if b.tags[i] != Tag::MapKeyCopy {
+            continue;
+        }
+        let [source, reason] = b.data[i];
+        let source = source as usize;
+        let valid = source < b.len()
+            && crate::own::map_key::needed(b, cx, source)
+            && topo.sub[source] != NONE
+            && topo.blk[i] == b.sub_root[topo.sub[source] as usize];
+        if valid {
+            counts[source] += 1;
+        }
+        if !valid || reason != 0 || b.ty[i] != hd_types::Ty::VOID {
+            err(
+                errs,
+                u32_of(i),
+                "a key copy without a root map-put proof".into(),
+            );
+        }
+    }
+    for (i, n) in counts.into_iter().enumerate() {
+        if crate::own::map_key::needed(b, cx, i) && n != 1 {
+            err(
+                errs,
+                u32_of(i),
+                "a map put lacks its stored key copy".into(),
+            );
+        }
+    }
 }
 
 /// The cold frame's captured requirement row has one copy declaration.

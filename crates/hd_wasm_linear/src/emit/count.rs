@@ -32,6 +32,18 @@ use crate::module::Val;
 use crate::rt::Helper;
 
 impl Em<'_, '_, '_> {
+    /// The key copy declared at this `MapSet`'s table-taking-key boundary.
+    pub(super) fn map_key_copy(&self, value: u32) -> Option<Reason> {
+        let root = self.b.sub_root[self.topo.sub[value as usize] as usize];
+        self.b
+            .record(self.b.data[root as usize][0])
+            .iter()
+            .find(|&&i| {
+                self.b.tags[i as usize] == Tag::MapKeyCopy && self.b.data[i as usize][0] == value
+            })
+            .map(|&i| Reason::from_word(self.b.data[i as usize][1]))
+    }
+
     /// The source constructor's explicit capture of its requirement row.
     pub(super) fn cold_row_copy(&self) -> Option<Reason> {
         let root = self.b.sub_root[0];
