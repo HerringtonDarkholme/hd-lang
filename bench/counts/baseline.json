@@ -97,9 +97,9 @@
     {
       "program": "bench/runtime/progs/route-search.hd",
       "retained": "0",
-      "released": "614483",
-      "uniques": "2768400",
-      "total": "3382883"
+      "released": "614393",
+      "uniques": "918110",
+      "total": "1532503"
     },
     {
       "program": "bench/runtime/progs/string-build.hd",
