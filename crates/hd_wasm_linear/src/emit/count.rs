@@ -32,6 +32,19 @@ use crate::module::Val;
 use crate::rt::Helper;
 
 impl Em<'_, '_, '_> {
+    /// The source parameter's explicitly declared cold-frame argument copy.
+    pub(super) fn cold_copy(&self, local: usize) -> Option<Reason> {
+        let word = u32::try_from(local).expect("local") | hd_tir::ir::place::BARE_LOCAL;
+        let root = self.b.sub_root[0];
+        self.b
+            .record(self.b.data[root as usize][0])
+            .iter()
+            .find_map(|&i| {
+                (self.b.tags[i as usize] == Tag::ColdCopy && self.b.data[i as usize][0] == word)
+                    .then(|| Reason::from_word(self.b.data[i as usize][1]))
+            })
+    }
+
     /// The explicit payload copy at this body's persistent cache boundary.
     pub(super) fn cache_copy(&self, phase: u32) -> Option<Reason> {
         let root = self.b.sub_root[0];

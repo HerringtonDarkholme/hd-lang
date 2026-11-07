@@ -1460,12 +1460,19 @@ impl Em<'_, '_, '_> {
         self.dead_from(&items, tail).map_or(tail, |k| items[k])
     }
 
-    /// The instructions of block list `list`, without the blocks it holds,
-    /// which run where the instruction that owns them runs.
+    /// The executable instructions of block list `list`: nested blocks run
+    /// at their owner; boundary declarations lower outside the lexical list.
+    /// In particular they must not create an empty fresh-only segment before
+    /// the first suspension point.
     fn items(&self, list: u32) -> Vec<u32> {
         self.rec(list)
             .into_iter()
-            .filter(|i| self.b.tags[*i as usize] != Tag::Block)
+            .filter(|i| {
+                !matches!(
+                    self.b.tags[*i as usize],
+                    Tag::Block | Tag::ExitDrop | Tag::CacheCopy | Tag::ColdCopy
+                )
+            })
             .collect()
     }
 
@@ -1924,8 +1931,8 @@ impl Em<'_, '_, '_> {
             }
             // The ownership passes' statements (`count.rs`).
             Tag::Retain => self.own_retain(a)?,
-            // A declaration lowered at the common exit, including returns.
-            Tag::ExitDrop | Tag::CacheCopy => {}
+            // Boundary declarations lower at their named entry or exit.
+            Tag::ExitDrop | Tag::CacheCopy | Tag::ColdCopy => {}
             Tag::LoanEnd => {
                 self.borrow_drop(i);
                 self.end_short_loan(i)?;

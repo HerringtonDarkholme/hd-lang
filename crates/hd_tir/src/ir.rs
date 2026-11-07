@@ -188,6 +188,10 @@ tags! {
     // or publication, not at this statement's lexical position.
     // a is cache_copy's phase; b is the ownership reason.
     CacheCopy: Meta, Meta;
+    // Declares a source parameter's copy into its cold suspension frame.
+    // a is the parameter's local place; b is its ownership reason.
+    // A concrete Drop ABI transfers its argument instead and copies nothing.
+    ColdCopy: Place, Meta;
 }
 
 /// The two owned copies of a counted Fact/Handle result cache.
@@ -2232,6 +2236,7 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
             | Tag::Retain
             | Tag::ExitDrop
             | Tag::CacheCopy
+            | Tag::ColdCopy
             | Tag::IsUnique
             | Tag::FlagSet
             | Tag::FlagClear => {
@@ -3896,7 +3901,7 @@ mod tests {
         let root = b.close_block(blk, Some(one), Ty::I32, NodeIdx::NONE);
         let body = b.finish(root, &[]).expect("ok");
         assert_eq!(body.len(), 1);
-        assert_eq!(Tag::ALL.len(), 59);
+        assert_eq!(Tag::ALL.len(), 60);
         assert!(
             Tag::ALL
                 .iter()

@@ -1,0 +1,5 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: the cold frame states its own stored argument count; body and release order stay unchanged.
+fn length!(text: string) -> usize:
+    text.len()

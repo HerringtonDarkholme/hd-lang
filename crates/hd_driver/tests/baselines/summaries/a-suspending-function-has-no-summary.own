@@ -8,12 +8,13 @@ struct Member:
     name: string
 
 fn save!(m: Member) -> void:
-    pass
 > app/main/save
 >   local $0 m: Member [param] value
 >     uses $0: none
->   %0 = Drop [$0] : ()
->   %1 = Block - : ()
+>   %0 = ColdCopy [$0] #0 : ()
+    pass
+>   %1 = Drop [$0] : ()
+>   %2 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
 

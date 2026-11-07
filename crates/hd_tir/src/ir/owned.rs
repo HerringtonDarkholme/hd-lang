@@ -102,6 +102,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     retained_results(b, own, &topo, &mut errs);
     exit_parameters(b, own, &topo, &mut errs);
     cache_copies(b, own, &topo, &mut errs);
+    cold_parameters(b, own, &topo, &mut errs);
     takes_outside_suspension(b, &topo, &mut errs);
     change_places(b, &topo, &mut errs);
     hoisted(b, &topo, own, &mut errs);
@@ -115,6 +116,45 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     Balance::new(b, &topo, own).walk(&mut errs);
     copies(b, &mut errs);
     errs
+}
+
+/// Each copied source argument declares its count in the cold frame.
+fn cold_parameters(b: &Body, cx: &dyn OwnCx, topo: &Topology, errs: &mut Vec<VerifyError>) {
+    let wanted = crate::own::cold::parameters(b, cx);
+    let root = b.sub_root[0];
+    for &l in &wanted {
+        let word = l | super::place::BARE_LOCAL;
+        let n = b
+            .record(b.data[root as usize][0])
+            .iter()
+            .filter(|&&i| b.tags[i as usize] == Tag::ColdCopy && b.data[i as usize][0] == word)
+            .count();
+        if n != 1 {
+            err(
+                errs,
+                root,
+                "a cold parameter lacks its one frame copy".into(),
+            );
+        }
+    }
+    for i in 0..b.len() {
+        if b.tags[i] != Tag::ColdCopy {
+            continue;
+        }
+        let [word, reason] = b.data[i];
+        if word & super::place::BARE_LOCAL == 0
+            || !wanted.contains(&(word & !super::place::BARE_LOCAL))
+            || topo.blk[i] != root
+            || reason != 0
+            || b.ty[i] != hd_types::Ty::VOID
+        {
+            err(
+                errs,
+                u32_of(i),
+                "a cold copy without a source-parameter proof".into(),
+            );
+        }
+    }
 }
 
 /// A counted persistent cache owns a copy and returns a copy on each hit.

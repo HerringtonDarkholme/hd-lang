@@ -1,0 +1,21 @@
+# test: a cold frame keeps its counted argument before polling and releases an unpolled copy
+# expect-stdout: keep1 new2 9
+use std.task.block_on
+
+fn deferred![T](value: T) -> T:
+    value
+
+pub fn main() -> void $ Console:
+    let mut text = "keep${1}"
+    let pending: mut Suspend[string] = deferred(text)
+    text = "new${2}"
+    kept := match block_on(pending):
+        .Completed(value) => value
+        .Cancelled => "cancelled"
+        .Abandoned => "abandoned"
+    _ := deferred("drop${3}")
+    number := match block_on(deferred(+9)):
+        .Completed(value) => value
+        .Cancelled => +0
+        .Abandoned => +0
+    println("$kept $text $number")

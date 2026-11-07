@@ -50,6 +50,7 @@ pub use hoist::{EntryTest, entry_test, loop_statements, loop_test};
 
 pub(crate) mod abi;
 pub(crate) mod cache;
+pub(crate) mod cold;
 pub(crate) mod derive;
 pub mod flow;
 pub(crate) mod frame;
@@ -125,6 +126,11 @@ pub trait OwnCx {
     fn parameter_count(&self, item: hd_base::DefId) -> Option<usize> {
         let _ = item;
         None
+    }
+    /// Whether `ty` holds an inline `Drop` value; open types may be unknown.
+    fn holds_drop(&self, ty: Ty) -> Tri {
+        let _ = ty;
+        Tri::Maybe
     }
     /// Whether this intrinsic constructs an owned result from borrowed
     /// buffer bits, whose count is stated separately after the call.
@@ -451,6 +457,7 @@ pub(crate) fn owned_value(b: &Body, i: usize) -> bool {
             | Tag::Retain
             | Tag::ExitDrop
             | Tag::CacheCopy
+            | Tag::ColdCopy
             | Tag::IsUnique
             | Tag::FlagSet
             | Tag::FlagClear
@@ -817,6 +824,9 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     scratch.topo.build(b);
     scratch.splice.clear();
     cache::run(b, cx, &scratch.topo, &mut scratch.splice)?;
+    scratch.topo.build(b);
+    scratch.splice.clear();
+    cold::run(b, cx, &scratch.topo, &mut scratch.splice)?;
     Ok(())
 }
 

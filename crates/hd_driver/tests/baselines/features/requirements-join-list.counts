@@ -17,7 +17,7 @@ fn fetch!(key: string) -> string:
 >   release string (conservative: frame drop)
 >   release counted reference (conservative: frame drop)
 > app/main/fetch
->   retain string (conservative: cold constructor)
+>   retain string (stored)
 
 fn all!(keys: List[string]) -> usize:
     let tasks: List[mut Suspend[string]] = [for k in keys => fetch(k)]
@@ -45,7 +45,7 @@ fn all!(keys: List[string]) -> usize:
 >   release List[string] (conservative: frame drop)
 >   release counted reference (conservative: frame drop)
 > app/main/all
->   copy List[string] (conservative: cold constructor)
+>   copy List[string] (stored)
     results := join!(tasks...)
 >   release counted reference (conservative: Await)
 >   release counted reference (conservative: Await)

@@ -15,7 +15,7 @@ fn label!(s: string) -> string:
 >   release string (conservative: frame drop)
 >   release counted reference (conservative: frame drop)
 > app/main/label
->   retain string (conservative: cold constructor)
+>   retain string (stored)
 
 fn one!(s: string) -> usize:
     label!(s).len()
@@ -38,7 +38,7 @@ fn one!(s: string) -> usize:
 >   release counted reference (conservative: frame drop)
 >   release counted reference (conservative: frame drop)
 > app/main/one
->   retain string (conservative: cold constructor)
+>   retain string (stored)
 
 fn both!(a: string, b: string) -> usize:
     let (x, y) = join!(label(a), label(b))
@@ -84,8 +84,8 @@ fn both!(a: string, b: string) -> usize:
 >   release string (conservative: frame drop)
 >   release counted reference (conservative: frame drop)
 > app/main/both
->   retain string (conservative: cold constructor)
->   retain string (conservative: cold constructor)
+>   retain string (stored)
+>   retain string (stored)
     x.len() + y.len()
 >   retain &string (conservative: Ref)
 >   retain &string (conservative: Ref)
@@ -120,5 +120,5 @@ fn either!(a: string, b: string) -> usize:
 >   release counted reference (conservative: frame drop)
 >   release counted reference (conservative: frame drop)
 > app/main/either
->   retain string (conservative: cold constructor)
->   retain string (conservative: cold constructor)
+>   retain string (stored)
+>   retain string (stored)

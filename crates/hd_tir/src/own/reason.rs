@@ -103,7 +103,9 @@ impl std::fmt::Display for Reason {
 pub fn reason(b: &Body, i: usize) -> Option<Reason> {
     let [_, w] = b.data[i];
     Some(match b.tags[i] {
-        Tag::Retain | Tag::Drop | Tag::ExitDrop | Tag::CacheCopy => Reason::from_word(w),
+        Tag::Retain | Tag::Drop | Tag::ExitDrop | Tag::CacheCopy | Tag::ColdCopy => {
+            Reason::from_word(w)
+        }
         Tag::IsUnique if w == unique_word::COVERED => Reason::View,
         Tag::IsUnique => Reason::Conservative("unique"),
         Tag::Read if w == ReadMode::Copy as u32 => Reason::Conservative("copy read"),
