@@ -266,8 +266,13 @@
     ;; 34 |     for i in 0..4:
           local.get $p
           i32.load $heap offset=4
+          call $rt:list_unique
+          local.set $t4
+          local.get $p
+          local.get $t4
+          i32.store $heap offset=4
+          local.get $t4
     ;; 35 |         p.pending.push(i)
-          local.tee $t4
           i32.load $heap offset=4
           local.tee $t5
           local.get $t4

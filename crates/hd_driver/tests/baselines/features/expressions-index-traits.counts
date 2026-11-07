@@ -13,16 +13,20 @@ impl Index[usize] for Names:
     type Out = string
     fn index(&self, key: usize) -> &string:
         &self.items[key]
+> app/main/impl Index [ usize ] for Names.index
+>   unique List[string] (may be shared)
 
 impl IndexSet[usize, string] for Names:
     fn index_set(&mut self, key: usize, value: string) -> void:
         self.items[key] = value
 > app/main/impl IndexSet [ usize , string ] for Names.index_set
+>   unique List[string] (may be shared)
 >   release string (overwritten)
 
 fn read_len(n: Names, i: usize) -> usize:
     n[i].len()
 > app/main/read_len
+>   unique List[string] (may be shared)
 >   release app.main.Names (last use)
 
 fn write(n: &mut Names, i: usize, s: string) -> void:

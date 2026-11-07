@@ -5,10 +5,11 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
+  (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 5 funcref))
+  (import "fixture" "table0" (table $table0 6 funcref))
   (func $"impl Sink for Total.emit" (param $self i32) (param $value i64)
     ;; 26 |         self.sum += value
     block
@@ -132,7 +133,7 @@
       end
       local.get $root
       local.get $keeper
-      i32.const 296 ;; &vtable[func43]
+      i32.const 296 ;; &vtable[func46]
       call $walk
     ;; 39 |     let mut total = Total { sum: 0 }
       local.get $keeper
@@ -278,7 +279,12 @@
       end
       local.get $k
       i32.load $heap
-      local.tee $t0
+      call $rt:list_unique
+      local.set $t0
+      local.get $k
+      local.get $t0
+      i32.store $heap
+      local.get $t0
       i32.load $heap offset=4
       local.tee $t1
       local.get $t0

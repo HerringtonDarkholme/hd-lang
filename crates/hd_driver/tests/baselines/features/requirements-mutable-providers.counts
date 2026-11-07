@@ -16,6 +16,8 @@ struct Log:
 impl Recorder for Log:
     fn note(&mut self, s: string) -> void:
         self.lines.push(s)
+> app/main/impl Recorder for Log.note
+>   unique List[string] (may be shared)
 
     fn total(&self) -> usize:
         self.lines.len()

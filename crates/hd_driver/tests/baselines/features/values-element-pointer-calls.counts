@@ -36,6 +36,7 @@ fn keep(n: *Node, k: &mut Keeper) -> void:
     k.saved.push(n)
 > app/main/keep
 >   retain &app.main.Node (stored)
+>   unique List[&app.main.Node] (may be shared)
 
 fn save(node: &Node, k: &mut Keeper) -> void:
     for e in &node.children:

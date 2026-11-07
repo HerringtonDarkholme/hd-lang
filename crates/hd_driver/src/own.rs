@@ -743,18 +743,6 @@ impl OwnCx for Env<'_> {
         matches!(pool.get(t), TyData::Ref { counted: false, .. })
     }
 
-    fn single_owner_field(&self, ty: Ty, field: u32) -> bool {
-        let pool = &self.run.pool;
-        let mut t = ty;
-        while let TyData::Mut(inner) = pool.get(t) {
-            t = inner;
-        }
-        self.run
-            .single_owner
-            .get()
-            .is_some_and(|v| v.one_owner((t, field)))
-    }
-
     fn in_place_struct(&self, ty: Ty) -> bool {
         let pool = &self.run.pool;
         let mut t = ty;

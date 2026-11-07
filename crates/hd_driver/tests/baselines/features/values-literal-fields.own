@@ -3,10 +3,9 @@
 # @build: v8 release
 # Feature: a list literal of constants is static data only as a top-level
 # binding's initializer (#1399).
-# expected: `Histogram.buckets` is one owner, because the literal in
-# `histogram` builds a fresh buffer, so `add` checks nothing. `Shelf.items`
-# is shared: `shelf` copies the top-level `START`, whose literal is static
-# data, so `put` keeps its check.
+# expected: the literal in `histogram` builds a fresh buffer (`rt:list_buf`),
+# and `shelf` copies the top-level `START`, whose literal is static data
+# (`rt:coll_copy` of its address). Both `add` and `put` keep their check.
 let START: List[i64] = [7, 8]
 > app/main/init.init
 >   %0 = NewList - [7:i64 8:i64] : List[i64]
@@ -50,7 +49,6 @@ impl Histogram:
 >   %4 = IsUnique [*$0 .buckets] : ()
 >   %5 = Store [*$0 .buckets [%0]] %3 : ()
 >   %6 = Block - : ()
->   %4 owned: single-owner field
 >   summary kept [] writes
 
 impl Shelf:
@@ -65,7 +63,6 @@ impl Shelf:
 >   %1 = IsUnique [*$0 .items] : ()
 >   %2 = Store [*$0 .items [0:usize]] %0 : ()
 >   %3 = Block - : ()
->   %1 shared: a construction with a shared header
 >   summary kept [] writes
 
 pub fn main() -> void $ Console:

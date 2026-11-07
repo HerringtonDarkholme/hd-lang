@@ -30,7 +30,6 @@ impl[T < Ord] Queue[T]:
 >   %2 = Read borrow [*$0 .items] : List[T]
 >   %3 = Intrinsic ListPush [%2 %0] : ()
 >   %4 = Block - : ()
->   %1 shared: a copy of a value that holds the struct
 >   exit sub 0 drops [$1]
 >   summary kept [$1] writes
 
@@ -65,7 +64,6 @@ impl[T < Ord] Queue[T]:
 >   %71 = If %8 [%68 %70] : ()
 >   %72 = Block - : ()
 >   %73 = Loop %72 - : ()
->   %5 shared: a copy of a value that holds the struct
             left := 2 * parent + 1
 >   %9 = Read copy [$4] : usize
 >   %10 = Prim Mul [2:usize %9] : usize
@@ -95,10 +93,6 @@ impl[T < Ord] Queue[T]:
 >   %39 = Block - : never
 >   %40 = Match %26 [%39 %32 %33] : ()
 >   %41 = Block - : ()
->   %21 shared: a copy of a value that holds the struct
->   %25 shared: a copy of a value that holds the struct
->   %20 shared: a copy of a value that holds the struct
->   %24 shared: a copy of a value that holds the struct
                     .Less => larger = left + 1
 >   %29 = Read copy [$5] : usize
 >   %30 = Prim Add [%29 1:usize] : usize
@@ -119,8 +113,6 @@ impl[T < Ord] Queue[T]:
 >   %49 = Drop [%43] : ()
 >   %58 = Block - : never
 >   %59 = Match %47 [%58 %50 %52] : ()
->   %46 shared: a copy of a value that holds the struct
->   %45 shared: a copy of a value that holds the struct
                 .Less => pass
 >   %50 = Block - : ()
 >   %54 = Block - : never
@@ -136,8 +128,6 @@ impl[T < Ord] Queue[T]:
 >   %63 = IsUnique [*$0 .items] : ()
 >   %64 = Store [*$0 .items [%60]] %62 : ()
 >   %65 = Release %64 Operation #3 : ()
->   %64 shared: a copy of a value that holds the struct
->   %63 shared: a copy of a value that holds the struct
             parent = larger
 >   %66 = Read copy [$6] : usize
 >   %67 = Store [$4] %66 : ()
@@ -147,9 +137,6 @@ impl[T < Ord] Queue[T]:
 >   %76 = IsUnique [*$0 .items] : ()
 >   %77 = Store [*$0 .items [%74]] %75 : ()
 >   %78 = Release %77 Operation #3 : ()
->   %76 shared: a copy of a value that holds the struct
->   %75 shared: a copy of a value that holds the struct
->   %77 shared: a copy of a value that holds the struct
 >   exit sub 0 drops [$2]
 >   summary kept [$0 $2] writes relies [$0]
 

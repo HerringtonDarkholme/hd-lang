@@ -96,7 +96,6 @@ fn keep(n: *Node, k: &mut Keeper) -> void:
 >   %2 = Read borrow [*$1 .saved] : List[Counted[Node]]
 >   %3 = Intrinsic ListPush [%2 %0] : ()
 >   %4 = Block - : ()
->   %1 owned: single-owner field
 >   summary kept [$0] writes
 
 fn save(node: &Node, k: &mut Keeper) -> void:

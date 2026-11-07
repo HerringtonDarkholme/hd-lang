@@ -22,7 +22,6 @@ fn bumped(mut t: Tagged, s: string) -> Tagged:
 >   %2 = Read borrow [$0 .tags] : List[string]
 >   %3 = Intrinsic ListPush [%2 %0] : ()
 >   %5 = Block %4 : Tagged
->   %1 shared: a copy of a value that holds the struct
     t
 >   %4 = Read move [$0] : Tagged
 >   exit sub 0 drops [$0 $1]
@@ -40,7 +39,6 @@ fn bump_only(mut t: Tagged, s: string) -> usize:
 >   %2 = Read borrow [$0 .tags] : List[string]
 >   %3 = Intrinsic ListPush [%2 %0] : ()
 >   %8 = Block %6 : usize
->   %1 shared: a copy of a value that holds the struct
     t.tags.len()
 >   %4 = Read move [$0 .tags] : List[string]
 >   %5 = Drop [$0] : ()
@@ -69,7 +67,6 @@ fn last_use(t: Tagged, s: string) -> Tagged:
 >   %8 = Block - : Tagged
 >   %9 = Scope %8 [] : Tagged
 >   %10 = Block %9 : Tagged
->   %3 shared: a copy of a value that holds the struct
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1]
 
@@ -96,7 +93,6 @@ fn kept_after(t: Tagged, s: string) -> usize:
 >   %9 = Scope %8 [] : Tagged
 >   %10 = Store [$2] %9 : ()
 >   %20 = Block %19 : usize
->   %3 shared: a copy of a value that holds the struct
     u.tags.len() + t.tags.len()
 >   %11 = Read move [$2 .tags] : List[string]
 >   %12 = Drop [$2] : ()

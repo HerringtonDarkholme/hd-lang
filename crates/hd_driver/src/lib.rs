@@ -60,7 +60,6 @@ pub mod bench;
 mod checked_rooms;
 mod dbg;
 pub mod diagnostics;
-mod fields;
 mod own;
 pub use own::copy_report_label;
 mod pipeline;
@@ -1814,9 +1813,6 @@ struct Run<'a> {
     counters: Mutex<Counters>,
     tir_text: Mutex<std::collections::BTreeMap<String, String>>,
     own_text: Mutex<std::collections::BTreeMap<String, OwnText>>,
-    /// Step 15d1's single-owner field verdicts, once `link` computed them
-    /// (`fields::single_owner`; fixtures with an own view only for now).
-    single_owner: OnceLock<fields::Verdicts>,
     /// The items emitted glue calls by name ([`Run::glue_items`]).
     glue_items: OnceLock<hd_base::HashSet<DefId>>,
 }
@@ -2651,7 +2647,6 @@ fn build_packages_inner(
         counters: Mutex::new(Counters::default()),
         tir_text: Mutex::new(std::collections::BTreeMap::new()),
         own_text: Mutex::new(std::collections::BTreeMap::new()),
-        single_owner: OnceLock::new(),
         glue_items: OnceLock::new(),
         table,
         module_nodes,
@@ -10511,108 +10506,6 @@ impl Run<'_> {
         selectors.into_iter().collect()
     }
 
-    // The browser compiler runs the dev pipeline only: no summaries.
-    #[cfg(not(target_arch = "wasm32"))]
-    /// The instance bodies collection reads, each with its item, type
-    /// arguments, and the single-owner field
-    /// verdicts over them (`fields::single_owner`), computed once.
-    fn single_owner_facts<'b>(
-        &self,
-        env: &Env<'_>,
-        c: &CollectOut,
-        body: &dyn Fn(hd_base::InstId) -> Option<&'b hd_tir::ir::Body>,
-    ) -> (Vec<fields::Instance<'b>>, &fields::Verdicts) {
-        let table = &c.collected.table;
-        let all: Vec<_> = c
-            .order
-            .iter()
-            .filter_map(|&id| Some((id, body(id)?, table.item[id.idx()], table.args[id.idx()])))
-            .collect();
-        let verdicts = self
-            .single_owner
-            .get_or_init(|| fields::single_owner(&self.pool, env, all.iter().copied()));
-        (all, verdicts)
-    }
-
-    // The browser compiler runs the dev pipeline only: no summaries.
-    #[cfg(not(target_arch = "wasm32"))]
-    /// Step 15d1: each own view's uniqueness checks of a collection field
-    /// gain a line with the field's single-owner verdict over the whole
-    /// program (`fields::single_owner`): `%i owned: single-owner field` for
-    /// a check step 15d2 marks, `%i one owner` for another check of such a
-    /// field, `%i shared: why`. Release only.
-    fn print_single_owner<'b>(
-        &self,
-        env: &Env<'_>,
-        c: &CollectOut,
-        body: &dyn Fn(hd_base::InstId) -> Option<&'b hd_tir::ir::Body>,
-    ) {
-        let (all, verdicts) = self.single_owner_facts(env, c, body);
-        let entry = fields::entry_owned_checks(&self.pool, env, &all, verdicts);
-        let names = self.names();
-        let mut own_text = lock(&self.own_text);
-        for &(id, b, item, args) in &all {
-            let path = names.path(item);
-            let Some(own) = own_text.get_mut(&path) else {
-                continue;
-            };
-            let sub = |t| hd_mono::subst(&self.pool, env, item, args, t);
-            let lines = fields::check_lines(&self.pool, env, b, &sub, verdicts);
-            let locals = fields::owned_local_checks(&self.pool, env, b, &sub, verdicts);
-            let locals = locals
-                .into_iter()
-                .map(|i| (i, "owned: a one-owner local".to_owned()));
-            let at_entry = entry
-                .get(&id)
-                .into_iter()
-                .flatten()
-                .map(|&i| (i, "owned: every call passes a one-owner buffer".to_owned()));
-            for (i, line) in lines.into_iter().chain(at_entry).chain(locals) {
-                let line = format!("%{i} {line}\n");
-                if !own.text.contains(&line) {
-                    own.text.push_str(&line);
-                }
-            }
-        }
-    }
-
-    // The browser compiler runs the dev pipeline only: no summaries.
-    #[cfg(not(target_arch = "wasm32"))]
-    /// Step 15d2: after collection, over the bodies the link emits, each
-    /// uniqueness check of a single-owner field that stands at its change
-    /// is marked `unique_word::OWNED` (no check runs), in a copy of its
-    /// instance's body; so is each check of all of a `&mut` parameter's
-    /// target that every call passes such a field at (step 15d3,
-    /// `fields::entry_owned_checks`). Release only; the verdicts cover exactly these
-    /// bodies, so no body the link emits gives such a field a second owner.
-    fn mark_single_owner<'b>(
-        &self,
-        env: &Env<'_>,
-        c: &CollectOut,
-        body: &dyn Fn(hd_base::InstId) -> Option<&'b hd_tir::ir::Body>,
-    ) -> HashMap<hd_base::InstId, hd_tir::ir::Body> {
-        let (all, verdicts) = self.single_owner_facts(env, c, body);
-        let mut entry = fields::entry_owned_checks(&self.pool, env, &all, verdicts);
-        let mut out = HashMap::default();
-        for &(id, b, item, args) in &all {
-            let sub = |t| hd_mono::subst(&self.pool, env, item, args, t);
-            let mut marks = fields::owned_checks(&self.pool, env, b, &sub, verdicts);
-            marks.extend(entry.remove(&id).unwrap_or_default());
-            marks.extend(fields::owned_local_checks(
-                &self.pool, env, b, &sub, verdicts,
-            ));
-            if marks.is_empty() {
-                continue;
-            }
-            let mut owned = b.clone();
-            for i in marks {
-                owned.data[i][1] = hd_tir::ir::unique_word::OWNED;
-            }
-            out.insert(id, owned);
-        }
-        out
-    }
-
     /// `link`: one linear-memory module
     /// from collection's output and every instance's TIR body.
     fn link(&self) {
@@ -10640,20 +10533,7 @@ impl Run<'_> {
                 .or_else(|| c.collected.supplied_body(&self.pool, item, args))
                 .or_else(|| self.body_of(p, item).map(|b| &b.0))
         };
-        // Release: single-owner fields' checks marked (step 15d2). The
-        // browser compiler runs the dev pipeline only.
-        #[cfg(target_arch = "wasm32")]
-        let owned: HashMap<hd_base::InstId, hd_tir::ir::Body> = HashMap::default();
-        #[cfg(not(target_arch = "wasm32"))]
-        let owned = if self.summaries.is_some() {
-            if !self.host.render_tir.is_empty() {
-                self.print_single_owner(&env, c, &collected);
-            }
-            self.mark_single_owner(&env, c, &collected)
-        } else {
-            HashMap::default()
-        };
-        let body = |id: hd_base::InstId| owned.get(&id).or_else(|| collected(id));
+        let body = |id: hd_base::InstId| collected(id);
         let inits = &c.collected.inits;
         let entry = match &c.roots {
             // Legacy whole-history sessions own their memory. Only the

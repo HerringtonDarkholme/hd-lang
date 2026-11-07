@@ -3,8 +3,8 @@
 # @build: v8 release
 # Feature: a `&mut List` parameter written by two loops in turn, called from a
 # caller's loop with its own fresh local (bench nbody advance).
-# expected: the caller's local has one owner and every call passes it, so
-# neither loop checks.
+# expected: each loop makes the list unique once, before it runs
+# (`rt:list_unique` under `0 < n`), and no element write checks.
 pub struct Body:
     pub x: f64
     pub v: f64
@@ -60,7 +60,6 @@ fn advance(bodies: &mut List[Body], dt: f64) -> void:
 >   %30 = If %14 [%27 %29] : ()
 >   %31 = Block - : ()
 >   %32 = Loop %31 - : ()
->   %11 owned: every call passes a one-owner buffer
         bodies[i].v = bodies[i].v + dt
 >   %20 = Read copy [$6] : usize
 >   %21 = Read copy [$6] : usize
@@ -93,7 +92,6 @@ fn advance(bodies: &mut List[Body], dt: f64) -> void:
 >   %63 = If %44 [%60 %62] : ()
 >   %64 = Block - : ()
 >   %65 = Loop %64 - : ()
->   %41 owned: every call passes a one-owner buffer
         bodies[i].x = bodies[i].x + dt * bodies[i].v
 >   %50 = Read copy [$10] : usize
 >   %51 = Read copy [$10] : usize

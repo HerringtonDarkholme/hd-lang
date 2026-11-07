@@ -44,6 +44,7 @@ pub fn main() -> void $ Console:
 > app/main/main
 >   release app.main.Parser [index, pending] (last use)
     for i in 0..4:
+>   unique List[usize] (may be shared)
         p.pending.push(i)
     p.held = 4
     p.drain_into(0)

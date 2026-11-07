@@ -50,7 +50,6 @@ impl Sink for Keep:
 >   %2 = Read borrow [*$0 .all] : List[Member]
 >   %3 = Intrinsic ListPush [%2 %0] : ()
 >   %4 = Block - : ()
->   %1 owned: single-owner field
 >   exit sub 0 drops [$1]
 >   summary kept [$1] writes
 
