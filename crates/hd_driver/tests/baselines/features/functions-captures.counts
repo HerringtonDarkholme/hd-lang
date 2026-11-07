@@ -11,7 +11,7 @@
 fn copied(s: string) -> usize:
     f := fn() -> usize: s.len()
 > app/main/copied
->   retain counted reference (conservative: Closure)
+>   retain counted reference (stored)
 >   release fn() -> usize (last use)
 >   release string (last use)
     f() + s.len()
@@ -26,7 +26,7 @@ fn shared_list(s: string) -> usize:
 > app/main/shared_list
 >   retain string (conservative: entry)
 >   unique List[string] (conservative: unique)
->   retain counted reference (conservative: Closure)
+>   retain counted reference (stored)
     add()
     add()
     xs.len()
@@ -37,7 +37,7 @@ fn copy_shares(s: string) -> usize:
 > app/main/copy_shares
 >   release fn() -> () (last use)
     inc := fn() -> void: n += s.len()
->   retain counted reference (conservative: Closure)
+>   retain counted reference (stored)
     again := inc
     inc()
     again()
@@ -46,7 +46,7 @@ fn copy_shares(s: string) -> usize:
 fn through_ptr(items: *mut List[string], s: string) -> fn() -> void:
     fn() -> void: items.push(s)
 > app/main/through_ptr
->   retain counted reference (conservative: Closure)
+>   retain counted reference (stored)
 > app/main/through_ptr
 >   retain string (conservative: entry)
 >   unique List[string] (conservative: unique)

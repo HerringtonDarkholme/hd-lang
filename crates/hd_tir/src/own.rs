@@ -50,6 +50,7 @@ pub use hoist::{EntryTest, entry_test, loop_statements, loop_test};
 
 pub(crate) mod abi;
 pub(crate) mod cache;
+pub(crate) mod captures;
 pub(crate) mod child;
 pub(crate) mod cold;
 pub(crate) mod cold_row;

@@ -25,7 +25,7 @@
     },
     {
       "reason": "conservative: Closure",
-      "sites": 1
+      "sites": 0
     },
     {
       "reason": "conservative: Coerce",

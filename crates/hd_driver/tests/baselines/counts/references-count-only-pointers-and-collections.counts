@@ -50,7 +50,7 @@ fn cell_field(name: string) -> usize:
     retag := fn() -> void: pair.tag = "u"
 > std/rt_tests.stage_case/cell_field
 >   release string (overwritten)
->   retain counted reference (conservative: Closure)
+>   retain counted reference (stored)
     retag()
     r := &pair.name
     show(r)

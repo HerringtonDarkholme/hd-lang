@@ -78,7 +78,7 @@ fn bound(u: User) -> usize:
 >   local $1 $receiver: User [read assigned captured] value
 >     uses $1: %1 -> %2 consume, %14 consume last
 >   local $2 f: fn() -> usize [:= read assigned] value
->     uses $2: %15 -> %16 lend, %18 lend last
+>     uses $2: %16 -> %17 lend, %19 lend last
 >   local $4 self: string [read] value
 >     uses $4: %3 -> %4 lend last
 >   %0 = Read move [$0] : User
@@ -96,15 +96,16 @@ fn bound(u: User) -> usize:
 >   %12 = Drop [$1] : ()
 >   %13 = Block %11 : usize
 >   %14 = Closure #1 [%0 %1] : fn() -> usize
->   %15 = Store [$2] %14 : ()
->   %22 = Block %21 : usize
+>   %15 = Retain %14 Operation captures #0 : ()
+>   %16 = Store [$2] %14 : ()
+>   %23 = Block %22 : usize
     f() + f()
->   %16 = Read borrow [$2] : fn() -> usize
->   %17 = CallValue %16 [] : usize
->   %18 = Read move [$2] : fn() -> usize
->   %19 = CallValue %18 [] : usize
->   %20 = Drop [%18] : ()
->   %21 = Prim Add [%17 %19] : usize
+>   %17 = Read borrow [$2] : fn() -> usize
+>   %18 = CallValue %17 [] : usize
+>   %19 = Read move [$2] : fn() -> usize
+>   %20 = CallValue %19 [] : usize
+>   %21 = Drop [%19] : ()
+>   %22 = Prim Add [%18 %20] : usize
 >   exit sub 0 drops [$0 $1]
 >   exit sub 1 drops [$1]
 >   summary kept [$0] writes
@@ -115,13 +116,13 @@ fn bound_mut(u: *mut User, n: string) -> void:
 >   local $0 u: Counted[mut User] [param read] value
 >     uses $0: entry -> %0 consume last
 >   local $1 n: string [param read] value
->     uses $1: entry -> %10 consume last
+>     uses $1: entry -> %11 consume last
 >   local $2 $receiver: Counted[mut User] [read assigned captured] value
 >     uses $2: %1 -> %2 lend, %7 consume last
 >   local $3 $0: string [param] value
 >     uses $3: entry -> %3 consume last
 >   local $4 f: fn(string) -> () [:= read assigned] value
->     uses $4: %8 -> %9 lend last
+>     uses $4: %9 -> %10 lend last
 >   %0 = Read copy [$0] : Counted[mut User]
 >   %1 = Store [$2] %0 : ()
 >   %2 = Read move [$2] : Counted[mut User]
@@ -130,13 +131,14 @@ fn bound_mut(u: *mut User, n: string) -> void:
 >   %5 = Drop [%2] : ()
 >   %6 = Block %4 : ()
 >   %7 = Closure #1 [%0 %1] : fn(string) -> ()
->   %8 = Store [$4] %7 : ()
->   %13 = Block - : ()
+>   %8 = Retain %7 Operation captures #0 : ()
+>   %9 = Store [$4] %7 : ()
+>   %14 = Block - : ()
     f(n)
->   %9 = Read move [$4] : fn(string) -> ()
->   %10 = Read move [$1] : string
->   %11 = CallValue %9 [%10] : ()
->   %12 = Drop [%9] : ()
+>   %10 = Read move [$4] : fn(string) -> ()
+>   %11 = Read move [$1] : string
+>   %12 = CallValue %10 [%11] : ()
+>   %13 = Drop [%10] : ()
 >   exit sub 0 drops [$1 $2]
 >   exit sub 1 drops [$2 $3]
 >   summary kept [$0 $1] writes

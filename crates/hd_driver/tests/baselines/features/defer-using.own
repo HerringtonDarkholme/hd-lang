@@ -31,10 +31,10 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
 >   local $0 log: Counted[mut List[string]] [param read captured] value
 >     uses $0: entry -> %2 lend, %6 consume last
 >   local $1 s: string [param read captured] value
->     uses $1: entry -> %0 consume, %6 consume, %19 lend last
+>     uses $1: entry -> %0 consume, %6 consume, %20 lend last
 >   local $2 $ref: DeferGuard[fn() -> (), $(), Ref[()]] [:= read assigned captured captured-assigned] place
 >   local $4 action: fn() -> () [read] value
->     uses $4: %7 -> %8 consume last
+>     uses $4: %8 -> %9 consume last
 >   %0 = Read move [$1] : string
 >   %1 = IsUnique [*$0] : ()
 >   %2 = Read borrow [*$0] : List[string]
@@ -42,30 +42,31 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
 >   %4 = Drop [$0] : ()
 >   %5 = Block - : ()
 >   %6 = Closure #1 [%0 %2] : fn() -> ()
->   %7 = Store [$4] %6 : ()
->   %8 = Read move [$4] : fn() -> ()
->   %9 = NewStruct [%8] : DeferGuard[fn() -> (), $(), Ref[()]]
->   %10 = Break L1 %9 : never
->   %11 = Block - : DeferGuard[fn() -> (), $(), Ref[()]]
->   %12 = Scope %11 [] : DeferGuard[fn() -> (), $(), Ref[()]]
->   %13 = Store [$2] %12 : ()
->   %14 = Ref mut local frame [$2] : Counted[mut DeferGuard[fn() -> (), $(), Ref[()]]]
->   %15 = Call std/ops/Disposable.dispose for DeferGuard[fn() -> (), $(), Ref[()]] [$()] via Impl (%14) : ()
->   %16 = Drop [%14] : ()
->   %17 = Block - : ()
->   %18 = Defer #17 : ()
->   %24 = Block %23 : usize
->   %25 = Scope %24 [%17] : usize
->   %26 = Drop [$2] : ()
->   %27 = Drop [$0] : ()
->   %28 = Drop [$1] : ()
->   %29 = Block %25 : usize
+>   %7 = Retain %6 Operation captures #0 : ()
+>   %8 = Store [$4] %6 : ()
+>   %9 = Read move [$4] : fn() -> ()
+>   %10 = NewStruct [%9] : DeferGuard[fn() -> (), $(), Ref[()]]
+>   %11 = Break L1 %10 : never
+>   %12 = Block - : DeferGuard[fn() -> (), $(), Ref[()]]
+>   %13 = Scope %12 [] : DeferGuard[fn() -> (), $(), Ref[()]]
+>   %14 = Store [$2] %13 : ()
+>   %15 = Ref mut local frame [$2] : Counted[mut DeferGuard[fn() -> (), $(), Ref[()]]]
+>   %16 = Call std/ops/Disposable.dispose for DeferGuard[fn() -> (), $(), Ref[()]] [$()] via Impl (%15) : ()
+>   %17 = Drop [%15] : ()
+>   %18 = Block - : ()
+>   %19 = Defer #18 : ()
+>   %25 = Block %24 : usize
+>   %26 = Scope %25 [%18] : usize
+>   %27 = Drop [$2] : ()
+>   %28 = Drop [$0] : ()
+>   %29 = Drop [$1] : ()
+>   %30 = Block %26 : usize
     s.len()
->   %19 = Read borrow [$1] : string
->   %20 = Call std/rt.bytes/bytes_len[] (%19) : usize
->   %21 = Break L0 %20 : never
->   %22 = Block - : usize
->   %23 = Scope %22 [] : usize
+>   %20 = Read borrow [$1] : string
+>   %21 = Call std/rt.bytes/bytes_len[] (%20) : usize
+>   %22 = Break L0 %21 : never
+>   %23 = Block - : usize
+>   %24 = Scope %23 [] : usize
 >   exit sub 0 drops [$0 $1 $2]
 >   exit sub 1 drops [$0 $1]
 >   summary kept [$0 $1] writes

@@ -60,10 +60,10 @@ fn lent(xs: List[string]) -> usize:
 >     frame cell [$1]
 >   local $2 x: string [param read] value
 >     uses $2: entry -> %4 lend last
->   %0 = Release %20 Exit local $0 #2 : ()
+>   %0 = Release %21 Exit local $0 #2 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
->   %20 = Block %18 : usize
+>   %21 = Block %19 : usize
     each(xs, fn(x: string) -> void: n += x.len())
 >   %2 = Read borrow [$0] : List[string]
 >   %3 = Read copy [$1] : usize
@@ -79,13 +79,14 @@ fn lent(xs: List[string]) -> usize:
 >   %13 = Drop [$1] : ()
 >   %14 = Block - : ()
 >   %15 = Closure #1 [%0 %1] : fn(string) -> ()
->   %16 = Call app/main/each[] (%2, %15) : ()
->   %17 = Drop [%15] : ()
+>   %16 = Retain %15 Operation captures #0 : ()
+>   %17 = Call app/main/each[] (%2, %15) : ()
+>   %18 = Drop [%15] : ()
 >   %15 finds [$1] full
     n
->   %18 = Read copy [$1] : usize
->   %19 = Drop [$1] : ()
->   %18 finds [$1] full
+>   %19 = Read copy [$1] : usize
+>   %20 = Drop [$1] : ()
+>   %19 finds [$1] full
 >   exit sub 0 drops [$1]
 >   exit sub 1 drops [$1 $2]
 >   summary kept [] borrows [$0] writes
@@ -95,7 +96,7 @@ fn returned() -> fn() -> void:
 > app/main/returned
 >   local $0 n: usize [read assigned captured captured-assigned] place
 >   %0 = Store [$0] 0:usize : ()
->   %9 = Block %7 : fn() -> ()
+>   %10 = Block %7 : fn() -> ()
     fn() -> void: n += 1
 >   %1 = Read copy [$0] : usize
 >   %2 = Prim Add [%1 1:usize] : usize
@@ -104,7 +105,8 @@ fn returned() -> fn() -> void:
 >   %5 = Drop [$0] : ()
 >   %6 = Block - : ()
 >   %7 = Closure #1 [%0 %1] : fn() -> ()
->   %8 = Drop [$0] : ()
+>   %8 = Retain %7 Operation captures #0 : ()
+>   %9 = Drop [$0] : ()
 >   %7 finds [$0] full
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
@@ -116,9 +118,9 @@ fn listed() -> usize:
 >   local $0 n: usize [read assigned captured captured-assigned] place
 >     frame cell [$0]
 >   local $1 fs: List[fn() -> ()] [:= read assigned] value
->     uses $1: %10 -> %11 lend last
+>     uses $1: %11 -> %12 lend last
 >   %0 = Store [$0] 0:usize : ()
->   %17 = Block %15 : usize
+>   %18 = Block %16 : usize
     fs := [fn() -> void: n += 1]
 >   %1 = Read copy [$0] : usize
 >   %2 = Prim Add [%1 1:usize] : usize
@@ -127,19 +129,20 @@ fn listed() -> usize:
 >   %5 = Drop [$0] : ()
 >   %6 = Block - : ()
 >   %7 = Closure #1 [%0 %1] : fn() -> ()
->   %8 = Coerce %7 [Identity -] : fn() -> ()
->   %9 = NewList - [%8] : List[fn() -> ()]
->   %10 = Store [$1] %9 : ()
+>   %8 = Retain %7 Operation captures #0 : ()
+>   %9 = Coerce %7 [Identity -] : fn() -> ()
+>   %10 = NewList - [%9] : List[fn() -> ()]
+>   %11 = Store [$1] %10 : ()
 >   %7 finds [$0] full
     fs[0]()
->   %11 = Read copy [$1 [0:usize]] : fn() -> ()
->   %12 = Drop [$1] : ()
->   %13 = CallValue %11 [] : ()
->   %14 = Drop [%11] : ()
+>   %12 = Read copy [$1 [0:usize]] : fn() -> ()
+>   %13 = Drop [$1] : ()
+>   %14 = CallValue %12 [] : ()
+>   %15 = Drop [%12] : ()
     n
->   %15 = Read copy [$0] : usize
->   %16 = Drop [$0] : ()
->   %15 finds [$0] full
+>   %16 = Read copy [$0] : usize
+>   %17 = Drop [$0] : ()
+>   %16 finds [$0] full
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [] writes
@@ -148,10 +151,10 @@ fn pushed(fs: &mut List[fn() -> void]) -> void:
     let n: usize = 0
 > app/main/pushed
 >   local $0 fs: Ref[mut List[fn() -> ()]] [param read] value
->     uses $0: entry -> %10 lend last
+>     uses $0: entry -> %11 lend last
 >   local $1 n: usize [read assigned captured captured-assigned] place
 >   %0 = Store [$1] 0:usize : ()
->   %12 = Block - : ()
+>   %13 = Block - : ()
     fs.push(fn() -> void: n += 1)
 >   %1 = Read copy [$1] : usize
 >   %2 = Prim Add [%1 1:usize] : usize
@@ -160,10 +163,11 @@ fn pushed(fs: &mut List[fn() -> void]) -> void:
 >   %5 = Drop [$1] : ()
 >   %6 = Block - : ()
 >   %7 = Closure #1 [%0 %1] : fn() -> ()
->   %8 = Drop [$1] : ()
->   %9 = IsUnique [*$0] : ()
->   %10 = Read borrow [*$0] : List[fn() -> ()]
->   %11 = Intrinsic ListPush [%10 %7] : ()
+>   %8 = Retain %7 Operation captures #0 : ()
+>   %9 = Drop [$1] : ()
+>   %10 = IsUnique [*$0] : ()
+>   %11 = Read borrow [*$0] : List[fn() -> ()]
+>   %12 = Intrinsic ListPush [%11 %7] : ()
 >   %7 finds [$1] full
 >   exit sub 0 drops [$1]
 >   exit sub 1 drops [$1]
@@ -174,11 +178,11 @@ fn captured() -> usize:
 > app/main/captured
 >   local $0 n: usize [read assigned captured captured-assigned] place
 >   local $1 inc: fn() -> () [:= read assigned captured] value
->     uses $1: %8 -> %9 lend, %11 lend, %15 consume last
+>     uses $1: %9 -> %10 lend, %12 lend, %16 consume last
 >   local $2 twice: fn() -> () [:= read assigned] value
->     uses $2: %16 -> %17 lend last
+>     uses $2: %18 -> %19 lend last
 >   %0 = Store [$0] 0:usize : ()
->   %22 = Block %20 : usize
+>   %24 = Block %22 : usize
     inc := fn() -> void: n += 1
 >   %1 = Read copy [$0] : usize
 >   %2 = Prim Add [%1 1:usize] : usize
@@ -187,27 +191,29 @@ fn captured() -> usize:
 >   %5 = Drop [$0] : ()
 >   %6 = Block - : ()
 >   %7 = Closure #1 [%0 %1] : fn() -> ()
->   %8 = Store [$1] %7 : ()
+>   %8 = Retain %7 Operation captures #0 : ()
+>   %9 = Store [$1] %7 : ()
 >   %7 finds [$0] full
     twice := fn() -> void:
->   %14 = Block - : ()
->   %15 = Closure #2 [%1 %1] : fn() -> ()
->   %16 = Store [$2] %15 : ()
+>   %15 = Block - : ()
+>   %16 = Closure #2 [%1 %1] : fn() -> ()
+>   %17 = Retain %16 Operation captures #0 : ()
+>   %18 = Store [$2] %16 : ()
         inc()
->   %9 = Read borrow [$1] : fn() -> ()
->   %10 = CallValue %9 [] : ()
+>   %10 = Read borrow [$1] : fn() -> ()
+>   %11 = CallValue %10 [] : ()
         inc()
->   %11 = Read move [$1] : fn() -> ()
->   %12 = CallValue %11 [] : ()
->   %13 = Drop [%11] : ()
+>   %12 = Read move [$1] : fn() -> ()
+>   %13 = CallValue %12 [] : ()
+>   %14 = Drop [%12] : ()
     twice()
->   %17 = Read move [$2] : fn() -> ()
->   %18 = CallValue %17 [] : ()
->   %19 = Drop [%17] : ()
+>   %19 = Read move [$2] : fn() -> ()
+>   %20 = CallValue %19 [] : ()
+>   %21 = Drop [%19] : ()
     n
->   %20 = Read copy [$0] : usize
->   %21 = Drop [$0] : ()
->   %20 finds [$0] full
+>   %22 = Read copy [$0] : usize
+>   %23 = Drop [$0] : ()
+>   %22 finds [$0] full
 >   exit sub 0 drops [$0 $1]
 >   exit sub 1 drops [$0]
 >   exit sub 2 drops [$1]

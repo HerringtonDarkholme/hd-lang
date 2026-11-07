@@ -711,7 +711,15 @@ impl Em<'_, '_, '_> {
         // Drop glue releases a value whole: a moved part's local then
         // releases its count, as the `Drop` the move took would have.
         let glue = walk.as_ref().is_some_and(has_glue);
-        self.retain_fields(at, &m, walk.as_ref(), &skip, colls);
+        if let Some(reason) =
+            self.operation_count(i, Tag::Retain, hd_tir::ir::count::Part::Captures)
+        {
+            self.because(reason, |em| {
+                em.retain_fields(at, &m, walk.as_ref(), &skip, colls);
+            });
+        } else if walk.is_some() || colls != 0 {
+            return unsupported("a closure environment without its stated capture copy");
+        }
         // A moved capture leaves its local empty, as a move read does.
         for (l, t) in caps
             .iter()
