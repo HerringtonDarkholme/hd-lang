@@ -40,7 +40,8 @@ fn list_append(xs: &mut List[string], i: usize) -> void:
 >   %2 = Intrinsic StrConcat [%1 "!"] : string
 >   %3 = IsUnique [*$0] : ()
 >   %4 = Store [*$0 [%0]] %2 : ()
->   %5 = Block - : ()
+>   %5 = Release %4 #0 : ()
+>   %6 = Block - : ()
 >   summary kept [] writes
 
 fn field_append(t: &mut Tally, s: string) -> void:
@@ -55,5 +56,6 @@ fn field_append(t: &mut Tally, s: string) -> void:
 >   %2 = Read borrow [$1] : string
 >   %3 = Intrinsic StrConcat [%1 %2] : string
 >   %4 = Store [*$0 .log] %3 : ()
->   %5 = Block - : ()
+>   %5 = Release %4 #0 : ()
+>   %6 = Block - : ()
 >   summary kept [] borrows [$1] writes

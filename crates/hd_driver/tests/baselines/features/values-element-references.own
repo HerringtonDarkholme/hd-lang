@@ -30,33 +30,34 @@ fn rewarded(players: List[Player], best: usize, s: string) -> List[Player]:
 >   local $0 players: List[Player] [param read] value
 >     uses $0: entry -> %0 consume last
 >   local $1 best: usize [param read] value
->     uses $1: entry -> %2 lend, %7 lend last
+>     uses $1: entry -> %3 lend, %8 lend last
 >   local $2 s: string [param read] value
->     uses $2: entry -> %12 consume last
+>     uses $2: entry -> %13 consume last
 >   local $3 out: List[Player] [read assigned] place
 >   %0 = Read move [$0] : List[Player]
 >   %1 = Store [$3] %0 : ()
->   %18 = Block %17 : List[Player]
+>   %2 = Release %1 #0 : ()
+>   %19 = Block %18 : List[Player]
     reward(&mut out[best], 10)
->   %2 = Read copy [$1] : usize
->   %3 = IsUnique [$3] : ()
->   %4 = Ref mut local [$3 [%2]] : Ref[mut Player]
->   %5 = Call app/main/reward[] (%4, 10:i32) : ()
->   %6 = LoanEnd [%4] : ()
+>   %3 = Read copy [$1] : usize
+>   %4 = IsUnique [$3] : ()
+>   %5 = Ref mut local [$3 [%3]] : Ref[mut Player]
+>   %6 = Call app/main/reward[] (%5, 10:i32) : ()
+>   %7 = LoanEnd [%5] : ()
     out[best].score += 1
->   %7 = Read copy [$1] : usize
->   %8 = Read copy [$3 [%7] .score] : i32
->   %9 = Prim Add [%8 1:i32] : i32
->   %10 = IsUnique [$3] : ()
->   %11 = Store [$3 [%7] .score] %9 : ()
+>   %8 = Read copy [$1] : usize
+>   %9 = Read copy [$3 [%8] .score] : i32
+>   %10 = Prim Add [%9 1:i32] : i32
+>   %11 = IsUnique [$3] : ()
+>   %12 = Store [$3 [%8] .score] %10 : ()
     out.push(Player { name: s, score: 0 })
->   %12 = Read move [$2] : string
->   %13 = NewStruct [%12 0:i32] : Player
->   %14 = IsUnique repeat [$3] : ()
->   %15 = Read borrow [$3] : List[Player]
->   %16 = Intrinsic ListPush [%15 %13] : ()
+>   %13 = Read move [$2] : string
+>   %14 = NewStruct [%13 0:i32] : Player
+>   %15 = IsUnique repeat [$3] : ()
+>   %16 = Read borrow [$3] : List[Player]
+>   %17 = Intrinsic ListPush [%16 %14] : ()
     out
->   %17 = Read move [$3] : List[Player]
+>   %18 = Read move [$3] : List[Player]
 >   exit sub 0 drops [$0 $2]
 >   summary kept [$0 $2] writes
 
@@ -65,22 +66,23 @@ fn by_key(m: Map[string, Player], k: string) -> Map[string, Player]:
 >   local $0 m: Map[string, Player] [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 k: string [param read] value
->     uses $1: entry -> %4 lend last
+>     uses $1: entry -> %5 lend last
 >   local $2 out: Map[string, Player] [read assigned] place
 >   %0 = ExitDrop [$1] #2 : ()
     let mut out = m
 >   %1 = Read move [$0] : Map[string, Player]
 >   %2 = Store [$2] %1 : ()
->   %11 = Block %10 : Map[string, Player]
+>   %3 = Release %2 #0 : ()
+>   %12 = Block %11 : Map[string, Player]
     reward(&mut out[k], 10)
->   %3 = Read borrow [$2] : Map[string, Player]
->   %4 = Read borrow [$1] : string
->   %5 = Intrinsic MapEntry [%3 %4] : usize
->   %6 = IsUnique [$2] : ()
->   %7 = Ref mut local [$2 [%5]] : Ref[mut Player]
->   %8 = Call app/main/reward[] (%7, 10:i32) : ()
->   %9 = LoanEnd [%7] : ()
+>   %4 = Read borrow [$2] : Map[string, Player]
+>   %5 = Read borrow [$1] : string
+>   %6 = Intrinsic MapEntry [%4 %5] : usize
+>   %7 = IsUnique [$2] : ()
+>   %8 = Ref mut local [$2 [%6]] : Ref[mut Player]
+>   %9 = Call app/main/reward[] (%8, 10:i32) : ()
+>   %10 = LoanEnd [%8] : ()
     out
->   %10 = Read move [$2] : Map[string, Player]
+>   %11 = Read move [$2] : Map[string, Player]
 >   exit sub 0 drops [$0]
 >   summary kept [$0] borrows [$1] writes

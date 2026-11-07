@@ -26,17 +26,18 @@ fn forward(point: &mut Point) -> void:
 >   local $0 point: Ref[mut Point] [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 target: Ref[mut i32] [read] value
->     uses $1: %1 -> %2 lend, %4 lend last
+>     uses $1: %1 -> %3 lend, %5 lend last
 >   %0 = Ref mut local [*$0 .x] : Ref[mut i32]
 >   %1 = Store [$1] %0 : ()
->   %2 = Read copy [*$1] : i32
->   %3 = Prim Add [%2 1:i32] : i32
->   %4 = Store [*$1] %3 : ()
->   %5 = Break L0 - : never
->   %6 = Block - : ()
->   %7 = Scope %6 [] : ()
->   %8 = Drop [$1] : ()
->   %9 = Block - : ()
+>   %2 = Release %1 #0 : ()
+>   %3 = Read copy [*$1] : i32
+>   %4 = Prim Add [%3 1:i32] : i32
+>   %5 = Store [*$1] %4 : ()
+>   %6 = Break L0 - : never
+>   %7 = Block - : ()
+>   %8 = Scope %7 [] : ()
+>   %9 = Drop [$1] : ()
+>   %10 = Block - : ()
 >   summary kept [] writes
 
 @inline(.Never)
@@ -46,24 +47,26 @@ fn exercise(point: &mut Point) -> void:
 >   local $0 point: Ref[mut Point] [param read] value
 >     uses $0: entry -> %0 consume last
 >   local $1 point: Ref[mut Point] [read] value
->     uses $1: %1 -> %2 lend last
+>     uses $1: %1 -> %3 lend last
 >   local $2 target: Ref[mut i32] [read] value
->     uses $2: %3 -> %4 lend, %6 lend last
+>     uses $2: %4 -> %6 lend, %8 lend last
 >   %0 = Read borrow [$0] : Ref[mut Point]
 >   %1 = Store [$1] %0 : ()
->   %2 = Ref mut local [*$1 .x] : Ref[mut i32]
->   %3 = Store [$2] %2 : ()
->   %4 = Read copy [*$2] : i32
->   %5 = Prim Add [%4 1:i32] : i32
->   %6 = Store [*$2] %5 : ()
->   %7 = Break L0 - : never
->   %8 = Block - : ()
->   %9 = Scope %8 [] : ()
->   %10 = Drop [$2] : ()
->   %11 = Break L1 - : never
->   %12 = Block - : ()
->   %13 = Scope %12 [] : ()
+>   %2 = Release %1 #0 : ()
+>   %3 = Ref mut local [*$1 .x] : Ref[mut i32]
+>   %4 = Store [$2] %3 : ()
+>   %5 = Release %4 #0 : ()
+>   %6 = Read copy [*$2] : i32
+>   %7 = Prim Add [%6 1:i32] : i32
+>   %8 = Store [*$2] %7 : ()
+>   %9 = Break L0 - : never
+>   %10 = Block - : ()
+>   %11 = Scope %10 [] : ()
+>   %12 = Drop [$2] : ()
+>   %13 = Break L1 - : never
 >   %14 = Block - : ()
+>   %15 = Scope %14 [] : ()
+>   %16 = Block - : ()
 >   summary kept [] writes
 
 @inline(.Always)
@@ -83,14 +86,15 @@ fn project['a](point: &'a Point) -> &'a i32:
 >   local $0 point: Ref[Point] [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 target: Ref[i32] [read] value
->     uses $1: %1 -> %2 consume last
+>     uses $1: %1 -> %3 consume last
 >   %0 = Ref local [*$0 .x] : Ref[i32]
 >   %1 = Store [$1] %0 : ()
->   %2 = Read move [$1] : Ref[i32]
->   %3 = Break L0 %2 : never
->   %4 = Block - : Ref[i32]
->   %5 = Scope %4 [] : Ref[i32]
->   %6 = Block %5 : Ref[i32]
+>   %2 = Release %1 #0 : ()
+>   %3 = Read move [$1] : Ref[i32]
+>   %4 = Break L0 %3 : never
+>   %5 = Block - : Ref[i32]
+>   %6 = Scope %5 [] : Ref[i32]
+>   %7 = Block %6 : Ref[i32]
 >   summary kept []
 
 struct Owner:
@@ -101,35 +105,36 @@ fn recursive_owned(point: *Owner, depth: usize) -> usize:
     field := &point.value
 > app/main/recursive_owned
 >   local $0 point: Counted[Owner] [param read] value
->     uses $0: entry -> %0 lend, %6 lend last
+>     uses $0: entry -> %0 lend, %7 lend last
 >   local $1 depth: usize [param read] value
->     uses $1: entry -> %2 lend, %7 lend last
+>     uses $1: entry -> %3 lend, %8 lend last
 >   local $2 field: Ref[string] [:= read assigned] value
->     uses $2: %1 -> %14 lend last
+>     uses $2: %1 -> %15 lend last
 >   local $3 below: usize [:= read assigned] value
->     uses $3: %13 -> %17 lend last
+>     uses $3: %14 -> %18 lend last
 >   %0 = Ref local [*$0 .value] : Ref[string]
 >   %1 = Store [$2] %0 : ()
->   %19 = Block %18 : usize
+>   %2 = Release %1 #0 : ()
+>   %20 = Block %19 : usize
     below := if depth == 0: 0 else: recursive_owned(point, depth - 1)
->   %2 = Read copy [$1] : usize
->   %3 = Prim Eq [%2 0:usize] : bool
->   %4 = Coerce 0:usize [Identity -] : usize
->   %5 = Block %4 : usize
->   %6 = Read borrow [$0] : Counted[Owner]
->   %7 = Read copy [$1] : usize
->   %8 = Prim Sub [%7 1:usize] : usize
->   %9 = Call app/main/recursive_owned[] (%6, %8) : usize
->   %10 = Coerce %9 [Identity -] : usize
->   %11 = Block %10 : usize
->   %12 = If %3 [%5 %11] : usize
->   %13 = Store [$3] %12 : ()
+>   %3 = Read copy [$1] : usize
+>   %4 = Prim Eq [%3 0:usize] : bool
+>   %5 = Coerce 0:usize [Identity -] : usize
+>   %6 = Block %5 : usize
+>   %7 = Read borrow [$0] : Counted[Owner]
+>   %8 = Read copy [$1] : usize
+>   %9 = Prim Sub [%8 1:usize] : usize
+>   %10 = Call app/main/recursive_owned[] (%7, %9) : usize
+>   %11 = Coerce %10 [Identity -] : usize
+>   %12 = Block %11 : usize
+>   %13 = If %4 [%6 %12] : usize
+>   %14 = Store [$3] %13 : ()
     field.len() + below
->   %14 = Read move [$2] : Ref[string]
->   %15 = Call std/text/impl string.len[] (%14) : usize
->   %16 = Drop [%14] : ()
->   %17 = Read copy [$3] : usize
->   %18 = Prim Add [%15 %17] : usize
+>   %15 = Read move [$2] : Ref[string]
+>   %16 = Call std/text/impl string.len[] (%15) : usize
+>   %17 = Drop [%15] : ()
+>   %18 = Read copy [$3] : usize
+>   %19 = Prim Add [%16 %18] : usize
 >   summary kept [] recursive
 
 @inline(.Never)
@@ -137,33 +142,34 @@ fn recursive_borrowed(point: &Owner, depth: usize) -> usize:
     field := &point.value
 > app/main/recursive_borrowed
 >   local $0 point: Ref[Owner] [param read] value
->     uses $0: entry -> %0 lend, %6 lend last
+>     uses $0: entry -> %0 lend, %7 lend last
 >   local $1 depth: usize [param read] value
->     uses $1: entry -> %2 lend, %7 lend last
+>     uses $1: entry -> %3 lend, %8 lend last
 >   local $2 field: Ref[string] [:= read assigned] value
->     uses $2: %1 -> %14 lend last
+>     uses $2: %1 -> %15 lend last
 >   local $3 below: usize [:= read assigned] value
->     uses $3: %13 -> %17 lend last
+>     uses $3: %14 -> %18 lend last
 >   %0 = Ref local [*$0 .value] : Ref[string]
 >   %1 = Store [$2] %0 : ()
->   %19 = Block %18 : usize
+>   %2 = Release %1 #0 : ()
+>   %20 = Block %19 : usize
     below := if depth == 0: 0 else: recursive_borrowed(point, depth - 1)
->   %2 = Read copy [$1] : usize
->   %3 = Prim Eq [%2 0:usize] : bool
->   %4 = Coerce 0:usize [Identity -] : usize
->   %5 = Block %4 : usize
->   %6 = Read borrow [$0] : Ref[Owner]
->   %7 = Read copy [$1] : usize
->   %8 = Prim Sub [%7 1:usize] : usize
->   %9 = Call app/main/recursive_borrowed[] (%6, %8) : usize
->   %10 = Coerce %9 [Identity -] : usize
->   %11 = Block %10 : usize
->   %12 = If %3 [%5 %11] : usize
->   %13 = Store [$3] %12 : ()
+>   %3 = Read copy [$1] : usize
+>   %4 = Prim Eq [%3 0:usize] : bool
+>   %5 = Coerce 0:usize [Identity -] : usize
+>   %6 = Block %5 : usize
+>   %7 = Read borrow [$0] : Ref[Owner]
+>   %8 = Read copy [$1] : usize
+>   %9 = Prim Sub [%8 1:usize] : usize
+>   %10 = Call app/main/recursive_borrowed[] (%7, %9) : usize
+>   %11 = Coerce %10 [Identity -] : usize
+>   %12 = Block %11 : usize
+>   %13 = If %4 [%6 %12] : usize
+>   %14 = Store [$3] %13 : ()
     field.len() + below
->   %14 = Read move [$2] : Ref[string]
->   %15 = Call std/text/impl string.len[] (%14) : usize
->   %16 = Drop [%14] : ()
->   %17 = Read copy [$3] : usize
->   %18 = Prim Add [%15 %17] : usize
+>   %15 = Read move [$2] : Ref[string]
+>   %16 = Call std/text/impl string.len[] (%15) : usize
+>   %17 = Drop [%15] : ()
+>   %18 = Read copy [$3] : usize
+>   %19 = Prim Add [%16 %18] : usize
 >   summary kept [] recursive

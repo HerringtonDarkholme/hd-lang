@@ -4290,7 +4290,14 @@ fn load_boxed(f: &mut Func, boxed: u32, value: &RefLayout, ls: &[u32]) {
 /// the value it held. An `owned` value's counts move into the place, so
 /// its locals keep none; any other keeps its own, and the place takes a
 /// count of its own. Emitted inline, as [`ref_load`] is.
-pub(crate) fn ref_store(f: &mut Func, at: u32, ls: &[u32], value: &RefLayout, owned: bool) {
+pub(crate) fn ref_store(
+    f: &mut Func,
+    at: u32,
+    ls: &[u32],
+    value: &RefLayout,
+    owned: bool,
+    release: bool,
+) {
     if ls.is_empty() {
         return;
     }
@@ -4316,7 +4323,11 @@ pub(crate) fn ref_store(f: &mut Func, at: u32, ls: &[u32], value: &RefLayout, ow
         f.get(*l);
         f.op(leaf.store(0));
     }
-    ref_count(f, &old, value, false);
+    if release {
+        let was = f.reason.replace(hd_tir::own::Reason::Overwritten);
+        ref_count(f, &old, value, false);
+        f.reason = was;
+    }
     f.op(Instruction::End);
 }
 
@@ -4350,7 +4361,7 @@ fn part_get(f: &mut Func, parent: &RefLayout, field: &RefLayout, picks: &[u32]) 
             x
         })
         .collect();
-    ref_store(f, src, &ls, parent, true);
+    ref_store(f, src, &ls, parent, true, true);
     ref_box(f, &part, field);
 }
 
@@ -4374,7 +4385,7 @@ fn part_set(f: &mut Func, parent: &RefLayout, field: &RefLayout, picks: &[u32]) 
             x
         })
         .collect();
-    ref_store(f, src, &ls, parent, true);
+    ref_store(f, src, &ls, parent, true, true);
     ref_count(f, &old, field, false);
 }
 

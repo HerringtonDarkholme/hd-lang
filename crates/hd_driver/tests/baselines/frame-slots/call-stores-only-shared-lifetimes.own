@@ -30,21 +30,22 @@ fn non_storing(xs: List[string]) -> usize:
 >   local $1 out: List[Ref[string]] [read assigned captured captured-assigned] place
 >   %0 = NewList - [] : List[Ref[string]]
 >   %1 = Store [$1] %0 : ()
->   %12 = Block %11 : usize
+>   %2 = Release %1 #0 : ()
+>   %13 = Block %12 : usize
     size := push_len(&mut out, &xs)
->   %2 = Ref mut local frame [$1] : Counted[mut List[Ref[string]]]
->   %3 = Ref local frame [$0] : Counted[List[string]]
->   %4 = Call app/main/push_len[] (%2, %3) : usize
->   %5 = Drop [%3] : ()
->   %6 = Drop [%2] : ()
->   %7 = Drop [$0] : ()
->   %2 finds [$1] full
+>   %3 = Ref mut local frame [$1] : Counted[mut List[Ref[string]]]
+>   %4 = Ref local frame [$0] : Counted[List[string]]
+>   %5 = Call app/main/push_len[] (%3, %4) : usize
+>   %6 = Drop [%4] : ()
+>   %7 = Drop [%3] : ()
+>   %8 = Drop [$0] : ()
+>   %3 finds [$1] full
     size + out.len()
->   %8 = Read move [$1] : List[Ref[string]]
->   %9 = Intrinsic ListLen [%8] : usize
->   %10 = Drop [%8] : ()
->   %11 = Prim Add [%4 %9] : usize
->   %8 finds [$1] full
+>   %9 = Read move [$1] : List[Ref[string]]
+>   %10 = Intrinsic ListLen [%9] : usize
+>   %11 = Drop [%9] : ()
+>   %12 = Prim Add [%5 %10] : usize
+>   %9 finds [$1] full
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes
 
@@ -70,21 +71,22 @@ fn storing(xs: List[string]) -> usize:
 >   local $1 out: List[Ref[string]] [read assigned captured captured-assigned] place
 >   %0 = NewList - [] : List[Ref[string]]
 >   %1 = Store [$1] %0 : ()
->   %13 = Block %10 : usize
+>   %2 = Release %1 #0 : ()
+>   %14 = Block %11 : usize
     remember(&mut out, &xs[0])
->   %2 = Ref mut local frame [$1] : Counted[mut List[Ref[string]]]
->   %3 = IsUnique [$0] : ()
->   %4 = Ref local [$0 [0:usize]] : Ref[string]
->   %5 = Call app/main/remember[] (%2, %4) : ()
->   %6 = LoanEnd [%4] : ()
->   %7 = Drop [%2] : ()
->   %2 finds [$1] full
+>   %3 = Ref mut local frame [$1] : Counted[mut List[Ref[string]]]
+>   %4 = IsUnique [$0] : ()
+>   %5 = Ref local [$0 [0:usize]] : Ref[string]
+>   %6 = Call app/main/remember[] (%3, %5) : ()
+>   %7 = LoanEnd [%5] : ()
+>   %8 = Drop [%3] : ()
+>   %3 finds [$1] full
     out[0].len()
->   %8 = Read copy [$1 [0:usize]] : Ref[string]
->   %9 = Drop [$1] : ()
->   %10 = Call std/text/impl string.len[] (%8) : usize
->   %11 = Drop [%8] : ()
->   %12 = Drop [$0] : ()
->   %8 finds [$1] full
+>   %9 = Read copy [$1 [0:usize]] : Ref[string]
+>   %10 = Drop [$1] : ()
+>   %11 = Call std/text/impl string.len[] (%9) : usize
+>   %12 = Drop [%9] : ()
+>   %13 = Drop [$0] : ()
+>   %9 finds [$1] full
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes

@@ -154,18 +154,20 @@ impl Em<'_, '_, '_> {
                     _ => true,
                 })
             || statements[b + 1..c].iter().any(|&s| {
-                !matches!(self.b.tags[s as usize], Tag::Drop | Tag::LoanEnd)
-                    || self
-                        .b
-                        .decode_place(self.b.data[s as usize][0])
-                        .is_none_or(|p| {
-                            // Retiring a string operand cannot change the
-                            // destination. Dynamic suffixes have their Drop
-                            // here too, before the replacement store.
-                            !p.proj.is_empty()
-                                || !matches!(p.root, PlaceRoot::Value(r)
+                !matches!(
+                    self.b.tags[s as usize],
+                    Tag::Drop | Tag::LoanEnd | Tag::Release
+                ) || self
+                    .b
+                    .decode_place(self.b.data[s as usize][0])
+                    .is_none_or(|p| {
+                        // Retiring a string operand cannot change the
+                        // destination. Dynamic suffixes have their Drop
+                        // here too, before the replacement store.
+                        !p.proj.is_empty()
+                            || !matches!(p.root, PlaceRoot::Value(r)
                                 if r.0 != i && self.is_string(self.ty_of(r.0)))
-                        })
+                    })
             })
         {
             return Ok(None);

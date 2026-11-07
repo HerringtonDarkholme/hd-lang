@@ -447,7 +447,7 @@ impl Em<'_, '_, '_> {
         self.f.get(taken);
         unique(self);
         self.f.set(header);
-        rt::ref_store(&mut self.f, reference, &[header], &value, true);
+        rt::ref_store(&mut self.f, reference, &[header], &value, true, true);
         self.f.op(I::Else);
         self.f.get(reference);
         self.f.op(I::I32Load(mem(HEAP, 0, 2)));
@@ -529,7 +529,7 @@ impl Em<'_, '_, '_> {
                     // setter restores the replacement's count.
                     let value = self.ref_layout(target)?;
                     rt::ref_take(&mut self.f, r, &value);
-                    rt::ref_store(&mut self.f, r, &[b], &value, true);
+                    rt::ref_store(&mut self.f, r, &[b], &value, true, true);
                     self.f.op(I::Else);
                     self.f.get(r);
                     self.f.get(b);
@@ -1299,7 +1299,8 @@ impl Em<'_, '_, '_> {
         // A value the store consumes moves its count into the place.
         let moved = self.take(v);
         self.write_new(Dst::Locals(&ls), &Src::Ref(v))?;
-        rt::ref_store(&mut self.f, at, &ls, &value, moved);
+        let release = self.releases_old();
+        rt::ref_store(&mut self.f, at, &ls, &value, moved, release);
         Ok(())
     }
 
@@ -1348,7 +1349,8 @@ impl Em<'_, '_, '_> {
         }
         self.f.op(I::End);
         self.f.set(dst);
-        rt::ref_store(&mut self.f, dst, &ls, &field, moved);
+        let release = self.releases_old();
+        rt::ref_store(&mut self.f, dst, &ls, &field, moved, release);
         if self.input.runtime.is_some() {
             self.f.get(view);
             self.f.op(I::If(wasm_encoder::BlockType::Empty));

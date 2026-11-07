@@ -26,4 +26,4 @@ fn write_field(r: Rec, n: string) -> Rec:
 fn write_through(r: &mut Rec, n: string) -> void:
     r.name = n
 > app/main/write_through
->   release counted reference (conservative: Store)
+>   release counted reference (overwritten)

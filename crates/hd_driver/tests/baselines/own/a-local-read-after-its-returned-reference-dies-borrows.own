@@ -2,12 +2,12 @@
 std/rt_tests.stage_case/change
   local $1 b: Buffer[Ticket] [read assigned captured] place
   local $2 ticket: Ticket [:= read assigned] value
-    uses $2: %14 -> %15 consume last
-  %9 = Ref local frame [$1] : Counted[Buffer[Ticket]]
-  %10 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].at[Ticket] (%9, 0:usize) : Ptr[Ticket]
-  %11 = Drop [%9] : ()
-  %12 = Read move [ptr %10] : Ticket
-  %13 = Drop [$1] : ()
-  %14 = Store [$2] %12 : ()
-  %9 finds [$1] full
+    uses $2: %15 -> %16 consume last
+  %10 = Ref local frame [$1] : Counted[Buffer[Ticket]]
+  %11 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].at[Ticket] (%10, 0:usize) : Ptr[Ticket]
+  %12 = Drop [%10] : ()
+  %13 = Read move [ptr %11] : Ticket
+  %14 = Drop [$1] : ()
+  %15 = Store [$2] %13 : ()
+  %10 finds [$1] full
   exit sub 0 drops [$0]

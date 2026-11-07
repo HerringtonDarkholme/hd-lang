@@ -28,7 +28,7 @@ impl Greet for User:
     fn rename(&mut self, n: string) -> void:
         self.name = n
 > app/main/impl Greet for User.rename
->   release counted reference (conservative: Store)
+>   release counted reference (overwritten)
 
 fn boxed(u: User) -> *dyn Greet:
     box(u)

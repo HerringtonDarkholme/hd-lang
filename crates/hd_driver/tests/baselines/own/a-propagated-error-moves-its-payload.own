@@ -3,7 +3,7 @@ app/main/twice
   local $0 text: string [param read] value
     uses $0: entry -> %0 consume last
   local $1 word: string [:= read assigned] value
-    uses $1: %9 -> %10 lend, %11 lend last
+    uses $1: %9 -> %11 lend, %12 lend last
   %0 = Read move [$0] : string
   %1 = Call app/main/parse[] (%0) : Result[string, string]
   %2 = Read move [%1 as #0 .0] : string
@@ -14,4 +14,5 @@ app/main/twice
   %7 = Block - : never
   %8 = SwitchTag %1 [#0 %3 %7] : string
   %9 = Store [$1] %8 : ()
+  %10 = Release %9 #0 : ()
   exit sub 0 drops [$0]

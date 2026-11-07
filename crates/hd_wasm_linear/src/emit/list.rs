@@ -1338,7 +1338,7 @@ impl Em<'_, '_, '_> {
         self.push(args[1])?;
         self.f.helper(helper.clone());
         self.f.set(list);
-        crate::rt::ref_store(&mut self.f, at, &[list], &value, true);
+        crate::rt::ref_store(&mut self.f, at, &[list], &value, true, true);
         self.f.op(I::Else);
         self.f.get(at);
         self.f.get(at);

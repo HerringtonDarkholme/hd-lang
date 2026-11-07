@@ -46,5 +46,5 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
     match xs.get_mut(i):
         .Some(r) => *r = s
 > app/main/uniq_write
->   release counted reference (conservative: Store)
+>   release counted reference (overwritten)
         .None => panic("index")

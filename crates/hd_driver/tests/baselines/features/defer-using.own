@@ -31,10 +31,10 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
 >   local $0 log: Counted[mut List[string]] [param read captured] value
 >     uses $0: entry -> %2 lend, %6 consume last
 >   local $1 s: string [param read captured] value
->     uses $1: entry -> %0 consume, %6 consume, %19 lend last
+>     uses $1: entry -> %0 consume, %6 consume, %21 lend last
 >   local $2 $ref: DeferGuard[fn() -> (), $(), Ref[()]] [:= read assigned captured captured-assigned] place
 >   local $4 action: fn() -> () [read] value
->     uses $4: %7 -> %8 consume last
+>     uses $4: %7 -> %9 consume last
 >   %0 = Read move [$1] : string
 >   %1 = IsUnique [*$0] : ()
 >   %2 = Read borrow [*$0] : List[string]
@@ -43,29 +43,31 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
 >   %5 = Block - : ()
 >   %6 = Closure #1 [%0 %2] : fn() -> ()
 >   %7 = Store [$4] %6 : ()
->   %8 = Read move [$4] : fn() -> ()
->   %9 = NewStruct [%8] : DeferGuard[fn() -> (), $(), Ref[()]]
->   %10 = Break L1 %9 : never
->   %11 = Block - : DeferGuard[fn() -> (), $(), Ref[()]]
->   %12 = Scope %11 [] : DeferGuard[fn() -> (), $(), Ref[()]]
->   %13 = Store [$2] %12 : ()
->   %14 = Ref mut local frame [$2] : Counted[mut DeferGuard[fn() -> (), $(), Ref[()]]]
->   %15 = Call std/ops/Disposable.dispose for DeferGuard[fn() -> (), $(), Ref[()]] [$()] via Impl (%14) : ()
->   %16 = Drop [%14] : ()
->   %17 = Block - : ()
->   %18 = Defer #17 : ()
->   %24 = Block %23 : usize
->   %25 = Scope %24 [%17] : usize
->   %26 = Drop [$2] : ()
->   %27 = Drop [$0] : ()
->   %28 = Drop [$1] : ()
->   %29 = Block %25 : usize
+>   %8 = Release %7 #0 : ()
+>   %9 = Read move [$4] : fn() -> ()
+>   %10 = NewStruct [%9] : DeferGuard[fn() -> (), $(), Ref[()]]
+>   %11 = Break L1 %10 : never
+>   %12 = Block - : DeferGuard[fn() -> (), $(), Ref[()]]
+>   %13 = Scope %12 [] : DeferGuard[fn() -> (), $(), Ref[()]]
+>   %14 = Store [$2] %13 : ()
+>   %15 = Release %14 #0 : ()
+>   %16 = Ref mut local frame [$2] : Counted[mut DeferGuard[fn() -> (), $(), Ref[()]]]
+>   %17 = Call std/ops/Disposable.dispose for DeferGuard[fn() -> (), $(), Ref[()]] [$()] via Impl (%16) : ()
+>   %18 = Drop [%16] : ()
+>   %19 = Block - : ()
+>   %20 = Defer #19 : ()
+>   %26 = Block %25 : usize
+>   %27 = Scope %26 [%19] : usize
+>   %28 = Drop [$2] : ()
+>   %29 = Drop [$0] : ()
+>   %30 = Drop [$1] : ()
+>   %31 = Block %27 : usize
     s.len()
->   %19 = Read borrow [$1] : string
->   %20 = Call std/rt.bytes/bytes_len[] (%19) : usize
->   %21 = Break L0 %20 : never
->   %22 = Block - : usize
->   %23 = Scope %22 [] : usize
+>   %21 = Read borrow [$1] : string
+>   %22 = Call std/rt.bytes/bytes_len[] (%21) : usize
+>   %23 = Break L0 %22 : never
+>   %24 = Block - : usize
+>   %25 = Scope %24 [] : usize
 >   exit sub 0 drops [$0 $1 $2]
 >   exit sub 1 drops [$0 $1]
 >   summary kept [$0 $1] writes
@@ -80,29 +82,32 @@ fn with_using(log: *mut List[string], s: string) -> usize:
 >   local $2 $ref: Res [read assigned captured captured-assigned] place
 >   local $3 r: Counted[mut Res] [:= read assigned] place
 >   local $4 self: string [read] value
->     uses $4: %11 -> %12 lend last
+>     uses $4: %13 -> %15 lend last
 >   %0 = Read move [$1] : string
 >   %1 = Read copy [$0] : Counted[mut List[string]]
 >   %2 = NewStruct [%0 %1] : Res
 >   %3 = Store [$2] %2 : ()
->   %4 = Ref take mut [$2] : Counted[mut Res]
->   %5 = Store [$3] %4 : ()
->   %6 = Read borrow [$3] : Counted[mut Res]
->   %7 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%6) : ()
->   %8 = Block - : ()
->   %9 = Defer #8 : ()
->   %17 = Block %16 : usize
->   %18 = Scope %17 [%8] : usize
->   %19 = Drop [$3] : ()
->   %20 = Block %18 : usize
->   %4 finds [$2] full
+>   %4 = Release %3 #0 : ()
+>   %5 = Ref take mut [$2] : Counted[mut Res]
+>   %6 = Store [$3] %5 : ()
+>   %7 = Release %6 #0 : ()
+>   %8 = Read borrow [$3] : Counted[mut Res]
+>   %9 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%8) : ()
+>   %10 = Block - : ()
+>   %11 = Defer #10 : ()
+>   %20 = Block %19 : usize
+>   %21 = Scope %20 [%10] : usize
+>   %22 = Drop [$3] : ()
+>   %23 = Block %21 : usize
+>   %5 finds [$2] full
     r.name.len()
->   %10 = Read borrow [*$3 .name] : string
->   %11 = Store [$4] %10 : ()
->   %12 = Read borrow [$4] : string
->   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
->   %14 = Break L0 %13 : never
->   %15 = Block - : usize
->   %16 = Scope %15 [] : usize
+>   %12 = Read borrow [*$3 .name] : string
+>   %13 = Store [$4] %12 : ()
+>   %14 = Release %13 #0 : ()
+>   %15 = Read borrow [$4] : string
+>   %16 = Call std/rt.bytes/bytes_len[] (%15) : usize
+>   %17 = Break L0 %16 : never
+>   %18 = Block - : usize
+>   %19 = Scope %18 [] : usize
 >   exit sub 0 drops [$1 $3]
 >   summary kept [$0 $1] writes

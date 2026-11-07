@@ -17,14 +17,14 @@ impl Node:
 >   local $1 left: Counted[Node] [read assigned] value
 >     uses $1: %11 -> %2 lend, %4 lend last
 >   %0 = Read borrow [*$0 .left] : Counted[Node]?
->   %19 = Block - : never
->   %20 = Match %0 [%19 %1 %7] : usize
->   %21 = Block %20 : usize
+>   %20 = Block - : never
+>   %21 = Match %0 [%20 %1 %7] : usize
+>   %22 = Block %21 : usize
             .None => 0
 >   %1 = Block 0:usize : usize
 >   %9 = Block - : never
->   %17 = Block - : never
->   %18 = SwitchTag %0 [#0 %9 %17] : never
+>   %18 = Block - : never
+>   %19 = SwitchTag %0 [#0 %9 %18] : never
             .Some(left) => depth(left) + depth(left)
 >   %2 = Read borrow [$1] : Counted[Node]
 >   %3 = Call app/main/depth[] (%2) : usize
@@ -34,9 +34,10 @@ impl Node:
 >   %7 = Block %6 : usize
 >   %10 = Read borrow [%0 as #1 .0] : Counted[Node]
 >   %11 = Store [$1] %10 : ()
->   %13 = Block - : never
->   %15 = Block - : never
->   %16 = SwitchTag %0 [#1 %13 %15] : never
+>   %12 = Release %11 #0 : ()
+>   %14 = Block - : never
+>   %16 = Block - : never
+>   %17 = SwitchTag %0 [#1 %14 %16] : never
 >   summary kept []
 
 fn depth(node: &Node) -> usize:
@@ -47,14 +48,14 @@ fn depth(node: &Node) -> usize:
 >   local $1 left: Counted[Node] [read assigned] value
 >     uses $1: %9 -> %2 lend last
 >   %0 = Read borrow [*$0 .left] : Counted[Node]?
->   %17 = Block - : never
->   %18 = Match %0 [%17 %1 %5] : usize
->   %19 = Block %18 : usize
+>   %18 = Block - : never
+>   %19 = Match %0 [%18 %1 %5] : usize
+>   %20 = Block %19 : usize
         .None => 1
 >   %1 = Block 1:usize : usize
 >   %7 = Block - : never
->   %15 = Block - : never
->   %16 = SwitchTag %0 [#0 %7 %15] : never
+>   %16 = Block - : never
+>   %17 = SwitchTag %0 [#0 %7 %16] : never
         .Some(left) => 1 + depth(left)
 >   %2 = Read borrow [$1] : Counted[Node]
 >   %3 = Call app/main/depth[] (%2) : usize
@@ -62,9 +63,10 @@ fn depth(node: &Node) -> usize:
 >   %5 = Block %4 : usize
 >   %8 = Read borrow [%0 as #1 .0] : Counted[Node]
 >   %9 = Store [$1] %8 : ()
->   %11 = Block - : never
->   %13 = Block - : never
->   %14 = SwitchTag %0 [#1 %11 %13] : never
+>   %10 = Release %9 #0 : ()
+>   %12 = Block - : never
+>   %14 = Block - : never
+>   %15 = SwitchTag %0 [#1 %12 %14] : never
 >   summary kept [] recursive
 
 fn check(node: &Node) -> i64:
@@ -73,37 +75,38 @@ fn check(node: &Node) -> i64:
 >   local $0 node: Ref[Node] [param read] value
 >     uses $0: entry -> %0 lend, %2 lend last
 >   local $1 left: Counted[Node] [read assigned] value
->     uses $1: %31 -> %3 lend last, %7 lend last
+>     uses $1: %32 -> %3 lend last, %7 lend last
 >   local $2 right: Counted[Node] [read assigned] value
 >     uses $2: %17 -> %10 lend last
 >   %0 = Read borrow [*$0 .left] : Counted[Node]?
->   %39 = Block - : never
->   %40 = Match %0 [%39 %1 %27] : i64
->   %41 = Block %40 : i64
+>   %41 = Block - : never
+>   %42 = Match %0 [%41 %1 %28] : i64
+>   %43 = Block %42 : i64
         .None => 1
 >   %1 = Block 1:i64 : i64
->   %29 = Block - : never
->   %37 = Block - : never
->   %38 = SwitchTag %0 [#0 %29 %37] : never
+>   %30 = Block - : never
+>   %39 = Block - : never
+>   %40 = SwitchTag %0 [#0 %30 %39] : never
         .Some(left) =>
->   %30 = Read borrow [%0 as #1 .0] : Counted[Node]
->   %31 = Store [$1] %30 : ()
->   %33 = Block - : never
+>   %31 = Read borrow [%0 as #1 .0] : Counted[Node]
+>   %32 = Store [$1] %31 : ()
+>   %33 = Release %32 #0 : ()
 >   %35 = Block - : never
->   %36 = SwitchTag %0 [#1 %33 %35] : never
+>   %37 = Block - : never
+>   %38 = SwitchTag %0 [#1 %35 %37] : never
             match node.right:
 >   %2 = Read borrow [*$0 .right] : Counted[Node]?
->   %25 = Block - : never
->   %26 = Match %2 [%25 %6 %13] : i64
->   %27 = Block %26 : i64
+>   %26 = Block - : never
+>   %27 = Match %2 [%26 %6 %13] : i64
+>   %28 = Block %27 : i64
                 .None => 1 + check(left)
 >   %3 = Read borrow [$1] : Counted[Node]
 >   %4 = Call app/main/check[] (%3) : i64
 >   %5 = Prim Add [1:i64 %4] : i64
 >   %6 = Block %5 : i64
 >   %15 = Block - : never
->   %23 = Block - : never
->   %24 = SwitchTag %2 [#0 %15 %23] : never
+>   %24 = Block - : never
+>   %25 = SwitchTag %2 [#0 %15 %24] : never
                 .Some(right) => 1 + check(left) + check(right)
 >   %7 = Read borrow [$1] : Counted[Node]
 >   %8 = Call app/main/check[] (%7) : i64
@@ -114,7 +117,8 @@ fn check(node: &Node) -> i64:
 >   %13 = Block %12 : i64
 >   %16 = Read borrow [%2 as #1 .0] : Counted[Node]
 >   %17 = Store [$2] %16 : ()
->   %19 = Block - : never
->   %21 = Block - : never
->   %22 = SwitchTag %2 [#1 %19 %21] : never
+>   %18 = Release %17 #0 : ()
+>   %20 = Block - : never
+>   %22 = Block - : never
+>   %23 = SwitchTag %2 [#1 %20 %22] : never
 >   summary kept [] recursive

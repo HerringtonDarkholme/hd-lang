@@ -826,7 +826,7 @@ fn tags_only(body: &Body, root: u32) -> bool {
                 }
             } else if matches!(
                 tag,
-                Tag::Drop | Tag::LoanEnd | Tag::FlagSet | Tag::FlagClear
+                Tag::Drop | Tag::LoanEnd | Tag::Release | Tag::FlagSet | Tag::FlagClear
             ) {
                 if used {
                     return false;

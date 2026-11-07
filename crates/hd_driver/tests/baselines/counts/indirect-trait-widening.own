@@ -15,23 +15,26 @@ fn widened(dog: *dyn Dog) -> *dyn Animal:
 >     uses $0: entry -> %0 consume last
 >   local $1 $ref: Counted[Dog] [read assigned captured captured-assigned] place
 >   local $2 nested: Counted[mut Counted[Dog]] [:= read assigned] value
->     uses $2: %3 -> %4 consume last
+>     uses $2: %4 -> %6 consume last
 >   local $3 $ref: Counted[Counted[Dog]] [read assigned captured] value
->     uses $3: %6 -> %7 lend last
+>     uses $3: %8 -> %10 lend last
 >   %0 = Read copy [$0] : Counted[Dog]
 >   %1 = Store [$1] %0 : ()
->   %2 = Ref take mut [$1] : Counted[mut Counted[Dog]]
->   %3 = Store [$2] %2 : ()
->   %13 = Block %12 : Counted[Animal]
->   %2 finds [$1] full
+>   %2 = Release %1 #0 : ()
+>   %3 = Ref take mut [$1] : Counted[mut Counted[Dog]]
+>   %4 = Store [$2] %3 : ()
+>   %5 = Release %4 #0 : ()
+>   %16 = Block %15 : Counted[Animal]
+>   %3 finds [$1] full
     nested
->   %4 = Read move [$2] : Counted[mut Counted[Dog]]
->   %5 = Coerce %4 [Weaken -] : Counted[Counted[Dog]]
->   %6 = Store [$3] %5 : ()
->   %7 = Read move [$3] : Counted[Counted[Dog]]
->   %8 = Coerce %7 [RefToTraitValue -] : Animal
->   %9 = Retain %8 #0 : ()
->   %10 = Drop [%7] : ()
->   %11 = Block %8 : Animal
->   %12 = RefDyn %11 : Counted[Animal]
+>   %6 = Read move [$2] : Counted[mut Counted[Dog]]
+>   %7 = Coerce %6 [Weaken -] : Counted[Counted[Dog]]
+>   %8 = Store [$3] %7 : ()
+>   %9 = Release %8 #0 : ()
+>   %10 = Read move [$3] : Counted[Counted[Dog]]
+>   %11 = Coerce %10 [RefToTraitValue -] : Animal
+>   %12 = Retain %11 #0 : ()
+>   %13 = Drop [%10] : ()
+>   %14 = Block %11 : Animal
+>   %15 = RefDyn %14 : Counted[Animal]
 >   summary kept [$0]

@@ -22,7 +22,7 @@ fn over_mut(xs: &mut List[string]) -> void:
 > app/main/over_mut
 >   unique List[string] (conservative: unique)
         *x += "!"
->   release counted reference (conservative: Store)
+>   release counted reference (overwritten)
 
 fn keep_each(xs: List[string]) -> List[string]:
     let mut out: List[string] = []

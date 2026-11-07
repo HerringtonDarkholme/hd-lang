@@ -92,6 +92,28 @@ impl Em<'_, '_, '_> {
         })
     }
 
+    /// Whether `Store` `i` releases what its place holds: the `Release`
+    /// that follows it says so.
+    pub(super) fn store_releases(&self, i: u32) -> bool {
+        let block = self.topo.blk[i as usize];
+        block != NONE
+            && self
+                .b
+                .record(self.b.data[block as usize][0])
+                .get(self.topo.pos[i as usize] as usize + 1)
+                .is_some_and(|&next| {
+                    self.b.tags[next as usize] == Tag::Release && self.b.data[next as usize][0] == i
+                })
+    }
+
+    /// Whether the store being emitted releases its old value: a `Store` by
+    /// its statement, and an instruction that replaces an entry always.
+    pub(super) fn releases_old(&self) -> bool {
+        self.emitting
+            .last()
+            .is_none_or(|&i| self.b.tags[i as usize] != Tag::Store || self.store_releases(i))
+    }
+
     /// An owned body's `borrow` reads and binding locals
     /// (`docs/compiler/tir-v2.md`, "Borrow"): a borrow takes no count, so
     /// it joins [`Em::loans`], and its read lowers

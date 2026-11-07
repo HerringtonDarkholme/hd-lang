@@ -59,7 +59,7 @@ fn behind_pointer(h: *mut Holder, alias: *mut Holder) -> usize:
     name := &h.child.name
     alias.child = box(Node { name: "other" })
 > std/rt_tests.stage_case/behind_pointer
->   release counted reference (conservative: Store)
+>   release counted reference (overwritten)
     show(name)
 
 fn pinned(xs: &mut List[i64]) -> void:

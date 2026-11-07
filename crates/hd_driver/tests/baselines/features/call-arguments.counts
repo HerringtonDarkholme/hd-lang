@@ -16,7 +16,7 @@ fn by_ref(s: &string) -> usize:
 fn by_mut(s: &mut string) -> void:
     *s += "x"
 > app/main/by_mut
->   release counted reference (conservative: Store)
+>   release counted reference (overwritten)
 
 fn by_ptr(n: *Node) -> usize:
     (n.name.len() + 1) * (n.name.len() + 2) * (n.name.len() + 3) / (n.name.len() + 5)

@@ -532,9 +532,11 @@ impl Em<'_, '_, '_> {
             return Ok(());
         }
         let s = self.consumed(v)?;
-        let old = self.old_locals(d);
-        self.load_old(d, &old);
-        self.release_old_drop(&old, t)?;
+        if self.releases_old() {
+            let old = self.old_locals(d);
+            self.load_old(d, &old);
+            self.release_old_drop(&old, t)?;
+        }
         self.write_new(d, &s)?;
         self.stored_drop();
         Ok(())
@@ -544,7 +546,7 @@ impl Em<'_, '_, '_> {
     /// already, as [`Em::replace`] does, but releases the old value, read
     /// into `old` ([`Em::old_locals`]), after the write.
     pub(super) fn replace_late(&mut self, d: Dst, t: Ty, s: &Src, old: &[u32]) -> StageResult<()> {
-        let drops = self.needs_drop(t);
+        let drops = self.needs_drop(t) && self.releases_old();
         if drops {
             self.load_old(d, old);
         }

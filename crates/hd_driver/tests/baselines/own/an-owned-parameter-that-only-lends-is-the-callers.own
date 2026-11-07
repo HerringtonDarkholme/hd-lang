@@ -5,9 +5,9 @@ app/main/label
   local $1 n: string [read assigned] value
     uses $1: %13 -> %2 lend last
   local $2 k: string [read assigned] value
-    uses $2: %14 -> %4 lend last
+    uses $2: %15 -> %4 lend last
   local $3 r: string [read assigned] value
-    uses $3: %18 -> %8 lend last
+    uses $3: %20 -> %8 lend last
   %1 = Read borrow [$0] : Shape
   %2 = Read borrow [$1] : string
   %3 = Intrinsic StrConcat [%2 " by "] : string
@@ -21,15 +21,18 @@ app/main/label
   %11 = Read borrow [%1 as #1 .0] : string
   %12 = Read borrow [%1 as #1 .1] : string
   %13 = Store [$1] %11 : ()
-  %14 = Store [$2] %12 : ()
-  %16 = Block - : never
-  %17 = Read borrow [%1 as #0 .0] : string
-  %18 = Store [$3] %17 : ()
-  %20 = Block - : never
-  %22 = Block - : never
-  %23 = SwitchTag %1 [#0 %20 %22] : never
-  %24 = Block - : never
-  %25 = SwitchTag %1 [#1 %16 %24] : never
-  %26 = Block - : never
-  %27 = Match %1 [%26 %7 %10] : string
-  %28 = Block %27 : string
+  %14 = Release %13 #0 : ()
+  %15 = Store [$2] %12 : ()
+  %16 = Release %15 #0 : ()
+  %18 = Block - : never
+  %19 = Read borrow [%1 as #0 .0] : string
+  %20 = Store [$3] %19 : ()
+  %21 = Release %20 #0 : ()
+  %23 = Block - : never
+  %25 = Block - : never
+  %26 = SwitchTag %1 [#0 %23 %25] : never
+  %27 = Block - : never
+  %28 = SwitchTag %1 [#1 %18 %27] : never
+  %29 = Block - : never
+  %30 = Match %1 [%29 %7 %10] : string
+  %31 = Block %30 : string

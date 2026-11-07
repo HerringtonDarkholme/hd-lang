@@ -2,19 +2,19 @@
 app/main/sizes
   local $1 parcels: UniqMap[string, i32] [read assigned captured captured-assigned] place
   local $2 total: usize [:= read assigned] value
-    uses $2: %20 -> %25 consume last
-  %9 = Ref local frame [$1] : Counted[UniqMap[string, i32]]
-  %10 = Call std/collections/impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].is_empty[string, i32] (%9) : bool
-  %11 = Drop [%9] : ()
-  %12 = Coerce 0:usize [Identity -] : usize
-  %13 = Block %12 : usize
-  %14 = Ref local frame [$1] : Counted[UniqMap[string, i32]]
-  %15 = Call std/collections/impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].len[string, i32] (%14) : usize
-  %16 = Drop [%14] : ()
-  %17 = Coerce %15 [Identity -] : usize
-  %18 = Block %17 : usize
-  %19 = If %10 [%13 %18] : usize
-  %20 = Store [$2] %19 : ()
-  %9 finds [$1] full
-  %14 finds [$1] full
+    uses $2: %21 -> %26 consume last
+  %10 = Ref local frame [$1] : Counted[UniqMap[string, i32]]
+  %11 = Call std/collections/impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].is_empty[string, i32] (%10) : bool
+  %12 = Drop [%10] : ()
+  %13 = Coerce 0:usize [Identity -] : usize
+  %14 = Block %13 : usize
+  %15 = Ref local frame [$1] : Counted[UniqMap[string, i32]]
+  %16 = Call std/collections/impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].len[string, i32] (%15) : usize
+  %17 = Drop [%15] : ()
+  %18 = Coerce %16 [Identity -] : usize
+  %19 = Block %18 : usize
+  %20 = If %11 [%14 %19] : usize
+  %21 = Store [$2] %20 : ()
+  %10 finds [$1] full
+  %15 finds [$1] full
   exit sub 0 drops [$0]

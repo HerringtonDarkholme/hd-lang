@@ -10,9 +10,9 @@ fn total(t: (string, List[string]...)) -> usize:
 >   local $0 t: (string, List[string]...) [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 a: string [read assigned] value
->     uses $1: %5 -> %10 lend last
+>     uses $1: %5 -> %12 lend last
 >   local $2 xs: List[string] [read assigned] value
->     uses $2: %6 -> %15 lend last
+>     uses $2: %7 -> %17 lend last
 >   %0 = ExitDrop [$0] #2 : ()
     let (a, xs...) = t
 >   %1 = Read borrow [$0] : (string, List[string]...)
@@ -20,19 +20,21 @@ fn total(t: (string, List[string]...)) -> usize:
 >   %3 = Read borrow [%1 .0] : string
 >   %4 = Read borrow [%1 .1] : List[string]
 >   %5 = Store [$1] %3 : ()
->   %6 = Store [$2] %4 : ()
->   %8 = Block - : never
->   %9 = Match %1 [%8 %2] : ()
->   %18 = Block %17 : usize
+>   %6 = Release %5 #0 : ()
+>   %7 = Store [$2] %4 : ()
+>   %8 = Release %7 #0 : ()
+>   %10 = Block - : never
+>   %11 = Match %1 [%10 %2] : ()
+>   %20 = Block %19 : usize
     a.len() + xs.len()
->   %10 = Read borrow [$1] : string
->   %11 = Call std/rt.bytes/bytes_len[] (%10) : usize
->   %12 = Break L0 %11 : never
->   %13 = Block - : usize
->   %14 = Scope %13 [] : usize
->   %15 = Read borrow [$2] : List[string]
->   %16 = Intrinsic ListLen [%15] : usize
->   %17 = Prim Add [%14 %16] : usize
+>   %12 = Read borrow [$1] : string
+>   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
+>   %14 = Break L0 %13 : never
+>   %15 = Block - : usize
+>   %16 = Scope %15 [] : usize
+>   %17 = Read borrow [$2] : List[string]
+>   %18 = Intrinsic ListLen [%17] : usize
+>   %19 = Prim Add [%16 %18] : usize
 >   summary kept [] borrows [$0]
 
 fn describe(t: (string, List[string]...)) -> usize:
@@ -44,15 +46,16 @@ fn describe(t: (string, List[string]...)) -> usize:
 >   %0 = ExitDrop [$0] #2 : ()
     match t:
 >   %1 = Read borrow [$0] : (string, List[string]...)
->   %8 = Block - : never
->   %9 = Match %1 [%8 %4] : usize
->   %10 = Block %9 : usize
+>   %9 = Block - : never
+>   %10 = Match %1 [%9 %4] : usize
+>   %11 = Block %10 : usize
         (_, xs...) => xs.len()
 >   %2 = Read borrow [$1] : List[string]
 >   %3 = Intrinsic ListLen [%2] : usize
 >   %4 = Block %3 : usize
 >   %5 = Read borrow [%1 .1] : List[string]
 >   %6 = Store [$1] %5 : ()
+>   %7 = Release %6 #0 : ()
 >   summary kept [] borrows [$0]
 
 fn rest(t: (string, List[string]...)) -> List[string]:
@@ -60,16 +63,17 @@ fn rest(t: (string, List[string]...)) -> List[string]:
 >   local $0 t: (string, List[string]...) [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 xs: List[string] [read assigned] value
->     uses $1: %4 -> %8 consume last
+>     uses $1: %4 -> %9 consume last
 >   %0 = ExitDrop [$0] #2 : ()
     let (_, xs...) = t
 >   %1 = Read borrow [$0] : (string, List[string]...)
 >   %2 = Block - : ()
 >   %3 = Read borrow [%1 .1] : List[string]
 >   %4 = Store [$1] %3 : ()
->   %6 = Block - : never
->   %7 = Match %1 [%6 %2] : ()
->   %9 = Block %8 : List[string]
+>   %5 = Release %4 #0 : ()
+>   %7 = Block - : never
+>   %8 = Match %1 [%7 %2] : ()
+>   %10 = Block %9 : List[string]
     xs
->   %8 = Read copy [$1] : List[string]
+>   %9 = Read copy [$1] : List[string]
 >   summary kept [] borrows [$0]

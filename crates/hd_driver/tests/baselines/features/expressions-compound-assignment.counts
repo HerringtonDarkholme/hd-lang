@@ -22,4 +22,4 @@ fn list_append(xs: &mut List[string], i: usize) -> void:
 fn field_append(t: &mut Tally, s: string) -> void:
     t.log += s
 > app/main/field_append
->   release counted reference (conservative: Store)
+>   release counted reference (overwritten)

@@ -27,35 +27,36 @@ fn run!(n: i32) -> void:
     let mut c = Counter { hits: +0, name: "a" }
 > app/main/run
 >   local $0 n: i32 [param read] value
->     uses $0: entry -> %4 lend
+>     uses $0: entry -> %5 lend
 >   local $1 c: Counter [read assigned captured captured-assigned] place
 >   local $2 i: i32 [read assigned mutated] place
 >   %0 = NewStruct [0:i32 "a"] : Counter
 >   %1 = Store [$1] %0 : ()
->   %20 = Block - : ()
+>   %2 = Release %1 #0 : ()
+>   %21 = Block - : ()
     let i = +0
->   %2 = Store [$2] 0:i32 : ()
+>   %3 = Store [$2] 0:i32 : ()
     while i < n:
->   %3 = Read copy [$2] : i32
->   %4 = Read copy [$0] : i32
->   %5 = Prim Lt [%3 %4] : bool
->   %11 = Break L0 - : never
->   %12 = Block - : ()
->   %13 = If %5 [%10 %12] : ()
->   %14 = Block - : ()
->   %15 = Loop %14 - : ()
->   %15 finds [$1] full
-        pause!()
->   %6 = Await app/main/pause[] () : ()
->   %10 = Block - : ()
-        i = i + 1
->   %7 = Read copy [$2] : i32
->   %8 = Prim Add [%7 1:i32] : i32
->   %9 = Store [$2] %8 : ()
-    tick(&mut c)
->   %16 = Ref mut local [$1] : Counted[mut Counter]
->   %17 = Call app/main/tick[] (%16) : ()
->   %18 = Drop [%16] : ()
->   %19 = Drop [$1] : ()
+>   %4 = Read copy [$2] : i32
+>   %5 = Read copy [$0] : i32
+>   %6 = Prim Lt [%4 %5] : bool
+>   %12 = Break L0 - : never
+>   %13 = Block - : ()
+>   %14 = If %6 [%11 %13] : ()
+>   %15 = Block - : ()
+>   %16 = Loop %15 - : ()
 >   %16 finds [$1] full
+        pause!()
+>   %7 = Await app/main/pause[] () : ()
+>   %11 = Block - : ()
+        i = i + 1
+>   %8 = Read copy [$2] : i32
+>   %9 = Prim Add [%8 1:i32] : i32
+>   %10 = Store [$2] %9 : ()
+    tick(&mut c)
+>   %17 = Ref mut local [$1] : Counted[mut Counter]
+>   %18 = Call app/main/tick[] (%17) : ()
+>   %19 = Drop [%17] : ()
+>   %20 = Drop [$1] : ()
+>   %17 finds [$1] full
 >   exit sub 0 drops [$1]

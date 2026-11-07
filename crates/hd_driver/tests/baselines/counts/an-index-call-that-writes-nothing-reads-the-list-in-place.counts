@@ -35,7 +35,7 @@ impl Stack:
 >   release &mut app.main.Stack (last use)
 >   release List[&mut app.main.Stack] (last use)
             peer.items = []
->   release counted reference (conservative: Store)
+>   release counted reference (overwritten)
         0
 
     fn read(&self) -> usize:

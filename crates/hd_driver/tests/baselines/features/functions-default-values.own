@@ -11,9 +11,10 @@ fn collect(item: string, into: &mut List[string] = &mut []) -> usize:
 >   local $2 $ref: List[string] [read assigned captured captured-assigned] place
 >   %0 = NewList - [] : List[string]
 >   %1 = Store [$2] %0 : ()
->   %2 = Ref take mut local [$2] : Counted[mut List[string]]
->   %3 = Block %2 : Ref[mut List[string]]
->   %2 finds [$2] full
+>   %2 = Release %1 #0 : ()
+>   %3 = Ref take mut local [$2] : Counted[mut List[string]]
+>   %4 = Block %3 : Ref[mut List[string]]
+>   %3 finds [$2] full
 >   summary kept [] borrows [$0]
     into.push(item)
 > app/main/collect
@@ -81,26 +82,29 @@ fn use_label(s: string) -> string:
 >   local $1 name: string value
 >     uses $1: none
 >   local $3 name: string [read] value
->     uses $3: %8 -> %10 lend last
+>     uses $3: %9 -> %13 lend last
 >   local $4 suffix: string [read] value
->     uses $4: %9 -> %11 lend last
+>     uses $4: %11 -> %14 lend last
 >   %0 = ExitDrop [$0] #2 : ()
     labeled(s)
 >   %1 = Read borrow [$0] : string
 >   %2 = Read borrow [%1] : string
 >   %3 = Store [$1] %2 : ()
->   %4 = Break L0 "!" : never
->   %5 = Block - : string
->   %6 = Scope %5 [] : string
->   %7 = Read borrow [%1] : string
->   %8 = Store [$3] %7 : ()
->   %9 = Store [$4] %6 : ()
->   %10 = Read borrow [$3] : string
->   %11 = Read borrow [$4] : string
->   %12 = Intrinsic StrConcat [%10 %11] : string
->   %13 = Break L1 %12 : never
->   %14 = Block - : string
->   %15 = Scope %14 [] : string
->   %16 = Drop [$4] : ()
->   %17 = Block %15 : string
+>   %4 = Release %3 #0 : ()
+>   %5 = Break L0 "!" : never
+>   %6 = Block - : string
+>   %7 = Scope %6 [] : string
+>   %8 = Read borrow [%1] : string
+>   %9 = Store [$3] %8 : ()
+>   %10 = Release %9 #0 : ()
+>   %11 = Store [$4] %7 : ()
+>   %12 = Release %11 #0 : ()
+>   %13 = Read borrow [$3] : string
+>   %14 = Read borrow [$4] : string
+>   %15 = Intrinsic StrConcat [%13 %14] : string
+>   %16 = Break L1 %15 : never
+>   %17 = Block - : string
+>   %18 = Scope %17 [] : string
+>   %19 = Drop [$4] : ()
+>   %20 = Block %18 : string
 >   summary kept [] borrows [$0]

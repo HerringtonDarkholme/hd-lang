@@ -16,20 +16,22 @@ fn shift[T](items: List[T], i: usize) -> List[T]:
 >   local $0 items: List[T] [param read] value
 >     uses $0: entry -> %0 consume last
 >   local $1 i: usize [param read] value
->     uses $1: entry -> %2 lend, %3 lend last
+>     uses $1: entry -> %3 lend, %4 lend last
 >   local $2 xs: List[T] [read assigned] place
 >   %0 = Read move [$0] : List[T]
 >   %1 = Store [$2] %0 : ()
->   %9 = Block %8 : List[T]
+>   %2 = Release %1 #0 : ()
+>   %11 = Block %10 : List[T]
     xs[i] = xs[i + 1]
->   %2 = Read copy [$1] : usize
 >   %3 = Read copy [$1] : usize
->   %4 = Prim Add [%3 1:usize] : usize
->   %5 = Read copy [$2 [%4]] : T
->   %6 = IsUnique [$2] : ()
->   %7 = Store [$2 [%2]] %5 : ()
+>   %4 = Read copy [$1] : usize
+>   %5 = Prim Add [%4 1:usize] : usize
+>   %6 = Read copy [$2 [%5]] : T
+>   %7 = IsUnique [$2] : ()
+>   %8 = Store [$2 [%3]] %6 : ()
+>   %9 = Release %8 #0 : ()
     xs
->   %8 = Read move [$2] : List[T]
+>   %10 = Read move [$2] : List[T]
 >   exit sub 0 drops [$0]
 
 fn bump[T](cells: List[Cell[T]], i: usize) -> List[Cell[T]]:
@@ -38,17 +40,18 @@ fn bump[T](cells: List[Cell[T]], i: usize) -> List[Cell[T]]:
 >   local $0 cells: List[Cell[T]] [param read] value
 >     uses $0: entry -> %0 consume last
 >   local $1 i: usize [param read] value
->     uses $1: entry -> %2 lend last
+>     uses $1: entry -> %3 lend last
 >   local $2 all: List[Cell[T]] [read assigned] place
 >   %0 = Read move [$0] : List[Cell[T]]
 >   %1 = Store [$2] %0 : ()
->   %8 = Block %7 : List[Cell[T]]
+>   %2 = Release %1 #0 : ()
+>   %9 = Block %8 : List[Cell[T]]
     all[i].hits += 1
->   %2 = Read copy [$1] : usize
->   %3 = Read copy [$2 [%2] .hits] : usize
->   %4 = Prim Add [%3 1:usize] : usize
->   %5 = IsUnique [$2] : ()
->   %6 = Store [$2 [%2] .hits] %4 : ()
+>   %3 = Read copy [$1] : usize
+>   %4 = Read copy [$2 [%3] .hits] : usize
+>   %5 = Prim Add [%4 1:usize] : usize
+>   %6 = IsUnique [$2] : ()
+>   %7 = Store [$2 [%3] .hits] %5 : ()
     all
->   %7 = Read move [$2] : List[Cell[T]]
+>   %8 = Read move [$2] : List[Cell[T]]
 >   exit sub 0 drops [$0]

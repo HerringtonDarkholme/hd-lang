@@ -32,7 +32,8 @@ impl Update[string] for Cell:
 >     uses $1: entry -> %0 consume last
 >   %0 = Read move [$1] : string
 >   %1 = Store [*$0 .value] %0 : ()
->   %2 = Block - : ()
+>   %2 = Release %1 #0 : ()
+>   %3 = Block - : ()
 >   exit sub 0 drops [$1]
 >   summary kept [$1] writes
 
@@ -45,19 +46,20 @@ fn read_cell(c: Cell) -> usize:
 >   local $0 c: Cell [param read] value
 >     uses $0: entry -> %0 consume last
 >   local $1 $ref: string [read assigned captured captured-assigned] value
->     uses $1: %4 -> %5 lend last
+>     uses $1: %4 -> %6 lend last
 >   %0 = Read move [$0 .value] : string
 >   %1 = Break L1 %0 : never
 >   %2 = Block - : string
 >   %3 = Scope %2 [] : string
 >   %4 = Store [$1] %3 : ()
->   %5 = Read borrow [$1] : string
->   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
->   %7 = Break L0 %6 : never
->   %8 = Block - : usize
->   %9 = Scope %8 [] : usize
->   %10 = Drop [$1] : ()
->   %11 = Block %9 : usize
+>   %5 = Release %4 #0 : ()
+>   %6 = Read borrow [$1] : string
+>   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
+>   %8 = Break L0 %7 : never
+>   %9 = Block - : usize
+>   %10 = Scope %9 [] : usize
+>   %11 = Drop [$1] : ()
+>   %12 = Block %10 : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -81,18 +83,19 @@ fn append_cell(c: &mut Cell) -> void:
 >   local $0 c: Ref[mut Cell] [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 self: Cell [read] value
->     uses $1: %2 -> %3 consume last
+>     uses $1: %2 -> %4 consume last
 >   %0 = Read borrow [$0] : Ref[mut Cell]
 >   %1 = Read borrow [*%0] : Cell
 >   %2 = Store [$1] %1 : ()
->   %3 = Read copy [$1 .value] : string
->   %4 = Break L0 %3 : never
->   %5 = Block - : string
->   %6 = Scope %5 [] : string
->   %7 = Intrinsic StrConcat [%6 "!"] : string
->   %8 = Drop [%6] : ()
->   %9 = Call std/ops/Update.update for Cell [string] via Impl (%0, %7) : ()
->   %10 = Block - : ()
+>   %3 = Release %2 #0 : ()
+>   %4 = Read copy [$1 .value] : string
+>   %5 = Break L0 %4 : never
+>   %6 = Block - : string
+>   %7 = Scope %6 [] : string
+>   %8 = Intrinsic StrConcat [%7 "!"] : string
+>   %9 = Drop [%7] : ()
+>   %10 = Call std/ops/Update.update for Cell [string] via Impl (%0, %8) : ()
+>   %11 = Block - : ()
 >   summary kept [] writes
 
 fn stored_fn(h: Handler, s: string) -> usize:

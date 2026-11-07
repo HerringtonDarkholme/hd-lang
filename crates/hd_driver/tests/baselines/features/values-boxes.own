@@ -17,47 +17,53 @@ fn copy_box(s: string, t: string) -> usize:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %0 consume last
 >   local $1 t: string [param read] value
->     uses $1: entry -> %7 consume last
+>     uses $1: entry -> %10 consume last
 >   local $2 p: Point [read assigned mutated] value ×2
->     uses $2: %2 -> %3 consume last; %8 -> %17 consume last
+>     uses $2: %2 -> %4 consume last; %11 -> %22 consume last
 >   local $3 $ref: Point [read assigned captured captured-assigned] place
 >   local $4 copy: Counted[mut Point] [:= read assigned] value
->     uses $4: %6 -> %9 lend last
+>     uses $4: %8 -> %13 lend last
 >   local $5 self: string [read] value
->     uses $5: %18 -> %19 lend last
+>     uses $5: %23 -> %25 lend last
 >   local $6 self: string [read] value
->     uses $6: %10 -> %11 lend last
+>     uses $6: %14 -> %16 lend last
 >   %0 = Read move [$0] : string
 >   %1 = NewStruct [%0] : Point
 >   %2 = Store [$2] %1 : ()
->   %26 = Block %25 : usize
+>   %3 = Release %2 #0 : ()
+>   %32 = Block %31 : usize
     copy := box(p)
->   %3 = Read move [$2] : Point
->   %4 = Store [$3] %3 : ()
->   %5 = Ref take mut [$3] : Counted[mut Point]
->   %6 = Store [$4] %5 : ()
->   %5 finds [$3] full
+>   %4 = Read move [$2] : Point
+>   %5 = Store [$3] %4 : ()
+>   %6 = Release %5 #0 : ()
+>   %7 = Ref take mut [$3] : Counted[mut Point]
+>   %8 = Store [$4] %7 : ()
+>   %9 = Release %8 #0 : ()
+>   %7 finds [$3] full
     p.name = t
->   %7 = Read move [$1] : string
->   %8 = Store [$2 .name] %7 : ()
+>   %10 = Read move [$1] : string
+>   %11 = Store [$2 .name] %10 : ()
+>   %12 = Release %11 #0 : ()
     copy.name.len() + p.name.len()
->   %9 = Read borrow [*$4 .name] : string
->   %10 = Store [$6] %9 : ()
->   %11 = Read borrow [$6] : string
->   %12 = Call std/rt.bytes/bytes_len[] (%11) : usize
->   %13 = Break L1 %12 : never
->   %14 = Block - : usize
->   %15 = Scope %14 [] : usize
->   %16 = Drop [$4] : ()
->   %17 = Read move [$2 .name] : string
->   %18 = Store [$5] %17 : ()
->   %19 = Read borrow [$5] : string
->   %20 = Call std/rt.bytes/bytes_len[] (%19) : usize
->   %21 = Break L0 %20 : never
->   %22 = Block - : usize
->   %23 = Scope %22 [] : usize
->   %24 = Drop [$5] : ()
->   %25 = Prim Add [%15 %23] : usize
+>   %13 = Read borrow [*$4 .name] : string
+>   %14 = Store [$6] %13 : ()
+>   %15 = Release %14 #0 : ()
+>   %16 = Read borrow [$6] : string
+>   %17 = Call std/rt.bytes/bytes_len[] (%16) : usize
+>   %18 = Break L1 %17 : never
+>   %19 = Block - : usize
+>   %20 = Scope %19 [] : usize
+>   %21 = Drop [$4] : ()
+>   %22 = Read move [$2 .name] : string
+>   %23 = Store [$5] %22 : ()
+>   %24 = Release %23 #0 : ()
+>   %25 = Read borrow [$5] : string
+>   %26 = Call std/rt.bytes/bytes_len[] (%25) : usize
+>   %27 = Break L0 %26 : never
+>   %28 = Block - : usize
+>   %29 = Scope %28 [] : usize
+>   %30 = Drop [$5] : ()
+>   %31 = Prim Add [%20 %29] : usize
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1]
 
@@ -69,11 +75,12 @@ fn move_box(s: string) -> *mut Point:
 >   local $2 $ref: Point [read assigned captured captured-assigned] place
 >   %0 = Read move [$0] : string
 >   %1 = NewStruct [%0] : Point
->   %4 = Block %3 : Counted[mut Point]
+>   %5 = Block %4 : Counted[mut Point]
     box(p)
 >   %2 = Store [$2] %1 : ()
->   %3 = Ref take mut [$2] : Counted[mut Point]
->   %3 finds [$2] full
+>   %3 = Release %2 #0 : ()
+>   %4 = Ref take mut [$2] : Counted[mut Point]
+>   %4 finds [$2] full
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -83,37 +90,42 @@ fn shared(s: string, t: string) -> usize:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %0 consume last
 >   local $1 t: string [param read] value
->     uses $1: entry -> %8 consume last
+>     uses $1: entry -> %11 consume last
 >   local $2 $ref: Point [read assigned captured captured-assigned] place
 >   local $3 b: Counted[mut Point] [:= read assigned] value
->     uses $3: %4 -> %5 consume, %9 lend last
+>     uses $3: %5 -> %7 consume, %12 lend last
 >   local $4 h: Holder [:= read assigned] value
->     uses $4: %7 -> %11 lend last
+>     uses $4: %9 -> %15 lend last
 >   local $5 self: string [read] value
->     uses $5: %12 -> %13 lend last
+>     uses $5: %16 -> %18 lend last
 >   %0 = Read move [$0] : string
 >   %1 = NewStruct [%0] : Point
 >   %2 = Store [$2] %1 : ()
->   %3 = Ref take mut [$2] : Counted[mut Point]
->   %4 = Store [$3] %3 : ()
->   %19 = Block %17 : usize
->   %3 finds [$2] full
+>   %3 = Release %2 #0 : ()
+>   %4 = Ref take mut [$2] : Counted[mut Point]
+>   %5 = Store [$3] %4 : ()
+>   %6 = Release %5 #0 : ()
+>   %24 = Block %22 : usize
+>   %4 finds [$2] full
     h := Holder { point: b }
->   %5 = Read copy [$3] : Counted[mut Point]
->   %6 = NewStruct [%5] : Holder
->   %7 = Store [$4] %6 : ()
+>   %7 = Read copy [$3] : Counted[mut Point]
+>   %8 = NewStruct [%7] : Holder
+>   %9 = Store [$4] %8 : ()
+>   %10 = Release %9 #0 : ()
     b.name = t
->   %8 = Read move [$1] : string
->   %9 = Store [*$3 .name] %8 : ()
->   %10 = Drop [$3] : ()
+>   %11 = Read move [$1] : string
+>   %12 = Store [*$3 .name] %11 : ()
+>   %13 = Release %12 #0 : ()
+>   %14 = Drop [$3] : ()
     h.point.name.len()
->   %11 = Read borrow [$4 .point * .name] : string
->   %12 = Store [$5] %11 : ()
->   %13 = Read borrow [$5] : string
->   %14 = Call std/rt.bytes/bytes_len[] (%13) : usize
->   %15 = Break L0 %14 : never
->   %16 = Block - : usize
->   %17 = Scope %16 [] : usize
->   %18 = Drop [$4] : ()
+>   %15 = Read borrow [$4 .point * .name] : string
+>   %16 = Store [$5] %15 : ()
+>   %17 = Release %16 #0 : ()
+>   %18 = Read borrow [$5] : string
+>   %19 = Call std/rt.bytes/bytes_len[] (%18) : usize
+>   %20 = Break L0 %19 : never
+>   %21 = Block - : usize
+>   %22 = Scope %21 [] : usize
+>   %23 = Drop [$4] : ()
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1] writes

@@ -3,9 +3,10 @@ app/main/impl Reader.next
   local $0 self: Ref[mut Reader] [param read] value
     uses $0: entry -> %0 consume last
   local $1 frame: Counted[mut Frame] [:= read assigned] value
-    uses $1: %3 -> %4 lend last
+    uses $1: %3 -> %5 lend last
   %0 = Read borrow [$0] : Ref[mut Reader]
   %1 = Coerce %0 [Weaken -] : Ref[Reader]
   %2 = Call app/main/impl Reader.top[] (%1) : Counted[mut Frame]
   %3 = Store [$1] %2 : ()
+  %4 = Release %3 #0 : ()
   summary kept []

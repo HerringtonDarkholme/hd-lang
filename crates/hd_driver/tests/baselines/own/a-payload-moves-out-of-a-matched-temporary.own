@@ -5,7 +5,7 @@ app/main/describe
   local $1 found: string [read assigned] value
     uses $1: %7 -> %2 consume last
   local $2 reason: string [read assigned] value
-    uses $2: %11 -> %4 consume last
+    uses $2: %12 -> %4 consume last
   %0 = Read move [$0] : string
   %1 = Call app/main/lookup[] (%0) : Result[string, string]
   %2 = Read move [$1] : string
@@ -14,15 +14,17 @@ app/main/describe
   %5 = Block %4 : string
   %6 = Read move [%1 as #0 .0] : string
   %7 = Store [$1] %6 : ()
-  %9 = Block - : never
-  %10 = Read move [%1 as #1 .0] : string
-  %11 = Store [$2] %10 : ()
-  %13 = Block - : never
+  %8 = Release %7 #0 : ()
+  %10 = Block - : never
+  %11 = Read move [%1 as #1 .0] : string
+  %12 = Store [$2] %11 : ()
+  %13 = Release %12 #0 : ()
   %15 = Block - : never
-  %16 = SwitchTag %1 [#1 %13 %15] : never
   %17 = Block - : never
-  %18 = SwitchTag %1 [#0 %9 %17] : never
+  %18 = SwitchTag %1 [#1 %15 %17] : never
   %19 = Block - : never
-  %20 = Match %1 [%19 %3 %5] : string
-  %21 = Block %20 : string
+  %20 = SwitchTag %1 [#0 %10 %19] : never
+  %21 = Block - : never
+  %22 = Match %1 [%21 %3 %5] : string
+  %23 = Block %22 : string
   exit sub 0 drops [$0]

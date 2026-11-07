@@ -16,5 +16,5 @@ fn read_copy(r: &User) -> usize:
 fn reset(r: &mut User, s: string) -> void:
     *r = User { name: s, n: 0 }
 > app/main/reset
->   release counted reference (conservative: Store)
+>   release counted reference (overwritten)
     r.n += 1

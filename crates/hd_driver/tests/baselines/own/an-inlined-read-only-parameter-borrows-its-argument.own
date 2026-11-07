@@ -31,12 +31,13 @@ app/main/total_len
   %22 = Block - : ()
   %23 = Read borrow [%10] : string
   %24 = Store [$6] %23 : ()
-  %26 = Block - : never
-  %27 = Match %10 [%26 %22] : ()
-  %28 = Block - : ()
-  %29 = Break L0 - : never
-  %30 = Block - : ()
-  %31 = If %8 [%28 %30] : ()
-  %32 = Block - : ()
-  %33 = Loop %32 - : ()
-  loop %33 keeps [$0]
+  %25 = Release %24 #0 : ()
+  %27 = Block - : never
+  %28 = Match %10 [%27 %22] : ()
+  %29 = Block - : ()
+  %30 = Break L0 - : never
+  %31 = Block - : ()
+  %32 = If %8 [%29 %31] : ()
+  %33 = Block - : ()
+  %34 = Loop %33 - : ()
+  loop %34 keeps [$0]

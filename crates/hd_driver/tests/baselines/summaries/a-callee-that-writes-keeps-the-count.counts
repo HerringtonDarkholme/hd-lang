@@ -18,13 +18,13 @@ ROOT := box(Node { left: .None, value: 0 })
 fn prune(parent: *mut Node) -> i64:
     parent.left = .None
 > app/main/prune
->   release counted reference (conservative: Store)
+>   release counted reference (overwritten)
     0
 
 fn prune_global(k: i64) -> i64:
     ROOT.left = .None
 > app/main/prune_global
->   release counted reference (conservative: Store)
+>   release counted reference (overwritten)
     if k > 0: prune_global(k - 1) else: 0
 
 fn ping(node: *mut Node, k: i64) -> i64:

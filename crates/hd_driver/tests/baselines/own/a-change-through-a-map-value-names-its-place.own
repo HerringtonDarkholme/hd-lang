@@ -58,7 +58,8 @@ fn next(k: &mut string) -> i64:
 >   local $0 k: Ref[mut string] [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Store [*$0] "b" : ()
->   %1 = Block 1:i64 : i64
+>   %1 = Release %0 #0 : ()
+>   %2 = Block 1:i64 : i64
     1
 
 fn add_at(mut m: Map[string, List[i64]], mut k: string) -> Map[string, List[i64]]:

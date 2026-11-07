@@ -30,7 +30,7 @@ fn walk(node: &Node, sink: &mut dyn Sink) -> void:
 >   %1 = Read copy [*$0 .value] : i64
 >   %2 = Call app/main/Sink.emit for Sink [] via TraitValue (%0, %1) : ()
 >   %3 = Drop [%0] : ()
->   %33 = Block - : ()
+>   %34 = Block - : ()
     for child in &node.children:
 >   %4 = Read copy [*$0 .children] : List[Counted[Node]]
 >   %5 = Intrinsic ListLen [%4] : usize
@@ -47,16 +47,17 @@ fn walk(node: &Node, sink: &mut dyn Sink) -> void:
 >   %19 = Block - : ()
 >   %20 = Read borrow [%15] : Ref[Counted[Node]]
 >   %21 = Store [$4] %20 : ()
->   %23 = Block - : never
->   %24 = Match %15 [%23 %19] : ()
->   %25 = LoanEnd [%15] : ()
->   %26 = Block - : ()
->   %27 = Break L0 - : never
->   %28 = Block - : ()
->   %29 = If %10 [%26 %28] : ()
->   %30 = Block - : ()
->   %31 = Loop %30 - : ()
->   %32 = Drop [%4] : ()
+>   %22 = Release %21 #0 : ()
+>   %24 = Block - : never
+>   %25 = Match %15 [%24 %19] : ()
+>   %26 = LoanEnd [%15] : ()
+>   %27 = Block - : ()
+>   %28 = Break L0 - : never
+>   %29 = Block - : ()
+>   %30 = If %10 [%27 %29] : ()
+>   %31 = Block - : ()
+>   %32 = Loop %31 - : ()
+>   %33 = Drop [%4] : ()
         walk(*child, sink)
 >   %16 = Read borrow [*$4] : Counted[Node]
 >   %17 = Read borrow [$1] : Ref[mut Sink]
@@ -126,17 +127,18 @@ fn save(node: &Node, k: &mut Keeper) -> void:
 >   %15 = Block - : ()
 >   %16 = Read borrow [%11] : Ref[Counted[Node]]
 >   %17 = Store [$4] %16 : ()
->   %19 = Block - : never
->   %20 = Match %11 [%19 %15] : ()
->   %21 = LoanEnd [%11] : ()
->   %22 = Block - : ()
->   %23 = Break L0 - : never
->   %24 = Block - : ()
->   %25 = If %6 [%22 %24] : ()
->   %26 = Block - : ()
->   %27 = Loop %26 - : ()
->   %28 = Drop [%0] : ()
->   %29 = Block - : ()
+>   %18 = Release %17 #0 : ()
+>   %20 = Block - : never
+>   %21 = Match %11 [%20 %15] : ()
+>   %22 = LoanEnd [%11] : ()
+>   %23 = Block - : ()
+>   %24 = Break L0 - : never
+>   %25 = Block - : ()
+>   %26 = If %6 [%23 %25] : ()
+>   %27 = Block - : ()
+>   %28 = Loop %27 - : ()
+>   %29 = Drop [%0] : ()
+>   %30 = Block - : ()
         keep(*e, k)
 >   %12 = Read borrow [*$4] : Counted[Node]
 >   %13 = Read borrow [$1] : Ref[mut Keeper]
@@ -147,45 +149,48 @@ pub fn run(root: *Node) -> i64:
     let mut total = Total { sum: 0 }
 > app/main/run
 >   local $0 root: Counted[Node] [param read] value
->     uses $0: entry -> %2 lend, %16 lend last
+>     uses $0: entry -> %3 lend, %19 lend last
 >   local $1 total: Total [read assigned captured captured-assigned] place
 >   local $2 $ref: Ref[mut Total] [read assigned captured] value
->     uses $2: %4 -> %5 lend last
+>     uses $2: %5 -> %7 lend last
 >   local $3 keeper: Keeper [read assigned captured captured-assigned] place
 >   %0 = NewStruct [0:i64] : Total
 >   %1 = Store [$1] %0 : ()
->   %27 = Block %26 : i64
+>   %2 = Release %1 #0 : ()
+>   %30 = Block %29 : i64
     walk(root, &mut total)
->   %2 = Read borrow [$0] : Counted[Node]
->   %3 = Ref mut local frame [$1] : Ref[mut Total]
->   %4 = Store [$2] %3 : ()
->   %5 = Read move [$2] : Ref[mut Total]
->   %6 = Coerce %5 [RefToTraitValue -] : Sink
->   %7 = Retain %6 #0 : ()
->   %8 = LoanEnd [%5] : ()
->   %9 = Block %6 : Sink
->   %10 = RefDyn %9 : Ref[mut Sink]
->   %11 = Call app/main/walk[] (%2, %10) : ()
->   %12 = Drop [%10] : ()
->   %3 finds [$1] full
+>   %3 = Read borrow [$0] : Counted[Node]
+>   %4 = Ref mut local frame [$1] : Ref[mut Total]
+>   %5 = Store [$2] %4 : ()
+>   %6 = Release %5 #0 : ()
+>   %7 = Read move [$2] : Ref[mut Total]
+>   %8 = Coerce %7 [RefToTraitValue -] : Sink
+>   %9 = Retain %8 #0 : ()
+>   %10 = LoanEnd [%7] : ()
+>   %11 = Block %8 : Sink
+>   %12 = RefDyn %11 : Ref[mut Sink]
+>   %13 = Call app/main/walk[] (%3, %12) : ()
+>   %14 = Drop [%12] : ()
+>   %4 finds [$1] full
     let mut keeper = Keeper { saved: [] }
->   %13 = NewList - [] : List[Counted[Node]]
->   %14 = NewStruct [%13] : Keeper
->   %15 = Store [$3] %14 : ()
+>   %15 = NewList - [] : List[Counted[Node]]
+>   %16 = NewStruct [%15] : Keeper
+>   %17 = Store [$3] %16 : ()
+>   %18 = Release %17 #0 : ()
     save(root, &mut keeper)
->   %16 = Read borrow [$0] : Counted[Node]
->   %17 = Ref mut local frame [$3] : Counted[mut Keeper]
->   %18 = Call app/main/save[] (%16, %17) : ()
->   %19 = Drop [%17] : ()
->   %17 finds [$3] full
+>   %19 = Read borrow [$0] : Counted[Node]
+>   %20 = Ref mut local frame [$3] : Counted[mut Keeper]
+>   %21 = Call app/main/save[] (%19, %20) : ()
+>   %22 = Drop [%20] : ()
+>   %20 finds [$3] full
     total.sum + i64(keeper.saved.len())
->   %20 = Read copy [$1 .sum] : i64
->   %21 = Drop [$1] : ()
->   %22 = Read move [$3 .saved] : List[Counted[Node]]
->   %23 = Intrinsic ListLen [%22] : usize
->   %24 = Drop [%22] : ()
->   %25 = Prim Conv [%23] : i64
->   %26 = Prim Add [%20 %25] : i64
->   %20 finds [$1] full
->   %22 finds [$3] full
+>   %23 = Read copy [$1 .sum] : i64
+>   %24 = Drop [$1] : ()
+>   %25 = Read move [$3 .saved] : List[Counted[Node]]
+>   %26 = Intrinsic ListLen [%25] : usize
+>   %27 = Drop [%25] : ()
+>   %28 = Prim Conv [%26] : i64
+>   %29 = Prim Add [%23 %28] : i64
+>   %23 finds [$1] full
+>   %25 finds [$3] full
 >   summary kept [] writes

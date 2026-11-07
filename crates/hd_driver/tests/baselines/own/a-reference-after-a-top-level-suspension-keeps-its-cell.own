@@ -30,13 +30,14 @@ fn run!(go: bool) -> void:
 >   local $1 c: Counter [read assigned captured captured-assigned] place
 >   %0 = NewStruct [0:i32 "a"] : Counter
 >   %1 = Store [$1] %0 : ()
->   %7 = Block - : ()
+>   %2 = Release %1 #0 : ()
+>   %8 = Block - : ()
     pause!()
->   %2 = Await app/main/pause[] () : ()
+>   %3 = Await app/main/pause[] () : ()
     tick(&mut c)
->   %3 = Ref mut local [$1] : Counted[mut Counter]
->   %4 = Call app/main/tick[] (%3) : ()
->   %5 = Drop [%3] : ()
->   %6 = Drop [$1] : ()
->   %3 finds [$1] full
+>   %4 = Ref mut local [$1] : Counted[mut Counter]
+>   %5 = Call app/main/tick[] (%4) : ()
+>   %6 = Drop [%4] : ()
+>   %7 = Drop [$1] : ()
+>   %4 finds [$1] full
 >   exit sub 0 drops [$1]

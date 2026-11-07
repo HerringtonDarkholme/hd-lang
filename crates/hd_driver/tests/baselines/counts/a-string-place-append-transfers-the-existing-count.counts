@@ -7,7 +7,7 @@
 fn through_reference(text: &mut string, suffix: string) -> void:
     *text += suffix
 > app/main/through_reference
->   release counted reference (conservative: Store)
+>   release counted reference (overwritten)
 
 fn through_cell(text: string) -> string:
     let mut current = text
@@ -26,7 +26,7 @@ fn through_cell(text: string) -> string:
 fn replace(text: &mut string) -> string:
     *text = "replacement"
 > app/main/replace
->   release counted reference (conservative: Store)
+>   release counted reference (overwritten)
     "!"
 
 fn rhs_writes(text: &mut string) -> void:
@@ -35,4 +35,4 @@ fn rhs_writes(text: &mut string) -> void:
 >   retain counted reference (second owner)
 >   release string (last use)
 >   release string (last use)
->   release counted reference (conservative: Store)
+>   release counted reference (overwritten)

@@ -18,16 +18,17 @@ app/main/holds
   %12 = Block - : never
   %13 = Read copy [%10 as #1 .0] : K
   %14 = Store [$2] %13 : ()
-  %16 = Block - : never
-  %18 = Block - : never
-  %19 = SwitchTag %10 [#1 %16 %18] : never
-  %20 = Block - : never
-  %21 = SwitchTag %10 [#0 %12 %20] : never
-  %22 = Block - : never
-  %23 = Match %2 [%22 %3 %9] : bool
-  %24 = Drop [$2] : ()
-  %25 = Drop [%2] : ()
-  %26 = Drop [$1] : ()
-  %27 = Block %23 : bool
+  %15 = Release %14 #0 : ()
+  %17 = Block - : never
+  %19 = Block - : never
+  %20 = SwitchTag %10 [#1 %17 %19] : never
+  %21 = Block - : never
+  %22 = SwitchTag %10 [#0 %12 %21] : never
+  %23 = Block - : never
+  %24 = Match %2 [%23 %3 %9] : bool
+  %25 = Drop [$2] : ()
+  %26 = Drop [%2] : ()
+  %27 = Drop [$1] : ()
+  %28 = Block %24 : bool
   %4 finds [$2] full
   exit sub 0 drops [$1]

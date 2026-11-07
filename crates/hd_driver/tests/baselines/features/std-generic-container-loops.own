@@ -38,7 +38,7 @@ impl[T < Ord] Queue[T]:
         size := self.items.len()
 > app/main/impl [ T < Ord ] Queue [ T ].settle
 >   local $0 self: Ref[mut Queue[T]] [param read] value
->     uses $0: entry -> %0 lend, %21 lend, %25 lend, %46 lend, %62 lend, %64 lend, %76 lend last
+>     uses $0: entry -> %0 lend, %21 lend, %25 lend, %46 lend, %62 lend, %64 lend, %77 lend last
 >   local $1 start: usize [param read] value
 >     uses $1: entry -> %3 consume last
 >   local $2 value: T [param read captured] place
@@ -51,7 +51,7 @@ impl[T < Ord] Queue[T]:
 >   %0 = Read borrow [*$0 .items] : List[T]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Store [$3] %1 : ()
->   %77 = Block - : ()
+>   %79 = Block - : ()
         let parent = start
 >   %3 = Read copy [$1] : usize
 >   %4 = Store [$4] %3 : ()
@@ -60,18 +60,18 @@ impl[T < Ord] Queue[T]:
 >   %6 = Read copy [$3] : usize
 >   %7 = Prim Div [%6 2:usize] : usize
 >   %8 = Prim Lt [%5 %7] : bool
->   %68 = Break L0 - : never
->   %69 = Block - : ()
->   %70 = If %8 [%67 %69] : ()
->   %71 = Block - : ()
->   %72 = Loop %71 - : ()
+>   %69 = Break L0 - : never
+>   %70 = Block - : ()
+>   %71 = If %8 [%68 %70] : ()
+>   %72 = Block - : ()
+>   %73 = Loop %72 - : ()
 >   %5 shared: a copy of a value that holds the struct
             left := 2 * parent + 1
 >   %9 = Read copy [$4] : usize
 >   %10 = Prim Mul [2:usize %9] : usize
 >   %11 = Prim Add [%10 1:usize] : usize
 >   %12 = Store [$5] %11 : ()
->   %67 = Block - : ()
+>   %68 = Block - : ()
             let larger = left
 >   %13 = Read copy [$5] : usize
 >   %14 = Store [$6] %13 : ()
@@ -135,18 +135,21 @@ impl[T < Ord] Queue[T]:
 >   %62 = Read copy [*$0 .items [%61]] : T
 >   %63 = IsUnique [*$0 .items] : ()
 >   %64 = Store [*$0 .items [%60]] %62 : ()
+>   %65 = Release %64 #0 : ()
 >   %64 shared: a copy of a value that holds the struct
 >   %63 shared: a copy of a value that holds the struct
             parent = larger
->   %65 = Read copy [$6] : usize
->   %66 = Store [$4] %65 : ()
+>   %66 = Read copy [$6] : usize
+>   %67 = Store [$4] %66 : ()
         self.items[parent] = value
->   %73 = Read copy [$4] : usize
->   %74 = Read move [$2] : T
->   %75 = IsUnique [*$0 .items] : ()
->   %76 = Store [*$0 .items [%73]] %74 : ()
+>   %74 = Read copy [$4] : usize
+>   %75 = Read move [$2] : T
+>   %76 = IsUnique [*$0 .items] : ()
+>   %77 = Store [*$0 .items [%74]] %75 : ()
+>   %78 = Release %77 #0 : ()
 >   %76 shared: a copy of a value that holds the struct
 >   %75 shared: a copy of a value that holds the struct
+>   %77 shared: a copy of a value that holds the struct
 >   exit sub 0 drops [$2]
 >   summary kept [$0 $2] writes relies [$0]
 
@@ -154,121 +157,127 @@ pub fn numbers(a: i64, b: i64, c: i64) -> i64:
     let mut q = Queue::[i64].new()
 > app/main/numbers
 >   local $0 a: i64 [param read] value
->     uses $0: entry -> %7 lend last
+>     uses $0: entry -> %8 lend last
 >   local $1 b: i64 [param read] value
->     uses $1: entry -> %11 lend last
+>     uses $1: entry -> %12 lend last
 >   local $2 c: i64 [param read] value
->     uses $2: entry -> %15 lend, %21 lend last
+>     uses $2: entry -> %16 lend, %23 lend last
 >   local $3 q: Queue[i64] [read assigned captured captured-assigned] place
 >   local $4 saved: Queue[i64] [:= read assigned] value
->     uses $4: %19 -> %26 lend last
+>     uses $4: %20 -> %28 lend last
 >   %0 = NewList - [] : List[i64]
 >   %1 = NewStruct [%0] : Queue[i64]
 >   %2 = Break L0 %1 : never
 >   %3 = Block - : Queue[i64]
 >   %4 = Scope %3 [] : Queue[i64]
 >   %5 = Store [$3] %4 : ()
->   %29 = Block %28 : i64
+>   %6 = Release %5 #0 : ()
+>   %31 = Block %30 : i64
     q.add(a)
->   %6 = Ref mut local frame [$3] : Counted[mut Queue[i64]]
->   %7 = Read copy [$0] : i64
->   %8 = Call app/main/impl [ T < Ord ] Queue [ T ].add[i64] (%6, %7) : ()
->   %9 = Drop [%6] : ()
->   %6 finds [$3] full
+>   %7 = Ref mut local frame [$3] : Counted[mut Queue[i64]]
+>   %8 = Read copy [$0] : i64
+>   %9 = Call app/main/impl [ T < Ord ] Queue [ T ].add[i64] (%7, %8) : ()
+>   %10 = Drop [%7] : ()
+>   %7 finds [$3] full
     q.add(b)
->   %10 = Ref mut local frame [$3] : Counted[mut Queue[i64]]
->   %11 = Read copy [$1] : i64
->   %12 = Call app/main/impl [ T < Ord ] Queue [ T ].add[i64] (%10, %11) : ()
->   %13 = Drop [%10] : ()
->   %10 finds [$3] full
+>   %11 = Ref mut local frame [$3] : Counted[mut Queue[i64]]
+>   %12 = Read copy [$1] : i64
+>   %13 = Call app/main/impl [ T < Ord ] Queue [ T ].add[i64] (%11, %12) : ()
+>   %14 = Drop [%11] : ()
+>   %11 finds [$3] full
     q.add(c)
->   %14 = Ref mut local frame [$3] : Counted[mut Queue[i64]]
->   %15 = Read copy [$2] : i64
->   %16 = Call app/main/impl [ T < Ord ] Queue [ T ].add[i64] (%14, %15) : ()
->   %17 = Drop [%14] : ()
->   %14 finds [$3] full
+>   %15 = Ref mut local frame [$3] : Counted[mut Queue[i64]]
+>   %16 = Read copy [$2] : i64
+>   %17 = Call app/main/impl [ T < Ord ] Queue [ T ].add[i64] (%15, %16) : ()
+>   %18 = Drop [%15] : ()
+>   %15 finds [$3] full
     saved := q
->   %18 = Read copy [$3] : Queue[i64]
->   %19 = Store [$4] %18 : ()
->   %18 finds [$3] full
+>   %19 = Read copy [$3] : Queue[i64]
+>   %20 = Store [$4] %19 : ()
+>   %21 = Release %20 #0 : ()
+>   %19 finds [$3] full
     q.settle(0, c)
->   %20 = Ref mut local frame [$3] : Counted[mut Queue[i64]]
->   %21 = Read copy [$2] : i64
->   %22 = Call app/main/impl [ T < Ord ] Queue [ T ].settle[i64] (%20, 0:usize, %21) : ()
->   %23 = Drop [%20] : ()
->   %20 finds [$3] full
+>   %22 = Ref mut local frame [$3] : Counted[mut Queue[i64]]
+>   %23 = Read copy [$2] : i64
+>   %24 = Call app/main/impl [ T < Ord ] Queue [ T ].settle[i64] (%22, 0:usize, %23) : ()
+>   %25 = Drop [%22] : ()
+>   %22 finds [$3] full
     q.items[0] + saved.items[0]
->   %24 = Read copy [$3 .items [0:usize]] : i64
->   %25 = Drop [$3] : ()
->   %26 = Read copy [$4 .items [0:usize]] : i64
->   %27 = Drop [$4] : ()
->   %28 = Prim Add [%24 %26] : i64
->   %24 finds [$3] full
+>   %26 = Read copy [$3 .items [0:usize]] : i64
+>   %27 = Drop [$3] : ()
+>   %28 = Read copy [$4 .items [0:usize]] : i64
+>   %29 = Drop [$4] : ()
+>   %30 = Prim Add [%26 %28] : i64
+>   %26 finds [$3] full
 >   summary kept [] writes
 
 pub fn names(a: string, b: string) -> usize:
     let mut q = Queue::[string].new()
 > app/main/names
 >   local $0 a: string [param read] value
->     uses $0: entry -> %7 consume last
+>     uses $0: entry -> %8 consume last
 >   local $1 b: string [param read] value
->     uses $1: entry -> %11 consume last
+>     uses $1: entry -> %12 consume last
 >   local $2 q: Queue[string] [read assigned captured captured-assigned] place
 >   local $3 saved: Queue[string] [:= read assigned] value
->     uses $3: %15 -> %28 lend last
+>     uses $3: %16 -> %31 lend last
 >   local $4 self: string [read] value
->     uses $4: %30 -> %31 lend last
+>     uses $4: %33 -> %35 lend last
 >   local $5 self: string [read] value
->     uses $5: %21 -> %22 lend last
+>     uses $5: %23 -> %25 lend last
 >   %0 = NewList - [] : List[string]
 >   %1 = NewStruct [%0] : Queue[string]
 >   %2 = Break L2 %1 : never
 >   %3 = Block - : Queue[string]
 >   %4 = Scope %3 [] : Queue[string]
 >   %5 = Store [$2] %4 : ()
->   %38 = Block %37 : usize
+>   %6 = Release %5 #0 : ()
+>   %42 = Block %41 : usize
     q.add(a)
->   %6 = Ref mut local frame [$2] : Counted[mut Queue[string]]
->   %7 = Read move [$0] : string
->   %8 = Call app/main/impl [ T < Ord ] Queue [ T ].add[string] (%6, %7) : ()
->   %9 = Drop [%6] : ()
->   %6 finds [$2] full
+>   %7 = Ref mut local frame [$2] : Counted[mut Queue[string]]
+>   %8 = Read move [$0] : string
+>   %9 = Call app/main/impl [ T < Ord ] Queue [ T ].add[string] (%7, %8) : ()
+>   %10 = Drop [%7] : ()
+>   %7 finds [$2] full
     q.add(b)
->   %10 = Ref mut local frame [$2] : Counted[mut Queue[string]]
->   %11 = Read move [$1] : string
->   %12 = Call app/main/impl [ T < Ord ] Queue [ T ].add[string] (%10, %11) : ()
->   %13 = Drop [%10] : ()
->   %10 finds [$2] full
+>   %11 = Ref mut local frame [$2] : Counted[mut Queue[string]]
+>   %12 = Read move [$1] : string
+>   %13 = Call app/main/impl [ T < Ord ] Queue [ T ].add[string] (%11, %12) : ()
+>   %14 = Drop [%11] : ()
+>   %11 finds [$2] full
     saved := q
->   %14 = Read copy [$2] : Queue[string]
->   %15 = Store [$3] %14 : ()
->   %14 finds [$2] full
+>   %15 = Read copy [$2] : Queue[string]
+>   %16 = Store [$3] %15 : ()
+>   %17 = Release %16 #0 : ()
+>   %15 finds [$2] full
     q.settle(0, "z")
->   %16 = Ref mut local frame [$2] : Counted[mut Queue[string]]
->   %17 = Call app/main/impl [ T < Ord ] Queue [ T ].settle[string] (%16, 0:usize, "z") : ()
->   %18 = Drop [%16] : ()
->   %16 finds [$2] full
+>   %18 = Ref mut local frame [$2] : Counted[mut Queue[string]]
+>   %19 = Call app/main/impl [ T < Ord ] Queue [ T ].settle[string] (%18, 0:usize, "z") : ()
+>   %20 = Drop [%18] : ()
+>   %18 finds [$2] full
     q.items[0].len() + saved.items[0].len()
->   %19 = Read copy [$2 .items [0:usize]] : string
->   %20 = Drop [$2] : ()
->   %21 = Store [$5] %19 : ()
->   %22 = Read borrow [$5] : string
->   %23 = Call std/rt.bytes/bytes_len[] (%22) : usize
->   %24 = Break L1 %23 : never
->   %25 = Block - : usize
->   %26 = Scope %25 [] : usize
->   %27 = Drop [$5] : ()
->   %28 = Read copy [$3 .items [0:usize]] : string
->   %29 = Drop [$3] : ()
->   %30 = Store [$4] %28 : ()
->   %31 = Read borrow [$4] : string
->   %32 = Call std/rt.bytes/bytes_len[] (%31) : usize
->   %33 = Break L0 %32 : never
->   %34 = Block - : usize
->   %35 = Scope %34 [] : usize
->   %36 = Drop [$4] : ()
->   %37 = Prim Add [%26 %35] : usize
->   %19 finds [$2] full
+>   %21 = Read copy [$2 .items [0:usize]] : string
+>   %22 = Drop [$2] : ()
+>   %23 = Store [$5] %21 : ()
+>   %24 = Release %23 #0 : ()
+>   %25 = Read borrow [$5] : string
+>   %26 = Call std/rt.bytes/bytes_len[] (%25) : usize
+>   %27 = Break L1 %26 : never
+>   %28 = Block - : usize
+>   %29 = Scope %28 [] : usize
+>   %30 = Drop [$5] : ()
+>   %31 = Read copy [$3 .items [0:usize]] : string
+>   %32 = Drop [$3] : ()
+>   %33 = Store [$4] %31 : ()
+>   %34 = Release %33 #0 : ()
+>   %35 = Read borrow [$4] : string
+>   %36 = Call std/rt.bytes/bytes_len[] (%35) : usize
+>   %37 = Break L0 %36 : never
+>   %38 = Block - : usize
+>   %39 = Scope %38 [] : usize
+>   %40 = Drop [$4] : ()
+>   %41 = Prim Add [%29 %39] : usize
+>   %21 finds [$2] full
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1] writes
 
@@ -276,49 +285,51 @@ pub fn pairs(a: i64, b: i64) -> i64:
     let mut q = Queue::[(i64, usize)].new()
 > app/main/pairs
 >   local $0 a: i64 [param read] value
->     uses $0: entry -> %7 consume, %19 consume last
+>     uses $0: entry -> %8 consume, %21 consume last
 >   local $1 b: i64 [param read] value
->     uses $1: entry -> %12 consume last
+>     uses $1: entry -> %13 consume last
 >   local $2 q: Queue[(i64, usize)] [read assigned captured captured-assigned] place
 >   local $3 saved: Queue[(i64, usize)] [:= read assigned] value
->     uses $3: %17 -> %25 lend last
+>     uses $3: %18 -> %27 lend last
 >   %0 = NewList - [] : List[(i64, usize)]
 >   %1 = NewStruct [%0] : Queue[(i64, usize)]
 >   %2 = Break L0 %1 : never
 >   %3 = Block - : Queue[(i64, usize)]
 >   %4 = Scope %3 [] : Queue[(i64, usize)]
 >   %5 = Store [$2] %4 : ()
->   %28 = Block %27 : i64
+>   %6 = Release %5 #0 : ()
+>   %30 = Block %29 : i64
     q.add((a, 0))
->   %6 = Ref mut local frame [$2] : Counted[mut Queue[(i64, usize)]]
->   %7 = Read copy [$0] : i64
->   %8 = NewTuple - [%7 0:usize] : (i64, usize)
->   %9 = Call app/main/impl [ T < Ord ] Queue [ T ].add[(i64, usize)] (%6, %8) : ()
->   %10 = Drop [%6] : ()
->   %6 finds [$2] full
+>   %7 = Ref mut local frame [$2] : Counted[mut Queue[(i64, usize)]]
+>   %8 = Read copy [$0] : i64
+>   %9 = NewTuple - [%8 0:usize] : (i64, usize)
+>   %10 = Call app/main/impl [ T < Ord ] Queue [ T ].add[(i64, usize)] (%7, %9) : ()
+>   %11 = Drop [%7] : ()
+>   %7 finds [$2] full
     q.add((b, 1))
->   %11 = Ref mut local frame [$2] : Counted[mut Queue[(i64, usize)]]
->   %12 = Read copy [$1] : i64
->   %13 = NewTuple - [%12 1:usize] : (i64, usize)
->   %14 = Call app/main/impl [ T < Ord ] Queue [ T ].add[(i64, usize)] (%11, %13) : ()
->   %15 = Drop [%11] : ()
->   %11 finds [$2] full
+>   %12 = Ref mut local frame [$2] : Counted[mut Queue[(i64, usize)]]
+>   %13 = Read copy [$1] : i64
+>   %14 = NewTuple - [%13 1:usize] : (i64, usize)
+>   %15 = Call app/main/impl [ T < Ord ] Queue [ T ].add[(i64, usize)] (%12, %14) : ()
+>   %16 = Drop [%12] : ()
+>   %12 finds [$2] full
     saved := q
->   %16 = Read copy [$2] : Queue[(i64, usize)]
->   %17 = Store [$3] %16 : ()
->   %16 finds [$2] full
+>   %17 = Read copy [$2] : Queue[(i64, usize)]
+>   %18 = Store [$3] %17 : ()
+>   %19 = Release %18 #0 : ()
+>   %17 finds [$2] full
     q.settle(0, (a, 2))
->   %18 = Ref mut local frame [$2] : Counted[mut Queue[(i64, usize)]]
->   %19 = Read copy [$0] : i64
->   %20 = NewTuple - [%19 2:usize] : (i64, usize)
->   %21 = Call app/main/impl [ T < Ord ] Queue [ T ].settle[(i64, usize)] (%18, 0:usize, %20) : ()
->   %22 = Drop [%18] : ()
->   %18 finds [$2] full
+>   %20 = Ref mut local frame [$2] : Counted[mut Queue[(i64, usize)]]
+>   %21 = Read copy [$0] : i64
+>   %22 = NewTuple - [%21 2:usize] : (i64, usize)
+>   %23 = Call app/main/impl [ T < Ord ] Queue [ T ].settle[(i64, usize)] (%20, 0:usize, %22) : ()
+>   %24 = Drop [%20] : ()
+>   %20 finds [$2] full
     q.items[0]._0 + saved.items[0]._0
->   %23 = Read copy [$2 .items [0:usize] .0] : i64
->   %24 = Drop [$2] : ()
->   %25 = Read copy [$3 .items [0:usize] .0] : i64
->   %26 = Drop [$3] : ()
->   %27 = Prim Add [%23 %25] : i64
->   %23 finds [$2] full
+>   %25 = Read copy [$2 .items [0:usize] .0] : i64
+>   %26 = Drop [$2] : ()
+>   %27 = Read copy [$3 .items [0:usize] .0] : i64
+>   %28 = Drop [$3] : ()
+>   %29 = Prim Add [%25 %27] : i64
+>   %25 finds [$2] full
 >   summary kept [] writes

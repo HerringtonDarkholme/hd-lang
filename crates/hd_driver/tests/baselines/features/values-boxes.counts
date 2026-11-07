@@ -32,5 +32,5 @@ fn shared(s: string, t: string) -> usize:
     h := Holder { point: b }
 >   retain &mut app.main.Point (stored)
     b.name = t
->   release counted reference (conservative: Store)
+>   release counted reference (overwritten)
     h.point.name.len()

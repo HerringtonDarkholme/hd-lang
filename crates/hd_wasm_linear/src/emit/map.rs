@@ -420,6 +420,7 @@ impl Em<'_, '_, '_> {
             | Tag::Read
             | Tag::Drop
             | Tag::LoanEnd
+            | Tag::Release
             | Tag::IsUnique => true,
             Tag::Call => Callee::from_words(self.b.record(self.b.data[k][0]))
                 .is_some_and(|callee| !self.input.own_cx.may_write(&callee)),
@@ -681,7 +682,7 @@ impl Em<'_, '_, '_> {
         self.f.get(owned);
         self.f.op(I::If(BlockType::Empty));
         let value = self.ref_layout(t)?;
-        crate::rt::ref_store(&mut self.f, at, &[m], &value, true);
+        crate::rt::ref_store(&mut self.f, at, &[m], &value, true, true);
         self.f.op(I::Else);
         self.f.get(at);
         self.f.get(m);

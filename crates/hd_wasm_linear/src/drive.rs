@@ -70,6 +70,7 @@ pub fn block_on_of(b: &Body, topo: &Topology, calls: &HashMap<u32, Target>, c: u
             match b.tags[xi] {
                 // A block runs where the instruction that owns it runs.
                 Tag::Block => {}
+                Tag::Release => {}
                 Tag::Drop | Tag::LoanEnd => match b.decode_place(b.data[xi][0]).map(|p| p.root) {
                     Some(PlaceRoot::Value(v))
                         if v.as_inst().is_none_or(|v| v.0 != c && Some(v.0) != moved) => {}

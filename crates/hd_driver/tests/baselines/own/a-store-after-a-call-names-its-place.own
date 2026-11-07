@@ -19,25 +19,26 @@ fn fill(n: usize) -> List[usize]:
     let mut xs: List[usize] = [0, 0]
 > app/main/fill
 >   local $0 n: usize [param read] value
->     uses $0: entry -> %2 lend, %6 lend last
+>     uses $0: entry -> %3 lend, %7 lend last
 >   local $1 xs: List[usize] [read assigned] place
 >   %0 = NewList - [0:usize 0:usize] : List[usize]
 >   %1 = Store [$1] %0 : ()
->   %13 = Block %12 : List[usize]
+>   %2 = Release %1 #0 : ()
+>   %14 = Block %13 : List[usize]
     xs[1] = n * 2
->   %2 = Read copy [$0] : usize
->   %3 = Prim Mul [%2 2:usize] : usize
->   %4 = IsUnique [$1] : ()
->   %5 = Store [$1 [1:usize]] %3 : ()
+>   %3 = Read copy [$0] : usize
+>   %4 = Prim Mul [%3 2:usize] : usize
+>   %5 = IsUnique [$1] : ()
+>   %6 = Store [$1 [1:usize]] %4 : ()
     xs[0] = n + usize(twice(1))
->   %6 = Read copy [$0] : usize
->   %7 = Call app/main/twice[] (1:i32) : i32
->   %8 = Prim Conv [%7] : usize
->   %9 = Prim Add [%6 %8] : usize
->   %10 = IsUnique [$1] : ()
->   %11 = Store [$1 [0:usize]] %9 : ()
+>   %7 = Read copy [$0] : usize
+>   %8 = Call app/main/twice[] (1:i32) : i32
+>   %9 = Prim Conv [%8] : usize
+>   %10 = Prim Add [%7 %9] : usize
+>   %11 = IsUnique [$1] : ()
+>   %12 = Store [$1 [0:usize]] %10 : ()
     xs
->   %12 = Read move [$1] : List[usize]
+>   %13 = Read move [$1] : List[usize]
 
 fn bump(counts: &mut List[i32]) -> void:
     counts[1] += twice(5)
@@ -56,19 +57,20 @@ fn put[T](xs: &mut List[T], k: usize, v: T) -> void:
     xs[k] = v
 > app/main/put
 >   local $0 xs: Ref[mut List[T]] [param read] value
->     uses $0: entry -> %3 lend, %6 lend last
+>     uses $0: entry -> %3 lend, %7 lend last
 >   local $1 k: usize [param read] value
 >     uses $1: entry -> %0 lend last
 >   local $2 v: T [param read] value
->     uses $2: entry -> %1 consume, %4 consume last
+>     uses $2: entry -> %1 consume, %5 consume last
 >   %0 = Read copy [$1] : usize
 >   %1 = Read copy [$2] : T
 >   %2 = IsUnique [*$0] : ()
 >   %3 = Store [*$0 [%0]] %1 : ()
->   %8 = Block - : ()
+>   %4 = Release %3 #0 : ()
+>   %9 = Block - : ()
     xs.push(v)
->   %4 = Read move [$2] : T
->   %5 = IsUnique repeat [*$0] : ()
->   %6 = Read borrow [*$0] : List[T]
->   %7 = Intrinsic ListPush [%6 %4] : ()
+>   %5 = Read move [$2] : T
+>   %6 = IsUnique repeat [*$0] : ()
+>   %7 = Read borrow [*$0] : List[T]
+>   %8 = Intrinsic ListPush [%7 %5] : ()
 >   exit sub 0 drops [$2]

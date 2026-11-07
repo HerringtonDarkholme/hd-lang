@@ -10,16 +10,18 @@ fn get(p: Ptr[string]) -> string:
     text := p.read()
 > std/rt_tests.stage_case/get
 >   local $0 p: Ptr[string] [param read] value
->     uses $0: entry -> %0 lend, %3 lend last
+>     uses $0: entry -> %0 lend, %4 lend last
 >   local $1 text: string [:= read assigned] value
->     uses $1: %2 -> %4 consume, %6 consume last
+>     uses $1: %2 -> %5 consume, %8 consume last
 >   %0 = Read copy [$0] : Ptr[string]
 >   %1 = Read move [ptr %0] : string
 >   %2 = Store [$1] %1 : ()
->   %7 = Block %6 : string
+>   %3 = Release %2 #0 : ()
+>   %9 = Block %8 : string
     p.write(text)
->   %3 = Read copy [$0] : Ptr[string]
->   %4 = Read copy [$1] : string
->   %5 = Store [ptr %3] %4 : ()
+>   %4 = Read copy [$0] : Ptr[string]
+>   %5 = Read copy [$1] : string
+>   %6 = Store [ptr %4] %5 : ()
+>   %7 = Release %6 #0 : ()
     text
->   %6 = Read move [$1] : string
+>   %8 = Read move [$1] : string

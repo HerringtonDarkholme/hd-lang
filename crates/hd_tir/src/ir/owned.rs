@@ -103,6 +103,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     exit_parameters(b, own, &topo, &mut errs);
     cache_copies(b, own, &topo, &mut errs);
     cold_parameters(b, own, &topo, &mut errs);
+    crate::own::overwrites::verify(b, own, &topo, |at, message| err(&mut errs, at, message));
     takes_outside_suspension(b, &topo, &mut errs);
     change_places(b, &topo, &mut errs);
     hoisted(b, &topo, own, &mut errs);

@@ -27,32 +27,34 @@ fn name_len(w: Weak[Node]) -> usize:
 >   local $0 w: Weak[Node] [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 n: Counted[Node] [read assigned] value
->     uses $1: %12 -> %2 lend last
+>     uses $1: %13 -> %2 lend last
 >   local $2 self: string [read] value
->     uses $2: %3 -> %4 lend last
+>     uses $2: %3 -> %5 lend last
 >   %0 = Read borrow [$0] : Weak[Node]
 >   %1 = Call std/weak/impl [ T ] Weak [ T ].upgrade[Node] (%0) : Counted[Node]?
->   %22 = Block - : never
->   %23 = Match %1 [%22 %9 %10] : usize
->   %24 = Drop [%1] : ()
->   %25 = Block %23 : usize
+>   %24 = Block - : never
+>   %25 = Match %1 [%24 %10 %11] : usize
+>   %26 = Drop [%1] : ()
+>   %27 = Block %25 : usize
         .Some(n) => n.name.len()
 >   %2 = Read borrow [*$1 .name] : string
 >   %3 = Store [$2] %2 : ()
->   %4 = Read borrow [$2] : string
->   %5 = Call std/rt.bytes/bytes_len[] (%4) : usize
->   %6 = Break L0 %5 : never
->   %7 = Block - : usize
->   %8 = Scope %7 [] : usize
->   %9 = Block %8 : usize
->   %11 = Read borrow [%1 as #1 .0] : Counted[Node]
->   %12 = Store [$1] %11 : ()
->   %14 = Block - : never
->   %20 = Block - : never
->   %21 = SwitchTag %1 [#1 %14 %20] : never
-        .None => 0
->   %10 = Block 0:usize : usize
+>   %4 = Release %3 #0 : ()
+>   %5 = Read borrow [$2] : string
+>   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
+>   %7 = Break L0 %6 : never
+>   %8 = Block - : usize
+>   %9 = Scope %8 [] : usize
+>   %10 = Block %9 : usize
+>   %12 = Read borrow [%1 as #1 .0] : Counted[Node]
+>   %13 = Store [$1] %12 : ()
+>   %14 = Release %13 #0 : ()
 >   %16 = Block - : never
+>   %22 = Block - : never
+>   %23 = SwitchTag %1 [#1 %16 %22] : never
+        .None => 0
+>   %11 = Block 0:usize : usize
 >   %18 = Block - : never
->   %19 = SwitchTag %1 [#0 %16 %18] : never
+>   %20 = Block - : never
+>   %21 = SwitchTag %1 [#0 %18 %20] : never
 >   summary kept [] writes

@@ -13,19 +13,19 @@ fn unexpected(at: usize) -> string:
 > app/main/unexpected
 >   local $0 at: usize [param read captured] place
 >   local $1 result: string [read] value
->     uses $1: %39 -> %44 lend last
+>     uses $1: %41 -> %47 lend last
 >   local $2 offset: usize [read] value
->     uses $2: %40 -> %46 lend last
+>     uses $2: %43 -> %49 lend last
 >   local $3 value: u64 [read] value
->     uses $3: %41 -> %43 lend last
+>     uses $3: %44 -> %46 lend last
 >   local $4 width: usize [read] value
->     uses $4: %42 -> %48 lend last
+>     uses $4: %45 -> %51 lend last
 >   local $5 result: string [read] value
->     uses $5: %20 -> %23 lend last
+>     uses $5: %20 -> %25 lend last
 >   local $6 offset: usize [read] value
->     uses $6: %21 -> %26 lend last
+>     uses $6: %22 -> %28 lend last
 >   local $7 text: string [read] value
->     uses $7: %22 -> %28 lend, %31 lend last
+>     uses $7: %23 -> %30 lend, %33 lend last
 >   local $8 size: usize [read] value
 >     uses $8: %13 -> %14 lend last
 >   local $9 value: u64 [read] value
@@ -51,40 +51,43 @@ fn unexpected(at: usize) -> string:
 >   %18 = Scope %17 [] : string
 >   %19 = Read borrow [%18] : string
 >   %20 = Store [$5] %19 : ()
->   %21 = Store [$6] 0:usize : ()
->   %22 = Store [$7] "unexpected byte at " : ()
->   %23 = Read borrow [$5] : string
->   %24 = Call std/rt.memory/string_bytes[] (%23) : Ptr[u8]
->   %25 = Read copy [%24 .address] : usize
->   %26 = Read copy [$6] : usize
->   %27 = Prim Add [%25 %26] : usize
->   %28 = Read borrow [$7] : string
->   %29 = Call std/rt.memory/string_bytes[] (%28) : Ptr[u8]
->   %30 = Read copy [%29 .address] : usize
->   %31 = Read borrow [$7] : string
->   %32 = Call std/rt.bytes/bytes_len[] (%31) : usize
->   %33 = Call std/rt.memory/copy[] (%27, %30, %32) : ()
->   %34 = Break L1 - : never
->   %35 = Block - : ()
->   %36 = Scope %35 [] : ()
->   %37 = Read borrow [%18] : string
->   %38 = Drop [$7] : ()
->   %39 = Store [$1] %37 : ()
->   %40 = Store [$2] %11 : ()
->   %41 = Store [$3] %3 : ()
->   %42 = Store [$4] %10 : ()
->   %43 = Read copy [$3] : u64
->   %44 = Read borrow [$1] : string
->   %45 = Call std/rt.memory/string_bytes[] (%44) : Ptr[u8]
->   %46 = Read copy [$2] : usize
->   %47 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[u8] (%45, %46) : Ptr[u8]
->   %48 = Read copy [$4] : usize
->   %49 = Call std/rt.bytes/write_unsigned_sized[] (%43, %47, %48) : ()
->   %50 = Break L0 - : never
->   %51 = Block - : ()
->   %52 = Scope %51 [] : ()
->   %53 = Read move [%18] : string
->   %54 = Block %53 : string
+>   %21 = Release %20 #0 : ()
+>   %22 = Store [$6] 0:usize : ()
+>   %23 = Store [$7] "unexpected byte at " : ()
+>   %24 = Release %23 #0 : ()
+>   %25 = Read borrow [$5] : string
+>   %26 = Call std/rt.memory/string_bytes[] (%25) : Ptr[u8]
+>   %27 = Read copy [%26 .address] : usize
+>   %28 = Read copy [$6] : usize
+>   %29 = Prim Add [%27 %28] : usize
+>   %30 = Read borrow [$7] : string
+>   %31 = Call std/rt.memory/string_bytes[] (%30) : Ptr[u8]
+>   %32 = Read copy [%31 .address] : usize
+>   %33 = Read borrow [$7] : string
+>   %34 = Call std/rt.bytes/bytes_len[] (%33) : usize
+>   %35 = Call std/rt.memory/copy[] (%29, %32, %34) : ()
+>   %36 = Break L1 - : never
+>   %37 = Block - : ()
+>   %38 = Scope %37 [] : ()
+>   %39 = Read borrow [%18] : string
+>   %40 = Drop [$7] : ()
+>   %41 = Store [$1] %39 : ()
+>   %42 = Release %41 #0 : ()
+>   %43 = Store [$2] %11 : ()
+>   %44 = Store [$3] %3 : ()
+>   %45 = Store [$4] %10 : ()
+>   %46 = Read copy [$3] : u64
+>   %47 = Read borrow [$1] : string
+>   %48 = Call std/rt.memory/string_bytes[] (%47) : Ptr[u8]
+>   %49 = Read copy [$2] : usize
+>   %50 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[u8] (%48, %49) : Ptr[u8]
+>   %51 = Read copy [$4] : usize
+>   %52 = Call std/rt.bytes/write_unsigned_sized[] (%46, %50, %51) : ()
+>   %53 = Break L0 - : never
+>   %54 = Block - : ()
+>   %55 = Scope %54 [] : ()
+>   %56 = Read move [%18] : string
+>   %57 = Block %56 : string
 >   exit sub 0 drops [$0]
 >   summary kept [] writes
 
@@ -96,53 +99,55 @@ fn checksum(xs: &List[string]) -> usize:
 >     uses $0: entry -> %1 lend last
 >   local $1 n: usize [read assigned mutated] place
 >   local $2 $coll: List[string] [assigned] value
->     uses $2: %2 -> %3 lend, %11 lend
+>     uses $2: %2 -> %4 lend, %12 lend
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
->     uses $5: %5 -> %8 lend
+>     uses $5: %6 -> %9 lend
 >   local $6 x: string [read assigned] value
->     uses $6: %25 -> %16 lend last
+>     uses $6: %26 -> %17 lend last
 >   %0 = Store [$1] 0:usize : ()
->   %36 = Block %35 : usize
+>   %38 = Block %37 : usize
     for x in xs:
 >   %1 = Read borrow [*$0] : List[string]
 >   %2 = Store [$2] %1 : ()
->   %3 = Read borrow [$2] : List[string]
->   %4 = Intrinsic ListLen [%3] : usize
->   %5 = Store [$5] %4 : ()
->   %6 = Store [$4] 0:usize : ()
->   %7 = Read copy [$4] : usize
->   %8 = Read copy [$5] : usize
->   %9 = Prim Lt [%7 %8] : bool
->   %10 = Read copy [$4] : usize
->   %11 = Read borrow [$2 [%10]] : string
->   %12 = Read copy [$4] : usize
->   %13 = Prim Add [%12 1:usize] : usize
->   %14 = Store [$4] %13 : ()
->   %23 = Block - : ()
->   %24 = Read borrow [%11] : string
->   %25 = Store [$6] %24 : ()
->   %27 = Block - : never
->   %28 = Match %11 [%27 %23] : ()
->   %29 = Block - : ()
->   %30 = Break L0 - : never
+>   %3 = Release %2 #0 : ()
+>   %4 = Read borrow [$2] : List[string]
+>   %5 = Intrinsic ListLen [%4] : usize
+>   %6 = Store [$5] %5 : ()
+>   %7 = Store [$4] 0:usize : ()
+>   %8 = Read copy [$4] : usize
+>   %9 = Read copy [$5] : usize
+>   %10 = Prim Lt [%8 %9] : bool
+>   %11 = Read copy [$4] : usize
+>   %12 = Read borrow [$2 [%11]] : string
+>   %13 = Read copy [$4] : usize
+>   %14 = Prim Add [%13 1:usize] : usize
+>   %15 = Store [$4] %14 : ()
+>   %24 = Block - : ()
+>   %25 = Read borrow [%12] : string
+>   %26 = Store [$6] %25 : ()
+>   %27 = Release %26 #0 : ()
+>   %29 = Block - : never
+>   %30 = Match %12 [%29 %24] : ()
 >   %31 = Block - : ()
->   %32 = If %9 [%29 %31] : ()
+>   %32 = Break L0 - : never
 >   %33 = Block - : ()
->   %34 = Loop %33 - : ()
+>   %34 = If %10 [%31 %33] : ()
+>   %35 = Block - : ()
+>   %36 = Loop %35 - : ()
         n += x.len()
->   %15 = Read copy [$1] : usize
->   %16 = Read borrow [$6] : string
->   %17 = Call std/rt.bytes/bytes_len[] (%16) : usize
->   %18 = Break L1 %17 : never
->   %19 = Block - : usize
->   %20 = Scope %19 [] : usize
->   %21 = Prim Add [%15 %20] : usize
->   %22 = Store [$1] %21 : ()
+>   %16 = Read copy [$1] : usize
+>   %17 = Read borrow [$6] : string
+>   %18 = Call std/rt.bytes/bytes_len[] (%17) : usize
+>   %19 = Break L1 %18 : never
+>   %20 = Block - : usize
+>   %21 = Scope %20 [] : usize
+>   %22 = Prim Add [%16 %21] : usize
+>   %23 = Store [$1] %22 : ()
     n
->   %35 = Read copy [$1] : usize
+>   %37 = Read copy [$1] : usize
 >   summary kept []
->   loop %34 keeps [$2]
+>   loop %36 keeps [$2]
 
 @inline
 fn first_len(xs: &List[string]) -> usize:
@@ -151,23 +156,24 @@ fn first_len(xs: &List[string]) -> usize:
 >   local $0 xs: Ref[List[string]] [param read] value
 >     uses $0: entry -> %0 lend, %6 lend last
 >   local $1 self: string [read] value
->     uses $1: %7 -> %8 lend last
+>     uses $1: %7 -> %9 lend last
 >   %0 = Read borrow [*$0] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Prim Eq [%1 0:usize] : bool
 >   %5 = If %2 [%4 -] : ()
->   %13 = Block %12 : usize
+>   %14 = Block %13 : usize
         return 0
 >   %3 = Return 0:usize : never
 >   %4 = Block - : never
     xs[0].len()
 >   %6 = Read borrow [*$0 [0:usize]] : string
 >   %7 = Store [$1] %6 : ()
->   %8 = Read borrow [$1] : string
->   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
->   %10 = Break L0 %9 : never
->   %11 = Block - : usize
->   %12 = Scope %11 [] : usize
+>   %8 = Release %7 #0 : ()
+>   %9 = Read borrow [$1] : string
+>   %10 = Call std/rt.bytes/bytes_len[] (%9) : usize
+>   %11 = Break L0 %10 : never
+>   %12 = Block - : usize
+>   %13 = Scope %12 [] : usize
 >   summary kept []
 
 fn use_first(xs: List[string]) -> usize:
@@ -175,34 +181,36 @@ fn use_first(xs: List[string]) -> usize:
 > app/main/use_first
 >   local $0 xs: List[string] [param read captured] place
 >   local $1 xs: Ref[List[string]] [read] value
->     uses $1: %1 -> %2 lend, %8 lend last
+>     uses $1: %1 -> %3 lend, %9 lend last
 >   local $2 self: string [read] value
->     uses $2: %9 -> %10 lend last
+>     uses $2: %10 -> %12 lend last
 >   %0 = Ref local frame [$0] : Ref[List[string]]
 >   %1 = Store [$1] %0 : ()
->   %2 = Read borrow [*$1] : List[string]
->   %3 = Intrinsic ListLen [%2] : usize
->   %4 = Prim Eq [%3 0:usize] : bool
->   %5 = Break L1 0:usize : never
->   %6 = Block - : never
->   %7 = If %4 [%6 -] : ()
->   %8 = Read borrow [*$1 [0:usize]] : string
->   %9 = Store [$2] %8 : ()
->   %10 = Read borrow [$2] : string
->   %11 = Call std/rt.bytes/bytes_len[] (%10) : usize
->   %12 = Break L0 %11 : never
->   %13 = Block - : usize
->   %14 = Scope %13 [] : usize
->   %15 = Break L1 %14 : never
->   %16 = Block - : usize
->   %17 = Scope %16 [] : usize
->   %18 = Drop [$1] : ()
->   %19 = Ref local frame [$0] : Counted[List[string]]
->   %20 = Call app/main/checksum[] (%19) : usize
->   %21 = Drop [%19] : ()
->   %22 = Drop [$0] : ()
->   %23 = Prim Add [%17 %20] : usize
->   %24 = Block %23 : usize
+>   %2 = Release %1 #0 : ()
+>   %3 = Read borrow [*$1] : List[string]
+>   %4 = Intrinsic ListLen [%3] : usize
+>   %5 = Prim Eq [%4 0:usize] : bool
+>   %6 = Break L1 0:usize : never
+>   %7 = Block - : never
+>   %8 = If %5 [%7 -] : ()
+>   %9 = Read borrow [*$1 [0:usize]] : string
+>   %10 = Store [$2] %9 : ()
+>   %11 = Release %10 #0 : ()
+>   %12 = Read borrow [$2] : string
+>   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
+>   %14 = Break L0 %13 : never
+>   %15 = Block - : usize
+>   %16 = Scope %15 [] : usize
+>   %17 = Break L1 %16 : never
+>   %18 = Block - : usize
+>   %19 = Scope %18 [] : usize
+>   %20 = Drop [$1] : ()
+>   %21 = Ref local frame [$0] : Counted[List[string]]
+>   %22 = Call app/main/checksum[] (%21) : usize
+>   %23 = Drop [%21] : ()
+>   %24 = Drop [$0] : ()
+>   %25 = Prim Add [%19 %22] : usize
+>   %26 = Block %25 : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 

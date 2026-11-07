@@ -22,7 +22,7 @@ fn new_mut(s: string, t: string) -> usize:
 > app/main/new_mut
 >   release app.main.Named [name.0] (last use)
     m.name = t
->   release counted reference (conservative: Store)
+>   release counted reference (overwritten)
     m.name.len()
 
 fn field_ref(s: string, t: string) -> usize:
@@ -31,5 +31,5 @@ fn field_ref(s: string, t: string) -> usize:
 >   release string (last use)
     q := &mut p.name
     *q = t
->   release counted reference (conservative: Store)
+>   release counted reference (overwritten)
     p.name.len()

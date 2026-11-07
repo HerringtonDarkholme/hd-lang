@@ -633,7 +633,8 @@ impl Pass<'_> {
         };
         let p = self.b.view(self.b.data[k][0]);
         match self.b.tags[k] {
-            Tag::Prim
+            Tag::Release
+            | Tag::Prim
             | Tag::Is
             | Tag::Coerce
             | Tag::NewStruct

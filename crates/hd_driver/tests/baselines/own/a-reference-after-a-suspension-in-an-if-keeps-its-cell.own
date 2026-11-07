@@ -28,21 +28,22 @@ fn run!(go: bool) -> void:
     let mut c = Counter { hits: +0, name: "a" }
 > app/main/run
 >   local $0 go: bool [param read] value
->     uses $0: entry -> %2 lend last
+>     uses $0: entry -> %3 lend last
 >   local $1 c: Counter [read assigned captured captured-assigned] place
 >   %0 = NewStruct [0:i32 "a"] : Counter
 >   %1 = Store [$1] %0 : ()
->   %10 = Block - : ()
+>   %2 = Release %1 #0 : ()
+>   %11 = Block - : ()
     if go:
->   %2 = Read copy [$0] : bool
->   %5 = If %2 [%4 -] : ()
+>   %3 = Read copy [$0] : bool
+>   %6 = If %3 [%5 -] : ()
         pause!()
->   %3 = Await app/main/pause[] () : ()
->   %4 = Block - : ()
+>   %4 = Await app/main/pause[] () : ()
+>   %5 = Block - : ()
     tick(&mut c)
->   %6 = Ref mut local [$1] : Counted[mut Counter]
->   %7 = Call app/main/tick[] (%6) : ()
->   %8 = Drop [%6] : ()
->   %9 = Drop [$1] : ()
->   %6 finds [$1] full
+>   %7 = Ref mut local [$1] : Counted[mut Counter]
+>   %8 = Call app/main/tick[] (%7) : ()
+>   %9 = Drop [%7] : ()
+>   %10 = Drop [$1] : ()
+>   %7 finds [$1] full
 >   exit sub 0 drops [$1]

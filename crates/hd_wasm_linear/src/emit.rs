@@ -1446,9 +1446,12 @@ impl Em<'_, '_, '_> {
             ) && self.diverges(i)
         })?;
         let reads = (tail != NONE && tail != items[k])
-            || items[k + 1..]
-                .iter()
-                .any(|&i| !matches!(self.b.tags[i as usize], Tag::Drop | Tag::LoanEnd));
+            || items[k + 1..].iter().any(|&i| {
+                !matches!(
+                    self.b.tags[i as usize],
+                    Tag::Drop | Tag::LoanEnd | Tag::Release
+                )
+            });
         reads.then_some(k)
     }
 
@@ -1470,7 +1473,7 @@ impl Em<'_, '_, '_> {
             .filter(|i| {
                 !matches!(
                     self.b.tags[*i as usize],
-                    Tag::Block | Tag::ExitDrop | Tag::CacheCopy | Tag::ColdCopy
+                    Tag::Block | Tag::ExitDrop | Tag::CacheCopy | Tag::ColdCopy | Tag::Release
                 )
             })
             .collect()
@@ -1933,6 +1936,8 @@ impl Em<'_, '_, '_> {
             Tag::Retain => self.own_retain(a)?,
             // Boundary declarations lower at their named entry or exit.
             Tag::ExitDrop | Tag::CacheCopy | Tag::ColdCopy => {}
+            // Lowered in its store's walk of the place.
+            Tag::Release => {}
             Tag::LoanEnd => {
                 self.borrow_drop(i);
                 self.end_short_loan(i)?;

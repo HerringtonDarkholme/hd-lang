@@ -24,24 +24,25 @@ impl[S] Walker[S] for Reader[S]:
         self.found = !handle.info.facts.items.is_empty()
 > app/main/impl [ S ] Walker [ S ] for Reader [ S ].member
 >   local $0 self: Ref[mut Reader[S]] [param read] value
->     uses $0: entry -> %9 lend last
+>     uses $0: entry -> %10 lend last
 >   local $1 handle: Counted[FieldRecord[S, F]] [param read] value
 >     uses $1: entry -> %0 lend last
 >   local $3 self: List[Counted[Inspectable]] [read] value
->     uses $3: %1 -> %2 lend last
+>     uses $3: %1 -> %3 lend last
 >   %0 = Read borrow [*$1 .info .facts .items] : List[Counted[Inspectable]]
 >   %1 = Store [$3] %0 : ()
->   %2 = Read borrow [$3] : List[Counted[Inspectable]]
->   %3 = Intrinsic ListLen [%2] : usize
->   %4 = Prim Eq [%3 0:usize] : bool
->   %5 = Break L0 %4 : never
->   %6 = Block - : bool
->   %7 = Scope %6 [] : bool
->   %8 = Prim Not [%7] : bool
->   %9 = Store [*$0 .found] %8 : ()
->   %11 = Block %10 : Result[(), never]
+>   %2 = Release %1 #0 : ()
+>   %3 = Read borrow [$3] : List[Counted[Inspectable]]
+>   %4 = Intrinsic ListLen [%3] : usize
+>   %5 = Prim Eq [%4 0:usize] : bool
+>   %6 = Break L0 %5 : never
+>   %7 = Block - : bool
+>   %8 = Scope %7 [] : bool
+>   %9 = Prim Not [%8] : bool
+>   %10 = Store [*$0 .found] %9 : ()
+>   %12 = Block %11 : Result[(), never]
         .Ok(())
->   %10 = NewVariant #0 [-] : Result[(), never]
+>   %11 = NewVariant #0 [-] : Result[(), never]
 >   summary kept [] writes
 
 trait HasFacts:
@@ -54,45 +55,49 @@ impl[T] HasFacts for T by Structure:
 >   local $0 self: Record [param read captured] place
 >   local $1 reader: Reader[Record] [read assigned captured captured-assigned] place
 >   local $2 self: Counted[Record] value
->     uses $2: %4 -> %6 lend last
+>     uses $2: %5 -> %9 lend last
 >   local $3 p: Counted[mut Reader[Record]] value
->     uses $3: %5 -> %8 consume, %31 consume last
+>     uses $3: %7 -> %11 consume, %38 consume last
 >   %0 = NewStruct [0:bool] : Reader[Record]
 >   %1 = Store [$1] %0 : ()
->   %71 = Block %69 : bool
+>   %2 = Release %1 #0 : ()
+>   %84 = Block %82 : bool
 > app/main/impl [ T ] HasFacts for T by Structure.has_facts
 >   local $0 self: T [param read captured] place
 >   local $1 reader: Reader[T] [read assigned captured captured-assigned] place
 >   %0 = NewStruct [0:bool] : Reader[T]
 >   %1 = Store [$1] %0 : ()
->   %10 = Block %8 : bool
+>   %2 = Release %1 #0 : ()
+>   %11 = Block %9 : bool
         _ := Structure::walk(&self, &mut reader)
->   %2 = Ref local frame [$0] : Counted[Record]
->   %3 = Ref mut local frame [$1] : Counted[mut Reader[Record]]
->   %4 = Store [$2] %2 : ()
->   %5 = Store [$3] %3 : ()
->   %63 = Break L4 %62 : never
->   %65 = Scope %64 [] : Result[(), never]
->   %66 = Drop [$3] : ()
->   %67 = Drop [$2] : ()
->   %68 = Drop [$0] : ()
->   %3 finds [$1] full
->   %2 = Ref local frame [$0] : Counted[T]
->   %3 = Ref mut local frame [$1] : Counted[mut Reader[T]]
->   %4 = Call std/structure/Structure.walk for T [Reader[T]] via Bound (%2, %3) : Result[(), never]
->   %5 = Drop [%3] : ()
->   %6 = Drop [%2] : ()
->   %7 = Drop [$0] : ()
->   %3 finds [$1] full
+>   %3 = Ref local frame [$0] : Counted[Record]
+>   %4 = Ref mut local frame [$1] : Counted[mut Reader[Record]]
+>   %5 = Store [$2] %3 : ()
+>   %6 = Release %5 #0 : ()
+>   %7 = Store [$3] %4 : ()
+>   %8 = Release %7 #0 : ()
+>   %76 = Break L4 %75 : never
+>   %78 = Scope %77 [] : Result[(), never]
+>   %79 = Drop [$3] : ()
+>   %80 = Drop [$2] : ()
+>   %81 = Drop [$0] : ()
+>   %4 finds [$1] full
+>   %3 = Ref local frame [$0] : Counted[T]
+>   %4 = Ref mut local frame [$1] : Counted[mut Reader[T]]
+>   %5 = Call std/structure/Structure.walk for T [Reader[T]] via Bound (%3, %4) : Result[(), never]
+>   %6 = Drop [%4] : ()
+>   %7 = Drop [%3] : ()
+>   %8 = Drop [$0] : ()
+>   %4 finds [$1] full
         reader.found
->   %69 = Read copy [$1 .found] : bool
->   %70 = Drop [$1] : ()
->   %69 finds [$1] full
+>   %82 = Read copy [$1 .found] : bool
+>   %83 = Drop [$1] : ()
+>   %82 finds [$1] full
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes
->   %8 = Read copy [$1 .found] : bool
->   %9 = Drop [$1] : ()
->   %8 finds [$1] full
+>   %9 = Read copy [$1 .found] : bool
+>   %10 = Drop [$1] : ()
+>   %9 finds [$1] full
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes
 
@@ -100,27 +105,29 @@ struct Record:
 > app/main/impl HasFacts for Record by Structure.structure member facts 0 0
 >   local $0 $ref: Mark [read assigned captured captured-assigned] place
 >   local $1 $ref: Counted[Mark] [read assigned captured] value
->     uses $1: %5 -> %6 lend last
+>     uses $1: %6 -> %8 lend last
 >   %0 = CacheCopy #0 #0 : ()
 >   %1 = CacheCopy #1 #0 : ()
->   %12 = NewList - [%11] : List[Counted[Inspectable]]
->   %13 = NewStruct [%12] : Facts
->   %14 = Block %13 : Facts
+>   %14 = NewList - [%13] : List[Counted[Inspectable]]
+>   %15 = NewStruct [%14] : Facts
+>   %16 = Block %15 : Facts
     name: string
 
 impl HasFacts for Record by Structure:
     name = [Mark { label: "mark" }]
 >   %2 = NewStruct ["mark"] : Mark
 >   %3 = Store [$0] %2 : ()
->   %4 = Ref take [$0] : Counted[Mark]
->   %5 = Store [$1] %4 : ()
->   %6 = Read move [$1] : Counted[Mark]
->   %7 = Coerce %6 [RefToTraitValue -] : Inspectable
->   %8 = Retain %7 #0 : ()
->   %9 = Drop [%6] : ()
->   %10 = Block %7 : Inspectable
->   %11 = RefDyn %10 : Counted[Inspectable]
->   %4 finds [$0] full
+>   %4 = Release %3 #0 : ()
+>   %5 = Ref take [$0] : Counted[Mark]
+>   %6 = Store [$1] %5 : ()
+>   %7 = Release %6 #0 : ()
+>   %8 = Read move [$1] : Counted[Mark]
+>   %9 = Coerce %8 [RefToTraitValue -] : Inspectable
+>   %10 = Retain %9 #0 : ()
+>   %11 = Drop [%8] : ()
+>   %12 = Block %9 : Inspectable
+>   %13 = RefDyn %12 : Counted[Inspectable]
+>   %5 finds [$0] full
 
 fn inspect_field() -> bool:
     Record { name: "name" }.has_facts()

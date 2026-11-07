@@ -25,56 +25,58 @@ fn stop!(key: string) -> bool:
 >   local $0 key: string [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 job: mut Suspend[string] [read assigned] value
->     uses $1: %4 -> %5 lend last
+>     uses $1: %4 -> %6 lend last
 >   local $2 end: CleanupEnd [:= read assigned] value
->     uses $2: %8 -> %9 lend last
+>     uses $2: %9 -> %10 lend last
 >   %0 = ColdCopy [$0] #0 : ()
     let mut job = fetch(key)
 >   %1 = Read move [$0] : string
 >   %2 = Call app/main/fetch[] (%1) : mut Suspend[string]
 >   %3 = Drop [%1] : ()
 >   %4 = Store [$1] %2 : ()
->   %23 = Block %22 : bool
+>   %5 = Release %4 #0 : ()
+>   %24 = Block %23 : bool
     end := job.cancel!()
->   %5 = Read move [$1] : mut Suspend[string]
->   %6 = Await std/task/impl [ T ] Suspend [ T ].cancel[string] (%5) : CleanupEnd
->   %7 = Drop [%5] : ()
->   %8 = Store [$2] %6 : ()
+>   %6 = Read move [$1] : mut Suspend[string]
+>   %7 = Await std/task/impl [ T ] Suspend [ T ].cancel[string] (%6) : CleanupEnd
+>   %8 = Drop [%6] : ()
+>   %9 = Store [$2] %7 : ()
     match end:
->   %9 = Read copy [$2] : CleanupEnd
->   %21 = Block - : never
->   %22 = Match %9 [%21 %10 %11] : bool
+>   %10 = Read copy [$2] : CleanupEnd
+>   %22 = Block - : never
+>   %23 = Match %10 [%22 %11 %12] : bool
         .Finished => true
->   %10 = Block 1:bool : bool
->   %13 = Block - : never
->   %19 = Block - : never
->   %20 = SwitchTag %9 [#0 %13 %19] : never
+>   %11 = Block 1:bool : bool
+>   %14 = Block - : never
+>   %20 = Block - : never
+>   %21 = SwitchTag %10 [#0 %14 %20] : never
         .Abandoned => false
->   %11 = Block 0:bool : bool
->   %15 = Block - : never
->   %17 = Block - : never
->   %18 = SwitchTag %9 [#1 %15 %17] : never
+>   %12 = Block 0:bool : bool
+>   %16 = Block - : never
+>   %18 = Block - : never
+>   %19 = SwitchTag %10 [#1 %16 %18] : never
 >   exit sub 0 drops [$0]
 >   summary none
->   unwind %6 drops [%5]
+>   unwind %7 drops [%6]
 
 fn drop_now(key: string) -> void:
 > app/main/drop_now
 >   local $0 key: string [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 job: mut Suspend[string] [read assigned] value
->     uses $1: %3 -> %4 lend last
+>     uses $1: %3 -> %5 lend last
 >   %0 = ExitDrop [$0] #2 : ()
     let mut job = fetch(key)
 >   %1 = Read borrow [$0] : string
 >   %2 = Call app/main/fetch[] (%1) : mut Suspend[string]
 >   %3 = Store [$1] %2 : ()
->   %10 = Block - : ()
+>   %4 = Release %3 #0 : ()
+>   %11 = Block - : ()
     job.abandon()
->   %4 = Read borrow [$1] : mut Suspend[string]
->   %5 = Call std/task/abandon_task[string] (%4) : ()
->   %6 = Break L0 - : never
->   %7 = Block - : ()
->   %8 = Scope %7 [] : ()
->   %9 = Drop [$1] : ()
+>   %5 = Read borrow [$1] : mut Suspend[string]
+>   %6 = Call std/task/abandon_task[string] (%5) : ()
+>   %7 = Break L0 - : never
+>   %8 = Block - : ()
+>   %9 = Scope %8 [] : ()
+>   %10 = Drop [$1] : ()
 >   summary kept [] borrows [$0] writes

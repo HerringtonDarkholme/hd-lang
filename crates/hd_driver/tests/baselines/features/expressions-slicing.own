@@ -23,20 +23,21 @@ fn str_slice_len(s: string, n: usize) -> usize:
 >   local $1 n: usize [param read] value
 >     uses $1: entry -> %2 lend last
 >   local $2 $ref: string [read assigned captured captured-assigned] value
->     uses $2: %4 -> %5 lend last
+>     uses $2: %4 -> %6 lend last
 >   %0 = ExitDrop [$0] #2 : ()
     s.slice(0, n).len()
 >   %1 = Read borrow [$0] : string
 >   %2 = Read copy [$1] : usize
 >   %3 = Call std/text/impl string.slice[] (%1, 0:usize, %2) : string
 >   %4 = Store [$2] %3 : ()
->   %5 = Read borrow [$2] : string
->   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
->   %7 = Break L0 %6 : never
->   %8 = Block - : usize
->   %9 = Scope %8 [] : usize
->   %10 = Drop [$2] : ()
->   %11 = Block %9 : usize
+>   %5 = Release %4 #0 : ()
+>   %6 = Read borrow [$2] : string
+>   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
+>   %8 = Break L0 %7 : never
+>   %9 = Block - : usize
+>   %10 = Scope %9 [] : usize
+>   %11 = Drop [$2] : ()
+>   %12 = Block %10 : usize
 >   summary kept [] borrows [$0]
 
 fn list_slice(xs: List[string]) -> List[string]:

@@ -1,0 +1,29 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: each store that may find a value is followed by `Release %store`,
+# lowered in the store's one walk of its place: one bounds check for `xs[i]`,
+# and the old value released through the address that walk found.
+use std.annotation.inline
+
+struct P:
+    name: string
+
+@inline(.Never)
+fn make(n: i32) -> string:
+    "s$n"
+
+@inline(.Never)
+fn eat(s: string) -> usize:
+    s.len()
+
+fn local_over(k: i32) -> usize:
+    let mut s = make(k)
+    if k > 0:
+        s = make(k + 1)
+    eat(s)
+
+fn element_over(xs: &mut List[string], i: usize, k: i32) -> void:
+    xs[i] = make(k)
+
+fn field_over(r: &mut P, k: i32) -> void:
+    r.name = make(k)

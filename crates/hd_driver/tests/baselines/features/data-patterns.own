@@ -16,13 +16,13 @@ fn sizes(u: User) -> usize:
 >   local $1 name: string [read assigned] value
 >     uses $1: %13 -> %2 lend last
 >   local $2 tags: List[string] [read assigned] value
->     uses $2: %14 -> %7 lend last
+>     uses $2: %15 -> %7 lend last
 >   %0 = ExitDrop [$0] #2 : ()
     match u:
 >   %1 = Read borrow [$0] : User
->   %16 = Block - : never
->   %17 = Match %1 [%16 %10] : usize
->   %18 = Block %17 : usize
+>   %18 = Block - : never
+>   %19 = Match %1 [%18 %10] : usize
+>   %20 = Block %19 : usize
         User { name, tags } => name.len() + tags.len()
 >   %2 = Read borrow [$1] : string
 >   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
@@ -36,7 +36,9 @@ fn sizes(u: User) -> usize:
 >   %11 = Read borrow [%1 .name] : string
 >   %12 = Read borrow [%1 .tags] : List[string]
 >   %13 = Store [$1] %11 : ()
->   %14 = Store [$2] %12 : ()
+>   %14 = Release %13 #0 : ()
+>   %15 = Store [$2] %12 : ()
+>   %16 = Release %15 #0 : ()
 >   summary kept [] borrows [$0]
 
 fn pick(u: User) -> string:
@@ -48,20 +50,21 @@ fn pick(u: User) -> string:
 >   %0 = ExitDrop [$0] #2 : ()
     match u:
 >   %1 = Read borrow [$0] : User
->   %15 = Block - : never
->   %16 = Match %1 [%15 %2 %4] : string
->   %17 = Block %16 : string
+>   %16 = Block - : never
+>   %17 = Match %1 [%16 %2 %4] : string
+>   %18 = Block %17 : string
         User { age: 0 } => "none"
 >   %2 = Block "none" : string
 >   %5 = Read copy [%1 .age] : i32
 >   %7 = Prim Eq [%5 0:i32] : bool
 >   %9 = Block - : never
->   %13 = Block - : never
->   %14 = If %7 [%9 %13] : never
+>   %14 = Block - : never
+>   %15 = If %7 [%9 %14] : never
         User { name } => name
 >   %3 = Read copy [$1] : string
 >   %4 = Block %3 : string
 >   %6 = Read borrow [%1 .name] : string
 >   %10 = Read borrow [%6] : string
 >   %11 = Store [$1] %10 : ()
+>   %12 = Release %11 #0 : ()
 >   summary kept [] borrows [$0]
