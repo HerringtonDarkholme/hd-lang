@@ -843,6 +843,6 @@ impl Em<'_, '_, '_> {
             _ => self.ty(i),
         };
         self.call_results(i, ty)?;
-        self.release_fn_ctx(i, c)
+        self.release_call_ctx(i, c)
     }
 }

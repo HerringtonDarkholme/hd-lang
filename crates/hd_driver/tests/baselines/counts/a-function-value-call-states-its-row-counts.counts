@@ -26,8 +26,8 @@ fn forward[$ R](callback: fn() -> i32 $ R) -> i32 $ R:
 fn through_row(callback: fn() -> i32 $ Tag) -> i32 $ Tag:
     forward(callback)
 > app/main/through_row
->   retain counted reference (conservative: Call)
->   release counted reference (conservative: Call)
+>   retain counted reference (stored)
+>   release counted reference (last use)
 
 fn through_empty(callback: fn() -> i32) -> i32:
     forward(callback)

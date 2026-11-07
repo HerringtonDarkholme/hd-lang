@@ -1,0 +1,18 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: a trait-value slot's row context states its provider copies and release, for plain, cold and awaited calls.
+trait Tag:
+    fn value(self) -> i32
+
+trait Work:
+    fn run(&self) -> i32 $ Tag
+    fn later!(&self) -> i32 $ Tag
+
+fn ordinary(work: &dyn Work) -> i32 $ Tag:
+    work.run()
+
+fn cold(work: &dyn Work) -> mut Suspend[i32] $ Tag:
+    work.later()
+
+fn awaited!(work: &dyn Work) -> i32 $ Tag:
+    work.later!()

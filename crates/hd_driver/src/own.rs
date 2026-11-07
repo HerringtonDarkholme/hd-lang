@@ -437,6 +437,18 @@ impl OwnCx for Env<'_> {
         !row.keys.is_empty() || !row.params.is_empty()
     }
 
+    fn call_has_requirement_context(&self, callee: &Callee) -> bool {
+        let chosen = self.chosen(callee);
+        if let Some((def, _)) = self.callee_node(&chosen) {
+            return self.intrinsic(def).is_none() && hd_mono::has_row_params(self, def);
+        }
+        // A dynamic slot packages its declared keys too. An unresolved
+        // bound keeps the same conditional contract until its instance
+        // selects a concrete signature.
+        matches!(chosen, Callee::TraitMethod { method, .. }
+            if self.intrinsic(method).is_none() && self.has_requirement_row(method))
+    }
+
     fn has_requirement_row(&self, item: DefId) -> bool {
         self.sig(item).map_or_else(
             || !self.init_keys(item).is_empty(),

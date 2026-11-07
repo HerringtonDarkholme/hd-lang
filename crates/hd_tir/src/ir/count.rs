@@ -155,3 +155,25 @@ pub fn following(b: &Body, topo: &Topology, target: u32, tag: Tag) -> Option<Inf
     }
     None
 }
+
+/// Read one part of the adjacent operation bundle. Multiple parts may
+/// have the same action: an await can copy its row and keep its child.
+/// A value count or another target ends this bundle.
+#[must_use]
+pub fn operation(b: &Body, topo: &Topology, target: u32, tag: Tag, part: Part) -> Option<Info> {
+    let block = *topo.blk.get(target as usize)?;
+    if block == NONE {
+        return None;
+    }
+    for &next in &b.record(b.data[block as usize][0])[topo.pos[target as usize] as usize + 1..] {
+        let i = next as usize;
+        let info = Info::read(b, i)?;
+        if b.data[i][0] != target || info.at != At::Operation {
+            return None;
+        }
+        if b.tags[i] == tag && info.part == part {
+            return Some(info);
+        }
+    }
+    None
+}

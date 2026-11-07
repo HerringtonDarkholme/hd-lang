@@ -566,7 +566,7 @@ impl Em<'_, '_, '_> {
                         if self.shield == 0 && self.drives(a) {
                             return self.await_driven(i, k, a, &args);
                         }
-                        self.await_stored(i, k, true, &|em| em.push_dyn(a, &args, None, None))
+                        self.await_stored(i, k, true, &|em| em.push_dyn(i, a, &args, None, None))
                     }
                     _ => unsupported("a bang call that collection did not resolve"),
                 }
@@ -608,13 +608,13 @@ impl Em<'_, '_, '_> {
         }
         self.f.get(ch);
         self.push_args(args, None, 0)?;
-        let c = self.push_call_providers(item, targs)?;
+        let c = self.push_call_providers(i, item, targs)?;
         self.f.call(Sym::Part(key, Part::Body));
         self.f.set(nc);
         for l in tmp.iter().rev() {
             self.f.set(*l);
         }
-        self.release_ctx(c);
+        self.release_call_ctx(i, c)?;
         if shielded {
             self.shield_leave(i, nc, Some(ch))?;
         }
@@ -825,7 +825,7 @@ impl Em<'_, '_, '_> {
         }
         self.f.set(ready);
         self.f.op(I::Else);
-        self.push_dyn(a, args, None, Some((self.ty(i), None)))?;
+        self.push_dyn(i, a, args, None, Some((self.ty(i), None)))?;
         for l in tmp.iter().rev() {
             self.f.set(*l);
         }

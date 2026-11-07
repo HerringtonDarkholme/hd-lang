@@ -160,6 +160,13 @@ pub trait OwnCx {
         let _ = ty;
         false
     }
+    /// Whether a call's ABI may construct a temporary row context: a
+    /// direct target's row parameters, or a dynamic slot's requirement
+    /// row. This reads the selected signature, not a body or its loans.
+    fn call_has_requirement_context(&self, callee: &Callee) -> bool {
+        let _ = callee;
+        false
+    }
     /// Whether the body's ABI has requirement keys or its own row parameters.
     /// An input without a signature infers these keys from its checked declaration.
     fn has_requirement_row(&self, item: hd_base::DefId) -> bool {

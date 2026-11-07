@@ -2575,7 +2575,7 @@ impl Em<'_, '_, '_> {
                     let lends = self.env().lends(ct.item, ct.args)
                         | promote::promoted_params(self.input, self.m, ct.key);
                     self.push_args(&args, params.as_deref(), lends)?;
-                    let c = self.push_call_providers(ct.item, ct.args)?;
+                    let c = self.push_call_providers(i, ct.item, ct.args)?;
                     self.f.call(Sym::Inst(ct.key));
                     // A suspending callee called cold returns its frame.
                     let ret = if self.env().suspends(ct.item) {
@@ -2584,7 +2584,7 @@ impl Em<'_, '_, '_> {
                         ct.ret
                     };
                     self.call_results(i, ret)?;
-                    self.release_ctx(c);
+                    self.release_call_ctx(i, c)?;
                     Ok(())
                 }
                 TargetKind::Intrinsic(key) if key == "type_id_of" => self.type_id_of(i, ct.args),
@@ -2631,7 +2631,7 @@ impl Em<'_, '_, '_> {
         if let Some(on) = self.drive_target(i, a) {
             return self.call_drive(i, a, args, on);
         }
-        self.push_dyn(a, args, Some(ty), None)?;
+        self.push_dyn(i, a, args, Some(ty), None)?;
         self.call_results(i, ty)
     }
 
@@ -2656,7 +2656,7 @@ impl Em<'_, '_, '_> {
         let res: Vec<u32> = self.vals(inner)?.iter().map(|v| self.f.local(*v)).collect();
         self.f.helper(Helper::ForbidCheck);
         let buffer = self.blocking_buffer(args)?;
-        self.push_dyn(a, args, None, Some((inner, Some(buffer))))?;
+        self.push_dyn(i, a, args, None, Some((inner, Some(buffer))))?;
         for l in res.iter().rev() {
             self.f.set(*l);
         }
@@ -2700,13 +2700,13 @@ impl Em<'_, '_, '_> {
         self.f.origin_at = origin;
         self.f.i32(0);
         self.push_args(args, None, 0)?;
-        let context = self.push_call_providers(target.item, target.args)?;
+        let context = self.push_call_providers(i, target.item, target.args)?;
         self.f.call(Sym::Part(target.key, Part::Body));
         self.f.set(frame);
         for value in values.iter().rev() {
             self.f.set(*value);
         }
-        self.release_ctx(context);
+        self.release_call_ctx(i, context)?;
         let complete = self
             .m
             .inst_of
@@ -2754,6 +2754,7 @@ impl Em<'_, '_, '_> {
     /// receiver's vtable with `args`, the receiver first.
     fn push_dyn(
         &mut self,
+        i: u32,
         a: u32,
         args: &[u32],
         result: Option<Ty>,
@@ -2818,7 +2819,7 @@ impl Em<'_, '_, '_> {
         }
         let c = if takes_ctx {
             params.push(Val::I32);
-            self.push_dyn_ctx(method, targs)?
+            self.push_dyn_ctx(i, method, targs)?
         } else {
             None
         };
@@ -2848,7 +2849,7 @@ impl Em<'_, '_, '_> {
             self.f.get(value[0]);
             self.f.helper(Helper::ReleaseRef);
         }
-        self.release_ctx(c);
+        self.release_call_ctx(i, c)?;
         Ok(())
     }
 
@@ -2882,7 +2883,7 @@ impl Em<'_, '_, '_> {
                 let params = self.param_tys(call.key, call.item, call.args);
                 let lends = self.env().lends(call.item, call.args);
                 self.push_args(&args, params.as_deref(), lends)?;
-                let c = self.push_call_providers(call.item, call.args)?;
+                let c = self.push_call_providers(i, call.item, call.args)?;
                 if bracket {
                     self.forbid_by(1);
                 }
@@ -2891,7 +2892,7 @@ impl Em<'_, '_, '_> {
                     self.forbid_by(-1);
                 }
                 self.call_results(i, call.ret)?;
-                self.release_ctx(c);
+                self.release_call_ctx(i, c)?;
                 if owned {
                     self.owned_refs.insert(i);
                 }

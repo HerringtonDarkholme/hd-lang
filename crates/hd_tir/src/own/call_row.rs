@@ -1,27 +1,41 @@
-//! A function-value call's temporary context owns its row's provider data.
+//! A call's temporary context owns its row's provider data.
 //! The copy packet and the temporary context's last use are separate
 //! statements. An empty concrete row or a forwarded open context lowers
 //! neither; a cold suspension constructor keeps its own row count.
 
 use super::OwnCx;
 use crate::ir::{
-    Body, Ref, Tag,
+    Body, Callee, Ref, Tag,
     count::{At, Info, Part},
     u32_of,
 };
+use hd_base::DefId;
+use hd_types::TyList;
 
 pub(super) fn counts(b: &Body, cx: &dyn OwnCx) -> Vec<(Tag, u32, Info)> {
     let mut out = Vec::new();
     for (i, &tag) in b.tags.iter().enumerate() {
-        if tag != Tag::CallValue {
-            continue;
-        }
-        let callee = Ref(b.data[i][0]);
-        let ty = match callee.as_inst() {
-            Some(v) => b.ty[v.0 as usize],
-            None => b.consts[(callee.0 & !Ref::CONST_BIT) as usize].0,
+        let needed = match tag {
+            Tag::CallValue => {
+                let callee = Ref(b.data[i][0]);
+                let ty = match callee.as_inst() {
+                    Some(v) => b.ty[v.0 as usize],
+                    None => b.consts[(callee.0 & !Ref::CONST_BIT) as usize].0,
+                };
+                cx.function_has_requirement_row(ty)
+            }
+            Tag::Call | Tag::Await => Callee::from_words(b.record(b.data[i][0]))
+                .is_some_and(|c| cx.call_has_requirement_context(&c)),
+            Tag::DefaultCall => match b.record(b.data[i][0]) {
+                &[def, args, ..] => cx.call_has_requirement_context(&Callee::Item {
+                    def: DefId::from_raw(def),
+                    targs: TyList(args),
+                }),
+                _ => false,
+            },
+            _ => false,
         };
-        if !cx.function_has_requirement_row(ty) {
+        if !needed {
             continue;
         }
         for (tag, reason) in [(Tag::Retain, 0), (Tag::Release, 2)] {
@@ -35,7 +49,8 @@ pub(super) fn counts(b: &Body, cx: &dyn OwnCx) -> Vec<(Tag, u32, Info)> {
 mod tests {
     use super::*;
     use crate::ir::{
-        BodyKind, Callee, ReadMode, TirBuilder, TirSink, Topology, count, local_flags, verify_owned,
+        BodyKind, Callee, ChoiceKind, Providers, ReadMode, TirBuilder, TirSink, Topology, count,
+        local_flags, verify_owned,
     };
     use crate::own::{Pass, counts as statements, splice, tests::Cx};
     use hd_base::{DefId, NodeIdx, Symbol};
@@ -45,6 +60,10 @@ mod tests {
     impl OwnCx for Facts {
         fn function_has_requirement_row(&self, ty: Ty) -> bool {
             ty == Ty(43) || ty == Ty(45)
+        }
+        fn call_has_requirement_context(&self, c: &Callee) -> bool {
+            matches!(c, Callee::Item { def, .. } if *def == DefId::from_raw(7))
+                || matches!(c, Callee::TraitMethod { method, .. } if *method == DefId::from_raw(7))
         }
         fn counted(&self, ty: Ty) -> bool {
             Cx.counted(ty)
@@ -94,6 +113,84 @@ mod tests {
         statements::run(b, &Facts, &Topology::new(b), &mut splice::Tables::default()).unwrap();
         let errors = verify_owned(b, &Facts);
         assert!(errors.is_empty(), "{errors:?}");
+    }
+
+    #[test]
+    fn a_direct_default_or_awaited_call_uses_its_selected_signature_fact() {
+        for tag in [Tag::Call, Tag::Await, Tag::DefaultCall] {
+            for needed in [false, true] {
+                for dynamic in [false, true] {
+                    if dynamic && tag == Tag::DefaultCall {
+                        continue;
+                    }
+                    let mut builder = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+                    let block = builder.open_block();
+                    let def = DefId::from_raw(if needed { 7 } else { 8 });
+                    if tag == Tag::DefaultCall {
+                        let call = builder.words_record(&[def.raw(), TyList::EMPTY.0]);
+                        let args = builder.refs_record(&[]);
+                        builder.emit(tag, call, args, Ty::I32, NodeIdx::NONE);
+                    } else {
+                        let callee = if dynamic {
+                            Callee::TraitMethod {
+                                trait_: DefId::from_raw(9),
+                                method: def,
+                                self_ty: Ty(46),
+                                targs: TyList::EMPTY,
+                                choice: (ChoiceKind::TraitValue, 0),
+                            }
+                        } else {
+                            Callee::Item {
+                                def,
+                                targs: TyList::EMPTY,
+                            }
+                        };
+                        builder.call(&callee, &[], Providers::None, Ty::I32, NodeIdx::NONE);
+                    }
+                    let root = builder.close_block(block, None, Ty::VOID, NodeIdx::NONE);
+                    let mut b = builder.finish(root, &[]).unwrap();
+                    b.tags[0] = tag;
+                    b.anchors = vec![41; b.len()];
+                    for _ in 0..2 {
+                        state(&mut b);
+                        let ds: Vec<_> = (0..b.len())
+                            .filter(|&i| Info::read(&b, i).is_some_and(|c| c.part == Part::Row))
+                            .collect();
+                        assert_eq!(ds.len(), usize::from(needed) * 2);
+                        for i in ds {
+                            let target = b.data[i][0];
+                            assert_eq!(b.tags[target as usize], tag);
+                            assert!(count::adjacent(&b, &Topology::new(&b), target, u32_of(i)));
+                            assert_eq!(b.anchors[i], b.anchors[target as usize]);
+                            assert_eq!(
+                                count::operation(
+                                    &b,
+                                    &Topology::new(&b),
+                                    target,
+                                    b.tags[i],
+                                    Part::Row
+                                ),
+                                Info::read(&b, i),
+                            );
+                            if tag == Tag::Await {
+                                assert!(
+                                    count::operation(
+                                        &b,
+                                        &Topology::new(&b),
+                                        target,
+                                        Tag::Release,
+                                        Part::Child,
+                                    )
+                                    .is_some()
+                                );
+                            }
+                        }
+                    }
+                    let text = crate::ir::print(&b);
+                    assert_eq!(crate::ir::print(&crate::ir::parse(&text).unwrap()), text);
+                }
+            }
+        }
     }
 
     #[test]

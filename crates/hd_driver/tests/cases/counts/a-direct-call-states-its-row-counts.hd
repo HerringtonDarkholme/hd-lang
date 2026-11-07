@@ -1,0 +1,23 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: a direct row-polymorphic call or await states its temporary context's copy and release; an empty row forwards nothing.
+trait Tag:
+    fn value(self) -> i32
+
+fn forward[$ R](callback: fn() -> i32 $ R) -> i32 $ R:
+    callback()
+
+fn later![$ R](callback: fn() -> i32 $ R) -> i32 $ R:
+    callback()
+
+fn ordinary(callback: fn() -> i32 $ Tag) -> i32 $ Tag:
+    forward(callback)
+
+fn cold(callback: fn() -> i32 $ Tag) -> mut Suspend[i32] $ Tag:
+    later(callback)
+
+fn awaited!(callback: fn() -> i32 $ Tag) -> i32 $ Tag:
+    later!(callback)
+
+fn empty(callback: fn() -> i32) -> i32:
+    forward(callback)

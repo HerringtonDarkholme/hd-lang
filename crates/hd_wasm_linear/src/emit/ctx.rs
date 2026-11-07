@@ -202,7 +202,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// One count less on a context that [`Em::push_ctx_of`] built.
-    pub(super) fn release_ctx(&mut self, c: Option<u32>) {
+    fn release_ctx(&mut self, c: Option<u32>) {
         if let Some(c) = c {
             self.f.get(c);
             self.f.helper(Helper::ReleaseRef);
@@ -221,9 +221,9 @@ impl Em<'_, '_, '_> {
         self.push_ctx_of(&keys, open, copy)
     }
 
-    /// End only the temporary context this function-value call constructed.
+    /// End only the temporary context this call constructed.
     /// A forwarded caller context remains borrowed and emits no release.
-    pub(super) fn release_fn_ctx(&mut self, i: u32, c: Option<u32>) -> StageResult<()> {
+    pub(super) fn release_call_ctx(&mut self, i: u32, c: Option<u32>) -> StageResult<()> {
         if c.is_some() {
             let Some(end) = self.operation_count(i, Tag::Release, Part::Row) else {
                 return unsupported("a call context without its stated release");
@@ -240,6 +240,7 @@ impl Em<'_, '_, '_> {
     /// `R` costs nothing. Returns a context to release after the call.
     pub(super) fn push_call_providers(
         &mut self,
+        i: u32,
         item: hd_base::DefId,
         args: hd_types::TyList,
     ) -> StageResult<Option<u32>> {
@@ -257,7 +258,8 @@ impl Em<'_, '_, '_> {
         if open {
             self.scope_keys(&mut keys);
         }
-        self.push_ctx_of(&keys, open, self.f.reason)
+        let copy = self.operation_count(i, Tag::Retain, Part::Row);
+        self.push_ctx_of(&keys, open, copy)
     }
 
     /// Pushes the context a dynamic call of trait method `method` at
@@ -265,6 +267,7 @@ impl Em<'_, '_, '_> {
     /// row, in front of the open context when the row lists the open row.
     pub(super) fn push_dyn_ctx(
         &mut self,
+        i: u32,
         method: hd_base::DefId,
         targs: hd_types::TyList,
     ) -> StageResult<Option<u32>> {
@@ -287,7 +290,8 @@ impl Em<'_, '_, '_> {
         if open {
             self.scope_keys(&mut keys);
         }
-        self.push_ctx_of(&keys, open, self.f.reason)
+        let copy = self.operation_count(i, Tag::Retain, Part::Row);
+        self.push_ctx_of(&keys, open, copy)
     }
 
     /// `$.context(...)` (`req.context.order`): a new context with one
