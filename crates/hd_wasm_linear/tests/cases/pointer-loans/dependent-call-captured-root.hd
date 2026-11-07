@@ -1,0 +1,15 @@
+# @dump: wat
+# expected: the captured ps cell is held shared until d ends; the closure checks before writing it.
+struct P:
+    name: string
+
+fn name_of(p: &P) -> &string:
+    &p.name
+
+fn borrow_then_change() -> string:
+    let mut ps = [box(P { name: "a" })]
+    change := fn() -> void:
+        ps[0] = box(P { name: "b" })
+    d := name_of(ps[0])
+    change()
+    *d

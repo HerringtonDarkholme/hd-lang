@@ -5935,6 +5935,8 @@ typing/valid/a-copied-local-reference-in-a-list-keeps-its-own-source.hd	type	acc
 typing/valid/a-local-reference-in-a-list-keeps-its-pointer-field-source.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.call.pointer
 runtime/panic/a-pointer-loan-rejects-an-aliased-root-write-aliased-field.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.path-pointer
 runtime/panic/a-mutable-pointer-loan-rejects-an-aliased-field-replacement.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.path-pointer
+runtime/panic/a-pointer-loan-rejects-an-aliased-root-write-closure-write.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.shared-variable
+runtime/valid/a-captured-root-can-change-after-its-dependent-loan-ends.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.shared-variable
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

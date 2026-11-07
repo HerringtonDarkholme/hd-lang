@@ -1,0 +1,18 @@
+# test: the captured root can change after the dependent reference ends
+# expect-stdout: a1 cccccc3
+# expect-stdout: b2
+struct P:
+    name: string
+
+fn name_of(p: &P) -> &string:
+    &p.name
+
+pub fn main() -> void $ Console:
+    let mut ps = [box(P { name: "a${1}" })]
+    change := fn() -> void:
+        ps[0] = box(P { name: "b${2}" })
+    d := name_of(ps[0])
+    junk := "cccccc${3}"
+    println("${*d} $junk")
+    change()
+    println(ps[0].name)
