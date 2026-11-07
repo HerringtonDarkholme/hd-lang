@@ -32,7 +32,7 @@ fn two(log: *mut List[string], a: string, b: string) -> usize:
 fn per_round(log: *mut List[string], xs: List[string]) -> void:
     for x in xs:
 > app/main/per_round
->   retain string (second owner)
+>   retain string (stored)
 >   release app.main.Res [name.0, log] (last use)
         using r = Res { name: x, log: log }
 >   retain &mut List[string] (stored)

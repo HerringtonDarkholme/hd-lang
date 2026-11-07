@@ -103,6 +103,8 @@ struct Value {
     in_suite: bool,
     /// The read is the last use of its place.
     last_use: bool,
+    /// A reader needs a count, and this read gives it by moving.
+    moves: bool,
     borrows: bool,
 }
 
@@ -220,6 +222,7 @@ impl Tables {
             dropped: false,
             in_suite: false,
             last_use: false,
+            moves: false,
             borrows: false,
         };
         let local = Local {
@@ -1096,7 +1099,7 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
         for i in 0..b.len() {
             let f = t.v[i];
             if b.tags[i] == Tag::Read
-                && (f.keeps || t.store_of(i) != NONE)
+                && (f.keeps || f.moves || t.store_of(i) != NONE)
                 && !f.borrows
                 && cx.counted(b.ty[i])
             {
@@ -1138,10 +1141,18 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
             let needed = taken[r]
                 || (f.alias != NONE && taken[f.alias as usize])
                 || (bind != NONE && t.l[bind as usize].kept > 0);
-            let root_owned = b
-                .view(b.data[r][0])
-                .local()
-                .is_none_or(|m| !t.l[m as usize].unowned);
+            // It could move only out of what can own: not a value that
+            // borrows, nor a parameter its caller keeps.
+            let root_owned = match b.view(b.data[r][0]).root {
+                Root::Local(m) => {
+                    !t.l[m as usize].unowned
+                        || list.iter().position(|&p| p == m).is_some_and(|at| {
+                            !suspends && cx.received(b.item, at, n) == Pass::Owned
+                        })
+                }
+                Root::Value(v) => !t.v[v as usize].borrows,
+                _ => true,
+            };
             // A binding that borrows leads on to what it holds; one that owns
             // its value is the source.
             let mut bit = k;
@@ -1150,11 +1161,13 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
                 bit = at.far;
                 at = t.bits[bit as usize];
             }
-            if (needed && f.last_use && root_owned)
+            let moves = needed && f.last_use && root_owned;
+            if moves
                 || get(&t.changed, bit)
                 || !crossed_ok(b, t, bit)
                 || (t.probe && at.relied != 0)
             {
+                t.v[r].moves = moves;
                 t.v[r].borrows = false;
                 changed = true;
             }

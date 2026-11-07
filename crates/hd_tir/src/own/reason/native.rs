@@ -3,7 +3,7 @@
 //! scans. The browser keeps the original walk: its counts-view path
 //! otherwise links this index even though it never runs the verifier.
 
-use super::{Reason, future, source};
+use super::{Reason, future, held_source, loan_holds, moved_consumers, read_start, source};
 use crate::ir::{Body, NONE, Proj, ReadMode, Root, Tag, Topology, ref_word, u32_of};
 use crate::own::{OwnCx, Role, consumes, operands};
 
@@ -115,6 +115,7 @@ pub fn copy_reasons(b: &Body, topo: &Topology, cx: &dyn OwnCx, out: &mut Vec<Opt
     for &(_, l) in &b.exit_drops {
         owned[l.idx()] = true;
     }
+    moved_consumers(b, &mut consumed);
     let used = future::uses(b, topo);
     let changed = changes(b, topo, cx, &last);
     for r in 0..n {
@@ -154,6 +155,7 @@ pub(super) fn changes(b: &Body, topo: &Topology, cx: &dyn OwnCx, last: &[u32]) -
             head[end] = u32_of(r);
         }
     }
+    let loans = loan_holds(b);
     let mut written = vec![NONE; b.local_ty.len()];
     let mut indirect = NONE;
     let mut out = vec![false; n];
@@ -184,8 +186,9 @@ pub(super) fn changes(b: &Body, topo: &Topology, cx: &dyn OwnCx, last: &[u32]) -
         let mut r = first_query;
         while r != NONE {
             let read = r as usize;
-            let src = source(b, b.data[read][0]);
-            let in_range = |at: u32| at != NONE && at >= topo.first[read];
+            let src = held_source(b, &loans, b.data[read][0]);
+            let start = read_start(b, topo, read);
+            let in_range = |at: u32| at != NONE && at >= start;
             out[read] = matches!(src.root, Some(Root::Local(l)) if in_range(written[l as usize]))
                 || (src.behind && in_range(indirect));
             r = next[read];
@@ -209,6 +212,7 @@ pub fn check_copy_reasons(
 ) -> Vec<String> {
     let n = b.len();
     let mut takers = vec![Vec::new(); n];
+    let mut moved = vec![false; n];
     let mut ops = Vec::new();
     let mut writes_after = vec![false; n + 1];
     for i in (0..n).rev() {
@@ -229,6 +233,10 @@ pub fn check_copy_reasons(
             } else {
                 NONE
             };
+            // A `move` read hands the value on to what consumes it.
+            moved[value] |= b.tags[i] == Tag::Read
+                && b.data[i][1] == ReadMode::Move as u32
+                && b.view(b.data[i][0]).root == Root::Value(op.value);
             if consumes(b, cx, i, op, owner) {
                 takers[value].push(i);
             }
@@ -237,14 +245,14 @@ pub fn check_copy_reasons(
     let mut bad = Vec::new();
     for (read, reason) in reasons.iter().enumerate().take(n) {
         let valid = match reason {
-            Some(Reason::Stored) => !takers[read].is_empty(),
+            Some(Reason::Stored) => moved[read] || !takers[read].is_empty(),
             Some(Reason::SecondOwner) => {
                 takers[read].iter().all(|&at| {
                     b.tags[at] == Tag::Store && b.data[at][1] as usize == read && {
                         let place = b.view(b.data[at][0]);
                         place.whole() && place.local().is_some()
                     }
-                }) && writes_after[topo.first[read] as usize]
+                }) && writes_after[read_start(b, topo, read) as usize]
             }
             Some(Reason::Conservative(_)) | None => true,
             Some(_) => false,

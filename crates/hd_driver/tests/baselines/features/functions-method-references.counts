@@ -45,6 +45,6 @@ fn adapter(us: List[User]) -> usize:
 > app/main/adapter
 >   release app.main.User [name.0] (last use)
 > app/main/adapter
->   retain app.main.User [name.0] (second owner)
+>   retain app.main.User [name.0] (stored)
         n += g(u)
     n

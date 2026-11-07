@@ -11,7 +11,7 @@ fn local_capture(prefix: string, xs: List[string]) -> usize:
     let total: usize = 0
     for x in xs:
 > app/main/local_capture
->   retain string (second owner)
+>   retain string (stored)
 > app/main/local_capture
 >   release string (last use)
         total += width(x)

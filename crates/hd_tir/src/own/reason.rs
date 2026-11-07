@@ -203,6 +203,8 @@ pub fn copy_reasons(b: &Body, topo: &Topology, cx: &dyn OwnCx, out: &mut Vec<Opt
     for &(_, l) in &b.exit_drops {
         owned[l.idx()] = true;
     }
+    moved_consumers(b, &mut consumed);
+    let held = loan_holds(b);
     let (mut cu, mut cw) = (Vec::new(), Vec::new());
     for r in 0..n {
         if !copy(r) {
@@ -220,7 +222,7 @@ pub fn copy_reasons(b: &Body, topo: &Topology, cx: &dyn OwnCx, out: &mut Vec<Opt
             } else {
                 Reason::Conservative("copy read")
             }
-        } else if changed_while(b, topo, cx, r, last[r], src) {
+        } else if changed_while(b, topo, cx, r, last[r], held_source(b, &held, b.data[r][0])) {
             Reason::SecondOwner
         } else {
             Reason::Conservative("copy read")
@@ -255,6 +257,75 @@ fn source(b: &Body, mut w: u32) -> Source {
     Source {
         root: None,
         behind: true,
+    }
+}
+
+/// Per local: the `borrow` read a binding local holds, or `NONE`.
+fn loan_holds(b: &Body) -> Vec<u32> {
+    let mut held = vec![crate::ir::NONE; b.local_ty.len()];
+    for i in 0..b.len() {
+        if b.tags[i] == Tag::Store
+            && let Some(read) = b.loan_read(b.data[i][1])
+            && let p = b.view(b.data[i][0])
+            && let (Some(l), true) = (p.local(), p.whole())
+        {
+            held[l as usize] = read;
+        }
+    }
+    held
+}
+
+/// [`source`] of the place at `w`, on through the reads binding locals hold:
+/// a binding owns nothing, so what it holds is what may change.
+fn held_source(b: &Body, held: &[u32], mut w: u32) -> Source {
+    let mut behind = false;
+    for _ in 0..16 {
+        let src = source(b, w);
+        behind |= src.behind;
+        match src.root {
+            Some(Root::Local(l)) if held[l as usize] != crate::ir::NONE => {
+                w = b.data[held[l as usize] as usize][0];
+            }
+            root => return Source { root, behind },
+        }
+    }
+    Source {
+        root: None,
+        behind: true,
+    }
+}
+
+/// Where the value of read `r` may start to live, by instruction: a read in a
+/// match's decision block precedes its arm's uses in time and follows them in
+/// the columns, so its range starts with the whole match.
+fn read_start(b: &Body, topo: &crate::ir::Topology, r: usize) -> u32 {
+    let mut lo = topo.first[r];
+    for block in topo.enclosing(crate::ir::u32_of(r)) {
+        let owner = topo.owner[block as usize];
+        if owner != crate::ir::NONE
+            && b.tags[owner as usize] == Tag::Match
+            && b.record(b.data[owner as usize][1]).first() == Some(&block)
+        {
+            lo = lo.min(topo.first[owner as usize]);
+        }
+    }
+    lo
+}
+
+/// A `move` read of a value hands on what it took: a reader that consumes it
+/// consumes the value it reads, into `consumed`. Columns put arms before
+/// decisions, so a second round reaches what the first left.
+fn moved_consumers(b: &Body, consumed: &mut [bool]) {
+    for _ in 0..2 {
+        for i in (0..b.len()).rev() {
+            if b.tags[i] == Tag::Read
+                && b.data[i][1] == ReadMode::Move as u32
+                && consumed[i]
+                && let Root::Value(v) = b.view(b.data[i][0]).root
+            {
+                consumed[v as usize] = true;
+            }
+        }
     }
 }
 
@@ -338,7 +409,7 @@ fn changed_while(
     if end == NONE {
         return false;
     }
-    let lo = topo.first[r] as usize;
+    let lo = read_start(b, topo, r) as usize;
     let local = match src.root {
         Some(Root::Local(l)) => Some(l),
         _ => None,
