@@ -44,7 +44,7 @@ pub fn run(n: i64) -> i64:
     counters := box(Counters { calls: 0, total: 0 })
     $.with(Meter=counters):
 > app/main/run
->   retain app.main.Meter (conservative: Coerce)
+>   retain app.main.Meter (stored)
         count(n)
     counters.total
 >   (no span) release app.main.Meter (last use)

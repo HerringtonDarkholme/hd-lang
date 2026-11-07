@@ -147,45 +147,46 @@ pub fn run(root: *Node) -> i64:
     let mut total = Total { sum: 0 }
 > app/main/run
 >   local $0 root: Counted[Node] [param read] value
->     uses $0: entry -> %2 lend, %15 lend last
+>     uses $0: entry -> %2 lend, %16 lend last
 >   local $1 total: Total [read assigned captured captured-assigned] place
 >   local $2 $ref: Ref[mut Total] [read assigned captured] value
 >     uses $2: %4 -> %5 lend last
 >   local $3 keeper: Keeper [read assigned captured captured-assigned] place
 >   %0 = NewStruct [0:i64] : Total
 >   %1 = Store [$1] %0 : ()
->   %27 = Block %26 : i64
+>   %28 = Block %27 : i64
     walk(root, &mut total)
 >   %2 = Read borrow [$0] : Counted[Node]
 >   %3 = Ref mut local frame [$1] : Ref[mut Total]
 >   %4 = Store [$2] %3 : ()
 >   %5 = Read move [$2] : Ref[mut Total]
 >   %6 = Coerce %5 [RefToTraitValue -] : Sink
->   %7 = LoanEnd [%5] : ()
->   %8 = Block %6 : Sink
->   %9 = RefDyn %8 : Ref[mut Sink]
->   %10 = Call app/main/walk[] (%2, %9) : ()
->   %11 = Drop [%9] : ()
+>   %7 = Retain %6 #0 : ()
+>   %8 = LoanEnd [%5] : ()
+>   %9 = Block %6 : Sink
+>   %10 = RefDyn %9 : Ref[mut Sink]
+>   %11 = Call app/main/walk[] (%2, %10) : ()
+>   %12 = Drop [%10] : ()
 >   %3 finds [$1] full
     let mut keeper = Keeper { saved: [] }
->   %12 = NewList - [] : List[Counted[Node]]
->   %13 = NewStruct [%12] : Keeper
->   %14 = Store [$3] %13 : ()
+>   %13 = NewList - [] : List[Counted[Node]]
+>   %14 = NewStruct [%13] : Keeper
+>   %15 = Store [$3] %14 : ()
     save(root, &mut keeper)
->   %15 = Read borrow [$0] : Counted[Node]
->   %16 = Ref mut local frame [$3] : Counted[mut Keeper]
->   %17 = Call app/main/save[] (%15, %16) : ()
->   %18 = Drop [%16] : ()
->   %16 finds [$3] full
+>   %16 = Read borrow [$0] : Counted[Node]
+>   %17 = Ref mut local frame [$3] : Counted[mut Keeper]
+>   %18 = Call app/main/save[] (%16, %17) : ()
+>   %19 = Drop [%17] : ()
+>   %17 finds [$3] full
     total.sum + i64(keeper.saved.len())
->   %19 = Read copy [$1 .sum] : i64
->   %20 = Drop [$1] : ()
->   %21 = Read copy [$3 .saved] : List[Counted[Node]]
->   %22 = Drop [$3] : ()
->   %23 = Intrinsic ListLen [%21] : usize
->   %24 = Drop [%21] : ()
->   %25 = Prim Conv [%23] : i64
->   %26 = Prim Add [%19 %25] : i64
->   %19 finds [$1] full
->   %21 finds [$3] full
+>   %20 = Read copy [$1 .sum] : i64
+>   %21 = Drop [$1] : ()
+>   %22 = Read copy [$3 .saved] : List[Counted[Node]]
+>   %23 = Drop [$3] : ()
+>   %24 = Intrinsic ListLen [%22] : usize
+>   %25 = Drop [%22] : ()
+>   %26 = Prim Conv [%24] : i64
+>   %27 = Prim Add [%20 %26] : i64
+>   %20 finds [$1] full
+>   %22 finds [$3] full
 >   summary kept [] writes

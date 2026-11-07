@@ -24,9 +24,9 @@ fn read_tag() -> usize $ Tag:
 fn with_tag[$ R](s: string, callback: fn() -> usize $ R + Tag) -> usize $ R:
     $.with(Tag=Named { label: s }):
 > app/main/with_tag
->   retain app.main.Tag (conservative: Coerce)
+>   retain app.main.Tag (stored)
 > app/main/with_tag
->   retain app.main.Tag (conservative: Coerce)
+>   retain app.main.Tag (stored)
         callback()
 >   retain counted reference (conservative: CallValue)
 >   release counted reference (conservative: CallValue)

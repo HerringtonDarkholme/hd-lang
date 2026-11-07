@@ -61,14 +61,16 @@ fn make(s: string) -> $.Context[$ Tag]:
 >   %7 = Block - : Counted[mut Named]
 >   %8 = Scope %7 [] : Counted[mut Named]
 >   %9 = Coerce %8 [RefToTraitValue -] : Tag
->   %10 = Block %9 : Tag
->   %11 = RefDyn %10 : Counted[Tag]
->   %12 = Drop [%8] : ()
->   %13 = Coerce %11 [RefAsProvider -] : Tag
->   %14 = Drop [%11] : ()
->   %15 = ContextNew [Tag %13] : $.Context[$ Tag]
->   %16 = Drop [%13] : ()
->   %17 = Block %15 : $.Context[$ Tag]
+>   %10 = Retain %9 #0 : ()
+>   %11 = Block %9 : Tag
+>   %12 = RefDyn %11 : Counted[Tag]
+>   %13 = Drop [%8] : ()
+>   %14 = Coerce %12 [RefAsProvider -] : Tag
+>   %15 = Retain %14 #0 : ()
+>   %16 = Drop [%12] : ()
+>   %17 = ContextNew [Tag %14] : $.Context[$ Tag]
+>   %18 = Drop [%14] : ()
+>   %19 = Block %17 : $.Context[$ Tag]
 >   %5 finds [$2] full
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes

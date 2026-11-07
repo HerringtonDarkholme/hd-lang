@@ -2,7 +2,7 @@
 //! The result is an owned value; its existing drops still end that owner.
 
 use super::{OwnCx, splice};
-use crate::ir::{Body, Callee, NONE, Tag, Topology, u32_of};
+use crate::ir::{Body, Callee, Coercion, NONE, Ref, Tag, Topology, u32_of};
 use hd_types::Ty;
 
 pub(super) fn run(
@@ -54,6 +54,40 @@ pub(crate) fn result(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
             b.ty[i] == Ty::STRING
                 && Callee::from_words(b.record(b.data[i][0])).is_some_and(|c| cx.retains_result(&c))
         }
+        Some(Tag::Coerce) if cx.counted(b.ty[i]) => {
+            let kind = b.record(b.data[i][1]).first().copied();
+            if kind == Some(Coercion::RefAsProvider as u32) {
+                return true;
+            }
+            if ![
+                Coercion::ToTraitValue,
+                Coercion::Supertrait,
+                Coercion::RefToTraitValue,
+            ]
+            .iter()
+            .any(|c| kind == Some(*c as u32))
+            {
+                return false;
+            }
+            let value = Ref(b.data[i][0]);
+            let source = match value.as_inst() {
+                Some(inst) => b.ty.get(inst.0 as usize).copied().unwrap_or(Ty::POISON),
+                None => b
+                    .consts
+                    .get((value.0 & !Ref::CONST_BIT) as usize)
+                    .map_or(Ty::POISON, |c| c.0),
+            };
+            if !cx.single_counted_address(source) {
+                return false;
+            }
+            // A pointer to a trait value may load its payload first, or
+            // box its identity for Any. Neither is this direct-result kind.
+            let mut target = source;
+            while let Some(inner) = cx.reference_target(target) {
+                target = inner;
+            }
+            !cx.trait_value(target)
+        }
         // Lookup copies the caller-held provider into a result of its own.
         Some(Tag::ProviderGet) => cx.counted(b.ty[i]),
         _ => false,
@@ -72,7 +106,16 @@ mod tests {
 
     impl OwnCx for Facts {
         fn counted(&self, ty: Ty) -> bool {
-            ty == Ty::STRING
+            ty == Ty::STRING || ty == Ty(43)
+        }
+        fn single_counted_address(&self, ty: Ty) -> bool {
+            matches!(ty, Ty(42 | 44))
+        }
+        fn reference_target(&self, ty: Ty) -> Option<Ty> {
+            (ty == Ty(44)).then_some(Ty(43))
+        }
+        fn trait_value(&self, ty: Ty) -> bool {
+            ty == Ty(43)
         }
         fn pass(&self, _: &Callee, _: usize, _: usize) -> Pass {
             Pass::Lent
@@ -115,6 +158,32 @@ mod tests {
         );
         let root = b.close_block(block, Some(value), Ty::STRING, syn);
         b.finish(root, &[]).expect("slice body")
+    }
+
+    #[test]
+    fn direct_trait_results_count_but_fresh_boxes_and_indirect_loads_do_not() {
+        for (kind, source, counted) in [
+            (Coercion::ToTraitValue, Ty(42), true),
+            (Coercion::RefToTraitValue, Ty(42), true),
+            (Coercion::ToTraitValue, Ty(44), false),
+            (Coercion::ToTraitValue, Ty::I32, false),
+            (Coercion::RefAsProvider, Ty(43), true),
+        ] {
+            let mut builder = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+            let block = builder.open_block();
+            let value = builder.const_value(source, 0);
+            let value = builder.coerce(kind, NONE, value, Ty(43), NodeIdx::NONE);
+            let root = builder.close_block(block, Some(value), Ty(43), NodeIdx::NONE);
+            let mut body = builder.finish(root, &[]).unwrap();
+            let topo = Topology::new(&body);
+            run(&mut body, &Facts, &topo, &mut splice::Tables::default()).unwrap();
+            assert_eq!(
+                body.tags.contains(&Tag::Retain),
+                counted,
+                "{kind:?} {source:?}"
+            );
+            assert!(verify_owned(&body, &Facts).is_empty());
+        }
     }
 
     #[test]

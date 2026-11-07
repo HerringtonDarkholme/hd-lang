@@ -44,6 +44,6 @@ fn local_mut(u: User, n: string) -> usize:
     let mut v = u
     through_mut(&mut v, n)
 > app/main/local_mut
->   retain app.main.Greet (conservative: Coerce)
+>   retain app.main.Greet (stored)
 >   (no span) release &mut app.main.Greet (by design)
 >   (no span) release app.main.User [name.0] (last use)

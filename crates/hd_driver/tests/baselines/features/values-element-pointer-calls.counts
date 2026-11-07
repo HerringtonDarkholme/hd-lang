@@ -51,7 +51,7 @@ pub fn run(root: *Node) -> i64:
     let mut total = Total { sum: 0 }
     walk(root, &mut total)
 > app/main/run
->   retain app.main.Sink (conservative: Coerce)
+>   retain app.main.Sink (stored)
     let mut keeper = Keeper { saved: [] }
     save(root, &mut keeper)
     total.sum + i64(keeper.saved.len())

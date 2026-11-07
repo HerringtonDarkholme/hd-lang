@@ -40,6 +40,20 @@ impl Em<'_, '_, '_> {
         self.retain_locals(&locals, self.ty_of(value))
     }
 
+    /// Read the explicit result count, without deciding one from its layout.
+    pub(super) fn has_stated_retain(&self, value: u32) -> bool {
+        let block = self.topo.blk[value as usize];
+        block != NONE
+            && self
+                .b
+                .record(self.b.data[block as usize][0])
+                .get(self.topo.pos[value as usize] as usize + 1)
+                .is_some_and(|&next| {
+                    self.b.tags[next as usize] == Tag::Retain
+                        && self.b.data[next as usize][0] == value
+                })
+    }
+
     /// An owned body's `borrow` reads and binding locals
     /// (`docs/compiler/tir-v2.md`, "Borrow"): a borrow takes no count, so
     /// it joins [`Em::loans`], and its read lowers

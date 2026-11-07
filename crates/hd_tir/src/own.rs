@@ -132,6 +132,17 @@ pub trait OwnCx {
     /// instances, whose types are concrete, and over a generic item's own
     /// body past the instance limit, where a type parameter's value counts.
     fn counted(&self, ty: Ty) -> bool;
+    /// Whether the concrete value is exactly one counted address, with
+    /// no other representation words. The default supplies no such fact.
+    fn single_counted_address(&self, ty: Ty) -> bool {
+        let _ = ty;
+        false
+    }
+    /// A reference's target type. None for a value that is not a reference.
+    fn reference_target(&self, ty: Ty) -> Option<Ty> {
+        let _ = ty;
+        None
+    }
     /// Whether every count `ty` holds is a thin local reference's, which
     /// counts only if it is a representation view (`own/plain.rs`). The
     /// default answers no.

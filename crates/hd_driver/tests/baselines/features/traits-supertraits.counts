@@ -51,7 +51,7 @@ fn loud[T < Dog](d: T) -> usize:
 fn use_pup(p: Pup) -> usize:
     widen(&p) + loud(p)
 > app/main/use_pup
->   retain app.main.Dog (conservative: Coerce)
+>   retain app.main.Dog (stored)
 >   release string (last use)
 >   release string (last use)
 >   (no span) release &app.main.Dog (by design)

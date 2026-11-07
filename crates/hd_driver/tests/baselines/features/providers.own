@@ -57,7 +57,7 @@ fn install(s: string) -> usize:
 >   %2 = Store [$1] %1 : ()
 >   %3 = Ref take mut [$1] : Counted[mut Fixed]
 >   %4 = Store [$2] %3 : ()
->   %19 = Block %17 : usize
+>   %21 = Block %19 : usize
 >   %3 finds [$1] full
     $.with(Namer=f):
 >   %5 = Read move [$2] : Counted[mut Fixed]
@@ -65,15 +65,17 @@ fn install(s: string) -> usize:
 >   %7 = Store [$3] %6 : ()
 >   %8 = Read move [$3] : Counted[Fixed]
 >   %9 = Coerce %8 [RefToTraitValue -] : Namer
->   %10 = Drop [%8] : ()
->   %11 = Block %9 : Namer
->   %12 = RefDyn %11 : Counted[Namer]
->   %13 = Coerce %12 [RefAsProvider -] : Namer
->   %14 = Drop [%12] : ()
->   %17 = With [Namer %13] %16 : usize
->   %18 = Drop [%13] : ()
+>   %10 = Retain %9 #0 : ()
+>   %11 = Drop [%8] : ()
+>   %12 = Block %9 : Namer
+>   %13 = RefDyn %12 : Counted[Namer]
+>   %14 = Coerce %13 [RefAsProvider -] : Namer
+>   %15 = Retain %14 #0 : ()
+>   %16 = Drop [%13] : ()
+>   %19 = With [Namer %14] %18 : usize
+>   %20 = Drop [%14] : ()
         ask()
->   %15 = Call app/main/ask[] () : usize
->   %16 = Block %15 : usize
+>   %17 = Call app/main/ask[] () : usize
+>   %18 = Block %17 : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes
