@@ -328,7 +328,6 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
                     hd_tir::ir::unique_word::COVERED => Some("covered".to_owned()),
                     hd_tir::ir::unique_word::FRESH => Some("fresh".to_owned()),
                     hd_tir::ir::unique_word::REPEAT => Some("repeat".to_owned()),
-                    hd_tir::ir::unique_word::OWNED => Some("owned".to_owned()),
                     _ => None,
                 },
                 Tag::Ref => {

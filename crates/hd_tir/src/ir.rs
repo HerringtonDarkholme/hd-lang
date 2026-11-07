@@ -780,10 +780,6 @@ pub mod unique_word {
     /// unique, with nothing between that can share the buffer
     /// (`own::hoist::repeats`): no check runs.
     pub const REPEAT: u32 = 4;
-    /// Of a collection field whose buffer the whole program never gives a
-    /// second owner (step 15d2, the driver's `fields::single_owner`, marked
-    /// at link over the bodies it emits): no check runs.
-    pub const OWNED: u32 = 5;
 }
 
 /// How a `Read` reads its place (its `Meta` word b;
