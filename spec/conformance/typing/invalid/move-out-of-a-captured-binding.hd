@@ -1,0 +1,15 @@
+# test: a closure's body moves a captured value that is not copied
+# Spec 13 Moves: ref.move.out-of-place.capture.
+struct Photo:
+    name: string
+
+impl !Copy for Photo
+
+fn name_len(p: Photo) -> usize:
+    p.name.len()
+
+fn moved_capture() -> usize:
+    photo := Photo { name: "a" }
+    run := fn() -> usize:
+        name_len(photo) # diagnostic: move-out-of-place
+    run()

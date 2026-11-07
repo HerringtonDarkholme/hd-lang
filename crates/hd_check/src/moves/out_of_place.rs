@@ -3,9 +3,11 @@
 //! `&mut T`, where the value moves, is `move-out-of-place` (Rust's
 //! "cannot move out of `*r`"). The reference does not own the value, so
 //! the read would give a second copy of a `&mut`. A borrow, `&*r`, or a
-//! site that reborrows (`ref.move.reborrow`) reads nothing out.
+//! site that reborrows (`ref.move.reborrow`) reads nothing out. So is a read
+//! that moves a binding or a field of one out of the closure that captures it
+//! (`ref.move.out-of-place.capture`): a closure may run any number of times.
 
-use hd_base::{HashMap, LocalId};
+use hd_base::{HashMap, LocalId, SliceSort as _};
 use hd_diag::Code;
 use hd_resolve::ItemData;
 use hd_tir::ir::{Body, NONE, Place, PlaceRoot, Proj, Role, Tag, Topology, Word, slots};
@@ -69,6 +71,47 @@ fn root_of(b: &Body, root: PlaceRoot) -> Root {
     }
 }
 
+/// Where a read that must not move reads from.
+#[derive(Clone, Copy)]
+enum From {
+    /// A place behind a reference, and whether it is `&mut`.
+    Reference(bool),
+    /// A binding the read's closure captures.
+    Capture,
+}
+
+/// Each closure's captures, as (sub-body, local), sorted.
+fn captures_of(b: &Body) -> Vec<(u32, u32)> {
+    let mut out = Vec::new();
+    for i in 0..b.len() {
+        if b.tags[i] == Tag::Closure
+            && !b.is_instantiation(i)
+            && let [start, len, ..] = *b.record(b.data[i][1])
+        {
+            for c in start..start.saturating_add(len) {
+                if let Some(&l) = b.cap_local.get(c as usize) {
+                    out.push((b.data[i][0], w(l.idx())));
+                }
+            }
+        }
+    }
+    out.sort_stable();
+    out.dedup();
+    out
+}
+
+/// Whether place `p` of a read in sub-body `sub` is all of, or a field or
+/// payload of, a binding that sub-body captures.
+fn captured(captures: &[(u32, u32)], sub: u32, root: Root, p: &Place) -> bool {
+    let Root::Local(l) = root else {
+        return false;
+    };
+    p.proj
+        .iter()
+        .all(|x| matches!(x, Proj::Field(_) | Proj::Variant(_)))
+        && captures.binary_search(&(sub, w(l.idx()))).is_ok()
+}
+
 impl Ck<'_, '_> {
     /// Which locals are hidden: a call's `$ref` and the like hold a value
     /// for the checker's own lowering, and are not bindings.
@@ -79,21 +122,29 @@ impl Ck<'_, '_> {
     }
 
     /// `ref.move.out-of-place`: each read that moves a value that is not
-    /// copied out of a place behind a reference is `move-out-of-place`.
+    /// copied out of a place behind a reference, or out of a binding its
+    /// closure captures, is `move-out-of-place`.
     pub(crate) fn check_moves_out_of_place(&mut self) {
         if self.b.body().tags.contains(&Tag::Poison) {
             return;
         }
         let copied = self.copy_facts();
         let b = self.b.body();
-        // The reads through a reference of a value that is not copied,
-        // with whether the reference is `&mut` and the place's root.
-        let reads: Vec<(u32, bool, Root)> = (0..b.len())
+        let topo = Topology::new(b);
+        let captures = captures_of(b);
+        // The reads of a value that is not copied through a reference or
+        // out of a capture, with where from and the place's root.
+        let reads: Vec<(u32, From, Root)> = (0..b.len())
             .filter(|&i| b.tags[i] == Tag::Read && !copied[i])
             .filter_map(|i| {
                 let p = b.decode_place(b.data[i][0])?;
-                let m = self.behind_ref(b, &p)?;
-                Some((w(i), m, root_of(b, p.root)))
+                let root = root_of(b, p.root);
+                let from = match self.behind_ref(b, &p) {
+                    Some(mutable) => From::Reference(mutable),
+                    None if captured(&captures, topo.sub[i], root, &p) => From::Capture,
+                    None => return None,
+                };
+                Some((w(i), from, root))
             })
             .collect();
         if reads.is_empty() {
@@ -105,7 +156,7 @@ impl Ck<'_, '_> {
         let cx = Uses {
             copied: &copied,
             b,
-            topo: &Topology::new(b),
+            topo: &topo,
             users: &users,
             hidden: &hidden,
             hidden_reads: &hidden_reads,
@@ -113,23 +164,30 @@ impl Ck<'_, '_> {
         };
         // One error per reference, as for `use-of-moved-value`.
         let mut seen: Vec<Root> = Vec::new();
-        let mut moved: Vec<(u32, bool)> = Vec::new();
-        for (i, mutable, root) in reads {
+        let mut moved: Vec<(u32, From)> = Vec::new();
+        for (i, from, root) in reads {
             if !seen.contains(&root) && self.moves(&cx, i, 0) {
                 seen.push(root);
-                moved.push((i, mutable));
+                moved.push((i, from));
             }
         }
-        for (i, mutable) in moved {
+        for (i, from) in moved {
             let at = self.b.body().syn[i as usize];
             if at == hd_base::NodeIdx::NONE {
                 continue;
             }
-            let r = if mutable { "&mut" } else { "&" };
             let why = self.why_not_copied(self.b.body().ty[i as usize]);
-            let msg = format!(
-                "this moves a value out of a place behind a `{r}` reference, which does not own it; {why}. Borrow it with `{r}`, or pass the reference on"
-            );
+            let msg = match from {
+                From::Reference(mutable) => {
+                    let r = if mutable { "&mut" } else { "&" };
+                    format!(
+                        "this moves a value out of a place behind a `{r}` reference, which does not own it; {why}. Borrow it with `{r}`, or pass the reference on"
+                    )
+                }
+                From::Capture => format!(
+                    "this moves a value out of a binding the closure captures, and a closure may run any number of times; {why}. Borrow it with `&`"
+                ),
+            };
             let node = self.cx.src.parse.tree.node(at);
             self.err(Code::MoveOutOfPlace, node, &msg);
         }

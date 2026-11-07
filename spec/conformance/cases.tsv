@@ -5787,6 +5787,8 @@ runtime/valid/bound-closure-row-adopted-runs.hd	runtime	accept	lang/07-functions
 runtime/valid/newtype-read-through-a-reference.hd	runtime	accept	lang/13-values-and-references.md#r-ref.deref.read
 typing/invalid/move-out-of-reference-as-tail-value.hd	type	reject:move-out-of-place	lang/13-values-and-references.md#r-ref.move.out-of-place
 typing/invalid/move-out-of-mut-reference-as-branch-tail.hd	type	reject:move-out-of-place	lang/13-values-and-references.md#r-ref.move.out-of-place
+typing/invalid/move-out-of-a-captured-binding.hd	type	reject:move-out-of-place	lang/13-values-and-references.md#r-ref.move.out-of-place.capture
+runtime/valid/a-closure-reads-a-captured-value-that-is-not-copied.hd	runtime	accept	lang/13-values-and-references.md#r-ref.move.out-of-place.capture
 typing/invalid/move-payload-out-of-deref-in-match.hd	type	reject:move-out-of-place	lang/13-values-and-references.md#r-ref.move.pattern
 typing/invalid/move-field-out-of-deref-in-let-pattern.hd	type	reject:move-out-of-place	lang/13-values-and-references.md#r-ref.move.pattern
 typing/valid/match-through-reference-reads-payload-field.hd	type	accept	lang/13-values-and-references.md#r-ref.move.pattern

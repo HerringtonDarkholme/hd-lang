@@ -1,0 +1,23 @@
+# test: a closure lends a captured value that is not copied, and may run many times
+# Spec 13 Moves: ref.move.out-of-place.capture.
+# expect-stdout: 3
+struct Photo:
+    name: string
+
+impl !Copy for Photo
+
+impl Photo:
+    fn size(&self) -> usize:
+        self.name.len()
+
+fn name_len(p: &Photo) -> usize:
+    p.name.len()
+
+pub fn main() -> void $ Console:
+    photo := Photo { name: "a" }
+    borrows := fn() -> usize:
+        name_len(&photo)
+    calls := fn() -> usize:
+        photo.size()
+    again := borrows
+    println(borrows() + again() + calls())
