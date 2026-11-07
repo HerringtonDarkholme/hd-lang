@@ -219,13 +219,6 @@
   (func $fetch.drop (param $t0 i32)
     ;; 8 |     key + "?"
     local.get $t0
-    i32.load $heap offset=12
-    i32.const 64
-    i32.and
-    i32.eqz
-    if
-    end
-    local.get $t0
     i32.load $heap offset=24
     call $rt:release_ref'2
     local.get $t0
@@ -3504,10 +3497,6 @@
       i32.const 128
       i32.or
       i32.store $heap offset=12
-    end
-    local.get $frame
-    i32.eqz
-    if
     end
     local.get $frame
     if

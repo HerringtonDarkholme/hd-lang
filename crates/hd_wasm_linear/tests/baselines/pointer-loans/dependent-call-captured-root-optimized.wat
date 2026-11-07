@@ -21,7 +21,7 @@
     end
     local.get $p
   )
-  (func $borrow_then_change (result i32 i32) (local $ps i32) (local $change.0 i32) (local $t0 i32) (local $change.1 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
+  (func $borrow_then_change (result i32 i32) (local $ps i32) (local $change.0 i32) (local $t0 i32) (local $change.1 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 11 |     let mut ps = [box(P { name: "a" })]
     global.get $locals
     global.get $locals_base
@@ -117,8 +117,6 @@
         end
       end
       local.get $t1
-      i32.const 2
-      local.set $t3
       i32.load $heap
       i32.const 2097152
       i32.and
@@ -132,7 +130,7 @@
       end
       local.get $t1
       i32.load $heap
-      local.tee $t4
+      local.tee $t3
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -142,15 +140,10 @@
         call $rt:loan_share
       else
         local.get $t1
-        local.get $t4
+        local.get $t3
         i32.const 65536
         i32.add
         i32.store $heap
-      end
-      local.get $t3
-      i32.const 1
-      i32.eq
-      if
       end
     ;; 15 |     change()
       local.get $change.1
@@ -193,11 +186,6 @@
           i32.sub
           i32.store $heap
         end
-        local.get $t3
-        i32.const 1
-        i32.eq
-        if
-        end
         i32.const 0
         local.set $t1
       end
@@ -219,11 +207,6 @@
           i32.const 65536
           i32.sub
           i32.store $heap
-        end
-        local.get $t3
-        i32.const 1
-        i32.eq
-        if
         end
         i32.const 0
         local.set $t1
@@ -247,11 +230,6 @@
         i32.const 65536
         i32.sub
         i32.store $heap
-      end
-      local.get $t3
-      i32.const 1
-      i32.eq
-      if
       end
     end
     local.get $ps

@@ -4,7 +4,7 @@
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $own_write (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $own_write (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
     ;; 11 |     r := &mut p.value
     block
       local.get $p
@@ -21,14 +21,12 @@
         unreachable
       end
       local.get $t0
-      i32.const 1
-      local.set $t2
       local.get $t0
       i32.load $heap
       i32.const 2097152
       i32.add
       i32.store $heap
-      local.get $t2
+      i32.const 1
       i32.const 1
       i32.eq
       if
@@ -88,11 +86,6 @@
         i32.const 2097152
         i32.sub
         i32.store $heap
-        local.get $t2
-        i32.const 1
-        i32.eq
-        if
-        end
         i32.const 0
         local.set $t0
       end
@@ -104,11 +97,6 @@
         i32.const 2097152
         i32.sub
         i32.store $heap
-        local.get $t2
-        i32.const 1
-        i32.eq
-        if
-        end
         i32.const 0
         local.set $t0
       end
@@ -153,11 +141,6 @@
       i32.const 2097152
       i32.sub
       i32.store $heap
-      local.get $t2
-      i32.const 1
-      i32.eq
-      if
-      end
     end
     local.get $p
     local.get $alias

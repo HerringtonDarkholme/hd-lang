@@ -185,13 +185,6 @@
   (func $fetch.drop (param $t0 i32)
     ;; 21 |     $.use(Store).get().len()
     local.get $t0
-    i32.load $heap offset=12
-    i32.const 64
-    i32.and
-    i32.eqz
-    if
-    end
-    local.get $t0
     i32.load $heap offset=24
     call $rt:release_ref
     local.get $t0

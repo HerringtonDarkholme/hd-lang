@@ -57,7 +57,8 @@
 //!     with it, a load or another operation that cannot trap becomes the
 //!     drop of its operands, and `local.tee t; drop` is `local.set t`. A
 //!     load cannot trap here: emitted code loads only from a place it
-//!     holds or an index it checked;
+//!     holds or an index it checked. An `if` with nothing in it drops its
+//!     test;
 //! 17. a count whose every operand is a constant, pushed directly, held
 //!     in a local that only constants are written to, or received by a
 //!     closed-world function at only constant call sites, goes
@@ -1687,8 +1688,25 @@ pub(crate) fn drops(f: &mut Func) -> bool {
     let b = std::mem::take(&mut f.body);
     let mut out: Vec<Ins> = Vec::with_capacity(b.len());
     let mut changed = false;
+    // The `end` of an `if` taken for a `drop`, which goes with it.
+    let mut empty_end = None;
     for (k, ins) in b.iter().enumerate() {
-        if !matches!(ins, Ins::Op(I::Drop)) {
+        if empty_end == Some(k) {
+            continue;
+        }
+        let end = matches!(ins, Ins::Op(I::If(wasm_encoder::BlockType::Empty)))
+            .then(|| {
+                k + 1
+                    + b[k + 1..]
+                        .iter()
+                        .take_while(|i| matches!(i, Ins::Anchor(_)))
+                        .count()
+            })
+            .filter(|&e| matches!(b.get(e), Some(Ins::Op(I::End))));
+        if end.is_some() {
+            empty_end = end;
+            changed = true;
+        } else if !matches!(ins, Ins::Op(I::Drop)) {
             out.push(*ins);
             origins.copy(k..k + 1);
             continue;
@@ -4627,6 +4645,55 @@ mod origin_tests {
                 zero_releases(f);
             })),
             0
+        );
+    }
+
+    #[test]
+    fn an_if_with_nothing_in_it_drops_its_test() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        let empty = wasm_encoder::BlockType::Empty;
+        // A pure test goes, past an anchor; a call's stays and its result
+        // is dropped; an `if` with something in it stays.
+        let f = run(
+            tracked(
+                &symbols,
+                1,
+                0,
+                vec![
+                    op(I::LocalGet(0)),
+                    op(I::I32Load(mem(HEAP, 8, 2))),
+                    op(I::I32Eqz),
+                    op(I::If(empty)),
+                    Ins::Anchor(0),
+                    op(I::End),
+                    call(&symbols, Sym::Helper(Helper::CollCopy)),
+                    op(I::If(empty)),
+                    op(I::End),
+                    op(I::LocalGet(0)),
+                    op(I::If(empty)),
+                    op(I::Unreachable),
+                    op(I::End),
+                ],
+            ),
+            |f| {
+                drops(f);
+            },
+        );
+        assert_eq!(
+            format!("{:?}", f.body),
+            format!(
+                "{:?}",
+                [
+                    Ins::Anchor(0),
+                    call(&symbols, Sym::Helper(Helper::CollCopy)),
+                    op(I::Drop),
+                    op(I::LocalGet(0)),
+                    op(I::If(empty)),
+                    op(I::Unreachable),
+                    op(I::End),
+                ]
+            )
         );
     }
 

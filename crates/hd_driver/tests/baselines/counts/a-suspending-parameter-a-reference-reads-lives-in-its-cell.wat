@@ -2606,13 +2606,6 @@
   (func $main.drop (param $t0 i32)
     ;; 12 |     let mut u = UniqList::[i32].new()
     local.get $t0
-    i32.load $heap offset=12
-    i32.const 64
-    i32.and
-    i32.eqz
-    if
-    end
-    local.get $t0
     i32.load $heap offset=24
     call $rt:release_ref'2
     local.get $t0

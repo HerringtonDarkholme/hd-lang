@@ -166,13 +166,6 @@
   (func $read.drop (param $t0 i32)
     ;; 8 |     $.use(Value).value()
     local.get $t0
-    i32.load $heap offset=12
-    i32.const 64
-    i32.and
-    i32.eqz
-    if
-    end
-    local.get $t0
     i32.load $heap offset=24
     call $rt:release_ref
     local.get $t0

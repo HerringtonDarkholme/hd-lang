@@ -52,11 +52,6 @@
         i32.const 2097152
         i32.add
         i32.store $heap
-        i32.const 0
-        i32.const 1
-        i32.eq
-        if
-        end
       end
     ;; 18 |     alias.value = "b"
       local.get $alias
@@ -102,11 +97,6 @@
         i32.sub
         i32.store $heap
         i32.const 0
-        i32.const 1
-        i32.eq
-        if
-        end
-        i32.const 0
         local.set $t0
       end
       local.get $t0
@@ -117,11 +107,6 @@
         i32.const 2097152
         i32.sub
         i32.store $heap
-        i32.const 0
-        i32.const 1
-        i32.eq
-        if
-        end
         i32.const 0
         local.set $t0
       end
@@ -134,11 +119,6 @@
       i32.const 2097152
       i32.sub
       i32.store $heap
-      i32.const 0
-      i32.const 1
-      i32.eq
-      if
-      end
     end
     local.get $p
     local.get $alias

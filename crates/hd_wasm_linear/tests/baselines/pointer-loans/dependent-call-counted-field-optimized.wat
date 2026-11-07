@@ -15,7 +15,7 @@
     end
     local.get $p
   )
-  (func $replace (param $h i32) (param $alias i32) (param $next i32) (result i32 i32) (local $t0 i32) (local $d i32) (local $t1 i32) (local $t2 i32)
+  (func $replace (param $h i32) (param $alias i32) (param $next i32) (result i32 i32) (local $t0 i32) (local $d i32) (local $t1 i32)
     ;; 14 |     d := name_of(h.p)
     block
       local.get $h
@@ -34,8 +34,6 @@
         end
       end
       local.get $t0
-      i32.const 2
-      local.set $t1
       i32.load $heap
       i32.const 2097152
       i32.and
@@ -49,7 +47,7 @@
       end
       local.get $t0
       i32.load $heap
-      local.tee $t2
+      local.tee $t1
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -59,15 +57,10 @@
         call $rt:loan_share
       else
         local.get $t0
-        local.get $t2
+        local.get $t1
         i32.const 65536
         i32.add
         i32.store $heap
-      end
-      local.get $t1
-      i32.const 1
-      i32.eq
-      if
       end
     ;; 15 |     alias.p = next
       local.get $next
@@ -116,11 +109,6 @@
           i32.sub
           i32.store $heap
         end
-        local.get $t1
-        i32.const 1
-        i32.eq
-        if
-        end
         i32.const 0
         local.set $t0
       end
@@ -142,11 +130,6 @@
           i32.const 65536
           i32.sub
           i32.store $heap
-        end
-        local.get $t1
-        i32.const 1
-        i32.eq
-        if
         end
         i32.const 0
         local.set $t0
@@ -177,16 +160,11 @@
         i32.sub
         i32.store $heap
       end
-      local.get $t1
-      i32.const 1
-      i32.eq
-      if
-      end
     end
     local.get $h
     local.get $alias
   )
-  (func $replace_mut (param $h i32) (param $alias i32) (param $next i32) (result i32 i32) (local $t0 i32) (local $d i32) (local $t1 i32) (local $t2 i32)
+  (func $replace_mut (param $h i32) (param $alias i32) (param $next i32) (result i32 i32) (local $t0 i32) (local $d i32) (local $t1 i32)
     ;; 25 |     d := name_mut(h.p)
     block
       local.get $h
@@ -205,8 +183,6 @@
         end
       end
       local.get $t0
-      i32.const 2
-      local.set $t1
       i32.load $heap
       i32.const 2097152
       i32.and
@@ -220,7 +196,7 @@
       end
       local.get $t0
       i32.load $heap
-      local.tee $t2
+      local.tee $t1
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -230,15 +206,10 @@
         call $rt:loan_share
       else
         local.get $t0
-        local.get $t2
+        local.get $t1
         i32.const 65536
         i32.add
         i32.store $heap
-      end
-      local.get $t1
-      i32.const 1
-      i32.eq
-      if
       end
     ;; 26 |     alias.p = next
       local.get $next
@@ -287,11 +258,6 @@
           i32.sub
           i32.store $heap
         end
-        local.get $t1
-        i32.const 1
-        i32.eq
-        if
-        end
         i32.const 0
         local.set $t0
       end
@@ -313,11 +279,6 @@
           i32.const 65536
           i32.sub
           i32.store $heap
-        end
-        local.get $t1
-        i32.const 1
-        i32.eq
-        if
         end
         i32.const 0
         local.set $t0
@@ -347,11 +308,6 @@
         i32.const 65536
         i32.sub
         i32.store $heap
-      end
-      local.get $t1
-      i32.const 1
-      i32.eq
-      if
       end
     end
     local.get $h
