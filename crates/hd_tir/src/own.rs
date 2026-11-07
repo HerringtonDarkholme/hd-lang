@@ -71,6 +71,7 @@ mod plain;
 pub mod pointer;
 pub mod promote;
 mod reason;
+pub(crate) mod referent;
 pub(crate) mod retains;
 pub mod short;
 pub(crate) mod splice;
@@ -160,6 +161,13 @@ pub trait OwnCx {
     /// instances, whose types are concrete, and over a generic item's own
     /// body past the instance limit, where a type parameter's value counts.
     fn counted(&self, ty: Ty) -> bool;
+    /// Whether the layout may be exactly one thin local reference view.
+    /// A cold frame keeps that address's object, independently of the
+    /// reference value's own view count. Open instance types may qualify.
+    fn may_frame_referent(&self, ty: Ty) -> bool {
+        let _ = ty;
+        false
+    }
     /// Whether the concrete value is exactly one counted address, with
     /// no other representation words. The default supplies no such fact.
     fn single_counted_address(&self, ty: Ty) -> bool {

@@ -12,15 +12,18 @@ struct Counter:
 fn bump!(c: &mut Counter) -> void:
 > app/main/bump
 >   local $0 c: Ref[mut Counter] [param read] value
->     uses $0: entry -> %2 lend, %4 lend last
->   %0 = Retain %6 Cold local $0 #0 : ()
->   %1 = Retain %6 Entry local $0 #0 : ()
+>     uses $0: entry -> %5 lend, %7 lend last
+>   %0 = Retain %9 Cold local $0 #0 : ()
+>   %1 = Retain %9 Entry local $0 #0 : ()
+>   %2 = Retain %9 Cold referent $0 #8 : ()
+>   %3 = Release %9 FrameDrop referent $0 #2 : ()
+>   %4 = Release %9 Exit referent $0 #8 : ()
     c.hits = c.hits + 1
->   %2 = Read copy [*$0 .hits] : i32
->   %3 = Prim Add [%2 1:i32] : i32
->   %4 = Store [*$0 .hits] %3 : ()
->   %5 = Drop [$0] : ()
->   %6 = Block - : ()
+>   %5 = Read copy [*$0 .hits] : i32
+>   %6 = Prim Add [%5 1:i32] : i32
+>   %7 = Store [*$0 .hits] %6 : ()
+>   %8 = Drop [$0] : ()
+>   %9 = Block - : ()
 >   exit sub 0 drops [$0]
 
 fn tick(c: &mut Counter) -> void:

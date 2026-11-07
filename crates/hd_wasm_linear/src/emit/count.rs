@@ -891,23 +891,29 @@ impl Em<'_, '_, '_> {
                 }
             }
         }
-        self.release_temps();
-        Ok(())
-    }
-
-    /// Releases the locals that own one count until the exit: a
-    /// suspending body's count of a reference parameter's object stands
-    /// by design (#1355).
-    fn release_temps(&mut self) {
-        for tmp in self.temps.clone() {
-            self.f.reason = Some(if self.frame_refs.iter().any(|r| r.1 == tmp) {
-                Reason::ByDesign
-            } else {
-                Reason::Conservative("exit temporary")
+        // Saved reference-object slots have their own normal-exit contract.
+        for (l, held) in self.frame_refs.clone() {
+            let Some(reason) = self.stated_count(
+                Tag::Release,
+                At::Exit,
+                Part::Referent(u32::try_from(l).expect("local")),
+            ) else {
+                return crate::unsupported("a frame reference without its stated exit release");
+            };
+            self.because(reason, |em| {
+                em.f.get(held);
+                em.f.helper(Helper::ReleaseRef);
             });
-            self.f.get(tmp);
-            self.f.helper(Helper::ReleaseRef);
         }
+        let nodes = self
+            .susp
+            .as_ref()
+            .map(super::susp::Susp::wakers)
+            .unwrap_or_default();
+        for (node, i) in nodes {
+            self.count_point_ref(i, Part::Waker, node, false)?;
+        }
+        Ok(())
     }
 }
 

@@ -1,6 +1,6 @@
 //! Shared writing and verification of operation and function-boundary count statements.
 
-use super::{OwnCx, abi, cache, child, cold, cold_row, map_key, splice, waker};
+use super::{OwnCx, abi, cache, child, cold, cold_row, map_key, referent, splice, waker};
 use crate::ir::{
     Body, Tag, Topology,
     count::{At, Info, Part},
@@ -37,6 +37,7 @@ fn expected(b: &Body, cx: &dyn OwnCx, topo: &Topology) -> Vec<(Tag, u32, Info)> 
             out.push((Tag::Retain, root, Info::new(at, Part::Result, 0)));
         }
     }
+    out.extend(referent::counts(b, cx));
     out.extend(child::counts(b, cx, topo));
     out.extend(waker::counts(b));
     out.extend(
@@ -84,7 +85,7 @@ pub(super) fn run(
         };
         let record = info.write(b);
         let syn = match info.part {
-            Part::Local(l) => b.local_syn[l as usize],
+            Part::Local(l) | Part::Referent(l) => b.local_syn[l as usize],
             _ => b.syn[target as usize],
         };
         edits.insert(block, position, tag, [target, record], Ty::VOID, syn);

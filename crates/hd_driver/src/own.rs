@@ -444,6 +444,10 @@ impl OwnCx for Env<'_> {
         self.is_open(ty) || self.layout_facts(ty).0
     }
 
+    fn may_frame_referent(&self, ty: Ty) -> bool {
+        self.is_open(ty) || hd_wasm_linear::frame_referent_type(&self.run.pool, self, ty)
+    }
+
     fn single_counted_address(&self, ty: Ty) -> bool {
         !self.is_open(ty) && hd_wasm_linear::single_counted_address_type(&self.run.pool, self, ty)
     }

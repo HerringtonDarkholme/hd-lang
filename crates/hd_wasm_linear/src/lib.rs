@@ -60,6 +60,16 @@ pub fn counted_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
     layout::holds_drop(pool, env, ty) || layout::walk(pool, env, ty).is_some()
 }
 
+/// Whether this concrete parameter layout is one thin local reference view.
+/// Its cold frame holds a separate page-table count of the referenced object.
+#[must_use]
+pub fn frame_referent_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
+    matches!(
+        layout::count_walk(pool, env, ty),
+        Some(layout::Walk::View(_))
+    )
+}
+
 /// Whether the value's representation is one counted address at word zero.
 #[must_use]
 pub fn single_counted_address_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {

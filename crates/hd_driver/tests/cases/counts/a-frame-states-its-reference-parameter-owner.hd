@@ -1,0 +1,8 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: cold, exit and teardown state the parameter's object counts; an ordinary call has none.
+fn read!(value: &i32) -> i32:
+    *value
+
+fn plain(value: &i32) -> i32:
+    *value
