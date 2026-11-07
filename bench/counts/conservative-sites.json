@@ -53,7 +53,7 @@
     },
     {
       "reason": "conservative: copy read",
-      "sites": 9
+      "sites": 8
     },
     {
       "reason": "conservative: entry",
@@ -69,11 +69,11 @@
     },
     {
       "reason": "conservative: source call",
-      "sites": 476
+      "sites": 475
     },
     {
       "reason": "conservative: unique",
-      "sites": 56
+      "sites": 55
     },
     {
       "reason": "conservative: unowned parameter",

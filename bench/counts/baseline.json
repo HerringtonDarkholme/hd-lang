@@ -83,10 +83,10 @@
     },
     {
       "program": "bench/runtime/progs/plugins.hd",
-      "retained": "5460001",
-      "released": "5461460",
-      "uniques": "8197500",
-      "total": "19118961"
+      "retained": "5460000",
+      "released": "5461459",
+      "uniques": "0",
+      "total": "10921459"
     },
     {
       "program": "bench/runtime/progs/resources.hd",
