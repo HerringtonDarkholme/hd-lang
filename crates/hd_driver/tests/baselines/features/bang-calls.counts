@@ -55,9 +55,6 @@ fn both!(a: string, b: string) -> usize:
 > app/main/both
 >   release string (cancelled)
 >   release string (cancelled)
->   release counted reference (last use)
->   release string (last use)
->   release string (last use)
 > app/main/both
 >   retain string (stored)
 >   retain string (stored)

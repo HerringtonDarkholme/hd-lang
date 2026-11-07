@@ -799,13 +799,6 @@
           call $rt:release_ref'2
         end
       end
-      local.get $t0
-      i32.load $heap offset=84
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'1
-      end
     end
   )
   (func $both'2 (param $t1 i32) (param $t3 i32) (result i32) (local $t0 i32) (local $t2 i32)

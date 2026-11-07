@@ -1425,50 +1425,6 @@ pub(super) fn finish(
                 em.f.helper(Helper::ReleaseRef);
             });
         }
-        let nodes = em.susp.as_ref().map(Susp::wakers).unwrap_or_default();
-        for (node, i) in nodes {
-            if let Some(loaded) = load(&mut em, &[node]) {
-                em.count_point_ref(i, CountPart::Waker, loaded[0], false)?;
-            }
-        }
-        // The results a `join!` kept for its done children.
-        let mut alls: Vec<(u32, AllPoint)> = em
-            .susp
-            .as_ref()
-            .map(|s| s.alls.iter().map(|(k, v)| (*k, v.clone())).collect())
-            .unwrap_or_default();
-        alls.sort_stable_by_key(|x| x.0);
-        for (i, all) in alls {
-            let Some((dat, dv)) = at_of(all.done) else {
-                continue;
-            };
-            let done = em.f.local(dv);
-            em.f.get(FRAME);
-            em.f.op(load_op(dv, dat));
-            em.f.set(done);
-            for (j, (_, ls, t)) in all.parts.iter().enumerate() {
-                if !em.needs_drop(*t) {
-                    continue;
-                }
-                let Some(slots) = ls.iter().map(|l| at_of(*l)).collect::<Option<Vec<_>>>() else {
-                    continue;
-                };
-                em.f.get(done);
-                em.f.i32(1 << j);
-                em.f.op(I::I32And);
-                em.f.op(I::If(BlockType::Empty));
-                let mut loaded = Vec::new();
-                for (at, v) in slots {
-                    let x = em.f.local(v);
-                    em.f.get(FRAME);
-                    em.f.op(load_op(v, at));
-                    em.f.set(x);
-                    loaded.push(x);
-                }
-                em.release_join_result(i, &loaded, *t)?;
-                em.f.op(I::End);
-            }
-        }
         em.f.op(I::End);
         // A parameter a body with no suspension point borrows from its
         // frame (`Em::instance_loans`): the frame's count outlives the body.

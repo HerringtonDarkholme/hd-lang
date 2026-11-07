@@ -2378,7 +2378,7 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $both.drop (param $t0 i32) (local $t2 i32) (local $t1 i32)
+  (func $both.drop (param $t0 i32) (local $t1 i32)
     ;; 15 |     let (x, y) = join!(label(a), label(b))
     local.get $t0
     i32.load $heap offset=12
@@ -2399,39 +2399,6 @@
       if
         local.get $t1
         call $rt:release_ref'1
-      end
-      local.get $t0
-      i32.load $heap offset=120
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'1
-      end
-      local.get $t0
-      i32.load $heap offset=88
-      local.tee $t2
-      i32.const 1
-      i32.and
-      if
-        local.get $t0
-        i32.load $heap offset=104
-        local.tee $t1
-        if
-          local.get $t1
-          call $rt:release_ref'1
-        end
-      end
-      local.get $t2
-      i32.const 2
-      i32.and
-      if
-        local.get $t0
-        i32.load $heap offset=112
-        local.tee $t1
-        if
-          local.get $t1
-          call $rt:release_ref'1
-        end
       end
     end
   )

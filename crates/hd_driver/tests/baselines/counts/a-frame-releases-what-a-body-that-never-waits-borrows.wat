@@ -997,27 +997,13 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $main.drop (param $t0 i32) (local $t1 i32)
+  (func $main.drop (param $t0 i32)
     ;; 17 |     n := box::[Note](Note { text: "n" })
     local.get $t0
-    i32.load $heap offset=12
-    i32.const 64
-    i32.and
-    i32.eqz
+    i32.load $heap offset=24
+    local.tee $t0
     if
       local.get $t0
-      i32.load $heap offset=116
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'2
-      end
-    end
-    local.get $t0
-    i32.load $heap offset=24
-    local.tee $t1
-    if
-      local.get $t1
       call $rt:release_ref'2
     end
   )

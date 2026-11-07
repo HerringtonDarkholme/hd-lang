@@ -849,23 +849,6 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $scalar.drop (param $t0 i32)
-    ;; 16 |     join!(ready(a), ready(b))
-    local.get $t0
-    i32.load $heap offset=12
-    i32.const 64
-    i32.and
-    i32.eqz
-    if
-      local.get $t0
-      i32.load $heap offset=92
-      local.tee $t0
-      if
-        local.get $t0
-        call $rt:release_ref'1
-      end
-    end
-  )
   (func $scalar'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
     ;; 16 |     join!(ready(a), ready(b))
     call $rt:frame'2
@@ -2682,7 +2665,7 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $generic.drop (param $t0 i32) (local $t2 i32) (local $t1 i32)
+  (func $generic.drop (param $t0 i32) (local $t1 i32)
     ;; 10 |     join!(ready(a), ready(b))
     local.get $t0
     i32.load $heap offset=12
@@ -2703,39 +2686,6 @@
       if
         local.get $t1
         call $rt:release_ref'1
-      end
-      local.get $t0
-      i32.load $heap offset=132
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'1
-      end
-      local.get $t0
-      i32.load $heap offset=100
-      local.tee $t2
-      i32.const 1
-      i32.and
-      if
-        local.get $t0
-        i32.load $heap offset=116
-        local.tee $t1
-        if
-          local.get $t1
-          call $rt:release_ref'1
-        end
-      end
-      local.get $t2
-      i32.const 2
-      i32.and
-      if
-        local.get $t0
-        i32.load $heap offset=124
-        local.tee $t1
-        if
-          local.get $t1
-          call $rt:release_ref'1
-        end
       end
     end
   )
@@ -4600,7 +4550,7 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $sequential.drop (param $t0 i32) (local $t2 i32) (local $t1 i32)
+  (func $sequential.drop (param $t0 i32) (local $t1 i32)
     ;; 19 |     pair := join!(ready(a), ready(b))
     local.get $t0
     i32.load $heap offset=12
@@ -4621,72 +4571,6 @@
       if
         local.get $t1
         call $rt:release_ref'1
-      end
-      local.get $t0
-      i32.load $heap offset=132
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'1
-      end
-      local.get $t0
-      i32.load $heap offset=248
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'1
-      end
-      local.get $t0
-      i32.load $heap offset=100
-      local.tee $t2
-      i32.const 1
-      i32.and
-      if
-        local.get $t0
-        i32.load $heap offset=116
-        local.tee $t1
-        if
-          local.get $t1
-          call $rt:release_ref'1
-        end
-      end
-      local.get $t2
-      i32.const 2
-      i32.and
-      if
-        local.get $t0
-        i32.load $heap offset=124
-        local.tee $t1
-        if
-          local.get $t1
-          call $rt:release_ref'1
-        end
-      end
-      local.get $t0
-      i32.load $heap offset=216
-      local.tee $t2
-      i32.const 1
-      i32.and
-      if
-        local.get $t0
-        i32.load $heap offset=232
-        local.tee $t1
-        if
-          local.get $t1
-          call $rt:release_ref'1
-        end
-      end
-      local.get $t2
-      i32.const 2
-      i32.and
-      if
-        local.get $t0
-        i32.load $heap offset=240
-        local.tee $t1
-        if
-          local.get $t1
-          call $rt:release_ref'1
-        end
       end
     end
   )
