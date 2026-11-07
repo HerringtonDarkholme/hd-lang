@@ -3632,6 +3632,9 @@ mod tests {
     pub(crate) struct Counts;
 
     impl crate::own::OwnCx for Counts {
+        fn suspending(&self, _: DefId) -> bool {
+            false
+        }
         fn counted(&self, ty: Ty) -> bool {
             ty == Ty::STRING
         }

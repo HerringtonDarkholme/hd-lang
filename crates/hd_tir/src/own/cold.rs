@@ -1,26 +1,50 @@
-//! Declared parameters copied into a cold frame and its fresh body.
+//! Explicit value parameters copied into a cold frame and its fresh body.
 //!
 //! A concrete `Drop` argument arrives owned instead; its physical ABI
 //! transfers that count and the declaration lowers no copy.
 
 use super::{OwnCx, Tri, params};
-use crate::ir::{Body, BodyKind};
+use crate::ir::{Body, Tag};
 
-pub(crate) fn parameters(b: &Body, cx: &dyn OwnCx) -> Vec<u32> {
-    if !matches!(b.kind, BodyKind::Fn | BodyKind::DeriveInstance) || !cx.suspending(b.item) {
-        return Vec::new();
+/// The ABI declaration survives optimization erasing a suspension point.
+/// Generic instances of one closure share a single sub-body contract.
+pub(super) fn sub_bodies(b: &Body, cx: &dyn OwnCx) -> Vec<u32> {
+    let mut seen = vec![false; b.sub_root.len()];
+    seen[0] = cx.suspending(b.item);
+    for (i, &tag) in b.tags.iter().enumerate() {
+        if tag == Tag::Closure
+            && cx.function_suspends(b.ty[i])
+            && let Some(seen) = seen
+                .get_mut(b.data[i][0] as usize)
+                .filter(|_| b.data[i][0] != 0)
+        {
+            *seen = true;
+        }
     }
-    let params = params(b);
-    if cx.parameter_count(b.item) != Some(params.len()) {
-        return Vec::new();
-    }
-    params
-        .into_iter()
-        .filter(|&l| {
-            let ty = b.local_ty[l as usize];
-            cx.counted(ty) && cx.holds_drop(ty) != Tri::Yes
-        })
+    seen.into_iter()
+        .enumerate()
+        .filter_map(|(sub, yes)| yes.then_some(crate::ir::u32_of(sub)))
         .collect()
+}
+
+/// Each explicit value parameter belongs to its own body's boundary.
+/// Capture locals and reference-object counts have separate contracts.
+pub(crate) fn parameters(b: &Body, cx: &dyn OwnCx) -> Vec<(u32, u32)> {
+    let mut out = Vec::new();
+    for sub in sub_bodies(b, cx) {
+        let locals = if sub == 0 {
+            params(b)
+        } else {
+            let r = b.sub_params[sub as usize];
+            b.extra[r.start as usize + 1..(r.start + 1 + r.len) as usize].to_vec()
+        };
+        out.extend(locals.into_iter().filter_map(|l| {
+            let ty = b.local_ty[l as usize];
+            (cx.counted(ty) && cx.holds_drop(ty) != Tri::Yes)
+                .then_some((b.sub_root[sub as usize], l))
+        }));
+    }
+    out
 }
 
 #[cfg(test)]
@@ -28,7 +52,7 @@ mod tests {
     use super::super::Pass;
     use super::super::{counts::run, splice};
     use super::*;
-    use crate::ir::{Callee, TirBuilder, TirSink, local_flags, verify_owned};
+    use crate::ir::{BodyKind, Callee, TirBuilder, TirSink, local_flags, verify_owned};
     use crate::ir::{Tag, Topology};
     use hd_base::{DefId, NodeIdx, Symbol};
     use hd_types::Ty;
@@ -44,6 +68,9 @@ mod tests {
         }
         fn suspending(&self, _: DefId) -> bool {
             self.suspends
+        }
+        fn function_suspends(&self, ty: Ty) -> bool {
+            ty == Ty(43)
         }
         fn holds_drop(&self, _: Ty) -> Tri {
             self.drop
@@ -89,7 +116,7 @@ mod tests {
             (true, Tri::Maybe, true, Ty::STRING, 1),
             (true, Tri::Yes, true, Ty::STRING, 0),
             (false, Tri::No, true, Ty::STRING, 0),
-            (true, Tri::No, false, Ty::STRING, 0),
+            (true, Tri::No, false, Ty::STRING, 1),
             (true, Tri::No, true, Ty::I32, 0),
         ] {
             let facts = Facts {
@@ -119,6 +146,109 @@ mod tests {
             let text = crate::ir::print(&b);
             assert_eq!(crate::ir::print(&crate::ir::parse(&text).unwrap()), text);
         }
+    }
+
+    #[test]
+    fn a_root_follows_its_suspension_abi_without_a_body_kind_or_signature_whitelist() {
+        let facts = Facts {
+            suspends: true,
+            drop: Tri::No,
+            declared: false,
+        };
+        for kind in [
+            BodyKind::Fn,
+            BodyKind::DeriveInstance,
+            BodyKind::Default,
+            BodyKind::TestCase,
+            BodyKind::Init,
+        ] {
+            let mut b = body(Ty::STRING);
+            b.kind = kind;
+            let topo = Topology::new(&b);
+            run(&mut b, &facts, &topo, &mut splice::Tables::default()).unwrap();
+            assert_eq!(b.tags.iter().filter(|&&t| t == Tag::Retain).count(), 2);
+            assert!(verify_owned(&b, &facts).is_empty());
+        }
+    }
+
+    fn closures() -> Body {
+        let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        let syn = NodeIdx::NONE;
+        let outer = b.open_block();
+        let captured = b.local(Ty::STRING, Symbol::from_raw(0), local_flags::PARAM, syn);
+        for fn_ty in [Ty(43), Ty(43), Ty(44)] {
+            let text = b.local(Ty::STRING, Symbol::from_raw(0), local_flags::PARAM, syn);
+            let number = b.local(Ty::I32, Symbol::from_raw(0), local_flags::PARAM, syn);
+            let sub = b.open_sub(&[text, number]);
+            let inner = b.open_block();
+            let root = b.close_block(inner, None, Ty::VOID, syn);
+            b.capture(sub, captured);
+            b.close_sub(sub, root, fn_ty, syn);
+            // Generic instantiations share this sub's boundary.
+            b.capture(sub, captured);
+            b.close_sub(sub, root, fn_ty, syn);
+        }
+        let root = b.close_block(outer, None, Ty::VOID, syn);
+        b.finish(root, &[]).unwrap()
+    }
+
+    #[test]
+    fn suspending_closure_parameters_are_distinct_from_their_creator_siblings_and_captures() {
+        use crate::ir::count::{At, Info, Part};
+        let facts = Facts {
+            suspends: false,
+            drop: Tri::No,
+            declared: false,
+        };
+        let mut b = closures();
+        for _ in 0..2 {
+            let topo = Topology::new(&b);
+            run(&mut b, &facts, &topo, &mut splice::Tables::default()).unwrap();
+            let copies: Vec<_> = (0..b.len())
+                .filter_map(|i| {
+                    let info = Info::read(&b, i)?;
+                    matches!(info.part, Part::Local(_)).then_some((b.data[i][0], info))
+                })
+                .collect();
+            assert_eq!(copies.len(), 4);
+            for sub in 1..=2 {
+                let r = b.sub_params[sub];
+                let l = b.extra[r.start as usize + 1];
+                for at in [At::Cold, At::Entry] {
+                    assert!(copies.contains(&(b.sub_root[sub], Info::new(at, Part::Local(l), 0))));
+                }
+            }
+            assert!(verify_owned(&b, &facts).is_empty());
+        }
+        let text = crate::ir::print(&b);
+        assert_eq!(crate::ir::print(&crate::ir::parse(&text).unwrap()), text);
+        for target in [0, 2, 3] {
+            let mut wrong = b.clone();
+            let copy = (0..wrong.len())
+                .find(|&i| {
+                    Info::read(&wrong, i).is_some_and(|c| matches!(c.part, Part::Local(_)))
+                        && wrong.data[i][0] == wrong.sub_root[1]
+                })
+                .unwrap();
+            wrong.data[copy][0] = wrong.sub_root[target];
+            let errors = verify_owned(&wrong, &facts);
+            assert!(
+                errors
+                    .iter()
+                    .any(|e| e.what.contains("without its count fact"))
+            );
+            assert!(errors.iter().any(|e| e.what.contains("absent or repeated")));
+        }
+        let transferred = Facts {
+            drop: Tri::Yes,
+            ..facts
+        };
+        assert!(parameters(&b, &transferred).is_empty());
+        assert!(
+            verify_owned(&b, &transferred)
+                .iter()
+                .any(|e| e.what.contains("without its count fact"))
+        );
     }
 
     #[test]
