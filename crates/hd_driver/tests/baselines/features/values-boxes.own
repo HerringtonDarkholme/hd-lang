@@ -2,9 +2,10 @@
 # @dump: tir own counts wat
 # @build: v8 release
 # Feature: Boxes (spec/lang/13-values-and-references.md, #1364).
-# expected: `copy_box` moves `p` into the box, since `p.name = t`
-# refills all of `p`: no count; `move_box` moves `p` into the box; `shared`
-# retains the box once for the holder (reason 1).
+# expected: `copy_box` copies `p` into the box, since `p.name = t` keeps
+# using `p`: one retain, and the store releases the name it overwrites;
+# `move_box` moves `p` into the box; `shared` retains the box once for the
+# holder (reason 1).
 struct Point:
     name: string
 
@@ -32,7 +33,7 @@ fn copy_box(s: string, t: string) -> usize:
 >   %2 = Store [$2] %1 : ()
 >   %27 = Block %26 : usize
     copy := box(p)
->   %3 = Read move [$2] : Point
+>   %3 = Read copy [$2] : Point
 >   %4 = Store [$3] %3 : ()
 >   %5 = Ref take mut [$3] : Counted[mut Point]
 >   %6 = Store [$4] %5 : ()
