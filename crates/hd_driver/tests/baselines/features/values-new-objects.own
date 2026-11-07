@@ -98,11 +98,11 @@ fn field_ref(s: string, t: string) -> usize:
 >   local $3 q: Ref[mut string] [:= read assigned] value
 >     uses $3: %4 -> %6 lend last
 >   local $4 self: string [read] value
->     uses $4: %10 -> %11 lend last
+>     uses $4: %9 -> %10 lend last
 >   %0 = Read move [$0] : string
 >   %1 = NewStruct [%0] : Named
 >   %2 = Store [$2] %1 : ()
->   %17 = Block %15 : usize
+>   %16 = Block %14 : usize
     q := &mut p.name
 >   %3 = Ref mut local frame [$2 .name] : Ref[mut string]
 >   %4 = Store [$3] %3 : ()
@@ -112,15 +112,14 @@ fn field_ref(s: string, t: string) -> usize:
 >   %6 = Store [*$3] %5 : ()
 >   %7 = LoanEnd [$3] : ()
     p.name.len()
->   %8 = Read copy [$2 .name] : string
->   %9 = Drop [$2] : ()
->   %10 = Store [$4] %8 : ()
->   %11 = Read borrow [$4] : string
->   %12 = Call std/rt.bytes/bytes_len[] (%11) : usize
->   %13 = Break L0 %12 : never
->   %14 = Block - : usize
->   %15 = Scope %14 [] : usize
->   %16 = Drop [$4] : ()
+>   %8 = Read move [$2 .name] : string
+>   %9 = Store [$4] %8 : ()
+>   %10 = Read borrow [$4] : string
+>   %11 = Call std/rt.bytes/bytes_len[] (%10) : usize
+>   %12 = Break L0 %11 : never
+>   %13 = Block - : usize
+>   %14 = Scope %13 [] : usize
+>   %15 = Drop [$4] : ()
 >   %8 finds [$2] full
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1] writes

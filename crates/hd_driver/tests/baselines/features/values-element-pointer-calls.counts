@@ -38,7 +38,6 @@ fn keep(n: *Node, k: &mut Keeper) -> void:
     k.saved.push(n)
 > app/main/keep
 >   retain &app.main.Node (stored)
->   (no span) unique List[&app.main.Node] (conservative: unique)
 
 fn save(node: &Node, k: &mut Keeper) -> void:
     for e in &node.children:
@@ -55,7 +54,5 @@ pub fn run(root: *Node) -> i64:
     let mut keeper = Keeper { saved: [] }
     save(root, &mut keeper)
     total.sum + i64(keeper.saved.len())
->   copy List[&app.main.Node] (conservative: copy read)
 >   (no span) release &mut app.main.Sink (by design)
->   (no span) release app.main.Keeper (last use)
 >   (no span) release List[&app.main.Node] (last use)

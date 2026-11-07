@@ -96,7 +96,7 @@ fn keep(n: *Node, k: &mut Keeper) -> void:
 >   %2 = Read borrow [*$1 .saved] : List[Counted[Node]]
 >   %3 = Intrinsic ListPush [%2 %0] : ()
 >   %4 = Block - : ()
->   %1 shared: a copy of the field
+>   %1 owned: single-owner field
 >   summary kept [$0] writes
 
 fn save(node: &Node, k: &mut Keeper) -> void:
@@ -154,7 +154,7 @@ pub fn run(root: *Node) -> i64:
 >   local $3 keeper: Keeper [read assigned captured captured-assigned] place
 >   %0 = NewStruct [0:i64] : Total
 >   %1 = Store [$1] %0 : ()
->   %28 = Block %27 : i64
+>   %27 = Block %26 : i64
     walk(root, &mut total)
 >   %2 = Read borrow [$0] : Counted[Node]
 >   %3 = Ref mut local frame [$1] : Ref[mut Total]
@@ -181,12 +181,11 @@ pub fn run(root: *Node) -> i64:
     total.sum + i64(keeper.saved.len())
 >   %20 = Read copy [$1 .sum] : i64
 >   %21 = Drop [$1] : ()
->   %22 = Read copy [$3 .saved] : List[Counted[Node]]
->   %23 = Drop [$3] : ()
->   %24 = Intrinsic ListLen [%22] : usize
->   %25 = Drop [%22] : ()
->   %26 = Prim Conv [%24] : i64
->   %27 = Prim Add [%20 %26] : i64
+>   %22 = Read move [$3 .saved] : List[Counted[Node]]
+>   %23 = Intrinsic ListLen [%22] : usize
+>   %24 = Drop [%22] : ()
+>   %25 = Prim Conv [%23] : i64
+>   %26 = Prim Add [%20 %25] : i64
 >   %20 finds [$1] full
 >   %22 finds [$3] full
 >   summary kept [] writes

@@ -586,6 +586,7 @@ pub(crate) fn escaping(b: &Body, cx: &dyn OwnCx) -> Vec<bool> {
     let mut out = vec![false; b.local_ty.len()];
     for (i, &read_through) in read_through.iter().enumerate() {
         if b.tags[i] == Tag::Ref
+            && b.data[i][1] & crate::ir::ref_word::FRAME == 0
             && let Some(l) = b.local_in_place(b.data[i][0])
             && !lends_once(b, cx, &counts, &last, i)
             && !read_through

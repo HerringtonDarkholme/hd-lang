@@ -51,7 +51,7 @@ pub(crate) mod borrow;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod derive;
 pub mod flow;
-mod frame;
+pub(crate) mod frame;
 pub use frame::store_finds_empty;
 pub(crate) mod hoist;
 mod insert;
@@ -873,6 +873,55 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
 pub(crate) fn derive_decides() -> bool {
     static NEW: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *NEW.get_or_init(|| std::env::var_os("HD_OWN_NEW").is_some())
+}
+
+/// Each use of what may point into a frame local that a mutable reference
+/// outliving its one call may write, as (instruction, local), sorted: the only
+/// places such a reference can write it. One that dies with its call writes
+/// at its `Ref`, by its own path.
+pub(crate) fn frame_reference_uses(
+    b: &Body,
+    topo: &Topology,
+    cx: &dyn OwnCx,
+    out: &mut Vec<(u32, u32)>,
+) {
+    let n = b.len();
+    let (mut counts, mut last) = (vec![0; n], vec![NONE; n]);
+    let mut ops = Vec::new();
+    for i in 0..n {
+        operands(b, i, &mut ops);
+        for op in &ops {
+            if op.role != Role::Dropped {
+                counts[op.value as usize] += 1;
+                last[op.value as usize] = u32_of(i);
+            }
+        }
+    }
+    let mut wanted = vec![false; b.local_ty.len()];
+    for i in 0..n {
+        if b.tags[i] == Tag::Ref
+            && b.data[i][1] & crate::ir::ref_word::MUT != 0
+            && b.data[i][1] & crate::ir::ref_word::FRAME != 0
+            && let Some(l) = b.local_in_place(b.data[i][0])
+            && !borrow::lends_once(b, cx, &counts, &last, i)
+        {
+            wanted[l.idx()] = true;
+        }
+    }
+    if !wanted.contains(&true) {
+        return;
+    }
+    let mut copy = b.clone();
+    let mut t = frame::Tables::default();
+    // Ending a reference reads nothing through it.
+    frame::run(&mut copy, topo, cx, &mut t, |i, l, in_frame| {
+        if in_frame && wanted[l as usize] && !matches!(b.tags[i as usize], Tag::Drop | Tag::LoanEnd)
+        {
+            out.push((i, l));
+        }
+    });
+    hd_base::SliceSort::sort_stable(&mut out[..]);
+    out.dedup();
 }
 
 /// The derivation and the move walk over a copy of `b`, as insertion left

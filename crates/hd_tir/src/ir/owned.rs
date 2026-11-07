@@ -107,7 +107,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     let fills: Vec<bool> = (0..b.len())
         .map(|i| crate::own::moves::fills_local(b, own, i))
         .collect();
-    Empties::new(&cx, fills).walk(&mut errs);
+    Empties::new(&cx, own, fills).walk(&mut errs);
     borrow_spans(&cx, own, &mut errs);
     binding_locals(&cx, own, &mut errs);
     Balance::new(b, &topo, own).walk(&mut errs);
@@ -812,12 +812,15 @@ struct Empties<'a> {
     /// Per instruction: whether it is a store into a field path that is
     /// all of its local (`crate::own::moves::fills_local`).
     fills: Vec<bool>,
+    /// (instruction, move number) for each use through a reference into a
+    /// part of a frame local that a `move` read empties, sorted.
+    part_uses: Vec<(u32, u32)>,
     reported: Vec<bool>,
     errs: Vec<VerifyError>,
 }
 
 impl<'a> Empties<'a> {
-    fn new(cx: &'a Cx<'a>, fills: Vec<bool>) -> Self {
+    fn new(cx: &'a Cx<'a>, own: &dyn OwnCx, fills: Vec<bool>) -> Self {
         let b = cx.b;
         let mut id = vec![NONE; b.len()];
         let mut at = Vec::new();
@@ -848,12 +851,40 @@ impl<'a> Empties<'a> {
             })
             .collect();
         by_value.sort_stable();
+        let moved: Vec<(u32, u32)> = at
+            .iter()
+            .enumerate()
+            .filter(|&(_, &e)| b.tags[e as usize] == Tag::Read)
+            .filter_map(|(k, &e)| {
+                let p = b.view(b.data[e as usize][0]);
+                let l = p.local().filter(|_| !p.whole())?;
+                let framed = (0..b.len()).any(|i| {
+                    b.tags[i] == Tag::Ref
+                        && b.data[i][1] & super::ref_word::FRAME != 0
+                        && b.view(b.data[i][0]).local() == Some(l)
+                });
+                framed.then_some((u32_of(k), l))
+            })
+            .collect();
+        let mut part_uses = Vec::new();
+        let mut t = crate::own::frame::Tables::default();
+        for chunk in moved.chunks(64) {
+            let targets: Vec<(u32, u32)> = chunk
+                .iter()
+                .map(|&(k, l)| (l, b.data[at[k as usize] as usize][0]))
+                .collect();
+            crate::own::frame::part_uses(b, own, &mut t, &targets, |i, n| {
+                part_uses.push((i, chunk[n].0));
+            });
+        }
+        part_uses.sort_stable();
         Empties {
             cx,
             id,
             at,
             by_value,
             fills,
+            part_uses,
             reported: vec![false; b.len()],
             errs: Vec::new(),
         }
@@ -931,7 +962,7 @@ impl<'a> Empties<'a> {
         for (k, &e) in self.at.iter().enumerate() {
             if get_bit(s, k)
                 && let Some(p) = &self.cx.places[e as usize]
-                && self.empties(e, p, q)
+                && (self.empties(e, p, q) || self.part_uses.binary_search(&(x, u32_of(k))).is_ok())
             {
                 self.reported[x as usize] = true;
                 let what = format!(
@@ -1156,8 +1187,13 @@ fn borrow_spans(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
             frame[l.idx()] = false;
         }
     }
+    // A frame local's references live in this body: each use of what may
+    // point into one may write it, there and nowhere else.
+    let mut frame_uses = Vec::new();
+    crate::own::frame_reference_uses(b, cx.topo, own, &mut frame_uses);
     let mut walk = Live {
         cx,
+        frame_uses,
         may,
         excl,
         frame,
@@ -1177,6 +1213,9 @@ fn borrow_spans(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
 /// The borrow walk's state ([`borrow_spans`]).
 struct Live<'a> {
     cx: &'a Cx<'a>,
+    /// Each use of what may point into a frame local, as (instruction,
+    /// local), by instruction.
+    frame_uses: Vec<(u32, u32)>,
     /// Per instruction: a call that may write. Per local: a parameter
     /// whose referent exclusive mode lets a borrow live across such calls.
     may: Vec<bool>,
@@ -1269,6 +1308,19 @@ impl Backward for Live<'_> {
             self.check(x, s, live, |r, p| {
                 q.root != PlaceRoot::Value(Ref(r)) && self.cx.overlap(p, q)
             });
+        }
+        let k = self.frame_uses.partition_point(|u| u.0 < x);
+        for u in k..self.frame_uses.len() {
+            let (at, l) = self.frame_uses[u];
+            if at != x {
+                break;
+            }
+            self.check(
+                x,
+                s,
+                live,
+                |_, p| matches!(p.root, PlaceRoot::Local(m) if m.raw() == l),
+            );
         }
         if self.may[i] {
             let mut ops = Vec::new();

@@ -2,13 +2,10 @@
 # @dump: own counts wat
 # @build: std
 # expected: `b.item_mut(0).qty = +7` holds a reference to `b` in a call's
-# result for that one statement. Both later reads of `b` copy today:
-# `kept := b.label` retains and releases the string, and `b.items.len()` copies
-# the list and releases it (both `conservative: copy read`). Neither should
-# take a count: the result's last use ends before the first read, and `b`
-# outlives the second. The new place-local facts have to bring the borrows back
-# (#1399, step 12c); the second read also stands right before `b`'s `Drop`, so
-# it needs a part of an addressed local to borrow or move.
+# result for that one statement. Neither later read of `b` takes a count: that
+# reference's last use ends before the first read, no reference reads either
+# part afterwards, and each read is its part's last use, so it moves out of the
+# frame slot, which stores a zero there.
 struct Item:
     qty: i32
 
@@ -28,9 +25,6 @@ fn change_then_read(name: string) -> usize:
 > std/rt_tests.stage_case/change_then_read
 >   unique List[std.rt_tests.stage_case.Item] (conservative: unique)
     kept := b.label
->   retain string (conservative: copy read)
     kept.len() + b.items.len()
->   copy List[std.rt_tests.stage_case.Item] (conservative: copy read)
 >   (no span) release string (last use)
->   (no span) release std.rt_tests.stage_case.Bag [label.0, items] (last use)
 >   (no span) release List[std.rt_tests.stage_case.Item] (last use)

@@ -1,0 +1,16 @@
+# test: a part of a local that a local reference still reads keeps its value when the part is read again, so the read copies and does not empty it
+# Spec lang/13-values-and-references.md: ref.move.field.
+# expect-stdout: 5
+struct Bag:
+    label: string
+    items: List[string]
+
+fn f(name: string) -> usize:
+    let mut b = Bag { label: name, items: ["one${1}"] }
+    r := &b.items
+    x := b.items
+    n := r.len() + r[0].len()
+    n + x.len() + b.label.len() - 3
+
+pub fn main() -> void $ Console:
+    println(f("n${1}"))

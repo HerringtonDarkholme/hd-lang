@@ -5,11 +5,10 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
-  (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 6 funcref))
+  (import "fixture" "table0" (table $table0 5 funcref))
   (func $"impl Sink for Total.emit" (param $self i32) (param $value i64)
     ;; 26 |         self.sum += value
     block
@@ -121,7 +120,7 @@
       call $retain
       local.get $root
       local.get $t1
-      i32.const 296 ;; &vtable[func46]
+      i32.const 296 ;; &vtable[func43]
       call $walk
     ;; (no span)
       local.get $t1
@@ -144,28 +143,17 @@
       local.get $t1
     ;; 43 |     total.sum + i64(keeper.saved.len())
       i64.load $heap
-      local.set $t2
       local.get $keeper
       i32.load $heap
-      call $rt:coll_copy
-      local.set $root
-    ;; (no span)
+      local.tee $root
       local.get $keeper
-      if
-        local.get $keeper
-        i32.load $heap
-        call $rt:release_ref'1
-      end
-    ;; 43 |     total.sum + i64(keeper.saved.len())
-      local.get $root
+      i32.const 0
+      i32.store $heap
       i32.load $heap offset=4
-      local.set $t1
     ;; (no span)
       local.get $root
       call $rt:release_ref'1
     ;; 43 |     total.sum + i64(keeper.saved.len())
-      local.get $t2
-      local.get $t1
       i64.extend_i32_u
       i64.add
     ;; (no span)
@@ -249,13 +237,8 @@
     ;; (no span)
       local.get $k
       i32.load $heap
-      call $rt:list_unique
-      local.set $t0
-      local.get $k
-      local.get $t0
-      i32.store $heap
-      local.get $t0
     ;; 32 |     k.saved.push(n)
+      local.tee $t0
       i32.load $heap offset=4
       local.tee $t1
       local.get $t0

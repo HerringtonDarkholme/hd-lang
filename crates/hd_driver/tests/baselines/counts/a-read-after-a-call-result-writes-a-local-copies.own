@@ -2,13 +2,10 @@
 # @dump: own counts wat
 # @build: std
 # expected: `b.item_mut(0).qty = +7` holds a reference to `b` in a call's
-# result for that one statement. Both later reads of `b` copy today:
-# `kept := b.label` retains and releases the string, and `b.items.len()` copies
-# the list and releases it (both `conservative: copy read`). Neither should
-# take a count: the result's last use ends before the first read, and `b`
-# outlives the second. The new place-local facts have to bring the borrows back
-# (#1399, step 12c); the second read also stands right before `b`'s `Drop`, so
-# it needs a part of an addressed local to borrow or move.
+# result for that one statement. Neither later read of `b` takes a count: that
+# reference's last use ends before the first read, no reference reads either
+# part afterwards, and each read is its part's last use, so it moves out of the
+# frame slot, which stores a zero there.
 struct Item:
     qty: i32
 
@@ -46,7 +43,7 @@ fn change_then_read(name: string) -> usize:
 >   %2 = NewList - [%1] : List[Item]
 >   %3 = NewStruct [%0 %2] : Bag
 >   %4 = Store [$1] %3 : ()
->   %31 = Block %30 : usize
+>   %30 = Block %29 : usize
     b.item_mut(0).qty = +7
 >   %5 = Ref mut local frame [$1] : Ref[mut Bag]
 >   %6 = Store [$4] %5 : ()
@@ -63,7 +60,7 @@ fn change_then_read(name: string) -> usize:
 >   %17 = LoanEnd [$4] : ()
 >   %5 finds [$1] full
     kept := b.label
->   %18 = Read copy [$1 .label] : string
+>   %18 = Read move [$1 .label] : string
 >   %19 = Store [$2] %18 : ()
 >   %18 finds [$1] full
     kept.len() + b.items.len()
@@ -73,10 +70,8 @@ fn change_then_read(name: string) -> usize:
 >   %23 = Block - : usize
 >   %24 = Scope %23 [] : usize
 >   %25 = Drop [$2] : ()
->   %26 = Read copy [$1 .items] : List[Item]
->   %27 = Drop [$1] : ()
->   %28 = Intrinsic ListLen [%26] : usize
->   %29 = Drop [%26] : ()
->   %30 = Prim Add [%24 %28] : usize
->   %26 finds [$1] full
+>   %26 = Read move [$1 .items] : List[Item]
+>   %27 = Intrinsic ListLen [%26] : usize
+>   %28 = Drop [%26] : ()
+>   %29 = Prim Add [%24 %27] : usize
 >   exit sub 0 drops [$0]

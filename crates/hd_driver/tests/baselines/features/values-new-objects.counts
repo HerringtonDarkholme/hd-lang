@@ -32,6 +32,4 @@ fn field_ref(s: string, t: string) -> usize:
 > app/main/field_ref
 >   release counted reference (conservative: Store)
     p.name.len()
->   retain string (conservative: copy read)
->   (no span) release app.main.Named [name.0] (last use)
 >   (no span) release string (last use)

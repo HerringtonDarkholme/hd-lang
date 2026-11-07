@@ -3,10 +3,7 @@
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
-  (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "locals" (global $locals (mut i32)))
@@ -20,7 +17,7 @@
       i32.load $heap offset=8
       call $rt:list_unique
       i32.store $heap offset=8
-    ;; 20 |         &mut self.items[i]
+    ;; 17 |         &mut self.items[i]
       local.get $self
       i32.load $heap offset=8
       local.set $self
@@ -76,7 +73,7 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 23 |     let mut b = Bag { label: name, items: [Item { qty: +1 }] }
+    ;; 20 |     let mut b = Bag { label: name, items: [Item { qty: +1 }] }
       local.get $name.0
       i32.const 1
       call $rt:list_buf
@@ -104,7 +101,7 @@
       i32.store $heap offset=8
       local.get $t1
       local.tee $name.0
-    ;; 24 |     b.item_mut(0).qty = +7
+    ;; 21 |     b.item_mut(0).qty = +7
       local.set $name.1
       block
         block
@@ -134,15 +131,20 @@
       local.get $name.1
       i32.const 7
       i32.store $heap
-    ;; 25 |     kept := b.label
+    ;; 22 |     kept := b.label
       local.get $name.0
       i32.load $heap
       local.get $name.0
       i32.load $heap offset=4
+      local.get $name.0
+      i32.const 0
+      i32.store $heap
+      local.get $name.0
+      i32.const 0
+      i32.store $heap offset=4
       local.set $kept.1
-      local.tee $name.1
-      call $retain
-    ;; 26 |     kept.len() + b.items.len()
+      local.set $name.1
+    ;; 23 |     kept.len() + b.items.len()
       block
         block
           br 0
@@ -151,30 +153,38 @@
     ;; (no span)
       local.get $name.1
       call $rt:release_ref'1
-    ;; 26 |     kept.len() + b.items.len()
+    ;; 23 |     kept.len() + b.items.len()
+      local.get $name.0
+      i32.eqz
+      if
+        local.get $t0
+        i64.const 0
+        i64.store $heap
+        local.get $t0
+        i32.const 8
+        i32.add
+        local.tee $name.0
+        i32.const 0
+        i32.store $heap
+        local.get $name.0
+        i32.const 0
+        i32.store $heap offset=4
+        local.get $name.0
+        i32.const 0
+        i32.store $heap offset=8
+      end
       local.get $name.0
       i32.load $heap offset=8
-      call $rt:coll_copy
-      local.set $name.1
-    ;; (no span)
+      local.tee $name.1
       local.get $name.0
-      if
-        local.get $name.0
-        i32.load $heap
-        local.get $name.0
-        i32.load $heap offset=4
-        local.get $name.0
-        i32.load $heap offset=8
-        call $rt:release
-      end
-    ;; 26 |     kept.len() + b.items.len()
-      local.get $name.1
+      i32.const 0
+      i32.store $heap offset=8
       i32.load $heap offset=4
       local.set $name.0
     ;; (no span)
       local.get $name.1
       call $rt:release_ref'2
-    ;; 26 |     kept.len() + b.items.len()
+    ;; 23 |     kept.len() + b.items.len()
       local.get $kept.1
       i64.extend_i32_u
       local.get $name.0

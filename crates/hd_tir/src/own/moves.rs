@@ -580,11 +580,12 @@ fn part_bits_of_reads(b: &Body, cx: &dyn OwnCx, t: &mut Tables, k: &mut u32) {
             Root::Value(v) => (t.vnum[v as usize] != NONE, false),
             _ => continue,
         };
+        let frame_local = matches!(p.root, Root::Local(l) if t.frame[l as usize]);
         let copies = cx.copies(b.ty[i]) == Tri::Yes;
         if !candidate
             || p.whole()
             || !p.in_place(b)
-            || (copies && (addr || !cx.counted(b.ty[i])))
+            || (copies && (!cx.counted(b.ty[i]) || (addr && !frame_local)))
             || (addr && !p.steps(b).all(|s| matches!(s, Proj::Field(_))))
         {
             continue;
