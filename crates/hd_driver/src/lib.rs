@@ -1101,29 +1101,43 @@ struct Bodies {
     own_error: Mutex<Option<String>>,
 }
 
-/// One body: where its wire bytes are, the body once decoded, and with
-/// the ownership passes on, the body after them.
+/// One body: where its wire bytes are, and what a build derives from them. The
+/// table holds one per body of every module and a build reads few, so the
+/// derived forms are allocated on first use.
 struct LazyBody {
     /// The module, its `check` entry, and the body's bytes in it; `None`
     /// for a body built in this run (a module cycle's init run).
     wire: Option<(usize, Arc<[u8]>, std::ops::Range<usize>)>,
+    forms: OnceLock<Box<BodyForms>>,
+}
+
+/// A body once decoded, and with the ownership passes on, the body after them.
+#[derive(Default)]
+struct BodyForms {
     body: OnceLock<Option<(Body, Hash128)>>,
     owned: OnceLock<Option<(Body, Hash128)>>,
     /// A generic item's body folded and inlined, before the passes
     /// (`ProgramEnv::shape_body`), and its hash; in dev, each of its
-    /// instances substitutes it (`own::Env::inlined_instance`). Boxed: the
-    /// table holds a `LazyBody` per body of every module, and few are
-    /// generic.
+    /// instances substitutes it (`own::Env::inlined_instance`).
     inlined: OnceLock<Option<Box<(Body, Hash128)>>>,
+}
+
+impl std::ops::Deref for LazyBody {
+    type Target = BodyForms;
+    fn deref(&self) -> &BodyForms {
+        self.forms.get_or_init(Box::default)
+    }
 }
 
 impl LazyBody {
     fn ready(body: Body, tir: Hash128) -> Self {
+        let forms = BodyForms {
+            body: OnceLock::from(Some((body, tir))),
+            ..BodyForms::default()
+        };
         LazyBody {
             wire: None,
-            body: OnceLock::from(Some((body, tir))),
-            owned: OnceLock::new(),
-            inlined: OnceLock::new(),
+            forms: OnceLock::from(Box::new(forms)),
         }
     }
 }
@@ -2699,7 +2713,8 @@ fn build_packages_inner(
     }
     if let Some(program) = run.program.get() {
         for (&hash, lazy) in &program.bodies.all {
-            let (Some((m, entry, _)), Some(Some((body, _)))) = (&lazy.wire, lazy.body.get()) else {
+            let decoded = lazy.forms.get().and_then(|forms| forms.body.get());
+            let (Some((m, entry, _)), Some(Some((body, _)))) = (&lazy.wire, decoded) else {
                 continue;
             };
             // BodyOut already supplied cold modules. Fetched bodies may
@@ -8658,9 +8673,7 @@ impl Run<'_> {
                 }
                 let lazy = LazyBody {
                     wire: Some((m, c.entry.clone(), at)),
-                    body: OnceLock::new(),
-                    owned: OnceLock::new(),
-                    inlined: OnceLock::new(),
+                    forms: OnceLock::new(),
                 };
                 if kept {
                     bodies.entry(item).or_insert(lazy);
