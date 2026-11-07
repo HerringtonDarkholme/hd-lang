@@ -19,9 +19,9 @@ impl Named for User:
 fn same_dyn(user: &mut User) -> bool:
     let first: &mut dyn Named = user
 > app/main/same_dyn
->   retain app.main.Named (conservative: Coerce)
+>   retain app.main.Named (stored)
     let second: &mut dyn Named = user
->   retain app.main.Named (conservative: Coerce)
+>   retain app.main.Named (stored)
     first is second
 >   (no span) release &mut app.main.Named (by design)
 >   (no span) release &mut app.main.Named (by design)

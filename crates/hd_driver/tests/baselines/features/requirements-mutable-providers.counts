@@ -36,7 +36,7 @@ fn demo(a: string, b: string) -> usize:
     tally := box(Log { lines: [] })
     $.with(Recorder=tally):
 > app/main/demo
->   retain app.main.Recorder (conservative: Coerce)
+>   retain app.main.Recorder (stored)
         _ := tick(a)
         _ := tick(b)
     tally.lines.len()

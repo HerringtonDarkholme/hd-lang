@@ -462,6 +462,16 @@ impl OwnCx for Env<'_> {
         self.is_open(ty) || self.layout_facts(ty).0
     }
 
+    fn single_counted_address(&self, ty: Ty) -> bool {
+        !self.is_open(ty) && hd_wasm_linear::single_counted_address_type(&self.run.pool, self, ty)
+    }
+
+    fn reference_target(&self, ty: Ty) -> Option<Ty> {
+        (!self.is_open(ty))
+            .then(|| hd_wasm_linear::reference_target_type(&self.run.pool, self, ty))
+            .flatten()
+    }
+
     fn plain_reference(&self, ty: Ty) -> bool {
         !self.is_open(ty) && hd_wasm_linear::plain_reference_type(&self.run.pool, self, ty)
     }

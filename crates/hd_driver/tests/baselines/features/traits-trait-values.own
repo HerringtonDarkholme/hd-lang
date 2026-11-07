@@ -74,10 +74,11 @@ fn boxed(u: User) -> *dyn Greet:
 >   %4 = Store [$2] %3 : ()
 >   %5 = Read move [$2] : Counted[User]
 >   %6 = Coerce %5 [RefToTraitValue -] : Greet
->   %7 = Drop [%5] : ()
->   %8 = Block %6 : Greet
->   %9 = RefDyn %8 : Counted[Greet]
->   %10 = Block %9 : Counted[Greet]
+>   %7 = Retain %6 #0 : ()
+>   %8 = Drop [%5] : ()
+>   %9 = Block %6 : Greet
+>   %10 = RefDyn %9 : Counted[Greet]
+>   %11 = Block %10 : Counted[Greet]
 >   %2 finds [$1] full
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
@@ -106,25 +107,26 @@ fn local_mut(u: User, n: string) -> usize:
 >   local $0 u: User [param read] value
 >     uses $0: entry -> %0 consume last
 >   local $1 n: string [param read] value
->     uses $1: entry -> %9 lend last
+>     uses $1: entry -> %10 lend last
 >   local $2 v: User [read assigned captured captured-assigned] place
 >   local $3 $ref: Ref[mut User] [read assigned captured] value
 >     uses $3: %3 -> %4 lend last
 >   %0 = Read move [$0] : User
 >   %1 = Store [$2] %0 : ()
->   %13 = Block %10 : usize
+>   %14 = Block %11 : usize
     through_mut(&mut v, n)
 >   %2 = Ref mut local frame [$2] : Ref[mut User]
 >   %3 = Store [$3] %2 : ()
 >   %4 = Read move [$3] : Ref[mut User]
 >   %5 = Coerce %4 [RefToTraitValue -] : Greet
->   %6 = LoanEnd [%4] : ()
->   %7 = Block %5 : Greet
->   %8 = RefDyn %7 : Ref[mut Greet]
->   %9 = Read borrow [$1] : string
->   %10 = Call app/main/through_mut[] (%8, %9) : usize
->   %11 = Drop [%8] : ()
->   %12 = Drop [$2] : ()
+>   %6 = Retain %5 #0 : ()
+>   %7 = LoanEnd [%4] : ()
+>   %8 = Block %5 : Greet
+>   %9 = RefDyn %8 : Ref[mut Greet]
+>   %10 = Read borrow [$1] : string
+>   %11 = Call app/main/through_mut[] (%9, %10) : usize
+>   %12 = Drop [%9] : ()
+>   %13 = Drop [$2] : ()
 >   %2 finds [$2] full
 >   exit sub 0 drops [$0]
 >   summary kept [$0] borrows [$1] writes

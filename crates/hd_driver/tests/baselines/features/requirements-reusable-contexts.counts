@@ -23,7 +23,7 @@ fn read_tag() -> usize $ Tag:
 fn make(s: string) -> $.Context[$ Tag]:
     $.context(Tag=Named { label: s })
 > app/main/make
->   retain app.main.Tag (conservative: Coerce)
+>   retain app.main.Tag (stored)
 >   retain counted reference (conservative: ContextNew)
 >   (no span) release &app.main.Tag (by design)
 >   (no span) release app.main.Tag (last use)

@@ -29,7 +29,7 @@
     },
     {
       "reason": "conservative: Coerce",
-      "sites": 6
+      "sites": 0
     },
     {
       "reason": "conservative: Intrinsic",

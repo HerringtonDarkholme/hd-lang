@@ -24,37 +24,39 @@ fn same_dyn(user: &mut User) -> bool:
     let first: &mut dyn Named = user
 > app/main/same_dyn
 >   local $0 user: Ref[mut User] [param read] value
->     uses $0: entry -> %0 consume, %8 consume last
+>     uses $0: entry -> %0 consume, %9 consume last
 >   local $1 $ref: Ref[mut User] [read assigned captured] value
 >     uses $1: %1 -> %2 lend last
 >   local $2 first: Ref[mut Named] [read assigned] value
->     uses $2: %7 -> %16 lend last
+>     uses $2: %8 -> %18 lend last
 >   local $3 $ref: Ref[mut User] [read assigned captured] value
->     uses $3: %9 -> %10 lend last
+>     uses $3: %10 -> %11 lend last
 >   local $4 second: Ref[mut Named] [read assigned] value
->     uses $4: %15 -> %17 lend last
+>     uses $4: %17 -> %19 lend last
 >   %0 = Read copy [$0] : Ref[mut User]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read move [$1] : Ref[mut User]
 >   %3 = Coerce %2 [RefToTraitValue -] : Named
->   %4 = Drop [%2] : ()
->   %5 = Block %3 : Named
->   %6 = RefDyn %5 : Ref[mut Named]
->   %7 = Store [$2] %6 : ()
->   %21 = Block %18 : bool
+>   %4 = Retain %3 #0 : ()
+>   %5 = Drop [%2] : ()
+>   %6 = Block %3 : Named
+>   %7 = RefDyn %6 : Ref[mut Named]
+>   %8 = Store [$2] %7 : ()
+>   %23 = Block %20 : bool
     let second: &mut dyn Named = user
->   %8 = Read copy [$0] : Ref[mut User]
->   %9 = Store [$3] %8 : ()
->   %10 = Read move [$3] : Ref[mut User]
->   %11 = Coerce %10 [RefToTraitValue -] : Named
->   %12 = Drop [%10] : ()
->   %13 = Block %11 : Named
->   %14 = RefDyn %13 : Ref[mut Named]
->   %15 = Store [$4] %14 : ()
+>   %9 = Read copy [$0] : Ref[mut User]
+>   %10 = Store [$3] %9 : ()
+>   %11 = Read move [$3] : Ref[mut User]
+>   %12 = Coerce %11 [RefToTraitValue -] : Named
+>   %13 = Retain %12 #0 : ()
+>   %14 = Drop [%11] : ()
+>   %15 = Block %12 : Named
+>   %16 = RefDyn %15 : Ref[mut Named]
+>   %17 = Store [$4] %16 : ()
     first is second
->   %16 = Read move [$2] : Ref[mut Named]
->   %17 = Read move [$4] : Ref[mut Named]
->   %18 = Is %16 %17 : bool
->   %19 = Drop [%17] : ()
->   %20 = Drop [%16] : ()
+>   %18 = Read move [$2] : Ref[mut Named]
+>   %19 = Read move [$4] : Ref[mut Named]
+>   %20 = Is %18 %19 : bool
+>   %21 = Drop [%19] : ()
+>   %22 = Drop [%18] : ()
 >   summary kept [$0]

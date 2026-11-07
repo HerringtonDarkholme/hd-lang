@@ -112,7 +112,7 @@ impl Em<'_, '_, '_> {
             };
             let vt = self.vtable_of(&table, leaves, from)?;
             self.f.push(Ins::VTable(vt));
-            return self.store(i);
+            return self.store_as(i, self.has_stated_retain(i));
         }
         let src = Src::Ref(a);
         let m = mem_of(self.pool(), self.env(), from)?;
@@ -295,7 +295,7 @@ impl Em<'_, '_, '_> {
             return unsupported("a provider reference of an unexpected layout");
         }
         self.push(a)?;
-        self.store(i)
+        self.store_owned(i)
     }
 
     /// The canonical descriptor for `t`, addressed by the one-word `TypeId`.

@@ -38,6 +38,6 @@ fn read(source: &dyn Supplier[Item = string]) -> usize:
 fn read_const(c: Constant) -> usize:
     read(&c)
 > app/main/read_const
->   retain app.main.Supplier[Item = string] (conservative: Coerce)
+>   retain app.main.Supplier[Item = string] (stored)
 >   (no span) release &app.main.Supplier[Item = string] (by design)
 >   (no span) release app.main.Constant [value.0] (last use)

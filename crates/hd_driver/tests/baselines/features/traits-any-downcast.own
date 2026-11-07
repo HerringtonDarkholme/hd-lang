@@ -77,10 +77,11 @@ fn erase(u: User) -> *dyn Inspectable:
 >   %4 = Store [$2] %3 : ()
 >   %5 = Read move [$2] : Counted[User]
 >   %6 = Coerce %5 [RefToTraitValue -] : Inspectable
->   %7 = Drop [%5] : ()
->   %8 = Block %6 : Inspectable
->   %9 = RefDyn %8 : Counted[Inspectable]
->   %10 = Block %9 : Counted[Inspectable]
+>   %7 = Retain %6 #0 : ()
+>   %8 = Drop [%5] : ()
+>   %9 = Block %6 : Inspectable
+>   %10 = RefDyn %9 : Counted[Inspectable]
+>   %11 = Block %10 : Counted[Inspectable]
 >   %2 finds [$1] full
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

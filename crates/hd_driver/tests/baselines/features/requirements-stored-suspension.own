@@ -136,7 +136,7 @@ fn bound!(s: string) -> usize:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %0 consume last
 >   local $1 pending: mut Suspend[usize] [read assigned] value
->     uses $1: %20 -> %21 lend last
+>     uses $1: %22 -> %23 lend last
 >   local $2 provider: Named [read] value
 >     uses $2: %2 -> %3 consume last
 >   local $3 $ref: Named [read assigned captured captured-assigned] place
@@ -150,24 +150,26 @@ fn bound!(s: string) -> usize:
 >   %7 = Block - : Counted[mut Named]
 >   %8 = Scope %7 [] : Counted[mut Named]
 >   %9 = Coerce %8 [RefToTraitValue -] : Tag
->   %10 = Block %9 : Tag
->   %11 = RefDyn %10 : Counted[Tag]
->   %12 = Drop [%8] : ()
->   %13 = Coerce %11 [RefAsProvider -] : Tag
->   %14 = Drop [%11] : ()
->   %17 = With [Tag %13] %16 : mut Suspend[usize]
->   %18 = Drop [%13] : ()
->   %19 = Drop [$3] : ()
->   %20 = Store [$1] %17 : ()
->   %24 = Block %22 : usize
+>   %10 = Retain %9 #0 : ()
+>   %11 = Block %9 : Tag
+>   %12 = RefDyn %11 : Counted[Tag]
+>   %13 = Drop [%8] : ()
+>   %14 = Coerce %12 [RefAsProvider -] : Tag
+>   %15 = Retain %14 #0 : ()
+>   %16 = Drop [%12] : ()
+>   %19 = With [Tag %14] %18 : mut Suspend[usize]
+>   %20 = Drop [%14] : ()
+>   %21 = Drop [$3] : ()
+>   %22 = Store [$1] %19 : ()
+>   %26 = Block %24 : usize
 >   %5 finds [$3] full
         tagged()
->   %15 = Call app/main/tagged[] () : mut Suspend[usize]
->   %16 = Block %15 : mut Suspend[usize]
+>   %17 = Call app/main/tagged[] () : mut Suspend[usize]
+>   %18 = Block %17 : mut Suspend[usize]
     pending!()
->   %21 = Read move [$1] : mut Suspend[usize]
->   %22 = AwaitValue %21 : usize
->   %23 = Drop [%21] : ()
+>   %23 = Read move [$1] : mut Suspend[usize]
+>   %24 = AwaitValue %23 : usize
+>   %25 = Drop [%23] : ()
 >   exit sub 0 drops [$0]
 >   summary none
->   unwind %22 drops [%21]
+>   unwind %24 drops [%23]

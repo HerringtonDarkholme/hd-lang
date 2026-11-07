@@ -59,6 +59,22 @@ pub fn counted_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
     layout::holds_drop(pool, env, ty) || layout::walk(pool, env, ty).is_some()
 }
 
+/// Whether the value's representation is one counted address at word zero.
+#[must_use]
+pub fn single_counted_address_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
+    layout::vals(pool, env, ty).is_ok_and(|vs| vs == [module::Val::I32])
+        && layout::walk(pool, env, ty).and_then(|w| w.single()) == Some(0)
+}
+
+/// A reference's concrete target type, including counted and trait references.
+#[must_use]
+pub fn reference_target_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> Option<Ty> {
+    match layout::kind(pool, env, ty) {
+        layout::Kind::Ref { target, .. } => Some(target),
+        _ => None,
+    }
+}
+
 /// Whether every count of `ty` is a thin local reference's, which counts
 /// only if it is a representation view, with no `std.rt.Drop` to run.
 #[must_use]
