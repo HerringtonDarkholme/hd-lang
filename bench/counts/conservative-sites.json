@@ -57,7 +57,7 @@
     },
     {
       "reason": "conservative: entry",
-      "sites": 23
+      "sites": 4
     },
     {
       "reason": "conservative: frame drop",
@@ -65,7 +65,7 @@
     },
     {
       "reason": "conservative: return",
-      "sites": 4
+      "sites": 0
     },
     {
       "reason": "conservative: source call",

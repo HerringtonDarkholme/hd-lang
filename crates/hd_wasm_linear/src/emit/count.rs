@@ -32,6 +32,18 @@ use crate::module::Val;
 use crate::rt::Helper;
 
 impl Em<'_, '_, '_> {
+    /// The explicit payload copy at this body's persistent cache boundary.
+    pub(super) fn cache_copy(&self, phase: u32) -> Option<Reason> {
+        let root = self.b.sub_root[0];
+        self.b
+            .record(self.b.data[root as usize][0])
+            .iter()
+            .find_map(|&i| {
+                (self.b.tags[i as usize] == Tag::CacheCopy && self.b.data[i as usize][0] == phase)
+                    .then(|| Reason::from_word(self.b.data[i as usize][1]))
+            })
+    }
+
     /// A TIR-stated count of an already constructed borrowed result.
     pub(super) fn own_retain(&mut self, value: u32) -> StageResult<()> {
         if self.retained_before_result.remove(&value) {

@@ -5948,6 +5948,7 @@ runtime/valid/a-counted-copy-in-a-borrowing-loop-keeps-its-own-loan.hd	runtime	a
 runtime/valid/a-borrowing-loop-can-replace-a-pointer-after-its-dependent-loan-ends.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.ref.binding.local
 runtime/valid/indirect-trait-widening-keeps-its-loaded-payload.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.ref.widen
 runtime/valid/unowned-parameter-cleanup-survives-every-return.hd	runtime	accept	lang/07-functions.md#r-fn.param.value-copy
+runtime/valid/cached-facts-own-each-returned-copy.hd	runtime	accept	lang/14-annotations.md#r-annot.fact.eval.lazy
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
