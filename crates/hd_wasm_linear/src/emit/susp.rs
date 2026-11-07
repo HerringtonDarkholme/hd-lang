@@ -17,6 +17,7 @@ use hd_tir::ir::{Body, NONE, Tag};
 use hd_tir::own::Reason;
 use wasm_encoder::BlockType;
 
+use super::drop_flags::Root as DropRoot;
 use super::scope::Exit;
 use super::{Ctl, Em};
 use crate::module::{Global, HEAP, Ins, Part, Sym, Val, mem};
@@ -126,6 +127,15 @@ pub(super) struct Susp {
     /// Each `join!` point's done mask and, per child, its instruction, the
     /// locals that keep its result, and the result's type.
     pub alls: HashMap<u32, AllPoint>,
+}
+
+impl Susp {
+    /// Saved waker identities in their original Wasm-local allocation order.
+    pub(super) fn wakers(&self) -> Vec<(u32, u32)> {
+        let mut nodes: Vec<_> = self.alls.iter().map(|(&i, all)| (all.node, i)).collect();
+        nodes.sort_stable_by_key(|x| x.0);
+        nodes
+    }
 }
 
 /// A `join!` point's state in the save area (§14.5).
@@ -654,7 +664,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// A physical reference count stated at a suspension point.
-    fn count_point_ref(
+    pub(super) fn count_point_ref(
         &mut self,
         i: u32,
         part: CountPart,
@@ -883,7 +893,6 @@ impl Em<'_, '_, '_> {
             parts.push((ch, ls, t));
         }
         let node = self.f.local(Val::I32);
-        self.temps.push(node);
         let all = (1i32 << children.len()) - 1;
         let point = AllPoint { done, node, parts };
         if let Some(x) = self.susp.as_mut() {
@@ -1286,7 +1295,7 @@ pub(super) fn finish(
         em.f.op(I::I32Eqz);
         em.f.op(I::If(BlockType::Empty));
         em.reload_drop_flags(&area);
-        let mut places: Vec<(Option<u32>, Option<usize>, Vec<u32>)> = Vec::new();
+        let mut places: Vec<(DropRoot, Vec<u32>)> = Vec::new();
         // What the body says a suspension point may hold, as a cancelled
         // point's way out reads it (`release_unwound`): its values' unwind
         // rows, and the locals of the exit set.
@@ -1302,7 +1311,7 @@ pub(super) fn finish(
             if !em.loans.contains(&i)
                 && let Some(ls) = em.vals.get(&i)
             {
-                places.push((Some(i), None, ls.clone()));
+                places.push((DropRoot::Value(i), ls.clone()));
             }
         }
         let mut owned: Vec<usize> =
@@ -1318,43 +1327,32 @@ pub(super) fn finish(
                 && !em.borrowed.contains(&l)
                 && let Some(ls) = em.locals.get(&l)
             {
-                places.push((None, Some(l), ls.clone()));
+                places.push((DropRoot::Local(l), ls.clone()));
             }
         }
-        for t in em.temps.clone() {
-            places.push((None, None, vec![t]));
-        }
-        // A node is a saved temporary, but its owner is the stated join's.
-        // Index that physical identity once, preserving temporary cleanup order.
-        let wakers: HashMap<u32, u32> = em
-            .susp
-            .as_ref()
-            .map(|s| s.alls.iter().map(|(&i, all)| (all.node, i)).collect())
-            .unwrap_or_default();
         // The pointer loans the waiting body holds end with it.
         em.borrow_abandon(&at_of);
-        for (inst, local, ls) in places {
+        let load = |em: &mut Em<'_, '_, '_>, ls: &[u32]| {
             let mut loaded = Vec::new();
-            let mut ok = true;
-            for l in &ls {
-                let Some((at, v)) = at_of(*l) else {
-                    ok = false;
-                    break;
-                };
+            for &l in ls {
+                let (at, v) = at_of(l)?;
                 let x = em.f.local(v);
                 em.f.get(FRAME);
                 em.f.op(load_op(v, at));
                 em.f.set(x);
                 loaded.push(x);
             }
-            if !ok {
+            Some(loaded)
+        };
+        for (place, ls) in places {
+            let Some(loaded) = load(&mut em, &ls) else {
                 continue;
-            }
-            match (inst, local) {
-                (Some(i), _) => em.because(Reason::Cancelled, |em| {
+            };
+            match place {
+                DropRoot::Value(i) => em.because(Reason::Cancelled, |em| {
                     em.release_drop_place(&loaded, em.ty(i), &Em::value_place(i))
                 })?,
-                (None, Some(l)) => {
+                DropRoot::Local(l) => {
                     em.borrow_release(l);
                     em.because(Reason::Cancelled, |em| {
                         if em.is_cell(l) {
@@ -1368,14 +1366,30 @@ pub(super) fn finish(
                         }
                     })?;
                 }
-                (None, None) => {
-                    if let Some(&i) = wakers.get(&ls[0]) {
-                        em.count_point_ref(i, CountPart::Waker, loaded[0], false)?;
-                    } else {
-                        em.f.get(loaded[0]);
-                        em.f.helper(Helper::ReleaseRef);
-                    }
-                }
+            }
+        }
+        // Reference parameter slots precede all body-allocated waker nodes.
+        // These typed identities replace opaque temporary ownership inference.
+        for (l, held) in em.frame_refs.clone() {
+            let Some(loaded) = load(&mut em, &[held]) else {
+                continue;
+            };
+            let Some(reason) = em.stated_count(
+                Tag::Release,
+                CountAt::FrameDrop,
+                CountPart::Referent(u32::try_from(l).expect("local")),
+            ) else {
+                return unsupported("a frame reference without its stated object release");
+            };
+            em.because(reason, |em| {
+                em.f.get(loaded[0]);
+                em.f.helper(Helper::ReleaseRef);
+            });
+        }
+        let nodes = em.susp.as_ref().map(Susp::wakers).unwrap_or_default();
+        for (node, i) in nodes {
+            if let Some(loaded) = load(&mut em, &[node]) {
+                em.count_point_ref(i, CountPart::Waker, loaded[0], false)?;
             }
         }
         // The results a `join!` kept for its done children.
@@ -1524,8 +1538,15 @@ pub(super) fn finish(
             let (Some(x), Some((at, v))) = (arrived(&em, l).first().copied(), at_of(held)) else {
                 continue;
             };
+            let Some(reason) = em.stated_count(
+                Tag::Retain,
+                CountAt::Cold,
+                CountPart::Referent(u32::try_from(l).expect("local")),
+            ) else {
+                return unsupported("a frame reference without its stated object retain");
+            };
             em.f.get(x);
-            em.because(Reason::ByDesign, |em| {
+            em.because(reason, |em| {
                 em.f.count_call(Sym::Inst(r.retain), crate::views::CountAction::Retain);
             });
             em.f.get(fr);

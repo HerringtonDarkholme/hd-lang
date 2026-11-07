@@ -486,9 +486,16 @@ fn body_func<'a>(
         if em.counting {
             for &l in &plocals {
                 let t = em.sub(b.local_ty[l]);
-                if matches!(em.counted(t), Some(crate::layout::Walk::View(_))) {
+                if em
+                    .stated_count(
+                        Tag::Retain,
+                        CountAt::Cold,
+                        CountPart::Referent(u32::try_from(l).expect("local")),
+                    )
+                    .is_some()
+                    && matches!(em.counted(t), Some(crate::layout::Walk::View(_)))
+                {
                     let held = em.f.local(Val::I32);
-                    em.temps.push(held);
                     em.frame_refs.push((l, held));
                 }
             }
@@ -1175,8 +1182,6 @@ struct Em<'i, 'a, 'm> {
     /// `Exit::Cancel` being taken leaves from: an owned body releases the
     /// unwind rows of the points it holds ([`Em::release_unwound`]).
     cancel_from: u32,
-    /// Locals that each own one count until the exit (`susp.rs`).
-    temps: Vec<u32>,
     /// The locals that closures share, each in a cell, with the store
     /// that declares it (`closure.rs`).
     cells: HashMap<usize, u32>,
@@ -1337,7 +1342,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             susp: None,
             shield: 0,
             cancel_from: NONE,
-            temps: Vec::new(),
             cells: shared,
             entry_cells: hd_base::HashSet::default(),
             param_vals: HashMap::default(),

@@ -27,17 +27,22 @@ pub(super) fn sub_bodies(b: &Body, cx: &dyn OwnCx) -> Vec<u32> {
         .collect()
 }
 
+/// The explicit parameters of this sub-body, excluding captured locals.
+pub(super) fn locals(b: &Body, sub: u32) -> Vec<u32> {
+    if sub == 0 {
+        params(b)
+    } else {
+        let r = b.sub_params[sub as usize];
+        b.extra[r.start as usize + 1..(r.start + 1 + r.len) as usize].to_vec()
+    }
+}
+
 /// Each explicit value parameter belongs to its own body's boundary.
 /// Capture locals and reference-object counts have separate contracts.
 pub(crate) fn parameters(b: &Body, cx: &dyn OwnCx) -> Vec<(u32, u32)> {
     let mut out = Vec::new();
     for sub in sub_bodies(b, cx) {
-        let locals = if sub == 0 {
-            params(b)
-        } else {
-            let r = b.sub_params[sub as usize];
-            b.extra[r.start as usize + 1..(r.start + 1 + r.len) as usize].to_vec()
-        };
+        let locals = locals(b, sub);
         out.extend(locals.into_iter().filter_map(|l| {
             let ty = b.local_ty[l as usize];
             (cx.counted(ty) && cx.holds_drop(ty) != Tri::Yes)
