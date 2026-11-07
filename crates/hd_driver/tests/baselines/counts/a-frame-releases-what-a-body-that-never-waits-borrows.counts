@@ -30,9 +30,6 @@ pub fn main!() -> void $ Console:
 >   release &mut std.rt_tests.stage_case.Note (last use)
 >   release counted reference (last use)
 > std/rt_tests.stage_case/main
->   release &mut std.rt_tests.stage_case.Note (cancelled)
->   release Suspend[usize] (cancelled)
->   release Suspend[usize] (cancelled)
 >   release counted reference (last use)
 >   release counted reference (last use)
 > std/rt_tests.stage_case/main

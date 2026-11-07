@@ -628,13 +628,6 @@
     i32.eqz
     if
       local.get $t0
-      i32.load $heap offset=56
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'1
-      end
-      local.get $t0
       i32.load $heap offset=36
       local.tee $t1
       if

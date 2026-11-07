@@ -903,7 +903,7 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $scalar.drop (param $t0 i32) (local $t1 i32)
+  (func $scalar.drop (param $t0 i32)
     ;; 16 |     join!(ready(a), ready(b))
     local.get $t0
     i32.load $heap offset=12
@@ -912,40 +912,10 @@
     i32.eqz
     if
       local.get $t0
-      i32.load $heap offset=48
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t1
-          call $rt:release_ref'2
-        end
-      end
-      local.get $t0
-      i32.load $heap offset=56
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t1
-          call $rt:release_ref'2
-        end
-      end
-      local.get $t0
       i32.load $heap offset=92
-      local.tee $t1
+      local.tee $t0
       if
-        local.get $t1
+        local.get $t0
         call $rt:release_ref'1
       end
     end
@@ -1653,20 +1623,6 @@
     i32.and
     i32.eqz
     if
-      local.get $t0
-      i32.load $heap offset=60
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'1
-      end
-      local.get $t0
-      i32.load $heap offset=68
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'1
-      end
       local.get $t0
       i32.load $heap offset=24
       local.tee $t1
@@ -2876,50 +2832,6 @@
     i32.and
     i32.eqz
     if
-      local.get $t0
-      i32.load $heap offset=60
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'1
-      end
-      local.get $t0
-      i32.load $heap offset=68
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t1
-          call $rt:release_ref'2
-        end
-      end
-      local.get $t0
-      i32.load $heap offset=72
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'1
-      end
-      local.get $t0
-      i32.load $heap offset=80
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t1
-          call $rt:release_ref'2
-        end
-      end
       local.get $t0
       i32.load $heap offset=24
       local.tee $t1
@@ -5083,87 +4995,6 @@
     i32.and
     i32.eqz
     if
-      local.get $t0
-      i32.load $heap offset=60
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'1
-      end
-      local.get $t0
-      i32.load $heap offset=68
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t1
-          call $rt:release_ref'2
-        end
-      end
-      local.get $t0
-      i32.load $heap offset=72
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'1
-      end
-      local.get $t0
-      i32.load $heap offset=80
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t1
-          call $rt:release_ref'2
-        end
-      end
-      local.get $t0
-      i32.load $heap offset=184
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t1
-          call $rt:release_ref'2
-        end
-      end
-      local.get $t0
-      i32.load $heap offset=188
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'1
-      end
-      local.get $t0
-      i32.load $heap offset=196
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t1
-          call $rt:release_ref'2
-        end
-      end
       local.get $t0
       i32.load $heap offset=24
       local.tee $t1

@@ -26,7 +26,6 @@ fn all!(keys: List[string]) -> usize:
 >   release List[string] (last use)
 >   release List[string] (last use)
 > app/main/all
->   release List[mut Suspend[string]] (cancelled)
 >   release List[string] (cancelled)
 >   release counted reference (last use)
 > app/main/all

@@ -549,9 +549,11 @@ impl Em<'_, '_, '_> {
     }
 
     fn zero_locals_of(&mut self, r: u32) {
-        // Only a frame's glue reads a moved value's locals again: its zero
-        // says the slot holds nothing. A value is never dropped after its
-        // move, so outside a frame nothing else tests it.
+        // Only a suspending body's cancelled way out reads a moved value's
+        // locals again: a cleanup scope's ladder (`release_unwound`)
+        // releases the unwind rows of every point in it, and the zero says
+        // this one holds nothing. A value is never dropped after its move,
+        // so outside a frame nothing else tests it.
         if self.susp.is_some() {
             for l in self.vals.get(&r).cloned().unwrap_or_default() {
                 self.f.zero(l);

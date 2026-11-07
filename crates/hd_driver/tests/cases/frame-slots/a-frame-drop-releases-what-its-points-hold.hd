@@ -1,9 +1,10 @@
 # @dump: own counts wat
 # @build: v8 release
-# expected: an abandoned frame's `.drop` releases the values the suspension
-# points' unwind rows name and the locals of the exit set, with reason
-# `cancelled`. `holds`'s temporary has a row, so its `.drop` releases it;
-# `gone`'s temporary ends before the point, so its `.drop` does not.
+# expected: a frame's `.drop` frees only a frame that never started (#1430:
+# checked builds trap on a started one), so it releases the exit set's locals
+# and no value row. `holds`'s temporary has a row at the point, so the body's
+# cancelled way out releases it (`release string (cancelled)`); `gone`'s
+# temporary ends before the point, so nothing releases it there.
 use std.annotation.inline
 use std.time.{Clock, ms, sleep}
 
