@@ -51,7 +51,7 @@ fn take_first(t: (string, List[string])) -> string:
 >   local $0 t: (string, List[string]) [param read] value
 >     uses $0: entry -> %0 consume last
 >   %0 = Read move [$0 .0] : string
->   %1 = Drop [$0 .1] : ()
+>   %1 = Drop [$0] : ()
 >   %2 = Block %0 : string
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

@@ -181,7 +181,7 @@ fn keys(m: Map[string, string]) -> List[string]:
 >   %29 = Read move [%20 .0] : Ref[string]
 >   %30 = Store [$6] %29 : ()
 >   %31 = Release %30 Operation #3 : ()
->   %32 = Drop [%20 .1] : ()
+>   %32 = Drop [%20] : ()
 >   %34 = Block - : never
 >   %35 = Match %20 [%34 %28] : ()
 >   %36 = Drop [$6] : ()

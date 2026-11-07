@@ -879,8 +879,8 @@ deletes the place's `Drop`:
    temporary's last use becomes the temporary itself.
 3. **Partial moves.** A `copy` read of a projection of an owned
    temporary or local, such as `[%3 as .Ok .0]` in the arm that matched,
-   at the base's last use, becomes `move`, and the base's `Drop` becomes
-   drops of the base's other counted fields, or nothing (#679). A part
+   at the base's last use, becomes `move`, and the base's `Drop` stays
+   whole and releases what the move left, the moved part being zero. A part
    whose type no instance copies is live per field: its read moves at
    that part's last use, while other parts of the local are still read
    (`ref.move.field`). A reference into the local keeps each field it may
@@ -1772,24 +1772,15 @@ is worth deciding only if they are hot.
      `move` of the temporary rather than the temporary itself: the counts
      are the same, and `own::consumers` keeps its one-use rule.
    - **Partial moves** (rule 3): a `copy` of a field or payload field of a
-     local or a temporary at the base's last use moves. When the base's
-     drop follows in the block, it becomes drops of the base's other
-     counted fields, or nothing. A temporary whose last uses are inside
+     local or a temporary at the base's last use moves, and the base's
+     drop stays whole. A temporary whose last uses are inside
      the `If`, switch or match right before its drop has the drop sunk
      into that statement's paths (`moves::sink`): at the end of each path
      that completes, and before each `ToArm` of a decision tree, a drop of
-     what that path's last move left, or of the whole temporary where no
-     move took a part; a whole copy at a path's end moves, and a match's
-     drops of the temporary before jumps in its arms go. So `?` and a
-     match on a call's result lose the temporary's drop. Sinking is done
+     the whole temporary; a whole copy at a path's end moves, and a match's
+     drops of the temporary before jumps in its arms go. Sinking is done
      only where it adds no drop, and never through a guard, a loop or a
-     nested match. Splitting a drop needs the base laid out in place in
-     every instance, a new `OwnCx` fact, `parts`
-     (`hd_wasm_linear::in_place_parts`: a newtype's field, a struct's or a
-     tuple's fields, a non-recursive enum's payload). A type naming a
-     parameter has none, since an erased instance holds its value as one
-     counted view, so a generic base keeps its whole drop, which releases
-     what the move left.
+     nested match.
    - **References** (rule 4): a `Ref` of a whole celled local at its last
      access takes the local's count of the cell (`ref_word::TAKES`, a bit
      of `Ref`'s word, which invariant 22 refuses before the passes), and
@@ -2607,9 +2598,8 @@ is worth deciding only if they are hot.
     - **Drops split per field.** Move's rule 3 split a base's drop into
       one drop per other counted field, a release site each where the old
       path's whole release is one call of the glue
-      (`std/cli/Parsed.structure handle`: 7 sites for 2). The split is now
-      made only when one counted field stays beside the path; otherwise
-      the drop stays whole and releases what the move left
+      (`std/cli/Parsed.structure handle`: 7 sites for 2). The drop now
+      stays whole and releases what the move left
       (`own/a-moved-part-leaves-the-rest-to-one-drop.hd`). A part with no
       counted leaf no longer moves at all: moving a `bool` out of a
       `VariantInfo` split the drop into five for nothing.

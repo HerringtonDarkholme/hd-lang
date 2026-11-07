@@ -193,7 +193,8 @@
       "released": "3400092",
       "uniques": "2210005",
       "total": "7990099",
-      "noOpsAndSkipped": "22270150"
+      "noOpsAndSkipped": "22610150",
+      "reason": "12d (#1399): moves.rs rest goes; json's one drop past a partial move is the whole value's glue on both paths, a call with zeros on the moved one"
     },
     {
       "program": "bench/study/mandelbrot.hd",

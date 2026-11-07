@@ -35,7 +35,7 @@ fn take_field(r: Rec) -> string:
 >   local $0 r: Rec [param read] value
 >     uses $0: entry -> %0 consume last
 >   %0 = Read move [$0 .name] : string
->   %1 = Drop [$0 .tags] : ()
+>   %1 = Drop [$0] : ()
 >   %2 = Block %0 : string
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

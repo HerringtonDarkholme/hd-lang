@@ -15,7 +15,7 @@ fn nested(t: ((string, string), string)) -> usize:
 fn take_first(t: (string, List[string])) -> string:
     t._0
 > app/main/take_first
->   release List[string] (last use)
+>   release (string, List[string]) [0.0, 1] (last use)
 
 fn rest_collect(a: string, b: string, c: string) -> (string, List[string]...):
     (a, b, c)

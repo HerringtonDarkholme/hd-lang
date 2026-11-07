@@ -24,17 +24,11 @@
 //! 3. **Partial moves.** A `copy` of a field or payload field of a
 //!    temporary or a local (`[%v as .Ok .0]`, `[$l .a]`) at the last use
 //!    of the base moves, when the part holds a counted leaf (a scalar part
-//!    copies for free). When the base's `Drop` follows it in its block,
-//!    that drop becomes the drop of the base's one other counted field, or
-//!    nothing, provided the base is laid out in place in every instance
-//!    ([`OwnCx::parts`]); otherwise, or when more than one counted field
-//!    stays beside the path, the drop stays whole and releases what the
-//!    move left, the moved part being zero: one call of the base's glue,
-//!    where a drop per field would be a release site each. A temporary
-//!    whose last uses
-//!    are in the `If`, switch or match right before its `Drop` has that
-//!    drop sunk into the statement's paths ([`sink`]): each path drops
-//!    what its last move left, and a whole copy at a path's end moves.
+//!    copies for free). The base's `Drop` stays whole and releases what the
+//!    move left, the moved part being zero. A temporary whose last uses are
+//!    in the `If`, switch or match right before its `Drop` has that drop
+//!    sunk into the statement's paths ([`sink`]): each path drops what is
+//!    left, and a whole copy at a path's end moves.
 //! 4. **References at last access.** A `Ref` of a whole local that lives
 //!    in a cell, after which no path reaches the local, takes the local's
 //!    count of the cell (`ref_word::TAKES`); the local's `Drop` right after
@@ -125,8 +119,6 @@ pub(crate) struct Tables {
     touch: Vec<u32>,
     ops: Vec<Operand>,
     stack: Vec<u32>,
-    parts: Vec<Ty>,
-    pub(super) drops: Vec<u32>,
     /// A sunk drop's pending edits: drops to insert as (block, position,
     /// place), statements to delete, reads that become moves.
     sink_ins: Vec<(u32, u32, u32)>,
@@ -907,36 +899,10 @@ fn apply(
             continue;
         }
         b.data[i][1] = ReadMode::Move as u32;
-        // A local in memory keeps its whole `Drop`, which releases the
-        // rest, the moved part being zero (the backend's move of a part
-        // out of a cell).
-        if matches!(root, Root::Local(l) if t.addr[l as usize]) {
-            continue;
-        }
-        let Some(d) = drop else {
-            continue;
-        };
-        let base = match root {
-            Root::Local(l) => b.local_ty[l as usize],
-            Root::Value(v) => b.ty[v as usize],
-            _ => continue,
-        };
-        if rest(b, cx, t, base, (from, from, to)) {
-            let (blk, pos, syn) = (
-                topo.blk[d as usize],
-                topo.pos[d as usize],
-                b.syn[d as usize],
-            );
-            edits.remove(d);
-            for k in 0..t.drops.len() {
-                let at = t.drops[k];
-                edits.insert(blk, pos, Tag::Drop, [at, LAST_USE], Ty::VOID, syn);
-            }
-        }
     }
     for v in 0..b.len() {
         if t.vnum[v] != NONE {
-            sink(b, topo, cx, t, edits, u32_of(v));
+            sink(b, topo, t, edits, u32_of(v));
         }
     }
 }
@@ -951,20 +917,12 @@ fn drops_whole(b: &Body, d: u32, v: u32) -> bool {
 /// switch or match that holds its last uses goes into that statement's
 /// paths, where move's reads took parts of it: at the end of each branch
 /// that completes, and before each `ToArm` of a match's decision tree, a
-/// drop of what the path's last move left (nothing when it took every
-/// counted field), or of all of `v` where no move took a part. A whole
-/// copy at the path's end then moves too. A match's arms touch no part of
+/// drop of all of `v`, the moved parts being zero. A whole copy at the
+/// path's end then moves instead. A match's arms touch no part of
 /// `v` but its drops before their jumps, which go. Done only when it adds
 /// no more drops than it deletes, and never through a `Guard`, a loop or
 /// a nested match, whose paths leave the decision tree's shape.
-fn sink(
-    b: &mut Body,
-    topo: &Topology,
-    cx: &dyn OwnCx,
-    t: &mut Tables,
-    edits: &mut splice::Tables,
-    v: u32,
-) {
+fn sink(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice::Tables, v: u32) {
     let bit = t.vnum[v as usize];
     let (lo, hi) = (
         t.start[bit as usize] as usize,
@@ -1000,7 +958,7 @@ fn sink(
             let r = b.record(w);
             r.len() == 2 && {
                 let (then, els) = (r[0], r[1]);
-                sink_block(b, topo, cx, t, v, then) && sink_block(b, topo, cx, t, v, els)
+                sink_block(b, topo, t, v, then) && sink_block(b, topo, t, v, els)
             }
         }
         Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
@@ -1011,14 +969,14 @@ fn sink(
                 .skip(1)
                 .step_by(2)
                 .chain(default)
-                .all(|&blk| sink_block(b, topo, cx, t, v, blk))
+                .all(|&blk| sink_block(b, topo, t, v, blk))
         }
         Tag::Match => {
             let r = b.record(w).to_vec();
             let Some((&decision, arms)) = r.split_first() else {
                 return;
             };
-            sink_block(b, topo, cx, t, v, decision)
+            sink_block(b, topo, t, v, decision)
                 && arms.iter().all(|&arm| {
                     let (a0, a1) = (topo.first[arm as usize] as usize, arm as usize);
                     t.touch[lo..hi]
@@ -1059,14 +1017,7 @@ fn sink(
 
 /// The drops of temporary `v` at the end of block `blk`'s paths, into
 /// `t.sink_*`: false when the block's shape is not one [`sink`] handles.
-fn sink_block(
-    b: &mut Body,
-    topo: &Topology,
-    cx: &dyn OwnCx,
-    t: &mut Tables,
-    v: u32,
-    blk: u32,
-) -> bool {
+fn sink_block(b: &mut Body, topo: &Topology, t: &mut Tables, v: u32, blk: u32) -> bool {
     if b.tags.get(blk as usize) != Some(&Tag::Block) || b.data[blk as usize][1] == v {
         return false;
     }
@@ -1115,24 +1066,10 @@ fn sink_block(
         let [a, w] = b.data[m as usize];
         match b.tags[m as usize] {
             Tag::Read if b.view(a).root == Root::Value(v) => {
-                let PlaceView { from, to, .. } = b.view(a);
-                if from == to {
-                    // A whole copy at the path's end moves, as a copy with
-                    // its drop right after it does.
-                    if t.decide[m as usize] == MOVE {
-                        t.sink_mv.push(m);
-                    } else {
-                        whole(b, t);
-                    }
-                } else if w == ReadMode::Move as u32 {
-                    let base = b.ty[v as usize];
-                    if rest(b, cx, t, base, (from, from, to)) {
-                        for k in 0..t.drops.len() {
-                            t.sink_ins.push((blk, end, t.drops[k]));
-                        }
-                    } else {
-                        whole(b, t);
-                    }
+                // A whole copy at the path's end moves, as a copy with its
+                // drop right after it does.
+                if b.view(a).whole() && t.decide[m as usize] == MOVE {
+                    t.sink_mv.push(m);
                 } else {
                     whole(b, t);
                 }
@@ -1144,7 +1081,7 @@ fn sink_block(
                     whole(b, t);
                     return true;
                 }
-                return sink_block(b, topo, cx, t, v, r[0]) && sink_block(b, topo, cx, t, v, r[1]);
+                return sink_block(b, topo, t, v, r[0]) && sink_block(b, topo, t, v, r[1]);
             }
             Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
                 let r = b.record(w).to_vec();
@@ -1154,7 +1091,7 @@ fn sink_block(
                     .skip(1)
                     .step_by(2)
                     .chain(default)
-                    .all(|&c| sink_block(b, topo, cx, t, v, c));
+                    .all(|&c| sink_block(b, topo, t, v, c));
             }
             Tag::Guard
             | Tag::Match
@@ -1197,65 +1134,4 @@ fn take(b: &mut Body, topo: &Topology, t: &Tables, edits: &mut splice::Tables, i
     {
         edits.remove(d);
     }
-}
-
-/// The drops of what a base of type `base` holds besides the part at the
-/// projection words `from..to` of its place, into `t.drops` as new place
-/// records: each counted field beside the path at each step from the
-/// step at word `start` on (`from` for all of them). False when a step's
-/// type is not laid out in place in every instance ([`OwnCx::parts`]).
-pub(super) fn rest(
-    b: &mut Body,
-    cx: &dyn OwnCx,
-    t: &mut Tables,
-    base: Ty,
-    (from, start, to): (u32, u32, u32),
-) -> bool {
-    t.drops.clear();
-    let head = from - 2;
-    let mut ty = base;
-    let mut x = from;
-    while x < to {
-        let w = b.extra[x as usize];
-        let (variant, field, step_end) = if w & place::PROJ_KIND == place::PROJ_VARIANT {
-            let Some(&f) = b.extra.get(x as usize + 1).filter(|_| x + 1 < to) else {
-                return false;
-            };
-            (Some(w & place::PROJ_INDEX), f & place::PROJ_INDEX, x + 2)
-        } else {
-            (None, w & place::PROJ_INDEX, x + 1)
-        };
-        if !cx.parts(ty, variant, &mut t.parts) {
-            return false;
-        }
-        let Some(&next) = t.parts.get(field as usize) else {
-            return false;
-        };
-        for k in 0..t.parts.len() {
-            if x < start || u32_of(k) == field || !cx.counted(t.parts[k]) {
-                continue;
-            }
-            // `[root path-so-far (as v) .k]`
-            let at = u32_of(b.extra.len());
-            let len = (x - head) + u32::from(variant.is_some()) + 1;
-            b.extra.push(len);
-            b.extra.extend_from_within(head as usize..x as usize);
-            if let Some(v) = variant {
-                b.extra.push(place::PROJ_VARIANT | v);
-            }
-            b.extra.push(place::PROJ_FIELD | u32_of(k));
-            t.drops.push(at);
-        }
-        ty = next;
-        x = step_end;
-    }
-    // More than one part beside the path: one drop of the whole base
-    // releases them in one call of its glue, the moved part being zero,
-    // where a drop per part is a release site each.
-    if t.drops.len() > 1 {
-        b.extra.truncate(t.drops[0] as usize);
-        t.drops.clear();
-        return false;
-    }
-    true
 }

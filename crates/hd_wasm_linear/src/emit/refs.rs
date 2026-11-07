@@ -309,8 +309,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// `Drop [%r]` `i` of a whole value after moves or drops of its parts
-    /// in the same block (the move pass keeps a whole drop of a base whose
-    /// type names a type parameter, which it cannot split): where this
+    /// in the same block (the move pass keeps a base's drop whole): where this
     /// instance lays the value out in its locals, it releases only the
     /// field those took nothing of, of the variant the parts name, or
     /// nothing when none is left, since the parts taken are zero and the

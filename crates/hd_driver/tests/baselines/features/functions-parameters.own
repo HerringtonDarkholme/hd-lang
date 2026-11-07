@@ -43,7 +43,7 @@ fn bump_only(mut t: Tagged, s: string) -> usize:
 >   %1 shared: a copy of a value that holds the struct
     t.tags.len()
 >   %4 = Read move [$0 .tags] : List[string]
->   %5 = Drop [$0 .name] : ()
+>   %5 = Drop [$0] : ()
 >   %6 = Intrinsic ListLen [%4] : usize
 >   %7 = Drop [%4] : ()
 >   exit sub 0 drops [$0 $1]
@@ -99,11 +99,11 @@ fn kept_after(t: Tagged, s: string) -> usize:
 >   %3 shared: a copy of a value that holds the struct
     u.tags.len() + t.tags.len()
 >   %11 = Read move [$2 .tags] : List[string]
->   %12 = Drop [$2 .name] : ()
+>   %12 = Drop [$2] : ()
 >   %13 = Intrinsic ListLen [%11] : usize
 >   %14 = Drop [%11] : ()
 >   %15 = Read move [$0 .tags] : List[string]
->   %16 = Drop [$0 .name] : ()
+>   %16 = Drop [$0] : ()
 >   %17 = Intrinsic ListLen [%15] : usize
 >   %18 = Drop [%15] : ()
 >   %19 = Prim Add [%13 %17] : usize

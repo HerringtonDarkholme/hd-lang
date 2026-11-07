@@ -3,6 +3,6 @@ app/main/left
   local $0 p: Pair [param read] value
     uses $0: entry -> %0 consume last
   %0 = Read move [$0 .left] : string
-  %1 = Drop [$0 .right] : ()
+  %1 = Drop [$0] : ()
   %2 = Block %0 : string
   exit sub 0 drops [$0]

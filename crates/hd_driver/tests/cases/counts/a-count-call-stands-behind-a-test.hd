@@ -2,21 +2,25 @@
 # @build: v8 release
 # A retain or a release stands behind a test of what it would answer. `dropped`
 # holds a list, a known payload start: its release tests null and the header's
-# count. Its copy, `rt:coll_copy`, is a plain call: the test goes only on retain
-# and release calls, and this helper retains inside and gives the address back.
-# `other` holds a string, an address only the page table can place: its calls
-# test null alone. `ring` is cycle-capable, so its release also tests the
+# count. `copied`'s copy, `rt:coll_copy`, is a plain call: the test goes only on
+# retain and release calls, and this helper retains inside and gives the address
+# back. `other` holds a string, an address only the page table can place: its
+# calls test null alone. `ring` is cycle-capable, so its release also tests the
 # collector, since a gray object's count can reach 0. No count operation changes.
-pub fn known(xs: List[string]) -> (List[string], List[string]):
-    (xs, xs)
+pub fn known(xs: List[string]) -> List[string]:
+    xs
 
-pub fn other(s: string) -> (string, string):
-    (s, s)
+pub fn other(s: string) -> string:
+    s
 
 pub fn dropped(xs: List[string], s: string) -> usize:
     ys := known(xs)
     t := other(s)
-    ys._0.len() + t._0.len()
+    ys.len() + t.len()
+
+pub fn copied(xs: List[string]) -> usize:
+    ys := (xs, xs)
+    ys._0.len() + ys._1.len()
 
 pub struct Ring:
     next: *mut Ring?
