@@ -1,0 +1,68 @@
+# expect-stdout: 1 2
+# expect-stdout: 1 2
+# expect-stdout: 1 2
+# expect-stdout: 1 2
+# test: a list parameter stored in a field, by construction, copy-update, assignment or through a reference, is still its caller's list, so a push to the field leaves the caller's unchanged
+# Spec 13 Copy: a copy of a collection is a value of its own.
+use std.annotation.inline
+
+struct Built:
+    items: List[i32]
+
+@inline(.Never)
+fn build(items: List[i32]) -> Built:
+    Built { items }
+
+fn by_construction() -> void $ Console:
+    let keep: List[i32] = [1]
+    let mut held = build(keep)
+    held.items.push(2)
+    println("${keep.len()} ${held.items.len()}")
+
+struct Updated:
+    items: List[i64]
+    name: string
+
+@inline(.Never)
+fn update(base: Updated, items: List[i64]) -> Updated:
+    Updated { ...base, items }
+
+fn by_update() -> void $ Console:
+    let keep: List[i64] = [1]
+    let mut held = update(Updated { items: [], name: "n" }, keep)
+    held.items.push(2)
+    println("${keep.len()} ${held.items.len()}")
+
+struct Assigned:
+    items: List[u8]
+
+@inline(.Never)
+fn assign(target: &mut Assigned, items: List[u8]) -> void:
+    target.items = items
+
+fn by_assignment() -> void $ Console:
+    let keep: List[u8] = [1]
+    let mut held = Assigned { items: [] }
+    assign(&mut held, keep)
+    held.items.push(2)
+    println("${keep.len()} ${held.items.len()}")
+
+struct Reached:
+    items: List[string]
+
+@inline(.Never)
+fn fill(target: &mut List[string], items: List[string]) -> void:
+    *target = items
+
+fn through_a_reference() -> void $ Console:
+    let keep: List[string] = ["a"]
+    let mut held = Reached { items: [] }
+    fill(&mut held.items, keep)
+    held.items.push("b")
+    println("${keep.len()} ${held.items.len()}")
+
+pub fn main() -> void $ Console:
+    by_construction()
+    by_update()
+    by_assignment()
+    through_a_reference()

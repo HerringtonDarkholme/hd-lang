@@ -230,7 +230,10 @@ impl<'a> Walk<'a> {
             word
         };
         // Locals every whole store of which is a fresh new collection.
-        let mut fresh_local = vec![true; b.local_ty.len()];
+        // A parameter's entry value is its caller's, so it never is.
+        let mut fresh_local: Vec<bool> = (0..b.local_ty.len())
+            .map(|l| b.local_flags[l] & local_flags::PARAM == 0)
+            .collect();
         for i in 0..n {
             if b.tags[i] == Tag::Store {
                 let p = b.view(b.data[i][0]);

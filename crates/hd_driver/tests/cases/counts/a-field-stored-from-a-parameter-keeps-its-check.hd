@@ -1,0 +1,20 @@
+# @dump: own wat counts
+# @build: v8 release
+# `build` stores its parameter in `items`, and its caller still holds that list,
+# so the list has two owners when the push runs. The push keeps its check:
+# `shared: a construction with a shared header`, and a `rt:list_unique` call in
+# the WAT.
+use std.annotation.inline
+
+struct Built:
+    items: List[i32]
+
+@inline(.Never)
+fn build(items: List[i32]) -> Built:
+    Built { items }
+
+pub fn go() -> usize:
+    let keep: List[i32] = [1]
+    let mut held = build(keep)
+    held.items.push(2)
+    keep.len() + held.items.len()
