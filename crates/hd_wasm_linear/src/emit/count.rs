@@ -48,6 +48,9 @@ impl Em<'_, '_, '_> {
 
     /// A TIR-stated count of an already constructed borrowed result.
     pub(super) fn own_retain(&mut self, value: u32) -> StageResult<()> {
+        if self.entry_ref_loans.contains(&value) {
+            return Ok(());
+        }
         if self.retained_before_result.remove(&value) {
             return Ok(());
         }
@@ -689,9 +692,18 @@ impl Em<'_, '_, '_> {
         let stated = self.b.tags[i as usize] == Tag::Ref && self.has_stated_retain(i);
         let copied = !owned && self.counted(t).is_some() && !self.loans.contains(&i);
         if stated {
-            assert!(
+            assert_eq!(
                 copied,
-                "a stated reference copy disagrees with its result ownership"
+                !self.entry_ref_loans.contains(&i),
+                "a stated reference copy disagrees: {} sub {} Ref %{} owned={} loan={} promoted={} physical_susp={} entry_root={}",
+                (self.input.path)(self.b.item),
+                self.sub_id,
+                i,
+                owned,
+                self.loans.contains(&i),
+                self.promoted.contains(&i),
+                self.susp.is_some(),
+                self.input.entry.root(self.b.item)
             );
         } else if copied {
             self.retain_locals(&ls, t)?;
