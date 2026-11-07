@@ -17,9 +17,10 @@
 //! it will replace, and the driver reports the differences (`HD_OWN_AGREE`).
 
 use hd_base::SliceSort as _;
+use std::fmt::Write as _;
 
 use super::flow::{Backward, BitArena, Flow, backward, backward_blocks};
-use super::{Loc, OwnCx, Pass, Role, Tri, consumes, fill, operands};
+use super::{Loc, OwnCx, Pass, Role, Tri, consumes, fill, moves, operands, splice};
 use crate::ir::{
     Body, BodyKind, Callee, DEREF, ELEM, IntrinsicOp, NONE, Proj, ReadMode, Ref, Root, Tag,
     Topology, inside, is_suspension, local_flags, ref_word, sub_flags, u32_of,
@@ -141,13 +142,23 @@ pub(crate) struct Tables {
     vbit: Vec<u32>,
     lbit: Vec<u32>,
     read: Vec<u32>,
+    /// Per bit: the bit of the same read that follows one more binding local
+    /// to what it holds, or `NONE`, and the binding this bit's source stops
+    /// at. A binding that owns its value is the source itself; only one that
+    /// borrows leads on to the next bit.
+    far: Vec<u32>,
+    stops: Vec<u32>,
+    stop: u32,
+    // Suites around the instruction the walk is at: what they use stays
+    // live for the whole scope, on every way out of it.
+    held: Vec<u32>,
+    suite_bits: Vec<(u32, u32)>,
     seen: Vec<bool>,
     changes: Vec<Change>,
     relied: Vec<u64>,
     crossed: Vec<(u32, Dropped)>,
     // What the bits' sources are, as masks.
     heap: Vec<u64>,
-    open_heap: Vec<u64>,
     behind: Vec<u64>,
     reachable: Vec<u64>,
     unframed: Vec<u64>,
@@ -179,6 +190,10 @@ pub(crate) struct Tables {
     ops: Vec<super::Operand>,
     stack: Vec<u32>,
     pub(crate) relies: u64,
+    /// Per value: the read is the last use of its place.
+    last_use: Vec<bool>,
+    /// Per local: the reads of it that keep a count, once derived.
+    kept: Vec<u32>,
     /// Per local: the body owns none of it, once derived.
     pub(crate) unowned: Vec<bool>,
     /// Per instruction, once derived: the read borrows.
@@ -212,6 +227,10 @@ impl Tables {
         fill(&mut self.vbit, n, NONE);
         fill(&mut self.lbit, locals, NONE);
         self.read.clear();
+        self.far.clear();
+        self.stops.clear();
+        self.held.clear();
+        self.suite_bits.clear();
         self.crossed.clear();
         self.excl_reads.clear();
         self.key_rows.clear();
@@ -234,17 +253,18 @@ impl Tables {
     /// Follows the place at `word` into `self.links`, down to what it
     /// finally reads: through the reads its root values made and, with
     /// `follow`, through the read a binding local holds.
-    fn source(&mut self, b: &Body, word: u32, follow: bool, handle: bool) -> Source {
+    fn source(&mut self, b: &Body, word: u32, levels: u32, handle: bool) -> Source {
         self.links.clear();
         self.chain.clear();
-        self.source_below(b, word, follow, handle, 0, 0)
+        self.stop = NONE;
+        self.source_below(b, word, levels, handle, 0, 0)
     }
 
     fn source_below(
         &mut self,
         b: &Body,
         word: u32,
-        follow: bool,
+        mut levels: u32,
         mut handle: bool,
         below_start: u32,
         below: u32,
@@ -288,9 +308,13 @@ impl Tables {
                 Root::Local(l) => {
                     self.links.push(Link { key: l, ..link });
                     let held = self.holds[l as usize];
-                    if follow && held != NONE {
-                        word = b.data[held as usize][0];
-                        continue;
+                    if held != NONE {
+                        if levels > 0 {
+                            levels -= 1;
+                            word = b.data[held as usize][0];
+                            continue;
+                        }
+                        self.stop = l;
                     }
                     let li = l as usize;
                     let param = b.local_flags[li] & local_flags::PARAM != 0;
@@ -414,7 +438,6 @@ impl Tables {
             && !self.reached[li]
             && !self.changed[li]
             && !self.captured[li]
-            && !self.suite_local[li]
             && self.stores[li] == 1
             && self.ldropped[li])
             .then_some(l)
@@ -775,14 +798,13 @@ fn candidates(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
         if b.tags[r] != Tag::Read
             || b.data[r][1] != ReadMode::Copy as u32
             || t.keeps[r]
-            || t.in_suite[r]
             || !cx.counted(b.ty[r])
         {
             continue;
         }
         let store = t.store_of(r);
         let alias = if store == NONE { t.alias[r] } else { NONE };
-        if alias != NONE && (!t.dropped[alias as usize] || t.in_suite[alias as usize]) {
+        if alias != NONE && !t.dropped[alias as usize] {
             continue;
         }
         let plain = alias != NONE || (t.dropped[r] && t.stored[r] == NONE);
@@ -798,6 +820,7 @@ fn candidates(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
         };
         let bit = u32_of(t.read.len());
         t.read.push(u32_of(r));
+        t.far.push(NONE);
         t.vbit[r] = bit;
         if t.alias[r] != NONE {
             t.vbit[t.alias[r] as usize] = bit;
@@ -807,12 +830,53 @@ fn candidates(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
             t.holds[l as usize] = u32_of(r);
         }
     }
+    // A read has one more bit per binding its source may go through.
+    for bit in 0..t.read.len() {
+        let r = t.read[bit] as usize;
+        let mut word = b.data[r][0];
+        let mut at = bit;
+        for _ in 0..DEPTH {
+            word = match b.view(word).root {
+                Root::Local(l) if t.holds[l as usize] != NONE => {
+                    let next = u32_of(t.read.len());
+                    t.far[at] = next;
+                    at = next as usize;
+                    t.read.push(u32_of(r));
+                    t.far.push(NONE);
+                    b.data[t.holds[l as usize] as usize][0]
+                }
+                Root::Value(v) if b.tags[v as usize] == Tag::Read => b.data[v as usize][0],
+                _ => break,
+            };
+        }
+    }
+    // What each suite uses, by bit.
+    let mut ops = std::mem::take(&mut t.ops);
+    for k in 0..t.suites.len() {
+        let (x, from, to) = t.suites[k];
+        for j in from..to {
+            let i = t.suite_insts[j as usize] as usize;
+            if matches!(b.tags[i], Tag::Read | Tag::Ref | Tag::IsUnique | Tag::Store)
+                && let Some(l) = b.view(b.data[i][0]).local()
+                && t.lbit[l as usize] != NONE
+            {
+                t.suite_bits.push((x, t.lbit[l as usize]));
+            }
+            operands(b, i, &mut ops);
+            for op in &ops {
+                let v = op.value as usize;
+                if t.in_suite[v] && t.vbit[v] != NONE {
+                    t.suite_bits.push((x, t.vbit[v]));
+                }
+            }
+        }
+    }
+    t.ops = ops;
     let words = t.read.len().div_ceil(64).max(1);
     fill(&mut t.seen, t.read.len(), false);
     fill(&mut t.changes, t.read.len(), Change::None);
     fill(&mut t.relied, t.read.len(), 0);
     fill(&mut t.heap, words, 0);
-    fill(&mut t.open_heap, words, 0);
     fill(&mut t.behind, words, 0);
     fill(&mut t.reachable, words, 0);
     fill(&mut t.unframed, words, 0);
@@ -837,7 +901,16 @@ fn sources(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 Some(Proj::Field(_) | Proj::Elem(_) | Proj::Variant(_))
             )
             && cx.trait_value(b.ty[r]);
-        let source = t.source(b, b.data[r][0], true, handle);
+        // How many bindings this bit goes through: its place in its read's
+        // list of bits.
+        let mut levels = 0;
+        let mut at = t.vbit[r];
+        while at != u32_of(bit) {
+            at = t.far[at as usize];
+            levels += 1;
+        }
+        let source = t.source(b, b.data[r][0], levels, handle);
+        t.stops.push(t.stop);
         let at = bit / 64;
         let one = 1u64 << (bit % 64);
         if !source.known {
@@ -846,9 +919,6 @@ fn sources(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
         }
         if source.heap {
             t.heap[at] |= one;
-            if !source.held {
-                t.open_heap[at] |= one;
-            }
         }
         if !source.frame {
             t.unframed[at] |= one;
@@ -932,7 +1002,7 @@ fn index_writes(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
         }
         match tag {
             Tag::Store | Tag::Ref if tag == Tag::Store || w & ref_word::MUT != 0 => {
-                let source = t.source(b, a, false, false);
+                let source = t.source(b, a, 0, false);
                 t.write_links(false, Dropped::Nothing);
                 let reached = matches!(t.links.last(), Some(l) if l.key < locals && t.escapes[l.key as usize]);
                 if !source.known || source.heap || reached {
@@ -941,12 +1011,12 @@ fn index_writes(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 }
             }
             Tag::Read if w == ReadMode::Move as u32 => {
-                t.source(b, a, false, false);
+                t.source(b, a, 0, false);
                 t.links.truncate(1);
                 t.write_links(false, Dropped::Nothing);
             }
             Tag::Drop => {
-                t.source(b, a, false, false);
+                t.source(b, a, 0, false);
                 t.links.truncate(1);
                 let p = b.view(a);
                 // A provider reference's `Drop` releases nothing.
@@ -958,7 +1028,7 @@ fn index_writes(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 t.write_links(false, dropped);
             }
             Tag::IsUnique => {
-                t.source(b, a, false, false);
+                t.source(b, a, 0, false);
                 t.links.truncate(1);
                 t.write_links(true, Dropped::Nothing);
             }
@@ -981,7 +1051,7 @@ fn index_writes(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
             },
             Tag::Call => {
                 let may = Callee::from_words(b.record(a)).is_none_or(|c| cx.may_write(&c));
-                t.call[i] |= if may { 1 } else { 2 };
+                t.call[i] |= u8::from(may);
                 let args = b.record(w);
                 for &v in args.get(..args.len().saturating_sub(3)).unwrap_or_default() {
                     if let Some(r) = Ref(v).as_inst().map(|r| uncoerced(b, r.0 as usize))
@@ -989,7 +1059,7 @@ fn index_writes(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                         && b.data[r][1] & ref_word::MUT != 0
                         && ((may && cx.summarizes()) || b.local_in_place(b.data[r][0]).is_some())
                     {
-                        t.source(b, b.data[r][0], false, false);
+                        t.source(b, b.data[r][0], 0, false);
                         t.write_links(false, Dropped::Nothing);
                     }
                 }
@@ -1020,7 +1090,7 @@ fn collection(b: &Body, t: &mut Tables, c: u32) -> bool {
         global: false,
     });
     if b.tags[c as usize] == Tag::Read {
-        let source = t.source_below(b, b.data[c as usize][0], false, false, 0, 1);
+        let source = t.source_below(b, b.data[c as usize][0], 0, false, 0, 1);
         return !source.known || source.heap;
     }
     true
@@ -1044,7 +1114,8 @@ fn overlap(a: &[u32], c: &[u32]) -> bool {
 impl Backward for Tables {
     fn stmt(&mut self, b: &Body, x: u32, s: &mut BitArena, live: usize) {
         let i = x as usize;
-        // A suite runs after the statement it guards.
+        // A suite runs after the statement it guards, on every way out, so
+        // what it uses lives through the scope.
         if matches!(b.tags[i], Tag::Scope | Tag::Defer) {
             let k = self.suites.partition_point(|e| e.0 < x);
             if let Some(&(y, from, to)) = self.suites.get(k)
@@ -1054,6 +1125,14 @@ impl Backward for Tables {
                     let inst = self.suite_insts[j as usize];
                     self.change_at(b, inst, s, live);
                 }
+                self.held.push(NONE);
+                for k in 0..self.suite_bits.len() {
+                    if self.suite_bits[k].0 == x {
+                        let bit = self.suite_bits[k].1;
+                        self.held.push(bit);
+                        self.set(bit, s, live);
+                    }
+                }
             }
         }
         // Its value is made here: dead before. A coercion's value is still
@@ -1061,7 +1140,19 @@ impl Backward for Tables {
         let bit = self.vbit[i];
         if bit != NONE && self.read[bit as usize] == x {
             self.seen[bit as usize] = true;
-            s.set(live, bit, false);
+            let mut at = bit;
+            while at != NONE {
+                s.set(live, at, false);
+                at = self.far[at as usize];
+            }
+        }
+    }
+
+    fn ran(&mut self, b: &Body, x: u32, _: &mut BitArena, _: usize) {
+        if matches!(b.tags[x as usize], Tag::Scope | Tag::Defer)
+            && self.suites.binary_search_by_key(&x, |e| e.0).is_ok()
+        {
+            while self.held.pop().is_some_and(|h| h != NONE) {}
         }
     }
 
@@ -1076,19 +1167,32 @@ impl Backward for Tables {
             && let Some(l) = b.view(b.data[i][0]).local()
             && self.lbit[l as usize] != NONE
         {
-            s.set(live, self.lbit[l as usize], true);
+            self.set(self.lbit[l as usize], s, live);
+        }
+        for k in 0..self.held.len() {
+            if self.held[k] != NONE {
+                self.set(self.held[k], s, live);
+            }
         }
         self.change_at(b, x, s, live);
     }
 }
 
 impl Tables {
+    fn set(&self, bit: u32, s: &mut BitArena, live: usize) {
+        let mut at = bit;
+        while at != NONE {
+            s.set(live, at, true);
+            at = self.far[at as usize];
+        }
+    }
+
     fn use_value(&self, v: u32, s: &mut BitArena, live: usize) {
         let i = v as usize;
         if let Some(&bit) = self.vbit.get(i)
             && bit != NONE
         {
-            s.set(live, bit, true);
+            self.set(bit, s, live);
         }
         if self.carried.get(i) == Some(&true) {
             let k = self.carries.partition_point(|c| c.0 < v);
@@ -1154,9 +1258,8 @@ impl Tables {
             self.mark(x, s, live, &mask, except, Change::Heap);
             self.heap = mask;
         }
-        let may = self.call[i] & 1 != 0;
-        if may || self.call[i] & 2 != 0 {
-            self.call_at(x, may, s, live);
+        if self.call[i] & 1 != 0 {
+            self.call_at(x, s, live);
         }
         if is_suspension(b.tags[i]) {
             let mask = std::mem::take(&mut self.unframed);
@@ -1165,13 +1268,7 @@ impl Tables {
         }
     }
 
-    fn call_at(&mut self, x: u32, may: bool, s: &BitArena, live: usize) {
-        if !may {
-            let mask = std::mem::take(&mut self.open_heap);
-            self.mark(x, s, live, &mask, NONE, Change::Call);
-            self.open_heap = mask;
-            return;
-        }
+    fn call_at(&mut self, x: u32, s: &BitArena, live: usize) {
         // Exclusive mode: the call reaches the place only through the
         // reference, so only when it receives the reference itself.
         let mut mask = std::mem::take(&mut self.heap);
@@ -1191,35 +1288,53 @@ impl Tables {
     }
 }
 
-/// The reads of a local that keep a count of it, whole ones among them,
-/// with what borrows now.
-fn kept_reads(b: &Body, cx: &dyn OwnCx, t: &Tables, kept: &mut [u32], whole: &mut [u32]) {
+/// The reads that keep a count, with what borrows now: per local how many
+/// read it, and per value whether one reads it.
+fn kept_reads(b: &Body, cx: &dyn OwnCx, t: &Tables, kept: &mut [u32], taken: &mut [bool]) {
     kept.fill(0);
-    whole.fill(0);
+    taken.fill(false);
     for i in 0..b.len() {
-        if b.tags[i] != Tag::Read {
+        if b.tags[i] != Tag::Read
+            || !(t.keeps[i] || t.store_of(i) != NONE)
+            || t.borrows[i]
+            || !cx.counted(b.ty[i])
+        {
             continue;
         }
-        let p = b.view(b.data[i][0]);
-        let Some(l) = p.local() else { continue };
-        let store = t.store_of(i);
-        if (t.keeps[i] || store != NONE) && cx.counted(b.ty[i]) && !t.borrows[i] {
-            kept[l as usize] += 1;
-            whole[l as usize] += u32::from(p.whole());
+        match b.view(b.data[i][0]).root {
+            Root::Local(l) => kept[l as usize] += 1,
+            Root::Value(v) => taken[v as usize] = true,
+            _ => {}
         }
     }
+}
+
+/// Whether every `Drop` bit `bit` crossed empties what owns nothing.
+fn crossed_ok(b: &Body, t: &Tables, bit: u32) -> bool {
+    let lo = t.crossed.partition_point(|c| c.0 < bit);
+    t.crossed[lo..]
+        .iter()
+        .take_while(|c| c.0 == bit)
+        .all(|&(_, d)| match d {
+            Dropped::Nothing => true,
+            Dropped::Value(v) => {
+                let v = v as usize;
+                b.provider_ref(v)
+                    || (t.vbit[v] != NONE && t.borrows[t.read[t.vbit[v] as usize] as usize])
+            }
+            Dropped::Local(l) => t.unowned[l as usize],
+        })
 }
 
 /// Solves what depends on another decision, from everything that may borrow
 /// down to what holds: a read's source crossed the `Drop` of a place that
 /// must own nothing, a binding stays one only if no read takes a count from
 /// it, and a parameter stays lent only if nothing keeps it.
-fn solve(b: &Body, cx: &dyn OwnCx, t: &mut Tables, list: &[(u32, usize)]) {
+fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables, list: &[(u32, usize)]) {
     for bit in 0..t.read.len() {
         let r = t.read[bit] as usize;
-        let blocked =
-            t.changes[bit] != Change::None || !t.seen[bit] || (t.probe && t.relied[bit] != 0);
-        t.borrows[r] = !blocked;
+        // Either source may be the one that holds, until the solve knows.
+        t.borrows[r] |= t.seen[t.vbit[r] as usize] && t.changes[bit] == Change::None;
     }
     let locals = b.local_ty.len();
     let lendable = matches!(
@@ -1239,7 +1354,8 @@ fn solve(b: &Body, cx: &dyn OwnCx, t: &mut Tables, list: &[(u32, usize)]) {
                 && cx.counted(b.local_ty[li]);
         }
     }
-    let (mut kept, mut whole) = (vec![0u32; locals], vec![0u32; locals]);
+    let mut kept = vec![0u32; locals];
+    let mut taken = vec![false; b.len()];
     t.crossed.sort_stable_by_key(|&(bit, d)| {
         (
             bit,
@@ -1251,9 +1367,11 @@ fn solve(b: &Body, cx: &dyn OwnCx, t: &mut Tables, list: &[(u32, usize)]) {
         )
     });
     t.crossed.dedup();
+    // Bindings settle first: a read through one depends on how it ended.
+    let mut settled = false;
     loop {
         let mut changed = false;
-        kept_reads(b, cx, t, &mut kept, &mut whole);
+        kept_reads(b, cx, t, &mut kept, &mut taken);
         for &(l, at) in list {
             let li = l as usize;
             let lent = open[li]
@@ -1271,59 +1389,71 @@ fn solve(b: &Body, cx: &dyn OwnCx, t: &mut Tables, list: &[(u32, usize)]) {
         }
         for k in 0..t.read.len() {
             let r = t.read[k] as usize;
-            if !t.borrows[r] {
+            if !t.borrows[r] || t.vbit[r] != u32_of(k) {
                 continue;
             }
-            // A consumer of a binding would copy there: the read copies (or
-            // moves) into the binding instead. One of a part of it copies
-            // only that part, unless the read into it could move.
+            // What reads this value for a consumer needs a count. Where this
+            // read could move, that count costs nothing here, and borrowing
+            // would make it a retain there.
             let store = t.store_of(r);
             let bind = if store == NONE {
                 None
             } else {
                 t.binding(b, store)
             };
-            let mut blocked = false;
-            if let Some(l) = bind {
-                let li = l as usize;
-                let after = b
-                    .view(b.data[r][0])
-                    .local()
-                    .is_some_and(|m| t.last_read[m as usize] > t.last_read[li]);
-                blocked = whole[li] > 0 || (kept[li] > 0 && !after);
+            if !settled && bind.is_none() {
+                continue;
             }
-            if !blocked {
-                let lo = t.crossed.partition_point(|c| (c.0 as usize) < k);
-                for &(_, d) in t.crossed[lo..].iter().take_while(|c| c.0 as usize == k) {
-                    let gone = match d {
-                        Dropped::Nothing => true,
-                        Dropped::Value(v) => {
-                            let v = v as usize;
-                            b.provider_ref(v)
-                                || (t.vbit[v] != NONE
-                                    && t.borrows[t.read[t.vbit[v] as usize] as usize])
-                        }
-                        Dropped::Local(l) => t.unowned[l as usize],
-                    };
-                    if !gone {
-                        blocked = true;
-                        break;
-                    }
-                }
+            let needed = taken[r]
+                || (t.alias[r] != NONE && taken[t.alias[r] as usize])
+                || bind.is_some_and(|l| kept[l as usize] > 0);
+            let root_owned = b
+                .view(b.data[r][0])
+                .local()
+                .is_none_or(|m| !t.unowned[m as usize]);
+            let mut blocked = needed && t.last_use[r] && root_owned;
+            // A binding that borrows leads on to what it holds; one that owns
+            // its value is the source.
+            let mut bit = u32_of(k);
+            while t.stops[bit as usize] != NONE
+                && t.unowned[t.stops[bit as usize] as usize]
+                && t.far[bit as usize] != NONE
+            {
+                bit = t.far[bit as usize];
             }
+            blocked |= t.changes[bit as usize] != Change::None
+                || !crossed_ok(b, t, bit)
+                || (t.probe && t.relied[bit as usize] != 0);
             if blocked {
                 t.borrows[r] = false;
                 changed = true;
             }
         }
         if !changed {
-            break;
+            if settled {
+                break;
+            }
+            settled = true;
         }
     }
+    t.kept = kept;
     t.relies = 0;
     for bit in 0..t.read.len() {
         if t.changes[bit] == Change::None {
             t.relies |= t.relied[bit];
+        }
+    }
+    // A value no instance copies is never copied: a match decides through
+    // its scrutinee by borrowing it. There is no count to end or drop.
+    for r in 0..b.len() {
+        if b.tags[r] == Tag::Read
+            && b.data[r][1] == ReadMode::Copy as u32
+            && !t.keeps[r]
+            && !cx.counted(b.ty[r])
+            && cx.copies(b.ty[r]) != Tri::Yes
+            && super::borrow::match_reference_read(b, topo, r, false)
+        {
+            t.borrows[r] = true;
         }
     }
 }
@@ -1331,9 +1461,22 @@ fn solve(b: &Body, cx: &dyn OwnCx, t: &mut Tables, list: &[(u32, usize)]) {
 /// Derives which reads of `b`, as insertion left it, borrow and which
 /// parameters the body owns none of, into `t` ([`Tables::borrows`],
 /// [`Tables::unowned`]). Reads only `b`.
-pub(crate) fn run(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
+pub(crate) fn run(
+    b: &mut Body,
+    topo: &Topology,
+    cx: &dyn OwnCx,
+    t: &mut Tables,
+    last: &mut moves::Tables,
+) {
     let (n, locals) = (b.len(), b.local_ty.len());
     t.reset(n, locals);
+    fill(&mut t.last_use, n, false);
+    if moves::last_uses(b, topo, cx, last) {
+        for r in 0..n {
+            t.last_use[r] = moves::last_use(last, r);
+        }
+    }
+    let b = &*b;
     suites(b, t);
     scan(b, cx, t);
     uncopyable(b, cx, t);
@@ -1348,7 +1491,7 @@ pub(crate) fn run(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
     if t.excl {
         receivers(b, t);
     }
-    let list = params(b, cx, t);
+    let inputs = params(b, cx, t);
     candidates(b, cx, t);
     sources(b, cx, t);
     index_writes(b, cx, t);
@@ -1359,7 +1502,7 @@ pub(crate) fn run(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
     backward_blocks(b, topo, &mut back, t, &roots);
     t.suite_roots = roots;
     t.back = back;
-    solve(b, cx, t, &list);
+    solve(b, topo, cx, t, &inputs);
 }
 
 /// One read the derivation and the old passes answer differently.
@@ -1382,9 +1525,27 @@ fn mode_name(mode: u32) -> &'static str {
     }
 }
 
-/// Applies a derivation to `b` as the old borrow pass leaves it: the modes,
-/// the rooted reads, and the exit rows.
-pub(crate) fn apply(b: &mut Body, topo: &Topology, t: &Tables) {
+/// Applies a derivation to `b`: the modes, the rooted reads, the exit rows,
+/// and the `Drop`s of what owns nothing now, as edits.
+pub(crate) fn apply(b: &mut Body, topo: &Topology, t: &Tables, edits: &mut splice::Tables) {
+    edits.clear();
+    for i in 0..b.len() {
+        if b.tags[i] == Tag::Drop {
+            let p = b.view(b.data[i][0]);
+            let gone = p.whole()
+                && match p.root {
+                    Root::Value(v) => {
+                        let bit = t.vbit[v as usize];
+                        bit != NONE && t.borrows[t.read[bit as usize] as usize]
+                    }
+                    Root::Local(l) => t.unowned[l as usize],
+                    _ => false,
+                };
+            if gone {
+                edits.remove(u32_of(i));
+            }
+        }
+    }
     for r in 0..b.len() {
         if t.borrows[r] {
             b.data[r][1] = ReadMode::Borrow as u32;
@@ -1393,6 +1554,35 @@ pub(crate) fn apply(b: &mut Body, topo: &Topology, t: &Tables) {
     super::borrow::flatten_match_reference_reads(b, topo);
     let unowned = &t.unowned;
     b.exit_drops.retain(|(_, l)| !unowned[l.idx()]);
+}
+
+/// The kept bits of `b`'s summary, and its borrows bits
+/// ([`crate::own::Summary`]). `None` for a body that is no function's or that
+/// suspends.
+pub(crate) fn kept(b: &Body, cx: &dyn OwnCx, t: &Tables) -> Option<(u64, u64)> {
+    let callable = match b.kind {
+        BodyKind::Fn | BodyKind::DeriveInstance => !cx.suspending(b.item),
+        BodyKind::Default => true,
+        _ => false,
+    };
+    if !callable {
+        return None;
+    }
+    let (mut kept, mut borrows) = (0, 0);
+    let params = super::params(b);
+    let n = params.len();
+    for (k, l) in params.into_iter().enumerate() {
+        let l = l as usize;
+        let counted = cx.counted(b.local_ty[l]);
+        if k < 64 {
+            if counted && (!t.unowned[l] || t.kept[l] > 0) {
+                kept |= 1 << k;
+            } else if counted && cx.received(b.item, k, n) == Pass::Owned {
+                borrows |= 1 << k;
+            }
+        }
+    }
+    Some((kept, borrows))
 }
 
 /// Compares the body `old` the old passes left with the body `new` the
@@ -1461,15 +1651,31 @@ pub(crate) fn agreement(
                         Change::Suspension => "suspension",
                     }
                 };
+                // What a read the solve refused crossed.
+                let mut place = new
+                    .decode_place(new.data[i][0])
+                    .map(|p| p.to_string())
+                    .unwrap_or_default();
+                if stop == "solved" {
+                    for &(c, d) in t.crossed.iter().filter(|c| c.0 == bit) {
+                        let _ = c;
+                        match d {
+                            Dropped::Value(v) => {
+                                let _ = write!(place, " crossed %{v}");
+                            }
+                            Dropped::Local(l) => {
+                                let _ = write!(place, " crossed ${l}");
+                            }
+                            Dropped::Nothing => {}
+                        }
+                    }
+                }
                 out.push(Disagreement {
                     inst: u32_of(i),
                     old: mode_name(o),
                     new: mode_name(m),
                     why: format!("{root}-{path} {stop}"),
-                    place: new
-                        .decode_place(new.data[i][0])
-                        .map(|p| p.to_string())
-                        .unwrap_or_default(),
+                    place,
                 });
             }
             Tag::Ref if (o ^ m) & ref_word::TAKES != 0 => out.push(Disagreement {

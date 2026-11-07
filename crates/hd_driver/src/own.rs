@@ -1194,6 +1194,11 @@ impl Env<'_> {
         if !uncopied.is_empty() {
             self.uncopied(&body, &uncopied)?;
         }
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Ok(file) = std::env::var("HD_OWN_DUMP") {
+            let text = self.run.render_owned(self.p, &body);
+            agree_bodies(&file, &path(), &format!("{summary:?}\n{text}"));
+        }
         if self.run.verifies_own() {
             let errs = hd_tir::ir::verify_owned(&body, self);
             if let Some(e) = errs.first() {

@@ -631,6 +631,8 @@ pub struct OwnScratch {
     /// insertion's edits, then after them for the passes that follow.
     pub(crate) topo: Topology,
     pub(crate) borrow: borrow::Tables,
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) derive: derive::Tables,
     pub(crate) frame: frame::Tables,
     pub(crate) hoist: hoist::Tables,
     pub(crate) insert: insert::Tables,
@@ -664,7 +666,11 @@ impl OwnScratch {
     /// lifts over such a call.
     #[must_use]
     pub fn relies(&self) -> u64 {
-        self.borrow.relies | self.hoist.relies
+        #[cfg(not(target_arch = "wasm32"))]
+        let derived = self.derive.relies;
+        #[cfg(target_arch = "wasm32")]
+        let derived = 0;
+        self.borrow.relies | self.hoist.relies | derived
     }
 
     /// Where the derivation and the old passes disagreed in the body the
@@ -791,7 +797,19 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     #[cfg(not(target_arch = "wasm32"))]
     let derived = scratch.agree.then(|| shadow(b, &scratch.topo, cx));
     let (topo, edits) = (&scratch.topo, &mut scratch.splice);
-    borrow::run(b, topo, cx, &mut scratch.borrow, edits);
+    #[cfg(not(target_arch = "wasm32"))]
+    let new = derive_decides();
+    #[cfg(target_arch = "wasm32")]
+    let new = false;
+    if new {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            derive::run(b, topo, cx, &mut scratch.derive, &mut scratch.moves);
+            derive::apply(b, topo, &scratch.derive, edits);
+        }
+    } else {
+        borrow::run(b, topo, cx, &mut scratch.borrow, edits);
+    }
     moves::run(b, topo, cx, &mut scratch.moves, edits);
     #[cfg(not(target_arch = "wasm32"))]
     {
@@ -799,6 +817,19 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
         scratch.compared = None;
         if let Some((new, t)) = &derived {
             scratch.compared_reads = derive::agreement(b, new, cx, t, &mut scratch.disagreements);
+            let (old, now) = (
+                borrow::kept(b, cx, &scratch.borrow),
+                derive::kept(new, cx, t),
+            );
+            if old != now {
+                scratch.disagreements.push(derive::Disagreement {
+                    inst: 0,
+                    old: "summary",
+                    new: "summary",
+                    why: "kept".into(),
+                    place: format!("{old:?} -> {now:?}"),
+                });
+            }
             if !scratch.disagreements.is_empty() {
                 scratch.compared = Some(b.clone());
             }
@@ -813,15 +844,24 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     Ok(())
 }
 
+/// Whether the derivation decides in place of the borrow pass
+/// (`HD_OWN_NEW`), to test its answers through the verifier and checked
+/// builds. Read once per process.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn derive_decides() -> bool {
+    static NEW: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *NEW.get_or_init(|| std::env::var_os("HD_OWN_NEW").is_some())
+}
+
 /// The derivation and the move walk over a copy of `b`, as insertion left
 /// it: what the old passes will be compared with.
 #[cfg(not(target_arch = "wasm32"))]
 fn shadow(b: &Body, topo: &Topology, cx: &dyn OwnCx) -> (Body, derive::Tables) {
     let mut t = derive::Tables::default();
-    derive::run(b, topo, cx, &mut t);
     let mut new = b.clone();
-    derive::apply(&mut new, topo, &t);
+    derive::run(&mut new, topo, cx, &mut t, &mut moves::Tables::default());
     let mut edits = splice::Tables::default();
+    derive::apply(&mut new, topo, &t, &mut edits);
     moves::run(
         &mut new,
         topo,
@@ -1365,6 +1405,13 @@ pub fn summary(
     scratch: &OwnScratch,
     returns: Option<u8>,
 ) -> Option<Summary> {
+    #[cfg(not(target_arch = "wasm32"))]
+    let (kept, borrows) = if derive_decides() {
+        derive::kept(b, cx, &scratch.derive)?
+    } else {
+        borrow::kept(b, cx, &scratch.borrow)?
+    };
+    #[cfg(target_arch = "wasm32")]
     let (kept, borrows) = borrow::kept(b, cx, &scratch.borrow)?;
     Some(Summary {
         kept,

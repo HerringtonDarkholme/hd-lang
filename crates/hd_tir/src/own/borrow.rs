@@ -1091,7 +1091,7 @@ fn index_writes(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
 /// Whether read `r` is in a match's decision block and reads through that
 /// match's reference scrutinee. With `nested`, follows borrowed decision reads
 /// to recognize their payload reads too.
-fn match_reference_read(b: &Body, topo: &Topology, r: usize, nested: bool) -> bool {
+pub(super) fn match_reference_read(b: &Body, topo: &Topology, r: usize, nested: bool) -> bool {
     let Some(&first) = topo.blk.get(r).filter(|&&block| block != NONE) else {
         return false;
     };
