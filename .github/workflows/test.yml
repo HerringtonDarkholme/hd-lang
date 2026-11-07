@@ -304,8 +304,12 @@ jobs:
           node-version-file: package.json
           package-manager-cache: false
 
+      # A cache per shard: they build third-party crates with different features, and
+      # one shared key holds only the features of the shard that saved it first.
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2.9.2
+        with:
+          key: ${{ matrix.shard == 'cli conformance' && 'cli-conformance' || matrix.shard }}
 
       - name: Lint host crates
         if: matrix.shard != 'cli conformance'
