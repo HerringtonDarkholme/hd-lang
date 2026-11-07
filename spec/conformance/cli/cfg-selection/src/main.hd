@@ -1,0 +1,39 @@
+@cfg(.Debug)
+fn selected() -> string:
+    "debug function"
+
+@cfg(.Release)
+fn selected() -> string:
+    "release function"
+
+@cfg(.Debug)
+fn with_default(value: string = "debug default") -> string:
+    value
+
+@cfg(.Release)
+fn with_default(value: string = "release default") -> string:
+    value
+
+struct Shop: pass
+
+impl Shop:
+    @cfg(.Debug)
+    fn selected(self) -> string:
+        "debug method"
+
+    @cfg(.Release)
+    fn selected(self) -> string:
+        "release method"
+
+pub fn main() -> void $ Console:
+    println(selected())
+    println(with_default())
+    println(Shop {}.selected())
+
+tests:
+    use std.testing.assert_equal
+
+    it("selects the debug bodies"):
+        assert_equal(selected(), "debug function")
+        assert_equal(with_default(), "debug default")
+        assert_equal(Shop {}.selected(), "debug method")

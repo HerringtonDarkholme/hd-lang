@@ -1,0 +1,19 @@
+# A build's profile selects each @cfg body: a function's, a parameter default's and
+# a method's. The second debug run reads the cache the first two filled.
+run: hd run
+stdout: debug function
+stdout: debug default
+stdout: debug method
+run: hd run --release
+stdout: release function
+stdout: release default
+stdout: release method
+run: hd run
+stdout: debug function
+stdout: debug default
+stdout: debug method
+# A test build selects the Debug bodies.
+run: hd test
+stdout: test result: ok. 1 passed; 0 failed; 0 ignored
+run: hd test --release
+stdout: test result: ok. 1 passed; 0 failed; 0 ignored

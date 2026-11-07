@@ -71,6 +71,7 @@ lint-site-allow-reachability	cli.lint.site-allow-reachability,cli.lint.unknown-n
 lint-unsigned-comparisons	cli.lint.stable-messages,cli.lint.default,cli.lint.ordinary-errors
 manifest-unknown-key	cli.manifest.unknown-key.error,cli.exit.hd-failure
 build-output	cli.build.directory,cli.build.output,cli.build.output.file,cli.profile.release
+cfg-selection	cli.profile.cfg-selection
 dep-path-local	cli.dep.path,cli.dep.fetch,cli.dep.offline,cli.json.lines.build,cli.dep.reached,cli.dep.no-prompt
 dep-workspace-fetch	cli.dep.workspace-fetch,cli.dep.workspace-member-only,cli.exit.hd-failure,cli.mode.workspace,cli.mode.workspace-file,cli.mode.member,cli.workspace.members
 member-unlisted	cli.mode.member.unlisted,cli.mode.member.excluded,cli.exit.hd-failure,cli.mode.workspace,cli.mode.workspace-file,cli.mode.member,cli.mode.member.shared,cli.mode.member.unlisted.fix,cli.manifest.invalid,cli.manifest.invalid.cases,cli.manifest.invalid.unlisted,cli.json.diagnostic.fixes
