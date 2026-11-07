@@ -579,6 +579,17 @@ impl Em<'_, '_, '_> {
             if self.is_cell(held.local) {
                 continue;
             }
+            // A supplementary inlined parent has no access check of its
+            // own. If the link pass elided all its loans, record nothing.
+            if matches!(bind, Bind::CallParent(_))
+                && !self
+                    .m
+                    .kept
+                    .iter()
+                    .any(|&(id, at, k)| id == self.inst && at as usize == i && k < u32::MAX - 1)
+            {
+                continue;
+            }
             match bind {
                 Bind::Begin(a) => {
                     let Some(v) = direct_value(self.b, a).filter(|&v| self.b.tags[v] == Tag::Ref)
@@ -597,7 +608,7 @@ impl Em<'_, '_, '_> {
                     };
                     st.excl.insert(held, x);
                 }
-                Bind::Call(a) => {
+                Bind::Call(a) | Bind::CallParent(a) => {
                     // A holder of a call's result, or of a part of it a
                     // match binds, that holds argument `a`: the result's
                     // loans (phase 5).
@@ -1199,11 +1210,19 @@ impl Em<'_, '_, '_> {
             self.f.u32(crate::module::HEADER - 4);
             self.f.op(I::I32Sub);
             self.f.set(header);
-            self.borrows
-                .arg_heads
-                .insert(i, vec![(header, key, u32::MAX)]);
+            heads.push((header, key, u32::MAX));
         }
-        if holds && self.b.tags[i as usize] == Tag::Ref {
+        if holds
+            && (self.b.tags[i as usize] == Tag::Ref
+                || matches!(
+                    self.kind(self.ty(i)),
+                    Kind::Ref {
+                        whole: true,
+                        fat: false,
+                        ..
+                    }
+                ))
+        {
             self.borrows.arg_heads.insert(i, heads);
         }
         if let Some((call, two_phase)) = call {
@@ -1434,7 +1453,8 @@ impl Em<'_, '_, '_> {
                         self.f.op(I::End);
                     }
                 }
-                Bind::Call(a) => self.borrow_result(i, held, a),
+                Bind::Call(a) => self.borrow_result(i, held, a, false),
+                Bind::CallParent(a) => self.borrow_result(i, held, a, true),
             }
         }
     }
@@ -1502,15 +1522,25 @@ impl Em<'_, '_, '_> {
     /// object the result points into, which the page table finds, where
     /// the callee's reference reaches one more object (`hd_tir::own::pointer`).
     /// The last of them takes the result's kind; the others are shared.
-    fn borrow_result(&mut self, i: u32, held: Held, a: u32) {
+    fn borrow_result(&mut self, i: u32, held: Held, a: u32, parents: bool) {
         let Some(v) = direct_value(self.b, a) else {
             return;
         };
         let v = u32::try_from(v).expect("insts");
         // An argument whose objects no kept loan holds recorded none.
         let heads = self.borrows.arg_heads.get(&v).cloned().unwrap_or_default();
-        let inner = self.m.result_inner.contains(&(self.inst, i));
-        let mut s = usize::from(inner);
+        let inner = !parents && self.m.result_inner.contains(&(self.inst, i));
+        let mut s = if parents {
+            // Slot zero is exclusive for an exclusive result. Parent
+            // objects always stay shared, even if the inner loan elides.
+            self.borrows
+                .slots
+                .get(&held)
+                .map_or(0, Vec::len)
+                .max(usize::from(self.borrows.excl[&held]))
+        } else {
+            usize::from(inner)
+        };
         if inner
             && self.m.kept.contains(&(self.inst, i, u32::MAX - 1))
             && let Some(rt) = self.m.runtime
@@ -1544,9 +1574,18 @@ impl Em<'_, '_, '_> {
             self.f.op(I::End);
         }
         for (header, key, k) in heads.into_iter().rev() {
+            if parents && k == u32::MAX {
+                continue;
+            }
             if !self.m.kept.contains(&(self.inst, i, k)) {
                 s += 1;
                 continue;
+            }
+            // A Read lends a whole counted object at MAX. All its
+            // crossed place objects are parents, even when that whole
+            // object's loan was elided and no header was recorded for it.
+            if k != u32::MAX && self.b.tags[v as usize] == Tag::Read {
+                s = s.max(usize::from(self.borrows.excl[&held]));
             }
             let (h, kl) = self.borrow_slot(held, s);
             let delta = self.borrow_delta(held, s);

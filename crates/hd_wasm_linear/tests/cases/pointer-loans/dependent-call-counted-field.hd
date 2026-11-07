@@ -1,0 +1,26 @@
+# @dump: wat
+# expected: the dependent call holds a shared H loan until d ends; replacing alias.p checks it.
+struct P:
+    name: string
+
+struct H:
+    p: *P
+
+fn name_of(p: &P) -> &string:
+    &p.name
+
+fn replace(h: *mut H, alias: *mut H, next: *P) -> string:
+    d := name_of(h.p)
+    alias.p = next
+    *d
+
+struct M:
+    p: *mut P
+
+fn name_mut(p: &mut P) -> &mut string:
+    &mut p.name
+
+fn replace_mut(h: *mut M, alias: *mut M, next: *mut P) -> string:
+    d := name_mut(h.p)
+    alias.p = next
+    *d
