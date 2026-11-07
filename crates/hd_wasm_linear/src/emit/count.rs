@@ -34,6 +34,9 @@ use crate::rt::Helper;
 impl Em<'_, '_, '_> {
     /// A TIR-stated count of an already constructed borrowed result.
     pub(super) fn own_retain(&mut self, value: u32) -> StageResult<()> {
+        if self.retained_before_result.remove(&value) {
+            return Ok(());
+        }
         let Some(locals) = self.vals.get(&value).cloned() else {
             return crate::unsupported("a retain before its value is constructed");
         };

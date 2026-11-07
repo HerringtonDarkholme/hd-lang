@@ -44,7 +44,11 @@ impl Em<'_, '_, '_> {
     /// whether they own a count of it. A reference to a trait value is
     /// that trait value (`refs.rs`), lent; one read through an address is
     /// a copy with its own count.
-    pub(super) fn read_dyn_value(&mut self, value: u32) -> StageResult<(Ty, Vec<u32>, bool)> {
+    pub(super) fn read_dyn_value(
+        &mut self,
+        result: Option<u32>,
+        value: u32,
+    ) -> StageResult<(Ty, Vec<u32>, bool)> {
         let mut ty = self.strip_mut(self.ty_of(value));
         let Some(mut ls) = self.vals.get(&value).cloned() else {
             return unsupported("a value its instruction did not compute");
@@ -56,7 +60,17 @@ impl Em<'_, '_, '_> {
             };
             if fat {
                 if loaded {
-                    self.retain_locals(&ls, target)?;
+                    if let Some(result) = result.filter(|&result| self.has_stated_retain(result)) {
+                        // Lower the adjacent Retain at the original count
+                        // point, before the supertrait vtable loads. Its
+                        // statement later observes that it was lowered here.
+                        self.because(hd_tir::own::Reason::Stored, |em| {
+                            em.retain_locals(&ls, target)
+                        })?;
+                        self.retained_before_result.insert(result);
+                    } else {
+                        self.retain_locals(&ls, target)?;
+                    }
                 }
                 return Ok((target, ls, loaded));
             }
@@ -484,7 +498,7 @@ impl Em<'_, '_, '_> {
         let read = if self.is_dyn(source) {
             None
         } else {
-            Some(self.read_dyn_value(a)?)
+            Some(self.read_dyn_value(Some(i), a)?)
         };
         let from = read.as_ref().map_or(source, |v| v.0);
         let to = self.strip_mut(self.ty(i));

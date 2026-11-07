@@ -1,0 +1,26 @@
+# test: widening through a counted pointer keeps the loaded trait payload independently alive
+# expect-stdout: a1 b2 cccccc3
+trait Animal:
+    fn name(&self) -> string
+
+trait Dog < Animal:
+    fn bark(&self) -> string
+
+struct Pup:
+    name: string
+
+impl Animal for Pup:
+    fn name(&self) -> string:
+        self.name
+
+impl Dog for Pup:
+    fn bark(&self) -> string:
+        "woof"
+
+pub fn main() -> void $ Console:
+    let dog: *dyn Dog = box(Pup { name: "a${1}" })
+    nested := box(dog)
+    let animal: *dyn Animal = nested
+    *nested = box(Pup { name: "b${2}" })
+    junk := "cccccc${3}"
+    println("${animal.name()} ${(*nested).name()} $junk")

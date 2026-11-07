@@ -82,16 +82,17 @@ pub(crate) fn result(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
             if cx.trait_value(source) {
                 return true;
             }
-            if !cx.single_counted_address(source) {
-                return false;
-            }
-            // A pointer to a trait value may load its payload first, or
-            // box its identity for Any. Neither is this direct-result kind.
             let mut target = source;
             while let Some(inner) = cx.reference_target(target) {
+                if cx.trait_value(inner) {
+                    // Widening through references keeps the trait's data,
+                    // including when reaching it needs loads first. Erasing
+                    // the reference's identity into a box is a separate kind.
+                    return cx.trait_reference_widens(target, b.ty[i]);
+                }
                 target = inner;
             }
-            !cx.trait_value(target)
+            cx.single_counted_address(source)
         }
         // Lookup copies the caller-held provider into a result of its own.
         Some(Tag::ProviderGet) => cx.counted(b.ty[i]),
@@ -117,7 +118,14 @@ mod tests {
             matches!(ty, Ty(42 | 44))
         }
         fn reference_target(&self, ty: Ty) -> Option<Ty> {
-            (ty == Ty(44)).then_some(Ty(43))
+            match ty {
+                Ty(44 | 46) => Some(Ty(43)),
+                Ty(45) => Some(Ty(46)),
+                _ => None,
+            }
+        }
+        fn trait_reference_widens(&self, from: Ty, to: Ty) -> bool {
+            from == Ty(46) && to == Ty(43)
         }
         fn trait_value(&self, ty: Ty) -> bool {
             ty == Ty(43)
@@ -173,6 +181,8 @@ mod tests {
             (Coercion::Supertrait, Ty(43), true),
             (Coercion::ToTraitValue, Ty(43), true),
             (Coercion::ToTraitValue, Ty(44), false),
+            (Coercion::RefToTraitValue, Ty(46), true),
+            (Coercion::RefToTraitValue, Ty(45), true),
             (Coercion::ToTraitValue, Ty::I32, false),
             (Coercion::RefAsProvider, Ty(43), true),
         ] {
