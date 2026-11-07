@@ -518,7 +518,7 @@ impl Em<'_, '_, '_> {
         if read.as_ref().is_some_and(|r| r.2) {
             self.store_owned(i)
         } else {
-            self.store(i)
+            self.store_as(i, self.has_stated_retain(i))
         }
     }
 

@@ -77,6 +77,11 @@ pub(crate) fn result(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
                     .get((value.0 & !Ref::CONST_BIT) as usize)
                     .map_or(Ty::POISON, |c| c.0),
             };
+            // A materialized trait value already has its data words;
+            // widening only selects a different vtable path.
+            if cx.trait_value(source) {
+                return true;
+            }
             if !cx.single_counted_address(source) {
                 return false;
             }
@@ -165,6 +170,8 @@ mod tests {
         for (kind, source, counted) in [
             (Coercion::ToTraitValue, Ty(42), true),
             (Coercion::RefToTraitValue, Ty(42), true),
+            (Coercion::Supertrait, Ty(43), true),
+            (Coercion::ToTraitValue, Ty(43), true),
             (Coercion::ToTraitValue, Ty(44), false),
             (Coercion::ToTraitValue, Ty::I32, false),
             (Coercion::RefAsProvider, Ty(43), true),
