@@ -144,9 +144,9 @@ fn use_rets(r: Rec) -> usize:
 >     uses $5: %14 -> %15 consume last
 >   local $7 s: string [read] value
 >     uses $7: %1 -> %2 consume last
->   %0 = Read borrow [$0 .name] : string
+>   %0 = Read copy [$0 .name] : string
 >   %1 = Store [$7] %0 : ()
->   %2 = Read copy [$7] : string
+>   %2 = Read move [$7] : string
 >   %3 = Break L4 %2 : never
 >   %4 = Block - : string
 >   %5 = Scope %4 [] : string
@@ -157,9 +157,9 @@ fn use_rets(r: Rec) -> usize:
 >   %10 = Block - : usize
 >   %11 = Scope %10 [] : usize
 >   %12 = Drop [$1] : ()
->   %13 = Read borrow [$0] : Rec
+>   %13 = Read copy [$0] : Rec
 >   %14 = Store [$5] %13 : ()
->   %15 = Read copy [$5 .name] : string
+>   %15 = Read move [$5 .name] : string
 >   %16 = Break L2 %15 : never
 >   %17 = Block - : string
 >   %18 = Scope %17 [] : string

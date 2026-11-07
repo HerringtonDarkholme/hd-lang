@@ -152,9 +152,9 @@ pub fn run(n: i64) -> i64:
 >   %22 = Block %20 : i64
 >   %2 finds [$1] full
     $.with(Meter=counters):
->   %4 = Read borrow [$2] : Counted[mut Counters]
+>   %4 = Read copy [$2] : Counted[mut Counters]
 >   %5 = Store [$3] %4 : ()
->   %6 = Read copy [$3] : Counted[mut Counters]
+>   %6 = Read move [$3] : Counted[mut Counters]
 >   %7 = Coerce %6 [RefToTraitValue -] : Meter
 >   %8 = Retain %7 Value #0 : ()
 >   %9 = Drop [%6] : ()

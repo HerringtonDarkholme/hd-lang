@@ -813,7 +813,7 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     insert::run(b, cx, scratch)?;
     scratch.topo.build(b);
     let (topo, edits) = (&scratch.topo, &mut scratch.splice);
-    derive::run(b, topo, cx, &mut scratch.derive, &mut scratch.moves);
+    derive::run(b, topo, cx, &mut scratch.derive);
     derive::apply(b, topo, &scratch.derive, edits);
     moves::run(b, topo, cx, &mut scratch.moves, edits);
     values::capture_moves(b, topo, cx, &mut scratch.values, edits);

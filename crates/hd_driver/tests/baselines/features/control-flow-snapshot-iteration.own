@@ -80,9 +80,9 @@ fn cursor_then_push(values: List[string], s: string) -> usize:
 >   %1 = Store [$2] %0 : ()
 >   %45 = Block %42 : usize
     let mut cursor = items.iter()
->   %2 = Read borrow [$2] : List[string]
+>   %2 = Read copy [$2] : List[string]
 >   %3 = Store [$6] %2 : ()
->   %4 = Read copy [$6] : List[string]
+>   %4 = Read move [$6] : List[string]
 >   %5 = NewStruct [%4 0:usize] : ListIter[string]
 >   %6 = Break L1 %5 : never
 >   %7 = Block - : ListIter[string]

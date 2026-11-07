@@ -304,9 +304,9 @@ pub(crate) fn run(
     }
 }
 
-/// The walk alone: each read at the last use of its place, which
-/// [`last_use`] then answers. False when no place has one.
-pub(crate) fn last_uses(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> bool {
+/// The walk alone: each read at the last use of its place. False when no
+/// place has one.
+fn last_uses(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> bool {
     let n = b.len();
     t.reset(n, b.local_ty.len());
     if !candidates(b, topo, cx, t) {
@@ -336,11 +336,6 @@ pub(crate) fn last_uses(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, t: &mut T
     }
     t.back = back;
     true
-}
-
-/// Whether read `i` is the last use of its place, by [`last_uses`].
-pub(crate) fn last_use(t: &Tables, i: usize) -> bool {
-    t.decide[i] == MOVE
 }
 
 /// Whether instruction `i` is a `Store` into a field path of a local

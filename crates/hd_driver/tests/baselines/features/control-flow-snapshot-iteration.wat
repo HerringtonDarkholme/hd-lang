@@ -129,12 +129,10 @@
     block
       local.get $values
     ;; 16 |     let mut cursor = items.iter()
+      call $rt:coll_copy
       local.set $t1
       block
         block
-          local.get $t1
-          call $rt:coll_copy
-          local.set $t1
           br 0
         end
       end

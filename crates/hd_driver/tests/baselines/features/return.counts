@@ -24,6 +24,6 @@ fn use_rets(r: Rec) -> usize:
 > app/main/use_rets
 >   retain string (stored)
 >   release string (last use)
->   retain string (stored)
+>   retain app.main.Rec [name.0] (stored)
 >   release string (last use)
 >   release app.main.Rec [name.0] (last use)

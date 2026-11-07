@@ -26,7 +26,7 @@
 use hd_base::SliceSort as _;
 
 use super::flow::{Backward, BitArena, Flow, backward, backward_blocks};
-use super::{Loc, OwnCx, Pass, Role, Tri, consumes, fill, moves, operands, splice};
+use super::{Loc, OwnCx, Pass, Role, Tri, consumes, fill, operands, splice};
 use crate::ir::{
     Body, BodyKind, Callee, DEREF, ELEM, IntrinsicOp, NONE, PlaceRoot, Proj, ReadMode, Ref, Root,
     Tag, Topology, inside, is_suspension, local_flags, ref_word, sub_flags, u32_of,
@@ -108,9 +108,8 @@ struct Value {
     dropped: bool,
     /// A cleanup suite it is not inside of uses it.
     in_suite: bool,
-    /// The read is the last use of its place.
-    last_use: bool,
-    /// A reader needs a count, and this read gives it by moving.
+    /// A reader needs a count, and this read may give it by moving: it stays
+    /// a copy, which the move pass moves at its last use.
     moves: bool,
     borrows: bool,
 }
@@ -238,7 +237,6 @@ impl Tables {
             keeps: false,
             dropped: false,
             in_suite: false,
-            last_use: false,
             moves: false,
             borrows: false,
         };
@@ -1183,8 +1181,9 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
             let needed = taken[r]
                 || (f.alias != NONE && taken[f.alias as usize])
                 || (bind != NONE && t.l[bind as usize].kept > 0);
-            // It could move only out of what can own: not a value that
-            // borrows, nor a parameter its caller keeps.
+            // It could move only out of what can own, by a place a move
+            // takes: not a value that borrows, nor a parameter its caller
+            // keeps, nor what lies behind a reference or in a buffer.
             let root_owned = match b.view(b.data[r][0]).root {
                 Root::Local(m) => {
                     !t.l[m as usize].unowned
@@ -1203,7 +1202,7 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
                 bit = at.far;
                 at = t.bits[bit as usize];
             }
-            let moves = needed && f.last_use && root_owned;
+            let moves = needed && root_owned && b.view(b.data[r][0]).in_place(b);
             if moves
                 || get(&t.changed, bit)
                 || !crossed_ok(b, t, bit)
@@ -1241,40 +1240,23 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
     }
 }
 
-/// The counted reads that may keep a count, into `t.takers`; whether one
-/// reads a value that may borrow or a binding: only then can a read's last use
-/// decide anything.
-fn takers(b: &Body, cx: &dyn OwnCx, t: &mut Tables) -> bool {
-    let mut any = false;
+/// The counted reads that may keep a count, into `t.takers`.
+fn takers(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     t.takers.clear();
     for i in 0..b.len() {
         let f = t.v[i];
-        if b.tags[i] != Tag::Read
-            || !(f.keeps || f.bit != NONE || t.store_of(i) != NONE)
-            || !cx.counted(b.ty[i])
+        if b.tags[i] == Tag::Read
+            && (f.keeps || f.bit != NONE || t.store_of(i) != NONE)
+            && cx.counted(b.ty[i])
         {
-            continue;
+            t.takers.push(u32_of(i));
         }
-        t.takers.push(u32_of(i));
-        any |= (f.keeps || t.store_of(i) != NONE)
-            && match b.view(b.data[i][0]).root {
-                Root::Local(l) => t.l[l as usize].bit != NONE,
-                Root::Value(v) => t.v[v as usize].bit != NONE,
-                _ => false,
-            };
     }
-    any
 }
 
 /// Derives which reads of `b`, as insertion left it, borrow and which
 /// parameters and bindings the body owns none of.
-pub(crate) fn run(
-    b: &mut Body,
-    topo: &Topology,
-    cx: &dyn OwnCx,
-    t: &mut Tables,
-    last: &mut moves::Tables,
-) {
+pub(crate) fn run(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
     t.reset(b.len(), b.local_ty.len());
     {
         let b = &*b;
@@ -1293,12 +1275,7 @@ pub(crate) fn run(
         }
         candidates(b, cx, t);
     }
-    // The last-use walk answers only for a read whose reader needs a count.
-    if takers(b, cx, t) && moves::last_uses(b, topo, cx, last) {
-        for r in 0..b.len() {
-            t.v[r].last_use = moves::last_use(last, r);
-        }
-    }
+    takers(b, cx, t);
     let b = &*b;
     super::frame_reference_uses(b, topo, cx, &mut t.frame_uses);
     if t.l.iter().any(|f| f.bit != NONE) {

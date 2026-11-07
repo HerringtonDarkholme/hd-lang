@@ -207,12 +207,15 @@
       i32.load $heap
       local.get $r
       i32.load $heap offset=4
-      local.set $t2
       local.set $t1
+      local.tee $t2
+      call $retain
       block
         block
+          local.get $t2
           local.get $t1
-          call $retain
+          local.set $t2
+          local.set $t1
           br 0
         end
       end
@@ -227,12 +230,15 @@
       i32.load $heap
       local.get $r
       i32.load $heap offset=4
-      local.set $t3
       local.set $t1
+      local.tee $t3
+      call $retain
       block
         block
+          local.get $t3
           local.get $t1
-          call $retain
+          local.set $t3
+          local.set $t1
           br 0
         end
       end

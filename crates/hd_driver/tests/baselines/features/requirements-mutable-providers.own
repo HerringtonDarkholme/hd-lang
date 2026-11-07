@@ -87,9 +87,9 @@ fn demo(a: string, b: string) -> usize:
 >   %28 = Block %26 : usize
 >   %5 finds [$2] full
     $.with(Recorder=tally):
->   %7 = Read borrow [$3] : Counted[mut Log]
+>   %7 = Read copy [$3] : Counted[mut Log]
 >   %8 = Store [$4] %7 : ()
->   %9 = Read copy [$4] : Counted[mut Log]
+>   %9 = Read move [$4] : Counted[mut Log]
 >   %10 = Coerce %9 [RefToTraitValue -] : Recorder
 >   %11 = Retain %10 Value #0 : ()
 >   %12 = Drop [%9] : ()
