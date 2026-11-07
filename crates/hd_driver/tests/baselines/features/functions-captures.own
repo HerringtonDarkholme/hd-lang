@@ -11,33 +11,34 @@
 fn copied(s: string) -> usize:
 > app/main/copied
 >   local $0 s: string [param read captured] value
->     uses $0: entry -> %1 lend, %8 consume, %14 lend last
+>     uses $0: entry -> %2 lend, %9 consume, %15 lend last
 >   local $1 f: fn() -> usize [:= read assigned] value
->     uses $1: %10 -> %11 lend last
->   %0 = Retain %21 Entry local $0 #0 : ()
+>     uses $1: %11 -> %12 lend last
+>   %1 = Retain %22 Entry local $0 #0 : ()
     f := fn() -> usize: s.len()
->   %1 = Read borrow [$0] : string
->   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
->   %3 = Break L1 %2 : never
->   %4 = Block - : usize
->   %5 = Scope %4 [] : usize
->   %6 = Drop [$0] : ()
->   %7 = Block %5 : usize
->   %8 = Closure #1 [%0 %1] : fn() -> usize
->   %9 = Retain %8 Operation captures #0 : ()
->   %10 = Store [$1] %8 : ()
->   %21 = Block %20 : usize
+>   %0 = Retain %8 Entry captures #0 : ()
+>   %2 = Read borrow [$0] : string
+>   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
+>   %4 = Break L1 %3 : never
+>   %5 = Block - : usize
+>   %6 = Scope %5 [] : usize
+>   %7 = Drop [$0] : ()
+>   %8 = Block %6 : usize
+>   %9 = Closure #1 [%0 %1] : fn() -> usize
+>   %10 = Retain %9 Operation captures #0 : ()
+>   %11 = Store [$1] %9 : ()
+>   %22 = Block %21 : usize
     f() + s.len()
->   %11 = Read move [$1] : fn() -> usize
->   %12 = CallValue %11 [] : usize
->   %13 = Drop [%11] : ()
->   %14 = Read borrow [$0] : string
->   %15 = Call std/rt.bytes/bytes_len[] (%14) : usize
->   %16 = Break L0 %15 : never
->   %17 = Block - : usize
->   %18 = Scope %17 [] : usize
->   %19 = Drop [$0] : ()
->   %20 = Prim Add [%12 %18] : usize
+>   %12 = Read move [$1] : fn() -> usize
+>   %13 = CallValue %12 [] : usize
+>   %14 = Drop [%12] : ()
+>   %15 = Read borrow [$0] : string
+>   %16 = Call std/rt.bytes/bytes_len[] (%15) : usize
+>   %17 = Break L0 %16 : never
+>   %18 = Block - : usize
+>   %19 = Scope %18 [] : usize
+>   %20 = Drop [$0] : ()
+>   %21 = Prim Add [%13 %19] : usize
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0] writes
@@ -45,40 +46,41 @@ fn copied(s: string) -> usize:
 fn shared_list(s: string) -> usize:
 > app/main/shared_list
 >   local $0 s: string [param read captured] value
->     uses $0: entry -> %3 consume, %9 consume last
+>     uses $0: entry -> %4 consume, %10 consume last
 >   local $1 xs: List[string] [read assigned captured] place
 >     frame cell [$1]
 >   local $2 add: fn() -> () [:= read assigned] value
->     uses $2: %11 -> %12 lend, %14 lend last
->   %0 = Retain %21 Entry local $0 #0 : ()
+>     uses $2: %12 -> %13 lend, %15 lend last
+>   %0 = Retain %22 Entry local $0 #0 : ()
     let mut xs: List[string] = []
 >   %1 = NewList - [] : List[string]
 >   %2 = Store [$1] %1 : ()
->   %21 = Block %19 : usize
+>   %22 = Block %20 : usize
     add := fn() -> void: xs.push(s)
->   %3 = Read move [$0] : string
->   %4 = IsUnique [$1] : ()
->   %5 = Read borrow [$1] : List[string]
->   %6 = Intrinsic ListPush [%5 %3] : ()
->   %7 = Drop [$1] : ()
->   %8 = Block - : ()
->   %9 = Closure #1 [%0 %2] : fn() -> ()
->   %10 = Retain %9 Operation captures #0 : ()
->   %11 = Store [$2] %9 : ()
->   %9 finds [$1] full
+>   %3 = Retain %9 Entry captures #0 : ()
+>   %4 = Read move [$0] : string
+>   %5 = IsUnique [$1] : ()
+>   %6 = Read borrow [$1] : List[string]
+>   %7 = Intrinsic ListPush [%6 %4] : ()
+>   %8 = Drop [$1] : ()
+>   %9 = Block - : ()
+>   %10 = Closure #1 [%0 %2] : fn() -> ()
+>   %11 = Retain %10 Operation captures #0 : ()
+>   %12 = Store [$2] %10 : ()
+>   %10 finds [$1] full
     add()
->   %12 = Read borrow [$2] : fn() -> ()
->   %13 = CallValue %12 [] : ()
+>   %13 = Read borrow [$2] : fn() -> ()
+>   %14 = CallValue %13 [] : ()
     add()
->   %14 = Read move [$2] : fn() -> ()
->   %15 = CallValue %14 [] : ()
->   %16 = Drop [%14] : ()
+>   %15 = Read move [$2] : fn() -> ()
+>   %16 = CallValue %15 [] : ()
+>   %17 = Drop [%15] : ()
     xs.len()
->   %17 = Read copy [$1] : List[string]
->   %18 = Drop [$1] : ()
->   %19 = Intrinsic ListLen [%17] : usize
->   %20 = Drop [%17] : ()
->   %17 finds [$1] full
+>   %18 = Read copy [$1] : List[string]
+>   %19 = Drop [$1] : ()
+>   %20 = Intrinsic ListLen [%18] : usize
+>   %21 = Drop [%18] : ()
+>   %18 finds [$1] full
 >   exit sub 0 drops [$0 $1]
 >   exit sub 1 drops [$0 $1]
 >   storage sub 0: $1 slot
@@ -88,44 +90,45 @@ fn shared_list(s: string) -> usize:
 fn copy_shares(s: string) -> usize:
 > app/main/copy_shares
 >   local $0 s: string [param read captured] value
->     uses $0: entry -> %3 lend, %14 consume last
+>     uses $0: entry -> %4 lend, %15 consume last
 >   local $1 n: usize [read assigned captured captured-assigned] place
 >     frame cell [$1]
 >   local $2 inc: fn() -> () [:= read assigned] value
->     uses $2: %16 -> %17 lend, %19 lend last
->   %0 = Retain %24 Entry local $0 #0 : ()
+>     uses $2: %17 -> %18 lend, %20 lend last
+>   %0 = Retain %25 Entry local $0 #0 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
->   %24 = Block %22 : usize
+>   %25 = Block %23 : usize
     inc := fn() -> void: n += s.len()
->   %2 = Read copy [$1] : usize
->   %3 = Read borrow [$0] : string
->   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
->   %5 = Break L0 %4 : never
->   %6 = Block - : usize
->   %7 = Scope %6 [] : usize
->   %8 = Drop [$0] : ()
->   %9 = Prim Add [%2 %7] : usize
->   %10 = Store [$1] %9 : ()
->   %11 = Release %10 Operation #3 : ()
->   %12 = Drop [$1] : ()
->   %13 = Block - : ()
->   %14 = Closure #1 [%0 %2] : fn() -> ()
->   %15 = Retain %14 Operation captures #0 : ()
->   %16 = Store [$2] %14 : ()
->   %14 finds [$1] full
+>   %2 = Retain %14 Entry captures #0 : ()
+>   %3 = Read copy [$1] : usize
+>   %4 = Read borrow [$0] : string
+>   %5 = Call std/rt.bytes/bytes_len[] (%4) : usize
+>   %6 = Break L0 %5 : never
+>   %7 = Block - : usize
+>   %8 = Scope %7 [] : usize
+>   %9 = Drop [$0] : ()
+>   %10 = Prim Add [%3 %8] : usize
+>   %11 = Store [$1] %10 : ()
+>   %12 = Release %11 Operation #3 : ()
+>   %13 = Drop [$1] : ()
+>   %14 = Block - : ()
+>   %15 = Closure #1 [%0 %2] : fn() -> ()
+>   %16 = Retain %15 Operation captures #0 : ()
+>   %17 = Store [$2] %15 : ()
+>   %15 finds [$1] full
     again := inc
     inc()
->   %17 = Read borrow [$2] : fn() -> ()
->   %18 = CallValue %17 [] : ()
+>   %18 = Read borrow [$2] : fn() -> ()
+>   %19 = CallValue %18 [] : ()
     again()
->   %19 = Read move [$2] : fn() -> ()
->   %20 = CallValue %19 [] : ()
->   %21 = Drop [%19] : ()
+>   %20 = Read move [$2] : fn() -> ()
+>   %21 = CallValue %20 [] : ()
+>   %22 = Drop [%20] : ()
     n
->   %22 = Read copy [$1] : usize
->   %23 = Drop [$1] : ()
->   %22 finds [$1] full
+>   %23 = Read copy [$1] : usize
+>   %24 = Drop [$1] : ()
+>   %23 finds [$1] full
 >   exit sub 0 drops [$0 $1]
 >   exit sub 1 drops [$0 $1]
 >   storage sub 0: $1 slot
@@ -135,21 +138,22 @@ fn copy_shares(s: string) -> usize:
 fn through_ptr(items: *mut List[string], s: string) -> fn() -> void:
 > app/main/through_ptr
 >   local $0 items: Counted[mut List[string]] [param read captured] value
->     uses $0: entry -> %4 lend, %8 consume last
+>     uses $0: entry -> %5 lend, %9 consume last
 >   local $1 s: string [param read captured] value
->     uses $1: entry -> %2 consume, %8 consume last
->   %0 = Retain %10 Entry local $0 #0 : ()
->   %1 = Retain %10 Entry local $1 #0 : ()
+>     uses $1: entry -> %3 consume, %9 consume last
+>   %1 = Retain %11 Entry local $0 #0 : ()
+>   %2 = Retain %11 Entry local $1 #0 : ()
     fn() -> void: items.push(s)
->   %2 = Read move [$1] : string
->   %3 = IsUnique [*$0] : ()
->   %4 = Read borrow [*$0] : List[string]
->   %5 = Intrinsic ListPush [%4 %2] : ()
->   %6 = Drop [$0] : ()
->   %7 = Block - : ()
->   %8 = Closure #1 [%0 %2] : fn() -> ()
->   %9 = Retain %8 Operation captures #0 : ()
->   %10 = Block %8 : fn() -> ()
+>   %0 = Retain %8 Entry captures #0 : ()
+>   %3 = Read move [$1] : string
+>   %4 = IsUnique [*$0] : ()
+>   %5 = Read borrow [*$0] : List[string]
+>   %6 = Intrinsic ListPush [%5 %3] : ()
+>   %7 = Drop [$0] : ()
+>   %8 = Block - : ()
+>   %9 = Closure #1 [%0 %2] : fn() -> ()
+>   %10 = Retain %9 Operation captures #0 : ()
+>   %11 = Block %9 : fn() -> ()
 >   exit sub 0 drops [$0 $1]
 >   exit sub 1 drops [$0 $1]
 >   summary kept [$0 $1] writes

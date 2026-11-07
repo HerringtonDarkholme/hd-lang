@@ -85,35 +85,36 @@ fn run_twice!(body: fn!() -> string) -> usize:
 fn closure_bang!(key: string) -> usize:
 > app/main/closure_bang
 >   local $0 key: string [param read captured] value
->     uses $0: entry -> %8 lend, %13 consume last
->   %0 = Retain %18 Cold local $0 #0 : ()
->   %1 = Retain %18 Entry local $0 #0 : ()
+>     uses $0: entry -> %9 lend, %14 consume last
+>   %0 = Retain %19 Cold local $0 #0 : ()
+>   %1 = Retain %19 Entry local $0 #0 : ()
     run_twice!():
->   %6 = Release %18 FrameDrop child #2 : ()
->   %15 = Await app/main/run_twice[] (%13) : usize
->   %16 = Release %15 Operation child #2 : ()
->   %17 = Drop [%13] : ()
->   %18 = Block %15 : usize
+>   %7 = Release %19 FrameDrop child #2 : ()
+>   %16 = Await app/main/run_twice[] (%14) : usize
+>   %17 = Release %16 Operation child #2 : ()
+>   %18 = Drop [%14] : ()
+>   %19 = Block %16 : usize
         fetch!(key)
->   %2 = Retain %12 Cold row #0 : ()
->   %3 = Retain %12 Materialize row #0 : ()
->   %4 = Release %12 FrameDrop row #2 : ()
->   %5 = Retain %12 Cold captures #0 : ()
->   %7 = Release %12 FrameDrop child #2 : ()
->   %8 = Read move [$0] : string
->   %9 = Await app/main/fetch[] (%8) : string
->   %10 = Release %9 Operation child #2 : ()
->   %11 = Drop [%8] : ()
->   %12 = Block %9 : string
->   %13 = Closure #1 [%0 %1] : fn!() -> string
->   %14 = Retain %13 Operation captures #0 : ()
+>   %2 = Retain %13 Cold row #0 : ()
+>   %3 = Retain %13 Materialize row #0 : ()
+>   %4 = Release %13 FrameDrop row #2 : ()
+>   %5 = Retain %13 Cold captures #0 : ()
+>   %6 = Retain %13 Entry captures #0 : ()
+>   %8 = Release %13 FrameDrop child #2 : ()
+>   %9 = Read move [$0] : string
+>   %10 = Await app/main/fetch[] (%9) : string
+>   %11 = Release %10 Operation child #2 : ()
+>   %12 = Drop [%9] : ()
+>   %13 = Block %10 : string
+>   %14 = Closure #1 [%0 %1] : fn!() -> string
+>   %15 = Retain %14 Operation captures #0 : ()
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary none
->   unwind %9 drops [%8]
->   unwind %15 drops [%13]
->   live %9 [%8 $0]
->   live %15 [%13 $0]
+>   unwind %10 drops [%9]
+>   unwind %16 drops [%14]
+>   live %10 [%9 $0]
+>   live %16 [%14 $0]
 
 fn stored!(key: string) -> usize:
 > app/main/stored

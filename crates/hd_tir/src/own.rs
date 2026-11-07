@@ -54,6 +54,7 @@ pub(crate) mod arguments;
 pub(crate) mod cache;
 pub(crate) mod call_args;
 pub(crate) mod call_row;
+pub(crate) mod capture_entry;
 pub(crate) mod captures;
 pub(crate) mod cell_move;
 pub(crate) mod child;

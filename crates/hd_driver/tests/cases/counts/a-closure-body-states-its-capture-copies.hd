@@ -1,0 +1,32 @@
+# @dump: own counts wat
+# @build: v8 release program
+# expected: the closure body states its captured-edge copy separately from construction; string, pointer and List instances copy while scalar and lent captures add no count.
+use std.annotation.cold
+
+struct Named:
+    text: string
+
+@cold
+fn word(i: i32) -> string:
+    "held$i"
+
+@cold
+fn keep[T < 'static](value: T) -> fn() -> T:
+    fn() -> T: value
+
+@cold
+fn lend(value: string) -> fn() -> usize:
+    fn() -> usize: value.len()
+
+pub fn main() -> void $ Console:
+    original := word(7)
+    println(keep(original)())
+    println(keep(+7)())
+    println(lend(original)())
+    shared := box(Named { text: original })
+    println(keep(shared)().text)
+    items := [original]
+    println(keep(items)().len())
+    println(items[0])
+    println(shared.text)
+    println(original)

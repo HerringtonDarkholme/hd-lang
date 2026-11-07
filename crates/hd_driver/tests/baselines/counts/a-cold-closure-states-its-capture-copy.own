@@ -5,18 +5,19 @@
 fn text(value: string) -> fn!() -> string:
 > app/main/text
 >   local $0 value: string [param read captured] value
->     uses $0: entry -> %5 consume, %7 consume last
->   %4 = Retain %9 Entry local $0 #0 : ()
+>     uses $0: entry -> %6 consume, %8 consume last
+>   %5 = Retain %10 Entry local $0 #0 : ()
     fn!() -> string: value
->   %0 = Retain %6 Cold row #0 : ()
->   %1 = Retain %6 Materialize row #0 : ()
->   %2 = Release %6 FrameDrop row #2 : ()
->   %3 = Retain %6 Cold captures #0 : ()
->   %5 = Read move [$0] : string
->   %6 = Block %5 : string
->   %7 = Closure #1 [%0 %1] : fn!() -> string
->   %8 = Retain %7 Operation captures #0 : ()
->   %9 = Block %7 : fn!() -> string
+>   %0 = Retain %7 Cold row #0 : ()
+>   %1 = Retain %7 Materialize row #0 : ()
+>   %2 = Release %7 FrameDrop row #2 : ()
+>   %3 = Retain %7 Cold captures #0 : ()
+>   %4 = Retain %7 Entry captures #0 : ()
+>   %6 = Read move [$0] : string
+>   %7 = Block %6 : string
+>   %8 = Closure #1 [%0 %1] : fn!() -> string
+>   %9 = Retain %8 Operation captures #0 : ()
+>   %10 = Block %8 : fn!() -> string
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0]

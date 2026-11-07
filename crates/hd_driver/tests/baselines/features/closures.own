@@ -8,29 +8,30 @@
 fn capture_call(s: string) -> usize:
 > app/main/capture_call
 >   local $0 s: string [param read captured] value
->     uses $0: entry -> %1 lend, %8 consume last
+>     uses $0: entry -> %2 lend, %9 consume last
 >   local $1 f: fn() -> usize [:= read assigned] value
->     uses $1: %10 -> %11 lend, %13 lend last
->   %0 = Retain %17 Entry local $0 #0 : ()
+>     uses $1: %11 -> %12 lend, %14 lend last
+>   %1 = Retain %18 Entry local $0 #0 : ()
     f := fn() -> usize: s.len()
->   %1 = Read borrow [$0] : string
->   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
->   %3 = Break L0 %2 : never
->   %4 = Block - : usize
->   %5 = Scope %4 [] : usize
->   %6 = Drop [$0] : ()
->   %7 = Block %5 : usize
->   %8 = Closure #1 [%0 %1] : fn() -> usize
->   %9 = Retain %8 Operation captures #0 : ()
->   %10 = Store [$1] %8 : ()
->   %17 = Block %16 : usize
+>   %0 = Retain %8 Entry captures #0 : ()
+>   %2 = Read borrow [$0] : string
+>   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
+>   %4 = Break L0 %3 : never
+>   %5 = Block - : usize
+>   %6 = Scope %5 [] : usize
+>   %7 = Drop [$0] : ()
+>   %8 = Block %6 : usize
+>   %9 = Closure #1 [%0 %1] : fn() -> usize
+>   %10 = Retain %9 Operation captures #0 : ()
+>   %11 = Store [$1] %9 : ()
+>   %18 = Block %17 : usize
     f() + f()
->   %11 = Read borrow [$1] : fn() -> usize
->   %12 = CallValue %11 [] : usize
->   %13 = Read move [$1] : fn() -> usize
->   %14 = CallValue %13 [] : usize
->   %15 = Drop [%13] : ()
->   %16 = Prim Add [%12 %14] : usize
+>   %12 = Read borrow [$1] : fn() -> usize
+>   %13 = CallValue %12 [] : usize
+>   %14 = Read move [$1] : fn() -> usize
+>   %15 = CallValue %14 [] : usize
+>   %16 = Drop [%14] : ()
+>   %17 = Prim Add [%13 %15] : usize
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0] writes
@@ -38,19 +39,20 @@ fn capture_call(s: string) -> usize:
 fn escape(s: string) -> fn() -> usize:
 > app/main/escape
 >   local $0 s: string [param read captured] value
->     uses $0: entry -> %1 lend, %8 consume last
->   %0 = Retain %10 Entry local $0 #0 : ()
+>     uses $0: entry -> %2 lend, %9 consume last
+>   %1 = Retain %11 Entry local $0 #0 : ()
     fn() -> usize: s.len()
->   %1 = Read borrow [$0] : string
->   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
->   %3 = Break L0 %2 : never
->   %4 = Block - : usize
->   %5 = Scope %4 [] : usize
->   %6 = Drop [$0] : ()
->   %7 = Block %5 : usize
->   %8 = Closure #1 [%0 %1] : fn() -> usize
->   %9 = Retain %8 Operation captures #0 : ()
->   %10 = Block %8 : fn() -> usize
+>   %0 = Retain %8 Entry captures #0 : ()
+>   %2 = Read borrow [$0] : string
+>   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
+>   %4 = Break L0 %3 : never
+>   %5 = Block - : usize
+>   %6 = Scope %5 [] : usize
+>   %7 = Drop [$0] : ()
+>   %8 = Block %6 : usize
+>   %9 = Closure #1 [%0 %1] : fn() -> usize
+>   %10 = Retain %9 Operation captures #0 : ()
+>   %11 = Block %9 : fn() -> usize
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0]
@@ -78,33 +80,34 @@ fn shared(s: string) -> string:
 >   local $1 t: string [read assigned captured captured-assigned] place
 >     frame cell [$1]
 >   local $2 add: fn() -> () [:= read assigned] value
->     uses $2: %13 -> %14 lend last
->   %0 = Retain %19 Entry local $0 #0 : ()
+>     uses $2: %14 -> %15 lend last
+>   %0 = Retain %20 Entry local $0 #0 : ()
     let mut t = s
 >   %1 = Read move [$0] : string
 >   %2 = Store [$1] %1 : ()
->   %19 = Block %17 : string
+>   %20 = Block %18 : string
     add := fn() -> void: t += "x"
->   %3 = Read copy [$1] : string
->   %4 = Intrinsic StrConcat [%3 "x"] : string
->   %5 = Release %4 Operation operand 0 #2 : ()
->   %6 = Drop [%3] : ()
->   %7 = Store [$1] %4 : ()
->   %8 = Release %7 Operation #3 : ()
->   %9 = Drop [$1] : ()
->   %10 = Block - : ()
->   %11 = Closure #1 [%0 %1] : fn() -> ()
->   %12 = Retain %11 Operation captures #0 : ()
->   %13 = Store [$2] %11 : ()
->   %11 finds [$1] full
+>   %3 = Retain %11 Entry captures #0 : ()
+>   %4 = Read copy [$1] : string
+>   %5 = Intrinsic StrConcat [%4 "x"] : string
+>   %6 = Release %5 Operation operand 0 #2 : ()
+>   %7 = Drop [%4] : ()
+>   %8 = Store [$1] %5 : ()
+>   %9 = Release %8 Operation #3 : ()
+>   %10 = Drop [$1] : ()
+>   %11 = Block - : ()
+>   %12 = Closure #1 [%0 %1] : fn() -> ()
+>   %13 = Retain %12 Operation captures #0 : ()
+>   %14 = Store [$2] %12 : ()
+>   %12 finds [$1] full
     add()
->   %14 = Read move [$2] : fn() -> ()
->   %15 = CallValue %14 [] : ()
->   %16 = Drop [%14] : ()
+>   %15 = Read move [$2] : fn() -> ()
+>   %16 = CallValue %15 [] : ()
+>   %17 = Drop [%15] : ()
     t
->   %17 = Read copy [$1] : string
->   %18 = Drop [$1] : ()
->   %17 finds [$1] full
+>   %18 = Read copy [$1] : string
+>   %19 = Drop [$1] : ()
+>   %18 finds [$1] full
 >   exit sub 0 drops [$0 $1]
 >   exit sub 1 drops [$1]
 >   storage sub 0: $1 slot

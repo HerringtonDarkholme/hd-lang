@@ -27,7 +27,7 @@ fn bound(u: User) -> usize:
 > app/main/bound
 >   release fn() -> usize (last use)
 > app/main/bound
->   retain app.main.User [name.0] (conservative: entry)
+>   retain app.main.User [name.0] (stored)
 >   release app.main.User [name.0] (last use)
     f() + f()
 

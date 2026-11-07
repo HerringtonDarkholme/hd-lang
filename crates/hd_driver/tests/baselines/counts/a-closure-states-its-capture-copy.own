@@ -7,22 +7,23 @@ fn make() -> (fn() -> usize):
 > app/main/make
 >   local $0 count: usize [read assigned captured captured-assigned] place
 >   %0 = Store [$0] 0:usize : ()
->   %11 = Block %8 : fn() -> usize
+>   %12 = Block %9 : fn() -> usize
     fn() -> usize:
->   %7 = Block %5 : usize
->   %8 = Closure #1 [%0 %1] : fn() -> usize
->   %9 = Retain %8 Operation captures #0 : ()
->   %10 = Drop [$0] : ()
->   %8 finds [$0] full
+>   %1 = Retain %8 Entry captures #0 : ()
+>   %8 = Block %6 : usize
+>   %9 = Closure #1 [%0 %1] : fn() -> usize
+>   %10 = Retain %9 Operation captures #0 : ()
+>   %11 = Drop [$0] : ()
+>   %9 finds [$0] full
         count += 1
->   %1 = Read copy [$0] : usize
->   %2 = Prim Add [%1 1:usize] : usize
->   %3 = Store [$0] %2 : ()
->   %4 = Release %3 Operation #3 : ()
+>   %2 = Read copy [$0] : usize
+>   %3 = Prim Add [%2 1:usize] : usize
+>   %4 = Store [$0] %3 : ()
+>   %5 = Release %4 Operation #3 : ()
         count
->   %5 = Read copy [$0] : usize
->   %6 = Drop [$0] : ()
->   %5 finds [$0] full
+>   %6 = Read copy [$0] : usize
+>   %7 = Drop [$0] : ()
+>   %6 finds [$0] full
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   storage sub 0: $0 cell

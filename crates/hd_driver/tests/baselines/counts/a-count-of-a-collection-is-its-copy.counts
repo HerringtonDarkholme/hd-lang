@@ -16,7 +16,7 @@ fn keep(xs: List[i64], name: string) -> (Bag, List[List[i64]], fn() -> usize, Li
 >   copy List[i64] (stored)
     count := fn() -> usize: xs.len()
 > app/main/keep
->   copy List[i64] (conservative: entry)
+>   copy List[i64] (stored)
 >   release List[i64] (last use)
 >   copy counted reference (stored)
     (bag, rows, count, xs)

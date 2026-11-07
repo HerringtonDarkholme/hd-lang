@@ -87,14 +87,15 @@ fn keep[T < 'static](value: T) -> *mut T:
 fn later[T < 'static](value: T) -> fn() -> T:
 > app/main/later
 >   local $0 value: T [param read captured] value
->     uses $0: entry -> %1 consume, %3 consume last
->   %0 = Retain %5 Entry local $0 #0 : ()
+>     uses $0: entry -> %2 consume, %4 consume last
+>   %1 = Retain %6 Entry local $0 #0 : ()
     fn() -> T: value
->   %1 = Read move [$0] : T
->   %2 = Block %1 : T
->   %3 = Closure #1 [%0 %1] : fn() -> T
->   %4 = Retain %3 Operation captures #0 : ()
->   %5 = Block %3 : fn() -> T
+>   %0 = Retain %3 Entry captures #0 : ()
+>   %2 = Read move [$0] : T
+>   %3 = Block %2 : T
+>   %4 = Closure #1 [%0 %1] : fn() -> T
+>   %5 = Retain %4 Operation captures #0 : ()
+>   %6 = Block %4 : fn() -> T
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0]

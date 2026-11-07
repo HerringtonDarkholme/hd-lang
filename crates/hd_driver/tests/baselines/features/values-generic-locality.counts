@@ -30,7 +30,7 @@ fn keep[T < 'static](value: T) -> *mut T:
 fn later[T < 'static](value: T) -> fn() -> T:
     fn() -> T: value
 > app/main/later
->   retain &app.main.User (conservative: entry)
+>   retain &app.main.User (stored)
 > app/main/later
 >   retain &app.main.User (stored)
 

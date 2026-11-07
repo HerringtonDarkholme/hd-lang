@@ -8,19 +8,20 @@
 fn later(name: string) -> fn() -> usize:
 > app/main/later
 >   local $0 name: string [param read captured] value
->     uses $0: entry -> %1 lend, %8 consume last
->   %0 = Retain %10 Entry local $0 #0 : ()
+>     uses $0: entry -> %2 lend, %9 consume last
+>   %1 = Retain %11 Entry local $0 #0 : ()
     fn() -> usize: name.len()
->   %1 = Read borrow [$0] : string
->   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
->   %3 = Break L0 %2 : never
->   %4 = Block - : usize
->   %5 = Scope %4 [] : usize
->   %6 = Drop [$0] : ()
->   %7 = Block %5 : usize
->   %8 = Closure #1 [%0 %1] : fn() -> usize
->   %9 = Retain %8 Operation captures #0 : ()
->   %10 = Block %8 : fn() -> usize
+>   %0 = Retain %8 Entry captures #0 : ()
+>   %2 = Read borrow [$0] : string
+>   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
+>   %4 = Break L0 %3 : never
+>   %5 = Block - : usize
+>   %6 = Scope %5 [] : usize
+>   %7 = Drop [$0] : ()
+>   %8 = Block %6 : usize
+>   %9 = Closure #1 [%0 %1] : fn() -> usize
+>   %10 = Retain %9 Operation captures #0 : ()
+>   %11 = Block %9 : fn() -> usize
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0]

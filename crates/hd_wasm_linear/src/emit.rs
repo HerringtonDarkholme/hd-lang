@@ -439,8 +439,12 @@ fn body_func<'a>(
                 }
             } else if em.borrowed.contains(l) || lent_caps.contains(l) {
                 em.borrowed.insert(*l);
-            } else {
-                em.count_local(*l, ls, true)?;
+            } else if let Some(reason) =
+                em.stated_count(Tag::Retain, CountAt::Entry, CountPart::Captures)
+            {
+                em.because(reason, |em| em.count_local(*l, ls, true))?;
+            } else if em.is_cell(*l) || em.counted(em.sub(b.local_ty[*l])).is_some() {
+                return unsupported("a loaded capture without its stated entry copy");
             }
         }
     }

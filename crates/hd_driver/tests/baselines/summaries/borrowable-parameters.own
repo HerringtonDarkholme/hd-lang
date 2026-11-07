@@ -84,16 +84,17 @@ fn add(all: &mut List[Bag], b: Bag) -> void:
 fn later(b: Bag) -> fn() -> usize:
 > app/main/later
 >   local $0 b: Bag [param read captured] value
->     uses $0: entry -> %1 lend, %5 consume last
->   %0 = Retain %7 Entry local $0 #0 : ()
+>     uses $0: entry -> %2 lend, %6 consume last
+>   %1 = Retain %8 Entry local $0 #0 : ()
     fn() -> usize: b.items.len()
->   %1 = Read move [$0 .items] : List[string]
->   %2 = Intrinsic ListLen [%1] : usize
->   %3 = Drop [%1] : ()
->   %4 = Block %2 : usize
->   %5 = Closure #1 [%0 %1] : fn() -> usize
->   %6 = Retain %5 Operation captures #0 : ()
->   %7 = Block %5 : fn() -> usize
+>   %0 = Retain %5 Entry captures #0 : ()
+>   %2 = Read move [$0 .items] : List[string]
+>   %3 = Intrinsic ListLen [%2] : usize
+>   %4 = Drop [%2] : ()
+>   %5 = Block %3 : usize
+>   %6 = Closure #1 [%0 %1] : fn() -> usize
+>   %7 = Retain %6 Operation captures #0 : ()
+>   %8 = Block %6 : fn() -> usize
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0]

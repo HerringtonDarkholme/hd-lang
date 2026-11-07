@@ -89,48 +89,49 @@ fn shared!() -> i64:
 > app/main/shared
 >   local $0 tally: Tally [read assigned captured captured-assigned] place
 >   local $1 run: fn!() -> () [:= read assigned] value
->     uses $1: %16 -> %17 lend last
->   %0 = Release %26 FrameDrop child #2 : ()
+>     uses $1: %17 -> %18 lend last
+>   %0 = Release %27 FrameDrop child #2 : ()
 >   %1 = NewStruct [0:i64] : Tally
 >   %2 = Store [$0] %1 : ()
->   %26 = Block %24 : i64
+>   %27 = Block %25 : i64
     run := fn!() -> void: bump!(&mut tally)
->   %3 = Retain %13 Cold row #0 : ()
->   %4 = Retain %13 Materialize row #0 : ()
->   %5 = Release %13 FrameDrop row #2 : ()
->   %6 = Retain %13 Cold captures #0 : ()
->   %7 = Release %13 FrameDrop child #2 : ()
->   %8 = Ref mut local [$0] : Ref[mut Tally]
->   %9 = Await app/main/bump[] (%8) : ()
->   %10 = Release %9 Operation child #2 : ()
->   %11 = Drop [%8] : ()
->   %12 = Drop [$0] : ()
->   %13 = Block - : ()
->   %14 = Closure #1 [%0 %1] : fn!() -> ()
->   %15 = Retain %14 Operation captures #0 : ()
->   %16 = Store [$1] %14 : ()
->   %14 finds [$0] full
+>   %3 = Retain %14 Cold row #0 : ()
+>   %4 = Retain %14 Materialize row #0 : ()
+>   %5 = Release %14 FrameDrop row #2 : ()
+>   %6 = Retain %14 Cold captures #0 : ()
+>   %7 = Retain %14 Entry captures #0 : ()
+>   %8 = Release %14 FrameDrop child #2 : ()
+>   %9 = Ref mut local [$0] : Ref[mut Tally]
+>   %10 = Await app/main/bump[] (%9) : ()
+>   %11 = Release %10 Operation child #2 : ()
+>   %12 = Drop [%9] : ()
+>   %13 = Drop [$0] : ()
+>   %14 = Block - : ()
+>   %15 = Closure #1 [%0 %1] : fn!() -> ()
+>   %16 = Retain %15 Operation captures #0 : ()
+>   %17 = Store [$1] %15 : ()
+>   %15 finds [$0] full
     run!()
->   %17 = Read move [$1] : fn!() -> ()
->   %18 = CallValue %17 [] : mut Suspend[()]
->   %19 = AwaitValue %18 : ()
->   %20 = Release %19 Operation child #2 : ()
->   %21 = Retain %19 Operation child #0 : ()
->   %22 = Drop [%18] : ()
->   %23 = Drop [%17] : ()
+>   %18 = Read move [$1] : fn!() -> ()
+>   %19 = CallValue %18 [] : mut Suspend[()]
+>   %20 = AwaitValue %19 : ()
+>   %21 = Release %20 Operation child #2 : ()
+>   %22 = Retain %20 Operation child #0 : ()
+>   %23 = Drop [%19] : ()
+>   %24 = Drop [%18] : ()
     tally.n
->   %24 = Read copy [$0 .n] : i64
->   %25 = Drop [$0] : ()
->   %24 finds [$0] full
+>   %25 = Read copy [$0 .n] : i64
+>   %26 = Drop [$0] : ()
+>   %25 finds [$0] full
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   storage sub 0: $0 cell
 >   storage sub 1: $0 cell
 >   summary none
->   unwind %9 drops [%8]
->   unwind %19 drops [%17 %18]
->   live %9 [%8 $0]
->   live %19 [%17 %18 $0]
+>   unwind %10 drops [%9]
+>   unwind %20 drops [%18 %19]
+>   live %10 [%9 $0]
+>   live %20 [%18 %19 $0]
 
 fn copied!() -> i64:
     tally := Tally { n: 0 }

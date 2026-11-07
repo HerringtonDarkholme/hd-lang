@@ -5,7 +5,7 @@
 fn text(value: string) -> fn!() -> string:
     fn!() -> string: value
 > app/main/text
->   retain string (conservative: entry)
+>   retain string (stored)
 > app/main/text
 >   release string (cancelled)
 > app/main/text

@@ -61,7 +61,7 @@ fn closure_bang!(key: string) -> usize:
 >   retain string (stored)
         fetch!(key)
 > app/main/closure_bang
->   retain string (conservative: entry)
+>   retain string (stored)
 >   retain counted reference (stored)
 >   retain counted reference (stored)
 >   release counted reference (last use)

@@ -65,7 +65,7 @@ fn shared!() -> i64:
 >   release counted reference (last use)
     run := fn!() -> void: bump!(&mut tally)
 > app/main/shared
->   retain counted reference (conservative: entry)
+>   retain counted reference (stored)
 >   retain counted reference (stored)
 >   retain counted reference (stored)
 >   release counted reference (last use)

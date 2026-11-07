@@ -1,0 +1,50 @@
+use std.annotation.cold
+use std.testing.assert_equal
+
+struct Named:
+    text: string
+
+@cold
+fn word(i: i32) -> string:
+    "held$i"
+
+@cold
+fn keep[T < 'static](value: T) -> fn() -> T:
+    fn() -> T: value
+
+@cold
+fn lend(value: string) -> fn() -> usize:
+    fn() -> usize: value.len()
+
+fn shared!() -> i32:
+    let value = +0
+    bump := fn!() -> i32:
+        value += 1
+        value
+    first := bump!()
+    second := bump!()
+    first * 10 + second
+
+fn recursive(value: string) -> fn!(usize) -> string:
+    read := fn!(n: usize) -> string:
+        if n == 0: value else: read!(n - 1)
+    read
+
+pub fn main!() -> void:
+    original := word(7)
+    saved := keep(original)
+    assert_equal(saved(), "held7")
+    assert_equal(saved(), "held7")
+    assert_equal(keep(+7)(), 7)
+    assert_equal(lend(original)(), 5)
+    shared_value := box(Named { text: original })
+    assert_equal(keep(shared_value)().text, "held7")
+    items := [original]
+    assert_equal(keep(items)().len(), 1)
+    assert_equal(items[0], "held7")
+    assert_equal(shared_value.text, "held7")
+    assert_equal(shared!(), 12)
+    read := recursive(original)
+    assert_equal(read!(3), "held7")
+    assert_equal(read!(0), "held7")
+    assert_equal(original, "held7")

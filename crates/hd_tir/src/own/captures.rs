@@ -71,7 +71,9 @@ mod tests {
     }
 
     fn statement(b: &Body) -> Option<usize> {
-        (0..b.len()).find(|&i| Info::read(b, i).is_some_and(|c| c.part == Part::Captures))
+        (0..b.len()).find(|&i| {
+            Info::read(b, i).is_some_and(|c| c.at == At::Operation && c.part == Part::Captures)
+        })
     }
 
     #[test]
@@ -99,7 +101,10 @@ mod tests {
                 let topo = Topology::new(&b);
                 counts::run(&mut b, &Cx, &topo, &mut splice::Tables::default()).unwrap();
                 let ds: Vec<_> = (0..b.len())
-                    .filter(|&i| Info::read(&b, i).is_some_and(|c| c.part == Part::Captures))
+                    .filter(|&i| {
+                        Info::read(&b, i)
+                            .is_some_and(|c| c.at == At::Operation && c.part == Part::Captures)
+                    })
                     .collect();
                 assert_eq!(ds.len(), usize::from(expected));
                 if let Some(&i) = ds.first() {

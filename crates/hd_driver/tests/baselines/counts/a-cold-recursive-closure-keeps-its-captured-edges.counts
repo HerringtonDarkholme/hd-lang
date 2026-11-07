@@ -7,8 +7,8 @@ fn make(value: string) -> fn!(usize) -> string:
 > app/main/make
 >   release fn!(usize) -> string (last use)
 > app/main/make
->   retain string (conservative: entry)
->   retain fn!(usize) -> string (conservative: entry)
+>   retain string (stored)
+>   retain fn!(usize) -> string (stored)
 >   release string (last use)
 >   release fn!(usize) -> string (last use)
 >   release string (last use)
@@ -39,7 +39,7 @@ fn make(value: string) -> fn!(usize) -> string:
 fn generic[T < 'static](value: T) -> fn!() -> T:
     fn!() -> T: value
 > app/main/generic
->   retain string (conservative: entry)
+>   retain string (stored)
 > app/main/generic
 >   release string (cancelled)
 > app/main/generic

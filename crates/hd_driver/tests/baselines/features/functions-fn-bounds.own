@@ -141,36 +141,37 @@ fn fn_mut(xs: List[string]) -> usize:
 >   local $1 n: usize [read assigned captured captured-assigned] place
 >     frame cell [$1]
 >   local $2 x: string [param read] value
->     uses $2: entry -> %5 lend last
->   %0 = Release %23 Exit local $0 #2 : ()
+>     uses $2: entry -> %6 lend last
+>   %0 = Release %24 Exit local $0 #2 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
->   %23 = Block %21 : usize
+>   %24 = Block %22 : usize
     each(xs, fn(x: string) -> void: n += x.len())
 >   %2 = Read borrow [$0] : List[string]
->   %3 = Retain %15 Entry local $2 #0 : ()
->   %4 = Read copy [$1] : usize
->   %5 = Read borrow [$2] : string
->   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
->   %7 = Break L0 %6 : never
->   %8 = Block - : usize
->   %9 = Scope %8 [] : usize
->   %10 = Drop [$2] : ()
->   %11 = Prim Add [%4 %9] : usize
->   %12 = Store [$1] %11 : ()
->   %13 = Release %12 Operation #3 : ()
->   %14 = Drop [$1] : ()
->   %15 = Block - : ()
->   %16 = Closure #1 [%0 %1] : fn(string) -> ()
->   %17 = Retain %16 Operation captures #0 : ()
->   %18 = Call app/main/each[fn(string) -> ()] (%2, %16) : ()
->   %19 = Retain %18 Operation operand 0 #0 : ()
->   %20 = Drop [%16] : ()
->   %16 finds [$1] full
+>   %3 = Retain %16 Entry captures #0 : ()
+>   %4 = Retain %16 Entry local $2 #0 : ()
+>   %5 = Read copy [$1] : usize
+>   %6 = Read borrow [$2] : string
+>   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
+>   %8 = Break L0 %7 : never
+>   %9 = Block - : usize
+>   %10 = Scope %9 [] : usize
+>   %11 = Drop [$2] : ()
+>   %12 = Prim Add [%5 %10] : usize
+>   %13 = Store [$1] %12 : ()
+>   %14 = Release %13 Operation #3 : ()
+>   %15 = Drop [$1] : ()
+>   %16 = Block - : ()
+>   %17 = Closure #1 [%0 %1] : fn(string) -> ()
+>   %18 = Retain %17 Operation captures #0 : ()
+>   %19 = Call app/main/each[fn(string) -> ()] (%2, %17) : ()
+>   %20 = Retain %19 Operation operand 0 #0 : ()
+>   %21 = Drop [%17] : ()
+>   %17 finds [$1] full
     n
->   %21 = Read copy [$1] : usize
->   %22 = Drop [$1] : ()
->   %21 finds [$1] full
+>   %22 = Read copy [$1] : usize
+>   %23 = Drop [$1] : ()
+>   %22 finds [$1] full
 >   exit sub 0 drops [$1]
 >   exit sub 1 drops [$1 $2]
 >   storage sub 0: $1 slot

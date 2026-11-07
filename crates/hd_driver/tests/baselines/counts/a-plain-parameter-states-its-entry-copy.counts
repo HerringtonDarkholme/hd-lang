@@ -20,11 +20,11 @@ fn same[T](value: T) -> T:
 fn keep[T < 'static](value: T) -> fn() -> T:
     fn() -> T: value
 > app/main/keep
->   retain &app.main.Named (conservative: entry)
+>   retain &app.main.Named (stored)
 > app/main/keep
 >   retain &app.main.Named (stored)
 > app/main/keep
->   retain string (conservative: entry)
+>   retain string (stored)
 
 @cold
 fn make() -> fn(string) -> string:
