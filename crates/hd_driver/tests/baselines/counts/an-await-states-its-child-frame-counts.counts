@@ -13,7 +13,7 @@ fn read!() -> i32 $ Clock:
 >   retain counted reference (stored)
 >   release counted reference (last use)
 > app/main/read
->   release counted reference (conservative: frame drop)
+>   release counted reference (last use)
 >   release counted reference (conservative: frame drop)
 > app/main/read
 >   retain counted reference (stored)
@@ -25,7 +25,7 @@ fn stored!() -> i32 $ Clock:
 >   release Suspend[i32] (last use)
 > app/main/stored
 >   release Suspend[i32] (cancelled)
->   release counted reference (conservative: frame drop)
+>   release counted reference (last use)
 >   release counted reference (conservative: frame drop)
 > app/main/stored
 >   retain counted reference (stored)

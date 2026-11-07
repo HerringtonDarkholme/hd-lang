@@ -84,7 +84,7 @@ fn closure_bang!(key: string) -> usize:
 > app/main/closure_bang
 >   release string (cancelled)
 >   release string (cancelled)
->   release counted reference (conservative: frame drop)
+>   release counted reference (last use)
 >   release counted reference (conservative: frame drop)
 > app/main/closure_bang
 >   retain counted reference (stored)
@@ -123,7 +123,7 @@ fn stored!(key: string) -> usize:
 > app/main/stored
 >   release string (cancelled)
 >   release string (cancelled)
->   release counted reference (conservative: frame drop)
+>   release counted reference (last use)
 >   release counted reference (conservative: frame drop)
 > app/main/stored
 >   retain string (stored)

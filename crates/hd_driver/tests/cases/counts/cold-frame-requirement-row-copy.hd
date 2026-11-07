@@ -1,6 +1,6 @@
 # @dump: own counts wat
 # @build: v8 release
-# expected: the cold frame declares its provider-row copy; the existing capture and release order stays.
+# expected: the frame states its row copies and teardown release; provider order stays.
 trait Value:
     fn value(&self) -> i32
 

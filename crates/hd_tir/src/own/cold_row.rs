@@ -2,6 +2,7 @@
 //!
 //! Cold construction and fresh materialization each copy the frame-owned
 //! portion of that ABI row at their separate allocation boundaries.
+//! Frame teardown ends that owner, independently of the body returning.
 //! Its instance layout supplies provider data and any open-row context;
 //! a layout that owns no counts lowers no copy.
 
@@ -245,6 +246,105 @@ mod tests {
                 .iter()
                 .any(|e| e.what.contains("absent or repeated"))
         );
+    }
+
+    #[test]
+    fn teardown_needs_its_own_row_release_not_a_normal_exit_or_copy() {
+        use crate::ir::count::{At, Info, Part, find};
+        let facts = Facts {
+            row: true,
+            suspends: true,
+            declared: true,
+        };
+        let mut b = body(BodyKind::Fn);
+        for _ in 0..2 {
+            let topo = Topology::new(&b);
+            run(&mut b, &facts, &topo, &mut splice::Tables::default()).unwrap();
+            assert_eq!(
+                find(&b, Tag::Release, b.sub_root[0], At::FrameDrop, Part::Row),
+                Some(Info::new(At::FrameDrop, Part::Row, 2))
+            );
+            assert!(find(&b, Tag::Release, b.sub_root[0], At::Exit, Part::Row).is_none());
+            assert_eq!(
+                (0..b.len())
+                    .filter(|&i| b.tags[i] == Tag::Release
+                        && Info::read(&b, i)
+                            .is_some_and(|c| c.at == At::FrameDrop && c.part == Part::Row))
+                    .count(),
+                1
+            );
+            assert!(verify_owned(&b, &facts).is_empty());
+        }
+        let text = crate::ir::print(&b);
+        assert_eq!(crate::ir::print(&crate::ir::parse(&text).unwrap()), text);
+        let release = b.tags.iter().position(|&t| t == Tag::Release).unwrap();
+        for info in [
+            Info::new(At::Exit, Part::Row, 2),
+            Info::new(At::Cold, Part::Row, 2),
+            Info::new(At::Materialize, Part::Row, 2),
+            Info::new(At::FrameDrop, Part::Child, 2),
+            Info::new(At::FrameDrop, Part::Row, 0),
+        ] {
+            let mut wrong = b.clone();
+            wrong.data[release][1] = info.write(&mut wrong);
+            assert!(!verify_owned(&wrong, &facts).is_empty());
+        }
+        let mut wrong = b.clone();
+        wrong.tags[release] = Tag::Retain;
+        assert!(!verify_owned(&wrong, &facts).is_empty());
+        for duplicate in [false, true] {
+            let mut wrong = b.clone();
+            let topo = Topology::new(&wrong);
+            let mut edits = splice::Tables::default();
+            if duplicate {
+                edits.insert(
+                    wrong.sub_root[0],
+                    0,
+                    Tag::Release,
+                    wrong.data[release],
+                    Ty::VOID,
+                    hd_base::NodeIdx::NONE,
+                );
+            } else {
+                edits.remove(crate::ir::u32_of(release));
+            }
+            splice::apply(&mut wrong, &topo, &mut edits).unwrap();
+            assert!(
+                verify_owned(&wrong, &facts)
+                    .iter()
+                    .any(|e| e.what.contains("absent or repeated"))
+            );
+        }
+    }
+
+    #[test]
+    fn a_closures_row_release_cannot_belong_to_its_creator_or_sibling() {
+        use crate::ir::count::{At, Info};
+        let facts = Facts {
+            row: false,
+            suspends: false,
+            declared: true,
+        };
+        let mut b = closures(&[Ty(43), Ty(43)], false);
+        let topo = Topology::new(&b);
+        run(&mut b, &facts, &topo, &mut splice::Tables::default()).unwrap();
+        let release = (0..b.len())
+            .find(|&i| {
+                b.data[i][0] == b.sub_root[1]
+                    && Info::read(&b, i).is_some_and(|c| c.at == At::FrameDrop)
+            })
+            .unwrap();
+        for target in [0, 2] {
+            let mut wrong = b.clone();
+            wrong.data[release][0] = wrong.sub_root[target];
+            let errors = verify_owned(&wrong, &facts);
+            assert!(
+                errors
+                    .iter()
+                    .any(|e| e.what.contains("without its count fact"))
+            );
+            assert!(errors.iter().any(|e| e.what.contains("absent or repeated")));
+        }
     }
 
     #[test]

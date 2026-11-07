@@ -35,7 +35,7 @@ fn tagged!() -> usize $ Tag:
 > app/main/tagged
 >   release string (last use)
 > app/main/tagged
->   release counted reference (conservative: frame drop)
+>   release counted reference (last use)
 >   release counted reference (conservative: frame drop)
 > app/main/tagged
 >   retain counted reference (stored)

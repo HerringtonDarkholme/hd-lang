@@ -1436,17 +1436,25 @@ pub(super) fn finish(
                 em.because(Reason::ByDesign, |em| em.release_locals(&loaded, t))?;
             }
         }
-        for d in em
+        let row = em
             .susp
             .as_ref()
             .map(|s| s.provs.clone())
-            .unwrap_or_default()
-        {
-            if let Some((at, v)) = at_of(d) {
-                em.f.get(FRAME);
-                em.f.op(load_op(v, at));
-                em.f.helper(Helper::ReleaseRef);
-            }
+            .unwrap_or_default();
+        if !row.is_empty() {
+            let Some(reason) = em.stated_count(Tag::Release, CountAt::FrameDrop, CountPart::Row)
+            else {
+                return unsupported("a suspension row without its stated teardown release");
+            };
+            em.because(reason, |em| {
+                for d in row {
+                    if let Some((at, v)) = at_of(d) {
+                        em.f.get(FRAME);
+                        em.f.op(load_op(v, at));
+                        em.f.helper(Helper::ReleaseRef);
+                    }
+                }
+            });
         }
         em.f.get(FRAME);
         em.f.op(I::I32Load(mem(HEAP, F_CHILD, 2)));
