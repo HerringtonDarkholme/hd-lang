@@ -184,6 +184,7 @@ fn rejects_a_file_a_format_and_no_package() {
 #[test]
 fn a_warm_cache_keeps_fix_its_where_their_code_moved() {
     let dir = package("hd-fix-warm", GREET);
+    crate::own_objects(&dir.cache());
     let r = hd(&dir, &dir, &["check", "--format", "json"]);
     assert!(r.out.contains("\"text\":\"&dyn \""), "{}", r.out);
     let moved = format!("# a comment that moves every byte below it\n\n{GREET}");
