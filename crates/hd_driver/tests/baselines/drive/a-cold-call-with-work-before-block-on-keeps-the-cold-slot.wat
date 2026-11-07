@@ -11,8 +11,8 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $drive_put (param $s.0 i32) (param $s.1 i32) (param $text.0 i32) (param $text.1 i32) (param $log i32) (result i32) (local $t0 i32) (local $n i32)
-    block
     ;; 10 |     let call: mut Suspend[i32] = s.put(text)
+    block
       local.get $s.0
       call $retain
       local.get $s.0
@@ -21,12 +21,9 @@
       local.get $s.1
       i32.load $heap
       call_indirect $table0 (param i32 i32 i32) (result i32)
-    ;; (no span)
       local.get $s.0
       call $rt:release_ref'1
-    ;; 10 |     let call: mut Suspend[i32] = s.put(text)
       local.set $s.0
-    ;; (no span)
       local.get $log
       i32.load $heap
       call $rt:list_unique
@@ -99,7 +96,7 @@
       local.get $s.1
       local.set $text.1
       local.set $s.1
-    ;; (no span)
+    ;; 10 |     let call: mut Suspend[i32] = s.put(text)
       local.get $s.0
       call $rt:release_ref'2
     ;; 12 |     match block_on(call):
@@ -137,7 +134,7 @@
         end
         br 0
       end
-    ;; (no span)
+    ;; 10 |     let call: mut Suspend[i32] = s.put(text)
       local.get $n
       local.set $s.0
     end

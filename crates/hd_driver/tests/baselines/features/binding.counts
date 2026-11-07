@@ -16,6 +16,6 @@ fn bind_twice(xs: List[string]) -> usize:
 
 fn bind_kept(xs: List[string], all: &mut List[List[string]]) -> void:
     ys := xs
-    all.push(ys)
 > app/main/bind_kept
 >   unique List[List[string]] (conservative: unique)
+    all.push(ys)

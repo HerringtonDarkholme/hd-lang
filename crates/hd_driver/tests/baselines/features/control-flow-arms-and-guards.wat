@@ -5,8 +5,8 @@
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32 i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
   (func $pick (param $t.0 i32) (param $t.1 i32) (param $t.2 i32) (param $t.3 i32) (param $t.4 i32) (result i32 i32) (local $n.0 i32) (local $l.0 i32)
-    block
     ;; 12 |     match t:
+    block
       block
         block
           block
@@ -108,7 +108,6 @@
         local.set $t.0
         br 0
       end
-    ;; (no span)
       local.get $l.0
       call $rt:release_ref
       local.get $n.0
@@ -118,8 +117,8 @@
     local.get $t.1
   )
   (func $whole (param $o.0 i32) (param $o.1 i32) (param $o.2 i32) (result i32) (local $t0 i32) (local $other.0 i32) (local $other.1 i32) (local $other.2 i32) (local $t1 i32)
-    block
     ;; 19 |     match o:
+    block
       block
         block
           block
@@ -217,7 +216,6 @@
         local.set $o.0
         br 0
       end
-    ;; (no span)
       local.get $other.0
       local.get $other.1
       local.get $other.2

@@ -57,6 +57,16 @@ impl Em<'_, '_, '_> {
                 })
     }
 
+    /// The body's explicit common-exit declaration for this parameter.
+    pub(super) fn has_exit_drop(&self, local: usize) -> bool {
+        let word = u32::try_from(local).expect("local") | hd_tir::ir::place::BARE_LOCAL;
+        self.b.tags.iter().enumerate().any(|(i, &tag)| {
+            tag == Tag::ExitDrop
+                && self.b.data[i][0] == word
+                && self.topo.sub[i] == u32::from(self.sub_id)
+        })
+    }
+
     /// An owned body's `borrow` reads and binding locals
     /// (`docs/compiler/tir-v2.md`, "Borrow"): a borrow takes no count, so
     /// it joins [`Em::loans`], and its read lowers
@@ -829,8 +839,35 @@ impl Em<'_, '_, '_> {
                 self.borrow_release(l);
             }
         }
-        self.f.reason = Some(Reason::Conservative("unowned parameter"));
-        for l in self.unowned_params.clone() {
+        // ExitDrop is a declaration at a source position, lowered here
+        // on every return. Receiving the argument owned is an ABI fact;
+        // the statement, not the emitter, requests its cleanup.
+        let mut exits: Vec<(usize, Reason)> = self
+            .b
+            .tags
+            .iter()
+            .enumerate()
+            .filter_map(|(i, &tag)| {
+                if tag != Tag::ExitDrop || self.topo.sub[i] != u32::from(self.sub_id) {
+                    return None;
+                }
+                let [word, reason] = self.b.data[i];
+                let local = (word & !hd_tir::ir::place::BARE_LOCAL) as usize;
+                self.abi_owned_params
+                    .contains(&local)
+                    .then_some((local, Reason::from_word(reason)))
+            })
+            .collect();
+        // Closure and other non-source ABIs keep their separate legacy
+        // path until their cleanup contracts are stated too.
+        exits.extend(
+            self.unowned_params
+                .iter()
+                .map(|&l| (l, Reason::Conservative("unowned parameter"))),
+        );
+        exits.sort_stable_by_key(|x| x.0);
+        for (l, reason) in exits {
+            self.f.reason = Some(reason);
             if let Some(ls) = self.locals.get(&l).cloned() {
                 if self.is_cell(l) {
                     self.count_local(l, &ls, false)?;

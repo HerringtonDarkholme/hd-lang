@@ -10,93 +10,95 @@ enum Shape:
     Empty
 
 fn read_match(s: Shape) -> usize:
-    match s:
 > app/main/read_match
 >   local $0 s: Shape [param read] value
->     uses $0: entry -> %0 lend last
+>     uses $0: entry -> %1 lend last
 >   local $1 n: string [read assigned] value
->     uses $1: %21 -> %1 lend last
+>     uses $1: %22 -> %2 lend last
 >   local $2 a: string [read assigned] value
->     uses $2: %26 -> %7 lend last
+>     uses $2: %27 -> %8 lend last
 >   local $3 b: string [read assigned] value
->     uses $3: %27 -> %12 lend last
->   %0 = Read borrow [$0] : Shape
->   %39 = Block - : never
->   %40 = Match %0 [%39 %6 %18 %19] : usize
->   %41 = Block %40 : usize
+>     uses $3: %28 -> %13 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    match s:
+>   %1 = Read borrow [$0] : Shape
+>   %40 = Block - : never
+>   %41 = Match %1 [%40 %7 %19 %20] : usize
+>   %42 = Block %41 : usize
         .Named(n) => n.len()
->   %1 = Read borrow [$1] : string
->   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
->   %3 = Break L2 %2 : never
->   %4 = Block - : usize
->   %5 = Scope %4 [] : usize
->   %6 = Block %5 : usize
->   %20 = Read borrow [%0 as #0 .0] : string
->   %21 = Store [$1] %20 : ()
->   %23 = Block - : never
->   %37 = Block - : never
->   %38 = SwitchTag %0 [#0 %23 %37] : never
+>   %2 = Read borrow [$1] : string
+>   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
+>   %4 = Break L2 %3 : never
+>   %5 = Block - : usize
+>   %6 = Scope %5 [] : usize
+>   %7 = Block %6 : usize
+>   %21 = Read borrow [%1 as #0 .0] : string
+>   %22 = Store [$1] %21 : ()
+>   %24 = Block - : never
+>   %38 = Block - : never
+>   %39 = SwitchTag %1 [#0 %24 %38] : never
         .Pair(a, b) => a.len() + b.len()
->   %7 = Read borrow [$2] : string
->   %8 = Call std/rt.bytes/bytes_len[] (%7) : usize
->   %9 = Break L1 %8 : never
->   %10 = Block - : usize
->   %11 = Scope %10 [] : usize
->   %12 = Read borrow [$3] : string
->   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
->   %14 = Break L0 %13 : never
->   %15 = Block - : usize
->   %16 = Scope %15 [] : usize
->   %17 = Prim Add [%11 %16] : usize
->   %18 = Block %17 : usize
->   %24 = Read borrow [%0 as #1 .0] : string
->   %25 = Read borrow [%0 as #1 .1] : string
->   %26 = Store [$2] %24 : ()
->   %27 = Store [$3] %25 : ()
->   %29 = Block - : never
->   %35 = Block - : never
->   %36 = SwitchTag %0 [#1 %29 %35] : never
+>   %8 = Read borrow [$2] : string
+>   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
+>   %10 = Break L1 %9 : never
+>   %11 = Block - : usize
+>   %12 = Scope %11 [] : usize
+>   %13 = Read borrow [$3] : string
+>   %14 = Call std/rt.bytes/bytes_len[] (%13) : usize
+>   %15 = Break L0 %14 : never
+>   %16 = Block - : usize
+>   %17 = Scope %16 [] : usize
+>   %18 = Prim Add [%12 %17] : usize
+>   %19 = Block %18 : usize
+>   %25 = Read borrow [%1 as #1 .0] : string
+>   %26 = Read borrow [%1 as #1 .1] : string
+>   %27 = Store [$2] %25 : ()
+>   %28 = Store [$3] %26 : ()
+>   %30 = Block - : never
+>   %36 = Block - : never
+>   %37 = SwitchTag %1 [#1 %30 %36] : never
         .Empty => 0
->   %19 = Block 0:usize : usize
->   %31 = Block - : never
->   %33 = Block - : never
->   %34 = SwitchTag %0 [#2 %31 %33] : never
+>   %20 = Block 0:usize : usize
+>   %32 = Block - : never
+>   %34 = Block - : never
+>   %35 = SwitchTag %1 [#2 %32 %34] : never
 >   summary kept [] borrows [$0]
 
 fn take_match(s: Shape) -> string:
-    match s:
 > app/main/take_match
 >   local $0 s: Shape [param read] value
->     uses $0: entry -> %0 lend last
+>     uses $0: entry -> %1 lend last
 >   local $1 n: string [read assigned] value
->     uses $1: %7 -> %1 consume last
+>     uses $1: %8 -> %2 consume last
 >   local $2 a: string [read assigned] value
->     uses $2: %11 -> %3 consume last
->   %0 = Read borrow [$0] : Shape
->   %23 = Block - : never
->   %24 = Match %0 [%23 %2 %4 %5] : string
->   %25 = Block %24 : string
+>     uses $2: %12 -> %4 consume last
+>   %0 = ExitDrop [$0] #2 : ()
+    match s:
+>   %1 = Read borrow [$0] : Shape
+>   %24 = Block - : never
+>   %25 = Match %1 [%24 %3 %5 %6] : string
+>   %26 = Block %25 : string
         .Named(n) => n
->   %1 = Read move [$1] : string
->   %2 = Block %1 : string
->   %6 = Read copy [%0 as #0 .0] : string
->   %7 = Store [$1] %6 : ()
->   %9 = Block - : never
->   %21 = Block - : never
->   %22 = SwitchTag %0 [#0 %9 %21] : never
+>   %2 = Read move [$1] : string
+>   %3 = Block %2 : string
+>   %7 = Read copy [%1 as #0 .0] : string
+>   %8 = Store [$1] %7 : ()
+>   %10 = Block - : never
+>   %22 = Block - : never
+>   %23 = SwitchTag %1 [#0 %10 %22] : never
         .Pair(a, _) => a
->   %3 = Read move [$2] : string
->   %4 = Block %3 : string
->   %10 = Read copy [%0 as #1 .0] : string
->   %11 = Store [$2] %10 : ()
->   %13 = Block - : never
->   %19 = Block - : never
->   %20 = SwitchTag %0 [#1 %13 %19] : never
+>   %4 = Read move [$2] : string
+>   %5 = Block %4 : string
+>   %11 = Read copy [%1 as #1 .0] : string
+>   %12 = Store [$2] %11 : ()
+>   %14 = Block - : never
+>   %20 = Block - : never
+>   %21 = SwitchTag %1 [#1 %14 %20] : never
         .Empty => ""
->   %5 = Block "" : string
->   %15 = Block - : never
->   %17 = Block - : never
->   %18 = SwitchTag %0 [#2 %15 %17] : never
+>   %6 = Block "" : string
+>   %16 = Block - : never
+>   %18 = Block - : never
+>   %19 = SwitchTag %1 [#2 %16 %18] : never
 >   summary kept [] borrows [$0]
 
 fn ref_match(s: &Shape) -> usize:

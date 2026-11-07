@@ -5,8 +5,8 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $guard (param $s.0 i32) (param $s.1 i32) (result i32)
-    block
     ;; 7 |     if (n := s.len()) > 0: n else: 0
+    block
       block
         block
           local.get $s.1
@@ -22,7 +22,6 @@
       else
         i32.const 0
       end
-    ;; (no span)
       local.set $s.0
     end
     local.get $s.0
@@ -45,8 +44,8 @@
     local.get $xs
   )
   (func $bind_counted (param $s.0 i32) (param $s.1 i32) (result i32) (local $t.1 i32) (local $t.0 i32) (local $t0 i32) (local $t1 i32)
-    block
     ;; 10 |     if (t := s + "!").len() > 3: t.len() else: 0
+    block
       local.get $s.1
       i32.const 1
       i32.add
@@ -83,7 +82,6 @@
         end
       else
       end
-    ;; (no span)
       local.get $t.0
       call $rt:release_ref
       local.get $t1

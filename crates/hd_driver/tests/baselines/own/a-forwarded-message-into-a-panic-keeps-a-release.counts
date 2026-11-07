@@ -16,12 +16,12 @@ fn check_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void:
 >   release string (last use)
 >   release string (last use)
 >   release string (last use)
+>   release List[i32] (last use)
+>   release List[i32] (last use)
+>   release string (last use)
         details := "actual ${debug(actual)}, expected ${debug(expected)}"
         message := if reason == "": details else: "${reason}: ${details}"
         panic_with("assertion-failed", message)
->   (no span) release List[i32] (last use)
->   (no span) release List[i32] (last use)
->   (no span) release string (conservative: unowned parameter)
 
 pub fn run_it() -> void:
     check_equal([+1], [+1], "x")

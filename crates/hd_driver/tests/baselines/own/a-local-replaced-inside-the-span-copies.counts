@@ -2,7 +2,3 @@
 app/main/reassigned
   copy List[string] (second owner)
   release List[string] (overwritten)
-  (no span) release List[string] (last use)
-  (no span) release List[string] (last use)
-  (no span) release string (last use)
-  (no span) release List[string] (last use)

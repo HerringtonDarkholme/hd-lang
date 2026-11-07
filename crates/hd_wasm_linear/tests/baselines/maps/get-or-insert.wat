@@ -7,8 +7,8 @@
   (import "fixture" "rt:map_put" (func $rt:map_put (param i32 i32 i32 i32 i32 i64) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $increment_or_insert (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64)
-    block
     ;; 6 |     *counts.get_or_insert(word, 0) += 1
+    block
       local.get $counts
       i32.load $heap
       local.tee $t0

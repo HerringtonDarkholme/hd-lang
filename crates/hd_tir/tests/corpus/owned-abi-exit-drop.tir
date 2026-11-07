@@ -1,0 +1,10 @@
+# expect: owned
+body 8 Fn
+local 78 0 - 32
+sub 1 0 0 - 0
+labels
+caps
+modes
+extra 1 0
+%0 = ExitDrop 2147483648 2 : 18 @-
+%1 = Block 0 - : 18 @-

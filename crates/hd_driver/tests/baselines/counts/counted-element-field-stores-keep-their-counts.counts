@@ -3,4 +3,3 @@ app/main/rename
   unique List[app.main.Named] (conservative: unique)
   retain string (conservative: copy read)
   release string (overwritten)
-  (no span) release string (last use)

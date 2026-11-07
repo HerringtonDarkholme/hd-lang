@@ -9,8 +9,8 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 6 funcref))
   (func $by_key (param $m i32) (param $k.0 i32) (param $k.1 i32) (result i32)
-    block
     ;; 23 |     let mut out = m
+    block
       local.get $m
       local.tee $m
     ;; 24 |     reward(&mut out[k], 10)
@@ -27,7 +27,7 @@
         call $rt:panic'1
         unreachable
       end
-    ;; (no span)
+    ;; 23 |     let mut out = m
       local.get $m
       call $rt:map_unique
       local.tee $m
@@ -47,8 +47,8 @@
       i32.add
       i32.const 10
       call $reward
+    ;; 23 |     let mut out = m
     end
-    ;; (no span)
     local.get $m
   )
   (func $reward (param $player i32) (param $points i32)
@@ -65,10 +65,9 @@
     end
   )
   (func $rewarded (param $players i32) (param $best i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
-    block
     ;; 16 |     let mut out = players
+    block
       local.get $players
-    ;; (no span)
       call $rt:list_unique
       local.set $players
     ;; 17 |     reward(&mut out[best], 10)
@@ -107,7 +106,7 @@
       i32.const 1
       i32.add
       local.set $t0
-    ;; (no span)
+    ;; 16 |     let mut out = players
       local.get $players
       call $rt:list_unique
       local.set $players
@@ -127,7 +126,7 @@
       i32.add
       local.get $t0
       i32.store $heap offset=24
-    ;; (no span)
+    ;; 16 |     let mut out = players
       local.get $players
     ;; 19 |     out.push(Player { name: s, score: 0 })
       local.tee $best
@@ -162,8 +161,8 @@
       i32.const 1
       i32.add
       i32.store $heap offset=4
+    ;; 16 |     let mut out = players
     end
-    ;; (no span)
     local.get $players
   )
 )

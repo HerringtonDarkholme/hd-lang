@@ -16,8 +16,8 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $"impl Trail.enter" (param $self i32) (param $step i64) (local $t0 i32)
-    block
     ;; 23 |         record_step(&mut self.steps, self.depth, step)
+    block
       local.get $self
       local.get $self
       i32.load $heap offset=4
@@ -32,10 +32,11 @@
       local.get $self
       local.get $t0
       i32.store $heap offset=4
+    ;; 23 |         record_step(&mut self.steps, self.depth, step)
     end
   )
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $trail i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $i i32) (local $t3 i64) (local $t4 i64) (local $t5 i64) (local $t6 i32) (local $t7 i64) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32)
-    ;; (no span)
+    ;; 27 |     let mut trail = Trail { steps: [], depth: 0 }
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -66,7 +67,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 27 |     let mut trail = Trail { steps: [], depth: 0 }
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -142,7 +142,7 @@
       i32.load $heap
       i64.extend_i32_u
       local.set $t3
-    ;; (no span)
+    ;; 27 |     let mut trail = Trail { steps: [], depth: 0 }
       local.get $trail
       if
         local.get $trail
@@ -168,7 +168,7 @@
       end
       local.get $t1
       i64.load $heap offset=16
-    ;; (no span)
+    ;; 27 |     let mut trail = Trail { steps: [], depth: 0 }
       local.get $t1
       call $rt:release_ref
     ;; 33 |     println("${trail.depth} ${saved[0]} ${local[0]}")
@@ -214,7 +214,7 @@
       local.get $i
       i64.load $heap offset=16
       local.set $t5
-    ;; (no span)
+    ;; 27 |     let mut trail = Trail { steps: [], depth: 0 }
       local.get $t2
       if
         local.get $t2
@@ -343,29 +343,28 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 27 |     let mut trail = Trail { steps: [], depth: 0 }
       local.get $t9
       local.get $t10
     ;; 33 |     println("${trail.depth} ${saved[0]} ${local[0]}")
       local.get $provider0
       local.get $provider0.vtable
       call $"println[string]"
+    ;; 27 |     let mut trail = Trail { steps: [], depth: 0 }
     end
-    ;; (no span)
     local.get $t0
     i32.const 32
     i32.add
     global.set $locals
   )
   (func $set_first (param $xs i32) (param $v i64)
+    ;; 19 |     xs[0] = v
     block
-    ;; (no span)
       local.get $xs
       local.get $xs
       i32.load $heap
       call $rt:list_unique
       i32.store $heap
-    ;; 19 |     xs[0] = v
       local.get $xs
       i32.load $heap
       local.set $xs
@@ -383,8 +382,8 @@
     end
   )
   (func $record_step (param $steps i32) (param $slot i32) (param $step i64) (local $t0 i32)
-    block
     ;; 13 |     if slot < steps.len():
+    block
       local.get $slot
       local.get $steps
       i32.load $heap

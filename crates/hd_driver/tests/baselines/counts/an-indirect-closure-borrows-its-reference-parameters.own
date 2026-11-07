@@ -6,20 +6,21 @@
 use std.annotation.inline
 
 @inline(.Never)
-fn apply(by: fn(&i32, &i32) -> i32, left: &i32, right: &i32) -> i32:
-    by(left, right)
 > app/main/apply
 >   local $0 by: fn(Ref[i32], Ref[i32]) -> i32 [param read] value
->     uses $0: entry -> %0 lend last
+>     uses $0: entry -> %1 lend last
 >   local $1 left: Ref[i32] [param read] value
->     uses $1: entry -> %1 lend last
+>     uses $1: entry -> %2 lend last
 >   local $2 right: Ref[i32] [param read] value
->     uses $2: entry -> %2 lend last
->   %0 = Read borrow [$0] : fn(Ref[i32], Ref[i32]) -> i32
->   %1 = Read borrow [$1] : Ref[i32]
->   %2 = Read borrow [$2] : Ref[i32]
->   %3 = CallValue %0 [%1 %2] : i32
->   %4 = Block %3 : i32
+>     uses $2: entry -> %3 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+fn apply(by: fn(&i32, &i32) -> i32, left: &i32, right: &i32) -> i32:
+    by(left, right)
+>   %1 = Read borrow [$0] : fn(Ref[i32], Ref[i32]) -> i32
+>   %2 = Read borrow [$1] : Ref[i32]
+>   %3 = Read borrow [$2] : Ref[i32]
+>   %4 = CallValue %1 [%2 %3] : i32
+>   %5 = Block %4 : i32
 >   summary kept [] borrows [$0] writes
 
 fn difference(reverse: bool, left: &i32, right: &i32) -> i32:

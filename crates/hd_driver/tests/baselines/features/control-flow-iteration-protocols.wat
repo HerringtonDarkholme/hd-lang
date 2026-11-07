@@ -73,7 +73,7 @@
     local.get $t1
   )
   (func $twice (param $xs i32) (result i32) (local $n i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $x.0 i32) (local $x.1'2 i32) (local $x.1'1 i32)
-    ;; (no span)
+    ;; 26 |     let n: usize = 0
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -177,7 +177,7 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 26 |     let n: usize = 0
       local.get $t1
       if
         local.get $t1
@@ -254,7 +254,7 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 26 |     let n: usize = 0
       local.get $xs
       if
         local.get $xs
@@ -263,7 +263,7 @@
       end
     ;; 31 |     n
       local.get $n
-    ;; (no span)
+    ;; 26 |     let n: usize = 0
       local.set $xs
     end
     local.get $xs
@@ -273,7 +273,7 @@
     global.set $locals
   )
   (func $user_cursor (param $words.items i32) (param $words.at i32) (result i32) (local $n i32) (local $t0 i32) (local $w.0 i32) (local $t1 i32) (local $w.1 i32)
-    ;; (no span)
+    ;; 20 |     let n: usize = 0
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -369,7 +369,7 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 20 |     let n: usize = 0
       local.get $words.items
       if
         local.get $words.items
@@ -378,7 +378,7 @@
       end
     ;; 23 |     n
       local.get $n
-    ;; (no span)
+    ;; 20 |     let n: usize = 0
       local.set $words.items
     end
     local.get $words.items

@@ -9,21 +9,20 @@
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $put (param $m i32) (param $k.0 i32) (param $k.1 i32) (param $v.0 i32) (param $v.1 i32)
-    block
     ;; 11 |     _ := m.insert(k, v)
+    block
       local.get $m
       local.get $k.0
       local.get $k.1
       local.get $v.0
       local.get $v.1
       call $"impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].insert[string, string]"
-    ;; (no span)
       call $rt:release
     end
   )
   (func $group (param $m i32) (param $k.0 i32) (param $k.1 i32) (param $v.0 i32) (param $v.1 i32) (local $t0 i32)
-    block
     ;; 19 |     m.get_or_insert(k, UniqList::new()).push(v)
+    block
       block
         block
           block
@@ -110,8 +109,8 @@
     end
   )
   (func $lookup (param $m i32) (param $k.0 i32) (param $k.1 i32) (result i32) (local $t0 i32)
-    block
     ;; 14 |     match m.get_ref(k):
+    block
       local.get $m
       local.get $k.0
       local.get $k.1
@@ -144,7 +143,6 @@
         end
         br 0
       end
-    ;; (no span)
       local.get $t0
       local.set $m
     end

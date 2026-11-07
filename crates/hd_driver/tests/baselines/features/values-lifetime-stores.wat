@@ -14,8 +14,8 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 6 funcref))
   (func $index (param $by i32) (param $u i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
-    block
     ;; 14 |     by[u.name] = u
+    block
       local.get $u
       i32.load $heap
       local.get $u
@@ -23,7 +23,6 @@
       local.set $t0
       local.tee $t1
       call $retain
-    ;; (no span)
       local.get $by
       i32.load $heap
       call $rt:map_unique
@@ -32,7 +31,6 @@
       local.get $t2
       i32.store $heap
       local.get $t2
-    ;; 14 |     by[u.name] = u
       local.get $t1
       local.get $t0
       call $rt:map_hash
@@ -44,9 +42,7 @@
       local.get $t1
       call $retain
       local.get $by
-    ;; (no span)
       local.get $t2
-    ;; 14 |     by[u.name] = u
       local.get $t3
       local.get $t4
       local.get $t1
@@ -54,14 +50,13 @@
       local.get $u
       call $rt:map_put
       i32.store $heap
-    ;; (no span)
       local.get $t1
       call $rt:release_ref'1
     end
   )
   (func $remember (param $seen i32) (param $u i32) (local $t0 i32) (local $t1 i32)
+    ;; 11 |     seen.push(u)
     block
-    ;; (no span)
       local.get $seen
       i32.load $heap
       call $rt:list_unique
@@ -70,7 +65,6 @@
       local.get $t0
       i32.store $heap
       local.get $t0
-    ;; 11 |     seen.push(u)
       i32.load $heap offset=4
       local.tee $t1
       local.get $t0
@@ -100,7 +94,7 @@
     end
   )
   (func $total (param $b i32) (param $seen i32) (param $by i32) (param $t1 i32) (result i32) (local $t0 i32) (local $a i32) (local $t2 i32) (local $t3 i32)
-    ;; (no span)
+    ;; 17 |     let mut seen: List[&User] = []
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -155,7 +149,6 @@
     local.get $t1
     i32.store $heap offset=4
     block
-    ;; 17 |     let mut seen: List[&User] = []
       local.get $t0
       i64.const 0
       i64.store $heap offset=32
@@ -213,7 +206,7 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 17 |     let mut seen: List[&User] = []
       local.get $t1
       call $rt:release_ref'1
     ;; 22 |     seen[0].name.len() + seen[1].name.len() + by.len()
@@ -237,7 +230,7 @@
       local.set $t3
       local.tee $t1
       call $retain
-    ;; (no span)
+    ;; 17 |     let mut seen: List[&User] = []
       local.get $b
       if
         local.get $b
@@ -252,7 +245,7 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 17 |     let mut seen: List[&User] = []
       local.get $t1
       call $rt:release_ref'1
       local.get $seen
@@ -274,7 +267,7 @@
       local.tee $seen
       i32.load $heap
       local.set $by
-    ;; (no span)
+    ;; 17 |     let mut seen: List[&User] = []
       local.get $seen
       call $rt:release_ref'2
       local.get $a
@@ -287,7 +280,7 @@
       local.get $b
       local.get $by
       i32.add
-    ;; (no span)
+    ;; 17 |     let mut seen: List[&User] = []
       local.set $b
     end
     local.get $b

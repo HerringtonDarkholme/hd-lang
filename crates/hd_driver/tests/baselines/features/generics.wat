@@ -10,7 +10,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 4 funcref))
   (func $use_generic (param $s.0 i32) (param $s.1 i32) (param $t1 i32) (result i32) (local $t0 i32) (local $xs i32) (local $t2 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t6 i32)
-    ;; (no span)
+    ;; 22 |     ident(s).len() + size(&xs) + first(xs).unwrap_or("").len() + keep(s).len()
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -50,7 +50,6 @@
     local.get $t1
     i32.store $heap
     block
-    ;; 22 |     ident(s).len() + size(&xs) + first(xs).unwrap_or("").len() + keep(s).len()
       block
         block
           local.get $s.0
@@ -67,10 +66,8 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $t1
       call $rt:release_ref'1
-    ;; 22 |     ident(s).len() + size(&xs) + first(xs).unwrap_or("").len() + keep(s).len()
       block
         block
           local.get $xs
@@ -125,10 +122,8 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $xs
       call $rt:release_ref'2
-    ;; 22 |     ident(s).len() + size(&xs) + first(xs).unwrap_or("").len() + keep(s).len()
       i32.const 16 ;; &"heap-exhausted"
       local.set $xs
       block
@@ -164,12 +159,10 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $t2
       local.get $t5
       local.get $t4
       call $rt:release
-    ;; 22 |     ident(s).len() + size(&xs) + first(xs).unwrap_or("").len() + keep(s).len()
       block
         block
           local.get $t3
@@ -177,10 +170,8 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $xs
       call $rt:release_ref'1
-    ;; 22 |     ident(s).len() + size(&xs) + first(xs).unwrap_or("").len() + keep(s).len()
       local.get $t1
       local.get $t2
       i32.add
@@ -226,14 +217,11 @@
       local.get $s.0
       i32.load $heap offset=4
       local.set $s.1
-    ;; (no span)
       local.get $s.0
       call $rt:release_ref'2
-    ;; 22 |     ident(s).len() + size(&xs) + first(xs).unwrap_or("").len() + keep(s).len()
       local.get $t1
       local.get $s.1
       i32.add
-    ;; (no span)
       local.set $s.0
     end
     local.get $s.0

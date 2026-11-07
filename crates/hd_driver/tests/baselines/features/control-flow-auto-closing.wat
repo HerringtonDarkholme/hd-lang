@@ -20,8 +20,8 @@
     local.get $label.1
   )
   (func $"impl Disposable for Guard.dispose" (param $self i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
-    block
     ;; 14 |         self.log.push(self.label)
+    block
       local.get $self
       i32.load $heap offset=4
       local.get $self
@@ -29,7 +29,6 @@
       local.set $t0
       local.tee $t1
       call $retain
-    ;; (no span)
       local.get $self
       i32.load $heap
       i32.load $heap
@@ -40,7 +39,6 @@
       local.get $t2
       i32.store $heap
       local.get $t2
-    ;; 14 |         self.log.push(self.label)
       i32.load $heap offset=4
       local.tee $t3
       local.get $t2
@@ -75,7 +73,7 @@
     end
   )
   (func $work (param $log i32) (param $label.0 i32) (param $label.1 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
-    ;; (no span)
+    ;; 24 |     guard(log, label)
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -106,7 +104,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 24 |     guard(log, label)
       block
         local.get $log
         local.get $label.0
@@ -207,7 +204,6 @@
         i32.add
         global.set $forbid
       end
-    ;; (no span)
       local.get $label.1
       if
         local.get $label.1

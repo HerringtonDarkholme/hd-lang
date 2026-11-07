@@ -2,10 +2,16 @@
 (module
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
+  (import "fixture" "rt:poll_check" (func $rt:poll_check (param i32) (result i32)))
+  (import "fixture" "rt:cancel_enter" (func $rt:cancel_enter (result i32)))
+  (import "fixture" "rt:cancel_check" (func $rt:cancel_check (param i32) (result i32)))
+  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
+  (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
+  (import "fixture" "rt:frame" (func $rt:frame (result i32)))
+  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:forbid_check" (func $rt:forbid_check))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
-  (import "fixture" "fetch'2" (func $fetch'2 (param i32 i32) (result i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "hd:rt/block" (func $hd:rt/block (result i32)))
   (import "fixture" "rt:wake_mark" (func $rt:wake_mark (param i32)))
@@ -13,7 +19,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 12 funcref))
   (func $fetch'1 (param $frame i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32)
-    ;; (no span)
+    ;; 9 |     key + "?"
     local.get $frame
     if
       local.get $frame
@@ -42,7 +48,6 @@
     else
     end
     block
-    ;; 9 |     key + "?"
       local.get $key.1
       i32.const 1
       i32.add
@@ -61,7 +66,6 @@
       i32.store8 $heap
       local.get $t3
       local.get $t2
-    ;; (no span)
       local.set $key.1
       local.set $key.0
     end
@@ -100,9 +104,136 @@
       i32.store $heap offset=12
     end
   )
-  (func $direct (param $key.0 i32) (param $key.1 i32) (result i32) (local $t0 i32) (local $value.1 i32) (local $t1 i32)
+  (func $fetch.poll (param $t0 i32) (result i32 i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32)
+    ;; 9 |     key + "?"
+    local.get $t0
+    call $rt:poll_check
+    if
+      i32.const 0
+      i32.const 0
+      i32.const 0
+      return
+    end
+    local.get $t0
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const 1
+    i32.or
+    i32.store $heap offset=12
+    local.get $t0
+    i32.const 0
+    i32.const 0
+    call $fetch'1
+    local.set $t1
+    local.set $t2
+    local.set $t3
+    local.get $t0
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const -2
+    i32.and
+    i32.store $heap offset=12
+    local.get $t1
+    i32.eqz
+    if
+      local.get $t0
+      local.get $t0
+      i32.load $heap offset=12
+      i32.const 4
+      i32.or
+      i32.store $heap offset=12
+      i32.const 1
+      local.get $t3
+      local.get $t2
+      return
+    end
+    i32.const 0
+    i32.const 0
+    i32.const 0
+    return
+  )
+  (func $fetch.cancel (param $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32)
+    ;; 9 |     key + "?"
+    call $rt:cancel_enter
+    local.set $t0
     block
+      local.get $t1
+      call $rt:cancel_check
+      i32.eqz
+      br_if 0
+      local.get $t1
+      i32.load $heap offset=8
+      i32.eqz
+      br_if 0
+      local.get $t1
+      local.get $t1
+      i32.load $heap offset=12
+      i32.const 16
+      i32.or
+      i32.store $heap offset=12
+      local.get $t1
+      i32.const 0
+      i32.const 0
+      call $fetch'1
+      local.set $t2
+      drop
+      local.set $t3
+      local.get $t2
+      i32.eqz
+      if
+        local.get $t1
+        local.get $t1
+        i32.load $heap offset=12
+        i32.const -17
+        i32.and
+        i32.store $heap offset=12
+        local.get $t3
+        call $rt:release_ref'1
+      end
+    end
+    local.get $t1
+    local.get $t0
+    call $rt:cancel_leave
+  )
+  (func $fetch.drop (param $t0 i32)
+    ;; 9 |     key + "?"
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const 64
+    i32.and
+    i32.eqz
+    if
+      local.get $t0
+      i32.load $heap offset=64
+      call $rt:release_ref'1
+      local.get $t0
+      i32.load $heap offset=24
+      call $rt:release_ref'1
+    end
+    local.get $t0
+    i32.load $heap offset=16
+    if
+      local.get $t0
+      i32.load $heap offset=16
+      call $rt:release_ref'1
+    end
+  )
+  (func $fetch'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
+    ;; 9 |     key + "?"
+    call $rt:frame
+    local.tee $t0
+    local.get $t1
+    call $retain
+    local.get $t1
+    i32.store $heap offset=24
+    local.get $t0
+    local.get $t2
+    i32.store $heap offset=28
+    local.get $t0
+  )
+  (func $direct (param $key.0 i32) (param $key.1 i32) (result i32) (local $t0 i32) (local $value.1 i32) (local $t1 i32)
     ;; 12 |     match block_on(fetch(key)):
+    block
       call $rt:forbid_check
       i32.const 0
       local.get $key.0
@@ -118,9 +249,7 @@
       local.set $key.1
       local.set $key.0
       local.get $t0
-    ;; (no span)
-      call $rt:release_ref
-    ;; 12 |     match block_on(fetch(key)):
+      call $rt:release_ref'2
       block
         block
           block
@@ -146,7 +275,6 @@
         end
         br 0
       end
-    ;; (no span)
       local.get $key.0
       local.get $key.1
       local.get $value.1
@@ -157,13 +285,12 @@
     local.get $key.0
   )
   (func $deferred (param $key.0 i32) (param $key.1 i32) (param $log i32) (result i32) (local $value.1 i32) (local $t0 i32) (local $t1 i32)
-    block
     ;; 23 |     let pending: mut Suspend[string] = fetch(key)
+    block
       local.get $key.0
       local.get $key.1
       call $fetch'2
       local.set $key.0
-    ;; (no span)
       local.get $log
       i32.load $heap
       call $rt:list_unique
@@ -239,9 +366,9 @@
       local.set $value.1
       local.set $log
       local.set $key.1
-    ;; (no span)
+    ;; 23 |     let pending: mut Suspend[string] = fetch(key)
       local.get $key.0
-      call $rt:release_ref
+      call $rt:release_ref'2
     ;; 25 |     match block_on(pending):
       block
         block
@@ -268,7 +395,7 @@
         end
         br 0
       end
-    ;; (no span)
+    ;; 23 |     let pending: mut Suspend[string] = fetch(key)
       local.get $key.1
       local.get $log
       local.get $value.1
@@ -279,6 +406,7 @@
     local.get $key.0
   )
   (func $stored (param $key.0 i32) (param $key.1 i32) (result i32) (local $t0 i32) (local $value.1 i32) (local $t1 i32)
+    ;; 17 |     let pending: mut Suspend[string] = fetch(key)
     block
     ;; 18 |     match block_on(pending):
       call $rt:forbid_check
@@ -299,8 +427,7 @@
       local.set $key.0
     ;; 17 |     let pending: mut Suspend[string] = fetch(key)
       local.get $t0
-    ;; (no span)
-      call $rt:release_ref
+      call $rt:release_ref'2
     ;; 18 |     match block_on(pending):
       block
         block
@@ -327,7 +454,7 @@
         end
         br 0
       end
-    ;; (no span)
+    ;; 17 |     let pending: mut Suspend[string] = fetch(key)
       local.get $key.0
       local.get $key.1
       local.get $value.1

@@ -19,7 +19,7 @@ fn weight(f: Field) -> i64:
 fn remember(all: &mut List[Field], f: Field) -> void:
     all.push(f)
 > app/main/remember
->   (no span) unique List[app.main.Field] (conservative: unique)
+>   unique List[app.main.Field] (conservative: unique)
 
 fn total(f: Field, times: i64) -> i64:
     let sum: i64 = 0
@@ -29,12 +29,12 @@ fn total(f: Field, times: i64) -> i64:
 
 fn collect(f: Field) -> usize:
     let mut all: List[Field] = []
-    remember(&mut all, f)
 > app/main/collect
+>   release List[app.main.Field] (last use)
+    remember(&mut all, f)
 >   retain app.main.Field [name.0] (stored)
     remember(&mut all, f)
     all.len()
->   (no span) release List[app.main.Field] (last use)
 
 fn apply(g: fn(Field) -> i64, f: Field) -> i64:
     g(f)
@@ -44,17 +44,18 @@ fn set_first(target: &i64, xs: List[i64]) -> i64:
 
 fn pinned() -> i64:
     let mut xs: List[i64] = [1, 2]
+> app/main/pinned
+>   unique List[i64] (conservative: unique)
+>   release List[i64] (last use)
     xs[1] = 3
     set_first(&xs[0], xs)
-> app/main/pinned
->   (no span) unique List[i64] (conservative: unique)
->   (no span) release List[i64] (last use)
 
 pub fn main() -> void $ Console:
     f := Field { name: "abc${1}", n: 2 }
+> app/main/main
+>   release app.main.Field [name.0] (last use)
     println(total(f, 3))
     println(collect(f))
-> app/main/main
 >   retain app.main.Field [name.0] (stored)
 >   retain app.main.Field [name.0] (stored)
 >   release List[app.main.Field] (last use)
@@ -62,4 +63,3 @@ pub fn main() -> void $ Console:
     println(pinned())
 >   unique List[i64] (conservative: unique)
 >   release List[i64] (last use)
->   (no span) release app.main.Field [name.0] (last use)

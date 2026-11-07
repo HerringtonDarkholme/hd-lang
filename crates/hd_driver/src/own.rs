@@ -453,6 +453,10 @@ impl Env<'_> {
 }
 
 impl OwnCx for Env<'_> {
+    fn parameter_count(&self, item: DefId) -> Option<usize> {
+        self.sig(item).map(|sig| sig.params.len())
+    }
+
     fn retains_result(&self, callee: &Callee) -> bool {
         matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("bytes_slice"))
     }

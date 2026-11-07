@@ -6,8 +6,8 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $"check[Res[string]]" (param $a.0 i32) (param $a.1 i32) (param $a.2 i32) (param $b.0 i32) (param $b.1 i32) (param $b.2 i32) (result i32)
-    block
     ;; 31 |     a.same(&b)
+    block
       local.get $a.0
       local.get $a.1
       local.get $a.2
@@ -15,7 +15,6 @@
       local.get $b.1
       local.get $b.2
       call $"impl [ T < Eq ] Same for Res [ T ].same[string]'1"
-    ;; (no span)
       local.get $a.0
       local.get $a.1
       local.get $a.2
@@ -43,8 +42,8 @@
     local.get $x.0
   )
   (func $"impl [ T < Eq ] Same for Res [ T ].same[string]'1" (param $self.0 i32) (param $self.1 i32) (param $self.2 i32) (param $other.0 i32) (param $other.1 i32) (param $other.2 i32) (result i32) (local $left.0'1 i32) (local $left.0'2 i32) (local $t0 i32) (local $right.0 i32)
-    block
     ;; 19 |         match *self:
+    block
       block
         block
           block
@@ -164,7 +163,6 @@
         local.set $self.0
         br 0
       end
-    ;; (no span)
       local.get $left.0'2
       call $rt:release_ref
       local.get $left.0'1
@@ -173,8 +171,8 @@
     local.get $self.0
   )
   (func $"impl [ T < Eq ] Same for Res [ T ].same[string]'2" (param $self i32) (param $other i32) (result i32) (local $right.1 i32) (local $left.1 i32) (local $left.0'1 i32) (local $left.0'2 i32) (local $t0 i32) (local $right.0 i32)
-    block
     ;; 19 |         match *self:
+    block
       local.get $self
       i32.load8_u $heap
       local.get $self
@@ -321,7 +319,6 @@
         local.set $self
         br 0
       end
-    ;; (no span)
       local.get $left.0'2
       call $rt:release_ref
       local.get $left.0'1

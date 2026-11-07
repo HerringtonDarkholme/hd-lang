@@ -22,7 +22,7 @@
     local.get $t.values
   )
   (func $suffixed (result i32 i32) (local $t1 i32) (local $t4 i32) (local $t0 i32) (local $t2 i64) (local $t3 i32)
-    ;; (no span)
+    ;; 29 |     12lbl
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -53,7 +53,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 29 |     12lbl
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -95,7 +94,6 @@
         end
       end
     end
-    ;; (no span)
     local.get $t1
     local.get $t4
     local.get $t0
@@ -116,8 +114,8 @@
     local.get $t.raw_parts
   )
   (func $tagged (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
-    block
     ;; 35 |     tag"<$s>"
+    block
       i32.const 2
       call $rt:list_buf'1
       local.tee $t0
@@ -163,7 +161,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $s.0
       local.get $t1
       call $rt:release
@@ -173,8 +170,8 @@
     local.get $s.0
   )
   (func $prefixed (param $id i64) (result i32 i32) (local $t0 i32) (local $t1 i32)
-    block
     ;; 32 |     sql"select * from users where id = $id"
+    block
       i32.const 2
       call $rt:list_buf'1
       local.tee $t0
@@ -212,12 +209,11 @@
         end
       end
     end
-    ;; (no span)
     local.get $t0
     local.get $t1
   )
   (func $lbl (param $t1 i64) (result i32 i32) (local $n i32) (local $t3 i32) (local $t0 i32) (local $t2 i64) (local $t4 i32) (local $t5 i32) (local $t6 i32)
-    ;; (no span)
+    ;; 18 |     Label { text: "#${n}" }
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -257,7 +253,6 @@
     local.get $t1
     i64.store $heap
     block
-    ;; 18 |     Label { text: "#${n}" }
       local.get $n
       i64.load $heap
       local.tee $t1
@@ -334,7 +329,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $t4
       local.get $t5
       local.set $t3

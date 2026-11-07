@@ -18,8 +18,8 @@
     local.get $t0
   )
   (func $read_ptr (param $p i32) (result i32)
-    block
     ;; 15 |     p.name.len()
+    block
       local.get $p
       i32.load $heap
       local.get $p
@@ -32,7 +32,6 @@
         end
       end
     end
-    ;; (no span)
     local.get $p
   )
   (func $write_ptr (param $p i32) (param $n.0 i32) (param $n.1 i32)

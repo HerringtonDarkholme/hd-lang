@@ -1,0 +1,12 @@
+# test: an early return and the normal exit each release the parameter's own argument copy
+# expect-stdout: 2 2 a1 b2
+fn length(parts: List[string], early: bool) -> usize:
+    if early:
+        return parts.len()
+    parts.len()
+
+pub fn main() -> void $ Console:
+    parts := ["a${1}", "b${2}"]
+    first := length(parts, true)
+    second := length(parts, false)
+    println("$first $second ${parts.join(" ")}")

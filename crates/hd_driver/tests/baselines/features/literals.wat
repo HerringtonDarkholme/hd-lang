@@ -45,8 +45,8 @@
     local.get $t
   )
   (func $update (param $r.name.0 i32) (param $r.name.1 i32) (param $r.tags i32) (param $n.0 i32) (param $n.1 i32) (result i32 i32 i32)
-    block
     ;; 24 |     Rec { ...r, name: n }
+    block
       local.get $r.name.0
       local.get $n.0
       local.get $r.tags
@@ -54,13 +54,10 @@
       local.set $r.name.0
       local.set $n.0
       local.get $r.name.1
-    ;; (no span)
       local.get $r.tags
       call $rt:release
       local.get $n.0
-    ;; 24 |     Rec { ...r, name: n }
       local.get $r.name.0
-    ;; (no span)
       local.set $r.name.1
       local.set $r.name.0
     end

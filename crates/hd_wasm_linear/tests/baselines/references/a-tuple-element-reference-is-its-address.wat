@@ -4,19 +4,18 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $second (param $t i32) (result i32)
-    block
     ;; 6 |     read(&t._1)
+    block
       local.get $t
       i32.const 4
       i32.add
       call $read
-    ;; (no span)
       local.set $t
     end
     local.get $t
   )
   (func $first_of_local (result i32) (local $t1 i32) (local $t0 i32)
-    ;; (no span)
+    ;; 9 |     pair := (+3, +4)
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -47,7 +46,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 9 |     pair := (+3, +4)
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -63,7 +61,7 @@
       local.get $t1
     ;; 10 |     read(&pair._0)
       call $read
-    ;; (no span)
+    ;; 9 |     pair := (+3, +4)
       local.set $t1
     end
     local.get $t1

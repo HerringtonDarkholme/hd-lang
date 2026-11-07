@@ -7,7 +7,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $render (param $t1 i64) (result i32 i32) (local $n i32) (local $t3 i32) (local $t0 i32) (local $t2 i64) (local $t4 i32) (local $t5 i32) (local $t6 i32)
-    ;; (no span)
+    ;; 7 |     "w${n}"
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -47,7 +47,6 @@
     local.get $t1
     i64.store $heap
     block
-    ;; 7 |     "w${n}"
       local.get $n
       i64.load $heap
       local.tee $t1
@@ -106,7 +105,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $t4
       local.get $t5
       local.set $t3

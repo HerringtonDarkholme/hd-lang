@@ -180,6 +180,10 @@ tags! {
     // An explicit count for an owned result that borrows its buffer.
     // a is the result value; b is its ownership reason.
     Retain: Value, Meta;
+    // Declares cleanup of an ABI-owned parameter at the common exit,
+    // not at this statement's lexical position. a is its local place;
+    // b is the ownership reason. A borrowed ABI argument takes no count.
+    ExitDrop: Place, Meta;
 }
 
 /// `Prim` operators (the `Meta` word of a `Prim` instruction).
@@ -2214,6 +2218,7 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
             Tag::Drop
             | Tag::LoanEnd
             | Tag::Retain
+            | Tag::ExitDrop
             | Tag::IsUnique
             | Tag::FlagSet
             | Tag::FlagClear => {
@@ -3878,7 +3883,7 @@ mod tests {
         let root = b.close_block(blk, Some(one), Ty::I32, NodeIdx::NONE);
         let body = b.finish(root, &[]).expect("ok");
         assert_eq!(body.len(), 1);
-        assert_eq!(Tag::ALL.len(), 57);
+        assert_eq!(Tag::ALL.len(), 58);
         assert!(
             Tag::ALL
                 .iter()

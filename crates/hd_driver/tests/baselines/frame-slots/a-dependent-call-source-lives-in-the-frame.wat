@@ -7,7 +7,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $length (result i32) (local $t1 i32) (local $t0 i32) (local $user i32)
-    ;; (no span)
+    ;; 19 |     let mut seen = +0
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -38,7 +38,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 19 |     let mut seen = +0
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -72,7 +71,7 @@
     ;; 22 |     n.len()
       call $"impl string.len"
       local.set $t1
-    ;; (no span)
+    ;; 19 |     let mut seen = +0
       local.get $user
       if
         local.get $user

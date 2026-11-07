@@ -2,8 +2,8 @@
 (module
   (import "fixture" "heap" (memory $heap 1))
   (func $lens (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $i i32)
-    block
     ;; 15 |     let n: usize = 0
+    block
       i32.const 0
       local.set $n
     ;; 16 |     for i in 0..xs.len():
@@ -52,7 +52,7 @@
       end
     ;; 18 |     n
       local.get $n
-    ;; (no span)
+    ;; 15 |     let n: usize = 0
       local.set $xs
     end
     local.get $xs

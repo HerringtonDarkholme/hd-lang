@@ -9,8 +9,8 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $through_ptr (param $u i32) (result i32)
-    block
     ;; 22 |     name_of(u).len()
+    block
       block
         block
           br 0
@@ -18,7 +18,6 @@
       end
       local.get $u
       call $"impl string.len"
-    ;; (no span)
       local.set $u
     end
     local.get $u
@@ -30,7 +29,7 @@
     local.get $u
   )
   (func $read (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $u i32)
-    ;; (no span)
+    ;; 16 |     name_of(&u).len()
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -73,7 +72,6 @@
     local.get $t2
     i32.store $heap offset=4
     block
-    ;; 16 |     name_of(&u).len()
       block
         block
           local.get $u
@@ -84,7 +82,6 @@
       local.get $t1
       call $"impl string.len"
       local.set $t1
-    ;; (no span)
       local.get $u
       if
         local.get $u
@@ -99,7 +96,7 @@
     global.set $locals
   )
   (func $read_list (param $t1 i32) (result i32) (local $t0 i32) (local $us i32)
-    ;; (no span)
+    ;; 19 |     first_name(&us).len()
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -139,7 +136,6 @@
     local.get $t1
     i32.store $heap
     block
-    ;; 19 |     first_name(&us).len()
       block
         block
           local.get $us
@@ -168,7 +164,6 @@
       local.get $t1
       call $"impl string.len"
       local.set $t1
-    ;; (no span)
       local.get $us
       if
         local.get $us
@@ -183,14 +178,13 @@
     global.set $locals
   )
   (func $first_name (param $us i32) (result i32)
+    ;; 13 |     &us[0].name
     block
-    ;; (no span)
       local.get $us
       local.get $us
       i32.load $heap
       call $rt:list_unique
       i32.store $heap
-    ;; 13 |     &us[0].name
       local.get $us
       i32.load $heap
       local.set $us
@@ -205,7 +199,6 @@
       local.get $us
       i32.const 16
       i32.add
-    ;; (no span)
       local.set $us
     end
     local.get $us

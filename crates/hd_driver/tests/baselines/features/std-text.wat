@@ -9,6 +9,7 @@
   (import "fixture" "impl StringBuilder.build" (func $"impl StringBuilder.build" (param i32) (result i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $fields (param $line.0 i32) (param $line.1 i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $f.1 i32)
+    ;; 17 |     let mut n = 0
     block
     ;; 18 |     for f in line.split(","):
       local.get $line.0
@@ -64,19 +65,19 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 17 |     let mut n = 0
       local.get $line.0
       call $rt:release_ref
     ;; 20 |     n
       local.get $n
-    ;; (no span)
+    ;; 17 |     let mut n = 0
       local.set $line.0
     end
     local.get $line.0
   )
   (func $build (param $parts i32) (result i32 i32) (local $sb i32) (local $t0 i32) (local $p.0 i32) (local $p.1 i32) (local $t1 i32)
-    block
     ;; 10 |     sb := StringBuilder::new()
+    block
       block
         block
           call $"impl [ T < ? Copy ] UniqList [ T ].new[u8]"
@@ -168,14 +169,14 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 10 |     sb := StringBuilder::new()
       local.get $parts
       call $rt:release_ref
     ;; 14 |     sb.build()
       local.get $sb
       call $"impl StringBuilder.build"
       local.get $sb
-    ;; (no span)
+    ;; 10 |     sb := StringBuilder::new()
       call $rt:release_ref
       local.set $sb
       local.set $parts

@@ -35,4 +35,4 @@ fn prefixed(id: i64) -> Query:
 fn tagged(s: string) -> usize:
     tag"<$s>"
 > app/main/tagged
->   (no span) release std.ops.Template[string] [raw_parts, values] (last use)
+>   release std.ops.Template[string] [raw_parts, values] (last use)

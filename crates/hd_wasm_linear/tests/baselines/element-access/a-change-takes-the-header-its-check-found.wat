@@ -4,8 +4,8 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $push (param $b i32) (param $text.0 i32) (param $text.1 i32) (local $t0 i32) (local $t1 i32)
+    ;; 11 |     b.parts.push(text)
     block
-    ;; (no span)
       local.get $b
       i32.load $heap
       call $rt:list_unique
@@ -14,7 +14,6 @@
       local.get $t0
       i32.store $heap
       local.get $t0
-    ;; 11 |     b.parts.push(text)
       i32.load $heap offset=4
       local.tee $t1
       local.get $t0

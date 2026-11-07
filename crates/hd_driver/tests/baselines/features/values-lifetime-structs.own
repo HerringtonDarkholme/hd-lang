@@ -24,32 +24,33 @@ fn parser['a](src: &'a string) -> Parser[string, 'a]:
 >   summary kept [$0]
 
 fn word['a](t: Token[string, 'a], fallback: &'a string) -> &'a string:
-    match t:
 > app/main/word
 >   local $0 t: Token[string, Ref[()]] [param read] value
->     uses $0: entry -> %0 lend last
+>     uses $0: entry -> %1 lend last
 >   local $1 fallback: Ref[string] [param read] value
->     uses $1: entry -> %3 consume last
+>     uses $1: entry -> %4 consume last
 >   local $2 w: Ref[string] [read assigned] value
->     uses $2: %6 -> %1 consume last
->   %0 = Read borrow [$0] : Token[string, Ref[()]]
->   %16 = Block - : never
->   %17 = Match %0 [%16 %2 %4] : Ref[string]
->   %18 = Block %17 : Ref[string]
+>     uses $2: %7 -> %2 consume last
+>   %0 = ExitDrop [$0] #2 : ()
+    match t:
+>   %1 = Read borrow [$0] : Token[string, Ref[()]]
+>   %17 = Block - : never
+>   %18 = Match %1 [%17 %3 %5] : Ref[string]
+>   %19 = Block %18 : Ref[string]
         Token.Word(w) => w
->   %1 = Read move [$2] : Ref[string]
->   %2 = Block %1 : Ref[string]
->   %5 = Read copy [%0 as #0 .0] : Ref[string]
->   %6 = Store [$2] %5 : ()
->   %8 = Block - : never
->   %14 = Block - : never
->   %15 = SwitchTag %0 [#0 %8 %14] : never
+>   %2 = Read move [$2] : Ref[string]
+>   %3 = Block %2 : Ref[string]
+>   %6 = Read copy [%1 as #0 .0] : Ref[string]
+>   %7 = Store [$2] %6 : ()
+>   %9 = Block - : never
+>   %15 = Block - : never
+>   %16 = SwitchTag %1 [#0 %9 %15] : never
         Token.End => fallback
->   %3 = Read copy [$1] : Ref[string]
->   %4 = Block %3 : Ref[string]
->   %10 = Block - : never
->   %12 = Block - : never
->   %13 = SwitchTag %0 [#1 %10 %12] : never
+>   %4 = Read copy [$1] : Ref[string]
+>   %5 = Block %4 : Ref[string]
+>   %11 = Block - : never
+>   %13 = Block - : never
+>   %14 = SwitchTag %1 [#1 %11 %13] : never
 >   summary kept [$1] borrows [$0]
 
 fn length(text: string) -> usize:

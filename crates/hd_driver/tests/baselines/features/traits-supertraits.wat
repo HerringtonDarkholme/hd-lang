@@ -19,18 +19,16 @@
     local.get $self.name.1
   )
   (func $name_of (param $a.0 i32) (param $a.1 i32) (result i32)
-    block
     ;; 26 |     a.name().len()
+    block
       local.get $a.0
       call $retain
       local.get $a.0
       local.get $a.1
       i32.load $heap
       call_indirect $table0 (param i32) (result i32 i32)
-    ;; (no span)
       local.get $a.0
       call $rt:release_ref
-    ;; 26 |     a.name().len()
       local.set $a.1
       local.set $a.0
       block
@@ -38,7 +36,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $a.0
       call $rt:release_ref
       local.get $a.1
@@ -47,7 +44,7 @@
     local.get $a.0
   )
   (func $use_pup (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $p i32) (local $t4 i32) (local $t3 i32)
-    ;; (no span)
+    ;; 35 |     widen(&p) + loud(p)
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -90,7 +87,6 @@
     local.get $t2
     i32.store $heap offset=4
     block
-    ;; 35 |     widen(&p) + loud(p)
       local.get $p
       call $retain
       local.get $p
@@ -98,9 +94,7 @@
       call $widen
       local.set $t1
       local.get $p
-    ;; (no span)
       call $rt:release_ref
-    ;; 35 |     widen(&p) + loud(p)
       local.get $p
       i32.load $heap
       local.get $p
@@ -138,14 +132,11 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $t2
       call $rt:release_ref
-    ;; 35 |     widen(&p) + loud(p)
       local.get $t1
       local.get $p
       i32.add
-    ;; (no span)
       local.set $t1
     end
     local.get $t1
@@ -189,8 +180,8 @@
     local.get $t0
   )
   (func $widen (param $d.0 i32) (param $d.1 i32) (result i32) (local $t1 i32) (local $t0 i32)
-    block
     ;; 29 |     name_of(d) + d.bark().len()
+    block
       local.get $d.0
       call $retain
       local.get $d.0
@@ -206,19 +197,15 @@
       call $name_of
       local.set $t0
       local.get $t1
-    ;; (no span)
       call $rt:release_ref
-    ;; 29 |     name_of(d) + d.bark().len()
       local.get $d.0
       call $retain
       local.get $d.0
       local.get $d.1
       i32.load $heap
       call_indirect $table0 (param i32) (result i32 i32)
-    ;; (no span)
       local.get $d.0
       call $rt:release_ref
-    ;; 29 |     name_of(d) + d.bark().len()
       local.set $d.1
       local.set $d.0
       block
@@ -226,14 +213,11 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $d.0
       call $rt:release_ref
-    ;; 29 |     name_of(d) + d.bark().len()
       local.get $t0
       local.get $d.1
       i32.add
-    ;; (no span)
       local.set $d.0
     end
     local.get $d.0

@@ -6,8 +6,8 @@
   (import "fixture" "rt:str_append" (func $rt:str_append (param i32 i32 i32 i32) (result i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $first_long (param $xs i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $x.0 i32) (local $x.1 i32) (local $t2 i32)
-    block
     ;; 8 |     for x in xs:
+    block
       local.get $xs
       i32.load $heap offset=4
       local.set $t0
@@ -75,13 +75,12 @@
         end
       end
     end
-    ;; (no span)
     local.get $xs
     local.get $t0
   )
   (func $first_index (param $xs i32) (result i32) (local $i i32) (local $t0 i32)
-    block
     ;; 15 |     let i: usize = 0
+    block
       i32.const 0
       local.set $i
     ;; 16 |     while i < xs.len():
@@ -144,13 +143,13 @@
           br 0
         end
       end
+    ;; 15 |     let i: usize = 0
     end
-    ;; (no span)
     local.get $xs
   )
   (func $forever (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t0 i32)
-    block
     ;; 24 |     let out = s
+    block
       local.get $s.0
       local.set $s.0
     ;; 25 |     while true:
@@ -186,7 +185,7 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 24 |     let out = s
       local.get $s.0
       call $rt:release_ref
       unreachable

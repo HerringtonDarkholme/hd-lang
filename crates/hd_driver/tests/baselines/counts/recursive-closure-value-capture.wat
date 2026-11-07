@@ -37,8 +37,8 @@
     local.get $env
   )
   (func $sum_to (param $limit i32) (param $seed i32) (result i32) (local $t0 i32)
-    block
     ;; 6 |     sum := fn(n: i32) -> i32:
+    block
       i32.const 0
       i32.const 4
       i32.const 0
@@ -52,7 +52,6 @@
       call $rt:retain_known
     ;; 6 |     sum := fn(n: i32) -> i32:
       local.get $t0
-    ;; (no span)
       call $rt:release_ref
     ;; 9 |     sum(limit)
       local.get $t0
@@ -60,7 +59,7 @@
       i32.const 0
       local.get $seed
       call_indirect $table0 (param i32 i32 i32) (result i32)
-    ;; (no span)
+    ;; 6 |     sum := fn(n: i32) -> i32:
       local.get $t0
       call $rt:release_ref
       local.set $limit

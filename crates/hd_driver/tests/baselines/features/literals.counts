@@ -25,7 +25,7 @@ fn update(r: Rec, n: string) -> Rec:
     Rec { ...r, name: n }
 > app/main/update
 >   copy List[string] (conservative: CopyStruct)
->   (no span) release app.main.Rec [name.0, tags] (last use)
+>   release app.main.Rec [name.0, tags] (last use)
 
 fn reuse(n: string) -> (Rec, Rec):
     (Rec { name: n, tags: [] }, Rec { name: n, tags: [] })

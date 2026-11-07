@@ -19,7 +19,7 @@ fn record_step(steps: &mut List[i64], slot: usize, step: i64) -> void:
 fn set_first(xs: &mut List[i64], v: i64) -> void:
     xs[0] = v
 > app/main/set_first
->   (no span) unique List[i64] (conservative: unique)
+>   unique List[i64] (conservative: unique)
 
 impl Trail:
     fn enter(&mut self, step: i64) -> void:
@@ -28,14 +28,14 @@ impl Trail:
 
 pub fn main() -> void $ Console:
     let mut trail = Trail { steps: [], depth: 0 }
+> app/main/main
+>   release app.main.Trail [steps] (last use)
+>   release List[i64] (last use)
+>   release List[i64] (last use)
     for i in 0..4:
         trail.enter(i64(i))
     let mut local: List[i64] = [5, 6]
     saved := local
-> app/main/main
 >   copy List[i64] (second owner)
     set_first(&mut local, 9)
     println("${trail.depth} ${saved[0]} ${local[0]}")
->   (no span) release app.main.Trail [steps] (last use)
->   (no span) release List[i64] (last use)
->   (no span) release List[i64] (last use)

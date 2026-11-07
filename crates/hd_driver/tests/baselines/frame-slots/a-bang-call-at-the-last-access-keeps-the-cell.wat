@@ -9,10 +9,12 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:cancel_enter" (func $rt:cancel_enter (result i32)))
   (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
+  (import "fixture" "rt:poll_check" (func $rt:poll_check (param i32) (result i32)))
+  (import "fixture" "rt:cancel_check" (func $rt:cancel_check (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 14 funcref))
-  (func $waits (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t12 i32) (local $t1 i32) (local $t2 i64) (local $tally i32) (local $t3 i32) (local $t4 i64) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t0 i32)
-    ;; (no span)
+  (func $waits'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t12 i32) (local $t1 i32) (local $t2 i64) (local $tally i32) (local $t3 i32) (local $t4 i64) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t0 i32)
+    ;; 17 |     let mut tally = Tally { n: 0 }
     local.get $frame
     if
       local.get $frame
@@ -80,7 +82,6 @@
       local.get $t12
       i32.eqz
       if
-    ;; 17 |     let mut tally = Tally { n: 0 }
         i64.const 0
         local.set $t2
         i32.const 8
@@ -108,7 +109,9 @@
         local.get $tally
         local.tee $t6
         call $rt:retain_known
+    ;; 17 |     let mut tally = Tally { n: 0 }
       end
+    ;; 18 |     bump!(&mut tally)
       block
         block
           local.get $t12
@@ -367,7 +370,7 @@
         local.set $t1
         br 1
       end
-    ;; (no span)
+    ;; 17 |     let mut tally = Tally { n: 0 }
       local.get $t6
       call $rt:release_ref'1
       local.get $tally
@@ -409,5 +412,119 @@
       i32.or
       i32.store $heap offset=12
     end
+  )
+  (func $waits.poll (param $t0 i32) (result i32)
+    ;; 17 |     let mut tally = Tally { n: 0 }
+    local.get $t0
+    call $rt:poll_check
+    if
+      i32.const 0
+      return
+    end
+    local.get $t0
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const 1
+    i32.or
+    i32.store $heap offset=12
+    local.get $t0
+    i32.const 0
+    i32.const 0
+    call $waits'1
+    local.get $t0
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const -2
+    i32.and
+    i32.store $heap offset=12
+    i32.eqz
+    if
+      local.get $t0
+      local.get $t0
+      i32.load $heap offset=12
+      i32.const 4
+      i32.or
+      i32.store $heap offset=12
+      i32.const 1
+      return
+    end
+    i32.const 0
+    return
+  )
+  (func $waits.cancel (param $t1 i32) (local $t0 i32)
+    ;; 17 |     let mut tally = Tally { n: 0 }
+    call $rt:cancel_enter
+    local.set $t0
+    block
+      local.get $t1
+      call $rt:cancel_check
+      i32.eqz
+      br_if 0
+      local.get $t1
+      i32.load $heap offset=8
+      i32.eqz
+      br_if 0
+      local.get $t1
+      local.get $t1
+      i32.load $heap offset=12
+      i32.const 16
+      i32.or
+      i32.store $heap offset=12
+      local.get $t1
+      i32.const 0
+      i32.const 0
+      call $waits'1
+      i32.eqz
+      if
+        local.get $t1
+        local.get $t1
+        i32.load $heap offset=12
+        i32.const -17
+        i32.and
+        i32.store $heap offset=12
+      end
+    end
+    local.get $t1
+    local.get $t0
+    call $rt:cancel_leave
+  )
+  (func $waits.drop (param $t0 i32)
+    ;; 17 |     let mut tally = Tally { n: 0 }
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const 64
+    i32.and
+    i32.eqz
+    if
+      local.get $t0
+      i32.load $heap offset=68
+      call $rt:release_ref'1
+      local.get $t0
+      i32.load $heap offset=48
+      call $rt:release_ref'1
+    end
+    local.get $t0
+    i32.load $heap offset=24
+    call $rt:release_ref'2
+    local.get $t0
+    i32.load $heap offset=16
+    if
+      local.get $t0
+      i32.load $heap offset=16
+      call $rt:release_ref'2
+    end
+  )
+  (func $waits'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
+    ;; 17 |     let mut tally = Tally { n: 0 }
+    call $rt:frame
+    local.tee $t0
+    local.get $t1
+    i32.store $heap offset=24
+    local.get $t0
+    local.get $t2
+    i32.store $heap offset=28
+    local.get $t1
+    call $retain
+    local.get $t0
   )
 )

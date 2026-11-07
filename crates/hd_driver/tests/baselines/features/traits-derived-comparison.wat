@@ -13,7 +13,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $before (param $b i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (param $t5 i32) (result i32) (local $t0 i32) (local $a i32)
-    ;; (no span)
+    ;; 18 |     a < b
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -74,13 +74,11 @@
     local.get $t5
     i32.store $heap offset=8
     block
-    ;; 18 |     a < b
       local.get $a
       local.get $b
       call $"derive PartialOrd for Key.partial_cmp"
       local.set $t2
       local.set $t1
-    ;; (no span)
       local.get $a
       if
         local.get $a
@@ -93,7 +91,6 @@
         i32.load $heap
         call $rt:release_ref
       end
-    ;; 18 |     a < b
       local.get $t1
       i32.const 1
       i32.eq
@@ -108,7 +105,6 @@
       else
         i32.const 0
       end
-    ;; (no span)
       local.set $b
     end
     local.get $b
@@ -118,7 +114,7 @@
     global.set $locals
   )
   (func $same (param $b i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (param $t5 i32) (result i32) (local $t0 i32) (local $a i32)
-    ;; (no span)
+    ;; 15 |     a == b
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -179,12 +175,10 @@
     local.get $t5
     i32.store $heap offset=8
     block
-    ;; 15 |     a == b
       local.get $a
       local.get $b
       call $"derive Eq for Key.eq"
       local.set $t1
-    ;; (no span)
       local.get $a
       if
         local.get $a
@@ -207,8 +201,8 @@
     global.set $locals
   )
   (func $lookup (param $m i32) (param $k.name.0 i32) (param $k.name.1 i32) (param $k.n i32) (result i32) (local $t1 i32) (local $t0 i32) (local $v.1 i32) (local $t2 i32)
-    block
     ;; 21 |     match m.get(k):
+    block
       local.get $m
       local.get $k.name.0
       local.get $k.name.1
@@ -278,7 +272,6 @@
         end
         br 0
       end
-    ;; (no span)
       local.get $t1
       local.get $t0
       local.get $v.1
@@ -289,8 +282,8 @@
     local.get $m
   )
   (func $tuple_key (param $m i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
-    block
     ;; 26 |     m.get((s, 1)).unwrap_or(0)
+    block
       local.get $m
       local.get $s.0
       local.get $s.1
@@ -322,10 +315,8 @@
         local.set $t1
       else
       end
-    ;; (no span)
       local.get $s.0
       call $rt:release_ref
-    ;; 26 |     m.get((s, 1)).unwrap_or(0)
       block
         block
           block
@@ -356,7 +347,6 @@
         end
       end
     end
-    ;; (no span)
     local.get $m
   )
 )

@@ -7,8 +7,8 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
   (func $first_len (param $c.value.0 i32) (param $c.value.1 i32) (result i32)
-    block
     ;; 24 |     first(c).len()
+    block
       block
         block
           block
@@ -24,7 +24,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $c.value.0
       call $rt:release_ref
       local.get $c.value.1
@@ -33,18 +32,16 @@
     local.get $c.value.0
   )
   (func $read (param $source.0 i32) (param $source.1 i32) (result i32)
-    block
     ;; 27 |     source.get().len()
+    block
       local.get $source.0
       call $retain
       local.get $source.0
       local.get $source.1
       i32.load $heap
       call_indirect $table0 (param i32) (result i32 i32)
-    ;; (no span)
       local.get $source.0
       call $rt:release_ref
-    ;; 27 |     source.get().len()
       local.set $source.1
       local.set $source.0
       block
@@ -52,7 +49,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $source.0
       call $rt:release_ref
       local.get $source.1
@@ -61,7 +57,7 @@
     local.get $source.0
   )
   (func $read_const (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $c i32)
-    ;; (no span)
+    ;; 30 |     read(&c)
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -104,7 +100,6 @@
     local.get $t2
     i32.store $heap offset=4
     block
-    ;; 30 |     read(&c)
       local.get $c
       call $retain
       local.get $c
@@ -112,7 +107,6 @@
       call $read
       local.set $t1
       local.get $c
-    ;; (no span)
       call $rt:release_ref
       local.get $c
       if

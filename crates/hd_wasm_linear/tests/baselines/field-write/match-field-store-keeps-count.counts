@@ -10,9 +10,9 @@ fn value(node: &Node, other: &mut Node) -> i64:
     match node.left:
 > app/main/value
 >   retain &app.main.Node? (second owner)
+>   release &app.main.Node (last use)
         .None => 0
         .Some(left) =>
             other.left = .None
 >   release counted reference (conservative: Store)
             left.value
->   (no span) release &app.main.Node (last use)

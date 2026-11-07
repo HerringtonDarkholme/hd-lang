@@ -7,7 +7,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
   (func $slot (result i32) (local $t1 i32) (local $t0 i32)
-    ;; (no span)
+    ;; 17 |     let mut n = +1
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -38,7 +38,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 17 |     let mut n = +1
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -56,7 +55,7 @@
       local.get $t1
     ;; 20 |     n
       i32.load $heap
-    ;; (no span)
+    ;; 17 |     let mut n = +1
       local.set $t1
     end
     local.get $t1
@@ -66,8 +65,8 @@
     global.set $locals
   )
   (func $set (param $xs i32) (param $i i32) (param $v i32)
-    block
     ;; 8 |     match xs.get_mut(i):
+    block
       block
         block
           local.get $i
@@ -132,8 +131,8 @@
     end
   )
   (func $first (param $xs i32) (result i32)
-    block
     ;; 13 |     a := &xs[0]
+    block
       local.get $xs
       i32.load $heap
       local.set $xs
@@ -150,7 +149,7 @@
       i32.add
     ;; 14 |     a.len()
       call $"impl string.len"
-    ;; (no span)
+    ;; 13 |     a := &xs[0]
       local.set $xs
     end
     local.get $xs

@@ -25,7 +25,20 @@ fn count(n: i64) -> void $ Meter:
 fn count_later!(n: i64, wait: mut Suspend[void]) -> void $ Meter:
     for i in 0..n:
 > app/main/count_later
+>   retain Suspend[()] (conservative: entry)
 >   release Suspend[()] (last use)
+>   release Suspend[()] (last use)
+>   release Suspend[()] (last use)
+> app/main/count_later
+>   release app.main.Meter (conservative: frame drop)
+>   release &mut app.main.Meter (by design)
+>   release Suspend[()] (conservative: frame drop)
+>   release Suspend[()] (conservative: frame drop)
+>   release counted reference (conservative: frame drop)
+>   release counted reference (conservative: frame drop)
+> app/main/count_later
+>   retain Suspend[()] (conservative: cold constructor)
+>   retain counted reference (conservative: cold constructor)
         $.use(Meter).record(i)
         wait!()
 >   retain Suspend[()] (conservative: copy read)
@@ -36,16 +49,13 @@ fn count_later!(n: i64, wait: mut Suspend[void]) -> void $ Meter:
 >   retain counted reference (conservative: AwaitValue)
 >   release counted reference (conservative: AwaitValue)
 >   release Suspend[()] (cancelled)
->   (no span) retain Suspend[()] (conservative: entry)
->   (no span) release Suspend[()] (last use)
->   (no span) release Suspend[()] (last use)
 
 pub fn run(n: i64) -> i64:
     counters := box(Counters { calls: 0, total: 0 })
-    $.with(Meter=counters):
 > app/main/run
+>   release app.main.Meter (last use)
+>   release &mut app.main.Counters (last use)
+    $.with(Meter=counters):
 >   retain app.main.Meter (stored)
         count(n)
     counters.total
->   (no span) release app.main.Meter (last use)
->   (no span) release &mut app.main.Counters (last use)

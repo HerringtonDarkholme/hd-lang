@@ -13,8 +13,8 @@
   (import "fixture" "rt:map_unique'2" (func $rt:map_unique'2 (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $changed_rhs (param $counts i32) (param $word.0 i32) (param $word.1 i32) (param $other.0 i32) (param $other.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64)
-    block
     ;; 29 |     counts[word] += change(counts, other)
+    block
       local.get $counts
       i32.load $heap
       local.tee $t0
@@ -51,7 +51,6 @@
       call $change
       i64.add
       local.set $t2
-    ;; (no span)
       local.get $counts
       i32.load $heap
       call $rt:map_unique'1
@@ -60,7 +59,6 @@
       local.get $other.0
       i32.store $heap
       local.get $other.0
-    ;; 29 |     counts[word] += change(counts, other)
       local.get $word.0
       local.get $word.1
       call $rt:map_hash
@@ -72,9 +70,7 @@
       local.get $word.0
       call $retain
       local.get $counts
-    ;; (no span)
       local.get $other.0
-    ;; 29 |     counts[word] += change(counts, other)
       local.get $other.1
       local.get $t0
       local.get $word.0
@@ -85,8 +81,8 @@
     end
   )
   (func $change (param $counts i32) (param $key.0 i32) (param $key.1 i32) (result i64) (local $t3 i64) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+    ;; 25 |     counts[key] = 10
     block
-    ;; (no span)
       local.get $counts
       i32.load $heap
       call $rt:map_unique'1
@@ -95,7 +91,6 @@
       local.get $t0
       i32.store $heap
       local.get $t0
-    ;; 25 |     counts[key] = 10
       local.get $key.0
       local.get $key.1
       call $rt:map_hash
@@ -107,9 +102,7 @@
       local.get $key.0
       call $retain
       local.get $counts
-    ;; (no span)
       local.get $t0
-    ;; 25 |     counts[key] = 10
       local.get $t1
       local.get $t2
       local.get $key.0
@@ -117,15 +110,14 @@
       i64.const 10
       call $rt:map_put
       i32.store $heap
-    ;; (no span)
       i64.const 2
       local.set $t3
     end
     local.get $t3
   )
   (func $append_existing (param $words i32) (param $key.0 i32) (param $key.1 i32) (param $suffix.0 i32) (param $suffix.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
-    block
     ;; 22 |     words[key] += suffix
+    block
       local.get $words
       i32.load $heap
       local.tee $t0
@@ -185,7 +177,6 @@
       local.get $suffix.0
       local.get $suffix.1
       call $rt:memory_copy/0/0
-    ;; (no span)
       local.get $key.1
       call $rt:release_ref
       local.get $words
@@ -197,7 +188,6 @@
       i32.store $heap
       local.get $key.1
       local.get $key.1
-    ;; 22 |     words[key] += suffix
       i32.load $heap offset=12
       i32.const 12
       i32.mul
@@ -220,8 +210,8 @@
     end
   )
   (func $changed_between (param $counts i32) (param $word.0 i32) (param $word.1 i32) (param $other.0 i32) (param $other.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i64) (local $t4 i32)
-    block
     ;; 17 |     seen := counts.get(word).unwrap_or(0)
+    block
       local.get $counts
       i32.load $heap
       local.tee $t0
@@ -287,7 +277,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $counts
       i32.load $heap
       call $rt:map_unique'1
@@ -308,7 +297,7 @@
       local.get $other.0
       call $retain
       local.get $counts
-    ;; (no span)
+    ;; 17 |     seen := counts.get(word).unwrap_or(0)
       local.get $t0
     ;; 18 |     counts[other] = 0
       local.get $t1
@@ -324,7 +313,7 @@
       i64.const 1
       i64.add
       local.set $t2
-    ;; (no span)
+    ;; 17 |     seen := counts.get(word).unwrap_or(0)
       local.get $counts
       i32.load $heap
     ;; 19 |     counts[word] = seen + 1
@@ -350,11 +339,12 @@
       local.get $counts
       local.get $other.0
       i32.store $heap
+    ;; 17 |     seen := counts.get(word).unwrap_or(0)
     end
   )
   (func $tally_match (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $seen i64)
-    block
     ;; 9 |     counts[word] = match counts.get(word):
+    block
       local.get $counts
       i32.load $heap
       local.tee $t0
@@ -423,7 +413,6 @@
         local.set $seen
         br 0
       end
-    ;; (no span)
       local.get $counts
       i32.load $heap
       call $rt:map_unique'1
@@ -431,13 +420,10 @@
       local.get $counts
       local.get $t0
       i32.store $heap
-    ;; 9 |     counts[word] = match counts.get(word):
       local.get $word.0
       call $retain
       local.get $counts
-    ;; (no span)
       local.get $t0
-    ;; 9 |     counts[word] = match counts.get(word):
       local.get $t1
       local.get $t2
       local.get $word.0
@@ -448,8 +434,8 @@
     end
   )
   (func $increment_existing (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i64)
-    block
     ;; 14 |     counts[word] += 1
+    block
       local.get $counts
       i32.load $heap
       local.tee $t0
@@ -482,7 +468,6 @@
       i64.const 1
       i64.add
       local.set $t1
-    ;; (no span)
       local.get $counts
       i32.load $heap
       call $rt:map_unique'1
@@ -492,7 +477,6 @@
       i32.store $heap
       local.get $word.1
       local.get $word.1
-    ;; 14 |     counts[word] += 1
       i32.load $heap offset=12
       i32.const 12
       i32.mul
@@ -508,8 +492,8 @@
     end
   )
   (func $tally (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64) (local $t4 i64)
-    block
     ;; 6 |     counts[word] = counts.get(word).unwrap_or(0) + 1
+    block
       local.get $counts
       i32.load $heap
       local.tee $t0
@@ -580,7 +564,6 @@
       i64.const 1
       i64.add
       local.set $t3
-    ;; (no span)
       local.get $counts
       i32.load $heap
       call $rt:map_unique'1
@@ -588,13 +571,10 @@
       local.get $counts
       local.get $t0
       i32.store $heap
-    ;; 6 |     counts[word] = counts.get(word).unwrap_or(0) + 1
       local.get $word.0
       call $retain
       local.get $counts
-    ;; (no span)
       local.get $t0
-    ;; 6 |     counts[word] = counts.get(word).unwrap_or(0) + 1
       local.get $t1
       local.get $t2
       local.get $word.0

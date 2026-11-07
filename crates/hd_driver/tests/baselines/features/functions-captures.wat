@@ -14,8 +14,8 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 16 funcref))
   (func $through_ptr (param $items i32) (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t0 i32)
-    block
     ;; 30 |     fn() -> void: items.push(s)
+    block
       i32.const 0
       i32.const 12
       i32.const -2147483646
@@ -32,7 +32,6 @@
       local.get $t0
       call $rt:retain_fields'1
       local.get $t0
-    ;; (no span)
       local.set $s.0
       local.set $items
     end
@@ -40,7 +39,7 @@
     local.get $s.0
   )
   (func $copy_shares#1 (param $env i32) (param $ctx i32) (local $t0 i32)
-    ;; 25 |     inc()
+    ;; 23 |     inc := fn() -> void: n += s.len()
     local.get $env
     i32.load $heap
     local.set $ctx
@@ -48,7 +47,6 @@
     i32.load $heap offset=8
     local.set $env
     block
-    ;; 23 |     inc := fn() -> void: n += s.len()
       local.get $ctx
       i32.load $heap
       local.set $t0
@@ -62,7 +60,6 @@
       local.get $env
       i32.add
       i32.store $heap
-    ;; 25 |     inc()
     end
   )
   (func $through_ptr#1 (param $env i32) (param $ctx i32) (local $s.0 i32) (local $t0 i32) (local $t1 i32)
@@ -119,8 +116,8 @@
     end
   )
   (func $copied (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
-    block
     ;; 11 |     f := fn() -> usize: s.len()
+    block
       i32.const 4
       i32.const 8
       i32.const 6
@@ -139,7 +136,7 @@
       i32.const 0
       call $copied#1
       local.set $t1
-    ;; (no span)
+    ;; 11 |     f := fn() -> usize: s.len()
       local.get $t0
       call $rt:release_ref'1
     ;; 12 |     f() + s.len()
@@ -148,36 +145,34 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 11 |     f := fn() -> usize: s.len()
       local.get $s.0
       call $rt:release_ref'2
     ;; 12 |     f() + s.len()
       local.get $t1
       local.get $s.1
       i32.add
-    ;; (no span)
+    ;; 11 |     f := fn() -> usize: s.len()
       local.set $s.0
     end
     local.get $s.0
   )
   (func $copied#1 (param $env i32) (param $ctx i32) (result i32)
-    ;; 12 |     f() + s.len()
+    ;; 11 |     f := fn() -> usize: s.len()
     local.get $env
     i32.load $heap offset=4
     local.set $env
     block
-    ;; 11 |     f := fn() -> usize: s.len()
       block
         block
           br 0
         end
       end
-    ;; 12 |     f() + s.len()
     end
     local.get $env
   )
   (func $copy_shares (param $s.0 i32) (param $s.1 i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32)
-    ;; (no span)
+    ;; 22 |     let n: usize = 0
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -208,7 +203,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 22 |     let n: usize = 0
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -243,13 +237,13 @@
       local.get $t1
       i32.const 0
       call $copy_shares#1
-    ;; (no span)
+    ;; 22 |     let n: usize = 0
       local.get $t1
       call $rt:release_ref'1
     ;; 27 |     n
       local.get $n
       i32.load $heap
-    ;; (no span)
+    ;; 22 |     let n: usize = 0
       local.set $s.0
     end
     local.get $s.0
@@ -312,7 +306,7 @@
     end
   )
   (func $shared_list (param $s.0 i32) (param $s.1 i32) (result i32) (local $xs i32) (local $t0 i32) (local $t1 i32)
-    ;; (no span)
+    ;; 15 |     let mut xs: List[string] = []
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -343,7 +337,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 15 |     let mut xs: List[string] = []
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -378,7 +371,7 @@
       local.get $t1
       i32.const 0
       call $shared_list#1
-    ;; (no span)
+    ;; 15 |     let mut xs: List[string] = []
       local.get $t1
       call $rt:release_ref'1
     ;; 19 |     xs.len()
@@ -386,7 +379,7 @@
       i32.load $heap
       call $rt:coll_copy
       local.set $s.0
-    ;; (no span)
+    ;; 15 |     let mut xs: List[string] = []
       local.get $xs
       if
         local.get $xs
@@ -396,7 +389,7 @@
     ;; 19 |     xs.len()
       local.get $s.0
       i32.load $heap offset=4
-    ;; (no span)
+    ;; 15 |     let mut xs: List[string] = []
       local.get $s.0
       call $rt:release_ref'1
       local.set $s.0

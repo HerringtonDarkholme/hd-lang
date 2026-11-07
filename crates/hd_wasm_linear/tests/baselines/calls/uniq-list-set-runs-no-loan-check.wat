@@ -7,8 +7,8 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
   (func $fill (param $n i32) (result i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 f64) (local $t5 i32)
-    block
     ;; 7 |     let mut xs = UniqList::[f64].with_capacity(n)
+    block
       block
         block
           local.get $n
@@ -235,7 +235,7 @@
       i32.store $heap offset=28
       local.get $t0
       call $rt:release_ref
-    ;; (no span)
+    ;; 7 |     let mut xs = UniqList::[f64].with_capacity(n)
       local.set $t1
       local.set $t0
       local.set $n

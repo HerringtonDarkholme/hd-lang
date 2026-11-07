@@ -20,17 +20,17 @@ impl Bag:
     fn item_mut(&mut self, i: usize) -> &mut Item:
         &mut self.items[i]
 > std/rt_tests.stage_case/impl Bag.item_mut
->   (no span) unique List[std.rt_tests.stage_case.Item] (conservative: unique)
+>   unique List[std.rt_tests.stage_case.Item] (conservative: unique)
 
 fn change_then_read(name: string) -> usize:
     let mut b = Bag { label: name, items: [Item { qty: +1 }] }
-    b.item_mut(0).qty = +7
 > std/rt_tests.stage_case/change_then_read
+>   release string (last use)
+>   release std.rt_tests.stage_case.Bag [label.0, items] (last use)
+>   release List[std.rt_tests.stage_case.Item] (last use)
+    b.item_mut(0).qty = +7
 >   unique List[std.rt_tests.stage_case.Item] (conservative: unique)
     kept := b.label
 >   retain string (conservative: copy read)
     kept.len() + b.items.len()
 >   copy List[std.rt_tests.stage_case.Item] (conservative: copy read)
->   (no span) release string (last use)
->   (no span) release std.rt_tests.stage_case.Bag [label.0, items] (last use)
->   (no span) release List[std.rt_tests.stage_case.Item] (last use)

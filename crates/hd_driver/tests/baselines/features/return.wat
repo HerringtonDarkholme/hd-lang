@@ -25,7 +25,7 @@
     local.get $s.1
   )
   (func $ret_new (param $t1 i64) (result i32 i32) (local $n i32) (local $t3 i32) (local $t0 i32) (local $t2 i64) (local $t4 i32) (local $t5 i32) (local $t6 i32)
-    ;; (no span)
+    ;; 16 |     "n=${n}"
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -65,7 +65,6 @@
     local.get $t1
     i64.store $heap
     block
-    ;; 16 |     "n=${n}"
       local.get $n
       i64.load $heap
       local.tee $t1
@@ -142,7 +141,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $t4
       local.get $t5
       local.set $t3
@@ -162,7 +160,7 @@
     local.get $r
   )
   (func $use_rets (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $r i32) (local $t3 i32)
-    ;; (no span)
+    ;; 22 |     ret_param(r.name).len() + ret_field(r).len() + ret_ref_field(&r).len()
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -205,7 +203,6 @@
     local.get $t2
     i32.store $heap offset=4
     block
-    ;; 22 |     ret_param(r.name).len() + ret_field(r).len() + ret_ref_field(&r).len()
       local.get $r
       i32.load $heap
       local.get $r
@@ -223,10 +220,8 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $t1
       call $rt:release_ref
-    ;; 22 |     ret_param(r.name).len() + ret_field(r).len() + ret_ref_field(&r).len()
       local.get $r
       i32.load $heap
       local.get $r
@@ -244,10 +239,8 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $t1
       call $rt:release_ref
-    ;; 22 |     ret_param(r.name).len() + ret_field(r).len() + ret_ref_field(&r).len()
       local.get $t2
       local.get $t3
       i32.add
@@ -262,18 +255,15 @@
       local.get $t2
       call $"impl string.len"
       local.set $t2
-    ;; (no span)
       local.get $r
       if
         local.get $r
         i32.load $heap
         call $rt:release_ref
       end
-    ;; 22 |     ret_param(r.name).len() + ret_field(r).len() + ret_ref_field(&r).len()
       local.get $t1
       local.get $t2
       i32.add
-    ;; (no span)
       local.set $t1
     end
     local.get $t1

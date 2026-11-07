@@ -27,8 +27,8 @@
     local.get $self
   )
   (func $probe (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32)
-    block
     ;; 17 |     r := p.slot()
+    block
       local.get $p
       call $"impl Outer.slot"
       local.tee $p
@@ -92,7 +92,7 @@
       local.get $p
       local.set $alias
       local.set $p
-    ;; (no span)
+    ;; 17 |     r := p.slot()
       local.get $t0
       if
         local.get $t0
@@ -104,7 +104,8 @@
         i32.const 0
         i32.const 1
         i32.eq
-        ;; ...
+        if
+        end
         i32.const 0
         local.set $t0
       end
@@ -119,7 +120,8 @@
         i32.const 0
         i32.const 1
         i32.eq
-        ;; ...
+        if
+        end
         i32.const 0
         local.set $t0
       end
@@ -135,7 +137,8 @@
       i32.const 0
       i32.const 1
       i32.eq
-      ;; ...
+      if
+      end
     end
     local.get $p
     local.get $alias

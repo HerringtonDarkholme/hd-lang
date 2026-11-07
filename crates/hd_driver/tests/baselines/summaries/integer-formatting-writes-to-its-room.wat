@@ -4,8 +4,8 @@
   (import "fixture" "rt:fmt_u64" (func $rt:fmt_u64 (param i64 i32) (result i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $signed (param $value i64) (param $room i32) (result i32 i32) (local $t0 i32)
-    block
     ;; 8 |     format_signed(value, room.at(0))
+    block
       block
         block
           local.get $room
@@ -17,7 +17,6 @@
       local.get $value
       local.get $room
       call $rt:fmt_i64
-    ;; (no span)
       local.set $t0
       local.set $room
     end
@@ -25,8 +24,8 @@
     local.get $t0
   )
   (func $unsigned (param $value i64) (param $room i32) (result i32 i32) (local $t0 i32)
-    block
     ;; 11 |     format_unsigned(value, room.at(0))
+    block
       block
         block
           local.get $room
@@ -38,7 +37,6 @@
       local.get $value
       local.get $room
       call $rt:fmt_u64
-    ;; (no span)
       local.set $t0
       local.set $room
     end

@@ -9,8 +9,8 @@
   (import "fixture" "rt:panic'3" (func $rt:panic'3))
   (import "fixture" "heap" (memory $heap 1))
   (func $map_index (param $m i32) (param $k.0 i32) (param $k.1 i32) (result i32)
-    block
     ;; 7 |     m[k].len()
+    block
       local.get $m
       local.get $k.0
       local.get $k.1
@@ -51,12 +51,11 @@
         end
       end
     end
-    ;; (no span)
     local.get $m
   )
   (func $map_index_take (param $m i32) (param $k.0 i32) (param $k.1 i32) (result i32 i32)
-    block
     ;; 10 |     m[k]
+    block
       local.get $m
       local.get $k.0
       local.get $k.1
@@ -92,7 +91,6 @@
       local.set $k.1
       local.tee $k.0
       call $retain
-    ;; (no span)
       local.get $m
       call $rt:release_ref
       local.get $k.0
@@ -122,8 +120,8 @@
     local.get $s.0
   )
   (func $ref_list_index (param $xs i32) (param $i i32) (result i32)
-    block
     ;; 16 |     xs[i].len()
+    block
       local.get $xs
       i32.load $heap
       local.set $xs
@@ -152,7 +150,6 @@
         end
       end
     end
-    ;; (no span)
     local.get $xs
   )
 )

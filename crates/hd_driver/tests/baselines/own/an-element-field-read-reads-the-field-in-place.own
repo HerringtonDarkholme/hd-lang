@@ -18,15 +18,16 @@ struct Members[T]:
 
 impl[T] Members[T]:
     fn position_at(self, i: usize) -> usize:
-        self.infos[i].position
 > app/main/impl [ T ] Members [ T ].position_at
 >   local $0 self: Members[T] [param read] value
->     uses $0: entry -> %1 lend last
+>     uses $0: entry -> %2 lend last
 >   local $1 i: usize [param read] value
->     uses $1: entry -> %0 lend last
->   %0 = Read copy [$1] : usize
->   %1 = Read copy [$0 .infos [%0] .position] : usize
->   %2 = Block %1 : usize
+>     uses $1: entry -> %1 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+        self.infos[i].position
+>   %1 = Read copy [$1] : usize
+>   %2 = Read copy [$0 .infos [%1] .position] : usize
+>   %3 = Block %2 : usize
 
     fn name_at(self, i: usize) -> string:
         self.infos[i].name
@@ -42,26 +43,28 @@ impl[T] Members[T]:
 >   exit sub 0 drops [$0]
 
     fn y_at(self, i: usize) -> i64:
-        self.points[i].y
 > app/main/impl [ T ] Members [ T ].y_at
 >   local $0 self: Members[T] [param read] value
->     uses $0: entry -> %1 lend last
+>     uses $0: entry -> %2 lend last
 >   local $1 i: usize [param read] value
->     uses $1: entry -> %0 lend last
->   %0 = Read copy [$1] : usize
->   %1 = Read copy [$0 .points [%0] .y] : i64
->   %2 = Block %1 : i64
+>     uses $1: entry -> %1 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+        self.points[i].y
+>   %1 = Read copy [$1] : usize
+>   %2 = Read copy [$0 .points [%1] .y] : i64
+>   %3 = Block %2 : i64
 
 fn position_at(infos: List[Info], i: usize) -> usize:
-    infos[i].position
 > app/main/position_at
 >   local $0 infos: List[Info] [param read] value
->     uses $0: entry -> %1 lend last
+>     uses $0: entry -> %2 lend last
 >   local $1 i: usize [param read] value
->     uses $1: entry -> %0 lend last
->   %0 = Read copy [$1] : usize
->   %1 = Read copy [$0 [%0] .position] : usize
->   %2 = Block %1 : usize
+>     uses $1: entry -> %1 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    infos[i].position
+>   %1 = Read copy [$1] : usize
+>   %2 = Read copy [$0 [%1] .position] : usize
+>   %3 = Block %2 : usize
 
 fn name_at(infos: List[Info], i: usize) -> string:
     infos[i].name
@@ -77,30 +80,32 @@ fn name_at(infos: List[Info], i: usize) -> string:
 >   exit sub 0 drops [$0]
 
 fn y_at(points: List[Point], i: usize) -> i64:
-    points[i].y
 > app/main/y_at
 >   local $0 points: List[Point] [param read] value
->     uses $0: entry -> %1 lend last
+>     uses $0: entry -> %2 lend last
 >   local $1 i: usize [param read] value
->     uses $1: entry -> %0 lend last
->   %0 = Read copy [$1] : usize
->   %1 = Read copy [$0 [%0] .y] : i64
->   %2 = Block %1 : i64
+>     uses $1: entry -> %1 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    points[i].y
+>   %1 = Read copy [$1] : usize
+>   %2 = Read copy [$0 [%1] .y] : i64
+>   %3 = Block %2 : i64
 
 struct Wrap[T]:
     n: usize
     value: T
 
 fn n_at[T](xs: List[Wrap[T]], i: usize) -> usize:
-    xs[i].n
 > app/main/n_at
 >   local $0 xs: List[Wrap[T]] [param read] value
->     uses $0: entry -> %1 lend last
+>     uses $0: entry -> %2 lend last
 >   local $1 i: usize [param read] value
->     uses $1: entry -> %0 lend last
->   %0 = Read copy [$1] : usize
->   %1 = Read copy [$0 [%0] .n] : usize
->   %2 = Block %1 : usize
+>     uses $1: entry -> %1 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    xs[i].n
+>   %1 = Read copy [$1] : usize
+>   %2 = Read copy [$0 [%1] .n] : usize
+>   %3 = Block %2 : usize
 
 fn use_generic(m: Members[i32], xs: List[Wrap[string]], i: usize) -> i64:
     name := m.name_at(i)

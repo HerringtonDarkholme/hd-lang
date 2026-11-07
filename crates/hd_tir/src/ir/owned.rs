@@ -100,6 +100,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     };
     decided(b, &mut errs);
     retained_results(b, own, &topo, &mut errs);
+    exit_parameters(b, own, &topo, &mut errs);
     takes_outside_suspension(b, &topo, &mut errs);
     change_places(b, &topo, &mut errs);
     hoisted(b, &topo, own, &mut errs);
@@ -113,6 +114,48 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     Balance::new(b, &topo, own).walk(&mut errs);
     copies(b, &mut errs);
     errs
+}
+
+/// The ABI's count is released once at the common exit, independently of
+/// the body's ordinary ownership balance and of which return it takes.
+fn exit_parameters(b: &Body, cx: &dyn OwnCx, topo: &Topology, errs: &mut Vec<VerifyError>) {
+    let wanted = crate::own::abi::parameters(b, cx);
+    for &l in &wanted {
+        let word = l | super::place::BARE_LOCAL;
+        let n = (0..b.len())
+            .filter(|&i| {
+                b.tags[i] == Tag::ExitDrop && b.data[i][0] == word && topo.blk[i] == b.sub_root[0]
+            })
+            .count();
+        if n != 1 {
+            err(
+                errs,
+                b.sub_root[0],
+                "an unowned ABI parameter lacks its one exit drop".into(),
+            );
+        }
+    }
+    for i in 0..b.len() {
+        if b.tags[i] != Tag::ExitDrop {
+            continue;
+        }
+        let [word, reason] = b.data[i];
+        let valid = word & super::place::BARE_LOCAL != 0
+            && wanted.contains(&(word & !super::place::BARE_LOCAL))
+            && topo.blk[i] == b.sub_root[0]
+            && matches!(
+                crate::own::Reason::from_word(reason),
+                crate::own::Reason::LastUse
+            )
+            && b.ty[i] == hd_types::Ty::VOID;
+        if !valid {
+            err(
+                errs,
+                u32_of(i),
+                "an exit drop without an unowned ABI-parameter proof".into(),
+            );
+        }
+    }
 }
 
 /// Every owned borrowed result takes its count exactly once,

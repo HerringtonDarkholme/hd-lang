@@ -16,6 +16,7 @@
     end
   )
   (func $recursive_owned (param $point i32) (param $depth i32) (result i32)
+    ;; 34 |     field := &point.value
     block
     ;; 35 |     below := if depth == 0: 0 else: recursive_owned(point, depth - 1)
       local.get $depth
@@ -38,21 +39,20 @@
       local.get $depth
     ;; 36 |     field.len() + below
       i32.add
-    ;; (no span)
+    ;; 34 |     field := &point.value
       local.set $point
     end
     local.get $point
   )
   (func $project (param $point i32) (result i32)
-    block
     ;; 27 |     identity(&point.x)
+    block
       block
         block
           br 0
         end
       end
     end
-    ;; (no span)
     local.get $point
   )
   (func $identity (param $target i32) (result i32)
@@ -62,8 +62,8 @@
     local.get $target
   )
   (func $forward (param $point i32) (local $t0 i32)
-    block
     ;; 15 |     write(&mut point.x)
+    block
       block
         block
           local.get $point
@@ -80,8 +80,8 @@
     end
   )
   (func $exercise (param $point i32) (local $t0 i32)
-    block
     ;; 19 |     forward(point)
+    block
       block
         block
           block
@@ -103,6 +103,7 @@
     end
   )
   (func $recursive_borrowed (param $point i32) (param $depth i32) (result i32)
+    ;; 40 |     field := &point.value
     block
     ;; 41 |     below := if depth == 0: 0 else: recursive_borrowed(point, depth - 1)
       local.get $depth
@@ -125,7 +126,7 @@
       local.get $depth
     ;; 42 |     field.len() + below
       i32.add
-    ;; (no span)
+    ;; 40 |     field := &point.value
       local.set $point
     end
     local.get $point

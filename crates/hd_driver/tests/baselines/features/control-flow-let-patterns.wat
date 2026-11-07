@@ -3,8 +3,8 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $present (param $o.0 i32) (param $o.1 i32) (param $o.2 i32) (result i32)
-    block
     ;; 24 |     let .Some(s) = o else:
+    block
       block
         block
           block
@@ -32,13 +32,13 @@
           br 0
         end
       end
+    ;; 24 |     let .Some(s) = o else:
     end
-    ;; (no span)
     local.get $o.0
   )
   (func $read_user (param $u.name.0 i32) (param $u.name.1 i32) (param $u.tags i32) (result i32)
-    block
     ;; 12 |     let User { name, tags } = u
+    block
       block
         block
           br 0
@@ -58,14 +58,14 @@
       local.get $u.tags
       i32.load $heap offset=4
       i32.add
-    ;; (no span)
+    ;; 12 |     let User { name, tags } = u
       local.set $u.name.0
     end
     local.get $u.name.0
   )
   (func $pair (param $p.0.0 i32) (param $p.0.1 i32) (param $p.1.0 i32) (param $p.1.1 i32) (result i32)
-    block
     ;; 20 |     let (a, b) = p
+    block
       block
         block
           br 0
@@ -91,7 +91,7 @@
       local.get $p.0.0
       local.get $p.0.1
       i32.add
-    ;; (no span)
+    ;; 20 |     let (a, b) = p
       local.set $p.0.0
     end
     local.get $p.0.0

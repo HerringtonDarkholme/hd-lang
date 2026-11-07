@@ -17,7 +17,7 @@
     local.get $t0
   )
   (func $joined (param $t1 i32) (result i32) (local $t0 i32) (local $j i32) (local $t2 i32)
-    ;; (no span)
+    ;; 18 |     j.join()
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -57,7 +57,6 @@
     local.get $t1
     i32.store $heap
     block
-    ;; 18 |     j.join()
       local.get $j
       call $"impl Joiner.join.sep"
       local.set $t2
@@ -67,7 +66,6 @@
       local.get $t2
       call $"impl Joiner.join"
       local.set $t2
-    ;; (no span)
       local.get $t1
       call $rt:release_ref'1
       local.get $j
@@ -86,8 +84,8 @@
     global.set $locals
   )
   (func $"impl Joiner.join" (param $self i32) (param $sep.0 i32) (param $sep.1 i32) (result i32)
-    block
     ;; 12 |         self.parts.len() * sep.len()
+    block
       local.get $self
       i32.load $heap
       i32.load $heap offset=4
@@ -102,14 +100,13 @@
       local.get $self
       local.get $sep.0
       i32.mul
-    ;; (no span)
       local.set $self
     end
     local.get $self
   )
   (func $generic_method (param $j i32) (param $s.0 i32) (param $s.1 i32) (result i32)
-    block
     ;; 21 |     j.tagged(s).len()
+    block
       block
         block
           local.get $s.0
@@ -124,7 +121,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $j
       call $rt:release_ref'1
       local.get $s.0

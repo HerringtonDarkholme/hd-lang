@@ -8,12 +8,11 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $bumped (param $t.name.0 i32) (param $t.name.1 i32) (param $t.tags i32) (param $s.0 i32) (param $s.1 i32) (result i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+    ;; 13 |     t.tags.push(s)
     block
-    ;; (no span)
       local.get $t.tags
       call $rt:list_unique
       local.tee $t.tags
-    ;; 13 |     t.tags.push(s)
       local.tee $t0
       i32.load $heap offset=4
       local.tee $t1
@@ -44,18 +43,16 @@
       i32.add
       i32.store $heap offset=4
     end
-    ;; (no span)
     local.get $t.name.0
     local.get $t.name.1
     local.get $t.tags
   )
   (func $bump_only (param $t.name.0 i32) (param $t.name.1 i32) (param $t.tags i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
+    ;; 17 |     t.tags.push(s)
     block
-    ;; (no span)
       local.get $t.tags
       call $rt:list_unique
       local.tee $t.tags
-    ;; 17 |     t.tags.push(s)
       local.tee $t.name.1
       i32.load $heap offset=4
       local.tee $t0
@@ -87,21 +84,21 @@
       i32.store $heap offset=4
     ;; 18 |     t.tags.len()
       local.get $t.tags
-    ;; (no span)
+    ;; 17 |     t.tags.push(s)
       local.get $t.name.0
       call $rt:release_ref'1
     ;; 18 |     t.tags.len()
       i32.load $heap offset=4
       local.get $t.tags
-    ;; (no span)
+    ;; 17 |     t.tags.push(s)
       call $rt:release_ref'2
       local.set $t.name.0
     end
     local.get $t.name.0
   )
   (func $last_use (param $t.name.0 i32) (param $t.name.1 i32) (param $t.tags i32) (param $s.0 i32) (param $s.1 i32) (result i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    block
     ;; 21 |     bumped(t, s)
+    block
       local.get $t.name.0
       local.set $t.name.0
       block
@@ -142,14 +139,13 @@
         end
       end
     end
-    ;; (no span)
     local.get $t.name.0
     local.get $t.name.1
     local.get $t.tags
   )
   (func $kept_after (param $t.name.0 i32) (param $t.name.1 i32) (param $t.tags i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
-    block
     ;; 24 |     u := bumped(t, s)
+    block
       local.get $t.name.0
       local.get $t.tags
       call $rt:coll_copy
@@ -203,27 +199,26 @@
         local.set $t.name.1
       end
       local.get $t.name.1
-    ;; (no span)
       call $rt:release_ref'1
     ;; 25 |     u.tags.len() + t.tags.len()
       local.get $s.0
       i32.load $heap offset=4
-    ;; (no span)
+    ;; 24 |     u := bumped(t, s)
       local.get $s.0
       call $rt:release_ref'2
     ;; 25 |     u.tags.len() + t.tags.len()
       local.get $t.tags
-    ;; (no span)
+    ;; 24 |     u := bumped(t, s)
       local.get $t.name.0
       call $rt:release_ref'1
     ;; 25 |     u.tags.len() + t.tags.len()
       i32.load $heap offset=4
       local.get $t.tags
-    ;; (no span)
+    ;; 24 |     u := bumped(t, s)
       call $rt:release_ref'2
     ;; 25 |     u.tags.len() + t.tags.len()
       i32.add
-    ;; (no span)
+    ;; 24 |     u := bumped(t, s)
       local.set $t.name.0
     end
     local.get $t.name.0

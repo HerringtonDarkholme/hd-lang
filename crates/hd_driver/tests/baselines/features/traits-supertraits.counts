@@ -31,8 +31,8 @@ fn name_of(a: &dyn Animal) -> usize:
     a.name().len()
 > app/main/name_of
 >   retain app.main.Animal (second owner)
->   (no span) release app.main.Animal (last use)
->   (no span) release string (last use)
+>   release app.main.Animal (last use)
+>   release string (last use)
 
 fn widen(d: &dyn Dog) -> usize:
     name_of(d) + d.bark().len()
@@ -40,10 +40,10 @@ fn widen(d: &dyn Dog) -> usize:
 >   retain app.main.Dog (conservative: copy read)
 >   retain app.main.Animal (stored)
 >   release app.main.Dog (last use)
+>   release &app.main.Animal (by design)
 >   retain app.main.Dog (second owner)
->   (no span) release &app.main.Animal (by design)
->   (no span) release app.main.Dog (last use)
->   (no span) release string (last use)
+>   release app.main.Dog (last use)
+>   release string (last use)
 
 fn loud[T < Dog](d: T) -> usize:
     d.name().len() + d.bark().len()
@@ -52,7 +52,7 @@ fn use_pup(p: Pup) -> usize:
     widen(&p) + loud(p)
 > app/main/use_pup
 >   retain app.main.Dog (stored)
+>   release &app.main.Dog (by design)
 >   release string (last use)
 >   release string (last use)
->   (no span) release &app.main.Dog (by design)
->   (no span) release app.main.Pup [name.0] (last use)
+>   release app.main.Pup [name.0] (last use)

@@ -40,22 +40,22 @@ fn through_parent(node: *mut Node) -> i64:
     match node.left:
 > app/main/through_parent
 >   retain &app.main.Node? (second owner)
+>   release &app.main.Node (last use)
         .None => 0
         .Some(left) => prune(node) + left.value
->   (no span) release &app.main.Node (last use)
 
 fn through_alias(node: &Node) -> i64:
     match node.left:
 > app/main/through_alias
 >   retain &app.main.Node? (second owner)
+>   release &app.main.Node (last use)
         .None => 0
         .Some(left) => prune_global(0) + left.value
->   (no span) release &app.main.Node (last use)
 
 fn through_a_cycle(node: *mut Node) -> i64:
     match node.left:
 > app/main/through_a_cycle
 >   retain &app.main.Node? (second owner)
+>   release &app.main.Node (last use)
         .None => 0
         .Some(left) => ping(node, 3) + left.value
->   (no span) release &app.main.Node (last use)

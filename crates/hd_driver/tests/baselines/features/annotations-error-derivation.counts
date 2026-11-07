@@ -20,17 +20,19 @@ impl Error for YamlError
 @error
 > app/main/error Display for FsError.to_string
 >   retain counted reference (second owner)
+>   release app.main.FsError (last use)
 enum FsError:
     @error("not found: $path")
     NotFound(path: string)
->   (no span) release app.main.FsError (last use)
     Busy
 
 @error
 > app/main/error Display for LoadError.to_string
 >   retain counted reference (stored)
+>   release app.main.LoadError (last use)
 > app/main/error Error for LoadError.source
 >   retain counted reference (stored)
+>   release app.main.LoadError (last use)
 enum LoadError:
     @error("cannot read $path")
     Read(
@@ -46,8 +48,6 @@ enum LoadError:
     @error(transparent)
     Fs(
         @from
->   (no span) release app.main.LoadError (last use)
->   (no span) release app.main.LoadError (last use)
         error: FsError,
     )
 
@@ -63,4 +63,4 @@ fn load(text: string) -> Result[i64, LoadError]:
 fn message(e: &LoadError) -> usize:
     e.to_string().len()
 > app/main/message
->   (no span) release string (last use)
+>   release string (last use)

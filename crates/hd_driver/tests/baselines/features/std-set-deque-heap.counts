@@ -14,16 +14,16 @@ fn seen(s: &mut Set[string], a: string, b: string) -> bool:
 
 fn queue(q: &mut Deque[string], a: string) -> usize:
     q.push_back(a)
+> app/main/queue
+>   release string? (last use)
     match q.pop_front():
         .Some(x) => x.len()
         .None => 0
-> app/main/queue
->   (no span) release string? (last use)
 
 fn top(h: &mut Heap[string], a: string) -> usize:
     h.push(a)
+> app/main/top
+>   release string? (last use)
     match h.pop():
         .Some(x) => x.len()
         .None => 0
-> app/main/top
->   (no span) release string? (last use)

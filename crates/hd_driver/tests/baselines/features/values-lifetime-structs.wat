@@ -6,7 +6,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $token (param $other i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32) (local $t0 i32) (local $text i32)
-    ;; (no span)
+    ;; 28 |     word(Token.Word(&text), &other).len()
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -61,14 +61,12 @@
     local.get $t3
     i32.store $heap offset=4
     block
-    ;; 28 |     word(Token.Word(&text), &other).len()
       i32.const 0
       local.get $text
       local.get $other
       call $word
       call $"impl string.len"
       local.set $t1
-    ;; (no span)
       local.get $text
       if
         local.get $text
@@ -134,7 +132,7 @@
     i32.const 0
   )
   (func $length (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $text i32)
-    ;; (no span)
+    ;; 24 |     p := parser(&text)
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -177,7 +175,6 @@
     local.get $t2
     i32.store $heap offset=4
     block
-    ;; 24 |     p := parser(&text)
       block
         block
           local.get $text
@@ -189,7 +186,7 @@
     ;; 25 |     p.src.len() + p.pos
       call $"impl string.len"
       local.set $t1
-    ;; (no span)
+    ;; 24 |     p := parser(&text)
       local.get $text
       if
         local.get $text

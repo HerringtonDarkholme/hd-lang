@@ -5,8 +5,8 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
   (func $write (param $xs i32) (param $n i32) (local $t0 i32) (local $i i32) (local $t1 i32)
-    block
     ;; 9 |     for i in 0..n:
+    block
       i32.const 0
       local.set $t0
       block

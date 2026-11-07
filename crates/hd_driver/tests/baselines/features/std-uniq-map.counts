@@ -11,7 +11,7 @@ use std.collections.{UniqList, UniqMap}
 fn put(m: &mut UniqMap[string, string], k: string, v: string) -> void:
     _ := m.insert(k, v)
 > app/main/put
->   (no span) release string? (last use)
+>   release string? (last use)
 
 fn lookup(m: &UniqMap[string, string], k: string) -> usize:
     match m.get_ref(k):

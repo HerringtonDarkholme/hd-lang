@@ -46,8 +46,8 @@
     local.get $t0
   )
   (func $neg_tag (param $a.text.0 i32) (param $a.text.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    block
     ;; 26 |     -a
+    block
       block
         block
           i32.const 1
@@ -74,7 +74,6 @@
         end
       end
     end
-    ;; (no span)
     local.get $a.text.0
     local.get $a.text.1
   )
@@ -112,8 +111,8 @@
     local.get $self.text.1
   )
   (func $add_tags (param $a.text.0 i32) (param $a.text.1 i32) (param $b.text.0 i32) (param $b.text.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    block
     ;; 23 |     a + b
+    block
       block
         block
           local.get $a.text.1
@@ -146,13 +145,12 @@
         end
       end
     end
-    ;; (no span)
     local.get $a.text.0
     local.get $a.text.1
   )
   (func $"sum[string]" (param $items i32) (param $zero.0 i32) (param $zero.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $item.0 i32) (local $item.1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
-    block
     ;; 29 |     let total = zero
+    block
       local.get $zero.0
       local.set $zero.0
     ;; 30 |     for item in items:
@@ -279,7 +277,7 @@
     ;; 32 |     total
       local.get $zero.0
       local.get $zero.1
-    ;; (no span)
+    ;; 29 |     let total = zero
       local.set $zero.0
       local.set $items
     end

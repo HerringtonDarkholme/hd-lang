@@ -26,4 +26,13 @@ fn fetch!() -> usize $ Store:
     $.use(Store).get().len()
 > app/main/fetch
 >   release string (overwritten)
->   (no span) release string (last use)
+>   release string (last use)
+> app/main/fetch
+>   release app.main.Store (conservative: frame drop)
+>   release &app.main.Store (by design)
+>   release string (conservative: frame drop)
+>   release string (conservative: frame drop)
+>   release counted reference (conservative: frame drop)
+>   release counted reference (conservative: frame drop)
+> app/main/fetch
+>   retain counted reference (conservative: cold constructor)

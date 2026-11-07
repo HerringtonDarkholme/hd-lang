@@ -28,11 +28,11 @@ fn behind(shelf: &Shelf, i: usize) -> usize:
 
 fn local(n: usize) -> usize:
     let mut xs: List[Text] = []
+> app/main/local
+>   release List[app.main.Text] (last use)
     for i in 0..n:
         xs.push(Text { s: "x" })
     let sum: usize = 0
     for i in 0..n:
         sum = sum + xs[i].size()
     sum
-> app/main/local
->   (no span) release List[app.main.Text] (last use)

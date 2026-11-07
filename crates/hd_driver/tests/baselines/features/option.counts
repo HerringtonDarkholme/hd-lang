@@ -13,8 +13,8 @@ fn question(o: string?) -> string?:
     s := o?
 > app/main/question
 >   retain string (stored)
-    .Some(s + "!")
 >   release string (last use)
+    .Some(s + "!")
 
 fn or_default(o: string?) -> string:
     o.unwrap_or("none")

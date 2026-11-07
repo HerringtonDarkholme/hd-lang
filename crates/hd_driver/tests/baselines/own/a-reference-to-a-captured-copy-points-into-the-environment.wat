@@ -15,7 +15,7 @@
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $make (param $t0 i32) (param $t1 i32) (param $t2 i32) (result i32 i32) (local $p i32) (local $t3 i32)
-    ;; (no span)
+    ;; 18 |     fn() -> string: "${peek(&p)} ${first(&p.name)}"
     i32.const 12
     i32.const 2
     call $rt:new/class-2
@@ -29,7 +29,6 @@
     local.get $t2
     i32.store $heap offset=8
     block
-    ;; 18 |     fn() -> string: "${peek(&p)} ${first(&p.name)}"
       i32.const 2
       local.get $p
       i32.load $heap
@@ -54,12 +53,9 @@
       i32.store $heap offset=8
       local.get $t3
       call $rt:retain_fields
-    ;; (no span)
       local.get $p
       call $rt:release_ref'1
-    ;; 18 |     fn() -> string: "${peek(&p)} ${first(&p.name)}"
       local.get $t3
-    ;; (no span)
       local.set $t1
       local.set $t0
     end
@@ -67,7 +63,7 @@
     local.get $t1
   )
   (func $make#1 (param $env i32) (param $ctx i32) (result i32 i32) (local $p.name.0 i32) (local $p.name.1 i32) (local $t0 i32) (local $t1 i64) (local $t2 i64) (local $t3 i32) (local $t4 i32) (local $t5 i32)
-    ;; (no span)
+    ;; 18 |     fn() -> string: "${peek(&p)} ${first(&p.name)}"
     local.get $env
     i32.load $heap
     local.set $ctx
@@ -79,7 +75,6 @@
     local.set $p.name.1
     call $retain
     block
-    ;; 18 |     fn() -> string: "${peek(&p)} ${first(&p.name)}"
       i32.const 12
       i32.const 2
       call $rt:new/class-2
@@ -97,9 +92,7 @@
       local.get $t0
       call $peek
       local.get $t0
-    ;; (no span)
       call $rt:release_ref'1
-    ;; 18 |     fn() -> string: "${peek(&p)} ${first(&p.name)}"
       i64.extend_i32_s
       local.tee $t1
       local.set $t2
@@ -146,10 +139,8 @@
       call $first
       local.set $p.name.1
       local.tee $env
-    ;; (no span)
       local.get $p.name.0
       call $rt:release_ref'2
-    ;; 18 |     fn() -> string: "${peek(&p)} ${first(&p.name)}"
       drop
       block
         block
@@ -238,9 +229,7 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $env
-    ;; 18 |     fn() -> string: "${peek(&p)} ${first(&p.name)}"
       local.set $env
       block
         block
@@ -264,7 +253,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $p.name.0
       local.get $env
       call $rt:release_ref'2

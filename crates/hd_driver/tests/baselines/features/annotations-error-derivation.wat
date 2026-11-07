@@ -41,8 +41,8 @@
     local.get $t3
   )
   (func $"error Display for LoadError.to_string" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i64) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t13 i32) (local $t10 i32) (local $t11 i32) (local $t12 i64)
-    block
     ;; 25 | @error
+    block
       local.get $self
       i32.load8_u $heap
       local.tee $t0
@@ -193,7 +193,7 @@
         end
     ;; 27 |     @error("cannot read $path")
       end
-    ;; (no span)
+    ;; 25 | @error
       local.get $t0
       local.get $t1
       local.get $t2
@@ -209,8 +209,8 @@
     local.get $t0
   )
   (func $"impl Display for YamlError.to_string" (param $self i32) (result i32 i32) (local $t2 i32) (local $t0 i64) (local $t1 i64) (local $t3 i32) (local $t4 i32) (local $t5 i32)
-    block
     ;; 15 |         "bad yaml at line ${self.line}"
+    block
       local.get $self
       i64.load $heap
       local.tee $t0
@@ -287,7 +287,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $t3
       local.get $t4
       local.set $t2
@@ -297,8 +296,8 @@
     local.get $t2
   )
   (func $parse (param $text.0 i32) (param $text.1 i32) (result i32 i64) (local $t0 i64)
-    block
     ;; 45 |     if text.len() > 3:
+    block
       block
         block
           local.get $text.1
@@ -319,7 +318,7 @@
     ;; 47 |     .Ok(+0)
       i32.const 0
       i64.const 0
-    ;; (no span)
+    ;; 45 |     if text.len() > 3:
       local.set $t0
       local.set $text.0
     end
@@ -327,8 +326,8 @@
     local.get $t0
   )
   (func $message (param $e i32) (result i32) (local $t0 i32)
-    block
     ;; 54 |     e.to_string().len()
+    block
       local.get $e
       call $"error Display for LoadError.to_string"
       local.set $t0
@@ -338,7 +337,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $e
       call $rt:release_ref
       local.get $t0
@@ -347,8 +345,8 @@
     local.get $e
   )
   (func $"error Error for LoadError.source" (param $self i32) (result i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i64) (local $t8 i32) (local $t7 i32) (local $t9 i32)
-    block
     ;; 25 | @error
+    block
       local.get $self
       i32.load8_u $heap
       local.tee $t0
@@ -446,7 +444,7 @@
         local.set $t8
         local.set $self
       end
-    ;; (no span)
+    ;; 25 | @error
       local.get $t0
       local.get $t1
       local.get $t2
@@ -465,8 +463,8 @@
     local.get $t1
   )
   (func $load (param $text.0 i32) (param $text.1 i32) (result i32 i32 i32 i32 i32 i32 i32 i64) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t5 i32) (local $t0 i64)
-    block
     ;; 50 |     value := parse(text)?
+    block
       block
         block
           block
@@ -532,7 +530,7 @@
       i32.const 0
       i32.const 0
       i32.const 0
-    ;; (no span)
+    ;; 50 |     value := parse(text)?
       local.set $t5
       local.set $t1
       local.set $t2
@@ -575,8 +573,8 @@
     local.get $value
   )
   (func $"error Display for FsError.to_string" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t10 i32) (local $t6 i32) (local $t7 i32) (local $t8 i64) (local $t9 i32)
-    block
     ;; 19 | @error
+    block
       local.get $self
       i32.load8_u $heap
       local.tee $t0
@@ -671,7 +669,7 @@
         local.set $t4
         local.set $t2
       end
-    ;; (no span)
+    ;; 19 | @error
       local.get $t0
       local.get $t1
       local.get $self

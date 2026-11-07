@@ -36,10 +36,10 @@ fn later[T < 'static](value: T) -> fn() -> T:
 
 fn bounded(u: User) -> usize:
     kept := keep(u)
-    later(kept)().name.len()
 > app/main/bounded
+>   release fn() -> &mut app.main.User (last use)
+>   release &mut app.main.User (last use)
+>   release &mut app.main.User (last use)
+>   release string (last use)
+    later(kept)().name.len()
 >   retain string (conservative: copy read)
->   (no span) release fn() -> &mut app.main.User (last use)
->   (no span) release &mut app.main.User (last use)
->   (no span) release &mut app.main.User (last use)
->   (no span) release string (last use)

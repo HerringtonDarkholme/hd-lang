@@ -24,18 +24,18 @@ impl Wrap:
 fn total(n: i32) -> usize:
     make(n).size()
 > app/main/total
->   (no span) release app.main.Wrap [name.0] (last use)
+>   release app.main.Wrap [name.0] (last use)
 
 fn named(n: i32) -> usize:
     let w = make(n)
-    w.size()
 > app/main/named
->   (no span) release app.main.Wrap [name.0] (last use)
+>   release app.main.Wrap [name.0] (last use)
+    w.size()
 
 fn param(w: Wrap) -> usize:
     w.size()
 > app/main/param
->   (no span) release app.main.Wrap [name.0] (last use)
+>   release app.main.Wrap [name.0] (last use)
 
 struct Nums:
     xs: List[i64]
@@ -48,4 +48,4 @@ impl Nums:
 fn nums(n: i64) -> usize:
     Nums { xs: [n, n] }.count()
 > app/main/nums
->   (no span) release app.main.Nums (last use)
+>   release app.main.Nums (last use)

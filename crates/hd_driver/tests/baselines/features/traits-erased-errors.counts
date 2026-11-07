@@ -19,10 +19,10 @@ impl Error for FsError
 fn read_config(path: string) -> Result[string, FsError]:
     if path.len() > 0: .Ok(path + "!") else: .Err(FsError.NotFound(path))
 > app/main/read_config
->   (no span) release string (last use)
+>   release string (last use)
 
 fn load(path: string) -> Result[string, *dyn Error]:
     text := read_config(path)?
-    .Ok(text)
 > app/main/load
->   (no span) release string (last use)
+>   release string (last use)
+    .Ok(text)

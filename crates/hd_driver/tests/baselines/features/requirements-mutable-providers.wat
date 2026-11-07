@@ -7,8 +7,8 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 7 funcref))
   (func $tick (param $s.0 i32) (param $s.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t0 i32)
-    block
     ;; 23 |     rec := $.use(Recorder)
+    block
       local.get $provider0
       call $retain
       local.get $provider0
@@ -21,7 +21,7 @@
       local.get $provider0.vtable
       i32.load $heap
       call_indirect $table0 (param i32 i32 i32)
-    ;; (no span)
+    ;; 23 |     rec := $.use(Recorder)
       local.get $t0
       call $rt:release_ref'1
     ;; 25 |     rec.total()
@@ -31,7 +31,7 @@
       local.get $provider0.vtable
       i32.load $heap offset=4
       call_indirect $table0 (param i32) (result i32)
-    ;; (no span)
+    ;; 23 |     rec := $.use(Recorder)
       local.get $provider0
       call $rt:release_ref'1
       local.get $provider0
@@ -51,8 +51,8 @@
     local.get $self
   )
   (func $demo (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $tally i32) (local $t0 i32) (local $t1 i32)
-    block
     ;; 28 |     tally := box(Log { lines: [] })
+    block
       i32.const 4
       i32.const 4
       call $rt:new/class-1
@@ -83,14 +83,14 @@
         drop
     ;; 29 |     $.with(Recorder=tally):
       end
-    ;; (no span)
+    ;; 28 |     tally := box(Log { lines: [] })
       local.get $t0
       call $rt:release_ref'1
     ;; 32 |     tally.lines.len()
       local.get $tally
       i32.load $heap
       i32.load $heap offset=4
-    ;; (no span)
+    ;; 28 |     tally := box(Log { lines: [] })
       local.get $tally
       call $rt:release_ref'2
       local.set $a.0
@@ -98,11 +98,10 @@
     local.get $a.0
   )
   (func $"impl Recorder for Log.note" (param $self i32) (param $s.0 i32) (param $s.1 i32) (local $t0 i32) (local $t1 i32)
+    ;; 17 |         self.lines.push(s)
     block
-    ;; (no span)
       local.get $self
       i32.load $heap
-    ;; 17 |         self.lines.push(s)
       local.tee $t0
       i32.load $heap offset=4
       local.tee $t1

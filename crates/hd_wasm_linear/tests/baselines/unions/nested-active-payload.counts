@@ -7,10 +7,10 @@ type Nested = Inner | bool
 
 fn nested_length(value: Nested) -> usize:
     match value:
+> app/main/nested_length
+>   release (i32 | string) | bool (last use)
         ._0(inner) =>
             match inner:
                 ._0(_) => 0
                 ._1(text) => text.len()
         ._1(_) => 0
-> app/main/nested_length
->   (no span) release (i32 | string) | bool (conservative: unowned parameter)

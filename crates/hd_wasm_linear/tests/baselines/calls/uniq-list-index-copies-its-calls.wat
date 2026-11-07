@@ -3,8 +3,8 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
   (func $sum (param $xs i32) (param $n i32) (result f64) (local $total f64) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    block
     ;; 7 |     let total: f64 = 0.0
+    block
       f64.const 0x0p+0
       local.set $total
     ;; 8 |     for i in 0..n:
@@ -74,8 +74,8 @@
           br 0
         end
       end
+    ;; 7 |     let total: f64 = 0.0
     end
-    ;; (no span)
     local.get $total
   )
 )

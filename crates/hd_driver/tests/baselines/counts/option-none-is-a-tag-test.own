@@ -50,43 +50,45 @@ fn present(value: string?) -> bool:
 >   summary kept [$0]
 
 fn none_first(value: string?) -> bool:
-    .None == value
 > app/main/none_first
 >   local $0 value: string? [param read] value
->     uses $0: entry -> %2 lend last
->   %0 = NewVariant #0 [] : string?
->   %1 = Drop [%0] : ()
->   %2 = Read borrow [$0] : string?
->   %3 = ToArm #0 : never
->   %4 = Block - : never
->   %5 = ToArm #1 : never
->   %6 = Block - : never
->   %7 = SwitchTag %2 [#0 %4 %6] : never
->   %8 = Block - : never
->   %9 = Block 1:bool : bool
->   %10 = Block 0:bool : bool
->   %11 = Match %2 [%8 %9 %10] : bool
->   %12 = Block %11 : bool
+>     uses $0: entry -> %3 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    .None == value
+>   %1 = NewVariant #0 [] : string?
+>   %2 = Drop [%1] : ()
+>   %3 = Read borrow [$0] : string?
+>   %4 = ToArm #0 : never
+>   %5 = Block - : never
+>   %6 = ToArm #1 : never
+>   %7 = Block - : never
+>   %8 = SwitchTag %3 [#0 %5 %7] : never
+>   %9 = Block - : never
+>   %10 = Block 1:bool : bool
+>   %11 = Block 0:bool : bool
+>   %12 = Match %3 [%9 %10 %11] : bool
+>   %13 = Block %12 : bool
 >   summary kept [] borrows [$0]
 
 fn none_first_ne(value: string?) -> bool:
-    .None != value
 > app/main/none_first_ne
 >   local $0 value: string? [param read] value
->     uses $0: entry -> %2 lend last
->   %0 = NewVariant #0 [] : string?
->   %1 = Drop [%0] : ()
->   %2 = Read borrow [$0] : string?
->   %3 = ToArm #0 : never
->   %4 = Block - : never
->   %5 = ToArm #1 : never
->   %6 = Block - : never
->   %7 = SwitchTag %2 [#0 %4 %6] : never
->   %8 = Block - : never
->   %9 = Block 0:bool : bool
->   %10 = Block 1:bool : bool
->   %11 = Match %2 [%8 %9 %10] : bool
->   %12 = Block %11 : bool
+>     uses $0: entry -> %3 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    .None != value
+>   %1 = NewVariant #0 [] : string?
+>   %2 = Drop [%1] : ()
+>   %3 = Read borrow [$0] : string?
+>   %4 = ToArm #0 : never
+>   %5 = Block - : never
+>   %6 = ToArm #1 : never
+>   %7 = Block - : never
+>   %8 = SwitchTag %3 [#0 %5 %7] : never
+>   %9 = Block - : never
+>   %10 = Block 0:bool : bool
+>   %11 = Block 1:bool : bool
+>   %12 = Match %3 [%9 %10 %11] : bool
+>   %13 = Block %12 : bool
 >   summary kept [] borrows [$0]
 
 fn generic[T < ?Copy & Eq](value: &(T?)) -> bool:

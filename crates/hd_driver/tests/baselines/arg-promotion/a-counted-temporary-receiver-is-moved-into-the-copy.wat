@@ -16,7 +16,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $named (param $n i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i32)
-    ;; (no span)
+    ;; 27 |     let w = make(n)
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -47,7 +47,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 27 |     let w = make(n)
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -97,7 +96,6 @@
       call $"impl Wrap.size'1"
     ;; 27 |     let w = make(n)
       local.get $n
-    ;; (no span)
       call $rt:release_ref'1
       local.set $n
     end
@@ -108,8 +106,8 @@
     global.set $locals
   )
   (func $nums (param $n i64) (result i32) (local $t0 i32)
-    block
     ;; 42 |     Nums { xs: [n, n] }.count()
+    block
       i32.const 2
       call $rt:list_buf
       local.tee $t0
@@ -124,14 +122,13 @@
       local.get $t0
       call $"impl Nums.count'1"
       local.get $t0
-    ;; (no span)
       call $rt:release_ref'2
       local.set $t0
     end
     local.get $t0
   )
   (func $make (param $t1 i32) (result i32 i32) (local $n i32) (local $t0 i32) (local $t2 i64) (local $t3 i64) (local $t4 i32) (local $t5 i32) (local $t6 i32)
-    ;; (no span)
+    ;; 16 |     Wrap { name: "x${n}" }
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -171,7 +168,6 @@
     local.get $t1
     i32.store $heap
     block
-    ;; 16 |     Wrap { name: "x${n}" }
       local.get $n
       i32.load $heap
       i64.extend_i32_s
@@ -249,7 +245,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $t4
       local.get $t5
       local.set $n
@@ -263,12 +258,11 @@
     global.set $locals
   )
   (func $param (param $w.name.0 i32) (param $w.name.1 i32) (result i32)
-    block
     ;; 31 |     w.size()
+    block
       local.get $w.name.0
       local.get $w.name.1
       call $"impl Wrap.size'1"
-    ;; (no span)
       local.get $w.name.0
       call $rt:release_ref'1
       local.set $w.name.0
@@ -276,8 +270,8 @@
     local.get $w.name.0
   )
   (func $"impl Wrap.size'2" (param $self i32) (result i32) (local $t0 i32) (local $t1 i32)
-    block
     ;; 21 |         (self.name.len() + 1) * (self.name.len() + 2) * (self.name.len() + 3) / (self.name.len() + 4)
+    block
       local.get $self
       i32.load $heap
       local.get $self
@@ -350,14 +344,13 @@
       end
       local.get $self
       i32.div_u
-    ;; (no span)
       local.set $self
     end
     local.get $self
   )
   (func $"impl Wrap.size'1" (param $self.name.0 i32) (param $self.name.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
-    block
     ;; 21 |         (self.name.len() + 1) * (self.name.len() + 2) * (self.name.len() + 3) / (self.name.len() + 4)
+    block
       block
         block
           local.get $self.name.1
@@ -414,13 +407,12 @@
       end
       local.get $self.name.0
       i32.div_u
-    ;; (no span)
       local.set $self.name.0
     end
     local.get $self.name.0
   )
   (func $total (param $n i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i32)
-    ;; (no span)
+    ;; 24 |     make(n).size()
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -451,7 +443,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 24 |     make(n).size()
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -499,7 +490,6 @@
       local.get $t1
       call $"impl Wrap.size'1"
       local.get $n
-    ;; (no span)
       call $rt:release_ref'1
       local.set $n
     end

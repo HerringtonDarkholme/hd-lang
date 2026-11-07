@@ -11,23 +11,23 @@ enum Tag:
 
 fn pick(t: Tag) -> string:
     match t:
-        .Named(n) if n.len() > 3 => n
 > app/main/pick
+>   release string (last use)
+>   release string (last use)
+        .Named(n) if n.len() > 3 => n
 >   retain string (stored)
         .Pair(right = r, left = l) if l.len() > r.len() => l
 >   retain string (stored)
 >   retain string (stored)
         .Pair(left = _, right = r) => r
->   (no span) release string (last use)
->   (no span) release string (last use)
         _ => "short"
 
 fn whole(o: string?) -> usize:
     match o:
-        .Some(s) if s.len() > 0 => s.len()
 > app/main/whole
+>   release string? (last use)
+        .Some(s) if s.len() > 0 => s.len()
 >   retain string? (stored)
 >   retain string? (stored)
         other =>
             if other.is_some(): 1 else: 0
->   (no span) release string? (last use)

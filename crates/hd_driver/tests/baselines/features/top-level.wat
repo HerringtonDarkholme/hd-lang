@@ -203,14 +203,13 @@
     local.get $t0
   )
   (func $read_top (result i32) (local $t0 i32)
-    block
     ;; 11 |     greeting.len() + names.len()
+    block
       i32.const 24 ;; &greeting
       call $"impl string.len"
       global.get $names
       i32.load $heap offset=4
       i32.add
-    ;; (no span)
       local.set $t0
     end
     local.get $t0

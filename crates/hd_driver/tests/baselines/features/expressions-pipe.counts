@@ -25,14 +25,14 @@ fn chain(raw: string) -> string:
 > app/main/chain
 >   release string (last use)
 >   release string (last use)
->   (no span) release string (last use)
+>   release string (last use)
 
 fn direct(raw: string) -> string:
     tag(clean(raw), 2)
 > app/main/direct
 >   release string (last use)
 >   release string (last use)
->   (no span) release string (last use)
+>   release string (last use)
 
 fn method_slot(raw: string) -> usize:
     raw |> _.len()

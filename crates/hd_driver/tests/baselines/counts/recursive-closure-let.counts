@@ -7,6 +7,8 @@ fn sum_to(limit: i32) -> i32:
 > app/main/sum_to
 >   retain counted reference (conservative: Closure)
 >   release fn(i32) -> i32 (overwritten)
+>   release counted reference (last use)
+>   release fn(i32) -> i32 (last use)
         if n == 0: 0
 > app/main/sum_to
 >   release fn(i32) -> i32 (last use)
@@ -14,5 +16,3 @@ fn sum_to(limit: i32) -> i32:
 >   retain fn(i32) -> i32 (conservative: copy read)
     sum(limit)
 >   retain fn(i32) -> i32 (conservative: copy read)
->   (no span) release counted reference (last use)
->   (no span) release fn(i32) -> i32 (last use)

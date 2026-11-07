@@ -47,20 +47,21 @@
     local.get $env
   )
   (func $local_plain (param $xs i32) (result i32)
+    ;; 16 |     fn first_len(ys: List[string]) -> usize:
     block
     ;; 18 |     first_len(xs)
       i32.const 0
       local.get $xs
       i32.const 0
       call $local_plain#1
-    ;; (no span)
+    ;; 16 |     fn first_len(ys: List[string]) -> usize:
       local.set $xs
     end
     local.get $xs
   )
   (func $local_capture (param $prefix.0 i32) (param $prefix.1 i32) (param $xs i32) (result i32) (local $width.1 i32) (local $total i32) (local $t0 i32) (local $x.1 i32)
-    block
     ;; 8 |     fn width(s: string) -> usize:
+    block
       i32.const 1
       i32.const 8
       i32.const 3
@@ -121,18 +122,18 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 8 |     fn width(s: string) -> usize:
       local.get $width.1
       call $rt:release_ref'1
     ;; 13 |     total
       local.get $total
-    ;; (no span)
+    ;; 8 |     fn width(s: string) -> usize:
       local.set $prefix.0
     end
     local.get $prefix.0
   )
   (func $local_capture#1 (param $env i32) (param $s.0 i32) (param $s.1 i32) (param $ctx i32) (result i32)
-    ;; 11 |     for x in xs:
+    ;; 8 |     fn width(s: string) -> usize:
     local.get $env
     i32.load $heap offset=4
     local.set $env
@@ -148,14 +149,14 @@
           br 0
         end
       end
-    ;; 11 |     for x in xs:
+    ;; 8 |     fn width(s: string) -> usize:
       local.get $s.0
       call $rt:release_ref'2
     ;; 9 |         prefix.len() + s.len()
       local.get $env
       local.get $s.1
       i32.add
-    ;; 11 |     for x in xs:
+    ;; 8 |     fn width(s: string) -> usize:
       local.set $env
     end
     local.get $env

@@ -6,8 +6,8 @@
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $total_len (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $p i32)
-    block
     ;; 9 |     let n: usize = 0
+    block
       i32.const 0
       local.set $n
     ;; 10 |     for p in &xs:
@@ -56,12 +56,13 @@
       end
     ;; 12 |     n
       local.get $n
-    ;; (no span)
+    ;; 9 |     let n: usize = 0
       local.set $xs
     end
     local.get $xs
   )
   (func $shouted (param $prices i32) (result i32) (local $t0 i32) (local $t1 i32) (local $p i32) (local $t3 i32) (local $t2 i32)
+    ;; 21 |     let mut out = prices
     block
     ;; 22 |     for p in &mut out:
       local.get $t0
@@ -136,13 +137,13 @@
           br 0
         end
       end
+    ;; 21 |     let mut out = prices
     end
-    ;; (no span)
     local.get $prices
   )
   (func $through_ref (param $r i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $p i32)
-    block
     ;; 15 |     let n: usize = 0
+    block
       i32.const 0
       local.set $n
     ;; 16 |     for p in &r:
@@ -193,7 +194,7 @@
       end
     ;; 18 |     n
       local.get $n
-    ;; (no span)
+    ;; 15 |     let n: usize = 0
       local.set $r
     end
     local.get $r

@@ -9,23 +9,24 @@ struct Shelf:
 
 impl Shelf:
     fn by_self(self) -> usize:
-        (self.books.len() + 1) * (self.books.len() + 2) * (self.books.len() + 3) / 7
 > app/main/impl Shelf.by_self
 >   local $0 self: Shelf [param read] value
->     uses $0: entry -> %0 lend, %3 lend, %7 lend last
->   %0 = Read borrow [$0 .books] : List[string]
->   %1 = Intrinsic ListLen [%0] : usize
->   %2 = Prim Add [%1 1:usize] : usize
->   %3 = Read borrow [$0 .books] : List[string]
->   %4 = Intrinsic ListLen [%3] : usize
->   %5 = Prim Add [%4 2:usize] : usize
->   %6 = Prim Mul [%2 %5] : usize
->   %7 = Read borrow [$0 .books] : List[string]
->   %8 = Intrinsic ListLen [%7] : usize
->   %9 = Prim Add [%8 3:usize] : usize
->   %10 = Prim Mul [%6 %9] : usize
->   %11 = Prim Div [%10 7:usize] : usize
->   %12 = Block %11 : usize
+>     uses $0: entry -> %1 lend, %4 lend, %8 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+        (self.books.len() + 1) * (self.books.len() + 2) * (self.books.len() + 3) / 7
+>   %1 = Read borrow [$0 .books] : List[string]
+>   %2 = Intrinsic ListLen [%1] : usize
+>   %3 = Prim Add [%2 1:usize] : usize
+>   %4 = Read borrow [$0 .books] : List[string]
+>   %5 = Intrinsic ListLen [%4] : usize
+>   %6 = Prim Add [%5 2:usize] : usize
+>   %7 = Prim Mul [%3 %6] : usize
+>   %8 = Read borrow [$0 .books] : List[string]
+>   %9 = Intrinsic ListLen [%8] : usize
+>   %10 = Prim Add [%9 3:usize] : usize
+>   %11 = Prim Mul [%7 %10] : usize
+>   %12 = Prim Div [%11 7:usize] : usize
+>   %13 = Block %12 : usize
 >   summary kept [] borrows [$0]
 
     fn by_ref(&self) -> usize:

@@ -31,16 +31,16 @@ impl Shelf:
     fn put(&mut self, v: i64) -> void:
         self.items[0] = v
 > app/main/impl Shelf.put
->   (no span) unique List[i64] (conservative: unique)
+>   unique List[i64] (conservative: unique)
 
 pub fn main() -> void $ Console:
     let mut h = histogram()
+> app/main/main
+>   release app.main.Histogram (last use)
+>   release app.main.Shelf (last use)
     for i in 0..8:
         h.add(i % 4)
     let mut s = shelf()
-> app/main/main
 >   copy List[i64] (stored)
     s.put(9)
     println("${h.buckets[1]} ${s.items[0]} ${START[0]}")
->   (no span) release app.main.Histogram (last use)
->   (no span) release app.main.Shelf (last use)

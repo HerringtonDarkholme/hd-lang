@@ -18,8 +18,8 @@
     local.get $t0
   )
   (func $same_dyn (param $user i32) (result i32) (local $t0 i32)
-    block
     ;; 17 |     let first: &mut dyn Named = user
+    block
       local.get $user
       call $retain
       local.get $user
@@ -34,7 +34,7 @@
       local.get $user
       i64.extend_i32_u
       i64.eq
-    ;; (no span)
+    ;; 17 |     let first: &mut dyn Named = user
       local.get $user
       call $rt:release_ref
       local.get $t0

@@ -2,8 +2,8 @@
 (module
   (import "fixture" "heap" (memory $heap 1))
   (func $measure (param $room i32) (result i32) (local $t0 i32)
-    block
     ;; 21 |     room.text.len() + room.offset
+    block
       local.get $room
       i32.load $heap
       local.get $room
@@ -19,12 +19,12 @@
       local.get $room
       i32.load $heap offset=8
       i32.add
-    ;; (no span)
       local.set $room
     end
     local.get $room
   )
   (func $total (param $owner i32) (param $depth i32) (result i32) (local $t0 i32)
+    ;; 25 |     field := &owner.room
     block
     ;; 26 |     below := if depth == 0: 0 else: total(owner, depth - 1)
       local.get $depth
@@ -64,7 +64,7 @@
       local.get $owner
       local.get $depth
       i32.add
-    ;; (no span)
+    ;; 25 |     field := &owner.room
       local.set $owner
     end
     local.get $owner

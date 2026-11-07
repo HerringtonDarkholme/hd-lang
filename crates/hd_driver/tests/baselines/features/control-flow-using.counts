@@ -17,17 +17,17 @@ impl Disposable for Res:
         self.log.push(self.name)
 > app/main/impl Disposable for Res.dispose
 >   retain string (stored)
->   (no span) unique List[string] (conservative: unique)
+>   unique List[string] (conservative: unique)
 
 fn two(log: *mut List[string], a: string, b: string) -> usize:
     using first = Res { name: a, log: log }
 > app/main/two
 >   retain &mut List[string] (stored)
+>   release app.main.Res [name.0, log] (last use)
+>   release app.main.Res [name.0, log] (last use)
     using second = Res { name: b, log: log }
 >   retain &mut List[string] (stored)
     first.name.len() + second.name.len()
->   (no span) release app.main.Res [name.0, log] (last use)
->   (no span) release app.main.Res [name.0, log] (last use)
 
 fn per_round(log: *mut List[string], xs: List[string]) -> void:
     for x in xs:

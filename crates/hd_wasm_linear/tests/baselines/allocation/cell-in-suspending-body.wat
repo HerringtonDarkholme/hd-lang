@@ -3,106 +3,10 @@
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "bump" (func $bump (param i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $waits (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i64 i32) (local $t22 i32) (local $t1 i32) (local $t2 i64) (local $t3 i64) (local $tally i32) (local $t4 i32) (local $t5 i64) (local $t6 i64) (local $t7 i64) (local $t8 i64) (local $t9 i64) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i64) (local $t16 i32) (local $t17 i32) (local $t18 i64) (local $t19 i32) (local $t20 i64) (local $t21 i64) (local $t0 i32)
-    ;; (no span)
-    local.get $frame
-    if
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const 128
-      i32.and
-      local.set $t0
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const 128
-      i32.or
-      i32.store $heap offset=12
-    end
-    local.get $frame
-    if
-      local.get $frame
-      i32.load $heap offset=24
-      local.set $provider0
-      local.get $frame
-      i32.load $heap offset=28
-      local.set $provider0.vtable
-      local.get $frame
-      i32.load $heap offset=32
-      local.set $t1
-      local.get $frame
-      i64.load $heap offset=40
-      local.set $t2
-      local.get $frame
-      i64.load $heap offset=48
-      local.set $t3
-      local.get $frame
-      i32.load $heap offset=56
-      local.set $tally
-      local.get $frame
-      i32.load $heap offset=60
-      local.set $t4
-      local.get $frame
-      i64.load $heap offset=64
-      local.set $t5
-      local.get $frame
-      i64.load $heap offset=72
-      local.set $t6
-      local.get $frame
-      i64.load $heap offset=80
-      local.set $t7
-      local.get $frame
-      i64.load $heap offset=88
-      local.set $t8
-      local.get $frame
-      i64.load $heap offset=96
-      local.set $t9
-      local.get $frame
-      i32.load $heap offset=104
-      local.set $t10
-      local.get $frame
-      i32.load $heap offset=108
-      local.set $t11
-      local.get $frame
-      i32.load $heap offset=112
-      local.set $t12
-      local.get $frame
-      i32.load $heap offset=116
-      local.set $t13
-      local.get $frame
-      i32.load $heap offset=120
-      local.set $t14
-      local.get $frame
-      i64.load $heap offset=128
-      local.set $t15
-      local.get $frame
-      i32.load $heap offset=136
-      local.set $t16
-      local.get $frame
-      i32.load $heap offset=140
-      local.set $t17
-      local.get $frame
-      i64.load $heap offset=144
-      local.set $t18
-      local.get $frame
-      i32.load $heap offset=152
-      local.set $t19
-      local.get $frame
-      i64.load $heap offset=160
-      local.set $t20
-      local.get $frame
-      i64.load $heap offset=168
-      local.set $t21
-      local.get $frame
-      i32.load $heap offset=8
-      local.set $t22
-    else
-    end
+  (func $waits (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i64 i32) (local $tally i32) (local $t1 i64) (local $t0 i32) (local $t2 i32)
+    ;; ...
     block
-      local.get $t22
-      i32.eqz
       ;; ...
     ;; 20 |     bump(&mut tally)
       local.get $tally
@@ -111,61 +15,19 @@
         i32.const 8
         i32.const 0
         call $rt:new/class-1
-        local.tee $t16
-        local.get $t15
+        local.tee $t0
+        local.get $t1
         i64.store $heap
-        local.get $t16
+        local.get $t0
         local.set $tally
       end
       local.get $tally
-      local.tee $t17
+      local.tee $t2
       call $rt:retain_known
-      local.get $t17
+      local.get $t2
       call $bump
-    ;; (no span)
-      local.get $t17
-      call $rt:release_ref
       ;; ...
-      local.get $tally
-      call $rt:release_ref
-      i32.const 0
-      local.set $tally
-      local.set $t2
     end
-    local.get $tally
-    call $rt:release_ref
-    local.get $t2
-    local.get $frame
-    if
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const 64
-      i32.or
-      i32.store $heap offset=12
-    end
-    local.get $t1
-    if (result i32)
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const -17
-      i32.and
-      i32.store $heap offset=12
-      local.get $frame
-    else
-      i32.const 0
-    end
-    local.get $frame
-    if
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const -129
-      i32.and
-      local.get $t0
-      i32.or
-      i32.store $heap offset=12
-    end
+    ;; ...
   )
 )

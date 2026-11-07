@@ -27,7 +27,7 @@
     local.get $p
   )
   (func $use_all (result i32) (local $p i32) (local $t0 i32) (local $n i32)
-    ;; (no span)
+    ;; 21 |     let p = Point { x: +1, y: +2 }
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -58,7 +58,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 21 |     let p = Point { x: +1, y: +2 }
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -90,7 +89,7 @@
         local.get $n
     ;; 23 |     if same_place(&p, &p):
       end
-    ;; (no span)
+    ;; 21 |     let p = Point { x: +1, y: +2 }
       local.set $p
     end
     local.get $p

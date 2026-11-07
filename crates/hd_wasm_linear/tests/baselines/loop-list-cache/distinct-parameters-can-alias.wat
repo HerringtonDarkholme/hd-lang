@@ -99,9 +99,7 @@
         end
       end
       ;; ...
-    ;; (no span)
-      local.set $read
     end
-    local.get $read
+    ;; ...
   )
 )

@@ -18,11 +18,11 @@ fn walk(node: &Node, sink: &mut dyn Sink) -> void:
     sink.emit(node.value)
 > app/main/walk
 >   retain app.main.Sink (second owner)
+>   release app.main.Sink (last use)
+>   release List[&app.main.Node] (last use)
     for child in &node.children:
 >   copy List[&app.main.Node] (conservative: copy read)
         walk(*child, sink)
->   (no span) release app.main.Sink (last use)
->   (no span) release List[&app.main.Node] (last use)
 
 struct Total:
     sum: i64
@@ -38,24 +38,24 @@ fn keep(n: *Node, k: &mut Keeper) -> void:
     k.saved.push(n)
 > app/main/keep
 >   retain &app.main.Node (stored)
->   (no span) unique List[&app.main.Node] (conservative: unique)
+>   unique List[&app.main.Node] (conservative: unique)
 
 fn save(node: &Node, k: &mut Keeper) -> void:
     for e in &node.children:
 > app/main/save
 >   copy List[&app.main.Node] (conservative: copy read)
+>   release List[&app.main.Node] (last use)
         keep(*e, k)
->   (no span) release List[&app.main.Node] (last use)
 
 pub fn run(root: *Node) -> i64:
     let mut total = Total { sum: 0 }
-    walk(root, &mut total)
 > app/main/run
+>   release &mut app.main.Sink (by design)
+>   release app.main.Keeper (last use)
+>   release List[&app.main.Node] (last use)
+    walk(root, &mut total)
 >   retain app.main.Sink (stored)
     let mut keeper = Keeper { saved: [] }
     save(root, &mut keeper)
     total.sum + i64(keeper.saved.len())
 >   copy List[&app.main.Node] (conservative: copy read)
->   (no span) release &mut app.main.Sink (by design)
->   (no span) release app.main.Keeper (last use)
->   (no span) release List[&app.main.Node] (last use)

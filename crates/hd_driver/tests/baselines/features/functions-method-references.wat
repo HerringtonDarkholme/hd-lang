@@ -9,8 +9,8 @@
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $bound (param $u.name.0 i32) (param $u.name.1 i32) (result i32) (local $t0 i32)
-    block
     ;; 23 |     f := u::name_len
+    block
       local.get $u.name.0
       local.set $u.name.0
       i32.const 0
@@ -33,14 +33,14 @@
       i32.const 0
       call $bound#1
       local.set $u.name.1
-    ;; (no span)
+    ;; 23 |     f := u::name_len
       local.get $t0
       call $rt:release_ref'1
     ;; 24 |     f() + f()
       local.get $u.name.0
       local.get $u.name.1
       i32.add
-    ;; (no span)
+    ;; 23 |     f := u::name_len
       local.set $u.name.0
     end
     local.get $u.name.0
@@ -74,9 +74,8 @@
     end
   )
   (func $adapter#1 (param $env i32) (param $u.name.0 i32) (param $u.name.1 i32) (param $ctx i32) (result i32)
-    ;; 33 |     for u in us:
-    block
     ;; 31 |     g := fn(u: User) -> usize: u.name_len()
+    block
       block
         block
           block
@@ -89,13 +88,13 @@
           br 0
         end
       end
-    ;; 33 |     for u in us:
       local.get $u.name.0
       call $rt:release_ref'2
     end
     local.get $env
   )
   (func $adapter (param $us i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $u.name.0 i32) (local $u.name.1 i32)
+    ;; 31 |     g := fn(u: User) -> usize: u.name_len()
     block
     ;; 33 |     for u in us:
       local.get $us
@@ -148,14 +147,14 @@
       end
     ;; 35 |     n
       local.get $n
-    ;; (no span)
+    ;; 31 |     g := fn(u: User) -> usize: u.name_len()
       local.set $us
     end
     local.get $us
   )
   (func $"impl User.name_len" (param $self.name.0 i32) (param $self.name.1 i32) (result i32)
-    block
     ;; 13 |         self.name.len()
+    block
       block
         block
           local.get $self.name.1
@@ -164,12 +163,11 @@
         end
       end
     end
-    ;; (no span)
     local.get $self.name.0
   )
   (func $bound_mut (param $u i32) (param $n.0 i32) (param $n.1 i32) (local $t0 i32)
-    block
     ;; 27 |     f := u::rename
+    block
       local.get $u
       call $rt:retain_known
       i32.const 3
@@ -186,13 +184,13 @@
       local.get $n.1
       i32.const 0
       call $bound_mut#1
-    ;; (no span)
+    ;; 27 |     f := u::rename
       local.get $t0
       call $rt:release_ref'1
     end
   )
   (func $bound#1 (param $env i32) (param $ctx i32) (result i32)
-    ;; (no span)
+    ;; 23 |     f := u::name_len
     local.get $env
     i32.load $heap
     local.tee $ctx
@@ -201,7 +199,6 @@
     local.set $env
     call $retain
     block
-    ;; 23 |     f := u::name_len
       block
         block
           block
@@ -212,13 +209,13 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $ctx
       call $rt:release_ref'2
     end
     local.get $env
   )
   (func $unbound (param $u.name.0 i32) (param $u.name.1 i32) (result i32)
+    ;; 19 |     f := User::name_len
     block
     ;; 20 |     f(u)
       block
@@ -233,8 +230,8 @@
           br 0
         end
       end
+    ;; 19 |     f := User::name_len
     end
-    ;; (no span)
     local.get $u.name.0
   )
 )

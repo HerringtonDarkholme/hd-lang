@@ -15,8 +15,8 @@ impl dyn Greet:
         self.greet().len() * 2
 > app/main/impl dyn Greet.twice
 >   retain app.main.Greet (second owner)
->   (no span) release app.main.Greet (last use)
->   (no span) release string (last use)
+>   release app.main.Greet (last use)
+>   release string (last use)
 
 struct User:
     name: string
@@ -37,13 +37,13 @@ fn through_mut(g: &mut dyn Greet, n: string) -> usize:
     g.rename(n)
 > app/main/through_mut
 >   retain app.main.Greet (second owner)
+>   release app.main.Greet (last use)
     g.twice()
->   (no span) release app.main.Greet (last use)
 
 fn local_mut(u: User, n: string) -> usize:
     let mut v = u
-    through_mut(&mut v, n)
 > app/main/local_mut
+>   release &mut app.main.Greet (by design)
+>   release app.main.User [name.0] (last use)
+    through_mut(&mut v, n)
 >   retain app.main.Greet (stored)
->   (no span) release &mut app.main.Greet (by design)
->   (no span) release app.main.User [name.0] (last use)

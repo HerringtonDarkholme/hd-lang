@@ -6,8 +6,8 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $drive (param $log i32) (result i32) (local $t0 i32) (local $t1 i32) (local $value i32)
+    ;; 13 |     match block_on(append(log, log)):
     block
-    ;; (no span)
       local.get $log
       i32.const 4
       i32.sub
@@ -30,7 +30,6 @@
       local.get $t1
       i32.const 2097152
       i32.add
-    ;; 13 |     match block_on(append(log, log)):
       local.get $t0
       local.get $t0
       i32.load $heap
@@ -41,18 +40,14 @@
       call $rt:forbid_check
       i32.const 0
       i32.const 0
-    ;; (no span)
       local.get $log
-    ;; 13 |     match block_on(append(log, log)):
       local.get $log
       call $append
       local.set $log
       local.set $t1
       local.set $t0
       local.get $log
-    ;; (no span)
       call $rt:release_ref
-    ;; 13 |     match block_on(append(log, log)):
       block
         block
           block
@@ -71,7 +66,6 @@
         end
         br 0
       end
-    ;; (no span)
       local.get $value
       local.set $log
     end

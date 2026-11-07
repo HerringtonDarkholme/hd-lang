@@ -54,8 +54,8 @@
     local.get $s.1
   )
   (func $read_nested (param $s.0 i32) (param $s.1 i32) (param $s.2 i32) (param $s.3 i32) (param $s.4 i32) (param $s.5 i32) (param $s.6 i32) (result i32)
-    block
     ;; 15 |     match s:
+    block
       block
         block
           block
@@ -130,7 +130,6 @@
         br 0
       end
     end
-    ;; (no span)
     local.get $s.0
   )
 )

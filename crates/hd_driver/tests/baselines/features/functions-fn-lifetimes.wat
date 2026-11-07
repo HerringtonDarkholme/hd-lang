@@ -4,15 +4,14 @@
   (import "fixture" "name_of#adapter" (func $name_of#adapter (param i32 i32 i32) (result i32)))
   (import "fixture" "table0" (table $table0 2 funcref))
   (func $apply'1 (param $f.0 i32) (param $f.1 i32) (param $u i32) (result i32)
-    block
     ;; 13 |     f(u).len()
+    block
       local.get $f.1
       local.get $u
       i32.const 0
       local.get $f.0
       call_indirect $table0 (param i32 i32 i32) (result i32)
       call $"impl string.len"
-    ;; (no span)
       local.set $f.0
     end
     local.get $f.0
@@ -30,34 +29,32 @@
     local.get $u
   )
   (func $apply'2 (param $f.0 i32) (param $f.1 i32) (param $u i32) (result i32)
-    block
     ;; 13 |     f(u).len()
+    block
       local.get $f.1
       local.get $u
       i32.const 0
       call $demo#1
       call $"impl string.len"
-    ;; (no span)
       local.set $f.0
     end
     local.get $f.0
   )
   (func $apply'3 (param $f.0 i32) (param $f.1 i32) (param $u i32) (result i32)
-    block
     ;; 13 |     f(u).len()
+    block
       local.get $f.1
       local.get $u
       i32.const 0
       call $name_of#adapter
       call $"impl string.len"
-    ;; (no span)
       local.set $f.0
     end
     local.get $f.0
   )
   (func $demo (param $a i32) (result i32)
-    block
     ;; 16 |     apply(name_of, a) + apply(fn(u): &u.name, a)
+    block
       i32.const 0
       i32.const 0
       local.get $a
@@ -67,7 +64,6 @@
       local.get $a
       call $apply'2
       i32.add
-    ;; (no span)
       local.set $a
     end
     local.get $a

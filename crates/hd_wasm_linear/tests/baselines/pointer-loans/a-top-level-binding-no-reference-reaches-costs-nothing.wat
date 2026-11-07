@@ -23,8 +23,8 @@
     i32.store $heap
   )
   (func $held (result i32) (local $r i32) (local $t0 i32) (local $t1 i32)
-    block
     ;; 20 |     r := &mut TOTAL.value
+    block
       i32.const 20
       i32.load $heap
       i32.const 2097152
@@ -69,7 +69,7 @@
       local.get $r
       i32.load $heap
       local.set $r
-    ;; (no span)
+    ;; 20 |     r := &mut TOTAL.value
       local.get $t0
       if
         local.get $t0
@@ -81,7 +81,8 @@
         local.get $t1
         i32.const 1
         i32.eq
-        ;; ...
+        if
+        end
         i32.const 0
         local.set $t0
       end
@@ -97,7 +98,8 @@
       local.get $t1
       i32.const 1
       i32.eq
-      ;; ...
+      if
+      end
     end
     local.get $r
   )

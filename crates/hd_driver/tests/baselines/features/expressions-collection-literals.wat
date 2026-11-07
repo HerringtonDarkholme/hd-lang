@@ -11,8 +11,8 @@
   (import "fixture" "rt:map_put" (func $rt:map_put (param i32 i32 i32 i32 i32 i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $list_spread (param $xs i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    block
     ;; 12 |     [xs..., s]
+    block
       i32.const 1
       local.get $xs
       i32.load $heap offset=4
@@ -52,18 +52,15 @@
       local.get $s.1
       i32.store $heap offset=20
       local.get $xs
-    ;; (no span)
       call $rt:release_ref
-    ;; 12 |     [xs..., s]
       local.get $t1
-    ;; (no span)
       local.set $xs
     end
     local.get $xs
   )
   (func $list_spread_two (param $xs i32) (param $ys i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    block
     ;; 15 |     [xs..., ys...]
+    block
       local.get $t0
       local.get $xs
       i32.load $heap offset=4
@@ -118,14 +115,11 @@
       local.get $ys
       i32.load $heap offset=4
       call $rt:copy_elems
-    ;; (no span)
       local.get $ys
       call $rt:release_ref
       local.get $xs
       call $rt:release_ref
-    ;; 15 |     [xs..., ys...]
       local.get $t1
-    ;; (no span)
       local.set $xs
     end
     local.get $xs

@@ -13,13 +13,14 @@ struct Member:
     doc: string
 
 fn count(facts: Facts) -> usize:
-    facts.items.len()
 > app/main/count
 >   local $0 facts: Facts [param read] value
->     uses $0: entry -> %0 lend last
->   %0 = Read borrow [$0 .items] : List[string]
->   %1 = Intrinsic ListLen [%0] : usize
->   %2 = Block %1 : usize
+>     uses $0: entry -> %1 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    facts.items.len()
+>   %1 = Read borrow [$0 .items] : List[string]
+>   %2 = Intrinsic ListLen [%1] : usize
+>   %3 = Block %2 : usize
 
 fn read_again(m: Member) -> usize:
     x := m
