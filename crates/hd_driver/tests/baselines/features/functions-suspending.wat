@@ -1425,7 +1425,7 @@
     i32.store $heap offset=28
     local.get $t0
   )
-  (func $run_twice'1 (param $frame i32) (param $body.0 i32) (param $body.1 i32) (result i32 i32) (local $t34 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t6 i32) (local $t7 i32) (local $t4 i32) (local $t5 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t18 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t19 i32) (local $t20 i32) (local $t21 i32) (local $t22 i32) (local $t23 i32) (local $t24 i32) (local $t25 i32) (local $t26 i32) (local $t27 i32) (local $t28 i32) (local $t29 i32) (local $t30 i32) (local $t31 i32) (local $t32 i32) (local $t33 i32) (local $t0 i32) (local $t35 i32)
+  (func $run_twice'1 (param $frame i32) (param $body.0 i32) (param $body.1 i32) (result i32 i32) (local $t34 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t6 i32) (local $t7 i32) (local $t4 i32) (local $t5 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t18 i32) (local $t19 i32) (local $t20 i32) (local $t21 i32) (local $t22 i32) (local $t23 i32) (local $t24 i32) (local $t25 i32) (local $t26 i32) (local $t27 i32) (local $t28 i32) (local $t29 i32) (local $t30 i32) (local $t31 i32) (local $t32 i32) (local $t33 i32) (local $t0 i32) (local $t35 i32)
     ;; 15 |     body!().len() + body!().len()
     local.get $frame
     if
@@ -1719,15 +1719,6 @@
               local.get $t16
               i32.store $heap offset=112
               local.get $frame
-              local.get $t18
-              i32.store $heap offset=124
-              local.get $frame
-              local.get $t19
-              i32.store $heap offset=128
-              local.get $frame
-              local.get $t20
-              i32.store $heap offset=132
-              local.get $frame
               local.get $t21
               i32.store $heap offset=144
               local.get $frame
@@ -1898,15 +1889,6 @@
             local.get $t16
             i32.store $heap offset=112
             local.get $frame
-            local.get $t18
-            i32.store $heap offset=124
-            local.get $frame
-            local.get $t19
-            i32.store $heap offset=128
-            local.get $frame
-            local.get $t20
-            i32.store $heap offset=132
-            local.get $frame
             local.get $t21
             i32.store $heap offset=144
             local.get $frame
@@ -2012,8 +1994,6 @@
             call $rt:release_ref'1
           end
         end
-        i32.const 0
-        local.set $t3
         i32.const 8
         i32.const 3
         call $rt:new/class-1
@@ -2024,7 +2004,7 @@
         local.get $t7
         i32.store $heap offset=4
         local.get $t13
-        local.tee $t18
+        local.tee $t3
         i32.eqz
         if
           i32.const 8
@@ -2037,12 +2017,12 @@
           local.get $t15
           i32.store $heap offset=4
           local.get $t16
-          local.set $t18
+          local.set $t3
         end
-        local.get $t18
+        local.get $t3
         call $"impl string.len"
         local.set $t17
-        local.get $t18
+        local.get $t3
         local.tee $t35
         if
           local.get $t35
@@ -2166,9 +2146,6 @@
             local.get $frame
             local.get $t2
             i32.store $heap offset=36
-            local.get $frame
-            local.get $t3
-            i32.store $heap offset=48
             local.get $frame
             local.get $t4
             i32.store $heap offset=60
@@ -2350,9 +2327,6 @@
           local.get $frame
           local.get $t2
           i32.store $heap offset=36
-          local.get $frame
-          local.get $t3
-          i32.store $heap offset=48
           local.get $frame
           local.get $t4
           i32.store $heap offset=60

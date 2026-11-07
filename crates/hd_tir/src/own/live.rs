@@ -10,8 +10,9 @@
 //! its captures; a point reads its own operands and unwind rows, and a
 //! resume reads the operands of each instruction around it again. The walk
 //! follows no way out it has no jump for, so what those read is live at
-//! every point: the exit set, every point's unwind rows (a cancelled
-//! scope's ladder releases them all) and what a cleanup suite touches. A
+//! every point: the exit set and what a cleanup suite touches. A cancelled
+//! cleanup scope's ladder releases the unwind rows of every point inside
+//! it, so those are live at each point that shares the scope. A
 //! point the walk never reaches, one in a cleanup suite, has no row, and
 //! its frame saves everything.
 
@@ -115,9 +116,16 @@ pub(crate) fn run(b: &mut Body, topo: &Topology, flow: &mut Flow) {
     backward(b, topo, flow, &mut a);
     // What the ways out the walk does not follow read.
     let mut always = vec![false; locals + n];
-    for &(_, v) in &b.unwind_drops {
-        always[locals + v as usize] = true;
-    }
+    // Each point's cleanup scopes.
+    let scopes = |x: u32| {
+        topo.enclosing(x)
+            .map(|blk| topo.owner[blk as usize])
+            .filter(|&o| o != NONE && b.tags[o as usize] == Tag::Scope)
+    };
+    let points: Vec<(u32, Vec<u32>)> = (0..n)
+        .filter(|&x| is_suspension(b.tags[x]))
+        .map(|x| (u32_of(x), scopes(u32_of(x)).collect()))
+        .collect();
     let mut stack = Vec::new();
     let mut ops = Vec::new();
     let mut suites: Vec<u32> = Vec::new();
@@ -165,6 +173,20 @@ pub(crate) fn run(b: &mut Body, topo: &Topology, flow: &mut Flow) {
                 }
             });
         row.extend(exits.chain(fixed));
+        // A ladder of a cleanup scope around the point releases the unwind
+        // rows of every point inside it.
+        let around: Vec<u32> = scopes(u32_of(x)).collect();
+        for (p, theirs) in &points {
+            if theirs.iter().any(|o| around.contains(o)) {
+                let at = b.unwind_drops.partition_point(|r| r.0 < *p);
+                row.extend(
+                    b.unwind_drops[at..]
+                        .iter()
+                        .take_while(|r| r.0 == *p)
+                        .map(|r| r.1),
+                );
+            }
+        }
         // A resume enters each instruction around the point again, which
         // reads its operands before it enters the block that holds it.
         for blk in topo.enclosing(u32_of(x)) {

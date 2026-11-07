@@ -1,0 +1,29 @@
+# expect-stdout: 11
+# test: a frame cancelled at a later point releases nothing an earlier point held, as the frame saves only what the later point holds
+# Spec lang/11 cancellation: a cancelled suspension point runs the cleanup that is pending, and a value is released exactly once.
+use std.task.{TimedOut, timeout, apply}
+use std.time.{Clock, ms, s, sleep}
+
+struct Trace:
+    lines: *mut List[string]
+
+fn keep(text: string, n: usize) -> usize:
+    text.len() + n
+
+fn short!() -> usize $ Clock:
+    sleep!(ms(1))
+    2
+
+fn guarded!(trace: &mut Trace, word: string) -> usize $ Clock:
+    held := keep(word + "-tail", short!())
+    trace.lines.push(held.to_string())
+    sleep!(5s)
+    held
+
+pub fn main!() -> void $ Console + Clock:
+    let trace: *mut Trace = box(Trace { lines: box::[List[string]]([]) })
+    result := apply!(timeout(ms(20))):
+        let done: Result[usize, TimedOut] = .Ok(guarded!(trace, "word"))
+        done
+    for line in trace.lines:
+        println(line)

@@ -139,5 +139,5 @@ fn sequential!(a: string, b: string) -> (string, string):
 >   summary none
 >   unwind %8 drops [%4 %5 %6 %7]
 >   unwind %21 drops [%17 %18 %20]
->   live %8 [%4 %5 %6 %7 %17 %18 %20 $0 $1]
->   live %21 [%4 %5 %6 %7 %17 %18 %20 $0 $1]
+>   live %8 [%4 %5 %6 %7 $0 $1]
+>   live %21 [%17 %18 %20 $0 $1]
