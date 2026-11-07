@@ -17,10 +17,7 @@
 //! (`borrow`), which turns a `copy` whose value can live on its place's
 //! count into a `borrow` and deletes its `Drop`s; then **move** (`moves`),
 //! which turns a `copy` that no path reads after into a `move` and deletes
-//! the `Drop` it leaves with nothing to release; then **pair
-//! cancellation** (`pairs`), which turns a `copy` of a part whose base's
-//! `Drop` follows with nothing in between that touches the part into a
-//! `move`, and deletes or splits that drop; then **known-null** (`known`),
+//! the `Drop` it leaves with nothing to release; then **known-null** (`known`),
 //! which deletes the `Drop`s no path reaches with a count, drops the exit
 //! rows of locals empty at every way out, and writes each suspension
 //! point's unwind set; then **hoisting** (`hoist`), which moves an
@@ -56,7 +53,6 @@ mod insert;
 mod known;
 mod late;
 pub(crate) mod moves;
-mod pairs;
 pub(crate) mod parts;
 mod plain;
 pub mod promote;
@@ -633,7 +629,6 @@ pub struct OwnScratch {
     pub(crate) known: known::Tables,
     pub(crate) late: late::Tables,
     pub(crate) moves: moves::Tables,
-    pub(crate) pairs: pairs::Tables,
     pub(crate) splice: splice::Tables,
     pub(crate) values: values::Tables,
     /// The copy verifier's findings in the body the passes ran over last.
@@ -734,8 +729,8 @@ pub fn uncopied(b: &Body, cx: &dyn OwnCx, out: &mut Vec<Uncopied>) {
 }
 
 /// Runs the ownership passes over every sub-body of `b`, in order: late
-/// operand reads, insertion, borrow, move, pair cancellation, known-null,
-/// then hoisting. The last five record their deletions and insertions in
+/// operand reads, insertion, borrow, move, known-null, then hoisting. The
+/// last four record their deletions and insertions in
 /// one set of edits, applied once at the end. Then the copy verifier
 /// ([`uncopied`]) leaves its findings in `scratch`, for the driver to
 /// report or refuse ([`UNCOPIED_FAILS`]). A body the passes cannot
@@ -768,8 +763,7 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     borrow::run(b, topo, cx, &mut scratch.borrow, edits);
     moves::run(b, topo, cx, &mut scratch.moves, edits);
     values::capture_moves(b, topo, cx, &mut scratch.values, edits);
-    pairs::write_backs(b, topo, cx, &scratch.moves, &mut scratch.pairs, edits);
-    pairs::run(b, topo, cx, &mut scratch.moves, &mut scratch.pairs, edits);
+    moves::write_backs(b, topo, cx, &mut scratch.moves, edits);
     known::run(b, topo, cx, &mut scratch.known, edits);
     hoist::run(b, topo, cx, &mut scratch.hoist, edits);
     splice::apply(b, topo, edits)?;

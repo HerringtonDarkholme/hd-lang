@@ -2105,9 +2105,8 @@ reads, and the counts of the code it generates.
   element of the checker's private snapshot, a reference parameter's
   read (§23.31) and a local's read over its span (§23.36). A borrowed
   read takes no count, and its drops release nothing (`Em::loans`).
-- **Balanced pairs.** Pair cancellation deletes a copy and a drop of the
-  same value in one straight-line run (docs/compiler/tir-v2.md, "Pair
-  cancellation"). In generated code, `opt.rs` cancels a retain and its
+- **Balanced pairs.** A part's read moves where no path touches the part
+  again, so no copy and drop of it stand as a pair. In generated code, `opt.rs` cancels a retain and its
   matching release over a short straight-line span on unchanged locals,
   after local cleanup; a freeing call, a memory operation, an
   operand-local write or a control-flow edge ends the span.

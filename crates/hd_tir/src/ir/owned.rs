@@ -1560,8 +1560,8 @@ impl<'a> Balance<'a> {
     /// A `move` read of a whole value `[%v]` consumes it. A `move` read
     /// or a `Drop` of a part of a value (`[%v as .1 .0]`) takes that part:
     /// the value is then **taken in parts** (set 2), so further parts may
-    /// go and a `Drop` of the whole may release what is left, but nothing
-    /// may use it.
+    /// go, another part may be read, and a `Drop` of the whole may release
+    /// what is left, but nothing else may use it.
     fn uses(&mut self, x: u32, st: &mut Set) {
         let b = self.b;
         let [a, w] = b.data[x as usize];
@@ -1588,6 +1588,15 @@ impl<'a> Balance<'a> {
                 } else {
                     self.used(x, v, true, st);
                 }
+                continue;
+            }
+            // A read of a part that the parts taken so far leave.
+            if b.tags[x as usize] == Tag::Read
+                && !p.whole()
+                && p.value() == Some(op.value)
+                && op.at == crate::own::Loc::Extra(a + 2)
+                && self.part_left(op.value, a, st)
+            {
                 continue;
             }
             match op.role {
@@ -1658,6 +1667,28 @@ impl<'a> Balance<'a> {
                 self.put_slot(st, s, false);
             }
         }
+    }
+
+    /// Whether value `v` is taken in parts and none of them overlaps the
+    /// place at `word`.
+    fn part_left(&self, v: u32, word: u32, st: &Set) -> bool {
+        let k = self.num[v as usize];
+        if k == NONE || !self.bit(st, 1, k) || !self.bit(st, 2, k) {
+            return false;
+        }
+        let base = (3 * self.words + self.lwords) * 64;
+        let b = self.b;
+        let steps = |w: u32| {
+            let view = b.view(w);
+            &b.extra[view.from as usize..view.to as usize]
+        };
+        self.slots.of_key(v).all(|s| {
+            !get_bit(st, base + s as usize)
+                || !steps(self.slots.word[s as usize])
+                    .iter()
+                    .zip(steps(word))
+                    .all(|(x, y)| x == y)
+        })
     }
 
     fn put_slot(&self, st: &mut Set, s: u32, on: bool) {

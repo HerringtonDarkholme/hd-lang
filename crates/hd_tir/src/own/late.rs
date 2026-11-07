@@ -141,7 +141,7 @@ fn count_uses(b: &Body, ops: &mut Vec<Operand>, uses: &mut Vec<u32>) {
 
 /// Whether the instructions strictly between `v` and its consumer `i`
 /// read local `l` where `v`'s place overlaps, so `v` is not its last
-/// access (a disjoint field is pair cancellation's, `super::pairs`), and
+/// access (a disjoint field's read moves on its own, `super::moves`), and
 /// none of them can change `l`: no store or reference rooted at `l` (through a chain of
 /// reads too), no closure that captures it other than by copy, no
 /// suspension, and no collection change. When a reference or a shared

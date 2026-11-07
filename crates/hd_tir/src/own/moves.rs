@@ -11,11 +11,12 @@
 //!    no cell (a `Ref` or a shared capture reaches it), no cleanup suite
 //!    touches it, no `borrow` reads it, and no `Pin` names a place in it:
 //!    a pinned collection's copy is a clone (the pin's eager copy, until phase 10 of `docs/future-work/POINTER_LOANS.md`), which a
-//!    move would skip. A part whose type no instance copies has a
+//!    move would skip. A counted part or one no instance copies has a
 //!    liveness bit of its own (`ref.move.field`): its read moves when no
 //!    path touches that part again, though another part of the local is
-//!    still read (`eat(p.a)` then `p.b.len()`); in a local a `Ref`
-//!    addresses, only where no live reference use overlaps the part, and the
+//!    still read (`eat(p.a)` then `p.b.len()`), a temporary's too; in a
+//!    local a `Ref` addresses, only for a part no instance copies, where no
+//!    live reference use overlaps it, and the
 //!    local's `Drop` stays whole, the backend zeroing the moved part in
 //!    the cell. A non-copyable local with no counted leaf owns no count,
 //!    and its reads move all the same: a copy of it is never chosen.
@@ -142,10 +143,10 @@ pub(crate) struct Tables {
     /// read needs no drop right after it.
     frame_read: Vec<bool>,
     frame_scratch: super::frame::Tables,
-    /// Per-field liveness (rule 1 for a part no instance copies): a bit
-    /// per part of a local that such a `copy` read reads, as (local, the
-    /// read's place word, bit), in rows by local (`pstart`); and per
-    /// instruction, its read's part bit or `NONE`.
+    /// Per-part liveness: a bit per part of a candidate that a `copy` read
+    /// reads, as (root, the read's place word, bit), in rows by root
+    /// (`pstart`: locals, then values); and per instruction, its read's
+    /// part bit or `NONE`.
     pbits: Vec<(u32, u32, u32)>,
     pstart: Vec<u32>,
     pread: Vec<u32>,
@@ -154,12 +155,17 @@ pub(crate) struct Tables {
     /// Per instruction: whether its value leaves its sub-body as the
     /// sub-body's result (a default argument's `&mut []`).
     returned: Vec<bool>,
+    /// The value the place of the instruction the walk is at is rooted at,
+    /// or `NONE`: a use of it there reads only that place's parts.
+    place_root: u32,
     /// Per instruction: whether it is a read that lends its local as a
     /// local reference ([`super::lending_read`]), which never moves.
     lending: Vec<bool>,
     /// Per instruction: whether it is a store into a field path of a local
     /// that is all of the local's value ([`fills_local`]).
     fills: Vec<bool>,
+    /// The earlier passes' edits by block ([`write_backs`]).
+    pending: splice::Pending,
 }
 
 impl Tables {
@@ -178,7 +184,8 @@ impl Tables {
         self.frame_uses.clear();
         fill(&mut self.frame_read, locals, false);
         self.pbits.clear();
-        fill(&mut self.pstart, locals + 1, 0);
+        fill(&mut self.pstart, locals + n + 1, 0);
+        self.place_root = NONE;
         fill(&mut self.pread, n, NONE);
         self.part_uses.clear();
         self.part_keep.clear();
@@ -187,10 +194,22 @@ impl Tables {
         fill(&mut self.fills, n, false);
     }
 
-    /// Calls `f` with the part bit of each part of local `l` that the
-    /// place at `word` overlaps (one is a prefix of the other).
-    fn part_bits(&self, b: &Body, l: u32, word: u32, f: &mut impl FnMut(u32)) {
-        let (lo, hi) = (self.pstart[l as usize], self.pstart[l as usize + 1]);
+    /// The row of root `root` among the part bits.
+    fn part_key(&self, root: Root) -> Option<usize> {
+        match root {
+            Root::Local(l) => Some(l as usize),
+            Root::Value(v) => Some(self.lnum.len() + v as usize),
+            _ => None,
+        }
+    }
+
+    /// Calls `f` with the part bit of each part of `root` that the place at
+    /// `word` overlaps (one is a prefix of the other).
+    fn part_bits(&self, b: &Body, root: Root, word: u32, f: &mut impl FnMut(u32)) {
+        let Some(key) = self.part_key(root) else {
+            return;
+        };
+        let (lo, hi) = (self.pstart[key], self.pstart[key + 1]);
         for &(_, pw, bit) in &self.pbits[lo as usize..hi as usize] {
             if overlaps(b, word, pw) {
                 f(bit);
@@ -215,7 +234,7 @@ impl Tables {
                     let li = l as usize;
                     if lnum[li] != NONE {
                         f(lnum[li]);
-                        self.part_bits(b, l, b.data[i][0], f);
+                        self.part_bits(b, Root::Local(l), b.data[i][0], f);
                     }
                     if holds[li] == NONE {
                         return;
@@ -225,6 +244,7 @@ impl Tables {
                 Root::Value(u) => {
                     if vnum[u as usize] != NONE {
                         f(vnum[u as usize]);
+                        self.part_bits(b, Root::Value(u), b.data[i][0], f);
                     }
                     x = u;
                 }
@@ -504,7 +524,6 @@ fn candidates(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> bool
             k += 1;
         }
     }
-    parts_of_locals(b, cx, t, &mut k);
     for i in 0..n {
         let [a, w] = b.data[i];
         if b.tags[i] != Tag::Read || w != ReadMode::Copy as u32 {
@@ -524,18 +543,19 @@ fn candidates(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> bool
             k += 1;
         }
     }
+    part_bits_of_reads(b, cx, t, &mut k);
     t.back.arena.words = (k as usize).div_ceil(64);
     k > 0
 }
 
-/// Per-field liveness: numbers from `*k` each part of a candidate local
-/// that a `copy` read of a type no instance copies reads (`[$l .a]`, a
-/// field of a field, a payload field), so that the read moves when no path
-/// touches that part again, though another part of the local is still
-/// read (`ref.move.field`). A local a `Ref` addresses, which lives in
-/// memory, has one only for a path of fields. Uses through references
-/// keep the part live until the borrow ends ([`part_uses`]).
-fn parts_of_locals(b: &Body, cx: &dyn OwnCx, t: &mut Tables, k: &mut u32) {
+/// Per-part liveness: numbers from `*k` each part of a candidate that a
+/// `copy` read reads (`[$l .a]`, `[%v as .Ok .0]`) and whose count a move can
+/// take, so that the read moves when no path touches that part again, though
+/// another part of the candidate is still read (`ref.move.field`). A local a
+/// `Ref` addresses, which lives in memory, has one only for a path of fields
+/// of a type no instance copies. Uses through references keep the part live
+/// until the borrow ends ([`part_uses`]).
+fn part_bits_of_reads(b: &Body, cx: &dyn OwnCx, t: &mut Tables, k: &mut u32) {
     let mut found = Vec::new();
     for i in 0..b.len() {
         let [a, w] = b.data[i];
@@ -543,18 +563,24 @@ fn parts_of_locals(b: &Body, cx: &dyn OwnCx, t: &mut Tables, k: &mut u32) {
             continue;
         }
         let p = b.view(a);
-        let Some(l) = p.local() else {
-            continue;
+        let (candidate, addr) = match p.root {
+            Root::Local(l) => (t.lnum[l as usize] != NONE, t.addr[l as usize]),
+            Root::Value(v) => (t.vnum[v as usize] != NONE, false),
+            _ => continue,
         };
-        if t.lnum[l as usize] == NONE
+        let copies = cx.copies(b.ty[i]) == Tri::Yes;
+        if !candidate
             || p.whole()
             || !p.in_place(b)
-            || cx.copies(b.ty[i]) == Tri::Yes
-            || (t.addr[l as usize] && !p.steps(b).all(|s| matches!(s, Proj::Field(_))))
+            || (copies && (addr || !cx.counted(b.ty[i])))
+            || (addr && !p.steps(b).all(|s| matches!(s, Proj::Field(_))))
         {
             continue;
         }
-        found.push((l, a, u32_of(i)));
+        let Some(key) = t.part_key(p.root) else {
+            continue;
+        };
+        found.push((u32_of(key), a, u32_of(i)));
     }
     found.sort_stable_by_key(|&(l, _, i)| (l, i));
     for (l, a, i) in found {
@@ -590,7 +616,7 @@ fn part_uses(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
         .pbits
         .iter()
         .copied()
-        .filter(|&(l, _, _)| t.addr[l as usize])
+        .filter(|&(l, _, _)| t.addr.get(l as usize) == Some(&true))
         .collect();
     if parts.is_empty() {
         return;
@@ -811,7 +837,16 @@ impl Backward for Tables {
         // Its own value is made here: dead before.
         if self.vnum[i] != NONE {
             s.set(live, self.vnum[i], false);
+            let key = self.lnum.len() + i;
+            let (lo, hi) = (self.pstart[key], self.pstart[key + 1]);
+            for &(_, _, pb) in &self.pbits[lo as usize..hi as usize] {
+                s.set(live, pb, false);
+            }
         }
+        self.place_root = match b.tags[i] {
+            Tag::Read | Tag::Ref | Tag::IsUnique | Tag::Store => b.view(a).value().unwrap_or(NONE),
+            _ => NONE,
+        };
         match b.tags[i] {
             Tag::Read | Tag::Ref | Tag::IsUnique => {
                 // A read through a binding local reads what its read lives on.
@@ -822,7 +857,11 @@ impl Backward for Tables {
                     let last = if s.get(live, bit) { KEEP } else { MOVE };
                     match b.tags[i] {
                         // A part with a bit of its own decides on it.
-                        Tag::Read if w == ReadMode::Copy as u32 && self.pread[i] != NONE => {
+                        Tag::Read
+                            if w == ReadMode::Copy as u32
+                                && self.pread[i] != NONE
+                                && !self.lending[i] =>
+                        {
                             let pbit = self.pread[i];
                             self.decide[i] = if s.get(live, pbit)
                                 || self.part_keep.get(pbit as usize) == Some(&true)
@@ -854,9 +893,7 @@ impl Backward for Tables {
                         _ => {}
                     }
                     s.set(live, bit, true);
-                    if let Root::Local(l) = p.root {
-                        self.part_bits(b, l, a, &mut |pb| s.set(live, pb, true));
-                    }
+                    self.part_bits(b, p.root, a, &mut |pb| s.set(live, pb, true));
                 }
             }
             Tag::Store => {
@@ -907,6 +944,15 @@ impl Backward for Tables {
             && bit != NONE
         {
             s.set(live, bit, true);
+            // A use of all of it reads each part; the place of an
+            // instruction rooted at it reads that place's ([`Backward::stmt`]).
+            if v != self.place_root {
+                let key = self.lnum.len() + v as usize;
+                let (lo, hi) = (self.pstart[key], self.pstart[key + 1]);
+                for &(_, _, pb) in &self.pbits[lo as usize..hi as usize] {
+                    s.set(live, pb, true);
+                }
+            }
         }
         self.deps(b, v, &mut |bit| s.set(live, bit, true));
     }
@@ -981,6 +1027,10 @@ fn apply(
             continue;
         }
         b.data[i][1] = ReadMode::Move as u32;
+        if let Some(d) = part_drop(b, topo, t, i, bit) {
+            edits.remove(d);
+            continue;
+        }
         // A local in memory keeps its whole `Drop`, which releases the
         // rest, the moved part being zero (the backend's move of a part
         // out of a cell).
@@ -1013,6 +1063,22 @@ fn apply(
             sink(b, topo, cx, t, edits, u32_of(v));
         }
     }
+}
+
+/// The `Drop` of just the part read `i` moved, in its block after it: it has
+/// nothing left to release.
+fn part_drop(b: &Body, topo: &Topology, t: &Tables, i: usize, bit: u32) -> Option<u32> {
+    let word = b.data[i][0];
+    let row = &t.touch[t.start[bit as usize] as usize..t.start[bit as usize + 1] as usize];
+    let k = row.partition_point(|&x| x <= u32_of(i));
+    row[k..].iter().copied().find(|&d| {
+        let d_ = d as usize;
+        b.tags[d_] == Tag::Drop
+            && topo.blk[d_] == topo.blk[i]
+            && b.view(b.data[d_][0]).root == b.view(word).root
+            && covers(b, word, b.data[d_][0])
+            && covers(b, b.data[d_][0], word)
+    })
 }
 
 /// Whether instruction `d` is a `Drop` of all of value `v`.
@@ -1332,4 +1398,141 @@ pub(super) fn rest(
         return false;
     }
     true
+}
+
+/// A read through a pointer written back (`module.rt.ptr.read`): `x :=
+/// p.read()`, then `p.write(x)` through the same pointer local, both
+/// statements of one block with nothing between them that reaches the
+/// heap (only reads of other places, stores into unaddressed locals,
+/// `Prim`s, constructions, drops of other values, the intrinsics that
+/// change nothing, and calls that may not write). The heap keeps its
+/// value and the write goes: the read copies when `x` is read on after
+/// the write and holds no list or map header, and borrows when the write was `x`'s last access and every
+/// other read of it lends; `x` then holds a borrow, owns nothing and
+/// leaves the exit set, as the borrow pass's binding locals do.
+pub(super) fn write_backs(
+    b: &mut Body,
+    topo: &Topology,
+    cx: &dyn OwnCx,
+    t: &mut Tables,
+    edits: &mut splice::Tables,
+) {
+    use crate::ir::{Callee, IntrinsicOp as Op, local_flags};
+    let n = b.len();
+    let read_of = |b: &Body, r: u32| -> Option<u32> {
+        let r = r as usize;
+        (r < n && b.tags[r] == Tag::Read && b.data[r][0] & place::BARE_LOCAL != 0)
+            .then(|| b.data[r][0] & !place::BARE_LOCAL)
+    };
+    t.pending.build(n, edits);
+    for i in 0..n {
+        let (Some(pb), w) = (b.ptr_target(i), b.data[i][1]) else {
+            continue;
+        };
+        let (Some(v), blk) = (read_of(b, w), topo.blk[i]) else {
+            continue;
+        };
+        let vi = v as usize;
+        let moved = b.data[w as usize][1] == ReadMode::Move as u32;
+        if blk == NONE
+            || topo.blk[w as usize] != blk
+            || b.local_flags[vi] & local_flags::PARAM != 0
+            || t.addr[vi]
+            || b.cap_local.iter().any(|c| c.raw() == v)
+        {
+            continue;
+        }
+        // Back from the write to `$v`'s one store, of a move read through
+        // the same pointer local.
+        let stmts = b.record(b.data[blk as usize][0]).to_vec();
+        let p = read_of(b, pb);
+        let mut found = None;
+        for &x in stmts[..topo.pos[i] as usize].iter().rev() {
+            let xi = x as usize;
+            if t.pending.dead[xi] || x == w || x == pb {
+                continue;
+            }
+            let [a, d] = b.data[xi];
+            let tag = b.tags[xi];
+            let root = matches!(tag, Tag::Store | Tag::Drop).then(|| b.view(a));
+            let local = root.and_then(|p| p.local().filter(|_| p.in_place(b)));
+            if tag == Tag::Store && local == Some(v) {
+                found = Some((x, d));
+                break;
+            }
+            let ok = match tag {
+                Tag::Read => b.ptr_target(xi).is_none(),
+                Tag::Store => local.is_some_and(|l| l != v && Some(l) != p && !t.addr[l as usize]),
+                Tag::Drop => root.is_some_and(|r| r.root != Root::Local(v)),
+                Tag::Prim | Tag::Coerce | Tag::NewStruct | Tag::NewVariant | Tag::NewTuple => true,
+                Tag::Intrinsic => matches!(
+                    Op::from_u32(a),
+                    Some(Op::ListLen | Op::MapLen | Op::StrIndex | Op::StrEq)
+                ),
+                Tag::Call => Callee::from_words(b.record(a)).is_some_and(|c| !cx.may_write(&c)),
+                _ => false,
+            };
+            if !ok {
+                break;
+            }
+        }
+        let Some((store, r)) = found else {
+            continue;
+        };
+        let same = |b: &Body, x: u32| x == pb || (p.is_some() && read_of(b, x) == p);
+        if b.ptr_target(r as usize).is_none_or(|pa| !same(b, pa))
+            || b.data[r as usize][1] != ReadMode::Move as u32
+            || topo.blk[r as usize] != blk
+        {
+            continue;
+        }
+        // `$v` is stored once; when the write moves it, every other read
+        // of it lends and no drop of it stands.
+        let mut ops = Vec::new();
+        let mut fits = true;
+        for x in 0..n {
+            let [a, d] = b.data[x];
+            let at_v = matches!(b.tags[x], Tag::Read | Tag::Store | Tag::Drop)
+                && b.view(a).root == Root::Local(v);
+            if !at_v || t.pending.dead[x] || x == w as usize || x == store as usize {
+                continue;
+            }
+            fits &= match b.tags[x] {
+                Tag::Read => !moved || d == ReadMode::Borrow as u32,
+                Tag::Drop => !moved,
+                _ => false,
+            };
+        }
+        for e in 0..u32_of(edits.len()) {
+            let (_, _, tag, [a, _], _) = edits.get(e);
+            fits &=
+                edits.is_cancelled(e) || tag != Tag::Drop || a != (v | place::BARE_LOCAL) || !moved;
+        }
+        if !fits {
+            continue;
+        }
+        b.data[r as usize][1] = if moved {
+            ReadMode::Borrow
+        } else {
+            ReadMode::Copy
+        } as u32;
+        edits.remove(u32_of(i));
+        edits.remove(w);
+        t.pending.dead[i] = true;
+        t.pending.dead[w as usize] = true;
+        if p.is_some() && topo.blk[pb as usize] == blk {
+            let mut uses = 0;
+            for x in 0..n {
+                super::operands(b, x, &mut ops);
+                uses += ops.iter().filter(|o| o.value == pb).count();
+            }
+            if uses == 1 {
+                edits.remove(pb);
+                t.pending.dead[pb as usize] = true;
+            }
+        }
+        if moved {
+            b.exit_drops.retain(|&(_, l)| l.raw() != v);
+        }
+    }
 }

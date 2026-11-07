@@ -1,0 +1,70 @@
+# test: a part read at its last use leaves the other parts readable, and a later use of the same part keeps it
+# Spec 13 References: ref.move.field.
+struct Pair:
+    a: string
+    b: string
+
+enum Shape:
+    Two(x: string, y: string)
+    One(x: string)
+
+fn own(s: string) -> usize:
+    let kept = s
+    kept.len()
+
+fn pair_of(a: string, b: string) -> Pair:
+    Pair { a: a, b: b }
+
+fn part_then_other(p: Pair) -> usize:
+    n := own(p.a)
+    n + p.b.len()
+
+fn read_twice(p: Pair) -> usize:
+    n := own(p.a)
+    n + own(p.a) + own(p.b)
+
+fn loop_keeps_the_part(p: Pair) -> usize:
+    let mut n: usize = 0
+    for _ in 0..3:
+        n += own(p.a)
+    n + own(p.b)
+
+fn branch_reads_later(p: Pair, more: bool) -> usize:
+    n := own(p.a)
+    if more:
+        n + own(p.b) + p.a.len()
+    else:
+        n
+
+fn of_a_temporary(a: string, b: string) -> usize:
+    t := (a + "!", b + "?")
+    x := own(t._0)
+    x + t._1.len() + own(t._1)
+
+fn of_a_payload(s: Shape) -> usize:
+    match s:
+        .Two(x, y) => own(x) + y.len() + own(y)
+        .One(x) => own(x)
+
+tests:
+    use std.testing.assert_equal
+
+    it("a part, then the other part"):
+        assert_equal(part_then_other(pair_of("a" + "b", "c" + "d")), 4, reason="both parts read")
+
+    it("a part read twice stays"):
+        assert_equal(read_twice(pair_of("a" + "b", "c")), 5, reason="the second read sees the part")
+
+    it("a loop keeps the part"):
+        assert_equal(loop_keeps_the_part(pair_of("a" + "b", "c")), 7, reason="each round reads it")
+
+    it("one branch reads the part again"):
+        assert_equal(branch_reads_later(pair_of("a" + "b", "c"), true), 5, reason="the branch sees the part")
+        assert_equal(branch_reads_later(pair_of("a" + "b", "c"), false), 2, reason="the other branch drops the rest")
+
+    it("a temporary's parts"):
+        assert_equal(of_a_temporary("a", "b"), 6, reason="each part once")
+
+    it("a payload's parts"):
+        assert_equal(of_a_payload(.Two("a" + "b", "c")), 4, reason="the payload's parts")
+        assert_equal(of_a_payload(.One("a" + "b")), 2, reason="the other variant")

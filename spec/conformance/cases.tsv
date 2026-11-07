@@ -5804,6 +5804,7 @@ runtime/valid/a-field-moves-out-while-another-is-read.hd	runtime	accept	lang/13-
 runtime/valid/a-range-loop-ends-where-its-kind-says.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.range.inclusive
 runtime/valid/a-list-parameter-loop-keeps-its-elements-while-a-call-shrinks-the-source.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot
 runtime/valid/a-payload-reference-reads-and-writes-its-enum.hd	runtime	accept	lang/13-values-and-references.md#r-ref.match.borrow
+runtime/valid/a-part-moves-while-another-part-is-read-on.hd	runtime	accept	lang/13-values-and-references.md#r-ref.move.field
 typing/invalid/a-method-with-its-own-type-parameter-through-a-dyn-value.hd	type	reject:dyn-member-unavailable	lang/09-traits.md#r-trait.dyn.type-param.hint
 typing/invalid/a-method-with-its-own-row-parameter-through-a-dyn-value.hd	type	reject:dyn-member-unavailable	lang/09-traits.md#r-trait.dyn.member.row-parameter
 typing/invalid/a-required-generic-method-keeps-a-dyn-value-from-its-bound.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.dyn.bound.reference

@@ -174,14 +174,13 @@ fn prefixed(id: i64) -> Query:
 >   %2 = NewList - [%0] : mut List[i64]
 >   %3 = NewStruct [%1 %2] : Template[i64]
 >   %4 = Store [$1] %3 : ()
->   %5 = Read copy [$1 .raw_parts] : List[string]
+>   %5 = Read move [$1 .raw_parts] : List[string]
 >   %6 = Read move [$1 .values] : List[i64]
 >   %7 = NewStruct [%5 %6] : Query
 >   %8 = Break L0 %7 : never
 >   %9 = Block - : Query
 >   %10 = Scope %9 [] : Query
->   %11 = Drop [$1] : ()
->   %12 = Block %10 : Query
+>   %11 = Block %10 : Query
 >   summary kept []
 
 fn tagged(s: string) -> usize:

@@ -7,7 +7,6 @@
   (import "fixture" "rt:list_buf'1" (func $rt:list_buf'1 (param i32) (result i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "rt:list_buf'2" (func $rt:list_buf'2 (param i32) (result i32)))
-  (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
   (import "fixture" "signed_magnitude" (func $signed_magnitude (param i64) (result i64)))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
@@ -173,7 +172,7 @@
     end
     local.get $s.0
   )
-  (func $prefixed (param $id i64) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
+  (func $prefixed (param $id i64) (result i32 i32) (local $t0 i32) (local $t1 i32)
     block
     ;; 32 |     sql"select * from users where id = $id"
       i32.const 2
@@ -209,25 +208,11 @@
       local.set $t0
       block
         block
-          local.get $t0
-          call $rt:coll_copy
-          local.get $t1
-          i32.const 0
-          local.set $t1
-          local.set $t2
-          local.set $t3
           br 0
         end
       end
-    ;; (no span)
-      local.get $t0
-      local.get $t1
-      call $rt:release
-      local.get $t3
-      local.get $t2
-      local.set $t1
-      local.set $t0
     end
+    ;; (no span)
     local.get $t0
     local.get $t1
   )

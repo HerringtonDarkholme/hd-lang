@@ -74,7 +74,7 @@ pub(crate) struct Slots {
     /// Per key, its slots in the order of their projection words, in
     /// compressed rows, with a place word of each.
     start: Vec<u32>,
-    word: Vec<u32>,
+    pub word: Vec<u32>,
     takes: Vec<(u32, u32, u32)>,
     paths: Vec<(u32, u32)>,
     tys: Vec<Ty>,

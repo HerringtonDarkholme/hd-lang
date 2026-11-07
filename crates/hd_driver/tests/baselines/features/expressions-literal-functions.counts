@@ -31,9 +31,6 @@ fn suffixed() -> Label:
 
 fn prefixed(id: i64) -> Query:
     sql"select * from users where id = $id"
-> app/main/prefixed
->   copy List[string] (stored)
->   (no span) release std.ops.Template[i64] [raw_parts, values] (last use)
 
 fn tagged(s: string) -> usize:
     tag"<$s>"
