@@ -34,8 +34,9 @@ fn index['a](by: &mut Map[string, &'a User], u: &'a User) -> void:
 >   %2 = IsUnique [*$0] : ()
 >   %3 = Read borrow [*$0] : Map[string, Ref[User]]
 >   %4 = Intrinsic MapSet [%3 %0 %1] : ()
->   %5 = Drop [%0] : ()
->   %6 = Block - : ()
+>   %5 = Retain %4 Operation operand 1 #0 : ()
+>   %6 = Drop [%0] : ()
+>   %7 = Block - : ()
 >   summary kept [$1] writes
 
 fn total(a: User, b: User) -> usize:

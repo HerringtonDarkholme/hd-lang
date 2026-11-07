@@ -1,0 +1,8 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: put copies its string key after the probe; bump replaces only the value and copies no key.
+fn put(items: &mut Map[string, i32], key: string, value: i32) -> void:
+    items[key] = value
+
+fn bump(items: &mut Map[string, i32], key: string) -> void:
+    items[key] += 1

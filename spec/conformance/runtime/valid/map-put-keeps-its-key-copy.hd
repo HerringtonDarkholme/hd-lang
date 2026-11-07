@@ -1,0 +1,23 @@
+# test: a map put keeps counted keys after caller replacement and copy-on-write updates
+# expect-stdout: 31 10 20 7
+@derive(Eq, Hash)
+struct Key:
+    name: string
+
+fn put[K < Eq & Hash](items: &mut Map[K, i32], key: K, value: i32) -> void:
+    items[key] = value
+
+pub fn main() -> void $ Console:
+    let mut items: Map[Key, i32] = {}
+    let key = Key { name: "key${1}" }
+    put(&mut items, key, 10)
+    key = Key { name: "key${2}" }
+    put(&mut items, key, 20)
+    original := items
+    put(&mut items, Key { name: "key${1}" }, 30)
+    items[Key { name: "key${1}" }] += 1
+    let mut numbers: Map[i32, i32] = {}
+    put(&mut numbers, +1, +7)
+    println(
+        "${items[Key { name: "key${1}" }]} ${original[Key { name: "key${1}" }]} ${items[key]} ${numbers[+1]}",
+    )

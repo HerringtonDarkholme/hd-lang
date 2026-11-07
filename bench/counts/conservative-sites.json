@@ -33,7 +33,7 @@
     },
     {
       "reason": "conservative: Intrinsic",
-      "sites": 4
+      "sites": 0
     },
     {
       "reason": "conservative: ProviderGet",

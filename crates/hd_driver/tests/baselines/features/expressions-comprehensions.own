@@ -161,13 +161,13 @@ fn by_name(users: List[User]) -> Map[string, i64]:
 >   local $0 users: List[User] [param read] value
 >     uses $0: entry -> %3 lend, %11 lend
 >   local $1 $acc: mut Map[string, i64] [assigned] value
->     uses $1: %2 -> %19 lend, %36 consume last
+>     uses $1: %2 -> %19 lend, %37 consume last
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
 >     uses $5: %5 -> %8 lend
 >   local $6 u: User [read assigned] value
->     uses $6: %25 -> %15 lend, %16 lend, %17 consume last
->   %0 = Release %38 Exit local $0 #2 : ()
+>     uses $6: %26 -> %15 lend, %16 lend, %17 consume last
+>   %0 = Release %39 Exit local $0 #2 : ()
     {for u in users if u.active => u.name: u.id}
 >   %1 = NewMap [] : mut Map[string, i64]
 >   %2 = Store [$1] %1 : ()
@@ -189,23 +189,24 @@ fn by_name(users: List[User]) -> Map[string, i64]:
 >   %18 = IsUnique fresh [$1] : ()
 >   %19 = Read borrow [$1] : mut Map[string, i64]
 >   %20 = Intrinsic MapSet [%19 %16 %17] : ()
->   %21 = Block - : ()
->   %22 = If %15 [%21 -] : ()
->   %23 = Block - : ()
->   %24 = Read borrow [%11] : User
->   %25 = Store [$6] %24 : ()
->   %26 = Release %25 Operation #3 : ()
->   %28 = Block - : never
->   %29 = Match %11 [%28 %23] : ()
->   %30 = Block - : ()
->   %31 = Break L0 - : never
->   %32 = Block - : ()
->   %33 = If %9 [%30 %32] : ()
->   %34 = Block - : ()
->   %35 = Loop %34 - : ()
->   %36 = Read move [$1] : mut Map[string, i64]
->   %37 = Coerce %36 [Weaken -] : Map[string, i64]
->   %38 = Block %37 : Map[string, i64]
+>   %21 = Retain %20 Operation operand 1 #0 : ()
+>   %22 = Block - : ()
+>   %23 = If %15 [%22 -] : ()
+>   %24 = Block - : ()
+>   %25 = Read borrow [%11] : User
+>   %26 = Store [$6] %25 : ()
+>   %27 = Release %26 Operation #3 : ()
+>   %29 = Block - : never
+>   %30 = Match %11 [%29 %24] : ()
+>   %31 = Block - : ()
+>   %32 = Break L0 - : never
+>   %33 = Block - : ()
+>   %34 = If %9 [%31 %33] : ()
+>   %35 = Block - : ()
+>   %36 = Loop %35 - : ()
+>   %37 = Read move [$1] : mut Map[string, i64]
+>   %38 = Coerce %37 [Weaken -] : Map[string, i64]
+>   %39 = Block %38 : Map[string, i64]
 >   summary kept [] borrows [$0]
 
 fn sizes(users: List[User]) -> List[usize]:

@@ -535,6 +535,9 @@ pub(crate) fn repeats(b: &Body, topo: &Topology, i: usize) -> bool {
         let q = b.view(b.data[m][0]);
         let names_all = q.whole() && q.local() == Some(l);
         match b.tags[m] {
+            Tag::Retain
+                if crate::ir::count::Info::read(b, m)
+                    .is_some_and(|c| c.at == crate::ir::count::At::Operation) => {}
             Tag::Release => {}
             Tag::IsUnique if names_all => return true,
             Tag::Read | Tag::Store | Tag::Drop | Tag::IsUnique if !names_all => {}
@@ -594,6 +597,12 @@ fn repeats_through(b: &Body, topo: &Topology, i: usize) -> bool {
         let m = list[k] as usize;
         let tag = b.tags[m];
         match tag {
+            Tag::Retain
+                if crate::ir::count::Info::read(b, m)
+                    .is_some_and(|c| c.at == crate::ir::count::At::Operation) =>
+            {
+                continue;
+            }
             Tag::Release
             | Tag::Prim
             | Tag::NewStruct

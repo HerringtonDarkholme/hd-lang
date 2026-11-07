@@ -52,30 +52,14 @@ impl Em<'_, '_, '_> {
 
     /// Read the explicit result count, without deciding one from its layout.
     pub(super) fn has_stated_retain(&self, value: u32) -> bool {
-        let block = self.topo.blk[value as usize];
-        block != NONE
-            && self
-                .b
-                .record(self.b.data[block as usize][0])
-                .get(self.topo.pos[value as usize] as usize + 1)
-                .is_some_and(|&next| {
-                    self.b.tags[next as usize] == Tag::Retain
-                        && self.b.data[next as usize][0] == value
-                })
+        hd_tir::ir::count::following(self.b, &self.topo, value, Tag::Retain)
+            == Some(Info::new(At::Value, Part::Result, 0))
     }
 
-    /// Whether `Store` `i` releases what its place holds: the `Release`
-    /// that follows it says so.
+    /// Whether `Store` `i` releases what its place holds.
     pub(super) fn store_releases(&self, i: u32) -> bool {
-        let block = self.topo.blk[i as usize];
-        block != NONE
-            && self
-                .b
-                .record(self.b.data[block as usize][0])
-                .get(self.topo.pos[i as usize] as usize + 1)
-                .is_some_and(|&next| {
-                    self.b.tags[next as usize] == Tag::Release && self.b.data[next as usize][0] == i
-                })
+        hd_tir::ir::count::following(self.b, &self.topo, i, Tag::Release)
+            == Some(Info::new(At::Operation, Part::Result, 3))
     }
 
     /// Whether the store being emitted releases its old value: a `Store` by

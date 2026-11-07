@@ -1,6 +1,6 @@
-//! Shared writing and verification of function-boundary count statements.
+//! Shared writing and verification of operation and function-boundary count statements.
 
-use super::{OwnCx, abi, cache, cold, cold_row, splice};
+use super::{OwnCx, abi, cache, cold, cold_row, map_key, splice};
 use crate::ir::{
     Body, Tag, Topology,
     count::{At, Info, Part},
@@ -38,18 +38,54 @@ pub(super) fn run(
     edits: &mut splice::Tables,
 ) -> Result<(), String> {
     let root = b.sub_root[0];
-    for (tag, info) in expected(b, cx) {
-        if crate::ir::count::find(b, tag, root, info.at, info.part).is_some() {
+    let mut wanted: Vec<_> = expected(b, cx)
+        .into_iter()
+        .map(|(tag, info)| (tag, root, info))
+        .collect();
+    wanted.extend(
+        (0..b.len())
+            .filter(|&i| map_key::needed(b, cx, i))
+            .map(|i| {
+                (
+                    Tag::Retain,
+                    u32_of(i),
+                    Info::new(At::Operation, Part::Operand(1), 0),
+                )
+            }),
+    );
+    for (tag, target, info) in wanted {
+        let (block, position, present) = if info.at == At::Operation {
+            (
+                topo.blk[target as usize],
+                topo.pos[target as usize] + 1,
+                crate::ir::count::following(b, topo, target, tag) == Some(info),
+            )
+        } else {
+            (
+                root,
+                0,
+                crate::ir::count::find(b, tag, target, info.at, info.part).is_some(),
+            )
+        };
+        if present {
             continue;
         }
         let record = info.write(b);
         let syn = match info.part {
             Part::Local(l) => b.local_syn[l as usize],
-            _ => b.syn[root as usize],
+            _ => b.syn[target as usize],
         };
-        edits.insert(root, 0, tag, [root, record], Ty::VOID, syn);
+        edits.insert(block, position, tag, [target, record], Ty::VOID, syn);
     }
-    splice::apply(b, topo, edits)
+    splice::apply(b, topo, edits)?;
+    if !b.anchors.is_empty() {
+        for i in 0..b.len() {
+            if Info::read(b, i).is_some_and(|c| c.at == At::Operation) {
+                b.anchors[i] = b.anchors[b.data[i][0] as usize];
+            }
+        }
+    }
+    Ok(())
 }
 
 pub(crate) fn verify(b: &Body, cx: &dyn OwnCx, topo: &Topology, mut err: impl FnMut(u32, String)) {
@@ -66,6 +102,20 @@ pub(crate) fn verify(b: &Body, cx: &dyn OwnCx, topo: &Topology, mut err: impl Fn
         };
         if b.ty[i] != Ty::VOID {
             err(u32_of(i), "a count statement has a value type".into());
+        }
+        if info.at == At::Operation && b.tags[i] == Tag::Retain {
+            let target = b.data[i][0] as usize;
+            if info != Info::new(At::Operation, Part::Operand(1), 0)
+                || !map_key::needed(b, cx, target)
+                || topo.blk[i] != topo.blk[target]
+                || topo.pos[i] != topo.pos[target] + 1
+            {
+                err(
+                    u32_of(i),
+                    "an operation retain without its key-copy fact".into(),
+                );
+            }
+            continue;
         }
         if matches!(info.at, At::Value | At::Operation) {
             let wanted = if info.at == At::Value {
@@ -85,6 +135,14 @@ pub(crate) fn verify(b: &Body, cx: &dyn OwnCx, topo: &Topology, mut err: impl Fn
             seen[k] += 1;
         } else {
             err(u32_of(i), "a boundary count without its count fact".into());
+        }
+    }
+    for i in 0..b.len() {
+        if map_key::needed(b, cx, i)
+            && crate::ir::count::following(b, topo, u32_of(i), Tag::Retain)
+                != Some(Info::new(At::Operation, Part::Operand(1), 0))
+        {
+            err(u32_of(i), "a map put lacks its stored key retain".into());
         }
     }
     for n in seen {
