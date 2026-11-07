@@ -158,9 +158,6 @@ pub(crate) struct Tables {
     /// The value the place of the instruction the walk is at is rooted at,
     /// or `NONE`: a use of it there reads only that place's parts.
     place_root: u32,
-    /// Per instruction: whether it is a read that lends its local as a
-    /// local reference ([`super::lending_read`]), which never moves.
-    lending: Vec<bool>,
     /// Per instruction: whether it is a store into a field path of a local
     /// that is all of the local's value ([`fills_local`]).
     fills: Vec<bool>,
@@ -188,7 +185,6 @@ impl Tables {
         self.part_uses.clear();
         self.part_keep.clear();
         fill(&mut self.returned, n, false);
-        fill(&mut self.lending, n, false);
         fill(&mut self.fills, n, false);
     }
 
@@ -314,7 +310,6 @@ fn last_uses(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> b
     }
     returned(b, t);
     for i in 0..b.len() {
-        t.lending[i] = super::lending_read(b, cx, i);
         t.fills[i] = fills_local(b, cx, i);
     }
     part_uses(b, cx, t);
@@ -864,11 +859,7 @@ impl Backward for Tables {
                     let last = if s.get(live, bit) { KEEP } else { MOVE };
                     match b.tags[i] {
                         // A part with a bit of its own decides on it.
-                        Tag::Read
-                            if w == ReadMode::Copy as u32
-                                && self.pread[i] != NONE
-                                && !self.lending[i] =>
-                        {
+                        Tag::Read if w == ReadMode::Copy as u32 && self.pread[i] != NONE => {
                             let pbit = self.pread[i];
                             self.decide[i] = if s.get(live, pbit)
                                 || self.part_keep.get(pbit as usize) == Some(&true)
@@ -881,7 +872,6 @@ impl Backward for Tables {
                         Tag::Read
                             if w == ReadMode::Copy as u32
                                 && p.in_place(b)
-                                && !self.lending[i]
                                 && (!addr || p.whole()) =>
                         {
                             self.decide[i] = last;
