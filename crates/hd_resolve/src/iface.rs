@@ -1657,7 +1657,7 @@ pub fn encode_items(names: &Names<'_>, items: &[Item], exports: &[Export]) -> St
         index.u32(u32::try_from(body.bytes.len()).expect("blob"));
         index.u8(impl_tag(it));
         let (own, params) = param_names(it);
-        index.u8(u8::from(own));
+        index.u8(u8::from(own) | if it.configured { CONFIGURED } else { 0 });
         index.len_of(params);
         for g in params {
             index.u32(t.sym(g.name));
@@ -1685,8 +1685,8 @@ pub fn encode_items(names: &Names<'_>, items: &[Item], exports: &[Export]) -> St
 }
 
 /// An item's index tag: its impl kind's position in `ImplKind::ALL`, with
-/// `INHERENT` set for an inherent block; `TRAIT` for a trait; else
-/// `NOT_IMPL`.
+/// `INHERENT` set for an inherent block; `TRAIT` for a trait; `ENUM` for an
+/// enum; else `NOT_IMPL`.
 fn impl_tag(item: &Item) -> u8 {
     match &item.data {
         ItemData::Impl { kind, trait_, .. } => {
@@ -1694,13 +1694,17 @@ fn impl_tag(item: &Item) -> u8 {
             u8::try_from(at).unwrap_or(0) | if *trait_ == DefId::NONE { INHERENT } else { 0 }
         }
         ItemData::Trait(_) => TRAIT,
+        ItemData::Enum { .. } => ENUM,
         _ => NOT_IMPL,
     }
 }
 
 const NOT_IMPL: u8 = 0xff;
 const TRAIT: u8 = 0xfe;
+const ENUM: u8 = 0xfd;
 const INHERENT: u8 = 0x80;
+/// In an item's index flags: the item is `configured`, read without its record.
+const CONFIGURED: u8 = 2;
 
 /// The generic parameters `record_params` names for an item, and whether
 /// its own `Self` comes first (a trait's).
@@ -1728,7 +1732,20 @@ pub fn decode_items(names: &Names<'_>, bytes: &[u8]) -> Option<(Vec<Item>, Vec<E
 /// are recorded now, as an eager decode records them.
 #[must_use]
 pub fn decode_lazy(names: &Names<'_>, bytes: Arc<[u8]>) -> Option<(Items, Vec<Export>)> {
-    let mut r = Reader::new(&bytes);
+    let whole = 0..bytes.len();
+    decode_lazy_in(names, bytes, whole)
+}
+
+/// `decode_lazy` of the blob at `range` of `bytes`, which it keeps instead of
+/// copying the blob out.
+#[must_use]
+pub fn decode_lazy_in(
+    names: &Names<'_>,
+    bytes: Arc<[u8]>,
+    range: std::ops::Range<usize>,
+) -> Option<(Items, Vec<Export>)> {
+    let start = range.start;
+    let mut r = Reader::new(bytes.get(range)?);
     let t = Tables::read(&mut r, names.pool, names.paths, names.syms)?;
     let n = r.count();
     let (mut defs, mut offsets, mut tags) = (
@@ -1736,11 +1753,16 @@ pub fn decode_lazy(names: &Names<'_>, bytes: Arc<[u8]>) -> Option<(Items, Vec<Ex
         Vec::with_capacity(n),
         Vec::with_capacity(n),
     );
-    for _ in 0..n {
+    let mut configured = Vec::new();
+    for i in 0..n {
         let def = t.def(r.u32())?;
         offsets.push(r.u32());
         tags.push(r.u8());
-        let own = r.u8() != 0;
+        let flags = r.u8();
+        let own = flags & 1 != 0;
+        if flags & CONFIGURED != 0 {
+            configured.push(u32::try_from(i).ok()?);
+        }
         let owner = PathId::from_raw(def.raw());
         if own {
             names.paths.set_param_name(owner, 0, "Self");
@@ -1753,7 +1775,7 @@ pub fn decode_lazy(names: &Names<'_>, bytes: Arc<[u8]>) -> Option<(Items, Vec<Ex
         defs.push(def);
     }
     let body = r.blob();
-    let base = r.pos() - body.len();
+    let base = start + r.pos() - body.len();
     let mut exports = Vec::new();
     for _ in 0..r.count() {
         let module = r.str().to_owned();
@@ -1777,7 +1799,9 @@ pub fn decode_lazy(names: &Names<'_>, bytes: Arc<[u8]>) -> Option<(Items, Vec<Ex
         offsets,
         docs: Vec::new(),
     });
-    Some((Items::with_source(defs, tags, source), exports))
+    let mut items = Items::with_source(defs, tags, source);
+    items.configured = configured;
+    Some((items, exports))
 }
 
 /// Where a lazily decoded item's records are: the blob, its tables in
@@ -1799,6 +1823,8 @@ pub struct Items {
     defs: Vec<DefId>,
     /// Each item's `impl_tag`, so an impl is found without its record.
     tags: Vec<u8>,
+    /// The positions of the `configured` items, so one is found without its record.
+    configured: Vec<u32>,
     slots: Vec<std::sync::OnceLock<Option<Item>>>,
     source: Option<Source>,
     decoded: std::sync::atomic::AtomicUsize,
@@ -1810,6 +1836,10 @@ impl Items {
     pub fn new(items: Vec<Item>) -> Self {
         let defs = items.iter().map(|i| i.def).collect();
         let tags = items.iter().map(impl_tag).collect();
+        let configured = (0..items.len())
+            .filter(|&i| items[i].configured)
+            .map(|i| u32::try_from(i).expect("items"))
+            .collect();
         let slots = items
             .into_iter()
             .map(|i| std::sync::OnceLock::from(Some(i)))
@@ -1817,6 +1847,7 @@ impl Items {
         Self {
             defs,
             tags,
+            configured,
             slots,
             source: None,
             decoded: std::sync::atomic::AtomicUsize::new(0),
@@ -1828,6 +1859,7 @@ impl Items {
         Self {
             defs,
             tags,
+            configured: Vec::new(),
             slots,
             source,
             decoded: std::sync::atomic::AtomicUsize::new(0),
@@ -1904,7 +1936,7 @@ impl Items {
     #[must_use]
     pub fn impl_kind(&self, i: usize) -> Option<(ImplKind, bool)> {
         let tag = *self.tags.get(i)?;
-        if tag == NOT_IMPL || tag == TRAIT {
+        if tag == NOT_IMPL || tag == TRAIT || tag == ENUM {
             return None;
         }
         let kind = *ImplKind::ALL.get(usize::from(tag & !INHERENT))?;
@@ -1916,6 +1948,17 @@ impl Items {
         (0..self.len())
             .filter(|&i| self.impl_kind(i).is_some())
             .filter_map(|i| self.get(i))
+    }
+
+    /// Whether item `i` is an enum, read from the index.
+    #[must_use]
+    pub fn is_enum(&self, i: usize) -> bool {
+        self.tags.get(i) == Some(&ENUM)
+    }
+
+    /// The `configured` items, in order, decoding only their records.
+    pub fn configured(&self) -> impl Iterator<Item = &Item> {
+        self.configured.iter().filter_map(|i| self.get(*i as usize))
     }
 
     /// The traits, in order, decoding only their records.
@@ -1933,7 +1976,7 @@ impl Items {
             return 0;
         }
         (0..self.len())
-            .filter(|&i| self.tags.get(i) == Some(&NOT_IMPL))
+            .filter(|&i| matches!(self.tags.get(i), Some(&NOT_IMPL | &ENUM)))
             .filter(|&i| self.slots.get(i).is_some_and(|s| s.get().is_some()))
             .count()
     }

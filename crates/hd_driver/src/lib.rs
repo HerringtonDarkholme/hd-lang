@@ -949,47 +949,96 @@ struct ProgramTables {
     drop_defs: OnceLock<hd_base::HashSet<DefId>>,
 }
 
-/// The items collected for one program. Declaration IDs share the run's path table,
-/// so holes include module paths and declarations outside this program.
-/// Missing slots use `u32::MAX`; the payload stays dense without one Item
-/// allocation (or optional Item-sized hole) for every path.
+/// The items collected for one program, each decoded on first use: a program reads
+/// a small part of std. Declaration IDs share the run's path table, so holes
+/// include module paths and declarations outside this program.
 #[derive(Default)]
 struct ProgramItems {
-    slots: Vec<u32>,
-    values: Vec<Item>,
+    sources: Vec<ItemSource>,
+    /// By declaration: its source and its position there.
+    slots: Vec<Option<(u32, u32)>>,
+}
+
+/// Where a program's items come from.
+enum ItemSource {
+    Check(Box<hd_resolve::Items>),
+    Interface(Arc<FolderIface>),
+}
+
+impl ItemSource {
+    fn items(&self) -> &hd_resolve::Items {
+        match self {
+            ItemSource::Check(items) => items,
+            ItemSource::Interface(iface) => &iface.items,
+        }
+    }
 }
 
 impl ProgramItems {
     fn get(&self, def: DefId) -> Option<&Item> {
-        self.values
-            .get(*self.slots.get(def.raw() as usize)? as usize)
+        let (source, at) = (*self.slots.get(def.raw() as usize)?)?;
+        self.sources[source as usize].items().get(at as usize)
     }
 
-    fn values(&self) -> std::slice::Iter<'_, Item> {
-        self.values.iter()
+    /// The impls this program holds whose kind and inherence `want` accepts,
+    /// reading only their records.
+    fn impls(&self, want: fn(hd_resolve::ImplKind, bool) -> bool) -> impl Iterator<Item = &Item> {
+        self.sources
+            .iter()
+            .enumerate()
+            .flat_map(move |(s, source)| {
+                let items = source.items();
+                items.defs().iter().enumerate().filter_map(move |(i, def)| {
+                    let (kind, inherent) = items.impl_kind(i)?;
+                    let held = self.slots[def.raw() as usize] == Some((u32_of(s), u32_of(i)));
+                    (held && want(kind, inherent)).then(|| items.get(i))?
+                })
+            })
     }
 
-    /// A checked declaration replaces an earlier version of that item.
-    fn insert(&mut self, item: Item) {
-        assert!(item.def.get().is_some(), "program item has a declaration");
-        let def = item.def.raw() as usize;
-        if self.slots.len() <= def {
-            self.slots.resize(def + 1, u32::MAX);
-        }
-        let slot = &mut self.slots[def];
-        if *slot == u32::MAX {
-            *slot = u32_of(self.values.len());
-            self.values.push(item);
-        } else {
-            self.values[*slot as usize] = item;
-        }
+    /// The enums this program holds, by declaration, without reading a record.
+    fn enums(&self) -> impl Iterator<Item = DefId> + '_ {
+        self.slots.iter().enumerate().filter_map(|(def, slot)| {
+            let (source, at) = (*slot)?;
+            let items = self.sources[source as usize].items();
+            items
+                .is_enum(at as usize)
+                .then(|| DefId::from_raw(u32_of(def)))
+        })
     }
 
-    /// Folder interfaces fill gaps without replacing checked declarations.
-    fn insert_if_absent(&mut self, item: &Item) {
-        if self.get(item.def).is_none() {
-            self.insert(item.clone());
+    /// Every declaration this program holds, without reading a record.
+    fn defs(&self) -> impl Iterator<Item = DefId> + '_ {
+        self.slots
+            .iter()
+            .enumerate()
+            .filter(|(_, slot)| slot.is_some())
+            .map(|(def, _)| DefId::from_raw(u32_of(def)))
+    }
+
+    /// A checked module's items replace earlier versions of those items.
+    fn add_checked(&mut self, items: hd_resolve::Items) {
+        self.add(ItemSource::Check(Box::new(items)), true);
+    }
+
+    /// A folder interface's items fill gaps without replacing checked declarations.
+    fn add_interface(&mut self, iface: Arc<FolderIface>) {
+        self.add(ItemSource::Interface(iface), false);
+    }
+
+    fn add(&mut self, source: ItemSource, replace: bool) {
+        let at = u32_of(self.sources.len());
+        for (i, def) in source.items().defs().iter().enumerate() {
+            assert!(def.get().is_some(), "program item has a declaration");
+            let def = def.raw() as usize;
+            if self.slots.len() <= def {
+                self.slots.resize(def + 1, None);
+            }
+            if replace || self.slots[def].is_none() {
+                self.slots[def] = Some((at, u32_of(i)));
+            }
         }
+        self.sources.push(source);
     }
 }
 
@@ -1007,40 +1056,31 @@ mod program_items_tests {
         )
     }
 
-    #[test]
-    fn sparse_and_unknown_declarations_are_absent() {
-        let mut items = ProgramItems::default();
-        assert!(items.get(DefId::NONE).is_none());
-        assert!(items.get(DefId::from_raw(0)).is_none());
-        items.insert(item(37, true));
-        items.insert(item(2, false));
-        assert_eq!(items.get(DefId::from_raw(37)), Some(&item(37, true)));
-        assert_eq!(items.get(DefId::from_raw(2)), Some(&item(2, false)));
-        for raw in [0, 1, 3, 36, 38, u32::MAX - 1, u32::MAX] {
-            assert!(items.get(DefId::from_raw(raw)).is_none());
-        }
-        assert_eq!(items.slots.len(), 38);
-        assert_eq!(items.values().count(), 2);
+    fn items(list: Vec<Item>) -> hd_resolve::Items {
+        hd_resolve::Items::new(list)
     }
 
     #[test]
-    fn checks_replace_while_interfaces_only_fill_gaps() {
-        let mut items = ProgramItems::default();
-        items.insert_if_absent(&item(11, false));
-        items.insert(item(11, true));
-        items.insert_if_absent(&item(11, false));
-        items.insert(item(4, false));
-        items.insert_if_absent(&item(4, true));
-        items.insert_if_absent(&item(19, true));
-        assert_eq!(items.get(DefId::from_raw(11)), Some(&item(11, true)));
-        assert_eq!(items.get(DefId::from_raw(4)), Some(&item(4, false)));
-        assert_eq!(items.get(DefId::from_raw(19)), Some(&item(19, true)));
-        assert_eq!(items.values().count(), 3);
-        assert_eq!(
-            items.values().map(|i| i.def.raw()).collect::<Vec<_>>(),
-            [11, 4, 19]
-        );
-        assert_eq!(items.slots[11], 0);
+    fn sparse_and_unknown_declarations_are_absent() {
+        let mut program = ProgramItems::default();
+        assert!(program.get(DefId::NONE).is_none());
+        assert!(program.get(DefId::from_raw(0)).is_none());
+        program.add_checked(items(vec![item(37, true), item(2, false)]));
+        assert_eq!(program.get(DefId::from_raw(37)), Some(&item(37, true)));
+        assert_eq!(program.get(DefId::from_raw(2)), Some(&item(2, false)));
+        for raw in [0, 1, 3, 36, 38, u32::MAX - 1, u32::MAX] {
+            assert!(program.get(DefId::from_raw(raw)).is_none());
+        }
+        assert_eq!(program.slots.len(), 38);
+    }
+
+    #[test]
+    fn a_later_check_replaces_an_earlier_one() {
+        let mut program = ProgramItems::default();
+        program.add_checked(items(vec![item(11, false), item(4, false)]));
+        program.add_checked(items(vec![item(11, true)]));
+        assert_eq!(program.get(DefId::from_raw(11)), Some(&item(11, true)));
+        assert_eq!(program.get(DefId::from_raw(4)), Some(&item(4, false)));
     }
 }
 
@@ -8583,11 +8623,11 @@ impl Run<'_> {
             if c.has_errors {
                 return None;
             }
-            let sections = split_sections(&c.entry)?;
+            let range = item_section(&c.entry)?;
             let test_role = self.role(m) == "test";
-            let decoded = hd_resolve::decode_items(&names, sections.get(2)?)?.0;
+            let decoded = hd_resolve::decode_lazy_in(&names, c.entry.clone(), range)?.0;
             let mut configured: HashMap<Hash128, Option<Hash128>> = HashMap::default();
-            for it in &decoded {
+            for it in decoded.configured() {
                 for canonical in configured_body_keys(&names, it) {
                     let debug = cfg_body_key(canonical, BuildProfile::Checked);
                     let release = cfg_body_key(canonical, BuildProfile::Release);
@@ -8601,12 +8641,14 @@ impl Run<'_> {
                     );
                 }
             }
-            for it in decoded {
-                if test_role && matches!(it.data, ItemData::Impl { .. }) {
-                    test_role_impls.push(it.def);
+            if test_role {
+                for (i, def) in decoded.defs().iter().enumerate() {
+                    if decoded.impl_kind(i).is_some() {
+                        test_role_impls.push(*def);
+                    }
                 }
-                items.insert(it);
             }
+            items.add_checked(decoded);
             // An earlier REPL input's bodies yield to this build's.
             let kept = self.is_kept(m);
             for (mut item, at) in body_index(&c.entry)? {
@@ -8629,9 +8671,7 @@ impl Run<'_> {
         }
         for f in 0..self.table.folders.len() {
             if let Some(i) = self.iface_of(FolderId::from_raw(u32_of(f))) {
-                for it in &i.items {
-                    items.insert_if_absent(it);
-                }
+                items.add_interface(i);
             }
         }
         let mut impl_rows = HashMap::default();
@@ -9451,14 +9491,13 @@ impl Run<'_> {
         let _ = self.fixture_layouts.set(layouts);
         let mut definitions: Vec<DefId> = p
             .items
-            .values()
-            .filter_map(|item| {
-                (item.sig().is_some()
-                    && names.module_node(item.def) == module_node
+            .defs()
+            .filter(|def| {
+                names.module_node(*def) == module_node
+                    && p.items.get(*def).is_some_and(|item| item.sig().is_some())
                     && self
-                        .body_of(p, item.def)
-                        .is_some_and(|b| b.0.kind == hd_tir::ir::BodyKind::Fn))
-                .then_some(item.def)
+                        .body_of(p, *def)
+                        .is_some_and(|b| b.0.kind == hd_tir::ir::BodyKind::Fn)
             })
             .collect();
         definitions.sort_stable_by_key(|d| names.path(*d));
@@ -11508,6 +11547,13 @@ fn configured_body_keys(names: &Names<'_>, item: &Item) -> Vec<Hash128> {
     defs.into_iter().map(|def| names.path_hash(def)).collect()
 }
 
+/// Where a check entry's items section lies in the entry.
+fn item_section(entry: &[u8]) -> Option<std::ops::Range<usize>> {
+    let bytes = *split_sections(entry)?.get(2)?;
+    let start = bytes.as_ptr() as usize - entry.as_ptr() as usize;
+    Some(start..start + bytes.len())
+}
+
 fn split_sections(bytes: &[u8]) -> Option<Vec<&[u8]>> {
     let mut r = Reader::new(bytes);
     let n = r.count();
@@ -11553,7 +11599,7 @@ impl LayoutEnv for Env<'_> {
             .get_or_init(|| {
                 self.p
                     .items
-                    .values()
+                    .impls(|_, inherent| !inherent)
                     .filter_map(|item| match &item.data {
                         ItemData::Impl {
                             trait_, self_ty, ..
@@ -11606,14 +11652,7 @@ impl LayoutEnv for Env<'_> {
         self.p
             .recursive_enums
             .get_or_init(|| {
-                let mut enums: Vec<DefId> = self
-                    .p
-                    .items
-                    .values()
-                    .filter(|i| matches!(i.data, ItemData::Enum { .. }))
-                    .map(|i| i.def)
-                    .collect();
-                enums.sort_stable_by_key(|d| d.raw());
+                let enums: Vec<DefId> = self.p.items.enums().collect();
                 hd_mono::layout::recursive_enums(&self.run.pool, self, &enums)
             })
             .contains(&def)
@@ -11684,19 +11723,13 @@ impl Env<'_> {
         // `Result`: `expect` needs `E < Display`, so std declares it apart.
         let mut is_ok = None;
         let mut expect = None;
-        for item in self.p.items.values() {
+        for item in self.p.items.impls(|_, inherent| inherent) {
             let ItemData::Impl {
-                trait_,
-                self_ty,
-                methods,
-                ..
+                self_ty, methods, ..
             } = &item.data
             else {
                 continue;
             };
-            if *trait_ != DefId::NONE {
-                continue;
-            }
             let TyData::Adt { def, .. } = self.run.pool.get(*self_ty) else {
                 continue;
             };
@@ -12547,12 +12580,10 @@ impl ProgramEnv for Env<'_> {
     fn dbg_structure(&self) -> Option<(DefId, DefId, DefId)> {
         *self.p.dbg_structure.get_or_init(|| {
             let trait_def = self.run.names().item("std.format", "DbgStructural");
-            self.p.items.values().find_map(|item| {
+            let template = |kind, _| kind == hd_resolve::ImplKind::Template;
+            self.p.items.impls(template).find_map(|item| {
                 let ItemData::Impl {
-                    trait_,
-                    methods,
-                    kind: hd_resolve::ImplKind::Template,
-                    ..
+                    trait_, methods, ..
                 } = &item.data
                 else {
                     return None;
