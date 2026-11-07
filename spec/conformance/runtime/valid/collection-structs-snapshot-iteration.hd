@@ -11,6 +11,13 @@ fn shift(set: &mut Set[i32]) -> void:
         _ := set.insert(item + 10)
         _ := set.remove(item)
 
+fn drop_later(set: &mut Set[i32]) -> List[i32]:
+    let mut seen: List[i32] = []
+    for item in *set:
+        seen.push(item)
+        _ := set.remove(2)
+    seen
+
 tests:
     use std.testing.assert_equal
 
@@ -42,3 +49,10 @@ tests:
         assert_equal(set.contains(11), true, reason="1 moved")
         assert_equal(set.contains(12), true, reason="2 moved")
         assert_equal(set.contains(1), false, reason="1 is gone")
+
+    it("a remove of a later element while iterating a set"):
+        let mut set: Set[i32] = Set::new()
+        _ := set.insert(1)
+        _ := set.insert(2)
+        assert_equal(drop_later(&mut set), [1, 2], reason="the loop still saw the removed element")
+        assert_equal(set.len(), 1, reason="the set lost it")

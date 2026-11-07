@@ -1,0 +1,27 @@
+# expect-stdout: 1 9
+# test: a local bound to the target of a list reference and then copied may share any field of that type, so a later write to the field leaves the copy unchanged
+# Spec 13 Copy: a copy of a collection is a value of its own.
+use std.annotation.inline
+
+struct Bag:
+    items: List[i32]
+
+@inline(.Never)
+fn keep(xs: List[i32]) -> List[i32]:
+    xs
+
+@inline(.Never)
+fn snapshot(target: &mut List[i32]) -> List[i32]:
+    let held = *target
+    keep(held)
+
+@inline(.Never)
+fn change(bag: &mut Bag) -> void:
+    bag.items[0] = 9
+
+pub fn main() -> void $ Console:
+    let mut bag = Bag { items: [] }
+    bag.items.push(1)
+    let copy = snapshot(&mut bag.items)
+    change(&mut bag)
+    println("${copy[0]} ${bag.items[0]}")

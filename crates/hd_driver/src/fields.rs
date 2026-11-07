@@ -6,7 +6,8 @@
 //! 1. no statement copies with a count a value of `S`, of a type that holds
 //!    an `S` in place (a tuple, struct, option or collection of it, not
 //!    behind a reference), or `S.f` itself: a `copy` read, or a closure's
-//!    `Copy` capture (moves and borrows are fine);
+//!    `Copy` capture (moves and borrows are fine). A read of a local bound to
+//!    a borrow reads what that borrow names;
 //! 2. every construction of an `S` and every store of all of `S.f` puts a
 //!    fresh buffer there: a new collection that is no top-level binding's
 //!    initializer (only such a literal of constants is static data the
@@ -200,6 +201,32 @@ impl<'a> Walk<'a> {
 
     fn body(&mut self, b: &Body, sub: &dyn Fn(Ty) -> Ty) {
         let n = b.len();
+        // What a binding of a borrow names: a read of the binding reads that.
+        let stores = whole_stores(b);
+        let mut bound: Vec<Option<u32>> = vec![None; b.local_ty.len()];
+        for i in 0..n {
+            if binds(b, &stores, i)
+                && let Some(l) = b.view(b.data[i][0]).local()
+                && let Some(v) = Ref(b.data[i][1]).as_inst().map(|v| v.0 as usize)
+                && b.tags[v] == Tag::Read
+                && b.data[v][1] == ReadMode::Borrow as u32
+            {
+                bound[l as usize] = Some(b.data[v][0]);
+            }
+        }
+        let through = |mut word: u32| {
+            for _ in 0..8 {
+                word = Self::resolve(b, word);
+                let p = b.view(word);
+                match p.local().filter(|_| p.whole()) {
+                    Some(l) if bound[l as usize].is_some() => {
+                        word = bound[l as usize].unwrap_or(word);
+                    }
+                    _ => break,
+                }
+            }
+            word
+        };
         // Locals every whole store of which is a fresh new collection.
         let mut fresh_local = vec![true; b.local_ty.len()];
         for i in 0..n {
@@ -233,13 +260,14 @@ impl<'a> Walk<'a> {
                     let t = sub(b.ty[i]);
                     self.copied.insert(self.strip(t));
                     if self.coll(t) {
-                        match self.field(b, sub, b.data[i][0]) {
+                        let place = through(b.data[i][0]);
+                        match self.field(b, sub, place) {
                             Some(f) => {
                                 self.bad.entry(f).or_insert("a copy of the field");
                             }
                             // A place the walk can't type, or one behind a
                             // reference, may be any field of this type.
-                            None if self.blind(b, sub, b.data[i][0]) => {
+                            None if self.blind(b, sub, place) => {
                                 self.blind.insert(self.strip(t));
                             }
                             None => {}

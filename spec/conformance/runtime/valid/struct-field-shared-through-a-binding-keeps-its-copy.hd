@@ -1,0 +1,23 @@
+# expect-stdout: 1 2
+# test: a local bound to a struct's list field and then copied shares that list, so a later push to the field leaves the copy unchanged
+# Spec 13 Copy: a copy of a collection is a value of its own.
+use std.annotation.inline
+
+struct Bag:
+    items: List[i32]
+
+@inline(.Never)
+fn keep(xs: List[i32]) -> List[i32]:
+    xs
+
+fn snapshot(bag: &mut Bag) -> List[i32]:
+    let held = bag.items
+    let copy = keep(held)
+    bag.items.push(9)
+    copy
+
+pub fn main() -> void $ Console:
+    let mut bag = Bag { items: [] }
+    bag.items.push(1)
+    let copy = snapshot(&mut bag)
+    println("${copy.len()} ${bag.items.len()}")
