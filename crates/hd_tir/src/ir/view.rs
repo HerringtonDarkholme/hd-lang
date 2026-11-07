@@ -157,22 +157,6 @@ impl PlaceView {
         })
     }
 
-    /// The first-level part the place names: the field of its first step
-    /// (after a variant), or `None` for all of the root or a step that is
-    /// no part of it.
-    #[must_use]
-    pub fn first_part(self, b: &Body) -> Option<u32> {
-        let mut s = self.steps(b);
-        match s.next()? {
-            Proj::Field(k) => Some(k),
-            Proj::Variant(_) => match s.next()? {
-                Proj::Field(k) => Some(k),
-                _ => None,
-            },
-            _ => None,
-        }
-    }
-
     /// Appends the step codes ([`ELEM`], [`DEREF`], [`VARIANT`]) to `out`;
     /// how many dereferences there are, and whether an element is among
     /// them.

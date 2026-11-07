@@ -746,11 +746,3 @@ fn check_registration(
     let item = Item::new(def, cx.names.syms.intern(name), false, ItemData::Fn(sig));
     Ok((body, item))
 }
-
-/// Whether a source has a `tests:` block.
-#[must_use]
-pub fn has_tests(src: &Src<'_>) -> bool {
-    src.root()
-        .children()
-        .any(|c| c.kind() == SyntaxKind::TestsBlock)
-}

@@ -492,19 +492,6 @@ pub(crate) fn after(b: &Body, u: &[Level], w: &[Level]) -> bool {
     true
 }
 
-/// Whether statement `later` may run after statement `earlier` has: it comes
-/// later in the innermost block holding both, or a loop holds both.
-#[must_use]
-pub fn may_follow(b: &Body, topo: &Topology, earlier: usize, later: usize) -> bool {
-    let (mut u, mut w) = (Vec::new(), Vec::new());
-    statement_chain(topo, u32_of(earlier), &mut u);
-    statement_chain(topo, u32_of(later), &mut w);
-    let looped = u
-        .iter()
-        .any(|&(_, _, x)| b.tags[x as usize] == Tag::Loop && w.iter().any(|&(_, _, y)| y == x));
-    looped || after(b, &u, &w)
-}
-
 /// The root block of the sub-body local `l` is a parameter of.
 fn param_root(b: &Body, l: u32) -> u32 {
     for (s, r) in b.sub_params.iter().enumerate().skip(1) {
