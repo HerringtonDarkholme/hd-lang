@@ -14,7 +14,7 @@ use hd_base::HashSet;
 use hd_base::SliceSort as _;
 use hd_base::{Hash128, HashMap, StageResult};
 use hd_mono::Target;
-use hd_tir::ir::{Body, CaptureMode, NONE, Tag, Topology, local_flags, ref_word, sub_flags};
+use hd_tir::ir::{Body, CaptureMode, NONE, Tag, local_flags, ref_word, sub_flags};
 use hd_types::{Ty, TyData};
 use wasm_encoder::BlockType;
 
@@ -25,26 +25,13 @@ use crate::module::{Sym, Val};
 use crate::rt::Helper;
 use crate::unsupported;
 
-/// Each local a closure shares, or that a reference refers to (`roots`,
-/// `refs.rs`), mapped to the instruction of its first store outside any
-/// closure that captures it: that store declares it and makes its cell
-/// during RC lowering. A parameter moves into its cell
-/// on entry, so it has none (`u32::MAX`). Only the closures the body still
-/// makes count: a reference's closure form is gone.
-pub(super) fn cell_locals(b: &Body, roots: &[usize]) -> HashMap<usize, u32> {
-    let mut cells: HashMap<usize, u32> = HashMap::default();
-    for ci in 0..b.len() {
-        if b.tags[ci] == Tag::Closure {
-            for (l, shared) in captures(b, ci) {
-                if shared {
-                    cells.insert(l, u32::MAX);
-                }
-            }
-        }
-    }
-    for l in roots {
-        cells.insert(*l, u32::MAX);
-    }
+/// Each local of `stored` (a cell or a slot, [`stored_locals`]) mapped
+/// to the instruction of its first store outside any closure that
+/// captures it: that store declares it and makes its cell during RC
+/// lowering. A parameter moves into its cell on entry, so it has none
+/// (`u32::MAX`).
+pub(super) fn cell_locals(b: &Body, stored: &[usize]) -> HashMap<usize, u32> {
+    let mut cells: HashMap<usize, u32> = stored.iter().map(|&l| (l, u32::MAX)).collect();
     if cells.is_empty() {
         return cells;
     }
@@ -85,58 +72,52 @@ pub(super) fn shared_locals(b: &Body) -> hd_base::HashSet<usize> {
         .collect()
 }
 
-/// The locals of `roots` that live in a slot of the function's frame on
-/// the local stack, not in a counted cell (`crates/hd_wasm_linear/DESIGN.md`
-/// §23.38): those every `Ref` of whose own storage makes a local
-/// reference of a frame local (`ref_word::LOCAL` and `ref_word::FRAME`)
-/// in the body's root. The ownership passes keep a frame local alive over
-/// every use of a value that may point into it, and no such value
-/// outlives its scope (spec/lang/13-values-and-references.md#local-scope),
-/// so nothing needs the slot after the local's own release. A parameter
-/// moves into its slot at entry ([`Em::param_cell`]). A local a closure
-/// captures keeps its cell, unless every capture of it is a frame cell's
-/// (`CaptureMode::Frame`): the passes keep it alive over every use of
-/// the closure, which never leaves the frame, and its references are
-/// local ones of the root, which take no count of a cell.
-pub(super) fn slot_locals(b: &Body, roots: &[usize], topo: &Topology) -> HashSet<usize> {
-    let frame_cell = |l: usize| {
-        let mut caps = (b.cap_local.iter().zip(&b.cap_mode)).filter(|(c, _)| c.idx() == l);
-        let first = caps.next();
-        first.is_some_and(|(_, m)| *m == CaptureMode::Frame)
-            && caps.all(|(_, m)| *m == CaptureMode::Frame)
+/// The locals of sub-body `sub` that the passes put in a cell or a frame
+/// slot (`Body::storage`), and those of them in a slot, once the inputs
+/// that arrive after the passes apply. A promoted argument reads its
+/// local's value (§23.40), so a local that only promoted references reach
+/// and no closure shares stays in Wasm locals; and a body with no slots
+/// (`slots_here` false) keeps a slot's local in a cell.
+pub(super) fn stored_locals(
+    input: &crate::Input<'_>,
+    b: &Body,
+    (item, args): (hd_base::DefId, hd_types::TyList),
+    sub: u16,
+    promoted: &HashSet<u32>,
+    slots_here: bool,
+) -> (Vec<usize>, Vec<usize>) {
+    let (pool, env) = (input.pool, input.env);
+    let shared = if promoted.is_empty() {
+        HashSet::default()
+    } else {
+        shared_locals(b)
     };
-    let mut cells: HashSet<usize> = HashSet::default();
-    for (c, m) in b.cap_local.iter().zip(&b.cap_mode) {
-        if *m == CaptureMode::Frame && frame_cell(c.idx()) {
-            cells.insert(c.idx());
+    let reached = |l: usize| {
+        promoted.is_empty()
+            || shared.contains(&l)
+            || (0..b.len()).any(|i| {
+                super::shape::ref_local(b, i) == Some(l)
+                    && !promoted.contains(&u32::try_from(i).expect("insts"))
+                    && matches!(
+                        crate::layout::kind(
+                            pool,
+                            env,
+                            hd_mono::subst(pool, env, item, args, b.ty[i])
+                        ),
+                        crate::layout::Kind::Ref { fat: false, .. }
+                    )
+            })
+    };
+    let (mut cells, mut slots) = (Vec::new(), Vec::new());
+    for &(s, l, k) in &b.storage {
+        if s.idx() == usize::from(sub) && reached(l.idx()) {
+            cells.push(l.idx());
+            if k == hd_tir::ir::Storage::Slot && slots_here {
+                slots.push(l.idx());
+            }
         }
     }
-    let mut out: HashSet<usize> = roots
-        .iter()
-        .copied()
-        .filter(|&l| !b.cap_local.iter().any(|c| c.idx() == l))
-        .collect();
-    for i in 0..b.len() {
-        if out.is_empty() && cells.is_empty() {
-            break;
-        }
-        let Some(l) = (b.tags[i] == Tag::Ref)
-            .then(|| b.local_in_place(b.data[i][0]))
-            .flatten()
-        else {
-            continue;
-        };
-        let w = b.data[i][1];
-        let frame = ref_word::LOCAL | ref_word::FRAME;
-        if w & frame != frame || topo.sub[i] != 0 {
-            out.remove(&l.idx());
-        }
-        if w & ref_word::LOCAL == 0 || topo.sub[i] != 0 {
-            cells.remove(&l.idx());
-        }
-    }
-    out.extend(cells);
-    out
+    (cells, slots)
 }
 
 /// The defining `Closure` of sub-body `sub`, not an instantiation of a
@@ -229,42 +210,6 @@ fn moved_captures(b: &Body, ci: usize) -> Vec<bool> {
 
 impl Em<'_, '_, '_> {
     /// Whether TIR local `l` lives in a cell.
-    /// Step 17a: the passes' storage rows (`Body::storage`) agree with
-    /// this emitter's choice for sub-body `sub`, once the read applies
-    /// what arrives after the passes: a local only promoted references
-    /// reach (`roots` leaves them out) and no closure shares has no
-    /// storage, and a slot is a cell where `slots_here` is false.
-    pub(super) fn assert_storage(&self, sub: u16, roots: &[usize], slots_here: bool) {
-        use hd_tir::ir::Storage;
-        let b = self.b;
-        let shared = shared_locals(b);
-        for l in 0..b.local_ty.len() {
-            let row = b
-                .storage
-                .iter()
-                .find(|(s, x, _)| s.idx() == usize::from(sub) && x.idx() == l)
-                .map(|r| r.2);
-            let want = match row {
-                Some(_) if !shared.contains(&l) && !roots.contains(&l) => None,
-                Some(Storage::Slot) if !slots_here => Some(Storage::Cell),
-                row => row,
-            };
-            let got = if self.slots.contains_key(&l) {
-                Some(Storage::Slot)
-            } else if self.is_cell(l) {
-                Some(Storage::Cell)
-            } else {
-                None
-            };
-            assert_eq!(
-                want,
-                got,
-                "storage of {} sub {sub} ${l}: the passes' row {row:?}",
-                (self.input.path)(b.item)
-            );
-        }
-    }
-
     pub(super) fn is_cell(&self, l: usize) -> bool {
         self.cells.contains_key(&l)
     }
@@ -364,12 +309,12 @@ impl Em<'_, '_, '_> {
         self.b.full_cells.binary_search(&(j, l)).is_ok()
     }
 
-    /// Gives each local [`slot_locals`] picks a slot in the function's
+    /// Gives each local of `slots` ([`stored_locals`]) a slot in the function's
     /// frame on the local stack (§23.38): a zero count word, as a static
     /// object's, then the value in its cell's layout, so a count update
     /// through the slot's address does nothing.
-    pub(super) fn plan_slots(&mut self, roots: &[usize]) -> StageResult<()> {
-        let mut ls: Vec<usize> = slot_locals(self.b, roots, &self.topo).into_iter().collect();
+    pub(super) fn plan_slots(&mut self, slots: &[usize]) -> StageResult<()> {
+        let mut ls = slots.to_vec();
         if ls.is_empty() {
             return Ok(());
         }
@@ -501,7 +446,7 @@ impl Em<'_, '_, '_> {
         let at = self.object_drops(&m, walk.as_ref(), cyclic, recursive, Some(ty), drops);
         #[cfg(feature = "checked-report")]
         if self.input.runtime.is_some_and(|r| r.checked.is_some())
-            && cell_locals(self.b, &[]).contains_key(&l)
+            && shared_locals(self.b).contains(&l)
         {
             crate::rt::checked_kind(&mut self.f, self.m, 2);
         }

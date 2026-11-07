@@ -130,18 +130,18 @@ fn body_func<'a>(
         && own.cold.is_none()
         && input.runtime.is_some();
     let promoted = promote::promoted_refs(input, m, b, (item, args), targets, pick)?;
-    let roots = ref_roots(input, b, item, args, &promoted);
-    let cells = closure::cell_locals(b, &roots);
+    // Where each local lives (`Body::storage`): a frame slot only in a
+    // plain function's root, at a runtime that counts (§23.38).
+    let slots_here = sub == 0 && !suspending && own.cold.is_none() && input.runtime.is_some();
+    let (stored, slots) =
+        closure::stored_locals(input, b, (item, args), sub, &promoted, slots_here);
+    let cells = closure::cell_locals(b, &stored);
     let direct_json = input.direct_json_encoders.contains(&own.key);
     let inst = (m.inst_of.get(&own.key).copied()).unwrap_or(InstId::from_raw(u32::MAX));
     let mut em = Em::new(input, m, b, (item, args), targets, cells, direct_json);
     em.inst = inst;
     em.type_promoted(promoted)?;
-    // A local only local references lend lives in the frame (§23.38): a
-    // plain function's own, at a runtime that counts.
-    if sub == 0 && !suspending && own.cold.is_none() && input.runtime.is_some() {
-        em.plan_slots(&roots)?;
-    }
+    em.plan_slots(&slots)?;
     em.origin_root = b.anchor(b.sub_root[sub as usize]);
     // Every body is the ownership passes' output, whose counts emission
     // follows (`docs/compiler/tir-v2.md`, "Stage 2").
@@ -191,17 +191,6 @@ fn body_func<'a>(
             Some(ci),
         )
     };
-    // A closure's copy of a capture is a value of its own, never the
-    // cell a reference to the captured local made.
-    if let Some(ci) = closure {
-        for (l, shared) in closure::captures(b, ci) {
-            if !shared {
-                em.cells.remove(&l);
-            }
-        }
-    }
-    let slots_here = sub == 0 && !suspending && own.cold.is_none() && input.runtime.is_some();
-    em.assert_storage(sub, &roots, slots_here);
     // A plain function takes its parameters by the conventions of
     // `layout::Pass` (§23.25); a suspending one's cold constructor counts
     // each argument into its frame, so the callee takes a count of each.
@@ -767,38 +756,6 @@ fn handle_once_cell_runs_its_body_once() {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-}
-
-/// The locals that some reference of body `b` refers to as its own place
-/// (`shape::ref_local`) and that must live in memory: those of a reference
-/// that is an address, not a trait value (`refs.rs`), but a suspending
-/// body's parameters.
-fn ref_roots(
-    input: &Input<'_>,
-    b: &Body,
-    item: DefId,
-    args: TyList,
-    promoted: &hd_base::HashSet<u32>,
-) -> Vec<usize> {
-    let (pool, env) = (input.pool, input.env);
-    (0..b.len())
-        .filter_map(|i| {
-            let l = shape::ref_local(b, i)?;
-            // A promoted argument reads its local's value.
-            if promoted.contains(&u32::try_from(i).expect("insts")) {
-                return None;
-            }
-            let t = subst(pool, env, item, args, b.ty[i]);
-            let addr = matches!(
-                crate::layout::kind(pool, env, t),
-                crate::layout::Kind::Ref { fat: false, .. }
-            );
-            if !addr {
-                return None;
-            }
-            Some(l)
-        })
-        .collect()
 }
 
 /// The parameter locals of closure body `sub`, in order.
