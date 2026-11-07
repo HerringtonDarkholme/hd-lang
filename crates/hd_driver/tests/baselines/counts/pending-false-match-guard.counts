@@ -13,7 +13,3 @@ app/main/main
   release string (overwritten)
   release string (last use)
   release string (overwritten)
-  (no span) retain string (conservative: copy read)
-  (no span) release string (last use)
-  (no span) release string (last use)
-  (no span) release string (last use)

@@ -11,7 +11,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
   (func $use_first (param $t1 i32) (result i32) (local $t0 i32) (local $xs i32) (local $t2 i32)
-    ;; (no span)
+    ;; 27 |     first_len(&xs) + checksum(&xs)
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -51,7 +51,6 @@
     local.get $t1
     i32.store $heap
     block
-    ;; 27 |     first_len(&xs) + checksum(&xs)
       block
         block
           local.get $xs
@@ -94,18 +93,15 @@
       i32.load $heap
       call $checksum'1
       local.set $t2
-    ;; (no span)
       local.get $xs
       if
         local.get $xs
         i32.load $heap
         call $rt:release_ref
       end
-    ;; 27 |     first_len(&xs) + checksum(&xs)
       local.get $t1
       local.get $t2
       i32.add
-    ;; (no span)
       local.set $t1
     end
     local.get $t1
@@ -115,8 +111,8 @@
     global.set $locals
   )
   (func $checksum'1 (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $x.1 i32)
-    block
     ;; 15 |     let mut n = 0
+    block
       i32.const 0
       local.set $n
     ;; 16 |     for x in xs:
@@ -172,14 +168,14 @@
       end
     ;; 18 |     n
       local.get $n
-    ;; (no span)
+    ;; 15 |     let mut n = 0
       local.set $xs
     end
     local.get $xs
   )
   (func $first_len (param $xs i32) (result i32)
-    block
     ;; 22 |     if xs.len() == 0:
+    block
       local.get $xs
       i32.load $heap
       i32.load $heap offset=4
@@ -213,12 +209,12 @@
           br 0
         end
       end
+    ;; 22 |     if xs.len() == 0:
     end
-    ;; (no span)
     local.get $xs
   )
   (func $unexpected (param $t1 i32) (result i32 i32) (local $at i32) (local $t0 i32) (local $t2 i64) (local $t3 i64) (local $t4 i32) (local $t5 i32) (local $t6 i32)
-    ;; (no span)
+    ;; 11 |     "unexpected byte at $at"
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -258,7 +254,6 @@
     local.get $t1
     i32.store $heap
     block
-    ;; 11 |     "unexpected byte at $at"
       local.get $at
       i32.load $heap
       i64.extend_i32_u
@@ -318,7 +313,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $t4
       local.get $t5
       local.set $at
@@ -332,8 +326,8 @@
     global.set $locals
   )
   (func $check (param $xs i32) (param $at i32) (result i32 i32) (local $t0 i32)
-    block
     ;; 30 |     if at >= xs.len():
+    block
       local.get $at
       local.get $xs
       i32.load $heap offset=4
@@ -369,7 +363,7 @@
       local.set $t0
       local.tee $at
       call $retain
-    ;; (no span)
+    ;; 30 |     if at >= xs.len():
       local.get $xs
       call $rt:release_ref
       i32.const 0
@@ -381,8 +375,8 @@
     local.get $t0
   )
   (func $checksum'2 (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $x.1 i32)
-    block
     ;; 15 |     let mut n = 0
+    block
       i32.const 0
       local.set $n
     ;; 16 |     for x in xs:
@@ -440,7 +434,7 @@
       end
     ;; 18 |     n
       local.get $n
-    ;; (no span)
+    ;; 15 |     let mut n = 0
       local.set $xs
     end
     local.get $xs

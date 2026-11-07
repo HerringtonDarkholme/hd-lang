@@ -9,22 +9,21 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 12 funcref))
   (func $closure (param $s.0 i32) (param $s.1 i32) (result i32)
-    block
     ;; 29 |     with_tag(s, fn() -> usize $ Tag: $.use(Tag).name().len())
+    block
       local.get $s.0
       local.get $s.1
       i32.const 1
       i32.const 0
       i32.const 0
       call $"with_tag[^241]'1"
-    ;; (no span)
       local.set $s.0
     end
     local.get $s.0
   )
   (func $"with_tag[^241]'2" (param $s.0 i32) (param $s.1 i32) (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32)
-    block
     ;; 22 |     $.with(Tag=Named { label: s }):
+    block
       local.get $s.0
       local.get $s.1
       local.set $s.1
@@ -49,9 +48,7 @@
       local.tee $s.1
       call $retain
       local.get $s.0
-    ;; (no span)
       call $rt:release_ref
-    ;; 22 |     $.with(Tag=Named { label: s }):
       i32.const 204 ;; &vtable[func69]
       local.set $s.0
       block
@@ -78,14 +75,13 @@
     ;; 22 |     $.with(Tag=Named { label: s }):
         local.set $s.0
       end
-    ;; (no span)
       local.get $s.1
       call $rt:release_ref
     end
     local.get $s.0
   )
   (func $closure#1 (param $env i32) (param $ctx i32) (result i32)
-    ;; (no span)
+    ;; 29 |     with_tag(s, fn() -> usize $ Tag: $.use(Tag).name().len())
     local.get $ctx
     i64.const -8941934570327064298
     call $rt:ctx_find
@@ -96,7 +92,6 @@
     i32.load $heap offset=28
     local.set $env
     block
-    ;; 29 |     with_tag(s, fn() -> usize $ Tag: $.use(Tag).name().len())
       local.get $ctx
       local.get $env
       i32.load $heap
@@ -108,7 +103,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $env
       call $rt:release_ref
       local.get $ctx
@@ -117,22 +111,21 @@
     local.get $env
   )
   (func $run (param $s.0 i32) (param $s.1 i32) (result i32)
-    block
     ;; 26 |     with_tag(s, read_tag)
+    block
       local.get $s.0
       local.get $s.1
       i32.const 4
       i32.const 0
       i32.const 0
       call $"with_tag[^241]'2"
-    ;; (no span)
       local.set $s.0
     end
     local.get $s.0
   )
   (func $read_tag (param $provider0 i32) (param $provider0.vtable i32) (result i32)
-    block
     ;; 19 |     $.use(Tag).name().len()
+    block
       local.get $provider0
       local.get $provider0.vtable
       i32.load $heap
@@ -144,7 +137,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $provider0
       call $rt:release_ref
       local.get $provider0.vtable
@@ -153,8 +145,8 @@
     local.get $provider0
   )
   (func $"with_tag[^241]'1" (param $s.0 i32) (param $s.1 i32) (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32)
-    block
     ;; 22 |     $.with(Tag=Named { label: s }):
+    block
       local.get $s.0
       local.get $s.1
       local.set $s.1
@@ -179,9 +171,7 @@
       local.tee $s.1
       call $retain
       local.get $s.0
-    ;; (no span)
       call $rt:release_ref
-    ;; 22 |     $.with(Tag=Named { label: s }):
       i32.const 204 ;; &vtable[func69]
       local.set $s.0
       block
@@ -208,7 +198,6 @@
     ;; 22 |     $.with(Tag=Named { label: s }):
         local.set $s.0
       end
-    ;; (no span)
       local.get $s.1
       call $rt:release_ref
     end

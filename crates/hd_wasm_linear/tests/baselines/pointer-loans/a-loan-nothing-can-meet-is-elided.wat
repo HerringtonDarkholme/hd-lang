@@ -13,12 +13,12 @@
     end
   )
   (func $greet (param $p i32) (result i32)
-    block
     ;; 13 |     n := &p.name
+    block
       local.get $p
     ;; 14 |     n.len()
       call $"impl string.len"
-    ;; (no span)
+    ;; 13 |     n := &p.name
       local.set $p
     end
     local.get $p

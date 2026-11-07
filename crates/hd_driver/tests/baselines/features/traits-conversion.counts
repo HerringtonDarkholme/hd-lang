@@ -19,4 +19,4 @@ fn convert(s: string) -> Name:
 fn name_len(s: string) -> usize:
     Name::from(s).text.len()
 > app/main/name_len
->   (no span) release string (last use)
+>   release string (last use)

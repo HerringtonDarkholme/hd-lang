@@ -33,9 +33,9 @@ impl Stack:
 >   copy List[&mut app.main.Stack] (second owner)
 >   retain &mut app.main.Stack (second owner)
 >   release &mut app.main.Stack (last use)
+>   release List[&mut app.main.Stack] (last use)
             peer.items = []
 >   release counted reference (conservative: Store)
->   (no span) release List[&mut app.main.Stack] (last use)
         0
 
     fn read(&self) -> usize:
@@ -49,13 +49,13 @@ impl Stack:
 > app/main/impl Stack.read_bump
 >   copy List[app.main.Item] (second owner)
 >   retain app.main.Item [name.0] (conservative: copy read)
->   (no span) release List[app.main.Item] (last use)
->   (no span) release app.main.Item [name.0] (last use)
+>   release List[app.main.Item] (last use)
+>   release app.main.Item [name.0] (last use)
 
     fn read_drain(&self) -> usize:
         self.items[self.drain()].home
 > app/main/impl Stack.read_drain
 >   copy List[app.main.Item] (second owner)
 >   retain app.main.Item [name.0] (conservative: copy read)
->   (no span) release List[app.main.Item] (last use)
->   (no span) release app.main.Item [name.0] (last use)
+>   release List[app.main.Item] (last use)
+>   release app.main.Item [name.0] (last use)

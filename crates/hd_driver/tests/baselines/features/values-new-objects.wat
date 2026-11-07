@@ -6,7 +6,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $field_ref (param $s.0 i32) (param $s.1 i32) (param $t.0 i32) (param $t.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
-    ;; (no span)
+    ;; 23 |     let mut p = Named { name: s }
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -37,7 +37,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 23 |     let mut p = Named { name: s }
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -82,7 +81,7 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 23 |     let mut p = Named { name: s }
       local.get $s.0
       call $rt:release_ref
       local.get $s.1
@@ -95,7 +94,7 @@
     global.set $locals
   )
   (func $new_mut (param $s.0 i32) (param $s.1 i32) (param $t.0 i32) (param $t.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
-    ;; (no span)
+    ;; 18 |     m := &mut Named { name: s }
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -126,7 +125,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 18 |     m := &mut Named { name: s }
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -166,7 +164,7 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 18 |     m := &mut Named { name: s }
       local.get $s.0
       if
         local.get $s.0
@@ -190,7 +188,7 @@
     local.get $s.1
   )
   (func $temp_ref (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
-    ;; (no span)
+    ;; 14 |     n := &make(s)
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -221,7 +219,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 14 |     n := &make(s)
       block
         block
           br 0
@@ -253,7 +250,7 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 14 |     n := &make(s)
       local.get $s.0
       if
         local.get $s.0

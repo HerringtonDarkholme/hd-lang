@@ -33,10 +33,9 @@
     end
   )
   (func $take_field (param $r.name.0 i32) (param $r.name.1 i32) (param $r.tags i32) (result i32 i32)
-    block
     ;; 14 |     r.name
+    block
       local.get $r.name.0
-    ;; (no span)
       local.get $r.tags
       call $rt:release_ref'2
       local.set $r.name.0
@@ -45,8 +44,8 @@
     local.get $r.name.1
   )
   (func $read_field (param $r.name.0 i32) (param $r.name.1 i32) (param $r.tags i32) (result i32)
-    block
     ;; 11 |     r.name.len() + r.tags.len()
+    block
       block
         block
           local.get $r.name.1
@@ -58,7 +57,6 @@
       local.get $r.tags
       i32.load $heap offset=4
       i32.add
-    ;; (no span)
       local.set $r.name.0
     end
     local.get $r.name.0

@@ -18,10 +18,11 @@ fn length(value: &string) -> usize:
 
 pub fn main() -> void $ Console:
     root := box("owned counter value")
+> app/main/main
+>   release &string (last use)
     let total: usize = 0
     for _ in 0..1000:
         if EXTRA:
-> app/main/main
 >   release &string (last use)
             extra := duplicate(root)
             total += length(extra)
@@ -29,4 +30,3 @@ pub fn main() -> void $ Console:
             total += length(root)
     println(total)
     println(root.len())
->   (no span) release &string (last use)

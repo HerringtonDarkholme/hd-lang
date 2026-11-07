@@ -5,6 +5,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $until_long (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $x.0 i32) (local $x.1 i32) (local $t.1 i32) (local $t.0 i32) (local $t2 i32)
+    ;; 8 |     let n: usize = 0
     block
     ;; 9 |     for x in xs:
       local.get $xs
@@ -114,7 +115,7 @@
       end
     ;; 16 |     n
       local.get $n
-    ;; (no span)
+    ;; 8 |     let n: usize = 0
       local.set $xs
     end
     local.get $xs

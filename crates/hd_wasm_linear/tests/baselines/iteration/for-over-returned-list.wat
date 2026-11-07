@@ -4,6 +4,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $words (param $text.0 i32) (param $text.1 i32) (result i32) (local $count i32) (local $t0 i32) (local $t1 i32) (local $word.1 i32)
+    ;; 6 |     let count: usize = 0
     block
     ;; 7 |     for word in text.split(" "):
       local.get $text.0
@@ -59,12 +60,12 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 6 |     let count: usize = 0
       local.get $text.0
       call $rt:release_ref
     ;; 9 |     count
       local.get $count
-    ;; (no span)
+    ;; 6 |     let count: usize = 0
       local.set $text.0
     end
     local.get $text.0

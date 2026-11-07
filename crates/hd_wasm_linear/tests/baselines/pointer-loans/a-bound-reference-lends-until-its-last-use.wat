@@ -5,8 +5,8 @@
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $own_write (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    block
     ;; 11 |     r := &mut p.value
+    block
       local.get $p
       i32.const 4
       i32.sub
@@ -75,7 +75,7 @@
       i32.load $heap offset=4
       local.tee $p
       call $rt:retain
-    ;; (no span)
+    ;; 11 |     r := &mut p.value
       local.get $t0
       if
         local.get $t0
@@ -87,7 +87,8 @@
         local.get $t2
         i32.const 1
         i32.eq
-        ;; ...
+        if
+        end
         i32.const 0
         local.set $t0
       end
@@ -102,7 +103,8 @@
         local.get $t2
         i32.const 1
         i32.eq
-        ;; ...
+        if
+        end
         i32.const 0
         local.set $t0
       end
@@ -138,7 +140,7 @@
       call $rt:release
     ;; 13 |     seen := *r
       local.get $p
-    ;; (no span)
+    ;; 11 |     r := &mut p.value
       local.set $alias
       local.set $p
     end
@@ -153,7 +155,8 @@
       local.get $t2
       i32.const 1
       i32.eq
-      ;; ...
+      if
+      end
     end
     local.get $p
     local.get $alias

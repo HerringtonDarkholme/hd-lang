@@ -5,8 +5,8 @@
   (import "fixture" "rt:list_unique'2" (func $rt:list_unique'2 (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $write_nested (param $xs i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+    ;; 8 |     set(&mut xs[0][0], 9)
     block
-    ;; (no span)
       local.get $xs
       local.get $xs
       i32.load $heap
@@ -35,7 +35,6 @@
         local.get $t2
         i32.store $heap offset=16
       end
-    ;; 8 |     set(&mut xs[0][0], 9)
       local.get $xs
       i32.load $heap
       local.set $xs

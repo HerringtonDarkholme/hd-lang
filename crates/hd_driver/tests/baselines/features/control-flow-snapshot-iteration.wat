@@ -11,8 +11,8 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $doubled (param $values i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $v.0 i32) (local $v.1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
-    block
     ;; 9 |     let mut out = values
+    block
       local.get $values
       local.tee $values
     ;; 10 |     for v in out:
@@ -90,14 +90,14 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 9 |     let mut out = values
       local.get $t0
       call $rt:release_ref
     end
     local.get $values
   )
   (func $cursor_then_push (param $values i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $t0 i32) (local $first.1 i32) (local $t2 i32) (local $t3 i32)
-    ;; (no span)
+    ;; 15 |     let mut items = values
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -128,7 +128,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 15 |     let mut items = values
       local.get $values
       local.tee $values
     ;; 16 |     let mut cursor = items.iter()
@@ -155,7 +154,7 @@
       i32.store $heap offset=4
       local.get $first.1
       local.set $t1
-    ;; (no span)
+    ;; 15 |     let mut items = values
       local.get $values
       call $rt:list_unique
       local.tee $values
@@ -195,7 +194,7 @@
       local.set $first.1
       local.set $s.1
       local.set $s.0
-    ;; (no span)
+    ;; 15 |     let mut items = values
       local.get $t1
       if
         local.get $t1
@@ -242,7 +241,7 @@
         local.set $t1
         br 0
       end
-    ;; (no span)
+    ;; 15 |     let mut items = values
       local.get $s.0
       local.get $s.1
       local.get $first.1

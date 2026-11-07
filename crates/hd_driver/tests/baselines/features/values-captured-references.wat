@@ -41,8 +41,8 @@
     local.get $env
   )
   (func $local (param $xs i32) (result i32) (local $t0 i32)
-    block
     ;; 25 |     apply(fn() -> usize: xs.len())
+    block
       i32.const 0
       i32.const 4
       i32.const 2
@@ -60,7 +60,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $t0
       call $rt:release_ref
     end
@@ -78,8 +77,8 @@
     local.get $f.0
   )
   (func $demo (param $s.0 i32) (param $s.1 i32) (result i32) (local $step.1 i32)
-    block
     ;; 15 |     origin := box(Point { name: s, x: 0 })
+    block
       i32.const 12
       i32.const 4
       call $rt:new/class-2
@@ -109,12 +108,12 @@
       local.get $s.1
       call_indirect $table0 (param i32 i32)
       local.get $step.1
-    ;; (no span)
+    ;; 15 |     origin := box(Point { name: s, x: 0 })
       call $rt:release_ref
     ;; 19 |     origin.x
       local.get $s.0
       i32.load $heap offset=8
-    ;; (no span)
+    ;; 15 |     origin := box(Point { name: s, x: 0 })
       local.get $s.0
       call $rt:release_ref
       local.set $s.0
@@ -122,8 +121,8 @@
     local.get $s.0
   )
   (func $bump (param $p i32) (result i32 i32) (local $t0 i32)
-    block
     ;; 12 |     fn() -> void: p.x = p.x + 1
+    block
       i32.const 4
       i32.const 4
       i32.const -2147483642
@@ -133,7 +132,6 @@
       i32.store $heap
       local.get $t0
       call $rt:retain_fields
-    ;; (no span)
       local.set $p
     end
     local.get $p

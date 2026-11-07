@@ -16,8 +16,8 @@
     local.get $by.0
   )
   (func $difference (param $reverse i32) (param $left i32) (param $right i32) (result i32)
-    block
     ;; 12 |     by := if reverse: fn(a: &i32, b: &i32): *b - *a else: fn(a: &i32, b: &i32): *a - *b
+    block
       local.get $reverse
       if
         i32.const 0
@@ -32,7 +32,7 @@
       local.get $left
       local.get $right
       call $apply
-    ;; (no span)
+    ;; 12 |     by := if reverse: fn(a: &i32, b: &i32): *b - *a else: fn(a: &i32, b: &i32): *a - *b
       local.set $reverse
     end
     local.get $reverse

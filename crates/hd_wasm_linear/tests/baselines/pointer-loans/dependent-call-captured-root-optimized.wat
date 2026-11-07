@@ -22,7 +22,7 @@
     local.get $p
   )
   (func $borrow_then_change (result i32 i32) (local $ps i32) (local $change.0 i32) (local $t0 i32) (local $change.1 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
-    ;; (no span)
+    ;; 11 |     let mut ps = [box(P { name: "a" })]
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -53,7 +53,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 11 |     let mut ps = [box(P { name: "a" })]
       i32.const 8
       i32.const 2
       call $rt:new/class-1'1
@@ -157,7 +156,7 @@
       local.get $change.1
       i32.const 0
       call $borrow_then_change#1
-    ;; (no span)
+    ;; 11 |     let mut ps = [box(P { name: "a" })]
       local.get $change.1
       call $rt:release_ref
       local.get $ps
@@ -174,7 +173,7 @@
       i32.load $heap offset=4
       local.tee $change.0
       call $rt:retain
-    ;; (no span)
+    ;; 11 |     let mut ps = [box(P { name: "a" })]
       local.get $t1
       if
         local.get $t1
@@ -197,7 +196,8 @@
         local.get $t3
         i32.const 1
         i32.eq
-        ;; ...
+        if
+        end
         i32.const 0
         local.set $t1
       end
@@ -223,7 +223,8 @@
         local.get $t3
         i32.const 1
         i32.eq
-        ;; ...
+        if
+        end
         i32.const 0
         local.set $t1
       end
@@ -250,7 +251,8 @@
       local.get $t3
       i32.const 1
       i32.eq
-      ;; ...
+      if
+      end
     end
     local.get $ps
     local.get $change.0

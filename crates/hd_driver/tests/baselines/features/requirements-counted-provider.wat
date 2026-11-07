@@ -2,20 +2,24 @@
 (module
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "rt:poll_check" (func $rt:poll_check (param i32) (result i32)))
+  (import "fixture" "rt:cancel_enter" (func $rt:cancel_enter (result i32)))
+  (import "fixture" "rt:cancel_check" (func $rt:cancel_check (param i32) (result i32)))
+  (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
+  (import "fixture" "rt:frame" (func $rt:frame (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 9 funcref))
   (func $holder (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32)
-    block
     ;; 18 |     Holder { store: $.use(Store) }
+    block
       local.get $provider0
       call $retain
     end
-    ;; (no span)
     local.get $provider0
     local.get $provider0.vtable
   )
-  (func $fetch (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t1 i32) (local $t2 i32) (local $t0 i32)
-    ;; (no span)
+  (func $fetch'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t1 i32) (local $t2 i32) (local $t0 i32)
+    ;; 21 |     $.use(Store).get().len()
     local.get $frame
     if
       local.get $frame
@@ -47,7 +51,6 @@
     else
     end
     block
-    ;; 21 |     $.use(Store).get().len()
       local.get $provider0
       local.get $provider0.vtable
       i32.load $heap
@@ -61,7 +64,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $t2
       call $rt:release_ref
     end
@@ -99,13 +101,141 @@
       i32.store $heap offset=12
     end
   )
-  (func $keep (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32)
+  (func $fetch.poll (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
+    ;; 21 |     $.use(Store).get().len()
+    local.get $t0
+    call $rt:poll_check
+    if
+      i32.const 0
+      i32.const 0
+      return
+    end
+    local.get $t0
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const 1
+    i32.or
+    i32.store $heap offset=12
+    local.get $t0
+    i32.const 0
+    i32.const 0
+    call $fetch'1
+    local.set $t1
+    local.set $t2
+    local.get $t0
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const -2
+    i32.and
+    i32.store $heap offset=12
+    local.get $t1
+    i32.eqz
+    if
+      local.get $t0
+      local.get $t0
+      i32.load $heap offset=12
+      i32.const 4
+      i32.or
+      i32.store $heap offset=12
+      i32.const 1
+      local.get $t2
+      return
+    end
+    i32.const 0
+    i32.const 0
+    return
+  )
+  (func $fetch.cancel (param $t1 i32) (local $t0 i32) (local $t2 i32)
+    ;; 21 |     $.use(Store).get().len()
+    call $rt:cancel_enter
+    local.set $t0
     block
+      local.get $t1
+      call $rt:cancel_check
+      i32.eqz
+      br_if 0
+      local.get $t1
+      i32.load $heap offset=8
+      i32.eqz
+      br_if 0
+      local.get $t1
+      local.get $t1
+      i32.load $heap offset=12
+      i32.const 16
+      i32.or
+      i32.store $heap offset=12
+      local.get $t1
+      i32.const 0
+      i32.const 0
+      call $fetch'1
+      local.set $t2
+      drop
+      local.get $t2
+      i32.eqz
+      if
+        local.get $t1
+        local.get $t1
+        i32.load $heap offset=12
+        i32.const -17
+        i32.and
+        i32.store $heap offset=12
+      end
+    end
+    local.get $t1
+    local.get $t0
+    call $rt:cancel_leave
+  )
+  (func $fetch.drop (param $t0 i32)
+    ;; 21 |     $.use(Store).get().len()
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const 64
+    i32.and
+    i32.eqz
+    if
+      local.get $t0
+      i32.load $heap offset=40
+      call $rt:release_ref
+      local.get $t0
+      i32.load $heap offset=48
+      call $rt:release_ref
+      local.get $t0
+      i32.load $heap offset=64
+      call $rt:release_ref
+      local.get $t0
+      i32.load $heap offset=72
+      call $rt:release_ref
+    end
+    local.get $t0
+    i32.load $heap offset=24
+    call $rt:release_ref
+    local.get $t0
+    i32.load $heap offset=16
+    if
+      local.get $t0
+      i32.load $heap offset=16
+      call $rt:release_ref
+    end
+  )
+  (func $fetch'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
+    ;; 21 |     $.use(Store).get().len()
+    call $rt:frame
+    local.tee $t0
+    local.get $t1
+    i32.store $heap offset=24
+    local.get $t0
+    local.get $t2
+    i32.store $heap offset=28
+    local.get $t1
+    call $retain
+    local.get $t0
+  )
+  (func $keep (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32)
     ;; 15 |     $.use(Store)
+    block
       local.get $provider0
       call $retain
     end
-    ;; (no span)
     local.get $provider0
     local.get $provider0.vtable
   )

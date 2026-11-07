@@ -8,25 +8,25 @@
 # once at the push.
 fn doubled(values: List[string]) -> List[string]:
     let mut out = values
-    for v in out:
 > app/main/doubled
+>   release List[string] (last use)
+    for v in out:
 >   copy List[string] (second owner)
 >   unique List[string] (conservative: unique)
         out.push(v)
 >   retain string (stored)
->   (no span) release List[string] (last use)
     out
 
 fn cursor_then_push(values: List[string], s: string) -> usize:
     let mut items = values
-    let mut cursor = items.iter()
 > app/main/cursor_then_push
+>   unique List[string] (conservative: unique)
+>   release std.iter.ListIter[string] [items] (last use)
+>   release string? (last use)
+>   release List[string] (last use)
+    let mut cursor = items.iter()
 >   copy List[string] (stored)
     items.push(s)
     match cursor.next():
         .Some(first) => first.len() + items.len()
         .None => items.len()
->   (no span) unique List[string] (conservative: unique)
->   (no span) release std.iter.ListIter[string] [items] (last use)
->   (no span) release string? (last use)
->   (no span) release List[string] (last use)

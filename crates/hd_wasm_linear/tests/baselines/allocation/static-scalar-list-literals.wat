@@ -5,8 +5,8 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $local (result f64) (local $t1 f64) (local $values i32) (local $t0 i32)
-    block
     ;; 10 |     values := [1.5, 2.5, 3.5]
+    block
       i32.const 3
       call $rt:list_buf
       local.tee $values
@@ -35,7 +35,7 @@
       end
       local.get $values
       f64.load $heap offset=32
-    ;; (no span)
+    ;; 10 |     values := [1.5, 2.5, 3.5]
       local.get $values
       call $rt:release_ref
       local.set $t1

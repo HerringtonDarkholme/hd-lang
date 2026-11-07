@@ -15,14 +15,13 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 12 funcref))
   (func $list_write (param $xs i32) (param $i i32) (param $s.0 i32) (param $s.1 i32)
+    ;; 17 |     xs[i] = s
     block
-    ;; (no span)
       local.get $xs
       local.get $xs
       i32.load $heap
       call $rt:list_unique
       i32.store $heap
-    ;; 17 |     xs[i] = s
       local.get $xs
       i32.load $heap
       local.set $xs
@@ -51,8 +50,8 @@
     end
   )
   (func $map_write (param $m i32) (param $k.0 i32) (param $k.1 i32) (param $v.0 i32) (param $v.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+    ;; 25 |     m[k] = v
     block
-    ;; (no span)
       local.get $m
       i32.load $heap
       call $rt:map_unique
@@ -61,7 +60,6 @@
       local.get $t0
       i32.store $heap
       local.get $t0
-    ;; 25 |     m[k] = v
       local.get $k.0
       local.get $k.1
       call $rt:map_hash
@@ -73,9 +71,7 @@
       local.get $k.0
       call $retain
       local.get $m
-    ;; (no span)
       local.get $t0
-    ;; 25 |     m[k] = v
       local.get $t1
       local.get $t2
       local.get $k.0
@@ -87,8 +83,8 @@
     end
   )
   (func $uniq_read (param $xs i32) (param $i i32) (result i32)
-    block
     ;; 28 |     match xs.get_ref(i):
+    block
       block
         block
           local.get $i
@@ -146,12 +142,11 @@
         br 0
       end
     end
-    ;; (no span)
     local.get $xs
   )
   (func $map_read (param $m i32) (param $k.0 i32) (param $k.1 i32) (result i32) (local $t1 i32) (local $t0 i32) (local $v.1 i32) (local $t2 i32)
-    block
     ;; 20 |     match m.get(k):
+    block
       local.get $m
       local.get $k.0
       local.get $k.1
@@ -219,7 +214,6 @@
         end
         br 0
       end
-    ;; (no span)
       local.get $t1
       local.get $t0
       local.get $v.1
@@ -230,8 +224,8 @@
     local.get $m
   )
   (func $uniq_write (param $xs i32) (param $i i32) (param $s.0 i32) (param $s.1 i32) (local $t0 i32)
-    block
     ;; 33 |     match xs.get_mut(i):
+    block
       block
         block
           local.get $i
@@ -303,8 +297,8 @@
     end
   )
   (func $list_take (param $xs i32) (param $i i32) (result i32 i32) (local $t0 i32)
-    block
     ;; 14 |     xs[i]
+    block
       local.get $i
       local.get $xs
       i32.load $heap offset=4
@@ -325,7 +319,6 @@
       local.set $t0
       local.tee $i
       call $retain
-    ;; (no span)
       local.get $xs
       call $rt:release_ref'2
       local.get $i
@@ -337,8 +330,8 @@
     local.get $i
   )
   (func $list_read (param $xs i32) (param $i i32) (result i32)
-    block
     ;; 11 |     xs[i].len()
+    block
       local.get $i
       local.get $xs
       i32.load $heap offset=4
@@ -364,7 +357,6 @@
         end
       end
     end
-    ;; (no span)
     local.get $xs
   )
 )

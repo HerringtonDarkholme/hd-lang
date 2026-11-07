@@ -8,8 +8,8 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $names (param $xs i32) (result i32 i32)
-    block
     ;; 7 |     xs.iter()
+    block
       local.get $xs
       i32.load $heap
       local.set $xs
@@ -22,12 +22,11 @@
         end
       end
     end
-    ;; (no span)
     local.get $xs
     i32.const 0
   )
   (func $count_long (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32) (local $x.1 i32) (local $t4 i32)
-    ;; (no span)
+    ;; 10 |     let n: usize = 0
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -131,7 +130,7 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 10 |     let n: usize = 0
       local.get $xs
       if
         local.get $xs
@@ -140,7 +139,7 @@
       end
     ;; 13 |     n
       local.get $n
-    ;; (no span)
+    ;; 10 |     let n: usize = 0
       local.set $xs
     end
     local.get $xs

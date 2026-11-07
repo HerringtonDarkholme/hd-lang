@@ -9,7 +9,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $read_len (param $t1 i32) (param $i i32) (result i32) (local $t0 i32) (local $n i32)
-    ;; (no span)
+    ;; 21 |     n[i].len()
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -49,7 +49,6 @@
     local.get $t1
     i32.store $heap
     block
-    ;; 21 |     n[i].len()
       block
         block
           local.get $n
@@ -77,7 +76,6 @@
       local.get $t1
       call $"impl string.len"
       local.set $t1
-    ;; (no span)
       local.get $n
       if
         local.get $n
@@ -102,8 +100,8 @@
     end
   )
   (func $"impl Index [ usize ] for Names.index" (param $self i32) (param $key i32) (result i32)
-    block
     ;; 14 |         &self.items[key]
+    block
       local.get $self
       i32.load $heap
       local.set $self
@@ -122,14 +120,13 @@
       i32.add
       i32.const 16
       i32.add
-    ;; (no span)
       local.set $self
     end
     local.get $self
   )
   (func $"impl IndexSet [ usize , string ] for Names.index_set" (param $self i32) (param $key i32) (param $value.0 i32) (param $value.1 i32)
-    block
     ;; 18 |         self.items[key] = value
+    block
       local.get $self
       i32.load $heap
       local.set $self
@@ -158,7 +155,7 @@
     end
   )
   (func $generic_first (param $xs i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    ;; (no span)
+    ;; 30 |     first(xs).len()
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -189,7 +186,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 30 |     first(xs).len()
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -237,14 +233,12 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $xs
       if
         local.get $xs
         i32.load $heap
         call $rt:release_ref'1
       end
-    ;; 30 |     first(xs).len()
       block
         block
           local.get $t2
@@ -252,7 +246,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $t1
       call $rt:release_ref'2
     end

@@ -141,7 +141,7 @@ fn body_func<'a>(
     if sub == 0 && !suspending && own.cold.is_none() && input.runtime.is_some() {
         em.plan_slots(&roots)?;
     }
-    em.origin_root = b.sub_root[sub as usize];
+    em.origin_root = b.anchor(b.sub_root[sub as usize]);
     // Every body is the ownership passes' output, whose counts emission
     // follows (`docs/compiler/tir-v2.md`, "Stage 2").
     if b.tags
@@ -253,7 +253,7 @@ fn body_func<'a>(
         em.f.origins = Some(Vec::new());
         em.f.set_origin_source_len(b.anchor_len());
         em.f.origin_item = Some((input.path)(b.item));
-        em.f.origin_root = Some(b.sub_root[sub as usize]);
+        em.f.origin_root = Some(b.anchor(b.sub_root[sub as usize]));
         em.f.origin_at = em.f.origin_root;
         em.f.reason = Some(Reason::Conservative("entry"));
         em.f.local_names = Some(BTreeMap::new());
@@ -1254,7 +1254,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             inst_ty: hd_mono::instruction_types(input.pool, input.env, item, args, b),
             item,
             direct_json,
-            origin_root: b.sub_root[0],
+            origin_root: b.anchor(b.sub_root[0]),
             args,
             calls,
             f,

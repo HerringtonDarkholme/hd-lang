@@ -9,8 +9,8 @@
     local.get $value.1
   )
   (func $name_len (param $s.0 i32) (param $s.1 i32) (result i32)
-    block
     ;; 19 |     Name::from(s).text.len()
+    block
       block
         block
           br 0
@@ -23,7 +23,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $s.0
       call $rt:release_ref
       local.get $s.1
@@ -32,15 +31,14 @@
     local.get $s.0
   )
   (func $convert (param $s.0 i32) (param $s.1 i32) (result i32 i32)
-    block
     ;; 16 |     Name::from(s)
+    block
       block
         block
           br 0
         end
       end
     end
-    ;; (no span)
     local.get $s.0
     local.get $s.1
   )

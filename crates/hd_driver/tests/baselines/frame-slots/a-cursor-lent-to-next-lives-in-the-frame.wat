@@ -5,7 +5,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $total (param $items.at i64) (param $items.end i64) (result i64) (local $cursor i32) (local $t0 i32) (local $t1 i32)
-    ;; (no span)
+    ;; 20 |     let mut cursor = items
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -36,7 +36,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 20 |     let mut cursor = items
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -97,8 +96,8 @@
           br 0
         end
       end
+    ;; 20 |     let mut cursor = items
     end
-    ;; (no span)
     local.get $items.at
     local.get $t0
     i32.const 24

@@ -40,8 +40,8 @@
     end
   )
   (func $by_ref'1 (param $s i32) (result i32) (local $t0 i32) (local $t1 i32)
-    block
     ;; 13 |     (s.len() + 1) * (s.len() + 2) * (s.len() + 3) * (s.len() + 4) / (s.len() + 5)
+    block
       block
         block
           local.get $s
@@ -116,14 +116,13 @@
       end
       local.get $s
       i32.div_u
-    ;; (no span)
       local.set $s
     end
     local.get $s
   )
   (func $by_value (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
-    block
     ;; 10 |     (s.len() + 1) * (s.len() + 2) * (s.len() + 3) * (s.len() + 4) / (s.len() + 5)
+    block
       block
         block
           local.get $s.1
@@ -191,14 +190,13 @@
       end
       local.get $s.0
       i32.div_u
-    ;; (no span)
       local.set $s.0
     end
     local.get $s.0
   )
   (func $by_ptr (param $n i32) (result i32) (local $t0 i32) (local $t1 i32)
-    block
     ;; 19 |     (n.name.len() + 1) * (n.name.len() + 2) * (n.name.len() + 3) / (n.name.len() + 5)
+    block
       local.get $n
       i32.load $heap
       local.get $n
@@ -271,13 +269,12 @@
       end
       local.get $n
       i32.div_u
-    ;; (no span)
       local.set $n
     end
     local.get $n
   )
   (func $calls (param $s.0 i32) (param $s.1 i32) (param $n i32) (result i32) (local $t i32) (local $t0 i32)
-    ;; (no span)
+    ;; 22 |     let mut t = s
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -308,7 +305,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 22 |     let mut t = s
       local.get $s.0
       call $retain
       local.get $t0
@@ -333,7 +329,7 @@
       local.get $s.0
       local.get $s.1
       call $by_ref'2
-    ;; (no span)
+    ;; 22 |     let mut t = s
       local.get $s.0
       call $rt:release_ref
     ;; 24 |     by_value(s) + by_ref(&s) + by_value(t) + by_ptr(n)
@@ -352,7 +348,7 @@
       local.tee $s.1
       local.get $s.0
       call $by_value
-    ;; (no span)
+    ;; 22 |     let mut t = s
       local.get $s.1
       call $rt:release_ref
     ;; 24 |     by_value(s) + by_ref(&s) + by_value(t) + by_ptr(n)
@@ -360,7 +356,7 @@
       local.get $n
       call $by_ptr
       i32.add
-    ;; (no span)
+    ;; 22 |     let mut t = s
       local.set $s.0
     end
     local.get $s.0
@@ -370,8 +366,8 @@
     global.set $locals
   )
   (func $by_ref'2 (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
-    block
     ;; 13 |     (s.len() + 1) * (s.len() + 2) * (s.len() + 3) * (s.len() + 4) / (s.len() + 5)
+    block
       block
         block
           local.get $s.1
@@ -441,7 +437,6 @@
       end
       local.get $s.0
       i32.div_u
-    ;; (no span)
       local.set $s.0
     end
     local.get $s.0

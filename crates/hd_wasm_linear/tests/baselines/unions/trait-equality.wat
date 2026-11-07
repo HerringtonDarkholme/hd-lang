@@ -6,7 +6,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $same (param $right i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (param $t5 i32) (result i32) (local $t0 i32) (local $left i32)
-    ;; (no span)
+    ;; 7 |     left == right
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -67,12 +67,10 @@
     local.get $t5
     i32.store $heap offset=8
     block
-    ;; 7 |     left == right
       local.get $left
       local.get $right
       call $"impl [ T < ? Copy & UnionType ] Eq for T by Structure.eq[i32 | string]"
       local.set $t1
-    ;; (no span)
       local.get $left
       if
         local.get $left

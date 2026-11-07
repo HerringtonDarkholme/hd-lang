@@ -14,8 +14,8 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 13 funcref))
   (func $"impl Disposable for Res.dispose" (param $self i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
-    block
     ;; 16 |         self.log.push(self.name)
+    block
       local.get $self
       i32.load $heap
       local.get $self
@@ -23,7 +23,6 @@
       local.set $t0
       local.tee $t1
       call $retain
-    ;; (no span)
       local.get $self
       i32.load $heap offset=8
       i32.load $heap
@@ -34,7 +33,6 @@
       local.get $t2
       i32.store $heap
       local.get $t2
-    ;; 16 |         self.log.push(self.name)
       i32.load $heap offset=4
       local.tee $t3
       local.get $t2
@@ -69,8 +67,8 @@
     end
   )
   (func $with_using (param $log i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
-    block
     ;; 23 |     using r = box(Res { name: s, log: log })
+    block
       block
         local.get $s.0
         local.get $log
@@ -119,7 +117,6 @@
         i32.add
         global.set $forbid
       end
-    ;; (no span)
       local.get $s.1
       call $rt:release_ref'1
       local.get $s.0
@@ -128,7 +125,7 @@
     local.get $log
   )
   (func $with_defer (param $log i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
-    ;; (no span)
+    ;; 19 |     defer(fn() -> void: log.push(s))
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -159,7 +156,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 19 |     defer(fn() -> void: log.push(s))
       block
         i32.const 3
         i32.const 12
@@ -235,7 +231,6 @@
         i32.add
         global.set $forbid
       end
-    ;; (no span)
       local.get $t1
       if
         local.get $t1

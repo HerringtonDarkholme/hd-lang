@@ -7,21 +7,21 @@
 fn pick(c: bool, a: string, b: string) -> string:
     if c: a else: b
 > app/main/pick
->   (no span) release string (last use)
->   (no span) release string (last use)
+>   release string (last use)
+>   release string (last use)
 
 fn pick_len(c: bool, a: string, b: string) -> usize:
     s := if c: a else: b
-    s.len()
 > app/main/pick_len
->   (no span) release string (last use)
->   (no span) release string (last use)
->   (no span) release string (last use)
+>   release string (last use)
+>   release string (last use)
+>   release string (last use)
+    s.len()
 
 fn pick_match(k: i64, a: string, b: string) -> string:
     match k:
+> app/main/pick_match
+>   release string (last use)
+>   release string (last use)
         0 => a
         _ => b
-> app/main/pick_match
->   (no span) release string (last use)
->   (no span) release string (last use)

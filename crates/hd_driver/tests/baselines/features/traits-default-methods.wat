@@ -9,8 +9,8 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $"Describe.headline[Logger]'1" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
-    block
     ;; 12 |         "* " + self.describe()
+    block
       block
         block
           local.get $self
@@ -39,13 +39,10 @@
       local.get $self
       local.get $t0
       call $rt:memory_copy/0/0
-    ;; (no span)
       local.get $self
       call $rt:release_ref
-    ;; 12 |         "* " + self.describe()
       local.get $t2
       local.get $t1
-    ;; (no span)
       local.set $t0
       local.set $self
     end
@@ -53,8 +50,8 @@
     local.get $t0
   )
   (func $"Describe.headline[Logger]'2" (param $self.name.0 i32) (param $self.name.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    block
     ;; 12 |         "* " + self.describe()
+    block
       block
         block
           local.get $self.name.0
@@ -78,13 +75,10 @@
       local.get $self.name.0
       local.get $self.name.1
       call $rt:memory_copy/0/0
-    ;; (no span)
       local.get $self.name.0
       call $rt:release_ref
-    ;; 12 |         "* " + self.describe()
       local.get $t1
       local.get $t0
-    ;; (no span)
       local.set $self.name.1
       local.set $self.name.0
     end
@@ -92,7 +86,7 @@
     local.get $self.name.1
   )
   (func $qualified (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $l i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
-    ;; (no span)
+    ;; 31 |     Describe::headline(&l).len()
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -135,7 +129,6 @@
     local.get $t2
     i32.store $heap offset=4
     block
-    ;; 31 |     Describe::headline(&l).len()
       block
         block
           local.get $l
@@ -177,20 +170,17 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $l
       if
         local.get $l
         i32.load $heap
         call $rt:release_ref
       end
-    ;; 31 |     Describe::headline(&l).len()
       block
         block
           br 0
         end
       end
-    ;; (no span)
       local.get $t1
       call $rt:release_ref
       local.get $t2
@@ -203,8 +193,8 @@
     global.set $locals
   )
   (func $direct (param $l.name.0 i32) (param $l.name.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    block
     ;; 22 |     l.headline().len()
+    block
       block
         block
           block
@@ -242,7 +232,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $l.name.0
       call $rt:release_ref
       local.get $l.name.1
@@ -265,8 +254,8 @@
     local.get $t0
   )
   (func $use_generic (param $l.name.0 i32) (param $l.name.1 i32) (result i32) (local $t0 i32)
-    block
     ;; 28 |     generic(l)
+    block
       local.get $l.name.0
       local.set $l.name.0
       block
@@ -284,7 +273,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $l.name.0
       call $rt:release_ref
       local.get $l.name.1

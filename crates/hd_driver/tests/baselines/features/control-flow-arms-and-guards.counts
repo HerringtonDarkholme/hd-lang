@@ -22,11 +22,11 @@ fn pick(t: Tag) -> string:
 
 fn whole(o: string?) -> usize:
     match o:
-        .Some(s) if s.len() > 0 => s.len()
 > app/main/whole
+>   release string? (last use)
+>   release string? (last use)
+        .Some(s) if s.len() > 0 => s.len()
 >   retain string? (conservative: copy read)
 >   retain string? (conservative: copy read)
         other =>
             if other.is_some(): 1 else: 0
->   (no span) release string? (last use)
->   (no span) release string? (last use)

@@ -8,6 +8,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $unused (param $s.0 i32) (param $s.1 i32) (result i32)
+    ;; 19 |     _kept := s
     block
     ;; 20 |     s.len()
       block
@@ -17,13 +18,13 @@
           br 0
         end
       end
+    ;; 19 |     _kept := s
     end
-    ;; (no span)
     local.get $s.0
   )
   (func $save (param $s.0 i32) (param $s.1 i32) (result i32 i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    block
     ;; 11 |     if s.len() > 0: .Ok(s + "!") else: .Err(SaveError.Failed("empty"))
+    block
       block
         block
           local.get $s.1
@@ -67,7 +68,6 @@
         local.set $t0
         local.set $s.1
       end
-    ;; (no span)
       local.set $s.0
     end
     local.get $s.0
@@ -76,8 +76,8 @@
     local.get $t1
   )
   (func $discard (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t4 i32) (local $t2 i32) (local $t3 i32) (local $t5 i32)
-    block
     ;; 14 |     _ := save(s)
+    block
       local.get $s.0
       call $retain
       block
@@ -127,7 +127,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $t0
       local.get $t1
       local.get $t4
@@ -185,7 +184,7 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 14 |     _ := save(s)
       local.get $s.0
       call $rt:release_ref
     ;; 15 |     let _ = save(s)
@@ -196,7 +195,7 @@
         end
         br 0
       end
-    ;; (no span)
+    ;; 14 |     _ := save(s)
       local.get $t0
       local.get $t1
       local.get $t4
@@ -208,7 +207,7 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 14 |     _ := save(s)
       local.get $s.0
       call $rt:release_ref
       local.get $s.1

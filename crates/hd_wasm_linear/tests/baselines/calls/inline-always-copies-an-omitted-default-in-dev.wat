@@ -21,7 +21,6 @@
         br 0
       end
     end
-    ;; (no span)
     local.get $t0
   )
 )

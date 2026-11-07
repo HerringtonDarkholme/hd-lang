@@ -21,18 +21,20 @@ impl Iterator[string] for Words:
 
 fn user_cursor(words: Words) -> usize:
     let n: usize = 0
-    for w in words:
 > app/main/user_cursor
+>   release app.main.Words [items] (last use)
+    for w in words:
 >   release string? (last use)
 >   release string? (last use)
         n += w.len()
     n
->   (no span) release app.main.Words [items] (last use)
 
 fn twice(xs: List[string]) -> usize:
     let n: usize = 0
-    for x in xs.iter():
 > app/main/twice
+>   release std.iter.ListIter[string] [items] (last use)
+>   release std.iter.ListIter[string] [items] (last use)
+    for x in xs.iter():
 >   copy List[string] (stored)
 >   release string? (last use)
 >   release string? (last use)
@@ -42,5 +44,3 @@ fn twice(xs: List[string]) -> usize:
 >   release string? (last use)
         n += x.len()
     n
->   (no span) release std.iter.ListIter[string] [items] (last use)
->   (no span) release std.iter.ListIter[string] [items] (last use)

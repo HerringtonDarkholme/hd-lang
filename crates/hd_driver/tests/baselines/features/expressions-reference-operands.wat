@@ -69,9 +69,8 @@
     local.get $a
   )
   (func $arith (param $x i32) (param $y i32) (result i64) (local $t0 i64)
-    ;; 14 |     total += y
-    block
     ;; 13 |     let total = x * 2 + 1
+    block
       local.get $x
       i64.load $heap
       i64.const 2
@@ -82,6 +81,7 @@
       local.get $y
       i64.load $heap
       i64.add
+    ;; 13 |     let total = x * 2 + 1
       local.set $t0
     end
     local.get $t0

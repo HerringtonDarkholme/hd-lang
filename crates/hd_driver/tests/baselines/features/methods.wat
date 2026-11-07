@@ -31,8 +31,8 @@
     local.get $self
   )
   (func $"impl Shelf.by_mut" (param $self i32) (param $b.0 i32) (param $b.1 i32) (local $t0 i32) (local $t1 i32)
+    ;; 17 |         self.books.push(b)
     block
-    ;; (no span)
       local.get $self
       i32.load $heap
       call $rt:list_unique
@@ -41,7 +41,6 @@
       local.get $t0
       i32.store $heap
       local.get $t0
-    ;; 17 |         self.books.push(b)
       i32.load $heap offset=4
       local.tee $t1
       local.get $t0
@@ -107,7 +106,7 @@
     local.get $self
   )
   (func $use_methods (param $s i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t i32) (local $t0 i32) (local $t1 i32)
-    ;; (no span)
+    ;; 23 |     let mut t = s
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -138,7 +137,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 23 |     let mut t = s
       local.get $s
       call $rt:coll_copy
       local.set $t
@@ -202,7 +200,7 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 23 |     let mut t = s
       local.get $s
       call $rt:release_ref
     ;; 25 |     s.by_self() + s.by_ref() + t.consume().len()
@@ -224,14 +222,14 @@
       local.get $b.0
       i32.load $heap offset=4
       local.set $b.1
-    ;; (no span)
+    ;; 23 |     let mut t = s
       local.get $b.0
       call $rt:release_ref
     ;; 25 |     s.by_self() + s.by_ref() + t.consume().len()
       local.get $s
       local.get $b.1
       i32.add
-    ;; (no span)
+    ;; 23 |     let mut t = s
       local.set $s
     end
     local.get $s

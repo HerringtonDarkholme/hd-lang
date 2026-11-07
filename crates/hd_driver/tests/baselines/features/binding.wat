@@ -4,7 +4,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $bind_kept (param $xs i32) (param $all i32) (local $t0 i32) (local $t1 i32)
-    ;; 18 |     all.push(ys)
+    ;; 17 |     ys := xs
     block
       local.get $all
       i32.load $heap
@@ -14,6 +14,7 @@
       local.get $t0
       i32.store $heap
       local.get $t0
+    ;; 18 |     all.push(ys)
       i32.load $heap offset=4
       local.tee $t1
       local.get $t0
@@ -40,11 +41,13 @@
       i32.const 1
       i32.add
       i32.store $heap offset=4
+    ;; 17 |     ys := xs
     end
   )
   (func $bind (param $s.0 i32) (param $s.1 i32) (result i32)
-    ;; 10 |     u.len()
+    ;; 8 |     t := s
     block
+    ;; 10 |     u.len()
       block
         block
           local.get $s.1
@@ -52,17 +55,20 @@
           br 0
         end
       end
+    ;; 8 |     t := s
     end
     local.get $s.0
   )
   (func $bind_twice (param $xs i32) (result i32)
-    ;; 14 |     ys.len() + xs.len()
+    ;; 13 |     ys := xs
     block
+    ;; 14 |     ys.len() + xs.len()
       local.get $xs
       i32.load $heap offset=4
       local.get $xs
       i32.load $heap offset=4
       i32.add
+    ;; 13 |     ys := xs
       local.set $xs
     end
     local.get $xs

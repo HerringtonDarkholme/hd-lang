@@ -2,15 +2,13 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $recursive (result i32 i32) (local $t0 i32)
+  (func $recursive (result i32 i32)
     block
     ;; 6 |     sum := fn(n: i32) -> i32:
       i32.const 0
-    ;; (no span)
-      local.set $t0
+      ;; ...
     end
-    local.get $t0
-    i32.const 0
+    ;; ...
   )
   (func $recursive#1 (param $env i32) (param $n i32) (param $ctx i32) (result i32) (local $t0 i64)
     ;; 6 |     sum := fn(n: i32) -> i32:

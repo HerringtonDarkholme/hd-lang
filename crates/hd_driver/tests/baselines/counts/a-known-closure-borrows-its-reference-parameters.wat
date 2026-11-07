@@ -14,6 +14,7 @@
     local.get $env
   )
   (func $total (param $left i32) (param $right i32) (result i32)
+    ;; 6 |     by := fn(a: &i32, b: &i32): *a + *b
     block
     ;; 7 |     by(left, right)
       i32.const 0
@@ -21,7 +22,7 @@
       local.get $right
       i32.const 0
       call $total#1
-    ;; (no span)
+    ;; 6 |     by := fn(a: &i32, b: &i32): *a + *b
       local.set $left
     end
     local.get $left

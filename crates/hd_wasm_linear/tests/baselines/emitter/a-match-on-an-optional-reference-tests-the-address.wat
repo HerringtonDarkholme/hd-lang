@@ -5,8 +5,8 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
   (func $depth (param $node i32) (result i32)
-    block
     ;; 9 |     match node.next:
+    block
       local.get $node
       i32.load $heap
       local.set $node
@@ -55,7 +55,6 @@
         br 0
       end
     end
-    ;; (no span)
     local.get $node
   )
 )

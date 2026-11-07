@@ -14,8 +14,8 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 7 funcref))
   (func $put (param $m i32) (param $k.0 i32) (param $k.1 i32) (param $v.0 i32) (param $v.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+    ;; 15 |     m[k] = v
     block
-    ;; (no span)
       local.get $m
       i32.load $heap
       call $rt:map_unique'1
@@ -24,7 +24,6 @@
       local.get $t0
       i32.store $heap
       local.get $t0
-    ;; 15 |     m[k] = v
       local.get $k.0
       local.get $k.1
       call $rt:map_hash
@@ -36,9 +35,7 @@
       local.get $k.0
       call $retain
       local.get $m
-    ;; (no span)
       local.get $t0
-    ;; 15 |     m[k] = v
       local.get $t1
       local.get $t2
       local.get $k.0
@@ -50,8 +47,8 @@
     end
   )
   (func $group (param $m i32) (param $k.0 i32) (param $k.1 i32) (param $v.0 i32) (param $v.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
-    block
     ;; 18 |     m.get_or_insert(k, []).push(v)
+    block
       i32.const 80 ;; &empty-buffer
       local.set $t0
       local.get $m
@@ -135,7 +132,6 @@
         i32.add
         local.set $m
       end
-    ;; (no span)
       local.get $m
       i32.load $heap
       call $rt:list_unique
@@ -144,7 +140,6 @@
       local.get $k.0
       i32.store $heap
       local.get $k.0
-    ;; 18 |     m.get_or_insert(k, []).push(v)
       i32.load $heap offset=4
       local.tee $k.1
       local.get $k.0
@@ -178,8 +173,8 @@
     end
   )
   (func $lookup (param $m i32) (param $k.0 i32) (param $k.1 i32) (result i32) (local $t1 i32) (local $t0 i32) (local $v.1 i32) (local $t2 i32)
-    block
     ;; 10 |     match m.get(k):
+    block
       local.get $m
       i32.load $heap
       local.tee $m
@@ -249,7 +244,6 @@
         end
         br 0
       end
-    ;; (no span)
       local.get $t1
       local.get $t0
       local.get $v.1
@@ -260,8 +254,8 @@
     local.get $m
   )
   (func $has (param $m i32) (param $k.0 i32) (param $k.1 i32) (result i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t3 i32)
-    block
     ;; 21 |     m.contains_key(k)
+    block
       block
         block
           local.get $m
@@ -333,7 +327,6 @@
         end
       end
     end
-    ;; (no span)
     local.get $m
   )
 )

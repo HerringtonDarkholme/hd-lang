@@ -33,17 +33,17 @@ impl Step for Erased:
         self.source.step()
 > app/main/impl Step for Erased.step
 >   retain app.main.Step (second owner)
->   (no span) release app.main.Step (last use)
+>   release app.main.Step (last use)
 
 fn total(items: Erased) -> i64:
     let mut cursor = items
+> app/main/total
+>   release app.main.Erased [source.0] (last use)
     let sum: i64 = 0
     while true:
         match cursor.step():
             .Some(x) => sum = sum + x
             .None => break
-> app/main/total
->   (no span) release app.main.Erased [source.0] (last use)
     sum
 
 pub fn count(n: i64) -> i64:

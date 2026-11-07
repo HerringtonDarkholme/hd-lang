@@ -18,8 +18,8 @@
     local.get $t0
   )
   (func $"impl Describe for Service by Logger.describe" (param $self i32) (result i32 i32) (local $t0 i32)
-    block
     ;; 21 | impl Describe for Service by Logger
+    block
       local.get $self
       i32.load $heap
       local.get $self
@@ -34,13 +34,12 @@
         end
       end
     end
-    ;; (no span)
     local.get $self
     local.get $t0
   )
   (func $delegated (param $s.Logger.name.0 i32) (param $s.Logger.name.1 i32) (param $s.port i32) (result i32)
-    block
     ;; 24 |     s.describe().len()
+    block
       block
         block
           local.get $s.Logger.name.0
@@ -58,7 +57,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $s.Logger.name.0
       call $rt:release_ref
       local.get $s.Logger.name.1
@@ -67,8 +65,8 @@
     local.get $s.Logger.name.0
   )
   (func $explicit (param $s.Logger.name.0 i32) (param $s.Logger.name.1 i32) (param $s.port i32) (result i32)
-    block
     ;; 27 |     s.Logger.describe().len()
+    block
       local.get $s.Logger.name.0
       local.set $s.Logger.name.0
       block
@@ -81,7 +79,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $s.Logger.name.0
       call $rt:release_ref
       local.get $s.Logger.name.1

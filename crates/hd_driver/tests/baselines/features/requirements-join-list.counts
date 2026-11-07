@@ -10,13 +10,42 @@ use std.task.join
 
 fn fetch!(key: string) -> string:
     key + "?"
+> app/main/fetch
+>   release string (cancelled)
+> app/main/fetch
+>   release string (conservative: frame drop)
+>   release string (conservative: frame drop)
+>   release counted reference (conservative: frame drop)
+> app/main/fetch
+>   retain string (conservative: cold constructor)
 
 fn all!(keys: List[string]) -> usize:
     let tasks: List[mut Suspend[string]] = [for k in keys => fetch(k)]
 > app/main/all
+>   copy List[string] (conservative: entry)
 >   release List[mut Suspend[string]] (overwritten)
 >   release List[string] (overwritten)
+>   release List[string] (last use)
 >   release List[mut Suspend[string]] (overwritten)
+>   release List[mut Suspend[string]] (last use)
+>   release List[string] (last use)
+>   release List[string] (last use)
+> app/main/all
+>   release List[mut Suspend[string]] (conservative: frame drop)
+>   release List[string] (conservative: frame drop)
+>   release Suspend[string] (conservative: frame drop)
+>   release List[mut Suspend[string]] (conservative: frame drop)
+>   release List[mut Suspend[string]] (conservative: frame drop)
+>   release List[mut Suspend[string]] (conservative: frame drop)
+>   release List[string] (conservative: frame drop)
+>   release List[string] (conservative: frame drop)
+>   release List[mut Suspend[string]] (conservative: frame drop)
+>   release List[string] (conservative: frame drop)
+>   release List[mut Suspend[string]] (conservative: frame drop)
+>   release List[string] (conservative: frame drop)
+>   release counted reference (conservative: frame drop)
+> app/main/all
+>   copy List[string] (conservative: cold constructor)
     results := join!(tasks...)
 >   release counted reference (conservative: Await)
 >   release counted reference (conservative: Await)
@@ -26,8 +55,3 @@ fn all!(keys: List[string]) -> usize:
     for r in &results:
         n += r.len()
     n
->   (no span) copy List[string] (conservative: entry)
->   (no span) release List[string] (last use)
->   (no span) release List[mut Suspend[string]] (last use)
->   (no span) release List[string] (last use)
->   (no span) release List[string] (last use)

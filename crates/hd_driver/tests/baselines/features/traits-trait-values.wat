@@ -11,8 +11,8 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 10 funcref))
   (func $through_mut (param $g.0 i32) (param $g.1 i32) (param $n.0 i32) (param $n.1 i32) (result i32)
-    block
     ;; 30 |     g.rename(n)
+    block
       local.get $g.0
       call $retain
       local.get $g.0
@@ -21,14 +21,13 @@
       local.get $g.1
       i32.load $heap offset=4
       call_indirect $table0 (param i32 i32 i32)
-    ;; (no span)
       local.get $g.0
       call $rt:release_ref
     ;; 31 |     g.twice()
       local.get $g.0
       local.get $g.1
       call $"impl dyn Greet.twice"
-    ;; (no span)
+    ;; 30 |     g.rename(n)
       local.set $g.0
     end
     local.get $g.0
@@ -76,18 +75,16 @@
     local.get $t0
   )
   (func $"impl dyn Greet.twice" (param $self.0 i32) (param $self.1 i32) (result i32)
-    block
     ;; 14 |         self.greet().len() * 2
+    block
       local.get $self.0
       call $retain
       local.get $self.0
       local.get $self.1
       i32.load $heap
       call_indirect $table0 (param i32) (result i32 i32)
-    ;; (no span)
       local.get $self.0
       call $rt:release_ref
-    ;; 14 |         self.greet().len() * 2
       local.set $self.1
       local.set $self.0
       block
@@ -95,21 +92,18 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $self.0
       call $rt:release_ref
-    ;; 14 |         self.greet().len() * 2
       local.get $self.1
       i32.const 2
       i32.mul
-    ;; (no span)
       local.set $self.0
     end
     local.get $self.0
   )
   (func $boxed (param $u.name.0 i32) (param $u.name.1 i32) (result i32 i32) (local $t0 i32)
-    block
     ;; 27 |     box(u)
+    block
       i32.const 8
       i32.const 4
       call $rt:new/class-1
@@ -121,7 +115,6 @@
       i32.store $heap offset=4
       local.get $t0
       i32.const 160 ;; &vtable[func63, func64]
-    ;; (no span)
       local.set $u.name.1
       local.set $u.name.0
     end
@@ -129,7 +122,7 @@
     local.get $u.name.1
   )
   (func $local_mut (param $u.name.0 i32) (param $u.name.1 i32) (param $n.0 i32) (param $n.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
-    ;; (no span)
+    ;; 34 |     let mut v = u
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -160,7 +153,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 34 |     let mut v = u
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -185,7 +177,7 @@
       call $through_mut
       local.set $n.0
       local.get $u.name.1
-    ;; (no span)
+    ;; 34 |     let mut v = u
       call $rt:release_ref
       local.get $u.name.0
       if

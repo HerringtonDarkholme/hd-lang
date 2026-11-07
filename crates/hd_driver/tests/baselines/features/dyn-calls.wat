@@ -7,18 +7,16 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
   (func $call_dyn (param $x.0 i32) (param $x.1 i32) (result i32)
-    block
     ;; 17 |     x.name().len()
+    block
       local.get $x.0
       call $retain
       local.get $x.0
       local.get $x.1
       i32.load $heap
       call_indirect $table0 (param i32) (result i32 i32)
-    ;; (no span)
       local.get $x.0
       call $rt:release_ref
-    ;; 17 |     x.name().len()
       local.set $x.1
       local.set $x.0
       block
@@ -26,7 +24,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $x.0
       call $rt:release_ref
       local.get $x.1
@@ -35,7 +32,7 @@
     local.get $x.0
   )
   (func $make_dyn (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $d i32)
-    ;; (no span)
+    ;; 20 |     call_dyn(&d)
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -78,7 +75,6 @@
     local.get $t2
     i32.store $heap offset=4
     block
-    ;; 20 |     call_dyn(&d)
       local.get $d
       call $retain
       local.get $d
@@ -86,7 +82,6 @@
       call $call_dyn
       local.set $t1
       local.get $d
-    ;; (no span)
       call $rt:release_ref
       local.get $d
       if

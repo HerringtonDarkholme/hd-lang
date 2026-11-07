@@ -5,8 +5,8 @@
   (import "fixture" "weak[Node]" (func $"weak[Node]" (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $name_len (param $w i32) (result i32) (local $t0 i32)
-    block
     ;; 17 |     match w.upgrade():
+    block
       local.get $w
       call $"impl [ T ] Weak [ T ].upgrade[Node]"
       local.set $w
@@ -45,7 +45,6 @@
         end
         br 0
       end
-    ;; (no span)
       local.get $w
       call $rt:release
       local.get $t0

@@ -26,7 +26,7 @@ impl[T] Members[T]:
         self.infos[i].name
 > app/main/impl [ T ] Members [ T ].name_at
 >   retain string (stored)
->   (no span) release app.main.Members[i32] [infos, points] (last use)
+>   release app.main.Members[i32] [infos, points] (last use)
 
     fn y_at(self, i: usize) -> i64:
         self.points[i].y
@@ -42,7 +42,7 @@ fn name_at(infos: List[Info], i: usize) -> string:
     infos[i].name
 > app/main/name_at
 >   retain string (stored)
->   (no span) release List[app.main.Info] (last use)
+>   release List[app.main.Info] (last use)
 
 fn y_at(points: List[Point], i: usize) -> i64:
     points[i].y
@@ -62,9 +62,9 @@ fn use_generic(m: Members[i32], xs: List[Wrap[string]], i: usize) -> i64:
     name := m.name_at(i)
 > app/main/use_generic
 >   copy app.main.Members[i32] [infos, points] (stored)
+>   release string (last use)
+>   release app.main.Members[i32] [infos, points] (last use)
     if m.position_at(i) + n_at(xs, i) + name.len() > 0:
 >   copy app.main.Members[i32] [infos, points] (stored)
         return m.y_at(i)
->   (no span) release string (last use)
->   (no span) release app.main.Members[i32] [infos, points] (last use)
     0

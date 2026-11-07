@@ -20,8 +20,8 @@ impl[S] Handle[S]:
         if (self.n + 1) * (self.n + 2) * (self.n + 3) * (self.n + 4) > 0:
 > app/main/impl [ S ] Handle [ S ].keep
 >   unique List[app.main.Handle[i32]] (conservative: unique)
+>   release app.main.Handle[i32] [names, get.1] (last use)
             all.push(self)
->   (no span) release app.main.Handle[i32] [names, get.1] (last use)
 
 fn total(h: Handle[i32], times: i64) -> i64:
     let sum: i64 = 0
@@ -34,12 +34,12 @@ fn generic_total[S](h: Handle[S]) -> i64:
 
 fn collect(h: Handle[i32]) -> usize:
     let mut all: List[Handle[i32]] = []
-    h.keep(&mut all)
 > app/main/collect
+>   release List[app.main.Handle[i32]] (last use)
+    h.keep(&mut all)
 >   copy app.main.Handle[i32] [names, get.1] (stored)
     h.keep(&mut all)
     all.len()
->   (no span) release List[app.main.Handle[i32]] (last use)
 
 fn size(x: i32) -> i64:
     i64(x)

@@ -7,8 +7,8 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 10 funcref))
   (func $lexical (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
-    block
     ;; 36 |     $.with(Tag=Named { label: s }):
+    block
       local.get $s.0
       local.get $s.1
       local.set $s.1
@@ -33,9 +33,7 @@
       local.tee $s.1
       call $retain
       local.get $s.0
-    ;; (no span)
       call $rt:release_ref'1
-    ;; 36 |     $.with(Tag=Named { label: s }):
       i32.const 160 ;; &vtable[func63]
       local.set $s.0
       block
@@ -71,14 +69,13 @@
         local.get $t0
         call $rt:release_ref'2
       end
-    ;; (no span)
       local.get $s.1
       call $rt:release_ref'1
     end
     local.get $s.0
   )
   (func $lexical#1 (param $env i32) (param $ctx i32) (result i32)
-    ;; (no span)
+    ;; 38 |         apply(fn() -> usize: tag.name().len())
     local.get $env
     i32.load $heap
     local.set $ctx
@@ -86,17 +83,14 @@
     i32.load $heap offset=4
     local.set $env
     block
-    ;; 38 |         apply(fn() -> usize: tag.name().len())
       local.get $ctx
       call $retain
       local.get $ctx
       local.get $env
       i32.load $heap
       call_indirect $table0 (param i32) (result i32 i32)
-    ;; (no span)
       local.get $ctx
       call $rt:release_ref'1
-    ;; 38 |         apply(fn() -> usize: tag.name().len())
       local.set $ctx
       local.set $env
       block
@@ -104,7 +98,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $env
       call $rt:release_ref'1
       local.get $ctx
@@ -124,8 +117,8 @@
     local.get $f.0
   )
   (func $read_tag (param $provider0 i32) (param $provider0.vtable i32) (result i32)
-    block
     ;; 20 |     $.use(Tag).name().len()
+    block
       local.get $provider0
       local.get $provider0.vtable
       i32.load $heap
@@ -137,7 +130,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $provider0
       call $rt:release_ref'1
       local.get $provider0.vtable
@@ -146,8 +138,8 @@
     local.get $provider0
   )
   (func $by_value (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
-    block
     ;; 23 |     $.with(Tag=Named { label: s }):
+    block
       local.get $s.0
       local.get $s.1
       local.set $s.1
@@ -172,9 +164,7 @@
       local.tee $s.1
       call $retain
       local.get $s.0
-    ;; (no span)
       call $rt:release_ref'1
-    ;; 23 |     $.with(Tag=Named { label: s }):
       i32.const 160 ;; &vtable[func63]
       local.set $s.0
       block
@@ -185,7 +175,6 @@
     ;; 23 |     $.with(Tag=Named { label: s }):
         local.set $s.0
       end
-    ;; (no span)
       local.get $s.1
       call $rt:release_ref'1
     end
@@ -199,8 +188,8 @@
     local.get $self.label.1
   )
   (func $nested (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t0 i32)
-    block
     ;; 27 |     $.with(Tag=Named { label: a }):
+    block
       local.get $a.0
       local.get $a.1
       local.set $a.1
@@ -225,9 +214,7 @@
       local.tee $a.1
       call $retain
       local.get $a.0
-    ;; (no span)
       call $rt:release_ref'1
-    ;; 27 |     $.with(Tag=Named { label: a }):
       i32.const 160 ;; &vtable[func63]
       local.set $a.0
       block
@@ -280,7 +267,6 @@
         local.get $b.1
         call $rt:release_ref'1
       end
-    ;; (no span)
       local.get $a.1
       call $rt:release_ref'1
     end

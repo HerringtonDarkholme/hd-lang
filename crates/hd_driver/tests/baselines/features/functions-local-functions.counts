@@ -7,16 +7,16 @@
 # element; `local_plain` passes `xs` borrowed.
 fn local_capture(prefix: string, xs: List[string]) -> usize:
     fn width(s: string) -> usize:
+> app/main/local_capture
+>   release fn(string) -> usize (last use)
+> app/main/local_capture
+>   release string (last use)
         prefix.len() + s.len()
     let total: usize = 0
     for x in xs:
-> app/main/local_capture
->   release string (last use)
         total += width(x)
-> app/main/local_capture
 >   retain string (stored)
     total
->   (no span) release fn(string) -> usize (last use)
 
 fn local_plain(xs: List[string]) -> usize:
     fn first_len(ys: List[string]) -> usize:

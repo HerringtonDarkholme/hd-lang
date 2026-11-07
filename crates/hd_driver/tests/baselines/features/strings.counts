@@ -13,4 +13,4 @@ fn concat(a: string, b: string) -> string:
 fn concat_len(a: string, b: string) -> usize:
     (a + b).len()
 > app/main/concat_len
->   (no span) release string (last use)
+>   release string (last use)

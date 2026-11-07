@@ -34,8 +34,8 @@
     end
   )
   (func $read_copy (param $r i32) (result i32) (local $copy.name.0 i32) (local $copy.name.1 i32)
-    block
     ;; 12 |     copy := *r
+    block
       local.get $r
       i32.load $heap
       local.get $r
@@ -64,7 +64,7 @@
       local.get $r
       local.get $copy.name.0
       i32.add
-    ;; (no span)
+    ;; 12 |     copy := *r
       local.set $r
     end
     local.get $r

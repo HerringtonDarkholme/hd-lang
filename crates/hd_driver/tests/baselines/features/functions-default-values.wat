@@ -42,8 +42,8 @@
     local.get $name.1
   )
   (func $with_default (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
-    block
     ;; 13 |     collect(s)
+    block
       local.get $s.0
       local.get $s.1
       call $collect.into
@@ -54,7 +54,6 @@
       local.get $s.1
       local.get $t0
       call $collect
-    ;; (no span)
       local.get $t0
       call $rt:release_ref
       local.set $s.0
@@ -85,8 +84,8 @@
     local.get $t0
   )
   (func $collect (param $item.0 i32) (param $item.1 i32) (param $into i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+    ;; 9 |     into.push(item)
     block
-    ;; (no span)
       local.get $into
       i32.load $heap
       call $rt:list_unique
@@ -95,7 +94,6 @@
       local.get $t0
       i32.store $heap
       local.get $t0
-    ;; 9 |     into.push(item)
       i32.load $heap offset=4
       local.tee $t1
       local.get $t0
@@ -130,14 +128,14 @@
       local.get $into
       i32.load $heap
       i32.load $heap offset=4
-    ;; (no span)
+    ;; 9 |     into.push(item)
       local.set $item.0
     end
     local.get $item.0
   )
   (func $use_label (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
-    block
     ;; 22 |     labeled(s)
+    block
       block
         block
           i32.const 104 ;; &"!"
@@ -179,7 +177,6 @@
         end
       end
     end
-    ;; (no span)
     local.get $s.0
     local.get $s.1
   )

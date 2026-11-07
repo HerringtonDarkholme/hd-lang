@@ -2,8 +2,8 @@
 (module
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32 i32)))
   (func $nested_length (param $value.0 i32) (param $value.1 i32) (param $value.2 i32) (param $value.3 i32) (result i32) (local $inner.0 i32) (local $inner.2 i32) (local $t0 i32)
-    block
     ;; 8 |     match value:
+    block
       block
         block
           block
@@ -68,7 +68,6 @@
         br 0
       end
     end
-    ;; (no span)
     local.get $value.0
     local.get $value.1
     local.get $value.2

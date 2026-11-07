@@ -33,7 +33,6 @@
         br 0
       end
     end
-    ;; (no span)
     local.get $found.1
   )
 )

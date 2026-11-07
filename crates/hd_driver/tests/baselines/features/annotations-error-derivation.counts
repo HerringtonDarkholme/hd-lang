@@ -64,4 +64,4 @@ fn load(text: string) -> Result[i64, LoadError]:
 fn message(e: &LoadError) -> usize:
     e.to_string().len()
 > app/main/message
->   (no span) release string (last use)
+>   release string (last use)

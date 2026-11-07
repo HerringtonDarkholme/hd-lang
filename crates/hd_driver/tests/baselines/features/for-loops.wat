@@ -8,8 +8,8 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 12 funcref))
   (func $over_ref (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $x.1 i32)
-    block
     ;; 14 |     let n: usize = 0
+    block
       i32.const 0
       local.set $n
     ;; 15 |     for x in xs:
@@ -67,15 +67,14 @@
       end
     ;; 17 |     n
       local.get $n
-    ;; (no span)
+    ;; 14 |     let n: usize = 0
       local.set $xs
     end
     local.get $xs
   )
   (func $keep_each (param $xs i32) (result i32) (local $out i32) (local $t0 i32) (local $t1 i32) (local $x.0 i32) (local $x.1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
-    ;; 25 |     for x in xs:
-    block
     ;; 24 |     let mut out: List[string] = []
+    block
       i32.const 80 ;; &empty-buffer
       local.set $out
     ;; 25 |     for x in xs:
@@ -152,14 +151,14 @@
       end
     ;; 27 |     out
       local.get $out
-    ;; 25 |     for x in xs:
+    ;; 24 |     let mut out: List[string] = []
       local.set $xs
     end
     local.get $xs
   )
   (func $over_mut (param $xs i32) (local $t0 i32) (local $t2 i32) (local $x i32) (local $t1 i32) (local $t3 i32)
-    block
     ;; 20 |     for x in &mut *xs:
+    block
       local.get $t0
       local.get $xs
       i32.load $heap
@@ -306,8 +305,8 @@
     local.get $xs
   )
   (func $comprehension (param $xs i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $x.1 i32) (local $t4 i32)
-    block
     ;; 30 |     [for x in xs => x.len()]
+    block
       i32.const 80 ;; &empty-buffer
       local.set $t0
       local.get $xs
@@ -386,7 +385,6 @@
         end
       end
       local.get $t0
-    ;; (no span)
       local.set $xs
     end
     local.get $xs

@@ -2,4 +2,3 @@
 app/main/count
   retain string (second owner)
   release string (last use)
-  release List[string] (conservative: unowned parameter)

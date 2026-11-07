@@ -7,8 +7,8 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $call_receiver (param $xs i32) (param $s.0 i32) (param $s.1 i32) (local $t0 i32)
-    block
     ;; 19 |     pick(xs, 0).name = s
+    block
       local.get $xs
       local.set $xs
       block
@@ -28,10 +28,8 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $xs
       call $rt:release_ref'1
-    ;; 19 |     pick(xs, 0).name = s
       local.get $t0
       i32.load $heap
       local.get $t0
@@ -43,14 +41,13 @@
       local.get $s.1
       i32.store $heap offset=4
       call $rt:release
-    ;; (no span)
       local.get $t0
       call $rt:release_ref'1
     end
   )
   (func $pick (param $xs i32) (param $i i32) (result i32)
-    block
     ;; 16 |     xs[i]
+    block
       local.get $i
       local.get $xs
       i32.load $heap offset=4
@@ -67,7 +64,6 @@
       i32.load $heap offset=16
       local.tee $i
       call $rt:retain_known
-    ;; (no span)
       local.get $xs
       call $rt:release_ref'1
       local.get $i

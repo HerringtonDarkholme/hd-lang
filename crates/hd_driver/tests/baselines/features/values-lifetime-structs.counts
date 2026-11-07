@@ -23,12 +23,12 @@ fn word['a](t: Token[string, 'a], fallback: &'a string) -> &'a string:
 
 fn length(text: string) -> usize:
     p := parser(&text)
-    p.src.len() + p.pos
 > app/main/length
->   (no span) release string (last use)
+>   release string (last use)
+    p.src.len() + p.pos
 
 fn token(text: string, other: string) -> usize:
     word(Token.Word(&text), &other).len()
 > app/main/token
->   (no span) release string (last use)
->   (no span) release string (last use)
+>   release string (last use)
+>   release string (last use)

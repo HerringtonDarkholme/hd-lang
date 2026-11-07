@@ -14,8 +14,8 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $"impl Parser.snapshot" (param $self i32) (param $n i32) (result i32) (local $last i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
-    block
     ;; 26 |         let mut last: List[usize] = []
+    block
       i32.const 72 ;; &empty-buffer
       local.set $last
     ;; 27 |         for i in 0..n:
@@ -75,15 +75,15 @@
       local.get $last
       i32.load $heap offset=4
       local.get $last
-    ;; (no span)
+    ;; 26 |         let mut last: List[usize] = []
       call $rt:release_ref
       local.set $self
     end
     local.get $self
   )
   (func $"impl Parser.drain_into" (param $self i32) (param $mark i32) (local $held i32) (local $word i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    block
     ;; 14 |         held := self.held
+    block
       local.get $self
       i32.load $heap offset=8
       local.set $held
@@ -177,10 +177,11 @@
       local.get $self
       local.get $mark
       i32.store $heap offset=8
+    ;; 14 |         held := self.held
     end
   )
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $p i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i64) (local $t7 i64) (local $t8 i64)
-    ;; (no span)
+    ;; 33 |     let mut p = Parser { index: [], pending: [], held: 0 }
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -211,7 +212,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 33 |     let mut p = Parser { index: [], pending: [], held: 0 }
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -310,7 +310,7 @@
       i32.const 2
       call $"impl Parser.snapshot"
       local.set $t1
-    ;; (no span)
+    ;; 33 |     let mut p = Parser { index: [], pending: [], held: 0 }
       local.get $p
       if
         local.get $p
@@ -395,23 +395,23 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 33 |     let mut p = Parser { index: [], pending: [], held: 0 }
       local.get $t3
       local.get $t4
     ;; 39 |     println("${p.index.len()} ${p.snapshot(2)}")
       local.get $provider0
       local.get $provider0.vtable
       call $"println[string]"
+    ;; 33 |     let mut p = Parser { index: [], pending: [], held: 0 }
     end
-    ;; (no span)
     local.get $t0
     i32.const 24
     i32.add
     global.set $locals
   )
   (func $"impl Parser.refill" (param $self i32) (param $n i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
-    block
     ;; 22 |         for i in 0..n:
+    block
       i32.const 0
       local.tee $t0
       local.get $n

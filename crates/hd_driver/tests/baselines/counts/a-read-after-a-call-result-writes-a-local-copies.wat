@@ -10,14 +10,13 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $"impl Bag.item_mut" (param $self i32) (param $i i32) (result i32)
+    ;; 17 |         &mut self.items[i]
     block
-    ;; (no span)
       local.get $self
       local.get $self
       i32.load $heap offset=8
       call $rt:list_unique
       i32.store $heap offset=8
-    ;; 17 |         &mut self.items[i]
       local.get $self
       i32.load $heap offset=8
       local.set $self
@@ -36,13 +35,12 @@
       i32.add
       i32.const 16
       i32.add
-    ;; (no span)
       local.set $self
     end
     local.get $self
   )
   (func $change_then_read (param $name.0 i32) (param $name.1 i32) (result i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i64)
-    ;; (no span)
+    ;; 20 |     let mut b = Bag { label: name, items: [Item { qty: +1 }] }
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -73,7 +71,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 20 |     let mut b = Bag { label: name, items: [Item { qty: +1 }] }
       local.get $name.0
       i32.const 1
       call $rt:list_buf
@@ -150,7 +147,7 @@
       local.get $name.0
       i32.const 0
       i32.store $heap offset=8
-    ;; (no span)
+    ;; 20 |     let mut b = Bag { label: name, items: [Item { qty: +1 }] }
       local.get $name.0
       if
         local.get $name.0
@@ -165,7 +162,7 @@
       local.get $t1
       i32.load $heap offset=4
       local.set $name.0
-    ;; (no span)
+    ;; 20 |     let mut b = Bag { label: name, items: [Item { qty: +1 }] }
       local.get $t1
       call $rt:release_ref
     ;; 23 |     kept.len() + b.items.len()
@@ -183,7 +180,7 @@
       end
       local.get $t3
       i32.wrap_i64
-    ;; (no span)
+    ;; 20 |     let mut b = Bag { label: name, items: [Item { qty: +1 }] }
       local.set $name.0
     end
     local.get $name.0

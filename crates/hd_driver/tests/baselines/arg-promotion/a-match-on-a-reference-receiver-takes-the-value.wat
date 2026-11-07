@@ -5,8 +5,8 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
   (func $temp (param $x.0 i32) (param $x.1 i32) (result i32) (local $t0 i32)
-    block
     ;; 20 |     x.w().is_a()
+    block
       local.get $x.0
       call $retain
       local.get $x.0
@@ -15,10 +15,8 @@
       call_indirect $table0 (param i32) (result i32 i32 i64)
       drop
       drop
-    ;; (no span)
       local.get $x.0
       call $rt:release_ref
-    ;; 20 |     x.w().is_a()
       local.set $x.0
       block
         block
@@ -47,7 +45,6 @@
         end
       end
     end
-    ;; (no span)
     local.get $x.0
   )
 )

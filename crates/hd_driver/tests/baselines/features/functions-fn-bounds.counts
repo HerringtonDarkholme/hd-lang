@@ -17,7 +17,7 @@ fn invoke[F < Fn(string) -> usize](f: F, s: string) -> usize:
 fn static_bound(s: string) -> usize:
     invoke(width, s) + invoke(fn(x: string) -> usize: x.len() + 1, s)
 > app/main/static_bound
->   (no span) release string (last use)
+>   release string (last use)
 
 fn each[F < FnMut(string) -> void](xs: List[string], mut f: F) -> void:
     for x in xs:
@@ -27,10 +27,10 @@ fn each[F < FnMut(string) -> void](xs: List[string], mut f: F) -> void:
 
 fn fn_mut(xs: List[string]) -> usize:
     let n: usize = 0
+> app/main/fn_mut
+>   release fn(string) -> () (last use)
     each(xs, fn(x: string) -> void: n += x.len())
 > app/main/fn_mut
->   (no span) release string (last use)
-> app/main/fn_mut
+>   release string (last use)
 >   retain counted reference (conservative: Closure)
     n
->   (no span) release fn(string) -> () (last use)
