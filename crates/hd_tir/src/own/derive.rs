@@ -186,6 +186,8 @@ pub(crate) struct Tables {
     // Each use of what may point into what a binding holds, as (instruction,
     // bit): a reference into it holds no count, so that use keeps it live.
     root_uses: Vec<(u32, u32)>,
+    // The counted reads that may keep a count.
+    takers: Vec<u32>,
     // Values a use of another value keeps live ([`super::lent_values`]).
     carries: Vec<(u32, u32)>,
     back: Flow,
@@ -1124,13 +1126,10 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
         // value whether one reads it.
         t.l.iter_mut().for_each(|f| f.kept = 0);
         taken.fill(false);
-        for i in 0..b.len() {
+        for k in 0..t.takers.len() {
+            let i = t.takers[k] as usize;
             let f = t.v[i];
-            if b.tags[i] == Tag::Read
-                && (f.keeps || f.moves || t.store_of(i) != NONE)
-                && !f.borrows
-                && cx.counted(b.ty[i])
-            {
+            if (f.keeps || f.moves || t.store_of(i) != NONE) && !f.borrows {
                 match b.view(b.data[i][0]).root {
                     Root::Local(l) => t.l[l as usize].kept += 1,
                     Root::Value(v) => taken[v as usize] = true,
@@ -1227,6 +1226,31 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
     }
 }
 
+/// The counted reads that may keep a count, into `t.takers`; whether one
+/// reads a value that may borrow or a binding: only then can a read's last use
+/// decide anything.
+fn takers(b: &Body, cx: &dyn OwnCx, t: &mut Tables) -> bool {
+    let mut any = false;
+    t.takers.clear();
+    for i in 0..b.len() {
+        let f = t.v[i];
+        if b.tags[i] != Tag::Read
+            || !(f.keeps || f.bit != NONE || t.store_of(i) != NONE)
+            || !cx.counted(b.ty[i])
+        {
+            continue;
+        }
+        t.takers.push(u32_of(i));
+        any |= (f.keeps || t.store_of(i) != NONE)
+            && match b.view(b.data[i][0]).root {
+                Root::Local(l) => t.l[l as usize].bit != NONE,
+                Root::Value(v) => t.v[v as usize].bit != NONE,
+                _ => false,
+            };
+    }
+    any
+}
+
 /// Derives which reads of `b`, as insertion left it, borrow and which
 /// parameters and bindings the body owns none of.
 pub(crate) fn run(
@@ -1237,37 +1261,43 @@ pub(crate) fn run(
     last: &mut moves::Tables,
 ) {
     t.reset(b.len(), b.local_ty.len());
-    if moves::last_uses(b, topo, cx, last) {
+    {
+        let b = &*b;
+        suites(b, t);
+        scan(b, cx, t);
+        let flagged = b
+            .sub_flags
+            .first()
+            .is_some_and(|f| f & sub_flags::EXCLUSIVE != 0);
+        t.probe = !flagged && cx.summarizes();
+        t.excl = (flagged || t.probe)
+            && matches!(b.kind, BodyKind::Fn | BodyKind::DeriveInstance)
+            && !b.tags.iter().any(|&tag| is_suspension(tag));
+        if t.excl {
+            receivers(b, cx, t);
+        }
+        candidates(b, cx, t);
+    }
+    // The last-use walk answers only for a read whose reader needs a count.
+    if takers(b, cx, t) && moves::last_uses(b, topo, cx, last) {
         for r in 0..b.len() {
             t.v[r].last_use = moves::last_use(last, r);
         }
     }
     let b = &*b;
     super::frame_reference_uses(b, topo, cx, &mut t.frame_uses);
-    suites(b, t);
-    scan(b, cx, t);
-    let flagged = b
-        .sub_flags
-        .first()
-        .is_some_and(|f| f & sub_flags::EXCLUSIVE != 0);
-    t.probe = !flagged && cx.summarizes();
-    t.excl = (flagged || t.probe)
-        && matches!(b.kind, BodyKind::Fn | BodyKind::DeriveInstance)
-        && !b.tags.iter().any(|&tag| is_suspension(tag));
-    if t.excl {
-        receivers(b, cx, t);
+    if t.l.iter().any(|f| f.bit != NONE) {
+        let mut roots = std::mem::take(&mut t.root_uses);
+        super::frame::roots(b, cx, |i, l| {
+            let bit = t.l[l as usize].bit;
+            if bit != NONE && b.tags[i as usize] != Tag::Drop {
+                roots.push((i, bit));
+            }
+        });
+        roots.sort_stable();
+        roots.dedup();
+        t.root_uses = roots;
     }
-    candidates(b, cx, t);
-    let mut roots = std::mem::take(&mut t.root_uses);
-    super::frame::roots(b, cx, |i, l| {
-        let bit = t.l[l as usize].bit;
-        if bit != NONE && b.tags[i as usize] != Tag::Drop {
-            roots.push((i, bit));
-        }
-    });
-    roots.sort_stable();
-    roots.dedup();
-    t.root_uses = roots;
     sources(b, cx, t);
     index_writes(b, cx, t);
     carries(b, cx, t);
