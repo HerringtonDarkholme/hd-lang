@@ -13057,6 +13057,37 @@ fn declaration_bodies<'t>(
     Some(b)
 }
 
+/// A test's store: empty, over a process-wide store where one build per goal has
+/// already prepared std. A test whose subject is std's cold path uses its own
+/// `MemoryStore`.
+#[cfg(test)]
+fn warm_std_store() -> hd_cache::OverlayStore<'static> {
+    static SEED: OnceLock<MemoryStore> = OnceLock::new();
+    hd_cache::OverlayStore::new(SEED.get_or_init(|| {
+        let store = MemoryStore::default();
+        let mut sources = hd_project::MemorySources::default();
+        sources.insert("main.hd", "pub fn main() -> void: pass\n");
+        let host = Host {
+            render_tir: &[],
+            sources: &sources,
+            store: &store,
+            clock: &NoClock,
+            executor: Executor::Serial(hd_sched::SerialOrder::Priority),
+        };
+        for goal in [
+            Goal::Analyze,
+            Goal::CheckTests,
+            Goal::Program {
+                entry: "main".into(),
+            },
+        ] {
+            let out = build_packages(&host, "app", &Packages::default(), &goal);
+            assert!(!out.diags.has_errors(), "{}", out.render());
+        }
+        store
+    }))
+}
+
 #[cfg(test)]
 mod cache_section_tests {
     use super::{Arc, EntryKind, Hash128, LAYOUT, cache_sections};
@@ -13322,7 +13353,7 @@ mod host_declaration_tests {
     fn manifest_only_edits_cannot_hide_behind_cached_checks() {
         let mut files = sources("@host\npub trait Server:\n    fn read(&self) -> string\n");
         files.insert("main.hd", "pub fn main() -> void: pass\n");
-        let store = MemoryStore::default();
+        let store = super::warm_std_store();
         let host = Host {
             sources: &files,
             store: &store,
@@ -13362,7 +13393,7 @@ mod host_declaration_tests {
             ("@host\npub fn read() -> void: pass\n", vec![]),
         ] {
             let files = sources(text);
-            let store = MemoryStore::default();
+            let store = super::warm_std_store();
             let host = Host {
                 sources: &files,
                 store: &store,
@@ -13847,7 +13878,7 @@ mod main_capability_tests {
         let source = "use std.process.Process\npub fn main() -> void $ Process:\n    pass\n";
         let mut files = MemorySources::default();
         files.insert("src/main.hd", source);
-        let store = MemoryStore::default();
+        let store = super::warm_std_store();
         let host = Host {
             sources: &files,
             store: &store,
@@ -13881,7 +13912,7 @@ mod main_capability_tests {
             "tests/one.hd",
             "it(\"needs console\"):\n    println(\"hello\")\n",
         );
-        let store = MemoryStore::default();
+        let store = super::warm_std_store();
         let host = Host {
             sources: &files,
             store: &store,
@@ -13918,7 +13949,7 @@ mod main_capability_tests {
     fn task_scripts_have_development_capability_rows() {
         let mut files = MemorySources::default();
         files.insert("tasks/report.hd", "println(\"report\")\n");
-        let store = MemoryStore::default();
+        let store = super::warm_std_store();
         let host = Host {
             sources: &files,
             store: &store,
@@ -13955,7 +13986,7 @@ mod main_capability_tests {
             let source = format!("println(\"unlisted\")\n{main}");
             let mut files = MemorySources::default();
             files.insert("tasks/probe.hd", source.as_str());
-            let store = MemoryStore::default();
+            let store = super::warm_std_store();
             let host = Host {
                 sources: &files,
                 store: &store,
@@ -14034,7 +14065,7 @@ mod main_capability_tests {
         ] {
             let mut files = MemorySources::default();
             files.insert("tasks/report.hd", &source);
-            let store = MemoryStore::default();
+            let store = super::warm_std_store();
             let host = Host {
                 sources: &files,
                 store: &store,
@@ -14069,7 +14100,7 @@ mod main_capability_tests {
             "src/main.hd",
             "use std.process.Process\nfn main() -> void $ Process: pass\n",
         );
-        let store = MemoryStore::default();
+        let store = super::warm_std_store();
         let host = Host {
             sources: &files,
             store: &store,
@@ -14094,7 +14125,7 @@ mod main_capability_tests {
     fn a_package_trait_named_process_is_not_the_builtin_capability() {
         let mut files = MemorySources::default();
         files.insert("src/main.hd", "@host\npub trait Process:\n    fn read(&self) -> string\npub fn main() -> void $ Process: pass\n");
-        let store = MemoryStore::default();
+        let store = super::warm_std_store();
         let host = Host {
             sources: &files,
             store: &store,
@@ -14131,7 +14162,7 @@ mod main_capability_tests {
             "src/lib.hd",
             "use std.process.Process\npub fn main() -> void $ Process: pass\n",
         );
-        let store = MemoryStore::default();
+        let store = super::warm_std_store();
         let host = Host {
             sources: &files,
             store: &store,

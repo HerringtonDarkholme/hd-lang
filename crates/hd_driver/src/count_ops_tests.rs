@@ -8,7 +8,7 @@ use std::{
 #[test]
 fn an_extra_owner_in_a_hot_loop_is_a_gate_regression() {
     let text = include_str!("../tests/cases/counts/operation-counter-loop.hd");
-    let store = hd_cache::MemoryStore::default();
+    let store = crate::warm_std_store();
     let mut modules = Vec::new();
     for source in [
         text.replace("EXTRA := true", "EXTRA := false"),
