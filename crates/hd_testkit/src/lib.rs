@@ -168,11 +168,19 @@ mod tests {
     }
 
     fn wasm(src: &MemorySources, entry: &str, executor: Executor) -> Vec<u8> {
-        let store = MemoryStore::default();
+        wasm_on(&MemoryStore::default(), src, entry, executor)
+    }
+
+    fn wasm_on(
+        store: &MemoryStore,
+        src: &MemorySources,
+        entry: &str,
+        executor: Executor,
+    ) -> Vec<u8> {
         let host = Host {
             render_tir: &[],
             sources: src,
-            store: &store,
+            store,
             clock: &NoClock,
             executor,
         };
@@ -217,5 +225,25 @@ mod tests {
             assert!(identical, "{dir}");
         }
         assert!(determinism_matrix(&|e| format!("{e:?}").into_bytes()).is_err());
+    }
+
+    /// Real programs reach more of std than the samples do: generics, rows, suspension
+    /// and formatting, read in an order that follows the program.
+    #[test]
+    fn bench_programs_are_byte_identical_under_every_executor() {
+        let progs = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../bench/runtime/progs");
+        // A store per executor: the first program prepares std cold under each.
+        let stores = super::EXECUTORS.map(|e| (format!("{e:?}"), MemoryStore::default()));
+        let store = |e: Executor| {
+            let key = format!("{e:?}");
+            &stores.iter().find(|(k, _)| *k == key).expect("executor").1
+        };
+        for name in ["closures", "map-count", "nested-display", "task-pipeline"] {
+            let text = std::fs::read_to_string(progs.join(format!("{name}.hd")));
+            let mut src = MemorySources::default();
+            src.insert("main.hd", &text.expect("read"));
+            let same = determinism_matrix(&|e| wasm_on(store(e), &src, "main", e));
+            assert!(same.is_ok(), "{name}: {same:?}");
+        }
     }
 }
