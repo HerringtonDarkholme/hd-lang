@@ -28,26 +28,25 @@ fn run_all[$R](xs: List[fn() -> void $ R]) -> void $ R:
 >   %8 = Read [$3] : usize
 >   %9 = Read [$4] : usize
 >   %10 = Prim Lt [%8 %9] : bool
->   %11 = Read [$1] : List[fn() -> ()]
->   %12 = Read [$3] : usize
->   %13 = Read [%11 [%12]] : fn() -> ()
->   %14 = Read [$3] : usize
->   %15 = Prim Add [%14 1:usize] : usize
->   %16 = Store [$3] %15 : ()
->   %19 = Block - : ()
->   %20 = Store [$5] %13 : ()
->   %22 = Block - : never
->   %23 = Match %13 [%22 %19] : ()
->   %24 = Block - : ()
->   %25 = Break L0 - : never
->   %26 = Block - : ()
->   %27 = If %10 [%24 %26] : ()
->   %28 = Block - : ()
->   %29 = Loop %28 - : ()
->   %30 = Block - : ()
+>   %11 = Read [$3] : usize
+>   %12 = Read [$1 [%11]] : fn() -> ()
+>   %13 = Read [$3] : usize
+>   %14 = Prim Add [%13 1:usize] : usize
+>   %15 = Store [$3] %14 : ()
+>   %18 = Block - : ()
+>   %19 = Store [$5] %12 : ()
+>   %21 = Block - : never
+>   %22 = Match %12 [%21 %18] : ()
+>   %23 = Block - : ()
+>   %24 = Break L0 - : never
+>   %25 = Block - : ()
+>   %26 = If %10 [%23 %25] : ()
+>   %27 = Block - : ()
+>   %28 = Loop %27 - : ()
+>   %29 = Block - : ()
         x()
->   %17 = Read [$5] : fn() -> ()
->   %18 = CallValue %17 [] : ()
+>   %16 = Read [$5] : fn() -> ()
+>   %17 = CallValue %16 [] : ()
 
 fn quiet() -> void:
     pass

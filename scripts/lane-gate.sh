@@ -10,7 +10,7 @@
 #   plancheck on #1399, then the step's evidence lines (--show STEP);
 #   fmt, clippy on the ownership crates;
 #   hd_tir tests; hd_driver --lib --test stages (--test all is CI's);
-#   hd_wasm_linear --test stages;
+#   hd_wasm_linear and hd_check --test stages;
 #   conformance over the step's cases: dev, checked and optimized.
 # Logs: target/lane-gate/STEP/. Everything else in conformance is CI's: a regression
 # outside the named cases shows up there.
@@ -48,6 +48,7 @@ run clippy cargo clippy -q -p hd_tir -p hd_opt -p hd_driver -p hd_wasm_linear --
 run hd_tir cargo test -q -p hd_tir -p hd_opt
 run hd_driver cargo test -q -p hd_driver --lib --test stages
 run wasm_stages cargo test -q -p hd_wasm_linear --test stages
+run check_stages cargo test -q -p hd_check --test stages
 if [ -n "$cases" ]; then
 echo "conformance cases: $cases"
 run conf_dev env HD_CONFORMANCE_ONLY=$cases cargo test -q -p hd_driver --test conformance $conf -- --exact
